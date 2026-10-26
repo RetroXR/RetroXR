@@ -275,6 +275,14 @@ const FAN_HIDE := deg_to_rad(0.6)
 ## clear): at 0.3 mm the top leaf sat 0.9 mm up, and a page coming down to rest on
 ## the fan was drawn under it near the spine, then popped on top as it landed.
 const FAN_LIFT := (LEAF_LIFT - LEAF_Z_GAP) / FAN_LEAVES_DESKTOP
+## Each sheet's place in its half's pile for paper.gdshader's stack_layer, which
+## draws an upper sheet over a lower one wherever the two come within a fraction of
+## a millimetre (by the spine, mostly). Bottom to top: the block's page, a leaf
+## lying down into the block, the loose leaves, the page being turned.
+const STACK_BLOCK_TOP := 1.0
+const STACK_SETTLING := 1.5
+const STACK_FAN_DEEPEST := 2.0
+const STACK_TURNING := STACK_FAN_DEEPEST + FAN_LEAVES_DESKTOP + 1.0
 ## How long the leaf a landing page pushes out of the fan takes to lie down on
 ## the block.
 const FAN_SETTLE_TIME := 0.4
@@ -282,10 +290,15 @@ const FAN_SETTLE_TIME := 0.4
 ## of the page from the gutter (u) and from the bottom (v). The strip nearest the
 ## binding is left out: there every sheet dives into the gutter, and the angle a
 ## few millimetres out says nothing about where the page is.
-const FAN_LID_U: Array[float] = [0.25, 0.5, 0.75, 1.0]
+const FAN_LID_U: Array[float] = [0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
 const FAN_LID_V: Array[float] = [0.0, 0.5, 1.0]
 ## How far clear of the top loose leaf a page in mid-turn keeps (metres).
 const RIDE_CLEARANCE := 0.001
+## How far below the page being turned the leaves left under it are held (radians
+## at the binding). Held AT its peel, the next one up came to rest exactly where
+## the page was and only the leaves' spacing kept them apart by the spine, where
+## the page dipped 0.4 mm under the page it was uncovering as it began to lift.
+const TURN_LID_MARGIN := 0.05
 
 var _flop := BookFlop.new()
 ## Every paper surface and block on the book, with the side it hangs from:
@@ -1391,6 +1404,8 @@ func _configure_meshes() -> void:
 	_ensure_paper_material(_back_cover_mesh, true)
 	_ensure_paper_material(_left_stack_top, false)
 	_ensure_paper_material(_right_stack_top, false)
+	for top: MeshInstance3D in [_left_stack_top, _right_stack_top]:
+		(top.get_surface_override_material(0) as ShaderMaterial).set_shader_parameter("stack_layer", STACK_BLOCK_TOP)
 	_ensure_edge_material(_left_stack, _current_leaf + 1)
 	_ensure_edge_material(_right_stack, _leaf_count - _current_leaf - 1)
 	_build_fan()
@@ -2409,6 +2424,9 @@ func _new_leaf(dir: int, front: int, back_idx: int) -> MeshInstance3D:
 	mat.set_shader_parameter("edge_curl", REST_EDGE_CURL)
 	mat.set_shader_parameter("gutter_falloff", REST_GUTTER_FALLOFF)
 	mat.set_shader_parameter("curl_taper", CURL_TAPER)
+	# Above everything on either half: it is the top of the pile it leaves and of
+	# the one it lands on.
+	mat.set_shader_parameter("stack_layer", STACK_TURNING)
 	mat.set_shader_parameter("front_texture", _get_page_texture(front))
 	if back_idx >= 0 and back_idx < _page_count:
 		mat.set_shader_parameter("back_texture", _get_page_texture(back_idx))
@@ -3241,6 +3259,7 @@ func _push_ride(leaf: MeshInstance3D, dir: int) -> void:
 	var far_base := _flop.fan_params(-dir, 0)
 	var own_extra := _ride_clearance(leaf, dir, dir, own_base)
 	var far_extra := _ride_clearance(leaf, dir, -dir, far_base)
+	_seat_fan_under(dir, leaf.position.z)
 	if leaf == _active_leaf:
 		_flop.set_turn_extra(dir, own_extra)
 		_flop.set_ride_extra(-dir, far_extra)
@@ -3297,7 +3316,8 @@ func _ride_clearance(leaf: MeshInstance3D, dir: int, half: int, base: Vector4) -
 	for u: float in FAN_LID_U:
 		for v: float in FAN_LID_V:
 			var p := Vector2(float(dir) * (u - 0.5) * _book_width, (v - 0.5) * book_height)
-			var z := _paper_rest_z(u, v, dive)
+			# Turned with the hinge as paper.gdshader turns it (rest_turn).
+			var z := _paper_rest_z(u, v, dive) * cos(lift)
 			var d := (p - origin).dot(normal)
 			if strength > 0.0 and d > 0.0:
 				var r := maxf(radius * (1.0 + taper * (1.0 - u)), 1e-4)
@@ -3313,8 +3333,10 @@ func _ride_clearance(leaf: MeshInstance3D, dir: int, half: int, base: Vector4) -
 			if (lifted.x >= 0.0) == own:
 				points.append(Vector3(absf(lifted.x), lifted.y + pivot_z, v))
 	# An extra angle at the binding only reaches a point fully once it is past
-	# the sheet's (widened) hinge arc, so one measurement undershoots: measure
-	# again with it applied and add what is still missing.
+	# the sheet's (widened) hinge arc — a point inside it gets the share of the arc
+	# it is out along, and a curl high over the page widens that arc past the
+	# page's own width — so each point's shortfall is scaled by that share, then
+	# measured again with it applied.
 	var extra := 0.0
 	for pass_i in 6:
 		var missing := 0.0
@@ -3334,7 +3356,8 @@ func _ride_clearance(leaf: MeshInstance3D, dir: int, half: int, base: Vector4) -
 				var lb := BookFlop.bend_sz(arc_s, top_leaf.position.z + _paper_rest_z(u_on, pt.z, top_dive), ride)
 				on = Vector2(lb.x, lb.y - ride.w)
 				arc_s *= reach / maxf(on.length(), 1e-5)
-			missing = maxf(missing, on.angle() - at.angle() + RIDE_CLEARANCE / reach)
+			var share := clampf(pt.x / BookFlop.hinge_len_at(pt.y), 0.2, 1.0)
+			missing = maxf(missing, (on.angle() - at.angle() + RIDE_CLEARANCE / reach) / share)
 		if missing <= 1e-4:
 			break
 		extra += missing
@@ -3378,6 +3401,8 @@ func _build_fan() -> void:
 			leaf.visible = false
 			_fan_root.add_child(leaf)
 			var mat := _ensure_paper_material(leaf, false)
+			# The top loose leaf highest, the deepest just above the block's page.
+			mat.set_shader_parameter("stack_layer", STACK_FAN_DEEPEST + float(count - 1 - k))
 			mat.set_shader_parameter("spine_sign", 1.0 if i == 1 else -1.0)
 			mat.set_shader_parameter("flop_gutter_gap", _spine_width() * 0.5)
 			_fan_leaves[i].append(leaf)
@@ -3394,9 +3419,33 @@ func _build_fan() -> void:
 		settle.visible = false
 		_fan_root.add_child(settle)
 		var settle_mat := _ensure_paper_material(settle, false)
+		settle_mat.set_shader_parameter("stack_layer", STACK_SETTLING)
 		settle_mat.set_shader_parameter("spine_sign", 1.0 if i == 1 else -1.0)
 		settle_mat.set_shader_parameter("flop_gutter_gap", _spine_width() * 0.5)
 		_fan_settle[i] = settle
+
+
+## Keep the leaves left on `dir`'s block lower than a page being turned off it,
+## whose height is `sheet_z`. A sprung page comes down towards the block it lands
+## on as it rolls (_descent), to 0.3 mm here, while the leaves it was taken from
+## sat 0.45-0.9 mm up; the strip of it still lying on its own half by the spine
+## went under the page it was uncovering. _seat_fan() puts them back when the
+## layout is next laid out.
+func _seat_fan_under(dir: int, sheet_z: float) -> void:
+	var i := 1 if dir > 0 else 0
+	var leaves: Array = _fan_leaves[i]
+	var n := leaves.size()
+	for k in n:
+		var leaf: MeshInstance3D = leaves[k]
+		var z := minf(_page_plane_z(dir) + FAN_LIFT * float(n - k),
+			sheet_z - LEAF_Z_GAP - FAN_LIFT * float(k))
+		if is_equal_approx(leaf.position.z, z):
+			continue
+		leaf.position.z = z
+		if leaf.is_inside_tree():
+			leaf.reset_physics_interpolation()
+		var mat := leaf.get_surface_override_material(0) as ShaderMaterial
+		mat.set_shader_parameter("flop_origin_z", z)
 
 
 ## Lay the loose leaves on their blocks, top sheet highest.
@@ -3471,6 +3520,7 @@ func _update_fan_lids() -> void:
 				peel = float(flight.get("own_peel", 0.0))
 		if not _flop.rest_on_fan:
 			continue
+		peel = maxf(peel - TURN_LID_MARGIN, 0.0)
 		if leaf.position.x > 0.0:
 			lid.y = minf(lid.y, peel)
 		else:

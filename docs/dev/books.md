@@ -310,6 +310,15 @@ one before it, wherever that is, and that is what it does now:
   (`_rest_on_fan(dir, own peel)`). It used to `suppress_fan` the side first, which laid every
   leaf on it flat and then turned a page off a flat block; `suppress_fan` is now the control
   path only (`rest_on_fan = false`).
+- **The leaves left under a turning page are kept a margin below it** (`TURN_LID_MARGIN`, 0.05 rad
+  at the binding) **and seated lower than it** (`_seat_fan_under`, every fold push). Held AT its
+  peel the next leaf came to rest exactly where the page was; and a sprung page comes down
+  towards the block it lands on as it rolls (0.3 mm here) while the leaves sat 0.45-0.9 mm up,
+  so the strip of it still on its own half by the spine went under the page it was uncovering
+  as it began to lift (the player's report). `fan_lid/` checks the own side right down to the
+  spine (3% of the page) with a slow hand lift first, and allows NO dip at all there. The
+  clearance samples the page every eighth across: at quarters a curled page lifting slowly
+  came out 1.8 mm under between the samples.
 - **The block shows the page UNDER a leaf settling into it** until that leaf is flat on it
   (`_settling`). It showed the settling leaf's own page from the start, so that page was in view
   twice.
@@ -425,6 +434,34 @@ been failing since. That trap, and how to spot it, is in `extensions.md` — che
 before you blame the file.
 
 ### What the turning page shows, and what is under it
+
+- **Every sheet has a place in its half's pile, and the shader draws the upper one on top
+  wherever two come within a fraction of a millimetre** (`stack_layer` in `paper.gdshader`,
+  `STACK_*` in `pdf_book.gd`: block page 1, settling leaf 1.5, loose leaves 2 upward with the top
+  one highest, the page being turned above them all; covers 0). By the spine every sheet comes
+  down to the same line, and no amount of per-case geometry kept them in order there: the
+  turning page's widened hinge, the gutter dive and a tilt moving the fan each let the lower
+  sheet through (the player: "still happening near the spine as I tilt the book down"). Each
+  sheet is drawn moved towards the eye by its place x `STACK_STEP` (0.3 mm), from the side its
+  half faces up; AWAY from the eye seen from underneath (so a page never shows through its own
+  block from below), nothing edge-on. Only `POSITION` moves: lighting, the bend and every CPU
+  mirror of it are untouched, and depth is still written by the rasteriser (no early-z loss).
+  **`POSITION` must be written on every path**: Godot draws nothing for a vertex of a shader
+  that writes it elsewhere, and the covers (place 0) vanished while it was inside an `if`.
+  The geometry still has to be right to within that margin; this only decides near-ties.
+  `book_flop_probe --only=spine [--nostack]` films it close up (the tilt, S1-S2, is the only
+  part where the two legs' frames line up: the turns are tweens on real time).
+
+- **A page on its hinge turns its rest shape with it as `cos(flop_lift)`** (`rest_turn` in
+  `paper.gdshader`, and in both CPU mirrors: `_ride_clearance` and the suite's
+  `_leaf_point_world(..., true)`). A page let go held up FALLS over (lift -> PI), and with its rest
+  shape applied unturned before the hinge it lay on the far page bowing DOWN into it while that
+  page bows up: 5.8-5.9 mm through on every fall-over landing, thin book and thick, flat on a
+  table and held, until the turn finished and it popped on top (the player's "clips through as
+  it lands" with the mouse). A sheet bows up off whatever it lies on, so: itself on its own
+  half, none standing upright, back up once on the far half. `release/` never saw it because
+  `_against_far` compared a page with no rest shape to a flat far page; it now puts the rest
+  shape on BOTH, and a fall-over landing is -0.6 mm (on top).
 
 - **A mid-turn refresh must not re-lay the spread.** `_spawn_leaf` puts the page BEYOND the leaf
   on the block's top sheet under it; `_update_spread_textures` lays the plain spread, whose page

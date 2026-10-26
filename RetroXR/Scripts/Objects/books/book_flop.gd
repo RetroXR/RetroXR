@@ -541,7 +541,12 @@ func _step_fan(i: int, h: float, a_s: float, a_z: float, gain: float) -> void:
 		return
 	var base: float = sag_slope(1 if i == 1 else -1) + _hinge[i] + _bend[i]
 	var far: float = sag_slope(-1 if i == 1 else 1) + _hinge[1 - i] + _bend[1 - i]
-	var ceiling := minf(minf(FAN_ANGLE_MAX, PI - far - FAN_FAR_CLEARANCE) - base, _fan_lid[i])
+	# Not past the other half — nor past ITS loose leaves, which peel up off it
+	# towards this one. Stopped only at its block, the two fans of a book tipped
+	# over swung into each other by the spine, a leaf of one lying among the
+	# other's.
+	var far_fan: float = _fan[1 - i][0] if _fan_count[1 - i] > 0 else 0.0
+	var ceiling := minf(minf(FAN_ANGLE_MAX, PI - far - far_fan - FAN_FAR_CLEARANCE) - base, _fan_lid[i])
 	for k in n:
 		var w2 := FAN_W2 * (1.0 + FAN_W2_SPREAD * float(k))
 		var ang: float = base + d[k]

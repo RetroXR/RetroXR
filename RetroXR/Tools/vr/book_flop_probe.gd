@@ -9,7 +9,7 @@
 ## BLANK image, and every frame would "succeed".
 ##
 ##   "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-##       res://Tools/vr/book_flop_probe.tscn -- --out=<dir> [--floppiness=0.7] [--pages=28] [--only=follow|flip|back|fanturn] [--nolid] [--hide=covers|blocks|tops|fan] [--outline|--hull]
+##       res://Tools/vr/book_flop_probe.tscn -- --out=<dir> [--floppiness=0.7] [--pages=28] [--only=follow|flip|back|fanturn|spine|idle] [--nolid] [--nostack] [--solid] [--hide=covers|blocks|tops|fan] [--outline|--hull]
 ##   python Tools/book_flop_video.py <dir>        # frames -> mp4 + contact sheet
 ##
 ## The window stays small; the book is drawn in its own 800x600 SubViewport.
@@ -59,6 +59,14 @@ var _grip_dot: MeshInstance3D
 ## --nolid: the control for --only=fanturn — the page does not rest on the loose
 ## leaves and puts no lid on them, as before 2026-10-26, and goes through them.
 var _nolid := false
+## --nostack: the control for --only=spine — every sheet's stack_layer zeroed, as
+## before 2026-10-26, so sheets a fraction of a millimetre apart by the spine draw
+## in whatever order their bends happen to put them.
+var _nostack := false
+## --solid: every page one flat colour, each far from its neighbours' (golden-ratio
+## hues, light and dark alternating), so a page drawn where another should be is
+## plain at a glance and its colour says which page it is.
+var _solid := false
 
 
 func _ready() -> void:
@@ -70,6 +78,8 @@ func _ready() -> void:
 	var only_flip := false
 	var only_back := false
 	var only_fanturn := false
+	var only_spine := false
+	var only_idle := false
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--out="):
 			_out = arg.trim_prefix("--out=")
@@ -85,6 +95,14 @@ func _ready() -> void:
 			only_fanturn = true
 		elif arg == "--nolid":
 			_nolid = true
+		elif arg == "--only=spine":
+			only_spine = true
+		elif arg == "--only=idle":
+			only_idle = true
+		elif arg == "--nostack":
+			_nostack = true
+		elif arg == "--solid":
+			_solid = true
 		elif arg.begins_with("--pages="):
 			_pages = maxi(int(arg.trim_prefix("--pages=")), 8)
 		elif arg == "--outline":
@@ -146,6 +164,32 @@ func _ready() -> void:
 	if only_flip:
 		_trace = true
 		await _flip("a page turned on the hanging book", 1, 1.8)
+		await _finish()
+		return
+	if only_idle:
+		# No page turned: held upright in front of the face, then tipped over and
+		# rocked, close on the binding from either side. Whatever clips here is
+		# between sheets just hanging there.
+		var upright := Basis(Vector3.RIGHT, deg_to_rad(-80.0)) * FACE_UP
+		await _hold("I1 held upright, close on the spine", FACE_UP, upright, Vector3(0.04, 0.05, 0.22), 3.0)
+		await _hold("I2 upright, from the other side", upright, upright, Vector3(-0.06, 0.05, 0.21), 1.5)
+		await _hold("I3 tipped over the top", upright, FACE_DOWN, Vector3(0.10, -0.16, 0.17), 3.0)
+		await _hold("I4 rocked", FACE_DOWN, FACE_DOWN * Basis(Vector3.UP, deg_to_rad(25.0)), Vector3(0.10, -0.16, 0.17), 2.5)
+		await _hold("I5 rocked back", FACE_DOWN * Basis(Vector3.UP, deg_to_rad(25.0)), FACE_DOWN * Basis(Vector3.UP, deg_to_rad(-25.0)), Vector3(-0.08, -0.16, 0.17), 3.0)
+		await _hold("I6 back upright", FACE_DOWN, upright, Vector3(0.04, 0.05, 0.22), 3.0)
+		await _finish()
+		return
+	if only_spine:
+		# Close in on the binding while the book is tipped down, slowly, until its
+		# leaves fan, and a page turned there: where every sheet meets the others a
+		# fraction of a millimetre apart.
+		var close := Vector3(0.10, -0.16, 0.17)
+		await _hold("S1 close on the spine, face up", FACE_UP, FACE_UP, Vector3(0.10, 0.16, 0.17), 1.0)
+		await _hold("S2 tipped down slowly, from underneath", FACE_UP, FACE_DOWN, close, 4.0)
+		await _flip("S3 a page turned off the fanned side", 1, 2.4)
+		await _hold("S4 and held", FACE_DOWN, FACE_DOWN, close, 1.2)
+		await _key_turn("S5 E pressed", 1)
+		await _hold("S6 tipped back up", FACE_DOWN, FACE_UP, Vector3(0.10, 0.16, 0.17), 3.0)
 		await _finish()
 		return
 	if only_fanturn:
@@ -248,6 +292,11 @@ func _hold(caption: String, from: Basis, to: Basis, cam_pos: Vector3, seconds: f
 
 
 func _capture() -> void:
+	if _nostack:
+		for node: Node in _book.find_children("*", "MeshInstance3D", true, false):
+			var mat := (node as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
+			if mat and mat.shader == PDFBook.PAPER_SHADER:
+				mat.set_shader_parameter("stack_layer", 0.0)
 	if _hide != "":
 		# Every frame: the book's layout code keeps switching these back on.
 		var gone: Array = []
@@ -560,11 +609,22 @@ func _make_dot(color: Color, radius: float) -> MeshInstance3D:
 ## Pages nobody could mistake for their own mirror image: a dark header bar
 ## along the TOP, a solid block in the bottom-LEFT corner, and a row of dots
 ## counting the page number from the left.
+## Page i's colour under --solid.
+static func solid_page_color(i: int) -> Color:
+	return Color.from_hsv(fmod(float(i) * 0.618034, 1.0), 0.9, 0.95 if i % 2 == 0 else 0.6)
+
+
 func _write_cbz(path: String) -> void:
 	var zip := ZIPPacker.new()
 	zip.open(path)
 	for i in _pages:
 		var img := Image.create(200, 280, false, Image.FORMAT_RGB8)
+		if _solid:
+			img.fill(solid_page_color(i))
+			zip.start_file("page_%02d.png" % i)
+			zip.write_file(img.save_png_to_buffer())
+			zip.close_file()
+			continue
 		var paper := Color(0.96, 0.94, 0.88) if i > 0 and i < _pages - 1 else Color.from_hsv(0.58, 0.55, 0.55)
 		img.fill(paper)
 		var ink := Color.from_hsv(fmod(float(i) * 0.13, 1.0), 0.75, 0.55)

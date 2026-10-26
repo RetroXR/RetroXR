@@ -67,6 +67,19 @@ uniform float flop_cross = 0.0;
 // PDFBook._solve_leaf_lift.
 uniform float flop_lift = 0.0;
 
+// Where this sheet lies in the pile on its half: the block's top page 1, the loose
+// leaves above it, the page being turned above all of them (PDFBook sets it; 0 =
+// no nudge, the covers). By the spine every sheet comes down to the same line, a
+// fraction of a millimetre apart, and any small difference between two sheets'
+// bends — the turning page's widened hinge, the gutter dive, a tilt moving the
+// fan — let the lower one through the upper one there. Each sheet is drawn
+// moved towards the eye by its place times STACK_STEP, seen from the side its
+// half faces (away from the eye seen from underneath, nothing edge-on), so where
+// two sheets are that close the one above is drawn above. Only POSITION moves:
+// lighting, the bend and the CPU's mirrors of it are untouched.
+uniform float stack_layer = 0.0;
+const float STACK_STEP = 0.0003;
+
 // Surface.
 uniform float gutter_ao : hint_range(0.0, 1.0) = 0.55;
 uniform float gutter_ao_falloff : hint_range(1.0, 40.0) = 9.0;
@@ -101,9 +114,18 @@ void vertex() {
 	paper_rest_slope(u, v, gutter_dive, gutter_falloff, bow_amount, fore_droop, edge_curl,
 		dzdu, dzdv);
 
+	// A page turned over on its hinge (flop_lift, the turning leaf only) takes
+	// its rest shape with it, so a page that FELL over onto the far half bowed
+	// down into the page it landed on, which bows up to meet it: 5.9 mm through,
+	// until the turn finished. A sheet bows up off whatever it lies on, so the
+	// rest shape goes as cos(lift): itself lying on its own half, none standing
+	// upright, and turned back up again once it lies on the far half.
+	float rest_turn = cos(flop_lift);
+	dzdu *= rest_turn;
+	dzdv *= rest_turn;
 	// Along the BOOK's +Z, not this mesh's: a cover turned 180 degrees about Y has
 	// its own +Z pointing down out of the book, and sagged INTO its block.
-	VERTEX.z += flop_z_sign * (gutter + sag + lift);
+	VERTEX.z += flop_z_sign * (gutter + sag + lift) * rest_turn;
 
 	// Arc-length conservation: the sheet dipping into the gutter is longer than
 	// the flat span it covers, so a material point sits nearer the spine than
@@ -147,6 +169,9 @@ void vertex() {
 	// Last, because it carries everything above with it: the whole half hanging
 	// from the binding. s is measured out from the book's gutter, so a flap the
 	// fold has laid across it comes out negative and takes the far half's bend.
+	// Which way is up off the half this point lies on (the bend without the
+	// leaf's own hinge), for stack_layer.
+	float up_ang = 0.0;
 	if (flop_own != vec4(0.0) || flop_far != vec4(0.0) || flop_lift != 0.0) {
 		// Signed: positive on this sheet's own half, negative past the gutter —
 		// which only the turning leaf's flap ever is, and there it rides the far
@@ -163,6 +188,7 @@ void vertex() {
 		float s_new = abs(s_lifted);
 		float ang = flop_lift + side * paper_flop(s_new, z_new, side > 0.0 ? flop_own : flop_far,
 			flop_hinge_len(z_new, flop_cross));
+		up_ang = ang - flop_lift;
 		s_new *= side;
 		VERTEX.x = spine_sign * (s_new - 0.5 * w - flop_gutter_gap);
 		VERTEX.z = (z_new - flop_origin_z) * flop_z_sign;
@@ -176,6 +202,16 @@ void vertex() {
 	}
 
 	NORMAL = n;
+
+	// Written on every path: a shader that writes POSITION anywhere draws nothing
+	// for a vertex that does not (the covers, at 0, vanished).
+	vec3 up_model = vec3(-spine_sign * sin(up_ang), 0.0, flop_z_sign * cos(up_ang));
+	vec4 view_pos = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
+	vec3 up_view = normalize((MODELVIEW_MATRIX * vec4(up_model, 0.0)).xyz);
+	vec3 to_eye = -normalize(view_pos.xyz);
+	float facing = clamp(dot(up_view, to_eye) * 8.0, -1.0, 1.0);
+	view_pos.xyz += to_eye * (stack_layer * STACK_STEP * facing);
+	POSITION = PROJECTION_MATRIX * view_pos;
 }
 
 void fragment() {
