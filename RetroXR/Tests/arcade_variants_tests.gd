@@ -899,6 +899,20 @@ func _pedal_presses(sys: RetroSystem, pedal: ArcadePedalModule) -> void:
 	_ok(kept and AppPrefs.arcade_pedal_mode == AppPrefs.PEDAL_BUTTON,
 		"pedal: the mode is saved and read back, and one this build does not know reads as A or X")
 	AppPrefs.arcade_pedal_mode = mode_before
+	# The cabinet-motion setting is the player's too: saved, read back, and one this build does not know is automatic.
+	var motion_before := AppPrefs.arcade_motion
+	AppPrefs.arcade_motion = AppPrefs.MOTION_OFF
+	AppPrefs.save_prefs()
+	AppPrefs.arcade_motion = AppPrefs.MOTION_ON
+	AppPrefs._load_prefs()
+	var motion_kept := AppPrefs.arcade_motion == AppPrefs.MOTION_OFF
+	var motion_data := JsonStore.read_dict(AppPrefs.PREFS_PATH, "test")
+	motion_data["arcade_motion"] = "shaking"
+	JsonStore.write_dict(AppPrefs.PREFS_PATH, motion_data, "test")
+	AppPrefs._load_prefs()
+	_ok(motion_kept and AppPrefs.arcade_motion == AppPrefs.MOTION_AUTO,
+		"motion: the setting is saved and read back, and one this build does not know reads as automatic")
+	AppPrefs.arcade_motion = motion_before
 	if prefs_existed:
 		var f := FileAccess.open(AppPrefs.PREFS_PATH, FileAccess.WRITE)
 		f.store_buffer(prefs_before)

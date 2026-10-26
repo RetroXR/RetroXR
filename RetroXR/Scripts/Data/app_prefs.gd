@@ -91,6 +91,13 @@ const PEDAL_BUTTON := "button"
 const PEDAL_FREE_HAND := "free_hand"
 const PEDAL_DUCK := "duck"
 var arcade_pedal_mode: String = PEDAL_BUTTON
+## Whether a sit-down cabinet on a moving base (After Burner's deluxe, Out Run's) moves: its seat and cabin tilt a few degrees with the stick and the
+## wheel, and the player in the seat is carried with them. Automatic is on at a desk and off in a headset: a seat that moves under a headset is the
+## surest way to make somebody ill, and nobody has worn this one yet.
+const MOTION_AUTO := "auto"
+const MOTION_ON := "on"
+const MOTION_OFF := "off"
+var arcade_motion: String = MOTION_AUTO
 ## Whether the spawn menu wraps onto a cylinder. Unlike the rest, this one is not
 ## an OPTIONS switch — it is the toggle on the menu's own lower-right corner.
 var menu_curved:      bool = true
@@ -282,6 +289,16 @@ func hw_render_choices() -> Array:
 	return out
 
 
+## Whether a cabinet on a moving base moves (arcade_motion): the player's choice, else on at a desk and off in a headset.
+func arcade_motion_enabled(in_headset: bool) -> bool:
+	match arcade_motion:
+		MOTION_ON:
+			return true
+		MOTION_OFF:
+			return false
+	return not in_headset
+
+
 ## The API this core will be offered: its own override, or the default.
 func hw_render_for(core_name: String) -> String:
 	var over := str(hw_render_overrides.get(core_name, ""))
@@ -368,6 +385,8 @@ func load_prefs() -> void:
 	arcade_attract_mode = JsonStore.get_bool(data, "arcade_attract_mode", arcade_attract_mode)
 	var pedal := JsonStore.get_string(data, "arcade_pedal_mode", arcade_pedal_mode)
 	arcade_pedal_mode = pedal if pedal in [PEDAL_BUTTON, PEDAL_FREE_HAND, PEDAL_DUCK] else PEDAL_BUTTON
+	var motion := JsonStore.get_string(data, "arcade_motion", arcade_motion)
+	arcade_motion = motion if motion in [MOTION_AUTO, MOTION_ON, MOTION_OFF] else MOTION_AUTO
 	menu_curved      = JsonStore.get_bool(data, "menu_curved",      menu_curved)
 	show_hints       = JsonStore.get_bool(data, "show_hints",       show_hints)
 	hint_uses        = JsonStore.get_dict(data, "hint_uses",        hint_uses)
@@ -417,6 +436,7 @@ func save_prefs() -> bool:
 		"bios_boot_override": bios_boot_override,
 		"arcade_attract_mode": arcade_attract_mode,
 		"arcade_pedal_mode": arcade_pedal_mode,
+		"arcade_motion": arcade_motion,
 		"menu_curved":      menu_curved,
 		"show_hints":       show_hints,
 		"hint_uses":        hint_uses,

@@ -14,6 +14,7 @@
 ##   arrow/    a seat in a hand shows a yellow arrow along its facing, and only while it is held
 ##   family/   every seat scene has the script, its markers, a cushion and an eye height that is a sitting one
 ##   cockpit/  a sit-down driving cabinet's own seat: eyes level with the middle of its glass, pressed to sit, one seat at a time
+##   follow/   a seat on a moving base carries the player with it, in position and never in heading
 ##   save/     a seat is a plain scene saved by its token and spawned by it
 extends Node
 
@@ -75,6 +76,8 @@ func _run() -> void:
 		await _group_family()
 	if _want("cockpit"):
 		await _group_cockpit()
+	if _want("follow"):
+		await _group_follow()
 	if _want("save"):
 		await _group_save()
 
@@ -325,10 +328,10 @@ func _group_family() -> void:
 
 ## A sit-down cabinet's cockpit built as the room builds it (a form on a cabinet), under a stand-in cabinet at `at`
 ## turned by `yaw`: a bare Node3D (the builder needs nothing more), optionally a pickable one.
-func _cockpit(at: Vector3, yaw: float, pickable: bool = false) -> Dictionary:
+func _cockpit(at: Vector3, yaw: float, pickable: bool = false, romset: String = "daytona") -> Dictionary:
 	var base := ArcadeCabinetSpecs.variant("generic")
 	base["variant"] = "generic"
-	var spec := ArcadeCabinetSpecs.for_game(base, ArcadeGameProfile.for_romset("daytona"))
+	var spec := ArcadeCabinetSpecs.for_game(base, ArcadeGameProfile.for_romset(romset))
 	var cab: Node3D = XRToolsPickable.new() if pickable else Node3D.new()
 	cab.transform = Transform3D(Basis(Vector3.UP, yaw), at)
 	add_child(cab)
@@ -424,6 +427,82 @@ func _group_cockpit() -> void:
 	Seat.release_all()
 	_ok(Seat.current == null and not _loco.is_blocked(LocomotionManager.CHANNEL_ALL), "cockpit: leaving the room lets go of it too")
 	(carried["cab"] as Node).free()
+	_drop_rig()
+	await _frames(2)
+
+
+# --- follow --------------------------------------------------------------------
+
+## A cockpit on a moving base (After Burner II's): the seat moves with the base, and a player in it goes where the seat went. Position only: the
+## base turns a few degrees and the view must not turn with it. A seat that does not move (Daytona USA's) moves nobody.
+func _group_follow() -> void:
+	_make_rig()
+	await _frames(2)
+	_body.enabled = true
+	var built := _cockpit(Vector3(2.0, 0.0, -3.0), 0.7, false, "aburner2")
+	var cab := built["cab"] as Node3D
+	var seat := built["seat"] as CockpitSeat
+	var pivot := cab.find_child("MotionPivot", true, false) as Node3D
+	await _frames(2)
+	_ok(seat != null and pivot != null and pivot.is_ancestor_of(seat), "follow: After Burner II's seat is on a moving base")
+	seat.sit()
+	await _frames(3)
+	var sat_at := _camera.global_position
+	var yaw_then := Seat.yaw_of(_camera.global_basis)
+	var origin_basis := _origin.global_basis
+	# The base lifts and slides a few centimetres: the head goes with it, and the pin holds it there.
+	var eye_before := seat.eye_transform().origin
+	pivot.position = Vector3(0.04, 0.03, -0.02)
+	await _frames(3)
+	var eye_after := seat.eye_transform().origin
+	var shift := eye_after - eye_before
+	_ok(shift.length() > 0.04, "follow: the base moves the eye point (%.3f m)" % shift.length())
+	_ok(_camera.global_position.distance_to(sat_at + shift) < 0.01 and _camera.global_position.distance_to(eye_after) < 0.02,
+		"follow: and the head went where the seat went (%s from the eye point)" % str(_camera.global_position - eye_after))
+	# The body, looked at the moment follow() puts it there. Three frames later the body's own physics step has run (here nothing holds it up, so it has
+	# fallen to the floor), which a look then sees and this is not about: the host calls follow() from its physics process, and what it owes the body is a
+	# start from under the head, or the body would sweep back through the seat from wherever it was.
+	pivot.position = Vector3(0.07, 0.03, -0.02)
+	seat.sitting().follow()
+	_ok(_near(_body.global_position.x, _camera.global_position.x, 1e-3) and _near(_body.global_position.z, _camera.global_position.z, 1e-3)
+			and _near(_body.global_position.y, _origin.global_position.y, 1e-3),
+		"follow: and the body is put under it as it goes, or it would sweep back through the seat on the next step (body %s, head %s, origin y %.3f)"
+			% [str(_body.global_position), str(_camera.global_position), _origin.global_position.y])
+	await _frames(3)
+	var held := _origin.global_position
+	_origin.global_position += Vector3(0.3, 0.0, -0.4)
+	await _frames(3)
+	_ok(_origin.global_position.distance_to(held) < 1e-3, "follow: the body is still held in the seat, where the seat now is")
+	# It tilts: the eye point swings a few centimetres, the head follows it, and the view does not turn.
+	var centre := Vector3(0.0, ArcadeCabinetBuilder.PLATFORM_TOP, (ArcadeCabinetBuilder.COCKPIT_Z0 + ArcadeCabinetBuilder.COCKPIT_Z1) * 0.5)
+	var b := Basis(Vector3.BACK, deg_to_rad(-4.0))
+	pivot.transform = Transform3D(b, centre - b * centre)
+	await _frames(3)
+	_ok(_camera.global_position.distance_to(seat.eye_transform().origin) < 0.02, "follow: a base that tilts takes the head with the eye point")
+	_ok(_near(Seat.yaw_of(_camera.global_basis), yaw_then, 1e-3) and _origin.global_basis.is_equal_approx(origin_basis),
+		"follow: and the heading is the player's, not the base's: the origin does not turn")
+	# Level again, the head is back; getting up still puts the player on the floor beside the seat.
+	pivot.transform = Transform3D.IDENTITY
+	await _frames(3)
+	_ok(_camera.global_position.distance_to(sat_at) < 0.01, "follow: the base level again, the head is where it sat down")
+	var stand_at := seat.stand_point()
+	seat.stand()
+	await _frames(2)
+	_ok(Seat.current == null and _near(_camera.global_position.x, stand_at.x, 1e-3) and _near(_camera.global_position.z, stand_at.z, 1e-3),
+		"follow: getting up still puts the player on the StandPoint")
+	cab.free()
+	# A cockpit that does not move moves nobody: the pin is the whole of it.
+	var still := _cockpit(Vector3(-2.0, 0.0, -3.0), 0.0, false, "daytona")
+	var still_seat := still["seat"] as CockpitSeat
+	await _frames(2)
+	still_seat.sit()
+	await _frames(3)
+	var still_head := _camera.global_position
+	await _frames(3)
+	_ok(_camera.global_position.distance_to(still_head) < 1e-4 and still["cab"].find_child("MotionPivot", true, false) == null,
+		"follow: a seat on no base leaves the head where it is")
+	still_seat.stand()
+	(still["cab"] as Node).free()
 	_drop_rig()
 	await _frames(2)
 

@@ -25,6 +25,7 @@
 ##   service/   TEST and SERVICE in the compartment opposite the power switch, there when MAME says the game reads one
 ##   mount/     a gun on a swivel (Silent Scope's rifle, Operation Wolf's Uzi) is fixed to its cabinet: it turns about its pivot
 ##   odd/       Prop Cycle's bicycle, Time Traveler's deep stage, Panic Park's two levers in one slot
+##   seating/   the sit-down versions: a flight cockpit with a stick and a throttle, a cabin, a base that tilts; a bench in front of a ride's guns
 ##   shift/     a driving game's gear lever is the game's: its button, a toggle or held, a sequential box, none where MAME has none
 ##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
 ##   guns/      a gun game's guns are built, plugged in and hung, its pedal wired; another game frees them and their ports
@@ -114,6 +115,9 @@ func _run() -> void:
 		await _clear()
 	if _want("odd"):
 		await _group_odd()
+		await _clear()
+	if _want("seating"):
+		await _group_seating()
 		await _clear()
 	if _want("shift"):
 		await _group_shift()
@@ -1404,6 +1408,273 @@ func _show(panel: ArcadeControlModule, mask: int, frames: int = 30) -> void:
 		panel.tick(1.0 / 60.0)
 
 
+# --- seating -------------------------------------------------------------------
+
+func _near(a: float, b: float, tolerance: float = 1.0e-4) -> bool:
+	return absf(a - b) <= tolerance
+
+
+## Is `node` somewhere under a node called `ancestor`?
+func _under(node: Node, ancestor: String) -> bool:
+	var n: Node = node.get_parent() if node != null else null
+	while n != null:
+		if str(n.name) == ancestor:
+			return true
+		n = n.get_parent()
+	return false
+
+
+## The sit-down versions of the games (Tools/arcade/cockpits.py): who had a seat, a cabin round it, a base that moved and a throttle, and what the
+## cabinet builds for them.
+func _group_seating() -> void:
+	# What the table says each game's cabinet had, form first, then the seat / cabin / motion flags, then whether it reads a throttle.
+	var rows := {
+		"aburner2": ["fly", "scm", true], "aburner": ["fly", "scm", false], "sharrier": ["fly", "sm", false],
+		"gloc": ["fly", "scm", true], "glocr360": ["fly", "scm", false], "gforce2": ["fly", "scm", true],
+		"thndrbld": ["fly", "sm", true], "thndrbld1": ["fly", "sm", true], "strkfgtr": ["fly", "scm", true],
+		"sstrkfgt": ["fly", "s", false], "skytargt": ["fly", "s", false], "nightstr": ["fly", "sc", false],
+		"mlanding": ["fly", "scm", false], "topland": ["fly", "sc", false], "ainferno": ["fly", "scm", false],
+		"slrasslt": ["fly", "scm", false], "aircomb": ["fly", "sc", true], "airco22b": ["fly", "sc", true], "tceptor": ["fly", "s", false],
+		"outrun": ["race", "sm", false], "toutrun": ["race", "sm", false], "pdrift": ["race", "sm", false], "smgp": ["race", "sm", false],
+		"eca": ["race", "", false], "daytona": ["race", "", false], "polepos": ["stand", "", false],
+		"rchase": ["gun", "sm", false], "rchase2": ["gunm", "sm", false], "jpark": ["gunm", "sm", false],
+		"lostwsga": ["gunm", "s", false], "loffire": ["gunm", "s", false],
+		"gunblade": ["gunm", "", false], "alien3": ["gunm", "", false], "timecris": ["gun", "", false],
+	}
+	var bad: Array[String] = []
+	for romset: String in rows:
+		var row: Array = rows[romset]
+		var p := P.for_romset(romset)
+		var flags := "%s%s%s" % ["s" if p.has_seat() else "", "c" if p.has_cabin() else "", "m" if p.has_motion() else ""]
+		if p.form() != str(row[0]) or flags != str(row[1]) or p.has_throttle() != bool(row[2]):
+			bad.append("%s is %s/%s/%s" % [romset, p.form(), flags, str(p.has_throttle())])
+	_ok(bad.is_empty(), "seating: the table files %d games under the form, the seat, cabin, motion and throttle their cabinets had%s"
+		% [rows.size(), "" if bad.is_empty() else " (wrong: " + ", ".join(bad) + ")"])
+	# Nothing else carries them: a seat is only read by a form that can show one, a throttle only by a flight cockpit.
+	var stray: Array[String] = []
+	var seated := 0
+	for romset: String in P._index.keys():
+		var p := P.for_romset(romset)
+		if p.has_seat() or p.has_cabin() or p.has_motion():
+			seated += 1
+			if not (p.form() in [P.FORM_FLY, P.FORM_RACE, P.FORM_GUN, P.FORM_GUN_MOUNTED]) or not p.has_seat():
+				stray.append(romset)
+		if p.has_throttle() and p.form() != P.FORM_FLY:
+			stray.append(romset + " (throttle)")
+	_ok(stray.is_empty() and seated > 60, "seating: only a flight, driving or gun-ride form carries them, and always with a seat (%d games; stray: %s)"
+		% [seated, ", ".join(stray)])
+	_ok(P.for_romset("aburner2").has_seat() and not P.for_romset("not_a_real_romset").has_seat()
+			and not P.for_romset("not_a_real_romset").has_throttle() and P.for_romset("not_a_real_romset").form() == P.FORM_UPRIGHT,
+		"seating: a game the table does not know has no seat and no throttle")
+	# The specs.
+	var ab := _spec("aburner2")
+	var cp: Dictionary = ab["cockpit"]
+	_ok(str(ab["form"]) == "fly" and str(ab["shape"]) == "racer" and (ab["players"] as Array).is_empty() and bool(cp["flight"])
+			and bool(cp["cabin"]) and bool(cp["roof"]) and bool(cp["motion"]) and bool(cp["throttle"]) and not bool(cp["shifter"]),
+		"seating: After Burner II asks for the racing body with a flight cockpit: cabin, moving base, throttle, no gear lever")
+	var sharrier: Dictionary = _spec("sharrier")["cockpit"]
+	var night: Dictionary = _spec("nightstr")["cockpit"]
+	_ok(bool(sharrier["motion"]) and not bool(sharrier["cabin"]) and not bool(sharrier["throttle"])
+			and bool(night["cabin"]) and not bool(night["motion"]) and not bool(night["throttle"]),
+		"seating: Space Harrier moves in the open, Night Striker is a cabin that does not, neither has a throttle")
+	_ok(bool(_spec("outrun")["cockpit"]["motion"]) and not bool(_spec("daytona")["cockpit"]["motion"])
+			and not _spec("outrun")["cockpit"].has("flight"),
+		"seating: Out Run's deluxe sits on a moving base, Daytona USA's cabinet does not")
+	var lost := _spec("lostwsga")
+	_ok(lost.has("bench") and int(lost["bench"]["seats"]) == 2 and int(lost["guns"]) == 2 and str(lost["gun_style"]) == "mounted"
+			and int(_spec("rchase")["bench"]["seats"]) == 2 and str(_spec("rchase")["gun_style"]) == "holster",
+		"seating: The Lost World and Rail Chase ask for a bench with a seat a gun, the guns where they hang")
+	_ok(not _spec("gunblade").has("bench") and not _spec("timecris").has("bench") and not _spec("sscope").has("bench")
+			and not _spec("sf2").has("bench") and not _spec("daytona").has("bench"),
+		"seating: and a standing gun game, a rifle and a street fighter ask for none")
+	# The pref that lets a base move: the player's choice, else on at a desk and off in a headset.
+	var before := AppPrefs.arcade_motion
+	AppPrefs.arcade_motion = AppPrefs.MOTION_AUTO
+	var auto := AppPrefs.arcade_motion_enabled(false) and not AppPrefs.arcade_motion_enabled(true)
+	AppPrefs.arcade_motion = AppPrefs.MOTION_ON
+	var always := AppPrefs.arcade_motion_enabled(true) and AppPrefs.arcade_motion_enabled(false)
+	AppPrefs.arcade_motion = AppPrefs.MOTION_OFF
+	var never := not AppPrefs.arcade_motion_enabled(true) and not AppPrefs.arcade_motion_enabled(false)
+	AppPrefs.arcade_motion = before
+	_ok(auto and always and never, "seating: motion is automatic (on at a desk, off in a headset), always, or never, as the player chooses")
+
+	# Built: After Burner II.
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	model.morph_to(_spec("aburner2"))
+	model.apply_game_profile(P.for_romset("aburner2"))
+	await _wait(3)
+	var pivot := model.find_child("MotionPivot", true, false) as Node3D
+	var panel := _panels(model)[0] as ArcadeControlModule
+	var seat := model.find_child("DriverSeat", true, false)
+	_ok(pivot != null and seat is CockpitSeat and _under(seat, "MotionPivot") and _under(panel, "MotionPivot")
+			and _under(model.find_child("Platform", true, false), "MotionPivot") and _under(model.find_child("CabinRoof", true, false), "MotionPivot"),
+		"seating: After Burner II's seat, platform, cabin and controls are all on the moving base")
+	_ok(panel.find_child("StickPivot", true, false) != null and panel.find_child("StickBall", true, false) != null
+			and panel.find_child("ThrottlePivot", true, false) != null and panel.find_child("ThrottleKnob", true, false) != null
+			and panel.find_child("WheelPivot", true, false) == null and panel.find_child("GasPivot", true, false) == null
+			and panel.find_child("ShifterPivot", true, false) == null and panel.find_child("Start", true, false) != null,
+		"seating: the driver's controller is a stick and a throttle, with START, and no wheel, pedals or gear lever")
+	var cabin_parts := ["CabinWallL", "CabinWallR", "CabinRoof", "CabinTrimL", "CabinTrimR", "CabinLamp1", "CabinLamp5"]
+	var missing: Array[String] = []
+	for part: String in cabin_parts:
+		if model.find_child(part, true, false) == null:
+			missing.append(part)
+	_ok(missing.is_empty(), "seating: and a cabin round the seat: walls, a roof running forward over the monitor and the lock-on lamps (missing: %s)" % ", ".join(missing))
+	_ok(_under(panel.find_child("Btn1", true, false), "StickPivot") and _under(panel.find_child("Btn2", true, false), "StickPivot")
+			and panel.cap_shown(0) and panel.cap_shown(1) and not panel.cap_shown(2) and not panel.cap_shown(5),
+		"seating: its two buttons are on the stick's head, and the four it does not read are not drawn")
+	# A throttle the game in the bay does not read is not drawn (a cockpit that stays when the game changes), and is when it does.
+	var lever := panel.find_child("ThrottlePivot", true, false) as Node3D
+	panel.apply_profile(P.for_romset("nightstr"))
+	var hidden := not lever.visible
+	panel.apply_profile(P.for_romset("aburner2"))
+	_ok(hidden and lever.visible, "seating: a throttle lever the game does not read is not drawn, and is drawn for one that does")
+	# The stick leans where it is pushed, as the grip is: right, and back toward the player.
+	var ball := panel.find_child("StickBall", true, false) as Node3D
+	var rest_ball := model.to_local(ball.global_position)
+	panel.show_state(1 << ControllerBindings.JOYPAD_RIGHT, Vector4i.ZERO)
+	for i in 20:
+		panel.tick(0.05)
+	var right_ball := model.to_local(ball.global_position)
+	panel.show_state(1 << ControllerBindings.JOYPAD_DOWN, Vector4i.ZERO)
+	for i in 20:
+		panel.tick(0.05)
+	var back_ball := model.to_local(ball.global_position)
+	_ok(right_ball.x > rest_ball.x + 0.05 and absf(right_ball.z - rest_ball.z) < 0.01 and back_ball.z > rest_ball.z + 0.05
+			and absf(back_ball.x - rest_ball.x) < 0.01,
+		"seating: the flight stick leans right with RIGHT and back toward the player with DOWN (%.3f, %.3f)" % [right_ball.x - rest_ball.x, back_ball.z - rest_ball.z])
+	# The throttle is the right stick's Y: up is forward, the lever's top away from the player, and it moves back when the stick does.
+	panel.show_state(0, Vector4i.ZERO)
+	for i in 20:
+		panel.tick(0.05)
+	var knob := panel.find_child("ThrottleKnob", true, false) as Node3D
+	var idle_knob := model.to_local(knob.global_position)
+	panel.show_state(0, Vector4i(0, 0, 0, -32767))
+	for i in 20:
+		panel.tick(0.05)
+	var forward_knob := model.to_local(knob.global_position)
+	var forward_amount := panel.throttle_amount()
+	panel.show_state(0, Vector4i(0, 0, 0, 32767))
+	for i in 40:
+		panel.tick(0.05)
+	var back_knob := model.to_local(knob.global_position)
+	_ok(_near(forward_amount, 1.0, 0.01) and forward_knob.z < idle_knob.z - 0.08 and back_knob.z > idle_knob.z + 0.08,
+		"seating: the right stick up pushes the throttle forward (away from the player), down pulls it back (%.3f m, %.3f m)"
+			% [forward_knob.z - idle_knob.z, back_knob.z - idle_knob.z])
+	panel.show_state(0, Vector4i.ZERO)
+	# The moving base: the player's choice lets it move; it banks into the turn and noses up with a pull; it tilts about its centre.
+	var zc := (ArcadeCabinetBuilder.COCKPIT_Z0 + ArcadeCabinetBuilder.COCKPIT_Z1) * 0.5
+	var centre := Vector3(0.0, ArcadeCabinetBuilder.PLATFORM_TOP, zc)
+	panel.motion_override = 0
+	panel.show_state((1 << ControllerBindings.JOYPAD_RIGHT) | (1 << ControllerBindings.JOYPAD_DOWN), Vector4i.ZERO)
+	for i in 60:
+		panel.tick(0.05)
+	_ok(pivot.transform.is_equal_approx(Transform3D.IDENTITY) and panel.motion_state() == Vector2.ZERO,
+		"seating: with motion off the base stays where it is, whatever the stick does")
+	panel.motion_override = 1
+	for i in 80:
+		panel.tick(0.05)
+	var tilt := pivot.transform
+	var port := tilt * Vector3(-0.3, 0.1, zc)
+	var starboard := tilt * Vector3(0.3, 0.1, zc)
+	var nose := tilt * Vector3(0.0, 0.1, ArcadeCabinetBuilder.COCKPIT_Z0)
+	var tail := tilt * Vector3(0.0, 0.1, ArcadeCabinetBuilder.COCKPIT_Z1)
+	_ok(starboard.y < port.y - 0.01 and nose.y > tail.y + 0.01,
+		"seating: with motion on, the base banks right with the stick pushed right and noses up with it pulled back (%.3f m, %.3f m)"
+			% [port.y - starboard.y, nose.y - tail.y])
+	_ok((tilt * centre).distance_to(centre) < 1.0e-4 and panel.motion_state().is_equal_approx(Vector2(1.0, 0.8)),
+		"seating: it turns about its centre, a few degrees and no more, and the extent follows the stick (%s)" % str(panel.motion_state()))
+	var roll := absf(rad_to_deg(asin(clampf(tilt.basis.y.x, -1.0, 1.0))))
+	_ok(roll > 2.0 and roll < 6.0, "seating: the bank at full stick is %.1f degrees: a few, because a head is carried on it" % roll)
+	panel.rest()
+	for i in 90:
+		panel.tick(0.05)
+	_ok(pivot.transform.is_equal_approx(Transform3D.IDENTITY), "seating: the run over, the base settles level")
+	# The input says so when the core stops: the base settles and the throttle goes back, with nobody calling rest().
+	panel.show_state(1 << ControllerBindings.JOYPAD_RIGHT, Vector4i(0, 0, 0, -32767))
+	for i in 80:
+		panel.tick(0.05)
+	var tilted := not pivot.transform.is_equal_approx(Transform3D.IDENTITY) and panel.throttle_amount() > 0.9
+	model.arcade_input()._end_run()
+	for i in 90:
+		panel.tick(0.05)
+	_ok(tilted and pivot.transform.is_equal_approx(Transform3D.IDENTITY) and absf(panel.throttle_amount()) < 0.01,
+		"seating: the end of a run (the core stopped) is what settles the base and puts the throttle back")
+	panel.motion_override = -1
+
+	# The others.
+	model.morph_to(_spec("gloc"))
+	model.apply_game_profile(P.for_romset("gloc"))
+	await _wait(3)
+	var gloc_panel := _panels(model)[0] as ArcadeControlModule
+	_ok(gloc_panel.cap_shown(2) and _under(gloc_panel.find_child("Btn3", true, false), "ThrottlePivot") and not gloc_panel.cap_shown(3),
+		"seating: G-LOC's third button, After Burner, is on the throttle's knob")
+	model.morph_to(_spec("nightstr"))
+	model.apply_game_profile(P.for_romset("nightstr"))
+	await _wait(3)
+	_ok(model.find_child("ThrottlePivot", true, false) == null and model.find_child("MotionPivot", true, false) == null
+			and model.find_child("CabinWallL", true, false) != null and model.find_child("DriverSeat", true, false) is CockpitSeat,
+		"seating: Night Striker is a cabin with a seat and a stick, no throttle lever and no moving base")
+	model.morph_to(_spec("sharrier"))
+	model.apply_game_profile(P.for_romset("sharrier"))
+	await _wait(3)
+	var sharrier_panel := _panels(model)[0] as ArcadeControlModule
+	_ok(model.find_child("CabinWallL", true, false) == null and model.find_child("CabinRoof", true, false) == null
+			and model.find_child("MotionPivot", true, false) != null
+			and _under(sharrier_panel.find_child("Btn3", true, false), "StickPivot") and sharrier_panel.cap_shown(2),
+		"seating: Space Harrier's seat is in the open on a moving base, its third button on the stick")
+	model.morph_to(_spec("outrun"))
+	model.apply_game_profile(P.for_romset("outrun"))
+	await _wait(3)
+	var out_panel := _panels(model)[0] as ArcadeControlModule
+	_ok(model.find_child("MotionPivot", true, false) != null and out_panel.find_child("WheelPivot", true, false) != null
+			and out_panel.find_child("StickPivot", true, false) == null and _under(out_panel, "MotionPivot"),
+		"seating: Out Run is the driving cockpit (a wheel and pedals) on a moving base")
+	out_panel.motion_override = 1
+	out_panel.show_state(1 << ControllerBindings.JOYPAD_LEFT, Vector4i.ZERO)
+	for i in 60:
+		out_panel.tick(0.05)
+	var out_pivot := model.find_child("MotionPivot", true, false) as Node3D
+	_ok((out_pivot.transform * Vector3(-0.3, 0.1, zc)).y < (out_pivot.transform * Vector3(0.3, 0.1, zc)).y - 0.01,
+		"seating: and banks into a left turn")
+	model.morph_to(_spec("daytona"))
+	await _wait(3)
+	_ok(model.find_child("MotionPivot", true, false) == null and model.find_child("DriverSeat", true, false) is CockpitSeat,
+		"seating: Daytona USA's cockpit is on no base: nothing to tilt")
+
+	# A ride: a bench in front of the guns, a seat a gun.
+	model.morph_to(_spec("lostwsga"))
+	await _wait(3)
+	var bench := model.find_child("Bench", false, false)
+	var seat1 := model.find_child("BenchSeat1", true, false)
+	var seat2 := model.find_child("BenchSeat2", true, false)
+	_ok(bench != null and seat1 is CockpitSeat and seat2 is CockpitSeat and (model.get_parent().call("captive_controllers") as Array).size() == 2
+			and model.find_child("MotionPivot", true, false) == null,
+		"seating: The Lost World has a bench with two seats in front of its two guns, which are still hung")
+	var eye1 := model.to_local((seat1 as CockpitSeat).eye_transform().origin)
+	var eye2 := model.to_local((seat2 as CockpitSeat).eye_transform().origin)
+	_ok(_near(eye1.y, ArcadeCabinetBuilder.BENCH_EYE_Y, 0.005) and eye1.x < -0.1 and eye2.x > 0.1 and _near(eye1.z, eye2.z, 0.001),
+		"seating: the eyes are %.2f m up, a bench's and not a stool's, each player to their own side" % eye1.y)
+	var up1 := model.to_local((seat1 as CockpitSeat).stand_point())
+	var up2 := model.to_local((seat2 as CockpitSeat).stand_point())
+	_ok(up1.x < eye1.x - 0.4 and up2.x > eye2.x + 0.4 and _near(up1.y, 0.0, 0.01) and _near(up2.y, 0.0, 0.01),
+		"seating: and each gets up on the outside of their own seat, onto the floor")
+	_ok(model.ground_footprint().y > 1.4, "seating: the bench is part of the cabinet's footprint on the floor (%s)" % str(model.ground_footprint()))
+	var solid := false
+	for box: AABB in model.get_meta(ArcadeCabinetBuilder.FORM_BOXES_META, []):
+		solid = solid or (box.size.x >= 0.85 and box.size.z >= 0.7 and box.position.z <= ArcadeCabinetBuilder.BENCH_Z0 + 0.01 and box.size.y <= 0.11)
+	_ok(solid, "seating: and its platform is a box the laser can aim at (the cabinet's, to take hold of it by)")
+	model.morph_to(_spec("gunblade"))
+	await _wait(3)
+	_ok(model.find_child("Bench", false, false) == null and model.find_child("BenchSeat1", true, false) == null,
+		"seating: a standing gun game has no bench, and the one morphed away leaves nothing behind")
+	model.morph_to(_spec("rchase"))
+	await _wait(3)
+	_ok(model.find_child("Bench", false, false) != null and model.find_child("Holster1", true, false) != null,
+		"seating: Rail Chase is a bench in front of two holstered guns")
+
+
 func _group_shift() -> void:
 	# The table: which games have a lever and what it says (read from the driver sources by Tools/arcade/shifters.py).
 	_ok(P.for_romset("outrun").shifter() == {"button": 3, "toggle": true} and P.for_romset("chasehq").shifter() == {"button": 4, "toggle": true}
@@ -1431,9 +1702,9 @@ func _group_shift() -> void:
 	# The spec: a lever only for a game that has one.
 	_ok(bool(_spec("pdrift")["cockpit"]["shifter"]) and bool(_spec("hotchase")["cockpit"]["shifter"]),
 		"shift: Power Drift's and Hot Chase's sit-down cockpits carry their lever")
-	_ok(not bool(_spec("daytona")["cockpit"]["shifter"]) and bool(_spec("outrun")["players"][0]["shifter"]) and bool(_spec("polepos")["players"][0]["shifter"])
+	_ok(not bool(_spec("daytona")["cockpit"]["shifter"]) and bool(_spec("outrun")["cockpit"]["shifter"]) and bool(_spec("polepos")["players"][0]["shifter"])
 			and not bool(_spec("scud")["cockpit"]["shifter"]),
-		"shift: no lever is built for Daytona USA or Scud Race; Out Run's and Pole Position's stand-up panels have one")
+		"shift: no lever is built for Daytona USA or Scud Race; Out Run's sit-down cockpit and Pole Position's stand-up panel have one")
 	_ok(P.for_romset("crusnusa").buttons >= 1 and P.for_romset("buggyboy").buttons >= 1
 			and not bool(_spec("crusnusa")["players"][0]["shifter"]) and not bool(_spec("buggyboy")["players"][0]["shifter"]),
 		"shift: a stand-up game with buttons but no lever of its own (Cruis'n USA's H pattern, Buggy Boy) is not given one for its buttons")

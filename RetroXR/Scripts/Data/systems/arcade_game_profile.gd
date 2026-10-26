@@ -161,6 +161,7 @@ const FORM_GUN := "gun"            ## guns on cords, hung in holsters
 const FORM_GUN_MOUNTED := "gunm"   ## guns on swivel mounts (Operation Wolf's Uzi)
 const FORM_RIFLE := "rifle"        ## one rifle on a mount, with a scope (Silent Scope)
 const FORM_RACE := "race"          ## a sit-down driving cockpit
+const FORM_FLY := "fly"            ## a sit-down flight cockpit: a stick between the knees, a throttle by the left hand (After Burner II)
 const FORM_STAND := "stand"        ## a stand-up driving cabinet (the wheel on the panel, pedals at its foot)
 const FORM_BIKE := "bike"          ## a ride-on motorbike
 const FORM_CYCLE := "cycle"        ## a ride-on bicycle: a crank to pedal, bars to steer and tip (Prop Cycle)
@@ -272,6 +273,26 @@ func has_service() -> bool:
 ## A driving cockpit with a roof over the seat.
 func has_roof() -> bool:
 	return known and attrs.has("o")
+
+
+## What the game's sit-down version was built with (the table's `q`, Tools/arcade/cockpits.py SEATING): a seat you sit in, a cabin round it
+## (a canopy, side panels), a base that moves with the play. MAME's Cabinet DIP names these versions ("Moving Deluxe", "Cockpit"); the cabinet
+## is the sit-down one, whatever the DIP is set to.
+func has_seat() -> bool:
+	return known and str(attrs.get("q", "")).contains("s")
+
+
+func has_cabin() -> bool:
+	return known and str(attrs.get("q", "")).contains("c")
+
+
+func has_motion() -> bool:
+	return known and str(attrs.get("q", "")).contains("m")
+
+
+## The game reads a throttle lever (the table's `z`: an `IPT_AD_STICK_Z` of its own in MAME's driver, Tools/arcade/cockpits.py).
+func has_throttle() -> bool:
+	return known and attrs.has("z")
 
 
 ## Two players taking turns on ONE panel (the upright of an alternating game: Pac-Man, Donkey Kong).

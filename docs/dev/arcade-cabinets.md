@@ -33,17 +33,19 @@ romset -> ArcadeGameTable line  "p2c1b9w2:joy+stick;tslot panicprk=panicprkj"   
 
 A profile is `p<players>c<coins>b<buttons>w<ways>:<kinds>;<attributes>`. MAME says the players, coins, buttons, ways, kinds, the rotation, the screens,
 the guns and whether the game reads a service switch (`v`). **MAME says nothing of what the cabinet looked like**: the form (`t...`) is a choice made in
-`gen_game_index.py` from curated lists (`CYCLE HOLO SLOT RIFLE MOUNTED_GUN GUN_PEDAL BIKE STAND_RACER ROOFED ODD`), the Cabinet DIP switch and the game's
-name. 28,701 romsets, 1,561 profiles.
+`gen_game_index.py` from curated lists (`CYCLE HOLO SLOT RIFLE MOUNTED_GUN GUN_PEDAL BIKE STAND_RACER ROOFED ODD`, and `FLY` and `SEATING` in `Tools/arcade/cockpits.py`), the Cabinet
+DIP switch and the game's name. 28,713 romsets, 1,594 profiles. Two attributes say what the SIT-DOWN version had (section 2b): `q`, the letters `s` (a seat), `c` (a cabin round it) and `m` (a base that
+moves), and `z`, a throttle lever.
 
 | form (`t`) | romsets (families) | | form (`t`) | romsets (families) |
 |---|---|---|---|---|
-| plain upright | 27,473 (8,307) | | `rifle` | 51 (7) |
-| `race` | 315 (97) | | `gunm` | 45 (11) |
-| `gun` | 275 (115) | | `pump` | 22 (14) |
-| `stand` | 159 (36) | | `cycle`, `holo`, `slot` | 2 (1) each |
-| `music` (not built) | 158 (82) | | `odd` (not built) | 80 (40) |
+| plain upright | 27,405 (8,283) | | `rifle` | 51 (7) |
+| `race` | 355 (104) | | `gunm` | 57 (16) |
+| `gun` | 305 (134) | | `pump` | 22 (14) |
+| `stand` | 123 (34) | | `cycle`, `holo`, `slot` | 2 (1) each |
+| `music` (not built) | 158 (82) | | `odd` (not built) | 73 (38) |
 | `bike` | 64 (19) | | `dance` | 53 (31) |
+| `fly` | 41 (17) | | | |
 
 And across every form: **3,290 romsets stand the monitor on its side** (`r90`/`r270`: the taller `tate` body), 170 turn it over (`r180`, nothing changes), 356 drive
 more than one screen, 3 to 8 players are 1,345, **2,959 are alternating** (`a`: one panel, two turns) and 14,977 read a service switch (`v`).
@@ -161,6 +163,55 @@ more than one screen, 3 to 8 players are 1,345, **2,959 are alternating** (`a`: 
   Not run against a core. Whether a toggle game wants a tap this long (0.12 s) on every core, and the tap queue's rest (0.10 s), is an estimate; the number of presses is exact.
 - Tests: `arcade_form_tests build/`, `reach/` (Daytona); the seat in `seat_tests`.
 
+## 2b. The sit-down cabinets: a seat, a cabin round it, a base that moves
+
+(2026-10-26.) After Burner II was drawn as an upright with a stick on its panel, and so were G-LOC, Galaxy Force II and Space Harrier; The Lost World had its two guns on a deck with nowhere to sit.
+Their cabinets were the opposite: **you sat in them**, strapped into a seat in a closed cockpit that tilted with the stick. MAME says so in its own words, one DIP switch at a time:
+After Burner's `Cabinet Type` offers "Moving Deluxe" and "Moving Standard", G-LOC's "Moving" and "Cockpit", Space Harrier's and Rail Chase's "Moving", Galaxy Force II's "Deluxe" and
+"Super Deluxe", Out Run's "Moving" and "Up Cockpit", Line of Fire's "Cockpit" (`Tools/arcade/cockpits.py --report` lists them against the curated list). **The factory setting of every one of them is
+"Upright", so the DIP's default says nothing; its CHOICES say a sit-down cabinet existed**, and a game MAME's DIPs are silent on (The Lost World's jeep seat, Solar Assault's pod) is in the same list from
+the research. Both go in `SEATING` (`cockpits.py`, one line per game with where it comes from), and the table carries them as `q`: `s` a seat, `c` a cabin, `m` a moving base.
+
+| game (romset) | form | seat / cabin / moving | throttle | where it comes from |
+|---|---|---|---|---|
+| After Burner `aburner`, After Burner II `aburner2` | `fly` | s c m | II only (DIP "Throttle Lever") | DIP "Moving Deluxe / Moving Standard"; an enclosed cockpit with a seat belt, hydraulic: three sources |
+| Space Harrier `sharrier` | `fly` | s . m | no | DIP "Moving": an open sit-down seat on a moving base |
+| G-LOC `gloc` (R-360 `glocr360`, its clone, a gyroscope cage), Strike Fighter `strkfgtr` | `fly` | s c m | `gloc`, `strkfgtr` (the R-360 has no Z of its own) | DIP "Moving", "Cockpit" |
+| Galaxy Force II `gforce2` | `fly` | s c m | yes | DIP "Super Deluxe / Deluxe": cabinet, seat and screen move together |
+| Thunder Blade `thndrbld` | `fly` | s . m | yes | DIP "Deluxe" (`thndrbld1`): a helicopter chair that follows the stick, no cabin |
+| Sega Strike Fighter `sstrkfgt`, Sky Target `skytargt`, Thunder Ceptor `tceptor` | `fly` | s . . | no (Strike Fighter's Z is "Rudder Pedal") | research: a seat; the deluxe ones non-motion |
+| Night Striker `nightstr`, Top Landing `topland`, Air Combat `aircomb`, Air Combat 22 `airco22b` | `fly` | s c . | the two Air Combats | DIP "Cockpit" / "Deluxe"; the Air Combat cabinet is a full-size cockpit with a rumbling seat |
+| Midnight Landing `mlanding`, Air Inferno `ainferno`, Solar Assault `slrasslt` | `fly` | s c m | no | DIP "Deluxe" / "DX Moving Only"; Solar Assault the SpeedKing pod (pneumatic, one source) |
+| Out Run `outrun`, Turbo Out Run `toutrun`, Power Drift `pdrift`, Super Monaco GP `smgp` | `race` | s . m | | DIP "Moving", "Cockpit" (Out Run's default "Mini Up" had filed it `stand`) |
+| Emergency Call Ambulance `eca` | `race` | | | a sit-down cabinet: a wheel and pedals (it was `odd`) |
+| Rail Chase `rchase`, Rail Chase 2 `rchase2`, Jurassic Park `jpark` | `gun`, `gunm` | s . m | | DIP "Moving" (Rail Chase), research: a bench that pitches and sways |
+| The Lost World `lostwsga`, Line of Fire `loffire` | `gunm` | s . . | | a seat styled on the film's jeep (research); DIP "Cockpit": two seats a gun |
+
+- **MAME's controls** (verbatim, `segaxbd.cpp`): After Burner is `ADC0` `IPT_AD_STICK_X` 0x20..0xe0 `KEYDELTA(4)`, `ADC1` `IPT_AD_STICK_Y` 0x40..0xc0 `PORT_REVERSE`, `ADC2` `IPT_AD_STICK_Z` (the throttle, centre 0x80,
+  `KEYDELTA(79)`: a key moves it fast), BUTTON1 "Vulcan", BUTTON2 "Missile"; G-LOC adds BUTTON3 "After Burner". Two more ports, `ADC3` "motor Y" and `ADC4` "motor X", are `IPT_CUSTOM` constants:
+  the board reads the position of the moving base's motors, and MAME hands it a base that is always centred. **Nothing of the motion is sent out through libretro**, so the cabinet cannot be fed the
+  game's own motion; it moves with the stick, which is what a motion base did.
+- **Built**, a flight cockpit (`fly`): the driving cockpit's `racer` body, platform, dash, START and **real seat** (`CockpitSeat`, eyes at the middle of the glass), and in place of the wheel a **stick between the
+  knees** on a console (`StickPivot` in a frame standing up, 30 cm of shaft, a grip in the player's colour with the first two buttons on its head: `StickGrab` scales its throw with the shaft, so the grip follows
+  the hand), a **throttle lever by the left hand** (`ThrottlePivot`, its knob `ThrottleKnob` with the next two buttons on it) for a game that reads one, the last two buttons on the dash beside START. A game with no throttle has
+  its third and fourth buttons on the stick's head. The stick is the left stick as any panel's is; **the throttle is the right stick's Y** (forward up, the lever's top away from the player), as the bicycle's crank is.
+  *That libretro-mame sends `AD_STICK_Z` through the right stick's Y is not verified against a core* (it is the crank's assumption too). A hand takes the lever at its knob (`ThrottleGrab`, 10 cm of travel
+  for all of it) and **it stays where the hand left it**, as a throttle does (a pad's right stick pushed further than the lever wins while it is, the larger always winning, as for any control a hand and a pad
+  both work); a machine switched off, or a run that ends (`ArcadeControlModule.rest`), puts it back in the middle.
+- **The cabin** (`cabin`): a panel each side whose front edge slants up from the sill beside the dash to the roof's front corner, as a canopy's does, a roof that runs forward over the monitor housing's marquee, and five red
+  lock-on lamps along its front (the real cabin had them over the monitor surround); open behind where you get in. **The shape is an estimate**: the research has words for these cabinets (an enclosed cockpit, a seat belt,
+  "enclosed on almost all sides"), no photograph.
+- **The moving base** (`motion`): the platform, the dash, the seat, the controls and the cabin are on one node (`MotionPivot`) that `ArcadeControlModule.tick` tilts about the platform's centre: **banked into the turn 4 degrees at
+  full stick, nosed up 3 degrees at full pull** (gas and brake nose a driving cockpit the same way), eased at 4 a second, settled level when the run ends. A few degrees on purpose: the real one was said to swing about 25 (one source),
+  but a head carried on a tilting seat is a head being rocked. **The player is carried with the seat**: `CockpitSeat` calls `SeatSitting.follow`, which moves the origin by the eye point's move (position only, and the body under it:
+  the heading is the player's). **Options > Cabinet Motion** (`AppPrefs.arcade_motion`): automatic is on at a desk and off in a headset, or always, or never. A headset and a Quest on a moving seat are OWED.
+- **The bench** (`bench`): a gun ride's platform in front of the guns, which stay on the deck, with a seat a gun (two at most, 40 cm wide each, the eyes capped at 1.20 m so a seat at a 1.33 m glass is not a stool), each player getting up
+  on the outside of their own seat. **The bench does not move**: nothing says how the ride moved (the libretro API carries no output of the game's), and a seat that rocked to no purpose under a headset is harm for nothing.
+- **Not built**: the R-360's rotation (a cage that turns right over); rudder pedals (Sega Strike Fighter's `AD_STICK_Z` is one, Thunder Ceptor's accelerator pad is a `PEDAL`); Sega Strike Fighter's three screens;
+  Air Rescue's twin; Lucky & Wild (a wheel and two guns: a driving cockpit with guns); The Ocean Hunter's bench (unverified); a bench that moves; the real motion of any of them.
+- Tests: `arcade_form_tests seating/` (the table's flags for 34 games, the cabin, the controls, the tilt's direction and size, the bench), `arcade_hand_tests fly/`, `seat_tests follow/`, `arcade_variants_tests` (the setting is saved);
+  pictures `arcade_cabinet_probe --forms=aburner2,sharrier,nightstr,outrun,lostwsga` (`form_`, `formside_`, `formseat_`, `formlap_`, `formtilt_`).
+
 ## 3. Every form that is built
 
 What each one is made of, so a new one can follow it. "Hands" is what a headset's hands do on it (`arcade.md` "Hands on the panel").
@@ -172,11 +223,12 @@ What each one is made of, so a new one can follow it. "Hands" is what a headset'
 | **alternating** | 2,959 | one panel, 1P, and a 2P START | the table's `a`; one coin door | |
 | **screens** | 356 | several screens side by side | the tube row; the frame holds them as one picture | |
 | **service** | 14,977 | TEST and SERVICE in the compartment opposite the power switch | `ArcadeServiceModule`, only where MAME says `<input service="yes">` | VRButtons |
-| `gun` | 275 (115) | guns in holsters, a pedal where the game had one (Time Crisis) | the wide body, one gun for each light gun the game has (up to 3), START alone each | the hand takes the gun as any pickable |
-| `gunm` | 45 (11) | a gun on a post | Operation Wolf's Uzi, Terminator 2, Beast Busters (3): fixed to the post, turning about its pivot | the hand turns it |
+| `gun` | 305 (134) | guns in holsters, a pedal where the game had one (Time Crisis), a bench where it was a ride (Rail Chase) | the wide body, one gun for each light gun the game has (up to 3), START alone each | the hand takes the gun as any pickable |
+| `gunm` | 57 (16) | a gun on a post, a bench where it was a ride (The Lost World) | Operation Wolf's Uzi, Terminator 2, Beast Busters (3): fixed to the post, turning about its pivot | the hand turns it |
 | `rifle` | 51 (7) | one rifle on a taller post | Silent Scope, Golgo 13; see above | the hand turns it |
-| `race` | 315 (97) | a sit-down cockpit | the `racer` body, platform, seat, dash, wheel, two pedals, gear lever; a roof for the Model 3 twins (`ROOFED`) | wheel (clockwise is right), pedals under a finger, the lever |
-| `stand` | 159 (36) | a stand-up driving cabinet | the wheel on the panel, a lever beside it, the pedals on the floor in front (Pole Position, Out Run, Final Lap) | the same |
+| `race` | 355 (104) | a sit-down cockpit | the `racer` body, platform, seat, dash, wheel, two pedals, gear lever; a roof for the Model 3 twins (`ROOFED`); a moving base for Out Run, Power Drift (`q`) | wheel (clockwise is right), pedals under a finger, the lever |
+| `fly` | 41 (17) | a sit-down flight cockpit | the `race` cockpit with a stick and a throttle for the wheel, a cabin where the game's had one, a moving base; see 2b | the grip leans with the hand, the throttle lever stays where it is left |
+| `stand` | 123 (34) | a stand-up driving cabinet | the wheel on the panel, a lever beside it, the pedals on the floor in front (Pole Position, Out Run, Final Lap) | the same |
 | `bike` | 64 (19) | a ride-on motorbike | a bike on a stand in front of the `racer` body; it LEANS (`LeanPivot`) | the bars: sideways 15 cm is a full lean |
 | `cycle` | 2 (1) | a bicycle | see Prop Cycle | bars (two axes), crank |
 | `holo` | 2 (1) | a deep stage behind the glass | see Time Traveler | |
@@ -228,10 +280,10 @@ Plain uprights until a module of their own is built. The controls are MAME's own
 | jet ski, kayak, raft | Aqua Jet `aquajet` 1, Jet Wave `jetwave` 3 (**I**); Wave Runner `waverunr` 1, Rapid River `rapidrvr` 3 (**NW**) | Aqua Jet: `PADDLE`, `PEDAL`, `AD_STICK_Y`; Jet Wave: `PADDLE` "Steering Handle", `PEDAL` "Accelerator", button "Angle", "Tilt Left/Right"; Wave Runner: `AD_STICK_X` "Handle Bar" and "Roll", `AD_STICK_Y` "Throttle Lever" and "Pitch"; Rapid River: `AD_STICK_Y` "Yaw", `AD_STICK_X` "Pitch" | the `bike` form's bars and lean on a jet ski's hull; a throttle lever (`slide`'s sibling); a paddle in both hands |
 | fishing | Sega Bass Fishing `bassdx` 4, Get Bass `getbass` 1 (**NW**) | `AD_STICK_X`, `AD_STICK_Y`, `PEDAL`, `PADDLE_V`, `PADDLE` | a rod (a second `rifle`-like gun on a post) and a reel crank (the `cycle`'s `CrankGrab`) |
 | horse | Final Furlong `finfurl` 1, Final Furlong 2 `finfurl2` 2 (**NW**) | `AD_STICK_X` "Handle", `AD_STICK_Y` "Swing", buttons "Whip Button L/R" | a saddle you sit on (`CockpitSeat`) and reins to pull |
-| tank and pod cockpits | Tokyo Wars `tokyowar` 2 (**I**); Desert Tank `desert` 1 (**NW**); Cyber Sled `cybsled` 2 (**I**); Big Run `bigrun` 2 (**G**); Emergency Call Ambulance `eca` 4, Magical Truck Adventure `magtruck` 1 (**NW**) | Tokyo Wars: `PADDLE` "Steering Wheel", `PEDAL` "Forward Pedal", `PEDAL2` "Backward Pedal", "Left/Right Trigger"; Cyber Sled: two `AD_STICK` pairs a player, "Missile", "Gun", "Viewport Change"; Desert Tank: `PADDLE`, `PEDAL`, `AD_STICK_Y`, "Machine Gun", "Cannon", three "VR" buttons | the `race` cockpit with the extra triggers; a pod with two sticks a seat |
+| tank and pod cockpits | Tokyo Wars `tokyowar` 2 (**I**); Desert Tank `desert` 1 (**NW**); Cyber Sled `cybsled` 2 (**I**); Big Run `bigrun` 2 (**G**); Magical Truck Adventure `magtruck` 1 (**NW**) (Emergency Call Ambulance `eca` is a `race` cockpit now) | Tokyo Wars: `PADDLE` "Steering Wheel", `PEDAL` "Forward Pedal", `PEDAL2` "Backward Pedal", "Left/Right Trigger"; Cyber Sled: two `AD_STICK` pairs a player, "Missile", "Gun", "Viewport Change"; Desert Tank: `PADDLE`, `PEDAL`, `AD_STICK_Y`, "Machine Gun", "Cannon", three "VR" buttons | the `race` cockpit with the extra triggers; a pod with two sticks a seat |
 | vector cockpits | Star Wars `starwars` 3, The Empire Strikes Back `esb` 1, Red Baron `redbaron` 2, Battlezone `bzone` 4 (**G**) | `AD_STICK_X` and `AD_STICK_Y` (a yoke); Battlezone two sticks (a plain `twin` panel already) | a yoke on a column (a `stick` panel drawn as a yoke) in a pod |
 | striking | Punch-Out!! `punchout` 5, Super Punch-Out!! `spnchout` 3, Arm Wrestling `armwrest` 1 (**G**); Boxing Mania `boxingm` 1 (**NW**) | a joystick and buttons (Punch-Out: two stacked screens); Boxing Mania "Select L/R" | two stacked monitors (the `s2` frame is side by side now); gloves as two hand poses |
-| light-gun oddities | Hammer `hammer` 1, Mallet Madness `maletmad` 1 (**G**); GunMania `gunmania` 1 (**NW**); Lucky & Wild `luckywld` 2, Rail Chase `rchase` 3 (**G**) | `LIGHTGUN_X/Y`; Lucky & Wild also `PADDLE` and two pedals | a mallet on the gun's hit point; a seat for a driver beside a gunner; a moving cart |
+| light-gun oddities | Hammer `hammer` 1, Mallet Madness `maletmad` 1 (**G**); GunMania `gunmania` 1 (**NW**); Lucky & Wild `luckywld` 2 (**G**) (Rail Chase `rchase` is a gun ride with a bench now) | `LIGHTGUN_X/Y`; Lucky & Wild also `PADDLE` and two pedals | a mallet on the gun's hit point; a seat for a driver beside a gunner |
 | rhythm | ParaParaParadise `ppp` 2, `ppp11` 1, ParaParaDancing `ppd` 1 (**I**); `ppp2nd` 2, Dance Maniax `dmx2m`, `dmx2majp`, Mambo a Go-Go `mamboagg` 2 (**NW**) | almost nothing: only SERVICE and two buttons are MAME inputs (sensors are not emulated) | none until the sensors are |
 | spinner on an upright | Kick `kick` 3, Kickman `kickman` 1 (**G**) | `IPT_DIAL` | **already a dial panel**: the `odd` mark is redundant |
 | other | Jambo! Safari `jambo` 1 (**NW**) | not found | |

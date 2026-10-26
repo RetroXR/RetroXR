@@ -1347,6 +1347,7 @@ func _build_system_filter_options(vbox: VBoxContainer) -> void:
 	_build_bios_boot_override(vbox)
 	_build_arcade_attract(vbox)
 	_build_arcade_pedal(vbox)
+	_build_arcade_motion(vbox)
 
 
 ## The switch that makes a switched-on arcade cabinet show its game instead of running it.
@@ -1392,6 +1393,26 @@ func _build_arcade_pedal(vbox: VBoxContainer) -> void:
 		], AppPrefs.arcade_pedal_mode, 1, Vector2(340, 52), MenuStyle.MENU_NAME_SIZE)
 	drop.item_selected.connect(func(id: Variant) -> void:
 		AppPrefs.arcade_pedal_mode = str(id)
+		AppPrefs.save_prefs()
+	)
+	vbox.add_child(drop)
+
+
+## Whether a sit-down cabinet on a moving base moves (AppPrefs.arcade_motion): After Burner's deluxe, Out Run's, Power Drift's, Space Harrier's. Its seat and
+## cabin tilt a few degrees with the stick or the wheel, and the player in the seat goes with them.
+func _build_arcade_motion(vbox: VBoxContainer) -> void:
+	vbox.add_child(MenuStyle.spacer(10))
+	vbox.add_child(MenuStyle.label("Cabinet Motion", 22, MenuStyle.COLOR_TITLE))
+	vbox.add_child(MenuStyle.label(
+		"Cockpits that were on a moving base tilt a few degrees with the stick or the wheel, and take you with them. Automatic is on at a desk and off in a headset.",
+		16, MenuStyle.COLOR_LICENSE))
+	var drop := VRDropdown.create("Motion", [
+			["Automatic", AppPrefs.MOTION_AUTO],
+			["Always", AppPrefs.MOTION_ON],
+			["Never", AppPrefs.MOTION_OFF],
+		], AppPrefs.arcade_motion, 1, Vector2(340, 52), MenuStyle.MENU_NAME_SIZE)
+	drop.item_selected.connect(func(id: Variant) -> void:
+		AppPrefs.arcade_motion = str(id)
 		AppPrefs.save_prefs()
 	)
 	vbox.add_child(drop)

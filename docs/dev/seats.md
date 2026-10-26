@@ -32,4 +32,9 @@ a bed (`Scenes/Objects/furniture/seat_*.tscn`, baked by `Tools/gen/gen_seats.gd`
   the floor). **The cabinet's pointer boxes leave the cushion open**: a box over the whole seat stood between the laser and the trigger that lies
   3 cm proud of it (the base under the cushion and the back behind it are boxes; nothing above). `seat_tests cockpit/`; the view from the seat is
   `arcade_cabinet_probe --forms=daytona` (`formseat_`). A headset and the Quest are OWED, as for the furniture.
-- Tests: `seat_tests` (groups `pose sit press family cockpit save`; mutation-tested: yaw sign and the body switch). Pictures: `Tools/models/seats_probe` (windowed; eyes yellow, stand point green).
+- **A seat on a moving base carries the player (2026-10-26).** A cockpit whose game's cabinet moved (After Burner II's, Out Run's: `ArcadeCabinetBuilder._build_cockpit` with `motion`) is built on a
+  `MotionPivot` that `ArcadeControlModule` tilts about the platform's centre a few degrees with the stick or the wheel. The seat moves with it, and so does a seated player:
+  `CockpitSeat._physics_process` calls `SeatSitting.follow()` before `pin()`, which moves the origin (and the body under it, and the pin) by the eye point's move since the last frame.
+  **Position only**: the base turns, the view does not (a rotation of the player's view by a base is the thing that makes people ill in a headset: `AppPrefs.arcade_motion` is automatic = off in a headset,
+  on at a desk, or the player's choice). `seat_tests follow/`. A headset and the Quest on a moving seat are OWED, as for every seat.
+- Tests: `seat_tests` (groups `pose sit press family cockpit follow save`; mutation-tested: yaw sign and the body switch). Pictures: `Tools/models/seats_probe` (windowed; eyes yellow, stand point green).

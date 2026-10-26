@@ -818,6 +818,19 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   a toe lip, and a boot and a cord to the cabinet; a driver's two are organ pedals on one axle over a footplate with a heel mat, brake (left) the
   wider pad, rising 32 degrees toward the screen. Every proportion is an estimate: no photograph of Namco's or Sega's pedals could be fetched
   from here (the egress proxy). `arcade_form_tests pedals/`.
+- **A sit-down flight cockpit** (`fly`: After Burner II, G-LOC, Galaxy Force II, Space Harrier, Thunder Blade, Night Striker, 41 romsets, 2026-10-26; `arcade-cabinets.md` 2b is the catalogue):
+  the driving cockpit's platform, dash and seat, with **a stick between the knees** (`StickPivot`, a frame standing up, a 30 cm shaft, the first two buttons on the grip's head) and **a throttle lever by
+  the left hand** (`ThrottlePivot`, the next two buttons on its knob) for a game whose driver reads a Z axis (the table's `z`, read out of the driver sources by `Tools/arcade/cockpits.py`), in
+  a **cabin** where the game's had one (the table's `q` flag `c`: slanted side panels, a roof running forward over the monitor, five lock-on lamps). `q` is also read by the driving
+  cockpit (Out Run, Power Drift, Super Monaco GP, which MAME's DIP calls "Moving") and by the gun rides. **What MAME's Cabinet DIP offers (Moving, Cockpit, Deluxe) says a sit-down cabinet existed even when its
+  factory setting is an upright**, which is why Out Run was filed `stand` before. The throttle is the right stick's Y (forward up), and **stays where it was left** (`ThrottleGrab`: a hand moves it, and the
+  larger of the lever and a pad's right stick is what is sent).
+- **A moving base** (`MotionPivot`, `q` flag `m`): the platform, the dash, the seat, the controls and the cabin of a cockpit are one node that `ArcadeControlModule.tick` tilts about the platform's centre:
+  banked into the turn (4 degrees at full stick or wheel), nosed up with a pull or the gas (3 degrees), eased at 4 a second, level again when the run ends. **Options > Cabinet Motion** (`AppPrefs.arcade_motion`):
+  automatic (on at a desk, off in a headset), always, never. `CockpitSeat` carries a seated player with the seat (`SeatSitting.follow`: position only, the view never turns with the base; seats.md). The
+  base is driven by the stick and the wheel, not by the game: the API gives the cabinet nothing of the game's own motion.
+- **A bench for a ride** (`bench`: Rail Chase, The Lost World, Jurassic Park, Line of Fire): a platform in front of the guns (which stay on the deck) and a seat a gun, two at most, side by side on it
+  (`CockpitSeat`, eyes capped at 1.20 m: a 1.33 m glass would make a stool). It does not move.
 - **A stand-up driving cabinet** (`stand`: Pole Position, Out Run, Final Lap): the wheel stands out of the panel, a gear lever beside it, and the
   two pedals on the floor in front, clear of the bay door (the real ones were on the kick panel: the door is there).
 - **A ride-on bike** (`bike`: Hang-On, Harley-Davidson, Manx TT): a motorbike on a stand in front of the `racer` body; it LEANS with the steering
@@ -868,7 +881,7 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   tests and the probes, which look at what the profile alone hides.
 - **Netplay**: the form is derived from the board, so two peers build the same one (it decides whether a port is a gun or a socket). Not measured
   with two peers.
-- Tests: `arcade_form_tests` (groups `specs layout build board reach guns ports input animate running boxes footprint bezel odd`; `arcade_tests game/`
+- Tests: `arcade_form_tests` (groups `specs layout build board reach guns ports input animate running boxes footprint bezel odd seating`; `arcade_tests game/`
   switches the shape off through the seam and keeps testing the hiding). Mutation-tested: 19 breaks of the code, each turned a case red (the first pass found eight
   that did not, among them a duplicate collision box Godot had renamed out of the count and a freed gun that compared equal to null). Pictures: `arcade_cabinet_probe --forms=sf2,pacman,tmnt,...`
   (windowed; `form_<romset>.png` and `formside_<romset>.png`).
@@ -1092,7 +1105,9 @@ a wheel, bars, dial and trackball the left stick's X or XY, so "left+dpad" sends
   stick's Y, pulled being DOWN) with their own let-go distance (`BARS_LET_GO`, the grips stand 30 cm out); *crank*: the trigger at a pedal (`CRANK_REACH` 6 cm) and the hand turns it like a dial: the
   SPEED it is turned at is the right stick's Y (forward up), and a hand on the axle has no angle; *slide*: a lever in a slot (Panic Park) taken at its ball (`SLIDE_REACH` 5.5 cm) and pushed along it,
   `SLOT_TRAVEL` 14 cm being all the way (the left stick's X); the bars' handle is the middle of the bars, not the pivot the bike leans about (the
-  hands are 60 cm above it and the let-go distance took hold of nothing).
+  hands are 60 cm above it and the let-go distance took hold of nothing); *throttle* (a flight cockpit's lever): taken at its knob (`THROTTLE_REACH` 6 cm), pushed or pulled
+  (`THROTTLE_THROW` 10 cm is all of it) and **left where the hand left it** (`ThrottleGrab.value`, sent as the right stick's Y while it is anywhere but the middle; the machine switched off or the run
+  over puts it back, `reset_latched`); a flight STICK's throw grows with its shaft (`StickGrab._throw`: 3 cm for the deck's 8.5 cm, 9.5 cm for the cockpit's 36 cm: the grip stays with the hand).
 - **Clockwise seen by the player is RIGHT**, for the wheel, the dial and the bars. The dial used to turn the other way (a turn about +Z, which is toward the
   player, is counter-clockwise); `_dial_angle` is now clockwise-positive and drawn `Basis(BACK, -angle)`. Holding RIGHT and a hand agree.
 - **The laser** (`VrPointerBlock`): a hand within `REACH_SCALE` (1.5x) of a control it could take, or holding one, has no laser (back the moment it is
@@ -1119,7 +1134,7 @@ a wheel, bars, dial and trackball the left stick's X or XY, so "left+dpad" sends
   the cabinet really builds): the pure zone; caps (press, hold, grace, slide, two hands sharing, hidden caps and panels, a hand holding something, the machine off, a lost
   controller); pedals; the stick (reach, edge, directions, diagonal, dead zone, the 35% line, drawn at once, spring back, a key's lean kept, one hand, 35 cm, hidden);
   twin sticks; the wheel (rim only, the sign, the lock, no wind-up, drawn at once, back to centre); the dial's sign and speed; the trackball; the lever's latch;
-  the bars; a bicycle's bars and crank and Panic Park's two levers (`cycle/`, `slot/`); the port (a cap on the right port, the cap sinks, the bindings apply, off sends nothing, a pad and a hand add up); the laser (off, on, given back by a release, the
+  the bars; a bicycle's bars and crank and Panic Park's two levers (`cycle/`, `slot/`); a flight cockpit's stick and throttle (`fly/`: the throw by the shaft, the lever staying put, a pad's larger deflection winning, put back when the machine goes off); the port (a cap on the right port, the cap sinks, the bindings apply, off sends nothing, a pad and a hand add up); the laser (off, on, given back by a release, the
   power, a morph) and the panel's press; the carry (a hand on a control cannot pick the cabinet up, the other hand can; the squeeze); attract. Mutation-tested (48 mutants of the
   hand code, every one caught: the tests that let three through, a pedal zone that followed the pedal down, the dial's direction under a key and a swapped gas and brake bit,
   were made to catch them; and 20 more for the bicycle's bars and crank and the slot's levers, 19 caught and one that cannot be: the crank's `end()` clearing a speed that `begin()` clears too). **OWED: a headset.** Every number above is an estimate: reach, throw, zones, speeds. They are consts so the feel can be tuned on

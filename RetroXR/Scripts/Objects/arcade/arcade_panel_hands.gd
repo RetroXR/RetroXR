@@ -36,6 +36,9 @@
 ##              bicycle's also push forward and pull back (10 cm is the whole of it) to tip the craft.
 ##   crank      a bicycle's: turned with the hand like a dial, the SPEED it is turned at the right stick's Y, forward up.
 ##   slide      a lever in a slot (Panic Park's): pushed along it, 14 cm either way from where it rests.
+##   throttle   a flight cockpit's lever: pushed forward or pulled back (10 cm is all of it) and LEFT WHERE IT IS, as a throttle is;
+##              it is the right stick's Y, forward up. A pad's right stick over it wins while it is further over (the larger wins,
+##              as with any control a hand and a pad both work).
 ## Clockwise seen by the player is RIGHT, for the wheel, the dial and the bars alike.
 ##
 ## EVERY NUMBER HERE IS AN ESTIMATE. A headset has not touched it; the suite (arcade_hand_tests) pins the mechanics, not
@@ -84,6 +87,9 @@ const BARS_THROW := 0.15
 const BARS_PITCH_THROW := 0.10
 const CRANK_REACH := 0.06
 const SLIDE_REACH := 0.055
+## A throttle lever is taken at its knob, and moves through its whole travel for this much of the hand's way forward or back.
+const THROTTLE_REACH := 0.06
+const THROTTLE_THROW := 0.10
 ## The lever goes high past this much of its throw and low again under this much (hysteresis: a toggle shifter must not shift at every
 ## wobble of a hand about the middle), and a tap on a toggle or sequential shifter's button lasts and rests this long.
 const LEVER_HIGH_ON := 0.6
@@ -179,6 +185,9 @@ func rebuild() -> void:
 	var slide := _panel.find_child("SlidePivot", true, false) as Node3D
 	if slide != null:
 		_grabs.append(SlideGrab.new(_panel, slide))
+	var throttle := _panel.find_child("ThrottlePivot", true, false) as Node3D
+	if throttle != null:
+		_grabs.append(ThrottleGrab.new(_panel, throttle))
 
 
 # ── every frame ──────────────────────────────────────────────────────────────
@@ -189,6 +198,9 @@ func update(delta: float, ctrls: Array, live: bool) -> void:
 	if not live or _panel == null or not is_instance_valid(_panel) or not _panel.is_inside_tree() \
 			or not _panel.is_visible_in_tree():
 		release_all()
+		# A machine that is off has its throttle back in the middle.
+		if not live:
+			reset_latched()
 		return
 	# Whatever a control is in the middle of (a tap on a shift button) goes on with no hand on it.
 	for g in _grabs:
@@ -506,6 +518,18 @@ func lever_throw() -> float:
 	return g.shift if g != null else 0.0
 
 
+## Where the throttle lever stands (-1 back .. 1 forward): where the hand has it, and where it was left.
+func throttle_value() -> float:
+	var g := _grab_of(&"throttle", 0) as ThrottleGrab
+	return g.value if g != null else 0.0
+
+
+## A control that keeps its place when let go (a throttle) goes back to the middle: the machine went off, or the run ended.
+func reset_latched() -> void:
+	for g in _grabs:
+		g.reset()
+
+
 func _grab_of(kind: StringName, index: int) -> ControlGrab:
 	for g in _grabs:
 		if g.kind == kind and g.index == index:
@@ -615,6 +639,10 @@ class ControlGrab extends RefCounted:
 	func tick(_delta: float) -> void:
 		pass
 
+	## Back to where it starts a run (a control that is left where it is when let go: a throttle).
+	func reset() -> void:
+		pass
+
 	## The pad bits this holds, and the thumbstick it stands in for (0 left, 1 right).
 	func bits() -> int:
 		return 0
@@ -647,8 +675,10 @@ class StickGrab extends ControlGrab:
 	var lean := Vector2.ZERO
 	var _origin := Vector3.ZERO
 	var _base := Vector2.ZERO
-	## Where the ball is on the shaft, in the pivot's frame.
+	## Where the ball is on the shaft, in the pivot's frame, and how far the hand goes for a full lean: the ball's own travel at full tilt, which
+	## a longer shaft makes longer (a flight stick is 30 cm: the deck stick's 3 cm would leave the ball running off ahead of the hand).
 	var _ball := Vector3(0.0, 0.0, 0.085)
+	var _throw := ArcadePanelHands.STICK_THROW
 
 	func _init(p_panel: ArcadeControlModule, p_node: Node3D, p_index: int) -> void:
 		kind = &"stick"
@@ -659,6 +689,7 @@ class StickGrab extends ControlGrab:
 		if ball != null:
 			trace = ball
 			_ball = ball.position
+		_throw = ArcadePanelHands.STICK_THROW * maxf(1.0, _ball.length() / 0.085)
 
 	func handle() -> Vector3:
 		return node.global_transform * _ball
@@ -674,7 +705,7 @@ class StickGrab extends ControlGrab:
 
 	func drag(tip: Vector3, _delta: float) -> void:
 		var d := frame().affine_inverse() * tip - _origin
-		var v := _base + Vector2(d.x, -d.y) / ArcadePanelHands.STICK_THROW
+		var v := _base + Vector2(d.x, -d.y) / _throw
 		lean = Vector2(clampf(v.x, -1.0, 1.0), clampf(v.y, -1.0, 1.0))
 
 	func end() -> void:
@@ -1102,3 +1133,45 @@ class SlideGrab extends ControlGrab:
 
 	func stick(side: int) -> Vector2:
 		return Vector2(steer, 0.0) if holder != null and side == 0 else Vector2.ZERO
+
+
+## A flight cockpit's throttle lever: pushed forward or pulled back and left where it is. The value is the right stick's Y (forward up); a lever
+## in the middle sends nothing, as a stick at rest does.
+class ThrottleGrab extends ControlGrab:
+	## -1 pulled all the way back .. 1 pushed all the way forward.
+	var value := 0.0
+	var _z0 := 0.0
+	var _base := 0.0
+
+	func _init(p_panel: ArcadeControlModule, p_node: Node3D) -> void:
+		kind = &"throttle"
+		panel = p_panel
+		node = p_node
+		trace = p_node.find_child("ThrottleKnob", true, false) as MeshInstance3D
+
+	## The knob, where the lever's top is now.
+	func handle() -> Vector3:
+		return trace.global_position if trace != null else node.global_transform * Vector3(0.0, 0.2, 0.0)
+
+	func reach() -> float:
+		return ArcadePanelHands.THROTTLE_REACH
+
+	func begin(tip: Vector3) -> void:
+		_z0 = (frame().affine_inverse() * tip).z
+		# From where the lever is, whatever put it there (the pad's stick, a hand that left it).
+		_base = panel.throttle_amount()
+		value = _base
+
+	func drag(tip: Vector3, _delta: float) -> void:
+		# Forward is -Z in the cockpit's frame.
+		value = clampf(_base - ((frame().affine_inverse() * tip).z - _z0) / ArcadePanelHands.THROTTLE_THROW, -1.0, 1.0)
+
+	## Let go, the lever stays (value is kept); only a machine that goes off, or a run that ends, puts it back (reset).
+	func reset() -> void:
+		value = 0.0
+
+	## Held or left alone, the lever sends where it stands: not at rest in the middle.
+	func stick(side: int) -> Vector2:
+		if side != 1 or absf(value) < 0.02:
+			return Vector2.ZERO
+		return Vector2(0.0, value)

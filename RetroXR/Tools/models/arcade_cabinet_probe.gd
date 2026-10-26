@@ -279,12 +279,38 @@ func _shot_forms() -> void:
 		# What stands on the floor at the player's feet, close: a gun game's pedal, a driver's two.
 		# What a seated driver sees, from the seat's EyePoint (a sit-down cockpit).
 		var driver := _model.find_child("DriverSeat", true, false) as CockpitSeat
+		if driver == null:
+			driver = _model.find_child("BenchSeat1", true, false) as CockpitSeat
 		if driver != null:
 			var eye := driver.eye_transform()
 			_cam.global_transform = eye
 			_cam.fov = 70.0
 			await _save("formseat_" + romset)
+			# And what is in the lap: the stick and the throttle of a flight cockpit, the wheel's dash of a driving one, from the same eyes pitched down.
+			var lap := _model.find_child("StickBall", true, false) as Node3D
+			if lap == null:
+				lap = _model.find_child("WheelPivot", true, false) as Node3D
+			if lap != null:
+				_cam.global_transform = eye
+				_cam.look_at(lap.global_position, Vector3.UP)
+				await _save("formlap_" + romset)
 			_cam.fov = 58.0
+		# A cockpit on a moving base, thrown over: full stick to the right and pulled back, or the wheel hard over with the gas down.
+		var panel := _model.find_child("Player1", true, false) as ArcadeControlModule
+		if panel != null and _model.find_child("MotionPivot", true, false) != null:
+			panel.motion_override = 1
+			var mask := (1 << ControllerBindings.JOYPAD_RIGHT) | (1 << ControllerBindings.JOYPAD_DOWN)
+			panel.show_state(mask, Vector4i.ZERO)
+			for i in 90:
+				panel.tick(0.05)
+			print("[probe] motion %s: %s" % [romset, str(panel.motion_state())])
+			_look(mid + Vector3(reach * 0.95, 0.75, 0.0), mid)
+			await _save("formtilt_" + romset)
+			_look(mid + Vector3(0.0, 1.0, reach * 1.1), mid)
+			await _save("formtiltfront_" + romset)
+			panel.show_state(0, Vector4i.ZERO)
+			for i in 90:
+				panel.tick(0.05)
 		var feet := _model.find_child("Pedal1", true, false) as Node3D
 		var from := Vector3(0.38, 0.32, 0.46)
 		if feet == null:

@@ -26,6 +26,7 @@
 ##   bars/     a motorbike's bars lean it
 ##   cycle/    a bicycle's bars steer and tip, its crank is pedalled by a hand
 ##   slot/     two levers in one slot, one a hand each
+##   fly/      a flight cockpit's stick (a long shaft, a long throw) and its throttle, which stays where the hand left it
 ##   input/    what the hands hold goes out like an attached controller's: the port, the bindings, the cap that sinks
 ##   laser/    a hand on a control has no laser; it is back when the hand is done, and the panel takes no press from it
 ##   carry/    a hand on a control cannot pick the cabinet up, and its squeeze does not attach
@@ -80,7 +81,7 @@ func _run() -> void:
 		_group_zone()
 	for g: Array in [["caps", _group_caps], ["pedals", _group_pedals], ["stick", _group_stick],
 			["twin", _group_twin], ["wheel", _group_wheel], ["dial", _group_dial], ["ball", _group_ball],
-			["lever", _group_lever], ["bars", _group_bars], ["cycle", _group_cycle], ["slot", _group_slot],
+			["lever", _group_lever], ["bars", _group_bars], ["cycle", _group_cycle], ["slot", _group_slot], ["fly", _group_fly],
 			["input", _group_input],
 			["laser", _group_laser], ["carry", _group_carry], ["use", _group_use]]:
 		if _want(str(g[0])):
@@ -1124,6 +1125,126 @@ func _group_slot() -> void:
 	_ok(not a.hands().holds(&"slide") and not b.hands().holds(&"slide"), "slot: let go, both are free")
 	input._right_vr_ctrl = null
 	input._left_vr_ctrl = null
+
+
+# --- fly -----------------------------------------------------------------------
+
+func _group_fly() -> void:
+	var r := await _rig("aburner2", 6, true)
+	var input: ArcadeInput = r["input"]
+	var panel: ArcadeControlModule = r["panel"]
+	var hands := panel.hands()
+	var right := _hand("right")
+	var left := _hand("left")
+	input._right_vr_ctrl = _ctrl(right)
+	input._left_vr_ctrl = _ctrl(left)
+	var ball := panel.find_child("StickBall", true, false) as Node3D
+	var knob := panel.find_child("ThrottleKnob", true, false) as Node3D
+	var ahead := -panel.global_transform.basis.z.normalized()
+	# The stick: taken at its grip, 30 cm up its shaft.
+	_tip_at(right, ball.global_position)
+	_trigger(right, 1.0)
+	input._process(0.016)
+	_ok(hands.holds(&"stick"), "fly: the trigger at the grip takes hold of the flight stick")
+	var grip_at := ball.global_position
+	# A hand that moves 5 cm does not lean it all the way: the throw is the shaft's, not a deck stick's 3 cm.
+	_tip_at(right, grip_at + _right(panel) * 0.05)
+	input._process(0.016)
+	var half := hands.stick_lean(0).x
+	_ok(half > 0.3 and half < 0.7, "fly: 5 cm of hand is about half a lean on a 30 cm shaft (%.2f)" % half)
+	_tip_at(right, grip_at + _right(panel) * 0.15)
+	input._process(0.016)
+	_ok(hands.stick_lean(0).x > 0.99 and panel.hand_thumbstick(0).x > 0.99 and panel.hand_thumbstick(1) == Vector2.ZERO,
+		"fly: 15 cm is all of it, the left stick, and the right stick (the throttle) left alone")
+	panel.tick(0.016)
+	var leaned := ball.global_position
+	_ok(leaned.x > grip_at.x + 0.05, "fly: and the grip is drawn where the hand has it (%.3f m over)" % (leaned.x - grip_at.x))
+	# Pushed away from the player is up on the stick; the grip follows the hand to within a few centimetres.
+	_tip_at(right, grip_at + ahead * 0.15)
+	input._process(0.016)
+	_ok(hands.stick_lean(0).y < -0.99 and panel.hand_thumbstick(0).y > 0.99, "fly: pushed forward it is the left stick up")
+	_trigger(right, 0.0)
+	input._process(0.016)
+	# A finger on the stick's head presses the first button, which is on the stick and goes with it.
+	_tip_at(left, _cap_top(panel, "Btn1"))
+	_step(panel, [left])
+	_ok(panel.hand_buttons() & (1 << ArcadeProfiles.BUTTON_BITS[0]) != 0, "fly: a finger on the stick's head presses its first button")
+	_tip_at(left, grip_at + Vector3(0, 0.6, 0))
+	_step(panel, [left])
+	# The throttle: taken at its knob, pushed 5 cm forward is half, and it stays where the hand left it.
+	_tip_at(left, knob.global_position + ahead * 0.09)
+	_trigger(left, 1.0)
+	input._process(0.016)
+	_ok(not hands.holds(&"throttle"), "fly: a trigger pulled 9 cm from the knob takes nothing")
+	_trigger(left, 0.0)
+	input._process(0.016)
+	var knob_at := knob.global_position
+	_tip_at(left, knob_at)
+	_trigger(left, 1.0)
+	input._process(0.016)
+	_ok(hands.holds(&"throttle") and hands.throttle_value() == 0.0, "fly: the trigger at the knob takes hold of the throttle, in the middle")
+	_tip_at(left, knob_at + ahead * 0.05)
+	input._process(0.016)
+	_ok(_near_f(hands.throttle_value(), 0.5) and _near_f(panel.hand_thumbstick(1).y, 0.5) and panel.hand_thumbstick(0) == Vector2.ZERO,
+		"fly: 5 cm forward is half throttle: the right stick up by half (%s)" % str(panel.hand_thumbstick(1)))
+	panel.tick(0.016)
+	_ok(panel.throttle_amount() == hands.throttle_value() and _near_f(panel.throttle_amount(), 0.5),
+		"fly: a lever in a hand is drawn where the hand has it, with no easing between (%.6f)" % panel.throttle_amount())
+	var sent := input._heard_axes.get(0, Vector4i.ZERO) as Vector4i
+	_ok(absi(sent.w + int(0.5 * ArcadeInput.ANALOG_SCALE)) <= 2 and sent.x == 0 and sent.y == 0 and sent.z == 0,
+		"fly: sent as the right stick's Y, up, and nothing else (%s)" % str(sent))
+	_tip_at(left, knob_at + ahead * 0.2)
+	input._process(0.016)
+	_ok(hands.throttle_value() == 1.0, "fly: a hand that goes on past the end of the travel gets the end")
+	_tip_at(left, knob_at + ahead * -0.2)
+	input._process(0.016)
+	_ok(hands.throttle_value() == -1.0, "fly: and the other end")
+	_tip_at(left, knob_at + ahead * 0.03)
+	input._process(0.016)
+	var wanted := hands.throttle_value()
+	_trigger(left, 0.0)
+	input._process(0.016)
+	_ok(not hands.holds(&"throttle") and hands.throttle_value() == wanted and _near_f(panel.hand_thumbstick(1).y, wanted),
+		"fly: let go, the lever stays where the hand left it, and the game goes on reading it (%.2f)" % wanted)
+	_tip_at(left, Vector3(0, 5, 0))
+	input._process(0.016)
+	input._process(0.016)
+	_ok(_near_f(hands.throttle_value(), wanted), "fly: even with the hand gone from the cabinet")
+	# The pad beside it: whichever of the two is further over wins, as with any control both work.
+	var pad_small := input._with_hands({"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": int(0.01 * ArcadeInput.ANALOG_SCALE)}, 0)
+	var pad_big := input._with_hands({"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": ArcadeInput.ANALOG_SCALE}, 0)
+	_ok(int(pad_small["ary"]) == int(-wanted * ArcadeInput.ANALOG_SCALE) and int(pad_big["ary"]) == ArcadeInput.ANALOG_SCALE,
+		"fly: a pad's right stick pushed further than the lever takes over from it, one barely touched does not")
+	# The lever is drawn at the throttle's value.
+	input._process(0.016)
+	for i in 30:
+		panel.tick(0.05)
+	_ok(_near_f(panel.throttle_amount(), wanted, 0.01), "fly: and drawn there (%.2f)" % panel.throttle_amount())
+	# The run over, the lever is back in the middle: the next game starts at idle.
+	panel.rest()
+	input._process(0.016)
+	for i in 30:
+		panel.tick(0.05)
+	_ok(hands.throttle_value() == 0.0 and panel.hand_thumbstick(1) == Vector2.ZERO and _near_f(panel.throttle_amount(), 0.0, 0.01),
+		"fly: the run over, the throttle is back in the middle")
+	# A machine switched off puts it back too.
+	_tip_at(left, knob.global_position)
+	_trigger(left, 1.0)
+	input._process(0.016)
+	_tip_at(left, knob.global_position + ahead * 0.05)
+	input._process(0.016)
+	_trigger(left, 0.0)
+	input._process(0.016)
+	var set := hands.throttle_value()
+	r["sys"].is_powered_on = false
+	input._process(0.016)
+	_ok(set > 0.4 and hands.throttle_value() == 0.0, "fly: a machine switched off has its throttle back in the middle (%.2f first)" % set)
+	input._right_vr_ctrl = null
+	input._left_vr_ctrl = null
+
+
+func _near_f(a: float, b: float, tolerance: float = 0.02) -> bool:
+	return absf(a - b) <= tolerance
 
 
 # --- input ---------------------------------------------------------------------

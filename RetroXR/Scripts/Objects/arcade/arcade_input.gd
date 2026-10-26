@@ -847,10 +847,11 @@ func _end_run() -> void:
 		_service_wait.clear()
 	_run_base = -1
 	_run_seconds = 0.0
-	# The next run starts in the game's first gear, so the gear lever is put back.
+	# The next run starts in the game's first gear, so the gear lever is put back; a moving base settles and a throttle lever is back in the middle.
 	for panel in _controls:
 		if panel != null:
 			panel.reset_shift()
+			panel.rest()
 	_return_held()
 	_letting_in = false
 	_start_hold = 0.0

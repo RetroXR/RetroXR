@@ -615,6 +615,7 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 	spec.erase("gun_style")
 	spec.erase("gun_pedals")
 	spec.erase("cockpit")
+	spec.erase("bench")
 	spec.erase("stage")
 	spec.erase("bike")
 	spec.erase("cycle")
@@ -637,10 +638,21 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 			spec["players"] = gun_panels(guns, str(spec["gun_style"]))
 			if profile.gun_pedal():
 				spec["gun_pedals"] = gun_xs(guns, ArcadeCabinetSpecs.shapes()["wide"]["w"], str(spec["gun_style"]))
+			# A ride (Rail Chase, The Lost World, Jurassic Park): a bench in front of the guns, a seat a gun, two at most, on a base that moves
+			# where the game's did.
+			if profile.has_seat() and form != ArcadeGameProfile.FORM_RIFLE:
+				spec["bench"] = {"seats": mini(guns, 2), "motion": profile.has_motion()}
 		ArcadeGameProfile.FORM_RACE:
 			shape = "racer"
 			spec["players"] = []
-			spec["cockpit"] = {"roof": profile.has_roof(), "shifter": profile.has_shifter(), "player": 0}
+			spec["cockpit"] = {"roof": profile.has_roof(), "shifter": profile.has_shifter(), "player": 0, "motion": profile.has_motion()}
+		ArcadeGameProfile.FORM_FLY:
+			# A flight cockpit: the driving cockpit's platform, dash and seat, with a stick between the knees and a throttle by the left hand in
+			# place of the wheel and the shifter; a cabin round the seat where the game's was (After Burner's), a base that moves where its was.
+			shape = "racer"
+			spec["players"] = []
+			spec["cockpit"] = {"flight": true, "roof": profile.has_cabin(), "cabin": profile.has_cabin(), "motion": profile.has_motion(),
+				"throttle": profile.has_throttle(), "pedals": profile.has_kind(ArcadeGameProfile.KIND_PEDAL), "shifter": false, "player": 0}
 		ArcadeGameProfile.FORM_BIKE:
 			shape = "racer"
 			spec["players"] = []
@@ -790,7 +802,7 @@ static func gun_xs(guns: int, width: float, style: String = "holster") -> Array:
 static func _same_form(a: Dictionary, b: Dictionary) -> bool:
 	if str(a.get("shape", "upright")) != str(b.get("shape", "upright")):
 		return false
-	for key in ["players", "coins", "guns", "sockets", "socket_count", "gun_style", "gun_pedals", "cockpit",
+	for key in ["players", "coins", "guns", "sockets", "socket_count", "gun_style", "gun_pedals", "cockpit", "bench",
 			"stage", "bike", "cycle", "holo", "screen"]:
 		if not _same_value(a.get(key), b.get(key)):
 			return false

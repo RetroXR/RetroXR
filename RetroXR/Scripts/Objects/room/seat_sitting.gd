@@ -27,6 +27,8 @@ var _pin := Vector3.ZERO
 var _rig: Seat.PlayerPieces = null
 ## The desktop camera's height before sitting set it, to put back; negative when it was not touched.
 var _saved_camera_y := -1.0
+## Where the host's eye point was when the player sat, or when the seat last moved them (follow).
+var _last_eye := Vector3.ZERO
 
 
 func _init(host: Node3D) -> void:
@@ -53,6 +55,7 @@ func sit() -> bool:
 		rig.camera.position.y = eye.origin.y - floor_y
 	rig.origin.global_transform = Seat.origin_for_eye(rig.origin.global_transform, rig.camera.global_transform, eye, floor_y)
 	_pin = rig.origin.global_position
+	_last_eye = eye.origin
 	_rig = rig
 	_put_body_under_camera(rig)
 	_block_locomotion(true)
@@ -88,6 +91,22 @@ func pin() -> void:
 		return
 	if _rig.origin.global_position.distance_squared_to(_pin) > 1.0e-6:
 		_rig.origin.global_position = _pin
+
+
+## The seat has moved under the player (a cockpit on a base that tilts with the play, ArcadeControlModule): the head goes where the eye point went.
+## The origin is carried by the same move and pinned there; only the position, because the base turns a few degrees and the view must not turn with
+## it. The host calls this from its physics process, before `pin()`.
+func follow() -> void:
+	if _rig == null or not is_instance_valid(_rig.origin):
+		return
+	var eye: Vector3 = (_host.call("eye_transform") as Transform3D).origin
+	var d := eye - _last_eye
+	if d.length_squared() < 1.0e-10:
+		return
+	_last_eye = eye
+	_rig.origin.global_position += d
+	_pin += d
+	_put_body_under_camera(_rig)
 
 
 ## The room is being changed: the player keeps no seat (the next room has none of these). Only the claim is dropped;

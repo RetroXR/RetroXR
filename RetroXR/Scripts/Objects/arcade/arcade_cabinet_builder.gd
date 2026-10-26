@@ -152,6 +152,8 @@ func _build_extras() -> void:
 		_build_pedal(i)
 	if _v.has("cockpit"):
 		_build_cockpit(_v["cockpit"])
+	if _v.has("bench"):
+		_build_bench(_v["bench"])
 	if _v.has("bike"):
 		_build_bike(_v["bike"])
 	if _v.has("cycle"):
@@ -914,67 +916,101 @@ func _build_pedal(index: int) -> void:
 	form_boxes.append(AABB(Vector3(x - 0.10, 0.0, PEDAL_Z - 0.17), Vector3(0.20, 0.10, 0.34)))
 
 
-# ── a sit-down driving cockpit ──────────────────────────────────────────────
+# ── a sit-down cockpit ──────────────────────────────────────────────────────
 
 ## Where the cockpit's platform starts (clear of the bay door, which opens 40 cm out) and ends.
 const COCKPIT_Z0 := 0.84
 const COCKPIT_Z1 := 2.10
+## A flight cockpit's stick console between the knees and its throttle console by the left hand: where they stand front to back, how high the
+## stick turns on its console, and where the grip is on the shaft (the grip's centre, from the pivot).
+const STICK_Z := 1.34
+const STICK_BASE_Y := 0.40
+const FLIGHT_GRIP_Z := 0.27
+const THROTTLE_Z := 1.50
+## The cabin's walls: from the front pillar's foot (CABIN_Z0, on the platform beside the dash) back to CABIN_Z1, as tall as CABIN_H over the platform. Each
+## is one panel whose front edge slants from the roof's front corner (CABIN_FRONT_Z, just ahead of the monitor housing's deck) down to the sill
+## (CABIN_SILL_Y) at the pillar: the shape of a canopy's side. The roof runs forward over the housing's marquee (ROOF_FRONT_Z), a hand's breadth above it.
+const CABIN_Z0 := 0.90
+const CABIN_Z1 := 2.02
+const CABIN_H := 1.52
+const CABIN_FRONT_Z := 0.52
+const CABIN_SILL_Y := 0.84
+const ROOF_FRONT_Z := 0.20
 
 
-## A sit-down driving cockpit in front of the monitor housing (Daytona USA, Sega Rally, Ridge Racer): a
-## platform, a seat, a dash holding the wheel, the two pedals in the footwell under it, a gear lever by the
-## right hand and START on the dash; on the Model 3 twins a roof over the seat. The driver's controls are ONE
-## controller (Player1, taken hold of at the wheel), as a panel is. No collision: a player walks in and sits
-## on their own chair.
+## A sit-down cockpit in front of the monitor housing (Daytona USA, Sega Rally, Ridge Racer, After Burner II): a
+## platform, a seat and a dash with START on it. A DRIVING cockpit has the wheel on the dash, the two pedals in the footwell under it and a
+## gear lever by the right hand; on the Model 3 twins a roof over the seat. A FLIGHT cockpit (`flight`) has a stick between the knees and,
+## where the game reads one (`throttle`), a throttle lever by the left hand, in a cabin (`cabin`: walls and a roof) where the game's was. A
+## game whose cabinet moved (`motion`) has all of it on a `MotionPivot` that ArcadeControlModule tilts with the stick or the wheel. The driver's
+## controls are ONE controller (Player1, taken hold of at the wheel or the stick), as a panel is. No collision: a player walks in and sits on
+## their own chair.
 func _build_cockpit(spec: Dictionary) -> void:
 	var cp := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Cockpit", Vector3.ZERO)) as Node3D
+	var flight := bool(spec.get("flight", false))
 	var depth := COCKPIT_Z1 - COCKPIT_Z0
 	var zc := (COCKPIT_Z0 + COCKPIT_Z1) * 0.5
-	ArcadeParts.box(_owner, cp, "Platform", Vector3(_w, 0.10, depth), Vector3(0, 0.05, zc), _body)
+	# What the driver sits in is on `base`: the cockpit itself, or the base that moves under it.
+	var base := cp
+	if bool(spec.get("motion", false)):
+		base = ArcadeParts.node(_owner, cp, "Node3D", "MotionPivot", Vector3.ZERO) as Node3D
+		base.set_meta(&"motion_centre", Vector3(0.0, PLATFORM_TOP, zc))
+	ArcadeParts.box(_owner, base, "Platform", Vector3(_w, 0.10, depth), Vector3(0, 0.05, zc), _body)
 	# A band round the platform's edge, under its top (a band flush with the top would fight it for the face).
-	ArcadeParts.box(_owner, cp, "PlatformTrim", Vector3(_w + 0.004, 0.012, depth + 0.004), Vector3(0, 0.084, zc), _trim)
+	ArcadeParts.box(_owner, base, "PlatformTrim", Vector3(_w + 0.004, 0.012, depth + 0.004), Vector3(0, 0.084, zc), _trim)
 	# The dash: a pedestal at the platform's front, its top leaning toward the driver.
-	ArcadeParts.box(_owner, cp, "Dash", Vector3(_w - 0.10, 0.60, 0.20), Vector3(0, 0.40, 0.98), _body)
-	var dash_top := ArcadeParts.box(_owner, cp, "DashTop", Vector3(_w - 0.08, 0.02, 0.26), Vector3(0, 0.71, 1.00), _dark)
+	ArcadeParts.box(_owner, base, "Dash", Vector3(_w - 0.10, 0.60, 0.20), Vector3(0, 0.40, 0.98), _body)
+	var dash_top := ArcadeParts.box(_owner, base, "DashTop", Vector3(_w - 0.08, 0.02, 0.26), Vector3(0, 0.71, 1.00), _dark)
 	dash_top.basis = Basis(Vector3.RIGHT, deg_to_rad(18.0))
-	_build_driver_seat(cp)
-	# The gear lever's console, by the driver's right hand.
-	ArcadeParts.box(_owner, cp, "ShifterConsole", Vector3(0.12, 0.44, 0.30), Vector3(_w * 0.5 - 0.10, 0.32, 1.52), _body)
-	if bool(spec.get("roof", false)):
+	_build_driver_seat(base)
+	if not flight:
+		# The gear lever's console, by the driver's right hand.
+		ArcadeParts.box(_owner, base, "ShifterConsole", Vector3(0.12, 0.44, 0.30), Vector3(_w * 0.5 - 0.10, 0.32, 1.52), _body)
+	if bool(spec.get("roof", false)) and not flight:
 		# Two posts behind the seat and a canopy forward over the driver to the monitor housing (the overhead
 		# marquee of Sega's Model 3 twins).
 		for k in [-1.0, 1.0]:
-			ArcadeParts.box(_owner, cp, "RoofPost%s" % ("L" if k < 0 else "R"), Vector3(0.05, 1.90, 0.05),
+			ArcadeParts.box(_owner, base, "RoofPost%s" % ("L" if k < 0 else "R"), Vector3(0.05, 1.90, 0.05),
 				Vector3(k * (_w * 0.5 - 0.03), 1.05, COCKPIT_Z1 - 0.05), _body)
-		ArcadeParts.box(_owner, cp, "Roof", Vector3(_w, 0.05, COCKPIT_Z1 + 0.10), Vector3(0, 2.025, (COCKPIT_Z1 - 0.10) * 0.5), _body)
-		ArcadeParts.box(_owner, cp, "RoofTrim", Vector3(_w + 0.004, 0.012, COCKPIT_Z1 + 0.104), Vector3(0, 1.995, (COCKPIT_Z1 - 0.10) * 0.5), _trim)
+		ArcadeParts.box(_owner, base, "Roof", Vector3(_w, 0.05, COCKPIT_Z1 + 0.10), Vector3(0, 2.025, (COCKPIT_Z1 - 0.10) * 0.5), _body)
+		ArcadeParts.box(_owner, base, "RoofTrim", Vector3(_w + 0.004, 0.012, COCKPIT_Z1 + 0.104), Vector3(0, 1.995, (COCKPIT_Z1 - 0.10) * 0.5), _trim)
 		var lit := ArcadeParts.mat(_v["marquee"], 0.0, 0.5, _v["glow"], 0.0)
-		ArcadeParts.box(_owner, cp, "RoofSign", Vector3(_w - 0.06, 0.16, 0.012), Vector3(0, 1.90, COCKPIT_Z1 - 0.06), lit)
+		ArcadeParts.box(_owner, base, "RoofSign", Vector3(_w - 0.06, 0.16, 0.012), Vector3(0, 1.90, COCKPIT_Z1 - 0.06), lit)
+	if flight and bool(spec.get("cabin", false)):
+		_build_cabin(base)
 	# The driver's controls, one controller.
-	var mod := ArcadeParts.node(_owner, cp, "Node3D", "Player1") as Node3D
+	var mod := ArcadeParts.node(_owner, base, "Node3D", "Player1") as Node3D
 	mod.set_script(load(SCRIPTS["control"]))
 	mod.set("player", int(spec.get("player", 0)))
-	var wb := Basis(Vector3.RIGHT, deg_to_rad(60.0))
-	var wheel_at := Vector3(0, 0.82, 1.20)
-	_wheel(mod, wheel_at, wb, 0.15)
-	_pedals(mod, Transform3D.IDENTITY, Vector3(0, 0.10, 1.26))
-	if bool(spec.get("shifter", true)):
-		_shifter(mod, Vector3(_w * 0.5 - 0.10, 0.54, 1.52), Basis.IDENTITY.rotated(Vector3.RIGHT, -PI * 0.5))
 	# START on the dash, left of the wheel, in a frame whose +Z is out of the dash's top.
 	var panel := ArcadeParts.node(_owner, mod, "Node3D", "DashPanel", Vector3(-0.22, 0.725, 1.02)) as Node3D
 	panel.basis = Basis(Vector3.RIGHT, deg_to_rad(-72.0))
 	_cap(panel, "Start", Vector3.ZERO, 0.012, Color(0.92, 0.92, 0.92), 0.008)
-	var grip := ArcadeParts.node(_owner, mod, "Area3D", "PanelGrip", wheel_at) as Area3D
+	var grip := ArcadeParts.node(_owner, mod, "Area3D", "PanelGrip") as Area3D
 	grip.set_script(load(SCRIPTS["panel"]))
 	grip.collision_layer = 0
 	grip.collision_mask = 0
-	# The grip faces the driver: its +Z along the wheel's axis.
-	grip.basis = wb * Basis(Vector3.RIGHT, -PI * 0.5)
-	grip.set("panel_size", Vector2(0.36, 0.36))
 	var gcol := ArcadeParts.node(_owner, grip, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
 	var gshape := BoxShape3D.new()
-	gshape.size = Vector3(0.36, 0.36, 0.16)
 	gcol.shape = gshape
+	if flight:
+		_flight_controls(base, mod, panel, spec)
+		# The grip faces the driver, round the stick's head.
+		grip.position = Vector3(0, STICK_BASE_Y + 0.34, STICK_Z)
+		grip.set("panel_size", Vector2(0.32, 0.32))
+		gshape.size = Vector3(0.32, 0.32, 0.30)
+	else:
+		var wb := Basis(Vector3.RIGHT, deg_to_rad(60.0))
+		var wheel_at := Vector3(0, 0.82, 1.20)
+		_wheel(mod, wheel_at, wb, 0.15)
+		_pedals(mod, Transform3D.IDENTITY, Vector3(0, 0.10, 1.26))
+		if bool(spec.get("shifter", true)):
+			_shifter(mod, Vector3(_w * 0.5 - 0.10, 0.54, 1.52), Basis.IDENTITY.rotated(Vector3.RIGHT, -PI * 0.5))
+		# The grip faces the driver: its +Z along the wheel's axis.
+		grip.position = wheel_at
+		grip.basis = wb * Basis(Vector3.RIGHT, -PI * 0.5)
+		grip.set("panel_size", Vector2(0.36, 0.36))
+		gshape.size = Vector3(0.36, 0.36, 0.16)
 	form_boxes.append(AABB(Vector3(-_w * 0.5, 0.0, COCKPIT_Z0), Vector3(_w, 0.10, depth)))
 	# The seat is aimed at as the cabinet except on its cushion, which is the seat's own (a sitting press): a box over
 	# the whole seat would stand between the laser and the trigger that lies 3 cm proud of the cushion. So the base
@@ -983,6 +1019,89 @@ func _build_cockpit(spec: Dictionary) -> void:
 	form_boxes.append(AABB(Vector3(-0.24, PLATFORM_TOP, SEAT_Z - 0.23), Vector3(0.48, cushion_top - 0.03 - PLATFORM_TOP, 0.46)))
 	form_boxes.append(AABB(Vector3(-0.24, cushion_top, SEAT_Z + 0.23), Vector3(0.48, 1.25 - cushion_top, 0.17)))
 	form_boxes.append(AABB(Vector3(-(_w - 0.10) * 0.5, 0.10, 0.88), Vector3(_w - 0.10, 0.62, 0.20)))
+	if flight and bool(spec.get("cabin", false)):
+		# The cabin's walls are the cabinet too, to take hold of by; its roof is left open to the laser, or it would stand over every control.
+		for k in [-1.0, 1.0]:
+			form_boxes.append(AABB(Vector3(k * (_w * 0.5 - 0.02) - 0.02, PLATFORM_TOP, CABIN_Z0), Vector3(0.04, CABIN_H, CABIN_Z1 - CABIN_Z0)))
+
+
+## A flight cockpit's controls (Player1's): the stick between the knees on its console, a gaiter, a shaft and a grip with the first buttons on its
+## head, the next two on the throttle's knob where there is a throttle and on the stick's head where there is none, the last two on the dash by
+## START. The stick's frame stands with its +Z up and its +Y toward the screen, so it leans as a deck stick does (ArcadeControlModule._pose_stick);
+## the throttle lever's top moves toward -Z for forward (ThrottlePivot), and both are the controller's own parts: found by name, held by the hands.
+func _flight_controls(base: Node3D, mod: Node3D, dash_panel: Node3D, spec: Dictionary) -> void:
+	var rubber := ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.6)
+	var throttle := bool(spec.get("throttle", false))
+	# The stick's grip is the player's colour, as a deck stick's ball is: black on the black dash it was lost.
+	var grip_paint := ArcadeParts.mat(_player_color(int(spec.get("player", 0))), 0.0, 0.3)
+	ArcadeParts.box(_owner, base, "StickConsole", Vector3(0.30, STICK_BASE_Y - 0.10, 0.30), Vector3(0, (STICK_BASE_Y + 0.10) * 0.5, STICK_Z), _body)
+	var frame := ArcadeParts.node(_owner, mod, "Node3D", "StickFrame", Vector3(0, STICK_BASE_Y, STICK_Z)) as Node3D
+	frame.basis = Basis(Vector3.RIGHT, -PI * 0.5)
+	ArcadeParts.cylinder(_owner, frame, "StickGaiter", 0.05, 0.07, Vector3(0, 0, 0.035), _dark, Vector3.BACK)
+	var pivot := ArcadeParts.node(_owner, frame, "Node3D", "StickPivot", Vector3(0, 0, 0.03)) as Node3D
+	ArcadeParts.cylinder(_owner, pivot, "StickShaft", 0.011, FLIGHT_GRIP_Z, Vector3(0, 0, FLIGHT_GRIP_Z * 0.5), _metal, Vector3.BACK)
+	# The grip: a rubber handle lying along the shaft's axis, with a flat head on top that the first buttons stand in.
+	var grip := ArcadeParts.node(_owner, pivot, "MeshInstance3D", "StickBall", Vector3(0, 0, FLIGHT_GRIP_Z)) as MeshInstance3D
+	var gm := CapsuleMesh.new()
+	gm.radius = 0.030
+	gm.height = 0.13
+	gm.radial_segments = 16
+	gm.rings = 4
+	gm.material = grip_paint
+	grip.mesh = gm
+	grip.basis = Basis(Vector3.RIGHT, PI * 0.5)
+	var head := ArcadeParts.node(_owner, pivot, "Node3D", "StickHead", Vector3(0, 0, FLIGHT_GRIP_Z + 0.06)) as Node3D
+	_cap(head, "Btn1", Vector3(-0.015, 0.0, 0.0), 0.010, BUTTON_COLORS[0], 0.009)
+	_cap(head, "Btn2", Vector3(0.015, 0.0, 0.0), 0.010, BUTTON_COLORS[1], 0.009)
+	if not throttle:
+		_cap(head, "Btn3", Vector3(-0.015, 0.0, 0.0) + Vector3(0, 0.026, 0), 0.0085, BUTTON_COLORS[2], 0.009)
+		_cap(head, "Btn4", Vector3(0.015, 0.026, 0.0), 0.0085, BUTTON_COLORS[3], 0.009)
+	else:
+		# The throttle: a console by the left hand with a lever standing up out of it, its knob a thumb's reach from two buttons.
+		var tx := -(_w * 0.5 - 0.10)
+		ArcadeParts.box(_owner, base, "ThrottleConsole", Vector3(0.12, 0.40, 0.34), Vector3(tx, 0.30, THROTTLE_Z), _body)
+		var lever := ArcadeParts.node(_owner, mod, "Node3D", "ThrottlePivot", Vector3(tx, 0.50, THROTTLE_Z)) as Node3D
+		ArcadeParts.cylinder(_owner, lever, "ThrottleShaft", 0.010, 0.18, Vector3(0, 0.09, 0), _metal, Vector3.UP)
+		var knob := ArcadeParts.node(_owner, lever, "MeshInstance3D", "ThrottleKnob", Vector3(0, 0.20, 0)) as MeshInstance3D
+		var km := CapsuleMesh.new()
+		km.radius = 0.027
+		km.height = 0.09
+		km.radial_segments = 16
+		km.rings = 4
+		km.material = rubber
+		knob.mesh = km
+		var tip := ArcadeParts.node(_owner, lever, "Node3D", "ThrottleHead", Vector3(0, 0.245, 0)) as Node3D
+		tip.basis = Basis(Vector3.RIGHT, -PI * 0.5)
+		_cap(tip, "Btn3", Vector3(-0.012, 0.0, 0.0), 0.0095, BUTTON_COLORS[2], 0.008)
+		_cap(tip, "Btn4", Vector3(0.012, 0.0, 0.0), 0.0095, BUTTON_COLORS[3], 0.008)
+	# The last two buttons beside START on the dash.
+	_cap(dash_panel, "Btn5", Vector3(0.05, 0.0, 0.0), 0.012, BUTTON_COLORS[4], 0.008)
+	_cap(dash_panel, "Btn6", Vector3(0.09, 0.0, 0.0), 0.012, BUTTON_COLORS[5], 0.008)
+
+
+## The cabin round a flight cockpit's seat (After Burner's, G-LOC's, Galaxy Force's): a panel each side, its front edge slanting up from the sill
+## to the roof's front corner as a canopy's does, a roof over them that runs forward over the monitor housing, and the lock-on lamps along its front;
+## open behind, where the player gets in. The shape is an estimate: the research found words for these cabinets, no photograph.
+func _build_cabin(base: Node3D) -> void:
+	var z1 := CABIN_Z1
+	var top := PLATFORM_TOP + CABIN_H
+	var side := PackedVector2Array([Vector2(CABIN_FRONT_Z, top), Vector2(z1, top), Vector2(z1, PLATFORM_TOP),
+		Vector2(CABIN_Z0, PLATFORM_TOP), Vector2(CABIN_Z0, CABIN_SILL_Y)])
+	var panel_mesh := _extrude(side, 0.04)
+	panel_mesh.surface_set_material(0, _body)
+	for k in [-1.0, 1.0]:
+		var name_side := "L" if k < 0 else "R"
+		var x: float = k * (_w * 0.5 - 0.02)
+		var wall := ArcadeParts.node(_owner, base, "MeshInstance3D", "CabinWall" + name_side, Vector3(x, 0, 0)) as MeshInstance3D
+		wall.mesh = panel_mesh
+		ArcadeParts.box(_owner, base, "CabinTrim" + name_side, Vector3(0.044, 0.02, z1 - CABIN_FRONT_Z), Vector3(x, top - 0.01, (CABIN_FRONT_Z + z1) * 0.5), _trim)
+	var roof_z0 := ROOF_FRONT_Z
+	ArcadeParts.box(_owner, base, "CabinRoof", Vector3(_w, 0.05, z1 - roof_z0), Vector3(0, top + 0.025, (roof_z0 + z1) * 0.5), _body)
+	# Lock-on lights along the front of the roof, over the monitor surround where the real cabin had them (research: the lights, not their number).
+	var lamp := ArcadeParts.mat(Color(0.9, 0.12, 0.10), 0.0, 0.4, Color(1.0, 0.1, 0.1), 1.2)
+	for i in 5:
+		ArcadeParts.box(_owner, base, "CabinLamp%d" % (i + 1), Vector3(0.05, 0.012, 0.05),
+			Vector3((float(i) - 2.0) * 0.1, top - 0.006, roof_z0 + 0.12), lamp)
 
 
 ## Where the driver's seat stands, front to back (the cushion's middle), and the platform's top it stands on.
@@ -992,35 +1111,74 @@ const PLATFORM_TOP := 0.10
 const EYE_ABOVE_CUSHION := 0.72
 
 
-## The driver's seat, one that can be sat in (CockpitSeat; seats.md): a base, the cushion, a back leaning back and
+## A seat that can be sat in (CockpitSeat; seats.md): a base, the cushion, a back leaning back and
 ## a headrest, with the markers a seat needs. THE EYES ARE AT THE MIDDLE OF THE GLASS: the `racer` body is built
 ## for a seated driver to look straight into its monitor (1.12 m), and the cushion is an adult's eye height under
 ## them. MAME says nothing of where a driver sat, so the screen is what a seat is fitted to. The node stands on the
-## platform, at the cushion; the parts and markers are in its frame.
-func _build_driver_seat(cp: Node3D) -> void:
-	var eye_y := ((_sh["glass_a"] as Vector2).y + (_sh["glass_b"] as Vector2).y) * 0.5
+## platform, at the cushion; the parts and markers are in its frame. `x` and `z` are where it stands (a bench has two, side by side, a
+## narrower `width` each), `stand_x` which side of it the player gets up onto, `eye_cap` the highest the eyes may be (a bench in front of a TALL
+## glass is a bench, not a stool).
+func _build_driver_seat(cp: Node3D, x: float = 0.0, z: float = SEAT_Z, node_name: String = "DriverSeat",
+		width: float = 0.48, stand_x: float = -0.62, eye_cap: float = INF) -> void:
+	var eye_y := minf(((_sh["glass_a"] as Vector2).y + (_sh["glass_b"] as Vector2).y) * 0.5, eye_cap)
 	var cushion := eye_y - EYE_ABOVE_CUSHION - PLATFORM_TOP     # the cushion's top, above the platform
-	var seat := ArcadeParts.node(_owner, cp, "Node3D", "DriverSeat", Vector3(0, PLATFORM_TOP, SEAT_Z)) as Node3D
+	var seat := ArcadeParts.node(_owner, cp, "Node3D", node_name, Vector3(x, PLATFORM_TOP, z)) as Node3D
 	seat.set_script(load(SCRIPTS["seat"]))
 	var seat_mat := ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.7)
 	var base_h := cushion - 0.08
-	ArcadeParts.box(_owner, seat, "SeatBase", Vector3(0.36, base_h, 0.36), Vector3(0, base_h * 0.5, 0.02), _dark)
-	ArcadeParts.box(_owner, seat, "SeatCushion", Vector3(0.48, 0.08, 0.46), Vector3(0, cushion - 0.04, 0.0), seat_mat)
+	var base_w := minf(0.36, width - 0.06)
+	ArcadeParts.box(_owner, seat, "SeatBase", Vector3(base_w, base_h, 0.36), Vector3(0, base_h * 0.5, 0.02), _dark)
+	ArcadeParts.box(_owner, seat, "SeatCushion", Vector3(width, 0.08, 0.46), Vector3(0, cushion - 0.04, 0.0), seat_mat)
 	# The back leans BACK, away from the screen (+Z), and the headrest on top of it.
-	var back := ArcadeParts.box(_owner, seat, "SeatBack", Vector3(0.48, 0.62, 0.08), Vector3(0, cushion + 0.30, 0.24), seat_mat)
+	var back := ArcadeParts.box(_owner, seat, "SeatBack", Vector3(width, 0.62, 0.08), Vector3(0, cushion + 0.30, 0.24), seat_mat)
 	back.basis = Basis(Vector3.RIGHT, deg_to_rad(14.0))
-	var head := ArcadeParts.box(_owner, seat, "SeatHead", Vector3(0.30, 0.16, 0.08), Vector3(0, cushion + 0.69, 0.34), seat_mat)
+	var head := ArcadeParts.box(_owner, seat, "SeatHead", Vector3(minf(0.30, width - 0.10), 0.16, 0.08), Vector3(0, cushion + 0.69, 0.34), seat_mat)
 	head.basis = back.basis
 	# The cushion you press: 3 cm proud of the surface (a seat's own rule, gen_seats.gd).
 	var trigger := ArcadeParts.node(_owner, seat, "Area3D", "SeatTrigger", Vector3(0, cushion + 0.005, 0.0)) as Area3D
 	trigger.set_script(load(SCRIPTS["seat_trigger"]))
 	var tcol := ArcadeParts.node(_owner, trigger, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
 	var tshape := BoxShape3D.new()
-	tshape.size = Vector3(0.46, 0.03, 0.44)
+	tshape.size = Vector3(width - 0.02, 0.03, 0.44)
 	tcol.shape = tshape
 	ArcadeParts.node(_owner, seat, "Marker3D", "EyePoint", Vector3(0, eye_y - PLATFORM_TOP, 0.04))
 	# Getting up is to the driver's side (the left): the front is the dash and the right the gear lever.
-	ArcadeParts.node(_owner, seat, "Marker3D", "StandPoint", Vector3(-0.62, -PLATFORM_TOP, 0.02))
+	ArcadeParts.node(_owner, seat, "Marker3D", "StandPoint", Vector3(stand_x, -PLATFORM_TOP, 0.02))
+
+
+# ── a bench for a ride ──────────────────────────────────────────────────────
+
+## Where a bench's platform starts and ends, and where its seats are front to back: a seat's width apart, close enough to the guns on the front
+## of the deck (0.47 m out) to reach them with the arm bent.
+const BENCH_Z0 := 0.84
+const BENCH_Z1 := 1.56
+const BENCH_SEAT_Z := 1.16
+## A bench's seated eyes: the middle of a wide body's glass is 1.33 m up, which would put the cushion 0.61 m off the floor.
+const BENCH_EYE_Y := 1.20
+
+
+## The bench a ride was played on (Rail Chase, The Lost World, Jurassic Park): a platform in front of the guns and a seat each, two at most, side by side
+## on it, the player's own to sit in (CockpitSeat). The guns stay where they are on the deck. The real benches moved with the ride; this one does
+## not, because nothing the cabinet is given says how (the game's motion data is not in the libretro API), and a bench that rocked to no purpose
+## under a headset would be harm for nothing.
+func _build_bench(spec: Dictionary) -> void:
+	var seats := clampi(int(spec.get("seats", 1)), 1, 2)
+	var bench := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Bench", Vector3.ZERO)) as Node3D
+	var depth := BENCH_Z1 - BENCH_Z0
+	var zc := (BENCH_Z0 + BENCH_Z1) * 0.5
+	ArcadeParts.box(_owner, bench, "BenchPlatform", Vector3(_w, 0.10, depth), Vector3(0, 0.05, zc), _body)
+	ArcadeParts.box(_owner, bench, "BenchTrim", Vector3(_w + 0.004, 0.012, depth + 0.004), Vector3(0, 0.084, zc), _trim)
+	var width := 0.40 if seats > 1 else 0.48
+	var xs: Array = [0.0] if seats == 1 else [-0.21, 0.21]
+	for i in seats:
+		# Each player gets up on the outside of their own seat.
+		_build_driver_seat(bench, float(xs[i]), BENCH_SEAT_Z, "BenchSeat%d" % (i + 1), width, -0.62 if xs[i] <= 0.0 else 0.62, BENCH_EYE_Y)
+	form_boxes.append(AABB(Vector3(-_w * 0.5, 0.0, BENCH_Z0), Vector3(_w, 0.10, depth)))
+	# The seats are aimed at as the cabinet except on their cushions (as the cockpit's): the base under each, the back behind it.
+	var cushion_top := minf(((_sh["glass_a"] as Vector2).y + (_sh["glass_b"] as Vector2).y) * 0.5, BENCH_EYE_Y) - EYE_ABOVE_CUSHION
+	for x: float in xs:
+		form_boxes.append(AABB(Vector3(x - width * 0.5, PLATFORM_TOP, BENCH_SEAT_Z - 0.23), Vector3(width, cushion_top - 0.03 - PLATFORM_TOP, 0.46)))
+		form_boxes.append(AABB(Vector3(x - width * 0.5, cushion_top, BENCH_SEAT_Z + 0.23), Vector3(width, 1.25 - cushion_top, 0.17)))
 
 
 # ── a ride-on motorbike ─────────────────────────────────────────────────────

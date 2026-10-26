@@ -18,7 +18,9 @@
 ## lever, thrown with the game's own shift button: ArcadeGameProfile.shifter), `LeanPivot` (a motorbike leaning with the steering) and
 ## `PadUp`/`PadDown`/`PadLeft`/`PadRight` (a dance stage's arrows, sinking with the directions), `BarsPivot` (a bicycle's
 ## handlebars, turned with the left stick's X and tipped with its Y), `CrankPivot` (its crank, turned by the right stick's
-## Y, faster the further it is pushed) and `SlidePivot` (a lever in a slot, sliding with the left stick's X).
+## Y, faster the further it is pushed), `SlidePivot` (a lever in a slot, sliding with the left stick's X) and `ThrottlePivot` (a flight
+## cockpit's throttle lever, the right stick's Y: forward is up, and it stays where it is left). A cockpit on a moving base has `MotionPivot`
+## among this panel's ancestors, and tilts with the stick and the wheel (`tick`, when the player's choice and the form allow it).
 ## Every one is optional: a Neo Geo panel has four buttons, a gun cabinet's has only START.
 class_name ArcadeControlModule
 extends ArcadeModule
@@ -54,6 +56,13 @@ const BARS_PITCH_DEG := 12.0
 const CRANK_SPEED := TAU * 1.5
 ## A stick's full deflection, as the analog axes are sent.
 const AXIS_FULL := 32767.0
+## A flight throttle at full travel either way from the middle, the angle its lever is thrown through.
+const THROTTLE_DEG := 32.0
+## A moving base banks this far at full stick or wheel, noses this far up or down at full pull or push or at full gas or brake, and follows what
+## the player does at this rate (per second): a few degrees, because a head carried on a tilting seat is a head being rocked.
+const MOTION_ROLL_DEG := 4.0
+const MOTION_PITCH_DEG := 3.0
+const MOTION_RATE := 4.0
 
 var _caps: Array[Node3D] = []
 ## Each cap's flange (`<cap>Rim`, fixed, of the cap's colour), or null where a scene has none.
@@ -75,8 +84,19 @@ var _lean: Node3D = null
 var _bars: Node3D = null
 var _crank: Node3D = null
 var _slide: Node3D = null
+var _throttle: Node3D = null
 ## Where a slot's lever rests: the carriage slides along X from here.
 var _slide_rest := Vector3.ZERO
+## The moving base this panel stands on (an ancestor named `MotionPivot`, its `motion_centre` meta the point it tilts about, in its parent's
+## frame), where it is tilted to now and where it is going: x banks (-1..1, right positive), y noses up (-1..1). Never moved when the player's
+## choice is off (`motion_on`).
+var _motion: Node3D = null
+var _motion_centre := Vector3.ZERO
+var _motion_now := Vector2.ZERO
+var _motion_target := Vector2.ZERO
+var _motion_written := false
+## The player's choice, asked once a frame the base has something to do (the tests set it).
+var motion_override := -1
 ## How fast the crank is being pedalled now (-1..1, forward positive) and how far round it has come.
 var _crank_rate := 0.0
 var _crank_angle := 0.0
@@ -145,12 +165,18 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 	_crank = find_child("CrankPivot", true, false) as Node3D
 	_slide = find_child("SlidePivot", true, false) as Node3D
 	_slide_rest = _slide.position if _slide != null else Vector3.ZERO
+	_throttle = find_child("ThrottlePivot", true, false) as Node3D
+	_motion = _ancestor_named(&"MotionPivot")
+	_motion_centre = Vector3(_motion.get_meta(&"motion_centre", Vector3.ZERO)) if _motion != null else Vector3.ZERO
+	_motion_now = Vector2.ZERO
+	_motion_target = Vector2.ZERO
+	_motion_written = false
 	_rest_basis.clear()
-	for pivot: Node3D in [_wheel, _gas, _brake, _shifter, _lean, _stick2, _ball, _bars, _crank]:
+	for pivot: Node3D in [_wheel, _gas, _brake, _shifter, _lean, _stick2, _ball, _bars, _crank, _throttle]:
 		if pivot != null:
 			_rest_basis[pivot] = pivot.basis
 	_has_analog = _wheel != null or _lean != null or _gas != null or _brake != null or _shifter != null \
-		or _bars != null or _slide != null
+		or _bars != null or _slide != null or _throttle != null
 	_dial = find_child("DialPivot", true, false) as Node3D
 	_grip = find_child("PanelGrip", true, false) as ArcadePanelGrip
 	if _grip != null:
@@ -162,6 +188,16 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 func _exit_tree() -> void:
 	if _hands != null:
 		_hands.release_all()
+
+
+## The nearest ancestor with this name, or null.
+func _ancestor_named(node_name: StringName) -> Node3D:
+	var n := get_parent()
+	while n != null:
+		if n.name == node_name and n is Node3D:
+			return n as Node3D
+		n = n.get_parent()
+	return null
 
 
 func _add_cap(node_name: String, bit: int, button: int) -> void:
@@ -190,6 +226,9 @@ func apply_profile(profile: ArcadeGameProfile) -> void:
 		set_attached(false)
 	if _stick != null:
 		_stick.visible = profile == null or profile.stick_visible()
+	# A throttle lever the game does not read is not drawn (a cockpit is built for its game, so this is a seam for a cockpit that stays).
+	if _throttle != null:
+		_throttle.visible = profile == null or profile.has_throttle()
 	for i in _caps.size():
 		var button := _cap_button[i]
 		if button < 0:
@@ -325,6 +364,8 @@ func show_state(mask: int, axes: Vector4i = Vector4i.ZERO) -> void:
 		_analog_target["brake"] = 1.0 if (mask >> ControllerBindings.JOYPAD_L2) & 1 else 0.0
 		_step_shift(before, mask)
 		_analog_target["shift"] = 1.0 if _shift_high else 0.0
+		# The throttle is the right stick's Y: pushed up (negative as sent) is forward, the lever away from the player.
+		_analog_target["throttle"] = clampf(-right.y, -1.0, 1.0)
 	# The second stick: the right analog stick, or the four face buttons as its directions (Robotron's
 	# fire stick is the diamond on a pad: X up, B down, Y left, A right).
 	var face := Vector2(float((mask >> ControllerBindings.JOYPAD_A) & 1) - float((mask >> ControllerBindings.JOYPAD_Y) & 1),
@@ -332,6 +373,10 @@ func show_state(mask: int, axes: Vector4i = Vector4i.ZERO) -> void:
 	_stick2_target = face if face != Vector2.ZERO else right.limit_length(1.0)
 	# The crank: the right stick's Y, up (negative as sent) being forward.
 	_crank_rate = clampf(-right.y, -1.0, 1.0)
+	# The moving base: banks into the turn, noses up with a pull on the stick and with the gas, down with the brake.
+	if _motion != null:
+		var pedals := float((mask >> ControllerBindings.JOYPAD_R2) & 1) - float((mask >> ControllerBindings.JOYPAD_L2) & 1)
+		_motion_target = Vector2(clampf(steer.x, -1.0, 1.0), clampf(steer.y * 0.8 + pedals * 0.5, -1.0, 1.0))
 
 
 ## The gear lever follows the game's own shift button (or the two of a sequential box), seen in what the player is sending. A press the
@@ -378,8 +423,18 @@ func reset_shift() -> void:
 	_shown_mask = -1
 
 
+## The run is over: a moving base settles, a latched throttle lever is back in the middle. (The next run starts from rest.)
+func rest() -> void:
+	_motion_target = Vector2.ZERO
+	if _throttle != null:
+		_analog_target["throttle"] = 0.0
+	if _hands != null:
+		_hands.reset_latched()
+
+
 func tick(delta: float) -> void:
 	_tick_analog(delta)
+	_tick_motion(delta)
 	if _dial != null:
 		if _in_hand(&"dial"):
 			_dial_angle = _hands.dial_angle()
@@ -418,6 +473,35 @@ func _pose_stick() -> void:
 
 func _in_hand(kind: StringName, index: int = 0) -> bool:
 	return _hands != null and _hands.holds(kind, index)
+
+
+## Whether the player's choice lets a base move (AppPrefs.arcade_motion; automatic is on at a desk, off in a headset).
+func motion_on() -> bool:
+	if motion_override >= 0:
+		return motion_override == 1
+	return AppPrefs.arcade_motion_enabled(MenuStyle.is_vr_mode())
+
+
+## The moving base eases toward where the play puts it and is tilted about its centre (a few degrees; the seat and cabin on it go with it).
+func _tick_motion(delta: float) -> void:
+	if _motion == null:
+		return
+	var want := _motion_target if motion_on() else Vector2.ZERO
+	if _motion_now != want:
+		_motion_now = _motion_now.lerp(want, minf(1.0, delta * MOTION_RATE))
+		if _motion_now.distance_squared_to(want) < 1.0e-6:
+			_motion_now = want
+	elif _motion_written:
+		return
+	_motion_written = true
+	# Banked into the turn (the right side down for a push to the right), nosed up for a pull (the front rises).
+	var b := Basis.from_euler(Vector3(deg_to_rad(MOTION_PITCH_DEG) * _motion_now.y, 0.0, -deg_to_rad(MOTION_ROLL_DEG) * _motion_now.x))
+	_motion.transform = Transform3D(b, _motion_centre - b * _motion_centre)
+
+
+## How far the base is tilted now (x banked right, y nose up, -1..1), for the tests and the probe.
+func motion_state() -> Vector2:
+	return _motion_now
 
 
 ## The stick's lean as last shown, for the tests and the probe.
@@ -491,6 +575,8 @@ func _held_analog() -> Dictionary:
 		out["steer"] = _hands.steer(&"slide")
 	if _hands.holds(&"lever"):
 		out["shift"] = _hands.lever_throw()
+	if _hands.holds(&"throttle"):
+		out["throttle"] = _hands.throttle_value()
 	return out
 
 
@@ -513,6 +599,9 @@ func _pose_analog() -> void:
 			* Basis(Vector3.RIGHT, deg_to_rad(BARS_PITCH_DEG) * float(_analog_now.get("pitch", 0.0)))
 	if _slide != null:
 		_slide.position = _slide_rest + Vector3(steer * ArcadeCabinetSpecs.SLOT_TRAVEL, 0.0, 0.0)
+	if _throttle != null:
+		# Forward (the lever's top away from the player, toward -Z) is a turn about -X for a lever standing up.
+		_throttle.basis = _rest_basis[_throttle] * Basis(Vector3.RIGHT, -deg_to_rad(THROTTLE_DEG) * float(_analog_now.get("throttle", 0.0)))
 
 
 ## The steering wheel's turn as last shown (-1 full left .. 1 full right), and how far a pedal is down, for the
@@ -604,3 +693,8 @@ func bars_pitch() -> float:
 
 func shift_amount() -> float:
 	return float(_analog_now.get("shift", 0.0))
+
+
+## Where the throttle lever is (-1 back .. 1 forward), as drawn.
+func throttle_amount() -> float:
+	return float(_analog_now.get("throttle", 0.0))

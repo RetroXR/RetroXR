@@ -41,6 +41,8 @@ func _physics_process(_delta: float) -> void:
 	if Seat.current != self:
 		set_physics_process(false)
 		return
+	# A cockpit on a moving base carries the player with it before the pin holds them.
+	_sitting.follow()
 	_sitting.pin()
 
 

@@ -31,11 +31,14 @@ not the default, `;`-separated attributes (a letter and a value):
   g<n>      how many light guns (players with one),
   t<form>   the kind of cabinet the game came in, when it is not a plain upright:
             gun (guns in holsters), gunm (guns on mounts), rifle (a mounted rifle with a scope),
-            race (a sit-down driving cockpit), stand (a stand-up driving cabinet), bike (a
-            ride-on motorbike), cycle (a ride-on bicycle: Prop Cycle), holo (a hologram window: Time Traveler),
-            slot (two levers sliding in one slot: Panic Park), dance (a 4-arrow dance stage), pump (a 5-panel one),
-            music, odd,
+            race (a sit-down driving cockpit), fly (a sit-down flight cockpit: After Burner II), stand (a stand-up
+            driving cabinet), bike (a ride-on motorbike), cycle (a ride-on bicycle: Prop Cycle), holo (a hologram window:
+            Time Traveler), slot (two levers sliding in one slot: Panic Park), dance (a 4-arrow dance stage), pump (a
+            5-panel one), music, odd,
   o         the driving cockpit has a roof,
+  q<flags>  what the game's SIT-DOWN version was built with, for a flight cockpit, a driving cockpit or a gun ride (cockpits.py SEATING, with where each comes
+            from): `s` a seat, `c` a cabin round it, `m` a base that moves with the play (`qscm` After Burner II, `qsm` Out Run),
+  z         the flight game reads a throttle lever (an `IPT_AD_STICK_Z` of its own in the driver, cockpits.py),
   f         the gun game has a foot pedal,
   x<lever>  the driving game's gear lever, from the driver sources (shifters.py): `x3t` button 3 and MAME makes it a toggle, `x3h` button 3 held while
             the lever is high, `xs21` a sequential box (up on button 2, down on 1). A driving game with none has no lever,
@@ -70,6 +73,11 @@ KIND = {
 }
 
 OUT = "RetroXR/Scripts/Data/systems/arcade_game_table.gd"
+# The sit-down cabinets: the flight sims and which versions of each game had a seat, a cabin and a moving base (cockpits.py: curated, with where
+# each comes from), and the games whose driver reads a throttle lever, per ROMSET (cockpits.json, read out of MAME's driver sources).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cockpits import FLY, SEATING  # noqa: E402
+THROTTLES = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "cockpits.json")))["throttle"]
 # The gear lever of a driving game, by PARENT romset: read out of MAME's driver sources by shifters.py (a button, whether MAME makes it a
 # toggle, or a sequential box's up and down buttons). -listxml carries none of it.
 SHIFTERS = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "shifters.json")))
@@ -150,9 +158,9 @@ SLOT = {"panicprk"}
 ODD = {"alpinerd", "alpinr2b", "alpines", "alpinesa", "topskatr",
        "aquajet", "jetwave", "waverunr", "rapidrvr", "finfurl", "finfurl2", "skichamp", "bassdx",
        "getbass", "boxingm", "tokyowar", "cybsled", "starwars", "esb", "bzone", "redbaron",
-       "punchout", "spnchout", "armwrest", "gunmania", "maletmad", "hammer", "luckywld", "rchase",
+       "punchout", "spnchout", "armwrest", "gunmania", "maletmad", "hammer", "luckywld",
        "kick", "kickman", "dmx2m", "dmx2majp", "ppp", "ppd", "ppp11", "ppp2nd", "mamboagg",
-       "desert", "magtruck", "eca", "jambo", "bigrun"}
+       "desert", "magtruck", "jambo", "bigrun"}
 
 DANCE_DESC = re.compile(r"dance dance revolution|dancing stage|dance 86\.4", re.I)
 PUMP_DESC = re.compile(r"pump it up", re.I)
@@ -192,6 +200,9 @@ def driving_cabinet(machine, name, year):
     factory setting, then the era (an upright was the usual racer before 1988)."""
     if name in STAND_RACER:
         return "stand"
+    # The sit-down version is the one the research names even when the Cabinet DIP is set to an upright as it ships (Out Run's "Mini Up").
+    if "s" in SEATING.get(name, ""):
+        return "race"
     for g in machine.findall("dipswitch"):
         if (g.get("name") or "").lower() not in ("cabinet", "cabinet type"):
             continue
@@ -231,6 +242,8 @@ def form_of(machine, parent, kinds, name_for_lists):
         return "holo"
     if name_for_lists in SLOT:
         return "slot"
+    if name_for_lists in FLY:
+        return "fly"
     if name_for_lists in ODD:
         return "odd"
     if PUMP_DESC.search(desc):
@@ -321,6 +334,13 @@ def profile_of(machine, parent):
         attrs.append("t" + form)
     if family in ROOFED and form == "race":
         attrs.append("o")
+    # q: a seat (s), a cabin round it (c), a moving base (m): what the sit-down version of this game had (cockpits.py SEATING). Only a form that can
+    # show it reads it: a flight cockpit, a driving cockpit, a gun ride's bench.
+    if form in ("fly", "race", "gun", "gunm") and SEATING.get(family):
+        attrs.append("q" + SEATING[family])
+    # z: the game reads a throttle lever (a Z axis of its own, cockpits.json).
+    if form == "fly" and name in THROTTLES:
+        attrs.append("z")
     if family in GUN_PEDAL:
         attrs.append("f")
     if form in ("race", "stand") and shift_attr(SHIFTERS.get(family, {})):
