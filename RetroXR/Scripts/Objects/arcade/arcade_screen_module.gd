@@ -18,13 +18,31 @@ const SHADER := preload("res://Shaders/arcade_screen.gdshader")
 @export var glass_size: Vector2 = Vector2(0.38, 0.285)
 ## Scanline strength handed to the shader; 0 turns them off.
 @export_range(0.0, 1.0) var scanlines: float = 0.22
+## A game whose second screen is the scope's (Silent Scope, `ArcadeCabinetSpecs.scope_of`): the part of the core's frame the MONITOR shows and the
+## part the scope's lens does, as fractions of it, y down, and the frame's shape the table expects. Empty = the whole frame on the monitor and no
+## lens. The cut is made only while the core's frame really is that shape (a different layout, the player's own artwork, would put other things there).
+@export var main_part: Rect2 = Rect2()
+@export var scope_part: Rect2 = Rect2()
+@export var scope_frame_aspect: float = 0.0
+## For the tests and the probe: the frame's shape as if the core had reported it (> 0), instead of asking the core.
+var aspect_override: float = 0.0
 
 var _screen: MeshInstance3D = null
 var _material: ShaderMaterial = null
 var _off_material: StandardMaterial3D = null
 
 var _serial: int = -1
+var _geometry_aspect: float = 0.0
 var _content_aspect: float = 0.0
+## The lens in the rifle's scope (the rifle's `ScopeScreen` quad), found by name among the machine's guns, its materials, and whether the cut is
+## being made now.
+var _lens: MeshInstance3D = null
+var _lens_material: ShaderMaterial = null
+var _lens_off: StandardMaterial3D = null
+var _lens_search := 0.0
+var _cut := false
+var _applied_aspect := -1.0
+var _applied_part := Rect2()
 ## The game's own bezel round the picture (set_bezel), or null.
 var _bezel: MeshInstance3D = null
 var _warned_fallback: bool = false
@@ -46,6 +64,10 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 	_material.set_shader_parameter("scanlines", scanlines)
 	if _screen != null:
 		_screen.set_surface_override_material(0, _off_material)
+	_lens_off = _off_material.duplicate() as StandardMaterial3D
+	_lens_material = ShaderMaterial.new()
+	_lens_material.shader = SHADER
+	_lens_material.set_shader_parameter("scanlines", 0.0)
 
 
 func get_screen() -> MeshInstance3D:
@@ -155,7 +177,7 @@ static func fallback_aspect(frame_size: Vector2) -> float:
 	return 3.0 / 4.0 if frame_size.y > frame_size.x else 4.0 / 3.0
 
 
-func tick(_delta: float) -> void:
+func tick(delta: float) -> void:
 	if _screen == null or cabinet == null:
 		return
 	var tex: Texture2D = null if cabinet.host_picture_on_tv() else cabinet.host_picture()
@@ -163,40 +185,51 @@ func tick(_delta: float) -> void:
 		if _screen.get_surface_override_material(0) != _off_material:
 			_screen.set_surface_override_material(0, _off_material)
 		_serial = -1
+		_cut = false
+		_update_lens(null, delta)
 		return
+	var external := cabinet.has_method("external_picture_active") and bool(cabinet.call("external_picture_active"))
+	var attract := cabinet.has_method("attract_picture_active") and bool(cabinet.call("attract_picture_active"))
+	present(tex, external, attract, delta)
+
+
+## Show a picture: bind it to the tube, fit it to the glass (cut out of the frame for a scope game) and feed the scope's lens with the other half.
+## What `tick` does once it has a picture; the tests call it with one.
+func present(tex: Texture2D, external: bool, attract: bool, delta: float) -> void:
 	if _material.get_shader_parameter("source_tex") != tex:
 		_material.set_shader_parameter("source_tex", tex)
 	if _screen.get_surface_override_material(0) != _material:
 		_screen.set_surface_override_material(0, _material)
-	var external := cabinet.has_method("external_picture_active") and bool(cabinet.call("external_picture_active"))
-	var attract := cabinet.has_method("attract_picture_active") and bool(cabinet.call("attract_picture_active"))
 	_refresh_geometry(tex, external, attract)
+	_update_lens(tex if _cut else null, delta)
 
 
 func _refresh_geometry(tex: Texture2D, external: bool = false, attract: bool = false) -> void:
 	var lib: Object = _libretro()
 	var aspect := 0.0
+	_cut = false
 	if attract:
 		# The game on show, not running: a video snap or a still, whose shape is its own.
 		_serial = -1
 		_content_aspect = float(tex.get_width()) / float(maxi(tex.get_height(), 1))
-		_last_fit = fit_for(_content_aspect, glass_size)
-		_material.set_shader_parameter("fit_scale", _last_fit)
+		_apply_fit(_content_aspect, Rect2(0.0, 0.0, 1.0, 1.0))
 		return
 	if external:
 		# A machine cabled to the bay: the board's geometry says nothing about this picture.
 		_serial = -1
 		_content_aspect = fallback_aspect(Vector2(tex.get_size()))
-		_last_fit = fit_for(_content_aspect, glass_size)
-		_material.set_shader_parameter("fit_scale", _last_fit)
+		_apply_fit(_content_aspect, Rect2(0.0, 0.0, 1.0, 1.0))
 		return
-	if lib != null and lib.has_method("GetVideoGeometrySerial"):
+	if aspect_override > 0.0:
+		aspect = aspect_override
+	elif lib != null and lib.has_method("GetVideoGeometrySerial"):
 		var serial: int = lib.GetVideoGeometrySerial()
-		if serial == _serial and _content_aspect > 0.0:
-			return
-		_serial = serial
-		var geom: Dictionary = lib.GetVideoGeometry()
-		aspect = float(geom.get("aspect", 0.0))
+		if serial == _serial and _geometry_aspect > 0.0:
+			aspect = _geometry_aspect
+		else:
+			_serial = serial
+			var geom: Dictionary = lib.GetVideoGeometry()
+			aspect = float(geom.get("aspect", 0.0))
 	else:
 		if not _warned_fallback:
 			_warned_fallback = true
@@ -204,9 +237,87 @@ func _refresh_geometry(tex: Texture2D, external: bool = false, attract: bool = f
 				+ "the monitor takes its shape from the frame's orientation")
 	if not (aspect > 0.0):
 		aspect = fallback_aspect(Vector2(tex.get_size()))
-	_content_aspect = aspect
+	_geometry_aspect = aspect
+	# The monitor shows its screen cut out of the frame, while the frame is the shape the table says: then the scope has the other.
+	_cut = crop_applies(aspect, scope_frame_aspect) and main_part.has_area() and scope_part.has_area()
+	if _cut:
+		_content_aspect = aspect * main_part.size.x / main_part.size.y
+		_apply_fit(_content_aspect, main_part)
+	else:
+		_content_aspect = aspect
+		_apply_fit(aspect, Rect2(0.0, 0.0, 1.0, 1.0))
+
+
+func _apply_fit(aspect: float, part: Rect2) -> void:
+	# Only when something changed: this runs every frame and a material parameter set is not free.
+	if is_equal_approx(aspect, _applied_aspect) and part.is_equal_approx(_applied_part):
+		return
+	_applied_aspect = aspect
+	_applied_part = part
 	_last_fit = fit_for(aspect, glass_size)
 	_material.set_shader_parameter("fit_scale", _last_fit)
+	_material.set_shader_parameter("view_rect", Vector4(part.position.x, part.position.y, part.size.x, part.size.y))
+
+
+## Whether a frame of the shape the core reports is the one the table's layout expects, within a few percent (the core rounds its aspect): the
+## cut is only made then, so a layout the table did not foresee shows the whole frame on the monitor instead of the wrong part of it.
+static func crop_applies(reported: float, expected: float) -> bool:
+	return reported > 0.0 and expected > 0.0 and absf(reported - expected) <= expected * 0.04
+
+
+# ── the scope's lens ────────────────────────────────────────────────────────
+
+const LENS_NODE := "ScopeScreen"
+
+
+## Show the scope's screen on the lens in the rifle's scope (`tex`: the core's frame), or put it out (null).
+func _update_lens(tex: Texture2D, delta: float) -> void:
+	if not scope_part.has_area():
+		return
+	if _lens == null or not is_instance_valid(_lens):
+		_lens = null
+		_lens_search -= delta
+		if _lens_search > 0.0:
+			return
+		_lens_search = 1.0
+		_lens = _find_lens()
+		if _lens == null:
+			return
+	if tex == null:
+		if _lens.get_surface_override_material(0) != _lens_off:
+			_lens.set_surface_override_material(0, _lens_off)
+		return
+	if _lens_material.get_shader_parameter("source_tex") != tex:
+		_lens_material.set_shader_parameter("source_tex", tex)
+	var size := (_lens.mesh as QuadMesh).size
+	_lens_material.set_shader_parameter("fit_scale", fit_for(_geometry_aspect * scope_part.size.x / scope_part.size.y, size))
+	_lens_material.set_shader_parameter("view_rect", Vector4(scope_part.position.x, scope_part.position.y, scope_part.size.x, scope_part.size.y))
+	if _lens.get_surface_override_material(0) != _lens_material:
+		_lens.set_surface_override_material(0, _lens_material)
+
+
+## The scope screen of the rifle this cabinet wears: the guns are built with the MACHINE and hang in the room, not in the cabinet's model, so they
+## are asked of the machine (RetroSystem.captive_controllers).
+func _find_lens() -> MeshInstance3D:
+	var host := cabinet.get_parent() if cabinet != null else null
+	if host == null or not host.has_method("captive_controllers"):
+		return null
+	for gun: Variant in host.call("captive_controllers"):
+		if is_instance_valid(gun):
+			var found := (gun as Node).find_child(LENS_NODE, true, false) as MeshInstance3D
+			if found != null:
+				return found
+	return null
+
+
+## The lens being fed now, for the tests and the probe.
+func lens() -> MeshInstance3D:
+	return _lens if is_instance_valid(_lens) else null
+
+
+## Whether the monitor is showing one screen cut out of the frame now (a scope game whose frame is the shape the table expects).
+func is_cut() -> bool:
+	return _cut
 
 
 ## The fit last applied, for the probe and the tests.

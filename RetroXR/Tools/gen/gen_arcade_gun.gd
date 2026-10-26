@@ -19,7 +19,8 @@
 ## `-- --variant=rifle` bakes the rifle a rifle cabinet rests on its post instead (Silent Scope, Golgo 13:
 ## Scenes/Objects/peripherals/arcade_light_rifle.tscn): the same pistol grip, trigger and cord boss in the
 ## same place (so the cabinet seats and cords it with the pistol's numbers), a long barrel, a stock to the
-## shoulder and a scope on top. The scope is a tube: the second screen Silent Scope shows in it is not drawn.
+## shoulder and a scope on top. The scope's eyepiece carries a small screen (`ScopeScreen`, a 3.7 x 2.8 cm quad on the eyepiece's end, facing the
+## player's eye): the cabinet's monitor module (ArcadeScreenModule) finds it by name and feeds it Silent Scope's second screen.
 extends SceneTree
 
 const U := preload("res://Tools/gen/arcade_gen_util.gd")
@@ -34,6 +35,8 @@ const CORD_BOSS := Vector3(0.0, -0.098, 0.056)
 ## The muzzle, where the aim ray starts.
 const MUZZLE := Vector3(0.0, 0.034, -0.182)
 const RIFLE_MUZZLE := Vector3(0.0, 0.034, -0.392)
+## The scope's screen: the eyepiece (a cylinder 4.6 cm across, ending at z 0.065) holds a 4:3 picture 3.7 cm wide, facing the eye (+Z).
+const SCOPE_SCREEN := Vector2(0.037, 0.0278)
 
 var _root: Node3D
 
@@ -76,6 +79,9 @@ func _initialize() -> void:
 		U.cylinder(_root, _root, "Scope", 0.019, 0.20, Vector3(0, 0.094, -0.060), black, Vector3.BACK)
 		U.cylinder(_root, _root, "ScopeEye", 0.023, 0.03, Vector3(0, 0.094, 0.050), black, Vector3.BACK)
 		U.cylinder(_root, _root, "ScopeLens", 0.023, 0.03, Vector3(0, 0.094, -0.170), grey, Vector3.BACK)
+		# The scope's own screen, in the eyepiece: 4:3 like the screen it shows, inside the eyepiece's 4.6 cm. It is dark until a game feeds it.
+		var screen_mat := U.mat(Color(0.015, 0.017, 0.02), 0.0, 0.12)
+		U.quad(_root, _root, "ScopeScreen", SCOPE_SCREEN, Vector3(0, 0.094, 0.0653), screen_mat)
 		for z in [-0.11, 0.0]:
 			U.box(_root, _root, "ScopeRing%d" % (1 if z < 0.0 else 2), Vector3(0.016, 0.032, 0.012),
 				Vector3(0, 0.070, z), metal)

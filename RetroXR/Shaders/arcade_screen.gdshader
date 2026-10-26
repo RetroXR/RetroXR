@@ -15,6 +15,9 @@ render_mode unshaded, cull_back, shadows_disabled, fog_disabled;
 // filter_linear is REQUIRED by pixel_aa (it does the sub-pixel ramp).
 uniform sampler2D source_tex : source_color, filter_linear, repeat_disable;
 uniform vec2 fit_scale = vec2(1.0, 1.0);
+// The part of the picture to show, (x, y, width, height) as fractions of the frame, y down. A game of two screens in one frame (Silent
+// Scope's monitor and its scope) shows each of them cut out of it; the whole frame is (0, 0, 1, 1).
+uniform vec4 view_rect = vec4(0.0, 0.0, 1.0, 1.0);
 // How dark the gap between two source lines goes, 0 = none. Lines per picture
 // height come from the texture, so a 240-line game gets 240 scanlines.
 uniform float scanlines : hint_range(0.0, 1.0) = 0.22;
@@ -25,9 +28,11 @@ void fragment() {
 	vec2 fuv = (UV - 0.5) / fit_scale + 0.5;
 	vec3 c = vec3(0.0);
 	if (fuv.x >= 0.0 && fuv.x <= 1.0 && fuv.y >= 0.0 && fuv.y <= 1.0) {
-		c = clamp(pixel_aa(source_tex, fuv).rgb, 0.0, 1.0);
+		vec2 suv = view_rect.xy + fuv * view_rect.zw;
+		// Confined to the window: the neighbouring screen's edge row must not enter the filter.
+		c = clamp(pixel_aa_rect(source_tex, suv, view_rect).rgb, 0.0, 1.0);
 		float lines = float(textureSize(source_tex, 0).y);
-		float row = fract(fuv.y * lines);
+		float row = fract(suv.y * lines);
 		c *= 1.0 - scanlines * (0.5 - 0.5 * cos(6.2831853 * row));
 	}
 	ALBEDO = clamp(c * gain, 0.0, 1.0);

@@ -103,9 +103,11 @@ more than one screen, 3 to 8 players are 1,345, **2,959 are alternating** (`a`: 
 - **Built**: the wide body, ONE rifle on a taller post in the middle of the deck (`Scenes/Objects/peripherals/arcade_light_rifle.tscn`), **fixed to the post and turning about
   its pivot** (40 degrees either way, 12 down to 28 up, never rolled; a hand turns it by where the hand IS: the barrel runs from the hand through the pivot): `arcade.md` "Guns on
   a swivel". START alone on the deck, the trigger is the rifle's.
-- **Not built**: the scope's own view (the core hands over ONE frame; the second screen is not cropped per screen yet and the rifle has no LCD) and the Golgo 13 eyepiece
-  sensor. Which is the scope: the left or the right display of the pair is not known here.
-- Tests: `arcade_form_tests mount/`.
+- **The scope** (2026-10-26): `lscreen` (screen 0, the monitor) and `rscreen` (screen 1, `// for scope`, 15 kHz) are the pair in every Silent Scope's configuration, and the layout is `dualhsxs`: one
+  8.03 x 3 frame, the monitor left, the scope right. The wide body's tube shows the left half alone and the rifle's eyepiece carries a small screen (`ScopeScreen`) showing the right half
+  (`arcade.md` "Several screens"). Table attributes `l1` (the lens) and `c0,0,4,3/4.03,0,4,3`.
+- **Not built**: the Golgo 13 eyepiece sensor, a scope that follows the eye (the lens is always on). Nothing here has been seen to run: Silent Scope is NW in MAME 0.289.
+- Tests: `arcade_form_tests mount/ screens/`.
 
 ### Prop Cycle `propcycl` (Namco, 1996; System 22) — form `cycle`
 
@@ -264,7 +266,7 @@ Ridge Racer Full Scale `ridgeracf`, Hydro Thunder `hydrthnd`, the photo-sticker 
 panel changes); 2. more screens and panels and the cocktail table (107 multi-screen, 269 with 4+ players, about 950 parents with a cocktail switch); 3. cockpit, flight
 and tank on the driving seat (about 30); 4. striking (about 11, the most natural in VR); 5. rhythm (about 50 Bemani sets, each with its disk image and instrument);
 6. the hologram stage (Time Traveler, Holosseum: one floating-plane trick); 7. the body platforms (ski, board, boat, ride-on: the best fit, about 8 working); 8. fishing (3).
-Not verified: Silent Scope's scope screen, Lucky & Wild's guns (light or positional), Desert Tank's, Jet Wave's and Ski Champ's controls, Hang Pilot's second screen.
+Not verified: Silent Scope's scope picture on a real run, Lucky & Wild's guns (light or positional), Desert Tank's, Jet Wave's and Ski Champ's controls, Hang Pilot's second screen.
 
 ## 7. Adding a form
 

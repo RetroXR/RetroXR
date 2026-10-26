@@ -234,10 +234,16 @@ const PANEL_PITCH_MULTI := 0.30
 const PANEL_GAP := 0.03
 const STICK_IN := 0.04625
 ## What a window's frame takes of the glass edge's length (the top and the bottom of the bezel): the most a tube can
-## stand is the edge less this (ArcadeCabinetBuilder.glass_limits). A picture that keeps the 3 cm of black round it that
-## the window is cut with (0.11 m of frame and 2 x 0.03) needs PICTURE_FRAME.
-const GLASS_FRAME := 0.13
-const PICTURE_FRAME := 0.17
+## stand is the edge less this. The window is cut 3 cm round the picture and the bezel needs 5.5 cm either end of the
+## edge, which is 0.11 + 2 x 0.03: a tube any taller would touch the window's edge (ArcadeCabinetBuilder._build_monitor).
+const GLASS_FRAME := 0.17
+## What the glass keeps of a body's width on each side besides the black round the picture: the most a tube can be
+## wide is the space between the sides (the body less its 2 x 2 cm walls) less this.
+const GLASS_SIDES := 0.08
+## How much of a wide body's width the pictures of a game of SEVERAL screens take (X-Men's two across a 1.9 m body), and the widest
+## body a game's screens may make (five screens in a row, Jaleco's, would be 3.3 m).
+const MULTI_SHARE := 0.80
+const MAX_SCREENS_BODY := 2.40
 ## How much longer the tall body's glass is than the tate body's (0.65 m): 0.75 m of glass, 2.0 m of cabinet.
 const TALL_EXTRA := 0.10
 ## How much of a WIDE body's width the picture takes. A 2P upright's is 0.67 (0.44 m of 0.66); a real three- or
@@ -482,8 +488,8 @@ static func wide_picture(width: float) -> Dictionary:
 	var tall: Dictionary = shapes_["tall"]
 	var up_tube: Vector2 = up["tube"]
 	var tall_tube: Vector2 = tall["tube"]
-	var up_glass := ((up["glass_b"] as Vector2) - (up["glass_a"] as Vector2)).length() - PICTURE_FRAME
-	var tall_glass := ((tall["glass_b"] as Vector2) - (tall["glass_a"] as Vector2)).length() - PICTURE_FRAME
+	var up_glass := ((up["glass_b"] as Vector2) - (up["glass_a"] as Vector2)).length() - GLASS_FRAME
+	var tall_glass := ((tall["glass_b"] as Vector2) - (tall["glass_a"] as Vector2)).length() - GLASS_FRAME
 	var aspect := up_tube.y / up_tube.x
 	var wanted := width * PICTURE_SHARE
 	if wanted <= up_tube.x + 0.005:
@@ -492,6 +498,96 @@ static func wide_picture(width: float) -> Dictionary:
 		return {"shape": "upright", "inches": roundi(float(up["inches"]) * wanted / up_tube.x)}
 	wanted = minf(wanted, tall_glass / (tall_tube.y / tall_tube.x))
 	return {"shape": "tall", "inches": roundi(float(tall["inches"]) * wanted / tall_tube.x)}
+
+
+## The most picture a shape's glass holds at a body width: the width between the body's sides less GLASS_SIDES, and the length of
+## the slanted edge less GLASS_FRAME. `shape_row` is a row of shapes().
+static func glass_limits(shape_row: Dictionary, inner_width: float) -> Vector2:
+	var edge := (shape_row["glass_b"] as Vector2) - (shape_row["glass_a"] as Vector2)
+	return Vector2(inner_width - GLASS_SIDES, edge.length() - GLASS_FRAME)
+
+
+## The tube a screen spec asks for, metres: the shape's own tube (`native`, a tube of class `native_inches`) scaled to the game's
+## class, stood on its side for a vertical game, several side by side for a game with several screens, and made to fit the glass the
+## shape has (scaled down whole, never squashed). `screen` = {"inches": class (absent: the shape's own), "vertical": bool,
+## "screens": n, "aspect": the frame's width over its height}. A game of several screens whose layout is known (`aspect`, the table's
+## `c`) gets n screens' worth of glass in the shape of the frame MAME draws them in: side by side (2.68 for two), over one another
+## (0.66), a triple (4.02), a square of four (1.32); without it they stand side by side, which is what most of them do.
+static func tube_for(screen: Dictionary, limits: Vector2, native: Vector2, native_inches: float) -> Vector2:
+	var tube := native
+	if screen.has("inches") and native_inches > 0.0:
+		tube = native * (float(screen["inches"]) / native_inches)
+	var n := maxi(int(screen.get("screens", 1)), 1)
+	var aspect := float(screen.get("aspect", 0.0))
+	if n > 1 and aspect > 0.0:
+		var area := tube.x * tube.y * float(n)
+		tube = Vector2(sqrt(area * aspect), sqrt(area / aspect))
+	else:
+		if bool(screen.get("vertical", false)):
+			tube = Vector2(tube.y, tube.x)
+		tube.x *= n
+	var k := minf(1.0, minf(limits.x / tube.x, limits.y / tube.y))
+	return tube * k
+
+
+## The tube a spec's cabinet is drawn with, metres: its shape's own, or the one its `screen` asks for fitted to the glass that shape has at
+## that width. What the builder lays the monitor out with, and what the tests measure.
+static func tube_of(spec: Dictionary) -> Vector2:
+	var sh: Dictionary = shapes()[str(spec.get("shape", "upright"))]
+	var tube: Vector2 = sh["tube"]
+	var screen: Dictionary = spec.get("screen", {})
+	var plain: bool = not bool(screen.get("vertical", false)) and int(screen.get("screens", 1)) <= 1 and not screen.has("inches") \
+			and not screen.has("aspect")
+	if not screen.is_empty() and not plain:
+		var inner := float(spec.get("width", sh["w"])) - 0.04
+		tube = tube_for(screen, glass_limits(sh, inner), tube, float(sh.get("inches", 25)))
+	return tube
+
+
+## The body a game of SEVERAL screens wants (`screen` has their frame's `aspect`): the first shape of the chain from `shape` up whose
+## glass is tall enough for the pictures at their class AND lets them take MULTI_SHARE of a body `width` wide (X-Men's six panels: the
+## tall glass, a 40 inch class a screen), else the last of them with the pictures scaled to its glass; and a body wide enough for the
+## glass to hold them. A pair side by side is 0.88 m of picture and wants a 1.0 m body, three 1.3 m; a pair over one another is a
+## portrait picture that wants the tall glass (a PlayChoice-10, a Mega-Tech) and fits the usual 0.66 m. A racing cabinet's monitor housing
+## has no taller glass to go to: its body widens instead. {"shape", "width", "inches"} (the class, 0 = the shape's own).
+static func screens_body(screen: Dictionary, shape: String, width: float) -> Dictionary:
+	var chain: Array = {"upright": ["upright", "tall"], "tate": ["tate", "tall"], "tall": ["tall"]}.get(shape, [shape])
+	var result := {"shape": shape, "width": width, "inches": 0}
+	for i in chain.size():
+		var row: Dictionary = shapes()[chain[i]]
+		var mine := screen.duplicate()
+		var room := glass_limits(row, 9.0).y
+		var pair := tube_for(mine, Vector2(INF, INF), row["tube"], float(row.get("inches", 25)))
+		var aspect := pair.x / pair.y
+		# The pictures a wide body leaves room for grow to MULTI_SHARE of it, as far as this glass is tall.
+		var target := minf(MULTI_SHARE * width, room * aspect)
+		if target > pair.x + 0.01:
+			mine["inches"] = roundi(float(mine.get("inches", row.get("inches", 25))) * target / pair.x)
+			pair = tube_for(mine, Vector2(INF, INF), row["tube"], float(row.get("inches", 25)))
+		var reaches := pair.x >= minf(MULTI_SHARE * width, 9.0) - 0.01 or MULTI_SHARE * width <= pair.x
+		if (pair.y <= room + 0.001 and reaches) or i == chain.size() - 1:
+			var k := minf(1.0, room / pair.y)
+			var need := ceilf((pair.x * k + 0.04 + GLASS_SIDES) * 100.0) / 100.0
+			result = {"shape": str(chain[i]), "width": minf(maxf(width, need), maxf(width, MAX_SCREENS_BODY)),
+				"inches": int(mine.get("inches", 0))}
+			break
+	return result
+
+
+## What a scope game shows in its rifle's scope (`k`, the table): {"index", "main": the part of the frame the monitor shows, "lens": the part the
+## scope shows, both as fractions of the frame [x, y, w, h], y down, "aspect": the frame's}, or {} for a game with no scope or a table with no
+## layout for it. The monitor shows the other screen alone; the frame is drawn by MAME so the scope's own screen is in it and the cabinet cuts it
+## out (ArcadeScreenModule).
+static func scope_of(profile: ArcadeGameProfile) -> Dictionary:
+	var index := profile.scope_screen()
+	var rects := profile.screen_rects()
+	if index < 0 or index >= rects.size() or rects.size() < 2:
+		return {}
+	var main_index := 0 if index != 0 else 1
+	var part := func(i: int) -> Array:
+		var r := profile.screen_part(i)
+		return [snappedf(r.position.x, 0.0001), snappedf(r.position.y, 0.0001), snappedf(r.size.x, 0.0001), snappedf(r.size.y, 0.0001)]
+	return {"index": index, "main": part.call(main_index), "lens": part.call(index), "aspect": snappedf(profile.frame_aspect(), 0.001)}
 
 
 ## The spec a cabinet takes for the game in its bay: `base` (the cabinet's own row) with the form, the
@@ -585,15 +681,35 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 	# A monitor on its side wants a taller window than the upright has: the same body with a longer glass.
 	if shape == "upright" and profile.is_vertical():
 		shape = "tate"
+	var width := body_width(float(shapes()[shape]["w"]), spec["players"])
+	var inches := screen_inches(profile)
+	var several := profile.screens() > 1 and profile.frame_aspect() > 0.0 and profile.scope_screen() < 0
 	# A body widened by three or more panels wants a picture to match (every upright body is 0.66 wide to begin with).
-	var wide := {}
-	if shape == "upright":
-		wide = wide_picture(body_width(float(shapes()["upright"]["w"]), spec["players"]))
+	if shape == "upright" and not several:
+		var wide := wide_picture(width)
 		if not wide.is_empty():
 			shape = str(wide["shape"])
+			inches = int(wide["inches"])
+	# The screen(s): a scope game's monitor shows its first screen alone and the scope the second; a game of several screens, the frame MAME
+	# lays them out in; any other, one picture, stood on its side for a monitor that was.
+	var screen := {"vertical": profile.is_vertical(), "screens": profile.screens()}
+	var scope := scope_of(profile)
+	if not scope.is_empty():
+		screen = {"vertical": false, "screens": 1, "scope": scope}
+	elif several:
+		screen["aspect"] = snappedf(profile.frame_aspect(), 0.001)
+	if inches > 0 and inches != int(shapes()[shape].get("inches", 25)):
+		screen["inches"] = inches
+	if several and shape in ["upright", "tate", "tall", "racer"]:
+		var body := screens_body(screen, shape, width)
+		shape = str(body["shape"])
+		width = float(body["width"])
+		if int(body["inches"]) > 0:
+			screen["inches"] = int(body["inches"])
+		if int(screen.get("inches", 0)) == int(shapes()[shape].get("inches", 25)):
+			screen.erase("inches")
 	spec["shape"] = shape
 	var sh: Dictionary = shapes()[shape]
-	var width := body_width(float(sh["w"]), spec["players"])
 	spec["width"] = width
 	# The bay is baked with the cabinet and a form never rebuilds it: its door keeps the width the base had.
 	spec["door_width"] = float(base.get("width", shapes()[base_shape]["w"])) - 0.06
@@ -615,14 +731,8 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 		spec["coins"] = panel_centres(spec["players"])
 	else:
 		spec["coins"] = coin_xs(doors, width - 0.04)
-	var inches := screen_inches(profile)
-	if not wide.is_empty():
-		inches = int(wide["inches"])
-	var screen := {"vertical": profile.is_vertical(), "screens": profile.screens()}
-	if inches > 0 and inches != int(sh.get("inches", 25)):
-		screen["inches"] = inches
 	# The spec says nothing of a plain screen, so a game that changes nothing builds nothing.
-	if bool(screen["vertical"]) or int(screen["screens"]) > 1 or screen.has("inches"):
+	if bool(screen["vertical"]) or int(screen["screens"]) > 1 or screen.has("inches") or screen.has("scope"):
 		spec["screen"] = screen
 	else:
 		spec.erase("screen")

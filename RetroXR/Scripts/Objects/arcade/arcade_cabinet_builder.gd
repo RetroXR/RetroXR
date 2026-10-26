@@ -195,40 +195,23 @@ func apply_metrics() -> void:
 ## The most glass the shape has room for: the width between the side panels (less the frame) and the slanted
 ## edge's length (less the frame top and bottom).
 func glass_limits() -> Vector2:
-	return glass_limits_of(_sh, _in_w)
+	return ArcadeCabinetSpecs.glass_limits(_sh, _in_w)
 
 
-## The same for a shape (`sh`, a row of ArcadeCabinetSpecs.shapes()) whose body is `inner_width` between its sides.
-static func glass_limits_of(sh: Dictionary, inner_width: float) -> Vector2:
-	var a: Vector2 = sh["glass_a"]
-	var b: Vector2 = sh["glass_b"]
-	return Vector2(inner_width - 0.08, (b - a).length() - ArcadeCabinetSpecs.GLASS_FRAME)
-
-
-## The tube a spec's cabinet is drawn with, metres: its shape's own, or the one its `screen` asks for fitted to the
-## glass that shape has at that width. What the constructor lays the monitor out with, and what the tests measure.
+## The tube a spec's cabinet is drawn with, metres (ArcadeCabinetSpecs.tube_of): what the constructor lays the monitor out with, and what
+## the tests measure.
 static func tube_of(spec: Dictionary) -> Vector2:
-	var sh: Dictionary = ArcadeCabinetSpecs.shapes()[str(spec.get("shape", "upright"))]
-	var tube: Vector2 = sh["tube"]
-	if spec.has("screen"):
-		var inner := float(spec.get("width", sh["w"])) - 0.04
-		tube = tube_for(spec["screen"], glass_limits_of(sh, inner), tube, float(sh.get("inches", 25)))
-	return tube
+	return ArcadeCabinetSpecs.tube_of(spec)
 
 
-## The tube a screen spec asks for, metres: the shape's own tube (`native`, a tube of class `native_inches`)
-## scaled to the game's class, stood on its side for a vertical game, several side by side for a game with
-## several screens, and made to fit the glass the shape has (scaled down whole, never squashed).
-## `screen` = {"inches": class (absent: the shape's own), "vertical": bool, "screens": n}.
+## The tube a screen spec asks for, fitted to the glass (ArcadeCabinetSpecs.tube_for).
 static func tube_for(screen: Dictionary, limits: Vector2, native: Vector2, native_inches: float) -> Vector2:
-	var tube := native
-	if screen.has("inches") and native_inches > 0.0:
-		tube = native * (float(screen["inches"]) / native_inches)
-	if bool(screen.get("vertical", false)):
-		tube = Vector2(tube.y, tube.x)
-	tube.x *= maxi(int(screen.get("screens", 1)), 1)
-	var k := minf(1.0, minf(limits.x / tube.x, limits.y / tube.y))
-	return tube * k
+	return ArcadeCabinetSpecs.tube_for(screen, limits, native, native_inches)
+
+
+## [x, y, w, h] as a Rect2 (a spec holds plain arrays).
+static func _part_of(a: Array) -> Rect2:
+	return Rect2(float(a[0]), float(a[1]), float(a[2]), float(a[3]))
 
 
 func _form_node(n: Node) -> Node:
@@ -377,6 +360,12 @@ func _build_monitor() -> void:
 	if _v.has("screen"):
 		# The picture is fitted to the TUBE's shape, which a vertical game turns on its side.
 		mod.set("glass_size", _tube)
+		# A scope game: the monitor shows its screen cut out of the frame and the rifle's scope the other (ArcadeScreenModule).
+		var scope: Dictionary = (_v["screen"] as Dictionary).get("scope", {})
+		if not scope.is_empty():
+			mod.set("main_part", _part_of(scope["main"]))
+			mod.set("scope_part", _part_of(scope["lens"]))
+			mod.set("scope_frame_aspect", float(scope["aspect"]))
 	var length := along.length()
 	# How far behind the glass the picture stands: the tube's own depth, and a hologram cabinet's deep stage on top.
 	var back := TUBE_DEPTH + float((_v.get("holo", {}) as Dictionary).get("depth", 0.0))

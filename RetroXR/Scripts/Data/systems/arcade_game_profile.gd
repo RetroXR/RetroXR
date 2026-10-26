@@ -194,6 +194,65 @@ func screens() -> int:
 	return maxi(int(str(attrs.get("s", "1"))), 1) if known else 1
 
 
+## Where the screens stand in the frame MAME draws (the table's `c`, Tools/arcade/layouts.py): each screen's rectangle in the
+## layout's own units (y runs DOWN, as the picture's rows do), in screen order. Empty for a game of one screen, or one the table has no
+## layout for.
+func screen_rects() -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	var text := str(attrs.get("c", ""))
+	if not known or text.is_empty():
+		return out
+	for part in text.split("/", false):
+		var n := part.split(",", false)
+		if n.size() != 4:
+			out.clear()
+			return out
+		out.append(Rect2(float(n[0]), float(n[1]), float(n[2]), float(n[3])))
+	return out
+
+
+## The whole frame in those units: every screen's rectangle together, or an empty Rect2 where the table has none.
+func screen_frame() -> Rect2:
+	var rects := screen_rects()
+	if rects.is_empty():
+		return Rect2()
+	var frame := rects[0]
+	for r in rects:
+		frame = frame.merge(r)
+	return frame
+
+
+## The frame's width over its height (8.03 / 3 for two screens side by side, 4 / 6.03 for two stacked), or 0 where the table has none.
+func frame_aspect() -> float:
+	var frame := screen_frame()
+	return frame.size.x / frame.size.y if frame.size.x > 0.0 and frame.size.y > 0.0 else 0.0
+
+
+## Where screen `index` is in the frame as fractions of it (0..1 both ways, y down): the part of the picture that is that screen.
+## An empty Rect2 for a screen the table does not place.
+func screen_part(index: int) -> Rect2:
+	var rects := screen_rects()
+	var frame := screen_frame()
+	if index < 0 or index >= rects.size():
+		return Rect2()
+	var r := rects[index]
+	return Rect2((r.position.x - frame.position.x) / frame.size.x, (r.position.y - frame.position.y) / frame.size.y,
+		r.size.x / frame.size.x, r.size.y / frame.size.y)
+
+
+## The screen that is a scope's own (Silent Scope's, `l`, the lens): the cabinet shows it in the rifle's scope and the monitor shows the other.
+## -1 for a game with none.
+func scope_screen() -> int:
+	return int(str(attrs.get("l", "-1"))) if known and attrs.has("l") else -1
+
+
+## Whether the stacked screens of this game stand over one another rather than side by side (a PlayChoice-10, a Mega-Tech): a frame taller
+## than it is wide.
+func screens_stacked() -> bool:
+	var aspect := frame_aspect()
+	return aspect > 0.0 and aspect < 1.0
+
+
 ## How many light guns (players with one); touch screens are not guns (kind `touch`).
 func gun_count() -> int:
 	return int(str(attrs.get("g", "0"))) if known else 0

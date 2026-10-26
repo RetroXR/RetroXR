@@ -20,6 +20,7 @@
 ##   tate/      a monitor on its side gets the tall body and a window cut to the picture; every body is one silhouette
 ##   wide/      three to six players: the BODY is as wide as the deck they need, doors and sockets under their panels
 ##   picture/   the picture takes a share of a wide body, never a postage stamp in it; a big-screen cabinet has its body's own tube
+##   screens/   a game of several screens: the tube takes the frame's shape, the body follows; Silent Scope's second screen is in its scope
 ##   pedals/    a gun game's pedal and a driver's two are built as real ones are: a hinged ribbed tread on a base, an axle
 ##   service/   TEST and SERVICE in the compartment opposite the power switch, there when MAME says the game reads one
 ##   mount/     a gun on a swivel (Silent Scope's rifle, Operation Wolf's Uzi) is fixed to its cabinet: it turns about its pivot
@@ -98,6 +99,9 @@ func _run() -> void:
 		await _clear()
 	if _want("picture"):
 		await _group_picture()
+		await _clear()
+	if _want("screens"):
+		await _group_screens()
 		await _clear()
 	if _want("pedals"):
 		await _group_pedals()
@@ -286,8 +290,8 @@ func _group_specs() -> void:
 			and absf(float(bb["coins"][0]) + 0.13) < 0.001,
 		"specs: Beast Busters: three mounted guns, two coin doors either side of the middle one")
 	var sc := _spec("sscope")
-	_ok(str(sc["gun_style"]) == "rifle" and int(sc["guns"]) == 1 and int(sc["screen"]["screens"]) == 2,
-		"specs: Silent Scope: one rifle, two screens")
+	_ok(str(sc["gun_style"]) == "rifle" and int(sc["guns"]) == 1 and int(sc["screen"]["screens"]) == 1 and sc["screen"].has("scope"),
+		"specs: Silent Scope: one rifle, the monitor's own screen and the scope's")
 	# The shooters MAME files as a joystick panel, analog sticks or nothing at all (the curated list): each is a gun cabinet with its guns,
 	# a pedal for each gun only where the game had them.
 	var shooters_bad: Array = []
@@ -679,7 +683,7 @@ func _group_picture() -> void:
 	var up_tube: Vector2 = up["tube"]
 	var tall_edge: Vector2 = (tall["glass_b"] as Vector2) - (tall["glass_a"] as Vector2)
 	# The widest picture the tall glass holds with its black round it: its edge less the frame, as a 4:3 tube is wide.
-	var cap := (tall_edge.length() - S.PICTURE_FRAME) / 0.75
+	var cap := (tall_edge.length() - S.GLASS_FRAME) / 0.75
 	# A body the panels fit keeps the upright's own tube: nothing a two-player game saw changes.
 	_ok(S.wide_picture(0.66).is_empty() and S.wide_picture(0.74).is_empty(),
 		"picture: a body of the generic width, and one a hand wider, keep the upright's own tube")
@@ -718,10 +722,10 @@ func _group_picture() -> void:
 	_ok(order_ok and seen_tall, "picture: the upright's glass is used while it holds the tube, then the tall body, and never back")
 	# A picture asked for that the glass cannot hold is fitted to it whole, never squashed: the same aspect, inside the edge and the sides.
 	var huge := _tube({"shape": "tall", "width": 1.2, "screen": {"vertical": false, "screens": 1, "inches": 99}})
-	_ok(absf(huge.y / huge.x - 0.75) < 0.001 and huge.y <= tall_edge.length() - S.GLASS_FRAME + 0.001 and huge.x <= 1.2 - 0.04 - 0.08 + 0.001,
+	_ok(absf(huge.y / huge.x - 0.75) < 0.001 and huge.y <= tall_edge.length() - S.GLASS_FRAME + 0.001 and huge.x <= 1.2 - 0.04 - S.GLASS_SIDES + 0.001,
 		"picture: and one the glass cannot hold is fitted to it whole, 4:3 still (%.2f x %.2f)" % [huge.x, huge.y])
 	var twin := _tube({"shape": "tall", "width": 1.0, "screen": {"vertical": false, "screens": 2, "inches": 36}})
-	_ok(twin.x <= 1.0 - 0.04 - 0.08 + 0.001 and twin.x > 0.8, "picture: two screens side by side fill the body between its sides and no more (%.2f m)" % twin.x)
+	_ok(twin.x <= 1.0 - 0.04 - S.GLASS_SIDES + 0.001 and twin.x > 0.8, "picture: two screens side by side fill the body between its sides and no more (%.2f m)" % twin.x)
 	var big := S.wide_picture(2.0)
 	var biggest := _tube({"shape": "tall", "width": 2.0, "screen": {"vertical": false, "screens": 1, "inches": int(big.get("inches", 25))}})
 	_ok(int(big.get("inches", 0)) == 40 and biggest.x <= cap + 0.012 and biggest.y + 0.06 <= tall_edge.length() - 0.11 + 0.001,
@@ -819,6 +823,164 @@ func _group_picture() -> void:
 	await _board(sys, "opwolf")
 	_ok((_window(model)["tube"] as Vector2).is_equal_approx(S.shapes()["wide"]["tube"]),
 		"picture: Operation Wolf's cabinet has the wide body's whole tube (0.72 x 0.54), not a 25 inch one in a 40 inch frame")
+
+
+# --- screens -------------------------------------------------------------------
+
+## The scope screen of the rifle a machine wears, or null.
+func _scope_lens(sys: RetroSystem) -> MeshInstance3D:
+	for gun: Variant in sys.captive_controllers():
+		if is_instance_valid(gun):
+			var found := (gun as Node).find_child("ScopeScreen", true, false) as MeshInstance3D
+			if found != null:
+				return found
+	return null
+
+
+func _group_screens() -> void:
+	var tall: Dictionary = S.shapes()["tall"]
+	var tall_edge: Vector2 = (tall["glass_b"] as Vector2) - (tall["glass_a"] as Vector2)
+	# The frame MAME draws and the shape of a tube: the same, whatever the glass has to scale it down to.
+	var frame_ok := true
+	var aspect_name := ""
+	# Silent Scope: the monitor shows the first screen, the scope the second, cut out of the one frame (Dual Side-by-Side, 8.03 x 3).
+	for romset in ["sscope", "sscope2", "sscopeaa", "sscope2jvd1", "sscopeacvd2"]:
+		var sp := _spec(romset)
+		var scope: Dictionary = sp["screen"].get("scope", {})
+		var main_part: Array = scope.get("main", [])
+		var lens_part: Array = scope.get("lens", [])
+		_ok(not scope.is_empty() and int(scope["index"]) == 1 and str(sp["shape"]) == "wide"
+				and _tube(sp).is_equal_approx(S.shapes()["wide"]["tube"])
+				and absf(float(main_part[0])) < 0.0001 and absf(float(main_part[2]) - 4.0 / 8.03) < 0.0005 and float(main_part[3]) == 1.0
+				and absf(float(lens_part[0]) - 4.03 / 8.03) < 0.0005 and absf(float(lens_part[2]) - 4.0 / 8.03) < 0.0005
+				and absf(float(scope["aspect"]) - 8.03 / 3.0) < 0.002,
+			"screens: %s: the monitor has the left half of the frame on the wide body's whole tube, the scope the right (%s | %s)" % [romset, main_part, lens_part])
+	for romset in ["sscopex", "golgo13", "sf2", "timecris", "pc_smb", "darius"]:
+		_ok(not (_spec(romset).get("screen", {}) as Dictionary).has("scope"), "screens: %s has no scope" % romset)
+	# Two screens over one another (a PlayChoice-10, a Mega-Tech, Punch-Out!!): a portrait pair in the tall body, the usual width.
+	for row: Array in [["pc_smb", 1], ["pc_1942", 1], ["mt_aftrb", 1], ["punchout", 0], ["hangplt", 0], ["armwrest", 0]]:
+		var sp := _spec(str(row[0]))
+		var t := _tube(sp)
+		var frame := P.for_romset(str(row[0])).frame_aspect()
+		_ok(str(sp["shape"]) == "tall" and t.y > t.x and absf(t.x / t.y - frame) / frame < 0.02 and float(sp["width"]) < 0.80
+				and t.y + 0.06 <= tall_edge.length() - 0.11 + 0.001,
+			"screens: %s: two screens over one another are a portrait %.2f x %.2f m picture (%.2f) in the tall body, %.2f m wide" % [row[0], t.x, t.y, frame, float(sp["width"])])
+	# ... and which is on top is MAME's: a PlayChoice-10 has screen 1 over screen 0, Punch-Out!! screen 0 over screen 1.
+	_ok(P.for_romset("pc_smb").screen_part(1).position.y < P.for_romset("pc_smb").screen_part(0).position.y
+			and P.for_romset("mt_aftrb").screen_part(1).position.y < P.for_romset("mt_aftrb").screen_part(0).position.y
+			and P.for_romset("punchout").screen_part(0).position.y < P.for_romset("punchout").screen_part(1).position.y,
+		"screens: a PlayChoice-10 and a Mega-Tech have their second screen on top, Punch-Out!! its first")
+	# Two side by side: a wide pair, and a body to hold it.
+	for romset in ["nss_actr", "warriorb", "cyberbal", "wrally2", "vsbball", "backfire"]:
+		var sp := _spec(romset)
+		var t := _tube(sp)
+		var inner := float(sp.get("width", 0.66)) - 0.04
+		_ok(t.x > 0.85 and absf(t.x / t.y - 8.03 / 3.0) / (8.03 / 3.0) < 0.02 and t.x <= inner - S.GLASS_SIDES + 0.001,
+			"screens: %s: two screens side by side are a %.2f x %.2f m picture, on a %.2f m body that holds it" % [romset, t.x, t.y, float(sp.get("width", 0.66))])
+	# Three and four across, and a pair on a racing cabinet's monitor housing, which widens.
+	for row: Array in [["darius", 4.0, "upright"], ["buggyboy", 4.0, "upright"], ["orunners", 8.03 / 3.0, "racer"], ["racedrivpan", 4.02, "racer"]]:
+		var sp := _spec(str(row[0]))
+		var t := _tube(sp)
+		_ok(str(sp["shape"]) == str(row[2]) and absf(t.x / t.y - float(row[1])) / float(row[1]) < 0.02 and float(sp["width"]) >= t.x + 0.12 - 0.011 and float(sp["width"]) > 0.9,
+			"screens: %s: the frame is %.2f:1, the %s body widens to %.2f m for a %.2f x %.2f m picture" % [row[0], float(row[1]), row[2], float(sp["width"]), t.x, t.y])
+	# A wide body takes the pictures to 80% of it as far as the tall glass reaches (X-Men's six players, Run and Gun's four).
+	var xm := _spec("xmen6p")
+	var rg := _spec("rungun2")
+	_ok(str(xm["shape"]) == "tall" and _tube(xm).x / float(xm["width"]) >= 0.75 and float(xm["width"]) < 2.0
+			and _tube(rg).x / float(rg["width"]) >= 0.75 and float(rg["width"]) < 1.4,
+		"screens: X-Men's pair takes %d%% of its %.2f m body, Run and Gun's %d%% of %.2f m" % [roundi(_tube(xm).x / float(xm["width"]) * 100.0), float(xm["width"]),
+			roundi(_tube(rg).x / float(rg["width"]) * 100.0), float(rg["width"])])
+	# The whole table: every game of several screens has a tube the shape of its frame that its glass and its body hold.
+	var measured := 0
+	var bad: Array = []
+	var wide_bodies: Array = []
+	var base := S.variant("generic")
+	base["variant"] = "generic"
+	for line in ArcadeGameTable.TABLE.split("\n", false):
+		var parts := line.split(" ", false)
+		if parts.size() < 2:
+			continue
+		var romset := str(parts[1]).split("=")[0].split("<")[0]
+		var gp := P.from_key(romset, parts[0])
+		if not gp.known or gp.screens() < 2 or gp.scope_screen() >= 0:
+			continue
+		measured += 1
+		var sp := S.for_game(base, gp)
+		var shape_name := str(sp.get("shape", "upright"))
+		var sh: Dictionary = S.shapes()[shape_name]
+		var t := _tube(sp)
+		var width := float(sp.get("width", sh["w"]))
+		var edge: Vector2 = (sh["glass_b"] as Vector2) - (sh["glass_a"] as Vector2)
+		var shaped := absf(t.x / t.y - gp.frame_aspect()) / gp.frame_aspect() < 0.03
+		var holds := t.x <= width - 0.04 - S.GLASS_SIDES + 0.001 and t.y <= edge.length() - S.GLASS_FRAME + 0.001
+		if not (shaped and holds):
+			bad.append("%s %s" % [romset, shape_name])
+		if width > S.MAX_SCREENS_BODY + 0.011 and S.panels_span(sp["players"]) + 0.08 < width - 0.011:
+			wide_bodies.append(romset)
+	frame_ok = bad.is_empty()
+	_ok(measured > 55 and frame_ok, "screens: %d games of several screens: each has a tube the shape of its frame, held by its glass and its body (%s)" % [measured, str(bad.slice(0, 6))])
+	_ok(wide_bodies.is_empty(), "screens: and no body is wider than %.1f m for its screens alone (%s)" % [S.MAX_SCREENS_BODY, str(wide_bodies.slice(0, 4))])
+	# However many screens, the body is no wider than the screens alone make it: eight across would be 10 m.
+	var many := S.screens_body({"vertical": false, "screens": 8, "aspect": 10.7}, "upright", 0.66)
+	var panels := S.screens_body({"vertical": false, "screens": 2, "aspect": 8.03 / 3.0}, "tall", 2.8)
+	_ok(is_equal_approx(float(many["width"]), S.MAX_SCREENS_BODY) and float(panels["width"]) >= 2.8,
+		"screens: eight screens across make a %.1f m body at most, but panels that need more than that are not narrowed (%.1f m)" % [float(many["width"]), float(panels["width"])])
+	# A game of one screen is untouched by any of it.
+	for romset in ["sf2", "pacman", "1943", "dino", "timecris"]:
+		_ok(not (_spec(romset).get("screen", {}) as Dictionary).has("aspect"), "screens: %s, one screen, has no frame to follow" % romset)
+	# On a real cabinet: a PlayChoice-10's portrait pair, then Silent Scope's rifle with its screen in the eyepiece and the cut that feeds it.
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	await _board(sys, "pc_smb")
+	var w := _window(model)
+	var tube: Vector2 = w["tube"]
+	_ok(tube.y > tube.x and is_equal_approx(model.cabinet_height, float(tall["h"])) and _scope_lens(sys) == null,
+		"screens: PlayChoice-10 on a cabinet: a portrait %.2f x %.2f m picture in the %.2f m tall body, no scope" % [tube.x, tube.y, model.cabinet_height])
+	await _pull(sys)
+	await _board(sys, "sscope")
+	await _wait(6)
+	var lens := _scope_lens(sys)
+	_ok(lens != null and (lens.mesh as QuadMesh).size.is_equal_approx(Vector2(0.037, 0.0278)),
+		"screens: Silent Scope: the rifle's eyepiece carries a small screen (%s)" % str((lens.mesh as QuadMesh).size if lens != null else "none"))
+	_ok(lens != null and (sys.global_basis.inverse() * lens.global_basis.z).dot(Vector3.BACK) > 0.9,
+		"screens: and it faces the player, at rest")
+	var screen_module := model.modules_of_kind(ArcadeProfiles.KIND_SCREEN)[0] as ArcadeScreenModule
+	_ok(screen_module.main_part.is_equal_approx(Rect2(0.0, 0.0, 0.4981, 1.0)) and screen_module.scope_part.is_equal_approx(Rect2(0.5019, 0.0, 0.4981, 1.0))
+			and absf(screen_module.scope_frame_aspect - 2.677) < 0.002,
+		"screens: and the screen module has the cut: monitor left, scope right (%s | %s)" % [screen_module.main_part, screen_module.scope_part])
+	# Feed it a frame of 8.03:3 as the core would: the monitor cuts its half, the lens its own.
+	var card := Image.create(804, 300, false, Image.FORMAT_RGBA8)
+	card.fill(Color(0.2, 0.3, 0.5))
+	var frame_tex := ImageTexture.create_from_image(card)
+	screen_module.aspect_override = 8.03 / 3.0
+	screen_module.present(frame_tex, false, false, 0.0)
+	var cut: Vector4 = screen_module._material.get_shader_parameter("view_rect")
+	var lens_mat := lens.get_surface_override_material(0) as ShaderMaterial if lens != null else null
+	var lens_rect: Vector4 = lens_mat.get_shader_parameter("view_rect") if lens_mat != null else Vector4.ZERO
+	var lens_fit: Vector2 = lens_mat.get_shader_parameter("fit_scale") if lens_mat != null else Vector2.ZERO
+	_ok(screen_module.is_cut() and absf(cut.x) < 0.0001 and absf(cut.z - 0.4981) < 0.0001
+			and absf(screen_module.current_fit().x - 1.0) < 0.001 and absf(screen_module.current_fit().y - 1.0) < 0.001
+			and absf(screen_module.current_aspect() - 4.0 / 3.0) < 0.002,
+		"screens: a frame of the shape the table expects: the monitor shows the left 4:3 half whole (%s, fit %s)" % [cut, screen_module.current_fit()])
+	_ok(lens_mat != null and absf(lens_rect.x - 0.5019) < 0.0001 and absf(lens_rect.z - 0.4981) < 0.0001 and absf(lens_fit.x - 1.0) < 0.01 and absf(lens_fit.y - 1.0) < 0.01,
+		"screens: and the lens shows the right half (%s, fit %s)" % [lens_rect, lens_fit])
+	# A frame of another shape (the player's own artwork, a view the table did not foresee): the whole frame on the monitor, a dark lens.
+	screen_module.aspect_override = 4.0 / 3.0
+	screen_module.present(frame_tex, false, false, 0.0)
+	var whole: Vector4 = screen_module._material.get_shader_parameter("view_rect")
+	_ok(not screen_module.is_cut() and absf(whole.z - 1.0) < 0.0001 and absf(whole.w - 1.0) < 0.0001
+			and lens.get_surface_override_material(0) != lens_mat,
+		"screens: a frame of another shape is shown whole on the monitor and the lens goes dark (%s)" % whole)
+	# The game on show (attract) is its own picture: no cut either.
+	screen_module.aspect_override = 8.03 / 3.0
+	screen_module.present(frame_tex, false, true, 0.0)
+	_ok(not screen_module.is_cut() and lens.get_surface_override_material(0) != lens_mat, "screens: and a game that is only on show has no cut, and a dark lens")
+	_ok(not ArcadeScreenModule.crop_applies(1.333, 2.677) and ArcadeScreenModule.crop_applies(2.60, 2.677) and ArcadeScreenModule.crop_applies(2.677, 2.677)
+			and not ArcadeScreenModule.crop_applies(0.0, 2.677) and not ArcadeScreenModule.crop_applies(2.677, 0.0),
+		"screens: the cut is made within 4% of the shape expected, never for a shape unknown")
+	await _pull(sys)
+	await _wait(6)
+	_ok(_scope_lens(sys) == null, "screens: pulling the board takes the rifle, and its lens, away")
 
 
 # --- pedals --------------------------------------------------------------------

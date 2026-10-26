@@ -872,11 +872,45 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   that did not, among them a duplicate collision box Godot had renamed out of the count and a freed gun that compared equal to null). Pictures: `arcade_cabinet_probe --forms=sf2,pacman,tmnt,...`
   (windowed; `form_<romset>.png` and `formside_<romset>.png`).
 - **The test games asked for** (none run here: no ROMs, no cores; each has its own entry in `arcade-cabinets.md`): `timetrv` is `holo`, `propcycl` `cycle`, `panicprk` `slot` (Panic Park is NOT
-  working in MAME 0.289), `sscope`/`sscope2` the rifle (NOT working in MAME 0.289: its two displays arrive as one frame, the scope is not shown), `finalap3` a sit-down cockpit (the real one is a
+  working in MAME 0.289), `sscope`/`sscope2` the rifle (NOT working in MAME 0.289: its two displays arrive as one frame, the monitor shows the first and the scope's lens the second, "Several screens"), `finalap3` a sit-down cockpit (the real one is a
   twin: two seats, two screens; MAME runs one unit), `kurikint` an alternating upright (one panel and a 2P START).
 - OWED: a headset (taking hold of a wheel, a stage under the feet), the Quest (building a cockpit at run time on device), real cores for which pad ids the
-  driving and dance games read, two peers, the twin cockpits (Final Lap 3, Daytona's linked twins) and multi-screen games, whose second screen arrives in
-  the same frame and is not cropped per screen yet.
+  driving and dance games read, two peers, the twin cockpits (Final Lap 3, Daytona's linked twins) and the multi-screen games on a real core ("Several screens").
+
+## Several screens: where each one goes (2026-10-26)
+
+**The core hands over ONE frame.** libretro-mame draws the first of the game's views that shows EVERY screen (`render_target::view_for_screen`, `render.cpp`): the layout the driver names
+(`GAMEL(...)`'s last argument, else `set_default_layout(layout_...)` in its machine configuration, the configurations it builds on followed), else what MAME generates
+(`Left-to-Right`: every screen in a unit square, a 4:3 one 1 x 0.75, a rotated one 0.75 x 1, 1% apart). So a two-screen game arrives as two pictures in one frame, and which part is which
+is the LAYOUT's. `Tools/arcade/layouts.py` reads that out of MAME's driver sources and `.lay` files (`<MAME src/mame> <-listxml>`, output `layouts.json`, committed) and
+`gen_game_index.py` writes it into the table as `c`: each screen's `x,y,w,h` in the layout's own units, in screen order, `c0,0,4,3/4.03,0,4,3` for two side by side, `c0,0,4,3/0,-3.03,4,3` for the second
+over the first. `ArcadeGameProfile.screen_rects()` / `screen_frame()` / `frame_aspect()` / `screen_part(i)` (as fractions of the frame, y down) read it; 356 machines have it, none of the table's
+multi-screen games is without (a view that nests its items in groups or repeats, like the CES golf machines', is not evaluated and falls back to the generated one).
+
+| MAME layout (the first view with every screen) | frame w:h | romsets | the cabinet |
+|---|---|---|---|
+| `dualhsxs` Dual Side-by-Side (and the generated Left-to-Right for two) | 2.68 | 175 | the tube is two screens wide, the body at least 1.0 m; a four-player pair (Run and Gun) grows to take 80% of its body |
+| `playch10`, `dualhuov` Dual Under-Over (PlayChoice-10, Mega-Tech) | 0.66 | 104 | a portrait tube in the `tall` body (0.38 x 0.58 m, two screens over one another) |
+| `dualhovu` Dual Over-Under (Punch-Out!!, Hang Pilot, Armwrestling) | 0.66 | 13 | the same |
+| `cdi` Main Screen + LCD (Quizard) | 1.24 | 17 | a 0.78 m body, the tall glass |
+| `triphsxs` and kin: Darius, Ninja Warriors, TX-1, Buggy Boy, Race Drivin' Panorama, Drive Yeah | 4.0 | 18 | a 1.1 to 1.6 m body (a racing housing widens, there is no taller glass for it) |
+| `firebeat` Dual Side-by-Side of portrait screens (Keyboardmania), `default-rr` | 1.51 | 5 | the tate body, 0.85 m |
+| the custom ones: `nbmj8688` (a mahjong table: a screen with two LCD strips), `rocknms`, `spbactnp` (two stacked), `spdheat` (2 x 2), `ppsatan`, `aquastge`, a five-screen row | 0.46 to 6.7 | 27 | each in the shape of its own frame |
+
+**The tube takes the shape of the frame** (`ArcadeCabinetSpecs.tube_for`, `screen.aspect`): n screens' worth of glass in the frame's shape (area-preserving: the old "n screens side by side" for
+two is the same 0.88 x 0.33 m), scaled down whole if the glass cannot hold it, never squashed. **The body follows it** (`screens_body`): the first of upright, `tall` (the tate body with the glass 0.10 m longer) whose
+glass is tall enough, and wide enough for the pictures between its sides; a pair over one another (PlayChoice-10: 56 romsets, Mega-Tech 48, Punch-Out) fits the usual 0.66 m. Before, every multi-screen game was drawn as "n
+screens side by side" whatever its layout: the 120 stacked ones got a 2.7:1 tube for a 0.66:1 frame, a picture a third of the glass. `arcade_form_tests screens/`.
+
+**Silent Scope puts its second screen in the scope.** `hornet.cpp`'s `sscope` configuration (every Silent Scope, 44 romsets, builds on it) has `lscreen` 512 x 384 and `rscreen` 768 x 236 "for scope", in that
+order; the layout is `dualhsxs`, so the frame is 8.03 x 3 units with the monitor's picture in the left half and the scope's in the right. The table says `l1` (the lens is screen 1). The monitor shows the left half
+alone, 4:3 on the wide body's whole 0.72 x 0.54 m tube; the rifle's eyepiece carries a 3.7 x 2.8 cm screen (`ScopeScreen`, baked by `gen_arcade_gun.gd --variant=rifle`, facing the eye) that shows the right half.
+`ArcadeScreenModule` does the cutting with the shader's `view_rect`, found by name among the cabinet's parts, **and only while the core's frame is the shape the table expects** (`crop_applies`, 4%): any other
+view (a layout of the player's own artwork) shows the whole frame on the monitor and a dark lens, rather than the wrong part. Every Silent Scope set is `MACHINE_NOT_WORKING` in MAME 0.289, so none has been
+seen to run; the cut is made from MAME's layout numbers, not from a picture. Golgo 13's rifles have one screen and no lens.
+
+OWED: a real run of any of it (Silent Scope does not run in MAME 0.289; a PlayChoice-10 or Mega-Tech could be tried with a core and the ROMs), a headset to look into the scope, the real cabinets' monitor sizes (no source
+gives them; the pairs are drawn at the class of two upright tubes), and whether the real scope's LCD showed the whole second screen (the lens shows all of it).
 
 ## Bezels (2026-10-25)
 

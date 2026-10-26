@@ -1593,6 +1593,60 @@ func _group_game_profile() -> void:
 		if gp.has_kind(P.KIND_GUN) and not gp.is_gun() and gp.form() != P.FORM_ODD:
 			upright_guns.append(parts[1])
 	_ok(upright_guns.is_empty(), "game: no light-gun profile is left a plain upright (%s)" % str(upright_guns.slice(0, 6)))
+	# Where the screens stand in the frame MAME draws (Tools/arcade/layouts.py): every game of two screens or more says so, one rectangle a screen.
+	var unplaced: Array = []
+	var miscounted: Array = []
+	var lenses: Array = []
+	var multi := 0
+	for line in ArcadeGameTable.TABLE.split("\n", false):
+		var screen_parts := line.split(" ", false)
+		if screen_parts.size() < 2:
+			continue
+		var name := str(screen_parts[1]).split("=")[0].split("<")[0]
+		var sp := ArcadeGameProfile.from_key(name, screen_parts[0])
+		if sp.scope_screen() >= 0:
+			for i in range(1, screen_parts.size()):
+				lenses.append_array(str(screen_parts[i]).split("=", false))
+		if sp.screens() < 2:
+			continue
+		multi += 1
+		if sp.screen_rects().is_empty():
+			unplaced.append(name)
+		elif sp.screen_rects().size() != sp.screens():
+			miscounted.append(name)
+	_ok(multi > 55 and unplaced.is_empty() and miscounted.is_empty(),
+		"game: every one of the %d profiles of two screens or more places its screens, a rectangle each (%s %s)" % [multi, str(unplaced.slice(0, 4)), str(miscounted.slice(0, 4))])
+	var pc := P.for_romset("pc_smb")
+	var mega := P.for_romset("mt_aftrb")
+	var punch := P.for_romset("punchout")
+	var sscope := P.for_romset("sscope")
+	var dar := P.for_romset("darius")
+	var nss := P.for_romset("nss_actr")
+	_ok(pc.screens_stacked() and mega.screens_stacked() and punch.screens_stacked() and not sscope.screens_stacked() and not nss.screens_stacked()
+			and not dar.screens_stacked() and not P.for_romset("sf2").screens_stacked(),
+		"game: a PlayChoice-10, a Mega-Tech and Punch-Out!! stand their two screens over one another; Silent Scope, the NSS and Darius side by side")
+	_ok(absf(pc.frame_aspect() - 4.0 / 6.03) < 0.001 and absf(sscope.frame_aspect() - 8.03 / 3.0) < 0.001 and absf(dar.frame_aspect() - 4.0) < 0.001
+			and absf(P.for_romset("spdheat").frame_aspect() - 4.25 * 2.0 / 6.25 + 0.0) < 0.2 and P.for_romset("sf2").frame_aspect() == 0.0,
+		"game: the frame is as wide as MAME's layout makes it: 0.66 for two over one another, 2.68 for two across, 4.0 for three")
+	# Which part of the frame is which screen (y down, fractions of the frame).
+	var left := sscope.screen_part(0)
+	var right := sscope.screen_part(1)
+	_ok(left.position.is_zero_approx() and absf(left.size.x - 4.0 / 8.03) < 0.0001 and left.size.y == 1.0
+			and absf(right.position.x - 4.03 / 8.03) < 0.0001 and absf(right.end.x - 1.0) < 0.0001 and sscope.screen_part(2) == Rect2(),
+		"game: Silent Scope's first screen is the left half of its frame and its second the right (%s | %s)" % [left, right])
+	_ok(pc.screen_part(1).position.y == 0.0 and pc.screen_part(0).position.y > 0.4 and punch.screen_part(0).position.y == 0.0 and punch.screen_part(1).position.y > 0.4,
+		"game: a PlayChoice-10 has its second screen on top, Punch-Out!! its first")
+	# The scope: Silent Scope's second screen, every set of it, and nobody else's.
+	var scope_ok := true
+	for name: String in lenses:
+		scope_ok = scope_ok and name.begins_with("sscope")
+	_ok(lenses.size() >= 40 and scope_ok and sscope.scope_screen() == 1 and P.for_romset("sscope2").scope_screen() == 1
+			and P.for_romset("sscopeacvd2").scope_screen() == 1 and P.for_romset("sscopex").scope_screen() == -1
+			and P.for_romset("golgo13").scope_screen() == -1 and P.for_romset("sf2").scope_screen() == -1,
+		"game: %d Silent Scope sets have a scope screen (screen 1); the EX, Golgo 13 and everyone else have none" % lenses.size())
+	_ok(ArcadeScreenModule.crop_applies(2.677, 2.677) and ArcadeScreenModule.crop_applies(2.60, 2.677) and not ArcadeScreenModule.crop_applies(1.333, 2.677)
+			and not ArcadeScreenModule.crop_applies(0.0, 2.677) and not ArcadeScreenModule.crop_applies(2.677, 0.0),
+		"game: a scope game's frame is cut within 4% of the shape expected and never for an unknown one")
 	# What a gun's aim is sent as: a light gun where MAME wants one, the left stick where it wants an analog stick.
 	_ok(P.for_romset("sscope").aims_as_stick() and P.for_romset("term2").aims_as_stick() and P.for_romset("alien3").aims_as_stick()
 			and P.for_romset("gunblade").aims_as_stick() and P.for_romset("othunder").aims_as_stick(),

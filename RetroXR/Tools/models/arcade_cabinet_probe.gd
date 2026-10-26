@@ -22,6 +22,9 @@
 ## (ArcadeCabinetSpecs.for_game: its panels, guns, cockpit or stage), one `form_<romset>.png` each from
 ## the front three-quarter, a `formside_<romset>.png` from the side, framed to what the form covers, and a
 ## `formscreen_<romset>.png` of the monitor square on and, for a form with pedals, a `formfeet_<romset>.png` of them, and for a sit-down cockpit a `formseat_<romset>.png` from the seat's eyes.
+## A game with a scope (Silent Scope) is fed a frame of two screens as MAME draws it (8.03 x 3: a scene on the left, the scope's own picture on the right): the monitor shows the left half,
+## and `formscope_<romset>.png` is the rifle's eyepiece from the player's eye, `formrifle_<romset>.png` the rifle from behind and above.
+## A game of two screens over one another (a PlayChoice-10) is fed a stacked frame (4 x 6.03), so `formscreen_<romset>.png` shows the portrait pair.
 ## --artwork=<dir> reads MAME artwork from that folder instead of the data root's: each form then wears its
 ## game's bezel when the folder has one (ArcadeBezel), and a `bezel_<romset>.png` close-up is taken of it.
 ##
@@ -174,6 +177,49 @@ func _card(w: int, h: int, tint: Color) -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
+## A frame of several screens as MAME draws them, from the profile's own rectangles (ArcadeGameProfile.screen_part): each screen a 4:3 test card of its own
+## colour with its number in bars (so which is which cannot be mistaken) and, for the scope's, a crosshair in a circle.
+func _frame_for(profile: ArcadeGameProfile, height: int) -> ImageTexture:
+	var aspect := profile.frame_aspect()
+	var img := Image.create(roundi(height * aspect), height, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0.02, 0.02, 0.02))
+	var tints: Array[Color] = [Color(0.18, 0.32, 0.60), Color(0.15, 0.45, 0.22), Color(0.55, 0.32, 0.15), Color(0.45, 0.2, 0.5), Color(0.5, 0.5, 0.15)]
+	for i in profile.screens():
+		var part := profile.screen_part(i)
+		var r := Rect2i(roundi(part.position.x * img.get_width()), roundi(part.position.y * height),
+			roundi(part.size.x * img.get_width()), roundi(part.size.y * height))
+		img.fill_rect(r, tints[i % tints.size()])
+		# Screen number i + 1 as bars along the top, a grid, and a circle that is round on the screen's own shape.
+		for b in i + 1:
+			img.fill_rect(Rect2i(r.position.x + 12 + b * 22, r.position.y + 10, 14, 26), Color.WHITE)
+		var centre := Vector2(r.position) + Vector2(r.size) * 0.5
+		var radius := minf(r.size.x, r.size.y) * 0.34
+		for y in range(r.position.y, r.end.y):
+			for x in range(r.position.x, r.end.x):
+				var d := Vector2(x, y).distance_to(centre)
+				if absf(d - radius) < 2.0 or (absf(x - centre.x) < 1.0 and d < radius) or (absf(y - centre.y) < 1.0 and d < radius):
+					img.set_pixel(x, y, Color.WHITE)
+				elif (x - r.position.x) % 40 == 0 or (y - r.position.y) % 40 == 0:
+					img.set_pixel(x, y, tints[i % tints.size()].lightened(0.25))
+		img.fill_rect(Rect2i(r.position, Vector2i(r.size.x, 3)), Color.RED)
+		img.fill_rect(Rect2i(r.position.x, r.end.y - 3, r.size.x, 3), Color.RED)
+		img.fill_rect(Rect2i(r.position, Vector2i(3, r.size.y)), Color.RED)
+		img.fill_rect(Rect2i(r.end.x - 3, r.position.y, 3, r.size.y), Color.RED)
+	return ImageTexture.create_from_image(img)
+
+
+## Feed the monitor module a frame of several screens, and the scope's lens if the rifle has one, as a running core would.
+func _glass_frame(profile: ArcadeGameProfile) -> void:
+	var screen := _model.modules_of_kind(ArcadeProfiles.KIND_SCREEN)[0] as ArcadeScreenModule
+	var tex := _frame_for(profile, 300)
+	screen._material.set_shader_parameter("source_tex", tex)
+	screen.get_screen().set_surface_override_material(0, screen._material)
+	screen._serial = -1
+	screen.aspect_override = profile.frame_aspect()
+	screen.present(tex, false, false, 0.0)
+	print("[probe] glass frame %.3f cut=%s fit=%s lens=%s" % [screen.current_aspect(), screen.is_cut(), screen.current_fit(), screen.lens() != null])
+
+
 func _glass(w: int, h: int) -> void:
 	var screen := _model.modules_of_kind(ArcadeProfiles.KIND_SCREEN)[0] as ArcadeScreenModule
 	var tex := _card(w, h, Color(0.3, 0.8, 0.4))
@@ -193,7 +239,10 @@ func _shot_forms() -> void:
 		await _frames(10)
 		_model = _sys.get_model() as RetroSystemModelArcadeCabinet
 		_model.set_process(false)
-		if profile.is_vertical():
+		if profile.screens() > 1 and profile.frame_aspect() > 0.0:
+			await _frames(4)
+			_glass_frame(profile)
+		elif profile.is_vertical():
 			_glass(224, 288)
 		else:
 			_glass(384, 224)
@@ -213,6 +262,20 @@ func _shot_forms() -> void:
 		var tube := _model.get_builtin_screen()
 		_look(tube.global_position + tube.global_basis.z * 1.1, tube.global_position)
 		await _save("formscreen_" + romset)
+		# A scope: the rifle's eyepiece from where the player's eye would be, and the rifle from behind.
+		var lens := _model.get_parent().call("captive_controllers") as Array if _model.get_parent().has_method("captive_controllers") else []
+		var eye_lens: MeshInstance3D = null
+		for gun: Variant in lens:
+			eye_lens = (gun as Node).find_child("ScopeScreen", true, false) as MeshInstance3D
+			if eye_lens != null:
+				break
+		if eye_lens != null:
+			_cam.fov = 40.0
+			_look(eye_lens.global_position + eye_lens.global_basis.z * 0.16, eye_lens.global_position)
+			await _save("formscope_" + romset)
+			_cam.fov = 58.0
+			_look(eye_lens.global_position + eye_lens.global_basis.z * 0.55 + Vector3(0.18, 0.22, 0.0), eye_lens.global_position + eye_lens.global_basis.z * -0.1)
+			await _save("formrifle_" + romset)
 		# What stands on the floor at the player's feet, close: a gun game's pedal, a driver's two.
 		# What a seated driver sees, from the seat's EyePoint (a sit-down cockpit).
 		var driver := _model.find_child("DriverSeat", true, false) as CockpitSeat

@@ -24,6 +24,10 @@ not the default, `;`-separated attributes (a letter and a value):
             screen MAME files as a light gun, `paddle` + `pedal` a driving game),
   r<deg>    the main screen's rotation, 90/180/270 (90 and 270 stand the monitor on its side),
   s<n>      how many screens, 2 or more,
+  c<rects>  where the screens stand in the frame MAME draws, for a game of two or more (layouts.py): each screen's `x,y,w,h` in the
+            layout's own units, in screen order, joined by '/' (`c0,0,4,3/4.03,0,4,3` two side by side, `c0,0,4,3/0,-3.03,4,3` the second
+            over the first). The frame is the first view that shows every screen, so these are also its shape,
+  l<n>      the screen that is the scope's own, the LENS (Silent Scope: 1, hornet.cpp's `rscreen`, "for scope"): the cabinet shows it in the rifle's scope,
   g<n>      how many light guns (players with one),
   t<form>   the kind of cabinet the game came in, when it is not a plain upright:
             gun (guns in holsters), gunm (guns on mounts), rifle (a mounted rifle with a scope),
@@ -69,6 +73,14 @@ OUT = "RetroXR/Scripts/Data/systems/arcade_game_table.gd"
 # The gear lever of a driving game, by PARENT romset: read out of MAME's driver sources by shifters.py (a button, whether MAME makes it a
 # toggle, or a sequential box's up and down buttons). -listxml carries none of it.
 SHIFTERS = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "shifters.json")))
+# Where the screens of a multi-screen game stand in the frame, by ROMSET: read out of MAME's drivers and layout files by layouts.py.
+LAYOUTS = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "layouts.json")))
+# The screen that is a scope's own, by PARENT romset: every Silent Scope builds on hornet.cpp's `sscope` configuration, whose second screen
+# is `rscreen` ("for scope", 15 kHz, 768 x 236). The first is the monitor.
+SCOPE_SCREEN = {"sscope": 1, "sscope2": 1}
+# Multi-screen romsets layouts.py did not meet (not a coin machine to it, or its driver was not in the sources): they get no `c` and the cabinet
+# lays them out as it laid out any second screen, side by side.
+MISSING_LAYOUT: list[str] = []
 KEEP = {"description", "year", "input", "display", "dipswitch", "configuration"}
 
 # Drivers whose "light gun" is a touch screen (bar-top quiz and card games, fruit machines with a touch
@@ -187,6 +199,16 @@ def driving_cabinet(machine, name, year):
     return "stand" if year and year < 1988 else "race"
 
 
+def screens_attr(romset):
+    """`c<rects>` for a game of two or more screens, or "" when layouts.py did not meet the machine."""
+    key = LAYOUTS["romsets"].get(romset)
+    if key is None:
+        return ""
+    def num(v):
+        return str(int(v)) if float(v) == int(v) else repr(float(v))
+    return "c" + "/".join(",".join(num(v) for v in rect) for rect in LAYOUTS["layouts"][key]["rects"])
+
+
 def shift_attr(shift):
     """The `x` attribute of a gear lever: `3t` (button 3, a toggle), `3h` (button 3, held while the lever is high) or `s21` (a sequential box:
     up on button 2, down on button 1). '' for what a lever of two positions cannot say (an H pattern) or a button a pad has not got."""
@@ -280,6 +302,12 @@ def profile_of(machine, parent):
             attrs.append("r" + rot)
         if len(displays) > 1:
             attrs.append("s%d" % len(displays))
+            if screens_attr(name):
+                attrs.append(screens_attr(name))
+            elif family not in SCOPE_SCREEN:
+                MISSING_LAYOUT.append(name)
+            if family in SCOPE_SCREEN:
+                attrs.append("l%d" % SCOPE_SCREEN[family])
     if not guns and untyped is not None:
         guns = untyped[1]
     if guns:
@@ -365,6 +393,9 @@ def main():
         f.write('const MAME_BUILD := "%s"\n\n' % build)
         f.write('const TABLE := """\n' + "\n".join(lines) + '\n"""\n')
     print("%d romsets, %d profiles -> %s" % (total, len(groups), OUT))
+    if MISSING_LAYOUT:
+        print("%d multi-screen romsets have no layout in layouts.json (re-run layouts.py): %s" % (
+            len(MISSING_LAYOUT), ", ".join(sorted(MISSING_LAYOUT)[:12])))
 
 
 if __name__ == "__main__":
