@@ -340,11 +340,12 @@ func _own_screen_resources(v: XRToolsViewport2DIn3D) -> void:
 # a fixed density, so the text keeps its size and the extra pixels become more
 # rows in the list.
 #
-# The mark sits on the TOP-right corner, and the bottom edge stays where it is.
-# A floating panel hangs just above the thing it belongs to, so growing about its
-# centre would lower that edge into the object. With the bottom pinned the top
-# edge follows the pointer, and the right edge follows it too, because the width
-# grows about the centre by twice what the pointer moved.
+# The mark sits on the BOTTOM-right corner, where the spawn menu's is and where a
+# player looks for one, and the TOP edge stays where it is: drag down and the page
+# grows down under the pointer, and the right edge follows it too, because the
+# width grows about the centre by twice what the pointer moved. (It was the
+# top-right with the bottom pinned, which kept a tall page clear of the object
+# under it, and nobody found the grip there.)
 
 ## Arm length of the corner mark, its bar thickness, and its hit box — the spawn
 ## menu's (CurvedPanel.GRIP_*), so the two marks are recognisably one control. At
@@ -373,7 +374,7 @@ var _resize_hovered := false
 ## The smallest page, taken the first time it is resized: the authored size plus
 ## any lock row, which is as small as the layout inside was made to go.
 var _resize_min_px := Vector2.ZERO
-## How far the page has been raised to keep its bottom edge still.
+## How far the page has been moved (down, as it grows) to keep its top edge still.
 var _resize_lift := 0.0
 var _resize_rest_y := 0.0
 var _resize_pointer: Node3D = null
@@ -398,7 +399,7 @@ func enable_resize_grip() -> void:
 	_resize_grip_mat.albedo_color = _COLOR_GRIP_IDLE
 	mark.set_surface_override_material(0, _resize_grip_mat)
 	_resize_grip.add_child(mark)
-	# On the page rather than on the panel, so it rises with the page as it grows.
+	# On the page rather than on the panel, so it moves with the page as it grows.
 	v.add_child(_resize_grip)
 	_resize_place_grip()
 	visibility_changed.connect(_resize_sync_grip)
@@ -411,7 +412,8 @@ func _resize_grip_mesh() -> ArrayMesh:
 	var b := RESIZE_GRIP_BAR
 	var verts := PackedVector3Array()
 	var idx := PackedInt32Array()
-	for r: Array in [[-a, -b], [-b, -a]]:
+	# Bars running LEFT along the bottom edge and UP the right one, from the corner.
+	for r: Array in [[-a, b], [-b, a]]:
 		# r = the far corner of one bar, as an offset from the mark's own corner.
 		var x0: float = r[0]
 		var y0: float = r[1]
@@ -434,8 +436,10 @@ func _resize_place_grip() -> void:
 	var v := _viewport_2d()
 	if _resize_grip == null or v == null:
 		return
+	# Outside the lower-right corner, following the page as it moves inside the
+	# panel (_resize_lift).
 	_resize_grip.position = Vector3(v.screen_size.x * 0.5 + RESIZE_GRIP_OUT,
-		v.screen_size.y * 0.5 + RESIZE_GRIP_OUT, 0.001)
+		-v.screen_size.y * 0.5 - RESIZE_GRIP_OUT, 0.001)
 
 
 ## A hidden panel's grip must not catch the laser: visible governs drawing only.
@@ -494,8 +498,9 @@ func _update_resize_drag() -> void:
 		return
 	var d := _resize_pointer_on_plane(_resize_pointer) - _resize_from
 	var density := v.viewport_size / v.screen_size
+	# Down is bigger: the grip is on the bottom edge.
 	resize_page(Vector2(_resize_from_screen.x + d.x * 2.0,
-		_resize_from_screen.y + d.y) * density)
+		_resize_from_screen.y - d.y) * density)
 
 
 ## Where a pointer is aiming, on the panel's own z = 0 plane, in panel space. The
@@ -529,6 +534,7 @@ func resize_page(want_px: Vector2) -> void:
 	var screen := px / density
 	v.viewport_size = px
 	v.screen_size = screen
-	_resize_lift += (screen.y - old_height) * 0.5
+	# Lowered by half the growth, so the top edge stays put and the page grows down.
+	_resize_lift -= (screen.y - old_height) * 0.5
 	v.position.y = _resize_rest_y + _resize_lift
 	_resize_place_grip()
