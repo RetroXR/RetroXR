@@ -1120,7 +1120,7 @@ p3c2b1w8:joy;m19 3stooges=3stoogesa
 p3c2b2w16:joy;v bam2=bam2a
 p3c2b2w8:joy;v pigout=pigouta
 p3c2b3w0:btn;v officeye urachamu
-p3c2b3w0:stick;tfly;qscm;v glocr360<gloc glocr360j<gloc
+p3c2b3w0:stick;tfly;qsmr;v glocr360<gloc glocr360j<gloc
 p3c2b4w8:dial+joy offtwall=offtwallc
 p3c3b0w8:twin;v bullet=bulletd
 p3c3b2w0:gun;g3;tgun;v;bg evilngt=hellngt
@@ -1305,7 +1305,7 @@ p1c2b3w0:btn;r90;s2;c0,10,12,16/0,0,12,9 spbactnp<spbactn
 p1c2b3w0:dial;r180;m19 darkplnt
 p1c2b3w0:other+paddle;r270;v telpacfl
 p1c2b3w0:paddle;m19 ptrmj
-p1c2b3w0:pedal+stick;s2;c0,0,1,0.75/1.0075,0,1,0.75;tfly;qscm;v wingwar360<wingwar
+p1c2b3w0:pedal+stick;s2;c0,0,1,0.75/1.0075,0,1,0.75;tfly;qsmr;v wingwar360<wingwar
 p1c2b3w0:stick;tfly;qs;v skytargt
 p1c2b3w2:dial+joy;m19 crater
 p1c2b3w2:joy+paddle+pedal;todd;v magtruck

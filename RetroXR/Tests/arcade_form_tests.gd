@@ -33,6 +33,7 @@
 ##   audit/     the data MAME gets wrong or leaves out, game by game (2026-10-26): Taito F3's spare dials, Darius Gaiden's players, the modern boards' driving games, Road
 ##              Blasters' and Bad Lands' wheels, Wing War's pod
 ##   music/     the rhythm games' own controllers: beatmania's decks, pop'n's nine domes, GuitarFreaks' guitars, DrumMania's pads, a Taiko drum a player, Mambo a Go-Go's three drums
+##   ring/      the R-360 pod (G-LOC R360, Wing War R360): two hoops at the platform's sides and one behind the seat in place of the cabin, turning with the stick, never in the picture's way
 ##   rotary/    a dial AND a stick is a rotary joystick (Ikari Warriors, Top Gunner's bootleg): the stick leans and a collar on its shaft turns
 ##   solo/      DDR Solo's stage has six panels: up-left and up-right are MAME's buttons 3 and 4, a foot or a finger on them presses them
 ##   shift/     a driving game's gear lever is the game's: its button, a toggle or held, a sequential box, none where MAME has none
@@ -139,6 +140,9 @@ func _run() -> void:
 		await _clear()
 	if _want("audit"):
 		await _group_audit()
+		await _clear()
+	if _want("ring"):
+		await _group_ring()
 		await _clear()
 	if _want("rotary"):
 		await _group_rotary()
@@ -1541,7 +1545,7 @@ func _group_seating() -> void:
 	# What the table says each game's cabinet had, form first, then the seat / cabin / motion flags, then whether it reads a throttle.
 	var rows := {
 		"aburner2": ["fly", "scm", true], "aburner": ["fly", "scm", false], "sharrier": ["fly", "sm", false],
-		"gloc": ["fly", "scm", true], "glocr360": ["fly", "scm", false], "gforce2": ["fly", "scm", true],
+		"gloc": ["fly", "scm", true], "glocr360": ["fly", "smr", false], "gforce2": ["fly", "scm", true],
 		"thndrbld": ["fly", "sm", true], "thndrbld1": ["fly", "sm", true], "strkfgtr": ["fly", "scm", true],
 		"sstrkfgt": ["fly", "s", false], "skytargt": ["fly", "s", false], "nightstr": ["fly", "sc", false],
 		"mlanding": ["fly", "scm", false], "topland": ["fly", "sc", false], "ainferno": ["fly", "scm", false],
@@ -1556,7 +1560,7 @@ func _group_seating() -> void:
 	for romset: String in rows:
 		var row: Array = rows[romset]
 		var p := P.for_romset(romset)
-		var flags := "%s%s%s" % ["s" if p.has_seat() else "", "c" if p.has_cabin() else "", "m" if p.has_motion() else ""]
+		var flags := "%s%s%s%s" % ["s" if p.has_seat() else "", "c" if p.has_cabin() else "", "m" if p.has_motion() else "", "r" if p.has_ring() else ""]
 		if p.form() != str(row[0]) or flags != str(row[1]) or p.has_throttle() != bool(row[2]):
 			bad.append("%s is %s/%s/%s" % [romset, p.form(), flags, str(p.has_throttle())])
 	_ok(bad.is_empty(), "seating: the table files %d games under the form, the seat, cabin, motion and throttle their cabinets had%s"
@@ -1799,7 +1803,7 @@ func _group_hood() -> void:
 	var sys := await _machine()
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet
 	var plain := _count(sys, "CabinetBox")
-	for romset: String in ["aburner2", "gloc", "sharrier", "outrun", "daytona", "scud"]:
+	for romset: String in ["aburner2", "gloc", "glocr360", "sharrier", "outrun", "daytona", "scud"]:
 		model.morph_to(_spec(romset))
 		model.apply_game_profile(P.for_romset(romset))
 		await _wait(3)
@@ -2044,10 +2048,12 @@ func _group_audit() -> void:
 		wx.append(model.to_local((w as Node3D).global_position).x)
 	wx.sort()
 	_ok(wx.size() == 2 and float(wx[1]) - float(wx[0]) >= 0.40, "audit: the wheels stand 0.4 m or more apart (%s)" % str(wx))
-	# Wing War R360 shares G-LOC R360's pod: a seat in a cage, on a base that moves.
+	# Wing War R360 shares G-LOC R360's pod: a seat in rings, on a base that moves (the plain Wing War has its cabin).
 	for romset: String in ["wingwar360", "wingwar", "glocr360"]:
 		var gp := P.for_romset(romset)
-		_ok(gp.form() == P.FORM_FLY and gp.has_seat() and gp.has_cabin() and gp.has_motion(), "audit: %s is a flight cockpit with a seat, a cabin and a moving base" % romset)
+		var ringed := romset != "wingwar"
+		_ok(gp.form() == P.FORM_FLY and gp.has_seat() and gp.has_cabin() == not ringed and gp.has_ring() == ringed and gp.has_motion(),
+			"audit: %s is a flight cockpit with a seat, %s and a moving base" % [romset, "rings" if ringed else "a cabin"])
 
 
 ## DDR Solo (K8): a stage of six panels, the four arrows and the two corners on the screen's side, which MAME reads as buttons 3 and 4.
@@ -2569,6 +2575,114 @@ func _group_music() -> void:
 	for b in range(1, 7):
 		every = every and bits.has(ArcadeProfiles.button_bit(b))
 	_ok(every, "music: a fingertip can press each of DrumMania's six (%d zones)" % bits.size())
+
+
+## The R-360 pod (G-LOC R360, Wing War R360): Sega's sphere cockpit hung in rings that turn. The table says so with `r` where a cockpit's cabin would be; the cockpit has two hoops at the
+## platform's sides on an axle through the seat and one behind it, turning with the stick, and nothing of them stands in the way of the picture.
+func _group_ring() -> void:
+	var rings := ["glocr360", "glocr360j", "wingwar360"]
+	var plain := ["gloc", "glocu", "wingwar", "wingwaru", "aburner2", "gforce2", "thndrbld", "aircomb"]
+	var bad: Array = []
+	for romset: String in rings:
+		var gp := P.for_romset(romset)
+		if not gp.has_ring() or gp.has_cabin() or not gp.has_seat() or not gp.has_motion() or gp.form() != P.FORM_FLY:
+			bad.append(romset)
+	for romset: String in plain:
+		if P.for_romset(romset).has_ring():
+			bad.append("%s has a ring" % romset)
+	_ok(bad.is_empty(), "ring: the three R-360 sets have a seat, a moving base and rings where the cabin was; no other flight cockpit has rings (%s)" % str(bad))
+	var pod: Dictionary = _spec("glocr360")["cockpit"]
+	var gloc: Dictionary = _spec("gloc")["cockpit"]
+	_ok(bool(pod["ring"]) and not bool(pod["cabin"]) and bool(pod["motion"]) and bool(gloc["cabin"]) and not bool(gloc["ring"]),
+		"ring: the spec has the rings in place of the cabin for the pod and the cabin and no rings for G-LOC's own")
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	model.morph_to(_spec("glocr360"))
+	model.apply_game_profile(P.for_romset("glocr360"))
+	await _wait(3)
+	var outer := model.find_child("RingOuter", true, false) as Node3D
+	var rear := model.find_child("RingInner", true, false) as Node3D
+	var seat := model.find_child("DriverSeat", true, false) as CockpitSeat
+	var base := model.find_child("MotionPivot", true, false) as Node3D
+	_ok(outer != null and rear != null and seat != null and base != null and base.is_ancestor_of(outer) and base.is_ancestor_of(rear)
+			and model.find_child("CabinWallL", true, false) == null and model.find_child("CabinRoof", true, false) == null,
+		"ring: built: an outer ring and a rear one on the moving base, no cabin walls or roof")
+	if outer == null or rear == null or seat == null:
+		return
+	# Round the pod: an axle through the seat's own middle, a hoop each side of the platform (wider than it), one behind the seat.
+	var centre := model.to_local(outer.global_position)
+	var seat_at := model.to_local(seat.global_position)
+	var hoop_l := outer.find_child("RingHoopL", false, false) as Node3D
+	var hoop_r := outer.find_child("RingHoopR", false, false) as Node3D
+	var hoop_back := rear.find_child("RingHoopRear", false, false) as Node3D
+	_ok(hoop_l != null and hoop_r != null and hoop_back != null and _near(centre.x, 0.0, 0.01) and _near(centre.z, seat_at.z, 0.01) and centre.y > 0.9 and centre.y < 1.2
+			and model.to_local(hoop_l.global_position).x < -model.cabinet_width * 0.5 and model.to_local(hoop_r.global_position).x > model.cabinet_width * 0.5
+			and model.to_local(hoop_back.global_position).z > seat_at.z + 0.4,
+		"ring: the axle runs through the seat's middle at the level of the chest, a hoop stands outside each side of the platform and one behind the seat (%s)" % str(centre))
+	# Each hoop lies in the plane it should: the side hoops are in the lateral axle's normal plane (their axis is X), the rear one faces forward (its axis is Z).
+	var axis_of := func(hoop: Node3D) -> Vector3:
+		return (hoop.global_transform.basis * Vector3.UP).normalized()
+	var ax_l: Vector3 = axis_of.call(hoop_l)
+	var ax_b: Vector3 = axis_of.call(hoop_back)
+	_ok(absf(ax_l.dot(model.global_transform.basis.x.normalized())) > 0.99 and absf(ax_b.dot(model.global_transform.basis.z.normalized())) > 0.99,
+		"ring: the side hoops stand in planes across the axle and the rear one faces the screen")
+	# The axle is there each side, and four brackets stand on each hoop, a quarter of the way round from one another, so that a turn shows.
+	var brackets_ok := outer.find_child("RingAxleL", false, false) != null and outer.find_child("RingAxleR", false, false) != null
+	for entry: Array in [["RingBracketL*", outer, 1.0, Vector3.AXIS_X], ["RingBracketR*", outer, 1.0, Vector3.AXIS_X], ["RingBracketRear*", rear, 0.8, Vector3.AXIS_Z]]:
+		var holder: Node3D = entry[1]
+		var found := holder.find_children(str(entry[0]), "MeshInstance3D", false, false)
+		var round_ok := found.size() == 4
+		var angles := {}
+		for b: Node in found:
+			var at: Vector3 = (b as Node3D).position
+			# In the hoop's own plane: the two axes that are not its axle's.
+			var flat := Vector2(at.y, at.z) if int(entry[3]) == Vector3.AXIS_X else Vector2(at.x, at.y)
+			round_ok = round_ok and _near(flat.length(), float(entry[2]), 0.01)
+			angles[snappedf(rad_to_deg(flat.angle()), 5.0)] = true
+		brackets_ok = brackets_ok and round_ok and angles.size() == 4
+	_ok(brackets_ok, "ring: an axle each side and four brackets a quarter apart on each hoop, on its circle")
+	# Open frames: no collision under them.
+	var solid := 0
+	solid += outer.find_children("*", "CollisionShape3D", true, false).size() + rear.find_children("*", "CollisionShape3D", true, false).size()
+	_ok(solid == 0, "ring: no collision or pointer box on them: a player walks through (%d shapes)" % solid)
+	# The input: a pull turns the outer ring over the top and leaves the rear one, a push to the side turns the rear one about the view's axis, and a level stick puts both back; the
+	# seat's eyes stay put (the base tips a few degrees: the rings turn through a hundred).
+	var panel := model.find_child("Player1", true, false) as ArcadeControlModule
+	panel.motion_override = 1
+	var eye_rest := seat.eye_transform().basis
+	panel.show_state(1 << ControllerBindings.JOYPAD_DOWN)
+	panel.tick(1.0 / 60.0)
+	var first_tick := absf(outer.basis.y.z)
+	for i in 119:
+		panel.tick(1.0 / 60.0)
+	var pitched := outer.basis
+	_ok(pitched.x.is_equal_approx(Vector3.RIGHT) and absf(pitched.y.z) > 0.9 and rear.basis.is_equal_approx(Basis.IDENTITY),
+		"ring: a pull turns the outer ring about the axle over the top and leaves the rear one (%s)" % str(pitched.y))
+	_ok(first_tick > 0.0 and first_tick < 0.3, "ring: eased, with the base: a sixtieth of a second in it has turned a few degrees (%.2f), not all the way" % first_tick)
+	var eye_turned := rad_to_deg(acos(clampf(seat.eye_transform().basis.z.dot(eye_rest.z), -1.0, 1.0)))
+	_ok(eye_turned < 6.0, "ring: while the seat's eyes turn only with the base's few degrees (%.1f)" % eye_turned)
+	panel.show_state(1 << ControllerBindings.JOYPAD_RIGHT)
+	for i in 120:
+		panel.tick(1.0 / 60.0)
+	var rolled := rear.basis
+	_ok(rolled.z.is_equal_approx(Vector3.BACK) and absf(rolled.x.y) > 0.8 and outer.basis.is_equal_approx(Basis.IDENTITY),
+		"ring: a push to the side turns the rear ring about the view's axis and brings the outer one back (%s)" % str(rolled.x))
+	panel.show_state(0)
+	for i in 120:
+		panel.tick(1.0 / 60.0)
+	_ok(outer.basis.is_equal_approx(Basis.IDENTITY) and rear.basis.is_equal_approx(Basis.IDENTITY), "ring: and a level stick puts both back")
+	# Motion off (a headset's default): the rings stay where they are.
+	panel.motion_override = 0
+	panel.show_state(1 << ControllerBindings.JOYPAD_DOWN)
+	for i in 120:
+		panel.tick(1.0 / 60.0)
+	_ok(outer.basis.is_equal_approx(Basis.IDENTITY), "ring: with Cabinet Motion off they stay level")
+	panel.show_state(0)
+	# G-LOC's own cockpit has none of it.
+	model.morph_to(_spec("gloc"))
+	await _wait(3)
+	_ok(model.find_child("RingOuter", true, false) == null and model.find_child("CabinWallL", true, false) != null,
+		"ring: G-LOC's own cockpit keeps its cabin and has no ring")
 
 
 ## A rotary joystick (Ikari Warriors, Victory Road, Heavy Barrel, Top Gunner's bootleg, Tron...): MAME says a stick AND a dial. The panel has both: the stick leans and a collar on its

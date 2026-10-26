@@ -207,7 +207,8 @@ the research. Both go in `SEATING` (`cockpits.py`, one line per game with where 
 |---|---|---|---|---|
 | After Burner `aburner`, After Burner II `aburner2` | `fly` | s c m | II only (DIP "Throttle Lever") | DIP "Moving Deluxe / Moving Standard"; an enclosed cockpit with a seat belt, hydraulic: three sources |
 | Space Harrier `sharrier` | `fly` | s . m | no | DIP "Moving": an open sit-down seat on a moving base |
-| G-LOC `gloc` (R-360 `glocr360`, its clone, a gyroscope cage), Strike Fighter `strkfgtr` | `fly` | s c m | `gloc`, `strkfgtr` (the R-360 has no Z of its own) | DIP "Moving", "Cockpit" |
+| G-LOC `gloc`, Strike Fighter `strkfgtr` | `fly` | s c m | `gloc`, `strkfgtr` | DIP "Moving", "Cockpit" |
+| G-LOC R360 `glocr360` (`glocr360j`), Wing War R360 `wingwar360` | `fly` | s m + rings (`r`) | no (the R-360 has no Z of its own) | research: a sphere in a two-axis gimbal on a ring that turns a full circle |
 | Galaxy Force II `gforce2` | `fly` | s c m | yes | DIP "Super Deluxe / Deluxe": cabinet, seat and screen move together |
 | Thunder Blade `thndrbld` | `fly` | s . m | yes | DIP "Deluxe" (`thndrbld1`): a helicopter chair that follows the stick, no cabin |
 | Sega Strike Fighter `sstrkfgt`, Sky Target `skytargt`, Thunder Ceptor `tceptor` | `fly` | s . . | no (Strike Fighter's Z is "Rudder Pedal") | research: a seat; the deluxe ones non-motion |
@@ -239,9 +240,17 @@ the research. Both go in `SEATING` (`cockpits.py`, one line per game with where 
   the heading is the player's). **Options > Cabinet Motion** (`AppPrefs.arcade_motion`): automatic is on at a desk and off in a headset, or always, or never. A headset and a Quest on a moving seat are OWED.
 - **The bench** (`bench`): a gun ride's platform in front of the guns, which stay on the deck, with a seat a gun (two at most, 40 cm wide each, the eyes capped at 1.20 m so a seat at a 1.33 m glass is not a stool), each player getting up
   on the outside of their own seat. **The bench does not move**: nothing says how the ride moved (the libretro API carries no output of the game's), and a seat that rocked to no purpose under a headset is harm for nothing.
-- **Not built**: the R-360's rotation (a cage that turns right over); rudder pedals (Sega Strike Fighter's `AD_STICK_Z` is one, Thunder Ceptor's accelerator pad is a `PEDAL`); Sega Strike Fighter's three screens;
+- **The R-360 pod** (`glocr360`, `glocr360j`, `wingwar360`: the table's `r`, 2026-10-26): see below. **Not built**: rudder pedals (Sega Strike Fighter's `AD_STICK_Z` is one, Thunder Ceptor's accelerator pad is a `PEDAL`); Sega Strike Fighter's three screens;
   Air Rescue's twin; The Ocean Hunter's bench (unverified); a bench that moves; the real motion of any of them.
-- Tests: `arcade_form_tests seating/` (the table's flags for 34 games, the cabin, the controls, the tilt's direction and size, the bench), `arcade_hand_tests fly/`, `seat_tests follow/`, `arcade_variants_tests` (the setting is saved);
+- **The R-360 pod** (`glocr360`, `glocr360j`, `wingwar360`; the table's `qsmr`): Sega's sphere cockpit hung in a two-axis gimbal on a ring that turns a full circle, a hydraulic seat that can turn upside down, a harness and a safety bar (research,
+  two summaries agree; no photograph). The cockpit is the flight one with **rings where the canopy's panels would be** (`ring` for `cabin` in the spec, `_build_ring`): two hoops of 1 m stand each side of the platform, outside it, on an
+  axle through the seat's middle at the level of the chest (`RingOuter`), a hoop of 0.8 m stands behind the seat (`RingInner`), each with four hazard-yellow brackets a quarter turn apart so the turn shows. **They are open frames**: no collision, no pointer
+  box, a player walks through them, and none stands in the picture's line of sight (the hood test's sight line, `glocr360` in its list). They turn with the base's motion (`Options > Cabinet Motion`, as the base itself does):
+  **a pull turns the outer ring about the axle up to 96 degrees over the top, a push to the side the rear one about the view's axis up to 120 degrees**, eased at 4 a second; the seat and the eyes do not turn with them (the base tips its 4 degrees
+  and the seat with it, as for any moving base), a headset is never spun round. *The real pod turned the player right over; here the seat stays and the rings turn round it.* Every size is an estimate. A clone's own profile is needed for this
+  (`RING` in `cockpits.py`, by machine name: `gloc` and `wingwar` keep the canopy).
+- Tests: `arcade_form_tests seating/` (the table's flags for 34 games, the cabin, the controls, the tilt's direction and size, the bench), `arcade_form_tests ring/` (14 checks: the table, the spec, the parts and where they stand, each hoop's plane, the brackets, no collision, the pull
+  and the push turning the right ring about the right axis, eased, the seat's eyes staying put, level again, off with Cabinet Motion off; 22 mutations, all red, the generator's included), `arcade_hand_tests fly/`, `seat_tests follow/`, `arcade_variants_tests` (the setting is saved);
   pictures `arcade_cabinet_probe --forms=aburner2,sharrier,nightstr,outrun,lostwsga` (`form_`, `formside_`, `formseat_`, `formlap_`, `formtilt_`).
 
 ## 2c. The rhythm games' own controllers

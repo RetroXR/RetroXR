@@ -42,6 +42,11 @@ FLY = {
     "slrasslt", "aircomb", "airco22b", "tceptor",
 }
 
+# The R-360 pod (G-LOC R360, Wing War R360): a sphere cockpit hung in a two-axis gimbal on a ring that turns a full circle (research: two summaries agree, Sega Retro and
+# System16; the seat can turn upside down). By MACHINE name, since each is a clone with its own cabinet: the table's `q` for these takes an `r` (rings) where the family's has a
+# `c` (a canopy's side panels).
+RING = {"glocr360", "glocr360j", "wingwar360"}
+
 # What each sit-down game was built with: s = a seat, c = a cabin round it (a canopy, side panels), m = a base that moves with the play.
 # "DIP" is MAME's Cabinet DIP naming the version, "research" the summary in docs/dev/arcade-cabinets.md (secondary sources: no photograph
 # of any of these could be opened from the build machine, so the cabin's shape is an estimate whatever the flags say).

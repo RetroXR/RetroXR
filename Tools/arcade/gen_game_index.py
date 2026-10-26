@@ -37,7 +37,8 @@ not the default, `;`-separated attributes (a letter and a value):
             each: Lucky & Wild), dance (a 4-arrow dance stage), pump (a 5-panel one), music, odd,
   o         the driving cockpit has a roof,
   q<flags>  what the game's SIT-DOWN version was built with, for a flight cockpit, a driving cockpit or a gun ride (cockpits.py SEATING, with where each comes
-            from): `s` a seat, `c` a cabin round it, `m` a base that moves with the play (`qscm` After Burner II, `qsm` Out Run),
+            from): `s` a seat, `c` a cabin round it, `m` a base that moves with the play (`qscm` After Burner II, `qsm` Out Run), `r` the R-360's rings in place of a
+            cabin (`qsmr`: G-LOC R360, Wing War R360),
   z         the flight game reads a throttle lever (an `IPT_AD_STICK_Z` of its own in the driver, cockpits.py),
   h         the game's dial is a STEERING WHEEL, with no pedals (Bad Lands: MAME calls the wheel a dial, and the cabinet had a wheel a player),
   n<arrows> how many arrows a dancer's stage has when it is not four (`n6`: DDR Solo's six panels),
@@ -83,7 +84,7 @@ OUT = "RetroXR/Scripts/Data/systems/arcade_game_table.gd"
 # The sit-down cabinets: the flight sims and which versions of each game had a seat, a cabin and a moving base (cockpits.py: curated, with where
 # each comes from), and the games whose driver reads a throttle lever, per ROMSET (cockpits.json, read out of MAME's driver sources).
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from cockpits import FLY, SEATING  # noqa: E402
+from cockpits import FLY, RING, SEATING  # noqa: E402
 THROTTLES = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "cockpits.json")))["throttle"]
 # The gear lever of a driving game, by PARENT romset: read out of MAME's driver sources by shifters.py (a button, whether MAME makes it a
 # toggle, or a sequential box's up and down buttons). -listxml carries none of it.
@@ -444,7 +445,11 @@ def profile_of(machine, parent):
     # q: a seat (s), a cabin round it (c), a moving base (m): what the sit-down version of this game had (cockpits.py SEATING). Only a form that can
     # show it reads it: a flight cockpit, a driving cockpit, a gun ride's bench.
     if form in ("fly", "race", "gun", "gunm") and SEATING.get(family):
-        attrs.append("q" + SEATING[family])
+        q = SEATING[family]
+        if name in RING:
+            # The R-360's rings stand where a canopy's panels would.
+            q = q.replace("c", "") + "r"
+        attrs.append("q" + q)
     # z: the game reads a throttle lever (a Z axis of its own, cockpits.json).
     if form == "fly" and name in THROTTLES:
         attrs.append("z")

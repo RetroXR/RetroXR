@@ -323,6 +323,11 @@ func has_motion() -> bool:
 	return known and str(attrs.get("q", "")).contains("m")
 
 
+## The cockpit is Sega's R-360 pod (the table's `r`, G-LOC R360 and Wing War R360): a sphere hung in rings that turn, where another cockpit has a cabin.
+func has_ring() -> bool:
+	return known and str(attrs.get("q", "")).contains("r")
+
+
 ## The game reads a throttle lever (the table's `z`: an `IPT_AD_STICK_Z` of its own in MAME's driver, Tools/arcade/cockpits.py).
 func has_throttle() -> bool:
 	return known and attrs.has("z")

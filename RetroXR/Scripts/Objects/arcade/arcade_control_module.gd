@@ -63,6 +63,9 @@ const THROTTLE_DEG := 32.0
 const MOTION_ROLL_DEG := 4.0
 const MOTION_PITCH_DEG := 3.0
 const MOTION_RATE := 4.0
+## The R-360's rings turn far more than a base tips: the outer one about the pod's lateral axis (a full pull is 96 degrees over the top), the rear one about the view's own.
+const RING_PITCH_DEG := 120.0
+const RING_ROLL_DEG := 120.0
 
 var _caps: Array[Node3D] = []
 ## Each cap's flange (`<cap>Rim`, fixed, of the cap's colour), or null where a scene has none.
@@ -93,6 +96,9 @@ var _slide_rest := Vector3.ZERO
 ## frame), where it is tilted to now and where it is going: x banks (-1..1, right positive), y noses up (-1..1). Never moved when the player's
 ## choice is off (`motion_on`).
 var _motion: Node3D = null
+## The R-360 pod's two rings (on the base, `RingOuter` and `RingInner`), or null.
+var _ring_outer: Node3D = null
+var _ring_inner: Node3D = null
 var _motion_centre := Vector3.ZERO
 var _motion_now := Vector2.ZERO
 var _motion_target := Vector2.ZERO
@@ -173,6 +179,8 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 	_slide_rest = _slide.position if _slide != null else Vector3.ZERO
 	_throttle = find_child("ThrottlePivot", true, false) as Node3D
 	_motion = _ancestor_named(&"MotionPivot")
+	_ring_outer = _motion.find_child("RingOuter", true, false) as Node3D if _motion != null else null
+	_ring_inner = _motion.find_child("RingInner", true, false) as Node3D if _motion != null else null
 	_motion_centre = Vector3(_motion.get_meta(&"motion_centre", Vector3.ZERO)) if _motion != null else Vector3.ZERO
 	_motion_now = Vector2.ZERO
 	_motion_target = Vector2.ZERO
@@ -504,6 +512,11 @@ func _tick_motion(delta: float) -> void:
 	# Banked into the turn (the right side down for a push to the right), nosed up for a pull (the front rises).
 	var b := Basis.from_euler(Vector3(deg_to_rad(MOTION_PITCH_DEG) * _motion_now.y, 0.0, -deg_to_rad(MOTION_ROLL_DEG) * _motion_now.x))
 	_motion.transform = Transform3D(b, _motion_centre - b * _motion_centre)
+	# The R-360's rings turn with it (the seat does not): the outer one over the top for a pull, the rear one round the view's axis for a push to the side.
+	if _ring_outer != null:
+		_ring_outer.basis = Basis(Vector3.RIGHT, deg_to_rad(RING_PITCH_DEG) * _motion_now.y)
+	if _ring_inner != null:
+		_ring_inner.basis = Basis(Vector3.BACK, -deg_to_rad(RING_ROLL_DEG) * _motion_now.x)
 
 
 ## How far the base is tilted now (x banked right, y nose up, -1..1), for the tests and the probe.

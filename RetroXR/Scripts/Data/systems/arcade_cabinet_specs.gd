@@ -709,7 +709,7 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 			# place of the wheel and the shifter; a cabin round the seat where the game's was (After Burner's), a base that moves where its was.
 			shape = "racer"
 			spec["players"] = []
-			spec["cockpit"] = {"flight": true, "roof": profile.has_cabin(), "cabin": profile.has_cabin(), "motion": profile.has_motion(),
+			spec["cockpit"] = {"flight": true, "roof": profile.has_cabin(), "cabin": profile.has_cabin(), "ring": profile.has_ring(), "motion": profile.has_motion(),
 				"throttle": profile.has_throttle(), "pedals": profile.has_kind(ArcadeGameProfile.KIND_PEDAL), "shifter": false, "player": 0}
 		ArcadeGameProfile.FORM_RACEGUN:
 			# A car with a driver and a gunner (Lucky & Wild): the driving cockpit made two seats wide, the first seat's wheel and pedal, a gun for each player in a holster on

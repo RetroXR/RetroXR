@@ -1175,6 +1175,8 @@ func _build_cockpit(spec: Dictionary) -> void:
 		ArcadeParts.box(_owner, base, "RoofSign", Vector3(_w - 0.06, 0.16, 0.012), Vector3(0, 1.90, COCKPIT_Z1 - 0.06), lit)
 	if flight and bool(spec.get("cabin", false)):
 		_build_cabin(base)
+	elif flight and bool(spec.get("ring", false)):
+		_build_ring(base)
 	# The driver's controls, one controller.
 	var mod := ArcadeParts.node(_owner, base, "Node3D", "Player1") as Node3D
 	mod.set_script(load(SCRIPTS["control"]))
@@ -1308,6 +1310,53 @@ func _build_cabin(base: Node3D) -> void:
 	for i in 5:
 		ArcadeParts.box(_owner, base, "CabinLamp%d" % (i + 1), Vector3(0.05, 0.012, 0.05),
 			Vector3((float(i) - 2.0) * 0.1, top - 0.006, CABIN_LAMP_Z), lamp)
+
+
+## The R-360 pod's gimbal (G-LOC R360, Wing War R360: Sega's sphere cockpit hung in two rings, the outer one turning a full circle): two hoops standing each side of the platform on an axle
+## through the seat's middle (`RingOuter`, turning about the cockpit's lateral axis) and a hoop behind the seat (`RingInner`, turning about the view's own axis), each with four hazard-yellow
+## brackets so the turn shows. They are open frames: no collision and no pointer box, a player walks through them, and none stands in the picture's line of sight. They turn with the
+## base's motion (ArcadeControlModule) and the seat and the eyes do not: a headset must not be spun round. Every size is an estimate (the research has no photograph).
+const RING_CENTRE_Y := 1.05
+const RING_RADIUS := 1.0
+const RING_TUBE := 0.03
+const RING_REAR_Z := 0.55
+const RING_REAR_RADIUS := 0.80
+
+
+func _build_ring(base: Node3D) -> void:
+	var centre := Vector3(0.0, RING_CENTRE_Y, SEAT_Z)
+	var steel := ArcadeParts.mat(Color(0.74, 0.76, 0.80), 0.7, 0.35)
+	var hazard := ArcadeParts.mat(Color(0.95, 0.72, 0.10), 0.0, 0.5)
+	var outer := ArcadeParts.node(_owner, base, "Node3D", "RingOuter", centre) as Node3D
+	var x0 := _w * 0.5 + 0.18
+	for k in [-1.0, 1.0]:
+		var side := "L" if k < 0 else "R"
+		_hoop(outer, "RingHoop" + side, Vector3(k * x0, 0.0, 0.0), RING_RADIUS, Basis(Vector3.BACK, -PI * 0.5), steel)
+		ArcadeParts.cylinder(_owner, outer, "RingAxle" + side, 0.025, x0 - 0.30, Vector3(k * (x0 + 0.30) * 0.5, 0.0, 0.0), steel, Vector3.RIGHT)
+		for a in 4:
+			var ang := PI * 0.5 * float(a)
+			ArcadeParts.box(_owner, outer, "RingBracket%s%d" % [side, a + 1], Vector3(0.07, 0.12, 0.12),
+				Vector3(k * x0, cos(ang) * RING_RADIUS, sin(ang) * RING_RADIUS), hazard)
+	var rear := ArcadeParts.node(_owner, base, "Node3D", "RingInner", centre + Vector3(0.0, 0.0, RING_REAR_Z)) as Node3D
+	_hoop(rear, "RingHoopRear", Vector3.ZERO, RING_REAR_RADIUS, Basis(Vector3.RIGHT, PI * 0.5), steel)
+	for a in 4:
+		var ang := PI * 0.5 * float(a)
+		ArcadeParts.box(_owner, rear, "RingBracketRear%d" % (a + 1), Vector3(0.12, 0.12, 0.07),
+			Vector3(sin(ang) * RING_REAR_RADIUS, cos(ang) * RING_REAR_RADIUS, 0.0), hazard)
+
+
+## A hoop: a torus of `radius` (its tube RING_TUBE thick), its axis turned by `basis` (a TorusMesh lies in the XZ plane).
+func _hoop(parent: Node3D, node_name: String, pos: Vector3, radius: float, basis: Basis, material: Material) -> MeshInstance3D:
+	var hoop := ArcadeParts.node(_owner, parent, "MeshInstance3D", node_name, pos) as MeshInstance3D
+	var tm := TorusMesh.new()
+	tm.inner_radius = radius - RING_TUBE
+	tm.outer_radius = radius + RING_TUBE
+	tm.rings = 48
+	tm.ring_segments = 8
+	tm.material = material
+	hoop.mesh = tm
+	hoop.basis = basis
+	return hoop
 
 
 ## Where the driver's seat stands, front to back (the cushion's middle), and the platform's top it stands on. The eyes (4 cm behind it) are 0.95 m from the
