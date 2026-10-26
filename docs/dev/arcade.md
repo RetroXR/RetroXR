@@ -1015,8 +1015,9 @@ a wheel, bars, dial and trackball the left stick's X or XY, so "left+dpad" sends
   turning back turns the wheel back at once; the wheel is NOT the hand's absolute angle (a test pins that), and a tip near the axle has no angle so it
   is ignored; let go, it comes back to centre by itself. *dial* turns freely; the SPEED it is turned at is the deflection (one turn a second is full), as
   holding LEFT or RIGHT turns it, because that is what the games read; held still it sends nothing. *trackball* rolls where the hand pushes it, the
-  surface speed under the hand against `BALL_SPEED` times the ball's radius (what the picture rolls at full deflection); a speed too. *lever*: past half its throw it is in
-  high gear, B, and STAYS there when let go (a gear lever stays), pulled back the same way. *bars*: the bike leans by the sideways push (`BARS_THROW` 15 cm
+  surface speed under the hand against `BALL_SPEED` times the ball's radius (what the picture rolls at full deflection); a speed too. *lever*: past 60% of its throw it is in
+  high gear and STAYS there when let go (a gear lever stays), pulled back under 40% the same way; what high gear SENDS is the game's (one tap of the game's own shift
+  button for a toggle, the button held for a held shifter, `up`/`down` taps for a sequential box: `arcade-cabinets.md` section 2, Final Lap 3). *bars*: the bike leans by the sideways push (`BARS_THROW` 15 cm
   is a full lean, 14 degrees at the 62 cm the bars stand over the stand), and a BICYCLE's bars (Prop Cycle) also take the push forward and pull back (`BARS_PITCH_THROW` 10 cm is the whole of it, the
   stick's Y, pulled being DOWN) with their own let-go distance (`BARS_LET_GO`, the grips stand 30 cm out); *crank*: the trigger at a pedal (`CRANK_REACH` 6 cm) and the hand turns it like a dial: the
   SPEED it is turned at is the right stick's Y (forward up), and a hand on the axle has no angle; *slide*: a lever in a slot (Panic Park) taken at its ball (`SLIDE_REACH` 5.5 cm) and pushed along it,

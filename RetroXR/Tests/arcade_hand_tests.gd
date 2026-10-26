@@ -92,7 +92,7 @@ func _run() -> void:
 
 ## A cabinet, switched on, wearing the form a game asks for ("" is the generic cabinet as it stands). Returns the
 ## system, its model, its input and player 1's panel.
-func _rig(romset: String = "", frames: int = 6) -> Dictionary:
+func _rig(romset: String = "", frames: int = 6, with_profile: bool = false) -> Dictionary:
 	var sys := SYSTEM_SCENE.instantiate() as RetroSystem
 	sys.model_id = ArcadeProfiles.CABINET_MODEL_ID
 	sys.systemid = "arcade"
@@ -107,6 +107,9 @@ func _rig(romset: String = "", frames: int = 6) -> Dictionary:
 		var base := S.variant("generic")
 		base["variant"] = "generic"
 		model.morph_to(S.for_game(base, P.for_romset(romset)))
+		if with_profile:
+			# What a board in the bay does besides the form: the panels learn the game (its gear lever, its caps).
+			model.apply_game_profile(P.for_romset(romset))
 		await _wait(2)
 	sys.is_powered_on = true
 	var panels := model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)
@@ -748,20 +751,64 @@ func _group_ball() -> void:
 
 # --- lever ---------------------------------------------------------------------
 
+## The knob's place in the world with the lever thrown `amount` of the way (0 low .. 1 high); the lever is put back as it was.
+func _knob_at(lever: Node3D, rest: Basis, amount: float) -> Vector3:
+	lever.basis = rest * Basis(Vector3.RIGHT, -deg_to_rad(ArcadeControlModule.SHIFT_DEG) * amount)
+	var knob := lever.global_transform * Vector3(0, 0, 0.125)
+	lever.basis = rest
+	return knob
+
+
+## `frames` frames of the hands on `panel` the way the cabinet runs them: the hands' buttons are what the panel is shown. Returns how many
+## times each pad bit in `bits` went down.
+func _lever_frames(panel: ArcadeControlModule, h: Dictionary, bits: Array, frames: int) -> Dictionary:
+	var downs := {}
+	for b: int in bits:
+		downs[b] = 0
+	var last := 0
+	for i in frames:
+		_step(panel, [h])
+		var mask := panel.hand_buttons()
+		panel.show_state(mask)
+		panel.tick(0.016)
+		for b: int in bits:
+			if (mask >> b) & 1 == 1 and (last >> b) & 1 == 0:
+				downs[b] = int(downs[b]) + 1
+		last = mask
+	return downs
+
+
+## The hand moved along `plan` ([[tip, frames], ...]) with the pad bit `bit` watched all the way: how many times it went down.
+func _lever_run(panel: ArcadeControlModule, h: Dictionary, bit: int, plan: Array) -> int:
+	var downs := 0
+	var last := 0
+	for leg: Array in plan:
+		_tip_at(h, leg[0])
+		for i in int(leg[1]):
+			_step(panel, [h])
+			var mask := panel.hand_buttons()
+			panel.show_state(mask)
+			panel.tick(0.016)
+			if (mask >> bit) & 1 == 1 and (last >> bit) & 1 == 0:
+				downs += 1
+			last = mask
+	return downs
+
+
 func _group_lever() -> void:
-	var r := await _rig("daytona")
+	# A shifter MAME holds (Pole Position, button 3): the button is down for as long as the lever is high.
+	var r := await _rig("polepos", 6, true)
 	var panel: ArcadeControlModule = r["panel"]
 	var hands: ArcadePanelHands = panel.hands()
 	var h := _hand()
 	var lever := panel.find_child("ShifterPivot", true, false) as Node3D
-	_ok(lever != null, "lever: the cockpit has a gear lever")
+	_ok(lever != null and panel.shift_config() == {"button": 3, "toggle": false},
+		"lever: Pole Position has a gear lever, on button 3, held (%s)" % str(panel.shift_config()))
+	var y := _bit(ArcadeProfiles.button_bit(3))
 	var rest := lever.basis
-	var knob_rest := lever.global_transform * Vector3(0, 0, 0.125)
-	lever.basis = rest * Basis(Vector3.RIGHT, -deg_to_rad(ArcadeControlModule.SHIFT_DEG))
-	var knob_thrown := lever.global_transform * Vector3(0, 0, 0.125)
-	lever.basis = rest * Basis(Vector3.RIGHT, -deg_to_rad(ArcadeControlModule.SHIFT_DEG) * 0.3)
-	var knob_part := lever.global_transform * Vector3(0, 0, 0.125)
-	lever.basis = rest
+	var knob_rest := _knob_at(lever, rest, 0.0)
+	var knob_part := _knob_at(lever, rest, 0.3)
+	var knob_thrown := _knob_at(lever, rest, 1.0)
 	_tip_at(h, knob_rest)
 	_trigger(h, 1.0)
 	_step(panel, [h])
@@ -772,11 +819,11 @@ func _group_lever() -> void:
 		"lever: a third of the way over is still low gear (%.2f)" % hands.lever_throw())
 	_tip_at(h, knob_thrown)
 	_step(panel, [h])
-	_ok(panel.hand_buttons() == _bit(ControllerBindings.JOYPAD_B) and hands.lever_throw() > 0.95,
-		"lever: thrown it is high gear, the button the keyboard holds (B)")
+	_ok(panel.hand_buttons() == y and hands.lever_throw() > 0.95,
+		"lever: thrown it is high gear, and the game's own button (3, not button 1) is down")
 	_trigger(h, 0.0)
 	_step(panel, [h])
-	_ok(not hands.holds(&"lever") and panel.hand_buttons() == _bit(ControllerBindings.JOYPAD_B),
+	_ok(not hands.holds(&"lever") and panel.hand_buttons() == y,
 		"lever: and it STAYS in high gear when let go, as a gear lever does")
 	_tip_at(h, knob_thrown)
 	_trigger(h, 1.0)
@@ -799,6 +846,90 @@ func _group_lever() -> void:
 	_trigger(h, 0.0)
 	input._process(0.016)
 	input._left_vr_ctrl = null
+	await _clear()
+
+	# A shifter MAME makes a toggle (Out Run, button 3): every change of gear is ONE tap of the button, never a held press.
+	r = await _rig("outrun", 6, true)
+	panel = r["panel"]
+	hands = panel.hands()
+	h = _hand()
+	lever = panel.find_child("ShifterPivot", true, false) as Node3D
+	_ok(lever != null and panel.shift_config() == {"button": 3, "toggle": true},
+		"lever: Out Run's is on button 3 and a toggle (%s)" % str(panel.shift_config()))
+	rest = lever.basis
+	knob_rest = _knob_at(lever, rest, 0.0)
+	var knob_mid := _knob_at(lever, rest, 0.5)
+	var knob_hi := _knob_at(lever, rest, 0.7)
+	var knob_lo := _knob_at(lever, rest, 0.3)
+	knob_thrown = _knob_at(lever, rest, 1.0)
+	_tip_at(h, knob_rest)
+	_trigger(h, 1.0)
+	var taps := _lever_frames(panel, h, [ArcadeProfiles.button_bit(3)], 3)
+	_ok(hands.holds(&"lever") and int(taps[ArcadeProfiles.button_bit(3)]) == 0 and not panel.shift_high(),
+		"lever: taken in low gear it taps nothing")
+	_tip_at(h, knob_thrown)
+	taps = _lever_frames(panel, h, [ArcadeProfiles.button_bit(3)], 25)
+	_ok(int(taps[ArcadeProfiles.button_bit(3)]) == 1 and panel.shift_high(),
+		"lever: thrown it taps button 3 ONCE, and the lever is high (%d taps)" % int(taps[ArcadeProfiles.button_bit(3)]))
+	_ok(panel.hand_buttons() == 0, "lever: and the button is up again, not held")
+	_trigger(h, 0.0)
+	taps = _lever_frames(panel, h, [ArcadeProfiles.button_bit(3)], 20)
+	_ok(int(taps[ArcadeProfiles.button_bit(3)]) == 0 and panel.shift_high() and panel.hand_buttons() == 0,
+		"lever: let go it stays high and taps nothing more")
+	for i in 30:
+		panel.tick(0.016)
+	_ok(panel.shift_amount() > 0.95, "lever: and is drawn high")
+	# A wobble about the middle, from the high side, shifts nothing: it takes 40% to go back.
+	_tip_at(h, knob_thrown)
+	_trigger(h, 1.0)
+	_lever_frames(panel, h, [ArcadeProfiles.button_bit(3)], 3)
+	var wobble := 0
+	for i in 12:
+		_tip_at(h, knob_mid if i % 2 == 0 else knob_hi)
+		wobble += int(_lever_frames(panel, h, [ArcadeProfiles.button_bit(3)], 4)[ArcadeProfiles.button_bit(3)])
+	_ok(wobble == 0 and panel.shift_high(), "lever: a hand that wobbles about the middle changes no gear (%d taps)" % wobble)
+	_tip_at(h, knob_lo)
+	taps = _lever_frames(panel, h, [ArcadeProfiles.button_bit(3)], 25)
+	_ok(int(taps[ArcadeProfiles.button_bit(3)]) == 1 and not panel.shift_high(), "lever: pulled back it taps once more, and the lever is low")
+	# Two changes in a hurry are two taps, never one long press: the second waits for the first.
+	_tip_at(h, knob_thrown)
+	var quick := _lever_frames(panel, h, [ArcadeProfiles.button_bit(3)], 1)
+	_tip_at(h, knob_rest)
+	var rest_of := _lever_frames(panel, h, [ArcadeProfiles.button_bit(3)], 45)
+	_ok(int(quick[ArcadeProfiles.button_bit(3)]) + int(rest_of[ArcadeProfiles.button_bit(3)]) == 2 and not panel.shift_high()
+			and panel.hand_buttons() == 0, "lever: two changes in a hurry are two taps, and the lever ends where the hand left it")
+	# Three changes inside one tap: three taps, queued behind it, and the lever ends where the hand left it (high).
+	var burst := _lever_run(panel, h, ArcadeProfiles.button_bit(3), [[knob_thrown, 1], [knob_rest, 2], [knob_thrown, 90]])
+	_ok(burst == 3 and panel.shift_high() and panel.hand_buttons() == 0,
+		"lever: a flurry of three changes is three taps, one after the other (%d) and ends high" % burst)
+	_trigger(h, 0.0)
+	_step(panel, [h])
+	await _clear()
+
+	# A sequential box (Super Monaco GP: up on 2, down on 1) taps `up` going high and `down` going low.
+	r = await _rig("smgp", 6, true)
+	panel = r["panel"]
+	hands = panel.hands()
+	h = _hand()
+	lever = panel.find_child("ShifterPivot", true, false) as Node3D
+	_ok(lever != null and panel.shift_config() == {"up": 2, "down": 1}, "lever: Super Monaco GP's is a sequential box, up on 2 and down on 1 (%s)" % str(panel.shift_config()))
+	rest = lever.basis
+	knob_rest = _knob_at(lever, rest, 0.0)
+	knob_thrown = _knob_at(lever, rest, 1.0)
+	var up_bit := ArcadeProfiles.button_bit(2)
+	var down_bit := ArcadeProfiles.button_bit(1)
+	_tip_at(h, knob_rest)
+	_trigger(h, 1.0)
+	_lever_frames(panel, h, [up_bit, down_bit], 2)
+	_tip_at(h, knob_thrown)
+	taps = _lever_frames(panel, h, [up_bit, down_bit], 25)
+	_ok(int(taps[up_bit]) == 1 and int(taps[down_bit]) == 0 and panel.shift_high(), "lever: thrown it taps UP once and the lever is high")
+	_tip_at(h, knob_rest)
+	taps = _lever_frames(panel, h, [up_bit, down_bit], 25)
+	_ok(int(taps[up_bit]) == 0 and int(taps[down_bit]) == 1 and not panel.shift_high(), "lever: pulled back it taps DOWN once and the lever is low")
+	_trigger(h, 0.0)
+	_step(panel, [h])
+	await _clear()
 
 
 # --- bars ----------------------------------------------------------------------

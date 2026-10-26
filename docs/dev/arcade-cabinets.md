@@ -135,15 +135,24 @@ more than one screen, 3 to 8 players are 1,345, **2,959 are alternating** (`a`: 
 - **The real cabinet** (research, medium on the controls and the linking, low on the form): a sit-down twin (two seats and two 25 inch screens, plywood and diamond plate);
   four units chain for eight racers. MAME runs ONE unit and reads ONE driver; the Arcade Museum's spec table says upright, StrategyWiki sit-down.
 - **Built**: the sit-down cockpit (`race`): the `racer` body, a platform, **a real seat** (`CockpitSeat`: press the cushion to sit, the eyes at the middle of the glass), a dash with the
-  wheel (the left stick, to `WHEEL_LOCK_DEG`), two organ pedals on one axle (gas R2, brake L2) and a gear lever by the right hand (button 1), START on the dash. The twin
+  wheel (the left stick, to `WHEEL_LOCK_DEG`), two organ pedals on one axle (gas R2, brake L2) and a gear lever by the right hand (the game's own button, and only for a game that has one: see below), START on the dash. The twin
   is not built: nothing in MAME has a second driver.
-- **Known gap: the gear lever is "button 1, held"** and MAME's shifters are neither always button 1 nor always held. Read in the sources of the 145 driving families the table has
-  (463 romsets): **32 families (119 romsets) are `PORT_TOGGLE` shifters** (the game flips low/high on each PRESS) and the shift is BUTTON1 for 9 families (26 romsets: Final Lap 1, 2 and 3,
-  Rad Mobile, Slipstream, Super Dead Heat), BUTTON2 for 8, **BUTTON3 for 11** (Out Run, Turbo Out Run, Super Hang-On, Power Drift, WEC Le Mans, Hot Chase, Continental Circus...), BUTTON4 for 6;
-  115 more name a gear or shift button without toggling it (a held one, or "Gear 1".."Gear 4" buttons). The lever sends button 1 and holds it while it is up: for a toggle shifter
-  on button 1 the first throw flips the game and a lever put back flips nothing, so lever and game agree for one throw and part after it; for the rest it presses the wrong button. A pad's
-  player is unaffected (they press the button the game names). Fixing it wants two more table attributes (which button, and whether it toggles; `PORT_TOGGLE` and `PORT_NAME` are
-  not in `-listxml`, `Tools/arcade/mame_inputs.py` reads them from the sources) and the lever to tap on every change of a toggle shifter. **Not built.**
+- **The gear lever is the game's own** (2026-10-26; before it was "button 1, held", which fits few games). `Tools/arcade/shifters.py` reads it out of the drivers'
+  `INPUT_PORTS_START` blocks (`-listxml` carries neither the button's name nor `PORT_TOGGLE`) and writes `Tools/arcade/shifters.json`, which `gen_game_index.py` turns into the
+  table's `x` attribute for the `race` and `stand` forms: of the 157 driving parents, **69 name a gear change: 34 on ONE button (31 `PORT_TOGGLE`, the game flips low/high
+  on each PRESS, and 3 held), 20 a sequential box (a "Shift Up" and a "Shift Down" button), 15 an H pattern** ("Gear 1".."Gear 4", four or five buttons: a lever of two positions cannot say
+  which, so none is built); the other 88 have none. The lever is drawn for the `race` and `stand` forms among them (a bike has none). The button is MAME's own number: **button 1 is Final Lap 1, 2 and 3, Rad Mobile, Slipstream; button 2 Cisco Heat, Spy Hunter, Racin' Force;
+  button 3 Out Run, Turbo Out Run, Power Drift, WEC Le Mans, Hot Chase, Continental Circus; button 4 Chase HQ, Top Speed, Super Chase**; Pole Position's gear change is button 3 HELD (a
+  switch, not a toggle). Button n is the pad's B A Y X L R in order (`ArcadeProfiles.button_bit`). What the cabinet does with it (`ArcadeGameProfile.shifter()`):
+  - a **toggle** gets ONE tap (0.12 s) of its button for every change of gear, the lever's hand sending it (`LeverGrab`: high past 60% of the throw, low under 40%, so a wobble
+    about the middle shifts nothing; two changes in a hurry are two queued taps, never one long press) and the lever DRAWN where the presses left it (`ArcadeControlModule._step_shift`:
+    it flips on the button's rising edge, whoever pressed it: a pad, a finger, the lever). The game's own gear is not known to the cabinet: a game that changes gear by itself, or
+    a core reset, leaves the lever where the presses were (a new run puts it back low: `reset_shift`);
+  - a **held** shifter's button is down for as long as the lever is high, and the lever stays high when let go;
+  - a **sequential box** taps `up` going high and `down` going low, and the drawn lever goes high on an `up` press and low on a `down`;
+  - **no lever is drawn for a game with none** (an H pattern, an automatic, a game the sources say nothing of): it was drawn for every driving game with a button, and pressed one
+    that could be a "view" or a horn. A pad's player was never touched by any of this: they press the button the game names.
+  Not run against a core. Whether a toggle game wants a tap this long (0.12 s) on every core, and the tap queue's rest (0.10 s), is an estimate; the number of presses is exact.
 - Tests: `arcade_form_tests build/`, `reach/` (Daytona); the seat in `seat_tests`.
 
 ## 3. Every form that is built

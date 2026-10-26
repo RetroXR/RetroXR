@@ -279,6 +279,26 @@ func aims_as_stick() -> bool:
 	return is_gun() and has_kind(KIND_STICK)
 
 
+## The gear lever the game has (the table's `x`, read from the driver sources by Tools/arcade/shifters.py): {} for none (an automatic, an H
+## pattern a lever of two positions cannot say, a game the sources say nothing of: the cabinet draws no lever),
+## `{"button": n, "toggle": bool}` for a two-position shifter on MAME's button n (1-6, ArcadeProfiles.button_bit): one MAME makes a toggle flips the gear
+## at every press (the lever taps the button at every change), one it does not is held for as long as the lever is high; and `{"up": n, "down": m}` for a
+## sequential box on two buttons (the lever taps `up` going high and `down` going low).
+func shifter() -> Dictionary:
+	var x := str(attrs.get("x", ""))
+	if not known or x.length() < 2:
+		return {}
+	if x[0] == "s" and x.length() == 3 and x[1].is_valid_int() and x[2].is_valid_int():
+		return {"up": int(x[1]), "down": int(x[2])}
+	if x.length() == 2 and x[0].is_valid_int() and (x[1] == "t" or x[1] == "h"):
+		return {"button": int(x[0]), "toggle": x[1] == "t"}
+	return {}
+
+
+func has_shifter() -> bool:
+	return not shifter().is_empty()
+
+
 ## A driving game: a wheel and pedals (MAME calls them a paddle and a pedal; Pole Position's wheel is a dial).
 func is_driving() -> bool:
 	if not known:

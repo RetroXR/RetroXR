@@ -33,6 +33,8 @@ not the default, `;`-separated attributes (a letter and a value):
             music, odd,
   o         the driving cockpit has a roof,
   f         the gun game has a foot pedal,
+  x<lever>  the driving game's gear lever, from the driver sources (shifters.py): `x3t` button 3 and MAME makes it a toggle, `x3h` button 3 held while
+            the lever is high, `xs21` a sequential box (up on button 2, down on 1). A driving game with none has no lever,
   a         two players take turns on ONE panel (an alternating game whose upright had a
             single set of controls: MAME's Cabinet DIP offers a cocktail, the upright one),
   m<in>     the monitor's class in inches where it is not the 25" default (19 before 1985),
@@ -45,6 +47,8 @@ The names are the romset (zip) names, clones included: a clone has a zip of its 
 takes its parent's form. Each clone is tied to its parent in the line (`tokens_of`), so a clone's artwork
 can be looked for under its parent's name as MAME does.
 """
+import json
+import os
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -62,6 +66,9 @@ KIND = {
 }
 
 OUT = "RetroXR/Scripts/Data/systems/arcade_game_table.gd"
+# The gear lever of a driving game, by PARENT romset: read out of MAME's driver sources by shifters.py (a button, whether MAME makes it a
+# toggle, or a sequential box's up and down buttons). -listxml carries none of it.
+SHIFTERS = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "shifters.json")))
 KEEP = {"description", "year", "input", "display", "dipswitch", "configuration"}
 
 # Drivers whose "light gun" is a touch screen (bar-top quiz and card games, fruit machines with a touch
@@ -180,6 +187,16 @@ def driving_cabinet(machine, name, year):
     return "stand" if year and year < 1988 else "race"
 
 
+def shift_attr(shift):
+    """The `x` attribute of a gear lever: `3t` (button 3, a toggle), `3h` (button 3, held while the lever is high) or `s21` (a sequential box:
+    up on button 2, down on button 1). '' for what a lever of two positions cannot say (an H pattern) or a button a pad has not got."""
+    if "button" in shift and 1 <= shift["button"] <= 6:
+        return "%d%s" % (shift["button"], "t" if shift["toggle"] else "h")
+    if "up" in shift and 1 <= shift["up"] <= 6 and 1 <= shift["down"] <= 6:
+        return "s%d%d" % (shift["up"], shift["down"])
+    return ""
+
+
 def form_of(machine, parent, kinds, name_for_lists):
     desc = machine.findtext("description") or ""
     if name_for_lists in CYCLE:
@@ -274,6 +291,8 @@ def profile_of(machine, parent):
         attrs.append("o")
     if family in GUN_PEDAL:
         attrs.append("f")
+    if form in ("race", "stand") and shift_attr(SHIFTERS.get(family, {})):
+        attrs.append("x" + shift_attr(SHIFTERS[family]))
     if alternating(machine if parent is None else parent, players) or alternating(machine, players):
         attrs.append("a")
     if inp.get("service") == "yes":

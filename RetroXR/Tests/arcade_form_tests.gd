@@ -23,6 +23,7 @@
 ##   service/   TEST and SERVICE in the compartment opposite the power switch, there when MAME says the game reads one
 ##   mount/     a gun on a swivel (Silent Scope's rifle, Operation Wolf's Uzi) is fixed to its cabinet: it turns about its pivot
 ##   odd/       Prop Cycle's bicycle, Time Traveler's deep stage, Panic Park's two levers in one slot
+##   shift/     a driving game's gear lever is the game's: its button, a toggle or held, a sequential box, none where MAME has none
 ##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
 ##   guns/      a gun game's guns are built, plugged in and hung, its pedal wired; another game frees them and their ports
 ##   ports/     a pad in a socket the new form does not have (or a gun takes) comes out
@@ -105,6 +106,9 @@ func _run() -> void:
 		await _clear()
 	if _want("odd"):
 		await _group_odd()
+		await _clear()
+	if _want("shift"):
+		await _group_shift()
 		await _clear()
 	if _want("reach"):
 		await _group_reach()
@@ -1062,6 +1066,121 @@ func _group_odd() -> void:
 	await _wait(2)
 	_ok(_panels(model).size() == 1, "odd: the bicycle's one panel is built")
 	if _panels(model).is_empty():
+# --- shift ---------------------------------------------------------------------
+
+## The cockpit or the stand-up wheel panel of a driving game, with the game's profile applied the way a board in the bay does.
+func _driver_panel(model: RetroSystemModelArcadeCabinet, romset: String) -> ArcadeControlModule:
+	model.morph_to(_spec(romset))
+	model.apply_game_profile(P.for_romset(romset))
+	return _panels(model)[0] as ArcadeControlModule
+
+
+## The panel shown `mask` for a frame and then `frames` frames of nothing new, the lever left to settle.
+func _show(panel: ArcadeControlModule, mask: int, frames: int = 30) -> void:
+	panel.show_state(mask)
+	for i in frames:
+		panel.tick(1.0 / 60.0)
+
+
+func _group_shift() -> void:
+	# The table: which games have a lever and what it says (read from the driver sources by Tools/arcade/shifters.py).
+	_ok(P.for_romset("outrun").shifter() == {"button": 3, "toggle": true} and P.for_romset("chasehq").shifter() == {"button": 4, "toggle": true}
+			and P.for_romset("finallap").shifter() == {"button": 1, "toggle": true} and P.for_romset("polepos").shifter() == {"button": 3, "toggle": false}
+			and P.for_romset("smgp").shifter() == {"up": 2, "down": 1},
+		"shift: Out Run's gear shift is button 3 and a toggle, Chase HQ's 4, Final Lap's 1; Pole Position's is button 3 held; Super Monaco GP's is up on 2 and down on 1")
+	_ok(P.for_romset("outrun").shifter() == P.for_romset("outrunb").shifter() and P.for_romset("toutrun1").shifter() == {"button": 3, "toggle": true}
+			and P.for_romset("pdrift").shifter() == {"button": 3, "toggle": true} and P.for_romset("toutrun").shifter() == {"button": 3, "toggle": true},
+		"shift: a clone has its parent's lever; Power Drift and Turbo Out Run say button 3, a toggle")
+	_ok(P.for_romset("shangon").shifter().is_empty(), "shift: Super Hang-On is a ride-on bike, and a bike has no lever to draw")
+	_ok(P.for_romset("daytona").shifter().is_empty() and P.for_romset("sf2").shifter().is_empty() and P.for_romset("hangon").shifter().is_empty()
+			and P.for_romset("not_a_real_romset").shifter().is_empty() and not P.for_romset("daytona").has_shifter(),
+		"shift: an H pattern (Daytona USA), a game that is not a driver, a bike and a romset the table lacks have no two-position lever")
+	_ok(ArcadeGameProfile.from_key("t", "p1c1b1w0:paddle+pedal;trace;x3t").shifter() == {"button": 3, "toggle": true}
+			and ArcadeGameProfile.from_key("t", "p1c1b1w0:paddle+pedal;trace;x6h").shifter() == {"button": 6, "toggle": false}
+			and ArcadeGameProfile.from_key("t", "p1c1b1w0:paddle+pedal;trace;xs12").shifter() == {"up": 1, "down": 2}
+			and ArcadeGameProfile.from_key("t", "p1c1b1w0:paddle+pedal;trace;x").shifter().is_empty()
+			and ArcadeGameProfile.from_key("t", "p1c1b1w0:paddle+pedal;trace;x3q").shifter().is_empty()
+			and ArcadeGameProfile.from_key("t", "p1c1b1w0:paddle+pedal;trace").shifter().is_empty(),
+		"shift: the table's x is read: a button and t or h, or s and two buttons; anything else is no lever")
+	_ok(ArcadeProfiles.button_bit(1) == ControllerBindings.JOYPAD_B and ArcadeProfiles.button_bit(2) == ControllerBindings.JOYPAD_A
+			and ArcadeProfiles.button_bit(3) == ControllerBindings.JOYPAD_Y and ArcadeProfiles.button_bit(6) == ControllerBindings.JOYPAD_R
+			and ArcadeProfiles.button_bit(0) == -1 and ArcadeProfiles.button_bit(7) == -1,
+		"shift: MAME's button n is the pad's B A Y X L R in order, and a seventh is nothing")
+	# The spec: a lever only for a game that has one.
+	_ok(bool(_spec("pdrift")["cockpit"]["shifter"]) and bool(_spec("hotchase")["cockpit"]["shifter"]),
+		"shift: Power Drift's and Hot Chase's sit-down cockpits carry their lever")
+	_ok(not bool(_spec("daytona")["cockpit"]["shifter"]) and bool(_spec("outrun")["players"][0]["shifter"]) and bool(_spec("polepos")["players"][0]["shifter"])
+			and not bool(_spec("scud")["cockpit"]["shifter"]),
+		"shift: no lever is built for Daytona USA or Scud Race; Out Run's and Pole Position's stand-up panels have one")
+	_ok(P.for_romset("crusnusa").buttons >= 1 and P.for_romset("buggyboy").buttons >= 1
+			and not bool(_spec("crusnusa")["players"][0]["shifter"]) and not bool(_spec("buggyboy")["players"][0]["shifter"]),
+		"shift: a stand-up game with buttons but no lever of its own (Cruis'n USA's H pattern, Buggy Boy) is not given one for its buttons")
+	# The cabinet: the lever follows the game's own button, not button 1.
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var panel := _driver_panel(model, "daytona")
+	_ok(panel.find_child("ShifterPivot", true, false) == null, "shift: Daytona USA's cockpit has no lever")
+	panel = _driver_panel(model, "polepos")
+	await _wait(2)
+	var lever := panel.find_child("ShifterPivot", true, false) as Node3D
+	_ok(lever != null and panel.shift_config() == {"button": 3, "toggle": false}, "shift: Pole Position's panel has one, on button 3, held")
+	var y_bit := ArcadeProfiles.button_bit(3)
+	var b_bit := ArcadeProfiles.button_bit(1)
+	_show(panel, 1 << b_bit)
+	_ok(not panel.shift_high() and panel.shift_amount() < 0.05, "shift: button 1, the old lever's, does nothing to it")
+	_show(panel, 1 << y_bit)
+	_ok(panel.shift_high() and panel.shift_amount() > 0.95, "shift: button 3 held throws it high")
+	_show(panel, 0)
+	_ok(not panel.shift_high() and panel.shift_amount() < 0.05, "shift: and it falls back when the button is let go")
+	# A toggle: one press per change, on the edge, whoever presses.
+	panel = _driver_panel(model, "outrun")
+	await _wait(2)
+	_ok(panel.shift_config() == {"button": 3, "toggle": true} and not panel.shift_high(), "shift: Out Run's is a toggle, low")
+	_show(panel, 1 << y_bit, 5)
+	_show(panel, 1 << y_bit, 5)
+	_ok(panel.shift_high(), "shift: a press flips it, and holding the button flips it once")
+	# Something else changing while the button stays down is no new press.
+	_show(panel, (1 << y_bit) | (1 << ControllerBindings.JOYPAD_START), 5)
+	_ok(panel.shift_high(), "shift: another button going down meanwhile is not a press of this one")
+	_show(panel, (1 << y_bit) | (1 << ControllerBindings.JOYPAD_START) | (1 << ControllerBindings.JOYPAD_UP), 5)
+	_ok(panel.shift_high(), "shift: nor is a second")
+	_show(panel, 0)
+	_ok(panel.shift_high() and panel.shift_amount() > 0.95, "shift: let go it stays high")
+	_show(panel, 1 << y_bit, 5)
+	_show(panel, 0)
+	_ok(not panel.shift_high() and panel.shift_amount() < 0.05, "shift: the next press flips it back")
+	_show(panel, 1 << y_bit, 5)
+	_show(panel, 0, 5)
+	panel.reset_shift()
+	_ok(not panel.shift_high(), "shift: a new run starts in the first gear (reset_shift)")
+	_show(panel, 1 << y_bit, 5)
+	_show(panel, 0, 5)
+	_ok(panel.shift_high(), "shift: thrown again")
+	model.arcade_input()._process(0.016)
+	_ok(not panel.shift_high(), "shift: the cabinet's input with no core running puts the lever back (a run is over)")
+	_show(panel, 1 << y_bit, 5)
+	var other := _driver_panel(model, "finallap")
+	_ok(not other.shift_high() and other.shift_config() == {"button": 1, "toggle": true}, "shift: another game's lever starts low (a profile that changes it resets it)")
+	# A sequential box: up goes high, down goes low, and neither a toggle nor held.
+	panel = _driver_panel(model, "smgp")
+	await _wait(2)
+	var up_bit := ArcadeProfiles.button_bit(2)
+	var down_bit := ArcadeProfiles.button_bit(1)
+	_show(panel, 1 << up_bit, 5)
+	_show(panel, 0)
+	_ok(panel.shift_high(), "shift: Super Monaco GP's up button throws the lever high, and it stays")
+	_show(panel, 1 << up_bit, 5)
+	_show(panel, 0)
+	_ok(panel.shift_high(), "shift: up again changes nothing")
+	_show(panel, 1 << down_bit, 5)
+	_show(panel, 0)
+	_ok(not panel.shift_high(), "shift: the down button sends it low")
+	# A game with no profile (a pad in the room, no board): the lever has nothing to say.
+	model.apply_game_profile(null)
+	_show(panel, 1 << up_bit, 5)
+	_ok(panel.shift_config().is_empty() and not panel.shift_high(), "shift: with no game in the bay a lever follows nothing")
+
+
 		return
 	var p1 := _panels(model)[0] as ArcadeControlModule
 	var parts_ok := _panels(model).size() == 1

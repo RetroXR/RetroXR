@@ -16,7 +16,7 @@ import os
 import re
 import sys
 
-GAME_RE = re.compile(r"^\s*(?:GAME|GAMEL|GAMEB|GAMEBL|GAMEC|GAMES)\s*\(\s*[^,]+,\s*(\w+)\s*,\s*(\w+)\s*,\s*([^,]+),\s*(\w+)\s*,", re.M)
+GAME_RE = re.compile(r"^\s*(?:/\*.*?\*/\s*)?(?:GAME|GAMEL|GAMEB|GAMEBL|GAMEC|GAMES)\s*\(\s*[^,]+,\s*(\w+)\s*,\s*(\w+)\s*,\s*([^,]+),\s*(\w+)\s*,", re.M)
 ANALOG_RE = re.compile(r"IPT_(AD_STICK_[XYZ]|PADDLE_V|PADDLE|PEDAL\d?|DIAL_V|DIAL|TRACKBALL_[XY]|LIGHTGUN_[XY]|POSITIONAL_V|POSITIONAL|MOUSE_[XY])")
 DIGITAL_RE = re.compile(r"IPT_(BUTTON\d+|JOYSTICK_(?:UP|DOWN|LEFT|RIGHT)|START\d|COIN\d|SERVICE\d?|TILT|BILL1)")
 FLAGS = ("PORT_REVERSE", "PORT_INVERT", "PORT_CENTERDELTA(0)", "PORT_TOGGLE", "PORT_PLAYER(2)", "PORT_PLAYER(3)", "PORT_PLAYER(4)")

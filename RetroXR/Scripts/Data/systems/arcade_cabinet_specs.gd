@@ -457,7 +457,7 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 		ArcadeGameProfile.FORM_RACE:
 			shape = "racer"
 			spec["players"] = []
-			spec["cockpit"] = {"roof": profile.has_roof(), "shifter": buttons >= 1, "player": 0}
+			spec["cockpit"] = {"roof": profile.has_roof(), "shifter": profile.has_shifter(), "player": 0}
 		ArcadeGameProfile.FORM_BIKE:
 			shape = "racer"
 			spec["players"] = []
@@ -478,7 +478,7 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 		ArcadeGameProfile.FORM_STAND:
 			shape = "upright"
 			spec["players"] = [{"kind": "wheel", "wheel_x": 0.0, "start_x": -0.20, "player": 0,
-				"shifter": buttons >= 1, "buttons": []}]
+				"shifter": profile.has_shifter(), "buttons": []}]
 		ArcadeGameProfile.FORM_DANCE, ArcadeGameProfile.FORM_PUMP:
 			shape = "wide"
 			var dancers := clampi(players, 1, 2)
@@ -494,7 +494,7 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 			if kind == "wheel":
 				# A driving game the table gives no cabinet for: the stand-up wheel.
 				spec["players"] = [{"kind": "wheel", "wheel_x": 0.0, "start_x": -0.20, "player": 0,
-					"shifter": buttons >= 1, "buttons": []}]
+					"shifter": profile.has_shifter(), "buttons": []}]
 			else:
 				spec["players"] = layout_panels(kind, players, buttons, profile.alternating())
 				# A socket on the front for each player's own pad, up to the four ports a machine has.

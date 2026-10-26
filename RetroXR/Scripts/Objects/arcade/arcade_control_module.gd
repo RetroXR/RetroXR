@@ -15,7 +15,7 @@
 ## right analog stick or the four face buttons), `BallPivot` (a trackball, rolling with the left
 ## stick), `WheelPivot` (a steering wheel, turning about its own Y with the left stick or LEFT and
 ## RIGHT), `GasPivot` and `BrakePivot` (pedals, tipping with R2 and L2), `ShifterPivot` (a gear
-## lever, thrown while button 1 is held), `LeanPivot` (a motorbike leaning with the steering) and
+## lever, thrown with the game's own shift button: ArcadeGameProfile.shifter), `LeanPivot` (a motorbike leaning with the steering) and
 ## `PadUp`/`PadDown`/`PadLeft`/`PadRight` (a dance stage's arrows, sinking with the directions), `BarsPivot` (a bicycle's
 ## handlebars, turned with the left stick's X and tipped with its Y), `CrankPivot` (its crank, turned by the right stick's
 ## Y, faster the further it is pushed) and `SlidePivot` (a lever in a slot, sliding with the left stick's X).
@@ -104,6 +104,12 @@ var _stick_current := Vector2.ZERO
 ## `position =` dirties the transform and goes to the renderer even when it writes the value it holds.
 var _shown_mask := -1
 var _shown_axes := Vector4i.ZERO
+## The game's gear lever (ArcadeGameProfile.shifter(): {} none, {button, toggle}, {up, down}) and where the lever stands. A toggle shifter is
+## where the game's gear is as far as the cabinet can tell: it flips at every press of the shift button, counted on the button's rising edge,
+## whoever pressed it (a pad, a finger, the lever itself); a held one is high while the button is down; a sequential box goes high on `up`
+## and low on `down`.
+var _shift_cfg: Dictionary = {}
+var _shift_high := false
 ## Whether the stick's basis has been written at all (the first tick always writes it once).
 var _stick_written := false
 
@@ -173,6 +179,10 @@ func _add_cap(node_name: String, bit: int, button: int) -> void:
 ## the stick, the caps it reads, and the words the core gave them. `profile` null, or a game the
 ## table does not know, puts the whole panel back.
 func apply_profile(profile: ArcadeGameProfile) -> void:
+	var cfg: Dictionary = profile.shifter() if profile != null else {}
+	if cfg != _shift_cfg:
+		_shift_cfg = cfg
+		_shift_high = false
 	var on_panel := profile == null or profile.panel_visible(player)
 	visible = on_panel
 	ArcadeModule.set_pointable(_grip, on_panel)
@@ -290,6 +300,7 @@ func grip() -> ArcadePanelGrip:
 func show_state(mask: int, axes: Vector4i = Vector4i.ZERO) -> void:
 	if mask == _shown_mask and axes == _shown_axes:
 		return
+	var before := _shown_mask
 	_shown_mask = mask
 	_shown_axes = axes
 	for i in _caps.size():
@@ -312,7 +323,8 @@ func show_state(mask: int, axes: Vector4i = Vector4i.ZERO) -> void:
 		_analog_target["pitch"] = clampf(steer.y, -1.0, 1.0)
 		_analog_target["gas"] = 1.0 if (mask >> ControllerBindings.JOYPAD_R2) & 1 else 0.0
 		_analog_target["brake"] = 1.0 if (mask >> ControllerBindings.JOYPAD_L2) & 1 else 0.0
-		_analog_target["shift"] = 1.0 if (mask >> ControllerBindings.JOYPAD_B) & 1 else 0.0
+		_step_shift(before, mask)
+		_analog_target["shift"] = 1.0 if _shift_high else 0.0
 	# The second stick: the right analog stick, or the four face buttons as its directions (Robotron's
 	# fire stick is the diamond on a pad: X up, B down, Y left, A right).
 	var face := Vector2(float((mask >> ControllerBindings.JOYPAD_A) & 1) - float((mask >> ControllerBindings.JOYPAD_Y) & 1),
@@ -320,6 +332,50 @@ func show_state(mask: int, axes: Vector4i = Vector4i.ZERO) -> void:
 	_stick2_target = face if face != Vector2.ZERO else right.limit_length(1.0)
 	# The crank: the right stick's Y, up (negative as sent) being forward.
 	_crank_rate = clampf(-right.y, -1.0, 1.0)
+
+
+## The gear lever follows the game's own shift button (or the two of a sequential box), seen in what the player is sending. A press the
+## cabinet cannot see (the game shifted down by itself) is not known: the lever is where the presses left it.
+func _step_shift(before: int, mask: int) -> void:
+	if _shift_cfg.is_empty():
+		_shift_high = false
+		return
+	if _shift_cfg.has("up"):
+		var up := ArcadeProfiles.button_bit(int(_shift_cfg["up"]))
+		var down := ArcadeProfiles.button_bit(int(_shift_cfg["down"]))
+		if up >= 0 and _rose(before, mask, up):
+			_shift_high = true
+		if down >= 0 and _rose(before, mask, down):
+			_shift_high = false
+		return
+	var bit := ArcadeProfiles.button_bit(int(_shift_cfg.get("button", 0)))
+	if bit < 0:
+		return
+	if bool(_shift_cfg.get("toggle", false)):
+		if _rose(before, mask, bit):
+			_shift_high = not _shift_high
+	else:
+		_shift_high = (mask >> bit) & 1 == 1
+
+
+## Did `bit` go from up to down between two masks? (`before` is -1 until the first state is shown: nothing was down then.)
+static func _rose(before: int, mask: int, bit: int) -> bool:
+	return (mask >> bit) & 1 == 1 and (maxi(before, 0) >> bit) & 1 == 0
+
+
+## The game's gear lever (ArcadeGameProfile.shifter), and whether it is high now, for the hands and the tests.
+func shift_config() -> Dictionary:
+	return _shift_cfg
+
+
+func shift_high() -> bool:
+	return _shift_high
+
+
+## A new run starts with the game in its first gear.
+func reset_shift() -> void:
+	_shift_high = false
+	_shown_mask = -1
 
 
 func tick(delta: float) -> void:

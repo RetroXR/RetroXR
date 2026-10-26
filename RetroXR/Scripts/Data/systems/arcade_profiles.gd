@@ -71,6 +71,12 @@ const BUTTON_BITS: Array[int] = [
 const START_BIT := ControllerBindings.JOYPAD_START
 const COIN_BIT := ControllerBindings.JOYPAD_SELECT
 
+
+## The pad bit of MAME's button `n` (BUTTON1 is 1): B A Y X L R, the order libretro-mame binds them in; -1 for one a pad has not got.
+static func button_bit(n: int) -> int:
+	return BUTTON_BITS[n - 1] if n >= 1 and n <= BUTTON_BITS.size() else -1
+
+
 ## The keyboard a cabinet plays from until the player binds one of its own: MAME's
 ## layout, the six buttons on the bottom row to the left (Ctrl, Alt, Space, Z, X, C), START
 ## on 1 and the coin on 5. Applied on top of the global map only while a cabinet is

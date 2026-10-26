@@ -1,0 +1,377 @@
+{
+ "18w": {
+  "gears": [
+   3,
+   4,
+   5,
+   6
+  ]
+ },
+ "18wheelr": {
+  "down": 1,
+  "up": 2
+ },
+ "280zzzap": {
+  "button": 2,
+  "name": "P1 Shift",
+  "toggle": true
+ },
+ "bigrun": {
+  "button": 2,
+  "name": "P1 Gear Shift",
+  "toggle": true
+ },
+ "buggychl": {
+  "button": 2,
+  "name": "P1 Gear Shift",
+  "toggle": true
+ },
+ "calspeed": {
+  "gears": [
+   3,
+   4,
+   5,
+   6
+  ]
+ },
+ "cartfury": {
+  "gears": [
+   4,
+   5,
+   6,
+   7
+  ]
+ },
+ "changela": {
+  "button": 2,
+  "name": "Gear Shift",
+  "toggle": true
+ },
+ "chasehq": {
+  "button": 4,
+  "name": "Shifter",
+  "toggle": true
+ },
+ "contcirc": {
+  "button": 3,
+  "name": "Shifter",
+  "toggle": true
+ },
+ "coolridr": {
+  "down": 4,
+  "up": 3
+ },
+ "crusnexo": {
+  "gears": [
+   2,
+   3,
+   4,
+   5
+  ]
+ },
+ "crusnusa": {
+  "gears": [
+   5,
+   6,
+   7,
+   8,
+   9
+  ]
+ },
+ "crusnwld": {
+  "gears": [
+   5,
+   6,
+   7,
+   8,
+   9
+  ]
+ },
+ "crzytaxi": {
+  "button": 1,
+  "name": "Drive Gear",
+  "toggle": false
+ },
+ "daytona": {
+  "gears": [
+   1,
+   2,
+   3,
+   4,
+   5
+  ]
+ },
+ "desert": {
+  "button": 3,
+  "name": "Shift",
+  "toggle": true
+ },
+ "drivedge": {
+  "gears": [
+   7,
+   8,
+   9,
+   10
+  ]
+ },
+ "f1en": {
+  "down": 2,
+  "up": 1
+ },
+ "f1gpstar": {
+  "button": 2,
+  "name": "P1 Gear Shift",
+  "toggle": true
+ },
+ "f1gpstr2": {
+  "button": 2,
+  "name": "P1 Gear Shift",
+  "toggle": true
+ },
+ "f1lap": {
+  "down": 2,
+  "up": 1
+ },
+ "finalap2": {
+  "button": 1,
+  "name": "Shift Gear",
+  "toggle": true
+ },
+ "finalap3": {
+  "button": 1,
+  "name": "Shift Gear",
+  "toggle": true
+ },
+ "finalapr": {
+  "button": 4,
+  "name": "Shifter",
+  "toggle": true
+ },
+ "finallap": {
+  "button": 1,
+  "name": "Shift Gear",
+  "toggle": true
+ },
+ "fourtrax": {
+  "button": 3,
+  "name": "Gear Shift",
+  "toggle": true
+ },
+ "gprider": {
+  "down": 2,
+  "up": 1
+ },
+ "gticlub2": {
+  "down": 1,
+  "up": 2
+ },
+ "hotchase": {
+  "button": 3,
+  "name": "Shift",
+  "toggle": true
+ },
+ "indy500": {
+  "down": 2,
+  "up": 1
+ },
+ "jambo": {
+  "down": 1,
+  "up": 2
+ },
+ "lagunar": {
+  "button": 2,
+  "name": "P1 Shift",
+  "toggle": true
+ },
+ "manxtt": {
+  "down": 2,
+  "up": 1
+ },
+ "motoraid": {
+  "down": 2,
+  "up": 1
+ },
+ "offroadc": {
+  "gears": [
+   5,
+   6,
+   7,
+   8,
+   9
+  ]
+ },
+ "outrun": {
+  "button": 3,
+  "name": "Gear Shift",
+  "toggle": true
+ },
+ "overrev": {
+  "down": 2,
+  "up": 1
+ },
+ "pdrift": {
+  "button": 3,
+  "name": "Gear Shift",
+  "toggle": true
+ },
+ "pdriftl": {
+  "button": 3,
+  "name": "Gear Shift",
+  "toggle": true
+ },
+ "polepos": {
+  "button": 3,
+  "name": "Gear Change",
+  "toggle": false
+ },
+ "polepos2": {
+  "button": 3,
+  "name": "Gear Change",
+  "toggle": false
+ },
+ "racinfrc": {
+  "button": 2,
+  "name": "Gear Shift",
+  "toggle": true
+ },
+ "radr": {
+  "button": 1,
+  "name": "mainpcb:Gear Change",
+  "toggle": true
+ },
+ "roadedge": {
+  "down": 7,
+  "up": 8
+ },
+ "sf2049": {
+  "gears": [
+   4,
+   5,
+   6,
+   7
+  ]
+ },
+ "sf2049se": {
+  "gears": [
+   4,
+   5,
+   6,
+   7
+  ]
+ },
+ "sf2049te": {
+  "gears": [
+   4,
+   5,
+   6,
+   7
+  ]
+ },
+ "sfrush": {
+  "gears": [
+   4,
+   5,
+   6,
+   7
+  ]
+ },
+ "sfrushrk": {
+  "gears": [
+   4,
+   5,
+   6,
+   7
+  ]
+ },
+ "sgt24h": {
+  "down": 2,
+  "up": 1
+ },
+ "shangon": {
+  "button": 3,
+  "name": "Gear Shift",
+  "toggle": true
+ },
+ "slipstrm": {
+  "button": 1,
+  "name": "mainpcb:Gear Change",
+  "toggle": true
+ },
+ "smgp": {
+  "down": 1,
+  "up": 2
+ },
+ "spdheat": {
+  "button": 1,
+  "name": "P1 Shift",
+  "toggle": true
+ },
+ "spyhunt": {
+  "button": 2,
+  "name": "Gear Shift",
+  "toggle": true
+ },
+ "srallyc": {
+  "gears": [
+   1,
+   2,
+   3,
+   4,
+   5
+  ]
+ },
+ "stcc": {
+  "down": 2,
+  "up": 1
+ },
+ "superchs": {
+  "button": 4,
+  "name": "Shifter",
+  "toggle": true
+ },
+ "thrild2": {
+  "down": 1,
+  "up": 2
+ },
+ "thrild3j": {
+  "down": 1,
+  "up": 2
+ },
+ "topspeed": {
+  "button": 4,
+  "name": "Shifter",
+  "toggle": true
+ },
+ "toutrun": {
+  "button": 3,
+  "name": "Gear Shift",
+  "toggle": true
+ },
+ "turbo": {
+  "button": 3,
+  "name": "Gear Shift",
+  "toggle": true
+ },
+ "turbotag": {
+  "button": 2,
+  "name": "Gear Shift",
+  "toggle": true
+ },
+ "vr": {
+  "down": 7,
+  "up": 8
+ },
+ "wecleman": {
+  "button": 3,
+  "name": "Shift",
+  "toggle": true
+ },
+ "xrally": {
+  "down": 7,
+  "up": 8
+ },
+ "xtrial": {
+  "down": 1,
+  "up": 2
+ }
+}

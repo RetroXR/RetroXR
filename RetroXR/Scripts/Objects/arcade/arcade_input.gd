@@ -847,6 +847,10 @@ func _on_attach_changed(player: int, on: bool) -> void:
 ## the process, so only the holder of the capture may drive it). Without this the
 ## RETRO_JOYPAD_* actions carry the global keys, and an arcade profile's keys never arrive.
 func _sync_desktop_scope() -> void:
+	# The next run starts in the game's first gear, so the gear lever is put back.
+	for panel in _controls:
+		if panel != null:
+			panel.reset_shift()
 	var active := _capture != null and _capture.is_active()
 	if active:
 		if not _owns_desktop_scope:

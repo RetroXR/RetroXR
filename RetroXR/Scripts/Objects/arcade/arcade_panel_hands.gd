@@ -27,8 +27,11 @@
 ##              let go, it comes back to centre by itself.
 ##   dial       turns freely with the hand; the SPEED it is turned at is the deflection, as holding LEFT or RIGHT is.
 ##   trackball  rolls where the hand pushes it, at the surface speed the picture rolls at (BALL_SPEED).
-##   lever      thrown or not: past half its throw it is in high gear and STAYS there when let go (a gear lever does);
-##              it is pulled back the same way. High gear is the button the keyboard holds (B).
+##   lever      thrown or not: past 60% of its throw it is in high gear and STAYS there when let go (a gear lever does);
+##              it is pulled back below 40% the same way. What that SAYS is the game's (ArcadeGameProfile.shifter): a shifter MAME
+##              makes a toggle gets ONE tap of its button at every change of gear (the button the table names, queued: two
+##              changes in a hurry are two taps, never one long press), one it does not holds the button while the lever is
+##              high, and a sequential box taps `up` going high and `down` going low.
 ##   bars       a motorbike's: the hand pushes the bar sideways and the bike leans (a bar 15 cm over is a full lean); a
 ##              bicycle's also push forward and pull back (10 cm is the whole of it) to tip the craft.
 ##   crank      a bicycle's: turned with the hand like a dial, the SPEED it is turned at the right stick's Y, forward up.
@@ -81,6 +84,11 @@ const BARS_THROW := 0.15
 const BARS_PITCH_THROW := 0.10
 const CRANK_REACH := 0.06
 const SLIDE_REACH := 0.055
+## The lever goes high past this much of its throw and low again under this much (hysteresis: a toggle shifter must not shift at every
+## wobble of a hand about the middle), and a tap on a toggle or sequential shifter's button lasts and rests this long.
+const LEVER_HIGH_ON := 0.6
+const LEVER_HIGH_OFF := 0.4
+const LEVER_TAP_GAP := 0.10
 ## A hand on the bars is this far from where they pivot at most (the grips stand 30 cm out).
 const BARS_LET_GO := 0.55
 ## A hand within this of a panel is asked about its controls at all.
@@ -182,6 +190,9 @@ func update(delta: float, ctrls: Array, live: bool) -> void:
 			or not _panel.is_visible_in_tree():
 		release_all()
 		return
+	# Whatever a control is in the middle of (a tap on a shift button) goes on with no hand on it.
+	for g in _grabs:
+		g.tick(delta)
 	_hands.clear()
 	for c: Variant in ctrls:
 		if c != null and is_instance_valid(c) and (c as XRController3D).get_is_active():
@@ -600,6 +611,10 @@ class ControlGrab extends RefCounted:
 	func end() -> void:
 		pass
 
+	## Every frame the panel is live, held or not.
+	func tick(_delta: float) -> void:
+		pass
+
 	## The pad bits this holds, and the thumbstick it stands in for (0 left, 1 right).
 	func bits() -> int:
 		return 0
@@ -827,10 +842,18 @@ class BallGrab extends ControlGrab:
 		return Vector2(roll.x, -roll.y) if holder != null and side == 0 else Vector2.ZERO
 
 
-## The gear lever: thrown past half, it stays in high gear.
+## The gear lever: thrown, it stays in high gear. What that sends is the game's (ArcadeGameProfile.shifter, read live from the panel).
 class LeverGrab extends ControlGrab:
 	var shift := 0.0
+	## A held shifter's lever is in high gear when let go.
 	var latched := false
+	## What the hand last asked the gear to be, so a change is asked once.
+	var _want := false
+	## The taps still to be made (the pad bit of each), the one being held, and how long it has left and the rest after it.
+	var _queue: Array[int] = []
+	var _tap_bit := -1
+	var _tap_left := 0.0
+	var _gap_left := 0.0
 
 	func _init(p_panel: ArcadeControlModule, p_node: Node3D) -> void:
 		kind = &"lever"
@@ -848,22 +871,79 @@ class LeverGrab extends ControlGrab:
 		var p := panel.rest_basis_of(node).inverse() * (frame().affine_inverse() * tip - node.position)
 		return clampf(atan2(p.y, p.z) / deg_to_rad(ArcadeControlModule.SHIFT_DEG), 0.0, 1.0)
 
+	## A shifter that is not held down: it says its changes in taps, and the lever is drawn where the game's gear is.
+	func _taps() -> bool:
+		var cfg := panel.shift_config()
+		return cfg.has("up") or (cfg.has("button") and bool(cfg["toggle"]))
+
 	func begin(tip: Vector3) -> void:
 		shift = _throw(tip)
+		_want = panel.shift_high()
+		latched = shift >= 0.5
 
 	func drag(tip: Vector3, _delta: float) -> void:
 		shift = _throw(tip)
+		if not _taps():
+			return
+		var high := _want
+		if shift >= ArcadePanelHands.LEVER_HIGH_ON:
+			high = true
+		elif shift <= ArcadePanelHands.LEVER_HIGH_OFF:
+			high = false
+		if high != _want:
+			_want = high
+			_ask(high)
+
+	## One tap for a change of gear: the toggle's button, or a sequential box's `up` going high and `down` going low.
+	func _ask(high: bool) -> void:
+		var cfg := panel.shift_config()
+		var bit := -1
+		if cfg.has("up"):
+			bit = ArcadeProfiles.button_bit(int(cfg["up"] if high else cfg["down"]))
+		elif cfg.has("button"):
+			bit = ArcadeProfiles.button_bit(int(cfg["button"]))
+		if bit >= 0:
+			_queue.append(bit)
 
 	func end() -> void:
+		if _taps():
+			# The lever settles where the game's gear is, once the taps are through (the module draws it).
+			shift = 1.0 if _want else 0.0
+			return
 		latched = shift >= 0.5
 		shift = 1.0 if latched else 0.0
 
-	func bits() -> int:
-		var thrown := latched if holder == null else shift >= 0.5
-		return 1 << ControllerBindings.JOYPAD_B if thrown else 0
+	func tick(delta: float) -> void:
+		if _tap_left > 0.0:
+			_tap_left -= delta
+			if _tap_left <= 0.0:
+				_tap_bit = -1
+				_gap_left = ArcadePanelHands.LEVER_TAP_GAP
+		elif _gap_left > 0.0:
+			_gap_left -= delta
+		elif not _queue.is_empty():
+			_tap_bit = _queue.pop_front()
+			_tap_left = ArcadeInput.TAP_SECONDS
 
+	func bits() -> int:
+		var cfg := panel.shift_config()
+		if cfg.is_empty():
+			return 0
+		if _taps():
+			return (1 << _tap_bit) if _tap_bit >= 0 else 0
+		var bit := ArcadeProfiles.button_bit(int(cfg.get("button", 0)))
+		var thrown := latched if holder == null else shift >= 0.5
+		return (1 << bit) if bit >= 0 and thrown else 0
+
+	## The gear a click in the hand is for: a change either way.
 	func detent() -> int:
+		if _taps():
+			return 1 if _want else 0
 		return 1 if shift >= 0.5 else 0
+
+	## Pending taps, for the tests.
+	func pending() -> int:
+		return _queue.size() + (1 if _tap_bit >= 0 else 0)
 
 
 ## Bars: pushed sideways, the bike leans; a bicycle's bars also push forward and pull back to tip the craft.
