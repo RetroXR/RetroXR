@@ -279,9 +279,14 @@ func _refresh_debug(elapsed: float) -> void:
 		for row: Array in s[1]:
 			if row[0] == "Frames run":
 				frames = int(row[1])
+		# Always there, "—" until there are two readings to measure between: a row
+		# that APPEARED on the second refresh changed the page's shape, and DebugRows
+		# rebuilt every label for it — a hitch the moment the tab had been open a
+		# second.
+		var measured := "—"
 		if frames >= 0 and _debug_frames >= 0 and elapsed > 0.0:
-			(s[1] as Array).insert(0, ["Measured FPS",
-				"%.1f" % (float(frames - _debug_frames) / elapsed)])
+			measured = "%.1f" % (float(frames - _debug_frames) / elapsed)
+		(s[1] as Array).insert(0, ["Measured FPS", measured])
 		_debug_frames = frames
 	ui.populate_debug(sections)
 
