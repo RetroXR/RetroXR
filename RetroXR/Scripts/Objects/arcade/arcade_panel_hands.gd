@@ -99,6 +99,16 @@ const LEVER_TAP_GAP := 0.10
 const BARS_LET_GO := 0.55
 ## A hand within this of a panel is asked about its controls at all.
 const NEAR := 2.0
+## A hand takes a yoke by a grip: within this of the bar's line, the grips being at +-90 degrees from the pivot's -Z, atan2(x, z) of the hand in the axle frame.
+const HELM_GRIP_ARC := 0.9
+
+
+## Is a point `p` (in the yoke's axle frame: Y along the axle, the bar along X) near one of its two handgrips, by angle about the axle? Pure, for the tests.
+static func near_helm_grip(p: Vector3) -> bool:
+	var a := atan2(p.x, p.z)
+	return absf(absf(a) - PI * 0.5) <= HELM_GRIP_ARC
+
+
 ## FEET. A dancer's arrows are pressed by whoever stands on them, and nothing tracks feet: the player's body is the head's place on the floor
 ## (`update_body`, a point at the height of the floor under the player). A panel is pressed while that point is over its square, grown by FOOT_MARGIN
 ## (a foot is wider than a point), and the floor under the player is no more than FOOT_BELOW under the panel's top (walking up from the room's floor onto
@@ -810,6 +820,9 @@ class StickGrab extends ControlGrab:
 ## The steering wheel: turns with the hand about its axle, to the lock.
 class WheelGrab extends ControlGrab:
 	var radius := 0.13
+	## A YOKE that only turns (Road Blasters'): two handgrips HELM span from the axle on the bar's line, no rim. It is taken by a grip (within HELM_GRIP_ARC of one), and the
+	## A / X and B / Y of the hand that holds it are the game's buttons 2 and 3 (its Lasers and Special Weapon), which are on the grips.
+	var helm := false
 	## The turn of the wheel about its axle (radians, counter-clockwise seen by the driver positive), and what it is as
 	## the steering (-1 full left .. 1 full right).
 	var _phi := 0.0
@@ -825,6 +838,10 @@ class WheelGrab extends ControlGrab:
 			trace = rim
 			if rim.mesh is TorusMesh:
 				radius = (rim.mesh as TorusMesh).outer_radius - 0.014
+		helm = bool(p_node.get_meta(&"helm", false))
+		if helm:
+			radius = float(p_node.get_meta(&"helm_span", radius))
+			trace = p_node.find_child("HelmBar", false, false) as MeshInstance3D
 
 	## The wheel's rest frame: its +Y is the axle, towards the driver.
 	func _axle() -> Transform3D:
@@ -841,14 +858,15 @@ class WheelGrab extends ControlGrab:
 		var r := Vector2(p.x, p.z).length()
 		# The reach scale (a hand "reaching") widens the tolerance off the wheel's plane only: along the rim it would
 		# take in the whole panel.
-		return absf(p.y) <= ArcadePanelHands.WHEEL_AXIAL * scale \
+		var near_grip := not helm or ArcadePanelHands.near_helm_grip(p)
+		return near_grip and absf(p.y) <= ArcadePanelHands.WHEEL_AXIAL * scale \
 			and r >= radius * ArcadePanelHands.WHEEL_INNER and r <= radius * ArcadePanelHands.WHEEL_OUTER
 
 	func begin(tip: Vector3) -> void:
 		var p := _axle().affine_inverse() * tip
 		_alpha = atan2(p.x, p.z)
 		steer = panel.steering()
-		_phi = -deg_to_rad(ArcadeControlModule.WHEEL_LOCK_DEG) * steer
+		_phi = -deg_to_rad(panel.wheel_lock_deg()) * steer
 
 	func drag(tip: Vector3, _delta: float) -> void:
 		var p := _axle().affine_inverse() * tip
@@ -856,7 +874,7 @@ class WheelGrab extends ControlGrab:
 		if Vector2(p.x, p.z).length() < radius * 0.2:
 			return
 		var a := atan2(p.x, p.z)
-		var lock := deg_to_rad(ArcadeControlModule.WHEEL_LOCK_DEG)
+		var lock := deg_to_rad(panel.wheel_lock_deg())
 		# Accumulated and clamped a step at a time: the hand that goes past the lock winds nothing up, so turning back
 		# turns the wheel back at once.
 		_phi = clampf(_phi + wrapf(a - _alpha, -PI, PI), -lock, lock)
@@ -865,6 +883,17 @@ class WheelGrab extends ControlGrab:
 
 	func stick(side: int) -> Vector2:
 		return Vector2(steer, 0.0) if holder != null and side == 0 else Vector2.ZERO
+
+	## A yoke's buttons are on its grips: the holding hand's A / X is the game's button 2 and its B / Y button 3 (Road Blasters' Lasers and Special Weapon).
+	func bits() -> int:
+		if not helm or holder == null:
+			return 0
+		var mask := 0
+		if holder.get_float("ax_button") >= 0.5:
+			mask |= 1 << ArcadeProfiles.button_bit(2)
+		if holder.get_float("by_button") >= 0.5:
+			mask |= 1 << ArcadeProfiles.button_bit(3)
+		return mask
 
 
 ## The paddle dial: turns freely; how fast it is turned is the deflection.

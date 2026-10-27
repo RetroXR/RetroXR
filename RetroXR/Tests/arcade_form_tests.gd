@@ -131,6 +131,9 @@ func _run() -> void:
 	if _want("odd"):
 		await _group_odd()
 		await _clear()
+	if _want("helm"):
+		await _group_helm()
+		await _clear()
 	if _want("seating"):
 		await _group_seating()
 		await _clear()
@@ -1625,6 +1628,46 @@ func _under(node: Node, ancestor: String) -> bool:
 
 ## The sit-down versions of the games (Tools/arcade/cockpits.py): who had a seat, a cabin round it, a base that moved and a throttle, and what the
 ## cabinet builds for them.
+## Road Blasters' yoke (the table's `yhelm`, `u23`): the upright and the cockpit sets built with it, one gas pedal, buttons 2 and 3 only, the spec's numbers, and every other wheel as it was.
+func _group_helm() -> void:
+	var rb := _spec("roadblst")
+	var rbc := _spec("roadblstc")
+	var rb_panel: Dictionary = (rb["players"] as Array)[0] if not (rb["players"] as Array).is_empty() else {}
+	var ns: Array = []
+	for bt: Dictionary in rb_panel.get("buttons", []):
+		ns.append(int(bt.get("n", 0)))
+	_ok(str(rb["form"]) == "stand" and str(rb_panel.get("style", "")) == "helm" and bool(rb_panel.get("gas_only", false)) and ns == [2, 3] and not bool(rb_panel.get("shifter", true))
+			and str(rbc["form"]) == "race" and bool(rbc["cockpit"].get("helm", false)) and (rbc["cockpit"]["buttons"] as Array).size() == 2 and not bool(rbc["cockpit"]["shifter"])
+			and str(((_spec("polepos")["players"] as Array)[0] as Dictionary).get("style", "")).is_empty() and not bool(_spec("daytona")["cockpit"].get("helm", false)),
+		"helm: Road Blasters' upright is a yoke, one gas pedal and buttons 2 and 3; its cockpit sets the same in a seat; Pole Position and Daytona keep their wheels")
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	for romset: String in ["roadblst", "roadblstc", "polepos", "daytona"]:
+		model.morph_to(_spec(romset))
+		model.apply_game_profile(P.for_romset(romset))
+		await _wait(3)
+		var panel := _panels(model)[0] as ArcadeControlModule
+		var pivot := panel.find_child("WheelPivot", true, false) as Node3D
+		var yoke := romset.begins_with("roadblst")
+		var built := pivot != null and bool(pivot.get_meta(&"helm", false)) == yoke and (panel.find_child("WheelRim", true, false) == null) == yoke \
+			and (panel.find_child("HelmGripL", true, false) != null and panel.find_child("HelmGripR", true, false) != null) == yoke \
+			and is_equal_approx(panel.wheel_lock_deg(), 135.0 if yoke else ArcadeControlModule.WHEEL_LOCK_DEG)
+		_ok(built, "helm: %s has %s" % [romset, "a yoke with a grip each end, which turns 135 degrees each way" if yoke else "its wheel, with a rim, which turns 120"])
+		var pedals_ok := panel.find_child("GasPivot", true, false) != null and (panel.find_child("BrakePivot", true, false) == null) == yoke
+		_ok(pedals_ok, "helm: %s has %s" % [romset, "one gas pedal and no brake" if yoke else "both pedals"])
+		if yoke:
+			var caps_ok := panel.find_child("Btn1", true, false) == null and panel.find_child("Btn2", true, false) != null and panel.find_child("Btn3", true, false) != null \
+				and (panel.find_child("Btn2", true, false) as Node3D).is_visible_in_tree() and (panel.find_child("Btn3", true, false) as Node3D).is_visible_in_tree()
+			_ok(caps_ok, "helm: %s has Lasers and Special Weapon, buttons 2 and 3, and no button 1" % romset)
+			var grip := panel.find_child("PanelGrip", true, false) as Area3D
+			# A stand-up's grip is its deck panel (as every stand-up wheel's is); a cockpit's is the control itself.
+			if romset == "roadblst":
+				continue
+			_ok(grip != null and grip.find_child("BarShape", true, false) != null and grip.find_child("GripShapeL", true, false) != null and grip.find_child("GripShapeR", true, false) != null
+					and grip.find_child("RimShape1", true, false) == null,
+				"helm: %s's pointer shapes are the yoke's, a hub, a bar and a box round each grip, with no rim to be aimed at" % romset)
+
+
 func _group_seating() -> void:
 	# What the table says each game's cabinet had, form first, then the seat / cabin / motion flags, then whether it reads a throttle.
 	var rows := {

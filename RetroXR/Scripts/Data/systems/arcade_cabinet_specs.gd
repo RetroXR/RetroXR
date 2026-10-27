@@ -743,6 +743,9 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 			shape = "racer"
 			spec["players"] = []
 			spec["cockpit"] = {"roof": profile.has_roof(), "shifter": profile.has_shifter(), "player": 0, "motion": profile.has_motion()}
+			if profile.has_helm():
+				# A yoke in place of the wheel, one gas pedal in place of two, the game's own buttons on the dash.
+				(spec["cockpit"] as Dictionary).merge({"helm": true, "buttons": helm_panel(profile)["buttons"]})
 		ArcadeGameProfile.FORM_FLY:
 			# A flight cockpit: the driving cockpit's platform, dash and seat, with a stick between the knees and a throttle by the left hand in
 			# place of the wheel and the shifter; a cabin round the seat where the game's was (After Burner's), a base that moves where its was.
@@ -797,6 +800,8 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 			shape = "upright"
 			spec["players"] = [{"kind": "wheel", "wheel_x": 0.0, "start_x": -0.20, "player": 0,
 				"shifter": profile.has_shifter(), "buttons": []}]
+			if profile.has_helm():
+				spec["players"] = [helm_panel(profile)]
 		ArcadeGameProfile.FORM_DANCE, ArcadeGameProfile.FORM_PUMP:
 			shape = "wide"
 			var dancers := clampi(players, 1, 2)
@@ -896,6 +901,20 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 	if _same_form(spec, base):
 		return base.duplicate(true)
 	return spec
+
+
+## The panel of a game steered by a YOKE (the table's `yhelm`, Road Blasters): the wheel panel with the yoke in place of the wheel, one gas pedal and no brake, START in the middle
+## and a cap for each of the game's own buttons (`used_buttons`: "Lasers" and "Special Weapon") either side of the yoke's base, each named for its MAME button.
+static func helm_panel(profile: ArcadeGameProfile) -> Dictionary:
+	var used := profile.used_buttons()
+	var caps: Array = []
+	for k in used.size():
+		var left := k < (used.size() + 1) / 2
+		var slot := float(k) if left else float(k - (used.size() + 1) / 2)
+		var x := (-0.20 - slot * 0.07) if left else (0.20 + slot * 0.07)
+		caps.append({"n": used[k], "pos": Vector2(x, 0.0), "radius": 0.020, "color": k % 2})
+	return {"kind": "wheel", "style": "helm", "wheel_x": 0.0, "start_x": 0.0, "start_y": -0.085, "player": 0,
+		"shifter": false, "pedals": true, "gas_only": true, "buttons": caps}
 
 
 ## The panels of a gun cabinet: START alone for each gun, on the deck (two at 20 cm either side of the middle). A gun on a post stands on the deck's front edge itself: its START is

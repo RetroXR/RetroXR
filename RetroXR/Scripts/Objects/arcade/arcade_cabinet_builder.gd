@@ -557,13 +557,16 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 		# the two pedals at the cabinet's foot, clear of the bay door's swing (Final Lap, Pole Position).
 		var wheel_x: float = spec["wheel_x"]
 		var wb := deck.basis.inverse() * Basis(Vector3.RIGHT, deg_to_rad(60.0))
-		_wheel(mod, Vector3(wheel_x, -0.01, 0.10), wb, 0.13)
+		if str(spec.get("style", "")) == "helm":
+			_helm(mod, Vector3(wheel_x, -0.01, 0.10), wb)
+		else:
+			_wheel(mod, Vector3(wheel_x, -0.01, 0.10), wb, 0.13)
 		top = 0.15
 		bottom = -0.13
 		if bool(spec.get("shifter", false)):
 			_shifter(mod, Vector3(wheel_x + 0.21, 0.0, 0.0), Basis.IDENTITY)
 		if bool(spec.get("pedals", true)):
-			_pedals(mod, to_panel, Vector3(wheel_x, 0.0, 0.96))
+			_pedals(mod, to_panel, Vector3(wheel_x, 0.0, 0.96), bool(spec.get("gas_only", false)))
 	elif kind == "slot":
 		# A lever in the slot (Panic Park): a carriage on the rail with an upright lever and a ball, red for player 1
 		# and blue for player 2, each in its own half and meeting the other's in the middle.
@@ -592,7 +595,8 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 	for k in (spec.get("buttons", []) as Array).size():
 		var bt: Dictionary = spec["buttons"][k]
 		var pos: Vector2 = bt["pos"]
-		_cap(mod, "Btn%d" % (k + 1), Vector3(pos.x, pos.y, 0.0), bt["radius"], BUTTON_COLORS[int(bt["color"])], 0.012)
+		# A button is named for its MAME number, which is its place in the row unless the game says otherwise (Road Blasters has buttons 2 and 3 only).
+		_cap(mod, "Btn%d" % int(bt.get("n", k + 1)), Vector3(pos.x, pos.y, 0.0), bt["radius"], BUTTON_COLORS[int(bt["color"])], 0.012)
 	if kind == "slot":
 		# Panic Park's START is a big round button in its player's colour, ABOVE the lever that player slides (toward the screen), out of its way.
 		_cap(mod, "Start", Vector3(start_x, SLOT_START_Y, 0.0), 0.028, _player_color(index), 0.014)
@@ -849,6 +853,51 @@ func _wheel(parent: Node3D, pos: Vector3, basis: Basis, radius: float) -> void:
 		ArcadeParts.mat(Color(0.95, 0.75, 0.10), 0.0, 0.4))
 
 
+## A steering YOKE that only turns (Road Blasters'): the wheel's column and `WheelPivot` (so the input, the hands and the lock find it as they find a wheel), but a hub with a bar across it and
+## a handgrip standing out of each end toward the driver, in place of a rim: HELM_SPAN from the hub to the middle of a grip. Each grip has a trigger on its upper side and a thumb cap on its end. About 270
+## degrees from lock to lock (`lock_deg` on the pivot; the research, medium: MAME's 7-bit axis, the wiki and a forum thread), turned by the hands about its own axis.
+const HELM_SPAN := 0.145
+const HELM_LOCK_DEG := 135.0
+
+
+func _helm(parent: Node3D, pos: Vector3, basis: Basis) -> void:
+	var mount := ArcadeParts.node(_owner, parent, "Node3D", "WheelMount", pos) as Node3D
+	mount.basis = basis
+	ArcadeParts.cylinder(_owner, mount, "WheelColumn", 0.022, 0.16, Vector3(0, -0.08, 0), _dark, Vector3.UP)
+	var pivot := ArcadeParts.node(_owner, mount, "Node3D", "WheelPivot", Vector3.ZERO) as Node3D
+	pivot.set_meta(&"helm", true)
+	pivot.set_meta(&"lock_deg", HELM_LOCK_DEG)
+	pivot.set_meta(&"helm_span", HELM_SPAN)
+	var rubber := ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.6)
+	ArcadeParts.cylinder(_owner, pivot, "WheelHub", 0.040, 0.034, Vector3.ZERO, _metal, Vector3.UP)
+	ArcadeParts.box(_owner, pivot, "HelmBar", Vector3(HELM_SPAN * 2.0, 0.024, 0.030), Vector3(0, 0.014, 0), _metal)
+	for k in [-1.0, 1.0]:
+		var side := "L" if k < 0 else "R"
+		# The grip stands out of the bar toward the driver, a trigger on its upper side near the tip, a cap on the end.
+		ArcadeParts.cylinder(_owner, pivot, "HelmGrip" + side, 0.019, 0.090, Vector3(k * HELM_SPAN, 0.055, 0), rubber, Vector3.UP)
+		ArcadeParts.box(_owner, pivot, "HelmTrigger" + side, Vector3(0.012, 0.030, 0.012), Vector3(k * HELM_SPAN, 0.070, -0.025), _metal)
+		ArcadeParts.cylinder(_owner, pivot, "HelmCap" + side, 0.009, 0.008, Vector3(k * HELM_SPAN, 0.102, 0.0), ArcadeParts.mat(Color(0.85, 0.10, 0.10), 0.0, 0.4), Vector3.UP)
+	# A mark on the bar's top so a turn shows.
+	ArcadeParts.box(_owner, pivot, "WheelMark", Vector3(0.03, 0.006, 0.03), Vector3(0, 0.028, -0.030), ArcadeParts.mat(Color(0.95, 0.75, 0.10), 0.0, 0.4))
+
+
+## The yoke's pointer shapes in its grip's frame (+Z along the axle, the bar along X): a hub, the bar, and a box round each handgrip, where `_wheel_shapes` puts a rim and spokes. `first` is the
+## grip's own collision child (already there, empty): it becomes the hub.
+func _helm_shapes(grip: Area3D, first: CollisionShape3D, hub: BoxShape3D) -> void:
+	hub.size = Vector3(0.10, 0.08, 0.06)
+	first.position = Vector3.ZERO
+	var bar := ArcadeParts.node(_owner, grip, "CollisionShape3D", "BarShape") as CollisionShape3D
+	var bar_box := BoxShape3D.new()
+	bar_box.size = Vector3(HELM_SPAN * 2.0, 0.04, 0.04)
+	bar.shape = bar_box
+	for k in [-1.0, 1.0]:
+		var handle := ArcadeParts.node(_owner, grip, "CollisionShape3D", "GripShape%s" % ("L" if k < 0 else "R")) as CollisionShape3D
+		var box := BoxShape3D.new()
+		box.size = Vector3(0.06, 0.06, 0.11)
+		handle.shape = box
+		handle.position = Vector3(k * HELM_SPAN, 0.0, 0.055)
+
+
 ## A gear lever: a gaiter, a stick and a knob, `ShifterPivot` leaning with the gear.
 func _shifter(parent: Node3D, pos: Vector3, basis: Basis) -> void:
 	ArcadeParts.cylinder(_owner, parent, "ShifterBoot", 0.03, 0.02, pos + basis * Vector3(0, 0, 0.01), _dark, basis * Vector3.BACK)
@@ -869,7 +918,7 @@ func _shifter(parent: Node3D, pos: Vector3, basis: Basis) -> void:
 ## mat, BRAKE on the left (the wider pad) and GAS on the right, each a pivot (`BrakePivot`, `GasPivot`) at its
 ## heel that tips down when pressed. `at` is the footplate's centre on the floor in the CABINET's frame,
 ## `to_parent` carries that into `parent`'s frame.
-func _pedals(parent: Node3D, to_parent: Transform3D, at: Vector3) -> void:
+func _pedals(parent: Node3D, to_parent: Transform3D, at: Vector3, gas_only: bool = false) -> void:
 	var rubber := ArcadeParts.mat(Color(0.05, 0.05, 0.055), 0.0, 0.9)
 	var plate := ArcadeParts.box(_owner, parent, "Footplate", Vector3(0.34, 0.03, 0.32), Vector3.ZERO, _dark)
 	plate.transform = to_parent * Transform3D(Basis.IDENTITY, at + Vector3(0, 0.015, 0))
@@ -882,7 +931,9 @@ func _pedals(parent: Node3D, to_parent: Transform3D, at: Vector3) -> void:
 		var post := ArcadeParts.box(_owner, parent, "PedalPost%s" % ("L" if k < 0 else "R"), Vector3(0.02, 0.04, 0.03),
 			Vector3.ZERO, _metal)
 		post.transform = to_parent * Transform3D(Basis.IDENTITY, at + Vector3(k * 0.15, 0.04, 0.07))
-	for p in [["Brake", -0.075, 0.100], ["Gas", 0.075, 0.075]]:
+	# One gas pedal, in the middle and as wide as the two were (Road Blasters had no brake).
+	var treads: Array = [["Gas", 0.0, 0.130]] if gas_only else [["Brake", -0.075, 0.100], ["Gas", 0.075, 0.075]]
+	for p in treads:
 		var pivot := ArcadeParts.node(_owner, parent, "Node3D", "%sPivot" % str(p[0])) as Node3D
 		# On the axle, the pad rising toward the screen 32 degrees, as a car's does.
 		pivot.transform = to_parent * Transform3D(Basis(Vector3.RIGHT, deg_to_rad(32.0)),
@@ -1302,6 +1353,11 @@ func _build_cockpit(spec: Dictionary) -> void:
 	var panel := ArcadeParts.node(_owner, mod, "Node3D", "DashPanel", Vector3(-0.36 if seats > 1 else -0.22, 0.725, 1.02)) as Node3D
 	panel.basis = Basis(Vector3.RIGHT, deg_to_rad(-72.0))
 	_cap(panel, "Start", Vector3.ZERO, 0.012, Color(0.92, 0.92, 0.92), 0.008)
+	# A yoke cockpit's buttons (Road Blasters' Lasers and Special Weapon) on the dash, to the right of the yoke, each named for its MAME button.
+	for k in (spec.get("buttons", []) as Array).size():
+		var bt: Dictionary = spec["buttons"][k]
+		# The panel's frame stands at the dash's left (x -0.22), so +0.45 is 0.23 right of the yoke's middle, clear of its right grip, and another every 5.5 cm, inside the dash's edge.
+		_cap(panel, "Btn%d" % int(bt.get("n", k + 1)), Vector3(0.45 + 0.055 * float(k), 0.0, 0.0), minf(float(bt["radius"]), 0.017), BUTTON_COLORS[int(bt["color"])], 0.012)
 	if seats > 1:
 		# The gunner's START, on the dash at the other end, its own controller (player 2) the way a deck panel's START is: the panel's frame has its START 7 cm
 		# down its own Y, so the frame stands that much up it for the cap to land where the driver's is, mirrored.
@@ -1325,17 +1381,26 @@ func _build_cockpit(spec: Dictionary) -> void:
 	else:
 		var wb := Basis(Vector3.RIGHT, deg_to_rad(60.0))
 		var wheel_at := Vector3(driver_x, 0.82, 1.20)
-		_wheel(mod, wheel_at, wb, WHEEL_RIM_R)
-		_pedals(mod, Transform3D.IDENTITY, Vector3(driver_x, 0.10, PEDALS_Z))
+		var helm := bool(spec.get("helm", false))
+		if helm:
+			_helm(mod, wheel_at, wb)
+		else:
+			_wheel(mod, wheel_at, wb, WHEEL_RIM_R)
+		_pedals(mod, Transform3D.IDENTITY, Vector3(driver_x, 0.10, PEDALS_Z), helm)
 		if bool(spec.get("shifter", true)):
 			_shifter(mod, Vector3(_w * 0.5 - 0.10, 0.54, SHIFTER_Z), Basis.IDENTITY.rotated(Vector3.RIGHT, -PI * 0.5))
 		# The grip faces the driver: its +Z along the wheel's axis. It is the wheel's RIM and spokes, not a disc: the hole stays open to a laser, as it is to the eye.
 		grip.position = wheel_at
 		grip.basis = wb * Basis(Vector3.RIGHT, -PI * 0.5)
-		grip.set("ring_radius", WHEEL_RIM_R)
-		grip.set("ring_width", WHEEL_RING_WIDTH)
-		grip.set("panel_size", Vector2(WHEEL_RIM_R * 2.0 + WHEEL_RING_WIDTH, WHEEL_RIM_R * 2.0 + WHEEL_RING_WIDTH))
-		_wheel_shapes(grip, gcol, gshape)
+		if helm:
+			# A yoke's own shape: the bar and a box round each handgrip, lit as the bar across.
+			grip.set("panel_size", Vector2(HELM_SPAN * 2.0 + 0.06, 0.07))
+			_helm_shapes(grip, gcol, gshape)
+		else:
+			grip.set("ring_radius", WHEEL_RIM_R)
+			grip.set("ring_width", WHEEL_RING_WIDTH)
+			grip.set("panel_size", Vector2(WHEEL_RIM_R * 2.0 + WHEEL_RING_WIDTH, WHEEL_RIM_R * 2.0 + WHEEL_RING_WIDTH))
+			_wheel_shapes(grip, gcol, gshape)
 	form_boxes.append(AABB(Vector3(-_w * 0.5, 0.0, COCKPIT_Z0), Vector3(_w, 0.10, depth)))
 	# The seat is aimed at as the cabinet except on its cushion, which is the seat's own (a sitting press): a box over
 	# the whole seat would stand between the laser and the trigger that lies 3 cm proud of the cushion. So the base

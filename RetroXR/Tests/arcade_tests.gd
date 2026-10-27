@@ -1633,6 +1633,14 @@ func _group_game_profile() -> void:
 			and P.for_romset("gunbustr").gun_count() == 2 and not P.for_romset("lghost").gun_stick() and not P.for_romset("hotd2").gun_stick()
 			and not P.for_romset("gdfs").gun_stick() and not P.for_romset("hotd2").stick_visible(),
 		"game: Gunbuster's player works a stick as well as a gun (and the stick is drawn); no other gun game's does")
+	# Road Blasters: a yoke that turns, buttons 2 and 3 and no button 1, a seated cockpit for the sets MAME calls "cockpit" and a stand-up for the rest.
+	var rb := P.for_romset("roadblst")
+	_ok(rb.has_helm() and rb.used_buttons() == [2, 3] and rb.form() == P.FORM_STAND and P.for_romset("roadblstg2").form() == P.FORM_STAND and P.for_romset("roadblst1").form() == P.FORM_STAND
+			and P.for_romset("roadblstc").form() == P.FORM_RACE and P.for_romset("roadblstc1").form() == P.FORM_RACE and P.for_romset("roadblstcg").form() == P.FORM_RACE
+			and P.for_romset("roadblstc").has_helm() and not P.for_romset("polepos").has_helm() and P.for_romset("polepos").used_buttons().is_empty(),
+		"game: Road Blasters is steered by a yoke and uses buttons 2 and 3; the three cockpit sets are seated, the other eight stand-ups")
+	_ok(not rb.button_visible(0, 0) and rb.button_visible(0, 1) and rb.button_visible(0, 2) and not rb.button_visible(0, 3) and P.for_romset("sf2").button_visible(0, 0),
+		"game: so its panel has no cap for button 1 (Street Fighter II's has)")
 	var g13 := P.for_romset("golgo13")
 	_ok(g13.pedal_kind() == "sensor" and not g13.gun_pedal() and g13.scope_sensor_button() == 2 and P.for_romset("g13knd").scope_sensor_button() == 2
 			and P.for_romset("g13jnr").scope_sensor_button() == 3 and P.for_romset("sscope").scope_sensor_button() == 0 and tc.scope_sensor_button() == 0

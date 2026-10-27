@@ -604,7 +604,7 @@ func _pose_analog() -> void:
 	var steer := float(_analog_now.get("steer", 0.0))
 	if _wheel != null:
 		# About the wheel's own axis (its local Y): a turn to the right is clockwise seen by the driver.
-		_wheel.basis = _rest_basis[_wheel] * Basis(Vector3.UP, -deg_to_rad(WHEEL_LOCK_DEG) * steer)
+		_wheel.basis = _rest_basis[_wheel] * Basis(Vector3.UP, -deg_to_rad(wheel_lock_deg()) * steer)
 	if _lean != null:
 		_lean.basis = _rest_basis[_lean] * Basis(Vector3.BACK, -deg_to_rad(LEAN_DEG) * steer)
 	if _gas != null:
@@ -622,6 +622,11 @@ func _pose_analog() -> void:
 	if _throttle != null:
 		# Forward (the lever's top away from the player, toward -Z) is a turn about -X for a lever standing up.
 		_throttle.basis = _rest_basis[_throttle] * Basis(Vector3.RIGHT, -deg_to_rad(THROTTLE_DEG) * float(_analog_now.get("throttle", 0.0)))
+
+
+## How far the steering wheel turns each way, in degrees: a yoke's own (`lock_deg` on its pivot: Road Blasters' turns 135, about 270 lock to lock), else a wheel's.
+func wheel_lock_deg() -> float:
+	return float(_wheel.get_meta(&"lock_deg", WHEEL_LOCK_DEG)) if _wheel != null else WHEEL_LOCK_DEG
 
 
 ## The steering wheel's turn as last shown (-1 full left .. 1 full right), and how far a pedal is down, for the

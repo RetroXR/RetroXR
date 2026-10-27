@@ -81,7 +81,7 @@ func _run() -> void:
 		_group_zone()
 	for g: Array in [["caps", _group_caps], ["pedals", _group_pedals], ["stick", _group_stick],
 			["twin", _group_twin], ["wheel", _group_wheel], ["dial", _group_dial], ["ball", _group_ball],
-			["lever", _group_lever], ["bars", _group_bars], ["rider", _group_rider], ["cycle", _group_cycle], ["slot", _group_slot], ["fly", _group_fly],
+			["lever", _group_lever], ["helm", _group_helm], ["bars", _group_bars], ["rider", _group_rider], ["cycle", _group_cycle], ["slot", _group_slot], ["fly", _group_fly],
 			["input", _group_input],
 			["laser", _group_laser], ["carry", _group_carry], ["use", _group_use]]:
 		if _want(str(g[0])):
@@ -248,6 +248,14 @@ func _group_zone() -> void:
 		"zone: a press that has been made lets go further out (RELEASE_SCALE), as a button's does")
 	_ok(R.poke_reading(Vector3.ZERO, cap, true) < R.poke_reading(Vector3(0.01, 0, 0), cap, true),
 		"zone: the nearer the middle the lower the reading, which is how the nearest cap is picked")
+	# A yoke is taken by a grip: near one of the two ends of its bar by angle about the axle, not at the top or the bottom of its turn.
+	_ok(R.near_helm_grip(Vector3(0.145, 0.05, 0.0)) and R.near_helm_grip(Vector3(-0.145, 0.05, 0.0)),
+		"zone: a yoke's handgrips are taken where the bar ends, at 90 degrees either side of its top")
+	_ok(not R.near_helm_grip(Vector3(0.0, 0.05, -0.145)) and not R.near_helm_grip(Vector3(0.0, 0.05, 0.145)),
+		"zone: the middle of the bar, its top and its bottom, are not a place to hold it by")
+	_ok(R.near_helm_grip(Vector3(sin(PI * 0.5 - R.HELM_GRIP_ARC * 0.95), 0.0, cos(PI * 0.5 - R.HELM_GRIP_ARC * 0.95))) \
+			and not R.near_helm_grip(Vector3(sin(PI * 0.5 - R.HELM_GRIP_ARC * 1.05), 0.0, cos(PI * 0.5 - R.HELM_GRIP_ARC * 1.05))),
+		"zone: and a grip's reach ends at HELM_GRIP_ARC (%.0f degrees) from it" % rad_to_deg(R.HELM_GRIP_ARC))
 	# A dancer's arrow is pressed by the body over its square (foot_on; the stage group does it through a rig).
 	var arrow := AABB(Vector3(-0.25, -0.005, -0.25), Vector3(0.5, 0.01, 0.5))
 	_ok(R.foot_on(Vector3(0, 0.005, 0), arrow), "zone: a body on the middle of an arrow's face is on it")
@@ -945,6 +953,76 @@ func _group_lever() -> void:
 
 
 # --- bars ----------------------------------------------------------------------
+
+## The point of a yoke's handgrip (`side` +1 right, -1 left) as the driver turns it `turn` radians (positive = the top goes to the driver's right), in the world: the middle of the grip
+## along the axle, HELM_SPAN from it.
+func _grip_point(panel: ArcadeControlModule, side: float, turn: float) -> Vector3:
+	var pivot := panel.find_child("WheelPivot", true, false) as Node3D
+	var mount := pivot.get_parent() as Node3D
+	return mount.global_transform * (Basis(Vector3.UP, -turn) * Vector3(side * ArcadeCabinetBuilder.HELM_SPAN, 0.055, 0.0))
+
+
+## Road Blasters' yoke: a wheel to the input and the hands, a yoke to look at. It turns 135 degrees each way (about 270 lock to lock), is taken by a grip and not by the top of its bar, and the holding
+## hand's A / X and B / Y are the buttons that are on its grips (button 2, "Lasers", and 3, "Special Weapon").
+func _group_helm() -> void:
+	var r := await _rig("roadblst", 6, true)
+	var panel: ArcadeControlModule = r["panel"]
+	var input: ArcadeInput = r["input"]
+	var hands: ArcadePanelHands = panel.hands()
+	var h := _hand()
+	_ok(panel.find_child("WheelRim", true, false) == null and panel.find_child("HelmBar", true, false) != null and is_equal_approx(panel.wheel_lock_deg(), 135.0),
+		"helm: a yoke with no rim, which turns 135 degrees each way")
+	var pivot := panel.find_child("WheelPivot", true, false) as Node3D
+	var mount := pivot.get_parent() as Node3D
+	# The top of the bar, between the grips, is nothing to take hold of.
+	_tip_at(h, mount.global_transform * Vector3(0.0, 0.055, -ArcadeCabinetBuilder.HELM_SPAN))
+	_trigger(h, 1.0)
+	_step(panel, [h])
+	_ok(not hands.holds(&"wheel"), "helm: the trigger over the top of the bar takes nothing")
+	_trigger(h, 0.0)
+	_step(panel, [h])
+	# A grip, the right one: taken, and taking hold turns nothing.
+	_tip_at(h, _grip_point(panel, 1.0, 0.0))
+	_trigger(h, 1.0)
+	_step(panel, [h])
+	_ok(hands.holds(&"wheel") and is_zero_approx(hands.steer(&"wheel")), "helm: the trigger on a handgrip takes hold of the yoke, and taking hold turns nothing")
+	# Turned to the lock: 135 degrees is all the way, 120 is not (a wheel's lock was 120).
+	_tip_at(h, _grip_point(panel, 1.0, deg_to_rad(120.0)))
+	_step(panel, [h])
+	var at_120 := hands.steer(&"wheel")
+	_tip_at(h, _grip_point(panel, 1.0, deg_to_rad(135.0)))
+	_step(panel, [h])
+	var at_135 := hands.steer(&"wheel")
+	_ok(absf(at_120 - 120.0 / 135.0) < 0.01 and is_equal_approx(at_135, 1.0),
+		"helm: 120 degrees is %.2f of the way and 135 all of it" % at_120)
+	# (A hand's turn is followed a step at a time, the short way round: it goes back through the middle.)
+	for turn in [60.0, 0.0, -50.0, -100.0]:
+		_tip_at(h, _grip_point(panel, 1.0, deg_to_rad(turn)))
+		_step(panel, [h])
+	_ok(hands.steer(&"wheel") < -0.7 and _dpad(input, panel) == _bit(ControllerBindings.JOYPAD_LEFT), "helm: turned the other way it reads left, as a thumbstick's left")
+	# The grips carry the game's buttons: A / X is Lasers (button 2), B / Y Special Weapon (button 3).
+	_tip_at(h, _grip_point(panel, 1.0, 0.0))
+	_step(panel, [h])
+	var lasers := _bit(ArcadeProfiles.button_bit(2))
+	var special := _bit(ArcadeProfiles.button_bit(3))
+	_ok(panel.hand_buttons() & (lasers | special) == 0, "helm: with no thumb on a button, none is pressed")
+	(h["tracker"] as XRControllerTracker).set_input(&"ax_button", 1.0)
+	_step(panel, [h])
+	var a_only := panel.hand_buttons() & (lasers | special)
+	(h["tracker"] as XRControllerTracker).set_input(&"ax_button", 0.0)
+	(h["tracker"] as XRControllerTracker).set_input(&"by_button", 1.0)
+	_step(panel, [h])
+	var b_only := panel.hand_buttons() & (lasers | special)
+	(h["tracker"] as XRControllerTracker).set_input(&"by_button", 0.0)
+	_ok(a_only == lasers and b_only == special, "helm: A or X on the grip is Lasers (button 2), B or Y Special Weapon (button 3)")
+	# Let go: the buttons go with the hold (a hand off the grips presses nothing with its A).
+	_trigger(h, 0.0)
+	_step(panel, [h])
+	(h["tracker"] as XRControllerTracker).set_input(&"ax_button", 1.0)
+	_step(panel, [h])
+	_ok(not hands.holds(&"wheel") and panel.hand_buttons() & (lasers | special) == 0, "helm: and with the yoke let go, A presses nothing")
+	(h["tracker"] as XRControllerTracker).set_input(&"ax_button", 0.0)
+
 
 func _group_bars() -> void:
 	var r := await _rig("hangon")

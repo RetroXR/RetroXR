@@ -856,7 +856,8 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
 - **A bench for a ride** (`bench`: Rail Chase, The Lost World, Jurassic Park, Line of Fire): a platform in front of the guns (which stay on the deck) and a seat a gun, two at most, side by side on it
   (`CockpitSeat`, eyes capped at 1.20 m: a 1.33 m glass would make a stool). It does not move.
 - **A stand-up driving cabinet** (`stand`: Pole Position, Out Run, Final Lap): the wheel stands out of the panel, a gear lever beside it, and the
-  two pedals on the floor in front, clear of the bay door (the real ones were on the kick panel: the door is there).
+  two pedals on the floor in front, clear of the bay door (the real ones were on the kick panel: the door is there). **Road Blasters' is a yoke** (2026-10-27, the table's `yhelm`, `arcade-cabinets.md` 9.2d): a bar with a grip at each end, 135 degrees
+  each way, A / X and B / Y of the holding hand its two buttons, one gas pedal, caps for buttons 2 and 3 only (`u23`); its three "cockpit" sets are the seated cockpit with the same yoke.
 - **A ride-on bike** (`bike`: Hang-On, Harley-Davidson, Manx TT): a motorbike on a stand in front of the `racer` body; it LEANS with the steering
   (`LeanPivot`), the rider takes hold of it at the bars. **The saddle is a seat** (2026-10-26, `RiderSeat`, a `CockpitSeat`: press the saddle to sit, the eyes 0.68 m above it, 1.05 m from the
   picture, getting up onto the floor beside the stand): **NOT on the part that leans** (a bike that leaned its rider 14 degrees would swing a head 30 cm; the rider's body does the leaning),
@@ -916,7 +917,7 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   tests and the probes, which look at what the profile alone hides.
 - **Netplay**: the form is derived from the board, so two peers build the same one (it decides whether a port is a gun or a socket). Not measured
   with two peers.
-- Tests: `arcade_form_tests` (groups `specs layout build board reach guns ports input animate running boxes footprint bezel odd seating hood scope racegun grip stage`; `arcade_tests game/`
+- Tests: `arcade_form_tests` (groups `specs layout build board reach guns ports input animate running boxes footprint bezel odd seating hood scope racegun grip stage helm`; `arcade_tests game/`
   switches the shape off through the seam and keeps testing the hiding). Mutation-tested: 19 breaks of the code, each turned a case red (the first pass found eight
   that did not, among them a duplicate collision box Godot had renamed out of the count and a freed gun that compared equal to null). Pictures: `arcade_cabinet_probe --forms=sf2,pacman,tmnt,...`
   (windowed; `form_<romset>.png` and `formside_<romset>.png`).

@@ -291,6 +291,20 @@ func scope_sensor_button() -> int:
 	return int(str(attrs["f"]).substr(1)) if pedal_kind() == "sensor" else 0
 
 
+## The game's steering is a YOKE that only turns (the table's `yhelm`: Road Blasters'), not a wheel: two grips on a bar, a hand on each.
+func has_helm() -> bool:
+	return known and str(attrs.get("y", "")) == "helm"
+
+
+## The MAME buttons the game uses where they are not 1..N (the table's `u`: Road Blasters' 2 and 3, "Lasers" and "Special Weapon"), or [] for the usual run from 1.
+func used_buttons() -> Array[int]:
+	var out: Array[int] = []
+	if known and attrs.has("u"):
+		for c in str(attrs["u"]):
+			out.append(int(c))
+	return out
+
+
 ## A gun game whose player also works a joystick (the table's `j`; Gunbuster's: the stick walks and strafes while the gun aims): each gun's panel has a stick and two buttons,
 ## which reach the core on the gun's port as the joypad's.
 func gun_stick() -> bool:
@@ -497,6 +511,8 @@ func button_visible(player: int, index: int) -> bool:
 	# A rhythm game's controller is built with the buttons it has: none of its caps is left out for the table's count of them (GuitarFreaks' pick is button 6 and its wail 7 of 5).
 	if known and form() == FORM_MUSIC and not instrument().is_empty():
 		return true
+	if known and attrs.has("u"):
+		return (index + 1) in used_buttons()
 	return not known or index < buttons
 
 

@@ -43,6 +43,8 @@ not the default, `;`-separated attributes (a letter and a value):
   z         the flight game reads a throttle lever (an `IPT_AD_STICK_Z` of its own in the driver, cockpits.py),
   y<style>  the controller is drawn as something other than a ball on a stick: `yyoke` a flight yoke, `yrod` a fishing rod with its reel (STYLE; `k` is retired: it was a boot time); on
             a gun game the fixed gun is drawn as something other than a pistol: `ystick` joystick-like (Rail Chase), `yblaster` a big blaster (Laser Ghost) (GUN_STYLE),
+  yhelm     (on a driving game) a steering yoke that only turns, with the buttons on it: Road Blasters' (HELM),
+  u<n..>    the MAME buttons the game uses when they are not 1..N (`u23`: buttons 2 and 3, Road Blasters' Lasers and Special Weapon; USED_BUTTONS),
   j         the gun game's player also works a joystick (GUN_STICK: Gunbuster's walk): a stick and two buttons on the panel of each gun,
   h         the game's dial is a STEERING WHEEL, with no pedals (Bad Lands: MAME calls the wheel a dial, and the cabinet had a wheel a player),
   n<arrows> how many arrows a dancer's stage has when it is not four (`n6`: DDR Solo's six panels),
@@ -212,6 +214,15 @@ DRIVING_FORM = {
     # Atari's wheel and pedal on an upright's panel
     "roadblst": "stand", "nitedrvr": "stand",
 }
+# A driving game some of whose sets are a sit-down cockpit by their own description ("cockpit") and the rest a stand-up ("upright"): Road Blasters' `roadblstc`, `roadblstc1`
+# and `roadblstcg` are cockpits, the other eight uprights. A cockpit set is the seated cockpit, the rest keep DRIVING_FORM's.
+COCKPIT_BY_DESC = {"roadblst"}
+# A steering YOKE that only turns (Road Blasters': two grips on a bar, no rim, about 270 degrees from lock to lock; the research calls it "an X yoke", Atari's own, in the
+# style of the Star Wars yoke): the table's `yhelm`. It is a wheel to the input and the hands, drawn as a yoke.
+HELM = {"roadblst"}
+# The MAME buttons a game uses where they are not 1..N: Road Blasters has "Lasers" (button 2) and "Special Weapon" (button 3) and no button 1, so the panel has two caps and
+# no third: the table's `u23`.
+USED_BUTTONS = {"roadblst": "23"}
 # A dial that is a steering wheel with no pedals: Bad Lands' (a wheel for each of two players, the gas a button).
 WHEEL_DIAL = {"badlands"}
 # Controls a driver's SHARED port set gives every game it runs, though no cabinet had them: (source file, kind) -> the families that really do. Taito F3's
@@ -358,6 +369,8 @@ def form_of(machine, parent, kinds, name_for_lists):
         return BOARD[name_for_lists]
     if name_for_lists in STYLE:
         return ""
+    if name_for_lists in COCKPIT_BY_DESC and "cockpit" in desc.lower():
+        return "race"
     if name_for_lists in ODD:
         return "odd"
     if name_for_lists in DRIVING_FORM:
@@ -473,6 +486,10 @@ def profile_of(machine, parent):
         attrs.append("y" + GUN_STYLE[family])
     if family in GUN_STICK:
         attrs.append("j")
+    if family in HELM:
+        attrs.append("yhelm")
+    if family in USED_BUTTONS:
+        attrs.append("u" + USED_BUTTONS[family])
     if form == "dance" and SOLO_DESC.search(desc):
         attrs.append("n6")
     if form == "music":

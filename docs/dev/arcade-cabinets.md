@@ -588,6 +588,26 @@ Three games were drawn with pistols in holsters and are not that. **Every shape 
 - Tests: `arcade_form_tests specs/ guns/ seating/` (the shapes, the scene each gun is built from, every gun fixed, the muzzle clear of the glass, the stick bits), `arcade_variants_tests guns/` (every shape keeps the pistol's cord boss,
   grab point and cord), `arcade_tests game/` (the table). Picture `--forms=rchase,gunbustr,lghost`.
 
+### 9.2d Road Blasters' yoke (2026-10-27)
+
+Atari's Road Blasters was drawn as a stand-up with a steering WHEEL and two pedals; MAME's own port list says otherwise (`atarisy1.cpp`: one steering axis (`IPT_AD_STICK_X`, 7 bits, reversed; `IPT_DIAL` in the older versions), **two buttons**, "Lasers"
+(`IPT_BUTTON2`) and "Special Weapon" (`IPT_BUTTON3`), no BUTTON1, **one analog pedal** `IPT_PEDAL`, three coin inputs) and the research agrees (search summaries, medium): a **yoke** ("X Yoke", Arcade-Museum; "instead of a steering wheel", TopGear) in the
+style of Atari's Star Wars yoke, which only turns (handles fixed, no push or pull), about 270 degrees from lock to lock, a pair of triggers for the lasers and thumb buttons for the special weapons, one gas pedal, no brake, no shifter. Built:
+
+- **The yoke** (`ArcadeCabinetBuilder._helm`, the table's `yhelm`): the wheel's own column and `WheelPivot` (so the input, the hands and the lock find it as they find a wheel, `WheelRim` gone), a hub with a bar across it and a handgrip standing out of each
+  end toward the driver, 14.5 cm from the hub (`HELM_SPAN`), a trigger on each grip's upper side and a red cap on its end. It turns 135 degrees each way (`lock_deg` on the pivot, `ArcadeControlModule.wheel_lock_deg()`: a wheel's is 120).
+- **The hands**: a hand takes it by a GRIP, within `HELM_GRIP_ARC` (0.9 rad) of one by angle about the axle (`ArcadePanelHands.near_helm_grip`), never by the middle of the bar; the holding hand's **A / X is Lasers (button 2) and its B / Y Special Weapon
+  (button 3)**, the buttons that are on the grips (`WheelGrab.bits`). The pointer shapes of a cockpit's yoke are its hub, its bar and a box round each grip (`_helm_shapes`), no rim.
+- **The buttons**: the table's `u23` (`ArcadeGameProfile.used_buttons`, `button_visible`): caps `Btn2` (red) and `Btn3` (yellow) either side of the yoke's base on the stand-up's deck, on the dash to its right in the cockpit, and **no `Btn1`**: the panel has no
+  cap for a button the game does not read.
+- **One gas pedal** (`_pedals(..., gas_only)`), in the middle and as wide as the two were, and no brake; no gear lever.
+- **The cockpit sets**: MAME's own descriptions name them ("Road Blasters (cockpit, rev 2)"): `roadblstc`, `roadblstc1` and `roadblstcg` are the seated cockpit (`COCKPIT_BY_DESC`), the other eight sets the stand-up. The sit-down cabinet's details (the seat's shape,
+  "a plastic lens over the monitor that reads as about 25 inches", a three-board stack) are the research's (low) and not built beyond the standard seated cockpit.
+- **Estimated**: the yoke's size and shape, its lock (the wiki and a forum thread say about 270; a 2003 poster argued 180), that its triggers and thumb switches are the two buttons (TopGear, medium) and where the caps stand (on the deck, not on the
+  turning grips, so a fingertip and the panel's keys reach them as any cap; in a headset the grips' own A / X and B / Y are the same buttons). Not found: the cabinet's dimensions, panel, marquee, coin door and force feedback.
+- Tests: `arcade_tests game/` (the table), `arcade_form_tests helm/` (the spec, the yoke, the one pedal, the buttons, the pointer shapes; Pole Position and Daytona keep their wheels), `arcade_hand_tests helm/ zone/` (taken by a grip and not by the top of
+  its bar, 135 degrees is all the way and 120 is not, A / X and B / Y, let go). Picture `--forms=roadblst,roadblstc`.
+
 ### 9.3 What the audit made worth building
 
 Beyond the data faults of 9.1, the audit found games whose hardware was nothing like a stick and buttons. Each got a form or a part of its own; the section named has the research, the
@@ -605,7 +625,7 @@ estimates and the tests.
 | Lucky & Wild | a driver and a gunner | a two-seat cockpit | 2 |
 
 Not built, and why each is a different kind of limit: the pilot's throttle of Star Wars Arcade and the real mechanisms of the board games (**unknown**: nothing found), OutRun 2's twin
-seats and Wacko's second control (**work**: a second seat, a panel of a stick and a ball), Road Blasters' yoke and the sit-down versions of the older cabinets (**evidence**: one article each),
+seats and Wacko's second control (**work**: a second seat, a panel of a stick and a ball), the sit-down versions of the older cabinets (**evidence**: one article each; Road Blasters' yoke is built since, 9.2d),
 jubeat, `lamborcc` and `interstellar` (**not MAME**).
 
 ### 9.4 The verdict, game by game
@@ -738,7 +758,7 @@ table), the game's line from MAME 0.289, and the **verdict** is a judgement agai
 | `interstellar` (= `istellar`) | Inter Stellar (Laser Fantasy) (1983, Funai/Gakken, preliminary) | upright; stick, 2 buttons; 19" class | **upright**: Funai/Gakken's Interstellar Laser Fantasy (`istellar`; the 1984 `istellar2` is Zangus): one player, a stick (4-way in MAME, 8-way in a listing) and two buttons, an upright with an external laserdisc player; a sit-down cockpit with a woofer under the seat also existed (medium) and is not built; both sets are NOT_WORKING in MAME |
 | `thayers` | Thayer's Quest (set 1) (1984, RDI Video Systems, imperfect) | upright; stick, 6 buttons; 19" class | **approximate**: Thayer's Quest: an upright whose real control was a membrane keypad and keyboard, no joystick (MAME has a full keyboard matrix): a stick and six buttons are drawn |
 | `spaceace` | Space Ace (US Rev. A3) (1983, Cinematronics, preliminary) | upright; stick, 1 button; 19" class | **upright**: Space Ace: an upright, a stick and a button |
-| `roadblst` | Road Blasters (upright, rev 4) (1987, Atari Games, good) | stand-up driving cabinet: wheel on the panel, pedals on the floor | **approximate**: Atari's Road Blasters: a stand-up with a WHEEL drawn; the real controller was a yoke (medium, one article), the pedals one or two (conflict), two trigger buttons on it; the sit-down cockpit is not built |
+| `roadblst` | Road Blasters (upright, rev 4) (1987, Atari Games, good) | stand-up driving cabinet: a yoke on the panel, one gas pedal on the floor, two buttons; the cockpit sets a seated cockpit with the same yoke | **built** (2026-10-27, 9.2d): a yoke that turns (135 degrees each way), Lasers and Special Weapon (buttons 2 and 3, no button 1), one gas pedal and no brake; `roadblstc`, `roadblstc1` and `roadblstcg` (MAME's "cockpit" sets) are the seated cockpit, the other eight sets the stand-up |
 | `astron` | Astron Belt (1983, Sega, preliminary) | upright; stick, 2 buttons; 19" class | **upright**: Sega's Astron Belt: an upright, a stick and fire; a sit-down cockpit with a 25 inch monitor and a vibrating seat also existed (low-medium) and is not built |
 | `sonic` | SegaSonic The Hedgehog (Japan, rev. C) (1992, Sega, imperfect) | upright; 3 x trackball, 1 button; tall body, 26" class | **upright**: SegaSonic the Hedgehog: three players, a trackball each and a jump button (low-medium) |
 | `marble` | Marble Madness (set 1) (1984, Atari Games, good) | upright; 2 x trackball; 19" class | **upright**: Marble Madness: a trackball for each of two players, no button in MAME |
