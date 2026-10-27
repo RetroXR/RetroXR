@@ -349,7 +349,7 @@ func _group_specs() -> void:
 	var shooters_bad: Array = []
 	for row: Array in [["timecrs3", "holster", 2, true], ["timecrs4", "holster", 2, true], ["timecrs4j", "holster", 2, true],
 			["vnight", "holster", 2, false], ["hotd3", "holster", 2, false], ["hotd4", "holster", 2, false],
-			["ghostsev", "holster", 2, false], ["ghostsqu", "holster", 2, false], ["vcop3", "holster", 2, false],
+			["ghostsev", "holster", 2, false], ["ghostsqu", "holster", 2, false], ["vcop3", "holster", 2, true],
 			["ninjaslt", "holster", 2, false], ["gunsur2", "holster", 1, false], ["letsgoju", "holster", 2, false],
 			["alien3", "mounted", 2, false], ["jpark", "mounted", 2, false], ["gunblade", "mounted", 2, false],
 			["rchase2", "mounted", 2, false], ["oceanhun", "mounted", 2, false],
@@ -360,7 +360,12 @@ func _group_specs() -> void:
 				and int(sp.get("guns", 0)) == int(row[2]) and not bool(sp.get("sockets", true))
 				and pedals_n == (int(row[2]) if bool(row[3]) else 0) and (sp["players"] as Array).size() == int(row[2])):
 			shooters_bad.append("%s (%s)" % [row[0], str(sp.get("form", "own"))])
-	_ok(shooters_bad.is_empty(), "specs: every shooter is a wide gun cabinet with its guns (cords or mounts), no sockets, a START for each gun, a pedal under each only for Time Crisis and Crisis Zone (%s)" % str(shooters_bad))
+	_ok(shooters_bad.is_empty(), "specs: every shooter is a wide gun cabinet with its guns (cords or mounts), no sockets, a START for each gun, a pedal under each only for Time Crisis, Crisis Zone and Virtua Cop 3 (%s)" % str(shooters_bad))
+	# A rifle's scope sensor (Golgo 13): a switch for the rifle's player on the MAME button the game reads it as, and no floor pedal; Silent Scope has none.
+	var g13spec := _spec("golgo13")
+	_ok(str(g13spec["gun_style"]) == "rifle" and g13spec.has("scope_sensor") and int(g13spec["scope_sensor"]["button"]) == 2 and not g13spec.has("gun_pedals")
+			and int(_spec("g13jnr")["scope_sensor"]["button"]) == 3 and not _spec("sscope").has("scope_sensor") and not _spec("timecris").has("scope_sensor"),
+		"specs: Golgo 13's rifle carries a scope sensor on button 2 (Juusei no Requiem's on 3), no pedal; Silent Scope and Time Crisis have none")
 	# A two-gun game's panels are START alone for each gun, and a door under each.
 	_ok(_kinds(pb) == ["start", "start"] and (pb["coins"] as Array).size() == 2 and not bool(pb["sockets"]),
 		"specs: Point Blank: a START for each gun and a coin door under each")
@@ -1087,12 +1092,18 @@ func _group_scope() -> void:
 	var main_rect: Vector4 = screen_module._material.get_shader_parameter("view_rect")
 	_ok(not screen_module.is_cut() and absf(main_rect.x) < 1.0e-5 and absf(main_rect.z - 1.0) < 1.0e-5 and absf(main_rect.w - 1.0) < 1.0e-5,
 		"scope: the monitor shows the whole picture (%s)" % main_rect)
-	_ok(lens_mat != null and absf(rects[0].x - 0.3) < 1.0e-4 and absf(rects[0].y - 0.3) < 1.0e-4 and absf(rects[0].z - 0.4) < 1.0e-4
-			and absf(rects[1].x) < 1.0e-4 and absf(rects[1].y) < 1.0e-4 and absf(rects[2].x - 0.6) < 1.0e-4 and absf(rects[2].y - 0.6) < 1.0e-4
+	var win := 1.0 / S.SCOPE_ZOOM
+	_ok(lens_mat != null and absf(rects[0].x - (1.0 - win) * 0.5) < 1.0e-4 and absf(rects[0].y - (1.0 - win) * 0.5) < 1.0e-4 and absf(rects[0].z - win) < 1.0e-4
+			and absf(rects[1].x) < 1.0e-4 and absf(rects[1].y) < 1.0e-4 and absf(rects[2].x - (1.0 - win)) < 1.0e-4 and absf(rects[2].y - (1.0 - win)) < 1.0e-4
 			and rects[3].x > rects[0].x + 0.1 and rects[3].y < rects[0].y - 0.05,
 		"scope: and the lens shows what the rifle points at, magnified: middle, top left, bottom right, right and up (%s)" % str(rects))
 	var fit: Vector2 = lens_mat.get_shader_parameter("fit_scale") if lens_mat != null else Vector2.ZERO
 	_ok(absf(fit.x - 1.0) < 0.01 and absf(fit.y - 1.0) < 0.01, "scope: a 4:3 picture's 4:3 window fills the 4:3 lens (%s)" % fit)
+	# The lens looks like a scope (a round field and a reticle, drawn by the shader: the shape of the quad makes the circle a circle) and says so by being zoomed.
+	var quad := (lens.mesh as QuadMesh).size
+	_ok(lens_mat != null and is_equal_approx(float(lens_mat.get_shader_parameter("scope_reticle")), 1.0)
+			and absf(float(lens_mat.get_shader_parameter("quad_aspect")) - quad.x / quad.y) < 1.0e-4 and S.SCOPE_ZOOM >= 3.0,
+		"scope: a digital scope's lens draws a reticle and a round field (the quad's own shape), and magnifies %.1f times" % S.SCOPE_ZOOM)
 	# The game on show (attract) or a cord from another machine is not a frame of the game: no lens.
 	screen_module.present(frame_tex, false, true, 0.0)
 	var dark_attract := lens.get_surface_override_material(0) != lens_mat
@@ -1108,6 +1119,12 @@ func _group_scope() -> void:
 	await _wait(6)
 	var ss := model.modules_of_kind(ArcadeProfiles.KIND_SCREEN)[0] as ArcadeScreenModule
 	_ok(ss.scope_zoom == 0.0 and ss.scope_part.has_area(), "scope: Silent Scope keeps its second screen cut out of the frame, with no zoom")
+	ss.aspect_override = 8.03 / 3.0
+	ss.present(frame_tex, false, false, 0.0)
+	var ss_lens := _scope_lens(sys)
+	var ss_mat := ss_lens.get_surface_override_material(0) as ShaderMaterial if ss_lens != null else null
+	_ok(ss_mat != null and is_zero_approx(float(ss_mat.get_shader_parameter("scope_reticle"))),
+		"scope: and its lens shows the game's own second screen, with no reticle of ours over it")
 	# A game that is no rifle has none.
 	await _pull(sys)
 	await _board(sys, "sf2")

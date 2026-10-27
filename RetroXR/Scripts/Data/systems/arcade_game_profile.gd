@@ -269,9 +269,26 @@ func gun_count() -> int:
 	return int(str(attrs.get("g", "0"))) if known else 0
 
 
-## A gun game with a foot pedal (Time Crisis: step on it to come out of cover).
+## What the gun game's extra switch is (the table's `f`): "cover" (Time Crisis' foot pedal: DOWN while the player is out of cover), "action" (Virtua Cop 3's: UP until the
+## player steps on it for the ES mode) or "sensor" (a rifle's scope switch: DOWN while the player has an eye to the scope, Golgo 13's); "" for a game with none.
+func pedal_kind() -> String:
+	if not known or not attrs.has("f"):
+		return ""
+	var v := str(attrs["f"])
+	if v.begins_with("s"):
+		return "sensor"
+	return "action" if v == "a" else "cover"
+
+
+## A gun game with a foot pedal on the floor (Time Crisis: step on it to come out of cover; Virtua Cop 3: step on it for the ES mode).
 func gun_pedal() -> bool:
-	return known and attrs.has("f")
+	var kind := pedal_kind()
+	return kind == "cover" or kind == "action"
+
+
+## A rifle's scope sensor, as the MAME button number it is (Golgo 13's "Sensor" is button 2, Juusei no Requiem's "Scope Sensor" button 3); 0 for a game with none.
+func scope_sensor_button() -> int:
+	return int(str(attrs["f"]).substr(1)) if pedal_kind() == "sensor" else 0
 
 
 ## The game reads a service / test switch (MAME's `<input service="yes">`, the table's `v`): the cabinet shows the

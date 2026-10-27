@@ -1050,6 +1050,8 @@ func _build_gun_holsters() -> void:
 			_holster(sockets, i, sx)
 		else:
 			_gun_mount(sockets, i, sx, style == "rifle")
+			if style == "rifle" and _v.has("scope_sensor"):
+				_scope_sensor(i, sx)
 
 
 ## A holster on the apron: the gun hangs in it muzzle-down, its grip toward the player (rolled -90 degrees
@@ -1127,6 +1129,37 @@ func _gun_mount(sockets: Node3D, i: int, sx: float, rifle: bool) -> void:
 	var rest := ArcadeParts.node(_owner, sockets, "Marker3D", "Holster%d" % (i + 1),
 		top + Vector3(0, 0.022, 0.25 if rifle else 0.08)) as Marker3D
 	rest.basis = Basis.IDENTITY
+
+
+## A rifle's scope sensor (Golgo 13): the proximity switch the game's shooting waits for, in a small box on the deck beside the rifle's post with a lamp that is lit while
+## it is on. It is the pedal's module (ArcadePedalModule, wired to the player's MAME button `scope_sensor.button`) with no plate: a headset's head at the eyepiece, or the
+## rifle in a hand, switches it on (ArcadeInput._step_pedal). `SensorLamp` keeps its name for the module.
+const SENSOR_BOX := Vector3(0.060, 0.034, 0.045)
+func _scope_sensor(index: int, sx: float) -> void:
+	var sensor := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "ScopeSensor", Vector3(sx + 0.115, 0.92, 0.47))) as Node3D
+	sensor.set_script(load(SCRIPTS["pedal"]))
+	sensor.set("player", index)
+	ArcadeParts.box(_owner, sensor, "SensorBody", SENSOR_BOX, Vector3(0, SENSOR_BOX.y * 0.5, 0), ArcadeParts.mat(Color(0.07, 0.07, 0.08), 0.1, 0.5))
+	var lamp := ArcadeParts.node(_owner, sensor, "MeshInstance3D", "SensorLamp", Vector3(0, SENSOR_BOX.y + 0.002, 0.0)) as MeshInstance3D
+	var cap := SphereMesh.new()
+	cap.radius = 0.009
+	cap.height = 0.012
+	cap.radial_segments = 12
+	cap.rings = 6
+	lamp.mesh = cap
+	var glow := StandardMaterial3D.new()
+	glow.albedo_color = ArcadePedalModule.LAMP_OFF
+	glow.emission_enabled = true
+	glow.emission = Color(0.15, 0.95, 0.30)
+	glow.emission_energy_multiplier = 0.0
+	lamp.material_override = glow
+	var tag := ArcadeParts.node(_owner, sensor, "Label3D", "SensorLabel", Vector3(0, SENSOR_BOX.y * 0.5, SENSOR_BOX.z * 0.5 + 0.0006)) as Label3D
+	tag.text = "SCOPE"
+	tag.pixel_size = 0.0004
+	tag.font_size = 22
+	tag.modulate = Color(0.92, 0.92, 0.92)
+	tag.outline_size = 0
+	form_boxes.append(AABB(Vector3(sx + 0.115 - SENSOR_BOX.x * 0.5, 0.92, 0.47 - SENSOR_BOX.z * 0.5), SENSOR_BOX))
 
 
 # ── foot pedals ─────────────────────────────────────────────────────────────

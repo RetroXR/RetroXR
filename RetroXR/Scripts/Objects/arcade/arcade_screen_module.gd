@@ -297,6 +297,12 @@ func _update_lens(tex: Texture2D, delta: float) -> void:
 		_lens_material.set_shader_parameter("source_tex", tex)
 	var size := (_lens.mesh as QuadMesh).size
 	var part := scope_part if scope_part.has_area() else follow_rect(scope_zoom, _aim_of_lens())
+	# A digital scope looks like one (a round field and a reticle); a second screen the game draws itself (Silent Scope's) keeps its own picture.
+	var reticle := 0.0 if scope_part.has_area() else 1.0
+	var shown: Variant = _lens_material.get_shader_parameter("scope_reticle")
+	if shown == null or not is_equal_approx(float(shown), reticle):
+		_lens_material.set_shader_parameter("scope_reticle", reticle)
+		_lens_material.set_shader_parameter("quad_aspect", size.x / size.y)
 	_lens_material.set_shader_parameter("fit_scale", fit_for(_geometry_aspect * part.size.x / part.size.y, size))
 	_lens_material.set_shader_parameter("view_rect", Vector4(part.position.x, part.position.y, part.size.x, part.size.y))
 	if _lens.get_surface_override_material(0) != _lens_material:

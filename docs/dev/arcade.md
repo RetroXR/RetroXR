@@ -1068,6 +1068,18 @@ that stood here, "MAME maps it to a keyboard-style input that a lightgun port do
 cabinets are two boards linked), and `timecrs3` and `timecrs4` (System 246, two guns and a pedal under each: their driver declares no controls, so the
 guns and the pedals are the curated list's, not MAME's).
 
+**Three kinds of switch (2026-10-27, the table's `f<kind>`, `ArcadeGameProfile.pedal_kind()`)**, all on a gun's own `claim_button`, all worked by the same gestures below:
+- `cover` (`f`, Time Crisis, Crisis Zone): DOWN while the player is out of cover, taking cover lifts it. Everything below is written for this one.
+- `action` (`fa`, **Virtua Cop 3**: the research, three agreeing snippets, says a foot pedal switches the ES mode on and the sources name one pedal; one under each gun is assumed,
+  as for Time Crisis): the other way round. Up with the gun in a hand, and the SAME gestures (A or X, `arcade_pedal`, the free hand's trigger, ducking) step on it. Its hint says "Hold {g} to step on the pedal"
+  (`pedal_act*`). An ES mode that is on for the whole game would be a game played in bullet time.
+- `sensor` (`fs<n>`, **Golgo 13** `golgo13` `g13knd` on MAME's button 2 "Sensor", Juusei no Requiem `g13jnr` on button 3 "Scope Sensor"): a rifle's proximity switch in the scope, not a pedal at all (no plate:
+  a small box on the deck beside the post, `ScopeSensor`, with a lamp, `SensorLamp`, that lights while it is on). **MAME's own comment on it** (`namcos10.cpp`): "If the player is 10cm or closer then this will be on.
+  For playability, make it so that the player has to explicitly toggle the scope to be off to simulate stepping away from the scope instead of always having to hold the scope sensor button". That is why Golgo 13
+  "only fired in the menus": the game's shooting waits for the sensor and nothing sent it (`arcade-cabinets.md` Golgo 13). It is on while the rifle is in a hand (a headset reads no eye, a desktop no head: the gestures above take the
+  eye OFF the scope, the way they take cover), and **while the head is within 10 cm of the eyepiece's lens, kept to 13, whatever the hands do** (`ArcadeInput._eye_at_scope`, `SCOPE_NEAR`). The pad bit is the MAME
+  button's (`ArcadeProfiles.button_bit`: button 2 is the pad's A and the gun's Aux A, button 3 the pad's Y and the gun's Aux B). Estimated: what the game does with the sensor off (nothing found says), that a held rifle should mean "sensor on".
+
 - **How it is worked** (`ArcadeInput._step_pedal`, since 2026-10-25 later; first it was pressed by a held A/X or key, which tired
   the thumb for the whole game): **while that player's gun is in a hand the pedal is DOWN, out of cover, and taking cover lifts it**;
   with no gun in a hand it is up. `AppPrefs.arcade_pedal_mode` (Options, Systems, "Gun Game Pedal") says what takes cover:

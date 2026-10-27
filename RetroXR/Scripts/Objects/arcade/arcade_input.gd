@@ -22,7 +22,10 @@
 ##
 ## A gun game's foot pedal (ArcadePedalModule) is its player's button 2. A headset reads no feet, so the pedal is
 ## down while that player's gun is in a hand and taking cover lifts it (AppPrefs.arcade_pedal_mode): the gun hand's
-## A or X and PEDAL_ACTION in every mode, the free hand's trigger or ducking as well in the other two.
+## A or X and PEDAL_ACTION in every mode, the free hand's trigger or ducking as well in the other two. A pedal that
+## is an ACTION (Virtua Cop 3's ES mode, ArcadeGameProfile.pedal_kind) is the other way round: up until the same
+## gestures step on it. A rifle's SCOPE SENSOR (Golgo 13) is a pedal of the first kind on the MAME button the game
+## reads it as, which the head at the eyepiece switches on as well.
 class_name ArcadeInput
 extends Node
 
@@ -37,6 +40,10 @@ const PEDAL_ACTION := "arcade_pedal"
 ## taken, and back out above DUCK_DEPTH - DUCK_HYSTERESIS, so a head held near the line does not flicker.
 const DUCK_DEPTH := 0.18
 const DUCK_HYSTERESIS := 0.06
+## A scope sensor is on while the head is within this of the eyepiece's lens (MAME's own comment on the sensor: "if the player is 10cm or closer"), and a little
+## further out to let go, so a head held near the line does not flicker.
+const SCOPE_NEAR := 0.10
+const SCOPE_NEAR_HYSTERESIS := 0.03
 
 const INPUT_THRESHOLDS: Dictionary = {
 	"ax_button":     0.5,
@@ -93,6 +100,10 @@ var held_override: Array = []
 var pedal_mode_override := ""
 ## A suite stands in for the head with this, in metres; NAN asks the camera.
 var head_height_override := NAN
+## A suite stands in for the head's place with this (world coordinates); INF asks the camera.
+var head_position_override := Vector3.INF
+## Which guns have an eye at their scope (a scope sensor's proximity).
+var _eye_near: Dictionary = {}
 ## Per gun in a hand: the highest the head has been since it was taken, whether it is ducked, and whether it
 ## was taking cover last frame (gun -> value). A gun let go is dropped from all three.
 var _duck_top: Dictionary = {}
@@ -630,7 +641,7 @@ func _process(delta: float) -> void:
 				var aux := (1 << ArcadeProfiles.START_BIT) | (1 << ArcadeProfiles.COIN_BIT)
 				var bits := (mask | hand) & aux
 				if pedal_down:
-					bits |= 1 << ControllerBindings.JOYPAD_A
+					bits |= 1 << ArcadeProfiles.button_bit(pedal_button())
 				bits |= tapped
 				_send(p, bits, _gun_axes(held_gun))
 			continue
@@ -656,23 +667,71 @@ func _gun_axes(gun: LightGun) -> Dictionary:
 ## gun's Aux A is its own again.
 func _step_pedal(port: int, gun: LightGun) -> bool:
 	var wired := _wired(port)
+	var kind := pedal_kind()
+	var aux := _pedal_aux()
 	var down := false
 	if gun != null:
-		gun.claim_button(ControllerBindings.LIGHTGUN_AUX_A, wired)
+		gun.claim_button(aux, wired)
 		if wired and _in_hand(gun):
 			var cover := _takes_cover(gun)
 			if cover and not bool(_covering.get(gun, false)):
 				HeldHint.note_on(gun, _cover_row_id(gun))
 			_covering[gun] = cover
-			down = not cover
+			# An action pedal (Virtua Cop 3's ES mode) is down while the player does what takes cover elsewhere.
+			down = cover if kind == "action" else not cover
 		else:
 			_forget_hold(gun)
-		gun.set_external_button(ControllerBindings.LIGHTGUN_AUX_A, down)
+		# A scope sensor is a proximity switch: an eye at the scope switches it on whatever the hands do.
+		if wired and kind == "sensor":
+			down = _eye_at_scope(gun) or down
+		gun.set_external_button(aux, down)
 		gun.set_cabinet_hint(_cover_hint() if wired else [])
 	for pedal in _pedals:
 		if is_instance_valid(pedal) and pedal.port() == port:
 			pedal.show_pressed(down and pedal.active)
 	return down
+
+
+## What the wired switch is for the game in the bay: "cover" (a Time Crisis pedal, and a mod's), "action" (Virtua Cop 3's ES pedal) or "sensor" (a rifle's scope switch).
+func pedal_kind() -> String:
+	var game: ArcadeGameProfile = _model.call("game_profile") if _model != null and _model.has_method("game_profile") else null
+	var kind := game.pedal_kind() if game != null else ""
+	return kind if not kind.is_empty() else "cover"
+
+
+## The MAME button the switch is: 2, the pedal's, or the number the table gives a scope sensor.
+func pedal_button() -> int:
+	var game: ArcadeGameProfile = _model.call("game_profile") if _model != null and _model.has_method("game_profile") else null
+	var n := game.scope_sensor_button() if game != null else 0
+	return n if n > 0 else 2
+
+
+## The light-gun id that button is (button 2 is Aux A, 3 Aux B), which the cabinet takes over from the hand.
+func _pedal_aux() -> int:
+	return ControllerBindings.LIGHTGUN_AUX_B if pedal_button() == 3 else ControllerBindings.LIGHTGUN_AUX_A
+
+
+## Whether the head is at `gun`'s scope: within SCOPE_NEAR of its lens (SCOPE_NEAR + SCOPE_NEAR_HYSTERESIS to let go). False for a gun with no lens and with no head to ask.
+func _eye_at_scope(gun: LightGun) -> bool:
+	var lens := gun.find_child("ScopeScreen", true, false) as Node3D
+	var head := head_position()
+	if lens == null or not head.is_finite():
+		_eye_near.erase(gun)
+		return false
+	var away := head.distance_to(lens.global_position)
+	var near := away < SCOPE_NEAR or (bool(_eye_near.get(gun, false)) and away < SCOPE_NEAR + SCOPE_NEAR_HYSTERESIS)
+	_eye_near[gun] = near
+	return near
+
+
+## Where the head is in the world, Vector3.INF with no camera.
+func head_position() -> Vector3:
+	if head_position_override.is_finite():
+		return head_position_override
+	if not is_inside_tree():
+		return Vector3.INF
+	var cam := get_viewport().get_camera_3d()
+	return cam.global_position if cam != null else Vector3.INF
 
 
 ## Whether a pedal on this cabinet is wired to `port`.
@@ -784,23 +843,27 @@ func _forget_hold(gun: LightGun) -> void:
 ## The hint rows a gun at a wired pedal carries (LightGun.set_cabinet_hint): how taking cover goes in this mode.
 ## One id per mode, so a verb learned in one is still taught in another (HeldHint.LEARNED_AFTER).
 func _cover_hint() -> Array:
+	var kind := pedal_kind()
+	var tag := {"action": "act", "sensor": "scope"}.get(kind, "cover") as String
+	# What the gesture does: take cover (Time Crisis), step on the pedal (Virtua Cop 3's ES mode), take the eye off the scope (Golgo 13).
+	var what := {"action": "step on the pedal", "sensor": "take your eye off the scope"}.get(kind, "take cover") as String
 	var vr: Array
 	match pedal_mode():
 		AppPrefs.PEDAL_FREE_HAND:
-			vr = [&"pedal_cover_free_hand", HeldHint.PLATFORM_VR, ["quest_trigger_{other}_outline"],
-				"Hold the other {g} to take cover"]
+			vr = [StringName("pedal_%s_free_hand" % tag), HeldHint.PLATFORM_VR, ["quest_trigger_{other}_outline"],
+				"Hold the other {g} to %s" % what]
 		AppPrefs.PEDAL_DUCK:
-			vr = [&"pedal_cover_duck", HeldHint.PLATFORM_VR, ["quest_button_{ax}_outline"],
-				"Duck, or hold {g}, to take cover"]
+			vr = [StringName("pedal_%s_duck" % tag), HeldHint.PLATFORM_VR, ["quest_button_{ax}_outline"],
+				"Duck, or hold {g}, to %s" % what]
 		_:
-			vr = [&"pedal_cover", HeldHint.PLATFORM_VR, ["quest_button_{ax}_outline"], "Hold {g} to take cover"]
-	return [vr, [&"pedal_cover_desktop", HeldHint.PLATFORM_DESKTOP, [],
-		"Hold %s to take cover" % DesktopBindings.event_display_name(PEDAL_ACTION)]]
+			vr = [StringName("pedal_%s" % tag), HeldHint.PLATFORM_VR, ["quest_button_{ax}_outline"], "Hold {g} to %s" % what]
+	return [vr, [StringName("pedal_%s_desktop" % tag), HeldHint.PLATFORM_DESKTOP, [],
+		"Hold %s to %s" % [DesktopBindings.event_display_name(PEDAL_ACTION), what]]]
 
 
 ## The row `gun`'s hint teaches for taking cover now: the desktop's in the desktop's hand, else this mode's.
 func _cover_row_id(gun: LightGun) -> StringName:
-	return &"pedal_cover_desktop" if gun.holding_controller() == null else StringName(_cover_hint()[0][0])
+	return StringName(_cover_hint()[1][0]) if gun.holding_controller() == null else StringName(_cover_hint()[0][0])
 
 
 ## Nobody is playing (the core is off, or only showing its game): every pedal comes up, no gun keeps it pressed,
@@ -815,6 +878,7 @@ func _release_pedals() -> void:
 	_duck_top.clear()
 	_ducked.clear()
 	_covering.clear()
+	_eye_near.clear()
 	if _host == null or not _host.has_method("get_port_controllers"):
 		return
 	var ports: Array = _host.get_port_controllers()
@@ -823,8 +887,8 @@ func _release_pedals() -> void:
 		if holder != null and is_instance_valid(holder) and holder is LightGun:
 			var gun := holder as LightGun
 			var wired := _wired(p)
-			gun.claim_button(ControllerBindings.LIGHTGUN_AUX_A, wired)
-			gun.set_external_button(ControllerBindings.LIGHTGUN_AUX_A, false)
+			gun.claim_button(_pedal_aux(), wired)
+			gun.set_external_button(_pedal_aux(), false)
 			gun.set_cabinet_hint(_cover_hint() if wired else [])
 
 

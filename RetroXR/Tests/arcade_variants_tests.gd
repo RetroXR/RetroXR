@@ -674,6 +674,161 @@ func _group_pedal() -> void:
 		"pedal: and the cabinet with sockets and no gun does not")
 	await _clear()
 	await _two_pedals()
+	await _clear()
+	await _pedal_kinds()
+
+
+## The pedal's other kinds (ArcadeGameProfile.pedal_kind): Virtua Cop 3's is an ACTION (the ES mode: up until the player steps on it, down for the gestures that take cover in
+## Time Crisis), Golgo 13's rifle has a scope SENSOR (a proximity switch the game's shooting waits for: down while the rifle is in a hand, lifted by the same gestures, and
+## switched on by a head at the eyepiece with no hand on the rifle), on MAME's button 2 (Juusei no Requiem's on 3: Aux B and the pad's Y).
+func _pedal_kinds() -> void:
+	# Virtua Cop 3.
+	var sys := await _gun_cabinet("vcop3")
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var by_port := {}
+	for pd in model.modules_of_kind(ArcadeProfiles.KIND_PEDAL):
+		by_port[(pd as ArcadePedalModule).port()] = pd
+	_ok(by_port.size() == 2, "pedal: Virtua Cop 3 has a pedal under each of its two guns")
+	var input := model.arcade_input()
+	var guns := sys.captive_controllers()
+	var gun := guns[0] as LightGun
+	var aux_a := ControllerBindings.LIGHTGUN_AUX_A
+	input.pedal_mode_override = AppPrefs.PEDAL_BUTTON
+	input.frame_override = input.wait_frames()
+	sys.is_powered_on = true
+	await _wait(3)
+	var pedal := by_port[0] as ArcadePedalModule
+	input.held_override = [gun]
+	input._process(0.0)
+	_ok(input.pedal_kind() == "action" and not pedal.is_pressed() and _pedal_off(input, gun, 0),
+		"pedal: Virtua Cop 3's is an action pedal: the gun in a hand does NOT press it (the ES mode is on only when asked for)")
+	gun._pressed_out[aux_a] = true
+	input._process(0.0)
+	_ok(pedal.is_pressed() and _pedal_sent(input, gun, 0) and gun.external_button(aux_a),
+		"pedal: the gun hand's A or X steps on it: the gun's Aux A and the joypad's A, which is MAME's button 2")
+	gun._pressed_out.clear()
+	input._process(0.0)
+	_ok(not pedal.is_pressed() and _pedal_off(input, gun, 0), "pedal: and let go, it comes up")
+	Input.action_press(ArcadeInput.PEDAL_ACTION)
+	input._process(0.0)
+	var key_on := pedal.is_pressed() and _pedal_sent(input, gun, 0)
+	Input.action_release(ArcadeInput.PEDAL_ACTION)
+	input._process(0.0)
+	_ok(key_on and not pedal.is_pressed(), "pedal: the pedal key (Space, a pad's RB) steps on it too, for as long as it is held")
+	input.pedal_mode_override = AppPrefs.PEDAL_DUCK
+	input.head_height_override = 1.70
+	input._process(0.0)
+	input.head_height_override = 1.45
+	input._process(0.0)
+	var ducked_on := pedal.is_pressed()
+	input.head_height_override = 1.70
+	input._process(0.0)
+	_ok(ducked_on and not pedal.is_pressed(), "pedal: so does ducking (25 cm under the highest the head has been), and standing up lets go")
+	input.head_height_override = NAN
+	input.pedal_mode_override = AppPrefs.PEDAL_BUTTON
+	input._process(0.0)
+	var rows: Array = gun._cabinet_rows
+	_ok(rows.size() == 2 and rows[0][0] == &"pedal_act" and str(rows[0][3]).contains("step on the pedal") and rows[1][0] == &"pedal_act_desktop",
+		"pedal: the gun's hint says hold A or X to step on the pedal (it says take cover for Time Crisis)")
+	input.held_override = []
+	gun._pressed_out[aux_a] = true
+	input._process(0.0)
+	_ok(not pedal.is_pressed(), "pedal: a gun in its holster presses nothing, A or X or not")
+	gun._pressed_out.clear()
+	# A gun with no scope has no eyepiece for a head to be at, whatever the head does.
+	input.head_position_override = gun.global_position
+	_ok(not input._eye_at_scope(gun), "pedal: a pistol has no eyepiece: a head on top of it is at no scope")
+	input.head_position_override = Vector3.INF
+	sys.is_powered_on = false
+	input._process(0.0)
+	await _clear()
+
+	# Golgo 13's scope sensor.
+	sys = await _gun_cabinet("golgo13")
+	model = sys.get_model() as RetroSystemModelArcadeCabinet
+	var sensors := model.modules_of_kind(ArcadeProfiles.KIND_PEDAL)
+	_ok(sensors.size() == 1 and (sensors[0] as Node).get_node_or_null("SensorLamp") != null and (sensors[0] as Node).get_node_or_null("PedalPlate") == null,
+		"pedal: Golgo 13's rifle has one switch on its deck, a sensor with a lamp and no pedal plate")
+	if sensors.size() != 1:
+		return
+	var sensor := sensors[0] as ArcadePedalModule
+	input = model.arcade_input()
+	var rifle := sys.captive_controllers()[0] as LightGun
+	var lens := rifle.find_child("ScopeScreen", true, false) as Node3D
+	input.pedal_mode_override = AppPrefs.PEDAL_BUTTON
+	input.frame_override = input.wait_frames()
+	sys.is_powered_on = true
+	await _wait(3)
+	input.held_override = []
+	input._process(0.0)
+	_ok(input.pedal_kind() == "sensor" and input.pedal_button() == 2 and not sensor.is_pressed() and _pedal_off(input, rifle, 0),
+		"pedal: with the rifle in its cradle and nobody at it, the sensor is off")
+	input.held_override = [rifle]
+	input._process(0.0)
+	_ok(sensor.is_pressed() and _pedal_sent(input, rifle, 0),
+		"pedal: with the rifle in a hand the sensor is on: the rifle's Aux A and the joypad's A, MAME's button 2 (the game's shooting waits for it)")
+	for i in 6:
+		sensor.tick(0.02)
+	var lamp := sensor.get_node("SensorLamp") as MeshInstance3D
+	var glow := (lamp.material_override as StandardMaterial3D).emission_energy_multiplier
+	rifle._pressed_out[aux_a] = true
+	input._process(0.0)
+	_ok(glow > 1.0 and not sensor.is_pressed() and _pedal_off(input, rifle, 0),
+		"pedal: its lamp lights while it is on (glow %.1f), and the hand's A or X takes the eye off the scope: it goes off" % glow)
+	for i in 6:
+		sensor.tick(0.02)
+	_ok(is_zero_approx((lamp.material_override as StandardMaterial3D).emission_energy_multiplier) and sensor.plate_down() == 0.0, "pedal: and the lamp goes out")
+	rifle._pressed_out.clear()
+	# A head at the eyepiece switches it on whatever the hands do: within 10 cm, kept to 13 once it is on.
+	input.held_override = []
+	var eye := lens.global_position
+	input.head_position_override = eye + Vector3(0, 0, 0.06)
+	input._process(0.0)
+	var near := sensor.is_pressed() and _pedal_sent(input, rifle, 0)
+	input.head_position_override = eye + Vector3(0, 0, 0.12)
+	input._process(0.0)
+	var kept := sensor.is_pressed()
+	input.head_position_override = eye + Vector3(0, 0, 0.14)
+	input._process(0.0)
+	var gone := not sensor.is_pressed()
+	input.head_position_override = eye + Vector3(0, 0, 0.12)
+	input._process(0.0)
+	var not_yet := not sensor.is_pressed()
+	_ok(near and kept and gone and not_yet,
+		"pedal: and so does the head at the eyepiece: on within 10 cm, kept to 13, off beyond, and not on again until it is back within 10")
+	input.held_override = [rifle]
+	rifle._pressed_out[aux_a] = true
+	input.head_position_override = eye + Vector3(0, 0, 0.05)
+	input._process(0.0)
+	_ok(sensor.is_pressed(), "pedal: an eye at the scope is on even with A or X held (the eye is the sensor)")
+	rifle._pressed_out.clear()
+	input.head_position_override = Vector3.INF
+	var srows: Array = rifle._cabinet_rows
+	_ok(srows.size() == 2 and srows[0][0] == &"pedal_scope" and str(srows[0][3]).contains("eye off the scope") and srows[1][0] == &"pedal_scope_desktop",
+		"pedal: the rifle's hint says hold A or X to take the eye off the scope")
+	sys.is_powered_on = false
+	input.held_override = []
+	input._process(0.0)
+	_ok(not sensor.is_pressed() and not rifle.external_button(aux_a), "pedal: switched off, the sensor is off and the rifle is let go")
+	await _clear()
+
+	# Juusei no Requiem's sensor is its button 3: the rifle's Aux B, the pad's Y.
+	sys = await _gun_cabinet("g13jnr")
+	model = sys.get_model() as RetroSystemModelArcadeCabinet
+	input = model.arcade_input()
+	var rifle3 := sys.captive_controllers()[0] as LightGun
+	input.pedal_mode_override = AppPrefs.PEDAL_BUTTON
+	input.frame_override = input.wait_frames()
+	sys.is_powered_on = true
+	await _wait(3)
+	input.held_override = [rifle3]
+	input._process(0.0)
+	_ok(input.pedal_button() == 3 and rifle3.sent_button(ControllerBindings.LIGHTGUN_AUX_B) and not rifle3.sent_button(aux_a)
+			and (int(input.last_sent.get(0, 0)) & (1 << ControllerBindings.JOYPAD_Y)) != 0 and (int(input.last_sent.get(0, 0)) & (1 << ControllerBindings.JOYPAD_A)) == 0,
+		"pedal: Juusei no Requiem's scope sensor is MAME's button 3: the rifle's Aux B and the pad's Y, not Aux A")
+	sys.is_powered_on = false
+	input.held_override = []
+	input._process(0.0)
 
 
 ## Two guns, a pedal under each: each pedal is its own player's, and works for the gun in that player's hand only.

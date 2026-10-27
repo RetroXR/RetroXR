@@ -126,7 +126,14 @@ more than one screen, 3 to 8 players are 1,345, **2,959 are alternating** (`a`: 
   `ArcadeScreenModule.scope_zoom`), following the gun's own aim (`LightGun.last_aim`, the point on the picture the barrel meets) and kept inside the picture. It shows only a frame of the game running:
   dark while the game is only on show (attract) and while another machine's picture is on the glass. `arcade_form_tests scope/`; `--forms=golgo13` takes the eyepiece from the player's eye
   (`formscope_`). It is an approximation: no source says what the real scope showed (sources disagree on whether it is a magnified part of the main screen at all).
-- **Not built**: the Golgo 13 eyepiece sensor, a scope that follows the eye (the lens is always on). Nothing here has been seen to run: Silent Scope is NW in MAME 0.289.
+- **Golgo 13's SENSOR is built (2026-10-27)** and was why "the trigger only fires in the menus": MAME names it "Sensor" (`golgo13`, `g13knd`: `IPT_BUTTON2`, JVS P1 button 7) and "Scope Sensor" (`g13jnr`:
+  `IPT_BUTTON3`, `PORT_TOGGLE`) -- a proximity switch ("If the player is 10cm or closer then this will be on") that the game's shooting waits for. A deck box with a lamp (`ScopeSensor`, `ArcadePedalModule`),
+  on while the rifle is in a hand or the head is at the eyepiece, lifted by the pedal's gestures (`arcade.md` "The pedal", kind `sensor`). Sources disagree on where the real one sat (under the rifle's base or its
+  shoulder, against the top of the gun by the eye: low); that it is a switch the player trips and the game waits for is MAME's. **The digital scope is a scope now**: a round field, a vignette and a reticle with mil dots
+  (`arcade_screen.gdshader` `scope_reticle`; a Silent Scope's lens, which is the game's own second screen, has none), 3 times (`SCOPE_ZOOM`; it was 2.5 and a flat patch of the monitor, which read as "just a cropped part of the
+  screen"). Sources say the real one was an optical Tasco scope of modest magnification looking at a small CRT, with the game zooming its own picture when the sensor trips (low): the lens shows the part of the
+  monitor the rifle points at, magnified, and the game's own zoom is the game's. **Not built**: a scope that follows the eye (the lens is always on), the mission select's Up / Down Select and Enter (MAME's `vertical2` joystick and
+  button 3 on the cabinet's panel: the rifle's panel has START alone), a desktop view into the scope. Nothing here has been seen to run: Silent Scope is NW in MAME 0.289 and no Golgo 13 ROM was at hand.
 - Tests: `arcade_form_tests mount/ screens/ scope/`.
 
 ### Prop Cycle `propcycl` (Namco, 1996; System 22) — form `cycle`

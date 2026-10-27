@@ -652,8 +652,9 @@ static func screens_body(screen: Dictionary, shape: String, width: float) -> Dic
 const UPRIGHT_BENCH_Z := 0.98
 
 
-## How many times the scope of a rifle game of ONE screen (Golgo 13, Silent Scope EX) magnifies the part of the picture the rifle points at.
-const SCOPE_ZOOM := 2.5
+## How many times the scope of a rifle game of ONE screen (Golgo 13, Silent Scope EX) magnifies the part of the picture the rifle points at. It was 2.5 and a flat
+## rectangle: nothing said it magnified (Golgo 13, 2026-10-27); the lens draws a round field and a reticle now (arcade_screen.gdshader).
+const SCOPE_ZOOM := 3.0
 
 
 ## What a scope game shows in its rifle's scope (`l`, the table): {"index", "main": the part of the frame the monitor shows, "lens": the part the
@@ -690,6 +691,7 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 	spec["sockets"] = true
 	spec.erase("gun_style")
 	spec.erase("gun_pedals")
+	spec.erase("scope_sensor")
 	spec.erase("cockpit")
 	spec.erase("bench")
 	spec.erase("stage")
@@ -716,6 +718,9 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 			spec["players"] = gun_panels(guns, str(spec["gun_style"]))
 			if profile.gun_pedal():
 				spec["gun_pedals"] = gun_xs(guns, ArcadeCabinetSpecs.shapes()["wide"]["w"], str(spec["gun_style"]))
+			# A rifle's scope sensor (Golgo 13): a switch on the deck by the post, wired to the MAME button the game reads it as.
+			if form == ArcadeGameProfile.FORM_RIFLE and profile.scope_sensor_button() > 0:
+				spec["scope_sensor"] = {"button": profile.scope_sensor_button()}
 			# A ride (Rail Chase, The Lost World, Jurassic Park): a bench in front of the guns, a seat a gun, two at most, on a base that moves
 			# where the game's did.
 			if profile.has_seat() and form != ArcadeGameProfile.FORM_RIFLE:
@@ -913,7 +918,7 @@ static func gun_xs(guns: int, width: float, style: String = "holster") -> Array:
 static func _same_form(a: Dictionary, b: Dictionary) -> bool:
 	if str(a.get("shape", "upright")) != str(b.get("shape", "upright")):
 		return false
-	for key in ["players", "coins", "guns", "sockets", "socket_count", "gun_style", "gun_pedals", "cockpit", "bench",
+	for key in ["players", "coins", "guns", "sockets", "socket_count", "gun_style", "gun_pedals", "scope_sensor", "cockpit", "bench",
 			"stage", "bike", "cycle", "board", "holo", "screen", "deck_extra"]:
 		if not _same_value(a.get(key), b.get(key)):
 			return false

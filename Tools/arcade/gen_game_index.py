@@ -47,7 +47,8 @@ not the default, `;`-separated attributes (a letter and a value):
   i<name>   which rhythm game's own controller a `music` cabinet has (`ideck` beatmania's five keys and a turntable a player, `ipopn` pop'n music's nine
             buttons, `iguitar` GuitarFreaks' two guitars, `idrums` DrumMania's pads and bass pedal, `itaiko` a Taiko drum a player, `iconga` Mambo a Go-Go's three
             drums); a rhythm game of none of these has no `i` and is a plain panel,
-  f         the gun game has a foot pedal,
+  f<kind>   the gun game has a foot pedal (`f`: Time Crisis', down to come out of cover; `fa`: an ACTION pedal, up unless the player steps on it: Virtua Cop 3's ES mode) or, on a
+            rifle, a scope sensor (`fs2`, `fs3`: the MAME button number it is; Golgo 13's, which the game's shooting waits for),
   x<lever>  the driving game's gear lever, from the driver sources (shifters.py): `x3t` button 3 and MAME makes it a toggle, `x3h` button 3 held while
             the lever is high, `xs21` a sequential box (up on button 2, down on 1). A driving game with none has no lever,
   a         two players take turns on ONE panel (an alternating game whose upright had a
@@ -152,8 +153,13 @@ UNTYPED_GUNS = {
     "oceanhun": ("gunm", 2),
     "wcombat": ("gun", 2),
 }
-# Gun games with a foot pedal (step on it to come out of cover).
-GUN_PEDAL = {"timecris", "timecrs2", "timecrs3", "timecrs4", "crszone"}
+# Gun games with a foot pedal, by PARENT romset: what stepping on it does. "" is Time Crisis' kind (the pedal is DOWN to come out of cover and the gun hides you while it is up),
+# "a" is an ACTION pedal (Virtua Cop 3's: stepping on it switches the ES mode on, so it is UP unless the player does it).
+GUN_PEDAL = {"timecris": "", "timecrs2": "", "timecrs3": "", "timecrs4": "", "crszone": "", "vcop3": "a"}
+# A rifle's scope sensor, by PARENT romset: the MAME button number it is. Golgo 13's "Sensor" is BUTTON2 and the Juusei no Requiem's "Scope Sensor" BUTTON3 (namcos12.cpp, namcos10.cpp):
+# a proximity switch in the scope ("If the player is 10cm or closer then this will be on", MAME's own comment on it), which the game's shooting waits for -- with it off the trigger only
+# works in the menus.
+SCOPE_SENSOR = {"golgo13": 2, "g13knd": 2, "g13jnr": 3}
 # Ride-on motorbikes (and a quad, and a mountain bike): a seat you straddle and handlebars.
 BIKE = {"hangon", "hangonjr", "shangon", "enduror", "fourtrax", "rachero", "gprider", "motofren",
         "scross", "suzuka8h", "suzuk8h2", "coolridr", "cybrcycc", "manxtt", "harley", "motoraid",
@@ -475,7 +481,9 @@ def profile_of(machine, parent):
     if form == "fly" and name in THROTTLES:
         attrs.append("z")
     if family in GUN_PEDAL:
-        attrs.append("f")
+        attrs.append("f" + GUN_PEDAL[family])
+    elif family in SCOPE_SENSOR:
+        attrs.append("fs%d" % SCOPE_SENSOR[family])
     if form in ("race", "stand") and shift_attr(SHIFTERS.get(family, {})):
         attrs.append("x" + shift_attr(SHIFTERS[family]))
     if alternating(machine if parent is None else parent, players) or alternating(machine, players):

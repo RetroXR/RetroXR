@@ -1567,7 +1567,7 @@ const _SHOOTERS := {
 	"crszone": ["gun", true], "vnight": ["gun", false], "ptblank": ["gun", false], "ptblank2": ["gun", false],
 	"ptblank3": ["gun", false], "gunbuletw": ["gun", false], "sgunner": ["gun", false], "sgunner2": ["gun", false],
 	"hotd": ["gun", false], "hotd2": ["gun", false], "hotd3": ["gun", false], "hotd4": ["gun", false],
-	"hotdex": ["gun", false], "vcop": ["gun", false], "vcop2": ["gun", false], "vcop3": ["gun", false],
+	"hotdex": ["gun", false], "vcop": ["gun", false], "vcop2": ["gun", false], "vcop3": ["gun", true],
 	"ghostsqu": ["gun", false], "ghostsev": ["gun", false], "letsgoju": ["gun", false], "primevah": ["gun", false],
 	"ninjaslt": ["gun", false], "gunsur2": ["gun", false], "deathcox": ["gun", false], "confmiss": ["gun", false],
 	"lupinsho": ["gun", false], "sprtshot": ["gun", false], "claychal": ["gun", false], "xtrmhunt": ["gun", false],
@@ -1614,6 +1614,20 @@ func _group_game_profile() -> void:
 	var tc := P.for_romset("timecris")
 	_ok(tc.form() == P.FORM_GUN and tc.gun_count() == 1 and tc.gun_pedal(), "game: Time Crisis is one gun and a foot pedal")
 	_ok(P.for_romset("ptblank").gun_count() == 2 and not P.for_romset("ptblank").gun_pedal(), "game: Point Blank is two guns and no pedal")
+	# What a gun game's extra switch is: Time Crisis' pedal is a COVER (down out of cover), Virtua Cop 3's an ACTION (the ES mode: up until stepped on), a rifle's a scope SENSOR
+	# on the MAME button the game reads it as (Golgo 13's 2, Juusei no Requiem's 3) and no floor pedal.
+	_ok(tc.pedal_kind() == "cover" and P.for_romset("crszone").pedal_kind() == "cover" and P.for_romset("timecrs3e").pedal_kind() == "cover"
+			and P.for_romset("ptblank").pedal_kind() == "" and P.for_romset("sf2").pedal_kind() == "",
+		"game: Time Crisis' pedal is a cover pedal, Point Blank has none")
+	var vc3 := P.for_romset("vcop3")
+	_ok(vc3.pedal_kind() == "action" and vc3.gun_pedal() and vc3.gun_count() == 2 and P.for_romset("vcop3a").pedal_kind() == "action"
+			and P.for_romset("vcop2").pedal_kind() == "" and not P.for_romset("vcop2").gun_pedal(),
+		"game: Virtua Cop 3 has a foot pedal for the ES mode, an action one; Virtua Cop 2 has none, and a clone takes its parent's")
+	var g13 := P.for_romset("golgo13")
+	_ok(g13.pedal_kind() == "sensor" and not g13.gun_pedal() and g13.scope_sensor_button() == 2 and P.for_romset("g13knd").scope_sensor_button() == 2
+			and P.for_romset("g13jnr").scope_sensor_button() == 3 and P.for_romset("sscope").scope_sensor_button() == 0 and tc.scope_sensor_button() == 0
+			and vc3.scope_sensor_button() == 0 and P.for_romset("g13jnr").pedal_kind() == "sensor",
+		"game: Golgo 13's rifle has a scope sensor on MAME's button 2 (Juusei no Requiem's 3), no floor pedal, and no other game has one")
 	var t2 := P.for_romset("term2")
 	_ok(t2.form() == P.FORM_GUN_MOUNTED and t2.is_gun() and not t2.stick_visible(),
 		"game: Terminator 2's guns are on mounts, a gun game though MAME reads them as sticks")
