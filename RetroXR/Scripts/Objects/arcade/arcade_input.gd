@@ -498,14 +498,24 @@ func _body_point() -> Vector3:
 
 ## `state` with what the hands hold on player `p`'s panel added: the caps and the lever as buttons, the stick and the
 ## wheel as the thumbstick they stand in for, mapped as the player's own thumbstick is (_map_sticks), so the bindings
-## the player set for this machine apply to a hand as to a controller. The larger stick wins, as a pad's does.
+## the player set for this machine apply to a hand as to a controller. The larger stick wins, as a pad's does. What
+## a hand-held piece of the player's gear holds down (a guitar's frets and wail, its effect knob: RetroSystem.captive_gear) is added the same way.
 func _with_hands(state: Dictionary, p: int) -> Dictionary:
-	if p >= _controls.size() or _controls[p] == null or not is_instance_valid(_controls[p]):
-		return state
-	var panel := _controls[p]
-	var btn := panel.hand_buttons()
-	var left := panel.hand_thumbstick(0)
-	var right := panel.hand_thumbstick(1)
+	var btn := 0
+	var left := Vector2.ZERO
+	var right := Vector2.ZERO
+	if p < _controls.size() and _controls[p] != null and is_instance_valid(_controls[p]):
+		var panel := _controls[p]
+		btn = panel.hand_buttons()
+		left = panel.hand_thumbstick(0)
+		right = panel.hand_thumbstick(1)
+	for gear in _gear_of(p):
+		btn |= gear.held_pad_bits()
+		var sticks := gear.held_sticks()
+		if sticks[0].length_squared() > left.length_squared():
+			left = sticks[0]
+		if sticks[1].length_squared() > right.length_squared():
+			right = sticks[1]
 	if btn == 0 and left == Vector2.ZERO and right == Vector2.ZERO:
 		return state
 	var mapped := _map_sticks(left, right)
@@ -521,6 +531,18 @@ func _with_hands(state: Dictionary, p: int) -> Dictionary:
 	if hand_r.length_squared() > held_r.length_squared():
 		out["arx"] = int(mapped["arx"])
 		out["ary"] = int(mapped["ary"])
+	return out
+
+
+## The gear the cabinet is wired to that is player `p`'s and in a hand (a guitar), for what it holds down.
+func _gear_of(p: int) -> Array[ArcadeHeldGear]:
+	var out: Array[ArcadeHeldGear] = []
+	if _host == null or not _host.has_method("captive_gear"):
+		return out
+	for gear: Variant in _host.call("captive_gear"):
+		var item := gear as ArcadeHeldGear
+		if item != null and is_instance_valid(item) and item.player == p and held_by_hand(item):
+			out.append(item)
 	return out
 
 

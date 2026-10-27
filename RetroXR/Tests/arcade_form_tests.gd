@@ -40,6 +40,8 @@
 ##   rotary/    a dial AND a stick is a rotary joystick (Ikari Warriors, Top Gunner's bootleg): the stick leans and a collar on its shaft turns
 ##   solo/      DDR Solo's stage has six panels: up-left and up-right are MAME's buttons 3 and 4, a foot or a finger on them presses them
 ##   sticks/    a Taiko drummer's two sticks a player: laid in a cradle each side of the drum on a cord, taken out in a hand, a hit by a swing or a click or a trigger, kept at the cabinet
+##   guitar/    GuitarFreaks' guitars: a bay each side of the screen at its height (a plate, a boom and a clip, a shelf over the deck's lip with a cup), a guitar hung in each on a cord that drops in
+##              front of the apron, a START and a pedal a player, the places a hand takes it by (body or neck, left or right, and the desktop's), the picture that fits between them
 ##   shift/     a driving game's gear lever is the game's: its button, a toggle or held, a sequential box, none where MAME has none
 ##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
 ##   guns/      a gun game's guns are built, plugged in and hung, its pedal wired; another game frees them and their ports
@@ -171,6 +173,9 @@ func _run() -> void:
 		await _clear()
 	if _want("sticks"):
 		await _group_sticks()
+		await _clear()
+	if _want("guitar"):
+		await _group_guitar()
 		await _clear()
 	if _want("shift"):
 		await _group_shift()
@@ -2567,7 +2572,6 @@ func _group_music() -> void:
 	# Which of MAME's buttons each part is (konami/ksys573.cpp, namco/namcos10.cpp): a pad is not its neighbour.
 	var maps := {
 		"drums": {"HiHat": 3, "Snare": 4, "HighTom": 1, "LowTom": 2, "Cymbal": 5},
-		"guitar": {"Fret1": 1, "Fret2": 2, "Fret3": 3, "Pick": 6, "Wail": 7},
 		"taiko": {"FaceLeft": 3, "FaceRight": 2, "RimLeft": 4, "RimRight": 1},
 	}
 	var map_bad: Array = []
@@ -2583,7 +2587,7 @@ func _group_music() -> void:
 			if int(layout_btn.get(part_name, -1)) != int(table[part_name]):
 				map_bad.append("%s/%s" % [instrument, part_name])
 	var bass: Dictionary = ArcadeInstruments.panel("drums", 0, 0.0, false)["pedal"]
-	_ok(map_bad.is_empty() and int(bass["btn"]) == 6, "music: DrumMania's pads, GuitarFreaks' buttons and Taiko's zones are MAME's own buttons (%s)" % str(map_bad))
+	_ok(map_bad.is_empty() and int(bass["btn"]) == 6, "music: DrumMania's pads and Taiko's zones are MAME's own buttons (%s)" % str(map_bad))
 	# beatmania's keys: the first, third and fifth white in the front row, the second and fourth black and behind.
 	var key_rows_ok := true
 	for item: Dictionary in ArcadeInstruments.panel("deck", 0, 0.0, false)["parts"]:
@@ -2591,16 +2595,9 @@ func _group_music() -> void:
 		var tint: Color = item["color"]
 		key_rows_ok = key_rows_ok and (tint.v > 0.5) == white_key and ((item["pos"] as Vector2).y < 0.0) == white_key
 	_ok(key_rows_ok, "music: beatmania's keys 1, 3 and 5 are white and in the front row, 2 and 4 black and behind them")
-	# A second GuitarFreaks guitar is the first seen in a mirror (neck on the outside); a part in a mirror turns round, a sector's angles with it.
-	var guitars := ArcadeInstruments.panels("guitar", 2)
-	var neck_x := func(panel: Dictionary, part_name: String) -> float:
-		for item: Dictionary in panel["parts"]:
-			if str(item["name"]) == part_name:
-				return float((item["pos"] as Vector2).x)
-		return INF
-	_ok(float(neck_x.call(guitars[0], "GuitarNeck")) < float(neck_x.call(guitars[0], "GuitarBodyLower"))
-			and float(neck_x.call(guitars[1], "GuitarNeck")) > float(neck_x.call(guitars[1], "GuitarBodyLower")),
-		"music: GuitarFreaks' second guitar is the first in a mirror, its neck on the outside")
+	# beatmania's second deck is the first seen in a mirror (its turntable on the outside); a GuitarFreaks panel is a START and a pedal, the same for both players.
+	_ok(ArcadeInstruments.mirrors(ArcadeInstruments.DECK) and not ArcadeInstruments.mirrors(ArcadeInstruments.GUITAR) and not ArcadeInstruments.mirrors(ArcadeInstruments.TAIKO),
+		"music: only beatmania's second deck is a mirror of the first")
 	var mirrored_drum := {}
 	for item: Dictionary in ArcadeInstruments.panel("taiko", 0, 0.0, true)["parts"]:
 		mirrored_drum[str(item["name"])] = item
@@ -2720,7 +2717,7 @@ func _group_music() -> void:
 	var names := {
 		"bm2ndmix": ["Btn1", "Btn2", "Btn3", "Btn4", "Btn5", "DialPivot", "TurntableBase"],
 		"popn1": ["Btn1", "Btn2", "Btn3", "Btn4", "Btn5", "Btn6", "Btn7", "Btn8", "Btn9"],
-		"gtrfrks": ["Btn1", "Btn2", "Btn3", "Btn6", "Btn7", "DialPivot", "GuitarNeck", "GuitarBodyLower"],
+		"gtrfrks": ["Start", "Btn7", "BassPedalPlate"],
 		"drmn": ["Btn1", "Btn2", "Btn3", "Btn4", "Btn5", "Btn6", "BassPedalPlate"],
 		"taiko6": ["Btn1", "Btn2", "Btn3", "Btn4", "DrumShell"],
 		"mamboagg": ["Btn1", "Btn2", "Btn3", "Btn4", "Btn5", "Btn6", "Btn7", "Btn8", "Btn9", "Drum1", "Drum3"],
@@ -2868,31 +2865,7 @@ func _group_music() -> void:
 		var zone_node := taiko.find_child(n, true, false) as MeshInstance3D
 		on_shell = on_shell and absf(zone_node.position.z - zone_node.mesh.get_aabb().size.y * 0.5 - shell_top) < 0.001
 	_ok(on_shell, "music: Taiko's four zones stand on the drum's shell (its top at %.3f m)" % shell_top)
-	# A guitar's frets stand ON its neck, its pick and wail button on its body: a part's bottom is where what it stands on ends.
-	model.morph_to(_spec("gtrfrks"))
-	await _wait(3)
-	var guitar_panel := _panels(model)[0] as ArcadeControlModule
-	var neck := guitar_panel.find_child("GuitarNeck", true, false) as MeshInstance3D
-	var body := guitar_panel.find_child("GuitarBodyLower", true, false) as MeshInstance3D
-	var neck_top := neck.position.z + neck.mesh.get_aabb().size.y * 0.5
-	var body_top := body.position.z + body.mesh.get_aabb().size.y * 0.5
-	var stacked := true
-	var stack_log := ""
-	for n in [1, 2, 3, 6, 7]:
-		var on_part := guitar_panel.find_child("Btn%d" % n, true, false) as MeshInstance3D
-		var underside := on_part.position.z - on_part.mesh.get_aabb().size.y * 0.5
-		var floor_z := neck_top if n <= 3 else body_top
-		stack_log += "Btn%d %.4f/%.4f " % [n, underside, floor_z]
-		stacked = stacked and absf(underside - floor_z) < 0.001
-	_ok(stacked, "music: GuitarFreaks' frets stand on the neck and its pick and wail button on the body (%s)" % stack_log)
-	# Each player's guitar is the colour of their own panel.
-	var guitar_two := _panels(model)[1] as ArcadeControlModule
-	var colour_of := func(panel: ArcadeControlModule) -> Color:
-		return ((panel.find_child("GuitarBodyLower", true, false) as MeshInstance3D).get_active_material(0) as StandardMaterial3D).albedo_color
-	_ok(not (colour_of.call(guitar_panel) as Color).is_equal_approx(colour_of.call(guitar_two) as Color), "music: and the two players' guitars are not the same colour")
-	var knob_base := guitar_panel.find_child("DialBase", true, false) as MeshInstance3D
-	_ok(knob_base != null and absf(knob_base.position.z - knob_base.mesh.get_aabb().size.y * 0.5 - body_top) < 0.001,
-		"music: and its effect knob on the body too (its underside at %.4f, the body's top at %.4f)" % [knob_base.position.z - knob_base.mesh.get_aabb().size.y * 0.5 if knob_base != null else -1.0, body_top])
+	# GuitarFreaks has no controller on its panel: the guitar is its own scene (the guitar/ group), its panel only a START and a pedal.
 	# Mambo a Go-Go: nine pads, MAME's numbering: the drums left, centre, right are columns 1, 2, 3; pad 1 on top, pad 2 bottom left, pad 3 bottom right.
 	model.morph_to(_spec("mamboagg"))
 	await _wait(3)
@@ -3972,6 +3945,368 @@ func _group_sticks() -> void:
 	await _pull(sys)
 	await _wait(8)
 	_ok(sys.captive_gear().is_empty(), "sticks: pulling the board gives the cabinet its own form back and none of them")
+
+
+# --- guitar --------------------------------------------------------------------
+
+## The guitars of a cabinet: its gear that is an ArcadeGuitar, in the order the rack built them.
+func _guitars(sys: RetroSystem) -> Array[ArcadeGuitar]:
+	var out: Array[ArcadeGuitar] = []
+	for piece: Variant in sys.captive_gear():
+		if piece is ArcadeGuitar:
+			out.append(piece as ArcadeGuitar)
+	return out
+
+
+## What a VR pickup function is to a grab point: something with a controller on a tracker.
+const FAKE_CONTROLLER_HAND := "extends Node3D\nvar ctrl: XRController3D\nfunc get_controller() -> XRController3D:\n\treturn ctrl\n"
+
+
+func _fake_controller_hand(tracker: StringName) -> Node3D:
+	var script := GDScript.new()
+	script.source_code = FAKE_CONTROLLER_HAND
+	script.reload()
+	var hand := Node3D.new()
+	hand.set_script(script)
+	var controller := XRController3D.new()
+	controller.tracker = tracker
+	hand.set("ctrl", controller)
+	add_child(hand)
+	hand.add_child(controller)
+	_spawned.append(hand)
+	return hand
+
+
+## GuitarFreaks' two guitars: the bays each side of the screen, a guitar in each on a cord, a START and a pedal a player, the places a hand takes a guitar by, and the picture between them.
+func _group_guitar() -> void:
+	# The bays, pure: one a side, a guitar in each for two players and the first only for one.
+	var two := S.guitar_bays(2)
+	var one := S.guitar_bays(1)
+	_ok(two.size() == 2 and one.size() == 2 and float(two[0]["x"]) < 0.0 and is_equal_approx(float(two[0]["x"]), -float(two[1]["x"])) and is_equal_approx(float(two[1]["x"]), S.GUITAR_BAY_X)
+			and bool(two[0]["guitar"]) and bool(two[1]["guitar"]) and bool(one[0]["guitar"]) and not bool(one[1]["guitar"]),
+		"guitar: a cabinet has a bay each side of the screen, a guitar in each for two players and in the first only for one")
+	# The cabinet the game asks for: the wide body, the bays, the ordinary deck; START and a pedal a player; the picture fills what the guitars leave.
+	var spec := _spec("gtrfrks")
+	_ok(str(spec["shape"]) == "wide" and is_equal_approx(float(spec["width"]), S.GUITAR_BODY_W) and (spec.get("bays", []) as Array).size() == 2 and not spec.has("deck_extra")
+			and float(spec["width"]) > 1.4,
+		"guitar: GuitarFreaks' cabinet is the wide body %.2f m across with a bay a side and the ordinary deck" % float(spec["width"]))
+	var panels: Array = spec["players"]
+	var panel_ok := panels.size() == 2
+	for panel: Dictionary in panels:
+		panel_ok = panel_ok and (panel["parts"] as Array).is_empty() and int(panel["pedal"]["btn"]) == ArcadeGuitar.WAIL_BUTTON and not panel.has("gear") and not bool(panel["mirror"]) \
+				and float(panel["x1"]) <= S.GUITAR_DECK_HALF and float(panel["x0"]) >= -S.GUITAR_DECK_HALF and float(panel["gx1"]) - float(panel["gx0"]) < 0.1
+	_ok(panel_ok, "guitar: a player's panel is a START and a pedal that is the wail's button (BUTTON7), inside the deck between the bays, its grip only the START; the second is no mirror")
+	var tube := ArcadeCabinetBuilder.tube_of(spec)
+	_ok(tube.x > 0.6 and tube.x * 0.5 + 0.03 <= S.GUITAR_BAY_X - 0.13 and absf(tube.x / tube.y - 4.0 / 3.0) < 0.01,
+		"guitar: the picture (%.2f m wide) is a 4:3 one that fills the deck between the guitars and never reaches a guitar's body" % tube.x)
+	var coins: Array = spec["coins"]
+	_ok(coins.size() == 2 and absf(float(coins[0]) - (float(panels[0]["x0"]) + float(panels[0]["x1"])) * 0.5) < 0.001 and float(coins[0]) > -S.GUITAR_DECK_HALF and float(coins[1]) < S.GUITAR_DECK_HALF,
+		"guitar: a coin door under each player's panel, between the bays")
+	var bays_elsewhere := false
+	for romset in ["sf2", "taiko6", "bm2ndmix", "drmn", "popn1", "mamboagg", "ddrusa"]:
+		bays_elsewhere = bays_elsewhere or _spec(romset).has("bays")
+	_ok(not bays_elsewhere, "guitar: no other game's cabinet has bays")
+	_ok(ArcadeGuitar.FRETS == 3 and ArcadeGuitar.PICK_BUTTON == 6 and ArcadeGuitar.WAIL_BUTTON == 7 and not ArcadeInstruments.mirrors(ArcadeInstruments.GUITAR),
+		"guitar: the frets are BUTTON1 to BUTTON3, the pick BUTTON6 and the wail BUTTON7 (MAME's gtrfrks) and no panel is a mirror")
+	# The input actions a desktop player plays it with: Z X C and V, listed with the others the player can rebind, and in the pad's own table.
+	var keys := {"arcade_fret_r": KEY_Z, "arcade_fret_g": KEY_X, "arcade_fret_b": KEY_C, "arcade_wail": KEY_V}
+	var keys_ok := true
+	for action: String in keys:
+		var events := InputMap.action_get_events(action) if InputMap.has_action(action) else []
+		keys_ok = keys_ok and events.size() == 1 and events[0] is InputEventKey and (events[0] as InputEventKey).physical_keycode == keys[action] \
+				and DesktopBindings.JOYPAD_ACTIONS.has(action) and DesktopBindings.ACTION_LABELS.has(action)
+	_ok(keys_ok, "guitar: Z, X and C are the frets and V the wail (InputMap actions the player can rebind)")
+	# A cabinet built: the bays and what is in them.
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	_ok(_guitars(sys).is_empty() and model.find_child("Bays", true, false) == null, "guitar: a cabinet that is no GuitarFreaks has no bays and no guitar")
+	await _board(sys, "gtrfrks")
+	await _wait(12)
+	model = sys.get_model() as RetroSystemModelArcadeCabinet
+	var parts_missing: Array = []
+	for n in [1, 2]:
+		for part in ["BayPlate", "BayArm", "BayClipBack", "BayClipL", "BayClipR", "BayShelf", "BayCupBack", "BayCupL", "BayCupR", "BayHole", "BayGrommet", "GearRestBay"]:
+			if model.find_child("%s%d" % [part, n], true, false) == null:
+				parts_missing.append("%s%d" % [part, n])
+	_ok(parts_missing.is_empty(), "guitar: each bay has its plate, boom, clip, shelf, cup, cord hole, grommet and the marker its guitar hangs by (%s missing)" % str(parts_missing))
+	var guitars := _guitars(sys)
+	_ok(guitars.size() == 2 and guitars[0].player == 0 and guitars[1].player == 1, "guitar: GuitarFreaks on a cabinet has two guitars, one for each player (%d)" % guitars.size())
+	if guitars.size() != 2:
+		return
+	var made_ok := true
+	for guitar in guitars:
+		made_ok = made_ok and guitar.captive and guitar.kind == "guitar" and not guitar.is_in_group("spawned") and guitar.is_in_group("arcade_gear") and guitar.press_to_hold \
+				and guitar.second_hand_grab == XRToolsPickable.SecondHandGrab.SECOND and guitar.cabinet == model and absf(guitar.cord_length - 1.6) < 0.001 \
+				and is_instance_valid(guitar.captive_well) and guitar.captive_well.picked_up_object == guitar and guitar.mate == null
+	_ok(made_ok, "guitar: each is wired to the machine (kept out of what is saved and synced), held in a cradle, held while the grip is and by two hands, its cord 1.6 m")
+	var hang_ok := true
+	var hang_log := ""
+	for guitar in guitars:
+		var bay: Dictionary = S.guitar_bays(2)[guitar.player]
+		var want_at := model.global_transform * Vector3(float(bay["x"]), float(bay["y"]), float(bay["z"]))
+		hang_ok = hang_ok and guitar.global_position.distance_to(want_at) < 0.003 and guitar.global_basis.y.dot(model.global_basis.y) > 0.999 and guitar.global_basis.z.dot(model.global_basis.z) > 0.999
+		hang_log += " %.4f" % guitar.global_position.distance_to(want_at)
+	_ok(hang_ok, "guitar: each hangs upright in its bay, its face toward the player, its waist 1.16 m up and 0.54 m out (off by%s m)" % hang_log)
+	_ok(guitars[0].global_position.x < guitars[1].global_position.x and guitars[0].global_position.distance_to(guitars[1].global_position) > 1.0,
+		"guitar: the first player's is on the left of the screen, the second's on the right (%.2f m apart)" % guitars[0].global_position.distance_to(guitars[1].global_position))
+	# The cradle: seats the guitar upright where it hangs (the zone stands where a hand would, the grab point being a hand's pose), reaches a hand's width, and takes only its own guitar.
+	var cradle_ok := true
+	var gate_ok := true
+	for guitar in guitars:
+		var seated := guitar.captive_well.snap_pose_for(guitar)
+		cradle_ok = cradle_ok and seated.origin.distance_to(guitar.global_position) < 0.002 and seated.basis.y.dot(guitar.global_basis.y) > 0.999 and seated.basis.z.dot(guitar.global_basis.z) > 0.999 \
+				and is_equal_approx(guitar.captive_well.grab_distance, guitar.well_reach()) and guitar.well_reach() > 0.15
+		for other in guitars:
+			gate_ok = gate_ok and guitar.captive_well.snap_filter.is_valid() and bool(guitar.captive_well.snap_filter.call(other)) == (other == guitar)
+	_ok(cradle_ok, "guitar: a cradle seats its guitar exactly where it hangs and reaches a hand's width")
+	_ok(gate_ok, "guitar: a cradle takes the one guitar that came out of it, and not the other player's")
+	# The cord: from the jack straight down, in front of the apron, to the grommet on the apron's face under the bay, its boot pointing out of the face.
+	var cord_ok := true
+	var cord_log := ""
+	var entry_ok := true
+	for guitar in guitars:
+		var rope := guitar.cord()
+		var attach := guitar.find_child("CableAttachPoint", true, false) as Node3D
+		if rope == null or attach == null:
+			cord_ok = false
+			continue
+		cord_ok = cord_ok and rope.point_count() >= 20 and absf(rope.rest_length() - 1.6) < 0.04 and rope.get_start_node() == attach and rope.get_end_node() == guitar.cord_anchor \
+				and guitar.cord_anchor.name == "Entry" and model.is_ancestor_of(guitar.cord_anchor)
+		cord_log += " %.2f" % rope.rest_length()
+		var local := model.global_transform.affine_inverse() * guitar.cord_anchor.global_position
+		# The apron's face (its front at z 0.47, 0.80 to 0.92 high): the grommet stands on it at 0.86 m, not on the coin face under it.
+		entry_ok = entry_ok and absf(local.y - 0.86) < 0.002 and absf(local.z - 0.474) < 0.002 \
+				and absf(guitar.cord_anchor.global_position.x - guitar.global_position.x) < 0.001 \
+				and (-guitar.cord_anchor.global_basis.z).dot(model.global_basis.z) > 0.99 and (-attach.global_basis.z).dot(-guitar.global_basis.y) > 0.99
+	_ok(cord_ok, "guitar: each has a cord from its jack to the node of the cabinet it goes into, 1.6 m (%s)" % cord_log)
+	_ok(entry_ok, "guitar: the cord goes in on the apron's face under its bay and leaves the grommet outward, and leaves the jack downward")
+	await _wait(150)
+	var front_ok := true
+	var front_log := ""
+	for guitar in guitars:
+		var rope := guitar.cord()
+		var inside := 0
+		for point: Vector3 in rope.get_points():
+			var local := model.global_transform.affine_inverse() * point
+			# In front of the apron's face, which is the farthest the lower body reaches.
+			if local.y <= 0.93 and local.z < 0.465:
+				inside += 1
+		front_ok = front_ok and inside == 0
+		front_log += " %d" % inside
+	_ok(front_ok, "guitar: both cords hang IN FRONT of the apron once settled, none of their points in the cabinet (%s inside)" % front_log)
+	# START and a pedal a player, the pedal on the floor in front of the cabinet.
+	var feet_ok := true
+	for panel in _panels(model):
+		var pedal := (panel as ArcadeControlModule).find_child("Btn7", true, false) as Node3D
+		var start := (panel as ArcadeControlModule).find_child("Start", true, false)
+		var local := model.global_transform.affine_inverse() * pedal.global_position if pedal != null else Vector3.INF
+		feet_ok = feet_ok and pedal != null and start != null and local.y < 0.1 and local.z > 0.6
+	_ok(feet_ok and _panels(model).size() == 2, "guitar: a player's panel has a START and a pedal on the floor ahead of the cabinet")
+	var grips_ok := true
+	for panel in _panels(model):
+		var grip := (panel as ArcadeControlModule).grip()
+		grips_ok = grips_ok and grip != null and grip.panel_size.x < 0.1
+	_ok(grips_ok, "guitar: the panel's grip is only its START, so a laser finds the cups and the coin doors")
+	# The two guitars are the two players' colours.
+	var tint := func(guitar: ArcadeGuitar) -> Color:
+		return ((guitar.get_node("BodyLower") as MeshInstance3D).material_override as StandardMaterial3D).albedo_color
+	_ok(not (tint.call(guitars[0]) as Color).is_equal_approx(tint.call(guitars[1]) as Color), "guitar: and the two players' guitars are not the same colour")
+	# The guitar itself: its frets on the neck, its pick, wail button and knob on the body, its jack at the bottom.
+	var g := guitars[0]
+	var neck := g.get_node("GuitarNeck") as MeshInstance3D
+	var neck_face := neck.position.z + (neck.mesh as BoxMesh).size.z * 0.5
+	var guard := g.get_node("Pickguard") as MeshInstance3D
+	var guard_face := guard.position.z + (guard.mesh as BoxMesh).size.z * 0.5
+	var upper := g.get_node("BodyUpper") as MeshInstance3D
+	var upper_face := upper.position.z + (upper.mesh as CylinderMesh).height * 0.5
+	var stands := true
+	for n in 3:
+		var fret := g.get_node("Fret%d" % (n + 1)) as MeshInstance3D
+		stands = stands and absf(fret.position.z - (fret.mesh as CylinderMesh).height * 0.5 - neck_face) < 0.002
+	var wail := g.get_node("Wail") as MeshInstance3D
+	var pick := g.get_node("Pick") as MeshInstance3D
+	var knob := g.get_node("Knob/KnobBody") as MeshInstance3D
+	stands = stands and absf(wail.position.z - (wail.mesh as CylinderMesh).height * 0.5 - upper_face) < 0.002 \
+			and absf(pick.position.z - (pick.mesh as BoxMesh).size.z * 0.5 - guard_face) < 0.002 \
+			and absf(g.get_node("Knob").position.z + knob.position.z - (knob.mesh as CylinderMesh).height * 0.5 - guard_face) < 0.002
+	_ok(stands, "guitar: its frets stand on the neck's face, its pick and knob on the pickguard and its wail button on the body (a part's underside is where what it stands on ends)")
+	var fret_ys: Array[float] = []
+	for n in 3:
+		fret_ys.append((g.get_node("Fret%d" % (n + 1)) as Node3D).position.y)
+	_ok(fret_ys[0] > fret_ys[1] and fret_ys[1] > fret_ys[2] and fret_ys[2] > 0.2, "guitar: red is the fret farthest up the neck, then green, then blue, as MAME's buttons 1, 2 and 3 read")
+	# The places a hand takes it by.
+	var names: Array = []
+	var points := {}
+	for child in g.get_children():
+		if child is ArcadeGuitarGrab:
+			names.append(str(child.name))
+			points[str(child.name)] = child
+	names.sort()
+	_ok(names == ["BodyL", "BodyR", "Desktop", "NeckL", "NeckR"], "guitar: five places to take it by: the body or the neck with either hand, and the desktop's (%s)" % str(names))
+	var right_hand := _fake_controller_hand(&"right_hand")
+	var left_hand := _fake_controller_hand(&"left_hand")
+	var cradle_like := Node3D.new()
+	add_child(cradle_like)
+	_spawned.append(cradle_like)
+	var desk := _fake_hand()
+	var takes := func(grabber: Node3D, current: Variant) -> Array:
+		var out: Array = []
+		for n: String in points:
+			if (points[n] as ArcadeGuitarGrab).can_grab(grabber, current as ArcadeGuitarGrab) > 0.0:
+				out.append(n)
+		out.sort()
+		return out
+	_ok(takes.call(right_hand, null) == ["BodyR", "NeckR"] and takes.call(left_hand, null) == ["BodyL", "NeckL"],
+		"guitar: a hand takes the body or the neck by its own side's place, never the other hand's (%s, %s)" % [str(takes.call(right_hand, null)), str(takes.call(left_hand, null))])
+	_ok(takes.call(cradle_like, null) == ["BodyR"] and takes.call(desk, null) == ["Desktop"],
+		"guitar: the cradle seats it by the right hand's body place and the desktop's hand takes the desktop's alone (%s, %s)" % [str(takes.call(cradle_like, null)), str(takes.call(desk, null))])
+	_ok(takes.call(left_hand, points["BodyR"]) == ["NeckL"] and takes.call(right_hand, points["NeckL"]) == ["BodyR"]
+			and takes.call(right_hand, points["BodyL"]) == ["NeckR"] and takes.call(left_hand, points["NeckR"]) == ["BodyL"],
+		"guitar: the second hand takes the OTHER end with the other hand: the neck for a body hand, the body for a neck hand")
+	_ok(takes.call(right_hand, points["BodyR"]).is_empty() and takes.call(left_hand, points["NeckL"]).is_empty() and takes.call(cradle_like, points["BodyR"]).is_empty()
+			and takes.call(desk, points["BodyR"]).is_empty() and takes.call(desk, points["Desktop"]).is_empty(),
+		"guitar: nobody takes a second place with the same hand, a cradle takes no second place, and the desktop's hand has no second one")
+	# How it lies in a hand: the neck out to the player's left and forward for the body in the right hand, the face forward, the other way about for the left; the hands a forearm apart.
+	var held_ok := true
+	for n in ["BodyR", "NeckL"]:
+		var in_hand := ((points[n] as Node3D).transform as Transform3D).affine_inverse()
+		held_ok = held_ok and in_hand.basis.y.x < -0.5 and in_hand.basis.y.z < -0.3 and in_hand.basis.z.z < -0.3
+	for n in ["BodyL", "NeckR"]:
+		var in_hand := ((points[n] as Node3D).transform as Transform3D).affine_inverse()
+		held_ok = held_ok and in_hand.basis.y.x > 0.5 and in_hand.basis.y.z < -0.3 and in_hand.basis.z.z < -0.3
+	var apart := ((points["BodyR"] as Node3D).transform as Transform3D).affine_inverse() * (points["NeckL"] as Node3D).transform
+	var apart_mirror := ((points["BodyL"] as Node3D).transform as Transform3D).affine_inverse() * (points["NeckR"] as Node3D).transform
+	held_ok = held_ok and apart.origin.x < -0.1 and apart_mirror.origin.x > 0.1 and apart.origin.length() > 0.25 and apart.origin.length() < 0.5 \
+			and is_equal_approx(apart.origin.length(), apart_mirror.origin.length())
+	_ok(held_ok, "guitar: held with the body in the right hand the neck lies out to the left and forward and the face forward, the left-handed way the mirror; the hands %.2f m apart" % apart.origin.length())
+	var on_desk := ((points["Desktop"] as Node3D).transform as Transform3D).affine_inverse()
+	_ok(on_desk.basis.y.x < -0.5 and on_desk.basis.z.z > 0.5 and on_desk.origin.z < -0.2 and on_desk.origin.y < -0.05,
+		"guitar: in the desktop's hand its neck points out to the left, its face toward the eye and it lies further off than the pivot (%s)" % str(on_desk.origin))
+	# The hint over it: the VR rows name the hands it is held in, every glyph exists, and the desktop's name the keys.
+	var rows_by_id := func(rows: Array, id: StringName) -> Array:
+		for row: Array in rows:
+			if row[0] == id:
+				return row[2]
+		return []
+	var left_neck: Array = g._rows(ArcadeGuitarGrab.LEFT)
+	var right_neck: Array = g._rows(ArcadeGuitarGrab.RIGHT)
+	var glyph_ok: bool = rows_by_id.call(left_neck, &"fret_vr") == ["quest_trigger_left_outline", "quest_button_x_outline", "quest_button_y_outline"] \
+			and rows_by_id.call(left_neck, &"pick_vr") == ["quest_trigger_right_outline"] and rows_by_id.call(left_neck, &"wail_vr") == ["quest_stick_r_press"] \
+			and rows_by_id.call(right_neck, &"fret_vr") == ["quest_trigger_right_outline", "quest_button_a_outline", "quest_button_b_outline"] \
+			and rows_by_id.call(right_neck, &"pick_vr") == ["quest_trigger_left_outline"] and rows_by_id.call(right_neck, &"wail_vr") == ["quest_stick_l_press"]
+	var glyphs_exist := true
+	for row: Array in left_neck + right_neck:
+		for glyph: String in row[2]:
+			glyphs_exist = glyphs_exist and ResourceLoader.exists("%s/%s%s" % [HeldHint.GLYPH_DIR, glyph, ConsolePadDiagram.GLYPH_EXT])
+	_ok(glyph_ok and glyphs_exist and g.neck_side() == ArcadeGuitarGrab.LEFT,
+		"guitar: the hint names the trigger, X/A and Y/B of the neck hand and the trigger and stick of the body hand, whichever way it is held, with art for each")
+	var desk_caption := ""
+	for row: Array in left_neck:
+		if row[0] == &"fret_pc" or row[0] == &"wail_pc":
+			desk_caption += str(row[3])
+	_ok(desk_caption.contains("Z") and desk_caption.contains("X") and desk_caption.contains("C") and desk_caption.contains("V"), "guitar: and the desktop rows name its keys (%s)" % desk_caption)
+	# The desktop's hand: a key a fret, a click the strum, the wheel the knob, the middle and right buttons the wail.
+	var input := model.arcade_input()
+	var played := guitars[0]
+	played.captive_well.drop_object()
+	var pivot := _fake_hand()
+	pivot.global_transform = played.global_transform
+	played.pick_up(pivot)
+	pivot.set("held", played)
+	await _wait(3)
+	sys.is_powered_on = true
+	_ok(played.held_by_desktop() and ArcadeInput.held_by_hand(played) and input.engaged() and played.mate == null and played.desktop_companion() == null,
+		"guitar: taken by the desktop's hand it is held by it, nobody else's mate comes with it, and the cabinet has somebody at it")
+	var ids: Array = []
+	for row: Array in (played.get_node("HeldHint") as HeldHint)._rows:
+		ids.append(row[0])
+	_ok(ids.has(&"fret_pc") and ids.has(&"pick_pc") and ids.has(&"wail_pc") and ids.has(&"fret_vr") and not ids.has(&"rotate_yaw") and not ids.has(&"hand_hold_desktop"),
+		"guitar: the held hint says what the keys and the click do, and none of the turning verbs that do nothing in the corner of a view (%s)" % str(ids))
+	var red_bit := 1 << ArcadeProfiles.button_bit(1)
+	var blue_bit := 1 << ArcadeProfiles.button_bit(3)
+	var wail_bit := 1 << ArcadeProfiles.button_bit(7)
+	Input.action_press(&"arcade_fret_r")
+	Input.action_press(&"arcade_fret_b")
+	played._read_desktop(0.016)
+	_ok(played.frets_down() == [true, false, true] and played.held_pad_bits() == (red_bit | blue_bit), "guitar: Z and C held are the red and the blue fret")
+	Input.action_release(&"arcade_fret_r")
+	Input.action_release(&"arcade_fret_b")
+	played._read_desktop(0.016)
+	_ok(played.frets_down() == [false, false, false] and played.held_pad_bits() == 0, "guitar: let go of, they are up")
+	Input.action_press(&"arcade_wail")
+	played._read_desktop(0.016)
+	_ok(played.wailing() and played.held_pad_bits() == wail_bit, "guitar: V is the wail")
+	Input.action_release(&"arcade_wail")
+	var press_button := func(button: int, pressed: bool) -> void:
+		var ev := InputEventMouseButton.new()
+		ev.button_index = button
+		ev.pressed = pressed
+		ev.position = Vector2(5000, 5000)
+		ev.global_position = ev.position
+		Input.parse_input_event(ev)
+	# The input singleton takes a pushed button at the end of the frame.
+	press_button.call(MOUSE_BUTTON_RIGHT, true)
+	await _wait(3)
+	played._read_desktop(0.016)
+	_ok(played.wailing(), "guitar: and so is the right button")
+	press_button.call(MOUSE_BUTTON_RIGHT, false)
+	press_button.call(MOUSE_BUTTON_MIDDLE, true)
+	await _wait(3)
+	played._read_desktop(0.016)
+	_ok(played.wailing(), "guitar: and the middle one, a pad's left trigger")
+	press_button.call(MOUSE_BUTTON_MIDDLE, false)
+	await _wait(3)
+	played._read_desktop(0.016)
+	_ok(not played.wailing(), "guitar: and none of them let go of is not")
+	var click := func(button: int, shift: bool = false) -> void:
+		var ev := InputEventMouseButton.new()
+		ev.button_index = button
+		ev.pressed = true
+		ev.shift_pressed = shift
+		# Clear of the loading overlay's panel, which is still up in a suite and takes every click inside it; pushed at the viewport, so it is handled now.
+		ev.position = Vector2(5000, 5000)
+		ev.global_position = ev.position
+		get_viewport().push_input(ev)
+	input._taps.clear()
+	click.call(MOUSE_BUTTON_LEFT)
+	_ok(((input._taps.get(0, {}) as Dictionary).keys()) == [ArcadeProfiles.button_bit(6)] and input._taps.size() == 1 and played._pick_t == 0.0,
+		"guitar: a left click strums, the pick's BUTTON6 on its player's port, and flicks the bar")
+	input._taps.clear()
+	click.call(MOUSE_BUTTON_LEFT, true)
+	_ok(input._taps.is_empty(), "guitar: a click with Shift is the room's drop, not a strum")
+	click.call(MOUSE_BUTTON_WHEEL_UP)
+	played._read_desktop(0.016)
+	var up_state := input._with_hands({"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": 0}, 0)
+	_ok(played.held_sticks()[0].x > 0.9 and int(up_state["alx"]) > 25000, "guitar: the wheel up turns the knob right, out as the left stick's X (%d)" % int(up_state["alx"]))
+	for step in 30:
+		played._read_desktop(0.016)
+	_ok(played.held_sticks()[0] == Vector2.ZERO, "guitar: a notch of the wheel dies away by itself")
+	click.call(MOUSE_BUTTON_WHEEL_DOWN)
+	played._read_desktop(0.016)
+	_ok(played.held_sticks()[0].x < -0.9, "guitar: and down turns it the other way")
+	played.drop()
+	await _wait(3)
+	Input.action_press(&"arcade_fret_g")
+	played._tick(0.016)
+	Input.action_release(&"arcade_fret_g")
+	_ok(not played.held_by_desktop() and played.frets_down() == [false, false, false] and played.held_pad_bits() == 0 and played.held_sticks()[0] == Vector2.ZERO,
+		"guitar: let go of it ignores the keys")
+	# A game of one player: the second bay stays, empty.
+	var solo := _spec("gtrfrks")
+	solo["bays"] = S.guitar_bays(1)
+	model.morph_to(solo)
+	await _wait(14)
+	model = sys.get_model() as RetroSystemModelArcadeCabinet
+	var left_over := _guitars(sys)
+	_ok(left_over.size() == 1 and left_over[0].player == 0 and model.find_child("BayCupBack2", true, false) != null and model.find_child("GearRestBay2", true, false) == null
+			and model.find_child("GearRestBay1", true, false) != null,
+		"guitar: with one player the second bay stays with nothing in it (%d guitar)" % left_over.size())
+	# Another game's form takes them away.
+	model.morph_to(_spec("taiko6"))
+	await _wait(14)
+	model = sys.get_model() as RetroSystemModelArcadeCabinet
+	_ok(_guitars(sys).is_empty() and model.find_child("Bays", true, false) == null and model.find_child("BayCupBack1", true, false) == null and _sticks(sys).size() == 4,
+		"guitar: another game's form takes the bays and the guitars away")
 
 
 func _lowest_y(route: PackedVector3Array) -> float:

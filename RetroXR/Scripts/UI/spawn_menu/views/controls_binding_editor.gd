@@ -464,7 +464,7 @@ func _build_desktop_controls(vbox: VBoxContainer) -> void:
 	# A console's own page offers only what its hardware has: a NES has no X, no
 	# shoulders and no sticks. A pad whose row declares sticks keeps their keys.
 	var rest: Array = []
-	var rest_title := "Analog Sticks, Trigger & Pedal"
+	var rest_title := "Analog Sticks, Trigger, Pedal & Guitar"
 	if pad_id == ConsolePadArt.RETROPAD:
 		for action: String in DesktopBindings.managed_actions():
 			if not _desktop_control_of.has(action):

@@ -38,6 +38,8 @@ var cord_anchor: Node3D = null
 ## Whose it is: the cabinet's player (its panel and its port), and the player's left (0) or right (1) one of a pair.
 var player := 0
 var side := 0
+## What it is, by the table's name ("drumstick", "guitar").
+var kind := ""
 ## The other of the pair, for the desktop's other hand.
 var mate: ArcadeHeldGear = null
 ## The cabinet's model (RetroSystemModelArcadeCabinet) it belongs to, for the panel and the input it feeds.
@@ -66,7 +68,7 @@ func _ready() -> void:
 	add_to_group("arcade_gear")
 	grabbed.connect(_on_grabbed_signal)
 	dropped.connect(_on_dropped_signal)
-	_hint = HeldHint.attach(self, true, HINT_HEIGHT)
+	_hint = HeldHint.attach(self, true, hint_height())
 	_spawn_cord()
 
 
@@ -107,6 +109,26 @@ func _add_cord_to_scene() -> void:
 ## The cord (null before it exists, and for a thing with no cabinet).
 func cord() -> VerletRope:
 	return _rope
+
+
+## How far from its seat in the cradle a hand still takes it out, and it is put back (the cradle's grab distance): a stick's grip is a hand's width, a guitar's body wider.
+func well_reach() -> float:
+	return 0.10
+
+
+## The pad bits it holds down now, ORed into its player's state every frame (ArcadeInput._with_hands): a guitar's frets and wail. A thing that only taps a button (a drumstick: ArcadeInput.tap_pad_bit) holds none.
+func held_pad_bits() -> int:
+	return 0
+
+
+## The thumbsticks it stands in for, [left, right] (x right, y up, as a controller reads them): a guitar's effect knob is the right stick's X.
+func held_sticks() -> Array[Vector2]:
+	return [Vector2.ZERO, Vector2.ZERO]
+
+
+## How far above its origin the thing's held hint floats (a guitar is taller than a stick).
+func hint_height() -> float:
+	return HINT_HEIGHT
 
 
 ## What the grab driver and the pickup function ask for the preview of a socket (see PREVIEW_RADIUS).
@@ -164,6 +186,7 @@ const RAY_HOLD_ROWS: Array[StringName] = [&"rotate_yaw", &"rotate_roll", &"hand_
 func _on_grabbed_signal(_pickable: Node3D, by: Node3D) -> void:
 	_hung_watch = 0
 	var pickup := by as XRToolsFunctionPickup
+	_prepare_hint(by)
 	# Only a HAND holding it shows how to put it down: a snap zone taking it (the cradle) is not a hold.
 	if _hint != null and (pickup != null or by.is_in_group("desktop_hand")):
 		if desktop_fps_snap and by.is_in_group("desktop_hand"):
@@ -199,6 +222,11 @@ func _wake_if_hung() -> void:
 	if not get_world_3d().direct_space_state.intersect_ray(query).is_empty():
 		return
 	linear_velocity = Vector3.DOWN * HUNG_PUSH
+
+
+## A hand has arrived, before the hint is shown: a thing whose rows depend on how it is held (a guitar's two ends) declares them again here (`replace_rows`).
+func _prepare_hint(_by: Node3D) -> void:
+	pass
 
 
 ## A VR controller took hold: the subclass blocks what it must (a laser, a stick's locomotion).
@@ -237,3 +265,12 @@ func set_rows(rows: Array) -> void:
 		return
 	for row: Array in rows:
 		_hint.add_row(row[0], row[1], row[2], row[3], HeldHint.WHEN_HELD)
+
+
+## The same, replacing rows of those ids already declared (a hint is declared once and a row of an id already there is ignored).
+func replace_rows(rows: Array) -> void:
+	if _hint == null:
+		return
+	for row: Array in rows:
+		_hint.remove_row(row[0])
+	set_rows(rows)

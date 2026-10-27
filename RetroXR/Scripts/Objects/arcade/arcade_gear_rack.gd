@@ -12,8 +12,6 @@ extends RefCounted
 const SNAP_ZONE_SCENE := preload("res://addons/godot-xr-tools/objects/snap_zone.tscn")
 ## The group a cradle takes: anything wired to a cabinet.
 const GROUP := "arcade_gear"
-## How far from a cradle's seat a hand still takes the gear out of it, and puts it back.
-const WELL_REACH := 0.10
 
 var _system: Node3D = null
 var _items: Array[ArcadeHeldGear] = []
@@ -51,6 +49,7 @@ func spawn(rows: Array, cabinet: Node3D) -> void:
 			push_warning("ArcadeGearRack: %s is not a piece of gear" % str(row["scene"]))
 			continue
 		item.captive = true
+		item.kind = str(row.get("kind", ""))
 		item.player = int(row["player"])
 		item.side = int(row["side"])
 		item.cord_length = float(row["cord"])
@@ -63,7 +62,8 @@ func spawn(rows: Array, cabinet: Node3D) -> void:
 		if is_instance_valid(item.cord_anchor):
 			var boss := to_model * item.cord_boss()
 			var entry := to_model * item.cord_anchor.global_position
-			var route := CaptiveCord.hanging_route(boss, entry, item.cord_length, Vector3.BACK)
+			# The cord hangs down the face it goes into: the cabinet's front, unless the row says another (a form's marker names it).
+			var route := CaptiveCord.hanging_route(boss, entry, item.cord_length, row.get("front", Vector3.BACK) as Vector3)
 			var world := PackedVector3Array()
 			for point in route:
 				world.append(_system.global_transform * point)
@@ -88,9 +88,12 @@ func _build_well(item: ArcadeHeldGear, rest: Transform3D) -> void:
 	# `snap_require` cannot be left empty or the zone never lights a ghost and no ray grab can reach it.
 	well.snap_require = GROUP
 	well.snap_filter = _accepts.bind(item)
-	well.grab_distance = WELL_REACH
+	well.grab_distance = item.well_reach()
 	_system.add_child(well)
-	well.transform = rest
+	# A cradle seats a thing by its grab point (XRToolsSnapZone.snap_pose_for): the thing lies at the zone's transform TIMES the point's inverse. A stick's point is the identity; a guitar's is
+	# where a hand holds it, so the zone stands where the hand would, and the guitar hangs at `rest`.
+	var point := item._get_grab_point(well, null)
+	well.transform = rest * point.transform if point != null else rest
 	_wells.append(well)
 	item.captive_well = well
 	well.pick_up_object(item)

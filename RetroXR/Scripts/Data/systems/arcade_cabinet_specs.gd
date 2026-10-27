@@ -734,6 +734,7 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 	spec.erase("holo")
 	spec.erase("deck_extra")
 	spec.erase("socket_count")
+	spec.erase("bays")
 	var shape := base_shape
 	var players: int = clampi(profile.players, 1, MAX_PANELS)
 	var buttons: int = clampi(profile.buttons, 0, 6)
@@ -819,6 +820,10 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 				spec["players"] = ArcadeInstruments.panels(instrument, players)
 				if ArcadeInstruments.deck_extra(instrument) > 0.0:
 					spec["deck_extra"] = ArcadeInstruments.deck_extra(instrument)
+				if instrument == ArcadeInstruments.GUITAR:
+					# GuitarFreaks' guitars hang on the FRONT, one each side of the screen at its height: a wide body, a vertical glass, a bay a side (ArcadeCabinetSpecs.guitar_bays).
+					shape = "wide"
+					spec["bays"] = guitar_bays(players)
 			else:
 				spec["players"] = layout_panels(kind, players, buttons, profile.alternating())
 		ArcadeGameProfile.FORM_STAND:
@@ -861,7 +866,12 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 	var width := body_width(float(shapes()[shape]["w"]), spec["players"])
 	if form == ArcadeGameProfile.FORM_RACEGUN:
 		width = maxf(width, RACEGUN_WIDTH)
+	if spec.has("bays"):
+		width = GUITAR_BODY_W
 	var inches := screen_inches(profile)
+	if spec.has("bays"):
+		# The picture fills the deck between the guitars' bays.
+		inches = GUITAR_INCHES
 	var several := profile.screens() > 1 and profile.frame_aspect() > 0.0 and profile.scope_screen() < 0
 	# A body widened by three or more panels wants a picture to match (every upright body is 0.66 wide to begin with).
 	if shape == "upright" and not several:
@@ -919,6 +929,9 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 	elif doors == (base.get("coins", []) as Array).size() and shape == base_shape \
 			and is_equal_approx(width, float(base.get("width", sh["w"]))):
 		spec["coins"] = (base["coins"] as Array).duplicate()
+	elif spec.has("bays"):
+		# The deck between a guitar cabinet's bays holds the doors, one under each player's panel.
+		spec["coins"] = panel_centres(spec["players"]) if doors >= 2 else [0.0]
 	elif doors >= 3 and doors == (spec["players"] as Array).size():
 		# A door under each player's panel.
 		spec["coins"] = panel_centres(spec["players"])
@@ -963,6 +976,31 @@ static func gun_panels(guns: int, style: String = "holster") -> Array:
 	return out
 
 
+## A GuitarFreaks cabinet's guitars hang on its FRONT, one each side of the screen at its height, so the picture is clear of them and a player standing at the middle of the deck has one a
+## side: the deck's panels (a START and a pedal each) take GUITAR_DECK_HALF either side of the middle, a bay GUITAR_BAY_W beyond that, and the body is as wide as the two (the side panels
+## inside it). A guitar's waist hangs GUITAR_BAY_Y over the floor in the bay's middle, its body standing in a cup on a shelf that juts GUITAR_BAY_Z - 0.47 m out over the deck's lip and its neck
+## held by a clip on an arm out of the front panel (ArcadeCabinetBuilder `_build_bays`): the lowest end of it 0.95 m, the head 1.63 m, under the marquee. It hangs over the lip so that its cord
+## drops in front of the apron: a cord hangs between its two ends, and a one at the deck's own height would hang inside the cabinet. Estimates: nothing has measured a real cabinet.
+const GUITAR_DECK_HALF := 0.36
+const GUITAR_BAY_W := 0.34
+const GUITAR_BAY_X := GUITAR_DECK_HALF + GUITAR_BAY_W * 0.5
+const GUITAR_BODY_W := 2.0 * (GUITAR_DECK_HALF + GUITAR_BAY_W) + 0.04
+const GUITAR_BAY_Y := 1.16
+## How far in front of the cabinet's body the guitar hangs (its centre line).
+const GUITAR_BAY_Z := 0.54
+## The class of tube a guitar cabinet's picture is: the one that fills the deck's width between the bays (a 4:3 picture 0.68 m wide), more than the table's 25 inch.
+const GUITAR_INCHES := 38
+
+
+## The bays of a guitar cabinet, the first player's on the left: `{player, x (the bay's middle, about the cabinet's), y (the guitar's waist), z, guitar (a guitar hangs there: a game of one player
+## leaves the second bay empty)}`.
+static func guitar_bays(players: int) -> Array:
+	var out: Array = []
+	for i in 2:
+		out.append({"player": i, "x": -GUITAR_BAY_X if i == 0 else GUITAR_BAY_X, "y": GUITAR_BAY_Y, "z": GUITAR_BAY_Z, "guitar": i < clampi(players, 1, 2)})
+	return out
+
+
 ## The x each gun rests at on a body `width` wide: two at its sides, three with one
 ## in the middle (the coin doors then stand either side of it). One gun in a holster hangs on the right (Time
 ## Crisis's); one on a post stands in the middle of the deck (Operation Wolf's Uzi, Silent Scope's rifle).
@@ -984,7 +1022,7 @@ static func _same_form(a: Dictionary, b: Dictionary) -> bool:
 	if str(a.get("shape", "upright")) != str(b.get("shape", "upright")):
 		return false
 	for key in ["players", "coins", "guns", "sockets", "socket_count", "gun_style", "gun_pedals", "gun_scene", "scope_sensor", "cockpit", "bench",
-			"stage", "bike", "cycle", "board", "holo", "screen", "deck_extra"]:
+			"stage", "bike", "cycle", "board", "holo", "screen", "deck_extra", "bays"]:
 		if not _same_value(a.get(key), b.get(key)):
 			return false
 	var wa := float(a.get("width", shapes()[str(a.get("shape", "upright"))]["w"]))

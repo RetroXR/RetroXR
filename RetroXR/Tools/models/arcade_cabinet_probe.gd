@@ -243,6 +243,13 @@ func _glass(w: int, h: int) -> void:
 	print("[probe] glass %dx%d aspect=%.3f fit=%s lens=%s" % [w, h, screen.current_aspect(), screen.current_fit(), screen.lens() != null])
 
 
+func _lowest_y(points: PackedVector3Array) -> float:
+	var low := INF
+	for p: Vector3 in points:
+		low = minf(low, p.y)
+	return low
+
+
 ## Light (or put out) the glow of every player's grip, as aiming at it does.
 func _light_grips(on: bool) -> void:
 	for panel_node: Node in _model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS):
@@ -314,6 +321,54 @@ func _shot_forms() -> void:
 			_cam.fov = 50.0
 			_look(apron + Vector3(0.9, -0.15, 1.5), apron + Vector3(0.0, -0.2, 0.0))
 			await _save("formgear_" + romset)
+			for piece: Variant in gear_pieces:
+				var rope := (piece as ArcadeHeldGear).cord()
+				if rope != null:
+					var pts := rope.get_points()
+					print("[probe] cord of player %d after settling: first %s last %s lowest y %.2f visible=%s in_tree=%s start=%s end=%s" % [(piece as ArcadeHeldGear).player, str(pts[0]), str(pts[pts.size() - 1]),
+						_lowest_y(pts), str(rope.is_visible_in_tree()), str(rope.is_inside_tree()), str(rope.start_node.get_path()), str(rope.end_node.get_path())])
+			var cord_of := (first as ArcadeHeldGear).cord()
+			if cord_of != null:
+				var cp := first.cord_boss()
+				_cam.fov = 45.0
+				_look(cp + Vector3(0.25, -0.35, 1.5), cp + Vector3(0.0, -0.35, 0.0))
+				await _save("formcord_" + romset)
+				var rope_pts := cord_of.get_points()
+				var sample: Array[String] = []
+				for k in range(0, rope_pts.size(), 6):
+					sample.append("(%.2f %.2f %.2f)" % [rope_pts[k].x, rope_pts[k].y, rope_pts[k].z])
+				print("[probe] cord samples: %s" % " ".join(sample))
+			# A guitar cabinet: the bays from the front at the picture's height, the guitar in the desktop's hand (where DesktopPickup carries it: the lower right of the view), a fret down and a strum.
+			var guitar := first as ArcadeGuitar
+			if guitar != null:
+				var glass := _model.get_builtin_screen()
+				var front := glass.global_basis.z
+				_cam.fov = 55.0
+				_look(glass.global_position + front * 2.3 + Vector3(0.0, -0.05, 0.0), glass.global_position + Vector3(0.0, -0.05, 0.0))
+				await _save("formbay_" + romset)
+				_cam.fov = 40.0
+				_look(guitar.global_position + front * 1.1 + Vector3(0.5, 0.15, 0.0), guitar.global_position + Vector3(0.0, 0.1, 0.0))
+				await _save("formbaysid_" + romset)
+				_cam.fov = 75.0
+				_look(glass.global_position + front * 1.15 + Vector3(0.0, 0.25, 0.0), glass.global_position + Vector3(0.0, -0.05, 0.0))
+				var pivot := Node3D.new()
+				pivot.set_script(load("res://Scripts/Desktop/desktop_hand_pivot.gd"))
+				pivot.add_to_group("desktop_hand")
+				add_child(pivot)
+				pivot.global_transform = _cam.global_transform * Transform3D(Basis.IDENTITY, Vector3(0.20, -0.22, -0.45))
+				guitar.captive_well.drop_object()
+				guitar.pick_up(pivot)
+				await _frames(40)
+				await _save("formguitar_" + romset)
+				guitar._fret_down[0] = true
+				guitar._fret_down[2] = true
+				guitar._pick_t = 0.4
+				guitar._animate(0.0)
+				await _frames(2)
+				await _save("formstrum_" + romset)
+				print("[probe] guitar held=%s hung=%s pad bits=%d wailing=%s" % [str(guitar.is_picked_up()), str(guitar.captive_well.picked_up_object == guitar), guitar.held_pad_bits(), str(guitar.wailing())])
+				guitar._fret_down[0] = false
+				guitar._fret_down[2] = false
 			# The desktop's view with the first player's pair in the hands: where DesktopPickup carries a pair (the lower right and lower left of the view), one of them swung (a click).
 			var stick := first as ArcadeDrumstick
 			if stick != null and stick.mate != null:

@@ -308,23 +308,22 @@ func captive_gun_mounts() -> Array[Dictionary]:
 	return out
 
 
-## What this form is wired to besides its guns: hand-held gear on a cord (a Taiko drummer's sticks, ArcadeGearRack builds them), one row per `GearRest` marker the form has built: `{scene, kind, player, side,
-## rest: where the gear lies, in this model's frame, entry: where its cord goes into the cabinet (the marker's `Entry` child, a node the cord is tied to), cord: its length}`.
+## What this form is wired to besides its guns: hand-held gear on a cord (a Taiko drummer's sticks, a guitar: ArcadeGearRack builds them), one row per `GearRest` marker the form has built:
+## `{scene, kind, player, side, rest: where the gear lies, in this model's frame, entry: where its cord goes into the cabinet (the marker's `Entry` child, a node the cord is tied to), cord: its
+## length, front: the way the face it goes into looks, in this model's frame (the cord hangs down it)}`. The markers carry the player and the face themselves: a stick's lie on its player's
+## panel, a guitar's on the cabinet's front beside the screen.
 func captive_gear() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var inv := global_transform.affine_inverse()
-	for module: Variant in modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS):
-		var panel := module as ArcadeControlModule
-		if panel == null or not is_instance_valid(panel):
+	for found: Node in find_children("GearRest*", "Marker3D", true, false):
+		var marker := found as Marker3D
+		if marker == null or not marker.has_meta(&"scene"):
 			continue
-		for found: Node in panel.find_children("GearRest*", "Marker3D", true, false):
-			var marker := found as Marker3D
-			if marker == null or not marker.has_meta(&"scene"):
-				continue
-			out.append({
-				"scene": str(marker.get_meta(&"scene")), "kind": str(marker.get_meta(&"gear")), "player": panel.player, "side": int(marker.get_meta(&"side")),
-				"rest": inv * marker.global_transform, "entry": marker.get_node_or_null("Entry"), "cord": float(marker.get_meta(&"cord", 0.95)),
-			})
+		out.append({
+			"scene": str(marker.get_meta(&"scene")), "kind": str(marker.get_meta(&"gear")), "player": int(marker.get_meta(&"player", 0)), "side": int(marker.get_meta(&"side")),
+			"rest": inv * marker.global_transform, "entry": marker.get_node_or_null("Entry"), "cord": float(marker.get_meta(&"cord", 0.95)),
+			"front": marker.get_meta(&"front", Vector3.BACK) as Vector3,
+		})
 	return out
 
 

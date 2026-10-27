@@ -16,7 +16,7 @@ extends RefCounted
 
 const DECK := "deck"      ## beatmania: a turntable and five keys a player, two players
 const POPN := "popn"      ## pop'n music: nine domes in two rows, one player
-const GUITAR := "guitar"  ## GuitarFreaks: a guitar a player (three fret buttons, a pick, a wail button, an effect knob), two players
+const GUITAR := "guitar"  ## GuitarFreaks: a guitar a player, held (three fret buttons, a pick, a wail button, an effect knob: ArcadeGuitar), START and a pedal on the panel, two players
 const DRUMS := "drums"    ## DrumMania and Percussion Freaks: five pads and a bass pedal, one player
 const TAIKO := "taiko"    ## Taiko no Tatsujin: a drum a player, each side of its face and each side of its rim a zone, two players
 const CONGA := "conga"    ## Mambo a Go-Go: three drums of three pads, one player
@@ -36,6 +36,7 @@ const PANEL_GAP := 0.03
 ## the cradle and the `GearRest` marker the cabinet finds them by; ArcadeGearRack spawns, cords and holsters them).
 const GEAR := {
 	"drumstick": {"scene": "res://Scenes/Objects/peripherals/arcade_drumstick.tscn", "cord": 0.95},
+	"guitar": {"scene": "res://Scenes/Objects/peripherals/arcade_guitar.tscn", "cord": 1.6},
 }
 
 const WHITE := Color(0.93, 0.93, 0.90)
@@ -70,9 +71,9 @@ static func panels(instrument: String, players: int) -> Array:
 	return out
 
 
-## Does the second player's panel stand mirrored? beatmania's and GuitarFreaks' do (their turntable and neck on the outside); a Taiko drum is its own mirror.
+## Does the second player's panel stand mirrored? beatmania's does (its turntable on the outside); a Taiko drum is its own mirror, and so is a GuitarFreaks panel (START and a pedal).
 static func mirrors(instrument: String) -> bool:
-	return instrument == DECK or instrument == GUITAR
+	return instrument == DECK
 
 
 ## One panel about the deck's x `cx`.
@@ -192,24 +193,15 @@ static func _popn() -> Dictionary:
 	return {"x": Vector2(-0.220, 0.176), "y": Vector2(-0.058, 0.058), "start": Vector2(-0.205, 0.0), "parts": parts}
 
 
-## GuitarFreaks (konami/ksys573.cpp `gtrfrks`: Button R, G and B = BUTTON1 to 3, Pick = BUTTON6, Wailing = BUTTON7, an Effect Knob a dial, a START each): a guitar lying on the deck, its neck
-## toward the outside, three fret buttons at the neck's end, a pick bar, a wail button and the effect knob on its body. A real one is held and its wail is a tilt: a button stands for it.
+## GuitarFreaks (konami/ksys573.cpp `gtrfrks`: Button R, G and B = BUTTON1 to 3, Pick = BUTTON6, Wailing = BUTTON7, an Effect Knob a dial, a START each): the guitar is HELD gear (ArcadeGuitar, hung in
+## a holster on the cabinet's front each side of the screen, ArcadeCabinetSpecs.guitar_bays), so the player's panel is START and a pedal on the floor. The pedal is the wail's (BUTTON7): MAME has no pedal
+## for GuitarFreaks, the cabinet had two (one a player) by the player's say-so, and the one button a foot could work while the hands are busy is the wailing.
 static func _guitar() -> Dictionary:
-	var parts: Array = [
-		{"name": "GuitarNeck", "shape": "box", "pos": Vector2(-0.115, 0.0), "size": Vector2(0.19, 0.034), "h": 0.012, "color": Color(0.28, 0.17, 0.10), "decor": true},
-		{"name": "GuitarHead", "shape": "box", "pos": Vector2(-0.225, 0.0), "size": Vector2(0.04, 0.046), "h": 0.012, "color": Color(0.12, 0.08, 0.06), "decor": true},
-		# The body's two bouts, the one by the neck smaller.
-		{"name": "GuitarBodyUpper", "shape": "disc", "pos": Vector2(0.020, 0.0), "radius": 0.048, "h": 0.016, "color": Color(0.70, 0.12, 0.12), "decor": true, "player_color": true},
-		{"name": "GuitarBodyLower", "shape": "disc", "pos": Vector2(0.105, 0.0), "radius": 0.064, "h": 0.016, "color": Color(0.70, 0.12, 0.12), "decor": true, "player_color": true},
-		{"name": "Fret1", "btn": 1, "shape": "dome", "pos": Vector2(-0.195, 0.0), "radius": 0.0105, "h": 0.010, "z": 0.012, "color": Color(0.92, 0.12, 0.12)},
-		{"name": "Fret2", "btn": 2, "shape": "dome", "pos": Vector2(-0.160, 0.0), "radius": 0.0105, "h": 0.010, "z": 0.012, "color": Color(0.15, 0.75, 0.25)},
-		{"name": "Fret3", "btn": 3, "shape": "dome", "pos": Vector2(-0.125, 0.0), "radius": 0.0105, "h": 0.010, "z": 0.012, "color": Color(0.15, 0.40, 0.95)},
-		{"name": "Pick", "btn": 6, "shape": "box", "pos": Vector2(0.085, -0.032), "size": Vector2(0.050, 0.016), "h": 0.010, "z": 0.016, "color": Color(0.80, 0.80, 0.82)},
-		{"name": "Wail", "btn": 7, "shape": "dome", "pos": Vector2(0.135, 0.030), "radius": 0.012, "h": 0.010, "z": 0.016, "color": Color(0.95, 0.95, 0.95)},
-	]
 	return {
-		"x": Vector2(-0.245, 0.215), "y": Vector2(-0.07, 0.07), "start": Vector2(0.200, 0.0), "parts": parts,
-		"dial": {"pos": Vector2(0.085, 0.030), "kind": "knob", "radius": 0.014, "plinth": 0.020, "z": 0.016},
+		"x": Vector2(-0.15, 0.15), "y": Vector2(-0.07, 0.07), "start": Vector2(0.0, 0.0), "parts": [],
+		# The grip of the panel is only the START: the rest of the deck is the cabinet's, and a box over it would hide the cups and the coin doors under it from a laser.
+		"grip_x": Vector2(-0.04, 0.04),
+		"pedal": {"btn": 7, "x": 0.0, "z": 0.78, "color": Color(0.20, 0.20, 0.22)},
 	}
 
 

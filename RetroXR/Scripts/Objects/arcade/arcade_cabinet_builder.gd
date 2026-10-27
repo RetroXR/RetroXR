@@ -160,6 +160,8 @@ func build_form() -> void:
 func _build_extras() -> void:
 	for i in (_v.get("gun_pedals", []) as Array).size():
 		_build_pedal(i)
+	if _v.has("bays"):
+		_build_bays()
 	if _v.has("cockpit"):
 		_build_cockpit(_v["cockpit"])
 	if _v.has("bench"):
@@ -687,7 +689,7 @@ func _build_instrument(mod: Node3D, spec: Dictionary, index: int, to_panel: Tran
 	if spec.has("pedal"):
 		_bass_pedal(mod, to_panel, spec["pedal"])
 	for gear: Dictionary in spec.get("gear", []):
-		_gear_rest(mod, gear, to_panel)
+		_gear_rest(mod, gear, to_panel, int(spec.get("player", index)))
 
 
 ## One part of an instrument: a box (a key, a neck), a disc or a dome (a pad, a button; a dome has a rim of its own colour, as a pad has a hoop) or a sector (a drum's face or rim).
@@ -735,7 +737,7 @@ const GEAR_HALF_LENGTH := 0.17
 const GEAR_REST_BASIS := Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0))
 
 
-func _gear_rest(mod: Node3D, gear: Dictionary, to_panel: Transform3D) -> void:
+func _gear_rest(mod: Node3D, gear: Dictionary, to_panel: Transform3D, player: int) -> void:
 	var pos: Vector2 = gear["pos"]
 	var kind := str(gear["kind"])
 	var tag := "L" if int(gear["side"]) == 0 else "R"
@@ -746,6 +748,8 @@ func _gear_rest(mod: Node3D, gear: Dictionary, to_panel: Transform3D) -> void:
 	rest.set_meta(&"side", int(gear["side"]))
 	rest.set_meta(&"scene", str(info["scene"]))
 	rest.set_meta(&"cord", float(info["cord"]))
+	rest.set_meta(&"player", player)
+	rest.set_meta(&"front", Vector3.BACK)
 	# The cord goes in on the apron's face, 6 cm under the deck's front edge, straight out from the cradle: given in the cabinet's frame, carried into the marker's.
 	var edge: Vector2 = _sh.get("deck_a", Vector2(0.47, 0.92))
 	var face := float(_sh.get("apron_z", edge.x))
@@ -756,6 +760,59 @@ func _gear_rest(mod: Node3D, gear: Dictionary, to_panel: Transform3D) -> void:
 	for end in [-1.0, 1.0]:
 		ArcadeParts.box(_owner, mod, "GearLip%s%d" % [tag, 0 if end < 0 else 1], Vector3(0.042, 0.008, 0.016),
 			Vector3(pos.x, pos.y + 0.07 + end * (GEAR_HALF_LENGTH - 0.004), 0.008), _dark)
+
+
+## Where a guitar's cord goes into a guitar cabinet's front: on the apron's face under the bay, a hand's width under the shelf the cord drops past (a cord hangs between its two ends, so both are in front of the apron).
+const BAY_ENTRY_Y := 0.86
+const BAY_ENTRY_Z := 0.474
+## The deck's lip, where a bay's shelf starts, and how far the shelf juts past the guitar's centre line.
+const BAY_LIP_Z := 0.475
+const BAY_SHELF_BEYOND := 0.065
+
+
+## A guitar cabinet's bays (ArcadeCabinetSpecs.guitar_bays): for each side of the screen a place a guitar hangs. A dark plate on the front panel behind it, a boom out of the plate ending in a clip round the
+## guitar's neck below its frets, a shelf jutting out over the deck's lip with a cup on it, open at the front, for the guitar's lower end, a hole in the cup's floor the cord drops through, and the
+## `GearRestBay<n>` marker the cabinet finds the guitar by (ArcadeGearRack) with the `Entry` the cord goes into (a grommet on the apron's face under the bay). The marker's frame is the guitar's own,
+## upright, its face toward the player. A bay of a one-player game stays, empty: the cabinet has two and the second guitar is not there.
+func _build_bays() -> void:
+	var bays_root := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Bays")) as Node3D
+	var info: Dictionary = ArcadeInstruments.GEAR["guitar"]
+	var bays: Array = _v["bays"]
+	for i in bays.size():
+		var bay: Dictionary = bays[i]
+		var x := float(bay["x"])
+		var y := float(bay["y"])
+		var z := float(bay["z"])
+		var n := i + 1
+		# The plate on the front panel, behind the body and the neck.
+		ArcadeParts.box(_owner, bays_root, "BayPlate%d" % n, Vector3(0.22, 0.46, 0.012), Vector3(x, y + 0.06, 0.306), _dark)
+		# The boom out to the neck's back and the clip round the neck, below the frets.
+		var clip_y := y + 0.20
+		var clip_z := z - 0.020
+		ArcadeParts.box(_owner, bays_root, "BayArm%d" % n, Vector3(0.026, 0.026, clip_z - 0.312), Vector3(x, clip_y, (0.312 + clip_z) * 0.5), _metal)
+		ArcadeParts.box(_owner, bays_root, "BayClipBack%d" % n, Vector3(0.072, 0.040, 0.010), Vector3(x, clip_y, clip_z), _metal)
+		for sx in [-1.0, 1.0]:
+			ArcadeParts.box(_owner, bays_root, "BayClip%s%d" % ["L" if sx < 0 else "R", n], Vector3(0.008, 0.040, 0.035), Vector3(x + sx * 0.0295, clip_y, z + 0.0025), _metal)
+		# The shelf over the lip and the cup on it: three walls, open toward the player, round the hole the cord drops through.
+		var shelf_z1 := z + BAY_SHELF_BEYOND
+		ArcadeParts.box(_owner, bays_root, "BayShelf%d" % n, Vector3(0.16, 0.012, shelf_z1 - BAY_LIP_Z), Vector3(x, 0.920, (BAY_LIP_Z + shelf_z1) * 0.5), _dark)
+		ArcadeParts.box(_owner, bays_root, "BayCupBack%d" % n, Vector3(0.072, 0.046, 0.010), Vector3(x, 0.949, z - 0.031), _dark)
+		for sx in [-1.0, 1.0]:
+			ArcadeParts.box(_owner, bays_root, "BayCup%s%d" % ["L" if sx < 0 else "R", n], Vector3(0.010, 0.046, 0.062), Vector3(x + sx * 0.031, 0.949, z), _dark)
+		ArcadeParts.cylinder(_owner, bays_root, "BayHole%d" % n, 0.016, 0.003, Vector3(x, 0.9275, z), ArcadeParts.mat(Color(0.0, 0.0, 0.0), 0.0, 1.0), Vector3.UP)
+		ArcadeParts.cylinder(_owner, bays_root, "BayGrommet%d" % n, 0.017, 0.008, Vector3(x, BAY_ENTRY_Y, BAY_ENTRY_Z + 0.004), _dark, Vector3.BACK)
+		if not bool(bay.get("guitar", true)):
+			continue
+		var rest := ArcadeParts.node(_owner, bays_root, "Marker3D", "GearRestBay%d" % n, Vector3(x, y, z)) as Marker3D
+		rest.set_meta(&"gear", "guitar")
+		rest.set_meta(&"side", i)
+		rest.set_meta(&"scene", str(info["scene"]))
+		rest.set_meta(&"cord", float(info["cord"]))
+		rest.set_meta(&"player", int(bay.get("player", i)))
+		rest.set_meta(&"front", Vector3.BACK)
+		# A cord leaves what it is tied to along that node's -Z (the rope's boot): turned about Y, the entry's -Z points out of the face, so the cord comes out of the grommet toward the player before it hangs.
+		var entry := ArcadeParts.node(_owner, rest, "Marker3D", "Entry", Vector3(0.0, BAY_ENTRY_Y - y, BAY_ENTRY_Z - z)) as Marker3D
+		entry.basis = Basis(Vector3.UP, PI)
 
 
 ## A DJ's turntable: a metal plinth and a platter of black vinyl that turns about its spindle (`DialPivot`, with LEFT and RIGHT or a hand: a hand takes it anywhere on the platter).
@@ -785,7 +842,7 @@ func _knob(mod: Node3D, pos: Vector2, radius: float, plinth: float, base_z: floa
 ## that reaches it), not into the deck's slope.
 func _bass_pedal(mod: Node3D, to_panel: Transform3D, pedal: Dictionary) -> void:
 	var x := float(pedal["x"])
-	var z := BASS_PEDAL_Z
+	var z := float(pedal.get("z", BASS_PEDAL_Z))
 	var plate := ArcadeParts.box(_owner, mod, "BassPedalPlate", Vector3(0.20, 0.016, 0.30), Vector3.ZERO, _dark)
 	plate.transform = to_panel * Transform3D(Basis.IDENTITY, Vector3(x, 0.008, z))
 	var tread := ArcadeParts.box(_owner, mod, "Btn%d" % int(pedal["btn"]), Vector3(0.15, 0.020, 0.24), Vector3.ZERO, ArcadeParts.mat(pedal["color"], 0.0, 0.7))

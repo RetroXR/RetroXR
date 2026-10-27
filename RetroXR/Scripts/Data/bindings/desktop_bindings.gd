@@ -17,13 +17,14 @@ extends RefCounted
 
 const SAVE_PATH := "user://desktop_bindings.json"
 
-## Gamepad button actions (joypad + trigger), and taking cover in a gun game (ArcadeInput.PEDAL_ACTION).
+## Gamepad button actions (joypad + trigger), taking cover in a gun game (ArcadeInput.PEDAL_ACTION) and a held guitar's frets and wail (ArcadeGuitar).
 const JOYPAD_ACTIONS: Array[String] = [
 	"RETRO_JOYPAD_UP", "RETRO_JOYPAD_DOWN", "RETRO_JOYPAD_LEFT", "RETRO_JOYPAD_RIGHT",
 	"RETRO_JOYPAD_A",  "RETRO_JOYPAD_B",    "RETRO_JOYPAD_X",    "RETRO_JOYPAD_Y",
 	"RETRO_JOYPAD_L",  "RETRO_JOYPAD_R",    "RETRO_JOYPAD_L2",   "RETRO_JOYPAD_R2",
 	"RETRO_JOYPAD_L3", "RETRO_JOYPAD_R3",   "RETRO_JOYPAD_SELECT","RETRO_JOYPAD_START",
 	"trigger_left",    "arcade_pedal",
+	"arcade_fret_r",   "arcade_fret_g",     "arcade_fret_b",     "arcade_wail",
 ]
 
 ## Analog axis actions (each axis split into positive/negative actions).
@@ -54,6 +55,10 @@ const ACTION_LABELS: Dictionary = {
 	"RETRO_JOYPAD_START":  "Start",
 	"trigger_left":        "Trigger / Shoot",
 	"arcade_pedal":        "Take Cover (gun pedal)",
+	"arcade_fret_r":       "Guitar: red fret",
+	"arcade_fret_g":       "Guitar: green fret",
+	"arcade_fret_b":       "Guitar: blue fret",
+	"arcade_wail":         "Guitar: wail",
 	"RETRO_ANALOG_LEFT_X_NEGATIVE":  "Left Stick \u2190",
 	"RETRO_ANALOG_LEFT_X_POSITIVE":  "Left Stick \u2192",
 	"RETRO_ANALOG_LEFT_Y_NEGATIVE":  "Left Stick \u2191",

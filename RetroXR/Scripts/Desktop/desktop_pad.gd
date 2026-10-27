@@ -59,6 +59,8 @@ const PAD_ROWS := {
 	&"capture": [["xbox_stick_r_press"], "press to send buttons here"],
 	&"drop_desktop": [["xbox_lb_outline", "xbox_rt_outline"], "Drop"],
 	&"pedal_cover_desktop": [["xbox_rb_outline"], "Hold {g} to take cover"],
+	&"fret_pc": [["xbox_button_x_outline", "xbox_button_y_outline", "xbox_rb_outline"], "{g}: red, green, blue"],
+	&"wail_pc": [["xbox_lt_outline"], "Hold {g}: wail"],
 }
 ## Any other keyboard / mouse glyph, one for one.
 const PAD_GLYPHS := {
@@ -436,6 +438,10 @@ func _sync_map() -> void:
 	# index finger while RT fires. LB is Shift (LB + RT drops what is held), LT the middle button (it holds the
 	# look still).
 	_add_button("arcade_pedal", JOY_BUTTON_RIGHT_SHOULDER)
+	# A guitar held in the hand (ArcadeGuitar): X, Y and RB the red, green and blue frets under the right hand's fingers, RT the pick (the left button) and LT the wail (the middle one).
+	_add_button("arcade_fret_r", JOY_BUTTON_X)
+	_add_button("arcade_fret_g", JOY_BUTTON_Y)
+	_add_button("arcade_fret_b", JOY_BUTTON_RIGHT_SHOULDER)
 
 
 ## The map can be rewritten under this script: DesktopBindings.apply_for_system reloads the whole

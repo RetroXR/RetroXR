@@ -1266,3 +1266,49 @@ every size, speed and place below is an estimate (see the end).
   are a don and A / X a ka. **Not built**: the stick's pose in a VR hand (the controller model stays visible), a hit's own sound (the game's), a gamepad's stick as a swing (a pad plays by its
   triggers). **OWED**: a headset (the swing's feel above all), a Quest (cost of four ropes and four zones per cabinet), a real game and a real core
   (whether Taiko reads a 70 ms tap the way a drum is hit), two peers.
+
+## Captive gear: GuitarFreaks' guitars (2026-10-27)
+
+GuitarFreaks had a guitar drawn lying on the deck and a wail button. The cabinet is now WIRED to a guitar a player (`ArcadeGuitar extends ArcadeHeldGear`, the Taiko sticks' machinery above), hung in a bay each side
+of the screen at its height, taken down by the body, held as a guitar is (the body in one hand, the neck in the other) and put back. **Never run on a core or a ROM, in a headset or on a Quest**; every size, pose,
+speed and key below is an estimate (see the end).
+
+- **The cabinet.** `ArcadeCabinetSpecs.for_game` gives a game whose instrument is `guitar` the `wide` shape (a vertical glass) at `GUITAR_BODY_W` (1.44 m: the deck between the bays 2 x 0.36, a bay 0.34 each side, the
+  side panels), a `bays` list (`guitar_bays`: two, the first player's on the left; `guitar` false for the second of a game of one) and a picture of `GUITAR_INCHES` 38 (4:3, 0.65 m, which fills the deck between
+  the guitars and never reaches a guitar's body: the table's 25 inch looked lost in a body this wide). `"bays"` is in `_same_form`. The panels are START and a pedal each (`ArcadeInstruments._guitar`: no parts,
+  `grip_x` +-0.04 so a laser finds the cups and the coin doors, `pedal` = MAME's wail, `BUTTON7`, on the floor 0.78 m out), the coin doors under them.
+- **A bay** (`ArcadeCabinetBuilder._build_bays`, one `Bays` form node): a dark plate on the front panel behind the guitar, a boom (`BayArm`) out of it to a clip round the NECK below the frets (`BayClipBack`, `BayClipL/R`),
+  a shelf (`BayShelf`) jutting 0.065 m past the guitar's line out over the deck's lip with a cup on it (`BayCupBack`, `BayCupL/R`: three walls, open toward the player), a black disc where the cord drops through
+  the shelf (`BayHole`), a grommet on the apron's face (`BayGrommet`) and the `GearRestBay<n>` marker (meta gear/side/scene/cord/player/front) with its `Entry` child. A bay of a one-player game keeps its hardware and has no marker.
+  The marker's frame is the guitar's own: upright, its face toward the player, its waist at `GUITAR_BAY_Y` 1.16 m and `GUITAR_BAY_Z` 0.54 m out: the lowest end of it 0.95 m, the head 1.63 m, under the marquee.
+- **Why it hangs OVER the deck's lip, and why the entry looks the way it does.** A cord hangs in the plane of its two ends. With the guitar at the deck's own height (z 0.44) the cord hung INSIDE the cabinet: the rope has no
+  collision with the body, and the windowed probe's samples were at z 0.23 to 0.35 behind a 0.40 m face. Two more things the samples showed: **a rope leaves a node along its local -Z** (the `Entry`'s default
+  -Z points INTO the cabinet, so the up-leg arrived from behind: the entry is turned about Y so its -Z points out of the face; the guitar's `CableAttachPoint` is turned about X so its -Z is the guitar's own down),
+  and a lay far from the equilibrium plane swings through the body. The cord now drops from the jack straight down in front of the apron (z 0.53 to 0.58) and goes in on the apron's face under the bay.
+  `arcade_form_tests guitar/` "both cords hang IN FRONT of the apron once settled" is the oracle.
+- **The generalisation of the rack that came with it.** `ArcadeGearRack._build_well` stands the cradle at `rest * grab_point.transform`: a snap zone seats a thing at its OWN transform times the point's inverse
+  (`XRToolsSnapZone.snap_pose_for`), a stick's point is the identity and a guitar's is where a hand holds it, so without it the guitar hung at the hand's pose. A gear's `well_reach()` is its cradle's reach (the stick's 0.10 m,
+  the guitar's 0.20), `kind` is the table's name, the marker may name its player and the face the cord goes into (`captive_gear()` finds `GearRest*` markers anywhere in the model), `hint_height()` and `_prepare_hint(by)` let a thing
+  declare its hint rows when a hand arrives, `held_pad_bits()` and `held_sticks()` are what it holds down, and `ArcadeInput._with_hands` ORs them into its player's state (the buttons, and the knob on the left stick's X, the
+  axis a panel's dial uses: `DialGrab.stick(0)`) beside what the panel's own hands hold.
+- **The places a hand takes it by** (`ArcadeGuitarGrab`, five of them in `arcade_guitar.tscn`, each the pose of a controller on the guitar): `BodyR` and `NeckL` (the body in the right hand, the neck in the left), `BodyL` and
+  `NeckR` (the mirror) and `Desktop`. The FIRST hand takes the nearest place of ITS side; the SECOND (`second_hand_grab = SECOND`; the driver averages both poses) takes the OTHER end with the other hand; the cradle seats it
+  by `BodyR`; the desktop's pivot takes `Desktop` alone. Held, the neck lies out to the player's left (right for the mirror), forward and 17 degrees up, the face forward and up, the hands 0.33 m apart.
+  **Held at its bay it is shown hanging in it** (the grab driver's snap preview, as any seated thing is): a hand takes it away from the bay to play, and an upright neck would read as raised.
+- **Playing it.** The neck hand's trigger, X/A and Y/B are the red, green and blue frets (BUTTON1 to 3, held; the trigger latched 0.6 / 0.4); the body hand's trigger strums (a tap of BUTTON6, 70 ms, `tap_pad_bit`, once a
+  squeeze, a flick of the pick bar, a haptic); its stick up is the wail (BUTTON7, latched), its stick sideways the effect knob (dead zone 0.15), and the neck RAISED past 25 degrees (latched at 20) is the wail too, the tilt
+  switch of a real one. **One hand** on it works the frets and a free hand's trigger strums. The pedal is the wail's too (MAME has none for GuitarFreaks: the one button a foot can work while the hands are busy). **Desktop**:
+  Z, X, C are the frets and V the wail (`arcade_fret_r/g/b`, `arcade_wail` in the InputMap, in `DesktopBindings.JOYPAD_ACTIONS` so the player can rebind them, X / Y / RB and LT on a pad through `DesktopPad`), a left click strums,
+  the right or middle button wails, the wheel turns the knob (a notch dies away in 0.25 s); the guitar rides in the lower right (`FPS_SNAP_LOCAL`) lying across the view with its face to the eye (`Desktop`'s pose: its
+  waist 0.28 m farther off and 0.10 m lower than the pivot, so a 0.65 m guitar is not all of the view). The held hint names the hands it is held in (`neck_side()` from the first hand's place) in the headset's glyphs and the keys
+  on the desktop.
+- **Tests.** `arcade_form_tests guitar/` (the data, the cabinet, the bays, the guitars' build and hang, the cradle's pose and gate, the cords and where they settle, the pedals, the colours, the parts standing on one another,
+  the five places and the matrix of who takes which, how it lies in a hand, the hint's glyphs and keys, the desktop hand's keys, click, wheel and buttons, the one-player bay, the form's removal) and `arcade_hand_tests guitar/`
+  (a fake hand on a tracker takes it by the real pickup function, the second hand takes the neck, frets, strum, wail with its hysteresis, the knob, the tilt, what reaches the port through `_with_hands`, the left-handed way about,
+  an attract game started by taking it). Probe `arcade_cabinet_probe --forms=gtrfrk3m` (WINDOWED): `form_`, `formbay_` (the bays from the front), `formbaysid_`, `formcord_` (the cord), `formguitar_` / `formstrum_` (the desktop's
+  view with it in the hand and two frets down).
+- **Estimates and OWED.** Everything's size and place (the guitar's 0.65 m, the bays, the 1.16 m, the 0.20 m reach, the cord's 1.6 m), the grip poses (nothing has put a guitar in a headset: the numbers are a guess at how
+  one is held), the 25 degrees, the knob's dead zone and the key choices, that the wail is a button on the pedal and the pad, and the picture's 38 inches (the table says 25). **The user's "due pedaliere"** was read as a pedal a
+  player (two on the floor); if they meant a second pedal each, the second has no MAME input to be. **Not built**: the guitar's visible hand pose (the controller model stays), a sound for the pick, a strap, a
+  guitar for a third player. **OWED**: a headset (how it holds, whether the neck hand's buttons are reachable with the fingers curled), a Quest, a real game and core (whether `BUTTON7` as L2 reads as the wail, and a 70 ms
+  tap as a pick), two peers.

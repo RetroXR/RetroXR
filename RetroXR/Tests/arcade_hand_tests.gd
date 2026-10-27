@@ -32,6 +32,8 @@
 ##   carry/    a hand on a control cannot pick the cabinet up, and its squeeze does not attach
 ##   use/      a finger on a cap starts an attract game, and a hand on the panel is somebody at the cabinet
 ##   sticks/    a Taiko drummer's sticks in a headset's hands: the trigger and the thumb buttons hit the drum on the hand's own side, a swing hits where the head comes down
+##   guitar/    a GuitarFreaks guitar in two hands: the neck hand's trigger, X/A and Y/B are the frets, the body hand's trigger strums and its stick wails and turns the knob, the neck raised wails,
+##              one hand works the frets and a free hand strums, and all of it reaches the port through the cabinet's input
 extends Node
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
@@ -84,7 +86,7 @@ func _run() -> void:
 			["twin", _group_twin], ["wheel", _group_wheel], ["dial", _group_dial], ["ball", _group_ball],
 			["lever", _group_lever], ["helm", _group_helm], ["bars", _group_bars], ["rider", _group_rider], ["cycle", _group_cycle], ["slot", _group_slot], ["fly", _group_fly],
 			["input", _group_input],
-			["laser", _group_laser], ["carry", _group_carry], ["use", _group_use], ["sticks", _group_sticks]]:
+			["laser", _group_laser], ["carry", _group_carry], ["use", _group_use], ["sticks", _group_sticks], ["guitar", _group_guitar]]:
 		if _want(str(g[0])):
 			await (g[1] as Callable).call()
 			await _clear()
@@ -1814,4 +1816,267 @@ func _group_sticks() -> void:
 	for held: ArcadeDrumstick in [left, right, second]:
 		if held.is_picked_up() and ArcadeInput.held_by_hand(held):
 			held.drop()
+	await _wait(2)
+
+
+# --- guitar --------------------------------------------------------------------
+
+## A GuitarFreaks player's guitar.
+func _guitar(sys: RetroSystem, player: int) -> ArcadeGuitar:
+	for piece: Variant in sys.captive_gear():
+		var guitar := piece as ArcadeGuitar
+		if guitar != null and guitar.player == player:
+			return guitar
+	return null
+
+
+## A hand takes `guitar` by the place called `point_name` as a squeeze does: the controller where a hand would be for that place (its pose the playing pose: the guitar's own, so it only turns), and the hand's
+## pickup function reaching for what it is in (its cradle, or the other hand's grip).
+func _take_guitar(h: Dictionary, guitar: ArcadeGuitar, point_name: String) -> void:
+	var point := guitar.get_node(point_name) as ArcadeGuitarGrab
+	# The controller's pose in the guitar's frame is the point's transform: the controller stands at the guitar's times that. A first hand is at the guitar's own orientation turned into a hand's.
+	var held_already := guitar.is_picked_up() and ArcadeInput.held_by_hand(guitar)
+	if held_already:
+		(h["origin"] as XROrigin3D).global_transform = guitar.global_transform * point.transform
+	else:
+		(h["origin"] as XROrigin3D).global_transform = Transform3D(Basis.IDENTITY, guitar.global_position - point.transform.affine_inverse().origin)
+	if not h.has("pickup"):
+		var made := PICKUP_SCENE.instantiate() as XRToolsFunctionPickup
+		_ctrl(h).add_child(made)
+		h["pickup"] = made
+		await _wait(2)
+	var pickup := h["pickup"] as XRToolsFunctionPickup
+	var inside := guitar.captive_well.picked_up_object == guitar
+	pickup._pick_up_object(guitar.captive_well if inside else guitar)
+	await _wait(2)
+
+
+func _stick_push(h: Dictionary, value: Vector2) -> void:
+	(h["tracker"] as XRControllerTracker).set_input(&"primary", value)
+
+
+func _group_guitar() -> void:
+	var r := await _rig("gtrfrks")
+	var sys: RetroSystem = r["sys"]
+	var input: ArcadeInput = r["input"]
+	await _wait(8)
+	var g := _guitar(sys, 0)
+	var other := _guitar(sys, 1)
+	_ok(g != null and other != null, "guitar: a GuitarFreaks cabinet has a guitar for each of its two players")
+	if g == null or other == null:
+		return
+	var red := 1 << ArcadeProfiles.button_bit(1)
+	var green := 1 << ArcadeProfiles.button_bit(2)
+	var blue := 1 << ArcadeProfiles.button_bit(3)
+	var wail := 1 << ArcadeProfiles.button_bit(7)
+	var pick := ArcadeProfiles.button_bit(6)
+	# Hanging in its cradle it holds nothing down, whatever its buttons say.
+	g._fret_down[0] = true
+	g._wail_key = true
+	g._knob = 0.8
+	_ok(g.held_pad_bits() == 0 and g.held_sticks()[0] == Vector2.ZERO and not input.engaged(), "guitar: in its cradle it holds nothing down and nobody is at the cabinet")
+	g._fret_down[0] = false
+	g._wail_key = false
+	g._knob = 0.0
+	# The body in the right hand.
+	var hr := _hand("right")
+	await _take_guitar(hr, g, "BodyR")
+	# Held at its bay it is SHOWN in it (the cradle's preview, as any seated thing is): the hand takes it off to where a player holds a guitar, and it lies the way a hand has it.
+	_ok(g.global_basis.y.y > 0.99 and g.captive_well != null, "guitar: held at its bay it is still shown hanging in it")
+	(hr["origin"] as XROrigin3D).global_position += Vector3(0.0, 0.0, 0.8)
+	await _wait(60)
+	var holders := g.holders()
+	_ok(g.holding_controller() == _ctrl(hr) and ArcadeInput.held_by_hand(g) and input.engaged() and holders.size() == 1 and int(holders[0]["role"]) == ArcadeGuitarGrab.BODY
+			and int(holders[0]["hand"]) == ArcadeGuitarGrab.RIGHT,
+		"guitar: a right hand that takes it by its body holds the body, and somebody is at the cabinet")
+	_ok(g.neck_side() == ArcadeGuitarGrab.LEFT and g.global_basis.y.y < ArcadeGuitar.TILT_OFF, "guitar: with the body in the right hand the neck is the left's, and lies out below the wail's angle (%.2f)" % g.global_basis.y.y)
+	# One hand: it works the frets, a free hand strums.
+	var hl := _hand("left")
+	_trigger(hr, 1.0)
+	g._read_vr()
+	_ok(g.frets_down()[0] and (g.held_pad_bits() & red) != 0, "guitar: with one hand on it, that hand's trigger is the red fret")
+	_trigger(hr, 0.0)
+	g._read_vr()
+	input._taps.clear()
+	_trigger(hl, 1.0)
+	g._read_vr()
+	_ok(_tapped(input, 0) == [pick], "guitar: and the free hand's trigger strums, the pick's BUTTON6 on the player's own port (%s)" % str(_tapped(input, 0)))
+	_trigger(hl, 0.0)
+	g._read_vr()
+	# The neck in the left hand: now the two have their parts.
+	await _take_guitar(hl, g, "NeckL")
+	await _wait(6)
+	holders = g.holders()
+	_ok(holders.size() == 2 and int(holders[0]["role"]) == ArcadeGuitarGrab.BODY and int(holders[1]["role"]) == ArcadeGuitarGrab.NECK and int(holders[1]["hand"]) == ArcadeGuitarGrab.LEFT,
+		"guitar: the left hand takes the neck as the second hand, by the real pickup function (%d holders)" % holders.size())
+	_ok(g.holding_controller() == _ctrl(hr) and g.neck_side() == ArcadeGuitarGrab.LEFT, "guitar: the neck is the left hand's")
+	var settled := g.global_transform
+	await _wait(10)
+	_ok(g.global_position.distance_to(settled.origin) < 0.01 and g.global_basis.y.dot(settled.basis.y) > 0.995,
+		"guitar: held by both hands it keeps still when they are where the two places say (%.3f m)" % g.global_position.distance_to(settled.origin))
+	# The frets: the neck hand's trigger, X and Y, held as buttons are.
+	input._taps.clear()
+	_trigger(hl, 1.0)
+	g._read_vr()
+	_ok(g.frets_down() == [true, false, false] and g.held_pad_bits() == red and input._taps.is_empty(),
+		"guitar: the neck hand's trigger is the red fret, held, and no strum (%s)" % str(g.frets_down()))
+	_button(hl, &"ax_button", true)
+	g._read_vr()
+	_ok(g.frets_down() == [true, true, false] and g.held_pad_bits() == (red | green), "guitar: its X is the green fret")
+	_button(hl, &"by_button", true)
+	g._read_vr()
+	_ok(g.frets_down() == [true, true, true] and g.held_pad_bits() == (red | green | blue), "guitar: its Y the blue, all three held together")
+	_trigger(hl, 0.5)
+	g._read_vr()
+	_ok(g.frets_down()[0], "guitar: a trigger eased off only to half is still the red fret")
+	_trigger(hl, 0.2)
+	_button(hl, &"ax_button", false)
+	_button(hl, &"by_button", false)
+	g._read_vr()
+	_ok(g.frets_down() == [false, false, false] and g.held_pad_bits() == 0, "guitar: let go of, they are all up")
+	_trigger(hl, 0.5)
+	g._read_vr()
+	_ok(not g.frets_down()[0], "guitar: and a trigger only half squeezed from rest is not a fret")
+	_trigger(hl, 0.0)
+	g._read_vr()
+	# The body hand's buttons are not frets when the neck has a hand.
+	_button(hr, &"ax_button", true)
+	_button(hr, &"by_button", true)
+	g._read_vr()
+	_ok(g.frets_down() == [false, false, false], "guitar: the body hand's X/A and Y/B are no frets while the neck has a hand")
+	_button(hr, &"ax_button", false)
+	_button(hr, &"by_button", false)
+	# The strum: the body hand's trigger, once a squeeze.
+	input._taps.clear()
+	_trigger(hr, 1.0)
+	g._read_vr()
+	_ok(_tapped(input, 0) == [pick] and g.frets_down() == [false, false, false], "guitar: the body hand's trigger strums, once, and is no fret (%s)" % str(_tapped(input, 0)))
+	input._taps.clear()
+	g._read_vr()
+	_ok(_tapped(input, 0).is_empty(), "guitar: a trigger that stays down strums once")
+	_trigger(hr, 0.5)
+	g._read_vr()
+	_trigger(hr, 1.0)
+	g._read_vr()
+	_ok(_tapped(input, 0).is_empty(), "guitar: eased off only to half and squeezed again it strums nothing")
+	_trigger(hr, 0.1)
+	g._read_vr()
+	_trigger(hr, 1.0)
+	g._read_vr()
+	_ok(_tapped(input, 0) == [pick], "guitar: let go and squeezed again it strums again")
+	_trigger(hr, 0.0)
+	g._read_vr()
+	g._pick_t = 1.0
+	g.strum(_ctrl(hr))
+	_ok(g._pick_t == 0.0, "guitar: a strum flicks the pick bar")
+	# The wail: the body hand's stick up, with a gap; the knob: its stick sideways, with a dead zone.
+	_stick_push(hr, Vector2(0.0, 1.0))
+	g._read_vr()
+	_ok(g.wailing() and (g.held_pad_bits() & wail) != 0, "guitar: the body hand's stick pushed up is the wail, BUTTON7")
+	_stick_push(hr, Vector2(0.0, 0.5))
+	g._read_vr()
+	_ok(g.wailing(), "guitar: and eased to half it is still the wail")
+	_stick_push(hr, Vector2(0.0, 0.3))
+	g._read_vr()
+	_ok(not g.wailing() and (g.held_pad_bits() & wail) == 0, "guitar: and let go below that it is not")
+	_stick_push(hr, Vector2(0.8, 0.0))
+	g._read_vr()
+	_ok(is_equal_approx(g.held_sticks()[0].x, 0.8) and g.held_sticks()[1] == Vector2.ZERO and not g.wailing(), "guitar: the stick sideways turns the effect knob, on the dial's axis (the left stick's X)")
+	_stick_push(hr, Vector2(-0.6, 0.0))
+	g._read_vr()
+	_ok(is_equal_approx(g.held_sticks()[0].x, -0.6), "guitar: either way")
+	_stick_push(hr, Vector2(0.1, 0.0))
+	g._read_vr()
+	_ok(g.held_sticks()[0] == Vector2.ZERO, "guitar: and a stick barely off centre turns nothing")
+	_stick_push(hl, Vector2(0.0, 1.0))
+	_stick_push(hr, Vector2.ZERO)
+	g._read_vr()
+	_ok(not g.wailing() and g.held_sticks()[0] == Vector2.ZERO, "guitar: the neck hand's stick does nothing while the body has a hand")
+	_stick_push(hl, Vector2.ZERO)
+	# The neck raised is the wail, the tilt switch a real guitar has.
+	var up := Transform3D(Basis(Vector3.RIGHT, deg_to_rad(35.0)), Vector3.ZERO)
+	(hr["origin"] as XROrigin3D).global_transform = up * (hr["origin"] as XROrigin3D).global_transform
+	(hl["origin"] as XROrigin3D).global_transform = up * (hl["origin"] as XROrigin3D).global_transform
+	await _wait(8)
+	g._read_vr()
+	_ok(g.global_basis.y.y > ArcadeGuitar.TILT_ON and g.wailing() and (g.held_pad_bits() & wail) != 0,
+		"guitar: the neck raised %.0f degrees is the wail" % rad_to_deg(asin(clampf(g.global_basis.y.y, -1.0, 1.0))))
+	(hr["origin"] as XROrigin3D).global_transform = up.affine_inverse() * (hr["origin"] as XROrigin3D).global_transform
+	(hl["origin"] as XROrigin3D).global_transform = up.affine_inverse() * (hl["origin"] as XROrigin3D).global_transform
+	await _wait(8)
+	g._read_vr()
+	_ok(not g.wailing(), "guitar: and lowered again it is not")
+	# What reaches the port, through the cabinet's own input.
+	_trigger(hl, 1.0)
+	_button(hl, &"by_button", true)
+	_stick_push(hr, Vector2(0.0, 1.0))
+	g._read_vr()
+	var plain := {"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": 0}
+	var state := input._with_hands(plain, 0)
+	_ok((int(state["btn"]) & (red | blue | wail)) == (red | blue | wail) and (int(state["btn"]) & green) == 0,
+		"guitar: the cabinet's input adds what the guitar holds to its player's buttons: red, blue and the wail, not the green")
+	var untouched := input._with_hands(plain, 1)
+	_ok(int(untouched["btn"]) == 0, "guitar: and nothing to the other player's")
+	_stick_push(hr, Vector2(0.9, 0.0))
+	g._read_vr()
+	state = input._with_hands(plain, 0)
+	_ok(int(state["alx"]) > 20000 and int(state["arx"]) == 0, "guitar: the knob goes out as the left stick's X (%d)" % int(state["alx"]))
+	# Let go of it, and everything it held goes up.
+	g.drop()
+	await _wait(4)
+	_ok(g.frets_down() == [false, false, false] and not g.wailing() and g.held_pad_bits() == 0 and g.held_sticks()[0] == Vector2.ZERO and not ArcadeInput.held_by_hand(g),
+		"guitar: let go of it holds nothing down any more")
+	_trigger(hl, 0.0)
+	_button(hl, &"by_button", false)
+	_stick_push(hr, Vector2.ZERO)
+	# The left-handed way about: the body in the left hand, the neck in the right, the frets under the RIGHT hand.
+	var hl2 := _hand("left")
+	var hr2 := _hand("right")
+	await _wait(30)
+	await _take_guitar(hl2, g, "BodyL")
+	await _wait(40)
+	await _take_guitar(hr2, g, "NeckR")
+	await _wait(6)
+	holders = g.holders()
+	_ok(holders.size() == 2 and g.neck_side() == ArcadeGuitarGrab.RIGHT and int(holders[0]["hand"]) == ArcadeGuitarGrab.LEFT and int(holders[1]["role"]) == ArcadeGuitarGrab.NECK,
+		"guitar: the left hand on the body and the right on the neck is the left-handed way about")
+	_trigger(hr2, 1.0)
+	_button(hr2, &"ax_button", true)
+	g._read_vr()
+	_ok(g.frets_down() == [true, true, false], "guitar: and then the frets are under the right hand")
+	input._taps.clear()
+	_trigger(hr2, 0.0)
+	_button(hr2, &"ax_button", false)
+	g._read_vr()
+	_trigger(hl2, 1.0)
+	g._read_vr()
+	_ok(_tapped(input, 0) == [pick], "guitar: and the strum is the left hand's trigger")
+	_trigger(hl2, 0.0)
+	g._read_vr()
+	# The hint ON the guitar (what the second hand's grab redeclared), not the rows the guitar would compute.
+	var neck_row: Array = []
+	var pick_row: Array = []
+	for row: Array in (g.get_node("HeldHint") as HeldHint)._rows:
+		if row[0] == &"fret_vr":
+			neck_row = row[2]
+		elif row[0] == &"pick_vr":
+			pick_row = row[2]
+	_ok(neck_row == ["quest_trigger_right_outline", "quest_button_a_outline", "quest_button_b_outline"], "guitar: and the hint names the right hand's trigger, A and B (%s)" % str(neck_row))
+	_ok(pick_row == ["quest_trigger_left_outline"], "guitar: and the strum is the left hand's trigger on it (%s)" % str(pick_row))
+	g.drop()
+	await _wait(4)
+	# A guitar in a hand is somebody at a cabinet that only shows its game (and one hanging in its bay is nobody).
+	var used: Array[StringName] = []
+	input.first_use.connect(func(kind: StringName) -> void: used.append(kind))
+	sys.is_powered_on = false
+	sys.attracting = true
+	input._process(0.016)
+	_ok(used.is_empty() and not input.engaged(), "guitar: guitars hanging in their bays leave a cabinet that is showing its game showing it (%s)" % str(used))
+	var hr3 := _hand("right")
+	await _take_guitar(hr3, other, "BodyR")
+	input._process(0.016)
+	_ok(used == [&"grab"], "guitar: a guitar in a hand starts the game a cabinet is only showing (%s)" % str(used))
+	sys.attracting = false
+	sys.is_powered_on = true
+	other.drop()
 	await _wait(2)
