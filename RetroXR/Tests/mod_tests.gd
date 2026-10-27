@@ -26,7 +26,7 @@
 extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 415
+const EXPECTED_CASES := 420
 
 var _only := ""
 var _dir := ""
@@ -494,6 +494,24 @@ func _group_objects() -> void:
 
 	ScenePersistence.drop_mod_objects(owner)
 	_ok(not ScenePersistence.is_mod_object("t.obj:crate"), "objects/drop removes it")
+
+	# The SPAWN menu's Objects tab is SpawnCatalog.objects(): the shipped rows, then each
+	# prop a mod registered with a menu label. The label used to be kept and shown nowhere.
+	_ok(SpawnCatalog.objects() == SpawnCatalog.OBJECTS, "objects/menu: with no mod, the shipped rows alone")
+	SpawnCatalog.register_mod_spawnable("t.menu:zebra", {"label": "zebra"}, "t.menu")
+	SpawnCatalog.register_mod_spawnable("t.menu:apple", {"label": "Apple"}, "t.menu")
+	var rows := SpawnCatalog.objects()
+	var n := SpawnCatalog.OBJECTS.size()
+	_ok(rows.slice(0, n) == SpawnCatalog.OBJECTS
+		and rows.slice(n) == [["Apple", "mod:t.menu:apple"], ["zebra", "mod:t.menu:zebra"]],
+		"objects/menu: a mod's props follow the shipped rows, by label", str(rows.slice(n)))
+	var parsed := SpawnCatalog.parse_token(str(rows[n][1]))
+	_ok(parsed["kind"] == SpawnCatalog.TokenKind.MOD and parsed.get("mod_type", "") == "t.menu:apple",
+		"objects/menu: a row's token spawns the prop it names", str(parsed))
+	rows[0][0] = "changed"
+	_ok(str(SpawnCatalog.OBJECTS[0][0]) == "Table", "objects/menu: what the menu is handed is a copy")
+	SpawnCatalog.drop_mod("t.menu")
+	_eq(SpawnCatalog.objects().size(), n, "objects/menu: a withdrawn mod's props leave it")
 
 	# A mod's LEAD saves as a lead. It used to be written as a pose alone, like
 	# any other mod prop, so a room came back with the lead on the floor and

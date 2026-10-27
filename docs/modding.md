@@ -443,6 +443,11 @@ shipped switches, so keep the path stable.
 A **prop**'s type string is written into save files — permanent once anyone has
 used it. Renaming it orphans every copy in every slot.
 
+A prop registered with a `label` is offered on the **SPAWN menu's Objects tab**,
+after the game's own objects, sorted by label (`SpawnCatalog.objects()`). Without
+one it is only on a console's card, when it is a pad, gun or lead for that console
+or a row you add with `add_peripherals`.
+
 A prop that **does something when used** -- a figure that animates, a toy that
 squeaks -- does it from `XRToolsPickable`'s `action()` (or its `action_pressed` /
 `action_released` signals): in VR that is the **trigger** on the controller holding

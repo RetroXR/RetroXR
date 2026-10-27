@@ -811,7 +811,65 @@ static var _built_socket_notes: Dictionary = {}
 ## See game_lead_connectors. The game's leads do not change while it runs.
 static var _game_lead_connectors := PackedStringArray()
 
-## Standalone spawnable props, shown on their own rather than under a console.
+## The Objects tab's shipped rows, [label, token] -- the token a ScenePersistence
+## type, as every spawn token is. objects() adds the mods' props after them.
+const OBJECTS := [
+	["Table",           "table"],
+	["Storage Box",     "trash_can"],
+	["VCR",             "vcr_player"],
+	["DVD Player",      "dvd_player"],
+	["CD Player",       "cd_player"],
+	["Cassette Player", "cassette_player"],
+	["Record Player",   "record_player"],
+	["TV Remote",       "tv_remote"],
+	["Composite Cable", "composite_cable"],
+	["Mono Composite Cable", "mono_composite_cable"],
+	["VGA Cable",       "vga_cable"],
+	["3.5 mm Cable",   "trs_cable"],
+	["Game Boy Advance Link Cable", "link_cable"],
+	["GB Link Cable",  "dmg_link_cable"],
+	["GBC Link Cable", "gb_link_cable"],
+	["GB Link Cable Adapter", "gb_link_adapter"],
+	["Gear-to-Gear Cable", "gg_link_cable"],
+	["WonderSwan Link Cable", "ws_link_cable"],
+	["NGP Link Cable", "ngp_link_cable"],
+	["VB Link Cable",  "vb_link_cable"],
+	["ComLynx Cable",  "comlynx_cable"],
+	["GC-GBA Cable",   "gc_gba_cable"],
+	["PS Link Cable",  "psx_link_cable"],
+	["Saturn Link Cable", "saturn_link_cable"],
+	["JagLink Cable",  "jag_link_cable"],
+	["i.LINK Cable",   "ilink_cable"],
+	["i.LINK Hub",     "ilink_hub"],
+	["Ethernet Cable", "ethernet_cable"],
+	["Ethernet Hub",   "ethernet_hub"],
+	["Speakers",       "speaker_pair"],
+	# A surround rig: a satellite per channel and one subwoofer, each cabled to
+	# a socket on the back of the set with a speaker lead.
+	["Loudspeaker",    "loudspeaker"],
+	["Subwoofer",      "subwoofer"],
+	# Takes a stereo pair in — a machine's own cords, or a set's FL and FR on
+	# STEREO OUT — and drives the six with Pro Logic II or Dolby Surround.
+	["Surround Amp",   "surround_amp"],
+	# Floor stands, so a satellite is at ear height instead of on the carpet.
+	# The height named is to the plate a cabinet stands on.
+	["Speaker Stand 1.2m", "speaker_stand_120"],
+	["Speaker Stand 1m",   "speaker_stand_100"],
+	["RCA Speaker Cable",  "speaker_cable"],
+	# Not under Controllers: nobody holds it, and it is no more a controller
+	# than the aerial is. It plugs into the Wii and stands on the television.
+	["Sensor Bar",     "sensor_bar"],
+	# The way a console reached a television before anything had a composite
+	# input: phono into the deck, coax into the aerial socket.
+	["RF Switch (RXR-003)", "rf_switch"],
+	# Broadcast television: its lead goes in a set's aerial socket, or in the
+	# ANT socket of the switch above so a console and the channels share one
+	# hole. The tuner's settings are on ITS menu, not the television's.
+	["Antenna", "antenna"],
+]
+
+## Standalone spawnable props, shown on their own rather than under a console
+## (on the Objects tab, after OBJECTS: objects()).
 ## type -> {label, owner}
 static var _mod_spawnables: Dictionary = {}
 
@@ -866,6 +924,18 @@ static func mod_spawnables() -> Array:
 	for type: String in _mod_spawnables:
 		out.append({"type": type, "label": str(_mod_spawnables[type].get("label", type))})
 	return out
+
+
+## The SPAWN menu's Objects tab, as [label, token] rows: the shipped OBJECTS, then every
+## prop a mod registered with a menu label (register_object(type, scene, {"label": ...})),
+## by label, as "mod:<type>". Before these were read here the label was kept and shown
+## nowhere, so a prop that plugs into no console's card could not be spawned at all.
+static func objects() -> Array:
+	var mods: Array = []
+	for item: Dictionary in mod_spawnables():
+		mods.append([str(item["label"]), "mod:" + str(item["type"])])
+	mods.sort_custom(func(a: Array, b: Array) -> bool: return str(a[0]).naturalnocasecmp_to(str(b[0])) < 0)
+	return OBJECTS.duplicate(true) + mods
 
 
 static func drop_mod(owner_id: String) -> void:

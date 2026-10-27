@@ -508,60 +508,9 @@ func _build() -> void:
 	posters_scroll.add_child(_posters_vbox)
 	_populate_posters_tab()
 
-	_add_spawn_tab(tabs, "Objects", [
-		["Table",           "table"],
-		["Storage Box",     "trash_can"],
-		["VCR",             "vcr_player"],
-		["DVD Player",      "dvd_player"],
-		["CD Player",       "cd_player"],
-		["Cassette Player", "cassette_player"],
-		["Record Player",   "record_player"],
-		["TV Remote",       "tv_remote"],
-		["Composite Cable", "composite_cable"],
-		["Mono Composite Cable", "mono_composite_cable"],
-		["VGA Cable",       "vga_cable"],
-		["3.5 mm Cable",   "trs_cable"],
-		["Game Boy Advance Link Cable", "link_cable"],
-		["GB Link Cable",  "dmg_link_cable"],
-		["GBC Link Cable", "gb_link_cable"],
-		["GB Link Cable Adapter", "gb_link_adapter"],
-		["Gear-to-Gear Cable", "gg_link_cable"],
-		["WonderSwan Link Cable", "ws_link_cable"],
-		["NGP Link Cable", "ngp_link_cable"],
-		["VB Link Cable",  "vb_link_cable"],
-		["ComLynx Cable",  "comlynx_cable"],
-		["GC-GBA Cable",   "gc_gba_cable"],
-		["PS Link Cable",  "psx_link_cable"],
-		["Saturn Link Cable", "saturn_link_cable"],
-		["JagLink Cable",  "jag_link_cable"],
-		["i.LINK Cable",   "ilink_cable"],
-		["i.LINK Hub",     "ilink_hub"],
-		["Ethernet Cable", "ethernet_cable"],
-		["Ethernet Hub",   "ethernet_hub"],
-		["Speakers",       "speaker_pair"],
-		# A surround rig: a satellite per channel and one subwoofer, each cabled to
-		# a socket on the back of the set with a speaker lead.
-		["Loudspeaker",    "loudspeaker"],
-		["Subwoofer",      "subwoofer"],
-		# Takes a stereo pair in — a machine's own cords, or a set's FL and FR on
-		# STEREO OUT — and drives the six with Pro Logic II or Dolby Surround.
-		["Surround Amp",   "surround_amp"],
-		# Floor stands, so a satellite is at ear height instead of on the carpet.
-		# The height named is to the plate a cabinet stands on.
-		["Speaker Stand 1.2m", "speaker_stand_120"],
-		["Speaker Stand 1m",   "speaker_stand_100"],
-		["RCA Speaker Cable",  "speaker_cable"],
-		# Not under Controllers: nobody holds it, and it is no more a controller
-		# than the aerial is. It plugs into the Wii and stands on the television.
-		["Sensor Bar",     "sensor_bar"],
-		# The way a console reached a television before anything had a composite
-		# input: phono into the deck, coax into the aerial socket.
-		["RF Switch (RXR-003)", "rf_switch"],
-		# Broadcast television: its lead goes in a set's aerial socket, or in the
-		# ANT socket of the switch above so a console and the channels share one
-		# hole. The tuner's settings are on ITS menu, not the television's.
-		["Antenna", "antenna"],
-	])
+	# The shipped objects, then every prop a mod registered with a menu label: both
+	# SpawnCatalog's, as a console card's rows are (items_for).
+	_add_spawn_tab(tabs, "Objects", SpawnCatalog.objects())
 
 	# Mains leads, on their own tab rather than lost among the A/V ones. What
 	# picks one is the shape of the socket on the back of the machine, not what
