@@ -11,14 +11,25 @@
 ## could not be sat on in VR. A StaticBody3D of the same shape (`LaserBody`) stands on the same layer and
 ## hands what the laser sends on to `pointer_event`. It is the trigger's SIBLING, not its child: a laser's pickup
 ## takes a collider's parent for the pickable, so under the seat a hold on the cushion still carries the seat.
+##
+## SEATED, THE CUSHION GROWS. The cushion is under you, and a laser leaves the hand pointing forward: from the
+## lap it flew over the seat you sit on and found nothing to press ("the cushion does not light up"). While the
+## host is occupied the laser's body reaches `STAND_REACH_FORWARD` toward the knees and `STAND_REACH_SIDE` to each
+## side, on the same thin slab; the host's own parts (SeatPointerArea) stand you up as well.
 class_name SeatTrigger
 extends Area3D
 
 const POINTABLE_LAYER := 1 << 20
 const HOVER_COLOR := Color(WidgetOutline.SELECT_COLOR, 0.22)
+## How far the laser's slab reaches past the cushion while somebody sits on it, metres: forward (the seat's -Z) and to each side.
+const STAND_REACH_FORWARD := 0.6
+const STAND_REACH_SIDE := 0.2
 
 var _hover: MeshInstance3D = null
 var _laser_body: LaserBody = null
+var _laser_shape: CollisionShape3D = null
+var _rest_size := Vector3.ZERO
+var _rest_position := Vector3.ZERO
 
 
 ## The part of the trigger a laser can hit: a body, because a laser's ray hits no areas.
@@ -57,12 +68,40 @@ func _ready() -> void:
 		_laser_body.collision_mask = 0
 		_laser_body.transform = transform
 		var body_shape := CollisionShape3D.new()
-		body_shape.shape = shape.shape
+		# Its own box: it is resized while somebody sits, and the trigger's must not follow.
+		var own := BoxShape3D.new()
+		own.size = (shape.shape as BoxShape3D).size
+		body_shape.shape = own
 		body_shape.transform = shape.transform
 		_laser_body.add_child(body_shape)
+		_laser_shape = body_shape
+		_rest_size = own.size
+		_rest_position = body_shape.position
+		var host := get_parent()
+		if host != null and host.has_signal("seated_changed"):
+			host.connect("seated_changed", _on_host_seated)
 		# The parent is still setting up its children while this runs.
 		if get_parent() != null:
 			get_parent().add_child.call_deferred(_laser_body)
+
+
+## The slab the laser can hit while somebody sits: `rest` grown forward (-Z) and to the sides. Pure.
+static func stand_zone(rest: Vector3, rest_position: Vector3) -> Array:
+	return [Vector3(rest.x + STAND_REACH_SIDE * 2.0, rest.y, rest.z + STAND_REACH_FORWARD),
+		rest_position + Vector3(0.0, 0.0, -STAND_REACH_FORWARD * 0.5)]
+
+
+func _on_host_seated(on: bool) -> void:
+	if _laser_shape == null:
+		return
+	var box := _laser_shape.shape as BoxShape3D
+	if on:
+		var zone := stand_zone(_rest_size, _rest_position)
+		box.size = zone[0]
+		_laser_shape.position = zone[1]
+	else:
+		box.size = _rest_size
+		_laser_shape.position = _rest_position
 
 
 func pointer_event(event: XRToolsPointerEvent) -> void:

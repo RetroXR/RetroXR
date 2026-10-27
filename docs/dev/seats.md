@@ -10,6 +10,11 @@ a bed (`Scenes/Objects/furniture/seat_*.tscn`, baked by `Tools/gen/gen_seats.gd`
   that forwards `pointer_event`, as the seat's SIBLING and not the trigger's child (a laser's pickup takes a collider's PARENT for the pickable, so a hold on the cushion still
   carries the seat). Anything else pointable that is an `Area3D` is in the same case (`ArcadePanelGrip` has the squeeze to make up for it). The tint is yellow
   (`WidgetOutline.SELECT_COLOR`). `seat_tests press/`; a real headset OWED.
+- **SEATED, THE LASER FINDS NOTHING TO PRESS (2026-10-27, VR).** The cushion is under the sitter and a laser leaves the hand pointing forward: a probe with the real rig put a seated hand in 45 poses (beside the hips, in the lap,
+  a little forward) with the laser forward and 40 degrees down, and it hit the trigger in 3 of them on the chair, 2 on the racing seat, 3 on the cushion, 0 on the bed (the racing seat's `PointerArea` boxes took most of the rest); aimed
+  straight down at the lap it always hit. So while the host is occupied the laser's slab (`SeatTrigger.stand_zone`, the `LaserBody`'s own box; the desktop's Area3D keeps its size) reaches 0.6 m toward the knees and 0.2 m to each side,
+  on the same 3 cm, and the seat's `PointerArea` carries `SeatPointerArea`: a press on any part of the body of the seat you sit on stands you up (and does nothing to anyone else; carrying is still a hold on it). Put on by `Seat._ready`,
+  so a mod's seat has it. `seat_tests press/` (mutation-tested). A headset OWED.
 - **A seat is a scene with the script and three markers:** `EyePoint` (where the head goes, -Z is the way it faces), `StandPoint` (a floor point to the side: the front is often a cabinet) and
   `SeatTrigger`. `type_id` names its `ScenePersistence.PLAIN_SCENES` row. A mod's seat is any scene that has them.
 - **What sitting does.** The origin is turned about the head to the seat's heading and carried over the eye point, standing on the seat's floor (`Seat.origin_for_eye`, pure, tested on bare

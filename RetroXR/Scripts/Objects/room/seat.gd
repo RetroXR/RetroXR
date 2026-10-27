@@ -64,6 +64,10 @@ func _ready() -> void:
 		_show_facing_arrow())
 	dropped.connect(func(_p: Variant) -> void: _hide_facing_arrow())
 	set_physics_process(false)
+	# The seat's body answers a press by standing the sitter up (SeatPointerArea).
+	var pointer_body := get_node_or_null("PointerArea") as StaticBody3D
+	if pointer_body != null and pointer_body.get_script() == null:
+		pointer_body.set_script(SeatPointerArea)
 
 
 func _exit_tree() -> void:

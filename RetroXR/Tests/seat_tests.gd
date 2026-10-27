@@ -261,9 +261,11 @@ func _group_press() -> void:
 	var laser := trigger.laser_body()
 	_ok(laser != null and laser.collision_layer == SeatTrigger.POINTABLE_LAYER and laser.get_parent() == seat,
 		"press: a laser can hit the cushion (a body on the pointable layer) and it is the seat's, so a hold on it carries the seat")
-	_ok(laser != null and laser.get_child_count() == 1 and (laser.get_child(0) as CollisionShape3D).shape == (trigger.get_node("CollisionShape3D") as CollisionShape3D).shape
+	var rest_box := (trigger.get_node("CollisionShape3D") as CollisionShape3D).shape as BoxShape3D
+	var laser_shape := laser.get_child(0) as CollisionShape3D
+	_ok(laser != null and laser.get_child_count() == 1 and (laser_shape.shape as BoxShape3D).size.is_equal_approx(rest_box.size)
 			and laser.position.is_equal_approx(trigger.position),
-		"press: and it is the trigger's own shape, in the same place")
+		"press: and it is the trigger's own size, in the same place")
 	laser.call("pointer_event", _event(XRToolsPointerEvent.Type.PRESSED, laser))
 	_ok(seat.is_occupied(), "press: the laser's press on that body sits")
 	laser.call("pointer_event", _event(XRToolsPointerEvent.Type.PRESSED, laser))
@@ -272,6 +274,30 @@ func _group_press() -> void:
 	_ok(trigger.is_hovered() and SeatTrigger.HOVER_COLOR.r > 0.9 and SeatTrigger.HOVER_COLOR.g > 0.8 and SeatTrigger.HOVER_COLOR.b < 0.2,
 		"press: aimed at by a laser the cushion is lit, and the light is yellow (not green)")
 	laser.call("pointer_event", _event(XRToolsPointerEvent.Type.EXITED, laser))
+	# Sat on, the cushion is under the sitter and a laser leaves the hand pointing forward: its slab grows toward the knees
+	# and the sides, and shrinks back when they get up. The Area3D the desktop uses keeps its size.
+	seat.sit()
+	var grown := (laser_shape.shape as BoxShape3D).size
+	_ok(is_equal_approx(grown.z, rest_box.size.z + SeatTrigger.STAND_REACH_FORWARD)
+			and is_equal_approx(grown.x, rest_box.size.x + SeatTrigger.STAND_REACH_SIDE * 2.0) and is_equal_approx(grown.y, rest_box.size.y),
+		"press: sat on, the laser's slab reaches forward and to the sides (%s)" % str(grown))
+	_ok(laser_shape.position.z < trigger.get_node("CollisionShape3D").position.z - SeatTrigger.STAND_REACH_FORWARD * 0.49,
+		"press: and the extra is toward the front (-Z), not behind the sitter")
+	_ok(rest_box.size.is_equal_approx(Vector3(grown.x - SeatTrigger.STAND_REACH_SIDE * 2.0, grown.y, grown.z - SeatTrigger.STAND_REACH_FORWARD)),
+		"press: while the desktop's Area3D keeps the cushion's own size")
+	seat.stand()
+	_ok((laser_shape.shape as BoxShape3D).size.is_equal_approx(rest_box.size) and laser_shape.position.is_equal_approx(trigger.get_node("CollisionShape3D").position),
+		"press: stood up, the slab is the cushion again")
+	# The seat's body: a press on it stands the sitter up, and does nothing to somebody who is not sitting.
+	var body_part := seat.find_child("PointerArea", false, false) as StaticBody3D
+	_ok(body_part is SeatPointerArea, "press: the seat's body answers a press (SeatPointerArea)")
+	body_part.call("pointer_event", _event(XRToolsPointerEvent.Type.PRESSED, body_part))
+	_ok(not seat.is_occupied(), "press: a press on the body of a seat nobody sits on sits nobody")
+	seat.sit()
+	body_part.call("pointer_event", _event(XRToolsPointerEvent.Type.ENTERED, body_part))
+	_ok(seat.is_occupied(), "press: aiming at the body does not get the sitter up")
+	body_part.call("pointer_event", _event(XRToolsPointerEvent.Type.PRESSED, body_part))
+	_ok(not seat.is_occupied(), "press: a press on the body gets them up")
 	# The trigger stands proud of the surface it is on, or the body's pointer box would win the ray.
 	var pointer := seat.find_child("PointerArea", false, false) as StaticBody3D
 	var top := -INF
