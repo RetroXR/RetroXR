@@ -131,11 +131,11 @@ func _run() -> void:
 
 	var spec := n64.expansion_boot()
 	print("[n64dd] core=%s cart=%s disk=%s" % [
-		n64.resolve_core_name(), n64._expansion_launch.host_media_path(),
+		n64.resolve_core_name(), n64.expansion_launch().host_media_path(),
 		(dd.get_media_path() if dd != null else "-")])
 	print("[n64dd] subsystem=%s pairing=%s" % [
 		str(spec.get("subsystem", {}).get("ident", "-")),
-		str(n64._expansion_launch.expansion_roms(spec.get("subsystem", {})))])
+		str(n64.expansion_launch().expansion_roms(spec.get("subsystem", {})))])
 
 	# The drive's ACCESS lamp, as the core publishes it and as the unit shows it.
 	# Members, not locals: a lambda captures a local by value.

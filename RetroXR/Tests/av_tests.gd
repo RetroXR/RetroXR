@@ -1915,7 +1915,7 @@ func _d_glass_wear() -> void:
 	# ScenePersistence already stores the complete CRT dictionary. Assert the new
 	# key is in that real record and can seed a television before it enters a tree.
 	var persistence := ScenePersistence.new()
-	var record: Dictionary = persistence._serialize_node(tv, 1, {})
+	var record: Dictionary = persistence.serialize_node(tv, 1, {})
 	_check_eq((record.get("crt_params", {}) as Dictionary).get("crt_glass_wear"), 2.5,
 		"the scene record persists Glass wear")
 	_check_eq((record.get("crt_params", {}) as Dictionary).get("crt_character"), 0.75,

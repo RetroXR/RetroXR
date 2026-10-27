@@ -377,7 +377,7 @@ func _group_tray() -> void:
 	var up_axis_rise: float = sys.get_model().get_cartridge_insert_direction().y
 	_ok(sys.get_snapped_cartridge() == null,
 		"tray/a cart laid in is not read yet")
-	_ok(sys._tray_cartridge == cart, "tray/but the bay knows it is lying there")
+	_ok(sys.get_tray_cartridge() == cart, "tray/but the bay knows it is lying there")
 
 	var cradle_up: Transform3D = Transform3D.IDENTITY
 	var cradle_node := sys.find_child("NesCradle", true, false) as MeshInstance3D
@@ -554,7 +554,7 @@ func _group_tray() -> void:
 	slot.drop_object()
 	cart.global_position += Vector3(0, 0.5, 0)
 	await _wait(20)
-	_ok(sys._tray_cartridge == null, "tray/taking it out empties the bay")
+	_ok(sys.get_tray_cartridge() == null, "tray/taking it out empties the bay")
 	_ok(not cart.desktop_click_available(),
 		"tray/and a loose cart goes back to click-to-take")
 
@@ -673,7 +673,7 @@ func _saved_lid_room(model_id: String, systemid: String, open := true) -> Node3D
 	var sp := ScenePersistence.new(LID_ROOM)
 	var sys := await _console(model_id, systemid)
 	if open:
-		sys._on_eject_pressed()
+		sys.disc_tray().on_eject_pressed()
 		await _wait(80)
 	sp.save_slot(self, LID_SLOT)
 	ScenePersistence.flush_pending_writes()
@@ -704,10 +704,10 @@ func _group_lid() -> void:
 	var gc := await _saved_lid_room("gamecube_primitive", "gc")
 	_ok(gc != null, "lid/the saved room comes back")
 	if gc != null:
-		_ok(gc._disc_bay.lid_hinge.get_rotation_deg() > 1.0,
+		_ok(gc.disc_tray().disc_bay.lid_hinge.get_rotation_deg() > 1.0,
 			"lid/a spring lid comes back standing open")
-		_ok(gc._tray_open, "lid/and the machine says it is open")
-		_ok(gc._tray.is_open(), "lid/so does the well")
+		_ok(gc.disc_tray().open, "lid/and the machine says it is open")
+		_ok(gc.disc_tray().media_tray.is_open(), "lid/so does the well")
 		_ok((gc.get_node("CartridgeSlot") as XRToolsSnapZone).enabled,
 			"lid/which is what lets a disc go in")
 	await _clear()
@@ -717,8 +717,8 @@ func _group_lid() -> void:
 	if ps != null:
 		_ok(ps.get_lid_angle_deg() > 1.0,
 			"lid/a bespoke lid comes back standing open")
-		_ok(ps._tray_open, "lid/and that machine says it is open too")
-		_ok(ps._tray.is_open(), "lid/well included")
+		_ok(ps.disc_tray().open, "lid/and that machine says it is open too")
+		_ok(ps.disc_tray().media_tray.is_open(), "lid/well included")
 		# The pose and the machine are not the whole lid: the hinge that booted
 		# latched shut has to be let go too, or the lid is drawn open with a dead
 		# grab box — no glyph, and no wheel to close it.
@@ -749,7 +749,7 @@ func _group_lid() -> void:
 	# always reports open, which would be a worse bug than the one being tested.
 	var back := await _saved_lid_room("gamecube_primitive", "gc", false)
 	if back != null:
-		_ok(not back._tray_open, "lid/a lid saved SHUT comes back shut")
+		_ok(not back.disc_tray().open, "lid/a lid saved SHUT comes back shut")
 		_ok(not (back.get_node("CartridgeSlot") as XRToolsSnapZone).enabled,
 			"lid/with its bay closed")
 	await _clear()
@@ -810,15 +810,15 @@ func _seat_disc(sys: Node3D, offer: Basis, by_hand: bool,
 		# The zone's own dropped hook captures it; if the filter turned it away
 		# the zone is handed it directly, which reads the same recorded pose.
 		await _wait(5)
-		if not sys._tray.has_media():
+		if not sys.disc_tray().media_tray.has_media():
 			zone.pick_up_object(disc)
 	else:
 		disc.global_transform = Transform3D(offer, sys.global_position + Vector3.UP * 0.3)
-		sys._tray.restore(disc, restore_yaw)
+		sys.disc_tray().media_tray.restore(disc, restore_yaw)
 	await _wait(10)
 	var got := disc.global_basis.orthonormalized()
 	_last_seat_yaw = sys.cartridge_seat_yaw()
-	sys._tray.release()
+	sys.disc_tray().media_tray.release()
 	await _wait(5)
 	disc.queue_free()
 	await _wait(5)
@@ -852,10 +852,10 @@ func _group_seat() -> void:
 		"seat/spin_of wraps: 350 degrees round is -10")
 
 	var gc := await _console("gamecube_primitive", "gc")
-	gc._on_eject_pressed()
+	gc.disc_tray().on_eject_pressed()
 	await _wait(80)
-	_ok(gc._tray != null and gc._tray.is_open(), "seat/the well is open")
-	if gc._tray == null:
+	_ok(gc.disc_tray().media_tray != null and gc.disc_tray().media_tray.is_open(), "seat/the well is open")
+	if gc.disc_tray().media_tray == null:
 		await _clear()
 		return
 
@@ -904,7 +904,7 @@ func _group_seat() -> void:
 	kept.add_to_group("spawned")
 	_spawned.append(kept)
 	await _wait(5)
-	gc._tray.restore(kept, deg_to_rad(-70.0))
+	gc.disc_tray().media_tray.restore(kept, deg_to_rad(-70.0))
 	await _wait(5)
 	var sp := ScenePersistence.new(LID_ROOM)
 	sp.save_slot(self, LID_SLOT)
@@ -940,38 +940,38 @@ func _group_boot() -> void:
 	await _wait(5)
 	gc.restore_cartridge(disc)
 	await _wait(10)
-	_ok(gc._boot_disc_path() == GAME, "boot/a disc under a shut lid boots")
-	_ok(gc._open_over_disc().is_empty(), "boot/and nothing stands open over it")
+	_ok(gc.disc_tray().boot_disc_path() == GAME, "boot/a disc under a shut lid boots")
+	_ok(gc.disc_tray().open_over_disc().is_empty(), "boot/and nothing stands open over it")
 
-	gc._on_eject_pressed()
+	gc.disc_tray().on_eject_pressed()
 	await _wait(80)
-	_ok(gc._tray_open and gc._boot_disc_path().is_empty(),
+	_ok(gc.disc_tray().open and gc.disc_tray().boot_disc_path().is_empty(),
 		"boot/the same disc under an open lid does not")
-	_ok(gc._open_over_disc() == "lid", "boot/and the refusal names the lid")
+	_ok(gc.disc_tray().open_over_disc() == "lid", "boot/and the refusal names the lid")
 	gc.request_tray_state(false)
 	await _wait(80)
-	_ok(not gc._tray_open and gc._boot_disc_path() == GAME,
+	_ok(not gc.disc_tray().open and gc.disc_tray().boot_disc_path() == GAME,
 		"boot/shutting the lid boots it again")
 
 	# Taken out while its core runs it: rom_path keeps naming the running image.
 	gc.is_powered_on = true
-	gc._on_eject_pressed()
+	gc.disc_tray().on_eject_pressed()
 	await _wait(80)
-	gc._tray.release()
+	gc.disc_tray().media_tray.release()
 	await _wait(10)
 	gc.request_tray_state(false)
 	await _wait(80)
 	gc.is_powered_on = false
 	_ok(gc.get_snapped_cartridge() == null and gc.rom_path == GAME,
 		"boot/a disc taken out mid-game leaves the running image mounted")
-	_ok(gc._boot_disc_path().is_empty(), "boot/but the next power-on does not boot it")
+	_ok(gc.disc_tray().boot_disc_path().is_empty(), "boot/but the next power-on does not boot it")
 	await _clear()
 
 	var ps := await _console("playstation", "psx")
 	ps.rom_path = BiosBoot.empty_media_file("cue")
-	_ok(ps._boot_disc_path().is_empty(), "boot/a BIOS run's blank image is not booted again")
+	_ok(ps.disc_tray().boot_disc_path().is_empty(), "boot/a BIOS run's blank image is not booted again")
 	ps.rom_path = "/roms/psx/game.cue"
-	_ok(ps._boot_disc_path() == "/roms/psx/game.cue",
+	_ok(ps.disc_tray().boot_disc_path() == "/roms/psx/game.cue",
 		"boot/a path set with no disc in the room stands")
 	await _clear()
 
@@ -1433,17 +1433,17 @@ func _group_pak() -> void:
 	# something the player did not ask for.
 	const MUPEN := ["none", "memory", "rumble", "transfer"]
 	const PARALLEL := ["none", "memory", "rumble", "biosensor"]
-	_ok(RetroSystem._decide_pak(MUPEN, "transfer", "memory") == "transfer",
+	_ok(SystemPorts.decide_pak(MUPEN, "transfer", "memory") == "transfer",
 		"pak/mupen64plus takes a Transfer Pak")
-	_ok(RetroSystem._decide_pak(PARALLEL, "transfer", "memory") == "",
+	_ok(SystemPorts.decide_pak(PARALLEL, "transfer", "memory") == "",
 		"pak/parallel_n64 has no transfer value, so the port is left alone")
-	_ok(RetroSystem._decide_pak(PARALLEL, "rumble", "none") == "rumble",
+	_ok(SystemPorts.decide_pak(PARALLEL, "rumble", "none") == "rumble",
 		"pak/but it does take a Rumble Pak")
-	_ok(RetroSystem._decide_pak(MUPEN, "memory", "memory") == "",
+	_ok(SystemPorts.decide_pak(MUPEN, "memory", "memory") == "",
 		"pak/an unchanged value is not rewritten")
-	_ok(RetroSystem._decide_pak(MUPEN, "", "memory") == "",
+	_ok(SystemPorts.decide_pak(MUPEN, "", "memory") == "",
 		"pak/a pad with no port never writes the option")
-	_ok(RetroSystem._decide_pak([], "rumble", "") == "",
+	_ok(SystemPorts.decide_pak([], "rumble", "") == "",
 		"pak/nor does a core that has no such option")
 
 	# Where each pak's 32 KiB sits inside the one SAVE_RAM block both N64 cores
@@ -1475,12 +1475,12 @@ func _group_pak() -> void:
 	await _wait(4)
 	saved.card_id = "PAK_ROUNDTRIP"
 	saved.card_label = "ROUNDTRIP"
-	var rec: Dictionary = sp._serialize_node(saved, 0, {})
+	var rec: Dictionary = sp.serialize_node(saved, 0, {})
 	_ok(str(rec.get("type", "")) == "controller_pak",
 		"pak/a saved pak is recorded as a controller_pak")
 	_ok(str(rec.get("card_id", "")) == "PAK_ROUNDTRIP",
 		"pak/carrying the card id its notes live under")
-	var back := sp._deserialize_object(rec) as ControllerPak
+	var back := sp.deserialize_object(rec) as ControllerPak
 	_ok(back != null, "pak/and is rebuilt from that record")
 	if back != null:
 		_ok(back.card_id == "PAK_ROUNDTRIP",

@@ -128,11 +128,11 @@ func _group_attach() -> void:
 		add_child(n)
 		n.add_to_group("spawned")
 	var map := {base: 0, top: 1}
-	_ok(not store._serialize_node(top, 1, map).has("attached"),
+	_ok(not store.serialize_node(top, 1, map).has("attached"),
 		"attach/a loose prop saves no attachment")
 	(base.get_node("Top") as XRToolsSnapZone).pick_up_object(top)
-	var top_entry := store._serialize_node(top, 1, map)
-	var base_entry := store._serialize_node(base, 0, map)
+	var top_entry := store.serialize_node(top, 1, map)
+	var base_entry := store.serialize_node(base, 0, map)
 	_eq(top_entry.get("attached", {}), {"to": 0, "zone": "Top"},
 		"attach/a snapped prop names its host's id and the zone's path in it")
 	_ok(not base_entry.has("attached"), "attach/the host itself is loose")
@@ -166,7 +166,7 @@ func _group_attach() -> void:
 	add_child(loose)
 	loose.add_to_group("spawned")
 	room_zone.pick_up_object(loose)
-	var room_entry := store._serialize_node(loose, 0, {loose: 0})
+	var room_entry := store.serialize_node(loose, 0, {loose: 0})
 	_eq(room_entry.get("attached", {}), {"to": str(room_zone.get_path()), "zone": "."},
 		"attach/a room's zone is named by its own path")
 	loose.free()
@@ -187,8 +187,8 @@ func _group_attach() -> void:
 		n.add_to_group("spawned")
 	(stand.get_node("Top") as XRToolsSnapZone).pick_up_object(console)
 	var stand_map := {stand: 0, console: 1}
-	var console_entry := store._serialize_node(console, 1, stand_map)
-	var stand_entry := store._serialize_node(stand, 0, stand_map)
+	var console_entry := store.serialize_node(console, 1, stand_map)
+	var stand_entry := store.serialize_node(stand, 0, stand_map)
 	_eq(console_entry.get("attached", {}), {"to": 0, "zone": "Top"},
 		"attach/a console in a mod's stand names the stand")
 	_eq(ScenePersistence._objects_validation_error([stand_entry, console_entry]), "",
@@ -218,16 +218,16 @@ func _group_attach() -> void:
 		n.add_to_group("spawned")
 	var shipped_map := {shipped: 0, held_console: 1, held_part: 2}
 	socket.pick_up_object(held_console)
-	_ok(not store._serialize_node(held_console, 1, shipped_map).has("attached"),
+	_ok(not store.serialize_node(held_console, 1, shipped_map).has("attached"),
 		"attach/a shipped object in the game's own zone saves no attachment")
 	# Unless a mod hung that zone there and said so.
 	socket.add_to_group(ScenePersistence.MOD_ZONE_GROUP)
-	_eq(store._serialize_node(held_console, 1, shipped_map).get("attached", {}),
+	_eq(store.serialize_node(held_console, 1, shipped_map).get("attached", {}),
 		{"to": 0, "zone": "Socket"}, "attach/a zone in the mod_zone group is a mod's")
 	socket.remove_from_group(ScenePersistence.MOD_ZONE_GROUP)
 	# A plain mod prop has no field of its own anywhere, so any zone counts.
 	socket.pick_up_object(held_part)
-	_eq(store._serialize_node(held_part, 2, shipped_map).get("attached", {}),
+	_eq(store.serialize_node(held_part, 2, shipped_map).get("attached", {}),
 		{"to": 0, "zone": "Socket"}, "attach/a mod prop in the game's zone still saves it")
 	for n: Node in [held_part, held_console, shipped]:
 		n.free()
@@ -508,7 +508,7 @@ func _group_objects() -> void:
 	add_child(lead)
 	var plug := lead.get_node("PlugA0") as Node3D
 	plug.global_position = Vector3(1.0, 2.0, 3.0)
-	var entry := store._serialize_node(lead, 4, {lead: 4})
+	var entry := store.serialize_node(lead, 4, {lead: 4})
 	_eq(str(entry.get("type", "")), lead_type, "objects/a lead keeps its mod type")
 	var plugs: Array = entry.get("plugs", [])
 	_eq(plugs.size(), 4, "objects/a lead saves every plug")
@@ -518,7 +518,7 @@ func _group_objects() -> void:
 	_eq(ScenePersistence._objects_validation_error([entry]), "",
 		"objects/a saved lead validates")
 	lead.free()
-	var back := store._deserialize_object(entry) as CompositeCable
+	var back := store.deserialize_object(entry) as CompositeCable
 	_ok(back != null and back.scene_file_path == lead_scene
 		and str(back.get_meta(ScenePersistence.MOD_TYPE_META, "")) == lead_type,
 		"objects/a lead restores from the mod's scene")
@@ -533,7 +533,7 @@ func _group_objects() -> void:
 	ScenePersistence.register_mod_object("t.lead:crate", scene, "t.lead")
 	var crate := ScenePersistence._instantiate_mod_object("t.lead:crate")
 	add_child(crate)
-	var plain := store._serialize_node(crate, 5, {crate: 5})
+	var plain := store.serialize_node(crate, 5, {crate: 5})
 	_ok(str(plain.get("type", "")) == "t.lead:crate" and not plain.has("plugs"),
 		"objects/a plain prop still saves as a pose")
 	crate.free()
@@ -544,7 +544,7 @@ func _group_objects() -> void:
 	var pad := ScenePersistence._instantiate_mod_object("t.lead:pad")
 	_ok(pad is RetroController, "objects/a mod pad instantiates as a controller")
 	add_child(pad)
-	var pad_entry := store._serialize_node(pad, 6, {pad: 6})
+	var pad_entry := store.serialize_node(pad, 6, {pad: 6})
 	_eq(str(pad_entry.get("scene", "")), pad_scene, "objects/a mod pad saves the scene it came from")
 	_eq(str(pad_entry.get("type", "")), "retro_controller",
 		"objects/as a controller entry, which is what carries its port, not as a bare prop")
@@ -562,25 +562,25 @@ func _group_objects() -> void:
 	var gun := ScenePersistence._instantiate_mod_object("t.lead:gun")
 	_ok(gun is LightGun, "objects/a mod gun instantiates as a light gun")
 	add_child(gun)
-	var gun_entry := store._serialize_node(gun, 7, {gun: 7})
+	var gun_entry := store.serialize_node(gun, 7, {gun: 7})
 	_eq(str(gun_entry.get("type", "")), "light_gun",
 		"objects/a mod gun saves as a light gun entry, which is what carries its port")
 	_eq(str(gun_entry.get("scene", "")), gun_scene, "objects/with the scene it came from")
 	_ok(gun_entry.has("port_index"), "objects/and its port")
 	gun.free()
-	var gun_back := store._deserialize_object(gun_entry)
+	var gun_back := store.deserialize_object(gun_entry)
 	_ok(gun_back is LightGun and gun_back.scene_file_path == gun_scene,
 		"objects/a save brings the mod's gun back, not the generic one")
 	if gun_back != null:
 		gun_back.free()
 	var plain_gun := (load("res://Scenes/Objects/peripherals/light_gun.tscn") as PackedScene).instantiate() as Node3D
 	add_child(plain_gun)
-	var plain_entry := store._serialize_node(plain_gun, 8, {plain_gun: 8})
+	var plain_entry := store.serialize_node(plain_gun, 8, {plain_gun: 8})
 	_ok(not plain_entry.has("scene"), "objects/the game's own gun saves as it always did")
 	plain_gun.free()
 	var stray := gun_entry.duplicate()
 	stray["scene"] = "res://Scenes/Objects/controllers/playstation/ps1_controller.tscn"
-	var stray_back := store._deserialize_object(stray)
+	var stray_back := store.deserialize_object(stray)
 	_ok(stray_back is LightGun and stray_back.scene_file_path == "res://Scenes/Objects/peripherals/light_gun.tscn",
 		"objects/a gun entry naming something that is not a gun gets the generic gun")
 	if stray_back != null:

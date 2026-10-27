@@ -332,7 +332,7 @@ func _test_service() -> void:
 	_ok(not newer.wants_attention(), "service/Skip hides it")
 	var again := AppUpdateService.new()
 	again.prefs_path = newer.prefs_path
-	again._load_prefs()
+	again.load_prefs()
 	_eq(again.skipped_version, "0.11.0", "service/the skipped version is remembered")
 	again.free()
 

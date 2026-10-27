@@ -411,7 +411,7 @@ func _p_no_copy() -> void:
 	var kinds: Array = objects.map(func(o: Dictionary) -> String: return str(o.get("type", "")))
 	_check_eq(kinds, ["tv"], "one set, and no vcr_player or dvd_player beside it")
 	# Asked directly, as ObjectSync does of anything it might register.
-	_check_eq(persistence._serialize_node(_vcr(tv), 0, {}), {},
+	_check_eq(persistence.serialize_node(_vcr(tv), 0, {}), {},
 		"a built-in deck serialises to nothing on its own")
 	_ok(not tv.get_control_state().is_empty() and not objects[0].has("decks"),
 		"an empty combination set writes no decks field")

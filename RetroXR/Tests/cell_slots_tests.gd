@@ -131,7 +131,7 @@ func _test_labels() -> void:
 	_ok(worn != null and worn == BatteryCell.LABELS["AAA"]["black_gold"],
 		"labels/an AAA asked for in Black & Gold wears it", str(worn))
 	_ok(_label_override(plain) == null, "labels/a cell asked for nothing wears the model's own label")
-	var rec: Dictionary = ScenePersistence.new()._serialize_node(gold, 3, {gold: 3})
+	var rec: Dictionary = ScenePersistence.new().serialize_node(gold, 3, {gold: 3})
 	_ok(rec.get("model_variant") == "black_gold", "labels/its label is saved", str(rec.get("model_variant")))
 	rec["id"] = 3
 	var back := ScenePersistence.new().instantiate_objects(self, JSON.parse_string(JSON.stringify([rec])))
@@ -318,14 +318,14 @@ func _test_save() -> void:
 	var cell := _cell()
 	await _drop_into(zone, cell, zone.global_basis * Basis(Vector3.BACK, deg_to_rad(-25.0)))
 	var sp := ScenePersistence.new()
-	var rec: Dictionary = sp._serialize_node(pak, 1, {cell: 5})
+	var rec: Dictionary = sp.serialize_node(pak, 1, {cell: 5})
 	_ok(rec.get("cell_slots") == {"BatteryAAA2": {"cell": 5, "roll": -25.0}},
 		"save/ the object names its cell and roll", str(rec.get("cell_slots")))
-	var cell_rec: Dictionary = sp._serialize_node(cell, 5, {pak: 1, cell: 5})
+	var cell_rec: Dictionary = sp.serialize_node(cell, 5, {pak: 1, cell: 5})
 	_ok(cell_rec.get("type") == CELL_TYPE and not cell_rec.has("attached"),
 		"save/ the cell saves as an AAA cell, and does not say what holds it", str(cell_rec))
 	await _take_out(zone)
-	_ok(not sp._serialize_node(pak, 1, {cell: 5}).has("cell_slots"), "save/ empty bays write nothing")
+	_ok(not sp.serialize_node(pak, 1, {cell: 5}).has("cell_slots"), "save/ empty bays write nothing")
 	var ids := {1: true, 5: true}
 	var base := {"id": 1, "type": "rumble_pak", "position": [0, 0, 0], "rotation": [0, 0, 0]}
 	_ok(ScenePersistence._entry_validation_error(base.merged({"cell_slots": {"BatteryAAA2": {"cell": 5, "roll": 10}}}), ids).is_empty(),

@@ -120,7 +120,7 @@ func _run() -> void:
 	if (lib.GetCoreIdentity() as Dictionary).is_empty():
 		return
 
-	var opts := _read_opt(root_dir, str(_sys.call("_resolve_core")))
+	var opts := _read_opt(root_dir, str(_sys.resolve_core_name()))
 	_ok("the core was told about slot 2",
 		str(opts.get("reicast_device_port1_slot2", "")) == ("Microphone" if leg == "seated" else "None"),
 		str(opts.get("reicast_device_port1_slot2", "(unset)")))

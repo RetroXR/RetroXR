@@ -618,12 +618,12 @@ func _test_forced() -> void:
 
 	var persistence := ScenePersistence.new()
 	var both := await _spawn(rom, &"red", N64CartShell.REGION_JPN)
-	var entry: Dictionary = persistence._serialize_node(both, 1, {})
+	var entry: Dictionary = persistence.serialize_node(both, 1, {})
 	_ok(entry.get("shell_preset", "") == "red" and entry.get("body_region", "") == "jpn",
 		"forced/both are written to the save entry", str(entry))
 	_ok(ScenePersistence._entry_validation_error(entry, {}).is_empty(),
 		"forced/and the entry validates", ScenePersistence._entry_validation_error(entry, {}))
-	var back := persistence._deserialize_object(entry) as RetroCartridge
+	var back := persistence.deserialize_object(entry) as RetroCartridge
 	_ok(back != null and back.shell_preset == &"red" and back.body_region == "jpn",
 		"forced/and read back before the cartridge enters the tree")
 	if back != null:
@@ -637,7 +637,7 @@ func _test_forced() -> void:
 			"forced/a restored cartridge wears them")
 		back.queue_free()
 	var auto := await _spawn(rom)
-	var auto_entry: Dictionary = persistence._serialize_node(auto, 3, {})
+	var auto_entry: Dictionary = persistence.serialize_node(auto, 3, {})
 	_ok(not auto_entry.has("shell_preset") and not auto_entry.has("body_region")
 		and not auto_entry.has("shell_color") and not auto_entry.has("shell_flake"),
 		"forced/an untouched cartridge writes none of the keys")
@@ -669,7 +669,7 @@ func _test_forced() -> void:
 	_ok(lifted.r > 0.0 and lifted.r == lifted.g and lifted.g == lifted.b
 		and CartridgeColor.flake_finish(Color.WHITE).flake_color == Color.WHITE,
 		"forced/flakes over black still show, over white they stay white", str(lifted))
-	var mixed_entry: Dictionary = persistence._serialize_node(sparkle, 4, {})
+	var mixed_entry: Dictionary = persistence.serialize_node(sparkle, 4, {})
 	_ok(mixed_entry.get("shell_color", "") == "#24479a" and mixed_entry.get("shell_flake", false) == true
 		and not mixed_entry.has("shell_preset"),
 		"forced/a mixed colour and its flake are written to the save entry", str(mixed_entry))
@@ -679,7 +679,7 @@ func _test_forced() -> void:
 	mixed_bad["shell_flake"] = "yes"
 	_ok(not ScenePersistence._entry_validation_error(mixed_bad, {}).is_empty(),
 		"forced/a shell_flake that is not a boolean is refused")
-	var mixed_back := persistence._deserialize_object(mixed_entry) as RetroCartridge
+	var mixed_back := persistence.deserialize_object(mixed_entry) as RetroCartridge
 	_ok(mixed_back != null and mixed_back.shell_color == "#24479a" and mixed_back.shell_flake,
 		"forced/a mixed colour is read back before the cartridge enters the tree")
 	if mixed_back != null:

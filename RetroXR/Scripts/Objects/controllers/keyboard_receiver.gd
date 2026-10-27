@@ -117,7 +117,7 @@ func _send_key(event: InputEventKey, pressed: bool) -> bool:
 	if NetworkManager.netplay_queue_key(_connected_system, keycode, pressed, character):
 		return true
 	# Port 0, as every keyboard in this project reports — a keyboard claims no
-	# port of its own on a computer system (RetroSystem._claims_port_device).
+	# port of its own on a computer system (SystemPorts.claims_port_device).
 	lib.SetKeyState(0, keycode, pressed, character)
 	return true
 

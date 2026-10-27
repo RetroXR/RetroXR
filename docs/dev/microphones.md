@@ -301,7 +301,7 @@ In RetroXR:
 - **The PLUG is what a socket takes, not the box**, which is why this needed no new plug
   class. `ControllerPlug.set_controller(unit)` copies `device_type` and `systemid` off the
   dongle, the plug is the one in the `controller_plug` group, and `_bind_port` unwraps it
-  with `get_controller()` before filing it in `_port_controllers` — so the console still
+  with `get_controller()` before filing it in `SystemPorts.controllers` — so the console still
   sees a VRU and the unit still answers `microphone_position()`. The box was in that group
   until 2026-09-17 and its front end was moulded as a connector tongue to suit.
 - **The microphone plugs in and pulls out.** The dongle carries a `MicJack` snap zone

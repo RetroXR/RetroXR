@@ -424,7 +424,7 @@ func _ready() -> void:
 	_setup_leds()
 	# snap_require alone would also take a console pad's plug — every ControllerPlug
 	# joins that group. The connector is what makes this socket an extension's and
-	# nothing else's, the mirror of RetroSystem._accepts_plug.
+	# nothing else's, the mirror of SystemPorts.accepts_plug.
 	_expansion_port.snap_filter = _accepts_extension
 	_expansion_port.has_picked_up.connect(_on_extension_seated)
 	_expansion_port.has_dropped.connect(_on_extension_removed)

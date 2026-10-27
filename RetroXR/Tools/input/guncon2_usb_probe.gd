@@ -71,7 +71,7 @@ func _run() -> void:
 	sys.set("rom_path", _rom)
 	add_child(sys)
 	await get_tree().process_frame
-	var zones: Array = sys.get("_usb_zones")
+	var zones: Array = sys.controller_ports().usb_zones
 	print("[probe] the console has %d USB sockets" % zones.size())
 
 	var k := _usb - 1
@@ -88,7 +88,7 @@ func _run() -> void:
 		var plug := gun.get("_cable_plug") as Node3D
 		sys.call("restore_controller_plug", RetroSystem.USB_SLOT_BASE + k, plug)
 		await get_tree().process_frame
-		var held: Array = sys.get("_usb_plugs")
+		var held: Array = sys.controller_ports().usb_plugs
 		print("[probe] gun seated in USB socket %d: %s, it drives core port %d"
 			% [_usb, held[k] == plug, int(gun.get("_port_index"))])
 		# The probe presses the buttons, not the gun's own hand-reading loop.
@@ -106,7 +106,7 @@ func _run() -> void:
 	print("[probe] core up: %s after %d ms" % [up, Time.get_ticks_msec() - t0])
 	if not up:
 		return
-	for entry: Dictionary in sys.get("_controller_info"):
+	for entry: Dictionary in sys.controller_ports().controller_info:
 		print("[probe] core port %d: told %d" % [int(entry.get("port", -1)), int(entry.get("current_id", -1))])
 
 	var t1 := Time.get_ticks_msec()

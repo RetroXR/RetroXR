@@ -114,11 +114,17 @@ claims them: flycast without nvmem died on its first write to a protected RAM pa
   suite still answers): `SaveStateController`, `MemoryCardController`, `SystemAudio`,
   `ExpansionLaunch`, `SystemExpansions` (sockets, covers, the unit list), `SystemVideoLead`
   (the captive video-out lead; the `VideoChannel` records stay on the machine),
-  `SystemCaptivePads`, and the five `ConsoleStorage`s (VMU, Sega CD, Saturn, 3DO, Xbox),
+  `SystemCaptivePads`, `SystemPorts` (controller ports and USB sockets: what is seated,
+  what the core is told, the per-port pad-type/pak options; `controller_ports()`),
+  `SystemTray` (the disc drive: loader, lid, spin, the core's disk-control mirror;
+  `disc_tray()`), and the five `ConsoleStorage`s (VMU, Sega CD, Saturn, 3DO, Xbox),
   which power-on, stop, a session's start and the first frame walk IN ORDER
   (`RetroSystem._storages`; a session stages only the Sega CD and Saturn ones, see each
   `stages_in_session()`). What other code calls BY NAME on the machine stays as a one-line
-  forwarder. The by-name contracts with no base class are written down as lists:
+  forwarder; suites hold the component (`sys.controller_ports().controller_info`,
+  `sys.disc_tray().open`) rather than reaching for the machine's privates, and the few
+  private names the model packs' probes read (`_tray_open`, `_controller_info`,
+  `_accepts_plug`, ...) are kept as forwarding properties/methods. The by-name contracts with no base class are written down as lists:
   `NetMachine` (what NetplaySession calls on RetroSystem/GbPrinter/VmuCard) and
   `AvSourceContract` (what a set calls on a console/VCR/DVD); `system_tests contract/`
   checks the scripts against them. Which power method to call is documented on

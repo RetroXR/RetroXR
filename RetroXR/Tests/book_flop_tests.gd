@@ -772,10 +772,10 @@ func _test_book() -> void:
 			and book._flop.hinge(1) > BookFlop.HARDBACK_ANGLE_MIN - BookFlop.HARD_STOP_MARGIN - 1e-6,
 		"book/hardback: the boards reach the shaders unbent and barely past flat")
 	var sp := ScenePersistence.new()
-	var saved: Dictionary = sp._serialize_node(book, 1, {})
+	var saved: Dictionary = sp.serialize_node(book, 1, {})
 	_ok(saved.get("hardback") == true, "book/hardback is saved with the book")
-	var back := sp._deserialize_object({"type": "book", "pdf_path": "", "hardback": true}) as PDFBook
-	var plain := sp._deserialize_object({"type": "book", "pdf_path": ""}) as PDFBook
+	var back := sp.deserialize_object({"type": "book", "pdf_path": "", "hardback": true}) as PDFBook
+	var plain := sp.deserialize_object({"type": "book", "pdf_path": ""}) as PDFBook
 	_ok(back != null and back.hardback and plain != null and not plain.hardback,
 		"book/...and restored; a room saved before the option existed gets soft covers")
 	if back:

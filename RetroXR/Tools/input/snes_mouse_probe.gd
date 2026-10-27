@@ -206,7 +206,7 @@ func _add_desk() -> void:
 
 
 func _report_ports() -> void:
-	var zones: Array = _sys._port_zones
+	var zones: Array = _sys.controller_ports().zones
 	print("[probe] system has %d port zone(s)" % zones.size())
 	for i in range(zones.size()):
 		var z = zones[i]
@@ -214,19 +214,19 @@ func _report_ports() -> void:
 	# The systemid filter, asserted both ways on the SAME plug.
 	var plug: ControllerPlug = _mouse._cable_plug
 	print("[probe] plug systemid = '%s'" % plug.systemid)
-	print("[probe] super_nes accepts it: %s (want true)" % _sys._accepts_plug(plug))
+	print("[probe] super_nes accepts it: %s (want true)" % _sys.controller_ports().accepts_plug(plug))
 	var other := SYSTEM_SCENE.instantiate() as RetroSystem
 	other.systemid = "nes"
 	add_child(other)
 	other.freeze = true
 	other.global_position = Vector3(0, -5.0, 0)
-	print("[probe] nes accepts it: %s (want false)" % other._accepts_plug(plug))
+	print("[probe] nes accepts it: %s (want false)" % other.controller_ports().accepts_plug(plug))
 	# A generic mouse must still fit everything.
 	var generic := RETRO_MOUSE_SCENE.instantiate() as RetroMouse
 	add_child(generic)
 	generic.global_position = Vector3(0, -5.0, 0.4)
 	print("[probe] generic mouse systemid = '%s' -> nes accepts: %s (want true)"
-		% [generic.systemid, other._accepts_plug(generic)])
+		% [generic.systemid, other.controller_ports().accepts_plug(generic)])
 
 
 func _plug_in() -> void:
@@ -238,8 +238,8 @@ func _report_connection() -> void:
 		% [_mouse._connected_system, _mouse._port_index, _mouse.device_type])
 	var plug: ControllerPlug = _mouse._cable_plug
 	print("[probe] plug at %s | port 0 at %s | gap %.1f mm"
-		% [plug.global_position, _sys._port_zones[0].global_position,
-			plug.global_position.distance_to(_sys._port_zones[0].global_position) * 1000.0])
+		% [plug.global_position, _sys.controller_ports().zones[0].global_position,
+			plug.global_position.distance_to(_sys.controller_ports().zones[0].global_position) * 1000.0])
 	print("[probe] plug mesh node: %s" % (plug.get_node_or_null("PlugModel") != null))
 	print("[probe] cable_anchor = %s" % plug.cable_anchor)
 

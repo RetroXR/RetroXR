@@ -67,7 +67,7 @@ const _REFERENCE_FIELDS := [
 	# The clip-on accessory on an expansion unit -- the 32X's Model 2 spacer.
 	"accessory",
 ]
-## Stamped on a mod prop when it spawns, so _serialize_node can recognise it
+## Stamped on a mod prop when it spawns, so serialize_node can recognise it
 ## without a class to test against. The value is the registered type string.
 const MOD_TYPE_META := &"mod_object_type"
 ## A snap zone a mod put somewhere that is not its own prop -- hung on a shipped
@@ -246,11 +246,11 @@ const MOUSE_RECEIVER_SCENE    := preload("res://Scenes/Objects/controllers/mouse
 
 ## Types whose entry carries nothing but a pose — instantiate and place, no
 ## properties to apply. Types that need more are match arms in
-## _deserialize_object().
+## deserialize_object().
 ##
 ## One of THREE places an interactive object is registered, and they must be
 ## edited together or the object half-exists:
-##   1. this table (or a _deserialize_object arm) — restoring it from a save,
+##   1. this table (or a deserialize_object arm) — restoring it from a save,
 ##      plus its row in _save_kind_rows — writing it (scene_tests registry/
 ##      fails a PLAIN_SCENES type no row writes)
 ##   2. spawn_menu_controller.gd's `match type` — spawning it from the menu
@@ -742,7 +742,7 @@ func _collect_objects(root: Node) -> Array[Dictionary]:
 		node_to_id[nodes[i]] = i
 	var objects: Array[Dictionary] = []
 	for i in range(nodes.size()):
-		var data := _serialize_node(nodes[i], i, node_to_id)
+		var data := serialize_node(nodes[i], i, node_to_id)
 		if not data.is_empty():
 			objects.append(data)
 	return objects
@@ -1363,7 +1363,7 @@ func _spawn_entry(root: Node, entry: Variant, spawned: Dictionary, entries: Dict
 	var id: int = rec.get("id", -1)
 	if id < 0:
 		return
-	var obj := _deserialize_object(rec)
+	var obj := deserialize_object(rec)
 	if obj == null:
 		return
 	# Before it enters the room, where a mod's hook builds its covers' slots: a
@@ -1895,7 +1895,7 @@ func _yaw_field(key: String, yaw: float) -> Dictionary:
 
 
 ## id, type and pose — the four fields every entry carries. Each branch of
-## _serialize_node() merges its own fields onto this.
+## serialize_node() merges its own fields onto this.
 func _base(id: int, type_name: String, n3d: Node3D) -> Dictionary:
 	var pos := n3d.global_position
 	var rot := n3d.global_rotation_degrees
@@ -2203,7 +2203,12 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 	return result
 
 
-func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
+## One object's save entry: its kind's fields, its colour and whatever else every
+## kind carries. `id` is the number it is saved under and `node_to_id` maps the
+## room's objects to theirs, so a reference to another object can be written as
+## that object's number. Public because netplay's object sync builds its wire
+## entries through it and the suites assert the entry a room would write.
+func serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 	var entry := _serialize_kind(node, id, node_to_id)
 	# Which of its colors it is, for anything that is one of several: a console,
 	# a bay lid, a controller a mod dressed. Only then, so everything else saves
@@ -2374,7 +2379,7 @@ static func _save_kind_rows() -> Array:
 		# Nothing to record but its existence and where it is: a lid is
 		# interchangeable, and which console it belongs on comes from that
 		# console's own "expansion_cover" reference. (Its color, for a lid that
-		# was given one, is written by _serialize_node as anything's is.)
+		# was given one, is written by serialize_node as anything's is.)
 		[ExpansionCover, "expansion_cover"],
 		[PortCover, "port_cover", &"_port_cover_fields"],
 		[Poster, "poster", &"_poster_fields"],
@@ -3099,7 +3104,10 @@ func _restore_lead_fields(obj: Node3D, data: Dictionary) -> void:
 		(obj as CompositeCable).cord_length = float(data.get("cord_length", 0.0))
 
 
-func _deserialize_object(data: Dictionary) -> Node3D:
+## Build the object a save entry describes, before it enters the room, or null
+## for an entry nothing here can make. The counterpart to serialize_node, public
+## for the same callers.
+func deserialize_object(data: Dictionary) -> Node3D:
 	var obj := _deserialize_kind(data)
 	# Its color, back on it before it enters the room.
 	var variant: Variant = data.get("model_variant", "")
@@ -3468,3 +3476,14 @@ func _apply_media_fields(cart: RetroCartridge, data: Dictionary) -> void:
 	cart.shell_flake = bool(data.get("shell_flake", false))
 	cart.body_region = str(data.get("body_region", ""))
 	cart.fallback_market = str(data.get("fallback_market", ""))
+
+
+## The names serialize_node and deserialize_object had while they were private,
+## kept because the model packs' probes (RetroXR-models/mods/probes) still call
+## them by these names.
+func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
+	return serialize_node(node, id, node_to_id)
+
+
+func _deserialize_object(data: Dictionary) -> Node3D:
+	return deserialize_object(data)

@@ -95,7 +95,7 @@ func slide(open: bool) -> void:
 
 
 ## True while the shelf is still travelling. The disc rides the shelf, so nothing
-## may turn it until it stops — see RetroSystem._update_disc_spin.
+## may turn it until it stops — see SystemTray.update_spin.
 func is_moving() -> bool:
 	return _slide_tween != null and _slide_tween.is_valid() and _slide_tween.is_running()
 

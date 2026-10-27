@@ -164,7 +164,7 @@ var _left_vr_ctrl: XRController3D = null
 var _right_vr_ctrl: XRController3D = null
 
 ## Haptics, shared with handheld_input.gd — see PadInputShared. Levels are
-## pushed in from RetroSystem._on_rumble_state_changed, normalized 0.0..1.0.
+## pushed in from SystemPorts.on_rumble, normalized 0.0..1.0.
 var _rumble := PadInputShared.Rumble.new(self)
 
 # The accessory port on the back of the pad, and what is in it. Inert on every
@@ -637,7 +637,7 @@ func on_unplugged() -> void:
 	# pulled out of a NES still played a NES layout in your hand.
 	_load_bindings()
 	# Stop any lingering rumble when the cable is yanked. Usually already
-	# cleared by RetroSystem._on_port_released, but idempotent and safer.
+	# cleared by SystemPorts.on_port_released, but idempotent and safer.
 	set_rumble(0.0, 0.0)
 
 

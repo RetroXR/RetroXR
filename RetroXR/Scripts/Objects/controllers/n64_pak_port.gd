@@ -11,7 +11,7 @@
 ## The host supplies two things and keeps the rest:
 ##
 ##   owner      the node the machine knows as its port controller, passed back to
-##              reapply_pak() so the system can find it in _port_controllers
+##              reapply_pak() so the system can find it in SystemPorts.controllers
 ##   on_change  called after every seat and removal, for whatever else the host
 ##              has to do about it (a controller stops its rumble here)
 ##

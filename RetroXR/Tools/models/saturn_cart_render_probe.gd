@@ -106,9 +106,9 @@ func _shoot() -> void:
 		await _wait(20)
 		print("[probe] %s seated=%s beetle=%s yaba=%s core=%s" % [id,
 			str(saturn.expansion_ids()),
-			str(saturn._all_forced_options("mednafen_saturn").get("beetle_saturn_cart", "?")),
-			str(saturn._all_forced_options("yabasanshiro").get("yabasanshiro_addon_cart", "?")),
-			saturn._resolve_core()])
+			str(saturn.all_forced_options("mednafen_saturn").get("beetle_saturn_cart", "?")),
+			str(saturn.all_forced_options("yabasanshiro").get("yabasanshiro_addon_cart", "?")),
+			saturn.resolve_core_name()])
 		for view: String in VIEWS:
 			var v: Array = VIEWS[view]
 			_cam.position = STAGE + (v[0] as Vector3)
@@ -132,9 +132,9 @@ func _shoot() -> void:
 		saturn.restore_expansion(unit)
 		await _wait(20)
 	print("[probe] vcd seated=%s mpeg=%s cart=%s core=%s" % [str(saturn.expansion_ids()),
-		str(saturn._all_forced_options("mednafen_saturn").get("beetle_saturn_mpeg_card", "?")),
-		str(saturn._all_forced_options("mednafen_saturn").get("beetle_saturn_cart", "?")),
-		saturn._resolve_core()])
+		str(saturn.all_forced_options("mednafen_saturn").get("beetle_saturn_mpeg_card", "?")),
+		str(saturn.all_forced_options("mednafen_saturn").get("beetle_saturn_cart", "?")),
+		saturn.resolve_core_name()])
 	for shot: Array in [["vcd_card_rear", Vector3(0.05, 0.22, -0.42)],
 			["vcd_card_rear_low", Vector3(-0.30, 0.06, -0.30)]]:
 		_cam.position = STAGE + (shot[1] as Vector3)

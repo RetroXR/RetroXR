@@ -8,7 +8,7 @@
 ## It sends nothing to libretro itself, for the same reason RumblePak does not.
 ## The core drives haptics through RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE, which
 ## this project already answers all the way through to the hand holding the pad
-## (RetroSystem._on_rumble_state_changed routes a port's rumble to that port's
+## (SystemPorts.on_rumble routes a port's rumble to that port's
 ## controller). All this has to do is BE SEATED, so flycast is told to fit a
 ## Purupuru to the slot and starts driving it at all.
 ##

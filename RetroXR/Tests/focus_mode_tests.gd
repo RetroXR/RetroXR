@@ -279,7 +279,7 @@ func _keep_cases() -> void:
 	other_plug.add_to_group(LinkPlug.ANY_GROUP)
 
 	var loose := _prop("Loose")
-	gb._port_controllers[1] = pad
+	gb.controller_ports().controllers[1] = pad
 	lead.set("bus", [{"machine": gb, "port": 0}, {"machine": far, "port": 0}])
 
 	var card := _pickable("Card")
@@ -313,7 +313,7 @@ func _keep_cases() -> void:
 	_right_pickup.set("picked_up_object", null)
 	_fm._refresh_room()
 	_ok(loose.visible, "keep/and stays drawn once let go, so it can be picked up again")
-	gb._port_controllers[1] = null
+	gb.controller_ports().controllers[1] = null
 	_fm._refresh_room()
 	_ok(not pad.visible and not pad_cable.visible,
 		"keep/a pad no longer in the port is hidden with its cord")
@@ -345,14 +345,14 @@ func _keep_cases() -> void:
 	await _wait(5)
 	var cable := await _cable(console, tv)
 	var nes_pad := _prop("NesPad")
-	console._port_controllers[0] = nes_pad
+	console.controller_ports().controllers[0] = nes_pad
 	_fm.enter(tv)
 	_ok(nes_pad.visible, "keep/on a set, the pad in the machine it is showing stays in view")
 	_ok(console.visible, "keep/and so does that machine")
 	_ok(fds.visible, "keep/and the unit it stands on, which holds it in its socket")
 	_ok(not tv.visible, "keep/while the set itself stays hidden")
 	_fm.leave()
-	console._port_controllers[0] = null
+	console.controller_ports().controllers[0] = null
 	nes_pad.free()
 	tv.free()
 	await _wait(2)

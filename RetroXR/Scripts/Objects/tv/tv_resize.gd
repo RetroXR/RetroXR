@@ -9,7 +9,9 @@
 ## lines reaching the set for six names, none of them CRT, OSD or tuner state.
 ## The public surface is two calls — apply() when the size changes, and
 ## revalidate_park() every frame — plus RetroTV.set_tv_scale, which stays where
-## it is because the options panel and object_sync both call it by name.
+## it is because the options panel and object_sync both call it by name. The
+## measurements behind a resize (riders_at, is_jammed, is_standing_on_something,
+## local_bottom_y, is_parked) are public too, for tv_resize_tests to assert.
 ##
 ## scale_factor stays on RetroTV too: scene_persistence writes it by name and a
 ## peer's resize arrives as a property on the set, not on this.
@@ -83,24 +85,24 @@ func apply() -> void:
 	# Measured before the scale write, which is what leaves the children stale —
 	# and unconditionally, so the very first call, from _ready, is the one that
 	# fills the cache while every transform is still coherent.
-	var bottom := _local_bottom_y()
+	var bottom := local_bottom_y()
 	# bottom_world = origin_y + s * local_bottom, so holding it fixed means
 	# shifting the origin by (old_s - new_s) * local_bottom.
 	var delta := previous - _tv.scale_factor
 	# Whatever is standing on the set, found while the cabinet is still its old
-	# size — see _carry_riders for why they cannot be left to the solver. Skipped
+	# size — see carry_riders for why they cannot be left to the solver. Skipped
 	# when the size is not actually moving: _on_tv_dropped reasserts the current
 	# scale on every release, and that must not cost a shape query.
 	var resizing := not is_nan(previous) and not is_zero_approx(delta)
 	var riders: Array[RigidBody3D] = []
 	if resizing:
-		riders = _riders(previous)
+		riders = riders_at(previous)
 	_tv.scale = Vector3.ONE * _tv.scale_factor
 	if not resizing:
 		return
 	_tv.global_position.y += delta * bottom
 	# The bottom is pinned, so the top moved by exactly the change in height.
-	_carry_riders(riders, _collider_height() * (_tv.scale_factor - previous))
+	carry_riders(riders, collider_height() * (_tv.scale_factor - previous))
 	# Held: the grab driver owns the pose, so there is nothing to park.
 	if _tv.freeze and not _parked_by_resize:
 		return
@@ -117,7 +119,7 @@ func apply() -> void:
 	# notification, and the flush at the end of the frame is what hands the pose to
 	# the physics server. Freezing before that flush parks the body at its old pose,
 	# and unfreezing before it resumes gravity from a stale one.
-	if _is_standing_on_something() and _is_jammed():
+	if is_standing_on_something() and is_jammed():
 		_tv.linear_velocity = Vector3.ZERO
 		_tv.angular_velocity = Vector3.ZERO
 		_tv.force_update_transform()
@@ -134,7 +136,7 @@ const _RIDER_SLAB := 0.03
 
 
 ## Height of the pickup collider at scale 1.
-func _collider_height() -> float:
+func collider_height() -> float:
 	var col := _tv.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if col == null or not (col.shape is BoxShape3D):
 		return 0.0
@@ -147,7 +149,7 @@ func _collider_height() -> float:
 ## the cabinet itself is not. Dynamic bodies only — world geometry cannot ride
 ## anything, and a frozen body is either held, parked, or seated in one of our own
 ## sockets, none of which wants to be shoved.
-func _riders(at_scale: float) -> Array[RigidBody3D]:
+func riders_at(at_scale: float) -> Array[RigidBody3D]:
 	var out: Array[RigidBody3D] = []
 	var col := _tv.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if col == null or not (col.shape is BoxShape3D) or _tv.get_world_3d() == null \
@@ -189,8 +191,8 @@ func _riders(at_scale: float) -> Array[RigidBody3D]:
 ## under whatever was on it and gravity does the rest — but it does need the WAKE
 ## below, because a body that fell asleep resting on the cabinet is not disturbed
 ## by the cabinet leaving, and it hangs in the air where the set used to be.
-func _carry_riders(riders: Array[RigidBody3D], lift: float) -> void:
-	for rb in riders:
+func carry_riders(bodies: Array[RigidBody3D], lift: float) -> void:
+	for rb in bodies:
 		if not is_instance_valid(rb):
 			continue
 		if lift > 0.0:
@@ -216,8 +218,20 @@ const _JAM_DEPTH := 0.01
 
 ## Frames between park revalidations. A parked body is frozen, so it has no
 ## gravity to notice with — nothing else would ever tell it the floor is gone.
-const _PARK_CHECK_FRAMES := 12
+const PARK_CHECK_FRAMES := 12
 var _park_check_frame: int = 0
+
+
+## Whether the set is frozen by a resize park, rather than by a hand holding it.
+func is_parked() -> bool:
+	return _parked_by_resize
+
+
+## Start the revalidation interval over, so the next PARK_CHECK_FRAMES calls of
+## revalidate_park() are the ones that decide. The suite drives the interval by
+## hand and has to know where in it it starts.
+func restart_park_check() -> void:
+	_park_check_frame = 0
 
 
 ## A park only holds while the set is still standing on something. Re-checked a
@@ -229,10 +243,10 @@ func revalidate_park() -> void:
 	if not _parked_by_resize:
 		return
 	_park_check_frame += 1
-	if _park_check_frame < _PARK_CHECK_FRAMES:
+	if _park_check_frame < PARK_CHECK_FRAMES:
 		return
 	_park_check_frame = 0
-	if _is_standing_on_something():
+	if is_standing_on_something():
 		return
 	_tv.force_update_transform()
 	_tv.freeze = false
@@ -247,11 +261,11 @@ func revalidate_park() -> void:
 ## Cast from the base, over a fixed gap. Casting from the origin over a reach that
 ## grows with the set instead means a big cabinet reads as standing while it is
 ## still a metre up, so resizing one on the way down parks it in the air.
-func _is_standing_on_something() -> bool:
+func is_standing_on_something() -> bool:
 	var world := _tv.get_world_3d()
 	if world == null:
 		return false
-	var base: Vector3 = _tv.global_position + Vector3.UP * (_local_bottom_y() * _tv.scale_factor)
+	var base: Vector3 = _tv.global_position + Vector3.UP * (local_bottom_y() * _tv.scale_factor)
 	var query := PhysicsRayQueryParameters3D.create(
 		base + Vector3.UP * _STANDING_GAP, base + Vector3.DOWN * _STANDING_GAP)
 	query.exclude = [_tv.get_rid()]
@@ -268,7 +282,7 @@ func _is_standing_on_something() -> bool:
 ## anything is lying on it. A loose prop is also not the problem being solved: the
 ## solver pushes it out of the way, which is fine. It is immovable world geometry
 ## that turns an overlap into an eviction the set can never win.
-func _is_jammed() -> bool:
+func is_jammed() -> bool:
 	var col := _tv.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if col == null or not (col.shape is BoxShape3D) or _tv.get_world_3d() == null:
 		return false
@@ -311,7 +325,7 @@ func _is_jammed() -> bool:
 ##
 ## Cheap enough to leave uncached: two property reads, and _resize_body_collision
 ## swaps the shape out from under any cache when a shell is fitted.
-func _local_bottom_y() -> float:
+func local_bottom_y() -> float:
 	var col := _tv.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if col == null or not (col.shape is BoxShape3D):
 		return 0.0

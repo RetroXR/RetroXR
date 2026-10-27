@@ -269,12 +269,12 @@ func _test_roll_from_the_menu_and_the_save() -> void:
 	_eq(printer.paper_roll, "blue", "a choice that is not there changes nothing")
 
 	var store := ScenePersistence.new()
-	var entry := store._serialize_node(printer, 1, {printer: 1})
+	var entry := store.serialize_node(printer, 1, {printer: 1})
 	_eq(entry.get("paper"), "blue", "a save says which roll is in it")
-	var back := store._deserialize_object(entry) as GbPrinter
+	var back := store.deserialize_object(entry) as GbPrinter
 	_ok(back != null and back.paper_roll == "blue", "and a load puts it back")
 	entry.erase("paper")
-	var old := store._deserialize_object(entry) as GbPrinter
+	var old := store.deserialize_object(entry) as GbPrinter
 	_ok(old != null and old.paper_roll == "white", "a save from before rolls loads the white one")
 	for n: Node in [back, old, printer]:
 		if n != null:
@@ -523,12 +523,12 @@ func _test_printouts_are_paper() -> void:
 	poster.printout = true
 	_ok(GbPrintoutFlop.is_printout(poster), "and so is one marked a print")
 	var store := ScenePersistence.new()
-	var entry := store._serialize_node(poster, 1, {poster: 1})
+	var entry := store.serialize_node(poster, 1, {poster: 1})
 	_eq(entry.get("printout"), true, "a save says it is a print")
-	var back := store._deserialize_object(entry) as Poster
+	var back := store.deserialize_object(entry) as Poster
 	_ok(back != null and back.printout, "and a load keeps it one")
 	poster.printout = false
-	_ok(not store._serialize_node(poster, 1, {poster: 1}).has("printout"),
+	_ok(not store.serialize_node(poster, 1, {poster: 1}).has("printout"),
 		"an ordinary poster saves as it always did")
 	for n: Node in [poster, back]:
 		if n != null:

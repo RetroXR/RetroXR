@@ -95,7 +95,7 @@ func _ready() -> void:
 		os_name = OS.get_name()
 	if arch.is_empty():
 		arch = Engine.get_architecture_name()
-	_load_prefs()
+	load_prefs()
 	if not supported():
 		return
 	_sweep_leftovers()
@@ -420,7 +420,8 @@ static func _can_write(folder: String) -> bool:
 	return true
 
 
-func _load_prefs() -> void:
+## Read the saved update prefs. Public for the suites, as AppPrefs.load_prefs.
+func load_prefs() -> void:
 	var data := JsonStore.read_dict(prefs_path, "AppUpdate")
 	check_on_start = JsonStore.get_bool(data, "check_on_start", true)
 	skipped_version = JsonStore.get_string(data, "skipped_version", "")

@@ -80,7 +80,7 @@ func _run() -> void:
 	add_child(cart)
 	cart.global_position = _sys.global_position + Vector3(0, 0.3, 0)
 	await _room_frames(4)
-	_ok("the machine's slot takes the cartridge", _sys._accepts_media(cart))
+	_ok("the machine's slot takes the cartridge", _sys.accepts_media(cart))
 	_sys.restore_cartridge(cart)
 	await _room_frames(10)
 

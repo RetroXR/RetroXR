@@ -339,7 +339,7 @@ func _tween_lid(to: float) -> void:
 ## the disc bay, and tell the host when the lid reaches home.
 ##
 ## That last part is not optional. OPEN on a spring-latched lid is a LATCH
-## RELEASE, so RetroSystem._on_eject_pressed deliberately does nothing when it
+## RELEASE, so SystemTray.on_eject_pressed deliberately does nothing when it
 ## already believes the tray is up. Close the lid by hand without saying so and
 ## that belief never changes: the lid is shut, the machine thinks it is open, and
 ## the next press of OPEN is correctly ignored — which reads as a dead button.
@@ -362,7 +362,7 @@ func _on_lid_swung(deg: float) -> void:
 	# Both directions. Reporting only the latch clicking shut was enough while the
 	# only way this lid opened was the OPEN button, which reports for itself — but
 	# a restore reapplies the saved angle and latch straight onto the hinge, and
-	# the machine heard nothing. See RetroSystem._on_lid_swung.
+	# the machine heard nothing. See SystemTray.on_lid_swung.
 	if _lid_hinge != null:
 		var host := get_parent()
 		if host != null and host.has_method("lid_reports_open"):

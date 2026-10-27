@@ -524,6 +524,12 @@ var scale_factor: float = 1.0
 # Everything that follows from changing it — see tv_resize.gd.
 var _resize: TvResize = null
 
+
+## The component that resizes this set (see TvResize), for the suites that
+## measure what a resize does to the room.
+func resizer() -> TvResize:
+	return _resize
+
 # The "no signal" blue — shared by the screen texture and the ambilight tint.
 const BLUE_SCREEN_COLOR := Color(0.0, 0.05, 0.65)
 const STATIC_LIGHT_COLOR := Color(0.42, 0.44, 0.46)

@@ -160,16 +160,16 @@ func _test_tape() -> void:
 
 	# A save carries the place, and a load puts it back.
 	var store := ScenePersistence.new()
-	var entry := store._serialize_node(tape, 1, {tape: 1})
+	var entry := store.serialize_node(tape, 1, {tape: 1})
 	_ok(int(entry.get("tape_track", -1)) == 1 and is_equal_approx(float(entry.get("tape_time", -1.0)), 12.0)
 		and is_equal_approx(float(entry.get("tape_progress", -1.0)), 0.4),
 		"tape/a save records the track, the time into it and the progress")
-	var back := store._deserialize_object(entry) as AudioCassette
+	var back := store.deserialize_object(entry) as AudioCassette
 	_ok(back != null and back.tape_track == 1 and is_equal_approx(back.tape_time, 12.0)
 		and is_equal_approx(back.tape_progress, 0.4), "tape/and a load brings back a cassette at that place")
 	if back != null:
 		back.free()
-	var old := store._deserialize_object({"type": "audio_cassette", "album_path": "", "album_label": "x"}) as AudioCassette
+	var old := store.deserialize_object({"type": "audio_cassette", "album_path": "", "album_label": "x"}) as AudioCassette
 	_ok(old != null and old.tape_track == 0 and old.tape_time == 0.0,
 		"tape/a save from before tapes kept their place loads at the start")
 	if old != null:
@@ -212,10 +212,10 @@ func _test_tape() -> void:
 	vcr._on_media_removed()
 	video.tape_time = 754.0
 	video.tape_progress = 0.21
-	var v_entry := store._serialize_node(video, 2, {video: 2})
+	var v_entry := store.serialize_node(video, 2, {video: 2})
 	_ok(is_equal_approx(float(v_entry.get("tape_time", -1.0)), 754.0)
 		and is_equal_approx(float(v_entry.get("tape_progress", -1.0)), 0.21), "tape/a save records a video tape's place")
-	var v_back := store._deserialize_object(v_entry) as VCRTape
+	var v_back := store.deserialize_object(v_entry) as VCRTape
 	_ok(v_back != null and is_equal_approx(v_back.tape_time, 754.0) and is_equal_approx(v_back.tape_progress, 0.21),
 		"tape/and a load brings back a video tape at that place")
 	if v_back != null:
@@ -271,8 +271,8 @@ func _test_tape() -> void:
 		"cassette/at the end of the cassette the deck stops, with all five minutes across")
 	vcr._on_play_pressed()
 	_ok(not vcr.is_playing, "cassette/and Play does nothing until it is rewound")
-	var s_entry := store._serialize_node(short, 3, {short: 3})
-	var s_back := store._deserialize_object(s_entry) as VCRTape
+	var s_entry := store.serialize_node(short, 3, {short: 3})
+	var s_back := store.deserialize_object(s_entry) as VCRTape
 	_ok(s_back != null and s_back.cassette == 5 and is_equal_approx(s_back.recording_seconds, 10.0)
 		and is_equal_approx(s_back.tape_blank, 290.0) and s_back.at_tape_end(),
 		"cassette/a save keeps the cassette, its recording's length and the blank tape wound")
@@ -869,7 +869,7 @@ func _test_playlist() -> void:
 	_eq(tape.options_info()[1], ["Position", "Recording 2, 00:00:12"],
 		"playlist/a playlist tape's menu says which recording it is in")
 	var store := ScenePersistence.new()
-	var back := store._deserialize_object(store._serialize_node(tape, 3, {tape: 3})) as VCRTape
+	var back := store.deserialize_object(store.serialize_node(tape, 3, {tape: 3})) as VCRTape
 	_ok(back != null and back.tape_track == 1, "playlist/a save keeps which recording a tape is in")
 	if back != null:
 		back.free()
@@ -955,7 +955,7 @@ func _test_save_types() -> void:
 	var persistence := ScenePersistence.new()
 	var types := {}
 	for d: Node in [rp, cd, tape]:
-		var entry: Dictionary = persistence._serialize_node(d, 1, {})
+		var entry: Dictionary = persistence.serialize_node(d, 1, {})
 		var t := str(entry.get("type", ""))
 		types[t] = true
 		_eq(t, d.deck_save_type(),

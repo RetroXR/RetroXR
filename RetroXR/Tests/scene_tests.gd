@@ -1602,7 +1602,7 @@ func _test_cords() -> void:
 		"cords/the socket knows which plug it is holding")
 
 	var sp := ScenePersistence.new("arcade")
-	var entry := sp._serialize_node(cord, 0, {})
+	var entry := sp.serialize_node(cord, 0, {})
 	_ok(not entry.is_empty(), "cords/a mains lead serializes to an entry at all")
 	_eq(str(entry.get("kind", "")), "nema_1_15_to_c7_cord",
 		"cords/and is named by the scene it was spawned from")
@@ -1765,7 +1765,7 @@ func _test_power_strip() -> void:
 	# it IS when saved.
 	var saved_at := body.global_position
 	var sp := ScenePersistence.new("arcade")
-	var entry := sp._serialize_node(strip, 0, {strip: 0})
+	var entry := sp.serialize_node(strip, 0, {strip: 0})
 	_eq(str(entry.get("kind", "")), "power_strip", "strip/serializes by kind")
 	var plugs: Array = entry.get("plugs", [])
 	_eq(plugs.size(), 1, "strip/one plug recorded")
@@ -1893,7 +1893,7 @@ func _test_multitap() -> void:
 	# The SELECT switch is the tap's before it is ready, so 2P comes back as 2P.
 	var two := tap_entry.duplicate(true)
 	two["tap_mode"] = RetroMultitap.MODE_2P
-	var tap_2p := sp._deserialize_object(two) as RetroMultitap
+	var tap_2p := sp.deserialize_object(two) as RetroMultitap
 	_ok(tap_2p != null and tap_2p.mode == RetroMultitap.MODE_2P, "multitap/a tap saved at 2P loads at 2P")
 	if tap_2p != null:
 		tap_2p.free()

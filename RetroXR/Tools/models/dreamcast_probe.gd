@@ -74,12 +74,12 @@ func _ready() -> void:
 	# Lid: OPEN is a latch release; a second press does not shut it.
 	_ok(model.has_spring_latched_lid(), "the lid is spring latched")
 	_ok(not model.is_lid_open(), "the lid spawns shut")
-	sys.call("_on_eject_pressed")
+	sys.disc_tray().on_eject_pressed()
 	# Time, not frames: headless frames are uncapped and the open tween is 0.38 s.
 	await get_tree().create_timer(0.6).timeout
 	_ok(model.is_lid_open() and absf(model.get_lid_angle_deg() - 70.0) < 0.5,
 		"OPEN pops the lid to 70 degrees (%.1f)" % model.get_lid_angle_deg())
-	sys.call("_on_eject_pressed")
+	sys.disc_tray().on_eject_pressed()
 	await get_tree().create_timer(0.6).timeout
 	_ok(model.is_lid_open(), "a second OPEN leaves it up: it is closed by hand")
 	await _pointer_reaches_caps(sys, "lid open")

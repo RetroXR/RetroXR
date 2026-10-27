@@ -234,7 +234,7 @@ func set_mains_region(id: String) -> void:
 
 
 func _ready() -> void:
-	_load_prefs()
+	load_prefs()
 	if mains_region.is_empty() or Connectors.problem(mains_region) != "":
 		mains_region = MainsRegions.for_locale(OS.get_locale())
 	# A member's initializer does not run its setter, so a fresh install (no
@@ -325,7 +325,10 @@ func _apply_spatial_audio() -> void:
 
 # ── Persistence ───────────────────────────────────────────────────────────────
 
-func _load_prefs() -> void:
+## Read the saved prefs over the defaults. Public so a suite can read back what
+## save_prefs() wrote into a fresh instance without entering the tree, where
+## _ready would also apply them to the running room.
+func load_prefs() -> void:
 	var data := JsonStore.read_dict(PREFS_PATH, "AppPrefs")
 	if data.is_empty():
 		return

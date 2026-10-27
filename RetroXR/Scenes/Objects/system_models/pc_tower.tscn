@@ -311,7 +311,7 @@ transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -0.055, 0.372, -0.2235)
 ; Rx(180) like the two seats above, and for the same measured reason.
 ;
 ; A pad in this socket drives libretro port 0 whatever cabinet slot it is —
-; RetroSystem._libretro_port_for pins it, the way it already pins a computer mouse.
+; SystemPorts.libretro_port_for pins it, the way it already pins a computer mouse.
 [node name="PortSeat3" type="Marker3D" parent="Back"]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -0.055, 0.262, -0.2235)
 

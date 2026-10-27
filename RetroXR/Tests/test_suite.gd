@@ -123,10 +123,10 @@ func _app_prefs_round_trip(values: Dictionary) -> Dictionary:
 	var wrote: bool = prefs.save_prefs()
 	for key: String in live:
 		prefs.set(key, live[key])
-	# No public loader: AppPrefs loads in _ready, and entering the tree would
-	# also apply the prefs to the running room.
+	# Not added to the tree: AppPrefs loads in _ready, and entering the tree
+	# would also apply the prefs to the running room.
 	var fresh := (prefs.get_script() as GDScript).new() as Node
-	fresh._load_prefs()
+	fresh.load_prefs()
 	var out := {}
 	for key: String in values:
 		out[key] = fresh.get(key) if wrote else null

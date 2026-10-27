@@ -346,7 +346,7 @@ func _test_adapter(systemid: String, unit_id: String, link_port: int, core: Stri
 	_ok(port.show_recess, tag + "the plain box draws no mouth, so the socket keeps its own")
 
 	var sys := await _console(systemid)
-	_eq(sys._all_forced_options(core).get(option), off, tag + "a bare console has its adapter off")
+	_eq(sys.all_forced_options(core).get(option), off, tag + "a bare console has its adapter off")
 	sys.restore_expansion(card)
 	await _wait(10)
 	_eq(card.get_host(), sys, tag + "the card seats")
@@ -358,7 +358,7 @@ func _test_adapter(systemid: String, unit_id: String, link_port: int, core: Stri
 		tag + "in the stand-in console, on the end of the card left showing, facing out of it",
 		"at %s, +Z %s" % [card.to_local(port.global_position), out])
 	_eq(port.get_machine(), sys, tag + "and then the socket on it is the console's")
-	_eq(sys._all_forced_options(core).get(option), on, tag + "with the core's adapter on")
+	_eq(sys.all_forced_options(core).get(option), on, tag + "with the core's adapter on")
 	_ok(sys.expansion_ids().has(unit_id), tag + "and the card is named among what is seated")
 
 	# Out of the console, measured in its frame: what a player has to reach.
@@ -379,7 +379,7 @@ func _test_adapter(systemid: String, unit_id: String, link_port: int, core: Stri
 		await _wait(5)
 	_eq(card.get_host(), null, tag + "taken out, the card is loose")
 	_eq(port.get_machine(), null, tag + "and its socket is nobody's")
-	_eq(sys._all_forced_options(core).get(option), off, tag + "and the core's adapter is off again")
+	_eq(sys.all_forced_options(core).get(option), off, tag + "and the core's adapter is off again")
 	await _clear()
 
 
@@ -392,7 +392,7 @@ class _SlimShell extends RetroSystemModel:
 func _test_built_in_socket() -> void:
 	var fat := await _console("ps2", "FatPS2")
 	_eq(fat.get_node_or_null("EthernetPort"), null, "slim/ a fat PlayStation 2 has no socket of its own")
-	_eq(fat._all_forced_options("pcsx2").get("pcsx2_dev9_eth"), "disabled", "slim/ and no network without the card")
+	_eq(fat.all_forced_options("pcsx2").get("pcsx2_dev9_eth"), "disabled", "slim/ and no network without the card")
 
 	var slim := await _console("ps2", "SlimPS2")
 	var shell := _SlimShell.new()
@@ -409,7 +409,7 @@ func _test_built_in_socket() -> void:
 		slim._build_builtin_ethernet_port()
 		_eq(slim.get_children().filter(func(n: Node) -> bool: return n is EthernetPort).size(), 1,
 			"slim/ asking twice builds one socket")
-	_eq(slim._all_forced_options("pcsx2").get("pcsx2_dev9_eth"), "link", "slim/ the core's adapter is on")
+	_eq(slim.all_forced_options("pcsx2").get("pcsx2_dev9_eth"), "link", "slim/ the core's adapter is on")
 	_ok(not slim.expansion_ids().has(NETWORK_ADAPTER), "slim/ without a card being named as seated")
 	var card := await _unit(NETWORK_ADAPTER)
 	_ok(not slim.expansion_hardware().accepts_unit(card, ExpansionCatalog.socket_of(NETWORK_ADAPTER)),
@@ -636,17 +636,17 @@ func _test_port_covers() -> void:
 	_ok(not socket.enabled, "cover/ and shuts the socket again")
 
 	var sp := ScenePersistence.new()
-	var rec: Dictionary = JSON.parse_string(JSON.stringify(sp._serialize_node(cover, 7, {})))
+	var rec: Dictionary = JSON.parse_string(JSON.stringify(sp.serialize_node(cover, 7, {})))
 	_eq(rec.get("type"), "port_cover", "cover/ saved as a cover")
 	_eq(rec.get("cover_socket"), COVER_SOCKET, "cover/ with its socket")
 	_eq(rec.get("model_variant"), "spice", "cover/ and its color")
-	var back := sp._deserialize_object(rec) as PortCover
+	var back := sp.deserialize_object(rec) as PortCover
 	_ok(back != null and back.socket_id == COVER_SOCKET and back.size.is_equal_approx(COVER_SIZE)
 		and back.model_variant == "spice", "cover/ and a load builds the same cover")
 	if back != null:
 		_ok(back.is_in_group(PortCover.group_for(COVER_SOCKET)), "cover/ that fits the same socket")
 		back.free()
-	var sys_rec: Dictionary = sp._serialize_node(sys, 1, {cover: 7})
+	var sys_rec: Dictionary = sp.serialize_node(sys, 1, {cover: 7})
 	_eq(sys_rec.get("port_covers"), {COVER_SOCKET: 7}, "cover/ the console's record names its cover")
 	var ids := {1: true, 7: true}
 	var base := {"id": 1, "type": "system", "position": [0, 0, 0], "rotation": [0, 0, 0]}
@@ -660,7 +660,7 @@ func _test_port_covers() -> void:
 		"position": [0, 0, 0], "rotation": [0, 0, 0], "cover_size": [0.1, 0.02]}, ids).is_empty(),
 		"cover/ and a cover whose size is not three numbers")
 	var plain := await _console("gc", "PlainGC")
-	_ok(not sp._serialize_node(plain, 2, {}).has("port_covers"),
+	_ok(not sp.serialize_node(plain, 2, {}).has("port_covers"),
 		"cover/ a console whose shell has no covers saves as it did")
 	await _clear()
 

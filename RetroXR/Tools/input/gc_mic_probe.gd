@@ -66,7 +66,7 @@ func _run() -> void:
 	_ok("the plug is seated in slot B", _sys.get_snapped_memcard(1) == plug)
 
 	_sys.toggle_power()
-	var opts := _read_opt(root_dir, str(_sys.call("_resolve_core")))
+	var opts := _read_opt(root_dir, str(_sys.resolve_core_name()))
 	_ok("slot B's option is mic", str(opts.get("dolphin_memcard_b_path", "")) == "mic",
 		str(opts.get("dolphin_memcard_b_path", "(unset)")))
 	_ok("the microphone button is pinned to R3",

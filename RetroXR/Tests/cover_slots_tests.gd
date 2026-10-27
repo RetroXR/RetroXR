@@ -133,14 +133,14 @@ func _test_save() -> void:
 	await _wait(3)
 	var cover := zone.picked_up_object as PortCover
 	var sp := ScenePersistence.new()
-	var rec: Dictionary = sp._serialize_node(pak, 1, {cover: 7})
+	var rec: Dictionary = sp.serialize_node(pak, 1, {cover: 7})
 	_ok(rec.get("cover_slots") == {SOCKET: 7}, "save/ the object's record names the cover on it", str(rec.get("cover_slots")))
 	zone.drop_object()
 	await _wait(2)
-	rec = sp._serialize_node(pak, 1, {cover: 7})
+	rec = sp.serialize_node(pak, 1, {cover: 7})
 	_ok(rec.get("cover_slots") == {SOCKET: null}, "save/ and null for one that is off", str(rec.get("cover_slots")))
 	var plain := _pak()
-	_ok(not sp._serialize_node(plain, 2, {}).has("cover_slots"), "save/ an object with no slot saves as it did")
+	_ok(not sp.serialize_node(plain, 2, {}).has("cover_slots"), "save/ an object with no slot saves as it did")
 	var ids := {1: true, 7: true}
 	var base := {"id": 1, "type": "rumble_pak", "position": [0, 0, 0], "rotation": [0, 0, 0]}
 	_ok(ScenePersistence._entry_validation_error(base.merged({"cover_slots": {SOCKET: 7}}), ids).is_empty(),

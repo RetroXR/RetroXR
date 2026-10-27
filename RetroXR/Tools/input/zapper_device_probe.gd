@@ -144,7 +144,7 @@ func _run() -> void:
 
 	# RetroSystem.core_device_id, fed the list this very core just declared.
 	var sys: Object = load("res://Scripts/Objects/systems/system.gd").new()
-	sys.set("_controller_info", info)
+	sys.controller_ports().controller_info = info
 	var resolved: int = sys.call("core_device_id", 4, 1)
 	print("[zapper] resolver: lightgun on port 2 -> %d %s"
 		% [resolved, "PASS" if resolved == 258 else "FAIL (expected fceumm's Zapper, 258)"])

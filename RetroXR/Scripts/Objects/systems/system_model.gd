@@ -194,7 +194,7 @@ func play_close() -> void:
 
 
 ## True while this model is driving its own tray between open and shut. Asked by
-## RetroSystem._update_disc_spin, which will not turn a disc that is still on its
+## SystemTray.update_spin, which will not turn a disc that is still on its
 ## way in.
 ##
 ## A SPRING-LATCHED lid leaves this false on purpose rather than by omission: that
@@ -219,7 +219,7 @@ func has_spring_latched_lid() -> bool:
 ##
 ## Only computers need it. A console's pads drive the port they are plugged into;
 ## a DOS or Amiga core reads its one joystick on port 0 whatever socket the cabinet
-## put it in, and RetroSystem._libretro_port_for uses this to pin exactly that one
+## put it in, and SystemPorts.libretro_port_for uses this to pin exactly that one
 ## socket without touching the others (a C64 really does have two joystick ports).
 func game_port_index() -> int:
 	return -1
@@ -653,7 +653,7 @@ func slot_insert_depth() -> float:
 ## hub is a thing the player can see standing still.
 ##
 ## Handed an angle rather than a speed on purpose. The ramp lives in
-## RetroSystem._update_disc_spin, which already knows about power, seating and
+## SystemTray.update_spin, which already knows about power, seating and
 ## spin-down, and a model second-guessing any of that would drift out of step
 ## with the disc it is supposed to be turning with.
 func spin_disc_mechanism(_radians: float) -> void:

@@ -276,7 +276,7 @@ func _check_persistence(host: Node3D, card: VmuCard, pack: JumpPack,
 	var node_to_id: Dictionary = {}
 	for i in range(nodes.size()):
 		node_to_id[nodes[i]] = i
-	var entry: Dictionary = sp._serialize_node(host, int(node_to_id[host]), node_to_id)
+	var entry: Dictionary = sp.serialize_node(host, int(node_to_id[host]), node_to_id)
 	var refs: Variant = entry.get("vmus")
 	var recorded := (refs is Array and (refs as Array).size() == 2
 		and refs[0] != null and int(refs[0]) == int(node_to_id[card])

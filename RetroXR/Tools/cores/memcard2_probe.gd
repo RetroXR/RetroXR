@@ -70,7 +70,7 @@ func _run() -> void:
 	_sys._memcards._snapped_memcards[0] = _card_a
 	_sys._memcards._snapped_memcards[1] = _card_b
 
-	var opts := _sys._removable_media_options(core)
+	var opts := _sys.removable_media_options(core)
 	_say("memcard1=%s/%s memcard2=%s/%s" % [
 		opts.get("pcsx_rearmed_memcard1", "?"),
 		opts.get("pcsx_rearmed_memcard1_inserted", "?"),

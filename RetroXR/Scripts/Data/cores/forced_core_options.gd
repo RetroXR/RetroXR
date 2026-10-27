@@ -12,7 +12,7 @@
 ## a machine's description, so they take that description as arguments and this
 ## file has no scene, no state and no side effects.
 ##
-## RetroSystem._all_forced_options is still the entry point, and merges what the
+## RetroSystem.all_forced_options is still the entry point, and merges what the
 ## model demands on top of these. One place, so the .opt seam and the options
 ## panel can never disagree about which keys the player is allowed to move.
 class_name ForcedCoreOptions

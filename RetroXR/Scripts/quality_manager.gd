@@ -331,12 +331,12 @@ func _ready() -> void:
 	# transfers only an older, completed 12x8 pass, so both renderers use this cadence.
 	screen_light_interval = 6
 	# Quest starts where it always was; desktop takes the tier these settings exist
-	# to provide. Applied before _load_prefs so a saved preset wins.
+	# to provide. Applied before load_prefs so a saved preset wins.
 	apply_preset(Preset.LOW if not _desktop else Preset.MEDIUM, false)
 	screen_lights_enabled = RenderingServer.get_current_rendering_method() != "mobile"
 	crt_fast = RenderingServer.get_current_rendering_method() == "mobile"
-	_load_prefs()
-	# _load_prefs restores the saved foveation, which would undo a boot override.
+	load_prefs()
+	# load_prefs restores the saved foveation, which would undo a boot override.
 	_read_vrs_overrides()
 	adjust_lights()
 	apply_render_scale()
@@ -952,7 +952,7 @@ func detect_device() -> Device:
 	device = Device.UNKNOWN
 	for id: String in [_headset_id_ext(), OS.get_model_name(),
 			RenderingServer.get_video_adapter_name()]:
-		var mapped := _device_from_id(id)
+		var mapped := device_from_id(id)
 		print("[QualityManager] headset source '%s' -> device %d" % [id, mapped])
 		if mapped != Device.UNKNOWN:
 			device = mapped
@@ -975,7 +975,7 @@ func _headset_id_ext() -> String:
 
 ## Map one identifying string to a device, or UNKNOWN when it names none.
 ## 3S is tested before 3 because "quest 3s" contains "quest 3".
-func _device_from_id(raw: String) -> Device:
+func device_from_id(raw: String) -> Device:
 	var id := raw.to_lower()
 	if id.is_empty() or id == "genericdevice":
 		return Device.UNKNOWN
@@ -1558,7 +1558,9 @@ func _on_node_added(node: Node) -> void:
 
 # ── Persistence ───────────────────────────────────────────────────────────────
 
-func _load_prefs() -> void:
+## Read the saved quality prefs over the defaults. Public for the same reason
+## AppPrefs.load_prefs is: a suite reads a file back into a fresh instance.
+func load_prefs() -> void:
 	var data := JsonStore.read_dict(PREFS_PATH, "QualityManager")
 	if data.is_empty():
 		return

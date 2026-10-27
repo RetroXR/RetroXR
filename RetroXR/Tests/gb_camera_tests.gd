@@ -1154,11 +1154,11 @@ func _test_core() -> void:
 		await get_tree().process_frame
 	_ok(sys.resolve_core_name() == "mgba", "core/with the camera in it, it runs mGBA whatever it was given",
 		sys.resolve_core_name())
-	var forced: Dictionary = sys.call("_all_forced_options", sys.resolve_core_name())
+	var forced: Dictionary = sys.all_forced_options(sys.resolve_core_name())
 	_ok(str(forced.get("mgba_gb_model", "")) == "Game Boy Color" and str(forced.get("mgba_sgb_borders", "")) == "OFF",
 		"core/and that run is pinned to a Game Boy Color with no border", str(forced))
 	var none: Array[Dictionary] = []
-	var verdict := RetroSystem._power_on_verdict(sys.resolve_core_name(), "gbc", camera_rom, none, "", false, false)
+	var verdict := RetroSystem.power_on_verdict(sys.resolve_core_name(), "gbc", camera_rom, none, "", false, false)
 	_ok(not bool(verdict["start"]) and "mgba" in str(verdict["description"]),
 		"core/a player who never chose mGBA is told it is the core this needs", str(verdict.get("description", "")))
 

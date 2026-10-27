@@ -172,7 +172,7 @@ func _group_persist() -> void:
 	_live.apply_preset(QM.Preset.MEDIUM, false)
 	_live.set_shadow_quality(QM.ShadowQuality.HIGH)
 	var back := _fresh()
-	back._load_prefs()
+	back.load_prefs()
 	_ok(back.preset == QM.Preset.CUSTOM and back.shadow_quality == QM.ShadowQuality.HIGH
 			and back.msaa_3d == QM.PRESETS[QM.Preset.MEDIUM]["msaa"]
 			and back.post_aa == QM.PRESETS[QM.Preset.MEDIUM]["post_aa"],
@@ -198,7 +198,7 @@ func _group_persist() -> void:
 	var odd := _fresh()
 	var glow_default: bool = odd.glow_enabled
 	var lights_default: bool = odd.screen_lights_enabled
-	odd._load_prefs()
+	odd.load_prefs()
 	_ok(odd.msaa_3d == Viewport.MSAA_8X and odd.post_aa == QM.PostAA.SMAA
 			and odd.preset == QM.Preset.CUSTOM and odd.shadow_quality == QM.ShadowQuality.OFF
 			and odd.ao_quality == QM.AOQuality.HIGH,
@@ -222,7 +222,7 @@ func _group_persist() -> void:
 	# No file at all: nothing is loaded, and the device default is where it starts.
 	_restore_file(QM.PREFS_PATH, null)
 	var first := _fresh()
-	first._load_prefs()
+	first.load_prefs()
 	first.device = QM.Device.QUEST_2
 	first.apply_device_defaults()
 	_eq(first.eye_buffer_scale, 1.0, "persist/a first launch takes the device's starting eye buffer")
@@ -246,7 +246,7 @@ func _group_device() -> void:
 		"3f2a1c9e-5b7d-4e2a-9c1f-8d6e4b2a7c10": QM.Device.UNKNOWN,
 	}
 	for id: String in names:
-		_eq(probe._device_from_id(id), names[id], "device/'%s' names %s" % [id,
+		_eq(probe.device_from_id(id), names[id], "device/'%s' names %s" % [id,
 			QM.Device.keys()[names[id]]])
 	probe.free()
 

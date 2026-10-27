@@ -373,6 +373,6 @@ func _test_prefs() -> void:
 	var saved := JsonStore.read_dict(AppPrefs.PREFS_PATH, "test")
 	_eq(str(saved.get("mains_region", "")), TEST_REGION, "prefs/and saved")
 	AppPrefs.mains_region = ""
-	AppPrefs._load_prefs()
+	AppPrefs.load_prefs()
 	_eq(AppPrefs.mains_region, TEST_REGION, "prefs/and loaded back")
 

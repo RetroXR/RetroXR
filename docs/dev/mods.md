@@ -134,7 +134,7 @@ node-added hook read it. A console gets `RetroSystem.model_variant` and calls it
 model's `apply_variant(id)` once, after the model is added; an expansion cover has
 the same property. Everything else gets metadata, `SystemModelRegistry.VARIANT_KEY`
 (`variant_of`, `set_variant_of`), set in `SpawnMenuController._place_spawned`.
-`ScenePersistence._serialize_node` / `_deserialize_object` wrap every kind and keep
+`ScenePersistence.serialize_node` / `deserialize_object` (the underscore names still forward, for the packs' probes) wrap every kind and keep
 `"model_variant"`, so no kind has a field of its own for it. An id the mod no longer
 has, or a save loaded with the mod gone, is ignored.
 

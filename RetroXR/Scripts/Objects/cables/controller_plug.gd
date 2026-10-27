@@ -1,6 +1,6 @@
 ## ControllerPlug — the grabbable plug at the end of a retro controller's cable.
 ## In the "controller_plug" group, which every controller port requires, and fits
-## the ports whose connector is its own (Connectors.of; RetroSystem._accepts_plug).
+## the ports whose connector is its own (Connectors.of; SystemPorts.accepts_plug).
 ##
 ## It names no console or controller class in code, only in comments: a cable
 ## scene holds this script, and naming RetroSystem compiled system.gd, whose

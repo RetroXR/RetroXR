@@ -319,7 +319,7 @@ func _group_cart_on_the_wire() -> void:
 	cart.rom_path = unknown
 	cart.freeze = true
 	add_child(cart)
-	var entry := sp._serialize_node(cart, 0, {})
+	var entry := sp.serialize_node(cart, 0, {})
 	_eq(str(entry.get("fallback_market", "")), "jp", "wire/the spawn entry carries the spawner's pin")
 	remove_child(cart)
 	cart.free()

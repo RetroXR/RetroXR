@@ -125,7 +125,7 @@ func _run() -> void:
 
 	# The mirror lands BEFORE the core loads, so by here the directory exists and
 	# holds both cards under the names this core looks for.
-	var core: String = _sys.call("_resolve_core")
+	var core: String = _sys.resolve_core_name()
 	print("[probe] resolved core = %s" % core)
 	var row := MemcardMounts.for_core(core)
 	_ok("the core is one that owns its card files", not row.is_empty())

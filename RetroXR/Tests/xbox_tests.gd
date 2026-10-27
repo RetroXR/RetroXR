@@ -163,9 +163,9 @@ func _group_system() -> void:
 		"system/and the card it shows offers every one")
 	var bios_missing: Array[Dictionary] = [want]
 	var nothing_missing: Array[Dictionary] = []
-	_eq(str(RetroSystem._power_on_verdict("xemu", "xbox", "game.iso", bios_missing, "")["title"]),
+	_eq(str(RetroSystem.power_on_verdict("xemu", "xbox", "game.iso", bios_missing, "")["title"]),
 		"BIOS required", "system/so a disc with no BIOS says which file is missing")
-	_ok(bool(RetroSystem._power_on_verdict("xemu", "xbox", "game.iso", nothing_missing, "")["start"]),
+	_ok(bool(RetroSystem.power_on_verdict("xemu", "xbox", "game.iso", nothing_missing, "")["start"]),
 		"system/and with one installed it just starts")
 
 	_ok(XboxStorage.is_xbox_core("xemu"), "system/xemu is the core the one-at-a-time rule is about")
@@ -188,17 +188,17 @@ func _group_system() -> void:
 	# The verdict the power button reaches, called directly as its other cases
 	# are: it is a table of decisions and reads no disk.
 	var none: Array[Dictionary] = []
-	var empty := RetroSystem._power_on_verdict("xemu", "xbox", "", none, "", true, true, "")
+	var empty := RetroSystem.power_on_verdict("xemu", "xbox", "", none, "", true, true, "")
 	_ok(bool(empty["start"]) and str(empty["rom"]).is_empty(),
 		"empty/so it switches on with an empty tray, handed nothing")
 	# The case the user met: a disc in a tray still open. Starting beats the
 	# refusal, because that is what the hardware does — an open tray is a disc
 	# the drive cannot read, which is the dashboard.
-	var tray := RetroSystem._power_on_verdict("xemu", "xbox", "", none, "", true, true, "tray")
+	var tray := RetroSystem.power_on_verdict("xemu", "xbox", "", none, "", true, true, "tray")
 	_ok(bool(tray["start"]), "empty/and with the tray still open over a disc")
 	# With no BIOS the row cannot help: can_boot_empty says no, so empty_ok is
 	# false, and the machine asks for a game rather than starting into black.
-	var no_bios := RetroSystem._power_on_verdict("xemu", "xbox", "", none, "", false, true, "")
+	var no_bios := RetroSystem.power_on_verdict("xemu", "xbox", "", none, "", false, true, "")
 	_eq(str(no_bios["title"]), "No game inserted",
 		"empty/but with no BIOS it asks for a disc, as it always did")
 
@@ -482,7 +482,7 @@ func _group_slots() -> void:
 
 	# On an Xbox, in port 1.
 	var console := await _console("xbox", "xemu")
-	console._port_controllers[0] = pad
+	console.controller_ports().controllers[0] = pad
 	var storage: XboxStorage = console.get_node("XboxStorage")
 	var seated := storage.seated_units()
 	_eq(seated.size(), 2, "slots/the console finds both units in its pad")

@@ -220,7 +220,7 @@ func _test_reads_as_lightgun() -> void:
 
 func _test_core_device_id() -> void:
 	var sys := _system()
-	sys._controller_info = FCEUMM_PORTS
+	sys.controller_ports().controller_info = FCEUMM_PORTS
 
 	# The bug this suite exists for: the plain light gun is not a device fceumm
 	# knows, and its switch turns an unknown id into a gamepad. Port 2 (index 1) is where a NES
@@ -244,21 +244,21 @@ func _test_core_device_id() -> void:
 	# Nothing is known about the core until it starts, and a peripheral can be
 	# plugged into a machine that is off. The generic id is the honest answer;
 	# _reannounce_port_devices() corrects it once the core declares its list.
-	sys._controller_info = []
+	sys.controller_ports().controller_info = []
 	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 1),
 		DEVICE_LIGHTGUN, "device/machine off passes through")
 
 	# A core that subclasses the light gun properly is taken at its word.
-	sys._controller_info = SNES_PORTS
+	sys.controller_ports().controller_info = SNES_PORTS
 	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0), 260, "device/subclassed gun wins")
 
 	# Base type beats the name, however early the name matches.
-	sys._controller_info = MIXED_PORTS
+	sys.controller_ports().controller_info = MIXED_PORTS
 	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0), 260, "device/base type beats name")
 
 	# A gun that is one particular gun says which, and a core that lists several
 	# is told that one. The generic gun still gets the core's first.
-	sys._controller_info = TWO_GUN_PORTS
+	sys.controller_ports().controller_info = TWO_GUN_PORTS
 	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0), 260, "device/generic gun takes the first gun listed")
 	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["guncon", "g-con"])), 516,
 		"device/a named gun is announced as the device of its name")
@@ -276,17 +276,17 @@ func _test_core_device_id() -> void:
 	# A pad that is more than a plain joypad names itself the same way, and each
 	# core is told its own id for it.
 	var pad_3d := PackedStringArray(["3d control pad", "3d pad"])
-	sys._controller_info = BEETLE_SATURN_PORTS
+	sys.controller_ports().controller_info = BEETLE_SATURN_PORTS
 	_eq(sys.core_device_id(DEVICE_JOYPAD, 0, pad_3d), 261, "device/a named pad is announced as the device of its name")
 	_eq(sys.core_device_id(DEVICE_JOYPAD, 0), DEVICE_JOYPAD, "device/a pad with no name is the plain joypad still")
-	sys._controller_info = YABAUSE_PORTS
+	sys.controller_ports().controller_info = YABAUSE_PORTS
 	_eq(sys.core_device_id(DEVICE_JOYPAD, 0, pad_3d), 5, "device/and by another core's id for it on that core")
-	sys._controller_info = FCEUMM_PORTS
+	sys.controller_ports().controller_info = FCEUMM_PORTS
 	_eq(sys.core_device_id(DEVICE_JOYPAD, 0, pad_3d), DEVICE_JOYPAD,
 		"device/a named pad the core does not list is announced as the type it carries")
 	_eq(sys.core_device_id(DEVICE_JOYPAD, 3, pad_3d), DEVICE_JOYPAD, "device/as it is on a port the core does not describe")
 	# The name wins even over the base type: fceumm's Zapper is a mouse subclass.
-	sys._controller_info = MIXED_PORTS
+	sys.controller_ports().controller_info = MIXED_PORTS
 	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["zapper"])), 258,
 		"device/a named gun beats the base type")
 	# A plug carries its controller's names to the port.
@@ -471,12 +471,12 @@ func _test_model_variant() -> void:
 	_eq(made[1].get_model().get("told"), [] as Array[String], "colors/a console as it comes tells its model nothing")
 
 	var store := ScenePersistence.new()
-	var entry := store._serialize_node(made[0], 1, {made[0]: 1})
-	var plain := store._serialize_node(made[1], 2, {made[1]: 2})
+	var entry := store.serialize_node(made[0], 1, {made[0]: 1})
+	var plain := store.serialize_node(made[1], 2, {made[1]: 2})
 	_eq(entry.get("model_variant"), "green", "colors/a save keeps the color")
 	_ok(not plain.has("model_variant"), "colors/and writes no such key for a console that has none")
 	_eq(ScenePersistence._entry_validation_error(entry, {1: true}), "", "colors/the entry is one a load accepts")
-	var back := store._deserialize_object(entry) as RetroSystem
+	var back := store.deserialize_object(entry) as RetroSystem
 	_ok(back != null and back.model_variant == "green" and back.model_id == MODEL, "colors/a load gives it back to the console")
 	if back != null:
 		back.free()
@@ -487,11 +487,11 @@ func _test_model_variant() -> void:
 	var lid := (load("res://Scenes/Objects/expansion_cover.tscn") as PackedScene).instantiate() as ExpansionCover
 	lid.freeze = true
 	add_child(lid)
-	_ok(not store._serialize_node(lid, 3, {lid: 3}).has("model_variant"), "colors/a lid nothing has colored saves as it did")
+	_ok(not store.serialize_node(lid, 3, {lid: 3}).has("model_variant"), "colors/a lid nothing has colored saves as it did")
 	lid.model_variant = "green"
-	var lid_entry := store._serialize_node(lid, 3, {lid: 3})
+	var lid_entry := store.serialize_node(lid, 3, {lid: 3})
 	_eq(lid_entry.get("model_variant"), "green", "colors/a lid keeps its own color in a save")
-	var lid_back := store._deserialize_object(lid_entry) as ExpansionCover
+	var lid_back := store.deserialize_object(lid_entry) as ExpansionCover
 	_ok(lid_back != null and lid_back.model_variant == "green", "colors/and has it back before it enters the room")
 	if lid_back != null:
 		lid_back.free()
@@ -508,15 +508,15 @@ func _test_model_variant() -> void:
 		"colors/a console and a lid answer from their own property")
 	add_child(pad)
 	await get_tree().process_frame
-	var pad_entry := store._serialize_node(pad, 4, {pad: 4})
+	var pad_entry := store.serialize_node(pad, 4, {pad: 4})
 	_eq(pad_entry.get("model_variant"), "green", "colors/a save keeps a controller's color")
-	var pad_back := store._deserialize_object(pad_entry)
+	var pad_back := store.deserialize_object(pad_entry)
 	_ok(pad_back != null and SystemModelRegistry.variant_of(pad_back) == "green" and not pad_back.is_inside_tree(),
 		"colors/and a load gives it back before the controller enters the room")
 	if pad_back != null:
 		pad_back.free()
 	SystemModelRegistry.set_variant_of(pad, "")
-	_ok(not pad.has_meta(SystemModelRegistry.VARIANT_KEY) and not store._serialize_node(pad, 4, {pad: 4}).has("model_variant"),
+	_ok(not pad.has_meta(SystemModelRegistry.VARIANT_KEY) and not store.serialize_node(pad, 4, {pad: 4}).has("model_variant"),
 		"colors/taken off, nothing is kept and nothing is saved")
 	for node: Node in [made[0], made[1], lid, pad]:
 		node.queue_free()
@@ -651,7 +651,7 @@ func _test_playstation_hardware() -> void:
 		await get_tree().process_frame
 	_ok(float(model.call("get_lid_angle_deg")) < 5.0,
 		"psx/a hand can shut it", "%.1f deg" % model.call("get_lid_angle_deg"))
-	_ok(not bool(psx.get("_tray_open")), "psx/and the machine learns it is shut")
+	_ok(not psx.disc_tray().open, "psx/and the machine learns it is shut")
 	eject.button_pressed.emit()
 	for i in range(22):
 		await get_tree().process_frame
@@ -745,24 +745,24 @@ func _test_analog_mode_switch() -> void:
 
 func _test_pad_type_choice() -> void:
 	var full: Array = ["standard", "analog", "dualshock"]
-	_eq(RetroSystem._decide_pad_type(full, "dualshock", "standard"),
+	_eq(SystemPorts.decide_pad_type(full, "dualshock", "standard"),
 		"dualshock", "pad/dualshock takes dualshock")
 	# A core offering no DualShock still deserves the analog pad rather than the
 	# digital one — the sticks are physically there.
-	_eq(RetroSystem._decide_pad_type(["standard", "analog"], "dualshock", "standard"),
+	_eq(SystemPorts.decide_pad_type(["standard", "analog"], "dualshock", "standard"),
 		"analog", "pad/dualshock falls back to analog")
-	_eq(RetroSystem._decide_pad_type(["standard"], "dualshock", "standard"),
+	_eq(SystemPorts.decide_pad_type(["standard"], "dualshock", "standard"),
 		"", "pad/no fallback available")
 	# Already right: setting an option costs a core round trip and a rewritten
 	# .opt file, so the no-op has to stay a no-op.
-	_eq(RetroSystem._decide_pad_type(full, "dualshock", "dualshock"),
+	_eq(SystemPorts.decide_pad_type(full, "dualshock", "dualshock"),
 		"", "pad/already selected")
-	_eq(RetroSystem._decide_pad_type([], "dualshock", "standard"),
+	_eq(SystemPorts.decide_pad_type([], "dualshock", "standard"),
 		"", "pad/no options known")
 	# A preference this core has never heard of is left alone, not guessed at.
-	_eq(RetroSystem._decide_pad_type(full, "wavebird", "standard"),
+	_eq(SystemPorts.decide_pad_type(full, "wavebird", "standard"),
 		"", "pad/unknown preference")
-	_eq(RetroSystem._decide_pad_type(full, "analog", "standard"),
+	_eq(SystemPorts.decide_pad_type(full, "analog", "standard"),
 		"analog", "pad/plain analog pad")
 
 	# And what the SCENES actually ask for. Everything above is the pure decision,
@@ -786,11 +786,11 @@ func _test_libretro_port_routing() -> void:
 	var pc := _system("dos")
 	# A computer's cores poll the mouse on port 0 wherever the cabinet put it,
 	# which is what lets a mouse and a keyboard share the machine.
-	_eq(pc._libretro_port_for(DEVICE_MOUSE, 1),
+	_eq(pc.controller_ports().libretro_port_for(DEVICE_MOUSE, 1),
 		0, "routing/computer mouse pinned to port 0")
-	_eq(pc._libretro_port_for(DEVICE_JOYPAD, 1),
+	_eq(pc.controller_ports().libretro_port_for(DEVICE_JOYPAD, 1),
 		1, "routing/computer pad keeps its socket")
-	_eq(pc._libretro_port_for(DEVICE_KEYBOARD, 1),
+	_eq(pc.controller_ports().libretro_port_for(DEVICE_KEYBOARD, 1),
 		1, "routing/computer keyboard keeps its socket")
 	# ...but the GAME PORT does drive port 0: a DOS or Amiga core reads its one
 	# joystick there, and a pad announced on port 2 is a pad the game never sees.
@@ -803,22 +803,22 @@ func _test_libretro_port_routing() -> void:
 	var tower := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
 	tower.systemid = "dos"
 	add_child(tower)
-	_eq(tower._libretro_port_for(DEVICE_JOYPAD, 2),
+	_eq(tower.controller_ports().libretro_port_for(DEVICE_JOYPAD, 2),
 		0, "routing/computer game port drives port 0")
-	_eq(tower._libretro_port_for(DEVICE_JOYPAD, 1),
+	_eq(tower.controller_ports().libretro_port_for(DEVICE_JOYPAD, 1),
 		1, "routing/its other sockets are untouched")
 	tower.queue_free()
 	# ...but does not occupy it: its keys are global to port 0 regardless, and
 	# claiming a numbered port would take the slot the mouse needs.
-	_ok(not pc._claims_port_device(DEVICE_KEYBOARD), "routing/computer keyboard claims no port")
-	_ok(pc._claims_port_device(DEVICE_MOUSE), "routing/computer mouse claims a port")
+	_ok(not pc.controller_ports().claims_port_device(DEVICE_KEYBOARD), "routing/computer keyboard claims no port")
+	_ok(pc.controller_ports().claims_port_device(DEVICE_MOUSE), "routing/computer mouse claims a port")
 	pc.free()
 
 	var console := _system("nes")
-	_eq(console._libretro_port_for(DEVICE_MOUSE, 1),
+	_eq(console.controller_ports().libretro_port_for(DEVICE_MOUSE, 1),
 		1, "routing/console mouse keeps its socket")
-	_ok(console._claims_port_device(DEVICE_KEYBOARD), "routing/console keyboard claims a port")
-	_ok(console._claims_port_device(DEVICE_LIGHTGUN), "routing/console gun claims a port")
+	_ok(console.controller_ports().claims_port_device(DEVICE_KEYBOARD), "routing/console keyboard claims a port")
+	_ok(console.controller_ports().claims_port_device(DEVICE_LIGHTGUN), "routing/console gun claims a port")
 	console.free()
 
 
@@ -830,16 +830,16 @@ func _test_port_device_cache() -> void:
 	var sys := _system()
 	# Deep-copied: the fixtures are consts shared with the other cases, and the
 	# cache is written in place.
-	sys._controller_info = FCEUMM_PORTS.duplicate(true)
+	sys.controller_ports().controller_info = FCEUMM_PORTS.duplicate(true)
 
 	sys.set_controller_port_device(1, 258)
-	_eq(sys._controller_info[1]["current_id"], 258, "cache/port 2 shows the Zapper")
-	_ok(not sys._controller_info[0].has("current_id"), "cache/port 1 untouched")
+	_eq(sys.controller_ports().controller_info[1]["current_id"], 258, "cache/port 2 shows the Zapper")
+	_ok(not sys.controller_ports().controller_info[0].has("current_id"), "cache/port 1 untouched")
 
 	# A port the core did not declare must not invent an entry or disturb one.
 	sys.set_controller_port_device(9, 513)
-	_eq(sys._controller_info.size(), 3, "cache/unknown port adds nothing")
-	_eq(sys._controller_info[1]["current_id"], 258, "cache/unknown port leaves port 2 alone")
+	_eq(sys.controller_ports().controller_info.size(), 3, "cache/unknown port adds nothing")
+	_eq(sys.controller_ports().controller_info[1]["current_id"], 258, "cache/unknown port leaves port 2 alone")
 
 	sys.free()
 
@@ -853,7 +853,7 @@ func _test_cabinet_lookup() -> void:
 	var sys := _system()
 	var pad := FakeSeated.new()
 	var stray := FakeSeated.new()
-	sys._port_controllers = [null, pad, null, null]
+	sys.controller_ports().controllers = [null, pad, null, null]
 
 	_eq(sys.cabinet_port_of(pad), 1, "cabinet/finds the socket")
 	_eq(sys.cabinet_port_of(stray), -1, "cabinet/absent peripheral")
@@ -936,8 +936,9 @@ func _test_front_tray_spin() -> void:
 	for i in range(20):
 		await get_tree().process_frame
 
-	var bay: ProceduralDiscBay = sys.get("_disc_bay")
-	var tray: MediaTray = sys.get("_tray")
+	var drive: SystemTray = sys.disc_tray()
+	var bay: ProceduralDiscBay = drive.disc_bay
+	var tray: MediaTray = drive.media_tray
 	_ok(bay != null and bay.slide_pivot != null and tray != null,
 		"tray/a PS2 gets a sliding shelf")
 	if bay == null or bay.slide_pivot == null or tray == null:
@@ -955,26 +956,26 @@ func _test_front_tray_spin() -> void:
 	sys.is_powered_on = true
 
 	# Shut it the way the OPEN button does.
-	sys.call("_request_tray_state", false)
-	_ok(sys.call("_tray_is_moving"), "tray/the button sets the shelf travelling")
+	drive.request_open(false)
+	_ok(drive.is_moving(), "tray/the button sets the shelf travelling")
 	_ok(tray.can_spin(), "tray/...and seals the well there and then")
 	var before := disc.transform.basis
 
 	# Two seconds of drive, every step inside ONE frame. A tween only advances
 	# between frames, so the shelf is still travelling for all of them and the
 	# loop's length is not borrowed from the thing under test — a loop that ran
-	# WHILE _tray_is_moving() would stop on its first pass with the gate removed
+	# WHILE is_moving() would stop on its first pass with the gate removed
 	# and report a motionless disc either way.
 	for i in range(120):
-		sys.call("_update_disc_spin", 1.0 / 60.0)
+		drive.update_spin(1.0 / 60.0)
 	_ok(disc.transform.basis.is_equal_approx(before),
 		"tray/a disc still on its way in does not turn")
 
 	# Home: the motor catches, and the same 120 steps turn it.
 	await get_tree().create_timer(ProceduralDiscBay.SLIDE_TIME + 0.3).timeout
-	_ok(not sys.call("_tray_is_moving"), "tray/the shelf arrives")
+	_ok(not drive.is_moving(), "tray/the shelf arrives")
 	for i in range(120):
-		sys.call("_update_disc_spin", 1.0 / 60.0)
+		drive.update_spin(1.0 / 60.0)
 	_ok(not disc.transform.basis.is_equal_approx(before),
 		"tray/...and a disc that is home does turn")
 
@@ -993,13 +994,13 @@ func _test_front_tray_spin() -> void:
 
 func _test_media_removal() -> void:
 	var tray := _system("psx")
-	tray._disc_loader = MediaDimensions.LOADER_TRAY
-	_ok(tray._media_survives_removal(), "media/a tray console keeps running")
+	tray.disc_tray().loader = MediaDimensions.LOADER_TRAY
+	_ok(tray.disc_tray().media_survives_removal(), "media/a tray console keeps running")
 	tray.free()
 
 	var slot := _system("wii")
-	slot._disc_loader = MediaDimensions.LOADER_SLOT
-	_ok(slot._media_survives_removal(), "media/a slot console keeps running")
+	slot.disc_tray().loader = MediaDimensions.LOADER_SLOT
+	_ok(slot.disc_tray().media_survives_removal(), "media/a slot console keeps running")
 	slot.free()
 
 	# A Neo Geo CD loads under a lift-up lid, the same motion as the PlayStation
@@ -1012,14 +1013,14 @@ func _test_media_removal() -> void:
 	# No disc loader at all, but the media is a floppy — the drive is a slot in
 	# the tower's bezel and the machine runs on regardless.
 	var floppy := _system("dos")
-	_eq(floppy._disc_loader,
+	_eq(floppy.disc_tray().loader,
 		MediaDimensions.LOADER_NONE, "media/a floppy machine has no disc loader")
-	_ok(floppy._media_survives_removal(), "media/a floppy machine keeps running")
+	_ok(floppy.disc_tray().media_survives_removal(), "media/a floppy machine keeps running")
 	floppy.free()
 
 	# The cartridge IS the program. Pulling it stops the machine, as it always has.
 	var cart := _system("nes")
-	_ok(not cart._media_survives_removal(), "media/a cartridge deck stops")
+	_ok(not cart.disc_tray().media_survives_removal(), "media/a cartridge deck stops")
 	cart.free()
 
 	# Whether a swap can reach the core is answered by the core's .info file
@@ -1028,26 +1029,26 @@ func _test_media_removal() -> void:
 	# no-disk-control path and power the machine off.
 	var psx := _system("psx")
 	psx.core_name = "pcsx_rearmed"
-	_ok(psx._supports_disk_control(), "disk control/declared by a PS1 core")
+	_ok(psx.disc_tray().supports_disk_control(), "disk control/declared by a PS1 core")
 	psx.free()
 
 	var amiga := _system("amiga")
 	amiga.core_name = "puae"
-	_ok(amiga._supports_disk_control(), "disk control/declared by a floppy core")
+	_ok(amiga.disc_tray().supports_disk_control(), "disk control/declared by a floppy core")
 	amiga.free()
 
 	var nes := _system("nes")
 	nes.core_name = "fceumm"
-	_ok(not nes._supports_disk_control(), "disk control/not declared by a cartridge core")
+	_ok(not nes.disc_tray().supports_disk_control(), "disk control/not declared by a cartridge core")
 	# The running core is still the better witness: a core that reports the
 	# interface at runtime is believed whatever its .info file says.
-	nes._has_disk_control = true
-	_ok(nes._supports_disk_control(), "disk control/the live answer wins")
+	nes.disc_tray().has_disk_control = true
+	_ok(nes.disc_tray().supports_disk_control(), "disk control/the live answer wins")
 	nes.free()
 
 	var unknown := _system("psx")
 	unknown.core_name = "not_a_real_core"
-	_ok(not unknown._supports_disk_control(), "disk control/an unknown core claims nothing")
+	_ok(not unknown.disc_tray().supports_disk_control(), "disk control/an unknown core claims nothing")
 	unknown.free()
 
 	_test_lid_ops()
@@ -1066,23 +1067,23 @@ func _test_lid_ops() -> void:
 
 	# Lid up over a drive the core thinks is shut: that is the moment the core
 	# learns the disc is unavailable.
-	_eq(RetroSystem._tray_op_for(true, false, true), EJECT, "lid/opening ejects")
-	_eq(RetroSystem._tray_op_for(true, false, false), EJECT, "lid/opening an empty drive ejects")
+	_eq(SystemTray.tray_op_for(true, false, true), EJECT, "lid/opening ejects")
+	_eq(SystemTray.tray_op_for(true, false, false), EJECT, "lid/opening an empty drive ejects")
 	# Already open as far as the core is concerned — saying it twice would be a
 	# second tray cycle the game can see.
-	_eq(RetroSystem._tray_op_for(true, true, true), NONE, "lid/opening again says nothing")
+	_eq(SystemTray.tray_op_for(true, true, true), NONE, "lid/opening again says nothing")
 
 	# Shutting hands over whatever is in the well, including the disc that was
 	# already mounted: a real drive re-reads what it finds.
-	_eq(RetroSystem._tray_op_for(false, true, true),
+	_eq(SystemTray.tray_op_for(false, true, true),
 		CLOSE, "lid/shutting over a disc hands it over")
-	_eq(RetroSystem._tray_op_for(false, false, true),
+	_eq(SystemTray.tray_op_for(false, false, true),
 		CLOSE, "lid/shutting over the same disc still re-reads")
 	# Nothing in the well: the core keeps waiting with its tray open rather than
 	# being told to close on an empty drive.
-	_eq(RetroSystem._tray_op_for(false, true, false),
+	_eq(SystemTray.tray_op_for(false, true, false),
 		NONE, "lid/shutting over an empty well says nothing")
-	_eq(RetroSystem._tray_op_for(false, false, false),
+	_eq(SystemTray.tray_op_for(false, false, false),
 		NONE, "lid/shutting an empty drive the core thinks is shut")
 
 
@@ -1096,20 +1097,20 @@ func _test_lid_ops() -> void:
 
 func _test_expanded_port_binding() -> void:
 	var sys := _system()
-	sys._controller_info = FCEUMM_PORTS.duplicate(true)
+	sys.controller_ports().controller_info = FCEUMM_PORTS.duplicate(true)
 	var gun := FakeSeated.new()
 	gun.device_type = DEVICE_LIGHTGUN
 
 	sys.attach_expanded_controller(1, gun)
-	_eq(sys._controller_info[1].get("current_id", -1),
+	_eq(sys.controller_ports().controller_info[1].get("current_id", -1),
 		258, "expanded/a gun is announced as the core's gun")
 	_eq(sys.port_holder(1), gun, "expanded/the port remembers the peripheral")
 	# No cabinet socket, so nothing is recorded as a plug — that array belongs to
 	# the sockets, and a stray entry would be released as if a cord were pulled.
-	_ok(sys._port_plugs[1] == null, "expanded/no cabinet plug recorded")
+	_ok(sys.controller_ports().plugs[1] == null, "expanded/no cabinet plug recorded")
 
 	sys.detach_expanded_controller(1, gun)
-	_eq(sys._controller_info[1]["current_id"], 0, "expanded/unplugging clears the port")
+	_eq(sys.controller_ports().controller_info[1]["current_id"], 0, "expanded/unplugging clears the port")
 	_eq(sys.port_holder(1), null, "expanded/unplugging frees the holder")
 
 	# A port below zero is not a port; binding one used to be caught by the
@@ -1140,7 +1141,7 @@ const BSNES_PORTS: Array = [
 
 func _test_multitap_switch() -> void:
 	var sys := _system("snes")
-	sys._controller_info = BSNES_PORTS.duplicate(true)
+	sys.controller_ports().controller_info = BSNES_PORTS.duplicate(true)
 	var tap := (load("res://Scenes/Objects/controllers/retro_multitap.tscn") as PackedScene).instantiate() as RetroMultitap
 	add_child(tap)
 	# The cord is made on a deferred call.
@@ -1172,29 +1173,29 @@ func _test_multitap_switch() -> void:
 		pads.append(pad)
 		(tap.get("_sub_plugs") as Array)[i] = pad
 
-	sys._bind_port(1, tap_plug, 1)
-	_eq(sys._controller_info[1].get("current_id", -1), 257, "multitap/at 5P the second port is bsnes's multitap")
+	sys.controller_ports().bind(1, tap_plug, 1)
+	_eq(sys.controller_ports().controller_info[1].get("current_id", -1), 257, "multitap/at 5P the second port is bsnes's multitap")
 	_ok(sys.port_holder(1) == pads[0] and sys.port_holder(2) == pads[1] and sys.port_holder(3) == pads[2]
 		and sys.port_holder(4) == pads[3], "multitap/and its sockets are players 2 to 5, the fifth stored too")
-	sys._reannounce_port_devices()
-	_eq(sys._controller_info[1]["current_id"], 257, "multitap/a core start leaves the multitap on its port")
+	sys.controller_ports().reannounce_all()
+	_eq(sys.controller_ports().controller_info[1]["current_id"], 257, "multitap/a core start leaves the multitap on its port")
 
 	tap.set_mode(RetroMultitap.MODE_2P)
-	_eq(sys._controller_info[1]["current_id"], 1, "multitap/at 2P its first socket's pad is the port's, as itself")
+	_eq(sys.controller_ports().controller_info[1]["current_id"], 1, "multitap/at 2P its first socket's pad is the port's, as itself")
 	_ok(sys.port_holder(1) == pads[0] and sys.port_holder(2) == null and sys.port_holder(4) == null,
 		"multitap/and only that socket is live")
-	sys._reannounce_port_devices()
-	_eq(sys._controller_info[1]["current_id"], 1, "multitap/a core start keeps the pad there")
+	sys.controller_ports().reannounce_all()
+	_eq(sys.controller_ports().controller_info[1]["current_id"], 1, "multitap/a core start keeps the pad there")
 	tap.call("_on_sub_released", 0)
 	pads[0].free()
 	sys.reannounce_port(1)
-	_eq(sys._controller_info[1]["current_id"], 0, "multitap/at 2P with no pad in it, the port has nothing")
+	_eq(sys.controller_ports().controller_info[1]["current_id"], 0, "multitap/at 2P with no pad in it, the port has nothing")
 
 	tap.set_mode(RetroMultitap.MODE_5P)
-	_eq(sys._controller_info[1]["current_id"], 257, "multitap/thrown back to 5P, the multitap again")
+	_eq(sys.controller_ports().controller_info[1]["current_id"], 257, "multitap/thrown back to 5P, the multitap again")
 	_ok(sys.port_holder(2) == pads[1] and sys.port_holder(4) == pads[3], "multitap/with players 3 to 5")
 	tap.call("_on_sub_released", 3)
-	_eq(sys._controller_info[1]["current_id"], 257, "multitap/a pad pulled from it leaves the multitap on the port")
+	_eq(sys.controller_ports().controller_info[1]["current_id"], 257, "multitap/a pad pulled from it leaves the multitap on the port")
 
 	for i in range(1, pads.size()):
 		if is_instance_valid(pads[i]):
@@ -1231,31 +1232,31 @@ func _test_usb_sockets() -> void:
 	pad_plug.set_controller(pad)
 	pad_plug.systemid = "ps2"
 	pad_plug.connector = Connectors.controller_port_of("ps2")
-	_ok(ps2._accepts_usb_plug(gun_plug), "usb/a USB socket takes a USB-A plug")
-	_ok(not ps2._accepts_plug(gun_plug), "usb/a controller port does not")
-	_ok(not ps2._accepts_usb_plug(pad_plug), "usb/and a USB socket takes no pad's plug")
+	_ok(ps2.controller_ports().accepts_usb_plug(gun_plug), "usb/a USB socket takes a USB-A plug")
+	_ok(not ps2.controller_ports().accepts_plug(gun_plug), "usb/a controller port does not")
+	_ok(not ps2.controller_ports().accepts_usb_plug(pad_plug), "usb/and a USB socket takes no pad's plug")
 
 	const GUNCON := 260
-	ps2._usb_plugs = [null, null]
-	ps2._usb_controllers = [null, null]
-	ps2._controller_info = [{"port": 0, "current_id": -1, "controllers": [
+	ps2.controller_ports().usb_plugs = [null, null]
+	ps2.controller_ports().usb_controllers = [null, null]
+	ps2.controller_ports().controller_info = [{"port": 0, "current_id": -1, "controllers": [
 		{"name": "DualShock 2", "id": RetroSystem.RETRO_DEVICE_JOYPAD}, {"name": "GunCon 2", "id": GUNCON}]}]
-	var told := func() -> int: return int(ps2._controller_info[0]["current_id"])
-	ps2._on_usb_snapped(gun_plug, 0)
+	var told := func() -> int: return int(ps2.controller_ports().controller_info[0]["current_id"])
+	ps2.controller_ports().on_usb_snapped(gun_plug, 0)
 	_eq(told.call(), GUNCON, "usb/a gun in USB socket 1 is announced on the core's port 0, as the core's GunCon 2")
 	_eq(ps2.cabinet_port_of(gun), RetroSystem.USB_SLOT_BASE, "usb/and is saved as in USB socket 1, not a controller port")
-	ps2._bind_port(0, pad_plug, 0)
+	ps2.controller_ports().bind(0, pad_plug, 0)
 	_eq(told.call(), GUNCON, "usb/a pad plugged into controller port 1 after it does not take its place")
-	ps2._on_usb_released(0)
+	ps2.controller_ports().on_usb_released(0)
 	_eq(told.call(), RetroSystem.RETRO_DEVICE_JOYPAD, "usb/the gun out, the pad is announced again")
-	ps2._unbind_port(0, pad_plug, 0)
+	ps2.controller_ports().unbind(0, pad_plug, 0)
 	_eq(told.call(), RetroSystem.RETRO_DEVICE_NONE, "usb/and with both out, nothing")
-	ps2._bind_port(0, pad_plug, 0)
-	ps2._on_usb_snapped(gun_plug, 0)
+	ps2.controller_ports().bind(0, pad_plug, 0)
+	ps2.controller_ports().on_usb_snapped(gun_plug, 0)
 	_eq(told.call(), GUNCON, "usb/the pad in first, the gun still wins the port")
-	ps2._unbind_port(0, pad_plug, 0)
+	ps2.controller_ports().unbind(0, pad_plug, 0)
 	_eq(told.call(), GUNCON, "usb/and taking the pad out leaves the gun announced")
-	ps2._on_usb_released(0)
+	ps2.controller_ports().on_usb_released(0)
 	for n: Node in [gun_plug, pad_plug, gun, pad, ps2]:
 		n.free()
 
@@ -1265,45 +1266,45 @@ func _test_belongs_here() -> void:
 	var cart := FakeSeated.new()
 
 	cart.systemid = "nes"
-	_ok(nes._accepts_media(cart), "belongs/its own media fits")
+	_ok(nes.accepts_media(cart), "belongs/its own media fits")
 	cart.systemid = "snes"
-	_ok(not nes._accepts_media(cart), "belongs/another system's media does not")
+	_ok(not nes.accepts_media(cart), "belongs/another system's media does not")
 	cart.systemid = ""
-	_ok(nes._accepts_media(cart), "belongs/unlabelled media fits anywhere")
+	_ok(nes.accepts_media(cart), "belongs/unlabelled media fits anywhere")
 	# An object with no systemid property at all — a prop that predates the rule.
 	var plain := Node3D.new()
-	_ok(nes._accepts_media(plain), "belongs/an object naming no system fits")
+	_ok(nes.accepts_media(plain), "belongs/an object naming no system fits")
 
 	cart.systemid = "snes"
-	_ok(not nes._accepts_plug(cart), "belongs/the port gate refuses another console's pad")
+	_ok(not nes.controller_ports().accepts_plug(cart), "belongs/the port gate refuses another console's pad")
 	cart.systemid = ""
-	_ok(nes._accepts_plug(cart), "belongs/an unlabelled plug fits")
+	_ok(nes.controller_ports().accepts_plug(cart), "belongs/an unlabelled plug fits")
 	nes.free()
 
 	# Ports are a connector, and consoles that share one take each other's pads.
 	var ps2 := _system("ps2")
 	cart.systemid = "psx"
-	_ok(ps2._accepts_plug(cart), "connector/a PlayStation 2 takes a PlayStation pad")
+	_ok(ps2.controller_ports().accepts_plug(cart), "connector/a PlayStation 2 takes a PlayStation pad")
 	ps2.free()
 	var gen := _system("genesis")
 	cart.systemid = "atari2600"
-	_ok(gen._accepts_plug(cart), "connector/a Genesis takes an Atari joystick (DE-9)")
+	_ok(gen.controller_ports().accepts_plug(cart), "connector/a Genesis takes an Atari joystick (DE-9)")
 	cart.systemid = "mastersystem"
-	_ok(gen._accepts_plug(cart), "connector/and a Master System pad")
+	_ok(gen.controller_ports().accepts_plug(cart), "connector/and a Master System pad")
 	cart.systemid = "saturn"
-	_ok(not gen._accepts_plug(cart), "connector/but not a Saturn pad")
+	_ok(not gen.controller_ports().accepts_plug(cart), "connector/but not a Saturn pad")
 	gen.free()
 	var vcs := _system("atari2600")
 	cart.systemid = "genesis"
-	_ok(vcs._accepts_plug(cart), "connector/and an Atari 2600 takes a Genesis pad")
+	_ok(vcs.controller_ports().accepts_plug(cart), "connector/and an Atari 2600 takes a Genesis pad")
 	vcs.free()
 	# A plug that says what it is goes by that, not by its systemid.
 	var plug := ControllerPlug.new()
 	plug.connector = Connectors.WII_EXTENSION
 	var wii_box := _system("wii")
-	_ok(not wii_box._accepts_plug(plug), "connector/a Wii's ports refuse a Remote extension")
+	_ok(not wii_box.controller_ports().accepts_plug(plug), "connector/a Wii's ports refuse a Remote extension")
 	plug.connector = "gamecube_controller"
-	_ok(wii_box._accepts_plug(plug), "connector/and take a GameCube controller plug")
+	_ok(wii_box.controller_ports().accepts_plug(plug), "connector/and take a GameCube controller plug")
 	wii_box.free()
 	plug.free()
 	_test_usb_sockets()
@@ -1312,35 +1313,35 @@ func _test_belongs_here() -> void:
 	# GameCube disc, a GameCube does not take a Wii one.
 	var wii := _system("wii")
 	cart.systemid = "gc"
-	_ok(wii._accepts_media(cart), "belongs/a Wii takes a GameCube disc")
+	_ok(wii.accepts_media(cart), "belongs/a Wii takes a GameCube disc")
 	# ...and the front of the machine agrees with the tray. This case used to
 	# read the other way, pinning an empty port table, and the cost of that
 	# showed up the day a GameCube-to-Game Boy Advance lead was carried over to
 	# the one console in the room that could use it and was silently refused.
-	_ok(wii._accepts_plug(cart), "belongs/and a GameCube plug in its front sockets")
+	_ok(wii.controller_ports().accepts_plug(cart), "belongs/and a GameCube plug in its front sockets")
 	wii.free()
 
 	var cube := _system("gc")
 	cart.systemid = "wii"
-	_ok(not cube._accepts_media(cart), "belongs/a GameCube refuses a Wii disc")
+	_ok(not cube.accepts_media(cart), "belongs/a GameCube refuses a Wii disc")
 	cube.free()
 
 	var gba := _system("gba")
 	cart.systemid = "gb"
-	_ok(gba._accepts_media(cart), "belongs/a GBA takes a Game Boy cart")
+	_ok(gba.accepts_media(cart), "belongs/a GBA takes a Game Boy cart")
 	gba.free()
 
 	# Both Game Boys take each other's cartridges: a Color game in a Game Boy boots,
 	# and a Color-only one says so on its own screen.
 	var dmg := _system("gb")
 	cart.systemid = "gbc"
-	_ok(dmg._accepts_media(cart), "belongs/a Game Boy takes a Game Boy Color cart")
+	_ok(dmg.accepts_media(cart), "belongs/a Game Boy takes a Game Boy Color cart")
 	dmg.free()
 	var cgb := _system("gbc")
 	cart.systemid = "gb"
-	_ok(cgb._accepts_media(cart), "belongs/a Game Boy Color takes a Game Boy cart")
+	_ok(cgb.accepts_media(cart), "belongs/a Game Boy Color takes a Game Boy cart")
 	cart.systemid = "gba"
-	_ok(not cgb._accepts_media(cart), "belongs/but not an Advance cart")
+	_ok(not cgb.accepts_media(cart), "belongs/but not an Advance cart")
 	cgb.free()
 
 	plain.free()
@@ -1358,7 +1359,7 @@ func _test_core_resolution() -> void:
 	var sys := _system("nes")
 
 	sys.core_name = "some_core"
-	_eq(sys._resolve_core(), "some_core", "resolve/a named core wins")
+	_eq(sys.resolve_core_name(), "some_core", "resolve/a named core wins")
 
 	# The fallback reads core_defaults.json, and NOTHING seeds that file --
 	# OPTIONS > Cores writes it when a player picks a default, and until someone
@@ -1380,10 +1381,10 @@ func _test_core_resolution() -> void:
 
 	sys.core_name = ""
 	sys.systemid = _RESOLVE_SYS
-	_eq(sys._resolve_core(),
+	_eq(sys.resolve_core_name(),
 		"selftest_core", "resolve/a system with a default falls back to it")
 	sys.systemid = ""
-	_eq(sys._resolve_core(), "", "resolve/nothing to go on")
+	_eq(sys.resolve_core_name(), "", "resolve/nothing to go on")
 
 	if had:
 		var f := FileAccess.open(path, FileAccess.WRITE)
@@ -1924,7 +1925,7 @@ func _test_bios_pins_reach_the_opt_file() -> void:
 	_ok(BiosBoot.boot_rom_present(core, systemid), "pin/the boot ROM reads as present")
 
 	AppPrefs.bios_boot_override = false
-	_eq(sys._all_forced_options(core).get(key, ""),
+	_eq(sys.all_forced_options(core).get(key, ""),
 		"disabled", "pin/a loaded game pins its boot animation on")
 
 	# The pin has to beat what is already saved. A core serialises its whole
@@ -1936,7 +1937,7 @@ func _test_bios_pins_reach_the_opt_file() -> void:
 		"disabled", "pin/and overwrites a saved value that skipped it")
 
 	AppPrefs.bios_boot_override = true
-	_ok(not sys._all_forced_options(core).has(key), "pin/the override hands the key back")
+	_ok(not sys.all_forced_options(core).has(key), "pin/the override hands the key back")
 	CoreOptionsStore.save_values(root, core, {key: "enabled"})
 	sys._apply_forced_core_options(root, core)
 	_eq(CoreOptionsStore.load_values(root, core).get(key, ""),
@@ -1957,42 +1958,42 @@ func _test_bios_pins_reach_the_opt_file() -> void:
 func _test_power_on_verdict() -> void:
 	var none: Array[Dictionary] = []
 
-	var no_core := RetroSystem._power_on_verdict("", "nes", "/roms/a.nes", none, "")
+	var no_core := RetroSystem.power_on_verdict("", "nes", "/roms/a.nes", none, "")
 	_ok(not no_core["start"], "verdict/no core refuses")
 	_eq(no_core["title"], "No core installed", "verdict/and says so")
 
-	var running := RetroSystem._power_on_verdict("fceumm", "nes", "/roms/a.nes", none, "")
+	var running := RetroSystem.power_on_verdict("fceumm", "nes", "/roms/a.nes", none, "")
 	_ok(running["start"], "verdict/a game inserted starts")
 	_eq(running["rom"], "/roms/a.nes", "verdict/with that game")
 
-	var empty := RetroSystem._power_on_verdict("fceumm", "nes", "", none, "")
+	var empty := RetroSystem.power_on_verdict("fceumm", "nes", "", none, "")
 	_ok(not empty["start"], "verdict/an empty slot refuses when the machine cannot boot")
 	_eq(empty["title"], "No game inserted", "verdict/with the long-standing card")
 	_ok(str(empty["description"]).contains("cartridge"), "verdict/worded for a cartridge")
 	_eq(empty["rom"], "", "verdict/and nothing in the slot")
 
 	# The wording follows the machine, not the core. Untested before this.
-	var disc := RetroSystem._power_on_verdict("pcsx_rearmed", "psx", "", none, "")
+	var disc := RetroSystem.power_on_verdict("pcsx_rearmed", "psx", "", none, "")
 	_ok(str(disc["description"]).contains("disc"), "verdict/worded for a disc")
 
 	# The substitution: a blank image was resolved, so the machine starts on it.
-	var bios := RetroSystem._power_on_verdict(
+	var bios := RetroSystem.power_on_verdict(
 		"pcsx_rearmed", "psx", "", none, "/tmp/no_disc.cue")
 	_ok(bios["start"], "verdict/an empty slot with a blank disc starts")
 	_eq(bios["rom"], "/tmp/no_disc.cue", "verdict/on the blank disc")
 
 	# A disc lying under an open lid is not read, and the card says what to do.
-	var lid := RetroSystem._power_on_verdict("dolphin", "gc", "", none, "", false, true, "lid")
+	var lid := RetroSystem.power_on_verdict("dolphin", "gc", "", none, "", false, true, "lid")
 	_ok(not lid["start"], "verdict/a disc under an open lid refuses")
 	_eq(lid["title"], "Lid open", "verdict/and says the lid is open")
 	_eq(lid["description"], "Close the lid, then switch it on.", "verdict/and to close it")
-	_eq(RetroSystem._power_on_verdict("pcsx2", "ps2", "", none, "", false, true,
+	_eq(RetroSystem.power_on_verdict("pcsx2", "ps2", "", none, "", false, true,
 		"tray")["title"], "Tray open", "verdict/a front tray is called a tray")
-	var open_bios := RetroSystem._power_on_verdict(
+	var open_bios := RetroSystem.power_on_verdict(
 		"pcsx_rearmed", "psx", "", none, "/tmp/no_disc.cue", false, true, "lid")
 	_ok(open_bios["start"] and open_bios["rom"] == "/tmp/no_disc.cue",
 		"verdict/a machine that can show its BIOS does so with its lid open")
-	_ok(RetroSystem._power_on_verdict("flycast", "dreamcast", "", none, "", true, true,
+	_ok(RetroSystem.power_on_verdict("flycast", "dreamcast", "", none, "", true, true,
 		"lid")["start"], "verdict/and so does one that starts with no content")
 
 	# A required BIOS blocks the run whether or not a game is in — the core
@@ -2001,7 +2002,7 @@ func _test_power_on_verdict() -> void:
 		"path": "pcsx2/bios", "desc": "'pcsx2/bios' folder",
 		"dest": "/root/system/pcee2/pcsx2/bios",
 	}]
-	var no_bios := RetroSystem._power_on_verdict(
+	var no_bios := RetroSystem.power_on_verdict(
 		"pcee2", "ps2", "/roms/g.iso", missing, "")
 	_ok(not no_bios["start"], "verdict/a missing required bios refuses")
 	_eq(no_bios["title"], "BIOS required", "verdict/and names the fault")
@@ -2020,13 +2021,13 @@ func _test_power_on_verdict() -> void:
 		"path": "pcsx2/resources", "desc": "'pcsx2/resources' folder",
 		"dest": "/root/system/pcee2/pcsx2/resources",
 	}]
-	var counted := RetroSystem._power_on_verdict("pcee2", "ps2", "/roms/g.iso", two, "")
+	var counted := RetroSystem.power_on_verdict("pcee2", "ps2", "/roms/g.iso", two, "")
 	_ok(str(counted["description"]).contains("(+1 more)"), "verdict/two missing files are counted")
 
 	# Order matters: a machine that is both empty AND missing its BIOS is told
 	# about the BIOS, which is the one the player cannot fix from where they
 	# stand by reaching for a cartridge.
-	_eq(RetroSystem._power_on_verdict("pcee2", "ps2", "", missing, "")["title"],
+	_eq(RetroSystem.power_on_verdict("pcee2", "ps2", "", missing, "")["title"],
 		"BIOS required",
 		"verdict/a missing bios outranks an empty slot")
 
@@ -2039,7 +2040,7 @@ func _test_power_on_verdict() -> void:
 	var scd_row := BiosBoot.media_boot_rom_row("genesis_plus_gx", "segacd")
 	_eq((scd_row.get("any_of", []) as Array).size(), 3, "verdict/any of the three regions would do")
 	var scd_missing: Array[Dictionary] = [scd_row]
-	var no_scd := RetroSystem._power_on_verdict("genesis_plus_gx", "genesis",
+	var no_scd := RetroSystem.power_on_verdict("genesis_plus_gx", "genesis",
 		"/roms/segacd/game.chd", scd_missing, "")
 	_ok(not no_scd["start"], "verdict/with none installed the disc is refused before the core")
 	_eq(no_scd["title"], "BIOS required", "verdict/as a missing BIOS")
@@ -2116,7 +2117,7 @@ func _test_memcard_presence() -> void:
 	# Nothing seated: the slot is typed absent AND reported empty. Both, because
 	# they answer to different cores -- one built before the presence key shipped
 	# reads only the first, and must still see an empty slot.
-	var empty := psx._removable_media_options("pcsx_rearmed")
+	var empty := psx.removable_media_options("pcsx_rearmed")
 	_eq(empty.get("pcsx_rearmed_memcard1", ""),
 		"none", "memcard/an empty slot is typed absent")
 	_eq(empty.get("pcsx_rearmed_memcard1_inserted", ""),
@@ -2131,7 +2132,7 @@ func _test_memcard_presence() -> void:
 	# A card seated before the machine starts.
 	var card := Node3D.new()
 	psx.memcards()._snapped_memcards[0] = card
-	var seated := psx._removable_media_options("pcsx_rearmed")
+	var seated := psx.removable_media_options("pcsx_rearmed")
 	_eq(seated.get("pcsx_rearmed_memcard1", ""),
 		"libretro", "memcard/a seated card types the slot")
 	_eq(seated.get("pcsx_rearmed_memcard1_inserted", ""),
@@ -2147,7 +2148,7 @@ func _test_memcard_presence() -> void:
 	# accident: slot 1 must go absent while slot 2 goes live.
 	psx.memcards()._snapped_memcards[0] = null
 	psx.memcards()._snapped_memcards[1] = card
-	var second := psx._removable_media_options("pcsx_rearmed")
+	var second := psx.removable_media_options("pcsx_rearmed")
 	_eq(second.get("pcsx_rearmed_memcard2", ""),
 		"libretro", "memcard/a card in slot 2 types slot 2")
 	_eq(second.get("pcsx_rearmed_memcard2_inserted", ""),
@@ -2158,12 +2159,12 @@ func _test_memcard_presence() -> void:
 
 	# Only pcsx_rearmed has these keys, and only a machine that takes cards has a
 	# slot. Pinning them anywhere else would write keys into another core's file.
-	_ok(psx._removable_media_options("swanstation").is_empty(),
+	_ok(psx.removable_media_options("swanstation").is_empty(),
 		"memcard/another core is told nothing")
 	var nes := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
 	nes.systemid = "nes"
 	add_child(nes)
-	_ok(nes._removable_media_options("pcsx_rearmed").is_empty(),
+	_ok(nes.removable_media_options("pcsx_rearmed").is_empty(),
 		"memcard/a cartridge console is told nothing")
 
 	# The runtime half. It reaches for the live core, so on a machine that is not
@@ -2181,7 +2182,7 @@ func _test_memcard_presence() -> void:
 	add_child(gc)
 	_eq(gc.card_slot_count(), 2, "memcard/a GameCube has two slots")
 	_eq(gc.card_family(), "gamecube", "memcard/of the GameCube family")
-	_ok(gc._removable_media_options("pcsx_rearmed").is_empty(),
+	_ok(gc.removable_media_options("pcsx_rearmed").is_empty(),
 		"memcard/and is told no pcsx_rearmed keys")
 
 	# A Wii takes GameCube cards, which is the whole reason a family is not a
@@ -2202,10 +2203,10 @@ func _test_memcard_presence() -> void:
 	var ps_card := preload("res://Scenes/Objects/media/memory_card.tscn") 		.instantiate() as MemoryCard
 	_eq(gc_card.family, "gamecube", "memcard/a GameCube card knows its family")
 	_eq(ps_card.family, "playstation", "memcard/and a PlayStation card knows its own")
-	_ok(gc._accepts_card(gc_card), "memcard/a GameCube takes a GameCube card")
-	_ok(not gc._accepts_card(ps_card), "memcard/but not a PlayStation card")
-	_ok(psx._accepts_card(ps_card), "memcard/a PlayStation takes its own")
-	_ok(not psx._accepts_card(gc_card), "memcard/but not a GameCube card")
+	_ok(gc.accepts_card(gc_card), "memcard/a GameCube takes a GameCube card")
+	_ok(not gc.accepts_card(ps_card), "memcard/but not a PlayStation card")
+	_ok(psx.accepts_card(ps_card), "memcard/a PlayStation takes its own")
+	_ok(not psx.accepts_card(gc_card), "memcard/but not a GameCube card")
 
 	# Paths are keyed by FAMILY, so a Wii and a GameCube reach the same card.
 	_eq(SramPaths.cards_dir(wii_info.card_family),
@@ -2226,8 +2227,8 @@ func _test_memcard_presence() -> void:
 	var ps2_card := preload("res://Scenes/Objects/media/ps2_memory_card.tscn") \
 		.instantiate() as MemoryCard
 	_eq(ps2_card.family, "playstation2", "memcard/a PS2 card knows its family")
-	_ok(not psx._accepts_card(ps2_card), "memcard/a PlayStation refuses a PS2 card")
-	_ok(not gc._accepts_card(ps2_card), "memcard/and so does a GameCube")
+	_ok(not psx.accepts_card(ps2_card), "memcard/a PlayStation refuses a PS2 card")
+	_ok(not gc.accepts_card(ps2_card), "memcard/and so does a GameCube")
 
 	# Neither PS2 core takes a card through SAVE_RAM: both open files of their
 	# own, in a directory of their own, so both need mirroring.
@@ -2460,7 +2461,7 @@ func _test_save_state_gates() -> void:
 
 	# A core that answered "I cannot serialize" is remembered STATICALLY, because
 	# it is a property of the core and not of this cabinet. Put it back after.
-	var core: String = sys._resolve_core()
+	var core: String = sys.resolve_core_name()
 	SaveStateController._cores_without_states[core] = true
 	_eq(str(sys.capture_gate()["reason"]),
 		"this core cannot save states", "state/a core that cannot serialize is remembered")
@@ -3038,16 +3039,16 @@ class _CordEnd extends Node3D:
 
 # ---------------------------------------------------------------------------
 # A port is handed a cable END or a thing that is its own plug, and every port
-# path unwraps it the same way (RetroSystem._controller_of).
+# path unwraps it the same way (SystemPorts.controller_of).
 # ---------------------------------------------------------------------------
 func _test_port_unwrap() -> void:
 	var pad := Node3D.new()
 	var plug := _CordEnd.new()
 	plug.pad = pad
-	_eq(RetroSystem._controller_of(plug), pad, "ports/a cable end unwraps to the pad behind it")
+	_eq(SystemPorts.controller_of(plug), pad, "ports/a cable end unwraps to the pad behind it")
 	var own := Node3D.new()
-	_eq(RetroSystem._controller_of(own), own, "ports/a thing that is its own plug is itself")
-	_eq(RetroSystem._controller_of(null), null, "ports/nothing unwraps to nothing")
+	_eq(SystemPorts.controller_of(own), own, "ports/a thing that is its own plug is itself")
+	_eq(SystemPorts.controller_of(null), null, "ports/nothing unwraps to nothing")
 	plug.free()
 	pad.free()
 	own.free()

@@ -449,7 +449,7 @@ func _test_saved_manual_follows_its_folder() -> void:
 
 	var saved := root.path_join("nintendo_64/media/manual").path_join(MANUAL_NAME)
 	var sp := ScenePersistence.new()
-	var back := sp._deserialize_object({"type": "book", "pdf_path": saved}) as PDFBook
+	var back := sp.deserialize_object({"type": "book", "pdf_path": saved}) as PDFBook
 	_ok(back != null and back.pdf_path.simplify_path() == now.simplify_path(),
 		"restore/a manual saved under the old folder name is found under the new one")
 	if back != null:

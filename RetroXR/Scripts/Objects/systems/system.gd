@@ -163,11 +163,6 @@ var _options_values: Dictionary = {}
 # (a core that publishes nothing until content is loaded, or none installed).
 var _options_unavailable: String = ""
 
-# Cached controller port info (populated alongside options_ready).
-# Array of Dictionaries: [{port, controllers: [{name, id}], current_id}]
-var _controller_info: Array = []
-
-var _port_devices_settled := false
 # The card that floats over this machine's picture — achievement unlocks, and
 # the notice raised when a game cannot run. Made on demand rather than at
 # power-on: most sessions raise neither, and it costs a SubViewport.
@@ -307,59 +302,23 @@ var _snapped_cartridge: Node3D = null
 var _slot2: XRToolsSnapZone = null
 var _slot2_cartridge: Node3D = null
 
-# --- Disc loader (tray/slot) state ---
-const DISC_SPIN_MAX := 25.0    # rad/s (~240 RPM) — seated disc at full speed
-const DISC_SPIN_UP := 18.0     # rad/s² ramp-up (power on / tray closed)
-const DISC_SPIN_DOWN := 10.0   # rad/s² ramp-down (power off / tray opened)
-## How far the hinged lid springs up. Positive: the lid rig VRSpringLatchedHinge
-## builds carries a 180° yaw, so +rotation lifts the lid's FRONT edge.
-## How far the hinged-lid console's disc well is sunk into its pod. Deep enough
-## that a 2.5 mm disc sits with its face below the rim.
-## Front-sliding tray: how far the shelf travels out of the box, and how long it
-## takes. 190 mm puts a 12 cm disc's REAR edge 15 mm clear of the front face —
-## less and the disc is still half inside the case with the tray "open".
-const SLOT_INSET := 0.10       # slot-load: how far inside the console a disc rides
+## The disc drive -- the loader, the lid, the spinning disc and the core's
+## disk-control mirror -- lifted out into SystemTray. Made in _init.
+var _disc_tray: SystemTray = null
 
-# How this system loads discs (MediaDimensions.LOADER_*), cached at model load.
-var _disc_loader := MediaDimensions.LOADER_NONE
-var _tray_open := false        # LOADER_TRAY: lid state (starts closed)
-# The disc left the drive while its core kept running it, so rom_path still names
-# that image; the next power-on must not boot it.
-var _disc_left_running := false
-# This run started with no content, so its core has no disc list to swap into.
-var _started_without_content := false
-# This run is the BIOS with no disc in it; a disc shut into it restarts the machine.
-var _bios_run := false
-var _disc_spin := 0.0          # current disc angular speed (rad/s)
-# LOADER_SLOT front-loading bay (insert ride / eject / grab hand-off / collision),
-# owned by the shared MediaSlot; created in _load_system_model for slot consoles.
-# Null for cartridge / tray / no-disc systems. See media_slot.gd.
-var _slot: MediaSlot = null
-# LOADER_TRAY lid bay (well seating / lid gating / disc spin / grab hand-off /
-# collision), owned by the shared MediaTray; created in _load_system_model for tray
-# consoles. Null for cartridge / slot / no-disc systems. See media_tray.gd.
-var _tray: MediaTray = null
-# Procedural disc well + spring lid (default-model tray consoles only). The hinge
-# owns the lid's angle — MediaTray is NOT given a lid_pivot to tween, or the two
-# would fight over it — and reports a hand-close back through request_tray_state.
-# Front-sliding tray shelf (LOADER_TRAY + MediaDimensions.has_front_tray), null on
-# a hinged-lid console. The seated disc rides it out; MediaTray still gates.
-var _front_tray := false
-## The mechanism the model drew on the placeholder box — the spring lid or the
-## sliding shelf. Null on a bespoke shell, which brings its own.
-var _disc_bay: ProceduralDiscBay = null
+# Its state under the names it had here, forwarded: the model packs' probes read
+# these by name (`sys.get("_tray_open")`). See SystemTray for what each means.
+var _tray_open: bool:
+	get: return _disc_tray.open
+var _tray: MediaTray:
+	get: return _disc_tray.media_tray
+var _slot: MediaSlot:
+	get: return _disc_tray.media_slot
+
 ## Cached answer for roof_above_cartridge_slot(); NAN until the model is
 ## measurable. The shell does not change after it loads, and the query runs on
 ## every preview frame, so it is worked out once.
 var _roof_over_slot: float = NAN
-
-# --- Disk control (multi-disc games: FF7 "insert disc 2") ---
-# Mirrors the core's libretro disk-control state (disk_control_ready signal).
-# When the running core owns the interface, pulling the disc hot-ejects
-# (game keeps running) and inserting the next disc swaps it in live.
-var _has_disk_control := false
-var _disc_index := 0
-var _disc_ejected := false
 
 
 @onready var _system_body: MeshInstance3D = $SystemBody
@@ -368,6 +327,11 @@ var _disc_ejected := false
 ## is pushed home. Distinct from _snapped_cartridge, which means "the machine has
 ## this cart" — on such a bay the two are apart for as long as the tray is up.
 var _tray_cartridge: Node3D = null
+
+
+## The cart lying in a push-tray bay (see _tray_cartridge), or null.
+func get_tray_cartridge() -> Node3D:
+	return _tray_cartridge
 ## The card snap zones, in slot order. Named here rather than looked up through a
 ## method because NetObjectSync resolves a slot by node name — its test double is
 ## a bare node with named children and no methods of its own.
@@ -404,34 +368,21 @@ const MEMPAK_SIZE := N64Card.CARD_SIZE
 ## SystemCaptivePads. Made in _init; the pads themselves come with the model.
 var _captive_pads: SystemCaptivePads = null
 
-@onready var _port_zones: Array = [
-	$ControllerPort1,
-	$ControllerPort2,
-	$ControllerPort3,
-	$ControllerPort4,
-]
+## What is plugged into each controller port and USB socket, and what the core
+## is told about it -- lifted out into SystemPorts. Made in _init; the cabinet's
+## socket zones are handed to it in _ready.
+var _ports: SystemPorts = null
 
-## Cached RetroController currently plugged into each cabinet port (same index
-## as the libretro port the core sees). Populated by the snap/release handlers
-## so rumble signals can be routed back to the physical holder without a
-## node tree scan on every core callback.
-##
-## Eight, not four: a multitap fans one port out to four, and the Super NES's
-## second port then reaches libretro port 4 (player 5), which a four-slot table
-## never stored.
-var _port_controllers: Array = [null, null, null, null, null, null, null, null]
+# Its tables under the names they had here, forwarded: the model packs' probes
+# read and stand these in by name (`sys.set("_controller_info", ...)`).
+var _controller_info: Array:
+	get: return _ports.controller_info
+	set(value): _ports.controller_info = value
+var _usb_zones: Array:
+	get: return _ports.usb_zones
+var _usb_plugs: Array:
+	get: return _ports.usb_plugs
 
-## The ControllerPlug seated in each cabinet port. Kept alongside the controller
-## because the two are not interchangeable on the way out: has_dropped names
-## nothing, and the release path needs the PLUG (its device_type, its collision
-## exception, its on_unplugged) rather than the controller behind it.
-var _port_plugs: Array = [null, null, null, null]
-
-## The console's USB-A sockets (Connectors.USB_PORTS), what is seated in each and
-## the peripheral at its far end. Built in code: system.tscn has none.
-var _usb_zones: Array = []
-var _usb_plugs: Array = []
-var _usb_controllers: Array = []
 ## A USB socket's number where a socket is saved or sent over the network: past
 ## the controller ports and every port a multitap could number, so the two
 ## kinds can never be mistaken for each other. USB socket k is USB_SLOT_BASE + k.
@@ -467,13 +418,6 @@ const RETRO_DEVICE_LIGHTGUN := 4
 ## A device id is a base type in the low byte and a core-specific subclass above it.
 const RETRO_DEVICE_MASK := 0xFF
 
-## Words a core uses for a light gun in its own device list, for the cores that
-## give one a base type other than RETRO_DEVICE_LIGHTGUN.
-const _LIGHTGUN_WORDS: Array = [
-	"zapper", "lightgun", "light gun", "gun", "scope", "justifier", "phaser", "menacer",
-]
-
-
 ## The two controllers are built HERE and not in _ready, because a RetroSystem
 ## is not always a scene: system_tests builds bare RetroSystem.new() instances
 ## that never enter the tree, and every forwarder below would find a null.
@@ -506,6 +450,14 @@ func _init() -> void:
 	_expansion_launch.name = "ExpansionLaunch"
 	add_child(_expansion_launch)
 	_expansion_launch.setup(self)
+	_ports = SystemPorts.new()
+	_ports.name = "SystemPorts"
+	add_child(_ports)
+	_ports.setup(self)
+	_disc_tray = SystemTray.new()
+	_disc_tray.name = "SystemTray"
+	add_child(_disc_tray)
+	_disc_tray.setup(self)
 	_captive_pads = SystemCaptivePads.new()
 	_captive_pads.name = "SystemCaptivePads"
 	add_child(_captive_pads)
@@ -540,38 +492,27 @@ func _ready() -> void:
 	# Only this system's own media fits its slot (a GB cart won't go into a
 	# SNES, a PS1 disc only fits a PlayStation). Unlabelled legacy media keeps
 	# working everywhere; save/netplay restores bypass the filter.
-	_cartridge_slot.snap_filter = _accepts_media
+	_cartridge_slot.snap_filter = accepts_media
 	# Ignore-gravity: re-freeze wherever the player lets go.
 	dropped.connect(_on_system_dropped)
 	if ignore_gravity:   # restored from a save — float at the saved pose
 		_freeze_in_place.call_deferred()
 	for i in _memcard_slots.size():
-		_memcard_slots[i].snap_filter = _accepts_card
+		_memcard_slots[i].snap_filter = accepts_card
 		_memcard_slots[i].has_picked_up.connect(_memcards.on_memcard_inserted.bind(i))
 		# has_dropped carries no argument, so the slot has to be closed over.
 		_memcard_slots[i].has_dropped.connect(
 			func() -> void: _memcards.on_memcard_removed(i))
 	_power_button.button_pressed.connect(toggle_power)
 	_reset_button.button_pressed.connect(reset)
-	_eject_button.button_pressed.connect(_on_eject_pressed)
+	_eject_button.button_pressed.connect(_disc_tray.on_eject_pressed)
 	_libretro.options_ready.connect(_on_options_ready)
-	_libretro.rumble_state_changed.connect(_on_rumble_state_changed)
-	_libretro.disk_control_ready.connect(_on_disk_control_ready)
+	_libretro.rumble_state_changed.connect(_ports.on_rumble)
+	_libretro.disk_control_ready.connect(_disc_tray.on_disk_control_ready)
 	_libretro.sram_flushed.connect(_memcards.on_sram_flushed)
 	_libretro.content_load_failed.connect(_on_content_load_failed)
-	# Wire controller port snap signals
-	for i in range(4):
-		var idx := i
-		_port_zones[i].has_picked_up.connect(func(obj: Node3D) -> void: _on_port_snapped(idx, obj))
-		# has_dropped carries NO argument — it says the zone is empty, not what
-		# left, and it fires after the zone has already forgotten. Taking one here
-		# made every unplug abort with "expected 1 argument, called with 0", so a
-		# controller pulled out of a port never released it: the libretro device
-		# stayed set and the slot stayed occupied. _port_plugs is what remembers.
-		_port_zones[i].has_dropped.connect(func() -> void: _on_port_released(idx))
-		# A SNES pad does not fit a PlayStation. Same gate the cartridge slot
-		# uses for media, applied to the connector.
-		_port_zones[i].snap_filter = _accepts_plug
+	# Controller port snap signals, and the gate on what each socket takes.
+	_ports.wire_zones([$ControllerPort1, $ControllerPort2, $ControllerPort3, $ControllerPort4])
 	# Load system-specific model (falls back to default placeholder model)
 	_load_system_model()
 	_build_console_memory()
@@ -780,7 +721,7 @@ func _load_system_model() -> void:
 	if is_bespoke:
 		_system_body.hide()
 	_model.configure_buttons(_power_button, _reset_button, _eject_button)
-	_model.configure_controller_ports(_port_zones)
+	_model.configure_controller_ports(_ports.zones)
 	_build_video_channels()
 	_model.configure_cartridge_slot(_cartridge_slot)
 	# So a unit that mounts AS a cartridge can carry a grab point naming this
@@ -794,11 +735,17 @@ func _load_system_model() -> void:
 	_model.build_serial_port(self, systemid)
 	_build_builtin_ethernet_port()
 	_model.configure_collision(self)
-	_build_port_zones()
-	_build_usb_ports()
-	_captive_pads.spawn(_port_zones)
+	_ports.build_zones()
+	_ports.build_usb()
+	_captive_pads.spawn(_ports.zones)
 	_build_memcard_slots()
-	_build_disc_loader(is_bespoke)
+	# Consoles with wireless pads grow a SYNC button and the component behind it.
+	# Set up here rather than in _ready because `systemid` is an export the spawner
+	# may still be filling in when _ready runs; by the time a model is resolved it
+	# is definitely set.
+	_setup_wireless_pads()
+	_disc_tray.build(is_bespoke, _eject_button, _cartridge_slot, _system_body,
+		_on_cartridge_inserted, _on_cartridge_removed)
 	_build_handheld()
 	_build_slot2()
 	# Restore a saved lid pose — a clamshell's hinge (DS/3DS/GBA SP) or a console's
@@ -807,7 +754,7 @@ func _load_system_model() -> void:
 	# bay above and either would win over the restored pose.
 	if _lid_angle_from_save >= 0.0:
 		_model.set_lid_angle_deg(_lid_angle_from_save)
-		_restore_tray_open()
+		_disc_tray.restore_open()
 
 
 
@@ -866,66 +813,6 @@ func _build_video_channels() -> void:
 		video_out_enabled = true
 
 
-## Show the controller ports this console really had.
-##
-## The SystemInfo descriptor wins over the model's default when it has an
-## opinion, clamped to the snap zones the cabinet actually carries. A
-## multitap extends players past this on its own, and a handheld exposes
-## none at all -- it IS its own controller, driven by HandheldInput.
-func _build_port_zones() -> void:
-	# Native controller ports: prefer the per-system SystemInfo descriptor (the
-	# real console's built-in port count) over the model's default, clamped to
-	# the cabinet's available snap zones. A multitap plugged into a port extends
-	# players beyond this on its own. Handhelds are their own controller (the
-	# HandheldInput below drives port 0), so they expose NO external port zones.
-	var port_count := 0
-	if not _model.is_handheld():
-		port_count = _model.get_controller_port_count()
-		var info := SystemInfo.for_system(systemid)
-		if info and info.native_ports > 0:
-			port_count = info.native_ports
-		port_count = clampi(port_count, 1, _port_zones.size())
-	for i in range(_port_zones.size()):
-		var active := i < port_count
-		_port_zones[i].visible = active
-		_port_zones[i].enabled = active
-
-
-## The USB-A sockets, for a console that has them: on the box's front face below
-## the free controller ports, until the model puts them on its own shell.
-func _build_usb_ports() -> void:
-	if not _usb_zones.is_empty() or _model.is_handheld():
-		return
-	var count := _model.get_usb_port_count()
-	if count < 0:
-		count = int(Connectors.USB_PORTS.get(systemid, 0))
-	if count <= 0:
-		return
-	var recess_mesh := BoxMesh.new()
-	recess_mesh.size = Vector3(0.0135, 0.0055, 0.006)
-	var recess_mat := StandardMaterial3D.new()
-	recess_mat.albedo_color = Color(0.05, 0.05, 0.05)
-	for k in count:
-		var zone := SNAP_ZONE_SCENE.instantiate() as XRToolsSnapZone
-		zone.name = "UsbPort%d" % (k + 1)
-		zone.snap_require = "controller_plug"
-		zone.snap_filter = _accepts_usb_plug
-		zone.grab_distance = 0.03
-		add_child(zone)
-		zone.position = Vector3(0.05 + 0.03 * k, -0.025, 0.125)
-		var recess := MeshInstance3D.new()
-		recess.name = "UsbRecess"
-		recess.mesh = recess_mesh
-		recess.set_surface_override_material(0, recess_mat)
-		zone.add_child(recess)
-		zone.has_picked_up.connect(_on_usb_snapped.bind(k))
-		zone.has_dropped.connect(_on_usb_released.bind(k))
-		_usb_zones.append(zone)
-		_usb_plugs.append(null)
-		_usb_controllers.append(null)
-	_model.configure_usb_ports(_usb_zones)
-
-
 ## The pads this console is wired to (a Famicom's two), built with the machine.
 ## Handed out so a teardown or a test can ask what came with the machine rather
 ## than searching the room for it. See SystemCaptivePads.
@@ -961,121 +848,6 @@ func _build_memcard_slots() -> void:
 			_model.configure_memory_card_slot(_memcard_slots[i], i)
 
 
-## Build whatever this console loads a disc through, or nothing.
-##
-## Three shapes: a hinged lid, a front-sliding tray, and a true slot that
-## draws the disc in. The first two are one loader with different geometry
-## and different wording on the button; the third is MediaSlot instead of
-## MediaTray. Cartridge hardware takes none of it and hides the button.
-##
-## `bespoke` is passed rather than re-derived: a shell that brings its own
-## body also brings its own tray mechanism, so several of the procedural
-## decisions below do not apply to it.
-func _build_disc_loader(bespoke: bool) -> void:
-	# Disc loader: tray consoles (PS1/GameCube…) get an OPEN button gating a
-	# closed-by-default tray; slot loaders (PS2) get an always-open slot with
-	# an EJECT button. Cartridge systems hide the button entirely.
-	_disc_loader = MediaDimensions.disc_loader(systemid)
-	var has_loader := _disc_loader != MediaDimensions.LOADER_NONE
-	# A shell that models its own release control (the PSP's sprung OPEN latch)
-	# opts out — it drives request_tray_state directly.
-	var want_eject := has_loader and _model.has_eject_button()
-	_eject_button.set_active(want_eject)
-	# Consoles with wireless pads grow a SYNC button and the component behind it.
-	# Set up here rather than in _ready because `systemid` is an export the spawner
-	# may still be filling in when _ready runs; by the time a model is resolved it
-	# is definitely set.
-	_setup_wireless_pads()
-	# A front-sliding tray is a property of the PROCEDURAL box. A bespoke shell
-	# brings its own mechanism — the PS2 Slim's hinged cover is a lid whatever the
-	# platform row says the family does — so it keeps the lid wording and geometry.
-	_front_tray = _disc_loader == MediaDimensions.LOADER_TRAY \
-		and MediaDimensions.has_front_tray(systemid) and not bespoke
-	if has_loader:
-		var eject_label := _eject_button.get_node_or_null("ButtonLabel") as Label3D
-		if eject_label:
-			# A sliding tray EJECTS, like the drive it imitates; only a hinged lid
-			# is something you OPEN.
-			var is_lid: bool = _disc_loader == MediaDimensions.LOADER_TRAY and not _front_tray
-			eject_label.text = "OPEN" if is_lid else "EJECT"
-		# The cartridge recess would look wrong on disc hardware — the disc
-		# tray/slit is the visual instead.
-		var cart_recess := _system_body.get_node_or_null("CartSlotMouth") as MeshInstance3D
-		if cart_recess:
-			cart_recess.visible = false
-		# The snap ghost is cartridge-shaped — reshape it into this system's
-		# disc so the blue "goes here" shadow reads correctly.
-		var ghost := _cartridge_slot.get_node_or_null("SnapHighlight/HighlightMesh") as MeshInstance3D
-		if ghost:
-			var ghost_mesh := CylinderMesh.new()
-			ghost_mesh.top_radius = MediaDimensions.disc_diameter(systemid) / 2.0
-			ghost_mesh.bottom_radius = ghost_mesh.top_radius
-			ghost_mesh.height = 0.004
-			ghost.mesh = ghost_mesh
-		# Tray consoles on the placeholder box get a physical disc well + hinged
-		# lid (bespoke GLB models own their tray geometry instead).
-		# The model draws its own mechanism: the placeholder box builds a pod or a
-		# sliding shelf to match itself, a bespoke shell already has one.
-		if _disc_loader == MediaDimensions.LOADER_TRAY:
-			_cartridge_slot.enabled = false   # tray starts closed
-			_disc_bay = _model.build_disc_bay(self, _cartridge_slot, systemid,
-				_front_tray, _on_lid_swung)
-			# Lid tray: hand the well seating / lid gating / spin / grab / collision to the
-			# shared MediaTray (bespoke models animate their own lid via play_open/close;
-			# a procedural lid pivot, if any, is animated by MediaTray). The zone's raw
-			# insert/remove signals are replaced by MediaTray's, which fire the same
-			# _on_cartridge_inserted/_removed for the emulation-side work.
-			_cartridge_slot.has_picked_up.disconnect(_on_cartridge_inserted)
-			_cartridge_slot.has_dropped.disconnect(_on_cartridge_removed)
-			_tray = MediaTray.new()
-			_tray.host = self
-			_tray.slot = _cartridge_slot
-			# No lid_pivot: a bespoke model swings its own lid from play_open/close,
-			# and the procedural one is driven by its own spring hinge.
-			# A flip-open tray assembly (the PSP's UMD door) carries its disc with
-			# it — unlike a spindle console, where the disc stays fixed and only
-			# the lid mesh swings. _cartridge_slot's pose (already set above by
-			# configure_cartridge_slot) is where the disc should visually rest
-			# with the pivot at its baked rest orientation; re-express it as a
-			# LOCAL offset from that pivot so MediaTray can reparent the disc
-			# under it and have it swing rigidly with the door.
-			# The procedural slide when we built one, else whatever moving part the
-			# model nominates (the PC tower's authored shelf, the PSP's UMD door).
-			var disc_pivot: Node3D = _disc_bay.slide_pivot if _disc_bay != null else null
-			if disc_pivot == null and _model != null:
-				disc_pivot = _model.get_disc_lid_pivot()
-			if disc_pivot != null:
-				_tray.disc_lid_pivot = disc_pivot
-				var rel := disc_pivot.global_transform.affine_inverse() * _cartridge_slot.global_transform
-				_tray.media_local_basis = rel.basis
-				_tray.seat_offset = rel.origin
-			add_child(_tray)
-			_tray.loaded.connect(_on_cartridge_inserted)
-			_tray.unloaded.connect(_on_cartridge_removed)
-		# Slot loaders take the disc through a slit in the FRONT face: move the
-		# snap zone to the slit mouth and add the slit visual there.
-		if _disc_loader == MediaDimensions.LOADER_SLOT and not bespoke:
-			_cartridge_slot.position = Vector3(0, 0.03, 0.125)
-			_model.build_disc_slit(self, systemid)
-		# Front-loading disc bay: hand the physical ride/eject/grab/collision to the
-		# shared MediaSlot (bespoke models place their own slit but still slot-load).
-		# The zone's raw insert/remove signals are replaced by MediaSlot's, which
-		# fire the same _on_cartridge_inserted/_removed for the emulation-side work.
-		if _disc_loader == MediaDimensions.LOADER_SLOT:
-			_cartridge_slot.has_picked_up.disconnect(_on_cartridge_inserted)
-			_cartridge_slot.has_dropped.disconnect(_on_cartridge_removed)
-			_slot = MediaSlot.new()
-			_slot.host = self
-			_slot.slot = _cartridge_slot
-			# A model whose case is too shallow for the cabinet's default says so;
-			# 0 means "no opinion". See RetroSystemModel.slot_insert_depth.
-			var slot_depth: float = _model.slot_insert_depth()
-			_slot.insert_depth = slot_depth if slot_depth > 0.0 else SLOT_INSET
-			add_child(_slot)
-			_slot.inserted.connect(_on_cartridge_inserted)
-			_slot.removed.connect(_on_cartridge_removed)
-
-
 ## A handheld is its own controller.
 ##
 ## Built-in screen, on-device controls, and the HandheldInput component that
@@ -1104,7 +876,7 @@ func _build_handheld() -> void:
 		add_child(_handheld_input)
 		_handheld_input.setup(self)
 		# Route port-0 rumble to the holding hands via the existing path.
-		_port_controllers[0] = _handheld_input
+		_ports.controllers[0] = _handheld_input
 ## A handheld routes the trigger and thumbstick into the emulated pad, leaving
 ## the push-out gesture nothing to bind to. Consoles keep it. Catching either
 ## back off the laser works regardless. Queried by
@@ -1133,29 +905,7 @@ func get_lid_angle_deg() -> float:
 func set_lid_angle_deg(open_deg: float) -> void:
 	if _model != null:
 		_model.set_lid_angle_deg(open_deg)
-		_restore_tray_open()
-
-
-## Carry a restored lid pose into the MACHINE, which is a separate thing from the
-## shell the pose just moved.
-##
-## set_lid_angle_deg only moves the mesh and the model's own zone gate. A tray
-## console's open state lives in two more places — RetroSystem._tray_open and
-## MediaTray._open — and both start shut, so a room saved with the lid up came
-## back with the lid drawn open over a machine that believed it was closed. The
-## PlayStation's well then took a disc (the model had enabled the zone) and
-## MediaTray immediately sealed it in: ungrabbable, and the core never heard the
-## tray cycle, so the game never saw the disc that was visibly sitting in it.
-##
-## Idempotent, and a no-op on anything but a tray console — which is why the
-## NES's flap, whose own set_lid_angle_deg already gates its bay, passes through
-## here unchanged.
-func _restore_tray_open() -> void:
-	if _model == null or _disc_loader != MediaDimensions.LOADER_TRAY:
-		return
-	var open: bool = _model.is_lid_open()
-	if open != _tray_open:
-		_set_tray_open(open, true)
+		_disc_tray.restore_open()
 
 
 ## Enable or disable libretro input polling for this system.
@@ -1581,9 +1331,17 @@ func _process(_delta: float) -> void:
 		if not NetworkManager.netplay_set_aux_sensor(self, 0, 0,
 				int(a.x * 1000.0), int(-a.z * 1000.0), int(a.y * 1000.0)):
 			_libretro.SetSensorAccel(0, a.x, -a.z, a.y)
-	_update_disc_spin(_delta)
+	_disc_tray.update_spin(_delta)
 	_audio.ensure_bound()
-	_ensure_port_devices_bound()
+	if _ports.ensure_devices_bound():
+		# And the storages that wait for a frame: the Dreamcast's VMU slots, which
+		# flycast reads only once `first_startup` is false (cleared at the end of
+		# its first retro_run -- nudged earlier, the card never appears), and the
+		# cards written back while the game runs rather than only at power-off, so
+		# a hard kill does not lose what a game put on one. See VmuStorage,
+		# XboxStorage.
+		for storage: ConsoleStorage in _storages:
+			storage.after_first_frame()
 	# Every fourth frame, staggered across machines: the route is a dictionary
 	# and two dynamic lookups per call, and a room holds eight of these. A
 	# carried set's sound trails it by 55 ms at most, under what the ear places.
@@ -1591,53 +1349,8 @@ func _process(_delta: float) -> void:
 		_audio.update_position()
 	# Nothing left to do until something switches on again. Tested here rather
 	# than per frame from outside: a room holds a lot of these, most of them off.
-	if not is_powered_on and _disc_spin <= 0.0:
+	if not is_powered_on and _disc_tray.spin <= 0.0:
 		set_process(false)
-
-
-## Spin the seated disc: ramp up while powered with the tray shut, ramp down
-## when the tray opens or the power goes off. Purely visual — each peer derives
-## the same state from power + tray, so no sync is needed.
-func _update_disc_spin(delta: float) -> void:
-	var disc := _snapped_cartridge as RetroDisc
-	if not is_instance_valid(disc):
-		_disc_spin = 0.0
-		return
-	# "Shut and seated": a tray disc spins only with the lid closed (MediaTray.can_spin
-	# already means shut-over-a-disc); a slot disc has no lid but must have finished its
-	# insert ride so the spin doesn't fight MediaSlot's ride tween.
-	var shut := true
-	if _tray != null:
-		shut = _tray.can_spin()
-	elif _slot != null:
-		shut = _slot.is_media_seated()
-	# ...and home. A front tray takes most of a second to travel and the disc is
-	# bolted to it, so a spin keyed off the gates alone turned the disc in the open
-	# air the whole way back into the machine.
-	if shut and _tray_is_moving():
-		shut = false
-	var target := DISC_SPIN_MAX if (is_powered_on and shut) else 0.0
-	var rate := DISC_SPIN_UP if target > _disc_spin else DISC_SPIN_DOWN
-	_disc_spin = move_toward(_disc_spin, target, rate * delta)
-	# A disc being grabbed out keeps its pose (it's no longer frozen in the bay).
-	if _disc_spin > 0.0 and disc.freeze and disc.can_visually_spin():
-		disc.rotate_object_local(Vector3.UP, _disc_spin * delta)
-	# The shell's own mechanism turns with the motor, NOT with the platter: a disc
-	# lifted out mid-spin stops being rotated here, and a turntable that stopped
-	# dead with it would be reporting the hand rather than the motor. Models
-	# without a modelled mechanism ignore this.
-	if _disc_spin > 0.0 and _model != null:
-		_model.spin_disc_mechanism(_disc_spin * delta)
-
-
-## True while the tray is still travelling between open and shut. The two things
-## that can be moving it are the placeholder box's own shelf and a bespoke model's
-## authored one; a spring-latched lid is not one of them, because a hand closes it
-## and it reports only once it is home.
-func _tray_is_moving() -> bool:
-	if _disc_bay != null and _disc_bay.is_moving():
-		return true
-	return _model != null and _model.is_tray_moving()
 
 
 ## Touch-screen feed (dual-screen handhelds): uv is a point in the COMPOSITE
@@ -1699,8 +1412,8 @@ func power_on() -> void:
 	# Before the core is resolved and before the verdict is taken: an assembled
 	# machine boots from the stack, not from the console's own slot, and both of
 	# those read rom_path.
-	rom_path = _boot_disc_path()
-	_disc_left_running = false
+	rom_path = _disc_tray.boot_disc_path()
+	_disc_tray.left_running = false
 	var stack_spec := _expansion_launch.apply_expansion_launch()
 	var resolved_core := _resolve_core()
 	var resolved_dir := _resolve_dir()
@@ -1726,12 +1439,12 @@ func power_on() -> void:
 	# And what a unit in the stack runs: the spawn menu offers every unit with or
 	# without its file, so this is where a missing one is said.
 	missing.append_array(_expansion_launch.missing_firmware(stack_spec))
-	var verdict := _power_on_verdict(resolved_core, systemid, rom_path,
+	var verdict := power_on_verdict(resolved_core, systemid, rom_path,
 		missing, blank,
 		slot_empty and BiosBoot.boots_with_no_content(resolved_core, systemid),
 		resolved_core.is_empty()
 			or not CoreDownloadManager.installed_core_lib(resolved_core).is_empty(),
-		_open_over_disc())
+		_disc_tray.open_over_disc())
 	if not bool(verdict["start"]):
 		push_error("[RetroSystem] Cannot power on - %s" % verdict["log"])
 		# Over the hardware rather than the picture: every one of these is a
@@ -1784,7 +1497,7 @@ func power_on() -> void:
 	# Leftovers from an earlier run that would crash the boot just pinned (a DS
 	# core's built-in-firmware Wi-Fi profile, merged into the real firmware).
 	BiosBoot.retire_stale_files(resolved_core, systemid)
-	_persist_pak_options(resolved_dir, resolved_core)
+	_ports.persist_pak_options(resolved_dir, resolved_core)
 	for storage: ConsoleStorage in _storages:
 		storage.stage_late(resolved_dir, resolved_core)
 	AppPrefs.apply_hw_render_for(resolved_core)
@@ -1795,7 +1508,7 @@ func power_on() -> void:
 	# holds the session, nobody is signed in, or the system has no RA console —
 	# all of which just mean this machine runs without achievements.
 	_claim_achievements_session()
-	_protect_active_rom()
+	protect_active_rom()
 	# A machine starting with NOTHING in it needs the core handed a null game
 	# info rather than an empty path, and most cores do not survive that -- six of
 	# sixteen surveyed took the process down. It is switched on only for the
@@ -1805,7 +1518,7 @@ func power_on() -> void:
 		and BiosBoot.boots_with_no_content(resolved_core, systemid)
 	if no_content:
 		ClassDB.class_call_static("Libretro", "SetNoContentPassesNull", true)
-	_bind_all_pak_storage()
+	_ports.bind_all_pak_storage()
 	# An assembled machine goes over as one piece if the core will take it that
 	# way; only if it will not do we fall back to a single path and say what the
 	# drive is about to lose.
@@ -1814,13 +1527,13 @@ func power_on() -> void:
 		_libretro.StartContent(resolved_dir, resolved_core, rom_path)
 	if no_content:
 		ClassDB.class_call_static("Libretro", "SetNoContentPassesNull", false)
-	_started_without_content = no_content
-	_bios_run = no_content or BiosBoot.is_empty_media(rom_path)
+	_disc_tray.started_without_content = no_content
+	_disc_tray.bios_run = no_content or BiosBoot.is_empty_media(rom_path)
 	_after_core_started()
 	# Started with the lid up: the core's drive is opened to match, so shutting
 	# the lid is a whole tray cycle rather than a swap under a closed tray.
-	if _tray_open:
-		_sync_core_tray()
+	if _disc_tray.open:
+		_disc_tray.sync_core()
 
 
 ## Refuse the power-on when a storage says another machine holds what this run
@@ -1851,7 +1564,7 @@ func _after_core_started() -> void:
 	_apply_audio_playing()
 	# A fresh run re-asks which backend came up — that is decided per core start,
 	# and this first attempt is expected to find neither.
-	_port_devices_settled = false
+	_ports.devices_settled = false
 	_audio.rebind()
 	is_powered_on = true
 	set_process(true)
@@ -1896,7 +1609,7 @@ func _after_core_started() -> void:
 ##     when `open_over_disc` names a "lid" or "tray" standing open over a disc,
 ##     a card saying to close it
 ##   * an empty slot it CAN boot from — hand it a blank disc and start
-static func _power_on_verdict(core_id: String, sysid: String, rom: String,
+static func power_on_verdict(core_id: String, sysid: String, rom: String,
 		missing: Array[Dictionary], blank: String, empty_ok := false,
 		core_installed := true, open_over_disc := "") -> Dictionary:
 	var waiting := AchievementToast.ACCENT_WAITING
@@ -2040,7 +1753,10 @@ func _resolve_content(core: String) -> bool:
 	return true
 
 
-func _protect_active_rom() -> void:
+## Keep rom_path out of the RomM cache's eviction while the core reads it, and
+## let the image it replaces go. Public because the disc drive (SystemTray) calls
+## it when a lid or a hot swap hands the core a new image.
+func protect_active_rom() -> void:
 	if rom_path == _protected_cache_path:
 		return
 	_release_cache_protection()
@@ -2086,9 +1802,7 @@ func _restore_displaced_options() -> void:
 func _stop_core() -> void:
 	# Zero any active rumble on all plugged-in controllers so vibration
 	# doesn't leak past core unload if the core was rumbling at shutdown.
-	for ctrl in _port_controllers:
-		if ctrl and is_instance_valid(ctrl) and ctrl.has_method("set_rumble"):
-			ctrl.set_rumble(0.0, 0.0)
+	_ports.stop_all_rumble()
 	RA.release_session(self)
 	_libretro.StopContent()
 	_release_cache_protection()
@@ -2102,11 +1816,7 @@ func _stop_core() -> void:
 	var stop_core := _resolve_core()
 	for storage: ConsoleStorage in _storages:
 		storage.after_stop(stop_dir, stop_core)
-	_has_disk_control = false
-	_disc_index = 0
-	_disc_ejected = false
-	_started_without_content = false
-	_bios_run = false
+	_disc_tray.on_core_stopped()
 	_options_panel.hide_panel()
 	_update_power_button_visual()
 	_model.on_power_off()
@@ -2446,13 +2156,13 @@ func net_start_core(core: String, port_mask: int, start_frame: int, options: Dic
 	var session_pins := NetplayCores.forced_options(resolved_core)
 	if not session_pins.is_empty():
 		CoreOptionsStore.merge_values(_resolve_dir(), resolved_core, session_pins)
-	_persist_pak_options(_resolve_dir(), resolved_core)
+	_ports.persist_pak_options(_resolve_dir(), resolved_core)
 	AppPrefs.apply_hw_render_for(resolved_core)
 	_libretro.SetNetplayMode(true, port_mask, start_frame)
-	_protect_active_rom()
+	protect_active_rom()
 	if no_content:
 		ClassDB.class_call_static("Libretro", "SetNoContentPassesNull", true)
-	_bind_all_pak_storage()
+	_ports.bind_all_pak_storage()
 	_libretro.StartContent(_resolve_dir(), resolved_core, rom_path)
 	if no_content:
 		ClassDB.class_call_static("Libretro", "SetNoContentPassesNull", false)
@@ -2556,7 +2266,7 @@ func reset() -> void:
 	# behind — a lid cycle the core did not hear about leaves it believing the
 	# tray is open, and then every reset lands in the BIOS menu until the machine
 	# is switched off and on again.
-	_sync_core_tray()
+	_disc_tray.sync_core()
 	print("[RetroSystem] Resetting: rom=%s" % rom_path)
 	_libretro.RequestReset()
 
@@ -2580,7 +2290,7 @@ func controls_state() -> Dictionary:
 		"on": is_powered_on,
 		"game": rom_path.get_file().get_basename() if not rom_path.is_empty() else "",
 		"has_reset": _reset_button != null and _reset_button.visible,
-		"eject": _eject_label(),
+		"eject": _disc_tray.eject_label(),
 		"rf_channel": get_rf_channel(),
 		"rf_options": _model.rf_channel_options() if _model != null else [],
 		"display": "",
@@ -2605,22 +2315,6 @@ func controls_state() -> Dictionary:
 		if input >= 0:
 			state["wiring"] = Array(tv.panel().miswired(input))
 	return state
-
-
-## What the OPEN/EJECT row says, or "" for a machine without the button. Worded
-## by the drive: a lid on a spring only OPENS (it is shut by hand), a motorised
-## tray goes both ways, a slot hands the disc back.
-func _eject_label() -> String:
-	if _eject_button == null or not _eject_button.visible:
-		return ""
-	match _disc_loader:
-		MediaDimensions.LOADER_TRAY:
-			if _has_spring_lid():
-				return "Close the lid by hand" if _tray_open else "Open lid"
-			return "Close tray" if _tray_open else "Open tray"
-		MediaDimensions.LOADER_SLOT:
-			return "Eject disc"
-	return "Eject"
 
 
 ## Whether this machine sends left and right separately — the same answer
@@ -2663,16 +2357,10 @@ func core_options_snapshot() -> Dictionary:
 	return {
 		"definitions": _options_definitions,
 		"values": _options_values,
-		"controller_info": _controller_info,
+		"controller_info": _ports.controller_info,
 		"unavailable": _options_unavailable,
 		"core": _resolve_core(),
 	}
-
-
-## The OPEN/EJECT button, pressed from the menu.
-func press_eject() -> void:
-	if _eject_button != null and _eject_button.visible:
-		_on_eject_pressed()
 
 
 ## The RF channel slide, set from the menu. The model moves its own switch.
@@ -2681,17 +2369,19 @@ func set_rf_channel(channel: int) -> void:
 		_model.set_rf_channel(channel)
 
 
-## Everything pinned for a run: what the shell demands, plus what this system
-## composes per run. One place, so the .opt seam and the options panel can never
-## disagree about which keys the player is allowed to move.
 ## What this machine's memory cards pin, asked of the machine rather than of
 ## ForcedCoreOptions directly — the card state is the machine's to report, and
 ## system_tests checks it that way.
-func _removable_media_options(core: String) -> Dictionary:
+func removable_media_options(core: String) -> Dictionary:
 	return ForcedCoreOptions.removable_media(core, card_family(), _seated_cards())
 
 
-func _all_forced_options(core: String) -> Dictionary:
+## Everything pinned for a run of `core`: what the shell demands, plus what this
+## system composes per run (ForcedCoreOptions) and what its storages pin. One
+## place, so the .opt seam and the options panel can never disagree about which
+## keys the player is allowed to move. forced_core_options() is the same for the
+## core this machine would load.
+func all_forced_options(core: String) -> Dictionary:
 	var out: Dictionary = _model.get_forced_core_options() if _model != null else {}
 	out.merge(ForcedCoreOptions.all(core, systemid, rom_path, _expansions.hardware_ids(),
 		card_family(), _seated_cards(), _expansion_launch.host_media_path()), true)
@@ -2886,7 +2576,7 @@ func _on_expansion_card_swiped(card: Node3D, edge: String, strip: int) -> void:
 			NetworkManager.report_event(NetEvents.Event.EV_DISK_OP,
 				{"sys": self, "op": DISK_OP_CARD, "md5": md5, "index": 0})
 		return
-	if not _supports_disk_control():
+	if not _disc_tray.supports_disk_control():
 		push_warning("[RetroSystem] core takes no removable media; card ignored")
 		return
 	print("[RetroSystem] card swiped: %s strip %d -> %s" % [edge, strip, path.get_file()])
@@ -2934,7 +2624,7 @@ func restore_expansion(unit: RetroExpansion) -> void:
 	if mount == ExpansionCatalog.MOUNT_CARTRIDGE:
 		# It goes where a game would go, and fills the slot the way it does on
 		# the hardware.
-		if _cartridge_slot != null and _accepts_media(unit):
+		if _cartridge_slot != null and accepts_media(unit):
 			_cartridge_slot.pick_up_object(unit)
 			return
 	elif mount == ExpansionCatalog.MOUNT_ABOVE:
@@ -2995,62 +2685,8 @@ func slot_b_save_path(core: String) -> String:
 	return _expansions.slot_b_save_path(core)
 
 
-## Merge every REQUIRED core option into <dir>/core_options/<core>.opt before
-## StartContent — the C++ OptionsHandler reads that file when the core boots.
-## (SetCoreOption needs a running core, so pre-start forcing goes through the
-## file; user-set values for other keys are preserved.)
-##
-## Not gated on there being a shell model: the BIOS-boot pins come from the core
-## and the systemid, and a machine with no model still boots one.
-## Write each port's pak option into the core's option file BEFORE it boots.
-##
-## _apply_pak_option cannot do this: its key comes from the options the core
-## publishes, which do not exist until the core is already running. That is too
-## late for anything that reads a pak while starting. Pokemon Stadium runs its
-## Game Pak Check during boot and lists "Game Pak None" for a pak switched on
-## afterwards -- measured, with a cartridge correctly seated and reaching the
-## core, and the only thing that changed it was pinning the option here.
-##
-## It is also why power cycling appeared to help: the core serialises its whole
-## option set on shutdown, so the second launch booted with the pak already set.
-##
-## The key is taken from what the core wrote on a previous run rather than
-## composed -- the prefix is whatever CORE_NAME the core was built with. A core
-## that has never run here has no keys yet and simply gets nothing pinned; the
-## options_ready path still applies the pak, and records the key for next time.
-##
-## _apply_pak_option remains the authority once the core has published its
-## values: this cannot check them, so a pak a core has no word for (a Transfer
-## Pak on parallel_n64) is written here and corrected there.
-func _persist_pak_options(dir: String, core: String) -> void:
-	var saved: Dictionary = CoreOptionsStore.load_values(dir, core)
-	if saved.is_empty():
-		return
-	var out := {}
-	for i in range(_port_controllers.size()):
-		var ctrl: Node = _port_controllers[i]
-		if not is_instance_valid(ctrl) or not ctrl.has_method("pak_option_value"):
-			continue
-		var seated: String = ctrl.call("pak_option_value")
-		# Empty means the pad has no expansion port at all, which is NOT the same
-		# as an empty port -- see _decide_pak. Those ports are left alone.
-		if seated.is_empty():
-			continue
-		var dev: int = ctrl.get("device_type") if "device_type" in ctrl else 1
-		var lib_port := _libretro_port_for(dev, i)
-		if lib_port < 0:
-			continue
-		var suffix := "-pak%d" % (lib_port + 1)
-		for key: String in saved:
-			if key.ends_with(suffix):
-				out[key] = seated
-				break
-	if not out.is_empty() and CoreOptionsStore.merge_values(dir, core, out):
-		print("[RetroSystem] pak options pinned before boot: %s" % str(out))
-
-
 func _apply_forced_core_options(dir: String, core: String) -> void:
-	var forced := _all_forced_options(core)
+	var forced := all_forced_options(core)
 	if forced.is_empty():
 		return
 	# Through the store, which owns this file: set_core_option already writes it
@@ -3112,14 +2748,14 @@ func _on_options_ready(_categories: Dictionary, definitions: Dictionary, current
 	_options_unavailable = ""
 	# Controller info is set during retro_load_game, so it's ready by the time
 	# options_ready fires. Fetch it here so the panel can show both tabs.
-	_controller_info = _libretro.GetControllerInfo()
-	print("[RetroSystem] controller info fetched — %d ports" % _controller_info.size())
+	_ports.controller_info = _libretro.GetControllerInfo()
+	print("[RetroSystem] controller info fetched — %d ports" % _ports.controller_info.size())
 	# A controller can be plugged before the core (and its options) exist. Now that
 	# there is a core: tell it what is on each port, then apply each pad's
 	# preferred type. Devices first — the pad-type option is per-port and means
 	# nothing until the port has a device on it.
-	_reannounce_port_devices()
-	reapply_pad_types()
+	_ports.reannounce_all()
+	_ports.reapply_pad_types()
 	if _options_panel.visible:
 		_options_panel.refresh()
 
@@ -3179,7 +2815,7 @@ func set_core_option(key: String, value: String) -> void:
 ## menu. They are locked in the UI and skipped by a reset, which would otherwise
 ## break the screen (or silently detach a seated card) rather than restore it.
 func forced_core_options() -> Dictionary:
-	return _all_forced_options(_resolve_core())
+	return all_forced_options(_resolve_core())
 
 
 ## Put every non-forced option back to the value the core itself declares as its
@@ -3199,142 +2835,6 @@ func reset_core_options() -> void:
 		set_core_option(key, default_val)
 		changed += 1
 	print("[RetroSystem] reset %d core options (%d forced kept)" % [changed, forced.size()])
-
-
-## Switch the input device type on a given controller port.
-## device_id corresponds to RETRO_DEVICE_* constants (1 = joypad, 5 = analog, etc.).
-func set_controller_port_device(port: int, device_id: int) -> void:
-	print("[RetroSystem] set_controller_port_device port=%d device=%d" % [port, device_id])
-	# Update the cached current_id so reopening the panel shows the right selection
-	for entry in _controller_info:
-		if entry["port"] == port:
-			entry["current_id"] = device_id
-			break
-	# Guard: a controller can be plugged in before the machine is built (a bare
-	# RetroSystem.new() in a suite has no Libretro child). The device selection
-	# is re-applied at core start, so skipping here is safe.
-	if is_instance_valid(_libretro):
-		_libretro.SetControllerPortDevice(port, device_id)
-
-
-## Auto-select the running core's per-port "pad type" option to match the pad
-## just plugged in: a DualShock (pad_type_pref "dualshock") switches the port to
-## the analog/DualShock profile, the original digital pad selects "standard".
-## Gated on the option actually existing (PCSX-ReARMed's pcsx_rearmed_padNtype),
-## so it is a no-op on every core that has no such option.
-func _apply_pad_type_option(lib_port: int, ctrl: Node) -> void:
-	if not is_instance_valid(ctrl) or not ("pad_type_pref" in ctrl):
-		return
-	var key := _pad_type_option_key(lib_port)
-	if key.is_empty():
-		return
-	var desired: String = ctrl.get("pad_type_pref")
-	var allowed := _option_values(key)
-	var current := String(_options_values.get(key, ""))
-	var target := _decide_pad_type(allowed, desired, current)
-	if target.is_empty():
-		return
-	print("[RetroSystem] auto pad-type: port %d -> %s = '%s'" % [lib_port, key, target])
-	set_core_option(key, target)
-
-
-## Pure pad-type decision: given the option's allowed values, the pad's preferred
-## value and the current value, return the value to set, or "" for no change.
-## A DualShock on a core that offers only a plain analog pad falls back to it.
-static func _decide_pad_type(allowed: Array, desired: String, current: String) -> String:
-	if allowed.is_empty():
-		return ""
-	var pick := desired
-	if not (pick in allowed):
-		if desired == "dualshock" and "analog" in allowed:
-			pick = "analog"
-		else:
-			return ""
-	return "" if pick == current else pick
-
-
-## Auto-select the running core's per-port pak option to match what is fitted to
-## that controller's expansion port. An N64 controller takes a Rumble Pak, a
-## Controller Pak or a Transfer Pak, and each port answers for itself.
-##
-## Gated on the option existing, so it is a no-op on every core without one. It
-## is deliberately gated on the VALUE existing too: parallel_n64 offers a Bio
-## Sensor where mupen64plus-next offers a Transfer Pak, and a pak the running
-## core cannot serve must leave the port alone rather than silently fit
-## something else.
-func _apply_pak_option(lib_port: int, ctrl: Node) -> void:
-	if not is_instance_valid(ctrl) or not ctrl.has_method("pak_option_value"):
-		return
-	# Bind the bytes FIRST, and before the option key is even required. Setting
-	# the option first starts the core's delayed pak insert, and a Controller Pak
-	# that arrives before its file does reads whatever the cartridge's own .srm
-	# left at that offset.
-	#
-	# The key only exists once the core has published its options, so gating this
-	# on the key meant a pak already seated at boot had its paths pushed at
-	# options_ready -- AFTER the core had already read the pak while initialising
-	# the controllers. With the option persisted at its target value from the last
-	# session there was then no transition to make it read again, so the cartridge
-	# stayed absent until the machine was power cycled. Nothing here needs the
-	# core's options, so nothing here waits for them.
-	_bind_pak_storage(lib_port, ctrl)
-	var key := _pak_option_key(lib_port)
-	if key.is_empty():
-		return
-	var seated: String = ctrl.call("pak_option_value")
-	var allowed := _option_values(key)
-	var current := String(_options_values.get(key, ""))
-	var target := _decide_pak(allowed, seated, current)
-	if target.is_empty():
-		return
-	print("[RetroSystem] pak: port %d -> %s = '%s'" % [lib_port, key, target])
-	set_core_option(key, target)
-
-
-## Point a Controller Pak's own file at the slice of the core's save block that
-## port reads through.
-##
-## Both N64 cores keep all four paks inside the single SAVE_RAM block rather than
-## behind a memory id apiece, back them with a storage backend whose save is a
-## no-op, and stub their own mempak path helper to "" -- so nothing the core does
-## persists a pak, and the only way to address one is by offset. The layout is
-## the same in both (eeprom, then four paks, then sram, flashram); parallel_n64
-## appends a 64DD region after that, which changes the block's SIZE but not where
-## the paks begin.
-func _bind_pak_storage(lib_port: int, ctrl: Node) -> void:
-	if _libretro == null or lib_port < 0 or lib_port >= MEMPAK_PORTS:
-		return
-	var pak: Node = ctrl.call("get_pak") if ctrl.has_method("get_pak") else null
-
-	var path := ""
-	if is_instance_valid(pak) and pak is ControllerPak:
-		path = str(pak.call("image_path"))
-		# Only a pak this session invented may have its image created. One
-		# that came back from a saved room with its file missing runs
-		# unbacked, so a vanished set of notes does not return as a silent
-		# blank that reads exactly like a wipe.
-		if not path.is_empty() and bool(pak.get("minted")):
-			SramPaths.ensure_card(ControllerPak.FAMILY, str(pak.get("card_id")))
-	_libretro.SetSramRegionPath(lib_port, path,
-		MEMPAK_BASE_OFFSET + lib_port * MEMPAK_SIZE, MEMPAK_SIZE)
-
-	var rom := ""
-	var ram := ""
-	var rtc := ""
-	if is_instance_valid(pak) and pak is TransferPak:
-		rom = str(pak.call("cart_rom_path"))
-		ram = str(pak.call("cart_save_path", _resolve_core()))
-		rtc = str(pak.call("cart_rtc_path", _resolve_core()))
-	# Before SetTransferPak: its generation bump is what has the core read the
-	# cartridge again, and it asks for the clock then.
-	_libretro.SetTransferPakClock(lib_port, rtc)
-	_libretro.SetTransferPak(lib_port, rom, ram)
-
-
-## The controllers on this machine's ports, one per port, null where empty.
-## Read by VmuStorage, which has to walk them to find the seated VMUs.
-func get_port_controllers() -> Array:
-	return _port_controllers
 
 
 ## Re-announce the VMU slots on one controller. Called when a card is pushed into
@@ -3361,6 +2861,13 @@ func core_options_known() -> bool:
 
 func core_declares_option(key: String) -> bool:
 	return _options_definitions.has(key)
+
+
+## What the running core (or the pre-launch peek) declared, key -> its
+## LibretroOptionDefinition. Read-only window for SystemPorts, which looks up a
+## per-port option by its suffix; set_core_option is the way to change a value.
+func core_option_definitions() -> Dictionary:
+	return _options_definitions
 
 
 func machine_toast() -> AchievementToast:
@@ -3415,22 +2922,12 @@ func vmu_hands_screens_over() -> bool:
 	return bool(_libretro.HasControllerScreens())
 
 
-## The libretro port a pad plugged into this machine occupies, or -1.
-func _pad_libretro_port(ctrl: Node) -> int:
-	for i in range(_port_controllers.size()):
-		if _port_controllers[i] != ctrl:
-			continue
-		var dev: int = ctrl.get("device_type") if "device_type" in ctrl else 1
-		return _libretro_port_for(dev, i)
-	return -1
-
-
 ## The screen of the card in `slot` of this pad, or null until the core has
 ## pushed one.
 func vmu_screen_texture(ctrl: Node, slot: int) -> Texture2D:
 	if slot < 0 or not vmu_hands_screens_over():
 		return null
-	var port := _pad_libretro_port(ctrl)
+	var port := _ports.pad_libretro_port(ctrl)
 	return _libretro.GetControllerScreenTexture(port, slot) if port >= 0 else null
 
 
@@ -3439,314 +2936,8 @@ func vmu_screen_texture(ctrl: Node, slot: int) -> Texture2D:
 func vmu_beep_voice(ctrl: Node, slot: int) -> int:
 	if slot < 0 or not is_instance_valid(_libretro):
 		return -1
-	var port := _pad_libretro_port(ctrl)
+	var port := _ports.pad_libretro_port(ctrl)
 	return int(_libretro.GetControllerAudioVoiceId(port, slot)) if port >= 0 else -1
-
-
-## Re-announce the pak on one controller's port. Called when a pak is pushed into
-## or pulled out of an expansion port, which the system cannot see for itself —
-## the port belongs to the controller, two objects away.
-func reapply_pak(ctrl: Node) -> void:
-	for i in range(_port_controllers.size()):
-		if _port_controllers[i] != ctrl:
-			continue
-		var dev: int = ctrl.get("device_type") if "device_type" in ctrl else 1
-		_apply_pak_option(_libretro_port_for(dev, i), ctrl)
-		return
-
-
-## Pure pak decision: given the option's allowed values, the value the seated pak
-## asks for and the current value, return the value to set, or "" for no change.
-##
-## An empty `seated` means the controller has no expansion port at all, and that
-## is NOT the same as an empty port. mupen64plus-next fits a Controller Pak to
-## port 1 by default, so answering "none" for a pad that simply cannot take a pak
-## would quietly pull out a pak the player has been saving to. Only a controller
-## that HAS a port gets to say "none".
-static func _decide_pak(allowed: Array, seated: String, current: String) -> String:
-	if allowed.is_empty() or seated.is_empty():
-		return ""
-	if not (seated in allowed):
-		return ""
-	return "" if seated == current else seated
-
-
-## Tell the core which device is on each occupied port, now that there is a core
-## to tell. set_controller_port_device is a no-op while the machine is off, and
-## everything that claims a port — a plug seating, a remote pairing, a save being
-## restored — can happen long before that.
-##
-## A plain joypad survived the gap by luck: libretro already defaults its ports to
-## JOYPAD, so a pad plugged in beforehand worked anyway. A Wii Remote does not.
-## The core zeroes every port during its own startup, so the remote was paired as
-## far as this room was concerned, showing its player light, and simply absent in
-## the game — no buttons, no pointer.
-func _reannounce_port_devices() -> void:
-	for i in range(_port_controllers.size()):
-		_announce_cabinet_port(i)
-	# Last, so a USB device wins its port over the pad there.
-	for k in _usb_plugs.size():
-		if _usb_plug_at(k) != null:
-			_announce_port(k)
-
-
-## Tell the core what is on cabinet port `i` again, now: a multitap's SELECT
-## switch thrown with it plugged in changes what the port is.
-func reannounce_port(i: int) -> void:
-	if i >= 0 and i < _port_controllers.size():
-		_announce_cabinet_port(i)
-
-
-## Tell the core what the peripheral in cabinet slot `i` is, if one is there.
-func _announce_cabinet_port(i: int) -> void:
-	var ctrl: Node = _port_controllers[i]
-	# A multitap at 5P is the port's device, whatever pad is in its first socket
-	# (that pad is what _port_controllers holds, for rumble and netplay): it is
-	# what the cabinet socket's plug belongs to.
-	var cab_plug: Node = _port_plugs[i] if i < _port_plugs.size() else null
-	if is_instance_valid(cab_plug) and cab_plug.has_method("get_controller"):
-		var tap: Node = _controller_of(cab_plug)
-		# At 2P the pad in its first socket is the port's device, and with none
-		# there the tap's own (nothing) is.
-		if tap is RetroMultitap and ((tap as RetroMultitap).mode == RetroMultitap.MODE_5P
-				or not is_instance_valid(ctrl)):
-			ctrl = tap
-	if not is_instance_valid(ctrl):
-		return
-	var dev: int = ctrl.get("device_type") if "device_type" in ctrl else 1
-	if not _claims_port_device(dev):
-		return
-	# _port_plugs is what says WIRED: a cabinet socket records its plug, and a
-	# wireless remote or a multitap sub-port has none. Only the wired ones take
-	# the GameCube-on-Wii translation.
-	var announce := dev
-	if _wii_link != null and i < _port_plugs.size() and _port_plugs[i] != null:
-		announce = _wii_link.cabinet_device_id(dev)
-	var lib_port := _libretro_port_for(dev, i)
-	set_controller_port_device(lib_port,
-		core_device_id(announce, lib_port, device_names_of(ctrl)))
-
-
-## Say what is on each port a SECOND time, once the core has actually run a frame.
-##
-## _reannounce_port_devices at options_ready is enough for anything announced
-## while a core was already running: Wrapper queues that as an emulation-thread
-## command and it lands between frames. A device announced while the machine was
-## OFF does not take that path. It goes into Wrapper's pending map and is applied
-## right after retro_load_game — which is canonical, and is also before the first
-## retro_run.
-##
-## That is too early for a core which decides anything on its first pass. Dolphin
-## turns its sensors on in InitSensors(), at the top of frame 0, and binds a Wii
-## Remote's accelerometer and gyroscope INSIDE retro_set_controller_port_device
-## only if that has already happened. So a remote paired before the console was
-## switched on — which is the ordinary way round, you press SYNC and then you
-## press POWER — got no motion at all for the whole session, and nothing rebound
-## it short of pulling the Nunchuk out and putting it back.
-##
-## Measured with Tools/prestart_probe: "Applying pre-start port device: port=0
-## device=769" prints before every "Sensor: accelerometer enabled" line, and both
-## come from the emulation thread, so that order is real rather than two threads
-## interleaving in the log.
-##
-## One completed frame is the whole condition — retro_run has returned, so
-## whatever the core sets up on its first pass is up. Deliberately not a frame
-## COUNT: see SystemAudio.ensure_bound, where elapsed frames stood in for a readiness
-## question and the two only agreed for cores that come up fast.
-func _ensure_port_devices_bound() -> void:
-	if _port_devices_settled or not is_powered_on:
-		return
-	if not is_instance_valid(_libretro) or _libretro.GetFrameCount() <= 0:
-		return
-	_port_devices_settled = true
-	_reannounce_port_devices()
-	# And the storages that wait for a frame: the Dreamcast's VMU slots, which
-	# flycast reads only once `first_startup` is false (cleared at the end of its
-	# first retro_run -- nudged earlier, the card never appears), and the cards
-	# written back while the game runs rather than only at power-off, so a hard
-	# kill does not lose what a game put on one. See VmuStorage, XboxStorage.
-	for storage: ConsoleStorage in _storages:
-		storage.after_first_frame()
-
-
-## Re-apply every plugged pad's preferred pad type. Called when the option set
-## first becomes known (options_ready), covering pads plugged before core start.
-## Re-apply every port's pad-type option. Public because a pad can change its own
-## mode while it stays plugged in: a DualShock toggled out of analogue mode is the
-## same controller reporting a different pad_type_pref, and the core option has to
-## follow it without the cable being pulled and pushed back.
-## Push every seated pak's storage at the core BEFORE content starts.
-##
-## The core reads a Transfer Pak's cartridge while it initialises the
-## controllers, which happens inside StartContent -- so a table filled after
-## that is filled too late and the pak comes up holding nothing. None of this
-## needs the core's published options, so it can run first, and must.
-func _bind_all_pak_storage() -> void:
-	for i in range(_port_controllers.size()):
-		var ctrl: Node = _port_controllers[i]
-		if not is_instance_valid(ctrl):
-			continue
-		var dev: int = ctrl.get("device_type") if "device_type" in ctrl else 1
-		_bind_pak_storage(_libretro_port_for(dev, i), ctrl)
-
-
-func reapply_pad_types() -> void:
-	for i in range(_port_controllers.size()):
-		var ctrl: Node = _port_controllers[i]
-		if not is_instance_valid(ctrl):
-			continue
-		var dev: int = ctrl.get("device_type") if "device_type" in ctrl else 1
-		_apply_pad_type_option(_libretro_port_for(dev, i), ctrl)
-		_apply_pak_option(_libretro_port_for(dev, i), ctrl)
-
-
-## The core option key that controls the pad type on a given libretro port, or
-## "" if the running core has none. PCSX-ReARMed exposes pcsx_rearmed_pad1type …
-## pad8type (1-based); extend here to cover another core if needed.
-func _pad_type_option_key(lib_port: int) -> String:
-	var key := "pcsx_rearmed_pad%dtype" % (lib_port + 1)
-	return key if _options_definitions.has(key) else ""
-
-
-## The core option key that fits a pak to a given libretro port, or "" if the
-## running core has none.
-##
-## FOUND rather than composed: mupen64plus-next's key prefix is whatever
-## CORE_NAME the buildbot compiled it with — the source only guarantees a
-## `-pakN` suffix — and parallel_n64's is `parallel-n64-`. Composing either one
-## would fit paks on one build and silently nothing on the next.
-func _pak_option_key(lib_port: int) -> String:
-	var suffix := "-pak%d" % (lib_port + 1)
-	for key: String in _options_definitions:
-		if key.ends_with(suffix):
-			return key
-	return ""
-
-
-## The list of allowed values for an option key (empty if unknown).
-func _option_values(key: String) -> Array:
-	var def: Object = _options_definitions.get(key)
-	if def == null:
-		return []
-	var out: Array = []
-	for v in def.GetValues():
-		out.append(v.GetValue())
-	return out
-
-
-## True when this system is a home computer (ScummVM, DOS, Amiga…) whose core
-## reads the mouse on port 0 and takes keyboard input globally.
-func _is_computer() -> bool:
-	var info := SystemInfo.for_system(systemid)
-	return info != null and info.computer
-
-
-## The libretro port a plugged peripheral should drive. On computer systems the
-## mouse always drives port 0 — where ScummVM/DOS/Amiga cores poll it — no matter
-## which cabinet slot it's in; every other device drives its own physical port.
-##
-## A joypad on a computer is pinned the same way, and for the same reason. Its
-## socket is the tower's game port, which is cabinet slot 3 because slots 1 and 2
-## are the keyboard and mouse — but a DOS or Amiga core reads its one joystick on
-## port 0, and a pad announced on port 2 is a pad the game never sees.
-func _libretro_port_for(device_type: int, physical_port: int) -> int:
-	if device_type == RETRO_DEVICE_MOUSE and _is_computer():
-		return 0
-	# The GAME PORT only, not every joypad socket on a computer: a machine with two
-	# joystick ports still drives port 1 from its second one.
-	if device_type == RETRO_DEVICE_JOYPAD and _is_computer():
-		if _model != null and _model.game_port_index() == physical_port:
-			return 0
-	return physical_port
-
-
-## The id the RUNNING core understands for a peripheral, given the generic type
-## the peripheral carries. The light gun always needs translating, and it needs it
-## badly: a core names its own device ids, and a gun is rarely plain
-## RETRO_DEVICE_LIGHTGUN — fceumm's Zapper is 258, a MOUSE subclass. An id a core
-## does not recognise does not leave the port alone either; fceumm's switch falls
-## through to a gamepad, which un-plugs the gun the game had auto-detected.
-##
-## The core's own declared list is the source, so this needs no per-core table:
-## prefer an entry whose base type IS a light gun, else one whose name reads as a
-## gun, else announce what we were given.
-##
-## `named` is what a gun that is one PARTICULAR gun calls itself (a peripheral's
-## `device_names`: "zapper", "guncon"). A core that lists several guns on one
-## port lists them in its own order, and the first is not always the one in the
-## player's hand: a PlayStation core offers the GunCon and the Justifier. Where
-## the core has a device of one of those names, that is the one announced; where
-## it has none, the rules above stand, so a named gun is never worse off than
-## the generic one.
-##
-## A name is looked up for ANY peripheral that gives one, not only a gun. A pad
-## that is more than a plain joypad has the gun's problem exactly: a Saturn 3D
-## Control Pad is 261 to Beetle Saturn and 5 to the Yabause family, where 261 is
-## the steering wheel. Where the core lists nothing of its name the pad is
-## announced as the type it carries, which for a pad is the plain joypad every
-## core has.
-##
-## Public because the suites assert against it directly: an underscore promises
-## the name may change freely, and a test that names it is a caller that cannot.
-func core_device_id(device_type: int, lib_port: int,
-		named: PackedStringArray = PackedStringArray()) -> int:
-	if device_type != RETRO_DEVICE_LIGHTGUN and named.is_empty():
-		return device_type
-	var devices: Array = []
-	for entry: Dictionary in _controller_info:
-		if int(entry.get("port", -1)) == lib_port:
-			devices.append_array(entry.get("controllers", []))
-	# The names are in the peripheral's own order of preference, so each is
-	# looked for through the whole list before the next: a GunCon 2 that will
-	# settle for a GunCon still gets the "GunCon 2" a core lists after it.
-	for word: String in named:
-		if word.is_empty():
-			continue
-		for dev: Dictionary in devices:
-			if String(dev.get("name", "")).to_lower().contains(word.to_lower()):
-				return int(dev.get("id", 0))
-	if device_type != RETRO_DEVICE_LIGHTGUN:
-		return device_type
-	var by_name := -1
-	for dev: Dictionary in devices:
-		var id := int(dev.get("id", 0))
-		if (id & RETRO_DEVICE_MASK) == RETRO_DEVICE_LIGHTGUN:
-			return id
-		if by_name < 0 and reads_as_lightgun(String(dev.get("name", ""))):
-			by_name = id
-	return by_name if by_name >= 0 else device_type
-
-
-## The names a plugged peripheral goes by in a core's device list, or none. Read
-## off the plug or the controller, whichever the caller has: a plug copies its
-## controller's as it copies its device type.
-static func device_names_of(peripheral: Object) -> PackedStringArray:
-	if peripheral != null and "device_names" in peripheral:
-		var names: Variant = peripheral.get("device_names")
-		if names is PackedStringArray:
-			return names
-	return PackedStringArray()
-
-
-## Whether a core's device NAME reads as a light gun, for the cores that
-## describe one without using the light-gun base type.
-##
-## Public because the suites assert against it directly: an underscore promises
-## the name may change freely, and a test that names it is a caller that cannot.
-static func reads_as_lightgun(device_name: String) -> bool:
-	var lower := device_name.to_lower()
-	for word: String in _LIGHTGUN_WORDS:
-		if lower.contains(word):
-			return true
-	return false
-
-
-## Whether a plugged peripheral occupies a numbered libretro port device. A
-## computer keyboard does not: its keys are global to port 0 regardless, so it
-## leaves the port free for the mouse and avoids cores that mishandle a
-## RETRO_DEVICE_KEYBOARD "controller" set on a numbered port.
-func _claims_port_device(device_type: int) -> bool:
-	return not (device_type == RETRO_DEVICE_KEYBOARD and _is_computer())
 
 
 ## Attach the wireless-pad component and reveal its button, on the consoles that
@@ -3769,60 +2960,10 @@ func _setup_wireless_pads() -> void:
 	_wii_link.setup(self, _sync_button)
 
 
-## The node holding a given libretro port, or null. A read-only window onto the
-## port cache for components that need to see what is where — WiiLink searches it
-## for a free remote slot — without every one of them reaching into the array.
-func port_holder(port: int) -> Node:
-	if port < 0 or port >= _port_controllers.size():
-		return null
-	var held: Node = _port_controllers[port]
-	return held if is_instance_valid(held) else null
-
-
 ## True while a save is seating this machine's media, so hooks that make a NOISE
 ## on insertion can tell a restore from a player pushing a cartridge in.
 func is_restoring_media() -> bool:
 	return _restoring_media
-
-
-## The cabinet socket a plug went into, or null when it cannot be told yet.
-##
-## Two ways to find it, because _port_plugs is not always filled in by the time a
-## plug-in hook runs. The index is the FALLBACK rather than the primary: it is
-## the libretro port, which equals the cabinet socket for a joypad but not for
-## everything — a computer mouse is forced to port 0 whichever socket it is in —
-## so the identity lookup is preferred whenever it is available.
-##
-## Callers want it to place a sound at the socket rather than at the plug, which
-## on_plugged_in fires too early to do from the plug's own position.
-func port_socket(plug: Node, port_index: int) -> Node3D:
-	for i in _port_plugs.size():
-		if _port_plugs[i] == plug and i < _port_zones.size():
-			return _port_zones[i] as Node3D
-	if port_index >= 0 and port_index < _port_zones.size():
-		return _port_zones[port_index] as Node3D
-	return null
-
-
-## The cabinet socket `plug` is seated in, or -1. By the PLUG, not the device:
-## the holder of a multitap's port is the pad in its first socket at 5P, so
-## cabinet_port_of cannot find the tap itself.
-func cabinet_port_of_plug(plug: Node) -> int:
-	if plug == null:
-		return -1
-	for i in _port_plugs.size():
-		if _port_plugs[i] == plug:
-			return i
-	return -1
-
-
-## Every port's holder, port order, null where nothing is plugged in.
-##
-## The companion to port_holder for callers that have to walk all of them —
-## netplay decides which ports a frame must carry. A copy, so a caller cannot
-## reshape the cache by holding onto it.
-func port_holders() -> Array:
-	return _port_controllers.duplicate()
 
 
 ## The Wii pairing component, or null on every other console. Wii Remotes look it
@@ -3879,7 +3020,7 @@ func _microphone_level_listeners() -> Array:
 		return out
 	if NetworkManager.netplay_running() and NetworkManager.netplay_system() == self:
 		return out
-	for ctrl: Variant in _port_controllers:
+	for ctrl: Variant in _ports.controllers:
 		var node := ctrl as Node
 		if node != null and node.has_method("on_microphone_level"):
 			out.append(node)
@@ -3897,7 +3038,7 @@ func microphone_position() -> Vector3:
 	# A microphone can be a controller-port device too: the N64's Voice
 	# Recognition Unit goes in a socket and keeps its microphone on a cord, and
 	# the Dreamcast's goes in a slot on the pad rather than into the console.
-	for ctrl: Variant in _port_controllers:
+	for ctrl: Variant in _ports.controllers:
 		var node := ctrl as Node
 		if node == null:
 			continue
@@ -3910,26 +3051,100 @@ func microphone_position() -> Vector3:
 	return global_position
 
 
-# --- Controller port snap handlers ---
+# ── Controller ports and USB sockets ─────────────────────────────────────────
+#
+# Lifted out into SystemPorts, a child this node owns. What stays here is the
+# surface other code calls BY NAME on the machine -- peripherals, WiiLink,
+# netplay, ScenePersistence, the mods -- as one-line forwarders.
 
-func _on_port_snapped(port_index: int, controller: Node3D) -> void:
-	_model.play_port_plug_insert(controller, _port_zones[port_index])
-	var device_type: int = controller.get("device_type") if "device_type" in controller else 1
-	# The libretro port a peripheral drives isn't always its cabinet slot: on
-	# computer systems the mouse is forced to port 0 (where those cores poll it),
-	# so a mouse + keyboard can share the cabinet. See _libretro_port_for().
-	_bind_port(_libretro_port_for(device_type, port_index), controller, port_index)
+## The port component (SystemPorts): what is on each controller port and USB
+## socket, and what the core is told. The suites and the machine's own helpers
+## hold it rather than this node's forwarders.
+func controller_ports() -> SystemPorts:
+	return _ports
 
 
-func _on_port_released(port_index: int) -> void:
-	var plug: Node3D = _port_plugs[port_index]
-	_port_plugs[port_index] = null
-	if not is_instance_valid(plug):
-		return
-	var device_type: int = plug.get("device_type") if "device_type" in plug else 1
-	# Clear the SAME libretro port the snap set (a computer mouse claimed port 0,
-	# not its cabinet slot; a computer keyboard claimed none).
-	_unbind_port(_libretro_port_for(device_type, port_index), plug, port_index)
+## Switch the input device type on a given controller port.
+## device_id corresponds to RETRO_DEVICE_* constants (1 = joypad, 5 = analog, etc.).
+func set_controller_port_device(port: int, device_id: int) -> void:
+	_ports.set_device(port, device_id)
+
+
+## The controllers on this machine's ports, one per port, null where empty.
+## Read by VmuStorage, which has to walk them to find the seated VMUs. The same
+## array, not a copy.
+func get_port_controllers() -> Array:
+	return _ports.controllers
+
+
+## Re-announce the pak on one controller's port. Called when a pak is pushed into
+## or pulled out of an expansion port, which the system cannot see for itself —
+## the port belongs to the controller, two objects away.
+func reapply_pak(ctrl: Node) -> void:
+	_ports.reapply_pak(ctrl)
+
+
+## Re-apply every port's pad-type option. Public because a pad can change its own
+## mode while it stays plugged in: a DualShock toggled out of analogue mode is the
+## same controller reporting a different pad_type_pref.
+func reapply_pad_types() -> void:
+	_ports.reapply_pad_types()
+
+
+## Tell the core what is on cabinet port `i` again, now: a multitap's SELECT
+## switch thrown with it plugged in changes what the port is.
+func reannounce_port(i: int) -> void:
+	_ports.reannounce_port(i)
+
+
+## The id the RUNNING core understands for a peripheral -- see
+## SystemPorts.core_device_id.
+func core_device_id(device_type: int, lib_port: int,
+		named: PackedStringArray = PackedStringArray()) -> int:
+	return _ports.core_device_id(device_type, lib_port, named)
+
+
+## The names a plugged peripheral goes by in a core's device list, or none -- see
+## SystemPorts.device_names_of.
+static func device_names_of(peripheral: Object) -> PackedStringArray:
+	return SystemPorts.device_names_of(peripheral)
+
+
+## Whether a core's device NAME reads as a light gun -- see
+## SystemPorts.reads_as_lightgun.
+static func reads_as_lightgun(device_name: String) -> bool:
+	return SystemPorts.reads_as_lightgun(device_name)
+
+
+## The node holding a given libretro port, or null. A read-only window onto the
+## port table for components that need to see what is where — WiiLink searches it
+## for a free remote slot.
+func port_holder(port: int) -> Node:
+	return _ports.port_holder(port)
+
+
+## Every port's holder, port order, null where nothing is plugged in. A copy.
+## Netplay decides which ports a frame must carry from it.
+func port_holders() -> Array:
+	return _ports.port_holders()
+
+
+## The cabinet socket a plug went into, or null when it cannot be told yet. Asked
+## to place a sound at the socket rather than at the plug -- see
+## SystemPorts.port_socket.
+func port_socket(plug: Node, port_index: int) -> Node3D:
+	return _ports.port_socket(plug, port_index)
+
+
+## The cabinet socket `plug` is seated in, or -1.
+func cabinet_port_of_plug(plug: Node) -> int:
+	return _ports.cabinet_port_of_plug(plug)
+
+
+## Which cabinet socket holds this peripheral, or -1; a USB socket answers
+## USB_SLOT_BASE + k. What a save records, never the libretro port.
+func cabinet_port_of(peripheral: Node) -> int:
+	return _ports.cabinet_port_of(peripheral)
 
 
 ## Attach a controller (by its cable plug) to an EXPANDED libretro port that has
@@ -3938,181 +3153,32 @@ func _on_port_released(port_index: int) -> void:
 ## a multitap at 5P owns its own port's device, the pad in its first socket only
 ## feeds it.
 func attach_expanded_controller(port: int, plug: Node3D, announce := true) -> void:
-	_bind_port(port, plug, -1, announce)
+	_ports.bind(port, plug, -1, announce)
 
 
 ## Detach a controller from an expanded port (see attach_expanded_controller;
 ## `announce` false leaves the port's device to the multitap that owns it).
 func detach_expanded_controller(port: int, plug: Node3D, announce := true) -> void:
-	_unbind_port(port, plug, -1, announce)
+	_ports.unbind(port, plug, -1, announce)
 
 
-## Bind a peripheral to a libretro port, from either direction: `cabinet_index`
-## is the socket it seated into, or -1 for an EXPANDED port — one a multitap fans
-## out to, which has no socket, no plug to remember and no Wii translation, but is
-## a port to the core like any other.
-##
-## Written once because the expanded copy used to be an abridged one, and the
-## abridgement is what dropped the device translation: a light gun on a multitap
-## announced RETRO_DEVICE_LIGHTGUN, which fceumm turns into a gamepad.
-func _bind_port(lib_port: int, plug: Node3D, cabinet_index: int, announce_device := true) -> void:
-	if lib_port < 0 or not is_instance_valid(plug):
-		return
-	var device_type: int = plug.get("device_type") if "device_type" in plug else 1
-	var announce := device_type
-	if cabinet_index >= 0:
-		add_collision_exception_with(plug)
-		# The plug itself is kept for the release path, which is handed nothing.
-		_port_plugs[cabinet_index] = plug
-		# On a Wii the slot may already hold a paired remote, and a wired pad may
-		# need announcing as a GameCube pad rather than a plain joypad. Both are
-		# Wii policy and both live in WiiLink; every other console skips them.
-		if _wii_link != null:
-			_wii_link.evict_remote_from(lib_port)
-			announce = _wii_link.cabinet_device_id(device_type)
-	announce = core_device_id(announce, lib_port, device_names_of(plug))
-	print("[RetroSystem] port %d bound: device_type=%d -> libretro port %d (announced %d)" %
-		[cabinet_index, device_type, lib_port, announce])
-	# A device in the USB socket of this number is what the core is told about:
-	# it keeps the pad on the port besides (see _announce_port).
-	if announce_device and _claims_port_device(device_type) and _usb_plug_at(lib_port) == null:
-		set_controller_port_device(lib_port, announce)
-	# The bound node is a ControllerPlug (cable end). Unwrap to the actual
-	# RetroController so rumble can be routed to its set_rumble() method.
-	var ctrl := _controller_of(plug)
-	var slot := cabinet_index if cabinet_index >= 0 else lib_port
-	if slot < _port_controllers.size():
-		_port_controllers[slot] = ctrl
-	_tell_plugged_in(plug, lib_port)
-	# Auto-select the core's per-port pad type (e.g. PCSX-ReARMed: DualShock vs
-	# the original digital pad). No-ops unless the core exposes such an option.
-	_apply_pad_type_option(lib_port, ctrl)
-	_apply_pak_option(lib_port, ctrl)
-	NetworkManager.report_event(NetEvents.Event.EV_PORT_PLUG,
-		{"sys": self, "ctrl": ctrl, "port": slot})
+## Release a controller port from replicated state -- see SystemPorts.net_release.
+func net_release_controller_port(port_index: int) -> void:
+	_ports.net_release(port_index)
 
 
-## Release a peripheral from a libretro port. See _bind_port for `cabinet_index`.
-func _unbind_port(lib_port: int, plug: Node3D, cabinet_index: int, announce_device := true) -> void:
-	if lib_port < 0:
-		return
-	print("[RetroSystem] port %d released" % cabinet_index)
-	# Stop any active rumble on the controller being unplugged.
-	var ctrl := _controller_of(plug)
-	if is_instance_valid(ctrl) and ctrl.has_method("set_rumble"):
-		ctrl.set_rumble(0.0, 0.0)
-	var device_type: int = plug.get("device_type") \
-		if is_instance_valid(plug) and "device_type" in plug else 1
-	if cabinet_index >= 0 and is_instance_valid(plug):
-		remove_collision_exception_with(plug)
-	var slot := cabinet_index if cabinet_index >= 0 else lib_port
-	if slot < _port_controllers.size():
-		_port_controllers[slot] = null
-	if announce_device and _claims_port_device(device_type):
-		if _usb_plug_at(lib_port) != null:
-			_announce_port(lib_port)
-		else:
-			set_controller_port_device(lib_port, RETRO_DEVICE_NONE)
-	_tell_unplugged(plug)
-	NetworkManager.report_event(NetEvents.Event.EV_PORT_UNPLUG, {"sys": self, "port": slot})
+# The names these had while they lived here, kept because the model packs'
+# probes (RetroXR-models/mods/probes) call them by name.
+func _accepts_plug(obj: Node3D) -> bool:
+	return _ports.accepts_plug(obj)
 
 
-## What a socket was handed, unwrapped to the peripheral behind it.
-##
-## A controller port takes either a cable END -- a ControllerPlug, a light gun's
-## or a multitap's plug, whose get_controller() names the pad at the far end --
-## or a thing that IS its own plug (a VMU, an N64 pak, the GameCube-to-GBA lead's
-## console end), which answers for itself. Every port path unwraps through here,
-## so rumble, netplay and the port cache all see the same node. A freed or
-## missing plug unwraps to null.
-static func _controller_of(plug: Variant) -> Node3D:
-	if not is_instance_valid(plug):
-		return null
-	var node := plug as Node
-	if node != null and node.has_method("get_controller"):
-		return node.get_controller() as Node3D
-	return node as Node3D
+func _accepts_usb_plug(obj: Node3D) -> bool:
+	return _ports.accepts_usb_plug(obj)
 
 
-## Tell what was seated that it is on libretro port `lib_port` of this machine.
-## Optional on the plug side: a VMU or a pak seated as a plug has nothing to do.
-func _tell_plugged_in(plug: Variant, lib_port: int) -> void:
-	if is_instance_valid(plug) and plug.has_method("on_plugged_in"):
-		plug.on_plugged_in(self, lib_port)
-
-
-## The other half of _tell_plugged_in, for whatever just left a socket.
-func _tell_unplugged(plug: Variant) -> void:
-	if is_instance_valid(plug) and plug.has_method("on_unplugged"):
-		plug.on_unplugged()
-
-
-# --- USB socket snap handlers ---
-
-## A plug seated in USB socket k is the device on the core's port k. The core
-## plugs it into its own USB port k and keeps the pad on that port as it was --
-## the PlayStation 2 core: "The GunCon is a USB peripheral, so it does not
-## displace the emulated SIO DualShock 2" -- so a pad in controller port k and a
-## gun in USB socket k both work, and which player a gun is is the GAME's to
-## decide, by USB port, as it was on the hardware.
-func _on_usb_snapped(plug: Node3D, k: int) -> void:
-	if not is_instance_valid(plug) or k >= _usb_plugs.size():
-		return
-	if _model != null and k < _usb_zones.size():
-		_model.play_port_plug_insert(plug, _usb_zones[k])
-	add_collision_exception_with(plug)
-	_usb_plugs[k] = plug
-	var ctrl := _controller_of(plug)
-	_usb_controllers[k] = ctrl
-	_announce_port(k)
-	_tell_plugged_in(plug, k)
-	NetworkManager.report_event(NetEvents.Event.EV_PORT_PLUG,
-		{"sys": self, "ctrl": ctrl, "port": USB_SLOT_BASE + k})
-
-
-func _on_usb_released(k: int) -> void:
-	if k >= _usb_plugs.size():
-		return
-	var plug: Node3D = _usb_plugs[k]
-	_usb_plugs[k] = null
-	_usb_controllers[k] = null
-	_announce_port(k)
-	if not is_instance_valid(plug):
-		return
-	remove_collision_exception_with(plug)
-	_tell_unplugged(plug)
-	NetworkManager.report_event(NetEvents.Event.EV_PORT_UNPLUG, {"sys": self, "port": USB_SLOT_BASE + k})
-
-
-## The plug in the USB socket of this number, or null.
-func _usb_plug_at(lib_port: int) -> Node3D:
-	if lib_port < 0 or lib_port >= _usb_plugs.size() or not is_instance_valid(_usb_plugs[lib_port]):
-		return null
-	return _usb_plugs[lib_port]
-
-
-## Tell the core what is on its port `lib_port`: the device in the USB socket of
-## that number if there is one, else the pad in the controller port, else nothing.
-func _announce_port(lib_port: int) -> void:
-	var usb := _usb_plug_at(lib_port)
-	if usb != null:
-		var dev: int = usb.get("device_type") if "device_type" in usb else 1
-		set_controller_port_device(lib_port, core_device_id(dev, lib_port, device_names_of(usb)))
-		return
-	if lib_port < _port_controllers.size() and is_instance_valid(_port_controllers[lib_port]):
-		_announce_cabinet_port(lib_port)
-		return
-	set_controller_port_device(lib_port, RETRO_DEVICE_NONE)
-
-
-## Route a rumble request from the core to the RetroController currently
-## plugged into the matching cabinet port.
-func _on_rumble_state_changed(port: int, weak: float, strong: float) -> void:
-	if port < 0 or port >= _port_controllers.size():
-		return
-	var ctrl = _port_controllers[port]
-	if ctrl and is_instance_valid(ctrl) and ctrl.has_method("set_rumble"):
-		ctrl.set_rumble(weak, strong)
+func _reannounce_port_devices() -> void:
+	_ports.reannounce_all()
 
 
 # --- The second native slot (the DS's Slot-2) ---
@@ -4242,7 +3308,8 @@ func _belongs_here(obj: Node3D, compat: Dictionary) -> bool:
 
 
 ## Slot gate: does this piece of media (cartridge/disc) belong in this system?
-func _accepts_media(obj: Node3D) -> bool:
+## The cartridge slot's snap filter, public for the spawner and the suites.
+func accepts_media(obj: Node3D) -> bool:
 	# A cartridge-shaped expansion goes in this slot and fills it, the way it does
 	# on the hardware: a Mega Drive holds a 32X or a game, never both.
 	var unit := obj as RetroExpansion
@@ -4269,26 +3336,28 @@ func controller_connector() -> String:
 	return own if not own.is_empty() else Connectors.controller_port_of(systemid)
 
 
-## Port gate: is this plug what the ports take? One that says nothing (the game's
-## generic props) fits every port; see Connectors.of.
-func _accepts_plug(obj: Node3D) -> bool:
-	var plug := Connectors.of(obj)
-	return plug.is_empty() or plug == controller_connector()
-
-
-## USB gate: a USB-A plug, and nothing else.
-func _accepts_usb_plug(obj: Node3D) -> bool:
-	return Connectors.of(obj) == Connectors.USB_A
-
-
 ## Card gate: is this the family of card this console takes? Every card is in
 ## one "memory_card" group — the group is load-bearing in scene persistence, the
 ## netplay object sync and the card's own numbering — so the family is what
 ## separates them, the same way a plug's systemid separates controllers.
-func _accepts_card(obj: Node3D) -> bool:
+func accepts_card(obj: Node3D) -> bool:
 	if obj == null or not ("family" in obj):
 		return false
 	return str(obj.get("family")) == card_family()
+
+
+# The names the gates and the forced-option walk had while they were private,
+# kept because the model packs' probes (RetroXR-models/mods/probes) call them.
+func _accepts_media(obj: Node3D) -> bool:
+	return accepts_media(obj)
+
+
+func _accepts_card(obj: Node3D) -> bool:
+	return accepts_card(obj)
+
+
+func _all_forced_options(core: String) -> Dictionary:
+	return all_forced_options(core)
 
 
 ## Returns the currently snapped cartridge, or null (used by save/load).
@@ -4301,11 +3370,7 @@ func get_snapped_cartridge() -> Node3D:
 ## with the room and sent with the insert event so restore_cartridge can seat
 ## it the way it went in.
 func cartridge_seat_yaw() -> float:
-	if _slot != null:
-		return _slot.seat_yaw()
-	if _tray != null:
-		return _tray.seat_yaw()
-	return 0.0
+	return _disc_tray.seat_yaw()
 
 
 ## The media whose saves and achievements this machine's Game tab should show.
@@ -4376,11 +3441,7 @@ var _restoring_media: bool = false
 ## or from the peer whose hand put it in. A cartridge bay ignores it.
 func restore_cartridge(cartridge: Node3D, yaw: float = 0.0) -> void:
 	_restoring_media = true
-	if _slot != null:
-		_slot.restore(cartridge, yaw)
-	elif _tray != null:
-		_tray.restore(cartridge, yaw)
-	else:
+	if not _disc_tray.restore_media(cartridge, yaw):
 		_cartridge_slot.pick_up_object(cartridge)
 		# A saved cart is one the machine could READ, so the tray it came out of was
 		# pushed home. Pushed again inside the restore flag, so it lands latched with
@@ -4420,12 +3481,19 @@ func net_release_memory_card(slot: int) -> void:
 func restore_controller_plug(port_index: int, plug: Node3D) -> void:
 	if port_index >= USB_SLOT_BASE:
 		var k := port_index - USB_SLOT_BASE
-		if k < _usb_zones.size() and not is_instance_valid(_usb_zones[k].picked_up_object):
+		var usb_zones := _ports.usb_zones
+		if k < usb_zones.size() and not is_instance_valid(usb_zones[k].picked_up_object):
 			_restoring_media = true
-			_usb_zones[k].pick_up_object(plug)
+			usb_zones[k].pick_up_object(plug)
 			_restoring_media = false
+		else:
+			print("[RetroSystem] %s: saved plug for USB socket %d not restored (%s)" % [systemid, k,
+				"no such socket" if k >= usb_zones.size() else "socket taken"])
 		return
-	if port_index < 0 or port_index >= _port_zones.size():
+	var port_zones := _ports.zones
+	if port_index < 0 or port_index >= port_zones.size():
+		print("[RetroSystem] %s: saved plug for port %d not restored: no such socket"
+			% [systemid, port_index])
 		return
 	# Never evict. XRToolsSnapZone.pick_up_object drops whatever a zone is already
 	# holding, so two peripherals naming the same slot would restore as one plugged
@@ -4434,82 +3502,16 @@ func restore_controller_plug(port_index: int, plug: Node3D) -> void:
 	# computer mouse recorded libretro port 0 rather than its socket, so those files
 	# have to land somewhere sensible rather than unplug the keyboard.
 	_restoring_media = true
-	if is_instance_valid(_port_zones[port_index].picked_up_object):
-		for i in _port_zones.size():
-			if _port_zones[i].enabled and not is_instance_valid(_port_zones[i].picked_up_object):
-				_port_zones[i].pick_up_object(plug)
+	if is_instance_valid(port_zones[port_index].picked_up_object):
+		for i in port_zones.size():
+			if port_zones[i].enabled and not is_instance_valid(port_zones[i].picked_up_object):
+				port_zones[i].pick_up_object(plug)
 				_restoring_media = false
 				return
 		_restoring_media = false
 		return
-	_port_zones[port_index].pick_up_object(plug)
+	port_zones[port_index].pick_up_object(plug)
 	_restoring_media = false
-
-
-## Release a controller port from replicated state. A plain SnapZone drop leaves
-## the plug centred in its grab volume, so it is immediately picked back up on
-## the next physics tick. The local player's hand naturally carries a pulled
-## plug away; a remote peer has no synced plug body, so park it by its controller
-## before re-enabling the socket.
-func net_release_controller_port(port_index: int) -> void:
-	# A USB socket is USB_SLOT_BASE + k, and released the same way.
-	var zones: Array = _port_zones
-	var plugs: Array = _port_plugs
-	var index := port_index
-	if port_index >= USB_SLOT_BASE:
-		zones = _usb_zones
-		plugs = _usb_plugs
-		index = port_index - USB_SLOT_BASE
-	if index < 0 or index >= zones.size():
-		return
-	var zone := zones[index] as XRToolsSnapZone
-	var plug := plugs[index] as ControllerPlug
-	var plug_enabled := plug.enabled if is_instance_valid(plug) else false
-	var was_enabled: Array[bool] = []
-	for candidate: XRToolsSnapZone in zones:
-		was_enabled.append(candidate.enabled)
-		candidate.enabled = false
-	if is_instance_valid(plug):
-		plug.enabled = false
-	zone.drop_object()
-	if is_instance_valid(plug):
-		for candidate: XRToolsSnapZone in zones:
-			candidate.forget_object(plug)
-		var controller := plug.get_controller()
-		var attach := controller.get_node_or_null("CableAttachPoint") as Node3D \
-			if is_instance_valid(controller) else null
-		if attach != null:
-			plug.global_position = attach.global_position \
-				+ attach.global_basis * Vector3(0, 0, -0.12)
-		if plug is RigidBody3D:
-			(plug as RigidBody3D).linear_velocity = Vector3.ZERO
-			(plug as RigidBody3D).angular_velocity = Vector3.ZERO
-	# DROPPED-mode zones receive the plug's dropped signal deferred. Keep every
-	# neighbouring socket shut until that callback and a physics overlap refresh
-	# have both passed, or the plug simply hops from port 1 into port 2.
-	get_tree().create_timer(0.1).timeout.connect(func() -> void:
-		for i in zones.size():
-			zones[i].enabled = was_enabled[i]
-		if is_instance_valid(plug):
-			plug.enabled = plug_enabled, CONNECT_ONE_SHOT)
-
-
-## Which cabinet socket holds this peripheral, or -1 if the system is not holding
-## it at all.
-##
-## The peripheral's own _port_index is the LIBRETRO port, which is the same number
-## only by coincidence: _libretro_port_for pins a mouse on a computer system to
-## port 0 whichever socket it is in, because that is where those cores poll it. So
-## a save that recorded _port_index put the mouse and the keyboard both in socket 1
-## on restore, and one of them was left dangling. Ask the cabinet instead.
-func cabinet_port_of(peripheral: Node) -> int:
-	for i in _port_controllers.size():
-		if is_instance_valid(_port_controllers[i]) and _port_controllers[i] == peripheral:
-			return i
-	for k in _usb_controllers.size():
-		if is_instance_valid(_usb_controllers[k]) and _usb_controllers[k] == peripheral:
-			return USB_SLOT_BASE + k
-	return -1
 
 
 ## True when this cabinet's bay only connects on a push, so a cart lying in it knows
@@ -4592,11 +3594,11 @@ func _on_cartridge_inserted(cartridge: Node3D) -> void:
 	# Prevent the frozen kinematic cartridge from physically pushing the system body.
 	# Slot/tray loaders let their MediaSlot/MediaTray own the exception (held until
 	# the disc is grabbed clear), so only plain cartridge decks add one here.
-	if _slot == null and _tray == null:
+	if not _disc_tray.has_loader_bay():
 		add_collision_exception_with(cartridge)
 	if cartridge.has_method("get_rom_path"):
 		rom_path = cartridge.get_rom_path()
-		_disc_left_running = false
+		_disc_tray.left_running = false
 	# Back-fill the cartridge's systemid (save-recovery list needs it to
 	# resolve the core) — a cart inserted into an NES is an NES cart.
 	if "systemid" in cartridge and str(cartridge.get("systemid")).is_empty():
@@ -4607,24 +3609,13 @@ func _on_cartridge_inserted(cartridge: Node3D) -> void:
 		_model.play_cartridge_insert(cartridge, _cartridge_slot)
 	# After the model has had its say: a handheld cuts a seated cartridge's box
 	# down to the stub that shows, and the stub is what there is to lend.
-	if _slot == null and _tray == null:
+	if not _disc_tray.has_loader_bay():
 		_lend_cart_collision(cartridge, _cartridge_slot)
 	# (Slot/tray loaders already seated the disc and set its grabbability through
 	# MediaSlot/MediaTray — the disc's enabled state follows the lid there.)
 	# Hot swap: a powered disc console with its virtual tray open takes the new
 	# disc without a reboot (multi-disc games — FF7 "insert disc 2").
-	#
-	# A lidded drive reports nothing here. Its lid is the sensor, so the swap
-	# reaches the core when the lid shuts (_sync_core_tray) — a disc laid in an
-	# open tray has not been read by anything yet.
-	if _tray == null and is_powered_on and _supports_disk_control() and _disc_ejected \
-			and not rom_path.is_empty() and not NetworkManager.is_event_applying():
-		# _disc_index is the core's internal image-list SLOT (get_image_index),
-		# not a disc number — without .m3u the list has one slot (0) and the
-		# swap overwrites the file in it (replace_image_index).
-		print("[RetroSystem] Hot swap: image slot %d -> %s" % [_disc_index, rom_path])
-		_request_disk_op(1, rom_path)
-		_protect_active_rom()
+	_disc_tray.hot_swap_in()
 	print("[RetroSystem] %s (%s): game in: %s" % [name, systemid, rom_path])
 	NetworkManager.report_event(NetEvents.Event.EV_CART_INSERT,
 		{"sys": self, "cart": cartridge, "yaw": cartridge_seat_yaw()})
@@ -4648,26 +3639,18 @@ func _on_cartridge_removed() -> void:
 			_model.play_cartridge_eject(_snapped_cartridge, _cartridge_slot)
 		# Slot/tray loaders let MediaSlot/MediaTray manage (and hold) the collision
 		# exception until the disc is grabbed clear — don't drop it here.
-		if _slot == null and _tray == null:
+		if not _disc_tray.has_loader_bay():
 			remove_collision_exception_with(_snapped_cartridge)
 			SeatedCollision.withdraw(self, _snapped_cartridge as CollisionObject3D)
 		_snapped_cartridge = null
-	_disc_spin = 0.0
+	_disc_tray.spin = 0.0
 	# Taking the media out never interrupts the run. A console does not stop when
 	# a disc leaves the drive — that is what lets Monster Rancher read whatever
 	# CD you hand it, and what keeps a multi-disc game alive between discs — and a
 	# floppy machine behaves the same way. Only a cartridge deck powers off, where
 	# pulling the cart really does take the program away.
-	if is_powered_on and _media_survives_removal():
-		# A lidded drive tells the core nothing yet: the lid is the sensor, and
-		# the core hears about it when the lid shuts. A slot drive has no lid, so
-		# the disc leaving IS the event. rom_path stays mounted either way — that
-		# image is still what the core is running.
-		print("[RetroSystem] Media out: game keeps running (%s)" % rom_path)
-		_disc_left_running = true
-		if _tray == null and _supports_disk_control() \
-				and not NetworkManager.is_event_applying():
-			_request_disk_op(DISK_OP_EJECT, "")
+	if is_powered_on and _disc_tray.media_survives_removal():
+		_disc_tray.media_left_running()
 		NetworkManager.report_event(NetEvents.Event.EV_CART_REMOVE, {"sys": self})
 		return
 	if is_powered_on:
@@ -4676,84 +3659,9 @@ func _on_cartridge_removed() -> void:
 	NetworkManager.report_event(NetEvents.Event.EV_CART_REMOVE, {"sys": self})
 
 
-## Cached disk-control state from the emulation thread (async signal).
-func _on_disk_control_ready(has_control: bool, count: int, current_index: int,
-		ejected: bool) -> void:
-	# Log state changes (not every echo) — the boot answer and each op's result.
-	if has_control != _has_disk_control or current_index != _disc_index \
-			or ejected != _disc_ejected:
-		print("[RetroSystem] Disk control: has=%s images=%d index=%d ejected=%s" %
-			[has_control, count, current_index, ejected])
-	_has_disk_control = has_control
-	_disc_index = current_index
-	_disc_ejected = ejected
-
-
-## Whether a disc change can reach the core without rebooting it.
-##
-## The live answer arrives on disk_control_ready, which is async: it lands some
-## frames after the core comes up, and a disc pulled before it did took the "no
-## disk control" path and powered the machine off. The core's own .info file
-## answers the same question before the core is even loaded, so ask that too.
-func _supports_disk_control() -> bool:
-	if _has_disk_control:
-		return true
-	var info := CoreInfoDatabase.shared().get_by_core_name(_resolve_core())
-	return str(info.get("disk_control", "false")) == "true"
-
-
-## True when this machine's media can leave while the program keeps running: a
-## disc drive of either kind, or a floppy machine. A cartridge deck cannot — the
-## program itself lives on the cart.
-func _media_survives_removal() -> bool:
-	return _disc_loader != MediaDimensions.LOADER_NONE \
-		or MediaDimensions.uses_floppy(systemid)
-
-
-## The path of the disc seated in this drive, whatever its lid is doing; "" with
-## none.
-func _seated_disc_path() -> String:
-	if _snapped_cartridge == null or not _snapped_cartridge.has_method("get_rom_path"):
-		return ""
-	return str(_snapped_cartridge.get_rom_path())
-
-
-## What a disc drive reads at power-on: nothing while its lid is open, else the
-## disc seated in it. With none seated, rom_path stands only if the room did not
-## put it there: a disc pulled out mid-game leaves the image the core was
-## running, and a BIOS run leaves its blank one.
-func _boot_disc_path() -> String:
-	if _disc_loader == MediaDimensions.LOADER_NONE:
-		return rom_path
-	if _disc_loader == MediaDimensions.LOADER_TRAY and _tray_open:
-		return ""
-	var seated := _seated_disc_path()
-	if not seated.is_empty():
-		return seated
-	if _disc_left_running or BiosBoot.is_empty_media(rom_path):
-		return ""
-	return rom_path
-
-
-## "lid" or "tray" when this drive stands open over a disc, which it will not
-## read; "" otherwise.
-func _open_over_disc() -> String:
-	if _disc_loader != MediaDimensions.LOADER_TRAY or not _tray_open \
-			or _seated_disc_path().is_empty():
-		return ""
-	return "tray" if _front_tray else "lid"
-
-
-## A disc shut into a BIOS run: switch the machine off and on, so it boots it.
-func _restart_on_disc() -> void:
-	if not is_powered_on or _tray_open:
-		return
-	power_off()
-	power_on()
-
-
-## Disc ops, as `_request_disk_op` takes them. NONE is not an op — it is the
-## answer `_tray_op_for` gives when the core needs to hear nothing at all.
+## Disc ops, as SystemTray.request_disk_op takes them. NONE is not an op — it is
+## the answer SystemTray.tray_op_for gives when the core needs to hear nothing at
+## all.
 const DISK_OP_NONE := -1
 const DISK_OP_EJECT := 0
 const DISK_OP_CLOSE := 1
@@ -4761,217 +3669,44 @@ const DISK_OP_CLOSE := 1
 const DISK_OP_CARD := 2
 
 
-## Perform a disc op — op 0 = eject (open the core's tray), op 1 = replace the
-## current image with `path` and close the tray. Offline: straight to the core.
-## Netplay: frame-scheduled so every lockstep peer swaps on the same frame
-## (host schedules; clients send intent via EV_DISK_OP).
-func _request_disk_op(op: int, path: String) -> void:
-	if NetworkManager.netplay_running() and NetworkManager.netplay_covers(self):
-		var md5 := "" if path.is_empty() else NetFileTransfer.hash_of(path)
-		if NetworkManager.is_host():
-			NetworkManager.netplay_schedule_disk(self, op, md5, _disc_index)
-		else:
-			print("[RetroSystem] Disc op %d intent -> host (md5 %s…)" % [op, md5.left(8)])
-			NetworkManager.report_event(NetEvents.Event.EV_DISK_OP,
-				{"sys": self, "op": op, "md5": md5, "index": _disc_index})
-		# The core-side state flips on the scheduled frame; the mirror updates
-		# via disk_control_ready then.
-		return
-	if op == DISK_OP_EJECT:
-		_libretro.SetDiskEjectState(true)
-		_disc_ejected = true
-	else:
-		_libretro.ReplaceDiskImage(_disc_index, path)
-		_libretro.SetDiskEjectState(false)
-		_disc_ejected = false
-	# Read the drive back rather than trusting what we just wrote. The mirror is
-	# what the next decision is made from, and it drifts: the answer to a
-	# RequestDiskInfo issued at power-on drains AFTER an early lid press and
-	# reports the state from before it, quietly overwriting the truth.
-	_libretro.RequestDiskInfo()
+# ── Disc loader (tray lid / slot loading) ────────────────────────────────────
+#
+# Lifted out into SystemTray, a child this node owns. What stays here is what
+# models, netplay and the menu call BY NAME on the machine.
 
-
-# --- Disc loader (tray lid / slot loading) ---
-
-## OPEN (tray consoles): toggles the lid, gating insert/remove and the spin.
-## EJECT (slot consoles): slides the seated disc out so it can be grabbed.
-func _on_eject_pressed() -> void:
-	match _disc_loader:
-		MediaDimensions.LOADER_TRAY:
-			# A spring-latched lid (PSone/PSX/Saturn/Dreamcast/PS2) is closed BY HAND —
-			# the button is only a latch release, so pressing it while the lid is already
-			# up does nothing. Pressing it used to snap the lid shut, which is not what
-			# the real hardware does.
-			if _has_spring_lid():
-				if not _tray_open:
-					_request_tray_state(true)
-			else:
-				_request_tray_state(not _tray_open)
-		MediaDimensions.LOADER_SLOT:
-			if _slot:
-				# Pressed again with the disc still resting at the slot mouth, it
-				# takes the disc back — a slot drive has no open tray to leave it on.
-				_slot.toggle_eject()
-
-
-## True when the model's lid is spring-loaded + hand-closed (see
-## RetroSystemModel.has_spring_latched_lid).
-func _has_spring_lid() -> bool:
-	if _disc_bay != null and _disc_bay.lid_hinge != null:
-		return true          # the procedural box's own lid
-	return _model != null and _model.has_spring_latched_lid()
+## The disc drive component (SystemTray): its loader, its lid, the spinning disc
+## and the core's disk-control mirror.
+func disc_tray() -> SystemTray:
+	return _disc_tray
 
 
 ## A model's own hand-driven lid (e.g. the PSone's VRHinge) reporting the state
 ## the player physically put it in. Idempotent, so a drag can report freely.
 func request_tray_state(open: bool) -> void:
-	if _disc_loader == MediaDimensions.LOADER_TRAY and open != _tray_open:
-		_request_tray_state(open)
-
-
-## Local intent (OPEN button or pushing the lid shut): apply + replicate.
-func _request_tray_state(open: bool) -> void:
-	_set_tray_open(open)
-	NetworkManager.report_event(NetEvents.Event.EV_TRAY,
-		{"sys": self, "open": _tray_open})
-
-
-## Apply a tray state: the snap zone only hover-accepts discs while open, and a
-## seated disc can only be grabbed out while open (no reaching through the lid).
-## The spin ramp follows via _update_disc_spin. Netplay applies remote toggles
-## through net_set_tray_open below.
-##
-## `restoring` is a load re-entering a state the room was already in: the shell
-## has just been posed by set_lid_angle_deg, so nothing animates and the model is
-## not asked to play the swing again — but every gate is applied exactly as a
-## press would, which is the whole reason a restore comes through here at all.
-func _set_tray_open(open: bool, restoring: bool = false) -> void:
-	_tray_open = open
-	# MediaTray gates the well (accepts a disc only while open + empty), makes a
-	# seated disc grabbable only while open, and swings the procedural lid pivot.
-	if _tray:
-		_tray.set_open(open, not restoring)
-	# Latch the OPEN button down to show "tray open" — except on a spring lid, whose
-	# button is a momentary latch release (holding it down would advertise a second
-	# press that deliberately does nothing).
-	_eject_button.set_latched_pressed(open and not _has_spring_lid())
-	# The procedural spring lid: unlatch so it pops up, or snap it shut. A remote
-	# peer's toggle arrives here too, so both ends stay in the same physical state.
-	if _disc_bay != null:
-		if _disc_bay.lid_hinge != null:
-			if open:
-				_disc_bay.lid_hinge.open()
-			else:
-				_disc_bay.lid_hinge.latch_closed()
-		_disc_bay.slide(open)
-	# Bespoke GLB tray models animate their own lid here. Skipped on a restore,
-	# where set_lid_angle_deg has already put the shell exactly where the save
-	# says it was — playing the swing would tween it there from wherever it is.
-	if not restoring:
-		if open:
-			_model.play_open()
-		else:
-			_model.play_close()
-	_sync_core_tray()
-
-
-## The lid is the drive's sensor, so the core's tray follows the LID and not the
-## disc. Opening tells the core the tray is open; shutting hands it whatever is
-## in the well by then. In between the core hears nothing, which is what lets a
-## disc be swapped — or an unrelated one shown to the drive and taken back out —
-## without the program seeing anything but one tray cycle.
-##
-## A slot drive has no lid to read, so its insert and eject are the events; they
-## stay where they are, in _on_cartridge_inserted/_removed.
-func _sync_core_tray() -> void:
-	if _tray == null or not is_powered_on:
-		return
-	# A remote peer's lid arrives through net_set_tray_open; the machine's owner
-	# schedules the op for everyone, so applying one here would double it.
-	if NetworkManager.is_event_applying():
-		return
-	var disc := _seated_disc_path()
-	# A BIOS does not boot a disc swapped in under it (measured on pcsx_rearmed and
-	# mednafen_saturn), so a disc shut into a BIOS run starts the machine again.
-	if _bios_run and not _tray_open and not disc.is_empty():
-		print("[RetroSystem] Lid shut on %s over a BIOS run: restarting on it" % disc.get_file())
-		_restart_on_disc.call_deferred()
-		return
-	# No disc list to swap into, and flycast indexes that empty list when its
-	# tray shuts.
-	if _started_without_content or not _supports_disk_control():
-		return
-	var op := _tray_op_for(_tray_open, _disc_ejected, not disc.is_empty())
-	# Logged either way. When a machine will not boot what is plainly sitting in
-	# its bay, this line is the difference between the room and the core — and
-	# the one thing that cannot be read off the screen.
-	print("[RetroSystem] Lid %s: disc=%s core_ejected=%s -> %s"
-		% ["open" if _tray_open else "shut", not disc.is_empty(), _disc_ejected,
-			["nothing", "eject", "close on " + disc.get_file()][op + 1]])
-	if op == DISK_OP_NONE:
-		return
-	if op == DISK_OP_CLOSE:
-		rom_path = disc
-	_request_disk_op(op, disc if op == DISK_OP_CLOSE else "")
-	if op == DISK_OP_CLOSE:
-		_protect_active_rom()
-
-
-## Pure lid-to-core decision: what the core needs to be told when the lid reaches
-## `open`, given what it currently believes (`core_ejected`) and whether there is
-## a disc in the well to hand it.
-##
-## Shutting the lid over a disc always hands it over, even the one already
-## mounted — a real drive re-reads what it finds. Shutting it over an empty well
-## says nothing, so the core keeps waiting with its tray open rather than being
-## told to close on nothing.
-static func _tray_op_for(open: bool, core_ejected: bool, has_disc: bool) -> int:
-	if open:
-		return DISK_OP_NONE if core_ejected else DISK_OP_EJECT
-	return DISK_OP_CLOSE if has_disc else DISK_OP_NONE
-
-
-## The lid moved under its own mechanism — mark the tray as wherever it now
-## stands, as the PSP's UMD door does.
-##
-## BOTH directions, and that is the fix. This used to report only the latch
-## clicking SHUT, because in play the only way a lid opens is the OPEN button,
-## which reports for itself. A restore does not press that button:
-## ScenePersistence reapplies the saved angle and latch straight onto the
-## mechanism, so a room saved with the lid up came back with the lid standing
-## open over a machine that still believed it was shut — and its bay refused
-## every disc until the lid was pushed home and opened again.
-##
-## request_tray_state is idempotent, so the echo from an OPEN press or from
-## latch_closed() stops here rather than bouncing back into the hinge. While a
-## remote update or a restore is being APPLIED the state is set without being
-## reported, which is the rule _sync_core_tray already follows — a hook that
-## re-reports what it was just told starts a round trip.
-func _on_lid_swung(_deg: float) -> void:
-	if _disc_bay == null or _disc_bay.lid_hinge == null:
-		return
-	lid_reports_open(not _disc_bay.lid_hinge.is_latched_closed(),
-		_disc_bay.lid_hinge)
+	_disc_tray.request_state(open)
 
 
 ## A lid mechanism reporting its own state. Public because a bespoke model owns
 ## its hinge and reports through here rather than growing a second copy of the
 ## rule (see playstation_model._on_lid_swung).
 func lid_reports_open(open: bool, mechanism: Node) -> void:
-	if _disc_loader != MediaDimensions.LOADER_TRAY or open == _tray_open:
-		return
-	var applying: bool = NetworkManager.is_event_applying() \
-		or (mechanism != null and mechanism.has_meta("net_restore_in_progress"))
-	if applying:
-		_set_tray_open(open, true)
-	else:
-		_request_tray_state(open)
+	_disc_tray.lid_reports_open(open, mechanism)
 
 
 ## Netplay: another player toggled this console's tray.
 func net_set_tray_open(open: bool) -> void:
-	if _disc_loader == MediaDimensions.LOADER_TRAY and open != _tray_open:
-		_set_tray_open(open)
+	_disc_tray.net_set_open(open)
+
+
+## The OPEN/EJECT button, pressed from the menu.
+func press_eject() -> void:
+	_disc_tray.press_eject()
+
+
+# The name the button's handler had while it lived here, kept because the model
+# packs' probes (RetroXR-models/mods/probes) press it by name.
+func _on_eject_pressed() -> void:
+	_disc_tray.on_eject_pressed()
 
 
 # --- Achievements, toasts and content naming ---
@@ -5090,6 +3825,12 @@ var _console_memory: ConsoleMemory = null
 var _storages: Array[ConsoleStorage] = []
 ## What a stacked expansion hands the core at boot - see ExpansionLaunch.
 var _expansion_launch: ExpansionLaunch = null
+
+
+## The expansion-launch component, for the suites and probes that ask what a
+## stack would boot (expansion_roms, missing_firmware, host_media_path).
+func expansion_launch() -> ExpansionLaunch:
+	return _expansion_launch
 
 
 ## The card slots' controller, for a caller whose business is only cards

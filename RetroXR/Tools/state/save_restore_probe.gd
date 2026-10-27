@@ -59,7 +59,7 @@ func _ready() -> void:
 				(sys.get("_model") as Node).get_script().resource_path.get_file()])
 
 	# And what goes back out must be the NEW shape.
-	var out: Dictionary = sp._serialize_node(systems[0], 0, {})
+	var out: Dictionary = sp.serialize_node(systems[0], 0, {})
 	if not out.has("model_id"):
 		_bad("re-serialized entry has no model_id")
 	print("[save] re-serialized model_id=%s" % out.get("model_id", "<none>"))

@@ -50,7 +50,7 @@ func _ready() -> void:
 	print("[prestart] StartContent")
 	_lib.StartContent(root, "dolphin", rom)
 
-	# The remedy RetroSystem._ensure_port_devices_bound applies: say it again,
+	# The remedy SystemPorts.ensure_devices_bound applies: say it again,
 	# once the core has actually completed a frame. If the ordering above is the
 	# whole problem, this second announcement is the one that binds.
 	var t0 := Time.get_ticks_msec()

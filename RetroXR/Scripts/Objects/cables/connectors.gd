@@ -180,7 +180,7 @@ const USB_A := "usb_a"
 
 ## The USB-A sockets each console has, by systemid. A plug in USB socket k is the
 ## device on the core's port k, which the core plugs into its own USB port k and
-## keeps the pad on that port besides (RetroSystem._announce_port).
+## keeps the pad on that port besides (SystemPorts.announce_port).
 const USB_PORTS := {"ps2": 2}
 
 ## A Wii Remote's expansion port: the Nunchuk, the MotionPlus, and any extension

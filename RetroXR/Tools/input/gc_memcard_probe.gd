@@ -79,7 +79,7 @@ func _run() -> void:
 
 	# The options the core is about to read. Written before StartContent, so they
 	# are on disk by now whether or not the core has come up.
-	var core: String = _sys.call("_resolve_core")
+	var core: String = _sys.resolve_core_name()
 	var opts := _read_opt(str(_sys.call("_resolve_dir")), core)
 	var opt_a := str(opts.get("dolphin_memcard_a_path", ""))
 	var opt_b := str(opts.get("dolphin_memcard_b_path", ""))

@@ -67,7 +67,7 @@ func stage_late(_dir: String, _core: String) -> void:
 	pass
 
 
-## The core has run one whole frame (RetroSystem._ensure_port_devices_bound).
+## The core has run one whole frame (SystemPorts.ensure_devices_bound).
 func after_first_frame() -> void:
 	pass
 

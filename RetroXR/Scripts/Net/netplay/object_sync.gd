@@ -222,7 +222,7 @@ func local_spawn(obj: Node3D) -> void:
 		# Serialize the intent, discard the local copy, let the host mint it.
 		# Placeholder id 0 so instantiate_objects doesn't skip the entry; the
 		# host assigns the real net_id on registration.
-		var entry := _persistence._serialize_node(obj, 0, {})
+		var entry := _persistence.serialize_node(obj, 0, {})
 		obj.queue_free()
 		if not entry.is_empty():
 			_request_spawn.rpc_id(1, entry)
@@ -252,7 +252,7 @@ func _register_host(node: Node) -> bool:
 			_bind(node, existing_id)
 		_next_net_id = maxi(_next_net_id, existing_id + 1)
 		return true
-	if _persistence._serialize_node(node, 0, {}).is_empty():
+	if _persistence.serialize_node(node, 0, {}).is_empty():
 		return false
 	var id := _next_net_id
 	_next_net_id += 1
@@ -323,7 +323,7 @@ func _serialize_registry_entry(node: Node) -> Dictionary:
 	var node_to_id := {}
 	for id: int in _registry:
 		node_to_id[_registry[id]] = id
-	var entry := _persistence._serialize_node(node, id_of(node), node_to_id)
+	var entry := _persistence.serialize_node(node, id_of(node), node_to_id)
 	if not entry.is_empty():
 		_augment_file_fields(node, entry)
 	return entry
@@ -362,7 +362,7 @@ func _send_snapshot(peer_id: int) -> void:
 	for id: int in _registry:
 		node_to_id[_registry[id]] = id
 	for id: int in _registry:
-		var entry := _persistence._serialize_node(_registry[id], id, node_to_id)
+		var entry := _persistence.serialize_node(_registry[id], id, node_to_id)
 		if not entry.is_empty():
 			_augment_file_fields(_registry[id], entry)
 			entries.append(entry)

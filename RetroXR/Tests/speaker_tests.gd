@@ -681,7 +681,7 @@ func _t_round_trip() -> void:
 	await _wait(6)
 
 	var persistence := ScenePersistence.new()
-	var entry: Dictionary = persistence._serialize_node(stand, 7, {cab: 9})
+	var entry: Dictionary = persistence.serialize_node(stand, 7, {cab: 9})
 	_check_eq(entry.get("type", ""), "speaker_stand_120", "the tall stand's own token")
 	# The STAND records the cabinet, not the reverse. Without it a restored cabinet
 	# comes back at the right height but unseated — it would merely rest on the
@@ -692,7 +692,7 @@ func _t_round_trip() -> void:
 	short.freeze = true
 	add_child(short)
 	await _wait(4)
-	var short_entry: Dictionary = persistence._serialize_node(short, 8, {})
+	var short_entry: Dictionary = persistence.serialize_node(short, 8, {})
 	# One script, two scenes, so the token cannot come from the type.
 	_check_eq(short_entry.get("type", ""), "speaker_stand_100", "the short one's own")
 	_ok(not short_entry.has("speaker") or short_entry.get("speaker") == null,
@@ -867,10 +867,10 @@ func _s_plug_color() -> void:
 			"%s is moulded in the colour asked for" % plug_name)
 
 	var persistence := ScenePersistence.new()
-	var entry: Dictionary = persistence._serialize_node(lead, 1, {})
+	var entry: Dictionary = persistence.serialize_node(lead, 1, {})
 	_check_eq(entry.get("plug_color", ""), "blue", "the save entry records it")
 	_check_eq(ScenePersistence._entry_validation_error(entry, {}), "", "and validates")
-	var back := persistence._deserialize_object(entry) as CompositeCable
+	var back := persistence.deserialize_object(entry) as CompositeCable
 	_ok(back != null and back.plug_color_id == &"blue",
 		"and it is read back before the lead enters the tree")
 	if back != null:
@@ -882,7 +882,7 @@ func _s_plug_color() -> void:
 	var plain := SPEAKER_CABLE.instantiate() as CompositeCable
 	add_child(_hold(plain))
 	await _wait(4)
-	var plain_entry: Dictionary = persistence._serialize_node(plain, 2, {})
+	var plain_entry: Dictionary = persistence.serialize_node(plain, 2, {})
 	_ok(not plain_entry.has("plug_color"), "a lead left alone writes no colour")
 
 	var odd := SPEAKER_CABLE.instantiate() as CompositeCable
@@ -926,10 +926,10 @@ func _s_cord_length() -> void:
 	await _wait(4)
 
 	var persistence := ScenePersistence.new()
-	var entry: Dictionary = persistence._serialize_node(lead, 1, {})
+	var entry: Dictionary = persistence.serialize_node(lead, 1, {})
 	_ok(absf(float(entry.get("cord_length", 0.0)) - 6.0) < 0.001, "the save entry records it")
 	_check_eq(ScenePersistence._entry_validation_error(entry, {}), "", "and validates")
-	var back := persistence._deserialize_object(entry) as CompositeCable
+	var back := persistence.deserialize_object(entry) as CompositeCable
 	_ok(back != null and absf(back.cord_length - 6.0) < 0.001,
 		"and it is read back before the lead enters the tree")
 	if back != null:
@@ -945,7 +945,7 @@ func _s_cord_length() -> void:
 	var plain_rest: float = float(plain_rope.segment_count) * plain_rope.segment_length
 	_ok(absf(plain_rest - 3.0) < 0.001, "a lead left alone keeps the scene's own 3 m")
 	await _wait(4)
-	var plain_entry: Dictionary = persistence._serialize_node(plain, 2, {})
+	var plain_entry: Dictionary = persistence.serialize_node(plain, 2, {})
 	_ok(not plain_entry.has("cord_length"), "and writes no length")
 
 
@@ -957,14 +957,14 @@ func _s_round_trip() -> void:
 	await _wait(4)
 
 	var persistence := ScenePersistence.new()
-	var entry: Dictionary = persistence._serialize_node(cab, 1, {})
+	var entry: Dictionary = persistence.serialize_node(cab, 1, {})
 	_ok(not entry.is_empty(), "a cabinet serialises to an entry")
 	_check_eq(entry.get("type", ""), "loudspeaker", "under its own token")
 
 	var sub := _hold(SUBWOOFER.instantiate()) as Loudspeaker
 	add_child(sub)
 	await _wait(4)
-	var sub_entry: Dictionary = persistence._serialize_node(sub, 2, {})
+	var sub_entry: Dictionary = persistence.serialize_node(sub, 2, {})
 	# Both scenes share one script, so the token cannot come from the type.
 	_check_eq(sub_entry.get("type", ""), "subwoofer", "and the subwoofer under its own")
 
@@ -1464,7 +1464,7 @@ func _a_save() -> void:
 	var amp := await _amp_at(Vector3(30.0, 0.5, 0.0))
 	amp.cycle_mode()
 	(amp.get_node("VolumeKnob") as VRKnob).set_value(0.3)
-	var entry: Dictionary = persistence._serialize_node(amp, 4, {})
+	var entry: Dictionary = persistence.serialize_node(amp, 4, {})
 	_check_eq(entry.get("type", ""), "surround_amp", "an amplifier saves under its own token")
 	_check_eq(int(entry.get("decode_mode", -1)), SurroundAmp.DecodeMode.DOLBY_SURROUND,
 		"with its switch")

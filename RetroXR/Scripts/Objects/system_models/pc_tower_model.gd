@@ -163,7 +163,7 @@ func is_tray_moving() -> bool:
 ## purple keyboard, green mouse, matching the plug meshes — say otherwise.
 ##
 ## Seat 3 is the game port. A pad in it drives libretro port 0 whichever cabinet
-## slot it occupies, exactly as the mouse does — see RetroSystem._libretro_port_for.
+## slot it occupies, exactly as the mouse does — see SystemPorts.libretro_port_for.
 ## SystemInfo.native_ports OVERRIDES this number whenever it is set, so the count
 ## here is only half the story: every computer .tres has to allow three too.
 func get_controller_port_count() -> int:

@@ -144,7 +144,7 @@ func _run() -> void:
 		pads[i].restore_port_connection(sys, i)
 	await _wait(240)
 	for i in range(2):
-		var zone: Node3D = sys._port_zones[i]
+		var zone: Node3D = sys.controller_ports().zones[i]
 		var plug = pads[i].get("_cable_plug")
 		print("[mdrender] port %d at %s, zone +Z %s, plug seated %s" % [i + 1, zone.position,
 			zone.transform.basis.z, is_instance_valid(plug) and zone.get("picked_up_object") == plug])

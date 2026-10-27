@@ -185,12 +185,12 @@ func _test_a_brought_extension() -> void:
 	# straight in, and a save writes it beside the Nunchuk.
 	var store := ScenePersistence.new()
 	var ids := {remote: 1, pad: 2, dongle: 3}
-	var through := store._serialize_node(remote, 1, ids)
+	var through := store.serialize_node(remote, 1, ids)
 	_ok(remote.get_extension() == pad and through.get("extension") == 2 and through.get("motion_plus") == 3,
 		"extension/a save of the remote keeps the extension on the end of it, and the dongle it goes through",
 		str(through.get("extension")))
 	remote._on_extension_removed()
-	var bare := store._serialize_node(remote, 1, ids)
+	var bare := store.serialize_node(remote, 1, ids)
 	_ok(remote.get_extension() == null and not bare.has("extension"),
 		"extension/and a remote with none saves no such key")
 	# Put back by a load. The cord of a controller is made after it appears, so
