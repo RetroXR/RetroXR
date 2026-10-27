@@ -167,6 +167,9 @@ func _run() -> void:
 	if _want("reach"):
 		await _group_reach()
 		await _clear()
+	if _want("grip"):
+		await _group_grip()
+		await _clear()
 	if _want("guns"):
 		await _group_guns()
 		await _clear()
@@ -3530,6 +3533,74 @@ func _group_reach() -> void:
 				reached += 1 if _first_hit(sys, _hand_for(sys, centre), centre) == button else 0
 		_ok(buttons >= 2 and reached == buttons,
 			"reach: %s: every coin door's slot and RETURN can be aimed at (%d of %d)" % [romset, reached, buttons])
+
+
+## A control's pointer shape is the CONTROL, not the console round it. After Burner's stick had a box 0.32 m across (and a green plate that big) at its head, which stood between a laser
+## aimed from the seat or from behind it and the coin doors, 0.8 m in front: nobody could put a coin in. From the middle behind the controls, at chest height, every coin slot and
+## RETURN of a flight cockpit is the first thing the laser meets; a wheel's grip is its rim, hub and spokes, so a laser goes through the hole; a rider's bars are a bar deep.
+func _group_grip() -> void:
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	for romset: String in ["aburner2", "gloc"]:
+		model.morph_to(_spec(romset))
+		await _wait(3)
+		var from := sys.global_transform * Vector3(0.0, 1.10, 1.70)
+		var buttons := 0
+		var reached := 0
+		var blocker := ""
+		for door: ArcadeCoinModule in _doors(model):
+			if not door.door_enabled():
+				continue
+			for button_name in ["CoinReturn", "CoinSlot"]:
+				var button := door.find_child(button_name, true, false) as VRButton
+				if button == null:
+					continue
+				buttons += 1
+				var centre := button.global_transform * Vector3(0, 0, 0.008)
+				var hit := _first_hit(sys, from, centre)
+				reached += 1 if hit == button else 0
+				if hit != button and hit is Node:
+					blocker = "%s/%s" % [(hit as Node).get_parent().name, (hit as Node).name]
+		_ok(buttons >= 2 and reached == buttons,
+			"grip: %s: from behind the controls every coin slot and RETURN is the first thing a laser meets (%d of %d; %s in the way)" % [romset, reached, buttons, blocker])
+		var stick := _panels(model)[0].grip() as Area3D
+		var box := _grip_box(stick)
+		_ok(box.x <= 0.14 and box.y <= 0.30 and box.z <= 0.14 and stick.panel_size.x <= 0.14 and stick.panel_size.y <= 0.30,
+			"grip: %s: the stick's box and its lit plate are the stick's size (%s, %s)" % [romset, str(box), str(stick.panel_size)])
+	# A wheel: the rim, the hub and the spokes take a laser, the openings between them do not.
+	for romset: String in ["daytona", "scud", "luckywld"]:
+		model.morph_to(_spec(romset))
+		await _wait(3)
+		var grip := _panels(model)[0].grip() as ArcadePanelGrip
+		var gt := grip.global_transform
+		var axis := gt.basis.z.normalized()
+		var rim := ArcadeCabinetBuilder.WHEEL_RIM_R
+		var probes := {
+			"hole": [Vector3(0.0, 0.08, 0.0), false], "rim": [Vector3(rim, 0.0, 0.0), true], "rim's top": [Vector3(0.0, rim, 0.0), true],
+			"hub": [Vector3.ZERO, true], "spoke": [Vector3(cos(deg_to_rad(30.0)), sin(deg_to_rad(30.0)), 0.0) * 0.08, true],
+			"outside the rim": [Vector3(rim + 0.09, 0.0, 0.0), false]}
+		var wrong: Array = []
+		for name: String in probes:
+			var p := gt * (probes[name][0] as Vector3)
+			var hit := _first_hit(sys, p + axis * 0.4, p - axis * 0.1)
+			if (hit == grip) != bool(probes[name][1]):
+				wrong.append(name)
+		_ok(wrong.is_empty() and grip.ring_radius > 0.0,
+			"grip: %s: the wheel's grip is its rim, hub and spokes, with the hole open to a laser (wrong: %s)" % [romset, str(wrong)])
+	# A rider's bars: a bar deep, not a hand's width.
+	for romset: String in ["hangon", "propcycl", "topskatr", "alpinr2b"]:
+		model.morph_to(_spec(romset))
+		await _wait(3)
+		var bars := _panels(model)[0].grip() as ArcadePanelGrip
+		var bars_box := _grip_box(bars)
+		_ok(bars != null and bars_box.x > 0.5 and bars_box.y <= 0.12 and bars_box.z <= 0.12 and bars.panel_size.y <= 0.12,
+			"grip: %s: the bars' box and plate are as deep as the bars (%s, %s)" % [romset, str(bars_box), str(bars.panel_size)])
+
+
+## The size of a grip's first box shape.
+func _grip_box(grip: Node) -> Vector3:
+	var col := grip.find_child("CollisionShape3D", true, false) as CollisionShape3D
+	return (col.shape as BoxShape3D).size if col != null and col.shape is BoxShape3D else Vector3(INF, INF, INF)
 
 
 # --- ports ---------------------------------------------------------------------

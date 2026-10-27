@@ -29,6 +29,11 @@ const GRIP_OFF := 0.4
 ## The lit area, width x height in the panel's own frame.
 @export var panel_size := Vector2(0.285, 0.185)
 
+## A ring in place of the rectangle (a steering wheel): the lit area is an annulus of this radius (the middle of the rim) and `ring_width`, in the panel's XY plane, so
+## the hole stays open to the eye and to a laser. 0 is the rectangle.
+@export var ring_radius := 0.0
+@export var ring_width := 0.06
+
 ## A panel with nothing to take hold of (a gun cabinet's START buttons: the gun is the
 ## controller): a press does not attach anyone, it HOLDS the panel for as long as it lasts, and
 ## the cabinet reads that as START.
@@ -51,9 +56,12 @@ func _ready() -> void:
 	monitoring = false
 	_plate = MeshInstance3D.new()
 	_plate.name = "PanelHighlight"
-	var quad := QuadMesh.new()
-	quad.size = panel_size
-	_plate.mesh = quad
+	if ring_radius > 0.0:
+		_plate.mesh = _ring_mesh()
+	else:
+		var quad := QuadMesh.new()
+		quad.size = panel_size
+		_plate.mesh = quad
 	_material = StandardMaterial3D.new()
 	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -67,6 +75,34 @@ func _ready() -> void:
 	await get_tree().process_frame
 	for node in get_tree().root.find_children("*", "XRController3D", true, false):
 		_controllers.append(node as XRController3D)
+
+
+## The annulus a ring grip lights: `ring_width` wide about `ring_radius`, in XY, facing +Z.
+func _ring_mesh() -> ArrayMesh:
+	var outer := ring_radius + ring_width * 0.5
+	var inner := maxf(ring_radius - ring_width * 0.5, 0.0)
+	var n := 48
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var indices := PackedInt32Array()
+	for i in n:
+		var a := TAU * float(i) / float(n)
+		verts.append(Vector3(cos(a) * outer, sin(a) * outer, 0.0))
+		verts.append(Vector3(cos(a) * inner, sin(a) * inner, 0.0))
+		normals.append(Vector3.BACK)
+		normals.append(Vector3.BACK)
+	for i in n:
+		var o0 := i * 2
+		var o1 := ((i + 1) % n) * 2
+		indices.append_array(PackedInt32Array([o0, o0 + 1, o1, o1, o0 + 1, o1 + 1]))
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
 
 
 ## A pointer (the desktop reticle, the laser) on the panel: entering lights it, a press

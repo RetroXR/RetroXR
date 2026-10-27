@@ -794,6 +794,35 @@ static func _player_color(index: int) -> Color:
 
 ## A steering wheel on a column: `WheelPivot` turns about the wheel's axis (its local Y) with the steering.
 ## `pos` and `basis` are in `parent`'s frame, the wheel's plane its local XZ, `radius` the rim's.
+## The radius of a cockpit wheel's rim (the middle of its tube).
+const WHEEL_RIM_R := 0.15
+
+
+## A wheel's pointer shapes, in its grip's frame (+Z along the wheel's axis, the disc in XY): twelve boxes along the rim, a hub and three spokes where `_wheel` puts them. `first` is the
+## grip's own collision child (already there, empty): it becomes the hub, so a grip always has the one the pointer code looks for.
+func _wheel_shapes(grip: Area3D, first: CollisionShape3D, hub: BoxShape3D) -> void:
+	hub.size = Vector3(0.10, 0.10, 0.06)
+	first.position = Vector3.ZERO
+	var arc := TAU * WHEEL_RIM_R / 12.0
+	for i in 12:
+		var a := TAU * float(i) / 12.0
+		var seg := ArcadeParts.node(_owner, grip, "CollisionShape3D", "RimShape%d" % (i + 1)) as CollisionShape3D
+		var box := BoxShape3D.new()
+		box.size = Vector3(arc * 1.15, WHEEL_RING_WIDTH, 0.05)
+		seg.shape = box
+		seg.position = Vector3(cos(a), sin(a), 0.0) * WHEEL_RIM_R
+		seg.rotation = Vector3(0.0, 0.0, a + PI * 0.5)
+	# The spokes: the bottom one straight down in the wheel's own frame, the others a third of a turn round.
+	for i in 3:
+		var a := deg_to_rad(270.0 + 120.0 * float(i))
+		var spoke := ArcadeParts.node(_owner, grip, "CollisionShape3D", "SpokeShape%d" % (i + 1)) as CollisionShape3D
+		var box := BoxShape3D.new()
+		box.size = Vector3(0.03, WHEEL_RIM_R - 0.05, 0.04)
+		spoke.shape = box
+		spoke.position = Vector3(cos(a), sin(a), 0.0) * (WHEEL_RIM_R * 0.5)
+		spoke.rotation = Vector3(0.0, 0.0, a + PI * 0.5)
+
+
 func _wheel(parent: Node3D, pos: Vector3, basis: Basis, radius: float) -> void:
 	var mount := ArcadeParts.node(_owner, parent, "Node3D", "WheelMount", pos) as Node3D
 	mount.basis = basis
@@ -1152,6 +1181,12 @@ const COCKPIT_Z1 := 1.90
 const STICK_Z := 1.18
 const STICK_BASE_Y := 0.40
 const FLIGHT_GRIP_Z := 0.27
+## What a player's PanelGrip hugs on the forms with one control to take hold of: the pointer box and the lit plate are the CONTROL's size, never the console's. A box 0.32 m across
+## round a flight stick's head, and a plate that big, stood between a laser and the coin doors 0.8 m in front of it: nobody aimed at a slot (After Burner II, 2026-10-27, `arcade_form_tests grip/`).
+## The stick's grip and head (the lean moves it a little more, and the grip is only aimed at to be taken hold of), the wheel's rim, and the depth of a bar across the rider's hands.
+const STICK_GRIP_BOX := Vector3(0.10, 0.24, 0.10)
+const WHEEL_RING_WIDTH := 0.06
+const BARS_GRIP_DEPTH := 0.09
 const THROTTLE_Z := 1.30
 ## A driving cockpit's gear lever, by the driver's right hand: the seat's own distance (0.26 m ahead of it).
 const SHIFTER_Z := 1.32
@@ -1245,22 +1280,24 @@ func _build_cockpit(spec: Dictionary) -> void:
 	gcol.shape = gshape
 	if flight:
 		_flight_controls(base, mod, panel, spec)
-		# The grip faces the driver, round the stick's head.
+		# The grip faces the driver, round the stick's head and no wider than it.
 		grip.position = Vector3(0, STICK_BASE_Y + 0.34, STICK_Z)
-		grip.set("panel_size", Vector2(0.32, 0.32))
-		gshape.size = Vector3(0.32, 0.32, 0.30)
+		grip.set("panel_size", Vector2(STICK_GRIP_BOX.x, STICK_GRIP_BOX.y))
+		gshape.size = STICK_GRIP_BOX
 	else:
 		var wb := Basis(Vector3.RIGHT, deg_to_rad(60.0))
 		var wheel_at := Vector3(driver_x, 0.82, 1.20)
-		_wheel(mod, wheel_at, wb, 0.15)
+		_wheel(mod, wheel_at, wb, WHEEL_RIM_R)
 		_pedals(mod, Transform3D.IDENTITY, Vector3(driver_x, 0.10, PEDALS_Z))
 		if bool(spec.get("shifter", true)):
 			_shifter(mod, Vector3(_w * 0.5 - 0.10, 0.54, SHIFTER_Z), Basis.IDENTITY.rotated(Vector3.RIGHT, -PI * 0.5))
-		# The grip faces the driver: its +Z along the wheel's axis.
+		# The grip faces the driver: its +Z along the wheel's axis. It is the wheel's RIM and spokes, not a disc: the hole stays open to a laser, as it is to the eye.
 		grip.position = wheel_at
 		grip.basis = wb * Basis(Vector3.RIGHT, -PI * 0.5)
-		grip.set("panel_size", Vector2(0.36, 0.36))
-		gshape.size = Vector3(0.36, 0.36, 0.16)
+		grip.set("ring_radius", WHEEL_RIM_R)
+		grip.set("ring_width", WHEEL_RING_WIDTH)
+		grip.set("panel_size", Vector2(WHEEL_RIM_R * 2.0 + WHEEL_RING_WIDTH, WHEEL_RIM_R * 2.0 + WHEEL_RING_WIDTH))
+		_wheel_shapes(grip, gcol, gshape)
 	form_boxes.append(AABB(Vector3(-_w * 0.5, 0.0, COCKPIT_Z0), Vector3(_w, 0.10, depth)))
 	# The seat is aimed at as the cabinet except on its cushion, which is the seat's own (a sitting press): a box over
 	# the whole seat would stand between the laser and the trigger that lies 3 cm proud of the cushion. So the base
@@ -1547,10 +1584,10 @@ func _build_bike(spec: Dictionary) -> void:
 	grip.collision_layer = 0
 	grip.collision_mask = 0
 	grip.basis = Basis(Vector3.RIGHT, -PI * 0.5)
-	grip.set("panel_size", Vector2(0.62, 0.20))
+	grip.set("panel_size", Vector2(0.62, BARS_GRIP_DEPTH))
 	var gcol := ArcadeParts.node(_owner, grip, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
 	var gshape := BoxShape3D.new()
-	gshape.size = Vector3(0.62, 0.20, 0.14)
+	gshape.size = Vector3(0.62, BARS_GRIP_DEPTH, 0.08)
 	gcol.shape = gshape
 	# The rider's seat: on the saddle (a box 0.24 x 0.44 whose top is 0.71 m up, at z 1.73), the eyes 0.68 m above it. Not on the LeanPivot.
 	_build_rider_seat(bk, BIKE_FLOOR_Y, BIKE_SADDLE_Z, BIKE_SADDLE_TOP, Vector2(0.24, 0.44), 0.68, -0.06, -0.50)
@@ -1675,10 +1712,10 @@ func _build_board(spec: Dictionary) -> void:
 	grip.collision_layer = 0
 	grip.collision_mask = 0
 	grip.basis = Basis(Vector3.RIGHT, -PI * 0.5)
-	grip.set("panel_size", Vector2(0.62, 0.20))
+	grip.set("panel_size", Vector2(0.62, BARS_GRIP_DEPTH))
 	var gcol := ArcadeParts.node(_owner, grip, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
 	var gshape := BoxShape3D.new()
-	gshape.size = Vector3(0.62, 0.20, 0.14)
+	gshape.size = Vector3(0.62, BARS_GRIP_DEPTH, 0.08)
 	gcol.shape = gshape
 	# Aimed at, the machine is the cabinet (to hold and carry): its stand, its plate and what stands on it, UNDER the rail (a box over it would hide the grips and START).
 	form_boxes.append(AABB(Vector3(-BOARD_STAND_W * 0.5, 0.0, BOARD_Z0), Vector3(BOARD_STAND_W, BOARD_AXIS_Y + 0.14, depth)))
@@ -1759,10 +1796,10 @@ func _build_cycle(spec: Dictionary) -> void:
 	grip.collision_layer = 0
 	grip.collision_mask = 0
 	grip.basis = Basis(Vector3.RIGHT, -PI * 0.5)
-	grip.set("panel_size", Vector2(0.66, 0.20))
+	grip.set("panel_size", Vector2(0.66, BARS_GRIP_DEPTH))
 	var gcol := ArcadeParts.node(_owner, grip, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
 	var gshape := BoxShape3D.new()
-	gshape.size = Vector3(0.66, 0.20, 0.14)
+	gshape.size = Vector3(0.66, BARS_GRIP_DEPTH, 0.08)
 	gcol.shape = gshape
 	# The rider's seat: on the saddle (0.15 x 0.27, its top 0.975 m up at z 1.86), the eyes 0.72 m above it, the rider's feet taken to be at the pedals' height.
 	_build_rider_seat(cy, CYCLE_FLOOR_Y, CYCLE_SADDLE_Z, CYCLE_SADDLE_TOP, Vector2(0.15, 0.27), 0.72, -0.04, -0.55)

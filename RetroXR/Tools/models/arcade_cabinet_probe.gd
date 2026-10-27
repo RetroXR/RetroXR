@@ -237,6 +237,16 @@ func _glass(w: int, h: int) -> void:
 	print("[probe] glass %dx%d aspect=%.3f fit=%s lens=%s" % [w, h, screen.current_aspect(), screen.current_fit(), screen.lens() != null])
 
 
+## Light (or put out) the glow of every player's grip, as aiming at it does.
+func _light_grips(on: bool) -> void:
+	for panel_node: Node in _model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS):
+		var grip := (panel_node as ArcadeControlModule).grip()
+		if grip != null:
+			grip.set("_hovered", on)
+			grip.call("_refresh")
+	await _frames(3)
+
+
 ## Each game's form, built as a board in the bay would build it, from the front three-quarter and the side.
 func _shot_forms() -> void:
 	for romset in _forms:
@@ -315,6 +325,10 @@ func _shot_forms() -> void:
 				_cam.global_transform = eye
 				_cam.look_at(lap.global_position, Vector3.UP)
 				await _save("formlap_" + romset)
+				# The same view with every grip lit, as it is when aimed at: the lit area is the control, not the console round it.
+				await _light_grips(true)
+				await _save("formgrip_" + romset)
+				await _light_grips(false)
 			_cam.fov = 58.0
 		# A rider standing on a board or skis: what they see from the plate, and the rig leaned over to the right, seen from behind.
 		var board := _model.find_child("Board", true, false) as Node3D

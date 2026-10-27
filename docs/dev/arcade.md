@@ -139,6 +139,13 @@ thumbsticks stop moving the player. The caps and the stick are pictures of what 
 pad plays; a headset's HANDS can also work the controls themselves, no attaching first (2026-10-25, "Hands on the panel"). Everything leaves through `NetworkManager.netplay_route`, then `SetJoypadState`: bypassing it
 breaks lockstep.
 
+**A control's pointer shape is the CONTROL (2026-10-27).** The grip of a form with one thing to take hold of is the size of that thing, never of the console round it. After Burner II's stick had a box 0.32 m
+across at its head (and a green plate that big): a laser aimed from the seat, or from behind it, at a coin slot 0.8 m in front met the box first, so nobody could put a coin in (`arcade_form_tests grip/`: from
+behind the controls, at chest height, every slot and RETURN of a flight cockpit is the first thing a laser meets; it was 0 of 2 on both). Now a flight stick's grip is `STICK_GRIP_BOX` (0.10 x 0.24 x 0.10, its head
+and grip), a racing cockpit's wheel is a RING (`ArcadePanelGrip.ring_radius`: twelve boxes along the rim, a hub and three spokes for the pointer, an annulus for the glow, the hole open to a laser as it is to the eye)
+and the bars of a bike, a bicycle and a board's rail are a bar deep (`BARS_GRIP_DEPTH`, 9 cm, not 20). The caps and a deck's panel are on the panel's plane and stay as they were. A new form's grip follows the same
+rule: measure the part, add a hand's margin, and aim at the coin slot from behind it.
+
 **The pointer.** A ray stops at the nearest thing on the pointable layer, and the widgets share it with the
 cabinet's `PointerArea`. One box over the whole cabinet therefore hid every door, button and coin slot
 behind its front face (the desktop reticle selected the whole cabinet instead of the button). The
