@@ -812,7 +812,9 @@ static var _built_socket_notes: Dictionary = {}
 static var _game_lead_connectors := PackedStringArray()
 
 ## The Objects tab's shipped rows, [label, token] -- the token a ScenePersistence
-## type, as every spawn token is. objects() adds the mods' props after them.
+## type, as every spawn token is. objects() adds the mods' props after them. A lead or
+## accessory that belongs to a console (its link lead and hub, the Wii's Sensor Bar, the
+## NES and Famicom's RF Switch) is offered on that console's card (items_for), not here.
 const OBJECTS := [
 	["Table",           "table"],
 	["Storage Box",     "trash_can"],
@@ -826,21 +828,6 @@ const OBJECTS := [
 	["Mono Composite Cable", "mono_composite_cable"],
 	["VGA Cable",       "vga_cable"],
 	["3.5 mm Cable",   "trs_cable"],
-	["Game Boy Advance Link Cable", "link_cable"],
-	["GB Link Cable",  "dmg_link_cable"],
-	["GBC Link Cable", "gb_link_cable"],
-	["GB Link Cable Adapter", "gb_link_adapter"],
-	["Gear-to-Gear Cable", "gg_link_cable"],
-	["WonderSwan Link Cable", "ws_link_cable"],
-	["NGP Link Cable", "ngp_link_cable"],
-	["VB Link Cable",  "vb_link_cable"],
-	["ComLynx Cable",  "comlynx_cable"],
-	["GC-GBA Cable",   "gc_gba_cable"],
-	["PS Link Cable",  "psx_link_cable"],
-	["Saturn Link Cable", "saturn_link_cable"],
-	["JagLink Cable",  "jag_link_cable"],
-	["i.LINK Cable",   "ilink_cable"],
-	["i.LINK Hub",     "ilink_hub"],
 	["Ethernet Cable", "ethernet_cable"],
 	["Ethernet Hub",   "ethernet_hub"],
 	["Speakers",       "speaker_pair"],
@@ -856,15 +843,9 @@ const OBJECTS := [
 	["Speaker Stand 1.2m", "speaker_stand_120"],
 	["Speaker Stand 1m",   "speaker_stand_100"],
 	["RCA Speaker Cable",  "speaker_cable"],
-	# Not under Controllers: nobody holds it, and it is no more a controller
-	# than the aerial is. It plugs into the Wii and stands on the television.
-	["Sensor Bar",     "sensor_bar"],
-	# The way a console reached a television before anything had a composite
-	# input: phono into the deck, coax into the aerial socket.
-	["RF Switch (RXR-003)", "rf_switch"],
 	# Broadcast television: its lead goes in a set's aerial socket, or in the
-	# ANT socket of the switch above so a console and the channels share one
-	# hole. The tuner's settings are on ITS menu, not the television's.
+	# RF Switch's ANT socket so a console and the channels share one hole. The
+	# tuner's settings are on ITS menu, not the television's.
 	["Antenna", "antenna"],
 ]
 

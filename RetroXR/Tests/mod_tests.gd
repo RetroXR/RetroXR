@@ -26,7 +26,7 @@
 extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 420
+const EXPECTED_CASES := 422
 
 var _only := ""
 var _dir := ""
@@ -512,6 +512,25 @@ func _group_objects() -> void:
 	_ok(str(SpawnCatalog.OBJECTS[0][0]) == "Table", "objects/menu: what the menu is handed is a copy")
 	SpawnCatalog.drop_mod("t.menu")
 	_eq(SpawnCatalog.objects().size(), n, "objects/menu: a withdrawn mod's props leave it")
+	# A console's own leads and accessories are on its card, not on the Objects tab -- and
+	# still on the card, or taking them off the tab left them spawnable from nowhere.
+	var on_cards := {"link_cable": "gba", "dmg_link_cable": "gb", "gb_link_cable": "gbc",
+		"gb_link_adapter": "gb", "gg_link_cable": "gamegear", "ws_link_cable": "wonderswan",
+		"ngp_link_cable": "ngp", "vb_link_cable": "virtualboy", "comlynx_cable": "atarilynx",
+		"gc_gba_cable": "gc", "psx_link_cable": "psx", "saturn_link_cable": "saturn",
+		"jag_link_cable": "atarijaguar", "ilink_cable": "ps2", "ilink_hub": "ps2",
+		"sensor_bar": "wii", "rf_switch": "nes"}
+	var tab_tokens := SpawnCatalog.OBJECTS.map(func(r: Array) -> String: return str(r[1]))
+	var on_tab := []
+	var nowhere := []
+	for token: String in on_cards:
+		if tab_tokens.has(token):
+			on_tab.append(token)
+		var card: Array = SpawnCatalog.items_for(str(on_cards[token]))
+		if not card.any(func(i: Dictionary) -> bool: return str(i.get("spawn", "")) == token):
+			nowhere.append(token)
+	_ok(on_tab.is_empty(), "objects/menu: a console's leads and accessories are not on the Objects tab", str(on_tab))
+	_ok(nowhere.is_empty(), "objects/menu: each is still on its console's card", str(nowhere))
 
 	# A mod's LEAD saves as a lead. It used to be written as a pose alone, like
 	# any other mod prop, so a room came back with the lead on the floor and
