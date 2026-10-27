@@ -657,9 +657,20 @@ func hand_thumbstick(side: int) -> Vector2:
 	return _hands.thumbstick(side) if _hands != null else Vector2.ZERO
 
 
-## Is a hand pressing a cap or holding a control here?
+## Is a hand pressing a cap or holding a control here, or a foot on an arrow?
 func hands_active() -> bool:
 	return _hands != null and _hands.active()
+
+
+## Does this panel have arrows to stand on?
+func has_feet() -> bool:
+	return _hands != null and _hands.has_feet()
+
+
+## The player's body at `point` (the floor under them; Vector3.INF for nobody): the arrows under it are pressed.
+func update_body(point: Vector3) -> void:
+	if _hands != null:
+		_hands.update_body(point)
 
 
 ## Is `ctrl` holding, or reaching for, a control of this panel? (ArcadePanelGrip does not take its press.)

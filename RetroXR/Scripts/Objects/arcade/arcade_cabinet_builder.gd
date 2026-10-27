@@ -1813,36 +1813,64 @@ func _build_cycle(spec: Dictionary) -> void:
 ## Where the middle of a dancer's square is, and its side: three panels of 30 cm.
 const STAGE_Z := 1.30
 const STAGE_SIDE := 0.90
+## How high the platform stands: a step up onto it, the panels flush with its top. It was 2 cm, which sank into any floor that was not dead flat and
+## left the arrows half under it; a real stage is about a hand's breadth.
+const STAGE_H := 0.10
+## Where a dancer's eyes are above the platform when they stand up on it (the standing seat's eye point: a desktop camera is put at this height, a headset
+## keeps its person's), and how far outside its own square the dancer steps down.
+const STAGE_EYE_Y := 1.62
+const STAGE_STEP_OUT := 0.62
 ## Where a bass drum's pedal stands on the floor in front of the cabinet (the cabinet's z): the player's right foot, clear of the bay door's swing.
 const BASS_PEDAL_Z := 0.95
 
 
-## The stage in front of a dance cabinet (Dance Dance Revolution, Pump It Up): a square for each dancer,
-## nine panels of 30 cm, with the safety bar behind. The arrows are the dancers' own (each player's
-## controller, ArcadeCabinetBuilder._arrows); this is what does not move. Barely off the floor, and no
-## collision: a player stands on it with their own feet.
+## The stage in front of a dance cabinet (Dance Dance Revolution, Pump It Up): a platform for each dancer, nine
+## panels of 30 cm on it, with the safety bar behind. The arrows are the dancers' own (each player's
+## controller, ArcadeCabinetBuilder._arrows); this is what does not move. A hand's breadth off the floor (STAGE_H), and no
+## collision: a player walks onto it and their feet are on the arrows (ArcadePanelHands, the body's own press), or clicks on it
+## and stands up on it as on a seat (`StageSeat`: the player is put on the platform, the keys and the sticks press the arrows).
 func _build_stage(spec: Dictionary) -> void:
 	var st := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Stage", Vector3.ZERO)) as Node3D
 	var xs: Array = spec.get("xs", [0.0])
 	for i in xs.size():
 		var x := float(xs[i])
-		ArcadeParts.box(_owner, st, "StageBase%d" % (i + 1), Vector3(STAGE_SIDE, 0.02, STAGE_SIDE),
-			Vector3(x, 0.01, STAGE_Z), _metal)
+		ArcadeParts.box(_owner, st, "StageBase%d" % (i + 1), Vector3(STAGE_SIDE, STAGE_H, STAGE_SIDE),
+			Vector3(x, STAGE_H * 0.5, STAGE_Z), _metal)
 		# The fixed panels the arrows leave (DDR's centre and corners, Pump It Up's edges).
 		for row in 3:
 			for col in 3:
 				if _is_arrow(int(spec.get("arrows", 4)), row, col):
 					continue
 				ArcadeParts.box(_owner, st, "StageTile%d_%d%d" % [i + 1, row, col], Vector3(0.27, 0.006, 0.27),
-					Vector3(x + (col - 1) * 0.30, 0.023, STAGE_Z + (row - 1) * 0.30), _dark)
+					Vector3(x + (col - 1) * 0.30, STAGE_H + 0.003, STAGE_Z + (row - 1) * 0.30), _dark)
 		# The safety bar: two posts at the back corners and the rail across.
 		for k in [-1.0, 1.0]:
 			ArcadeParts.cylinder(_owner, st, "BarPost%d%s" % [i + 1, "L" if k < 0 else "R"], 0.02, 0.95,
-				Vector3(x + k * 0.42, 0.495, STAGE_Z + 0.48), _metal, Vector3.UP)
-		ArcadeParts.cylinder(_owner, st, "BarRail%d" % (i + 1), 0.022, 0.86, Vector3(x, 0.97, STAGE_Z + 0.48),
+				Vector3(x + k * 0.42, STAGE_H + 0.475, STAGE_Z + 0.48), _metal, Vector3.UP)
+		ArcadeParts.cylinder(_owner, st, "BarRail%d" % (i + 1), 0.022, 0.86, Vector3(x, STAGE_H + 0.95, STAGE_Z + 0.48),
 			_metal, Vector3.RIGHT)
+		# The standing seat: pressed anywhere on the platform's top, it puts the player on it.
+		_build_stage_seat(st, i, x, xs.size())
+		# Aimed at, the platform is the cabinet (to hold and carry), UNDER its top: the top is the seat's own, which a box over it would hide.
 		form_boxes.append(AABB(Vector3(x - STAGE_SIDE * 0.5, 0.0, STAGE_Z - STAGE_SIDE * 0.5),
-			Vector3(STAGE_SIDE, 0.02, STAGE_SIDE + 0.10)))
+			Vector3(STAGE_SIDE, STAGE_H, STAGE_SIDE + 0.10)))
+
+
+## The seat a dancer stands up on: a CockpitSeat on the platform's top (the floor is put under the player's feet at that height, the head left where
+## it is in a headset and set to the eye point's on a desktop), a trigger over the whole square, and where the dancer steps down: outside their own square.
+func _build_stage_seat(stage: Node3D, index: int, x: float, squares: int) -> void:
+	var seat := ArcadeParts.node(_owner, stage, "Node3D", "StageSeat%d" % (index + 1), Vector3(x, STAGE_H, STAGE_Z)) as Node3D
+	seat.set_script(load(SCRIPTS["seat"]))
+	var trigger := ArcadeParts.node(_owner, seat, "Area3D", "SeatTrigger", Vector3(0.0, 0.01, 0.0)) as Area3D
+	trigger.set_script(load(SCRIPTS["seat_trigger"]))
+	var tcol := ArcadeParts.node(_owner, trigger, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
+	var tshape := BoxShape3D.new()
+	tshape.size = Vector3(STAGE_SIDE - 0.02, 0.02, STAGE_SIDE - 0.02)
+	tcol.shape = tshape
+	ArcadeParts.node(_owner, seat, "Marker3D", "EyePoint", Vector3(0.0, STAGE_EYE_Y, 0.0))
+	# The first square steps down to the left, the last to the right, the one between (there is none: two at most) either.
+	var out := -STAGE_STEP_OUT if (index == 0 or squares == 1) else STAGE_STEP_OUT
+	ArcadeParts.node(_owner, seat, "Marker3D", "StandPoint", Vector3(out, -STAGE_H, 0.0))
 
 
 ## Is the panel at (row, col) of the 3 x 3 square an arrow? Four arrows: the edges' middles (up, left, right,
@@ -1870,10 +1898,12 @@ func _arrows(parent: Node3D, to_parent: Transform3D, at: Vector3, arrows: int, i
 			cells.append(["PadUpLeft", 0, 0])
 			cells.append(["PadUpRight", 0, 2])
 	for c: Array in cells:
-		var pos := at + Vector3((int(c[2]) - 1) * 0.30, 0.026, (int(c[1]) - 1) * 0.30)
+		var pos := at + Vector3((int(c[2]) - 1) * 0.30, STAGE_H + 0.006, (int(c[1]) - 1) * 0.30)
 		var plate := ArcadeParts.box(_owner, parent, str(c[0]), Vector3(0.27, 0.008, 0.27), Vector3.ZERO,
 			ArcadeParts.mat(color.lerp(Color.WHITE, 0.15), 0.0, 0.3, color, 0.0))
 		plate.transform = to_parent * Transform3D(Basis.IDENTITY, pos)
+		# A panel stood on: the hands' step also reads the player's body over it (ArcadePanelHands.update_body).
+		plate.set_meta(&"stage_panel", true)
 		# The arrow's mark: a white bar pointing the way (for Pump's, toward the corner it is in).
 		var mark := ArcadeParts.box(_owner, plate, "Mark", Vector3(0.05, 0.004, 0.16), Vector3(0, 0.006, 0),
 			ArcadeParts.mat(Color(0.95, 0.95, 0.95), 0.0, 0.4))

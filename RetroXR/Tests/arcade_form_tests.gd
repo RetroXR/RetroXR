@@ -194,6 +194,9 @@ func _run() -> void:
 	if _want("bezel"):
 		await _group_bezel()
 		await _clear()
+	if _want("stage"):
+		await _group_stage()
+		await _clear()
 
 
 # --- helpers -------------------------------------------------------------------
@@ -3792,6 +3795,181 @@ func _group_boxes() -> void:
 	model.morph_to(_spec("timecris"))
 	await _wait(2)
 	_ok(_count(sys, "CabinetBox") > cab, "boxes: the gun body's straight screen adds its coin-face box")
+
+
+# --- stage ---------------------------------------------------------------------
+
+## A stand-in for the player: an origin, a head 1.6 m up and a little off its middle, a body and the locomotion manager (as seat_tests builds it).
+func _rig_at(at: Vector3) -> Dictionary:
+	var rig := Node3D.new()
+	var origin := XROrigin3D.new()
+	origin.position = at
+	rig.add_child(origin)
+	origin.owner = rig
+	var camera := XRCamera3D.new()
+	camera.position = Vector3(0.1, 1.6, 0.1)
+	origin.add_child(camera)
+	camera.owner = rig
+	var body := XRToolsPlayerBody.new()
+	origin.add_child(body)
+	body.owner = rig
+	var loco := LocomotionManager.new()
+	loco.name = "LocomotionManager"
+	rig.add_child(loco)
+	add_child(rig)
+	camera.current = true
+	_spawned.append(rig)
+	return {"rig": rig, "origin": origin, "camera": camera, "body": body, "loco": loco}
+
+
+## A dance stage is a platform you step up onto, with a seat on it: the panels stand clear of the floor, a click on the platform puts you up on it (the player
+## stands where the dancer does, a few centimetres higher, the controller plays them), and walking onto an arrow presses it with no seat at all.
+func _group_stage() -> void:
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var h := ArcadeCabinetBuilder.STAGE_H
+	for romset: String in ["ddrusa", "ddrsbm", "pumpipx2"]:
+		model.morph_to(_spec(romset))
+		await _wait(3)
+		var base := model.find_child("StageBase1", true, false) as MeshInstance3D
+		_ok(base != null and absf((base.mesh as BoxMesh).size.y - h) < 1e-4 and absf(base.position.y + (base.mesh as BoxMesh).size.y * 0.5 - h) < 1e-4 and h >= 0.08,
+			"stage: %s: the platform is %d cm of its own, its top %d cm over the floor" % [romset, roundi(h * 100.0), roundi(h * 100.0)])
+		# Every arrow stands on it, clear of its top: a stage at the floor sank into any floor that was not flat and lost its panels.
+		var low := ""
+		var arrows := 0
+		for panel: ArcadeControlModule in _panels(model):
+			for i in panel.cap_count():
+				var cap := panel.cap_node(i) as MeshInstance3D
+				if cap == null or not cap.has_meta(&"stage_panel"):
+					continue
+				arrows += 1
+				var y := model.to_local(cap.global_position).y - (cap.mesh as BoxMesh).size.y * 0.5
+				if y < h - 1e-4:
+					low = str(cap.name)
+		_ok(arrows >= 4 and low.is_empty(), "stage: %s: its %d arrows lie on the platform's top, none under it (%s)" % [romset, arrows, low])
+		var squares := _panels(model).size()
+		var seats := 0
+		var good := true
+		for i in squares:
+			var seat := model.find_child("StageSeat%d" % (i + 1), true, false) as CockpitSeat
+			if seat == null:
+				good = false
+				continue
+			seats += 1
+			var trigger := seat.find_child("SeatTrigger", true, false) as Area3D
+			var tbox := ((trigger.find_child("CollisionShape3D", true, false) as CollisionShape3D).shape as BoxShape3D).size if trigger != null else Vector3.ZERO
+			# On the platform's top, over the whole square, its eyes a standing person's, and the way down beside it at the floor.
+			good = good and absf(model.to_local(seat.global_position).y - h) < 1e-4 and tbox.x > 0.8 and tbox.z > 0.8 and tbox.y <= 0.03
+			good = good and absf(seat.eye_transform().origin.y - seat.global_position.y - ArcadeCabinetBuilder.STAGE_EYE_Y) < 1e-4
+			var down := model.to_local(seat.stand_point())
+			good = good and absf(down.y) < 1e-4 and absf(down.x - model.to_local(seat.global_position).x) > 0.5
+		_ok(good and seats == squares, "stage: %s: a standing seat a square (%d of %d): the whole platform to press, a standing person's eyes, a step down beside it" % [romset, seats, squares])
+	# Two squares step down on opposite sides: nobody walks off into the other dancer.
+	model.morph_to(_spec("ddrusa"))
+	await _wait(3)
+	var s1 := model.find_child("StageSeat1", true, false) as CockpitSeat
+	var s2 := model.find_child("StageSeat2", true, false) as CockpitSeat
+	_ok(s1.stand_point().x < s1.global_position.x - 0.5 and s2.stand_point().x > s2.global_position.x + 0.5,
+		"stage: two dancers step down on the outer sides, the first left and the second right")
+
+	# Standing up on it: the player is put on the platform, the panel is attached, the keys are theirs; stepping down lets both go.
+	var parts := _rig_at(sys.global_position + Vector3(0.0, 0.0, 3.0))
+	var origin: XROrigin3D = parts["origin"]
+	var camera: XRCamera3D = parts["camera"]
+	var loco: LocomotionManager = parts["loco"]
+	sys.is_powered_on = true
+	await _wait(2)
+	var panel1 := _panels(model)[0] as ArcadeControlModule
+	var panel2 := _panels(model)[1] as ArcadeControlModule
+	_ok(not panel1.is_attached() and not model.stage_seat_occupied(0), "stage: nobody is on the platform to begin with, and the panel is not attached")
+	_ok(s1.sit() and Seat.current == s1 and model.stage_seat_occupied(0), "stage: a click on the platform stands the player up on it")
+	await _wait(2)
+	_ok(absf(origin.global_position.y - s1.global_position.y) < 0.01
+			and Vector2(camera.global_position.x - s1.global_position.x, camera.global_position.z - s1.global_position.z).length() < 0.02,
+		"stage: their feet are on the platform's top (%.3f over the floor), their head over the square's middle" % (origin.global_position.y - sys.global_position.y))
+	_ok(panel1.is_attached() and not panel2.is_attached(), "stage: standing on a square attaches that player's panel, so the keys and the sticks press its arrows")
+	_ok(loco.is_blocked(LocomotionManager.CHANNEL_DESKTOP_MOVE) and loco.is_blocked(LocomotionManager.CHANNEL_ALL),
+		"stage: and walking is held while they stand there (the keys are the arrows', not the player's legs)")
+	# The other square: the first is let go of, the second attached.
+	_ok(s2.sit() and panel2.is_attached() and not panel1.is_attached() and not model.stage_seat_occupied(0) and model.stage_seat_occupied(1),
+		"stage: going up on the other square lets go of the first")
+	s2.stand()
+	await _wait(2)
+	_ok(not panel2.is_attached() and not model.stage_seat_occupied(1) and not loco.is_blocked(LocomotionManager.CHANNEL_ALL),
+		"stage: stepping down lets go of the panel and gives the legs back")
+	_ok(absf(origin.global_position.y - sys.global_position.y) < 0.01 and origin.global_position.x > s2.global_position.x + 0.4,
+		"stage: on the floor again, beside the second square (%.3f over the floor, %.2f m out)" % [origin.global_position.y - sys.global_position.y, origin.global_position.x - s2.global_position.x])
+	# A form that goes with the player on it lets them down (the stage is the cabinet's own).
+	_ok(s1.sit() and panel1.is_attached(), "stage: up again")
+	model.morph_to(_spec("sf2"))
+	await _wait(3)
+	_ok(Seat.current == null and absf(origin.global_position.y - sys.global_position.y) < 0.01,
+		"stage: the form changing under the player puts them on the floor (%.3f over it)" % (origin.global_position.y - sys.global_position.y))
+	# Up on a stage while the machine is off: the panel is taken when it comes on.
+	model.morph_to(_spec("ddrusa"))
+	await _wait(3)
+	s1 = model.find_child("StageSeat1", true, false) as CockpitSeat
+	s2 = model.find_child("StageSeat2", true, false) as CockpitSeat
+	panel1 = _panels(model)[0] as ArcadeControlModule
+	panel2 = _panels(model)[1] as ArcadeControlModule
+	sys.is_powered_on = false
+	_ok(s1.sit(), "stage: up on the platform with the machine off")
+	await _wait(2)
+	sys.is_powered_on = true
+	model.on_power_on()
+	await _wait(2)
+	_ok(panel1.is_attached(), "stage: the machine coming on takes the panel for the dancer already standing there")
+	s1.stand()
+	await _wait(2)
+
+	# Walking onto it, with no seat: the head's place on the floor over an arrow presses it.
+	var input := model.arcade_input()
+	var up_bit := ControllerBindings.JOYPAD_UP
+	var left_bit := ControllerBindings.JOYPAD_LEFT
+	var plate_up := panel1.find_child("PadUp", true, false) as Node3D
+	var plate_left := panel1.find_child("PadLeft", true, false) as Node3D
+	origin.global_position = Vector3(plate_up.global_position.x, sys.global_position.y, plate_up.global_position.z) - camera.position * Vector3(1, 0, 1)
+	await _wait(2)
+	panel1.update_body(input._body_point())
+	_ok((panel1.hand_buttons() & (1 << up_bit)) != 0 and (panel1.hand_buttons() & (1 << left_bit)) == 0,
+		"stage: standing on the up arrow presses UP and nothing else, from the room's floor (the platform is a step up)")
+	origin.global_position = Vector3(plate_left.global_position.x, sys.global_position.y, plate_left.global_position.z) - camera.position * Vector3(1, 0, 1)
+	await _wait(2)
+	panel1.update_body(input._body_point())
+	_ok((panel1.hand_buttons() & (1 << left_bit)) != 0 and (panel1.hand_buttons() & (1 << up_bit)) == 0,
+		"stage: stepping to the left arrow lifts UP and presses LEFT")
+	var centre := (model.find_child("StageSeat1", true, false) as Node3D).global_position
+	origin.global_position = Vector3(centre.x, sys.global_position.y, centre.z) - camera.position * Vector3(1, 0, 1)
+	await _wait(2)
+	panel1.update_body(input._body_point())
+	_ok(panel1.hand_buttons() == 0, "stage: and the middle of the square, which has no arrow, presses nothing")
+	# The other dancer's arrows are not this one's.
+	var other := panel2.find_child("PadRight", true, false) as Node3D
+	origin.global_position = Vector3(other.global_position.x, sys.global_position.y, other.global_position.z) - camera.position * Vector3(1, 0, 1)
+	await _wait(2)
+	for p in _panels(model):
+		(p as ArcadeControlModule).update_body(input._body_point())
+	_ok((panel2.hand_buttons() & (1 << ControllerBindings.JOYPAD_RIGHT)) != 0 and panel1.hand_buttons() == 0,
+		"stage: on the second square it is the second dancer's arrow that goes down, never the first's")
+	# On the floor beside it, or higher than a step above it, nothing is pressed.
+	origin.global_position = Vector3(other.global_position.x + 1.5, sys.global_position.y, other.global_position.z) - camera.position * Vector3(1, 0, 1)
+	for p in _panels(model):
+		(p as ArcadeControlModule).update_body(input._body_point())
+	_ok(panel2.hand_buttons() == 0, "stage: off the platform presses nothing")
+	origin.global_position = Vector3(other.global_position.x, sys.global_position.y + 1.2, other.global_position.z) - camera.position * Vector3(1, 0, 1)
+	for p in _panels(model):
+		(p as ArcadeControlModule).update_body(input._body_point())
+	_ok(panel2.hand_buttons() == 0, "stage: and a floor a metre over it (a player on a mezzanine) presses nothing")
+	# Standing on an arrow, then nobody there (the machine went off, the player left): the arrow comes up.
+	origin.global_position = Vector3(plate_up.global_position.x, sys.global_position.y, plate_up.global_position.z) - camera.position * Vector3(1, 0, 1)
+	await _wait(2)
+	panel1.update_body(input._body_point())
+	var was_down := (panel1.hand_buttons() & (1 << up_bit)) != 0 and panel1.hands_active()
+	for p in _panels(model):
+		(p as ArcadeControlModule).update_body(Vector3.INF)
+	_ok(was_down and panel1.hand_buttons() == 0 and panel2.hand_buttons() == 0 and not panel1.hands_active(),
+		"stage: an arrow under a foot comes up when nobody is there (the machine off)")
+	sys.is_powered_on = false
 
 
 # --- footprint -----------------------------------------------------------------

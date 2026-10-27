@@ -99,6 +99,13 @@ const LEVER_TAP_GAP := 0.10
 const BARS_LET_GO := 0.55
 ## A hand within this of a panel is asked about its controls at all.
 const NEAR := 2.0
+## FEET. A dancer's arrows are pressed by whoever stands on them, and nothing tracks feet: the player's body is the head's place on the floor
+## (`update_body`, a point at the height of the floor under the player). A panel is pressed while that point is over its square, grown by FOOT_MARGIN
+## (a foot is wider than a point), and the floor under the player is no more than FOOT_BELOW under the panel's top (walking up from the room's floor onto
+## a platform) and FOOT_ABOVE over it.
+const FOOT_MARGIN := 0.02
+const FOOT_BELOW := 0.18
+const FOOT_ABOVE := 0.06
 
 ## The pad bits a racer's pedals press, as the keyboard's R2 and L2 do (ArcadeControlModule._show_analog).
 const GAS_BIT := ControllerBindings.JOYPAD_R2
@@ -144,6 +151,7 @@ func rebuild() -> void:
 		poke.bit = _panel.cap_bit(i)
 		poke.is_round = cap.mesh is CylinderMesh
 		poke.sector = cap.get_meta(&"sector", {}) as Dictionary
+		poke.foot = bool(cap.get_meta(&"stage_panel", false))
 		_pokes.append(poke)
 	for entry: Array in [["GasPivot", GAS_BIT, "GasDeck"], ["BrakePivot", BRAKE_BIT, "BrakeDeck"]]:
 		var pivot := _panel.find_child(str(entry[0]), true, false) as Node3D
@@ -425,11 +433,11 @@ func _sync_outlines() -> void:
 
 # ── what the hands say ───────────────────────────────────────────────────────
 
-## The pad bits the hands hold: the caps and the pedals under a finger, and the gear lever in high gear.
+## The pad bits the hands hold: the caps and the pedals under a finger, the arrows under the player's feet, and the gear lever in high gear.
 func buttons() -> int:
 	var mask := 0
 	for p in _pokes:
-		if p.held > 0 and p.usable():
+		if (p.held > 0 or p.body) and p.usable():
 			mask |= 1 << p.bit
 	for g in _grabs:
 		mask |= g.bits()
@@ -447,9 +455,43 @@ func thumbstick(side: int) -> Vector2:
 	return best
 
 
-## Is a hand on the panel? A finger on a cap or a hold on a control, now.
+## Is a hand on the panel? A finger on a cap or a hold on a control, or a foot on an arrow, now.
 func active() -> bool:
-	return not _holding.is_empty() or not _pressing.is_empty()
+	if not _holding.is_empty() or not _pressing.is_empty():
+		return true
+	for p in _pokes:
+		if p.body:
+			return true
+	return false
+
+
+## Does this panel have arrows to stand on (a dance stage's)?
+func has_feet() -> bool:
+	for p in _pokes:
+		if p.foot:
+			return true
+	return false
+
+
+## The player's body: `point` is where they stand, at the height of the floor under them (Vector3.INF: nobody, or the machine is off). Presses each arrow
+## whose square it is over (`foot_on`); every other arrow comes up.
+func update_body(point: Vector3) -> void:
+	var here := point.is_finite()
+	for p in _pokes:
+		if not p.foot:
+			continue
+		p.body = here and p.usable() and ArcadePanelHands.foot_on(p.frame().affine_inverse() * point, p.mesh.mesh.get_aabb())
+
+
+## Is a body at `p` (in the panel's own frame: Y out of its face) on a panel whose mesh box is `box`? Over its square, and the floor it stands on within
+## reach of the panel's top. Pure, for the tests.
+static func foot_on(p: Vector3, box: AABB) -> bool:
+	var q := p - box.get_center()
+	var half := box.size * 0.5
+	if absf(q.x) > half.x + FOOT_MARGIN or absf(q.z) > half.z + FOOT_MARGIN:
+		return false
+	var above_top := q.y - half.y
+	return above_top >= -FOOT_BELOW and above_top <= FOOT_ABOVE
 
 
 ## Is `ctrl` holding, or about to take hold of, a control of this panel? Asked afresh, from where the hand is, so it
@@ -562,6 +604,9 @@ class Poke extends RefCounted:
 	var sector: Dictionary = {}
 	## How many hands press it.
 	var held := 0
+	## A panel stood on (a dance stage's arrow), and whether the player's body is on it now.
+	var foot := false
+	var body := false
 
 	func frame() -> Transform3D:
 		return (node.get_parent() as Node3D).global_transform * local

@@ -877,6 +877,8 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   a safety bar behind each; each dancer's arrows belong to that player's panel (`Pad<Dir>` sink with the directions, Pump's `Btn1..5` with the
   buttons; Solo's up-left and up-right corners, on the screen's side, are `PadUpLeft` and `PadUpRight`, MAME's buttons 3 and 4: ksys573.cpp's `ddrsolo` ports name them "P1 Up-Left 1/2" and
   "P1 Up-Right 1/2"; which panels were the real six is the research's: the four arrows plus up-left and up-right), taken hold of at its START on the deck.
+  **The platform is 10 cm high (`STAGE_H`, 2026-10-27; it was 2 cm, which sank into a floor that was not dead flat and left the arrows half buried: the base may clip at its foot, the arrows
+  may not), with the panels flush on its top, and it is walked on or stood on** ("Feet and the standing seat", `arcade-cabinets.md` 9.2b).
 - **Music** (`music`, the table's `i` says which) has a controller of its own for six instruments: a beatmania deck (turntable and five keys, a deck a player), pop'n music's nine domes, a GuitarFreaks guitar a player, DrumMania's five pads and the
   bass drum's pedal on the floor, a Taiko drum a player (four zones, sectors of a ring) and Mambo a Go-Go's three drums of three pads (`ArcadeInstruments`, `ArcadeCabinetBuilder._build_instrument`, `arcade-cabinets.md` 2c). The panel has ten buttons
   for them (`ArcadeProfiles.BUTTON_COUNT`: MAME's buttons 7 to 10 are the pad's L2, R2, L3, R3, an estimate), a cap may move its own way (`press_offset`) and a fingertip zone may be a sector (`sector`).
@@ -914,7 +916,7 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   tests and the probes, which look at what the profile alone hides.
 - **Netplay**: the form is derived from the board, so two peers build the same one (it decides whether a port is a gun or a socket). Not measured
   with two peers.
-- Tests: `arcade_form_tests` (groups `specs layout build board reach guns ports input animate running boxes footprint bezel odd seating hood scope racegun`; `arcade_tests game/`
+- Tests: `arcade_form_tests` (groups `specs layout build board reach guns ports input animate running boxes footprint bezel odd seating hood scope racegun grip stage`; `arcade_tests game/`
   switches the shape off through the seam and keeps testing the hiding). Mutation-tested: 19 breaks of the code, each turned a case red (the first pass found eight
   that did not, among them a duplicate collision box Godot had renamed out of the count and a freed gun that compared equal to null). Pictures: `arcade_cabinet_probe --forms=sf2,pacman,tmnt,...`
   (windowed; `form_<romset>.png` and `formside_<romset>.png`).
@@ -1121,6 +1123,11 @@ a wheel, bars, dial and trackball the left stick's X or XY, so "left+dpad" sends
   the part RESTS, not where it is drawn**: a pedal under a finger goes down 16 degrees and a zone that went with it would let go of the finger
   pushing it. The racer's two pedals (`GasDeck`, `BrakeDeck`: R2, L2) and the dance stage's arrows are the same thing. The caps are 52 mm
   apart and 31 mm across, so the zones of two never meet.
+- **Feet** (2026-10-27): nothing tracks feet, so the body is the HEAD's place on the floor (`ArcadeInput._body_point()`: the camera's x and z, the XR origin's y, or 1.6 m under the camera
+  where there is none). A panel of a dance stage (`stage_panel` meta on the plate, `Poke.foot`) is pressed while that point is over its square grown by `FOOT_MARGIN` (2 cm) and the floor
+  under the player is within `FOOT_BELOW` (18 cm) under the panel's top (walking up from the room's floor onto the platform) to `FOOT_ABOVE` (6 cm) over it (`ArcadePanelHands.foot_on`, pure).
+  `update_body(Vector3.INF)` (the machine off, no camera) lets every arrow up. The press joins the hands' (`buttons()`, `active()`), so the panel needs no attaching for it and the
+  netplay route is the same as a fingertip's.
 - **Taking hold** (`ControlGrab` and its kinds): the TRIGGER's rising edge (`TRIGGER_ON` 0.6, off at 0.4) with the tip within the handle's reach: `STICK_REACH`
   5 cm of the ball, `DIAL_REACH` 4.5 of the knob, `BALL_REACH` 6, `LEVER_REACH` 5.5, `BARS_REACH` 7 of a grip, the wheel on its rim (0.45..1.4 of
   its radius, within 7 cm of its plane). **A trigger already held on the way in takes hold of nothing**: only the edge does, or sweeping a hand past

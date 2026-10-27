@@ -458,9 +458,26 @@ func _hand_ctrls() -> Array:
 ## Step every panel's hands. `live` is false when the machine is off: whatever was held is let go.
 func _step_hands(delta: float, live: bool) -> void:
 	var hands := _hand_ctrls() if live else []
+	var body := Vector3.INF
 	for panel in _controls:
 		if panel != null and is_instance_valid(panel):
 			panel.update_hands(delta, hands, live)
+			# A dance stage's arrows are pressed by whoever stands on them.
+			if panel.has_feet():
+				if live and not body.is_finite():
+					body = _body_point()
+				panel.update_body(body if live else Vector3.INF)
+
+
+## Where the player stands, at the height of the floor under them: the head's place on the floor (nothing tracks feet), Vector3.INF when there is no
+## player to ask (no camera). On a desktop the camera is the head; in a headset it is the person's.
+func _body_point() -> Vector3:
+	var camera := get_viewport().get_camera_3d() if is_inside_tree() else null
+	if camera == null:
+		return Vector3.INF
+	var origin := XRHelpers.get_xr_origin(camera)
+	var floor_y := origin.global_position.y if origin != null else camera.global_position.y - 1.6
+	return Vector3(camera.global_position.x, floor_y, camera.global_position.z)
 
 
 ## `state` with what the hands hold on player `p`'s panel added: the caps and the lever as buttons, the stick and the

@@ -248,6 +248,17 @@ func _group_zone() -> void:
 		"zone: a press that has been made lets go further out (RELEASE_SCALE), as a button's does")
 	_ok(R.poke_reading(Vector3.ZERO, cap, true) < R.poke_reading(Vector3(0.01, 0, 0), cap, true),
 		"zone: the nearer the middle the lower the reading, which is how the nearest cap is picked")
+	# A dancer's arrow is pressed by the body over its square (foot_on; the stage group does it through a rig).
+	var arrow := AABB(Vector3(-0.25, -0.005, -0.25), Vector3(0.5, 0.01, 0.5))
+	_ok(R.foot_on(Vector3(0, 0.005, 0), arrow), "zone: a body on the middle of an arrow's face is on it")
+	_ok(R.foot_on(Vector3(0.25 + R.FOOT_MARGIN * 0.99, 0.005, 0), arrow) and not R.foot_on(Vector3(0.25 + R.FOOT_MARGIN * 1.05, 0.005, 0), arrow),
+		"zone: and off its side at FOOT_MARGIN beyond the edge (a foot is wider than a point)")
+	_ok(R.foot_on(Vector3(0, 0.005, -0.25 - R.FOOT_MARGIN * 0.99), arrow) and not R.foot_on(Vector3(0, 0.005, -0.25 - R.FOOT_MARGIN * 1.05), arrow),
+		"zone: the same along the other way")
+	_ok(R.foot_on(Vector3(0, 0.005 - R.FOOT_BELOW * 0.99, 0), arrow) and not R.foot_on(Vector3(0, 0.005 - R.FOOT_BELOW * 1.05, 0), arrow),
+		"zone: the floor it stands on may be FOOT_BELOW under the arrow's top (a step up from the room's floor), no further")
+	_ok(R.foot_on(Vector3(0, 0.005 + R.FOOT_ABOVE * 0.99, 0), arrow) and not R.foot_on(Vector3(0, 0.005 + R.FOOT_ABOVE * 1.05, 0), arrow),
+		"zone: and FOOT_ABOVE over it, no more (a hand-high point is not a foot)")
 
 
 # --- caps ----------------------------------------------------------------------

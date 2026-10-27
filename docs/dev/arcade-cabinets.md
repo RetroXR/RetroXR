@@ -386,7 +386,7 @@ What each one is made of, so a new one can follow it. "Hands" is what a headset'
 | `skate`, `snow`, `ski` | 4 (1), 1 (1), 6 (3) | a rider standing on a rocking plate, a rail round the front | see 2f: a stand, a plate that leans (`LeanPivot`), a skateboard, a snowboard or two skis on it, the rail | the rail's grips: sideways 15 cm is a full lean; START with a fingertip |
 | `holo` | 2 (1) | a deep stage behind the glass | see Time Traveler | |
 | `slot` | 2 (1) | two levers in one slot | see Panic Park | the lever slides |
-| `dance` | 53 (32) | a stage of four arrows a dancer (a Solo cabinet's six, 9.2) | a square of nine 30 cm panels, a safety bar; the arrows sink with the directions | a foot is not tracked: a finger can press an arrow |
+| `dance` | 53 (32) | a stage of four arrows a dancer (a Solo cabinet's six, 9.2) | a 10 cm platform with a square of nine 30 cm panels, a safety bar; the arrows sink with the directions | the body over an arrow presses it, a click on the platform stands the player up on it, a finger can press an arrow too (9.2b) |
 | `pump` | 22 (14) | a stage of five panels | Pump It Up's diagonals, the buttons' own | the same |
 | `music` | 165 (88), 139 with an instrument | a rhythm game's own controller: a beatmania deck, pop'n's domes, a guitar, a drum kit, a Taiko drum, Mambo's congas (2c) | `ArcadeInstruments` (data) and `_build_instrument`; the parts are named for the control module (`Btn1`..`Btn10`, `DialPivot`) | a fingertip presses a key, a dome, a pad or a zone of a drum (a sector); the turntable is taken anywhere on its platter |
 
@@ -542,6 +542,25 @@ are bare tiles. **The corners are MAME's buttons 3 and 4** (`ksys573.cpp`, `ddrs
 buttons 1 and 2), so `PadUpLeft` and `PadUpRight` sink with the pad's Y and X and a fingertip on them presses those. Estimated: where the real corner panels stood (the names say the upper
 corners), their size (the same 27 cm as the others), and whether the Solo's menu "Select" buttons are anything but the pad's left and right arrows. Karaoke Mix (one player, no source on its cabinet) and
 Kids (one player, a smaller cabinet) keep four arrows. `arcade_form_tests solo/`.
+
+### 9.2b The stage is walked on and stood on (2026-10-27)
+
+The platform of every dance stage is **10 cm high** (`ArcadeCabinetBuilder.STAGE_H`) with the nine panels flush on its top (the arrows 6 mm over it): at 2 cm it sank into any floor that was
+not dead flat and left the arrows half buried. The base may clip at its foot; the panels may not. There are two ways to dance, and a headset does either:
+
+- **Walking on it.** Nothing tracks feet, so the body is the head's place on the floor: a step forward, back or sideways that puts it over a panel presses that panel (`ArcadePanelHands.update_body`,
+  `foot_on`, fed by `ArcadeInput._body_point()`). The press joins the hands' (a fingertip still works), needs no attaching, and goes out through the same `netplay_route`. A panel is pressed while the point
+  is over its square grown by 2 cm, with the floor under it within 18 cm below the panel's top to 6 cm above it. Estimated: those margins, and that the head stands over the feet (a dancer who
+  leans out over an arrow presses it).
+- **Standing up on it** (`StageSeat<n>`, one a square, a `CockpitSeat` with a trigger over the whole top, an `EyePoint` 1.62 m over the platform and a `StandPoint` 62 cm to the side, on the floor): the
+  stage is a standing seat. Pointing at the platform and pressing sits the player on it in the usual way (`Seat`), but **the eye is not lowered**: the player's height changes by the platform's 10 cm and nothing
+  else. While they stand up there their own controller plays that dancer (`ArcadeCabinetModel._on_stage_seat` attaches the panel), so WASD or the arrows, a pad's d-pad or stick and a Quest's sticks press
+  the arrows; stepping down (the seat's usual get-up, the dancer goes to `StandPoint`) lets the panel go. A machine switched on with a dancer already up takes the panel then (`on_power_on`).
+  The first square steps down to the left, the last to the right.
+
+Tests: `arcade_form_tests stage/` (29 checks: heights, every arrow above the platform's top, the seats and their points, the panel attaching on sit and letting go, the body over each arrow of both squares, off the
+square, on the room's floor, in the air, the machine off, a morph rebuilding the seats) and `arcade_hand_tests zone/` (`foot_on`'s limits); 15 mutants of the new code, each turned a case red. OWED: a headset (whether the
+head's place is a believable foot, how the platform feels under the feet), a real dancer's pad ids on a real core, the Quest, two peers.
 
 ### 9.3 What the audit made worth building
 

@@ -287,6 +287,18 @@ func _shot_forms() -> void:
 			_look(deck.global_position + deck.global_basis.z * span * 0.85 - deck.global_basis.y * span * 0.55, deck.global_position)
 			await _save("formdeck_" + romset)
 			_cam.fov = 58.0
+		# A dance stage: the platform seen from low down (the panels stand over the floor and can be seen), and what a dancer who has stood up on it sees of the arrows under their feet.
+		var stage_seat := _model.find_child("StageSeat1", true, false) as CockpitSeat
+		if stage_seat != null:
+			var on := stage_seat.global_position
+			_cam.fov = 58.0
+			_look(on + Vector3(1.1, 0.30, 1.35), on + Vector3(0.0, 0.0, 0.1))
+			await _save("formplat_" + romset)
+			_cam.global_transform = stage_seat.eye_transform()
+			_cam.fov = 80.0
+			_cam.look_at(on + stage_seat.global_basis * Vector3(0.0, 0.0, -0.30), Vector3.UP)
+			await _save("formstage_" + romset)
+			_cam.fov = 58.0
 		# A scope: the rifle's eyepiece from where the player's eye would be, and the rifle from behind.
 		var lens := _model.get_parent().call("captive_controllers") as Array if _model.get_parent().has_method("captive_controllers") else []
 		var eye_lens: MeshInstance3D = null

@@ -1186,6 +1186,7 @@ func morph_to(spec: Dictionary) -> void:
 	ArcadeCabinetBuilder.new(spec, self).build_form()
 	_form_spec = spec
 	_collect_modules()
+	_wire_stage_seats()
 	ArcadeShadowBudget.trim(self)
 	_light_marquee(_lit)
 	_strip_art()
@@ -1207,6 +1208,27 @@ func morph_to(spec: Dictionary) -> void:
 
 ## The cabinet's form was built again (morph_to): for the probe, the tests and whatever hangs on its parts.
 signal form_changed
+
+
+## A dancer's standing seat (ArcadeCabinetBuilder._build_stage_seat, `StageSeat<n>`, one a square, the squares in the order of the players): while the
+## player stands up on the platform their own controller plays that player (the panel is attached, so the keys, the pad and a headset's sticks press
+## the arrows), and when they step down it does not. The seats are the form's own and go with it: freed with the player on one, it lets them down.
+func _wire_stage_seats() -> void:
+	for i in _controls.size():
+		var seat := find_child("StageSeat%d" % (i + 1), true, false) as CockpitSeat
+		if seat != null:
+			seat.seated_changed.connect(_on_stage_seat.bind(i))
+
+
+func _on_stage_seat(on: bool, index: int) -> void:
+	if index < _controls.size() and is_instance_valid(_controls[index]):
+		_controls[index].set_attached(on)
+
+
+## Is a player standing up on dancer `index`'s platform?
+func stage_seat_occupied(index: int) -> bool:
+	var seat := find_child("StageSeat%d" % (index + 1), true, false) as CockpitSeat
+	return seat != null and seat.is_occupied()
 
 
 # ── the game's needs ────────────────────────────────────────────────────────
@@ -1404,6 +1426,10 @@ func on_power_on() -> void:
 	_light_marquee(true)
 	_watch_descriptors = _game != null
 	_descriptor_wait = 0.0
+	# A dancer who stood up on the platform before the machine was on: a panel attached to a machine that is off lets go, so it is taken again now.
+	for i in _controls.size():
+		if stage_seat_occupied(i) and is_instance_valid(_controls[i]):
+			_controls[i].set_attached(true)
 
 
 func on_power_off() -> void:
