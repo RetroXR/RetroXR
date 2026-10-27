@@ -40,9 +40,9 @@ moves), and `z`, a throttle lever. A third, `b`, says the game has a Timekeeper 
 
 | form (`t`) | romsets (families) | | form (`t`) | romsets (families) |
 |---|---|---|---|---|
-| plain upright | 27,343 (9,178) | | `rifle` | 51 (25) |
+| plain upright | 27,340 (9,177) | | `rifle` | 51 (25) |
 | `race` | 433 (185) | | `gunm` | 57 (20) |
-| `gun` | 305 (151) | | `pump` | 22 (14) |
+| `gun` | 308 (152) | | `pump` | 22 (14) |
 | `stand` | 132 (45) | | `cycle`, `holo`, `slot` | 2 (1) each |
 | `music` (built for six instruments, 2c) | 165 (88) | | `odd` (not built) | 49 (30) |
 | `bike` | 65 (25) | | `dance` | 53 (32) |
@@ -374,7 +374,7 @@ What each one is made of, so a new one can follow it. "Hands" is what a headset'
 | **alternating** | 2,959 | one panel, 1P, and a 2P START | the table's `a`; one coin door | |
 | **screens** | 356 | several screens side by side | the tube row; the frame holds them as one picture | |
 | **service** | 14,977 | TEST and SERVICE in the compartment opposite the power switch | `ArcadeServiceModule`, only where MAME says `<input service="yes">` | VRButtons |
-| `gun` | 305 (134) | guns in holsters, a pedal where the game had one (Time Crisis), a bench where it was a ride (Rail Chase) | the wide body, one gun for each light gun the game has (up to 3), START alone each | the hand takes the gun as any pickable |
+| `gun` | 308 (135) | guns in holsters, a pedal where the game had one (Time Crisis), a bench where it was a ride (Rail Chase) | the wide body, one gun for each light gun the game has (up to 3), START alone each | the hand takes the gun as any pickable |
 | `gunm` | 57 (16) | a gun on a post, a bench where it was a ride (The Lost World) | Operation Wolf's Uzi, Terminator 2, Beast Busters (3): fixed to the post, turning about its pivot | the hand turns it |
 | `rifle` | 51 (7) | one rifle on a taller post | Silent Scope, Golgo 13; see above | the hand turns it |
 | `race` | 355 (104) | a sit-down cockpit | the `racer` body, platform, seat, dash, wheel, two pedals, gear lever; a roof for the Model 3 twins (`ROOFED`); a moving base for Out Run, Power Drift (`q`) | wheel (clockwise is right), pedals under a finger, the lever |
@@ -503,12 +503,11 @@ Not verified: Silent Scope's scope picture on a real run, Lucky & Wild's guns (l
 
 A player listed 143 romsets and asked whether each spawns with the hardware it had. Each was read in MAME 0.289's `-listxml`, the driver source (raw files from `mamedev/mame` at the
 `mame0289` tag: the port blocks give every button's own name) and the table, and judged against the research notes. **19 of the names are not MAME 0.289 romsets** (they are a
-short form or another emulator's name): `bm2nd` / `bm2ndm` are `bm2ndmix`, `bm4th` `bm4thmix`, `bm5th` `bm5thmix`, `bm6th` `bm6thmix`, `bmcompm` `bmcompmx`, `bass` `bassdx` (Sega Bass
+short form or another emulator's name): `bm2nd` / `bm2ndm` are `bm2ndmix` / `bm2ndmixa`, `bm4th` `bm4thmix`, `bm5th` `bm5thmix`, `bm6th` `bm6thmix`, `bmcompm` `bmcompmx`, `bass` `bassdx` (Sega Bass
 Fishing), `guitarfr` `gtrfrks` (and its mixes), `drummania` `drmn`, `popn` `popn1`..`popn9`, `alpinesa` `alpines`, `raveracw` `raverace`, `gunbulet` `gunbuletw` / `gunbuletj` (Point
-Blank's Japanese name, a clone of `ptblank`), `jurassicp` `jpark`, `r360` `glocr360` / `wingwar360`, `warpspd` `warpsped` (a 1979 prototype); **`lamborcc`, `jubeat` and `interstellar` are in
-no MAME** (`interstellar` is a Daphne laserdisc name, which keeps the laserdisc cabinet: only an `arcade` board takes the form of its game). The profile of a game is by ROMSET NAME, so a
-name MAME knows and another system uses for a different game would borrow the wrong cabinet; the cabinet only follows the game on `arcade` boards (`on_media_inserted`), which is why a
-Daphne `badlands` or `roadblst` is still a laserdisc upright.
+Blank's Japanese name, a clone of `ptblank`), `jurassicp` `jpark`, `r360` `glocr360` / `wingwar360`, `warpspd` `warpsped` (a 1979 prototype), `interstellar` `istellar` (Funai/Gakken's laserdisc
+game); **`lamborcc` and `jubeat` are in no MAME**. The profile of a game is by ROMSET NAME, so a name MAME knows and another system uses for a different game would borrow the wrong cabinet; the cabinet only
+follows the game on `arcade` boards (`on_media_inserted`), which is why a Daphne `badlands` or `roadblst` is still a laserdisc upright.
 
 ### 9.1 What was wrong in the data (found by the audit, fixed in the generator)
 
@@ -530,7 +529,9 @@ Daphne `badlands` or `roadblst` is still a laserdisc upright.
 - **Wing War R360** is G-LOC R360's pod (a seat, a cage round it, a base that moves): `wingwar` joins the flight cockpits, so its clone does too. The pod's rotation stays unbuilt.
 - **Star Wars Arcade** (`swa`, two analog sticks and a throttle read as a pedal) was a plain upright with a stick each; the research (two listings, medium) says two seats, a pilot and a gunner, so it has the bench
   of two seats and a 50 inch class screen (2b). **TX-1** was a stand-up for its date; it is a seated cockpit of three screens (`DRIVING_FORM`; the research says a force-feedback
-  wheel, an accelerator, a brake and a gearshift, the side screens tilted about 30 degrees). Not changed, said so: **World Combat** stays a plain upright (section 9.4).
+  wheel, an accelerator, a brake and a gearshift, the side screens tilted about 30 degrees).
+- **World Combat / Warzaid** (Konami Viper, 2002): one optical light gun a player and one trigger each (MAME's `viper.cpp`; players take cover by aiming off the screen, there is no pedal). MAME lists its 4P sets as two
+  buttons only, because the gun axes are an undefined TODO there, and files only the 2P set (`wcombatu`) as a gun game: the table had a clone as a gun cabinet and its parent and two other clones as a plain upright. All four are two guns in holsters now (`UNTYPED_GUNS`); all four sets are `NOT_WORKING`.
 
 ### 9.2 DDR Solo's six panels
 
@@ -541,3 +542,184 @@ are bare tiles. **The corners are MAME's buttons 3 and 4** (`ksys573.cpp`, `ddrs
 buttons 1 and 2), so `PadUpLeft` and `PadUpRight` sink with the pad's Y and X and a fingertip on them presses those. Estimated: where the real corner panels stood (the names say the upper
 corners), their size (the same 27 cm as the others), and whether the Solo's menu "Select" buttons are anything but the pad's left and right arrows. Karaoke Mix (one player, no source on its cabinet) and
 Kids (one player, a smaller cabinet) keep four arrows. `arcade_form_tests solo/`.
+
+### 9.3 What the audit made worth building
+
+Beyond the data faults of 9.1, the audit found games whose hardware was nothing like a stick and buttons. Each got a form or a part of its own; the section named has the research, the
+estimates and the tests.
+
+| the games (names of the 143) | what they really had | what is built now | where |
+|---|---|---|---|
+| DDR Solo (4) | a six-panel stage | the stage's two extra panels, MAME's buttons 3 and 4 | 9.2 |
+| beatmania, pop'n music, GuitarFreaks, DrumMania, Taiko, Mambo a Go-Go (15) | a turntable and keys, nine domes, a guitar, a drum kit, a drum, three congas | a controller of its own for each, found by the same part names, with ten buttons a panel | 2c |
+| Top Gunner (bootleg), Zwackery, Tron | a stick that also twists, or a dial beside it | the rotary stick | 2d |
+| Star Wars, Red Baron, Bass Fishing | a flight yoke, a rod with a reel | a yoke, a rod with its reel and crank | 2e |
+| Top Skater, Alpine Surfer | a board the rider stands on and leans | a stand, a rocking plate, a skateboard or a snowboard, a rail | 2f |
+| `r360`: G-LOC R360, Wing War R360 (1) | a sphere cockpit in two rings | the rings round the cockpit | 2b |
+| Darius, Darius II, Star Wars Arcade | a bench to sit on in front of the screen | a bench of two seats (and Star Wars Arcade's 50 inch class screen) | 2b |
+| Lucky & Wild | a driver and a gunner | a two-seat cockpit | 2 |
+
+Not built, and why each is a different kind of limit: the pilot's throttle of Star Wars Arcade and the real mechanisms of the board games (**unknown**: nothing found), OutRun 2's twin
+seats and Wacko's second control (**work**: a second seat, a panel of a stick and a ball), Road Blasters' yoke and the sit-down versions of the older cabinets (**evidence**: one article each),
+jubeat, `lamborcc` and `interstellar` (**not MAME**).
+
+### 9.4 The verdict, game by game
+
+One row for each of the 143 names the player listed, in the order they were listed; **what spawns** is read from the real spec by `ArcadeCabinetSpecs.for_game` (a probe run on the committed
+table), the game's line from MAME 0.289, and the **verdict** is a judgement against the research notes (every one a search summary: no photograph of any real cabinet was ever opened):
+
+- **built**: spawns with the hardware the research and MAME give it (the note says what is estimated or left out);
+- **upright**: the real cabinet was a plain upright with a panel like this one, so a plain upright is right;
+- **approximate**: spawns with something near it; the note says what is missing, unknown or in dispute;
+- **none**: the name is not a MAME romset, so nothing is built.
+
+| asked | MAME's game (year, maker, driver status) | what spawns | verdict |
+|---|---|---|---|
+| `ddr2m` | Dance Dance Revolution 2nd Mix (GN895 VER. JAA) (1999, Konami, imperfect) | dance stage, two dancers, 4-arrow panels | **built**: the standard two-player cabinet: a pad each (a 3x3 grid, four arrows on the edge cells: the cells are inferred, medium) |
+| `ddr3mk` | Dance Dance Revolution 3rd Mix - Ver.Korea2 (GN887 VER. KBA) (2000, Konami, preliminary) | dance stage, two dancers, 4-arrow panels | **built**: the same |
+| `ddr3mp` | Dance Dance Revolution 3rd Mix Plus (G*A22 VER. JAA) (2000, Konami, preliminary) | dance stage, two dancers, 4-arrow panels | **built**: the same |
+| `ddr4m` | Dance Dance Revolution 4th Mix (G*A33 VER. AAA) (2000, Konami, preliminary) | dance stage, two dancers, 4-arrow panels | **built**: the same |
+| `ddr4mp` | Dance Dance Revolution 4th Mix Plus (G*A34 VER. JAA) (2000, Konami, preliminary) | dance stage, two dancers, 4-arrow panels | **built**: the same |
+| `ddr4mps` | Dance Dance Revolution 4th Mix Plus Solo (G*A34 VER. JBA) (2000, Konami, preliminary) | dance stage, one dancer, 6-arrow panels | **built**: Solo's six panels (up-left and up-right are MAME's buttons 3 and 4; where the real corners were is inferred, low) |
+| `ddr4ms` | Dance Dance Revolution 4th Mix Solo (G*A33 VER. ABA) (2000, Konami, preliminary) | dance stage, one dancer, 6-arrow panels | **built**: the same |
+| `ddr5m` | Dance Dance Revolution 5th Mix (G*A27 VER. JAA) (2001, Konami, preliminary) | dance stage, two dancers, 4-arrow panels | **built**: the standard two-player cabinet: a pad each (a 3x3 grid, four arrows on the edge cells: the cells are inferred, medium) |
+| `ddrextrm` | Dance Dance Revolution Extreme (G*C36 VER. JAA) (2002, Konami, preliminary) | dance stage, two dancers, 4-arrow panels | **built**: the same |
+| `ddrkara` | Dance Dance Revolution Karaoke Mix (GQ921 VER. JBB) (1999, Konami, preliminary) | dance stage, one dancer, 4-arrow panels | **approximate**: one pad (MAME: one player); no page on the Karaoke Mix cabinet came back, so a karaoke screen or microphone is not drawn |
+| `ddrkara2` | Dance Dance Revolution Karaoke Mix 2 (GQ947 VER. JAA) (2000, Konami, preliminary) | dance stage, one dancer, 4-arrow panels | **approximate**: one pad (MAME: one player); nothing found on the cabinet |
+| `ddrkids` | Dance Dance Revolution Kids (GQAN4 JAA) (2000, Konami, imperfect) | dance stage, one dancer, 4-arrow panels | **approximate**: one pad (MAME: one player, Konami GS hardware); nothing found on a Kids cabinet |
+| `ddrmax` | DDRMAX - Dance Dance Revolution 6th Mix (G*B19 VER. JAA) (2001, Konami, preliminary) | dance stage, two dancers, 4-arrow panels | **built**: the standard two-player cabinet: a pad each (a 3x3 grid, four arrows on the edge cells: the cells are inferred, medium) |
+| `ddrmax2` | DDRMAX2 - Dance Dance Revolution 7th Mix (G*B20 VER. JAA) (2002, Konami, preliminary) | dance stage, two dancers, 4-arrow panels | **built**: the same |
+| `ddrs2k` | Dance Dance Revolution Solo 2000 (GC905 VER. AAA) (1999, Konami, preliminary) | dance stage, one dancer, 6-arrow panels | **built**: Solo's six panels (up-left and up-right are MAME's buttons 3 and 4; where the real corners were is inferred, low) |
+| `ddrsbm` | Dance Dance Revolution Solo Bass Mix (GQ894 VER. JAA) (1999, Konami, preliminary) | dance stage, one dancer, 6-arrow panels | **built**: the same |
+| `ddrusa` | Dance Dance Revolution USA (G*A44 VER. UAA) (2000, Konami, preliminary) | dance stage, two dancers, 4-arrow panels | **built**: the standard two-player cabinet: a pad each (a 3x3 grid, four arrows on the edge cells: the cells are inferred, medium) |
+| `aircomb` | Air Combat (AC2, US) (1992, Namco, imperfect) | flight cockpit: seat, stick, throttle, cabin | **built**: DIP "Cockpit": a full-size cockpit with a rumbling seat that does not move (research, low-medium); the throttle is MAME's own Z axis |
+| `airco22b` | Air Combat 22 (Japan, ACS1 Ver.B) (1995, Namco, imperfect) | flight cockpit: seat, stick, throttle, cabin | **built**: the same cockpit ("authentic cockpit", low); a throttle lever (one listing, low) |
+| `topgunbl` | Top Gunner (bootleg, Rotary Joystick) (1986, bootleg, good) | upright; 2 x rotary stick, 2 buttons; tate body, monitor on its side | **built**: a bootleg of Konami's Jackal (Top Gunner) whose set is named for its rotary joystick: a stick that also twists, built as the rotary stick (2d); which control it really used is not established (low) |
+| `mach3` | M.A.C.H. 3 (set 1) (1983, Mylstar, good) | upright; stick, 2 buttons; 19" class | **upright**: an 8-way stick with a trigger and a thumb button (medium); a rarer sit-down "environmental" cabinet with a Fresnel lens existed and is not built |
+| `thndrbld` | Thunder Blade (upright) (FD1094 317-0056) (1987, Sega, good) | flight cockpit: seat, stick, throttle, moving base | **built**: DIP "Deluxe": a helicopter chair on a base that follows the stick, no cabin (research, one source); the throttle is the game's own Z axis |
+| `gforce2` | Galaxy Force 2 (1988, Sega, good) | flight cockpit: seat, stick, throttle, cabin, moving base | **built**: DIP "Super Deluxe / Deluxe": cabinet, seat and screen move together (research) |
+| `aburner` | After Burner (VER 1.32, deluxe/upright) (1987, Sega, good) | flight cockpit: seat, stick, cabin, moving base | **built**: DIP "Moving Deluxe": an enclosed cockpit with the seat on a moving base; the first game has no throttle |
+| `aburner2` | After Burner II (VER 2.00, deluxe/upright) (1987, Sega, good) | flight cockpit: seat, stick, throttle, cabin, moving base | **built**: the same cockpit with the throttle lever the second game added (DIP "Throttle Lever") |
+| `outr2` | OutRun 2 (Rev A) (GDX-0004A) (2003, Sega, preliminary) | driving cockpit: seat, wheel, 2 pedals | **approximate**: OutRun 2 (Chihiro): one seat, wheel and two pedals. The real deluxe seats TWO side by side, each with their own controls (low-medium) and has a shifter (not found for this game): neither is built; no moving base |
+| `outrun` | Out Run (sitdown/upright, Rev B) (1986, Sega, good) | driving cockpit: seat, wheel, 2 pedals, gear lever, moving base | **built**: sit-down: wheel, two pedals, the Low/High lever (button 3, a toggle) and a base that moves (DIP "Moving"); the deluxe seat also slid with the steering (medium), not built |
+| `outr2st` | OutRun 2 Special Tours (Rev A) (GDX-0014A) (2004, Sega, preliminary) | driving cockpit: seat, wheel, 2 pedals | **approximate**: OutRun 2 Special Tours: the same one-seat cockpit; the twin and the real motion are not built |
+| `lamborcc` | not a MAME romset | - | **none**: no MAME romset of this name and no Lamborghini coin-op was found (the closest are home games: Lamborghini American Challenge, from Crazy Cars III, Titus 1992, and Automobili Lamborghini, N64); nothing to spawn |
+| `r360` (= `glocr360`, `wingwar360`) | G-LOC R360 (World) (1990, Sega, good) | glocr360: flight cockpit: seat, stick, R-360 rings, moving base / wingwar360: flight cockpit: seat, stick, R-360 rings, moving base; 2 screens | **built**: Sega's R-360 pod: a seat inside rings that turn about two axes (research); stick, no throttle; the pod's real harness and safety bar are not built |
+| `swa` | Star Wars (Sega, US) (1994, Sega, imperfect) | upright; 2 x stick, 3 buttons; bench of 2 seats; tall body, 50" class | **approximate**: Sega's Star Wars Arcade: two seats (a pilot and a gunner) and a stick each with a trigger and a thumb button (research, medium): built as a bench of two seats at a deck with two sticks, a 50 inch class screen; the pilot's throttle is not drawn and the stick was found on the deck, not between the knees |
+| `bm2nd` (= `bm2ndmix`) | beatmania 2nd MIX (ver JA-B) (1998, Konami, imperfect) | rhythm controller: 2 x deck controller; tall body, 34" class | **built**: a deck a player: a turntable and five keys (MAME's five buttons); IIDX's seven keys is another game |
+| `bm2ndm` (= `bm2ndmixa`) | beatmania 2nd MIX (ver JA-A) (1998, Konami, imperfect) | rhythm controller: 2 x deck controller; tall body, 34" class | **built**: the same |
+| `bm4th` (= `bm4thmix`) | beatmania 4th MIX (ver JA-A) (1999, Konami, imperfect) | rhythm controller: 2 x deck controller; tall body, 34" class | **built**: the same |
+| `bm5th` (= `bm5thmix`) | beatmania 5th MIX (ver JA-A) (1999, Konami, imperfect) | rhythm controller: 2 x deck controller; tall body, 34" class | **built**: the same |
+| `bm6th` (= `bm6thmix`) | beatmania 6th MIX (ver JA-A) (2001, Konami, imperfect) | rhythm controller: 2 x deck controller; tall body, 34" class | **built**: the same |
+| `bmcompm` (= `bmcompmx`, `bmcompm2`) | beatmania complete MIX (ver JA-C) (1999, Konami, imperfect) | rhythm controller: 2 x deck controller; tall body, 34" class | **built**: the same |
+| `taiko10` | Taiko no Tatsujin 10 (T101001-NA-A) (2007, Namco, preliminary) | rhythm controller: 2 x taiko controller; tall body, 26" class | **built**: a Taiko drum a player: four zones (rim and surface, left and right), MAME's own names; how the two drums stood is not found (low) |
+| `taiko6` | Taiko no Tatsujin 6 (Japan, TK61 Ver.A) (2004, Namco, preliminary) | rhythm controller: 2 x taiko controller; tall body, 26" class | **built**: the same |
+| `taiko7` | Taiko no Tatsujin 7 (TK71-NA-A) (2005, Namco, preliminary) | rhythm controller: 2 x taiko controller; tall body, 26" class | **built**: a Taiko drum a player: four zones (rim and surface, left and right), MAME's own names; how the two drums stood is not found (low); Namco System 246: the driver declares no controls, the cabinet is a drum a player, two players |
+| `taiko8` | Taiko no Tatsujin 8 (TK8100-1-NA-A) (2006, Namco, preliminary) | rhythm controller: 2 x taiko controller; tall body, 26" class | **built**: a Taiko drum a player: four zones (rim and surface, left and right), MAME's own names; how the two drums stood is not found (low) |
+| `taiko9` | Taiko no Tatsujin 9 (TK91001-NA-A) (2006, Namco, preliminary) | rhythm controller: 2 x taiko controller; tall body, 26" class | **built**: the same |
+| `bass` (= `bassdx`) | Sega Bass Fishing Deluxe (1997, Sega, preliminary) | upright; rod, 2 buttons | **approximate**: Sega Bass Fishing Deluxe: a rod with a reel and its crank on an upright; how the rod stood on the real cabinet is not found (a swivel? a boat?), and a sit-down candy model is mentioned (conflict) |
+| `guitarfr` (= `gtrfrks`) | Guitar Freaks Ver 1.01 (GQ886 VER. EAD) (1999, Konami, imperfect) | rhythm controller: 2 x guitar controller; tall body, 32" class | **built**: a guitar a player: three frets, a pick bar, a wail button and the effect knob |
+| `drummania` (= `drmn`) | DrumMania (GQ881 VER. JAD) (1999, Konami, preliminary) | rhythm controller: drums controller; tall body, 26" class | **built**: five pads in an arc and the bass drum's pedal on the floor |
+| `popn` (= `popn1`) | Pop'n Music (ver TA-A, HDD 1.01) (1998, Konami, imperfect) | rhythm controller: popn controller | **built**: nine domes in two rows (white, yellow, green, blue, red, blue, green, yellow, white), one player |
+| `jubeat` | not a MAME romset | - | **none**: no MAME driver: jubeat's 4x4 grid of touch panels (research, medium) is a controller of its own that nothing builds |
+| `mamboagg` | Mambo A Go-Go (GQA40 VER. JAB) (2001, Konami, preliminary) | rhythm controller: conga controller | **built**: three drums of three pads each (Mambo a Go-Go's congas) |
+| `kickgoal` | Kick Goal (set 1) (1995, TCH / Proyesel, good) | upright; 2 x stick, 3 buttons | **upright**: TCH's Kick Goal (1995), a side-view futsal game: two players, an 8-way stick and three buttons each in the driver (MAME source); an ordinary upright is inferred (low) |
+| `wcombat` | World Combat (ver AAD:B) (2002, Konami, preliminary) | 2 guns in holsters | **built**: Konami's World Combat / Warzaid (Viper, 2002): one optical light gun a player, one trigger each (MAME source): two guns in holsters and no pedal (players take cover by aiming off screen); MAME lists the 4P sets as two buttons only because the gun axes are undefined (all four sets are NOT_WORKING); the 4P is two networked PCBs |
+| `topskatr` | Top Skater (Export, Revision A) (1997, Sega, preliminary) | standing rider: skateboard on a rocking plate, rail round the front; wide body | **built**: Sega's Top Skater: a skateboard-style deck that pivots or tilts (three axes, medium), handrails each side (medium-low), a 50 inch screen with two speakers at the rider: the deck rocks on a plate (one axis), the rail leans with it (2f) |
+| `darius` | Darius (World, rev 2) (1986, Taito, good) | upright; 2 x stick, 2 buttons; bench of 2 seats; 3 screens | **built**: three screens (centre faces the player, the outer two low and angled behind a half mirror: here side by side) and a bench-style seat with Body Sonic (research, one chain): a bench of two seats, a stick each |
+| `darius2` | Darius II (triple screen) (Japan, rev 1) (1989, Taito, imperfect) | upright; 2 x stick, 2 buttons; bench of 2 seats; 3 screens | **built**: the same cabinet design; MAME's "triple screen" set |
+| `dariusg` | Darius Gaiden - Silver Hawk (Ver 2.5O 1994/09/19) (1994, Taito, imperfect) | upright; 2 x stick, 4 buttons; 26" class | **upright**: an F3 two-player upright with one screen (the F3 board's four players are not the cabinet's) |
+| `ninjaw` | The Ninja Warriors (World, later version) (1987, Taito, imperfect) | upright; 2 x stick, 2 buttons; 3 screens | **built**: three screens in an upright; players stand (the upright listings say standing, one review sit-down: conflict) |
+| `tx1` | TX-1 (World) (1983, Tatsumi, imperfect) | driving cockpit: seat, wheel, 2 pedals; 3 screens | **approximate**: Tatsumi's TX-1: a seated cockpit with three screens (the main ahead of the wheel, two tilted 30 degrees: here all in one frame), a force-feedback wheel, a throttle, a brake and a gearshift (medium): the gearshift is not drawn |
+| `warpspd` (= `warpsped`) | Warp Speed (prototype) (1979?, Meadows Games, Inc., preliminary) | upright; stick, 2 buttons; 19" class | **upright**: a 1979 prototype by Meadows Games: an upright with a stick (the sources disagree on what the game is) |
+| `sidebs` | Side by Side (Ver 3.0 OK) (1996, Taito, imperfect) | driving cockpit: seat, wheel, 2 pedals | **built**: Taito's Side by Side: a sit-down racer, optionally linked in pairs, wheel and pedals (a force-feedback wheel in the hc11 output, low-medium); the sequential shift is the JOYSTICK's up and down in MAME (not a button), so no lever is drawn |
+| `timetrv` | Time Traveler (1991, Virtual Image Productions, good) | hologram stage 0.30 m deep behind the glass, 1 panel | **built**: Virtual Image's Time Traveler: the upright's picture standing 0.30 m deep in a black stage (2) |
+| `kurikint` | Kuri Kinton (World) (1988, Taito, good) | upright; stick, 2 buttons; START | **upright**: Taito L: an alternating upright, one panel, a 1P and a 2P START |
+| `panicprk` | Panic Park (World, PNP2 Ver. A) (1997, Namco, preliminary) | two levers in one slot; tall body, 33" class | **built**: Namco's Panic Park: two levers in one slot, a 33 inch class screen (2) |
+| `sscope` | Silent Scope (ver UAD, Ver 1.33) (1999, Konami, preliminary) | 1 gun rifle on a post, scope; scope screen in the rifle | **built**: Silent Scope: a rifle on a post with a scope that shows the second screen (2) |
+| `sscope2` | Silent Scope 2 : Dark Silhouette (ver UAD, Ver 1.03) (2000, Konami, preliminary) | 1 gun rifle on a post, scope; scope screen in the rifle | **built**: Silent Scope 2: the same |
+| `propcycl` | Prop Cycle (World, PR2 Ver.A) (1996, Namco, imperfect) | bicycle (bars, crank, saddle); wide body | **built**: Namco's Prop Cycle: a bicycle with bars, a crank and a saddle (2) |
+| `finalap3` | Final Lap 3 (World, Rev C) (1992, Namco, imperfect) | driving cockpit: seat, wheel, 2 pedals, gear lever | **built**: Namco's Final Lap 3 (System 2): a sit-down cockpit with a gear lever (the table's button 1, a toggle) (2) |
+| `manxtt` | Manx TT Superbike - DX/Twin (Revision D) (1995, Sega, preliminary) | ride-on motorbike (leans, saddle is a seat) | **built**: Sega's Manx TT Superbike DX/Twin: a motorbike you straddle, that leans (the seat is inferred, medium-low) |
+| `hangon` | Hang-On (Rev A) (1985, Sega, good) | ride-on motorbike (leans, saddle is a seat) | **built**: Sega's Hang-On: a motorbike you straddle (which cabinet has the throttle and brake is in dispute) |
+| `radikalb` | Radikal Bikers (version 2.02) (1998, Gaelco, imperfect) | ride-on motorbike (leans, saddle is a seat) | **approximate**: Gaelco's Radikal Bikers: a motorbike (research: a handlebar panel with throttle and brake, or a 2-way stick with a paddle: conflict; whether the rider sat is not found) |
+| `alpinesa` (= `alpines`) | Alpine Surfer (World, AF2 Ver.A) (1996, Namco, imperfect) | standing rider: snowboard on a rocking plate, rail round the front; wide body | **built**: Namco's Alpine Surfer: a snowboard-style platform with two large handlebars, edge pressure sets the speed (medium-low); the separate monitor unit is not built (2f) |
+| `cybrcycc` | Cyber Cycles (World, CB2 Ver.C) (1995, Namco, imperfect) | ride-on motorbike (leans, saddle is a seat) | **built**: Namco's Cyber Cycles: a motorbike you sit on (seated, medium) |
+| `motoxgo` | Motocross Go! (World, MG3 Ver. A) (1997, Namco, preliminary) | ride-on motorbike (leans, saddle is a seat) | **approximate**: Namco's Motocross Go!: a motorbike; whether the bike swivelled and whether the rider sat are not found |
+| `raveracw` (= `raverace`) | Rave Racer (World, RV2 Ver.B) (1995, Namco, imperfect) | driving cockpit: seat, wheel, 2 pedals | **built**: Namco's Rave Racer (System 22): a sit-down cockpit, wheel and pedals |
+| `harley` | Harley-Davidson and L.A. Riders (Revision B) (1997, Sega, preliminary) | ride-on motorbike (leans, saddle is a seat) | **built**: Sega's Harley-Davidson and L.A. Riders: a motorcycle seat and bars (research) |
+| `daytona` | Daytona USA (Revision A) (1994, Sega, imperfect) | driving cockpit: seat, wheel, 2 pedals | **built**: Sega's Daytona USA (Model 2): a sit-down cockpit; the four-speed lever is an H pattern (the table lists five "gears" buttons), which a two-position lever cannot show, so none is drawn |
+| `daytona2` | Daytona USA 2: Battle on the Edge (Revision A) (1998, Sega, preliminary) | driving cockpit: seat, wheel, 2 pedals, roof | **built**: Daytona USA 2 (Model 3): the Model 3 twins' roof over the seat |
+| `scud` | Scud Race / Sega Super GT - Twin/DX (1996, Sega, preliminary) | driving cockpit: seat, wheel, 2 pedals, roof | **built**: Scud Race / Super GT Twin/DX: a sit-down cockpit with the overhead marquee of the Model 3 twins |
+| `scudplus` | Scud Race Plus / Sega Super GT Plus - Twin/DX (Revision A) (1997, Sega, preliminary) | driving cockpit: seat, wheel, 2 pedals, roof | **built**: the same |
+| `f1lap` | F1 Super Lap (World) (1993, Sega, imperfect) | driving cockpit: seat, wheel, 2 pedals, gear lever | **built**: Sega's F1 Super Lap: a sit-down cockpit with a sequential shifter (up on button 1, down on 2) |
+| `f1en` | F1 Exhaust Note (World, Rev A) (1991, Sega, imperfect) | driving cockpit: seat, wheel, 2 pedals, gear lever; 2 screens | **built**: Sega's F1 Exhaust Note: a sit-down cockpit with a sequential shifter and MAME's two screens (a twin/deluxe unit's) |
+| `dirtdash` | Dirt Dash (World, DT2 Ver.C) (1995, Namco, imperfect) | driving cockpit: seat, wheel, 2 pedals | **built**: Namco's Dirt Dash (System 22): a sit-down cockpit (unverified: nothing was found on the cabinet) |
+| `racedriv` | Race Drivin' (cockpit, rev 5) (1990, Atari Games, good) | driving cockpit: seat, wheel, 2 pedals | **built**: Atari's Race Drivin': a sit-down cockpit; the stick shift and clutch (an H pattern) are not drawn |
+| `harddriv` | Hard Drivin' (cockpit, rev 7) (1988, Atari Games, good) | driving cockpit: seat, wheel, 2 pedals | **built**: Atari's Hard Drivin': a sit-down cockpit; the stick shift and clutch are not drawn |
+| `wecleman` | WEC Le Mans 24 (v2.01) (1986, Konami, good) | stand-up driving cabinet: wheel on the panel, gear lever, pedals on the floor | **approximate**: Konami's WEC Le Mans 24: the standard upright (a force-feedback wheel, two pedals); the mini sit-down cockpit and the deluxe Big Spin (it turned on a spindle with the wheel) are not built; the lever is MAME's Hi/Lo button (the KLOV control list has no shifter: low) |
+| `turbo` | Turbo (program 1513-1515) (1981, Sega, imperfect) | stand-up driving cabinet: wheel on the panel, gear lever, pedals on the floor; tate body, monitor on its side, 19" class | **built**: Sega's Turbo (1981): the upright's 360 degree wheel, a Hi/Lo shifter (high confidence), one gas pedal (two are drawn); the sit-down and the cabaret are not built |
+| `chasehq` | Chase H.Q. (World) (1988, Taito, imperfect) | stand-up driving cabinet: wheel on the panel, gear lever, pedals on the floor | **built**: Taito's Chase H.Q.: the standard upright, a wheel, one pedal, a two-position shifter with a button and a turbo button at the side (low-medium); whether a sit-down existed is disputed and is not built |
+| `contcirc` | Continental Circus (World) (1987, Taito, imperfect) | driving cockpit: seat, wheel, 2 pedals, gear lever | **approximate**: Taito's Continental Circus: a sit-down cockpit with MAME's gear button as a lever; an upright existed too and the shutter 3D glasses are not built; no physical control description was found |
+| `radm` | Rad Mobile (World) (1990, Sega, imperfect) | driving cockpit: seat, wheel, 2 pedals | **built**: Sega's Rad Mobile: a sit-down cockpit (no shifter found) |
+| `slipstrm` | Slip Stream (Brazil 950515) (1995, Capcom, imperfect) | driving cockpit: seat, wheel, 2 pedals, gear lever | **built**: Capcom's Slip Stream (Sega System 32): a sit-down cockpit with a one-button toggle lever |
+| `luckywld` | Lucky & Wild (1992, Namco, good) | two-seat cockpit: driver's wheel and pedal, a gun each, gunner's START; 25" class | **built**: Namco's Lucky & Wild: a driver's wheel and pedal and a gun each (a two-seat cockpit) |
+| `policetr` | Police Trainer (Rev 1.3B, Rev 0.3 PCB) (1996, P&P Marketing, good) | 2 guns in holsters | **approximate**: Police Trainer: two guns in holsters (MAME: two light guns); nothing was found on the cabinet |
+| `revx` | Revolution X (revision 2.0 9/8/94) (1994, Midway, good) | 3 guns on swivel posts | **approximate**: Revolution X: three controllers on posts (research: heavy, fixed to the panel and used like joysticks, or a mounted light gun: conflict) |
+| `opwolf` | Operation Wolf (World, rev 2, set 1) (1987, Taito, imperfect) | 1 gun on swivel posts | **built**: Operation Wolf: one Uzi-style machine gun on a pivoting mount (medium); the grenade button near the barrel is not drawn |
+| `opwolf3` | Operation Wolf 3 (World) (1994, Taito, good) | 2 guns in holsters | **approximate**: Operation Wolf 3: two guns in holsters; the real guns were "a completely different design" with a pump slide under the barrel (low): not drawn |
+| `opwolf3u` | Operation Wolf 3 (US) (1994, Taito America, good) | 2 guns in holsters | **approximate**: the same set (US) |
+| `othunder` | Operation Thunderbolt (World, rev 1) (1988, Taito, good) | 2 guns on swivel posts | **built**: Operation Thunderbolt: two positional guns on posts (a trigger and two buttons each); the recoil kickers are not drawn |
+| `rchase` | Rail Chase (World) (1991, Sega, good) | 2 guns in holsters; bench of 2 seats that moves | **built**: Sega's Rail Chase: a bench of two seats that pitches with the ride (DIP "Moving"; here it stands still), two guns |
+| `rchase2` | Rail Chase 2 (Revision A) (1994, Sega, imperfect) | 2 guns on swivel posts; bench of 2 seats that moves | **approximate**: Rail Chase 2: the same bench; guns, players and cabinet were not found: two guns on posts |
+| `timecris` | Time Crisis (World, TS2 Ver.B) (1996, Namco, imperfect) | 1 gun in holsters, foot pedal | **built**: Time Crisis: one gun with force feedback and ONE foot pedal (cover and reload) |
+| `timecrs2` | Time Crisis II (US, TSS3 Ver. B) (1997, Namco, preliminary) | 1 gun in holsters, foot pedal | **built**: Time Crisis II: one gun and one pedal each; the second player is a second linked cabinet |
+| `crszone` | Crisis Zone (World, CSZO4 Ver. B) (1999, Namco, preliminary) | 1 gun in holsters, foot pedal | **built**: Crisis Zone: one gun and one pedal |
+| `lethalen` | Lethal Enforcers (ver UAE, 11/19/92 15:04) (1992, Konami, imperfect) | 2 guns in holsters | **built**: Konami's Lethal Enforcers: two revolver-shaped guns |
+| `gunbulet` (= `gunbuletw`, `gunbuletj`) | Gun Bullet (World, GN3 Rev B) (1994, Namco, good) | 2 guns in holsters | **built**: Namco's Gun Bullet (Point Blank): two guns with recoil |
+| `g13knd` | Golgo 13 Kiseki no Dandou (Japan, GLS1/VER.A) (2000, Eighting / Raizing / Namco, imperfect) | 1 gun rifle on a post, scope; scope screen in the rifle | **approximate**: Golgo 13: a rifle with a scope; the match with the romset is unverified (low) |
+| `alien3` | Alien3: The Gun (World) (1993, Sega, imperfect) | 2 guns on swivel posts | **built**: Sega's Alien3: The Gun: replica pulse rifles mounted in the cabinet, one a player |
+| `jurassicp` (= `jpark`) | Jurassic Park (World, Rev A) (1993, Sega, imperfect) | 2 guns on swivel posts; bench of 2 seats that moves | **approximate**: Sega's Jurassic Park: two guns on posts and a bench that moves in the sit-down version (low: controls conflict between light guns and joysticks) |
+| `undrfire` | Under Fire (World) (1993, Taito, imperfect) | 2 guns in holsters | **built**: Taito's Under Fire: two guns with force feedback on the trigger |
+| `gunbustr` | Gunbuster (World) (1992, Taito, imperfect) | 2 guns in holsters | **approximate**: Taito's Gunbuster: two guns in holsters; a joystick walks and the gun aims, an upright with two screens, four guns for 2-on-2 (all unverified, low): none of that is built |
+| `spacegun` | Space Gun (World) (1990, Taito, good) | 2 guns on swivel posts | **built**: Taito's Space Gun: two positional guns on posts; the pump control and the recoil are not drawn |
+| `zeropnt` | Zero Point (set 1) (1998, Unico, good) | 2 guns in holsters | **approximate**: Unico's Zero Point: two guns in holsters; nothing was found on the cabinet |
+| `lghost` | Laser Ghost (World) (FD1094 317-0166) (1990, Sega, good) | 3 guns in holsters | **built**: Sega's Laser Ghost: three guns (up to three players), a positional gun with two buttons each |
+| `dlair` | Dragon's Lair (US Rev. F2) (1983, Cinematronics, good) | upright; stick, 1 button; 19" class | **upright**: Dragon's Lair: an upright, one stick and one button (a Pioneer laserdisc player behind it) |
+| `cliffhgr` | Cliff Hanger (set 1) (1983, Stern Electronics, good) | upright; 2 x stick, 2 buttons; 19" class | **upright**: Cliff Hanger: an upright, a stick and two buttons a player |
+| `usvsthem` | Us vs. Them (1984, Mylstar, good) | upright; stick, 3 buttons; 19" class | **upright**: Us vs. Them (1984): an upright, a conversion of M.A.C.H. 3's cabinet |
+| `badlands` | Bad Lands (1989, Atari Games, good) | upright; 2 x wheel, 2 buttons; tall body, 31" class | **built**: Atari Games' Bad Lands: a wheel for each of two players, no pedals (MAME calls the wheel a dial; the wheels turn all the way round: one owner's account) |
+| `cobram3` | Cobra Command (M.A.C.H. 3 hardware, set 1) (1984, Data East, good) | upright; stick, 2 buttons; 19" class | **upright**: Data East's Cobra Command (M.A.C.H. 3 hardware, 1984): an upright with an optical stick and two buttons (fire and missile) |
+| `interstellar` (= `istellar`) | Inter Stellar (Laser Fantasy) (1983, Funai/Gakken, preliminary) | upright; stick, 2 buttons; 19" class | **upright**: Funai/Gakken's Interstellar Laser Fantasy (`istellar`; the 1984 `istellar2` is Zangus): one player, a stick (4-way in MAME, 8-way in a listing) and two buttons, an upright with an external laserdisc player; a sit-down cockpit with a woofer under the seat also existed (medium) and is not built; both sets are NOT_WORKING in MAME |
+| `thayers` | Thayer's Quest (set 1) (1984, RDI Video Systems, imperfect) | upright; stick, 6 buttons; 19" class | **approximate**: Thayer's Quest: an upright whose real control was a membrane keypad and keyboard, no joystick (MAME has a full keyboard matrix): a stick and six buttons are drawn |
+| `spaceace` | Space Ace (US Rev. A3) (1983, Cinematronics, preliminary) | upright; stick, 1 button; 19" class | **upright**: Space Ace: an upright, a stick and a button |
+| `roadblst` | Road Blasters (upright, rev 4) (1987, Atari Games, good) | stand-up driving cabinet: wheel on the panel, pedals on the floor | **approximate**: Atari's Road Blasters: a stand-up with a WHEEL drawn; the real controller was a yoke (medium, one article), the pedals one or two (conflict), two trigger buttons on it; the sit-down cockpit is not built |
+| `astron` | Astron Belt (1983, Sega, preliminary) | upright; stick, 2 buttons; 19" class | **upright**: Sega's Astron Belt: an upright, a stick and fire; a sit-down cockpit with a 25 inch monitor and a vibrating seat also existed (low-medium) and is not built |
+| `sonic` | SegaSonic The Hedgehog (Japan, rev. C) (1992, Sega, imperfect) | upright; 3 x trackball, 1 button; tall body, 26" class | **upright**: SegaSonic the Hedgehog: three players, a trackball each and a jump button (low-medium) |
+| `marble` | Marble Madness (set 1) (1984, Atari Games, good) | upright; 2 x trackball; 19" class | **upright**: Marble Madness: a trackball for each of two players, no button in MAME |
+| `arkanoid` | Arkanoid (World, older) (1986, Taito, good) | upright; 2 x dial, 1 button; tate body, monitor on its side | **upright**: Taito's Arkanoid: a geared spinner and a fire button, the monitor on its side |
+| `dotron` | Discs of Tron (Upright, 10/4/83) (1983, Bally Midway, good) | upright; trackball, 4 buttons; 19" class | **approximate**: Discs of Tron: MAME gives it a joystick, a dial and a trackball and a trackball with four buttons is drawn; the real controls were not verified (nothing found), and an "environmental" enclosure with a two-way mirror in every version (medium-low) is not built |
+| `qbert` | Q*bert (US set 1) (1982, Gottlieb, imperfect) | upright; stick; START; tate body, monitor on its side, 19" class | **upright**: Gottlieb's Q*bert: a 4-way stick turned 45 degrees (the turn is not drawn), no buttons, the monitor on its side |
+| `centiped` | Centipede (revision 4) (1980, Atari, good) | upright; trackball, 1 button; tate body, monitor on its side, 19" class | **upright**: Atari's Centipede: a trackball and a fire button, the monitor on its side |
+| `milliped` | Millipede (1982, Atari, good) | upright; trackball, 1 button; START; tate body, monitor on its side, 19" class | **upright**: Atari's Millipede: the same |
+| `trackfld` | Track & Field (1983, Konami, good) | upright; 4 x buttons only, 3 buttons; tall body, 35" class | **upright**: Konami's Track & Field: three buttons a player and no joystick; MAME has four players (IN0 for P1 and P2, IN1 for P3 and P4); the cabinet DIP is upright or cocktail |
+| `hyperspt` | Hyper Sports (1984, Konami, good) | upright; 4 x buttons only, 3 buttons; tall body, 35" class | **upright**: Konami's Hyper Sports: three buttons a player, four players in MAME |
+| `starwars` | Star Wars (Atari, set 1) (1983, Atari, good) | upright; yoke, 4 buttons | **built**: Atari's Star Wars: the upright's analog yoke, four buttons in MAME (two, or a trigger and a thumb button, in listings: conflict); a sit-down cockpit also existed (medium) and is not built (2e) |
+| `asteroid` | Asteroids (rev 4) (1979, Atari, good) | upright; buttons only, 5 buttons | **upright**: Atari's Asteroids: five buttons (rotate, thrust, fire, hyperspace) on an upright |
+| `tempest` | Tempest (rev 3, Revised Hardware) (1980, Atari, good) | upright; dial, 2 buttons; START; tate body, monitor on its side | **upright**: Atari's Tempest: a spinner and two buttons, the monitor on its side |
+| `redbaron` | Red Baron (revised hardware) (1980, Atari, good) | upright; yoke, 1 button | **built**: Atari's Red Baron: the same yoke (the monitor's orientation: conflict between sources) |
+| `spacfury` | Space Fury (revision C) (1981, Sega, good) | upright; stick, 2 buttons; START | **upright**: Sega's Space Fury: a left/right stick and two buttons a player, the monitor flipped (r180); the cocktail DIP is not implemented in MAME |
+| `rotaryf` | Rotary Fighter (1979, Kasco, imperfect) | upright; stick, 1 button; START; tate body, monitor on its side, 19" class | **upright**: Kasco's Rotary Fighter: a single-player upright; MAME gives a two-way stick and a button ("a rotary dial" is the brief's, not confirmed); the monitor on its side in MAME, horizontal in one listing |
+| `nitedrvr` | Night Driver (1976, Atari, imperfect) | stand-up driving cabinet: wheel on the panel, pedals on the floor; 19" class | **approximate**: Atari's Night Driver (1976): the upright's wheel and ONE accelerator (two pedals are drawn); the four-gear lever (one listing, low) is not drawn; the Highway sit-down model is not built |
+| `safarir` | Safari Rally (World) (1979, SNK, imperfect) | upright; stick, 1 button; tate body, monitor on its side, 19" class | **upright**: Taito's Safari Rally: an upright; its controls were not found (MAME: a stick and a button) |
+| `targ` | Targ (1980, Exidy, imperfect) | upright; stick, 1 button; 19" class | **upright**: Exidy's Targ: a 4-way stick and one button |
+| `wacko` | Wacko (1982, Bally Midway, good) | upright; trackball; START; 19" class | **approximate**: Bally Midway's Wacko: a trackball steers and a joystick aims and fires (low-medium; ExoticA lists two 4-way sticks): only the trackball is drawn (a panel draws one control) |
+| `zwackery` | Zwackery (1984, Bally Midway, good) | upright; rotary stick, 4 buttons; 19" class | **built**: Bally Midway's Zwackery: an 8-way stick, a dial and four buttons (Sword, Shield, Spell Up, Spell Down): the rotary stick (2d) |
+| `kick` | Kick (upright) (1981, Midway, good) | upright (flagged `odd`); dial, 1 button; tate body, monitor on its side, 19" class | **upright**: Midway's Kick: one kick button and a sideways control the sources dispute (an optical roller, a rotary input or a trackball: low): a dial is drawn, the monitor on its side |
+| `tron` | Tron (8/9) (1982, Bally Midway, good) | upright; rotary stick, 1 button; START; tate body, monitor on its side, 19" class | **built**: Bally Midway's Tron: an 8-way stick with a trigger and a rotary dial that aims (low-medium): the rotary stick (2d) |
+| `journey` | Journey (1983, Bally Midway, good) | upright; stick, 1 button; START; tate body, monitor on its side, 19" class | **upright**: Bally Midway's Journey: a stick and a button; one or two buttons and 4 or 8 ways are in dispute |
+
+**Totals: 87 built, 28 upright, 26 approximate, 2 none (143).** What the approximations have in common is a thing no panel draws or nothing found about: a second control beside the first
+(Wacko's stick, Discs of Tron's), a twin (OutRun 2's second seat), a throttle (Star Wars Arcade's pilot), a keyboard (Thayer's Quest), a yoke (Road Blasters), the sit-down version of a game that
+was mostly an upright, and the games MAME runs badly or not at all whose cabinets nothing describes (Karaoke Mix, Kids, Police Trainer, Zero Point, Rail Chase 2, Operation Wolf 3).
+**Never run against a core or a ROM, and never seen in a headset**: this table is what is built, not what was played.

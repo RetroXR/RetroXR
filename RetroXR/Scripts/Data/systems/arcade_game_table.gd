@@ -765,7 +765,7 @@ p2c2b0w8:joy;m19 friskyt=friskyta=friskytb
 p2c2b0w8:twin;s2;c0,0,1,0.75/1.0075,0,1,0.75;v titlef=titlefj=titlefu
 p2c2b1w0:ball;r270;a bigevglf=bigevglfj usclssic
 p2c2b1w0:btn+dial;r90;a sfkick=sfkicka=spinkick
-p2c2b1w0:btn;v;bg wcombat=wcombatj=wcombatk
+p2c2b1w0:btn;g2;tgun;v;bg wcombat=wcombatj=wcombatk
 p2c2b1w0:gun;g2;tgun;qsm;v rchase=rchasej=rchasejb
 p2c2b1w0:gun;g2;tgun;v;bg jpark3=jpark3u wcombatu<wcombat
 p2c2b1w0:gun;r180;g2;tgun bubbletr=bubbletrj gollygho

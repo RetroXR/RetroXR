@@ -2061,6 +2061,15 @@ func _group_audit() -> void:
 	_ok(dg.players == 2 and dg.coins == 2 and P.for_romset("dariusgx").players == 2 and (dsp["players"] as Array).size() == 2 and (dsp["coins"] as Array).size() == 2
 			and _kinds(dsp) == ["stick", "stick"],
 		"audit: Darius Gaiden has two panels of a stick and two coin doors, the Extra Version too (%s)" % str(_kinds(dsp)))
+	# World Combat / Warzaid (Konami Viper, 2002): one optical gun a player. MAME's 4P sets leave the gun axes undefined and list two buttons; only the 2P set was a gun game.
+	var wc_bad: Array = []
+	for romset: String in ["wcombat", "wcombatj", "wcombatk", "wcombatu"]:
+		var gp := P.for_romset(romset)
+		var sp := _spec(romset)
+		if gp.form() != P.FORM_GUN or int(sp["guns"]) != 2 or str(sp["gun_style"]) != "holster" or _kinds(sp) != ["start", "start"] or sp.has("gun_pedals"):
+			wc_bad.append("%s (%s)" % [romset, gp.form()])
+	_ok(wc_bad.is_empty() and not P.for_romset("kickgoal").is_gun(),
+		"audit: all four World Combat sets are gun cabinets, two guns in holsters and no pedal, as the 2P set was (%s)" % str(wc_bad))
 	# The modern boards give a driving game a joystick panel, or no controls at all: each was a sit-down cockpit.
 	var race_bad: Array = []
 	for romset: String in ["outr2", "outr2st", "crtaxihr", "wangmid", "wangmid2", "initd", "initdexp", "initdv3j", "inidv3cy", "clubkrt", "clubk2k3", "f355", "f355twin", "sgdrvsim",

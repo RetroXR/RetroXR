@@ -801,9 +801,9 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   **Every shooter is one, MAME's own typing or not** (2026-10-26): MAME files a light gun only where its driver reads one, so Time Crisis 3 and 4
   and Vampire Night (a System 246 driver that declares no controls at all, so no profile existed and the cabinet stayed an upright), House of the
   Dead III and 4, Ghost Squad, Virtua Cop 3, Let's Go Jungle, Ninja Assault and the Atomiswave hunters (a joystick panel) and Alien3, Jurassic Park,
-  Gunblade NY, Rail Chase 2 (analog sticks, like Terminator 2) were plain uprights. `UNTYPED_GUNS` in `gen_game_index.py` names them, by parent
+  Gunblade NY, Rail Chase 2 (analog sticks, like Terminator 2) and World Combat's 4P sets (two buttons in MAME: its gun axes are an undefined TODO there) were plain uprights. `UNTYPED_GUNS` in `gen_game_index.py` names them, by parent
   romset, with their form and number of guns; MAME's own `g` wins where it counts guns, and a driver with no `<input>` is given a profile
-  (players and coin doors to a gun). `arcade_tests game/` pins a roster of 60 shooters (the form and the pedal), and a census over the whole
+  (players and coin doors to a gun). `arcade_tests game/` pins a roster of 69 shooters (the form and the pedal), and a census over the whole
   table: **no profile that names a light gun is left an upright** (bar five whose "gun" is a hammer, a seat or a stage: `odd`).
   **A gun MAME reads as an analog stick is also the pad's left stick** (`ArcadeGameProfile.aims_as_stick`: a gun game with the `stick` kind):
   libretro-mame binds `IPT_AD_STICK` to the pad's LEFT stick and a light gun to the light-gun device alone (`ah_assignmenthelper.cpp`, `input_retro.cpp`),

@@ -1542,7 +1542,7 @@ const _SHOOTERS := {
 	"xtrmhnt2": ["gun", false], "lethalen": ["gun", false], "le2": ["gun", false], "area51": ["gun", false],
 	"maxforce": ["gun", false], "jpark3": ["gun", false], "p9112": ["gun", false], "bang": ["gun", false],
 	"bbh": ["gun", false], "deerhunt": ["gun", false], "turkhunt": ["gun", false], "cryptklr": ["gun", false],
-	"opwolf3": ["gun", false], "duckhunt": ["gun", false],
+	"opwolf3": ["gun", false], "duckhunt": ["gun", false], "wcombat": ["gun", false], "wcombatu": ["gun", false],
 	"opwolf": ["gunm", false], "othunder": ["gunm", false], "term2": ["gunm", false], "revx": ["gunm", false],
 	"bbusters": ["gunm", false], "bbust2": ["gunm", false], "mechatt": ["gunm", false], "spacegun": ["gunm", false],
 	"loffire": ["gunm", false], "lostwsga": ["gunm", false], "dragngun": ["gunm", false], "gunblade": ["gunm", false],

@@ -132,14 +132,15 @@ MOUNTED_GUN = {"opwolf", "othunder", "bbusters", "bbust2", "mechatt", "loffire",
                "revx", "dragngun", "lostwsga"}
 # A rifle on a mount with a scope you look into (the scope is a second screen in Silent Scope).
 RIFLE = {"sscope", "sscope2", "sscopex", "sscopefh", "golgo13", "g13knd", "g13jnr"}
-# Gun games MAME does not file as light guns, by PARENT romset: name -> (form, guns). Three kinds:
+# Gun games MAME does not file as light guns, by PARENT romset: name -> (form, guns). Four kinds:
 # a driver that declares no controls yet (Namco System 246's Time Crisis 3 and 4 and Vampire Night, Sega
 # Lindbergh's House of the Dead 4 and EX, Ghost Squad Evolution, Let's Go Jungle, Primeval Hunt), the
 # joystick panel a Chihiro, Naomi or Atomiswave game is given (House of the Dead III, Ghost Squad, Virtua Cop
 # 3, Ninja Assault, Gun Survivor 2, Sports Shooting USA, Clay Challenge, Extreme Hunting), and the analog
 # sticks a positional gun reads as (Alien3, Jurassic Park, Gunblade NY, Rail Chase 2: swivel mounts like
-# Terminator 2's). Counts and cords-or-mounts are what the real cabinets had (docs/dev/arcade-cabinets.md);
-# MAME's own `g` wins where it counts guns.
+# Terminator 2's), and a set whose gun axes MAME has not defined yet (World Combat / Warzaid's 4P sets read as two
+# buttons: its own 2P set `wcombatu` IS filed as a gun game, and a clone takes its parent's form). Counts and
+# cords-or-mounts are what the real cabinets had (docs/dev/arcade-cabinets.md); MAME's own `g` wins where it counts guns.
 UNTYPED_GUNS = {
     "vnight": ("gun", 2), "timecrs3": ("gun", 2), "timecrs4": ("gun", 2),
     "hotd3": ("gun", 2), "ghostsqu": ("gun", 2), "vcop3": ("gun", 2),
@@ -149,6 +150,7 @@ UNTYPED_GUNS = {
     "sprtshot": ("gun", 2), "claychal": ("gun", 2), "xtrmhunt": ("gun", 2), "xtrmhnt2": ("gun", 2),
     "alien3": ("gunm", 2), "jpark": ("gunm", 2), "gunblade": ("gunm", 2), "rchase2": ("gunm", 2),
     "oceanhun": ("gunm", 2),
+    "wcombat": ("gun", 2),
 }
 # Gun games with a foot pedal (step on it to come out of cover).
 GUN_PEDAL = {"timecris", "timecrs2", "timecrs3", "timecrs4", "crszone"}
