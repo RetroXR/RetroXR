@@ -65,3 +65,50 @@ static func polyline_length(route: PackedVector3Array) -> float:
 	for i in range(1, route.size()):
 		total += route[i].distance_to(route[i - 1])
 	return total
+
+
+## A cord that hangs from `boss` down the front of a cabinet in a U and comes back up to `entry`, as long as `length` (the lay a stowed cord is started on: see the head of this file).
+## `boss` is where the cord leaves what it is tied to, `entry` where it goes into the cabinet, both in one frame in which +Y is up and `front` (a unit vector) is horizontal and points away from
+## the cabinet's face toward the player: the cord goes down `STAND_OFF` in front of the face, turns at the bottom and rises against it. How deep the U goes is solved against `length`: the
+## floor is as low as it goes (a cord longer than that lies on the floor in slack), a U hardly deeper than the entry is as short as it gets (a cord shorter than that is the shortest, and the
+## rope's own length decides the rest).
+const STAND_OFF := 0.04
+const HANG_FLOOR := 0.03
+
+
+static func hanging_route(boss: Vector3, entry: Vector3, length: float, front: Vector3 = Vector3.BACK) -> PackedVector3Array:
+	var lo := HANG_FLOOR
+	var hi := minf(boss.y, entry.y) - 0.10
+	hi = maxf(hi, lo + 0.01)
+	if polyline_length(_hanging_route_at(boss, entry, front, lo)) <= length:
+		return _hanging_route_at(boss, entry, front, lo)
+	if polyline_length(_hanging_route_at(boss, entry, front, hi)) >= length:
+		return _hanging_route_at(boss, entry, front, hi)
+	for _i in 24:
+		var mid := (lo + hi) * 0.5
+		# The higher the bottom of the U, the shorter the cord it uses.
+		if polyline_length(_hanging_route_at(boss, entry, front, mid)) > length:
+			lo = mid
+		else:
+			hi = mid
+	return _hanging_route_at(boss, entry, front, (lo + hi) * 0.5)
+
+
+static func _hanging_route_at(boss: Vector3, entry: Vector3, front: Vector3, bottom: float) -> PackedVector3Array:
+	var out := front * STAND_OFF
+	var down_at := Vector3(boss.x, 0.0, boss.z) + out
+	var up_at := Vector3(entry.x, 0.0, entry.z) + front * 0.012
+	var mid_at := (down_at + up_at) * 0.5
+	var pts := PackedVector3Array([
+		boss,
+		Vector3(boss.x, boss.y - 0.03, boss.z) + out * 0.5,
+		Vector3(down_at.x, boss.y - 0.08, down_at.z),
+		Vector3(down_at.x, bottom + 0.06, down_at.z),
+		Vector3(mid_at.x, bottom, mid_at.z),
+		Vector3(up_at.x, bottom + 0.06, up_at.z),
+	])
+	if entry.y - 0.05 > bottom + 0.06:
+		pts.append(Vector3(up_at.x, entry.y - 0.05, up_at.z))
+	pts.append(Vector3(entry.x, entry.y, entry.z) + front * 0.004)
+	pts.append(entry)
+	return pts

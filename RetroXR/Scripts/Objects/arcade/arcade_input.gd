@@ -427,6 +427,11 @@ func engaged() -> bool:
 	for holder: Variant in _host.get_port_controllers():
 		if holder != null and is_instance_valid(holder) and held_by_hand(holder):
 			return true
+	# A drummer's sticks, or whatever else the cabinet is wired to (RetroSystem.captive_gear), in a hand.
+	if _host.has_method("captive_gear"):
+		for gear: Variant in _host.call("captive_gear"):
+			if gear != null and is_instance_valid(gear) and held_by_hand(gear):
+				return true
 	return false
 
 

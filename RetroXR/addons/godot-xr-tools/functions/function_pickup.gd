@@ -1305,6 +1305,10 @@ func _seated_transform(zone: XRToolsSnapZone, held: Basis) -> Transform3D:
 func _get_ray_preview_radius() -> float:
 	if _ray_preview_radius >= 0.0:
 		return _ray_preview_radius
+	# LOCAL PATCH (RetroXR): the target's own say (see XRToolsGrabDriver._get_preview_radius).
+	if is_instance_valid(_ray_grab_object) and _ray_grab_object.has_method("preview_radius"):
+		_ray_preview_radius = maxf(float(_ray_grab_object.call("preview_radius")), 0.0)
+		return _ray_preview_radius
 	_ray_preview_radius = 0.0
 	# The body's OWN shapes only. A plug carries a wider PointerArea proxy so the
 	# beam can hit it, and measuring that would engage sockets far too early.

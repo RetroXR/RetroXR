@@ -32,6 +32,12 @@ const DECK_EXTRA := {DECK: 0.0, POPN: 0.0, GUITAR: 0.0, DRUMS: 0.20, TAIKO: 0.25
 ## The gap between two players' panels.
 const PANEL_GAP := 0.03
 
+## What a player holds that is wired to the cabinet, by kind: the scene (Tools/gen/gen_arcade_drumstick.gd) and how long its cord is. A panel's `gear` lists where each one rests (ArcadeCabinetBuilder builds
+## the cradle and the `GearRest` marker the cabinet finds them by; ArcadeGearRack spawns, cords and holsters them).
+const GEAR := {
+	"drumstick": {"scene": "res://Scenes/Objects/peripherals/arcade_drumstick.tscn", "cord": 0.95},
+}
+
 const WHITE := Color(0.93, 0.93, 0.90)
 const BLACK := Color(0.13, 0.13, 0.16)
 const CREAM := Color(0.92, 0.88, 0.78)
@@ -92,6 +98,21 @@ static func panel(instrument: String, player: int, cx: float, mirror: bool) -> D
 		var p: Dictionary = (layout["pedal"] as Dictionary).duplicate()
 		p["x"] = cx + sign_x * float(p["x"])
 		out["pedal"] = p
+	if layout.has("grip_x"):
+		# The part of the panel a laser or a crosshair takes as the PANEL (ArcadePanelGrip): not what lies beside it (a cradle's stick is a pickable of its own, and a box over it would hide it).
+		var gx: Vector2 = layout["grip_x"]
+		out["gx0"] = cx + minf(sign_x * gx.x, sign_x * gx.y)
+		out["gx1"] = cx + maxf(sign_x * gx.x, sign_x * gx.y)
+	if layout.has("gear"):
+		var gear: Array = []
+		for src: Dictionary in layout["gear"]:
+			var g := src.duplicate()
+			var gp: Vector2 = src["pos"]
+			g["pos"] = Vector2(cx + sign_x * gp.x, gp.y)
+			if mirror:
+				g["side"] = 1 - int(src["side"])
+			gear.append(g)
+		out["gear"] = gear
 	return out
 
 
@@ -218,7 +239,16 @@ static func _taiko() -> Dictionary:
 		{"name": "RimLeft", "btn": 4, "shape": "sector", "pos": Vector2.ZERO, "r0": 0.128, "r1": 0.172, "a0": 92.0, "a1": 268.0, "h": 0.014, "z": 0.050, "color": Color(0.75, 0.10, 0.10)},
 		{"name": "RimRight", "btn": 1, "shape": "sector", "pos": Vector2.ZERO, "r0": 0.128, "r1": 0.172, "a0": -88.0, "a1": 88.0, "h": 0.014, "z": 0.050, "color": Color(0.75, 0.10, 0.10)},
 	]
-	return {"x": Vector2(-0.19, 0.19), "y": Vector2(-0.22, 0.19), "start": Vector2(0.0, -0.205), "parts": parts}
+	# A pair of drumsticks (bachi) in a cradle each side of the drum, lying along the deck with the butt toward the player and the cord leaving the butt over the deck's front edge: left stick on the left.
+	var sticks: Array = []
+	for side in 2:
+		sticks.append({"kind": "drumstick", "side": side, "pos": Vector2(STICK_X * (-1.0 if side == 0 else 1.0), STICK_Y)})
+	return {"x": Vector2(-0.31, 0.31), "y": Vector2(-0.22, 0.19), "start": Vector2(0.0, -0.205), "parts": parts, "gear": sticks, "grip_x": Vector2(-0.205, 0.205)}
+
+
+## Where a drumstick's grip rests in its cradle, in the panel's frame: out from the drum's middle (the shell is 0.185 from it) and forward, so the butt is a hand's width from the deck's front edge.
+const STICK_X := 0.245
+const STICK_Y := -0.105
 
 
 ## Mambo a Go-Go (konami/ksys573.cpp `mamboagg`: Left, Centre and Right Pad 1 to 3 = BUTTON1 to BUTTON9: BUTTON1 Left Pad 1, BUTTON2 Centre Pad 1, BUTTON3 Right Pad 1, BUTTON4 Left Pad 2 ... BUTTON9 Right

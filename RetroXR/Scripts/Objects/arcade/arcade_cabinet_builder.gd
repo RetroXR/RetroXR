@@ -548,6 +548,8 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 	var kind: String = spec["kind"]
 	var start_x: float = spec["start_x"]
 	var extent := ArcadeCabinetSpecs.panel_extent(spec)
+	if spec.has("gx0"):
+		extent = Vector2(float(spec["gx0"]), float(spec["gx1"]))
 	var top := 0.0825
 	var bottom := -0.1025
 	# The panel in the cabinet's frame, for what stands on the floor in front (a racer's pedals, a dancer's
@@ -684,6 +686,8 @@ func _build_instrument(mod: Node3D, spec: Dictionary, index: int, to_panel: Tran
 		_instrument_part(mod, part, index)
 	if spec.has("pedal"):
 		_bass_pedal(mod, to_panel, spec["pedal"])
+	for gear: Dictionary in spec.get("gear", []):
+		_gear_rest(mod, gear, to_panel)
 
 
 ## One part of an instrument: a box (a key, a neck), a disc or a dome (a pad, a button; a dome has a rim of its own colour, as a pad has a hoop) or a sector (a drum's face or rim).
@@ -716,6 +720,42 @@ func _instrument_part(mod: Node3D, part: Dictionary, index: int) -> void:
 			node.mesh = mesh
 			node.basis = Basis(Quaternion(Vector3.UP, Vector3.BACK))
 			node.set_meta(&"sector", {"r0": float(part["r0"]), "r1": float(part["r1"]), "a0": deg_to_rad(float(part["a0"])), "a1": deg_to_rad(float(part["a1"]))})
+	# Which part of the controller a button is, by its own name ("FaceLeft", "Fret2"): what a stick looks for (ArcadeDrumstick.zones_of) and a prompt names.
+	if button > 0:
+		var made := mod.get_node_or_null(node_name)
+		if made != null:
+			made.set_meta(&"part", str(part["name"]))
+
+
+## Where a player's hand-held gear that is wired to the cabinet rests (a Taiko drummer's two sticks): a cradle on the deck, a `GearRest<L|R>` marker whose frame is the gear's own (the cabinet reads where
+## to put it from there, ArcadeGearRack) and under it `Entry`, where its cord goes into the cabinet: the apron's face under the deck's front edge, 6 cm down. The gear itself is not built here: it is a
+## pickable of its own on a cord (ArcadeHeldGear), spawned with the machine. A drumstick lies along the deck with its head up the slope and its butt, where the cord is tied, toward the player.
+const GEAR_Z := 0.0165
+const GEAR_HALF_LENGTH := 0.17
+const GEAR_REST_BASIS := Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0))
+
+
+func _gear_rest(mod: Node3D, gear: Dictionary, to_panel: Transform3D) -> void:
+	var pos: Vector2 = gear["pos"]
+	var kind := str(gear["kind"])
+	var tag := "L" if int(gear["side"]) == 0 else "R"
+	var info: Dictionary = ArcadeInstruments.GEAR[kind]
+	var rest := ArcadeParts.node(_owner, mod, "Marker3D", "GearRest" + tag, Vector3(pos.x, pos.y, GEAR_Z)) as Marker3D
+	rest.basis = GEAR_REST_BASIS
+	rest.set_meta(&"gear", kind)
+	rest.set_meta(&"side", int(gear["side"]))
+	rest.set_meta(&"scene", str(info["scene"]))
+	rest.set_meta(&"cord", float(info["cord"]))
+	# The cord goes in on the apron's face, 6 cm under the deck's front edge, straight out from the cradle: given in the cabinet's frame, carried into the marker's.
+	var edge: Vector2 = _sh.get("deck_a", Vector2(0.47, 0.92))
+	var face := float(_sh.get("apron_z", edge.x))
+	var entry := ArcadeParts.node(_owner, rest, "Marker3D", "Entry") as Marker3D
+	entry.position = rest.transform.affine_inverse() * (to_panel * Vector3(pos.x, edge.y - 0.06, face))
+	# The cradle: a rubber floor under the stick and a lip at each end, dark, so it reads as where the stick goes and is no part of it.
+	ArcadeParts.box(_owner, mod, "GearCradle" + tag, Vector3(0.042, GEAR_HALF_LENGTH * 2.0, 0.006), Vector3(pos.x, pos.y + 0.07, 0.003), _dark)
+	for end in [-1.0, 1.0]:
+		ArcadeParts.box(_owner, mod, "GearLip%s%d" % [tag, 0 if end < 0 else 1], Vector3(0.042, 0.008, 0.016),
+			Vector3(pos.x, pos.y + 0.07 + end * (GEAR_HALF_LENGTH - 0.004), 0.008), _dark)
 
 
 ## A DJ's turntable: a metal plinth and a platter of black vinyl that turns about its spindle (`DialPivot`, with LEFT and RIGHT or a hand: a hand takes it anywhere on the platter).

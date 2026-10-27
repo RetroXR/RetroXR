@@ -270,6 +270,19 @@ func _shot_forms() -> void:
 		else:
 			_glass(384, 224)
 		_model.on_power_on()
+		# What the cabinet is wired to besides its guns (a Taiko drummer's sticks): where each lies and whether its cord is laid.
+		for piece: Variant in _sys.captive_gear():
+			var gear := piece as ArcadeHeldGear
+			var cord := gear.cord()
+			var low := INF
+			var high := -INF
+			if cord != null:
+				for point: Vector3 in cord.get_points():
+					low = minf(low, point.y)
+					high = maxf(high, point.y)
+			print("[probe] gear %s player %d side %d at %s cord=%s (y %.2f..%.2f, asleep %s) well=%s" % [romset, gear.player, gear.side, str(gear.global_position),
+				"%d points" % cord.point_count() if cord != null else "none", low, high, str(cord.is_sleeping()) if cord != null else "-",
+				str(gear.captive_well != null and gear.captive_well.picked_up_object == gear)])
 		var size := _model.ground_footprint()
 		var center := _model.ground_footprint_center()
 		var mid := Vector3(center.x, 0.85, center.y)
@@ -292,6 +305,38 @@ func _shot_forms() -> void:
 			_cam.fov = 50.0
 			_look(deck.global_position + deck.global_basis.z * span * 0.85 - deck.global_basis.y * span * 0.55, deck.global_position)
 			await _save("formdeck_" + romset)
+			_cam.fov = 58.0
+		# Gear wired to the cabinet (a Taiko drummer's sticks): from the front and a little to the side, low enough to see the cords hang down the apron, and then a stick taken out and held over the drum.
+		var gear_pieces: Array = _sys.captive_gear()
+		if not gear_pieces.is_empty():
+			var first := gear_pieces[0] as ArcadeHeldGear
+			var apron := first.cord_anchor.global_position
+			_cam.fov = 50.0
+			_look(apron + Vector3(0.9, -0.15, 1.5), apron + Vector3(0.0, -0.2, 0.0))
+			await _save("formgear_" + romset)
+			# The desktop's view with the first player's pair in the hands: where DesktopPickup carries a pair (the lower right and lower left of the view), one of them swung (a click).
+			var stick := first as ArcadeDrumstick
+			if stick != null and stick.mate != null:
+				var drum := _model.find_child("Btn2", true, false) as Node3D
+				var eye := drum.global_position + Vector3(0.0, 0.62, 0.62)
+				_cam.fov = 70.0
+				_look(eye, drum.global_position + Vector3(0.0, -0.04, -0.05))
+				var pair: Array[ArcadeDrumstick] = [stick, stick.mate as ArcadeDrumstick]
+				var slots: Array[Vector3] = [Vector3(0.20, -0.22, -0.45), Vector3(-0.20, -0.22, -0.45)]
+				for k in 2:
+					var pivot := Node3D.new()
+					pivot.set_script(load("res://Scripts/Desktop/desktop_hand_pivot.gd"))
+					pivot.add_to_group("desktop_hand")
+					add_child(pivot)
+					pivot.global_transform = _cam.global_transform * Transform3D(Basis.IDENTITY, slots[k])
+					pair[k].captive_well.drop_object()
+					pair[k].pick_up(pivot)
+				await _frames(6)
+				await _save("formstick_" + romset)
+				pair[0].click(ArcadeDrumstick.DON)
+				pair[0]._swing_t = 0.4
+				pair[0]._animate(0.0)
+				await _save("formswing_" + romset)
 			_cam.fov = 58.0
 		# A dance stage: the platform seen from low down (the panels stand over the floor and can be seen), and what a dancer who has stood up on it sees of the arrows under their feet.
 		var stage_seat := _model.find_child("StageSeat1", true, false) as CockpitSeat

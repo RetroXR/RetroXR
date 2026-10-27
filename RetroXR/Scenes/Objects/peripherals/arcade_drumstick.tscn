@@ -1,0 +1,137 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/arcade/arcade_drumstick.gd" id="1_sse14"]
+[ext_resource type="Script" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="2_0g32i"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_qbpjh"]
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_byjtt"]
+friction = 0.8
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_3x1x8"]
+radius = 0.0135
+height = 0.328
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rrrbj"]
+albedo_color = Color(0.78, 0.6, 0.36, 1)
+roughness = 0.7
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_wndhg"]
+material = SubResource("StandardMaterial3D_rrrbj")
+top_radius = 0.00966
+bottom_radius = 0.0105
+height = 0.295
+radial_segments = 12
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_5q1jx"]
+albedo_color = Color(0.9, 0.76, 0.54, 1)
+roughness = 0.6
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_85tv4"]
+material = SubResource("StandardMaterial3D_5q1jx")
+top_radius = 0.01239
+bottom_radius = 0.01239
+height = 0.027
+radial_segments = 16
+rings = 1
+
+[sub_resource type="SphereMesh" id="SphereMesh_ppc82"]
+material = SubResource("StandardMaterial3D_5q1jx")
+radius = 0.01239
+height = 0.02478
+radial_segments = 16
+rings = 8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ad2i4"]
+albedo_color = Color(0.5, 0.1, 0.09, 1)
+roughness = 0.85
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_8onkh"]
+material = SubResource("StandardMaterial3D_ad2i4")
+top_radius = 0.01155
+bottom_radius = 0.01155
+height = 0.08
+radial_segments = 12
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_l8gxg"]
+albedo_color = Color(0.62, 0.63, 0.67, 1)
+metallic = 0.85
+roughness = 0.3
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_f4h4v"]
+material = SubResource("StandardMaterial3D_l8gxg")
+top_radius = 0.012075
+bottom_radius = 0.012075
+height = 0.01
+radial_segments = 12
+rings = 1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_nhf8y"]
+material = SubResource("StandardMaterial3D_l8gxg")
+top_radius = 0.0055
+bottom_radius = 0.0055
+height = 0.006
+radial_segments = 12
+rings = 1
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_6bh3j"]
+size = Vector3(0.05, 0.05, 0.354)
+
+[node name="ArcadeDrumstick" type="RigidBody3D" unique_id=690250181 groups=["arcade_gear"]]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.08
+physics_material_override = SubResource("PhysicsMaterial_byjtt")
+freeze_mode = 1
+linear_damp = 3.0
+angular_damp = 6.0
+script = ExtResource("1_sse14")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=622481107]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, -0.07)
+shape = SubResource("CapsuleShape3D_3x1x8")
+
+[node name="Swing" type="Node3D" parent="." unique_id=399937776]
+
+[node name="Shaft" type="MeshInstance3D" parent="Swing" unique_id=1531063037]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.0575)
+mesh = SubResource("CylinderMesh_wndhg")
+
+[node name="Head" type="MeshInstance3D" parent="Swing" unique_id=567362049]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.2145)
+mesh = SubResource("CylinderMesh_85tv4")
+
+[node name="HeadTip" type="MeshInstance3D" parent="Swing" unique_id=648323697]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.21961)
+mesh = SubResource("SphereMesh_ppc82")
+
+[node name="GripWrap" type="MeshInstance3D" parent="Swing" unique_id=404858974]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.04)
+mesh = SubResource("CylinderMesh_8onkh")
+
+[node name="ButtCap" type="MeshInstance3D" parent="Swing" unique_id=1921077531]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.087)
+mesh = SubResource("CylinderMesh_f4h4v")
+
+[node name="CordRing" type="MeshInstance3D" parent="Swing" unique_id=1814225239]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.095)
+mesh = SubResource("CylinderMesh_nhf8y")
+
+[node name="CableAttachPoint" type="Marker3D" parent="Swing" unique_id=1312862345]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.092)
+
+[node name="GrabPoint" type="Marker3D" parent="." unique_id=847186429]
+visible = false
+script = ExtResource("2_0g32i")
+
+[node name="PickableHighlight" type="Node3D" parent="." unique_id=1981785150]
+script = ExtResource("3_qbpjh")
+
+[node name="PointerArea" type="StaticBody3D" parent="." unique_id=324176909]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea" unique_id=263416293]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.07)
+shape = SubResource("BoxShape3D_6bh3j")

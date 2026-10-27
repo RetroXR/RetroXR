@@ -39,6 +39,7 @@
 ##   ring/      the R-360 pod (G-LOC R360, Wing War R360): two hoops at the platform's sides and one behind the seat in place of the cabin, turning with the stick, never in the picture's way
 ##   rotary/    a dial AND a stick is a rotary joystick (Ikari Warriors, Top Gunner's bootleg): the stick leans and a collar on its shaft turns
 ##   solo/      DDR Solo's stage has six panels: up-left and up-right are MAME's buttons 3 and 4, a foot or a finger on them presses them
+##   sticks/    a Taiko drummer's two sticks a player: laid in a cradle each side of the drum on a cord, taken out in a hand, a hit by a swing or a click or a trigger, kept at the cabinet
 ##   shift/     a driving game's gear lever is the game's: its button, a toggle or held, a sequential box, none where MAME has none
 ##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
 ##   guns/      a gun game's guns are built, plugged in and hung, its pedal wired; another game frees them and their ports
@@ -167,6 +168,9 @@ func _run() -> void:
 		await _clear()
 	if _want("music"):
 		await _group_music()
+		await _clear()
+	if _want("sticks"):
+		await _group_sticks()
 		await _clear()
 	if _want("shift"):
 		await _group_shift()
@@ -3609,6 +3613,375 @@ func _group_shift() -> void:
 	model.apply_game_profile(null)
 	_show(panel, 1 << up_bit, 5)
 	_ok(panel.shift_config().is_empty() and not panel.shift_high(), "shift: with no game in the bay a lever follows nothing")
+
+
+# --- sticks --------------------------------------------------------------------
+
+## The sticks of a cabinet: its gear that is an ArcadeDrumstick, in the order the rack built them.
+func _sticks(sys: RetroSystem) -> Array[ArcadeDrumstick]:
+	var out: Array[ArcadeDrumstick] = []
+	for piece: Variant in sys.captive_gear():
+		if piece is ArcadeDrumstick:
+			out.append(piece as ArcadeDrumstick)
+	return out
+
+
+func _stick_of(sys: RetroSystem, player: int, side: int) -> ArcadeDrumstick:
+	for stick in _sticks(sys):
+		if stick.player == player and stick.side == side:
+			return stick
+	return null
+
+
+## What a desktop hand's pivot does when what it holds asks to be let go (DesktopPickup._drop): the held thing lets go of it.
+const FAKE_PIVOT := "extends Node3D\nvar picked_up_ranged := false\nvar held: XRToolsPickable\nfunc drop_object() -> void:\n\tif is_instance_valid(held):\n\t\theld.let_go(self, Vector3.ZERO, Vector3.ZERO)\n"
+
+
+func _fake_hand() -> Node3D:
+	var script := GDScript.new()
+	script.source_code = FAKE_PIVOT
+	script.reload()
+	var pivot := Node3D.new()
+	pivot.set_script(script)
+	pivot.add_to_group("desktop_hand")
+	add_child(pivot)
+	_spawned.append(pivot)
+	return pivot
+
+
+## A Taiko drummer's two sticks a player: the data, the cradle, the stick laid in it on a cord, the hit each makes and every way of making one (a swing, the mouse), the tether that keeps it at the cabinet, and what
+## a form that has none leaves behind. A hit is a tap of the pad bit of the drum's zone the game reads (MAME's BUTTON1 to BUTTON4).
+func _group_sticks() -> void:
+	# The data: two sticks a drum, one each side of it, left first, and nothing for any other instrument.
+	var panels := ArcadeInstruments.panels(ArcadeInstruments.TAIKO, 2)
+	var data_ok := panels.size() == 2
+	for i in panels.size():
+		var panel: Dictionary = panels[i]
+		var gear: Array = panel.get("gear", [])
+		var cx := (float(panel["x0"]) + float(panel["x1"])) * 0.5
+		data_ok = data_ok and gear.size() == 2 and str(gear[0]["kind"]) == "drumstick" and int(gear[0]["side"]) == 0 and int(gear[1]["side"]) == 1 \
+				and is_equal_approx((gear[0]["pos"] as Vector2).x, cx - ArcadeInstruments.STICK_X) and is_equal_approx((gear[1]["pos"] as Vector2).x, cx + ArcadeInstruments.STICK_X) \
+				and ResourceLoader.exists(str(ArcadeInstruments.GEAR["drumstick"]["scene"])) \
+				and float(panel["x0"]) <= (gear[0]["pos"] as Vector2).x - 0.03 and float(panel["x1"]) >= (gear[1]["pos"] as Vector2).x + 0.03 \
+				and float(panel["gx0"]) > (gear[0]["pos"] as Vector2).x and float(panel["gx1"]) < (gear[1]["pos"] as Vector2).x
+	_ok(data_ok, "sticks: a Taiko player has a stick each side of the drum, in a cradle inside the panel's width and outside the part of it a laser takes as the panel")
+	var others := true
+	for instrument in [ArcadeInstruments.DECK, ArcadeInstruments.POPN, ArcadeInstruments.GUITAR, ArcadeInstruments.DRUMS, ArcadeInstruments.CONGA]:
+		others = others and not (ArcadeInstruments.panels(instrument, 1)[0] as Dictionary).has("gear")
+	_ok(others, "sticks: no other instrument has any gear")
+	# The cord's lay, pure: from the stick down the front to the entry, as long as the cord.
+	var boss := Vector3(0.2, 0.94, 0.70)
+	var entry := Vector3(0.2, 0.86, 0.72)
+	var cords_ok := true
+	var drops: Array[float] = []
+	for length in [0.7, 0.95, 1.2]:
+		var route := CaptiveCord.hanging_route(boss, entry, length)
+		var low := INF
+		var in_front := true
+		for p in route:
+			low = minf(low, p.y)
+			in_front = in_front and (p.y > entry.y - 0.05 or p.z >= entry.z - 0.0001)
+		drops.append(boss.y - low)
+		cords_ok = cords_ok and route[0].is_equal_approx(boss) and route[route.size() - 1].is_equal_approx(entry) and in_front \
+				and absf(CaptiveCord.polyline_length(route) - length) < length * 0.04
+	_ok(cords_ok and drops[0] < drops[1] and drops[1] < drops[2],
+		"sticks: a cord hangs from the stick's butt down the front in front of the apron and up to its entry, as long as itself: the longer the deeper (%s)" % str(drops))
+	var lying := CaptiveCord.hanging_route(boss, entry, 3.0)
+	var shortest := CaptiveCord.hanging_route(boss, entry, 0.05)
+	_ok(absf(_lowest_y(lying) - CaptiveCord.HANG_FLOOR) < 0.001 and _lowest_y(shortest) > 0.5 and shortest[shortest.size() - 1].is_equal_approx(entry),
+		"sticks: a cord longer than the drop lies on the floor, one shorter than any hangs as short as it can")
+	# On a real cabinet, by the real path: a Taiko board in the bay.
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	_ok(sys.captive_gear().is_empty() and model.captive_gear().is_empty(), "sticks: a cabinet that is no drum has no gear")
+	await _board(sys, "taiko6")
+	await _wait(10)
+	var sticks := _sticks(sys)
+	_ok(sticks.size() == 4 and model.captive_gear().size() == 4, "sticks: Taiko no Tatsujin 6 on a cabinet has four sticks, a pair for each of two players (%d)" % sticks.size())
+	if sticks.size() != 4:
+		return
+	var combos: Array = []
+	var made_ok := true
+	for stick in sticks:
+		combos.append([stick.player, stick.side])
+		made_ok = made_ok and stick.captive and not stick.is_in_group("spawned") and stick.is_in_group("arcade_gear") and stick.press_to_hold and stick.cabinet == model \
+				and is_instance_valid(stick.captive_well) and stick.captive_well.picked_up_object == stick
+	combos.sort()
+	_ok(combos == [[0, 0], [0, 1], [1, 0], [1, 1]] and made_ok,
+		"sticks: each is its player's left or right, wired to the machine (kept out of what is saved and synced), held in a cradle, and held while the grip is")
+	var deck := model.find_child("Deck", true, false) as Node3D
+	var lie_ok := true
+	var lie_log := ""
+	for stick in sticks:
+		var rest := stick.captive_well.global_position
+		# Lying along the deck, the head up the slope, the grip's axis its way; the origin on the cradle.
+		var along := -stick.global_basis.z
+		lie_ok = lie_ok and stick.global_position.distance_to(rest) < 0.002 and along.dot(deck.global_basis.y) > 0.999 and stick.global_basis.y.dot(deck.global_basis.z) > 0.999
+		lie_log += " %.4f" % stick.global_position.distance_to(rest)
+	_ok(lie_ok, "sticks: each lies in its cradle along the deck, its head up the slope and its grip on the cradle's seat (off by%s m)" % lie_log)
+	var pair_ok := true
+	for stick in sticks:
+		var mate := stick.mate
+		pair_ok = pair_ok and mate != null and mate != stick and mate.player == stick.player and mate.side != stick.side and mate.mate == stick
+	_ok(pair_ok, "sticks: the two of a player are each other's mate (the desktop's other hand)")
+	var gate_ok := true
+	for stick in sticks:
+		for other in sticks:
+			gate_ok = gate_ok and stick.captive_well.snap_filter.is_valid() and bool(stick.captive_well.snap_filter.call(other)) == (other == stick)
+	_ok(gate_ok, "sticks: a cradle takes the one stick that came out of it and none of the other three, whose cords go elsewhere")
+	var left := _stick_of(sys, 0, 0)
+	var right := _stick_of(sys, 0, 1)
+	var p2_left := _stick_of(sys, 1, 0)
+	_ok(left.global_position.x < right.global_position.x and right.global_position.x < p2_left.global_position.x and left.global_position.distance_to(right.global_position) > 0.45,
+		"sticks: a player's left one is on the left of the drum, the second player's pair further along (%.2f m apart)" % left.global_position.distance_to(right.global_position))
+	var companion_ok := true
+	for stick in sticks:
+		companion_ok = companion_ok and stick.desktop_companion() == stick.mate
+	_ok(companion_ok and left.desktop_companion() == right and right.desktop_companion() == left and p2_left.desktop_companion() != left,
+		"sticks: the desktop's hand that takes one is told of its mate, for the other hand, and never of another player's")
+	# The cord: a rope from the butt to the cabinet's entry on the apron, as long as the table says.
+	var cord_ok := true
+	var cord_log := ""
+	for stick in sticks:
+		var rope := stick.cord()
+		if rope == null:
+			cord_ok = false
+			continue
+		cord_ok = cord_ok and rope.point_count() >= 20 and absf(rope.rest_length() - 0.95) < 0.03 and rope.get_start_node() == stick.find_child("CableAttachPoint", true, false) \
+				and rope.get_end_node() == stick.cord_anchor and stick.cord_anchor.name == "Entry" and model.is_ancestor_of(stick.cord_anchor)
+		cord_log += " %.2f" % rope.rest_length()
+	_ok(cord_ok, "sticks: each has a cord from its butt to the node of the cabinet it goes into, 0.95 m (%s)" % cord_log)
+	var entry_ok := true
+	for stick in sticks:
+		var local := model.global_transform.affine_inverse() * stick.cord_anchor.global_position
+		entry_ok = entry_ok and absf(local.z - 0.72) < 0.002 and absf(local.y - 0.86) < 0.002 and absf(stick.cord_anchor.global_position.x - stick.global_position.x) < 0.001
+	_ok(entry_ok, "sticks: the cord goes in on the apron's face, 6 cm under the deck's front edge, straight out from its cradle")
+	var cradles := true
+	for tag in ["L", "R"]:
+		for panel in _panels(model):
+			cradles = cradles and (panel as ArcadeControlModule).find_child("GearCradle" + tag, true, false) != null and (panel as ArcadeControlModule).find_child("GearRest" + tag, true, false) != null
+	_ok(cradles, "sticks: a cradle is built under each stick on each panel")
+	# The panel's grip leaves the cradles out, so a laser at a stick finds the stick and not the panel.
+	var hit_ok := true
+	for stick in sticks:
+		var above := stick.global_position + Vector3(0.0, 0.45, 0.30)
+		var found := _first_hit(sys, above, stick.global_position)
+		hit_ok = hit_ok and found != null and (found.get_parent() == stick or found == stick.captive_well)
+	_ok(hit_ok, "sticks: a laser aimed at a stick in its cradle meets the stick, not the panel's grip")
+	# The grip still covers the drum and its START.
+	var grip := (_panels(model)[0] as ArcadeControlModule).grip()
+	_ok(grip != null and grip.panel_size.x < 0.45 and grip.panel_size.x > 0.38, "sticks: the panel's grip is still the drum's width (%.2f m), not the cradles'" % (grip.panel_size.x if grip != null else 0.0))
+	# Every hit: the zone it lands in and the button it presses, for every stick.
+	var input := model.arcade_input()
+	var want := {"FaceLeft": 3, "FaceRight": 2, "RimLeft": 4, "RimRight": 1}
+	var hits_ok := true
+	var hits_log := ""
+	for stick in sticks:
+		for kind in [ArcadeDrumstick.DON, ArcadeDrumstick.KA]:
+			for half in 2:
+				input._taps.clear()
+				var zone_name := ("Face" if kind == ArcadeDrumstick.DON else "Rim") + ("Left" if half == 0 else "Right")
+				var taken: bool = stick.strike(kind, half)
+				var port_taps := input._taps.get(stick.player, {}) as Dictionary
+				var bit := ArcadeProfiles.button_bit(int(want[zone_name]))
+				hits_ok = hits_ok and taken and port_taps.size() == 1 and port_taps.has(bit) and is_equal_approx(float(port_taps[bit]), ArcadeDrumstick.TAP_SECONDS) \
+						and input._taps.size() == 1
+				if not (taken and port_taps.has(bit)):
+					hits_log += " %d/%d %s" % [stick.player, stick.side, zone_name]
+	_ok(hits_ok, "sticks: a don on the left face is BUTTON3, the right face BUTTON2, a ka on the left rim BUTTON4, the right BUTTON1, tapped on the stick's own player's port only (%s)" % hits_log)
+	_ok(not left.strike(&"bogus", 0) and left.strike(ArcadeDrumstick.DON, 1) and input._taps.size() >= 1, "sticks: a hit that is not a don or a ka is nothing")
+	# The swing, pure: where a head comes down on the drum.
+	var panel0 := _panels(model)[0] as ArcadeControlModule
+	var zones := ArcadeDrumstick.zones_of(panel0)
+	_ok(zones.size() == 4, "sticks: the drum has four zones to hit (%d)" % zones.size())
+	var swing_ok := true
+	var swing_log := ""
+	for zone: Dictionary in zones:
+		var cap := zone["cap"] as MeshInstance3D
+		var sector: Dictionary = cap.get_meta(&"sector")
+		var radius := (float(sector["r0"]) + float(sector["r1"])) * 0.5
+		var angle := (float(sector["a0"]) + float(sector["a1"])) * 0.5
+		var top := cap.mesh.get_aabb().end.y
+		var mid := Vector3(radius * cos(angle), top, -radius * sin(angle))
+		var found := ArcadeDrumstick.crossing(cap.global_transform * (mid + Vector3(0, 0.05, 0)), cap.global_transform * (mid + Vector3(0, -0.02, 0)), 0.05, zones)
+		var name_found := str((found["zone"] as Dictionary)["name"]) if not found.is_empty() else "-"
+		swing_ok = swing_ok and name_found == str(zone["name"])
+		swing_log += " %s>%s" % [zone["name"], name_found]
+	_ok(swing_ok, "sticks: a head coming down on each zone of the drum hits that zone and no other (%s)" % swing_log)
+	var face := zones[0] as Dictionary
+	for zone: Dictionary in zones:
+		if zone["name"] == "FaceLeft":
+			face = zone
+	var fcap := face["cap"] as MeshInstance3D
+	var fsec: Dictionary = fcap.get_meta(&"sector")
+	var fmid := Vector3(((float(fsec["r0"]) + float(fsec["r1"])) * 0.5) * cos((float(fsec["a0"]) + float(fsec["a1"])) * 0.5), fcap.mesh.get_aabb().end.y, -((float(fsec["r0"]) + float(fsec["r1"])) * 0.5) * sin((float(fsec["a0"]) + float(fsec["a1"])) * 0.5))
+	var above_pt := fcap.global_transform * (fmid + Vector3(0, 0.05, 0))
+	var below_pt := fcap.global_transform * (fmid + Vector3(0, -0.02, 0))
+	var aside_pt := fcap.global_transform * (fmid + Vector3(0.30, 0.05, 0))
+	var aside_low := fcap.global_transform * (fmid + Vector3(0.30, -0.02, 0))
+	_ok(ArcadeDrumstick.crossing(above_pt, below_pt, 1.0, zones).is_empty() and not ArcadeDrumstick.crossing(above_pt, below_pt, 0.05, zones).is_empty(),
+		"sticks: a head comes down fast enough to hit (1.4 m/s), a touch (0.07 m/s) does not")
+	_ok(ArcadeDrumstick.crossing(below_pt, above_pt, 0.05, zones).is_empty() and ArcadeDrumstick.crossing(below_pt, below_pt + Vector3(0, -0.2, 0), 0.05, zones).is_empty()
+			and ArcadeDrumstick.crossing(above_pt, above_pt + Vector3(0.01, 0, 0), 0.05, zones).is_empty(),
+		"sticks: going up, going down but starting below the face (4 m/s), and staying above it hit nothing")
+	_ok(ArcadeDrumstick.crossing(aside_pt, aside_low, 0.05, zones).is_empty(),
+		"sticks: a head that comes down beside the drum hits nothing")
+	var through := ArcadeDrumstick.crossing(fcap.global_transform * (fmid + Vector3(0, 0.12, 0)), fcap.global_transform * (fmid + Vector3(0, -0.12, 0)), 0.1, zones)
+	_ok(not through.is_empty() and str((through["zone"] as Dictionary)["name"]) == "FaceLeft", "sticks: a head that is through the drum between two frames hit it where it crossed")
+	# The same, by the stick itself: a swing across several frames, one hit, and a hit again only after the head rises.
+	var swing := _stick_of(sys, 0, 0)
+	input._taps.clear()
+	var tip_at := func(point: Vector3) -> void:
+		swing.global_transform = Transform3D(Basis.IDENTITY, point - ArcadeDrumstick.TIP)
+	tip_at.call(above_pt)
+	swing._has_prev = false
+	swing._struck_cap = null
+	swing._read_swing(0.016)
+	tip_at.call(fcap.global_transform * (fmid + Vector3(0, 0.02, 0)))
+	swing._read_swing(0.016)
+	_ok(input._taps.is_empty(), "sticks: a head still above the face has hit nothing")
+	tip_at.call(fcap.global_transform * (fmid + Vector3(0, -0.01, 0)))
+	swing._read_swing(0.016)
+	var first_hit := input._taps.duplicate(true)
+	_ok(first_hit.has(0) and (first_hit[0] as Dictionary).has(ArcadeProfiles.button_bit(3)), "sticks: the head going through the face is a don on the left half (BUTTON3)")
+	input._taps.clear()
+	tip_at.call(fcap.global_transform * (fmid + Vector3(0, 0.004, 0)))
+	swing._read_swing(0.016)
+	tip_at.call(fcap.global_transform * (fmid + Vector3(0, -0.01, 0)))
+	swing._read_swing(0.016)
+	_ok(input._taps.is_empty(), "sticks: a head that has not risen off the face does not hit it again")
+	tip_at.call(fcap.global_transform * (fmid + Vector3(0, 0.03, 0)))
+	swing._read_swing(0.016)
+	tip_at.call(fcap.global_transform * (fmid + Vector3(0, -0.01, 0)))
+	swing._read_swing(0.016)
+	_ok(not input._taps.is_empty(), "sticks: once it has risen off it, it does")
+	# The desktop: both sticks of a pair in the hands, a click a hit, the pair taking turns.
+	await _wait(5)
+	for stick in sticks:
+		stick.captive_well.drop_object()
+	var pivots: Array[Node3D] = []
+	for k in 2:
+		var pivot := _fake_hand()
+		pivot.global_transform = (left if k == 0 else right).global_transform
+		pivots.append(pivot)
+	left.pick_up(pivots[0])
+	pivots[0].set("held", left)
+	right.pick_up(pivots[1])
+	pivots[1].set("held", right)
+	await _wait(3)
+	_ok(left.held_by_desktop() and right.held_by_desktop() and ArcadeDrumstick._leader == left and input.engaged(),
+		"sticks: taken by the desktop's two hands, the first is the one that reads the mouse, and the cabinet has somebody at it")
+	var rows: Array = []
+	var hint := left.get_node("HeldHint") as HeldHint
+	for row: Array in hint._rows:
+		rows.append(row[0])
+	_ok(rows.has(&"don_pc") and rows.has(&"ka_pc") and rows.has(&"don_vr") and not rows.has(&"rotate_yaw") and not rows.has(&"hand_hold_desktop"),
+		"sticks: the held hint says what a click and a trigger do, and none of the turning verbs that do nothing in the corner of a view (%s)" % str(rows))
+	sys.is_powered_on = true
+	input._taps.clear()
+	var click := func(button: int, shift: bool = false) -> void:
+		var ev := InputEventMouseButton.new()
+		ev.button_index = button
+		ev.pressed = true
+		ev.shift_pressed = shift
+		# Clear of the loading overlay's panel, which is still up in a suite (and larger than its 64 px window) and takes every click inside it.
+		ev.position = Vector2(5000, 5000)
+		ev.global_position = ev.position
+		# Pushed at the viewport, so it is handled now: a tap a few frames old may already have run out.
+		get_viewport().push_input(ev)
+	var bits := func() -> Array:
+		var held: Array = ((input._taps.get(0, {}) as Dictionary).keys())
+		held.sort()
+		return held
+	click.call(MOUSE_BUTTON_LEFT)
+	var after_first: Array = bits.call()
+	input._taps.clear()
+	click.call(MOUSE_BUTTON_LEFT)
+	var after_second: Array = bits.call()
+	_ok(after_first == [ArcadeProfiles.button_bit(3)] and after_second == [ArcadeProfiles.button_bit(2)],
+		"sticks: a left click is a don on the left stick's half, the next on the right one's: the pair take turns (%s then %s)" % [str(after_first), str(after_second)])
+	input._taps.clear()
+	click.call(MOUSE_BUTTON_RIGHT)
+	var ka_first: Array = bits.call()
+	input._taps.clear()
+	click.call(MOUSE_BUTTON_RIGHT)
+	var ka_second: Array = bits.call()
+	_ok(ka_first == [ArcadeProfiles.button_bit(4)] and ka_second == [ArcadeProfiles.button_bit(1)],
+		"sticks: a right click is a ka, on the left rim then the right one (%s then %s)" % [str(ka_first), str(ka_second)])
+	input._taps.clear()
+	click.call(MOUSE_BUTTON_MIDDLE)
+	var pad_ka: Array = bits.call()
+	_ok(pad_ka == [ArcadeProfiles.button_bit(4)] or pad_ka == [ArcadeProfiles.button_bit(1)], "sticks: the middle button, a pad's left trigger, is a ka too (%s)" % str(pad_ka))
+	input._taps.clear()
+	click.call(MOUSE_BUTTON_LEFT, true)
+	_ok(input._taps.is_empty(), "sticks: a click with Shift is the room's drop, not a hit")
+	# The click swings the stick it hit with.
+	left._swing_t = 1.0
+	left.strike(ArcadeDrumstick.DON, 0)
+	_ok(left._swing_t == 0.0, "sticks: a hit starts the swing of the stick that made it")
+	left._animate(SWING_PROBE)
+	_ok(left._swing.rotation.x < -0.3, "sticks: which dips its head (%.2f rad)" % left._swing.rotation.x)
+	left._animate(1.0)
+	_ok(left._swing.rotation.x == 0.0 and left._swing_t >= 1.0, "sticks: and brings it back")
+	# One in each hand until one is let go: the other reads the mouse. Raised first, so that it is let go in the air and not over its cradle (which would take it back), and put to sleep there, as the engine was
+	# seen to put the second of a pair let go of together with the first (the open "controller that will not drop"): it has to be pushed down, and falls.
+	pivots[0].global_position += Vector3(0.0, 0.45, 0.0)
+	await _wait(30)
+	var released_at := left.global_position.y
+	left.drop()
+	_ok(ArcadeDrumstick._leader == right, "sticks: the moment one is let go the other is the one that reads the mouse, not a frame later")
+	PhysicsServer3D.body_set_state(left.get_rid(), PhysicsServer3D.BODY_STATE_SLEEPING, true)
+	await _wait(14)
+	_ok(left.global_position.y < released_at - 0.05, "sticks: a stick let go of in the air that the engine has put to sleep is pushed down and falls, and does not hang there (%.3f m)" % (released_at - left.global_position.y))
+	_ok(not left.held_by_desktop() and not ArcadeInput.held_by_hand(left) and ArcadeDrumstick._leader != left and right.held_by_desktop(),
+		"sticks: a stick let go is not held by the desktop any more, and let go over its cradle it is taken back into it (%s)" % str(left.captive_well.picked_up_object == left))
+	await _wait(2)
+	input._taps.clear()
+	click.call(MOUSE_BUTTON_LEFT)
+	_ok(ArcadeDrumstick._leader == right and not input._taps.is_empty(), "sticks: the one still in the hand takes over the mouse")
+	# The cord's reach: a hand that goes further than it lets go; a stick left beyond it is reeled in.
+	pivots[1].global_position = right.cord_anchor.global_position + Vector3(0.0, 0.0, 2.5)
+	await _wait(25)
+	_ok(not right.is_picked_up(), "sticks: a hand that takes a stick further than its cord reaches lets go of it")
+	left.global_position = left.cord_anchor.global_position + Vector3(0.0, 0.0, 3.0)
+	left.linear_velocity = Vector3.ZERO
+	await _wait(4)
+	var reach := left.cord_anchor.global_position.distance_to(left.cord_boss())
+	_ok(reach <= left.reach() + 0.05, "sticks: and a stick lying further than that is reeled in to it (%.2f of %.2f m)" % [reach, left.reach()])
+	# Morphing to another game takes it all away, and back brings new ones.
+	var before := sticks.duplicate()
+	var rope_nodes: Array = []
+	for stick in sticks:
+		rope_nodes.append(stick.cable_instance())
+	model.morph_to(_spec("sf2"))
+	await _wait(6)
+	var gone := sys.captive_gear().is_empty()
+	for stick in before:
+		gone = gone and not is_instance_valid(stick)
+	for cord in rope_nodes:
+		gone = gone and not is_instance_valid(cord)
+	var wells_left := 0
+	for child in sys.get_children():
+		if str(child.name).begins_with("GearWell") and not child.is_queued_for_deletion():
+			wells_left += 1
+	_ok(gone and wells_left == 0, "sticks: another game's form takes the sticks, their cords and their cradles away")
+	model.morph_to(_spec("taiko6"))
+	await _wait(8)
+	var again := _sticks(sys)
+	_ok(again.size() == 4 and not before.has(again[0]), "sticks: and the Taiko form brings four new ones")
+	await _pull(sys)
+	await _wait(8)
+	_ok(sys.captive_gear().is_empty(), "sticks: pulling the board gives the cabinet its own form back and none of them")
+
+
+func _lowest_y(route: PackedVector3Array) -> float:
+	var low := INF
+	for p in route:
+		low = minf(low, p.y)
+	return low
+
+
+const SWING_PROBE := 0.06
 
 
 # --- odd -----------------------------------------------------------------------

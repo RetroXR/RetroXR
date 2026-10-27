@@ -309,6 +309,12 @@ func discard() -> void:
 func _get_preview_radius() -> float:
 	if _preview_radius >= 0.0:
 		return _preview_radius
+	# LOCAL PATCH (RetroXR): a target may say how far ITS reach to a socket is (`preview_radius()`). A long thin thing's shapes are all
+	# length: a drummer's stick, held by its grip, reached a quarter of a metre past the hand, which put its cradle's preview over the
+	# whole drum it is played on and held the stick in the cradle there.
+	if is_instance_valid(target) and target.has_method("preview_radius"):
+		_preview_radius = maxf(float(target.call("preview_radius")), 0.0)
+		return _preview_radius
 	_preview_radius = 0.0
 	# Use only the target body's OWN shapes (via the shape-owner API) — not any
 	# separate child CollisionObject3D such as a wider pointer/ray proxy.

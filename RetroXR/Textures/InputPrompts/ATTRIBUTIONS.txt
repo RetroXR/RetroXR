@@ -10,6 +10,10 @@ own licence text is beside this file, verbatim, as Kenney-License.txt.
              required; done here and in the About panel's ARTWORK section.
   Taken as : the pack's Vector/ SVGs, unmodified. Files keep Kenney's own names,
              which is what the glyph tables in Scripts/UI/panels/*.gd key off.
+             ONE EXCEPTION: mouse_right_outline.svg (2026-10-27) is mouse_left_outline.svg
+             mirrored (a transform on its group, the path untouched), made for the drumsticks'
+             held hint (a right click is a ka) because the right-button icon was not copied in.
+             Replace it with the pack's own if it is ever copied in.
 
 WHY SVG AND NOT THE PNGs. These were the pack's Double/ PNGs until 2026-08-19.
 Nothing was wrong with them — 128 px drawn at 46 is already oversampled — but

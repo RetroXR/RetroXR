@@ -1214,3 +1214,55 @@ a wheel, bars, dial and trackball the left stick's X or XY, so "left+dpad" sends
   were made to catch them; and 20 more for the bicycle's bars and crank and the slot's levers, 19 caught and one that cannot be: the crank's `end()` clearing a speed that `begin()` clears too). **OWED: a headset.** Every number above is an estimate: reach, throw, zones, speeds. They are consts so the feel can be tuned on
   a device, and nothing here says how it feels. Also owed: hand tracking (Capsense's index tip and pinch trigger go through the same `PokeTip` and `trigger`, not tried), the Quest's cost
   (a few distance tests a frame a panel when a hand is within 2 m, none otherwise), two peers.
+
+## Captive gear: a Taiko drummer's sticks (2026-10-27)
+
+A Taiko player had a drum and no sticks. The cabinet is now wired to a pair of bachi a player, one in a cradle each side of the drum, taken out and put back as a gun is ("Guns are captive", above: the same
+rules for a thing that is not a gun and plugs into no port). The mouse plays them on the desktop and a swing or a button plays them in a headset. **Never run on a core or a ROM, in a headset or on a Quest**;
+every size, speed and place below is an estimate (see the end).
+
+- **Data and build.** `ArcadeInstruments._taiko` gives each panel two `gear` rows (`{kind: "drumstick", side, pos}`; `STICK_X` 0.245 m out of the drum's middle, `STICK_Y` -0.105 forward) and widens the panel to
+  +-0.31 m; `ArcadeInstruments.GEAR` names the scene and the cord (0.95 m). `ArcadeCabinetBuilder._gear_rest` builds, for each, a cradle (`GearCradle<L|R>`, with its two lips), a `GearRest<L|R>` marker (the stick's
+  rest pose; meta gear/side/scene/cord) and its `Entry` child, a node on the apron's face 6 cm under the deck's front edge, straight out from the cradle, where the cord goes in. The panel's grip box (`PanelGrip`) is narrowed to
+  the drum with `grip_x` (`gx0/gx1`): at the panel's full width it covered the cradles and a laser at a stick hit the panel instead (the suite found it: `sticks/` "a laser aimed at a stick in its cradle").
+  `RetroSystemModelArcadeCabinet.captive_gear()` lists the rows; `RetroSystem` builds them after the form (`after_cabinet_form` -> `_spawn_captive_gear`) and takes them away before the next one and in `_exit_tree`.
+- **`ArcadeGearRack`** (one per machine) turns a row into a stick: an `ArcadeDrumstick` (`Tools/gen/gen_arcade_drumstick.gd` bakes `Scenes/Objects/peripherals/arcade_drumstick.tscn`: 32 cm, the grip's middle is the
+  origin and the grab point, the head along -Z, the cord ring at +Z 0.092 m) laid on its rest and held by a cradle, which is a snap zone (`GearWell<n>`, `snap_require "arcade_gear"`, `snap_filter` = ITS stick only: the
+  four sticks of two players are not interchangeable, each has its cord; 10 cm reach, `WELL_REACH`), the mates paired (`mate`), and the cord: a `VerletRope` from the stick's `CableAttachPoint` to the `Entry`, laid hanging
+  down the front by `CaptiveCord.hanging_route` (a U `STAND_OFF` 4 cm in front of the apron whose depth is solved against the cord's length, so a long cord lies on the floor in slack and a short one hangs short).
+  Sticks are **captive**: set before `add_child`, so they never join "spawned" (nothing saves or syncs them as objects; the cabinet builds them again) and held only while the grip is (`press_to_hold`).
+- **The cord does not hold the stick** (a rope never carries a loose body's weight, `rope.md`). `ArcadeHeldGear._tether` closes the loop as every cord's owner does: a hand that takes a stick further than the cord
+  reaches + 10 cm LETS GO (it falls and hangs), and a stick lying beyond the reach is reeled in (`PlugTether.reel_in`, swept).
+- **A hit** is a tap (`ArcadeInput.tap_pad_bit`, 70 ms, on the stick's own player's port) of the pad bit of one of the drum's four zones, MAME's `BUTTON1` to `BUTTON4` (face left 3, face right 2, rim left 4, rim right 1). The
+  zones are the sector caps (`ArcadeDrumstick.zones_of`: caps with the `sector` and, new, `part` meta). Every way of hitting ends in `strike(kind, half)`, so the game, the cap that sinks and netplay see a hit as they see a
+  finger. **VR, swung**: the head's end (`TIP`) goes DOWN through a sector's face at no less than `HIT_SPEED` (0.45 m/s along the face's normal), inside the sector (`ArcadePanelHands.sector_reading`): a swept test between
+  two frames, so a fast swing cannot go through the drum, the zone with the smallest reading wins where the rim and the face overlap, and the head must rise `REARM_HEIGHT` (12 mm) over the face before it hits again (a head
+  resting on the drum or lowered gently hits nothing). **VR, pressed**: the trigger (latched 0.6 / 0.4) or B / Y is a don and A / X a ka, on the drum's half that is the HAND's own side (a left controller hits the left half
+  whichever stick it holds). **Desktop**: left click a don, right click a ka (a first pad's left trigger is the middle button, which is a ka too); the first stick taken is the LEADER (`_leader`, static) and reads the mouse for
+  both, and the pair take turns so a roll goes left, right, left; Shift + click is the room's drop (DesktopPickup).
+- **On the desktop** a stick is an FPS-snap object (`desktop_fps_snap`): it rides in the lower right of the view, and its `desktop_companion()` (the mate) in the lower left, as a Wii Remote's Nunchuk does. The mate is
+  taken out of its own cradle for the hand (a thing a snap zone holds is not for the taking: with the first draft the second stick stayed in its cradle and every click was on one stick; the windowed probe found it).
+  The held hint says the mouse buttons and the headset's (`don_pc` / `ka_pc` with `mouse_left_outline` and the new `mouse_right_outline` glyph, `don_vr`, `ka_vr`, `swing_vr`), without the rotate rows
+  `HeldObjectPhysics` teaches every desktop grab (`RAY_HOLD_ROWS`: they do nothing for a thing that rides in the corner of the view).
+- **Somebody is at the cabinet** while a stick is in a hand (`ArcadeInput.engaged()` reads `captive_gear()`), so a cabinet showing its game starts it (`first_use` `&"grab"`) when one is taken and its idle clock
+  does not put the core away. A stick lying in its cradle is nobody's.
+- **Two findings in the engine's fork that were not the drumsticks'.** (1) *The cradle's preview covered the drum.* `XRToolsGrabDriver` shows a held thing blended onto a socket whose grab distance + the thing's
+  bounding radius reaches the hand, and a stick's shapes are all length (0.25 m past the grip), so the preview reached 0.35 m: over the whole drum, the held stick was drawn back in its cradle and a swing could not
+  hit anything. A target may now say its own radius (`preview_radius()`, asked by the grab driver and the pickup function's ray preview; `ArcadeHeldGear.PREVIEW_RADIUS` 0.03 m): the preview is 13 cm. (2) *A stick
+  let go can hang asleep in the air.* The second of a pair let go together with the first was, 4 times in 5 under the windowed probe, dynamic, awake for one step and then asleep with gravity on it and nothing
+  under it; `sleeping = false` did not wake it, a velocity did. This is the open "controller that will not drop" (`quest-device.md`), reproduced: `ArcadeHeldGear._wake_if_hung` watches a stick let go of for four
+  steps and pushes one that is asleep with nothing within 4 cm under it (0.3 m/s down); the probe, with the push removed, hung the stick every time (control) and with it never. The root cause is NOT found and is not
+  the drumsticks' alone: the fix is theirs only.
+- **Tests.** `arcade_form_tests sticks/` (47 checks, headless: the data, the cord's lay, the build on a real cabinet, the lie in the cradles, the mates, the cradle's gate, the cords, the laser, the grip, every zone's bit
+  on every stick's port, the swing's crossing, the rearm, the mouse (leader, turns, Shift, the middle button), the let-go and the hand-over, the reach and the reel-in, the hung stick pushed, the morph) and
+  `arcade_hand_tests sticks/` (22 checks: a fake hand on a tracker takes a stick out of its cradle through the real pickup function; trigger, A, B on each hand and each stick, the latch, the hand's own side, the second
+  player's port, a stick that reads its hand every frame, a swing that is slow (nothing) and fast (a don) and again after rising, the stick held over the drum NOT drawn back, shown in its cradle with the grip there and seated
+  on release, a stick in a hand starting an attract game). 37 mutants of the new code (hit mapping, speed, rearm, ports, leader, Shift, turns, tether, reel-in, groups, mates, the cradle's gate, the rest basis, the grip,
+  `engaged`, the cord's stand-off and depth, the hand's side, the latch, the buttons, the preview radius, the tick, the push), each turned a case red; the two that first survived (a crossing from below that the
+  speed check hid, a cradle gate whose failure was a script error) got stronger cases. **Probe** `Tools/models/taiko_desktop_probe` (WINDOWED, bare room with the real player rig): the crosshair on a stick, a click
+  takes it and its mate, the sticks ride lower right and lower left, the clicks give the right bits, Shift + click lets go and both fall. In a suite the loading overlay's panel is still up and covers a 64 px window, so a
+  synthetic click must be pushed at a point outside the viewport (it was swallowed by the GUI before `_unhandled_input`).
+- **Estimates and OWED.** The stick's size (32 cm, 2 cm), the cradles' place, the cord's 0.95 m, the 0.45 m/s, the zone sizes, the 70 ms, the hand-side rule, the haptic (0.7 for 30 ms), that B / Y and the trigger
+  are a don and A / X a ka. **Not built**: the stick's pose in a VR hand (the controller model stays visible), a hit's own sound (the game's), a gamepad's stick as a swing (a pad plays by its
+  triggers). **OWED**: a headset (the swing's feel above all), a Quest (cost of four ropes and four zones per cabinet), a real game and a real core
+  (whether Taiko reads a 70 ms tap the way a drum is hit), two peers.

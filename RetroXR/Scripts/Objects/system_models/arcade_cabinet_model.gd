@@ -308,6 +308,26 @@ func captive_gun_mounts() -> Array[Dictionary]:
 	return out
 
 
+## What this form is wired to besides its guns: hand-held gear on a cord (a Taiko drummer's sticks, ArcadeGearRack builds them), one row per `GearRest` marker the form has built: `{scene, kind, player, side,
+## rest: where the gear lies, in this model's frame, entry: where its cord goes into the cabinet (the marker's `Entry` child, a node the cord is tied to), cord: its length}`.
+func captive_gear() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var inv := global_transform.affine_inverse()
+	for module: Variant in modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS):
+		var panel := module as ArcadeControlModule
+		if panel == null or not is_instance_valid(panel):
+			continue
+		for found: Node in panel.find_children("GearRest*", "Marker3D", true, false):
+			var marker := found as Marker3D
+			if marker == null or not marker.has_meta(&"scene"):
+				continue
+			out.append({
+				"scene": str(marker.get_meta(&"scene")), "kind": str(marker.get_meta(&"gear")), "player": panel.player, "side": int(marker.get_meta(&"side")),
+				"rest": inv * marker.global_transform, "entry": marker.get_node_or_null("Entry"), "cord": float(marker.get_meta(&"cord", 0.95)),
+			})
+	return out
+
+
 ## Where each gun's origin hangs, in this model's frame: the holster markers.
 func gun_origins() -> Array[Transform3D]:
 	var out: Array[Transform3D] = []

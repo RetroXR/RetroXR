@@ -31,6 +31,7 @@
 ##   laser/    a hand on a control has no laser; it is back when the hand is done, and the panel takes no press from it
 ##   carry/    a hand on a control cannot pick the cabinet up, and its squeeze does not attach
 ##   use/      a finger on a cap starts an attract game, and a hand on the panel is somebody at the cabinet
+##   sticks/    a Taiko drummer's sticks in a headset's hands: the trigger and the thumb buttons hit the drum on the hand's own side, a swing hits where the head comes down
 extends Node
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
@@ -83,7 +84,7 @@ func _run() -> void:
 			["twin", _group_twin], ["wheel", _group_wheel], ["dial", _group_dial], ["ball", _group_ball],
 			["lever", _group_lever], ["helm", _group_helm], ["bars", _group_bars], ["rider", _group_rider], ["cycle", _group_cycle], ["slot", _group_slot], ["fly", _group_fly],
 			["input", _group_input],
-			["laser", _group_laser], ["carry", _group_carry], ["use", _group_use]]:
+			["laser", _group_laser], ["carry", _group_carry], ["use", _group_use], ["sticks", _group_sticks]]:
 		if _want(str(g[0])):
 			await (g[1] as Callable).call()
 			await _clear()
@@ -1614,3 +1615,203 @@ func _group_use() -> void:
 	_trigger(h, 0.0)
 	input._process(0.016)
 	input._right_vr_ctrl = null
+
+
+# --- sticks --------------------------------------------------------------------
+
+## A Taiko player's stick: the cabinet's player, and the left (0) or right (1) one of the pair.
+func _stick(sys: RetroSystem, player: int, side: int) -> ArcadeDrumstick:
+	for piece: Variant in sys.captive_gear():
+		var stick := piece as ArcadeDrumstick
+		if stick != null and stick.player == player and stick.side == side:
+			return stick
+	return null
+
+
+## A hand takes `stick` out of its cradle, as a squeeze does: the controller where the stick lies and the hand's pickup function reaching for the cradle (what a hand closes on).
+func _take(h: Dictionary, stick: ArcadeDrumstick) -> void:
+	(h["origin"] as XROrigin3D).global_transform = stick.global_transform
+	if not h.has("pickup"):
+		var made := PICKUP_SCENE.instantiate() as XRToolsFunctionPickup
+		_ctrl(h).add_child(made)
+		h["pickup"] = made
+		await _wait(2)
+	var pickup := h["pickup"] as XRToolsFunctionPickup
+	pickup._pick_up_object(stick.captive_well if stick.captive_well.picked_up_object == stick else stick)
+	await _wait(2)
+
+
+func _button(h: Dictionary, action: StringName, down: bool) -> void:
+	(h["tracker"] as XRControllerTracker).set_input(action, down)
+
+
+## The pad ids tapped on `port` now.
+func _tapped(input: ArcadeInput, port: int = 0) -> Array:
+	var held: Array = (input._taps.get(port, {}) as Dictionary).keys()
+	held.sort()
+	return held
+
+
+func _group_sticks() -> void:
+	var r := await _rig("taiko6")
+	var sys: RetroSystem = r["sys"]
+	var input: ArcadeInput = r["input"]
+	var panel: ArcadeControlModule = r["panel"]
+	await _wait(6)
+	var left := _stick(sys, 0, 0)
+	var right := _stick(sys, 0, 1)
+	var second := _stick(sys, 1, 0)
+	_ok(left != null and right != null and second != null, "sticks: a Taiko cabinet has a pair of sticks for each of its players")
+	if left == null or right == null or second == null:
+		return
+	var don_left := ArcadeProfiles.button_bit(3)
+	var don_right := ArcadeProfiles.button_bit(2)
+	var ka_left := ArcadeProfiles.button_bit(4)
+	var ka_right := ArcadeProfiles.button_bit(1)
+	# The left hand takes the left stick; its trigger is a don on the left half of the face, once for a squeeze.
+	var hl := _hand("left")
+	await _take(hl, left)
+	_ok(left.holding_controller() == _ctrl(hl) and not left.held_by_desktop() and input.engaged(),
+		"sticks: a stick taken by a headset's hand is held by that controller, and somebody is at the cabinet")
+	input._taps.clear()
+	_trigger(hl, 1.0)
+	left._read_buttons(_ctrl(hl))
+	_ok(_tapped(input) == [don_left], "sticks: the trigger is a don on the left half of the face, from the left hand (%s)" % str(_tapped(input)))
+	input._taps.clear()
+	left._read_buttons(_ctrl(hl))
+	_ok(_tapped(input).is_empty(), "sticks: a trigger that stays down hits once")
+	_trigger(hl, 0.5)
+	left._read_buttons(_ctrl(hl))
+	_trigger(hl, 1.0)
+	left._read_buttons(_ctrl(hl))
+	_ok(_tapped(input).is_empty(), "sticks: a trigger eased off only to half has not let go, and pressing it again from there hits nothing")
+	_trigger(hl, 0.1)
+	left._read_buttons(_ctrl(hl))
+	_trigger(hl, 1.0)
+	left._read_buttons(_ctrl(hl))
+	_ok(_tapped(input) == [don_left], "sticks: let go and squeezed again, it hits again")
+	# The thumb buttons: A / X a ka on the rim, B / Y a don on the face, once a press.
+	_trigger(hl, 0.0)
+	left._read_buttons(_ctrl(hl))
+	input._taps.clear()
+	_button(hl, &"ax_button", true)
+	left._read_buttons(_ctrl(hl))
+	_ok(_tapped(input) == [ka_left], "sticks: A / X is a ka on the left half of the rim (%s)" % str(_tapped(input)))
+	input._taps.clear()
+	left._read_buttons(_ctrl(hl))
+	_ok(_tapped(input).is_empty(), "sticks: and a button held down hits once")
+	_button(hl, &"ax_button", false)
+	left._read_buttons(_ctrl(hl))
+	_button(hl, &"by_button", true)
+	left._read_buttons(_ctrl(hl))
+	_ok(_tapped(input) == [ka_left, don_left] or _tapped(input) == [don_left, ka_left] or _tapped(input).has(don_left), "sticks: B / Y is a don on the face (%s)" % str(_tapped(input)))
+	_button(hl, &"by_button", false)
+	left._read_buttons(_ctrl(hl))
+	# The right hand takes the right stick: the right half of the drum.
+	var hr := _hand("right")
+	await _take(hr, right)
+	input._taps.clear()
+	_trigger(hr, 1.0)
+	right._read_buttons(_ctrl(hr))
+	_ok(_tapped(input) == [don_right], "sticks: the right hand's trigger is a don on the right half (%s)" % str(_tapped(input)))
+	_trigger(hr, 0.0)
+	right._read_buttons(_ctrl(hr))
+	input._taps.clear()
+	_button(hr, &"ax_button", true)
+	right._read_buttons(_ctrl(hr))
+	_ok(_tapped(input) == [ka_right], "sticks: and its A is a ka on the right half of the rim (%s)" % str(_tapped(input)))
+	_button(hr, &"ax_button", false)
+	right._read_buttons(_ctrl(hr))
+	# Which half is the HAND's side, not the stick's: the left hand holding the right stick still hits the left half, on that stick's own player's port.
+	right.drop()
+	await _wait(2)
+	left.drop()
+	await _wait(2)
+	await _take(hl, right)
+	input._taps.clear()
+	_trigger(hl, 1.0)
+	right._read_buttons(_ctrl(hl))
+	_ok(_tapped(input) == [don_left], "sticks: the half is the hand's own side whichever stick it holds (%s)" % str(_tapped(input)))
+	_trigger(hl, 0.0)
+	right._read_buttons(_ctrl(hl))
+	# The second player's stick hits on the second player's port, and not on the first's.
+	right.drop()
+	await _wait(2)
+	await _take(hl, second)
+	input._taps.clear()
+	_trigger(hl, 1.0)
+	second._read_buttons(_ctrl(hl))
+	_ok(input._taps.size() == 1 and (input._taps.get(1, {}) as Dictionary).has(don_left), "sticks: the second player's stick hits the second port, not the first (%s)" % str(input._taps.keys()))
+	_trigger(hl, 0.0)
+	second._read_buttons(_ctrl(hl))
+	second.drop()
+	await _wait(2)
+	# End to end, by the stick's own frame: held by a controller, a squeeze is a hit with nothing called by hand.
+	await _take(hl, left)
+	var struck: Array = []
+	left.struck.connect(func(zone: String, kind: StringName, hit_side: int) -> void: struck.append([zone, kind, hit_side]))
+	_trigger(hl, 1.0)
+	await _wait(3)
+	_ok(struck == [["FaceLeft", ArcadeDrumstick.DON, 0]], "sticks: held by a controller, the stick reads its hand's trigger every frame by itself (%s)" % str(struck))
+	_trigger(hl, 0.0)
+	await _wait(3)
+	# A swing, end to end: the hand brings the head down onto the left half of the face, slowly (nothing) and then fast (a don).
+	var face: Dictionary = {}
+	for zone: Dictionary in ArcadeDrumstick.zones_of(panel):
+		if zone["name"] == "FaceLeft":
+			face = zone
+	var cap := face["cap"] as MeshInstance3D
+	var sector: Dictionary = cap.get_meta(&"sector")
+	var radius := (float(sector["r0"]) + float(sector["r1"])) * 0.5
+	var angle := (float(sector["a0"]) + float(sector["a1"])) * 0.5
+	var mid := Vector3(radius * cos(angle), cap.mesh.get_aabb().end.y, -radius * sin(angle))
+	var over := cap.global_transform * (mid + Vector3(0.0, 0.08, 0.0))
+	var onto := cap.global_transform * (mid + Vector3(0.0, -0.02, 0.0))
+	var head_at := func(point: Vector3) -> void:
+		(hl["origin"] as XROrigin3D).global_transform = Transform3D(Basis.IDENTITY, point - ArcadeDrumstick.TIP)
+	struck.clear()
+	head_at.call(over)
+	await _wait(4)
+	for step in 20:
+		head_at.call(over.lerp(onto, float(step + 1) / 20.0))
+		await _wait(1)
+	await _wait(3)
+	_ok(struck.is_empty(), "sticks: a head lowered onto the drum slowly (0.2 m/s) hits nothing (%s)" % str(struck))
+	head_at.call(over)
+	await _wait(4)
+	_ok(left.tip_position().distance_to(over) < 0.005,
+		"sticks: held over the drum the stick stays where the hand has it, and is not drawn back into its cradle a quarter of a metre off (%.3f m off)" % left.tip_position().distance_to(over))
+	head_at.call(onto)
+	await _wait(3)
+	_ok(struck == [["FaceLeft", ArcadeDrumstick.DON, 0]], "sticks: the same head brought down fast on the same place is a don on the left face (%s)" % str(struck))
+	head_at.call(over)
+	await _wait(4)
+	head_at.call(onto)
+	await _wait(3)
+	_ok(struck.size() == 2, "sticks: and, lifted off and brought down again, hits again (%d)" % struck.size())
+	# At its cradle it IS shown in it: the hand brings the grip to the seat, and letting go there seats it.
+	var well := left.captive_well
+	(hl["origin"] as XROrigin3D).global_transform = Transform3D(well.global_basis, well.global_position + Vector3(0.0, 0.0, 0.03))
+	await _wait(20)
+	_ok(left.global_position.distance_to(well.global_position) < 0.005,
+		"sticks: with the grip brought to the cradle the stick is shown in it (%.3f m off)" % left.global_position.distance_to(well.global_position))
+	left.drop()
+	await _wait(6)
+	_ok(well.picked_up_object == left and not ArcadeInput.held_by_hand(left),
+		"sticks: and let go there it is taken back into the cradle, and is nobody's in a hand")
+	# A stick in a hand is somebody at a cabinet that only shows its game (and one lying in its cradle is nobody).
+	var used: Array[StringName] = []
+	input.first_use.connect(func(kind: StringName) -> void: used.append(kind))
+	sys.is_powered_on = false
+	sys.attracting = true
+	input._process(0.016)
+	_ok(used.is_empty() and not input.engaged(), "sticks: sticks lying in their cradles leave a cabinet that is showing its game showing it (%s)" % str(used))
+	await _take(hl, left)
+	input._process(0.016)
+	_ok(used == [&"grab"], "sticks: a stick in a hand starts the game a cabinet is only showing, as taking a gun does (%s)" % str(used))
+	sys.attracting = false
+	sys.is_powered_on = true
+	for held: ArcadeDrumstick in [left, right, second]:
+		if held.is_picked_up() and ArcadeInput.held_by_hand(held):
+			held.drop()
+	await _wait(2)
