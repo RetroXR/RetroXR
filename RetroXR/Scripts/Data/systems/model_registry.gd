@@ -160,7 +160,7 @@ const _ROWS: Dictionary = {
 	# The one cabinet both arcade tiles play in: screen, coin doors, panels and a JAMMA
 	# bay in one piece (docs/dev/arcade.md). THE ID IS PERSISTED in saved rooms and on
 	# the netplay wire, so it is final: ArcadeProfiles.CABINET_MODEL_ID says the same.
-	"arcade_cabinet_generic": {"platform": ["arcade"], "label": "Primitive Arcade Cabinet",
+	"arcade_cabinet_generic": {"platform": ["arcade"], "label": "Morphing Arcade Cabinet",
 		"scene": _SCENES + "arcade_cabinet.tscn"},
 	# The same upright with other controls (Tools/gen/gen_arcade_cabinet.gd VARIANTS). THESE IDS
 	# ARE PERSISTED TOO. Generic stays first, so it is the arcade tile's default. There is no shooting

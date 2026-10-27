@@ -1,4 +1,4 @@
-## RetroSystemModelArcadeCabinet — the Primitive Arcade Cabinet.
+## RetroSystemModelArcadeCabinet — the Morphing Arcade Cabinet.
 ##
 ## One piece: a screen, coin doors, a control panel per player, front sockets for
 ## extra controllers and light guns, and a bay behind a lower door where the board (a

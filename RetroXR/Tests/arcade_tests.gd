@@ -1,4 +1,4 @@
-## Arcade self-tests — the Primitive Arcade Cabinet, its JAMMA board and the input that
+## Arcade self-tests — the Morphing Arcade Cabinet, its JAMMA board and the input that
 ## reaches the core. Headless, no core, no ROM, no headset.
 ##
 ##     "$godot" --headless --path RetroXR res://Tests/arcade_tests.tscn

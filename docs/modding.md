@@ -228,7 +228,7 @@ material.
 
 ### Arcade cabinets
 
-Every MAME and FinalBurn Neo core plays in one **Primitive Arcade Cabinet** (`arcade_cabinet_generic`), and a
+Every MAME and FinalBurn Neo core plays in one **Morphing Arcade Cabinet** (`arcade_cabinet_generic`), and a
 ROM is drawn as a JAMMA board, and the cabinet takes the shape of the game in its bay (a shooting game's guns and
 pedal, a four-player game's panels, a driving game's cockpit: `ArcadeCabinetSpecs.for_game`). Four more cabinets
 ship, all the same upright with other controls and a bay for another system: the **Neo Geo MVS** (`arcade_cabinet_neogeo`, platform `neogeo`, four buttons), a

@@ -1,4 +1,4 @@
-## Photographs the Primitive Arcade Cabinet. WINDOWED, never --headless: the dummy
+## Photographs the Morphing Arcade Cabinet. WINDOWED, never --headless: the dummy
 ## renderer returns a correctly sized BLANK image, so a size check passes on nothing.
 ##
 ##   "$godot" --path RetroXR res://Tools/models/arcade_cabinet_probe.tscn \

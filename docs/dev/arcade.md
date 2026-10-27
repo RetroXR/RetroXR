@@ -42,7 +42,7 @@ families is the BAY (JAMMA today; JVS, MVS) and a cabinet scene, never a systemi
 
 Issue XargonWan/RetroXR#1. `mame` and `fbneo` (now both `arcade`, see below) used to be data only: a generic box, a
 generic pad and a ROM spawned as an anonymous cartridge slab. They now play in a
-**Primitive Arcade Cabinet**, and a ROM is drawn as a **JAMMA board**.
+**Morphing Arcade Cabinet**, and a ROM is drawn as a **JAMMA board**.
 
 ## What a cabinet is, in code
 
