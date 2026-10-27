@@ -652,6 +652,31 @@ static func screens_body(screen: Dictionary, shape: String, width: float) -> Dic
 const UPRIGHT_BENCH_Z := 0.98
 
 
+## How far the outer two monitors of a bank are turned in toward the player: TX-1's side screens "tilted 30 degrees" (Wikipedia, a summary; the direction is the research's guess, a bank that
+## wraps round the driver). The bank is laid out by `bank_layout`.
+const BANK_YAW_DEG := 30.0
+
+
+## Where the three monitors of a bank stand in the monitor's own frame (+Z out of the glass, X along it, Y up it), for a whole tube of `tube` metres with `parts` of the frame (left, centre, right as
+## [x, y, w, h] fractions) and `yaw_deg`: each monitor is as tall as the tube and as wide as its part is, in the picture's own shape (`frame_aspect`: width over height of the whole frame). The centre
+## one stands square to the glass; each wing is hinged on a centre edge and turned in by `yaw_deg`, its outer edge toward the player; the centre is set back so the wings' outer edges are on the plane
+## the picture would stand on. `{"sizes": [Vector2 x3], "x": [x of each middle], "z": [z of each middle, 0 = the plane the outer edges stand on], "yaw": [radians each], "span": width across the outer edges}`.
+static func bank_layout(tube: Vector2, parts: Array, frame_aspect: float, yaw_deg: float) -> Dictionary:
+	var sizes: Array = []
+	for part in parts:
+		var w := tube.y * frame_aspect * float(part[2]) / maxf(float(part[3]), 0.0001)
+		sizes.append(Vector2(w, tube.y))
+	var yaw := deg_to_rad(yaw_deg)
+	var wl: float = (sizes[0] as Vector2).x
+	var wc: float = (sizes[1] as Vector2).x
+	var wr: float = (sizes[2] as Vector2).x
+	var set_back := maxf(wl, wr) * sin(yaw)
+	var xs := [-(wc * 0.5 + wl * 0.5 * cos(yaw)), 0.0, wc * 0.5 + wr * 0.5 * cos(yaw)]
+	var zs := [-set_back + wl * 0.5 * sin(yaw), -set_back, -set_back + wr * 0.5 * sin(yaw)]
+	return {"sizes": sizes, "x": xs, "z": zs, "yaw": [yaw, 0.0, -yaw], "set_back": set_back,
+		"span": wc + wl * cos(yaw) + wr * cos(yaw)}
+
+
 ## The shapes a fixed gun can have besides the pistol (a spec's `gun_scene`): the scene each is built from, Tools/gen/gen_arcade_gun.gd.
 const GUN_SCENES := {
 	"stick": "res://Scenes/Objects/peripherals/arcade_light_stick.tscn",
@@ -859,6 +884,13 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 		screen = {"vertical": false, "screens": 1, "scope": scope}
 	elif several:
 		screen["aspect"] = snappedf(profile.frame_aspect(), 0.001)
+		# Three monitors whose outer two are turned toward the player (TX-1, Buggy Boy, Race Drivin' Panorama): each shows its own third of the frame.
+		var bank_parts := profile.bank_parts()
+		if bank_parts.size() == 3:
+			var parts: Array = []
+			for part in bank_parts:
+				parts.append([snappedf(part.position.x, 0.0001), snappedf(part.position.y, 0.0001), snappedf(part.size.x, 0.0001), snappedf(part.size.y, 0.0001)])
+			screen["bank"] = {"style": profile.bank_style(), "yaw": BANK_YAW_DEG, "parts": parts}
 	if inches > 0 and inches != int(shapes()[shape].get("inches", 25)):
 		screen["inches"] = inches
 	if several and shape in ["upright", "tate", "tall", "racer"]:

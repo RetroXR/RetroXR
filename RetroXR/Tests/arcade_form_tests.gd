@@ -21,6 +21,7 @@
 ##   wide/      three to six players: the BODY is as wide as the deck they need, doors and sockets under their panels
 ##   picture/   the picture takes a share of a wide body, never a postage stamp in it; a big-screen cabinet has its body's own tube
 ##   screens/   a game of several screens: the tube takes the frame's shape, the body follows; Silent Scope's second screen is in its scope
+##   bank/      three monitors turned toward the player (TX-1, the sit-down Buggy Boy, Race Drivin' Panorama): laid out, built hinged on one another, each showing its third of the frame
 ##   pedals/    a gun game's pedal and a driver's two are built as real ones are: a hinged ribbed tread on a base, an axle
 ##   scope/     a rifle game of ONE screen has a digital scope: the part of the picture the rifle points at, magnified, in the eyepiece
 ##   service/   TEST and SERVICE in the compartment opposite the power switch, there when MAME says the game reads one
@@ -115,6 +116,9 @@ func _run() -> void:
 		await _clear()
 	if _want("screens"):
 		await _group_screens()
+		await _clear()
+	if _want("bank"):
+		await _group_bank()
 		await _clear()
 	if _want("scope"):
 		await _group_scope()
@@ -955,7 +959,7 @@ func _group_screens() -> void:
 		_ok(t.x > 0.85 and absf(t.x / t.y - 8.03 / 3.0) / (8.03 / 3.0) < 0.02 and t.x <= inner - S.GLASS_SIDES + 0.001,
 			"screens: %s: two screens side by side are a %.2f x %.2f m picture, on a %.2f m body that holds it" % [romset, t.x, t.y, float(sp.get("width", 0.66))])
 	# Three and four across, and a pair on a racing cabinet's monitor housing, which widens.
-	for row: Array in [["darius", 4.0, "upright"], ["buggyboy", 4.0, "upright"], ["orunners", 8.03 / 3.0, "racer"], ["racedrivpan", 4.02, "racer"]]:
+	for row: Array in [["darius", 4.0, "upright"], ["buggyboy", 4.0, "racer"], ["orunners", 8.03 / 3.0, "racer"], ["racedrivpan", 4.02, "racer"]]:
 		var sp := _spec(str(row[0]))
 		var t := _tube(sp)
 		_ok(str(sp["shape"]) == str(row[2]) and absf(t.x / t.y - float(row[1])) / float(row[1]) < 0.02 and float(sp["width"]) >= t.x + 0.12 - 0.011 and float(sp["width"]) > 0.9,
@@ -1066,6 +1070,212 @@ func _group_screens() -> void:
 	await _pull(sys)
 	await _wait(6)
 	_ok(_scope_lens(sys) == null, "screens: pulling the board takes the rifle, and its lens, away")
+
+
+## The two ends of monitor `i` of a bank layout, (x, z) each: its middle, along its own width as its yaw turns it (+X turned by `yaw` about Y is (cos, 0, -sin)).
+func _bank_ends(lay: Dictionary, i: int) -> Array[Vector2]:
+	var half := (lay["sizes"][i] as Vector2).x * 0.5
+	var mid := Vector2(float(lay["x"][i]), float(lay["z"][i]))
+	var along := Vector2(cos(float(lay["yaw"][i])), -sin(float(lay["yaw"][i]))) * half
+	return [mid - along, mid + along]
+
+
+## A shader parameter as a Vector4 / Vector2, zero when it was never set (a read that is null must fail a check and not stop the group).
+func _param4(mat: ShaderMaterial, key: String) -> Vector4:
+	var v: Variant = mat.get_shader_parameter(key)
+	return v as Vector4 if v is Vector4 else Vector4.ZERO
+
+
+func _param2(mat: ShaderMaterial, key: String) -> Vector2:
+	var v: Variant = mat.get_shader_parameter(key)
+	return v as Vector2 if v is Vector2 else Vector2.ZERO
+
+
+## Whether a layout is a fan: each wing hinged on the centre one's edge, the two outer edges on the plane the picture stands on, the centre set back behind them.
+func _bank_is_fan(lay: Dictionary) -> bool:
+	var left := _bank_ends(lay, 0)
+	var mid := _bank_ends(lay, 1)
+	var right := _bank_ends(lay, 2)
+	return left[1].is_equal_approx(mid[0]) and mid[1].is_equal_approx(right[0]) and absf(left[0].y) < 0.0001 and absf(right[1].y) < 0.0001 \
+			and absf(mid[0].y + float(lay["set_back"])) < 0.0001 and absf(float(lay["span"]) - (right[1].x - left[0].x)) < 0.0001 and left[0].x < mid[0].x and mid[1].x < right[1].x
+
+
+## Three monitors turned toward the player (TX-1, the sit-down Buggy Boy, Race Drivin' Panorama): the table says so, the spec lays them out, the builder stands them (the wings hinged on the
+## centre one's edges, turned in, their outer edges on the glass's plane, each in a case BEHIND its picture) and the screen module gives each its own third of the frame.
+func _group_bank() -> void:
+	# The layout, pure: three 4:3 thirds of a 1.2 x 0.3 m tube, the wings turned in 30 degrees.
+	var thirds: Array = [[0.0, 0.0, 1.0 / 3.0, 1.0], [1.0 / 3.0, 0.0, 1.0 / 3.0, 1.0], [2.0 / 3.0, 0.0, 1.0 / 3.0, 1.0]]
+	var lay := S.bank_layout(Vector2(1.2, 0.3), thirds, 4.0, 30.0)
+	var yaw := deg_to_rad(30.0)
+	var sizes: Array = lay["sizes"]
+	_ok(sizes.size() == 3 and (sizes[0] as Vector2).is_equal_approx(Vector2(0.4, 0.3)) and (sizes[1] as Vector2).is_equal_approx(Vector2(0.4, 0.3))
+			and (sizes[2] as Vector2).is_equal_approx(Vector2(0.4, 0.3)),
+		"bank: three 4:3 monitors, each as tall as the tube and a third of the frame wide (%s)" % str(sizes))
+	_ok(is_equal_approx(float(lay["yaw"][0]), yaw) and float(lay["yaw"][1]) == 0.0 and is_equal_approx(float(lay["yaw"][2]), -yaw),
+		"bank: the left wing is turned 30 degrees one way, the right the other, the centre square to the glass")
+	_ok(_bank_is_fan(lay) and is_equal_approx(float(lay["set_back"]), 0.4 * sin(yaw)),
+		"bank: a fan: each wing hinged on the centre monitor's edge, the outer edges on one plane, the centre %.2f m behind it (%s)" % [float(lay["set_back"]), str(lay["z"])])
+	_ok(float(lay["span"]) < 1.2 and is_equal_approx(float(lay["span"]), 0.4 + 2.0 * 0.4 * cos(yaw)),
+		"bank: turned in, the three stand across less than the flat tube is wide (%.3f m of 1.2)" % float(lay["span"]))
+	# A wing turned further, or not at all, is still a fan: the hinge and the plane hold for any yaw.
+	var steep := S.bank_layout(Vector2(1.2, 0.3), thirds, 4.0, 45.0)
+	var flat := S.bank_layout(Vector2(1.2, 0.3), thirds, 4.0, 0.0)
+	_ok(_bank_is_fan(steep) and _bank_is_fan(flat) and is_equal_approx(float(flat["span"]), 1.2) and float(flat["set_back"]) == 0.0 and float(steep["set_back"]) > float(lay["set_back"]),
+		"bank: at 0 degrees it is the flat widescreen (1.2 m, no set back), the steeper the wings the further back the centre")
+	# The parts are the table's: thirds that are not equal (Race Drivin' Panorama's) make monitors that are not equal, and it is still a fan.
+	var pan := P.for_romset("racedrivpan")
+	var pan_parts: Array = []
+	for r in pan.bank_parts():
+		pan_parts.append([r.position.x, r.position.y, r.size.x, r.size.y])
+	var pan_lay := S.bank_layout(Vector2(1.44, 0.36), pan_parts, pan.frame_aspect(), S.BANK_YAW_DEG)
+	var pan_sizes: Array = pan_lay["sizes"]
+	_ok(_bank_is_fan(pan_lay) and absf((pan_sizes[0] as Vector2).x - 0.36 * pan.frame_aspect() * float(pan_parts[0][2])) < 0.0001
+			and absf((pan_sizes[1] as Vector2).x - 0.36 * pan.frame_aspect() * float(pan_parts[1][2])) < 0.0001 and is_equal_approx((pan_sizes[0] as Vector2).y, 0.36),
+		"bank: Race Drivin' Panorama's monitors are as wide as their part of the frame (%s)" % str(pan_sizes))
+	# The table: four games' sets, and no other game of three screens.
+	for romset in ["tx1", "tx1jb", "tx1jc", "buggyboy", "buggyboyb", "racedrivpan", "driveyes"]:
+		var sp := _spec(romset)
+		var screen: Dictionary = sp.get("screen", {})
+		var bank: Dictionary = screen.get("bank", {})
+		var bank_parts: Array = bank.get("parts", [])
+		_ok(str(bank.get("style", "")) == "fan" and is_equal_approx(float(bank.get("yaw", 0.0)), S.BANK_YAW_DEG) and bank_parts.size() == 3 and str(sp["form"]) == "race"
+				and float(bank_parts[0][0]) < float(bank_parts[1][0]) and float(bank_parts[1][0]) < float(bank_parts[2][0]) and absf(float(screen.get("aspect", 0.0)) - 4.0) < 0.05,
+			"bank: %s is three monitors in a fan on the sit-down cockpit, its parts left to right (%s)" % [romset, str(bank_parts)])
+	for romset in ["buggyboyjr", "racedriv", "darius", "ninjaw", "warriorb", "cyberbal", "orunners", "sscope", "pc_smb", "sf2"]:
+		_ok(not (_spec(romset).get("screen", {}) as Dictionary).has("bank"), "bank: %s has no bank of monitors" % romset)
+	var banks := 0
+	var odd: Array = []
+	for line in ArcadeGameTable.TABLE.split("\n", false):
+		var cols := line.split(" ", false)
+		if cols.size() < 2:
+			continue
+		var romset := str(cols[1]).split("=")[0].split("<")[0]
+		var gp := P.from_key(romset, cols[0])
+		if gp.bank_style().is_empty():
+			continue
+		banks += 1
+		if gp.bank_parts().size() != 3 or gp.form() != P.FORM_RACE or gp.screens() != 3:
+			odd.append(romset)
+	_ok(banks == 4 and odd.is_empty(), "bank: the table names %d banks, each of three screens it places on a sit-down cockpit (%s)" % [banks, str(odd)])
+	# On a real cabinet.
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	await _board(sys, "tx1")
+	await _wait(6)
+	var spec := model.form_spec()
+	var real_bank: Dictionary = (spec.get("screen", {}) as Dictionary).get("bank", {})
+	if real_bank.is_empty():
+		_ok(false, "bank: TX-1 on a cabinet asks for a bank of monitors")
+		return
+	var real: Dictionary = S.bank_layout(_tube(spec), real_bank["parts"], float((spec["screen"] as Dictionary).get("aspect", 0.0)), S.BANK_YAW_DEG)
+	var left := model.find_child("CabinetScreenL", true, false) as MeshInstance3D
+	var mid := model.get_builtin_screen()
+	var right := model.find_child("CabinetScreenR", true, false) as MeshInstance3D
+	_ok(left != null and mid != null and right != null and mid.name == "CabinetScreen",
+		"bank: TX-1 on a cabinet has three monitors: the centre one the cabinet's own screen, a wing each side")
+	if left == null or right == null or mid == null:
+		return
+	var turned := absf(left.basis.get_euler().y - deg_to_rad(S.BANK_YAW_DEG)) < 0.001 and absf(right.basis.get_euler().y + deg_to_rad(S.BANK_YAW_DEG)) < 0.001 \
+			and mid.basis.is_equal_approx(Basis.IDENTITY)
+	_ok(turned, "bank: the wings are turned in %d degrees, toward the player, the centre square to the glass (%.1f, %.1f)" % [roundi(S.BANK_YAW_DEG), rad_to_deg(left.basis.get_euler().y), rad_to_deg(right.basis.get_euler().y)])
+	var left_outer := left.position - left.basis.x * (left.mesh as QuadMesh).size.x * 0.5
+	var right_outer := right.position + right.basis.x * (right.mesh as QuadMesh).size.x * 0.5
+	_ok(absf(left_outer.z - right_outer.z) < 0.0001 and absf((left_outer.z - mid.position.z) - float(real["set_back"])) < 0.0002 and left_outer.x < mid.position.x and right_outer.x > mid.position.x,
+		"bank: the outer edges stand on the glass's plane and the centre monitor %.2f m behind them" % float(real["set_back"]))
+	var left_in := left.position + left.basis.x * (left.mesh as QuadMesh).size.x * 0.5
+	var right_in := right.position - right.basis.x * (right.mesh as QuadMesh).size.x * 0.5
+	var mid_half := (mid.mesh as QuadMesh).size.x * 0.5
+	_ok(absf(left_in.x - (mid.position.x - mid_half)) < 0.0002 and absf(left_in.z - mid.position.z) < 0.0002
+			and absf(right_in.x - (mid.position.x + mid_half)) < 0.0002 and absf(right_in.z - mid.position.z) < 0.0002,
+		"bank: each wing is hinged on the centre monitor's own edge, no gap and no overlap")
+	var window := _window(model)
+	_ok(float(real["span"]) <= (window["glass"] as Vector2).x + 0.001 and is_equal_approx((left.mesh as QuadMesh).size.y, _tube(spec).y) and is_equal_approx((mid.mesh as QuadMesh).size.y, _tube(spec).y),
+		"bank: the three are as tall as the tube and stand across %.2f m of the %.2f m window" % [float(real["span"]), (window["glass"] as Vector2).x])
+	# Each monitor is in a case that stands BEHIND its picture along the picture's own normal (a wing's case pushed straight back in the cabinet's frame had its face in front of it).
+	var behind := true
+	var how := ""
+	for i in 3:
+		var quad := [left, mid, right][i] as MeshInstance3D
+		var case_box := model.find_child("BankCase%d" % (i + 1), true, false) as MeshInstance3D
+		if case_box == null:
+			behind = false
+			how += " none%d" % (i + 1)
+			continue
+		var front := (case_box.position - quad.position).dot(quad.basis.z) + (case_box.mesh as BoxMesh).size.z * 0.5
+		behind = behind and front <= -0.0015 and front > -0.01 and case_box.basis.is_equal_approx(quad.basis)
+		how += " %.4f" % front
+	_ok(behind, "bank: each monitor's case stands behind its picture, turned as it is (front faces at%s m)" % how)
+	var module := model.modules_of_kind(ArcadeProfiles.KIND_SCREEN)[0] as ArcadeScreenModule
+	var parts: Array = real_bank["parts"]
+	_ok(module.bank_parts.size() == 3 and absf(module.bank_frame_aspect - float((spec["screen"] as Dictionary)["aspect"])) < 0.0001
+			and module.bank_parts[0].is_equal_approx(Rect2(float(parts[0][0]), float(parts[0][1]), float(parts[0][2]), float(parts[0][3])))
+			and module.glass_size.is_equal_approx(real["sizes"][1] as Vector2),
+		"bank: the screen module has the three parts, the frame's shape and the centre monitor's own size to fit the picture to")
+	# Feed it a frame of the shape the table expects, as the core would: each monitor shows its third, fitted whole to its own glass.
+	var card := Image.create(1200, 300, false, Image.FORMAT_RGBA8)
+	card.fill(Color(0.2, 0.3, 0.5))
+	var frame := ImageTexture.create_from_image(card)
+	module.aspect_override = module.bank_frame_aspect
+	module.present(frame, false, false, 0.0)
+	var left_mat := left.get_surface_override_material(0) as ShaderMaterial
+	var right_mat := right.get_surface_override_material(0) as ShaderMaterial
+	if left_mat == null or right_mat == null:
+		_ok(false, "bank: a frame of the shape expected gives each wing its own material")
+		return
+	var left_rect := _param4(left_mat, "view_rect")
+	var right_rect := _param4(right_mat, "view_rect")
+	var mid_rect := _param4(module._material, "view_rect")
+	var left_fit := _param2(left_mat, "fit_scale")
+	var right_fit := _param2(right_mat, "fit_scale")
+	# The parts are the spec's, to four places.
+	var near := func(a: Vector4, b: Vector4) -> bool: return (a - b).length() < 0.0005
+	_ok(module.is_bank_on() and left_mat != right_mat and left_mat != module._material
+			and near.call(left_rect, Vector4(0.0, 0.0, 1.0 / 3.0, 1.0)) and near.call(mid_rect, Vector4(1.0 / 3.0, 0.0, 1.0 / 3.0, 1.0)) and near.call(right_rect, Vector4(2.0 / 3.0, 0.0, 1.0 / 3.0, 1.0)),
+		"bank: a frame of the shape expected: the wings show the left and right thirds, the centre the middle one (%s | %s | %s)" % [left_rect, mid_rect, right_rect])
+	_ok(left_fit.is_equal_approx(Vector2.ONE) and right_fit.is_equal_approx(Vector2.ONE) and module.current_fit().is_equal_approx(Vector2.ONE) and absf(module.current_aspect() - 4.0 / 3.0) < 0.002
+			and left_mat.get_shader_parameter("source_tex") == frame and right_mat.get_shader_parameter("source_tex") == frame,
+		"bank: each third fills its monitor whole, in the picture's own 4:3 (%s %s %s), from the same frame" % [left_fit, module.current_fit(), right_fit])
+	# Running every frame changes nothing it has set already.
+	left_mat.set_shader_parameter("view_rect", Vector4(0.5, 0.5, 0.5, 0.5))
+	module.present(frame, false, false, 0.0)
+	var kept := _param4(left_mat, "view_rect")
+	_ok(kept.is_equal_approx(Vector4(0.5, 0.5, 0.5, 0.5)), "bank: the wings' fit is set when the frame's shape changes, not again every frame")
+	left_mat.set_shader_parameter("view_rect", left_rect)
+	# A frame of another shape (a view the table did not foresee): the whole frame on the centre monitor, the wings dark.
+	module.aspect_override = 4.0 / 3.0
+	module.present(frame, false, false, 0.0)
+	var whole := _param4(module._material, "view_rect")
+	_ok(not module.is_bank_on() and whole.is_equal_approx(Vector4(0.0, 0.0, 1.0, 1.0)) and left.get_surface_override_material(0) is StandardMaterial3D and right.get_surface_override_material(0) is StandardMaterial3D,
+		"bank: a frame of another shape is shown whole on the centre monitor and the wings go dark (%s)" % whole)
+	# Back to the shape expected, the wings come on, with their fit made again.
+	module.aspect_override = module.bank_frame_aspect
+	module.present(frame, false, false, 0.0)
+	left_mat = left.get_surface_override_material(0) as ShaderMaterial
+	var again := _param4(left_mat, "view_rect") if left_mat != null else Vector4.ZERO
+	_ok(module.is_bank_on() and near.call(again, Vector4(0.0, 0.0, 1.0 / 3.0, 1.0)), "bank: and the shape expected again brings them back showing their thirds (%s)" % again)
+	# The game on show, a picture from another machine, a frame shape within 4% of the table's, and no picture at all.
+	module.present(frame, false, true, 0.0)
+	_ok(not module.is_bank_on() and left.get_surface_override_material(0) is StandardMaterial3D, "bank: a game that is only on show (attract) is one picture on the centre monitor, the wings dark")
+	module.present(frame, true, false, 0.0)
+	_ok(not module.is_bank_on() and right.get_surface_override_material(0) is StandardMaterial3D, "bank: a picture from another machine on the cord is one picture too")
+	module.aspect_override = module.bank_frame_aspect * 1.03
+	module.present(frame, false, false, 0.0)
+	_ok(module.is_bank_on(), "bank: the core's rounding of its aspect (3%) is allowed for")
+	module.aspect_override = module.bank_frame_aspect * 1.08
+	module.present(frame, false, false, 0.0)
+	_ok(not module.is_bank_on(), "bank: and 8% off is another shape")
+	module.aspect_override = module.bank_frame_aspect
+	module.present(frame, false, false, 0.0)
+	module.tick(0.0)
+	_ok(not module.is_bank_on() and left.get_surface_override_material(0) is StandardMaterial3D and right.get_surface_override_material(0) is StandardMaterial3D
+			and mid.get_surface_override_material(0) is StandardMaterial3D,
+		"bank: with no picture (the core stopped) all three go dark")
+	# Pulling the board gives the cabinet its own single monitor back.
+	await _pull(sys)
+	await _wait(6)
+	_ok(model.find_child("CabinetScreenL", true, false) == null and model.find_child("CabinetScreenR", true, false) == null and model.find_child("BankCase1", true, false) == null
+			and model.get_builtin_screen() != null,
+		"bank: pulling the board takes the wings and their cases away, the cabinet's own screen stays")
 
 
 ## A rifle game of one screen (Golgo 13, Silent Scope EX) had a dead eyepiece: there is no second screen to show in it. Its scope is a digital one now: the
@@ -3332,9 +3542,9 @@ func _group_shift() -> void:
 	_ok(not bool(_spec("daytona")["cockpit"]["shifter"]) and bool(_spec("outrun")["cockpit"]["shifter"]) and bool(_spec("polepos")["players"][0]["shifter"])
 			and not bool(_spec("scud")["cockpit"]["shifter"]),
 		"shift: no lever is built for Daytona USA or Scud Race; Out Run's sit-down cockpit and Pole Position's stand-up panel have one")
-	_ok(P.for_romset("crusnusa").buttons >= 1 and P.for_romset("buggyboy").buttons >= 1
-			and not bool(_spec("crusnusa")["players"][0]["shifter"]) and not bool(_spec("buggyboy")["players"][0]["shifter"]),
-		"shift: a stand-up game with buttons but no lever of its own (Cruis'n USA's H pattern, Buggy Boy) is not given one for its buttons")
+	_ok(P.for_romset("crusnusa").buttons >= 1 and P.for_romset("buggyboyjr").buttons >= 1 and P.for_romset("buggyboy").buttons >= 1
+			and not bool(_spec("crusnusa")["players"][0]["shifter"]) and not bool(_spec("buggyboyjr")["players"][0]["shifter"]) and not bool(_spec("buggyboy")["cockpit"]["shifter"]),
+		"shift: a game with buttons but no lever of its own (Cruis'n USA's H pattern, Buggy Boy Junior's stand-up, Buggy Boy's cockpit) is not given one for its buttons")
 	# The cabinet: the lever follows the game's own button, not button 1.
 	var sys := await _machine()
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet

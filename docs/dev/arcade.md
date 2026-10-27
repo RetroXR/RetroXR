@@ -943,7 +943,7 @@ multi-screen games is without (a view that nests its items in groups or repeats,
 | `playch10`, `dualhuov` Dual Under-Over (PlayChoice-10, Mega-Tech) | 0.66 | 104 | a portrait tube in the `tall` body (0.38 x 0.58 m, two screens over one another) |
 | `dualhovu` Dual Over-Under (Punch-Out!!, Hang Pilot, Armwrestling) | 0.66 | 13 | the same |
 | `cdi` Main Screen + LCD (Quizard) | 1.24 | 17 | a 0.78 m body, the tall glass |
-| `triphsxs` and kin: Darius, Ninja Warriors, TX-1, Buggy Boy, Race Drivin' Panorama, Drive Yeah | 4.0 | 18 | a 1.1 to 1.6 m body (a racing housing widens, there is no taller glass for it) |
+| `triphsxs` and kin: Darius, Ninja Warriors, TX-1, Buggy Boy, Race Drivin' Panorama, Driver's Eyes | 4.0 | 18 | a 1.1 to 1.6 m body (a racing housing widens, there is no taller glass for it); the driving ones are **a bank of three monitors turned toward the player** (below) |
 | `firebeat` Dual Side-by-Side of portrait screens (Keyboardmania), `default-rr` | 1.51 | 5 | the tate body, 0.85 m |
 | the custom ones: `nbmj8688` (a mahjong table: a screen with two LCD strips), `rocknms`, `spbactnp` (two stacked), `spdheat` (2 x 2), `ppsatan`, `aquastge`, a five-screen row | 0.46 to 6.7 | 27 | each in the shape of its own frame |
 
@@ -958,7 +958,20 @@ alone, 4:3 on the wide body's whole 0.72 x 0.54 m tube; the rifle's eyepiece (a 
 `ArcadeScreenModule` does the cutting with the shader's `view_rect`, found by name among the cabinet's parts, **and only while the core's frame is the shape the table expects** (`crop_applies`, 4%): any other
 view (a layout of the player's own artwork) shows the whole frame on the monitor and a dark lens, rather than the wrong part. Every Silent Scope set is `MACHINE_NOT_WORKING` in MAME 0.289, so none has been
 seen to run; the cut is made from MAME's layout numbers, not from a picture. Golgo 13's rifles (and Silent Scope EX's, `sscopex`) have one screen and no second one to show, so their scope is a
-DIGITAL one: the lens shows the part of the monitor's own picture the rifle points at, 2.5 times (`scope_zoom`, `ArcadeScreenModule.follow_rect`; `arcade-cabinets.md` Silent Scope).
+DIGITAL one: the lens shows the part of the monitor's own picture the rifle points at, 3 times (`scope_zoom`, `ArcadeScreenModule.follow_rect`; `arcade-cabinets.md` Silent Scope), in a round field with a reticle.
+
+**A bank of monitors turned toward the player** (2026-10-27; TX-1, Buggy Boy's sit-down sets, Race Drivin' Panorama, Driver's Eyes: the table's `dfan`). These four are cockpits whose three screens were three separate
+monitors on one panorama, and the glass of the cockpit was one flat wide picture, the way Darius's and Ninja Warriors' mirror makes one: a player asked for the side screens to face the driver and not stand flat in a row like a widescreen. `ArcadeCabinetSpecs.bank_layout` stands three monitors, each as tall as the tube and as wide as ITS part of the frame is in the frame's own shape (`tube.y * frame aspect * part width`): the centre one
+square to the glass, **a wing each side hinged on the centre one's edge and turned in by `BANK_YAW_DEG` (30 degrees: TX-1's side screens are "tilted 30 degrees" in a Wikipedia summary, which does not say which way; in is
+the way a bank wraps round a driver and the only way the outer edges stay in the window)**, so the centre monitor is set BACK behind the glass by `max(wing width) * sin(yaw)` (19 cm for 4:3 monitors 0.48 m wide) and the
+outer edges stand on the plane a flat picture would. Each is in a dark case behind its picture, along the picture's OWN normal (a wing's case pushed straight back in the cabinet's frame has its face in front of the
+picture: the first build showed two grey boxes where the wings were, found by looking, and `arcade_form_tests bank/` now measures it). `ArcadeScreenModule` lights them: `bank_parts` (left, centre, right, the profile's
+`bank_parts()`, sorted by where each stands in MAME's frame because Race Drivin' Panorama's first screen is the middle one) and `bank_frame_aspect`, and **only while the core's frame is that shape** (`crop_applies`, 4%: a
+layout the table did not foresee shows the whole frame on the centre monitor and the wings stay dark, the scope's rule); the wings' own materials (`CabinetScreenL`, `CabinetScreenR`) take `view_rect` and `fit_scale` when
+the frame's shape changes, not every frame; attract, a picture from another machine and no picture at all put the wings out. The generator marks the bank (`BANK` in `gen_game_index.py`) and also makes the sit-down Buggy
+Boy sets a cockpit (MAME's descriptions "(cockpit)"; the Junior stays a stand-up). **Not built**: Darius and Ninja Warriors as separate monitors (a half-silvered mirror merges them into one picture; one wide glass is
+that picture), Cyberball 2072's four-player cabinet tilted 45 degrees with a strip between (one summary, no source), a tilted Run and Gun / PlayChoice / Punch-Out pair (nothing says the pair was angled), a mirror at all.
+`arcade_form_tests bank/` (42 checks), `arcade_tests game/`; picture `--forms=tx1,buggyboy,racedrivpan,driveyes` (the probe feeds a frame of three coloured test cards, one number of bars each, so which monitor shows which is unmistakable).
 
 OWED: a real run of any of it (Silent Scope does not run in MAME 0.289; a PlayChoice-10 or Mega-Tech could be tried with a core and the ROMs), a headset to look into the scope, the real cabinets' monitor sizes (no source
 gives them; the pairs are drawn at the class of two upright tubes), and whether the real scope's LCD showed the whole second screen (the lens shows all of it).

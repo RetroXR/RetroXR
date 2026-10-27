@@ -28,6 +28,11 @@ const SHADER := preload("res://Shaders/arcade_screen.gdshader")
 ## The monitor shows the whole frame, and the lens the part of it the rifle points at, magnified: the aim is the gun's own (`last_aim`, -0x7fff..0x7fff, y down),
 ## so the picture in the eyepiece is where the barrel is. 0 = no digital scope.
 @export var scope_zoom: float = 0.0
+## A BANK of monitors (the table's `d`: TX-1's three screens, the side ones turned toward the player): the part of the core's frame each of the three shows, left, centre, right, as fractions of
+## it (y down), and the shape the table expects the frame to be. The centre monitor is `CabinetScreen`, the wings `CabinetScreenL` and `CabinetScreenR`; as with a scope, the cut is made only
+## while the frame IS that shape. Empty = one monitor showing the whole frame.
+@export var bank_parts: Array[Rect2] = []
+@export var bank_frame_aspect: float = 0.0
 ## For the tests and the probe: the frame's shape as if the core had reported it (> 0), instead of asking the core.
 var aspect_override: float = 0.0
 
@@ -45,6 +50,12 @@ var _lens_material: ShaderMaterial = null
 var _lens_off: StandardMaterial3D = null
 var _lens_search := 0.0
 var _cut := false
+## A bank's two wing monitors (left, right), their materials, and whether the three are showing their parts of the frame now.
+var _wings: Array[MeshInstance3D] = []
+var _wing_materials: Array[ShaderMaterial] = []
+var _bank_on := false
+## The frame shape the wings are fitted for: their fit is set only when it changes (this runs every frame, and a material parameter set is not free).
+var _bank_fitted := 0.0
 var _applied_aspect := -1.0
 var _applied_part := Rect2()
 ## The game's own bezel round the picture (set_bezel), or null.
@@ -72,6 +83,19 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 	_lens_material = ShaderMaterial.new()
 	_lens_material.shader = SHADER
 	_lens_material.set_shader_parameter("scanlines", 0.0)
+	_wings.clear()
+	_wing_materials.clear()
+	_bank_fitted = 0.0
+	for wing_name: String in ["CabinetScreenL", "CabinetScreenR"]:
+		var wing := find_child(wing_name, true, false) as MeshInstance3D
+		if wing == null:
+			continue
+		var material := ShaderMaterial.new()
+		material.shader = SHADER
+		material.set_shader_parameter("scanlines", scanlines)
+		wing.set_surface_override_material(0, _off_material)
+		_wings.append(wing)
+		_wing_materials.append(material)
 
 
 func get_screen() -> MeshInstance3D:
@@ -190,6 +214,8 @@ func tick(delta: float) -> void:
 			_screen.set_surface_override_material(0, _off_material)
 		_serial = -1
 		_cut = false
+		_bank_on = false
+		_update_bank(null)
 		_update_lens(null, delta)
 		return
 	var external := cabinet.has_method("external_picture_active") and bool(cabinet.call("external_picture_active"))
@@ -205,6 +231,7 @@ func present(tex: Texture2D, external: bool, attract: bool, delta: float) -> voi
 	if _screen.get_surface_override_material(0) != _material:
 		_screen.set_surface_override_material(0, _material)
 	_refresh_geometry(tex, external, attract)
+	_update_bank(tex if _bank_on else null)
 	# A digital scope shows the game running (not its video snap on show, nor a cord from another machine): a real frame.
 	var digital := scope_zoom > 1.0 and not external and not attract
 	_update_lens(tex if (_cut or digital) else null, delta)
@@ -214,6 +241,7 @@ func _refresh_geometry(tex: Texture2D, external: bool = false, attract: bool = f
 	var lib: Object = _libretro()
 	var aspect := 0.0
 	_cut = false
+	_bank_on = false
 	if attract:
 		# The game on show, not running: a video snap or a still, whose shape is its own.
 		_serial = -1
@@ -244,6 +272,14 @@ func _refresh_geometry(tex: Texture2D, external: bool = false, attract: bool = f
 	if not (aspect > 0.0):
 		aspect = fallback_aspect(Vector2(tex.get_size()))
 	_geometry_aspect = aspect
+	# A bank: each of the three monitors shows its own third of the frame, while the frame is the shape the table says (any other view shows the whole frame on the middle one).
+	_bank_on = not _wings.is_empty() and bank_parts.size() == 3 and crop_applies(aspect, bank_frame_aspect)
+	if _bank_on:
+		_cut = false
+		var centre := bank_parts[1]
+		_content_aspect = aspect * centre.size.x / centre.size.y
+		_apply_fit(_content_aspect, centre)
+		return
 	# The monitor shows its screen cut out of the frame, while the frame is the shape the table says: then the scope has the other.
 	_cut = crop_applies(aspect, scope_frame_aspect) and main_part.has_area() and scope_part.has_area()
 	if _cut:
@@ -269,6 +305,38 @@ func _apply_fit(aspect: float, part: Rect2) -> void:
 ## cut is only made then, so a layout the table did not foresee shows the whole frame on the monitor instead of the wrong part of it.
 static func crop_applies(reported: float, expected: float) -> bool:
 	return reported > 0.0 and expected > 0.0 and absf(reported - expected) <= expected * 0.04
+
+
+# ── a bank of monitors ──────────────────────────────────────────────────────
+
+## Show the core's picture on a bank's wings (`tex`: the frame, bound to the centre monitor already), each its own part of it, fitted to its own glass; or put them out (null).
+func _update_bank(tex: Texture2D) -> void:
+	# The parts and the glass never change after the build, so the fit follows the frame's shape alone.
+	var refit := not is_equal_approx(_geometry_aspect, _bank_fitted)
+	for i in _wings.size():
+		var wing := _wings[i]
+		if not is_instance_valid(wing):
+			continue
+		if tex == null:
+			if wing.get_surface_override_material(0) != _off_material:
+				wing.set_surface_override_material(0, _off_material)
+			continue
+		var material := _wing_materials[i]
+		if material.get_shader_parameter("source_tex") != tex:
+			material.set_shader_parameter("source_tex", tex)
+		if refit:
+			var part := bank_parts[0 if i == 0 else 2]
+			material.set_shader_parameter("fit_scale", fit_for(_geometry_aspect * part.size.x / part.size.y, (wing.mesh as QuadMesh).size))
+			material.set_shader_parameter("view_rect", Vector4(part.position.x, part.position.y, part.size.x, part.size.y))
+		if wing.get_surface_override_material(0) != material:
+			wing.set_surface_override_material(0, material)
+	if tex != null and refit:
+		_bank_fitted = _geometry_aspect
+
+
+## Whether the monitor is a bank showing its three parts of the frame now (the tests, the probe).
+func is_bank_on() -> bool:
+	return _bank_on
 
 
 # ── the scope's lens ────────────────────────────────────────────────────────

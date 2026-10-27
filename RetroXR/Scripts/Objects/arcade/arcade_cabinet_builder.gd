@@ -238,6 +238,14 @@ static func _part_of(a: Array) -> Rect2:
 	return Rect2(float(a[0]), float(a[1]), float(a[2]), float(a[3]))
 
 
+## A bank's parts of the frame as the screen module takes them: a typed array of Rects.
+static func _bank_parts(parts: Array) -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	for part: Array in parts:
+		out.append(_part_of(part))
+	return out
+
+
 func _form_node(n: Node) -> Node:
 	n.set_meta(FORM_META, true)
 	form_nodes.append(n)
@@ -415,9 +423,14 @@ func _build_monitor() -> void:
 	var mod := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Screen", Vector3(0, mid.y, mid.x))) as Node3D
 	mod.set_script(load(SCRIPTS["screen"]))
 	mod.basis = basis
+	# A bank of three monitors (TX-1): each as tall as the tube, the outer two turned in toward the player (ArcadeCabinetSpecs.bank_layout).
+	var bank: Dictionary = (_v["screen"] as Dictionary).get("bank", {}) if _v.has("screen") else {}
+	var lay := {}
+	if not bank.is_empty():
+		lay = ArcadeCabinetSpecs.bank_layout(_tube, bank["parts"], float((_v["screen"] as Dictionary).get("aspect", 0.0)), float(bank["yaw"]))
 	if _v.has("screen"):
-		# The picture is fitted to the TUBE's shape, which a vertical game turns on its side.
-		mod.set("glass_size", _tube)
+		# The picture is fitted to the TUBE's shape, which a vertical game turns on its side (a bank's centre monitor is the one the fit is made for).
+		mod.set("glass_size", (lay["sizes"][1] as Vector2) if not lay.is_empty() else _tube)
 		# A scope game: the monitor shows its screen cut out of the frame and the rifle's scope the other (ArcadeScreenModule).
 		var scope: Dictionary = (_v["screen"] as Dictionary).get("scope", {})
 		if scope.has("zoom"):
@@ -428,11 +441,29 @@ func _build_monitor() -> void:
 			mod.set("scope_frame_aspect", float(scope["aspect"]))
 	var length := along.length()
 	# How far behind the glass the picture stands: the tube's own depth, and a hologram cabinet's deep stage on top.
-	var back := TUBE_DEPTH + float((_v.get("holo", {}) as Dictionary).get("depth", 0.0))
+	var plane := TUBE_DEPTH + float((_v.get("holo", {}) as Dictionary).get("depth", 0.0))
+	var back := plane + float(lay.get("set_back", 0.0))
 	# The tube's enclosure: a dark board behind the picture, as wide as the cabinet.
 	ArcadeParts.box(_owner, mod, "Bezel", Vector3(_in_w, length, 0.012), Vector3(0, 0, -back - 0.006), _dark)
-	var screen := ArcadeParts.quad(_owner, mod, "CabinetScreen", _tube, Vector3(0, 0.005, -back + 0.0005),
-		ArcadeParts.mat(Color(0.015, 0.017, 0.02), 0.0, 0.12))
+	var off_screen := ArcadeParts.mat(Color(0.015, 0.017, 0.02), 0.0, 0.12)
+	var screen: MeshInstance3D
+	if lay.is_empty():
+		screen = ArcadeParts.quad(_owner, mod, "CabinetScreen", _tube, Vector3(0, 0.005, -back + 0.0005), off_screen)
+	else:
+		# Three monitors, each in a dark case: the centre square to the glass (set back), a wing each side hinged on its edge and turned in.
+		var names := ["CabinetScreenL", "CabinetScreen", "CabinetScreenR"]
+		var casing := _dark
+		for i in 3:
+			var size: Vector2 = lay["sizes"][i]
+			var at := Vector3(float(lay["x"][i]), 0.005, -plane + float(lay["z"][i]) + 0.0005)
+			var quad := ArcadeParts.quad(_owner, mod, names[i], size, at, off_screen)
+			quad.basis = Basis(Vector3.UP, float(lay["yaw"][i]))
+			# Behind the quad along ITS normal: a turned wing's case moved straight back in the cabinet's frame has its face in front of the picture.
+			var case_box := ArcadeParts.box(_owner, mod, "BankCase%d" % (i + 1), Vector3(size.x + 0.04, size.y + 0.04, 0.03), at - quad.basis.z * 0.017, casing)
+			case_box.basis = quad.basis
+		screen = mod.find_child("CabinetScreen", false, false) as MeshInstance3D
+		mod.set("bank_parts", _bank_parts(bank["parts"]))
+		mod.set("bank_frame_aspect", float((_v["screen"] as Dictionary).get("aspect", 0.0)))
 	screen.name = "CabinetScreen"
 	# The classic glass: a translucent pane flush with the cabinet's front, the picture showing
 	# through it, in a black frame whose outer face is the glass's own plane.

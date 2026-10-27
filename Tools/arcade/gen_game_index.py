@@ -43,6 +43,7 @@ not the default, `;`-separated attributes (a letter and a value):
   z         the flight game reads a throttle lever (an `IPT_AD_STICK_Z` of its own in the driver, cockpits.py),
   y<style>  the controller is drawn as something other than a ball on a stick: `yyoke` a flight yoke, `yrod` a fishing rod with its reel (STYLE; `k` is retired: it was a boot time); on
             a gun game the fixed gun is drawn as something other than a pistol: `ystick` joystick-like (Rail Chase), `yblaster` a big blaster (Laser Ghost) (GUN_STYLE),
+  d<style>  a bank of monitors (BANK): `dfan` three screens, the outer two turned toward the player, each showing its third of the frame,
   yhelm     (on a driving game) a steering yoke that only turns, with the buttons on it: Road Blasters' (HELM),
   u<n..>    the MAME buttons the game uses when they are not 1..N (`u23`: buttons 2 and 3, Road Blasters' Lasers and Special Weapon; USED_BUTTONS),
   j         the gun game's player also works a joystick (GUN_STICK: Gunbuster's walk): a stick and two buttons on the panel of each gun,
@@ -217,6 +218,13 @@ DRIVING_FORM = {
 # A driving game some of whose sets are a sit-down cockpit by their own description ("cockpit") and the rest a stand-up ("upright"): Road Blasters' `roadblstc`, `roadblstc1`
 # and `roadblstcg` are cockpits, the other eight uprights. A cockpit set is the seated cockpit, the rest keep DRIVING_FORM's.
 COCKPIT_BY_DESC = {"roadblst"}
+# A BANK of monitors, by machine or parent romset: the table's `d`. `fan`: three screens side by side whose outer two are turned in toward the player (TX-1's side screens "tilted 30 degrees";
+# Buggy Boy's cockpit has three that form a panorama; Race Drivin' Panorama's and Driver's Eyes' three are assumed to stand the same: no source gives their angles), each showing its own
+# third of the frame MAME draws. A triple behind a half-silvered mirror (Darius, Ninja Warriors) is one continuous wide picture, which is what its one wide glass is.
+BANK = {"tx1": "fan", "buggyboy": "fan", "racedrivpan": "fan", "driveyes": "fan"}
+# A game whose sets of three screens are the sit-down cockpit by their own description ("(cockpit)") and whose single-screen clone is the upright: Buggy Boy / Speed Buggy (`buggyboy` and
+# `buggyboyb`; the Junior `buggyboyjr` is the upright with one screen).
+COCKPIT_IF_THREE_SCREENS = {"buggyboy"}
 # A steering YOKE that only turns (Road Blasters': two grips on a bar, no rim, about 270 degrees from lock to lock; the research calls it "an X yoke", Atari's own, in the
 # style of the Star Wars yoke): the table's `yhelm`. It is a wheel to the input and the hands, drawn as a yoke.
 HELM = {"roadblst"}
@@ -371,6 +379,8 @@ def form_of(machine, parent, kinds, name_for_lists):
         return ""
     if name_for_lists in COCKPIT_BY_DESC and "cockpit" in desc.lower():
         return "race"
+    if name_for_lists in COCKPIT_IF_THREE_SCREENS and len(machine.findall("display")) >= 3:
+        return "race"
     if name_for_lists in ODD:
         return "odd"
     if name_for_lists in DRIVING_FORM:
@@ -488,6 +498,8 @@ def profile_of(machine, parent):
         attrs.append("j")
     if family in HELM:
         attrs.append("yhelm")
+    if len(displays) >= 3 and (name in BANK or family in BANK):
+        attrs.append("d" + BANK.get(name, BANK.get(family)))
     if family in USED_BUTTONS:
         attrs.append("u" + USED_BUTTONS[family])
     if form == "dance" and SOLO_DESC.search(desc):

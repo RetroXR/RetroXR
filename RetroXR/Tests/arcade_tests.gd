@@ -1716,6 +1716,22 @@ func _group_game_profile() -> void:
 		"game: Silent Scope's first screen is the left half of its frame and its second the right (%s | %s)" % [left, right])
 	_ok(pc.screen_part(1).position.y == 0.0 and pc.screen_part(0).position.y > 0.4 and punch.screen_part(0).position.y == 0.0 and punch.screen_part(1).position.y > 0.4,
 		"game: a PlayChoice-10 has its second screen on top, Punch-Out!! its first")
+	# A bank of three monitors turned toward the player (TX-1, the sit-down Buggy Boy, Race Drivin' Panorama): the table says so, and the profile lists the three parts of the frame left to right,
+	# whatever order MAME numbers its screens in (Race Drivin' Panorama's first is the middle one).
+	var tx1_bank := P.for_romset("tx1")
+	var pan_bank := P.for_romset("racedrivpan")
+	var bug_bank := P.for_romset("buggyboy")
+	_ok(tx1_bank.bank_style() == "fan" and bug_bank.bank_style() == "fan" and pan_bank.bank_style() == "fan" and P.for_romset("tx1jb").bank_style() == "fan" and P.for_romset("driveyes").bank_style() == "fan"
+			and P.for_romset("buggyboyjr").bank_style().is_empty() and P.for_romset("racedriv").bank_style().is_empty() and P.for_romset("darius").bank_style().is_empty()
+			and P.for_romset("ninjaw").bank_style().is_empty() and P.for_romset("sf2").bank_style().is_empty() and not P.for_romset("not_a_real_romset").known,
+		"game: TX-1, Buggy Boy's sit-down, Race Drivin' Panorama and Driver's Eyes are banks of three monitors; the upright Buggy Boy, Darius and Ninja Warriors (three screens, one glass) are not")
+	var bank := pan_bank.bank_parts()
+	_ok(bank.size() == 3 and pan_bank.screen_part(0).position.x > 0.3 and pan_bank.screen_part(1).position.x == 0.0 and bank[0].position.x == 0.0
+			and bank[1].position.x > 0.3 and bank[1].position.x < 0.4 and bank[2].position.x > 0.6 and tx1_bank.bank_parts().size() == 3 and tx1_bank.bank_parts()[2].position.x > 0.6
+			and P.for_romset("sf2").bank_parts().is_empty() and P.for_romset("darius").bank_parts().is_empty() and P.for_romset("warriorb").bank_parts().is_empty(),
+		"game: a bank's parts are listed left, centre, right (Race Drivin' Panorama's first screen is the centre one); a game that is no bank lists none")
+	_ok(bug_bank.form() == P.FORM_RACE and tx1_bank.form() == P.FORM_RACE and pan_bank.form() == P.FORM_RACE and P.for_romset("buggyboyjr").form() == P.FORM_STAND,
+		"game: the three-screen Buggy Boy is the sit-down cockpit (MAME's '(cockpit)' sets), the Junior the stand-up")
 	# The scope: Silent Scope's second screen, every set of it, and nobody else's.
 	var scope_ok := true
 	for name: String in lenses:

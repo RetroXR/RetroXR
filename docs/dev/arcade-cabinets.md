@@ -122,7 +122,7 @@ more than one screen, 3 to 8 players are 1,345, **2,959 are alternating** (`a`: 
 - **The eyepiece is a cup, 10 cm across at the eye, with a 7.4 x 5.5 cm screen in it** (2026-10-26; it was a 4.6 cm eyepiece with a 3.7 x 2.8 cm screen, too small to read a picture in, and a
   player asked for it bigger): `gen_arcade_gun.gd --variant=rifle`, `SCOPE_SCREEN` and `SCOPE_CUP_RADIUS`; the picture's diagonal is inside the cup (`arcade_form_tests screens/`).
 - **A rifle game of ONE screen has a DIGITAL scope** (`golgo13`, `g13knd`, `g13jnr`, `sscopex`, `sogeki`, `sscopexu`, `sscopefh`: MAME gives them one display and no lens, which left the eyepiece dead):
-  the monitor shows the whole picture and the lens the part of it the rifle points at, **2.5 times** (`ArcadeCabinetSpecs.SCOPE_ZOOM`, the spec's `screen.scope.zoom`,
+  the monitor shows the whole picture and the lens the part of it the rifle points at, **3 times** (`ArcadeCabinetSpecs.SCOPE_ZOOM`, the spec's `screen.scope.zoom`,
   `ArcadeScreenModule.scope_zoom`), following the gun's own aim (`LightGun.last_aim`, the point on the picture the barrel meets) and kept inside the picture. It shows only a frame of the game running:
   dark while the game is only on show (attract) and while another machine's picture is on the glass. `arcade_form_tests scope/`; `--forms=golgo13` takes the eyepiece from the player's eye
   (`formscope_`). It is an approximation: no source says what the real scope showed (sources disagree on whether it is a magnified part of the main screen at all).
@@ -607,6 +607,41 @@ style of Atari's Star Wars yoke, which only turns (handles fixed, no push or pul
   turning grips, so a fingertip and the panel's keys reach them as any cap; in a headset the grips' own A / X and B / Y are the same buttons). Not found: the cabinet's dimensions, panel, marquee, coin door and force feedback.
 - Tests: `arcade_tests game/` (the table), `arcade_form_tests helm/` (the spec, the yoke, the one pedal, the buttons, the pointer shapes; Pole Position and Daytona keep their wheels), `arcade_hand_tests helm/ zone/` (taken by a grip and not by the top of
   its bar, 135 degrees is all the way and 120 is not, A / X and B / Y, let go). Picture `--forms=roadblst,roadblstc`.
+
+### 9.2e Monitors that were never one flat picture (2026-10-27)
+
+A player asked that the multi-screen cabinets have their monitors "placed and angled as the real ones": TX-1's three screens face the driver and are not "all flat in a row like a widescreen". Every multi-screen cabinet was
+surveyed (no page could be opened: DNS and the proxy refused Wikipedia, Arcade Museum, Giant Bomb and the rest, so **every line below rests on search summaries**; **medium** = two or more independent summaries agree,
+**low** = one summary, a store line, or sources in conflict; nothing reached high, because no flyer, manual or photograph was read).
+
+| game(s) (romsets) | what the real cabinet had | confidence | what is built |
+|---|---|---|---|
+| TX-1 (`tx1`, `tx1jb`, `tx1jc`; Tatsumi, 1983) | three monitors side by side, the main one ahead of the wheel, **the two side ones tilted 30 degrees** (which way is not said), the left for score and position, the right counting cars passed | three screens medium, 30 degrees low | **a bank**: the centre square, the wings turned in 30 degrees (below) |
+| Buggy Boy / Speed Buggy (`buggyboy`, `buggyboyb`; Tatsumi, 1985) | the cockpit: three screens as one panorama (the Junior, `buggyboyjr`, is a one-screen upright) | medium (the Junior: low) | the same bank; MAME's "(cockpit)" sets are the sit-down cockpit now (they were drawn as an upright with a wide glass) |
+| Race Drivin' Panorama (`racedrivpan`; Atari, 1990) | MAME gives it three screens, the middle one FIRST (`c4.03,0,4,3/0,0,4,3/8.06,0,4,3`) | MAME's layout; the cabinet's angles were not researched | the same bank, the parts sorted left to right |
+| Driver's Eyes (`driveyes`; Namco, 1990) | three CRTs "for a pseudo-panoramic view", three System 21 boards | three screens medium; angles not found | the same bank (a three-screen driving cockpit with its side monitors flat would show them at a slant to the driver: assumed, as for TX-1) |
+| Darius, Darius II / Sagaia (`darius`, `darius2`; Taito) | three CRTs, the centre one behind a half-silvered mirror facing the seat, the outer two low and tipped up into the glass: **one wide, continuous picture** | medium for Darius, low for Darius II | one wide glass (the mirror is what makes the picture one), a bench in front (2b) |
+| Ninja Warriors (`ninjaw`; Taito) | a centre screen, two more low in the cabinet, their images mirrored out to each side | medium | one wide glass, as Darius |
+| Warrior Blade (`warriorb`; Taito) | "dual-screen", from publisher listings only | low | a wide pair |
+| Run and Gun (`rungun`, `rungun2`; Konami, 1993) | two monitors, each covering one end of the court (Run and Gun 2 with two screens: not found) | medium | a wide pair on a body that grows to hold four players |
+| Cyberball (`cyberbal`; Atari, 1988) | two monitors in one large cabinet, two control sets per screen; the four-player Cyberball 2072 is dual-monitor, "tilted about 45 degrees with a strip between" (one unattributed summary) | medium; the tilt: low | a wide pair; **the 45 degrees is not built** |
+| Subs (1979), Cyber Tank (`cybertnk`) | two monitors, one a player (Cyber Tank never shipped: low) | low | a wide pair; angles: not found |
+| PlayChoice-10 (`pc_*`), Punch-Out!! (`punchout`), Super Punch-Out!!, Arm Wrestling, Mega-Tech (`mt_*`) | two screens one over the other: the upper for menus, stats and portraits, the lower the play | medium | a portrait pair in the tall body |
+| Vs. DualSystem, Keyboardmania (`kbm`), F1 Exhaust Note, Outrunners (`orunners`), Air Rescue | two screens, one a player (Vs. DualSystem: a separate game on each) | medium to low | a wide pair (Keyboardmania's are portrait: the tate pair) |
+| Silent Scope | the second screen is the scope's LCD | medium | in the rifle's eyepiece (`arcade.md` "Several screens") |
+| X-Men (`xmen6p`) | "a lower screen with a mirror that widened the picture" (Kotaku), "side by side" (Hardcore Gaming 101): in conflict | conflict | a wide pair on a six-player body |
+
+Not found for any of them: a monitor size, a mirror's position, an angle other than TX-1's. **A bank is built for the four driving cockpits and for nothing else**: a flat pair or an over-under pair that the sources
+do not say was angled is drawn flat.
+
+**How it is drawn** (`ArcadeCabinetSpecs.bank_layout`, `ArcadeCabinetBuilder._build_monitor`, `ArcadeScreenModule`; `arcade.md` "Several screens"): three quads in the monitor's own frame, each as tall as the tube and as wide as its
+part of MAME's frame is in the frame's shape (4:3 for three equal thirds: 0.48 x 0.36 m in the cockpit's 1.44 m tube); the centre `CabinetScreen` square to the glass, `CabinetScreenL` and `CabinetScreenR` hinged on its edges and
+turned `BANK_YAW_DEG` = 30 degrees toward the player, so the centre is set back 0.19 m and the outer edges stand on the glass's plane (`bank_layout`'s `set_back` and `span`; 1.30 m of the cockpit's 1.49 m window). A dark
+case stands behind each along its own normal (`BankCase1..3`). The table says which games are banks (`dfan`, `BANK` in `gen_game_index.py`; the profile's `bank_style()`, `bank_parts()`) and the screen module lights the wings only
+while the core's frame is the shape the table expects. **Estimated**: the 30 degrees and that they turn IN (a bank that wraps round the driver), the set-back it implies, the case's depth, and that Race Drivin' Panorama and Driver's
+Eyes stood as TX-1's do (no source says they did). **OWED**: a real run (no core or ROM was at hand: the pictures are test cards), a headset to judge the angle from the seat, the Quest's cost of two more textured quads.
+Tests: `arcade_form_tests bank/` (the layout's invariants for any yaw and for unequal parts, the spec for each set, the build with its cases behind the pictures, the screen module's every state), `arcade_tests game/` (the table and
+the profile). Picture `--forms=tx1,buggyboy,racedrivpan,driveyes` (a frame of three coloured test cards, one number of bars each).
 
 ### 9.3 What the audit made worth building
 

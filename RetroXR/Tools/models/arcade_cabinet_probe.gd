@@ -25,6 +25,8 @@
 ## A game with a scope (Silent Scope) is fed a frame of two screens as MAME draws it (8.03 x 3: a scene on the left, the scope's own picture on the right): the monitor shows the left half,
 ## and `formscope_<romset>.png` is the rifle's eyepiece from the player's eye, `formrifle_<romset>.png` the rifle from behind and above.
 ## A game of two screens over one another (a PlayChoice-10) is fed a stacked frame (4 x 6.03), so `formscreen_<romset>.png` shows the portrait pair.
+## A bank of three monitors (TX-1, Buggy Boy's cockpit, Race Drivin' Panorama, Driver's Eyes) is fed a frame of three test cards, a colour each with one to three bars, so which monitor shows which third
+## cannot be mistaken: `formscreen_<romset>.png` is the bank from the glass and `formseat_<romset>.png` from the driver's eyes; the probe prints each wing's turn, material and part of the frame.
 ## --artwork=<dir> reads MAME artwork from that folder instead of the data root's: each form then wears its
 ## game's bezel when the folder has one (ArcadeBezel), and a `bezel_<romset>.png` close-up is taken of it.
 ##
@@ -217,7 +219,11 @@ func _glass_frame(profile: ArcadeGameProfile) -> void:
 	screen._serial = -1
 	screen.aspect_override = profile.frame_aspect()
 	screen.present(tex, false, false, 0.0)
-	print("[probe] glass frame %.3f cut=%s fit=%s lens=%s" % [screen.current_aspect(), screen.is_cut(), screen.current_fit(), screen.lens() != null])
+	print("[probe] glass frame %.3f cut=%s fit=%s lens=%s bank=%s" % [screen.current_aspect(), screen.is_cut(), screen.current_fit(), screen.lens() != null, screen.is_bank_on()])
+	for wing: Variant in screen.get("_wings") as Array:
+		var mat := (wing as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
+		print("[probe]   wing %s pos=%s rot=%.0f mat=%s view=%s fit=%s" % [(wing as Node).name, (wing as Node3D).position, rad_to_deg((wing as Node3D).rotation.y),
+			mat != null and mat.shader != null, str(mat.get_shader_parameter("view_rect")) if mat != null else "-", str(mat.get_shader_parameter("fit_scale")) if mat != null else "-"])
 
 
 func _glass(w: int, h: int) -> void:

@@ -251,6 +251,24 @@ func screen_part(index: int) -> Rect2:
 		r.size.x / frame.size.x, r.size.y / frame.size.y)
 
 
+## How the game's three screens stand (the table's `d`): "fan" is three monitors side by side whose outer two are turned in toward the player (TX-1's, Buggy Boy's, Race Drivin' Panorama's), "" is the
+## one wide glass every other game of several screens is drawn with.
+func bank_style() -> String:
+	return str(attrs.get("d", "")) if known else ""
+
+
+## The parts of the frame a bank's three monitors show, LEFT, CENTRE, RIGHT (fractions of the frame, y down): the three screens' own parts put in the order they stand in the frame, which
+## is not the order MAME numbers them in (Race Drivin' Panorama's first is the middle one). Empty unless the game is a bank of three the table places.
+func bank_parts() -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	if bank_style().is_empty() or screens() != 3 or screen_rects().size() != 3:
+		return out
+	for i in 3:
+		out.append(screen_part(i))
+	out.sort_custom(func(a: Rect2, b: Rect2) -> bool: return a.get_center().x < b.get_center().x)
+	return out
+
+
 ## The screen that is a scope's own (Silent Scope's, `l`, the lens): the cabinet shows it in the rifle's scope and the monitor shows the other.
 ## -1 for a game with none.
 func scope_screen() -> int:

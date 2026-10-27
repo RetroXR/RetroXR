@@ -692,7 +692,7 @@ p1c2b0w1:dial+joy+pedal;r270;tstand;m19 grchamp=grchampa=grchampb
 p1c2b0w2:joy+paddle+pedal;trace winrun winrun91 winrungp
 p1c2b1w0:ball minigolf=minigolfa=minigolfb
 p1c2b1w0:btn;trifle;v;bg sscopex=sogeki=sscopexu
-p1c2b1w0:dial+pedal;s3;c0,0,640,480/640,0,640,480/1280,0,640,480;trace;m19 tx1=tx1jb=tx1jc
+p1c2b1w0:dial+pedal;s3;c0,0,640,480/640,0,640,480/1280,0,640,480;trace;dfan;m19 tx1=tx1jb=tx1jc
 p1c2b1w0:gun;g1;tgun;v critcrsh=tatacot shtngmst
 p1c2b1w0:paddle+pedal;tbike fourtrax=fourtraxa=fourtraxj
 p1c2b1w0:paddle;r270;m19 sbrkout=sbrkout3=sbrkoutc
@@ -904,7 +904,7 @@ p1c2b0w0:stick;tfly;qscm mlanding=mlandingj
 p1c2b0w8:twin bwidow=bwidowp
 p1c2b1w0:btn;m19 kbadlands=kbadlandsh
 p1c2b1w0:dial+pedal;r270;tstand;x2t;m19 buggychl=buggychlt
-p1c2b1w0:dial+pedal;s3;c0,0,640,480/640,0,640,480/1280,0,640,480;tstand buggyboy=buggyboyb
+p1c2b1w0:dial+pedal;s3;c0,0,640,480/640,0,640,480/1280,0,640,480;trace;dfan buggyboy=buggyboyb
 p1c2b1w0:dial;m19 stocker teetert
 p1c2b1w0:dial;r90;todd;m19 kick=kickman
 p1c2b1w0:gun;g1;tgun;m19 cheyenne crossbow
@@ -1363,7 +1363,7 @@ p1c2b9w2:joy;v;bn kicknkick
 p1c2b9w5:joy+other spkrform<spk306us
 p1c2b9w8:joy+other hypreact
 p1c2b9w8:joy;r270;v dddoor
-p1c3b0w0:paddle+pedal+stick;s3;c4.03,0,4,3/0,0,4,3/8.06,0,4,3;trace;bn racedrivpan<racedriv
+p1c3b0w0:paddle+pedal+stick;s3;c4.03,0,4,3/0,0,4,3/8.06,0,4,3;trace;dfan;bn racedrivpan<racedriv
 p1c3b0w2:joy;r270;v;m19 playball
 p1c3b1w0:ball;r270 bullsdrt
 p1c3b1w0:ball;r90 shootbul
@@ -1540,7 +1540,7 @@ p2c2b3w8:dial+joy midres2<midres
 p2c2b3w8:gun+joy;g2;tgun;v gdfs
 p2c2b3w8:gun+joy;g2;tgun;v;bg terabrst
 p2c2b3w8:joy+other;a nyanpai
-p2c2b3w8:joy+paddle+pedal;s3;c0,0,1,0.75/1.0075,0,1,0.75/2.015,0,1,0.75;trace driveyes
+p2c2b3w8:joy+paddle+pedal;s3;c0,0,1,0.75/1.0075,0,1,0.75/2.015,0,1,0.75;trace;dfan driveyes
 p2c2b3w8:joy+paddle+pedal;trace;v wheelfir
 p2c2b3w8:joy;r270;a;m19 zoar
 p2c2b3w8:joy;r270;s2;c0,0,0.75,1/0.7575,0,0.75,1 dt7
