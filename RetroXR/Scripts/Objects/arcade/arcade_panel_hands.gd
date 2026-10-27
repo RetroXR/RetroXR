@@ -16,9 +16,10 @@
 ##
 ## TAKING HOLD. The TRIGGER, on the rising edge, with the tip within reach of a control's handle (the stick's ball,
 ## the wheel's rim, the dial's knob, the trackball, the lever's knob, a bar's grip); let go with the trigger, or by
-## taking the hand far away. There is deliberately no grip here (the project's rule for VRKnob): a squeeze is how
+## taking the hand far away. There is deliberately no grip for most of them (the project's rule for VRKnob): a squeeze is how
 ## the hand picks a thing up, and a cabinet IS a pickable, so a squeeze on a stick would also begin the carry, and on this
-## panel it is already the ATTACH. While a hand reaches for or holds a control its laser is off (VrPointerBlock), so the
+## panel it is already the ATTACH. The BARS are the exception (`takes_grip`): a hand reaching for them has no laser and the panel
+## takes no press from it, and handlebars are taken by squeezing. While a hand reaches for or holds a control its laser is off (VrPointerBlock), so the
 ## trigger clicks nothing behind it; ArcadePanelGrip also ignores a press from a hand that reaches.
 ##
 ## What each control does with the hand:
@@ -32,8 +33,10 @@
 ##              makes a toggle gets ONE tap of its button at every change of gear (the button the table names, queued: two
 ##              changes in a hurry are two taps, never one long press), one it does not holds the button while the lever is
 ##              high, and a sequential box taps `up` going high and `down` going low.
-##   bars       a motorbike's: the hand pushes the bar sideways and the bike leans (a bar 15 cm over is a full lean); a
-##              bicycle's also push forward and pull back (10 cm is the whole of it) to tip the craft.
+##   bars       a motorbike's: the hand pushes the bar sideways and the bike leans (a bar 15 cm over is a full lean). A BICYCLE's
+##              are turned as real bars are: a hand on a grip goes round the stem (the grip stays under it, up to the lock), two hands turn
+##              them by the line between them, one grip forward and the other back; a lift of the hands, and a push or pull of both, tips the craft
+##              (10 cm is the whole of it). Taken with the squeeze as well as the trigger, a hand on each grip.
 ##   crank      a bicycle's: turned with the hand like a dial, the SPEED it is turned at the right stick's Y, forward up.
 ##   slide      a lever in a slot (Panic Park's): pushed along it, 14 cm either way from where it rests.
 ##   throttle   a flight cockpit's lever: pushed forward or pulled back (10 cm is all of it) and LEFT WHERE IT IS, as a throttle is;
@@ -50,6 +53,10 @@ extends RefCounted
 const TRIGGER_ACTION := "trigger"
 const TRIGGER_ON := 0.6
 const TRIGGER_OFF := 0.4
+## The squeeze, for the controls taken by it (a bicycle's bars).
+const GRIP_ACTION := "grip"
+const GRIP_ON := 0.6
+const GRIP_OFF := 0.4
 const HAPTIC_KEY := &"arcade_panel"
 
 ## A cap is pressed by a tip within this of its side, this far above its face, or this far through it (metres).
@@ -85,6 +92,10 @@ const WHEEL_AXIAL := 0.07
 ## bicycle's bars also push forward and pull back this far for a full tip.
 const BARS_THROW := 0.15
 const BARS_PITCH_THROW := 0.10
+## A bicycle's bars are turned by the line between two hands when they are this far apart at least (a pair of hands on one grip say nothing), and by one hand's angle about the stem
+## when it is this far from the stem at least (on the axis an angle is noise).
+const BARS_PAIR_MIN := 0.15
+const BARS_AXIS_MIN := 0.08
 const CRANK_REACH := 0.06
 const SLIDE_REACH := 0.055
 ## A throttle lever is taken at its knob, and moves through its whole travel for this much of the hand's way forward or back.
@@ -129,6 +140,9 @@ var _pokes: Array[Poke] = []
 var _holding: Dictionary = {}
 var _pressing: Dictionary = {}
 var _trigger: Dictionary = {}
+var _grip: Dictionary = {}
+## Controller id -> what took the control it holds, &"trigger" or &"grip": it is let go when THAT is.
+var _taken_with: Dictionary = {}
 var _lost: Dictionary = {}
 var _block := VrPointerBlock.new()
 var _hands: Array[XRController3D] = []
@@ -245,23 +259,32 @@ func _step_hand(ctrl: XRController3D, delta: float) -> void:
 	var tip := PokeTip.tip_of(ctrl)
 	var poking := PokeTip.is_poking(ctrl)
 	var trigger := ctrl.get_float(TRIGGER_ACTION)
+	var squeeze := ctrl.get_float(GRIP_ACTION)
 	var before := float(_trigger.get(id, 0.0))
+	var squeeze_before := float(_grip.get(id, 0.0))
 	_trigger[id] = trigger
+	_grip[id] = squeeze
 	var grab := _holding.get(id) as ControlGrab
 	if grab != null:
-		if not poking or trigger < TRIGGER_OFF or tip.distance_to(grab.handle()) > grab.let_go_distance():
+		# Let go when what took it lets go: the trigger for a control taken by it, the squeeze for one taken by that.
+		var held_on := squeeze >= GRIP_OFF if _taken_with.get(id, &"trigger") == &"grip" else trigger >= TRIGGER_OFF
+		if not poking or not held_on or tip.distance_to(grab.handle()) > grab.let_go_distance():
 			_let_go(ctrl, id)
 			grab = null
 		else:
 			var was := grab.detent()
-			grab.drag(tip, delta)
+			grab.drag_hand(id, tip, delta)
 			if grab.detent() != was:
 				Haptics.pulse(ctrl, 0.25, 8, HAPTIC_KEY)
-	elif poking and trigger >= TRIGGER_ON and before < TRIGGER_ON:
-		var found := _nearest_grab(tip, 1.0)
-		if found != null:
-			_take(ctrl, id, found, tip)
-			grab = found
+	elif poking:
+		var pulled := trigger >= TRIGGER_ON and before < TRIGGER_ON
+		var squeezed := squeeze >= GRIP_ON and squeeze_before < GRIP_ON
+		if pulled or squeezed:
+			# A trigger takes any control within reach; a squeeze only those that are taken by squeezing.
+			var found := _nearest_grab(tip, 1.0, squeezed and not pulled)
+			if found != null:
+				_take(ctrl, id, found, tip, &"grip" if squeezed and not pulled else &"trigger")
+				grab = found
 	# A hand reaching for a control has no laser: the trigger it pulls is for the control.
 	_set_laser(ctrl, poking and (grab != null or _nearest_grab(tip, REACH_SCALE) != null))
 	if grab == null and poking:
@@ -270,11 +293,14 @@ func _step_hand(ctrl: XRController3D, delta: float) -> void:
 		_lift(ctrl, id)
 
 
-func _nearest_grab(tip: Vector3, scale: float) -> ControlGrab:
+func _nearest_grab(tip: Vector3, scale: float, by_squeeze: bool = false) -> ControlGrab:
 	var best: ControlGrab = null
 	var best_d := INF
 	for g in _grabs:
-		if g.holder != null or not g.usable() or not g.can_grab(tip, scale):
+		# A control a hand holds is taken by no other, but a pair of bars by a second hand, on the other grip.
+		if (g.holder != null and not g.takes_second_hand()) or not g.usable() or not g.can_grab(tip, scale):
+			continue
+		if by_squeeze and not g.takes_grip():
 			continue
 		var d := g.handle().distance_to(tip)
 		if d < best_d:
@@ -283,10 +309,10 @@ func _nearest_grab(tip: Vector3, scale: float) -> ControlGrab:
 	return best
 
 
-func _take(ctrl: XRController3D, id: int, grab: ControlGrab, tip: Vector3) -> void:
-	grab.holder = ctrl
+func _take(ctrl: XRController3D, id: int, grab: ControlGrab, tip: Vector3, with: StringName = &"trigger") -> void:
 	_holding[id] = grab
-	grab.begin(tip)
+	_taken_with[id] = with
+	grab.attach_hand(ctrl, id, tip)
 	_lift(ctrl, id)
 	Haptics.click(ctrl, true, HAPTIC_KEY)
 
@@ -294,10 +320,10 @@ func _take(ctrl: XRController3D, id: int, grab: ControlGrab, tip: Vector3) -> vo
 func _let_go(ctrl: XRController3D, id: int) -> void:
 	var grab := _holding.get(id) as ControlGrab
 	_holding.erase(id)
+	_taken_with.erase(id)
 	if grab == null:
 		return
-	grab.end()
-	grab.holder = null
+	grab.detach_hand(id)
 	if is_instance_valid(ctrl):
 		Haptics.click(ctrl, false, HAPTIC_KEY)
 
@@ -386,6 +412,9 @@ func _forget_gone() -> void:
 	for id: int in _trigger.keys():
 		if not ids.has(id):
 			_trigger.erase(id)
+	for id: int in _grip.keys():
+		if not ids.has(id):
+			_grip.erase(id)
 
 
 ## Everything let go, every laser back, the outlines away: the machine went off, the panel left the tree or a hand
@@ -396,14 +425,15 @@ func release_all() -> void:
 	for id: int in _holding.keys():
 		var grab := _holding[id] as ControlGrab
 		if grab != null:
-			grab.end()
-			grab.holder = null
+			grab.release()
 	_holding.clear()
+	_taken_with.clear()
 	for p in _pokes:
 		p.held = 0
 	_pressing.clear()
 	_lost.clear()
 	_trigger.clear()
+	_grip.clear()
 	for id: int in _blocked.keys():
 		var ctrl: Variant = _blocked[id]
 		_block.set_block(ctrl if is_instance_valid(ctrl) else null, false)
@@ -711,6 +741,30 @@ class ControlGrab extends RefCounted:
 
 	func can_grab(tip: Vector3, scale: float) -> bool:
 		return handle().distance_to(tip) <= reach() * scale
+
+	## A hand (controller id `id`) takes hold, drags and lets go: the three a panel calls. A control one hand holds is the default (`holder`, `begin`, `drag`, `end`); a pair of bars is held by two.
+	func attach_hand(ctrl: XRController3D, _id: int, tip: Vector3) -> void:
+		holder = ctrl
+		begin(tip)
+
+	func drag_hand(_id: int, tip: Vector3, delta: float) -> void:
+		drag(tip, delta)
+
+	func detach_hand(_id: int) -> void:
+		end()
+		holder = null
+
+	## Every hand let go at once (the machine went off, the panel left).
+	func release() -> void:
+		end()
+		holder = null
+
+	## Is it taken by a squeeze as well as a trigger, and can a second hand take it while one holds it?
+	func takes_grip() -> bool:
+		return false
+
+	func takes_second_hand() -> bool:
+		return false
 
 	## The hand takes hold with its tip at `tip`; every frame it holds, `drag`; let go, `end`.
 	func begin(_tip: Vector3) -> void:
@@ -1089,13 +1143,21 @@ class BarsGrab extends ControlGrab:
 	var steer := 0.0
 	## Pulled toward the player, -1..1 (the module's way round: down); a motorbike's bars have none.
 	var pull := 0.0
+	## The second hand, when two hold the bars.
+	var holder2: XRController3D = null
 	var _two_axes := false
-	var _x0 := 0.0
-	var _z0 := 0.0
 	var _base := 0.0
 	var _base_pull := 0.0
 	var _grips: Array[Node3D] = []
 	var _bars: Node3D = null
+	## The hands on the bars, by controller id, in the order they took hold; where each is now and where it was when the deflection last became the base (in the bike's frame).
+	var _ids: Array[int] = []
+	var _ctrls: Dictionary = {}
+	var _now: Dictionary = {}
+	var _ref: Dictionary = {}
+	## The outlines of the two grips (made the first time they are wanted), and whether each is amber.
+	var _outlines: Array[WidgetOutline] = []
+	var _ambers: Array[bool] = []
 
 	func _init(p_panel: ArcadeControlModule, p_node: Node3D, two_axes: bool) -> void:
 		kind = &"bars"
@@ -1116,34 +1178,145 @@ class BarsGrab extends ControlGrab:
 	func let_go_distance() -> float:
 		return ArcadePanelHands.BARS_LET_GO
 
+	## Bars are taken by a squeeze too, and by a second hand.
+	func takes_grip() -> bool:
+		return true
+
+	func takes_second_hand() -> bool:
+		return holder != null and holder2 == null
+
 	## The middle of the bars, not the pivot the bike leans about (at the stand, 60 cm below the hands).
 	func handle() -> Vector3:
 		return _bars.global_position if _bars != null else node.global_position
 
+	## A grip within reach of the tip that no hand is on: the second hand takes the OTHER one.
 	func can_grab(tip: Vector3, scale: float) -> bool:
 		for g in _grips:
-			if g.global_position.distance_to(tip) <= reach() * scale:
+			if g.global_position.distance_to(tip) <= reach() * scale and not _occupied(g):
+				return true
+		return false
+
+	func _occupied(grip: Node3D) -> bool:
+		for id in _ids:
+			var ctrl := _ctrls.get(id) as XRController3D
+			if ctrl != null and is_instance_valid(ctrl) and PokeTip.tip_of(ctrl).distance_to(grip.global_position) <= reach() * 2.0:
 				return true
 		return false
 
 	func usable() -> bool:
 		return is_instance_valid(node) and node.is_visible_in_tree() and not _grips.is_empty()
 
-	func begin(tip: Vector3) -> void:
-		var p := frame().affine_inverse() * tip
-		_x0 = p.x
-		_z0 = p.z
-		_base = panel.steering()
-		_base_pull = panel.bars_pitch()
-		steer = _base
-		pull = _base_pull
+	## BOTH grips are outlined, each by its own state: amber with a hand on it, green while the bars can be taken (one outline for a pair of hands would say that one grip is the way in).
+	func show_outline(on: bool, _held: bool) -> void:
+		if _outlines.is_empty():
+			if not on or not is_instance_valid(panel):
+				return
+			for g in _grips:
+				var outline := WidgetOutline.attach(panel)
+				outline.set_source(g as MeshInstance3D)
+				_outlines.append(outline)
+				_ambers.append(false)
+		for i in _outlines.size():
+			var amber := on and _occupied(_grips[i])
+			if amber != _ambers[i]:
+				_ambers[i] = amber
+				_outlines[i].set_color(WidgetOutline.ACTIVE_COLOR if amber else WidgetOutline.HOVER_COLOR)
+			_outlines[i].sync(on)
 
-	func drag(tip: Vector3, _delta: float) -> void:
+	func attach_hand(ctrl: XRController3D, id: int, tip: Vector3) -> void:
 		var p := frame().affine_inverse() * tip
-		steer = clampf(_base + (p.x - _x0) / ArcadePanelHands.BARS_THROW, -1.0, 1.0)
-		if _two_axes:
-			# Toward the player is +Z in the frame of the bike.
-			pull = clampf(_base_pull + (p.z - _z0) / ArcadePanelHands.BARS_PITCH_THROW, -1.0, 1.0)
+		if _ids.is_empty():
+			# The first hand has the bars as they stand.
+			_base = panel.steering()
+			_base_pull = panel.bars_pitch()
+			steer = _base
+			pull = _base_pull
+		else:
+			_fold()
+		_ids.append(id)
+		_ctrls[id] = ctrl
+		_now[id] = p
+		_ref[id] = p
+		if holder == null:
+			holder = ctrl
+		else:
+			holder2 = ctrl
+
+	func drag_hand(id: int, tip: Vector3, _delta: float) -> void:
+		if not _ids.has(id):
+			return
+		_now[id] = frame().affine_inverse() * tip
+		_solve()
+
+	func detach_hand(id: int) -> void:
+		if not _ids.has(id):
+			return
+		# What is left of the deflection stays, and the hand that is still on the bars goes on from there.
+		_fold()
+		_ids.erase(id)
+		_ctrls.erase(id)
+		_now.erase(id)
+		_ref.erase(id)
+		holder = _ctrls.get(_ids[0]) as XRController3D if not _ids.is_empty() else null
+		holder2 = _ctrls.get(_ids[1]) as XRController3D if _ids.size() > 1 else null
+
+	func release() -> void:
+		_ids.clear()
+		_ctrls.clear()
+		_now.clear()
+		_ref.clear()
+		holder = null
+		holder2 = null
+
+	## What the deflection is now becomes the base, and every hand's reference is where it is: a hand that joins or leaves moves nothing.
+	func _fold() -> void:
+		_base = steer
+		_base_pull = pull
+		for id in _ids:
+			_ref[id] = _now[id]
+
+	func _solve() -> void:
+		var count := _ids.size()
+		if count == 0:
+			return
+		if not _two_axes:
+			# A motorbike's bars lean it as the hands push them sideways, the hands' mean when there are two.
+			var dx := 0.0
+			for id in _ids:
+				dx += (_now[id] as Vector3).x - (_ref[id] as Vector3).x
+			steer = clampf(_base + dx / float(count) / ArcadePanelHands.BARS_THROW, -1.0, 1.0)
+			return
+		# A bicycle's bars turn about the stem as the hands take them round: right is clockwise seen from above, a turn about -Y.
+		steer = clampf(_base - _yaw() / deg_to_rad(ArcadeControlModule.BARS_YAW_DEG), -1.0, 1.0)
+		# They tip with the hands' lift and, with both on them, their push or pull: toward the player is +Z, up is +Y, a pull is positive.
+		var dy := 0.0
+		var dz := 0.0
+		for id in _ids:
+			dy += (_now[id] as Vector3).y - (_ref[id] as Vector3).y
+			dz += (_now[id] as Vector3).z - (_ref[id] as Vector3).z
+		var push := (dy + (dz if count > 1 else 0.0)) / float(count)
+		pull = clampf(_base_pull + push / ArcadePanelHands.BARS_PITCH_THROW, -1.0, 1.0)
+
+	## How far the bars have been turned since the base, radians about +Y (counter-clockwise from above is positive): by the line between two hands, or one hand's angle about the stem.
+	func _yaw() -> float:
+		if _ids.size() > 1:
+			var a := _ids[0]
+			var b := _ids[1]
+			var v0 := Vector2((_ref[b] as Vector3).x - (_ref[a] as Vector3).x, (_ref[b] as Vector3).z - (_ref[a] as Vector3).z)
+			var v := Vector2((_now[b] as Vector3).x - (_now[a] as Vector3).x, (_now[b] as Vector3).z - (_now[a] as Vector3).z)
+			if v0.length() >= ArcadePanelHands.BARS_PAIR_MIN and v.length() > 0.02:
+				return wrapf(_angle(v) - _angle(v0), -PI, PI)
+		var first := _ids[0]
+		var axis := Vector2(node.position.x, node.position.z)
+		var r0 := Vector2((_ref[first] as Vector3).x, (_ref[first] as Vector3).z) - axis
+		var r := Vector2((_now[first] as Vector3).x, (_now[first] as Vector3).z) - axis
+		if r0.length() < ArcadePanelHands.BARS_AXIS_MIN or r.length() < ArcadePanelHands.BARS_AXIS_MIN:
+			return 0.0
+		return wrapf(_angle(r) - _angle(r0), -PI, PI)
+
+	## The angle of a horizontal vector (x, z) about +Y: from +X toward -Z.
+	static func _angle(v: Vector2) -> float:
+		return atan2(-v.y, v.x)
 
 	func stick(side: int) -> Vector2:
 		if holder == null or side != 0:

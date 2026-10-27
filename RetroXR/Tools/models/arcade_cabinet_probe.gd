@@ -32,7 +32,7 @@
 ##
 ## `hands` photographs a headset's hands on the panel (ArcadePanelHands): the right one holding the stick leaned over (its
 ## outline amber), the left with a finger on button 2 (sunk in its flange); `handswheel` the same at a driving cockpit's wheel
-## turned by a hand, `handscycle` at Prop Cycle's bars (pushed right and away) and crank, `handsslot` at Panic Park's two levers.
+## turned by a hand, `handscycle` at Prop Cycle's bars (the right grip taken round the stem) and crank, `handsbars` the bars in two hands (the right by a squeeze), `handsslot` at Panic Park's two levers.
 ## A fake hand is an XRController3D on a tracker of its own, a small red ball at its fingertip.
 extends Node3D
 
@@ -651,13 +651,63 @@ func _shot_handscycle() -> void:
 	_hand_trigger(right, 1.0)
 	_hand_trigger(left, 1.0)
 	await _frames(3)
-	_tip_at(right, grip + Vector3(0.075, 0.0, -0.05))
+	# The right hand takes its grip toward the rider, round the stem: half the lock to the right.
+	_tip_at(right, _around_stem(panel, 1.0, 0.5))
 	for i in 8:
 		panel.tick(0.016)
 		await _frames(1)
 	print("[probe] handscycle: steering ", panel.steering(), " pitch ", panel.bars_pitch(), " sticks ", panel.hand_thumbstick(0), panel.hand_thumbstick(1))
 	_look(grip + Vector3(1.0, 0.45, 0.95), grip + Vector3(0.0, -0.30, 0.25))
 	await _save("handscycle")
+	input._right_vr_ctrl = null
+	input._left_vr_ctrl = null
+	_drop_hands([right, left])
+	_sys.is_powered_on = false
+
+
+## Where a grip is when Prop Cycle's bars are turned `steer` of their lock to the right about the stem: `side` +1 the right grip, -1 the left.
+func _around_stem(panel: ArcadeControlModule, side: float, steer: float) -> Vector3:
+	var bars := panel.find_child("BarsPivot", true, false) as Node3D
+	var turned := Basis(Vector3.UP, -deg_to_rad(ArcadeControlModule.BARS_YAW_DEG) * steer) * Vector3(side * 0.30, 0.0, 0.0)
+	return (bars.get_parent() as Node3D).global_transform * (bars.position + turned)
+
+
+## Prop Cycle's bars in two hands, the right taking its grip by a squeeze and the left by the trigger, turned half the lock to the right
+## (the right grip toward the rider, the left away) and the grips lifted 3 cm: the bars are drawn as the hands have them.
+func _shot_handsbars() -> void:
+	var profile := ArcadeGameProfile.for_romset("propcycl")
+	_model.morph_to(_model.form_for(profile))
+	_model.apply_game_profile(profile)
+	await _frames(10)
+	_model = _sys.get_model() as RetroSystemModelArcadeCabinet
+	_model.set_process(false)
+	_sys.is_powered_on = true
+	var input := _model.arcade_input()
+	var panel := _model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)[0] as ArcadeControlModule
+	var bars := panel.find_child("BarsPivot", true, false) as Node3D
+	var right := _hand("right")
+	var left := _hand("left")
+	input._right_vr_ctrl = right["ctrl"]
+	input._left_vr_ctrl = left["ctrl"]
+	_tip_at(right, (panel.find_child("BarGripR", true, false) as Node3D).global_position)
+	_tip_at(left, (panel.find_child("BarGripL", true, false) as Node3D).global_position)
+	await _frames(3)
+	(right["tracker"] as XRControllerTracker).set_input(&"grip", 1.0)
+	await _frames(3)
+	_hand_trigger(left, 1.0)
+	await _frames(3)
+	for i in 12:
+		var turn := 0.5 * float(i + 1) / 12.0
+		_tip_at(right, _around_stem(panel, 1.0, turn) + Vector3(0.0, 0.03 * float(i + 1) / 12.0, 0.0))
+		_tip_at(left, _around_stem(panel, -1.0, turn) + Vector3(0.0, 0.03 * float(i + 1) / 12.0, 0.0))
+		panel.tick(0.016)
+		await _frames(1)
+	print("[probe] handsbars: steering ", panel.steering(), " pitch ", panel.bars_pitch(), " stick ", panel.hand_thumbstick(0))
+	var middle := bars.global_position
+	_look(middle + panel.global_basis.z * 0.55 + Vector3(0.28, 0.32, 0.0), middle + Vector3(0.0, -0.04, 0.0))
+	await _save("handsbars")
+	_look(middle + Vector3(0.0, 0.75, 0.15), middle)
+	await _save("handsbarstop")
 	input._right_vr_ctrl = null
 	input._left_vr_ctrl = null
 	_drop_hands([right, left])

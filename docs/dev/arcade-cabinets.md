@@ -153,8 +153,8 @@ more than one screen, 3 to 8 players are 1,345, **2,959 are alternating** (`a`: 
   **The saddle is a seat** (2026-10-26; it was drawn and nothing could be sat on): `RiderSeat`, a `CockpitSeat` (`_build_rider_seat`), the cushion to press on the saddle's top, the eyes 0.72 m
   above it, getting up onto the floor beside the stand, the rider's own floor taken to be at the pedals' height (a headset adds its person's height to it: a person on a real chair has
   their eyes about where a cyclist's are). `seat_tests rider/`.
-- **VR hands**: the trigger on a grip takes hold of the bars (`BARS_REACH` 7 cm): sideways 15 cm is a full turn, forward or back 10 cm a full tip (`BarsGrab`, two axes,
-  its own let-go distance); the trigger at a pedal takes hold of the crank (`CRANK_REACH` 6 cm) and turning it with the hand pedals, at the speed the hand turns it
+- **VR hands**: the trigger OR the squeeze on a grip takes hold of the bars (`BARS_REACH` 7 cm), a second hand the other grip (2026-10-27, `arcade.md` "A bicycle's bars follow the hands"): the bars
+  turn about the stem with the hand, 28 degrees being a full turn, and tip with the lift of the hands, 10 cm being a full tip (`BarsGrab`, two axes, its own let-go distance); the trigger at a pedal takes hold of the crank (`CRANK_REACH` 6 cm) and turning it with the hand pedals, at the speed the hand turns it
   (`CrankGrab`: an angle about the axle, no angle on the axle itself).
 - **Estimates**: every dimension; **which way "pull" is for the Y axis** (the game's own sense of up and down is not in MAME's port definition); that the pedal speed
   is read about the centre as a signed value. Nobody has run the game (it needs a core and a ROM).

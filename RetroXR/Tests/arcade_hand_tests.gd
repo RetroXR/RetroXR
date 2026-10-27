@@ -24,7 +24,9 @@
 ##   ball/     a trackball rolls where the hand pushes it
 ##   lever/    a gear lever stays in high gear
 ##   bars/     a motorbike's bars lean it
-##   cycle/    a bicycle's bars steer and tip, its crank is pedalled by a hand
+##   cycle/    a bicycle's bars turn about the stem with a hand on a grip and tip with its lift, its crank is pedalled by a hand
+##   handlebars/ a squeeze takes the bars as a trigger does, a second hand takes the other grip, two hands turn them by the line between them and tip them by their push and pull, one letting go leaves
+##              the bars where they are; a motorbike's lean with the mean of the hands; a squeeze takes nothing that is not bars
 ##   slot/     two levers in one slot, one a hand each
 ##   fly/      a flight cockpit's stick (a long shaft, a long throw) and its throttle, which stays where the hand left it
 ##   input/    what the hands hold goes out like an attached controller's: the port, the bindings, the cap that sinks
@@ -84,7 +86,7 @@ func _run() -> void:
 		_group_zone()
 	for g: Array in [["caps", _group_caps], ["pedals", _group_pedals], ["stick", _group_stick],
 			["twin", _group_twin], ["wheel", _group_wheel], ["dial", _group_dial], ["ball", _group_ball],
-			["lever", _group_lever], ["helm", _group_helm], ["bars", _group_bars], ["rider", _group_rider], ["cycle", _group_cycle], ["slot", _group_slot], ["fly", _group_fly],
+			["lever", _group_lever], ["helm", _group_helm], ["bars", _group_bars], ["rider", _group_rider], ["cycle", _group_cycle], ["handlebars", _group_handlebars], ["slot", _group_slot], ["fly", _group_fly],
 			["input", _group_input],
 			["laser", _group_laser], ["carry", _group_carry], ["use", _group_use], ["sticks", _group_sticks], ["guitar", _group_guitar]]:
 		if _want(str(g[0])):
@@ -1109,6 +1111,29 @@ func _group_rider() -> void:
 
 # --- cycle ---------------------------------------------------------------------
 
+func _squeeze(h: Dictionary, value: float) -> void:
+	(h["tracker"] as XRControllerTracker).set_input(&"grip", value)
+
+
+## Where a hand on the grip `side` (+1 the right one, -1 the left) of a bicycle's bars is when the bars are turned `steer` of their lock to the right (clockwise seen from above) about the stem, and the hand
+## is lifted `lift` and pushed `toward` the rider (m).
+func _bars_hand(bars: Node3D, side: float, steer: float, lift: float = 0.0, toward: float = 0.0) -> Vector3:
+	var turned := Basis(Vector3.UP, -deg_to_rad(ArcadeControlModule.BARS_YAW_DEG) * steer) * Vector3(side * 0.30, 0.0, 0.0)
+	return (bars.get_parent() as Node3D).global_transform * (bars.position + turned + Vector3(0.0, lift, toward))
+
+
+## The bars drawn turned `steer` of their lock, as ArcadeControlModule.tick draws them: the grips go where the hands are, and a second hand reaches the one that moved.
+func _draw_bars(panel: ArcadeControlModule, bars: Node3D, steer: float) -> void:
+	bars.basis = panel.rest_basis_of(bars) * Basis(Vector3.UP, -deg_to_rad(ArcadeControlModule.BARS_YAW_DEG) * steer)
+
+
+func _bars_grab(hands: ArcadePanelHands) -> ArcadePanelHands.BarsGrab:
+	for g in hands.grabs():
+		if g.kind == &"bars":
+			return g as ArcadePanelHands.BarsGrab
+	return null
+
+
 func _group_cycle() -> void:
 	var r := await _rig("propcycl")
 	var panel: ArcadeControlModule = r["panel"]
@@ -1122,26 +1147,58 @@ func _group_cycle() -> void:
 	_step(panel, [h])
 	_ok(hands.holds(&"bars") and is_zero_approx(hands.steer(&"bars")) and is_zero_approx(hands.bars_pitch()),
 		"cycle: the trigger on a grip takes hold of the bars")
-	_tip_at(h, at + Vector3(0.075, 0.0, -0.05))
+	# A hand on a grip goes round the stem as the grip does: the grip drawn toward the rider (the stick's right) to half the lock is half a turn to the right.
+	_tip_at(h, _bars_hand(bars, 1.0, 0.5))
 	_step(panel, [h])
-	_ok(is_equal_approx(hands.steer(&"bars"), 0.5) and is_equal_approx(hands.bars_pitch(), -0.5)
-			and panel.hand_thumbstick(0).is_equal_approx(Vector2(0.5, 0.5)),
-		"cycle: pushed 7.5 cm right and 5 cm away from the rider: half a turn to the right and half pushed (%s)" % str(panel.hand_thumbstick(0)))
-	_tip_at(h, at + Vector3(0.0, 0.0, 0.10))
+	_ok(absf(hands.steer(&"bars") - 0.5) < 0.01 and absf(hands.bars_pitch()) < 0.01 and absf(panel.hand_thumbstick(0).x - 0.5) < 0.01,
+		"cycle: the right grip taken round the stem to half the lock is half a turn to the right and no tip (%.3f, %.3f)" % [hands.steer(&"bars"), hands.bars_pitch()])
+	_tip_at(h, _bars_hand(bars, 1.0, -1.0))
 	_step(panel, [h])
-	_ok(is_equal_approx(hands.bars_pitch(), 1.0) and panel.hand_thumbstick(0).y < -0.99,
-		"cycle: pulled 10 cm toward the rider the bars are all the way back (the stick's DOWN)")
+	_ok(is_equal_approx(hands.steer(&"bars"), -1.0), "cycle: and away from the rider, all the way left")
+	# Along the bar a hand turns nothing: it is not on the arc.
+	_tip_at(h, at + (bars.get_parent() as Node3D).global_basis.x * 0.10)
+	_step(panel, [h])
+	_ok(absf(hands.steer(&"bars")) < 0.001 and absf(hands.bars_pitch()) < 0.001, "cycle: a hand pushed along the bar itself turns nothing (%.3f)" % hands.steer(&"bars"))
+	# On the stem itself a hand has no angle: it says nothing, however the noise points.
+	var stem := (bars.get_parent() as Node3D).global_transform * bars.position
+	_tip_at(h, stem + (bars.get_parent() as Node3D).global_basis.z * 0.02)
+	_step(panel, [h])
+	_ok(absf(hands.steer(&"bars")) < 0.001, "cycle: a hand 2 cm from the stem turns nothing (%.3f)" % hands.steer(&"bars"))
+	# The left grip turns them the same way, the other way round: it goes away from the rider for a turn to the right.
+	var hl := _hand("left")
+	_trigger(h, 0.0)
+	_step(panel, [h])
+	_tip_at(hl, (panel.find_child("BarGripL", true, false) as Node3D).global_position)
+	_trigger(hl, 1.0)
+	_step(panel, [hl])
+	_tip_at(hl, _bars_hand(bars, -1.0, 0.5))
+	_step(panel, [hl])
+	_ok(absf(hands.steer(&"bars") - 0.5) < 0.01, "cycle: the left grip going away from the rider turns them right as well (%.3f)" % hands.steer(&"bars"))
+	_trigger(hl, 0.0)
+	_step(panel, [hl])
+	_trigger(h, 1.0)
+	_tip_at(h, at)
+	_step(panel, [h])
+	# The lift of the hand tips them: 5 cm up is half the way back (pulled), the stick's down.
+	_tip_at(h, _bars_hand(bars, 1.0, 0.0, 0.05))
+	_step(panel, [h])
+	_ok(absf(hands.bars_pitch() - 0.5) < 0.01 and absf(hands.steer(&"bars")) < 0.01 and absf(panel.hand_thumbstick(0).y + 0.5) < 0.01,
+		"cycle: the hand lifted 5 cm tips them half back, the stick's down (%s)" % str(panel.hand_thumbstick(0)))
+	_tip_at(h, _bars_hand(bars, 1.0, 0.0, -0.20))
+	_step(panel, [h])
+	_ok(is_equal_approx(hands.bars_pitch(), -1.0), "cycle: and pushed down all the way, they are pushed")
 	# Drawn with the hand.
-	_tip_at(h, at + Vector3(0.075, 0.0, -0.05))
+	_tip_at(h, _bars_hand(bars, 1.0, 0.5, -0.05))
 	_step(panel, [h])
 	input._left_vr_ctrl = _ctrl(h)
 	input._process(0.016)
 	panel.tick(0.016)
-	var want := panel.rest_basis_of(bars) * Basis(Vector3.UP, -deg_to_rad(ArcadeControlModule.BARS_YAW_DEG) * 0.5) \
-		* Basis(Vector3.RIGHT, deg_to_rad(ArcadeControlModule.BARS_PITCH_DEG) * -0.5)
-	_ok(bars.basis.is_equal_approx(want), "cycle: the bars are drawn turned and tipped as the hand has them, at once")
+	var want := panel.rest_basis_of(bars) * Basis(Vector3.UP, -deg_to_rad(ArcadeControlModule.BARS_YAW_DEG) * hands.steer(&"bars")) \
+		* Basis(Vector3.RIGHT, deg_to_rad(ArcadeControlModule.BARS_PITCH_DEG) * hands.bars_pitch())
+	_ok(bars.basis.is_equal_approx(want) and absf(hands.steer(&"bars") - 0.5) < 0.01 and absf(hands.bars_pitch() + 0.5) < 0.01,
+		"cycle: the bars are drawn turned and tipped as the hand has them, at once")
 	var axes := input._heard_axes.get(0, Vector4i.ZERO) as Vector4i
-	_ok(axes.x == int(0.5 * ArcadeInput.ANALOG_SCALE) and axes.y == int(-0.5 * ArcadeInput.ANALOG_SCALE),
+	_ok(absf(axes.x - 0.5 * ArcadeInput.ANALOG_SCALE) < 0.02 * ArcadeInput.ANALOG_SCALE and absf(axes.y + 0.5 * ArcadeInput.ANALOG_SCALE) < 0.02 * ArcadeInput.ANALOG_SCALE,
 		"cycle: and the game is sent the left stick: half right, half up (%s)" % str(axes))
 	# The grips stand 30 cm out from the middle of the bars: a hand at the far one and past it has them still (the let-go
 	# distance is the bars' own, not a stick's 35 cm), and one a metre off has lost them.
@@ -1209,6 +1266,219 @@ func _group_cycle() -> void:
 	input._process(0.016)
 	input._right_vr_ctrl = null
 	_ok(not hands.holds(&"crank") and panel.hand_thumbstick(1) == Vector2.ZERO, "cycle: let go, the crank is free")
+
+
+# --- handlebars ----------------------------------------------------------------
+
+func _group_handlebars() -> void:
+	var r := await _rig("propcycl")
+	var panel: ArcadeControlModule = r["panel"]
+	var hands: ArcadePanelHands = panel.hands()
+	var bars := panel.find_child("BarsPivot", true, false) as Node3D
+	var grab := _bars_grab(hands)
+	var hr := _hand("right")
+	var hl := _hand("left")
+	# A squeeze takes the bars as a trigger does, and lets go when the squeeze does (the trigger pulled as well changes nothing).
+	_tip_at(hr, _bars_hand(bars, 1.0, 0.0))
+	_squeeze(hr, 1.0)
+	_step(panel, [hr, hl])
+	_ok(hands.holds(&"bars") and grab.holder == _ctrl(hr), "handlebars: a squeeze on a grip takes hold of the bars")
+	_trigger(hr, 1.0)
+	_step(panel, [hr, hl])
+	_trigger(hr, 0.0)
+	_step(panel, [hr, hl])
+	_ok(hands.holds(&"bars"), "handlebars: a trigger pulled and let go while the squeeze is held does not let go of them")
+	_squeeze(hr, 0.2)
+	_step(panel, [hr, hl])
+	_ok(not hands.holds(&"bars") and grab.holder == null, "handlebars: letting go of the squeeze lets go of them")
+	# Taken with the trigger, a squeeze means nothing and the trigger lets go.
+	_trigger(hr, 1.0)
+	_step(panel, [hr, hl])
+	_squeeze(hr, 1.0)
+	_step(panel, [hr, hl])
+	_squeeze(hr, 0.0)
+	_step(panel, [hr, hl])
+	_ok(hands.holds(&"bars"), "handlebars: taken with the trigger they are held while it is, whatever the squeeze does")
+	_trigger(hr, 0.0)
+	_step(panel, [hr, hl])
+	_ok(not hands.holds(&"bars"), "handlebars: and let go when it is")
+	# A second hand takes the OTHER grip, never the one a hand is on.
+	_trigger(hr, 1.0)
+	_step(panel, [hr, hl])
+	_tip_at(hl, _bars_hand(bars, 1.0, 0.0))
+	_squeeze(hl, 1.0)
+	_step(panel, [hr, hl])
+	_ok(grab.holder == _ctrl(hr) and grab.holder2 == null, "handlebars: a second hand at the grip the first is on takes nothing")
+	_squeeze(hl, 0.0)
+	_step(panel, [hr, hl])
+	_tip_at(hl, _bars_hand(bars, -1.0, 0.0))
+	_squeeze(hl, 1.0)
+	_step(panel, [hr, hl])
+	_ok(grab.holder == _ctrl(hr) and grab.holder2 == _ctrl(hl), "handlebars: at the other grip it takes hold, and the bars have two hands")
+	_ok(is_zero_approx(hands.steer(&"bars")) and is_zero_approx(hands.bars_pitch()), "handlebars: joining moves nothing")
+	_ok(grab._outlines.size() == 2 and grab._ambers.size() == 2 and grab._ambers[0] and grab._ambers[1] and grab._outlines[0].visible and grab._outlines[1].visible,
+		"handlebars: both grips are outlined, amber, a hand on each")
+	# Two hands turn them by the line between them: the right grip toward the rider and the left away is a turn to the right, and they tip nothing.
+	_tip_at(hr, _bars_hand(bars, 1.0, 0.5))
+	_tip_at(hl, _bars_hand(bars, -1.0, 0.5))
+	_step(panel, [hr, hl])
+	_ok(absf(hands.steer(&"bars") - 0.5) < 0.01 and absf(hands.bars_pitch()) < 0.01, "handlebars: both hands round the stem to half the lock: half a turn right, no tip (%.3f, %.3f)" % [hands.steer(&"bars"), hands.bars_pitch()])
+	_tip_at(hr, _bars_hand(bars, 1.0, -1.0))
+	_tip_at(hl, _bars_hand(bars, -1.0, -1.0))
+	_step(panel, [hr, hl])
+	_ok(is_equal_approx(hands.steer(&"bars"), -1.0), "handlebars: and the other way to the lock")
+	# Both pushed toward the rider tip them back, both lifted likewise, both together all the way.
+	_tip_at(hr, _bars_hand(bars, 1.0, 0.0, 0.0, 0.05))
+	_tip_at(hl, _bars_hand(bars, -1.0, 0.0, 0.0, 0.05))
+	_step(panel, [hr, hl])
+	_ok(absf(hands.bars_pitch() - 0.5) < 0.01 and absf(hands.steer(&"bars")) < 0.01, "handlebars: both hands 5 cm toward the rider tip them half back and turn nothing (%.3f, %.3f)" % [hands.bars_pitch(), hands.steer(&"bars")])
+	_tip_at(hr, _bars_hand(bars, 1.0, 0.0, 0.05))
+	_tip_at(hl, _bars_hand(bars, -1.0, 0.0, 0.05))
+	_step(panel, [hr, hl])
+	_ok(absf(hands.bars_pitch() - 0.5) < 0.01, "handlebars: both lifted 5 cm the same")
+	_tip_at(hr, _bars_hand(bars, 1.0, 0.0, 0.05, 0.05))
+	_tip_at(hl, _bars_hand(bars, -1.0, 0.0, 0.05, 0.05))
+	_step(panel, [hr, hl])
+	_ok(is_equal_approx(hands.bars_pitch(), 1.0), "handlebars: and lifted and pulled, all the way")
+	# One hand lets go: the bars stay where they were, turned and tipped, and the other goes on from there.
+	_tip_at(hr, _bars_hand(bars, 1.0, 0.5, 0.05))
+	_tip_at(hl, _bars_hand(bars, -1.0, 0.5, 0.05))
+	_step(panel, [hr, hl])
+	var held_at := hands.steer(&"bars")
+	var tipped_at := hands.bars_pitch()
+	_ok(absf(held_at - 0.5) < 0.01 and absf(tipped_at - 0.5) < 0.01, "handlebars: both hands turn them half and lift them 5 cm: half a turn and half back (%.3f, %.3f)" % [held_at, tipped_at])
+	_trigger(hr, 0.0)
+	_step(panel, [hr, hl])
+	_ok(hands.holds(&"bars") and grab.holder == _ctrl(hl) and grab.holder2 == null and absf(hands.steer(&"bars") - held_at) < 0.001 and absf(hands.bars_pitch() - tipped_at) < 0.001,
+		"handlebars: one hand letting go leaves the bars where they were, in the other (%.3f, %.3f)" % [hands.steer(&"bars"), hands.bars_pitch()])
+	_tip_at(hl, _bars_hand(bars, -1.0, 0.75, 0.07))
+	_step(panel, [hr, hl])
+	_ok(absf(hands.steer(&"bars") - 0.75) < 0.01 and absf(hands.bars_pitch() - 0.7) < 0.01,
+		"handlebars: and the hand that is left goes on turning and lifting them (%.3f, %.3f)" % [hands.steer(&"bars"), hands.bars_pitch()])
+	_ok(grab._ambers[0] and not grab._ambers[1], "handlebars: and only the grip with a hand on it is amber, the other the green of bars that can be taken")
+	_squeeze(hl, 0.0)
+	_step(panel, [hr, hl])
+	_ok(not hands.holds(&"bars"), "handlebars: and when it lets go they are free")
+	# A hand a metre off has lost them, whichever hand it is.
+	_trigger(hr, 1.0)
+	_tip_at(hr, _bars_hand(bars, 1.0, 0.0))
+	_step(panel, [hr, hl])
+	_tip_at(hr, _bars_hand(bars, 1.0, 0.0) + Vector3(1.0, 0.0, 0.0))
+	_step(panel, [hr, hl])
+	_ok(not hands.holds(&"bars"), "handlebars: a hand a metre off has lost them")
+	_trigger(hr, 0.0)
+	_step(panel, [hr, hl])
+	# Joining bars that are already turned moves nothing, and neither does one hand leaving after only the other has moved on: the hand that is left takes them from where they are.
+	_tip_at(hr, _bars_hand(bars, 1.0, 0.0))
+	_trigger(hr, 1.0)
+	_step(panel, [hr, hl])
+	_tip_at(hr, _bars_hand(bars, 1.0, 0.5))
+	_step(panel, [hr, hl])
+	_draw_bars(panel, bars, hands.steer(&"bars"))
+	_tip_at(hl, _bars_hand(bars, -1.0, 0.5))
+	_squeeze(hl, 1.0)
+	_step(panel, [hr, hl])
+	_ok(grab.holder2 == _ctrl(hl) and absf(hands.steer(&"bars") - 0.5) < 0.01,
+		"handlebars: a second hand joining bars that are already turned half moves nothing (%.3f)" % hands.steer(&"bars"))
+	_tip_at(hl, _bars_hand(bars, -1.0, 1.0))
+	_step(panel, [hr, hl])
+	_ok(absf(hands.steer(&"bars") - 0.75) < 0.01, "handlebars: and with the first hand still, the line between them turns half as far as the hand that moves (%.3f)" % hands.steer(&"bars"))
+	_trigger(hr, 0.0)
+	_step(panel, [hr, hl])
+	_ok(grab.holder == _ctrl(hl) and absf(hands.steer(&"bars") - 0.75) < 0.01, "handlebars: and the hand that is left holds them where they were, not where its own arc says (%.3f)" % hands.steer(&"bars"))
+	_squeeze(hl, 0.0)
+	_step(panel, [hr, hl])
+	_draw_bars(panel, bars, 0.0)
+	# A squeeze already held on the way in takes nothing: only its rising edge does.
+	_squeeze(hl, 1.0)
+	_tip_at(hl, _bars_hand(bars, -1.0, 0.0) + Vector3(1.0, 0.0, 0.0))
+	_step(panel, [hr, hl])
+	_tip_at(hl, _bars_hand(bars, -1.0, 0.0))
+	_step(panel, [hr, hl])
+	_ok(not hands.holds(&"bars"), "handlebars: a squeeze already held on the way in takes nothing, only its edge does")
+	_squeeze(hl, 0.0)
+	_step(panel, [hr, hl])
+	_squeeze(hl, 1.0)
+	_step(panel, [hr, hl])
+	_ok(hands.holds(&"bars"), "handlebars: let go and squeezed again, it does")
+	# Everything let go at once (the machine went off): no hand is left on the bars.
+	_tip_at(hr, _bars_hand(bars, 1.0, 0.0))
+	_trigger(hr, 1.0)
+	_step(panel, [hr, hl])
+	_ok(grab.holder != null and grab.holder2 != null, "handlebars: two hands on the bars again")
+	hands.release_all()
+	_ok(not hands.holds(&"bars") and grab.holder == null and grab.holder2 == null, "handlebars: released all at once, no hand is left on them")
+	_squeeze(hl, 0.0)
+	_trigger(hr, 0.0)
+	_step(panel, [hr, hl])
+	# (White box.) Two hands whose line was 5 cm long at the start say nothing about which way it points, however it turns: the first hand's own arc, none here, stands in.
+	var axis := grab.node.position
+	grab._ids = [11, 12]
+	grab._ref = {11: axis + Vector3(0.30, 0.0, 0.0), 12: axis + Vector3(0.35, 0.0, 0.0)}
+	grab._now = {11: axis + Vector3(0.30, 0.0, 0.0), 12: axis + Vector3(0.30, 0.0, 0.05)}
+	_ok(is_zero_approx(grab._yaw()), "handlebars: a pair of hands 5 cm apart turn nothing by the line between them (%.3f)" % grab._yaw())
+	grab._now[12] = axis + Vector3(0.30, 0.0, 0.40)
+	grab._ref[12] = axis + Vector3(-0.30, 0.0, 0.0)
+	grab._now[11] = axis + Vector3(0.30, 0.0, 0.0)
+	_ok(absf(grab._yaw() - PI * 0.5) < 0.001, "handlebars: and hands 60 cm apart do: the line a quarter turn round is a quarter turn (%.3f)" % grab._yaw())
+	grab._ids.clear()
+	grab._ref.clear()
+	grab._now.clear()
+	# A squeeze takes nothing that is not bars: a stick on a deck, taken at its ball, wants the trigger.
+	var r2 := await _rig("sf2")
+	var panel2: ArcadeControlModule = r2["panel"]
+	var hands2: ArcadePanelHands = panel2.hands()
+	var h2 := _hand("right")
+	_tip_at(h2, _ball_at(panel2))
+	_squeeze(h2, 1.0)
+	_step(panel2, [h2])
+	_ok(not hands2.holds(&"stick"), "handlebars: a squeeze on a stick takes nothing: it is the trigger's")
+	_squeeze(h2, 0.0)
+	_step(panel2, [h2])
+	_trigger(h2, 1.0)
+	_step(panel2, [h2])
+	_ok(hands2.holds(&"stick"), "handlebars: the trigger takes it")
+	# A second hand at a stick a hand holds takes nothing from it: only a pair of bars has two grips.
+	var h3 := _hand("left")
+	_tip_at(h3, _ball_at(panel2))
+	_trigger(h3, 1.0)
+	_step(panel2, [h2, h3])
+	var stick_grab: ArcadePanelHands.ControlGrab = null
+	for g in hands2.grabs():
+		if g.kind == &"stick":
+			stick_grab = g
+	_ok(stick_grab != null and stick_grab.holder == _ctrl(h2), "handlebars: a second hand at a stick that a hand holds does not take it from the first")
+	_trigger(h3, 0.0)
+	_trigger(h2, 0.0)
+	_step(panel2, [h2, h3])
+	# A motorbike's bars: a squeeze takes them too, and two hands lean it by the mean of how far they are pushed.
+	var r3 := await _rig("hangon")
+	var panel3: ArcadeControlModule = r3["panel"]
+	var hands3: ArcadePanelHands = panel3.hands()
+	var grab3 := _bars_grab(hands3)
+	var hbr := _hand("right")
+	var hbl := _hand("left")
+	var grip_r := (panel3.find_child("BarGripR", true, false) as Node3D).global_position
+	var grip_l := (panel3.find_child("BarGripL", true, false) as Node3D).global_position
+	_tip_at(hbr, grip_r)
+	_squeeze(hbr, 1.0)
+	_step(panel3, [hbr, hbl])
+	_ok(hands3.holds(&"bars") and grab3 != null, "handlebars: a squeeze takes a motorbike's bars too")
+	_tip_at(hbl, grip_l)
+	_squeeze(hbl, 1.0)
+	_step(panel3, [hbr, hbl])
+	_ok(grab3.holder2 == _ctrl(hbl), "handlebars: and a second hand the other grip")
+	var along := (grab3.node.get_parent() as Node3D).global_basis.x
+	_tip_at(hbr, grip_r + along * ArcadePanelHands.BARS_THROW)
+	_step(panel3, [hbr, hbl])
+	_ok(absf(hands3.steer(&"bars") - 0.5) < 0.01, "handlebars: one hand pushing the bar 15 cm over and the other still lean the bike half (the mean of the two: %.3f)" % hands3.steer(&"bars"))
+	_tip_at(hbl, grip_l + along * ArcadePanelHands.BARS_THROW)
+	_step(panel3, [hbr, hbl])
+	_ok(is_equal_approx(hands3.steer(&"bars"), 1.0), "handlebars: and both, all the way")
+	_squeeze(hbr, 0.0)
+	_squeeze(hbl, 0.0)
+	_step(panel3, [hbr, hbl])
+	_ok(not hands3.holds(&"bars"), "handlebars: let go of, the motorbike's bars are free")
 
 
 # --- slot ----------------------------------------------------------------------

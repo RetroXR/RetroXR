@@ -1163,7 +1163,7 @@ a wheel, bars, dial and trackball the left stick's X or XY, so "left+dpad" sends
   5 cm of the ball, `DIAL_REACH` 4.5 of the knob, `BALL_REACH` 6, `LEVER_REACH` 5.5, `BARS_REACH` 7 of a grip, the wheel on its rim (0.45..1.4 of
   its radius, within 7 cm of its plane). **A trigger already held on the way in takes hold of nothing**: only the edge does, or sweeping a hand past
   with a held trigger would pick things up. Let go with the trigger, when the hand loses `is_poking` (it picked something up), or when it is
-  `LET_GO_DISTANCE` (35 cm) from the handle (a stuck trigger, a lost tracker). **There is deliberately no grip**: a squeeze is how a hand picks a
+  `LET_GO_DISTANCE` (35 cm) from the handle (a stuck trigger, a lost tracker). **There is deliberately no grip** (but for a pair of bars, 2026-10-27, "A bicycle's bars follow the hands"): a squeeze is how a hand picks a
   pickable up, a cabinet IS one (`HoldToGrab`, a second on the cabinet carries it), and on a panel a squeeze is the ATTACH; VRKnob's rule, for the same reasons.
 - **What each does with the hand**: *stick* leans where the hand takes it from where it was taken (`STICK_THROW` 3 cm is a full lean; the ball itself
   travels 23 mm, so it follows within 7 mm), from the lean it had (a key holding it over does not snap it), a square gate, a dead zone of `STICK_DEAD` 6%,
@@ -1174,9 +1174,9 @@ a wheel, bars, dial and trackball the left stick's X or XY, so "left+dpad" sends
   holding LEFT or RIGHT turns it, because that is what the games read; held still it sends nothing. *trackball* rolls where the hand pushes it, the
   surface speed under the hand against `BALL_SPEED` times the ball's radius (what the picture rolls at full deflection); a speed too. *lever*: past 60% of its throw it is in
   high gear and STAYS there when let go (a gear lever stays), pulled back under 40% the same way; what high gear SENDS is the game's (one tap of the game's own shift
-  button for a toggle, the button held for a held shifter, `up`/`down` taps for a sequential box: `arcade-cabinets.md` section 2, Final Lap 3). *bars*: the bike leans by the sideways push (`BARS_THROW` 15 cm
-  is a full lean, 14 degrees at the 62 cm the bars stand over the stand), and a BICYCLE's bars (Prop Cycle) also take the push forward and pull back (`BARS_PITCH_THROW` 10 cm is the whole of it, the
-  stick's Y, pulled being DOWN) with their own let-go distance (`BARS_LET_GO`, the grips stand 30 cm out); *crank*: the trigger at a pedal (`CRANK_REACH` 6 cm) and the hand turns it like a dial: the
+  button for a toggle, the button held for a held shifter, `up`/`down` taps for a sequential box: `arcade-cabinets.md` section 2, Final Lap 3). *bars*: a MOTORBIKE leans by the sideways push (`BARS_THROW` 15 cm
+  is a full lean, 14 degrees at the 62 cm the bars stand over the stand); a BICYCLE's bars (Prop Cycle) are turned about the stem by the hand and tipped by its lift, taken by a squeeze as well
+  as the trigger, with a hand on each grip (the stick's Y, pulled being DOWN: "A bicycle's bars follow the hands" below), with their own let-go distance (`BARS_LET_GO`, the grips stand 30 cm out); *crank*: the trigger at a pedal (`CRANK_REACH` 6 cm) and the hand turns it like a dial: the
   SPEED it is turned at is the right stick's Y (forward up), and a hand on the axle has no angle; *slide*: a lever in a slot (Panic Park) taken at its ball (`SLIDE_REACH` 5.5 cm) and pushed along it,
   `SLOT_TRAVEL` 14 cm being all the way (the left stick's X); the bars' handle is the middle of the bars, not the pivot the bike leans about (the
   hands are 60 cm above it and the let-go distance took hold of nothing); *throttle* (a flight cockpit's lever): taken at its knob (`THROTTLE_REACH` 6 cm), pushed or pulled
@@ -1312,3 +1312,29 @@ speed and key below is an estimate (see the end).
   player (two on the floor); if they meant a second pedal each, the second has no MAME input to be. **Not built**: the guitar's visible hand pose (the controller model stays), a sound for the pick, a strap, a
   guitar for a third player. **OWED**: a headset (how it holds, whether the neck hand's buttons are reachable with the fingers curled), a Quest, a real game and core (whether `BUTTON7` as L2 reads as the wail, and a 70 ms
   tap as a pick), two peers.
+
+## A bicycle's bars follow the hands (2026-10-27)
+
+The bars of Prop Cycle's bicycle (and a motorbike's) were taken by the trigger only and moved by pushing the hand SIDEWAYS: a bar 15 cm over was a full turn. Nobody turns handlebars by pushing them sideways,
+and a squeeze, which is how a hand takes hold of handlebars, did nothing (a player asked to take the bars and move them with the hands). **Never run in a headset**; the feel is OWED.
+
+- **Taking them.** `ArcadePanelHands` takes a control on the TRIGGER's rising edge, as before, and now the bars also on the SQUEEZE (`ControlGrab.takes_grip()`, only `BarsGrab`; a squeeze near a stick, a wheel
+  or a dial takes nothing: the project's old rule for the others, that a squeeze begins a carry or an attach). A hand lets go when what took it lets go (`_taken_with`: the squeeze's release for a hand that squeezed,
+  the trigger's for one that pulled), or when it is `BARS_LET_GO` (55 cm) from the middle of the bars. A hand reaching for the bars has no laser and the panel takes no press from it, as for any control, so the
+  squeeze cannot also begin the carry or the attach.
+- **Two hands.** A second hand takes the OTHER grip (`takes_second_hand`; a grip a hand is already on, within 14 cm, is not free: `BarsGrab._occupied`); a second hand at a stick a hand holds takes nothing.
+  `ControlGrab` gained `attach_hand` / `drag_hand` / `detach_hand` / `release`, which every control other than the bars leaves at the old one-hand behaviour. A hand that joins or leaves moves nothing: the deflection
+  so far is folded into the base (`_fold`), every hand's reference is where it is, and the hand that is left goes on from there.
+- **A bicycle's bars turn about the stem.** One hand: the angle of the hand about the stem's axis since it took hold, in the bike's frame (`BarsGrab._yaw`), so the grip stays under the hand up to the lock
+  (`ArcadeControlModule.BARS_YAW_DEG` 28 degrees = steer 1): the right grip toward the rider is a turn to the right, the left grip away from the rider the same. A hand on the axis (within `BARS_AXIS_MIN`, 8 cm)
+  says nothing, and a hand moving ALONG the bar says nothing (it is not on the arc). Two hands: the angle of the LINE between them, one grip forward and the other back (a line that was shorter than
+  `BARS_PAIR_MIN`, 15 cm, when they took hold falls back to the first hand's arc). **Tipping**: the lift of the hands (10 cm up, `BARS_PITCH_THROW`, is all the way back, the stick's down) and, with both on the
+  bars, their push or pull (toward the rider is +Z, 10 cm is all of it); a single hand's push or pull is the turn, so it cannot be a tip as well.
+- **A motorbike's bars** keep the sideways push (they are leant, not turned, about a pivot 60 cm below the hands) with the squeeze and the second hand: the mean of the hands' push.
+- **Outlines.** BOTH grips are outlined (`BarsGrab.show_outline`): amber with a hand within 14 cm of it, green while the bars can be taken; one outline for a pair of hands said that one grip was the way in.
+- **Tests.** `arcade_hand_tests cycle/` (21 checks: the arc to half the lock with each grip, along the bar and at the stem nothing, the lift, the draw of the bars and the stick sent) and `handlebars/` (37:
+  squeeze and trigger let-go rules, the squeeze's edge, a second hand on the other grip and not the same one, two hands by the line and by their push, joining and leaving without a jump, one letting go
+  leaves the bars where they are turned and tipped, release, a hand a metre off, a squeeze on a stick takes nothing, a second hand cannot take a stick, a short line (white box), both grips outlined, a motorbike's
+  squeeze and two hands). 31 mutants of the new code, five of which survived the first tests (joining and leaving moved nothing because the bars were centred when they happened; the release and the
+  squeeze's edge were unexercised). Probe `arcade_cabinet_probe --shots=handsbars,handscycle` (windowed).
+- **Estimates and OWED.** The 28 degrees (`BARS_YAW_DEG`) as the lock, the 10 cm of lift and push, the 15 cm and 8 cm limits, the squeeze thresholds; a headset's feel of taking bars by a squeeze and of the arc.
