@@ -1435,13 +1435,17 @@ func _group_objects() -> void:
 		"objects/moving only re-orders rows, it does not rebuild them")
 
 	var del: Button = _object_row(page, near)["delete"]
+	var bin := String.chr(MenuIcons.DELETE_FOREVER)
+	_eq(del.text, bin, "objects/Delete is the games list's bin glyph")
+	_eq((del.get_parent().get_node("Locate") as Button).text, String.chr(MenuIcons.LOCATE),
+		"objects/Locate is the concierge bell")
 	del.pressed.emit()
 	_ok(is_instance_valid(near) and not Vanish.is_vanishing(near),
 		"objects/one press of Delete deletes nothing")
-	_eq(del.text, "Tap again", "objects/it asks again")
+	_eq(del.text, String.chr(MenuIcons.ERROR), "objects/it asks again with the warning glyph")
 	page._process(SceneObjectsPage.DELETE_CONFIRM_SECONDS + 0.1)
 	del = _object_row(page, near)["delete"]
-	_eq(del.text, "Delete", "objects/left alone, the question lapses")
+	_eq(del.text, bin, "objects/left alone, the question lapses")
 	del.pressed.emit()
 	del.pressed.emit()
 	_ok(not is_instance_valid(near) or Vanish.is_vanishing(near),
@@ -1476,24 +1480,27 @@ class _GameLabelled extends Node:
 	var game_label := ""
 
 
-## Locate's arrow: hidden while the object is in view, at the edge pointing the
-## way to turn otherwise, always left or right when it is behind, and gone with
-## the object.
+## Locate's arrow: over the object pointing down while it is in view, at the
+## edge pointing the way to turn otherwise, always left or right when it is
+## behind, up for the whole timeout, and gone with the object.
 func _group_locate() -> void:
-	_eq(LocateArrow.place(Vector3(0, 0, -1))["shown"], false,
-		"locate/straight ahead, no arrow")
-	_eq(LocateArrow.place(Vector3(0.3, 0, -1))["shown"], false,
-		"locate/inside the found cone, no arrow")
+	_eq(LocateArrow.place(Vector3(0, 0, -1))["over"], true,
+		"locate/straight ahead, the arrow stands over it")
+	var near_centre := LocateArrow.place(Vector3(0.3, 0, -1))
+	_ok(near_centre["over"] and (near_centre["at"] as Vector3).x > 0.0
+			and is_equal_approx((near_centre["at"] as Vector3).z, -LocateArrow.DEPTH),
+		"locate/inside the cone, over the object where it crosses the arrow's plane",
+		str(near_centre))
 	var right := LocateArrow.place(Vector3(1, 0, -0.2))
-	_ok(right["shown"] and absf(right["bearing"] - PI / 2.0) < 0.01,
+	_ok(not right["over"] and absf(right["bearing"] - PI / 2.0) < 0.01,
 		"locate/to the right, it points right", str(right))
 	var up := LocateArrow.place(Vector3(0, 1, -0.3))
-	_ok(up["shown"] and absf(up["bearing"]) < 0.01, "locate/above, it points up", str(up))
+	_ok(not up["over"] and absf(up["bearing"]) < 0.01, "locate/above, it points up", str(up))
 	var behind_left := LocateArrow.place(Vector3(-0.2, 0.5, 1))
-	_ok(behind_left["shown"] and absf(behind_left["bearing"] + PI / 2.0) < 0.01,
+	_ok(not behind_left["over"] and absf(behind_left["bearing"] + PI / 2.0) < 0.01,
 		"locate/behind and to the left, it points left -- never up", str(behind_left))
 	var behind := LocateArrow.place(Vector3(0, 0, 1))
-	_ok(behind["shown"] and absf(absf(behind["bearing"]) - PI / 2.0) < 0.01,
+	_ok(not behind["over"] and absf(absf(behind["bearing"]) - PI / 2.0) < 0.01,
 		"locate/dead behind, it still says which way to turn", str(behind))
 
 	var eye := Node3D.new()
@@ -1508,11 +1515,20 @@ func _group_locate() -> void:
 	await get_tree().process_frame
 	_ok(arrow.visible and arrow.position.x > 0.0,
 		"locate/the arrow is up, on the side the object is", str(arrow.position))
-	thing.global_position = Vector3(30, 50, -2)
+	thing.global_position = Vector3(30.3, 50, -2)
 	await get_tree().process_frame
-	_ok(not arrow.visible and arrow.is_locating(),
-		"locate/turned to face it, the arrow hides but keeps tracking")
-	thing.global_position = Vector3(30, 50, 2)
+	_ok(arrow.visible and arrow.is_locating() and absf(arrow.rotation.z - PI) < 0.01
+			and arrow.position.y > 0.0 and absf(arrow.position.x - 0.3 * LocateArrow.DEPTH / 2.0) < 0.002,
+		"locate/facing it, the arrow stands over it pointing down",
+		"%s rot %s" % [arrow.position, arrow.rotation])
+	# Well past the old 2 s "found" end: in view, it stays up.
+	arrow._process(LocateArrow.GIVE_UP_SECONDS * 0.5)
+	_ok(arrow.visible and arrow.is_locating(),
+		"locate/in view it stays up until the timeout")
+	arrow._process(LocateArrow.GIVE_UP_SECONDS * 0.5 + 0.1)
+	_ok(not arrow.is_locating() and not arrow.visible, "locate/and the timeout ends it")
+
+	arrow.locate(thing, "thing")
 	await get_tree().process_frame
 	thing.queue_free()
 	await get_tree().process_frame

@@ -5,9 +5,10 @@
 ## outline alone is no help when it is behind you. So while an object is being
 ## located its outline turns cyan (PickableHighlight.set_located) and this arrow
 ## rides the camera, on a ring round the line of sight, pointing the way to turn.
-## It hides as soon as the object is within FOUND_DEG of where the player looks
-## (the outline is enough from there) and gives up once the object has been in
-## view for FOUND_SECONDS, or after GIVE_UP_SECONDS whatever happened.
+## Once the object is within FOUND_DEG of where the player looks the arrow moves
+## OVER it and points down at it, bobbing: the outline alone was not enough to pick
+## a cartridge out of a cluttered shelf. It stays up for GIVE_UP_SECONDS whatever
+## the player does, and ends early only if the object goes or another is located.
 ##
 ## It outlives the menu on purpose: you press Locate, shut the menu, and turn.
 ## One per camera (`on()`), so a second Locate hands it the new object.
@@ -17,10 +18,15 @@
 class_name LocateArrow
 extends Node3D
 
-## Within this angle of the view's centre the object counts as found.
+## Within this angle of the view's centre the arrow stops pointing the way to turn
+## and stands over the object instead.
 const FOUND_DEG := 30.0
-const FOUND_SECONDS := 2.0
 const GIVE_UP_SECONDS := 10.0
+## Standing over the object: how far above it (in the view, at DEPTH) the arrow's
+## middle sits, and how far and how fast it bobs.
+const OVER_GAP := 0.045
+const BOB := 0.012
+const BOB_HZ := 1.5
 ## Where the arrow sits: DEPTH in front of the eye, RING off the line of sight
 ## (about 15 degrees, inside even a narrow headset's view).
 const DEPTH := 0.55
@@ -38,7 +44,8 @@ var _mesh: MeshInstance3D = null
 var _material: StandardMaterial3D = null
 var _bearing := 0.0
 var _elapsed := 0.0
-var _seen := 0.0
+## Standing over the object (in view) rather than on the edge ring.
+var _over := false
 
 
 ## The arrow riding `camera`, made the first time it is asked for.
@@ -54,20 +61,21 @@ static func on(camera: Node3D) -> LocateArrow:
 
 
 ## Where the arrow goes for an object whose direction from the eye, in the
-## CAMERA's frame (-Z ahead, +Y up), is `dir`. `shown` false: it is in view.
-## `bearing` is clockwise from straight up, so +PI/2 is the right edge. Straight
-## behind there is no "up" to point to, so behind the player it is always left or
-## right -- the way to turn -- and never an arrow pointing into their face.
+## CAMERA's frame (-Z ahead, +Y up), is `dir`. `over` true: it is in view, and
+## `at` is where the object crosses the arrow's plane (DEPTH ahead). Otherwise
+## `bearing`, clockwise from straight up (+PI/2 is the right edge), is the way to
+## turn. Straight behind there is no "up" to point to, so behind the player it is
+## always left or right, and never an arrow pointing into their face.
 static func place(dir: Vector3) -> Dictionary:
 	var d := dir.normalized()
 	if d.is_zero_approx():
-		return {"shown": false, "bearing": 0.0}
+		return {"over": true, "at": Vector3(0.0, 0.0, -DEPTH), "bearing": 0.0}
 	var off_axis := rad_to_deg(acos(clampf(-d.z, -1.0, 1.0)))
 	if off_axis < FOUND_DEG:
-		return {"shown": false, "bearing": 0.0}
+		return {"over": true, "at": d * (DEPTH / -d.z), "bearing": 0.0}
 	if d.z > 0.0:
-		return {"shown": true, "bearing": PI / 2.0 if d.x >= 0.0 else -PI / 2.0}
-	return {"shown": true, "bearing": atan2(d.x, d.y)}
+		return {"over": false, "bearing": PI / 2.0 if d.x >= 0.0 else -PI / 2.0}
+	return {"over": false, "bearing": atan2(d.x, d.y)}
 
 
 ## Point the player at `target` (and outline it), replacing whatever was being
@@ -78,7 +86,6 @@ func locate(new_target: Node3D, display_name: String) -> void:
 	_target = new_target
 	_target_name = display_name
 	_elapsed = 0.0
-	_seen = 0.0
 	_set_outline(true)
 	print("[Locate] tracking '%s'" % display_name)
 	set_process(true)
@@ -142,22 +149,30 @@ func _process(delta: float) -> void:
 	if _camera == null:
 		_camera = get_parent() as Node3D
 	_elapsed += delta
-	var to := _target.global_position - _camera.global_position
-	var where := place(_camera.global_transform.basis.inverse() * to)
-	if not where["shown"]:
-		_seen += delta
-		visible = false
-		if _seen >= FOUND_SECONDS:
-			_end("found")
-		return
 	if _elapsed >= GIVE_UP_SECONDS:
 		_end("timed out")
 		return
-	var want: float = where["bearing"]
-	_bearing = want if not visible else lerp_angle(_bearing, want, clampf(SWING_RATE * delta, 0.0, 1.0))
+	var to := _target.global_position - _camera.global_position
+	var where := place(_camera.global_transform.basis.inverse() * to)
+	if where["over"]:
+		_pose_over(where["at"])
+		_over = true
+	else:
+		var want: float = where["bearing"]
+		# Coming off the object (or just shown) the arrow takes its bearing at once;
+		# only round the ring does it swing.
+		_bearing = want if (not visible or _over) 			else lerp_angle(_bearing, want, clampf(SWING_RATE * delta, 0.0, 1.0))
+		_pose(_bearing)
+		_over = false
 	visible = true
-	_pose(_bearing)
 	_material.albedo_color.a = 0.7 + 0.3 * sin(_elapsed * TAU)
+
+
+## Stand the arrow over `at` (the object, at the arrow's depth), pointing down at it.
+func _pose_over(at: Vector3) -> void:
+	var bob := BOB * (0.5 + 0.5 * sin(_elapsed * TAU * BOB_HZ))
+	position = at + Vector3(0.0, OVER_GAP + bob, 0.0)
+	rotation = Vector3(0.0, 0.0, PI)
 
 
 ## Put the arrow on the ring at `bearing`, pointing outward along it.
@@ -172,6 +187,7 @@ func _end(why: String) -> void:
 	_set_outline(false)
 	_target = null
 	_target_name = ""
+	_over = false
 	visible = false
 	set_process(false)
 

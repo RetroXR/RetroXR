@@ -122,6 +122,7 @@ const PLAY      := 0xF04B    # fa-play            — run a minigame off a VMU
 const STOP      := 0xF04D    # fa-stop            — power that minigame off
 const BSX_MEMORY_PACK := 0xEF5F  # fa-satellite   — a Satellaview pack we minted
 const BSX_PACK_CONTENTS := 0xEF60 # fa-satellite-dish — what is written on a pack
+const LOCATE    := 0xEE2B    # fa-bell_concierge  — point me at it (SCENE > Objects)
 
 ## md-numeric_N_box by disc number. A table, not arithmetic: the font's run is
 ## three codepoints a digit EXCEPT 5, which sits one further on (0xF03B0 is the
@@ -137,6 +138,8 @@ const TINT_DELETE   := Color(0.95, 0.40, 0.40)
 const TINT_OK       := Color(0.40, 0.85, 0.45)
 const TINT_WARN     := Color(1.00, 0.72, 0.20)
 const TINT_MUTED    := Color(0.45, 0.45, 0.58)
+## The SCENE menu's Locate: the cyan of the outline and arrow it raises.
+const TINT_LOCATE   := Color(0.2, 0.9, 1.0)
 
 ## Built once and shared — the ROM list recycles rows, so a FontVariation per
 ## row (or per bind) would churn resources on every scroll.

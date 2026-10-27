@@ -22,7 +22,9 @@ extends VBoxContainer
 
 const REFRESH_HZ := 4.0
 const DIST_COL_PX := 170
-const BTN_W := 150
+## The icon buttons are the games list's delete button: 76 px, a 40 pt glyph.
+const BTN_W := 76
+const ICON_SIZE := 40
 const ROW_H := 64
 const DELETE_CONFIRM_SECONDS := 3.0
 
@@ -246,11 +248,15 @@ func _make_row(record: Dictionary) -> void:
 	dist_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(dist_lbl)
 
-	var locate := _row_btn("Locate", MenuStyle.COLOR_BTN_LOAD)
+	var locate := _icon_btn(MenuIcons.LOCATE, MenuIcons.TINT_LOCATE, "Locate")
+	locate.name = "Locate"
 	locate.pressed.connect(_on_locate.bind(record))
 	row.add_child(locate)
 
-	var del := _row_btn("Delete", MenuStyle.COLOR_BTN_CLEAR)
+	# The games list's delete: gone for good (nothing to fetch back), so the
+	# DELETE_FOREVER bin, and the warning glyph while it asks again.
+	var del := _icon_btn(MenuIcons.DELETE_FOREVER, MenuIcons.TINT_DELETE, "Delete permanently")
+	del.name = "Delete"
 	del.pressed.connect(_on_delete.bind(record))
 	row.add_child(del)
 
@@ -259,12 +265,14 @@ func _make_row(record: Dictionary) -> void:
 	record["delete"] = del
 
 
-func _row_btn(text: String, color: Color) -> Button:
+func _icon_btn(glyph: int, tint: Color, tip: String) -> Button:
 	var b := Button.new()
-	b.text = text
-	b.custom_minimum_size = Vector2(BTN_W, ROW_H - 12)
-	b.add_theme_font_size_override("font_size", 20)
-	b.add_theme_stylebox_override("normal", MenuStyle.rounded(color, 4))
+	b.text = String.chr(glyph)
+	b.custom_minimum_size = Vector2(BTN_W, ROW_H - 8)
+	b.add_theme_font_override("font", MenuIcons.symbols())
+	b.add_theme_font_size_override("font_size", ICON_SIZE)
+	b.add_theme_color_override("font_color", tint)
+	b.tooltip_text = tip
 	return b
 
 
@@ -300,6 +308,5 @@ func _set_delete_prompt(record: Dictionary, asking: bool) -> void:
 	var btn: Button = record["delete"]
 	if not is_instance_valid(btn):
 		return
-	btn.text = "Tap again" if asking else "Delete"
-	btn.add_theme_stylebox_override("normal", MenuStyle.rounded(
-		Color(0.85, 0.15, 0.12) if asking else MenuStyle.COLOR_BTN_CLEAR, 4))
+	btn.text = String.chr(MenuIcons.ERROR if asking else MenuIcons.DELETE_FOREVER)
+	btn.tooltip_text = "Tap again to delete permanently" if asking else "Delete permanently"
