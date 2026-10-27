@@ -1065,7 +1065,7 @@ p2c2b2w8:joy+pedal;v dynabb dynabb97
 p2c2b2w8:joy;s2;c0,0,12,9/0,9,12,16;v rocknms=rocknms10
 p2c2b3w0:btn recordbr=gogold
 p2c2b3w0:dial;r270;m19 firetrk=firetrka
-p2c2b3w0:pedal+stick;v swa=swaj
+p2c2b3w0:pedal+stick;qs;v;m50 swa=swaj
 p2c2b3w0:stick;todd cybsled=cybsleda
 p2c2b3w2:btn+joy;r270 cmmb103 cmmb162
 p2c2b3w8:ball+joy vbowl=vbowlj

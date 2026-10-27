@@ -1582,7 +1582,7 @@ func _group_seating() -> void:
 		if p.has_seat() or p.has_cabin() or p.has_motion():
 			seated += 1
 			if p.form() == P.FORM_UPRIGHT and p.has_seat() and not p.has_cabin() and not p.has_motion():
-				# An upright you sat at: only Darius's cabinet (Darius, Darius II and their clones).
+				# An upright you sat at: only Darius's cabinet (Darius, Darius II and their clones) and Sega's Star Wars Arcade.
 				seated_uprights.append(romset)
 			elif not (p.form() in [P.FORM_FLY, P.FORM_RACE, P.FORM_GUN, P.FORM_GUN_MOUNTED]) or not p.has_seat():
 				stray.append(romset)
@@ -1591,8 +1591,8 @@ func _group_seating() -> void:
 	_ok(stray.is_empty() and seated > 60, "seating: only a flight, driving or gun-ride form carries them, and always with a seat (%d games; stray: %s)"
 		% [seated, ", ".join(stray)])
 	seated_uprights.sort()
-	_ok(seated_uprights == ["darius", "darius2", "darius2d", "darius2do", "dariuse", "dariusj", "dariuso", "dariusu", "sagaia"],
-		"seating: and the one upright you sat at is Darius's, with Darius II (%s)" % ", ".join(seated_uprights))
+	_ok(seated_uprights == ["darius", "darius2", "darius2d", "darius2do", "dariuse", "dariusj", "dariuso", "dariusu", "sagaia", "swa", "swaj"],
+		"seating: and the uprights you sat at are Darius's, with Darius II, and Sega's Star Wars Arcade (%s)" % ", ".join(seated_uprights))
 	_ok(P.for_romset("aburner2").has_seat() and not P.for_romset("not_a_real_romset").has_seat()
 			and not P.for_romset("not_a_real_romset").has_throttle() and P.for_romset("not_a_real_romset").form() == P.FORM_UPRIGHT,
 		"seating: a game the table does not know has no seat and no throttle")
@@ -1800,6 +1800,11 @@ func _group_seating() -> void:
 	_ok(dsp.has("bench") and int(dsp["bench"]["seats"]) == 2 and _near(float((dsp["bench"] as Dictionary).get("seat_z", -1.0)), S.UPRIGHT_BENCH_Z) and _spec("darius2").has("bench")
 			and not _spec("ninjaw").has("bench") and not _spec("dariusg").has("bench") and not _spec("sf2").has("bench") and not _spec("pacman").has("bench"),
 		"seating: Darius and Darius II ask for a bench with a seat a player, Ninja Warriors, Darius Gaiden and the other uprights for none")
+	# Sega's Star Wars Arcade: two seats (a pilot and a gunner), a joystick each, and the biggest picture an upright's body holds (a 50 inch class screen).
+	var swa := _spec("swa")
+	_ok(swa.has("bench") and int(swa["bench"]["seats"]) == 2 and _spec("swaj").has("bench") and _kinds(swa) == ["stick", "stick"] and not swa.has("cockpit")
+			and str(swa["shape"]) == "tall" and int(swa["screen"]["inches"]) == 50 and not _spec("starwars").has("bench"),
+		"seating: Sega's Star Wars Arcade is a bench of two seats, a pilot and a gunner, in front of a joystick each and a 50 inch class screen; Atari's Star Wars is an upright")
 	model.morph_to(dsp)
 	model.apply_game_profile(P.for_romset("darius"))
 	await _wait(3)

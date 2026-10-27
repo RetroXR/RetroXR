@@ -243,6 +243,10 @@ the research. Both go in `SEATING` (`cockpits.py`, one line per game with where 
   comment in `ninjaw.cpp` is the same family's). The bench is the ride's, with a seat a player (two) **closer to the panel** (`UPRIGHT_BENCH_Z`, the cushion's middle 0.98 m from the front instead of 1.16: the seated player reaches the sticks, 0.5 m, and the three
   pictures are 0.6 m from the eyes and fill the view: the cabinet's "movie-like feel"). It is furniture: a player may stand. **Ninja Warriors (same cabinet design, upright listings say standing, one review sit-down), Darius Gaiden (an F3 upright) and every other upright stay
   standing.** The bench does not move (the real one did nothing but sound).
+- **Sega's Star Wars Arcade** (`swa`, `swaj`; Model 1, 1993/94; not Atari's Star Wars, which is an upright with a yoke, 2e) is the same arrangement, on research (two listings, medium): **two seats, a pilot and a gunner**, **an analog
+  joystick each with a trigger and a thumb button** and a throttle lever for the pilot's seat alone; the monitor a 50 inch rear projection housed separately (one listing, low). Built as `qs` (a bench of two seats) in front of two stick panels of three buttons and `m50` (the
+  biggest picture an upright's body holds: the `tall` body, 1.08 m wide). **Not found and not drawn**: what the seats were (the stick was found on the deck's place, not between the knees), the pilot's throttle (MAME gives the game a `PEDAL`, which no upright panel draws), any motion.
+  Before this it was a plain upright with two sticks and the 25 inch tube.
 - **The bench** (`bench`): a gun ride's platform in front of the guns, which stay on the deck, with a seat a gun (two at most, 40 cm wide each, the eyes capped at 1.20 m so a seat at a 1.33 m glass is not a stool), each player getting up
   on the outside of their own seat. **The bench does not move**: nothing says how the ride moved (the libretro API carries no output of the game's), and a seat that rocked to no purpose under a headset is harm for nothing.
 - **The R-360 pod** (`glocr360`, `glocr360j`, `wingwar360`: the table's `r`, 2026-10-26): see below. **Not built**: rudder pedals (Sega Strike Fighter's `AD_STICK_Z` is one, Thunder Ceptor's accelerator pad is a `PEDAL`); Sega Strike Fighter's three screens;
@@ -524,9 +528,9 @@ Daphne `badlands` or `roadblst` is still a laserdisc upright.
 - **Bad Lands' dial is a steering wheel**, one for each of two players, with no pedals (the gas is a button): the table's `h`, `ArcadeGameProfile.steering_dial()`, a `wheel` panel
   without pedals or lever (`panel()`'s `wheel` kind). Its bootleg is a joystick game and stays a joystick cabinet.
 - **Wing War R360** is G-LOC R360's pod (a seat, a cage round it, a base that moves): `wingwar` joins the flight cockpits, so its clone does too. The pod's rotation stays unbuilt.
-- Not changed, said so: **Star Wars Arcade** (`swa`, two analog sticks and a throttle read as a pedal) stays a panel with a stick for each player, since nothing in MAME or the research says
-  what its cabinet was; **World Combat** (one button a player in MAME) stays a plain upright. **TX-1** was a stand-up for its date; it is a seated cockpit of three screens (`DRIVING_FORM`; the research says a force-feedback
-  wheel, an accelerator, a brake and a gearshift, the side screens tilted about 30 degrees).
+- **Star Wars Arcade** (`swa`, two analog sticks and a throttle read as a pedal) was a plain upright with a stick each; the research (two listings, medium) says two seats, a pilot and a gunner, so it has the bench
+  of two seats and a 50 inch class screen (2b). **TX-1** was a stand-up for its date; it is a seated cockpit of three screens (`DRIVING_FORM`; the research says a force-feedback
+  wheel, an accelerator, a brake and a gearshift, the side screens tilted about 30 degrees). Not changed, said so: **World Combat** stays a plain upright (section 9.4).
 
 ### 9.2 DDR Solo's six panels
 

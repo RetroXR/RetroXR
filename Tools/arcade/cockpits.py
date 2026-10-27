@@ -73,6 +73,7 @@ SEATING = {
     # An upright you sit at: a bench in front of its deck
     "darius": "s",      # Taito, 1986: "Players sat on a bench-style seat, with a built-in 'body sonic'" (BEEP! 4/87 through a Gigazine summary; one chain, not checked against a second source)
     "darius2": "s",     # the same cabinet design (the triple build's audio and body sonic differ slightly, research)
+    "swa": "s",         # Sega's Star Wars Arcade (Model 1, 1993/94): two seats, a pilot and a gunner, a joystick each with a trigger and a thumb button (research, two listings: the seat type was not found)
     # Rides with guns: a bench you sit on, in front of the cabinet
     "rchase": "sm",     # DIP "Moving": a bench that pitches and sways with the ride (pneumatic, research)
     "rchase2": "sm",    # the same bench
