@@ -106,16 +106,43 @@ static func _apply_layer(layer: Dictionary) -> void:
 ## previous scope's keys lingering on actions the new scope does not name.
 static func apply_for_system(systemid: String) -> void:
 	InputMap.load_from_project_settings()
+	for layer in _layers_for(systemid):
+		_apply_layer(layer)
+
+
+## The layers a scope puts over the project defaults, in the order they go on: the global one, then the system's own.
+static func _layers_for(systemid: String) -> Array[Dictionary]:
+	var layers: Array[Dictionary] = []
 	var data := _load_file()
-	_apply_layer(data.get("global", {}) as Dictionary)
+	layers.append(data.get("global", {}) as Dictionary)
 	if not systemid.is_empty():
 		var per_sys: Dictionary = data.get("per_system", {}) as Dictionary
 		var scope := BindingStore.scope_of(systemid)
 		if per_sys.has(scope):
-			_apply_layer(per_sys[scope] as Dictionary)
+			layers.append(per_sys[scope] as Dictionary)
 		elif ArcadeProfiles.is_cabinet_system(systemid):
 			# A cabinet with no map of its own plays from MAME's layout, not the numpad.
-			_apply_layer(ArcadeProfiles.DESKTOP_KEYS)
+			layers.append(ArcadeProfiles.DESKTOP_KEYS)
+	return layers
+
+
+## What `event_display_name` would say of `action` once `apply_for_system(systemid)` had run, said without running it: the InputMap belongs to whoever holds the keyboard, and
+## a cabinet that tells its player the keys must not rewrite it to do so.
+static func display_name_for_system(action: String, systemid: String) -> String:
+	if not InputMap.has_action(action):
+		return "(none)"
+	var chosen: InputEvent = null
+	var setting: Variant = ProjectSettings.get_setting("input/%s" % action, null)
+	if setting is Dictionary:
+		var events: Array = (setting as Dictionary).get("events", []) as Array
+		if not events.is_empty():
+			chosen = events[0] as InputEvent
+	for layer in _layers_for(systemid):
+		if layer.has(action):
+			var ev := _dict_to_event(layer[action] as Dictionary)
+			if ev != null:
+				chosen = ev
+	return _format_event(chosen) if chosen != null else "(none)"
 
 
 ## Load saved bindings and apply the global scope. Safe with no file present.

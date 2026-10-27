@@ -58,6 +58,8 @@ func _ready() -> void:
 	get_tree().create_timer(240.0).timeout.connect(func() -> void:
 		print("[hand] TIMED OUT")
 		get_tree().quit(1))
+	# A hint counts what it has taught in the player's own file: a suite counts in memory (the `prompts/` group puts the counts back).
+	HeldHint.persist_uses = false
 	await _run()
 	print("[hand] %d checks, %d case(s) failed" % [_checks, _cases_failed])
 	print("[hand] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
@@ -88,7 +90,7 @@ func _run() -> void:
 			["twin", _group_twin], ["wheel", _group_wheel], ["dial", _group_dial], ["ball", _group_ball],
 			["lever", _group_lever], ["helm", _group_helm], ["bars", _group_bars], ["rider", _group_rider], ["cycle", _group_cycle], ["handlebars", _group_handlebars], ["slot", _group_slot], ["fly", _group_fly],
 			["input", _group_input],
-			["laser", _group_laser], ["carry", _group_carry], ["use", _group_use], ["sticks", _group_sticks], ["guitar", _group_guitar]]:
+			["laser", _group_laser], ["carry", _group_carry], ["use", _group_use], ["sticks", _group_sticks], ["guitar", _group_guitar], ["prompts", _group_prompts]]:
 		if _want(str(g[0])):
 			await (g[1] as Callable).call()
 			await _clear()
@@ -2350,3 +2352,254 @@ func _group_guitar() -> void:
 	sys.is_powered_on = true
 	other.drop()
 	await _wait(2)
+
+
+# --- prompts -------------------------------------------------------------------
+
+## The ids of the rows a panel's hint has on show now (none while it is hidden).
+func _on_show(panel: ArcadeControlModule) -> Array:
+	var ids: Array = []
+	var hint := panel.prompt_hint()
+	if hint != null and hint.visible:
+		for row: Array in hint._last_rows:
+			ids.append(row[0])
+	return ids
+
+
+## The caption of the row `id` on show, "" when it is not.
+func _caption_of(panel: ArcadeControlModule, id: StringName) -> String:
+	var hint := panel.prompt_hint()
+	if hint != null and hint.visible:
+		for row: Array in hint._last_rows:
+			if row[0] == id:
+				return str(row[3])
+	return ""
+
+
+## Let go of whatever the hand has, one step (the trigger or the squeeze).
+func _release(panel: ArcadeControlModule, h: Dictionary) -> void:
+	_trigger(h, 0.0)
+	_squeeze(h, 0.0)
+	_step(panel, [h])
+
+
+func _group_prompts() -> void:
+	# The counts of what has been taught are the player's: put back what was there.
+	var saved_uses := AppPrefs.hint_uses.duplicate()
+	var saved_show := AppPrefs.show_hints
+	AppPrefs.hint_uses = {}
+	AppPrefs.show_hints = true
+	# The words: a row for every kind of control, the glyph of the button that takes it, and every glyph there.
+	var bad: Array = []
+	for kind: StringName in [&"stick", &"wheel", &"dial", &"ball", &"lever", &"bars", &"lean", &"crank", &"slide", &"throttle"]:
+		var rows := ArcadePrompts.control_rows(kind)
+		if rows.is_empty():
+			bad.append(kind)
+		for row: Array in rows:
+			if int(row[1]) != HeldHint.PLATFORM_VR or str(row[3]).is_empty():
+				bad.append(row[0])
+			for glyph: String in row[2]:
+				for right in [true, false]:
+					var path := "%s/%s%s" % [HeldHint.GLYPH_DIR, HeldHint.glyph_name(glyph, right), ConsolePadDiagram.GLYPH_EXT]
+					if not ResourceLoader.exists(path):
+						bad.append(path)
+	_ok(bad.is_empty(), "prompts: every kind of control has words, for a headset, and every glyph they name exists for both hands (%s)" % str(bad))
+	_ok(ArcadePrompts.control_rows(&"nonsense").is_empty(), "prompts: what is no control has no rows")
+	_ok((ArcadePrompts.control_rows(&"stick")[0] as Array)[2] == ["quest_trigger_{side}_outline"] and (ArcadePrompts.control_rows(&"bars")[0] as Array)[2] == ["quest_grip_{side}_outline"]
+			and (ArcadePrompts.control_rows(&"lean")[0] as Array)[2] == ["quest_grip_{side}_outline"] and (ArcadePrompts.control_rows(&"crank")[0] as Array)[2] == ["quest_trigger_{side}_outline"],
+		"prompts: a stick and a crank are taken by the trigger, bars by the squeeze")
+	var ids := func(rows: Array) -> Array:
+		var out: Array = []
+		for row: Array in rows:
+			out.append(row[0])
+		return out
+	_ok(ids.call(ArcadePrompts.control_rows(&"bars")) == [&"ap_bars_vr", &"ap_bars_two_vr", &"ap_bars_tip_vr"] and ids.call(ArcadePrompts.control_rows(&"lean")) == [&"ap_lean_vr"],
+		"prompts: a bicycle's bars are turned, held in two hands and tipped; a motorbike's only leaned")
+	# The buttons of a game, in the core's words when it gave them, else by number.
+	var six: Array = []
+	for n in range(1, 7):
+		six.append({"n": n, "label": ""})
+	var named: Array = [{"n": 1, "label": "Punch"}, {"n": 2, "label": "Kick"}]
+	var five: Array = []
+	for n in range(1, 6):
+		five.append({"n": n, "label": "Move %d" % n})
+	_ok(ArcadePrompts.button_rows(six)[0][3] == "Press the buttons with a fingertip: buttons 1 to 6", "prompts: six buttons with no names are buttons 1 to 6 (%s)" % str(ArcadePrompts.button_rows(six)))
+	_ok(ArcadePrompts.button_rows(named)[0][3] == "Press the buttons with a fingertip: 1 Punch, 2 Kick", "prompts: and with the core's words they are named")
+	_ok(ArcadePrompts.button_rows(five)[0][3].ends_with("buttons 1 to 5"), "prompts: more than four, named or not, are numbered (%s)" % str(ArcadePrompts.button_rows(five)[0][3]))
+	_ok(ArcadePrompts.button_rows([{"n": 3, "label": ""}])[0][3].ends_with("button 3") and ArcadePrompts.button_rows([{"n": 1, "label": "Light\nPunch"}, {"n": 2, "label": ""}])[0][3].ends_with("1 Light Punch, 2")
+			and ArcadePrompts.button_rows([]).is_empty(), "prompts: one button is a button, a name on two lines is one line, a panel with none says nothing")
+	_ok(ArcadePrompts.is_game_row(&"ap_buttons_vr") and ArcadePrompts.is_game_row(&"ap_buttons_map2") and ArcadePrompts.is_game_row(&"ap_pedals_vr") and ArcadePrompts.is_game_row(&"ap_buttons_pc2")
+			and not ArcadePrompts.is_game_row(&"ap_stick_vr") and not ArcadePrompts.is_game_row(&"ap_attach_vr") and not ArcadePrompts.is_game_row(&"ap_move_pc"),
+		"prompts: the buttons and the pedals say what THIS game has, the rest are verbs")
+	# Attaching with a controller: the player's own map says which of its buttons is start, the coin and each of the game's.
+	var stick_map: Dictionary = ControllerBindings.DEFAULT_STICK_MAP
+	var rows_vr := ArcadePrompts.attach_rows_vr(0, true, six.slice(0, 2), ControllerBindings.DEFAULT_BUTTON_MAP, stick_map)
+	_ok(ids.call(rows_vr) == [&"ap_attach_vr", &"ap_buttons_map"] and str(rows_vr[0][3]) == "This controller plays player 1 (Left stick moves; Right Stick Button: start; Left Stick Button: coin)"
+			and str(rows_vr[1][3]) == "1: Right B, 2: Right A", "prompts: the default map plays button 1 with Right B and 2 with Right A (%s)" % str(rows_vr))
+	var moved: Dictionary = ControllerBindings.DEFAULT_BUTTON_MAP.duplicate()
+	moved["right_grip"] = ControllerBindings.JOYPAD_START
+	moved["right_primary_click"] = -1
+	moved["left_by_button"] = ControllerBindings.JOYPAD_B
+	var rows_moved := ArcadePrompts.attach_rows_vr(1, false, six.slice(0, 1), moved, {"stick_left": "right", "stick_right": "right"})
+	_ok(str(rows_moved[0][3]) == "This controller plays player 2 (Right Grip: start; Left Stick Button: coin)" and str(rows_moved[1][3]) == "1: Left Y or Right B",
+		"prompts: a map of the player's own says its own: start on the grip, button 1 on two inputs, a panel with no stick says none (%s)" % str(rows_moved))
+	_ok(str(ArcadePrompts.attach_rows_vr(0, true, [], ControllerBindings.DEFAULT_BUTTON_MAP, {"stick_left": "dpad", "stick_right": "left"})[0][3]).contains("Left stick or Right stick moves")
+			and not str(ArcadePrompts.attach_rows_vr(0, true, [], ControllerBindings.DEFAULT_BUTTON_MAP, {"stick_left": "right", "stick_right": "right"})[0][3]).contains("moves"),
+		"prompts: a stick that is the D-pad moves it, either stick the player pointed at it, none the player did not")
+	var many: Array = []
+	for n in range(1, 8):
+		many.append({"n": n, "label": ""})
+	_ok(ids.call(ArcadePrompts.attach_rows_vr(0, true, many, ControllerBindings.DEFAULT_BUTTON_MAP, stick_map)) == [&"ap_attach_vr", &"ap_buttons_map", &"ap_buttons_map2", &"ap_buttons_map3"],
+		"prompts: seven buttons are three to a row, three rows")
+	# And with the keyboard: the keys of the cabinet's own map.
+	var rows_pc := ArcadePrompts.attach_rows_desktop(0, true, six, "arcade")
+	var key := func(action: String) -> String:
+		return DesktopBindings.display_name_for_system(action, "arcade")
+	_ok(ids.call(rows_pc) == [&"ap_move_pc", &"ap_buttons_pc", &"ap_buttons_pc2", &"ap_start_pc"]
+			and str(rows_pc[3][3]) == "%s: start, %s: coin (player 1)" % [key.call("RETRO_JOYPAD_START"), key.call("RETRO_JOYPAD_SELECT")]
+			and str(rows_pc[0][3]) == "%s %s %s %s: move" % [key.call("RETRO_JOYPAD_UP"), key.call("RETRO_JOYPAD_LEFT"), key.call("RETRO_JOYPAD_DOWN"), key.call("RETRO_JOYPAD_RIGHT")]
+			and str(rows_pc[1][3]) == "%s: 1, %s: 2, %s: 3" % [key.call("RETRO_JOYPAD_B"), key.call("RETRO_JOYPAD_A"), key.call("RETRO_JOYPAD_Y")]
+			and str(rows_pc[2][3]) == "%s: 4, %s: 5, %s: 6" % [key.call("RETRO_JOYPAD_X"), key.call("RETRO_JOYPAD_L"), key.call("RETRO_JOYPAD_R")],
+		"prompts: the keyboard's rows name the keys: the buttons in MAME's order, three to a row, then start and the coin (%s)" % str(rows_pc))
+	if not DesktopBindings.has_system_override("arcade"):
+		_ok(str(rows_pc[1][3]) == "Ctrl: 1, Alt: 2, Space: 3" and str(rows_pc[3][3]) == "1: start, 5: coin (player 1)",
+			"prompts: a cabinet with no map of its own says MAME's layout: Ctrl Alt Space, 1 and 5 (%s)" % str(rows_pc))
+	_ok(ids.call(ArcadePrompts.attach_rows_desktop(0, false, [], "arcade")) == [&"ap_start_pc"], "prompts: a panel with no stick and no buttons says only start and the coin")
+	# A bicycle's bars, taken by a squeeze: what they are for, three lines, in the glyph of the hand that took them.
+	var r := await _rig("propcycl")
+	var panel: ArcadeControlModule = r["panel"]
+	var hands: ArcadePanelHands = panel.hands()
+	var hr := _hand("right")
+	var hl := _hand("left")
+	var grip_r := (panel.find_child("BarGripR", true, false) as Node3D).global_position
+	var grip_l := (panel.find_child("BarGripL", true, false) as Node3D).global_position
+	_ok(_on_show(panel).is_empty() and panel.prompt_hint() == null, "prompts: a panel nobody has touched says nothing")
+	_tip_at(hr, grip_r)
+	_squeeze(hr, 1.0)
+	_step(panel, [hr, hl])
+	_ok(hands.holds(&"bars") and _on_show(panel) == [&"ap_bars_vr", &"ap_bars_two_vr", &"ap_bars_tip_vr"] and panel.prompt_hint()._last_right,
+		"prompts: taking a bicycle's bars says what they are for, in the right hand's glyph (%s)" % str(_on_show(panel)))
+	_ok(int(AppPrefs.hint_uses.get("ap_bars_vr", 0)) == 1 and int(AppPrefs.hint_uses.get("ap_bars_tip_vr", 0)) == 1, "prompts: and counts one use of each (%s)" % str(AppPrefs.hint_uses))
+	# A second hand on the other grip is the same take of the bars: not told again, not counted again.
+	_tip_at(hl, grip_l)
+	_squeeze(hl, 1.0)
+	_step(panel, [hr, hl])
+	_ok(hands.holds(&"bars") and int(AppPrefs.hint_uses.get("ap_bars_vr", 0)) == 1, "prompts: a second hand joining the bars counts nothing more (%s)" % str(AppPrefs.hint_uses))
+	_release(panel, hr)
+	_release(panel, hl)
+	# The left hand alone takes them with its own glyphs.
+	_tip_at(hl, grip_l)
+	_squeeze(hl, 1.0)
+	_step(panel, [hl])
+	_ok(hands.holds(&"bars") and not panel.prompt_hint()._last_right, "prompts: taken by the left hand the glyphs are the left's")
+	_release(panel, hl)
+	# The crank is a pedal: its line only, and no buttons.
+	var pedal := (panel.find_child("CrankPedalR", true, false) as Node3D).global_position
+	_tip_at(hr, pedal + panel.global_transform.basis.x * 0.04)
+	_trigger(hr, 1.0)
+	_step(panel, [hr])
+	_ok(hands.holds(&"crank") and _on_show(panel) == [&"ap_crank_vr"], "prompts: taking the crank says to turn it forward, and nothing of buttons (%s)" % str(_on_show(panel)))
+	_release(panel, hr)
+	# A fighting game's stick: the stick, and the game's buttons the first time.
+	var r2 := await _rig("sf2", 6, true)
+	var panel2: ArcadeControlModule = r2["panel"]
+	var hands2: ArcadePanelHands = panel2.hands()
+	var h2 := _hand("right")
+	var buttons := panel2.shown_buttons()
+	_ok(buttons.size() == 6, "prompts: the panel of Street Fighter II shows six buttons (%d)" % buttons.size())
+	_tip_at(h2, _ball_at(panel2))
+	_trigger(h2, 1.0)
+	_step(panel2, [h2])
+	_ok(hands2.holds(&"stick") and _on_show(panel2) == [&"ap_stick_vr", &"ap_buttons_vr"] and _caption_of(panel2, &"ap_buttons_vr") == str(ArcadePrompts.button_rows(buttons)[0][3]),
+		"prompts: taking the stick says what it does and which buttons the game has (%s)" % str(_on_show(panel2)))
+	_ok(int(AppPrefs.hint_uses.get("ap_stick_vr", 0)) == 1 and not AppPrefs.hint_uses.has("ap_buttons_vr"), "prompts: the stick's line is counted as taught, the game's buttons are not (%s)" % str(AppPrefs.hint_uses))
+	var stick_grab: ArcadePanelHands.ControlGrab = null
+	for g in hands2.grabs():
+		if g.kind == &"stick":
+			stick_grab = g
+	var over: Vector3 = stick_grab.handle() + Vector3.UP * ArcadeControlModule.PROMPT_LIFT
+	_ok(panel2.prompt_hint()._pinned and panel2.prompt_hint()._anchor().distance_to(over) < 0.01,
+		"prompts: the hint floats %d cm over the stick that was taken (%s against %s)" % [int(ArcadeControlModule.PROMPT_LIFT * 100.0), str(panel2.prompt_hint()._anchor()), str(over)])
+	_release(panel2, h2)
+	# The same game's buttons are not said at every take of its stick.
+	_trigger(h2, 1.0)
+	_step(panel2, [h2])
+	_ok(_on_show(panel2) == [&"ap_stick_vr"], "prompts: the second take says the stick only (%s)" % str(_on_show(panel2)))
+	_release(panel2, h2)
+	# A verb is learned by doing it: three takes, and it is not said.
+	_trigger(h2, 1.0)
+	_step(panel2, [h2])
+	_release(panel2, h2)
+	_ok(int(AppPrefs.hint_uses.get("ap_stick_vr", 0)) == HeldHint.LEARNED_AFTER, "prompts: three takes teach the stick (%s)" % str(AppPrefs.hint_uses))
+	_trigger(h2, 1.0)
+	_step(panel2, [h2])
+	_ok(hands2.holds(&"stick") and _on_show(panel2).is_empty(), "prompts: and the fourth is silent (%s)" % str(_on_show(panel2)))
+	_release(panel2, h2)
+	# Another game in the panel: its buttons are said afresh (the same row, other words), the stick's line not.
+	r2["model"].apply_game_profile(P.for_romset("mslug"))
+	await _wait(2)
+	_ok(panel2.shown_buttons().size() == 4, "prompts: Metal Slug shows four buttons against Street Fighter II's six (%d)" % panel2.shown_buttons().size())
+	_trigger(h2, 1.0)
+	_step(panel2, [h2])
+	_ok(_on_show(panel2) == [&"ap_buttons_vr"] and _caption_of(panel2, &"ap_buttons_vr").ends_with("buttons 1 to 4"), "prompts: a game with other buttons is told its own once the stick is taught (%s)" % str(_on_show(panel2)))
+	_release(panel2, h2)
+	# A game with none has nothing to say of buttons, and the stick has been taught.
+	r2["model"].apply_game_profile(P.for_romset("pacman"))
+	await _wait(2)
+	_trigger(h2, 1.0)
+	_step(panel2, [h2])
+	_ok(hands2.holds(&"stick") and panel2.shown_buttons().is_empty() and _on_show(panel2).is_empty(), "prompts: a game with no buttons says nothing of any (%s)" % str(_on_show(panel2)))
+	_release(panel2, h2)
+	# Hints off: nothing is said.
+	AppPrefs.show_hints = false
+	AppPrefs.hint_uses = {}
+	_trigger(h2, 1.0)
+	_step(panel2, [h2])
+	_ok(hands2.holds(&"stick") and _on_show(panel2).is_empty(), "prompts: with the hints switched off a control taken says nothing")
+	_release(panel2, h2)
+	AppPrefs.show_hints = true
+	# A racer's wheel and its pedals.
+	var r3 := await _rig("daytona", 6, true)
+	var panel3: ArcadeControlModule = r3["panel"]
+	var hands3: ArcadePanelHands = panel3.hands()
+	var h3 := _hand("right")
+	var rim := (panel3.find_child("WheelPivot", true, false) as Node3D)
+	var mount := rim.get_parent() as Node3D
+	var wheel_rim := rim.find_child("WheelRim", true, false) as MeshInstance3D
+	var radius := (wheel_rim.mesh as TorusMesh).outer_radius - 0.014
+	_tip_at(h3, mount.global_transform * Vector3(0, 0, -radius))
+	_trigger(h3, 1.0)
+	_step(panel3, [h3])
+	var wheel_ids := _on_show(panel3)
+	_ok(hands3.holds(&"wheel") and wheel_ids.has(&"ap_wheel_vr") and wheel_ids.has(&"ap_pedals_vr"), "prompts: a driving cockpit's wheel says to turn it and that there are pedals (%s)" % str(wheel_ids))
+	_release(panel3, h3)
+	# A motorbike's grip: leaned, not turned.
+	var r4 := await _rig("hangon")
+	var panel4: ArcadeControlModule = r4["panel"]
+	var h4 := _hand("right")
+	_tip_at(h4, (panel4.find_child("BarGripR", true, false) as Node3D).global_position)
+	_squeeze(h4, 1.0)
+	_step(panel4, [h4])
+	_ok(panel4.hands().holds(&"bars") and _on_show(panel4).has(&"ap_lean_vr") and not _on_show(panel4).has(&"ap_bars_tip_vr"), "prompts: a motorbike's bars are leaned, not tipped (%s)" % str(_on_show(panel4)))
+	_release(panel4, h4)
+	# Attaching with the keyboard (a headless run has no headset): the keys of this cabinet, said at once.
+	AppPrefs.hint_uses = {}
+	r2["model"].apply_game_profile(P.for_romset("sf2"))
+	await _wait(2)
+	panel2.set_attached(true)
+	await _wait(2)
+	var attach_ids := _on_show(panel2)
+	_ok(attach_ids.has(&"ap_move_pc") and attach_ids.has(&"ap_buttons_pc") and attach_ids.has(&"ap_start_pc") and panel2.prompt_hint()._desktop_rows and not panel2.prompt_hint()._pinned,
+		"prompts: attaching with the keyboard says the keys: move, the buttons, start and the coin (%s)" % str(attach_ids))
+	_ok(int(AppPrefs.hint_uses.get("ap_move_pc", 0)) == 1 and not AppPrefs.hint_uses.has("ap_buttons_pc"), "prompts: the move line is taught, the game's keys are not counted (%s)" % str(AppPrefs.hint_uses))
+	_ok(_caption_of(panel2, &"ap_start_pc") == "%s: start, %s: coin (player 1)" % [DesktopBindings.display_name_for_system("RETRO_JOYPAD_START", "arcade"), DesktopBindings.display_name_for_system("RETRO_JOYPAD_SELECT", "arcade")],
+		"prompts: and they are the keys of the cabinet's own map (%s)" % _caption_of(panel2, &"ap_start_pc"))
+	panel2.set_attached(false)
+	# With a headset's controller the rows are the controller's, by the player's own map.
+	AppPrefs.hint_uses = {}
+	panel2.prompt_attached(true, ControllerBindings.DEFAULT_BUTTON_MAP, ControllerBindings.DEFAULT_STICK_MAP, "arcade")
+	_ok(_on_show(panel2) == [&"ap_attach_vr", &"ap_buttons_map", &"ap_buttons_map2"] and not panel2.prompt_hint()._desktop_rows
+			and _caption_of(panel2, &"ap_buttons_map") == "1: Right B, 2: Right A, 3: Left Y" and _caption_of(panel2, &"ap_buttons_map2") == "4: Left X, 5: Left Grip, 6: Right Grip",
+		"prompts: attaching with a controller says its own buttons: 1 to 3 on one row, 4 to 6 on the next (%s)" % str(_on_show(panel2)))
+	AppPrefs.hint_uses = saved_uses
+	AppPrefs.show_hints = saved_show

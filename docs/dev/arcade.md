@@ -1338,3 +1338,30 @@ and a squeeze, which is how a hand takes hold of handlebars, did nothing (a play
   squeeze and two hands). 31 mutants of the new code, five of which survived the first tests (joining and leaving moved nothing because the bars were centred when they happened; the release and the
   squeeze's edge were unexercised). Probe `arcade_cabinet_probe --shots=handsbars,handscycle` (windowed).
 - **Estimates and OWED.** The 28 degrees (`BARS_YAW_DEG`) as the lock, the 10 cm of lift and push, the 15 cm and 8 cm limits, the squeeze thresholds; a headset's feel of taking bars by a squeeze and of the arc.
+
+## Control prompts (2026-10-27)
+
+A panel's controls were silent: the bicycle's bars said nothing about a squeeze or the crank being a pedal, a stick or a wheel nothing about being taken, and which buttons a GAME has (not every game uses every
+button: the panel hides the caps the game does not use) was found by trying. A panel now says it, with a hint (`HeldHint`, a child of the `ArcadeControlModule`, made the first time it has something to say). The
+rows are `ArcadePrompts`' (`Scripts/Data/systems/arcade_prompts.gd`, pure and tested without a cabinet).
+
+- **A control taken by a hand** (`ArcadePanelHands._take` -> `ArcadeControlModule.prompt_control`): what it is for, in the glyph of the button of THAT hand (`ArcadePrompts.CONTROLS`: the trigger, or the squeeze for
+  bars; stick, wheel, dial, trackball, gear lever, bars, a motorbike's or a board's lean, crank, slide, throttle). The bicycle's bars say three lines (turn them, a hand on each grip, lift or push to tip it), the
+  crank "take a pedal, then turn it forward", a throttle that it stays where it is left. The hint floats 22 cm over the control (`PROMPT_LIFT`, `HeldHint.pin_to_host`), where the hand and the eyes are. A second hand
+  joining a pair of bars is the same take (`ControlGrab.hands_on`), so nothing is said or counted twice.
+- **What THIS game has** (`is_game_row`: ids that begin `ap_buttons` or `ap_pedals`): the buttons the panel shows (`shown_buttons`, `cap_shown`), in the core's words when it gave them ("1 Punch, 2 Kick") and by
+  number when it did not or when there are more than four ("buttons 1 to 6"), and the gas and brake pedals of a wheel. **Said once for a game, not at every take of its stick** (`_prompted_game`, the rows'
+  own words as a signature), and said afresh when the game changes, the way a morph or another board changes it: a player who has been told which buttons Street Fighter II has does not need them at every
+  take, and one who goes to a game with four does. A cabinet with no button shown (Prop Cycle, a driving cockpit) says nothing of buttons. Fingertips on a button say nothing: no hand has taken a control.
+- **A panel attached to** (`ArcadeInput._on_attach_changed` -> `prompt_attached`): with a headset's controller, which stick moves and which of the controller's buttons are start and the coin and each of the
+  game's, **by the player's own map for this machine** (`ControllerBindings.BUTTON_SOURCE_LABELS`: "Right A", three to a row); with the keyboard, the KEYS of the cabinet's own map, said without applying it
+  (`DesktopBindings.display_name_for_system`, which shares `_layers_for` with `apply_for_system`: the InputMap belongs to whoever holds the keyboard, and `binding_tests` checks the two say the same for every
+  scope there is). A cabinet with no map of its own says MAME's layout (Ctrl Alt Space, Z X C, 1 start, 5 coin).
+- **A verb is learned by doing it** (`HeldHint.LEARNED_AFTER`): each verb row's id counts one use per take and the row is gone after three, so nobody is told the same thing for ever; the rows about the game
+  are never counted. `AppPrefs.show_hints` switches all of it off. Counting writes `AppPrefs.hint_uses` to the player's real file: the suites switch the writing off (`HeldHint.persist_uses`) and the `prompts/`
+  group keeps the counts in memory and puts them back.
+- **Tests.** `arcade_hand_tests prompts/` (39 checks; 41 mutants of the new code across it and `binding_tests`, one survived the first pass -- the project's own key being the answer when nothing is saved -- and got a
+  case) and `binding_tests desktop/` (the display names). Probe `arcade_cabinet_probe --shots=handsprompts` (windowed): the bicycle's bars, Street Fighter II's stick, the keyboard attached.
+- **Estimates and OWED.** The words; how long a hint stays (HeldHint's 5 s and 0.8 s fade); the 22 cm; whether it is where the eyes are when a hand is on a control (a standing player looks at the glass, not at the
+  deck); how wide it reads in a headset (three to a row keeps a long list in lines of about forty characters); that a desktop pad's prompts (`DesktopPadService.pad_row`) show the keyboard's words, there being
+  no glyph in them. **Not done**: a fingertip on a button says nothing (no hand has taken a control); the pedals' line is said when the FORM has pedals (a wheel's), whatever the game does with them.

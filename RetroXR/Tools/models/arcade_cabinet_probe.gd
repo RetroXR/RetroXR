@@ -32,7 +32,7 @@
 ##
 ## `hands` photographs a headset's hands on the panel (ArcadePanelHands): the right one holding the stick leaned over (its
 ## outline amber), the left with a finger on button 2 (sunk in its flange); `handswheel` the same at a driving cockpit's wheel
-## turned by a hand, `handscycle` at Prop Cycle's bars (the right grip taken round the stem) and crank, `handsbars` the bars in two hands (the right by a squeeze), `handsslot` at Panic Park's two levers.
+## turned by a hand, `handscycle` at Prop Cycle's bars (the right grip taken round the stem) and crank, `handsbars` the bars in two hands (the right by a squeeze), `handsslot` at Panic Park's two levers, `handsprompts` the hint a panel says its controls with (the bicycle's bars, Street Fighter II's stick, the keyboard attached).
 ## A fake hand is an XRController3D on a tracker of its own, a small red ball at its fingertip.
 extends Node3D
 
@@ -711,6 +711,75 @@ func _shot_handsbars() -> void:
 	input._right_vr_ctrl = null
 	input._left_vr_ctrl = null
 	_drop_hands([right, left])
+	_sys.is_powered_on = false
+
+
+## What a cabinet says when a control is taken (ArcadePrompts): Prop Cycle's bars taken by a squeeze, Street Fighter II's stick taken by the trigger (the buttons its panel shows come with the first take), and
+## the keyboard attached to that panel (its keys). Fresh counts of what has been taught, nothing written to the player's file.
+func _shot_handsprompts() -> void:
+	HeldHint.persist_uses = false
+	AppPrefs.hint_uses = {}
+	AppPrefs.show_hints = true
+	var profile := ArcadeGameProfile.for_romset("propcycl")
+	_model.morph_to(_model.form_for(profile))
+	_model.apply_game_profile(profile)
+	await _frames(10)
+	_model = _sys.get_model() as RetroSystemModelArcadeCabinet
+	_model.set_process(false)
+	_sys.is_powered_on = true
+	var input := _model.arcade_input()
+	var panel := _model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)[0] as ArcadeControlModule
+	var right := _hand("right")
+	var left := _hand("left")
+	input._right_vr_ctrl = right["ctrl"]
+	input._left_vr_ctrl = left["ctrl"]
+	var bars := panel.find_child("BarsPivot", true, false) as Node3D
+	_tip_at(right, (panel.find_child("BarGripR", true, false) as Node3D).global_position)
+	_tip_at(left, (panel.find_child("BarGripL", true, false) as Node3D).global_position)
+	await _frames(3)
+	(right["tracker"] as XRControllerTracker).set_input(&"grip", 1.0)
+	await _frames(10)
+	print("[probe] handsprompts bicycle: ", panel.prompt_hint()._last_rows.map(func(row: Array) -> String: return str(row[3])))
+	var hint := panel.prompt_hint()
+	_look(bars.global_position + Vector3(0.45, 0.30, 0.85), bars.global_position + Vector3(0.0, 0.10, 0.0))
+	await _save("handsprompts_bicycle")
+	(right["tracker"] as XRControllerTracker).set_input(&"grip", 0.0)
+	await _frames(3)
+	input._right_vr_ctrl = null
+	input._left_vr_ctrl = null
+	_drop_hands([right, left])
+	# A stick, the trigger.
+	var stick_profile := ArcadeGameProfile.for_romset("sf2")
+	_model.morph_to(_model.form_for(stick_profile))
+	_model.apply_game_profile(stick_profile)
+	await _frames(10)
+	_model = _sys.get_model() as RetroSystemModelArcadeCabinet
+	_model.set_process(false)
+	input = _model.arcade_input()
+	panel = _model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)[0] as ArcadeControlModule
+	var hand := _hand("right")
+	input._right_vr_ctrl = hand["ctrl"]
+	_tip_at(hand, (panel.find_child("StickPivot", true, false) as Node3D).global_transform * Vector3(0, 0, 0.085))
+	await _frames(3)
+	_hand_trigger(hand, 1.0)
+	await _frames(10)
+	print("[probe] handsprompts stick: ", panel.prompt_hint()._last_rows.map(func(row: Array) -> String: return str(row[3])))
+	hint = panel.prompt_hint()
+	_look(hint.global_position + Vector3(0.0, 0.10, 0.9), hint.global_position - Vector3(0.0, 0.15, 0.0))
+	await _save("handsprompts_stick")
+	_hand_trigger(hand, 0.0)
+	await _frames(3)
+	input._right_vr_ctrl = null
+	_drop_hands([hand])
+	# The keyboard attached to the panel: the keys.
+	AppPrefs.hint_uses = {}
+	panel.set_attached(true)
+	await _frames(10)
+	print("[probe] handsprompts keys: ", panel.prompt_hint()._last_rows.map(func(row: Array) -> String: return str(row[3])))
+	hint = panel.prompt_hint()
+	_look(hint.global_position + Vector3(0.0, 0.10, 0.9), hint.global_position - Vector3(0.0, 0.15, 0.0))
+	await _save("handsprompts_keys")
+	panel.set_attached(false)
 	_sys.is_powered_on = false
 
 

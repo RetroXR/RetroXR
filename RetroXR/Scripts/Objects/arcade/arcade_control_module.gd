@@ -56,6 +56,9 @@ const BARS_PITCH_DEG := 12.0
 const CRANK_SPEED := TAU * 1.5
 ## A stick's full deflection, as the analog axes are sent.
 const AXIS_FULL := 32767.0
+## How far over the panel's parts the hint it says its controls with floats, and how far over a control a hand has taken (metres).
+const PROMPT_MARGIN := 0.12
+const PROMPT_LIFT := 0.22
 ## A flight throttle at full travel either way from the middle, the angle its lever is thrown through.
 const THROTTLE_DEG := 32.0
 ## A moving base banks this far at full stick or wheel, noses this far up or down at full pull or push or at full gas or brake, and follows what
@@ -140,6 +143,8 @@ var _shift_cfg: Dictionary = {}
 var _shift_high := false
 ## Whether the stick's basis has been written at all (the first tick always writes it once).
 var _stick_written := false
+## What the last prompt said of this game's buttons and pedals (ArcadePrompts.signature), so the same game is not described again at every take.
+var _prompted_game := ""
 
 
 func _init() -> void:
@@ -326,6 +331,64 @@ func cap_shown(button: int) -> bool:
 
 func stick_shown() -> bool:
 	return _stick != null and _stick.visible
+
+
+# ── prompts (ArcadePrompts) ─────────────────────────────────────────────────
+
+## The buttons this panel shows, `{n: MAME's button 1 to 10, label: the core's word for it or ""}`: what a prompt names.
+func shown_buttons() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for i in ArcadeProfiles.BUTTON_COUNT:
+		if cap_shown(i):
+			out.append({"n": i + 1, "label": cap_label(i)})
+	return out
+
+
+## A hand took hold of a control of kind `kind` (ArcadePanelHands): the panel says what it is for and, the first time for this game, which buttons the game has under the fingers and that there are pedals.
+## The buttons a game has are not said again at every take of its stick: a player who has been told them has them, and a game that changes (a morph, another board) says them afresh.
+func prompt_control(kind: StringName, ctrl: XRController3D, handle: Vector3) -> void:
+	var rows := ArcadePrompts.control_rows(&"lean" if kind == &"bars" and _bars == null else kind)
+	var game := ArcadePrompts.button_rows(shown_buttons())
+	if kind == &"wheel" and _gas != null and _gas.is_visible_in_tree():
+		game.append_array(ArcadePrompts.pedal_rows())
+	var told := ArcadePrompts.signature(game)
+	if told != _prompted_game:
+		_prompted_game = told
+		rows.append_array(game)
+	_say(rows, ctrl, false, handle + Vector3.UP * PROMPT_LIFT)
+
+
+## The player attached to this panel, with a headset's controller or the keyboard: how to play it. `button_map` and `stick_map` are the controller's for this machine, `systemid` the scope of the keys.
+func prompt_attached(vr: bool, button_map: Dictionary, stick_map: Dictionary, systemid: String) -> void:
+	var buttons := shown_buttons()
+	_say(ArcadePrompts.attach_rows_vr(player, stick_shown(), buttons, button_map, stick_map) if vr
+		else ArcadePrompts.attach_rows_desktop(player, stick_shown(), buttons, systemid), null, not vr, Vector3.INF)
+
+
+## The panel's hint, with exactly these rows, over the control that was taken (`over`, a point in the world: where the hand is, so where the eyes are) or, for a player who attached, floating clear of what is on
+## the panel (`over` infinite); a verb row counts a use as it is said (HeldHint.LEARNED_AFTER), a row about the game does not.
+func _say(rows: Array, ctrl: XRController3D, desktop: bool, over: Vector3) -> void:
+	var hint := HeldHint.for_node(self, false, 0.30)
+	hint.clear_rows()
+	for row: Array in rows:
+		hint.add_row(row[0], row[1], row[2], row[3], HeldHint.WHEN_HELD)
+	if over.is_finite():
+		hint.pin_to_host(to_local(over))
+	else:
+		hint.unpin()
+		hint.fit_above(PROMPT_MARGIN)
+	if desktop:
+		hint.on_taken_desktop()
+	else:
+		hint.on_taken(ctrl)
+	for row: Array in rows:
+		if not ArcadePrompts.is_game_row(row[0]):
+			hint.note_used(row[0])
+
+
+## The hint the panel carries (null until it has said something), for the tests.
+func prompt_hint() -> HeldHint:
+	return get_node_or_null("HeldHint") as HeldHint
 
 
 ## Attach to (or let go of) this panel, as a press on it does.

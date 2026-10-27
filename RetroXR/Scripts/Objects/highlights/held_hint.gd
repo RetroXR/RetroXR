@@ -258,8 +258,40 @@ func on_grabbed(by: Node3D) -> void:
 	_consume_once(due)
 
 
+## A hand took hold of a CONTROL of the host (a stick, a wheel, a pair of bars on a panel), which is not the host's to pick up: show what applies as a grab of the host would, with no pickup behind it.
+## `ctrl` is the controller (null when it is not known: the right hand's glyphs).
+func on_taken(ctrl: XRController3D) -> void:
+	_present(false, ctrl == null or not is_instance_valid(ctrl) or ctrl.tracker != &"left_hand")
+
+
+## The same for a player who attached to the host with the keyboard and the mouse.
+func on_taken_desktop() -> void:
+	_present(true, true)
+
+
+func _present(desktop: bool, right: bool) -> void:
+	_used_this_hold.clear()
+	_desktop_rows = desktop
+	var due := _due_rows(PLATFORM_DESKTOP if desktop else PLATFORM_VR, WHEN_HELD)
+	if due.is_empty():
+		hide_now()
+		return
+	_build(due, right)
+	_show()
+	_consume_once(due)
+
+
+## Every row withdrawn, for a host that says something different each time (a panel's controls).
+func clear_rows() -> void:
+	_rows.clear()
+
+
 func on_dropped() -> void:
 	hide_now()
+
+
+## Whether a count of uses is written to the player's file as it is made. The suites switch it off: they count in memory and put the counts back.
+static var persist_uses := true
 
 
 ## Count one successful use of a verb, at most once per hold. Past LEARNED_AFTER
@@ -279,7 +311,8 @@ func note_used(id: StringName) -> void:
 	if uses >= LEARNED_AFTER:
 		return
 	AppPrefs.hint_uses[key] = uses + 1
-	AppPrefs.save_prefs()
+	if persist_uses:
+		AppPrefs.save_prefs()
 
 
 ## Count a use against whichever object is holding the hint. Lets code that acts
@@ -621,6 +654,11 @@ func _show() -> void:
 func pin_to_host(offset: Vector3) -> void:
 	_local_offset = offset
 	_pinned = true
+
+
+## Back to hovering over the host's own top, for a host that is pinned over one thing at one time and over itself at another.
+func unpin() -> void:
+	_pinned = false
 
 
 func _anchor() -> Vector3:

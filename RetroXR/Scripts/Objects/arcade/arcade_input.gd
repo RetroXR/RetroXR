@@ -997,6 +997,9 @@ func _on_attach_changed(player: int, on: bool) -> void:
 		playing_changed.emit(playing)
 	if on and _host != null and bool(_host.get("attracting")):
 		first_use.emit(&"panel")
+	# How the player plays it: the controller's buttons (by the player's own map for this machine) or the keyboard's keys.
+	if on and player < _controls.size() and is_instance_valid(_controls[player]):
+		_controls[player].prompt_attached(HeldHint._is_vr(), _button_map, _stick_map, str(_host.get("systemid")) if _host != null else "")
 	# Attaching IS the claim on the keyboard (a pad you pick up needs Scroll Lock as well,
 	# but a panel you pressed has no other way to say it): the keys play this player at once.
 	if on and _capture != null:

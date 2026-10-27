@@ -315,6 +315,9 @@ func _take(ctrl: XRController3D, id: int, grab: ControlGrab, tip: Vector3, with:
 	grab.attach_hand(ctrl, id, tip)
 	_lift(ctrl, id)
 	Haptics.click(ctrl, true, HAPTIC_KEY)
+	# What the player is told about this control and the game's buttons: by the first hand on it, not again by a second hand on a pair of bars.
+	if grab.hands_on() == 1:
+		_panel.prompt_control(grab.kind, ctrl, grab.handle())
 
 
 func _let_go(ctrl: XRController3D, id: int) -> void:
@@ -759,6 +762,10 @@ class ControlGrab extends RefCounted:
 		end()
 		holder = null
 
+	## How many hands are on it.
+	func hands_on() -> int:
+		return 1 if holder != null else 0
+
 	## Is it taken by a squeeze as well as a trigger, and can a second hand take it while one holds it?
 	func takes_grip() -> bool:
 		return false
@@ -1184,6 +1191,9 @@ class BarsGrab extends ControlGrab:
 
 	func takes_second_hand() -> bool:
 		return holder != null and holder2 == null
+
+	func hands_on() -> int:
+		return _ids.size()
 
 	## The middle of the bars, not the pivot the bike leans about (at the stand, 60 cm below the hands).
 	func handle() -> Vector3:
