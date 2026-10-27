@@ -291,6 +291,12 @@ func scope_sensor_button() -> int:
 	return int(str(attrs["f"]).substr(1)) if pedal_kind() == "sensor" else 0
 
 
+## A gun game whose player also works a joystick (the table's `j`; Gunbuster's: the stick walks and strafes while the gun aims): each gun's panel has a stick and two buttons,
+## which reach the core on the gun's port as the joypad's.
+func gun_stick() -> bool:
+	return known and attrs.has("j")
+
+
 ## The game reads a service / test switch (MAME's `<input service="yes">`, the table's `v`): the cabinet shows the
 ## TEST and SERVICE switches in its compartment (ArcadeServiceModule), and takes them away for a game that reads none.
 func has_service() -> bool:
@@ -480,7 +486,7 @@ func stick_visible() -> bool:
 					ControllerBindings.JOYPAD_LEFT, ControllerBindings.JOYPAD_RIGHT]:
 				any = any or ids.has(bit)
 		return any
-	return not known or (_wants_stick() and not is_gun())
+	return not known or (_wants_stick() and (not is_gun() or gun_stick()))
 
 
 ## Is cap `index` (0-based, ArcadeProfiles.BUTTON_BITS order) on player `player`'s panel?

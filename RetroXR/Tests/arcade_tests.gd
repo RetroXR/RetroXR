@@ -1579,6 +1579,7 @@ const _SHOOTERS := {
 	"bbusters": ["gunm", false], "bbust2": ["gunm", false], "mechatt": ["gunm", false], "spacegun": ["gunm", false],
 	"loffire": ["gunm", false], "lostwsga": ["gunm", false], "dragngun": ["gunm", false], "gunblade": ["gunm", false],
 	"alien3": ["gunm", false], "jpark": ["gunm", false], "rchase2": ["gunm", false], "oceanhun": ["gunm", false],
+	"rchase": ["gunm", false], "gunbustr": ["gunm", false], "lghost": ["gunm", false],
 	"sscope": ["rifle", false], "sscope2": ["rifle", false], "sscopex": ["rifle", false], "sscopefh": ["rifle", false],
 	"golgo13": ["rifle", false],
 }
@@ -1623,6 +1624,15 @@ func _group_game_profile() -> void:
 	_ok(vc3.pedal_kind() == "action" and vc3.gun_pedal() and vc3.gun_count() == 2 and P.for_romset("vcop3a").pedal_kind() == "action"
 			and P.for_romset("vcop2").pedal_kind() == "" and not P.for_romset("vcop2").gun_pedal(),
 		"game: Virtua Cop 3 has a foot pedal for the ES mode, an action one; Virtua Cop 2 has none, and a clone takes its parent's")
+	# The fixed guns that are not pistols (`y`) and the player who also works a joystick (`j`): Rail Chase's joystick-like guns, Laser Ghost's blasters, Gunbuster's stations.
+	_ok(P.for_romset("rchase").control_style() == "stick" and P.for_romset("rchasej").control_style() == "stick" and P.for_romset("rchase2").control_style() == "stick"
+			and P.for_romset("lghost").control_style() == "blaster" and P.for_romset("lghostj").control_style() == "blaster"
+			and P.for_romset("opwolf").control_style().is_empty() and P.for_romset("timecris").control_style().is_empty(),
+		"game: Rail Chase's fixed guns are joystick-like and Laser Ghost's are blasters; the others are pistols on posts")
+	_ok(P.for_romset("gunbustr").gun_stick() and P.for_romset("gunbustru").gun_stick() and P.for_romset("gunbustr").stick_visible()
+			and P.for_romset("gunbustr").gun_count() == 2 and not P.for_romset("lghost").gun_stick() and not P.for_romset("hotd2").gun_stick()
+			and not P.for_romset("gdfs").gun_stick() and not P.for_romset("hotd2").stick_visible(),
+		"game: Gunbuster's player works a stick as well as a gun (and the stick is drawn); no other gun game's does")
 	var g13 := P.for_romset("golgo13")
 	_ok(g13.pedal_kind() == "sensor" and not g13.gun_pedal() and g13.scope_sensor_button() == 2 and P.for_romset("g13knd").scope_sensor_button() == 2
 			and P.for_romset("g13jnr").scope_sensor_button() == 3 and P.for_romset("sscope").scope_sensor_button() == 0 and tc.scope_sensor_button() == 0

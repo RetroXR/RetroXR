@@ -638,7 +638,7 @@ func _process(delta: float) -> void:
 			if holder is LightGun:
 				var held_gun := holder as LightGun
 				_forward_to_gun(held_gun, mask)
-				var aux := (1 << ArcadeProfiles.START_BIT) | (1 << ArcadeProfiles.COIN_BIT)
+				var aux := (1 << ArcadeProfiles.START_BIT) | (1 << ArcadeProfiles.COIN_BIT) | _gun_stick_bits()
 				var bits := (mask | hand) & aux
 				if pedal_down:
 					bits |= 1 << ArcadeProfiles.button_bit(pedal_button())
@@ -647,6 +647,20 @@ func _process(delta: float) -> void:
 			continue
 		_send(p, mask, states[p])
 	_apply_free_hand_block()
+
+
+## The panel's own bits that reach the core on a port a gun owns besides START and the coin: for a gun game whose player works a joystick too (Gunbuster's walk and strafe: the
+## table's `j`) the four directions and the first two buttons, as the joypad's. A gun writes no pad, and without these the stick on its panel would move nothing.
+func _gun_stick_bits() -> int:
+	var game: ArcadeGameProfile = _model.call("game_profile") if _model != null and _model.has_method("game_profile") else null
+	if game == null or not game.gun_stick():
+		return 0
+	var bits := 0
+	for bit in [ControllerBindings.JOYPAD_UP, ControllerBindings.JOYPAD_DOWN, ControllerBindings.JOYPAD_LEFT, ControllerBindings.JOYPAD_RIGHT]:
+		bits |= 1 << bit
+	for n in 2:
+		bits |= 1 << ArcadeProfiles.button_bit(n + 1)
+	return bits
 
 
 ## What a gun writes to the pad's sticks: nothing, unless the game reads it as an analog stick (ArcadeGameProfile.aims_as_stick:

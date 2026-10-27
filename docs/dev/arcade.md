@@ -1014,6 +1014,11 @@ spent), and a photograph of the real cabinet is still wanted before the 3D struc
   grab driver with a hand two metres off).
 - **Not changed:** a pistol in a holster is still taken out and carried (Time Crisis, Point Blank, House of the Dead), and its well still puts it back where it
   was let go near. The cord follows the gun's cord boss as before.
+- **What a fixed gun looks like** (2026-10-27, the spec's `gun_scene`, `ArcadeCabinetSpecs.GUN_SCENES`, the table's `y` on a gun game): the pistol by default, else `stick` (Rail Chase's: a joystick-like handle)
+  or `blaster` (Laser Ghost's: a 40 cm gun with a laser imaging unit on its back). Each is the pistol's scene with its own parts (`gen_arcade_gun.gd --variant=stick|blaster`) and the SAME cord boss, grab point and cord, so
+  the mount, the wells and the cord route need nothing of their own; the post's height and how far ahead of the grip the swivel is depend on the shape (`_gun_mount`: blaster 16 cm and 22 cm, stick 10 and 5, pistol 13 and 8, rifle 20 and
+  25) so the muzzle rests short of the glass (`arcade_form_tests guns/` measures it). A gun game whose player also works a stick (`j`: Gunbuster) has a stick and two buttons beside each gun, and those
+  bits reach the core on the gun's port (`_gun_stick_bits`): `arcade-cabinets.md` 9.2c.
 - **Owed:** a real hand on a real headset (the lever's feel, the travel, how the hidden controller reads); a second hand on the forestock; that the 2-screen game
   shows its second screen in the SCOPE and not beside the main picture (the cabinet draws two tubes side by side for `s2`); photographs of the real cabinet.
 

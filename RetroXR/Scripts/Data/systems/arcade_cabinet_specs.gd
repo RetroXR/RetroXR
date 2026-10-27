@@ -652,6 +652,13 @@ static func screens_body(screen: Dictionary, shape: String, width: float) -> Dic
 const UPRIGHT_BENCH_Z := 0.98
 
 
+## The shapes a fixed gun can have besides the pistol (a spec's `gun_scene`): the scene each is built from, Tools/gen/gen_arcade_gun.gd.
+const GUN_SCENES := {
+	"stick": "res://Scenes/Objects/peripherals/arcade_light_stick.tscn",
+	"blaster": "res://Scenes/Objects/peripherals/arcade_light_blaster.tscn",
+}
+
+
 ## How many times the scope of a rifle game of ONE screen (Golgo 13, Silent Scope EX) magnifies the part of the picture the rifle points at. It was 2.5 and a flat
 ## rectangle: nothing said it magnified (Golgo 13, 2026-10-27); the lens draws a round field and a reticle now (arcade_screen.gdshader).
 const SCOPE_ZOOM := 3.0
@@ -691,6 +698,7 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 	spec["sockets"] = true
 	spec.erase("gun_style")
 	spec.erase("gun_pedals")
+	spec.erase("gun_scene")
 	spec.erase("scope_sensor")
 	spec.erase("cockpit")
 	spec.erase("bench")
@@ -716,6 +724,12 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 			spec["gun_style"] = {ArcadeGameProfile.FORM_GUN: "holster", ArcadeGameProfile.FORM_GUN_MOUNTED: "mounted",
 				ArcadeGameProfile.FORM_RIFLE: "rifle"}[form]
 			spec["players"] = gun_panels(guns, str(spec["gun_style"]))
+			# A fixed gun that is not a pistol: Rail Chase's joystick-like one, Laser Ghost's big blaster (the table's `y`, Tools/gen/gen_arcade_gun.gd --variant=).
+			if form == ArcadeGameProfile.FORM_GUN_MOUNTED and profile.control_style() in GUN_SCENES:
+				spec["gun_scene"] = profile.control_style()
+			# A player who also works a joystick (Gunbuster's walk): a stick and two buttons on the panel of each gun, in place of START alone.
+			if profile.gun_stick():
+				spec["players"] = layout_panels("stick", guns, 2)
 			if profile.gun_pedal():
 				spec["gun_pedals"] = gun_xs(guns, ArcadeCabinetSpecs.shapes()["wide"]["w"], str(spec["gun_style"]))
 			# A rifle's scope sensor (Golgo 13): a switch on the deck by the post, wired to the MAME button the game reads it as.
@@ -918,7 +932,7 @@ static func gun_xs(guns: int, width: float, style: String = "holster") -> Array:
 static func _same_form(a: Dictionary, b: Dictionary) -> bool:
 	if str(a.get("shape", "upright")) != str(b.get("shape", "upright")):
 		return false
-	for key in ["players", "coins", "guns", "sockets", "socket_count", "gun_style", "gun_pedals", "scope_sensor", "cockpit", "bench",
+	for key in ["players", "coins", "guns", "sockets", "socket_count", "gun_style", "gun_pedals", "gun_scene", "scope_sensor", "cockpit", "bench",
 			"stage", "bike", "cycle", "board", "holo", "screen", "deck_extra"]:
 		if not _same_value(a.get(key), b.get(key)):
 			return false

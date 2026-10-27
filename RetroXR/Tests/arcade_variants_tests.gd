@@ -337,6 +337,19 @@ func _group_guns() -> void:
 		_ok((scene.get_node("GrabPoint") as Node3D).transform.is_equal_approx(RetroSystemModelArcadeCabinet.GUN_GRAB),
 			"guns: and its grab point is the one the wells seat it by")
 		scene.free()
+		# Every other shape of fixed gun keeps those numbers (the cabinet mounts, cords and wells them all alike): Rail Chase's joystick-like one, Laser Ghost's blaster,
+		# and a rifle's. A blaster is a long gun, its muzzle well ahead of a pistol's.
+		var shapes_ok: Array[String] = []
+		for variant: String in ["stick", "blaster", "rifle"]:
+			var path: String = ArcadeCabinetBuilder.RIFLE_SCENE if variant == "rifle" else str(ArcadeCabinetSpecs.GUN_SCENES[variant])
+			var gun_scene := (load(path) as PackedScene).instantiate()
+			var tip := (gun_scene.get_node("BarrelTip") as Node3D).position
+			if not (gun_scene is LightGun and (gun_scene.get_node("CableAttachPoint") as Node3D).position.is_equal_approx(RetroSystemModelArcadeCabinet.GUN_CORD_BOSS)
+					and (gun_scene.get_node("GrabPoint") as Node3D).transform.is_equal_approx(RetroSystemModelArcadeCabinet.GUN_GRAB)
+					and float(gun_scene.get("cable_length")) > 1.0 and tip.z < -0.10 and (variant != "blaster" or tip.z < -0.30)):
+				shapes_ok.append(variant)
+			gun_scene.free()
+		_ok(shapes_ok.is_empty(), "guns: the joystick-like gun, the blaster and the rifle keep the pistol's cord boss and grab point, on a cord, aiming forward (%s)" % str(shapes_ok))
 
 
 # --- cord ----------------------------------------------------------------------

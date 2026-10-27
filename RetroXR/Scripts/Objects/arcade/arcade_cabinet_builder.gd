@@ -1027,6 +1027,9 @@ func _build_gun_holsters() -> void:
 	var style := str(_v.get("gun_style", "holster"))
 	if style == "rifle":
 		sockets.set("gun_scene", RIFLE_SCENE)
+	elif ArcadeCabinetSpecs.GUN_SCENES.has(str(_v.get("gun_scene", ""))):
+		# A fixed gun that is not a pistol: Rail Chase's joystick-like one, Laser Ghost's blaster.
+		sockets.set("gun_scene", ArcadeCabinetSpecs.GUN_SCENES[str(_v["gun_scene"])])
 	var xs := ArcadeCabinetSpecs.gun_xs(int(_v["guns"]), _w, style)
 	for i in xs.size():
 		var sx := float(xs[i])
@@ -1049,7 +1052,7 @@ func _build_gun_holsters() -> void:
 		if style == "holster":
 			_holster(sockets, i, sx)
 		else:
-			_gun_mount(sockets, i, sx, style == "rifle")
+			_gun_mount(sockets, i, sx, style == "rifle", str(_v.get("gun_scene", "")))
 			if style == "rifle" and _v.has("scope_sensor"):
 				_scope_sensor(i, sx)
 
@@ -1102,9 +1105,11 @@ func _dash_holster(sockets: Node3D, i: int, sx: float) -> void:
 ## leave it: a hand turns it about the swivel (`Pivot<n>`, the marker the gun is bolted to; LightGun.fix_to_mount) and
 ## nothing it does takes it off the cabinet. The swivel is a ball in a collar over the post's head, so the gun's body
 ## can turn on it without a cradle's cheeks in its way.
-func _gun_mount(sockets: Node3D, i: int, sx: float, rifle: bool) -> void:
+func _gun_mount(sockets: Node3D, i: int, sx: float, rifle: bool, variant: String = "") -> void:
 	var foot := Vector3(sx, 0.92, 0.47)
-	var tall := 0.20 if rifle else 0.13
+	# A blaster (Laser Ghost's, 45 cm long) wants its swivel nearer the middle of its body and a post a hand's breadth taller; a joystick-like gun (Rail Chase's) a shorter post.
+	var tall := 0.20 if rifle else {"blaster": 0.16, "stick": 0.10}.get(variant, 0.13) as float
+	var reach := 0.25 if rifle else {"blaster": 0.22, "stick": 0.05}.get(variant, 0.08) as float
 	var top := foot + Vector3(0, tall, 0)
 	ArcadeParts.cylinder(_owner, sockets, "MountBase%d" % (i + 1), 0.05, 0.02, foot + Vector3(0, 0.01, 0), _metal, Vector3.UP)
 	ArcadeParts.cylinder(_owner, sockets, "MountPost%d" % (i + 1), 0.018, tall, foot + Vector3(0, tall * 0.5, 0), _dark, Vector3.UP)
@@ -1127,7 +1132,7 @@ func _gun_mount(sockets: Node3D, i: int, sx: float, rifle: bool) -> void:
 	pivot.set_meta("lever", rifle)
 	# The gun's origin at rest, behind the pivot.
 	var rest := ArcadeParts.node(_owner, sockets, "Marker3D", "Holster%d" % (i + 1),
-		top + Vector3(0, 0.022, 0.25 if rifle else 0.08)) as Marker3D
+		top + Vector3(0, 0.022, reach)) as Marker3D
 	rest.basis = Basis.IDENTITY
 
 

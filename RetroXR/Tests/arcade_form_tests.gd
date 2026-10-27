@@ -352,7 +352,7 @@ func _group_specs() -> void:
 			["ghostsev", "holster", 2, false], ["ghostsqu", "holster", 2, false], ["vcop3", "holster", 2, true],
 			["ninjaslt", "holster", 2, false], ["gunsur2", "holster", 1, false], ["letsgoju", "holster", 2, false],
 			["alien3", "mounted", 2, false], ["jpark", "mounted", 2, false], ["gunblade", "mounted", 2, false],
-			["rchase2", "mounted", 2, false], ["oceanhun", "mounted", 2, false],
+			["rchase2", "mounted", 2, false], ["oceanhun", "mounted", 2, false], ["rchase", "mounted", 2, false], ["lghost", "mounted", 3, false],
 			["timecris", "holster", 1, true], ["timecrs2", "holster", 1, true], ["crszone", "holster", 1, true]]:
 		var sp := _spec(str(row[0]))
 		var pedals_n := (sp.get("gun_pedals", []) as Array).size()
@@ -361,6 +361,17 @@ func _group_specs() -> void:
 				and pedals_n == (int(row[2]) if bool(row[3]) else 0) and (sp["players"] as Array).size() == int(row[2])):
 			shooters_bad.append("%s (%s)" % [row[0], str(sp.get("form", "own"))])
 	_ok(shooters_bad.is_empty(), "specs: every shooter is a wide gun cabinet with its guns (cords or mounts), no sockets, a START for each gun, a pedal under each only for Time Crisis, Crisis Zone and Virtua Cop 3 (%s)" % str(shooters_bad))
+	# Fixed guns that are not pistols: Rail Chase's joystick-like ones (both games), Laser Ghost's three blasters, Gunbuster's two guns each with a stick and two buttons.
+	var rchase_spec := _spec("rchase")
+	var lghost_spec := _spec("lghost")
+	var gunbustr_spec := _spec("gunbustr")
+	_ok(str(rchase_spec["gun_style"]) == "mounted" and str(rchase_spec.get("gun_scene", "")) == "stick" and str(_spec("rchase2").get("gun_scene", "")) == "stick"
+			and str(lghost_spec["gun_style"]) == "mounted" and int(lghost_spec["guns"]) == 3 and str(lghost_spec.get("gun_scene", "")) == "blaster"
+			and not _spec("opwolf").has("gun_scene") and not _spec("ptblank").has("gun_scene") and not _spec("sscope").has("gun_scene"),
+		"specs: Rail Chase's guns are fixed and joystick-like, Laser Ghost's three are blasters; no other gun game asks for another shape")
+	_ok(str(gunbustr_spec["gun_style"]) == "mounted" and int(gunbustr_spec["guns"]) == 2 and _kinds(gunbustr_spec) == ["stick", "stick"]
+			and not gunbustr_spec.has("gun_scene") and _kinds(_spec("opwolf")) == ["start"] and _kinds(_spec("lghost")) == ["start", "start", "start"],
+		"specs: Gunbuster has two fixed guns and a stick station for each; Laser Ghost and Operation Wolf, START alone")
 	# A rifle's scope sensor (Golgo 13): a switch for the rifle's player on the MAME button the game reads it as, and no floor pedal; Silent Scope has none.
 	var g13spec := _spec("golgo13")
 	_ok(str(g13spec["gun_style"]) == "rifle" and g13spec.has("scope_sensor") and int(g13spec["scope_sensor"]["button"]) == 2 and not g13spec.has("gun_pedals")
@@ -1521,6 +1532,41 @@ func _group_guns() -> void:
 	rifle_gun.last_aim = Vector2i(-777, 555)
 	axes = input._gun_axes(rifle_gun)
 	_ok(int(axes["alx"]) == -777 and int(axes["aly"]) == 555, "guns: and so does Silent Scope's rifle (yaw and pitch are two AD sticks)")
+	# Laser Ghost's three blasters, Rail Chase's two joystick-like guns, Gunbuster's two pistols and the stick of each station: the scene every gun is built from,
+	# fixed to its post, and what the panel passes to the core on a port a gun owns.
+	await _pull(sys)
+	await _board(sys, "lghost")
+	await _wait(10)
+	var lg_guns := sys.captive_controllers()
+	var lg_fixed := lg_guns.size() == 3
+	for g in lg_guns:
+		lg_fixed = lg_fixed and str((g as Node).scene_file_path) == str(S.GUN_SCENES["blaster"]) and (g as LightGun).is_mounted()
+	_ok(lg_fixed, "guns: Laser Ghost's three guns are blasters, fixed to their posts")
+	var lg_gap := _muzzle_gap(model, lg_guns[0] as LightGun)
+	_ok(lg_gap > 0.0 and lg_gap < 0.12, "guns: and the blaster, forty centimetres long, rests with its muzzle just short of the glass (%.3f m)" % lg_gap)
+	_ok(input._gun_stick_bits() == 0, "guns: and no stick on its panels passes anything to the core (a light gun's port takes START and the coin)")
+	await _pull(sys)
+	await _board(sys, "rchase")
+	await _wait(10)
+	var rc_guns := sys.captive_controllers()
+	var rc_fixed := rc_guns.size() == 2
+	for g in rc_guns:
+		rc_fixed = rc_fixed and str((g as Node).scene_file_path) == str(S.GUN_SCENES["stick"]) and (g as LightGun).is_mounted()
+	_ok(rc_fixed, "guns: Rail Chase's two guns are joystick-like, fixed to their posts, nobody draws one from a holster")
+	var rc_gap := _muzzle_gap(model, rc_guns[0] as LightGun)
+	_ok(rc_gap > 0.0 and rc_gap < 0.30, "guns: and rest with the nose well clear of the glass (%.3f m)" % rc_gap)
+	await _pull(sys)
+	await _board(sys, "gunbustr")
+	await _wait(10)
+	var gb_guns := sys.captive_controllers()
+	var gb_fixed := gb_guns.size() == 2
+	for g in gb_guns:
+		gb_fixed = gb_fixed and str((g as Node).scene_file_path) == RetroSystemModelArcadeCabinet.GUN_SCENE and (g as LightGun).is_mounted()
+	_ok(gb_fixed, "guns: Gunbuster's two guns are pistols fixed to their posts")
+	var stick_bits := input._gun_stick_bits()
+	var wanted := (1 << ControllerBindings.JOYPAD_UP) | (1 << ControllerBindings.JOYPAD_DOWN) | (1 << ControllerBindings.JOYPAD_LEFT) | (1 << ControllerBindings.JOYPAD_RIGHT) \
+		| (1 << ArcadeProfiles.button_bit(1)) | (1 << ArcadeProfiles.button_bit(2))
+	_ok(stick_bits == wanted, "guns: Gunbuster's panel passes the four directions and two buttons to the core on the gun's port, which a gun writes none of (%x)" % stick_bits)
 	await _pull(sys)
 	await _board(sys, "timecris")
 	await _wait(10)
@@ -1536,6 +1582,13 @@ func _group_guns() -> void:
 	input.frame_override = -1
 	await _pull(sys)
 	_ok(input._gun_axes(null)["alx"] == 0, "guns: and no gun is no aim")
+
+
+## How far in front of the monitor's glass (along its normal, toward the player) a gun's muzzle is at rest: positive is clear of it, negative is through it.
+func _muzzle_gap(model: RetroSystemModelArcadeCabinet, gun: LightGun) -> float:
+	var glass := model.find_child("Glass", true, false) as Node3D
+	var tip := gun.global_transform * (gun.get_node("BarrelTip") as Node3D).position
+	return (tip - glass.global_position).dot(glass.global_basis.z.normalized())
 
 
 # --- shift ---------------------------------------------------------------------
@@ -1583,7 +1636,7 @@ func _group_seating() -> void:
 		"slrasslt": ["fly", "scm", false], "aircomb": ["fly", "sc", true], "airco22b": ["fly", "sc", true], "tceptor": ["fly", "s", false],
 		"outrun": ["race", "sm", false], "toutrun": ["race", "sm", false], "pdrift": ["race", "sm", false], "smgp": ["race", "sm", false],
 		"eca": ["race", "", false], "daytona": ["race", "", false], "polepos": ["stand", "", false],
-		"rchase": ["gun", "sm", false], "rchase2": ["gunm", "sm", false], "jpark": ["gunm", "sm", false],
+		"rchase": ["gunm", "sm", false], "rchase2": ["gunm", "sm", false], "jpark": ["gunm", "sm", false],
 		"lostwsga": ["gunm", "s", false], "loffire": ["gunm", "s", false],
 		"gunblade": ["gunm", "", false], "alien3": ["gunm", "", false], "timecris": ["gun", "", false],
 	}
@@ -1635,8 +1688,8 @@ func _group_seating() -> void:
 		"seating: Out Run's deluxe sits on a moving base, Daytona USA's cabinet does not")
 	var lost := _spec("lostwsga")
 	_ok(lost.has("bench") and int(lost["bench"]["seats"]) == 2 and int(lost["guns"]) == 2 and str(lost["gun_style"]) == "mounted"
-			and int(_spec("rchase")["bench"]["seats"]) == 2 and str(_spec("rchase")["gun_style"]) == "holster",
-		"seating: The Lost World and Rail Chase ask for a bench with a seat a gun, the guns where they hang")
+			and int(_spec("rchase")["bench"]["seats"]) == 2 and str(_spec("rchase")["gun_style"]) == "mounted",
+		"seating: The Lost World and Rail Chase ask for a bench with a seat a gun, the guns fixed on their posts")
 	_ok(not _spec("gunblade").has("bench") and not _spec("timecris").has("bench") and not _spec("sscope").has("bench")
 			and not _spec("sf2").has("bench") and not _spec("daytona").has("bench"),
 		"seating: and a standing gun game, a rifle and a street fighter ask for none")
@@ -1860,7 +1913,7 @@ func _group_seating() -> void:
 	model.morph_to(_spec("rchase"))
 	await _wait(3)
 	_ok(model.find_child("Bench", false, false) != null and model.find_child("Holster1", true, false) != null,
-		"seating: Rail Chase is a bench in front of two holstered guns")
+		"seating: Rail Chase is a bench in front of two fixed guns")
 
 
 ## A sit-down cabinet's picture is a metre from the seated eyes and fills about 28 degrees of the view (it was 1.6 m and 16 degrees when the dash, wheel and seat

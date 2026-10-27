@@ -41,7 +41,9 @@ not the default, `;`-separated attributes (a letter and a value):
             from): `s` a seat, `c` a cabin round it, `m` a base that moves with the play (`qscm` After Burner II, `qsm` Out Run), `r` the R-360's rings in place of a
             cabin (`qsmr`: G-LOC R360, Wing War R360),
   z         the flight game reads a throttle lever (an `IPT_AD_STICK_Z` of its own in the driver, cockpits.py),
-  y<style>  the controller is drawn as something other than a ball on a stick: `yyoke` a flight yoke, `yrod` a fishing rod with its reel (STYLE; `k` is retired: it was a boot time),
+  y<style>  the controller is drawn as something other than a ball on a stick: `yyoke` a flight yoke, `yrod` a fishing rod with its reel (STYLE; `k` is retired: it was a boot time); on
+            a gun game the fixed gun is drawn as something other than a pistol: `ystick` joystick-like (Rail Chase), `yblaster` a big blaster (Laser Ghost) (GUN_STYLE),
+  j         the gun game's player also works a joystick (GUN_STICK: Gunbuster's walk): a stick and two buttons on the panel of each gun,
   h         the game's dial is a STEERING WHEEL, with no pedals (Bad Lands: MAME calls the wheel a dial, and the cabinet had a wheel a player),
   n<arrows> how many arrows a dancer's stage has when it is not four (`n6`: DDR Solo's six panels),
   i<name>   which rhythm game's own controller a `music` cabinet has (`ideck` beatmania's five keys and a turntable a player, `ipopn` pop'n music's nine
@@ -130,7 +132,15 @@ TOUCH_PREFIXES = ("gtfore", "virtpool")
 # Revolution X, Dragon Gun's two dragons, The Lost World's rifles. Several are MAME `stick` games
 # (a positional gun reads like an analog stick).
 MOUNTED_GUN = {"opwolf", "othunder", "bbusters", "bbust2", "mechatt", "loffire", "spacegun", "term2",
-               "revx", "dragngun", "lostwsga"}
+               "revx", "dragngun", "lostwsga",
+               # Fixed to the cabinet, never drawn from a holster: Sega's Rail Chase (a controller the research calls "an analog stick with a trigger"), Taito's Gunbuster (a mounted
+               # gun and an 8-way stick a player) and Sega's Laser Ghost (three big blasters on the cabinet).
+               "rchase", "gunbustr", "lghost"}
+# The shape of the fixed gun, where it is not a pistol on a post, by PARENT romset: the table's `y` for a gun game. Rail Chase's and Rail Chase 2's are joystick-like (`stick`: a tall
+# handle with a ball on its top and a trigger), Laser Ghost's a big blaster with a laser imaging unit on its top (`blaster`).
+GUN_STYLE = {"rchase": "stick", "rchase2": "stick", "lghost": "blaster"}
+# A gun game whose player also has a joystick to work (Gunbuster: it walks and strafes while the gun aims): the table's `j`, a stick and two buttons on the panel of each gun.
+GUN_STICK = {"gunbustr"}
 # A rifle on a mount with a scope you look into (the scope is a second screen in Silent Scope).
 RIFLE = {"sscope", "sscope2", "sscopex", "sscopefh", "golgo13", "g13knd", "g13jnr"}
 # Gun games MAME does not file as light guns, by PARENT romset: name -> (form, guns). Four kinds:
@@ -459,6 +469,10 @@ def profile_of(machine, parent):
         attrs.append("h")
     if family in STYLE:
         attrs.append("y" + STYLE[family])
+    elif family in GUN_STYLE:
+        attrs.append("y" + GUN_STYLE[family])
+    if family in GUN_STICK:
+        attrs.append("j")
     if form == "dance" and SOLO_DESC.search(desc):
         attrs.append("n6")
     if form == "music":

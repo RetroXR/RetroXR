@@ -382,7 +382,7 @@ What each one is made of, so a new one can follow it. "Hands" is what a headset'
 | **screens** | 356 | several screens side by side | the tube row; the frame holds them as one picture | |
 | **service** | 14,977 | TEST and SERVICE in the compartment opposite the power switch | `ArcadeServiceModule`, only where MAME says `<input service="yes">` | VRButtons |
 | `gun` | 308 (135) | guns in holsters, a pedal where the game had one (Time Crisis), a bench where it was a ride (Rail Chase) | the wide body, one gun for each light gun the game has (up to 3), START alone each | the hand takes the gun as any pickable |
-| `gunm` | 57 (16) | a gun on a post, a bench where it was a ride (The Lost World) | Operation Wolf's Uzi, Terminator 2, Beast Busters (3): fixed to the post, turning about its pivot | the hand turns it |
+| `gunm` | 57 (16) | a gun on a post, a bench where it was a ride (The Lost World) | Operation Wolf's Uzi, Terminator 2, Beast Busters (3): fixed to the post, turning about its pivot; Rail Chase's joystick-like guns, Laser Ghost's three blasters, Gunbuster's two pistols with a stick each (9.2c) | the hand turns it |
 | `rifle` | 51 (7) | one rifle on a taller post | Silent Scope, Golgo 13; see above | the hand turns it |
 | `race` | 355 (104) | a sit-down cockpit | the `racer` body, platform, seat, dash, wheel, two pedals, gear lever; a roof for the Model 3 twins (`ROOFED`); a moving base for Out Run, Power Drift (`q`) | wheel (clockwise is right), pedals under a finger, the lever |
 | `racegun` | 2 (1) | a sit-down cockpit for two, a driver and a gunner | the `race` cockpit with a second seat, a gun each in a holster on the dash, a START at each end (Lucky & Wild, see 2) | wheel and pedal at the driver's seat, the hand takes a gun as any pickable |
@@ -569,6 +569,25 @@ Tests: `arcade_form_tests stage/` (29 checks: heights, every arrow above the pla
 square, on the room's floor, in the air, the machine off, a morph rebuilding the seats) and `arcade_hand_tests zone/` (`foot_on`'s limits); 15 mutants of the new code, each turned a case red. OWED: a headset (whether the
 head's place is a believable foot, how the platform feels under the feet), a real dancer's pad ids on a real core, the Quest, two peers.
 
+### 9.2c Fixed guns that are not pistols (2026-10-27)
+
+Three games were drawn with pistols in holsters and are not that. **Every shape below is an estimate**: no photograph or manual could be read, and the sources are search summaries.
+
+- **Rail Chase** `rchase` (MAME `segaybd.cpp`: two `lightgun`s of one button each) and **Rail Chase 2** `rchase2` (`model2.cpp`: two `stick`s of one button): "an analog stick with a trigger" (Arcade-Museum, medium; Sega Retro and
+  arcade-history call both a light gun: unresolved), on a bench that moves (the DX). The first had pistols to draw; both now have **two guns fixed on posts** (`gunm`) shaped as a joystick (`Scenes/Objects/peripherals/arcade_light_stick.tscn`,
+  `gen_arcade_gun.gd --variant=stick`: a tall rounded handle, a ball with a red cap, the trigger, a short nose that points where it aims). The pistol's own grip, trigger, cord boss and grab point, so it is aimed
+  by pointing it, not by tilting a stick. The table's `ystick`.
+- **Laser Ghost** `lghost` (`segas18.cpp`: three `lightgun`s of two buttons): three guns, one a player, fixed to the cabinet, each a **blaster** (`arcade_light_blaster.tscn`, `--variant=blaster`, the table's `yblaster`): 40 cm from
+  grip to muzzle (a pistol's 24), a finned barrel, the "top-mounted laser imaging unit" the research names (a box with a domed lens on its back), a power cell along its side, a thick grip with a fire cap and a special-weapon cap
+  (the limited-use second button). Sources (medium): players 1 and 3 sit, player 2 stands; a mirror throws the picture and each shot a red beam. The size and shape beyond "top-mounted laser imaging unit" are the request's ("huge") and ours:
+  the one review that was found calls them "small laser-imaging devices on the guns". The swivel is 22 cm ahead of the grip, so the muzzle rests 3 cm short of the glass.
+- **Gunbuster** `gunbustr` (`taito/gunbustr.cpp`): MAME has TWO stations, each an 8-way joystick, two buttons and a light gun, and a **link device** (`gunbustr_link.h`, shared RAM between two machines): four players are two cabinets
+  linked, two stations each. "Four mounted light guns on a dual-screen cabinet" (LaunchBox) and "up to four players in two teams" (Wikipedia) are low-confidence summaries and a core has no port for a third and fourth gun,
+  so two stations are built: a pistol fixed on a post and, new, **a stick with two buttons** beside it (the table's `j`, `ArcadeGameProfile.gun_stick()`: the stick walks and strafes while the gun aims). A port a gun owns takes the
+  panel's START and coin only, a gun writing no pad of its own: for this game the four directions and the first two buttons reach the core there as well (`ArcadeInput._gun_stick_bits`). **Not built**: the linked pair of cabinets.
+- Tests: `arcade_form_tests specs/ guns/ seating/` (the shapes, the scene each gun is built from, every gun fixed, the muzzle clear of the glass, the stick bits), `arcade_variants_tests guns/` (every shape keeps the pistol's cord boss,
+  grab point and cord), `arcade_tests game/` (the table). Picture `--forms=rchase,gunbustr,lghost`.
+
 ### 9.3 What the audit made worth building
 
 Beyond the data faults of 9.1, the audit found games whose hardware was nothing like a stick and buttons. Each got a form or a part of its own; the section named has the research, the
@@ -696,8 +715,8 @@ table), the game's line from MAME 0.289, and the **verdict** is a judgement agai
 | `opwolf3` | Operation Wolf 3 (World) (1994, Taito, good) | 2 guns in holsters | **approximate**: Operation Wolf 3: two guns in holsters; the real guns were "a completely different design" with a pump slide under the barrel (low): not drawn |
 | `opwolf3u` | Operation Wolf 3 (US) (1994, Taito America, good) | 2 guns in holsters | **approximate**: the same set (US) |
 | `othunder` | Operation Thunderbolt (World, rev 1) (1988, Taito, good) | 2 guns on swivel posts | **built**: Operation Thunderbolt: two positional guns on posts (a trigger and two buttons each); the recoil kickers are not drawn |
-| `rchase` | Rail Chase (World) (1991, Sega, good) | 2 guns in holsters; bench of 2 seats that moves | **built**: Sega's Rail Chase: a bench of two seats that pitches with the ride (DIP "Moving"; here it stands still), two guns |
-| `rchase2` | Rail Chase 2 (Revision A) (1994, Sega, imperfect) | 2 guns on swivel posts; bench of 2 seats that moves | **approximate**: Rail Chase 2: the same bench; guns, players and cabinet were not found: two guns on posts |
+| `rchase` | Rail Chase (World) (1991, Sega, good) | 2 fixed joystick-like guns; bench of 2 seats that moves | **built**: Sega's Rail Chase: a bench of two seats that pitches with the ride (DIP "Moving"; here it stands still), two guns fixed on posts shaped as joysticks (9.2c; they were pistols in holsters) |
+| `rchase2` | Rail Chase 2 (Revision A) (1994, Sega, imperfect) | 2 fixed joystick-like guns; bench of 2 seats that moves | **approximate**: Rail Chase 2: the same bench and the same joystick-like guns on posts (9.2c); the cabinet was not found |
 | `timecris` | Time Crisis (World, TS2 Ver.B) (1996, Namco, imperfect) | 1 gun in holsters, foot pedal | **built**: Time Crisis: one gun with force feedback and ONE foot pedal (cover and reload) |
 | `timecrs2` | Time Crisis II (US, TSS3 Ver. B) (1997, Namco, preliminary) | 1 gun in holsters, foot pedal | **built**: Time Crisis II: one gun and one pedal each; the second player is a second linked cabinet |
 | `crszone` | Crisis Zone (World, CSZO4 Ver. B) (1999, Namco, preliminary) | 1 gun in holsters, foot pedal | **built**: Crisis Zone: one gun and one pedal |
@@ -707,10 +726,10 @@ table), the game's line from MAME 0.289, and the **verdict** is a judgement agai
 | `alien3` | Alien3: The Gun (World) (1993, Sega, imperfect) | 2 guns on swivel posts | **built**: Sega's Alien3: The Gun: replica pulse rifles mounted in the cabinet, one a player |
 | `jurassicp` (= `jpark`) | Jurassic Park (World, Rev A) (1993, Sega, imperfect) | 2 guns on swivel posts; bench of 2 seats that moves | **approximate**: Sega's Jurassic Park: two guns on posts and a bench that moves in the sit-down version (low: controls conflict between light guns and joysticks) |
 | `undrfire` | Under Fire (World) (1993, Taito, imperfect) | 2 guns in holsters | **built**: Taito's Under Fire: two guns with force feedback on the trigger |
-| `gunbustr` | Gunbuster (World) (1992, Taito, imperfect) | 2 guns in holsters | **approximate**: Taito's Gunbuster: two guns in holsters; a joystick walks and the gun aims, an upright with two screens, four guns for 2-on-2 (all unverified, low): none of that is built |
+| `gunbustr` | Gunbuster (World) (1992, Taito, imperfect) | 2 fixed guns, a stick station each | **built**: Taito's Gunbuster: two stations, each a pistol fixed on a post and a stick with two buttons (a joystick walks and the gun aims); MAME has two stations and a link device, four players being two cabinets linked, which is not built (9.2c) |
 | `spacegun` | Space Gun (World) (1990, Taito, good) | 2 guns on swivel posts | **built**: Taito's Space Gun: two positional guns on posts; the pump control and the recoil are not drawn |
 | `zeropnt` | Zero Point (set 1) (1998, Unico, good) | 2 guns in holsters | **approximate**: Unico's Zero Point: two guns in holsters; nothing was found on the cabinet |
-| `lghost` | Laser Ghost (World) (FD1094 317-0166) (1990, Sega, good) | 3 guns in holsters | **built**: Sega's Laser Ghost: three guns (up to three players), a positional gun with two buttons each |
+| `lghost` | Laser Ghost (World) (FD1094 317-0166) (1990, Sega, good) | 3 fixed blasters | **built**: Sega's Laser Ghost: three big blasters fixed on posts (up to three players), a fire and a special-weapon cap each, the laser imaging unit on top (9.2c: the shape is an estimate) |
 | `dlair` | Dragon's Lair (US Rev. F2) (1983, Cinematronics, good) | upright; stick, 1 button; 19" class | **upright**: Dragon's Lair: an upright, one stick and one button (a Pioneer laserdisc player behind it) |
 | `cliffhgr` | Cliff Hanger (set 1) (1983, Stern Electronics, good) | upright; 2 x stick, 2 buttons; 19" class | **upright**: Cliff Hanger: an upright, a stick and two buttons a player |
 | `usvsthem` | Us vs. Them (1984, Mylstar, good) | upright; stick, 3 buttons; 19" class | **upright**: Us vs. Them (1984): an upright, a conversion of M.A.C.H. 3's cabinet |
