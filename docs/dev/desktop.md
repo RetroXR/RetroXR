@@ -197,6 +197,14 @@ Windows, Linux and macOS builds only; a headset has neither. Source:
   controls. Left on, the console's outline read as the thing aimed at and the switch's own green ring
   was hidden under it (measured: with the console's overlays hidden the ring shows; a separate stencil ref
   for widgets did NOT fix it, so that was reverted).
+- **Shift + left-click on a held object is VR's trigger** (`DesktopPickup._has_desktop_action`): the press
+  calls its `action()` and the release its `action_release()`, the same calls `FunctionPickup` makes on any
+  held pickable for a controller's `trigger_click`, and it stays in the hand (`_action_armed`; a lost release
+  is ended by `_clear_stale_left`). A plain click drops it and a left-click picks it up, as before. An
+  FPS-snap or `desktop_shift_drop` object keeps Shift+click as its drop (its plain click is its own, so that
+  is the only drop it has). Before this (2026-10-27) Shift+click dropped everything; nothing shipped wired
+  `action()` then, so only objects that use it (a mod prop such as `xenu.robotgamer`) noticed.
+  `desktop_hold_tests action/`.
 - `Tests/desktop_hold_tests` is the pure part; `Tools/room/hold_probe --scenario` (windowed) is the
   catch -> tip -> aim -> press -> release -> look away -> click run, with the printed truth.
 

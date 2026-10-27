@@ -19,6 +19,7 @@ func _ready() -> void:
 	_assist()
 	await _assist_hidden()
 	_stale_left()
+	await _desktop_action()
 	_turning()
 	_screens()
 	_rules()
@@ -247,6 +248,83 @@ func _stale_left() -> void:
 	_ok(not DesktopPickup.left_drag and not pickup._drop_armed and not pickup._left_turning,
 		"left/a release that never arrived: the drag and the turn end with the button up")
 	pickup.free()
+
+
+## A pickable whose script sets the given properties (desktop_fps_snap and the like).
+func _pickable_with(props: String) -> XRToolsPickable:
+	var src := GDScript.new()
+	src.source_code = "extends XRToolsPickable\n" + props
+	src.reload()
+	var p := RigidBody3D.new()
+	p.set_script(src)
+	(p as RigidBody3D).freeze = true
+	add_child(p)
+	return p as XRToolsPickable
+
+
+func _left(pickup: DesktopPickup, pressed: bool, shift: bool) -> void:
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_LEFT
+	ev.pressed = pressed
+	ev.shift_pressed = shift
+	pickup._unhandled_input(ev)
+
+
+## Shift + left-click on a held object is its action() and, on the way up, action_release() --
+## what VR's trigger calls on any held pickable -- and it stays in the hand. A plain click drops
+## it; an FPS-snap object (plain click is its own) keeps Shift + click as its drop.
+func _desktop_action() -> void:
+	var pickup := DesktopPickup.new()
+	add_child(pickup)
+	var robot := _pickable_with("")
+	var pressed := [0]
+	var released := [0]
+	robot.action_pressed.connect(func(_p: Variant) -> void: pressed[0] += 1)
+	robot.action_released.connect(func(_p: Variant) -> void: released[0] += 1)
+	pickup._grab_target(robot)
+	_ok(pickup._held_object == robot, "action/the desktop hand holds it")
+	_left(pickup, true, true)
+	_ok(pressed[0] == 1 and released[0] == 0 and pickup._held_object == robot,
+		"action/Shift + press on a held object is its action, as VR's trigger, and it stays held",
+		"%d/%d" % [pressed[0], released[0]])
+	_left(pickup, false, true)
+	_ok(released[0] == 1 and pickup._held_object == robot,
+		"action/the release is its action_release, not a drop", str(released[0]))
+	_left(pickup, true, false)
+	_left(pickup, false, false)
+	_ok(pickup._held_object == null and pressed[0] == 1,
+		"action/a plain click still drops it, and is no action", str(pressed[0]))
+
+	var mouse := _pickable_with("var desktop_shift_drop := true\n")
+	var mouse_pressed := [0]
+	mouse.action_pressed.connect(func(_p: Variant) -> void: mouse_pressed[0] += 1)
+	pickup._grab_target(mouse)
+	_left(pickup, true, true)
+	_left(pickup, false, true)
+	_ok(pickup._held_object == null and mouse_pressed[0] == 0,
+		"action/a desktop_shift_drop object keeps Shift + click as its only drop")
+
+	var gun := _pickable_with("var desktop_fps_snap := true\n")
+	var gun_pressed := [0]
+	gun.action_pressed.connect(func(_p: Variant) -> void: gun_pressed[0] += 1)
+	pickup._grab_target(gun)
+	_left(pickup, true, true)
+	_left(pickup, false, true)
+	_ok(pickup._held_object == null and gun_pressed[0] == 0,
+		"action/an FPS-snap object keeps Shift + click as its only drop")
+
+	var stuck := _pickable_with("")
+	var stuck_released := [0]
+	stuck.action_released.connect(func(_p: Variant) -> void: stuck_released[0] += 1)
+	pickup._grab_target(stuck)
+	_left(pickup, true, true)
+	pickup._clear_stale_left()   # the button is not down in a headless run: its release was lost
+	_ok(stuck_released[0] == 1 and not pickup._action_armed,
+		"action/a release that never arrived still ends the action", str(stuck_released[0]))
+	pickup._drop()
+	await get_tree().process_frame
+	for n: Node in [robot, mouse, gun, stuck, pickup]:
+		n.queue_free()
 
 
 func _turning() -> void:

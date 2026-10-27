@@ -5,7 +5,11 @@
 ##   Shift + Left-click     — on an FPS-snap object (light gun, Wii Remote): pick it
 ##                       up to LOOK AT, held on the ray like anything else, not
 ##                       raised to aim (see FPS-snap mode).
-##   Shift + Left-click     — drop the currently held object.
+##   Shift + Left-click     — on a held object: its action() (press) and action_release()
+##                       (release), exactly what a VR controller's trigger does to the
+##                       pickable it holds (FunctionPickup). It stays in the hand; a plain
+##                       click drops it. An FPS-snap or desktop_shift_drop object, whose
+##                       plain click is already its own, is dropped by Shift + click instead.
 ##   Scroll up/down    — push/pull the held object along the camera ray.
 ##                       Pulled all the way in, one more notch CATCHES it into the
 ##                       hand (a comfortable pose in front of you; a handheld faces
@@ -150,6 +154,9 @@ var _hand_focus_radius : float = 0.0
 ## Left went down with something held and nothing of its own under the crosshair: the
 ## object is let go when the button comes back up.
 var _drop_armed : bool = false
+## Shift + left went down on a held object: its action() ran, and its
+## action_release() is owed when the button comes back up (_has_desktop_action).
+var _action_armed : bool = false
 var _hovered_target : Node3D = null
 
 ## Left button down over something that answers to a click (a cart lying in a push
@@ -219,6 +226,13 @@ func _unhandled_input(event: InputEvent) -> void:
 						if _crosshair_on_control():
 							_drop_armed = false
 							_log_click_kept()
+						elif mbe.shift_pressed and _has_desktop_action():
+							# The held object's own action, as VR's trigger calls it: the
+							# release goes to it too, not to a drop.
+							_action_armed = true
+							print("[Desktop] Shift+click: %s's action" % _held_object.name)
+							_held_object.action()
+							get_viewport().set_input_as_handled()
 						elif mbe.shift_pressed or not (_is_fps_snap() or _needs_shift_drop()):
 							_drop_armed = true
 							_left_drag = 0.0
@@ -226,6 +240,11 @@ func _unhandled_input(event: InputEvent) -> void:
 							get_viewport().set_input_as_handled()
 					else:
 						_try_grab(mbe.shift_pressed)
+				elif _action_armed:
+					_action_armed = false
+					if is_instance_valid(_held_object):
+						_held_object.action_release()
+					get_viewport().set_input_as_handled()
 				elif _left_turning:
 					# The drag that turned it ends; nothing is dropped.
 					_left_turning = false
@@ -742,13 +761,17 @@ func _hand_pose(t: float) -> Transform3D:
 ## later plain mouse motion would turn the held object instead of the player, and MovementDesktopTurn
 ## would ignore the mouse for good. So it is also ended whenever the button is simply not down.
 func _clear_stale_left() -> void:
-	if not (left_drag or _drop_armed or _left_turning):
+	if not (left_drag or _drop_armed or _left_turning or _action_armed):
 		return
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		return
 	left_drag = false
 	_drop_armed = false
 	_left_turning = false
+	if _action_armed:  # its release never came: the action still ends, or the object stays "pressed"
+		_action_armed = false
+		if is_instance_valid(_held_object):
+			_held_object.action_release()
 
 
 ## A gentle start and stop for the blend.
@@ -849,6 +872,15 @@ func _end_inspect() -> void:
 ## (RetroMouse) — dropping then needs Shift+click, like the light gun.
 func _needs_shift_drop() -> bool:
 	return _held_object != null and _held_object.get("desktop_shift_drop") == true
+
+
+## True when Shift + left-click on what is held is its action() -- the call VR's trigger makes
+## on any held pickable -- rather than its drop. Every held object but an FPS-snap or
+## desktop_shift_drop one, whose plain click is already its own and whose Shift+click is
+## therefore the only way to drop it.
+func _has_desktop_action() -> bool:
+	return _held_object != null and _held_object.has_method("action") \
+		and not _is_fps_snap() and not _needs_shift_drop()
 
 
 func _update_reticle_highlight() -> void:

@@ -443,6 +443,20 @@ shipped switches, so keep the path stable.
 A **prop**'s type string is written into save files — permanent once anyone has
 used it. Renaming it orphans every copy in every slot.
 
+A prop that **does something when used** -- a figure that animates, a toy that
+squeaks -- does it from `XRToolsPickable`'s `action()` (or its `action_pressed` /
+`action_released` signals): in VR that is the **trigger** on the controller holding
+it, and on a desktop **Shift + left-click while it is held** makes the same calls. A
+plain click drops it and a left-click picks it up, as for anything.
+
+```gdscript
+extends XRToolsPickable
+
+func _ready() -> void:
+    super()
+    action_pressed.connect(func(_p): $AnimationPlayer.play(&"Wave"))
+```
+
 A prop can **snap onto** another: give the host an `XRToolsSnapZone`
 (`res://addons/godot-xr-tools/objects/snap_zone.tscn`) and the prop a group its
 `snap_require` names, and a prop released over it is held there and moves with
