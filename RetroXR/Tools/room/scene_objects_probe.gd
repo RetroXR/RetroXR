@@ -4,7 +4,8 @@
 ##   "$godot" --path RetroXR --resolution 1100x700 --position 20,20 ##       res://Tools/room/scene_objects_probe.tscn -- --out=C:/some/dir/
 ## Writes objects_page.png (the real SCENE view on its Objects page, one Delete
 ## asking again), locate_behind.png (menu shut, the located cartridge behind the
-## player: the arrow on the left edge) and locate_side.png (turned part way).
+## player: the arrow on the left edge), locate_side.png (turned part way) and
+## locate_facing.png (facing it: the arrow over it, pointing down).
 extends Node
 
 var _out := "user://scene_objects_probe/"
@@ -131,4 +132,10 @@ func _run(things: Array) -> void:
 		await get_tree().process_frame
 	get_viewport().get_texture().get_image().save_png(_out + "locate_side.png")
 	print("[probe] arrow visible=%s pos=%s" % [arrow.visible, arrow.position])
+	# Facing it: the arrow stands over the cartridge, pointing down at it.
+	_cam.look_at(Vector3(-1.4, 0.05, 2.6) + Vector3(0.6, 0.0, 0.0))
+	for i in 30:
+		await get_tree().process_frame
+	get_viewport().get_texture().get_image().save_png(_out + "locate_facing.png")
+	print("[probe] facing: arrow visible=%s pos=%s rot=%s" % [arrow.visible, arrow.position, arrow.rotation])
 	get_tree().quit(0)
