@@ -89,7 +89,7 @@ func _run() -> void:
 	for g: Array in [["caps", _group_caps], ["pedals", _group_pedals], ["stick", _group_stick],
 			["twin", _group_twin], ["wheel", _group_wheel], ["dial", _group_dial], ["ball", _group_ball],
 			["lever", _group_lever], ["helm", _group_helm], ["bars", _group_bars], ["rider", _group_rider], ["cycle", _group_cycle], ["handlebars", _group_handlebars], ["slot", _group_slot], ["fly", _group_fly],
-			["input", _group_input],
+			["input", _group_input], ["transfer", _group_transfer],
 			["laser", _group_laser], ["carry", _group_carry], ["use", _group_use], ["sticks", _group_sticks], ["guitar", _group_guitar], ["prompts", _group_prompts]]:
 		if _want(str(g[0])):
 			await (g[1] as Callable).call()
@@ -1318,8 +1318,8 @@ func _group_handlebars() -> void:
 	_step(panel, [hr, hl])
 	_ok(grab.holder == _ctrl(hr) and grab.holder2 == _ctrl(hl), "handlebars: at the other grip it takes hold, and the bars have two hands")
 	_ok(is_zero_approx(hands.steer(&"bars")) and is_zero_approx(hands.bars_pitch()), "handlebars: joining moves nothing")
-	_ok(grab._outlines.size() == 2 and grab._ambers.size() == 2 and grab._ambers[0] and grab._ambers[1] and grab._outlines[0].visible and grab._outlines[1].visible,
-		"handlebars: both grips are outlined, amber, a hand on each")
+	_ok(grab._outlines.size() == 2 and not grab._outlines[0].visible and not grab._outlines[1].visible,
+		"handlebars: with a hand on each, neither grip is outlined (a control in a hand has no outline)")
 	# Two hands turn them by the line between them: the right grip toward the rider and the left away is a turn to the right, and they tip nothing.
 	_tip_at(hr, _bars_hand(bars, 1.0, 0.5))
 	_tip_at(hl, _bars_hand(bars, -1.0, 0.5))
@@ -1357,7 +1357,7 @@ func _group_handlebars() -> void:
 	_step(panel, [hr, hl])
 	_ok(absf(hands.steer(&"bars") - 0.75) < 0.01 and absf(hands.bars_pitch() - 0.7) < 0.01,
 		"handlebars: and the hand that is left goes on turning and lifting them (%.3f, %.3f)" % [hands.steer(&"bars"), hands.bars_pitch()])
-	_ok(grab._ambers[0] and not grab._ambers[1], "handlebars: and only the grip with a hand on it is amber, the other the green of bars that can be taken")
+	_ok(not grab._outlines[0].visible and not grab._outlines[1].visible, "handlebars: held by one hand, neither grip is outlined")
 	_squeeze(hl, 0.0)
 	_step(panel, [hr, hl])
 	_ok(not hands.holds(&"bars"), "handlebars: and when it lets go they are free")
@@ -1726,6 +1726,76 @@ func _group_input() -> void:
 	_ok(not panel.hands_active() and panel.hand_buttons() == 0, "input: the machine switched off, the finger on the cap holds nothing")
 	(r["sys"] as RetroSystem).is_powered_on = true
 	input._right_vr_ctrl = null
+
+
+# --- transfer ------------------------------------------------------------------
+
+## A hand holding a control takes the controllers' sticks with it: they are the game's while it holds (and walk the player
+## no further), the player's again when it lets go. Its outline is yellow while a hand could take the control and gone while
+## one holds it.
+func _group_transfer() -> void:
+	var r := await _rig()
+	var panel: ArcadeControlModule = r["panel"]
+	var input: ArcadeInput = r["input"]
+	var hands: ArcadePanelHands = panel.hands()
+	var loco := LocomotionManager.new()
+	input._locomotion_manager = loco
+	var h := _hand("right")
+	var pad := _hand("left")
+	input._right_vr_ctrl = _ctrl(h)
+	input._left_vr_ctrl = _ctrl(pad)
+	var up := _bit(ControllerBindings.JOYPAD_UP)
+	var r2 := _bit(ControllerBindings.JOYPAD_R2)
+	input._button_map["right_trigger"] = ControllerBindings.JOYPAD_R2
+	(pad["tracker"] as XRControllerTracker).set_input(&"primary", Vector2(0.0, 1.0))
+	var ball := _ball_at(panel)
+	_tip_at(h, ball)
+	input._process(0.016)
+	var grab := hands._grab_of(&"stick", 0)
+	_ok(grab._outline != null and grab._outline.visible, "transfer: a hand at the stick with nothing in it shows the stick's outline")
+	_ok(grab._outline.outline_color_is(WidgetOutline.SELECT_COLOR), "transfer: and it is the yellow of a selectable thing, not the green")
+	_ok(not loco.is_blocked(LocomotionManager.CHANNEL_ALL) and input.held_players.is_empty(),
+		"transfer: nothing is held yet, and the player walks as ever")
+	_ok((int(input.last_sent.get(0, 0)) & up) == 0, "transfer: a thumbstick pushed forward plays nothing for a player at the cabinet who holds nothing")
+	_trigger(h, 1.0)
+	input._process(0.016)
+	_ok(hands.holds(&"stick", 0) and input.held_players.has(0) and not input.playing, "transfer: the stick is in a hand (and nobody is attached)")
+	_ok(not grab._outline.visible, "transfer: and the outline of a control in a hand is gone")
+	_ok(loco.is_blocked(LocomotionManager.CHANNEL_LEFT) and loco.is_blocked(LocomotionManager.CHANNEL_RIGHT),
+		"transfer: holding it, neither stick walks or turns the player")
+	_ok((int(input.last_sent.get(0, 0)) & up) != 0, "transfer: and the other hand's thumbstick pushed forward is UP, the game's")
+	_ok((int(input.last_sent.get(0, 0)) & r2) == 0, "transfer: the trigger that holds the stick is not also the button it is bound to")
+	_ok((int(input.last_sent.get(1, 0)) & up) == 0, "transfer: the other player hears nothing of it")
+	# The control leg: attached, with the trigger pulled far from any control, the same trigger is that button.
+	_trigger(h, 0.0)
+	input._process(0.016)
+	_ok(not loco.is_blocked(LocomotionManager.CHANNEL_ALL) and input.held_players.is_empty(),
+		"transfer: let go, the player walks again")
+	_ok((int(input.last_sent.get(0, 0)) & up) == 0, "transfer: and the thumbstick is theirs, not the game's")
+	_ok(grab._outline.visible, "transfer: and the outline is back, the hand still being at the stick")
+	input.attached[0] = true
+	_tip_at(h, ball + Vector3(0.0, 1.0, 0.0))
+	_trigger(h, 1.0)
+	input._process(0.016)
+	_ok((int(input.last_sent.get(0, 0)) & r2) != 0 and input.held_players.is_empty(),
+		"transfer: (control) the trigger of a hand that holds nothing is its button, attached")
+	input.attached.erase(0)
+	_trigger(h, 0.0)
+	input._process(0.016)
+	# The machine going off mid-hold gives the thumbsticks back too.
+	_tip_at(h, ball)
+	_trigger(h, 1.0)
+	input._process(0.016)
+	_ok(input.held_players.has(0) and loco.is_blocked(LocomotionManager.CHANNEL_ALL), "transfer: held again")
+	(r["sys"] as RetroSystem).is_powered_on = false
+	input._process(0.016)
+	_ok(input.held_players.is_empty() and not loco.is_blocked(LocomotionManager.CHANNEL_ALL),
+		"transfer: the machine switched off, the hold is over and the player is free")
+	(r["sys"] as RetroSystem).is_powered_on = true
+	input._left_vr_ctrl = null
+	input._right_vr_ctrl = null
+	input._locomotion_manager = null
+	loco.free()
 
 
 # --- laser ---------------------------------------------------------------------

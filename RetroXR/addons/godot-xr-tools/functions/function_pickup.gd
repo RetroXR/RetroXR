@@ -997,6 +997,16 @@ func _end_ray_grab() -> void:
 	emit_signal("has_dropped")
 
 
+## LOCAL PATCH (RetroXR): where this hand's laser points, {origin, dir}. GroundPlacement aims a laser-held cabinet at the
+## floor with it: a ray hold has no GrabDriver, so `get_picked_up_by_controller()` knows nothing of it.
+func ray_aim() -> Dictionary:
+	var ray_cast: RayCast3D = null
+	if _ray_pointer:
+		ray_cast = _ray_pointer.get_node_or_null("RayCast") as RayCast3D
+	var from := ray_cast.global_transform if ray_cast else global_transform
+	return {"origin": from.origin, "dir": -from.basis.z}
+
+
 ## Returns true while an object is held via the ray-pointer grab.
 ## Used externally (e.g. spawn_menu_controller) to avoid conflicting grabs.
 func is_ray_grabbing() -> bool:

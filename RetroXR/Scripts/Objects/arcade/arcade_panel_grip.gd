@@ -19,8 +19,10 @@ signal toggled(attached: bool)
 signal held_changed(held: bool)
 
 const POINTABLE_LAYER := 1 << 20
-const HOVER_COLOR := Color(0.35, 1.0, 0.45, 0.16)       # WidgetOutline.HOVER_COLOR
-const ATTACHED_COLOR := Color(1.0, 0.82, 0.28, 0.20)    # WidgetOutline.ACTIVE_COLOR
+## The panel is picked out by a yellow frame round it, as a pad or a stick is (WidgetOutline.SELECT_COLOR), not a green wash over it.
+const OUTLINE_COLOR := WidgetOutline.SELECT_COLOR
+## How thick the frame is, metres.
+const FRAME_WIDTH := 0.006
 ## A hand this close to the panel's centre, squeezing the grip, takes hold of it.
 const REACH := 0.22
 const GRIP_ON := 0.6
@@ -59,16 +61,14 @@ func _ready() -> void:
 	if ring_radius > 0.0:
 		_plate.mesh = _ring_mesh()
 	else:
-		var quad := QuadMesh.new()
-		quad.size = panel_size
-		_plate.mesh = quad
+		_plate.mesh = frame_mesh(panel_size, FRAME_WIDTH)
 	_material = StandardMaterial3D.new()
 	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_material.albedo_color = OUTLINE_COLOR
 	_plate.material_override = _material
 	_plate.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	# Just above the deck, under the caps: the glow reads as the panel's own surface.
+	# Just above the deck, under the caps: the frame reads as the panel's own edge.
 	_plate.position = Vector3(0.0, 0.0, 0.0045)
 	add_child(_plate)
 	_refresh()
@@ -157,6 +157,33 @@ func is_hovered() -> bool:
 	return _hovered
 
 
+## A flat rectangular frame, `size` across its outside edge and `width` wide, facing +Z: the outline of a panel.
+static func frame_mesh(size: Vector2, width: float) -> ArrayMesh:
+	var ox := size.x * 0.5
+	var oy := size.y * 0.5
+	var ix := maxf(ox - width, 0.0)
+	var iy := maxf(oy - width, 0.0)
+	# Outer corners 0-3 and inner corners 4-7, both counter-clockwise from the bottom left; each side is a quad.
+	var verts := PackedVector3Array([
+		Vector3(-ox, -oy, 0.0), Vector3(ox, -oy, 0.0), Vector3(ox, oy, 0.0), Vector3(-ox, oy, 0.0),
+		Vector3(-ix, -iy, 0.0), Vector3(ix, -iy, 0.0), Vector3(ix, iy, 0.0), Vector3(-ix, iy, 0.0)])
+	var indices := PackedInt32Array()
+	for i in 4:
+		var j := (i + 1) % 4
+		indices.append_array([i, j, j + 4, i, j + 4, i + 4])
+	var normals := PackedVector3Array()
+	normals.resize(8)
+	normals.fill(Vector3.BACK)
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
 func _process(_delta: float) -> void:
 	# VR: a squeeze with a hand over the panel is the same press.
 	for ctrl in _controllers:
@@ -198,4 +225,3 @@ func _refresh() -> void:
 	if _plate == null:
 		return
 	_plate.visible = attached or held or _hovered or _vr_near
-	_material.albedo_color = ATTACHED_COLOR if (attached or held) else HOVER_COLOR

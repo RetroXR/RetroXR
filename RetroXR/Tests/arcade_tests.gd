@@ -886,6 +886,50 @@ func _group_ground() -> void:
 	placer._on_dropped(sys)
 	await _wait(2)
 	_ok(sys.global_position.distance_to(Vector3(5, 1.0, 5)) < 0.5, "ground: let go with no spot, it is not moved")
+	# Held on the LASER: no GrabDriver and no `dropped`, which is how a headset's laser holds anything. The rectangle shows
+	# while the laser points at the floor, and the frame the laser lets go with it showing stands the cabinet there.
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.global_position = Vector3(0, 1.6, 0)
+	cam.current = true
+	var origin := XROrigin3D.new()
+	add_child(origin)
+	var hand := XRController3D.new()
+	hand.tracker = &"right_hand"
+	origin.add_child(hand)
+	var pickup := preload("res://addons/godot-xr-tools/functions/function_pickup.tscn").instantiate() as XRToolsFunctionPickup
+	hand.add_child(pickup)
+	await _wait(2)
+	sys.global_position = Vector3(5, 1.0, 5)
+	sys.global_basis = Basis.IDENTITY
+	_ok(placer._ray_holder() == null, "ground: (nothing is held on a laser yet)")
+	pickup._ray_grab_object = sys
+	_ok(placer._ray_holder() == pickup, "ground: a cabinet on a laser is found, though is_picked_up() is %s" % str(sys.is_picked_up()))
+	origin.global_transform = Transform3D(Basis.looking_at(Vector3(0, -1, -1), Vector3.UP), Vector3(0, 1.2, 0))
+	placer._physics_process(0.016)
+	var shown := placer.current_placement()
+	_ok(not shown.is_empty() and _near((shown["position"] as Vector3).z, -1.2),
+		"ground: the laser held down at the floor shows the rectangle where it points (%s)" % str(shown.get("position")))
+	origin.global_transform = Transform3D(Basis.IDENTITY, Vector3(0, 1.2, 0))
+	placer._physics_process(0.016)
+	_ok(placer.current_placement().is_empty(), "ground: the laser held level shows nothing")
+	origin.global_transform = Transform3D(Basis.looking_at(Vector3(0, -1, -1), Vector3.UP), Vector3(0, 1.2, 0))
+	placer._physics_process(0.016)
+	pickup._ray_grab_object = null
+	placer._physics_process(0.016)
+	_ok(sys.global_position.distance_to(at) < 0.01 and sys.global_basis.y.dot(Vector3.UP) > 0.999,
+		"ground: the laser let go of it with the rectangle showing, it stands there upright (%s)" % str(sys.global_position))
+	_ok(placer.current_placement().is_empty(), "ground: and the rectangle is gone")
+	# The control leg: let go with the laser level, it is left where the laser had it.
+	sys.global_position = Vector3(5, 1.0, 5)
+	pickup._ray_grab_object = sys
+	origin.global_transform = Transform3D(Basis.IDENTITY, Vector3(0, 1.2, 0))
+	placer._physics_process(0.016)
+	pickup._ray_grab_object = null
+	placer._physics_process(0.016)
+	_ok(sys.global_position.distance_to(Vector3(5, 1.0, 5)) < 0.5, "ground: (control) a laser let go level leaves it where it is")
+	origin.queue_free()
+	cam.queue_free()
 	placer.queue_free()
 
 

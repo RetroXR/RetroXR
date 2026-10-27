@@ -741,6 +741,16 @@ func update_body(point: Vector3) -> void:
 		_hands.update_body(point)
 
 
+## Is a hand HOLDING a control of this panel (not just a finger on a cap)?
+func hand_holding() -> bool:
+	return _hands != null and _hands.is_holding()
+
+
+## The hands holding a control of this panel.
+func holding_hands() -> Array[XRController3D]:
+	return _hands.holding_hands() if _hands != null else ([] as Array[XRController3D])
+
+
 ## Is `ctrl` holding, or reaching for, a control of this panel? (ArcadePanelGrip does not take its press.)
 func hand_reaching(ctrl: XRController3D) -> bool:
 	return _hands != null and _hands.reaching(ctrl)

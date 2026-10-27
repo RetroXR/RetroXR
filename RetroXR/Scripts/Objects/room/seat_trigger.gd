@@ -3,14 +3,31 @@
 ## A pointable Area3D laid over the seat's cushion: a desktop click or the laser's trigger
 ## arrives as a pointer_event and sits (or gets up). It is a thin slab on the SURFACE the
 ## player sits on, so the rest of the seat (its legs, its sides) is still the body that is
-## picked up by holding on it. Aimed at, it tints.
+## picked up by holding on it. Aimed at, it tints yellow, the colour everything selectable wears
+## (WidgetOutline.SELECT_COLOR).
+##
+## THE VR LASER CANNOT SEE AN AREA. Its RayCast leaves `collide_with_areas` off (only the desktop reticle
+## turns it on), so the Area3D alone took a desktop click and was invisible to a headset's laser: the seat
+## could not be sat on in VR. A StaticBody3D of the same shape (`LaserBody`) stands on the same layer and
+## hands what the laser sends on to `pointer_event`. It is the trigger's SIBLING, not its child: a laser's pickup
+## takes a collider's parent for the pickable, so under the seat a hold on the cushion still carries the seat.
 class_name SeatTrigger
 extends Area3D
 
 const POINTABLE_LAYER := 1 << 20
-const HOVER_COLOR := Color(0.35, 1.0, 0.45, 0.16)
+const HOVER_COLOR := Color(WidgetOutline.SELECT_COLOR, 0.22)
 
 var _hover: MeshInstance3D = null
+var _laser_body: LaserBody = null
+
+
+## The part of the trigger a laser can hit: a body, because a laser's ray hits no areas.
+class LaserBody extends StaticBody3D:
+	var trigger: SeatTrigger = null
+
+	func pointer_event(event: XRToolsPointerEvent) -> void:
+		if trigger != null and is_instance_valid(trigger):
+			trigger.pointer_event(event)
 
 
 func _ready() -> void:
@@ -33,6 +50,19 @@ func _ready() -> void:
 		_hover.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_hover.visible = false
 		add_child(_hover)
+		_laser_body = LaserBody.new()
+		_laser_body.name = "%sLaser" % name
+		_laser_body.trigger = self
+		_laser_body.collision_layer = POINTABLE_LAYER
+		_laser_body.collision_mask = 0
+		_laser_body.transform = transform
+		var body_shape := CollisionShape3D.new()
+		body_shape.shape = shape.shape
+		body_shape.transform = shape.transform
+		_laser_body.add_child(body_shape)
+		# The parent is still setting up its children while this runs.
+		if get_parent() != null:
+			get_parent().add_child.call_deferred(_laser_body)
 
 
 func pointer_event(event: XRToolsPointerEvent) -> void:
@@ -52,3 +82,8 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 
 func is_hovered() -> bool:
 	return _hover != null and _hover.visible
+
+
+## The body a headset's laser hits (null for a trigger with no box to copy).
+func laser_body() -> StaticBody3D:
+	return _laser_body

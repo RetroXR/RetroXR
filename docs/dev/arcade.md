@@ -675,6 +675,10 @@ front toward the player, with no fall (`apply`, through `PhysicsServer3D` like `
 nothing shows: it is dropped as ever. The aim is the holding controller's -Z in a headset, the camera's on the desktop.
 `placement_for` is pure and is the whole decision (the rectangle shows what a release does because a release uses the last answer
 it gave); the floor is the XR origin's height. `arcade_tests ground/` (mutation-tested), `arcade_cabinet_probe --shots=ground`.
+**A cabinet held on the LASER is a ray grab (2026-10-27)**, which has no `GrabDriver`: `is_picked_up()` stays false, `get_picked_up_by_controller()` is null and `dropped` is never
+emitted, so in a headset the rectangle never showed and a release dropped the cabinet as ever. `GroundPlacement._ray_holder` asks the pickups (`is_ray_grabbing_target`), aims from
+the laser (`XRToolsFunctionPickup.ray_aim`, a local patch) and stands the cabinet at the last rectangle on the frame the hold ends (`_was_held`; a hand's release still arrives
+through `dropped`). `arcade_tests ground/` drives a real pickup's `_ray_grab_object`.
 OWED: a headset, a real hold with a laser and with the desktop hand, a cabinet carried in netplay (the pose is local), the Quest.
 The MIN_DOWN (17 degrees below level) and the 4 m reach are estimates; the marker does not know about walls or furniture.
 
@@ -1198,7 +1202,14 @@ a wheel, bars, dial and trackball the left stick's X or XY, so "left+dpad" sends
 - **Somebody is at the cabinet**: `ArcadeInput.engaged()` is true while a hand presses a cap or holds a control (`hands_busy`), or a hand-only player's attract
   game would be put away after 120 s (`ArcadeAttract._watch_idle`), and a finger on a cap or a hand on a stick starts the game from attract as a coin or an
   attached panel does (`first_use` `&"panel"`). Hands step even while attracting (so that they can) and are let go when the machine is off.
-- **Hover**: a control a hand could take is outlined green, amber while held (`WidgetOutline`, made the first time a hand is near, one per control); a pressed cap shows
+- **A hand on a control takes the sticks with it (2026-10-27).** While a hand HOLDS a control (a stick, the wheel, a lever; a finger on a cap is not a hold) the
+  controllers' thumbsticks and buttons are the GAME's, as if attached to that panel (`ArcadeInput.held_players`, set in `_step_hands`: player -> the hands holding),
+  and neither stick walks or turns the player (the same `LocomotionManager` block `playing` takes, `_update_locomotion_block`); let go, and they are the player's again.
+  It is not an attach (`playing` and the keyboard's capture are untouched). The TRIGGER of a holding hand is the hold itself, so it is left out of the button bindings
+  (it was also R2, with the stick in the hand); an attached player gets the same. `arcade_hand_tests transfer/`.
+- **Hover**: a control a hand could take is outlined YELLOW (`WidgetOutline.SELECT_COLOR`, `PickableHighlight.ray_color`'s: the green is gone) and has NO outline at all while a hand
+  holds it (`WidgetOutline`, made the first time a hand is near, one per control). The panel's own grip (`ArcadePanelGrip`) is a yellow FRAME round the panel (`frame_mesh`),
+  where it was a green wash over it, and stays while attached; the seat's trigger tints yellow too. A pressed cap shows
   by sinking, and the fingertip's contact disc lands on the face it presses (`PokeTip.claim_box_face`). Haptics: a click on a press and a take, a softer one on a release,
   a tick as a stick crosses the point its switch would close (`HAPTIC_KEY`).
 - **Not built**: grip-held sticks (above); hands on the foot pedal of a gun game (it is down while the gun is in a hand; there is nothing to press); the stick's

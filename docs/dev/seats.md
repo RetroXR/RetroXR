@@ -5,6 +5,11 @@ a bed (`Scenes/Objects/furniture/seat_*.tscn`, baked by `Tools/gen/gen_seats.gd`
 
 - **Press the cushion to sit, again to get up; HOLD on the seat to carry it** (`grab_hold_seconds` = `HoldToGrab.DEFAULT_SECONDS`). `SeatTrigger` is a pointable
   `Area3D` slab 3 cm proud of the cushion, so it wins the ray over the body's `PointerArea` (the same rule that makes the arcade's panel grip work); it tints when aimed at.
+- **THE VR LASER HITS NO AREA3D (2026-10-27: no seat could be sat on in a headset).** `XRToolsFunctionPointer`'s RayCast leaves `collide_with_areas` off; only the desktop pointer turns it on. A
+  `SeatTrigger` is an `Area3D`, so it took a desktop click and was invisible to the laser. It now makes `LaserBody`, a `StaticBody3D` of the same shape and pose on the same layer
+  that forwards `pointer_event`, as the seat's SIBLING and not the trigger's child (a laser's pickup takes a collider's PARENT for the pickable, so a hold on the cushion still
+  carries the seat). Anything else pointable that is an `Area3D` is in the same case (`ArcadePanelGrip` has the squeeze to make up for it). The tint is yellow
+  (`WidgetOutline.SELECT_COLOR`). `seat_tests press/`; a real headset OWED.
 - **A seat is a scene with the script and three markers:** `EyePoint` (where the head goes, -Z is the way it faces), `StandPoint` (a floor point to the side: the front is often a cabinet) and
   `SeatTrigger`. `type_id` names its `ScenePersistence.PLAIN_SCENES` row. A mod's seat is any scene that has them.
 - **What sitting does.** The origin is turned about the head to the seat's heading and carried over the eye point, standing on the seat's floor (`Seat.origin_for_eye`, pure, tested on bare

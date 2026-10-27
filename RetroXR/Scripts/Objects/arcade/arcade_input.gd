@@ -83,6 +83,11 @@ var playing: bool:
 
 signal playing_changed(on: bool)
 
+## The players whose panel has a control IN A HAND (player -> the hands holding): the wheel, the stick, the lever. While
+## it is, the controllers' sticks and buttons are the GAME's, as if attached to that panel, and they walk the player no
+## further; let go, and they are the player's again. Not an attach: nobody is "playing" in the sense of the keyboard's capture.
+var held_players: Dictionary = {}
+
 ## Somebody used the cabinet while it was only showing its game (RetroSystem.attracting): a coin, a panel
 ## pressed, a gun or a pad taken in hand. `kind` is &"coin", &"panel" or &"grab". RetroSystem starts the
 ## real core on it.
@@ -483,6 +488,7 @@ func _step_hands(delta: float, live: bool) -> void:
 				if live and not body.is_finite():
 					body = _body_point()
 				panel.update_body(body if live else Vector3.INF)
+	_sync_held_players()
 
 
 ## Where the player stands, at the height of the floor under them: the head's place on the floor (nothing tracks feet), Vector3.INF when there is no
@@ -494,6 +500,20 @@ func _body_point() -> Vector3:
 	var origin := XRHelpers.get_xr_origin(camera)
 	var floor_y := origin.global_position.y if origin != null else camera.global_position.y - 1.6
 	return Vector3(camera.global_position.x, floor_y, camera.global_position.z)
+
+
+## Note which panels have a control in a hand and hold the player's walking back while one does: a hand on the wheel
+## takes the sticks with it, and the sticks go to the game.
+func _sync_held_players() -> void:
+	var held: Dictionary = {}
+	for p in _controls.size():
+		var panel := _controls[p]
+		if panel != null and is_instance_valid(panel) and panel.hand_holding():
+			held[p] = panel.holding_hands()
+	var changed := held.is_empty() != held_players.is_empty()
+	held_players = held
+	if changed:
+		_update_locomotion_block()
 
 
 ## `state` with what the hands hold on player `p`'s panel added: the caps and the lever as buttons, the stick and the
@@ -561,8 +581,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _update_locomotion_block() -> void:
 	if _locomotion_manager != null:
 		var owner_key := VrHold.vr_block_owner(self)
-		_locomotion_manager.set_block(owner_key, LocomotionManager.CHANNEL_LEFT, playing)
-		_locomotion_manager.set_block(owner_key, LocomotionManager.CHANNEL_RIGHT, playing)
+		var block := playing or not held_players.is_empty()
+		_locomotion_manager.set_block(owner_key, LocomotionManager.CHANNEL_LEFT, block)
+		_locomotion_manager.set_block(owner_key, LocomotionManager.CHANNEL_RIGHT, block)
 	if _capture != null:
 		_capture.refresh()
 
@@ -609,8 +630,8 @@ func _process(delta: float) -> void:
 	for p in players:
 		var holder: Variant = controllers[p] if p < controllers.size() else null
 		var state := {"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": 0}
-		if attached.has(p):
-			state = _direct_state()
+		if attached.has(p) or held_players.has(p):
+			state = _direct_state(held_players.get(p, []) as Array)
 		state = _with_hands(state, p)
 		var mask := ArcadeInputState.compose(0, int(state["btn"]), false, _unsupported())
 		# A momentary panel (a gun cabinet's START) is read while it is pressed.
@@ -1049,7 +1070,7 @@ func _send(port: int, mask: int, state: Dictionary) -> void:
 ## The joypad state of whatever the player is holding: both VR controllers through
 ## the per-system bindings, then the selected physical pad merged in, then the
 ## captured keyboard. Same sources and the same rules as a held handheld.
-func _direct_state() -> Dictionary:
+func _direct_state(grabbing: Array = []) -> Dictionary:
 	var btn := 0
 	var alx := 0
 	var aly := 0
@@ -1061,7 +1082,7 @@ func _direct_state() -> Dictionary:
 			continue
 		vr_active = true
 		var left_hand: bool = (ctrl as XRController3D).tracker == &"left_hand"
-		btn |= _apply_buttons_for_ctrl(ctrl, left_hand)
+		btn |= _apply_buttons_for_ctrl(ctrl, left_hand, grabbing.has(ctrl))
 	if vr_active:
 		var mapped := _map_sticks(_stick_of(_left_vr_ctrl), _stick_of(_right_vr_ctrl))
 		btn |= int(mapped["btn"])
@@ -1117,7 +1138,7 @@ func _stick_of(ctrl: XRController3D) -> Vector2:
 	return ctrl.get_vector2("primary") if is_instance_valid(ctrl) and ctrl.get_is_active() else Vector2.ZERO
 
 
-func _apply_buttons_for_ctrl(ctrl: XRController3D, left_hand: bool) -> int:
+func _apply_buttons_for_ctrl(ctrl: XRController3D, left_hand: bool, trigger_grabs := false) -> int:
 	var bits := 0
 	for full_source: String in _button_map:
 		var bit: int = _button_map[full_source]
@@ -1134,6 +1155,9 @@ func _apply_buttons_for_ctrl(ctrl: XRController3D, left_hand: bool) -> int:
 			vr_input = full_source.substr(5)
 		else:
 			vr_input = full_source
+		# The trigger of a hand holding a control IS the hold (ArcadePanelHands): it is not also a button.
+		if trigger_grabs and vr_input == "trigger":
+			continue
 		var threshold: float = INPUT_THRESHOLDS.get(vr_input, 0.5)
 		var key := "%d:%s" % [ctrl.get_instance_id(), vr_input]
 		if _latch.pressed(key, ctrl.get_float(vr_input), threshold):

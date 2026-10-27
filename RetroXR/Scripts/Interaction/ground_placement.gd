@@ -6,9 +6,15 @@
 ## upright, its front toward you, with no fall. Aim anywhere else (level, up, or too far) and it is
 ## dropped as ever. So a row of cabinets is a row of rectangles.
 ##
-## The aim is the holding hand's pointing direction in a headset (the controller's -Z), the camera's
-## on the desktop, where the hand is the gaze. `placement_for` is the whole decision and is pure:
-## what the rectangle shows is what a release does, because the release uses the last answer it gave.
+## The aim is the holding hand's pointing direction in a headset (the controller's -Z, or the laser's
+## when the cabinet is held on the laser), the camera's on the desktop, where the hand is the gaze.
+## `placement_for` is the whole decision and is pure: what the rectangle shows is what a release does,
+## because the release uses the last answer it gave.
+##
+## A cabinet held on the LASER (a ray grab) is held without a GrabDriver: `is_picked_up()` stays false and
+## `dropped` is never emitted, so a headset saw no rectangle and a release dropped it as ever. The laser's
+## hold is asked of the pickups themselves (`_ray_holder`), and its release is the frame the hold ends
+## with a rectangle on show.
 class_name GroundPlacement
 extends Node
 
@@ -32,6 +38,8 @@ var footprint_center := Vector2.ZERO
 var _marker: Node3D = null
 var _placement := {}
 var _previewed := false
+## Whether the host was held last frame, to see a laser let go of it (which emits nothing).
+var _was_held := false
 
 
 ## Where a thing aimed at the floor stands. `origin` and `dir` are the aim; `eye` is where the player
@@ -86,12 +94,26 @@ func _exit_tree() -> void:
 func _physics_process(_delta: float) -> void:
 	if _previewed:
 		return
-	if host == null or not is_instance_valid(host) or not host.has_method("is_picked_up") \
-			or not bool(host.call("is_picked_up")):
+	if host == null or not is_instance_valid(host):
 		_placement = {}
 		_show(false)
 		return
-	var aim := _aim()
+	var ray_holder := _ray_holder()
+	var held := ray_holder != null or (host.has_method("is_picked_up") and bool(host.call("is_picked_up")))
+	# The laser lets go without a word: a hold that ended with the rectangle showing stands the cabinet there.
+	if _was_held and not held and not _placement.is_empty():
+		var chosen := _placement
+		_placement = {}
+		_show(false)
+		_was_held = false
+		apply(chosen)
+		return
+	_was_held = held
+	if not held:
+		_placement = {}
+		_show(false)
+		return
+	var aim := _aim(ray_holder)
 	if aim.is_empty():
 		_placement = {}
 		_show(false)
@@ -143,11 +165,25 @@ func _on_dropped(_pickable: Variant = null) -> void:
 	apply.call_deferred(chosen)
 
 
-## The aim: {origin, dir, eye}, or {} with nothing to aim from.
-func _aim() -> Dictionary:
+## The pickup (a hand's XRToolsFunctionPickup) holding the host on its laser, or null.
+func _ray_holder() -> XRToolsFunctionPickup:
+	if host == null or not is_inside_tree() or not host is XRToolsPickable:
+		return null
+	for pickup: Node in get_tree().get_nodes_in_group(XRToolsFunctionPickup.PICKUP_GROUP):
+		if pickup is XRToolsFunctionPickup and (pickup as XRToolsFunctionPickup).is_ray_grabbing_target(host as XRToolsPickable):
+			return pickup as XRToolsFunctionPickup
+	return null
+
+
+## The aim: {origin, dir, eye}, or {} with nothing to aim from. `ray_holder` is the pickup holding the host on its laser.
+func _aim(ray_holder: XRToolsFunctionPickup = null) -> Dictionary:
 	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
 	if cam == null:
 		return {}
+	if ray_holder != null:
+		var ray := ray_holder.ray_aim()
+		ray["eye"] = cam.global_position
+		return ray
 	var controller: Node3D = null
 	if host.has_method("get_picked_up_by_controller"):
 		controller = host.call("get_picked_up_by_controller") as Node3D

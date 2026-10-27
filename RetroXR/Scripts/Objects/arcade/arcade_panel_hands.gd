@@ -442,7 +442,7 @@ func release_all() -> void:
 		_block.set_block(ctrl if is_instance_valid(ctrl) else null, false)
 	_blocked.clear()
 	for g in _grabs:
-		g.show_outline(false, false)
+		g.show_outline(false)
 	_idle = true
 
 
@@ -460,7 +460,8 @@ func _set_laser(ctrl: XRController3D, off: bool) -> void:
 		_blocked.erase(id)
 
 
-## Each control a hand could take, outlined green; held, amber (WidgetOutline, the colours VRButton and VRHinge use).
+## Each control a hand could take is outlined yellow (WidgetOutline.SELECT_COLOR, the colour a laser-held pad wears); the one a
+## hand HOLDS has no outline at all: the hand is on it, and the ring would only sit between the player and the control.
 func _sync_outlines() -> void:
 	for g in _grabs:
 		var held := g.holder != null
@@ -471,7 +472,7 @@ func _sync_outlines() -> void:
 						and g.can_grab(PokeTip.tip_of(ctrl), REACH_SCALE):
 					near = true
 					break
-		g.show_outline(near or held, held)
+		g.show_outline(near and not held)
 
 
 # ── what the hands say ───────────────────────────────────────────────────────
@@ -535,6 +536,21 @@ static func foot_on(p: Vector3, box: AABB) -> bool:
 		return false
 	var above_top := q.y - half.y
 	return above_top >= -FOOT_BELOW and above_top <= FOOT_ABOVE
+
+
+## Is a hand HOLDING a control (a stick, a wheel, a lever...) now? A finger on a cap is not a hold.
+func is_holding() -> bool:
+	return not _holding.is_empty()
+
+
+## The hands that hold a control now.
+func holding_hands() -> Array[XRController3D]:
+	var out: Array[XRController3D] = []
+	for grab: Variant in _holding.values():
+		var holder := (grab as ControlGrab).holder
+		if holder != null and is_instance_valid(holder):
+			out.append(holder)
+	return out
 
 
 ## Is `ctrl` holding, or about to take hold of, a control of this panel? Asked afresh, from where the hand is, so it
@@ -725,7 +741,6 @@ class ControlGrab extends RefCounted:
 	## What the outline traces, and the outline (made the first time it is wanted).
 	var trace: MeshInstance3D = null
 	var _outline: WidgetOutline = null
-	var _amber := false
 
 	## Where a hand takes hold of it, in the world.
 	func handle() -> Vector3:
@@ -806,15 +821,13 @@ class ControlGrab extends RefCounted:
 	func frame() -> Transform3D:
 		return (node.get_parent() as Node3D).global_transform
 
-	func show_outline(on: bool, amber: bool) -> void:
+	func show_outline(on: bool) -> void:
 		if _outline == null:
 			if not on or not is_instance_valid(trace) or not is_instance_valid(panel):
 				return
 			_outline = WidgetOutline.attach(panel)
 			_outline.set_source(trace)
-		if amber != _amber:
-			_amber = amber
-			_outline.set_color(WidgetOutline.ACTIVE_COLOR if amber else WidgetOutline.HOVER_COLOR)
+			_outline.set_color(WidgetOutline.SELECT_COLOR)
 		_outline.sync(on)
 
 
@@ -1162,9 +1175,8 @@ class BarsGrab extends ControlGrab:
 	var _ctrls: Dictionary = {}
 	var _now: Dictionary = {}
 	var _ref: Dictionary = {}
-	## The outlines of the two grips (made the first time they are wanted), and whether each is amber.
+	## The outlines of the two grips (made the first time they are wanted).
 	var _outlines: Array[WidgetOutline] = []
-	var _ambers: Array[bool] = []
 
 	func _init(p_panel: ArcadeControlModule, p_node: Node3D, two_axes: bool) -> void:
 		kind = &"bars"
@@ -1216,22 +1228,18 @@ class BarsGrab extends ControlGrab:
 	func usable() -> bool:
 		return is_instance_valid(node) and node.is_visible_in_tree() and not _grips.is_empty()
 
-	## BOTH grips are outlined, each by its own state: amber with a hand on it, green while the bars can be taken (one outline for a pair of hands would say that one grip is the way in).
-	func show_outline(on: bool, _held: bool) -> void:
+	## BOTH grips are outlined, each by its own state: yellow while it can be taken, none with a hand on it (one outline for a pair of hands would say that one grip is the way in).
+	func show_outline(on: bool) -> void:
 		if _outlines.is_empty():
 			if not on or not is_instance_valid(panel):
 				return
 			for g in _grips:
 				var outline := WidgetOutline.attach(panel)
 				outline.set_source(g as MeshInstance3D)
+				outline.set_color(WidgetOutline.SELECT_COLOR)
 				_outlines.append(outline)
-				_ambers.append(false)
 		for i in _outlines.size():
-			var amber := on and _occupied(_grips[i])
-			if amber != _ambers[i]:
-				_ambers[i] = amber
-				_outlines[i].set_color(WidgetOutline.ACTIVE_COLOR if amber else WidgetOutline.HOVER_COLOR)
-			_outlines[i].sync(on)
+			_outlines[i].sync(on and not _occupied(_grips[i]))
 
 	func attach_hand(ctrl: XRController3D, id: int, tip: Vector3) -> void:
 		var p := frame().affine_inverse() * tip

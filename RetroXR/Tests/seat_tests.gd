@@ -256,6 +256,22 @@ func _group_press() -> void:
 	trigger.pointer_event(_event(XRToolsPointerEvent.Type.PRESSED, trigger))
 	_ok(not seat.is_occupied(), "press: and the next press gets up")
 	_ok(seat.grab_hold_seconds() == HoldToGrab.DEFAULT_SECONDS, "press: the seat itself is carried by HOLDING on it, not by a press")
+	# A headset's laser hits no Area3D (its RayCast leaves collide_with_areas off): the cushion has a body of its own for it,
+	# a sibling under the seat so that holding on it still carries the seat.
+	var laser := trigger.laser_body()
+	_ok(laser != null and laser.collision_layer == SeatTrigger.POINTABLE_LAYER and laser.get_parent() == seat,
+		"press: a laser can hit the cushion (a body on the pointable layer) and it is the seat's, so a hold on it carries the seat")
+	_ok(laser != null and laser.get_child_count() == 1 and (laser.get_child(0) as CollisionShape3D).shape == (trigger.get_node("CollisionShape3D") as CollisionShape3D).shape
+			and laser.position.is_equal_approx(trigger.position),
+		"press: and it is the trigger's own shape, in the same place")
+	laser.call("pointer_event", _event(XRToolsPointerEvent.Type.PRESSED, laser))
+	_ok(seat.is_occupied(), "press: the laser's press on that body sits")
+	laser.call("pointer_event", _event(XRToolsPointerEvent.Type.PRESSED, laser))
+	_ok(not seat.is_occupied(), "press: and the next one gets up")
+	laser.call("pointer_event", _event(XRToolsPointerEvent.Type.ENTERED, laser))
+	_ok(trigger.is_hovered() and SeatTrigger.HOVER_COLOR.r > 0.9 and SeatTrigger.HOVER_COLOR.g > 0.8 and SeatTrigger.HOVER_COLOR.b < 0.2,
+		"press: aimed at by a laser the cushion is lit, and the light is yellow (not green)")
+	laser.call("pointer_event", _event(XRToolsPointerEvent.Type.EXITED, laser))
 	# The trigger stands proud of the surface it is on, or the body's pointer box would win the ray.
 	var pointer := seat.find_child("PointerArea", false, false) as StaticBody3D
 	var top := -INF
