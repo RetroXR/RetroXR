@@ -103,7 +103,7 @@ const FOLDER_ALIASES: Dictionary = {
 	"msx": ["msx1", "msx2", "msxturbor"],
 	"neogeocd": ["neogeocdjp"],
 	"odyssey2": ["videopac"],
-	"satellaview": ["satellaview_plus"],
+	"satellaview": ["satellaview_plus", "bs-x"],
 	"saturn": ["saturnjp"],
 	"sega32x": ["sega32xjp", "sega32xna"],
 	"segacd": ["megacd", "megacdjp"],

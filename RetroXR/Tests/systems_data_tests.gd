@@ -29,7 +29,7 @@ extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below -- it is checked before it
 ## has recorded itself. See card_tests on why this exists.
-const EXPECTED_CASES := 84
+const EXPECTED_CASES := 85
 
 
 var _path := ""
@@ -336,6 +336,9 @@ func _group_ids() -> void:
 			and SystemIds.systemid_for_folder("super_nes") == "snes"
 			and SystemIds.systemid_for_folder("famicom") == "famicom",
 		"ids/and a folder names its system back, the Famicom staying its own")
+	_ok("bs-x" in SystemIds.folder_names("satellaview")
+			and SystemIds.systemid_for_folder("bs-x") == "satellaview",
+		"ids/a roms/bs-x folder is the Satellaview's too")
 	var squatters: Array[String] = []
 	for owner: String in SystemIds.FOLDER_ALIASES:
 		for alias: String in SystemIds.FOLDER_ALIASES[owner]:
