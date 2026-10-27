@@ -239,6 +239,38 @@ func _group_profiles() -> void:
 	for p in mame_fw.values():
 		all_in_bios = all_in_bios and (p as String).begins_with("mame/bios/")
 	_ok(all_in_bios and mame_fw.size() >= 10, "profiles: every set MAME lists goes under mame/bios (%d)" % mame_fw.size())
+	# The list is GENERATED from MAME's -listxml (Tools/arcade/gen_mame_bios.py): System 246, 256 and 573 were
+	# missing by hand once, and so was most of NAOMI, the Capcom/Taito/Sony boards and the Konami ones.
+	for core: String in ["mame", "fbneo"]:
+		var names: Array = []
+		var dup := ""
+		var no_desc := ""
+		var not_optional := ""
+		for row in FirmwareRequirements.for_core(core):
+			var file: String = (row["path"] as String).get_file()
+			if names.has(file):
+				dup = file
+			names.append(file)
+			if not (row["desc"] as String).begins_with(row["path"] as String):
+				no_desc = file
+			if not row["optional"]:
+				not_optional = file
+		_ok(dup.is_empty(), "profiles: %s lists no file twice%s" % [core, "" if dup.is_empty() else " (%s)" % dup])
+		_ok(no_desc.is_empty(), "profiles: %s's every entry is described by its own path%s" % [core, "" if no_desc.is_empty() else " (%s)" % no_desc])
+		_ok(not_optional.is_empty(), "profiles: %s's every BIOS is optional, only some games want each%s" % [core, "" if not_optional.is_empty() else " (%s)" % not_optional])
+	for bios: String in ["sys246.zip", "sys256.zip", "sys573.zip", "naomi.zip", "naomi2.zip", "naomigd.zip", "awbios.zip",
+			"chihiro.zip", "stvbios.zip", "coh1000c.zip", "coh3002c.zip", "coh3002t.zip", "kviper.zip", "kpython2.zip", "konamigx.zip",
+			"konamigv.zip", "gq863.zip", "hikaru.zip", "taitotz.zip", "hng64.zip", "playch10.zip", "megatech.zip", "atarisy1.zip"]:
+		_ok(mame_fw.has(bios), "profiles: MAME lists %s" % bios)
+	_ok(mame_fw.size() >= 90, "profiles: MAME lists the BIOS of every arcade board its games name (%d)" % mame_fw.size())
+	var fbneo_fw := {}
+	for row in FirmwareRequirements.for_core("fbneo"):
+		fbneo_fw[(row["path"] as String).get_file()] = row
+	_ok(fbneo_fw.has("atarisy1.zip") and (fbneo_fw["atarisy1.zip"] as Dictionary)["path"] == "fbneo/atarisy1.zip",
+		"profiles: FinalBurn Neo lists Atari System 1's BIOS, in its own folder (27 games name it as their board ROM)")
+	for kept: String in ["neogeo.zip", "pgm.zip", "skns.zip", "decocass.zip", "cchip.zip", "nmk004.zip", "ym2608.zip", "bubsys.zip",
+			"isgsm.zip", "midssio.zip", "namcoc69.zip", "namcoc70.zip", "namcoc75.zip", "hiscore.dat"]:
+		_ok(fbneo_fw.has(kept), "profiles: FinalBurn Neo still lists %s" % kept)
 
 
 # --- input ---------------------------------------------------------------------
