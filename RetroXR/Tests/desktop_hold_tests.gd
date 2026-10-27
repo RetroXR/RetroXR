@@ -312,6 +312,14 @@ func _desktop_action() -> void:
 	_left(pickup, false, true)
 	_ok(pickup._held_object == null and gun_pressed[0] == 0,
 		"action/an FPS-snap object keeps Shift + click as its only drop")
+	# Picked up with Shift to INSPECT, an FPS-snap object is held as anything else -- but its
+	# Shift + click is still its drop, as its hint says.
+	pickup._grab_target(gun, true)
+	_ok(pickup._held_object == gun and pickup._inspect, "action/the light gun is held to inspect")
+	_left(pickup, true, true)
+	_left(pickup, false, true)
+	_ok(pickup._held_object == null and gun_pressed[0] == 0,
+		"action/inspected, its Shift + click still drops it", str(gun_pressed[0]))
 
 	var stuck := _pickable_with("")
 	var stuck_released := [0]

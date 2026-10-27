@@ -877,10 +877,13 @@ func _needs_shift_drop() -> bool:
 ## True when Shift + left-click on what is held is its action() -- the call VR's trigger makes
 ## on any held pickable -- rather than its drop. Every held object but an FPS-snap or
 ## desktop_shift_drop one, whose plain click is already its own and whose Shift+click is
-## therefore the only way to drop it.
+## therefore the only way to drop it. By the PROPERTY, not _is_fps_snap(): that is false while
+## an FPS-snap object is held to inspect (picked up with Shift), and the light gun, Wii Remote
+## and TV remote then lost their Shift+click drop to an action() nothing listens to, under a
+## hint (HeldHint) still saying Shift+click drops them.
 func _has_desktop_action() -> bool:
 	return _held_object != null and _held_object.has_method("action") \
-		and not _is_fps_snap() and not _needs_shift_drop()
+		and _held_object.get("desktop_fps_snap") != true and not _needs_shift_drop()
 
 
 func _update_reticle_highlight() -> void:

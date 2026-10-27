@@ -202,7 +202,8 @@ Windows, Linux and macOS builds only; a headset has neither. Source:
   held pickable for a controller's `trigger_click`, and it stays in the hand (`_action_armed`; a lost release
   is ended by `_clear_stale_left`). A plain click drops it and a left-click picks it up, as before. An
   FPS-snap or `desktop_shift_drop` object keeps Shift+click as its drop (its plain click is its own, so that
-  is the only drop it has). Before this (2026-10-27) Shift+click dropped everything; nothing shipped wired
+  is the only drop it has) -- read off the PROPERTY, so also while it is held to inspect: `_is_fps_snap()` is
+  false then, and testing it lost the inspected light gun / Wii Remote / TV remote their drop. Before this (2026-10-27) Shift+click dropped everything; nothing shipped wired
   `action()` then, so only objects that use it (a mod prop such as `xenu.robotgamer`) noticed.
   `desktop_hold_tests action/`.
 - `Tests/desktop_hold_tests` is the pure part; `Tools/room/hold_probe --scenario` (windowed) is the
