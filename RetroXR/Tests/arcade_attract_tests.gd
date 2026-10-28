@@ -537,7 +537,7 @@ func _group_use() -> void:
 	log = _log_uses(sys)
 	var pad := StubPad.new()
 	add_child(pad)
-	sys._port_controllers[0] = pad
+	sys.get_port_controllers()[0] = pad
 	await _wait(4)
 	_ok(sys.attracting, "use: a pad plugged in and left alone is nobody at the cabinet")
 	var well := StubWell.new()
@@ -549,7 +549,7 @@ func _group_use() -> void:
 	well.picked_up_object = null
 	await _wait(4)
 	_ok(_started(log, &"grab"), "use: taken in hand, it starts the game")
-	sys._port_controllers[0] = null
+	sys.get_port_controllers()[0] = null
 	pad.queue_free()
 	await _clear()
 
@@ -792,12 +792,12 @@ func _group_idle() -> void:
 	# Somebody picks a pad up.
 	var pad := StubPad.new()
 	add_child(pad)
-	sys._port_controllers[0] = pad
+	sys.get_port_controllers()[0] = pad
 	pad.held = true
 	attract._watch_idle(30.0)
 	_ok(attract.idle_seconds() == 0.0, "idle: somebody holding a pad keeps it from running")
 	pad.held = false
-	sys._port_controllers[0] = null
+	sys.get_port_controllers()[0] = null
 	pad.queue_free()
 	var panel := (sys.get_model() as RetroSystemModelArcadeCabinet).modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)[0] as ArcadeControlModule
 	panel.set_attached(true)

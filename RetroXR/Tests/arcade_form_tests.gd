@@ -466,7 +466,7 @@ func _group_build() -> void:
 	_ok(players_ok, "build: each panel plays its own port, in order")
 	var sockets := model.modules_of_kind(ArcadeProfiles.KIND_SOCKETS)[0] as ArcadeSocketModule
 	var zones_on := 0
-	for z: Node in sys._port_zones:
+	for z: Node in sys.get_port_zones():
 		zones_on += 1 if (z as XRToolsSnapZone).enabled else 0
 	_ok(sockets.seat_count() == 4 and zones_on == 4, "build: and four front sockets, each a live port (%d)" % zones_on)
 	# Every form builds: guns, cockpit, bike, stage, a stand-up wheel, a trackball, twin sticks.
@@ -1670,7 +1670,7 @@ func _group_guns() -> void:
 		"guns: the front sockets are back")
 	var zones_free := true
 	for i in 2:
-		var zone := sys._port_zones[i] as XRToolsSnapZone
+		var zone := sys.get_port_zones()[i] as XRToolsSnapZone
 		zones_free = zones_free and zone.monitoring and not zone.has_snapped_object()
 	_ok(zones_free, "guns: the sockets the guns were in take a plug again")
 	await _board(sys, "opwolf")

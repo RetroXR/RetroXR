@@ -3744,6 +3744,11 @@ func get_port_controllers() -> Array:
 	return _ports.controllers
 
 
+## The snap zones of the controller ports, one per port. The same array, not a copy.
+func get_port_zones() -> Array:
+	return _ports.zones
+
+
 ## Re-announce the pak on one controller's port. Called when a pak is pushed into
 ## or pulled out of an expansion port, which the system cannot see for itself —
 ## the port belongs to the controller, two objects away.

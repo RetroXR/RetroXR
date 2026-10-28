@@ -33,24 +33,11 @@
 extends "res://Tests/test_suite.gd"
 
 
-## A stand-in for a LibretroOptionDefinition: the two values the row steps through.
-class _FakeVal:
-	var _v: String
-	func _init(v: String) -> void:
-		_v = v
-	func GetValue() -> String:
-		return _v
-	func GetLabel() -> String:
-		return _v
-
-
-class _FakeDef:
-	func GetValues() -> Array:
-		return [_FakeVal.new("1 Coin"), _FakeVal.new("2 Coins")]
-	func GetDescriptionCategorized() -> String:
-		return "Coinage"
-	func GetDescription() -> String:
-		return "Coinage"
+## A stand-in for a LibretroOptionDefinition. CoreOptionRow.add types its definition, so the stand-in is one; the
+## extension fills a real one from a core and GDScript cannot give it values, so this one is empty: its row is a label
+## with no arrows, which is all the DIP test counts.
+class _FakeDef extends LibretroOptionDefinition:
+	pass
 
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
