@@ -737,19 +737,19 @@ func _group_cabinet_media() -> void:
 	var client := ScreenscraperClient.new()
 	client.config = ScraperConfig.new()
 	var plain: Dictionary = client._extract_media_urls(medias, ["wor"], 0, 0, true)
-	_check(not plain.has("video") and not plain.has("title"),
+	_ok(not plain.has("video") and not plain.has("title"),
 		"cabinet media: a scrape that asks for nothing extra finds no video or title")
-	_check(plain["wheel"] == "https://x/w.png", "cabinet media: and still finds the wheel")
+	_ok(plain["wheel"] == "https://x/w.png", "cabinet media: and still finds the wheel")
 	client.extra_media = ScreenscraperClient.CABINET_MEDIA
 	var arcade: Dictionary = client._extract_media_urls(medias, ["wor"], 0, 0, true)
-	_check(arcade["video"] == "https://x/v.mp4" and arcade["title"] == "https://x/t.png",
+	_ok(arcade["video"] == "https://x/v.mp4" and arcade["title"] == "https://x/t.png",
 		"cabinet media: asked for, an arcade game gives its video snap and its title")
 	var console: Dictionary = client._extract_media_urls(medias, ["wor"], 0, 0, false)
-	_check(not console.has("video") and not console.has("title"),
+	_ok(not console.has("video") and not console.has("title"),
 		"cabinet media: a game that is not arcade gives neither, even asked")
 	client.extra_media = ["video", "marquee"]
 	var odd: Dictionary = client._extract_media_urls(medias, ["wor"], 0, 0, true)
-	_check(odd.has("video") and not odd.has("title") and not odd.has("marquee"),
+	_ok(odd.has("video") and not odd.has("title") and not odd.has("marquee"),
 		"cabinet media: only the kinds the client knows are taken")
 	client.extra_media = ["video"]
 	var both := [
@@ -757,9 +757,9 @@ func _group_cabinet_media() -> void:
 		{"type": "video-normalized", "url": "https://x/small.mp4", "region": ""},
 	]
 	var pick: Dictionary = client._extract_media_urls(both, [], 0, 0, true)
-	_check(pick["video"] == "https://x/small.mp4", "cabinet media: the smaller normalized video is taken when there is one")
+	_ok(pick["video"] == "https://x/small.mp4", "cabinet media: the smaller normalized video is taken when there is one")
 	pick = client._extract_media_urls([both[0]], [], 0, 0, true)
-	_check(pick["video"] == "https://x/big.mp4", "cabinet media: and the plain one when there is not")
+	_ok(pick["video"] == "https://x/big.mp4", "cabinet media: and the plain one when there is not")
 	# No title screen: the game's screenshot fills the title slot, so an attract shows the game, not its wheel.
 	client.extra_media = ScreenscraperClient.CABINET_MEDIA
 	var shot := [
@@ -767,12 +767,12 @@ func _group_cabinet_media() -> void:
 		{"type": "ss", "url": "https://x/ss.png", "region": "wor"},
 	]
 	pick = client._extract_media_urls(shot, ["wor"], 0, 0, true)
-	_check(pick["title"] == "https://x/ss.png", "cabinet media: with no title screen the screenshot stands in for it")
+	_ok(pick["title"] == "https://x/ss.png", "cabinet media: with no title screen the screenshot stands in for it")
 	pick = client._extract_media_urls(shot + [{"type": "sstitle", "url": "https://x/t.png", "region": "wor"}], ["wor"], 0, 0, true)
-	_check(pick["title"] == "https://x/t.png", "cabinet media: and never ahead of a real title screen")
+	_ok(pick["title"] == "https://x/t.png", "cabinet media: and never ahead of a real title screen")
 	client.extra_media = ["video"]
 	pick = client._extract_media_urls(shot, ["wor"], 0, 0, true)
-	_check(not pick.has("title"), "cabinet media: a scrape that did not ask for a title gets no screenshot either")
+	_ok(not pick.has("title"), "cabinet media: a scrape that did not ask for a title gets no screenshot either")
 	client.free()
 
 	# ScreenScraper files many arcade games under a SUB-system of Arcade (Point Blank answers as 155 "Namco
@@ -785,21 +785,21 @@ func _group_cabinet_media() -> void:
 	sub.config = ScraperConfig.new()
 	sub.extra_media = ScreenscraperClient.CABINET_MEDIA
 	var got: Dictionary = (sub._parse_jeu(jeu) as Dictionary)["media"]
-	_check(got.has("video") and got.has("title"), "cabinet media: a game answering under a sub-system of Arcade (parent 75) is an arcade game")
+	_ok(got.has("video") and got.has("title"), "cabinet media: a game answering under a sub-system of Arcade (parent 75) is an arcade game")
 	var bare := jeu.duplicate(true)
 	bare["systeme"] = {"id": "155", "text": "Namco Classics"}
 	got = (sub._parse_jeu(bare) as Dictionary)["media"]
-	_check(not got.has("video"), "cabinet media: with no parent and nothing asked about, it is judged by its own system alone")
+	_ok(not got.has("video"), "cabinet media: with no parent and nothing asked about, it is judged by its own system alone")
 	sub._requested_systemeid = ScreenscraperSystems.get_systemeid("arcade")
 	got = (sub._parse_jeu(bare) as Dictionary)["media"]
-	_check(got.has("video") and got.has("title"), "cabinet media: or by the system the scrape asked about")
+	_ok(got.has("video") and got.has("title"), "cabinet media: or by the system the scrape asked about")
 	sub._requested_systemeid = ScreenscraperSystems.get_systemeid("neogeo")
 	got = (sub._parse_jeu(bare) as Dictionary)["media"]
-	_check(got.has("video"), "cabinet media: a Neo Geo MVS cabinet's game counts too")
+	_ok(got.has("video"), "cabinet media: a Neo Geo MVS cabinet's game counts too")
 	sub._requested_systemeid = ScreenscraperSystems.get_systemeid("nes")
 	bare["systeme"] = {"id": "3", "text": "NES", "parentid": "0"}
 	got = (sub._parse_jeu(bare) as Dictionary)["media"]
-	_check(not got.has("video") and not got.has("title"), "cabinet media: a console game gets neither")
+	_ok(not got.has("video") and not got.has("title"), "cabinet media: a console game gets neither")
 	sub.free()
 
 	var rec := RecordingClient.new()
@@ -809,24 +809,24 @@ func _group_cabinet_media() -> void:
 		"video": "https://x/v.mp4", "title": "https://x/t.png"}}
 	await rec.download_all_media(result, TEST_SYSTEM, "game")
 	var types: Array = rec.got.map(func(g: Dictionary) -> String: return g["type"])
-	_check(types.has("wheel") and types.has("box") and types.has("video") and types.has("title"),
+	_ok(types.has("wheel") and types.has("box") and types.has("video") and types.has("title"),
 		"cabinet media: with no filter every type in the result is fetched")
 	rec.got.clear()
 	rec.media_filter = ["video", "title"]
 	await rec.download_all_media(result, TEST_SYSTEM, "game")
 	types = rec.got.map(func(g: Dictionary) -> String: return g["type"])
-	_check(types.size() == 2 and types.has("video") and types.has("title"),
+	_ok(types.size() == 2 and types.has("video") and types.has("title"),
 		"cabinet media: filtered, a game that has its art pays for the video and title alone (%s)" % str(types))
 	var video: Dictionary = rec.got.filter(func(g: Dictionary) -> bool: return g["type"] == "video")[0]
-	_check(str(video["dest"]).ends_with("/media/video/game.mp4"),
+	_ok(str(video["dest"]).ends_with("/media/video/game.mp4"),
 		"cabinet media: the video lands in media/video/<rom>.mp4")
 	var title: Dictionary = rec.got.filter(func(g: Dictionary) -> bool: return g["type"] == "title")[0]
-	_check(str(title["dest"]).ends_with("/media/title/game.png"),
+	_ok(str(title["dest"]).ends_with("/media/title/game.png"),
 		"cabinet media: the title in media/title/<rom>.png")
 	rec.got.clear()
 	rec.media_filter = []
 	await rec.download_all_media({"media": {"video": "https://x/clip.bin?x=1.exe"}}, TEST_SYSTEM, "game")
-	_check(str(rec.got[0]["dest"]).ends_with("/game.mp4"),
+	_ok(str(rec.got[0]["dest"]).ends_with("/game.mp4"),
 		"cabinet media: a tail that is no video extension does not name the file")
 	rec.queue_free()
 
@@ -838,18 +838,18 @@ func _group_cabinet_media() -> void:
 	var rom := _rom("cab_media.bin")
 	_gamelist.add_or_merge_rom(TEST_SYSTEM, {"game_id": "42", "name": "Done", "scraped": true},
 		{"path": "./cab_media.bin", "romname": "cab_media.bin"})
-	_check(auto.already_scraped(rom, TEST_SYSTEM), "cabinet media: the game is already scraped")
+	_ok(auto.already_scraped(rom, TEST_SYSTEM), "cabinet media: the game is already scraped")
 	_config.auto_scrape = false
 	auto.request_media(rom, TEST_SYSTEM, ScreenscraperClient.CABINET_MEDIA)
-	_check(not q.is_queued(rom), "cabinet media: with auto-scrape off no request is made")
+	_ok(not q.is_queued(rom), "cabinet media: with auto-scrape off no request is made")
 	_config.auto_scrape = true
 	auto.request(rom, TEST_SYSTEM)
-	_check(not q.is_queued(rom), "cabinet media: the ordinary request skips a game already scraped")
+	_ok(not q.is_queued(rom), "cabinet media: the ordinary request skips a game already scraped")
 	auto.request_media(rom, TEST_SYSTEM, ScreenscraperClient.CABINET_MEDIA)
-	_check(q.is_queued(rom), "cabinet media: but its video and title are asked for")
+	_ok(q.is_queued(rom), "cabinet media: but its video and title are asked for")
 	await _until_held(1)
 	var c := _client_for(rom)
-	_check(c != null and c.extra_media == ScreenscraperClient.CABINET_MEDIA and c.media_filter == ScreenscraperClient.CABINET_MEDIA,
+	_ok(c != null and c.extra_media == ScreenscraperClient.CABINET_MEDIA and c.media_filter == ScreenscraperClient.CABINET_MEDIA,
 		"cabinet media: the client is told to fetch those kinds and only those")
 	if c != null:
 		c.resolve(rom, _result("Done"))
@@ -858,7 +858,7 @@ func _group_cabinet_media() -> void:
 	auto.request(other, TEST_SYSTEM)
 	await _until_held(1)
 	var c2 := _client_for(other)
-	_check(c2 != null and c2.extra_media.is_empty() and c2.media_filter.is_empty(),
+	_ok(c2 != null and c2.extra_media.is_empty() and c2.media_filter.is_empty(),
 		"cabinet media: an ordinary scrape after it asks for nothing extra")
 	# A game already waiting for an ordinary scrape brings the extras too, and still fetches its usual art.
 	var third := _rom("cab_wait.bin")
@@ -870,17 +870,17 @@ func _group_cabinet_media() -> void:
 		blockers.append(b)
 		q.enqueue(b, TEST_SYSTEM)
 	q.enqueue(third, TEST_SYSTEM)
-	_check(q.is_queued(third), "cabinet media: a game is in the queue for an ordinary scrape")
+	_ok(q.is_queued(third), "cabinet media: a game is in the queue for an ordinary scrape")
 	auto.request_media(third, TEST_SYSTEM, ScreenscraperClient.CABINET_MEDIA)
 	var waiting_item := {}
 	for item: Dictionary in q._queue:
 		if str(item["rom"]) == third:
 			waiting_item = item
 	if not waiting_item.is_empty():
-		_check(waiting_item.get("extra", []) == ScreenscraperClient.CABINET_MEDIA and (waiting_item.get("media", []) as Array).is_empty(),
+		_ok(waiting_item.get("extra", []) == ScreenscraperClient.CABINET_MEDIA and (waiting_item.get("media", []) as Array).is_empty(),
 			"cabinet media: it brings the extras and is not narrowed to them (the wheel and box still come)")
 	else:
-		_check(true, "cabinet media: (the game had already started; nothing to join)")
-	_check(not q.add_extra_media(_rom("never_queued.bin"), ["video"]), "cabinet media: a game that is not waiting cannot join")
+		_ok(true, "cabinet media: (the game had already started; nothing to join)")
+	_ok(not q.add_extra_media(_rom("never_queued.bin"), ["video"]), "cabinet media: a game that is not waiting cannot join")
 	auto.queue_free()
 	q.queue_free()
