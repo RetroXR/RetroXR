@@ -22,10 +22,17 @@ const DEFAULT := "na"
 ## gen_wall_outlet.gd bakes one per region from this table), its two receptacles
 ## -- where the seated plug's origin goes, turned by "rotation", and the socket
 ## connector, whose holes are MainsSpecs.SOCKETS' -- the cords whose wall plug
-## fits it, listed first on the Power tab, and the power strip sold there: its
-## sockets and plug, and the "deck" its sockets stand in on top of the US body,
-## "height" mm tall with the sockets "port" mm up it, using "every" other one
-## where the region's plugs are too wide for the strip's 36 mm pitch.
+## fits it, listed first on the Power tab, and the power strip sold there.
+##
+## A strip is the region's typical household one, sized off a real product: its
+## "socket" and wall "plug", how many "outlets" its label counts, and -- for all
+## but the US strip, which is the scene's own body -- its body "mesh" (Tools/gen/
+## gen_wall_outlet.gd bakes it from this table), "size" (length, width, height,
+## mm), the "switch" room at the cord end (0: none), and its sockets: "layout"
+## laid down "repeat" times from the far end, each entry one socket "pitch" mm
+## long, its own "socket" if not the strip's, turned "turn" degrees on the top
+## (as a plate's "rotation"), moved "offset" mm, and with its face "well" mm
+## down a recess (MainsSpecs' depth). See strip_sockets.
 ##
 ## Positions are metres on the plate, +X across the wall, +Y up, +Z out of it. A
 ## flush receptacle's face is at its z; a recessed one's well runs from the plate
@@ -44,8 +51,9 @@ const REGIONS := {
 		],
 		"cords": ["power_cord", "nema_1_15_to_c7_cord",
 			"nema_1_15_polarized_to_c7_polarized_cord", "power_strip"],
+		# The US body (power_strip.glb) and its six sockets, as the scene has them.
 		"strip": {"socket": "nema_5_15_plug", "plug": "nema_5_15_plug",
-			"plug_mesh": "res://Scenes/Objects/cables/nema_5_15_plug_ivory.res"},
+			"plug_mesh": "res://Scenes/Objects/cables/nema_5_15_plug_ivory.res", "outlets": 6},
 	},
 	"jp": {
 		"label": "Japan",
@@ -60,10 +68,12 @@ const REGIONS := {
 		],
 		"cords": ["nema_1_15_to_c7_cord", "nema_1_15_polarized_to_c7_polarized_cord",
 			"power_strip"],
+		# Buffalo BSTAPST2420WH: 128.5 x 47 x 23, four outlets, no switch; the slot
+		# pairs across it (EST, ~29 pitch).
 		"strip": {"socket": "jis_c8303_socket", "plug": "nema_1_15_plug",
 			"plug_mesh": "res://Scenes/Objects/cables/nema_1_15_plug.res",
-			"deck": "res://Scenes/Objects/appliances/power_strip_deck_jp.res",
-			"height": 3.0, "port": 3.0, "every": 1},
+			"mesh": "res://Scenes/Objects/appliances/power_strip_jp.res", "size": Vector3(128.5, 47, 23), "switch": 0.0,
+			"outlets": 4, "layout": [{"pitch": 29.0, "turn": 90.0}], "repeat": 4},
 	},
 	"eu": {
 		"label": "Europe (Schuko)",
@@ -77,10 +87,12 @@ const REGIONS := {
 				"connector": "cee_7_3_socket"},
 		],
 		"cords": ["cee_7_7_cord", "europlug_c7_cord", "power_strip"],
+		# Brennenstuhl Eco-Line 6-fach, sockets at 45 degrees (its datasheet). The
+		# 360 x 90 x 65 a retailer lists reads as the box: body EST 350 x 55 x 40.
 		"strip": {"socket": "cee_7_3_socket", "plug": "cee_7_7_plug",
 			"plug_mesh": "res://Scenes/Objects/cables/cee_7_7_plug.res",
-			"deck": "res://Scenes/Objects/appliances/power_strip_deck_eu.res",
-			"height": 19.0, "port": 1.5, "every": 2},
+			"mesh": "res://Scenes/Objects/appliances/power_strip_eu.res", "size": Vector3(350, 55, 40), "switch": 40.0,
+			"outlets": 6, "layout": [{"pitch": 46.0, "turn": 45.0, "well": 17.5}], "repeat": 6},
 	},
 	"fr": {
 		"label": "France / Belgium",
@@ -94,10 +106,12 @@ const REGIONS := {
 				"connector": "cee_7_5_socket"},
 		],
 		"cords": ["cee_7_7_cord", "europlug_c7_cord", "power_strip"],
+		# Legrand 4 x 2P+T, switched (EAN 3414973063899): 210 x 55 x 38, at 45
+		# degrees.
 		"strip": {"socket": "cee_7_5_socket", "plug": "cee_7_7_plug",
 			"plug_mesh": "res://Scenes/Objects/cables/cee_7_7_plug.res",
-			"deck": "res://Scenes/Objects/appliances/power_strip_deck_fr.res",
-			"height": 16.5, "port": 1.5, "every": 2},
+			"mesh": "res://Scenes/Objects/appliances/power_strip_fr.res", "size": Vector3(210, 55, 38), "switch": 26.0,
+			"outlets": 4, "layout": [{"pitch": 45.0, "turn": 45.0, "well": 15.0}], "repeat": 4},
 	},
 	"uk": {
 		"label": "UK / Ireland",
@@ -111,10 +125,13 @@ const REGIONS := {
 				"connector": "bs_1363_plug"},
 		],
 		"cords": ["bs_1363_cord", "bs_1363_c7_cord", "power_strip"],
+		# Masterplug 4-gang (BFG5N-MP): 243 x 55 x 27, unswitched (each plug has its
+		# fuse), the sockets square to it.
 		"strip": {"socket": "bs_1363_plug", "plug": "bs_1363_plug",
 			"plug_mesh": "res://Scenes/Objects/cables/bs_1363_plug.res",
-			"deck": "res://Scenes/Objects/appliances/power_strip_deck_uk.res",
-			"height": 3.0, "port": 3.0, "every": 2},
+			"mesh": "res://Scenes/Objects/appliances/power_strip_uk.res", "size": Vector3(243, 55, 27), "switch": 0.0,
+			"outlets": 4, "layout": [{"pitch": 55.0, "turn": 0.0, "offset": Vector2(0, -11)}],
+			"repeat": 4},
 	},
 	"au": {
 		"label": "Australia / New Zealand",
@@ -128,10 +145,12 @@ const REGIONS := {
 				"connector": "as_3112_socket"},
 		],
 		"cords": ["as_3112_cord", "as_3112_c7_cord", "power_strip"],
+		# HPM R105 4-outlet powerboard: 230 x 50 x 25, no switch.
 		"strip": {"socket": "as_3112_socket", "plug": "as_3112_plug",
 			"plug_mesh": "res://Scenes/Objects/cables/as_3112_plug.res",
-			"deck": "res://Scenes/Objects/appliances/power_strip_deck_au.res",
-			"height": 3.0, "port": 3.0, "every": 1},
+			"mesh": "res://Scenes/Objects/appliances/power_strip_au.res", "size": Vector3(230, 50, 25), "switch": 0.0,
+			"outlets": 4, "layout": [{"pitch": 50.0, "turn": 0.0, "offset": Vector2(0, 2)}],
+			"repeat": 4},
 	},
 	"cn": {
 		"label": "China",
@@ -147,10 +166,14 @@ const REGIONS := {
 				"rotation": Vector3(0, 0, 180), "connector": "as_3112_socket"},
 		],
 		"cords": ["as_3112_cord", "nema_1_15_to_c7_cord", "power_strip"],
+		# Bull GN-B3040: four "five-hole" positions and a master switch; size EST
+		# 290 x 55 x 37. Each position the plate's pair along the strip, the
+		# three-slot one earth toward the two-slot one.
 		"strip": {"socket": "as_3112_socket", "plug": "as_3112_plug",
 			"plug_mesh": "res://Scenes/Objects/cables/as_3112_plug.res",
-			"deck": "res://Scenes/Objects/appliances/power_strip_deck_cn.res",
-			"height": 3.0, "port": 3.0, "every": 1},
+			"mesh": "res://Scenes/Objects/appliances/power_strip_cn.res", "size": Vector3(290, 55, 37), "switch": 40.0,
+			"outlets": 4, "layout": [{"pitch": 30.0, "turn": 90.0},
+				{"socket": "gb_1002_2pin_socket", "pitch": 24.0, "turn": -90.0}], "repeat": 4},
 	},
 	"ch": {
 		"label": "Switzerland",
@@ -164,10 +187,12 @@ const REGIONS := {
 				"connector": "sev_1011_socket"},
 		],
 		"cords": ["sev_1011_cord", "europlug_c7_cord", "power_strip"],
+		# Max Hauri Basic Line 3 x T13: 143 x 45 x 37, no switch; the wells' long
+		# side across it.
 		"strip": {"socket": "sev_1011_socket", "plug": "sev_1011_plug",
 			"plug_mesh": "res://Scenes/Objects/cables/sev_1011_plug.res",
-			"deck": "res://Scenes/Objects/appliances/power_strip_deck_ch.res",
-			"height": 14.5, "port": 1.5, "every": 1},
+			"mesh": "res://Scenes/Objects/appliances/power_strip_ch.res", "size": Vector3(143, 45, 37), "switch": 0.0,
+			"outlets": 3, "layout": [{"pitch": 40.0, "turn": 90.0, "well": 13.0}], "repeat": 3},
 	},
 	"it": {
 		"label": "Italy",
@@ -182,10 +207,15 @@ const REGIONS := {
 				"rotation": Vector3(0, 0, 90), "connector": "cei_23_50_socket"},
 		],
 		"cords": ["cei_23_50_cord", "europlug_c7_cord", "power_strip"],
+		# BTicino Poker 3684DB: 290 x 52 x 45, switched. Its four sockets each take
+		# a Schuko or a bipasso; with no such socket here, two of each, as the
+		# cheaper ciabatte alternate them.
 		"strip": {"socket": "cei_23_50_socket", "plug": "cei_23_50_plug",
 			"plug_mesh": "res://Scenes/Objects/cables/cei_23_50_plug.res",
-			"deck": "res://Scenes/Objects/appliances/power_strip_deck_it.res",
-			"height": 3.0, "port": 3.0, "every": 1},
+			"mesh": "res://Scenes/Objects/appliances/power_strip_it.res", "size": Vector3(290, 52, 45), "switch": 40.0,
+			"outlets": 4, "layout": [
+				{"socket": "cee_7_3_socket", "pitch": 55.0, "turn": 45.0, "well": 17.5},
+				{"pitch": 45.0, "turn": 90.0}], "repeat": 2},
 	},
 	"dk": {
 		"label": "Denmark",
@@ -199,10 +229,13 @@ const REGIONS := {
 				"connector": "ds_k_socket"},
 		],
 		"cords": ["ds_k_cord", "europlug_c7_cord", "cee_7_7_cord", "power_strip"],
+		# Type K strips with dimensions found none (most sold now earth Schuko
+		# style): EST 200 x 55 x 40, four, no switch.
 		"strip": {"socket": "ds_k_socket", "plug": "ds_k_plug",
 			"plug_mesh": "res://Scenes/Objects/cables/ds_k_plug.res",
-			"deck": "res://Scenes/Objects/appliances/power_strip_deck_dk.res",
-			"height": 3.0, "port": 3.0, "every": 1},
+			"mesh": "res://Scenes/Objects/appliances/power_strip_dk.res", "size": Vector3(200, 55, 40), "switch": 0.0,
+			"outlets": 4, "layout": [{"pitch": 45.0, "turn": 0.0, "offset": Vector2(0, 5)}],
+			"repeat": 4},
 	},
 	"za": {
 		"label": "South Africa",
@@ -216,10 +249,17 @@ const REGIONS := {
 				"connector": "bs_546_plug"},
 		],
 		"cords": ["sans_164_2_cord", "bs_546_cord", "europlug_c7_cord", "power_strip"],
+		# The usual mix, two 16 A Type M and two SANS 164-2 (SWD 75018 has those
+		# and a Schuko); size EST 300 x 62 x 42, switched. The M's earth runs along
+		# it.
 		"strip": {"socket": "sans_164_2_socket", "plug": "sans_164_2_plug",
 			"plug_mesh": "res://Scenes/Objects/cables/sans_164_2_plug.res",
-			"deck": "res://Scenes/Objects/appliances/power_strip_deck_za.res",
-			"height": 11.5, "port": 1.5, "every": 1},
+			"mesh": "res://Scenes/Objects/appliances/power_strip_za.res", "size": Vector3(300, 62, 42), "switch": 40.0,
+			"outlets": 4, "layout": [
+				{"socket": "bs_546_plug", "pitch": 62.0, "turn": -90.0, "offset": Vector2(-14, 0)},
+				{"socket": "bs_546_plug", "pitch": 62.0, "turn": -90.0, "offset": Vector2(-14, 0)},
+				{"pitch": 42.0, "turn": 90.0, "well": 10.0},
+				{"pitch": 42.0, "turn": 90.0, "well": 10.0}], "repeat": 1},
 	},
 	"in": {
 		"label": "India",
@@ -233,10 +273,13 @@ const REGIONS := {
 				"connector": "bs_546_plug"},
 		],
 		"cords": ["is_1293_cord", "bs_546_cord", "europlug_c7_cord", "power_strip"],
-		"strip": {"socket": "is_1293_socket", "plug": "is_1293_plug",
+		# Anchor 22047 4-way "international": 275 x 55 x 45, a master switch. Its
+		# sockets take D, flat-pin and round two-pin plugs: the universal socket.
+		"strip": {"socket": "universal_socket", "plug": "is_1293_plug",
 			"plug_mesh": "res://Scenes/Objects/cables/is_1293_plug.res",
-			"deck": "res://Scenes/Objects/appliances/power_strip_deck_in.res",
-			"height": 3.0, "port": 3.0, "every": 2},
+			"mesh": "res://Scenes/Objects/appliances/power_strip_in.res", "size": Vector3(275, 55, 45), "switch": 40.0,
+			"outlets": 4, "layout": [{"pitch": 55.0, "turn": -90.0, "offset": Vector2(-9, 0)}],
+			"repeat": 4},
 	},
 	"il": {
 		"label": "Israel",
@@ -250,10 +293,12 @@ const REGIONS := {
 				"connector": "si_32_socket"},
 		],
 		"cords": ["si_32_cord", "europlug_c7_cord", "power_strip"],
+		# Gold Line MP-411, four; no dimensions given: EST 210 x 50 x 35, switched.
 		"strip": {"socket": "si_32_socket", "plug": "si_32_plug",
 			"plug_mesh": "res://Scenes/Objects/cables/si_32_plug.res",
-			"deck": "res://Scenes/Objects/appliances/power_strip_deck_il.res",
-			"height": 3.0, "port": 3.0, "every": 1},
+			"mesh": "res://Scenes/Objects/appliances/power_strip_il.res", "size": Vector3(210, 50, 35), "switch": 30.0,
+			"outlets": 4, "layout": [{"pitch": 42.0, "turn": 0.0, "offset": Vector2(0, 5)}],
+			"repeat": 4},
 	},
 	"br": {
 		"label": "Brazil",
@@ -267,10 +312,12 @@ const REGIONS := {
 				"connector": "nbr_14136_socket"},
 		],
 		"cords": ["nbr_14136_cord", "europlug_c7_cord", "power_strip"],
+		# Intelbras EPE 1004 filtro de linha: 215 x 45 x 40, a lit switch; the wells'
+		# long side across it.
 		"strip": {"socket": "nbr_14136_socket", "plug": "nbr_14136_plug",
 			"plug_mesh": "res://Scenes/Objects/cables/nbr_14136_plug.res",
-			"deck": "res://Scenes/Objects/appliances/power_strip_deck_br.res",
-			"height": 11.5, "port": 1.5, "every": 1},
+			"mesh": "res://Scenes/Objects/appliances/power_strip_br.res", "size": Vector3(215, 45, 40), "switch": 40.0,
+			"outlets": 4, "layout": [{"pitch": 40.0, "turn": 90.0, "well": 10.0}], "repeat": 4},
 	},
 }
 
@@ -393,3 +440,43 @@ static func for_locale(locale: String) -> String:
 ## Whether a plug of `connector` goes into a socket of `socket_connector`.
 static func fits(connector: String, socket_connector: String) -> bool:
 	return Connectors.groups_of(connector).has(socket_connector)
+
+
+## How many outlets the region's strip has, as its label counts them (a Chinese
+## five-hole position is one).
+static func strip_outlets(id: String) -> int:
+	return int((of(id).get("strip", {}) as Dictionary).get("outlets", 6))
+
+
+## The sockets on the region's own strip body, Socket1 at the far end, in the
+## frame its mesh is baked in: a wall plate lying on its back, +X along the strip
+## toward the switch and cord end, +Y across it, +Z up, the origin on the floor
+## under the middle. Each as a plate's socket: name, connector, position
+## (metres), rotation. Empty for a strip that keeps the scene's US body.
+static func strip_sockets(id: String) -> Array:
+	var strip: Dictionary = of(id).get("strip", {})
+	if not strip.has("size"):
+		return []
+	var size: Vector3 = strip["size"]
+	var entries: Array = []
+	for i in maxi(1, int(strip.get("repeat", 1))):
+		entries.append_array(strip.get("layout", [{}]))
+	var run := 0.0
+	for entry: Dictionary in entries:
+		run += float(entry.get("pitch", 40.0))
+	# The sockets stand centred in what the switch leaves of the top.
+	var room := float(strip.get("switch", 0.0))
+	var x := (-size.x * 0.5 + (size.x * 0.5 - room)) * 0.5 - run * 0.5
+	var out := []
+	for entry: Dictionary in entries:
+		var pitch := float(entry.get("pitch", 40.0))
+		var offset: Vector2 = entry.get("offset", Vector2.ZERO)
+		out.append({
+			"name": "Socket%d" % (out.size() + 1),
+			"connector": str(entry.get("socket", strip["socket"])),
+			"position": Vector3(x + pitch * 0.5 + offset.x, offset.y,
+				size.z - float(entry.get("well", 0.0))) * 0.001,
+			"rotation": Vector3(0, 0, float(entry.get("turn", 0.0))),
+		})
+		x += pitch
+	return out

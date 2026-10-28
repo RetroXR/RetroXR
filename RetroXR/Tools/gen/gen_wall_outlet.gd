@@ -1,5 +1,6 @@
 ## Bakes one wall plate per mains region: the US duplex, a Schuko pair, a UK
-## twin, and the rest of MainsRegions.REGIONS.
+## twin, and the rest of MainsRegions.REGIONS; and each region's power strip
+## body, which is a plate too, lying on its back.
 ##
 ##   godot --headless --path RetroXR --script res://Tools/gen/gen_wall_outlet.gd
 ##
@@ -92,34 +93,17 @@ func _init() -> void:
 			continue
 		if not _bake(id, regions[id]):
 			failed += 1
+		# The region's power strip: a plate too, lying on its back, as long and
+		# wide as the strip and as tall (MainsRegions.strip_sockets).
 		var strip: Dictionary = regions[id].get("strip", {})
-		if strip.has("deck") and not _bake("strip_" + id, _deck_region(strip)):
+		if strip.has("size") and not _bake("strip_" + id,
+				{"sockets": MainsRegions.strip_sockets(id), "mesh": strip["mesh"]}):
 			failed += 1
 	quit(1 if failed > 0 else 0)
 
 
-## The power strip's sockets along its top, at the US body's six positions (the
-## scene's Socket1..6), as a plate region: its "deck" covers them, its sockets are
-## the region's, turned so their up runs along the strip (power_strip.tscn), and
-## only every other one where the strip says so.
-const STRIP_X := [-0.110, -0.074, -0.038, -0.002, 0.034, 0.070]
-const DECK_X := -0.0215
-
-
-func _deck_region(strip: Dictionary) -> Dictionary:
-	var sockets := []
-	var every := maxi(1, int(strip.get("every", 1)))
-	for i in STRIP_X.size():
-		if i % every != 0:
-			continue
-		sockets.append({"name": "Socket%d" % (i + 1), "connector": strip["socket"],
-			"position": Vector3(float(STRIP_X[i]) - DECK_X, 0, float(strip["port"]) * 0.001),
-			"rotation": Vector3(0, 0, -90)})
-	return {"sockets": sockets, "mesh": strip["deck"]}
-
-
 func _bake(id: String, region: Dictionary) -> bool:
-	var plate: Dictionary = PLATES[id] if PLATES.has(id) else _deck_plate(id)
+	var plate: Dictionary = PLATES[id] if PLATES.has(id) else _strip_plate(id)
 	var thick := float(plate["thick"]) * 0.001
 	var size: Vector2 = plate["size"] * 0.0005
 	var radius := float(plate["radius"]) * 0.001
@@ -128,6 +112,7 @@ func _bake(id: String, region: Dictionary) -> bool:
 	var body := SurfaceTool.new(); body.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var dark := SurfaceTool.new(); dark.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var metal := SurfaceTool.new(); metal.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var lit := SurfaceTool.new(); lit.begin(Mesh.PRIMITIVE_TRIANGLES)
 
 	# The wells cut through the face, as outlines on the plate.
 	var wells: Array[PackedVector2Array] = []
@@ -152,6 +137,9 @@ func _bake(id: String, region: Dictionary) -> bool:
 	var face_ring := _rounded(size - Vector2(BEVEL, BEVEL), radius - BEVEL * 0.5, thick)
 	_loft(body, back, shoulder, 0)
 	_loft(body, shoulder, face_ring, 1)
+	if bool(plate.get("closed", false)):
+		# A strip stands on a table, and gets turned over.
+		_fan(body, back, 0.0, false)
 	if not _face(body, face_ring, wells, thick):
 		print("[gen] %s: the face did not triangulate" % id)
 		ok = false
@@ -162,6 +150,12 @@ func _bake(id: String, region: Dictionary) -> bool:
 	var rocker: Vector2 = plate.get("switch_size", Vector2(11.0, 17.0)) * 0.001
 	for at: Vector2 in plate.get("switches", []):
 		var c := Vector3(at.x, at.y, 0) * 0.001
+		# A strip's rocker is the red, lit one in a dark bezel.
+		if bool(plate.get("closed", false)):
+			_box(dark, c + Vector3(0, 0, thick + 0.0005),
+				Vector3(rocker.x + 0.004, rocker.y + 0.004, 0.0010))
+			_box(lit, c + Vector3(0, 0, thick + 0.0030), Vector3(rocker.x, rocker.y, 0.0040))
+			continue
 		_box(body, c + Vector3(0, 0, thick + 0.0010), Vector3(rocker.x, rocker.y, 0.0020))
 		# The red "on" flash on the rocker's lower half.
 		_box(dark, c + Vector3(0, -rocker.y * 0.25, thick + 0.0021),
@@ -172,12 +166,16 @@ func _bake(id: String, region: Dictionary) -> bool:
 		_box(dark, c + Vector3(0, 0, thick + 0.00085), Vector3(0.0047, 0.0008, 0.0001))
 
 	var mesh := ArrayMesh.new()
+	var red := PlugMats.matte(Color(0.80, 0.06, 0.01), 0.3)
+	red.emission_enabled = true
+	red.emission = Color(0.8, 0.06, 0.0)
+	red.emission_energy_multiplier = 0.4
 	var mats := [PlugMats.matte(plate["tone"], 0.80),
 		PlugMats.matte(Color(0.075, 0.070, 0.064), 0.94),
-		PlugMats.matte(Color(0.70, 0.68, 0.62), 0.35)]
+		PlugMats.matte(Color(0.70, 0.68, 0.62), 0.35), red]
 	var tris := 0
-	for i in 3:
-		var st: SurfaceTool = [body, dark, metal][i]
+	for i in 4:
+		var st: SurfaceTool = [body, dark, metal, lit][i]
 		var arrays := st.commit_to_arrays()
 		if arrays.is_empty() or arrays[Mesh.ARRAY_VERTEX] == null:
 			continue
@@ -193,14 +191,15 @@ func _bake(id: String, region: Dictionary) -> bool:
 	return ok and err == OK
 
 
-## A strip deck's plate: the top of the US body it sits on, 227 x 52, as tall as
-## its wells need.
-func _deck_plate(id: String) -> Dictionary:
-	var regions: Dictionary = (load("res://Scripts/Data/mains_regions.gd") as GDScript) \
-		.get_script_constant_map()["REGIONS"]
-	var strip: Dictionary = regions[id.trim_prefix("strip_")]["strip"]
-	return {"size": Vector2(227, 50), "radius": 3.0, "thick": float(strip["height"]),
-		"tone": WHITE, "face": "flat"}
+## A strip's body as a plate: its length and width, its height thick, closed
+## underneath, and its rocker in the middle of the switch room at the cord end.
+func _strip_plate(id: String) -> Dictionary:
+	var strip: Dictionary = MainsRegions.of(id.trim_prefix("strip_"))["strip"]
+	var size: Vector3 = strip["size"]
+	var room := float(strip.get("switch", 0.0))
+	return {"size": Vector2(size.x, size.y), "radius": 6.0, "thick": size.z, "tone": WHITE,
+		"face": "flat", "closed": true, "switch_size": Vector2(12.0, 20.0),
+		"switches": [Vector2(size.x * 0.5 - room * 0.5, 0)] if room > 0.0 else []}
 
 
 ## One receptacle: its face (or well), the dark apertures of its holes, and any

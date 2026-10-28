@@ -1,0 +1,64 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/power/travel_adapter.gd" id="1_adapter"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/power/power_plug.gd" id="2_plug"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/appliances/travel_adapter_nema_5_15_plug.res" id="3_mesh"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/power_port.tscn" id="4_port"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="5_highlight"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="6_grab"]
+
+[sub_resource type="BoxShape3D" id="Shape_block"]
+size = Vector3(0.05, 0.061, 0.058)
+
+[sub_resource type="BoxShape3D" id="Shape_pointer"]
+size = Vector3(0.06, 0.071, 0.068)
+
+[sub_resource type="PhysicsMaterial" id="Phys_plug"]
+friction = 0.8
+
+; ── TravelAdapter: the region's prongs in front, a universal socket behind ─────
+;
+; The whole adapter is its WallPlug: what the hand carries and the wall holds. The
+; root never moves. TravelAdapter.set_region swaps the mesh for the region's
+; prongs and fits the boxes and the socket to it; the numbers here are the US
+; one's.
+[node name="TravelAdapter" type="Node3D"]
+script = ExtResource("1_adapter")
+
+[node name="WallPlug" type="RigidBody3D" parent="."]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("Phys_plug")
+mass = 0.09
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plug")
+connector = "nema_5_15_plug"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WallPlug"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0055, -0.0186)
+shape = SubResource("Shape_block")
+
+[node name="PlugTip" type="MeshInstance3D" parent="WallPlug"]
+mesh = ExtResource("3_mesh")
+
+[node name="PointerArea" type="StaticBody3D" parent="WallPlug"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WallPlug/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0055, -0.0186)
+shape = SubResource("Shape_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="WallPlug"]
+script = ExtResource("5_highlight")
+
+[node name="SnapGrabPoint" parent="WallPlug" instance=ExtResource("6_grab")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
+
+; The universal socket on the block's back, facing out of it (the plug's -Z), its
+; up the plug's: turned half round about Y. Named "Socket", which a save writes.
+[node name="Socket" parent="WallPlug" instance=ExtResource("4_port")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.0412)
+connector = "universal_socket"

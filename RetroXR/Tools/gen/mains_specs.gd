@@ -344,6 +344,34 @@ const SOCKETS := {
 			[{"shape": "round", "at": Vector2(0, -9.5), "d": 5.0}],
 		],
 	},
+	# The travel adapter's universal socket: each hole the union of the holes of
+	# every socket above, so every wall plug the game ships goes in. A real one
+	# (SKROSS, the all-in-one cubes) takes A/B/C/E/F/G/I and usually J and L, and
+	# leaves out the big round pins of D and M; the game's takes those too.
+	"universal_socket": {
+		"holes": [
+			[{"shape": "rect", "at": Vector2(-6.35, 4.2), "size": Vector2(2.0, 9.0)},
+				{"shape": "rect", "at": Vector2(-6.86, 3.96), "size": Vector2(2.3, 7.3), "angle": -30.0},
+				{"shape": "round", "at": Vector2(-9.5, 0), "d": 5.5},
+				{"shape": "rect", "at": Vector2(-11.1, 0), "size": Vector2(7.2, 4.8)},
+				{"shape": "round", "at": Vector2(-12.7, 0), "d": 8.0}],
+			[{"shape": "rect", "at": Vector2(6.35, 4.2), "size": Vector2(2.0, 9.0)},
+				{"shape": "rect", "at": Vector2(6.86, 3.96), "size": Vector2(2.3, 7.3), "angle": 30.0},
+				{"shape": "round", "at": Vector2(9.5, 0), "d": 5.5},
+				{"shape": "rect", "at": Vector2(11.1, 0), "size": Vector2(7.2, 4.8)},
+				{"shape": "round", "at": Vector2(12.7, 0), "d": 8.0}],
+			[{"shape": "round", "at": Vector2(0, 0), "d": 5.3},
+				{"shape": "round", "at": Vector2(0, -3), "d": 5.0},
+				{"shape": "round", "at": Vector2(0, -5), "d": 4.7},
+				{"shape": "round", "at": Vector2(0, -7.7), "d": 5.6},
+				{"shape": "round", "at": Vector2(0, -9.5), "d": 5.0},
+				{"shape": "rect", "at": Vector2(0, -10.31), "size": Vector2(2.3, 7.3)},
+				{"shape": "rect", "at": Vector2(0, -13), "size": Vector2(7.5, 5.0)},
+				{"shape": "round", "at": Vector2(0, 22.2), "d": 8.0},
+				{"shape": "rect", "at": Vector2(0, 22.2), "size": Vector2(4.8, 8.8)},
+				{"shape": "round", "at": Vector2(0, 28.6), "d": 10.0}],
+		],
+	},
 }
 
 

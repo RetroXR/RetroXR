@@ -1519,11 +1519,13 @@ func _on_xr_display_mode_changed(_mode: int) -> void:
 			ctrl.call("refresh_xr_display_mode")
 
 
-## Every plate and strip in the room swaps its receptacles; the menu re-sorts its
-## Power tab so the region's own cords come first. Nothing to apply at startup:
-## each reads AppPrefs.mains_region as it enters the tree.
+## Every plate and strip in the room swaps its receptacles, and every travel
+## adapter its prongs; the menu re-sorts its Power tab so the region's own cords
+## come first. Nothing to apply at startup: each reads AppPrefs.mains_region as it
+## enters the tree.
 func _on_mains_region_changed(region: String) -> void:
 	PowerStrip.apply_region(get_tree(), region)
+	TravelAdapter.apply_region(get_tree(), region)
 	WallOutlet.apply_region(get_tree(), region)
 	var spawn_menu := _get_menu()
 	if spawn_menu != null:

@@ -37,6 +37,7 @@ func _ready() -> void:
 	await _test_outlet()
 	await _test_outlet_switch_live()
 	await _test_strip()
+	await _test_adapter()
 	_test_prefs()
 
 	MainsRegions.extra = extra_before
@@ -326,26 +327,110 @@ func _test_strip() -> void:
 	_ok(strip.wall_plug.is_in_group("nema_5_15_plug") \
 			and not strip.wall_plug.is_in_group("nema_1_15_plug"),
 		"strip/and back to a grounded plug")
-	_ok(strip.get_node_or_null("Body/RegionDeck") == null or \
-			strip.get_node("Body/RegionDeck").is_queued_for_deletion(),
-		"strip/a US strip wears no deck")
+	_ok(strip.get_node_or_null("Body/RegionBody") == null,
+		"strip/a test region's strip keeps the US body")
 
-	# A UK strip: its deck, and only every other socket, since a BS 1363 plug is
-	# wider than the US strip's pitch.
+	# A UK strip is the four-gang sold there: its own body, as long as the table
+	# says, four UK sockets on it, and the cord out of its end.
 	strip.set_region("uk")
-	var deck := strip.get_node_or_null("Body/RegionDeck") as MeshInstance3D
-	_ok(deck != null and deck.mesh != null, "strip/a UK strip wears its deck")
+	var uk: Dictionary = MainsRegions.REGIONS["uk"]["strip"]
+	var body := strip.get_node_or_null("Body/RegionBody") as MeshInstance3D
+	_ok(body != null and body.mesh != null, "strip/a UK strip wears its own body")
+	_ok(not (strip.get_node("Body/Shell") as Node3D).visible, "strip/and not the US one")
+	if body != null and body.mesh != null:
+		_ok(absf(body.mesh.get_aabb().size.x - (uk["size"] as Vector3).x * 0.001) < 0.001,
+			"strip/its body is the table's length")
 	var live := 0
 	for s in strip.sockets():
 		if s.enabled:
 			live += 1
 			_eq(s.snap_require, "bs_1363_plug", "strip/a UK socket takes a UK plug")
-	_eq(live, 3, "strip/a UK strip uses every other socket")
+			_ok(s.global_basis.z.dot(Vector3.UP) > 0.99, "strip/%s faces up" % s.name)
+	_eq(live, MainsRegions.strip_outlets("uk"), "strip/a UK strip has its four")
+	var attach := strip.get_node("Body/Shell/PowerStrip/CordAnchor") as Node3D
+	var along := attach.global_position.x - (strip.get_node("Body") as Node3D).global_position.x
+	_ok(absf(along - (uk["size"] as Vector3).x * 0.0005) < 0.001,
+		"strip/its cord leaves the end of the UK body")
+	# China's: a two-slot and a three-slot opening at each of four positions,
+	# more sockets than the scene has.
+	strip.set_region("cn")
+	live = 0
+	for s in strip.sockets():
+		live += 1 if s.enabled else 0
+	_eq(live, 8, "strip/a Chinese strip opens both halves of four five-hole positions")
 	strip.set_region(MainsRegions.DEFAULT)
 	live = 0
 	for s in strip.sockets():
 		live += 1 if s.enabled else 0
 	_eq(live, 6, "strip/a US strip all six again")
+	_eq(strip.sockets().size(), 6, "strip/and the sockets it made are gone")
+	_ok((strip.get_node("Body/Shell") as Node3D).visible, "strip/the US body is back")
+	await _clear(room)
+
+
+## The travel adapter: its prongs the region's, any wall plug in its socket but
+## itself, out of a wall the region change leaves it unable to use, and back
+## from a save.
+func _test_adapter() -> void:
+	var room := Node3D.new()
+	add_child(room)
+	var plate := preload("res://Scenes/Objects/room/wall_outlet.tscn").instantiate() as WallOutlet
+	room.add_child(plate)
+	var scene := preload("res://Scenes/Objects/appliances/travel_adapter.tscn")
+	var adapter := scene.instantiate() as TravelAdapter
+	room.add_child(adapter)
+	adapter.add_to_group("spawned")
+	var uk := preload("res://Scenes/Objects/cables/bs_1363_cord.tscn").instantiate() as PowerCord
+	room.add_child(uk)
+	await get_tree().process_frame
+
+	_ok(adapter.wall_plug.is_in_group("nema_5_15_plug"), "adapter/US prongs in a US room")
+	var top := plate.get_node("TopPort") as PowerPort
+	_ok(top.can_preview(adapter.wall_plug), "adapter/it goes into the US wall")
+	_ok(not top.can_preview(uk.wall_plug), "adapter/a UK plug does not")
+	for plug: String in SPECS.PLUGS:
+		_ok(MainsRegions.fits(plug, adapter.socket.snap_require),
+			"adapter/a %s goes into its socket" % plug)
+	_ok(adapter.socket.can_preview(uk.wall_plug), "adapter/the UK plug goes into it")
+	_ok(not adapter.socket.can_preview(adapter.wall_plug), "adapter/but not itself")
+	var tip := adapter.wall_plug.get_node("PlugTip") as MeshInstance3D
+	var back := adapter.wall_plug.to_local(adapter.socket.global_position)
+	_ok(absf(back.z - tip.mesh.get_aabb().position.z) < 0.0005,
+		"adapter/its socket is on the block's back")
+
+	top.pick_up_object(adapter.wall_plug)
+	adapter.socket.pick_up_object(uk.wall_plug)
+	await get_tree().process_frame
+	_ok(PowerCord.socket_holding(uk.wall_plug) == adapter.socket,
+		"adapter/the UK plug seats in it")
+	_ok(uk.seating()[0].get("device") == adapter, "adapter/and names the adapter as its device")
+	var sp := ScenePersistence.new("arcade")
+	var entry := sp.serialize_node(adapter, 0, {adapter: 0})
+	_eq(str(entry.get("kind", "")), "travel_adapter", "adapter/serializes by kind")
+
+	# A region whose wall the US prongs do not fit: the prongs change, it comes
+	# out of the wall, and the plug in it stays.
+	TravelAdapter.apply_region(get_tree(), "uk")
+	WallOutlet.apply_region(get_tree(), "uk")
+	await get_tree().process_frame
+	var british := adapter.wall_plug.is_in_group("bs_1363_plug")
+	_ok(british and not adapter.wall_plug.is_in_group("nema_5_15_plug"),
+		"adapter/UK prongs in a UK room")
+	_ok(PowerCord.socket_holding(adapter.wall_plug) == null,
+		"adapter/out of a socket that no longer takes it")
+	_ok(PowerCord.socket_holding(uk.wall_plug) == adapter.socket,
+		"adapter/and the plug in it stays")
+	TravelAdapter.apply_region(get_tree(), MainsRegions.DEFAULT)
+	WallOutlet.apply_region(get_tree(), MainsRegions.DEFAULT)
+	await get_tree().process_frame
+
+	adapter.drop_and_free()
+	await get_tree().process_frame
+	_ok(PowerCord.socket_holding(uk.wall_plug) == null, "adapter/binning it lets go of the plug")
+	var spawned := sp.instantiate_objects(room, [entry])
+	for i in 3:
+		await get_tree().process_frame
+	_ok(spawned.get(0) is TravelAdapter, "adapter/is rebuilt from its entry")
 	await _clear(room)
 
 

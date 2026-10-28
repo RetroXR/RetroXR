@@ -656,8 +656,12 @@ picks which region's plates the room's wall outlets and power strips are
 (`MainsRegions`: a US duplex, a Schuko pair, a UK twin, ...), and a mains plug
 goes into one only when it would on the hardware. A room puts one in by
 instancing `res://Scenes/Objects/room/wall_outlet.tscn` (set `region_override`
-to pin a plate to one region). An AC adapter that should wear the plug of the
-player's region asks for it, and hears when it changes:
+to pin a plate to one region). The power strip becomes the one sold there -- a
+Schuko six-way, a UK four-gang -- from its region's `strip` entry; a mod's region
+whose strip names no body `size` keeps the US body with its own sockets. The
+Universal Travel Adapter wears the region's prongs and takes every wall plug the
+game ships. An AC adapter that should wear the plug of the player's region asks
+for it, and hears when it changes:
 
 ```gdscript
 var region := api.mains_region()            # "na", "uk", "jp", ...

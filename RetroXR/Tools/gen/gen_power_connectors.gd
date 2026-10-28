@@ -32,6 +32,13 @@ const SPEC_PLUGS := {
 }
 
 func _init() -> void:
+	# `-- --adapters` bakes the travel adapters alone, leaving the plugs be.
+	var adapters_only := OS.get_cmdline_user_args().has("--adapters")
+	for id: String in _adapter_plugs():
+		_bake_adapter(id)
+	if adapters_only:
+		quit()
+		return
 	_bake_nema()
 	_bake_c13()
 	_bake_c14()
@@ -521,3 +528,116 @@ func _cylinder(st: SurfaceTool, c: Vector3, r: float, length: float, sides: int)
 		st.add_vertex(p0);st.add_vertex(q1);st.add_vertex(p1);st.add_vertex(p0);st.add_vertex(q0);st.add_vertex(q1)
 		st.add_vertex(Vector3(c.x,c.y,z1));st.add_vertex(q1);st.add_vertex(q0)
 		st.add_vertex(Vector3(c.x,c.y,z0));st.add_vertex(p0);st.add_vertex(p1)
+
+
+## The travel adapter's plugs: every region's own (its strip's), once each.
+func _adapter_plugs() -> PackedStringArray:
+	var regions: Dictionary = (load("res://Scripts/Data/mains_regions.gd") as GDScript) \
+		.get_script_constant_map()["REGIONS"]
+	var out := PackedStringArray()
+	for id: String in regions:
+		var plug := str(regions[id]["strip"]["plug"])
+		if not out.has(plug):
+			out.append(plug)
+	return out
+
+
+const ADAPTER_DIR := "res://Scenes/Objects/appliances/"
+## How deep the adapter's block is behind its nose, and the least of its face.
+const ADAPTER_DEPTH := 0.034
+const ADAPTER_FACE := Vector2(0.050, 0.052)
+const ADAPTER_TONE := Color(0.86, 0.86, 0.84)
+
+## A travel adapter whose prongs are `id`'s: that plug's face run back as a nose
+## as deep as the deepest well it goes into (a Schuko's 17.5) and 3 mm more, then
+## a block wide enough for that face and for the universal socket on its back,
+## whose openings are MainsSpecs' "universal_socket". In the plug's frame, as
+## every wall plug is: pins +Z, the socket's face toward -Z, its frame the plug's
+## turned half round about Y (TravelAdapter puts its port there).
+func _bake_adapter(id: String) -> void:
+	var spec: Dictionary = Specs.PLUGS[id]
+	var socket: Dictionary = Specs.SOCKETS["universal_socket"]
+	var well := 0.0
+	for s: String in Specs.SOCKETS:
+		if s != "universal_socket" and Specs.fits(id, s) and Specs.SOCKETS[s].has("recess"):
+			well = maxf(well, float(Specs.SOCKETS[s]["recess"]["depth"]))
+	var nose := (well + 3.0) * 0.001
+	var back_z := -nose - ADAPTER_DEPTH
+	var plastic := _begin(PlugMats.matte_vertex(ADAPTER_TONE))
+	var face := Specs.outline(spec)
+	var centre := Vector2.ZERO
+	for p in face: centre += p
+	centre /= face.size()
+	var n := 24
+	var face0 := _spec_ring(face, centre, 0.0, 1.0, n)
+	var face1 := _spec_ring(face, centre, -nose, 1.0, n)
+	_loft(plastic, face0, face1, 400)
+	plastic.set_smooth_group(-1)
+	_cap(plastic, face0, Vector3(-centre.x, centre.y, 0) * 0.001, true)
+	# The block covers the nose's root and every opening of the socket, with 4 mm
+	# round them, and is never smaller than a pocket adapter's face.
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for p in face:
+		lo = lo.min(Vector2(-p.x, p.y)); hi = hi.max(Vector2(-p.x, p.y))
+	for hole: Array in socket["holes"]:
+		for part: Dictionary in hole:
+			for p in _part_outline(part):
+				lo = lo.min(Vector2(-p.x, p.y)); hi = hi.max(Vector2(-p.x, p.y))
+	lo = lo * 0.001 - Vector2(0.004, 0.004)
+	hi = hi * 0.001 + Vector2(0.004, 0.004)
+	var mid := (lo + hi) * 0.5
+	var half := ((hi - lo) * 0.5).max(ADAPTER_FACE * 0.5)
+	var front := _rrect_ring(mid, half, 0.006, -nose)
+	var front_in := _rrect_ring(mid, half - Vector2(0.0015, 0.0015), 0.0045, -nose + 0.0015)
+	var rear := _rrect_ring(mid, half, 0.006, back_z)
+	_loft(plastic, front_in, front, 401)
+	_loft(plastic, front, rear, 402)
+	# Flat faces: a fan in the sides' smooth group shades as a pyramid.
+	plastic.set_smooth_group(-1)
+	_cap(plastic, front_in, Vector3(mid.x, mid.y, -nose + 0.0015), true)
+	_cap(plastic, rear, Vector3(mid.x, mid.y, back_z), false)
+	# The universal socket's openings, a hair proud of the back, dark both ways.
+	plastic.set_color(PlugMats.socket_vertex())
+	for hole: Array in socket["holes"]:
+		for part: Dictionary in hole:
+			var ring := PackedVector3Array()
+			for p in _part_outline(part):
+				ring.append(Vector3(-p.x * 0.001, p.y * 0.001, back_z - 0.0002))
+			var c := Vector3.ZERO
+			for p in ring: c += p
+			c /= ring.size()
+			_cap(plastic, ring, c, true)
+			_cap(plastic, ring, c, false)
+	plastic.set_color(PlugMats.matte_vertex(ADAPTER_TONE))
+	for pin: Dictionary in spec.get("pins", []):
+		var sleeve := float(pin.get("sleeve", 0.0)) * 0.001
+		if sleeve > 0.0:
+			_spec_pin(plastic, pin, 0.0, sleeve, 1.0)
+	var metal := _part(plastic, PlugMats.metal_vertex(Color(0.72, 0.70, 0.66)))
+	for pin: Dictionary in spec.get("pins", []):
+		var sleeve := float(pin.get("sleeve", 0.0)) * 0.001
+		_spec_pin(plastic, pin, sleeve, float(pin["len"]) * 0.001, 0.98 if sleeve > 0.0 else 1.0)
+	_save(ADAPTER_DIR + "travel_adapter_" + id + ".res", plastic, metal)
+
+
+## One part of a socket's hole as an outline, millimetres in the socket's frame.
+func _part_outline(part: Dictionary) -> PackedVector2Array:
+	if str(part["shape"]) == "round":
+		return Specs._circle(part["at"], float(part["d"]) * 0.5)
+	return Specs._rect(part["at"], part["size"], float(part.get("angle", 0.0)))
+
+
+## A rounded rectangle about `c` across Z, anticlockwise seen from +Z, 24 points
+## (six a corner) so any two of them loft.
+func _rrect_ring(c: Vector2, half: Vector2, radius: float, z: float) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	var r := minf(radius, minf(half.x, half.y))
+	var corners := [Vector2(half.x - r, half.y - r), Vector2(-half.x + r, half.y - r),
+		Vector2(-half.x + r, -half.y + r), Vector2(half.x - r, -half.y + r)]
+	for corner in 4:
+		for sample in 6:
+			var a := deg_to_rad(float(corner) * 90.0 + float(sample) * 18.0)
+			var p: Vector2 = c + corners[corner] + Vector2(cos(a), sin(a)) * r
+			out.append(Vector3(p.x, p.y, z))
+	return out

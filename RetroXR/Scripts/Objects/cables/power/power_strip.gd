@@ -1,8 +1,10 @@
 class_name PowerStrip
 extends Node3D
 
-## A six-outlet US power strip: a body the player carries, six NEMA 5-15R sockets on
-## top of it, and a captive 3 ft cord ending in a grounded wall plug.
+## A power strip: a body the player carries, sockets on top of it, and a captive
+## 3 ft cord ending in a wall plug. The scene is the six-outlet US one (NEMA
+## 5-15R, grounded); in another mains region it becomes the strip sold there --
+## its own body, its count of that region's sockets, its plug (MainsRegions).
 ##
 ## Shaped like the Antenna — a lead with a body on one END — but a mains lead, so it
 ## speaks PowerCord's persistence API (plug_at / seating / restore_*) rather than
@@ -18,14 +20,13 @@ const END_WALL := PowerCord.End.WALL
 ## Every strip in the tree, so a change of mains region reaches them.
 const GROUP := "power_strip"
 
-## The body's top face, and the US sockets' height in it.
-const TOP := 0.038
-const US_SOCKET_Y := 0.036
-## Where a region's deck sits: centred over the six sockets, clear of the switch.
-## The deck mesh is authored as a wall plate (+Z up out of it), so it is turned
-## to lie on the strip: plate X along the strip, plate Y toward -Z, plate Z up.
-const DECK_AT := Transform3D(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0),
-	Vector3(-0.0215, TOP, 0))
+## A region's body is baked as a wall plate (+Z up out of it, MainsRegions.
+## strip_sockets' frame), so it is turned to lie on the floor: plate X along the
+## strip, plate Y toward -Z, plate Z up.
+const PLATE_AT := Transform3D(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0),
+	Vector3.ZERO)
+
+const PORT_SCENE := preload("res://Scenes/Objects/cables/power_port.tscn")
 
 @onready var _body: RigidBody3D = $Body
 @onready var _attach: Node3D = $Body/Shell/PowerStrip/CordAnchor
@@ -38,9 +39,21 @@ var _rope_built := false
 ## The region the strip was last made as; "" before _ready.
 var region := ""
 
+## The US body as the scene has it, to go back to: each socket's pose, the two
+## collision shapes, and where the cord leaves the case.
+var _us_sockets := {}
+var _us_shapes := {}
+var _anchor_home := Transform3D.IDENTITY
+
 
 func _ready() -> void:
 	add_to_group(GROUP)
+	for s in sockets():
+		_us_sockets[s.name] = s.transform
+	for path: String in ["CollisionShape3D", "PointerArea/CollisionShape3D"]:
+		var shape := _body.get_node(path) as CollisionShape3D
+		_us_shapes[path] = [shape.shape, shape.transform]
+	_anchor_home = _body.global_transform.affine_inverse() * _attach.global_transform
 	set_region(AppPrefs.mains_region)
 	wall_plug.cable = self
 	# A dangling plug must not shove its own strip across the floor.
@@ -78,9 +91,10 @@ func _physics_process(_delta: float) -> void:
 		_body.global_position += back
 
 
-## Make the strip `id`'s: its sockets and its own plug become that region's, as
-## a strip bought there would be (MainsRegions' "strip" entry; a region with none
-## keeps the scene's US one). Plugs that stop fitting fall out, its own included.
+## Make the strip `id`'s: as a strip bought there would be (MainsRegions'
+## "strip" entry), its body, its sockets and its own plug. A region whose strip
+## names no body keeps the scene's US one with the region's sockets in it. Plugs
+## that stop fitting fall out, its own included.
 func set_region(id: String) -> void:
 	var want := MainsRegions.resolve(id)
 	if want == region:
@@ -89,32 +103,10 @@ func set_region(id: String) -> void:
 	var spec: Dictionary = MainsRegions.of(want).get("strip", {})
 	if spec.is_empty():
 		spec = MainsRegions.of(MainsRegions.DEFAULT).get("strip", {})
-	var deck_path := str(spec.get("deck", ""))
-	var deck := _body.get_node_or_null("RegionDeck") as MeshInstance3D
-	if deck_path.is_empty():
-		if deck != null:
-			deck.queue_free()
+	if spec.has("size"):
+		_build_body(want, spec)
 	else:
-		if deck == null:
-			deck = MeshInstance3D.new()
-			deck.name = "RegionDeck"
-			deck.transform = DECK_AT
-			_body.add_child(deck)
-		deck.mesh = load(deck_path) as Mesh
-	var y := TOP + float(spec.get("port", 0.0)) * 0.001 if not deck_path.is_empty() else US_SOCKET_Y
-	var every := maxi(1, int(spec.get("every", 1)))
-	var i := 0
-	for s in sockets():
-		s.set_connector(str(spec.get("socket", s.connector)))
-		s.position.y = y
-		# A socket the region's plugs are too wide to use next to another is not
-		# on this strip at all.
-		var used := i % every == 0
-		if not used and s.picked_up_object != null:
-			s.drop_object()
-		s.enabled = used
-		s.visible = used
-		i += 1
+		_us_body(str(spec.get("socket", "nema_5_15_plug")))
 	wall_plug.set_connector(str(spec.get("plug", wall_plug.connector)))
 	var tip := wall_plug.get_node_or_null("PlugTip") as MeshInstance3D
 	var mesh_path := str(spec.get("plug_mesh", ""))
@@ -123,6 +115,87 @@ func set_region(id: String) -> void:
 	var holder := PowerCord.socket_holding(wall_plug)
 	if holder != null and not wall_plug.is_in_group(holder.snap_require):
 		holder.drop_object()
+
+
+## The region's own body: its mesh, its size for the hand and the pointer, the
+## cord out of its switch end, and its sockets where MainsRegions puts them --
+## the scene's six first, more made if it has more, the rest shut.
+func _build_body(id: String, spec: Dictionary) -> void:
+	var size: Vector3 = spec["size"] * 0.001
+	(_body.get_node("Shell") as Node3D).visible = false
+	var mesh := _body.get_node_or_null("RegionBody") as MeshInstance3D
+	if mesh == null:
+		mesh = MeshInstance3D.new()
+		mesh.name = "RegionBody"
+		mesh.transform = PLATE_AT
+		_body.add_child(mesh)
+	mesh.mesh = load(str(spec["mesh"])) as Mesh
+	# Shapes of its own: the scene's are shared by every strip.
+	_set_shape("CollisionShape3D", Vector3(size.x, size.z, size.y), size.z * 0.5)
+	_set_shape("PointerArea/CollisionShape3D",
+		Vector3(size.x + 0.02, size.z + 0.012, size.y + 0.018), size.z * 0.5)
+	_set_anchor(Transform3D(_anchor_home.basis, Vector3(size.x * 0.5, size.z * 0.5, 0)))
+	var layout := MainsRegions.strip_sockets(id)
+	var have := sockets()
+	for i in layout.size():
+		var at: Dictionary = layout[i]
+		var s: PowerPort = have[i] if i < have.size() else null
+		if s == null:
+			s = PORT_SCENE.instantiate() as PowerPort
+			s.name = str(at["name"])
+			_body.add_child(s)
+		s.transform = PLATE_AT * Transform3D(
+			Basis.from_euler((at["rotation"] as Vector3) * (PI / 180.0)), at["position"])
+		_open(s, str(at["connector"]), true)
+	for i in range(layout.size(), have.size()):
+		_open(have[i], have[i].connector, false)
+
+
+## Back to the scene's US body, its six sockets taking `socket`.
+func _us_body(socket: String) -> void:
+	(_body.get_node("Shell") as Node3D).visible = true
+	var mesh := _body.get_node_or_null("RegionBody")
+	if mesh != null:
+		_body.remove_child(mesh)
+		mesh.queue_free()
+	for path: String in _us_shapes:
+		var shape := _body.get_node(path) as CollisionShape3D
+		shape.shape = _us_shapes[path][0]
+		shape.transform = _us_shapes[path][1]
+	_set_anchor(_anchor_home)
+	for s in sockets():
+		if _us_sockets.has(s.name):
+			s.transform = _us_sockets[s.name]
+			_open(s, socket, true)
+		else:
+			# One a bigger strip made: out of the tree now, so a later one can
+			# take its name again.
+			if s.picked_up_object != null:
+				s.drop_object()
+			_body.remove_child(s)
+			s.queue_free()
+
+
+## A socket taking `connector`, or shut and hidden, letting go of what it holds.
+func _open(s: PowerPort, connector: String, used: bool) -> void:
+	s.set_connector(connector)
+	if not used and s.picked_up_object != null:
+		s.drop_object()
+	s.enabled = used
+	s.visible = used
+
+
+func _set_shape(path: String, extents: Vector3, y: float) -> void:
+	var node := _body.get_node(path) as CollisionShape3D
+	var box := BoxShape3D.new()
+	box.size = extents
+	node.shape = box
+	node.transform = Transform3D(Basis.IDENTITY, Vector3(0, y, 0))
+
+
+## The cord's start, `t` in the body's frame.
+func _set_anchor(t: Transform3D) -> void:
+	_attach.global_transform = _body.global_transform * t
 
 
 ## Remake every strip in `tree` as `id`'s. Before WallOutlet.apply_region, so a
@@ -137,7 +210,7 @@ func on_plug_seating_changed() -> void:
 	pass
 
 
-## The six sockets, in order along the strip.
+## The sockets, in order along the strip, shut ones too (Port.enabled).
 func sockets() -> Array[PowerPort]:
 	var out: Array[PowerPort] = []
 	for n in _body.get_children():

@@ -103,24 +103,29 @@ const LABELS := {
 ## holes, a Schuko into a French socket because it has the socket for the earth
 ## pin, a Brazilian plug into a South African socket but not the reverse, and a
 ## polarized US plug into a Japanese outlet (now polarized itself) but not into
-## a Chinese one, whose slots are both narrow.
+## a Chinese one, whose slots are both narrow. Every wall plug goes into the
+## travel adapter's universal socket, which is what it is for.
 const ALSO_FITS := {
-	"nema_1_15_plug": ["nema_5_15_plug", "jis_c8303_socket", "gb_1002_2pin_socket"],
-	"nema_1_15_polarized_plug": ["nema_5_15_plug", "jis_c8303_socket"],
+	"nema_5_15_plug": ["universal_socket"],
+	"nema_1_15_plug": ["nema_5_15_plug", "jis_c8303_socket", "gb_1002_2pin_socket",
+		"universal_socket"],
+	"nema_1_15_polarized_plug": ["nema_5_15_plug", "jis_c8303_socket", "universal_socket"],
 	"cee_7_7_plug": ["cee_7_3_socket", "cee_7_5_socket", "ds_k_socket", "is_1293_socket",
-		"si_32_socket"],
+		"si_32_socket", "universal_socket"],
 	"cee_7_16_plug": ["cee_7_3_socket", "cee_7_5_socket", "sev_1011_socket",
 		"cei_23_50_socket", "ds_k_socket", "sans_164_2_socket", "nbr_14136_socket",
-		"is_1293_socket", "si_32_socket"],
-	"as_3112_plug": ["as_3112_socket"],
-	"as_3112_2pin_plug": ["as_3112_socket"],
-	"sev_1011_plug": ["sev_1011_socket"],
-	"cei_23_50_plug": ["cei_23_50_socket"],
-	"ds_k_plug": ["ds_k_socket"],
-	"sans_164_2_plug": ["sans_164_2_socket"],
-	"nbr_14136_plug": ["nbr_14136_socket", "sans_164_2_socket"],
-	"is_1293_plug": ["is_1293_socket"],
-	"si_32_plug": ["si_32_socket"],
+		"is_1293_socket", "si_32_socket", "universal_socket"],
+	"bs_1363_plug": ["universal_socket"],
+	"as_3112_plug": ["as_3112_socket", "universal_socket"],
+	"as_3112_2pin_plug": ["as_3112_socket", "universal_socket"],
+	"sev_1011_plug": ["sev_1011_socket", "universal_socket"],
+	"cei_23_50_plug": ["cei_23_50_socket", "universal_socket"],
+	"ds_k_plug": ["ds_k_socket", "universal_socket"],
+	"sans_164_2_plug": ["sans_164_2_socket", "universal_socket"],
+	"nbr_14136_plug": ["nbr_14136_socket", "sans_164_2_socket", "universal_socket"],
+	"bs_546_plug": ["universal_socket"],
+	"is_1293_plug": ["is_1293_socket", "universal_socket"],
+	"si_32_plug": ["si_32_socket", "universal_socket"],
 	"link_plug": ["agb_link_plug"],
 }
 

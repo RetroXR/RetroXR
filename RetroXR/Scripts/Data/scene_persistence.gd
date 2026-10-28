@@ -206,6 +206,7 @@ const ETHERNET_CABLE_SCENE   := preload("res://Scenes/Objects/cables/ethernet_ca
 const ETHERNET_HUB_SCENE     := preload("res://Scenes/Objects/cables/ethernet_hub.tscn")
 const POWER_CORD_SCENE       := preload("res://Scenes/Objects/cables/power_cord.tscn")
 const POWER_STRIP_SCENE      := preload("res://Scenes/Objects/appliances/power_strip.tscn")
+const TRAVEL_ADAPTER_SCENE   := preload("res://Scenes/Objects/appliances/travel_adapter.tscn")
 const NEMA_1_15_C7_CORD_SCENE := preload(
 	"res://Scenes/Objects/cables/nema_1_15_to_c7_cord.tscn")
 const NEMA_1_15_C7P_CORD_SCENE := preload(
@@ -294,6 +295,7 @@ const LEAD_SCENES := {
 	"antenna": ANTENNA_SCENE,
 	"power_cord": POWER_CORD_SCENE,
 	"power_strip": POWER_STRIP_SCENE,
+	"travel_adapter": TRAVEL_ADAPTER_SCENE,
 	"nema_1_15_to_c7_cord": NEMA_1_15_C7_CORD_SCENE,
 	"nema_1_15_polarized_to_c7_polarized_cord": NEMA_1_15_C7P_CORD_SCENE,
 	# The other mains regions' leads (MainsRegions.CORDS), baked by
@@ -1378,7 +1380,7 @@ func _spawn_entry(root: Node, entry: Variant, spawned: Dictionary, entries: Dict
 	# pass 2 hangs the cord in mid-air over the desk for as many frames as the
 	# restore takes to reach it. Which socket holds which is still pass 2's, because
 	# that genuinely does need every device to exist.
-	if obj is CompositeCable or obj is PowerCord or obj is PowerStrip:
+	if obj is CompositeCable or obj is PowerCord or obj is PowerStrip or obj is TravelAdapter:
 		obj.call("restore_plug_poses", rec.get("plugs", []))
 	spawned[id] = obj
 	entries[id] = rec
@@ -1609,6 +1611,7 @@ static func _restore_kind_rows() -> Array:
 		[CompositeCable, &"_restore_lead"],
 		[PowerCord, &"_restore_lead"],
 		[PowerStrip, &"_restore_lead"],
+		[TravelAdapter, &"_restore_lead"],
 		[SpeakerStand, &"_restore_speaker_stand"],
 		[SensorBar, &"_restore_sensor_bar"],
 		[GcMicrophone, &"_restore_gc_microphone"],
@@ -2414,6 +2417,7 @@ static func _save_kind_rows() -> Array:
 		[CompositeCable, "", &"_serialize_cable"],
 		[PowerCord, "", &"_serialize_power_cord"],
 		[PowerStrip, "", &"_serialize_power_strip"],
+		[TravelAdapter, "", &"_serialize_travel_adapter"],
 	]
 	return _save_kinds
 
@@ -2927,7 +2931,7 @@ func _restore_vmu_slots(host: Node, root: Node, spawned: Dictionary, refs: Varia
 ## the device and the socket's node name. The name is what makes this readable
 ## and stable — "AudioLIn" survives any renumbering of ports, which an index
 ## would not.
-## The entry for any of the three kinds of lead, or {} for a node that is not one.
+## The entry for any kind of lead, or {} for a node that is not one.
 func _serialize_lead(node: Node, id: int, n3d: Node3D, node_to_id: Dictionary) -> Dictionary:
 	if node is CompositeCable:
 		return _serialize_cable(node as CompositeCable, id, n3d, node_to_id)
@@ -2935,6 +2939,8 @@ func _serialize_lead(node: Node, id: int, n3d: Node3D, node_to_id: Dictionary) -
 		return _serialize_power_cord(node as PowerCord, id, n3d, node_to_id)
 	if node is PowerStrip:
 		return _serialize_power_strip(node as PowerStrip, id, n3d, node_to_id)
+	if node is TravelAdapter:
+		return _serialize_travel_adapter(node as TravelAdapter, id, n3d, node_to_id)
 	return {}
 
 
@@ -3002,6 +3008,17 @@ func _serialize_power_strip(strip: PowerStrip, id: int, n3d: Node3D,
 	if not body_pose.is_empty():
 		entry["body"] = body_pose
 	return entry
+
+
+## A travel adapter: a lead that is all plug, so its plug's record is its pose.
+## A plug in its socket is recorded by that plug's lead, naming it and "Socket".
+func _serialize_travel_adapter(adapter: TravelAdapter, id: int, n3d: Node3D,
+		node_to_id: Dictionary) -> Dictionary:
+	return _base(id, "composite_cable", n3d).merged({
+		"cords": adapter.cord_count(),
+		"kind": adapter.scene_file_path.get_file().get_basename(),
+		"plugs": _plug_records(adapter.seating(), node_to_id),
+	})
 
 
 ## One JSON record per connector, from either kind of lead's seating().

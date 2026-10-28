@@ -2757,10 +2757,15 @@ func _power_items() -> Array:
 	var all := []
 	for token: String in MainsRegions.CORDS:
 		all.append([str((MainsRegions.CORDS[token] as Dictionary)["label"]), token])
-	# Six more sockets on a 3 ft cord, of whatever region the room is --
+	# More sockets on a 3 ft cord, the strip sold where the room is --
 	# including, if you like, for its own plug.
-	all.append(["6-Outlet Power Strip", "power_strip"])
-	var own: Array = MainsRegions.of(AppPrefs.mains_region).get("cords", [])
+	all.append(["%d-Outlet Power Strip" % MainsRegions.strip_outlets(AppPrefs.mains_region),
+		"power_strip"])
+	# And any wall plug into this room's wall: the region's prongs, a universal
+	# socket.
+	all.append(["Universal Travel Adapter", "travel_adapter"])
+	var own: Array = MainsRegions.of(AppPrefs.mains_region).get("cords", []) \
+		+ ["travel_adapter"]
 	var first := []
 	var rest := []
 	for item: Array in all:
