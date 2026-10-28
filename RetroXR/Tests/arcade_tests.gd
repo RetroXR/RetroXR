@@ -271,6 +271,37 @@ func _group_profiles() -> void:
 	for kept: String in ["neogeo.zip", "pgm.zip", "skns.zip", "decocass.zip", "cchip.zip", "nmk004.zip", "ym2608.zip", "bubsys.zip",
 			"isgsm.zip", "midssio.zip", "namcoc69.zip", "namcoc70.zip", "namcoc75.zip", "hiscore.dat"]:
 		_ok(fbneo_fw.has(kept), "profiles: FinalBurn Neo still lists %s" % kept)
+	# The Quest's MAME is `mamearcade` ("MAME (Git)", the arcade half: its .info says Android cannot take the whole set), not `mame`. The overlay
+	# covered `mame` alone, and a core that declares nothing is SILENT on the BIOS page, so a Quest showed FinalBurn Neo's sets and not one of MAME's.
+	# The two builds are one code base and take one list (Tools/arcade/gen_mame_bios.py writes both).
+	var mame_rows := FirmwareRequirements.for_core("mame")
+	var arcade_rows := FirmwareRequirements.for_core("mamearcade")
+	var same_list := mame_rows.size() == arcade_rows.size()
+	for i in mini(mame_rows.size(), arcade_rows.size()):
+		same_list = same_list and mame_rows[i] == arcade_rows[i]
+	_ok(arcade_rows.size() >= 90, "profiles: the Quest's MAME (mamearcade) lists the BIOS of every arcade board too (%d)" % arcade_rows.size())
+	_ok(same_list, "profiles: and the same list as mame's, entry for entry (%d, %d)" % [arcade_rows.size(), mame_rows.size()])
+	for core: String in ["mame", "mamearcade", "fbneo"]:
+		_ok(str(CoreInfoDatabase.shared().get_by_core_name(core).get("systemid", "")) == "arcade",
+			"profiles: %s is on the arcade page (its .info's systemid)" % core)
+	# What a player with those cores gets: the page makes a section of every installed core that declares sets, found by the library's name.
+	# Looked at through a folder of the Quest's naming, which is where this went wrong.
+	var cores_dir := "user://arcade_tests_cores"
+	DirAccess.make_dir_recursive_absolute(cores_dir)
+	var libs := ["mamearcade_libretro_android.so", "fbneo_libretro_android.so", "mame2003_plus_libretro_android.so"]
+	for lib: String in libs:
+		FileAccess.open(cores_dir.path_join(lib), FileAccess.WRITE).close()
+	var found := FirmwareRequirements.installed_cores_by_system(cores_dir, PackedStringArray(["_libretro_android", "_libretro"]), ".so")
+	var sections: Array[String] = []
+	for entry: Dictionary in found.get("arcade", []):
+		if not FirmwareRequirements.for_core(str(entry["core_name"])).is_empty():
+			sections.append(str(entry["core_name"]))
+	_ok(sections.has("mamearcade") and sections.has("fbneo"),
+		"profiles: a Quest with mamearcade and FinalBurn Neo gets a BIOS section for each (%s)" % ", ".join(sections))
+	_ok(found.get("arcade", []).size() == 3, "profiles: and all three arcade cores found by the Quest's naming (%d)" % found.get("arcade", []).size())
+	for lib: String in libs:
+		DirAccess.remove_absolute(cores_dir.path_join(lib))
+	DirAccess.remove_absolute(cores_dir)
 
 
 # --- input ---------------------------------------------------------------------
