@@ -2064,6 +2064,8 @@ func _group_seating() -> void:
 	for i in 80:
 		panel.tick(0.05)
 	var tilted := not pivot.transform.is_equal_approx(Transform3D.IDENTITY) and panel.throttle_amount() > 0.9
+	# A run is on (the input has started one), and it ends: the reset is once, when a RUN ends, not every frame the cabinet stays off (a hand's throttle would not stay).
+	model.arcade_input()._run_base = 0
 	model.arcade_input()._end_run()
 	for i in 90:
 		panel.tick(0.05)
@@ -4991,7 +4993,7 @@ func _group_stage() -> void:
 	for p in _panels(model):
 		(p as ArcadeControlModule).update_body(input._body_point())
 	_ok(panel2.hand_buttons() == 0, "stage: and a floor a metre over it (a player on a mezzanine) presses nothing")
-	# Standing on an arrow, then nobody there (the machine went off, the player left): the arrow comes up.
+	# Standing on an arrow, then nobody there (the player left): the arrow comes up.
 	origin.global_position = Vector3(plate_up.global_position.x, sys.global_position.y, plate_up.global_position.z) - camera.position * Vector3(1, 0, 1)
 	await _wait(2)
 	panel1.update_body(input._body_point())
@@ -4999,8 +5001,15 @@ func _group_stage() -> void:
 	for p in _panels(model):
 		(p as ArcadeControlModule).update_body(Vector3.INF)
 	_ok(was_down and panel1.hand_buttons() == 0 and panel2.hand_buttons() == 0 and not panel1.hands_active(),
-		"stage: an arrow under a foot comes up when nobody is there (the machine off)")
+		"stage: an arrow under a foot comes up when nobody is there")
+	# The arrows are there to be stood on whether or not a game runs: a stage that is switched off is danced on all the same, and sends nothing.
 	sys.is_powered_on = false
+	origin.global_position = Vector3(plate_up.global_position.x, sys.global_position.y, plate_up.global_position.z) - camera.position * Vector3(1, 0, 1)
+	await _wait(2)
+	input.last_sent.clear()
+	input._process(0.016)
+	_ok((panel1.hand_buttons() & (1 << up_bit)) != 0 and panel1.hands_active() and input.last_sent.is_empty(),
+		"stage: standing on an arrow of a stage that is switched off presses it all the same, and nothing is sent")
 
 
 # --- footprint -----------------------------------------------------------------

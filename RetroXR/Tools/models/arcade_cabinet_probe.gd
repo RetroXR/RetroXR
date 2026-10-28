@@ -32,7 +32,7 @@
 ##
 ## `hands` photographs a headset's hands on the panel (ArcadePanelHands): the right one holding the stick leaned over (its
 ## outline amber), the left with a finger on button 2 (sunk in its flange); `handswheel` the same at a driving cockpit's wheel
-## turned by a hand, `handscycle` at Prop Cycle's bars (the right grip taken round the stem) and crank, `handsbars` the bars in two hands (the right by a squeeze), `handsslot` at Panic Park's two levers, `handsprompts` the hint a panel says its controls with (the bicycle's bars, Street Fighter II's stick, the keyboard attached).
+## turned by a hand, `handsoff` the first of them with the cabinet switched off (the controls move all the same), `handscycle` at Prop Cycle's bars (the right grip taken round the stem) and crank, `handsbars` the bars in two hands (the right by a squeeze), `handsslot` at Panic Park's two levers, `handsprompts` the hint a panel says its controls with (the bicycle's bars, Street Fighter II's stick, the keyboard attached).
 ## A fake hand is an XRController3D on a tracker of its own, a small red ball at its fingertip.
 extends Node3D
 
@@ -585,6 +585,38 @@ func _shot_hands() -> void:
 	input._left_vr_ctrl = null
 	_drop_hands([right, left])
 	_sys.is_powered_on = false
+
+
+## The same with the cabinet SWITCHED OFF (no game, no power): the controls are worked all the same, the stick follows the right hand and button 2 sinks under the left finger,
+## and `last_sent` stays empty (nothing reaches a core).
+func _shot_handsoff() -> void:
+	_sys.is_powered_on = false
+	var input := _model.arcade_input()
+	var panel := _model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)[0] as ArcadeControlModule
+	var right := _hand("right")
+	var left := _hand("left")
+	input._right_vr_ctrl = right["ctrl"]
+	input._left_vr_ctrl = left["ctrl"]
+	input.last_sent.clear()
+	var ball := (panel.find_child("StickPivot", true, false) as Node3D).global_transform * Vector3(0, 0, 0.085)
+	var cap := panel.find_child("Btn2", true, false) as MeshInstance3D
+	_tip_at(right, ball)
+	_tip_at(left, cap.global_transform * Vector3(0, cap.mesh.get_aabb().size.y * 0.5 + 0.002, 0))
+	await _frames(3)
+	_hand_trigger(right, 1.0)
+	await _frames(3)
+	_tip_at(right, ball + panel.global_transform.basis.x * 0.03)
+	for i in 8:
+		panel.tick(0.016)
+		await _frames(1)
+	print("[probe] handsoff: powered ", _sys.is_powered_on, " pressed mask ", panel.hand_buttons(), " stick lean ", panel.stick_lean(), " last_sent ", input.last_sent)
+	_look(Vector3(0.12, 1.42, 1.02), Vector3(-0.13, 0.99, 0.43))
+	await _save("handsoff")
+	_look(Vector3(-0.55, 1.20, 0.80), Vector3(-0.13, 0.99, 0.43))
+	await _save("handsoffside")
+	input._right_vr_ctrl = null
+	input._left_vr_ctrl = null
+	_drop_hands([right, left])
 
 
 ## The same at a driving cockpit's wheel: the form Daytona USA asks for, the right hand on the rim turned 60 degrees.

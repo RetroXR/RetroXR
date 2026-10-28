@@ -237,7 +237,7 @@ the research. Both go in `SEATING` (`cockpits.py`, one line per game with where 
   its third and fourth buttons on the stick's head. The stick is the left stick as any panel's is; **the throttle is the right stick's Y** (forward up, the lever's top away from the player), as the bicycle's crank is.
   *That libretro-mame sends `AD_STICK_Z` through the right stick's Y is not verified against a core* (it is the crank's assumption too). A hand takes the lever at its knob (`ThrottleGrab`, 10 cm of travel
   for all of it) and **it stays where the hand left it**, as a throttle does (a pad's right stick pushed further than the lever wins while it is, the larger always winning, as for any control a hand and a pad
-  both work); a machine switched off, or a run that ends (`ArcadeControlModule.rest`), puts it back in the middle.
+  both work); a run that ends (`ArcadeControlModule.rest`, once) puts it back in the middle; while the machine stays off a hand leaves it where it likes.
 - **The cabin** (`cabin`): a panel each side whose front edge slants up from the sill beside the dash to the roof's front corner, as a canopy's does (it is the monitor glass's own line carried on, up to the roof and
   down to the platform), a roof that runs forward over the monitor housing's marquee, and five red lock-on lamps hung just ahead of the marquee's face (`CABIN_LAMP_Z`: a seated player sees them above the picture, which a
   lamp behind the marquee would not give); open behind where you get in. **The shape is an estimate**: the research has words for these cabinets (an enclosed cockpit, a seat belt,

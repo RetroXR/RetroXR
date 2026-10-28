@@ -30,6 +30,7 @@
 ##   slot/     two levers in one slot, one a hand each
 ##   fly/      a flight cockpit's stick (a long shaft, a long throw) and its throttle, which stays where the hand left it
 ##   input/    what the hands hold goes out like an attached controller's: the port, the bindings, the cap that sinks
+##   off/      a cabinet that is switched off still has its controls worked -- the caps sink, the stick, the wheel, the pedals, the lever and the throttle follow the hand -- and sends nothing; a motor stays still
 ##   laser/    a hand on a control has no laser; it is back when the hand is done, and the panel takes no press from it
 ##   carry/    a hand on a control cannot pick the cabinet up, and its squeeze does not attach
 ##   use/      a finger on a cap starts an attract game, and a hand on the panel is somebody at the cabinet
@@ -89,7 +90,7 @@ func _run() -> void:
 	for g: Array in [["caps", _group_caps], ["pedals", _group_pedals], ["stick", _group_stick],
 			["twin", _group_twin], ["wheel", _group_wheel], ["dial", _group_dial], ["ball", _group_ball],
 			["lever", _group_lever], ["helm", _group_helm], ["bars", _group_bars], ["rider", _group_rider], ["cycle", _group_cycle], ["handlebars", _group_handlebars], ["slot", _group_slot], ["fly", _group_fly],
-			["input", _group_input], ["transfer", _group_transfer],
+			["input", _group_input], ["transfer", _group_transfer], ["off", _group_off],
 			["laser", _group_laser], ["carry", _group_carry], ["use", _group_use], ["sticks", _group_sticks], ["guitar", _group_guitar], ["prompts", _group_prompts]]:
 		if _want(str(g[0])):
 			await (g[1] as Callable).call()
@@ -180,7 +181,7 @@ func _step(panel: ArcadeControlModule, hands: Array, delta: float = 0.016) -> vo
 	for h: Dictionary in hands:
 		ctrls.append(h["ctrl"])
 	PokeTip._cache_frame = -1
-	panel.update_hands(delta, ctrls, true)
+	panel.update_hands(delta, ctrls)
 
 
 func _bit(id: int) -> int:
@@ -361,11 +362,16 @@ func _group_caps() -> void:
 	_step(other, [h])
 	_ok(other.hand_buttons() == 0, "caps: a panel the game does not use is dead to a hand")
 	other.apply_profile(null)
-	# The machine off: a hand holds nothing.
+	# A panel that is hidden lets go of what a finger held, and takes it again when it is shown with the finger still there. (Switched off is not hidden: `off/`.)
 	_tip_at(h, _cap_top(panel, "Btn1"))
 	_step(panel, [h])
-	panel.update_hands(0.016, [h["ctrl"]], false)
-	_ok(panel.hand_buttons() == 0, "caps: switched off, what a finger held is let go")
+	_ok(panel.hands_active(), "caps: (a finger on button 1)")
+	panel.visible = false
+	_step(panel, [h])
+	_ok(not panel.hands_active() and panel.hand_buttons() == 0, "caps: a panel that is hidden lets go of what a finger held")
+	panel.visible = true
+	_step(panel, [h])
+	_ok(panel.hand_buttons() == _bit(B[0]), "caps: and presses again when it is shown, the finger being there")
 	# An inactive hand (a controller that is lost) does not press.
 	_step(panel, [h])
 	XRServer.remove_tracker(h["tracker"] as XRControllerTracker)
@@ -1717,13 +1723,15 @@ func _group_input() -> void:
 	input._left_vr_ctrl = null
 	_trigger(h, 0.0)
 	input._process(0.016)
-	# The machine off: nothing held, nothing sent.
+	# The machine switched off: the finger on the cap stays on it (`off/` says what it does there), and what it holds is sent nowhere.
 	_tip_at(h, _cap_top(panel, "Btn2"))
 	input._process(0.016)
 	_ok((int(input.last_sent.get(0, 0)) & _bit(B[1])) != 0, "input: (button 2 pressed)")
 	(r["sys"] as RetroSystem).is_powered_on = false
+	input.last_sent.clear()
 	input._process(0.016)
-	_ok(not panel.hands_active() and panel.hand_buttons() == 0, "input: the machine switched off, the finger on the cap holds nothing")
+	_ok(panel.hands_active() and panel.hand_buttons() == _bit(B[1]) and input.last_sent.is_empty(),
+		"input: the machine switched off, the finger is still on the cap and nothing is sent")
 	(r["sys"] as RetroSystem).is_powered_on = true
 	input._right_vr_ctrl = null
 
@@ -1782,20 +1790,201 @@ func _group_transfer() -> void:
 	input.attached.erase(0)
 	_trigger(h, 0.0)
 	input._process(0.016)
-	# The machine going off mid-hold gives the thumbsticks back too.
+	# The machine going off mid-hold: the stick is still in the hand (a control works with the power off) and the player is held back as they were, but the thumbstick
+	# pushed forward goes nowhere.
 	_tip_at(h, ball)
 	_trigger(h, 1.0)
 	input._process(0.016)
 	_ok(input.held_players.has(0) and loco.is_blocked(LocomotionManager.CHANNEL_ALL), "transfer: held again")
 	(r["sys"] as RetroSystem).is_powered_on = false
+	input.last_sent.clear()
+	input._process(0.016)
+	_ok(hands.holds(&"stick", 0) and input.held_players.has(0) and loco.is_blocked(LocomotionManager.CHANNEL_ALL),
+		"transfer: the machine switched off, the hand still holds the stick and the player is still held back")
+	_ok(input.last_sent.is_empty(), "transfer: and the thumbstick pushed forward is the game's no longer: nothing is sent")
+	_trigger(h, 0.0)
 	input._process(0.016)
 	_ok(input.held_players.is_empty() and not loco.is_blocked(LocomotionManager.CHANNEL_ALL),
-		"transfer: the machine switched off, the hold is over and the player is free")
+		"transfer: let go, the player walks again")
 	(r["sys"] as RetroSystem).is_powered_on = true
 	input._left_vr_ctrl = null
 	input._right_vr_ctrl = null
 	input._locomotion_manager = null
 	loco.free()
+
+
+# --- off -----------------------------------------------------------------------
+
+## A cabinet that is switched off still has its controls worked: a finger presses a cap, the trigger takes the stick, the wheel turns with the hand. They were dead (the machine
+## off, every hand let go), which in a headset read as a panel that could not be touched. What the hands hold reaches no core then, and a motor does not run.
+func _group_off() -> void:
+	var r := await _rig()
+	var sys: RetroSystem = r["sys"]
+	var panel: ArcadeControlModule = r["panel"]
+	var input: ArcadeInput = r["input"]
+	var hands: ArcadePanelHands = panel.hands()
+	var h := _hand()
+	input._right_vr_ctrl = _ctrl(h)
+	var B := ArcadeProfiles.BUTTON_BITS
+	var cap := panel.find_child("Btn1", true, false) as Node3D
+	var rest_z := cap.position.z
+	sys.is_powered_on = false
+	input.last_sent.clear()
+	# A cap.
+	_tip_at(h, _cap_top(panel, "Btn1"))
+	input._process(0.016)
+	_ok(panel.hands_active() and panel.hand_buttons() == _bit(B[0]), "off: a finger on button 1 of a cabinet that is switched off presses it")
+	_ok(cap.position.z < rest_z - ArcadeControlModule.CAP_PRESS * 0.9, "off: and the cap sinks in its flange")
+	_ok(input.last_sent.is_empty(), "off: and nothing is sent to the core")
+	_tip_at(h, _cap_top(panel, "Btn2"))
+	input._process(0.016)
+	_ok(panel.hand_buttons() == _bit(B[1]) and is_equal_approx(cap.position.z, rest_z), "off: rolled onto button 2 it is that one that is down, and button 1 is up again")
+	_tip_at(h, _cap_top(panel, "Btn2") + panel.global_transform.basis.z * 0.3)
+	input._process(0.2)
+	_ok(not panel.hands_active(), "off: lifted away, no cap is down")
+	# The stick: its outline says it can be taken, the hand has no laser at it, the trigger takes it, it leans with the hand and comes back.
+	var laser := _laser(h)
+	var ball := _ball_at(panel)
+	var grab := hands._grab_of(&"stick", 0)
+	_tip_at(h, ball)
+	input._process(0.016)
+	_ok(grab._outline != null and grab._outline.visible, "off: a hand at the stick of a cabinet that is off sees its outline")
+	_ok(not _laser_on(laser), "off: and has no laser at it, so the trigger it pulls is for the stick")
+	_trigger(h, 1.0)
+	input._process(0.016)
+	_ok(hands.holds(&"stick", 0), "off: the trigger takes hold of the stick")
+	_tip_at(h, ball + _right(panel) * 0.03)
+	input._process(0.016)
+	panel.tick(0.016)
+	_ok(panel.stick_lean().x > 0.99, "off: and the stick leans to the right with the hand")
+	_ok(input.last_sent.is_empty(), "off: and the game hears nothing of it")
+	_trigger(h, 0.0)
+	input._process(0.016)
+	for i in 40:
+		panel.tick(0.05)
+	_ok(panel.stick_lean() == Vector2.ZERO, "off: let go, the stick comes back to the middle")
+
+	# The wheel and the pedals.
+	await _clear()
+	r = await _rig("daytona")
+	sys = r["sys"]
+	panel = r["panel"]
+	input = r["input"]
+	hands = panel.hands()
+	h = _hand()
+	input._right_vr_ctrl = _ctrl(h)
+	sys.is_powered_on = false
+	input.last_sent.clear()
+	var quarter := deg_to_rad(ArcadeControlModule.WHEEL_LOCK_DEG) * 0.5
+	_tip_at(h, _rim(panel, 0.0))
+	_trigger(h, 1.0)
+	input._process(0.016)
+	_ok(hands.holds(&"wheel"), "off: the trigger on the rim takes hold of the wheel of a cabinet that is off")
+	_tip_at(h, _rim(panel, quarter))
+	input._process(0.016)
+	for i in 30:
+		panel.tick(0.016)
+	_ok(_near_f(panel.steering(), 0.5), "off: and the wheel is drawn turned half to the right with it (%.2f)" % panel.steering())
+	_ok(input.last_sent.is_empty(), "off: and nothing is sent")
+	_trigger(h, 0.0)
+	input._process(0.016)
+	_tip_at(h, Vector3(0, 5, 0))
+	input._process(0.016)
+	for i in 60:
+		panel.tick(0.05)
+	_ok(_near_f(panel.steering(), 0.0, 0.01), "off: let go, it comes back to the middle")
+	var gas := panel.find_child("GasDeck", true, false) as MeshInstance3D
+	_tip_at(h, gas.global_transform * Vector3(0, 0.012, -0.05))
+	input._process(0.016)
+	for i in 30:
+		panel.tick(0.016)
+	_ok(panel.hand_buttons() == _bit(ControllerBindings.JOYPAD_R2) and panel.pedal_down("gas") > 0.9 and input.last_sent.is_empty(),
+		"off: a finger on the gas pedal of a cabinet that is off pushes it down, and nothing is sent")
+
+	# A gear lever is followed, and the cabinet is in no gear: nothing is playing.
+	await _clear()
+	r = await _rig("polepos", 6, true)
+	sys = r["sys"]
+	panel = r["panel"]
+	input = r["input"]
+	hands = panel.hands()
+	h = _hand()
+	input._right_vr_ctrl = _ctrl(h)
+	sys.is_powered_on = false
+	var lever := panel.find_child("ShifterPivot", true, false) as Node3D
+	var lever_rest := lever.basis
+	_tip_at(h, _knob_at(lever, lever_rest, 0.0))
+	_trigger(h, 1.0)
+	input._process(0.016)
+	_tip_at(h, _knob_at(lever, lever_rest, 1.0))
+	input._process(0.016)
+	for i in 10:
+		panel.tick(0.016)
+	_ok(hands.holds(&"lever") and panel.shift_amount() > 0.95, "off: the gear lever of a cabinet that is off is thrown with the hand (%.2f)" % panel.shift_amount())
+	_ok(not panel.shift_high(), "off: but the cabinet is in no gear, nothing being played")
+	_trigger(h, 0.0)
+	input._process(0.016)
+	_tip_at(h, Vector3(0, 5, 0))
+	input._process(0.016)
+	for i in 60:
+		panel.tick(0.05)
+	_ok(panel.shift_amount() < 0.05, "off: and it goes back to first when let go (%.2f)" % panel.shift_amount())
+
+	# A flight cockpit: its throttle stays where the hand leaves it, and its base is a motor, which does not run. Switched on with the stick in the hand, it is played at once.
+	await _clear()
+	r = await _rig("aburner2", 6, true)
+	sys = r["sys"]
+	panel = r["panel"]
+	input = r["input"]
+	hands = panel.hands()
+	var right := _hand("right")
+	var left := _hand("left")
+	input._right_vr_ctrl = _ctrl(right)
+	input._left_vr_ctrl = _ctrl(left)
+	panel.motion_override = 1
+	sys.is_powered_on = false
+	input.last_sent.clear()
+	var stick_ball := panel.find_child("StickBall", true, false) as Node3D
+	var grip_at := stick_ball.global_position
+	_tip_at(right, grip_at)
+	_trigger(right, 1.0)
+	input._process(0.016)
+	_tip_at(right, grip_at + _right(panel) * 0.15)
+	input._process(0.016)
+	for i in 40:
+		panel.tick(0.05)
+	_ok(hands.holds(&"stick") and hands.stick_lean(0).x > 0.99, "off: the flight stick of a cabinet that is off leans with the hand")
+	_ok(panel.motion_state() == Vector2.ZERO, "off: and the base does not move, its motor being off (%s)" % str(panel.motion_state()))
+	sys.is_powered_on = true
+	input._process(0.016)
+	for i in 40:
+		panel.tick(0.05)
+	_ok((int(input.last_sent.get(0, 0)) & _bit(ControllerBindings.JOYPAD_RIGHT)) != 0 and panel.motion_state().x > 0.5,
+		"off: (control) switched on with the stick in the hand it is played, and the base banks (%s)" % str(panel.motion_state()))
+	_trigger(right, 0.0)
+	input._process(0.016)
+	_tip_at(right, Vector3(0, 5, 0))
+	input._process(0.016)
+	sys.is_powered_on = false
+	input._process(0.016)
+	input.last_sent.clear()
+	var knob := panel.find_child("ThrottleKnob", true, false) as Node3D
+	var ahead := -panel.global_transform.basis.z.normalized()
+	var knob_at := knob.global_position
+	_tip_at(left, knob_at)
+	_trigger(left, 1.0)
+	input._process(0.016)
+	_tip_at(left, knob_at + ahead * 0.05)
+	input._process(0.016)
+	_trigger(left, 0.0)
+	input._process(0.016)
+	_tip_at(left, Vector3(0, 5, 0))
+	for i in 30:
+		input._process(0.016)
+	_ok(_near_f(hands.throttle_value(), 0.5), "off: a throttle pushed forward on a cabinet that is off stays where it was left (%.2f)" % hands.throttle_value())
+	_ok(input.last_sent.is_empty(), "off: and nothing is sent")
+	input._right_vr_ctrl = null
+	input._left_vr_ctrl = null
 
 
 # --- laser ---------------------------------------------------------------------
@@ -1836,13 +2025,15 @@ func _group_laser() -> void:
 	grip.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.PRESSED, null, grip, Vector3.ZERO, Vector3.ZERO))
 	_ok(panel.is_attached(), "laser: and the desktop's reticle (no hand) attaches too")
 	panel.set_attached(false)
-	# The machine off, the panel gone, a morph under a held stick: every laser is given back.
+	# The panel hidden, gone, a morph under a held stick: every laser is given back.
 	_tip_at(h, _ball_at(panel))
 	_trigger(h, 1.0)
 	_step(panel, [h])
 	_ok(not _laser_on(laser), "laser: (held again)")
-	panel.update_hands(0.016, [h["ctrl"]], false)
-	_ok(_laser_on(laser) and not hands.holds(&"stick", 0), "laser: switching the machine off gives the laser back and lets the stick go")
+	panel.visible = false
+	_step(panel, [h])
+	_ok(_laser_on(laser) and not hands.holds(&"stick", 0), "laser: hiding the panel gives the laser back and lets the stick go")
+	panel.visible = true
 	_trigger(h, 0.0)
 	_step(panel, [h])
 	_tip_at(h, _ball_at(panel))

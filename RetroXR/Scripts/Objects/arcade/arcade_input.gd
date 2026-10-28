@@ -476,19 +476,33 @@ func _hand_ctrls() -> Array:
 	return out
 
 
-## Step every panel's hands. `live` is false when the machine is off: whatever was held is let go.
-func _step_hands(delta: float, live: bool) -> void:
-	var hands := _hand_ctrls() if live else []
+## Step every panel's hands, whether or not a game is running: the controls of a cabinet that is switched off are worked all the same (`_show_hands_only`).
+func _step_hands(delta: float) -> void:
+	var hands := _hand_ctrls()
 	var body := Vector3.INF
 	for panel in _controls:
 		if panel != null and is_instance_valid(panel):
-			panel.update_hands(delta, hands, live)
+			panel.update_hands(delta, hands)
 			# A dance stage's arrows are pressed by whoever stands on them.
 			if panel.has_feet():
-				if live and not body.is_finite():
+				if not body.is_finite():
 					body = _body_point()
-				panel.update_body(body if live else Vector3.INF)
+				panel.update_body(body)
 	_sync_held_players()
+
+
+## A cabinet that is off sends nothing, but a control a hand works still moves: the caps sink under the fingers, the stick follows the hand, the wheel turns
+## (the pedals, the lever, the throttle likewise). Each panel shows what the hands alone hold, mapped as a running cabinet maps it, and not running
+## (`show_state`): the game's gear is not followed and the moving base stays still. Nothing here reaches a core, and the coin, START and the panel's own
+## attach are not part of it.
+func _show_hands_only() -> void:
+	for p in _controls.size():
+		var panel := _controls[p]
+		if panel == null or not is_instance_valid(panel):
+			continue
+		var state := _with_hands({"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": 0}, p)
+		panel.show_state(ArcadeInputState.compose(0, int(state["btn"]), false, _unsupported()),
+			Vector4i(int(state["alx"]), int(state["aly"]), int(state["arx"]), int(state["ary"])), false)
 
 
 ## Where the player stands, at the height of the floor under them: the head's place on the floor (nothing tracks feet), Vector3.INF when there is no
@@ -597,13 +611,14 @@ func _process(delta: float) -> void:
 		# A TEST or SERVICE that asked for a game which did not start (the core refused it) is not made in the next one.
 		_service_wait.clear()
 		# A finger on a cap or a hand on a stick starts the game, as a coin does.
-		_step_hands(delta, true)
+		_step_hands(delta)
 		_watch_for_use()
 		return
 	var powered := bool(_host.get("is_powered_on"))
 	if not powered:
 		_release_pedals()
-		_step_hands(delta, false)
+		_step_hands(delta)
+		_show_hands_only()
 		if playing:
 			for panel in _controls:
 				if panel != null:
@@ -620,7 +635,7 @@ func _process(delta: float) -> void:
 	_run_seconds += delta
 	var controllers: Array = _host.get_port_controllers() if _host.has_method("get_port_controllers") else []
 	var players := maxi(maxi(_controls.size(), 2), _door_ports)
-	_step_hands(delta, true)
+	_step_hands(delta)
 	_step_service(delta)
 	# What every player is pressing first, then the coins and START: a held coin goes in before a START.
 	var masks: Array[int] = []
@@ -985,16 +1000,19 @@ func _step_held_coins(delta: float, start_pressed: bool) -> bool:
 
 ## The core stopped (or never started): the run is over, and every coin still held rolls out into its cup.
 func _end_run() -> void:
+	var was_running := _run_base >= 0
 	# A press that waited for a run is let go with it.
-	if _run_base >= 0:
+	if was_running:
 		_service_wait.clear()
 	_run_base = -1
 	_run_seconds = 0.0
-	# The next run starts in the game's first gear, so the gear lever is put back; a moving base settles and a throttle lever is back in the middle.
-	for panel in _controls:
-		if panel != null:
-			panel.reset_shift()
-			panel.rest()
+	# The next run starts in the game's first gear, so the gear lever is put back; a moving base settles and a throttle lever is back in the middle. Once, when the run
+	# ends: this is called every frame the cabinet stays off, and a lever a hand moves in that time is left where the hand puts it.
+	if was_running:
+		for panel in _controls:
+			if panel != null:
+				panel.reset_shift()
+				panel.rest()
 	_return_held()
 	_letting_in = false
 	_start_hold = 0.0

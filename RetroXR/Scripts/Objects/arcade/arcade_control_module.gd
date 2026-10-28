@@ -135,6 +135,7 @@ var _stick_current := Vector2.ZERO
 ## `position =` dirties the transform and goes to the renderer even when it writes the value it holds.
 var _shown_mask := -1
 var _shown_axes := Vector4i.ZERO
+var _shown_running := true
 ## The game's gear lever (ArcadeGameProfile.shifter(): {} none, {button, toggle}, {up, down}) and where the lever stands. A toggle shifter is
 ## where the game's gear is as far as the cabinet can tell: it flips at every press of the shift button, counted on the button's rising edge,
 ## whoever pressed it (a pad, a finger, the lever itself); a held one is high while the button is down; a sequential box goes high on `up`
@@ -413,13 +414,15 @@ func grip() -> ArcadePanelGrip:
 
 ## Show the state that reached the core: sink the caps it presses, lean the stick, and move what
 ## a game's own panel has (a wheel, the pedals, a second stick...). `mask` is the joypad mask, `axes`
-## the analog sticks as sent (left x, left y, right x, right y).
-func show_state(mask: int, axes: Vector4i = Vector4i.ZERO) -> void:
-	if mask == _shown_mask and axes == _shown_axes:
+## the analog sticks as sent (left x, left y, right x, right y). `running` is false for a cabinet that is switched off: it shows only what a hand
+## does to its controls (they work with the power off), so the game's gear is not followed and the moving base, a motor, stays still.
+func show_state(mask: int, axes: Vector4i = Vector4i.ZERO, running := true) -> void:
+	if mask == _shown_mask and axes == _shown_axes and running == _shown_running:
 		return
 	var before := _shown_mask
 	_shown_mask = mask
 	_shown_axes = axes
+	_shown_running = running
 	for i in _caps.size():
 		var pressed := (mask & (1 << _cap_bits[i])) != 0
 		_caps[i].position = _cap_rest[i] + (_cap_press[i] if pressed else Vector3.ZERO)
@@ -440,7 +443,10 @@ func show_state(mask: int, axes: Vector4i = Vector4i.ZERO) -> void:
 		_analog_target["pitch"] = clampf(steer.y, -1.0, 1.0)
 		_analog_target["gas"] = 1.0 if (mask >> ControllerBindings.JOYPAD_R2) & 1 else 0.0
 		_analog_target["brake"] = 1.0 if (mask >> ControllerBindings.JOYPAD_L2) & 1 else 0.0
-		_step_shift(before, mask)
+		if running:
+			_step_shift(before, mask)
+		else:
+			_shift_high = false
 		_analog_target["shift"] = 1.0 if _shift_high else 0.0
 		# The throttle is the right stick's Y: pushed up (negative as sent) is forward, the lever away from the player.
 		_analog_target["throttle"] = clampf(-right.y, -1.0, 1.0)
@@ -454,7 +460,7 @@ func show_state(mask: int, axes: Vector4i = Vector4i.ZERO) -> void:
 	# The moving base: banks into the turn, noses up with a pull on the stick and with the gas, down with the brake.
 	if _motion != null:
 		var pedals := float((mask >> ControllerBindings.JOYPAD_R2) & 1) - float((mask >> ControllerBindings.JOYPAD_L2) & 1)
-		_motion_target = Vector2(clampf(steer.x, -1.0, 1.0), clampf(steer.y * 0.8 + pedals * 0.5, -1.0, 1.0))
+		_motion_target = Vector2(clampf(steer.x, -1.0, 1.0), clampf(steer.y * 0.8 + pedals * 0.5, -1.0, 1.0)) if running else Vector2.ZERO
 
 
 ## The gear lever follows the game's own shift button (or the two of a sequential box), seen in what the player is sending. A press the
@@ -704,10 +710,10 @@ func pedal_down(which: String) -> float:
 
 # ── the hands (ArcadePanelHands) ─────────────────────────────────────────────
 
-## Step the hands on this panel: `ctrls` are the player's two hands, `live` false while the machine is off.
-func update_hands(delta: float, ctrls: Array, live: bool) -> void:
+## Step the hands on this panel: `ctrls` are the player's two hands. They work the controls with the machine off as well (ArcadePanelHands.update).
+func update_hands(delta: float, ctrls: Array) -> void:
 	if _hands != null:
-		_hands.update(delta, ctrls, live)
+		_hands.update(delta, ctrls)
 
 
 ## Let go of everything a hand holds or presses here.

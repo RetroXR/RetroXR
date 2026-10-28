@@ -225,15 +225,13 @@ func rebuild() -> void:
 
 # ── every frame ──────────────────────────────────────────────────────────────
 
-## Step the hands on this panel. `ctrls` are the player's two hands; `live` is false while the machine is off (the
-## controls are dead then, and whatever was held is let go).
-func update(delta: float, ctrls: Array, live: bool) -> void:
-	if not live or _panel == null or not is_instance_valid(_panel) or not _panel.is_inside_tree() \
+## Step the hands on this panel. `ctrls` are the player's two hands. The controls are there to be worked whether or not a game is running: a
+## cabinet that is switched off still has its buttons pressed and its stick taken, as the controls of a real machine move with the power off. What the hands
+## hold reaches nobody then (ArcadeInput sends it to a core that is running, and only that one); the panel just shows it.
+func update(delta: float, ctrls: Array) -> void:
+	if _panel == null or not is_instance_valid(_panel) or not _panel.is_inside_tree() \
 			or not _panel.is_visible_in_tree():
 		release_all()
-		# A machine that is off has its throttle back in the middle.
-		if not live:
-			reset_latched()
 		return
 	# Whatever a control is in the middle of (a tap on a shift button) goes on with no hand on it.
 	for g in _grabs:
@@ -420,7 +418,7 @@ func _forget_gone() -> void:
 			_grip.erase(id)
 
 
-## Everything let go, every laser back, the outlines away: the machine went off, the panel left the tree or a hand
+## Everything let go, every laser back, the outlines away: the panel was hidden or left the tree, a morph rebuilt it or a hand
 ## went. Cheap to call again.
 func release_all() -> void:
 	if _idle and _holding.is_empty() and _pressing.is_empty() and _blocked.is_empty():
@@ -517,7 +515,7 @@ func has_feet() -> bool:
 	return false
 
 
-## The player's body: `point` is where they stand, at the height of the floor under them (Vector3.INF: nobody, or the machine is off). Presses each arrow
+## The player's body: `point` is where they stand, at the height of the floor under them (Vector3.INF: nobody). Presses each arrow
 ## whose square it is over (`foot_on`); every other arrow comes up.
 func update_body(point: Vector3) -> void:
 	var here := point.is_finite()
@@ -626,7 +624,7 @@ func throttle_value() -> float:
 	return g.value if g != null else 0.0
 
 
-## A control that keeps its place when let go (a throttle) goes back to the middle: the machine went off, or the run ended.
+## A control that keeps its place when let go (a throttle) goes back to the middle: the run ended (ArcadeInput._end_run).
 func reset_latched() -> void:
 	for g in _grabs:
 		g.reset()
@@ -772,7 +770,7 @@ class ControlGrab extends RefCounted:
 		end()
 		holder = null
 
-	## Every hand let go at once (the machine went off, the panel left).
+	## Every hand let go at once (the panel was hidden or left, a morph rebuilt it).
 	func release() -> void:
 		end()
 		holder = null

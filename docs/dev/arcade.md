@@ -1161,7 +1161,7 @@ a wheel, bars, dial and trackball the left stick's X or XY, so "left+dpad" sends
 - **Feet** (2026-10-27): nothing tracks feet, so the body is the HEAD's place on the floor (`ArcadeInput._body_point()`: the camera's x and z, the XR origin's y, or 1.6 m under the camera
   where there is none). A panel of a dance stage (`stage_panel` meta on the plate, `Poke.foot`) is pressed while that point is over its square grown by `FOOT_MARGIN` (2 cm) and the floor
   under the player is within `FOOT_BELOW` (18 cm) under the panel's top (walking up from the room's floor onto the platform) to `FOOT_ABOVE` (6 cm) over it (`ArcadePanelHands.foot_on`, pure).
-  `update_body(Vector3.INF)` (the machine off, no camera) lets every arrow up. The press joins the hands' (`buttons()`, `active()`), so the panel needs no attaching for it and the
+  `update_body(Vector3.INF)` (nobody to ask: no camera) lets every arrow up. The press joins the hands' (`buttons()`, `active()`), so the panel needs no attaching for it and the
   netplay route is the same as a fingertip's.
 - **Taking hold** (`ControlGrab` and its kinds): the TRIGGER's rising edge (`TRIGGER_ON` 0.6, off at 0.4) with the tip within the handle's reach: `STICK_REACH`
   5 cm of the ball, `DIAL_REACH` 4.5 of the knob, `BALL_REACH` 6, `LEVER_REACH` 5.5, `BARS_REACH` 7 of a grip, the wheel on its rim (0.45..1.4 of
@@ -1184,15 +1184,15 @@ a wheel, bars, dial and trackball the left stick's X or XY, so "left+dpad" sends
   SPEED it is turned at is the right stick's Y (forward up), and a hand on the axle has no angle; *slide*: a lever in a slot (Panic Park) taken at its ball (`SLIDE_REACH` 5.5 cm) and pushed along it,
   `SLOT_TRAVEL` 14 cm being all the way (the left stick's X); the bars' handle is the middle of the bars, not the pivot the bike leans about (the
   hands are 60 cm above it and the let-go distance took hold of nothing); *throttle* (a flight cockpit's lever): taken at its knob (`THROTTLE_REACH` 6 cm), pushed or pulled
-  (`THROTTLE_THROW` 10 cm is all of it) and **left where the hand left it** (`ThrottleGrab.value`, sent as the right stick's Y while it is anywhere but the middle; the machine switched off or the run
-  over puts it back, `reset_latched`); a flight STICK's throw grows with its shaft (`StickGrab._throw`: 3 cm for the deck's 8.5 cm, 9.5 cm for the cockpit's 36 cm: the grip stays with the hand).
+  (`THROTTLE_THROW` 10 cm is all of it) and **left where the hand left it** (`ThrottleGrab.value`, sent as the right stick's Y while it is anywhere but the middle; a run that ends puts it back, `reset_latched`, ONCE from `ArcadeInput._end_run`:
+  while the machine stays off a hand leaves it where it likes); a flight STICK's throw grows with its shaft (`StickGrab._throw`: 3 cm for the deck's 8.5 cm, 9.5 cm for the cockpit's 36 cm: the grip stays with the hand).
 - **Clockwise seen by the player is RIGHT**, for the wheel, the dial and the bars. The dial used to turn the other way (a turn about +Z, which is toward the
   player, is counter-clockwise); `_dial_angle` is now clockwise-positive and drawn `Basis(BACK, -angle)`. Holding RIGHT and a hand agree.
 - **The laser** (`VrPointerBlock`): a hand within `REACH_SCALE` (1.5x) of a control it could take, or holding one, has no laser (back the moment it is
   not), or the trigger it pulls for the stick would also click whatever the laser was on. And `ArcadePanelGrip` takes no press from a hand that is
   reaching (`ArcadeControlModule.hand_reaching`, asked afresh from the hand's place, not from last frame's state: the pointer's press can come before the panel's step). A finger on a cap keeps
-  its laser. The reticle (no hand) attaches as before. Everything a hand held or blocked is given back by `release_all`: the machine off, the panel hidden
-  or freed (`_exit_tree`, a morph under a held stick), a hand lost. An owner that leaves a laser blocked leaves it dead for the session, so this is pinned.
+  its laser. The reticle (no hand) attaches as before. Everything a hand held or blocked is given back by `release_all`: the panel hidden
+  or freed (`_exit_tree`, a morph under a held stick), a hand lost (the machine off is NOT one: below). An owner that leaves a laser blocked leaves it dead for the session, so this is pinned.
 - **The fist round a control is the control's** (the squeeze, not the trigger): `RetroSystem.can_pick_up` is false for a hand that holds or reaches for a control
   of the cabinet (`RetroSystemModelArcadeCabinet.hand_busy`), or the squeeze that goes round a stick would start the carry ring (`HoldToGrab`) and, held a second,
   pick the whole cabinet up under the player's hand; and `ArcadePanelGrip` takes no squeeze from it either (a squeeze round the stick does not attach). A squeeze on the
@@ -1201,12 +1201,33 @@ a wheel, bars, dial and trackball the left stick's X or XY, so "left+dpad" sends
   (that would be the whole panel).
 - **Somebody is at the cabinet**: `ArcadeInput.engaged()` is true while a hand presses a cap or holds a control (`hands_busy`), or a hand-only player's attract
   game would be put away after 120 s (`ArcadeAttract._watch_idle`), and a finger on a cap or a hand on a stick starts the game from attract as a coin or an
-  attached panel does (`first_use` `&"panel"`). Hands step even while attracting (so that they can) and are let go when the machine is off.
+  attached panel does (`first_use` `&"panel"`). Hands step in every state, attracting included (so that they can start the game): see the next item for the machine off.
 - **A hand on a control takes the sticks with it (2026-10-27).** While a hand HOLDS a control (a stick, the wheel, a lever; a finger on a cap is not a hold) the
   controllers' thumbsticks and buttons are the GAME's, as if attached to that panel (`ArcadeInput.held_players`, set in `_step_hands`: player -> the hands holding),
   and neither stick walks or turns the player (the same `LocomotionManager` block `playing` takes, `_update_locomotion_block`); let go, and they are the player's again.
   It is not an attach (`playing` and the keyboard's capture are untouched). The TRIGGER of a holding hand is the hold itself, so it is left out of the button bindings
   (it was also R2, with the stick in the hand); an attached player gets the same. `arcade_hand_tests transfer/`.
+- **A cabinet that is switched off still has its controls worked (2026-10-28).** The hands used to be let go the moment the machine was not on (`live`), so in a headset a
+  cabinet that was off could not be touched at all: no cap gave, no stick moved. They now step in EVERY state (`ArcadeInput._step_hands`, no `live`; `ArcadePanelHands.update(delta, ctrls)`
+  only lets go of a panel that is hidden or outside the tree), and a cabinet that is off shows what the hands alone hold (`_show_hands_only`: `_with_hands` on an empty state, the SAME mapping a
+  running cabinet uses, into `ArcadeControlModule.show_state(mask, axes, running=false)`). What that means and does not:
+  - **Seen, not sent.** Caps sink under the fingers, the stick, the wheel, the dial, the pedals, the lever and the throttle follow the hand and come back as they do running. Nothing reaches a core
+    (`_send` is in the powered branch only; `last_sent` stays empty), and the coin, START and the panel's own attach are not part of it. A laser press on the panel still attaches and the next
+    frame lets go (`playing` while off): the panel is one controller you attach to, which a machine that is off has nobody to play.
+  - **`running=false` in `show_state`**: the game's gear is not followed (`_shift_high` stays false, so a lever thrown by hand goes back to first when let go, and is in no gear while held) and the
+    moving base, a motor, is not driven (`_motion_target` zero, so a flight stick leaned on a cabinet that is off leaves the cockpit level). `running` is part of "nothing changed" in `show_state`'s
+    early out, or a hand that stays on a stick across the power switch would leave the base level when the machine comes on.
+  - **The run's reset is once.** `_end_run` ran every frame the cabinet stayed off, resetting the gear and the throttle (`reset_shift`, `rest`) each time, so nothing a hand moved could stay. It now does it
+    when a RUN ends (`_run_base >= 0`), once; a throttle pushed forward with the power off stays there, as a throttle does, and the next run starts from wherever it is.
+  - **A hold holds the player back, powered or not** (`held_players`, the locomotion block): it was released with the power, which let a thumbstick push walk the player away from a stick still in the hand;
+    it now goes on until the trigger lets go. The thumbstick goes nowhere while off. A dance stage's arrows are pressed by the body off as on (`update_body`).
+  - Attract (`attracting`) is unchanged: the hands step there too and a finger or a hand STARTS the game. With the cabinet off nothing starts: the power switch does.
+  `arcade_hand_tests off/` (24: a cap sinks and lifts, the stick's outline and no laser at it, it leans and comes back, the wheel and a pedal, the gear lever and its spring, a flight cockpit's base stays
+  level and plays when switched on, a throttle stays put; each "nothing is sent"), `arcade_form_tests stage/` (an arrow of a stage that is off), the cases that pinned the old rule rewritten
+  (`caps/` a hidden panel lets go, `laser/` the same, `input/` and `transfer/` the finger and the hold survive the switch). 10 mutants (the hands not stepped, not shown, shown as nothing pressed, sent
+  as well, the base driven, the gear followed, `running` out of the early out, the reset every frame, the hidden panel not let go, the stage's body not asked) each turned a case red. Photographed
+  windowed (`arcade_cabinet_probe --shots=hands,handsoff`: the stick leaned and button 2 sunk with the machine off, `last_sent` empty). OWED: a headset; whether a lever that springs back when let go on a
+  machine that is off feels right (a real one stays in its gear), and whether walking should stay held while a hand holds a control of a cabinet that is off.
 - **Hover**: a control a hand could take is outlined YELLOW (`WidgetOutline.SELECT_COLOR`, `PickableHighlight.ray_color`'s: the green is gone) and has NO outline at all while a hand
   holds it (`WidgetOutline`, made the first time a hand is near, one per control). The panel's own grip (`ArcadePanelGrip`) is a yellow FRAME round the panel (`frame_mesh`),
   where it was a green wash over it, and stays while attached; the seat's trigger tints yellow too. A pressed cap shows
@@ -1216,10 +1237,10 @@ a wheel, bars, dial and trackball the left stick's X or XY, so "left+dpad" sends
   8-way gate (a hand that drifts across the 35% line gets a diagonal; MAME's `ways` is in the table and could snap it); two hands on one wheel (the first holds it);
   hands for the desktop (it attaches, and the keyboard plays).
 - `arcade_hand_tests` (167 checks, no core and no headset: a fake hand, an `XRController3D` on a tracker, puts a tip and a trigger where the case says, on panels
-  the cabinet really builds): the pure zone; caps (press, hold, grace, slide, two hands sharing, hidden caps and panels, a hand holding something, the machine off, a lost
+  the cabinet really builds): the pure zone; caps (press, hold, grace, slide, two hands sharing, hidden caps and panels, a hand holding something, a lost
   controller); pedals; the stick (reach, edge, directions, diagonal, dead zone, the 35% line, drawn at once, spring back, a key's lean kept, one hand, 35 cm, hidden);
   twin sticks; the wheel (rim only, the sign, the lock, no wind-up, drawn at once, back to centre); the dial's sign and speed; the trackball; the lever's latch;
-  the bars; a bicycle's bars and crank and Panic Park's two levers (`cycle/`, `slot/`); a flight cockpit's stick and throttle (`fly/`: the throw by the shaft, the lever staying put, a pad's larger deflection winning, put back when the machine goes off); the port (a cap on the right port, the cap sinks, the bindings apply, off sends nothing, a pad and a hand add up); the laser (off, on, given back by a release, the
+  the bars; a bicycle's bars and crank and Panic Park's two levers (`cycle/`, `slot/`); a flight cockpit's stick and throttle (`fly/`: the throw by the shaft, the lever staying put, a pad's larger deflection winning, put back when the run ends); the port (a cap on the right port, the cap sinks, the bindings apply, off sends nothing, a pad and a hand add up); a cabinet that is off (`off/`: the controls are worked all the same and nothing is sent); the laser (off, on, given back by a release, the
   power, a morph) and the panel's press; the carry (a hand on a control cannot pick the cabinet up, the other hand can; the squeeze); attract. Mutation-tested (48 mutants of the
   hand code, every one caught: the tests that let three through, a pedal zone that followed the pedal down, the dial's direction under a key and a swapped gas and brake bit,
   were made to catch them; and 20 more for the bicycle's bars and crank and the slot's levers, 19 caught and one that cannot be: the crank's `end()` clearing a speed that `begin()` clears too). **OWED: a headset.** Every number above is an estimate: reach, throw, zones, speeds. They are consts so the feel can be tuned on
