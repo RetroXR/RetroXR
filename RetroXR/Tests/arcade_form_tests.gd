@@ -52,7 +52,7 @@
 ##   boxes/     collision and pointer boxes are laid again, not added to; a cockpit has pointer boxes only
 ##   footprint/ the rectangle on the floor covers a cockpit or a stage
 ##   bezel/     the game's own bezel from the player's MAME artwork (its parent's for a clone), never a filler
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
@@ -60,14 +60,12 @@ const PAD_SCENE := "res://Scenes/Objects/controllers/retro_controller.tscn"
 var P := ArcadeGameProfile
 var S := ArcadeCabinetSpecs
 
-var _checks := 0
-var _failed := 0
-var _cases_failed := 0
 var _only := ""
 var _spawned: Array[Node] = []
 
 
 func _ready() -> void:
+	suite_tag = "form"
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			_only = a.substr(7)
@@ -75,17 +73,7 @@ func _ready() -> void:
 		print("[form] TIMED OUT")
 		get_tree().quit(1))
 	await _run()
-	print("[form] %d checks, %d case(s) failed" % [_checks, _cases_failed])
-	print("[form] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
-
-
-func _ok(ok: bool, what: String) -> void:
-	_checks += 1
-	if not ok:
-		_failed += 1
-		_cases_failed += 1
-	print("[form] %s  %s" % ["PASS" if ok else "FAIL", what])
+	_finish()
 
 
 func _wait(n: int) -> void:

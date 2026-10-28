@@ -10,14 +10,12 @@
 ##   held/    carried through loose things at floor level, nothing moves: the cabinet, its bay and its guns are on the held layer with no mask; set down on a
 ##            cartridge or another cabinet, nothing is thrown
 ##   throw/   let go of with the arm swinging, a cabinet is set down where the hand was (no speed, no turn); a loose pad still takes the hand's velocity
-extends Node3D
+extends "res://Tests/test_suite.gd"
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const PAD_SCENE := preload("res://Scenes/Objects/controllers/retro_controller.tscn")
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 
-var _checks := 0
-var _failed := 0
 var _only := ""
 
 
@@ -37,6 +35,7 @@ class FakeHand extends Node3D:
 
 
 func _ready() -> void:
+	suite_tag = "hold"
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			_only = a.substr(7)
@@ -55,16 +54,7 @@ func _ready() -> void:
 		await _group_held()
 	if _want("throw"):
 		await _group_throw()
-	print("[hold] %d checks, %d failed" % [_checks, _failed])
-	print("[hold] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
-
-
-func _ok(ok: bool, what: String) -> void:
-	_checks += 1
-	if not ok:
-		_failed += 1
-	print("[hold] %s  %s" % ["PASS" if ok else "FAIL", what])
+	_finish()
 
 
 func _want(group: String) -> bool:

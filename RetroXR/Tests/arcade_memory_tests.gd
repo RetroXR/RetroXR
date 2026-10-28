@@ -15,19 +15,18 @@
 ##   table/       the table's `b`: which games start from a memory built by hand
 ##   system/      the cabinet: what the DIP tab is told, when a Reset is refused, the start's hook
 ##   ui/          the DIP tab's Game memory section: Reset asks twice, the copies put back, nothing when there is none
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 
 var A := ArcadeBackupMemory
 
-var _checks := 0
-var _failed := 0
 var _only := ""
 var _root := ""
 
 
 func _ready() -> void:
+	suite_tag = "memory"
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			_only = a.substr(7)
@@ -37,16 +36,7 @@ func _ready() -> void:
 	_root = "user://arcade_memory_tests_%d" % (Time.get_ticks_usec() % 1000000)
 	await _run()
 	_remove_tree(_root)
-	print("[memory] %d checks, %d failed" % [_checks, _failed])
-	print("[memory] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
-
-
-func _ok(ok: bool, what: String) -> void:
-	_checks += 1
-	if not ok:
-		_failed += 1
-	print("[memory] %s  %s" % ["PASS" if ok else "FAIL", what])
+	_finish()
 
 
 func _want(group: String) -> bool:

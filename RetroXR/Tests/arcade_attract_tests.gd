@@ -23,7 +23,7 @@
 ##   keep/     the cabinet's override is saved when set and left out when it follows the global option
 ##   switch/   with the option on the power button is a latched ON / OFF switch, left ON it is saved and found on again
 ##   panel/    the System tab's row, shown for a cabinet only
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
@@ -31,8 +31,6 @@ const MODEL_ID := "arcade_cabinet_generic"
 const TEST_SYSTEM := "__attract_selftest"
 const ROM := "/tmp/attract_test_board.zip"
 
-var _checks := 0
-var _failed := 0
 var _only := ""
 var _spawned: Array[Node] = []
 var _pref_before := false
@@ -53,6 +51,7 @@ class StubWell extends RefCounted:
 
 
 func _ready() -> void:
+	suite_tag = "attract"
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			_only = a.substr(7)
@@ -64,16 +63,7 @@ func _ready() -> void:
 	AppPrefs.arcade_attract_mode = _pref_before
 	ArcadeAttract.test_still.clear()
 	_remove_tree(RomLibrary.rom_dir_for_system(TEST_SYSTEM))
-	print("[attract] %d checks, %d failed" % [_checks, _failed])
-	print("[attract] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
-
-
-func _ok(ok: bool, what: String) -> void:
-	_checks += 1
-	if not ok:
-		_failed += 1
-	print("[attract] %s  %s" % ["PASS" if ok else "FAIL", what])
+	_finish()
 
 
 func _want(group: String) -> bool:

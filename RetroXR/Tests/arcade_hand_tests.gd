@@ -37,22 +37,20 @@
 ##   sticks/    a Taiko drummer's sticks in a headset's hands: the trigger and the thumb buttons hit the drum on the hand's own side, a swing hits where the head comes down
 ##   guitar/    a GuitarFreaks guitar in two hands: the neck hand's trigger, X/A and Y/B are the frets, the body hand's trigger strums and its stick wails and turns the knob, the neck raised wails,
 ##              one hand works the frets and a free hand strums, and all of it reaches the port through the cabinet's input
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const PICKUP_SCENE := preload("res://addons/godot-xr-tools/functions/function_pickup.tscn")
 var P := ArcadeGameProfile
 var S := ArcadeCabinetSpecs
 
-var _checks := 0
-var _failed := 0
-var _cases_failed := 0
 var _only := ""
 var _spawned: Array[Node] = []
 var _hands: Array[Dictionary] = []
 
 
 func _ready() -> void:
+	suite_tag = "hand"
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			_only = a.substr(7)
@@ -62,17 +60,7 @@ func _ready() -> void:
 	# A hint counts what it has taught in the player's own file: a suite counts in memory (the `prompts/` group puts the counts back).
 	HeldHint.persist_uses = false
 	await _run()
-	print("[hand] %d checks, %d case(s) failed" % [_checks, _cases_failed])
-	print("[hand] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
-
-
-func _ok(ok: bool, what: String) -> void:
-	_checks += 1
-	if not ok:
-		_failed += 1
-		_cases_failed += 1
-	print("[hand] %s  %s" % ["PASS" if ok else "FAIL", what])
+	_finish()
 
 
 func _wait(n: int) -> void:

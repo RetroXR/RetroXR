@@ -18,12 +18,10 @@
 ##   rider/    a motorbike's and a bicycle's saddle is a seat: pressed to sit, the eyes above it, a floor to get up onto, off the leaning part
 ##   pair/     a cockpit of two seats (Lucky & Wild): each sat in and got up from on its own side, one at a time, no pointer box over either cushion
 ##   save/     a seat is a plain scene saved by its token and spawned by it
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const FAMILIES: Array[String] = ["seat_racing", "seat_stool", "seat_chair", "seat_cushion", "seat_sofa", "seat_bed"]
 
-var _checks := 0
-var _failed := 0
 var _only := ""
 var _rig: Node3D = null
 var _origin: XROrigin3D = null
@@ -33,6 +31,7 @@ var _loco: LocomotionManager = null
 
 
 func _ready() -> void:
+	suite_tag = "seat"
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			_only = a.substr(7)
@@ -40,16 +39,7 @@ func _ready() -> void:
 		print("[seat] TIMED OUT")
 		get_tree().quit(1))
 	await _run()
-	print("[seat] %d checks, %d failed" % [_checks, _failed])
-	print("[seat] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
-
-
-func _ok(ok: bool, what: String) -> void:
-	_checks += 1
-	if not ok:
-		_failed += 1
-	print("[seat] %s  %s" % ["PASS" if ok else "FAIL", what])
+	_finish()
 
 
 func _want(group: String) -> bool:

@@ -30,7 +30,7 @@
 ##   restore/    the ASYNC restore (what the loading overlay waits on) finishes with a cabinet in the room
 ##   keep/       a room saved with the cabinet in it brings it back
 ##   game/       the cabinet follows the game in its bay: panels, caps, labels, coin doors (ArcadeGameProfile)
-extends Node
+extends "res://Tests/test_suite.gd"
 
 
 ## A stand-in for a LibretroOptionDefinition: the two values the row steps through.
@@ -58,14 +58,12 @@ const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 const PAD_SCENE := preload("res://Scenes/Objects/controllers/retro_controller.tscn")
 const MODEL_ID := "arcade_cabinet_generic"
 
-var _checks := 0
-var _failed := 0
-var _cases_failed := 0
 var _only := ""
 var _spawned: Array[Node] = []
 
 
 func _ready() -> void:
+	suite_tag = "arcade"
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			_only = a.substr(7)
@@ -73,22 +71,12 @@ func _ready() -> void:
 		print("[arcade] TIMED OUT")
 		get_tree().quit(1))
 	await _run()
-	print("[arcade] %d checks, %d case(s) failed" % [_checks, _cases_failed])
-	print("[arcade] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
+	_finish()
 
 
 func _wait(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
-
-
-func _ok(ok: bool, what: String) -> void:
-	_checks += 1
-	if not ok:
-		_failed += 1
-		_cases_failed += 1
-	print("[arcade] %s  %s" % ["PASS" if ok else "FAIL", what])
 
 
 func _want(group: String) -> bool:
