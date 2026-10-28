@@ -342,11 +342,13 @@ func _test_plug_gating() -> void:
 
 func _test_port_pins_its_channel() -> void:
 	var port := _port()
-	# Inherited from RcaPort but meaningless on a cable that carries neither
-	# picture nor sound, so it is pinned rather than left for a scene to set
-	# wrong.
-	_eq(port.channel, RcaPort.Channel.VIDEO, "channel is pinned")
-	_ok(not port.show_jack, "the jack visual is off")
+	# A link port used to inherit these from RcaPort and pin them. It is a plain
+	# Port now (a link lead carries neither picture nor sound), so there is no
+	# channel or jack for a scene to set wrong, and the A/V sweeps over RcaPort.GROUP
+	# never visit it.
+	_ok(not ("channel" in port), "a link port has no A/V channel to pin")
+	_ok(not ("show_jack" in port), "and no jack visual to switch off")
+	_ok(not port.is_in_group(RcaPort.GROUP), "and the A/V sweeps do not visit it")
 	port.queue_free()
 
 
