@@ -17,7 +17,7 @@
 ##   follow/   a seat on a moving base carries the player with it, in position and never in heading
 ##   rider/    a motorbike's and a bicycle's saddle is a seat: pressed to sit, the eyes above it, a floor to get up onto, off the leaning part
 ##   pair/     a cockpit of two seats (Lucky & Wild): each sat in and got up from on its own side, one at a time, no pointer box over either cushion
-##   save/     a seat is a plain scene saved by its token and spawned by it
+##   save/     a seat is a plain scene saved by its token, spawned by it, and offered on the SPAWN menu's Objects tab
 extends "res://Tests/test_suite.gd"
 
 const FAMILIES: Array[String] = ["seat_racing", "seat_stool", "seat_chair", "seat_cushion", "seat_sofa", "seat_bed"]
@@ -675,3 +675,10 @@ func _group_save() -> void:
 		var seat := ScenePersistence.instantiate(id)
 		_ok(seat is Seat and (seat as Seat).type_id == id, "save: and it is spawned by its token")
 		seat.free()
+	# The rows are SpawnCatalog.OBJECTS's, where the Objects tab reads them (SpawnCatalog.objects()). A merge that
+	# took the other side of the menu's list left every seat off the tab and no suite noticed.
+	var offered: Array = []
+	for row: Array in SpawnCatalog.objects():
+		offered.append(str(row[1]))
+	for id in FAMILIES:
+		_ok(id in offered, "save: %s is on the SPAWN menu's Objects tab" % id)
