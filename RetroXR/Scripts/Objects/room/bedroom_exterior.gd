@@ -11,6 +11,9 @@
 ## when the lever crosses into a new pair; until they arrive the street holds the nearest key it has. Only
 ## the pair in use stays in memory.
 ##
+## The trees sway in the wind: the renders carry a mask of their leaves, and street_layer.gdshader drifts those
+## pixels with a gust and a flutter. It runs in the shader on TIME, so nothing here drives it.
+##
 ## The TV in the ranch across the street flickers after dusk: a mask of its window and a light this script
 ## varies, so it costs a uniform write per frame and only while it is on.
 extends Node3D
@@ -59,6 +62,8 @@ func _ready() -> void:
 		if layer == "fg":
 			var r: Array = _meta["fg_rect"]
 			mat.set_shader_parameter("crop", Vector4(r[0], r[1], r[2], r[3]))
+		if layer != "sky" and ResourceLoader.exists(DIR + "street_leaf_%s.png" % layer):
+			mat.set_shader_parameter("leaf_mask", load(DIR + "street_leaf_%s.png" % layer))
 		if layer == "bg" and ResourceLoader.exists(DIR + "street_tv.png"):
 			var tr: Array = _meta["tv_rect"]
 			mat.set_shader_parameter("tv_mask", load(DIR + "street_tv.png"))
