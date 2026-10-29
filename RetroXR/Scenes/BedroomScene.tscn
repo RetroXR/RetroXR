@@ -2,11 +2,6 @@
 
 [ext_resource type="Script" uid="uid://btn0gji8qtw2l" path="res://Scripts/XR/xr_init.gd" id="1_xrinit"]
 [ext_resource type="PackedScene" path="res://Scenes/player_rig.tscn" id="2_playerrig"]
-[ext_resource type="PackedScene" uid="uid://cf1t35jvr4b06" path="res://imported-assets/bedroom/exterior/house_a.glb" id="4_house_a"]
-[ext_resource type="PackedScene" uid="uid://de88d5tmbnvfv" path="res://imported-assets/bedroom/exterior/house_b.glb" id="5_house_b"]
-[ext_resource type="PackedScene" uid="uid://sjsnrmuq8210" path="res://imported-assets/bedroom/exterior/house_two_a.glb" id="6_house2a"]
-[ext_resource type="PackedScene" uid="uid://13b63ds8bvlo" path="res://imported-assets/bedroom/exterior/house_two_d.glb" id="7_house2d"]
-[ext_resource type="PackedScene" uid="uid://dy5qcvojjl3gm" path="res://imported-assets/bedroom/exterior/trees.glb" id="9_trees"]
 [ext_resource type="Script" uid="uid://bm2d1ptvbi3g0" path="res://Scripts/Objects/room/bedroom_exterior.gd" id="10_exterior"]
 [ext_resource type="PackedScene" uid="uid://d0fvn4hf0hie5" path="res://imported-assets/bedroom/furniture/ceiling_fan.glb" id="14_fan"]
 [ext_resource type="PackedScene" uid="uid://bfelbrt836fal" path="res://imported-assets/bedroom/furniture/door.glb" id="19_door"]
@@ -47,8 +42,8 @@
 [ext_resource type="Texture2D" uid="uid://tt3jcrckcq20" path="res://imported-assets/bedroom/materials/Ground048_1K-JPG_NormalGL.jpg" id="80_soil_nrm"]
 [ext_resource type="Texture2D" uid="uid://jqkn8sivt8as" path="res://imported-assets/bedroom/materials/Ground048_1K-JPG_Roughness.jpg" id="81_soil_rgh"]
 [ext_resource type="Texture2D" uid="uid://cq80huhlnexke" path="res://imported-assets/bedroom/materials/Ground048_1K-JPG_AmbientOcclusion.jpg" id="82_soil_ao"]
-[ext_resource type="PackedScene" uid="uid://btkrc8cbbqbaq" path="res://imported-assets/bedroom/props/periwinkle_plant_1k.gltf" id="83_periwinkle"]
-[ext_resource type="PackedScene" uid="uid://d2hlcfwhangp6" path="res://imported-assets/bedroom/props/potted_plant_04_1k.gltf" id="84_pot"]
+[ext_resource type="Shader" path="res://Shaders/window_glass.gdshader" id="90_glass_shader"]
+[ext_resource type="Texture2D" path="res://imported-assets/bedroom/window_dust.png" id="91_window_dust"]
 
 [sub_resource type="ProceduralSkyMaterial" id="Sky_dusk"]
 sky_top_color = Color(0.06, 0.11, 0.3, 1)
@@ -227,145 +222,6 @@ size = Vector3(1.64, 0.07, 0.02)
 [sub_resource type="BoxMesh" id="Mesh_sill"]
 size = Vector3(1.7, 0.045, 0.1)
 
-[sub_resource type="PlaneMesh" id="Mesh_ground"]
-size = Vector2(140, 140)
-
-[sub_resource type="ShaderMaterial" id="Mat_ground"]
-render_priority = 0
-shader = ExtResource("56_roomsurf")
-shader_parameter/shell = true
-shader_parameter/albedo_tex = ExtResource("57_grass_col")
-shader_parameter/roughness_tex = ExtResource("59_grass_rgh")
-shader_parameter/normal_tex = ExtResource("58_grass_nrm")
-shader_parameter/ao_tex = ExtResource("60_grass_ao")
-shader_parameter/tint = Color(0.5, 0.56, 0.42, 1)
-shader_parameter/tiles_per_metre = 0.4
-shader_parameter/object_space = false
-shader_parameter/paint_over = 0.0
-shader_parameter/swap_uv = false
-shader_parameter/uv_offset = Vector2(0, 0)
-shader_parameter/normal_strength = 0.8
-shader_parameter/roughness_scale = 1.0
-shader_parameter/ao_enabled = true
-shader_parameter/ao_strength = 0.6
-shader_parameter/room_half_extent = Vector2(2.525, 2.125)
-shader_parameter/floor_y = 0.0
-shader_parameter/ceiling_y = 2.6
-shader_parameter/contact_strength = 0.0
-shader_parameter/contact_distance = 0.45
-shader_parameter/corner_boost = 0.0
-
-[sub_resource type="BoxMesh" id="Mesh_road"]
-size = Vector3(90, 0.04, 6.5)
-
-[sub_resource type="ShaderMaterial" id="Mat_road"]
-render_priority = 0
-shader = ExtResource("56_roomsurf")
-shader_parameter/shell = true
-shader_parameter/albedo_tex = ExtResource("61_road_col")
-shader_parameter/roughness_tex = ExtResource("63_road_rgh")
-shader_parameter/normal_tex = ExtResource("62_road_nrm")
-shader_parameter/tint = Color(0.62, 0.62, 0.64, 1)
-shader_parameter/tiles_per_metre = 0.153846
-shader_parameter/object_space = false
-shader_parameter/paint_over = 0.0
-shader_parameter/swap_uv = true
-shader_parameter/uv_offset = Vector2(3.5769, 0)
-shader_parameter/normal_strength = 0.6
-shader_parameter/roughness_scale = 1.0
-shader_parameter/ao_enabled = false
-shader_parameter/ao_strength = 1.0
-shader_parameter/room_half_extent = Vector2(2.525, 2.125)
-shader_parameter/floor_y = 0.0
-shader_parameter/ceiling_y = 2.6
-shader_parameter/contact_strength = 0.0
-shader_parameter/contact_distance = 0.45
-shader_parameter/corner_boost = 0.0
-
-[sub_resource type="BoxMesh" id="Mesh_kerb"]
-size = Vector3(90, 0.09, 1.4)
-
-[sub_resource type="ShaderMaterial" id="Mat_aggregate"]
-render_priority = 0
-shader = ExtResource("56_roomsurf")
-shader_parameter/shell = true
-shader_parameter/albedo_tex = ExtResource("75_agg_col")
-shader_parameter/roughness_tex = ExtResource("77_agg_rgh")
-shader_parameter/normal_tex = ExtResource("76_agg_nrm")
-shader_parameter/ao_tex = ExtResource("78_agg_ao")
-shader_parameter/tint = Color(0.6, 0.61, 0.6, 1)
-shader_parameter/tiles_per_metre = 1.7
-shader_parameter/object_space = false
-shader_parameter/paint_over = 0.0
-shader_parameter/swap_uv = false
-shader_parameter/uv_offset = Vector2(0, 0)
-shader_parameter/normal_strength = 1.0
-shader_parameter/roughness_scale = 1.0
-shader_parameter/ao_enabled = true
-shader_parameter/ao_strength = 0.75
-shader_parameter/room_half_extent = Vector2(2.525, 2.125)
-shader_parameter/floor_y = 0.0
-shader_parameter/ceiling_y = 2.6
-shader_parameter/contact_strength = 0.0
-shader_parameter/contact_distance = 0.45
-shader_parameter/corner_boost = 0.0
-
-[sub_resource type="BoxMesh" id="Mesh_path"]
-size = Vector3(1.2, 0.02, 12.4)
-
-[sub_resource type="BoxMesh" id="Mesh_driveway"]
-size = Vector3(3, 0.02, 12.9)
-
-[sub_resource type="BoxMesh" id="Mesh_bed_house"]
-size = Vector3(6, 0.04, 1.1)
-
-[sub_resource type="ShaderMaterial" id="Mat_soil"]
-render_priority = 0
-shader = ExtResource("56_roomsurf")
-shader_parameter/shell = true
-shader_parameter/albedo_tex = ExtResource("79_soil_col")
-shader_parameter/roughness_tex = ExtResource("81_soil_rgh")
-shader_parameter/normal_tex = ExtResource("80_soil_nrm")
-shader_parameter/ao_tex = ExtResource("82_soil_ao")
-shader_parameter/tint = Color(0.52, 0.46, 0.4, 1)
-shader_parameter/tiles_per_metre = 1.1
-shader_parameter/object_space = false
-shader_parameter/paint_over = 0.0
-shader_parameter/swap_uv = false
-shader_parameter/uv_offset = Vector2(0, 0)
-shader_parameter/normal_strength = 1.0
-shader_parameter/roughness_scale = 1.0
-shader_parameter/ao_enabled = true
-shader_parameter/ao_strength = 0.7
-shader_parameter/room_half_extent = Vector2(2.525, 2.125)
-shader_parameter/floor_y = 0.0
-shader_parameter/ceiling_y = 2.6
-shader_parameter/contact_strength = 0.0
-shader_parameter/contact_distance = 0.45
-shader_parameter/corner_boost = 0.0
-
-[sub_resource type="BoxMesh" id="Mesh_bed_lawn"]
-size = Vector3(2, 0.035, 1.2)
-
-[sub_resource type="CylinderMesh" id="Mesh_lamp_pole"]
-top_radius = 0.07
-bottom_radius = 0.09
-height = 6.0
-
-[sub_resource type="StandardMaterial3D" id="Mat_lamp_pole"]
-albedo_color = Color(0.08, 0.08, 0.09, 1)
-roughness = 0.8
-
-[sub_resource type="SphereMesh" id="Mesh_lamp_head"]
-radius = 0.26
-height = 0.42
-
-[sub_resource type="StandardMaterial3D" id="Mat_lamp_head"]
-albedo_color = Color(1, 0.86, 0.62, 1)
-emission_enabled = true
-emission = Color(1, 0.82, 0.5, 1)
-emission_energy_multiplier = 6.0
-
 [sub_resource type="BoxShape3D" id="Shape_bat"]
 size = Vector3(0.014, 0.02, 0.024)
 
@@ -441,6 +297,27 @@ size = Vector3(0.018, 0.11, 1)
 [sub_resource type="BoxMesh" id="Mesh_cap_ew"]
 size = Vector3(0.026, 0.022, 1)
 
+[sub_resource type="ShaderMaterial" id="Mat_window_glass"]
+render_priority = 0
+shader = ExtResource("90_glass_shader")
+shader_parameter/room_light = Color(0.95, 0.82, 0.66, 1)
+shader_parameter/reflection = 0.08
+shader_parameter/tint = 0.035
+shader_parameter/dust = ExtResource("91_window_dust")
+shader_parameter/dust_amount = 0.22
+
+[sub_resource type="QuadMesh" id="Mesh_pane_lower"]
+size = Vector2(1.41, 0.525)
+
+[sub_resource type="QuadMesh" id="Mesh_pane_upper"]
+size = Vector2(1.41, 0.535)
+
+[sub_resource type="BoxMesh" id="Mesh_sash_stile"]
+size = Vector3(0.045, 0.62, 0.035)
+
+[sub_resource type="BoxMesh" id="Mesh_sash_rail"]
+size = Vector3(1.5, 0.05, 0.035)
+
 [node name="Root" type="Node3D" unique_id=209552871]
 script = ExtResource("1_xrinit")
 scene_id = "bedroom"
@@ -453,19 +330,6 @@ transform = Transform3D(0.94, -0.24, 0.24, 0, 0.7, 0.71, -0.34, -0.67, 0.66, 0, 
 light_color = Color(1, 0.72, 0.5, 1)
 light_energy = 0.15
 light_cull_mask = 513
-sky_mode = 2
-
-[node name="ExteriorSun" type="DirectionalLight3D" parent="." unique_id=1993264936]
-transform = Transform3D(0.87, -0.32, 0.37, 0, 0.76, 0.65, -0.49, -0.57, 0.66, 0, 8, -14)
-light_color = Color(1, 0.74, 0.48, 1)
-light_energy = 1.5
-light_cull_mask = 2
-
-[node name="ExteriorFill" type="DirectionalLight3D" parent="." unique_id=773612971]
-transform = Transform3D(-0.87, 0.28, -0.4, 0, 0.82, 0.57, 0.49, 0.5, -0.71, 0, 8, -20)
-light_color = Color(0.45, 0.55, 0.85, 1)
-light_energy = 0.5
-light_cull_mask = 2
 sky_mode = 2
 
 [node name="PlayerRig" parent="." unique_id=1920508057 instance=ExtResource("2_playerrig")]
@@ -625,115 +489,59 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9, 0.828, -2.075)
 mesh = SubResource("Mesh_sill")
 surface_material_override/0 = SubResource("Mat_trim")
 
+[node name="SashLowerStileL" type="MeshInstance3D" parent="Window"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6275, 1.16, -2.165)
+mesh = SubResource("Mesh_sash_stile")
+surface_material_override/0 = SubResource("Mat_trim")
+
+[node name="SashLowerStileR" type="MeshInstance3D" parent="Window"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.1725, 1.16, -2.165)
+mesh = SubResource("Mesh_sash_stile")
+surface_material_override/0 = SubResource("Mat_trim")
+
+[node name="SashUpperStileL" type="MeshInstance3D" parent="Window"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6275, 1.74, -2.205)
+mesh = SubResource("Mesh_sash_stile")
+surface_material_override/0 = SubResource("Mat_trim")
+
+[node name="SashUpperStileR" type="MeshInstance3D" parent="Window"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.1725, 1.74, -2.205)
+mesh = SubResource("Mesh_sash_stile")
+surface_material_override/0 = SubResource("Mat_trim")
+
+[node name="SashLowerBottom" type="MeshInstance3D" parent="Window"]
+transform = Transform3D(1, 0, 0, 0, 1.2, 0, 0, 0, 1, -0.9, 0.88, -2.165)
+mesh = SubResource("Mesh_sash_rail")
+surface_material_override/0 = SubResource("Mat_trim")
+
+[node name="SashLowerMeeting" type="MeshInstance3D" parent="Window"]
+transform = Transform3D(1, 0, 0, 0, 0.7, 0, 0, 0, 1, -0.9, 1.4525, -2.165)
+mesh = SubResource("Mesh_sash_rail")
+surface_material_override/0 = SubResource("Mat_trim")
+
+[node name="SashUpperMeeting" type="MeshInstance3D" parent="Window"]
+transform = Transform3D(1, 0, 0, 0, 0.7, 0, 0, 0, 1, -0.9, 1.4475, -2.205)
+mesh = SubResource("Mesh_sash_rail")
+surface_material_override/0 = SubResource("Mat_trim")
+
+[node name="SashUpperTop" type="MeshInstance3D" parent="Window"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9, 2.025, -2.205)
+mesh = SubResource("Mesh_sash_rail")
+surface_material_override/0 = SubResource("Mat_trim")
+
+[node name="PaneLower" type="MeshInstance3D" parent="Window"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9, 1.1725, -2.165)
+mesh = SubResource("Mesh_pane_lower")
+surface_material_override/0 = SubResource("Mat_window_glass")
+
+[node name="PaneUpper" type="MeshInstance3D" parent="Window"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9, 1.7325, -2.205)
+mesh = SubResource("Mesh_pane_upper")
+surface_material_override/0 = SubResource("Mat_window_glass")
+
+
 [node name="Exterior" type="Node3D" parent="." unique_id=437194639]
 script = ExtResource("10_exterior")
-
-[node name="Ground" type="MeshInstance3D" parent="Exterior" unique_id=1264427420]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, -40)
-mesh = SubResource("Mesh_ground")
-surface_material_override/0 = SubResource("Mat_ground")
-
-[node name="Road" type="MeshInstance3D" parent="Exterior" unique_id=2146218047]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.04, -20)
-mesh = SubResource("Mesh_road")
-surface_material_override/0 = SubResource("Mat_road")
-
-[node name="KerbNear" type="MeshInstance3D" parent="Exterior" unique_id=210402909]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.02, -16.2)
-mesh = SubResource("Mesh_kerb")
-surface_material_override/0 = SubResource("Mat_aggregate")
-
-[node name="KerbFar" type="MeshInstance3D" parent="Exterior" unique_id=1661743261]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.02, -23.8)
-mesh = SubResource("Mesh_kerb")
-surface_material_override/0 = SubResource("Mat_aggregate")
-
-[node name="HouseA" parent="Exterior" unique_id=1223043998 instance=ExtResource("6_house2a")]
-transform = Transform3D(7, 0, 0, 0, 7, 0, 0, 0, 7, -21, -0.05, -32)
-
-[node name="HouseB" parent="Exterior" unique_id=511068315 instance=ExtResource("4_house_a")]
-transform = Transform3D(7, 0, 0, 0, 7, 0, 0, 0, 7, -8, -0.05, -33)
-
-[node name="HouseC" parent="Exterior" unique_id=788049511 instance=ExtResource("7_house2d")]
-transform = Transform3D(7, 0, 0, 0, 7, 0, 0, 0, 7, 5, -0.05, -32)
-
-[node name="HouseD" parent="Exterior" unique_id=1773307167 instance=ExtResource("5_house_b")]
-transform = Transform3D(7, 0, 0, 0, 7, 0, 0, 0, 7, 18, -0.05, -33)
-
-[node name="TreeRow" parent="Exterior" unique_id=1017950470 instance=ExtResource("9_trees")]
-transform = Transform3D(1.2, 0, 0, 0, 1.2, 0, 0, 0, 1.2, -256.9, -0.04, -26)
-
-[node name="FrontPath" type="MeshInstance3D" parent="Exterior" unique_id=1827806047]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.4148593, 0.012, -9.4)
-mesh = SubResource("Mesh_path")
-surface_material_override/0 = SubResource("Mat_aggregate")
-
-[node name="Driveway" type="MeshInstance3D" parent="Exterior" unique_id=1539240673]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 0.012, -9.05)
-mesh = SubResource("Mesh_driveway")
-surface_material_override/0 = SubResource("Mat_aggregate")
-
-[node name="BedHouse" type="MeshInstance3D" parent="Exterior" unique_id=1616413819]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.1, 0.02, -3.05)
-mesh = SubResource("Mesh_bed_house")
-surface_material_override/0 = SubResource("Mat_soil")
-
-[node name="BedLawnLeft" type="MeshInstance3D" parent="Exterior" unique_id=1951114532]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.0012522, 0.018, -7.357799)
-mesh = SubResource("Mesh_bed_lawn")
-surface_material_override/0 = SubResource("Mat_soil")
-
-[node name="BedLawnRight" type="MeshInstance3D" parent="Exterior" unique_id=1014025361]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.9, 0.018, -7.4)
-mesh = SubResource("Mesh_bed_lawn")
-surface_material_override/0 = SubResource("Mat_soil")
-
-[node name="PlantE" parent="Exterior" unique_id=559630852 instance=ExtResource("83_periwinkle")]
-transform = Transform3D(1.1, 0, 0, 0, 1.1, 0, 0, 0, 1.1, -1.1500001, 0.035, -7.2)
-
-[node name="PlantF" parent="Exterior" unique_id=883897629 instance=ExtResource("83_periwinkle")]
-transform = Transform3D(-0.95, 0, 0, 0, 0.95, 0, 0, 0, -0.95, -0.3499999, 0.035, -7.7)
-
-[node name="PlantG" parent="Exterior" unique_id=809589145 instance=ExtResource("83_periwinkle")]
-transform = Transform3D(1.377, 0, 0, 0, 1, 0, 0, 0, 1, 0.40000004, 0.035, -7.1)
-
-[node name="PlantH" parent="Exterior" unique_id=1141691332 instance=ExtResource("83_periwinkle")]
-transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 1.35, 0.035, -7.35)
-
-[node name="PlantA" parent="Exterior" unique_id=1323106665 instance=ExtResource("83_periwinkle")]
-transform = Transform3D(1.15, 0, 0, 0, 1.15, 0, 0, 0, 1.15, -2.75, 0.03, -3.1)
-
-[node name="PlantB" parent="Exterior" unique_id=2121442908 instance=ExtResource("83_periwinkle")]
-transform = Transform3D(0.94, 0, 0, 0.5, 0.94, 0, 0.86, 0, 0.94, -1.55, 0.03, -3.2)
-
-[node name="PlantC" parent="Exterior" unique_id=1695539103 instance=ExtResource("83_periwinkle")]
-transform = Transform3D(-1.05, 0, 0, 0, 1.05, 0, 0, 0, -1.05, 0.15, 0.03, -3.05)
-
-[node name="PlantD" parent="Exterior" unique_id=2137051343 instance=ExtResource("83_periwinkle")]
-transform = Transform3D(0.88, 0, 0, 0, 0.88, 0, 0, 0, 0.88, 1.35, 0.03, -3.25)
-
-[node name="PotByDoor" parent="Exterior" unique_id=1742906147 instance=ExtResource("84_pot")]
-transform = Transform3D(1.6, 0, 0, 0, 1.6, 0, 0, 0, 1.6, 1.05, 0.03, -2.75)
-
-[node name="StreetLamp" type="Node3D" parent="Exterior" unique_id=1103483023]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.5, 0, -16.4)
-
-[node name="Pole" type="MeshInstance3D" parent="Exterior/StreetLamp" unique_id=1117981445]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
-mesh = SubResource("Mesh_lamp_pole")
-surface_material_override/0 = SubResource("Mat_lamp_pole")
-
-[node name="Head" type="MeshInstance3D" parent="Exterior/StreetLamp" unique_id=1938032982]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.05, 0)
-mesh = SubResource("Mesh_lamp_head")
-surface_material_override/0 = SubResource("Mat_lamp_head")
-
-[node name="Light" type="OmniLight3D" parent="Exterior/StreetLamp" unique_id=1919360352]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.8, 0)
-light_color = Color(1, 0.82, 0.52, 1)
-light_energy = 3.0
-light_cull_mask = 2
-omni_range = 14.0
 
 [node name="Furniture" type="Node3D" parent="." unique_id=1208427786]
 
@@ -1037,10 +845,6 @@ world_env_path = NodePath("../WorldEnvironment")
 blinds_path = NodePath("../Furniture/Blinds")
 room_daylight_path = NodePath("../Dusk")
 window_sun_path = NodePath("../WindowSun")
-exterior_sun_path = NodePath("../ExteriorSun")
-exterior_fill_path = NodePath("../ExteriorFill")
-street_lamp_path = NodePath("../Exterior/StreetLamp/Light")
-street_lamp_head_path = NodePath("../Exterior/StreetLamp/Head")
 lever_path = NodePath("../Furniture/TimeLever/LeverPivot/Lever")
 
 [node name="ShellLighting" type="Node" parent="." unique_id=1477203611]
