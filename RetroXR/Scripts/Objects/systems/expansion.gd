@@ -223,16 +223,6 @@ func _build_body() -> void:
 	# a low base under a console can still be hit with a beam from across the room.
 	ptr.size = s + Vector3(0.02, 0.02, 0.02)
 	pointer_shape.shape = ptr
-	# Or the shell's own surface, for a unit whose row asks (the Game Boy Player:
-	# a beam aimed past its tower or into the gap under a console on it should not
-	# land on the unit).
-	if _shell != null and ExpansionCatalog.pointer_mesh_of(expansion_id):
-		var faces := _shell_faces(pointer_shape)
-		if not faces.is_empty():
-			var exact := ConcavePolygonShape3D.new()
-			exact.set_faces(faces)
-			exact.backface_collision = true
-			pointer_shape.shape = exact
 
 	_label = $NameLabel as Label3D
 	# Above the slit on a front-loading unit and below the join on a top-mounting
@@ -335,21 +325,6 @@ func _build_shell_lods(shell: Node3D) -> void:
 			g.visibility_range_begin_margin = LOD_HYSTERESIS if begin > 0.0 else 0.0
 			g.visibility_range_end = end
 			g.visibility_range_end_margin = LOD_HYSTERESIS if end > 0.0 else 0.0
-
-
-## Every triangle of the full shell (not its lower levels, which are siblings of
-## it), in `frame`'s space: the pointer's shape when it follows the shell.
-func _shell_faces(frame: Node3D) -> PackedVector3Array:
-	var out := PackedVector3Array()
-	var to_frame := frame.global_transform.affine_inverse()
-	for n in _shell.find_children("*", "MeshInstance3D", true, false):
-		var mi := n as MeshInstance3D
-		if mi.mesh == null:
-			continue
-		var t := to_frame * mi.global_transform
-		for p in mi.mesh.get_faces():
-			out.append(t * p)
-	return out
 
 
 ## Bounds of every mesh under `root`, in `root`'s own space.
