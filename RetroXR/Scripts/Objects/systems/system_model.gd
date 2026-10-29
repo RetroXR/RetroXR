@@ -64,6 +64,21 @@ func picture_material(tex: Texture2D) -> StandardMaterial3D:
 	return _picture_material
 
 
+var _picture_material_lit: StandardMaterial3D = null
+
+
+## picture_material lit by the room instead of by itself: the picture is the
+## surface's colour, for a reflective LCD with no light of its own
+## (RetroSystemModelHandheld.screen_self_lit).
+func picture_material_lit(tex: Texture2D) -> StandardMaterial3D:
+	if _picture_material_lit == null:
+		_picture_material_lit = StandardMaterial3D.new()
+		_picture_material_lit.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		_picture_material_lit.roughness = 0.4
+	_picture_material_lit.albedo_texture = tex
+	return _picture_material_lit
+
+
 ## True when this model wears a detailed shell — a GLB instanced into the scene as
 ## a child named "Shell".
 ##
@@ -369,6 +384,16 @@ func configure_handheld_controls(_host: Node3D) -> void:
 ## "capability absent" convention as get_builtin_screen() → null.
 func get_lid_angle_deg() -> float:
 	return -1.0
+
+
+## A screen light the player switches (the GBA SP's). False for every machine
+## without one; those leave the two below alone.
+func has_screen_light() -> bool:
+	return false
+
+
+func set_screen_light(_on: bool) -> void:
+	pass
 
 
 ## Restore a clamshell lid's interior open angle (0 shut … 180 flat). Hardware

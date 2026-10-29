@@ -154,6 +154,25 @@ claims them: flycast without nvmem died on its first write to a protected RAM pa
   copies a Super Famicom turned over sank its Super Game Boy's cartridge 12 cm.
 - GDExtension registration at `MODULE_INITIALIZATION_LEVEL_SCENE`.
 
+### Handheld screens: self-lit or lit by the room (2026-10-30)
+
+`RetroSystemModelHandheld._update_screen()` picks the panel's material every frame from
+`screen_self_lit()`. Machines whose real panel was a reflective LCD with no light set
+`_reflective_lcd = true` in `_init` (Game Boy, GBC, GBA both models, Neo Geo Pocket,
+WonderSwan, Pokemon mini, Supervision): their screen is LIT BY THE ROOM
+(`screen_pixel_aa_lit` / `gameboy_lcd_lit`, or `picture_material_lit` for the GBA's
+null-shader path) unless Options "Self-Lit Handheld Screens"
+(`AppPrefs.self_lit_handheld_screens`, default off) is on. Backlit machines (Game Gear,
+Lynx, PSP, DS/3DS) and the Virtual Boy never set it. A room-lit panel also turns its
+`ScreenCastLight` off. A subclass that replaces `_lcd_shader` must replace
+`_lcd_shader_lit` with its pair; each pair shares one `.gdshaderinc` (the colour), the
+two `.gdshader`s differ only in render_mode.
+
+The GBA SP has its own light (`LightButton`, a VRButton over the stand-in's cap between
+the screens, so it works by pointer and with "Press by Touch" off): on by default,
+it overrides `screen_self_lit()` and ignores the option. Saved per object as
+`screen_light: false` (absent = on); cosmetic, not on the wire. `system_tests screen_lit/`.
+
 ## Dependencies
 
 - **Copy All Errors 1.0.1** — MIT editor plugin in `RetroXR/addons/copy_all_errors/`,

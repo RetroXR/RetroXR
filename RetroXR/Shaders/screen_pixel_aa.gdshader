@@ -11,11 +11,8 @@
 shader_type spatial;
 render_mode unshaded, cull_disabled, shadows_disabled, fog_disabled;
 
-#include "res://Shaders/pixel_aa.gdshaderinc"
-
-// filter_linear is REQUIRED by pixel_aa (it does the sub-pixel ramp).
-uniform sampler2D source_tex : source_color, filter_linear, repeat_disable;
+#include "res://Shaders/screen_pixel_aa.gdshaderinc"
 
 void fragment() {
-	ALBEDO = clamp(pixel_aa(source_tex, UV).rgb, 0.0, 1.0);
+	ALBEDO = screen_pixel_aa(UV);
 }

@@ -63,6 +63,8 @@ func _init() -> void:
 	# picture with the shared pixel-AA shader. This gives the GBA a raw point-
 	# sampled image, matching frontends that present the core texture directly.
 	_lcd_shader = null
+	# The original GBA's panel had no light at all (the SP added one).
+	_reflective_lcd = true
 
 
 func _on_shell_ready() -> void:

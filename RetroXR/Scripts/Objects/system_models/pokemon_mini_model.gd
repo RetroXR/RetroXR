@@ -8,3 +8,4 @@ extends RetroSystemModelHandheld
 
 func _init() -> void:
 	cart_size = Vector3(0.022, 0.033, 0.007)   # Pokemon mini cart
+	_reflective_lcd = true   # a reflective LCD with no light of its own

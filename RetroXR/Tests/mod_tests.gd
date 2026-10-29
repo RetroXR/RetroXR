@@ -26,7 +26,7 @@
 extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 422
+const EXPECTED_CASES := 424
 
 var _only := ""
 var _dir := ""

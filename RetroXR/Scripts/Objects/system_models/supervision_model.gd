@@ -7,6 +7,7 @@ extends RetroSystemModelHandheld
 
 func _init() -> void:
 	cart_size = Vector3(0.066, 0.070, 0.009)   # Supervision cart
+	_reflective_lcd = true   # a reflective LCD with no light of its own
 
 
 ## The headphone jack, on the bottom edge just left of center: the Supervision

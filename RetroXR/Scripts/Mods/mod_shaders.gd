@@ -19,9 +19,11 @@ const _SHADERS := {
 	"static":           "res://Shaders/tv_static.gdshader",
 	"window":           "res://Shaders/screen_window.gdshader",
 	"gameboy_lcd":      "res://Shaders/gameboy_lcd.gdshader",
+	"gameboy_lcd_lit":  "res://Shaders/gameboy_lcd_lit.gdshader",
 	"vb_stereo":        "res://Shaders/vb_stereo.gdshader",
 	"phosphor_decay":   "res://Shaders/phosphor_decay.gdshader",
 	"screen_pixel_aa":  "res://Shaders/screen_pixel_aa.gdshader",
+	"screen_pixel_aa_lit": "res://Shaders/screen_pixel_aa_lit.gdshader",
 }
 
 

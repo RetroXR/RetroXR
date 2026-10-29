@@ -64,6 +64,11 @@ var region_names: String = ""
 ## Whether a fingertip presses the buttons on pads, handhelds and the like
 ## (ControlPoke). On by default; read every frame, so a change takes at once.
 var poke_controls:    bool = true
+## Whether the handhelds whose real panel had no light (Game Boy, GBC, GBA, Neo Geo
+## Pocket, WonderSwan, Pokemon mini, Supervision) light their own screens anyway.
+## Off by default: they are lit by the room, as the real ones were. Polled every
+## frame by RetroSystemModelHandheld.screen_self_lit, so a change takes at once.
+var self_lit_handheld_screens: bool = false
 ## Mirrored into SystemFilter.enabled by the setter (see the header).
 var system_filter:    bool = true:
 	set(v):
@@ -346,6 +351,7 @@ func load_prefs() -> void:
 	xr_display_mode = _prefs_xr_display_mode(data, "xr_display_mode", xr_display_mode)
 	controller_hands = JsonStore.get_bool(data, "controller_hands", controller_hands)
 	poke_controls    = JsonStore.get_bool(data, "poke_controls",    poke_controls)
+	self_lit_handheld_screens = JsonStore.get_bool(data, "self_lit_handheld_screens", self_lit_handheld_screens)
 	system_filter    = JsonStore.get_bool(data, "system_filter",    system_filter)
 	bios_boot_override = JsonStore.get_bool(data, "bios_boot_override", bios_boot_override)
 	menu_curved      = JsonStore.get_bool(data, "menu_curved",      menu_curved)
@@ -392,6 +398,7 @@ func save_prefs() -> bool:
 		"xr_display_mode":  xr_display_mode,
 		"controller_hands": controller_hands,
 		"poke_controls":    poke_controls,
+		"self_lit_handheld_screens": self_lit_handheld_screens,
 		"system_filter":    system_filter,
 		"bios_boot_override": bios_boot_override,
 		"menu_curved":      menu_curved,

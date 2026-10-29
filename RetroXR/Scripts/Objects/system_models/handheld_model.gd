@@ -54,8 +54,22 @@ var _host: Node3D = null
 # cost sharpness.
 const PIXEL_AA_SHADER: Shader = preload("res://Shaders/screen_pixel_aa.gdshader")
 
+## The same looks lit by the ROOM rather than by themselves: what a reflective LCD
+## with no light of its own (the Game Boy family, NGP, WonderSwan, …) shows.
+const PIXEL_AA_LIT_SHADER: Shader = preload("res://Shaders/screen_pixel_aa_lit.gdshader")
+
 var _lcd_shader: Shader = PIXEL_AA_SHADER
 var _lcd_material: ShaderMaterial = null
+## _lcd_shader's room-lit twin, used whenever screen_self_lit() is false. A subclass
+## that replaces _lcd_shader replaces this with its pair.
+var _lcd_shader_lit: Shader = PIXEL_AA_LIT_SHADER
+var _lcd_material_lit: ShaderMaterial = null
+## True for a machine whose real panel was a reflective LCD with no light behind
+## it: its screen is lit by the room unless Options "Self-Lit Handheld Screens"
+## (AppPrefs.self_lit_handheld_screens) is on. Backlit machines leave it false.
+var _reflective_lcd := false
+## The last screen_self_lit() _update_screen() saw, for logging a change once.
+var _was_self_lit := -1
 ## What the panel shows with nothing running — the authored, unlit LCD.
 var _screen_off_material: Material = null
 
@@ -262,19 +276,45 @@ func _update_screen() -> void:
 		if _screen.get_surface_override_material(0) != _screen_off_material:
 			_screen.set_surface_override_material(0, _screen_off_material)
 		return
+	var self_lit := screen_self_lit()
+	if int(self_lit) != _was_self_lit:
+		_was_self_lit = int(self_lit)
+		print("[Handheld] %s screen self-lit=%s (reflective=%s, pref=%s)" % [name, self_lit,
+			_reflective_lcd, AppPrefs.self_lit_handheld_screens])
 	if _lcd_shader == null:
-		_screen.set_surface_override_material(0, picture_material(tex))
+		var pic := picture_material(tex) if self_lit else picture_material_lit(tex)
+		if _screen.get_surface_override_material(0) != pic:
+			_screen.set_surface_override_material(0, pic)
 		return
-	if _lcd_material == null:
-		_lcd_material = ShaderMaterial.new()
-		_lcd_material.shader = _lcd_shader
-	if _lcd_material.get_shader_parameter("source_tex") != tex:
-		_lcd_material.set_shader_parameter("source_tex", tex)
-	if _screen.get_surface_override_material(0) != _lcd_material:
-		_screen.set_surface_override_material(0, _lcd_material)
+	var mat: ShaderMaterial
+	if self_lit:
+		if _lcd_material == null:
+			_lcd_material = ShaderMaterial.new()
+			_lcd_material.shader = _lcd_shader
+		mat = _lcd_material
+	else:
+		if _lcd_material_lit == null:
+			_lcd_material_lit = ShaderMaterial.new()
+			_lcd_material_lit.shader = _lcd_shader_lit
+		mat = _lcd_material_lit
+	if mat.get_shader_parameter("source_tex") != tex:
+		mat.set_shader_parameter("source_tex", tex)
+	if _screen.get_surface_override_material(0) != mat:
+		_screen.set_surface_override_material(0, mat)
+
+
+## Whether the panel lights itself (unshaded / emissive) or is lit by the room.
+## Polled every frame, so the Options toggle takes at once. The GBA SP overrides
+## this with its own light switch.
+func screen_self_lit() -> bool:
+	return not _reflective_lcd or AppPrefs.self_lit_handheld_screens
 
 
 func _update_screen_light() -> void:
+	# A panel lit only by the room throws no light of its own.
+	if _screen_light != null and not screen_self_lit():
+		_screen_light.turn_off()
+		return
 	_drive_screen_light(_screen, _screen_light)
 
 
@@ -295,7 +335,9 @@ func _drive_screen_light(screen: MeshInstance3D, light: ScreenCastLight,
 ## an emissive StandardMaterial3D; our own wrapper carries source_tex).
 func _screen_emission_texture(mat: Material) -> Texture2D:
 	if mat is StandardMaterial3D:
-		return (mat as StandardMaterial3D).emission_texture
+		var std := mat as StandardMaterial3D
+		# picture_material_lit carries the picture as its albedo.
+		return std.emission_texture if std.emission_texture != null else std.albedo_texture
 	if mat is ShaderMaterial:
 		return (mat as ShaderMaterial).get_shader_parameter("source_tex") as Texture2D
 	return null

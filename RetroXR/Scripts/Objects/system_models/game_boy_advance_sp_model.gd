@@ -71,6 +71,45 @@ func _on_shell_ready() -> void:
 	_adopt_switch(_volume_slider, "VOLUME", 0.5)
 	# POWER is modelled OFF, which is value 0, so it anchors where it already is.
 	_adopt_switch(_power_switch, "POWER")
+	_wire_light_button()
+
+
+# --- the light ---------------------------------------------------------------
+#
+# The SP's selling point: a light of its own behind the LCD that the GBA never
+# had, switched by the small button between the screens. On by default, as an
+# SP is the morning you take it out of the box; switched off, the panel is the
+# plain reflective LCD and is lit by the room. It answers to this button alone,
+# never to Options "Self-Lit Handheld Screens" (that is for the machines with no
+# light). Cosmetic: saved with the scene, not sent over netplay.
+
+var screen_light_on := true
+
+
+func screen_self_lit() -> bool:
+	return screen_light_on
+
+
+func has_screen_light() -> bool:
+	return true
+
+
+func set_screen_light(on: bool) -> void:
+	if on == screen_light_on:
+		return
+	screen_light_on = on
+	print("[Handheld] %s GBA SP light %s" % [name, "on" if on else "off"])
+
+
+## The authored LightButton: a VRButton (its cap is its ButtonMesh), so a
+## fingertip OR a pointer presses it, whatever "Press Controller Buttons by Touch"
+## says.
+func _wire_light_button() -> void:
+	var button := find_child("LightButton", true, false) as VRButton
+	if button == null:
+		push_warning("[Handheld] %s has no LightButton; its light cannot be switched" % name)
+		return
+	button.button_pressed.connect(func() -> void: set_screen_light(not screen_light_on))
 
 
 ## `anchor_value` is the slider value the GLB's modelled cap position represents.
@@ -154,7 +193,8 @@ func _cache_anim_meshes() -> void:
 
 ## The shell's controls as poke targets, from the bindings animate_controls uses:
 ## caps press along _PRESS_DIR, and the cross turns about -X for UP and -Z for
-## RIGHT. The stand-in's light button has no input behind it and simply gives.
+## RIGHT. The stand-in's light button is not one: it is its own VRButton
+## (_wire_light_button), and two owners moving one cap would fight.
 func _poke_targets() -> Array[Dictionary]:
 	if not _anim_cached:
 		_cache_anim_meshes()
@@ -165,9 +205,6 @@ func _poke_targets() -> Array[Dictionary]:
 	if not _anim_dpad.is_empty():
 		out.append(ControlPoke.rocker(_anim_dpad["node"], _anim_dpad["rest"], _anim_dpad["pivot"],
 			_PRESS_DIR, Vector3.LEFT, Vector3.FORWARD))
-	var light := find_child("BrightnessButton", true, false) as MeshInstance3D
-	if light != null:
-		out.append(ControlPoke.button(light, -1, _PRESS_DIR, {"depth": _SMALL_PRESS}))
 	return out
 
 

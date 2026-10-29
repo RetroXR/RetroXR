@@ -59,6 +59,8 @@ const _NUMBER_FIELDS := [
 ]
 const _BOOL_FIELDS := ["video_out", "ignore_gravity", "crt_enabled", "half_pages", "stuck",
 	"locked", "hardback", "sticks",
+	# A GBA SP's light switch (RetroSystem.get_screen_light); absent = on.
+	"screen_light",
 	# A mixed shell colour forced as metal flake -- see RetroCartridge.shell_flake.
 	"shell_flake"]
 const _REFERENCE_FIELDS := [
@@ -1694,6 +1696,8 @@ func _restore_system(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: 
 	var lid_angle := float(rec.get("lid_angle", -1.0))
 	if lid_angle >= 0.0:
 		sys.set_lid_angle_deg.call_deferred(lid_angle)
+	if rec.has("screen_light"):
+		sys.set_screen_light(bool(rec["screen_light"]))
 
 
 func _restore_expansion(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
@@ -2185,6 +2189,9 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 	var lid_angle := sys.get_lid_angle_deg()
 	if lid_angle >= 0.0:
 		result["lid_angle"] = lid_angle
+	# A screen light switched OFF (GBA SP); on is the default and goes unsaved.
+	if sys.get_screen_light() == 0:
+		result["screen_light"] = false
 	# Extra video-out channels (dual-screen handhelds: ch 1 = BOTTOM).
 	var extra: Array = []
 	for ch in range(1, sys.get_channel_count()):

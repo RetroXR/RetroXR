@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://bkw0pkdhlp1m4" path="res://Scripts/Objects/widgets/vr_hinge.gd" id="2_hinge"]
 [ext_resource type="Script" uid="uid://d2fhmqypnc4e4" path="res://Scripts/Objects/widgets/vr_slider.gd" id="3_slider"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/link_port.tscn" id="9_linkport"]
+[ext_resource type="Script" uid="uid://d3iq3gmwxpvjl" path="res://Scripts/Objects/widgets/vr_button.gd" id="10_vrbutton"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_body"]
 size = Vector3(0.082, 0.012, 0.0846)
@@ -63,6 +64,9 @@ size = Vector3(0.011, 0.008, 0.01)
 top_radius = 0.0024
 bottom_radius = 0.0024
 height = 0.0014
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_light"]
+size = Vector3(0.008, 0.004, 0.008)
 
 [sub_resource type="BoxMesh" id="BoxMesh_slotmouth"]
 size = Vector3(0.058, 0.0075, 0.004)
@@ -174,8 +178,18 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0359, -0.001, -0.0395)
 mesh = SubResource("BoxMesh_shoulder")
 surface_material_override/0 = SubResource("Mat_button")
 
-[node name="BrightnessButton" type="MeshInstance3D" parent="." unique_id=2003914773]
+[node name="LightButton" type="Area3D" parent="." unique_id=1734260519]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0067, -0.022)
+collision_layer = 0
+collision_mask = 0
+script = ExtResource("10_vrbutton")
+trigger_radius = 0.005
+depress_depth = 0.0006
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LightButton" unique_id=1734260520]
+shape = SubResource("BoxShape3D_light")
+
+[node name="ButtonMesh" type="MeshInstance3D" parent="LightButton" unique_id=2003914773]
 mesh = SubResource("CylinderMesh_bright")
 surface_material_override/0 = SubResource("Mat_button")
 

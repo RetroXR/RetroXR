@@ -34,6 +34,11 @@ var _ir_off_material: Material = null
 var _ir_material: StandardMaterial3D = null
 
 
+func _init() -> void:
+	# A reflective LCD with no light of its own, like the DMG's.
+	_reflective_lcd = true
+
+
 func _on_shell_ready() -> void:
 	_led = find_child("PowerLED", true, false) as MeshInstance3D
 	if _led != null:

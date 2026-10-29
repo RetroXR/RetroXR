@@ -5,11 +5,15 @@ extends RetroSystemModelHandheld
 
 ## Classic DMG dot-matrix green LCD filter, applied to the built-in screen.
 const LCD_SHADER := preload("res://Shaders/gameboy_lcd.gdshader")
+## The same look lit by the room — the DMG's reflective panel had no light.
+const LCD_LIT_SHADER := preload("res://Shaders/gameboy_lcd_lit.gdshader")
 
 
 func _init() -> void:
 	# Game Boy uses the base default cartridge size (57 × 65 × 8 mm).
 	_lcd_shader = LCD_SHADER
+	_lcd_shader_lit = LCD_LIT_SHADER
+	_reflective_lcd = true
 
 
 

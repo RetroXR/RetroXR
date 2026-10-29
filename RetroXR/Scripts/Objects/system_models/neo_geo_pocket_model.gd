@@ -7,6 +7,7 @@ extends RetroSystemModelHandheld
 
 func _init() -> void:
 	cart_size = Vector3(0.048, 0.052, 0.008)   # NGP cart
+	_reflective_lcd = true   # a reflective LCD with no light of its own
 
 
 ## The headphone jack, on the bottom edge beside the volume control, right of

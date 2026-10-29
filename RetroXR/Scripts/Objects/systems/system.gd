@@ -904,6 +904,18 @@ func get_lid_angle_deg() -> float:
 	return _model.get_lid_angle_deg() if _model != null else -1.0
 
 
+## The screen light's switch (GBA SP): -1 for a machine with none, else 0 / 1.
+func get_screen_light() -> int:
+	if _model == null or not _model.has_screen_light():
+		return -1
+	return 1 if _model.get("screen_light_on") else 0
+
+
+func set_screen_light(on: bool) -> void:
+	if _model != null and _model.has_screen_light():
+		_model.set_screen_light(on)
+
+
 ## Pose a lid at a saved angle. Public because ScenePersistence has to re-apply it
 ## after seating a cartridge: an insert swings the bay open on its own.
 func set_lid_angle_deg(open_deg: float) -> void:
