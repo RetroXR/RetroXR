@@ -58,6 +58,8 @@ const GRIP_ACTION := "grip"
 const GRIP_ON := 0.6
 const GRIP_OFF := 0.4
 const HAPTIC_KEY := &"arcade_panel"
+## How long a hand's strike on the drum's side holds its ka (s): the length of a stick's tap, a little more.
+const SIDE_HOLD := 0.10
 
 ## A cap is pressed by a tip within this of its side, this far above its face, or this far through it (metres).
 ## The caps stand 52 mm apart centre to centre and are 31 mm across, so a cap and its neighbour's zones never meet.
@@ -146,6 +148,12 @@ var _taken_with: Dictionary = {}
 var _lost: Dictionary = {}
 var _block := VrPointerBlock.new()
 var _hands: Array[XRController3D] = []
+## A Taiko drum's zones (ArcadeDrumstick.zones_of), for a hand that strikes its SIDE (DrumSide): the hand's points a frame ago (by hand, with the frame they were taken), whether it has struck and not yet
+## come off, and the pad bits a side strike holds for a moment (bit -> seconds left): a finger on the rim from the side presses nothing of its own, it is a short ka.
+var _drum_zones: Array = []
+var _side_seen: Dictionary = {}
+var _side_struck: Dictionary = {}
+var _side_hold: Dictionary = {}
 ## The lasers this has switched off, by controller id, so one that went away is given back.
 var _blocked: Dictionary = {}
 var _idle := true
@@ -164,6 +172,9 @@ func rebuild() -> void:
 	release_all()
 	_grabs.clear()
 	_pokes.clear()
+	_side_seen.clear()
+	_side_struck.clear()
+	_side_hold.clear()
 	for i in _panel.cap_count():
 		var cap := _panel.cap_node(i) as MeshInstance3D
 		if cap == null or cap.mesh == null:
@@ -218,6 +229,7 @@ func rebuild() -> void:
 	var slide := _panel.find_child("SlidePivot", true, false) as Node3D
 	if slide != null:
 		_grabs.append(SlideGrab.new(_panel, slide))
+	_drum_zones = ArcadeDrumstick.zones_of(_panel)
 	var throttle := _panel.find_child("ThrottlePivot", true, false) as Node3D
 	if throttle != null:
 		_grabs.append(ThrottleGrab.new(_panel, throttle))
@@ -236,6 +248,10 @@ func update(delta: float, ctrls: Array) -> void:
 	# Whatever a control is in the middle of (a tap on a shift button) goes on with no hand on it.
 	for g in _grabs:
 		g.tick(delta)
+	for bit: int in _side_hold.keys():
+		_side_hold[bit] = float(_side_hold[bit]) - delta
+		if float(_side_hold[bit]) <= 0.0:
+			_side_hold.erase(bit)
 	_hands.clear()
 	for c: Variant in ctrls:
 		if c != null and is_instance_valid(c) and (c as XRController3D).get_is_active():
@@ -289,6 +305,41 @@ func _step_hand(ctrl: XRController3D, delta: float) -> void:
 		_fingers(ctrl, id, tip, delta)
 	else:
 		_lift(ctrl, id)
+	# A free hand brought in against the side of a drum strikes it as a stick's shaft does (ka, on the half it came in at).
+	if grab == null and poking and not _drum_zones.is_empty():
+		_side(ctrl, id, delta)
+	else:
+		_side_seen.erase(id)
+		_side_struck.erase(id)
+
+
+## The hand's points the drum's side is tried with: the fingertip, the middle of the hand and its base (the controller's own place): any part of the hand strikes it.
+static func hand_points(ctrl: Node3D) -> Array:
+	var tip := PokeTip.tip_of(ctrl)
+	return [tip, tip.lerp(ctrl.global_position, 0.5), ctrl.global_position]
+
+
+## One hand's step against the drum's side (DrumSide): a strike holds that half's ka for SIDE_HOLD and kicks the controller; the hand must come off the wall to strike again. A hand that was not seen the
+## frame before (it was away, or the panel was idle) has no path to cross with.
+func _side(ctrl: XRController3D, id: int, delta: float) -> void:
+	var points := hand_points(ctrl)
+	var frame := Engine.get_process_frames()
+	var seen := _side_seen.get(id, {}) as Dictionary
+	_side_seen[id] = {"points": points, "frame": frame}
+	if bool(_side_struck.get(id, false)):
+		if DrumSide.clear(points, _drum_zones):
+			_side_struck.erase(id)
+		return
+	if seen.is_empty() or frame - int(seen["frame"]) > 1 or delta <= 0.0:
+		return
+	var hit := DrumSide.crossing(seen["points"] as Array, points, delta, _drum_zones)
+	if hit.is_empty():
+		return
+	var zone := hit["zone"] as Dictionary
+	_side_struck[id] = true
+	_side_hold[int(zone["bit"])] = SIDE_HOLD
+	Haptics.pulse(ctrl, 0.6, 25, HAPTIC_KEY)
+	print("[Arcade] hand %s: the side of player %d's drum, %s (pad id %d)" % [str(ctrl.tracker), int(_panel.player), str(zone["name"]), int(zone["bit"])])
 
 
 func _nearest_grab(tip: Vector3, scale: float, by_squeeze: bool = false) -> ControlGrab:
@@ -413,6 +464,10 @@ func _forget_gone() -> void:
 	for id: int in _trigger.keys():
 		if not ids.has(id):
 			_trigger.erase(id)
+	for id: int in _side_seen.keys():
+		if not ids.has(id):
+			_side_seen.erase(id)
+			_side_struck.erase(id)
 	for id: int in _grip.keys():
 		if not ids.has(id):
 			_grip.erase(id)
@@ -483,6 +538,8 @@ func buttons() -> int:
 			mask |= 1 << p.bit
 	for g in _grabs:
 		mask |= g.bits()
+	for bit: int in _side_hold.keys():
+		mask |= 1 << bit
 	return mask
 
 

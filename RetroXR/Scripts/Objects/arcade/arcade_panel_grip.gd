@@ -36,6 +36,10 @@ const GRIP_OFF := 0.4
 @export var ring_radius := 0.0
 @export var ring_width := 0.06
 
+## In DESKTOP mode the pointable and lit area is this rectangle (the panel's frame, relative to the grip's own origin) instead of the whole panel: a mouse has no business taking hold of a drum, which sticks and
+## fingers work. Empty is the whole panel; a headset always keeps the whole (its hands touch the drum, and a squeeze on the panel still attaches).
+@export var desktop_rect := Rect2()
+
 ## A panel with nothing to take hold of (a gun cabinet's START buttons: the gun is the
 ## controller): a press does not attach anyone, it HOLDS the panel for as long as it lasts, and
 ## the cabinet reads that as START.
@@ -56,6 +60,8 @@ func _ready() -> void:
 	collision_layer |= POINTABLE_LAYER
 	collision_mask = 0
 	monitoring = false
+	if desktop_rect.has_area() and not get_viewport().use_xr:
+		_narrow_to_desktop_rect()
 	_plate = MeshInstance3D.new()
 	_plate.name = "PanelHighlight"
 	if ring_radius > 0.0:
@@ -75,6 +81,22 @@ func _ready() -> void:
 	await get_tree().process_frame
 	for node in get_tree().root.find_children("*", "XRController3D", true, false):
 		_controllers.append(node as XRController3D)
+
+
+## Shrink the pointable box and the lit frame to `desktop_rect`, and move this node onto it (its origin is what a laser or a test aims at, and the plate is drawn about it). Logged: a panel whose crosshair area
+## changed with the platform is the first thing asked about.
+func _narrow_to_desktop_rect() -> void:
+	for child in get_children():
+		var col := child as CollisionShape3D
+		if col == null or not (col.shape is BoxShape3D):
+			continue
+		var box := col.shape as BoxShape3D
+		print("[Arcade] %s: desktop mode, the crosshair's grip is %.2f x %.2f m round START, not the whole %.2f x %.2f m panel" % [
+			get_parent().name if get_parent() != null else name, desktop_rect.size.x, desktop_rect.size.y, box.size.x, box.size.y])
+		box.size = Vector3(desktop_rect.size.x, desktop_rect.size.y, box.size.z)
+	var centre := desktop_rect.get_center()
+	position += basis * Vector3(centre.x, centre.y, 0.0)
+	panel_size = desktop_rect.size
 
 
 ## The annulus a ring grip lights: `ring_width` wide about `ring_radius`, in XY, facing +Z.

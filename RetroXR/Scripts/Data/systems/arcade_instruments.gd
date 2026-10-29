@@ -104,6 +104,9 @@ static func panel(instrument: String, player: int, cx: float, mirror: bool) -> D
 		var gx: Vector2 = layout["grip_x"]
 		out["gx0"] = cx + minf(sign_x * gx.x, sign_x * gx.y)
 		out["gx1"] = cx + maxf(sign_x * gx.x, sign_x * gx.y)
+	if layout.has("desktop_grip"):
+		# What the panel is to a MOUSE: a drum is for sticks and fingers, so in desktop mode the part of it a crosshair takes as the panel shrinks to this (ArcadePanelGrip.desktop_rect); a headset keeps the whole.
+		out["desktop_grip"] = str(layout["desktop_grip"])
 	if layout.has("gear"):
 		var gear: Array = []
 		for src: Dictionary in layout["gear"]:
@@ -225,17 +228,32 @@ static func _drums() -> Dictionary:
 ## face is two halves and whose rim is two halves, each a zone a drumstick or a finger lands in.
 static func _taiko() -> Dictionary:
 	var parts: Array = [
-		{"name": "DrumShell", "shape": "disc", "pos": Vector2.ZERO, "radius": 0.185, "h": 0.050, "color": WOOD, "decor": true},
-		{"name": "FaceLeft", "btn": 3, "shape": "sector", "pos": Vector2.ZERO, "r0": 0.0, "r1": 0.122, "a0": 92.0, "a1": 268.0, "h": 0.014, "z": 0.050, "color": CREAM},
-		{"name": "FaceRight", "btn": 2, "shape": "sector", "pos": Vector2.ZERO, "r0": 0.0, "r1": 0.122, "a0": -88.0, "a1": 88.0, "h": 0.014, "z": 0.050, "color": CREAM},
-		{"name": "RimLeft", "btn": 4, "shape": "sector", "pos": Vector2.ZERO, "r0": 0.128, "r1": 0.172, "a0": 92.0, "a1": 268.0, "h": 0.014, "z": 0.050, "color": Color(0.75, 0.10, 0.10)},
-		{"name": "RimRight", "btn": 1, "shape": "sector", "pos": Vector2.ZERO, "r0": 0.128, "r1": 0.172, "a0": -88.0, "a1": 88.0, "h": 0.014, "z": 0.050, "color": Color(0.75, 0.10, 0.10)},
+		{"name": "DrumShell", "shape": "disc", "pos": Vector2.ZERO, "radius": 0.185, "h": 0.050, "color": WOOD, "decor": true, "tilt": TAIKO_TILT, "tilt_lift": TAIKO_LIFT},
+		{"name": "FaceLeft", "btn": 3, "shape": "sector", "pos": Vector2.ZERO, "r0": 0.0, "r1": 0.122, "a0": 92.0, "a1": 268.0, "h": 0.014, "z": 0.050, "color": CREAM, "tilt": TAIKO_TILT, "tilt_lift": TAIKO_LIFT, "hit_a0": 90.0, "hit_a1": 270.0, "press": TAIKO_PRESS},
+		{"name": "FaceRight", "btn": 2, "shape": "sector", "pos": Vector2.ZERO, "r0": 0.0, "r1": 0.122, "a0": -88.0, "a1": 88.0, "h": 0.014, "z": 0.050, "color": CREAM, "tilt": TAIKO_TILT, "tilt_lift": TAIKO_LIFT, "hit_a0": -90.0, "hit_a1": 90.0, "press": TAIKO_PRESS},
+		{"name": "RimLeft", "btn": 4, "shape": "sector", "pos": Vector2.ZERO, "r0": 0.128, "r1": 0.172, "a0": 92.0, "a1": 268.0, "h": 0.014, "z": 0.050, "color": Color(0.75, 0.10, 0.10), "tilt": TAIKO_TILT, "tilt_lift": TAIKO_LIFT, "hit_a0": 90.0, "hit_a1": 270.0, "hit_r1": TAIKO_RIM_HIT, "press": TAIKO_PRESS},
+		{"name": "RimRight", "btn": 1, "shape": "sector", "pos": Vector2.ZERO, "r0": 0.128, "r1": 0.172, "a0": -88.0, "a1": 88.0, "h": 0.014, "z": 0.050, "color": Color(0.75, 0.10, 0.10), "tilt": TAIKO_TILT, "tilt_lift": TAIKO_LIFT, "hit_a0": -90.0, "hit_a1": 90.0, "hit_r1": TAIKO_RIM_HIT, "press": TAIKO_PRESS},
 	]
 	# A pair of drumsticks (bachi) in a cradle each side of the drum, lying along the deck with the butt toward the player and the cord leaving the butt over the deck's front edge: left stick on the left.
 	var sticks: Array = []
 	for side in 2:
 		sticks.append({"kind": "drumstick", "side": side, "pos": Vector2(STICK_X * (-1.0 if side == 0 else 1.0), STICK_Y)})
-	return {"x": Vector2(-0.31, 0.31), "y": Vector2(-0.22, 0.19), "start": Vector2(0.0, -0.205), "parts": parts, "gear": sticks, "grip_x": Vector2(-0.205, 0.205)}
+	return {"x": Vector2(-0.31, 0.31), "y": Vector2(-0.22, 0.19), "start": Vector2(0.0, -0.205), "parts": parts, "gear": sticks, "grip_x": Vector2(-0.205, 0.205), "desktop_grip": "start"}
+
+
+## A real Taiko drum is not flat: its head leans toward the player. The deck itself already slopes about 11 degrees that way, so the drum turns TAIKO_TILT degrees more about its middle (X axis) for a head about
+## 26 degrees off the horizontal, a real one's. `TAIKO_LIFT` is how far the turned drum is raised off the deck: 0, so its front edge, which the turn brings down by the shell's radius times the angle's sine, is SUNK
+## into the deck plate (hidden by it) and the drum stands LOWER (2026-10-29, lowered about 6 cm: it stood too high). The front zone still clears the deck (its lowest point 4 mm over it: `arcade_form_tests`). The
+## zones' own frames carry the turn, so a finger, a stick's crossing and the cap sinking (`TAIKO_PRESS` along the drum's own normal) all follow it.
+## Heights over the floor (the deck at its middle 0.96 m): the face's middle about 1.02 m, its far edge 1.07 m, its near edge 0.97 m. NO official figure was found for the real cabinet (a rental listing gives the whole drum
+## unit 1210 mm high, a fan guide puts the head's top at about 1200 mm); the lowering is the player's judgement, so change TAIKO_LIFT / TAIKO_TILT, not the deck.
+const TAIKO_TILT := 15.0
+const TAIKO_LIFT := 0.0
+const TAIKO_PRESS := 0.010
+## What a zone answers to is a little more than what is drawn (`hit_*` in the part, read by the builder into the zone's `sector` meta; the mesh keeps its own radii and angles): the halves meet at 90 degrees, with no
+## 4 degree slit between them, and the rim answers out to here, past the shell's own edge (0.185) by a stick's thickness. Drawn, the rim stops 1.3 cm short of the wood's edge: a head that came down on that
+## edge hit neither a don nor a ka, a "dead zone" at the side of the drum (2026-10-29).
+const TAIKO_RIM_HIT := 0.19
 
 
 ## Where a drumstick's grip rests in its cradle, in the panel's frame: out from the drum's middle (the shell is 0.185 from it) and forward, so the butt is a hand's width from the deck's front edge.

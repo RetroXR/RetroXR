@@ -40,8 +40,7 @@ signal struck(zone: String, kind: StringName, hit_side: int)
 var _swing: Node3D = null
 var _swing_t := 1.0
 
-## The last place the head was, to see it cross a face between two frames.
-var _tip_prev := Vector3.ZERO
+## Whether the stick's points a frame ago are known (`_side_prev`), to see any of them cross a face between two frames.
 var _has_prev := false
 ## The cap just struck by the head and not yet left (it must rise REARM_HEIGHT over it).
 var _struck_cap: MeshInstance3D = null
@@ -74,6 +73,7 @@ func _rows() -> Array:
 		[&"swing_vr", HeldHint.PLATFORM_VR, ["quest_grip_{side}_outline"], "Hold, and swing it onto the drum"],
 		[&"don_pc", HeldHint.PLATFORM_DESKTOP, ["mouse_left_outline"], "Don (red): the face"],
 		[&"ka_pc", HeldHint.PLATFORM_DESKTOP, ["mouse_right_outline"], "Ka (blue): the rim"],
+		[&"holster_pc", HeldHint.PLATFORM_DESKTOP, HeldHint.DESKTOP_DROP_GLYPHS, "Drop them near the drum: they go back in their cradles"],
 	]
 
 
@@ -82,6 +82,7 @@ func _rows() -> Array:
 func _on_let_go() -> void:
 	_has_prev = false
 	_struck_cap = null
+	_side_struck = false
 	_trigger_down = false
 	_a_down = false
 	_b_down = false
@@ -129,23 +130,55 @@ func _read_buttons(ctrl: XRController3D) -> void:
 	_b_down = b_now
 
 
-## The head's path since the last frame against the drum's faces.
+## The stick's path since the last frame against the drum's faces, and against its SIDE: EVERY point of it (SIDE_POINTS, from the tip to the hand), not the tip alone. Any part of the stick that goes down
+## through a zone, or in against the drum's wall, strikes it, red (the face) or blue (the rim), left or right: the drum can be played with the hands in a headset, and a stick laid across it hits where it lands.
 func _read_swing(delta: float) -> void:
-	var tip := tip_position()
+	var points := side_points()
 	if not _has_prev:
-		_tip_prev = tip
+		_side_prev = points
 		_has_prev = true
 		return
 	var zones := _zones()
 	if _struck_cap != null:
-		if not is_instance_valid(_struck_cap) or _height_over(_struck_cap, tip) > REARM_HEIGHT:
+		# One hit at a time, as one head's: it lets go when the WHOLE stick is up off the face it struck.
+		if not is_instance_valid(_struck_cap) or _lowest_over(_struck_cap, points) > REARM_HEIGHT:
 			_struck_cap = null
 	if _struck_cap == null and delta > 0.0:
-		var found := crossing(_tip_prev, tip, delta, zones)
+		var found := crossing_any(_side_prev, points, delta, zones)
 		if not found.is_empty():
 			_struck_cap = found["cap"] as MeshInstance3D
 			_make_hit(found["zone"] as Dictionary)
-	_tip_prev = tip
+	# The drum's SIDE is the rim too (a real drum is struck on its edge as well as on the ring of its head): a head that comes in from outside, sideways, level with the shell, is a ka on that half (DrumSide).
+	if _side_struck:
+		if DrumSide.clear(points, zones):
+			_side_struck = false
+	elif delta > 0.0:
+		var side := DrumSide.crossing(_side_prev, points, delta, zones)
+		if not side.is_empty():
+			_side_struck = true
+			_make_hit(side["zone"] as Dictionary)
+	_side_prev = points
+
+
+## The hit, if any of the stick's points (`prev` and `now`: the same points a frame apart, Vector3 in the world) went down through a zone (`crossing`): the fastest one's, or {}.
+static func crossing_any(prev: Array, now: Array, delta: float, zones: Array) -> Dictionary:
+	var best := {}
+	var best_speed := 0.0
+	for i in mini(prev.size(), now.size()):
+		var found := crossing(prev[i] as Vector3, now[i] as Vector3, delta, zones)
+		# The tip is first, and keeps a tie (a stick moved whole goes down at one speed all along it): a later point wins only by being faster.
+		if not found.is_empty() and float(found["speed"]) > best_speed + 0.001:
+			best = found
+			best_speed = float(found["speed"])
+	return best
+
+
+## How high the LOWEST of `points` is over the face of `cap`.
+static func _lowest_over(cap: MeshInstance3D, points: Array) -> float:
+	var lowest := INF
+	for point: Variant in points:
+		lowest = minf(lowest, _height_over(cap, point as Vector3))
+	return lowest
 
 
 ## The head's end, in the world.
@@ -187,6 +220,24 @@ static func crossing(prev: Vector3, tip: Vector3, delta: float, zones: Array) ->
 	return best
 
 
+## The points of the stick the drum's side is tried with (DrumSide): from the tip along the whole of it to the hand, every 3.7 cm. ANY part of the stick strikes the side, as any part of a hand does: the
+## drum can be played with the hands in a headset, and a stick that brushes the side with its shaft means the same.
+const SIDE_POINTS: Array[Vector3] = [
+	Vector3(0.0, 0.0, -0.232), Vector3(0.0, 0.0, -0.195), Vector3(0.0, 0.0, -0.158), Vector3(0.0, 0.0, -0.121),
+	Vector3(0.0, 0.0, -0.084), Vector3(0.0, 0.0, -0.047), Vector3(0.0, 0.0, -0.010),
+]
+var _side_struck := false
+var _side_prev: Array = []
+
+
+## Where those points are now, in the world.
+func side_points() -> Array:
+	var out: Array = []
+	for local in SIDE_POINTS:
+		out.append(global_transform * local)
+	return out
+
+
 # ── the drum ─────────────────────────────────────────────────────────────────
 
 ## The panel of this stick's player (the cabinet's `Player<n>`), or null.
@@ -216,8 +267,21 @@ static func zones_of(panel: ArcadeControlModule) -> Array:
 	return out
 
 
+## The drum's zones, listed once per panel: this is asked every physics frame a stick is in a hand (the swing), and walking the cabinet's modules and every cap of the panel each time was a cost
+## paid for nothing, a drum's caps being the same for as long as the stick lives (a morph frees the stick with the form).
+var _zones_panel: ArcadeControlModule = null
+var _zones_cache: Array = []
+
+
 func _zones() -> Array:
-	return zones_of(panel())
+	if not is_instance_valid(_zones_panel):
+		_zones_panel = panel()
+		_zones_cache.clear()
+	if _zones_panel == null:
+		return _zones_cache
+	if _zones_cache.is_empty():
+		_zones_cache = zones_of(_zones_panel)
+	return _zones_cache
 
 
 ## Hit the drum's `kind` (DON the face, KA the rim) on its `half` (0 left, 1 right): a tap of the zone's button. The one way every hit is made (a swing, a trigger, a click): false when the
@@ -234,6 +298,9 @@ func _make_hit(zone: Dictionary) -> void:
 	var input: ArcadeInput = cabinet.call("arcade_input") if cabinet != null and is_instance_valid(cabinet) and cabinet.has_method("arcade_input") else null
 	if input != null:
 		input.tap_pad_bit(player, int(zone["bit"]), TAP_SECONDS)
+		# What the game hears is a few frames; what the player SEES is a cap sinking under the stick, long enough to be seen and with the cabinet off as well (as it sinks under a finger).
+		input.flash_pad_bit(player, int(zone["bit"]))
+		print("[Arcade] stick %d/%d: %s on player %d's drum (pad id %d)" % [player, side, str(zone["name"]), player, int(zone["bit"])])
 	_swing_t = 0.0
 	var ctrl := holding_controller()
 	if ctrl != null:

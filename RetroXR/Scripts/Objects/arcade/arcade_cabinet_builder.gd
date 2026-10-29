@@ -672,6 +672,10 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 		grip.set("panel_size", Vector2(width, height))
 		grip.position = Vector3((extent.x + extent.y) * 0.5, (top + bottom) * 0.5, 0.03)
 		gshape.size = Vector3(width, height, 0.08 if kind != "wheel" else 0.22)
+		if str(spec.get("desktop_grip", "")) == "start":
+			# A drum (Taiko) is not something a mouse takes hold of: in desktop mode the grip is round START alone (it is still how a keyboard attaches to the panel).
+			var at := Vector2(start_x - grip.position.x, float(spec.get("start_y", -0.07)) - grip.position.y)
+			grip.set("desktop_rect", Rect2(at - DESKTOP_START_GRIP * 0.5, DESKTOP_START_GRIP))
 
 
 ## A rhythm game's controller on a player's panel, from its layout (ArcadeInstruments): `Btn<n>` are MAME's buttons (a key, a dome, a drum pad, a sector of a drum: what a finger presses and
@@ -690,6 +694,10 @@ func _build_instrument(mod: Node3D, spec: Dictionary, index: int, to_panel: Tran
 		_bass_pedal(mod, to_panel, spec["pedal"])
 	for gear: Dictionary in spec.get("gear", []):
 		_gear_rest(mod, gear, to_panel, int(spec.get("player", index)))
+
+
+## How big the lit and pointable area round START is in desktop mode on a panel whose drum is not a mouse's to take (width, height in the panel's frame).
+const DESKTOP_START_GRIP := Vector2(0.10, 0.08)
 
 
 ## One part of an instrument: a box (a key, a neck), a disc or a dome (a pad, a button; a dome has a rim of its own colour, as a pad has a hoop) or a sector (a drum's face or rim).
@@ -721,12 +729,25 @@ func _instrument_part(mod: Node3D, part: Dictionary, index: int) -> void:
 			mesh.surface_set_material(0, m)
 			node.mesh = mesh
 			node.basis = Basis(Quaternion(Vector3.UP, Vector3.BACK))
-			node.set_meta(&"sector", {"r0": float(part["r0"]), "r1": float(part["r1"]), "a0": deg_to_rad(float(part["a0"])), "a1": deg_to_rad(float(part["a1"]))})
+			# What the zone answers to may be a little more than what is drawn (`hit_*`): the halves of a drum meet, and its rim answers out to the wood's edge.
+			node.set_meta(&"sector", {"r0": float(part.get("hit_r0", part["r0"])), "r1": float(part.get("hit_r1", part["r1"])),
+				"a0": deg_to_rad(float(part.get("hit_a0", part["a0"]))), "a1": deg_to_rad(float(part.get("hit_a1", part["a1"])))})
 	# Which part of the controller a button is, by its own name ("FaceLeft", "Fret2"): what a stick looks for (ArcadeDrumstick.zones_of) and a prompt names.
 	if button > 0:
 		var made := mod.get_node_or_null(node_name)
 		if made != null:
 			made.set_meta(&"part", str(part["name"]))
+	# A part that stands tilted (a Taiko drum's head): turned about its middle on the deck, X axis, and raised so its low edge rests on the deck. What presses it sinks along ITS normal, not the deck's.
+	var tilt := float(part.get("tilt", 0.0))
+	if tilt != 0.0:
+		var turned := mod.get_node_or_null(node_name) as Node3D
+		if turned != null:
+			var turn := Basis(Vector3.RIGHT, deg_to_rad(tilt))
+			var centre := Vector3(pos.x, pos.y, 0.0)
+			turned.position = centre + turn * (turned.position - centre) + Vector3(0.0, 0.0, float(part.get("tilt_lift", 0.0)))
+			turned.basis = turn * turned.basis
+			if button > 0:
+				turned.set_meta(&"press_offset", turn * Vector3(0.0, 0.0, -float(part.get("press", ArcadeControlModule.CAP_PRESS))))
 
 
 ## Where a player's hand-held gear that is wired to the cabinet rests (a Taiko drummer's two sticks): a cradle on the deck, a `GearRest<L|R>` marker whose frame is the gear's own (the cabinet reads where
@@ -1103,11 +1124,26 @@ func _cap(parent: Node3D, node_name: String, pos: Vector3, radius: float,
 
 # ── coin doors ──────────────────────────────────────────────────────────────
 
+## How much further than an ordinary cabinet's the control deck or a hood overhangs the coin face (z 0.40, the deck's front edge at 0.47): a Taiko's deck is 0.25 m deeper, a DrumMania's 0.20, and a
+## sit-down cabinet's hood reaches to z 0.84. A coin door left on the face stood 0.3 to 0.4 m back under a shelf only a hand's depth over the slot: aimed at from above it was a slit, and the hand had to go in
+## under the shelf to reach it (2026-10-29: "the coin slots are too hidden").
+func _coin_door_forward() -> float:
+	var front := float(_sh.get("apron_z", 0.47))
+	var hood: Dictionary = _sh.get("hood", {})
+	if not hood.is_empty():
+		front = maxf(front, float(hood.get("z1", 0.0)))
+	return maxf(front - 0.47, 0.0)
+
+
 func _build_coin_doors() -> void:
 	var xs: Array = _v["coins"]
+	# The door comes forward with the shelf over it, to the 7 cm behind the shelf's edge it stands at on an ordinary cabinet, on a block from the body's face.
+	var forward := _coin_door_forward()
 	for i in xs.size():
 		var x: float = xs[i]
-		var door := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "CoinDoor%d" % (i + 1), Vector3(x, 0.64, 0.40))) as Node3D
+		if forward > 0.01:
+			_form_node(ArcadeParts.box(_owner, _top, "CoinDoorBlock%d" % (i + 1), Vector3(0.12, 0.24, forward), Vector3(x, 0.64, 0.40 + forward * 0.5), _body))
+		var door := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "CoinDoor%d" % (i + 1), Vector3(x, 0.64, 0.40 + forward))) as Node3D
 		door.set_script(load(SCRIPTS["coin"]))
 		door.set("player", i)
 		ArcadeParts.box(_owner, door, "Plate", Vector3(0.10, 0.20, 0.006), Vector3(0, 0, 0.003), _metal)
