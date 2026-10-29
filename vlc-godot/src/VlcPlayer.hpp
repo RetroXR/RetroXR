@@ -129,7 +129,7 @@ public:
     // Godot-routed audio: libVLC decodes to a PCM ring buffer here; the owner
     // pulls frames each _process into an AudioStreamGenerator on a 3D player, so
     // DVD sound is spatialised at the TV and follows Godot's volume/attenuation.
-    int GetAudioRate() const;        // Hz (we request 48000)
+    int GetAudioRate() const;        // Hz (AudioServer's mix rate)
     int GetAudioChannels() const;    // channels (we request stereo = 2)
     // Pop up to max_frames stereo frames (L,R in -1..1); returns what was ready.
     godot::PackedVector2Array ReadAudio(int max_frames);
@@ -222,7 +222,7 @@ private:
     // otherwise start back at 1.0.
     float m_rate = 1.0f;
 
-    int m_audio_rate = 48000;
+    int m_audio_rate = 48000;   // replaced by the mix rate at construction
     int m_audio_channels = 2;
 
     // Play-date bookkeeping, all read under m_audio_mutex. libVLC stamps every

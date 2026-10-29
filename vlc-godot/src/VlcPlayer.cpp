@@ -1,5 +1,6 @@
 #include "VlcPlayer.hpp"
 
+#include <godot_cpp/classes/audio_server.hpp>
 #include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
@@ -66,6 +67,21 @@ static bool ensure_android_jvm()
 
 VlcPlayer::VlcPlayer()
 {
+    // Decode at the rate the room MIXES at, not a fixed 48 kHz. Every owner
+    // pushes our PCM frame-for-frame into a SpatialAudioEmitter, which plays it
+    // at AudioServer's rate; project.godot asks for 48000 but a device may give
+    // anything (a Quest reports 44100 regardless), and 48k played at 44.1k came
+    // out 8% slow, a semitone and a half flat -- with skips, as the lead check
+    // in ReadAudio threw samples away to catch the picture. libVLC resamples.
+    if (AudioServer *as = AudioServer::get_singleton())
+    {
+        const int mix = (int)as->get_mix_rate();
+        if (mix > 0)
+            m_audio_rate = mix;
+    }
+    if (m_audio_rate != 48000)
+        UtilityFunctions::print("[VlcPlayer] audio out at ", m_audio_rate, " Hz (the mix rate)");
+
     // Four seconds of stereo headroom. Not for stall tolerance -- it has to
     // outrun libVLC's decoder, which hands over PCM up to two seconds before its
     // Play date. A two-second ring is exactly lapped by that, and the wrap
@@ -339,7 +355,7 @@ bool VlcPlayer::Open(const String &path, bool is_dvd)
     libvlc_video_set_callbacks(mp, CbLock, CbUnlock, CbDisplay, this);
     libvlc_video_set_format_callbacks(mp, CbFormat, CbCleanup);
 
-    // Route audio to Godot: decode to interleaved S16 stereo @48k into our ring
+    // Route audio to Godot: decode to interleaved S16 stereo at the mix rate into our ring
     // buffer; the owner drains it into an AudioStreamGenerator on a 3D player.
     libvlc_audio_set_format(mp, "S16N", m_audio_rate, m_audio_channels);
     libvlc_audio_set_callbacks(mp, CbAudioPlay, nullptr, nullptr, CbAudioFlush, nullptr, this);
