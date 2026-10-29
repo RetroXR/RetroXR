@@ -38,6 +38,7 @@ func _ready() -> void:
 	await _test_outlet_switch_live()
 	await _test_strip()
 	await _test_adapter()
+	await _test_splice()
 	_test_prefs()
 
 	MainsRegions.extra = extra_before
@@ -432,6 +433,80 @@ func _test_adapter() -> void:
 		await get_tree().process_frame
 	_ok(spawned.get(0) is TravelAdapter, "adapter/is rebuilt from its entry")
 	await _clear(room)
+
+
+## A region change keeps the room plugged in (MainsSplice): the strip's own plug
+## back in the wall, a cord the new wall does not take kept in it through a
+## travel adapter spliced in, one on a strip that lost its socket moved to a free
+## one, and on the way back the spliced adapters out again and gone, while the
+## player's own adapter stays.
+func _test_splice() -> void:
+	var room := Node3D.new()
+	add_child(room)
+	var plate := preload("res://Scenes/Objects/room/wall_outlet.tscn").instantiate() as WallOutlet
+	room.add_child(plate)
+	var strip := preload("res://Scenes/Objects/appliances/power_strip.tscn") \
+		.instantiate() as PowerStrip
+	room.add_child(strip)
+	var wall_cord := preload("res://Scenes/Objects/cables/power_cord.tscn").instantiate() as PowerCord
+	room.add_child(wall_cord)
+	var far_cord := preload("res://Scenes/Objects/cables/power_cord.tscn").instantiate() as PowerCord
+	room.add_child(far_cord)
+	var mine := preload("res://Scenes/Objects/appliances/travel_adapter.tscn") \
+		.instantiate() as TravelAdapter
+	room.add_child(mine)
+	var euro := preload("res://Scenes/Objects/cables/cee_7_7_cord.tscn").instantiate() as PowerCord
+	room.add_child(euro)
+	await get_tree().process_frame
+
+	(plate.get_node("TopPort") as PowerPort).pick_up_object(strip.wall_plug)
+	(plate.get_node("BottomPort") as PowerPort).pick_up_object(wall_cord.wall_plug)
+	strip.sockets()[5].pick_up_object(far_cord.wall_plug)
+	strip.sockets()[0].pick_up_object(mine.wall_plug)
+	mine.socket.pick_up_object(euro.wall_plug)
+	await get_tree().process_frame
+
+	MainsSplice.change_region(get_tree(), "uk")
+	await get_tree().process_frame
+	_ok(PowerCord.socket_holding(strip.wall_plug) == plate.get_node("TopPort"),
+		"splice/the strip's own plug is back in the wall")
+	var spliced := PowerCord.socket_holding(wall_cord.wall_plug)
+	var wall_adapter: TravelAdapter = spliced.get_parent().get_parent() as TravelAdapter \
+		if spliced != null else null
+	_ok(wall_adapter != null and wall_adapter.spliced,
+		"splice/a US plug the UK wall refuses is kept in it by an adapter")
+	if wall_adapter != null:
+		_ok(PowerCord.socket_holding(wall_adapter.wall_plug) == plate.get_node("BottomPort"),
+			"splice/and the adapter is in the socket the plug was")
+		_ok(wall_adapter.is_in_group("spawned"), "splice/and is saved with the room")
+	var moved := PowerCord.socket_holding(far_cord.wall_plug)
+	_ok(moved != null, "splice/a plug from a socket the UK strip lacks is still plugged in")
+	if moved != null:
+		var through := moved.get_parent().get_parent() as TravelAdapter
+		_ok(through != null and through.spliced
+				and PowerCord.socket_holding(through.wall_plug).get_parent().get_parent() == strip,
+			"splice/through an adapter in a free socket of the same strip")
+	_ok(PowerCord.socket_holding(mine.wall_plug) == strip.get_node("Body/Socket1"),
+		"splice/the player's adapter, its prongs now UK, back in its socket")
+	_ok(PowerCord.socket_holding(euro.wall_plug) == mine.socket, "splice/with its plug in it")
+
+	MainsSplice.change_region(get_tree(), MainsRegions.DEFAULT)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_ok(PowerCord.socket_holding(wall_cord.wall_plug) == plate.get_node("BottomPort"),
+		"splice/back home the plug goes straight in again")
+	_ok(wall_adapter == null or not is_instance_valid(wall_adapter)
+			or wall_adapter.is_queued_for_deletion(), "splice/and the spliced adapter is gone")
+	var home := PowerCord.socket_holding(far_cord.wall_plug)
+	_ok(home != null and home.get_parent().get_parent() == strip,
+		"splice/the moved plug straight in its strip socket")
+	_ok(is_instance_valid(mine) and not mine.is_queued_for_deletion()
+			and PowerCord.socket_holding(mine.wall_plug) == strip.get_node("Body/Socket1"),
+		"splice/the player's own adapter stays")
+	await _clear(room)
+	for node in get_tree().get_nodes_in_group(TravelAdapter.GROUP):
+		node.queue_free()
+	await get_tree().process_frame
 
 
 ## Let every plug go and wait out the drop's deferred work before freeing the

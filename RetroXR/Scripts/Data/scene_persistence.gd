@@ -3018,6 +3018,7 @@ func _serialize_travel_adapter(adapter: TravelAdapter, id: int, n3d: Node3D,
 		"cords": adapter.cord_count(),
 		"kind": adapter.scene_file_path.get_file().get_basename(),
 		"plugs": _plug_records(adapter.seating(), node_to_id),
+		"spliced": adapter.spliced,
 	})
 
 
@@ -3116,6 +3117,8 @@ func _instantiate_light_gun(data: Dictionary) -> Node3D:
 ## What a lead has to be told before it enters the tree: its plug colour and its
 ## cord length. Nothing for anything else.
 func _restore_lead_fields(obj: Node3D, data: Dictionary) -> void:
+	if obj is TravelAdapter:
+		(obj as TravelAdapter).spliced = bool(data.get("spliced", false))
 	if obj is CompositeCable:
 		(obj as CompositeCable).plug_color_id = StringName(str(data.get("plug_color", "")))
 		(obj as CompositeCable).cord_length = float(data.get("cord_length", 0.0))

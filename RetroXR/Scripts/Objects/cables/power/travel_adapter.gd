@@ -26,6 +26,10 @@ const MESH_DIR := "res://Scenes/Objects/appliances/travel_adapter_%s.res"
 ## The region the adapter was last made as; "" before _ready.
 var region := ""
 
+## Put in by a region change (MainsSplice) rather than by the player, so taken
+## out again by the one that makes it unneeded.
+var spliced := false
+
 
 func _ready() -> void:
 	add_to_group(GROUP)
