@@ -685,8 +685,9 @@ func reload_bindings() -> void:
 
 func _load_bindings() -> void:
 	var sysid := ""
-	if is_instance_valid(_connected_system):
-		sysid = _connected_system.systemid
+	var target := _input_system()
+	if target != null:
+		sysid = target.systemid
 	var bindings := ControllerBindings.get_for_system(sysid)
 	_button_map = bindings["buttons"]
 	_stick_map  = bindings["sticks"]
@@ -785,7 +786,7 @@ func _process(_delta: float) -> void:
 
 	# A pad lying on the table, plugged into nothing, has no hand to read and no
 	# machine to feed. A plugged one still has to send its idle state below.
-	if _connected_system == null and not _desktop_held \
+	if not _has_input_target() and not _desktop_held \
 			and not is_instance_valid(_holding_ctrl):
 		return
 
@@ -818,7 +819,7 @@ func _process(_delta: float) -> void:
 			_drop_all()
 			return
 
-	if _connected_system == null or _port_index < 0:
+	if not _has_input_target():
 		return
 
 	if _desktop_held:
@@ -864,7 +865,7 @@ func _process(_delta: float) -> void:
 ## Capture is only meaningful on desktop: in VR the pad reads the hand
 ## controllers, never the keyboard-bound actions.
 func _can_capture() -> bool:
-	return _desktop_held and _connected_system != null and _port_index >= 0
+	return _desktop_held and _has_input_target()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -890,8 +891,9 @@ func _sync_desktop_scope() -> void:
 	var active := _capture != null and _capture.is_active()
 	if active:
 		var sysid := ""
-		if is_instance_valid(_connected_system):
-			sysid = _connected_system.systemid
+		var target := _input_system()
+		if target != null:
+			sysid = target.systemid
 		if not _owns_desktop_scope or _desktop_scope != sysid:
 			_owns_desktop_scope = true
 			_desktop_scope = sysid
@@ -946,7 +948,26 @@ func _process_desktop_joypad() -> void:
 ## Route input to the connected system's core, via netplay when a lockstep game
 ## is running (the gate applies the agreed frame on every peer), else directly.
 func _send_joypad(btn: int, alx: int, aly: int, arx: int, ary: int) -> void:
-	if NetworkManager.netplay_route(_connected_system, _port_index,
-			{"btn": btn, "alx": alx, "aly": aly, "arx": arx, "ary": ary}):
+	_deliver_joypad({"btn": btn, "alx": alx, "aly": aly, "arx": arx, "ary": ary})
+
+
+## Where a frame of this pad's input goes: the port its plug is in. A wireless
+## pad has no plug, and overrides this (and the two below) to send the frame to
+## every receiver that hears it instead.
+func _deliver_joypad(pad: Dictionary) -> void:
+	if NetworkManager.netplay_route(_connected_system, _port_index, pad):
 		return
-	_connected_system.get_libretro_node().SetJoypadState(_port_index, btn, alx, aly, arx, ary)
+	_connected_system.get_libretro_node().SetJoypadState(_port_index,
+		pad["btn"], pad["alx"], pad["aly"], pad["arx"], pad["ary"])
+
+
+## Whether this pad has anywhere to send input: for a corded pad, a port its
+## plug is in. While false a pad nobody holds does nothing at all.
+func _has_input_target() -> bool:
+	return _connected_system != null and _port_index >= 0
+
+
+## The console this pad's input is for, whose button bindings and desktop keys
+## it uses, or null. A corded pad's is the one its plug is in.
+func _input_system() -> RetroSystem:
+	return _connected_system if is_instance_valid(_connected_system) else null
