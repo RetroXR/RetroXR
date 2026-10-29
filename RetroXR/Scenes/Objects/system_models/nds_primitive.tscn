@@ -263,4 +263,4 @@ gizmo_extents = 0.01
 ; model's ACAdapterPort, 29.4 mm left, scaled to this body's width): it takes the EXT.2 plug, the SP's adapter's.
 ; +Z out of the shell, the zone on the shell's face (the socket scene says why).
 [node name="DcInPort" parent="." instance=ExtResource("90_dcport")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.0262, -0.002, -0.03695)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.0262, -0.0015, -0.03695)

@@ -5,15 +5,15 @@
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="3_snaphigh"]
 
 [sub_resource type="BoxMesh" id="Mesh_mouth"]
-size = Vector3(0.00990, 0.00520, 0.0004)
+size = Vector3(0.01310, 0.00710, 0.0004)
 
 [sub_resource type="StandardMaterial3D" id="Mat_mouth"]
 albedo_color = Color(0.05, 0.05, 0.055, 1)
 roughness = 0.9
 
 [sub_resource type="CylinderMesh" id="Mesh_plug_ghost"]
-top_radius = 0.00650
-bottom_radius = 0.00650
+top_radius = 0.00760
+bottom_radius = 0.00760
 height = 0.014
 radial_segments = 16
 rings = 1
@@ -31,7 +31,7 @@ emission_energy_multiplier = 0.4
 ;
 ; Placed the way every socket is: +Z out of the shell, the zone where a seated
 ; plug's ORIGIN belongs, the face of the plug's barrel or hood, which stops
-; against the shell; the mouth (9.4 x 4.7 mm socket) a dark face 0.3 mm proud of the
+; against the shell; the mouth (12.6 x 6.6 mm socket) a dark face 0.3 mm proud of the
 ; shell's, so it never shares the shell's plane (no z-fighting).
 ;
 ; `connector` is written here and not left to a script, for the reason
