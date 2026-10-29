@@ -85,6 +85,10 @@ const MENU_DISTANCE := 0.9
 const MENU_WALL_GAP := 0.2
 ## The room's own walls and furniture: layer 1, "World".
 const MENU_WORLD_MASK := 1
+## What a seated player's menu keeps clear of as well: the pickables (a cabinet is one) and the pointable boxes.
+const MENU_SEATED_MASK := 4 | (1 << 20)
+## How near a seated player's menu may come to them, metres.
+const MENU_SEATED_MIN := 0.45
 
 const _SCROLL_SPEED    := 700.0   # pixels per second at full tilt
 const _SCROLL_DEADZONE := 0.25    # stick Y dead zone (0..1)
@@ -751,19 +755,43 @@ func _toggle_menu() -> void:
 ## everything bigger, so the menu is put further off by the zoom's factor
 ## (DesktopWindow.menu_distance_factor) -- but never into a wall: the ray out to it is
 ## cut short of the first thing in the world, and the menu never comes nearer than usual.
+##
+## SEATED (2026-10-29), the menu DOES come nearer: a seated player cannot step back (Seat holds the walking), and
+## the menu always stood 0.9 m ahead whatever was there, so one sitting in front of a cabinet (a seat is for that)
+## had the menu opened INSIDE it, behind its glass and its pointer boxes, with no way to move it. Now the ray
+## out to it takes the pickables and the pointable boxes too, and the menu stops MENU_WALL_GAP short of the first of
+## them, no nearer than MENU_SEATED_MIN. The player's own seat and the menu are left out of the ray.
 func _menu_distance(forward: Vector3) -> float:
-	if _camera == null or get_viewport().use_xr:
+	if _camera == null:
 		return MENU_DISTANCE
-	var want := MENU_DISTANCE * DesktopWindow.menu_distance_factor(QualityManager.zoom)
-	if want <= MENU_DISTANCE:
+	var seated := Seat.current != null
+	var want := MENU_DISTANCE
+	if not get_viewport().use_xr:
+		want = MENU_DISTANCE * DesktopWindow.menu_distance_factor(QualityManager.zoom)
+	if want <= MENU_DISTANCE and not seated:
 		return MENU_DISTANCE
 	var from := _camera.global_position
 	var query := PhysicsRayQueryParameters3D.create(from, from + forward * (want + MENU_WALL_GAP),
-		MENU_WORLD_MASK)
+		MENU_WORLD_MASK | (MENU_SEATED_MASK if seated else 0))
+	if seated:
+		query.collide_with_areas = true
+		var own: Array[RID] = []
+		for holder: Node in [self, Seat.current]:
+			if is_instance_valid(holder):
+				for body: Node in holder.find_children("*", "CollisionObject3D", true, false):
+					own.append((body as CollisionObject3D).get_rid())
+		query.exclude = own
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if not hit.is_empty():
-		want = minf(want, from.distance_to(hit["position"] as Vector3) - MENU_WALL_GAP)
-	return maxf(want, MENU_DISTANCE)
+	if hit.is_empty():
+		return want if seated else maxf(want, MENU_DISTANCE)
+	var room := from.distance_to(hit["position"] as Vector3) - MENU_WALL_GAP
+	if seated:
+		var out := clampf(minf(want, room), MENU_SEATED_MIN, want)
+		if out < want - 0.01:
+			print("[Menu] seated: %s stands %.2f m ahead, so the menu opens at %.2f m, not %.2f" % [
+				str((hit["collider"] as Node).get_path()), from.distance_to(hit["position"] as Vector3), out, want])
+		return out
+	return maxf(minf(want, room), MENU_DISTANCE)
 
 
 func _show_menu() -> void:
