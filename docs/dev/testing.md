@@ -242,6 +242,26 @@ add to it when you fix something in that layer rather than starting a new probe.
 scratch `__romm_selftest` system folder under the real roms root (the path is derived from
 the systemid and cannot be pointed elsewhere) and removes it at both ends.
 
+The BIOS page's **Download all** (one per core section of a system, `SpawnMenuCoresView._build_bios_section_header`,
+2026-10-29) is pinned by `bios_all/`: `_bios_outstanding_for` offers only plain files that are MISSING here and that
+RomM holds (never a folder requirement, a file already there, a MISMATCH or a file RomM lacks), the header carries the
+count and the bytes, and with no RomM there is no button. With RomM connected the button is ALWAYS there: with nothing to
+fetch it is off and says why (all installed / not on RomM / asking RomM): a section that is complete used to show no
+button at all, which read as a missing feature (FinalBurn Neo, all 24 files present). The first press only ARMS it (a second, within 4 s, queues
+every file; the same two-press idiom as the row's delete) and nothing is queued by it. The last two cases need a
+`FirmwareInstaller`, which needs the archive extension: on a machine that cannot load it they stop the suite with a
+script error after the first six; CI runs them.
+
+`RetroXR/Tests/holster_tests.tscn` (16 cases, headless, no native extension needed) pins `Holster`, the one rule for a machine's guns, sticks and guitars: a seat is a DROPPED zone with no preview, a thing let go within
+`Holster.DESKTOP_REACH` of its OWN seat goes back, one let go further off is not put back (it falls), a thing a hand holds or a full, freed or missing seat is refused. Mutation-tested (reach ignored, mode left RANGE).
+
+`RetroXR/Tests/drum_side_tests.tscn` (19 cases, headless, no native extension needed) pins `DrumSide`, a stick striking the side of a Taiko drum: a ka on the half it came in at, the margin outside the wall, the height band,
+the slow touch, the head over the drum, going out, stopping short, coming DOWN near the edge (the top's), a shaft point striking as the tip does, and the head having to go off the wall to strike again. Mutation-tested
+(the sideways rule, the margin). Run `--editor --quit` first when `DrumSide` is new to the class cache, or the suite sits idle.
+
+`RetroXR/Tests/mount_aim_tests.tscn` (6 cases, headless, no native extension needed) pins `MountAim`, what a rifle on a pivot tells the game: its travel spread over the whole picture, the edges, the
+asymmetric pitch (12 down, 28 up) and staying inside the picture.
+
 `RetroXR/Tests/scene_tests.tscn` covers SceneManager and the save gates around it — which
 rooms keep slots, the per-room active slot and its prefs round-trip (including the legacy
 single-room key), which room a launch opens in, the `is_room_ready` / `is_scene_content_ready` boundaries, the transition

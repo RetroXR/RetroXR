@@ -15,6 +15,12 @@ a bed (`Scenes/Objects/furniture/seat_*.tscn`, baked by `Tools/gen/gen_seats.gd`
   straight down at the lap it always hit. So while the host is occupied the laser's slab (`SeatTrigger.stand_zone`, the `LaserBody`'s own box; the desktop's Area3D keeps its size) reaches 0.6 m toward the knees and 0.2 m to each side,
   on the same 3 cm, and the seat's `PointerArea` carries `SeatPointerArea`: a press on any part of the body of the seat you sit on stands you up (and does nothing to anyone else; carrying is still a hold on it). Put on by `Seat._ready`,
   so a mod's seat has it. `seat_tests press/` (mutation-tested). A headset OWED.
+- **A seated player's menu keeps clear of what is in front (2026-10-29).** `SpawnMenuController._menu_distance` stood the menu 0.9 m ahead of the head whatever was there, and a seated player cannot step back, so
+  one sitting in front of a cabinet (what a seat is for) had the menu open INSIDE it. Seated, the ray out to it takes the pickables (a cabinet) and the pointable boxes as well as the world and the menu stops
+  `MENU_WALL_GAP` short of the first, no nearer than `MENU_SEATED_MIN` 0.45 m (its own bodies and the player's seat left out); it logs `[Menu] seated: <what> stands N m ahead ...`. **Reported, "I can open the menu but cannot
+  use it (typing to search, spawning a game)", and NOT reproduced**: with the real rig, a stand-in slab for the menu at its place and each of the six furniture seats, the desktop pointer reaches it every time and its
+  suppress area (radius 0.2, layer 23) touches nothing; the pointer boxes of a cockpit leave the centre of the menu clear. So this is the one seated defect found, not proven to be the one reported; a press that the
+  seat's own body takes (`SeatPointerArea`) now logs `[Seat] a press on ... stood the sitter up`. The real menu cannot be loaded without the native extensions: a headset and a desktop run OWED.
 - **A seat is a scene with the script and three markers:** `EyePoint` (where the head goes, -Z is the way it faces), `StandPoint` (a floor point to the side: the front is often a cabinet) and
   `SeatTrigger`. `type_id` names its `ScenePersistence.PLAIN_SCENES` row. A mod's seat is any scene that has them.
 - **What sitting does.** The origin is turned about the head to the seat's heading and carried over the eye point, standing on the seat's floor (`Seat.origin_for_eye`, pure, tested on bare
@@ -25,9 +31,10 @@ a bed (`Scenes/Objects/furniture/seat_*.tscn`, baked by `Tools/gen/gen_seats.gd`
   body's physics step and skips them all when it is disabled: a seat that switched the body off left the player unable to turn, so unable to aim at the seat to get up. The body's collision mask (1019)
   has no pickable layer, so its capsule does not fight the seat. Proof: `Tools/models/seat_look_probe` (the game's real `player_rig.tscn`, injected mouse motion; `-- --oldbug` is the control leg:
   `turned=false`).
-- **Height.** On the desktop the camera's own height IS the eye height, so the seat sets it and puts it back (also when the seat goes away mid-sit). In a headset the head's height is the person's: the
-  seat puts the floor under itself and leaves the head where it is, so someone really sitting on a chair is already at that height. Not testable here: the headset and the Quest are OWED, and so
-  is a bed (lying down changes nothing but the heading and the floor; the horizon is the person's).
+- **Height.** On the desktop the camera's own height IS the eye height, so the seat sets it and puts it back (also when the seat goes away mid-sit). **In a headset the head is brought to the seat's eye point, once, as
+  the player sits** (`Seat.origin_at_eye_height`; `stand()` puts the origin back on the floor): the first version put the floor under the seat and left the head where it was, "somebody sitting on a real chair is already at
+  that height", and a person sitting low (a low chair, the floor, a crouch) sat on the floor beside a stool whose top was at their eyes (2026-10-29). Someone who really sits at the seat's height moves a few centimetres;
+  the log says how far (`[Seat] ...: head from .. m to the seat's eyes at .. m`). A bed (lying down) was never measured, and the headset is OWED.
 - **Saving.** Pose only (`ScenePersistence` branch `node is Seat`, token = `type_id`). That the player is seated is this session's: never saved, never on the wire (the input a seat leads to goes through
   `netplay_route` as any input does).
 - **What it is for.** A steering wheel and pedals (not built yet, see arcade.md "The cabinet follows the game") want a player who is held in front of them; a seat is that player. A seat per cabinet
