@@ -219,9 +219,9 @@ func _build_body() -> void:
 
 	var pointer_shape := $PointerArea/CollisionShape3D as CollisionShape3D
 	var ptr := BoxShape3D.new()
-	# Deliberately larger than the case, as every other laser target here is, so
-	# a low base under a console can still be hit with a beam from across the room.
-	ptr.size = s + Vector3(0.02, 0.02, 0.02)
+	# The case's own size: grown, it took beams meant for whatever stood beside
+	# the unit or on it.
+	ptr.size = s
 	pointer_shape.shape = ptr
 
 	_label = $NameLabel as Label3D
