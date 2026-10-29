@@ -148,6 +148,10 @@
 ##               the front (+Z). The hit box then sits on the face the cap is in.
 ##   eject_travel
 ##               how far that cap travels, in metres. Absent, 4 mm.
+##   pointer_mesh
+##               for a unit with a shell: the laser beam hits the shell's own surface,
+##               not the box 10 mm bigger than the unit every other one is aimed at.
+##               The Game Boy Player's, whose tower stands over a third of its top.
 ##   default_occupant
 ##               this unit comes pre-installed on a bare console — a Jumper
 ##               Pak, not something a player goes looking for. RetroSystem
@@ -359,6 +363,7 @@ const FIELDS := {
 	"slot_marker_depth": false,
 	"eject_axis": null,
 	"eject_travel": NAN,
+	"pointer_mesh": false,
 }
 
 
@@ -705,6 +710,12 @@ static func eject_axis_of(id: String) -> Variant:
 ## How far a shell's own eject cap travels, in metres; NAN for the default.
 static func eject_travel_of(id: String) -> float:
 	return float(_field(id, "eject_travel"))
+
+
+## True when the beam should hit the unit's shell itself rather than the box
+## round it. See the row docs above.
+static func pointer_mesh_of(id: String) -> bool:
+	return bool(_field(id, "pointer_mesh"))
 
 
 ## Degrees a cartridge-mounted unit is turned about its own +Y when seated, relative

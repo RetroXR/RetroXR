@@ -41,6 +41,8 @@ const ROW := {
 	# The lever slides toward the front, up to 12 mm.
 	"eject_axis": Vector3(0, 0, 1),
 	"eject_travel": 0.012,
+	# The beam hits the shell, not a box round it.
+	"pointer_mesh": true,
 }
 
 ## The pockets' floors, where the GameCube's front feet rest (its rear skids sit
