@@ -738,8 +738,18 @@ func _process_desktop_lightgun(libretro: Libretro, pressed: Dictionary) -> void:
 	_update_aim_desktop(libretro)
 
 
-## VR aim: ray from barrel tip along barrel -Z.
+## VR aim: ray from barrel tip along barrel -Z. A RIFLE on a pivot (the long stock, `mount_lever`) tells the game its TRAVEL instead (MountAim): a ray from a rifle that turns 28 degrees up meets a glass that is 59 degrees up
+## only at its bottom edge, and the reticle sat low whatever the hand did.
 func _update_aim(libretro: Libretro) -> void:
+	if is_mounted() and mount_lever:
+		var turn := mount_turn()
+		var at := MountAim.picture(turn.x, turn.y, MOUNT_YAW_LIMIT, MOUNT_PITCH_LIMIT)
+		_set_aim(libretro, at.x, at.y, false)
+		if _feeds_pointer():
+			libretro.SetPointerState(_port_index, at.x, at.y,
+				hand_button(ControllerBindings.LIGHTGUN_TRIGGER) or external_button(ControllerBindings.LIGHTGUN_TRIGGER))
+		_laser_dot.visible = false
+		return
 	_apply_aim_hit(libretro, _barrel_tip.global_position, -_barrel_tip.global_transform.basis.z)
 
 
