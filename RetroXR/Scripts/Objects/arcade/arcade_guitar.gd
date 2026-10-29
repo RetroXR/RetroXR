@@ -209,9 +209,28 @@ func holders() -> Array[Dictionary]:
 	return out
 
 
+## The player's rig (its two hands), looked up ONCE: `find_rig` walks every node of the room for the controllers, and this was asked every physics frame a guitar was held in one hand (the VR lag
+## of taking a guitar, with the game off and all). A hand not found yet (not tracked) is looked for again once a second, not every frame.
+var _rig_cache: Dictionary = {}
+var _rig_asked_msec := -10000
+const RIG_RETRY_MSEC := 1000
+
+
+func _rig() -> Dictionary:
+	var complete := _rig_cache.get("left") != null and _rig_cache.get("right") != null \
+			and is_instance_valid(_rig_cache.get("left")) and is_instance_valid(_rig_cache.get("right"))
+	if complete:
+		return _rig_cache
+	var now := Time.get_ticks_msec()
+	if now - _rig_asked_msec >= RIG_RETRY_MSEC:
+		_rig_asked_msec = now
+		_rig_cache = PadInputShared.find_rig(get_tree())
+	return _rig_cache
+
+
 ## A controller that is tracked and holds nothing: the free hand, which strums when one hand holds the guitar. Null when there is none.
 func _free_hand(holding: Array[Dictionary]) -> XRController3D:
-	var rig := PadInputShared.find_rig(get_tree())
+	var rig := _rig()
 	for key in ["left", "right"]:
 		var ctrl := rig.get(key) as XRController3D
 		if ctrl == null or not is_instance_valid(ctrl) or not ctrl.get_is_active():

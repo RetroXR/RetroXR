@@ -269,6 +269,38 @@ func tap_pad_bit(port: int, bit: int, seconds: float = TAP_SECONDS) -> void:
 	(_taps[port] as Dictionary)[bit] = seconds
 
 
+## How long a hit made with a stick stays DRAWN (the cap sunk), seconds. Longer than the tap the game hears (`TAP_SECONDS`, a few frames): a hit that sank a cap for 70 ms was a blink a
+## headset's eyes missed, and with the cabinet off (where nothing is tapped, `_taps` is cleared every frame) it was not drawn at all. A hand on a cap is drawn for as long as it is there.
+const FLASH_SECONDS := 0.16
+var _flashes: Dictionary = {}
+
+
+## Draw pad id `bit` of `port`'s panel pressed for a moment, whatever the cabinet is doing. Nothing is sent to a core by it (`tap_pad_bit` is what the game hears).
+func flash_pad_bit(port: int, bit: int, seconds: float = FLASH_SECONDS) -> void:
+	if bit < 0 or bit >= ArcadeGameProfile.PAD_IDS:
+		return
+	if not _flashes.has(port):
+		_flashes[port] = {}
+	(_flashes[port] as Dictionary)[bit] = seconds
+
+
+## The pad ids drawn pressed on `port` now, as a mask.
+func _flash_mask(port: int) -> int:
+	var mask := 0
+	for bit: int in (_flashes.get(port, {}) as Dictionary).keys():
+		mask |= 1 << bit
+	return mask
+
+
+func _age_flashes(delta: float) -> void:
+	for port: int in _flashes.keys():
+		var held := _flashes[port] as Dictionary
+		for bit: int in held.keys():
+			held[bit] = float(held[bit]) - delta
+			if float(held[bit]) <= 0.0:
+				held.erase(bit)
+
+
 ## The pad ids being tapped on `port` now, as a mask; each runs down by `delta`.
 func _tap_mask(port: int, delta: float) -> int:
 	var held := _taps.get(port, {}) as Dictionary
@@ -452,11 +484,26 @@ static func held_by_hand(holder: Object) -> bool:
 
 
 ## While the cabinet only shows its game: has anything been taken in hand or attached?
+##
+## Said ONCE per use, when somebody first reaches the cabinet, not every frame they are still at it: a game that will not start (a missing ROM or BIOS) puts the cabinet back to showing it
+## (RetroSystem._return_to_attract_if_idle), and a hand still holding a stick or a guitar then asked to start it again on the next frame, and the next, each a core loaded and refused: the lag of
+## taking a stick or a guitar. The latch lets go when nobody is at the cabinet any more.
 func _watch_for_use() -> void:
+	var kind := &""
 	if playing or hands_busy():
-		first_use.emit(&"panel")
+		kind = &"panel"
 	elif engaged():
-		first_use.emit(&"grab")
+		kind = &"grab"
+	if kind == &"":
+		_use_seen = false
+		return
+	if _use_seen:
+		return
+	_use_seen = true
+	first_use.emit(kind)
+
+
+var _use_seen := false
 
 
 ## Is a hand pressing a cap or holding a control on any panel (ArcadePanelHands)?
@@ -478,6 +525,7 @@ func _hand_ctrls() -> Array:
 
 ## Step every panel's hands, whether or not a game is running: the controls of a cabinet that is switched off are worked all the same (`_show_hands_only`).
 func _step_hands(delta: float) -> void:
+	_age_flashes(delta)
 	var hands := _hand_ctrls()
 	var body := Vector3.INF
 	for panel in _controls:
@@ -501,7 +549,7 @@ func _show_hands_only() -> void:
 		if panel == null or not is_instance_valid(panel):
 			continue
 		var state := _with_hands({"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": 0}, p)
-		panel.show_state(ArcadeInputState.compose(0, int(state["btn"]), false, _unsupported()),
+		panel.show_state(ArcadeInputState.compose(0, int(state["btn"]), false, _unsupported()) | _flash_mask(p),
 			Vector4i(int(state["alx"]), int(state["aly"]), int(state["arx"]), int(state["ary"])), false)
 
 
@@ -614,6 +662,7 @@ func _process(delta: float) -> void:
 		_step_hands(delta)
 		_watch_for_use()
 		return
+	_use_seen = false
 	var powered := bool(_host.get("is_powered_on"))
 	if not powered:
 		_release_pedals()
@@ -689,7 +738,7 @@ func _process(delta: float) -> void:
 				_start_pulse.erase(p)
 		if p < _controls.size() and _controls[p] != null:
 			var st: Dictionary = states[p]
-			_controls[p].show_state(mask, Vector4i(int(st["alx"]), int(st["aly"]), int(st["arx"]), int(st["ary"])))
+			_controls[p].show_state(mask | _flash_mask(p), Vector4i(int(st["alx"]), int(st["aly"]), int(st["arx"]), int(st["ary"])))
 		var pedal_down := _step_pedal(p, holder as LightGun)
 		if owned:
 			# A gun in the port is not a joypad: it aims and fires itself. The cabinet's START and
@@ -788,9 +837,16 @@ func _pedal_aux() -> int:
 	return ControllerBindings.LIGHTGUN_AUX_B if pedal_button() == 3 else ControllerBindings.LIGHTGUN_AUX_A
 
 
+var _lens_of: Dictionary = {}
+
+
 ## Whether the head is at `gun`'s scope: within SCOPE_NEAR of its lens (SCOPE_NEAR + SCOPE_NEAR_HYSTERESIS to let go). False for a gun with no lens and with no head to ask.
 func _eye_at_scope(gun: LightGun) -> bool:
-	var lens := gun.find_child("ScopeScreen", true, false) as Node3D
+	# Looked up once per gun: this runs every frame for a rifle whose scope is a switch, and a recursive find_child over the rifle's whole subtree is not a thing to repeat 72 times a second.
+	var lens := _lens_of.get(gun) as Node3D
+	if not is_instance_valid(lens):
+		lens = gun.find_child("ScopeScreen", true, false) as Node3D
+		_lens_of[gun] = lens
 	var head := head_position()
 	if lens == null or not head.is_finite():
 		_eye_near.erase(gun)
