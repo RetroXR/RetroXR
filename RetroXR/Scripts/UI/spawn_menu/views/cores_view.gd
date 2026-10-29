@@ -78,6 +78,10 @@ var _bios_delete_armed := ""
 ## The button showing that armed state, so arming can repaint one control
 ## instead of rebuilding the tab. Cleared whenever a rebuild frees it.
 var _bios_delete_armed_btn: Button = null
+## Core whose section's Download all is awaiting its second press, "" when none. UI state only, like the delete's.
+var _bios_all_armed := ""
+## How long a Download all stays armed, seconds.
+const BIOS_ALL_CONFIRM_SECONDS := 4.0
 var _bios_refreshing := false
 var _bios_refresh_queued := false
 ## "<core>|<folder path>" -> whether that folder's RomM picker is showing.
@@ -980,8 +984,9 @@ func _populate_bios_detail(systemid: String, vbox: VBoxContainer) -> void:
 		if rows.is_empty():
 			continue
 
-		if multi:
-			vbox.add_child(MenuStyle.label(str(entry["display_name"]), 20, MenuStyle.COLOR_TITLE))
+		var head := _build_bios_section_header(cn, str(entry["display_name"]) if multi else "")
+		if head != null:
+			vbox.add_child(head)
 
 		if SystemAssetCatalog.has_archive(cn):
 			vbox.add_child(_build_bios_archive_row(cn, rows))
@@ -1282,7 +1287,7 @@ func _build_bios_action(bios_row: Dictionary, systemid: String) -> Control:
 		return cell
 
 	var core_name := str(bios_row.get("core_name", ""))
-	var key := "bios:file:%s:%s" % [core_name, path]
+	var key := _bios_file_key(core_name, path)
 	var running := _firmware_installer != null and _firmware_installer.is_queued(key)
 
 	# The mark says WHERE the file is coming from; the cloud says what pressing
@@ -1306,6 +1311,9 @@ func _build_bios_action(bios_row: Dictionary, systemid: String) -> Control:
 	btn.custom_minimum_size = Vector2(110, 48)
 	btn.text = String.chr(MenuIcons.BUSY if running else MenuIcons.DOWNLOAD)
 	btn.add_theme_color_override("font_color", MenuIcons.TINT_BUSY if running else MenuIcons.TINT_DOWNLOAD)
+	if running:
+		# Queued by Download all (or before a rebuild): its percentage still has a button to land on.
+		_bios_job_buttons[key] = btn
 	btn.tooltip_text = "Download %s from RomM (%s)" % [
 		str(hit["file_name"]), String.humanize_size(int(hit["size"]))]
 	btn.pressed.connect(func() -> void:
@@ -1315,19 +1323,193 @@ func _build_bios_action(bios_row: Dictionary, systemid: String) -> Control:
 			_firmware_installer.cancel_current()
 			return
 		_bios_job_buttons[key] = btn
-		# One download, written to every installed core that declares this same
-		# file — the system dir is per-core, so they each need their own copy.
-		var dests := _bios_destinations_for(path)
-		_firmware_installer.enqueue_file(
-			key, path.get_file(), romm_config.base_url,
-			RommFirmware.content_path(int(hit["id"]), str(hit["file_name"])),
-			romm_config.auth_headers(), dests,
-			int(hit["size"]), str(hit["md5"]))
+		_enqueue_bios_file(key, path, hit)
 		btn.text = "0%"
 		btn.add_theme_color_override("font_color", MenuIcons.TINT_BUSY)
 	)
 	cell.add_child(btn)
 	return cell
+
+
+## The job key of one firmware file fetched for one core's row.
+static func _bios_file_key(core_name: String, path: String) -> String:
+	return "bios:file:%s:%s" % [core_name, path]
+
+
+## Queue one file RomM holds (`hit`, from RomM firmware's find). One download, written to every installed
+## core that declares this same file: the system dir is per-core, so they each need their own copy.
+func _enqueue_bios_file(key: String, path: String, hit: Dictionary) -> void:
+	_firmware_installer.enqueue_file(
+		key, path.get_file(), romm_config.base_url,
+		RommFirmware.content_path(int(hit["id"]), str(hit["file_name"])),
+		romm_config.auth_headers(), _bios_destinations_for(path),
+		int(hit["size"]), str(hit["md5"]))
+
+
+## What Download all would fetch for one core: its plain files that are missing here and that RomM holds,
+## [{key, path, hit}]. A folder requirement has its own picker, and a MISMATCH is a file somebody put there
+## (or the wrong region's): replacing it is the row's own button's call, never a batch's.
+func _bios_outstanding_for(core_name: String) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if romm_firmware == null or not _romm_ready() or romm_config == null or not romm_config.is_configured():
+		return out
+	var seen := {}
+	for r: Dictionary in _bios_rows_for_core(core_name):
+		var status := int(r.get("status", FirmwareState.Status.PRESENT))
+		if bool(r.get("is_dir", false)) or (status != FirmwareState.Status.MISSING_REQUIRED \
+				and status != FirmwareState.Status.MISSING_OPTIONAL):
+			continue
+		var path := str(r.get("path", ""))
+		if seen.has(path):
+			continue
+		var hit: Dictionary = romm_firmware.find(path)
+		if hit.is_empty():
+			continue
+		seen[path] = true
+		out.append({"key": _bios_file_key(core_name, path), "path": path, "hit": hit})
+	return out
+
+
+## The head of one core's section: its name when the system has several, and, with RomM connected, that
+## section's Download all (a second press confirms). The button is there whenever RomM is: with nothing to
+## fetch it says why it does nothing (all installed, not on RomM, still asking) instead of being gone, which
+## read as a feature that did not exist. Null when there is neither a title nor a button.
+func _build_bios_section_header(core_name: String, title: String) -> Control:
+	var outstanding := _bios_outstanding_for(core_name)
+	var connected := romm_firmware != null and romm_config != null and romm_config.is_configured()
+	var in_flight := 0
+	if _firmware_installer != null:
+		for e: Dictionary in outstanding:
+			if _firmware_installer.is_queued(str(e["key"])):
+				in_flight += 1
+	var show_button := connected and not _bios_rows_for_core(core_name).is_empty()
+	if title.is_empty() and not show_button:
+		return null
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.custom_minimum_size = Vector2(0, 48)
+	if title.is_empty():
+		var spacer := Control.new()
+		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(spacer)
+	else:
+		var lbl := MenuStyle.label(title, 20, MenuStyle.COLOR_TITLE)
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(lbl)
+	if show_button:
+		if outstanding.is_empty():
+			row.add_child(_build_bios_all_idle_button(core_name))
+		else:
+			row.add_child(_build_bios_all_button(core_name, outstanding, in_flight))
+		var gutter := Control.new()
+		gutter.custom_minimum_size = Vector2(44, 0)
+		gutter.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(gutter)
+	return row
+
+
+## Download all with nothing to do, and the reason.
+func _build_bios_all_idle_button(core_name: String) -> Button:
+	var missing := 0
+	for r: Dictionary in _bios_rows_for_core(core_name):
+		var status := int(r.get("status", FirmwareState.Status.PRESENT))
+		if not bool(r.get("is_dir", false)) and (status == FirmwareState.Status.MISSING_REQUIRED \
+				or status == FirmwareState.Status.MISSING_OPTIONAL):
+			missing += 1
+	var btn := Button.new()
+	btn.add_theme_font_size_override("font_size", 16)
+	btn.custom_minimum_size = Vector2(230, 44)
+	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	btn.disabled = true
+	if not _romm_ready():
+		btn.text = "Download all: asking RomM…"
+		btn.add_theme_color_override("font_color_disabled", MenuIcons.TINT_MUTED)
+		btn.tooltip_text = "RomM's firmware list has not arrived yet"
+	elif missing == 0:
+		btn.text = "Download all: all installed"
+		btn.add_theme_color_override("font_color_disabled", MenuIcons.TINT_OK)
+		btn.tooltip_text = "Every file of this section is already here"
+	else:
+		btn.text = "Download all: not on RomM"
+		btn.add_theme_color_override("font_color_disabled", MenuIcons.TINT_MUTED)
+		btn.tooltip_text = "%d files are missing, and none of them is on your RomM server" % missing
+	return btn
+
+
+func _build_bios_all_button(core_name: String, outstanding: Array[Dictionary], in_flight: int) -> Button:
+	var bytes := 0
+	for e: Dictionary in outstanding:
+		bytes += int((e["hit"] as Dictionary).get("size", 0))
+	var btn := Button.new()
+	btn.add_theme_font_override("font", MenuIcons.symbols())
+	btn.add_theme_font_size_override("font_size", 16)
+	btn.custom_minimum_size = Vector2(230, 44)
+	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var size_text := String.humanize_size(bytes)
+
+	if in_flight > 0:
+		btn.text = "%s  Stop %d" % [String.chr(MenuIcons.BUSY), in_flight]
+		btn.add_theme_color_override("font_color", MenuIcons.TINT_BUSY)
+		btn.tooltip_text = "Cancel the files queued for this section"
+		btn.pressed.connect(func() -> void:
+			if _firmware_installer == null:
+				return
+			for e: Dictionary in outstanding:
+				_firmware_installer.cancel(str(e["key"]))
+			print("[BIOS] download all %s: stopped, %d files cancelled" % [core_name, in_flight])
+		)
+		return btn
+
+	_paint_bios_all_button(btn, _bios_all_armed == core_name, outstanding.size(), size_text)
+	btn.pressed.connect(func() -> void:
+		if _firmware_installer == null:
+			return
+		if _bios_all_armed != core_name:
+			# Arming is UI state and nothing else: one button repaints, nothing rebuilds.
+			_bios_all_armed = core_name
+			_paint_bios_all_button(btn, true, outstanding.size(), size_text)
+			_romm_notify_or_queue("bios:all", String.chr(MenuIcons.DOWNLOAD),
+				"Download %d files (%s) from RomM? Press again to confirm" % [outstanding.size(), size_text],
+				BIOS_ALL_CONFIRM_SECONDS)
+			print("[BIOS] download all %s: armed, %d files, %s" % [core_name, outstanding.size(), size_text])
+			get_tree().create_timer(BIOS_ALL_CONFIRM_SECONDS).timeout.connect(func() -> void:
+				if _bios_all_armed != core_name:
+					return
+				_bios_all_armed = ""
+				if is_instance_valid(btn):
+					_paint_bios_all_button(btn, false, outstanding.size(), size_text))
+			return
+		_bios_all_armed = ""
+		var queued := 0
+		for e: Dictionary in outstanding:
+			var key := str(e["key"])
+			if _firmware_installer.is_queued(key):
+				continue
+			_enqueue_bios_file(key, str(e["path"]), e["hit"])
+			if _firmware_installer.is_queued(key):
+				queued += 1
+			else:
+				push_warning("[BIOS] download all %s: %s was not queued" % [core_name, str(e["path"])])
+		print("[BIOS] download all %s: confirmed, %d of %d files queued" % [core_name, queued, outstanding.size()])
+		if queued > 0:
+			# Every row of the section redraws as queued, or the header would be the only thing that knows.
+			refresh_bios_view()
+	)
+	return btn
+
+
+static func _paint_bios_all_button(btn: Button, armed: bool, count: int, size_text: String) -> void:
+	if armed:
+		btn.text = "%s  Confirm: %d files, %s" % [String.chr(MenuIcons.ERROR), count, size_text]
+		btn.add_theme_color_override("font_color", MenuIcons.TINT_WARN)
+		btn.tooltip_text = "Press again to download them; it cancels itself in a few seconds"
+	else:
+		btn.text = "%s  Download all %d  (%s)" % [String.chr(MenuIcons.DOWNLOAD), count, size_text]
+		btn.add_theme_color_override("font_color", MenuIcons.TINT_DOWNLOAD)
+		btn.tooltip_text = "Download every file of this section that RomM has and this machine lacks (asks first)"
 
 
 # ── Folder requirements ───────────────────────────────────────────────────────

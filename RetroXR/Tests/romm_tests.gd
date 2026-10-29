@@ -53,6 +53,7 @@ func _ready() -> void:
 	_test_color_handhelds()
 	_test_arcade_boards()
 	_test_firmware_index()
+	_test_bios_download_all()
 	_test_stats_unchanged()
 	_test_password_not_persisted()
 	_test_scopes()
@@ -500,6 +501,94 @@ func _test_firmware_index() -> void:
 	_eq(fw.find_for_system("psx").size(), 0, "fw/reindex clears other platforms")
 
 	fw.free()
+
+
+## The BIOS page's Download all, one per core section: what it would fetch (only plain files that are MISSING here and
+## that RomM holds -- never a folder, a file already there, or a MISMATCH somebody put there), the header that carries it,
+## and that the first press only ARMS it (a second one downloads; no case presses it, there is no server).
+func _test_bios_download_all() -> void:
+	var fw := RommFirmware.new()
+	fw.config = RommConfig.new()
+	fw._index([
+		{"id": 1, "file_name": "have.bin", "file_path": "bios/psx", "file_size_bytes": 1000},
+		{"id": 2, "file_name": "need_a.bin", "file_path": "bios/psx", "file_size_bytes": 2000},
+		{"id": 3, "file_name": "need_b.bin", "file_path": "bios/psx", "file_size_bytes": 3000},
+		{"id": 4, "file_name": "wrong.bin", "file_path": "bios/psx", "file_size_bytes": 4000},
+		# Named like the folder requirement below, so only the folder rule keeps it out.
+		{"id": 5, "file_name": "bios", "file_path": "bios/psx", "file_size_bytes": 6000},
+	])
+	fw._loaded = true
+	var cfg := RommConfig.new()
+	cfg.enabled = true
+	cfg.base_url = "http://romm.invalid"
+	cfg.token = "t"
+
+	var view := SpawnMenuCoresView.new()
+	view.romm_firmware = fw
+	view.romm_config = cfg
+	add_child(view)
+	var S := FirmwareState.Status
+	var fake_rows: Array[Dictionary] = [
+		{"path": "have.bin", "status": S.PRESENT, "core_name": "fakecore"},
+		{"path": "need_a.bin", "status": S.MISSING_REQUIRED, "core_name": "fakecore"},
+		{"path": "need_b.bin", "status": S.MISSING_OPTIONAL, "core_name": "fakecore"},
+		{"path": "wrong.bin", "status": S.MISMATCH, "core_name": "fakecore"},
+		{"path": "pcsx2/bios", "status": S.MISSING_REQUIRED, "is_dir": true, "core_name": "fakecore"},
+		{"path": "not_on_romm.bin", "status": S.MISSING_REQUIRED, "core_name": "fakecore"},
+	]
+	view._bios_row_cache["fakecore"] = fake_rows
+	var out: Array[Dictionary] = view._bios_outstanding_for("fakecore")
+	var names: Array = []
+	for e: Dictionary in out:
+		names.append(str(e["path"]).get_file())
+	names.sort()
+	_eq(names, ["need_a.bin", "need_b.bin"], "bios_all/only what is missing here and on RomM (a present file, a mismatch, a folder and a file RomM lacks are out)")
+
+	var head: Control = view._build_bios_section_header("fakecore", "Fake Core")
+	var btn := _first_button(head)
+	_ok(btn != null and btn.text.contains("Download all 2") and btn.text.contains(String.humanize_size(5000)),
+		"bios_all/the header's button says how many files and how many bytes", btn.text if btn != null else "no button")
+	var lone: Control = view._build_bios_section_header("fakecore", "")
+	_ok(lone != null and _first_button(lone) != null, "bios_all/a single-core system has the button too, with no title")
+	# Nothing to fetch with RomM connected: the button stays, off, and says why. Without a title it is still a header.
+	var done_rows: Array[Dictionary] = [{"path": "have.bin", "status": S.PRESENT, "core_name": "done"}]
+	view._bios_row_cache["done"] = done_rows
+	var idle := _first_button(view._build_bios_section_header("done", ""))
+	_ok(idle != null and idle.disabled and idle.text.contains("all installed"), "bios_all/everything installed: the button is there, off, and says so", idle.text if idle != null else "no button")
+	var elsewhere_rows: Array[Dictionary] = [{"path": "not_on_romm.bin", "status": S.MISSING_REQUIRED, "core_name": "elsewhere"}]
+	view._bios_row_cache["elsewhere"] = elsewhere_rows
+	var absent := _first_button(view._build_bios_section_header("elsewhere", "Else"))
+	_ok(absent != null and absent.disabled and absent.text.contains("not on RomM"), "bios_all/missing but not on RomM: off, and says so", absent.text if absent != null else "no button")
+	# RomM not connected: nothing is on offer, so there is no button and, without a title, no header.
+	view.romm_config = RommConfig.new()
+	_eq(view._bios_outstanding_for("fakecore").size(), 0, "bios_all/no RomM, nothing to download")
+	_eq(view._build_bios_section_header("fakecore", ""), null, "bios_all/no RomM and no title: no header")
+	_eq(_first_button(view._build_bios_section_header("fakecore", "Fake Core")), null, "bios_all/no RomM: a title and no button")
+	view.romm_config = cfg
+
+	# The press needs the installer, which a bare view has not got (and which a machine without the archive extension cannot build).
+	var installer: Node = FirmwareInstaller.new()
+	view._firmware_installer = installer
+	view.add_child(installer)
+	btn.pressed.emit()
+	_ok(view._bios_all_armed == "fakecore" and btn.text.contains("Confirm") and not view._firmware_installer.is_busy(),
+		"bios_all/the first press only asks: it arms, repaints the button and downloads nothing", btn.text)
+	_eq(view._firmware_installer.queued_count(), 0, "bios_all/and nothing is queued by it")
+
+	view.queue_free()
+	fw.free()
+
+
+func _first_button(node: Node) -> Button:
+	if node == null:
+		return null
+	if node is Button:
+		return node as Button
+	for child in node.get_children():
+		var found := _first_button(child)
+		if found != null:
+			return found
+	return null
 
 
 # ---------------------------------------------------------------------------
