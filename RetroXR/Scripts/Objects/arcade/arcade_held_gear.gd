@@ -145,9 +145,20 @@ func cable_instance() -> Node3D:
 	return _cable
 
 
+## A frame of this thing's own work that takes longer than this (microseconds) is said, once a second at most: a stick or a guitar in a hand made the whole headset lag, and a Quest's log is what
+## there is to tell where it went.
+const SLOW_TICK_USEC := 2500
+var _slow_logged_msec := -10000
+
+
 func _physics_process(delta: float) -> void:
+	var began := Time.get_ticks_usec()
 	_tether()
 	_tick(delta)
+	var took := Time.get_ticks_usec() - began
+	if took > SLOW_TICK_USEC and Time.get_ticks_msec() - _slow_logged_msec >= 1000:
+		_slow_logged_msec = Time.get_ticks_msec()
+		print("[Perf] %s %d/%d: its frame took %.1f ms (held %s)" % [kind, player, side, took / 1000.0, str(is_picked_up())])
 	if _hung_watch > 0:
 		_hung_watch -= 1
 		if _hung_watch == 0:

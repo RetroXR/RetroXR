@@ -89,6 +89,7 @@ func _build_well(item: ArcadeHeldGear, rest: Transform3D) -> void:
 	well.snap_require = GROUP
 	well.snap_filter = _accepts.bind(item)
 	well.grab_distance = item.well_reach()
+	Holster.prepare_seat(well)
 	_system.add_child(well)
 	# A cradle seats a thing by its grab point (XRToolsSnapZone.snap_pose_for): the thing lies at the zone's transform TIMES the point's inverse. A stick's point is the identity; a guitar's is
 	# where a hand holds it, so the zone stands where the hand would, and the guitar hangs at `rest`.

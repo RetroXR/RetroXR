@@ -58,6 +58,7 @@ const PAD_ROWS := {
 		"Keep pressing {g} to hold it in your hand; again to square it up"],
 	&"capture": [["xbox_stick_r_press"], "press to send buttons here"],
 	&"drop_desktop": [["xbox_lb_outline", "xbox_rt_outline"], "Drop"],
+	&"holster_pc": [["xbox_lb_outline", "xbox_rt_outline"], "Drop them near the drum: they go back in their cradles"],
 	&"pedal_cover_desktop": [["xbox_rb_outline"], "Hold {g} to take cover"],
 	&"fret_pc": [["xbox_button_x_outline", "xbox_button_y_outline", "xbox_rb_outline"], "{g}: red, green, blue"],
 	&"wail_pc": [["xbox_lt_outline"], "Hold {g}: wail"],

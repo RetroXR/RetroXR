@@ -839,6 +839,12 @@ func _log_click_kept() -> void:
 
 ## Drop the currently held object.
 func _drop() -> void:
+	# What goes back to a seat of its own (a cabinet's guns, sticks and guitars: Holster) is told apart BEFORE the release, the companion's slot included.
+	var letting_go: Array[Node3D] = []
+	if _held_object != null:
+		letting_go.append(_held_object)
+	if is_instance_valid(_companion_object):
+		letting_go.append(_companion_object)
 	_release_companion()
 	_end_inspect()
 	if _held_object:
@@ -856,6 +862,10 @@ func _drop() -> void:
 	_drop_armed = false
 	_left_turning = false
 	left_drag = false
+	# Let go near its seat it goes back, further off it falls; each one by its own distance.
+	for piece in letting_go:
+		if is_instance_valid(piece) and not piece.is_queued_for_deletion():
+			Holster.stow(piece)
 
 
 ## Called by DesktopHandPivot.drop_object() when pickable.gd notifies the
