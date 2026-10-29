@@ -13,8 +13,8 @@
 ## disabled, which takes the desktop's mouse-look with it and leaves the player unable to turn to the seat to get up.
 ##
 ## HEIGHT. On the desktop the camera's own height is the eye height, so sitting sets it to the seat's and getting up
-## puts it back. In a headset the head's height is the person's: the floor is put under the seat and the head is left
-## where it is (somebody sitting on a real chair is already at that height).
+## puts it back. In a headset the head's height is the person's, and the origin is lifted or lowered ONCE, as they sit,
+## so the head is at the seat's eye point (Seat.origin_at_eye_height); getting up puts the origin back on the floor.
 class_name SeatSitting
 extends RefCounted
 
@@ -54,6 +54,11 @@ func sit() -> bool:
 		_saved_camera_y = rig.camera.position.y
 		rig.camera.position.y = eye.origin.y - floor_y
 	rig.origin.global_transform = Seat.origin_for_eye(rig.origin.global_transform, rig.camera.global_transform, eye, floor_y)
+	if MenuStyle.is_vr_mode():
+		# The head goes to the seat's eyes, whatever height the person really is at (Seat.origin_at_eye_height).
+		var before := rig.camera.global_position.y
+		rig.origin.global_transform = Seat.origin_at_eye_height(rig.origin.global_transform, rig.camera.global_transform, eye.origin.y)
+		print("[Seat] %s: head from %.2f m to the seat's eyes at %.2f m (the floor under it at %.2f)" % [_host.name, before, eye.origin.y, floor_y])
 	_pin = rig.origin.global_position
 	_last_eye = eye.origin
 	_rig = rig

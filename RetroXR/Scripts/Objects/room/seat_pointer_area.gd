@@ -13,4 +13,6 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 		return
 	var seat := get_parent()
 	if seat != null and seat.has_method("is_occupied") and bool(seat.call("is_occupied")):
+		# Said, because it is the one press that is NOT the player's own aim: a click meant for the menu that lands here stands them up.
+		print("[Seat] a press on %s's body stood the sitter up (at %s)" % [seat.name, str(event.position)])
 		seat.call("stand")

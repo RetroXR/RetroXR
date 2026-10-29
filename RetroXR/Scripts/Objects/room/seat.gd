@@ -234,6 +234,13 @@ static func origin_for_eye(origin: Transform3D, camera: Transform3D, eye: Transf
 		floor_y, turned.origin.z + eye.origin.z - camera.origin.z))
 
 
+## IN A HEADSET, the origin lifted or lowered so the HEAD is at `eye_y` (the seat's eye point, in the world), once, as the player sits. The head is the person's own, wherever they really are: standing, on
+## a low real chair, on the floor. The first version left it where it was ("somebody sitting on a real chair is already at that height") and put the floor under the SEAT, so a person sitting low sat on the
+## floor beside a stool whose top was at their eyes (2026-10-29). A person who really sits at the seat's height moves a few centimetres at most.
+static func origin_at_eye_height(origin: Transform3D, camera: Transform3D, eye_y: float) -> Transform3D:
+	return Transform3D(origin.basis, origin.origin + Vector3(0.0, eye_y - camera.origin.y, 0.0))
+
+
 ## Where the origin must stand to put the player on `stand` (a floor point): the camera over it
 ## horizontally, the origin on its floor. The heading is left as it is.
 static func origin_for_stand(origin: Transform3D, camera: Transform3D, stand_at: Vector3) -> Transform3D:

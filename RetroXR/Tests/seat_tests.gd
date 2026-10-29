@@ -121,6 +121,14 @@ func _seat(id: String, at: Vector3, yaw: float) -> Seat:
 # --- pose ----------------------------------------------------------------------
 
 func _group_pose() -> void:
+	# In a headset the head is brought to the seat's eyes whatever height the person really sits at: a person on the floor (head at 0.9 m over their real floor) beside a stool whose eyes are 1.4 m up, one standing
+	# (1.7 m), and one already there. The camera is carried by the origin, so after the move it is exactly at the eye height; only the height moves.
+	for head_over_floor in [0.9, 1.7, 1.4]:
+		var o := Transform3D(Basis(Vector3.UP, 0.4), Vector3(2.0, 0.3, -1.0))
+		var cam_local := Transform3D(Basis.IDENTITY, Vector3(0.1, head_over_floor, -0.2))
+		var lifted := Seat.origin_at_eye_height(o, o * cam_local, 1.4)
+		_ok(_near((lifted * cam_local).origin.y, 1.4) and _near(lifted.origin.x, o.origin.x) and _near(lifted.origin.z, o.origin.z) and lifted.basis.is_equal_approx(o.basis),
+			"pose: a head %.1f m over the real floor is brought to the seat's eyes at 1.4 m, and nothing else of the origin moves" % head_over_floor)
 	for a in [0.0, 0.7, -2.5, 3.0]:
 		_ok(_near(Seat.yaw_of(Basis(Vector3.UP, a)), a), "pose: the heading of a basis turned %.1f rad is %.1f" % [a, a])
 	var origin := Transform3D(Basis(Vector3.UP, 0.6), Vector3(-1.0, 0.0, 4.0))
