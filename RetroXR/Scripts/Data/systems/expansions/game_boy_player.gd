@@ -30,6 +30,9 @@ const ROW := {
 	"size": Vector3(0.15004, 0.05755, 0.15525),
 	"seat_y": DECK_Y,
 	"loader": MediaDimensions.LOADER_SLOT,
+	# Offered on the GameCube's card: its media would file it on the Game Boy
+	# Advance's, where nobody looks for a box a GameCube stands on.
+	"card": "gc",
 	"cover_socket": COVER_SOCKET,
 	# Label down, contacts first: a quarter turn forward about X takes the
 	# cartridge's top (+Y) out toward the player and its label (+Z) to the floor.
