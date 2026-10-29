@@ -169,7 +169,7 @@ func _exit_tree() -> void:
 	_materials.clear()
 
 
-## Follow the wall switch, so the machines darken with the walls.
+## Follow the wall switch and the daylight, so the machines darken with the walls.
 func _on_volume_changed(volume: Dictionary) -> void:
 	if volume.is_empty():
 		return
@@ -323,6 +323,7 @@ func _set_volume(mat: ShaderMaterial, volume: Dictionary) -> void:
 	mat.set_shader_parameter("gi_dir", volume["dir"])
 	mat.set_shader_parameter("gi_min", volume["min"])
 	mat.set_shader_parameter("gi_size", volume["size"])
+	mat.set_shader_parameter("gi_tint", volume.get("tint", Vector3.ONE))
 
 
 ## The controller art the XR runtime hands over is not a prop, and converting it

@@ -47,6 +47,10 @@ uniform sampler3D gi_irr : filter_linear, repeat_disable;
 uniform sampler3D gi_dir : filter_linear, repeat_disable;
 uniform vec3 gi_min = vec3(0.0);
 uniform vec3 gi_size = vec3(1.0);
+// How far the room's daylight has moved from the one baked, per channel - the
+// time lever and the blinds, which the volume cannot see. Set by
+// `shell_lighting.gd`; 1.0 is the room exactly as baked.
+uniform vec3 gi_tint = vec3(1.0);
 
 
 float shell_wrapped_ndl(vec3 n, vec3 l) {
@@ -70,7 +74,7 @@ vec3 shell_gi_irradiance(vec3 world_pos, vec3 n) {
 	vec3 uvw = clamp((world_pos - gi_min) / gi_size, vec3(0.0), vec3(1.0));
 	vec4 dr = texture(gi_dir, uvw);
 	vec3 l = normalize(dr.rgb * 2.0 - 1.0);
-	return texture(gi_irr, uvw).rgb * mix(1.0, shell_wrapped_ndl(n, l), dr.a);
+	return texture(gi_irr, uvw).rgb * gi_tint * mix(1.0, shell_wrapped_ndl(n, l), dr.a);
 }
 
 

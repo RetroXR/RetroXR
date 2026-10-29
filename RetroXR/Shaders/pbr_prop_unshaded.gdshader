@@ -41,6 +41,9 @@ uniform sampler3D gi_irr : filter_linear, repeat_disable;
 uniform sampler3D gi_dir : filter_linear, repeat_disable;
 uniform vec3 gi_min = vec3(0.0);
 uniform vec3 gi_size = vec3(1.0);
+// The shell's daylight scale, so a prop darkens with the walls when the time
+// lever or the blinds move. See `shell_gi.gdshaderinc`.
+uniform vec3 gi_tint = vec3(1.0);
 
 // Lambert to black at the terminator reads as a seam on a large flat panel like
 // a television's side. Same small wrap the shell uses.
@@ -107,7 +110,7 @@ void fragment() {
 	vec4 dr = texture(gi_dir, c);
 	vec3 l = normalize(dr.rgb * 2.0 - 1.0);
 	float ndl = clamp((dot(n, l) + diffuse_wrap) / (1.0 + diffuse_wrap), 0.0, 1.0);
-	vec3 lit = texture(gi_irr, c).rgb * mix(1.0, ndl, dr.a);
+	vec3 lit = texture(gi_irr, c).rgb * gi_tint * mix(1.0, ndl, dr.a);
 
 	vec3 light = mix(outside_light, lit, inside);
 	vec3 emission = emission_color * emission_energy;

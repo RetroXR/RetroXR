@@ -179,7 +179,7 @@ func _bake(scene_path: String, out_name: String, time: float = -1.0) -> void:
 			l.visible = state == "on"
 		await get_tree().physics_frame
 		var pair := _bake_state(room, bounds, dims, space, exclude, inside)
-		_save(pair[0], pair[1], bounds, dims, "%s_gi_%s" % [out_name, state])
+		_save(pair[0], pair[1], bounds, dims, _ambient(room), "%s_gi_%s" % [out_name, state])
 
 	for i in switched.size():
 		switched[i].visible = was[i]
@@ -324,13 +324,6 @@ func _bake_state(room: Node3D, bounds: AABB, dims: Vector3i,
 				and l.light_cull_mask & INTERIOR_LAYER != 0:
 			lights.append(l)
 
-	var amb := Color(0, 0, 0)
-	var found := room.find_children("*", "WorldEnvironment", true, false)
-	if not found.is_empty():
-		var env: Environment = (found[0] as WorldEnvironment).environment
-		if env != null:
-			amb = env.ambient_light_color.srgb_to_linear() * env.ambient_light_energy
-
 	var count := dims.x * dims.y * dims.z
 	var sums := PackedVector3Array()
 	sums.resize(count)
@@ -339,7 +332,7 @@ func _bake_state(room: Node3D, bounds: AABB, dims: Vector3i,
 	var axes := PackedVector3Array()
 	axes.resize(count)
 	var step := bounds.size / Vector3(dims)
-	var ambient := Vector3(amb.r, amb.g, amb.b)
+	var ambient := _ambient(room)
 	var lit_luma := 0.0
 
 	for z in dims.z:
@@ -375,6 +368,21 @@ func _bake_state(room: Node3D, bounds: AABB, dims: Vector3i,
 		var n: Vector3 = a.normalized() if a.length() > 0.0001 else Vector3.UP
 		_push_rgba8(dir, n, clampf(a.length(), 0.0, 1.0))
 	return [irr, dir]
+
+
+## The room's ambient as the bake adds it to every texel: linear colour times
+## energy. Saved with the volume as `gi_ambient` too, because the blinds and the
+## time of day move the live ambient on a headset, and ShellLighting scales the
+## volume by how far it has moved from this.
+func _ambient(room: Node3D) -> Vector3:
+	var found := room.find_children("*", "WorldEnvironment", true, false)
+	if found.is_empty():
+		return Vector3.ZERO
+	var env: Environment = (found[0] as WorldEnvironment).environment
+	if env == null:
+		return Vector3.ZERO
+	var amb := env.ambient_light_color.srgb_to_linear() * env.ambient_light_energy
+	return Vector3(amb.r, amb.g, amb.b)
 
 
 ## Give every texel outside the room the mean of its already-known neighbours,
@@ -517,7 +525,7 @@ func _half(f: float) -> PackedByteArray:
 ## rides along as resource metadata, because the shader cannot derive a world
 ## position from the texture and nothing else in the scene knows it.
 func _save(irr: PackedByteArray, dir: PackedByteArray, bounds: AABB,
-		dims: Vector3i, out_name: String) -> void:
+		dims: Vector3i, ambient: Vector3, out_name: String) -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 	var tall := dims.y * dims.z
 	var images := {
@@ -529,6 +537,7 @@ func _save(irr: PackedByteArray, dir: PackedByteArray, bounds: AABB,
 		img.set_meta("gi_min", bounds.position)
 		img.set_meta("gi_size", bounds.size)
 		img.set_meta("gi_dims", dims)
+		img.set_meta("gi_ambient", ambient)
 		var path := "%s/%s_%s.res" % [OUT_DIR, out_name, suffix]
 		var err := ResourceSaver.save(img, path)
 		if err != OK:

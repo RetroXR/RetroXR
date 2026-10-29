@@ -117,6 +117,19 @@ var _gi_min: Vector3
 var _gi_size: Vector3
 ## Which volume is currently bound, so a rebind only happens when it changes.
 var _gi_state: String = ""
+## The ambient the volume was baked under, linear colour times energy, from the
+## bake's `gi_ambient`. Zero for a bake that predates it, which keeps the volume
+## at exactly its baked level.
+var _gi_ambient: Vector3 = Vector3.ZERO
+## How much of the "on" volume is the "off" one, per channel, room mean. The
+## "off" volume is all daylight; the rest of "on" is the ceiling light, which the
+## time lever does not move.
+var _gi_share: Vector3 = Vector3.ZERO
+## Daylight scale the volume is drawn at, so the time lever and the blinds reach
+## the walls. The bake is taken at one moment - the authored dusk, blinds as
+## authored - and without this the bedroom with its light off read as dusk at
+## midnight and with the blinds shut. See _daylight_tint.
+var _gi_tint: Vector3 = Vector3.ONE
 
 
 const OFF_CFG := "/sdcard/Android/data/com.xenu.retroxr/files/shellshaded.cfg"
@@ -185,7 +198,8 @@ func volume_for_props() -> Dictionary:
 		return {}
 	var state := _gi_state if not _gi_state.is_empty() else _switch_state()
 	var pair: Dictionary = _volumes[state]
-	return {"irr": pair["irr"], "dir": pair["dir"], "min": _gi_min, "size": _gi_size}
+	return {"irr": pair["irr"], "dir": pair["dir"], "min": _gi_min, "size": _gi_size,
+		"tint": _gi_tint}
 
 
 ## Turn off the lights the bake has replaced.
@@ -224,6 +238,7 @@ func _load_bake() -> void:
 	if gi_bake.is_empty():
 		return
 	var dims := Vector3i.ZERO
+	var means := {}
 	for state in ["on", "off"]:
 		var pair: Dictionary = {}
 		for kind in ["irr", "dir"]:
@@ -238,7 +253,51 @@ func _load_bake() -> void:
 			_gi_min = img.get_meta("gi_min")
 			_gi_size = img.get_meta("gi_size")
 			pair[kind] = _volume(img, dims)
+			if kind == "irr":
+				means[state] = _mean(img)
+				if img.has_meta("gi_ambient"):
+					_gi_ambient = img.get_meta("gi_ambient")
 		_volumes[state] = pair
+	var on: Vector3 = means["on"]
+	var off: Vector3 = means["off"]
+	_gi_share = Vector3(
+		clampf(off.x / maxf(on.x, 0.0001), 0.0, 1.0),
+		clampf(off.y / maxf(on.y, 0.0001), 0.0, 1.0),
+		clampf(off.z / maxf(on.z, 0.0001), 0.0, 1.0))
+
+
+## Mean colour of a flat volume, every third texel. It only sets one ratio, and
+## the room is loading while it runs.
+func _mean(img: Image) -> Vector3:
+	var sum := Vector3.ZERO
+	var n := 0
+	for y in range(0, img.get_height(), 3):
+		for x in range(0, img.get_width(), 3):
+			var c := img.get_pixel(x, y)
+			sum += Vector3(c.r, c.g, c.b)
+			n += 1
+	return sum / maxf(n, 1)
+
+
+## The daylight scale for the volume in `state`, from the live ambient against
+## the baked one.
+##
+## The ambient is the one daylight value both the blinds and the time lever
+## write, so its ratio stands in for the window's sun and the street lamp as
+## well. Per channel, so night tints the room blue rather than only dimming its
+## dusk orange. The "on" volume is scaled only in its daylight share - the
+## ceiling light is the same at every hour.
+func _daylight_tint(state: String, sky: Vector3, energy: float) -> Vector3:
+	if _gi_ambient == Vector3.ZERO:
+		return Vector3.ONE
+	var now := sky * energy
+	var ratio := Vector3(
+		now.x / maxf(_gi_ambient.x, 0.0001),
+		now.y / maxf(_gi_ambient.y, 0.0001),
+		now.z / maxf(_gi_ambient.z, 0.0001)).clamp(Vector3.ZERO, Vector3(4, 4, 4))
+	if state == "off":
+		return ratio
+	return Vector3.ONE - _gi_share * (Vector3.ONE - ratio)
 
 
 func _volume(img: Image, dims: Vector3i) -> ImageTexture3D:
@@ -335,7 +394,10 @@ func _refresh() -> void:
 	if rebind and not state.is_empty():
 		print("[ShellLighting] bake state -> %s" % state)
 	_gi_state = state
-	if rebind:
+	var tint := _daylight_tint(state, sky, energy) if not state.is_empty() else Vector3.ONE
+	var retint := rebind or tint.distance_to(_gi_tint) > 0.002
+	_gi_tint = tint
+	if retint and not state.is_empty():
 		bake_volume_changed.emit(volume_for_props())
 	for i in _materials.size():
 		var mat := _materials[i]
@@ -349,6 +411,8 @@ func _refresh() -> void:
 		if rebind or not baked:
 			mat.set_shader_parameter("use_gi", baked)
 		if baked:
+			if retint:
+				mat.set_shader_parameter("gi_tint", tint)
 			if rebind:
 				var pair: Dictionary = _volumes[state]
 				mat.set_shader_parameter("gi_irr", pair["irr"])
