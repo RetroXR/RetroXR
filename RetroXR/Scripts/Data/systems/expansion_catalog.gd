@@ -132,6 +132,22 @@
 ##               (RetroExpansion._take_link_port); elsewhere -- an SP -- it stays.
 ##               A mod's shell may move either, on a unit whose row has them.
 ##               Absent, the unit has no link socket.
+##   slot_basis  for a LOADER_SLOT unit, how its media lies as it goes in, in the
+##               slot's frame (MediaSlot rides it along the slot's -Z). Absent, a
+##               flat disk's quarter turn back: label up, shutter first (64DD,
+##               FDS). The Game Boy Player's Game Pak goes in label down, contacts
+##               first: a quarter turn the other way.
+##   slot_marker_depth
+##               for a LOADER_SLOT unit with a shell: the media rides in until its
+##               MIDDLE is at the shell's SocketMarker (the Game Boy Player's Game
+##               Pak, whose end stays out of the slot). Absent, to the disk's lip
+##               just inside the mouth.
+##   eject_axis  for a unit whose shell has its own EjectButton cap: the way it is
+##               pushed, in the unit's frame, when that is not into the front face
+##               -- the Game Boy Player's lever, in its right side, slides toward
+##               the front (+Z). The hit box then sits on the face the cap is in.
+##   eject_travel
+##               how far that cap travels, in metres. Absent, 4 mm.
 ##   default_occupant
 ##               this unit comes pre-installed on a bare console — a Jumper
 ##               Pak, not something a player goes looking for. RetroSystem
@@ -194,6 +210,7 @@ const _UNITS: Array = [
 	preload("res://Scripts/Data/systems/expansions/ereader_usa.gd"),
 	preload("res://Scripts/Data/systems/expansions/gamecube_broadband_adapter.gd"),
 	preload("res://Scripts/Data/systems/expansions/ps2_network_adapter.gd"),
+	preload("res://Scripts/Data/systems/expansions/game_boy_player.gd"),
 ]
 
 ## The canonical order of the units, and it is LOAD-BEARING: sorted_ids() hands
@@ -208,7 +225,7 @@ const _ORDER: Array = [
 	"sega_saturn_ram_cart", "sega_saturn_extram_1m", "sega_saturn_extram_4m",
 	"sega_saturn_kof95_rom", "sega_saturn_ultraman_rom", "sega_saturn_vcd_card",
 	"pc_engine_cd", "jaguar_cd", "ereader", "ereader_plus", "ereader_usa",
-	"gamecube_broadband_adapter", "ps2_network_adapter",
+	"gamecube_broadband_adapter", "ps2_network_adapter", "game_boy_player",
 ]
 
 
@@ -338,6 +355,10 @@ const FIELDS := {
 	"jack": null,
 	"link_socket": null,
 	"link_plug": null,
+	"slot_basis": null,
+	"slot_marker_depth": false,
+	"eject_axis": null,
+	"eject_travel": NAN,
 }
 
 
@@ -660,6 +681,30 @@ static func connector_of(id: String) -> Variant:
 ## the top of its box. See the row docs above.
 static func seat_y_of(id: String) -> float:
 	return float(_field(id, "seat_y"))
+
+
+## How a LOADER_SLOT unit's media lies as it goes in, in the slot's frame (the
+## slot rides it along its own -Z), or null for the flat disk's quarter turn back.
+## See the row docs above.
+static func slot_basis_of(id: String) -> Variant:
+	return _field(id, "slot_basis")
+
+
+## True when a LOADER_SLOT unit's media rides in until its MIDDLE is at the
+## shell's SocketMarker, rather than to the disk's lip. See the row docs above.
+static func slot_marker_depth_of(id: String) -> bool:
+	return bool(_field(id, "slot_marker_depth"))
+
+
+## The way a shell's own eject cap is pushed, in the unit's frame, or null for
+## into the front face. See the row docs above.
+static func eject_axis_of(id: String) -> Variant:
+	return _field(id, "eject_axis")
+
+
+## How far a shell's own eject cap travels, in metres; NAN for the default.
+static func eject_travel_of(id: String) -> float:
+	return float(_field(id, "eject_travel"))
 
 
 ## Degrees a cartridge-mounted unit is turned about its own +Y when seated, relative

@@ -746,6 +746,11 @@ func _build_slot_bay(s: Vector3, media: String) -> void:
 	# have turned that axis too, sending the disk down through the floor
 	# of the drive instead of into it.
 	_slot.media_local_basis = Basis.from_euler(Vector3(-PI * 0.5, 0.0, 0.0))
+	# A cartridge goes in another way round (the Game Boy Player's, label down and
+	# contacts first): the row says how.
+	var turn: Variant = ExpansionCatalog.slot_basis_of(expansion_id)
+	if turn is Basis:
+		_slot.media_local_basis = turn as Basis
 	# insert_depth places the disk's CENTRE, not its trailing edge, so
 	# the disc figure would bury a 64DD disk completely: at 0.66 of its
 	# length the whole thing sits inside the drive. A fifth of the
@@ -757,6 +762,10 @@ func _build_slot_bay(s: Vector3, media: String) -> void:
 	# it back within reach.
 	if socket != null:
 		_slot.insert_depth = media_size.y * 0.5 - _SHELL_DISK_PROUD
+		# Or to the marker itself, for media whose end stays out of the mouth: the
+		# marker is where its middle comes to rest.
+		if ExpansionCatalog.slot_marker_depth_of(expansion_id):
+			_slot.insert_depth = s.z * 0.5 - seated.z
 	add_child(_slot)
 	_slot.inserted.connect(_on_media_in)
 	_slot.removed.connect(_on_media_out)
@@ -1366,12 +1375,19 @@ func _build_eject_button(s: Vector3, media: String) -> void:
 		ExpansionShell.eject_y(s, mount, drawer),
 		s.z * 0.5 + 0.004)
 	var cap := _shell_node("EjectButton") as MeshInstance3D
+	# A cap pushed some other way than into the front face (the Game Boy Player's
+	# lever, in its right side): its hit box goes on the side face it is in.
+	var axis: Variant = ExpansionCatalog.eject_axis_of(expansion_id)
+	var side := 0.0
 	if cap != null:
 		# The hit box stays at the face plane, proud of the unit's own pointer
 		# box, even though the modelled cap is recessed behind it; a box inside
 		# that volume is never the first thing a beam reaches.
 		var centre := to_local(cap.global_transform * cap.get_aabb().get_center())
 		pos = Vector3(centre.x, centre.y, pos.z)
+		if axis is Vector3 and absf(centre.x) / (s.x * 0.5) > absf(centre.z) / (s.z * 0.5):
+			side = signf(centre.x)
+			pos = Vector3(side * (s.x * 0.5 + 0.004), centre.y, centre.z)
 	var eject := ExpansionShell.build_eject_button(self, pos, func() -> void:
 		if _tray != null:
 			_tray.toggle_open()
@@ -1380,9 +1396,13 @@ func _build_eject_button(s: Vector3, media: String) -> void:
 		"OPEN" if _tray != null else "EJECT")
 	# The shell's own button is the cap; the built one and its legend go.
 	if cap != null:
+		if side != 0.0:
+			eject.rotation = Vector3(0.0, side * PI * 0.5, 0.0)
 		eject.set_button_mesh(cap)
-		eject.set_depress_axis_world(-global_transform.basis.z)
-		eject.depress_depth = _SHELL_EJECT_TRAVEL
+		eject.set_depress_axis_world(
+			(global_transform.basis * (axis as Vector3)).normalized() if axis is Vector3 else -global_transform.basis.z)
+		var travel := ExpansionCatalog.eject_travel_of(expansion_id)
+		eject.depress_depth = _SHELL_EJECT_TRAVEL if is_nan(travel) else travel
 		for child in eject.get_children():
 			if child is Label3D:
 				child.visible = false
