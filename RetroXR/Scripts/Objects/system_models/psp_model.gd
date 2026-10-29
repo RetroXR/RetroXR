@@ -514,3 +514,9 @@ func _pivot_of(mesh: MeshInstance3D, empty_name: String) -> Vector3:
 			return mesh.get_parent().to_local((n as Node3D).global_position)
 	var a: AABB = mesh.get_aabb()
 	return mesh.transform * a.get_center()
+
+
+## The headset jack, on the bottom edge 70.5 mm left of centre on a 170 mm body
+## (RetroXR-models sony/psp/console, its PhoneAnchor).
+func headphone_jack() -> Dictionary:
+	return edge_jack(-0.415)

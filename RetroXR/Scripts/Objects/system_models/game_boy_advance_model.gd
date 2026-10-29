@@ -259,3 +259,11 @@ func play_cartridge_insert(cartridge: Node3D, slot: Node3D) -> void:
 		seat = foreign_cart_seat(size)
 	var grip := to_local(slot.global_transform * (Vector3(0.0, size.y * 0.5, 0.0) - seat))
 	cartridge.call("set_seated_grab_stub", maxf(_SLOT_WALL_Z - grip.z, 0.0) + 0.004)
+
+
+## The headphone jack: the scanned shell's mouth (_AV_JACK_POS), or on the stand-in
+## the same 42 mm right of centre along the bottom edge of a 144.5 mm body.
+func headphone_jack() -> Dictionary:
+	if _glb != null:
+		return {"position": _AV_JACK_POS, "normal": _AV_JACK_OUT}
+	return edge_jack(0.29)

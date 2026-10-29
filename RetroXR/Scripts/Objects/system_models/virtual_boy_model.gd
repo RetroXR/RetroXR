@@ -541,3 +541,16 @@ func on_power_off() -> void:
 		_stereo_mat.set_shader_parameter("powered", 0.0)
 	for q in _lens_quads:
 		q.visible = false
+
+
+## The headphone jack, on the underside of the visor on the side away from the
+## controller socket, by the volume dial — the manual's bottom view. On the
+## detailed shell, mirrored off the socket's measured _PORT_X; on the stand-in, the
+## same distance out from its own socket under the middle of the visor. A lead
+## leaves it pointing down.
+func headphone_jack() -> Dictionary:
+	if _glb != null:
+		return {"position": Vector3(-_PORT_X, _glb_aabb().position.y, _PORT_Z),
+			"normal": Vector3(0, -1, 0)}
+	return {"position": Vector3(-_PORT_X, STAND_H, VISOR_SIZE.z / 2.0 - 0.025),
+		"normal": Vector3(0, -1, 0)}

@@ -80,6 +80,14 @@ const SPEAKER_OUT_NAMES := ["SpeakerOutL", "SpeakerOutR", "SpeakerOutC",
 ## Resolved when a plug moves and cached, never walked per frame.
 var _speaker_dest: Dictionary = {}
 
+## The headphone jack, built by seat_phones on a cabinet whose shell has one, or
+## null. A 3.5 mm TRS socket, OUT.
+var _phones: TrsPort = null
+## What the jack's lead reaches — a pair of powered speakers — or null. While it is
+## set the set's own speakers are cut off and its sound plays there instead, as
+## plugging into a set's headphone jack does. Resolved when a plug moves.
+var _phones_sink: Node3D = null
+
 ## Centre-to-centre up the back panel, from the input row to the speaker row.
 ##
 ## Up rather than down, and by more than a legend plate is tall: the stock body's floor
@@ -322,10 +330,59 @@ func _print_rf_legend(plate: bool) -> void:
 ## Asking the set resolves its OUTPUTS only. A link where the television's socket is
 ## the IN end belongs to the console driving it, and resolve() skips it.
 func on_av_topology_changed() -> void:
+	_phones_sink = _resolve_phones()
 	if not has_speaker_outs():
 		_speaker_dest = {}
 		return
-	_speaker_dest = AvSource.resolve(_tv, true).audio_dest
+	var dest := AvSource.resolve(_tv, true).audio_dest
+	# The jack's lead resolves as a stereo cord onto the AUDIO_L and AUDIO_R keys,
+	# which are FL and FR's, and may have written over the speaker row's own. It is
+	# not a speaker output, so it is taken back out; while it is cabled the set plays
+	# through the jack and reads none of this (RetroTV.get_speaker_positions).
+	for ch: Variant in dest.keys():
+		var entry: Dictionary = dest[ch]
+		if _phones_sink != null and entry.get("sink") == _phones_sink:
+			dest.erase(ch)
+	_speaker_dest = dest
+
+
+## Whatever the headphone jack's lead reaches that can say where its speakers are.
+func _resolve_phones() -> Node3D:
+	if not is_instance_valid(_phones):
+		return null
+	for link in AvGraph.links_for(_tv):
+		if link["out"] != _phones:
+			continue
+		var target: Node3D = (link["in"] as RcaPort).get_device()
+		if target != null and target != _tv and target.has_method("get_speaker_positions"):
+			return target
+	return null
+
+
+## The sink carrying this set's sound through its headphone jack, or null.
+func phones_sink() -> Node3D:
+	return _phones_sink if is_instance_valid(_phones_sink) else null
+
+
+## The headphone jack, or null on a cabinet without one.
+func phones() -> TrsPort:
+	return _phones
+
+
+## Build the headphone jack where the shell's PhonesSeat says, or nothing at all
+## where the shell has none — the same switch the speaker row's marker is.
+func seat_phones(at: Variant) -> void:
+	if not at is Transform3D or is_instance_valid(_phones):
+		return
+	var scene: PackedScene = load("res://Scenes/Objects/cables/trs_port.tscn")
+	if scene == null:
+		push_warning("[RetroTV] trs_port.tscn did not load; no headphone jack built")
+		return
+	_phones = scene.instantiate() as TrsPort
+	_phones.name = "PhonesOut"
+	_phones.direction = RcaPort.Direction.OUT
+	_tv.add_child(_phones)
+	TvFit.seat(_phones, at)
 
 
 ## Where each speaker channel goes, keyed by RcaPort.Channel. See _speaker_dest.

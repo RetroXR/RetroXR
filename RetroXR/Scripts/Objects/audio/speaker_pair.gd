@@ -187,8 +187,16 @@ func _on_volume(v: float) -> void:
 
 ## The same contract every volume control in the project speaks: the sink holds a
 ## 0..1 level and hands it to the source, which owns the actual voices.
+##
+## A television on these through its headphone jack is the exception. It owns no
+## voices either — it pushes ITS level at the machines it shows — so it is told the
+## knob moved and folds the knob into that (RetroTV.on_line_out_level_changed).
 func _push_volume() -> void:
-	if is_instance_valid(_source):
+	if not is_instance_valid(_source):
+		return
+	if _source.has_method("on_line_out_level_changed"):
+		_source.on_line_out_level_changed()
+	else:
 		AvSourceContract.push_volume(_source, _volume)
 
 

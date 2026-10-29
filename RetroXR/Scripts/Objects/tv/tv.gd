@@ -118,8 +118,8 @@ const AV_INPUT_NAMES := ["Composite 1", "Composite 2", "Composite 3", "Composite
 @export var crt_enabled: bool = true
 
 ## Which cabinet to wear. Empty = the original box body authored in tv.tscn, and
-## TvFit.load_shell() is then a strict no-op — the arcade and den TVs must render
-## bit-identically to before this system existed.
+## TvFit.load_shell() then only adds the headphone jack — the arcade and den TVs
+## must otherwise render bit-identically to before this system existed.
 @export var tv_model: String = ""
 
 ## Cabinet variants. A shell supplies geometry plus Marker3D seats; every
@@ -844,7 +844,14 @@ func _update_stereo_button_glyph() -> void:
 ## than of one machine: on TV SPEAKERS it is the set's own pair, and on STEREO OUT or
 ## SURROUND it is where the external FL and FR go, so a deck and the tuner, which do
 ## not decode, still come out of the speakers the set is switched to.
+##
+## The headphone jack comes before all of it: a lead in it to a pair of powered
+## speakers cuts the set's own and sends the sound there, whatever AUDIO OUTPUT
+## says, as plugging into a set's jack does.
 func get_speaker_positions() -> PackedVector3Array:
+	var phones := _panel.phones_sink()
+	if phones != null:
+		return phones.get_speaker_positions()
 	if is_sound_external():
 		return _fit.external_pair()
 	return _fit.speaker_positions()
@@ -854,7 +861,18 @@ func get_speaker_positions() -> PackedVector3Array:
 ## and nothing should be aimed along its screen normal: sound leaving speakers
 ## scattered round a room does not leave the way the picture does.
 func is_sound_external() -> bool:
-	return audio_out != AudioOut.TV_SPEAKERS
+	return audio_out != AudioOut.TV_SPEAKERS or _panel.phones_sink() != null
+
+
+## The pair of powered speakers this set's headphone jack is cabled to, or null.
+func phones_sink() -> Node3D:
+	return _panel.phones_sink()
+
+
+## Called by the speakers on the headphone jack when their own knob moves: their
+## level is the second volume in the chain, after the set's.
+func on_line_out_level_changed() -> void:
+	_audio.apply_volume()
 
 
 ## Whether any speaker output reaches a speaker. Without one, STEREO OUT and SURROUND
@@ -876,7 +894,7 @@ func has_cabled_speakers() -> bool:
 ## an amplifier fed those passes them to its own front pair, which is what
 ## SpeakerRig already does with it, rather than decoding a decode.
 func surround_decoder() -> Node3D:
-	if audio_out != AudioOut.STEREO:
+	if audio_out != AudioOut.STEREO or _panel.phones_sink() != null:
 		return null
 	return _fit.decoder()
 
@@ -998,7 +1016,20 @@ func on_av_source_lost(source: Node3D) -> void:
 ## But its speaker outputs make it a SOURCE, so it has its own wiring to re-read when
 ## a plug moves — which cabinet is on which channel.
 func on_av_topology_changed(_links: Array) -> void:
+	var phones_was := _panel.phones_sink()
 	_panel.on_av_topology_changed()
+	var phones_now := _panel.phones_sink()
+	if phones_now != phones_was:
+		# The speakers on the jack are this set's sink: they learn who to push their
+		# knob at, and the machines on the set stop decoding surround, since the jack
+		# is a stereo pair whatever AUDIO OUTPUT is on.
+		if is_instance_valid(phones_was) and phones_was.has_method("on_av_source_lost"):
+			phones_was.on_av_source_lost(self)
+		if phones_now != null and phones_now.has_method("on_av_source_found"):
+			phones_now.on_av_source_found(self)
+		_audio.apply_audio_out()
+		print("[RetroTV] %s: headphone jack -> %s" % [name,
+			String(phones_now.name) if phones_now != null else "<none>, own speakers"])
 	# An amplifier cabled onto the front pair, or pulled off it, changes what every
 	# machine on this set should be decoding.
 	_audio.refresh_decoder()

@@ -663,13 +663,17 @@ func seating() -> Array[Dictionary]:
 ##     because RetroSystem tells it when it seats.
 ##   * A lead's JUNCTION is a real Port, but it belongs to a CABLE, and
 ##     get_device() walks for a device. It answers get_cable() instead.
+##   * A headphone adapter's jack (AdapterJack) answers get_device() with the
+##     machine the adapter is plugged into, which has no socket of that name. It
+##     names its adapter in save_owner().
 ##
-## Both come back as a node the save file can reference and a name to find under
+## All come back as a node the save file can reference and a name to find under
 ## it, which is all the restore ever needed.
 func _seat_of(plug: RcaPlug) -> Dictionary:
 	var port := plug.seated_port()
 	if port != null:
-		var owner_node: Node3D = port.get_device()
+		var owner_node: Node3D = port.save_owner() if port.has_method("save_owner") \
+			else port.get_device()
 		if owner_node == null and port.has_method("get_cable"):
 			owner_node = port.get_cable()
 		if owner_node != null:

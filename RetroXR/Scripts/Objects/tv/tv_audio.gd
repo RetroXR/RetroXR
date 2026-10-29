@@ -188,6 +188,9 @@ func apply_audio_out() -> int:
 	var amp := _tv.surround_decoder()
 	var mode: int = _tv.audio_out
 	var decode: int = SurroundAmp.DecodeMode.PRO_LOGIC_II
+	# The headphone jack is a stereo pair, so nothing decodes while it is cabled.
+	if _tv.phones_sink() != null:
+		mode = RetroTV.AudioOut.TV_SPEAKERS
 	if amp != null:
 		mode = RetroTV.AudioOut.SURROUND
 		decode = int(amp.get("decode_mode"))
@@ -303,6 +306,11 @@ func update_mode_button() -> void:
 func _effective_volume() -> float:
 	if not _tv.is_on() or _muted:
 		return 0.0
+	# Through the headphone jack the speakers' knob follows the set's, as an
+	# amplifier's does below.
+	var phones := _tv.phones_sink()
+	if phones != null:
+		return _volume * (float(phones.call("get_volume")) if phones.has_method("get_volume") else 1.0)
 	if _tv.is_sound_external() and not _tv.has_cabled_speakers():
 		return 0.0
 	# Through an amplifier its knob is the second volume in the chain, as on the real

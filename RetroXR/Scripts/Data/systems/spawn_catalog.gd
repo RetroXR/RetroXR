@@ -388,6 +388,20 @@ const _TRS_KIT: Array = [
 	{"kind": "peripheral", "label": "3.5 mm Cable", "spawn": "trs_cable"},
 ]
 
+## The platforms whose machine has a headphone jack (RetroSystemModel.headphone_jack),
+## offered the same kit: the jack's lead takes the sound to the speakers. The GBA's
+## SP has none, but the platform is the GBA's and its first model does.
+const _HEADPHONE_JACK_PLATFORMS: Array = [
+	"gb", "gbc", "gba", "gamegear", "atarilynx", "psp", "nds", "n3ds", "virtualboy",
+	"ngp", "ngpc", "supervision",
+]
+
+## The Game Boy Advance SP has no jack: its sound leaves by EXT.2, through
+## Nintendo's headphone adapter (PhonesAdapter), offered on the platform's card
+## beside the kit it plugs the speakers into.
+const _SP_PHONES_ADAPTER: Dictionary = {"kind": "peripheral",
+	"label": "SP Headphone Adapter", "spawn": "sp_phones_adapter"}
+
 
 ## The spawnable items for a system: its stand-in hardware, then the models that
 ## need imported assets, then its peripherals.
@@ -619,6 +633,10 @@ static func _items_for(systemid: String) -> Array:
 		items.append_array(_COMPUTER_INPUT.duplicate(true))
 		items.append(_VGA_CABLE.duplicate())
 		items.append_array(_TRS_KIT.duplicate(true))
+	elif _HEADPHONE_JACK_PLATFORMS.has(systemid):
+		items.append_array(_TRS_KIT.duplicate(true))
+	if systemid == "gba":
+		items.append(_SP_PHONES_ADAPTER.duplicate())
 	if standins and not own.call(ConnectorScan.ROLE_CONTROLLER):
 		items.append({"kind": "peripheral", "label": "Primitive Controller",
 			"spawn": PRIMITIVE_CONTROLLER})

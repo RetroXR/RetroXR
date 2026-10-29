@@ -274,3 +274,12 @@ func configure_cable_attach(attach_point: Node3D) -> void:
 	var v := attach_point.get_node_or_null("PortVisual") as MeshInstance3D
 	if v != null:
 		v.visible = false
+
+
+## EXT.2, the AC adapter's and the headphone adapter's socket (AGS-004), on the
+## rear edge 9.4 mm right of center, its 12.4 x 5.95 mm opening 2.25 to 8.2 mm up
+## from the base's underside (RetroXR-models nintendo/gba/console-sp, the scanned
+## Ext2Port). The SP has no headphone jack; this is where its sound leaves.
+func ext2_socket() -> Dictionary:
+	return {"position": Vector3(0.0094, -body_size.y * 0.5 + 0.0052, -body_size.z * 0.5),
+		"normal": Vector3(0, 0, -1)}

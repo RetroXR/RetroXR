@@ -259,3 +259,10 @@ func _init() -> void:
 ## dark backing panel are handled by the base. Everything else = the base half.
 func _lid_mesh_names() -> PackedStringArray:
 	return PackedStringArray(["Top"])
+
+
+## The headphone jack, on the front edge of the base, right of centre. The shell
+## puts it 51.8 mm out (RetroXR-models nintendo/nds, its HeadphonePort); the
+## stand-in's power key already stands at 36 % there, so it goes inboard of that.
+func headphone_jack() -> Dictionary:
+	return edge_jack(0.22)

@@ -97,3 +97,10 @@ func configure_cable_attach(attach_point: Node3D) -> void:
 	attach_point.position = Vector3(body_size.x * _AV_JACK_X_FRACTION, 0.0,
 		body_size.z * 0.5 + 0.002)
 	aim_cable_exit(attach_point, Vector3(0, 0, 1))
+
+
+## The headphone jack, on the bottom edge 5.6 mm right of centre on a 75 mm body
+## (RetroXR-models nintendo/gbc/console, its HeadphonePort). Not where the video
+## lead above leaves: that is a placement, the jack is the shell's.
+func headphone_jack() -> Dictionary:
+	return edge_jack(0.075)

@@ -480,6 +480,25 @@ func configure_cable_attach(_attach_point: Node3D) -> void:
 	pass
 
 
+## Where this shell's headphone jack is, or {} for hardware without one.
+##
+## `{"position": Vector3, "normal": Vector3}` in THIS node's frame: the point on
+## the shell's face where the jack's mouth is, and that face's outward normal.
+## SystemAvPorts.build_phones puts a 3.5 mm TRS socket there, and a lead from it
+## to a pair of powered speakers carries the machine's sound in stereo. Only asked
+## of hardware with no phono sockets (av_port_channels empty); a console with
+## those is heard through them.
+func headphone_jack() -> Dictionary:
+	return {}
+
+
+## Where this shell's EXT.2 accessory socket is, or {} for hardware without one.
+## Same form as headphone_jack(). The Game Boy Advance SP's: it has no jack, and
+## its headphone adapter (PhonesAdapter) plugs in here instead.
+func ext2_socket() -> Dictionary:
+	return {}
+
+
 ## The A/V SOCKETS this hardware wears, as RcaPort.Channel values in build order,
 ## or [] for hardware that keeps a captive lead.
 ##

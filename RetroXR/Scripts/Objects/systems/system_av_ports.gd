@@ -40,6 +40,97 @@ var cord_summary: String = "none"
 ## Last routing reported to the log, so re-resolving the same wiring is quiet and
 ## only real changes are announced.
 var _last_routing: String = ""
+## The headphone jack, on hardware that has one and no phono sockets (the handhelds,
+## the Virtual Boy), or null. A 3.5 mm TRS socket, OUT, built by build_phones.
+##
+## Kept apart from `ports` on purpose. Everything that reads `ports` takes a
+## non-empty list to mean "silent until a cord reaches a set", and a handheld with
+## nothing in its jack plays out of its own speaker. The jack only takes the sound
+## over while its lead reaches something that can play it — see phones_carry_sound.
+var phones: TrsPort = null
+
+
+## Build the headphone jack, where the model says its shell has one.
+##
+## Deferred by the caller, like the name label: the seat is read off the model's
+## meshes, which a detailed shell only has once it is in.
+func build_phones() -> void:
+	var model := _host.get_model()
+	if model == null or model.uses_av_ports() or is_instance_valid(phones):
+		return
+	var seat: Dictionary = model.headphone_jack()
+	if seat.is_empty():
+		return
+	var scene: PackedScene = load("res://Scenes/Objects/cables/trs_port.tscn")
+	if scene == null:
+		push_warning("[RetroSystem] trs_port.tscn did not load; no headphone jack built")
+		return
+	var port := scene.instantiate() as TrsPort
+	port.name = "PhonesOut"
+	port.direction = RcaPort.Direction.OUT
+	_host.add_child(port)
+	place_phones(port, seat)
+	phones = port
+
+
+## The accessory socket a headphone adapter plugs into, on hardware whose sound
+## leaves that way instead of by a jack: the Game Boy Advance SP's EXT.2. Seated
+## like the jack, off the model's ext2_socket(), with the same {position, normal}.
+var ext2: Port = null
+
+
+func build_ext2() -> void:
+	var model := _host.get_model()
+	if model == null or model.uses_av_ports() or is_instance_valid(ext2):
+		return
+	var seat: Dictionary = model.ext2_socket()
+	if seat.is_empty():
+		return
+	var scene: PackedScene = load("res://Scenes/Objects/cables/ext2_port.tscn")
+	if scene == null:
+		push_warning("[RetroSystem] ext2_port.tscn did not load; no EXT.2 socket built")
+		return
+	var port := scene.instantiate() as Port
+	port.name = "Ext2Port"
+	_host.add_child(port)
+	# The plug's hood stops against the shell, so the zone is ON the face: undo the
+	# jack's 2 mm.
+	place_phones(port, seat)
+	port.global_position -= port.global_transform.basis.z.normalized() * 0.002
+	ext2 = port
+
+
+## Seat the jack: `seat.position` in the MODEL's frame is the panel face, and
+## `seat.normal` the face's outward normal there. The socket's own +Z points out of
+## the panel and its origin stands 2 mm proud of it, where a seated plug's handle
+## stops against the collar (trs_port.tscn).
+func place_phones(port: Node3D, seat: Dictionary) -> void:
+	var xf := _host.get_model().global_transform
+	var n: Vector3 = (xf.basis.orthonormalized()
+		* (seat.get("normal", Vector3.BACK) as Vector3)).normalized()
+	var at: Vector3 = xf * (seat.get("position", Vector3.ZERO) as Vector3)
+	# Any roll will do — a TRS plug is round and has no key — but the up hint must
+	# not lie along the normal.
+	var up := Vector3.UP if absf(n.dot(Vector3.UP)) < 0.99 else Vector3.FORWARD
+	var x := up.cross(n).normalized()
+	port.global_transform = Transform3D(Basis(x, n.cross(x), n), at + n * 0.002)
+
+
+## True while the headphone jack is what this machine is heard through: its lead
+## reaches a sink and the machine has no phono sockets of its own. The speaker is
+## cut off then, as plugging into the jack cuts it on the hardware.
+##
+## A lead in the jack whose far end reaches nothing leaves the speaker on. Nothing
+## in the room is a pair of headphones, and a cable notifies the machines at its
+## ends only once it joins two of them.
+##
+## The jack need not be `phones`. An SP has none and borrows a PhonesAdapter's,
+## whose socket answers get_device() with the SP while it is plugged in, so
+## AvSource.resolve finds it among this machine's own; with no phono sockets, a
+## sink it reached can only have been reached through a jack.
+func phones_carry_sound() -> bool:
+	return ports.is_empty() and is_instance_valid(audio_sink) \
+		and (speaker_l >= 0 or speaker_r >= 0)
 
 
 ## `audio` is the machine's own SystemAudio: a cord moving between sockets has to
@@ -235,3 +326,11 @@ func apply_feed(video_devs: Array[RetroTV], audio_dev: Node3D, l: int, r: int) -
 	if audio_dev != prev_audio and is_instance_valid(audio_dev) \
 			and audio_dev.has_method("on_audio_source_routed"):
 		audio_dev.on_audio_source_routed(_host)
+	# The headphone lead pulled out of the speakers: a handheld's sound goes back to
+	# the set its captive lead reaches, if any, and that set has left its level
+	# alone while the speakers had it.
+	if ports.is_empty() and audio_dev == null and is_instance_valid(prev_audio):
+		for chan: RetroSystem.VideoChannel in _host.video_channels():
+			if is_instance_valid(chan.tv) and chan.tv.has_method("on_audio_source_routed"):
+				chan.tv.on_audio_source_routed(_host)
+				break

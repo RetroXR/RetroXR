@@ -522,6 +522,10 @@ func _ready() -> void:
 		_av.build()
 	else:
 		_video_lead.spawn()
+		# Deferred for the reason the name label is: the jack is seated off the
+		# shell's meshes.
+		_av.build_phones.call_deferred()
+		_av.build_ext2.call_deferred()
 	# Last of the sockets: its A/V ones are only built above.
 	_check_listed_sockets()
 	_update_name_label()
@@ -970,7 +974,8 @@ func set_surround_mode(mode: int) -> void:
 func _audio_tv() -> Node3D:
 	# A ports console's sound goes wherever its audio cord went, which is not
 	# necessarily where its picture went — or anywhere at all.
-	if not _av_ports.is_empty():
+	# So does a handheld's, while its headphone jack is cabled to something.
+	if not _av_ports.is_empty() or _av.phones_carry_sound():
 		var live: bool = _av_speaker_l >= 0 or _av_speaker_r >= 0
 		return _av_tv if live and is_instance_valid(_av_tv) else null
 	for chan: VideoChannel in _channels:
@@ -1011,7 +1016,7 @@ func audio_route() -> Dictionary:
 ## answer with the old sink.
 func audio_speakers() -> Dictionary:
 	return {
-		"socketed": not _av_ports.is_empty(),
+		"socketed": not _av_ports.is_empty() or _av.phones_carry_sound(),
 		"left": _av_speaker_l,
 		"right": _av_speaker_r,
 	}

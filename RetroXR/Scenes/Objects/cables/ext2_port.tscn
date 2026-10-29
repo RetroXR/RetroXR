@@ -1,0 +1,51 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="1_snapzone"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/port.gd" id="2_portscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="3_snaphigh"]
+
+; The mouth: a dark slot the size of the plug's nose, sunk just behind the face.
+[sub_resource type="BoxMesh" id="BoxMesh_mouth"]
+size = Vector3(0.0124, 0.006, 0.002)
+
+[sub_resource type="StandardMaterial3D" id="Mat_mouth"]
+albedo_color = Color(0.05, 0.05, 0.055, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_plug_ghost"]
+size = Vector3(0.013, 0.007, 0.016)
+
+[sub_resource type="StandardMaterial3D" id="Mat_plug_ghost"]
+transparency = 1
+albedo_color = Color(0.2, 0.5, 1, 0.45)
+emission_enabled = true
+emission = Color(0, 0.15, 0.5, 1)
+emission_energy_multiplier = 0.4
+
+; EXT.2: the Game Boy Advance SP's accessory socket, the one its AC adapter
+; charges it by and its headphone adapter takes the sound from. A plain Port: what
+; a seated plug means is the plug's business (PhonesAdapter, for the headphones).
+;
+; Placed the way every socket is: +Z out of the shell, the zone where a seated
+; plug's ORIGIN belongs. That origin is the face of the plug's hood, which stops
+; against the shell, so the zone sits on the face and the mouth 1 mm behind it.
+;
+; `connector` is written here and not left to a script, for the reason
+; trs_port.tscn gives: an export bakes the base default over anything set later.
+[node name="Ext2Port" instance=ExtResource("1_snapzone")]
+grab_distance = 0.05
+script = ExtResource("2_portscript")
+connector = "ext2_plug"
+
+[node name="Ext2Mouth" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.001)
+mesh = SubResource("BoxMesh_mouth")
+surface_material_override/0 = SubResource("Mat_mouth")
+
+[node name="SnapHighlight" type="Node3D" parent="."]
+script = ExtResource("3_snaphigh")
+
+[node name="HighlightMesh" type="MeshInstance3D" parent="SnapHighlight"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.008)
+mesh = SubResource("BoxMesh_plug_ghost")
+surface_material_override/0 = SubResource("Mat_plug_ghost")

@@ -1,0 +1,160 @@
+[gd_scene load_steps=14 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/phones_adapter.gd" id="1_adapter"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="4_snapgp"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/trs_port.tscn" id="5_trsport"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/adapter_jack.gd" id="6_jackscript"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
+bounce = 0.0
+friction = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Mat_plastic"]
+albedo_color = Color(0.12, 0.12, 0.13, 1)
+roughness = 0.6
+
+; End A, the EXT.2 plug: a hood the cord leaves from the back of, and the nose
+; that goes into the socket in front of its face (the plug's ORIGIN, as on every
+; plug here). Stand-in boxes; a mod puts the measured plug on.
+[sub_resource type="BoxMesh" id="BoxMesh_hood"]
+material = SubResource("Mat_plastic")
+size = Vector3(0.0135, 0.0065, 0.016)
+
+[sub_resource type="BoxMesh" id="BoxMesh_nose"]
+material = SubResource("Mat_plastic")
+size = Vector3(0.0102, 0.0042, 0.006)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_hood"]
+size = Vector3(0.0135, 0.0065, 0.022)
+
+; End B, the jack: a short barrel with the 3.5 mm socket in its front face.
+[sub_resource type="CylinderMesh" id="CylMesh_barrel"]
+material = SubResource("Mat_plastic")
+top_radius = 0.0055
+bottom_radius = 0.0055
+height = 0.022
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_barrel"]
+size = Vector3(0.011, 0.011, 0.022)
+
+; The laser target until PointerFit refits it to what the plug draws.
+[sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
+size = Vector3(0.035, 0.035, 0.045)
+
+; The Game Boy Advance SP's headphone adapter: an EXT.2 plug, a short cord and a
+; 3.5 mm jack (PhonesAdapter). The SP has no jack of its own; while this is in
+; its EXT.2, a 3.5 mm lead from the jack carries the SP's sound, as one from a
+; handheld's own jack does.
+;
+; One cord, so CompositeCable's single-rope path: both ends anchored straight to
+; their bodies. End B fits nothing ("phones_adapter_body" is no socket's) -- it is
+; the jack, and it hangs.
+[node name="SpPhonesAdapter" type="Node3D"]
+script = ExtResource("1_adapter")
+cord_colors = PackedColorArray(0.12, 0.12, 0.13, 1)
+
+; -- End A: the EXT.2 plug ---------------------------------------------------
+; Turned about Y so the cord trails toward the jack (connector on +Z, cord out of
+; -Z, which is VerletRope's plug_exit_axis), as trs_cable.tscn's end A is.
+[node name="PlugA0" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.05)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.008
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+connector = "ext2_plug"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.005)
+shape = SubResource("BoxShape3D_hood")
+
+[node name="PlugHood" type="MeshInstance3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.008)
+mesh = SubResource("BoxMesh_hood")
+
+[node name="PlugNose" type="MeshInstance3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.003)
+mesh = SubResource("BoxMesh_nose")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.005)
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA0"]
+script = ExtResource("3_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("4_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; -- End B: the jack ---------------------------------------------------------
+; Unturned: its cord trails -Z, back toward the plug, and the socket faces +Z out
+; of the barrel's front. The barrel's front face is at z 0, so the socket stands
+; 2 mm proud of it where a seated plug stops (trs_port.tscn).
+[node name="PlugB0" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.05)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.006
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+connector = "phones_adapter_body"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.011)
+shape = SubResource("BoxShape3D_barrel")
+
+[node name="JackBarrel" type="MeshInstance3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.011)
+mesh = SubResource("CylMesh_barrel")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.011)
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB0"]
+script = ExtResource("3_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("4_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="AdapterJack" parent="PlugB0" instance=ExtResource("5_trsport")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.002)
+script = ExtResource("6_jackscript")
+connector = "trs_plug"
+direction = 0
+
+; About 26 mm of 3 mm cord shows between the real one's reliefs (AGS-004, about
+; 107 mm nose to collar); the stand-in bodies are shorter than its, so the rope
+; is longer: 60 mm, in ten segments.
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 10
+segment_length = 0.006
+constraint_iterations = 8
+bend_stiffness = 0.2
+tube_radius = 0.0015
+tube_sides = 8
+smoothing = 2
+rope_color = Color(0.09, 0.09, 0.1, 1.0)
+surface_collision_mask = 7
+collision_radius = 0.0024
+self_collision = false
+end_align_stiffness = 0.7
+end_stiffness = 0.3
+end_stiff_segments = 2

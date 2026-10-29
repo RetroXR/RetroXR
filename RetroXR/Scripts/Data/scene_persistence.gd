@@ -186,6 +186,7 @@ const PS2_AV_CABLE_SCENE     := preload("res://Scenes/Objects/cables/ps2_av_cabl
 const DC_AV_CABLE_SCENE      := preload("res://Scenes/Objects/system_models/dreamcast/dc_av_cable.tscn")
 const VGA_CABLE_SCENE        := preload("res://Scenes/Objects/cables/vga_cable.tscn")
 const TRS_CABLE_SCENE        := preload("res://Scenes/Objects/cables/trs_cable.tscn")
+const SP_PHONES_ADAPTER_SCENE := preload("res://Scenes/Objects/cables/sp_phones_adapter.tscn")
 const LINK_CABLE_SCENE       := preload("res://Scenes/Objects/cables/link_cable.tscn")
 const GB_LINK_CABLE_SCENE    := preload("res://Scenes/Objects/cables/gb_link_cable.tscn")
 const DMG_LINK_CABLE_SCENE   := preload("res://Scenes/Objects/cables/dmg_link_cable.tscn")
@@ -276,6 +277,7 @@ const LEAD_SCENES := {
 	"ps2_av_cable": PS2_AV_CABLE_SCENE,
 	"vga_cable": VGA_CABLE_SCENE,
 	"trs_cable": TRS_CABLE_SCENE,
+	"sp_phones_adapter": SP_PHONES_ADAPTER_SCENE,
 	"link_cable": LINK_CABLE_SCENE,
 	"gb_link_cable": GB_LINK_CABLE_SCENE,
 	"dmg_link_cable": DMG_LINK_CABLE_SCENE,

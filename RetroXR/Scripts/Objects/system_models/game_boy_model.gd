@@ -54,3 +54,9 @@ func _on_shell_ready() -> void:
 	var cap := _glb.find_child("Pulsante_Accensione", true, false) as MeshInstance3D
 	if cap != null:
 		_power_switch.set_knob_mesh(cap)
+
+
+## PHONES, on the bottom edge just left of centre: 4.7 mm of a 90 mm body on the
+## DMG-01 (RetroXR-models nintendo/gb/console, its HeadphonePort).
+func headphone_jack() -> Dictionary:
+	return edge_jack(-0.052)

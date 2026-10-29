@@ -535,6 +535,31 @@ named `VcrSeat` and/or `DvdSeat` to the shell scene. Nothing else needs a script
 `res://Tests/fixtures/combo_tv_shell.tscn` is a complete example with both decks
 and both control panels.
 
+#### A headphone jack
+
+A cabinet gets a working 3.5 mm headphone jack from a `PhonesSeat` marker (or a
+`phones_seat()` override returning a `Transform3D`). The marker's +Z points out of
+the cabinet, and its origin stands 2 mm proud of the face, where a seated plug
+stops. A lead from it to a pair of powered speakers cuts the set's own speakers,
+sends every machine on the set there in stereo whatever AUDIO OUTPUT says, and
+makes the speakers' knob a second volume after the set's. A cabinet that moulds
+its own jack hides the socket's collar: `_tv.panel().phones().get_node("TrsJack")`.
+
+A machine's jack comes from its model: override `headphone_jack()` to return
+`{"position": Vector3, "normal": Vector3}` in the model's own frame (the face's
+point at the jack's mouth and its outward normal), or `{}` for none. The game puts
+a `PhonesOut` TRS socket there on any machine with no phono sockets. While a lead
+from it reaches a sink, that sink plays the sound and the machine's own speaker is
+silent. A handheld stand-in can use `edge_jack(x_fraction, edge)`.
+
+A machine whose sound leaves by an accessory socket instead, the Game Boy Advance
+SP's EXT.2, answers `ext2_socket()` in the same form. The game builds an `Ext2Port`
+there (connector `ext2_plug`), and the SP Headphone Adapter (`sp_phones_adapter`,
+`PhonesAdapter`) plugs in: its jack end's `AdapterJack` speaks for the machine
+while the adapter is seated. A mod dressing the adapter finds the plug at `PlugA0`
+(nose on +Z, cord out of -Z) and the jack barrel at `PlugB0` (mouth on +Z at its
+origin, the socket 2 mm proud).
+
 A **controller** is a scene rooted at `RetroController`, and a **light gun** one
 rooted at `LightGun`. Persistence already records its scene path and falls back
 to the generic pad if your mod is gone; nothing extra is needed. What it plugs

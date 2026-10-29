@@ -50,16 +50,24 @@ static func seat(node: Node3D, at: Variant) -> void:
 		node.transform = at
 
 
-## Wear a cabinet variant. Strict no-op when tv_model is empty — that is the
-## acceptance test for this whole mechanism, since the arcade and den TVs must
-## look and behave exactly as they did before.
+## Wear a cabinet variant. A no-op but for the headphone jack when tv_model is
+## empty — that is the acceptance test for this whole mechanism, since the arcade
+## and den TVs must look and behave exactly as they did before. The jack is the one
+## addition, on the stock body's front, clear of its keys (STOCK_PHONES_SEAT).
 ##
 ## Only nodes the shell actually names a seat for are moved; everything else keeps
 ## its tv.tscn pose, so a shell describes differences rather than the whole layout.
+## The stock body's headphone jack: the lower right of its front face (z 0.15),
+## right of the lower row of keys, which end at x 0.1625, 2 mm proud where a seated
+## TRS plug stops.
+const STOCK_PHONES_SEAT := Transform3D(Basis(), Vector3(0.2, -0.155, 0.152))
+
+
 func load_shell() -> void:
 	if _LEGACY_TV_MODELS.has(_tv.tv_model):
 		_tv.tv_model = _LEGACY_TV_MODELS[_tv.tv_model]
 	if _tv.tv_model.is_empty():
+		_tv.panel().seat_phones(STOCK_PHONES_SEAT)
 		return
 	var path: String = RetroTV.shell_scene_path(_tv.tv_model)
 	if path.is_empty():
@@ -82,6 +90,7 @@ func load_shell() -> void:
 	_tv.panel().seat_av_row(fitted.port_seat())
 	_tv.panel().seat_vga_port(fitted.vga_port_seat())
 	_tv.panel().seat_speaker_row(fitted.speaker_out_seat())
+	_tv.panel().seat_phones(fitted.phones_seat())
 	seat(_tv.ambilight(), fitted.ambilight_seat())
 
 	# Both or neither: one seated speaker and one still on the stock tube's edge

@@ -173,6 +173,13 @@ func _run() -> void:
 		["wiring/no two legend plates on the back panel overlap", _w_legend_gaps],
 		["wiring/binning one speaker cabinet bins the whole pair", _w_bin_one_cabinet],
 		["wiring/a pair with a freed cabinet still saves", _w_pair_freed_cabinet_saves],
+		["phones/a handheld's headphone jack takes its sound to the speakers", _p_handheld_phones],
+		["phones/the jack's sound beats the video-out lead's set", _p_handheld_phones_over_tv],
+		["phones/every handheld jack sits on its shell", _p_jacks_on_shells],
+		["phones/a set's headphone jack sends its sound to the speakers", _p_tv_phones],
+		["phones/the Plain Monitor has one on its bezel", _p_monitor_phones],
+		["phones/an SP is heard through its headphone adapter", _p_sp_adapter],
+		["phones/the adapter last, after the lead to the speakers", _p_sp_adapter_last],
 		["display/the selected input is shown", _d_selected],
 		["display/another input is blue, not the last picture", _d_away],
 		["display/coming back shows it again", _d_back],
@@ -2911,3 +2918,200 @@ func _r_dc_keying() -> void:
 		"nor the Genesis mini-DIN, Sega or not")
 	for group in ["n64_av_plug", "wii_av_plug", "genesis_av_plug"]:
 		_ok(not our_plug.is_in_group(group), "and the Dreamcast lead does not fit %s" % group)
+
+
+# ── Headphone jacks ───────────────────────────────────────────────────────────
+
+func _handheld(systemid: String, model_id: String = "") -> RetroSystem:
+	var sys := SYSTEM_SCENE.instantiate() as RetroSystem
+	sys.systemid = systemid
+	if not model_id.is_empty():
+		sys.model_id = model_id
+	sys.freeze = true
+	sys.position = Vector3(_spawned.size() * 3.0 + 2.0, 1, 0)
+	add_child(sys)
+	sys.add_to_group("spawned")
+	_spawned.append(sys)
+	return sys
+
+
+## The jack takes the sound only while its lead reaches the speakers, and the
+## handheld plays from its own body again once it is pulled — as plugging into and
+## out of the jack does. phones_carry_sound is what puts the speaker on and off.
+func _p_handheld_phones() -> void:
+	var gba := _handheld("gba")
+	var speakers := _speakers()
+	await _wait(60)
+	var route := gba.audio_route()
+	_ok(not route["socketed"] and route["tv"] == null,
+		"a handheld with nothing in its jack plays from its own body")
+	var trs := await _single_lead(TRS_CABLE, gba, "PhonesOut", speakers, "LineIn")
+	route = gba.audio_route()
+	_check_eq(route["tv"], speakers, "the jack's lead puts the sound in the speakers")
+	_ok(route["socketed"], "and the handheld's own speaker is cut off")
+	_check_eq([route["left"], route["right"]], [0, 1], "left on the left cabinet, right on the right")
+	await _unplug(trs.get_node("PlugB0") as RcaPlug)
+	route = gba.audio_route()
+	_ok(not route["socketed"] and route["tv"] == null,
+		"pulled, the sound is back in the handheld")
+
+
+## A handheld can show on a set by its video-out lead AND be heard through the
+## jack. The jack wins, and the set leaves its level alone while it does.
+func _p_handheld_phones_over_tv() -> void:
+	var tv := _tv()
+	var gba := _handheld("gba")
+	gba.force_video_out(true)
+	var speakers := _speakers()
+	await _wait(60)
+	var chan: RetroSystem.VideoChannel = gba.video_channels()[0]
+	if chan.plug == null:
+		_skip("this build's GBA wears no video-out lead")
+		return
+	_input_ports(tv, RetroTV.Source.COMPOSITE_1)[0].pick_up_object(chan.plug)
+	await _wait(35)
+	_check_eq(gba.audio_route()["tv"], tv, "on the lead alone the set has the sound")
+	await _single_lead(TRS_CABLE, gba, "PhonesOut", speakers, "LineIn")
+	_check_eq(gba.audio_route()["tv"], speakers, "the jack takes it from the set")
+	_ok(not tv.audio().carries_sound(gba), "and the set no longer sets its level")
+
+
+## Each jack is on the outside of the machine it belongs to, its mouth facing out;
+## and the machines without one get none.
+func _p_jacks_on_shells() -> void:
+	var with: Array = [["gb", ""], ["gbc", ""], ["gba", ""], ["gba", "game_boy_advance_primitive"],
+		["gamegear", ""], ["atarilynx", ""], ["psp", ""], ["nds", ""], ["n3ds", ""],
+		["virtualboy", ""], ["ngp", ""], ["ngpc", ""], ["supervision", ""]]
+	var without: Array = [["gba", "game_boy_advance_sp_primitive"], ["wonderswan", ""],
+		["pokemini", ""]]
+	var made: Array = []
+	for row: Array in with + without:
+		made.append(_handheld(row[0], row[1]))
+	await _wait(60)
+	for i in made.size():
+		var sys: RetroSystem = made[i]
+		var label := "%s %s" % with_or(with, without, i)
+		var jack := sys.get_node_or_null("PhonesOut") as Node3D
+		if i >= with.size():
+			_ok(jack == null, "%s has no headphone jack" % label)
+			continue
+		_ok(jack is TrsPort, "%s has a headphone jack" % label)
+		if jack == null:
+			continue
+		# Against the whole machine's bounds, which take in whatever stands proud of
+		# the body (a cartridge, a shoulder key), so the test is near-and-outward
+		# rather than on-the-face: the jack is within reach of the shell, and a
+		# step out of its mouth leaves the shell behind.
+		var at := sys.global_transform.affine_inverse() * jack.global_position
+		var body := sys.body_aabb()
+		var out := (sys.global_transform.basis.inverse() * jack.global_transform.basis.z).normalized()
+		_ok(body.grow(0.006).has_point(at), "%s's jack is at its shell (%s in %s)" % [label, at, body])
+		# The Virtual Boy's jack is under its visor, and the stand below that is
+		# inside the bounds too: it can only be asked which way it faces.
+		if sys.systemid == "virtualboy":
+			_ok(out.dot(Vector3.DOWN) > 0.99, "%s's jack faces down" % label)
+		else:
+			_ok(not body.grow(0.006).has_point(at + out * 0.025),
+				"%s's jack faces out of the shell (along %s)" % [label, out])
+
+
+static func with_or(with: Array, without: Array, i: int) -> Array:
+	return with[i] if i < with.size() else without[i - with.size()]
+
+
+## A set whose cabinet has a headphone jack: its lead to the speakers carries every
+## machine on the set there, the set's own pair falls silent, and the speakers' knob
+## is a second volume after the set's.
+func _p_tv_phones() -> void:
+	var tv := _tv()
+	var tower := _tower()
+	var speakers := _speakers()
+	await _wait(60)
+	_ok(tv.panel().phones() is TrsPort, "the stock set has a headphone jack")
+	var outs := _out_ports(tower)
+	var ins := _input_ports(tv, RetroTV.Source.COMPOSITE_1)
+	await _lead([[0, outs[0], ins[0]], [1, outs[1], ins[1]], [2, outs[2], ins[2]]])
+	var own := tv.get_speaker_positions()
+	await _single_lead(TRS_CABLE, tv, "PhonesOut", speakers, "LineIn")
+	_check_eq(tv.phones_sink(), speakers, "the set's jack reaches the speakers")
+	_check_eq(tv.get_speaker_positions(), speakers.get_speaker_positions(),
+		"and its sound comes out of them, not its own pair")
+	_ok(tv.get_speaker_positions() != own, "which are somewhere else")
+	_ok(tv.is_sound_external(), "the set counts its sound as external")
+	(speakers as SpeakerPair).set_volume(0.5)
+	tv.set_power(true)
+	tv.set_source(RetroTV.Source.COMPOSITE_1)
+	await _wait(6)
+	_ok(is_equal_approx(tv.audio().volume_for(RetroTV.Source.COMPOSITE_1), tv.audio().volume() * 0.5),
+		"the speakers' knob follows the set's level")
+
+
+func _p_monitor_phones() -> void:
+	var mon := _monitor()
+	var speakers := _speakers()
+	await _wait(60)
+	var jack := mon.panel().phones()
+	_ok(jack is TrsPort, "the Plain Monitor has a headphone jack")
+	if jack == null:
+		return
+	_ok(absf(jack.position.z - 0.2035) < 0.0005 and jack.transform.basis.z.dot(Vector3.BACK) > 0.99,
+		"on its front, facing out (%s)" % jack.transform)
+	await _single_lead(TRS_CABLE, mon, "PhonesOut", speakers, "LineIn")
+	_check_eq(mon.phones_sink(), speakers, "and its lead reaches the speakers")
+
+
+const SP_ADAPTER := preload("res://Scenes/Objects/cables/sp_phones_adapter.tscn")
+
+
+func _sp_and_adapter() -> Array:
+	var sp := _handheld("gba", "game_boy_advance_sp_primitive")
+	var speakers := _speakers()
+	var adapter := SP_ADAPTER.instantiate() as PhonesAdapter
+	adapter.position = Vector3(_spawned.size() * 2.0, 1, 1.0)
+	add_child(adapter)
+	_spawned.append(adapter)
+	await _wait(60)
+	return [sp, speakers, adapter]
+
+
+func _seat_adapter(sp: RetroSystem, adapter: PhonesAdapter) -> void:
+	var ext2 := sp.find_child("Ext2Port", true, false) as XRToolsSnapZone
+	_ok(ext2 != null, "the SP has an EXT.2 socket")
+	if ext2 != null:
+		ext2.pick_up_object(adapter.get_node("PlugA0"))
+	await _wait(35)
+
+
+## The SP has no jack. Its headphone adapter in EXT.2 gives it one, and a lead from
+## that to the speakers is heard exactly as a handheld's own jack is: and pulled
+## out of EXT.2, the adapter takes the sound with it.
+func _p_sp_adapter() -> void:
+	var made: Array = await _sp_and_adapter()
+	var sp: RetroSystem = made[0]
+	var speakers: Node3D = made[1]
+	var adapter: PhonesAdapter = made[2]
+	_ok(sp.find_child("PhonesOut", true, false) == null, "the SP has no jack of its own")
+	await _seat_adapter(sp, adapter)
+	_check_eq(adapter.host(), sp, "seated, the adapter speaks for the SP")
+	var trs := await _single_lead(TRS_CABLE, adapter, "AdapterJack", speakers, "LineIn")
+	var route := sp.audio_route()
+	_check_eq(route["tv"], speakers, "the lead from its jack puts the SP's sound in the speakers")
+	_ok(route["socketed"], "and the SP's own speaker is cut off")
+	# Saved under the adapter: the SP has no socket by that name.
+	var seat: Dictionary = (trs as CompositeCable)._seat_of(trs.get_node("PlugA0") as RcaPlug)
+	_check_eq(seat.get("owner"), adapter, "a save names the jack under the adapter")
+	_check_eq(seat.get("port"), "AdapterJack", "by its own name")
+	await _unplug(adapter.get_node("PlugA0") as RcaPlug)
+	route = sp.audio_route()
+	_ok(route["tv"] == null and not route["socketed"], "the adapter pulled, the SP plays for itself again")
+
+
+func _p_sp_adapter_last() -> void:
+	var made: Array = await _sp_and_adapter()
+	var sp: RetroSystem = made[0]
+	var speakers: Node3D = made[1]
+	var adapter: PhonesAdapter = made[2]
+	await _single_lead(TRS_CABLE, adapter, "AdapterJack", speakers, "LineIn")
+	_ok(sp.audio_route()["tv"] == null, "a lead from a loose adapter carries nothing")
+	await _seat_adapter(sp, adapter)
+	_check_eq(sp.audio_route()["tv"], speakers, "plugged in last, the adapter still takes the sound")

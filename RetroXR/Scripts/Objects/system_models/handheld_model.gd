@@ -792,3 +792,12 @@ func _shell_rows(member: String) -> Array:
 func _fix_shell_materials() -> void:
 	if _glb != null:
 		ModelMaterialFix.strip_emission(_glb)
+
+
+## A headphone jack on an edge of the body, in the form headphone_jack() returns:
+## `x_fraction` of the body's width from its middle (+ is the player's right), on
+## the bottom edge (`edge` 1, +Z) or the top edge (`edge` -1, -Z), at mid-thickness.
+## For a stand-in shell; a detailed one names its own mouth.
+func edge_jack(x_fraction: float, edge: float = 1.0) -> Dictionary:
+	return {"position": Vector3(body_size.x * x_fraction, 0.0, body_size.z * 0.5 * edge),
+		"normal": Vector3(0.0, 0.0, edge)}

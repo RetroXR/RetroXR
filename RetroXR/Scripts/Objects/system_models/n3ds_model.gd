@@ -460,3 +460,9 @@ func on_power_on() -> void:
 func on_power_off() -> void:
 	super.on_power_off()
 	_set_leds(false)
+
+
+## The headphone jack, at the middle of the base's front edge
+## (RetroXR-models nintendo/3ds, its HeadphonePort).
+func headphone_jack() -> Dictionary:
+	return edge_jack(0.0)

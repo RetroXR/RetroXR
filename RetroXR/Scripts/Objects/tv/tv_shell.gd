@@ -141,6 +141,10 @@ func vga_port_seat() -> Variant:    return _seat("VgaPortSeat")
 ## Absent on every shell so far, and that absence is the switch, as above — a row of
 ## 5.1 phono outputs on a wood-cabinet 70s set is the same anachronism as a DE-15.
 func speaker_out_seat() -> Variant: return _seat("SpeakerOutSeat")
+## Pose for the headphone jack, a 3.5 mm TRS socket: its +Z out of the cabinet and
+## its origin 2 mm proud of the face, where a seated plug stops (trs_port.tscn).
+## Present is the switch, as above — a set gets a jack only where its cabinet had one.
+func phones_seat() -> Variant:      return _seat("PhonesSeat")
 func ambilight_seat() -> Variant:   return _seat("AmbilightSeat")
 func button_row_seat() -> Variant:  return _seat("ButtonRow")
 func speaker_l_seat() -> Variant:   return _seat("SpeakerLSeat")
