@@ -63,9 +63,6 @@ gdscript/warnings/missing_tool=0
 
 window/size/viewport_width=2560
 window/size/viewport_height=1440
-; The window OPENS small and is sized afterwards (DesktopWindow.restore). Opened at the 2560x1440
-; above on a shorter screen, the window manager clamps it, and GNOME then holds it maximised
-; along that axis, which the engine cannot see and a later size request cannot undo.
 window/size/window_width_override=1280
 window/size/window_height_override=720
 
@@ -306,10 +303,6 @@ renderer/rendering_method.android="mobile"
 renderer/mobile/render_directly_to_target=true
 limits/spatial_indexer/threaded_cull_minimum_instances.android=65536
 
-[threading]
-
-worker_pool/max_threads.android=4
-
 [shader_globals]
 
 META_ENVIRONMENT_DEPTH_TEXTURE={
@@ -356,6 +349,10 @@ META_ENVIRONMENT_DEPTH_INV_PROJECTION_VIEW_RIGHT={
 "type": "mat4",
 "value": Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
 }
+
+[threading]
+
+worker_pool/max_threads.android=4
 
 [xr]
 
