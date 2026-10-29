@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_hinge.gd" id="2_hinge"]
 [ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_slider.gd" id="3_slider"]
 [ext_resource type="FontFile" path="res://fonts/SymbolsNerdFont-Regular.ttf" id="4_font"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/nds_dc_port.tscn" id="90_dcport"]
 
 [sub_resource type="QuadMesh" id="QuadMesh_screen"]
 size = Vector2(0.0615, 0.0461)
@@ -257,3 +258,9 @@ shape = SubResource("BoxShape3D_volumeslider")
 [node name="Power Light" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0555, 0.0058, 0.033)
 gizmo_extents = 0.01
+
+; The power input: the DC IN socket, on the back of the lower half left of the middle, under the hinge (the NTR-001
+; model's ACAdapterPort, 29.4 mm left, scaled to this body's width): it takes the EXT.2 plug, the SP's adapter's.
+; +Z out of the shell, the zone on the shell's face (the socket scene says why).
+[node name="DcInPort" parent="." instance=ExtResource("90_dcport")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.0262, -0.002, -0.03695)

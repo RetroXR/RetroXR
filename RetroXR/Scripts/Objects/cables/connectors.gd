@@ -48,6 +48,13 @@ const LABELS := {
 	"saturn_link_plug": "a Saturn link cable plug",
 	"jag_link_plug": "a JagLink cable plug",
 	"ilink_plug": "an i.LINK cable plug",
+	# The handhelds' DC IN sockets (Scenes/Objects/cables/*_dc_port.tscn): each AC
+	# adapter's own plug. The DS's takes the Game Boy Advance SP's EXT.2 plug.
+	"dmg_dc_plug": "a Game Boy AC adapter plug",
+	"gbc_dc_plug": "a Game Boy Color AC adapter plug",
+	"dsi_dc_plug": "a Nintendo DSi or 3DS AC adapter plug",
+	"psp_dc_plug": "a PSP AC adapter plug",
+	"gg_dc_plug": "a Game Gear AC adapter plug",
 	"gamecube_controller": "a GameCube controller plug",
 	"playstation_controller": "a PlayStation controller plug",
 	"de9_controller": "a DE-9 joystick plug",

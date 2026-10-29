@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://d2fhmqypnc4e4" path="res://Scripts/Objects/widgets/vr_slider.gd" id="2_slider"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/link_port.tscn" id="9_linkport"]
 [ext_resource type="Script" path="res://Scripts/Objects/cables/ir_port.gd" id="10_irport"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/gbc_dc_port.tscn" id="90_dcport"]
 
 ; The CGB-001's 78 x 133.5 x 27.4 mm, as one box.
 [sub_resource type="BoxMesh" id="BoxMesh_body"]
@@ -256,3 +257,9 @@ shape = SubResource("BoxShape3D_powerswitch")
 ; face of its shell, and that face stops almost flush against the socket's rim.
 [node name="LinkPort" parent="." instance=ExtResource("9_linkport")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -0.04, 0, -0.036)
+
+; The power input: the DC IN 3V jack, on the bottom edge just left of the middle, beside the headphone jack (the
+; CGB-001 model's DCPort, 5.7 mm left of the middle).
+; +Z out of the shell, the zone on the shell's face (the socket scene says why).
+[node name="DcInPort" parent="." instance=ExtResource("90_dcport")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0057, -0.004, 0.06675)

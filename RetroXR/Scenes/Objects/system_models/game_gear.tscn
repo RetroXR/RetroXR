@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://Scripts/Objects/system_models/game_gear_model.gd" id="1_ggmdl"]
 [ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_slider.gd" id="2_ggsld"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/link_port.tscn" id="3_linkport"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/gg_dc_port.tscn" id="90_dcport"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_body"]
 size = Vector3(0.21, 0.038, 0.112)
@@ -156,3 +157,9 @@ shape = SubResource("BoxShape3D_powerswitch")
 [node name="LinkPort" parent="." instance=ExtResource("3_linkport")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.055, 0, -0.057)
 connector = "gg_link_plug"
+
+; The power input: the DC 9V jack, on the top edge toward the right, opposite the EXT port (the Game Gear model's
+; DcInAnchor, 66.6 mm right, toward the back).
+; +Z out of the shell, the zone on the shell's face (the socket scene says why).
+[node name="DcInPort" parent="." instance=ExtResource("90_dcport")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.0666, -0.0073, -0.056)

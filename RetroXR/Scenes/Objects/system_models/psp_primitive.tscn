@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://bsx5exdw5i5bt" path="res://Scripts/Objects/widgets/vr_spring_return_slider.gd" id="2_slider"]
 [ext_resource type="Script" uid="uid://d3iq3gmwxpvjl" path="res://Scripts/Objects/widgets/vr_button.gd" id="3_button"]
 [ext_resource type="Script" uid="uid://bijuot0d83b44" path="res://Scripts/Objects/widgets/vr_spring_latched_hinge.gd" id="4_hinge"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/psp_dc_port.tscn" id="90_dcport"]
 
 [sub_resource type="QuadMesh" id="QuadMesh_screen"]
 size = Vector2(0.083904006, 0.047486406)
@@ -309,3 +310,9 @@ engage_radius = 0.03
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="UMDDoorPivot/UMDDoorHinge"]
 shape = SubResource("BoxShape3D_doorhinge")
+
+; The power input: the DC IN 5V jack, on the bottom edge toward the right (the PSP-1000 model's DcInAnchor, 65 mm
+; right, scaled to this body's width).
+; +Z out of the shell, the zone on the shell's face (the socket scene says why).
+[node name="DcInPort" parent="." instance=ExtResource("90_dcport")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0604, 0, 0.03575)

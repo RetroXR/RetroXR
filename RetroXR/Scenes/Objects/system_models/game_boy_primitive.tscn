@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://coe03tlg0awc2" path="res://Scripts/Objects/system_models/game_boy_model.gd" id="1_model"]
 [ext_resource type="Script" uid="uid://d2fhmqypnc4e4" path="res://Scripts/Objects/widgets/vr_slider.gd" id="2_slider"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/dmg_link_port.tscn" id="9_linkport"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/dmg_dc_port.tscn" id="90_dcport"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_a5vr4"]
 size = Vector3(0.0853017, 0.031066652, 0.13806148)
@@ -179,3 +180,9 @@ font_size = 16
 ; same under either convention.
 [node name="LinkPort" parent="." instance=ExtResource("9_linkport")]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0.0437, 0, 0.008)
+
+; The power input: the DC IN 6V jack, on the left flank in the upper third where a DMG keeps it (the DMG-01 model's
+; DCPort, 47.9 mm above the middle, scaled to this body's length).
+; +Z out of the shell, the zone on the shell's face (the socket scene says why).
+[node name="DcInPort" parent="." instance=ExtResource("90_dcport")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -0.04265, 0, -0.0447)

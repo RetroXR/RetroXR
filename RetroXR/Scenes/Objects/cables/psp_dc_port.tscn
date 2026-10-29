@@ -1,0 +1,79 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="1_snapzone"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/power/dc_port.gd" id="2_portscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="3_snaphigh"]
+
+[sub_resource type="CylinderMesh" id="Mesh_mouth"]
+top_radius = 0.00230
+bottom_radius = 0.00230
+height = 0.0004
+radial_segments = 16
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Mesh_pin"]
+top_radius = 0.00080
+bottom_radius = 0.00080
+height = 0.002
+radial_segments = 8
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_mouth"]
+albedo_color = Color(0.05, 0.05, 0.055, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="Mat_pin"]
+albedo_color = Color(0.78, 0.78, 0.76, 1)
+metallic = 0.9
+roughness = 0.3
+
+[sub_resource type="CylinderMesh" id="Mesh_plug_ghost"]
+top_radius = 0.00425
+bottom_radius = 0.00425
+height = 0.014
+radial_segments = 16
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_plug_ghost"]
+transparency = 1
+albedo_color = Color(0.2, 0.5, 1, 0.45)
+emission_enabled = true
+emission = Color(0, 0.15, 0.5, 1)
+emission_energy_multiplier = 0.4
+
+; DC IN: the PSP's DC IN 5V, on its bottom edge: the PSP-100/PSP-380's EIAJ-02 barrel, 4.0 x 1.7, center positive.
+; A DcPort with no lead of the game's own yet: the adapter and its cord come from
+; a mod (RetroXR-models' power supply items), whose plug names "psp_dc_plug".
+;
+; Placed the way every socket is: +Z out of the shell, the zone where a seated
+; plug's ORIGIN belongs, the face of the plug's barrel or hood, which stops
+; against the shell; the mouth (4 mm barrel with its 1.7 mm center pin) a dark face 0.3 mm proud of the
+; shell's, so it never shares the shell's plane (no z-fighting).
+;
+; `connector` is written here and not left to a script, for the reason
+; trs_port.tscn gives: an export bakes the base default over anything set later
+; (link_tests checks the line).
+[node name="PspDcPort" instance=ExtResource("1_snapzone")]
+grab_distance = 0.05
+script = ExtResource("2_portscript")
+connector = "psp_dc_plug"
+
+[node name="DcMouth" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.0001)
+mesh = SubResource("Mesh_mouth")
+surface_material_override/0 = SubResource("Mat_mouth")
+
+; The center pin, standing to just behind the face, where a plug's barrel slides over it.
+[node name="DcPin" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.00065)
+mesh = SubResource("Mesh_pin")
+surface_material_override/0 = SubResource("Mat_pin")
+
+[node name="SnapHighlight" type="Node3D" parent="."]
+script = ExtResource("3_snaphigh")
+
+; The plug's body, back along -Z from the mating face as the other sockets' ghosts are.
+[node name="HighlightMesh" type="MeshInstance3D" parent="SnapHighlight"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.008)
+mesh = SubResource("Mesh_plug_ghost")
+surface_material_override/0 = SubResource("Mat_plug_ghost")

@@ -76,6 +76,7 @@ func _ready() -> void:
 	_test_no_reset_path()
 	_test_sockets_write_their_connector()
 	await _test_a_baked_default_still_takes_its_own_plug()
+	await _test_handhelds_take_their_adapter()
 	_finish()
 
 
@@ -2696,6 +2697,12 @@ const SOCKET_SCENES := {
 	"res://Scenes/Objects/cables/psx_link_port.tscn": "psx_link_plug",
 	"res://Scenes/Objects/cables/trs_port.tscn": "trs_plug",
 	"res://Scenes/Objects/cables/vga_port.tscn": "vga_plug",
+	"res://Scenes/Objects/cables/dmg_dc_port.tscn": "dmg_dc_plug",
+	"res://Scenes/Objects/cables/gbc_dc_port.tscn": "gbc_dc_plug",
+	"res://Scenes/Objects/cables/nds_dc_port.tscn": "ext2_plug",
+	"res://Scenes/Objects/cables/dsi_dc_port.tscn": "dsi_dc_plug",
+	"res://Scenes/Objects/cables/psp_dc_port.tscn": "psp_dc_plug",
+	"res://Scenes/Objects/cables/gg_dc_port.tscn": "gg_dc_plug",
 }
 
 
@@ -2726,3 +2733,51 @@ func _test_a_baked_default_still_takes_its_own_plug() -> void:
 			_eq(port.snap_require, meant, "%s arriving with the default %s asks for %s"
 				% [path.get_file(), "\"\"" if baked.is_empty() else baked, meant])
 			port.queue_free()
+
+
+## Every handheld whose adapter RetroXR-models builds has its DC IN socket: a
+## DcInPort asking for that adapter's plug, standing on a face of the body (the
+## zone on the face, as every socket's is) with its +Z pointing straight out of
+## it, so a seated plug sits outside the shell. The Game Boy Advance has none (its
+## adapter takes the battery cover's place) and the SP's is its EXT.2 socket.
+const DC_IN := {
+	"res://Scenes/Objects/system_models/game_boy_primitive.tscn": "dmg_dc_plug",
+	"res://Scenes/Objects/system_models/game_boy_color_primitive.tscn": "gbc_dc_plug",
+	"res://Scenes/Objects/system_models/nds_primitive.tscn": "ext2_plug",
+	"res://Scenes/Objects/system_models/n3ds_primitive.tscn": "dsi_dc_plug",
+	"res://Scenes/Objects/system_models/psp_primitive.tscn": "psp_dc_plug",
+	"res://Scenes/Objects/system_models/game_gear.tscn": "gg_dc_plug",
+}
+
+
+func _test_handhelds_take_their_adapter() -> void:
+	for path: String in DC_IN:
+		var model: Node3D = load(path).instantiate()
+		add_child(model)
+		await get_tree().process_frame
+		var port := model.get_node_or_null("DcInPort") as Port
+		var body := model.get_node_or_null("HandheldBody") as MeshInstance3D
+		_ok(port != null and body != null and body.mesh is BoxMesh,
+			"%s has a DcInPort and a box body" % path.get_file())
+		if port == null or body == null or not body.mesh is BoxMesh:
+			model.queue_free()
+			continue
+		_eq(port.snap_require, DC_IN[path], "%s's DC IN asks for its adapter's plug" % path.get_file())
+		# In the body's frame: the zone on one face, within half a millimeter, and
+		# +Z along that face's outward normal.
+		var half := (body.mesh as BoxMesh).size / 2.0
+		var local := body.global_transform.affine_inverse() * port.global_transform
+		var out := local.basis.z.normalized()
+		var axis := out.abs().max_axis_index()
+		_ok(absf(out[axis]) > 0.999, "%s's DC IN looks square out of a face" % path.get_file(),
+			"its +Z is %s" % out)
+		_ok(absf(local.origin[axis] - signf(out[axis]) * half[axis]) < 0.0005,
+			"%s's DC IN stands on the face it looks out of" % path.get_file(),
+			"at %s on a body %s" % [local.origin, half * 2.0])
+		for other: int in 3:
+			if other != axis:
+				_ok(absf(local.origin[other]) < half[other],
+					"%s's DC IN is inside that face's edges" % path.get_file(),
+					"at %s on a body %s" % [local.origin, half * 2.0])
+		model.queue_free()
+		await get_tree().process_frame
