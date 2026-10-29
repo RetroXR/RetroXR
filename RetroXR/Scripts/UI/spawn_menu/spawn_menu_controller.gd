@@ -138,6 +138,7 @@ func _ready() -> void:
 	# DEFAULT_LAYER, so every panel gets it and not just this one.)
 	var sm := get_node_or_null("/root/SceneManager")
 	if sm != null:
+		sm.scene_changed.connect(_on_scene_changed)
 		sm.scene_ready.connect(_on_scene_ready)
 	call_deferred("_deferred_setup")
 
@@ -276,6 +277,17 @@ func _connect_menu_signals() -> void:
 		await _autoload_slot(room)
 		await get_tree().process_frame
 		sm.notify_scene_content_ready(room)
+
+
+## Every room change closes the menu, whoever started it: the Rooms tab, a slot
+## loaded from another room's grid, the host's change in a session, a mods reload.
+## The rig is carried across, so a menu left open stayed standing at its old world
+## position, which in the new room is anywhere.
+func _on_scene_changed(scene_id: String) -> void:
+	if not _viewport_node.visible:
+		return
+	print("[SpawnMenu] room changing to %s: closing the menu" % scene_id)
+	_hide_menu()
 
 
 ## The rig is carried from room to room, so _deferred_setup and
