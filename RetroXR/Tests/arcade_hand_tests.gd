@@ -35,6 +35,7 @@
 ##   carry/    a hand on a control cannot pick the cabinet up, and its squeeze does not attach
 ##   use/      a finger on a cap starts an attract game, and a hand on the panel is somebody at the cabinet
 ##   sticks/    a Taiko drummer's sticks in a headset's hands: the trigger and the thumb buttons hit the drum on the hand's own side, a swing hits where the head comes down
+##   drumside/  a free hand brought in against the SIDE of a Taiko drum: a ka on the half it came in at, any part of the hand, not a slow touch, not a hand held over the drum, once until it comes off
 ##   guitar/    a GuitarFreaks guitar in two hands: the neck hand's trigger, X/A and Y/B are the frets, the body hand's trigger strums and its stick wails and turns the knob, the neck raised wails,
 ##              one hand works the frets and a free hand strums, and all of it reaches the port through the cabinet's input
 extends "res://Tests/test_suite.gd"
@@ -79,7 +80,7 @@ func _run() -> void:
 			["twin", _group_twin], ["wheel", _group_wheel], ["dial", _group_dial], ["ball", _group_ball],
 			["lever", _group_lever], ["helm", _group_helm], ["bars", _group_bars], ["rider", _group_rider], ["cycle", _group_cycle], ["handlebars", _group_handlebars], ["slot", _group_slot], ["fly", _group_fly],
 			["input", _group_input], ["transfer", _group_transfer], ["off", _group_off],
-			["laser", _group_laser], ["carry", _group_carry], ["use", _group_use], ["sticks", _group_sticks], ["guitar", _group_guitar], ["prompts", _group_prompts]]:
+			["laser", _group_laser], ["carry", _group_carry], ["use", _group_use], ["sticks", _group_sticks], ["drumside", _group_drumside], ["guitar", _group_guitar], ["prompts", _group_prompts]]:
 		if _want(str(g[0])):
 			await (g[1] as Callable).call()
 			await _clear()
@@ -2332,6 +2333,9 @@ func _group_sticks() -> void:
 	await _take(hl, left)
 	input._process(0.016)
 	_ok(used == [&"grab"], "sticks: a stick in a hand starts the game a cabinet is only showing, as taking a gun does (%s)" % str(used))
+	input._process(0.016)
+	input._process(0.016)
+	_ok(used == [&"grab"], "sticks: and it is said ONCE: a stick that stays in the hand does not ask again every frame (a game that will not start was asked for again each frame, which was the lag) (%s)" % str(used))
 	sys.attracting = false
 	sys.is_powered_on = true
 	for held: ArcadeDrumstick in [left, right, second]:
@@ -2374,6 +2378,54 @@ func _take_guitar(h: Dictionary, guitar: ArcadeGuitar, point_name: String) -> vo
 
 func _stick_push(h: Dictionary, value: Vector2) -> void:
 	(h["tracker"] as XRControllerTracker).set_input(&"primary", value)
+
+
+func _group_drumside() -> void:
+	var r := await _rig("taiko6")
+	var input: ArcadeInput = r["input"]
+	var panel: ArcadeControlModule = r["panel"]
+	await _wait(4)
+	var shell := panel.find_child("DrumShell", true, false) as MeshInstance3D
+	_ok(shell != null, "drumside: the Taiko panel has its shell")
+	if shell == null:
+		return
+	var ka_left := ArcadeProfiles.button_bit(4)
+	var ka_right := ArcadeProfiles.button_bit(1)
+	var at := func(x: float, y: float) -> Vector3:
+		return shell.global_transform * Vector3(x, y, 0.0)
+	var held := func(bit: int) -> bool:
+		return (panel.hand_buttons() >> bit) & 1 == 1
+	var hand := _hand("right")
+	var move := func(x: float, y: float, delta: float = 0.016) -> void:
+		_tip_at(hand, at.call(x, y))
+		input._process(delta)
+	# Far off, then in against the right wall, fast: a ka on the right half, and only that.
+	move.call(0.40, 0.0)
+	move.call(0.13, 0.0)
+	_ok(held.call(ka_right) and not held.call(ka_left), "drumside: a hand brought in against the right side is a ka on the right half")
+	# It is a short press, not a held one.
+	input._process(0.20)
+	_ok(not held.call(ka_right), "drumside: and it lets go by itself a moment after")
+	# Still on the drum, it does not strike again; off the wall, it can.
+	move.call(0.13, 0.0)
+	move.call(0.40, 0.0)
+	move.call(0.40, 0.0)
+	move.call(-0.40, 0.0)
+	move.call(-0.13, 0.0)
+	_ok(held.call(ka_left) and not held.call(ka_right), "drumside: and from the left, on the left half (the hand had gone off the wall in between)")
+	input._process(0.20)
+	# A slow touch, a hand over the drum, and a hand going out hit nothing.
+	move.call(0.40, 0.0)
+	move.call(0.13, 0.0, 4.0)
+	_ok(not held.call(ka_right), "drumside: a slow touch hits nothing")
+	move.call(0.40, 0.0)
+	move.call(0.40, 0.0)
+	move.call(0.40, 0.14)
+	move.call(0.13, 0.14)
+	_ok(not held.call(ka_right), "drumside: a hand held 14 cm over the drum goes over it")
+	move.call(0.13, 0.0)
+	move.call(0.40, 0.0)
+	_ok(not held.call(ka_right), "drumside: and a hand going out of the drum is no strike")
 
 
 func _group_guitar() -> void:
@@ -2597,6 +2649,9 @@ func _group_guitar() -> void:
 	await _take_guitar(hr3, other, "BodyR")
 	input._process(0.016)
 	_ok(used == [&"grab"], "guitar: a guitar in a hand starts the game a cabinet is only showing (%s)" % str(used))
+	input._process(0.016)
+	input._process(0.016)
+	_ok(used == [&"grab"], "guitar: and it is said ONCE, not every frame the guitar stays in the hand (%s)" % str(used))
 	sys.attracting = false
 	sys.is_powered_on = true
 	other.drop()

@@ -2847,14 +2847,49 @@ func _group_music() -> void:
 			and ArcadePanelHands.sector_reading(face_at + Vector3(0.0, 0.10, 0.0), face_box, face_sector) > 1.0
 			and ArcadePanelHands.sector_reading(face_at + Vector3(0.0, -0.10, 0.0), face_box, face_sector) > 1.0,
 		"music: a fingertip on a Taiko zone presses it, one a hand above it or a hand through the drum does not")
-	# A zone of the drum stands ON its shell, not in it.
+	# No dead zone at the edge: the rim answers out to the wood's edge (the shell is 0.185 m), and the two halves meet on the line between them instead of leaving a slit.
+	var rim_cap := taiko.find_child("Btn1", true, false) as MeshInstance3D
+	var rim_box := rim_cap.mesh.get_aabb()
+	var rim_sec: Dictionary = sec_of.call("Btn1")
+	var left_rim_sec: Dictionary = sec_of.call("Btn4")
+	var edge_ok := ArcadePanelHands.sector_reading(Vector3(0.18, 0.0, 0.0), rim_box, rim_sec) <= 1.0 and ArcadePanelHands.sector_reading(Vector3(-0.18, 0.0, 0.0), rim_box, left_rim_sec) <= 1.0
+	var seam_ok := ArcadePanelHands.sector_reading(Vector3(0.0, 0.0, -0.15), rim_box, rim_sec) <= 1.0 and ArcadePanelHands.sector_reading(Vector3(0.0, 0.0, -0.15), rim_box, left_rim_sec) <= 1.0 \
+			and ArcadePanelHands.sector_reading(Vector3(0.0, 0.0, 0.15), rim_box, rim_sec) <= 1.0 and ArcadePanelHands.sector_reading(Vector3(0.0, 0.0, 0.15), rim_box, left_rim_sec) <= 1.0
+	_ok(edge_ok and seam_ok and ArcadePanelHands.sector_reading(Vector3(0.21, 0.0, 0.0), rim_box, rim_sec) > 1.0,
+		"music: no dead zone at the drum's edge: the rim answers out to the wood (%s), the halves meet with no slit (%s), and a point beyond the wood is nothing" % [str(edge_ok), str(seam_ok)])
+	# A zone of the drum stands ON its shell, not in it: along the drum's own axis (the drum is tilted toward the player, so not along the deck's Z).
 	var shell := taiko.find_child("DrumShell", true, false) as MeshInstance3D
-	var shell_top := shell.position.z + (shell.mesh as CylinderMesh).height * 0.5
+	var shell_half := (shell.mesh as CylinderMesh).height * 0.5
+	var axis := shell.basis.y.normalized()
 	var on_shell := true
 	for n in ["Btn1", "Btn2", "Btn3", "Btn4"]:
 		var zone_node := taiko.find_child(n, true, false) as MeshInstance3D
-		on_shell = on_shell and absf(zone_node.position.z - zone_node.mesh.get_aabb().size.y * 0.5 - shell_top) < 0.001
-	_ok(on_shell, "music: Taiko's four zones stand on the drum's shell (its top at %.3f m)" % shell_top)
+		var above := (zone_node.position - shell.position).dot(axis) - zone_node.mesh.get_aabb().size.y * 0.5 - shell_half
+		on_shell = on_shell and absf(above) < 0.001
+	_ok(on_shell, "music: Taiko's four zones stand on the drum's shell, along its own axis")
+	# The drum is tilted toward the player as a real one is, its face and its four zones alike, and the low edge rests on the deck instead of sinking into it.
+	var tilt_ok := true
+	var want_normal := Basis(Vector3.RIGHT, deg_to_rad(ArcadeInstruments.TAIKO_TILT)) * Vector3.BACK
+	for n in ["DrumShell", "Btn1", "Btn2", "Btn3", "Btn4"]:
+		var part := taiko.find_child(n, true, false) as Node3D
+		tilt_ok = tilt_ok and part != null and part.basis.y.normalized().is_equal_approx(want_normal)
+	_ok(tilt_ok and want_normal.z < 0.97 and want_normal.y < -0.2, "music: Taiko's drum and its four zones face the player, turned %.0f degrees on the deck's own slope (a flat drum was the first draft)" % ArcadeInstruments.TAIKO_TILT)
+	# The drum is sunk into the deck at its near edge (it stands lower), but every ZONE stays above the deck plate, so the one nearest the player can still be seen and struck.
+	var lowest := INF
+	for n in ["Btn1", "Btn2", "Btn3", "Btn4"]:
+		var zone_node := taiko.find_child(n, true, false) as MeshInstance3D
+		var box := zone_node.mesh.get_aabb()
+		for corner in 8:
+			var local := box.position + box.size * Vector3(corner & 1, (corner >> 1) & 1, (corner >> 2) & 1)
+			lowest = minf(lowest, (zone_node.transform * local).z)
+	_ok(lowest > 0.002, "music: every Taiko zone stays above the deck, the lowest point %.1f mm over it" % (lowest * 1000.0))
+	# What presses a zone sinks it along the drum's own normal.
+	var sink_ok := true
+	for n in ["Btn1", "Btn3"]:
+		var zone_cap := taiko.find_child(n, true, false) as Node3D
+		var press: Vector3 = zone_cap.get_meta(&"press_offset", Vector3.ZERO)
+		sink_ok = sink_ok and press.length() > 0.008 and press.normalized().is_equal_approx(-want_normal)
+	_ok(sink_ok, "music: a pressed Taiko zone sinks along the drum's own normal, by %.0f mm" % (ArcadeInstruments.TAIKO_PRESS * 1000.0))
 	# GuitarFreaks has no controller on its panel: the guitar is its own scene (the guitar/ group), its panel only a START and a pedal.
 	# Mambo a Go-Go: nine pads, MAME's numbering: the drums left, centre, right are columns 1, 2, 3; pad 1 on top, pad 2 bottom left, pad 3 bottom right.
 	model.morph_to(_spec("mamboagg"))
@@ -3597,6 +3632,8 @@ func _stick_of(sys: RetroSystem, player: int, side: int) -> ArcadeDrumstick:
 
 
 ## What a desktop hand's pivot does when what it holds asks to be let go (DesktopPickup._drop): the held thing lets go of it.
+## How big the desktop's grip round START may be (ArcadeCabinetBuilder.DESKTOP_START_GRIP).
+const S_DESKTOP_GRIP := Vector2(0.10, 0.08)
 const FAKE_PIVOT := "extends Node3D\nvar picked_up_ranged := false\nvar held: XRToolsPickable\nfunc drop_object() -> void:\n\tif is_instance_valid(held):\n\t\theld.let_go(self, Vector3.ZERO, Vector3.ZERO)\n"
 
 
@@ -3724,6 +3761,14 @@ func _group_sticks() -> void:
 		for panel in _panels(model):
 			cradles = cradles and (panel as ArcadeControlModule).find_child("GearCradle" + tag, true, false) != null and (panel as ArcadeControlModule).find_child("GearRest" + tag, true, false) != null
 	_ok(cradles, "sticks: a cradle is built under each stick on each panel")
+	# The deck is 0.25 m deeper than an ordinary one, and a coin door left on the body's face (z 0.40) would stand a third of a metre back under it: the doors come forward with the deck (7 cm behind its edge).
+	var doors_forward := not _doors(model).is_empty()
+	var door_zs := ""
+	for door: ArcadeCoinModule in _doors(model):
+		var door_z := model.to_local(door.global_position).z
+		door_zs += " %.2f" % door_z
+		doors_forward = doors_forward and door_z > 0.40 + ArcadeInstruments.deck_extra(ArcadeInstruments.TAIKO) - 0.01
+	_ok(doors_forward, "sticks: the coin doors come forward with the deeper deck, not left a third of a metre under it (z%s)" % door_zs)
 	# The panel's grip leaves the cradles out, so a laser at a stick finds the stick and not the panel.
 	var hit_ok := true
 	for stick in sticks:
@@ -3731,9 +3776,18 @@ func _group_sticks() -> void:
 		var found := _first_hit(sys, above, stick.global_position)
 		hit_ok = hit_ok and found != null and (found.get_parent() == stick or found == stick.captive_well)
 	_ok(hit_ok, "sticks: a laser aimed at a stick in its cradle meets the stick, not the panel's grip")
-	# The grip still covers the drum and its START.
+	# A drum is for sticks and fingers: in desktop mode (a headless run is one) the part of the panel a crosshair takes shrinks to START, so the mouse neither lights nor attaches the panel from the drum.
+	# A headset keeps the whole panel (`desktop_rect` only applies off a headset), where hands touch the drum and a squeeze still attaches.
 	var grip := (_panels(model)[0] as ArcadeControlModule).grip()
-	_ok(grip != null and grip.panel_size.x < 0.45 and grip.panel_size.x > 0.38, "sticks: the panel's grip is still the drum's width (%.2f m), not the cradles'" % (grip.panel_size.x if grip != null else 0.0))
+	var panel0 := _panels(model)[0] as ArcadeControlModule
+	var drum := panel0.find_child("DrumShell", true, false) as Node3D
+	var start := panel0.find_child("Start", true, false) as Node3D
+	_ok(grip != null and grip.desktop_rect.has_area() and grip.panel_size.x <= S_DESKTOP_GRIP.x + 0.001 and grip.panel_size.y <= S_DESKTOP_GRIP.y + 0.001,
+		"drum: in desktop mode the panel's grip is round START alone (%.2f x %.2f m), not the drum's width" % [grip.panel_size.x if grip != null else 0.0, grip.panel_size.y if grip != null else 0.0])
+	var over_drum := _first_hit(sys, drum.global_position + Vector3(0.0, 0.45, 0.30), drum.global_position)
+	var over_start := _first_hit(sys, start.global_position + Vector3(0.0, 0.45, 0.30), start.global_position)
+	_ok(drum != null and start != null and over_drum != grip and over_start == grip,
+		"drum: a crosshair on the drum does not meet the panel's grip (it cannot be taken), and one on START does")
 	# Every hit: the zone it lands in and the button it presses, for every stick.
 	var input := model.arcade_input()
 	var want := {"FaceLeft": 3, "FaceRight": 2, "RimLeft": 4, "RimRight": 1}
@@ -3791,6 +3845,15 @@ func _group_sticks() -> void:
 		"sticks: a head that comes down beside the drum hits nothing")
 	var through := ArcadeDrumstick.crossing(fcap.global_transform * (fmid + Vector3(0, 0.12, 0)), fcap.global_transform * (fmid + Vector3(0, -0.12, 0)), 0.1, zones)
 	_ok(not through.is_empty() and str((through["zone"] as Dictionary)["name"]) == "FaceLeft", "sticks: a head that is through the drum between two frames hit it where it crossed")
+	# ANY part of the stick strikes the drum, not its tip alone: a point up the shaft that goes down through the face is the hit, with the tip nowhere near it; two points on two zones, the faster one's zone.
+	var far_off := fcap.global_transform * (fmid + Vector3(1.0, 0.2, 0.0))
+	var shaft_hit := ArcadeDrumstick.crossing_any([far_off, fcap.global_transform * (fmid + Vector3(0, 0.05, 0))], [far_off, fcap.global_transform * (fmid + Vector3(0, -0.02, 0))], 0.05, zones)
+	_ok(not shaft_hit.is_empty() and str((shaft_hit["zone"] as Dictionary)["name"]) == "FaceLeft", "sticks: a point up the shaft going down through the face is a don, with the tip nowhere near the drum")
+	_ok(ArcadeDrumstick.crossing_any([far_off, far_off], [far_off, far_off], 0.05, zones).is_empty() and ArcadeDrumstick.crossing_any([], [], 0.05, zones).is_empty(),
+		"sticks: and no point, or none that goes down onto the drum, is no hit")
+	# The SIDE of the drum is the rim as well (DrumSide, tested on its own in drum_side_tests): the stick reads it too.
+	_ok(DrumSide.shell_of(zones) != null and not ArcadeDrumstick.SIDE_POINTS.is_empty() and ArcadeDrumstick.SIDE_POINTS[0] == ArcadeDrumstick.TIP,
+		"sticks: the head's side points start at its tip, and the drum's shell is found from the zones")
 	# The same, by the stick itself: a swing across several frames, one hit, and a hit again only after the head rises.
 	var swing := _stick_of(sys, 0, 0)
 	input._taps.clear()
@@ -3911,6 +3974,42 @@ func _group_sticks() -> void:
 	await _wait(4)
 	var reach := left.cord_anchor.global_position.distance_to(left.cord_boss())
 	_ok(reach <= left.reach() + 0.05, "sticks: and a stick lying further than that is reeled in to it (%.2f of %.2f m)" % [reach, left.reach()])
+	# Holster: a stick let go NEAR its cradle goes back in it, one let go further off falls, and one that is merely near does nothing. Both are free here (the tether dropped one, the reel brought the other in).
+	for stick in sticks:
+		if stick.captive_well.picked_up_object == stick:
+			stick.captive_well.drop_object()
+		stick.linear_velocity = Vector3.ZERO
+	_ok(left.captive_well.snap_mode == XRToolsSnapZone.SnapMode.DROPPED and right.captive_well.snap_mode == XRToolsSnapZone.SnapMode.DROPPED,
+		"holster: a cradle takes a stick only when it is let go (DROPPED), never because it came near (RANGE)")
+	var seat := left.captive_well.snap_pose_for(left).origin
+	left.freeze = true
+	left.global_position = seat + Vector3(0.0, 0.3, 0.2)
+	await _wait(8)
+	_ok(left.captive_well.picked_up_object != left, "holster: a stick brought near its cradle does not go in by itself")
+	_ok(Holster.in_reach(left) and is_equal_approx(Holster.distance_to_seat(left), Vector3(0.0, 0.3, 0.2).length()),
+		"holster: and it is within the desktop's reach of its seat (%.2f of %.2f m)" % [Holster.distance_to_seat(left), Holster.DESKTOP_REACH])
+	left.freeze = false
+	_ok(Holster.stow(left) and left.captive_well.picked_up_object == left, "holster: let go near, it goes back into its own cradle")
+	left.captive_well.drop_object()
+	left.freeze = true
+	left.global_position = seat + Vector3(0.0, 0.3, Holster.DESKTOP_REACH + 0.5)
+	left.freeze = false
+	_ok(not Holster.in_reach(left) and not Holster.stow(left) and left.captive_well.picked_up_object != left,
+		"holster: let go too far from it, it is not put back and falls (%.2f m)" % Holster.distance_to_seat(left))
+	# The mate is judged by its own cradle: the right stick, near the LEFT cradle's side of the room, still goes to its own.
+	right.freeze = true
+	right.global_position = right.captive_well.snap_pose_for(right).origin + Vector3(0.0, 0.25, 0.1)
+	right.freeze = false
+	_ok(Holster.stow(right) and right.captive_well.picked_up_object == right and left.captive_well.picked_up_object != right,
+		"holster: each stick goes to its OWN cradle")
+	left.captive_well.drop_object()
+	left.freeze = true
+	left.global_position = seat + Vector3(0.0, 0.2, 0.1)
+	left.freeze = false
+	left.pick_up(pivots[0])
+	pivots[0].set("held", left)
+	_ok(left.is_picked_up() and not Holster.stow(left) and left.captive_well.picked_up_object != left, "holster: a stick a hand still holds is not put back under it")
+	left.drop()
 	# Morphing to another game takes it all away, and back brings new ones.
 	var before := sticks.duplicate()
 	var rope_nodes: Array = []
