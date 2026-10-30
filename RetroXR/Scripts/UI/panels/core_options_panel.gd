@@ -100,6 +100,7 @@ func _ensure_ui_connected() -> void:
 	ui.pad_device_changed.connect(_on_pad_device_changed)
 	ui.video_out_toggled.connect(_on_video_out_toggled)
 	ui.ignore_gravity_toggled.connect(_on_ignore_gravity_toggled)
+	ui.screen_glow_toggled.connect(_on_screen_glow_toggled)
 	ui.volume_changed.connect(_on_volume_changed)
 	ui.close_requested.connect(hide_panel)
 	ui.saves_source_picked.connect(_on_saves_source_picked)
@@ -126,6 +127,7 @@ func _populate() -> void:
 	_shown_volume = _device_volume()
 	ui.populate_system(_system.video_out_enabled, _system.supports_video_out_toggle(),
 		_system.ignore_gravity, _system.pad_guid, _system.pad_ordinal, _shown_volume)
+	ui.populate_screen_glow(_system.get_screen_glow())
 	_controls_state = _system.controls_state()
 	ui.populate_controls(_controls_state)
 	ui.populate_debug(_system.debug_state())
@@ -333,6 +335,12 @@ func _while_shown(delta: float) -> void:
 func _on_ignore_gravity_toggled(enabled: bool) -> void:
 	if _system and is_instance_valid(_system):
 		_system.set_ignore_gravity(enabled)
+
+
+## System-tab toggle: a reflective-LCD handheld's screen lights itself.
+func _on_screen_glow_toggled(enabled: bool) -> void:
+	if _system and is_instance_valid(_system):
+		_system.set_screen_glow(enabled)
 
 
 func _on_port_device_changed(port: int, device_id: int) -> void:

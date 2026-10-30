@@ -2416,9 +2416,9 @@ func _test_power_led() -> void:
 # ── Handheld screens lit by the room ──────────────────────────────────────────
 #
 # A reflective LCD with no light of its own (Game Boy, GBC, GBA, NGP, WonderSwan,
-# Pokemon mini, Supervision) is lit by the room unless Options "Self-Lit Handheld
-# Screens" is on; a backlit machine (the Game Gear) glows either way; the GBA SP
-# follows its own light button and never the option.
+# Pokemon mini, Supervision) is lit by the room unless its own menu's "Self-Lit
+# Screen" is on; a backlit machine (the Game Gear) glows and offers no switch; the
+# GBA SP follows its own light button and offers no switch either.
 
 ## Stands in for RetroSystem: all a handheld model asks of its parent is a picture.
 class _PictureHost extends Node3D:
@@ -2439,7 +2439,6 @@ func _screen_glows(mat: Material) -> bool:
 
 
 func _test_screen_lit() -> void:
-	var saved_pref := AppPrefs.self_lit_handheld_screens
 	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0.8, 0.9, 0.2))
 	var tex := ImageTexture.create_from_image(img)
@@ -2464,14 +2463,19 @@ func _test_screen_lit() -> void:
 			_ok(false, "screen_lit/%s has a screen" % scene_name)
 			host.queue_free()
 			continue
+		_ok(bool(model.call("has_screen_glow_switch")) == reflective,
+			"screen_lit/%s %s a Self-Lit Screen switch" % [scene_name, "offers" if reflective else "has no"])
 		for pref: bool in [false, true]:
-			AppPrefs.self_lit_handheld_screens = pref
+			if reflective:
+				model.call("set_screen_glow", pref)
 			model.call("_update_screen")
 			model.call("_update_screen_light")
 			var want := pref or not reflective
 			var mat := screen.get_surface_override_material(0)
-			_ok(_screen_glows(mat) == want, "screen_lit/%s %s with the option %s" % [scene_name,
+			_ok(_screen_glows(mat) == want, "screen_lit/%s %s with Self-Lit Screen %s" % [scene_name,
 				"glows" if want else "is lit by the room", "on" if pref else "off"], str(mat))
+			if not reflective:
+				break
 			var light: Node = model.get("_screen_light")
 			if light != null and not want:
 				_ok(not bool(light.get("_output_active")),
@@ -2489,17 +2493,16 @@ func _test_screen_lit() -> void:
 	var sp_screen := sp.get("_screen") as MeshInstance3D
 	var button := sp.find_child("LightButton", true, false) as VRButton
 	_ok(button != null, "screen_lit/gba sp has a light button")
-	AppPrefs.self_lit_handheld_screens = false
+	_ok(not bool(sp.call("has_screen_glow_switch")), "screen_lit/gba sp offers no Self-Lit Screen switch")
 	sp.call("_update_screen")
 	_ok(_screen_glows(sp_screen.get_surface_override_material(0)),
-		"screen_lit/gba sp glows by default, whatever the option")
+		"screen_lit/gba sp glows by default")
 	if button != null:
 		button.button_pressed.emit()
-	AppPrefs.self_lit_handheld_screens = true
 	sp.call("_update_screen")
 	sp.call("_update_screen_light")
 	_ok(not _screen_glows(sp_screen.get_surface_override_material(0)),
-		"screen_lit/gba sp with its light switched off is lit by the room, option or not")
+		"screen_lit/gba sp with its light switched off is lit by the room")
 	var sp_light: Node = sp.get("_screen_light")
 	_ok(sp_light == null or not bool(sp_light.get("_output_active")),
 		"screen_lit/gba sp casts no light with its light off")
@@ -2509,7 +2512,6 @@ func _test_screen_lit() -> void:
 	_ok(_screen_glows(sp_screen.get_surface_override_material(0)),
 		"screen_lit/gba sp's button switches it back on")
 	host.queue_free()
-	AppPrefs.self_lit_handheld_screens = saved_pref
 	await get_tree().process_frame
 
 

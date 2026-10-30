@@ -161,16 +161,18 @@ claims them: flycast without nvmem died on its first write to a protected RAM pa
 `_reflective_lcd = true` in `_init` (Game Boy, GBC, GBA both models, Neo Geo Pocket,
 WonderSwan, Pokemon mini, Supervision): their screen is LIT BY THE ROOM
 (`screen_pixel_aa_lit` / `gameboy_lcd_lit`, or `picture_material_lit` for the GBA's
-null-shader path) unless Options "Self-Lit Handheld Screens"
-(`AppPrefs.self_lit_handheld_screens`, default off) is on. Backlit machines (Game Gear,
-Lynx, PSP, DS/3DS) and the Virtual Boy never set it. A room-lit panel also turns its
+null-shader path) unless that machine's own "Self-Lit Screen" is on: the System tab of
+its menu (point + menu button), under Ignore Gravity, off by default, shown only where
+`has_screen_glow_switch()`, saved per object as `screen_glow: true` (absent = off),
+not on the wire. Backlit machines (Game Gear, Lynx, PSP, DS/3DS) and the Virtual Boy
+never set it. A room-lit panel also turns its
 `ScreenCastLight` off. A subclass that replaces `_lcd_shader` must replace
 `_lcd_shader_lit` with its pair; each pair shares one `.gdshaderinc` (the colour), the
 two `.gdshader`s differ only in render_mode.
 
 The GBA SP has its own light (`LightButton`, a VRButton over the stand-in's cap between
 the screens, so it works by pointer and with "Press by Touch" off): on by default,
-it overrides `screen_self_lit()` and ignores the option. Saved per object as
+it overrides `screen_self_lit()` and offers no "Self-Lit Screen". Saved per object as
 `screen_light: false` (absent = on); cosmetic, not on the wire. `system_tests screen_lit/`.
 
 ## Dependencies

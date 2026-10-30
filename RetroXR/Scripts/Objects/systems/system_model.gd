@@ -396,6 +396,12 @@ func set_screen_light(_on: bool) -> void:
 	pass
 
 
+## A "Self-Lit Screen" switch in the machine's menu (a handheld with a reflective
+## LCD). False for everything else.
+func has_screen_glow_switch() -> bool:
+	return false
+
+
 ## Restore a clamshell lid's interior open angle (0 shut … 180 flat). Hardware
 ## without a lid ignores it.
 func set_lid_angle_deg(_open_deg: float) -> void:

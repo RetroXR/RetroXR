@@ -65,9 +65,12 @@ var _lcd_material: ShaderMaterial = null
 var _lcd_shader_lit: Shader = PIXEL_AA_LIT_SHADER
 var _lcd_material_lit: ShaderMaterial = null
 ## True for a machine whose real panel was a reflective LCD with no light behind
-## it: its screen is lit by the room unless Options "Self-Lit Handheld Screens"
-## (AppPrefs.self_lit_handheld_screens) is on. Backlit machines leave it false.
+## it: its screen is lit by the room unless the player switches `self_lit` on (the
+## machine's own menu, System tab). Backlit machines leave it false.
 var _reflective_lcd := false
+## This machine's "Self-Lit Screen" switch: a reflective LCD glows anyway. Off by
+## default; saved per object (RetroSystem.get_screen_glow).
+var self_lit := false
 ## The last screen_self_lit() _update_screen() saw, for logging a change once.
 var _was_self_lit := -1
 ## What the panel shows with nothing running — the authored, unlit LCD.
@@ -276,18 +279,18 @@ func _update_screen() -> void:
 		if _screen.get_surface_override_material(0) != _screen_off_material:
 			_screen.set_surface_override_material(0, _screen_off_material)
 		return
-	var self_lit := screen_self_lit()
-	if int(self_lit) != _was_self_lit:
-		_was_self_lit = int(self_lit)
-		print("[Handheld] %s screen self-lit=%s (reflective=%s, pref=%s)" % [name, self_lit,
-			_reflective_lcd, AppPrefs.self_lit_handheld_screens])
+	var lit_itself := screen_self_lit()
+	if int(lit_itself) != _was_self_lit:
+		_was_self_lit = int(lit_itself)
+		print("[Handheld] %s screen self-lit=%s (reflective=%s, switched=%s)" % [name,
+			lit_itself, _reflective_lcd, self_lit])
 	if _lcd_shader == null:
-		var pic := picture_material(tex) if self_lit else picture_material_lit(tex)
+		var pic := picture_material(tex) if lit_itself else picture_material_lit(tex)
 		if _screen.get_surface_override_material(0) != pic:
 			_screen.set_surface_override_material(0, pic)
 		return
 	var mat: ShaderMaterial
-	if self_lit:
+	if lit_itself:
 		if _lcd_material == null:
 			_lcd_material = ShaderMaterial.new()
 			_lcd_material.shader = _lcd_shader
@@ -304,10 +307,19 @@ func _update_screen() -> void:
 
 
 ## Whether the panel lights itself (unshaded / emissive) or is lit by the room.
-## Polled every frame, so the Options toggle takes at once. The GBA SP overrides
-## this with its own light switch.
+## Polled every frame, so the menu's switch takes at once. The GBA SP overrides
+## this with its own light button.
 func screen_self_lit() -> bool:
-	return not _reflective_lcd or AppPrefs.self_lit_handheld_screens
+	return not _reflective_lcd or self_lit
+
+
+## Whether the machine's menu offers "Self-Lit Screen": only a reflective LCD.
+func has_screen_glow_switch() -> bool:
+	return _reflective_lcd
+
+
+func set_screen_glow(on: bool) -> void:
+	self_lit = on
 
 
 func _update_screen_light() -> void:

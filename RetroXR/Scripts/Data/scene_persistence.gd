@@ -61,6 +61,9 @@ const _BOOL_FIELDS := ["video_out", "ignore_gravity", "crt_enabled", "half_pages
 	"locked", "hardback", "sticks",
 	# A GBA SP's light switch (RetroSystem.get_screen_light); absent = on.
 	"screen_light",
+	# A reflective-LCD handheld's "Self-Lit Screen" (RetroSystem.get_screen_glow);
+	# absent = off.
+	"screen_glow",
 	# A mixed shell colour forced as metal flake -- see RetroCartridge.shell_flake.
 	"shell_flake"]
 const _REFERENCE_FIELDS := [
@@ -1698,6 +1701,8 @@ func _restore_system(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: 
 		sys.set_lid_angle_deg.call_deferred(lid_angle)
 	if rec.has("screen_light"):
 		sys.set_screen_light(bool(rec["screen_light"]))
+	if rec.has("screen_glow"):
+		sys.set_screen_glow(bool(rec["screen_glow"]))
 
 
 func _restore_expansion(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
@@ -2192,6 +2197,9 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 	# A screen light switched OFF (GBA SP); on is the default and goes unsaved.
 	if sys.get_screen_light() == 0:
 		result["screen_light"] = false
+	# "Self-Lit Screen" switched ON; off is the default and goes unsaved.
+	if sys.get_screen_glow() == 1:
+		result["screen_glow"] = true
 	# Extra video-out channels (dual-screen handhelds: ch 1 = BOTTOM).
 	var extra: Array = []
 	for ch in range(1, sys.get_channel_count()):

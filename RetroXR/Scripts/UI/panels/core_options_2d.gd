@@ -28,6 +28,8 @@ signal pad_device_changed(guid: String, ordinal: int)
 signal video_out_toggled(enabled: bool)
 ## System-tab toggle: float in place where dropped (no gravity).
 signal ignore_gravity_toggled(enabled: bool)
+## System-tab toggle: a reflective-LCD handheld's screen lights itself.
+signal screen_glow_toggled(enabled: bool)
 ## System-tab slider: a handheld's volume, 0..1, the level its own wheel or slider
 ## sets.
 signal volume_changed(value: float)
@@ -66,6 +68,8 @@ var _volume_slider: HSlider = null
 var _volume_value: Label = null
 var _video_out_check: VRToggle = null
 var _ignore_grav_check: VRToggle = null
+var _screen_glow_row: Control = null
+var _screen_glow_check: VRToggle = null
 var _tabs: TabContainer = null
 ## The slotted cartridge's UI, embedded as a tab. Driven by the cartridge's own
 ## CartridgeOptionsPanel, which owns all the save/sync/achievement logic.
@@ -319,6 +323,28 @@ func _build_ui() -> void:
 		if not _suppress_signal:
 			ignore_gravity_toggled.emit(on))
 	grav_row.add_child(_ignore_grav_check)
+
+	# Only on a handheld whose real LCD had no light (populate_screen_glow): off,
+	# it is lit by the room as the real one was; on, it glows like a backlight.
+	var glow_row := HBoxContainer.new()
+	glow_row.custom_minimum_size = Vector2(0, 56)
+	glow_row.add_theme_constant_override("separation", 8)
+	glow_row.visible = false
+	sys_rows.add_child(glow_row)
+	_screen_glow_row = glow_row
+
+	var glow_lbl := Label.new()
+	glow_lbl.text = "Self-Lit Screen"
+	glow_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	glow_lbl.add_theme_font_size_override("font_size", 18)
+	glow_lbl.add_theme_color_override("font_color", COLOR_ROW)
+	glow_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	glow_row.add_child(glow_lbl)
+
+	_screen_glow_check = VRToggle.create(false, func(on: bool):
+		if not _suppress_signal:
+			screen_glow_toggled.emit(on))
+	glow_row.add_child(_screen_glow_check)
 
 	# Track which scroll container is active for stick-driven scrolling
 	_active_scroll = _controls_scroll
@@ -634,6 +660,17 @@ func populate_system(video_out: bool, show_video_out: bool, ignore_grav: bool,
 		_video_out_check.button_pressed = video_out
 	if _ignore_grav_check:
 		_ignore_grav_check.button_pressed = ignore_grav
+	_suppress_signal = false
+
+
+## The System tab's "Self-Lit Screen" row: `state` is RetroSystem.get_screen_glow(),
+## -1 hiding the row for a machine without the switch.
+func populate_screen_glow(state: int) -> void:
+	if _screen_glow_row == null:
+		return
+	_screen_glow_row.visible = state >= 0
+	_suppress_signal = true
+	_screen_glow_check.button_pressed = state == 1
 	_suppress_signal = false
 
 

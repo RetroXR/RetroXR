@@ -916,6 +916,22 @@ func set_screen_light(on: bool) -> void:
 		_model.set_screen_light(on)
 
 
+## The machine menu's "Self-Lit Screen" (a handheld whose real LCD had no light):
+## -1 for a machine without the switch, else 0 / 1.
+func get_screen_glow() -> int:
+	if _model == null or not _model.has_screen_glow_switch():
+		return -1
+	return 1 if _model.get("self_lit") else 0
+
+
+func set_screen_glow(on: bool) -> void:
+	if _model == null or not _model.has_screen_glow_switch():
+		print("[RetroSystem] %s: no Self-Lit Screen switch; ignoring %s" % [name, on])
+		return
+	print("[RetroSystem] %s: Self-Lit Screen %s" % [name, "on" if on else "off"])
+	_model.set_screen_glow(on)
+
+
 ## Pose a lid at a saved angle. Public because ScenePersistence has to re-apply it
 ## after seating a cartridge: an insert swings the bay open on its own.
 func set_lid_angle_deg(open_deg: float) -> void:

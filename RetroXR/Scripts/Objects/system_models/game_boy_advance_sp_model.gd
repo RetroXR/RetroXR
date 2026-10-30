@@ -79,9 +79,9 @@ func _on_shell_ready() -> void:
 # The SP's selling point: a light of its own behind the LCD that the GBA never
 # had, switched by the small button between the screens. On by default, as an
 # SP is the morning you take it out of the box; switched off, the panel is the
-# plain reflective LCD and is lit by the room. It answers to this button alone,
-# never to Options "Self-Lit Handheld Screens" (that is for the machines with no
-# light). Cosmetic: saved with the scene, not sent over netplay.
+# plain reflective LCD and is lit by the room. It answers to this button alone;
+# the "Self-Lit Screen" menu switch is for the machines with no light, and the SP
+# does not offer it. Cosmetic: saved with the scene, not sent over netplay.
 
 var screen_light_on := true
 

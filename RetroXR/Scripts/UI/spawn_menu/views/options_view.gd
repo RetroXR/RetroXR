@@ -701,14 +701,6 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 		AppPrefs.poke_controls = on
 		AppPrefs.save_prefs()
 	)
-
-	# Handhelds whose real panel had no light (default off: lit by the room, as
-	# the real ones were). No signal: each handheld reads AppPrefs every frame.
-	_toggle_row(vbox, "Self-Lit Handheld Screens", AppPrefs.self_lit_handheld_screens, func(on: bool) -> void:
-		AppPrefs.self_lit_handheld_screens = on
-		AppPrefs.save_prefs()
-	, Callable(), 68, "Off: Game Boy, GBA, NGP and WonderSwan screens are lit by the room")
-
 ## The DEBUG sub-tab: which build this is, the overlays that draw over the room,
 ## and the graphics API a core is offered.
 ##
