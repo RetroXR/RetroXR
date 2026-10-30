@@ -3,20 +3,22 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dhkyi2x2g810d"
-path="res://.godot/imported/street_midday_sky.png-b757605c0eb36a502cd1836315c9335b.ctex"
+path.bptc="res://.godot/imported/street_midday_sky.png-b757605c0eb36a502cd1836315c9335b.bptc.ctex"
+path.astc="res://.godot/imported/street_midday_sky.png-b757605c0eb36a502cd1836315c9335b.astc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://imported-assets/bedroom/street/street_midday_sky.png"
-dest_files=["res://.godot/imported/street_midday_sky.png-b757605c0eb36a502cd1836315c9335b.ctex"]
+dest_files=["res://.godot/imported/street_midday_sky.png-b757605c0eb36a502cd1836315c9335b.bptc.ctex", "res://.godot/imported/street_midday_sky.png-b757605c0eb36a502cd1836315c9335b.astc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
