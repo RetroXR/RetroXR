@@ -131,6 +131,13 @@ func adopt_button(button: VRButton, part_name: String, travel: float = 0.0015, e
 		box.size = ab.size
 		shape.shape = box
 		shape.position = ab.get_center()
+		# A fingertip presses a key only over its own face (1 mm round it), never through a neighbour's: VRButton's
+		# touch is a sphere round the key's centre, and on a front panel MENU's reached the DVD's up arrow below it.
+		button.press_gate = footprint_gate(cap, 0.001)
+	# The sphere must still reach the key's far corners (a 38 mm key is far wider than the 10 mm default); the gate
+	# keeps a wide sphere on its own key.
+	var half := Vector2(key.get_aabb().size.x, key.get_aabb().size.y).length() / 2.0
+	button.trigger_radius = maxf(button.trigger_radius, half + 0.003)
 	var legend := button.get_node_or_null("ButtonLabel") as Node3D
 	if legend:
 		legend.visible = false        # the key carries its own icon
@@ -238,30 +245,34 @@ func fit_shapes(shapes: Array[CollisionShape3D], except: Array[String] = []) -> 
 		print("[Appliance] %s: %s fitted to the model, %s mm" % [name, shape.get_path(), (box.size * 1000.0).snapped(Vector3.ONE * 0.1)])
 
 
-## A fingertip presses a key only over its own face: inside the outline of the cap's front faces (its local +Z, the
-## way it faces) grown `reach`, and no higher than `hover` over the face. VRButton's touch is a radius round the
+## A fingertip presses a key only over its own face: inside the outline of the cap's front faces (its local +Z, or
+## `face_axis`) grown `reach`, and no higher than `hover` over the face. VRButton's touch is a radius round the
 ## key's origin, which on a ring reaches the arcs either side and OK.
-static func footprint_gate(cap: MeshInstance3D, reach: float = 0.001, hover: float = 0.003) -> Callable:
+static func footprint_gate(cap: MeshInstance3D, reach: float = 0.001, hover: float = 0.003,
+		face_axis: int = 2) -> Callable:
+	# `face_axis`: which of the cap's local axes its face looks out along (+); the other two are its footprint.
+	var u := (face_axis + 1) % 3
+	var v := (face_axis + 2) % 3
 	var tris: Array[PackedVector2Array] = []
 	var faces := cap.mesh.get_faces()
 	for i in range(0, faces.size(), 3):
 		var a := faces[i]
 		var b := faces[i + 1]
 		var c := faces[i + 2]
-		if absf((b - a).cross(c - a).normalized().z) > 0.5:     # the face and its parallels: one outline
-			tris.append(PackedVector2Array([Vector2(a.x, a.y), Vector2(b.x, b.y), Vector2(c.x, c.y)]))
-	var top := cap.mesh.get_aabb().end.z
-	var bottom := cap.mesh.get_aabb().position.z
+		if absf((b - a).cross(c - a).normalized()[face_axis]) > 0.5:     # the face and its parallels: one outline
+			tris.append(PackedVector2Array([Vector2(a[u], a[v]), Vector2(b[u], b[v]), Vector2(c[u], c[v])]))
+	var top: float = cap.mesh.get_aabb().end[face_axis]
+	var bottom: float = cap.mesh.get_aabb().position[face_axis]
 	var offsets: Array[Vector2] = [Vector2.ZERO, Vector2(reach, 0), Vector2(-reach, 0), Vector2(0, reach),
 		Vector2(0, -reach)]
 	return func(tip: Vector3) -> bool:
 		if not is_instance_valid(cap):
 			return false
 		var p := cap.global_transform.affine_inverse() * tip
-		if p.z > top + hover or p.z < bottom:
+		if p[face_axis] > top + hover or p[face_axis] < bottom:
 			return false
 		for o in offsets:
-			var q := Vector2(p.x, p.y) + o
+			var q := Vector2(p[u], p[v]) + o
 			for t in tris:
 				if Geometry2D.is_point_in_polygon(q, t):
 					return true

@@ -27,6 +27,8 @@ const ITEMS := {
 
 var _grabber: Node3D
 var _only := ""
+var _finger: XRPositionalTracker
+const FINGER := &"appliance_test_finger"
 
 
 func _ready() -> void:
@@ -40,10 +42,13 @@ func _ready() -> void:
 			_only = arg.split("=")[1]
 	_grabber = Node3D.new()
 	add_child(_grabber)
+	# Made before any appliance: a key gathers its controllers when it enters the tree.
+	_finger = _tracked_finger()
 	for item: String in ITEMS:
 		if not _only.is_empty() and not item.begins_with(_only):
 			continue
 		await _item(item)
+	XRServer.remove_tracker(_finger)
 	_finish()
 
 
@@ -51,6 +56,8 @@ func _item(item: String) -> void:
 	var root := (load(ITEMS[item]) as PackedScene).instantiate() as Node3D
 	if item == "tv":
 		root.set("tv_model", "retroxr_crt")
+	if root is RigidBody3D:
+		(root as RigidBody3D).freeze = true      # held still in the air: the poke takes frames, and it would fall
 	add_child(root)
 	root.global_position = Vector3(0, 1, 0)
 	await _settle()
@@ -60,6 +67,7 @@ func _item(item: String) -> void:
 		root.queue_free()
 		return
 	_boxes(item, root, model)
+	await _poke(item, root, [])
 	match item:
 		"tv":
 			var shell := root.find_child("RetroXRCrt", true, false)
@@ -67,6 +75,8 @@ func _item(item: String) -> void:
 			shell.call("set_door_open", true)
 			await _settle()
 			_reach(item + "/door open", root, ["KeyDoorButton"])
+			await _poke(item + "/door open", root, ["MuteButton", "VolumeDownButton", "VolumeUpButton",
+				"ChannelDownButton", "ChannelUpButton", "TVToggleButton", "SourceButton"])
 		"turntable":
 			var lever := root.get_node("CoverPivot/CoverLever") as VRLever
 			lever.set_value(1.0)
@@ -216,3 +226,82 @@ func _reach(label: String, root: Node3D, skip: Array, from: Dictionary = {}) -> 
 			if t != null and t.action_node != null:
 				got = String(t.action_node.name)
 		_ok(took, "%s/reach: the desktop ray takes %s" % [label, c.name], "it took %s" % got)
+
+
+# ── poke/ ─────────────────────────────────────────────────────────────────────
+
+## A tracked hand: an XRController3D on a tracker of our own with a PokeTip at its origin (VRButton's own touch path,
+## as tv_remote_tests drives it).
+func _tracked_finger() -> XRPositionalTracker:
+	var tr := XRPositionalTracker.new()
+	tr.name = FINGER
+	tr.type = XRServer.TRACKER_CONTROLLER
+	XRServer.add_tracker(tr)
+	var origin := XROrigin3D.new()
+	origin.name = "TestOrigin"
+	add_child(origin)
+	var ctrl := XRController3D.new()
+	ctrl.tracker = FINGER
+	origin.add_child(ctrl)
+	var tip := Node3D.new()
+	tip.name = "PokeTip"
+	ctrl.add_child(tip)
+	_finger = tr
+	_place(Vector3(0, 4, 0))
+	return tr
+
+
+func _place(at: Vector3) -> void:
+	_finger.set_pose(&"default", Transform3D(Basis(), at), Vector3.ZERO, Vector3.ZERO, XRPose.XR_TRACKING_CONFIDENCE_HIGH)
+
+
+func _ticks(n: int) -> void:
+	for i in n:
+		await get_tree().process_frame
+
+
+## Push the fingertip into every live key (less `skip`) along its press and out again: it must sink by its travel,
+## fire once with no other key firing, and come back up. A press box with no travel (the set's key door) is a door,
+## not a key.
+func _poke(label: String, root: Node3D, skip: Array) -> void:
+	var keys: Array[VRButton] = []
+	for n in root.find_children("*", "VRButton", true, false):
+		var b := n as VRButton
+		var cap := b.get_node_or_null("ButtonMesh") as MeshInstance3D
+		if skip.has(String(b.name)) or not b.is_visible_in_tree() or b.collision_layer == 0 or b.depress_depth <= 0.0 				or cap == null or cap.mesh == null:
+			continue
+		keys.append(b)
+	var fired := {}
+	for b in keys:
+		fired[b] = 0
+		b.button_pressed.connect(func() -> void: fired[b] += 1)
+	for b in keys:
+		var cap := b.get_node("ButtonMesh") as MeshInstance3D
+		var rest := cap.global_position
+		var axis := (b.global_basis * b.depress_axis).normalized()
+		var out := -axis
+		var travel := b.depress_depth * (b.global_basis * b.depress_axis).length()
+		for k in fired:
+			fired[k] = 0
+		for d: float in [0.03, 0.012, 0.004, 0.001, -travel, -travel, -travel]:
+			_place(rest + out * d)
+			await _ticks(2)
+		var sunk := (cap.global_position - rest).dot(axis)
+		var others: Array[String] = []
+		for k in fired:
+			if k != b and int(fired[k]) > 0:
+				others.append(String((k as Node).name))
+		var once := int(fired[b])
+		for d: float in [0.002, 0.012, 0.03]:
+			_place(rest + out * d)
+			await _ticks(2)
+		# A press is held through VRButton.CONTACT_GRACE (50 ms) after the tip leaves: a hand takes longer than that to
+		# back off, a headless frame much less.
+		await _wait_until(func() -> bool: return cap.global_position.distance_to(rest) < 0.00001, 0.5)
+		var back := cap.global_position.distance_to(rest)
+		_ok(absf(sunk - travel) < 0.0002 and once == 1 and others.is_empty() and back < 0.00001,
+			"%s/poke: %s sinks under the fingertip, fires once, alone, and comes back up" % [label, b.name],
+			"sank %.2f of %.2f mm, fired %d, others fired %s, %.3f mm off rest after" % [sunk * 1000.0, travel * 1000.0,
+				once, others, back * 1000.0])
+	_place(Vector3(0, 4, 0))
+	await _ticks(2)

@@ -327,3 +327,12 @@ DVD); the stick now walks the keys themselves, and the floating grid is an optio
   rule, no dead-key skip, no sink, a key lit under the grid, not saved, no outline each go red.
   `Tools/av/remote_stick_video_probe` (windowed, `--fixed-fps 30`) records it at the RETRO XR set and stills
   the menu.
+
+**Every appliance key is pressed by a fingertip only over its own face (2026-10-30).** VRButton's touch is a
+sphere round the key's centre (10 mm by default), so on the DVD's front panel a finger on the up arrow also
+pressed MENU above it. `adopt_button` now gives every key `footprint_gate` (the cap's outline + 1 mm, no higher
+than 3 mm over its face; the ring's arcs 0 mm), and widens `trigger_radius` to reach a wide key's corners (the
+amplifier's 38 mm SURROUND MODE). `footprint_gate(..., face_axis)` takes the axis the face looks along: the record
+player's 33/45 lie on the deck and press along -Y. `appliance_pointer_tests` `poke/` pushes a tracked fingertip
+into every live key of the VCR, DVD, amplifier, record player and television (and the door keys with the door
+open): each sinks its full travel, fires once, alone, and comes back up. Taking the gate off box keys fails it.

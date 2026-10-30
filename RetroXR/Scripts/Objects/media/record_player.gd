@@ -559,6 +559,9 @@ func _dress_model() -> void:
 			continue
 		_model.adopt_button(b, spec[1])
 		b.depress_axis = Vector3(0, -1, 0)      # on the deck plate: pressed DOWN
+		var cap := b.get_node_or_null("ButtonMesh") as MeshInstance3D
+		if cap and cap.mesh:
+			b.press_gate = ApplianceModel.footprint_gate(cap, 0.001, 0.003, 1)      # its face looks along local +Y
 		b.button_pressed.connect(_on_speed_key.bind(spec[2]))
 	if _speed_switch:
 		# The keys own the speed now. A hidden slider near them would still engage by
