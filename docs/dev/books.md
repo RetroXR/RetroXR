@@ -374,6 +374,94 @@ rendered on demand it was a blank sheet the first time a book was tipped over. T
 page (`_spawn_leaf`) shuts that side's fan first: the turning leaf *is* the top of it, and
 two things would otherwise drive the block's top sheet.
 
+### What the pages meet
+
+Added 2026-10-30 (the player: "book pages affected by other objects like thermal paper is").
+While a HAND holds the book its halves and loose leaves meet the room and fingertips the way
+the Game Boy Printer's paper does (`gb-printer.md`, "The room" and "Fingers"), on a sim whose
+only freedoms are angles about the gutter:
+
+- **The room is found by short rays and kept in the ROOM** (`PDFBook._meet_room`). One row a
+  tick (`_look_at_room`: each half's top and bottom edge in turn, so all four are fresh every
+  four ticks and no tick casts more than eight rays): from the binding to each contact point and
+  on to the next along the block (what the half runs into), and down from each point, from the
+  LOWEST sheet there — cover, page, or a loose leaf hanging under a book turned over (what it
+  hangs over). Hits are world positions and normals; `_place_room` puts every kept one into the
+  book's frame every tick, so a book swung onto a table meets it that tick, not when its row is
+  next cast. Mask is layers 1 and 3 (`ROOM_MASK`, the infrared window's line of sight): not
+  hands, not the player's body, and nothing HELD (layer 17), which the hand holding it would
+  drag through the pages.
+- **Nothing near, no rays.** Each round of the rows starts with one sphere query
+  (`_room_near`: a page's width plus `ROOM_DROP` round the binding); empty, the rows are dropped
+  and nothing is cast until the next round. A book held up in the air pays 3.6 µs a tick for it,
+  not the ~50 µs of rays.
+- **Points side by side on one flat surface are one patch** (`_same_surface`: the same body, the
+  same way up, in its plane to a millimetre), carrying a centre per column, so a table is four
+  patches, not sixteen.
+- **Every surface found reaches 2.5 cm across itself** (`ROOM_REACH`), about half the distance
+  between contact points, as the printer's do. A hit between two points first reached 4 cm, and
+  a book laid with its binding just inside a table's edge clipped the corner from the binding to
+  its first point: that patch held the half past the edge out level over nothing (-17.6°, where
+  it hangs at -49.9°). `room/` lays the real book at a real table's edge.
+- **Fingertips** (`_place_fingers`): every active controller's poke tip that `PokeTip.is_poking`
+  — so never the hand holding the book, which holds something — and not the hand turning a page
+  of it (`_grab_ctrl`). A round obstacle of `FINGER_RADIUS` (9 mm, the printer's).
+- **The sim pushes each sheet's OWN angles** (`BookFlop._collide`, once a step after the
+  springs): each sheet is tested at `CONTACT_S` (a quarter of the page to the fore edge) on the
+  two rows `CONTACT_ROWS` (the page's top and bottom edges: the bend is one along the spine, so a
+  flat surface meets an edge first), on whichever face meets the surface (the cover a surface the
+  sheet faces away from, the page one it faces), and every loose leaf that is up. A point inside
+  is pushed out by a position step on that sheet's freedoms — the half's hinge (only while it
+  swings free) and bend (never a hardback's), or a leaf's peel — with the gradient taken by
+  finite difference through `bend_sz`, and the angular speed carrying the point in is removed
+  (kept, it built up against the table every tick and the half leapt away at it when the table
+  went: 0.062 rad in the first tick against 0.005). Then the hard stop and the fan's stacking
+  (`_hard_stop`, `_stack_fan`, lifted out of the step unchanged) apply again. **Nothing moves
+  that the shaders do not already move**: the block and the sheet on it still take one side's
+  numbers from `_push_flop`, so the rule this doc opens with holds by construction.
+- **Bent once per column, on the middle plane** (`_point`, `_on_face`). `bend_sz` is linear in
+  the height off the sheet's plane, so a face is the middle point plus its height along the
+  sheet's way up; the bend is one all along the spine, so a row only adds its y. Points are
+  cached per sheet version (`_stale`): a push moves on that sheet's version (the block's moves
+  every leaf's, which hang from it) and only the points read again are bent again. GDScript
+  prices this (desktop): a `bend_sz` 1.7 µs, `params()` 1.0 µs, a cached read 0.55 µs. Bending
+  every point afresh for every surface made the sim TEN times its no-contact cost.
+- **No point is pushed clearer than its binding** (`keep = offset + min(skin, binding's
+  clearance)`). A book held resting on a table had its halves pushed a skin's width UP off a
+  table the cover already touched. A surface the binding is deeper in than the patch's depth
+  (the hand has pushed the book into it) is skipped as an early-out; the same rule would leave it
+  alone anyway (mutating the skip out changes no case, and cannot: every point deeper than the
+  binding is past the depth too).
+- **A half whose binding rests on a surface is SUPPORTED by it**, as a hand supports it
+  (`_rest_clamp`, one more target for `_clamp`, worked out in `_gather`): out to the last contact
+  point, from the binding, that touches it on both rows (`REST_GAP`, 3 mm), the hinge locked and
+  only the strip beyond allowed to bend. Without it, a half resting on its binding and its fore
+  edge stood up off the table between them: gravity and two springs balance ONE contact at the
+  edge with a hump (tip angle -0.064 rad, measured). With it, held flat on a table the book lies
+  flat, and held at a table's edge the half past the edge hangs over it. It is not a hand for the
+  sag: `_step_sag` reads the hands' targets, which stay as they were.
+- **A finger keeps the side it pushes from** (`_finger_side`, per finger, side and sheet), so a
+  flick faster than a page may be pushed (`CONTACT_SPEED`, 1 m/s, the printer's terminal speed
+  doubled) carries the page along instead of coming out on top of it, flipping the push and
+  throwing the page down through the finger. Forgotten once the finger leaves the sheet's
+  outline; let go once it is `FINGER_SLIP` (3 cm) through.
+- **Only while held.** Put down, `_meet_room(false)` empties the patches and fingers and the book
+  relaxes flat as it always has, so a book at rest still costs nothing and still `reset()`s
+  exactly flat. A book LYING over a table edge therefore still does not droop (below, Not done).
+- Logs on change only: `[PDFBook] pages meet something: … surfaces near: Table` when contact
+  starts, `pages clear of everything again` after `CONTACT_LOG_QUIET` ticks with none.
+
+Checks: `book_flop_tests` `contact/` (the pure sim against flat surfaces, each with a control that
+goes through), `finger/` and `room/` (the real book over a real `StaticBody3D`, a layer-17 slab
+between them that the rays must not see, and at the table's edge). Mutation-tested 2026-10-30,
+each mutation turning its own case red: contact off; clearance not measured from the binding; no
+rest support; finger side forgotten; approach speed kept; contact turning a held hinge; rays
+seeing held things; leaves not pushed; a crossed surface reaching 4 cm; no look before casting;
+hits never merged; the page meeting every surface. Filmed: `book_flop_probe --only=table
+[--nocontact]`, which also prints the worst tick-to-tick turn of a fore edge while held still
+(0.0002° resting on a table, 0.018° at its edge: nothing buzzes). A headset, the Quest's cost and
+pages against a wall or a console are OWED — the film is a table and a ball.
+
 ### What it costs
 
 `Tools/perf/book_flop_bench` (windowed — a real RenderingServer behind
@@ -388,6 +476,20 @@ the way `rope_bench` is. Desktop, 2026-09-18:
 | hardback | 20 µs | 18 µs | 37 µs | 0.34 % |
 | shut | 7 µs | 15 µs | 22 µs | 0.19 % |
 | **not held** | — | — | **0** | tick is off |
+
+Meeting the room (2026-10-30, the same bench with a "room" column for `_meet_room`; that day the
+machine read the no-contact rows 5-7 µs higher than above, so compare within one run):
+
+| held book | room | sim | push | total | of one core |
+|---|---|---|---|---|---|
+| one hand, no room asked | 1.7 µs | 24 µs | 27 µs | 53 µs | 0.48 % |
+| held up in the air, nothing near | 3.6 µs | 25 µs | 27 µs | 56 µs | 0.50 % |
+| hanging onto a table 8 cm below | 47 µs | 115 µs | 29 µs | 191 µs | 1.72 % |
+| lying on a table | 47 µs | 111 µs | 28 µs | 186 µs | 1.67 % |
+| turned over 13 cm above one, leaves on it | 60 µs | 254 µs | 43 µs | 357 µs | 3.22 % |
+
+Contact is paid only by a held book with something within reach; the printer's paper, for
+comparison, is ~1 ms an update in its dense-contact case (`gb-printer.md`).
 
 For scale, the GDScript rope this project replaced was ~460 µs/tick + ~157 µs/frame per
 cable. At most two books are ever held. **Quest is not measured** — expect a small multiple
@@ -713,14 +815,21 @@ its block; a book that hangs, fans and is turned over shows its covers from angl
 Flop changes no collision shape and no `PointerArea`, and puts nothing on the wire — each
 peer hangs its own copy from the held pose it is already sent, for the same reason the fold
 is never streamed (`_animate_page_step`'s comment). The only thing saved is the `hardback`
-choice; the angles themselves never are, and a restored book starts flat.
+choice; the angles themselves never are, and a restored book starts flat. What the pages meet
+is each peer's own too: its own rays in its own room, and only its own fingertips (a peer's
+hand pushing the page another peer is holding is not seen by the holder).
 
 ### Not done
 
 - Bending **along** the spine axis (a magazine held by its bottom edge folding over at the
   top). Paper cannot bend two ways at once, so this needs a stiffness coupling, not a second
   independent bend.
-- A book overhanging a table edge does not droop — not held means supported.
+- A book LYING over a table edge does not droop — not held means supported, and the tick is
+  off. Held at the edge it does (What the pages meet); lying there would need the tick armed
+  for an unheld book that overhangs, and a settled pose that is not flat.
+- Pages meet the room and fingertips only where they are tested: two rows (the page's edges)
+  and four columns. A narrow thing between the rows (a pen under the middle of a page) is not
+  met, and the turning page and its flights meet nothing (the hand has them).
 
 ## Testing
 
@@ -739,7 +848,9 @@ choice; the angles themselves never are, and a restored book starts flat.
   hand, two hands sagging, pages turned on a hanging book through the real
   begin/move/end grab calls, a hand pulling a page over / up / out / away with a RED dot on
   the hand and a GREEN one on the gripped paper and the gap printed per leg, soft cover,
-  hardback, shut, put down; `--only=follow` runs just the page-following leg) and writes
+  hardback, shut, put down; `--only=follow` runs just the page-following leg; `--only=table`
+  holds it over a real table, at its edge, under a fingertip and turned over onto it, with
+  `--nocontact` the control that goes through) and writes
   frames; `python Tools/book_flop_video.py <dir>` makes the mp4 and a contact sheet. This,
   and the headset, are the only judges of how it looks and feels.
 - `Tools/vr/page_grab_probe` — the fold-direction oracle; needs a real PDF.

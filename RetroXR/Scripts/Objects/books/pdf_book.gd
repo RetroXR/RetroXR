@@ -325,6 +325,50 @@ var _fan_settle: Array = [null, null]
 var _fan_settle_tween: Array = [null, null]
 var _fan_settle_peel: Array[float] = [0.0, 0.0]
 
+# ── What the pages meet ───────────────────────────────────────────────────────
+#
+# Thermal paper's way (GbPrinter._find_obstacles, GbPrintoutFlop): short rays
+# from the pages as drawn find the room as patches of surface, which are kept
+# where they are in the ROOM and placed against the book every tick, so a book
+# swung onto a table meets it that tick, not when the rays next look. Every free
+# fingertip is a round obstacle. BookFlop pushes its own angles out of both
+# (_collide), so a hanging half lies along a table, stops against a wall and is
+# lifted by a finger, and the block still bends with the page on it. Only while
+# a hand holds the book: a book that is put down relaxes flat, as it always has.
+
+## The room and loose objects (layers 1 and 3), as the infrared window's line of
+## sight. Not hands, nor the player's body, nor anything held (layer 17): the
+## hand holding it would drag it through the pages.
+const ROOM_MASK := 0b101
+## Down from each point of a page, how far a surface is looked for, and from how
+## far above the point (one the page has already sunk a little into).
+const ROOM_DROP := 0.12
+const ROOM_LIFT := 0.015
+## How far across itself a surface a ray found reaches: about half the distance
+## between the points (BookFlop.CONTACT_S), so a patch found at a table's edge
+## does not reach out into the air past it (the printer's lesson at 4 cm). The
+## same for one found between two points: at 4 cm, a book laid with its binding
+## at a table's edge clipped the corner from the binding to its first point, and
+## the half past the edge was held out level over nothing instead of hanging.
+const ROOM_REACH := 0.025
+## How far behind a surface a point may be and still be pushed out of it
+## (GbPrinterStrip.PATCH_DEPTH, a little deeper: a book swung onto a table moves
+## faster than paper hanging off a printer).
+const ROOM_DEPTH := 0.04
+## Ticks with nothing met before the log says the pages are clear again.
+const CONTACT_LOG_QUIET := 45
+
+## Per row of each half (index = side * rows + row), the hits its rays last found
+## (_cast_row). One row is looked at per tick, round the four.
+var _room_rows: Dictionary = {}
+var _room_next := 0
+## Nothing of the room within reach at the last look (_room_near), and the query
+## that looks.
+var _room_empty := false
+var _near_query: PhysicsShapeQueryParameters3D = null
+var _contact_said := false
+var _contact_quiet := 0
+
 ## How deep the gutter valley runs, as a fraction of the stack on that side.
 ## A thick book has a deep valley and a thin magazine barely any, so this cannot
 ## be a constant — at a fixed 4 mm a 110-page magazine's pages dove clean
@@ -3062,7 +3106,9 @@ func _physics_process(delta: float) -> void:
 	var grips := _flop_grips()
 	_flop.set_support(held, grips[0], grips[1])
 	_update_fan_lids()
+	_meet_room(held)
 	_flop.drive_from_pose(delta, global_transform, held)
+	_log_contact()
 	_push_flop(false)
 	if not held and _flop.is_settled():
 		# Snap the last fraction of a degree out, so a book at rest is exactly
@@ -3070,6 +3116,227 @@ func _physics_process(delta: float) -> void:
 		_flop.reset()
 		_push_flop(true)
 		set_physics_process(false)
+
+
+## What the pages meet this tick: look at one row of the room, then place every
+## surface found and every free fingertip against the book as it is now. Not
+## held, nothing: the patches and fingers are dropped and the book relaxes flat.
+func _meet_room(held: bool) -> void:
+	if not held or floppiness <= 0.0 or not is_inside_tree():
+		if not _room_rows.is_empty() or not _flop.patches.is_empty() or not _flop.fingers.is_empty():
+			_room_rows.clear()
+			_flop.patches.clear()
+			_flop.fingers.clear()
+			# Said now: the tick may switch off before the quiet count runs out,
+			# and the next hold would never say it met anything.
+			if _contact_said:
+				_contact_said = false
+				print("[PDFBook] pages clear of everything again (put down)")
+		return
+	_look_at_room()
+	_place_room()
+	_place_fingers()
+
+
+## Cast the next row round (each side's top and bottom edge in turn): eight short
+## rays, so the four rows are fresh every four ticks and no tick casts thirty.
+## At the start of each round, first ask whether anything is within reach of the
+## pages at all (_room_near): a book held up in the air casts no rays, and its
+## rows are dropped.
+func _look_at_room() -> void:
+	var rows := BookFlop.CONTACT_ROWS.size()
+	if _room_next == 0:
+		_room_empty = not _room_near()
+		if _room_empty:
+			_room_rows.clear()
+	if _room_empty:
+		_room_next = (_room_next + 1) % (2 * rows)
+		return
+	for _n in 2 * rows:
+		var index := _room_next
+		_room_next = (_room_next + 1) % (2 * rows)
+		@warning_ignore("integer_division")
+		var dir := -1 if index / rows == 0 else 1
+		if not _flop.is_active(dir):
+			_room_rows.erase(index)
+			continue
+		_room_rows[index] = _cast_row(dir, index % rows)
+		return
+
+
+## Anything of the room's within the pages' reach: as far out as a page goes from
+## the binding, and as far again as a ray looks down from it.
+func _room_near() -> bool:
+	if _near_query == null:
+		_near_query = PhysicsShapeQueryParameters3D.new()
+		_near_query.shape = SphereShape3D.new()
+		_near_query.collision_mask = ROOM_MASK
+		_near_query.exclude = _own_rids()
+	(_near_query.shape as SphereShape3D).radius = _book_width + _spine_width() + ROOM_DROP
+	_near_query.transform = Transform3D(Basis.IDENTITY, global_position)
+	return not get_world_3d().direct_space_state.intersect_shape(_near_query, 1).is_empty()
+
+
+## The book's own bodies. The pointer box is on the pointer layer, out of the mask
+## anyway, and the page zones are areas, which a ray does not meet.
+func _own_rids() -> Array[RID]:
+	var own: Array[RID] = [get_rid()]
+	var pointer := get_node_or_null("PointerArea") as CollisionObject3D
+	if pointer:
+		own.append(pointer.get_rid())
+	return own
+
+
+## One row of a half, from the binding out to the fore edge, as the printer looks
+## round its paper:
+##   from each point to the next along the block, for what the half runs into
+##   (a wall, a console, the table it is swung down onto);
+##   down from each point, from the LOWEST sheet there (the cover, the page, or a
+##   loose leaf hanging below a book turned over), for what it hangs over.
+## Found under points side by side, one flat surface is one patch: a table is
+## four of them, not sixteen, and the sim looks at each once.
+## A hit: [centres (world, one per column), normal, depth, row, first column, last
+## column, reach, dir, collider name].
+func _cast_row(dir: int, row: int) -> Array:
+	var hits: Array = []
+	var space := get_world_3d().direct_space_state
+	var own := _own_rids()
+	var down := (ProjectSettings.get_setting("physics/3d/default_gravity_vector", Vector3.DOWN) as Vector3).normalized()
+	var xf := global_transform
+	var y: float = BookFlop.CONTACT_ROWS[row] * book_height * 0.5
+	var root := _flop.column_points(dir, _flop.gutter_gap, y)
+	var last := xf * ((root[0] + root[1]) * 0.5)
+	var columns := BookFlop.CONTACT_S.size()
+	var run: Array = []
+	for col in columns:
+		var pts := _flop.column_points(dir, BookFlop.CONTACT_S[col] * _flop.page_width(), y)
+		var mid := xf * ((pts[0] + pts[1]) * 0.5)
+		var low := xf * pts[0]
+		for p in pts:
+			if (xf * p).dot(down) > low.dot(down):
+				low = xf * p
+		var crossed := _room_ray(space, last, mid, own)
+		if not crossed.is_empty():
+			var normal: Vector3 = crossed["normal"]
+			var behind := normal.dot((crossed["position"] as Vector3) - mid)
+			# It reaches every point beyond it: they are all on the far side.
+			hits.append([PackedVector3Array([crossed["position"]]), normal,
+				maxf(ROOM_DEPTH, behind + BookFlop.CONTACT_SKIN * 2.0), row, col, columns - 1, ROOM_REACH, dir,
+				_collider_name(crossed)])
+		var under := _room_ray(space, low - down * ROOM_LIFT, low + down * ROOM_DROP, own)
+		if not run.is_empty() and (under.is_empty() or not _same_surface(run, under)):
+			hits.append(_surface_run(run, row, dir))
+			run = []
+		if not under.is_empty():
+			if run.is_empty():
+				run = [PackedVector3Array(), under["normal"], col, _collider_name(under), under["rid"]]
+			var centres: PackedVector3Array = run[0]
+			centres.append(under["position"])
+			run[0] = centres
+		last = mid
+	if not run.is_empty():
+		hits.append(_surface_run(run, row, dir))
+	return hits
+
+
+## Whether a hit is on the flat surface a run of them is on: the same body, the
+## same way up, and in its plane to a millimetre.
+static func _same_surface(run: Array, hit: Dictionary) -> bool:
+	var normal: Vector3 = run[1]
+	var at: Vector3 = (run[0] as PackedVector3Array)[0]
+	return hit["rid"] == run[4] and normal.dot(hit["normal"]) > 0.999 \
+		and absf(normal.dot((hit["position"] as Vector3) - at)) < 0.001
+
+
+static func _surface_run(run: Array, row: int, dir: int) -> Array:
+	var centres: PackedVector3Array = run[0]
+	return [centres, run[1], ROOM_DEPTH, row, int(run[2]), int(run[2]) + centres.size() - 1, ROOM_REACH, dir, run[3]]
+
+
+func _room_ray(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3, own: Array[RID]) -> Dictionary:
+	if from.distance_squared_to(to) < 1e-10:
+		return {}
+	var query := PhysicsRayQueryParameters3D.create(from, to, ROOM_MASK, own)
+	return space.intersect_ray(query)
+
+
+static func _collider_name(hit: Dictionary) -> String:
+	var collider := hit.get("collider") as Node
+	return String(collider.name) if collider != null else "?"
+
+
+## Every surface the rows have found, into the book's frame as it is now.
+func _place_room() -> void:
+	_flop.patches.clear()
+	var inv := global_transform.affine_inverse()
+	var covector := global_basis.transposed()
+	for hits: Array in _room_rows.values():
+		for hit: Array in hits:
+			var cov := covector * (hit[1] as Vector3)
+			var n := cov.normalized()
+			var unit := cov.length()
+			var centres := PackedVector3Array()
+			for at: Vector3 in (hit[0] as PackedVector3Array):
+				centres.append(inv * at)
+			_flop.patches.append([n, n.dot(centres[0]), centres, float(hit[6]) / unit, float(hit[2]) / unit,
+				int(hit[7]), int(hit[3]), int(hit[4]), int(hit[5])])
+
+
+## Every fingertip that is free to push: not the hand holding the book (it is not
+## poking while it holds anything) and not the one turning a page of it.
+func _place_fingers() -> void:
+	_flop.fingers.clear()
+	var inv := global_transform.affine_inverse()
+	var near := _book_width * 1.5 + 0.05
+	for index in _controllers.size():
+		# Checked before the cast: casting an instance that has been freed is an error.
+		var node: Variant = _controllers[index]
+		if not is_instance_valid(node):
+			continue
+		var ctrl := node as XRController3D
+		if ctrl == null or not ctrl.get_is_active() or ctrl == _grab_ctrl or not PokeTip.is_poking(ctrl):
+			continue
+		var tip := inv * PokeTip.tip_of(ctrl)
+		if tip.length() <= near:
+			_flop.fingers.append([tip, BookFlop.FINGER_RADIUS, index])
+
+
+## Said when the pages start meeting something and when they have been clear of
+## everything for a while — never per tick.
+func _log_contact() -> void:
+	var points: int = _flop.contacts[0] + _flop.contacts[1]
+	if points > 0:
+		_contact_quiet = 0
+		if not _contact_said:
+			_contact_said = true
+			var names := PackedStringArray()
+			for hits: Array in _room_rows.values():
+				for hit: Array in hits:
+					if not names.has(hit[8]) and names.size() < 4:
+						names.append(hit[8])
+			print("[PDFBook] pages meet something: %d point(s) left, %d right, %d of them a fingertip; surfaces near: %s" % [
+				_flop.contacts[0], _flop.contacts[1], _flop.finger_contacts,
+				", ".join(names) if not names.is_empty() else "none"])
+	elif _contact_said:
+		_contact_quiet += 1
+		if _contact_quiet >= CONTACT_LOG_QUIET:
+			_contact_said = false
+			print("[PDFBook] pages clear of everything again")
+
+
+## Where each half's cover and page lie, and its loose leaves, for contact.
+func _set_contact_frame() -> void:
+	var faces: Array[Vector2] = [Vector2(INF, -INF), Vector2(INF, -INF)]
+	for entry: Array in _flop_sheets:
+		var i := 1 if int(entry[1]) > 0 else 0
+		var z := _book_xform(entry[2]).origin.z
+		faces[i] = Vector2(minf(faces[i].x, z), maxf(faces[i].y, z))
+	var tops: Array[float] = [0.0, 0.0]
+	for i in 2:
+		if not faces[i].is_finite():
+			faces[i] = Vector2.ZERO
+		tops[i] = _page_plane_z(1 if i == 1 else -1) + FAN_LIFT * float((_fan_leaves[i] as Array).size())
+	_flop.set_contact_frame(book_height, faces[0], faces[1], tops[0], tops[1], FAN_LIFT)
 
 
 ## Tell the sim what the book is now, and find every surface that hangs from
@@ -3130,6 +3397,7 @@ func _refresh_flop() -> void:
 		_flop_blocks.append([edge, dir, stack])
 		_outline_frame(stack, Vector4(stack.position.z, 1.0, float(dir), stack.scale.z))
 	_seat_fan()
+	_set_contact_frame()
 	_push_flop(true)
 	_snap_layout()
 	# A book reloaded or resized while it is in somebody's hand was disarmed by
@@ -3844,6 +4112,9 @@ func _cleanup() -> void:
 	# is re-armed the next time it is picked up.
 	_flop.reset()
 	_flop.configure(maxf(_book_width, 0.01), 0, 0, 0, 0, false)
+	_room_rows.clear()
+	_flop.patches.clear()
+	_flop.fingers.clear()
 	_sync_fan(-1)
 	_sync_fan(1)
 	set_physics_process(false)

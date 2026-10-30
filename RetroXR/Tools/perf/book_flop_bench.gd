@@ -18,6 +18,11 @@
 ##
 ## The GPU side is not here: it is a sin/cos pair per vertex on ~600 vertices
 ## (Quest) and cannot be timed from a script.
+##
+## "room" is PDFBook._meet_room: one row of rays a tick, the patches placed in the
+## book's frame, the fingertips (none here). It runs only for a held book, and the
+## sim's contact work lands in "sim". The table scenarios hang the book over a
+## real StaticBody3D, and lay it on one, so that work is actually done.
 extends Node3D
 
 const BOOK_SCENE := preload("res://Scenes/Objects/media/pdf_book.tscn")
@@ -52,8 +57,20 @@ func _ready() -> void:
 
 	print("[bench] one held book, %d ticks at 90 Hz, after %d warm-up. desktop=%s" % [
 		TICKS, WARMUP, QualityManager.is_desktop()])
-	print("[bench] %-46s %9s %9s %9s %8s" % ["scenario", "sim us", "push us", "total us", "% core"])
+	print("[bench] %-46s %9s %9s %9s %9s %8s" % ["scenario", "room us", "sim us", "push us", "total us", "% core"])
 	_run("one hand on the spine, face-up", FACE_UP, Vector3.ZERO, Vector3.INF)
+	_run("held up in the air, nothing near", FACE_UP, Vector3.ZERO, Vector3.INF, Vector3(0.0, 2.0, 0.0))
+	var table := _table()
+	# A body is in the physics space's broadphase only after a step: queried
+	# the frame it was added, the rays went straight through it.
+	for i in 3:
+		await get_tree().physics_frame
+	_run("hanging onto a table 8 cm below", FACE_UP, Vector3.ZERO, Vector3.INF, Vector3(0.0, 0.08, 0.0))
+	_run("lying on a table", FACE_UP, Vector3.ZERO, Vector3.INF, Vector3(0.0, 0.0015, 0.0))
+	_run("turned over 13 cm above a table", FACE_DOWN, Vector3.ZERO, Vector3.INF, Vector3(0.0, 0.13, 0.0))
+	table.queue_free()
+	for i in 2:
+		await get_tree().physics_frame
 	_run("turned over: 6 loose leaves fanned", FACE_DOWN, Vector3.ZERO, Vector3.INF)
 	_run("two hands, sagging", FACE_UP, Vector3(0.15, 0, 0), Vector3(-0.15, 0, 0))
 	_book.hardback = true
@@ -76,28 +93,60 @@ func _ready() -> void:
 	get_tree().quit(0)
 
 
-func _run(label: String, basis: Basis, hand: Vector3, second: Vector3) -> void:
+## `over` = where the book is held above the table's top (world), or INF with no
+## table: the shake is smaller then, so it stays over or on it.
+func _run(label: String, basis: Basis, hand: Vector3, second: Vector3, over: Vector3 = Vector3.INF) -> void:
 	_book._flop.reset()
+	_book._meet_room(false)
+	var room_us := 0
 	var sim_us := 0
 	var push_us := 0
+	var contacts := 0
 	var t := 0.0
 	for i in WARMUP + TICKS:
 		t += DT
-		var roll := Basis(Vector3.UP, 0.35 * sin(t * 1.7))
-		_book.global_transform = Transform3D(basis * roll, Vector3(0.0, 0.04 * sin(t * 9.0), 0.0))
+		if over.is_finite():
+			var roll := Basis(Vector3.UP, 0.08 * sin(t * 1.7))
+			_book.global_transform = Transform3D(basis * roll, Vector3(0.0, TABLE_TOP, 0.0) + over
+				+ Vector3(0.01 * sin(t * 2.3), 0.002 * sin(t * 9.0), 0.0))
+		else:
+			var roll := Basis(Vector3.UP, 0.35 * sin(t * 1.7))
+			_book.global_transform = Transform3D(basis * roll, Vector3(0.0, 0.04 * sin(t * 9.0), 0.0))
 		var a := Time.get_ticks_usec()
 		_book._flop.set_support(true, hand, second)
-		_book._flop.drive_from_pose(DT, _book.global_transform, true)
+		_book._meet_room(over.is_finite())
 		var b := Time.get_ticks_usec()
-		_book._push_flop(false)
+		_book._flop.drive_from_pose(DT, _book.global_transform, true)
 		var c := Time.get_ticks_usec()
+		_book._push_flop(false)
+		var d := Time.get_ticks_usec()
 		if i >= WARMUP:
-			sim_us += b - a
-			push_us += c - b
+			room_us += b - a
+			sim_us += c - b
+			push_us += d - c
+			contacts += _book._flop.contacts[0] + _book._flop.contacts[1]
+	var room := float(room_us) / TICKS
 	var sim := float(sim_us) / TICKS
 	var push := float(push_us) / TICKS
+	var total := room + sim + push
 	# Share of one core: microseconds per tick, 90 ticks a second.
-	print("[bench] %-46s %9.1f %9.1f %9.1f %7.2f%%" % [label, sim, push, sim + push, (sim + push) * 90.0 / 10000.0])
+	print("[bench] %-46s %9.1f %9.1f %9.1f %9.1f %7.2f%%   (%.1f points pushed a tick)" % [label, room, sim, push, total,
+		total * 90.0 / 10000.0, float(contacts) / TICKS])
+
+
+const TABLE_TOP := -0.5
+
+
+func _table() -> StaticBody3D:
+	var body := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.2, 0.04, 1.0)
+	shape.shape = box
+	body.add_child(shape)
+	add_child(body)
+	body.global_position = Vector3(0.0, TABLE_TOP - 0.02, 0.0)
+	return body
 
 
 func _write_cbz(path: String) -> void:

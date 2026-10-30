@@ -8,6 +8,11 @@
 ## GDScript verlet cables are what saturated the main thread in the 20 fps Quest
 ## diagnosis, and a vertex-stage bend costs the CPU nothing (blind_slat.gdshader).
 ##
+## Held, the pages meet what is around them as the printer's thermal paper does:
+## PDFBook hands over the room as surface patches and the free fingertips
+## (`patches`, `fingers`), and each sheet's own angles are pushed out of them
+## (_collide). See "What the pages meet" in docs/dev/books.md.
+##
 ## Pure and deterministic on purpose: no nodes, no engine time, no randomness, so
 ## book_flop_tests can step it with a fixed dt and get the same numbers every run.
 ##
@@ -101,6 +106,35 @@ const SETTLE_SPEED := 0.02
 const SETTLE_SAG := 0.0003
 const SETTLE_TICKS := 30
 
+## Contact: what the pages meet (the room, a fingertip). See _collide.
+##
+## Where a sheet is tested: fractions of the page out from the gutter line (the
+## binding never moves), and of its half-height along the spine. Two rows, the
+## page's top and bottom edges: the bend is the same all along the spine, so a
+## flat surface meets one of the edges first.
+const CONTACT_S: Array[float] = [0.25, 0.5, 0.75, 1.0]
+const CONTACT_ROWS: Array[float] = [-0.9, 0.9]
+## Clearance kept from a surface, metres.
+const CONTACT_SKIN := 0.001
+## No point is pushed out faster than this, m/s: a surface found with the page
+## already in it (the room is looked at a row at a time) eases it out instead of
+## snapping it there, as the printer's TERMINAL_SPEED does for its paper.
+const CONTACT_SPEED := 1.0
+const CONTACT_PASSES := 2
+## Only points this close to being pushed are looked at in a step: a point
+## further clear of a surface cannot reach it before the next.
+const CONTACT_NEAR := 0.03
+## Below this lever (metres per radian) no angle of the sheet can move the point:
+## it is at the binding, or in the hand.
+const CONTACT_MIN_LEVER := 0.002
+## A point this close to a surface is lying on it (see _gather).
+const REST_GAP := 0.003
+## A fingertip pushing paper (GbPrinter.FINGER_RADIUS).
+const FINGER_RADIUS := 0.009
+## A finger this far through a sheet from the side it was pushing from has got
+## past it (the paper could not keep up), and lets go.
+const FINGER_SLIP := 0.03
+
 ## 0 = the rigid board the book used to be, 1 = a limp magazine.
 var floppiness := 0.7
 
@@ -123,6 +157,9 @@ var _bend := [0.0, 0.0]
 var _bend_v := [0.0, 0.0]
 var _clamp := [0.0, 0.0]
 var _clamp_target := [0.0, 0.0]
+## How far out each half lies on a surface its binding rests on (_gather),
+## which holds it up as a hand would.
+var _rest_clamp := [0.0, 0.0]
 var _fan_count := [0, 0]
 var _fan := [PackedFloat64Array(), PackedFloat64Array()]
 var _fan_v := [PackedFloat64Array(), PackedFloat64Array()]
@@ -150,6 +187,43 @@ var _leaves := [0, 0]
 var _sag := 0.0
 var _sag_v := 0.0
 var _sag_hand := [0.0, 0.0]
+
+## Surfaces in book space, as PDFBook found them in the room this tick:
+## [normal, offset, centres, reach, depth, dir, row, first column, last column].
+## A point of that half's sheets in that row and those columns (CONTACT_ROWS,
+## CONTACT_S) is inside when normal·p < offset, within `reach` across the surface
+## of its column's centre (one per column, or one for them all) and no more than
+## `depth` behind it.
+var patches: Array = []
+## Fingertips in book space: [position, radius, id]. The id keeps which side of
+## each sheet a finger is pushing from, from one tick to the next.
+var fingers: Array = []
+## Points pushed out on the last step, per side (0 = left), and how many of them
+## by a finger. For the caller's log.
+var contacts := [0, 0]
+var finger_contacts := 0
+var _page_h := 0.25
+## Per side: (Z of the cover underneath, Z of the page on top) on the flat book.
+var _faces := [Vector2.ZERO, Vector2.ZERO]
+## Per side: Z of the top loose leaf on the flat book; each deeper one lies
+## _fan_step lower.
+var _fan_top := [0.0, 0.0]
+var _fan_step := 0.0
+## Which side of a sheet each finger is pushing from: key -> +1 over its page,
+## -1 under its cover. Kept while the finger stays over the sheet, so one that
+## moves faster than the paper pushes it along instead of passing through.
+var _finger_side: Dictionary = {}
+## Each side's contact points as drawn (_point): per index (_at), the point and
+## the version of its sheet it was bent at; per sheet, its version now. A push
+## moves one sheet's version on (the block's moves every leaf's too: they hang
+## from it), so only the points read again afterwards are bent again.
+var _shape := [PackedVector3Array(), PackedVector3Array()]
+var _shape_ver := [PackedInt32Array(), PackedInt32Array()]
+var _sheet_ver := [PackedInt32Array(), PackedInt32Array()]
+var _ver := 0
+## ...and each sheet's numbers (params, fan_params) at its version.
+var _sheet_prm := [PackedVector4Array(), PackedVector4Array()]
+var _prm_ver := [PackedInt32Array(), PackedInt32Array()]
 
 # Pose history for the acceleration estimate.
 var _have_pose := 0
@@ -210,6 +284,7 @@ func reset() -> void:
 		_bend_v[i] = 0.0
 		_clamp[i] = 0.0
 		_clamp_target[i] = 0.0
+		_rest_clamp[i] = 0.0
 		_accel[i] = Vector3.ZERO
 		_fan_lid[i] = INF
 		_ride_extra[i] = 0.0
@@ -223,6 +298,25 @@ func reset() -> void:
 	_sag_hand = [0.0, 0.0]
 	_have_pose = 0
 	_still_ticks = 0
+	_finger_side.clear()
+	contacts = [0, 0]
+	finger_contacts = 0
+
+
+## Where each half's surfaces lie on the flat book, for contact: the page's
+## height along the spine, each side's (cover underneath, page on top) Z, the Z
+## of each side's top loose leaf, and how much lower each deeper leaf lies.
+func set_contact_frame(page_h: float, faces_left: Vector2, faces_right: Vector2,
+		fan_top_left: float, fan_top_right: float, fan_step: float) -> void:
+	_page_h = maxf(page_h, 0.01)
+	_faces = [faces_left, faces_right]
+	_fan_top = [fan_top_left, fan_top_right]
+	_fan_step = fan_step
+
+
+## Whether the book has this half at all (a shut book has one).
+func is_active(dir: int) -> bool:
+	return _active[_i(dir)]
 
 
 ## Where the holding hand is, in book-local space. The root is rigidly tied to
@@ -402,6 +496,7 @@ func step(dt: float, accel_left: Vector3, accel_right: Vector3) -> void:
 			if _active[i]:
 				_step_side(i, h, accel[i])
 		_step_sag(h, (accel_left.z + accel_right.z) * 0.5)
+	_collide(dt)
 	_update_settled()
 
 
@@ -456,7 +551,7 @@ func sag() -> float:
 
 func _step_side(i: int, h: float, a: Vector3) -> void:
 	var dir := 1.0 if i == 1 else -1.0
-	_clamp[i] = move_toward(_clamp[i], _clamp_target[i], CLAMP_RATE * h)
+	_clamp[i] = move_toward(_clamp[i], maxf(_clamp_target[i], _rest_clamp[i]), CLAMP_RATE * h)
 	var free_len := maxf(_page_w - _clamp[i], _page_w * (1.0 - CLAMP_MAX_FRACTION))
 	var a_s := dir * a.x
 	var a_z := a.z
@@ -502,10 +597,23 @@ func _step_side(i: int, h: float, a: Vector3) -> void:
 		_bend[i] = 0.0
 		_bend_v[i] = 0.0
 
-	# A hard stop behind the soft one, so no input can fold a half through itself.
+	_hard_stop(i)
+	if floppiness <= 0.0:
+		_hinge[i] = 0.0
+		_hinge_v[i] = 0.0
+		_bend[i] = 0.0
+		_bend_v[i] = 0.0
+
+	_step_fan(i, h, a_s, a_z, gain)
+
+
+## A hard stop behind the soft one, so no input — and no contact — can fold a
+## half through itself.
+func _hard_stop(i: int) -> void:
+	var angle_min := HARDBACK_ANGLE_MIN if hardback else ANGLE_MIN
 	var hard_max := ANGLE_MAX + HARD_STOP_MARGIN
 	var hard_min := angle_min - HARD_STOP_MARGIN
-	total = _hinge[i] + _bend[i]
+	var total: float = _hinge[i] + _bend[i]
 	if total > hard_max or total < hard_min:
 		var excess: float = total - clampf(total, hard_min, hard_max)
 		# A board has no bend to give, so its joint takes the whole stop.
@@ -514,13 +622,6 @@ func _step_side(i: int, h: float, a: Vector3) -> void:
 		_bend[i] -= excess * (1.0 - from_hinge)
 		_hinge_v[i] = 0.0
 		_bend_v[i] = 0.0
-	if floppiness <= 0.0:
-		_hinge[i] = 0.0
-		_hinge_v[i] = 0.0
-		_bend[i] = 0.0
-		_bend_v[i] = 0.0
-
-	_step_fan(i, h, a_s, a_z, gain)
 
 
 ## Loose leaves lying on the block. Each is its own light pendulum, but they are
@@ -540,13 +641,6 @@ func _step_fan(i: int, h: float, a_s: float, a_z: float, gain: float) -> void:
 		_fan_v[i] = v
 		return
 	var base: float = sag_slope(1 if i == 1 else -1) + _hinge[i] + _bend[i]
-	var far: float = sag_slope(-1 if i == 1 else 1) + _hinge[1 - i] + _bend[1 - i]
-	# Not past the other half — nor past ITS loose leaves, which peel up off it
-	# towards this one. Stopped only at its block, the two fans of a book tipped
-	# over swung into each other by the spine, a leaf of one lying among the
-	# other's.
-	var far_fan: float = _fan[1 - i][0] if _fan_count[1 - i] > 0 else 0.0
-	var ceiling := minf(minf(FAN_ANGLE_MAX, PI - far - far_fan - FAN_FAR_CLEARANCE) - base, _fan_lid[i])
 	for k in n:
 		var w2 := FAN_W2 * (1.0 + FAN_W2_SPREAD * float(k))
 		var ang: float = base + d[k]
@@ -554,6 +648,27 @@ func _step_fan(i: int, h: float, a_s: float, a_z: float, gain: float) -> void:
 			+ gain * (a_z * cos(ang) - a_s * sin(ang))
 		v[k] += acc * h
 		d[k] += v[k] * h
+	_fan[i] = d
+	_fan_v[i] = v
+	_stack_fan(i)
+
+
+## The leaves are stacked: none passes the block (delta >= 0) or the leaf under
+## it, nor the far half, nor a page being turned over this one (the lid).
+func _stack_fan(i: int) -> void:
+	var n: int = _fan_count[i]
+	if n == 0:
+		return
+	var d: PackedFloat64Array = _fan[i]
+	var v: PackedFloat64Array = _fan_v[i]
+	var base: float = sag_slope(1 if i == 1 else -1) + _hinge[i] + _bend[i]
+	var far: float = sag_slope(-1 if i == 1 else 1) + _hinge[1 - i] + _bend[1 - i]
+	# Not past the other half — nor past ITS loose leaves, which peel up off it
+	# towards this one. Stopped only at its block, the two fans of a book tipped
+	# over swung into each other by the spine, a leaf of one lying among the
+	# other's.
+	var far_fan: float = _fan[1 - i][0] if _fan_count[1 - i] > 0 else 0.0
+	var ceiling := minf(minf(FAN_ANGLE_MAX, PI - far - far_fan - FAN_FAR_CLEARANCE) - base, _fan_lid[i])
 	# Contact, from the deepest leaf up: k = 0 is the top sheet, first to peel.
 	for k in range(n - 1, -1, -1):
 		var floor_d: float = 0.0 if k == n - 1 else d[k + 1]
@@ -565,6 +680,386 @@ func _step_fan(i: int, h: float, a_s: float, a_z: float, gain: float) -> void:
 			v[k] = minf(v[k], 0.0)
 	_fan[i] = d
 	_fan_v[i] = v
+
+
+# ── Contact: what the pages meet ──────────────────────────────────────────────
+#
+# Thermal paper's arrangement (GbPrinterStrip, GbThermalRibbon) on a sim whose
+# only freedoms are angles about the gutter. PDFBook finds the room with short
+# rays as patches of surface, kept where they are in the room and placed in the
+# book's frame every tick (`patches`); a free fingertip is a round obstacle
+# (`fingers`). Each sheet — a half's block, cover to page, and each loose leaf
+# that is up — is tested at a few points, and a point inside something is pushed
+# out by turning that sheet's OWN angles: the half's hinge and bend, a leaf's
+# peel. A position-based step on those, then the angular speed carrying the
+# point in is taken out. Nothing moves that the shaders do not already move, so
+# the block and the sheet lying on it still hang from one set of numbers.
+
+## Push every sheet out of what it is in. Once a step, after the springs.
+func _collide(dt: float) -> void:
+	contacts = [0, 0]
+	finger_contacts = 0
+	if patches.is_empty() and fingers.is_empty():
+		_finger_side.clear()
+		_rest_clamp = [0.0, 0.0]
+		return
+	if floppiness <= 0.0:
+		return
+	var items: Array = []
+	for i in 2:
+		_stale(i, -1)
+		_rest_clamp[i] = _gather(i, items) if _active[i] else 0.0
+	_finger_items(items)
+	if items.is_empty():
+		return
+	var push := CONTACT_SPEED * dt
+	# A later pass looks again only at the sides the last one pushed: nothing
+	# else has moved.
+	var look := [true, true]
+	for pass_n in CONTACT_PASSES:
+		var pushed := [false, false]
+		for item: Array in items:
+			if look[item[0]] and _resolve(item, push):
+				pushed[item[0]] = true
+				if pass_n == 0:
+					contacts[item[0]] += 1
+					if int(item[2]) < 0:
+						finger_contacts += 1
+		if not pushed[0] and not pushed[1]:
+			break
+		look = pushed
+	# A push never folds a half through itself, nor lifts a leaf through the far
+	# half or the leaf above it.
+	for i in 2:
+		if _active[i]:
+			_hard_stop(i)
+			_stack_fan(i)
+
+
+## Where a half's rigid part ends: the binding, or as far out as it is held.
+func _root_s(i: int) -> float:
+	return maxf(_clamp[i], gutter_gap)
+
+
+## Index into _point: sheet 0 is the block, 1 + k loose leaf k; column c of
+## CONTACT_S, or CONTACT_S.size() for the root.
+static func _at(sheet: int, col: int) -> int:
+	return sheet * (CONTACT_S.size() + 1) + col
+
+
+## A sheet as drawn now at a column (or the root), on its own middle plane:
+## (book-local x, book-local z, the sheet's angle there). bend_sz is linear in
+## the height off that plane, so a face is this plus its height along the sheet's
+## way up (_on_face), and the bend is the same all along the spine, so a row only
+## adds its own y. Bent when first read after its sheet last moved: bending every
+## point afresh for every surface cost ten times the rest of the tick.
+func _point(i: int, sheet: int, col: int) -> Vector3:
+	var index := _at(sheet, col)
+	var stamp: int = _sheet_ver[i][sheet]
+	if _shape_ver[i][index] == stamp:
+		return _shape[i][index]
+	var dir := 1 if i == 1 else -1
+	var prm: Vector4
+	if _prm_ver[i][sheet] == stamp:
+		prm = _sheet_prm[i][sheet]
+	else:
+		prm = params(dir) if sheet == 0 else fan_params(dir, sheet - 1)
+		_sheet_prm[i][sheet] = prm
+		_prm_ver[i][sheet] = stamp
+	var s: float = _root_s(i) if col == CONTACT_S.size() else CONTACT_S[col] * _page_w
+	var r := bend_sz(s, 0.0, prm)
+	var bent := Vector3(float(dir) * r.x, r.y, r.z)
+	_shape[i][index] = bent
+	_shape_ver[i][index] = stamp
+	return bent
+
+
+## A point of a sheet `z` off its middle plane, from _point's (x, z, angle).
+static func _on_face(mid: Vector3, dir: int, z: float, y: float) -> Vector3:
+	return Vector3(mid.x - float(dir) * sin(mid.z) * z, y, mid.y + cos(mid.z) * z)
+
+
+## Side i's sheet has moved (-1: the whole side, the block and so every leaf on it).
+func _stale(i: int, sheet: int) -> void:
+	var sheets: int = 1 + _fan_count[i]
+	if (_sheet_ver[i] as PackedInt32Array).size() != sheets:
+		# Built here and then stored: a method called on an element of an Array
+		# changes a copy of a packed array, not the one in it.
+		var versions := PackedInt32Array()
+		versions.resize(sheets)
+		var points := PackedVector3Array()
+		points.resize(_at(sheets, 0))
+		var stamps := PackedInt32Array()
+		stamps.resize(_at(sheets, 0))
+		stamps.fill(-1)
+		var prms := PackedVector4Array()
+		prms.resize(sheets)
+		var prm_stamps := PackedInt32Array()
+		prm_stamps.resize(sheets)
+		prm_stamps.fill(-1)
+		_sheet_ver[i] = versions
+		_shape[i] = points
+		_shape_ver[i] = stamps
+		_sheet_prm[i] = prms
+		_prm_ver[i] = prm_stamps
+	_ver += 1
+	if sheet > 0:
+		_sheet_ver[i][sheet] = _ver
+		return
+	for k in sheets:
+		_sheet_ver[i][k] = _ver
+
+
+## Z of loose leaf k of side i on the flat book.
+func _leaf_z(i: int, k: int) -> float:
+	return _fan_top[i] - _fan_step * k
+
+
+## One pass over side i's surfaces: the points that may need pushing this step
+## (into `items`), and how far out the half lies ON something, which it returns.
+##
+## Each surface is met by the face of the block that faces it — the cover one the
+## sheet faces away from, the page one it faces — and by every loose leaf that is
+## up. Only points within CONTACT_NEAR of being pushed are kept: the rest cannot
+## reach the surface this step.
+##
+## Never pushed clearer than the binding is: a sheet lies along a surface its
+## binding is on, it is not lifted off it. Held resting on a table, the book is
+## exactly flat; without this its halves were pushed a skin's width up off a
+## table its cover already touched. The same rule leaves a surface the hand has
+## pushed the book INTO alone (no point is pushed past its binding, and every
+## point deeper than that is past `depth`), as the printer never takes a way out
+## deeper than the point; a binding further in than `depth` is skipped early.
+##
+## Lying ON something: the binding rests on a surface and every point from there
+## out touches one. That much of the half is held up as a hand holds it (the
+## hinge locks, only the strip beyond bends), so a book held resting on a table
+## lies flat on it and only what overhangs the edge droops. Pushed out point by
+## point instead, a half resting on its binding and its fore edge stood up off the
+## table between the two: gravity and the springs balance one contact at the
+## edge with a hump. Both rows must agree (the nearer edge of the table wins):
+## the bend is one all along the spine.
+func _gather(i: int, items: Array) -> float:
+	var dir := 1 if i == 1 else -1
+	var any := false
+	for patch: Array in patches:
+		if int(patch[5]) == dir:
+			any = true
+			break
+	if not any:
+		return 0.0
+	var cols := CONTACT_S.size()
+	var rows := CONTACT_ROWS.size()
+	var faces: Vector2 = _faces[i]
+	var root_s := _root_s(i)
+	var mids := PackedVector3Array()
+	var ups := PackedVector3Array()
+	for col in cols + 1:
+		var mid := _point(i, 0, col)
+		mids.append(mid)
+		ups.append(Vector3(float(dir) * -sin(mid.z), 0.0, cos(mid.z)))
+	var leaves := PackedInt32Array()
+	for k in _fan_count[i]:
+		if _fan[i][k] > 0.0:
+			leaves.append(1 + k)
+	var rooted := PackedByteArray()
+	rooted.resize(rows)
+	rooted.fill(0)
+	var touching := PackedByteArray()
+	touching.resize(rows * cols)
+	touching.fill(0)
+	for patch: Array in patches:
+		if int(patch[5]) != dir:
+			continue
+		var n: Vector3 = patch[0]
+		var off: float = patch[1]
+		var centres: PackedVector3Array = patch[2]
+		var reach: float = patch[3]
+		var depth: float = patch[4]
+		var row: int = patch[6]
+		var first: int = patch[7]
+		var y: float = CONTACT_ROWS[row] * _page_h * 0.5
+		var root := _on_face(mids[cols], dir, faces.x if n.dot(ups[cols]) > 0.0 else faces.y, y)
+		var d_root := n.dot(root) - off
+		if d_root < -depth:
+			continue
+		if d_root <= REST_GAP:
+			rooted[row] = 1
+		var keep := off + minf(CONTACT_SKIN, d_root)
+		for col in range(first, int(patch[8]) + 1):
+			var z := faces.x if n.dot(ups[col]) > 0.0 else faces.y
+			var p := _on_face(mids[col], dir, z, y)
+			var lateral := p - centres[mini(col - first, centres.size() - 1)]
+			if (lateral - n * n.dot(lateral)).length() > reach:
+				continue
+			var d := n.dot(p) - off
+			if d < -depth:
+				continue
+			if d <= REST_GAP:
+				touching[row * cols + col] = 1
+			var s: float = CONTACT_S[col] * _page_w
+			if s <= root_s:
+				continue
+			if n.dot(p) - keep < CONTACT_NEAR:
+				items.append([i, 0, col, z, y, n, keep, off - depth, s])
+			for sheet in leaves:
+				var lz := _leaf_z(i, sheet - 1)
+				var leaf_keep := off + minf(CONTACT_SKIN, n.dot(_on_face(_point(i, sheet, cols), dir, lz, y)) - off)
+				var leaf_p := _on_face(_point(i, sheet, col), dir, lz, y)
+				if n.dot(leaf_p) - leaf_keep < CONTACT_NEAR and n.dot(leaf_p) - off >= -depth:
+					items.append([i, sheet, col, lz, y, n, leaf_keep, off - depth, s])
+	var rest := INF
+	var cap := _page_w * CLAMP_MAX_FRACTION
+	for row in rows:
+		var held := 0.0
+		if rooted[row] == 1 and touching[row * cols] == 1:
+			var last := 0
+			while last + 1 < cols and touching[row * cols + last + 1] == 1:
+				last += 1
+			# The surface ends somewhere between this point and the next.
+			held = cap if last == cols - 1 else minf(lerpf(CONTACT_S[last], CONTACT_S[last + 1], 0.5) * _page_w, cap)
+		rest = minf(rest, held)
+	return rest if rest >= CLAMP_MIN else 0.0
+
+
+## Each fingertip over a sheet, as a point to keep out of: the sheet's point
+## under the finger, kept a finger's radius away on the side it is pushing from.
+func _finger_items(items: Array) -> void:
+	var seen := {}
+	for finger: Array in fingers:
+		for i in 2:
+			if not _active[i]:
+				continue
+			var dir := 1 if i == 1 else -1
+			_finger_on(items, seen, finger, i, 0, _faces[i], params(dir))
+			for k in _fan_count[i]:
+				if _fan[i][k] > 0.0:
+					var z := _leaf_z(i, k)
+					_finger_on(items, seen, finger, i, 1 + k, Vector2(z, z), fan_params(dir, k))
+	for key: int in _finger_side.keys():
+		if not seen.has(key):
+			_finger_side.erase(key)
+
+
+func _finger_on(items: Array, seen: Dictionary, finger: Array, i: int, sheet: int,
+		faces: Vector2, prm: Vector4) -> void:
+	var dir := 1 if i == 1 else -1
+	var at: Vector3 = finger[0]
+	var r: float = finger[1]
+	var flat := flat_point(at, dir, prm)
+	if flat.x < gutter_gap or flat.x > _page_w + r or absf(flat.y) > _page_h * 0.5 + r:
+		return
+	var key := (int(finger[2]) * 2 + i) * 8 + sheet
+	seen[key] = true
+	var over := flat.z - faces.y
+	var under := faces.x - flat.z
+	var side: int = _finger_side.get(key, 0)
+	# A new finger pushes from the side it came in on; one that has got right
+	# through the sheet has slipped past it.
+	if side == 0 or (side > 0 and over < -FINGER_SLIP) or (side < 0 and under < -FINGER_SLIP):
+		side = 1 if flat.z >= (faces.x + faces.y) * 0.5 else -1
+	_finger_side[key] = side
+	if (over if side > 0 else under) >= r:
+		return
+	var s := clampf(flat.x, gutter_gap, _page_w)
+	var y := clampf(flat.y, -_page_h * 0.5, _page_h * 0.5)
+	var z := faces.y if side > 0 else faces.x
+	var ang := bend_sz(s, z, prm).z
+	var n := Vector3(float(dir) * -sin(ang), 0.0, cos(ang)) * float(-side)
+	# Column -1: not on the grid, so bent where it is.
+	items.append([i, sheet, -1, z, y, n, n.dot(at) + r, -INF, s])
+
+
+## One point of a half across its sheets, book-local, as drawn now: the cover
+## underneath, the page on top, then the top loose leaf if it is up. PDFBook
+## looks round the room from these.
+func column_points(dir: int, s: float, y: float) -> PackedVector3Array:
+	var i := _i(dir)
+	var faces: Vector2 = _faces[i]
+	var r := bend_sz(s, 0.0, params(dir))
+	var mid := Vector3(float(dir) * r.x, r.y, r.z)
+	var out := PackedVector3Array([_on_face(mid, dir, faces.x, y), _on_face(mid, dir, faces.y, y)])
+	if _fan_count[i] > 0 and _fan[i][0] > 0.0:
+		out.append(_sheet_point(i, 0, s, y, _fan_top[i]))
+	return out
+
+
+## The page's width out from the gutter line, as configured.
+func page_width() -> float:
+	return _page_w
+
+
+## Book-local point of a sheet of side i: the block (sheet -1) or loose leaf k,
+## at (s, y, z) on the flat book.
+func _sheet_point(i: int, sheet: int, s: float, y: float, z: float) -> Vector3:
+	var dir := 1 if i == 1 else -1
+	return _bent_point(dir, s, y, z, params(dir) if sheet < 0 else fan_params(dir, sheet))
+
+
+static func _bent_point(dir: int, s: float, y: float, z: float, prm: Vector4) -> Vector3:
+	var r := bend_sz(s, z, prm)
+	return Vector3(float(dir) * r.x, y, r.y)
+
+
+## Push one point out, if it is in. True when it moved anything.
+## item: [side, sheet (0 block, 1 + k leaf), column (-1 off the grid), z, y,
+## normal, keep, floor, s]: in when normal·p < keep, and let be when normal·p is
+## under the floor (too deep behind the surface to be on it).
+func _resolve(item: Array, push: float) -> bool:
+	var i: int = item[0]
+	var sheet: int = item[1]
+	var col: int = item[2]
+	var z: float = item[3]
+	var y: float = item[4]
+	var n: Vector3 = item[5]
+	var s: float = item[8]
+	var dir := 1 if i == 1 else -1
+	var p := _on_face(_point(i, sheet, col), dir, z, y) if col >= 0 else _sheet_point(i, sheet - 1, s, y, z)
+	var at := n.dot(p)
+	var c := at - float(item[6])
+	if c >= 0.0 or at < float(item[7]):
+		return false
+	var move := minf(-c, push)
+	var slope := sag_slope(dir)
+	var hinge: float = _hinge[i]
+	var bend: float = _bend[i]
+	var clamp_s: float = _clamp[i]
+	const EPS := 1e-4
+	if sheet > 0:
+		var k := sheet - 1
+		var d: PackedFloat64Array = _fan[i]
+		var was: float = d[k]
+		var lifted := _params_for(slope + hinge + (was + EPS) * 0.5, bend + (was + EPS) * 0.5, clamp_s)
+		var g := (n.dot(_bent_point(dir, s, y, z, lifted)) - at) / EPS
+		if absf(g) < CONTACT_MIN_LEVER:
+			return false
+		d[k] = maxf(was + move / g, 0.0)
+		_fan[i] = d
+		var v: PackedFloat64Array = _fan_v[i]
+		if g * v[k] < 0.0:
+			v[k] = 0.0
+			_fan_v[i] = v
+		_stale(i, sheet)
+		return true
+	# The block: the hinge while it swings free (no hand on the half, the book
+	# open), the bend unless the covers are boards.
+	var gh := 0.0
+	var gb := 0.0
+	if _hinge_free[i] and clamp_s <= 0.0:
+		gh = (n.dot(_bent_point(dir, s, y, z, _params_for(slope + hinge + EPS, bend, clamp_s))) - at) / EPS
+	if not hardback:
+		gb = (n.dot(_bent_point(dir, s, y, z, _params_for(slope + hinge, bend + EPS, clamp_s))) - at) / EPS
+	var g2 := gh * gh + gb * gb
+	if g2 < CONTACT_MIN_LEVER * CONTACT_MIN_LEVER:
+		return false
+	_hinge[i] += gh * move / g2
+	_bend[i] += gb * move / g2
+	var rate: float = gh * _hinge_v[i] + gb * _bend_v[i]
+	if rate < 0.0:
+		_hinge_v[i] -= gh * rate / g2
+		_bend_v[i] -= gb * rate / g2
+	_stale(i, -1)
+	return true
 
 
 func _update_settled() -> void:
@@ -800,6 +1295,24 @@ func unbend_over(point: Vector3, own_dir: int, lift: float = 0.0, pivot_z: float
 func bend_rotation_y(point: Vector3) -> float:
 	var dir := 1 if point.x >= 0.0 else -1
 	return -float(dir) * bend_sz(absf(point.x), point.z, params(dir)).z
+
+
+## Inverse of bend_sz() for one set of numbers: (s, y, z) on the flat sheet that
+## a book-local point came from, s measured out from the gutter on dir's side
+## whichever side the point is on (a finger under a half hanging past the spine).
+## The same iteration as unbend().
+static func flat_point(point: Vector3, dir: int, p: Vector4) -> Vector3:
+	var target := Vector2(float(dir) * point.x, point.z)
+	if p.x == 0.0 and p.y == 0.0 and p.w == 0.0:
+		return Vector3(target.x, point.y, target.y)
+	var guess := target
+	for _n in 8:
+		var r := bend_sz(guess.x, guess.y, p)
+		var err := target - Vector2(r.x, r.y)
+		if err.length_squared() < 1e-12:
+			break
+		guess += err.rotated(-r.z)
+	return Vector3(guess.x, point.y, guess.y)
 
 
 ## Inverse of bend(): the flat-book point a bent-book point came from. The map

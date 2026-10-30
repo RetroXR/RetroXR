@@ -9,7 +9,7 @@
 ## BLANK image, and every frame would "succeed".
 ##
 ##   "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-##       res://Tools/vr/book_flop_probe.tscn -- --out=<dir> [--floppiness=0.7] [--pages=28] [--only=follow|flip|back|fanturn|spine|idle] [--nolid] [--nostack] [--solid] [--hide=covers|blocks|tops|fan] [--outline|--hull]
+##       res://Tools/vr/book_flop_probe.tscn -- --out=<dir> [--floppiness=0.7] [--pages=28] [--only=follow|flip|back|fanturn|spine|idle|table] [--nolid] [--nostack] [--nocontact] [--solid] [--hide=covers|blocks|tops|fan] [--outline|--hull]
 ##   python Tools/book_flop_video.py <dir>        # frames -> mp4 + contact sheet
 ##
 ## The window stays small; the book is drawn in its own 800x600 SubViewport.
@@ -67,6 +67,16 @@ var _nostack := false
 ## hues, light and dark alternating), so a page drawn where another should be is
 ## plain at a glance and its colour says which page it is.
 var _solid := false
+## --only=table: the book over a real table, as PDFBook meets the room
+## (_meet_room) — hung onto it, laid on it, held over its edge, lifted by a
+## fingertip, and turned over onto it. --nocontact is the control: the same moves
+## with nothing given to the sim, so the pages go through the table and the finger.
+var _contact := true
+var _finger_ball: MeshInstance3D
+var _look := Vector3.ZERO
+## Where the table's top is, and its left edge, in the world.
+const TABLE_Y := -0.08
+const TABLE_EDGE_X := -0.30
 
 
 func _ready() -> void:
@@ -80,6 +90,7 @@ func _ready() -> void:
 	var only_fanturn := false
 	var only_spine := false
 	var only_idle := false
+	var only_table := false
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--out="):
 			_out = arg.trim_prefix("--out=")
@@ -99,6 +110,10 @@ func _ready() -> void:
 			only_spine = true
 		elif arg == "--only=idle":
 			only_idle = true
+		elif arg == "--only=table":
+			only_table = true
+		elif arg == "--nocontact":
+			_contact = false
 		elif arg == "--nostack":
 			_nostack = true
 		elif arg == "--solid":
@@ -155,6 +170,10 @@ func _ready() -> void:
 	var below := Vector3(0.30, -0.20, 0.50)
 	var front := Vector3(0.18, 0.10, 0.62)
 
+	if only_table:
+		await _table_views()
+		await _finish()
+		return
 	await _hold("1 held level by the spine, face-up", FACE_UP, FACE_UP, above, 2.2)
 	_report()
 	if only_back:
@@ -343,6 +362,125 @@ func _back_views() -> void:
 	_book.set_page(PDFBook.BookState.CLOSED, 0)
 	await _hold("B14 SHUT, from underneath: the back cover", FACE_UP, FACE_UP, under, 2.2)
 	await _hold("B15 shut, turned over", FACE_UP, FACE_DOWN, over, 2.4)
+
+
+## The pages meet the room. A real table (a StaticBody3D on layer 1, as furniture
+## is) under the book, found by the book's own rays; the fingertip is a ball
+## handed to the sim the way _place_fingers hands it a controller's poke tip.
+## What it must show: halves hanging ONTO the table and lying flat on it, a half
+## hanging over the table's edge from a binding resting on it, a hanging half
+## lifted by the finger and never passing it, the loose leaves of a book turned
+## over coming down onto the table. --nocontact films the same moves going through.
+func _table_views() -> void:
+	var table := StaticBody3D.new()
+	table.name = "Table"
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.6, 0.03, 0.4)
+	shape.shape = box
+	table.add_child(shape)
+	var top := MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = box.size
+	top.mesh = mesh
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color(0.42, 0.27, 0.16)
+	wood.roughness = 0.7
+	top.material_override = wood
+	table.add_child(top)
+	_vp.add_child(table)
+	table.global_position = Vector3(TABLE_EDGE_X + 0.3, TABLE_Y - 0.015, 0.0)
+
+	_finger_ball = MeshInstance3D.new()
+	var ball := SphereMesh.new()
+	ball.radius = BookFlop.FINGER_RADIUS
+	ball.height = BookFlop.FINGER_RADIUS * 2.0
+	_finger_ball.mesh = ball
+	var skin := StandardMaterial3D.new()
+	skin.albedo_color = Color(0.85, 0.25, 0.2)
+	_finger_ball.material_override = skin
+	_finger_ball.visible = false
+	_vp.add_child(_finger_ball)
+
+	var lying := TABLE_Y - _book._drawn_z_span().x + 0.0005
+	var over := Transform3D(FACE_UP, Vector3.ZERO)
+	var on := Transform3D(FACE_UP, Vector3(0.0, lying, 0.0))
+	var at_edge := Transform3D(FACE_UP, Vector3(TABLE_EDGE_X + 0.006, lying, 0.0))
+	var side := Vector3(0.34, -0.02, 0.40)
+	var look := Vector3(0.0, TABLE_Y + 0.03, 0.0)
+	_look = look
+	_cam.position = side
+	_cam.look_at(_look, Vector3.UP)
+	await _carry("T1 held by the spine 8 cm over a table: the halves hang ONTO it", over, over, side, look, 2.5)
+	_report()
+	await _carry("T2 lowered onto it: they lie flat on it", over, on, side, look, 2.5)
+	_report()
+	await _carry("T3 lifted off again", on, over, side, look, 1.6)
+	var edge_cam := Vector3(TABLE_EDGE_X - 0.22, TABLE_Y + 0.10, 0.36)
+	var edge_look := Vector3(TABLE_EDGE_X, TABLE_Y - 0.02, 0.0)
+	await _carry("T4 laid down at the table's edge: the half past it hangs over", over, at_edge, edge_cam, edge_look, 3.0)
+	_report()
+	await _carry("T5 lifted back over the table", at_edge, over, side, look, 2.0)
+	# Edge on, along the spine: the page's profile with the finger under it.
+	await _carry("T6 a fingertip rises under the right half and lifts it", over, over, Vector3(0.05, -0.01, 0.50),
+		Vector3(0.05, -0.03, 0.0), 3.0,
+		[Vector3(0.12, TABLE_Y + 0.004, 0.0), Vector3(0.12, 0.03, 0.0)])
+	_report()
+	_finger_ball.visible = false
+	await _carry("T7 the finger gone: it hangs onto the table again", over, over, side, look, 1.6)
+	var high := Transform3D(FACE_DOWN, Vector3(0.0, TABLE_Y + 0.13, 0.0))
+	await _carry("T8 turned over 13 cm up: the loose leaves fan down onto the table", over, high,
+		Vector3(0.36, TABLE_Y + 0.05, 0.36), Vector3(0.0, TABLE_Y + 0.05, 0.0), 3.0)
+	_report()
+	var face_down_on := Transform3D(FACE_DOWN, Vector3(0.0, TABLE_Y + _book._drawn_z_span().y + 0.0005, 0.0))
+	await _carry("T9 put down on it face-down: pages flat on the table", high, face_down_on,
+		Vector3(0.36, TABLE_Y + 0.08, 0.36), Vector3(0.0, TABLE_Y, 0.0), 2.6)
+	_report()
+
+
+## Carry the held book from one pose to another over the first 60% of the segment,
+## then hold, stepping the sim as PDFBook._physics_process does — meeting the room
+## first, unless --nocontact. `finger` = [from, to] moves a fingertip with it.
+func _carry(caption: String, from: Transform3D, to: Transform3D, cam_pos: Vector3, look: Vector3,
+		seconds: float, finger: Array = []) -> void:
+	_caption = caption
+	print("[probe] %s" % caption)
+	var frames := int(seconds * 30.0)
+	var cam_from := _cam.position
+	var look_from := _look
+	var t := 0.0
+	# Once there, nothing should move: the worst tick-to-tick turn of either fore
+	# edge while held still, which is how a page buzzing against a table shows.
+	var buzz := 0.0
+	var tips := Vector2(_book._flop.tip_angle(-1), _book._flop.tip_angle(1))
+	for i in frames:
+		for k in TICKS_PER_FRAME:
+			t += DT
+			var blend := smoothstep(0.0, 1.0, clampf(t / (seconds * 0.6), 0.0, 1.0))
+			var basis := Basis(from.basis.get_rotation_quaternion().slerp(to.basis.get_rotation_quaternion(), blend))
+			_book.global_transform = Transform3D(basis, from.origin.lerp(to.origin, blend))
+			_book._flop.set_support(true, Vector3.ZERO)
+			_lid()
+			if _contact:
+				_book._meet_room(true)
+			if finger.size() == 2:
+				var tip: Vector3 = (finger[0] as Vector3).lerp(finger[1], blend)
+				_finger_ball.global_position = tip
+				_finger_ball.visible = true
+				if _contact:
+					_book._flop.fingers.append([_book.to_local(tip), BookFlop.FINGER_RADIUS, 99])
+			_book._flop.drive_from_pose(DT, _book.global_transform, true)
+			_book._log_contact()
+			_book._push_flop(false)
+			_cam.position = cam_from.lerp(cam_pos, blend)
+			_look = look_from.lerp(look, blend)
+			_cam.look_at(_look, Vector3.UP)
+			var now := Vector2(_book._flop.tip_angle(-1), _book._flop.tip_angle(1))
+			if t > seconds * 0.85:
+				buzz = maxf(buzz, maxf(absf(now.x - tips.x), absf(now.y - tips.y)))
+			tips = now
+		await _capture()
+	print("[probe]   held still at the end: worst tick-to-tick turn of a fore edge %.4f deg" % rad_to_deg(buzz))
 
 
 ## Turn a page with a scripted hand, through the same three calls the grab zones

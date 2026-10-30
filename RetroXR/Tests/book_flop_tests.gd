@@ -41,6 +41,8 @@ func _ready() -> void:
 	_test_sim_fan()
 	_test_sim_robustness()
 	_test_sim_pose_drive()
+	_test_sim_contact()
+	_test_sim_fingers()
 	_test_bend_geometry()
 	_test_bent_outline_shaders()
 	await _test_book()
@@ -48,6 +50,7 @@ func _ready() -> void:
 	await _test_end_leaves()
 	await _test_fan_lid()
 	await _test_thick_book()
+	await _test_book_meets_room()
 
 	_finish()
 
@@ -399,6 +402,241 @@ func _test_sim_pose_drive() -> void:
 		ticks += 1
 	_ok(sim.is_settled() and absf(sim.tip_angle(1)) < 0.01,
 		"sim/put down, it relaxes flat and settles (%d ticks)" % ticks)
+
+
+# ── contact: what the pages meet ──────────────────────────────────────────────
+#
+# A 12-leaf half lies 1.2 mm thick on its cover; the sim is told where its cover
+# and page are (set_contact_frame) and given surfaces as patches in book space,
+# the way PDFBook places what its rays found. Every case has a control that goes
+# THROUGH, or the case could pass on a book that never moved.
+
+const COVER_Z := -0.0016
+const PAGE_Z := 0.0016
+const UP := Vector3(0.0, 0.0, 1.0)
+
+
+func _contact_sim(left: int = 12, right: int = 12, fan: int = 0) -> BookFlop:
+	var sim := _open_sim(left, right, fan)
+	sim.set_contact_frame(0.25, Vector2(COVER_Z, PAGE_Z), Vector2(COVER_Z, PAGE_Z),
+		PAGE_Z + 0.0003, PAGE_Z + 0.0003, 0.0001)
+	return sim
+
+
+## One flat surface under the whole book: a patch per side and row reaching
+## everywhere, normal `n` (book-local) through `at`.
+func _surface(sim: BookFlop, n: Vector3, at: Vector3, depth: float = 0.04) -> void:
+	sim.patches.clear()
+	for dir: int in [-1, 1]:
+		for row in BookFlop.CONTACT_ROWS.size():
+			sim.patches.append([n, n.dot(at), PackedVector3Array([at]), 10.0, depth, dir, row, 0,
+				BookFlop.CONTACT_S.size() - 1])
+
+
+## How far the worst point of a side's sheets — cover, page and every leaf that
+## is up — is through a surface (positive = through it). Sampled between the
+## contact columns too, and right out to the corners, where it is not tested.
+func _through(sim: BookFlop, dir: int, n: Vector3, at: Vector3) -> float:
+	var i := 1 if dir > 0 else 0
+	var worst := -INF
+	var zs: Array = [[-1, sim._faces[i].x], [-1, sim._faces[i].y]]
+	for k in sim.fan_count(dir):
+		if sim.fan_delta(dir, k) > 0.0:
+			zs.append([k, sim._fan_top[i] - sim._fan_step * k])
+	for u in 13:
+		var s := lerpf(0.25, 1.0, u / 12.0) * sim.page_width()
+		for y: float in [-0.125, 0.0, 0.125]:
+			for entry: Array in zs:
+				var p := sim._sheet_point(i, entry[0], s, y, entry[1])
+				worst = maxf(worst, n.dot(at) - n.dot(p))
+	return worst
+
+
+func _test_sim_contact() -> void:
+	# Held face-up by the spine 6 cm over a table: the halves hang onto it.
+	var table := Vector3(0.0, 0.0, -0.06)
+	var loose := _contact_sim()
+	_run(loose, FACE_UP)
+	var loose_through := _through(loose, 1, UP, table)
+	_ok(loose_through > 0.02,
+		"contact/control: with nothing under it, a half hangs %.0f mm through where the table would be" % (loose_through * 1000.0))
+	var on := _contact_sim()
+	_surface(on, UP, table)
+	_run(on, FACE_UP)
+	var worst := maxf(_through(on, 1, UP, table), _through(on, -1, UP, table))
+	_ok(worst < 0.0015,
+		"contact/held face-up over a table, both halves hang ONTO it, not through it (worst %.1f mm in)" % (worst * 1000.0))
+	_ok(on.tip_angle(1) < -0.1 and on.tip_angle(-1) < -0.1,
+		"contact/...still hanging down to it, not thrown flat (%.2f, %.2f rad)" % [on.tip_angle(-1), on.tip_angle(1)])
+	_ok(on.contacts[0] > 0 and on.contacts[1] > 0, "contact/...and says so (%s points)" % [on.contacts])
+	# Lifted clear, it starts to fall from rest. Kept, the speed pressing it into
+	# the table every tick builds up against it, and the half leaps away at that
+	# speed the moment the table is gone.
+	var tip_on := on.tip_angle(1)
+	on.patches.clear()
+	on.step(DT, FACE_UP, FACE_UP)
+	_ok(absf(on.tip_angle(1) - tip_on) < 0.01,
+		"contact/the table taken away, the half falls from rest, not at a speed stored up against it (%.4f rad in the first tick)"
+			% absf(on.tip_angle(1) - tip_on))
+
+	# Held resting ON the table, cover down: flat, and not lifted a skin's width
+	# off a table the cover already touches. Measured from the binding's own
+	# clearance, or the halves were pushed up and the book never lay flat.
+	var resting := _contact_sim()
+	_surface(resting, UP, Vector3(0.0, 0.0, COVER_Z))
+	_run(resting, FACE_UP)
+	_ok(_through(resting, 1, UP, Vector3(0.0, 0.0, COVER_Z)) < 0.0015
+			and resting.tip_angle(1) > -0.005 and resting.tip_angle(-1) > -0.005,
+		"contact/a book held resting on a table lies flat on it (%.4f, %.4f rad)"
+			% [resting.tip_angle(-1), resting.tip_angle(1)])
+	_ok(resting.tip_angle(1) < 0.002 and resting.tip_angle(-1) < 0.002,
+		"contact/...and is NOT pushed up off it by the clearance (tips %.4f, %.4f rad)"
+			% [resting.tip_angle(-1), resting.tip_angle(1)])
+
+	# The hand has pushed the book into a tabletop, halves folding up out of it:
+	# no way out for the pages, so the surface is let be. Pushed out, the points
+	# inside fold the book further shut.
+	var sunk := _contact_sim()
+	_surface(sunk, UP, Vector3(0.0, 0.0, 0.05))
+	var free := _contact_sim()
+	_run(sunk, FACE_DOWN)
+	_run(free, FACE_DOWN)
+	_ok(sunk.params(1) == free.params(1) and sunk.params(-1) == free.params(-1),
+		"contact/a surface the binding is deep inside is let be (tip %.3f vs %.3f rad free)"
+			% [sunk.tip_angle(1), free.tip_angle(1)])
+
+	# A hand 6 cm out on the right page, 6 mm over a table: that half's
+	# hinge stays locked and only the strip beyond the hand lies down on it.
+	var low := Vector3(0.0, 0.0, COVER_Z - 0.006)
+	var held_loose := _contact_sim()
+	held_loose.set_support(true, Vector3(0.06, 0.0, 0.0))
+	_run(held_loose, FACE_UP)
+	var held := _contact_sim()
+	held.set_support(true, Vector3(0.06, 0.0, 0.0))
+	_surface(held, UP, low)
+	_run(held, FACE_UP)
+	_ok(_through(held_loose, 1, UP, low) > 0.003 and _through(held, 1, UP, low) < 0.0015,
+		"contact/the strip beyond a supporting hand lies on the table (%.1f mm in, %.1f mm without)"
+			% [_through(held, 1, UP, low) * 1000.0, _through(held_loose, 1, UP, low) * 1000.0])
+	_ok(absf(held.hinge(1)) < 0.01, "contact/...and the hand's half does not hinge to do it (%.4f)" % held.hinge(1))
+
+	# Turned over, high enough over a table that the halves hang clear of it and
+	# only the loose leaves, which peel further, come down onto it.
+	var floor_at := Vector3(0.0, 0.0, 0.13)
+	var hanging := _contact_sim(12, 12, 3)
+	_run(hanging, FACE_DOWN)
+	var leaves := _contact_sim(12, 12, 3)
+	_surface(leaves, -UP, floor_at)
+	_run(leaves, FACE_DOWN)
+	var ordered := true
+	for dir: int in [-1, 1]:
+		for k in 2:
+			ordered = ordered and leaves.fan_delta(dir, k) >= leaves.fan_delta(dir, k + 1)
+	var leaf_worst := maxf(_through(leaves, 1, -UP, floor_at), _through(leaves, -1, -UP, floor_at))
+	_ok(_through(hanging, 1, -UP, floor_at) > 0.01 and leaf_worst < 0.0015,
+		"contact/turned over a table, the fanned leaves come down onto it (%.1f mm in, %.0f mm without)"
+			% [leaf_worst * 1000.0, _through(hanging, 1, -UP, floor_at) * 1000.0])
+	_ok(leaves.fan_delta(1, 0) > 0.0 and leaves.fan_delta(1, 0) < hanging.fan_delta(1, 0) and ordered,
+		"contact/...still fanned but less, and stacked in order (top leaf %.3f rad, %.3f without)"
+			% [leaves.fan_delta(1, 0), hanging.fan_delta(1, 0)])
+	_ok(leaves.params(1) == hanging.params(1) and leaves.params(-1) == hanging.params(-1),
+		"contact/...and the halves they hang from, clear of it, are not moved at all")
+
+	# Turned over and brought down onto it: the halves lie on it too, the leaves
+	# pressed flat between them and the table.
+	var pressed_at := Vector3(0.0, 0.0, 0.05)
+	var pressed := _contact_sim(12, 12, 3)
+	_surface(pressed, -UP, pressed_at)
+	_run(pressed, FACE_DOWN)
+	var pressed_worst := maxf(_through(pressed, 1, -UP, pressed_at), _through(pressed, -1, -UP, pressed_at))
+	_ok(pressed_worst < 0.0015 and pressed.tip_angle(1) < hanging.tip_angle(1),
+		"contact/lower, the halves come down onto it as well (%.1f mm in, tip %.2f rad, %.2f without)"
+			% [pressed_worst * 1000.0, pressed.tip_angle(1), hanging.tip_angle(1)])
+
+	# Shaking against a table that comes and goes: nothing runs away.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xC0DE
+	var shaken := _contact_sim(6, 20, 3)
+	var sane := true
+	var hard := maxf(BookFlop.ANGLE_MAX, -BookFlop.ANGLE_MIN) + BookFlop.HARD_STOP_MARGIN + 1e-6
+	for t in 2000:
+		if t % 50 == 0:
+			_surface(shaken, UP if rng.randf() > 0.5 else -UP, Vector3(0.0, 0.0, rng.randf_range(-0.15, 0.15)))
+		var a := Vector3(rng.randf_range(-60, 60), rng.randf_range(-60, 60), rng.randf_range(-60, 60))
+		shaken.step(DT * rng.randf_range(0.5, 3.0), a, a)
+		for dir: int in [-1, 1]:
+			var tip := shaken.tip_angle(dir)
+			sane = sane and is_finite(tip) and absf(tip) <= hard
+			var last := INF
+			for k in 3:
+				var d := shaken.fan_delta(dir, k)
+				sane = sane and is_finite(d) and d >= 0.0 and d <= last
+				last = d
+	_ok(sane, "contact/2000 ticks of shaking against surfaces that come and go: finite, in its limits, leaves in order")
+
+
+## A fingertip is a round obstacle that keeps the side it pushes from.
+func _test_sim_fingers() -> void:
+	var r := BookFlop.FINGER_RADIUS
+	# Under a hanging half, rising at 7 cm/s: it lifts the half and stays under it.
+	var sim := _contact_sim()
+	_run(sim, FACE_UP)
+	var tip_before := sim.tip_angle(1)
+	var finger := sim.column_points(1, 0.14, 0.0)[0] - Vector3(0.0, 0.0, 0.03)
+	var worst_over := -INF
+	for t in 150:
+		finger.z += 0.0008
+		sim.fingers = [[finger, r, 0]]
+		sim.step(DT, FACE_UP, FACE_UP)
+		var flat := BookFlop.flat_point(finger, 1, sim.params(1))
+		worst_over = maxf(worst_over, flat.z - (COVER_Z - r))
+	_ok(sim.tip_angle(1) > tip_before + 0.15,
+		"finger/a fingertip rising under a hanging half lifts it (%.2f -> %.2f rad)" % [tip_before, sim.tip_angle(1)])
+	_ok(worst_over < 0.002,
+		"finger/...and stays UNDER it the whole way (at worst %.1f mm into its radius)" % (worst_over * 1000.0))
+	_ok(sim.finger_contacts > 0, "finger/...and says it was a finger")
+
+	# Over a flat half (held to read, spine down: nothing hangs), pressing down at
+	# 9 cm/s: the half bends down under it, and the finger never gets beneath.
+	var press := _contact_sim()
+	_run(press, SPINE_DOWN, 50)
+	var down := press.column_points(1, 0.16, 0.05)[1] + Vector3(0.0, 0.0, 0.02)
+	var worst_under := -INF
+	for t in 80:
+		down.z -= 0.001
+		press.fingers = [[down, r, 1]]
+		press.step(DT, SPINE_DOWN, SPINE_DOWN)
+		var flat := BookFlop.flat_point(down, 1, press.params(1))
+		worst_under = maxf(worst_under, (PAGE_Z + r) - flat.z)
+	_ok(press.tip_angle(1) < -0.1 and worst_under < 0.002,
+		"finger/one pressing down on a flat page bends it down and stays over it (tip %.2f rad, %.1f mm into its radius)"
+			% [press.tip_angle(1), worst_under * 1000.0])
+
+	# Gone: the half springs back, and nothing remembers the finger.
+	press.fingers = []
+	_run(press, SPINE_DOWN, 300)
+	_ok(absf(press.tip_angle(1)) < 0.01 and press._finger_side.is_empty(),
+		"finger/taken away, the page springs back flat (%.4f) and the finger is forgotten" % press.tip_angle(1))
+
+	# Touching a flat page from underneath, then a flick up at 1.3 m/s: further
+	# each tick than the block is thick, and faster than a page may be pushed, so
+	# the finger gets ahead of the paper. It still carries the page along, and the
+	# page catches up once it stops — instead of the finger popping out on top,
+	# which flips the push and throws the page DOWN through it.
+	var flick := _contact_sim()
+	_run(flick, SPINE_DOWN, 50)
+	var up_at := flick.column_points(1, 0.16, 0.0)[0] - Vector3(0.0, 0.0, r * 0.9)
+	flick.fingers = [[up_at, r, 2]]
+	flick.step(DT, SPINE_DOWN, SPINE_DOWN)
+	for t in 4:
+		up_at.z += 0.0144
+		flick.fingers = [[up_at, r, 2]]
+		flick.step(DT, SPINE_DOWN, SPINE_DOWN)
+	_run(flick, SPINE_DOWN, 15)
+	var flat_up := BookFlop.flat_point(up_at, 1, flick.params(1))
+	_ok(flat_up.z < COVER_Z and flick.tip_angle(1) > 0.1,
+		"finger/a fast flick from under a page carries it up, and stopped it is still under it (%.1f mm under the cover, tip %.2f rad)"
+			% [(COVER_Z - flat_up.z) * 1000.0, flick.tip_angle(1)])
 
 
 func _test_bend_geometry() -> void:
@@ -1795,6 +2033,126 @@ func _test_thick_book() -> void:
 	await _settle()
 	_remove_tree(cache_dir)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(THICK_CBZ_PATH))
+
+
+## The real book, over a real table: its rays find the table and nothing held,
+## the patches land in the book's frame where the table is, and stepped as the
+## tick steps it the hanging halves lie on the table.
+func _test_book_meets_room() -> void:
+	_write_cbz(CBZ_PATH)
+	var book := BOOK_SCENE.instantiate() as PDFBook
+	book.freeze = true
+	book.pdf_path = ProjectSettings.globalize_path(CBZ_PATH)
+	add_child(book)
+	await _settle()
+	await _drain_renders(book)
+	book.set_page(PDFBook.BookState.OPEN, 4)
+	await _settle()
+
+	var span := book._drawn_z_span()
+	_ok(book._flop._faces[0].x >= span.x - 1e-6 and book._flop._faces[1].x >= span.x - 1e-6
+			and book._flop._faces[0].x < 0.0 and book._flop._faces[1].y > 0.0
+			and book._flop._faces[0].y <= span.y + 1e-6,
+		"room/the sim knows where each half's cover and page are (left %s, right %s, drawn %s)"
+			% [book._flop._faces[0], book._flop._faces[1], span])
+
+	# Face-up 6 cm over a table top, and a slab on layer 17 — something HELD — in
+	# between, 2.5 cm under the pages.
+	book.global_transform = Transform3D(Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0)), Vector3(0, 1.0, 0))
+	var table := _slab(Vector3(0.0, 0.92, 0.0), 0.04, 1)
+	var held_thing := _slab(Vector3(0.0, 0.97, 0.0), 0.01, 1 << 16)
+	await _settle()
+	for n in 2 * BookFlop.CONTACT_ROWS.size():
+		book._look_at_room()
+	book._place_room()
+	var on_table := 0
+	var table_patches := 0
+	var on_held := 0
+	for patch: Array in book._flop.patches:
+		var y := book.to_global((patch[2] as PackedVector3Array)[0]).y
+		if absf(y - 0.94) < 0.002 and (patch[0] as Vector3).dot(UP) > 0.99:
+			on_table += int(patch[8]) - int(patch[7]) + 1
+			table_patches += 1
+		elif absf(y - 0.975) < 0.002:
+			on_held += 1
+	_ok(on_table >= 2 * 2 * BookFlop.CONTACT_S.size(),
+		"room/the rays find the table under every point of both halves (%d points)" % on_table)
+	_ok(table_patches == 2 * BookFlop.CONTACT_ROWS.size(),
+		"room/...as one flat surface a row, not one per point (%d patches)" % table_patches)
+	_ok(on_held == 0, "room/...and not the held thing between them (%d)" % on_held)
+
+	# Lifted far above it, nothing is within reach: the rows are dropped and no
+	# ray is cast at all.
+	var high := book.global_transform
+	book.global_transform = Transform3D(high.basis, Vector3(0.0, 3.0, 0.0))
+	book._room_next = 0
+	book._look_at_room()
+	_ok(book._room_empty and book._room_rows.is_empty(),
+		"room/held up in the air, it looks once, finds nothing near, and casts no rays")
+	book.global_transform = high
+	book._room_next = 0
+	for n in 2 * BookFlop.CONTACT_ROWS.size():
+		book._look_at_room()
+	_ok(not book._room_empty and book._room_rows.size() == 2 * BookFlop.CONTACT_ROWS.size(),
+		"room/...and back over the table it looks round again")
+
+	var top := Vector3(0.0, 0.0, -0.06)
+	for t in 500:
+		book._meet_room(true)
+		book._flop.step(DT, FACE_UP, FACE_UP)
+	book._push_flop(false)
+	var worst := maxf(_through(book._flop, 1, UP, top), _through(book._flop, -1, UP, top))
+	_ok(worst < 0.0015 and book._flop.tip_angle(1) < -0.1 and book._flop.tip_angle(-1) < -0.1,
+		"room/held over it, the book's halves hang onto the table (worst %.1f mm in; tips %.2f, %.2f rad)"
+			% [worst * 1000.0, book._flop.tip_angle(-1), book._flop.tip_angle(1)])
+	_ok(_side_agrees(book, 1) and _side_agrees(book, -1),
+		"room/...and every surface on each side still carries that side's ONE bend")
+
+	# Laid down with its binding just inside the table's edge (x = -0.5): the right
+	# half lies flat on the table, the left hangs over the edge from it. With a
+	# patch found where a ray from the binding clipped the corner reaching 4 cm,
+	# the half past the edge was held out level over nothing (-0.31 rad, filmed).
+	held_thing.queue_free()
+	var lying := 0.94 - span.x + 0.0005
+	book.global_transform = Transform3D(book.global_basis, Vector3(-0.5 + 0.006, lying, 0.0))
+	book._flop.reset()
+	book._meet_room(false)
+	await _settle()
+	for t in 600:
+		book._meet_room(true)
+		book._flop.step(DT, FACE_UP, FACE_UP)
+	_ok(absf(book._flop.tip_angle(1)) < 0.01 and book._flop.support(1) > 0.1,
+		"room/laid at a table's edge, the half on the table lies flat on it, held up by it (tip %.4f rad, %.3f m of it)"
+			% [book._flop.tip_angle(1), book._flop.support(1)])
+	_ok(book._flop.tip_angle(-1) < -0.5 and book._flop.support(-1) == 0.0,
+		"room/...and the half past the edge HANGS over it (tip %.2f rad)" % book._flop.tip_angle(-1))
+
+	# Let go: no room, no fingers, and the book relaxes as it always has.
+	book._meet_room(false)
+	_ok(book._flop.patches.is_empty() and book._flop.fingers.is_empty() and book._room_rows.is_empty(),
+		"room/a book nobody holds is given nothing to meet")
+
+	table.queue_free()
+	var cache_dir: String = book._cache_dir
+	book.queue_free()
+	await _settle()
+	_remove_tree(cache_dir)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(CBZ_PATH))
+
+
+## A metre-square slab `thick` deep, centred at `at`, on these layers.
+func _slab(at: Vector3, thick: float, layers: int) -> StaticBody3D:
+	var body := StaticBody3D.new()
+	body.collision_layer = layers
+	body.collision_mask = 0
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.0, thick, 1.0)
+	shape.shape = box
+	body.add_child(shape)
+	add_child(body)
+	body.global_position = at
+	return body
 
 
 ## Step the book's own sim as if it were held, then hand the result to the
