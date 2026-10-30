@@ -1,6 +1,11 @@
 ## Bakes the bedroom's wall switch — a two-gang toggle plate and one toggle bat —
 ## to Scenes/Objects/room/switch_plate_2gang.res and switch_toggle.res.
 ##
+## SUPERSEDED: the shipped meshes now come from a Blender model (RetroXR-models
+## rooms/light_switch) through import_light_switch.gd, in this script's frame and
+## dimensions, which stay documented here. Running this would overwrite them with
+## the older procedural plate.
+##
 ##   godot --headless --path RetroXR --script res://Tools/gen/gen_light_switch.gd
 ##
 ## Replaces imported-assets/bedroom/furniture/light_switch.glb, which was a

@@ -41,20 +41,30 @@ enum Target {
 ## ceiling gang makes on a GlowMesh.
 const STRING_GROUP := &"string_light"
 
-## Half the bat's throw, in radians about the button's local X. 0.42 rad is 24 deg
-## either side of the plate normal, which is about what a real toggle gives and is
-## enough to read across a room; the 17 deg this started at did not.
+## Half the bat's throw, in radians about the button's local X: 15 deg either side of
+## the plate normal. A residential toggle's whole travel is about 30 deg end to end
+## (US 6,710,274: "The range of motion of the arm ... from either end position to the
+## other is about thirty degrees"). The 24 deg this used to be read across a room only
+## because the bat pivoted at the plate's face; it pivots behind the plate now (PIVOT),
+## as a real one does inside the switch body, and at that depth 15 deg still moves the
+## tip 8 mm and slides the bat's root in the slot.
 ##
 ## The SIGN is not free. The bat is authored running along +Z, out of the wall (see
 ## gen_light_switch.gd), and Rx(+t) takes +Z toward -Y — so a POSITIVE rotation
 ## swings the tip DOWN. Lights on is therefore -LEVER_TILT, and the probe asserts the
 ## tip is higher when on rather than trusting this comment.
-const LEVER_TILT := 0.42
+const LEVER_TILT := 0.2618
 
 ## Dead band about the bat's pivot, in metres of the button's local Y. A fingertip
 ## inside it is on neither half and works the switch in neither direction, so the
 ## two halves cannot fight over a tip resting on the pivot.
 const POKE_DEAD_BAND := 0.0015
+
+## Where the bat pivots, in the button's frame: 15.5 mm behind the button's origin,
+## which both rooms put 9.5 mm out from the plate's back, so 6 mm behind the plate,
+## inside the switch body. switch_toggle.res (RetroXR-models rooms/light_switch) is
+## modeled with its origin there.
+const PIVOT := Vector3(0.0, 0.0, -0.0155)
 
 var _button: VRButton = null
 var _lever: Node3D = null
@@ -67,6 +77,12 @@ func _ready() -> void:
 	_button.button_pressed.connect(_on_pressed)
 	_button.press_gate = _poke_allowed
 	_lever = _button.get_node_or_null("ButtonMesh") as Node3D
+	if _lever != null:
+		_lever.position = PIVOT
+		# VRButton took the mesh's rest position in its own _ready, before this one, and
+		# puts the mesh back there after every press: give it the pivot instead.
+		if "_mesh_local_origin" in _button:
+			_button.set("_mesh_local_origin", PIVOT)
 	_apply()
 
 
