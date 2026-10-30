@@ -299,3 +299,15 @@ direction = 0
 transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.168, 0.03, -0.209)
 channel = 2
 direction = 0
+
+; Empty caps: VRButton reads $ButtonMesh in _ready (a missing one logged an error per key); adopt_button
+; fills PlayButton/Speed33Button/Speed45Button with the model's keys, PAUSE/STOP stay empty and hidden.
+[node name="ButtonMesh" type="MeshInstance3D" parent="PlayButton"]
+
+[node name="ButtonMesh" type="MeshInstance3D" parent="PauseButton"]
+
+[node name="ButtonMesh" type="MeshInstance3D" parent="StopButton"]
+
+[node name="ButtonMesh" type="MeshInstance3D" parent="Speed33Button"]
+
+[node name="ButtonMesh" type="MeshInstance3D" parent="Speed45Button"]
