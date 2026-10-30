@@ -498,6 +498,15 @@ itself refuses the manifest.
 command line). The state is read but nothing pending is applied and nothing is
 discovered or mounted. `mod_browser_tests` never used the autoload — it builds its own
 managers with `mods_root_override` / `state_path_override` — so it is unaffected.
+A probe (Tools/) keeps the player's mods, except with `-- --no-mods` (2026-10-31), for a probe that must show the
+stock game: the base audio cassette, which a mod dressing it would otherwise hide.
+
+**The game's own dressing steps aside for a mod's (2026-10-31).** `ModManager.dresser_of(cls, key)` (and
+`ModHooks.dresser_of`) say which mod holds a `ModApi.dress` claim. AudioCassette wears the base game's Compact
+Cassette (`CompactCassette`, named `Shell`) in `_ready` only while no mod holds `AudioCassette/shell` AND no `Shell`
+is on it already: a mod's hook runs as the node enters the tree, before `_ready`, so the mod's shell is always first
+and a tape is never dressed twice (`xenu.cassette` claims it and checks `has_node("Shell")` itself).
+`audio_cassette_tests mod/` covers a claim, a claiming hook and a hook with no claim.
 
 `install(staged, source)`, `vet(path)`, `remove(id)`, `inspect(path)`,
 `remove_unreadable(path)`, `source(id)`, `set_source(id, source)`,

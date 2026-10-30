@@ -99,8 +99,12 @@ func load_data_root() -> void:
 
 ## Whether this run is one of the suites in res://Tests/ (the scene on the command
 ## line, as Tools/run_tests.py and a hand-run suite both give it). Probes under
-## Tools/ are not: one that looks at the room wants the room the player has.
+## Tools/ are not: one that looks at the room wants the room the player has. A probe
+## that must show the STOCK game (the base cassette, with a mod installed that dresses
+## it) passes `-- --no-mods` and is treated the same.
 static func _is_test_run() -> bool:
+	if "--no-mods" in OS.get_cmdline_user_args():
+		return true
 	for arg: String in OS.get_cmdline_args():
 		if arg.begins_with("res://Tests/"):
 			return true
@@ -722,6 +726,11 @@ static func _is_container(file_name: String) -> bool:
 ## Nothing is enabled by default. A mod that arrives on disk — pushed over adb,
 ## dropped in by hand, or uploaded through the LAN file server — is inert until
 ## the player says otherwise, which is the whole of the consent model.
+## Which mounted mod dresses `cls`/`key` (ModApi.dress), or "" when none does.
+func dresser_of(cls: StringName, key: String) -> String:
+	return _hooks.dresser_of(cls, key) if _hooks != null else ""
+
+
 func is_enabled(id: String) -> bool:
 	return bool(_enabled.get(id, false))
 

@@ -76,6 +76,12 @@ func claim_dress(owner_id: String, cls: StringName, key: String) -> String:
 	return "" if holder == owner_id else holder
 
 
+## Which mod dresses `cls`/`key`, or "" when none does: what the game's own dressing of a shipped object asks
+## before it puts its model on (AudioCassette's Compact Cassette steps aside for a mod's shell).
+func dresser_of(cls: StringName, key: String) -> String:
+	return str(_dressers.get("%s/%s" % [cls, key], ""))
+
+
 ## Drop every watcher belonging to a mod. Used when a mod's registration failed
 ## part-way, so a half-registered mod leaves nothing behind.
 func drop_owner(owner_id: String) -> void:

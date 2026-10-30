@@ -70,6 +70,7 @@ func _item(item: String) -> void:
 		root.queue_free()
 		return
 	_boxes(item, root, model)
+	_knob_boxes(item, root)
 	await _poke(item, root, [])
 	match item:
 		"tv":
@@ -190,6 +191,24 @@ func _boxes(item: String, root: Node3D, model: ApplianceModel) -> void:
 			and (boxes[0].size - shown.size).length() < TOLERANCE,
 			"%s/key: %s's box is its key" % [item, b.name],
 			"box %s, key %s" % [boxes[0].size if not boxes.is_empty() else Vector3.ZERO, shown.size])
+
+
+## Every knob's box is the knob it turns (the model's cap hung under its KnobPivot, the close level's), within half a
+## millimeter. Measured in the pivot's frame: the pivot turns only about the knob's own Z, and a round cap's box is the
+## same at any turn, where its bounds in the knob's frame grow with the turn.
+func _knob_boxes(item: String, root: Node3D) -> void:
+	for n in root.find_children("*", "VRKnob", true, false):
+		var k := n as VRKnob
+		var pivot := k.get_node_or_null("KnobPivot") as Node3D
+		var cs := k.get_node_or_null("CollisionShape3D") as CollisionShape3D
+		if pivot == null or pivot.get_child_count() == 0 or cs == null or not k.is_visible_in_tree():
+			continue
+		var drawn := ApplianceModel.node_bounds(pivot.get_child(0), pivot)
+		var box := cs.transform * cs.shape.get_debug_mesh().get_aabb()
+		var off := maxf((box.position - drawn.position).abs()[(box.position - drawn.position).abs().max_axis_index()],
+			(box.end - drawn.end).abs()[(box.end - drawn.end).abs().max_axis_index()])
+		_ok(off <= 0.0005 and pivot.position.is_zero_approx(), "%s/knob: %s's box is its knob" % [item, k.name],
+			"%.2f mm off" % (off * 1000.0))
 
 
 ## Aim at every live control along the way it faces (a key: against its press; anything else: whichever way it is

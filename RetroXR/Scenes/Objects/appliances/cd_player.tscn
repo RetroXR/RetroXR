@@ -10,6 +10,8 @@
 [ext_resource type="PackedScene" uid="uid://3dkke3nutuao" path="res://imported-assets/appliances/cd_player/cd_mobile_lod1.glb" id="8_lod1"]
 [ext_resource type="PackedScene" uid="uid://d3k81krab0gjf" path="res://imported-assets/appliances/cd_player/cd_mobile_lod2.glb" id="9_lod2"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="10_rcaport"]
+[ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_knob.gd" id="13_vrknob"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/trs_port.tscn" id="14_trsport"]
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_cd"]
 friction = 0.8
@@ -34,6 +36,10 @@ emission_energy_multiplier = 0.4
 ; Placeholder boxes; ApplianceModel.adopt_button() replaces each key's with the model's own key and fits the box to it.
 [sub_resource type="BoxShape3D" id="BoxShape3D_btn"]
 size = Vector3(0.03, 0.02, 0.03)
+
+; The LEVEL knob's box; cd_player.gd fits it to the model's knob.
+[sub_resource type="BoxShape3D" id="Shape_level"]
+size = Vector3(0.017, 0.017, 0.009)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
 size = Vector3(0.43, 0.095, 0.29)
@@ -280,3 +286,24 @@ direction = 0
 transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.118, 0, -0.154)
 channel = 2
 direction = 0
+
+; PHONES: a 3.5 mm stereo jack on the front (a TrsPort, OUT). Headphones in it take the disc's sound (audio_player.gd,
+; "PHONES"); seated on the model's PhonesOut mouth at _ready.
+[node name="PhonesOut" parent="." instance=ExtResource("14_trsport")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.166, -0.017, 0.146)
+direction = 0
+
+; LEVEL: the headphones' level, a VRKnob over the model's PhonesLevel (turned about its own +Z). Placed on the
+; model's knob at _ready; the room save and netplay carry it as they do every knob.
+[node name="LevelKnob" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.189, -0.017, 0.145)
+collision_layer = 1048576
+collision_mask = 0
+script = ExtResource("13_vrknob")
+engage_radius = 0.03
+value = 0.75
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelKnob"]
+shape = SubResource("Shape_level")
+
+[node name="KnobPivot" type="Node3D" parent="LevelKnob"]

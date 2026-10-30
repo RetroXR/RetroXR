@@ -51,6 +51,17 @@ var _tex_a: Texture2D = null
 var _tex_b: Texture2D = null
 var _download_status := ""
 
+## The cassette's own Compact Cassette (CompactCassette, named Shell), or null while a mod's shell dresses it or
+## this is another scene built on the script.
+var _shell: CompactCassette = null
+const GAME_SCENE := "res://Scenes/Objects/media/audio_cassette.tscn"
+## The stand-in's parts, hidden under the shell: the box and its label block (kept: the scene stays whole).
+const STAND_IN := ["TapeMesh", "LabelMesh"]
+## A mod that dresses the cassette claims this (ModApi.dress); the game's own shell steps aside for it.
+const DRESS_CLASS := &"AudioCassette"
+const DRESS_KEY := "shell"
+static var _logged_dresser := "-"
+
 
 func _ready() -> void:
 	super._ready()
@@ -59,8 +70,43 @@ func _ready() -> void:
 	_labels.name = "LabelLoader"
 	_labels.art_ready.connect(_on_label_art)
 	add_child(_labels)
+	_dress_shell()
 	_update_label()
 	_request_label_art()
+
+
+## Put on the Compact Cassette in place of the stand-in box, unless a mod dresses the cassette: a mod's hook runs as
+## the cassette enters the tree, before this, and hangs a node named Shell; and one that holds the claim but has not
+## dressed this one yet still owns it. Either way the game's shell stays off, so a tape is never dressed twice.
+func _dress_shell() -> void:
+	if scene_file_path != GAME_SCENE or has_node("Shell"):
+		_note_dresser("a shell already on it" if has_node("Shell") else "")
+		return
+	var mods := get_node_or_null("/root/Mods")
+	var dresser := str(mods.call("dresser_of", DRESS_CLASS, DRESS_KEY)) if mods != null and mods.has_method("dresser_of") 		else ""
+	if not dresser.is_empty():
+		_note_dresser(dresser)
+		return
+	_note_dresser("the game")
+	_shell = CompactCassette.new()
+	_shell.name = "Shell"
+	add_child(_shell)
+	for part: String in STAND_IN:
+		var mesh := get_node_or_null(part) as Node3D
+		if mesh != null:
+			mesh.visible = false
+	var title := get_node_or_null("CassetteLabel") as Label3D
+	if title != null:
+		CompactCassette.write_on_label(title)
+	_lay_art()      # plain paper until (unless) the album's pictures arrive
+
+
+## Who dresses the cassettes, once per run and again only when it changes (a library spawns dozens of tapes).
+static func _note_dresser(who: String) -> void:
+	if who.is_empty() or who == _logged_dresser:
+		return
+	_logged_dresser = who
+	print("[Cassette] audio cassettes dressed by %s" % who)
 
 
 func _update_label() -> void:
@@ -89,6 +135,15 @@ func _on_label_art(slot: StringName, tex: Texture2D) -> void:
 ## the bare cassette has one on the front only.
 func _lay_art() -> void:
 	var back := _tex_b if _tex_b != null else _tex_a
+	if _shell != null:
+		# The shell's own paper labels take the pictures (and the stand-in's cream when there are none).
+		var block := get_node_or_null("LabelMesh") as MeshInstance3D
+		var paper_mat := block.get_active_material(0) as BaseMaterial3D if block != null else null
+		var paper := paper_mat.albedo_color if paper_mat != null else Color(0.9, 0.88, 0.8)
+		_shell.set_label("LabelA", _tex_a, paper)
+		_shell.set_label("LabelB", back, paper)
+		_apply_label_text_visibility()
+		return
 	MediaLabelArt.show_quad(self, "LabelArt", _tex_a, _ART_BOX,
 		Transform3D(Basis.IDENTITY, Vector3(0.0, _ART_Y, _ART_Z)))
 	_lay_back_paper(back != null)

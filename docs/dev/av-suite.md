@@ -351,15 +351,14 @@ decks are. Every node the saves and netplay name is kept; the old box, slit, lid
 - **Cassette:** it stands in the door as front-loaders take one (the playing side out, the exposed tape edge down).
   The spindles (`ReelL` / `ReelR`) stand at the angle of a drawn cassette's own hubs (`HubSupply` / `HubTakeup`, what
   the `xenu.cassette` mod draws; the deck runs after the shell, `process_priority` 1), or turn at the tape's speed for
-  the stand-in box. The base game does NOT draw the Compact Cassette: that is the mod's (a base shell would dress
-  every cassette twice). The counter is the tape's place, a side's worth 0-999, from the last COUNTER RESET. REC
+  the stand-in box. The Compact Cassette itself is now the base game's too (see below), stepping aside for a mod's. The counter is the tape's place, a side's worth 0-999, from the last COUNTER RESET. REC
   presses and logs: the deck plays, it does not record. REC LEVEL is molded. The meters read the PCM the deck pumps
   (`RetroAudioPlayer.wants_levels` / `levels`, peaks falling 1.8 a second) and redraw at most 12 Hz.
 - **CD:** the tray is the DVD player's (a trimesh `TrayBody` riding the drawer). The model has no REW / FF: those
   buttons stay for the remote's scan, out of play on the box. REPEAT and SHUFFLE choose what plays next through
   `RetroAudioPlayer._track_after` (SHUFFLE plays each track once, then ends unless REPEAT); they are the host's own in
   a session, not synced. OPEN mid-play stops. The display says OPEN / CLOSE / NO DISC / LOADING, else TRACK, m:ss,
-  the two lamps and the 20-track calendar. PHONES and LEVEL are molded.
+  the two lamps and the 20-track calendar. PHONES and LEVEL are live (see below).
 - **Collision:** the body and PointerArea are the model less the door / tray, and stop at the fascia
   (`ApplianceModel.fit_shapes(..., front)`): the molded knobs are merged into the close level's Body and stand 9-11 mm
   proud, which put the keys 9 mm inside the box and out of the desktop ray's reach. An open door has no collision of
@@ -412,3 +411,31 @@ unchanged. `PlugB0` wears the model's plug and is the only connector a player to
   Listening (the probe runs no core), the Quest and a real session are OWED.
 - Not yet: the record/cassette/CD players (`audio_player.gd`) do not read a sink's `get_audio_unit_size`, so through a
   set's jack they are heard at their own law; the CD player's PHONES jack is not a socket yet.
+
+### The base game's Compact Cassette, and the CD player's PHONES (2026-10-31)
+
+**The audio cassette wears a real Compact Cassette in the base game** (`CompactCassette`,
+`Scripts/Objects/media/compact_cassette.gd`): RetroXR-models' own `generic/audio-cassette` (the same model the
+`xenu.cassette` mod ships, so no new credit), its three mobile levels in `imported-assets/appliances/audio_cassette/`.
+It is a port of the model's own Godot script: the packs are blend shapes and the hubs and tape runs follow the tape's
+place (`AudioCassette.tape_progress`, eased 0.25 s), so the deck's spindles, which read `HubSupply` / `HubTakeup`,
+follow it as they followed the mod's. The stand-in box and label block are hidden (the scene stays whole), the
+collision box stays the body's 100.4 x 63.8 x 12 the slot was cut for (the drawn side ribs are 102.4 across), the
+album's name is written on side A's paper and the album's pictures go on the model's two labels (else the stand-in's
+cream). **A mod dressing the cassette wins:** AudioCassette puts its shell on in `_ready` only while no mod holds
+`AudioCassette/shell` (`ModManager.dresser_of`) and no `Shell` is on it yet (a mod's hook runs as the node enters the
+tree, before `_ready`), so a tape is never dressed twice; `[Cassette] audio cassettes dressed by <who>` says which,
+once. `audio_cassette_tests` (shell, tape, mod: a claim, a claiming hook, a hook with no claim; dropping either check
+fails it). A probe that must show the stock cassette passes `-- --no-mods` (mods.md).
+
+**The CD player's PHONES is a live 3.5 mm jack** (`PhonesOut`, a TrsPort OUT on the model's `PhonesOut` mouth; the
+model's jack is now 3.5 mm, the size of the RETRO XR headphones' plug) and **LEVEL a live knob** (`LevelKnob`, a VRKnob
+turning the model's `PhonesLevel`, which keeps its own node on every level; saved and synced as every knob). In
+`audio_player.gd` a lead in PHONES takes the deck's sound INSTEAD of its line out and its own speakers
+(`phones_sink()`, `_via_phones`), at the LEVEL knob's level on both channels (`set_phones_level`). Every deck now reads
+its sink's `get_audio_unit_size()` each frame, so through headphones, or a set whose jack has headphones in it, the
+disc, tape or record plays at the headphones' near-ear law. The cassette deck's model has no PHONES jack.
+`headphones_tests cd/` (PHONES over a line out to a set, the distance law, LEVEL, pulled back to the line out, a set's
+jack); `appliance_pointer_tests` checks the knob's box is the knob. How it looks: `Tools/av/bring_in_probe`
+(windowed, `-- --no-mods`).
+

@@ -195,10 +195,15 @@ func _log_tag() -> String:
 
 ## Build the spatialised audio player fed by VlcPlayer's PCM ring buffer. As a
 ## child of the (pickable) unit it follows the device around automatically.
+## The distance law's reference (m) for the deck's own speakers; a sink with its own (get_audio_unit_size: headphones,
+## or a set whose jack has headphones in it) replaces it while it carries the sound.
+const UNIT_SIZE := 2.0
+
+
 func _setup_audio() -> void:
 	_emitter = SpatialAudioEmitter.new()
 	_emitter.name = "SpatialAudioEmitter"
-	_emitter.unit_size = 2.0
+	_emitter.unit_size = UNIT_SIZE
 	_emitter.max_distance = 12.0
 	# A hi-fi has two speakers a little way apart; hearing them separately is
 	# most of what makes it feel like an object in the room.
@@ -696,9 +701,18 @@ func set_audio_channel_mode(mode: int) -> void:
 # deck has no FreeSurround of its own, so through the amplifier it plays its stereo on
 # FL / FR, folded wherever those have no cabinet, and is not matrix-decoded.
 
+## PHONES. A deck with a `PhonesOut` jack (TrsPort, OUT; the RETRO XR CD player) sends its sound to whatever a lead
+## in it reaches (a pair of headphones) INSTEAD of its line out and its own speakers, as a real headphone jack does,
+## at the level `phones_level` sets (the LEVEL knob beside it). The line out is resolved as before when nothing is in
+## the jack.
+
 ## Where the sound goes while a lead carries it, and onto which of its speakers each
 ## channel lands (-1 nowhere). Null: the deck's own speakers.
 var _sound_sink: Node3D = null
+## Whether that lead is the one in PHONES.
+var _via_phones := false
+## The headphones' level, 0..1 (the LEVEL knob's value), applied only through PHONES.
+var phones_level := 0.75
 var _sink_left := -1
 var _sink_right := -1
 ## The deck's own level, put back when the last lead leaves (a sink sets its own).
@@ -706,15 +720,41 @@ var _own_volume := 1.0
 
 
 func has_line_out() -> bool:
-	return get_node_or_null("AudioLOut") is RcaPort or get_node_or_null("AudioROut") is RcaPort
+	return get_node_or_null("AudioLOut") is RcaPort or get_node_or_null("AudioROut") is RcaPort 		or get_node_or_null("PhonesOut") is RcaPort
 
 
 ## What RcaPort.get_device() walks up for. A deck with no sockets ignores it.
 func on_av_topology_changed(_links: Array) -> void:
 	if not has_line_out():
 		return
+	var phones := phones_sink()
+	if phones != null:
+		_via_phones = true
+		_route_sound(phones, 0, 1)
+		return
+	_via_phones = false
 	var feed := AvSource.resolve(self, true)
 	_route_sound(feed.audio_sink, feed.left, feed.right)
+
+
+## What a lead in PHONES reaches (a sink with speakers: a pair of headphones), or null.
+func phones_sink() -> Node3D:
+	var jack := get_node_or_null("PhonesOut") as RcaPort
+	if jack == null:
+		return null
+	for link in AvGraph.links_for(self):
+		if link["out"] != jack:
+			continue
+		var target := (link["in"] as RcaPort).get_device()
+		if target != null and target != self and target.has_method("get_speaker_positions"):
+			return target
+	return null
+
+
+## The LEVEL knob: the headphones' level, applied at once if they carry the sound now.
+func set_phones_level(v: float) -> void:
+	phones_level = clampf(v, 0.0, 1.0)
+	_apply_channel_gains()
 
 
 ## The sink carrying this deck's sound, or null while it plays from itself.
@@ -736,7 +776,8 @@ func _route_sound(sink: Node3D, l: int, r: int) -> void:
 			# The sink pushes its level (set_audio_volume) from here.
 			if sink.has_method("on_av_source_found"):
 				sink.on_av_source_found(self)
-			print("[%s] %s: sound -> %s's speakers (L to %d, R to %d)" % [_log_tag(), name, sink.name, l, r])
+			print("[%s] %s: sound -> %s's speakers (L to %d, R to %d)%s" % [_log_tag(), name, sink.name, l, r,
+				", through PHONES at level %.2f" % phones_level if _via_phones else ""])
 		else:
 			set_audio_volume(_own_volume)
 			if _emitter:
@@ -744,10 +785,20 @@ func _route_sound(sink: Node3D, l: int, r: int) -> void:
 				_emitter.clear_emit_position()
 			print("[%s] %s: sound back on its own speakers%s" % [_log_tag(), name,
 				" (was %s)" % previous.name if previous != null else ""])
-	# A channel whose cord reaches nothing is silenced at its voice; the other plays on.
-	if _emitter:
-		var cabled := _sound_sink != null
-		_emitter.set_channel_gains(1.0 if not cabled or l >= 0 else 0.0, 1.0 if not cabled or r >= 0 else 0.0)
+	if _sound_sink == null and _emitter:
+		_emitter.unit_size = UNIT_SIZE
+	_apply_channel_gains()
+
+
+## A channel whose cord reaches nothing is silenced at its voice; the other plays on. Through PHONES both carry the
+## LEVEL knob's level.
+func _apply_channel_gains() -> void:
+	if _emitter == null:
+		return
+	var cabled := _sound_sink != null
+	var g := phones_level if cabled and _via_phones else 1.0
+	_emitter.set_channel_gains((1.0 if not cabled or _sink_left >= 0 else 0.0) * g,
+		(1.0 if not cabled or _sink_right >= 0 else 0.0) * g)
 
 
 ## Each frame while cabled: the deck's two voices stand on the sink's speakers (an
@@ -758,6 +809,10 @@ func _follow_sink() -> void:
 	if not is_instance_valid(_sound_sink):
 		_route_sound(null, -1, -1)
 		return
+	# The sink's own distance law (headphones: full level at the head, a leak past it), read live: a set's answer
+	# changes as headphones go in and out of ITS jack.
+	var unit: float = float(_sound_sink.call("get_audio_unit_size")) if _sound_sink.has_method("get_audio_unit_size") 		else -1.0
+	_emitter.unit_size = unit if unit > 0.0 else UNIT_SIZE
 	if _sound_sink.has_method("get_speaker_positions"):
 		var sp: PackedVector3Array = _sound_sink.get_speaker_positions()
 		if sp.size() >= 2:

@@ -564,20 +564,25 @@ func _test_label_media() -> void:
 	add_child(cas)
 	_spawned.append(cas)
 	var cas_text := cas.get_node("CassetteLabel") as Label3D
-	got = await _wait_for(func() -> bool: return cas.get_node_or_null("LabelArtB") != null)
+	# The base game's cassette wears its pictures on the Compact Cassette's own paper labels (CompactCassette).
+	var shell := cas.get_node_or_null("Shell") as CompactCassette
+	var art := func(label: String) -> Texture2D:
+		var mi := shell.levels[0].find_child(label, true, false) as MeshInstance3D if shell else null
+		var m := mi.get_surface_override_material(0) as StandardMaterial3D if mi else null
+		return m.albedo_texture if m != null and m.albedo_texture is ImageTexture else null
+	got = await _wait_for(func() -> bool: return art.call("LabelA") != null and art.call("LabelB") != null)
 	_ok(got, "label/a cassette with one picture wears it on both faces")
 	if not got:
 		return
-	var front := cas.get_node("LabelArt") as MeshInstance3D
-	var rear := cas.get_node("LabelArtB") as MeshInstance3D
-	_ok(front.position.z > 0.0 and rear.position.z < 0.0
-		and rear.transform.basis.z.is_equal_approx(Vector3(0, 0, -1)),
+	var front_mi := shell.levels[0].find_child("LabelA", true, false) as MeshInstance3D
+	var rear_mi := shell.levels[0].find_child("LabelB", true, false) as MeshInstance3D
+	_ok((cas.global_transform.affine_inverse() * front_mi.global_transform * front_mi.get_aabb()).get_center().z > 0.0
+		and (cas.global_transform.affine_inverse() * rear_mi.global_transform * rear_mi.get_aabb()).get_center().z < 0.0,
 		"label/side A faces front and side B faces back")
-	_ok(cas.get_node_or_null("LabelPaperB") != null and (cas.get_node("LabelPaperB") as Node3D).position.z < 0.0,
-		"label/and the back has paper to be printed on")
-	_ok((front.mesh as QuadMesh).size.is_equal_approx(Vector2(0.08, 0.02))
-		and (rear.mesh as QuadMesh).size.is_equal_approx(Vector2(0.08, 0.02)),
-		"label/each fitted inside the 80 x 30 mm label, not stretched")
+	var pic_a := art.call("LabelA") as Texture2D
+	var label_aspect := front_mi.get_aabb().size.x / front_mi.get_aabb().size.y
+	_ok(absf(float(pic_a.get_width()) / pic_a.get_height() - label_aspect) < 0.03,
+		"label/the picture is fitted inside the label's paper, not stretched to it")
 	_ok(not cas_text.visible, "label/the album's name text steps aside")
 	cas.net_set_download_status("55%")
 	_ok(cas_text.visible and cas_text.text == "55%", "label/a transfer's progress still shows on a cassette")
@@ -587,27 +592,27 @@ func _test_label_media() -> void:
 	_solid_png(_scratch.path_join("Mix B.png"), 100, 200)
 	cas.album_path = ""
 	cas.album_path = song
-	got = await _wait_for(func() -> bool:
-		var b := cas.get_node_or_null("LabelArtB") as MeshInstance3D
-		return b != null and (b.mesh as QuadMesh).size.is_equal_approx(Vector2(0.015, 0.03)))
+	# The pictures are solid red; which is which shows in their shape: a wide one fills the label to its left edge, a
+	# tall one leaves paper there.
+	var wide := func(label: String) -> bool:
+		var t := art.call(label) as Texture2D
+		if t == null:
+			return false
+		var img := t.get_image()
+		return img.get_pixel(1, img.get_height() / 2).g < 0.3
+	got = await _wait_for(func() -> bool: return art.call("LabelB") != null and not wide.call("LabelB") and wide.call("LabelA"))
 	_ok(got, "label/a `Name B.png` is side B, and side A is left as it was")
-	_ok((cas.get_node("LabelArt") as MeshInstance3D).mesh is QuadMesh
-		and ((cas.get_node("LabelArt") as MeshInstance3D).mesh as QuadMesh).size.is_equal_approx(Vector2(0.08, 0.02)),
-		"label/the two faces are two pictures")
 
 	cas.album_path = _scratch.path_join("None.mp3")
-	got = await _wait_for(func() -> bool:
-		return cas.get_node_or_null("LabelArt") == null and cas.get_node_or_null("LabelArtB") == null)
-	_ok(got and cas.get_node_or_null("LabelPaperB") == null and cas_text.visible,
+	got = await _wait_for(func() -> bool: return art.call("LabelA") == null and art.call("LabelB") == null)
+	_ok(got and cas.get_node_or_null("LabelArt") == null and cas_text.visible,
 		"label/a cassette moved to an album with none drops both faces and shows its name again")
 
 	# Moved twice before the first decode lands: the last one wins.
 	_solid_png(_scratch.path_join("Mix2.png"), 100, 200)
 	cas.album_path = song
 	cas.album_path = _scratch.path_join("Mix2.mp3")
-	got = await _wait_for(func() -> bool:
-		var a := cas.get_node_or_null("LabelArt") as MeshInstance3D
-		return a != null and (a.mesh as QuadMesh).size.is_equal_approx(Vector2(0.015, 0.03)))
+	got = await _wait_for(func() -> bool: return art.call("LabelA") != null and not wide.call("LabelA"))
 	_ok(got, "label/two moves in a row end on the pictures of the last")
 
 	var doomed_cas := AUDIO_CASSETTE.instantiate() as AudioCassette
@@ -1147,20 +1152,25 @@ func _test_cassette_door() -> void:
 	_eq(deck.counter(), 100, "drawer/...and it counts on from there")
 	(deck.get_node("RecordButton") as VRButton).button_pressed.emit()
 	_ok(deck.get_snapped_media() == tape and not deck.is_playing, "drawer/REC does nothing but press")
-	# The spindles: a stand-in tape (no drawn hubs: suites mount no mods) turns them at its speed.
-	# Nothing plays headless (see the top of this file): the deck is told it is playing, which is what sets the tape
-	# moving (RetroAudioPlayer._note_tape).
+	# The spindles stand at the drawn cassette's own hubs (the base game's CompactCassette; a mod's shell the same way),
+	# which follow the tape's place: moving it turns them, and once the hubs have caught up they stand still.
 	var spindle := deck._model.part("ReelL")
+	var shell := tape.get_node_or_null("Shell") as CompactCassette
+	var hub := tape.find_child("HubSupply", true, false) as Node3D
+	_ok(shell != null and hub != null, "drawer/the cassette in the deck is drawn, with hubs to follow")
 	var before := spindle.rotation.z
-	deck.is_playing = true
+	tape.tape_progress = 0.62
 	for i in 3:
 		await get_tree().process_frame
-	_ok(not is_equal_approx(spindle.rotation.z, before), "drawer/the spindles turn while the tape moves")
-	deck.is_playing = false
-	await get_tree().process_frame
+	_ok(not is_equal_approx(spindle.rotation.z, before) and hub != null and is_equal_approx(spindle.rotation.z, hub.rotation.z),
+		"drawer/the spindles turn with the cassette's hubs as the tape moves")
+	await _wait_until(func() -> bool: return shell == null or shell.progress == 0.62, 3.0)
 	before = spindle.rotation.z
 	await get_tree().process_frame
-	_ok(is_equal_approx(spindle.rotation.z, before), "drawer/...and stand still while it does not")
+	await get_tree().process_frame
+	_ok(is_equal_approx(spindle.rotation.z, before), "drawer/...and stand still while it does not",
+		"spindle %.4f -> %.4f, shell %.5f, tape %.5f speed %.2f, playing %s" % [before, spindle.rotation.z,
+			shell.progress if shell else -1.0, tape.tape_progress, tape.tape_speed, deck.is_playing])
 	# The meters: the peak of what played, each channel.
 	deck.levels = Vector2.ZERO
 	deck._measure(PackedVector2Array([Vector2(0.2, -0.7), Vector2(-0.5, 0.1)]))
