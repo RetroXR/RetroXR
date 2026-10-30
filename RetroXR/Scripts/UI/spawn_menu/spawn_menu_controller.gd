@@ -28,6 +28,7 @@ const SNES_MOUSE_SCENE      := preload("res://Scenes/Objects/peripherals/snes_mo
 const RETRO_MULTITAP_SCENE  := preload("res://Scenes/Objects/controllers/retro_multitap.tscn")
 # A wireless receiver for one real gamepad — plugged into a port instead of held.
 const PAD_RECEIVER_SCENE    := preload("res://Scenes/Objects/controllers/pad_receiver.tscn")
+const CONSOLE_STAND_SCENE   := preload("res://Scenes/Objects/stands/console_stand.tscn")
 # The same dongle for the real keyboard and mouse. VR only — see spawn_view.
 const KEYBOARD_RECEIVER_SCENE := preload("res://Scenes/Objects/controllers/keyboard_receiver.tscn")
 const MOUSE_RECEIVER_SCENE    := preload("res://Scenes/Objects/controllers/mouse_receiver.tscn")
@@ -1224,6 +1225,13 @@ func _on_spawn_requested(raw: String) -> void:
 			var shelled := TV_SCENE.instantiate() as RetroTV
 			shelled.tv_model = parsed["shell"]
 			_place_spawned(shelled, "tv")
+			return
+		# A console stand. Its id BEFORE _place_spawned, which adds the child: the
+		# stand builds its parts and its mount from the id in _ready.
+		SpawnCatalog.TokenKind.CONSOLE_STAND:
+			var stand := CONSOLE_STAND_SCENE.instantiate() as ConsoleStand
+			stand.stand_id = parsed["stand_id"]
+			_place_spawned(stand, "console_stand")
 			return
 		# A mod prop. The token IS the registered persistence type, so the thing that
 		# spawns and the thing that is saved cannot drift apart — the scene and the

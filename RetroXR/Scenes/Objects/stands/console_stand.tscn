@@ -1,0 +1,28 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/stands/console_stand.gd" id="1_stand"]
+[ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_stand"]
+friction = 0.9
+
+; A console stand. Everything it is -- its parts, its look, the StandMount the
+; console seats in -- is built in _ready from its StandCatalog row (stand_id),
+; so one scene serves every stand. Frame: y = 0 is where it rests, front +Z.
+[node name="ConsoleStand" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.15
+physics_material_override = SubResource("PhysMat_stand")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_stand")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+; Filled with the row's parts by ConsoleStand._build.
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0

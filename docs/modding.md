@@ -746,6 +746,51 @@ Until 2026-10-17 all of this was declared to the API (`av_connector`,
 `replaces_standin`, a list of the socket names a mod could use). None of those
 exist any more; a row with `av_connector` is refused with a pointer here.
 
+## Console stands
+
+A console stand is something a console is mounted IN, and it decides how the
+console stands: a PlayStation 2 on its side, a Wii upright in its cradle. The
+game ships two as primitive stand-ins (`wii_stand`, `ps2_vertical_stand`). A mod
+can add a stand of its own, or give one of those its real model.
+
+```gdscript
+# A new stand. Offered on the card of every console it fits.
+api.register_console_stand("xenu.mod:vb_stand", {
+    "label": "Virtual Boy Stand",
+    "fits": ["xenu.vb:virtual_boy"],     # systemids and/or model ids
+    "face": "bottom",                   # bottom top left right back front
+    "seat": Vector3(0, 0.25, 0),        # where that face's middle goes, metres
+    "seat_rotation_deg": Vector3(-8, 0, 0),
+    "parts": [{"box": Vector3(0.20, 0.01, 0.12), "position": Vector3(0, 0.005, 0)}],
+    "scene": "res://mods/xenu.mod/vb_stand.tscn",
+})
+
+# Replacing a shipped primitive with the real model. Only what changes.
+api.override_console_stand("wii_stand", {
+    "scene": "res://mods/xenu.mod/rvl017.tscn",
+    "seat": Vector3(0, 0.011, 0),
+    "parts": [ ... ],
+})
+```
+
+- **`face`** is a face of the console's box *as it sits in the room*, measured
+  off its meshes, not as the hardware is drawn. The Wii in the room LIES flat, so
+  it stands upright on its `right` face. Print the console's `body_aabb()` and
+  its model's basis before choosing.
+- **`seat`** puts the middle of that face at that point in your stand's frame
+  (y up, front +Z). The console's front stays its front for the four side faces.
+- **`parts`** (boxes and cylinders, `{"box": size}` or `{"cylinder": [radius,
+  height]}`, each with a `position`) are always the stand's collision, and its
+  look when there is no `scene`. Your `scene` is the look only: give it no
+  bodies of its own.
+- An override **keeps the stand's id**, so every room that already holds that
+  stand gets your model. It is merged over the shipped row: send `scene` and
+  whatever you measured differently, nothing else. One mod may override a stand;
+  switching it off brings the primitive back.
+- A new stand's id is permanent once anyone has saved a room with it. A save
+  holding a stand whose mod is gone loads without it, and the console keeps its
+  own saved place.
+
 ## Attaching to existing code
 
 ```gdscript

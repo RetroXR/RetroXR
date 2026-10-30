@@ -575,6 +575,11 @@ static func _items_for(systemid: String) -> Array:
 			if str(item.get("model_id", "")) == chosen:
 				item["default"] = true
 	items.append_array((_PERIPHERALS.get(systemid, []) as Array).duplicate(true))
+	# The stands a console of this card is mounted in (StandCatalog), shipped and
+	# a mod's alike, beside its other accessories.
+	for stand_id: String in StandCatalog.stands_for_card(systemid):
+		items.append({"kind": "peripheral", "label": StandCatalog.label_of(stand_id),
+			"spawn": CONSOLE_STAND_PREFIX + stand_id})
 	# The machines that bolt onto this one -- but ONLY those actually filed under
 	# this card, or a unit would be offered from two places at once and this card
 	# would grow a row that duplicates a whole tile.
@@ -1046,6 +1051,10 @@ static func model_of_token(token: String) -> PackedStringArray:
 # and a prefixed token that fell through to the default once spawned a console
 # with the whole token as its systemid.
 
+## The spawn token of a console stand: this + its StandCatalog id.
+const CONSOLE_STAND_PREFIX := "console_stand:"
+
+
 ## What parse_token found a token to ask for.
 enum TokenKind {
 	MODEL,          ## "model:<systemid>:<model_id>" / "model_as:<variant>:..." -- systemid, model_id, model_variant
@@ -1055,6 +1064,7 @@ enum TokenKind {
 	BLANK_MEMCARD,  ## "<family>_memory_card" -- family (a new blank card)
 	PAD_RECEIVER,   ## "pad_receiver:<guid>:<ordinal>" -- guid, ordinal
 	TV_SHELL,       ## "tv:<shell>" -- shell
+	CONSOLE_STAND,  ## "console_stand:<id>" -- stand_id (a StandCatalog id)
 	MOD,            ## "mod:<type>" -- mod_type
 	PLAIN,          ## anything else: a literal type, a persistence type or a bare systemid
 }
@@ -1110,6 +1120,9 @@ static func parse_token(raw: String) -> Dictionary:
 	elif type.begins_with("tv:"):
 		parsed["kind"] = TokenKind.TV_SHELL
 		parsed["shell"] = type.substr("tv:".length())
+	elif type.begins_with(CONSOLE_STAND_PREFIX):
+		parsed["kind"] = TokenKind.CONSOLE_STAND
+		parsed["stand_id"] = type.substr(CONSOLE_STAND_PREFIX.length())
 	elif type.begins_with("mod:"):
 		parsed["kind"] = TokenKind.MOD
 		parsed["mod_type"] = type.substr("mod:".length())

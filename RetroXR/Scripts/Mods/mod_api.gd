@@ -290,6 +290,32 @@ func register_tv_shell(shell_id: String, scene_path: String, label: String) -> b
 	return true
 
 
+## Add a console stand: a thing a console is mounted in, which decides how it
+## stands (StandCatalog's row format: `fits`, `face`, `seat`, `parts`, and an
+## optional `scene` for its look). Spawned as "console_stand:<stand_id>" and
+## offered on the card of every console it fits.
+func register_console_stand(stand_id: String, row: Dictionary) -> bool:
+	if not _namespaced(stand_id, "console stand id"):
+		return false
+	var err := StandCatalog.register_mod_stand(stand_id, row, id)
+	if not err.is_empty():
+		return _fail("console stand %s: %s" % [stand_id, err])
+	_note("object", str(row.get("label", stand_id)))
+	return true
+
+
+## Change one of the game's own console stands in place -- give a primitive
+## stand-in its real model. `changes` is merged over the shipped row (any of
+## `scene`, `seat`, `seat_rotation_deg`, `parts`, `label`, `fits`, `face`, ...),
+## and the stand keeps its id, so every save that names it gets the new one.
+func override_console_stand(stand_id: String, changes: Dictionary) -> bool:
+	var err := StandCatalog.override_stand(stand_id, changes, id)
+	if not err.is_empty():
+		return _fail("console stand %s: %s" % [stand_id, err])
+	_note("object", StandCatalog.label_of(stand_id))
+	return true
+
+
 ## Add rows to a console's spawn card — its pads, leads and accessories.
 ##
 ## A mod controller is simply a scene rooted at RetroController; persistence
@@ -497,6 +523,7 @@ func withdraw() -> void:
 	SpawnCatalog.drop_mod(id)
 	ScenePersistence.drop_mod_objects(id)
 	RetroTV.drop_mod_shells(id)
+	StandCatalog.drop_mod(id)
 	_hooks.drop_owner(id)
 
 

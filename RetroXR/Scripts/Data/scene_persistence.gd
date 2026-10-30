@@ -224,6 +224,7 @@ const SUBWOOFER_SCENE        := preload("res://Scenes/Objects/appliances/subwoof
 const SURROUND_AMP_SCENE     := preload("res://Scenes/Objects/appliances/surround_amp.tscn")
 const SPEAKER_STAND_120      := preload("res://Scenes/Objects/appliances/speaker_stand_120.tscn")
 const SPEAKER_STAND_100      := preload("res://Scenes/Objects/appliances/speaker_stand_100.tscn")
+const CONSOLE_STAND_SCENE    := preload("res://Scenes/Objects/stands/console_stand.tscn")
 const SPEAKER_CABLE_SCENE    := preload("res://Scenes/Objects/cables/speaker_cable.tscn")
 const STORAGE_BOX_SCENE      := preload("res://Scenes/Objects/appliances/storage_box.tscn")
 const TABLE_SCENE            := preload("res://Scenes/Objects/furniture/table.tscn")
@@ -1631,6 +1632,7 @@ static func _restore_kind_rows() -> Array:
 		[PowerStrip, &"_restore_lead"],
 		[TravelAdapter, &"_restore_lead"],
 		[SpeakerStand, &"_restore_speaker_stand"],
+		[ConsoleStand, &"_restore_console_stand"],
 		[SensorBar, &"_restore_sensor_bar"],
 		[GcMicrophone, &"_restore_gc_microphone"],
 		[N64Vru, &"_restore_n64_vru"],
@@ -1812,6 +1814,12 @@ func _restore_lead(root: Node, _id: int, obj: Node, spawned: Dictionary, saved: 
 func _restore_speaker_stand(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
 	(obj as SpeakerStand).restore_seat(
 		_resolve_ref(root, spawned, rec.get("speaker")) as Loudspeaker)
+
+
+func _restore_console_stand(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
+	var sys := _resolve_ref(root, spawned, rec.get("console")) as RetroSystem
+	if sys:
+		(obj as ConsoleStand).restore_console(sys)
 
 
 func _restore_sensor_bar(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
@@ -2434,6 +2442,10 @@ static func _save_kind_rows() -> Array:
 		[RetroMultitap, "", &"_serialize_multitap"],
 		[Loudspeaker, "", &"_loudspeaker_entry"],
 		[SpeakerStand, "", &"_speaker_stand_entry"],
+		# Which stand, and the console mounted in it: the STAND records it, for
+		# SpeakerStand's reason (the zone is the stand's, and a console knows
+		# nothing about stands).
+		[ConsoleStand, "console_stand", &"_console_stand_fields"],
 		[SurroundAmp, "surround_amp", &"_surround_amp_fields"],
 		# Deliberately not a pose-only object. The root never moves — the two
 		# cabinets are separate bodies the player carries around one at a time — so
@@ -2728,6 +2740,13 @@ func _speaker_stand_entry(stand: SpeakerStand, id: int, n3d: Node3D,
 	return _base(id, stand_token, n3d).merged({
 		"speaker": _ref(node_to_id, stand.seated_speaker()),
 	})
+
+
+func _console_stand_fields(stand: ConsoleStand, node_to_id: Dictionary) -> Dictionary:
+	return {
+		"stand_id": stand.stand_id,
+		"console": _ref(node_to_id, stand.seated_console()),
+	}
 
 
 ## The decoder switch as well as the pose. The volume knob is a VRKnob, which
@@ -3259,6 +3278,9 @@ const _LOAD_KINDS := {
 	"audio_disc": &"_load_audio_disc",
 	"audio_cassette": &"_load_audio_cassette",
 	"vinyl_record": &"_load_vinyl_record",
+	# A stand a console is mounted in. Which stand it is is its own; which
+	# console is in it is restored from this same entry ("console").
+	"console_stand": &"_load_console_stand",
 }
 
 
@@ -3339,6 +3361,19 @@ func _load_memory_card(data: Dictionary) -> Node3D:
 	card.card_id = data.get("card_id", "")
 	card.card_label = data.get("card_label", "MEMORY CARD")
 	return card
+
+
+## Before it enters the tree: the stand builds its parts and its mount from
+## the id in _ready. A stand nothing defines any more (its mod is gone) is
+## dropped, and the console that was in it keeps its own saved pose.
+func _load_console_stand(data: Dictionary) -> Node3D:
+	var id := str(data.get("stand_id", ""))
+	if not StandCatalog.has(id):
+		push_warning("[ScenePersistence] console stand '%s' is defined by nothing installed -- skipped" % id)
+		return null
+	var stand := CONSOLE_STAND_SCENE.instantiate() as ConsoleStand
+	stand.stand_id = id
+	return stand
 
 
 func _load_expansion_cover(_data: Dictionary) -> Node3D:
