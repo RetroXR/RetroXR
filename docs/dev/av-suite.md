@@ -241,3 +241,28 @@ ray could not press them at all.
   control, with the set's door shut and open and the deck's cover open and shut. Putting
   the 3 mm key margin back fails 39 cases; dropping the television's carve fails the door
   keys. `Tools/av/appliance_ray_probe` prints the same numbers for every direction.
+
+### The RETRO XR remote: a handset with real keys (2026-10-30)
+
+`tv_remote.tscn` wears RetroXR-models' `generic/tv-remote` (`imported-assets/appliances/tv_remote/`,
+LOD0 inside 1 m, LOD1 to 2.5 m): a 200 x 50 mm two-AA handset, keys up (+Y), the window along -Z.
+Its 26 keys are the grid's cells (`TVRemote.KEY_CELLS`; PREV/NEXT are `prev_ch`/`next_ch` on a
+DVD), and the floating grid works exactly as before.
+
+- **Every key is a VRButton** under `Keys`, built in `_dress_keys` and dressed by `adopt_button`
+  (1.2 mm travel along the key's -Z). A key does what its cell does on the device the grid is
+  showing, or, with no grid up (the remote lying on a table), on whatever `IrTip` points at;
+  a cell the grid would grey or leave out does nothing, and the line says which.
+  `press_key()` is that path; the grid's highlight moves to the cell pressed.
+- **Shapes are what is drawn, with no margin:** each key's is its own triangles (the ring's four arcs and OK
+  overlap as boxes), the `PointerArea`'s the shell's triangles, the body's the shell's convex
+  hull (186 points from LOD0, made per remote: a shape kept in a static crashed the exit; Jolt takes it, and `simplify` pads it 1.6 mm).
+- **A fingertip presses one key:** `press_gate` (`_key_gate`) keeps a touch to the key's
+  footprint +1 mm and no higher than 3 mm over its face, and goes by angle round the ring's
+  centre for the arcs and OK. `trigger_radius` 12 mm only reaches the widest key's corner.
+- `IrTip` replaces the scene's `Tip` transform; the cone and the desktop crosshair are unchanged.
+- `tv_remote_tests` (49): dress, shapes, the desktop ray at every key from above and tilted
+  (and the 2 mm gap and the shell take no key: a 3 mm-padded box took the gap), touch, the
+  key-to-cell map on a set, VCR, DVD and record player, aiming with no grid, a visible press.
+  `Tools/av/remote_model_probe` (windowed) renders it held at the RETRO XR set and a key down.
+  Headset feel, Quest cost (29 draws at LOD0) and taking the battery cover off are OWED.

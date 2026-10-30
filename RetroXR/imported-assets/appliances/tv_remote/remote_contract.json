@@ -1,0 +1,246 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up out of the keys, the infrared window along -Z; origin at the center of the 50 x 22 x 200 mm shell",
+ "animations": "none: the engine presses the keys",
+ "keys": {
+  "KeyPower": {
+   "at": [
+    -0.012,
+    0.013,
+    -0.084
+   ],
+   "legend": "POWER"
+  },
+  "KeySource": {
+   "at": [
+    0.012,
+    0.013,
+    -0.084
+   ],
+   "legend": "SOURCE"
+  },
+  "KeyVolDown": {
+   "at": [
+    -0.0145,
+    0.013,
+    -0.0725
+   ],
+   "legend": "VOL -"
+  },
+  "KeyMute": {
+   "at": [
+    0.0,
+    0.013,
+    -0.0725
+   ],
+   "legend": "MUTE"
+  },
+  "KeyVolUp": {
+   "at": [
+    0.0145,
+    0.013,
+    -0.0725
+   ],
+   "legend": "VOL +"
+  },
+  "KeyChDown": {
+   "at": [
+    -0.01,
+    0.013,
+    -0.061
+   ],
+   "legend": "CH -"
+  },
+  "KeyChUp": {
+   "at": [
+    0.01,
+    0.013,
+    -0.061
+   ],
+   "legend": "CH +"
+  },
+  "KeyAudioMode": {
+   "at": [
+    -0.01,
+    0.013,
+    -0.0495
+   ],
+   "legend": "SPEAKER"
+  },
+  "KeyStereo3d": {
+   "at": [
+    0.01,
+    0.013,
+    -0.0495
+   ],
+   "legend": "3D"
+  },
+  "KeyAspect": {
+   "at": [
+    -0.01,
+    0.013,
+    -0.038
+   ],
+   "legend": "ASPECT"
+  },
+  "KeyAudioOut": {
+   "at": [
+    0.01,
+    0.013,
+    -0.038
+   ],
+   "legend": "AUDIO OUT"
+  },
+  "KeyEject": {
+   "at": [
+    0.0,
+    0.013,
+    -0.0265
+   ],
+   "legend": "EJECT"
+  },
+  "KeyPrev": {
+   "at": [
+    -0.015,
+    0.013,
+    -0.015
+   ],
+   "legend": "PREV"
+  },
+  "KeyPlayPause": {
+   "at": [
+    0.0,
+    0.013,
+    -0.015
+   ],
+   "legend": "PLAY/PAUSE"
+  },
+  "KeyNext": {
+   "at": [
+    0.015,
+    0.013,
+    -0.015
+   ],
+   "legend": "NEXT"
+  },
+  "KeyRew": {
+   "at": [
+    -0.015,
+    0.013,
+    -0.0035
+   ],
+   "legend": "REW"
+  },
+  "KeyStop": {
+   "at": [
+    0.0,
+    0.013,
+    -0.0035
+   ],
+   "legend": "STOP"
+  },
+  "KeyFf": {
+   "at": [
+    0.015,
+    0.013,
+    -0.0035
+   ],
+   "legend": "FF"
+  },
+  "KeyMenu": {
+   "at": [
+    -0.0145,
+    0.013,
+    0.044
+   ],
+   "legend": "MENU"
+  },
+  "KeyAudio": {
+   "at": [
+    0.0,
+    0.013,
+    0.044
+   ],
+   "legend": "AUDIO"
+  },
+  "KeySubtitle": {
+   "at": [
+    0.0145,
+    0.013,
+    0.044
+   ],
+   "legend": "SUBTITLE"
+  },
+  "KeyRight": {
+   "at": [
+    0.01245,
+    0.013,
+    0.019
+   ],
+   "legend": "right"
+  },
+  "KeyUp": {
+   "at": [
+    0.0,
+    0.013,
+    0.00655
+   ],
+   "legend": "up"
+  },
+  "KeyLeft": {
+   "at": [
+    -0.01245,
+    0.013,
+    0.019
+   ],
+   "legend": "left"
+  },
+  "KeyDown": {
+   "at": [
+    -0.0,
+    0.013,
+    0.03145
+   ],
+   "legend": "down"
+  },
+  "KeyOk": {
+   "at": [
+    0.0,
+    0.013,
+    0.019
+   ],
+   "legend": "OK"
+  }
+ },
+ "key_press": {
+  "axis": "each key node's local -Z (into the remote)",
+  "travel_m": 0.0012
+ },
+ "ir_tip": {
+  "node": "IrTip",
+  "at": [
+   0.0,
+   0.003,
+   -0.1
+  ],
+  "axis": "local -Z out of the window"
+ },
+ "battery_cover": {
+  "node": "BatteryCover",
+  "at": [
+   0.0,
+   -0.011,
+   0.06335
+  ],
+  "removal": "slide +Z (glTF) 3 mm, then lift along -Y"
+ },
+ "lod_switch_m": [
+  1.0,
+  2.5
+ ],
+ "triangles": {
+  "high": 45436,
+  "lod0": 8163,
+  "lod1": 6181,
+  "lod2": 4875
+ }
+}

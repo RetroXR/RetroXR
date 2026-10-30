@@ -25,6 +25,11 @@ Not a VRButton per cap: a pad button is a HELD bit polled every frame, the caps
 are 3-5 mm apart, and they already have an animator moving them. One test
 against the animator's own entries keeps the two from disagreeing.
 
+The TV remote is the other way round: its 26 keys each fire ONE action (a cell of
+the remote grid), and the desktop ray and the laser must reach them too, so each is
+a VRButton whose `press_gate` keeps a fingertip to that key alone (`av-suite.md`,
+"The RETRO XR remote").
+
 ## Rules that cost a bug each
 
 - **A target from an animator keeps the entry as `src` and reads bit/mask/

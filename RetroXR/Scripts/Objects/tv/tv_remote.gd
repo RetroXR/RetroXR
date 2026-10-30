@@ -127,6 +127,43 @@ var _font: Font = null
 
 @onready var _tip: Marker3D = $Tip
 @onready var _pointer_area: StaticBody3D = $PointerArea
+@onready var _model: ApplianceModel = $Model
+@onready var _keys_root: Node3D = $Keys
+
+## The handset's own keys (RetroXR-models generic/tv-remote), each the grid cell it is
+## printed with: pressing one does what that cell does on whatever the remote is aimed
+## at, and nothing where the grid would grey the cell or leave it out. PREV/NEXT are the
+## chapter keys on a DVD, which names them apart.
+const KEY_CELLS := {
+	"KeyPower": "power", "KeySource": "source", "KeyVolDown": "vol_down", "KeyMute": "mute",
+	"KeyVolUp": "vol_up", "KeyChDown": "ch_down", "KeyChUp": "ch_up", "KeyAudioMode": "audio_mode",
+	"KeyStereo3d": "stereo3d", "KeyAspect": "aspect", "KeyAudioOut": "audio_out", "KeyEject": "eject",
+	"KeyPrev": "prev", "KeyPlayPause": "playpause", "KeyNext": "next", "KeyRew": "rew", "KeyStop": "stop",
+	"KeyFf": "ff", "KeyUp": "up", "KeyDown": "down", "KeyLeft": "left", "KeyRight": "right", "KeyOk": "ok",
+	"KeyMenu": "menu", "KeyAudio": "audio", "KeySubtitle": "subtitle",
+}
+const DVD_CELLS := {"prev": "prev_ch", "next": "next_ch"}
+## The model's keys travel 1.2 mm.
+const KEY_TRAVEL := 0.0012
+## A fingertip presses a key inside its own footprint, this much past it all round, and
+## from no higher than KEY_HOVER over its face: the keys are 2-3.5 mm apart.
+const KEY_REACH := 0.001
+const KEY_HOVER := 0.003
+## The four-way ring round OK (the model's params.py): its centre on the face, in the
+## remote's frame, and its arcs' radii. The arcs' boxes overlap each other and OK, so a
+## fingertip on the ring is told apart by where it is round the centre.
+const RING_CENTRE := Vector2(0.0, 0.019)          # x, z
+const RING_R_IN := 0.009
+const RING_R_OUT := 0.0159
+const OK_R := 0.0074
+const RING_DIRS := {"KeyRight": 0.0, "KeyUp": 90.0, "KeyLeft": 180.0, "KeyDown": 270.0}
+
+## The shell's convex hull and triangles, made once per remote (1.4 ms). Not static: a
+## shape kept in a static outlives the physics server at quit and crashes the exit.
+var _hull: ConvexPolygonShape3D = null
+var _shell_faces: ConcavePolygonShape3D = null
+## key node name -> VRButton
+var _key_buttons: Dictionary = {}
 
 
 ## The thumbstick drives the on-screen grid while the remote is aimed at a
@@ -147,7 +184,161 @@ func _ready() -> void:
 		_glyphs[k] = TransportGlyphs.glyph(k)
 	_font = TransportGlyphs.font()
 	_build_menu()
+	_dress()
 	call_deferred("_find_vr_nodes")
+
+
+# ── The model ─────────────────────────────────────────────────────────────────
+
+## Dress the remote from its model: the tip on the IrTip, a VRButton per key, and the
+## body's and the laser's shapes fitted to what it draws. Only the close level is
+## outlined — three levels traced over each other would draw it three times.
+func _dress() -> void:
+	if _model == null or _model.levels.is_empty():
+		push_warning("[TVRemote] %s: no model to dress" % name)
+		return
+	for i in range(1, _model.levels.size()):
+		for m in _model.levels[i].find_children("*", "MeshInstance3D", true, false):
+			m.add_to_group("outline_exclude")
+	if _model.part("IrTip") != null:
+		_tip.transform = _model.part_transform("IrTip", self)
+	else:
+		push_warning("[TVRemote] %s: the model has no IrTip; aiming from the scene's Tip" % name)
+	_dress_keys()
+	_fit_shapes()
+	print("[TVRemote] %s: dressed from the model, %d keys, IR at %s" % [name, _key_buttons.size(), _tip.position])
+
+
+## One VRButton per model key: its cap is the key, its shape the key's own triangles
+## (no margin), and it presses along the key's -Z, into the remote.
+func _dress_keys() -> void:
+	for key_name: String in KEY_CELLS:
+		if _model.part(key_name) == null:
+			push_warning("[TVRemote] %s: the model has no %s" % [name, key_name])
+			continue
+		var btn := VRButton.new()
+		btn.name = key_name
+		btn.monitoring = false
+		var shape := CollisionShape3D.new()
+		shape.name = "CollisionShape3D"
+		btn.add_child(shape)
+		# Empty until adopt_button fills it: VRButton looks its cap up as it readies.
+		var blank := MeshInstance3D.new()
+		blank.name = "ButtonMesh"
+		btn.add_child(blank)
+		_keys_root.add_child(btn)
+		_model.adopt_button(btn, key_name, KEY_TRAVEL)
+		var key := _model.part(key_name) as MeshInstance3D
+		key.add_to_group("outline_exclude")
+		shape.shape = key.mesh.create_trimesh_shape()
+		shape.transform = Transform3D.IDENTITY
+		var cap := btn.get_node_or_null("ButtonMesh") as MeshInstance3D
+		# Touch reaches the farthest corner of the widest key, and the gate keeps it on this one.
+		btn.trigger_radius = 0.012
+		btn.contact_margin = 0.004
+		btn.press_gate = _key_gate.bind(key_name, cap)
+		btn.button_pressed.connect(press_key.bind(key_name))
+		_key_buttons[key_name] = btn
+
+
+## Whether a fingertip at `tip` (world) is on `key_name` and on no other: inside the
+## key's footprint (grown KEY_REACH) and no higher than KEY_HOVER over its face. The
+## ring's arcs and OK go by where the tip is round the ring's centre.
+func _key_gate(tip: Vector3, key_name: String, cap: MeshInstance3D) -> bool:
+	if cap == null or cap.mesh == null:
+		return false
+	var p := cap.global_transform.affine_inverse() * tip
+	var box := cap.mesh.get_aabb()
+	if p.z > KEY_HOVER or p.z < box.position.z:
+		return false
+	if key_name == "KeyOk" or RING_DIRS.has(key_name):
+		var q := global_transform.affine_inverse() * tip
+		var d := Vector2(q.x - RING_CENTRE.x, -(q.z - RING_CENTRE.y))
+		var r := d.length()
+		if key_name == "KeyOk":
+			return r <= OK_R + KEY_REACH
+		if r < RING_R_IN - KEY_REACH or r > RING_R_OUT + KEY_REACH:
+			return false
+		var off := wrapf(rad_to_deg(d.angle()) - float(RING_DIRS[key_name]), -180.0, 180.0)
+		return absf(off) <= 45.0
+	return p.x >= box.position.x - KEY_REACH and p.x <= box.end.x + KEY_REACH \
+		and p.y >= box.position.y - KEY_REACH and p.y <= box.end.y + KEY_REACH
+
+
+## The body's shape is the shell's convex hull (it rests tilted on the battery end and
+## the window, as the remote does), the laser's the shell's own triangles: both exactly
+## what is drawn, so the keys standing on the face are the ray's, not the body's.
+func _fit_shapes() -> void:
+	if _hull == null:
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var space := global_transform.affine_inverse()
+		for m: MeshInstance3D in _model.levels[0].find_children("*", "MeshInstance3D", true, false):
+			if KEY_CELLS.has(String(m.name)) or m.name == "BodyPrint":
+				continue
+			for s in m.mesh.get_surface_count():
+				st.append_from(m.mesh, s, space * m.global_transform)
+		var shell := st.commit()
+		_hull = shell.create_convex_shape(true, false) as ConvexPolygonShape3D
+		_shell_faces = shell.create_trimesh_shape()
+		print("[TVRemote] shell shapes: hull of %d points, %d triangles for the laser"
+			% [_hull.points.size(), _shell_faces.get_faces().size() / 3])
+	var body := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if body:
+		body.shape = _hull
+		body.transform = Transform3D.IDENTITY
+	var laser := get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D
+	if laser:
+		laser.shape = _shell_faces
+		laser.transform = Transform3D.IDENTITY
+
+
+## The VRButton for a model key (a suite presses them), or null.
+func key_button(key_name: String) -> VRButton:
+	return _key_buttons.get(key_name) as VRButton
+
+
+## A physical key was pressed: do what its cell does on the device the remote is aimed
+## at — the one the grid is showing, or, with no grid up (the remote lying on a table),
+## whatever its window points at now. A greyed or absent cell does nothing, as on the grid.
+## Returns the cell id that was activated, or "".
+func press_key(key_name: String) -> String:
+	var target := _target if is_instance_valid(_target) else _scan_for_target()
+	if target == null:
+		print("[TVRemote] %s: %s pressed, aimed at nothing" % [name, key_name])
+		return ""
+	var shown := _target
+	_target = target
+	var id := cell_for_key(key_name)
+	var cell := -1
+	for i in _cells.size():
+		if str(_cells[i]["id"]) == id:
+			cell = i
+	var on_layout := false
+	for spec: Dictionary in _layout_for_target():
+		if str(spec["id"]) == id:
+			on_layout = true
+	if not on_layout or not _cell_enabled(id):
+		print("[TVRemote] %s: %s pressed, %s is %s on %s" % [name, key_name, id,
+			"greyed" if on_layout else "not a key", target.name])
+		_target = shown
+		return ""
+	print("[TVRemote] %s: %s pressed -> %s on %s" % [name, key_name, id, target.name])
+	_activate(id)
+	# The grid shows the key that was pressed, as if it had been chosen there.
+	if shown == target and cell >= 0:
+		_selection = cell
+		_refresh_states()
+	_target = shown
+	return id
+
+
+## The grid cell a model key stands for on the current target.
+func cell_for_key(key_name: String) -> String:
+	var id := str(KEY_CELLS.get(key_name, ""))
+	if _target is DVDPlayer and DVD_CELLS.has(id):
+		return str(DVD_CELLS[id])
+	return id
 
 
 func _find_vr_nodes() -> void:

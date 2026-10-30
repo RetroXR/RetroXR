@@ -1,43 +1,24 @@
-[gd_scene load_steps=15 format=3 uid="uid://tv_remote_001"]
+[gd_scene load_steps=13 format=3 uid="uid://tv_remote_001"]
 
 [ext_resource type="Script" path="res://Scripts/Objects/tv/tv_remote.gd" id="1_remotescript"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
 [ext_resource type="Script" uid="uid://b8uwrf51jd5xm" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="3_grabpoint"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_right.tscn" id="4_rhand"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_left.tscn" id="5_lhand"]
+[ext_resource type="Script" path="res://Scripts/Objects/appliance_model.gd" id="6_model"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/tv_remote/remote_mobile.glb" id="7_lod0"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/tv_remote/remote_mobile_lod1.glb" id="8_lod1"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/tv_remote/remote_mobile_lod2.glb" id="9_lod2"]
 
+; The RETRO XR remote (RetroXR-models generic/tv-remote): 50 x 22.5 x 200 mm, keys up (+Y),
+; the infrared window along -Z. Both shapes are replaced in _ready by what the model draws
+; (TVRemote._fit_shapes): a convex hull of the shell for the body, the shell's own triangles
+; for the laser. These boxes are the shell's bounds, for the editor.
 [sub_resource type="BoxShape3D" id="BoxShape3D_remote"]
-size = Vector3(0.05, 0.025, 0.15)
+size = Vector3(0.05, 0.0225, 0.2)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
-size = Vector3(0.09, 0.06, 0.19)
-
-[sub_resource type="BoxMesh" id="BoxMesh_body"]
-size = Vector3(0.048, 0.022, 0.148)
-
-[sub_resource type="StandardMaterial3D" id="Mat_body"]
-albedo_color = Color(0.12, 0.12, 0.14, 1)
-
-[sub_resource type="BoxMesh" id="BoxMesh_pad"]
-size = Vector3(0.036, 0.004, 0.08)
-
-[sub_resource type="StandardMaterial3D" id="Mat_pad"]
-albedo_color = Color(0.25, 0.25, 0.28, 1)
-
-[sub_resource type="BoxMesh" id="BoxMesh_power"]
-size = Vector3(0.01, 0.004, 0.01)
-
-[sub_resource type="StandardMaterial3D" id="Mat_power"]
-albedo_color = Color(0.8, 0.1, 0.1, 1)
-
-[sub_resource type="BoxMesh" id="BoxMesh_tip"]
-size = Vector3(0.02, 0.012, 0.008)
-
-[sub_resource type="StandardMaterial3D" id="Mat_tip"]
-albedo_color = Color(0.2, 0.02, 0.02, 1)
-emission_enabled = true
-emission = Color(0.5, 0.04, 0.04, 1)
-emission_energy_multiplier = 0.6
+size = Vector3(0.05, 0.0225, 0.2)
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_remote"]
 bounce = 0.0
@@ -53,32 +34,27 @@ freeze_mode = 1
 script = ExtResource("1_remotescript")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0001, 0)
 shape = SubResource("BoxShape3D_remote")
 
-[node name="BodyMesh" type="MeshInstance3D" parent="."]
-mesh = SubResource("BoxMesh_body")
-surface_material_override/0 = SubResource("Mat_body")
+; LOD0 inside 1 m (a fingertip only presses within 0.35 m), LOD1 to 2.5 m.
+[node name="Model" type="Node3D" parent="."]
+script = ExtResource("6_model")
+level_scenes = Array[PackedScene]([ExtResource("7_lod0"), ExtResource("8_lod1"), ExtResource("9_lod2")])
+switch_distance = 1.0
+far_distance = 2.5
+hysteresis = 0.1
 
-[node name="ButtonPad" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.012, 0.015)
-mesh = SubResource("BoxMesh_pad")
-surface_material_override/0 = SubResource("Mat_pad")
+; One VRButton per key, built from the model's 26 keys (TVRemote._dress_keys).
+[node name="Keys" type="Node3D" parent="."]
 
-[node name="PowerDot" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.014, 0.013, -0.055)
-mesh = SubResource("BoxMesh_power")
-surface_material_override/0 = SubResource("Mat_power")
-
-[node name="TipMesh" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.076)
-mesh = SubResource("BoxMesh_tip")
-surface_material_override/0 = SubResource("Mat_tip")
-
+; Put on the model's IrTip in _ready: the middle of the window's end face, aiming along -Z.
 [node name="Tip" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.082)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.003, -0.1)
 
+; Under the battery end, where a hand closes round a remote with the thumb on the keys.
 [node name="GrabPoint" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.01, 0.03)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, 0.07)
 visible = false
 script = ExtResource("3_grabpoint")
 
@@ -90,14 +66,14 @@ collision_layer = 1048576
 collision_mask = 0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0001, 0)
 shape = SubResource("BoxShape3D_pointer")
 
-; Held-hand indicators (Grip pose). Reposition/rotate in the 3D editor to sit on
-; the remote. Shown at runtime by controller_model.gd when the remote is grabbed.
+; Held-hand indicators (Grip pose). Shown at runtime by controller_model.gd when the remote is grabbed.
 [node name="HandRight" parent="." instance=ExtResource("4_rhand")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.01, 0.03)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, 0.07)
 visible = false
 
 [node name="HandLeft" parent="." instance=ExtResource("5_lhand")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.01, 0.03)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, 0.07)
 visible = false
