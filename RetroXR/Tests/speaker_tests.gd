@@ -24,6 +24,7 @@ const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
 const STAND_120 := preload("res://Scenes/Objects/appliances/speaker_stand_120.tscn")
 const STAND_100 := preload("res://Scenes/Objects/appliances/speaker_stand_100.tscn")
 const AMP := preload("res://Scenes/Objects/appliances/surround_amp.tscn")
+const RECORD_PLAYER := preload("res://Scenes/Objects/appliances/record_player.tscn")
 const SOURCE_SCRIPT := preload("res://Tests/speaker_tests_source.gd")
 
 const MESHES := {
@@ -112,6 +113,8 @@ func _run() -> void:
 		["amp/every socket sits on its jack's mouth on the model", _a_mouths],
 		["amp/the mode key and the volume knob are the model's", _a_model_controls],
 		["amp/the display lights a lamp per cabled output, and dims with none", _a_vfd],
+		["amp/the turntable's line out sits on its jacks, out of the back", _a_tt_ports],
+		["amp/a turntable cabled into AUDIO IN plays through the amplifier", _a_tt_into_amp],
 	]
 
 	for entry in cases:
@@ -1562,3 +1565,66 @@ func _a_save() -> void:
 	_check_eq(back.decode_mode, SurroundAmp.DecodeMode.DOLBY_SURROUND, "the switch comes back")
 	_ok(is_equal_approx(back.get_volume(), 0.3), "and the level")
 	_check_eq((back.get_node("DisplayText") as Label3D).text, "DOLBY SURROUND", "on the display too")
+
+
+## The RETRO XR turntable's phono pair: the deck's OUT sockets, white left and red right, on
+## the model's own jack mouths and facing out of its back.
+func _turntable_at(at: Vector3) -> RetroAudioPlayer:
+	var rp := RECORD_PLAYER.instantiate() as RetroAudioPlayer
+	rp.freeze = true
+	rp.position = at
+	add_child(_hold(rp))
+	await _wait(6)
+	return rp
+
+
+func _a_tt_ports() -> void:
+	var rp := await _turntable_at(Vector3(34.0, 0.5, 0.0))
+	var model := rp.get_node("Model") as ApplianceModel
+	_ok(rp.has_line_out(), "the turntable has a line out")
+	var want := {"AudioLOut": RcaPort.Channel.AUDIO_L, "AudioROut": RcaPort.Channel.AUDIO_R}
+	for n: String in want:
+		var port := rp.get_node_or_null(n) as RcaPort
+		_ok(port != null, "%s is a phono socket" % n)
+		if port == null:
+			continue
+		_check_eq(port.channel, want[n], "%s carries its channel" % n)
+		_check_eq(port.direction, RcaPort.Direction.OUT, "%s is an output" % n)
+		_check_eq(port.get_device(), rp, "%s answers to the deck" % n)
+		var mouth := model.part_transform(n, rp).origin
+		var at := (rp.global_transform.affine_inverse() * port.global_transform).origin
+		_ok(at.distance_to(mouth) < 0.002, "%s sits on the model's jack mouth" % n, "%s vs %s" % [at, mouth])
+		_ok(port.global_basis.z.dot(-rp.global_basis.z) > 0.99, "%s faces out of the deck's back" % n)
+
+
+## White and red into AUDIO IN: the amplifier carries the record, sets its level from the knob
+## (silence with nothing on its back), and the deck's two voices stand on its front pair.
+## Unplugged, the deck plays from itself again at its own level.
+func _a_tt_into_amp() -> void:
+	var amp := await _amp_at(Vector3(36.0, 0.5, 0.0))
+	var rp := await _turntable_at(Vector3(36.0, 0.0, 2.0))
+	_ok(rp.sound_sink() == null, "uncabled, the turntable plays from itself")
+	await _lead(rp.get_node("AudioLOut") as RcaPort, amp.get_node("AudioInL") as RcaPort)
+	await _lead(rp.get_node("AudioROut") as RcaPort, amp.get_node("AudioInR") as RcaPort)
+	_ok(rp.sound_sink() == amp, "the amplifier is the turntable's sound sink")
+	_ok(is_zero_approx(rp._volume_linear), "silent, with nothing on the amplifier's back")
+	var amp_outs := _amp_outs(amp)
+	await _cable_up(amp_outs[CH_FL], amp.position + Vector3(-1.0, 0.0, 1.5))
+	await _cable_up(amp_outs[CH_FR], amp.position + Vector3(1.0, 0.0, 1.5))
+	_ok(is_equal_approx(rp._volume_linear, amp.get_volume()), "a speaker on the back brings the knob's level")
+	amp.set_volume(0.3)
+	_ok(is_equal_approx(rp._volume_linear, 0.3), "and the knob turns the record")
+	await _wait(2)
+	var em := rp.get_node("SpatialAudioEmitter") as SpatialAudioEmitter
+	var sp := amp.get_speaker_positions()
+	_ok(em._speaker_override and em._speaker_l_pos.distance_to(sp[0]) < 0.001
+		and em._speaker_r_pos.distance_to(sp[1]) < 0.001,
+		"its left and right stand on the amplifier's front pair, not on the deck",
+		"%s %s vs %s" % [em._speaker_l_pos, em._speaker_r_pos, sp])
+	(rp.get_node("AudioLOut") as RcaPort).drop_object()
+	(rp.get_node("AudioROut") as RcaPort).drop_object()
+	await _wait(6)
+	_ok(rp.sound_sink() == null, "both leads out, the turntable plays from itself again")
+	_ok(is_equal_approx(rp._volume_linear, 1.0), "at its own level", str(rp._volume_linear))
+	_ok(not em._speaker_override, "its voices back on the deck")
+

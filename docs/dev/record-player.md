@@ -63,10 +63,27 @@ Shut (value under 0.6, about 48 deg): the well closes even with the arm parked
 stops processing, and `CoverShape` (the closed cover's box on the body) is enabled so a
 thing set on the cover rests on it; it is disabled once the cover moves.
 
+## Line out
+
+`AudioLOut` (white, AUDIO_L) and `AudioROut` (red, AUDIO_R) are RcaPorts (OUT), seated on
+the model's jack mouths in `_dress_model` (`DeckFace.seat_port`). The routing is the
+base's (`audio_player.gd`, "Line out"), so a CD or cassette deck gains it by adding the
+two ports: a deck with them answers `on_av_topology_changed` (what `RcaPort.get_device`
+walks up for), resolves its sockets through `AvSource` on a plug or unplug, and tells the
+sink it gains (`on_av_source_found`) and the one it loses. The sink pushes its level back
+through `set_audio_volume` -- a set its input's volume, the surround amplifier its knob,
+and silence while the amplifier has no speaker on its back -- and each frame the deck's
+two voices stand on the sink's `get_speaker_positions()` (the amplifier's FL / FR, folded
+wherever those have no cabinet). The deck has no FreeSurround of its own, so through the
+amplifier a record plays in stereo on the front pair and is not matrix-decoded. With no
+lead it plays from the deck as before, at the level it had when the first lead went in.
+The ground post stays the model's: the room has no ground lead. `NameLabel` is hidden
+(the model carries the brand; the base still writes its text). Cases: `speaker_tests`
+`amp/the turntable's line out ...`, `amp/a turntable cabled into AUDIO IN ...`; probe
+`Tools/av/turntable_line_out_probe` (windowed) renders it cabled into the amplifier.
+
 ## Not done
 
-- No RCA ports on the deck: the game's turntable never had any. The model has
-  AudioLOut/AudioROut/Ground/CordExit empties for when it gets them.
 - The arm does not lift (the model's `ArmLift`, cue_up 3.5 deg, is unused).
 
 Probe: `Tools/av/turntable_model_probe.tscn` (windowed: `--resolution 1280x720

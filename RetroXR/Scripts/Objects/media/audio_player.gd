@@ -204,6 +204,7 @@ func _process(delta: float) -> void:
 	if _vlc:
 		_vlc.update_frame()
 		_pump_audio()
+	_follow_sink()
 	_update_scan(delta)
 	_resume_tape()
 	_note_tape()
@@ -651,6 +652,95 @@ func set_audio_volume(volume: float) -> void:
 	_volume_linear = clampf(volume, 0.0, 1.0)
 	if _scan_dir == 0:
 		_apply_volume()
+
+
+## A sink that also sets a set's speaker switch (mono / stereo) asks the source for it.
+func set_audio_channel_mode(mode: int) -> void:
+	if _emitter:
+		_emitter.set_channel_mode(mode as SpatialAudioEmitter.ChannelMode)
+
+
+# --- Line out (a deck with phono outputs) ---
+#
+# A deck with an `AudioLOut` / `AudioROut` pair (RcaPort, OUT; the RETRO XR turntable)
+# is a SOURCE on the cable graph the way a VCR is: a lead into a set's audio input or
+# the surround amplifier's AUDIO IN carries its sound THERE, and with no lead it plays
+# from the deck itself, as every deck did. Resolved through AvSource, the same answer a
+# VCR and a console get, on a plug or unplug and never per frame. The sink is told
+# (on_av_source_found) and pushes its level back through set_audio_volume: a set its
+# input's volume, the amplifier its knob (and silence with no speaker on its back). The
+# deck has no FreeSurround of its own, so through the amplifier it plays its stereo on
+# FL / FR, folded wherever those have no cabinet, and is not matrix-decoded.
+
+## Where the sound goes while a lead carries it, and onto which of its speakers each
+## channel lands (-1 nowhere). Null: the deck's own speakers.
+var _sound_sink: Node3D = null
+var _sink_left := -1
+var _sink_right := -1
+## The deck's own level, put back when the last lead leaves (a sink sets its own).
+var _own_volume := 1.0
+
+
+func has_line_out() -> bool:
+	return get_node_or_null("AudioLOut") is RcaPort or get_node_or_null("AudioROut") is RcaPort
+
+
+## What RcaPort.get_device() walks up for. A deck with no sockets ignores it.
+func on_av_topology_changed(_links: Array) -> void:
+	if not has_line_out():
+		return
+	var feed := AvSource.resolve(self, true)
+	_route_sound(feed.audio_sink, feed.left, feed.right)
+
+
+## The sink carrying this deck's sound, or null while it plays from itself.
+func sound_sink() -> Node3D:
+	return _sound_sink if is_instance_valid(_sound_sink) else null
+
+
+func _route_sound(sink: Node3D, l: int, r: int) -> void:
+	_sink_left = l
+	_sink_right = r
+	if sink != _sound_sink:
+		var previous := _sound_sink if is_instance_valid(_sound_sink) else null
+		if previous == null:
+			_own_volume = _volume_linear
+		_sound_sink = sink
+		if previous != null and previous.has_method("on_av_source_lost"):
+			previous.on_av_source_lost(self)
+		if sink != null:
+			# The sink pushes its level (set_audio_volume) from here.
+			if sink.has_method("on_av_source_found"):
+				sink.on_av_source_found(self)
+			print("[%s] %s: sound -> %s's speakers (L to %d, R to %d)" % [_log_tag(), name, sink.name, l, r])
+		else:
+			set_audio_volume(_own_volume)
+			if _emitter:
+				_emitter.clear_speaker_positions()
+				_emitter.clear_emit_position()
+			print("[%s] %s: sound back on its own speakers%s" % [_log_tag(), name,
+				" (was %s)" % previous.name if previous != null else ""])
+	# A channel whose cord reaches nothing is silenced at its voice; the other plays on.
+	if _emitter:
+		var cabled := _sound_sink != null
+		_emitter.set_channel_gains(1.0 if not cabled or l >= 0 else 0.0, 1.0 if not cabled or r >= 0 else 0.0)
+
+
+## Each frame while cabled: the deck's two voices stand on the sink's speakers (an
+## amplifier folds them wherever a hand moved its cabinets, so this is read live).
+func _follow_sink() -> void:
+	if _sound_sink == null or _emitter == null:
+		return
+	if not is_instance_valid(_sound_sink):
+		_route_sound(null, -1, -1)
+		return
+	if _sound_sink.has_method("get_speaker_positions"):
+		var sp: PackedVector3Array = _sound_sink.get_speaker_positions()
+		if sp.size() >= 2:
+			_emitter.set_speaker_positions(sp[_sink_left] if _sink_left >= 0 else sp[0],
+				sp[_sink_right] if _sink_right >= 0 else sp[1])
+			return
+	_emitter.set_emit_position(_sound_sink.global_position)
 
 
 ## A NAMEPLATE, not a readout. This used to append the track number and a transport

@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3 uid="uid://recordplayer_0001"]
+[gd_scene load_steps=21 format=3 uid="uid://recordplayer_0001"]
 
 [ext_resource type="Script" path="res://Scripts/Objects/media/record_player.gd" id="1_rpscript"]
 [ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="2_snapzone"]
@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_lever.gd" id="6_vrlever"]
 [ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_slider.gd" id="7_vrslider"]
 [ext_resource type="Script" uid="uid://by3ntgy3fbgth" path="res://Scripts/Objects/appliance_model.gd" id="8_model"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="20_rcaport"]
 [ext_resource type="PackedScene" uid="uid://c4pkr0d8qw072" path="res://imported-assets/appliances/turntable/turntable_mobile.glb" id="9_lod0"]
 [ext_resource type="PackedScene" uid="uid://onxnp46aakpp" path="res://imported-assets/appliances/turntable/turntable_mobile_lod1.glb" id="10_lod1"]
 [ext_resource type="PackedScene" uid="uid://dlr12k51pqwfc" path="res://imported-assets/appliances/turntable/turntable_mobile_lod2.glb" id="11_lod2"]
@@ -198,9 +199,9 @@ shape = SubResource("Shape_coverlip")
 
 ; The status line: flat on the deck plate's front strip, between the platter and the
 ; front edge (the model carries the brand on its own front band).
-; The status line (what is playing) stands on the front band's free middle, between START-STOP and the
-; print, upright like the band's lettering; lying on the deck plate it read as a stray sticker.
+; Hidden: the model wears its own logo and lettering. Kept for the scripts (audio_player.gd writes its text).
 [node name="NameLabel" type="Label3D" parent="."]
+visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.01, 0.024, 0.2008)
 pixel_size = 0.0008
 modulate = Color(0.85, 0.87, 0.9, 1)
@@ -285,3 +286,16 @@ collision_mask = 0
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0125, -0.006)
 shape = SubResource("BoxShape3D_pointer")
+
+; The line out on the model's back (white L, red R): a lead into a set's audio input or the surround amplifier's
+; AUDIO IN carries the record there (audio_player.gd, "Line out"). Seated on the model's jack mouths at _ready
+; (DeckFace.seat_port); the transforms here are only where they start.
+[node name="AudioLOut" parent="." instance=ExtResource("20_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.15, 0.03, -0.209)
+channel = 1
+direction = 0
+
+[node name="AudioROut" parent="." instance=ExtResource("20_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.168, 0.03, -0.209)
+channel = 2
+direction = 0

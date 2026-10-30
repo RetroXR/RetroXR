@@ -567,6 +567,12 @@ func _dress_model() -> void:
 		_speed_switch.collision_layer = 0
 		_speed_switch.process_mode = Node.PROCESS_MODE_DISABLED
 
+	# The line out: the phono pair on the model's back. The ground post beside it stays
+	# the model's own: the room has no ground lead to put on it.
+	for port: String in ["AudioLOut", "AudioROut"]:
+		if get_node_or_null(port) != null:
+			DeckFace.seat_port(_model, get_node(port) as Node3D, port)
+
 	for key: String in ["33", "45"]:
 		var pairs: Array = []
 		for p in _model.parts("Lamp" + key):

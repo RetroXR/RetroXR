@@ -479,7 +479,7 @@ suites read it there.
   and the knob's level (0 with no speaker on the back, the set's external-speakers
   rule). `on_av_source_lost` hands the machine back NOT decoding and on Pro Logic II —
   RetroSystem loses old sinks before it finds new ones, so a set taking the machine
-  over sets its own mode on top.
+  over sets its own mode on top. A deck with a phono line out (the RETRO XR turntable; `audio_player.gd` "Line out") is filed the same way: it has no FreeSurround, so it plays its stereo on FL / FR at the knob's level and ignores the decode push (`record-player.md`).
 - **A set's FL and FR into AUDIO IN, the set on STEREO OUT** — its line out.
   `TvFit.decoder()` finds the amplifier on the front pair; `RetroTV.surround_decoder()`
   answers it on STEREO OUT only, and then the set asks its machines for SURROUND with
