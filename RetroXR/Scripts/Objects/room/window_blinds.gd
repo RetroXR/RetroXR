@@ -11,6 +11,11 @@
 ## translating. That is why raising bunches them at the top instead of sliding
 ## them out of view.
 ##
+## The tilt wand turns the slats: grab it (trigger) and twist it, or on desktop click it and roll the wheel.
+## Two turns either way from level close the slats, one way or the other, up to `max_tilt_deg`. The ladder strings
+## stay vertical and ride the slats' edges, the front one dropping as the back one rises. Lowered slats let
+## `level_leak` of the daylight through when level and none when shut, so tilting them darkens the room.
+##
 ## Pulling is BeadPullCord's, not a second interaction. The cord signals `pulled`
 ## and this steps `drop`; leaving the cord's light_path empty stops it toggling a
 ## lamp as well.
@@ -60,6 +65,18 @@ signal drop_changed(drop: float)
 		_apply()
 		drop_changed.emit(drop)
 
+## -1 to 1: the slats' tilt, as a fraction of `max_tilt_deg` either way; 0 is level.
+@export_range(-1.0, 1.0) var tilt: float = 0.0:
+	set(v):
+		tilt = clampf(v, -1.0, 1.0)
+		_apply()
+
+@export var max_tilt_deg: float = 80.0
+
+## Daylight a lowered blind lets through with its slats level, as a fraction of an open window. Tilted shut,
+## none.
+@export_range(0.0, 1.0) var level_leak: float = 0.35
+
 ## How much a single pull changes `drop`. Pulls step DOWN through the range and
 ## wrap back to fully lowered, which matches the one-cord blinds this models —
 ## a two-cord blind would need a second cord to reverse, and one cord that only
@@ -95,6 +112,10 @@ var _daylight: Light3D = null
 var _env: Environment = null
 
 var _slats: MultiMeshInstance3D = null
+var _strings: MultiMeshInstance3D = null
+var _wand: VRKnob = null
+var _tilt_reported := 0.0
+var _tilt_report_at := 0
 var _slat_mat: ShaderMaterial = null
 var _bottom: MeshInstance3D = null
 var _tween: Tween = null
@@ -161,6 +182,18 @@ func _build() -> void:
 	_slats.material_override = mat
 	add_child(_slats)
 
+	# The ladder strings: two per slat (its front and back edge), vertical whatever the tilt.
+	if parts.has("ladder_string"):
+		var smm := MultiMesh.new()
+		smm.transform_format = MultiMesh.TRANSFORM_3D
+		smm.mesh = parts["ladder_string"]
+		smm.instance_count = slat_count * 2
+		_strings = MultiMeshInstance3D.new()
+		_strings.name = "LadderStrings"
+		_strings.multimesh = smm
+		_strings.material_override = mat
+		add_child(_strings)
+
 	# Headrail, fixed at the top. The rails' vertex colors pick out their plastic end caps from the painted steel.
 	var hm := StandardMaterial3D.new()
 	hm.albedo_color = slat_color.darkened(0.04)
@@ -190,11 +223,38 @@ func _build() -> void:
 	_bottom.material_override = hm
 	add_child(_bottom)
 
-	# The tilt wand: clear acrylic, hooked to the tilter at the left end.
+	# The tilt wand: clear acrylic, hooked to the tilter at the left end. It is a VRKnob turning about its own
+	# length: the knob's pivot points its Z down the wand, and the wand mesh (built in this node's frame) hangs
+	# under the pivot so it spins in place. Grabbed two thirds of the way down, where a hand would.
 	if parts.has("wand"):
+		var aabb: AABB = (parts["wand"] as Mesh).get_aabb()
+		var axis_x := aabb.position.x + aabb.size.x * 0.5
+		var axis_z := aabb.position.z + aabb.size.z * 0.5
+		var grab_y := aabb.position.y + aabb.size.y * 0.25
+		_wand = VRKnob.new()
+		_wand.name = "TiltWand"
+		_wand.position = Vector3(axis_x, grab_y, axis_z)
+		_wand.deg_at_zero = 720.0
+		_wand.deg_at_one = -720.0
+		_wand.engage_radius = 0.06
+		_wand.wheel_step = 0.04
+		_wand.value = 0.5 + tilt * 0.5
+		var shape := CollisionShape3D.new()
+		var cap := CapsuleShape3D.new()
+		cap.radius = 0.02
+		cap.height = aabb.size.y
+		shape.shape = cap
+		shape.position = Vector3(0.0, aabb.position.y + aabb.size.y * 0.5 - grab_y, 0.0)
+		_wand.add_child(shape)
+		var pivot := Node3D.new()
+		pivot.name = VRKnob.PIVOT_NAME
+		pivot.rotation = Vector3(deg_to_rad(90.0), 0.0, 0.0)
+		_wand.add_child(pivot)
 		var wand := MeshInstance3D.new()
 		wand.name = "Wand"
 		wand.mesh = parts["wand"]
+		# the mesh is in the blind's frame: undo the knob's offset and the pivot's turn
+		wand.transform = (Transform3D(Basis(), _wand.position) * Transform3D(pivot.basis, Vector3.ZERO)).affine_inverse()
 		var wm := StandardMaterial3D.new()
 		wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		wm.albedo_color = Color(0.86, 0.92, 0.95, 0.35)
@@ -202,7 +262,9 @@ func _build() -> void:
 		wm.metallic_specular = 0.9
 		wand.material_override = wm
 		wand.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(wand)
+		pivot.add_child(wand)
+		add_child(_wand)
+		_wand.value_changed.connect(_on_wand_turned)
 
 
 func _apply() -> void:
@@ -218,10 +280,26 @@ func _apply() -> void:
 	var hanging := int(round(float(slat_count) * drop))
 	var stacked := slat_count - hanging
 	var mm := _slats.multimesh
+	var a := deg_to_rad(max_tilt_deg) * tilt
+	var turned := Basis(Vector3.RIGHT, a)
+	var half_depth := 0.0125
 	var y := 0.0
 	for i in slat_count:
-		y -= stack_pitch if i < stacked else full_pitch
-		mm.set_instance_transform(i, Transform3D(Basis(), Vector3(0.0, y, 0.0)))
+		var raised := i < stacked
+		y -= stack_pitch if raised else full_pitch
+		# raised slats lie flat in their stack; the hanging ones turn on their long axis
+		mm.set_instance_transform(i, Transform3D(Basis() if raised else turned, Vector3(0.0, y, 0.0)))
+		if _strings != null:
+			var sm := _strings.multimesh
+			if raised:
+				sm.set_instance_transform(i * 2, Transform3D(Basis().scaled(Vector3.ZERO), Vector3.ZERO))
+				sm.set_instance_transform(i * 2 + 1, Transform3D(Basis().scaled(Vector3.ZERO), Vector3.ZERO))
+			else:
+				# the front edge drops as the back one rises; each string reaches up one pitch to the slat above
+				var dy := sin(a) * half_depth
+				var dz := cos(a) * half_depth
+				sm.set_instance_transform(i * 2, Transform3D(Basis(), Vector3(0.0, y - dy, dz)))
+				sm.set_instance_transform(i * 2 + 1, Transform3D(Basis(), Vector3(0.0, y + dy, -dz)))
 	if _bottom != null:
 		_bottom.position = Vector3(0.0, y - 0.012, 0.0)
 	var open := openness()
@@ -309,4 +387,25 @@ func _set_drop(v: float) -> void:
 ## Fraction of the window still open, for anything that wants to dim with the
 ## blinds — the sun spot does.
 func openness() -> float:
-	return 1.0 - drop
+	var c := cos(deg_to_rad(max_tilt_deg) * tilt)
+	return (1.0 - drop) + drop * level_leak * c * c
+
+
+## The wand turned under a hand: tilt follows it, and the room hears about it a few times a second rather than
+## every frame of the twist.
+func _on_wand_turned(v: float) -> void:
+	tilt = (v - 0.5) * 2.0
+	var now := Time.get_ticks_msec()
+	if absf(tilt - _tilt_reported) > 0.02 and now - _tilt_report_at > 120:
+		_tilt_reported = tilt
+		_tilt_report_at = now
+		NetworkManager.report_event(NetEvents.Event.EV_BLINDS,
+			{"blinds": self, "drop": drop, "tilt": tilt})
+
+
+## Another player turned the wand, or a late join is catching up: set it without reporting it back.
+func set_tilt_remote(value: float) -> void:
+	tilt = clampf(value, -1.0, 1.0)
+	_tilt_reported = tilt
+	if _wand != null:
+		_wand.set_value_no_signal(0.5 + tilt * 0.5)

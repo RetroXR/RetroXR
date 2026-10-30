@@ -63,7 +63,7 @@ enum Event {
 	EV_TV_CHANNEL,       # {tv, source, rf, index} selected RF/tuner channel
 	EV_ROOM_LIGHTS,      # {switch, on}  wall-switch ceiling lights
 	EV_PULL_LIGHT,       # {cord, on}    bedside/desk pull-chain lamp
-	EV_BLINDS,           # {blinds, drop} window blind height
+	EV_BLINDS,           # {blinds, drop[, tilt]} window blind height, and its slats' tilt (-1..1)
 	EV_TIME_OF_DAY,      # {clock, time} bedroom time lever
 	# Appended, not slotted beside EV_CART_*: the ordinal is the wire id.
 	EV_SLOT2_INSERT,     # {sys, cart}   the DS's GBA slot

@@ -407,7 +407,7 @@ func _capture_room_state(root: Node) -> Array:
 				"value": cord.lit})
 	for node: Node in root.find_children("*", "WindowBlinds", true, false):
 		out.append({"path": str(root.get_path_to(node)), "kind": "blinds",
-			"value": float((node as WindowBlinds).drop)})
+			"value": float((node as WindowBlinds).drop), "tilt": float((node as WindowBlinds).tilt)})
 	for node: Node in root.find_children("*", "TimeOfDay", true, false):
 		out.append({"path": str(root.get_path_to(node)), "kind": "time",
 			"value": float((node as TimeOfDay).time)})
@@ -436,6 +436,8 @@ func _apply_room_state(root: Node, records: Array) -> void:
 				var drop := float(rec.get("value", NAN))
 				if node.has_method("set_drop_remote") and is_finite(drop):
 					node.set_drop_remote(drop)
+				if rec.has("tilt") and node.has_method("set_tilt_remote"):
+					node.set_tilt_remote(float(rec["tilt"]))
 			"time":
 				var value := float(rec.get("value", NAN))
 				if node.has_method("net_set_time") and is_finite(value):
@@ -1221,6 +1223,8 @@ func _dispatch_event(kind: NetEvents.Event, args: Dictionary) -> void:
 		NetEvents.Event.EV_BLINDS:
 			if args["blinds"].has_method("set_drop_remote"):
 				args["blinds"].set_drop_remote(float(args.get("drop", 1.0)))
+			if args.has("tilt") and args["blinds"].has_method("set_tilt_remote"):
+				args["blinds"].set_tilt_remote(float(args["tilt"]))
 		NetEvents.Event.EV_TIME_OF_DAY:
 			if args["clock"].has_method("net_set_time"):
 				args["clock"].net_set_time(float(args.get("time", 0.75)))

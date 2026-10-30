@@ -198,6 +198,7 @@ class MockEventObject extends Node3D:
 	var room_lights := true
 	var pull_lit := true
 	var blinds_drop := 1.0
+	var blinds_tilt := 0.0
 	var day_time := 0.75
 
 	func _init() -> void:
@@ -283,6 +284,7 @@ class MockEventObject extends Node3D:
 	func set_lights_on(on: bool) -> void: room_lights = on
 	func set_lit_remote(on: bool) -> void: pull_lit = on
 	func set_drop_remote(value: float) -> void: blinds_drop = value
+	func set_tilt_remote(value: float) -> void: blinds_tilt = value
 	func net_set_time(value: float) -> void: day_time = value
 	func remote_play() -> void: transport.append("play")
 	func remote_pause() -> void: transport.append("pause")
@@ -548,6 +550,7 @@ func _add_fixed_room_controls(root: Node, lights: bool, lamp: bool,
 	var shade := MockBlinds.new()
 	shade.name = "Blinds"
 	shade.drop = blinds
+	shade.tilt = -0.5 if blinds < 0.5 else 0.0
 	root.add_child(shade)
 	var clock := MockTimeOfDay.new()
 	clock.name = "TimeOfDay"
@@ -594,8 +597,9 @@ func _test_snapshot(p: Pair) -> void:
 	_ok(not (p.client_root.get_node("RoomLight") as MockRoomLight).lights_on
 		and not (p.client_root.get_node("PullLight") as MockPullLight).lit
 		and is_equal_approx((p.client_root.get_node("Blinds") as MockBlinds).drop, 0.25)
+		and is_equal_approx((p.client_root.get_node("Blinds") as MockBlinds).tilt, -0.5)
 		and is_equal_approx((p.client_root.get_node("TimeOfDay") as MockTimeOfDay).time, 0.9),
-		"snapshot/fixed room lights, blinds and time survive a late join")
+		"snapshot/fixed room lights, blinds (height and tilt) and time survive a late join")
 	var stray: Node = p.client_root.get_meta("test_stray")
 	await get_tree().process_frame
 	_ok(not is_instance_valid(stray), "snapshot/client-only spawned clutter is cleared")
@@ -1123,14 +1127,15 @@ func _test_events(p: Pair) -> void:
 	p.host_os.report_event(NetEvents.Event.EV_PULL_LIGHT,
 		{"cord": host_obj, "on": false})
 	p.host_os.report_event(NetEvents.Event.EV_BLINDS,
-		{"blinds": host_obj, "drop": 0.25})
+		{"blinds": host_obj, "drop": 0.25, "tilt": 0.6})
 	p.host_os.report_event(NetEvents.Event.EV_TIME_OF_DAY,
 		{"clock": host_obj, "time": 0.9})
 	_ok(await _until(func() -> bool:
 		return not client_obj.room_lights and not client_obj.pull_lit \
 			and is_equal_approx(client_obj.blinds_drop, 0.25) \
+			and is_equal_approx(client_obj.blinds_tilt, 0.6) \
 			and is_equal_approx(client_obj.day_time, 0.9)),
-		"events/wall lights, pull lamps, blinds and time-of-day take effect")
+		"events/wall lights, pull lamps, blinds (height and tilt) and time-of-day take effect")
 
 	p.host_os.report_event(NetEvents.Event.EV_TRAY, {"sys": host_obj, "open": true})
 	_ok(await _until(func() -> bool: return client_obj.tray_open),
