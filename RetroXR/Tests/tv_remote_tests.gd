@@ -15,7 +15,12 @@
 ##   keys/    each key does its cell on a set, a VCR, a DVD player and a record player, nothing
 ##            where the grid would grey the cell or leave it out; PREV/NEXT are a DVD's chapters;
 ##   aim/     with no grid up, a key acts on what the window points at, and on nothing turned away;
-##   press/   a clicked key sinks 1.2 mm into the remote and comes back, and does its cell;
+##   press/   a clicked key (the laser and the desktop click are one path) sinks 1.5 mm into the remote along
+##            its own -Z and comes back, every one of the 26 and no other with it, and does its cell;
+##   poke/    a tracked fingertip (a real XRController3D on a registered tracker: VRButton's own touch path)
+##            pushed into a key sinks it 1.5 mm, fires it once and no other key, and lets it back up, with the
+##            remote lying on a table and held tilted in the other hand, whose thumb on a key presses nothing;
+##   grid/    a cell pressed on the floating grid sinks the matching key on the remote for a moment;
 ##   bay/     the battery cover is a CoverSlots cover that is the model's own cover, taken by the desktop ray
 ##            from below; a remote fresh from the spawn menu has two AAA cells in BatteryAAA1/2, shut in
 ##            while the cover is on; off, the ray from below takes each cell (the shell's laser shape has no
@@ -40,6 +45,10 @@ const PRINTED := {
 }
 ## A tenth of a millimetre.
 const TOLERANCE := 0.0001
+## The keys' travel, written out (not TVRemote.KEY_TRAVEL): real rubber keys go 0.8-1.5 mm, these the long end.
+const TRAVEL := 0.0015
+const FINGER := &"tv_remote_test_finger"
+const HOLDER := &"tv_remote_test_holder"
 
 var _spawned: Array[Node] = []
 var _hand: Node3D = null
@@ -58,7 +67,7 @@ func _run() -> void:
 	add_child(_hand)
 	for c: Array in [["dress/", _test_dress], ["shapes/", _test_shapes], ["ray/", _test_ray],
 			["touch/", _test_touch], ["keys/", _test_keys], ["aim/", _test_aim], ["press/", _test_press],
-			["bay/", _test_bay]]:
+			["bay/", _test_bay], ["poke/", _test_poke], ["grid/", _test_grid]]:
 		if _wanted(str(c[0])):
 			await (c[1] as Callable).call()
 			await _cleanup()
@@ -298,11 +307,46 @@ func _test_press() -> void:
 	var at := _face(b)
 	b.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.PRESSED, null, b, at, at))
 	var sunk := rest - _cap(b).global_position
-	_ok(absf(sunk.length() - 0.0012) < 0.00005 and sunk.normalized().dot(r.global_transform.basis.y) > 0.999,
-		"press/a clicked key sinks 1.2 mm into the remote", str(sunk))
+	_ok(absf(sunk.length() - TRAVEL) < 0.00005 and sunk.normalized().dot(r.global_transform.basis.y) > 0.999,
+		"press/a clicked key sinks 1.5 mm into the remote", str(sunk))
 	_ok(tv.is_muted() != muted, "press/…and does its cell on the set it points at")
 	b.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.RELEASED, null, b, at, at))
 	_ok(_cap(b).global_position.distance_to(rest) < 0.00001, "press/let go, it comes back up")
+	# Every key, each ring arc and OK on its own: down along its own -Z by the travel, no other cap moving.
+	var wrong: Array[String] = []
+	var rests := _cap_rests(r)
+	for key: String in PRINTED:
+		var k := r.key_button(key)
+		var f := _face(k)
+		k.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.PRESSED, null, k, f, f))
+		var bad := _sunk_wrong(r, rests, key)
+		k.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.RELEASED, null, k, f, f))
+		if not bad.is_empty() or _cap(k).global_position.distance_to(rests[key]) > 0.00001:
+			wrong.append("%s %s" % [key, bad])
+	_ok(wrong.is_empty(), "press/every key sinks alone, along its own -Z, and comes back", ", ".join(wrong))
+
+
+## Every key's cap position at rest.
+func _cap_rests(r: TVRemote) -> Dictionary:
+	var out := {}
+	for key: String in PRINTED:
+		out[key] = _cap(r.key_button(key)).global_position
+	return out
+
+
+## "" when `down` is sunk by the travel into the remote along its own -Z and every other cap is at rest; else what
+## is wrong.
+func _sunk_wrong(r: TVRemote, rests: Dictionary, down: String) -> String:
+	var b := r.key_button(down)
+	var sunk: Vector3 = rests[down] - _cap(b).global_position
+	var out := b.global_transform.basis.z.normalized()
+	if absf(sunk.length() - TRAVEL) > 0.00005 or sunk.normalized().dot(out) < 0.999 \
+			or sunk.normalized().dot(r.global_transform.basis.y) < 0.999:
+		return "sank %s" % sunk
+	for key: String in PRINTED:
+		if key != down and _cap(r.key_button(key)).global_position.distance_to(rests[key]) > 0.00001:
+			return "%s moved too" % key
+	return ""
 
 
 # ── bay/ ──────────────────────────────────────────────────────────────────────
@@ -403,6 +447,164 @@ func _test_bay() -> void:
 	var none := CellSlots.of(restored)
 	_ok(none != null and none.seats().size() == 2 and none.cells().is_empty(),
 		"bay/a restored remote has its two seats and seeds no cells")
+
+
+# ── poke/ ─────────────────────────────────────────────────────────────────────
+
+## A tracked hand: an XRController3D on a tracker of our own, its PokeTip at the controller's origin. Made before
+## a remote, so its keys find it as they gather their controllers. `holding` gives it a pickup holding that object.
+func _tracked_hand(tracker_name: StringName, holding: Node3D = null) -> XRPositionalTracker:
+	var tr := XRPositionalTracker.new()
+	tr.name = tracker_name
+	tr.type = XRServer.TRACKER_CONTROLLER
+	XRServer.add_tracker(tr)
+	var origin := get_node_or_null("TestOrigin") as XROrigin3D
+	if origin == null:
+		origin = XROrigin3D.new()
+		origin.name = "TestOrigin"
+		add_child(origin)
+	var ctrl := XRController3D.new()
+	ctrl.name = String(tracker_name)
+	ctrl.tracker = tracker_name
+	origin.add_child(ctrl)
+	var tip := Node3D.new()
+	tip.name = "PokeTip"
+	ctrl.add_child(tip)
+	if holding != null:
+		var pickup := Node.new()
+		pickup.set_script(_holding_script())
+		pickup.name = "FunctionPickup"
+		pickup.set("picked_up_object", holding)
+		ctrl.add_child(pickup)
+	_place(tr, Vector3(0, 3, 0))
+	return tr
+
+
+## A stand-in for XRToolsFunctionPickup: all PokeTip asks of one is what it holds.
+func _holding_script() -> GDScript:
+	var gs := GDScript.new()
+	gs.source_code = "extends Node\nvar picked_up_object: Node3D = null\n"
+	gs.reload()
+	return gs
+
+
+func _place(tr: XRPositionalTracker, at: Vector3) -> void:
+	tr.set_pose(&"default", Transform3D(Basis(), at), Vector3.ZERO, Vector3.ZERO, XRPose.XR_TRACKING_CONFIDENCE_HIGH)
+
+
+func _drop_hands() -> void:
+	for t: StringName in [FINGER, HOLDER]:
+		var tr := XRServer.get_tracker(t)
+		if tr != null:
+			XRServer.remove_tracker(tr)
+	var origin := get_node_or_null("TestOrigin")
+	if origin:
+		remove_child(origin)
+		origin.free()
+
+
+func _ticks(n: int) -> void:
+	for i in n:
+		await get_tree().process_frame
+
+
+## Push the fingertip into each of `keys` along the face's normal and out again, a few frames each step, and check
+## each sank by the travel, fired once and nothing else fired, and came back up.
+func _poke_keys(r: TVRemote, finger: XRPositionalTracker, keys: Array, label: String) -> void:
+	var fired := {}
+	for key: String in PRINTED:
+		fired[key] = 0
+		r.key_button(key).button_pressed.connect(func() -> void: fired[key] += 1)
+	var rests := _cap_rests(r)
+	var wrong: Array[String] = []
+	var out := r.global_transform.basis.y.normalized()
+	for key: String in keys:
+		var b := r.key_button(key)
+		var face: Vector3 = rests[key]
+		for k in fired:
+			fired[k] = 0
+		for d: float in [0.03, 0.012, 0.004, 0.001, -TRAVEL, -TRAVEL, -TRAVEL]:
+			_place(finger, face + out * d)
+			await _ticks(2)
+		var bad := _sunk_wrong(r, rests, key)
+		var others := 0
+		for k in fired:
+			if k != key:
+				others += int(fired[k])
+		var once := int(fired[key])
+		for d: float in [0.002, 0.012, 0.03]:
+			_place(finger, face + out * d)
+			await _ticks(2)
+		if not bad.is_empty() or once != 1 or others != 0 \
+				or _cap(b).global_position.distance_to(rests[key]) > 0.00001:
+			wrong.append("%s (%s, fired %d, others %d)" % [key, bad, once, others])
+	_ok(wrong.is_empty(), "poke/%s: each key sinks 1.5 mm under the fingertip, fires once, alone, and comes back up"
+		% label, ", ".join(wrong))
+
+
+func _test_poke() -> void:
+	var finger := _tracked_hand(FINGER)
+	# Lying on a table, keys up: every key.
+	var r := await _remote(Vector3(0, 1, 0))
+	await _ticks(2)
+	await _poke_keys(r, finger, PRINTED.keys(), "lying on a table")
+	# Held in the other hand, tilted the way a hand holds one, its thumb resting on STOP.
+	var held := REMOTE.instantiate() as TVRemote
+	var holder := _tracked_hand(HOLDER, held)
+	held.freeze = true
+	held.transform = Transform3D(Basis.from_euler(Vector3(deg_to_rad(28), deg_to_rad(-15), deg_to_rad(12))),
+		Vector3(0.6, 1.2, 0.2))
+	add_child(held)
+	_spawned.append(held)
+	await _ticks(4)
+	var holder_ctrl := get_node("TestOrigin/" + String(HOLDER)) as XRController3D
+	held._holding_ctrl = holder_ctrl
+	var stop := held.key_button("KeyStop")
+	var stop_fired := [0]
+	stop.button_pressed.connect(func() -> void: stop_fired[0] += 1)
+	_place(holder, _face(stop) - held.global_transform.basis.y * 0.001)
+	await _ticks(3)
+	_ok(holder_ctrl.get_is_active() and stop_fired[0] == 0 and not stop.is_held(),
+		"poke/the hand holding the remote presses nothing, its thumb on STOP")
+	_place(holder, Vector3(0.6, 3, 0.2))
+	await _ticks(2)
+	await _poke_keys(held, finger, ["KeyPower", "KeyMute", "KeyUp", "KeyOk", "KeyLeft", "KeyMenu", "KeySubtitle"],
+		"held tilted in the other hand")
+	held._holding_ctrl = null
+	_drop_hands()
+
+
+# ── grid/ ─────────────────────────────────────────────────────────────────────
+
+func _test_grid() -> void:
+	var tv := await _spawn(TV_SCENE, Vector3(0, 1, -1.5)) as RetroTV
+	var r := await _remote(Vector3(0, 1.1, 0))
+	r._target = tv
+	r._rebuild_grid()
+	var rests := _cap_rests(r)
+	var cell := -1
+	for i in r._cells.size():
+		if str(r._cells[i]["id"]) == "mute":
+			cell = i
+	_ok(cell >= 0, "grid/the set's grid has a MUTE cell")
+	if cell < 0:
+		return
+	var muted := tv.is_muted()
+	r._selection = cell
+	r._activate_selected()
+	_ok(tv.is_muted() != muted and _sunk_wrong(r, rests, "KeyMute").is_empty(),
+		"grid/MUTE pressed on the grid mutes the set and sinks the remote's MUTE key, alone",
+		_sunk_wrong(r, rests, "KeyMute"))
+	await get_tree().create_timer(0.25).timeout
+	_ok(_cap(r.key_button("KeyMute")).global_position.distance_to(rests["KeyMute"]) < 0.00001,
+		"grid/…and lets it back up")
+	# On a DVD player the grid's PREV is the chapter cell; it is still the remote's PREV that sinks.
+	var dvd := await _spawn(DVD_SCENE, Vector3(1.5, 1, -1.5))
+	r._target = dvd
+	r._flash_key("prev_ch")
+	_ok(_sunk_wrong(r, rests, "KeyPrev").is_empty(), "grid/the DVD's chapter cell sinks the remote's PREV key",
+		_sunk_wrong(r, rests, "KeyPrev"))
+	await get_tree().create_timer(0.25).timeout
 
 
 ## remove_child then free, as deck_tests does: a set's or deck's audio emitter still

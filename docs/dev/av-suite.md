@@ -254,7 +254,8 @@ Its 26 keys are the grid's cells (`TVRemote.KEY_CELLS`; PREV/NEXT are `prev_ch`/
 DVD), and the floating grid works exactly as before.
 
 - **Every key is a VRButton** under `Keys`, built in `_dress_keys` and dressed by `adopt_button`
-  (1.2 mm travel along the key's -Z). A key does what its cell does on the device the grid is
+  (1.5 mm travel along the key's -Z: the long end of a rubber keypad's 0.8-1.5 mm stroke, Diamond HMI's
+  design guide, so a press is seen from arm's length; only the cap moves, the shape stays put). A key does what its cell does on the device the grid is
   showing, or, with no grid up (the remote lying on a table), on whatever `IrTip` points at;
   a cell the grid would grey or leave out does nothing, and the line says which.
   `press_key()` is that path; the grid's highlight moves to the cell pressed.
@@ -264,10 +265,24 @@ DVD), and the floating grid works exactly as before.
 - **A fingertip presses one key:** `press_gate` (`_key_gate`) keeps a touch to the key's
   footprint +1 mm and no higher than 3 mm over its face, and goes by angle round the ring's
   centre for the arcs and OK. `trigger_radius` 12 mm only reaches the widest key's corner.
+  **The path that presses is VRButton's own touch** (not ControlPoke): `PokeTip.tip_of` of every
+  `XRController3D`, by distance and the gate, with no physics query, so the held layer (17) never
+  enters into it, and a cap sinking under the finger cannot pull a collider out from under it.
+  The hand HOLDING the remote presses nothing (`PokeTip.is_poking` is false while its pickup holds
+  something); the other hand pokes the held remote's keys as it pokes one on a table.
+- **A cell pressed on the floating grid sinks its key** for `KEY_FLASH` (0.15 s, `_flash_key`,
+  `set_latched_pressed`), DVD chapter cells included, so a press is seen on the handset however it
+  was made; a key a finger or the laser is already holding is left alone.
 - `IrTip` replaces the scene's `Tip` transform; the cone and the desktop crosshair are unchanged.
-- `tv_remote_tests` (49): dress, shapes, the desktop ray at every key from above and tilted
+- `tv_remote_tests` (67): dress, shapes, the desktop ray at every key from above and tilted
   (and the 2 mm gap and the shell take no key: a 3 mm-padded box took the gap), touch, the
-  key-to-cell map on a set, VCR, DVD and record player, aiming with no grid, a visible press.
+  key-to-cell map on a set, VCR, DVD and record player, aiming with no grid, every key's click
+  sinking it alone along its own -Z, `poke/` (a REAL fingertip: an `XRController3D` on an
+  `XRPositionalTracker` the suite registers, so VRButton's own path runs) pushed into every key
+  lying down and seven held tilted in an active second hand whose thumb on STOP presses nothing,
+  and `grid/`. Mutation-tested: travel back to 1.2, no grid flash, no press gate (VOL - fires
+  beside POWER), the holding hand poking. `Tools/av/remote_poke_probe` (windowed) records a
+  fingertip poking six keys for an mp4.
   `Tools/av/remote_model_probe` (windowed) renders it held at the RETRO XR set, a key down, the handset
   from above and the bay open with its cells. Headset feel and Quest cost (29 draws at LOD0, 3 at LOD1/2)
   are OWED.

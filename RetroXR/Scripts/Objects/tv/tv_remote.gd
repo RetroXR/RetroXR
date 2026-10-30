@@ -143,8 +143,12 @@ const KEY_CELLS := {
 	"KeyMenu": "menu", "KeyAudio": "audio", "KeySubtitle": "subtitle",
 }
 const DVD_CELLS := {"prev": "prev_ch", "next": "next_ch"}
-## The model's keys travel 1.2 mm.
-const KEY_TRAVEL := 0.0012
+## The keys travel 1.5 mm along their own -Z: the long end of a rubber keypad's 0.8-1.5 mm stroke, so a press is
+## seen from arm's length (each stands 2 mm proud). Only the cap moves: VRButton keeps its shape where it is, and a
+## fingertip is held by distance and the gate, so the sinking cap cannot slide out from under the finger.
+const KEY_TRAVEL := 0.0015
+## How long a key stays down when its cell was pressed on the floating grid instead.
+const KEY_FLASH := 0.15
 ## A fingertip presses a key inside its own footprint, this much past it all round, and
 ## from no higher than KEY_HOVER over its face: the keys are 2-3.5 mm apart.
 const KEY_REACH := 0.001
@@ -410,6 +414,22 @@ func press_key(key_name: String) -> String:
 	return id
 
 
+## A cell pressed on the floating grid sinks its key on the remote too, for KEY_FLASH: the press is seen on the
+## handset whichever way it was made. A key a finger or the laser is already holding down is left alone.
+func _flash_key(id: String) -> void:
+	for key_name: String in KEY_CELLS:
+		if cell_for_key(key_name) != id:
+			continue
+		var b := key_button(key_name)
+		if b == null or b.is_held():
+			return
+		b.set_latched_pressed(true)
+		get_tree().create_timer(KEY_FLASH).timeout.connect(func() -> void:
+			if is_instance_valid(b):
+				b.set_latched_pressed(false))
+		return
+
+
 ## The grid cell a model key stands for on the current target.
 func cell_for_key(key_name: String) -> String:
 	var id := str(KEY_CELLS.get(key_name, ""))
@@ -544,7 +564,8 @@ func _update_pointer_block(ctrl: XRController3D, should_block: bool) -> void:
 
 func _process(delta: float) -> void:
 	# VR drop combo (desktop drop is handled by desktop_pickup via left click)
-	if _is_combo_pressed(_holding_ctrl):
+	# A holding hand freed under the remote (a room change) is no hand: its typed call would throw every frame.
+	if is_instance_valid(_holding_ctrl) and _is_combo_pressed(_holding_ctrl):
 		_drop_all()
 		return
 
@@ -1271,6 +1292,7 @@ func _activate_selected() -> void:
 	if not bool(cell["enabled"]):
 		return
 	_activate(str(cell["id"]))
+	_flash_key(str(cell["id"]))
 	# Power/mute/play-pause state may have changed — refresh glyphs/tints.
 	_refresh_states()
 

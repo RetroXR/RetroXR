@@ -213,7 +213,7 @@
  },
  "key_press": {
   "axis": "each key node's local -Z (into the remote)",
-  "travel_m": 0.0012
+  "travel_m": 0.0015
  },
  "ir_tip": {
   "node": "IrTip",
