@@ -250,7 +250,8 @@ func register_scraper_system(systemid: String, systemeid: int) -> bool:
 # ── rooms, props, cabinets ────────────────────────────────────────────────────
 
 ## Add a room reachable from the SCENE tab.
-## Keys: id, path, title, menu_title, has_slots.
+## Keys: id, path, title, menu_title, has_slots, thumbnail (a 16:9 picture for
+## its card, shown until the player saves a slot of their own there).
 func register_room(spec: Dictionary) -> bool:
 	var room_id := str(spec.get("id", ""))
 	if not _namespaced(room_id, "room id"):

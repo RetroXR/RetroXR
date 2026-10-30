@@ -203,6 +203,8 @@ func _ready() -> void:
 		_test_manifest()
 	if _want_group("registry"):
 		_test_save_registry()
+	if _want_group("thumbnail"):
+		await _test_thumbnail()
 	_restore()
 
 	_finish()
@@ -1424,6 +1426,100 @@ func _test_manifest() -> void:
 	_eq(sp.get_slots().size(), before, "manifest/delete removes the slot")
 	_ok(not FileAccess.file_exists("user://scenes/arcade/%s.json" % id),
 		"manifest/delete removed the file")
+
+
+# ── The SCENE tab's pictures (SceneThumbnail) ─────────────────────────────────
+
+const _THUMB_OWNER := "test.thumbs"
+const _THUMB_ROOM := "test.thumbs:room"
+
+
+## A 4x4 PNG of one colour, so which file a texture came from can be read back.
+func _thumb_png(path: String, color: Color) -> void:
+	var img := Image.create(4, 4, false, Image.FORMAT_RGB8)
+	img.fill(color)
+	img.save_png(path)
+
+
+func _thumb_color(tex: Texture2D) -> Color:
+	return tex.get_image().get_pixel(0, 0) if tex != null else Color.TRANSPARENT
+
+
+## A scratch mod room, so nothing here touches the player's own slots: its folder
+## is removed at the end whatever happened.
+func _test_thumbnail() -> void:
+	for room_id in ["arcade", "bedroom", "den", "test"]:
+		var stock := RoomCatalog.thumbnail_of(room_id)
+		_ok(ResourceLoader.exists(stock), "thumbnail/%s ships a stock picture (%s)" % [room_id, stock])
+	_eq(RoomCatalog.thumbnail_of("passthrough"), "", "thumbnail/passthrough has none")
+
+	# A mod's wrong path costs the card its picture, not the mod its room.
+	RoomCatalog.register_mod_room(_THUMB_ROOM, {"path": "res://Scenes/TestScene.tscn",
+		"thumbnail": "res://nope/missing.png"}, _THUMB_OWNER)
+	_ok(RoomCatalog.has(_THUMB_ROOM), "thumbnail/a bad mod thumbnail still registers the room")
+	_eq(RoomCatalog.thumbnail_of(_THUMB_ROOM), "", "thumbnail/a bad mod thumbnail is dropped")
+	RoomCatalog.drop_mod(_THUMB_OWNER)
+	RoomCatalog.register_mod_room(_THUMB_ROOM, {"path": "res://Scenes/TestScene.tscn",
+		"thumbnail": "res://Textures/Rooms/den.png"}, _THUMB_OWNER)
+	_eq(RoomCatalog.thumbnail_of(_THUMB_ROOM), "res://Textures/Rooms/den.png",
+		"thumbnail/a mod thumbnail is kept")
+
+	var sp := ScenePersistence.new(_THUMB_ROOM)
+	DirAccess.make_dir_recursive_absolute(sp.slot_dir())
+	_eq(sp.thumbnail_path("abc"), sp.slot_dir() + "/abc.png", "thumbnail/beside the slot's file")
+	sp._save_manifest({"version": ScenePersistence.VERSION,
+		"slots": [{"id": "aaaa", "name": "A"}, {"id": "bbbb", "name": "B"}]})
+	var stock_tex := SceneThumbnail.for_room(_THUMB_ROOM, "clean")
+	_ok(stock_tex != null and stock_tex.get_size() == Vector2(SceneThumbnail.SIZE),
+		"thumbnail/no slot pictures: the stock one")
+	_ok(SceneThumbnail.for_slot(_THUMB_ROOM, "clean") != null, "thumbnail/Clean Room shows the stock one")
+	_ok(SceneThumbnail.for_slot(_THUMB_ROOM, "aaaa") == null, "thumbnail/a slot with no picture has none")
+
+	for id in ["aaaa", "bbbb"]:
+		var f := FileAccess.open(sp.slot_dir() + "/%s.json" % id, FileAccess.WRITE)
+		f.store_string("{}")
+		f = null
+	_ok(SceneThumbnail.is_stale(sp.thumbnail_path("aaaa")), "thumbnail/missing picture is stale")
+	_ok(not SceneThumbnail.is_stale(sp.thumbnail_path("zzzz")), "thumbnail/no slot file, nothing owed")
+	_thumb_png(sp.thumbnail_path("aaaa"), Color.RED)
+	# Modified times are whole seconds: B must be strictly newer than A.
+	OS.delay_msec(1100)
+	_thumb_png(sp.thumbnail_path("bbbb"), Color.BLUE)
+	_ok(not SceneThumbnail.is_stale(sp.thumbnail_path("bbbb")), "thumbnail/a fresh picture is not stale")
+	_eq(_thumb_color(SceneThumbnail.for_room(_THUMB_ROOM, "aaaa")), Color.RED,
+		"thumbnail/the active slot's picture wins over a newer one")
+	_eq(_thumb_color(SceneThumbnail.for_room(_THUMB_ROOM, "clean")), Color.BLUE,
+		"thumbnail/clean active: the newest slot picture")
+	_eq(_thumb_color(SceneThumbnail.for_slot(_THUMB_ROOM, "aaaa")), Color.RED,
+		"thumbnail/a slot card shows its own")
+
+	# A picture rewritten in place is read again, not served from the cache.
+	OS.delay_msec(1100)
+	_thumb_png(sp.thumbnail_path("aaaa"), Color.GREEN)
+	_eq(_thumb_color(SceneThumbnail.for_slot(_THUMB_ROOM, "aaaa")), Color.GREEN,
+		"thumbnail/a retaken picture replaces the cached one")
+	OS.delay_msec(1100)
+	var f2 := FileAccess.open(sp.slot_dir() + "/aaaa.json", FileAccess.WRITE)
+	f2.store_string("{ }")
+	f2 = null
+	_ok(SceneThumbnail.is_stale(sp.thumbnail_path("aaaa")), "thumbnail/saved since: stale")
+
+	sp.delete_slot("bbbb")
+	_ok(not FileAccess.file_exists(sp.thumbnail_path("bbbb")), "thumbnail/delete removes the picture")
+	_eq(_thumb_color(SceneThumbnail.for_room(_THUMB_ROOM, "bbbb")), Color.GREEN,
+		"thumbnail/a deleted active slot falls back to the newest left")
+
+	# Headless draws nothing, so it must write nothing and leave no viewport.
+	var before := get_child_count()
+	var took: bool = await SceneThumbnail.capture(sp.thumbnail_path("cccc"), true)
+	_ok(not took and not FileAccess.file_exists(sp.thumbnail_path("cccc")),
+		"thumbnail/headless writes no picture")
+	_eq(get_child_count(), before, "thumbnail/headless leaves no viewport behind")
+
+	for file in DirAccess.get_files_at(sp.slot_dir()):
+		DirAccess.remove_absolute(sp.slot_dir() + "/" + file)
+	DirAccess.remove_absolute(sp.slot_dir())
+	RoomCatalog.drop_mod(_THUMB_OWNER)
 
 
 # ── The save side's type table (ScenePersistence._save_kind_rows) ─────────────

@@ -1714,7 +1714,9 @@ func _on_slot_load_progress(done: int, total: int, room_id: String) -> void:
 func _on_slot_save(slot_id: String, room_id: String) -> void:
 	if slot_id == "clean" or not _in_room(room_id):
 		return
-	ScenePersistence.new(room_id).save_slot(get_tree().current_scene, slot_id)
+	var persistence := ScenePersistence.new(room_id)
+	persistence.save_slot(get_tree().current_scene, slot_id)
+	_take_slot_picture(persistence.thumbnail_path(slot_id))
 
 
 func _on_slot_delete(slot_id: String, room_id: String) -> void:
@@ -1742,6 +1744,17 @@ func _on_slot_create(room_id: String) -> void:
 	var sm := get_node_or_null("/root/SceneManager")
 	if sm:
 		sm.set_active_slot(new_id, room_id)
+	var spawn_menu := _get_menu()
+	if spawn_menu:
+		spawn_menu.rebuild_states_grid()
+	_take_slot_picture(persistence.thumbnail_path(new_id))
+
+
+## The slot's picture, taken a frame after the save with the menu hidden for it
+## (the blink is the shutter), then the grid repainted to show it.
+func _take_slot_picture(path: String) -> void:
+	if not await SceneThumbnail.capture(path, true):
+		return
 	var spawn_menu := _get_menu()
 	if spawn_menu:
 		spawn_menu.rebuild_states_grid()

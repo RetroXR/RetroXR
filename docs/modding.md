@@ -413,7 +413,8 @@ no other. xenu.gamecube and xenu.ps2 are the worked examples.
 
 ```gdscript
 api.register_room({"id": "xenu.mod:attic", "path": "res://mods/xenu.mod/attic.tscn",
-    "menu_title": "The Attic", "has_slots": true})
+    "menu_title": "The Attic", "has_slots": true,
+    "thumbnail": "res://mods/xenu.mod/attic_card.png"})
 api.register_object("xenu.mod:crate", "res://mods/xenu.mod/crate.tscn",
     {"label": "Crate"})
 api.register_tv_shell("xenu.mod:portable", "res://mods/xenu.mod/portable.tscn",
@@ -425,6 +426,11 @@ A **room**'s own `.tscn` must set its `XRInit.scene_id` to the same namespaced i
 `has_slots` should be true for a room the player furnishes and false for one whose
 contents you authored, or a save slot will restore spawned objects into a room
 that already has its own.
+
+`thumbnail` is optional: a 16:9 picture for the room's card (640 x 360 is the
+size a saved slot's own picture is drawn at). Once the player saves a slot in the
+room, that slot's picture is shown instead. A path that does not exist is ignored
+with a log line, and the card keeps a plain colour.
 
 The room gets a card in the SCENE tab after the shipped rooms: one with slots
 opens its slot grid, one without switches straight to it. A mod mounted while the

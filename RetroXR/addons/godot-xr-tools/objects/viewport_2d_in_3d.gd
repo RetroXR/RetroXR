@@ -146,6 +146,11 @@ func _ready():
 	# Listen for pointer events on the screen body
 	$StaticBody3D.connect("pointer_event", _on_pointer_event)
 
+	# RetroXR: a panel is the player's UI, not the room. A save slot's picture
+	# (SceneThumbnail) is drawn with every screen in this group hidden.
+	if not Engine.is_editor_hint():
+		$Screen.add_to_group(&"snapshot_hidden")
+
 	# Update enabled based on visibility
 	visibility_changed.connect(_on_visibility_changed)
 

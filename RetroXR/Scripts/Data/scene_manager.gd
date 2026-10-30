@@ -174,8 +174,15 @@ func _autosave_now(room: String) -> void:
 	if slot == "clean":
 		slot = persistence.create_new_slot(get_tree().current_scene, "Autosave")
 		set_active_slot(slot, room)
+		SceneThumbnail.capture(persistence.thumbnail_path(slot), false)
 		return
-	persistence.autosave_slot(get_tree().current_scene, slot)
+	# Only when something changed, and never blinking a panel the player is using:
+	# with one up the picture is skipped, and the next interval finds it older
+	# than the slot and takes it then.
+	var changed := persistence.autosave_slot(get_tree().current_scene, slot)
+	var picture := persistence.thumbnail_path(slot)
+	if changed or SceneThumbnail.is_stale(picture):
+		SceneThumbnail.capture(picture, false)
 
 
 ## A deferred autosave write lives on a worker thread, and the process exiting

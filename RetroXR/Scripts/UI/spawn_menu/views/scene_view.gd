@@ -28,6 +28,8 @@ var _rooms_grid:    GridContainer   = null
 var _passthrough_card: Control      = null
 ## room_id -> card, for the rooms mods registered. See _sync_mod_room_cards.
 var _mod_room_cards: Dictionary     = {}
+## room_id -> the TextureRect over each room card's colour. See _sync_room_pictures.
+var _room_pictures: Dictionary      = {}
 var _rooms_scroll:  ScrollContainer = null
 var _states_scroll: ScrollContainer = null
 var _states_vbox:   VBoxContainer   = null
@@ -105,19 +107,19 @@ func _build() -> void:
 
 	# 90s Bedroom card → navigates to its state grid. Leads the grid: it is the
 	# room the player boots into and the one they furnish.
-	grid.add_child(_make_room_card(RoomCatalog.menu_title_of("bedroom"), Color(0.30, 0.16, 0.36),
+	grid.add_child(_make_room_card(RoomCatalog.menu_title_of("bedroom"), Color(0.30, 0.16, 0.36), "bedroom",
 		show_states.bind("bedroom")))
 
 	# Arcade Room card → navigates to its state grid
-	grid.add_child(_make_room_card(RoomCatalog.menu_title_of("arcade"), Color(0.15, 0.13, 0.35),
+	grid.add_child(_make_room_card(RoomCatalog.menu_title_of("arcade"), Color(0.15, 0.13, 0.35), "arcade",
 		show_states.bind("arcade")))
 
 	# Cozy Den card → direct scene switch
-	grid.add_child(_make_room_card(RoomCatalog.menu_title_of("den"), Color(0.4, 0.25, 0.12),
+	grid.add_child(_make_room_card(RoomCatalog.menu_title_of("den"), Color(0.4, 0.25, 0.12), "den",
 		func(): scene_change_requested.emit("den")))
 
 	# Test Hallway card → direct scene switch
-	grid.add_child(_make_room_card(RoomCatalog.menu_title_of("test"), Color(0.12, 0.32, 0.30),
+	grid.add_child(_make_room_card(RoomCatalog.menu_title_of("test"), Color(0.12, 0.32, 0.30), "test",
 		func(): scene_change_requested.emit("test")))
 
 	# Passthrough card (only if supported) → direct scene switch. Added late: see
@@ -126,6 +128,7 @@ func _build() -> void:
 
 	# Rooms mods brought, after the shipped ones. See _sync_mod_room_cards.
 	_sync_mod_room_cards()
+	_sync_room_pictures()
 
 	# ── Level 2: States panel ─────────────────────────────────────────────────
 	var states_root := VBoxContainer.new()
@@ -192,6 +195,7 @@ func _build() -> void:
 func show_rooms() -> void:
 	_sync_passthrough_card()
 	_sync_mod_room_cards()
+	_sync_room_pictures()
 	if _rooms_panel:
 		_rooms_panel.visible = true
 	if _states_panel:
@@ -223,7 +227,7 @@ func _sync_passthrough_card() -> void:
 	# Straight to its state grid, like the arcade: passthrough is the other room
 	# whose whole contents were spawned, so it keeps slots of its own and picking
 	# one is how you enter it. "Clean Room" is the empty-handed way in.
-	_passthrough_card = _make_room_card("Passthrough AR", Color(0.85, 0.85, 0.9),
+	_passthrough_card = _make_room_card("Passthrough AR", Color(0.85, 0.85, 0.9), "passthrough",
 		show_states.bind("passthrough"))
 	_rooms_grid.add_child(_passthrough_card)
 
@@ -244,6 +248,7 @@ func _sync_mod_room_cards() -> void:
 			_rooms_grid.remove_child(gone)
 			gone.queue_free()
 			_mod_room_cards.erase(room_id)
+			_room_pictures.erase(room_id)
 	for room_id: String in RoomCatalog.ids():
 		if not RoomCatalog.is_mod_room(room_id) or _mod_room_cards.has(room_id):
 			continue
@@ -251,9 +256,20 @@ func _sync_mod_room_cards() -> void:
 				else scene_change_requested.emit.bind(room_id)
 		# The thumb's color from the id, so two mod rooms do not share one.
 		var tint := Color.from_hsv(float(room_id.hash() % 360) / 360.0, 0.55, 0.35)
-		var card := _make_room_card(RoomCatalog.menu_title_of(room_id), tint, on_press)
+		var card := _make_room_card(RoomCatalog.menu_title_of(room_id), tint, room_id, on_press)
 		_rooms_grid.add_child(card)
 		_mod_room_cards[room_id] = card
+
+
+## Each room card's picture, re-read every time the room grid is shown: a slot
+## saved since (or a slot made active by loading it) changes which picture a room
+## shows. SceneThumbnail.for_room says which; null keeps the card's colour.
+func _sync_room_pictures() -> void:
+	var sm := _scene_manager()
+	for room_id: String in _room_pictures:
+		var rect: TextureRect = _room_pictures[room_id]
+		var active: String = sm.active_slot(room_id) if sm else "clean"
+		rect.texture = SceneThumbnail.for_room(room_id, active)
 
 
 ## Open the slot grid for one room. Bound into that room's card, so which grid
@@ -286,27 +302,42 @@ func _in_shown_room() -> bool:
 
 # ── Cards ─────────────────────────────────────────────────────────────────────
 
-func _make_room_card(label_text: String, thumb_color: Color, on_press: Callable) -> Button:
+func _make_room_card(label_text: String, thumb_color: Color, room_id: String,
+		on_press: Callable) -> Button:
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(0, 120)
+	btn.custom_minimum_size = Vector2(0, 190)
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	var card_vbox := VBoxContainer.new()
 	card_vbox.add_theme_constant_override("separation", 6)
 	card_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(card_vbox)
+	# A Button does not lay out its children: without anchors the box shrank to
+	# its label's width, and the picture with it.
+	card_vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 6)
 
 	var thumb := PanelContainer.new()
-	thumb.custom_minimum_size = Vector2(0, 70)
+	thumb.custom_minimum_size = Vector2(0, 140)
+	thumb.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	thumb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	thumb.add_theme_stylebox_override("panel", MenuStyle.rounded(thumb_color, 4))
 	card_vbox.add_child(thumb)
+	# The colour shows through until the room has a picture (_sync_room_pictures).
+	var picture := _picture_rect()
+	thumb.add_child(picture)
+	_room_pictures[room_id] = picture
 
 	var lbl := MenuStyle.label(label_text, 18, MenuStyle.COLOR_TITLE)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card_vbox.add_child(lbl)
 
+	# The picture is 16:9 of whatever width the grid gives the card (half the
+	# menu, and the menu is resizable), so the card's height follows its width.
+	btn.resized.connect(func() -> void:
+		var want := roundf(btn.size.x * 9.0 / 16.0) + 46.0
+		if absf(btn.custom_minimum_size.y - want) > 1.0:
+			btn.custom_minimum_size.y = want)
 	btn.pressed.connect(on_press)
 	return btn
 
@@ -341,7 +372,7 @@ func _make_state_card(slot: Dictionary, active_slot_id: String) -> Control:
 	var is_renaming: bool = (slot_id == _rename_slot_id)
 
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(0, 90)
+	panel.custom_minimum_size = Vector2(0, 116)
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	var card_style := MenuStyle.rounded(
@@ -354,10 +385,29 @@ func _make_state_card(slot: Dictionary, active_slot_id: String) -> Control:
 		card_style.border_color = Color(0.5, 0.8, 0.5)
 	panel.add_theme_stylebox_override("panel", card_style)
 
+	var row := MenuStyle.hbox(10)
+	row.mouse_filter = Control.MOUSE_FILTER_PASS
+	panel.add_child(row)
+
+	# The room as it was saved (SceneThumbnail). A slot with no picture yet (saved
+	# before there were any, or headless) keeps an empty dark box, so the names
+	# still line up down the grid.
+	var frame := PanelContainer.new()
+	frame.custom_minimum_size = Vector2(192, 108)
+	frame.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.add_theme_stylebox_override("panel", MenuStyle.rounded(Color(0.06, 0.06, 0.08), 4))
+	var picture := _picture_rect()
+	picture.texture = SceneThumbnail.for_slot(_slot_room, slot_id)
+	frame.add_child(picture)
+	row.add_child(frame)
+
 	var inner := VBoxContainer.new()
 	inner.add_theme_constant_override("separation", 4)
 	inner.mouse_filter = Control.MOUSE_FILTER_PASS
-	panel.add_child(inner)
+	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inner.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(inner)
 
 	# Name row
 	var name_row := MenuStyle.hbox(6)
@@ -435,6 +485,18 @@ func _make_state_card(slot: Dictionary, active_slot_id: String) -> Control:
 	panel.mouse_exited.connect(_on_card_hover_exit.bind(slot_id, action_row))
 
 	return panel
+
+
+## A picture that fills its box and crops what does not fit, rather than
+## letterboxing a 16:9 shot into a card of another shape.
+func _picture_rect() -> TextureRect:
+	var rect := TextureRect.new()
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return rect
 
 
 func _make_action_btn(label_text: String, bg_color: Color) -> Button:

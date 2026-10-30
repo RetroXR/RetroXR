@@ -12,6 +12,8 @@
 ##   title       loading-screen copy; upper-case, because that screen shouts
 ##   menu_title  the SCENE tab's card and its slot header
 ##   has_slots   rooms you furnish yourself, where a slot IS the room
+##   thumbnail   the room card's stock picture (SceneThumbnail), optional; a
+##               slot's own picture is shown over it once the room has one
 ##
 ## has_slots is the one that is not cosmetic. A room whose contents are authored
 ## in its own .tscn (the den, the test hallway) must not keep slots: a slot of
@@ -24,14 +26,17 @@ const _ROOMS: Dictionary = {
 	"arcade": {
 		"path": "res://Scenes/MainScene.tscn",
 		"title": "ARCADE ROOM", "menu_title": "Arcade Room", "has_slots": true,
+		"thumbnail": "res://Textures/Rooms/arcade.png",
 	},
 	"den": {
 		"path": "res://Scenes/DenScene.tscn",
 		"title": "COZY DEN", "menu_title": "Cozy Den", "has_slots": false,
+		"thumbnail": "res://Textures/Rooms/den.png",
 	},
 	"bedroom": {
 		"path": "res://Scenes/BedroomScene.tscn",
 		"title": "90s BEDROOM", "menu_title": "90s Bedroom", "has_slots": true,
+		"thumbnail": "res://Textures/Rooms/bedroom.png",
 	},
 	"passthrough": {
 		"path": "res://Scenes/PassthroughScene.tscn",
@@ -40,6 +45,7 @@ const _ROOMS: Dictionary = {
 	"test": {
 		"path": "res://Scenes/TestScene.tscn",
 		"title": "TEST HALLWAY", "menu_title": "Test Hallway", "has_slots": false,
+		"thumbnail": "res://Textures/Rooms/test.png",
 	},
 }
 
@@ -79,6 +85,12 @@ static func menu_title_of(room_id: String) -> String:
 	return str(r.get("menu_title", r.get("title", room_id)))
 
 
+## The stock picture's path, or "" for a room without one (passthrough: its
+## picture is whatever the headset sees).
+static func thumbnail_of(room_id: String) -> String:
+	return str(row(room_id).get("thumbnail", ""))
+
+
 static func has_slots(room_id: String) -> bool:
 	return bool(row(room_id).get("has_slots", false))
 
@@ -116,11 +128,17 @@ static func register_mod_room(room_id: String, spec: Dictionary, owner_id: Strin
 	if not ResourceLoader.exists(path):
 		return "scene does not exist: %s" % path
 	var menu_title := str(spec.get("menu_title", spec.get("title", room_id)))
+	# Optional, and a wrong one costs the card its picture, not the mod its room.
+	var thumbnail := str(spec.get("thumbnail", ""))
+	if not thumbnail.is_empty() and not ResourceLoader.exists(thumbnail):
+		print("[RoomCatalog] room %s: thumbnail does not exist, ignored: %s" % [room_id, thumbnail])
+		thumbnail = ""
 	_overlay.add(room_id, {
 		"path": path,
 		"title": str(spec.get("title", menu_title.to_upper())),
 		"menu_title": menu_title,
 		"has_slots": bool(spec.get("has_slots", true)),
+		"thumbnail": thumbnail,
 	}, owner_id)
 	return ""
 

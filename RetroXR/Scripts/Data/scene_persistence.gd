@@ -4,6 +4,7 @@
 ## Save directory: user://scenes/{room}/
 ## Manifest:       user://scenes/{room}/manifest.json
 ## Slot files:     user://scenes/{room}/{id}.json
+## Slot pictures:  user://scenes/{room}/{id}.png  (SceneThumbnail)
 ##
 ## Each room keeps its own slots and its own manifest. They cannot be one set: a
 ## slot is a list of world poses, and the arcade's are struck against the arcade's
@@ -583,6 +584,9 @@ func delete_slot(slot_id: String) -> bool:
 	_last_digest.erase(path)
 	if FileAccess.file_exists(path):
 		DirAccess.remove_absolute(path)
+	var picture := thumbnail_path(slot_id)
+	if FileAccess.file_exists(picture):
+		DirAccess.remove_absolute(picture)
 	return true
 
 
@@ -675,6 +679,11 @@ func _manifest_file() -> String:
 
 func _slot_file(slot_id: String) -> String:
 	return slot_dir() + "/" + slot_id + ".json"
+
+
+## The slot's picture for the SCENE tab (SceneThumbnail), beside its file.
+func thumbnail_path(slot_id: String) -> String:
+	return slot_dir() + "/" + slot_id + ".png"
 
 
 func _generate_id() -> String:
