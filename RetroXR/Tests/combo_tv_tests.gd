@@ -243,7 +243,7 @@ func _d_carried() -> void:
 	await _wait(2)
 	# Its pose in the set's frame is the marker's, whatever the set did...
 	var local := tv.global_transform.affine_inverse() * vcr.global_position
-	_ok(local.distance_to(Vector3(-0.07, -0.07, 0.055)) < 0.001,
+	_ok(local.distance_to(Vector3(-0.07, -0.07, 0.05)) < 0.001,
 		"the VCR is still at its marker in the set's frame (got %s)" % local)
 	_ok(vcr.global_basis.z.dot(tv.global_basis.z) > 0.999, "and faces the way the set does")
 	# What the remote's ray meets is the PHYSICS body, not the node.
@@ -326,7 +326,8 @@ func _c_front() -> void:
 	var front := tv.global_basis.z.normalized()
 	for deck: MediaTransport in tv.decks().decks():
 		for child in deck.get_children():
-			if not child is VRButton:
+			# A key of the deck's own box (the VCR's POWER) is hidden with it.
+			if not child is VRButton or deck._housing().has(child):
 				continue
 			var b := child as VRButton
 			var facing := b.global_basis.y.normalized()
@@ -334,26 +335,39 @@ func _c_front() -> void:
 				"%s/%s faces out of the cabinet's front (by sign: dot %.3f)"
 					% [deck.name, b.name, facing.dot(front)])
 			var local := tv.global_transform.affine_inverse() * b.global_position
-			_ok(absf(local.z - 0.185) < 0.0005,
-				"%s/%s stands on the front at z 0.185 (got %.4f)" % [deck.name, b.name, local.z])
+			_ok(local.z >= 0.185 - 0.0002 and local.z <= 0.188,
+				"%s/%s stands on the 185 mm front, at most 3 mm proud (got %.4f)" % [deck.name, b.name, local.z])
 	var vcr := _vcr(tv)
 	var at := func(deck: Node, n: String) -> Vector3:
 		return tv.global_transform.affine_inverse() * (deck.get_node(n) as Node3D).global_position
-	# Left to right is kept, and the row nearest the deck's front edge is lowest.
-	_ok(at.call(vcr, "PlayButton").x < at.call(vcr, "PauseButton").x, "VCR: PLAY left of PAUSE")
-	_ok(at.call(vcr, "EjectButton").y > at.call(vcr, "PlayButton").y,
-		"VCR: EJECT (further back on top) stands above PLAY")
-	_ok(absf(at.call(vcr, "PlayButton").y - 0.02) < 0.0005,
-		"VCR: PLAY lands 100 mm below the panel's centre (got %.4f)" % at.call(vcr, "PlayButton").y)
+	# The RETRO XR decks' keys are on their FRONT, beside their slot and display: a deck seated flush keeps them
+	# there and the cabinet's controls marker (made for the old top panels) does not part them.
+	var row := ["RewindButton", "PlayButton", "FastForwardButton", "StopButton", "EjectButton", "PauseButton",
+		"RecordButton"]
+	for i in range(1, row.size()):
+		_ok(at.call(vcr, row[i - 1]).x < at.call(vcr, row[i]).x, "VCR: %s left of %s" % [row[i - 1], row[i]])
+		_ok(absf(at.call(vcr, row[i]).y - at.call(vcr, "PlayButton").y) < 0.0005,
+			"VCR: %s level with PLAY" % row[i])
+	var play: Vector3 = at.call(vcr, "PlayButton")
+	_ok(absf(play.x - 0.0) < 0.0005 and absf(play.y + 0.0855) < 0.0005,
+		"VCR: PLAY stays on the deck's face, 70 mm right of and 15.5 mm under its seat (got %s)" % play)
+	_ok(not (vcr.get_node("PowerButton") as VRButton).visible,
+		"VCR: POWER is the deck's own box's, hidden in the cabinet")
 	var dvd := _dvd(tv)
 	_ok(at.call(dvd, "UpButton").y > at.call(dvd, "DownButton").y,
 		"DVD: the menu cluster's UP is above its DOWN")
 	_ok(at.call(dvd, "LeftButton").x < at.call(dvd, "RightButton").x,
 		"DVD: LEFT is left of RIGHT")
-	# The slot stayed where the deck put it: only the panel moved.
+	var eject: Vector3 = at.call(dvd, "EjectButton")
+	_ok(absf(eject.x + 0.094) < 0.0005 and absf(eject.y + 0.187) < 0.0005,
+		"DVD: OPEN/CLOSE stays by its tray on the deck's face (got %s)" % eject)
+	# The slot stayed where the deck put it. It is where the holder takes a tape, 17 mm behind the cabinet's
+	# 185 mm face with 35 mm of spine out of it.
 	var slot := tv.global_transform.affine_inverse() * (vcr.get_node("TapeSlot") as Node3D).global_position
-	_ok(slot.distance_to(Vector3(-0.07, -0.05, 0.18)) < 0.0005,
-		"the tape slot is flush with the cabinet front (got %s)" % slot)
+	_ok(slot.distance_to(Vector3(-0.14, -0.059, 0.168)) < 0.0005,
+		"the tape slot is at the cabinet's door, 17 mm in (got %s)" % slot)
+	_ok((vcr.get_node("Vfd") as Node3D).visible and (dvd.get_node("Vfd") as Node3D).visible,
+		"both decks' displays show on the cabinet's face")
 
 
 # ── save/ ─────────────────────────────────────────────────────────────────────

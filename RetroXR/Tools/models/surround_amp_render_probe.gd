@@ -50,22 +50,29 @@ func _run() -> void:
 	_hide_ghosts(_sv)
 	_report(amp)
 
-	await _shoot("front", Vector3(0.0, 0.11, 0.62), Vector3(0.0, 0.085, 0.17))
-	await _shoot("threequarter", Vector3(0.45, 0.32, 0.55), Vector3(0.0, 0.075, 0.0))
-	await _shoot("back", Vector3(0.0, 0.11, -0.62), Vector3(0.0, 0.085, -0.17))
-	# Close enough that a 4.5 mm word is legible: the legend spans x -0.03 .. 0.175.
-	await _shoot("legend", Vector3(0.072, 0.095, -0.38), Vector3(0.072, 0.09, -0.18))
+	# The RETRO XR receiver is 115 mm tall: its centre is 57.5 mm up.
+	await _shoot("front", Vector3(0.0, 0.09, 0.62), Vector3(0.0, 0.06, 0.17))
+	await _shoot("threequarter", Vector3(0.45, 0.30, 0.55), Vector3(0.0, 0.055, 0.0))
+	await _shoot("back", Vector3(0.0, 0.09, -0.62), Vector3(0.0, 0.06, -0.17))
+	# Close enough that the printed legend is legible: it spans x -0.03 .. 0.175.
+	await _shoot("legend", Vector3(0.072, 0.07, -0.38), Vector3(0.072, 0.06, -0.18))
 	amp.cycle_mode()
-	await _shoot("front_dolby", Vector3(0.0, 0.11, 0.62), Vector3(0.0, 0.085, 0.17))
+	await _shoot("front_dolby", Vector3(0.0, 0.09, 0.62), Vector3(0.0, 0.06, 0.17))
 	amp.cycle_mode()
 
 	# Leads in AUDIO IN and three of the six, the far ends parked behind the unit, so
-	# the view shows whether a plug lands IN the jack or floats off it. The FL lead
-	# ends in a real cabinet, which is what lights the display for the last shot.
-	var cab := SATELLITE.instantiate() as Loudspeaker
-	cab.freeze = true
-	_sv.add_child(cab)
-	cab.global_position = Vector3(0.45, 0.0, -0.3)
+	# the view shows whether a plug lands IN the jack or floats off it. The FL, C and SR
+	# leads end in real cabinets, which is what lights the display — and those three of
+	# its six speaker lamps — for the last shots.
+	var cabs := {}
+	var spot := 0
+	for out_name in ["SpeakerOutL", "SpeakerOutC", "SpeakerOutSr"]:
+		var cab := SATELLITE.instantiate() as Loudspeaker
+		cab.freeze = true
+		_sv.add_child(cab)
+		cab.global_position = Vector3(0.45 - 0.45 * spot, 0.0, -0.4)
+		cabs[out_name] = cab
+		spot += 1
 	var seats: Array[RcaPort] = [amp.get_node("AudioInL") as RcaPort,
 		amp.get_node("AudioInR") as RcaPort, amp.get_node("SpeakerOutL") as RcaPort,
 		amp.get_node("SpeakerOutC") as RcaPort, amp.get_node("SpeakerOutSr") as RcaPort]
@@ -76,8 +83,8 @@ func _run() -> void:
 		await get_tree().process_frame
 		var far := lead.get_node("PlugB0") as RigidBody3D
 		port.pick_up_object(lead.get_node("PlugA0") as Node3D)
-		if port.name == "SpeakerOutL":
-			(cab.get_node("SpeakerIn") as RcaPort).pick_up_object(far)
+		if cabs.has(port.name):
+			(cabs[port.name].get_node("SpeakerIn") as RcaPort).pick_up_object(far)
 		else:
 			far.freeze = true
 			far.global_position = Vector3(port.position.x, 0.02 + 0.01 * i, -0.45)
@@ -91,8 +98,16 @@ func _run() -> void:
 			seated += 1
 	print("[amp] %d of %d leads seated, speakers cabled: %s" % [seated, seats.size(),
 		amp.has_cabled_speakers()])
-	await _shoot("wired", Vector3(-0.25, 0.30, -0.55), Vector3(0.05, 0.09, -0.18))
-	await _shoot("front_lit", Vector3(0.0, 0.11, 0.62), Vector3(0.0, 0.085, 0.17))
+	var lamps: Array[String] = []
+	for k in SurroundAmp.SPEAKER_OUT_NAMES.size():
+		if amp.vfd_lamp_lit(k):
+			lamps.append(str(SurroundAmp.VFD_LAMPS[k][0]))
+	print("[amp] display lamps lit: %s" % ", ".join(lamps))
+	await _shoot("wired", Vector3(-0.25, 0.28, -0.55), Vector3(0.05, 0.065, -0.18))
+	await _shoot("front_lit", Vector3(0.0, 0.09, 0.62), Vector3(0.0, 0.06, 0.17))
+	await _shoot("threequarter_lit", Vector3(0.40, 0.26, 0.55), Vector3(0.0, 0.055, 0.05))
+	# The display at a hand's length: the decoder's name, the level and the map.
+	await _shoot("vfd_close", Vector3(-0.02, 0.09, 0.42), Vector3(-0.02, 0.075, 0.17))
 
 	get_tree().quit(0)
 

@@ -143,7 +143,8 @@ func _emit_through(tv: Node3D) -> void:
 ## clock, the options panel, and the PointerArea the remote aims at.
 ##
 ## `controls` is where the button panel goes, in the set's frame, or null to leave
-## it on top of the deck (RetroTVShell.VcrControls / DvdControls).
+## it on top of the deck (RetroTVShell.VcrControls / DvdControls). A front-panel deck
+## (_front_panel) ignores it: its keys are on its face already.
 func build_into(tv: RetroTV, keep_housing: bool, controls: Variant = null) -> void:
 	built_into = tv
 	enabled = false
@@ -166,33 +167,56 @@ func build_into(tv: RetroTV, keep_housing: bool, controls: Variant = null) -> vo
 	if not keep_housing:
 		for node: Node3D in _housing():
 			node.visible = false
-	if controls is Transform3D:
+			# A key that is part of the deck's own box (the VCR's POWER) goes with it: hidden is
+			# not out of play (VRButton.set_active).
+			if node is VRButton:
+				(node as VRButton).set_active(false)
+	# A front-panel deck seated flush (the RETRO XR models) already has its keys on the cabinet's face, beside its
+	# own slot and display: carried to a marker made for a buried top panel they part from both, so it keeps them.
+	var moved := controls is Transform3D and not _front_panel()
+	if moved:
 		_move_controls(controls)
+	print("[Combo] %s built into %s (%s panel, housing %s, controls %s)" % [name, tv.name,
+		"front" if _front_panel() else "top", "kept" if keep_housing else "hidden",
+		"moved to the cabinet's marker" if moved else "left on the deck's face"])
 	_apply_av_feed(tv, true, 0, 1)
 
 
-## Carry the button panel, as one rigid piece, from the deck's top face to
-## `at` (the set's frame): the top face's centre lands on `at`, and its up on
-## at's +Y. Every cap keeps its place in the layout, its glyph and its wiring —
+## Carry the button panel, as one rigid piece, from the deck's face to `at` (the
+## set's frame): the face's centre lands on `at`, and the way the caps face on
+## at's +Y. Every cap keeps its place in the layout, its glyph and its wiring;
 ## only where the panel is changes.
 ##
-## The top face is the plane the caps stand on: their highest origin, since
-## every cap on a stock deck sits at the same height.
+## The face is the plane the caps stand on. On the old box decks that is the TOP:
+## their highest origin, every cap at the same height. On a front-panel deck (the
+## RETRO XR models, _front_panel) it is the FRONT: the caps' frontmost origin, its
+## centre on the deck's axis, and the caps face +Z, which the panel's +Y is turned
+## onto. Keys of the deck's own box (_housing) are not carried; build_into hid them.
 func _move_controls(at: Transform3D) -> void:
 	var buttons: Array[VRButton] = []
-	var top := -INF
+	var housing := _housing()
+	var face := -INF
 	for child in get_children():
-		if child is VRButton:
+		if child is VRButton and not housing.has(child):
 			buttons.append(child as VRButton)
-			top = maxf(top, (child as VRButton).position.y)
+			var p := (child as VRButton).position
+			face = maxf(face, p.z if _front_panel() else p.y)
 	if buttons.is_empty():
 		return
-	# deck <- set <- panel <- top face, so each cap's own transform is kept relative
-	# to the top face's centre and that centre is carried to `at`.
-	var carry := transform.affine_inverse() * at \
-		* Transform3D(Basis.IDENTITY, Vector3(0.0, -top, 0.0))
+	# deck <- set <- panel <- face, so each cap's own transform is kept relative
+	# to the face's centre and that centre is carried to `at`.
+	var panel := Transform3D(Basis.IDENTITY, Vector3(0.0, face, 0.0))
+	if _front_panel():
+		panel = Transform3D(Basis(Vector3.RIGHT, PI / 2.0), Vector3(0.0, 0.0, face))
+	var carry := transform.affine_inverse() * at * panel.affine_inverse()
 	for button in buttons:
 		button.transform = carry * button.transform
+
+
+## True for a deck whose keys stand on its FRONT, facing +Z (the RETRO XR models);
+## false for the old box with its keys on top.
+func _front_panel() -> bool:
+	return false
 
 
 ## The nodes that make up this deck's own box, hidden in a cabinet that is its

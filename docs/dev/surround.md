@@ -440,12 +440,31 @@ python Tools/surround_output_check.py --mode 5.1 --rom <a ROM>   # + a real core
 ### 2r′. The surround amplifier — a line in, a decoder switch, six outputs
 
 `SurroundAmp` (`Scenes/Objects/appliances/surround_amp.tscn`, spawn row "Surround
-Amp") is a receiver of the Pro Logic II years as a primitive: 430 x 150 x 340 mm (a
-Harman DCR 600 II is 440 x 165 x 435), a display window across the middle of the face,
+Amp") is a receiver of the Pro Logic II years: a display window across the face,
 SURROUND MODE under it, a VOLUME knob on the right, no power key because there is no
 power state to model. The back carries AUDIO IN L/R and SPEAKERS FL FR C SUB SL SR,
 copied off the television's SPEAKERS row — same Rx(180) basis, same 18 mm pitch, same
-`TvPanel.SPEAKER_WORDS` — under two AvLegend plates, AUDIO IN and SPEAKERS.
+`TvPanel.SPEAKER_WORDS`.
+
+**It wears the RETRO XR receiver model** (RetroXR-models `generic/surround-receiver`,
+`imported-assets/appliances/surround_receiver/`, three levels through `ApplianceModel`):
+**430 x 115 x 340 mm** — the 150 mm primitive left an empty band under the key, so the
+ports now sit **62.5 mm** over the base (were 100) and the knob's axle **65.5 mm** (was 90);
+origin still the base centre, the model's own centre 57.5 mm up (`Model`). The scene keeps
+every node the engine works through and `_dress()` dresses them: ModeButton adopts the
+model's key, the model's knob (one per level, `ModelKnob0..2`) hangs under KnobPivot at
+VRKnob's 0 degrees (dot at 12 o'clock; VRKnob's 135 .. -135 is the model's sweep), and every
+RcaPort sits ON its moulded jack's mouth with `show_jack` off (the jacks are the model's, in
+the 5.1 colours). The model's mouth empties are renamed `<port>Mouth`, because Model comes
+first in the tree and a `find_child` for a port's name would reach the empty. The model
+prints AUDIO IN / SPEAKERS on its back: the AvLegend plates are still built (tests read
+their words) and hidden. **The display is a `VfdDisplay`** on the model's window (its
+blank Display hidden): the decoder's name, a 30-step level bar for the knob, and the speaker
+map — a lamp per output, lit only while THAT output has a cabinet (`vfd_lamp_lit`); with
+nothing cabled everything dims, as the Label3D did (`DisplayText` stays, hidden, carrying
+the name). Redrawn on a mode, cabling or level-step change only; driven to 2.2x so it reads
+lit through the model's 60 % smoked glass. `speaker_tests` `amp/` covers the mouths, the
+key and knob, and the lamps; `Tools/models/surround_amp_render_probe` is the look.
 
 **It has almost no audio code, for the reason the set has none.** The source decodes
 its own stereo; the amplifier answers "decode", "with this decoder", and "here is where
@@ -518,8 +537,8 @@ saved (`decode_mode`) and sent (`EV_AMP_MODE`, appended), so the list only grows
   under `m_sink_mutex`, the lock `PushFrames` decodes under. An extension without
   `set_mode` is asked (`has_method`) and stays on Pro Logic II with a WARN.
 
-**The panel.** The display is a Label3D (unshaded, which a fluorescent display is)
-naming the decoder, dimmed while nothing is on the back. The knob is a VRKnob, so
+**The panel.** The display is the VfdDisplay above (it was a Label3D, kept hidden as
+`DisplayText`), naming the decoder, dimmed while nothing is on the back. The knob is a VRKnob, so
 ScenePersistence's articulated-control walk already saves and restores it; the save
 branch adds only `decode_mode`.
 

@@ -7,12 +7,16 @@
 [ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="5_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dvd_opts_panel_001" path="res://Scenes/UI/dvd_options_panel.tscn" id="6_dvdopts"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="8_rcaport"]
+[ext_resource type="Script" path="res://Scripts/Objects/appliance_model.gd" id="9_model"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/dvd_player/dvd_mobile.glb" id="10_lod0"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/dvd_player/dvd_mobile_lod1.glb" id="11_lod1"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/dvd_player/dvd_mobile_lod2.glb" id="12_lod2"]
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_dvd"]
 friction = 0.8
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_body"]
-size = Vector3(0.3, 0.06, 0.25)
+size = Vector3(0.43, 0.08, 0.29)
 
 [sub_resource type="BoxMesh" id="BoxMesh_body"]
 size = Vector3(0.3, 0.06, 0.25)
@@ -48,7 +52,7 @@ size = Vector3(0.03, 0.02, 0.03)
 albedo_color = Color(0.3, 0.3, 0.3, 1)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
-size = Vector3(0.32, 0.06, 0.27)
+size = Vector3(0.44, 0.09, 0.3)
 
 [node name="DVDPlayer" type="RigidBody3D" groups=["dvd_player"]]
 collision_layer = 4
@@ -62,19 +66,30 @@ script = ExtResource("1_dvdscript")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("BoxShape3D_body")
 
+; The old grey box, kept as a node (DVDBody is the housing a combo set hides, and a name the scripts know) but no
+; longer drawn: the RETRO XR model below is the player. See ApplianceModel and DVDPlayer._dress.
 [node name="DVDBody" type="MeshInstance3D" parent="."]
+visible = false
 mesh = SubResource("BoxMesh_body")
 surface_material_override/0 = SubResource("Mat_body")
+
+; Before PickableHighlight, whose _ready outlines every mesh already under the player.
+[node name="Model" type="Node3D" parent="."]
+script = ExtResource("9_model")
+level_scenes = Array[PackedScene]([ExtResource("10_lod0"), ExtResource("11_lod1"), ExtResource("12_lod2")])
 
 [node name="PickableHighlight" type="Node3D" parent="."]
 script = ExtResource("5_pickhigh")
 
+; On the model's tray when it is OUT (DiscSeat at the end of Open, a 4 mm disc's center 2 mm over the well's floor):
+; a disc goes in only there. The zone is on only while the tray is out and empty (DVDPlayer._sync_slot).
 [node name="DiscSlot" parent="." instance=ExtResource("2_snapzone")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.125)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.115, 0.0185, 0.2095)
 grab_distance = 0.09
 snap_require = "dvd_disc"
 
 [node name="SlotVisual" type="MeshInstance3D" parent="DiscSlot"]
+visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.006)
 mesh = SubResource("BoxMesh_slot")
 surface_material_override/0 = SubResource("Mat_slot")
@@ -96,17 +111,17 @@ surface_material_override/0 = SubResource("Mat_disc_ghost")
 ; back onto the panel. Same convention as the television's ports.
 
 [node name="VideoOut" parent="." instance=ExtResource("8_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.082, 0, -0.135)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.082, 0, -0.155)
 channel = 0
 direction = 0
 
 [node name="AudioLOut" parent="." instance=ExtResource("8_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.1, 0, -0.135)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.1, 0, -0.155)
 channel = 1
 direction = 0
 
 [node name="AudioROut" parent="." instance=ExtResource("8_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.118, 0, -0.135)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.118, 0, -0.155)
 channel = 2
 direction = 0
 
@@ -414,7 +429,10 @@ pixel_size = 0.001
 text = "DOWN"
 font_size = 9
 
+; Hidden: the RETRO XR model wears its own logo, and the VFD says what the deck is doing. Kept for
+; the scripts and combo TVs that look it up.
 [node name="NameLabel" type="Label3D" parent="."]
+visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, -0.09)
 pixel_size = 0.001
 billboard = 2

@@ -50,11 +50,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.16, 0.27, 0.185)
 [node name="PortSeat" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0.15, -0.2, -0.19)
 
+; The deck's origin is its body's center; the RETRO XR VCR's front is 135 mm along +Z, so 50 mm here puts it flush
+; with this cabinet's 185 mm face.
 [node name="VcrSeat" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, -0.07, 0.055)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, -0.07, 0.05)
 
+; The RETRO XR DVD player's front is 145 mm along +Z: 40 mm here puts it flush with the cabinet's face.
 [node name="DvdSeat" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, -0.2, 0.055)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, -0.2, 0.04)
 
 [node name="VcrControls" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.235, 0.12, 0.185)

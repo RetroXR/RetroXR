@@ -58,21 +58,27 @@ var cassette: int = 0
 ## in its recordings. Written by the deck playing or winding it. Saved.
 var tape_blank: float = 0.0
 
-## Where the label picture sits, 0.5 mm over the paper and 0.5 mm under the text.
-const _ART_Z := 0.0145
-## The paper it is printed on (LabelMesh), which the picture is fitted inside.
-const _ART_BOX := Vector2(0.11, 0.045)
-## The spine is the top edge, the one the label sits against: the picture lies
-## 0.2 mm over the 40 mm half-height and is fitted inside the edge's width and
-## depth, which is 140 x 25 mm.
-const _SPINE_Y := 0.0402
-const _SPINE_BOX := Vector2(0.136, 0.021)
+## Where the label picture sits: 0.5 mm over the cassette's face label (VhsCassette's LabelFace, 80 x 48 mm in
+## the standard's top recess, its surface 12.26 mm up and its center 4 mm toward the spine) and under the text.
+const _ART_Z := 0.0128
+const _ART_CENTER := Vector2(0.0, -0.004)
+## The paper it is printed on, which the picture is fitted inside.
+const _ART_BOX := Vector2(0.078, 0.046)
+## The spine label (LabelSpine, 150 x 21 mm on the -Y edge, the one a deck shows): the picture lies 0.4 mm off it.
+const _SPINE_AT := Vector3(0.010, -0.0522, -0.0005)
+const _SPINE_BOX := Vector2(0.148, 0.019)
 
 ## Finds and decodes the pictures beside the video file (MediaLabelArt): the
 ## sticker for the face (LabelArt) and a strip for the spine (SpineArt). A tape
 ## with no sticker shows its title as text. Derived from video_path, never saved.
 var _labels: MediaLabelLoader = null
 var _download_status := ""
+
+
+## The drawn cassette (VhsCassette), wound to where this tape stands.
+@onready var _cassette: VhsCassette = get_node_or_null("Cassette") as VhsCassette
+## What the cassette was last wound to, so it is wound again only when the tape moved.
+var _wound_at := Vector2(-1.0, -1.0)
 
 
 func _ready() -> void:
@@ -89,6 +95,31 @@ func _update_label() -> void:
 	var lbl := get_node_or_null("VideoLabel") as Label3D
 	if lbl:
 		lbl.text = video_label
+	var spine := get_node_or_null("SpineTitle") as Label3D
+	if spine:
+		spine.text = video_label
+
+
+## Wind the drawn cassette to where the tape stands: its packs, reels and the runs of tape between them follow
+## the deck's writes to tape_progress / tape_blank, on the cassette this recording went onto (T-n).
+func _process(_delta: float) -> void:
+	if _cassette == null:
+		return
+	var minutes := float(cassette) if cassette > 0 else 120.0
+	var along := tape_seconds() / cassette_seconds() if cassette > 0 and recording_seconds > 0.0 \
+		else clampf(tape_progress, 0.0, 1.0)
+	var now := Vector2(minutes, along)
+	if now.is_equal_approx(_wound_at):
+		return
+	_wound_at = now
+	_cassette.tape_minutes = minutes
+	_cassette.progress = along
+
+
+## The cassette's own flap, 0 shut .. 1 open: a deck's mechanism opens it as it lowers the tape onto its reels.
+func set_flap(open: float) -> void:
+	if _cassette != null:
+		_cassette.door_open = open
 
 
 ## Look for the pictures beside the video; they decode off the main thread.
@@ -104,13 +135,16 @@ func _request_label_art() -> void:
 func _on_label_art(slot: StringName, tex: Texture2D) -> void:
 	if slot == &"front":
 		MediaLabelArt.show_quad(self, "LabelArt", tex, _ART_BOX,
-			Transform3D(Basis.IDENTITY, Vector3(0.0, 0.018, _ART_Z)))
+			Transform3D(Basis.IDENTITY, Vector3(_ART_CENTER.x, _ART_CENTER.y, _ART_Z)))
 		_apply_label_text_visibility()
 	else:
-		# A quad faces +Z; turned -90 degrees about X it faces up, with the top
-		# of the picture toward the back, which reads right from the front.
+		# A quad faces +Z; turned +90 degrees about X it faces -Y, out of the spine, with
+		# the top of the picture toward the cassette's top, which reads right from behind.
 		MediaLabelArt.show_quad(self, "SpineArt", tex, _SPINE_BOX,
-			Transform3D(Basis(Vector3.RIGHT, -PI / 2.0), Vector3(0.0, _SPINE_Y, 0.0)))
+			Transform3D(Basis(Vector3.RIGHT, PI / 2.0), _SPINE_AT))
+		var spine := get_node_or_null("SpineTitle") as Label3D
+		if spine:
+			spine.visible = tex == null
 
 
 ## The picture carries the title itself, so the text steps aside for it: except

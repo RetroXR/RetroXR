@@ -102,8 +102,15 @@ remote and the netplay transport sync. What changes when it is built in:
   `_media_state` gained a `sub` argument for the same reason (an RPC signature
   change; peers must be on the same build anyway). The heartbeat walks each
   registered set's decks.
-- **Buttons.** The stock decks carry them on top. `VcrControls` / `DvdControls`
-  carry the whole panel, rigidly, from the top face's centre to the marker.
+- **Buttons.** The old box decks carried them on top, and `VcrControls` / `DvdControls`
+  carry that whole panel, rigidly, from the top face's centre to the marker. The RETRO
+  XR decks (below) are FRONT-panel (`MediaTransport._front_panel`): seated flush, their
+  keys are already on the cabinet's face beside their own slot and display, and they
+  ignore the controls marker (carried to it, they parted from both). Their seat puts the
+  deck's front on the cabinet's face: the VCR's is 135 mm along the deck's +Z, the DVD
+  player's 145. `_housing()` is the model's `Body` / `BodyPrint` (and the VCR's lamp and
+  POWER, which `build_into` takes out of play with `set_active(false)`): the VCR's flap
+  and holder and the DVD's tray stay, so media still goes in through them.
   `ButtonRow` (the set's own caps) is different: the caps keep their basis and the
   row walks the marker's axes, so that marker must NOT be turned. A turned one sent
   rows two to four into the cabinet in the first photo.
@@ -117,3 +124,52 @@ Headless runs of a set with a VCR and a DVD player sometimes print
 `Initializing already initialized RID` and a few dummy `mesh_storage` null errors. A
 stock set with LOOSE decks does the same (1 run in 8), so it is not the built-in
 path. Not chased further.
+
+### The RETRO XR decks: models, mechanism and display (2026-10-30)
+
+`vcr_player.tscn` and `dvd_player.tscn` wear RetroXR-models' `generic/vcr` and
+`generic/dvd-player` (`res://imported-assets/appliances/`, three mobile levels, their
+contracts beside them) through an `ApplianceModel` node placed before
+`PickableHighlight`. Every node the scripts, saves and netplay name is kept; only what
+is drawn changed (`VCRBody` / `DVDBody` and the old clock are hidden, kept as nodes).
+
+- **Keys.** `DeckFace.adopt_front_key` puts each scene `VRButton` on the model's key
+  (`ApplianceModel.adopt_button`) and turns its frame a quarter about X, so the cap
+  faces its +Y like every other cap and presses along -Y: the combo code and its tests
+  read a key's facing off +Y. `set_color` would paint over a model key's own material,
+  so the VCR no longer tints its keys and the DVD's box-button refresh skips adopted
+  ones (`state_tint`). The VCR gained REC (no recording: a log and an OSD line) and
+  POWER (the display and lamp to standby; the deck has no power state).
+- **Sockets.** `DeckFace.seat_port` puts each RcaPort 1 mm out from the model's jack
+  empty (10 mm proud of the panel, where a seated plug's origin goes) with
+  `show_jack` off. The models print their own AV OUT legends: no `AvLegend`.
+- **VCR mechanism.** `MediaSlot.ride_driver` lets a host ride the media itself. The
+  VCR's `TapeSlot` is at the door where the holder grips a tape (35 mm of spine out),
+  and Load runs from frame 24 (after the contract's hand push) with the tape on the
+  contract's `tape_center` each frame and the model held at the same time
+  (`ApplianceModel.seek`), so door, holder and tape move as one; the cassette's own
+  flap follows `tape_door`. A restore is laid seated at once. With nothing in the
+  slot, a tape a HAND holds at the mouth, flat and flap first, pushes the deck's flap
+  by the contract's `door_vs_tape`, and it falls shut behind (`_follow_hand`).
+- **The tape** is the real cassette (`VhsCassette`, ported from the model's demo):
+  188 x 104 x 25 mm, wound by where the tape stands on its T-n, its flap, the face
+  art on its 80 x 48 label and the spine art and a `SpineTitle` on the spine.
+- **DVD tray.** `DiscSlot` is on the tray's `DiscSeat` when it is OUT, and on only
+  while the tray is out, still and empty. OPEN/CLOSE opens or closes an empty tray,
+  or ejects / reloads a disc (`MediaSlot.toggle_eject` through the ride driver, which
+  lays the disc on `DiscSeat` through Open / Close). A disc laid on the open tray
+  closes it, as a disc dropped in the old slot rode straight in.
+- **Display.** A `VfdDisplay` over each model's `Display` (whose mesh is hidden),
+  redrawn only when what it shows changes (the VCR's counter once a second). VCR:
+  VIDEO / SP, the cassette (lit with a tape in), the tape counter H:MM:SS in seven
+  segments (the time the old clock showed: the recording's, running on into blank
+  tape), ST / SAP and REC PLAY PAUSE FF REW lit from `is_playing`, `_paused`,
+  `_scan_dir`. DVD: play or pause, TITLE nn CHP nn H:MM:SS from libVLC, or one word:
+  OPEN, CLOSE, NO DISC, LOADING (1.5 s after taking a disc in), STOP, MENU.
+
+`deck_model_tests` pins all of it (keys on the model and facing out, sockets on the
+jacks, the display, a restored tape seated and its flap open, eject to the mouth, a
+load through the door, the flap pushed by a held tape and not by one held spine
+first, the DVD tray empty and with a disc, a restored disc at its saved spin, the
+words). `Tools/av/deck_model_probe` (windowed, `--out=`, `--combo` for the cabinet
+alone) is the picture and writes the mechanism's frames.

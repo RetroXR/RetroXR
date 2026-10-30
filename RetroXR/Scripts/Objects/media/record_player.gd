@@ -74,6 +74,18 @@ var _speed_switch: VRSlider = null
 var _platter: Node3D = null
 var _poke_area: Area3D = null
 
+## The RETRO XR model (Model, an ApplianceModel) and what it adds: the dust cover's
+## lever, the 33 and 45 keys, and a lit material per speed lamp per level.
+## Above COVER_OPEN_MIN the cover is up far enough to reach under it (about 48 deg).
+const COVER_OPEN_MIN := 0.6
+var _model: ApplianceModel = null
+var _cover: VRLever = null
+var _speed33: VRButton = null
+var _speed45: VRButton = null
+var _lamps: Dictionary = {}          # "33"/"45" -> Array of [MeshInstance3D, lit material]
+var _lamps_state := -1               # what the lamps last showed: -1 none, 0 33, 1 45, 2 off
+var _arm_layer := 0                  # the tonearm's pointable layer, restored when the cover opens
+
 ## Platter state. `_motor` is what START/STOP drives; `_platter_omega` is what the
 ## platter is actually doing this frame, which is not the same thing while it is
 ## spinning up, coasting down, or being held by a hand.
@@ -110,6 +122,7 @@ func _ready() -> void:
 		_speed_45 = _speed_switch.value > 0.5
 	_poke_area = get_node_or_null("PlatterPoke") as Area3D
 	_cache_controllers()
+	_dress_model()
 
 
 func _log_tag() -> String:
@@ -134,6 +147,7 @@ func _debug_deck_rows() -> Array:
 		["Speed", "45 rpm (a 33 plays %.2f× fast)" % RATE_45 if _speed_45 else "33 1/3 rpm"],
 		["Motor", "on" if _motor else "off"],
 		["Arm", "parked" if _arm_value() <= arm_park else "on the record (%.2f)" % _arm_value()],
+		["Cover", "up" if cover_open() else "down"],
 	]
 
 
@@ -197,9 +211,15 @@ func _arm_parked() -> bool:
 
 ## Continuous side of the arm: the access gate only. Deliberately does NOT start
 ## playback — see the class comment; this fires on restore as well as on a hand.
-func _on_arm_moved(value: float) -> void:
+func _on_arm_moved(_value: float) -> void:
+	_update_gate()
+
+
+## The well is open — a record can go on or come off — only with the arm parked AND the
+## dust cover up. Both controls feed this one rule, on a hand and on a restore alike.
+func _update_gate() -> void:
 	if _tray:
-		_tray.set_open(value <= arm_park, false)
+		_tray.set_open(_arm_parked() and cover_open(), false)
 
 
 ## The hand let go. THIS is the needle drop, and it is emitted only by a real
@@ -280,6 +300,7 @@ func _process(delta: float) -> void:
 	_update_touch(delta)
 	_update_platter(delta)
 	_update_rate(delta)
+	_update_lamps()
 
 
 func _target_omega() -> float:
@@ -296,6 +317,7 @@ func _on_speed_changed(value: float) -> void:
 	_log_event("speed %s" % ("45" if _speed_45 else "33"))
 	_apply_rate()
 	_update_status()
+	_update_lamps()
 
 
 ## The rate the deck settles at for the selected speed — the platter's target
@@ -477,6 +499,181 @@ func _begin_touch(ctrl: XRController3D, angle: float) -> void:
 func _end_touch() -> void:
 	_touch_ctrl = null
 	_hand_omega = 0.0
+
+
+# --- The RETRO XR model -------------------------------------------------------
+#
+# Model (an ApplianceModel) carries the turntable's three levels (RetroXR-models
+# generic/turntable). The scene's own nodes keep every name the base, the tests, the
+# room save and netplay know; this dresses them with the model:
+#   * the model's Platter of every level hangs under the scene's Platter, which
+#     _update_platter already turns;
+#   * the model's tonearm hangs under ArmMount/ArmPivot, which TonearmLever turns —
+#     the lever's throw and arm_park/lead_in/lead_out are the model's own angles;
+#   * the dust cover hangs under CoverPivot, which CoverLever turns;
+#   * PlayButton takes the model's START-STOP key (a toggle); Speed33Button and
+#     Speed45Button take its 33 and 45 keys and set SpeedSwitch, which is no longer
+#     reachable but stays the speed's saved and synced state;
+#   * PauseButton and StopButton (the base resolves both) are switched off: the deck
+#     has neither key. The remote still has PAUSE and STOP.
+
+const LAMP_COLOR := Color(0.45, 0.92, 1.0)
+
+
+func _dress_model() -> void:
+	_model = get_node_or_null("Model") as ApplianceModel
+	if _model == null or _model.levels.is_empty():
+		push_warning("[Turntable] %s has no model: the deck works, but shows no body" % name)
+		return
+	# One outline: the far levels' meshes would draw theirs over LOD0's. The highlight
+	# collects deferred, so this lands first.
+	for i in range(1, _model.levels.size()):
+		for n in _model.levels[i].find_children("*", "MeshInstance3D", true, false):
+			n.add_to_group("outline_exclude")
+	if _platter:
+		_model.attach_part("Platter", _platter)
+	if _arm and _arm.target:
+		_hang("ArmPivot", _arm.target, deg_to_rad(_arm.max_deg))
+	_cover = get_node_or_null("CoverPivot/CoverLever") as VRLever
+	if _cover and _cover.target:
+		_hang("DustCover", _cover.target, 0.0)
+		_cover.value_changed.connect(_on_cover_moved)
+	else:
+		print("[Turntable] no CoverPivot/CoverLever: the dust cover stays where the model has it")
+
+	var play := get_node_or_null("PlayButton") as VRButton
+	if play:
+		_model.adopt_button(play, "ButtonStartStop")
+		if play.button_pressed.is_connected(_on_play_pressed):
+			play.button_pressed.disconnect(_on_play_pressed)
+		play.button_pressed.connect(_on_start_stop_pressed)
+	for n: String in ["PauseButton", "StopButton"]:
+		var b := get_node_or_null(n) as VRButton
+		if b:
+			b.set_active(false)
+	_speed33 = get_node_or_null("Speed33Button") as VRButton
+	_speed45 = get_node_or_null("Speed45Button") as VRButton
+	for spec: Array in [[_speed33, "Button33", false], [_speed45, "Button45", true]]:
+		var b: VRButton = spec[0]
+		if b == null:
+			continue
+		_model.adopt_button(b, spec[1])
+		b.depress_axis = Vector3(0, -1, 0)      # on the deck plate: pressed DOWN
+		b.button_pressed.connect(_on_speed_key.bind(spec[2]))
+	if _speed_switch:
+		# The keys own the speed now. A hidden slider near them would still engage by
+		# fingertip proximity, so it is stopped as well as taken off the ray's layer.
+		_speed_switch.visible = false
+		_speed_switch.collision_layer = 0
+		_speed_switch.process_mode = Node.PROCESS_MODE_DISABLED
+
+	for key: String in ["33", "45"]:
+		var pairs: Array = []
+		for p in _model.parts("Lamp" + key):
+			var mi := p as MeshInstance3D
+			if mi == null or mi.mesh == null:
+				continue
+			var base := mi.get_active_material(0) as BaseMaterial3D
+			var lit := (base.duplicate() if base else StandardMaterial3D.new()) as BaseMaterial3D
+			lit.emission_enabled = true
+			lit.emission = LAMP_COLOR
+			lit.emission_energy_multiplier = 3.0
+			pairs.append([mi, lit])
+		_lamps[key] = pairs
+	_lamps_state = -1
+	_update_lamps()
+	_update_cover()
+	print("[Turntable] model dressed: %d levels, cover %s, speed %s, lamps %d/%d"
+		% [_model.levels.size(), "open" if cover_open() else "closed", "45" if _speed_45 else "33",
+			(_lamps.get("33", []) as Array).size(), (_lamps.get("45", []) as Array).size()])
+
+
+## Hang a model part of every level under a scene pivot, with the pivot at the angle
+## the model was built in (so the part keeps its place), then put the pivot back.
+func _hang(part_name: String, pivot: Node3D, rest_x: float) -> void:
+	var was := pivot.rotation.x
+	pivot.rotation.x = rest_x
+	_model.attach_part(part_name, pivot)
+	pivot.rotation.x = was
+
+
+## START-STOP: one key for the motor, as on the real thing. Only the deck's own key
+## toggles; the remote's PLAY and STOP keep meaning play and stop.
+func _on_start_stop_pressed() -> void:
+	_log_event("START-STOP: motor %s" % ("off" if _motor else "on"))
+	if _motor:
+		_on_stop_pressed()
+	else:
+		_on_play_pressed()
+
+
+## 33 or 45. Through SpeedSwitch, whose value is what the save and netplay carry, so a
+## key press reaches the room exactly as the old switch did.
+func _on_speed_key(want_45: bool) -> void:
+	if _speed_switch:
+		if (_speed_switch.value > 0.5) != want_45:
+			_speed_switch.set_value(1.0 if want_45 else 0.0)
+	elif _speed_45 != want_45:
+		_on_speed_changed(1.0 if want_45 else 0.0)
+
+
+## The selected speed's lamp, lit while the motor runs; both dark when it does not.
+func _update_lamps() -> void:
+	var state := 2 if not _motor else (1 if _speed_45 else 0)
+	if state == _lamps_state:
+		return
+	_lamps_state = state
+	for key: String in _lamps:
+		var on := (state == 0 and key == "33") or (state == 1 and key == "45")
+		for pair: Array in _lamps[key]:
+			(pair[0] as MeshInstance3D).set_surface_override_material(0, pair[1] if on else null)
+
+
+## Whether the dust cover is up far enough to reach the platter and the arm.
+func cover_open() -> bool:
+	return _cover == null or _cover.get_value() >= COVER_OPEN_MIN
+
+
+## Open (true) or shut the cover from code: a restore, the remote, a probe.
+func set_cover_open(open: bool) -> void:
+	if _cover:
+		_cover.set_value(1.0 if open else 0.0)
+
+
+func _on_cover_moved(_value: float) -> void:
+	_update_cover()
+
+
+var _cover_was_open := true
+
+
+## What the cover's angle decides: the well's gate (with the arm), whether the arm can
+## be reached at all, and whether the cover's own collision box is there to rest on.
+func _update_cover() -> void:
+	var open := cover_open()
+	_update_gate()
+	_set_arm_reachable(open)
+	var shape := get_node_or_null("CoverShape") as CollisionShape3D
+	if shape:
+		shape.set_deferred("disabled", _cover != null and _cover.get_value() > 0.05)
+	if open != _cover_was_open:
+		_cover_was_open = open
+		_log_event("dust cover %s" % ("up: the platter and arm are reachable" if open
+			else "down: the record and arm are shut in"))
+
+
+func _set_arm_reachable(on: bool) -> void:
+	if _arm == null:
+		return
+	if on:
+		_arm.process_mode = Node.PROCESS_MODE_INHERIT
+		if _arm_layer != 0:
+			_arm.collision_layer = _arm_layer
+	else:
+		if _arm.collision_layer != 0:
+			_arm_layer = _arm.collision_layer
+		_arm.collision_layer = 0
+		_arm.process_mode = Node.PROCESS_MODE_DISABLED
 
 
 # --- Net ----------------------------------------------------------------------

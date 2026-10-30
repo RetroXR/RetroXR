@@ -56,8 +56,23 @@ const SPEAKER_OUT_NAMES := ["SpeakerOutL", "SpeakerOutR", "SpeakerOutC",
 const DISPLAY_LIT := Color(0.42, 0.95, 0.88)
 const DISPLAY_DIM := Color(0.16, 0.36, 0.34)
 
+## The front-panel VFD (a VfdDisplay on the model's window): 301 x 39 mm, drawn at
+## 6 px/mm. With no speaker cabled everything lit drops to VFD_DIM, as the Label3D it
+## replaced did; a speaker lamp is lit only while its own output has a cabinet.
+const VFD_PX_PER_MM := 6.0
+const VFD_DIM := Color8(52, 84, 96)
+## How far past 1 the display is driven so it reads lit through the 60 % smoked glass.
+const VFD_GLOW := 2.2
+## Segments in the level bar: the knob's position, a step per segment.
+const VFD_BARS := 30
+## The speaker map, in SPEAKER_OUT_NAMES order: the word a VFD prints and where its lamp
+## sits about the seat, in units of a sixth of the panel's height.
+const VFD_LAMPS := [["L", Vector2(-3.2, -2.1)], ["R", Vector2(3.2, -2.1)], ["C", Vector2(0.0, -2.3)],
+	["SW", Vector2(0.0, 2.3)], ["SL", Vector2(-4.2, 0.3)], ["SR", Vector2(4.2, 0.3)]]
+
 var decode_mode: int = DecodeMode.PRO_LOGIC_II
 
+@onready var _model: ApplianceModel = $Model
 @onready var _mode_btn: VRButton = $ModeButton
 @onready var _knob: VRKnob = $VolumeKnob
 @onready var _display: Label3D = $DisplayText
@@ -75,6 +90,10 @@ var _sources: Array[Node3D] = []
 ## Resolved when a plug moves, never walked per frame.
 var _speaker_dest: Dictionary = {}
 
+var _vfd: VfdDisplay = null
+## The level bar's step last drawn, so turning the knob redraws only on a new step.
+var _vfd_step: int = -1
+
 
 func _ready() -> void:
 	super()
@@ -87,6 +106,7 @@ func _ready() -> void:
 	_volume = _knob.value
 	_knob.value_changed.connect(_on_volume)
 	_mode_btn.button_pressed.connect(cycle_mode)
+	_dress()
 	_print_legends()
 	_refresh_display()
 
@@ -213,12 +233,21 @@ func set_volume(v: float) -> void:
 		_knob.set_value_no_signal(_volume)
 	_push_volume_all()
 	_notify_upstream()
+	_refresh_level()
 
 
 func _on_volume(v: float) -> void:
 	_volume = v
 	_push_volume_all()
 	_notify_upstream()
+	_refresh_level()
+
+
+## The level bar redraws on a new step only, not on every frame of a turn.
+func _refresh_level() -> void:
+	if _vfd != null and roundi(_volume * VFD_BARS) != _vfd_step:
+		_vfd_step = roundi(_volume * VFD_BARS)
+		_vfd.refresh()
 
 
 # ── pushing ──────────────────────────────────────────────────────────────────
@@ -277,8 +306,8 @@ func _notify_upstream() -> void:
 
 
 func _route() -> Array:
-	# A channel with nowhere to go waits silent at the front of the box.
-	var rest: Vector3 = global_transform * Vector3(0.0, 0.075, 0.17)
+	# A channel with nowhere to go waits silent at the front of the box, mid-height.
+	var rest: Vector3 = global_transform * Vector3(0.0, 0.0575, 0.17)
 	return SpeakerRig.route(_speaker_dest, rest)
 
 
@@ -289,6 +318,95 @@ func _refresh_display() -> void:
 		return
 	_display.text = DECODE_NAMES[decode_mode]
 	_display.modulate = DISPLAY_LIT if has_cabled_speakers() else DISPLAY_DIM
+	if _vfd != null:
+		_vfd_step = roundi(_volume * VFD_BARS)
+		_vfd.refresh()
+
+
+## Dress the scene's controls from the model (RetroXR-models generic/surround-receiver):
+## the key's mesh into ModeButton, the knob under KnobPivot, a VfdDisplay on the window.
+## Every level but the close one, and the display's own quad, stay out of the outline —
+## three levels traced on top of each other would draw it three times.
+func _dress() -> void:
+	if _model == null or _model.levels.is_empty():
+		push_warning("[SurroundAmp] %s: no model to dress the panel from" % name)
+		return
+	_model.adopt_button(_mode_btn, "ButtonSurroundMode")
+	# adopt_button hands the key to VRButton.set_button_mesh, which hides whatever node
+	# is named ButtonMesh — the cap adopt_button just filled. Shown again here.
+	var cap := _mode_btn.get_node_or_null("ButtonMesh") as MeshInstance3D
+	if cap != null:
+		cap.visible = true
+	# attach_part keeps where the knob is, so take the pivot to its rest first: the
+	# model's knob is authored with its dot at 12 o'clock, VRKnob's 0 degrees.
+	var pivot := _knob.get_node("KnobPivot") as Node3D
+	var turned := pivot.rotation
+	pivot.rotation = Vector3.ZERO
+	_model.attach_part("VolumeKnob", pivot)
+	# One knob per level, siblings now: named apart, or Godot names them @VolumeKnob@n.
+	var level := 0
+	for knob_part in pivot.get_children():
+		knob_part.name = "ModelKnob%d" % level
+		level += 1
+	pivot.rotation = turned
+	if _model.part("Display") == null:
+		push_warning("[SurroundAmp] %s: the model has no Display" % name)
+	else:
+		_vfd = VfdDisplay.new()
+		_vfd.name = "Vfd"
+		_vfd.size_m = Vector2(0.301, 0.039)
+		_vfd.px_per_mm = VFD_PX_PER_MM
+		_vfd.painter = _paint_vfd
+		_vfd.transform = _model.part_transform("Display").translated_local(Vector3(0.0, 0.0, 0.0003))
+		add_child(_vfd)
+		_model.hide_part("Display")
+		# Behind the model's smoked glass (alpha 0.6) a plain unshaded quad reads grey: a
+		# VFD glows through it, so its colour is driven past 1.
+		var glow := _vfd.screen().material_override as StandardMaterial3D
+		if glow != null:
+			glow.albedo_color = Color(VFD_GLOW, VFD_GLOW, VFD_GLOW)
+		_vfd.screen().add_to_group("outline_exclude")
+	for i in range(1, _model.levels.size()):
+		for m in _model.levels[i].find_children("*", "MeshInstance3D", true, false):
+			m.add_to_group("outline_exclude")
+	# The model marks each jack's mouth with an empty named like the RcaPort on it. The
+	# Model node comes first in the tree, so a find_child for a port's name would reach
+	# the empty before the port: the empties take a suffix.
+	for port_name in ["AudioInL", "AudioInR"] + SPEAKER_OUT_NAMES:
+		for mouth in _model.parts(port_name):
+			mouth.name = port_name + "Mouth"
+	print("[SurroundAmp] %s: dressed from the model (%d levels)" % [name, _model.levels.size()])
+
+
+## Whether output `i` (SPEAKER_OUT_NAMES order) has a cabinet on it.
+func is_output_cabled(i: int) -> bool:
+	return SpeakerRig.cabinet_of(_speaker_dest.get(RcaPort.SPEAKER_OUT_CHANNELS[i])) != null
+
+
+## Whether the VFD's lamp for output `i` is lit: a cabinet on that output.
+func vfd_lamp_lit(i: int) -> bool:
+	return has_cabled_speakers() and is_output_cabled(i)
+
+
+## The VFD: the decoder's name large on the left with the knob's level bar under it, and
+## the speaker map on the right, a lamp per output round the seat.
+func _paint_vfd(c: Control, s: Vector2) -> void:
+	var on := has_cabled_speakers()
+	var ink := VfdDisplay.LIT if on else VFD_DIM
+	c.draw_string(VfdDisplay.font(), Vector2(s.x * 0.03, s.y * 0.52), DECODE_NAMES[decode_mode],
+		HORIZONTAL_ALIGNMENT_LEFT, -1, int(s.y * 0.31), ink)
+	var lit := roundi(_volume * VFD_BARS)
+	var pitch := s.x * 0.55 / VFD_BARS
+	for i in VFD_BARS:
+		c.draw_rect(Rect2(s.x * 0.03 + i * pitch, s.y * 0.66, pitch * 0.62, s.y * 0.13),
+			ink if i < lit else VfdDisplay.GHOST)
+	var u := s.y / 6.0
+	var seat := Vector2(s.x * 0.80, s.y * 0.5)
+	c.draw_rect(Rect2(seat - Vector2(u * 0.9, u * 0.45), Vector2(u * 1.8, u * 0.9)), ink, false, 4.0)
+	for i in VFD_LAMPS.size():
+		var at: Vector2 = seat + (VFD_LAMPS[i][1] as Vector2) * u
+		VfdDisplay.boxed(c, VFD_LAMPS[i][0], Rect2(at - Vector2(u * 0.75, u * 0.5), Vector2(u * 1.5, u * 1.0)),
+			int(u * 0.55), vfd_lamp_lit(i))
 
 
 ## The two plates on the back: AUDIO IN over the pair, SPEAKERS over the six, in the
@@ -306,6 +424,13 @@ func _print_legends() -> void:
 		outputs.heading_override = "SPEAKERS"
 		outputs.word_override = TvPanel.SPEAKER_WORDS
 		outputs.rebuild()
+	# The model prints these same words on its back panel; the plates are still built,
+	# as the measured statement of what the panel says, but hidden so the words are not
+	# printed twice.
+	if _model != null and not _model.levels.is_empty():
+		for plate: AvLegend in [inputs, outputs]:
+			if plate != null:
+				plate.visible = false
 
 
 # ── save / restore ───────────────────────────────────────────────────────────

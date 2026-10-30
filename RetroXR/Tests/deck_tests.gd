@@ -30,7 +30,7 @@
 ##   playlist/ an .m3u sets what plays and in what order, for albums and tapes
 extends "res://Tests/test_suite.gd"
 
-const GROUPS := ["base", "save", "media", "gate", "arm", "scrub", "net", "remote", "tape", "label", "playlist"]
+const GROUPS := ["base", "save", "media", "gate", "arm", "model", "scrub", "net", "remote", "tape", "label", "playlist"]
 
 const RECORD_PLAYER := preload("res://Scenes/Objects/appliances/record_player.tscn")
 const CD_PLAYER := preload("res://Scenes/Objects/appliances/cd_player.tscn")
@@ -65,6 +65,8 @@ func _ready() -> void:
 		await _test_gate_matrix()
 	if _want("arm"):
 		await _test_arm()
+	if _want("model"):
+		await _test_model()
 	if _want("scrub"):
 		await _test_scrub()
 	if _want("net"):
@@ -427,7 +429,7 @@ func _test_label() -> void:
 	var mat := art.material_override as StandardMaterial3D
 	_ok(mat.albedo_texture != null and mat.albedo_texture.get_width() == 400,
 		"label/the picture is on the sticker, whole")
-	_ok((art.mesh as QuadMesh).size.is_equal_approx(Vector2(0.11, 0.0275)),
+	_ok((art.mesh as QuadMesh).size.is_equal_approx(Vector2(0.078, 0.0195)),
 		"label/and fitted inside the paper, not stretched over it")
 	_ok(not text.visible, "label/the title text steps aside for it")
 	tape.net_set_download_status("40%")
@@ -449,7 +451,7 @@ func _test_label() -> void:
 	tape.video_path = _scratch.path_join("Tall.mp4")
 	got = await _wait_for(func() -> bool:
 		var a := tape.get_node_or_null("LabelArt") as MeshInstance3D
-		return a != null and (a.mesh as QuadMesh).size.is_equal_approx(Vector2(0.0225, 0.045)))
+		return a != null and (a.mesh as QuadMesh).size.is_equal_approx(Vector2(0.023, 0.046)))
 	_ok(got, "label/two moves in a row end on the picture of the last")
 
 	# Freed while a decode is in flight: the pool thread writes into the tape's
@@ -535,11 +537,12 @@ func _test_label_media() -> void:
 	var spine := tape.get_node("SpineArt") as MeshInstance3D
 	_ok(tape.get_node_or_null("LabelArt") == null and (tape.get_node("VideoLabel") as Label3D).visible,
 		"label/and a spine alone leaves the face as text")
-	_ok(spine.transform.basis.z.is_equal_approx(Vector3.UP) and spine.transform.basis.y.is_equal_approx(Vector3(0, 0, -1)),
-		"label/the strip lies on the top edge, its top toward the back")
-	_ok(is_equal_approx(spine.position.y, 0.0402)
-		and (spine.mesh as QuadMesh).size.is_equal_approx(Vector2(0.136, 0.017)),
-		"label/over the edge and fitted inside it, not stretched")
+	# The cassette's spine label (VhsCassette's LabelSpine, 150 x 21 mm) is on its -Y edge, the one a deck shows.
+	_ok(spine.transform.basis.z.is_equal_approx(Vector3(0, -1, 0)) and spine.transform.basis.y.is_equal_approx(Vector3(0, 0, 1)),
+		"label/the strip faces out of the spine, its top toward the cassette's top")
+	_ok(is_equal_approx(spine.position.y, -0.0522)
+		and (spine.mesh as QuadMesh).size.is_equal_approx(Vector2(0.148, 0.0185)),
+		"label/over the spine label and fitted inside it, not stretched")
 	DirAccess.remove_absolute(_scratch.path_join("Home Movies spine.png"))
 	tape.video_path = _scratch.path_join("Elsewhere.mp4")
 	_ok(await _wait_for(func() -> bool: return tape.get_node_or_null("SpineArt") == null),
@@ -1125,41 +1128,126 @@ func _test_arm() -> void:
 	# reticle is an intersect_ray against the pointable layer, and a ray cannot hit a
 	# shapeless Area3D, so without a shape the arm simply cannot be grabbed on a
 	# desktop. Asserted on both widgets a hand has to reach.
-	for spec: Array in [[arm, "the tonearm"], [rp._speed_switch, "the 33/45 switch"]]:
+	for spec: Array in [[arm, "the tonearm"], [rp._speed33, "the 33 key"], [rp._speed45, "the 45 key"],
+			[rp.get_node("PlayButton"), "START-STOP"], [rp._cover, "the dust cover"]]:
 		var w: Area3D = spec[0]
 		var label: String = spec[1]
 		_ok(w != null and (w.collision_layer & (1 << 20)) != 0,
 			"arm/%s is on the pointable layer" % label)
 		var shaped := false
-		for child in w.get_children():
-			if child is CollisionShape3D and (child as CollisionShape3D).shape != null:
-				shaped = true
+		if w != null:
+			for child in w.get_children():
+				if child is CollisionShape3D and (child as CollisionShape3D).shape != null:
+					shaped = true
 		_ok(shaped, "arm/%s has a shape a desktop ray can hit" % label)
 
-	# A DETENT SWITCH MUST BE FLIPPABLE BOTH WAYS by a pointer, and this drives the
-	# real thing rather than asserting a proxy for it. An earlier version of this
-	# case checked only that the grab box was wider than the throw — which is
-	# necessary, is documented in _update_knob, and was TRUE of a switch that still
-	# could not be flipped back, because the box's REST POSE was also wrong. A
-	# precondition that holds while the feature is broken is not a test of the
-	# feature. So: press where a ray could actually land, and read the value.
+	# THE SPEED KEYS, pressed the way a desktop click presses them. They drive
+	# SpeedSwitch, the speed's saved and synced state, which no hand reaches any more:
+	# it must be off the pointable layer and not processing, or a fingertip near the
+	# keys would still flip it by proximity.
 	var sw: VRSlider = rp._speed_switch
-	if sw != null and sw.steps >= 2:
-		sw.set_value_no_signal(0.0)
-		await get_tree().process_frame
-		_eq(_press_at(sw, _reach(sw, 1.0)), 1.0, "arm/a pointer can throw the speed switch to 45")
-		_eq(_press_at(sw, _reach(sw, -1.0)), 0.0, "arm/...and can throw it BACK to 33")
-		# And back again, so a working one-way flip cannot pass either.
-		_eq(_press_at(sw, _reach(sw, 1.0)), 1.0, "arm/the switch keeps flipping both ways")
+	_ok(sw != null and sw.collision_layer == 0 and sw.process_mode == Node.PROCESS_MODE_DISABLED,
+		"arm/the old switch is out of reach (state only)")
+	await _press_key(rp._speed45)
+	_eq(sw.value, 1.0, "arm/the 45 key throws the speed state to 45")
+	_ok(absf(rp.playback_rate() - RecordPlayer.RATE_45) < 0.001,
+		"arm/at 45 the deck asks for %.2fx" % RecordPlayer.RATE_45)
+	await _press_key(rp._speed33)
+	_eq(sw.value, 0.0, "arm/...and the 33 key throws it BACK to 33")
+	_ok(absf(rp.playback_rate() - 1.0) < 0.001, "arm/at 33 it asks for 1.00x")
+	await _press_key(rp._speed45)
+	_eq(sw.value, 1.0, "arm/the keys keep switching both ways")
+	await _press_key(rp._speed33)
 
-		# The switch now drives playback as well as the platter. VlcPlayer does not
-		# exist headless, so what is asserted is the rate the deck ASKS for — the
-		# push itself is one guarded call, and the binding was measured separately
-		# (ZCR 1.338 against this 1.35, i.e. the pitch really bends).
-		_ok(absf(rp.playback_rate() - RecordPlayer.RATE_45) < 0.001,
-			"arm/at 45 the deck asks for %.2fx" % RecordPlayer.RATE_45)
-		_press_at(sw, _reach(sw, -1.0))
-		_ok(absf(rp.playback_rate() - 1.0) < 0.001, "arm/at 33 it asks for 1.00x")
+
+# ── model/ ────────────────────────────────────────────────────────────────────
+
+## The RETRO XR model's turntable. The arm calibration is checked on the MODEL's own
+## stylus, not on the numbers that produced it: a mis-set arm_* or a lever throw that
+## no longer matches the hung arm puts the needle off the groove it claims, and only
+## the needle's real position can tell. The groove radii are a 12-inch record's.
+func _test_model() -> void:
+	var rp := await _deck(RECORD_PLAYER)
+	var model: ApplianceModel = rp._model
+	_ok(model != null and model.levels.size() == 3, "model/the deck carries the model's three levels")
+	if model == null:
+		return
+	# Hung parts leave their level, so they are found under the deck's own pivots — and
+	# each pivot carries all three levels' copies (LOD0's first; Godot renames the other
+	# two, so they are counted as meshes rather than looked up by name).
+	var pivots := {"Platter": rp._platter, "ArmPivot": rp._arm.target, "DustCover": rp._cover.target}
+	for part_name: String in pivots:
+		var pivot := pivots[part_name] as Node3D
+		var hung := pivot.find_children("*", "MeshInstance3D", false, false)
+		_ok(hung.size() == 3 and pivot.get_node_or_null(part_name) != null,
+			"model/all three levels' %s hang on the deck's pivot (%d)" % [part_name, hung.size()])
+
+	var stylus := (rp._arm.target as Node3D).find_child("Stylus", true, false) as Node3D
+	var axis: Vector3 = rp._platter.position
+	for spec: Array in [[rp.arm_park, 0.152, "the record's edge (park)"],
+			[rp.arm_lead_in, 0.146, "the lead-in groove"], [rp.arm_lead_out, 0.060, "the run-out groove"]]:
+		rp._arm.set_value_no_signal(spec[0])
+		var at: Vector3 = rp.to_local(stylus.global_position)
+		var r := Vector2(at.x - axis.x, at.z - axis.z).length()
+		_ok(absf(r - float(spec[1])) < 0.001, "model/value %.3f puts the needle on %s (%.1f mm)"
+			% [spec[0], spec[2], r * 1000.0])
+	var seat: Vector3 = rp.get_node("MediaSlot").position
+	rp._arm.set_value_no_signal(rp.arm_lead_in)
+	var tip: Vector3 = rp.to_local(stylus.global_position)
+	_ok(absf(tip.y - (seat.y + 0.0009)) < 0.002, "model/the needle rests on a record's surface (%.1f mm off)"
+		% ((tip.y - seat.y - 0.0009) * 1000.0))
+	rp._arm.set_value_no_signal(0.0)
+	var rest: Vector3 = rp.to_local(stylus.global_position)
+	_ok(Vector2(rest.x - axis.x, rest.z - axis.z).length() > 0.16, "model/at rest the needle is off the platter")
+
+	# START-STOP is one key: press toggles the motor.
+	var play: VRButton = rp.get_node("PlayButton")
+	_ok(not (rp.get_node("PauseButton") as Node3D).visible and not (rp.get_node("StopButton") as Node3D).visible,
+		"model/no PAUSE or separate STOP key on the deck")
+	await _press_key(play)
+	_ok(rp._motor, "model/START-STOP starts the motor")
+	# The selected speed's lamp lights while the motor runs.
+	await _press_key(rp._speed45)
+	await get_tree().process_frame
+	var l45 := model.part("Lamp45") as MeshInstance3D
+	var l33 := model.part("Lamp33") as MeshInstance3D
+	_ok(l45.get_surface_override_material(0) != null and l33.get_surface_override_material(0) == null,
+		"model/45 running: only the 45 lamp is lit")
+	await _press_key(rp._speed33)
+	await get_tree().process_frame
+	_ok(l33.get_surface_override_material(0) != null and l45.get_surface_override_material(0) == null,
+		"model/33 running: only the 33 lamp is lit")
+	await _press_key(play)
+	await get_tree().process_frame
+	_ok(not rp._motor, "model/START-STOP again stops it")
+	_ok(l33.get_surface_override_material(0) == null and l45.get_surface_override_material(0) == null,
+		"model/stopped: both lamps dark")
+
+	# THE DUST COVER. Open on spawn; shut, it locks the record and the arm away.
+	_ok(rp.cover_open() and rp._tray.is_open(), "model/a fresh deck's cover is up and its well open")
+	rp.set_cover_open(false)
+	await get_tree().physics_frame
+	_ok(not rp.cover_open(), "model/the cover can be shut")
+	_ok(not rp._tray.is_open(), "model/a shut cover closes the well even with the arm parked")
+	_ok(rp._arm.collision_layer == 0 and rp._arm.process_mode == Node.PROCESS_MODE_DISABLED,
+		"model/...and the arm cannot be taken under it")
+	_ok(not (rp.get_node("CoverShape") as CollisionShape3D).disabled, "model/a shut cover is solid to rest on")
+	var records: Array = ScenePersistence.new()._serialize_articulated_controls(rp)
+	var saved := -1.0
+	for rec: Dictionary in records:
+		if str(rec.get("path", "")) == "CoverPivot/CoverLever":
+			saved = float(rec.get("value", -1.0))
+	_eq(saved, 0.0, "model/the room save carries the cover shut")
+	# Netplay finds it the same way it finds the tonearm: every VRLever under the deck.
+	var sync := NetObjectSync.new()
+	var before: int = rp._cover.value_changed.get_connections().size()
+	sync._bind_articulated_controls(rp)
+	_ok(rp._cover.value_changed.get_connections().size() > before, "model/netplay binds the cover like the tonearm")
+	sync.free()
+	rp.set_cover_open(true)
+	await get_tree().physics_frame
+	_ok(rp._tray.is_open() and (rp._arm.collision_layer & (1 << 20)) != 0, "model/opening it frees the well and the arm")
+	_ok((rp.get_node("CoverShape") as CollisionShape3D).disabled, "model/an open cover has no box hanging in the air")
 
 
 # ── scrub/ ────────────────────────────────────────────────────────────────────
@@ -1308,35 +1396,14 @@ func _seat(rp: Node) -> Node:
 ## unregistered the extension classes the emitter's backend belongs to. queue_free
 ## alone is not enough — it is deferred, so without the frames below the decks are
 ## still standing at quit and the run exits 139 with every case passed.
-## The furthest point along the travel axis, in the slider's own frame, that a ray
-## could actually hit RIGHT NOW — the grab box's leading face where it currently
-## sits. `dir` is +1 for the far end of the throw, -1 for the near one. This is the
-## whole point of the case: a pointer cannot aim at the slot, only at the box, so
-## the reachable set moves with the knob.
-func _reach(sw: VRSlider, dir: float) -> Vector3:
-	var axis := sw.axis_local.normalized()
-	var half := 0.0
-	var centre := Vector3.ZERO
-	for child in sw.get_children():
-		var cs := child as CollisionShape3D
-		if cs == null:
-			continue
-		centre = cs.position
-		var box := cs.shape as BoxShape3D
-		if box != null:
-			half = absf((box.size * 0.5).dot(axis))
-	return centre + axis * half * dir
-
-
-## Press the pointer at a point in the slider's local frame, and report the value it
-## settled on. Exactly what XRToolsPointerEvent.pressed delivers on a desktop click.
-func _press_at(sw: VRSlider, local_point: Vector3) -> float:
-	var at := sw.to_global(local_point)
-	sw.pointer_event(XRToolsPointerEvent.new(
-		XRToolsPointerEvent.Type.PRESSED, null, sw, at, at))
-	sw.pointer_event(XRToolsPointerEvent.new(
-		XRToolsPointerEvent.Type.RELEASED, null, sw, at, at))
-	return sw.value
+## Click a key the way the desktop reticle does: PRESSED then RELEASED at its origin.
+func _press_key(b: VRButton) -> void:
+	var at := b.global_position
+	b.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.PRESSED, null, b, at, at))
+	b.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.RELEASED, null, b, at, at))
+	# A key fires once per frame at most (VRButton debounces a re-press in the same
+	# frame), so each click gets its own.
+	await get_tree().process_frame
 
 
 func _cleanup() -> void:

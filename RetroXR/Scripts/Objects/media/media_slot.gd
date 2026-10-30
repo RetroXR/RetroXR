@@ -36,6 +36,12 @@ signal removed()
 ## Insert / eject ride duration (seconds).
 @export var ride_time: float = 0.9
 
+## A host that rides the media itself, or unset for the tween. The VCR's mechanism takes a tape in through a flap
+## and lowers it onto the reels, which no straight tween does: it plays its model's own animation and moves the
+## media with it. Called as (media: Node3D, to_seat: bool, instant: bool) instead of the tween (and instead of the
+## restore's seated pose, with instant true); the host writes the media's transform until it calls end_ride().
+var ride_driver: Callable
+
 
 ## The layer a media item's PointerArea rides on (VRButton.POINTABLE_LAYER), used
 ## to put it back after a spell inside the machine.
@@ -159,10 +165,13 @@ func _accept(media: Node3D, seated_now: bool, yaw: float = 0.0) -> void:
 		media.picked_up.connect(_on_media_taken)
 	_state = State.LOADED
 	if seated_now:
-		media.transform = _seated_pose()
+		if ride_driver.is_valid():
+			ride_driver.call(media, true, true)
+		else:
+			media.transform = _seated_pose()
 	else:
 		media.transform = _mouth_pose()
-		_ride_to(_seated_pose())
+		_ride_to(_seated_pose(), true)
 	inserted.emit(media)
 
 
@@ -177,7 +186,7 @@ func eject() -> void:
 	# Now grabbable — the disc/tape is coming out.
 	_set_media_interactive(_media, true)
 	removed.emit()
-	_ride_to(_mouth_pose())
+	_ride_to(_mouth_pose(), false)
 
 
 ## True while the media is resting at the mouth, out of the machine but not yet taken.
@@ -204,7 +213,7 @@ func reload() -> void:
 	_state = State.LOADED
 	# Back inside the unit: not grabbable, not pointable (see _set_media_interactive).
 	_set_media_interactive(_media, false)
-	_ride_to(_seated_pose())
+	_ride_to(_seated_pose(), true)
 	inserted.emit(_media)
 
 
@@ -291,12 +300,18 @@ func _drop_host_exception(media: Node3D) -> void:
 # --- Ride animation -----------------------------------------------------------
 
 ## Tween the media's local (slot-relative) transform to `target`; it rides the host
-## for free as a frozen child, so this is the only motion code.
-func _ride_to(target: Transform3D) -> void:
+## for free as a frozen child, so this is the only motion code. With a ride_driver the
+## host rides it instead (`to_seat`: in, or out to the mouth).
+func _ride_to(target: Transform3D, to_seat: bool) -> void:
 	if _media == null:
 		return
 	if _tween:
 		_tween.kill()
+		_tween = null
+	if ride_driver.is_valid():
+		_riding = true
+		ride_driver.call(_media, to_seat, false)
+		return
 	var from: Transform3D = _media.transform
 	_riding = true
 	_tween = _media.create_tween()
@@ -306,3 +321,14 @@ func _ride_to(target: Transform3D) -> void:
 		0.0, 1.0, ride_time) \
 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_tween.finished.connect(func() -> void: _riding = false)
+
+
+## A ride_driver has finished moving the media (seated, or parked at the mouth).
+func end_ride() -> void:
+	_riding = false
+
+
+## The basis the media sits at in the slot's frame (its authored seat, turned by the spin it went in at): what a
+## ride_driver lays it with.
+func seat_basis() -> Basis:
+	return _seat_basis

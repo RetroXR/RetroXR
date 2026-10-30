@@ -1,26 +1,17 @@
-[gd_scene load_steps=10 format=3 uid="uid://vcrtape_001"]
+[gd_scene load_steps=8 format=3 uid="uid://vcrtape_001"]
 
 [ext_resource type="Script" path="res://Scripts/Objects/media/vcr_tape.gd" id="1_tapescript"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="3_snapgp"]
+[ext_resource type="Script" path="res://Scripts/Objects/media/vhs_cassette.gd" id="4_cassette"]
 
+; The real cassette: SMPTE 32M, 188 x 104 x 25 mm (RetroXR-models generic/vhs-tape, drawn by VhsCassette).
+; Its top face looks along +Z and its flap is the +Y edge, so a deck lays it flat by -90 degrees about X.
 [sub_resource type="BoxShape3D" id="BoxShape3D_tape"]
-size = Vector3(0.14, 0.08, 0.025)
+size = Vector3(0.188, 0.104, 0.025)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
-size = Vector3(0.16, 0.1, 0.03)
-
-[sub_resource type="BoxMesh" id="BoxMesh_tape"]
-size = Vector3(0.14, 0.08, 0.025)
-
-[sub_resource type="StandardMaterial3D" id="Mat_tape"]
-albedo_color = Color(0.08, 0.08, 0.09, 1.0)
-
-[sub_resource type="BoxMesh" id="BoxMesh_label"]
-size = Vector3(0.11, 0.045, 0.002)
-
-[sub_resource type="StandardMaterial3D" id="Mat_label"]
-albedo_color = Color(0.9, 0.9, 0.85, 1.0)
+size = Vector3(0.198, 0.114, 0.031)
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_tape"]
 bounce = 0.0
@@ -38,17 +29,11 @@ script = ExtResource("1_tapescript")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("BoxShape3D_tape")
 
-[node name="TapeMesh" type="MeshInstance3D" parent="."]
-mesh = SubResource("BoxMesh_tape")
-surface_material_override/0 = SubResource("Mat_tape")
-
-[node name="LabelMesh" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.018, 0.013)
-mesh = SubResource("BoxMesh_label")
-surface_material_override/0 = SubResource("Mat_label")
+[node name="Cassette" type="Node3D" parent="."]
+script = ExtResource("4_cassette")
 
 [node name="VideoLabel" type="Label3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.018, 0.015)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.004, 0.0131)
 modulate = Color(0, 0, 0, 1)
 text = ""
 pixel_size = 0.0004
@@ -57,7 +42,19 @@ outline_size = 4
 horizontal_alignment = 1
 vertical_alignment = 1
 max_lines_visible = 2
-width = 260.0
+width = 190.0
+
+[node name="SpineTitle" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.01, -0.0523, -0.0005)
+modulate = Color(0, 0, 0, 1)
+text = ""
+pixel_size = 0.0004
+font_size = 14
+outline_size = 4
+horizontal_alignment = 1
+vertical_alignment = 1
+max_lines_visible = 1
+width = 360.0
 
 [node name="PickableHighlight" type="Node3D" parent="."]
 script = ExtResource("2_pickhigh")

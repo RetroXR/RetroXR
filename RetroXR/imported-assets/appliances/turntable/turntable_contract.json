@@ -1,0 +1,65 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the front faces +Z, x to the right seen from the front",
+ "fps": 30,
+ "animations": {
+  "CoverOpen": [
+   0,
+   24
+  ],
+  "CoverClose": [
+   0,
+   24
+  ]
+ },
+ "cover": {
+  "node": "DustCover",
+  "hinge": [
+   0.0,
+   0.0085,
+   -0.197
+  ],
+  "open_deg": 80.0,
+  "note": "rotation about the node's local +X; positive opens; the node is turned half a turn about Y"
+ },
+ "platter": {
+  "node": "Platter",
+  "axis": [
+   -0.055,
+   0.0085,
+   -0.0
+  ],
+  "record_seat": [
+   -0.055,
+   0.0305,
+   -0.0
+  ],
+  "record_radius": 0.152,
+  "mat_radius": 0.15,
+  "platter_radius": 0.162,
+  "rpm": [
+   33.333,
+   45.0
+  ]
+ },
+ "tonearm": {
+  "pivot": [
+   0.135,
+   0.0135,
+   -0.1
+  ],
+  "lift_axis_height": 0.0575,
+  "effective_length": 0.23,
+  "yaw_deg": {
+   "rest": -176.261,
+   "lead_in": -204.161,
+   "run_out": -227.261
+  },
+  "note": "ArmPivot rotation about glTF +Y; the arm runs out along its local -Z; ArmLift rotation about its local +X, positive raises; Stylus is the needle tip (on a record at lift 0)"
+ },
+ "triangles": {
+  "high": 57388,
+  "lod0": 6610,
+  "lod1": 3922,
+  "lod2": 2820
+ }
+}

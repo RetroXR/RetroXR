@@ -58,6 +58,30 @@ const NET_DRIFT_TOLERANCE := 1.0   # seconds of content drift before a seek
 @onready var _eject_button: VRButton = $EjectButton
 @onready var _name_label: Label3D = $NameLabel
 @onready var _options_panel: DVDOptionsPanel = $DVDOptionsPanel
+## The RETRO XR model (RetroXR-models generic/dvd-player): what is drawn, and the tray's Open / Close.
+@onready var _model: ApplianceModel = get_node_or_null("Model") as ApplianceModel
+
+## The model's key for each scene button.
+const KEYS := {"PlayButton": "ButtonPlay", "PauseButton": "ButtonPause", "StopButton": "ButtonStop",
+	"MenuButton": "ButtonMenu", "PrevChapterButton": "ButtonPrevChapter", "NextChapterButton": "ButtonNextChapter",
+	"EjectButton": "ButtonOpenClose", "RewindButton": "ButtonRewind", "FastForwardButton": "ButtonFastForward",
+	"LanguageButton": "ButtonAudio", "SubtitleButton": "ButtonSubtitle", "UpButton": "ButtonUp",
+	"DownButton": "ButtonDown", "LeftButton": "ButtonLeft", "RightButton": "ButtonRight", "SelectButton": "ButtonEnter"}
+## A disc's center stands this far over DiscSeat (the well's floor): half the 4 mm disc.
+const DISC_LIFT := 0.002
+## How long the display says LOADING after the tray has closed on a disc.
+const LOADING_MSEC := 1500
+
+var _vfd: VfdDisplay = null
+var _vfd_state: Dictionary = {}
+var _vfd_key := ""
+## The tray: out or in, and Open / Close while it moves (with how far into it).
+var _tray_open := false
+var _tray_anim := ""
+var _tray_t := 0.0
+## The disc the tray is carrying (MediaSlot.ride_driver), or null.
+var _ride_media: Node3D = null
+var _loading_until := 0
 
 # The box's copy of the remote's menu cluster + track cycling: same ids, same
 # enable rules, same actions. Lit colour per id; greyed to COLOR_BTN_OFF whenever
@@ -76,8 +100,7 @@ var _box_button_lit: Dictionary = {}   # id -> bool, last colour applied
 func _ready() -> void:
 	super._ready()
 	add_to_group("dvd_player")
-	# Silkscreen round the A/V row. A deck is a source, so this one reads AV OUT.
-	AvLegend.attach(self, [$VideoOut, $AudioLOut, $AudioROut])
+	# The model prints its own AV OUT legends round its jacks, so there is no AvLegend.
 	_float_lock = FloatLock.attach(self, ignore_gravity)
 	TransportGlyphs.label_buttons(self, {
 		"PlayButton": "play", "PauseButton": "pause", "StopButton": "stop",
@@ -94,6 +117,7 @@ func _ready() -> void:
 	add_child(_slot)
 	_slot.inserted.connect(_on_media_inserted)
 	_slot.removed.connect(_on_media_removed)
+	_dress()
 	_play_button.button_pressed.connect(_on_play_pressed)
 	_pause_button.button_pressed.connect(_on_pause_pressed)
 	_stop_button.button_pressed.connect(_on_stop_pressed)
@@ -103,15 +127,6 @@ func _ready() -> void:
 	_rewind_button.button_pressed.connect(_on_rewind_pressed)
 	_ff_button.button_pressed.connect(_on_ff_pressed)
 	_eject_button.button_pressed.connect(_on_eject_pressed)
-	_play_button.set_color(Color(0.0, 0.9, 0.0))    # green
-	_pause_button.set_color(Color(0.9, 0.8, 0.0))    # amber
-	_stop_button.set_color(Color(0.9, 0.1, 0.1))     # red
-	_menu_button.set_color(Color(0.2, 0.5, 0.95))    # blue
-	_prev_button.set_color(Color(0.5, 0.5, 0.55))
-	_next_button.set_color(Color(0.5, 0.5, 0.55))
-	_rewind_button.set_color(Color(0.1, 0.4, 0.9))   # blue
-	_ff_button.set_color(Color(0.1, 0.4, 0.9))       # blue
-	_eject_button.set_color(Color(0.8, 0.8, 0.85))
 	_setup_box_buttons()
 
 	if ClassDB.class_exists("VlcPlayer"):
@@ -175,8 +190,12 @@ func _refresh_box_buttons() -> void:
 		if _box_button_lit.get(id) == lit:
 			continue
 		_box_button_lit[id] = lit
+		var button := _box_buttons[id] as VRButton
+		# A key the model gave its cap keeps the model's own colour and icon.
+		if not button.state_tint:
+			continue
 		var col: Color = BOX_BTN_COLOR[id] if lit else COLOR_BTN_OFF
-		(_box_buttons[id] as VRButton).set_color(col)
+		button.set_color(col)
 
 
 func _update_name_label() -> void:
@@ -184,12 +203,215 @@ func _update_name_label() -> void:
 		_name_label.text = dvd_label.to_upper()
 
 
+## The cabinet a combo set builds this into is the housing: the model's body goes, its tray and keys stay.
 func _housing() -> Array[Node3D]:
-	return [$DVDBody, _name_label]
+	var out: Array[Node3D] = [$DVDBody, _name_label]
+	if _model:
+		out.append_array(_model.parts("Body"))
+		out.append_array(_model.parts("BodyPrint"))
+	return out
+
+
+func _front_panel() -> bool:
+	return true
+
+
+## Dress the player with its model: every key adopted onto the model's, the phono sockets on its jacks, the
+## vacuum fluorescent display over its window, and the tray as the disc's way in (MediaSlot.ride_driver).
+func _dress() -> void:
+	if _model == null:
+		push_warning("[DVD] %s: no Model node; drawn as the old box" % name)
+		return
+	for button_name: String in KEYS:
+		DeckFace.adopt_front_key(_model, get_node(button_name) as VRButton, KEYS[button_name])
+	for port: String in ["VideoOut", "AudioLOut", "AudioROut"]:
+		DeckFace.seat_port(_model, get_node(port) as Node3D, port)
+	_model.hide_part("Display")
+	var panel := _model.part("Display") as MeshInstance3D
+	var size := Vector2(0.154, 0.015)
+	if panel != null and panel.mesh != null:
+		var ab := panel.mesh.get_aabb()
+		size = Vector2(ab.size.x, ab.size.y)
+	_vfd = VfdDisplay.new()
+	_vfd.name = "Vfd"
+	_vfd.size_m = size
+	_vfd.painter = _paint_vfd
+	# Behind the model's smoked glass a VFD at 1.0 reads gray.
+	_vfd.glow = 2.2
+	_vfd.transform = _model.part_transform("Display", self).translated_local(Vector3(0.0, 0.0, 0.0002))
+	add_child(_vfd)
+	_slot.ride_driver = _ride_disc
+	_sync_slot()
+	print("[DVD] %s: dressed with the RETRO XR model (%d levels, display %.0f x %.0f mm)"
+		% [name, _model.levels.size(), size.x * 1000.0, size.y * 1000.0])
+
+
+# --- The tray ---
+
+## OPEN/CLOSE: a disc in the player goes out on the tray (or back in from it); an empty tray opens or closes.
+func _on_tray_key() -> void:
+	if _tray_anim != "":
+		print("[DVD] %s: OPEN/CLOSE while the tray is moving; ignored" % name)
+		return
+	if _slot.has_media():
+		_slot.toggle_eject()
+		return
+	_start_tray("Close" if _tray_open else "Open", false)
+
+
+## The slot hands the disc to the tray (MediaSlot.ride_driver): in on Close, out on Open, or `instant`, seated
+## with the tray shut (a restore).
+func _ride_disc(media: Node3D, to_seat: bool, instant: bool) -> void:
+	_ride_media = media
+	_start_tray("Close" if to_seat else "Open", instant)
+
+
+func _start_tray(anim: String, instant: bool) -> void:
+	if _model == null or not _model.has_animation(anim):
+		push_warning("[DVD] %s: the model has no %s; the tray does not move" % [name, anim])
+		_tray_open = anim == "Open"
+		if _ride_media != null:
+			_ride_media = null
+			_slot.end_ride()
+		_sync_slot()
+		return
+	_tray_anim = anim
+	_tray_t = _model.animation_length(anim) if instant else 0.0
+	print("[DVD] %s: tray %s%s" % [name, anim, " (restored shut)" if instant else ""])
+	_sync_slot()
+	_step_tray(0.0)
+
+
+func _step_tray(delta: float) -> void:
+	if _tray_anim == "":
+		return
+	var length := _model.animation_length(_tray_anim)
+	_tray_t = minf(_tray_t + delta, length)
+	_model.seek(_tray_anim, _tray_t)
+	if _ride_media != null:
+		if is_instance_valid(_ride_media) and _slot.get_media() == _ride_media:
+			_lay_on_seat(_ride_media)
+		else:
+			_ride_media = null
+			_slot.end_ride()
+	if _tray_t < length:
+		return
+	_tray_open = _tray_anim == "Open"
+	print("[DVD] %s: tray %s" % [name, "out" if _tray_open else "in"])
+	_tray_anim = ""
+	if _ride_media != null:
+		_ride_media = null
+		_slot.end_ride()
+		if not _tray_open:
+			_loading_until = Time.get_ticks_msec() + LOADING_MSEC
+	_sync_slot()
+
+
+## Lay the disc on the tray's DiscSeat, at the spin it went in at.
+func _lay_on_seat(media: Node3D) -> void:
+	var seat := _model.part_transform("DiscSeat", self)
+	media.global_transform = global_transform * Transform3D(_slot.seat_basis(),
+		seat.origin + Vector3(0.0, DISC_LIFT, 0.0))
+
+
+## A disc goes in only onto the tray, out and still and empty.
+func _sync_slot() -> void:
+	_disc_slot.enabled = _tray_open and _tray_anim == "" and not _slot.has_media()
+
+
+## True while the tray is out (or going out).
+func is_tray_open() -> bool:
+	return _tray_open if _tray_anim == "" else _tray_anim == "Open"
+
+
+# --- The display ---
+
+## What the display shows now, and redraw it if that changed.
+func _update_vfd() -> void:
+	if _vfd == null:
+		return
+	var word := ""
+	if _tray_anim == "Open" or (_tray_open and _tray_anim == ""):
+		word = "OPEN"
+	elif _tray_anim == "Close":
+		word = "CLOSE"
+	elif not _slot.has_media():
+		word = "NO DISC"
+	elif Time.get_ticks_msec() < _loading_until:
+		word = "LOADING"
+	elif not is_playing:
+		word = "STOP"
+	elif is_in_menu():
+		word = "MENU"
+	var title := -1
+	var chapter := -1
+	var secs := -1
+	if word.is_empty() and _vlc != null:
+		title = int(_vlc.get_title())
+		chapter = int(_vlc.get_chapter())
+		secs = int(float(_vlc.get_time()) / 1000.0)
+	var key := "%s|%d|%d|%d|%d|%d" % [word, title, chapter, secs, int(_paused), _scan_dir]
+	if key == _vfd_key:
+		return
+	_vfd_key = key
+	_vfd_state = {"word": word, "title": title, "chapter": chapter, "secs": secs, "paused": _paused,
+		"scan": _scan_dir}
+	_vfd.refresh()
+
+
+## TITLE nn CHP nn H:MM:SS in seven segments after a play or pause symbol, or one word for the tray and the disc
+## (OPEN, CLOSE, NO DISC, LOADING, STOP, MENU), in Michroma. 10 px a millimeter of panel.
+func _paint_vfd(c: Control, size: Vector2) -> void:
+	if _vfd_state.is_empty():
+		return
+	var word: String = _vfd_state["word"]
+	var h := size.y
+	if not word.is_empty():
+		var fs := int(h * 0.62)
+		var w := VfdDisplay.font().get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		VfdDisplay.text(c, word, Vector2((size.x - w) / 2.0, h * 0.74), fs, true)
+		return
+	var paused: bool = _vfd_state["paused"]
+	var x := h * 0.25
+	var mid := h * 0.5
+	if paused:
+		c.draw_rect(Rect2(x, h * 0.25, h * 0.14, h * 0.5), VfdDisplay.LIT)
+		c.draw_rect(Rect2(x + h * 0.26, h * 0.25, h * 0.14, h * 0.5), VfdDisplay.LIT)
+	else:
+		c.draw_colored_polygon(PackedVector2Array([Vector2(x, h * 0.25), Vector2(x + h * 0.42, mid),
+			Vector2(x, h * 0.75)]), VfdDisplay.LIT)
+	var dh := h * 0.72
+	var dw := dh * 0.46
+	var t := dh * 0.09
+	var pitch := dw * 1.22
+	var top := (h - dh) / 2.0
+	var lbl := int(h * 0.2)
+	x = h * 1.05
+	VfdDisplay.text(c, "TITLE", Vector2(x, top + dh), lbl, true)
+	x += h * 0.95
+	VfdDisplay.digits(c, "%02d" % clampi(int(_vfd_state["title"]), 0, 99), Vector2(x, top), dw, dh, t, pitch)
+	x += pitch * 2.0 + h * 0.3
+	VfdDisplay.text(c, "CHP", Vector2(x, top + dh), lbl, true)
+	x += h * 0.7
+	VfdDisplay.digits(c, "%02d" % clampi(int(_vfd_state["chapter"]), 0, 99), Vector2(x, top), dw, dh, t, pitch)
+	var secs: int = maxi(int(_vfd_state["secs"]), 0)
+	@warning_ignore("integer_division")
+	var clock := "%d%02d%02d" % [(secs / 3600) % 10, (secs % 3600) / 60, secs % 60]
+	x = size.x - (pitch * 5.0 + h * 0.6) - h * 0.3
+	for i in 5:
+		VfdDisplay.digit(c, clock[i], Rect2(x, top, dw, dh), t)
+		x += pitch
+		if i == 0 or i == 2:
+			# The colon: two dots between the hours and minutes, and the minutes and seconds.
+			c.draw_rect(Rect2(x - h * 0.02, top + dh * 0.3, t, t), VfdDisplay.LIT)
+			c.draw_rect(Rect2(x - h * 0.06, top + dh * 0.68, t, t), VfdDisplay.LIT)
+			x += h * 0.3
 
 
 func _process(delta: float) -> void:
 	_refresh_box_buttons()
+	_step_tray(delta)
+	_update_vfd()
 	if _vlc == null:
 		return
 	# Pump the latest decoded frame into the VLC texture every frame.
@@ -260,8 +482,8 @@ func _on_media_removed() -> void:
 
 
 func _on_eject_pressed() -> void:
-	_log_event("pressed EJECT")
-	_slot.toggle_eject()
+	_log_event("pressed OPEN/CLOSE")
+	_on_tray_key()
 
 
 # --- Playback controls ---

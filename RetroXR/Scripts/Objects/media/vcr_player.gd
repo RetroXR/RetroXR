@@ -107,9 +107,45 @@ const SLOT_INSET := 0.10        # how far inside the VCR a loaded tape rides
 @onready var _rewind_button: VRButton = $RewindButton
 @onready var _ff_button: VRButton = $FastForwardButton
 @onready var _eject_button: VRButton = $EjectButton
+@onready var _record_button: VRButton = $RecordButton
+@onready var _power_button: VRButton = $PowerButton
 @onready var _name_label: Label3D = $NameLabel
 @onready var _options_panel: VCROptionsPanel = $VCROptionsPanel
 @onready var _clock: VCRClock = $VCRClock
+## The RETRO XR model (RetroXR-models generic/vcr): what is drawn, and the mechanism's animations.
+@onready var _model: ApplianceModel = get_node_or_null("Model") as ApplianceModel
+
+## The model's per-frame contract: the cassette's center and the flaps through Load and Eject, and the door
+## against how far a held tape is in (door_vs_tape).
+const CONTRACT := "res://imported-assets/appliances/vcr/vcr_contract.json"
+## Load's first frames are the HAND pushing the tape from the shut flap to the holder; the deck's mechanism runs
+## from here (the holder has it), which is where the slot takes it.
+const LOAD_FROM_FRAME := 24
+## How a seated tape lies in the deck: TapeSeat's basis (its top up, its flap into the bay).
+const SEAT_BASIS := Basis(Vector3(1, 0, 0), -PI / 2.0)
+## A tape held at the mouth pushes the flap only while it is lined up with the opening this well (m).
+const MOUTH_SLACK := Vector2(0.03, 0.02)
+## How fast a released flap falls shut (degrees a second).
+const FLAP_CLOSE_SPEED := 420.0
+## From a tape touching the shut flap to the holder gripping it (the contract's push), meters.
+const TOUCH_TO_GRIP := 0.0685
+
+var _contract: Dictionary = {}
+var _vfd: VfdDisplay = null
+## What the display shows, and its key: it is redrawn only when the key changes.
+var _vfd_state: Dictionary = {}
+var _vfd_key := ""
+## The display and the lamp: POWER puts them to standby. The game has no power state for a deck, so nothing
+## else follows it.
+var _power_on := true
+var _led_on_mat: StandardMaterial3D = null
+var _led_off_mat: StandardMaterial3D = null
+## The tape the mechanism is moving (MediaSlot.ride_driver), which animation, and how far into it.
+var _ride_media: Node3D = null
+var _ride_anim := ""
+var _ride_t := 0.0
+## The flap's angle (degrees) while no animation drives it: a tape in a hand pushes it, and it falls shut.
+var _door_deg := 0.0
 
 # Last known total duration (seconds), remembered so the readout keeps showing
 # the tape length when paused/stopped. -1 = unknown.
@@ -119,8 +155,7 @@ var _last_total: float = -1.0
 func _ready() -> void:
 	super._ready()
 	add_to_group("vcr_player")
-	# Silkscreen round the A/V row. A deck is a source, so this one reads AV OUT.
-	AvLegend.attach(self, [$VideoOut, $AudioLOut, $AudioROut])
+	# The model prints its own AV OUT legends round its jacks, so there is no AvLegend.
 	_float_lock = FloatLock.attach(self, ignore_gravity)
 	TransportGlyphs.label_buttons(self, {
 		"PlayButton": "play", "PauseButton": "pause", "StopButton": "stop",
@@ -134,18 +169,15 @@ func _ready() -> void:
 	add_child(_slot)
 	_slot.inserted.connect(_on_media_inserted)
 	_slot.removed.connect(_on_media_removed)
+	_dress()
 	_play_button.button_pressed.connect(_on_play_pressed)
 	_pause_button.button_pressed.connect(_on_pause_pressed)
 	_stop_button.button_pressed.connect(_on_stop_pressed)
 	_rewind_button.button_pressed.connect(_on_rewind_pressed)
 	_ff_button.button_pressed.connect(_on_ff_pressed)
 	_eject_button.button_pressed.connect(_on_eject_pressed)
-	_play_button.set_color(Color(0.0, 0.9, 0.0))     # green
-	_pause_button.set_color(Color(0.9, 0.8, 0.0))     # amber
-	_stop_button.set_color(Color(0.9, 0.1, 0.1))      # red
-	_rewind_button.set_color(Color(0.1, 0.4, 0.9))    # blue
-	_ff_button.set_color(Color(0.1, 0.4, 0.9))        # blue
-	_eject_button.set_color(Color(0.8, 0.8, 0.85))    # light grey
+	_record_button.button_pressed.connect(_on_record_pressed)
+	_power_button.button_pressed.connect(_on_power_pressed)
 
 	if ClassDB.class_exists("VlcPlayer"):
 		_vlc = ClassDB.instantiate("VlcPlayer")
@@ -166,8 +198,225 @@ func _update_name_label() -> void:
 		_name_label.text = vcr_label.to_upper()
 
 
+## The cabinet a combo set builds this into is the housing: the model's body and lamp go with POWER; its flap,
+## holder and transport keys stay, so a tape still goes in through the flap.
 func _housing() -> Array[Node3D]:
-	return [$VCRBody, _name_label]
+	var out: Array[Node3D] = [$VCRBody, _name_label, _power_button]
+	if _model:
+		out.append_array(_model.parts("Body"))
+		out.append_array(_model.parts("BodyPrint"))
+		out.append_array(_model.parts("PowerLed"))
+	return out
+
+
+func _front_panel() -> bool:
+	return true
+
+
+## Dress the deck with its model: every key adopted onto the model's (DeckFace.adopt_front_key), the phono sockets
+## on its jacks, and the vacuum fluorescent display over its display window. A deck with no Model node (an old
+## scene) keeps its grey box.
+func _dress() -> void:
+	if _model == null:
+		push_warning("[VCR] %s: no Model node; drawn as the old box" % name)
+		return
+	for pair: Array in [[_play_button, "ButtonPlay"], [_pause_button, "ButtonPause"], [_stop_button, "ButtonStop"],
+			[_rewind_button, "ButtonRewind"], [_ff_button, "ButtonFastForward"], [_eject_button, "ButtonEject"],
+			[_record_button, "ButtonRecord"], [_power_button, "ButtonPower"]]:
+		DeckFace.adopt_front_key(_model, pair[0], pair[1])
+	for port: String in ["VideoOut", "AudioLOut", "AudioROut"]:
+		DeckFace.seat_port(_model, get_node(port) as Node3D, port)
+	_model.hide_part("Display")
+	_vfd = VfdDisplay.new()
+	_vfd.name = "Vfd"
+	_vfd.size_m = Vector2(0.126, 0.025)
+	_vfd.painter = _paint_vfd
+	# Behind the model's smoked glass a VFD at 1.0 reads gray.
+	_vfd.glow = 2.2
+	_vfd.transform = _model.part_transform("Display", self).translated_local(Vector3(0.0, 0.0, 0.0002))
+	add_child(_vfd)
+	# The old clock's viewport drew every frame; nothing shows it now.
+	var clock_view := _clock.get_node_or_null("ClockViewport") as SubViewport if _clock else null
+	if clock_view:
+		clock_view.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	_contract = DeckFace.contract(CONTRACT, "VCR")
+	_slot.ride_driver = _ride_tape
+	_led_on_mat = StandardMaterial3D.new()
+	_led_on_mat.albedo_color = Color(0.05, 0.25, 0.08)
+	_led_on_mat.emission_enabled = true
+	_led_on_mat.emission = Color(0.25, 1.0, 0.35)
+	_led_on_mat.emission_energy_multiplier = 2.5
+	_led_off_mat = StandardMaterial3D.new()
+	_led_off_mat.albedo_color = Color(0.04, 0.12, 0.05)
+	_led_off_mat.roughness = 0.25
+	_set_power(true)
+	print("[VCR] %s: dressed with the RETRO XR model (%d levels)" % [name, _model.levels.size()])
+
+
+## POWER: the display and the lamp go to standby and come back; the deck itself has no power state.
+func _on_power_pressed() -> void:
+	_log_event("pressed POWER")
+	_set_power(not _power_on)
+
+
+func _set_power(on: bool) -> void:
+	_power_on = on
+	for led in _model.parts("PowerLed"):
+		(led as MeshInstance3D).material_override = _led_on_mat if on else _led_off_mat
+	_vfd_key = ""
+	print("[VCR] %s: display %s" % [name, "on" if on else "on standby"])
+
+
+## REC: a key every deck of its day had. This one plays tapes and records nothing, and says so.
+func _on_record_pressed() -> void:
+	_log_event("pressed REC (this deck plays tapes; it records nothing)")
+	_osd("REC: NO RECORDING", false)
+
+
+# --- The mechanism: Load and Eject move the tape (MediaSlot.ride_driver) ---
+
+## The slot hands the tape over: run the model's Load from where the holder takes it (or, `instant`, show it
+## seated at once: a restore), or Eject it to the mouth. The tape follows the contract's poses frame by frame,
+## and the model is held at the same time, so door, holder and tape move as one.
+func _ride_tape(media: Node3D, to_seat: bool, instant: bool) -> void:
+	_ride_media = media
+	_ride_anim = "Load" if to_seat else "Eject"
+	var rows := _ride_rows()
+	if rows.is_empty():
+		push_warning("[VCR] %s: no contract poses for %s; the tape is placed, not carried" % [name, _ride_anim])
+		media.transform = Transform3D(SEAT_BASIS, Vector3(0, 0, -0.076 if to_seat else 0.0))
+		_ride_media = null
+		_slot.end_ride()
+		return
+	var fps := float(_contract.get("fps", 30))
+	if instant:
+		_ride_t = float(rows.size() - 1) / fps
+	else:
+		_ride_t = LOAD_FROM_FRAME / fps if to_seat else 0.0
+	print("[VCR] %s: %s %s" % [name, _ride_anim, "(restored, seated at once)" if instant else "begins"])
+	_step_ride(0.0)
+
+
+func _ride_rows() -> Array:
+	return _contract.get(_ride_anim.to_lower(), []) as Array
+
+
+func _step_ride(delta: float) -> void:
+	if _ride_media == null:
+		return
+	if not is_instance_valid(_ride_media) or _slot.get_media() != _ride_media:
+		# A hand took it off the eject ride: the slot has already let it go.
+		_ride_media = null
+		_slot.end_ride()
+		return
+	var rows := _ride_rows()
+	var fps := float(_contract.get("fps", 30))
+	var length := float(rows.size() - 1) / fps
+	_ride_t = minf(_ride_t + delta, length)
+	if _model:
+		_model.seek(_ride_anim, _ride_t)
+	var center: Vector3 = DeckFace.sample(rows, _ride_t, fps, "tape_center")
+	_ride_media.global_transform = global_transform * Transform3D(SEAT_BASIS, center)
+	if _ride_media.has_method("set_flap"):
+		_ride_media.call("set_flap", float(DeckFace.sample(rows, _ride_t, fps, "tape_door")))
+	_door_deg = float(DeckFace.sample(rows, _ride_t, fps, "door_deg"))
+	if _ride_t >= length:
+		print("[VCR] %s: %s done" % [name, _ride_anim])
+		_ride_media = null
+		_slot.end_ride()
+
+
+## With no tape in the mechanism, a tape a HAND holds at the mouth pushes the flap in (the contract's door_vs_tape,
+## by how far it is in) and the flap falls shut behind it.
+func _follow_hand(delta: float) -> void:
+	if _model == null or _ride_media != null or _slot.has_media():
+		return
+	var target := 0.0
+	var table: Array = (_contract.get("door_vs_tape", {}) as Dictionary).get("rows", []) as Array
+	var mouth := _tape_slot.transform.origin
+	for tape in get_tree().get_nodes_in_group("vcr_tape"):
+		var t := tape as Node3D
+		if t == null or t.global_position.distance_to(_tape_slot.global_position) > 0.25:
+			continue
+		var local := global_transform.affine_inverse() * t.global_transform
+		var off := local.origin - mouth
+		if absf(off.x) > MOUTH_SLACK.x or absf(off.y) > MOUTH_SLACK.y:
+			continue
+		# Flat, its flap leading into the deck: its top up and its +Y along the deck's -Z.
+		if local.basis.z.normalized().dot(Vector3.UP) < 0.9 or local.basis.y.normalized().dot(Vector3.BACK) > -0.9:
+			continue
+		# door_vs_tape's depth 0 is the tape touching the shut flap, 68.5 mm out of the holder's grip.
+		var depth := TOUCH_TO_GRIP - off.z
+		target = maxf(target, DeckFace.lookup(table, depth) if depth > 0.0 else 0.0)
+	var door := maxf(target, _door_deg - FLAP_CLOSE_SPEED * delta)
+	if not is_equal_approx(door, _door_deg):
+		_door_deg = maxf(door, 0.0)
+		for d in _model.parts("Door"):
+			d.rotation = Vector3(deg_to_rad(_door_deg), 0.0, 0.0)
+
+
+# --- The display ---
+
+## What the display shows now, and redraw it if that changed: the counter changes once a second.
+func _update_vfd() -> void:
+	if _vfd == null:
+		return
+	var secs := -1.0
+	if is_playing and _blank:
+		secs = _tape_time() + _tape_blank()
+	elif is_playing:
+		secs = _vlc_time_sec()
+	elif not video_path.is_empty() or is_instance_valid(_tape):
+		secs = _tape_time() + _tape_blank()
+	var tape := is_instance_valid(_tape) or _slot.has_media()
+	var key := "%d|%d|%d|%d|%d|%d" % [int(_power_on), int(secs) if secs >= 0.0 else -1, int(is_playing),
+		int(_paused), _scan_dir, int(tape)]
+	if key == _vfd_key:
+		return
+	_vfd_key = key
+	_vfd_state = {"secs": secs, "playing": is_playing, "paused": _paused, "scan": _scan_dir, "tape": tape}
+	_vfd.refresh()
+
+
+## The approved layout (RetroXR-models generic/vcr, tools/vfd.py): VIDEO / SP and the cassette on the left, the
+## tape counter H:MM:SS in seven segments, ST / SAP and the boxed lamps on the right. 1260 x 250 px.
+func _paint_vfd(c: Control, _size: Vector2) -> void:
+	if not _power_on or _vfd_state.is_empty():
+		return
+	var tape: bool = _vfd_state["tape"]
+	var secs: float = _vfd_state["secs"]
+	var scan: int = _vfd_state["scan"]
+	var playing: bool = _vfd_state["playing"] and not _vfd_state["paused"] and scan == 0
+	VfdDisplay.boxed(c, "VIDEO", Rect2(28, 52, 142, 48), 22, true)
+	VfdDisplay.text(c, "SP", Vector2(184, 86), 20, tape)
+	VfdDisplay.boxed(c, "", Rect2(52, 132, 94, 52), 10, tape)
+	var reel := VfdDisplay.LIT if tape else VfdDisplay.GHOST
+	c.draw_arc(Vector2(80, 158), 11.0, 0.0, TAU, 24, reel, 4.0)
+	c.draw_arc(Vector2(118, 158), 11.0, 0.0, TAU, 24, reel, 4.0)
+	VfdDisplay.minus(c, Rect2(286, 46, 64.6, 150), 13.0, false)
+	var h := " "
+	var mm := "  "
+	var ss := "  "
+	if secs >= 0.0:
+		var s := int(secs)
+		@warning_ignore("integer_division")
+		h = str((s / 3600) % 10)
+		@warning_ignore("integer_division")
+		mm = "%02d" % ((s % 3600) / 60)
+		ss = "%02d" % (s % 60)
+	VfdDisplay.digits(c, h, Vector2(366, 46), 68.0, 150.0, 13.0, 84.0)
+	VfdDisplay.text(c, "H", Vector2(442, 196), 20, secs >= 0.0)
+	VfdDisplay.digits(c, mm, Vector2(478, 46), 68.0, 150.0, 13.0, 84.0)
+	VfdDisplay.text(c, "M", Vector2(638, 196), 20, secs >= 0.0)
+	VfdDisplay.digits(c, ss, Vector2(676, 46), 68.0, 150.0, 13.0, 84.0)
+	VfdDisplay.text(c, "S", Vector2(836, 196), 20, secs >= 0.0)
+	VfdDisplay.text(c, "ST", Vector2(960, 86), 22, _vfd_state["playing"] and not _blank)
+	VfdDisplay.text(c, "SAP", Vector2(960, 146), 22, false)
+	VfdDisplay.boxed(c, "REC", Rect2(1040, 44, 110, 46), 19, false, true)
+	VfdDisplay.boxed(c, "PLAY", Rect2(1040, 102, 110, 46), 19, playing)
+	VfdDisplay.boxed(c, "PAUSE", Rect2(1040, 160, 110, 46), 19, _vfd_state["paused"])
+	VfdDisplay.boxed(c, "FF", Rect2(1160, 44, 78, 46), 19, scan == 1)
+	VfdDisplay.boxed(c, "REW", Rect2(1160, 102, 78, 46), 19, scan == -1)
 
 
 func _process(delta: float) -> void:
@@ -193,21 +442,13 @@ func _process(delta: float) -> void:
 		if not _blank:
 			_resume_tape()
 			_note_tape()
-	if _clock == null:
-		return
-	if is_playing and _blank:
-		# Past the recording the counter runs on into the blank tape.
-		_clock.set_times(_tape_time() + _tape_blank(), _tape_time() + _blank_room())
-	elif is_playing:
+	_step_ride(delta)
+	_follow_hand(delta)
+	if is_playing and not _blank:
 		_last_total = _vlc_length_sec()
-		_clock.set_times(_vlc_time_sec(), _last_total)
-	elif not video_path.is_empty():
-		# Tape inserted but stopped — show where the tape stands (0 for one at
-		# its start) against the last known length (unknown until first played).
-		_clock.set_times(_tape_time() + _tape_blank(), _last_total)
-	else:
+	elif video_path.is_empty():
 		_last_total = -1.0
-		_clock.set_blank()
+	_update_vfd()
 
 
 ## Drain decoded PCM from VlcPlayer into the generator (fills only what's free).

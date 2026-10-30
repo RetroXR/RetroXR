@@ -109,6 +109,9 @@ func _run() -> void:
 		["amp/a set leaves alone a machine whose sound is elsewhere", _a_sound_elsewhere],
 		["amp/the switch drives the decoder's two modes", _a_decoder_modes],
 		["amp/the switch and the knob survive a save", _a_save],
+		["amp/every socket sits on its jack's mouth on the model", _a_mouths],
+		["amp/the mode key and the volume knob are the model's", _a_model_controls],
+		["amp/the display lights a lamp per cabled output, and dims with none", _a_vfd],
 	]
 
 	for entry in cases:
@@ -1253,6 +1256,85 @@ func _a_legend() -> void:
 	var local := amp.global_transform.affine_inverse() * a.merge(b)
 	_ok(local.position.x > -0.215 and local.end.x < 0.215, "inside the panel's width")
 	_ok(local.position.y > 0.015 and local.end.y < 0.15, "and inside its height")
+
+
+## The RETRO XR receiver moulds its own jacks (show_jack off), so a socket's zone has
+## to sit on the model's jack — 1.5 mm off and a plug seats in the air beside it.
+func _a_mouths() -> void:
+	var amp := await _amp_at(Vector3(34.0, 0.0, 0.0))
+	var model := amp.get_node_or_null("Model") as ApplianceModel
+	_ok(model != null and model.levels.size() == 3, "the amplifier wears the three-level model")
+	if model == null:
+		return
+	for n: String in ["AudioInL", "AudioInR"] + SurroundAmp.SPEAKER_OUT_NAMES:
+		var port := amp.get_node(n) as RcaPort
+		var mouth := model.part(n + "Mouth")
+		_ok(mouth != null, "the model marks %s's mouth" % n)
+		if mouth == null:
+			continue
+		var off := port.global_position.distance_to(mouth.global_position)
+		_ok(off < 0.0015, "%s sits on its jack (%.1f mm off)" % [n, off * 1000.0])
+		_ok(port.global_basis.z.normalized().dot(mouth.global_basis.z.normalized()) > 0.999,
+			"%s opens the way its jack does" % n)
+		_ok(not port.show_jack, "%s leaves the jack to the model" % n)
+
+
+## SURROUND MODE wears the model's key and presses into the face; the knob a hand turns
+## turns the model's knob on every level, about its own axle.
+func _a_model_controls() -> void:
+	var amp := await _amp_at(Vector3(36.0, 0.0, 0.0))
+	var model := amp.get_node("Model") as ApplianceModel
+	var btn := amp.get_node("ModeButton") as VRButton
+	var key := model.part("ButtonSurroundMode") as MeshInstance3D
+	var cap := btn.get_node("ButtonMesh") as MeshInstance3D
+	_ok(key != null and cap.mesh == key.mesh, "the key's cap is the model's key")
+	_ok(btn.global_position.distance_to(key.global_position) < 0.0005, "on the key's face")
+	_ok(btn.depress_axis.is_equal_approx(Vector3(0, 0, -1)), "pressing into the face")
+	var knob := amp.get_node("VolumeKnob") as VRKnob
+	var pivot := knob.get_node("KnobPivot") as Node3D
+	# attach_part took them out of the levels: they are KnobPivot's children now.
+	var parts: Array[Node3D] = []
+	for c in pivot.get_children():
+		if c is Node3D and String(c.name).begins_with("ModelKnob"):
+			parts.append(c)
+	_check_eq(parts.size(), 3, "every level's knob hangs under the pivot")
+	_ok(model.parts("VolumeKnob").is_empty(), "and none is left behind in a level")
+	if parts.is_empty():
+		return
+	knob.set_value(0.0)
+	await _wait(1)
+	var at_zero := parts[0].global_basis
+	knob.set_value(1.0)
+	await _wait(1)
+	var turned := rad_to_deg(at_zero.y.signed_angle_to(parts[0].global_basis.y, amp.global_basis.z))
+	_ok(absf(absf(turned) - 270.0) < 1.0 or absf(absf(turned) - 90.0) < 1.0,
+		"zero to full turns the model's knob through the sweep (%.1f deg)" % turned)
+	_ok(parts[0].global_position.distance_to(pivot.global_position) < 0.0005, "about its own axle")
+
+
+## The VFD: the decoder's name, the knob's level, and the speaker map — a lamp per
+## output, lit only while that output has a cabinet; nothing cabled, all of it dims.
+func _a_vfd() -> void:
+	var amp := await _amp_at(Vector3(38.0, 0.5, 0.0))
+	var vfd := amp.get_node_or_null("Vfd") as VfdDisplay
+	_ok(vfd != null, "a VfdDisplay sits on the window")
+	var model := amp.get_node("Model") as ApplianceModel
+	var window := model.part("Display")
+	_ok(window != null and not window.visible, "the model's blank Display is hidden behind it")
+	if vfd != null and window != null:
+		_ok(vfd.global_position.distance_to(window.global_position) < 0.001, "on the window")
+	var lit := 0
+	for i in SurroundAmp.SPEAKER_OUT_NAMES.size():
+		if amp.vfd_lamp_lit(i):
+			lit += 1
+	_check_eq(lit, 0, "nothing cabled: no lamp lit")
+	_ok((amp.get_node("DisplayText") as Label3D).modulate == SurroundAmp.DISPLAY_DIM, "and the display dims")
+	await _cable_up(_amp_outs(amp)[CH_SL], amp.position + Vector3(-1.5, 0.0, 1.5))
+	await _wait(2)
+	for i in SurroundAmp.SPEAKER_OUT_NAMES.size():
+		_check_eq(amp.vfd_lamp_lit(i), i == 4, "SL cabled: the %s lamp %s" % [
+			SurroundAmp.VFD_LAMPS[i][0], "lights" if i == 4 else "stays dark"])
+	_ok((amp.get_node("DisplayText") as Label3D).modulate == SurroundAmp.DISPLAY_LIT, "and the display lights")
 
 
 func _a_fold() -> void:

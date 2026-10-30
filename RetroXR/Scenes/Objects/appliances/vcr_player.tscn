@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3 uid="uid://vcrplayer_001"]
+[gd_scene load_steps=24 format=3 uid="uid://vcrplayer_001"]
 
 [ext_resource type="Script" path="res://Scripts/Objects/media/vcr_player.gd" id="1_vcrscript"]
 [ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="2_snapzone"]
@@ -8,12 +8,16 @@
 [ext_resource type="PackedScene" uid="uid://vcr_opts_panel_001" path="res://Scenes/UI/vcr_options_panel.tscn" id="6_vcropts"]
 [ext_resource type="PackedScene" uid="uid://vcrclock_001" path="res://Scenes/Objects/appliances/vcr_clock.tscn" id="7_vcrclock"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="8_rcaport"]
+[ext_resource type="Script" path="res://Scripts/Objects/appliance_model.gd" id="9_model"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/vcr/vcr_mobile.glb" id="10_lod0"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/vcr/vcr_mobile_lod1.glb" id="11_lod1"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/vcr/vcr_mobile_lod2.glb" id="12_lod2"]
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_vcr"]
 friction = 0.8
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_body"]
-size = Vector3(0.3, 0.09, 0.25)
+size = Vector3(0.36, 0.094, 0.27)
 
 [sub_resource type="BoxMesh" id="BoxMesh_body"]
 size = Vector3(0.3, 0.09, 0.25)
@@ -28,7 +32,7 @@ size = Vector3(0.16, 0.035, 0.03)
 albedo_color = Color(0.05, 0.05, 0.05, 1)
 
 [sub_resource type="BoxMesh" id="BoxMesh_tape_ghost"]
-size = Vector3(0.14, 0.025, 0.08)
+size = Vector3(0.188, 0.025, 0.104)
 
 [sub_resource type="StandardMaterial3D" id="Mat_tape_ghost"]
 transparency = 1
@@ -48,7 +52,7 @@ size = Vector3(0.035, 0.02, 0.035)
 albedo_color = Color(0.3, 0.3, 0.3, 1)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
-size = Vector3(0.32, 0.09, 0.27)
+size = Vector3(0.37, 0.1, 0.28)
 
 [node name="VCRPlayer" type="RigidBody3D" groups=["vcr_player"]]
 collision_layer = 4
@@ -62,19 +66,30 @@ script = ExtResource("1_vcrscript")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("BoxShape3D_body")
 
+; The old grey box, kept as a node (VCRBody is the housing a combo set hides, and a name the scripts know) but
+; no longer drawn: the RETRO XR model below is the deck. See ApplianceModel and VCRPlayer._dress.
 [node name="VCRBody" type="MeshInstance3D" parent="."]
+visible = false
 mesh = SubResource("BoxMesh_body")
 surface_material_override/0 = SubResource("Mat_body")
+
+; Before PickableHighlight, whose _ready outlines every mesh already under the deck.
+[node name="Model" type="Node3D" parent="."]
+script = ExtResource("9_model")
+level_scenes = Array[PackedScene]([ExtResource("10_lod0"), ExtResource("11_lod1"), ExtResource("12_lod2")])
 
 [node name="PickableHighlight" type="Node3D" parent="."]
 script = ExtResource("5_pickhigh")
 
+; At the model's door, where the holder takes a tape: TapeCarrier's rest pose, the tape's center 35 mm of
+; spine out of the front. The tape lies flat as TapeSeat lays it (MediaSlot.media_local_basis).
 [node name="TapeSlot" parent="." instance=ExtResource("2_snapzone")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0.125)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, 0.011, 0.118)
 grab_distance = 0.09
 snap_require = "vcr_tape"
 
 [node name="SlotVisual" type="MeshInstance3D" parent="TapeSlot"]
+visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.007)
 mesh = SubResource("BoxMesh_slot")
 surface_material_override/0 = SubResource("Mat_slot")
@@ -96,17 +111,17 @@ surface_material_override/0 = SubResource("Mat_tape_ghost")
 ; back onto the panel. Same convention as the television's ports.
 
 [node name="VideoOut" parent="." instance=ExtResource("8_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.082, 0, -0.135)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.082, 0, -0.145)
 channel = 0
 direction = 0
 
 [node name="AudioLOut" parent="." instance=ExtResource("8_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.1, 0, -0.135)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.1, 0, -0.145)
 channel = 1
 direction = 0
 
 [node name="AudioROut" parent="." instance=ExtResource("8_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.118, 0, -0.135)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.118, 0, -0.145)
 channel = 2
 direction = 0
 
@@ -224,7 +239,32 @@ pixel_size = 0.001
 text = "EJECT"
 font_size = 8
 
+[node name="RecordButton" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.16, -0.015, 0.136)
+collision_layer = 0
+collision_mask = 0
+script = ExtResource("3_vrbtn")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RecordButton"]
+shape = SubResource("BoxShape3D_btn")
+
+[node name="ButtonMesh" type="MeshInstance3D" parent="RecordButton"]
+
+[node name="PowerButton" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.164, -0.015, 0.136)
+collision_layer = 0
+collision_mask = 0
+script = ExtResource("3_vrbtn")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PowerButton"]
+shape = SubResource("BoxShape3D_btn")
+
+[node name="ButtonMesh" type="MeshInstance3D" parent="PowerButton"]
+
+; Hidden: the RETRO XR model wears its own logo, and the VFD says what the deck is doing. Kept for
+; the scripts and combo TVs that look it up.
 [node name="NameLabel" type="Label3D" parent="."]
+visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, 0.05)
 pixel_size = 0.001
 billboard = 2
@@ -241,5 +281,8 @@ shape = SubResource("BoxShape3D_pointer")
 
 [node name="VCROptionsPanel" parent="." instance=ExtResource("6_vcropts")]
 
+; The old seven-segment clock, kept for its API (VCRClock.counter) and no longer drawn: the model's own
+; display is the deck's readout (VfdDisplay, VCRPlayer._paint_vfd).
 [node name="VCRClock" parent="." instance=ExtResource("7_vcrclock")]
+visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.025, 0.126)

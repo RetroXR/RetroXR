@@ -29,11 +29,12 @@
 ##                    set facing +Z.
 ##   VcrSeat        — a VCR built into this cabinet, posed here: a TV/VCR combo.
 ##   DvdSeat          The same for a DVD player. Name either or both. The pose is
-##                    the deck's own origin — the centre of the stock deck's body,
-##                    its tape slot or disc tray 125 mm along +Z and its buttons on
-##                    top — so put the marker where that body would sit inside the
-##                    cabinet. See TvDecks for what a built-in deck is and is not.
-##   VcrControls    — where that deck's buttons go. The stock decks carry them on
+##                    the deck's own origin, the centre of its body: the RETRO XR
+##                    VCR's front is 135 mm along +Z and the DVD player's 145, so
+##                    put the marker where that front meets the cabinet's face. See
+##                    TvDecks for what a built-in deck is and is not.
+##   VcrControls    — where a TOP-panel deck's buttons go; the RETRO XR decks keep
+##                    theirs on their front and ignore it. The old decks carried them on
 ##   DvdControls      TOP, which inside a cabinet is buried, so name this to bring
 ##                    the panel out: the marker is the centre of the deck's top
 ##                    face, its +Y the way the caps face. A marker turned so its +Y
