@@ -1,7 +1,7 @@
 ## WebFileServer — lightweight HTTP file manager.
 ## Serves the retroxr user data directory (roms + cores) over a local HTTP port.
 ## Supports directory listing, multi-file and whole-folder upload (drag-and-drop or
-## a folder picker — e.g. a ScummVM game folder), and deletion.
+## a folder picker — e.g. a ScummVM game folder), folder creation, and deletion.
 class_name WebFileServer
 extends Node
 
@@ -233,6 +233,8 @@ func _dispatch(conn: Dictionary, method: String, path: String,
 		_handle_download(peer, query.get("path", ""))
 	elif method == "DELETE" and path == "/api/delete":
 		_handle_delete(peer, query.get("path", ""))
+	elif method == "POST" and path == "/api/mkdir":
+		_handle_mkdir(peer, query.get("path", ""), query.get("name", ""))
 	elif method == "GET" and path == "/api/log":
 		_handle_log(peer, query.get("download", "") == "1", int(query.get("from", "0")))
 	else:
@@ -474,6 +476,60 @@ func _handle_delete(peer: StreamPeerTCP, rel: String) -> void:
 				   '{"error":"delete failed","code":%d}' % err)
 
 
+## Creates one folder, `name`, inside the folder `rel`.
+##
+## `name` is a single path segment. A separator, a dot name or a character
+## Windows refuses is turned away rather than cleaned up: unlike an upload there
+## is no file to save, so a 400 the page can show beats a folder named something
+## the player did not type. A leading dot is refused too, because _handle_list
+## hides dot entries and the new folder would vanish the moment it was made.
+func _handle_mkdir(peer: StreamPeerTCP, rel: String, name: String) -> void:
+	var parent := _resolve(rel)
+	if parent.is_empty():
+		# Covers the virtual top level too: a folder there would be a new root.
+		print("[WebFileServer] mkdir refused, parent outside the roots: '%s'" % rel)
+		_send_text(peer, 403, "application/json", '{"error":"forbidden"}')
+		return
+	var bad := mkdir_name_problem(name)
+	if not bad.is_empty():
+		print("[WebFileServer] mkdir refused, %s: '%s'" % [bad, name])
+		_send_text(peer, 400, "application/json", JSON.stringify({"error": bad}))
+		return
+	var target := parent.path_join(name.strip_edges()).simplify_path()
+	# Defence in depth: the name check already rules out every way out of parent.
+	if not target.begins_with(parent + "/"):
+		push_error("[WebFileServer] mkdir rejected escaping path: %s" % target)
+		_send_text(peer, 403, "application/json", '{"error":"forbidden"}')
+		return
+	if DirAccess.dir_exists_absolute(target) or FileAccess.file_exists(target):
+		print("[WebFileServer] mkdir refused, already exists: %s" % target)
+		_send_text(peer, 409, "application/json", '{"error":"already exists"}')
+		return
+	var err := DirAccess.make_dir_absolute(target)
+	if err != OK:
+		push_error("[WebFileServer] mkdir failed for %s: %s" % [target, error_string(err)])
+		_send_text(peer, 500, "application/json",
+				   '{"error":"mkdir failed","code":%d}' % err)
+		return
+	print("[WebFileServer] Created folder: %s" % target)
+	_send_text(peer, 201, "application/json", '{"ok":true}')
+
+
+## Why `name` cannot be a new folder's name, or "" when it can.
+static func mkdir_name_problem(name: String) -> String:
+	name = name.strip_edges()
+	if name.is_empty():
+		return "empty name"
+	if name.begins_with("."):
+		return "name starts with a dot"
+	if name.length() > 255:
+		return "name too long"
+	for ch in name:
+		if ch in "/\\<>:\"|?*" or ch.unicode_at(0) < 32:
+			return "name contains '%s'" % ch.c_escape()
+	return ""
+
+
 ## The engine's own log file (user://logs/godot.log unless the project moves it),
 ## either shown in the page or sent as an attachment. File logging is off by
 ## default on mobile, so project.godot switches it on for every platform.
@@ -560,7 +616,7 @@ func _send_text(peer: StreamPeerTCP, code: int, content_type: String, body: Stri
 	var body_bytes := body.to_utf8_buffer()
 	var status_map := {
 		200: "OK", 201: "Created", 400: "Bad Request", 401: "Unauthorized",
-		403: "Forbidden", 404: "Not Found", 500: "Internal Server Error"
+		403: "Forbidden", 404: "Not Found", 409: "Conflict", 500: "Internal Server Error"
 	}
 	var status: String = status_map.get(code, "Unknown")
 	var hdr := "HTTP/1.1 %d %s\r\nContent-Type: %s; charset=utf-8\r\nContent-Length: %d\r\nConnection: close\r\n\r\n" \
@@ -640,6 +696,8 @@ button{border:none;padding:3px 8px;border-radius:3px;cursor:pointer;font-size:13
 .dl:hover{background:#070}
 .rm{background:#500;color:#f88}
 .rm:hover{background:#800}
+#tools{margin-bottom:10px}
+#st.err{color:#f88}
 #lg_bar{margin-top:18px}
 .lb{background:#245;color:#8cf;padding:7px 12px;font-size:14px;margin-right:6px}
 .lb:hover{background:#367}
@@ -651,6 +709,7 @@ button{border:none;padding:3px 8px;border-radius:3px;cursor:pointer;font-size:13
 <div id="dz">Drop files or a folder here &nbsp;·&nbsp;
 <label class="pk">choose files<input type="file" id="pf_files" multiple hidden></label> &nbsp;·&nbsp;
 <label class="pk">choose folder<input type="file" id="pf_dir" webkitdirectory hidden></label></div>
+<div id="tools"><button class="lb" id="mk">+ New folder</button></div>
 <div id="st"></div>
 <div id="pb" style="display:none;height:8px;background:#222;border-radius:4px;margin-bottom:10px;overflow:hidden"><div id="pf" style="height:100%;width:0%;background:#8af;border-radius:4px;transition:width .15s"></div></div>
 <table><tbody id="tb"></tbody></table>
@@ -676,6 +735,8 @@ function go(p,push){
   var acc='';
   parts.forEach(function(s){acc+='/'+s;h+='<span class="sep">/</span><a data-nav="'+acc+'">'+esc(s)+'</a>';});
   bc.innerHTML=h;
+  // The top level lists the named roots; a folder can only go inside one.
+  document.getElementById('mk').style.display=p?'':'none';
   fetch('/api/list?path='+encodeURIComponent(p)).then(function(r){
     if(r.status==401){location.reload();return null;}
     return r.json();
@@ -712,12 +773,27 @@ document.addEventListener('click',function(e){
 });
 var dz=document.getElementById('dz');
 var st=document.getElementById('st');
+document.getElementById('mk').addEventListener('click',function(){
+  var n=prompt('New folder name:');
+  if(n===null)return;
+  n=n.trim();
+  if(!n)return;
+  st.className='';
+  fetch('/api/mkdir?path='+encodeURIComponent(cur)+'&name='+encodeURIComponent(n),{method:'POST'}).then(function(r){
+    if(r.status==401){location.reload();return;}
+    return r.json().then(function(d){
+      if(r.ok){st.textContent='Created folder '+n;go(cur,false);}
+      else{st.className='err';st.textContent='Could not create '+n+': '+(d.error||r.status);}
+    });
+  }).catch(function(){st.className='err';st.textContent='Could not create '+n;});
+});
 var pb=document.getElementById('pb');
 var pf=document.getElementById('pf');
 // Upload a list of {file,path} items sequentially, sending each item's relative
 // path as the multipart filename so folder structure is recreated on the server.
 function uploadItems(items){
   var i=0;
+  st.className='';
   function next(){
 	if(i>=items.length){
 	  st.textContent='Done \u2014 uploaded '+items.length+' file(s).';

@@ -68,6 +68,9 @@ func _ready() -> void:
 	if _wants("upload"):
 		_test_upload_completes()
 		_test_upload_interrupted_keeps_the_original()
+	if _wants("mkdir"):
+		_test_mkdir_name_rules()
+		_test_mkdir_creates_and_refuses()
 
 	_cleanup()
 	_finish()
@@ -397,4 +400,57 @@ func _test_upload_interrupted_keeps_the_original() -> void:
 	_eq(FileAccess.get_file_as_string(dest),
 		keep, "upload/and still holds its own bytes")
 	_ok(not FileAccess.file_exists(dest + ".part"), "upload/the staging file is cleaned up")
+	_cleanup_up_dir()
+
+
+# ── Folder creation ───────────────────────────────────────────────────────────
+#
+# Like `upload/`, this writes under the media root's __web_selftest folder,
+# because a created folder can only be seen on disk.
+
+func _test_mkdir_name_rules() -> void:
+	_eq(WebFileServer.mkdir_name_problem("Saves"), "", "mkdir/a plain name is accepted")
+	_eq(WebFileServer.mkdir_name_problem("My Games (USA)"), "", "mkdir/spaces and brackets are fine")
+	_eq(WebFileServer.mkdir_name_problem("  Saves  "), "", "mkdir/surrounding spaces are trimmed, not refused")
+	for bad: String in ["", "   ", ".", "..", ".hidden", "a/b", "a\\b", "../x",
+			"a:b", "a*b", "a?b", "a|b", "a<b", "a\"b", "a\nb", "x".repeat(256)]:
+		_ok(not WebFileServer.mkdir_name_problem(bad).is_empty(),
+			"mkdir/'%s' is refused" % bad.c_escape())
+
+
+func _test_mkdir_creates_and_refuses() -> void:
+	DirAccess.make_dir_recursive_absolute(_up_root())
+	var peer := StreamPeerTCP.new()
+	var rel := "media/" + UP_DIR
+
+	_srv._handle_mkdir(peer, rel, "New Folder")
+	_ok(DirAccess.dir_exists_absolute(_up_root().path_join("New Folder")),
+		"mkdir/the folder is created inside the one being viewed")
+	_srv._handle_mkdir(peer, rel + "/New%20Folder", "Inner")
+	_ok(DirAccess.dir_exists_absolute(_up_root().path_join("New Folder/Inner")),
+		"mkdir/and inside a percent-encoded parent")
+
+	# Asking again for a folder that exists leaves it, and what is in it, alone.
+	_srv._handle_mkdir(peer, rel, "New Folder")
+	_ok(DirAccess.dir_exists_absolute(_up_root().path_join("New Folder/Inner")),
+		"mkdir/an existing folder is left as it was")
+
+	_srv._handle_mkdir(peer, rel, "../__web_selftest_escape")
+	_ok(not DirAccess.dir_exists_absolute(_media.path_join("__web_selftest_escape")),
+		"mkdir/a traversal name makes nothing beside the folder")
+	_srv._handle_mkdir(peer, rel, "a/b")
+	_ok(not DirAccess.dir_exists_absolute(_up_root().path_join("a")),
+		"mkdir/a name with a separator makes nothing")
+	_srv._handle_mkdir(peer, "media/../..", "__web_selftest_escape")
+	_ok(not DirAccess.dir_exists_absolute(_media.get_base_dir().get_base_dir().path_join("__web_selftest_escape")),
+		"mkdir/a parent outside the roots is refused")
+	var before := DirAccess.get_directories_at(_media.get_base_dir())
+	_srv._handle_mkdir(peer, "", "__web_selftest_root")
+	_eq(DirAccess.get_directories_at(_media.get_base_dir()), before,
+		"mkdir/the virtual top level takes no folder")
+	_ok(not DirAccess.dir_exists_absolute(_media.path_join("__web_selftest_root")),
+		"mkdir/nor does it land in a root instead")
+
+	DirAccess.remove_absolute(_up_root().path_join("New Folder/Inner"))
+	DirAccess.remove_absolute(_up_root().path_join("New Folder"))
 	_cleanup_up_dir()
