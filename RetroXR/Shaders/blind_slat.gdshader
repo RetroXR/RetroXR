@@ -1,7 +1,12 @@
 shader_type spatial;
 
 // Vinyl mini-blind slats. Vinyl, not paper: a little sheen so the slats separate
-// under the sun rather than reading as one flat sheet.
+// under the sun rather than reading as one flat sheet, and thin enough that the
+// sun behind a slat shows through it as a warm glow.
+//
+// The slat mesh (RetroXR-models rooms/bedroom/blinds.py) carries its ladder strings
+// and rungs; its vertex color says which is which: alpha 1 vinyl, alpha 0 string.
+// A plain box (no vertex color) reads as all vinyl.
 //
 // The sway is done HERE, in the vertex stage, and that is a performance decision
 // rather than an aesthetic one. The slats are 48 MultiMesh instances; nudging
@@ -17,6 +22,8 @@ render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_burley, specula
 
 uniform vec4 slat_color : source_color = vec4(0.87, 0.85, 0.79, 1.0);
 uniform float slat_roughness : hint_range(0.0, 1.0) = 0.42;
+// How much light comes through the vinyl from the window side.
+uniform float translucency : hint_range(0.0, 1.0) = 0.3;
 
 // Peak deflection of a slat's middle, in metres. Set to 0 by the script when the
 // blind is fully raised — a stack of slats bunched against the headrail has no
@@ -51,7 +58,9 @@ void vertex() {
 }
 
 void fragment() {
-	ALBEDO = slat_color.rgb;
-	ROUGHNESS = slat_roughness;
+	float vinyl = COLOR.a;
+	ALBEDO = slat_color.rgb * COLOR.rgb;
+	ROUGHNESS = mix(0.9, slat_roughness, vinyl);
 	METALLIC = 0.0;
+	BACKLIGHT = slat_color.rgb * translucency * vinyl;
 }

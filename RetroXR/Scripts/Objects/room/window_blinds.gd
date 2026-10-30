@@ -18,6 +18,10 @@ class_name WindowBlinds
 extends Node3D
 
 const SLAT_SHADER: Shader = preload("res://Shaders/blind_slat.gdshader")
+## The blind's parts, modeled in Blender (RetroXR-models rooms/bedroom/blinds.py): a crowned 1-inch slat with its
+## ladder strings and rungs, the headrail with end caps, brackets, tilter and cord lock, the bottom rail, and the
+## clear tilt wand. Built for `width` 1.44; without it the parts fall back to plain boxes.
+const PARTS_PATH := "res://imported-assets/bedroom/blinds.glb"
 
 
 signal drop_changed(drop: float)
@@ -113,9 +117,25 @@ func _ready() -> void:
 	_apply()
 
 
+## Meshes from the Blender model, by node name; empty if it is missing.
+func _parts() -> Dictionary:
+	var out := {}
+	if not ResourceLoader.exists(PARTS_PATH):
+		return out
+	var root := (load(PARTS_PATH) as PackedScene).instantiate()
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		out[String(node.name)] = (node as MeshInstance3D).mesh
+	root.free()
+	return out
+
+
 func _build() -> void:
-	var slat := BoxMesh.new()
-	slat.size = Vector3(width, slat_height, slat_thickness)
+	var parts := _parts()
+	var slat: Mesh = parts.get("slat")
+	if slat == null:
+		var box := BoxMesh.new()
+		box.size = Vector3(width, slat_height, slat_thickness)
+		slat = box
 
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
@@ -141,27 +161,48 @@ func _build() -> void:
 	_slats.material_override = mat
 	add_child(_slats)
 
-	# Headrail, fixed at the top.
+	# Headrail, fixed at the top. The rails' vertex colors pick out their plastic end caps from the painted steel.
+	var hm := StandardMaterial3D.new()
+	hm.albedo_color = slat_color.darkened(0.04)
+	hm.vertex_color_use_as_albedo = parts.has("headrail")
+	hm.roughness = 0.38
 	var head := MeshInstance3D.new()
 	head.name = "HeadRail"
-	var hb := BoxMesh.new()
-	hb.size = Vector3(width + 0.03, 0.042, 0.032)
-	head.mesh = hb
-	head.position = Vector3(0.0, 0.021, 0.0)
-	var hm := StandardMaterial3D.new()
-	hm.albedo_color = slat_color.darkened(0.08)
-	hm.roughness = 0.45
+	if parts.has("headrail"):
+		head.mesh = parts["headrail"]
+	else:
+		var hb := BoxMesh.new()
+		hb.size = Vector3(width + 0.03, 0.042, 0.032)
+		head.mesh = hb
+		head.position = Vector3(0.0, 0.021, 0.0)
 	head.material_override = hm
 	add_child(head)
 
 	# Bottom rail rides the lowest slat, so it is placed in _apply().
 	_bottom = MeshInstance3D.new()
 	_bottom.name = "BottomRail"
-	var bb := BoxMesh.new()
-	bb.size = Vector3(width + 0.006, 0.026, 0.007)
-	_bottom.mesh = bb
+	if parts.has("bottomrail"):
+		_bottom.mesh = parts["bottomrail"]
+	else:
+		var bb := BoxMesh.new()
+		bb.size = Vector3(width + 0.006, 0.026, 0.007)
+		_bottom.mesh = bb
 	_bottom.material_override = hm
 	add_child(_bottom)
+
+	# The tilt wand: clear acrylic, hooked to the tilter at the left end.
+	if parts.has("wand"):
+		var wand := MeshInstance3D.new()
+		wand.name = "Wand"
+		wand.mesh = parts["wand"]
+		var wm := StandardMaterial3D.new()
+		wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		wm.albedo_color = Color(0.86, 0.92, 0.95, 0.35)
+		wm.roughness = 0.05
+		wm.metallic_specular = 0.9
+		wand.material_override = wm
+		wand.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(wand)
 
 
 func _apply() -> void:
