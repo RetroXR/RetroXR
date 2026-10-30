@@ -79,6 +79,8 @@ var _vfd_key := ""
 var _tray_open := false
 var _tray_anim := ""
 var _tray_t := 0.0
+## The tray's collision (_build_tray_body), or null.
+var _tray_body: AnimatableBody3D
 ## The disc the tray is carrying (MediaSlot.ride_driver), or null.
 var _ride_media: Node3D = null
 var _loading_until := 0
@@ -242,11 +244,50 @@ func _dress() -> void:
 	add_child(_vfd)
 	_slot.ride_driver = _ride_disc
 	_sync_slot()
+	# The body and the laser's box are what the model draws, no margin: the keys stand proud of it. Less the tray,
+	# which has its own collision and goes out and in (_build_tray_body).
+	_model.fit_shapes([get_node_or_null("CollisionShape3D") as CollisionShape3D,
+		get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D], ["Tray"])
+	_build_tray_body()
 	print("[DVD] %s: dressed with the RETRO XR model (%d levels, display %.0f x %.0f mm)"
 		% [name, _model.levels.size(), size.x * 1000.0, size.y * 1000.0])
 
 
 # --- The tray ---
+
+## The tray is solid where it is drawn and nowhere else: a trimesh of the close level's own Tray mesh (no padding,
+## the U-cutout and the well open), on a body riding on that Tray node, so it goes out and in with the drawer. The
+## player's box ends at the fascia, so without it the open tray was air. A concave shape cannot be on a body that
+## moves under physics, so it is an AnimatableBody3D of its own, on the player's layer (the desktop ray finds the
+## player through it) and clear of the player it hangs on.
+func _build_tray_body() -> void:
+	var tray := _model.part("Tray") as MeshInstance3D
+	if tray == null or tray.mesh == null:
+		push_warning("[DVD] %s: the model has no Tray mesh; the tray has no collision" % name)
+		return
+	_tray_body = AnimatableBody3D.new()
+	_tray_body.name = "TrayBody"
+	_tray_body.sync_to_physics = false
+	_tray_body.collision_mask = 0
+	var shape := CollisionShape3D.new()
+	shape.name = "CollisionShape3D"
+	var trimesh := tray.mesh.create_trimesh_shape()
+	shape.shape = trimesh
+	_tray_body.add_child(shape)
+	tray.add_child(_tray_body)
+	_tray_body.add_collision_exception_with(self)
+	add_collision_exception_with(_tray_body)
+	_sync_tray_layer()
+	# Held, a pickable moves to its picked-up layer; the tray goes with it.
+	picked_up.connect(func(_p: Variant) -> void: _sync_tray_layer.call_deferred())
+	dropped.connect(func(_p: Variant) -> void: _sync_tray_layer.call_deferred())
+	print("[DVD] %s: tray collision is its mesh, %d triangles" % [name, trimesh.get_faces().size() / 3])
+
+
+func _sync_tray_layer() -> void:
+	if is_instance_valid(_tray_body):
+		_tray_body.collision_layer = collision_layer
+
 
 ## OPEN/CLOSE: a disc in the player goes out on the tray (or back in from it); an empty tray opens or closes.
 func _on_tray_key() -> void:

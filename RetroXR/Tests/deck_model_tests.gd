@@ -50,6 +50,8 @@ func _run() -> void:
 		["dvd/tray/an empty tray opens and closes, taking a disc only while out", _dvd_tray_empty],
 		["dvd/tray/a disc laid on the open tray rides in, and out again on OPEN/CLOSE", _dvd_tray_disc],
 		["dvd/tray/a restored disc lies in the shut tray", _dvd_restore],
+		["dvd/tray/the tray's collision is its mesh, cutout and well and all, and goes out with it", _dvd_tray_collision],
+		["dvd/tray/with the tray out the desktop ray still reaches every key", _dvd_keys_reachable],
 		["dvd/vfd/the display names the tray and the disc", _dvd_vfd],
 	]
 	print("[deckmodel] running %d cases%s" % [cases.size(), "" if only.is_empty() else " matching '%s'" % only])
@@ -393,6 +395,94 @@ func _dvd_tray_disc() -> void:
 	dvd._on_eject_pressed()
 	await _settle(dvd)
 	_ok(dvd._slot.is_media_seated() and _local(dvd, disc).origin.z < 0.085, "and OPEN/CLOSE again takes it back in")
+
+
+## Straight down onto the open tray at `at` (the player's frame): the height it stops at, or NAN through it.
+func _down_hit(dvd: DVDPlayer, at: Vector3) -> float:
+	var space := dvd.get_world_3d().direct_space_state
+	var from := dvd.global_transform * (at + Vector3(0, 0.05, 0))
+	var to := dvd.global_transform * (at - Vector3(0, 0.05, 0))
+	var q := PhysicsRayQueryParameters3D.create(from, to, InteractionResolver.QUERY_MASK)
+	var hit := space.intersect_ray(q)
+	if hit.is_empty():
+		return NAN
+	return (dvd.global_transform.affine_inverse() * (hit.position as Vector3)).y
+
+
+func _dvd_tray_collision() -> void:
+	var dvd := _dvd()
+	await _frames(2)
+	var model := dvd.get_node("Model") as ApplianceModel
+	var tray := model.part("Tray") as MeshInstance3D
+	var body := tray.get_node_or_null("TrayBody") as AnimatableBody3D
+	_ok(body != null, "the tray carries its own body")
+	if body == null:
+		return
+	var shape := (body.get_node("CollisionShape3D") as CollisionShape3D).shape as ConcavePolygonShape3D
+	_ok(shape != null and shape.get_faces().size() == tray.mesh.get_faces().size(),
+		"its shape is the tray mesh's own triangles (%d)" % (tray.mesh.get_faces().size() / 3))
+	_ok(body.collision_layer == dvd.collision_layer and body.transform == Transform3D.IDENTITY,
+		"on the player's layer, exactly on the tray")
+	dvd._on_eject_pressed()
+	await _settle(dvd)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var seat := _local(dvd, model.part("DiscSeat")).origin
+	# The model's numbers (RetroXR-models generic/dvd-player params.py): well floor at the seat, the 80 mm step
+	# 1 mm under it, the rim 2 mm over it, the U-cutout from 30 mm in front of the axis out through the back.
+	var mm := 0.001
+	_ok(is_nan(_down_hit(dvd, seat)), "the axis is over the cutout: a ray goes through")
+	_ok(is_nan(_down_hit(dvd, seat + Vector3(0, 0, -0.05))), "and behind it, the cutout runs out of the back")
+	_ok(absf(_down_hit(dvd, seat + Vector3(0, 0, 0.035)) - (seat.y - mm)) < 0.0003, "in front of it, the step's floor")
+	_ok(absf(_down_hit(dvd, seat + Vector3(0, 0, 0.05)) - seat.y) < 0.0003, "past the step, the well's floor")
+	_ok(absf(_down_hit(dvd, seat + Vector3(0, 0, 0.0635)) - (seat.y + 2 * mm)) < 0.0003, "past the well, the rim")
+	_ok(absf(_down_hit(dvd, seat + Vector3(0.064, 0, 0)) - (seat.y - mm)) < 0.0003, "a finger notch beside the well")
+	_ok(is_nan(_down_hit(dvd, seat + Vector3(0.0735, 0, 0.03))), "and nothing past the plate's rail: no padding")
+	dvd._on_eject_pressed()
+	await _settle(dvd)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_ok(is_nan(_down_hit(dvd, seat + Vector3(0, 0, 0.05))) or _down_hit(dvd, seat + Vector3(0, 0, 0.05)) > seat.y + 0.01,
+		"shut, the tray has gone in with its collision")
+
+
+func _dvd_keys_reachable() -> void:
+	var dvd := _dvd()
+	await _frames(2)
+	await get_tree().physics_frame
+	var hand := Node3D.new()
+	add_child(hand)
+	_spawned.append(hand)
+	# The control leg: shut, then out. A key the open tray hides would be in the second list only.
+	var shut := _blocked_keys(dvd, hand)
+	_ok(shut.is_empty(), "shut, every key from every side is the ray's (blocked: %s)" % ", ".join(shut))
+	dvd._on_eject_pressed()
+	await _settle(dvd)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var out := _blocked_keys(dvd, hand)
+	_ok(out.is_empty(), "out, every key from every side is still the ray's (blocked: %s)" % ", ".join(out))
+
+
+## Desktop rays at every key's cap from in front, from above it at 30 and 60 degrees, and 30 degrees to either side
+## from 30 up (a player reaching across the room, the open tray at their left); the ones that do not get the key.
+func _blocked_keys(dvd: DVDPlayer, hand: Node3D) -> Array[String]:
+	var space := dvd.get_world_3d().direct_space_state
+	var dirs: Array[Vector3] = [Vector3(0, 0, 1), Vector3(0, 0.5, 0.866), Vector3(0, 0.866, 0.5),
+		Vector3(-0.433, 0.5, 0.75), Vector3(0.433, 0.5, 0.75)]
+	var blocked: Array[String] = []
+	for button_name: String in DVDPlayer.KEYS:
+		var b := dvd.get_node(button_name) as VRButton
+		var cap := b.get_node("ButtonMesh") as MeshInstance3D
+		# The middle of the face a player sees: the key runs on 3.5 mm into the housing behind it (+Z is out).
+		var ab := cap.get_aabb()
+		var at := cap.global_transform * (ab.get_center() + Vector3(0, 0, ab.size.z / 2.0))
+		for d: Vector3 in dirs:
+			var dir := dvd.global_transform.basis * d.normalized()
+			var t := InteractionResolver.resolve_desktop(space, at + dir * 0.6, at - dir * 0.01, hand)
+			if t.kind != InteractionTarget.KIND_BUTTON or t.action_node != b:
+				blocked.append("%s from %s (%s %s)" % [button_name, d, t.kind, t.hit_node.name if t.hit_node else "-"])
+	return blocked
 
 
 func _dvd_restore() -> void:

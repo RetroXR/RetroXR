@@ -158,7 +158,11 @@ func _dvd() -> void:
 	await _shot("dvd_hero.png", 8)
 	dvd._on_eject_pressed()
 	await _until(func() -> bool: return dvd._tray_anim == "")
-	var disc := (load(DISC_SCENE) as PackedScene).instantiate() as Node3D
+	_look(Vector3(-0.30, 0.30, 0.62), Vector3(-0.08, 0.0, 0.12))
+	await _shot("dvd_tray_out_empty.png", 6)
+	_look(Vector3(-0.24, 0.17, 0.38), Vector3(-0.085, 0.0, 0.2))
+	await _shot("dvd_tray_close_empty.png", 6)
+	var disc :=(load(DISC_SCENE) as PackedScene).instantiate() as Node3D
 	(disc as RigidBody3D).freeze = true
 	disc.position = Vector3(1, 1, 1)
 	_world.add_child(disc)
@@ -168,6 +172,8 @@ func _dvd() -> void:
 	await _until(func() -> bool: return dvd._tray_anim == "")
 	_look(Vector3(-0.30, 0.30, 0.62), Vector3(-0.08, 0.0, 0.12))
 	await _shot("dvd_tray_out_disc.png", 6)
+	_look(Vector3(-0.24, 0.17, 0.38), Vector3(-0.085, 0.0, 0.2))
+	await _shot("dvd_tray_close_disc.png", 6)
 	# The playing layout, set by hand: a disc's titles and chapters need a real DVD image playing.
 	dvd._on_eject_pressed()
 	await _until(func() -> bool: return dvd._tray_anim == "")
