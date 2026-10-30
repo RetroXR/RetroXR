@@ -213,6 +213,8 @@ AV1 and a 1.5x resize. It renders front, open door, back with leads, and resized
 out `RfPort`'s or the tube's seat in `TvFit` turns it red. Headset feel and the Quest are
 OWED.
 
+**Where the mains cord leaves (2026-10-30).** The VCR, DVD player, amplifier, record player and RETRO XR television models each carry a `PowerCordExit` empty, on every level, at the tip of the AC cord's strain relief on the back (`ApplianceModel.part("PowerCordExit")`; `power_cord_exit` in each `*_contract.json`). Its basis is identity, so a cord leaves along its local -Z, out of the back, as every cord anchor here does; the socket-mouth empties point the other way (+Z out). Nothing draws a cord from it yet.
+
 ### The ray meets what the model draws: no padding (2026-10-30)
 
 Every box the desktop ray (or a hand) meets on the RETRO XR VCR, DVD player, amplifier,

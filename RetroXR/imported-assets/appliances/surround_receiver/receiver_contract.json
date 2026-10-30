@@ -1,4 +1,18 @@
 {
+ "power_cord_exit": {
+  "node": "PowerCordExit",
+  "position": [
+   -0.17,
+   -0.03,
+   -0.184
+  ],
+  "direction": [
+   0.0,
+   0.0,
+   -1.0
+  ],
+  "note": "the strain relief tip on the back; the mains cord leaves along the local -Z, out of the back (identity basis)"
+ },
  "units": "meters, glTF frame (Godot): +Y up, the front faces +Z; origin at the center of the 430 x 115 x 340 box (the game scene's origin is its base, 0.0575 m lower)",
  "game_note": "115 mm tall, lower than the game's 150 mm primitive: the ports keep the game's x but sit 0.0625 m over the base (the game's RcaPorts are at 0.1), the knob 0.0655 (the game's at 0.09)",
  "port_height_over_base_m": 0.0625,

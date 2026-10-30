@@ -1,4 +1,18 @@
 {
+ "power_cord_exit": {
+  "node": "PowerCordExit",
+  "position": [
+   -0.15,
+   -0.02,
+   -0.149
+  ],
+  "direction": [
+   0.0,
+   0.0,
+   -1.0
+  ],
+  "note": "the strain relief tip on the back; the mains cord leaves along the local -Z, out of the back (identity basis)"
+ },
  "units": "meters, glTF frame (Godot): +Y up, the front faces +Z, x to the right seen from the front",
  "fps": 30,
  "animations": {
