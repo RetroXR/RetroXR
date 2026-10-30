@@ -96,7 +96,9 @@ func hide_part(part_name: String) -> void:
 ## its ButtonMesh takes the key's mesh, the box IS the key (no margin: the ray takes what is drawn and nothing
 ## beside it), the press travels `travel` along the key's -Z, and
 ## the model's own key is hidden on LOD0. The copied cap is drawn as far as LOD0 is (farther, the keys are in Body).
-func adopt_button(button: VRButton, part_name: String, travel: float = 0.0015) -> void:
+## `exact`: a key whose box would overlap its neighbours' (a four-way ring's arcs round an OK key) takes its own
+## triangles as its shape instead, and a fingertip presses it only over its own face (footprint_gate).
+func adopt_button(button: VRButton, part_name: String, travel: float = 0.0015, exact: bool = false) -> void:
 	var key := part(part_name) as MeshInstance3D
 	if key == null or button == null:
 		push_warning("[Appliance] %s: cannot adopt %s onto %s" % [name, part_name, button])
@@ -119,7 +121,11 @@ func adopt_button(button: VRButton, part_name: String, travel: float = 0.0015) -
 	button.depress_axis = Vector3(0, 0, -1)
 	button.depress_depth = travel
 	var shape := button.get_node_or_null("CollisionShape3D") as CollisionShape3D
-	if shape:
+	if shape and exact:
+		shape.shape = key.mesh.create_trimesh_shape()
+		shape.transform = Transform3D.IDENTITY
+		button.press_gate = footprint_gate(cap, 0.0)      # no reach: a ring's keys are 0.6 mm apart
+	elif shape:
 		var box := BoxShape3D.new()
 		var ab := key.get_aabb()
 		box.size = ab.size
@@ -230,6 +236,36 @@ func fit_shapes(shapes: Array[CollisionShape3D], except: Array[String] = []) -> 
 		var box := bounds(shape.get_parent() as Node3D, except)
 		fit_box(shape, box)
 		print("[Appliance] %s: %s fitted to the model, %s mm" % [name, shape.get_path(), (box.size * 1000.0).snapped(Vector3.ONE * 0.1)])
+
+
+## A fingertip presses a key only over its own face: inside the outline of the cap's front faces (its local +Z, the
+## way it faces) grown `reach`, and no higher than `hover` over the face. VRButton's touch is a radius round the
+## key's origin, which on a ring reaches the arcs either side and OK.
+static func footprint_gate(cap: MeshInstance3D, reach: float = 0.001, hover: float = 0.003) -> Callable:
+	var tris: Array[PackedVector2Array] = []
+	var faces := cap.mesh.get_faces()
+	for i in range(0, faces.size(), 3):
+		var a := faces[i]
+		var b := faces[i + 1]
+		var c := faces[i + 2]
+		if absf((b - a).cross(c - a).normalized().z) > 0.5:     # the face and its parallels: one outline
+			tris.append(PackedVector2Array([Vector2(a.x, a.y), Vector2(b.x, b.y), Vector2(c.x, c.y)]))
+	var top := cap.mesh.get_aabb().end.z
+	var bottom := cap.mesh.get_aabb().position.z
+	var offsets: Array[Vector2] = [Vector2.ZERO, Vector2(reach, 0), Vector2(-reach, 0), Vector2(0, reach),
+		Vector2(0, -reach)]
+	return func(tip: Vector3) -> bool:
+		if not is_instance_valid(cap):
+			return false
+		var p := cap.global_transform.affine_inverse() * tip
+		if p.z > top + hover or p.z < bottom:
+			return false
+		for o in offsets:
+			var q := Vector2(p.x, p.y) + o
+			for t in tris:
+				if Geometry2D.is_point_in_polygon(q, t):
+					return true
+		return false
 
 
 ## Hang `part_name` of EVERY level under `under` (a node the scene script already turns), keeping where it is now.

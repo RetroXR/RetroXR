@@ -76,6 +76,9 @@ func _item(item: String) -> void:
 			await _settle()
 			# Shut, the cover is over the deck plate (as drawn): the 33/45 keys are taken from the front, the arm not at all.
 			_reach(item + "/cover shut", root, ["TonearmLever"], {"Speed33Button": Vector3.BACK, "Speed45Button": Vector3.BACK})
+		"dvd":
+			_reach(item, root, [])
+			_dvd_ring(root)
 		_:
 			_reach(item, root, [])
 	root.queue_free()
@@ -99,6 +102,55 @@ func _shape_boxes(obj: Node) -> Array[AABB]:
 		if cs and cs.shape and not cs.disabled:
 			out.append(cs.global_transform * cs.shape.get_debug_mesh().get_aabb())
 	return out
+
+
+## The DVD player's navigation ring (the RETRO XR remote's: generic/dvd-player/params.py RING_*): four arcs round OK,
+## whose boxes would overlap. Each is its own triangles, a ray into a gap between keys takes none of them, and a
+## fingertip presses only the key it is over (ApplianceModel.footprint_gate).
+const RING_MID := 0.0098       # the arcs' middle radius: (7.1 + 12.5) / 2 mm
+const RING_OK_GAP := 0.0065    # between OK (5.9) and the arcs (7.1)
+const RING := ["UpButton", "DownButton", "LeftButton", "RightButton", "SelectButton"]
+
+
+func _dvd_ring(root: Node3D) -> void:
+	var ok_cap := root.get_node("SelectButton/ButtonMesh") as MeshInstance3D
+	var c := ok_cap.global_position
+	var x := ok_cap.global_basis.x.normalized()
+	var y := ok_cap.global_basis.y.normalized()
+	var n := ok_cap.global_basis.z.normalized()        # out of the front
+	for k: String in RING:
+		var b := root.get_node(k) as VRButton
+		var shape := (b.get_node("CollisionShape3D") as CollisionShape3D).shape
+		var cap := b.get_node("ButtonMesh") as MeshInstance3D
+		_ok(shape is ConcavePolygonShape3D and (shape as ConcavePolygonShape3D).get_faces().size() == cap.mesh.get_faces().size(),
+			"dvd/ring: %s's shape is its own triangles" % k, str(shape))
+		_ok(b.press_gate.is_valid(), "dvd/ring: %s is pressed by a fingertip only over its face" % k)
+	var space := root.get_world_3d().direct_space_state
+	var gaps := {"the slot between UP and RIGHT": c + (x + y).normalized() * RING_MID,
+		"the slot between DOWN and LEFT": c - (x + y).normalized() * RING_MID,
+		"the ring between OK and RIGHT": c + x * RING_OK_GAP, "the ring between OK and UP": c + y * RING_OK_GAP}
+	for label: String in gaps:
+		var at: Vector3 = gaps[label]
+		var t := InteractionResolver.resolve_desktop(space, at + n * AIM_FROM, at - n * 0.01, _grabber)
+		var took: String = str(t.action_node.name) if t != null and t.action_node != null else "-"
+		_ok(not RING.has(took), "dvd/ring: a ray into %s takes no key" % label, "it took %s" % took)
+	var over := {"SelectButton": c, "RightButton": c + x * RING_MID, "UpButton": c + y * RING_MID,
+		"LeftButton": c - x * RING_MID, "DownButton": c - y * RING_MID}
+	for key: String in over:
+		var tip: Vector3 = (over[key] as Vector3) + n * 0.001
+		var yes: Array[String] = []
+		for k: String in RING:
+			if bool((root.get_node(k) as VRButton).press_gate.call(tip)):
+				yes.append(k)
+		_ok(yes.size() == 1 and yes[0] == key, "dvd/ring: a fingertip over %s presses it and no other" % key, "pressed %s" % str(yes))
+	for label: String in gaps:
+		var tip: Vector3 = (gaps[label] as Vector3) + n * 0.001
+		var any := false
+		for k: String in RING:
+			any = any or bool((root.get_node(k) as VRButton).press_gate.call(tip))
+		_ok(not any, "dvd/ring: a fingertip in %s presses nothing" % label)
+	_ok(not bool((root.get_node("SelectButton") as VRButton).press_gate.call(c + n * 0.01)),
+		"dvd/ring: a fingertip 10 mm off OK's face presses nothing")
 
 
 ## The body's and the pointer's boxes are inside what the model draws; every key's box is the key it shows.

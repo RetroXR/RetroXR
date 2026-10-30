@@ -15,8 +15,9 @@ const PORT_PROUD := 0.001
 ## faces its node's +Y and presses along -Y. ApplianceModel.adopt_button leaves the key's own frame (a front key
 ## faces +Z), so the node is turned a quarter about X and the cap and its box are turned back inside it, which
 ## leaves them where they were. The combo-set code and its tests read a key's facing off that +Y.
-static func adopt_front_key(model: ApplianceModel, button: VRButton, part: String) -> void:
-	model.adopt_button(button, part, KEY_TRAVEL)
+## `exact`: the key's own triangles as its shape, and a fingertip only over its face (ApplianceModel.adopt_button).
+static func adopt_front_key(model: ApplianceModel, button: VRButton, part: String, exact: bool = false) -> void:
+	model.adopt_button(button, part, KEY_TRAVEL, exact)
 	var r := Basis(Vector3.RIGHT, PI / 2.0)
 	button.transform = Transform3D(button.transform.basis * r, button.transform.origin)
 	var cap: MeshInstance3D = null

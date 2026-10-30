@@ -67,6 +67,9 @@ const KEYS := {"PlayButton": "ButtonPlay", "PauseButton": "ButtonPause", "StopBu
 	"EjectButton": "ButtonOpenClose", "RewindButton": "ButtonRewind", "FastForwardButton": "ButtonFastForward",
 	"LanguageButton": "ButtonAudio", "SubtitleButton": "ButtonSubtitle", "UpButton": "ButtonUp",
 	"DownButton": "ButtonDown", "LeftButton": "ButtonLeft", "RightButton": "ButtonRight", "SelectButton": "ButtonEnter"}
+## The navigation ring (the RETRO XR remote's): four arcs round a round OK. Their boxes would overlap each other and
+## OK, so each takes its own triangles as its shape and a fingertip presses it only over its own face.
+const RING_KEYS := ["UpButton", "DownButton", "LeftButton", "RightButton", "SelectButton"]
 ## A disc's center stands this far over DiscSeat (the well's floor): half the 4 mm disc.
 const DISC_LIFT := 0.002
 ## How long the display says LOADING after the tray has closed on a disc.
@@ -225,7 +228,8 @@ func _dress() -> void:
 		push_warning("[DVD] %s: no Model node; drawn as the old box" % name)
 		return
 	for button_name: String in KEYS:
-		DeckFace.adopt_front_key(_model, get_node(button_name) as VRButton, KEYS[button_name])
+		DeckFace.adopt_front_key(_model, get_node(button_name) as VRButton, KEYS[button_name],
+			RING_KEYS.has(button_name))
 	for port: String in ["VideoOut", "AudioLOut", "AudioROut"]:
 		DeckFace.seat_port(_model, get_node(port) as Node3D, port)
 	_model.hide_part("Display")

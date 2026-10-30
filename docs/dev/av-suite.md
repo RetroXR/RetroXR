@@ -238,6 +238,13 @@ ray could not press them at all.
   carries the tonearm base, 48 mm higher. The dust cover's lever box is the whole cover, the
   body's `CoverShape` is the cover shut, and the tonearm's lever box is the whole arm. With
   the cover shut, the 33/45 keys are taken from the front, and the arm not at all.
+- **The DVD player's keys are the remote's (2026-10-30)**: dark rubber caps with a word over an icon,
+  and the navigation keys a round four-way RING (25 mm across, `common/applkit/geom.ring_arc`, the
+  remote's arcs) round OK, in one round opening. Arcs and OK would overlap as boxes, so
+  `adopt_button(..., exact = true)` (`DeckFace.adopt_front_key`'s `exact`, `DVDPlayer.RING_KEYS`)
+  gives each its own triangles as its shape and a `footprint_gate`: a fingertip presses a key only
+  over its own face, with no reach (the slots are 0.6 mm). `appliance_pointer_tests` `dvd/ring` checks
+  that rays and fingertips in the gaps take no key. As boxes, 14 checks fail.
 - `appliance_pointer_tests` checks it all: every key's box is its key, no body or pointer box
   is bigger than the model, and the desktop ray along a control's facing takes THAT
   control, with the set's door shut and open and the deck's cover open and shut. Putting
