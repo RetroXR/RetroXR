@@ -108,6 +108,9 @@ var _sent_directivity: float = -1.0
 
 ## The distance law's current multiplier, folded into every gain we send.
 var _dist_factor: float = 1.0
+## The distance law's reference, when the sink names its own (get_audio_unit_size: a pair of headphones is full level
+## within 12 cm of the head and leaks past it); <= 0 is the machine's audio_unit_size.
+var _sink_unit_size: float = -1.0
 
 
 func setup(host: RetroSystem) -> void:
@@ -620,7 +623,7 @@ func _apply_voice_distance_gain(centre: Vector3) -> void:
 		return
 	_dist_factor = SpatialAudioEmitter.distance_gain(
 		centre, ln.get_listener_position(),
-		_host.audio_unit_size, _host.audio_max_distance)
+		_sink_unit_size if _sink_unit_size > 0.0 else _host.audio_unit_size, _host.audio_max_distance)
 	_send_voice_gain(_last_volume * _dist_factor)
 
 
@@ -769,6 +772,7 @@ func update_position() -> void:
 		# carried in the hand has a facing worth tracking.
 		var emit_forward := Vector3.ZERO
 		var emit_up := Vector3.UP
+		_sink_unit_size = float(tv.call("get_audio_unit_size")) if tv != null 			and tv.has_method("get_audio_unit_size") else -1.0
 		if tv != null and tv.has_method("get_speaker_positions"):
 			var sp: PackedVector3Array = tv.get_speaker_positions()
 			left_pos = sp[0]

@@ -1,0 +1,142 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/audio/headphones.gd" id="1_hp"]
+[ext_resource type="Script" path="res://Scripts/Objects/audio/headphones_body.gd" id="2_body"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="3_rcaplug"]
+[ext_resource type="Script" path="res://Scripts/Objects/audio/headphones_plug.gd" id="4_hpplug"]
+[ext_resource type="Script" path="res://Scripts/Objects/appliance_model.gd" id="5_model"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/headphones/headphones_mobile.glb" id="6_lod0"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/headphones/headphones_mobile_lod1.glb" id="7_lod1"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/headphones/headphones_mobile_lod2.glb" id="8_lod2"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/trs_port.tscn" id="9_trsport"]
+[ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_slider.gd" id="10_slider"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="11_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="12_snapgp"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/trs_plug.res" id="13_trsplug"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
+bounce = 0.0
+friction = 0.8
+
+; Replaced at _ready by the box of what the model's plug draws (HeadphonesPlug).
+[sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
+size = Vector3(0.0066, 0.0066, 0.041)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_captive"]
+size = Vector3(0.004, 0.004, 0.004)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
+size = Vector3(0.0066, 0.0066, 0.041)
+
+; RETRO XR portable headphones (RetroXR-models generic/headphones-portable): a CompositeCable whose captive end A sits
+; in the headset's own hidden jack (Body/LineIn) and whose end B is the 3.5 mm plug. headphones.gd says why.
+[node name="Headphones" type="Node3D"]
+script = ExtResource("1_hp")
+
+; The headset. Its collision is built at _ready from the model's rig (Headphones._build_shapes): boxes along the band,
+; the sliders, and per side the pivot, strip, cup and pad, on the body AND its PointerArea, no margin.
+[node name="Body" type="RigidBody3D" parent="."]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.06
+linear_damp = 1.0
+angular_damp = 2.0
+freeze_mode = 1
+script = ExtResource("2_body")
+
+[node name="Model" type="Node3D" parent="Body"]
+script = ExtResource("5_model")
+level_scenes = Array[PackedScene]([ExtResource("6_lod0"), ExtResource("7_lod1"), ExtResource("8_lod2")])
+switch_distance = 1.0
+far_distance = 3.0
+
+[node name="PointerArea" type="StaticBody3D" parent="Body"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="PickableHighlight" type="Node3D" parent="Body"]
+script = ExtResource("11_pickhigh")
+
+; The captive end's socket: an IN 3.5 mm jack, hidden, on the left cup's CordExit (placed at _ready).
+[node name="LineIn" parent="Body" instance=ExtResource("9_trsport")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0835, -0.0295, 0)
+direction = 1
+
+; The band's size, 0 / 0.5 / 1 = Small / Medium / Large: each ear piece 0 / 8 / 16 mm out of its slider. A hidden
+; slider so the articulated-control walk saves and syncs it (the turntable's SpeedSwitch does the same).
+[node name="BandSize" type="Area3D" parent="Body"]
+collision_layer = 0
+collision_mask = 0
+script = ExtResource("10_slider")
+axis_local = Vector3(0, -1, 0)
+travel = 0.016
+steps = 3
+value = 0.5
+
+; -- End A: captive, in the headset's own jack for good --------------------------------------------------------------
+[node name="PlugA0" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0835, -0.04, 0)
+collision_layer = 0
+collision_mask = 0
+mass = 0.01
+freeze_mode = 1
+script = ExtResource("3_rcaplug")
+connector = "trs_plug"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
+shape = SubResource("BoxShape3D_captive")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
+visible = false
+mesh = ExtResource("13_trsplug")
+
+; -- End B: the 3.5 mm plug ------------------------------------------------------------------------------------------
+[node name="PlugB0" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0835, -0.06, 0.3)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.012
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("4_hpplug")
+connector = "trs_plug"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0065)
+shape = SubResource("BoxShape3D_plug")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0065)
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB0"]
+script = ExtResource("11_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("12_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; 40 x 30 mm = 1.2 m, a portable's cord (PX 100-II: 1.2 m). A thin 2.8 mm round cord: the 3.5 mm lead's tuning,
+; thinner.
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 40
+segment_length = 0.03
+constraint_iterations = 8
+bend_stiffness = 0.12
+tube_radius = 0.0014
+tube_sides = 6
+smoothing = 2
+rope_color = Color(0.06, 0.06, 0.065, 1)
+surface_collision_mask = 7
+collision_radius = 0.0024
+self_collision = true
+end_align_stiffness = 0.7
+end_stiffness = 0.3
+end_stiff_segments = 2

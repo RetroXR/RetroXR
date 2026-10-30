@@ -336,3 +336,46 @@ amplifier's 38 mm SURROUND MODE). `footprint_gate(..., face_axis)` takes the axi
 player's 33/45 lie on the deck and press along -Y. `appliance_pointer_tests` `poke/` pushes a tracked fingertip
 into every live key of the VCR, DVD, amplifier, record player and television (and the door keys with the door
 open): each sinks its full travel, fires once, alone, and comes back up. Taking the gate off box keys fails it.
+
+### Headphone jacks, and the RETRO XR headphones (2026-10-30)
+
+**The jacks** (commit e744ce16). A handheld with no phono sockets wears a 3.5 mm TRS socket, `PhonesOut` (OUT,
+`Channel.AUDIO_STEREO`), where its model's `headphone_jack()` says (`SystemAvPorts.build_phones`); a set's shell
+names one with `PhonesSeat` (`TvPanel.seat_phones`). The jack is not in `ports`: a handheld plays from its own body
+until the jack's lead reaches a SINK, and only then does `phones_carry_sound()` cut its speaker
+(`audio_route()["socketed"]`). A sink is anything `get_device()` finds that answers `get_speaker_positions()`
+(SpeakerPair, a set, now the headphones); the SOURCE owns its voices and puts its left channel at speaker 0 and its
+right at speaker 1 every frame. A set's jack carries everything the set plays (`RetroTV.get_speaker_positions` hands
+over the jack sink's), and the sink's `get_volume()` is folded into the set's level. The SP has no jack: its
+`PhonesAdapter` in EXT.2 lends it one.
+
+**The headphones** (`Scenes/Objects/appliances/headphones.tscn`, `Headphones` / `HeadphonesBody` / `HeadphonesPlug`;
+model RetroXR-models `generic/headphones-portable`, assets `imported-assets/appliances/headphones/`). Spawned as
+`headphones` (Objects, and every card with a jack). A `CompositeCable`, like the Antenna, with the difference that its
+captive end HAS a plug: `PlugA0` sits for good in the headset's own hidden IN jack (`Body/LineIn`, on the left cup's
+`CordExit`), so a jack's lead resolves to the headset as a sink by the ordinary path, and the whole routing above is
+unchanged. `PlugB0` wears the model's plug and is the only connector a player touches.
+
+- **Sound.** The host's two Meta XR voices go to the two pads, left channel left, right channel right. Dry: the game
+  never calls `MetaXRAudioServer.set_room`, so no voice has a reverb or reflections send (`headphones_tests` checks no
+  script calls it). One level and one law: the headphones push `Headphones.LEVEL` (0.7) at their source as a speaker
+  knob does, and answer `get_audio_unit_size()` = 0.12 m, which `SystemAudio`, `MediaTransport` and (through the set)
+  `RetroTV.get_audio_unit_size()` use in place of their own: full level within 12 cm of the head, 1/d past it. Worn,
+  the cups' middle IS the head's middle, so gain 1.0; a metre off on a desk the same pair plays at 0.084, 0.12 of worn
+  (-18 dB), the leak of open foam headphones. `hold_off_head` still holds each voice 25 cm out along its own
+  direction, so worn they are hard left and hard right without the HRTF's near-field dulling.
+- **Worn** is placement only. VR: let go within 0.28 m of the view point; grab to take off. Desktop: "On your head"
+  in the headset's menu (`ObjectOptionsPanel` rows through `HeadphonesBody`), or the PLUG's menu once worn (the camera
+  is inside the band, so the pointer cannot reach the headset). Saved (`carried_body_pose()["worn"]`); not sent to
+  peers, who would otherwise put the headset on their own heads: they see it where its synced pose is.
+- **Band size** (Small / Medium / Large: each ear piece 0 / 8 / 16 mm out of its slider) rides a hidden `VRSlider`
+  (`Body/BandSize`), so the articulated-control walk saves and syncs it, as the turntable's SpeedSwitch does.
+- **Collision** is what the model draws: boxes along the band's arch (the padded strip in them where it runs), the two
+  sliders, and per side the pivot, strip, cup and pad as cylinders, on the body and its PointerArea alike; the open
+  middle of the band is empty. The plug's box is its mesh's.
+- `headphones_tests` (scene, jack, tv, sound, wear, save, ray; 49 checks). The sound group drives the real
+  `SystemAudio.update_position` with a recording stand-in for the SDK (headless has none).
+  `Tools/av/headphones_probe` (windowed) renders the headset and records its plug going into a Game Boy Color's jack.
+  Listening (the probe runs no core), the Quest and a real session are OWED.
+- Not yet: the record/cassette/CD players (`audio_player.gd`) do not read a sink's `get_audio_unit_size`, so through a
+  set's jack they are heard at their own law; the CD player's PHONES jack is not a socket yet.

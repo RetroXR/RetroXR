@@ -44,6 +44,8 @@ var _slot: MediaSlot = null
 var _vlc: Object = null
 
 var _emitter: SpatialAudioEmitter = null
+## The distance law's reference (m) for the set's own speakers; a sink with its own (get_audio_unit_size) replaces it.
+const UNIT_SIZE := 3.0
 
 ## Set while the desktop fullscreen overlay holds this deck's picture.
 var _head_lock := false
@@ -72,7 +74,7 @@ var _float_lock: FloatLock = null
 func _setup_audio() -> void:
 	_emitter = SpatialAudioEmitter.new()
 	_emitter.name = "SpatialAudioEmitter"
-	_emitter.unit_size = 3.0
+	_emitter.unit_size = UNIT_SIZE
 	_emitter.max_distance = 15.0
 	# The picture and the sound both come from the TV, so the emitter is given the
 	# set's own speaker positions once one is connected (_emit_through). Non-zero
@@ -108,6 +110,9 @@ func _emit_through(tv: Node3D) -> void:
 		# longer facing would be quietened for facing the wrong way.
 		_emitter.clear_emit_direction()
 		return
+	# A sink with its own distance law (headphones in the set's jack: full level near the head, a leak past it).
+	var unit: float = float(tv.call("get_audio_unit_size")) if tv.has_method("get_audio_unit_size") else -1.0
+	_emitter.unit_size = unit if unit > 0.0 else UNIT_SIZE
 	if tv.has_method("get_speaker_positions"):
 		var sp: PackedVector3Array = tv.get_speaker_positions()
 		# The two voices carry the deck's own left and right, so a crossed pair is

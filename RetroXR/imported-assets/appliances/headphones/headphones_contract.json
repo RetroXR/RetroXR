@@ -1,0 +1,85 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up over the head, the cups at +-X, the wearer looking along -Z; origin between the ear canals (the middle of the line through the two cups' axes)",
+ "animations": "none: the engine poses the rig",
+ "moving": {
+  "YokeL": {
+   "pivot": [
+    -0.0835,
+    0.025,
+    0.0
+   ],
+   "slide": "local -Y, 0..0.016 m out of the slider"
+  },
+  "YokeR": {
+   "pivot": [
+    0.0835,
+    0.025,
+    0.0
+   ],
+   "slide": "local -Y, 0..0.016 m out of the slider"
+  },
+  "CupL": {
+   "pivot": [
+    -0.0835,
+    0.025,
+    0.0
+   ],
+   "moves": "with YokeL; tilts about local Z (front to back) a few degrees"
+  },
+  "CupR": {
+   "pivot": [
+    0.0835,
+    0.025,
+    0.0
+   ],
+   "moves": "with YokeR; tilts about local Z"
+  }
+ },
+ "extend_m": 0.016,
+ "pads_inner_x_m": 0.066,
+ "ear_axis_m": [
+  [
+   -0.0835,
+   0.0,
+   0.0
+  ],
+  [
+   0.0835,
+   0.0,
+   0.0
+  ]
+ ],
+ "cord_exit": {
+  "node": "CordExit",
+  "parent": "CupL",
+  "at": [
+   -0.0835,
+   -0.0295,
+   0.0
+  ],
+  "axis": "local -Z: the way the cord leaves (down)",
+  "cord_radius_m": 0.0014,
+  "cord_length_m": 1.2
+ },
+ "plug": {
+  "file": "headphones_plug.glb",
+  "node": "PlugTip",
+  "frame": "origin at the mating face, the shaft along +Z, the cord along -Z (RetroXR trs_plug.res)",
+  "shaft_m": [
+   0.0035,
+   0.014
+  ],
+  "length_m": 0.041,
+  "cord_end": "CordEnd"
+ },
+ "lod_switch_m": [
+  1.0,
+  3.0
+ ],
+ "triangles": {
+  "high": 18320,
+  "lod0": 4564,
+  "lod1": 2496,
+  "lod2": 1544
+ }
+}

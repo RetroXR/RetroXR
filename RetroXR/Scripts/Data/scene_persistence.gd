@@ -301,6 +301,8 @@ const LEAD_SCENES := {
 	"ethernet_cable": ETHERNET_CABLE_SCENE,
 	"rf_switch": RF_SWITCH_SCENE,
 	"antenna": ANTENNA_SCENE,
+	# A headset whose captive cord ends in a 3.5 mm plug (Headphones): a lead with a body on one end, like the aerial.
+	"headphones": preload("res://Scenes/Objects/appliances/headphones.tscn"),
 	"power_cord": POWER_CORD_SCENE,
 	"power_strip": POWER_STRIP_SCENE,
 	"travel_adapter": TRAVEL_ADAPTER_SCENE,

@@ -866,6 +866,15 @@ func is_sound_external() -> bool:
 
 
 ## The pair of powered speakers this set's headphone jack is cabled to, or null.
+## The distance law's reference of what this set's sound plays through: its headphone jack's sink's own (a pair of
+## headphones) or -1, the source's own. Read every frame by the machines and decks it shows.
+func get_audio_unit_size() -> float:
+	var phones := _panel.phones_sink()
+	if phones != null and phones.has_method("get_audio_unit_size"):
+		return float(phones.call("get_audio_unit_size"))
+	return -1.0
+
+
 func phones_sink() -> Node3D:
 	return _panel.phones_sink()
 

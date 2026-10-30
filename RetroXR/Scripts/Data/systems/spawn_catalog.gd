@@ -386,6 +386,7 @@ const _LIGHT_GUN_PLATFORMS: Array = [
 const _TRS_KIT: Array = [
 	{"kind": "peripheral", "label": "Speakers", "spawn": "speaker_pair"},
 	{"kind": "peripheral", "label": "3.5 mm Cable", "spawn": "trs_cable"},
+	{"kind": "peripheral", "label": "Headphones", "spawn": "headphones"},
 ]
 
 ## The platforms whose machine has a headphone jack (RetroSystemModel.headphone_jack),
@@ -849,6 +850,8 @@ const OBJECTS := [
 	["Ethernet Cable", "ethernet_cable"],
 	["Ethernet Hub",   "ethernet_hub"],
 	["Speakers",       "speaker_pair"],
+	# Portable on-ear headphones on a 1.2 m cord: into any headphone jack (a handheld's, a set's).
+	["Headphones",     "headphones"],
 	# A surround rig: a satellite per channel and one subwoofer, each cabled to
 	# a socket on the back of the set with a speaker lead.
 	["Loudspeaker",    "loudspeaker"],
