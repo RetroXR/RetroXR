@@ -429,8 +429,9 @@ that already has its own.
 
 `thumbnail` is optional: a 16:9 picture for the room's card (640 x 360 is the
 size a saved slot's own picture is drawn at). Once the player saves a slot in the
-room, that slot's picture is shown instead. A path that does not exist is ignored
-with a log line, and the card keeps a plain colour.
+room, that slot's picture is shown instead. Without one, the card uses the pack's
+own `thumbnail.png` (the one on its mod.io page). A path that does not exist is
+ignored with a log line, and the pack's picture is used in its place.
 
 The room gets a card in the SCENE tab after the shipped rooms: one with slots
 opens its slot grid, one without switches straight to it. A mod mounted while the

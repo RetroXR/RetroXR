@@ -4,7 +4,8 @@
 ## frame drawn from their eyes into a viewport of its own, written beside the
 ## slot's file as <slot id>.png. A room card shows its active slot's picture, else
 ## the newest any of its slots has, else the room's stock image (RoomCatalog's
-## `thumbnail`, which a mod's register_room may give), else its colour.
+## `thumbnail`: a mod's register_room may give one, else its pack's
+## thumbnail.png), else its colour.
 ##
 ## The viewport is GbCameraEye's arrangement: it shares the room's world, its
 ## Camera3D goes UNDER it (anywhere else it would become the player's camera) and
@@ -144,8 +145,8 @@ static func _level(head: Transform3D) -> Transform3D:
 static func load_texture(path: String) -> Texture2D:
 	if path.is_empty():
 		return null
-	if path.begins_with("res://"):
-		return load(path) as Texture2D if ResourceLoader.exists(path) else null
+	if path.begins_with("res://") and ResourceLoader.exists(path):
+		return load(path) as Texture2D
 	if not FileAccess.file_exists(path):
 		_cache.erase(path)
 		return null
@@ -153,13 +154,21 @@ static func load_texture(path: String) -> Texture2D:
 	var hit: Array = _cache.get(path, [])
 	if not hit.is_empty() and hit[0] == mtime:
 		return hit[1]
-	var img := Image.load_from_file(path)
-	if img == null or img.is_empty():
+	# From bytes, not Image.load_from_file: this is also a mod pack's raw PNG
+	# under res://, which has no import and which load() will not open.
+	var img := Image.new()
+	if img.load_png_from_buffer(FileAccess.get_file_as_bytes(path)) != OK or img.is_empty():
 		print("[SceneThumbnail] could not read %s" % path)
 		return null
 	var tex := ImageTexture.create_from_image(img)
 	_cache[path] = [mtime, tex]
 	return tex
+
+
+## Whether `path` names a picture load_texture can show: an imported resource,
+## or a raw PNG (a slot's, or one inside a mod pack).
+static func picture_exists(path: String) -> bool:
+	return ResourceLoader.exists(path) or FileAccess.file_exists(path)
 
 
 ## A slot's picture: its own PNG, or for Clean Room (the room as it ships) the

@@ -130,9 +130,17 @@ static func register_mod_room(room_id: String, spec: Dictionary, owner_id: Strin
 	var menu_title := str(spec.get("menu_title", spec.get("title", room_id)))
 	# Optional, and a wrong one costs the card its picture, not the mod its room.
 	var thumbnail := str(spec.get("thumbnail", ""))
-	if not thumbnail.is_empty() and not ResourceLoader.exists(thumbnail):
+	if not thumbnail.is_empty() and not SceneThumbnail.picture_exists(thumbnail):
 		print("[RoomCatalog] room %s: thumbnail does not exist, ignored: %s" % [room_id, thumbnail])
 		thumbnail = ""
+	# None given: the pack's own thumbnail.png, the 16:9 picture every pack ships
+	# for its mod.io page. A raw PNG in the pack (no .import), which is why
+	# SceneThumbnail reads it as bytes.
+	if thumbnail.is_empty():
+		var pack_picture := "res://mods/%s/%s" % [owner_id, ModManifest.THUMBNAIL_NAME]
+		if SceneThumbnail.picture_exists(pack_picture):
+			thumbnail = pack_picture
+			print("[RoomCatalog] room %s: card picture is the pack's %s" % [room_id, pack_picture])
 	_overlay.add(room_id, {
 		"path": path,
 		"title": str(spec.get("title", menu_title.to_upper())),
