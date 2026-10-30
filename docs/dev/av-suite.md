@@ -258,7 +258,7 @@ LOD0 inside 1 m, LOD1 to 2.5 m): a 175 x 50 mm two-AAA handset, keys up (+Y), th
 100 mm ahead of the origin (the grip end 75 mm behind it: it was cut 25 mm shorter under the logo and the origin
 stayed, so the keys and the tip did not move; `GrabPoint` and the hand poses went to z 0.055).
 Its 26 keys are the grid's cells (`TVRemote.KEY_CELLS`; PREV/NEXT are `prev_ch`/`next_ch` on a
-DVD), and the floating grid works exactly as before.
+DVD); the stick now walks the keys themselves, and the floating grid is an option (below).
 
 - **Every key is a VRButton** under `Keys`, built in `_dress_keys` and dressed by `adopt_button`
   (1.5 mm travel along the key's -Z: the long end of a rubber keypad's 0.8-1.5 mm stroke, Diamond HMI's
@@ -305,3 +305,25 @@ DVD), and the floating grid works exactly as before.
   grip end, lift off) is documented on the node, not animated. `tv_remote_tests bay/` (10), mutation-tested:
   no seeding, the cover left in the laser shape, the far levels' covers drawn each go red.
   `CoverSlots._refresh` takes a `Variant`: a cover freed before its deferred refresh ran failed the typed parameter.
+- **The keys are the menu; the floating grid is off by default** (2026-10-30). Held, the remote lights one of its
+  own keys with the laser's hover outline (`VRButton.set_selected`, ORed into `_sync_outline`; starts on OK and
+  keeps the last key from hold to hold). The holding hand's stick walks the light (`move_key`): to the nearest
+  key in that direction by the keys' real places on the face, no further aside than 1.5x ahead, side distance
+  counted 3x, never wrapping; on the ring it goes round the ring while another of its keys lies that way (left
+  from the top arc is the left arc, not REW above it) and leaves it past the top and bottom arcs. Keys that do
+  nothing on the aimed device are SKIPPED (`key_live`, the grid's own greying), the way the grid skips greyed
+  cells; aimed at nothing every key is live. A stick click (or A/X) holds the lit key down while held, at least
+  `KEY_FLASH`, and does its cell through `press_key` (a dead key still goes down and does nothing, as a real
+  one would). Desktop: the arrows walk it, Enter holds it down. **The remote's own menu** (Tab / pointer
+  menu, the generic `ObjectOptionsPanel` through `options_choices`, titled "TV Remote") has a "Floating
+  button menu" Off/On row, `AppPrefs.remote_button_menu`, default off: an APP preference, not saved on the
+  remote and not synced — how the player likes to drive a remote, kept for every remote and every room, the
+  way "Press Controller Buttons by Touch" is. On, the grid is exactly as before (the stick and arrows walk
+  it, its presses flash the key) and no key is lit. `tv_remote_tests stick/` (33): the default, the outline,
+  ten neighbours (ring, rows, no wrap, dead keys passed on a set), the REAL stick and click through a tracker
+  (VOL- one step down, sunk while held, alone, back up), a dead key, a DVD's PREV/MENU, the desktop arrows and
+  Enter, the menu row switching the grid on (shown, no key lit, the stick walks the grid) and off, and the
+  prefs file written (the player's real file, restored byte for byte). Mutation-tested: default on, no ring
+  rule, no dead-key skip, no sink, a key lit under the grid, not saved, no outline each go red.
+  `Tools/av/remote_stick_video_probe` (windowed, `--fixed-fps 30`) records it at the RETRO XR set and stills
+  the menu.
