@@ -588,10 +588,49 @@ func _dress_model() -> void:
 		_lamps[key] = pairs
 	_lamps_state = -1
 	_update_lamps()
+	_fit_collision()
 	_update_cover()
 	print("[Turntable] model dressed: %d levels, cover %s, speed %s, lamps %d/%d"
 		% [_model.levels.size(), "open" if cover_open() else "closed", "45" if _speed_45 else "33",
 			(_lamps.get("33", []) as Array).size(), (_lamps.get("45", []) as Array).size()])
+
+
+## Every box the laser or a hand meets is what the model draws, no margin: the plinth (what is left under the model
+## once platter, arm and cover hang from their pivots) up to the deck plate the 33/45 keys stand on — the model's
+## Body also carries the tonearm's base, 48 mm higher, and a box to there buried the keys — the closed cover the
+## body rests things on, and the whole cover and the whole arm as their levers' boxes.
+func _fit_collision() -> void:
+	for path: String in ["CollisionShape3D", "PointerArea/CollisionShape3D"]:
+		var shape := get_node_or_null(path) as CollisionShape3D
+		if shape == null:
+			continue
+		var space := shape.get_parent() as Node3D
+		var plinth := _model.bounds(space)
+		for key in [_speed33, _speed45]:
+			var cap: Node = key.get_node_or_null("ButtonMesh") if key else null
+			if cap:
+				var under := ApplianceModel.node_bounds(cap, space).position.y
+				plinth.size.y = minf(plinth.size.y, under - plinth.position.y)
+		ApplianceModel.fit_box(shape, plinth)
+		print("[Turntable] %s is the plinth, %s mm" % [path, (plinth.size * 1000.0).snapped(Vector3.ONE * 0.1)])
+	var cover_pivot := get_node_or_null("CoverPivot") as Node3D
+	var cover_part := cover_pivot.get_node_or_null("DustCover") if cover_pivot else null
+	if cover_part:
+		var closed := cover_pivot.rotation
+		cover_pivot.rotation = Vector3.ZERO            # the model's own pose: the cover shut
+		ApplianceModel.fit_box(get_node_or_null("CoverShape") as CollisionShape3D, ApplianceModel.node_bounds(cover_part, self))
+		cover_pivot.rotation = closed
+		if _cover:
+			ApplianceModel.fit_box(_cover.get_node_or_null("CollisionShape3D") as CollisionShape3D,
+				ApplianceModel.node_bounds(cover_part, _cover))
+	else:
+		push_warning("[Turntable] %s: no DustCover under CoverPivot; its boxes keep the scene's sizes" % name)
+	var arm_part := _arm.target.get_node_or_null("ArmPivot") if _arm and _arm.target else null
+	if arm_part:
+		var shape := _arm.get_node_or_null("CollisionShape3D") as CollisionShape3D
+		ApplianceModel.fit_box(shape, ApplianceModel.node_bounds(arm_part, _arm))
+	else:
+		push_warning("[Turntable] %s: no ArmPivot under the tonearm's pivot; its box keeps the scene's size" % name)
 
 
 ## Hang a model part of every level under a scene pivot, with the pivot at the angle

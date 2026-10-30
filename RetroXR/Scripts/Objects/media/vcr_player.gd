@@ -250,6 +250,9 @@ func _dress() -> void:
 	_led_off_mat.albedo_color = Color(0.04, 0.12, 0.05)
 	_led_off_mat.roughness = 0.25
 	_set_power(true)
+	# The body and the laser's box are what the model draws, no margin: the keys stand proud of it.
+	_model.fit_shapes([get_node_or_null("CollisionShape3D") as CollisionShape3D,
+		get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D])
 	print("[VCR] %s: dressed with the RETRO XR model (%d levels)" % [name, _model.levels.size()])
 
 

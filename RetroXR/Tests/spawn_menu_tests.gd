@@ -219,9 +219,10 @@ func _group_tvs() -> void:
 		if child is Button:
 			buttons.append(child as Button)
 	_eq(tabs.get_tab_title(0), "TVs", "tvs/tab title")
-	_eq(buttons.size(), baseline + 3, "tvs/stock TVs plus every registered cabinet")
+	_eq(buttons.size(), baseline + 4, "tvs/stock TVs plus every registered cabinet")
 	_eq(buttons[0].text.strip_edges(), "+  TV", "tvs/stock TV remains")
-	_eq(buttons[1].text.strip_edges(), "+  Plain Monitor", "tvs/stock monitor remains")
+	_eq(buttons[1].text.strip_edges(), "+  Classic TV", "tvs/the classic box remains")
+	_eq(buttons[2].text.strip_edges(), "+  Plain Monitor", "tvs/stock monitor remains")
 	var emitted: Array[String] = []
 	view.spawn_requested.connect(func(token: String) -> void: emitted.append(token))
 	buttons[-1].pressed.emit()
@@ -233,7 +234,7 @@ func _group_tvs() -> void:
 	for child: Node in rebuilt.get_children():
 		if child is Button:
 			count += 1
-	_eq(count, baseline + 2, "tvs/removed cabinet absent from a rebuilt menu")
+	_eq(count, baseline + 3, "tvs/removed cabinet absent from a rebuilt menu")
 
 	# A mod applied mid-session (ModManager.apply_live) registers AFTER the tab
 	# was built, and the menu is built once a session. The tab is rebuilt in place
@@ -247,7 +248,7 @@ func _group_tvs() -> void:
 			labels.append((child as Button).text.strip_edges())
 	_ok(labels.has("+  Late fixture"), "tvs/a cabinet applied after the build is offered",
 		str(labels))
-	_eq(labels.size(), baseline + 3, "tvs/and the rows are replaced, not doubled")
+	_eq(labels.size(), baseline + 4, "tvs/and the rows are replaced, not doubled")
 	RetroTV.drop_mod_shells(OWNER)
 	view.free()
 

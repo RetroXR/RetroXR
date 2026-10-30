@@ -87,6 +87,7 @@ func on_buttons_built(buttons: Array) -> void:
 		if DOOR_KEYS.has(String(btn.name)):
 			_door_keys.append(btn)
 	_build_door_button()
+	_fit_collision()
 	_set_door_keys(false)
 	print("[TV] RETRO XR cabinet: %d of %d bezel keys on the model; the key door is shut" % [adopted, buttons.size()])
 
@@ -103,6 +104,40 @@ func _process(_delta: float) -> void:
 	_led_mat.emission_enabled = on
 	_led_mat.emission = LED_ON
 	_led_mat.emission_energy_multiplier = 2.0
+
+
+## The set's body and the laser's box are what the cabinet draws (TvFit sized them from body_size and padded the
+## pointer's by 20 mm, which stood in front of every bezel key). The keys behind the door sit 7.6 mm into the bezel,
+## deeper than the pointer lets a control win from inside a shell, so a pocket over them is carved out of both;
+## the door itself is its own box (_fit_door_button), so it is left out of the body's.
+func _fit_collision() -> void:
+	var tv := get_parent() as Node3D
+	if tv == null:
+		return
+	var keys: Array[Node] = []
+	for k in _door_keys:
+		var cap := k.get_node_or_null("ButtonMesh")
+		if cap:
+			keys.append(cap)
+	for path in ["CollisionShape3D", "PointerArea/CollisionShape3D"]:
+		var shape := tv.get_node_or_null(path) as CollisionShape3D
+		if shape == null:
+			push_warning("[TV] RETRO XR cabinet: the set has no %s to fit" % path)
+			continue
+		var space := shape.get_parent() as Node3D
+		var body := _model.bounds(space, ["KeyDoor"])
+		var boxes: Array[AABB] = [body]
+		if not keys.is_empty():
+			var pocket := AABB()
+			for i in keys.size():
+				var b := ApplianceModel.node_bounds(keys[i], space)
+				pocket = b if i == 0 else pocket.merge(b)
+			# From the keys' backs out through the front of the cabinet: a pocket floor level with the faces ties
+			# with the key for the ray, and the shell won the tie.
+			pocket.size.z = body.end.z - pocket.position.z + 0.01
+			boxes = ApplianceModel.carve(body, pocket)
+		ApplianceModel.fit_collision(shape, boxes)
+		print("[TV] RETRO XR cabinet: %s is the cabinet, %s mm, in %d boxes" % [path, (body.size * 1000.0).snapped(Vector3.ONE * 0.1), boxes.size()])
 
 
 ## The door is pressed on its face: a VRButton with no cap of its own, laid over the door wherever it stands.
@@ -122,24 +157,20 @@ func _build_door_button() -> void:
 	b.add_child(cap)
 	_door_button = b as VRButton
 	_door_button.depress_depth = 0.0
+	_door_button.depress_axis = Vector3(0, 0, -1)     # pressed on its face
 	add_child(_door_button)
 	_door_button.button_pressed.connect(_toggle_door)
 	_fit_door_button()
 
 
-## Lay the door's press box over the door's front face as it stands now.
+## The door's press box is the door as it stands now, no margin.
 func _fit_door_button() -> void:
 	var door := _model.part("KeyDoor") as MeshInstance3D
 	if door == null or _door_button == null:
 		return
-	var box := door.global_transform * door.get_aabb()
-	var face := box.get_center() + Vector3(0, 0, box.size.z / 2.0) if not _door_open \
-		else box.get_center() + Vector3(0, -box.size.y / 2.0, 0)
-	_door_button.global_transform = Transform3D(global_basis.orthonormalized(), face)
-	var s := (_door_button.get_node("CollisionShape3D") as CollisionShape3D)
-	var local := global_basis.orthonormalized().inverse() * box.size
-	(s.shape as BoxShape3D).size = Vector3(absf(local.x), maxf(absf(local.y), 0.006), maxf(absf(local.z), 0.006)) \
-		+ Vector3(0.004, 0.004, 0.004)
+	_door_button.transform = Transform3D.IDENTITY
+	ApplianceModel.fit_box(_door_button.get_node("CollisionShape3D") as CollisionShape3D,
+		ApplianceModel.node_bounds(door, _door_button))
 
 
 func _toggle_door() -> void:

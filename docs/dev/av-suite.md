@@ -212,3 +212,32 @@ with +Z out of the back, the tube on ScreenSeat, the keys, the door, the lamp, a
 AV1 and a 1.5x resize. It renders front, open door, back with leads, and resized. Taking
 out `RfPort`'s or the tube's seat in `TvFit` turns it red. Headset feel and the Quest are
 OWED.
+
+### The ray meets what the model draws: no padding (2026-10-30)
+
+Every box the desktop ray (or a hand) meets on the RETRO XR VCR, DVD player, amplifier,
+record player and television is what the model draws, with NO margin. Before, bodies and
+`PointerArea`s stood 5-20 mm past the models and `adopt_button` padded every key 1.5 mm a
+side. The padded shell stood in front of the television's twelve keys and the amplifier's
+SURROUND MODE key by more than `InteractionResolver.ENCLOSURE_DEPTH` (5 mm), so the desktop
+ray could not press them at all.
+
+- `ApplianceModel.bounds(space, except)` / `node_bounds(node, space)` give what the close
+  level (or a part hung under a pivot) draws in a frame. `fit_box` makes a shape exactly a
+  box, duplicating it first (scene sub_resources are shared), and `fit_shapes` fits a
+  body's and its `PointerArea`'s. `adopt_button` makes a key's box the key.
+- **A control deeper than 5 mm needs a pocket.** `carve(box, pocket)` returns the box less
+  the pocket (up to six boxes), and `fit_collision` lays them as `<shape>Carve<n>` siblings.
+  The television's five door keys sit 7.6 mm into the bezel: the pocket runs from the caps'
+  BACKS out through the front. A pocket floor level with the key faces ties with the key,
+  and the shell wins the tie (the resolver returns the first of two non-controls). The door
+  is left out of the body and is its own box (`KeyDoorButton`, pressed on its face along -Z).
+- **The record player's plinth stops under the 33/45 caps.** The model's `Body` also
+  carries the tonearm base, 48 mm higher. The dust cover's lever box is the whole cover, the
+  body's `CoverShape` is the cover shut, and the tonearm's lever box is the whole arm. With
+  the cover shut, the 33/45 keys are taken from the front, and the arm not at all.
+- `appliance_pointer_tests` checks it all: every key's box is its key, no body or pointer box
+  is bigger than the model, and the desktop ray along a control's facing takes THAT
+  control, with the set's door shut and open and the deck's cover open and shut. Putting
+  the 3 mm key margin back fails 39 cases; dropping the television's carve fails the door
+  keys. `Tools/av/appliance_ray_probe` prints the same numbers for every direction.

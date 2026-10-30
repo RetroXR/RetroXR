@@ -348,7 +348,15 @@ func _dress() -> void:
 	for knob_part in pivot.get_children():
 		knob_part.name = "ModelKnob%d" % level
 		level += 1
+	# The knob's box is the knob (the close level's, at rest: it is round about the turn).
+	var knob_shape := _knob.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	var knob0 := pivot.get_node_or_null("ModelKnob0")
+	if knob_shape and knob0:
+		ApplianceModel.fit_box(knob_shape, ApplianceModel.node_bounds(knob0, _knob))
 	pivot.rotation = turned
+	# The body and the laser's box are what the model draws, no margin, so the key and the knob stand proud of it.
+	_model.fit_shapes([get_node_or_null("CollisionShape3D") as CollisionShape3D,
+		get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D])
 	if _model.part("Display") == null:
 		push_warning("[SurroundAmp] %s: the model has no Display" % name)
 	else:

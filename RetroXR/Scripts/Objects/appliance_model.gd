@@ -93,7 +93,8 @@ func hide_part(part_name: String) -> void:
 
 
 ## Dress a scene VRButton with the model's key `part_name`: the button moves to the key's face (the key's origin),
-## its ButtonMesh takes the key's mesh, the box fits the key, the press travels `travel` along the key's -Z, and
+## its ButtonMesh takes the key's mesh, the box IS the key (no margin: the ray takes what is drawn and nothing
+## beside it), the press travels `travel` along the key's -Z, and
 ## the model's own key is hidden on LOD0. The copied cap is drawn as far as LOD0 is (farther, the keys are in Body).
 func adopt_button(button: VRButton, part_name: String, travel: float = 0.0015) -> void:
 	var key := part(part_name) as MeshInstance3D
@@ -121,13 +122,114 @@ func adopt_button(button: VRButton, part_name: String, travel: float = 0.0015) -
 	if shape:
 		var box := BoxShape3D.new()
 		var ab := key.get_aabb()
-		box.size = ab.size + Vector3(0.003, 0.003, 0.003)
+		box.size = ab.size
 		shape.shape = box
 		shape.position = ab.get_center()
 	var legend := button.get_node_or_null("ButtonLabel") as Node3D
 	if legend:
 		legend.visible = false        # the key carries its own icon
 	key.visible = false
+
+
+## The close level's drawn bounds in `space`'s frame: every visible mesh still under the model, less the parts named
+## in `except`. A part attach_part hung elsewhere and a key adopt_button hid are not in it; nor is anything the
+## scene draws itself (a display quad, a cap).
+func bounds(space: Node3D, except: Array[String] = []) -> AABB:
+	_build()
+	if levels.is_empty():
+		return AABB()
+	return node_bounds(levels[0], space, except)
+
+
+## What `root` and everything visible under it draws, in `space`'s frame (a part attach_part hung under a pivot).
+static func node_bounds(root: Node, space: Node3D, except: Array[String] = []) -> AABB:
+	var out := AABB()
+	var first := true
+	var to_space := space.global_transform.affine_inverse()
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if except.has(String(n.name)):
+			continue
+		if n is Node3D and not (n as Node3D).visible:
+			continue
+		if n is GeometryInstance3D:
+			var g := n as GeometryInstance3D
+			var box: AABB = (to_space * g.global_transform) * g.get_aabb()
+			if box.size != Vector3.ZERO:
+				out = box if first else out.merge(box)
+				first = false
+		stack.append_array(n.get_children())
+	return out
+
+
+## Make `shape` exactly `box` (in the shape's parent's frame): a box, no margin. The shape is duplicated first —
+## a scene's sub_resource is shared by every copy of the scene in the room.
+static func fit_box(shape: CollisionShape3D, box: AABB) -> void:
+	if shape == null or box.size == Vector3.ZERO:
+		return
+	var b := BoxShape3D.new()
+	b.size = box.size
+	shape.shape = b
+	shape.transform = Transform3D(Basis.IDENTITY, box.get_center())
+
+
+## `box` less `pocket`: up to six boxes that cover the rest of it (a control set deeper into the housing than the
+## pointer's 5 mm ENCLOSURE_DEPTH is unreachable inside a single box).
+static func carve(box: AABB, pocket: AABB) -> Array[AABB]:
+	var hole := box.intersection(pocket)
+	if hole.size == Vector3.ZERO or hole.size.x <= 0.0 or hole.size.y <= 0.0 or hole.size.z <= 0.0:
+		return [box]
+	var out: Array[AABB] = []
+	var rest := box
+	for axis in 3:
+		var lo := rest.position[axis]
+		var hi := rest.end[axis]
+		if hole.position[axis] > lo:
+			var a := rest
+			a.size[axis] = hole.position[axis] - lo
+			out.append(a)
+		if hole.end[axis] < hi:
+			var b := rest
+			b.position[axis] = hole.end[axis]
+			b.size[axis] = hi - hole.end[axis]
+			out.append(b)
+		rest.position[axis] = hole.position[axis]
+		rest.size[axis] = hole.size[axis]
+	return out
+
+
+## Fit a body's (or a PointerArea's) collision to `boxes`, given in `shape`'s parent's frame: `shape` takes the
+## first, and siblings named `<shape>Carve<n>` the rest (made, or dropped, as many as needed).
+static func fit_collision(shape: CollisionShape3D, boxes: Array[AABB]) -> void:
+	if shape == null or boxes.is_empty():
+		return
+	var parent := shape.get_parent()
+	fit_box(shape, boxes[0])
+	for i in range(1, maxi(boxes.size(), 8)):
+		var extra := parent.get_node_or_null("%sCarve%d" % [shape.name, i]) as CollisionShape3D
+		if i >= boxes.size():
+			if extra:
+				extra.queue_free()
+			continue
+		if extra == null:
+			extra = CollisionShape3D.new()
+			extra.name = "%sCarve%d" % [shape.name, i]
+			parent.add_child(extra)
+		extra.disabled = shape.disabled
+		fit_box(extra, boxes[i])
+
+
+## Fit every shape in `shapes` (the body's and the PointerArea's) to what the close level draws, less `except`,
+## each in its own parent's frame. No margin: the desktop ray takes the object only where it is drawn, and a key
+## standing on the face is never inside a shell padded out past it.
+func fit_shapes(shapes: Array[CollisionShape3D], except: Array[String] = []) -> void:
+	for shape in shapes:
+		if shape == null:
+			continue
+		var box := bounds(shape.get_parent() as Node3D, except)
+		fit_box(shape, box)
+		print("[Appliance] %s: %s fitted to the model, %s mm" % [name, shape.get_path(), (box.size * 1000.0).snapped(Vector3.ONE * 0.1)])
 
 
 ## Hang `part_name` of EVERY level under `under` (a node the scene script already turns), keeping where it is now.

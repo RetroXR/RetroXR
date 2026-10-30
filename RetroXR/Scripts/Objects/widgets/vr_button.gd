@@ -539,6 +539,9 @@ func _update_visual_state() -> void:
 func _apply_mesh_color(color: Color) -> void:
 	# Get or create a per-instance material override.
 	# Scene sub-resources are shared across instances, so duplicate on first use.
+	# An empty cap (a key the model does not have, kept for its name) has no surface to tint.
+	if _mesh.get_surface_override_material_count() == 0:
+		return
 	var mat := _mesh.get_surface_override_material(0)
 	if not mat or not mat is StandardMaterial3D:
 		mat = StandardMaterial3D.new()
