@@ -33,6 +33,8 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--out="):
 			_out = arg.substr(6)
+		if arg == "--front":
+			_front = true
 	DirAccess.make_dir_recursive_absolute(_out.path_join("frames"))
 	_stage()
 	await _run()
@@ -82,6 +84,8 @@ var _az := 200.0
 var _height := 1.35
 var _radius := 2.0
 var _look := Vector3(0, 0.0, -0.2)
+## --front: filmed from the listener's side the whole time, the display in view as each lamp lights.
+var _front := false
 
 
 func _frame() -> void:
@@ -137,6 +141,11 @@ func _run() -> void:
 		cab.global_position = row[2]
 		cab.look_at(Vector3(LISTENER.x, cab.global_position.y, LISTENER.z), Vector3.UP, true)
 		cabs[row[0]] = cab
+	if _front:
+		_az = 14.0
+		_height = 0.42
+		_radius = 1.05
+		_look = Vector3(0, 0.03, -0.25)
 	for i in 8:
 		await get_tree().process_frame
 	await _frames(30)
@@ -160,7 +169,8 @@ func _run() -> void:
 		a_plug.global_position = hand
 		b_plug.global_position = hand + Vector3(0.04, -0.02, -0.05)
 		await get_tree().process_frame
-		_az = 205.0 - 50.0 * float(k) / float(LAYOUT.size())
+		if not _front:
+			_az = 205.0 - 50.0 * float(k) / float(LAYOUT.size())
 		await _plug_in(a_plug, port, hand, 30)
 		var term := cab.get_node("SpeakerIn") as RcaPort
 		await _plug_in(b_plug, term, b_plug.global_position, 36)
@@ -172,6 +182,16 @@ func _run() -> void:
 				lit.append(str(SurroundAmp.VFD_LAMPS[j][0]))
 		print("[probe] %s cabled at frame %d, lead %.2f m; lamps lit: %s" % [row[0], _n, run, ", ".join(lit)])
 	await _frames(20)
+	if _front:
+		# In to the display: the decoder's name and all six lamps.
+		for i in 60:
+			var u := _ease(float(i) / 59.0)
+			_radius = lerpf(1.05, 0.5, u)
+			_height = lerpf(0.42, 0.14, u)
+			_look = Vector3(0, 0.03, -0.25).lerp(Vector3(0, 0.06, 0.1), u)
+			await _frame()
+		await _frames(45)
+		return
 	# Round the side to the front: the room from the listener, then the display with all six lamps.
 	for i in 90:
 		var u := _ease(float(i) / 89.0)
