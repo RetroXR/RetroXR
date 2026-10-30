@@ -372,9 +372,14 @@ func _clear_mute_silently() -> void:
 		_tv.hide_osd()
 
 
+## One press of VOL- / VOL+. Twenty steps, one OSD bar each (TvOsd.VOL_OSD_SEGMENTS), the way a 90s set's volume
+## bar grew a bar a press; it was 0.1 (ten coarse steps) before the Trinitron-style bar.
+const VOLUME_STEP := 0.05
+
+
 func on_volume_down() -> void:
 	_clear_mute_silently()
-	_volume = maxf(0.0, _volume - 0.1)
+	_volume = maxf(0.0, _volume - VOLUME_STEP)
 	if _tv.is_on():
 		_tv.osd().show_volume()
 	if _tv.is_on():
@@ -384,7 +389,7 @@ func on_volume_down() -> void:
 
 func on_volume_up() -> void:
 	_clear_mute_silently()
-	_volume = minf(1.0, _volume + 0.1)
+	_volume = minf(1.0, _volume + VOLUME_STEP)
 	if _tv.is_on():
 		_tv.osd().show_volume()
 	if _tv.is_on():

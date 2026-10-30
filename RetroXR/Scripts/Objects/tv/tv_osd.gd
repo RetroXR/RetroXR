@@ -1,5 +1,10 @@
 ## TvOsd — the set's on-screen display: the corner banner and the volume bar.
 ##
+## The volume bar is drawn the way a 90s set drew it (the user's reference: a Trinitron-era OSD): a green
+## "Volume" over one tall bar per step reached and a dot for each step still to go, low on the picture.
+## The composited copy is a Control drawn into OSDViewport (VolumeBar, made here, so the .tscn is untouched);
+## VolOSDText stays in the scene, hidden, and the Label3D fallback says the same in green text.
+##
 ## A child of the RetroTV it serves, created unconditionally in _init, in the same
 ## shape as TvResize and TvFit.
 ##
@@ -33,7 +38,7 @@ const OSD_BASE_FONT_SIZE_2D := 44
 const OSD_MIN_FONT_SIZE_2D := 18
 
 # One segment per volume step, so the bar has exactly the granularity the keys do.
-const VOL_OSD_SEGMENTS := 10
+const VOL_OSD_SEGMENTS := 20
 # The margin the bar keeps at each end, as a fraction of the picture width. The
 # CRT stage samples the OSD through crt_warp, which pulls the outer few percent
 # of the texture off past the curved glass.
@@ -43,8 +48,15 @@ const VOL_OSD_SIDE_MARGIN := 0.055
 # viewport can't ask for a 300 px font.
 const VOL_OSD_MAX_FONT_SIZE := 128
 
+# The Trinitron-era green, and the bar's place on the picture (fractions of the OSD viewport).
+const VOL_OSD_GREEN := Color(0.42, 1.0, 0.28)
+const VOL_OSD_WORD_BASELINE := 0.70
+const VOL_OSD_BAR_TOP := 0.735
+const VOL_OSD_BAR_HEIGHT := 0.12
+
 var _osd_token: int = 0
 var _vol_osd_token: int = 0
+var _vol_bar: _VolumeBar = null
 
 # What the last route() saw, so an idle OSD on unchanged glass costs nothing.
 var _routed: bool = false
@@ -70,6 +82,14 @@ func setup(tv: RetroTV, label: Label3D, vol_label: Label3D, viewport: SubViewpor
 	_viewport = viewport
 	_text_2d = text_2d
 	_vol_text_2d = vol_text_2d
+	_vol_text_2d.visible = false
+	_vol_label.modulate = VOL_OSD_GREEN
+	_vol_bar = _VolumeBar.new()
+	_vol_bar.name = "VolumeBar"
+	_vol_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_vol_bar.segments = VOL_OSD_SEGMENTS
+	_vol_bar.visible = false
+	_viewport.add_child(_vol_bar)
 
 
 ## Show a persistent OSD message (stays until replaced or hidden).
@@ -111,13 +131,14 @@ func _set_osd_text(text: String) -> void:
 	_refresh_osd_texture(text)
 
 
-## Volume-bars OSD (bottom of screen, like an old set): VOL |||||||---
+## Volume-bars OSD (low on the picture, like an old set): Volume ||||||······
 ## Independent of the corner OSD; auto-hides after 2 s.
 func show_volume() -> void:
 	_vol_osd_token += 1
 	var tok := _vol_osd_token
 	var filled := roundi(_tv.volume() * VOL_OSD_SEGMENTS)
-	var text := "VOL " + "|".repeat(filled) + "-".repeat(VOL_OSD_SEGMENTS - filled)
+	var text := "Volume " + "|".repeat(filled) + "·".repeat(VOL_OSD_SEGMENTS - filled)
+	_vol_bar.filled = filled
 	_set_vol_osd_text(text)
 	get_tree().create_timer(2.0).timeout.connect(func():
 		if tok == _vol_osd_token:
@@ -151,6 +172,8 @@ func _fit_font_size_to_width(font: Font, text: String, avail: float, unit: float
 # the composited one, the screen quad's own extent for the Label3D fallback —
 # so a shell with a different tube gets a bar that still spans it.
 func _set_vol_osd_text(text: String) -> void:
+	_vol_bar.visible = text != ""
+	_vol_bar.queue_redraw()
 	_vol_label.text = text
 	var size_3d := _fit_font_size_to_width(_vol_label.font,
 			text, _vol_osd_label_width(), _vol_label.pixel_size)
@@ -217,3 +240,32 @@ func route() -> void:
 	else:
 		_label.visible = main_active
 		_vol_label.visible = vol_active
+
+
+## The composited volume bar: "Volume" in green over `filled` tall bars and a dot per step left, sized from the
+## viewport so any tube's OSD gets the same proportions.
+class _VolumeBar extends Control:
+	var segments: int = 10
+	var filled: int = 0
+
+	func _draw() -> void:
+		var w := size.x
+		var h := size.y
+		if w <= 0.0 or h <= 0.0:
+			return
+		var left := w * TvOsd.VOL_OSD_SIDE_MARGIN
+		var span := w - 2.0 * left
+		var slot := span / float(segments)
+		var font := ThemeDB.fallback_font
+		var fsize := int(h * 0.085)
+		draw_string(font, Vector2(left, h * TvOsd.VOL_OSD_WORD_BASELINE), "Volume", HORIZONTAL_ALIGNMENT_LEFT, -1,
+				fsize, TvOsd.VOL_OSD_GREEN)
+		var top := h * TvOsd.VOL_OSD_BAR_TOP
+		var bar_h := h * TvOsd.VOL_OSD_BAR_HEIGHT
+		var bar_w := slot * 0.66
+		for i in segments:
+			var x := left + i * slot
+			if i < filled:
+				draw_rect(Rect2(x, top, bar_w, bar_h), TvOsd.VOL_OSD_GREEN)
+			else:
+				draw_circle(Vector2(x + bar_w / 2.0, top + bar_h / 2.0), slot * 0.21, TvOsd.VOL_OSD_GREEN)
