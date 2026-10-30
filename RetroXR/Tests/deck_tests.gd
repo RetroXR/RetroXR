@@ -22,6 +22,9 @@
 ##   save/     each deck's save type, and the fallthrough that used to mislabel one
 ##   media/    the vinyl record through the guards that decide it exists
 ##   gate/     MediaTray's access matrix, which the tonearm now drives
+##   drawer/   the RETRO XR CD player's tray and cassette deck's door (DeckDrawer): a disc / tape rides in and
+##             out on the model's seat, the zone takes one only while it is out and empty, the displays, the keys
+##             the models carry (REPEAT / SHUFFLE, COUNTER RESET, REC), the spindles and the level meters
 ##   arm/      the tonearm: parking, track mapping, and the restore that must NOT play
 ##   net/      the audio command shape, including the index-carrying one
 ##   remote/   which remote cells each deck offers
@@ -30,7 +33,8 @@
 ##   playlist/ an .m3u sets what plays and in what order, for albums and tapes
 extends "res://Tests/test_suite.gd"
 
-const GROUPS := ["base", "save", "media", "gate", "arm", "model", "scrub", "net", "remote", "tape", "label", "playlist"]
+const GROUPS := ["base", "save", "media", "gate", "drawer", "arm", "model", "scrub", "net", "remote", "tape", "label",
+	"playlist"]
 
 const RECORD_PLAYER := preload("res://Scenes/Objects/appliances/record_player.tscn")
 const CD_PLAYER := preload("res://Scenes/Objects/appliances/cd_player.tscn")
@@ -63,6 +67,9 @@ func _ready() -> void:
 		await _test_media_guards()
 	if _want("gate"):
 		await _test_gate_matrix()
+	if _want("drawer"):
+		await _test_cd_tray()
+		await _test_cassette_door()
 	if _want("arm"):
 		await _test_arm()
 	if _want("model"):
@@ -1033,38 +1040,141 @@ func _test_gate_matrix() -> void:
 	_ok(not tray.has_media(), "gate/remove_media unseats a tray deck")
 	_ok(tray.is_open(), "gate/...leaving the platter open again")
 
-	await _test_lid_travel()
 
-
-## The CD deck's lid ANIMATES, which the turntable's never does, and the gates and
-## the spin part company while it is moving: `_open` goes false the instant the
-## button is pressed, because that is when the well seals and the disc stops being
-## liftable. A spin keyed off that alone started the disc turning while the lid was
-## still coming down over it. `set_open(false, false)` — the restore path the cases
-## above take — creates no tween and so cannot see this.
-func _test_lid_travel() -> void:
-	var cd := await _deck(CD_PLAYER)
-	var tray: MediaTray = cd._tray
-	_ok(tray != null and tray.lid_pivot != null, "gate/the CD deck's lid animates")
-	tray.lid_time = 0.2
-
-	tray.set_open(true, false)
+## The CD player's tray (DeckDrawer on the RETRO XR model): shut and closed to discs at first, OPEN slides it out
+## and opens it to one, a disc let go on it is taken and rides in on DiscSeat, OPEN brings it back out parked on the
+## tray, and the net layer's remove does the same. REPEAT / SHUFFLE pick what plays next; REW / FF are out of play on
+## the box (the model has none) but the remote still scans.
+func _test_cd_tray() -> void:
+	var cd := await _deck(CD_PLAYER) as CDPlayer
+	cd.freeze = true
+	var drawer: DeckDrawer = cd._drawer
+	_ok(drawer != null and cd._model != null and cd._model.levels.size() == 3, "drawer/the CD player wears its model's tray")
+	_ok(not cd.is_tray_open() and not cd._media_slot.enabled, "drawer/a fresh CD player's tray is in and takes no disc")
+	cd._on_open_pressed()
+	await _settle_drawer(drawer)
+	_ok(cd.is_tray_open() and cd._media_slot.enabled, "drawer/OPEN slides the tray out, and it takes a disc")
+	cd._update_vfd()
+	_eq(str(cd._vfd_state.get("word", "")), "OPEN", "drawer/the display says OPEN")
 	var disc := AUDIO_DISC.instantiate() as AudioDisc
 	disc.album_path = "/nowhere/Some Album"
 	add_child(disc)
 	_spawned.append(disc)
 	await get_tree().process_frame
-	cd.restore_media(disc)
+	cd._slot._accept(disc, false)
 	await get_tree().process_frame
-	_ok(tray.has_media(), "gate/a disc is in the CD deck's well")
-	_ok(not tray.can_spin(), "gate/lid up over a disc: no spin")
+	_ok(not cd._media_slot.enabled, "drawer/a full tray takes no second disc")
+	await _settle_drawer(drawer)
+	var seat := cd._model.part_transform("DiscSeat", cd)
+	var at := cd.global_transform.affine_inverse() * disc.global_transform
+	_ok(not cd.is_tray_open() and at.origin.distance_to(seat.origin + Vector3(0.0, CDPlayer.DISC_LIFT, 0.0)) < 0.0005,
+		"drawer/the disc rides in on the tray, lying on its seat", "%s vs %s" % [at.origin, seat.origin])
+	_ok(cd.get_snapped_media() == disc, "drawer/the deck has the disc")
+	cd._on_open_pressed()
+	await _settle_drawer(drawer)
+	at = cd.global_transform.affine_inverse() * disc.global_transform
+	_ok(cd.is_tray_open() and cd._slot.is_parked() and at.origin.z > 0.19 and disc.enabled,
+		"drawer/OPEN brings the disc back out on the tray, where a hand can take it", str(at.origin))
+	cd._on_open_pressed()
+	await _settle_drawer(drawer)
+	_ok(not cd.is_tray_open() and cd.get_snapped_media() == disc, "drawer/...and OPEN again takes it back in")
+	cd.remove_media()
+	await _settle_drawer(drawer)
+	_ok(cd.is_tray_open() and cd._slot.is_parked(), "drawer/the net layer's remove brings it out on the tray")
+	# What plays next.
+	cd._tracks = PackedStringArray(["a", "b", "c"])
+	cd.repeat = false
+	cd.shuffle = false
+	_eq(cd._track_after(0), 1, "drawer/the next track follows")
+	_eq(cd._track_after(2), -1, "drawer/...and the album ends")
+	(cd.get_node("RepeatButton") as VRButton).button_pressed.emit()
+	_ok(cd.repeat, "drawer/REPEAT turns repeat on")
+	_eq(cd._track_after(2), 0, "drawer/...and the album plays round again")
+	(cd.get_node("ShuffleButton") as VRButton).button_pressed.emit()
+	cd.repeat = false
+	var seen := {}
+	var idx := 0
+	for i in 2:
+		idx = cd._track_after(idx)
+		seen[idx] = true
+	_ok(cd.shuffle and seen.size() == 2 and not seen.has(0) and cd._track_after(idx) == -1,
+		"drawer/SHUFFLE plays every other track once, then (no REPEAT) ends", str(seen))
+	_ok(cd.has_scan() and not (cd.get_node("RewindButton") as VRButton).visible
+		and (cd.get_node("FastForwardButton") as VRButton).collision_layer == 0,
+		"drawer/REW and FF are off the box (the model has none) and the remote still scans")
 
-	tray.set_open(false)
+
+## The cassette deck's door (DeckDrawer): EJECT tips an empty door out and opens it to a cassette, one let go there
+## stands in it and rides in on TapeSeat, EJECT tips it out with the cassette leaning out, COUNTER RESET zeroes the
+## counter, REC does nothing but press, the spindles turn while the tape moves, and the meters follow the sound.
+func _test_cassette_door() -> void:
+	var deck := await _deck(CASSETTE_PLAYER) as CassettePlayer
+	deck.freeze = true
+	var drawer: DeckDrawer = deck._drawer
+	_ok(drawer != null and deck._model != null and deck._model.levels.size() == 3, "drawer/the cassette deck wears its model's door")
+	_ok(not deck.is_door_open() and not deck._media_slot.enabled, "drawer/a fresh deck's door is shut and takes no tape")
+	(deck.get_node("EjectButton") as VRButton).button_pressed.emit()
+	await _settle_drawer(drawer)
+	_ok(deck.is_door_open() and deck._media_slot.enabled, "drawer/EJECT tips the empty door out, and it takes a tape")
+	var tape := AUDIO_CASSETTE.instantiate() as AudioCassette
+	tape.album_path = "/nowhere/Some Album"
+	add_child(tape)
+	_spawned.append(tape)
 	await get_tree().process_frame
-	_ok(not tray.is_open(), "gate/the button seals the well at once")
-	_ok(not tray.can_spin(), "gate/...but a lid still coming down does not spin")
-	await get_tree().create_timer(tray.lid_time + 0.1).timeout
-	_ok(tray.can_spin(), "gate/...and it does once the lid is home")
+	deck._slot._accept(tape, false)
+	await _settle_drawer(drawer)
+	var seat := deck._model.part_transform("TapeSeat", deck)
+	var at := deck.global_transform.affine_inverse() * tape.global_transform
+	_ok(not deck.is_door_open() and at.origin.distance_to(seat.origin) < 0.0005 and at.basis.z.dot(Vector3.BACK) > 0.999
+		and at.basis.y.dot(Vector3.UP) > 0.999, "drawer/the tape rides in standing in the door, its face out",
+		"%s %s" % [at.origin, at.basis])
+	(deck.get_node("EjectButton") as VRButton).button_pressed.emit()
+	await _settle_drawer(drawer)
+	at = deck.global_transform.affine_inverse() * tape.global_transform
+	# Leaning out with the door: its up axis tipped toward the front by the door's 22 degrees (sin 22 = 0.37).
+	_ok(deck.is_door_open() and deck._slot.is_parked() and absf(at.basis.y.normalized().z - sin(deg_to_rad(22.0))) < 0.02
+		and tape.enabled, "drawer/EJECT tips the door out with the tape leaning out of it, free to take",
+		"%s %s" % [at.origin, at.basis.y])
+	(deck.get_node("EjectButton") as VRButton).button_pressed.emit()
+	await _settle_drawer(drawer)
+	_ok(not deck.is_door_open() and deck.get_snapped_media() == tape, "drawer/...and EJECT again shuts it in")
+	# The counter: a side's worth 0 .. 999 from the last reset.
+	tape.tape_progress = 0.5
+	_eq(deck.counter(), 499, "drawer/the counter stands at the tape's place")
+	(deck.get_node("CounterResetButton") as VRButton).button_pressed.emit()
+	_eq(deck.counter(), 0, "drawer/COUNTER RESET zeroes it")
+	tape.tape_progress = 0.6
+	_eq(deck.counter(), 100, "drawer/...and it counts on from there")
+	(deck.get_node("RecordButton") as VRButton).button_pressed.emit()
+	_ok(deck.get_snapped_media() == tape and not deck.is_playing, "drawer/REC does nothing but press")
+	# The spindles: a stand-in tape (no drawn hubs: suites mount no mods) turns them at its speed.
+	# Nothing plays headless (see the top of this file): the deck is told it is playing, which is what sets the tape
+	# moving (RetroAudioPlayer._note_tape).
+	var spindle := deck._model.part("ReelL")
+	var before := spindle.rotation.z
+	deck.is_playing = true
+	for i in 3:
+		await get_tree().process_frame
+	_ok(not is_equal_approx(spindle.rotation.z, before), "drawer/the spindles turn while the tape moves")
+	deck.is_playing = false
+	await get_tree().process_frame
+	before = spindle.rotation.z
+	await get_tree().process_frame
+	_ok(is_equal_approx(spindle.rotation.z, before), "drawer/...and stand still while it does not")
+	# The meters: the peak of what played, each channel.
+	deck.levels = Vector2.ZERO
+	deck._measure(PackedVector2Array([Vector2(0.2, -0.7), Vector2(-0.5, 0.1)]))
+	_ok(is_equal_approx(deck.levels.x, 0.5) and is_equal_approx(deck.levels.y, 0.7), "drawer/the meters read each channel's peak",
+		str(deck.levels))
+
+
+## Run a deck's drawer until it stops (frames with a fixed step, so this does not wait on a clock).
+func _settle_drawer(drawer: DeckDrawer) -> void:
+	for i in 120:
+		drawer.step(0.05)
+		await get_tree().process_frame
+		if not drawer.is_moving():
+			break
 
 
 # ── arm/ ──────────────────────────────────────────────────────────────────────

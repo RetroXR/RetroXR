@@ -337,6 +337,39 @@ player's 33/45 lie on the deck and press along -Y. `appliance_pointer_tests` `po
 into every live key of the VCR, DVD, amplifier, record player and television (and the door keys with the door
 open): each sinks its full travel, fires once, alone, and comes back up. Taking the gate off box keys fails it.
 
+### The RETRO XR cassette deck and CD player (2026-10-30)
+
+`cassette_player.tscn` and `cd_player.tscn` wear RetroXR-models' `generic/cassette-deck` (concept 1) and
+`generic/cd-player` (concept 2), copied into `imported-assets/appliances/{cassette_deck,cd_player}/` as the other
+decks are. Every node the saves and netplay name is kept; the old box, slit, lid and well are gone.
+
+- **The mechanism is `DeckDrawer`** (`Scripts/Objects/media/deck_drawer.gd`), the DVD player's tray generalised: the
+  model's `Open` / `Close` carry the medium on a seat the model marks (`TapeSeat` on the door, `DiscSeat` on the
+  tray) through `MediaSlot.ride_driver`, the seat's turn included (the door tips 22 degrees). The slot's zone is put
+  on the OPEN seat at setup and takes a medium only while the drawer is out, still and empty. The open key goes to
+  `press()`: a full drawer ejects (or, parked, takes it back), an empty one opens or shuts. A restore lands shut.
+- **Cassette:** it stands in the door as front-loaders take one (the playing side out, the exposed tape edge down).
+  The spindles (`ReelL` / `ReelR`) stand at the angle of a drawn cassette's own hubs (`HubSupply` / `HubTakeup`, what
+  the `xenu.cassette` mod draws; the deck runs after the shell, `process_priority` 1), or turn at the tape's speed for
+  the stand-in box. The base game does NOT draw the Compact Cassette: that is the mod's (a base shell would dress
+  every cassette twice). The counter is the tape's place, a side's worth 0-999, from the last COUNTER RESET. REC
+  presses and logs: the deck plays, it does not record. REC LEVEL is molded. The meters read the PCM the deck pumps
+  (`RetroAudioPlayer.wants_levels` / `levels`, peaks falling 1.8 a second) and redraw at most 12 Hz.
+- **CD:** the tray is the DVD player's (a trimesh `TrayBody` riding the drawer). The model has no REW / FF: those
+  buttons stay for the remote's scan, out of play on the box. REPEAT and SHUFFLE choose what plays next through
+  `RetroAudioPlayer._track_after` (SHUFFLE plays each track once, then ends unless REPEAT); they are the host's own in
+  a session, not synced. OPEN mid-play stops. The display says OPEN / CLOSE / NO DISC / LOADING, else TRACK, m:ss,
+  the two lamps and the 20-track calendar. PHONES and LEVEL are molded.
+- **Collision:** the body and PointerArea are the model less the door / tray, and stop at the fascia
+  (`ApplianceModel.fit_shapes(..., front)`): the molded knobs are merged into the close level's Body and stand 9-11 mm
+  proud, which put the keys 9 mm inside the box and out of the desktop ray's reach. An open door has no collision of
+  its own; the tape in it does once it is out.
+- Both have a LINE OUT phono pair (`AudioLOut` / `AudioROut`) on the model's jacks, and a `PowerCordExit`.
+- Tests: `deck_tests drawer/` (both mechanisms, the zone, the seat and its tilt, REPEAT / SHUFFLE, REW / FF off the box,
+  the counter and its reset, REC, the spindles, the meters; mutating the seat's turn, the zone, REPEAT and REW / FF each
+  fail it) and `appliance_pointer_tests` (every key: box, desktop ray, fingertip). How they look and run:
+  `Tools/av/audio_deck_video_probe` (windowed, `--deck=cassette|cd --album=<folder>`).
+
 ### Headphone jacks, and the RETRO XR headphones (2026-10-30)
 
 **The jacks** (commit e744ce16). A handheld with no phono sockets wears a 3.5 mm TRS socket, `PhonesOut` (OUT,
