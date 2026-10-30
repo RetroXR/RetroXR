@@ -55,6 +55,12 @@ var _volume_linear: float = 1.0
 
 var _snapped_media: Node3D = null
 
+## A deck with level meters (the RETRO XR cassette deck) sets this, and `levels` then holds the peak of what played,
+## each channel 0..1, falling back over about half a second. Off, nothing is measured.
+var wants_levels := false
+var levels := Vector2.ZERO
+const LEVEL_FALL := 1.8           # per second
+
 @warning_ignore("unused_private_class_variable")
 @onready var _media_slot: XRToolsSnapZone = $MediaSlot
 @onready var _name_label: Label3D = $NameLabel
@@ -297,6 +303,17 @@ func _pump_audio() -> void:
 	var frames: PackedVector2Array = _vlc.read_audio(want)
 	if frames.size() > 0:
 		_emitter.push_stereo(frames)
+		if wants_levels:
+			_measure(frames)
+
+
+## The peak of this batch of PCM, each channel, over what the meters already show falling back.
+func _measure(frames: PackedVector2Array) -> void:
+	var peak := Vector2.ZERO
+	for f in frames:
+		peak = Vector2(maxf(peak.x, absf(f.x)), maxf(peak.y, absf(f.y)))
+	var fall := LEVEL_FALL * get_process_delta_time()
+	levels = Vector2(maxf(levels.x - fall, peak.x), maxf(levels.y - fall, peak.y)).clampf(0.0, 1.0)
 
 
 # --- Position helpers (VlcPlayer reports ms / 0..1) ---
@@ -612,8 +629,9 @@ func _on_track_finished() -> void:
 	if NetworkManager.is_client():
 		return   # the host drives advancement; clients follow its state
 	_resume_at = 0.0
-	if _track_idx + 1 < _tracks.size():
-		_track_idx += 1
+	var after := _track_after(_track_idx)
+	if after >= 0:
+		_track_idx = after
 		play()
 	else:
 		_log_event("end of album")
@@ -631,6 +649,12 @@ func _on_track_finished() -> void:
 			_emitter.flush()
 		_update_status()
 		_net_push_state()
+
+
+## The track that plays when `idx` ends, or -1 to stop: the next one, to the album's end. A deck with REPEAT or
+## SHUFFLE (the CD player) answers for itself.
+func _track_after(idx: int) -> int:
+	return idx + 1 if idx + 1 < _tracks.size() else -1
 
 
 # --- Volume / status ---

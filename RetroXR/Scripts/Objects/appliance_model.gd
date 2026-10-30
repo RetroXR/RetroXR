@@ -236,11 +236,16 @@ static func fit_collision(shape: CollisionShape3D, boxes: Array[AABB]) -> void:
 ## Fit every shape in `shapes` (the body's and the PointerArea's) to what the close level draws, less `except`,
 ## each in its own parent's frame. No margin: the desktop ray takes the object only where it is drawn, and a key
 ## standing on the face is never inside a shell padded out past it.
-func fit_shapes(shapes: Array[CollisionShape3D], except: Array[String] = []) -> void:
+## `front`: the fascia's face (+Z, in the shapes' frame) the box stops at. A part merged into the close level's Body
+## that stands well proud of the face (a molded knob) would otherwise carry the box out over the keys beside it,
+## deeper than the ray lets a key win from inside a shell; the knob is left to the box behind it.
+func fit_shapes(shapes: Array[CollisionShape3D], except: Array[String] = [], front: float = INF) -> void:
 	for shape in shapes:
 		if shape == null:
 			continue
 		var box := bounds(shape.get_parent() as Node3D, except)
+		if box.end.z > front:
+			box.size.z = front - box.position.z
 		fit_box(shape, box)
 		print("[Appliance] %s: %s fitted to the model, %s mm" % [name, shape.get_path(), (box.size * 1000.0).snapped(Vector3.ONE * 0.1)])
 

@@ -1,0 +1,210 @@
+{
+ "power_cord_exit": {
+  "node": "PowerCordExit",
+  "position": [
+   -0.17,
+   -0.02,
+   -0.164
+  ],
+  "direction": [
+   0.0,
+   0.0,
+   -1.0
+  ],
+  "note": "the strain relief tip on the back; the mains cord leaves along the local -Z, out of the back (identity basis)"
+ },
+ "units": "meters, glTF frame (Godot): +Y up, the front faces +Z, x to the right seen from the front",
+ "fps": 30,
+ "door_angle_deg": 22.0,
+ "door": "Door turns about its local X at its hinge (the bottom edge of its face): Open tips the top out (a positive turn about glTF X) by door_angle_deg; TapeSeat (its child) is where a cassette goes, its center, label face out (+Z), the exposed tape edge down",
+ "door_hinge": [
+  -0.132,
+  -0.044,
+  0.1494
+ ],
+ "tape_seat_shut": [
+  -0.132,
+  -0.004,
+  0.1389
+ ],
+ "tape_size": [
+  0.1004,
+  0.0638,
+  0.012
+ ],
+ "reels": {
+  "ReelL": [
+   -0.15325,
+   -0.0011,
+   0.1389
+  ],
+  "ReelR": [
+   -0.11075,
+   -0.0011,
+   0.1389
+  ],
+  "note": "spindles under the cassette's hubs; each turns about its local Z"
+ },
+ "open": [
+  {
+   "frame": 0,
+   "angle_deg": 0.0
+  },
+  {
+   "frame": 1,
+   "angle_deg": 0.1962
+  },
+  {
+   "frame": 2,
+   "angle_deg": 0.7545
+  },
+  {
+   "frame": 3,
+   "angle_deg": 1.6296
+  },
+  {
+   "frame": 4,
+   "angle_deg": 2.7764
+  },
+  {
+   "frame": 5,
+   "angle_deg": 4.1495
+  },
+  {
+   "frame": 6,
+   "angle_deg": 5.7037
+  },
+  {
+   "frame": 7,
+   "angle_deg": 7.3937
+  },
+  {
+   "frame": 8,
+   "angle_deg": 9.1742
+  },
+  {
+   "frame": 9,
+   "angle_deg": 11.0
+  },
+  {
+   "frame": 10,
+   "angle_deg": 12.8258
+  },
+  {
+   "frame": 11,
+   "angle_deg": 14.6063
+  },
+  {
+   "frame": 12,
+   "angle_deg": 16.2963
+  },
+  {
+   "frame": 13,
+   "angle_deg": 17.8505
+  },
+  {
+   "frame": 14,
+   "angle_deg": 19.2236
+  },
+  {
+   "frame": 15,
+   "angle_deg": 20.3704
+  },
+  {
+   "frame": 16,
+   "angle_deg": 21.2455
+  },
+  {
+   "frame": 17,
+   "angle_deg": 21.8038
+  },
+  {
+   "frame": 18,
+   "angle_deg": 22.0
+  }
+ ],
+ "close": [
+  {
+   "frame": 0,
+   "angle_deg": 22.0
+  },
+  {
+   "frame": 1,
+   "angle_deg": 21.8038
+  },
+  {
+   "frame": 2,
+   "angle_deg": 21.2455
+  },
+  {
+   "frame": 3,
+   "angle_deg": 20.3704
+  },
+  {
+   "frame": 4,
+   "angle_deg": 19.2236
+  },
+  {
+   "frame": 5,
+   "angle_deg": 17.8505
+  },
+  {
+   "frame": 6,
+   "angle_deg": 16.2963
+  },
+  {
+   "frame": 7,
+   "angle_deg": 14.6063
+  },
+  {
+   "frame": 8,
+   "angle_deg": 12.8258
+  },
+  {
+   "frame": 9,
+   "angle_deg": 11.0
+  },
+  {
+   "frame": 10,
+   "angle_deg": 9.1742
+  },
+  {
+   "frame": 11,
+   "angle_deg": 7.3937
+  },
+  {
+   "frame": 12,
+   "angle_deg": 5.7037
+  },
+  {
+   "frame": 13,
+   "angle_deg": 4.1495
+  },
+  {
+   "frame": 14,
+   "angle_deg": 2.7764
+  },
+  {
+   "frame": 15,
+   "angle_deg": 1.6296
+  },
+  {
+   "frame": 16,
+   "angle_deg": 0.7545
+  },
+  {
+   "frame": 17,
+   "angle_deg": 0.1962
+  },
+  {
+   "frame": 18,
+   "angle_deg": 0.0
+  }
+ ],
+ "triangles": {
+  "high": 42970,
+  "lod0": 9390,
+  "lod1": 6553,
+  "lod2": 5576
+ }
+}

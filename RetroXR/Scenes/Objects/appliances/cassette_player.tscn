@@ -1,25 +1,26 @@
-[gd_scene load_steps=18 format=3 uid="uid://cassetteplayer_0001"]
+[gd_scene format=3 uid="uid://cassetteplayer_0001"]
 
 [ext_resource type="Script" path="res://Scripts/Objects/media/cassette_player.gd" id="1_casscript"]
 [ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="2_snapzone"]
 [ext_resource type="Script" uid="uid://d3iq3gmwxpvjl" path="res://Scripts/Objects/widgets/vr_button.gd" id="3_vrbtn"]
 [ext_resource type="Script" uid="uid://dgp6irihw103g" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="4_snaphis"]
 [ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="5_pickhigh"]
+[ext_resource type="Script" uid="uid://by3ntgy3fbgth" path="res://Scripts/Objects/appliance_model.gd" id="6_model"]
+[ext_resource type="PackedScene" uid="uid://cwjd4yffvc5gs" path="res://imported-assets/appliances/cassette_deck/cassette_mobile.glb" id="7_lod0"]
+[ext_resource type="PackedScene" uid="uid://dumi6xohsvole" path="res://imported-assets/appliances/cassette_deck/cassette_mobile_lod1.glb" id="8_lod1"]
+[ext_resource type="PackedScene" uid="uid://bwjstmtis0130" path="res://imported-assets/appliances/cassette_deck/cassette_mobile_lod2.glb" id="9_lod2"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="10_rcaport"]
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_cas"]
 friction = 0.8
 
+; Fitted to the model at _ready (ApplianceModel.fit_shapes): what is drawn, less the door.
 [sub_resource type="BoxShape3D" id="BoxShape3D_body"]
-size = Vector3(0.26, 0.07, 0.2)
+size = Vector3(0.43, 0.12, 0.3)
 
-[sub_resource type="BoxMesh" id="BoxMesh_body"]
-size = Vector3(0.26, 0.07, 0.2)
-
-[sub_resource type="StandardMaterial3D" id="Mat_body"]
-albedo_color = Color(0.14, 0.12, 0.1, 1)
-
+; The ghost a held cassette shows in the open door. The zone itself is put on the door's TapeSeat at _ready.
 [sub_resource type="BoxMesh" id="BoxMesh_slot_ghost"]
-size = Vector3(0.14, 0.08, 0.025)
+size = Vector3(0.1004, 0.0638, 0.012)
 
 [sub_resource type="StandardMaterial3D" id="Mat_slot_ghost"]
 transparency = 1
@@ -28,24 +29,15 @@ emission_enabled = true
 emission = Color(0, 0.15, 0.5, 1)
 emission_energy_multiplier = 0.4
 
+; Placeholder boxes; ApplianceModel.adopt_button() replaces each key's with the model's own key and fits the box to it.
 [sub_resource type="BoxShape3D" id="BoxShape3D_btn"]
 size = Vector3(0.03, 0.02, 0.03)
 
-[sub_resource type="BoxMesh" id="BoxMesh_btn"]
-size = Vector3(0.03, 0.02, 0.03)
-
-[sub_resource type="StandardMaterial3D" id="Mat_btn"]
-albedo_color = Color(0.3, 0.3, 0.3, 1)
-
-[sub_resource type="BoxMesh" id="BoxMesh_slit"]
-size = Vector3(0.11, 0.02, 0.004)
-
-[sub_resource type="StandardMaterial3D" id="Mat_slit"]
-albedo_color = Color(0.03, 0.03, 0.04, 1)
-
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
-size = Vector3(0.28, 0.07, 0.22)
+size = Vector3(0.43, 0.12, 0.3)
 
+; RETRO XR cassette deck (RetroXR-models generic/cassette-deck): its three levels under Model, dressed by
+; cassette_player.gd (the door is a DeckDrawer, the keys the model's, the display a VfdDisplay).
 [node name="CassettePlayer" type="RigidBody3D" groups=["cassette_player"]]
 collision_layer = 4
 collision_mask = 196613
@@ -54,20 +46,20 @@ freeze_mode = 1
 linear_damp = 5.0
 angular_damp = 8.0
 script = ExtResource("1_casscript")
-player_label = "CASSETTE PLAYER"
+player_label = "CASSETTE DECK"
+
+[node name="Model" type="Node3D" parent="."]
+script = ExtResource("6_model")
+level_scenes = Array[PackedScene]([ExtResource("7_lod0"), ExtResource("8_lod1"), ExtResource("9_lod2")])
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("BoxShape3D_body")
-
-[node name="CassetteBody" type="MeshInstance3D" parent="."]
-mesh = SubResource("BoxMesh_body")
-surface_material_override/0 = SubResource("Mat_body")
 
 [node name="PickableHighlight" type="Node3D" parent="."]
 script = ExtResource("5_pickhigh")
 
 [node name="MediaSlot" parent="." instance=ExtResource("2_snapzone")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.005, 0.1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.132, -0.004, 0.1389)
 grab_distance = 0.09
 snap_require = "audio_cassette"
 
@@ -75,17 +67,11 @@ snap_require = "audio_cassette"
 script = ExtResource("4_snaphis")
 
 [node name="HighlightMesh" type="MeshInstance3D" parent="MediaSlot/SnapHighlight"]
-transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 0)
 mesh = SubResource("BoxMesh_slot_ghost")
 surface_material_override/0 = SubResource("Mat_slot_ghost")
 
-[node name="TapeSlit" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.005, 0.1005)
-mesh = SubResource("BoxMesh_slit")
-surface_material_override/0 = SubResource("Mat_slit")
-
 [node name="RewindButton" type="Area3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.09, 0.035, 0.075)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.100, 0.0, 0.16)
 collision_layer = 0
 collision_mask = 0
 script = ExtResource("3_vrbtn")
@@ -94,17 +80,16 @@ script = ExtResource("3_vrbtn")
 shape = SubResource("BoxShape3D_btn")
 
 [node name="ButtonMesh" type="MeshInstance3D" parent="RewindButton"]
-mesh = SubResource("BoxMesh_btn")
-surface_material_override/0 = SubResource("Mat_btn")
 
 [node name="ButtonLabel" type="Label3D" parent="RewindButton"]
 transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.012, 0)
+visible = false
 pixel_size = 0.001
 text = "<<"
 font_size = 9
 
 [node name="PlayButton" type="Area3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.05, 0.035, 0.075)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.070, 0.0, 0.16)
 collision_layer = 0
 collision_mask = 0
 script = ExtResource("3_vrbtn")
@@ -113,17 +98,16 @@ script = ExtResource("3_vrbtn")
 shape = SubResource("BoxShape3D_btn")
 
 [node name="ButtonMesh" type="MeshInstance3D" parent="PlayButton"]
-mesh = SubResource("BoxMesh_btn")
-surface_material_override/0 = SubResource("Mat_btn")
 
 [node name="ButtonLabel" type="Label3D" parent="PlayButton"]
 transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.012, 0)
+visible = false
 pixel_size = 0.001
 text = "PLAY"
 font_size = 9
 
 [node name="PauseButton" type="Area3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.01, 0.035, 0.075)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.040, 0.0, 0.16)
 collision_layer = 0
 collision_mask = 0
 script = ExtResource("3_vrbtn")
@@ -132,17 +116,16 @@ script = ExtResource("3_vrbtn")
 shape = SubResource("BoxShape3D_btn")
 
 [node name="ButtonMesh" type="MeshInstance3D" parent="PauseButton"]
-mesh = SubResource("BoxMesh_btn")
-surface_material_override/0 = SubResource("Mat_btn")
 
 [node name="ButtonLabel" type="Label3D" parent="PauseButton"]
 transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.012, 0)
+visible = false
 pixel_size = 0.001
 text = "PAUSE"
 font_size = 9
 
 [node name="StopButton" type="Area3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.03, 0.035, 0.075)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.010, 0.0, 0.16)
 collision_layer = 0
 collision_mask = 0
 script = ExtResource("3_vrbtn")
@@ -151,17 +134,16 @@ script = ExtResource("3_vrbtn")
 shape = SubResource("BoxShape3D_btn")
 
 [node name="ButtonMesh" type="MeshInstance3D" parent="StopButton"]
-mesh = SubResource("BoxMesh_btn")
-surface_material_override/0 = SubResource("Mat_btn")
 
 [node name="ButtonLabel" type="Label3D" parent="StopButton"]
 transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.012, 0)
+visible = false
 pixel_size = 0.001
 text = "STOP"
 font_size = 9
 
 [node name="FastForwardButton" type="Area3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.07, 0.035, 0.075)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.020, 0.0, 0.16)
 collision_layer = 0
 collision_mask = 0
 script = ExtResource("3_vrbtn")
@@ -170,17 +152,16 @@ script = ExtResource("3_vrbtn")
 shape = SubResource("BoxShape3D_btn")
 
 [node name="ButtonMesh" type="MeshInstance3D" parent="FastForwardButton"]
-mesh = SubResource("BoxMesh_btn")
-surface_material_override/0 = SubResource("Mat_btn")
 
 [node name="ButtonLabel" type="Label3D" parent="FastForwardButton"]
 transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.012, 0)
+visible = false
 pixel_size = 0.001
 text = ">>"
 font_size = 9
 
 [node name="EjectButton" type="Area3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.11, 0.035, 0.075)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.050, 0.0, 0.16)
 collision_layer = 0
 collision_mask = 0
 script = ExtResource("3_vrbtn")
@@ -189,23 +170,58 @@ script = ExtResource("3_vrbtn")
 shape = SubResource("BoxShape3D_btn")
 
 [node name="ButtonMesh" type="MeshInstance3D" parent="EjectButton"]
-mesh = SubResource("BoxMesh_btn")
-surface_material_override/0 = SubResource("Mat_btn")
 
 [node name="ButtonLabel" type="Label3D" parent="EjectButton"]
 transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.012, 0)
+visible = false
 pixel_size = 0.001
 text = "EJECT"
-font_size = 7
+font_size = 9
 
-; The nameplate, flat on the front face. Below the slot rather than centred on it:
-; on a front loader the middle of that face is the tape mouth.
+[node name="RecordButton" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.080, 0.0, 0.16)
+collision_layer = 0
+collision_mask = 0
+script = ExtResource("3_vrbtn")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RecordButton"]
+shape = SubResource("BoxShape3D_btn")
+
+[node name="ButtonMesh" type="MeshInstance3D" parent="RecordButton"]
+
+[node name="ButtonLabel" type="Label3D" parent="RecordButton"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.012, 0)
+visible = false
+pixel_size = 0.001
+text = "REC"
+font_size = 9
+
+[node name="CounterResetButton" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.110, 0.0, 0.16)
+collision_layer = 0
+collision_mask = 0
+script = ExtResource("3_vrbtn")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="CounterResetButton"]
+shape = SubResource("BoxShape3D_btn")
+
+[node name="ButtonMesh" type="MeshInstance3D" parent="CounterResetButton"]
+
+[node name="ButtonLabel" type="Label3D" parent="CounterResetButton"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.012, 0)
+visible = false
+pixel_size = 0.001
+text = "RESET"
+font_size = 9
+
+; Hidden: the model wears its own lettering. Kept for the scripts (audio_player.gd writes its text).
 [node name="NameLabel" type="Label3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.024, 0.1012)
+visible = false
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0.151)
 pixel_size = 0.001
 font_size = 18
 outline_size = 4
-text = "CASSETTE PLAYER"
+text = "CASSETTE DECK"
 
 [node name="PointerArea" type="StaticBody3D" parent="."]
 collision_layer = 1048576
@@ -213,3 +229,15 @@ collision_mask = 0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
 shape = SubResource("BoxShape3D_pointer")
+
+; The line out on the model's back (white L, red R): a lead into a set's audio input or the surround amplifier's
+; AUDIO IN carries the tape there (audio_player.gd, "Line out"). Seated on the model's jack mouths at _ready.
+[node name="AudioLOut" parent="." instance=ExtResource("10_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.1, 0, -0.159)
+channel = 1
+direction = 0
+
+[node name="AudioROut" parent="." instance=ExtResource("10_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.118, 0, -0.159)
+channel = 2
+direction = 0

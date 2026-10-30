@@ -4,13 +4,13 @@
 [ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_tape"]
-size = Vector3(0.1, 0.064, 0.012)
+size = Vector3(0.1004, 0.0638, 0.012)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
-size = Vector3(0.12, 0.08, 0.02)
+size = Vector3(0.1004, 0.0638, 0.012)
 
 [sub_resource type="BoxMesh" id="BoxMesh_tape"]
-size = Vector3(0.1, 0.064, 0.012)
+size = Vector3(0.1004, 0.0638, 0.012)
 
 [sub_resource type="StandardMaterial3D" id="Mat_tape"]
 albedo_color = Color(0.1, 0.09, 0.08, 1.0)
