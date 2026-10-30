@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Tools/av/amp_speakers_video_probe.gd" id="1"]
+
+[node name="AmpSpeakersVideoProbe" type="Node"]
+script = ExtResource("1")
