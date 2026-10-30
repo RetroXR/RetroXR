@@ -71,6 +71,8 @@ func _ready() -> void:
 	if _wants("mkdir"):
 		_test_mkdir_name_rules()
 		_test_mkdir_creates_and_refuses()
+	if _wants("access"):
+		_test_access_problem()
 
 	_cleanup()
 	_finish()
@@ -453,4 +455,59 @@ func _test_mkdir_creates_and_refuses() -> void:
 
 	DirAccess.remove_absolute(_up_root().path_join("New Folder/Inner"))
 	DirAccess.remove_absolute(_up_root().path_join("New Folder"))
+	_cleanup_up_dir()
+
+
+# ── Access warnings ───────────────────────────────────────────────────────────
+#
+# A file manager on a Quest makes folders under its OWN owner inside the app's
+# media tree, and the app is then "other" to them: it may not enter one, or may
+# enter and never write. The page paints whatever access_problem() reports in
+# red, so the check must tell a broken entry from a good one. Godot cannot make
+# a file another user's, so these take the permission away instead, which is
+# what the app sees either way.
+
+func _test_access_problem() -> void:
+	DirAccess.make_dir_recursive_absolute(_up_root())
+	var file := _up_root().path_join("Save.srm")
+	var f := FileAccess.open(file, FileAccess.WRITE)
+	f.store_string("SAVE")
+	f.close()
+
+	_eq(WebFileServer.access_problem(_up_root(), true), "",
+		"access/a folder the app made is fine")
+	_ok(not FileAccess.file_exists(_up_root().path_join(".retroxr_write_test")),
+		"access/and the write probe is cleaned up")
+	_eq(WebFileServer.access_problem(file, false), "", "access/a file the app made is fine")
+	_eq(FileAccess.get_file_as_string(file), "SAVE",
+		"access/and checking it leaves its bytes alone")
+	_eq(WebFileServer.access_problem(_up_root().path_join("Missing.srm"), false),
+		"unreadable", "access/a file that cannot be opened is unreadable")
+
+	var windows := OS.get_name() == "Windows"
+	if windows:
+		FileAccess.set_read_only_attribute(file, true)
+	else:
+		FileAccess.set_unix_permissions(file, 292)  # 0444
+	_eq(WebFileServer.access_problem(file, false), "read_only",
+		"access/a file the app cannot change is read_only")
+	if windows:
+		FileAccess.set_read_only_attribute(file, false)
+	else:
+		FileAccess.set_unix_permissions(file, 420)  # 0644
+
+	# Windows has no unix mode for a folder and root ignores it, so the folder
+	# cases run where the bits mean something.
+	if not windows and OS.get_environment("USER") != "root":
+		var shut := _up_root().path_join("Shut")
+		DirAccess.make_dir_absolute(shut)
+		FileAccess.set_unix_permissions(shut, 365)  # 0555
+		_eq(WebFileServer.access_problem(shut, true), "read_only",
+			"access/a folder the app can enter but not write is read_only")
+		FileAccess.set_unix_permissions(shut, 0)  # 0000
+		_eq(WebFileServer.access_problem(shut, true), "locked",
+			"access/a folder the app cannot enter is locked")
+		FileAccess.set_unix_permissions(shut, 493)  # 0755
+		DirAccess.remove_absolute(shut)
+
 	_cleanup_up_dir()

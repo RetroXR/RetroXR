@@ -391,27 +391,83 @@ func _handle_list(peer: StreamPeerTCP, rel: String) -> void:
 		return
 	var dir := DirAccess.open(abs_path)
 	if not dir:
+		# There but shut: its parent lists it, yet the app may not go in.
+		if DirAccess.dir_exists_absolute(abs_path):
+			push_warning("[WebFileServer] access: %s is locked (%s)" % [abs_path, _mode_text(abs_path)])
+			_send_text(peer, 403, "application/json", JSON.stringify({"error": "locked", "problem": "locked"}))
+			return
 		_send_text(peer, 404, "application/json", '{"error":"not found"}')
 		return
 
-	var dirs: Array[String] = []
+	var dirs: Array = []
 	var files: Array = []
 	dir.list_dir_begin()
 	var entry_name := dir.get_next()
 	while entry_name != "":
 		if not entry_name.begins_with("."):
+			var p := abs_path.path_join(entry_name)
 			if dir.current_is_dir():
-				dirs.append(entry_name)
+				dirs.append({"name": entry_name, "problem": _logged_problem(p, true)})
 			else:
-				var fa := FileAccess.open(abs_path.path_join(entry_name), FileAccess.READ)
+				var fa := FileAccess.open(p, FileAccess.READ)
 				var size := fa.get_length() if fa else 0
-				files.append({"name": entry_name, "size": size})
+				files.append({"name": entry_name, "size": size, "problem": _logged_problem(p, false)})
 		entry_name = dir.get_next()
 	dir.list_dir_end()
 
-	dirs.sort()
-	files.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["name"] < b["name"])
-	_send_text(peer, 200, "application/json", JSON.stringify({"dirs": dirs, "files": files}))
+	var by_name := func(a: Dictionary, b: Dictionary) -> bool: return a["name"] < b["name"]
+	dirs.sort_custom(by_name)
+	files.sort_custom(by_name)
+	# The named roots are the app's own; only a folder below one can be someone else's.
+	var here := "" if _is_root_base(abs_path) else _logged_problem(abs_path, true)
+	_send_text(peer, 200, "application/json",
+		JSON.stringify({"dirs": dirs, "files": files, "problem": here}))
+
+
+## What stops the app using `path`, or "" when nothing does. Godot cannot say who
+## OWNS a file, so this asks the only question that matters by trying it:
+##   "locked"     a folder the app cannot open (made 0770/0700 by another app or adb)
+##   "read_only"  a folder it cannot create files in, or a file it cannot change
+##   "unreadable" a file it can see by name but cannot open
+## A folder is proved writable by writing, as DataPaths.validate() proves a data
+## root: the mode bits cannot be read against an owner we cannot learn. Opening a
+## file READ_WRITE neither creates nor truncates it.
+static func access_problem(path: String, is_dir: bool) -> String:
+	if is_dir:
+		if DirAccess.open(path) == null:
+			return "locked"
+		var probe := path.path_join(".retroxr_write_test")
+		var f := FileAccess.open(probe, FileAccess.WRITE)
+		if f == null:
+			return "read_only"
+		f.close()
+		DirAccess.remove_absolute(probe)
+		return ""
+	var r := FileAccess.open(path, FileAccess.READ)
+	if r == null:
+		return "unreadable"
+	r.close()
+	var w := FileAccess.open(path, FileAccess.READ_WRITE)
+	if w == null:
+		return "read_only"
+	w.close()
+	return ""
+
+
+## access_problem(), logged when it finds one. A listing is one request a click,
+## so this is never a per-frame path.
+func _logged_problem(path: String, is_dir: bool) -> String:
+	var problem := access_problem(path, is_dir)
+	if not problem.is_empty():
+		push_warning("[WebFileServer] access: %s is %s (%s)" % [path, problem, _mode_text(path)])
+	return problem
+
+
+## The mode bits, for the log line: evidence of who made it, never the verdict.
+static func _mode_text(path: String) -> String:
+	if OS.get_name() == "Windows":
+		return "no unix mode on Windows"
+	return "mode %o" % FileAccess.get_unix_permissions(path)
 
 
 ## Begin a streaming upload, or answer the request outright when it cannot start.
@@ -701,11 +757,18 @@ button{border:none;padding:3px 8px;border-radius:3px;cursor:pointer;font-size:13
 #lg_bar{margin-top:18px}
 .lb{background:#245;color:#8cf;padding:7px 12px;font-size:14px;margin-right:6px}
 .lb:hover{background:#367}
+#warn{display:none;background:#600;border:3px solid #f33;border-radius:8px;padding:16px;
+      margin-bottom:12px;color:#fff;font-size:15px;line-height:1.5}
+#warn b{display:block;color:#fdd;font-size:22px;margin-bottom:6px}
+tr.bad{background:#3a0a0a}
+tr.bad:hover{background:#4a0d0d}
+.why{display:block;color:#f88;font-size:13px;margin-top:3px;word-break:normal}
 #lg{margin-top:10px;background:#0b0b0f;border:1px solid #222;border-radius:6px;padding:10px;
     font-size:12px;color:#aaa;max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-all}
 </style></head><body>
 <h1>RetroXR Files</h1>
 <div id="bc"></div>
+<div id="warn"></div>
 <div id="dz">Drop files or a folder here &nbsp;·&nbsp;
 <label class="pk">choose files<input type="file" id="pf_files" multiple hidden></label> &nbsp;·&nbsp;
 <label class="pk">choose folder<input type="file" id="pf_dir" webkitdirectory hidden></label></div>
@@ -745,17 +808,37 @@ function go(p,push){
 // The Back button should step up the file-nav path visited, not leave the
 // page — replay the path the browser stored instead of pushing a new entry.
 window.addEventListener('popstate',function(e){go(e.state?e.state.path:'',false);});
+// What the server's access check found, in words. Another app (usually a file
+// manager) or adb made the entry under its own owner; RetroXR cannot change that,
+// so the only fix is to delete it there and put it back through this page.
+var WHY={
+  locked:'RetroXR cannot open this folder. Another app (a file manager?) created it under its own owner.',
+  read_only:'RetroXR cannot write here. Another app (a file manager?) created it under its own owner.',
+  unreadable:'RetroXR cannot read this file. Another app (a file manager?) created it under its own owner.'
+};
+var FIX='Delete it with the app that made it, then upload it again from this page.';
+function why(p){return p?'<span class="why">⚠ '+WHY[p]+'</span>':'';}
 function draw(d){
+  var w=document.getElementById('warn');
+  var bad=(d.dirs||[]).concat(d.files||[]).filter(function(e){return e.problem;}).length;
+  if(d.problem){
+	w.innerHTML='<b>⚠ THIS FOLDER IS BROKEN FOR RETROXR</b>'+WHY[d.problem]+'<br>'+FIX;
+	w.style.display='block';
+  }else if(bad){
+	w.innerHTML='<b>⚠ '+bad+' ITEM'+(bad>1?'S':'')+' HERE '+(bad>1?'ARE':'IS')+' BROKEN FOR RETROXR</b>Marked in red below. '+(bad>1?'Delete each one with the app that made it, then upload them again from this page.':FIX);
+	w.style.display='block';
+  }else{w.style.display='none';}
   var tb=document.getElementById('tb');
   var h='';
   if(cur){h+='<tr><td class="ic">📁</td><td class="nm dn" data-nav="'+esc(parent_of(cur))+'">..</td><td class="sz"></td><td class="ac"></td></tr>';}
-  (d.dirs||[]).forEach(function(n){
-	var cp=cur?cur+'/'+n:n;
-	h+='<tr><td class="ic">📁</td><td class="nm dn" data-nav="'+esc(cp)+'">'+esc(n)+'</td><td class="sz">—</td><td class="ac"></td></tr>';
+  (d.dirs||[]).forEach(function(e){
+	// The top level lists the named roots as bare names.
+	var n=typeof e==='string'?e:e.name,cp=cur?cur+'/'+n:n;
+	h+='<tr'+(e.problem?' class="bad"':'')+'><td class="ic">'+(e.problem?'⚠':'📁')+'</td><td class="nm"><span class="dn" data-nav="'+esc(cp)+'">'+esc(n)+'</span>'+why(e.problem)+'</td><td class="sz">—</td><td class="ac"></td></tr>';
   });
   (d.files||[]).forEach(function(f){
 	var fp=cur?cur+'/'+f.name:f.name;
-	h+='<tr><td class="ic">📄</td><td class="nm">'+esc(f.name)+'</td><td class="sz">'+fmt(f.size)+'</td><td class="ac"><button class="dl" data-dl="'+esc(fp)+'">↓</button> <button class="rm" data-del="'+esc(fp)+'">✕</button></td></tr>';
+	h+='<tr'+(f.problem?' class="bad"':'')+'><td class="ic">'+(f.problem?'⚠':'📄')+'</td><td class="nm">'+esc(f.name)+why(f.problem)+'</td><td class="sz">'+fmt(f.size)+'</td><td class="ac"><button class="dl" data-dl="'+esc(fp)+'">↓</button> <button class="rm" data-del="'+esc(fp)+'">✕</button></td></tr>';
   });
   if(!h)h='<tr><td colspan="4" style="color:#333;padding:20px;text-align:center">Empty</td></tr>';
   tb.innerHTML=h;
