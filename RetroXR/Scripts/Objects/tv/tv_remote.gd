@@ -158,6 +158,13 @@ const RING_R_OUT := 0.0159
 const OK_R := 0.0074
 const RING_DIRS := {"KeyRight": 0.0, "KeyUp": 90.0, "KeyLeft": 180.0, "KeyDown": 270.0}
 
+## The battery cover's slot: it comes off whole and goes back, as every battery cover in the room does
+## (CoverSlots, which saves and syncs it), and the bay's two AAA seats under it (CellSlots).
+const BATTERY_COVER := "tv_remote_battery_cover"
+## The cover's outer face in the model's frame: the underside.
+const COVER_OUT := Vector3.DOWN
+const CELL_SCENE := preload("res://Scenes/Objects/batteries/battery_aaa.tscn")
+
 ## The shell's convex hull and triangles, made once per remote (1.4 ms). Not static: a
 ## shape kept in a static outlives the physics server at quit and crashes the exit.
 var _hull: ConvexPolygonShape3D = null
@@ -206,6 +213,7 @@ func _dress() -> void:
 		push_warning("[TVRemote] %s: the model has no IrTip; aiming from the scene's Tip" % name)
 	_dress_keys()
 	_fit_shapes()
+	_dress_battery_bay()
 	print("[TVRemote] %s: dressed from the model, %d keys, IR at %s" % [name, _key_buttons.size(), _tip.position])
 
 
@@ -274,7 +282,8 @@ func _fit_shapes() -> void:
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
 		var space := global_transform.affine_inverse()
 		for m: MeshInstance3D in _model.levels[0].find_children("*", "MeshInstance3D", true, false):
-			if KEY_CELLS.has(String(m.name)) or m.name == "BodyPrint":
+			# The cover is a thing of its own (its PortCover's shapes): off, the bay is open to the ray.
+			if KEY_CELLS.has(String(m.name)) or m.name == "BodyPrint" or m.name == "BatteryCover":
 				continue
 			for s in m.mesh.get_surface_count():
 				st.append_from(m.mesh, s, space * m.global_transform)
@@ -291,6 +300,74 @@ func _fit_shapes() -> void:
 	if laser:
 		laser.shape = _shell_faces
 		laser.transform = Transform3D.IDENTITY
+
+
+## The battery bay: the model's cover becomes a CoverSlots cover (taken off by hand, laser or mouse, put back,
+## saved and synced like a Game Boy's), and the BatteryAAA1/2 markers CellSlots seats. A remote fresh from the
+## spawn menu comes with two AAA cells in; a restored one has whatever its save says.
+func _dress_battery_bay() -> void:
+	var part := _model.part("BatteryCover") as MeshInstance3D
+	if part == null:
+		push_warning("[TVRemote] %s: the model has no BatteryCover; the bay stays shut" % name)
+		return
+	# The cover in the slot wears LOD0's part at every distance, so the far levels' copies go.
+	for p in _model.parts("BatteryCover"):
+		if p != part:
+			p.visible = false
+	var zone := CoverSlots.shell_cover(part, BATTERY_COVER, COVER_OUT)
+	if zone == null:
+		push_warning("[TVRemote] %s: no slot for the battery cover (not in an object?)" % name)
+		return
+	zone.has_picked_up.connect(_on_cover_seated)
+	zone.has_dropped.connect(_on_cover_moved)
+	var seats := CellSlots.build_seats(_model.levels[0])
+	var fresh := not has_meta(CoverSlots.RESTORING)
+	print("[TVRemote] %s: battery cover slot built, %d AAA seats, %s" % [name, seats.size(),
+		"two cells going in" if fresh else "cells as the save has them"])
+	if fresh:
+		_seed_cells.call_deferred()
+
+
+## Two AAA cells into the empty seats of a remote fresh from the spawn menu, as a remote comes in its box.
+func _seed_cells() -> void:
+	var slots := CellSlots.of(self)
+	if slots == null or not is_inside_tree():
+		return
+	for seat_name: String in slots.seats():
+		var zone := slots.slot(seat_name)
+		if zone == null or zone.has_snapped_object():
+			continue
+		var cell := CELL_SCENE.instantiate() as Node3D
+		get_tree().current_scene.add_child(cell)
+		cell.add_to_group("spawned")
+		cell.global_transform = zone.global_transform
+		zone.seat_cell(cell, 0.0)
+	print("[TVRemote] %s: two AAA cells in the bay" % name)
+
+
+## The cover went back on: one that nothing has dressed yet (a fresh one, or one made from a save) wears the
+## model's own cover.
+func _on_cover_seated(what: Node3D) -> void:
+	_on_cover_moved()
+	var cover := what as PortCover
+	var part := _model.part("BatteryCover") as MeshInstance3D
+	if cover == null or part == null or cover.has_node("Shell"):
+		return
+	var copy := part.duplicate() as MeshInstance3D
+	part.get_parent().add_child(copy)
+	copy.transform = part.transform
+	CoverSlots.wear(cover, copy, COVER_OUT)
+
+
+func _on_cover_moved() -> void:
+	var slots := CoverSlots.of(self)
+	print("[TVRemote] %s: battery cover %s" % [name, "on" if slots != null and slots.is_on(BATTERY_COVER) else "off"])
+
+
+## Whether the battery cover is on (a suite asks).
+func battery_cover_on() -> bool:
+	var slots := CoverSlots.of(self)
+	return slots != null and slots.is_on(BATTERY_COVER)
 
 
 ## The VRButton for a model key (a suite presses them), or null.

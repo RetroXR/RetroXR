@@ -1,7 +1,8 @@
 extends Node3D
 ## The RETRO XR remote in the game: held in a right hand and aimed at the RETRO XR television, its grid up over
-## it, then one of its keys pressed (a desktop click held down) close up. Checks the grid targeted the set and the
-## pressed key did its cell. Windowed only (headless draws nothing):
+## it, then one of its keys pressed (a desktop click held down) close up; then one lying on its back seen from
+## above (the 175 mm handset), and one turned over with its battery cover taken off, the two AAA cells it came with
+## in the bay. Checks the grid targeted the set, the pressed key did its cell, and the cells are in. Windowed only (headless draws nothing):
 ##
 ##     godot --path RetroXR res://Tools/av/remote_model_probe.tscn --resolution 1280x720 --position 20,20 -- --out=<dir>
 ##
@@ -93,6 +94,37 @@ func _ready() -> void:
 	_aim(face * Vector3(0.07, 0.07, 0.03), face * Vector3(0.0, 0.01, -0.06))
 	await _frames(6)
 	await _shot("remote_key_pressed")
+
+	# Lying keys up, seen square from above, away from the set.
+	var flat := REMOTE.instantiate() as TVRemote
+	flat.freeze = true
+	flat.position = Vector3(3.0, 0.0, 0.0)
+	add_child(flat)
+	await _frames(6)
+	_aim(Vector3(3.0, 0.32, 0.0125), Vector3(3.0, 0.0, 0.0125))
+	_cam.rotation_degrees.y = 90.0
+	_cam.rotation_degrees.x = -90.0
+	_main_cam.global_transform = _cam.global_transform
+	await _frames(6)
+	await _shot("remote_top")
+
+	# Turned over onto its keys, the cover off: the bay and the two cells a fresh remote comes with.
+	var over := REMOTE.instantiate() as TVRemote
+	over.freeze = true
+	over.transform = Transform3D(Basis(Vector3.BACK, PI), Vector3(-3.0, 0.0, 0.0))
+	add_child(over)
+	await _frames(8)
+	var zone := CoverSlots.of(over).slot(TVRemote.BATTERY_COVER)
+	var cover := zone.picked_up_object as Node3D
+	zone.drop_object()
+	cover.global_position = Vector3(-2.93, -0.012, 0.075)
+	await _frames(6)
+	_check(not over.battery_cover_on() and CellSlots.of(over).cells().size() == 2,
+		"cover off, two AAA cells in the bay", str(CellSlots.of(over).cells().keys()))
+	var bay := over.global_transform * Vector3(0.0, -0.011, 0.048)
+	_aim(bay + Vector3(-0.05, 0.13, 0.11), bay + Vector3(0.0, 0.0, 0.0))
+	await _frames(6)
+	await _shot("remote_bay_open")
 	print("[remoteprobe] ---- %d failed ----" % _fails)
 	get_tree().quit(1 if _fails > 0 else 0)
 

@@ -332,9 +332,12 @@ static func _refresh_later(cover: PortCover) -> void:
 	_refresh.call_deferred(cover)
 
 
-static func _refresh(cover: PortCover) -> void:
-	if not is_instance_valid(cover):
+## Untyped: a cover freed before this deferred call runs (its object deleted with it seated) arrives as a freed
+## Object, and an Object-typed parameter rejects that before the check below can.
+static func _refresh(what: Variant) -> void:
+	if not is_instance_valid(what):
 		return
+	var cover := what as PortCover
 	var by := cover.get_picked_up_by()
 	var seated := by != null and by.is_in_group(SLOT_GROUP)
 	cover.set_pointer_margin(SEATED_POINTER_MARGIN if seated else PortCover.POINTER_MARGIN)

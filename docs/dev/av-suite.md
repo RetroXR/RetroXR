@@ -245,7 +245,9 @@ ray could not press them at all.
 ### The RETRO XR remote: a handset with real keys (2026-10-30)
 
 `tv_remote.tscn` wears RetroXR-models' `generic/tv-remote` (`imported-assets/appliances/tv_remote/`,
-LOD0 inside 1 m, LOD1 to 2.5 m): a 200 x 50 mm two-AA handset, keys up (+Y), the window along -Z.
+LOD0 inside 1 m, LOD1 to 2.5 m): a 175 x 50 mm two-AAA handset, keys up (+Y), the window along -Z,
+100 mm ahead of the origin (the grip end 75 mm behind it: it was cut 25 mm shorter under the logo and the origin
+stayed, so the keys and the tip did not move; `GrabPoint` and the hand poses went to z 0.055).
 Its 26 keys are the grid's cells (`TVRemote.KEY_CELLS`; PREV/NEXT are `prev_ch`/`next_ch` on a
 DVD), and the floating grid works exactly as before.
 
@@ -264,5 +266,18 @@ DVD), and the floating grid works exactly as before.
 - `tv_remote_tests` (49): dress, shapes, the desktop ray at every key from above and tilted
   (and the 2 mm gap and the shell take no key: a 3 mm-padded box took the gap), touch, the
   key-to-cell map on a set, VCR, DVD and record player, aiming with no grid, a visible press.
-  `Tools/av/remote_model_probe` (windowed) renders it held at the RETRO XR set and a key down.
-  Headset feel, Quest cost (29 draws at LOD0) and taking the battery cover off are OWED.
+  `Tools/av/remote_model_probe` (windowed) renders it held at the RETRO XR set, a key down, the handset
+  from above and the bay open with its cells. Headset feel and Quest cost (29 draws at LOD0, 3 at LOD1/2)
+  are OWED.
+- **The battery bay is the room's battery bay** (`_dress_battery_bay`): the model's `BatteryCover` becomes a
+  `CoverSlots` cover (`tv_remote_battery_cover`, outer face down), taken off whole by hand, laser or mouse and put
+  back, saved and synced as a Game Boy's is. The model's cover is hidden on every level and the slot's cover
+  wears LOD0's (`CoverSlots.wear` on seating), so it is drawn at any distance. `BatteryAAA1/2` are `CellSlots`
+  seats, shut in while the cover is on. **A remote fresh from the spawn menu comes with two AAA cells in**
+  (`_seed_cells`, real `BatteryCell`s that can be taken out); a restored one (`CoverSlots.RESTORING`) has what its
+  save says. The cover is left out of the shell's laser shape, so with it off the bay is open to the ray. A cell
+  is taken from below through the body's convex hull only because `battery_aaa.tscn`'s pointer cylinder is 5 mm
+  proud of the cell (radius 10.1 against 5.1); the model's real motion (press the latch tongue, slide toward the
+  grip end, lift off) is documented on the node, not animated. `tv_remote_tests bay/` (10), mutation-tested:
+  no seeding, the cover left in the laser shape, the far levels' covers drawn each go red.
+  `CoverSlots._refresh` takes a `Variant`: a cover freed before its deferred refresh ran failed the typed parameter.

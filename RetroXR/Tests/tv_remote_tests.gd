@@ -15,7 +15,11 @@
 ##   keys/    each key does its cell on a set, a VCR, a DVD player and a record player, nothing
 ##            where the grid would grey the cell or leave it out; PREV/NEXT are a DVD's chapters;
 ##   aim/     with no grid up, a key acts on what the window points at, and on nothing turned away;
-##   press/   a clicked key sinks 1.2 mm into the remote and comes back, and does its cell.
+##   press/   a clicked key sinks 1.2 mm into the remote and comes back, and does its cell;
+##   bay/     the battery cover is a CoverSlots cover that is the model's own cover, taken by the desktop ray
+##            from below; a remote fresh from the spawn menu has two AAA cells in BatteryAAA1/2, shut in
+##            while the cover is on; off, the ray from below takes each cell (the shell's laser shape has no
+##            cover in it); back on, they are shut in again; a restored remote seeds none.
 extends "res://Tests/test_suite.gd"
 
 const REMOTE := preload("res://Scenes/Objects/appliances/tv_remote.tscn")
@@ -53,7 +57,8 @@ func _run() -> void:
 	_hand = Node3D.new()
 	add_child(_hand)
 	for c: Array in [["dress/", _test_dress], ["shapes/", _test_shapes], ["ray/", _test_ray],
-			["touch/", _test_touch], ["keys/", _test_keys], ["aim/", _test_aim], ["press/", _test_press]]:
+			["touch/", _test_touch], ["keys/", _test_keys], ["aim/", _test_aim], ["press/", _test_press],
+			["bay/", _test_bay]]:
 		if _wanted(str(c[0])):
 			await (c[1] as Callable).call()
 			await _cleanup()
@@ -300,9 +305,116 @@ func _test_press() -> void:
 	_ok(_cap(b).global_position.distance_to(rest) < 0.00001, "press/let go, it comes back up")
 
 
+# ── bay/ ──────────────────────────────────────────────────────────────────────
+
+## The desktop ray from 0.6 m below the remote straight up at `at`.
+func _from_below(r: TVRemote, at: Vector3) -> InteractionTarget:
+	var up := r.global_transform.basis.y
+	return _resolve(at - up * 0.6, at + up * 0.005)
+
+
+func _test_bay() -> void:
+	var r := await _remote()
+	for i in 4:
+		await get_tree().process_frame
+	var covers := CoverSlots.of(r)
+	var zone := covers.slot(TVRemote.BATTERY_COVER) if covers else null
+	_ok(zone != null and r.battery_cover_on(), "bay/the battery cover is on, in its CoverSlots slot")
+	if zone == null:
+		return
+	var cover := zone.picked_up_object as PortCover
+	var model := r.get_node("Model") as ApplianceModel
+	var part := model.part("BatteryCover") as MeshInstance3D
+	var drawn := part.global_transform * part.get_aabb()
+	var worn := cover.get_node_or_null("Shell/" + String(part.name)) as MeshInstance3D if cover else null
+	if worn == null and cover != null and cover.has_node("Shell"):
+		worn = cover.get_node("Shell").get_child(0) as MeshInstance3D
+	_ok(worn != null and _same(worn.global_transform * worn.get_aabb(), drawn) and not part.visible,
+		"bay/the cover wears the model's cover, where the model has it, and the model's own is hidden",
+		"%s vs %s" % [worn.global_transform * worn.get_aabb() if worn else AABB(), drawn])
+	var hidden := true
+	for p in model.parts("BatteryCover"):
+		hidden = hidden and not p.visible
+	_ok(hidden, "bay/no level draws a cover of its own (the slot's cover is drawn at every distance)")
+	var t := _from_below(r, drawn.get_center())
+	_ok(t.kind == InteractionTarget.KIND_SNAP_PICKABLE and t.highlight_node == cover,
+		"bay/the desktop ray from below takes the cover", "%s %s" % [t.kind, t.highlight_node])
+	var slots := CellSlots.of(r)
+	var cells := slots.cells() if slots else {}
+	var seated: Array[String] = []
+	for seat: String in ["BatteryAAA1", "BatteryAAA2"]:
+		var rec: Variant = cells.get(seat)
+		var cell := (rec as Array)[0] as BatteryCell if rec is Array else null
+		var marker := model.part(seat)
+		if cell != null and cell.size == "AAA" and marker != null 				and cell.global_position.distance_to(marker.global_position) < 0.0005 and not cell.enabled:
+			seated.append(seat)
+	_eq(seated.size(), 2, "bay/two AAA cells are in BatteryAAA1 and 2, on their markers, shut in by the cover")
+	# Off: the bay opens.
+	zone.drop_object()
+	cover.global_position += Vector3(0.3, 0, 0)
+	for i in 4:
+		await get_tree().physics_frame
+	_ok(not r.battery_cover_on(), "bay/the cover comes off")
+	var taken: Array[String] = []
+	for seat: String in cells:
+		var cell := (cells[seat] as Array)[0] as BatteryCell
+		var c := _from_below(r, cell.global_position)
+		if cell.enabled and c.kind == InteractionTarget.KIND_SNAP_PICKABLE and c.highlight_node == cell:
+			taken.append(seat)
+	_eq(taken.size(), 2, "bay/with the cover off, the ray from below takes each cell")
+	# The remote's own laser shape is open over the bay: from below, between the cells, it is first met at the
+	# divider's foot 6 mm in, not at the plane the cover closed (the shell's triangles with the cover in them).
+	var laser := r.get_node("PointerArea") as CollisionObject3D
+	var up := r.global_transform.basis.y
+	var mid := drawn.get_center()
+	var q := PhysicsRayQueryParameters3D.create(mid - up * 0.6, mid + up * 0.03, laser.collision_layer)
+	q.collide_with_areas = false
+	var ex: Array[RID] = []
+	var depth := -1.0
+	for k in 6:
+		q.exclude = ex
+		var h := get_viewport().world_3d.direct_space_state.intersect_ray(q)
+		if h.is_empty():
+			break
+		if h.collider == laser:
+			depth = (h.position - mid).dot(up)
+			break
+		ex.append(h.rid)
+	_ok(depth > 0.004, "bay/with the cover off, the remote's laser shape is open over the bay",
+		"met %.1f mm in" % (depth * 1000.0))
+	# Back on: shut in again.
+	zone.pick_up_object(cover)
+	for i in 4:
+		await get_tree().physics_frame
+	var shut := 0
+	for seat: String in cells:
+		if not ((cells[seat] as Array)[0] as BatteryCell).enabled:
+			shut += 1
+	_ok(r.battery_cover_on() and shut == 2, "bay/the cover goes back on and the cells are shut in again")
+	# A restored remote's cells are its save's: it seeds none.
+	var restored := REMOTE.instantiate() as TVRemote
+	restored.freeze = true
+	restored.position = Vector3(0.5, 1, 0)
+	restored.set_meta(CoverSlots.RESTORING, true)
+	add_child(restored)
+	_spawned.append(restored)
+	for i in 4:
+		await get_tree().process_frame
+	var none := CellSlots.of(restored)
+	_ok(none != null and none.seats().size() == 2 and none.cells().is_empty(),
+		"bay/a restored remote has its two seats and seeds no cells")
+
+
 ## remove_child then free, as deck_tests does: a set's or deck's audio emitter still
 ## alive at quit segfaults the exit.
 func _cleanup() -> void:
+	# What a remote put in the room, its battery cover and the two cells it came with, goes first and at the
+	# frame's end: their slots still have deferred calls queued for them.
+	for n in get_tree().get_nodes_in_group("spawned"):
+		if n is BatteryCell or n is PortCover:
+			n.queue_free()
+	for i in 3:
+		await get_tree().process_frame
 	for n in _spawned:
 		if not is_instance_valid(n):
 			continue

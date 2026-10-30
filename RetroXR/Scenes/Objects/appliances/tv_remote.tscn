@@ -10,15 +10,15 @@
 [ext_resource type="PackedScene" path="res://imported-assets/appliances/tv_remote/remote_mobile_lod1.glb" id="8_lod1"]
 [ext_resource type="PackedScene" path="res://imported-assets/appliances/tv_remote/remote_mobile_lod2.glb" id="9_lod2"]
 
-; The RETRO XR remote (RetroXR-models generic/tv-remote): 50 x 22.5 x 200 mm, keys up (+Y),
-; the infrared window along -Z. Both shapes are replaced in _ready by what the model draws
+; The RETRO XR remote (RetroXR-models generic/tv-remote): 50 x 22.5 x 175 mm, keys up (+Y),
+; the infrared window along -Z, 100 mm ahead of the origin (the grip end 75 mm behind it). Both shapes are replaced in _ready by what the model draws
 ; (TVRemote._fit_shapes): a convex hull of the shell for the body, the shell's own triangles
 ; for the laser. These boxes are the shell's bounds, for the editor.
 [sub_resource type="BoxShape3D" id="BoxShape3D_remote"]
-size = Vector3(0.05, 0.0225, 0.2)
+size = Vector3(0.05, 0.0225, 0.175)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
-size = Vector3(0.05, 0.0225, 0.2)
+size = Vector3(0.05, 0.0225, 0.175)
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_remote"]
 bounce = 0.0
@@ -54,7 +54,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.003, -0.1)
 
 ; Under the battery end, where a hand closes round a remote with the thumb on the keys.
 [node name="GrabPoint" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, 0.07)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, 0.055)
 visible = false
 script = ExtResource("3_grabpoint")
 
@@ -71,9 +71,9 @@ shape = SubResource("BoxShape3D_pointer")
 
 ; Held-hand indicators (Grip pose). Shown at runtime by controller_model.gd when the remote is grabbed.
 [node name="HandRight" parent="." instance=ExtResource("4_rhand")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, 0.07)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, 0.055)
 visible = false
 
 [node name="HandLeft" parent="." instance=ExtResource("5_lhand")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, 0.07)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, 0.055)
 visible = false

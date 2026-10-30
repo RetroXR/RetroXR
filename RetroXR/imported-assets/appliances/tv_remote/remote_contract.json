@@ -1,5 +1,5 @@
 {
- "units": "meters, glTF frame (Godot): +Y up out of the keys, the infrared window along -Z; origin at the center of the 50 x 22 x 200 mm shell",
+ "units": "meters, glTF frame (Godot): +Y up out of the keys, the infrared window along -Z; origin at the center 100 mm behind the window face, in the middle of the 50 x 22 x 175 mm shell across and through",
  "animations": "none: the engine presses the keys",
  "keys": {
   "KeyPower": {
@@ -229,18 +229,30 @@
   "at": [
    0.0,
    -0.011,
-   0.06335
+   0.0481
   ],
-  "removal": "slide +Z (glTF) 3 mm, then lift along -Y"
+  "removal": "press the latch tongue, slide +Z (glTF), then lift along -Y"
+ },
+ "cells": {
+  "kind": "AAA",
+  "iec": "LR03",
+  "bay_mm": [
+   23.5,
+   48.8
+  ],
+  "markers": [
+   "BatteryAAA1",
+   "BatteryAAA2"
+  ]
  },
  "lod_switch_m": [
   1.0,
   2.5
  ],
  "triangles": {
-  "high": 45436,
-  "lod0": 8163,
-  "lod1": 6181,
-  "lod2": 4875
+  "high": 45332,
+  "lod0": 8143,
+  "lod1": 6235,
+  "lod2": 4929
  }
 }
