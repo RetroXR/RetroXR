@@ -126,6 +126,7 @@ const AV_INPUT_NAMES := ["Composite 1", "Composite 2", "Composite 3", "Composite
 ## functional node stays on this TV. See Scripts/Objects/tv/tv_shell.gd.
 const _SHELL_SCENES := {
 	"crt_plain":   "res://Scenes/Objects/tv_models/crt_plain.tscn",
+	"retroxr_crt": "res://Scenes/Objects/tv_models/retroxr_crt.tscn",
 }
 
 ## One-time aliases for scene records written while the removed imported shells

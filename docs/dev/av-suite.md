@@ -173,3 +173,42 @@ load through the door, the flap pushed by a held tape and not by one held spine
 first, the DVD tray empty and with a disc, a restored disc at its saved spin, the
 words). `Tools/av/deck_model_probe` (windowed, `--out=`, `--combo` for the cabinet
 alone) is the picture and writes the mechanism's frames.
+
+### The RETRO XR television: the set's stock cabinet (2026-10-30)
+
+The spawn menu's **TV** is now `tv:retroxr_crt`: `tv.tscn` wearing the RetroXR-models
+`generic/crt-tv` set (380 x 330 x 400 mm, origin at the body centre). The old box is still
+**Classic TV** (`tv_model ""`), and every room that places a set keeps it, because the
+arcade and den were laid out round that box. The three `tv_mobile*.glb` and
+`tv_contract.json` live in `imported-assets/appliances/crt_tv/` (never edit a GLB; after a
+re-import, put the extracted textures back to VRAM Compressed and the GLBs back to
+`generate_lods=false`).
+
+`RetroXRCrtShell` (`Scripts/Objects/tv/retroxr_crt_shell.gd`,
+`Scenes/Objects/tv_models/retroxr_crt.tscn`) is an ordinary `RetroTVShell`. The model's own
+ScreenSeat / PortSeat / SpeakerOutSeat / VgaPortSeat / AmbilightSeat place the tube and
+sockets through `TvFit`, so the scene carries no hand-measured pose. On top of that:
+
+- **Sockets.** The model marks each socket's mouth with an empty named like the socket.
+  The shell renames each one `<name>Mouth`, so a recursive find on the set never meets an
+  empty before the real `RcaPort`. It also names `RfPortSeat` from the aerial's mouth.
+  `TvFit` now seats `RfPort` (`rf_port_seat()`, which any shell may name): without that it
+  stayed at the stock pose, inside this deeper body. Four AV inputs stand in a column
+  (`av_group_step` (0, 0.04, 0)).
+- **Printing.** The model prints its own legends, so `print_legends = false` on the shell
+  stops `TvPanel` printing a second set over them.
+- **Keys.** `TvFit` now really calls `on_buttons_built` (it was documented but never
+  called). The shell `adopt_button`s all twelve bezel buttons onto the model's keys.
+  `VRButton.set_color` leaves a button with `state_tint` off alone, or the set's state
+  colours repaint an adopted key.
+- **Key door.** It opens and closes on a press of its face (`KeyDoorButton`, depth 0) and
+  runs `DoorOpen` / `DoorClose`. While it is shut, the five keys behind it (AUDIO MODE,
+  AUDIO OUT, CRT, ASPECT, STEREO) are not interactive. The door is NOT saved or synced: a
+  restored or remote set starts shut.
+- **Lamp.** `PowerLed` takes a material of its own, lit while `is_on()`.
+
+`Tools/av/tv_model_probe` (windowed, `-- --out=`) checks the twenty sockets on their mouths
+with +Z out of the back, the tube on ScreenSeat, the keys, the door, the lamp, a lead in
+AV1 and a 1.5x resize. It renders front, open door, back with leads, and resized. Taking
+out `RfPort`'s or the tube's seat in `TvFit` turns it red. Headset feel and the Quest are
+OWED.

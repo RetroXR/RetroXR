@@ -89,6 +89,7 @@ func load_shell() -> void:
 	seat(_tv.tube_collar(), fitted.screen_seat())
 	_tv.panel().seat_av_row(fitted.port_seat())
 	_tv.panel().seat_vga_port(fitted.vga_port_seat())
+	seat(_tv.get_node_or_null("RfPort") as Node3D, fitted.rf_port_seat())
 	_tv.panel().seat_speaker_row(fitted.speaker_out_seat())
 	_tv.panel().seat_phones(fitted.phones_seat())
 	seat(_tv.ambilight(), fitted.ambilight_seat())
@@ -125,6 +126,9 @@ func load_shell() -> void:
 				0.0))
 
 	_resize_body_collision(fitted.body_size)
+	# The shell's turn to dress the caps it was handed (its own meshes, its own
+	# click); a shell that only brings geometry does nothing here.
+	fitted.on_buttons_built(buttons)
 
 
 ## Resize the pickup collider and the pointer box to the cabinet.

@@ -449,7 +449,9 @@ func set_outline_hidden_source(hidden_ok: bool) -> void:
 
 ## Set the button's visual color by changing its material albedo
 func set_color(color: Color) -> void:
-	if not _mesh:
+	# A cap adopted from a model (set_button_mesh) keeps its own materials: painting
+	# state colours over it turned the RETRO XR TV's keys blue, cyan and green.
+	if not _mesh or not state_tint:
 		return
 	_apply_mesh_color(color)
 

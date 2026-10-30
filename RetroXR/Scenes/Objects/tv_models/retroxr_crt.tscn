@@ -1,0 +1,17 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/tv/retroxr_crt_shell.gd" id="1_shell"]
+
+; The RETRO XR CRT television (RetroXR-models generic/crt-tv): the set's stock cabinet ("TV" in the spawn menu).
+; The script builds the model's three levels and reads every seat off the GLB's own markers; body_size is the
+; model's 380 x 330 x 400 mm box, centered on the set's origin. Its AV1-AV4 trios stand on end down the right bay,
+; so av_group_step walks DOWN (PortSeat's +Y is the cabinet's -Y). The model prints its own legends.
+[node name="RetroXRCrt" type="Node3D"]
+script = ExtResource("1_shell")
+body_size = Vector3(0.38, 0.33, 0.4)
+av_socket_step = Vector3(-0.018, 0, 0)
+av_group_step = Vector3(0, 0.04, 0)
+av_inputs = 4
+has_aerial = true
+hide_meshes = PackedStringArray("Screen")
+print_legends = false

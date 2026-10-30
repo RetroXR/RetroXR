@@ -283,6 +283,9 @@ func video_port(input: int) -> RcaPort:
 ## above the jacks. The plate is the cabinet's call — a moulded CRT back is curved,
 ## and a flat rectangle across it either floats off the curve or cuts in.
 func print_legends() -> void:
+	if _tv.shell() != null and not _tv.shell().print_legends:
+		print("[TV] %s: the cabinet prints its own legends; none printed" % _tv.name)
+		return
 	var plate: bool = _tv.shell() == null or _tv.shell().av_legend_plate
 	for i in panel_inputs():
 		var legend := AvLegend.attach(_tv, _av_ports[i])

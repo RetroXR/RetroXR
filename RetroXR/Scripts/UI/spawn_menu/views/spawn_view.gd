@@ -2830,7 +2830,8 @@ func _add_tv_spawn_tab(tabs: TabContainer) -> VBoxContainer:
 
 
 func _tv_items() -> Array:
-	var items: Array = [["TV", "tv"], ["Plain Monitor", "tv:crt_plain"]]
+	# "TV" is the RETRO XR set; the original box stays spawnable as "Classic TV" (rooms author it).
+	var items: Array = [["TV", "tv:retroxr_crt"], ["Classic TV", "tv"], ["Plain Monitor", "tv:crt_plain"]]
 	for shell: Dictionary in RetroTV.mod_shells():
 		items.append([str(shell["label"]), "tv:" + str(shell["id"])])
 	return items

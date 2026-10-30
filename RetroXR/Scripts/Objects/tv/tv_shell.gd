@@ -116,6 +116,11 @@ extends Node3D
 ## keeps its plate. A shell with a genuinely flat back panel turns this on.
 @export var av_legend_plate: bool = false
 
+## Whether the set prints its back-panel legends (AvLegend words and plates) at all.
+## OFF for a cabinet whose model already carries its own printing round every socket
+## (the RETRO XR set): two sets of words over one panel read as neither.
+@export var print_legends: bool = true
+
 ## Whether a built-in deck (VcrSeat / DvdSeat) keeps the stock deck's own grey box
 ## and name plate. OFF by default: the cabinet IS the deck's housing, and the box
 ## would stand through it. The slot, the buttons and the VCR's clock stay either
@@ -138,6 +143,9 @@ func port_seat() -> Variant:        return _seat("PortSeat")
 ## Absent on every shell but the computer monitor, and that absence is the switch:
 ## RetroTV leaves its VgaPort disabled and hidden unless a shell asks for one.
 func vga_port_seat() -> Variant:    return _seat("VgaPortSeat")
+## Pose for the aerial socket, RfPort. Absent leaves it where tv.tscn authors it, on the
+## stock body's back row; a deeper cabinet names it or the socket ends up inside.
+func rf_port_seat() -> Variant:     return _seat("RfPortSeat")
 ## Pose for the FRONT L speaker output; the other five step off it by av_socket_step.
 ## Absent on every shell so far, and that absence is the switch, as above — a row of
 ## 5.1 phono outputs on a wood-cabinet 70s set is the same anachronism as a DE-15.

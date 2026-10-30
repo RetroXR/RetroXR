@@ -1,0 +1,369 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the front faces +Z, x to the right seen from the front",
+ "body_size": [
+  0.38,
+  0.33,
+  0.4
+ ],
+ "fps": 30,
+ "ports": {
+  "CompositePort": {
+   "mouth": [
+    -0.124,
+    0.092,
+    -0.2028
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "AudioLIn": {
+   "mouth": [
+    -0.142,
+    0.092,
+    -0.2028
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "AudioRIn": {
+   "mouth": [
+    -0.16,
+    0.092,
+    -0.2028
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "CompositePort2": {
+   "mouth": [
+    -0.124,
+    0.052,
+    -0.2028
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "AudioLIn2": {
+   "mouth": [
+    -0.142,
+    0.052,
+    -0.2028
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "AudioRIn2": {
+   "mouth": [
+    -0.16,
+    0.052,
+    -0.2028
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "CompositePort3": {
+   "mouth": [
+    -0.124,
+    0.012,
+    -0.2028
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "AudioLIn3": {
+   "mouth": [
+    -0.142,
+    0.012,
+    -0.2028
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "AudioRIn3": {
+   "mouth": [
+    -0.16,
+    0.012,
+    -0.2028
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "CompositePort4": {
+   "mouth": [
+    -0.124,
+    -0.028,
+    -0.2028
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "AudioLIn4": {
+   "mouth": [
+    -0.142,
+    -0.028,
+    -0.2028
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "AudioRIn4": {
+   "mouth": [
+    -0.16,
+    -0.028,
+    -0.2028
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "SpeakerOutL": {
+   "mouth": [
+    0.12,
+    -0.12,
+    -0.206
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "SpeakerOutR": {
+   "mouth": [
+    0.102,
+    -0.12,
+    -0.206
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "SpeakerOutC": {
+   "mouth": [
+    0.084,
+    -0.12,
+    -0.206
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "SpeakerOutLfe": {
+   "mouth": [
+    0.066,
+    -0.12,
+    -0.206
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "SpeakerOutSl": {
+   "mouth": [
+    0.048,
+    -0.12,
+    -0.206
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "SpeakerOutSr": {
+   "mouth": [
+    0.03,
+    -0.12,
+    -0.206
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "RfPort": {
+   "mouth": [
+    0.002,
+    -0.12,
+    -0.2095
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  },
+  "VgaPort": {
+   "mouth": [
+    -0.03,
+    -0.12,
+    -0.2045
+   ],
+   "basis": "Rx(180): local +Z out of the back"
+  }
+ },
+ "shell_markers": {
+  "PortSeat": [
+   -0.124,
+   0.092,
+   -0.2028
+  ],
+  "SpeakerOutSeat": [
+   0.12,
+   -0.12,
+   -0.206
+  ],
+  "VgaPortSeat": [
+   -0.03,
+   -0.12,
+   -0.2045
+  ],
+  "av_socket_step": [
+   -0.018,
+   0.0,
+   0.0
+  ],
+  "av_group_step": [
+   0.0,
+   0.04,
+   0.0
+  ],
+  "note": "steps are in the PortSeat frame (Rx(180), so its +Y is world -Y): the groups stand on end, AV1 at the top; the speakers step av_socket_step from SpeakerOutSeat",
+  "ScreenSeat": {
+   "position": [
+    0.0,
+    0.023,
+    0.176
+   ],
+   "scale": [
+    0.8,
+    0.84,
+    0.9
+   ]
+  },
+  "AmbilightSeat": [
+   0.0,
+   0.023,
+   0.202
+  ]
+ },
+ "screen": {
+  "node": "Screen",
+  "opening_m": [
+   0.29,
+   0.218
+  ],
+  "picture_m": [
+   0.28,
+   0.21
+  ],
+  "center": [
+   0.0,
+   0.023,
+   0.185
+  ],
+  "sag_m": 0.009
+ },
+ "keys": {
+  "ButtonTVToggle": {
+   "legend": "POWER",
+   "face": [
+    -0.084,
+    -0.131,
+    0.2025
+   ],
+   "behind_door": false
+  },
+  "ButtonSource": {
+   "legend": "SOURCE",
+   "face": [
+    -0.058,
+    -0.131,
+    0.2025
+   ],
+   "behind_door": false
+  },
+  "ButtonChannelDown": {
+   "legend": "CH -",
+   "face": [
+    -0.038,
+    -0.131,
+    0.2025
+   ],
+   "behind_door": false
+  },
+  "ButtonChannelUp": {
+   "legend": "CH +",
+   "face": [
+    -0.018,
+    -0.131,
+    0.2025
+   ],
+   "behind_door": false
+  },
+  "ButtonVolumeDown": {
+   "legend": "VOL -",
+   "face": [
+    0.002,
+    -0.131,
+    0.2025
+   ],
+   "behind_door": false
+  },
+  "ButtonVolumeUp": {
+   "legend": "VOL +",
+   "face": [
+    0.022,
+    -0.131,
+    0.2025
+   ],
+   "behind_door": false
+  },
+  "ButtonMute": {
+   "legend": "MUTE",
+   "face": [
+    0.042,
+    -0.131,
+    0.2025
+   ],
+   "behind_door": false
+  },
+  "ButtonAudioMode": {
+   "legend": "SPEAKER",
+   "face": [
+    0.075,
+    -0.138,
+    0.194
+   ],
+   "behind_door": true
+  },
+  "ButtonAudioOut": {
+   "legend": "AUDIO OUT",
+   "face": [
+    0.097,
+    -0.138,
+    0.194
+   ],
+   "behind_door": true
+  },
+  "ButtonCRT": {
+   "legend": "CRT",
+   "face": [
+    0.119,
+    -0.138,
+    0.194
+   ],
+   "behind_door": true
+  },
+  "ButtonAspect": {
+   "legend": "ASPECT",
+   "face": [
+    0.141,
+    -0.138,
+    0.194
+   ],
+   "behind_door": true
+  },
+  "ButtonStereo": {
+   "legend": "3D",
+   "face": [
+    0.163,
+    -0.138,
+    0.194
+   ],
+   "behind_door": true
+  }
+ },
+ "key_door": {
+  "node": "KeyDoor",
+  "hinge": [
+   0.119,
+   -0.1525,
+   0.2
+  ],
+  "axis": "+X",
+  "open_deg": 100.0,
+  "animations": [
+   "DoorOpen",
+   "DoorClose"
+  ],
+  "frames": 15
+ },
+ "power_led": [
+  -0.099,
+  -0.131,
+  0.2005
+ ],
+ "triangles": {
+  "high": 92594,
+  "lod0": 13762,
+  "lod1": 9318,
+  "lod2": 6742
+ }
+}
