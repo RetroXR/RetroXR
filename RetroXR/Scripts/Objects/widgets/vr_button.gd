@@ -552,6 +552,23 @@ func _apply_mesh_color(color: Color) -> void:
 	(mat as StandardMaterial3D).albedo_color = color
 
 
+## Lit by its owner as the one chosen without a pointer (the TV remote's thumbstick walks its keys):
+## the hover outline, as if the laser were on it. Not a press and not a hover — set_interactive
+## leaves it alone, and the owner clears it.
+var _selected := false
+
+
+func set_selected(on: bool) -> void:
+	if on == _selected:
+		return
+	_selected = on
+	_sync_outline()
+
+
+func is_selected() -> bool:
+	return _selected
+
+
 ## Off for a widget that draws its own outline from outline_color(): a sheet of
 ## paper (the Game Boy Printer's), which the inflated hull covers rather than
 ## outlines (GbPaperRim).
@@ -561,7 +578,7 @@ var builtin_outline := true
 ## The color the outline should be now, or clear when there is none to show:
 ## what the built-in one shows (_sync_outline), for an owner drawing its own.
 func outline_color() -> Color:
-	if not (_armed or _trigger_pressed or _pointer_hovered):
+	if not (_armed or _trigger_pressed or _pointer_hovered or _selected):
 		return Color(0, 0, 0, 0)
 	return WidgetOutline.ACTIVE_COLOR if _trigger_pressed else WidgetOutline.HOVER_COLOR
 
@@ -578,4 +595,4 @@ func _sync_outline() -> void:
 	if _trigger_pressed != _outline_amber:
 		_outline_amber = _trigger_pressed
 		_outline.set_color(WidgetOutline.ACTIVE_COLOR if _outline_amber else WidgetOutline.HOVER_COLOR)
-	_outline.sync(_armed or _trigger_pressed or _pointer_hovered)
+	_outline.sync(_armed or _trigger_pressed or _pointer_hovered or _selected)

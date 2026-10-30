@@ -21,6 +21,13 @@
 ##            pushed into a key sinks it 1.5 mm, fires it once and no other key, and lets it back up, with the
 ##            remote lying on a table and held tilted in the other hand, whose thumb on a key presses nothing;
 ##   grid/    a cell pressed on the floating grid sinks the matching key on the remote for a moment;
+##   stick/   the floating grid is OFF by default: held, the remote lights one of its own keys (the laser's hover
+##            outline) and the holding hand's stick walks the light round the keys as they lie on the face, round
+##            the ring before off it, past keys that do nothing on the aimed device; the stick's click holds the
+##            lit key down and does its cell (a set's volume, a DVD's chapter and menu); a key the device has no
+##            use for sinks and does nothing; the arrows and Enter do the same on desktop; switched on in the
+##            remote's own menu the grid comes back, the stick and arrows walk it and no key is lit, and the
+##            switch is kept in the app's preferences (the player's real file, restored byte for byte).
 ##   bay/     the battery cover is a CoverSlots cover that is the model's own cover, taken by the desktop ray
 ##            from below; a remote fresh from the spawn menu has two AAA cells in BatteryAAA1/2, shut in
 ##            while the cover is on; off, the ray from below takes each cell (the shell's laser shape has no
@@ -67,7 +74,7 @@ func _run() -> void:
 	add_child(_hand)
 	for c: Array in [["dress/", _test_dress], ["shapes/", _test_shapes], ["ray/", _test_ray],
 			["touch/", _test_touch], ["keys/", _test_keys], ["aim/", _test_aim], ["press/", _test_press],
-			["bay/", _test_bay], ["poke/", _test_poke], ["grid/", _test_grid]]:
+			["bay/", _test_bay], ["poke/", _test_poke], ["grid/", _test_grid], ["stick/", _test_stick]]:
 		if _wanted(str(c[0])):
 			await (c[1] as Callable).call()
 			await _cleanup()
@@ -605,6 +612,188 @@ func _test_grid() -> void:
 	_ok(_sunk_wrong(r, rests, "KeyPrev").is_empty(), "grid/the DVD's chapter cell sinks the remote's PREV key",
 		_sunk_wrong(r, rests, "KeyPrev"))
 	await get_tree().create_timer(0.25).timeout
+
+
+# ── stick/ ────────────────────────────────────────────────────────────────────
+
+## Which key is lit (VRButton.is_selected), "" none, "+" more than one.
+func _lit(r: TVRemote) -> String:
+	var out := ""
+	for key: String in PRINTED:
+		if r.key_button(key).is_selected():
+			out = key if out.is_empty() else "+"
+	return out
+
+
+## From `start`, one step of the stick `dir` (x right, y towards the window): where the light lands.
+func _step(r: TVRemote, start: String, dir: Vector2) -> String:
+	r._key_sel = start
+	r.move_key(dir)
+	return r.selected_key()
+
+
+func _test_stick() -> void:
+	var was: bool = AppPrefs.remote_button_menu
+	var fresh: Node = (load("res://Scripts/Data/app_prefs.gd") as GDScript).new()
+	_eq(fresh.get("remote_button_menu"), false, "stick/the floating button menu is off by default")
+	fresh.free()
+	AppPrefs.remote_button_menu = false
+	# The set 1.5 m off along the remote's -Z, a DVD player far off to the side for the second target.
+	var tv := await _spawn(TV_SCENE, Vector3(0, 1, -1.5)) as RetroTV
+	var dvd := await _spawn(DVD_SCENE, Vector3(6, 1, 6)) as DVDPlayer
+	var r := REMOTE.instantiate() as TVRemote
+	var holder := _tracked_hand(HOLDER, r)
+	r.freeze = true
+	r.position = Vector3(0, 1.1, 0)
+	add_child(r)
+	_spawned.append(r)
+	await _ticks(3)
+	var hand := get_node("TestOrigin/" + String(HOLDER)) as XRController3D
+	r._holding_ctrl = hand
+	await _ticks(3)
+	_ok(r._target == tv and not r._menu.visible and _lit(r) == "KeyOk",
+		"stick/held at a set: no floating menu, and the remote's OK key is lit",
+		"target %s, menu %s, lit %s" % [r._target, r._menu.visible, _lit(r)])
+
+	var ok_outline := r.key_button("KeyOk").get("_outline") as Node3D
+	var up_outline := r.key_button("KeyUp").get("_outline") as Node3D
+	_ok(ok_outline != null and ok_outline.visible and up_outline != null and not up_outline.visible,
+		"stick/the lit key wears the laser's hover outline, and the next key none")
+	# Where the stick goes, with nothing aimed at (every key as good as another).
+	var aimed: Node3D = r._target
+	r._target = null
+	_eq(_step(r, "KeyOk", Vector2(0, 1)), "KeyUp", "stick/from OK, up is the ring's up arc")
+	_eq(_step(r, "KeyOk", Vector2(-1, 0)), "KeyLeft", "stick/from OK, left is the left arc")
+	_eq(_step(r, "KeyUp", Vector2(-1, 0)), "KeyLeft", "stick/from the up arc, left goes round the ring (not to REW)")
+	_eq(_step(r, "KeyLeft", Vector2(1, 0)), "KeyOk", "stick/from the left arc, right is OK")
+	_eq(_step(r, "KeyUp", Vector2(0, 1)), "KeyStop", "stick/from the up arc, up leaves the ring for STOP")
+	_eq(_step(r, "KeyDown", Vector2(0, -1)), "KeyAudio", "stick/from the down arc, down leaves it for AUDIO")
+	_eq(_step(r, "KeyMute", Vector2(-1, 0)), "KeyVolDown", "stick/from MUTE, left is VOL-")
+	_eq(_step(r, "KeyPlayPause", Vector2(0, 1)), "KeyEject", "stick/from PLAY/PAUSE, up is EJECT")
+	_eq(_step(r, "KeyPower", Vector2(0, 1)), "KeyPower", "stick/from POWER, up goes nowhere (no wrapping round)")
+	_eq(_step(r, "KeyAspect", Vector2(0, -1)), "KeyPrev", "stick/aimed at nothing, down from ASPECT is PREV, down its column")
+	# Aimed at the set, every key below ASPECT does nothing to it: the light stays.
+	r._target = aimed
+	_eq(_step(r, "KeyAspect", Vector2(0, -1)), "KeyAspect",
+		"stick/aimed at a set, down from ASPECT passes the keys it has no use for (none left: it stays)")
+	_eq(_step(r, "KeyAspect", Vector2(0, 1)), "KeyAudioMode", "stick/aimed at a set, up from ASPECT is SPEAKER")
+	# CH- does nothing to a set that is not on its tuner: up from SPEAKER passes it for VOL-.
+	_ok(not r.key_live("KeyChDown"), "stick/(the set is not on its tuner: CH- is greyed)")
+	_eq(_step(r, "KeyAudioMode", Vector2(0, 1)), "KeyVolDown", "stick/…so up from SPEAKER passes CH- for VOL-")
+
+	# The holding hand's stick: pushed up and let go, the light moves one key, and the light moves with it.
+	r._key_sel = "KeyAudioMode"
+	await _ticks(2)
+	holder.set_input("primary", Vector2(0, 1))
+	await _ticks(2)
+	holder.set_input("primary", Vector2.ZERO)
+	await _ticks(2)
+	holder.set_input("primary", Vector2(1, 0))
+	await _ticks(2)
+	holder.set_input("primary", Vector2.ZERO)
+	await _ticks(2)
+	_ok(r.selected_key() == "KeyMute" and _lit(r) == "KeyMute",
+		"stick/the holding hand's stick, up then right from SPEAKER: VOL- then MUTE, the key lit", _lit(r))
+
+	# Its click on VOL-: the set's volume goes one step down, the key sinks while the click is held, alone.
+	r._key_sel = "KeyVolDown"
+	await _ticks(2)
+	var rests := _cap_rests(r)
+	var vol := tv.volume()
+	holder.set_input("primary_click", 1.0)
+	await _ticks(3)
+	_ok(is_equal_approx(tv.volume(), vol - 0.05) and _sunk_wrong(r, rests, "KeyVolDown").is_empty(),
+		"stick/the stick's click on VOL- turns the set down one step and sinks VOL-, alone",
+		"volume %.2f -> %.2f, %s" % [vol, tv.volume(), _sunk_wrong(r, rests, "KeyVolDown")])
+	await _ticks(10)
+	_ok(is_equal_approx(tv.volume(), vol - 0.05) and _sunk_wrong(r, rests, "KeyVolDown").is_empty(),
+		"stick/…held, it stays down and fires once")
+	holder.set_input("primary_click", 0.0)
+	await get_tree().create_timer(0.25).timeout
+	_ok(_cap(r.key_button("KeyVolDown")).global_position.distance_to(rests["KeyVolDown"]) < 0.00001,
+		"stick/…let go, it comes back up")
+
+	# A key the set has no use for: it sinks (it is a key) and does nothing.
+	r._key_sel = "KeyStop"
+	_eq(r.key_press_down(), "", "stick/STOP clicked at a set does nothing")
+	_ok(_sunk_wrong(r, rests, "KeyStop").is_empty(), "stick/…but the key still goes down", _sunk_wrong(r, rests, "KeyStop"))
+	r.key_press_up()
+	await get_tree().create_timer(0.25).timeout
+
+	# At a DVD player: PREV is its chapter key, MENU its menu.
+	r._target = dvd
+	r._rebuild_grid()
+	r._key_sel = "KeyPrev"
+	_eq(r.key_press_down(), "prev_ch", "stick/at a DVD player the stick's click on PREV is the chapter key")
+	r.key_press_up()
+	r._key_sel = "KeyMenu"
+	_eq(r.key_press_down(), "menu", "stick/…and on MENU its menu")
+	r.key_press_up()
+	await get_tree().create_timer(0.25).timeout
+	r._target = tv
+	r._rebuild_grid()
+
+	# Desktop: the arrows walk the light, Enter holds the lit key down.
+	r._holding_ctrl = null
+	r._desktop_held = true
+	r._key_sel = "KeyMute"
+	r._unhandled_input(_key(KEY_RIGHT, true))
+	_eq(r.selected_key(), "KeyVolUp", "stick/desktop: the right arrow walks the light (MUTE to VOL+)")
+	r._key_sel = "KeyMute"
+	var muted := tv.is_muted()
+	r._unhandled_input(_key(KEY_ENTER, true))
+	_ok(tv.is_muted() != muted and _sunk_wrong(r, rests, "KeyMute").is_empty(),
+		"stick/desktop: Enter on MUTE mutes the set and sinks MUTE", _sunk_wrong(r, rests, "KeyMute"))
+	r._unhandled_input(_key(KEY_ENTER, false))
+	await get_tree().create_timer(0.25).timeout
+	r._desktop_held = false
+	r._holding_ctrl = hand
+
+	# The remote's own menu switches the grid back on: shown at the set, no key lit, the stick walks the grid.
+	var prefs_bytes := FileAccess.get_file_as_bytes(AppPrefs.PREFS_PATH)
+	var had_prefs := FileAccess.file_exists(AppPrefs.PREFS_PATH)
+	var row: Dictionary = r.options_choices()[0]
+	_ok(int(row["selected"]) == 0 and (row["items"] as Array).size() == 2,
+		"stick/the remote's menu offers the floating button menu, showing off")
+	r.options_choose(0, 1)
+	_ok(AppPrefs.remote_button_menu and bool(JsonStore.read_dict(AppPrefs.PREFS_PATH).get("remote_button_menu", false)),
+		"stick/switched on there, it is kept in the app's preferences")
+	r._target = tv
+	r._rebuild_grid()
+	await _ticks(3)
+	_ok(r._menu.visible and _lit(r).is_empty(), "stick/…and the floating menu is back at the set, no key lit",
+		"menu %s, lit %s" % [r._menu.visible, _lit(r)])
+	var sel_before: int = r._selection
+	var key_before := r.selected_key()
+	holder.set_input("primary", Vector2(0, -1))
+	await _ticks(2)
+	holder.set_input("primary", Vector2.ZERO)
+	await _ticks(2)
+	_ok(r._selection != sel_before and r.selected_key() == key_before,
+		"stick/…where the stick walks the grid and not the keys", "cell %d -> %d" % [sel_before, r._selection])
+	r.options_choose(0, 0)
+	await _ticks(3)
+	_ok(not r._menu.visible and not _lit(r).is_empty(), "stick/switched off again: no menu, a key lit")
+
+	# Let go: no key lit.
+	r._holding_ctrl = null
+	await _ticks(2)
+	_eq(_lit(r), "", "stick/let go, no key is lit")
+	if had_prefs:
+		var f := FileAccess.open(AppPrefs.PREFS_PATH, FileAccess.WRITE)
+		f.store_buffer(prefs_bytes)
+		f.close()
+	else:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(AppPrefs.PREFS_PATH))
+	AppPrefs.remote_button_menu = was
+	_drop_hands()
+
+
+func _key(code: Key, down: bool) -> InputEventKey:
+	var e := InputEventKey.new()
+	e.physical_keycode = code
+	e.pressed = down
+	return e
 
 
 ## remove_child then free, as deck_tests does: a set's or deck's audio emitter still

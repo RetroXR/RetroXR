@@ -1,16 +1,17 @@
 ## TVRemote — pickable remote control. While held, it raycasts forward from its
 ## tip; when pointed at a RetroTV / VCRPlayer / DVDPlayer / CD / Cassette player the
-## target is outlined maroon (PickableHighlight.set_remote_target) and a small
-## button GRID pops up above the remote, billboarded to the camera. Each device has
-## a stable, real-remote-style layout (icons from a Symbols Nerd Font); buttons that
-## don't apply right now (e.g. a DVD's menu arrows during playback) are greyed and
-## skipped rather than removed.
+## target is outlined maroon (PickableHighlight.set_remote_target).
 ##
-## VR: the thumbstick moves the highlight around the grid (up/down/left/right → the
-## nearest enabled cell), primary button (A/X) or thumbstick click activates.
-## Desktop: aim follows the camera reticle, arrow keys move the highlight, Enter
-## activates. There is ONE navigation model everywhere — a DVD's on-screen menu is
-## driven by highlighting and pressing its ▲/◀/●/▶/▼ cells like any other button.
+## By default the handset's OWN keys are the menu: the thumbstick walks a highlight
+## (VRButton.set_selected, the laser's hover outline) over the keys in their real
+## layout on the face — up/down/left/right to the nearest key that way, skipping keys
+## that do nothing on what it is aimed at — and a stick click (or A/X) presses the
+## lit key: it sinks while held and does its cell. Desktop: arrow keys walk it, Enter
+## presses. With AppPrefs.remote_button_menu on (the remote's own menu, off by
+## default) the older floating button GRID pops up above the remote instead,
+## billboarded to the camera, with a stable real-remote-style layout per device
+## (icons from a Symbols Nerd Font); cells that don't apply right now are greyed and
+## skipped rather than removed, and the stick and the arrow keys walk the grid.
 class_name TVRemote
 extends XRToolsPickable
 
@@ -79,6 +80,9 @@ const COLOR_HILITE          := Color(0.62, 0.10, 0.22, 0.7)
 ## (FPS-style, same as the LightGun — read by desktop_pickup.gd). Drop with
 ## Shift+click while snapped.
 var desktop_fps_snap: bool = true
+
+## What its menu (ObjectOptionsPanel) is titled.
+var display_name := "TV Remote"
 
 ## Height of the drop hint above the remote, in metres. Clear of the button
 ## grid, which floats at FLOAT_HEIGHT.
@@ -175,6 +179,20 @@ var _hull: ConvexPolygonShape3D = null
 var _shell_faces: ConcavePolygonShape3D = null
 ## key node name -> VRButton
 var _key_buttons: Dictionary = {}
+
+## With the grid off: the key the thumbstick has lit (kept from hold to hold), the one lit now (cleared when
+## the remote is let go), and the one a stick click or Enter is holding down, with when it went down.
+var _key_sel := "KeyOk"
+var _key_lit := ""
+var _key_down := ""
+var _key_down_ms := 0
+## Which way the last frame drew the menu, so a switch is logged once.
+var _grid_was: Variant = null
+## A key is reached by the stick only this far ahead of the lit one (m), and no farther off to the side than
+## KEY_SIDE times that; among those, the nearest with the side distance counted KEY_SIDE_COST times over.
+const KEY_AHEAD := 0.002
+const KEY_SIDE := 1.5
+const KEY_SIDE_COST := 3.0
 
 
 ## The thumbstick drives the on-screen grid while the remote is aimed at a
@@ -395,10 +413,7 @@ func press_key(key_name: String) -> String:
 	for i in _cells.size():
 		if str(_cells[i]["id"]) == id:
 			cell = i
-	var on_layout := false
-	for spec: Dictionary in _layout_for_target():
-		if str(spec["id"]) == id:
-			on_layout = true
+	var on_layout := _on_layout(id)
 	if not on_layout or not _cell_enabled(id):
 		print("[TVRemote] %s: %s pressed, %s is %s on %s" % [name, key_name, id,
 			"greyed" if on_layout else "not a key", target.name])
@@ -412,6 +427,170 @@ func press_key(key_name: String) -> String:
 		_refresh_states()
 	_target = shown
 	return id
+
+
+func _on_layout(id: String) -> bool:
+	for spec: Dictionary in _layout_for_target():
+		if str(spec["id"]) == id:
+			return true
+	return false
+
+
+## Whether a key does anything on what the remote is aimed at now: its cell is on the device's layout and not
+## greyed. Aimed at nothing, every key is as good as another.
+func key_live(key_name: String) -> bool:
+	if not is_instance_valid(_target):
+		return true
+	var id := cell_for_key(key_name)
+	return _on_layout(id) and _cell_enabled(id)
+
+
+# ── The keys as the menu (the grid off) ───────────────────────────────────────
+
+## Whether the floating grid shows rather than the keys being lit (the remote's own menu, off by default).
+func grid_menu_on() -> bool:
+	return AppPrefs.remote_button_menu
+
+
+## The key the thumbstick has lit.
+func selected_key() -> String:
+	return _key_sel
+
+
+## Light `key_name` (VRButton.set_selected, the laser's hover outline) and unlight the one before; "" none.
+func _light_key(key_name: String) -> void:
+	if key_name == _key_lit:
+		return
+	var old := key_button(_key_lit)
+	if old:
+		old.set_selected(false)
+	_key_lit = key_name
+	var b := key_button(key_name)
+	if b:
+		b.set_selected(true)
+
+
+## Where a key sits on the face, in the keypad's own terms: x to the right, y towards the window.
+func _key_xy(key_name: String) -> Vector2:
+	var b := key_button(key_name)
+	if b == null:
+		return Vector2.ZERO
+	var q := global_transform.affine_inverse() * b.global_position
+	return Vector2(q.x, -q.z)
+
+
+## Walk the light one key in `dir` (x right, y towards the window): the nearest key that way that does
+## something on what the remote is aimed at, never wrapping round. On the ring the light goes round the ring
+## while another of its keys lies that way (left from the top arc is the left arc, not REW above it), and
+## leaves it past the top and bottom arcs. Returns whether it moved.
+func move_key(dir: Vector2) -> bool:
+	var on_ring := _key_sel == "KeyOk" or RING_DIRS.has(_key_sel)
+	var best := _nearest_key(dir, on_ring)
+	if best.is_empty() and on_ring:
+		best = _nearest_key(dir, false)
+	if best.is_empty():
+		return false
+	_key_sel = best
+	if _key_lit != "":
+		_light_key(best)
+	return true
+
+
+func _nearest_key(dir: Vector2, ring_only: bool) -> String:
+	var here := _key_xy(_key_sel)
+	var best := ""
+	var best_score := INF
+	for key_name: String in _key_buttons:
+		if key_name == _key_sel or not key_live(key_name):
+			continue
+		if ring_only and key_name != "KeyOk" and not RING_DIRS.has(key_name):
+			continue
+		var d := _key_xy(key_name) - here
+		var ahead := d.dot(dir)
+		var side := absf(d.cross(dir))
+		if ahead < KEY_AHEAD or side > ahead * KEY_SIDE:
+			continue
+		var score := ahead + side * KEY_SIDE_COST
+		if score < best_score:
+			best_score = score
+			best = key_name
+	return best
+
+
+## The holding hand's stick walks the light, its click (or A/X) holds the lit key down.
+func _process_vr_keys() -> void:
+	var ctrl := _holding_ctrl
+	var v := ctrl.get_vector2("primary")
+	if _stick_latched:
+		if v.length() < STICK_REARM:
+			_stick_latched = false
+	elif v.length() > STICK_STEP:
+		if absf(v.y) >= absf(v.x):
+			move_key(Vector2(0, signf(v.y)))
+		else:
+			move_key(Vector2(signf(v.x), 0))
+		_stick_latched = true
+	var confirm := ctrl.get_float("ax_button") > 0.5 or ctrl.get_float("primary_click") > 0.5
+	if confirm and not _prev_confirm:
+		key_press_down()
+	elif not confirm and _prev_confirm:
+		key_press_up()
+	_prev_confirm = confirm
+
+
+## A stick click or Enter goes down on the lit key: it sinks, and does its cell (press_key: nothing on a
+## device it does not apply to, as on the grid). Returns the cell it did, or "".
+func key_press_down() -> String:
+	var b := key_button(_key_sel)
+	if b == null:
+		return ""
+	_key_release()
+	_key_down = _key_sel
+	_key_down_ms = Time.get_ticks_msec()
+	if not b.is_held():
+		b.set_latched_pressed(true)
+	print("[TVRemote] %s: %s pressed with the stick" % [name, _key_sel])
+	return press_key(_key_sel)
+
+
+## ...and comes up: the key stays down for KEY_FLASH at least, so a quick click is seen.
+func key_press_up() -> void:
+	if _key_down.is_empty():
+		return
+	var key_name := _key_down
+	var left := KEY_FLASH - float(Time.get_ticks_msec() - _key_down_ms) / 1000.0
+	if left <= 0.0:
+		_key_release()
+		return
+	get_tree().create_timer(left).timeout.connect(func() -> void:
+		if is_instance_valid(self) and _key_down == key_name:
+			_key_release())
+
+
+func _key_release() -> void:
+	if _key_down.is_empty():
+		return
+	var b := key_button(_key_down)
+	_key_down = ""
+	if b:
+		b.set_latched_pressed(false)
+
+
+## The remote's own menu (ObjectOptionsPanel): whether the floating button grid shows. One setting for every
+## remote, kept with the app's preferences: it is how the player likes to drive a remote, not a thing about
+## this one, and it is not sent to the other peers in a session.
+func options_choices() -> Array:
+	return [{"caption": "Floating button menu", "items": ["Off", "On"],
+		"selected": 1 if AppPrefs.remote_button_menu else 0}]
+
+
+func options_choose(row: int, item: int) -> void:
+	if row != 0 or item < 0 or item > 1:
+		return
+	AppPrefs.remote_button_menu = item == 1
+	if not AppPrefs.save_prefs():
+		push_warning("[TVRemote] the button menu setting was not saved")
+	print("[TVRemote] %s: floating button menu %s (from its menu)" % [name, "on" if item == 1 else "off"])
 
 
 ## A cell pressed on the floating grid sinks its key on the remote too, for KEY_FLASH: the press is seen on the
@@ -573,12 +752,29 @@ func _process(delta: float) -> void:
 	if not held:
 		if _target != null:
 			_clear_target()
+		_light_key("")
+		_key_release()
 		return
 
 	_update_target(delta)
+	var grid := grid_menu_on()
+	if grid != _grid_was:
+		_grid_was = grid
+		print("[TVRemote] %s: %s" % [name, "the floating button menu" if grid
+			else "the thumbstick lights the remote's own keys"])
+	if not grid:
+		if _menu.visible:
+			_menu.visible = false
+		_light_key(_key_sel)
+		if is_instance_valid(_holding_ctrl):
+			_process_vr_keys()
+		return
+	_light_key("")
 	_update_menu_transform()
 
 	if _target != null:
+		if not _menu.visible:
+			_menu.visible = true
 		# Greying + dynamic glyphs (play/pause, power/mute tint) follow the target's
 		# own state every frame — no special poll needed.
 		_refresh_states()
@@ -598,7 +794,7 @@ func _update_target(delta: float) -> void:
 		_lost_time = 0.0
 		_set_target_highlight(_target, true)
 		_rebuild_grid()
-		_menu.visible = true
+		_menu.visible = grid_menu_on()
 		return
 	# Off-target. VR's cone is already forgiving, so drop it immediately; desktop's
 	# thin crosshair keeps the grace period to ride out brief jitter.
@@ -1267,10 +1463,26 @@ func _move_grid(dcol: int, drow: int) -> void:
 ## Desktop: arrow keys move the highlight, Enter activates (left-click is already
 ## taken by desktop_pickup's drop).
 func _unhandled_input(event: InputEvent) -> void:
-	if not _desktop_held or _target == null:
+	if not _desktop_held:
 		return
 	var key := event as InputEventKey
-	if key == null or not key.pressed or key.echo:
+	if key == null or key.echo:
+		return
+	if not grid_menu_on():
+		# The keys as the menu: the arrows walk the light, Enter holds the lit key down.
+		var moves := {KEY_UP: Vector2(0, 1), KEY_DOWN: Vector2(0, -1), KEY_LEFT: Vector2(-1, 0),
+			KEY_RIGHT: Vector2(1, 0)}
+		if key.pressed and moves.has(key.physical_keycode):
+			move_key(moves[key.physical_keycode])
+			get_viewport().set_input_as_handled()
+		elif key.physical_keycode == KEY_ENTER or key.physical_keycode == KEY_KP_ENTER:
+			if key.pressed:
+				key_press_down()
+			else:
+				key_press_up()
+			get_viewport().set_input_as_handled()
+		return
+	if _target == null or not key.pressed:
 		return
 	match key.physical_keycode:
 		KEY_UP:

@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Tools/av/remote_stick_video_probe.gd" id="1"]
+
+[node name="RemoteStickVideoProbe" type="Node"]
+script = ExtResource("1")
