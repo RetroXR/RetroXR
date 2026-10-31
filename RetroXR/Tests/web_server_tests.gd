@@ -73,6 +73,8 @@ func _ready() -> void:
 		_test_mkdir_creates_and_refuses()
 	if _wants("access"):
 		_test_access_problem()
+	if _wants("address"):
+		_test_address_text()
 
 	_cleanup()
 	_finish()
@@ -466,6 +468,18 @@ func _test_mkdir_creates_and_refuses() -> void:
 # red, so the check must tell a broken entry from a good one. Godot cannot make
 # a file another user's, so these take the permission away instead, which is
 # what the app sees either way.
+
+## OPTIONS > File Server names both ways in: the LAN address for another device,
+## and localhost for the headset's own browser, on the port it listens on, and the
+## PIN either needs.
+func _test_address_text() -> void:
+	var text := WebFileServer.address_text("4321", 8099)
+	_ok(text.contains("http://%s:8099" % WebFileServer.local_ip()) and text.contains("http://localhost:8099")
+		and text.contains("PIN: 4321"),
+		"address/the File Server names the LAN address, the headset's localhost and the PIN", text)
+	_ok(WebFileServer.headset_url() == "http://localhost:%d" % WebFileServer.DEFAULT_PORT,
+		"address/the headset's address is loopback on the port the server listens on")
+
 
 func _test_access_problem() -> void:
 	DirAccess.make_dir_recursive_absolute(_up_root())

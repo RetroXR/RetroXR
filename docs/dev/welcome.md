@@ -94,7 +94,9 @@ no VLC.
   USB or adb puts in the app's folder belongs to that other owner (uid), so RetroXR
   can read it at best and never change or delete it, and may not be let into a folder
   made that way (quest-device.md on `adb push`). The Web File Manager writes as the
-  app. `android_override` / `do_lines(vr, android)` / `dont_lines(android)` let the
+  app. The line names `WebFileServer.headset_url()` (localhost:8080), which the
+  headset's own browser opens with no other device; OPTIONS > File Server shows it
+  beside the LAN address (`address_text`), and `welcome_tests` holds the line to it. `android_override` / `do_lines(vr, android)` / `dont_lines(android)` let the
   suite and the probe build a Quest's page on a desk.
 - The quad is **SCISSOR**, not TRANSPARENT: alpha-blended, the bedroom window's
   string lights two metres behind came through the text (measured in the probe).

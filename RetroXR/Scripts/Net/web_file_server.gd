@@ -49,6 +49,24 @@ static func _roots() -> Dictionary:
 	}
 
 
+## The address a phone or PC on the same network opens.
+static func lan_url(port: int = DEFAULT_PORT) -> String:
+	return "http://%s:%d" % [local_ip(), port]
+
+
+## The address the headset's OWN browser opens: the server listens on every
+## interface (TCPServer's "*"), loopback included, and keeps answering from its own
+## thread while the app is in the background behind the browser.
+static func headset_url(port: int = DEFAULT_PORT) -> String:
+	return "http://localhost:%d" % port
+
+
+## What OPTIONS > File Server shows under its switch: both addresses, then the PIN.
+static func address_text(pin_: String, port: int = DEFAULT_PORT) -> String:
+	return "From a phone or PC on the same Wi-Fi:   %s\nFrom this headset's own browser:   %s\nPIN: %s" \
+		% [lan_url(port), headset_url(port), pin_]
+
+
 ## Best-guess LAN IP address (filters out loopback and IPv6).
 static func local_ip() -> String:
 	for addr: String in IP.get_local_addresses():
@@ -74,7 +92,8 @@ func start(port: int = DEFAULT_PORT) -> bool:
 	_running = true
 	_thread = Thread.new()
 	_thread.start(_thread_loop)
-	print("[WebFileServer] Listening on http://%s:%d  root=%s" % [local_ip(), port, server_root()])
+	print("[WebFileServer] Listening on %s (and %s from the headset)  root=%s" % [lan_url(port),
+		headset_url(port), server_root()])
 	return true
 
 

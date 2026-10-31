@@ -64,9 +64,9 @@ const DONT: Array[String] = [
 ## lets RetroXR manage only files it wrote itself, so the Web File Manager, which
 ## writes them AS RetroXR, is the one way in.
 const QUEST_ROMS_LINE := "Load your own game files with the Web File Manager: switch it on in " \
-	+ "OPTIONS > File Server, open the address it shows in a browser on the same Wi-Fi, enter " \
-	+ "the PIN and upload into roms, a folder per system (snes, n64, psx ...). Or connect a " \
-	+ "RomM server in OPTIONS > RomM."
+	+ "OPTIONS > File Server, then open http://localhost:8080 in this headset's own browser, or " \
+	+ "the other address it shows on a phone or PC on the same Wi-Fi. Enter the PIN and upload " \
+	+ "into roms, a folder per system (snes, n64, psx ...). Or connect a RomM server in OPTIONS > RomM."
 
 ## A Quest's own DON'T. A file that a file manager app, a PC over USB or adb puts in
 ## the app's folder belongs to that other owner (uid): RetroXR, which Android runs as

@@ -142,8 +142,8 @@ func _group_copy() -> void:
 	# and its DON'T warns off every other way in, and says why.
 	var quest := "\n".join(Welcome2D.do_lines(true, true))
 	_ok(quest.contains("Web File Manager") and quest.contains("OPTIONS > File Server")
-		and not quest.contains(Welcome2D.roms_folder()),
-		"copy/on a Quest, the ROM line sends files through the Web File Manager, not a folder")
+		and quest.contains(WebFileServer.headset_url()) and not quest.contains(Welcome2D.roms_folder()),
+		"copy/on a Quest, the ROM line sends files through the Web File Manager, at the headset's own address too")
 	var quest_dont := " ".join(Welcome2D.dont_lines(true))
 	_ok(quest_dont.contains("file manager") and quest_dont.contains("USB") and quest_dont.contains("adb")
 		and quest_dont.contains("uid") and quest_dont.contains("Web File Manager only")

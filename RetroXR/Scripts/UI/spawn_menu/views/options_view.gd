@@ -1462,8 +1462,9 @@ func _build_file_server_options(vbox: VBoxContainer) -> void:
 	_server_address_label = Label.new()
 	_server_address_label.add_theme_font_size_override("font_size", 16)
 	_server_address_label.add_theme_color_override("font_color", MenuStyle.COLOR_DESC)
-	_server_address_label.text = "http://%s:8080   PIN: %s" % \
-		[WebFileServer.local_ip(), scraper_config.ensure_web_server_pin()]
+	# Both: the LAN address for a phone or PC, and localhost for the headset's own
+	# browser, which a player in the headset reaches without another device.
+	_server_address_label.text = WebFileServer.address_text(scraper_config.ensure_web_server_pin())
 	_server_address_label.visible = scraper_config.web_server_enabled
 	vbox.add_child(_server_address_label)
 
