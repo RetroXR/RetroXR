@@ -2293,9 +2293,10 @@ func _group_sticks() -> void:
 	var onto := cap.global_transform * (mid + Vector3(0.0, -0.02, 0.0))
 	var head_at := func(point: Vector3) -> void:
 		(hl["origin"] as XROrigin3D).global_transform = Transform3D(Basis.IDENTITY, point - ArcadeDrumstick.TIP)
-	struck.clear()
+	# Over the drum first, and only then listen: the stick is put there in one frame, and its shaft sweeping in through the shell's side on the way is a (fast, sideways) ka of its own.
 	head_at.call(over)
 	await _wait(4)
+	struck.clear()
 	for step in 20:
 		head_at.call(over.lerp(onto, float(step + 1) / 20.0))
 		await _wait(1)
@@ -2313,12 +2314,12 @@ func _group_sticks() -> void:
 	head_at.call(onto)
 	await _wait(3)
 	_ok(struck.size() == 2, "sticks: and, lifted off and brought down again, hits again (%d)" % struck.size())
-	# At its cradle it IS shown in it: the hand brings the grip to the seat, and letting go there seats it.
+	# At its cradle it is NOT drawn in it (Holster: a seat shows no preview, a held thing drawn seated read as having gone in by itself): it stays in the hand, and letting go there seats it.
 	var well := left.captive_well
 	(hl["origin"] as XROrigin3D).global_transform = Transform3D(well.global_basis, well.global_position + Vector3(0.0, 0.0, 0.03))
 	await _wait(20)
-	_ok(left.global_position.distance_to(well.global_position) < 0.005,
-		"sticks: with the grip brought to the cradle the stick is shown in it (%.3f m off)" % left.global_position.distance_to(well.global_position))
+	_ok(left.global_position.distance_to(well.global_position) > 0.02 and well.picked_up_object != left,
+		"sticks: with the grip brought to the cradle the stick stays in the hand, not drawn seated (%.3f m off)" % left.global_position.distance_to(well.global_position))
 	left.drop()
 	await _wait(6)
 	_ok(well.picked_up_object == left and not ArcadeInput.held_by_hand(left),
@@ -2391,41 +2392,48 @@ func _group_drumside() -> void:
 		return
 	var ka_left := ArcadeProfiles.button_bit(4)
 	var ka_right := ArcadeProfiles.button_bit(1)
+	# Against the side: just outside the shell's wall, inside DrumSide's margin, and low on the wall, deeper under the rim's face than a fingertip presses a cap
+	# (ArcadePanelHands.POKE_IN): a hand there is on the side and not on the rim. Taken from the shell, not written in metres: the drum grew, and the old figure was on top of its rim.
+	var wall := (shell.mesh as CylinderMesh).top_radius + DrumSide.MARGIN * 0.5
+	var low := (shell.mesh as CylinderMesh).height * 0.5 - ArcadePanelHands.POKE_IN * 2.0
 	var at := func(x: float, y: float) -> Vector3:
 		return shell.global_transform * Vector3(x, y, 0.0)
 	var held := func(bit: int) -> bool:
 		return (panel.hand_buttons() >> bit) & 1 == 1
 	var hand := _hand("right")
+	# The cabinet's input steps the hands it was given (as every hand group here gives it its own): without this the side was never tried, and the no-hit cases passed on nothing.
+	input._right_vr_ctrl = _ctrl(hand)
 	var move := func(x: float, y: float, delta: float = 0.016) -> void:
 		_tip_at(hand, at.call(x, y))
 		input._process(delta)
 	# Far off, then in against the right wall, fast: a ka on the right half, and only that.
-	move.call(0.40, 0.0)
-	move.call(0.13, 0.0)
+	move.call(0.40, low)
+	move.call(wall, low)
 	_ok(held.call(ka_right) and not held.call(ka_left), "drumside: a hand brought in against the right side is a ka on the right half")
 	# It is a short press, not a held one.
 	input._process(0.20)
 	_ok(not held.call(ka_right), "drumside: and it lets go by itself a moment after")
 	# Still on the drum, it does not strike again; off the wall, it can.
-	move.call(0.13, 0.0)
-	move.call(0.40, 0.0)
-	move.call(0.40, 0.0)
-	move.call(-0.40, 0.0)
-	move.call(-0.13, 0.0)
+	move.call(wall, low)
+	move.call(0.40, low)
+	move.call(0.40, low)
+	move.call(-0.40, low)
+	move.call(-wall, low)
 	_ok(held.call(ka_left) and not held.call(ka_right), "drumside: and from the left, on the left half (the hand had gone off the wall in between)")
 	input._process(0.20)
 	# A slow touch, a hand over the drum, and a hand going out hit nothing.
-	move.call(0.40, 0.0)
-	move.call(0.13, 0.0, 4.0)
+	move.call(0.40, low)
+	move.call(wall, low, 4.0)
 	_ok(not held.call(ka_right), "drumside: a slow touch hits nothing")
-	move.call(0.40, 0.0)
-	move.call(0.40, 0.0)
+	move.call(0.40, low)
+	move.call(0.40, low)
 	move.call(0.40, 0.14)
-	move.call(0.13, 0.14)
+	move.call(wall, 0.14)
 	_ok(not held.call(ka_right), "drumside: a hand held 14 cm over the drum goes over it")
-	move.call(0.13, 0.0)
-	move.call(0.40, 0.0)
+	move.call(wall, low)
+	move.call(0.40, low)
 	_ok(not held.call(ka_right), "drumside: and a hand going out of the drum is no strike")
+	input._right_vr_ctrl = null
 
 
 func _group_guitar() -> void:
@@ -2451,11 +2459,14 @@ func _group_guitar() -> void:
 	g._fret_down[0] = false
 	g._wail_key = false
 	g._knob = 0.0
-	# The body in the right hand.
+	# The body in the right hand. Both hands exist first, as a headset's do: the guitar looks its player's two hands up once (and a missing one only once a second), so a hand made after the
+	# take would not be its free hand until that second had passed.
 	var hr := _hand("right")
+	var hl := _hand("left")
 	await _take_guitar(hr, g, "BodyR")
-	# Held at its bay it is SHOWN in it (the cradle's preview, as any seated thing is): the hand takes it off to where a player holds a guitar, and it lies the way a hand has it.
-	_ok(g.global_basis.y.y > 0.99 and g.captive_well != null, "guitar: held at its bay it is still shown hanging in it")
+	# Held at its bay it is in the HAND, not drawn hanging in the bay (Holster: a seat shows no preview): the hand takes it off to where a player holds a guitar, and it lies the way a hand has it.
+	_ok(g.captive_well != null and not g.captive_well.show_preview and g.captive_well.picked_up_object != g and ArcadeInput.held_by_hand(g),
+		"guitar: held at its bay it is in the hand, not shown hanging in it")
 	(hr["origin"] as XROrigin3D).global_position += Vector3(0.0, 0.0, 0.8)
 	await _wait(60)
 	var holders := g.holders()
@@ -2464,7 +2475,6 @@ func _group_guitar() -> void:
 		"guitar: a right hand that takes it by its body holds the body, and somebody is at the cabinet")
 	_ok(g.neck_side() == ArcadeGuitarGrab.LEFT and g.global_basis.y.y < ArcadeGuitar.TILT_OFF, "guitar: with the body in the right hand the neck is the left's, and lies out below the wail's angle (%.2f)" % g.global_basis.y.y)
 	# One hand: it works the frets, a free hand strums.
-	var hl := _hand("left")
 	_trigger(hr, 1.0)
 	g._read_vr()
 	_ok(g.frets_down()[0] and (g.held_pad_bits() & red) != 0, "guitar: with one hand on it, that hand's trigger is the red fret")
