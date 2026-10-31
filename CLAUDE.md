@@ -302,6 +302,9 @@ All three launch steps are required; undo them after (`guardian_pause 0`, `prox_
   app is `other` for everything `shell` creates (0644 files it can never overwrite, 0770
   dirs it cannot enter), and `chmod 660` makes it worse. Let the app recreate it.
 - Microphone unattended: `adb shell pm grant com.xenu.retroxr android.permission.RECORD_AUDIO`.
+- **The launch splash** (the icon Horizon OS shows while the app starts) is the "Quest" preset's
+  `instant_splash_screen` packing `application/boot_splash/image` (`Textures/vr_splash.png`, 2:1);
+  with no image set it silently does nothing (quest-device.md).
 
 ## CI
 

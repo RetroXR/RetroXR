@@ -189,6 +189,24 @@ loses boot output. Stream from before the launch instead:
 adb logcat -c && adb logcat -s godot:* > quest.log &
 ```
 
+### The launch splash (the RetroXR icon while Horizon OS starts the app)
+
+The "Quest" preset has `meta_xr_features/instant_splash_screen=true`. godot_openxr_vendors
+then writes `com.oculus.ossplash` (`true`, `.type=mono`, `.colorspace=Rec.709`) into the
+manifest and packs `application/boot_splash/image` (`res://Textures/vr_splash.png`, drawn
+by `Tools/art/gen_app_icons.py vr_splash.png`) as `vr_splash.png`. **With no
+`boot_splash/image` set it silently does nothing.** The probe presets leave it off.
+
+Horizon OS shows the splash at the PNG's own pixel size, fitted to 2:1, hence the
+1024 x 512 canvas with the icon tile in the middle; `adb shell setprop
+debug.oculus.ossplash.ratio <n>` scales it on the device to try a size before redrawing.
+The same image is the desktop window's boot splash (`stretch_mode=0`, black).
+Check an export carries it:
+```bash
+unzip -l out.apk | grep vr_splash.png
+aapt dump xmltree out.apk AndroidManifest.xml | grep -A1 ossplash
+```
+
 ### "Stuck on the loading screen": which engine is it running?
 
 Read the banner first. `Godot Engine v4.7.2.stable.official…` is **stock** Godot, which

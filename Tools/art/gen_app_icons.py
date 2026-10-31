@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Draw RetroXR's app icons from the vector mark's geometry.
 
-    python Tools/art/gen_app_icons.py
+    python Tools/art/gen_app_icons.py [name.png ...]
 
-Writes into RetroXR/Textures/ the four files export_presets.cfg points at, plus
-the 512 project icon:
+Writes into RetroXR/Textures/ the four files export_presets.cfg points at, the
+512 project icon and the launch splash -- or, given names, only those (a
+re-encode of an unchanged icon is still a binary diff):
 
     app_icon.png       512   project icon (Godot editor / window)
     app_icon_192.png   192   legacy square launcher icon, full bleed
     app_icon_fg.png    432   adaptive FOREGROUND, real alpha
     app_icon_bg.png    432   adaptive BACKGROUND, opaque, no artwork
     app_icon_mono.png  432   themed icon, white silhouette on alpha
+    vr_splash.png   1024x512 launch splash: Godot's boot splash, and the Quest's
+                             (godot_openxr_vendors' instant splash screen packs
+                             application/boot_splash/image as vr_splash.png)
 
 Drawn here rather than exported from game-icons/retroxr-mark.svg on purpose:
 the adaptive layers need a genuine alpha channel and exact pixel dimensions,
@@ -23,10 +27,11 @@ about than per-shape antialiasing and gives cleaner curves.
 """
 
 import os
+import sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-OUT = os.path.join(os.path.dirname(__file__), "..", "RetroXR", "Textures")
+OUT = os.path.join(os.path.dirname(__file__), "..", "..", "RetroXR", "Textures")
 SS = 4                      # supersample factor
 U = 1024                    # design space, matching the SVG viewBox
 
@@ -192,9 +197,39 @@ def backdrop(canvas_u):
     return bg
 
 
+# Names given on the command line, or empty for all of them.
+ONLY = set(sys.argv[1:])
+
+# Launch splash: the canvas and the tile on it, in output pixels. Horizon OS shows
+# the splash at the PNG's own size and fits it to 2:1, so the canvas is the shape
+# it wants and the size it is shown at; the transparent field around the tile is
+# the black the Quest launches into either way.
+SPLASH_W, SPLASH_H = 1024, 512
+SPLASH_TILE = 420
+SPLASH_TILE_R = 0.22        # corner radius as a fraction of the tile, launcher-like
+
+
 def save(img, name, size):
+    if ONLY and name not in ONLY:
+        return
     img.resize((size, size), Image.LANCZOS).save(os.path.join(OUT, name))
     print(f"  {name:20} {size}x{size}")
+
+
+def splash():
+    """The app icon as a rounded tile, centred on a transparent 2:1 field."""
+    name = "vr_splash.png"
+    if ONLY and name not in ONLY:
+        return
+    tile = backdrop(U)
+    tile.alpha_composite(draw_headset(U))
+    t = s(SPLASH_TILE)
+    tile = tile.resize((t, t), Image.LANCZOS)
+    tile.putalpha(rr_mask(t, t, (0, 0, t - 1, t - 1), s(SPLASH_TILE * SPLASH_TILE_R)))
+    canvas = Image.new("RGBA", (s(SPLASH_W), s(SPLASH_H)), (0, 0, 0, 0))
+    canvas.alpha_composite(tile, (s((SPLASH_W - SPLASH_TILE) // 2), s((SPLASH_H - SPLASH_TILE) // 2)))
+    canvas.resize((SPLASH_W, SPLASH_H), Image.LANCZOS).save(os.path.join(OUT, name))
+    print(f"  {name:20} {SPLASH_W}x{SPLASH_H}")
 
 
 def main():
@@ -238,6 +273,8 @@ def main():
     mono = Image.new("RGBA", (s(432), s(432)), (0, 0, 0, 0))
     mono.alpha_composite(sil, (off, off))
     save(mono, "app_icon_mono.png", 432)
+
+    splash()
 
 
 if __name__ == "__main__":
