@@ -12,7 +12,8 @@ re-encode of an unchanged icon is still a binary diff):
     app_icon_fg.png    432   adaptive FOREGROUND, real alpha
     app_icon_bg.png    432   adaptive BACKGROUND, opaque, no artwork
     app_icon_mono.png  432   themed icon, white silhouette on alpha
-    vr_splash.png   1024x512 launch splash: Godot's boot splash, and the Quest's
+    vr_splash.png   1024x512 launch splash: the themed icon's white silhouette on
+                             alpha -- Godot's boot splash, and the Quest's
                              (godot_openxr_vendors' instant splash screen packs
                              application/boot_splash/image as vr_splash.png)
 
@@ -200,13 +201,12 @@ def backdrop(canvas_u):
 # Names given on the command line, or empty for all of them.
 ONLY = set(sys.argv[1:])
 
-# Launch splash: the canvas and the tile on it, in output pixels. Horizon OS shows
+# Launch splash: the canvas and the mark on it, in output pixels. Horizon OS shows
 # the splash at the PNG's own size and fits it to 2:1, so the canvas is the shape
-# it wants and the size it is shown at; the transparent field around the tile is
+# it wants and the size it is shown at; the transparent field around the mark is
 # the black the Quest launches into either way.
 SPLASH_W, SPLASH_H = 1024, 512
-SPLASH_TILE = 420
-SPLASH_TILE_R = 0.22        # corner radius as a fraction of the tile, launcher-like
+SPLASH_TILE = 420           # the 1024 design square, scaled to this
 
 
 def save(img, name, size):
@@ -216,18 +216,33 @@ def save(img, name, size):
     print(f"  {name:20} {size}x{size}")
 
 
+def silhouette(canvas_u):
+    """Flat white shell + straps with the lenses punched out, alpha only: the
+    themed icon's mark, and the launch splash's."""
+    sil = Image.new("RGBA", (s(canvas_u), s(canvas_u)), (0, 0, 0, 0))
+    dd = ImageDraw.Draw(sil)
+    for box in (STRAP_L, STRAP_R):
+        dd.rounded_rectangle((s(box[0]), s(box[1]), s(box[2]), s(box[3])),
+                             radius=s(STRAP_R_), fill=(255, 255, 255, 255))
+    dd.rounded_rectangle((s(SHELL[0]), s(SHELL[1]), s(SHELL[2]), s(SHELL[3])),
+                         radius=s(SHELL_R), fill=(255, 255, 255, 255))
+    # punch the lenses out so it still reads as a headset when flattened
+    for (cx, cy) in LENS:
+        dd.ellipse((s(cx - PHOS_R), s(cy - PHOS_R), s(cx + PHOS_R), s(cy + PHOS_R)),
+                   fill=(255, 255, 255, 0))
+    return sil
+
+
 def splash():
-    """The app icon as a rounded tile, centred on a transparent 2:1 field."""
+    """The white silhouette, centred on a transparent 2:1 field: white on the
+    black the Quest launches into."""
     name = "vr_splash.png"
     if ONLY and name not in ONLY:
         return
-    tile = backdrop(U)
-    tile.alpha_composite(draw_headset(U))
     t = s(SPLASH_TILE)
-    tile = tile.resize((t, t), Image.LANCZOS)
-    tile.putalpha(rr_mask(t, t, (0, 0, t - 1, t - 1), s(SPLASH_TILE * SPLASH_TILE_R)))
+    mark = silhouette(U).resize((t, t), Image.LANCZOS)
     canvas = Image.new("RGBA", (s(SPLASH_W), s(SPLASH_H)), (0, 0, 0, 0))
-    canvas.alpha_composite(tile, (s((SPLASH_W - SPLASH_TILE) // 2), s((SPLASH_H - SPLASH_TILE) // 2)))
+    canvas.alpha_composite(mark, (s((SPLASH_W - SPLASH_TILE) // 2), s((SPLASH_H - SPLASH_TILE) // 2)))
     canvas.resize((SPLASH_W, SPLASH_H), Image.LANCZOS).save(os.path.join(OUT, name))
     print(f"  {name:20} {SPLASH_W}x{SPLASH_H}")
 
@@ -258,18 +273,7 @@ def main():
     save(backdrop(U).convert("RGB").convert("RGBA"), "app_icon_bg.png", 432)
 
     # Themed icon: flat white silhouette of the shell + straps, alpha only.
-    sil = Image.new("RGBA", (s(U), s(U)), (0, 0, 0, 0))
-    dd = ImageDraw.Draw(sil)
-    for box in (STRAP_L, STRAP_R):
-        dd.rounded_rectangle((s(box[0]), s(box[1]), s(box[2]), s(box[3])),
-                             radius=s(STRAP_R_), fill=(255, 255, 255, 255))
-    dd.rounded_rectangle((s(SHELL[0]), s(SHELL[1]), s(SHELL[2]), s(SHELL[3])),
-                         radius=s(SHELL_R), fill=(255, 255, 255, 255))
-    # punch the lenses out so it still reads as a headset when flattened
-    for (cx, cy) in LENS:
-        dd.ellipse((s(cx - PHOS_R), s(cy - PHOS_R), s(cx + PHOS_R), s(cy + PHOS_R)),
-                   fill=(255, 255, 255, 0))
-    sil = sil.resize((tgt, tgt), Image.LANCZOS)
+    sil = silhouette(U).resize((tgt, tgt), Image.LANCZOS)
     mono = Image.new("RGBA", (s(432), s(432)), (0, 0, 0, 0))
     mono.alpha_composite(sil, (off, off))
     save(mono, "app_icon_mono.png", 432)
