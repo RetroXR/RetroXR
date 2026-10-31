@@ -82,6 +82,7 @@ func _exit_tree() -> void:
 ## The cord, if there is a cabinet node for it to go into. Deferred: a thing is made while its parents are still being built.
 func _spawn_cord() -> void:
 	if cord_anchor == null:
+		print("[Arcade] %s %d/%d has no cord anchor: no cord" % [kind, player, side])
 		return
 	_cable = CABLE_SCENE.instantiate()
 	# The generic lead's plug is not wanted: the cord ends at the cabinet's own node, which is not a body anything can pull.
@@ -94,6 +95,8 @@ func _spawn_cord() -> void:
 
 func _add_cord_to_scene() -> void:
 	if not is_inside_tree() or _cable == null or not is_instance_valid(cord_anchor):
+		push_warning("[Arcade] %s %d/%d: cord not added (in tree=%s, cable=%s, anchor valid=%s)" % [kind, player, side,
+				str(is_inside_tree()), str(_cable != null), str(is_instance_valid(cord_anchor))])
 		return
 	get_tree().current_scene.add_child(_cable)
 	_rope = _cable.get_node("VerletRope") as VerletRope
@@ -103,7 +106,7 @@ func _add_cord_to_scene() -> void:
 	CaptiveCord.resize(_rope, cord_length)
 	_rope._init_points()
 	if cord_route.size() >= 2 and not CaptiveCord.lay(_rope, cord_route):
-		push_warning("ArcadeHeldGear: the cord's route was refused by the rope")
+		push_warning("[Arcade] %s %d/%d: the cord's route was refused by the rope" % [kind, player, side])
 
 
 ## The cord (null before it exists, and for a thing with no cabinet).
@@ -183,6 +186,8 @@ func _tether() -> void:
 	if is_picked_up():
 		# A hand that walks off with it lets go, and it falls where it is.
 		if at.distance_to(from) > reach() + LET_GO_SLACK:
+			print("[Arcade] %s %d/%d dropped: the hand walked off with it (%.2f m from the cabinet, cord %.2f m)" % [kind, player, side,
+					at.distance_to(from), reach()])
 			drop()
 	else:
 		PlugTether.reel_in(self, at, from, reach())

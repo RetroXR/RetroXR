@@ -43,8 +43,10 @@ func is_occupied() -> bool:
 func sit() -> bool:
 	var rig := Seat.PlayerPieces.find(_host)
 	if rig.camera == null or rig.origin == null:
+		push_warning("[Seat] %s: cannot sit (camera found=%s, origin found=%s)" % [_host.name, str(rig.camera != null), str(rig.origin != null)])
 		return false
 	if Seat.current != null and Seat.current != _host:
+		print("[Seat] %s: leaving %s first" % [_host.name, Seat.current.name])
 		Seat.current.call("stand")
 	var eye: Transform3D = _host.call("eye_transform")
 	var floor_y: float = _host.call("floor_y")
@@ -53,6 +55,7 @@ func sit() -> bool:
 		# The desktop eye height is the camera's own height above the origin.
 		_saved_camera_y = rig.camera.position.y
 		rig.camera.position.y = eye.origin.y - floor_y
+		print("[Seat] %s: desktop eye height %.2f m -> %.2f m (the floor under it at %.2f)" % [_host.name, _saved_camera_y, eye.origin.y - floor_y, floor_y])
 	rig.origin.global_transform = Seat.origin_for_eye(rig.origin.global_transform, rig.camera.global_transform, eye, floor_y)
 	if MenuStyle.is_vr_mode():
 		# The head goes to the seat's eyes, whatever height the person really is at (Seat.origin_at_eye_height).
@@ -74,6 +77,7 @@ func sit() -> bool:
 func stand() -> void:
 	if Seat.current != _host:
 		return
+	print("[Seat] %s: stood up" % _host.name)
 	Seat.current = null
 	_host.set_physics_process(false)
 	var rig := _rig if _rig != null and is_instance_valid(_rig.origin) else Seat.PlayerPieces.find(_host)
@@ -117,6 +121,7 @@ func follow() -> void:
 ## The room is being changed: the player keeps no seat (the next room has none of these). Only the claim is dropped;
 ## the rig puts the body away and back itself (PlayerRig.leave_world).
 func release() -> void:
+	print("[Seat] %s: released for a room change" % _host.name)
 	_host.set_physics_process(false)
 	_block_locomotion(false)
 	if _saved_camera_y >= 0.0 and _rig != null and is_instance_valid(_rig.camera):
@@ -138,9 +143,11 @@ func _put_body_under_camera(rig: Seat.PlayerPieces) -> void:
 
 func _block_locomotion(on: bool) -> void:
 	if not _host.is_inside_tree():
+		push_warning("[Seat] %s: locomotion not %s: the seat is not in the tree" % [_host.name, "held" if on else "freed"])
 		return
 	var loco := _host.get_tree().root.find_child("LocomotionManager", true, false) as LocomotionManager
 	if loco == null:
+		push_warning("[Seat] %s: no LocomotionManager: locomotion not %s" % [_host.name, "held" if on else "freed"])
 		return
 	if on:
 		loco.set_block(Seat.BLOCK_OWNER, LocomotionManager.CHANNEL_ALL, true)

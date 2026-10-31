@@ -334,12 +334,18 @@ func load_media() -> void:
 	_media_key = key
 	_stop_playback()
 	_still = load_still(systemid, rom)
+	if str(found["kind"]).is_empty():
+		print("[Attract] %s/%s: no video or image (title still=%s)" % [systemid, rom.get_file(), str(_still != null)])
+	else:
+		print("[Attract] %s/%s: %s %s (title still=%s)" % [systemid, rom.get_file(), str(found["kind"]), str(found["path"]), str(_still != null)])
 	if found["kind"] == "video":
 		_open_video(str(found["path"]))
 	elif found["kind"] == "image" and _still == null:
 		var img := Image.load_from_file(str(found["path"]))
 		if img != null and not img.is_empty():
 			_still = ImageTexture.create_from_image(img)
+		else:
+			push_warning("[Attract] could not load the image %s" % str(found["path"]))
 
 
 ## The system the BOARD belongs to (the folder its media lives under), which is not always the
@@ -352,8 +358,15 @@ func _game_systemid() -> String:
 	return str(_host.get("systemid")) if _host != null else ""
 
 
+## Said once a process: this build has no VlcPlayer.
+static var _no_vlc_said := false
+
+
 func _open_video(path: String) -> void:
 	if not ClassDB.class_exists("VlcPlayer"):
+		if not _no_vlc_said:
+			_no_vlc_said = true
+			push_warning("[Attract] no VlcPlayer in this build: attract videos show their still only")
 		return
 	# One player for the life of the cabinet: libvlc_new per attract would be paid on every switch-on.
 	if _vlc == null:
@@ -363,7 +376,7 @@ func _open_video(path: String) -> void:
 	_opened_msec = Time.get_ticks_msec()
 	# A path under user:// is no URL scheme libVLC knows.
 	if not _vlc.open(ProjectSettings.globalize_path(path), false):
-		push_warning("ArcadeAttract: VlcPlayer.open failed for %s" % path)
+		push_warning("[Attract] VlcPlayer.open failed for %s" % path)
 		_stop_playback()
 		return
 	_vlc.set_volume(VIDEO_VOLUME)
@@ -425,6 +438,8 @@ func _restart() -> void:
 		_vlc.set_volume(VIDEO_VOLUME)
 		if _emitter != null:
 			_emitter.flush()
+	else:
+		push_warning("[Attract] VlcPlayer could not reopen %s to loop it" % _video_path)
 
 
 # ── what the glass shows ────────────────────────────────────────────────────
@@ -523,6 +538,7 @@ func apply_rank(play_ok: bool, distance: float) -> void:
 	var play := _play_ok
 	if play != _playing:
 		_playing = play
+		print("[Attract] %s: video %s (distance %.1f m)" % [_video_path.get_file(), "plays" if play else "paused", distance])
 		_vlc.set_paused(not play)
 		if not play and _emitter != null:
 			_emitter.flush()

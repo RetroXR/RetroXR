@@ -28,12 +28,16 @@ func _ready() -> void:
 	while parent != null and not (parent is XRToolsPickable):
 		parent = parent.get_parent()
 	if parent != null:
-		(parent as XRToolsPickable).picked_up.connect(func(_p: Variant) -> void: stand())
+		(parent as XRToolsPickable).picked_up.connect(func(_p: Variant) -> void:
+			if is_occupied():
+				print("[Seat] %s: the cabinet was picked up with the player in it: standing them up" % name)
+			stand())
 
 
 func _exit_tree() -> void:
 	# The form was changed, or the cabinet put away, with the player in it.
 	if Seat.current == self:
+		print("[Seat] %s: the form was rebuilt or the cabinet put away with the player in it" % name)
 		stand()
 
 

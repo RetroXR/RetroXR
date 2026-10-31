@@ -497,6 +497,11 @@ func _build_hidden_flags() -> void:
 	_hidden_flags = compute_hidden_flags(_fs_names, _exts, discs)
 	if discs:
 		_disc_pairs = ArcadeDiscs.pair_folders(_fs_names, _exts)
+		var paired := 0
+		for folder: int in _disc_pairs:
+			if folder >= 0:
+				paired += 1
+		print("[RommCatalog] %s: %d of %d row(s) are boards paired with a disc folder" % [_loaded_systemid, paired, _offsets.size()])
 
 
 ## Arcade only: the row of the disc folder that goes with board row `i` (the folder RomM lists

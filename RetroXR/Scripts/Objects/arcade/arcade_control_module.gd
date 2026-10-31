@@ -395,7 +395,10 @@ func prompt_hint() -> HeldHint:
 ## Attach to (or let go of) this panel, as a press on it does.
 func set_attached(on: bool) -> void:
 	# A panel the game does not use (apply_profile) is not there to attach to.
-	if _grip != null and (visible or not on):
+	if on and not visible:
+		print("[Arcade] panel %d not attached: the game does not use it (hidden)" % (player + 1))
+		return
+	if _grip != null:
 		_grip.set_attached(on)
 
 

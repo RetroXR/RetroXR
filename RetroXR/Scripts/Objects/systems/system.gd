@@ -1028,7 +1028,7 @@ func default_core_name() -> String:
 func set_core_choice(core: String) -> void:
 	if core == core_name:
 		return
-	print("[RetroSystem] core for '%s': '%s' -> '%s'" % [name, core_name, core])
+	print("[RetroSystem] core for '%s': '%s' -> '%s'%s" % [name, core_name, core, " (powering off the running core)" if is_powered_on else ""])
 	if is_powered_on:
 		power_off()
 	core_name = core
@@ -1525,6 +1525,8 @@ func after_cabinet_form() -> void:
 		var zone := _ports.zones[i] as XRToolsSnapZone
 		if (i < guns or not zone.enabled) and is_instance_valid(zone.picked_up_object):
 			var plug := zone.picked_up_object as Node3D
+			print("[ArcadeCabinet] %s ejected from port %d: the new form %s" % [plug.name, i + 1,
+					"puts a gun there" if i < guns else "has no socket there"])
 			zone.drop_object()
 			# Out of the zone's reach, so it is not taken straight back.
 			plug.global_position += zone.global_basis.z * 0.15
@@ -1536,7 +1538,9 @@ func after_cabinet_form() -> void:
 ## What is already showing changes at once: a cabinet that is on gives the game up (or starts showing it).
 func set_attract_override(mode: int) -> void:
 	attract_override = clampi(mode, ArcadeAttract.OVERRIDE_FOLLOW, ArcadeAttract.OVERRIDE_OFF)
-	if attracting and not attract_applies():
+	var restart := attracting and not attract_applies()
+	print("[Attract] %s: override %d (applies=%s)%s" % [name, attract_override, str(attract_applies()), ", restarting the cabinet" if restart else ""])
+	if restart:
 		power_off()
 		power_on()
 	request_attract_media()
@@ -1712,6 +1716,7 @@ func _enter_attract() -> void:
 
 ## Stop showing the game (power button, board out, a console cabled in) and go dark. No core to stop.
 func _leave_attract() -> void:
+	print("[RetroSystem] Attract: no longer showing %s" % rom_path.get_file())
 	attracting = false
 	if _attract != null:
 		_attract.stop()
@@ -1775,13 +1780,16 @@ func request_attract_media() -> void:
 	if not _is_cabinet_model() or _snapped_cartridge == null or rom_path.is_empty():
 		return
 	if not ArcadeAttract.effective_pref(AppPrefs.arcade_attract_mode, attract_override):
+		print("[Attract] %s: media not asked for, the attract is off here (override %d)" % [rom_path.get_file(), attract_override])
 		return
 	var board_sys := str(_snapped_cartridge.get("systemid")) if "systemid" in _snapped_cartridge else ""
 	if board_sys.is_empty():
 		board_sys = systemid
 	if not ArcadeProfiles.is_cabinet_system(board_sys):
+		print("[Attract] %s: media not asked for, %s is not a cabinet system" % [rom_path.get_file(), board_sys])
 		return
 	if ArcadeAttract.missing_media(board_sys, rom_path).is_empty():
+		print("[Attract] %s: media not asked for, it has its video and title already" % rom_path.get_file())
 		return
 	# Left where the menu will find it if it is not up yet; the menu takes it off the list when it asks.
 	ArcadeAttract.pending_media[rom_path] = board_sys
@@ -3139,6 +3147,8 @@ func slot_b_save_path(core: String) -> String:
 
 func _apply_forced_core_options(dir: String, core: String) -> void:
 	var forced := all_forced_options(core)
+	if _has_lightgun() and ForcedCoreOptions.lightgun(core, true).is_empty():
+		print("[RetroSystem] a light gun is on a port but %s has no light-gun option to pin" % core)
 	if forced.is_empty():
 		return
 	# Through the store, which owns this file: set_core_option already writes it
@@ -3353,6 +3363,8 @@ func core_dip_menu_open() -> bool:
 ## The tab's button: open the running core's own DIP screen, or shut it again.
 func toggle_core_dip_menu() -> void:
 	if not core_dip_menu_available() or _core_keys_busy:
+		print("[RetroSystem] DIP menu not toggled: powered=%s, core '%s' has a DIP key=%s, keys busy=%s" % [
+				str(is_powered_on), _resolve_core(), str(DIP_MENU_KEYS.has(_resolve_core())), str(_core_keys_busy)])
 		return
 	var keys: Array = DIP_MENU_CLOSE if _core_menu_open else DIP_MENU_KEYS[_resolve_core()]
 	_core_menu_open = not _core_menu_open
@@ -3375,21 +3387,25 @@ var core_descriptors_override: Variant = null
 func press_core_service(which: StringName) -> bool:
 	if ArcadeServiceKeys.is_selector(which):
 		if not is_powered_on or not (_model is RetroSystemModelArcadeCabinet):
-			return false
+			return _service_refused(which, "selector with no core running or not a cabinet")
 		var pad := (_model as RetroSystemModelArcadeCabinet).arcade_input()
 		if pad == null:
-			return false
+			return _service_refused(which, "selector with no arcade input")
+		print("[Arcade] %s: selector, pad id %d on port 1" % [which, ArcadeServiceKeys.selector_bit(which)])
+		_service_refusal = ""
 		pad.tap_pad_bit(0, ArcadeServiceKeys.selector_bit(which))
 		return true
 	if attracting and _model is RetroSystemModelArcadeCabinet:
 		var waiting := (_model as RetroSystemModelArcadeCabinet).arcade_input()
 		if waiting == null:
-			return false
+			return _service_refused(which, "attracting with no arcade input")
+		print("[Arcade] %s while the cabinet only shows its game: held, the game starts" % which)
+		_service_refusal = ""
 		waiting.hold_service(which)
 		attract_first_use(&"service")
 		return true
 	if not is_powered_on or _core_keys_busy:
-		return false
+		return _service_refused(which, "no core running" if not is_powered_on else "the core's keys are busy")
 	var descriptors: Array = []
 	if core_descriptors_override != null:
 		descriptors = core_descriptors_override
@@ -3399,10 +3415,28 @@ func press_core_service(which: StringName) -> bool:
 	if not found.is_empty() and int(found["device"]) == ArcadeServiceKeys.DEVICE_JOYPAD and _model is RetroSystemModelArcadeCabinet:
 		var input := (_model as RetroSystemModelArcadeCabinet).arcade_input()
 		if input != null:
+			print("[Arcade] %s: the core's own input, pad id %d on port %d" % [which, int(found["id"]), int(found["port"]) + 1])
+			_service_refusal = ""
 			input.tap_pad_bit(int(found["port"]), int(found["id"]))
 			return true
-	_tap_core_keys([int(found["id"]) if not found.is_empty() else ArcadeServiceKeys.default_key(which)])
+	var key: int = int(found["id"]) if not found.is_empty() else ArcadeServiceKeys.default_key(which)
+	print("[Arcade] %s: key %d (%s, %d descriptors)" % [which, key, "the core's own" if not found.is_empty() else "MAME's default",
+			descriptors.size()])
+	_service_refusal = ""
+	_tap_core_keys([key])
 	return true
+
+
+## The last refusal press_core_service said (it is asked again every frame while a held press waits): said once, until a press goes through.
+var _service_refusal := ""
+
+
+func _service_refused(which: StringName, why: String) -> bool:
+	var said := "%s|%s" % [which, why]
+	if said != _service_refusal:
+		_service_refusal = said
+		print("[Arcade] %s not pressed: %s" % [which, why])
+	return false
 
 
 func _tap_core_keys(keys: Array) -> void:

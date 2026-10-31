@@ -316,7 +316,12 @@ static func disc_folder_on_disk(files: Array, systemid: String, fs_name: String)
 	for f: Dictionary in files:
 		var relative := fs_name.path_join(str(f["relative"]))
 		var path := RommCacheManifest.local_path(systemid, relative)
-		if not FileAccess.file_exists(path) or ByteSize.on_disk(path) != int(f["size"]):
+		if not FileAccess.file_exists(path):
+			print("[RommDownloader] %s is not whole on disk: %s is missing" % [fs_name, relative])
+			return out
+		if ByteSize.on_disk(path) != int(f["size"]):
+			print("[RommDownloader] %s is not whole on disk: %s is %d bytes, the server says %d" % [fs_name, relative,
+					ByteSize.on_disk(path), int(f["size"])])
 			return out
 		members.append({"path": relative, "size": int(f["size"])})
 		if launch.is_empty() or (ArcadeDiscs.is_disc_path(path) and not ArcadeDiscs.is_disc_path(launch)):
@@ -347,6 +352,7 @@ func _place_single_file(args: Dictionary, downloaded: String, systemid: String, 
 	var files := known if not known.is_empty() else _folder_files(args, rom_id, fs_name)
 	var inner := str((files[0] as Dictionary)["relative"]) if files.size() == 1 else ""
 	if ArchiveSafety.safe_member(inner).is_empty():
+		push_warning("[RommDownloader] %s: RomM did not name the disc file (%d file(s) listed, name '%s')" % [fs_name, files.size(), inner])
 		DirAccess.remove_absolute(downloaded)
 		return {"error": "RomM did not name the disc file"}
 	var relative := fs_name.path_join(inner)
@@ -354,7 +360,9 @@ func _place_single_file(args: Dictionary, downloaded: String, systemid: String, 
 	DirAccess.make_dir_recursive_absolute(target.get_base_dir())
 	if FileAccess.file_exists(target):
 		DirAccess.remove_absolute(target)
-	if DirAccess.rename_absolute(downloaded, target) != OK:
+	var moved := DirAccess.rename_absolute(downloaded, target)
+	if moved != OK:
+		push_warning("[RommDownloader] %s: could not move the disc to %s (error %d %s)" % [fs_name, target, moved, error_string(moved)])
 		DirAccess.remove_absolute(downloaded)
 		return {"error": "Could not place the disc"}
 	return {"launch": target, "relative": relative, "error": ""}

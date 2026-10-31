@@ -1955,6 +1955,8 @@ func _build_board(spec: Dictionary) -> void:
 		ArcadeGameProfile.FORM_SKI:
 			_skis(lean, paint)
 		_:
+			if vehicle != ArcadeGameProfile.FORM_SKATE:
+				push_warning("[ArcadeCabinet] unknown board vehicle '%s': built as a skateboard" % vehicle)
 			_skateboard(lean, paint)
 	# The rail: a post at each corner, a side rail along each side and the crossbar across the front. It leans with the plate.
 	for k in [-1.0, 1.0]:
@@ -2208,6 +2210,7 @@ func _build_av_in() -> void:
 		ArcadeParts.mat(Color(0.25, 0.04, 0.04), 0.0, 0.5))
 	led.name = "InLed"
 	if rca == null:
+		push_warning("[ArcadeCabinet] rca_port.tscn did not load: the AV IN has no jacks")
 		return
 	for i in 3:
 		var jack := rca.instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE) as Node3D
@@ -2312,6 +2315,8 @@ func _build_bay() -> void:
 		# On the back panel, +Z out of it (a console's jacks are turned the same way).
 		port.position = Vector3(0, 0.30, -0.41)
 		port.basis = Basis(Vector3.RIGHT, PI)
+	else:
+		push_warning("[ArcadeCabinet] jamma_port.tscn did not load: the bay has no JAMMA socket on its back")
 	# The power switch is in the bay beside the JAMMA socket, on the floor in front of the
 	# board where the door lies flat once it is open: it stands up out of the shelf, so a
 	# hand or a ray from above reaches it, and the board never hides it. Local +Y is out of

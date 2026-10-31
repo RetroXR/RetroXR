@@ -235,6 +235,7 @@ func _exit_tree() -> void:
 ## Reload bindings from disk (called after the user saves new bindings).
 func reload_bindings() -> void:
 	_load_bindings()
+	print("[Arcade] bindings reloaded for %s" % (str(_host.get("systemid")) if _host != null else "(no host)"))
 
 
 func _load_bindings() -> void:
@@ -263,6 +264,7 @@ const TAP_SECONDS := 0.12
 ## (RetroSystem.press_core_service: a core that names its service input on a pad id).
 func tap_pad_bit(port: int, bit: int, seconds: float = TAP_SECONDS) -> void:
 	if bit < 0 or bit >= ArcadeGameProfile.PAD_IDS:
+		push_warning("[Arcade] tap of pad id %d on port %d refused: outside 0..%d" % [bit, port, ArcadeGameProfile.PAD_IDS - 1])
 		return
 	if not _taps.has(port):
 		_taps[port] = {}
@@ -319,11 +321,14 @@ func _tap_mask(port: int, delta: float) -> int:
 var _service_wait: Array[StringName] = []
 var _service_rest := 0.0
 const SERVICE_REST := 0.5
+## The press at the head of the queue was refused and said so once (it is tried again every frame).
+var _service_fail_said := false
 
 
 func hold_service(which: StringName) -> void:
 	if not _service_wait.has(which):
 		_service_wait.append(which)
+		print("[Arcade] %s held until the game is up (%d waiting)" % [which, _service_wait.size()])
 
 
 ## What is waiting to be pressed (the tests).
@@ -339,13 +344,20 @@ func _step_service(delta: float) -> void:
 	if bool(_host.call("press_core_service", which)):
 		_service_wait.pop_front()
 		_service_rest = SERVICE_REST
+		_service_fail_said = false
+		print("[Arcade] held %s pressed after %d frames (%d still waiting)" % [which, frames_run(), _service_wait.size()])
+	elif not _service_fail_said:
+		_service_fail_said = true
+		push_warning("[Arcade] held %s refused by the machine: tried again each frame" % which)
 
 
 func _on_coin(player: int, pulse: ArcadeInputState.CoinPulse) -> void:
 	if _host == null:
+		push_warning("[Arcade] coin from player %d ignored: the input has no cabinet" % (player + 1))
 		return
 	if bool(_host.get("attracting")):
 		# The coin starts the game and then counts in it: held until the game is up to count it.
+		print("[Arcade] coin from player %d while the cabinet only shows its game: held, the game starts" % (player + 1))
 		_escrow.hold(player)
 		_show_held()
 		first_use.emit(&"coin")
@@ -355,24 +367,34 @@ func _on_coin(player: int, pulse: ArcadeInputState.CoinPulse) -> void:
 			_host.call("attract_touch")
 		# Into a game still coming up, or behind coins still waiting: held. Otherwise straight in.
 		if not _escrow.is_empty() or not game_ready():
+			print("[Arcade] coin from player %d held: game ready=%s, %d already held, frame %d of %d" % [
+					player + 1, str(game_ready()), _escrow.total(), frames_run(), wait_frames()])
 			_escrow.hold(player)
 			_show_held()
 		else:
+			print("[Arcade] coin from player %d in at frame %d" % [player + 1, frames_run()])
 			pulse.insert()
 		return
 	# A cabinet that is off cannot take a coin: it goes through the mech and out into the cup.
 	var door := _door_of(player)
 	if door != null:
+		print("[Arcade] coin from player %d returned: the cabinet is off" % (player + 1))
 		door.return_coin()
+	else:
+		push_warning("[Arcade] coin from player %d lost: the cabinet is off and has no door for that player" % (player + 1))
 
 
 ## The coin return on `player`'s door: one coin the game has not had comes back out, if there is one.
 func _on_return_pressed(player: int) -> void:
 	if _escrow.take_back(player):
 		var door := _door_of(player)
+		print("[Arcade] coin return for player %d: one coin back (%d still held)%s" % [player + 1, _escrow.total(),
+				"" if door != null else ", no door to drop it in"])
 		if door != null:
 			door.return_coin()
 		_show_held()
+	else:
+		print("[Arcade] coin return for player %d: nothing held" % (player + 1))
 
 
 ## Every coin still held rolls out into its door's cup (the cabinet went off with them in it).
@@ -382,6 +404,8 @@ func _return_held() -> void:
 	var all := _escrow.take_all()
 	for player: int in all:
 		var door := _door_of(player)
+		print("[Arcade] %d held coin(s) of player %d %s" % [int(all[player]), player + 1,
+				"returned to the cup" if door != null else "lost: no door for that player"])
 		for i in int(all[player]):
 			if door != null:
 				door.return_coin()
@@ -657,7 +681,9 @@ func _process(delta: float) -> void:
 	if bool(_host.get("attracting")):
 		_release_pedals()
 		# A TEST or SERVICE that asked for a game which did not start (the core refused it) is not made in the next one.
-		_service_wait.clear()
+		if not _service_wait.is_empty():
+			print("[Arcade] %d held service press(es) dropped: the cabinet is back to showing its game" % _service_wait.size())
+			_service_wait.clear()
 		# A finger on a cap or a hand on a stick starts the game, as a coin does.
 		_step_hands(delta)
 		_watch_for_use()
@@ -1035,7 +1061,10 @@ func _step_held_coins(delta: float, start_pressed: bool) -> bool:
 	var who := _escrow.next(delta, _letting_in or game_ready())
 	if who >= 0:
 		if _pulses.has(who):
+			print("[Arcade] held coin of player %d goes in at frame %d (%d still held)" % [who + 1, frames_run(), _escrow.total()])
 			(_pulses[who] as ArcadeInputState.CoinPulse).insert()
+		else:
+			push_warning("[Arcade] held coin of player %d used up with no coin input for that port" % (who + 1))
 		_show_held()
 	var coin_going := false
 	for pulse: ArcadeInputState.CoinPulse in _pulses.values():
@@ -1048,6 +1077,8 @@ func _step_held_coins(delta: float, start_pressed: bool) -> bool:
 		_start_hold = maxf(0.0, _start_hold - delta)
 		if _start_hold > 0.0:
 			return true
+		if not _queued_start.is_empty():
+			print("[Arcade] queued START released on port(s) %s" % str(_queued_start.keys()))
 		for port: int in _queued_start:
 			_start_pulse[port] = ArcadeProfiles.COIN_PULSE_SECONDS
 		_queued_start.clear()
@@ -1057,6 +1088,9 @@ func _step_held_coins(delta: float, start_pressed: bool) -> bool:
 ## The core stopped (or never started): the run is over, and every coin still held rolls out into its cup.
 func _end_run() -> void:
 	var was_running := _run_base >= 0
+	if was_running:
+		print("[Arcade] run ended after %d frames: %d held coin(s) back out, %d service press(es) dropped" % [
+				frames_run(), _escrow.total(), _service_wait.size()])
 	# A press that waited for a run is let go with it.
 	if was_running:
 		_service_wait.clear()
@@ -1083,10 +1117,13 @@ func _on_attach_changed(player: int, on: bool) -> void:
 		# One controller, one panel: attaching here lets go of the other.
 		for other in _controls:
 			if other != null and other.player != player and other.is_attached():
+				print("[Arcade] attaching panel %d lets go of panel %d (one panel at a time)" % [player + 1, other.player + 1])
 				other.set_attached(false)
 		attached[player] = true
 	else:
 		attached.erase(player)
+	print("[Arcade] panel %d %s (attracting=%s)" % [player + 1, "attached" if on else "let go",
+			str(_host != null and bool(_host.get("attracting")))])
 	if was != playing:
 		_update_locomotion_block()
 		playing_changed.emit(playing)

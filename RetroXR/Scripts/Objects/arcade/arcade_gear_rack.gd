@@ -34,7 +34,10 @@ func items() -> Array[ArcadeHeldGear]:
 ## Build the gear `rows` ask for (captive_gear), for the cabinet model `cabinet`. What was there is taken away first.
 func spawn(rows: Array, cabinet: Node3D) -> void:
 	free_all()
-	if rows.is_empty() or _system == null or not is_instance_valid(_system) or not _system.is_inside_tree():
+	if rows.is_empty():
+		return
+	if _system == null or not is_instance_valid(_system) or not _system.is_inside_tree():
+		push_warning("[Arcade] %d piece(s) of gear not built: the system is not in the tree" % rows.size())
 		return
 	var tree := _system.get_tree()
 	var parent: Node = tree.current_scene if tree.current_scene != null else _system.get_parent()
@@ -42,11 +45,11 @@ func spawn(rows: Array, cabinet: Node3D) -> void:
 	for row: Dictionary in rows:
 		var scene := load(str(row["scene"])) as PackedScene
 		if scene == null:
-			push_warning("ArcadeGearRack: gear scene missing: %s" % str(row["scene"]))
+			push_warning("[Arcade] gear scene missing: %s" % str(row["scene"]))
 			continue
 		var item := scene.instantiate() as ArcadeHeldGear
 		if item == null:
-			push_warning("ArcadeGearRack: %s is not a piece of gear" % str(row["scene"]))
+			push_warning("[Arcade] %s is not a piece of gear" % str(row["scene"]))
 			continue
 		item.captive = true
 		item.kind = str(row.get("kind", ""))
@@ -71,6 +74,10 @@ func spawn(rows: Array, cabinet: Node3D) -> void:
 		_build_well(item, rest)
 		_items.append(item)
 	_pair_up()
+	var kinds := PackedStringArray()
+	for item in _items:
+		kinds.append("%s %d/%d" % [item.kind, item.player, item.side])
+	print("[Arcade] gear built: %d of %d row(s) [%s]" % [_items.size(), rows.size(), ", ".join(kinds)])
 
 
 ## The two of a player are each other's mate, for the desktop's other hand.

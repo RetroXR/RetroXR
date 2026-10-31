@@ -83,6 +83,8 @@ func _ready() -> void:
 		# The parent is still setting up its children while this runs.
 		if get_parent() != null:
 			get_parent().add_child.call_deferred(_laser_body)
+	else:
+		push_warning("[Seat] %s has no box shape: a headset's laser cannot sit on %s" % [name, str(get_parent())])
 
 
 ## The slab the laser can hit while somebody sits: `rest` grown forward (-Z) and to the sides. Pure.
@@ -116,7 +118,10 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 			# Whatever it is laid over: a Seat, or a driving cabinet's own CockpitSeat.
 			var seat := get_parent()
 			if seat != null and seat.has_method("toggle"):
+				print("[Seat] %s pressed (occupied=%s)" % [seat.name, str(seat.call("is_occupied")) if seat.has_method("is_occupied") else "?"])
 				seat.call("toggle")
+			else:
+				push_warning("[Seat] %s pressed but its parent %s cannot be sat on (no toggle)" % [name, str(seat)])
 
 
 func is_hovered() -> bool:

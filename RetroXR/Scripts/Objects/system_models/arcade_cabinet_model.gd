@@ -510,6 +510,8 @@ func _seed_default_bay() -> void:
 	var packed := ArcadeBayUnit.scene_for(kind)
 	var sys := get_parent() as Node3D
 	if packed == null or sys == null or not sys.is_inside_tree():
+		push_warning("[ArcadeCabinet] no default %s bay seeded (scene=%s, system=%s, in tree=%s)" % [kind,
+				str(packed != null), str(sys != null), str(sys != null and sys.is_inside_tree())])
 		return
 	var unit := packed.instantiate() as ArcadeBayUnit
 	# Where an expansion's default occupant goes: the room. A test builds its machines under a root of
@@ -1086,6 +1088,7 @@ func is_lid_open() -> bool:
 func on_media_inserted(cart: Node) -> void:
 	_strip_game()
 	if cart == null or not cart.has_method("get_rom_path"):
+		print("[ArcadeCabinet] media inserted with no ROM path (%s): the cabinet's own form" % str(cart))
 		_request_form(_base_spec)
 		return
 	var art := ArcadeCabinetArt.for_rom(str(cart.get("systemid")), str(cart.call("get_rom_path")))
@@ -1094,6 +1097,11 @@ func on_media_inserted(cart: Node) -> void:
 	var profile: ArcadeGameProfile = null
 	if ArcadeProfiles.is_arcade_system(str(cart.get("systemid"))):
 		profile = ArcadeGameProfile.for_rom_path(str(cart.call("get_rom_path")))
+	if profile != null:
+		print("[ArcadeCabinet] game profile for %s: %s" % [str(cart.call("get_rom_path")).get_file(), profile.summary()])
+	else:
+		print("[ArcadeCabinet] %s (%s) is not a MAME romset: no game profile" % [
+				str(cart.call("get_rom_path")).get_file(), str(cart.get("systemid"))])
 	# The form first (it builds the slots the art hangs in and the panels the profile dresses).
 	_request_form(form_for(profile))
 	apply_art(art["wheel"] as Texture2D, art["cover"] as Texture2D)
@@ -1165,6 +1173,7 @@ func is_morph_enabled() -> bool:
 ## the tree is busy with the nodes it moves.
 func _request_form(spec: Dictionary) -> void:
 	if spec.is_empty():
+		print("[ArcadeCabinet] no form row for this cabinet: it keeps the form it has")
 		return
 	_pending_form = null
 	var queued := _wanted_form != null
@@ -1186,6 +1195,7 @@ func _build_wanted_form() -> void:
 	if host != null and bool(host.get("is_powered_on")):
 		# Never under a running core: its ports and the guns on them are in use. When it goes off.
 		_pending_form = spec
+		print("[ArcadeCabinet] form %s waits: a core is running" % _form_label(spec))
 		return
 	morph_to(spec)
 
@@ -1195,9 +1205,14 @@ func _build_wanted_form() -> void:
 ## the guns and their cords, the port zones, the collision and pointer boxes, the art, the profile) is wired
 ## to the new ones. Nothing happens when the spec builds what is standing.
 func morph_to(spec: Dictionary) -> void:
-	if spec.is_empty() or (not _form_spec.is_empty() and ArcadeCabinetSpecs._same_form(spec, _form_spec)):
+	if spec.is_empty():
+		return
+	if not _form_spec.is_empty() and ArcadeCabinetSpecs._same_form(spec, _form_spec):
+		print("[ArcadeCabinet] same form (%s), not rebuilt" % _form_label(spec))
 		return
 	var host := get_parent()
+	print("[ArcadeCabinet] form %s -> %s (game %s)" % [_form_label(_form_spec), _form_label(spec),
+			_game.romset if _game != null else "none"])
 	for c in _controls:
 		if is_instance_valid(c):
 			c.set_attached(false)
@@ -1233,6 +1248,17 @@ func morph_to(spec: Dictionary) -> void:
 	form_changed.emit()
 
 
+## A spec in a log line: its shape and the parts that tell one form from another.
+func _form_label(spec: Dictionary) -> String:
+	if spec.is_empty():
+		return "(none)"
+	var players: Variant = spec.get("players", [])
+	return "%s panels=%d guns=%s%s%s%s" % [str(spec.get("shape", "upright")),
+			(players as Array).size() if players is Array else 0, str(spec.get("guns", 0)),
+			" cockpit=%s" % str(spec["cockpit"]) if spec.get("cockpit") else "",
+			" stage" if spec.get("stage") else "", " bike" if spec.get("bike") else ""]
+
+
 ## The cabinet's form was built again (morph_to): for the probe, the tests and whatever hangs on its parts.
 signal form_changed
 
@@ -1248,6 +1274,7 @@ func _wire_stage_seats() -> void:
 
 
 func _on_stage_seat(on: bool, index: int) -> void:
+	print("[ArcadeCabinet] dancer %d %s the platform" % [index + 1, "stood up on" if on else "stepped down from"])
 	if index < _controls.size() and is_instance_valid(_controls[index]):
 		_controls[index].set_attached(on)
 
@@ -1308,6 +1335,7 @@ func _poll_descriptors() -> void:
 		return
 	_watch_descriptors = false
 	_game.apply_descriptors(described)
+	print("[ArcadeCabinet] core described %d inputs: %s" % [described.size(), _game.summary()])
 	apply_game_profile(_game)
 
 
@@ -1464,6 +1492,7 @@ func on_power_off() -> void:
 	if _pending_form != null:
 		var spec: Dictionary = _pending_form
 		_pending_form = null
+		print("[ArcadeCabinet] powered off: building the waiting form %s" % _form_label(spec))
 		_request_form(spec)
 	# The core's words are about the run that just ended; the table alone stands.
 	if _game != null and _game.is_described():

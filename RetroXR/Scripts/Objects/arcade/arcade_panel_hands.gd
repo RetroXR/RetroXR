@@ -283,7 +283,12 @@ func _step_hand(ctrl: XRController3D, delta: float) -> void:
 		# Let go when what took it lets go: the trigger for a control taken by it, the squeeze for one taken by that.
 		var held_on := squeeze >= GRIP_OFF if _taken_with.get(id, &"trigger") == &"grip" else trigger >= TRIGGER_OFF
 		if not poking or not held_on or tip.distance_to(grab.handle()) > grab.let_go_distance():
-			_let_go(ctrl, id)
+			var why := "the hand stopped poking"
+			if poking and not held_on:
+				why = "the %s let go" % _taken_with.get(id, &"trigger")
+			elif poking:
+				why = "out of reach (%.3f m > %.3f m)" % [tip.distance_to(grab.handle()), grab.let_go_distance()]
+			_let_go(ctrl, id, why)
 			grab = null
 		else:
 			var was := grab.detent()
@@ -299,6 +304,9 @@ func _step_hand(ctrl: XRController3D, delta: float) -> void:
 			if found != null:
 				_take(ctrl, id, found, tip, &"grip" if squeezed and not pulled else &"trigger")
 				grab = found
+			else:
+				print("[Arcade] hand %s: %s on player %d's panel with no control in reach" % [str(ctrl.tracker),
+						"trigger" if pulled else "squeeze", int(_panel.player) + 1])
 	# A hand reaching for a control has no laser: the trigger it pulls is for the control.
 	_set_laser(ctrl, poking and (grab != null or _nearest_grab(tip, REACH_SCALE) != null))
 	if grab == null and poking:
@@ -362,6 +370,8 @@ func _take(ctrl: XRController3D, id: int, grab: ControlGrab, tip: Vector3, with:
 	_holding[id] = grab
 	_taken_with[id] = with
 	grab.attach_hand(ctrl, id, tip)
+	print("[Arcade] hand %s takes player %d's %s %d by the %s (%d hand(s) on it)" % [str(ctrl.tracker), int(_panel.player) + 1,
+			grab.kind, grab.index, with, grab.hands_on()])
 	_lift(ctrl, id)
 	Haptics.click(ctrl, true, HAPTIC_KEY)
 	# What the player is told about this control and the game's buttons: by the first hand on it, not again by a second hand on a pair of bars.
@@ -369,12 +379,14 @@ func _take(ctrl: XRController3D, id: int, grab: ControlGrab, tip: Vector3, with:
 		_panel.prompt_control(grab.kind, ctrl, grab.handle())
 
 
-func _let_go(ctrl: XRController3D, id: int) -> void:
+func _let_go(ctrl: XRController3D, id: int, why: String = "") -> void:
 	var grab := _holding.get(id) as ControlGrab
 	_holding.erase(id)
 	_taken_with.erase(id)
 	if grab == null:
 		return
+	print("[Arcade] hand %s lets go of player %d's %s %d: %s" % [str(ctrl.tracker) if is_instance_valid(ctrl) else "(gone)",
+			int(_panel.player) + 1, grab.kind, grab.index, why if why != "" else "released"])
 	grab.detach_hand(id)
 	if is_instance_valid(ctrl):
 		Haptics.click(ctrl, false, HAPTIC_KEY)
@@ -452,7 +464,7 @@ func _forget_gone() -> void:
 		ids[h.get_instance_id()] = true
 	for id: int in _holding.keys():
 		if not ids.has(id):
-			_let_go(null, id)
+			_let_go(null, id, "the hand is no longer tracked")
 	for id: int in _pressing.keys():
 		if not ids.has(id):
 			_lift(null, id)
@@ -478,6 +490,9 @@ func _forget_gone() -> void:
 func release_all() -> void:
 	if _idle and _holding.is_empty() and _pressing.is_empty() and _blocked.is_empty():
 		return
+	if not _holding.is_empty():
+		print("[Arcade] player %d's panel lets go of %d held control(s): hidden, rebuilt or the hands went" % [
+				int(_panel.player) + 1 if _panel != null and is_instance_valid(_panel) else 0, _holding.size()])
 	for id: int in _holding.keys():
 		var grab := _holding[id] as ControlGrab
 		if grab != null:

@@ -134,10 +134,12 @@ func _parse(key: String) -> void:
 	# p<players>c<coins>b<buttons>w<ways>:<kind>+<kind>[;<attr>...]
 	var halves := key.split(":", false)
 	if halves.size() != 2:
+		push_warning("[Arcade] %s: malformed profile key '%s' (no single ':'): the whole panel shows" % [romset, key])
 		return
 	var re := RegEx.create_from_string("^p(\\d+)c(\\d+)b(\\d+)w(\\d+)$")
 	var m := re.search(halves[0])
 	if m == null:
+		push_warning("[Arcade] %s: malformed profile key '%s' (head '%s'): the whole panel shows" % [romset, key, halves[0]])
 		return
 	known = true
 	players = int(m.get_string(1))

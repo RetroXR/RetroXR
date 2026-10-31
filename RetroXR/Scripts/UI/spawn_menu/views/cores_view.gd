@@ -1456,6 +1456,7 @@ func _build_bios_all_button(core_name: String, outstanding: Array[Dictionary], i
 		btn.tooltip_text = "Cancel the files queued for this section"
 		btn.pressed.connect(func() -> void:
 			if _firmware_installer == null:
+				push_warning("[BIOS] download all %s: stop pressed with no firmware installer" % core_name)
 				return
 			for e: Dictionary in outstanding:
 				_firmware_installer.cancel(str(e["key"]))
@@ -1466,6 +1467,7 @@ func _build_bios_all_button(core_name: String, outstanding: Array[Dictionary], i
 	_paint_bios_all_button(btn, _bios_all_armed == core_name, outstanding.size(), size_text)
 	btn.pressed.connect(func() -> void:
 		if _firmware_installer == null:
+			push_warning("[BIOS] download all %s: pressed with no firmware installer, nothing queued" % core_name)
 			return
 		if _bios_all_armed != core_name:
 			# Arming is UI state and nothing else: one button repaints, nothing rebuilds.

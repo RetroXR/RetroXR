@@ -3491,12 +3491,14 @@ func _enqueue_game(entry: Dictionary, disc_entry: Dictionary, systemid: String) 
 	if disc_entry.is_empty():
 		return
 	if ArcadeDiscs.server_holds_disc(disc_entry):
+		print("[RomM] %s: board (rom %d) and disc folder (rom %d) queued" % [str(entry.get("name", "")),
+				int(entry.get("id", 0)), int(disc_entry.get("id", 0))])
 		romm_downloader.enqueue(disc_entry, systemid)
 	else:
 		# Said, not skipped in silence: the game will run without its disc and the player should know why.
-		notify("romm:disc:%d" % int(entry.get("id", 0)), "⚠",
-			"%s: RomM lists a disc folder for it but holds no files in it. Rescan the platform in RomM."
-			% str(entry.get("name", "This game")), -1.0, MenuToasts.DWELL_FAIL)
+		var said := "%s: RomM lists a disc folder for it but holds no files in it. Rescan the platform in RomM." % str(entry.get("name", "This game"))
+		push_warning("[RomM] %s (board rom %d, disc folder rom %d)" % [said, int(entry.get("id", 0)), int(disc_entry.get("id", 0))])
+		notify("romm:disc:%d" % int(entry.get("id", 0)), "⚠", said, -1.0, MenuToasts.DWELL_FAIL)
 
 
 ## An arcade game that has a disc: spawn the board or the disc. They are two objects, and the

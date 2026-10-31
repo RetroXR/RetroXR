@@ -140,6 +140,7 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 		XRToolsPointerEvent.Type.PRESSED:
 			_hovered = true
 			if _hand_reaches(event.pointer):
+				print("[Arcade] %s: press ignored, the hand is on one of its controls" % (get_parent().name if get_parent() != null else name))
 				_refresh()
 				return
 			if momentary:

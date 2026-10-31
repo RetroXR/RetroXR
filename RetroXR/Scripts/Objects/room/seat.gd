@@ -60,6 +60,8 @@ func _ready() -> void:
 	add_to_group("spawned")
 	add_to_group(GROUP)
 	picked_up.connect(func(_p: Variant) -> void:
+		if is_occupied():
+			print("[Seat] %s: picked up with the player in it: standing them up" % name)
 		stand()
 		_show_facing_arrow())
 	dropped.connect(func(_p: Variant) -> void: _hide_facing_arrow())
@@ -73,6 +75,7 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	# Taken out of the room (put away, a mod unloaded) with the player in it: let go.
 	if current == self:
+		print("[Seat] %s: left the tree with the player in it" % name)
 		stand()
 
 
