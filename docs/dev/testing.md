@@ -545,10 +545,21 @@ can never hang the run.
   `cdbX64 -G -o -c "sxd -c2 \".echo AV; kn 60; lm; q\" av; g" <console exe> --headless ...`.
   Godot's own crash handler stays silent in these, and Windows Error Reporting keeps
   nothing a normal user can read.
-- **Still open (2026-10-31): `combo_tv_tests` and `speaker_tests` crash 0xC0000005
-  mid-run without that fix's stderr**: `combo_tv_tests` about 2 runs in 12 one at a
-  time, always within the five frames after a set builds its VCR and DVD in (not the
-  DVD tray's mesh collision: 12 in 40 without it). Not yet traced.
+- **`combo_tv_tests` and `speaker_tests` crashing 0xC0000005 with no stderr was the SAME
+  race** (traced 2026-10-31). Both were measured while the `ModelWarmer` fix sat in a
+  rebase's autostash: their logs have no `[ModelWarmer] headless: no shell warm` line,
+  so the shell warm was still loading threaded. The race needs no RID error to kill: a
+  bad RID handed out silently crashes on its first use, and a combo set builds two decks
+  of three GLB levels each about a second after boot, while the warm is at its busiest.
+  With the fix: `combo_tv_tests` 0 in 176 runs (4 at a time) and 0 in 12 alone,
+  `speaker_tests` 0 in 60. Putting threaded loads back headless brings `speaker_tests`
+  back to 3 in 40 and `headphones_tests` to 3 in 40 (one of them `0xC0000374`, heap
+  corruption). A crash like this is
+  worth checking against `git stash list` and the log's own lines before chasing it: a
+  run measured on a tree that is not the one you think is the commonest false lead.
+  Ruled out on the way: concurrent libVLC instance creation (`VlcPlayer.warm_up`, 900
+  warm-ups in waves of six, no crash) and memory (a run peaks at about 570 MB, at the
+  combo set's DVD build).
 - **PowerShell buffers `& $godot ... | Out-String` until the process exits**, so a
   backgrounded run shows an empty output file until it finishes. The Bash tool with
   `timeout 90 "$godot" ... 2>&1 | grep` streams and bounds the run — prefer it.
