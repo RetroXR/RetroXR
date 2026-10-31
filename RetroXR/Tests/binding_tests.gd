@@ -63,6 +63,7 @@ func _ready() -> void:
 	_test_n64_pad_art()
 	_test_64dd_reads_the_n64_profile()
 	_test_desktop_layers()
+	_test_desktop_display_names()
 	_test_desktop_legacy_file()
 	_test_xr_identity()
 	_test_json_store()
@@ -808,6 +809,7 @@ func _test_n64_pad_art() -> void:
 			and ed._rebind_buttons.has("RETRO_ANALOG_RIGHT_Y_POSITIVE"),
 		"n64-desktop/the stick keys stay on the page")
 	_ok(not ed._rebind_buttons.has("trigger_left"), "n64-desktop/and no light gun trigger")
+	_ok(not ed._rebind_buttons.has(ArcadeInput.PEDAL_ACTION), "n64-desktop/nor a gun cabinet's foot pedal")
 	_ok(ed._desktop_control_of.has("RETRO_JOYPAD_L2")
 			and not ed._desktop_control_of.has("RETRO_JOYPAD_C"),
 		"n64-desktop/the diagram binds Z and not the C label")
@@ -815,6 +817,14 @@ func _test_n64_pad_art() -> void:
 	ed._build_desktop_controls(ed)
 	_ok(not ed._rebind_buttons.has("RETRO_ANALOG_LEFT_X_NEGATIVE"),
 		"n64-desktop/a pad without sticks still gets no stick keys")
+	# The arcade has no pad drawing of its own: its page is the RetroPad's, with the gun's trigger and the
+	# foot pedal in the list under it.
+	ed._systemid = "arcade"
+	ed._build_desktop_controls(ed)
+	_ok(ed._rebind_buttons.has(ArcadeInput.PEDAL_ACTION) and ed._rebind_buttons.has("trigger_left"),
+		"n64-desktop/the arcade's page binds the foot pedal and the trigger")
+	_ok(DesktopBindings.event_display_name(ArcadeInput.PEDAL_ACTION) == "Space",
+		"n64-desktop/and the pedal is Space unless rebound")
 	ed.queue_free()
 
 
@@ -1066,6 +1076,45 @@ func _test_desktop_layers() -> void:
 	_eq(_bound_key("RETRO_JOYPAD_START"),
 		start_default, "desktop/an unnamed action returns to its project default")
 
+	InputMap.load_from_project_settings()
+
+
+## What a scope's key is SAID to be, without the scope being applied: a cabinet tells its player the keys of its own map and the InputMap is the keyboard's holder's. It must say what the InputMap
+## would hold once the scope were applied, for every scope there is: global only, a platform's own profile on top, and a cabinet with no profile of its own (MAME's layout over the global one).
+func _test_desktop_display_names() -> void:
+	_clear()
+	InputMap.load_from_project_settings()
+	# With no file at all every key is the project's own.
+	var unlisted: Array[String] = []
+	for action: String in DesktopBindings.JOYPAD_ACTIONS:
+		if DesktopBindings.display_name_for_system(action, SYS_B) != DesktopBindings.event_display_name(action):
+			unlisted.append(action)
+	_ok(unlisted.is_empty(), "desktop/with nothing saved a scope's keys are the project's own", str(unlisted))
+	_bind_key(_DESK_ACTION, KEY_J)
+	DesktopBindings.save()
+	_bind_key(_DESK_ACTION, KEY_K)
+	_bind_key("RETRO_JOYPAD_START", KEY_F13)
+	DesktopBindings.save_for_system(SYS_A)
+	var scopes: Array[String] = ["", SYS_A, SYS_B, "arcade", "arcadia"]
+	var wrong: Array[String] = []
+	for scope in scopes:
+		for action: String in DesktopBindings.JOYPAD_ACTIONS:
+			var said := DesktopBindings.display_name_for_system(action, scope)
+			DesktopBindings.apply_for_system(scope)
+			if said != DesktopBindings.event_display_name(action):
+				wrong.append("%s in %s: %s, not %s" % [action, scope, said, DesktopBindings.event_display_name(action)])
+	_ok(wrong.is_empty(), "desktop/a scope's keys are said as they would be applied, for every scope and action", str(wrong))
+	_eq(DesktopBindings.display_name_for_system(_DESK_ACTION, SYS_A), "K", "desktop/a platform's own key is said")
+	_eq(DesktopBindings.display_name_for_system(_DESK_ACTION, SYS_B), "J", "desktop/another platform is said the global key")
+	_eq(DesktopBindings.display_name_for_system("RETRO_JOYPAD_B", "arcade"), "Ctrl", "desktop/a cabinet with no map of its own is said MAME's layout")
+	_eq(DesktopBindings.display_name_for_system(_DESK_ACTION, "arcade"), "Alt", "desktop/and it is put over the global key")
+	_eq(DesktopBindings.display_name_for_system("not_an_action", SYS_A), "(none)", "desktop/an action that is not there is said none")
+	# Saying a scope's keys leaves the map as it was.
+	InputMap.load_from_project_settings()
+	_bind_key(_DESK_ACTION, KEY_Q)
+	DesktopBindings.display_name_for_system(_DESK_ACTION, SYS_A)
+	DesktopBindings.display_name_for_system(_DESK_ACTION, "arcade")
+	_eq(_bound_key(_DESK_ACTION), KEY_Q, "desktop/saying a scope's keys does not touch the InputMap")
 	InputMap.load_from_project_settings()
 
 

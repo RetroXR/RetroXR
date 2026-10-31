@@ -189,11 +189,15 @@ static func live_zones() -> Array[XRToolsSnapZone]:
 	return _live_zones
 
 
+## LOCAL PATCH (RetroXR): false keeps this zone out of the held-object preview altogether: a thing in a hand near it is NOT drawn seated in it (to the player that reads as
+## the thing having gone in by itself), and is taken only if it is let go within `grab_distance` (Holster.prepare_seat: a cabinet's guns, sticks and guitars).
+var show_preview := true
+
 ## LOCAL PATCH (RetroXR): whether this zone would accept `obj` if dropped here
 ## right now (used by the held-object snap preview). Only zones with an explicit
 ## snap_require participate — generic catch-all zones don't preview.
 func can_preview(obj: Node3D) -> bool:
-	if not enabled or is_instance_valid(picked_up_object):
+	if not enabled or not show_preview or is_instance_valid(picked_up_object):
 		return false
 	if snap_require.is_empty() or not obj.is_in_group(snap_require):
 		return false

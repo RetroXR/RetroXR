@@ -156,6 +156,32 @@ const _ROWS: Dictionary = {
 		"scene": _SCENES + "pokemon_mini.tscn"},
 	"supervision":          {"platform": "supervision", "label": "Supervision", "handheld": true,
 		"scene": _SCENES + "supervision.tscn"},
+	# --- arcade ---------------------------------------------------------------
+	# The one cabinet both arcade tiles play in: screen, coin doors, panels and a JAMMA
+	# bay in one piece (docs/dev/arcade.md). THE ID IS PERSISTED in saved rooms and on
+	# the netplay wire, so it is final: ArcadeProfiles.CABINET_MODEL_ID says the same.
+	"arcade_cabinet_generic": {"platform": ["arcade"], "label": "Morphing Arcade Cabinet",
+		"scene": _SCENES + "arcade_cabinet.tscn"},
+	# The same upright with other controls (Tools/gen/gen_arcade_cabinet.gd VARIANTS). THESE IDS
+	# ARE PERSISTED TOO. Generic stays first, so it is the arcade tile's default. There is no shooting
+	# cabinet to spawn: the generic one becomes it when a gun game is in the bay (ArcadeCabinetSpecs.for_game).
+	# The Neo Geo MVS: a stick and four buttons.
+	# `sockets: []` says it has no phono jacks: the console beside it on the card does, and the card
+	# offers the composite lead for it.
+	"arcade_cabinet_neogeo": {"platform": "neogeo", "label": "Primitive Neo Geo MVS", "sockets": [],
+		"scene": _SCENES + "arcade_cabinet_neogeo.tscn"},
+	# The MVS consolized: a console that takes the MVS cassettes (the community builds them; no SNK
+	# product), with controller ports on the front and phono AV out on the back like a SNES.
+	"neogeo_mvs_console": {"platform": "neogeo", "label": "Primitive Neo Geo AES",
+		"scene": _SCENES + "neogeo_console.tscn"},
+	# Laserdisc (Daphne): the stick and the sword button; and the one with guns.
+	"arcade_cabinet_daphne": {"platform": "daphne", "label": "Primitive Laserdisc Cabinet",
+		"scene": _SCENES + "arcade_cabinet_daphne.tscn"},
+	"arcade_cabinet_daphne_gun": {"platform": "daphne", "label": "Primitive Laserdisc Gun Cabinet",
+		"scene": _SCENES + "arcade_cabinet_daphne_gun.tscn"},
+	# Discrete logic (DICE): a paddle dial each.
+	"arcade_cabinet_dice": {"platform": "dice", "label": "Primitive DICE Cabinet",
+		"scene": _SCENES + "arcade_cabinet_dice.tscn"},
 }
 
 

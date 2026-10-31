@@ -167,6 +167,21 @@ Read it as: `freeze=true, picked_up=false` → an owner froze it and never let g
 `gravity_scale=0.00` → a scene restore left it weightless. The downward clearance check is what
 keeps a pad resting on a table out of the log.
 
+**Reproduced once, on the desktop, with a Taiko drummer's sticks (2026-10-27)**, so the "sleeping in mid-air"
+branch is real: the second of a pair released together with the first (`DesktopPickup._drop`:
+`_release_companion()` then the primary's `let_go`) was dynamic (`freeze=false`, server mode RIGID,
+`is_picked_up()` false, gravity on it, nothing within 1 m under it, no overlap) and AWAKE for one physics
+step, then ASLEEP with its position and its release nudge (-0.05 m/s) unchanged, and stayed so: **setting
+`sleeping = false` again did not wake it, giving it a velocity did** (`linear_velocity = Vector3(0, -1, 0)`, or
+moving it). 4 runs in 5 under `Tools/models/taiko_desktop_probe` (windowed, llvmpipe: a few frames a second); a
+headless run with two fake pivots, 8 physics steps a frame at 60 Hz, never did, and an unrelated state query
+(`PhysicsServer3D.body_get_direct_state`) in the probe made it fall, so it depends on timing. Not found:
+which write loses the wake. The sticks work round it (`ArcadeHeldGear._wake_if_hung`: four steps after a
+release, an asleep body with nothing 4 cm under it gets 0.3 m/s down; the control, with the push removed, hung the
+stick in 2 runs out of 2); the pads and the other pickables do not. A generic version of that push in
+`HeldObjectPhysics._on_dropped` (it already has the "nothing underneath" test in `_report_if_stuck`) is the
+obvious next step, unmeasured on a Quest.
+
 ### Log capture
 The logcat ring buffer rotates away in **under a minute** (VrApi spam) — poll-grepping
 loses boot output. Stream from before the launch instead:

@@ -29,7 +29,7 @@ extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below -- it is checked before it
 ## has recorded itself. See card_tests on why this exists.
-const EXPECTED_CASES := 85
+const EXPECTED_CASES := 87
 
 
 var _path := ""
@@ -292,6 +292,13 @@ func _group_ids() -> void:
 		if seen.has(now):
 			shared.append(now)
 		seen[now] = true
+	var folded: Array[String] = []
+	for old: String in SystemIds.MERGED:
+		var now: String = SystemIds.MERGED[old]
+		if SystemIds.MERGED.has(now) or SystemIds.LEGACY.has(now) or SystemIds.LEGACY.has(old):
+			folded.append(old)
+	_ok(folded.is_empty(), "ids/a merged id goes to a plain one, and is not also renamed", str(folded))
+	_eq(SystemIds.canonical("fb_alpha"), "arcade", "ids/an old id that was merged afterwards reads as the survivor")
 	_ok(chained.is_empty(), "ids/no new id is itself an old one", str(chained))
 	_ok(shared.is_empty(), "ids/no two old ids became the same system", str(shared))
 
@@ -342,7 +349,10 @@ func _group_ids() -> void:
 	var squatters: Array[String] = []
 	for owner: String in SystemIds.FOLDER_ALIASES:
 		for alias: String in SystemIds.FOLDER_ALIASES[owner]:
-			if SystemInfo.for_system(alias) != null or seen.has(alias):
+			# for_system() reads an alias through canonical(), so `mame` answers with
+			# arcade's descriptor: it is a squatter only if the descriptor is its own.
+			var own := SystemInfo.for_system(alias)
+			if (own != null and own.systemid == alias) or seen.has(alias):
 				squatters.append(alias)
 	_ok(squatters.is_empty(), "ids/no other folder name is a system of its own", str(squatters))
 

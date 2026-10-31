@@ -260,6 +260,56 @@ func get_controller_connector() -> String:
 	return ""
 
 
+## True when this hardware's own count (get_controller_port_count) is final, so
+## SystemInfo.native_ports -- the CONSOLE's count for the systemid -- does not get a
+## vote. An arcade cabinet has the sockets its scene has, whatever MAME can address.
+func port_count_is_fixed() -> bool:
+	return false
+
+
+## Where the machine's options panel hangs, in this model's own frame (the panel faces the
+## player from there), or null for the default: centred over the hardware's top. A tall
+## machine says so: a 1.8 m cabinet's top is out of reach and out of view, so its panel
+## stands beside it at eye height. `panel_size` is the panel's width x height in metres.
+func options_panel_anchor(_panel_size: Vector2) -> Variant:
+	return null
+
+
+## Where a notice about this machine (an error, an achievement) appears, in this model's own
+## frame (a Vector3 to face the player there, or a Transform3D to hang parallel to something,
+## as a cabinet's tilted monitor), or null for the default (over the screen, or over the hardware's crown). A cabinet puts
+## it floating in FRONT of its screen, clear of its own geometry, which would otherwise swallow
+## it: a toast laid over a tilted monitor and a marquee is half inside them.
+func toast_anchor() -> Variant:
+	return null
+
+
+## How long the grab control has to be HELD on this hardware before it is picked up, in
+## seconds; 0 grabs at once, as every ordinary console does. See HoldToGrab. A cabinet asks
+## for a couple of seconds so a stray squeeze or click does not carry it off.
+func grab_hold_seconds() -> float:
+	return 0.0
+
+
+## How much of the hand's own velocity a release gives this hardware, 1 for an ordinary console (it can be tossed), 0 for hardware too big to throw: it is set
+## down where the hand let go of it. See XRToolsPickable.let_go and the ray release.
+func throw_scale() -> float:
+	return 1.0
+
+
+## True for hardware too big to hold: the spawn menu stands it on the floor in front of
+## the player instead of handing it to a hand. An arcade cabinet is the first.
+func spawns_on_floor() -> bool:
+	return false
+
+
+## Called once by RetroSystem after the model is built and parented, with the system
+## as `host`. The place for a model to add a node beside itself that it cannot add
+## from its own _ready (a parent that is still adding it refuses a second child).
+func attach_to_host(_host: Node3D) -> void:
+	pass
+
+
 ## Returns the number of controller ports active on this hardware.
 ## The base system scene has 4 snap zones; ports beyond this count are hidden.
 func get_controller_port_count() -> int:

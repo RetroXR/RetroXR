@@ -374,8 +374,11 @@ func _needs_network() -> bool:
 ## arbitrary-file-read: name a file anywhere on the host, have the host spawn a
 ## book pointing at it, fetch it back. Needs no network — the filter is pure.
 func _test_peer_paths() -> void:
+	# Under a stub manager, as every case here: NetObjectSync asks its parent is_active() every frame, and the suite is no manager.
+	var nm := StubNM.new()
+	add_child(nm)
 	var sync := NetObjectSync.new()
-	add_child(sync)
+	nm.add_child(sync)
 	var root := DataPaths.media_root()
 
 	var inside := {"type": "book", "pdf_path": root + "/books/manual.pdf"}
@@ -404,7 +407,7 @@ func _test_peer_paths() -> void:
 	# The caller's dictionary must not be mutated: the host re-broadcasts it.
 	_eq(many.get("image_path"), "/etc/shadow", "paths/the entry is copied, not edited")
 
-	sync.queue_free()
+	nm.queue_free()
 
 
 func _test_registry_lifecycle() -> void:

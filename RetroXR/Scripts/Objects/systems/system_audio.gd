@@ -230,6 +230,12 @@ func bind() -> void:
 		_audio_out == RetroTV.AudioOut.SURROUND)
 	_forget_discrete()
 	_voices = _host.get_libretro_node().GetAudioVoiceIds()
+	# One line a logcat can answer "why is it silent" from: which backend took the core's sound,
+	# whether the cabling gate lets it out, and the level it will be sent at.
+	print("[SystemAudio] %s: bound %s, live=%s, level=%.2f, socketed=%s" % [_log_label(),
+		"%d Meta XR voices" % _voices.size() if not _voices.is_empty() else "AudioStreamPlayer3D",
+		str(_is_live()), _last_volume, str(_host.audio_speakers().get("socketed", false))])
+	_report_audio_health()
 	if not _voices.is_empty():
 		if Engine.has_singleton("MetaXRAudio"):
 			_mx = Engine.get_singleton("MetaXRAudio")
@@ -247,6 +253,25 @@ func bind() -> void:
 	_player.panning_strength = _host.audio_panning_strength
 	update_position()
 	_apply_bound_volume()
+
+
+## Twice after a bind, a line a logcat can answer "does this machine make sound" from: how full the
+## sink is, whether the core is being held back, the mixer's underruns and voices, and the gains
+## last sent. A silent game and a silent bridge read differently here: a game that is quiet (many
+## arcade sets say nothing in attract mode until a credit and a start) keeps the sink near its
+## target while the voices play silence; a broken bridge shows an empty sink or no active voice.
+func _report_audio_health() -> void:
+	var node: Libretro = _host.get_libretro_node()
+	for delay: float in [4.0, 14.0]:
+		await get_tree().create_timer(delay).timeout
+		if not is_instance_valid(_host) or not _host.is_powered_on or _host.get_libretro_node() != node:
+			return
+		var mixer := ""
+		if _mx != null:
+			mixer = ", mixer underruns=%s active voices=%s" % [str(_mx.get_underrun_count()), str(_mx.get_active_voice_count())]
+		print("[SystemAudio] %s: health +%.0fs: sink fill=%s%% brake=%sms ready=%s gains=%.2f/%.2f dist=%.2f%s" % [
+			_log_label(), delay, str(node.GetAudioBufferOccupancy()), str(node.GetAudioBrakeMs()),
+			str(node.IsAudioReady()), _sent_gain_l, _sent_gain_r, _dist_factor, mixer])
 
 
 ## Drop both backends when the core stops. The nodes and voice ids belong to the
@@ -798,6 +823,14 @@ func update_position() -> void:
 			var right := tv.global_transform.basis.x.normalized() * _host.audio_speaker_separation
 			left_pos = tv.global_position - right
 			right_pos = tv.global_position + right
+		elif _host.get_model() != null and _host.get_model().has_method("audio_speaker_positions"):
+			# A cabinet has speakers of its own, set in its front, and its sound comes out of
+			# them, facing the player (its local +Z), not from the middle of the body.
+			var spk: PackedVector3Array = _host.get_model().audio_speaker_positions()
+			left_pos = _host.global_transform * spk[0]
+			right_pos = _host.global_transform * spk[1]
+			emit_forward = _host.global_transform.basis.z.normalized()
+			emit_up = _host.global_transform.basis.y.normalized()
 		else:
 			# Unplugged, so the hardware radiates for itself -- and then the gap
 			# has to come from the hardware's own size. A flat 9 cm is a console

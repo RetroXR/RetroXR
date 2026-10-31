@@ -120,9 +120,13 @@ static func destination(core_name: String, path: String) -> String:
 ## A core can sit there under two naming conventions (bare and _android), so
 ## names are de-duplicated. Cores with no .info entry are grouped under
 ## "unknown" — the same convention the Manager tab uses.
-static func installed_cores_by_system() -> Dictionary:
+##
+## `cores_dir`, `suffixes` and `ext` default to this platform's own; a probe passes
+## others to look at a folder, or to read the naming of a platform it is not on (a
+## Quest's `mamearcade_libretro_android.so`).
+static func installed_cores_by_system(cores_dir := "", suffixes := PackedStringArray(), ext := "") -> Dictionary:
 	var by_system: Dictionary = {}
-	var dir := DirAccess.open(CoreDownloadManager.default_cores_dir())
+	var dir := DirAccess.open(CoreDownloadManager.default_cores_dir() if cores_dir.is_empty() else cores_dir)
 	if dir == null:
 		return by_system
 
@@ -131,7 +135,7 @@ static func installed_cores_by_system() -> Dictionary:
 	dir.list_dir_begin()
 	var fname := dir.get_next()
 	while fname != "":
-		var cn := "" if dir.current_is_dir() else CoreDownloadManager.core_name_from_lib_filename(fname)
+		var cn := "" if dir.current_is_dir() else CoreDownloadManager.core_name_from_lib_filename(fname, suffixes, ext)
 		if not cn.is_empty() and not seen.has(cn):
 			seen[cn] = true
 			var info: Dictionary = db.get_by_core_name(cn)

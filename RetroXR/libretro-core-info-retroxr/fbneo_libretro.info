@@ -4,7 +4,9 @@
 # its own directory because res://libretro-core-info is vendored wholesale from
 # libretro's repository and is refreshed wholesale too — an edit there would be
 # lost the next time, silently. An overlay REPLACES the entry, so everything
-# below is a whole copy of it with only the names and version changed.
+# below is a whole copy of it with only the names and version changed, and one set added:
+# atarisy1.zip (Atari System 1's BIOS), which FinalBurn Neo's drivers name as the board ROM of
+# 27 games (Marble Madness, Road Blasters...) and the vendored list leaves out.
 #
 # The binary this describes is built from RetroXR/FBNeo at the tag
 # retroxr-fbneo-libretro-v1 and published on that repository's releases page, which is
@@ -23,7 +25,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Various"
 systemname = "Arcade (various)"
-systemid = "fbneo"
+systemid = "arcade"
 # Neo Geo AES/MVS sets are filed under `neogeo` (geolith and neocd declare it),
 # and FinalBurn Neo runs them from the same zips. Without this the Neo Geo tile
 # never offers fbneo -- which is the only Neo Geo core vetted for rollback
@@ -48,7 +50,7 @@ database_match_archive_member = "false"
 database = "FBNeo - Arcade Games"
 
 # BIOS / Firmware
-firmware_count = 23
+firmware_count = 24
 firmware0_desc = "fbneo/neogeo.zip (Neo Geo BIOS)"
 firmware0_path = "fbneo/neogeo.zip"
 firmware0_opt = "true"
@@ -91,33 +93,36 @@ firmware12_opt = "true"
 firmware13_desc = "fbneo/namcoc75.zip (Namco C75 BIOS)"
 firmware13_path = "fbneo/namcoc75.zip"
 firmware13_opt = "true"
-firmware14_desc = "fbneo/coleco.zip (ColecoVision System BIOS)"
-firmware14_path = "fbneo/coleco.zip"
+firmware14_desc = "fbneo/atarisy1.zip (Atari System 1 BIOS - Marble Madness, Peter Pack Rat, Indiana Jones and the Temple of Doom, Road Blasters)"
+firmware14_path = "fbneo/atarisy1.zip"
 firmware14_opt = "true"
-firmware15_desc = "fbneo/fdsbios.zip (FDS System BIOS)"
-firmware15_path = "fbneo/fdsbios.zip"
+firmware15_desc = "fbneo/coleco.zip (ColecoVision System BIOS)"
+firmware15_path = "fbneo/coleco.zip"
 firmware15_opt = "true"
-firmware16_desc = "fbneo/msx.zip (MSX1 System BIOS)"
-firmware16_path = "fbneo/msx.zip"
+firmware16_desc = "fbneo/fdsbios.zip (FDS System BIOS)"
+firmware16_path = "fbneo/fdsbios.zip"
 firmware16_opt = "true"
-firmware17_desc = "fbneo/ngp.zip (NeoGeo Pocket BIOS)"
-firmware17_path = "fbneo/ngp.zip"
+firmware17_desc = "fbneo/msx.zip (MSX1 System BIOS)"
+firmware17_path = "fbneo/msx.zip"
 firmware17_opt = "true"
-firmware18_desc = "fbneo/spectrum.zip (ZX Spectrum BIOS)"
-firmware18_path = "fbneo/spectrum.zip"
+firmware18_desc = "fbneo/ngp.zip (NeoGeo Pocket BIOS)"
+firmware18_path = "fbneo/ngp.zip"
 firmware18_opt = "true"
-firmware19_desc = "fbneo/spec128.zip (ZX Spectrum 128 BIOS)"
-firmware19_path = "fbneo/spec128.zip"
+firmware19_desc = "fbneo/spectrum.zip (ZX Spectrum BIOS)"
+firmware19_path = "fbneo/spectrum.zip"
 firmware19_opt = "true"
-firmware20_desc = "fbneo/spec1282a.zip (ZX Spectrum 128 +2a BIOS)"
-firmware20_path = "fbneo/spec1282a.zip"
+firmware20_desc = "fbneo/spec128.zip (ZX Spectrum 128 BIOS)"
+firmware20_path = "fbneo/spec128.zip"
 firmware20_opt = "true"
-firmware21_desc = "fbneo/channelf.zip (Fairchild Channel F BIOS)"
-firmware21_path = "fbneo/channelf.zip"
+firmware21_desc = "fbneo/spec1282a.zip (ZX Spectrum 128 +2a BIOS)"
+firmware21_path = "fbneo/spec1282a.zip"
 firmware21_opt = "true"
-firmware22_desc = "fbneo/hiscore.dat (High Score support database)"
-firmware22_path = "fbneo/hiscore.dat"
+firmware22_desc = "fbneo/channelf.zip (Fairchild Channel F BIOS)"
+firmware22_path = "fbneo/channelf.zip"
 firmware22_opt = "true"
+firmware23_desc = "fbneo/hiscore.dat (High Score support database)"
+firmware23_path = "fbneo/hiscore.dat"
+firmware23_opt = "true"
 notes = "(!) The BIOS files can also be inside the ROM directory or the root of SYSTEM directory.|(!) Homepage : https://neo-source.com/"
 
 description = "Based on the latest up-to-date source, 'FinalBurn Neo' is compatible with FinalBurn Neo latest ROM sets. This core should be the first choice for most users who want to run arcade games via libretro. MAME runs more games, so if FBN is incompatible with a game, those are the next ones to try. The FBA2012 cores should only be used if a device cannot run FBN at full speed. Formerly known as 'FB Alpha'."

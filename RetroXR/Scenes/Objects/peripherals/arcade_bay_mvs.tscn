@@ -1,0 +1,204 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/arcade/arcade_bay_unit.gd" id="1_x0nb1"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/jamma_port.tscn" id="2_22gak"]
+[ext_resource type="Script" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="4_pvxpe"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="5_qk0oj"]
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_dgrp2"]
+friction = 0.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_x0nb1"]
+albedo_color = Color(0.55, 0.56, 0.6, 1)
+metallic = 0.3
+roughness = 0.55
+
+[sub_resource type="BoxMesh" id="BoxMesh_22gak"]
+material = SubResource("StandardMaterial3D_x0nb1")
+size = Vector3(0.34, 0.035, 0.2)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_4vwv5"]
+albedo_color = Color(0.04, 0.3, 0.15, 1)
+roughness = 0.55
+
+[sub_resource type="BoxMesh" id="BoxMesh_pvxpe"]
+material = SubResource("StandardMaterial3D_4vwv5")
+size = Vector3(0.32, 0.003, 0.19)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_qk0oj"]
+albedo_color = Color(0.03, 0.03, 0.035, 1)
+roughness = 0.7
+
+[sub_resource type="BoxMesh" id="BoxMesh_6rc36"]
+material = SubResource("StandardMaterial3D_qk0oj")
+size = Vector3(0.178, 0.03, 0.032)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2utpf"]
+albedo_color = Color(0, 0, 0, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_eutem"]
+material = SubResource("StandardMaterial3D_2utpf")
+size = Vector3(0.164, 0.002, 0.018)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gsynx"]
+albedo_color = Color(0.07, 0.07, 0.08, 1)
+roughness = 0.5
+
+[sub_resource type="BoxMesh" id="BoxMesh_el3pf"]
+material = SubResource("StandardMaterial3D_gsynx")
+size = Vector3(0.034, 0.008, 0.026)
+
+[sub_resource type="BoxMesh" id="BoxMesh_54hak"]
+material = SubResource("StandardMaterial3D_gsynx")
+size = Vector3(0.034, 0.008, 0.026)
+
+[sub_resource type="BoxMesh" id="BoxMesh_p7lx8"]
+material = SubResource("StandardMaterial3D_gsynx")
+size = Vector3(0.034, 0.008, 0.026)
+
+[sub_resource type="BoxMesh" id="BoxMesh_c0v6d"]
+material = SubResource("StandardMaterial3D_gsynx")
+size = Vector3(0.03, 0.007, 0.022)
+
+[sub_resource type="BoxMesh" id="BoxMesh_mu3lv"]
+material = SubResource("StandardMaterial3D_gsynx")
+size = Vector3(0.03, 0.007, 0.022)
+
+[sub_resource type="BoxMesh" id="BoxMesh_frxl6"]
+material = SubResource("StandardMaterial3D_gsynx")
+size = Vector3(0.03, 0.007, 0.022)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pbvbt"]
+albedo_color = Color(0.85, 0.66, 0.22, 1)
+metallic = 1.0
+roughness = 0.3
+
+[sub_resource type="BoxMesh" id="BoxMesh_nhv7y"]
+material = SubResource("StandardMaterial3D_pbvbt")
+size = Vector3(0.15, 0.006, 0.01)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_edpbb"]
+albedo_color = Color(0.65, 0.66, 0.7, 1)
+metallic = 0.9
+roughness = 0.35
+
+[sub_resource type="BoxMesh" id="BoxMesh_87lpq"]
+material = SubResource("StandardMaterial3D_edpbb")
+size = Vector3(0.04, 0.016, 0.03)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_4xbxx"]
+albedo_color = Color(0.85, 0.07, 0.1, 1)
+roughness = 0.4
+
+[sub_resource type="BoxMesh" id="BoxMesh_hlfhv"]
+material = SubResource("StandardMaterial3D_4xbxx")
+size = Vector3(0.34, 0.006, 0.002)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_7e25k"]
+size = Vector3(0.34, 0.065, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_8qvr2"]
+size = Vector3(0.36, 0.085, 0.2)
+
+[node name="ArcadeBay" type="RigidBody3D" unique_id=24511634]
+collision_layer = 4
+collision_mask = 196613
+mass = 2.0
+physics_material_override = SubResource("PhysicsMaterial_dgrp2")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_x0nb1")
+bay_kind = "mvs"
+type_id = "arcade_bay_mvs"
+
+[node name="MvsTray" type="MeshInstance3D" parent="." unique_id=51098622]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0175, 0)
+mesh = SubResource("BoxMesh_22gak")
+
+[node name="MvsBoard" type="MeshInstance3D" parent="." unique_id=826896324]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0365, 0)
+mesh = SubResource("BoxMesh_pvxpe")
+
+[node name="MvsSlot" type="MeshInstance3D" parent="." unique_id=991561520]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.053, 0)
+mesh = SubResource("BoxMesh_6rc36")
+
+[node name="MvsSlotMouth" type="MeshInstance3D" parent="." unique_id=671196066]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0681, 0)
+mesh = SubResource("BoxMesh_eutem")
+
+[node name="MvsChipL1" type="MeshInstance3D" parent="." unique_id=1358556144]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.125, 0.042, -0.055)
+mesh = SubResource("BoxMesh_el3pf")
+
+[node name="MvsChipL2" type="MeshInstance3D" parent="." unique_id=1420911133]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.123, 0.042, -0.01)
+mesh = SubResource("BoxMesh_54hak")
+
+[node name="MvsChipL3" type="MeshInstance3D" parent="." unique_id=1991295840]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.121, 0.042, 0.035)
+mesh = SubResource("BoxMesh_p7lx8")
+
+[node name="MvsChipR1" type="MeshInstance3D" parent="." unique_id=1956576926]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.125, 0.0415, -0.055)
+mesh = SubResource("BoxMesh_c0v6d")
+
+[node name="MvsChipR2" type="MeshInstance3D" parent="." unique_id=201302541]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.125, 0.0415, -0.01)
+mesh = SubResource("BoxMesh_mu3lv")
+
+[node name="MvsChipR3" type="MeshInstance3D" parent="." unique_id=871125548]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.125, 0.0415, 0.035)
+mesh = SubResource("BoxMesh_frxl6")
+
+[node name="MvsEdgeConn" type="MeshInstance3D" parent="." unique_id=1794899218]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.041, -0.088)
+mesh = SubResource("BoxMesh_nhv7y")
+
+[node name="MvsPower" type="MeshInstance3D" parent="." unique_id=1442426853]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.14, 0.0455, 0.075)
+mesh = SubResource("BoxMesh_87lpq")
+
+[node name="CartSeat" type="Marker3D" parent="." unique_id=652795415]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.113, 0)
+
+[node name="Stripe" type="MeshInstance3D" parent="." unique_id=530649417]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.027, 0.101)
+mesh = SubResource("BoxMesh_hlfhv")
+
+[node name="Legend" type="Label3D" parent="." unique_id=861084074]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0175, 0.1025)
+pixel_size = 0.0006
+modulate = Color(0.95, 0.93, 0.85, 1)
+text = "NEO GEO"
+font_size = 48
+outline_size = 0
+
+[node name="JammaPort" parent="." unique_id=731486802 instance=ExtResource("2_22gak")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0175, 0.104)
+channel = 0
+direction = 1
+show_jack = true
+rf_feed = false
+connector = "jamma_plug"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1227904869]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0325, 0)
+shape = SubResource("BoxShape3D_7e25k")
+
+[node name="PointerArea" type="StaticBody3D" parent="." unique_id=873641679]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0325, -0.01)
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea" unique_id=1534069460]
+shape = SubResource("BoxShape3D_8qvr2")
+
+[node name="GrabPoint" type="Marker3D" parent="." unique_id=1929947832]
+visible = false
+script = ExtResource("4_pvxpe")
+
+[node name="PickableHighlight" type="Node3D" parent="." unique_id=2015043926]
+script = ExtResource("5_qk0oj")

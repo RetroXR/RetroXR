@@ -1,0 +1,878 @@
+{
+ "layouts": {
+  "aquastge-2": {
+   "rects": [
+    [
+     0,
+     0,
+     900,
+     450
+    ],
+    [
+     900,
+     0,
+     900,
+     450
+    ]
+   ],
+   "view": "Dual Wide Screens"
+  },
+  "buggyboy-3": {
+   "rects": [
+    [
+     0,
+     0,
+     640,
+     480
+    ],
+    [
+     640,
+     0,
+     640,
+     480
+    ],
+    [
+     1280,
+     0,
+     640,
+     480
+    ]
+   ],
+   "view": "Triple-Screen (Gapless) + Shifter-R Overlay"
+  },
+  "cdi-2": {
+   "rects": [
+    [
+     0,
+     22,
+     384,
+     288
+    ],
+    [
+     0,
+     0,
+     192,
+     22
+    ]
+   ],
+   "view": "Main Screen + LCD"
+  },
+  "darius-3": {
+   "rects": [
+    [
+     0,
+     0,
+     4,
+     3
+    ],
+    [
+     4,
+     0,
+     4,
+     3
+    ],
+    [
+     8,
+     0,
+     4,
+     3
+    ]
+   ],
+   "view": "Triple Side-by-Side"
+  },
+  "default-rr": {
+   "rects": [
+    [
+     0,
+     0,
+     0.75,
+     1
+    ],
+    [
+     0.7575,
+     0,
+     0.75,
+     1
+    ]
+   ],
+   "view": "Left-to-Right"
+  },
+  "default-rrrr": {
+   "rects": [
+    [
+     0,
+     0,
+     0.75,
+     1
+    ],
+    [
+     0.7575,
+     0,
+     0.75,
+     1
+    ],
+    [
+     1.515,
+     0,
+     0.75,
+     1
+    ],
+    [
+     2.2725,
+     0,
+     0.75,
+     1
+    ]
+   ],
+   "view": "Left-to-Right"
+  },
+  "default-ruruu": {
+   "rects": [
+    [
+     0,
+     0,
+     0.75,
+     1
+    ],
+    [
+     0.76,
+     0.125,
+     1,
+     0.75
+    ],
+    [
+     1.77,
+     0,
+     0.75,
+     1
+    ],
+    [
+     2.53,
+     0.125,
+     1,
+     0.75
+    ],
+    [
+     3.54,
+     0.125,
+     1,
+     0.75
+    ]
+   ],
+   "view": "Left-to-Right"
+  },
+  "default-uu": {
+   "rects": [
+    [
+     0,
+     0,
+     1,
+     0.75
+    ],
+    [
+     1.0075,
+     0,
+     1,
+     0.75
+    ]
+   ],
+   "view": "Left-to-Right"
+  },
+  "default-uuu": {
+   "rects": [
+    [
+     0,
+     0,
+     1,
+     0.75
+    ],
+    [
+     1.0075,
+     0,
+     1,
+     0.75
+    ],
+    [
+     2.015,
+     0,
+     1,
+     0.75
+    ]
+   ],
+   "view": "Left-to-Right"
+  },
+  "default-uuuuu": {
+   "rects": [
+    [
+     0,
+     0,
+     1,
+     0.75
+    ],
+    [
+     1.0075,
+     0,
+     1,
+     0.75
+    ],
+    [
+     2.015,
+     0,
+     1,
+     0.75
+    ],
+    [
+     3.0225,
+     0,
+     1,
+     0.75
+    ],
+    [
+     4.03,
+     0,
+     1,
+     0.75
+    ]
+   ],
+   "view": "Left-to-Right"
+  },
+  "dualhovu-2": {
+   "rects": [
+    [
+     0,
+     -3.03,
+     4,
+     3
+    ],
+    [
+     0,
+     0,
+     4,
+     3
+    ]
+   ],
+   "view": "Dual Over-Under"
+  },
+  "dualhsxs-2": {
+   "rects": [
+    [
+     0,
+     0,
+     4,
+     3
+    ],
+    [
+     4.03,
+     0,
+     4,
+     3
+    ]
+   ],
+   "view": "Dual Side-by-Side"
+  },
+  "dualhuov-2": {
+   "rects": [
+    [
+     0,
+     0,
+     4,
+     3
+    ],
+    [
+     0,
+     -3.03,
+     4,
+     3
+    ]
+   ],
+   "view": "Dual Under-Over"
+  },
+  "firebeat-2": {
+   "rects": [
+    [
+     0,
+     0,
+     3,
+     4
+    ],
+    [
+     3.03,
+     0,
+     3,
+     4
+    ]
+   ],
+   "view": "Dual Side-by-Side"
+  },
+  "nbmj8688-3": {
+   "rects": [
+    [
+     0,
+     3,
+     15,
+     11.25
+    ],
+    [
+     0,
+     14.25,
+     15,
+     3
+    ],
+    [
+     0,
+     0,
+     15,
+     3
+    ]
+   ],
+   "view": "Triple"
+  },
+  "ninjaw-3": {
+   "rects": [
+    [
+     0,
+     0,
+     4,
+     3
+    ],
+    [
+     4,
+     0,
+     4,
+     3
+    ],
+    [
+     8,
+     0,
+     4,
+     3
+    ]
+   ],
+   "view": "Triple Side-by-Side"
+  },
+  "playch10-2": {
+   "rects": [
+    [
+     0,
+     0,
+     4,
+     3
+    ],
+    [
+     0,
+     -3.03,
+     4,
+     3
+    ]
+   ],
+   "view": "Dual Under-Over"
+  },
+  "ppsatan-3": {
+   "rects": [
+    [
+     0,
+     0,
+     4,
+     3
+    ],
+    [
+     -2.2,
+     3.4,
+     4,
+     3
+    ],
+    [
+     2.2,
+     3.4,
+     4,
+     3
+    ]
+   ],
+   "view": "Poka Poka Satan Custom"
+  },
+  "racedrivpan-3": {
+   "rects": [
+    [
+     4.03,
+     0,
+     4,
+     3
+    ],
+    [
+     0,
+     0,
+     4,
+     3
+    ],
+    [
+     8.06,
+     0,
+     4,
+     3
+    ]
+   ],
+   "view": "Triple Side-by-Side (Panorama)"
+  },
+  "rocknms-2": {
+   "rects": [
+    [
+     0,
+     0,
+     12,
+     9
+    ],
+    [
+     0,
+     9,
+     12,
+     16
+    ]
+   ],
+   "view": "Rockn Megasession Custom"
+  },
+  "rungun_dual-2": {
+   "rects": [
+    [
+     0,
+     0,
+     4,
+     3
+    ],
+    [
+     4.03,
+     0,
+     4,
+     3
+    ]
+   ],
+   "view": "Demultiplexed Output"
+  },
+  "spbactnp-2": {
+   "rects": [
+    [
+     0,
+     10,
+     12,
+     16
+    ],
+    [
+     0,
+     0,
+     12,
+     9
+    ]
+   ],
+   "view": "Super Pinball Action Prototype Custom"
+  },
+  "spdheat-4": {
+   "rects": [
+    [
+     0,
+     3.25,
+     4,
+     3
+    ],
+    [
+     4.25,
+     3.25,
+     4,
+     3
+    ],
+    [
+     0,
+     0,
+     4,
+     3
+    ],
+    [
+     4.25,
+     0,
+     4,
+     3
+    ]
+   ],
+   "view": "Quadruple (1P/2P side) + Shifter-R Overlay"
+  },
+  "tx1-3": {
+   "rects": [
+    [
+     0,
+     0,
+     640,
+     480
+    ],
+    [
+     640,
+     0,
+     640,
+     480
+    ],
+    [
+     1280,
+     0,
+     640,
+     480
+    ]
+   ],
+   "view": "Triple-Screen (Gapless) + Shifter-R Overlay"
+  }
+ },
+ "romsets": {
+  "aplarail": "default-uu",
+  "aquastge": "aquastge-2",
+  "arescue": "default-uu",
+  "arescuej": "default-uu",
+  "arescueu": "default-uu",
+  "armwrest": "dualhovu-2",
+  "as1": "default-uu",
+  "as1a": "default-uu",
+  "as1b": "default-uu",
+  "as1c": "default-uu",
+  "backfire": "dualhsxs-2",
+  "backfirea": "dualhsxs-2",
+  "balonfgt": "dualhsxs-2",
+  "bijokkog": "nbmj8688-3",
+  "bijokkoy": "nbmj8688-3",
+  "bingoc": "default-uu",
+  "bnstars1": "dualhsxs-2",
+  "buggyboy": "buggyboy-3",
+  "buggyboyb": "buggyboy-3",
+  "ccclass": "default-uu",
+  "coolridr": "dualhsxs-2",
+  "cyberbal": "dualhsxs-2",
+  "cyberbal1": "dualhsxs-2",
+  "cyberbal2": "dualhsxs-2",
+  "cyberbalp": "dualhsxs-2",
+  "cyberbalt": "dualhsxs-2",
+  "cyberbalt1": "dualhsxs-2",
+  "cybertnk": "dualhsxs-2",
+  "darius": "darius-3",
+  "darius2": "ninjaw-3",
+  "darius2d": "dualhsxs-2",
+  "darius2do": "dualhsxs-2",
+  "dariuse": "darius-3",
+  "dariusj": "darius-3",
+  "dariuso": "darius-3",
+  "dariusu": "darius-3",
+  "driveyes": "default-uuu",
+  "dt7": "default-rr",
+  "f1en": "default-uu",
+  "f1enj": "default-uu",
+  "f1enu": "default-uu",
+  "fromanc2": "dualhsxs-2",
+  "fromanc2o": "dualhsxs-2",
+  "fromanc4": "dualhsxs-2",
+  "fromancr": "dualhsxs-2",
+  "funkball": "default-uu",
+  "gprider": "default-uu",
+  "gpriderj": "default-uu",
+  "gprideru": "default-uu",
+  "hangplt": "dualhovu-2",
+  "hangpltu": "dualhovu-2",
+  "harddunk": "default-uu",
+  "harddunkj": "default-uu",
+  "hgkairak": "default-uu",
+  "hotdebut": "default-uu",
+  "hotgm4ev": "default-uu",
+  "hotgmck": "default-uu",
+  "hotgmck3": "default-uu",
+  "hotgmcki": "default-uu",
+  "housemn2": "nbmj8688-3",
+  "housemnq": "nbmj8688-3",
+  "hrclass": "default-uu",
+  "iceclmrd": "dualhsxs-2",
+  "jantouki": "dualhovu-2",
+  "janyuki": "dualhovu-2",
+  "kbh": "firebeat-2",
+  "kbm": "firebeat-2",
+  "kbm2nd": "firebeat-2",
+  "kbm3rd": "firebeat-2",
+  "livegal": "nbmj8688-3",
+  "loderndf": "default-uu",
+  "loderndfa": "default-uu",
+  "mt_aftrb": "dualhuov-2",
+  "mt_arrow": "dualhuov-2",
+  "mt_astrm": "dualhuov-2",
+  "mt_astro": "dualhuov-2",
+  "mt_asyn": "dualhuov-2",
+  "mt_bbros": "dualhuov-2",
+  "mt_beast": "dualhuov-2",
+  "mt_calga": "dualhuov-2",
+  "mt_cols": "dualhuov-2",
+  "mt_crack": "dualhuov-2",
+  "mt_eswat": "dualhuov-2",
+  "mt_fshrk": "dualhuov-2",
+  "mt_fwrld": "dualhuov-2",
+  "mt_fz": "dualhuov-2",
+  "mt_gaxe": "dualhuov-2",
+  "mt_gaxe2": "dualhuov-2",
+  "mt_gfoot": "dualhuov-2",
+  "mt_ggolf": "dualhuov-2",
+  "mt_gng": "dualhuov-2",
+  "mt_gsocr": "dualhuov-2",
+  "mt_kcham": "dualhuov-2",
+  "mt_lastb": "dualhuov-2",
+  "mt_mlh": "dualhuov-2",
+  "mt_mwalk": "dualhuov-2",
+  "mt_mystd": "dualhuov-2",
+  "mt_orun": "dualhuov-2",
+  "mt_parlg": "dualhuov-2",
+  "mt_revsh": "dualhuov-2",
+  "mt_shado": "dualhuov-2",
+  "mt_shang": "dualhuov-2",
+  "mt_shar2": "dualhuov-2",
+  "mt_shnbi": "dualhuov-2",
+  "mt_smgp": "dualhuov-2",
+  "mt_soni2": "dualhuov-2",
+  "mt_sonia": "dualhuov-2",
+  "mt_sonic": "dualhuov-2",
+  "mt_spman": "dualhuov-2",
+  "mt_srage": "dualhuov-2",
+  "mt_srbb": "dualhuov-2",
+  "mt_stbld": "dualhuov-2",
+  "mt_stf": "dualhuov-2",
+  "mt_tetri": "dualhuov-2",
+  "mt_tfor2": "dualhuov-2",
+  "mt_tgolf": "dualhuov-2",
+  "mt_tlbba": "dualhuov-2",
+  "mt_tout": "dualhuov-2",
+  "mt_wcsoc": "dualhuov-2",
+  "mt_wwar": "dualhuov-2",
+  "netmerc": "default-uu",
+  "ninjaw": "ninjaw-3",
+  "ninjaw1": "ninjaw-3",
+  "ninjawj": "ninjaw-3",
+  "ninjawu": "ninjaw-3",
+  "nss_actr": "dualhsxs-2",
+  "nss_adam": "dualhsxs-2",
+  "nss_aten": "dualhsxs-2",
+  "nss_con3": "dualhsxs-2",
+  "nss_fzer": "dualhsxs-2",
+  "nss_lwep": "dualhsxs-2",
+  "nss_ncaa": "dualhsxs-2",
+  "nss_rob3": "dualhsxs-2",
+  "nss_skin": "dualhsxs-2",
+  "nss_smas": "dualhsxs-2",
+  "nss_smw": "dualhsxs-2",
+  "nss_ssoc": "dualhsxs-2",
+  "nss_sten": "dualhsxs-2",
+  "orunners": "default-uu",
+  "orunnersj": "default-uu",
+  "orunnersu": "default-uu",
+  "pc_1942": "playch10-2",
+  "pc_bball": "playch10-2",
+  "pc_bfght": "playch10-2",
+  "pc_bload": "playch10-2",
+  "pc_bstar": "playch10-2",
+  "pc_cntra": "playch10-2",
+  "pc_cshwk": "playch10-2",
+  "pc_cvnia": "playch10-2",
+  "pc_dbldr": "playch10-2",
+  "pc_ddrgn": "playch10-2",
+  "pc_drmro": "playch10-2",
+  "pc_duckh": "playch10-2",
+  "pc_ebike": "playch10-2",
+  "pc_ftqst": "playch10-2",
+  "pc_gntlt": "playch10-2",
+  "pc_golf": "playch10-2",
+  "pc_goons": "playch10-2",
+  "pc_grdue": "playch10-2",
+  "pc_grdus": "playch10-2",
+  "pc_hgaly": "playch10-2",
+  "pc_kngfu": "playch10-2",
+  "pc_mario": "playch10-2",
+  "pc_miket": "playch10-2",
+  "pc_mman3": "playch10-2",
+  "pc_moglf": "playch10-2",
+  "pc_mtoid": "playch10-2",
+  "pc_ngai2": "playch10-2",
+  "pc_ngai3": "playch10-2",
+  "pc_ngaid": "playch10-2",
+  "pc_pinbt": "playch10-2",
+  "pc_pwbld": "playch10-2",
+  "pc_pwrst": "playch10-2",
+  "pc_radr2": "playch10-2",
+  "pc_radrc": "playch10-2",
+  "pc_rcpam": "playch10-2",
+  "pc_rkats": "playch10-2",
+  "pc_rnatk": "playch10-2",
+  "pc_rrngr": "playch10-2",
+  "pc_rygar": "playch10-2",
+  "pc_sjetm": "playch10-2",
+  "pc_smb": "playch10-2",
+  "pc_smb2": "playch10-2",
+  "pc_smb3": "playch10-2",
+  "pc_suprc": "playch10-2",
+  "pc_tbowl": "playch10-2",
+  "pc_tenis": "playch10-2",
+  "pc_tkfld": "playch10-2",
+  "pc_tmnt": "playch10-2",
+  "pc_tmnt2": "playch10-2",
+  "pc_trjan": "playch10-2",
+  "pc_ttoon": "playch10-2",
+  "pc_vball": "playch10-2",
+  "pc_virus": "playch10-2",
+  "pc_wcup": "playch10-2",
+  "pc_wgnmn": "playch10-2",
+  "pc_ynoid": "playch10-2",
+  "ppsatan": "ppsatan-3",
+  "predtors": "default-rrrr",
+  "punchita": "dualhovu-2",
+  "punchout": "dualhovu-2",
+  "punchouta": "dualhovu-2",
+  "punchoutah": "dualhovu-2",
+  "punchoutj": "dualhovu-2",
+  "quizard": "cdi-2",
+  "quizard2": "cdi-2",
+  "quizard2_22": "cdi-2",
+  "quizard3": "cdi-2",
+  "quizard3_32": "cdi-2",
+  "quizard3a": "cdi-2",
+  "quizard4": "cdi-2",
+  "quizard4_40": "cdi-2",
+  "quizard4_41": "cdi-2",
+  "quizard4cz": "cdi-2",
+  "quizard_10": "cdi-2",
+  "quizard_12": "cdi-2",
+  "quizard_17": "cdi-2",
+  "quizardff": "cdi-2",
+  "quizardi": "cdi-2",
+  "quizardi_12": "cdi-2",
+  "quizardi_17": "cdi-2",
+  "racedrivpan": "racedrivpan-3",
+  "rfmpb": "default-uu",
+  "rfmpbr2": "default-uu",
+  "rocknms": "rocknms-2",
+  "rocknms10": "rocknms-2",
+  "rungun2": "dualhsxs-2",
+  "rungunad": "rungun_dual-2",
+  "rungunbd": "rungun_dual-2",
+  "rungund": "rungun_dual-2",
+  "rungunuaad": "rungun_dual-2",
+  "rungunuabd": "rungun_dual-2",
+  "rungunubad": "rungun_dual-2",
+  "rushhero": "dualhsxs-2",
+  "sagaia": "dualhsxs-2",
+  "scross": "default-uu",
+  "scrossa": "default-uu",
+  "scrossu": "default-uu",
+  "slamdnk2": "dualhsxs-2",
+  "slmdunkjd": "rungun_dual-2",
+  "soccerss": "dualhsxs-2",
+  "soccerssa": "dualhsxs-2",
+  "soccerssj": "dualhsxs-2",
+  "soccerssja": "dualhsxs-2",
+  "soccerssu": "dualhsxs-2",
+  "spbactnp": "spbactnp-2",
+  "spdheat": "spdheat-4",
+  "spdheatj": "spdheat-4",
+  "spnchout": "dualhovu-2",
+  "spnchouta": "dualhovu-2",
+  "spnchoutj": "dualhovu-2",
+  "sscope": "dualhsxs-2",
+  "sscope2": "dualhsxs-2",
+  "sscope2a": "dualhsxs-2",
+  "sscope2ab": "dualhsxs-2",
+  "sscope2abvd1": "dualhsxs-2",
+  "sscope2ac": "dualhsxs-2",
+  "sscope2acvd1": "dualhsxs-2",
+  "sscope2avd1": "dualhsxs-2",
+  "sscope2e": "dualhsxs-2",
+  "sscope2eb": "dualhsxs-2",
+  "sscope2ebvd1": "dualhsxs-2",
+  "sscope2ec": "dualhsxs-2",
+  "sscope2ecvd1": "dualhsxs-2",
+  "sscope2evd1": "dualhsxs-2",
+  "sscope2j": "dualhsxs-2",
+  "sscope2jb": "dualhsxs-2",
+  "sscope2jbvd1": "dualhsxs-2",
+  "sscope2jc": "dualhsxs-2",
+  "sscope2jcvd1": "dualhsxs-2",
+  "sscope2jvd1": "dualhsxs-2",
+  "sscope2ub": "dualhsxs-2",
+  "sscope2ubvd1": "dualhsxs-2",
+  "sscope2uc": "dualhsxs-2",
+  "sscope2ucvd1": "dualhsxs-2",
+  "sscope2vd1": "dualhsxs-2",
+  "sscopea": "dualhsxs-2",
+  "sscopeaa": "dualhsxs-2",
+  "sscopeab": "dualhsxs-2",
+  "sscopeac": "dualhsxs-2",
+  "sscopeacvd2": "dualhsxs-2",
+  "sscopeavd2": "dualhsxs-2",
+  "sscopee": "dualhsxs-2",
+  "sscopeea": "dualhsxs-2",
+  "sscopeeb": "dualhsxs-2",
+  "sscopeec": "dualhsxs-2",
+  "sscopeecvd2": "dualhsxs-2",
+  "sscopeevd2": "dualhsxs-2",
+  "sscopeja": "dualhsxs-2",
+  "sscopejb": "dualhsxs-2",
+  "sscopeua": "dualhsxs-2",
+  "sscopeub": "dualhsxs-2",
+  "sscopeuc": "dualhsxs-2",
+  "sscopeucvd2": "dualhsxs-2",
+  "sscopevd2": "dualhsxs-2",
+  "step3": "default-ruruu",
+  "stepstag": "default-ruruu",
+  "subs": "dualhsxs-2",
+  "swe1pb": "default-uu",
+  "tbowl": "dualhsxs-2",
+  "tbowla": "dualhsxs-2",
+  "tbowlj": "dualhsxs-2",
+  "tbowlp": "dualhsxs-2",
+  "titlef": "default-uu",
+  "titlefj": "default-uu",
+  "titlefu": "default-uu",
+  "tmmjprd": "dualhsxs-2",
+  "tmosh": "default-uu",
+  "tmoshs": "default-uu",
+  "tmoshsp": "default-uu",
+  "tmoshspa": "default-uu",
+  "touchgo": "dualhsxs-2",
+  "touchgoa": "dualhsxs-2",
+  "touchgona": "dualhsxs-2",
+  "touchgonna": "dualhsxs-2",
+  "touchgonnaa": "dualhsxs-2",
+  "touchgonnab": "dualhsxs-2",
+  "touchgonnac": "dualhsxs-2",
+  "touchgoun": "dualhsxs-2",
+  "tsclass": "default-uu",
+  "tx1": "tx1-3",
+  "tx1jb": "tx1-3",
+  "tx1jc": "tx1-3",
+  "vcombat": "dualhsxs-2",
+  "vcop": "default-uu",
+  "vcopa": "default-uu",
+  "vjdash": "default-uuuuu",
+  "vjdasha": "default-uuuuu",
+  "vjslap": "default-uuuuu",
+  "vsbball": "dualhsxs-2",
+  "vsbballj": "dualhsxs-2",
+  "vsbballja": "dualhsxs-2",
+  "vsbballjb": "dualhsxs-2",
+  "vsmahjng": "dualhsxs-2",
+  "vsmjtria": "default-uu",
+  "vsnetscr": "dualhsxs-2",
+  "vsnetscra": "dualhsxs-2",
+  "vsnetscreb": "dualhsxs-2",
+  "vsnetscrj": "dualhsxs-2",
+  "vsnetscru": "dualhsxs-2",
+  "vstennis": "dualhsxs-2",
+  "vstennisa": "dualhsxs-2",
+  "vstennisb": "dualhsxs-2",
+  "warriorb": "dualhsxs-2",
+  "wingwar": "default-uu",
+  "wingwar360": "default-uu",
+  "wingwarj": "default-uu",
+  "wingwaru": "default-uu",
+  "wrally2": "dualhsxs-2",
+  "wrally2a": "dualhsxs-2",
+  "wrally2b": "dualhsxs-2",
+  "wrally2c": "dualhsxs-2",
+  "wrally2d": "dualhsxs-2",
+  "wrecking": "dualhsxs-2",
+  "xmen6p": "dualhsxs-2",
+  "xmen6pu": "dualhsxs-2"
+ }
+}

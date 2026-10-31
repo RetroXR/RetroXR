@@ -17,13 +17,14 @@ extends RefCounted
 
 const SAVE_PATH := "user://desktop_bindings.json"
 
-## Gamepad button actions (joypad + trigger).
+## Gamepad button actions (joypad + trigger), taking cover in a gun game (ArcadeInput.PEDAL_ACTION) and a held guitar's frets and wail (ArcadeGuitar).
 const JOYPAD_ACTIONS: Array[String] = [
 	"RETRO_JOYPAD_UP", "RETRO_JOYPAD_DOWN", "RETRO_JOYPAD_LEFT", "RETRO_JOYPAD_RIGHT",
 	"RETRO_JOYPAD_A",  "RETRO_JOYPAD_B",    "RETRO_JOYPAD_X",    "RETRO_JOYPAD_Y",
 	"RETRO_JOYPAD_L",  "RETRO_JOYPAD_R",    "RETRO_JOYPAD_L2",   "RETRO_JOYPAD_R2",
 	"RETRO_JOYPAD_L3", "RETRO_JOYPAD_R3",   "RETRO_JOYPAD_SELECT","RETRO_JOYPAD_START",
-	"trigger_left",
+	"trigger_left",    "arcade_pedal",
+	"arcade_fret_r",   "arcade_fret_g",     "arcade_fret_b",     "arcade_wail",
 ]
 
 ## Analog axis actions (each axis split into positive/negative actions).
@@ -53,6 +54,11 @@ const ACTION_LABELS: Dictionary = {
 	"RETRO_JOYPAD_SELECT": "Select",
 	"RETRO_JOYPAD_START":  "Start",
 	"trigger_left":        "Trigger / Shoot",
+	"arcade_pedal":        "Take Cover (gun pedal)",
+	"arcade_fret_r":       "Guitar: red fret",
+	"arcade_fret_g":       "Guitar: green fret",
+	"arcade_fret_b":       "Guitar: blue fret",
+	"arcade_wail":         "Guitar: wail",
 	"RETRO_ANALOG_LEFT_X_NEGATIVE":  "Left Stick \u2190",
 	"RETRO_ANALOG_LEFT_X_POSITIVE":  "Left Stick \u2192",
 	"RETRO_ANALOG_LEFT_Y_NEGATIVE":  "Left Stick \u2191",
@@ -100,11 +106,43 @@ static func _apply_layer(layer: Dictionary) -> void:
 ## previous scope's keys lingering on actions the new scope does not name.
 static func apply_for_system(systemid: String) -> void:
 	InputMap.load_from_project_settings()
+	for layer in _layers_for(systemid):
+		_apply_layer(layer)
+
+
+## The layers a scope puts over the project defaults, in the order they go on: the global one, then the system's own.
+static func _layers_for(systemid: String) -> Array[Dictionary]:
+	var layers: Array[Dictionary] = []
 	var data := _load_file()
-	_apply_layer(data.get("global", {}) as Dictionary)
+	layers.append(data.get("global", {}) as Dictionary)
 	if not systemid.is_empty():
 		var per_sys: Dictionary = data.get("per_system", {}) as Dictionary
-		_apply_layer(per_sys.get(BindingStore.scope_of(systemid), {}) as Dictionary)
+		var scope := BindingStore.scope_of(systemid)
+		if per_sys.has(scope):
+			layers.append(per_sys[scope] as Dictionary)
+		elif ArcadeProfiles.is_cabinet_system(systemid):
+			# A cabinet with no map of its own plays from MAME's layout, not the numpad.
+			layers.append(ArcadeProfiles.DESKTOP_KEYS)
+	return layers
+
+
+## What `event_display_name` would say of `action` once `apply_for_system(systemid)` had run, said without running it: the InputMap belongs to whoever holds the keyboard, and
+## a cabinet that tells its player the keys must not rewrite it to do so.
+static func display_name_for_system(action: String, systemid: String) -> String:
+	if not InputMap.has_action(action):
+		return "(none)"
+	var chosen: InputEvent = null
+	var setting: Variant = ProjectSettings.get_setting("input/%s" % action, null)
+	if setting is Dictionary:
+		var events: Array = (setting as Dictionary).get("events", []) as Array
+		if not events.is_empty():
+			chosen = events[0] as InputEvent
+	for layer in _layers_for(systemid):
+		if layer.has(action):
+			var ev := _dict_to_event(layer[action] as Dictionary)
+			if ev != null:
+				chosen = ev
+	return _format_event(chosen) if chosen != null else "(none)"
 
 
 ## Load saved bindings and apply the global scope. Safe with no file present.

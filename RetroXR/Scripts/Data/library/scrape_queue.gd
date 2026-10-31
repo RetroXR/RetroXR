@@ -121,10 +121,26 @@ func enqueue(rom_path: String, systemid: String, opts: Dictionary = {}) -> bool:
 		"systemid": systemid,
 		"tag": str(opts.get("tag", TAG_MANUAL)),
 		"review": bool(opts.get("review", false)),
+		# Media beyond the usual four, and the only ones to fetch (see ScreenscraperClient.extra_media).
+		"media": opts.get("media", []),
 	})
 	_pump()
 	_emit_progress()
 	return true
+
+
+## Ask a game that is WAITING for an ordinary scrape to fetch `kinds` as well (the queue already holds it, so a
+## second item would be dropped). False when it is not waiting: one already running has asked for what it will get.
+func add_extra_media(rom_path: String, kinds: Array) -> bool:
+	for q: Dictionary in _queue:
+		if str(q["rom"]) == rom_path:
+			var extra: Array = q.get("extra", [])
+			for k: Variant in kinds:
+				if not extra.has(k):
+					extra.append(k)
+			q["extra"] = extra
+			return true
+	return false
 
 
 func is_queued(rom_path: String) -> bool:
@@ -251,6 +267,10 @@ func _run_item(worker: Dictionary, item: Dictionary) -> void:
 		return
 
 	var client: ScreenscraperClient = worker["client"]
+	var wanted: Array = item.get("media", [])
+	# `media` is all this item fetches; `extra` is what an ordinary scrape is asked to bring besides.
+	client.extra_media = wanted + (item.get("extra", []) as Array)
+	client.media_filter = wanted
 	client.scrape_rom(rom, systemid, sums)
 
 

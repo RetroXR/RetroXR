@@ -8,10 +8,10 @@
 ##
 ## How it is done. The pad is made into the input the game already understands rather than given
 ## code paths of its own:
-##   * movement, crouch, walk, the menu and the TV's full screen are InputMap actions, so the pad's
-##     events are ADDED to those actions while a pad is the main one (`_sync_map`) and taken off
-##     again when it is not; the engine's own ui_* pad buttons (B = ui_cancel lets go of the mouse)
-##     come off meanwhile, A stays the jump (ui_accept);
+##   * movement, crouch, walk, the menu, the TV's full screen and taking cover in a gun game (RB) are
+##     InputMap actions, so the pad's events are ADDED to those actions while a pad is the main one
+##     (`_sync_map`) and taken off again when it is not; the engine's own ui_* pad buttons
+##     (B = ui_cancel lets go of the mouse) come off meanwhile, A stays the jump (ui_accept);
 ##   * the hand (grab, drop on release, push, pull, catch, turn) and looking round read the MOUSE,
 ##     so the pad sends the mouse events: RT is the left button, LT the middle one, D-pad up and
 ##     down the wheel, the right stick mouse motion (with LB as Shift). Those events carry
@@ -58,6 +58,10 @@ const PAD_ROWS := {
 		"Keep pressing {g} to hold it in your hand; again to square it up"],
 	&"capture": [["xbox_stick_r_press"], "press to send buttons here"],
 	&"drop_desktop": [["xbox_lb_outline", "xbox_rt_outline"], "Drop"],
+	&"holster_pc": [["xbox_lb_outline", "xbox_rt_outline"], "Drop them near the drum: they go back in their cradles"],
+	&"pedal_cover_desktop": [["xbox_rb_outline"], "Hold {g} to take cover"],
+	&"fret_pc": [["xbox_button_x_outline", "xbox_button_y_outline", "xbox_rb_outline"], "{g}: red, green, blue"],
+	&"wail_pc": [["xbox_lt_outline"], "Hold {g}: wail"],
 }
 ## Any other keyboard / mouse glyph, one for one.
 const PAD_GLYPHS := {
@@ -431,6 +435,14 @@ func _sync_map() -> void:
 	_add_button("action_crouch", JOY_BUTTON_B)
 	_add_button("action_walk", JOY_BUTTON_LEFT_STICK)
 	_add_button("ui_accept", JOY_BUTTON_A)
+	# Taking cover in a gun game, which lifts its foot pedal (ArcadeInput.PEDAL_ACTION): RB, free under the right
+	# index finger while RT fires. LB is Shift (LB + RT drops what is held), LT the middle button (it holds the
+	# look still).
+	_add_button("arcade_pedal", JOY_BUTTON_RIGHT_SHOULDER)
+	# A guitar held in the hand (ArcadeGuitar): X, Y and RB the red, green and blue frets under the right hand's fingers, RT the pick (the left button) and LT the wail (the middle one).
+	_add_button("arcade_fret_r", JOY_BUTTON_X)
+	_add_button("arcade_fret_g", JOY_BUTTON_Y)
+	_add_button("arcade_fret_b", JOY_BUTTON_RIGHT_SHOULDER)
 
 
 ## The map can be rewritten under this script: DesktopBindings.apply_for_system reloads the whole

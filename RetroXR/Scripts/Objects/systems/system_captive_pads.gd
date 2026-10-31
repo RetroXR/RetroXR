@@ -39,6 +39,8 @@ func spawn(port_zones: Array) -> void:
 	if paths.is_empty():
 		return
 	var rests: Array = _host.get_model().captive_controller_rests()
+	var mounts: Array = _host.get_model().captive_gun_mounts() \
+		if _host.get_model().has_method("captive_gun_mounts") else []
 	var parent: Node = _host.get_tree().current_scene
 	if parent == null:
 		parent = _host.get_parent()
@@ -73,7 +75,12 @@ func spawn(port_zones: Array) -> void:
 			var node := port_zones[i].get_node_or_null(hidden) as Node3D
 			if node != null:
 				node.hide()
-		if i < rests.size():
+		var mount: Dictionary = mounts[i] if i < mounts.size() else {}
+		if not mount.is_empty() and pad is LightGun:
+			# A gun on a swivel mount is fixed to the cabinet: it turns about its pivot and never leaves, so it
+			# has no well to be taken out of and put back in.
+			(pad as LightGun).fix_to_mount(mount["pivot"] as Node3D, mount["local"] as Vector3, bool(mount["lever"]))
+		elif i < rests.size():
 			_build_controller_well(i, rests[i] as Transform3D, pad)
 
 
@@ -82,6 +89,10 @@ func spawn(port_zones: Array) -> void:
 func _captive_cord_length(pad: Node3D) -> float:
 	var declared := float(pad.get("cable_length"))
 	return declared if declared > 0.0 else 1.8
+
+
+## How far from a holster's seat a hand still takes the gun out of it, in metres.
+const GUN_WELL_REACH := 0.13
 
 
 ## The recess a captive pad lies in, as a snap zone, so it can be put back where
@@ -97,10 +108,18 @@ func _build_controller_well(index: int, rest: Transform3D, pad: Node3D) -> void:
 	well.name = "ControllerWell%d" % (index + 1)
 	well.snap_require = "hand_held_device"
 	well.snap_filter = _accepts_captive_pad.bind(index)
-	well.grab_distance = 0.06
+	# A gun is taken from the hand's reach at its grip, not by hunting for the one point the zone
+	# sits on: 6 cm made a holster feel magnetic, the hand had to be pulled right onto it.
+	well.grab_distance = GUN_WELL_REACH if pad is LightGun else 0.06
+	# A cabinet's gun follows the holster rule (no preview, back only when let go there). A console's wired pad (a Famicom's) keeps its well's preview: it is not a holster.
+	if pad is LightGun:
+		Holster.prepare_seat(well)
 	_host.add_child(well)
 	well.transform = rest
 	_controller_wells.append(well)
+	# A gun goes back in its holster when let go (LightGun._return_to_well).
+	if "captive_well" in pad:
+		pad.set("captive_well", well)
 	well.pick_up_object(pad)
 
 

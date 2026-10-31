@@ -166,6 +166,9 @@ func _input_map() -> void:
 	var accept_pad := InputMap.action_get_events("ui_accept").filter(func(e: InputEvent) -> bool:
 		return e is InputEventJoypadButton and e.button_index == JOY_BUTTON_A and e.device == PAD)
 	_ok(accept_pad.size() == 1, "map/A is the jump (ui_accept)")
+	var pedal_pad := InputMap.action_get_events(ArcadeInput.PEDAL_ACTION).filter(func(e: InputEvent) -> bool:
+		return e is InputEventJoypadButton and e.button_index == JOY_BUTTON_RIGHT_SHOULDER and e.device == PAD)
+	_ok(pedal_pad.size() == 1, "map/RB is a gun cabinet's foot pedal (LB is Shift, LT holds the look still)")
 	for action: String in ["desktop_move_forward", "desktop_move_backward", "desktop_move_left",
 			"desktop_move_right", "desktop_spawn_menu", "desktop_tv_fullscreen", "action_walk"]:
 		var has := false
@@ -200,6 +203,8 @@ func _input_map() -> void:
 	_ok(InputMap.action_get_events("ui_accept").size() == accept_before, "map/and the jump's A is gone again")
 	_ok(InputMap.action_get_events("action_crouch").size() == before, "map/no pad: the events are taken off again",
 		"%d now, %d before: %s" % [InputMap.action_get_events("action_crouch").size(), before, InputMap.action_get_events("action_crouch")])
+	_ok(InputMap.action_get_events(ArcadeInput.PEDAL_ACTION).filter(func(e: InputEvent) -> bool:
+		return e is InputEventJoypadButton).is_empty(), "map/and the pedal's RB with them")
 	for e in InputMap.action_get_events("desktop_move_forward"):
 		_ok(e is InputEventKey, "map/and what is left on walk forward is the keyboard's")
 	svc.free()
@@ -331,6 +336,9 @@ func _helpers() -> void:
 	_ok(other[0] == ["xbox_button_menu_outline"] and other[1] == "Menu", "rows/any other: its glyphs one for one")
 	var odd := DesktopPadService.pad_row(&"menu", ["quest_trigger_left_outline"], "x")
 	_ok(odd[0] == ["quest_trigger_left_outline"], "rows/a glyph with no pad one stays")
+	var cover := DesktopPadService.pad_row(&"pedal_cover_desktop", [], "Hold Space to take cover")
+	_ok(cover[0] == ["xbox_rb_outline"] and String(cover[1]).contains("{g}"),
+		"rows/a gun game's take-cover row names RB on a pad, not the key")
 	for g: String in DesktopPadService.PAD_GLYPHS.values():
 		_ok(ResourceLoader.exists("res://Textures/InputPrompts/%s%s" % [g, ConsolePadDiagram.GLYPH_EXT]),
 			"rows/the glyph %s exists" % g)

@@ -55,6 +55,7 @@ const LABELS := {
 	"dsi_dc_plug": "a Nintendo DSi or 3DS AC adapter plug",
 	"psp_dc_plug": "a PSP AC adapter plug",
 	"gg_dc_plug": "a Game Gear AC adapter plug",
+	"jamma_plug": "a JAMMA harness plug",
 	"gamecube_controller": "a GameCube controller plug",
 	"playstation_controller": "a PlayStation controller plug",
 	"de9_controller": "a DE-9 joystick plug",

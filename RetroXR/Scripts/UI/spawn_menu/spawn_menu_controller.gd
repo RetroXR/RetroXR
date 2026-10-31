@@ -85,6 +85,10 @@ const MENU_DISTANCE := 0.9
 const MENU_WALL_GAP := 0.2
 ## The room's own walls and furniture: layer 1, "World".
 const MENU_WORLD_MASK := 1
+## What a seated player's menu keeps clear of as well: the pickables (a cabinet is one) and the pointable boxes.
+const MENU_SEATED_MASK := 4 | (1 << 20)
+## How near a seated player's menu may come to them, metres.
+const MENU_SEATED_MIN := 0.45
 
 const _SCROLL_SPEED    := 700.0   # pixels per second at full tilt
 const _SCROLL_DEADZONE := 0.25    # stick Y dead zone (0..1)
@@ -751,19 +755,43 @@ func _toggle_menu() -> void:
 ## everything bigger, so the menu is put further off by the zoom's factor
 ## (DesktopWindow.menu_distance_factor) -- but never into a wall: the ray out to it is
 ## cut short of the first thing in the world, and the menu never comes nearer than usual.
+##
+## SEATED (2026-10-29), the menu DOES come nearer: a seated player cannot step back (Seat holds the walking), and
+## the menu always stood 0.9 m ahead whatever was there, so one sitting in front of a cabinet (a seat is for that)
+## had the menu opened INSIDE it, behind its glass and its pointer boxes, with no way to move it. Now the ray
+## out to it takes the pickables and the pointable boxes too, and the menu stops MENU_WALL_GAP short of the first of
+## them, no nearer than MENU_SEATED_MIN. The player's own seat and the menu are left out of the ray.
 func _menu_distance(forward: Vector3) -> float:
-	if _camera == null or get_viewport().use_xr:
+	if _camera == null:
 		return MENU_DISTANCE
-	var want := MENU_DISTANCE * DesktopWindow.menu_distance_factor(QualityManager.zoom)
-	if want <= MENU_DISTANCE:
+	var seated := Seat.current != null
+	var want := MENU_DISTANCE
+	if not get_viewport().use_xr:
+		want = MENU_DISTANCE * DesktopWindow.menu_distance_factor(QualityManager.zoom)
+	if want <= MENU_DISTANCE and not seated:
 		return MENU_DISTANCE
 	var from := _camera.global_position
 	var query := PhysicsRayQueryParameters3D.create(from, from + forward * (want + MENU_WALL_GAP),
-		MENU_WORLD_MASK)
+		MENU_WORLD_MASK | (MENU_SEATED_MASK if seated else 0))
+	if seated:
+		query.collide_with_areas = true
+		var own: Array[RID] = []
+		for holder: Node in [self, Seat.current]:
+			if is_instance_valid(holder):
+				for body: Node in holder.find_children("*", "CollisionObject3D", true, false):
+					own.append((body as CollisionObject3D).get_rid())
+		query.exclude = own
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if not hit.is_empty():
-		want = minf(want, from.distance_to(hit["position"] as Vector3) - MENU_WALL_GAP)
-	return maxf(want, MENU_DISTANCE)
+	if hit.is_empty():
+		return want if seated else maxf(want, MENU_DISTANCE)
+	var room := from.distance_to(hit["position"] as Vector3) - MENU_WALL_GAP
+	if seated:
+		var out := clampf(minf(want, room), MENU_SEATED_MIN, want)
+		if out < want - 0.01:
+			print("[Menu] seated: %s stands %.2f m ahead, so the menu opens at %.2f m, not %.2f" % [
+				str((hit["collider"] as Node).get_path()), from.distance_to(hit["position"] as Vector3), out, want])
+		return out
+	return maxf(minf(want, room), MENU_DISTANCE)
 
 
 func _show_menu() -> void:
@@ -1006,7 +1034,12 @@ func _place_spawned(obj: Node3D, type: String) -> void:
 	if fwd.length_squared() < 0.001:
 		fwd = Vector3.FORWARD
 	fwd = fwd.normalized()
-	obj.global_position = global_position + fwd * 0.5
+	# A thing too big to hold stands on the floor a stride away instead of being handed to
+	# a hand (an arcade cabinet is 1.8 m tall and weighs what it weighs).
+	var on_floor: bool = obj.has_method("spawns_on_floor") and bool(obj.call("spawns_on_floor"))
+	obj.global_position = global_position + fwd * (1.3 if on_floor else 0.5)
+	if on_floor:
+		obj.global_position.y = _floor_y()
 	# Face the player. Nothing set the basis before this, so every object came
 	# out on its scene-default heading wherever it was spawned. Yaw only: the
 	# turn is about UP, so a console can never spawn pitched or rolled.
@@ -1029,12 +1062,24 @@ func _place_spawned(obj: Node3D, type: String) -> void:
 	NetworkManager.on_local_spawn(obj)
 	# Hand it over — except on a netplay client, whose local copy was just
 	# queue_freed by on_local_spawn (the host mints the real one, placed).
-	if grabber != null and not NetworkManager.is_client() \
+	if grabber != null and not NetworkManager.is_client() and not on_floor \
 			and is_instance_valid(obj) and obj is XRToolsPickable:
 		_give_to_grabber(grabber, obj as XRToolsPickable)
 
 	if is_instance_valid(obj):
 		_teach_verbs(obj)
+
+
+## The floor under the player: the XR origin's height, or the world's zero when the
+## camera is not under one.
+func _floor_y() -> float:
+	var cam := get_viewport().get_camera_3d()
+	var node: Node = cam.get_parent() if cam != null else null
+	while node != null:
+		if node is XROrigin3D:
+			return (node as XROrigin3D).global_position.y
+		node = node.get_parent()
+	return 0.0
 
 
 ## Both verbs on the left thumbstick (Tab on desktop), taught on the object the
@@ -1332,13 +1377,16 @@ func _on_spawn_cartridge_requested(rom_path: String, game_label: String, systemi
 		return
 	# Disc-based systems get a RetroDisc (same contract, disc-shaped body).
 	# The PSP UMD is the one non-round disc — its own RetroUMD subclass/scene.
-	var is_disc := MediaDimensions.is_disc_system(systemid)
+	# An arcade game's CHD is a disc too, though its board (the zip) is not: it goes in the CD-ROM bay
+	# under the JAMMA bay.
+	var arcade_disc := ArcadeDiscs.applies(systemid) and ArcadeDiscs.is_disc_path(rom_path)
+	var is_disc := MediaDimensions.is_disc_system(systemid) or arcade_disc
 	var disc_scene := UMD_DISC_SCENE if systemid == "psp" else DISC_SCENE
 	# The body GLB comes in on the loader threads before the cartridge is built:
 	# RetroCartridge loads it synchronously in _ready, and a cold one froze the
 	# headset for the length of the load. Free once it is held.
-	var body := RetroCartridge.body_model_for(systemid, rom_path, str(options.get("body_region", "")),
-		StringName(str(options.get("shell_preset", ""))))
+	var body := "" if arcade_disc else RetroCartridge.body_model_for(systemid, rom_path,
+		str(options.get("body_region", "")), StringName(str(options.get("shell_preset", ""))))
 	if not body.is_empty() and ResourceLoader.exists(body):
 		await ModelWarmer.acquire(body)
 	# And the PAL rear sticker a Super Famicom-shaped cartridge wears, likewise.

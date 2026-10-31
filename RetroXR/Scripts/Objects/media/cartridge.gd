@@ -84,18 +84,27 @@ const _CART_MODELS := {
 	"n3ds": "res://imported-assets/carts/nintendo_3ds/3ds_cart.glb",
 	"sega32x": "res://imported-assets/carts/sega_32x/sega32x_cart.glb",
 	"genesis": "res://imported-assets/carts/genesis/genesis_cart.glb",
+	# A JAMMA board is a bare PCB, not a shell: see Tools/gen/gen_arcade_board.gd.
+	"arcade": ArcadeProfiles.BOARD_SCENE,
+	# The other cabinets' media: a Neo Geo MVS game is a plastic cassette (neogeo_cart.tscn); a
+	# laserdisc game's and a discrete-logic game's are bare boards (no disc or shell is modelled).
+	"neogeo": ArcadeProfiles.NEOGEO_CART_SCENE,
+	"daphne": ArcadeProfiles.BOARD_SCENE,
+	"dice": ArcadeProfiles.BOARD_SCENE,
 }
 
 ## Models authored with real PBR values, which ModelMaterialFix must leave alone:
 ## the N64, Game Boy, DS/3DS, 32X, Genesis and NES cartridges' contacts and screws are metal,
 ## and so is the 64DD disk's hub.
 const _AUTHORED_MATERIALS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true, "snes": true,
-	"sega32x": true, "genesis": true, "nes": true, "n64dd": true}
+	"sega32x": true, "genesis": true, "nes": true, "n64dd": true, "arcade": true,
+	"neogeo": true, "daphne": true, "dice": true}
 
 ## Models whose label mesh is UV-mapped as the sticker itself, so the art is
 ## painted onto it rather than laid over it on a quad.
 const _UV_LABELS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true, "snes": true,
-	"sega32x": true, "genesis": true, "nes": true}
+	"sega32x": true, "genesis": true, "nes": true, "arcade": true,
+	"neogeo": true, "daphne": true, "dice": true}
 
 ## Names of the model's swappable label face, which _apply_label_art covers with
 ## the scraped art. The Sketchfab carts call it media_label; our own GBA scan
@@ -312,6 +321,8 @@ func _apply_cart_model() -> void:
 	glb.scale = k
 	glb.position = -(ab.position + ab.size * 0.5) * k
 	_add_overhang_shapes(glb)
+	if path == ArcadeProfiles.BOARD_SCENE:
+		ArcadeShadowBudget.trim(glb)    # a bare PCB: its chips and capacitors are all under 10 cm
 	# Moulded plastic exported with a high metallicFactor reads as a dark mirror
 	# rather than a grey shell — the NES cart ships metallic 0.76.
 	var mod_shell := ModCartShells.has(systemid)
@@ -574,12 +585,18 @@ func _update_label() -> void:
 		spine.text = game_label
 
 
+## Does this cartridge take its box from MediaDimensions.CART_SIZES? A disc of the arcade system
+## does not, though its systemid has a row there: the row is the BOARD's.
+func _has_box_size() -> bool:
+	return MediaDimensions.has_cart_size(systemid)
+
+
 ## Resize the generic cartridge to this system's real-world dimensions
 ## (MediaDimensions.CART_SIZES). All mesh/shape resources are DUPLICATED before
 ## mutation — tscn sub_resources are shared across instances, so editing them
 ## in place would resize every cartridge in the room.
 func _apply_system_size() -> void:
-	if not MediaDimensions.has_cart_size(systemid):
+	if not _has_box_size():
 		return
 	var s := _cart_size()
 
@@ -626,8 +643,13 @@ func _apply_system_size() -> void:
 			label_mesh.mesh = lm
 			label_mesh.position = Vector3(0, s.y * 0.125, s.z / 2.0 + 0.001)
 
+	# The title belongs to the procedural box only while there is no model. This pass runs
+	# again on every drop and every leave of a handheld's slot, and once a model's label
+	# face has taken the title (_title_on_model_face) putting it back at the box's place
+	# floats it 3 cm off the board: the title came away from the sticker after the first
+	# time the cart was put down.
 	var lbl := get_node_or_null("GameLabel") as Label3D
-	if lbl:
+	if lbl and _model_label == null:
 		lbl.position = Vector3(0, s.y * 0.125, s.z / 2.0 + 0.0045)
 		lbl.width = s.x * 2000.0
 
@@ -861,7 +883,7 @@ func _snap_zone_holder() -> XRToolsSnapZone:
 ## Pointer target on the cart itself, so nothing of it stands proud of the
 ## machine holding it.
 func _tighten_pointer_box() -> void:
-	if not MediaDimensions.has_cart_size(systemid):
+	if not _has_box_size():
 		return
 	var pcol := get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D
 	if pcol == null or not (pcol.shape is BoxShape3D):
@@ -919,7 +941,7 @@ func _aim_foreign_seat(zone: XRToolsSnapZone) -> void:
 ## through the thin shell and swallows clicks meant for the device itself.
 ## `depth` is the exposed length along the cart's +Y (grip) end.
 func set_seated_grab_stub(depth: float) -> void:
-	if not MediaDimensions.has_cart_size(systemid):
+	if not _has_box_size():
 		return
 	_stub_seated = true
 	var s := _cart_size()
@@ -945,7 +967,7 @@ func set_seated_grab_stub(depth: float) -> void:
 ## Restore the normal (padded) grab shapes after leaving a handheld slot.
 func reset_grab_shapes() -> void:
 	_stub_seated = false
-	if not MediaDimensions.has_cart_size(systemid):
+	if not _has_box_size():
 		return
 	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if col:

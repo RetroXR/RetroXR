@@ -27,6 +27,9 @@ extends MeshInstance3D
 const HOVER_COLOR := Color(0.35, 1.0, 0.45, 1.0)
 ## Engaged — the trigger is down. Matches VRHinge's ICON_HELD amber.
 const ACTIVE_COLOR := Color(1.0, 0.82, 0.28, 1.0)
+## Selectable — something a hand could take or a laser is aimed at (the arcade cabinet's controls, its panels and
+## its seats). PickableHighlight.ray_color's yellow, so a pad, a stick and a seat are picked out the same way.
+const SELECT_COLOR := Color(1.0, 0.85, 0.0, 1.0)
 
 const OUTLINE_SHADER := preload("res://Shaders/outline.gdshader")
 const OUTLINE_MASK_SHADER := preload("res://Shaders/outline_mask.gdshader")
@@ -144,6 +147,11 @@ func source_changed() -> void:
 func set_color(color: Color) -> void:
 	if _outline_material:
 		_outline_material.set_shader_parameter("outline_color", color)
+
+
+## Is the outline this colour now? For the tests.
+func outline_color_is(color: Color) -> bool:
+	return _outline_material != null and (_outline_material.get_shader_parameter("outline_color") as Color).is_equal_approx(color)
 
 
 ## Draw even when the source mesh is hidden. Off by default — an outline around

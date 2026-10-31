@@ -1388,7 +1388,11 @@ func _test_bios_extras_row_offers_updates() -> void:
 	# Cores tab does; it only ever showed the re-download glyph.
 	var view: GDScript = load("res://Scripts/UI/spawn_menu/views/cores_view.gd")
 	var dm := CoreDownloadManager.new()
+	# A manifest saves into the folder it is set up with, and with none it wrote cores_manifest.json into the cwd of whoever ran the suite (the project's own folder).
+	var scratch := "user://gb_printer_tests_cores"
+	DirAccess.make_dir_recursive_absolute(scratch)
 	dm.manifest = DownloadManifest.new()
+	dm.manifest.setup(scratch)
 	dm.manifest.set_downloaded(GbPrinter.CORE, "retroxr-gbprinter-libretro-v3")
 	dm.available_cores = [{"core_name": GbPrinter.CORE, "remote_date": "retroxr-gbprinter-libretro-v4"}]
 	_ok(bool(view.call("core_update_available", dm, GbPrinter.CORE)), "v3 installed with v4 out is an update")
@@ -1400,6 +1404,8 @@ func _test_bios_extras_row_offers_updates() -> void:
 		"with no listing yet, this build's own tag says what is newer")
 	_ok(not bool(view.call("core_update_available", null, GbPrinter.CORE)), "and with no manager, nothing is")
 	dm.free()
+	DirAccess.remove_absolute(scratch.path_join("cores_manifest.json"))
+	DirAccess.remove_absolute(scratch)
 
 
 func _test_bios_extras_row() -> void:

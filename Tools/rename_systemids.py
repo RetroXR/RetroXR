@@ -14,7 +14,8 @@ Only two lines of a file are touched: `systemid = "..."`, and the id left of eac
 colon in `secondary_systemids = "id:ext,ext|id:ext"`. Nothing else in a .info is
 a systemid, whatever it looks like (`database`, `systemname`, firmware paths).
 
-The table is not kept here. It is read out of SystemIds.LEGACY, so there is one.
+The table is not kept here. It is read out of SystemIds.LEGACY and SystemIds.MERGED
+(several ids that became one: mame, fbneo, hbmame -> arcade), so there is one.
 """
 import argparse
 import re
@@ -32,6 +33,10 @@ def load_legacy() -> dict[str, str]:
     legacy = dict(re.findall(r'"([^"]+)":\s*"([^"]+)"', body.group(1)))
     if not legacy:
         sys.exit(f"LEGACY table in {TABLE} is empty")
+    merged = re.search(r"const MERGED: Dictionary = \{(.*?)\n\}", text, re.S)
+    if not merged:
+        sys.exit(f"no MERGED table in {TABLE}")
+    legacy.update(dict(re.findall(r'"([^"]+)":\s*"([^"]+)"', merged.group(1))))
     return legacy
 
 

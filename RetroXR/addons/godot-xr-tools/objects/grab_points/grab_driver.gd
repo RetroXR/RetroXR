@@ -40,6 +40,10 @@ var _preview_zone : XRToolsSnapZone = null
 ## LOCAL PATCH (RetroXR): false until this driver has driven its target at
 ## least once. See the early-out in _physics_process.
 var _pushed_once := false
+## LOCAL PATCH (RetroXR): does `target` constrain its own hold (see the patch in _physics_process)? Looked up once per
+## target, not per tick.
+var _constrain_target: Object = null
+var _constrains := false
 
 var _preview_blend : float = 0.0
 # Cached bounding radius of the target so the preview engages at the same range
@@ -214,6 +218,15 @@ func _physics_process(delta : float) -> void:
 			if want != process_physics_priority:
 				process_physics_priority = want
 
+	# LOCAL PATCH (RetroXR): a held object that is TURNED by the hand rather than carried says where the hold really
+	# puts it (`constrain_grab(destination) -> Transform3D`): a light gun on a swivel mount (Silent Scope's rifle,
+	# Operation Wolf's Uzi) is fixed to its cabinet and turns about its mount, whatever the hand does.
+	if target != _constrain_target:
+		_constrain_target = target
+		_constrains = is_instance_valid(target) and target.has_method("constrain_grab")
+	if _constrains:
+		destination = target.call("constrain_grab", destination)
+
 	# LOCAL PATCH (RetroXR): always push once, however the driver was built.
 	#
 	# create_snap and create_lerp set the driver's transform to the destination
@@ -295,6 +308,12 @@ func discard() -> void:
 # socket's grab sphere, matching where the old ghost appeared.
 func _get_preview_radius() -> float:
 	if _preview_radius >= 0.0:
+		return _preview_radius
+	# LOCAL PATCH (RetroXR): a target may say how far ITS reach to a socket is (`preview_radius()`). A long thin thing's shapes are all
+	# length: a drummer's stick, held by its grip, reached a quarter of a metre past the hand, which put its cradle's preview over the
+	# whole drum it is played on and held the stick in the cradle there.
+	if is_instance_valid(target) and target.has_method("preview_radius"):
+		_preview_radius = maxf(float(target.call("preview_radius")), 0.0)
 		return _preview_radius
 	_preview_radius = 0.0
 	# Use only the target body's OWN shapes (via the shape-owner API) — not any

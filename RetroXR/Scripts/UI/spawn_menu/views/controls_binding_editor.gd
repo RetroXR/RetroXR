@@ -457,13 +457,14 @@ func _build_desktop_controls(vbox: VBoxContainer) -> void:
 		if i > 0 and not pad_note.is_empty():
 			vbox.add_child(_hint(pad_note))
 
-	# Anything the generic pad has no anchor for — the analog stick directions and
-	# the light-gun trigger — still has to be bindable, so it stays a list.
+	# Anything the generic pad has no anchor for — the analog stick directions, the
+	# light-gun trigger and a gun cabinet's foot pedal — still has to be bindable, so
+	# it stays a list.
 	#
 	# A console's own page offers only what its hardware has: a NES has no X, no
 	# shoulders and no sticks. A pad whose row declares sticks keeps their keys.
 	var rest: Array = []
-	var rest_title := "Analog Sticks & Trigger"
+	var rest_title := "Analog Sticks, Trigger, Pedal & Guitar"
 	if pad_id == ConsolePadArt.RETROPAD:
 		for action: String in DesktopBindings.managed_actions():
 			if not _desktop_control_of.has(action):

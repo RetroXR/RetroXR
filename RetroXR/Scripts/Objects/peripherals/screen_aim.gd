@@ -101,6 +101,10 @@ func hit(origin: Vector3, dir: Vector3) -> Dictionary:
 ## straight across the glass.
 func picture_at(glass_uv: Vector2) -> Vector2:
 	var mat := _screen.get_surface_override_material(0) as ShaderMaterial
+	# A cabinet's monitor fits the picture inside the glass by `fit_scale` alone: no curvature.
+	if mat != null and mat.shader == ArcadeScreenModule.SHADER:
+		var arcade_fit: Vector2 = _param(mat, "fit_scale", Vector2.ONE)
+		return (glass_uv - Vector2(0.5, 0.5)) / arcade_fit + Vector2(0.5, 0.5)
 	if mat == null or not RetroTV.is_crt_shader(mat.shader):
 		return glass_uv
 	var uv := glass_uv

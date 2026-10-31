@@ -53,6 +53,7 @@ func _ready() -> void:
 	_test_color_handhelds()
 	_test_arcade_boards()
 	_test_firmware_index()
+	_test_bios_download_all()
 	_test_stats_unchanged()
 	_test_password_not_persisted()
 	_test_scopes()
@@ -63,6 +64,8 @@ func _ready() -> void:
 	_test_scan_roms()
 	_test_index_by_basename()
 	_test_saves_beside_games()
+	_test_arcade_disc_folders()
+	_test_archive_plan_prefix()
 	_test_region_flags()
 	_test_gamelist_removal()
 	_test_media_and_cleanup()
@@ -74,6 +77,10 @@ func _ready() -> void:
 	_test_core_uninstall()
 	_test_backup_switch()
 	_test_state_schema()
+	await _test_disc_folder_single_file()
+	await _test_disc_folder_not_fetched_again()
+	_test_disc_folder_on_disk()
+	_test_disc_count_under_alias()
 	await _test_state_upload_body()
 	await _test_save_upload_still_works()
 	await _test_xbox_archive_upload()
@@ -497,6 +504,94 @@ func _test_firmware_index() -> void:
 	fw.free()
 
 
+## The BIOS page's Download all, one per core section: what it would fetch (only plain files that are MISSING here and
+## that RomM holds -- never a folder, a file already there, or a MISMATCH somebody put there), the header that carries it,
+## and that the first press only ARMS it (a second one downloads; no case presses it, there is no server).
+func _test_bios_download_all() -> void:
+	var fw := RommFirmware.new()
+	fw.config = RommConfig.new()
+	fw._index([
+		{"id": 1, "file_name": "have.bin", "file_path": "bios/psx", "file_size_bytes": 1000},
+		{"id": 2, "file_name": "need_a.bin", "file_path": "bios/psx", "file_size_bytes": 2000},
+		{"id": 3, "file_name": "need_b.bin", "file_path": "bios/psx", "file_size_bytes": 3000},
+		{"id": 4, "file_name": "wrong.bin", "file_path": "bios/psx", "file_size_bytes": 4000},
+		# Named like the folder requirement below, so only the folder rule keeps it out.
+		{"id": 5, "file_name": "bios", "file_path": "bios/psx", "file_size_bytes": 6000},
+	])
+	fw._loaded = true
+	var cfg := RommConfig.new()
+	cfg.enabled = true
+	cfg.base_url = "http://romm.invalid"
+	cfg.token = "t"
+
+	var view := SpawnMenuCoresView.new()
+	view.romm_firmware = fw
+	view.romm_config = cfg
+	add_child(view)
+	var S := FirmwareState.Status
+	var fake_rows: Array[Dictionary] = [
+		{"path": "have.bin", "status": S.PRESENT, "core_name": "fakecore"},
+		{"path": "need_a.bin", "status": S.MISSING_REQUIRED, "core_name": "fakecore"},
+		{"path": "need_b.bin", "status": S.MISSING_OPTIONAL, "core_name": "fakecore"},
+		{"path": "wrong.bin", "status": S.MISMATCH, "core_name": "fakecore"},
+		{"path": "pcsx2/bios", "status": S.MISSING_REQUIRED, "is_dir": true, "core_name": "fakecore"},
+		{"path": "not_on_romm.bin", "status": S.MISSING_REQUIRED, "core_name": "fakecore"},
+	]
+	view._bios_row_cache["fakecore"] = fake_rows
+	var out: Array[Dictionary] = view._bios_outstanding_for("fakecore")
+	var names: Array = []
+	for e: Dictionary in out:
+		names.append(str(e["path"]).get_file())
+	names.sort()
+	_eq(names, ["need_a.bin", "need_b.bin"], "bios_all/only what is missing here and on RomM (a present file, a mismatch, a folder and a file RomM lacks are out)")
+
+	var head: Control = view._build_bios_section_header("fakecore", "Fake Core")
+	var btn := _first_button(head)
+	_ok(btn != null and btn.text.contains("Download all 2") and btn.text.contains(String.humanize_size(5000)),
+		"bios_all/the header's button says how many files and how many bytes", btn.text if btn != null else "no button")
+	var lone: Control = view._build_bios_section_header("fakecore", "")
+	_ok(lone != null and _first_button(lone) != null, "bios_all/a single-core system has the button too, with no title")
+	# Nothing to fetch with RomM connected: the button stays, off, and says why. Without a title it is still a header.
+	var done_rows: Array[Dictionary] = [{"path": "have.bin", "status": S.PRESENT, "core_name": "done"}]
+	view._bios_row_cache["done"] = done_rows
+	var idle := _first_button(view._build_bios_section_header("done", ""))
+	_ok(idle != null and idle.disabled and idle.text.contains("all installed"), "bios_all/everything installed: the button is there, off, and says so", idle.text if idle != null else "no button")
+	var elsewhere_rows: Array[Dictionary] = [{"path": "not_on_romm.bin", "status": S.MISSING_REQUIRED, "core_name": "elsewhere"}]
+	view._bios_row_cache["elsewhere"] = elsewhere_rows
+	var absent := _first_button(view._build_bios_section_header("elsewhere", "Else"))
+	_ok(absent != null and absent.disabled and absent.text.contains("not on RomM"), "bios_all/missing but not on RomM: off, and says so", absent.text if absent != null else "no button")
+	# RomM not connected: nothing is on offer, so there is no button and, without a title, no header.
+	view.romm_config = RommConfig.new()
+	_eq(view._bios_outstanding_for("fakecore").size(), 0, "bios_all/no RomM, nothing to download")
+	_eq(view._build_bios_section_header("fakecore", ""), null, "bios_all/no RomM and no title: no header")
+	_eq(_first_button(view._build_bios_section_header("fakecore", "Fake Core")), null, "bios_all/no RomM: a title and no button")
+	view.romm_config = cfg
+
+	# The press needs the installer, which a bare view has not got (and which a machine without the archive extension cannot build).
+	var installer: Node = FirmwareInstaller.new()
+	view._firmware_installer = installer
+	view.add_child(installer)
+	btn.pressed.emit()
+	_ok(view._bios_all_armed == "fakecore" and btn.text.contains("Confirm") and not view._firmware_installer.is_busy(),
+		"bios_all/the first press only asks: it arms, repaints the button and downloads nothing", btn.text)
+	_eq(view._firmware_installer.queued_count(), 0, "bios_all/and nothing is queued by it")
+
+	view.queue_free()
+	fw.free()
+
+
+func _first_button(node: Node) -> Button:
+	if node == null:
+		return null
+	if node is Button:
+		return node as Button
+	for child in node.get_children():
+		var found := _first_button(child)
+		if found != null:
+			return found
+	return null
+
+
 # ---------------------------------------------------------------------------
 # RommConfig — the "did the library move?" fingerprint.
 # ---------------------------------------------------------------------------
@@ -880,6 +975,231 @@ func _test_saves_beside_games() -> void:
 	_eq([flags[8], flags[9]], [1, 0], "saves/a .zip game hides its save and keeps its row")
 	_eq([flags[10], flags[11]], [0, 0], "saves/a disc's cue and track are not saves")
 	_eq(RommCatalog.count_shown(bases, exts), 6, "saves/the tile count agrees with the list")
+
+
+## An arcade game's CHD is a folder RomM lists beside the board's zip. The list shows ONE row, the
+## zip's; the folder rides along with it (ArcadeDiscs).
+func _test_arcade_disc_folders() -> void:
+	var bases := PackedStringArray(["thisgame", "thisgame", "plain", "orphan", "other", "other"])
+	var exts := PackedStringArray(["", "zip", "zip", "", "zip", ""])
+	var flags := RommCatalog.compute_hidden_flags(bases, exts, true)
+	_eq(flags[0], 1, "disc/the folder beside its zip is hidden")
+	_eq(flags[1], 0, "disc/and the zip keeps its row")
+	_eq(flags[2], 0, "disc/a zip with no folder is a plain board")
+	_eq(flags[3], 0, "disc/a folder with no zip beside it stays visible")
+	_eq([flags[4], flags[5]], [0, 1], "disc/the pairing is by name wherever the rows sit")
+	var off := RommCatalog.compute_hidden_flags(bases, exts)
+	_eq(off[0], 0, "disc/on any other platform a folder is a game of its own")
+	_eq(RommCatalog.count_shown(bases, exts, true), 4, "disc/the tile count agrees with the list")
+	_eq(RommCatalog.count_shown(bases, exts), 6, "disc/and counts every row elsewhere")
+	var pairs := ArcadeDiscs.pair_folders(bases, exts)
+	_eq([pairs[1], pairs[2], pairs[4]], [0, -1, 5], "disc/a board row names its folder's row")
+	_ok(ArcadeDiscs.server_holds_disc({"fs_size_bytes": 1455804311}), "disc/a folder with files in it is a disc")
+	_ok(not ArcadeDiscs.server_holds_disc({"fs_size_bytes": 0, "multi": false}),
+		"disc/a folder RomM lists with no files in it is not (azumanga: 'No files found for ROM')")
+	_ok(ArcadeDiscs.applies("mame") and ArcadeDiscs.applies("arcade") and not ArcadeDiscs.applies("psx"),
+		"disc/only the arcade family pairs (a legacy id reads as arcade)")
+
+
+## The worker, end to end against a scripted server that answers only the file list: with the folder
+## whole on disk it finishes at once and never asks for the content (the server would have no second
+## answer, and the .download file would appear).
+func _test_disc_folder_not_fetched_again() -> void:
+	const SID := "__disc_again_selftest"
+	var root := RommCacheManifest.local_path(SID, "azumanga")
+	DirAccess.make_dir_recursive_absolute(root)
+	var chd := root.path_join("gdl-0018.chd")
+	var h := FileAccess.open(chd, FileAccess.WRITE)
+	h.store_buffer(PackedByteArray([1, 2, 3, 4, 5, 6, 7, 8]))
+	h.close()
+	var body := '{"id": 7, "files": [{"file_name": "gdl-0018.chd", "file_path": "roms/arcade/azumanga", "file_size_bytes": 8}]}'.to_utf8_buffer()
+	var head := ("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n"
+		% body.size()).to_utf8_buffer()
+	var srv := FakeServer.new()
+	if not srv.start([[0, head + body]]):
+		_ok(false, "again/could not listen")
+		return
+	var dl := RommDownloader.new()
+	var done := {"n": 0, "ok": false, "path": ""}
+	dl.download_finished.connect(func(_id: int, ok: bool, path: String, _err: String) -> void:
+		done["n"] = int(done["n"]) + 1
+		done["ok"] = ok
+		done["path"] = path)
+	var args := {"entry": {"id": 7, "fs_name": "azumanga", "multi": false, "md5_hash": ""}, "systemid": SID,
+		"base_url": "http://127.0.0.1:%d" % srv.port, "headers": PackedStringArray(), "folder": true,
+		"archive_extractor": null}
+	var t := Thread.new()
+	t.start(func() -> void: dl._worker(args))
+	var deadline := Time.get_ticks_msec() + 15000
+	while t.is_alive() and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	t.wait_to_finish()
+	for i in 3:
+		await get_tree().process_frame
+	srv.stop()
+	var asked := _printable(srv.received)
+	_eq(int(done["n"]), 1, "again/it finishes once")
+	_ok(bool(done["ok"]) and str(done["path"]) == chd, "again/with the CHD already there as the result (%s)" % done["path"])
+	_ok(asked.contains("GET /api/roms/7 ") and not asked.contains("/content/"),
+		"again/having asked only for the file list, never the content")
+	_ok(not FileAccess.file_exists(RommCacheManifest.local_path(SID, "azumanga.download.part")),
+		"again/and no download was started")
+	dl.free()
+	DirAccess.remove_absolute(chd)
+	DirAccess.remove_absolute(root)
+	DirAccess.remove_absolute(root.get_base_dir())
+
+
+## A disc folder already on disk is not fetched again: the server's file list is compared with what is
+## under <folder>/ by name and size.
+## An arcade library in an ALIAS folder (fba, cps2, stv...) counts a game with a disc once: the index writer asks the platform, not the folder's name,
+## whether a row can be a disc folder. It asked the name, and every aliased arcade library's badge counted each disc folder as a game.
+func _test_disc_count_under_alias() -> void:
+	var dir := "user://romm_tests_alias/fba/.romm"
+	_rm_rf("user://romm_tests_alias")
+	DirAccess.make_dir_recursive_absolute(dir)
+	var lines := {}
+	lines[1] = JSON.stringify({"id": 1, "name": "This Game", "sort_name": "this game", "fs_name": "thisgame.zip", "regions": []})
+	lines[2] = JSON.stringify({"id": 2, "name": "thisgame", "sort_name": "thisgame", "fs_name": "thisgame", "regions": []})
+	var written := RommCatalog._write_index(dir, RommCatalog._rows_from_lines(lines), "arcade")
+	_eq(int(written["shown"]), 1, "disc/an arcade library in an alias folder counts the board, not its disc folder")
+	_rm_rf("user://romm_tests_alias")
+
+
+func _test_disc_folder_on_disk() -> void:
+	const SID := "__disc_held_selftest"
+	var records := [
+		{"file_name": "gdl-0018.chd", "file_path": "roms/arcade/azumanga", "file_size_bytes": 8},
+		{"file_name": "extra.bin", "file_path": "roms/arcade/azumanga/sub", "file_size_bytes": 3},
+		{"file_name": "../evil", "file_path": "roms/arcade/azumanga", "file_size_bytes": 1}]
+	var files := RommDownloader.folder_files_of(records, "azumanga")
+	_eq(files.map(func(f: Dictionary) -> String: return str(f["relative"])), ["gdl-0018.chd", "sub/extra.bin"],
+		"held/the file list reads each file's place under the folder, and drops an unsafe name")
+	_eq(RommDownloader.folder_files_of("not a list", "azumanga"), [], "held/nothing known is no files")
+
+	var root := RommCacheManifest.local_path(SID, "azumanga")
+	DirAccess.make_dir_recursive_absolute(root.path_join("sub"))
+	var chd := root.path_join("gdl-0018.chd")
+	var extra := root.path_join("sub/extra.bin")
+	var h := FileAccess.open(chd, FileAccess.WRITE)
+	h.store_buffer(PackedByteArray([1, 2, 3, 4, 5, 6, 7, 8]))
+	h.close()
+	_eq(RommDownloader.disc_folder_on_disk(files, SID, "azumanga")["complete"], false,
+		"held/a file of the folder missing is not complete")
+	h = FileAccess.open(extra, FileAccess.WRITE)
+	h.store_buffer(PackedByteArray([1, 2, 3]))
+	h.close()
+	var held := RommDownloader.disc_folder_on_disk(files, SID, "azumanga")
+	_ok(bool(held["complete"]), "held/every file there at the server's size is complete")
+	_eq(str(held["launch"]), chd, "held/and it launches the CHD, not the first file listed")
+	_eq((held["members"] as Array).map(func(m: Dictionary) -> String: return str(m["path"])),
+		["azumanga/gdl-0018.chd", "azumanga/sub/extra.bin"], "held/its members are named from the roms root")
+	h = FileAccess.open(chd, FileAccess.WRITE)
+	h.store_buffer(PackedByteArray([1, 2, 3]))
+	h.close()
+	_eq(RommDownloader.disc_folder_on_disk(files, SID, "azumanga")["complete"], false,
+		"held/a file of another size is fetched again")
+	_eq(RommDownloader.disc_folder_on_disk([], SID, "azumanga")["complete"], false,
+		"held/a server that gave no files is not trusted to say it is all there")
+	DirAccess.remove_absolute(chd)
+	DirAccess.remove_absolute(extra)
+	DirAccess.remove_absolute(root.path_join("sub"))
+	DirAccess.remove_absolute(root)
+	DirAccess.remove_absolute(root.get_base_dir())
+
+
+## RomM serves a folder that holds ONE file as that file (`has_nested_single_file`), not as a zip: the
+## downloader asks which file it is and puts it at <folder>/<its name>. A scripted server answers the
+## one question; the stand-in system keeps the player's real roms folders out of it.
+func _test_disc_folder_single_file() -> void:
+	const SID := "__disc_selftest"
+	var body := '{"id": 7, "files": [{"file_name": "gdl-0018.chd"}]}'.to_utf8_buffer()
+	var head := ("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n"
+		% body.size()).to_utf8_buffer()
+	var downloaded := RommCacheManifest.local_path(SID, "azumanga.download")
+	DirAccess.make_dir_recursive_absolute(downloaded.get_base_dir())
+	# What an earlier build left: the disc saved as a plain file called azumanga, in the way of the folder.
+	var stray := RommCacheManifest.local_path(SID, "azumanga")
+	var sf := FileAccess.open(stray, FileAccess.WRITE)
+	sf.store_buffer("MComprHD".to_utf8_buffer())
+	sf.close()
+	var f := FileAccess.open(downloaded, FileAccess.WRITE)
+	f.store_buffer("MComprHD".to_utf8_buffer())
+	f.close()
+	var dl := RommDownloader.new()
+	var srv := FakeServer.new()
+	if not srv.start([[0, head + body]]):
+		_ok(false, "disc/could not listen")
+		return
+	var box := {"out": {"error": "no answer"}}
+	var args := {"base_url": "http://127.0.0.1:%d" % srv.port, "headers": PackedStringArray()}
+	var t := Thread.new()
+	t.start(func() -> void: box["out"] = dl._place_single_file(args, downloaded, SID, "azumanga", 7))
+	var deadline := Time.get_ticks_msec() + 15000
+	while t.is_alive() and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	srv.stop()
+	t.wait_to_finish()
+	var got := {"out": box["out"]}
+	var out: Dictionary = got["out"]
+	var target := RommCacheManifest.local_path(SID, "azumanga/gdl-0018.chd")
+	_eq(str(out.get("error", "x")), "", "disc/a one-file folder is placed without an error")
+	_eq(str(out.get("relative", "")), "azumanga/gdl-0018.chd", "disc/under the folder of its name, by its own name")
+	_ok(FileAccess.file_exists(target), "disc/the file is there")
+	_ok(not FileAccess.file_exists(downloaded), "disc/and the download under its temporary name is gone")
+	_ok(DirAccess.dir_exists_absolute(RommCacheManifest.local_path(SID, "azumanga")),
+		"disc/azumanga is a folder now, the stray file an earlier build left is gone")
+	dl.free()
+	DirAccess.remove_absolute(target)
+	DirAccess.remove_absolute(target.get_base_dir())
+	DirAccess.remove_absolute(downloaded.get_base_dir())
+	_ok(RommDownloader.is_disc_folder({"fs_name": "azumanga"}, "arcade"), "disc/a no-extension name on arcade is a disc folder")
+	_ok(not RommDownloader.is_disc_folder({"fs_name": "azumanga.zip"}, "arcade"), "disc/a zip is not")
+	_ok(not RommDownloader.is_disc_folder({"fs_name": "azumanga"}, "psx"), "disc/nor is a folder on another system")
+	# The list the on-disk check already had is used, not asked for again: with the server gone by then, the finished download is still placed
+	# (a second request that failed threw it away with "RomM did not name the disc file").
+	var again := RommCacheManifest.local_path(SID, "kgame.download")
+	DirAccess.make_dir_recursive_absolute(again.get_base_dir())
+	var g := FileAccess.open(again, FileAccess.WRITE)
+	g.store_buffer("MComprHD".to_utf8_buffer())
+	g.close()
+	var dl2 := RommDownloader.new()
+	var gone_server := {"base_url": "http://127.0.0.1:9", "headers": PackedStringArray()}
+	var placed := dl2._place_single_file(gone_server, again, SID, "kgame", 8, [{"name": "k.chd", "size": 8, "relative": "k.chd"}])
+	var k_target := RommCacheManifest.local_path(SID, "kgame/k.chd")
+	_ok(str(placed.get("error", "x")) == "" and FileAccess.file_exists(k_target),
+		"disc/a one-file folder is placed from the list already asked for, with the server gone (%s)" % str(placed.get("error", "")))
+	dl2.free()
+	DirAccess.remove_absolute(k_target)
+	DirAccess.remove_absolute(k_target.get_base_dir())
+	DirAccess.remove_absolute(again)
+	DirAccess.remove_absolute(again.get_base_dir())
+
+
+## The disc folder unpacks INTO a folder of its name, whether or not RomM's archive carries one.
+func _test_archive_plan_prefix() -> void:
+	var path := OS.get_cache_dir().path_join("romm_prefix_test.zip")
+	var packer := ZIPPacker.new()
+	if packer.open(path) != OK:
+		_ok(false, "prefix/could not write the test archive")
+		return
+	for entry: String in ["flat.chd", "thisgame/nested.chd"]:
+		packer.start_file(entry)
+		packer.write_file("x".to_utf8_buffer())
+		packer.close_file()
+	packer.close()
+	var reader := ZIPReader.new()
+	reader.open(path)
+	var root := OS.get_cache_dir().path_join("romm_prefix_root")
+	var plain := RommDownloader._archive_plan(reader, root)
+	var folded := RommDownloader._archive_plan(reader, root, "thisgame")
+	reader.close()
+	DirAccess.remove_absolute(path)
+	var plain_rel: Array = plain.map(func(p: Dictionary) -> String: return str(p["relative"]))
+	var folded_rel: Array = folded.map(func(p: Dictionary) -> String: return str(p["relative"]))
+	_eq(plain_rel, ["flat.chd", "thisgame/nested.chd"], "prefix/no prefix leaves the layout alone")
+	_eq(folded_rel, ["thisgame/flat.chd", "thisgame/nested.chd"],
+		"prefix/a flat archive goes under the folder and a nested one is not nested twice")
 
 
 ## The flag on a ROM row and in the variants list. The region values are the

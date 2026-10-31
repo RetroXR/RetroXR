@@ -1,0 +1,55 @@
+{
+ "throttle": {
+  "aburner2": {
+   "name": ""
+  },
+  "aburner2g": {
+   "name": ""
+  },
+  "airco22b": {
+   "name": "Throttle Stick"
+  },
+  "aircomb": {
+   "name": ""
+  },
+  "aircombj": {
+   "name": ""
+  },
+  "gforce2": {
+   "name": ""
+  },
+  "gforce2j": {
+   "name": ""
+  },
+  "gforce2ja": {
+   "name": ""
+  },
+  "gforce2sd": {
+   "name": ""
+  },
+  "gloc": {
+   "name": ""
+  },
+  "glocj": {
+   "name": ""
+  },
+  "glocu": {
+   "name": ""
+  },
+  "strkfgtr": {
+   "name": ""
+  },
+  "strkfgtrj": {
+   "name": ""
+  },
+  "thndrbld": {
+   "name": ""
+  },
+  "thndrbld1": {
+   "name": ""
+  },
+  "thndrbldd": {
+   "name": ""
+  }
+ }
+}

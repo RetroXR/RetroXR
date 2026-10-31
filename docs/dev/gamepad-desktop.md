@@ -32,7 +32,9 @@ The pad is made into the input the game already reads, not given code paths of i
   `SYNTH_DEVICE` and are skipped, or the pad would read as the mouse. No main pad: always the keyboard.
 - **InputMap actions** get the pad's events ADDED while a pad is main and taken off after: the left stick
   walks (`desktop_move_*`), Start `desktop_spawn_menu`, Back `desktop_tv_fullscreen`, B `action_crouch`, L3
-  `action_walk`. Everything in the engine that already reads these needs no change.
+  `action_walk`, RB `arcade_pedal` (held, it takes cover in a gun game, lifting its foot pedal,
+  `ArcadeInput.PEDAL_ACTION`: LB is Shift, so LB + RT would drop the gun, and LT is the middle button, which
+  holds the look still). Everything in the engine that already reads these needs no change.
 - **The hand and looking round read the MOUSE**, so the pad sends mouse events: RT = left button (grab,
   press a control, drop on release, left-drag turns), LT = middle button (turn the held thing), D-pad up /
   down = wheel up / down (push / pull / catch; held, it repeats), the right stick = mouse motion
@@ -68,6 +70,7 @@ The pad is made into the input the game already reads, not given code paths of i
 | Tab: spawn menu | Start |
 | crouch | B |
 | walk | L3 |
+| Space, held: take cover in a gun game (lifts its foot pedal) | RB |
 | F11: TV full screen | Back |
 | a held handheld / controller, captured | the pad plays it (A is NOT the left button: it is a game button) |
 

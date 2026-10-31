@@ -163,7 +163,7 @@ func _test_gc_gba_cable() -> void:
 
 	# Which console's ports will take it. A GameCube lead is not a Wii lead, and
 	# the socket says so before anything electrical is decided.
-	_eq(gc_end.systemid, "gc", "the console end fits a GameCube")
+	_eq(gc_end.connector, Connectors.controller_port_of("gc"), "the console end fits a GameCube")
 
 	# Seating it announces a handheld to the core, the same way any pad announces
 	# itself: there is no separate step and nothing else to configure.
@@ -342,11 +342,13 @@ func _test_plug_gating() -> void:
 
 func _test_port_pins_its_channel() -> void:
 	var port := _port()
-	# Inherited from RcaPort but meaningless on a cable that carries neither
-	# picture nor sound, so it is pinned rather than left for a scene to set
-	# wrong.
-	_eq(port.channel, RcaPort.Channel.VIDEO, "channel is pinned")
-	_ok(not port.show_jack, "the jack visual is off")
+	# A link port used to inherit these from RcaPort and pin them. It is a plain
+	# Port now (a link lead carries neither picture nor sound), so there is no
+	# channel or jack for a scene to set wrong, and the A/V sweeps over RcaPort.GROUP
+	# never visit it.
+	_ok(not ("channel" in port), "a link port has no A/V channel to pin")
+	_ok(not ("show_jack" in port), "and no jack visual to switch off")
+	_ok(not port.is_in_group(RcaPort.GROUP), "and the A/V sweeps do not visit it")
 	port.queue_free()
 
 

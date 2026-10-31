@@ -28,6 +28,15 @@ extends RefCounted
 const PRIMITIVE_CONTROLLER := "retro_controller"
 
 
+## The arcade bays and their JAMMA lead, on every cabinet's card (see _PERIPHERALS).
+const _ARCADE_BAY_ROWS: Array = [
+	{"kind": "peripheral", "label": "JAMMA Arcade Bay", "spawn": "arcade_bay_jamma"},
+	{"kind": "peripheral", "label": "Neo Geo MVS Arcade Bay", "spawn": "arcade_bay_mvs"},
+	{"kind": "peripheral", "label": "Laserdisc Arcade Bay", "spawn": "arcade_bay_laserdisc"},
+	{"kind": "peripheral", "label": "DICE Arcade Bay", "spawn": "arcade_bay_discrete"},
+	{"kind": "peripheral", "label": "JAMMA Cable", "spawn": "jamma_cable"},
+]
+
 ## systemid → the peripherals that belong to that hardware. Systems with no entry
 ## just have none; their hardware rows still come from the registry.
 ##
@@ -185,6 +194,13 @@ const _PERIPHERALS: Dictionary = {
 	"sega32x": [
 		{"kind": "peripheral", "label": "Model 2 Spacer", "spawn": "sega32x_spacer"},
 	],
+	# A cabinet's bay is its own object now (ArcadeBayUnit), and the harness lead joins one standing
+	# elsewhere to a cabinet. Every cabinet's card offers every kind: a bay clipped into another kind's
+	# cabinet is what makes the cabinet play that system.
+	"arcade": _ARCADE_BAY_ROWS,
+	"neogeo": _ARCADE_BAY_ROWS,
+	"daphne": _ARCADE_BAY_ROWS,
+	"dice": _ARCADE_BAY_ROWS,
 }
 
 
@@ -216,7 +232,10 @@ const _NO_STANDIN_CONSOLE: Array[String] = ["dreamcast", "genesis"]
 ## nothing on the console. Its card lists the RF switch instead. The Genesis, for
 ## the Wii's and N64's reason: its one socket is a 9-pin mini-DIN. The Super NES for
 ## the N64's: even its primitive box wears a Multi Out.
-const _OWN_AV_LEAD: Array[String] = ["nes", "famicom", "wii", "n64", "genesis", "snes"]
+## The arcade cabinet is here for the opposite of a missing socket: its monitor is part
+## of it, so there is no lead to run anywhere.
+const _OWN_AV_LEAD: Array[String] = ["nes", "famicom", "wii", "n64", "genesis", "snes", "arcade",
+	"daphne", "dice"]
 
 ## Hardware whose picture leaves on a captive pigtail rather than through sockets
 ## (av_port_channels() is empty), so a spawned lead has nothing to enter at that
@@ -380,6 +399,10 @@ const _LIGHT_GUN_PLATFORMS: Array = [
 	"nes", "snes", "mastersystem", "genesis", "saturn",
 	"dreamcast", "psx", "ps2", "atari2600", "atari7800",
 	"atari800", "c64", "zxspectrum", "amstradcpc", "3do", "cdi",
+	# Gun cabinets were a whole genre: the cabinet's front sockets take one.
+	"arcade",
+	# The laserdisc shooters (Mad Dog McCree, Crime Patrol) were played with a gun too.
+	"daphne",
 ]
 
 
@@ -569,7 +592,9 @@ static func _items_for(systemid: String) -> Array:
 	# when nothing names a model: the first available row. Two mods modelling
 	# the same console is the case this is for -- which of them that is follows
 	# from their priority, and the card is the only place it can be seen.
-	if items.size() > 1 and not rows.is_empty():
+	# Not on the arcade card: its cabinets are a choice of body, not of a console the game reaches for,
+	# and "default" beside the first one read as a flaw.
+	if items.size() > 1 and not rows.is_empty() and not ArcadeProfiles.is_arcade_system(systemid):
 		var chosen := str((rows[0] as Dictionary).get("id", ""))
 		for item: Dictionary in items:
 			if str(item.get("model_id", "")) == chosen:
@@ -841,6 +866,13 @@ static var _game_lead_connectors := PackedStringArray()
 ## NES and Famicom's RF Switch) is offered on that console's card (items_for), not here.
 const OBJECTS := [
 	["Table",           "table"],
+	# Somewhere to sit: press the cushion to sit, again to get up; hold on it to carry it.
+	["Racing Seat",     "seat_racing"],
+	["Stool",           "seat_stool"],
+	["Chair",           "seat_chair"],
+	["Floor Cushion",   "seat_cushion"],
+	["Sofa",            "seat_sofa"],
+	["Bed",             "seat_bed"],
 	["Storage Box",     "trash_can"],
 	["VCR",             "vcr_player"],
 	["DVD Player",      "dvd_player"],

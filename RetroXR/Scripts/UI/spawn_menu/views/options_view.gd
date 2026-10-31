@@ -1345,6 +1345,77 @@ func _build_system_filter_options(vbox: VBoxContainer) -> void:
 	, Callable(), 68, "Hide %d non-console systems" % SystemFilter.hidden_ids().size())
 
 	_build_bios_boot_override(vbox)
+	_build_arcade_attract(vbox)
+	_build_arcade_pedal(vbox)
+	_build_arcade_motion(vbox)
+
+
+## The switch that makes a switched-on arcade cabinet show its game instead of running it.
+func _build_arcade_attract(vbox: VBoxContainer) -> void:
+	vbox.add_child(MenuStyle.spacer(10))
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.custom_minimum_size = Vector2(0, 68)
+	vbox.add_child(row)
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 0)
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(col)
+
+	col.add_child(MenuStyle.label("Arcade Attract Mode", 22, MenuStyle.COLOR_TITLE))
+	col.add_child(MenuStyle.label(
+		"Cabinets, when turned on, show their game's video instead of starting the core until a coin or controller is used.",
+		16, MenuStyle.COLOR_LICENSE))
+
+	row.add_child(VRToggle.create(AppPrefs.arcade_attract_mode, func(on: bool) -> void:
+		AppPrefs.arcade_attract_mode = on
+		# Every cabinet's power button is a switch or a start button by this option.
+		get_tree().call_group("spawned", "refresh_power_switch")
+		AppPrefs.save_prefs()
+	))
+
+
+## How a gun game's foot pedal is worked in a headset, which reads no feet (AppPrefs.arcade_pedal_mode). You are
+## out of cover while you hold the gun; the gun hand's A or X and the pedal key take cover in every mode.
+func _build_arcade_pedal(vbox: VBoxContainer) -> void:
+	vbox.add_child(MenuStyle.spacer(10))
+	vbox.add_child(MenuStyle.label("Gun Game Pedal", 22, MenuStyle.COLOR_TITLE))
+	vbox.add_child(MenuStyle.label(
+		"Time Crisis and its kin: holding the gun you are out of cover. A or X (Space, or RB on a pad) always takes cover.",
+		16, MenuStyle.COLOR_LICENSE))
+	# VRDropdown, never OptionButton: every Viewport2Din3D click fires twice.
+	var drop := VRDropdown.create("Take cover", [
+			["A or X only", AppPrefs.PEDAL_BUTTON],
+			["Also the other hand's trigger", AppPrefs.PEDAL_FREE_HAND],
+			["Also by ducking", AppPrefs.PEDAL_DUCK],
+		], AppPrefs.arcade_pedal_mode, 1, Vector2(340, 52), MenuStyle.MENU_NAME_SIZE)
+	drop.item_selected.connect(func(id: Variant) -> void:
+		AppPrefs.arcade_pedal_mode = str(id)
+		AppPrefs.save_prefs()
+	)
+	vbox.add_child(drop)
+
+
+## Whether a sit-down cabinet on a moving base moves (AppPrefs.arcade_motion): After Burner's deluxe, Out Run's, Power Drift's, Space Harrier's. Its seat and
+## cabin tilt a few degrees with the stick or the wheel, and the player in the seat goes with them.
+func _build_arcade_motion(vbox: VBoxContainer) -> void:
+	vbox.add_child(MenuStyle.spacer(10))
+	vbox.add_child(MenuStyle.label("Cabinet Motion", 22, MenuStyle.COLOR_TITLE))
+	vbox.add_child(MenuStyle.label(
+		"Cockpits that were on a moving base tilt a few degrees with the stick or the wheel, and take you with them. Automatic is on at a desk and off in a headset.",
+		16, MenuStyle.COLOR_LICENSE))
+	var drop := VRDropdown.create("Motion", [
+			["Automatic", AppPrefs.MOTION_AUTO],
+			["Always", AppPrefs.MOTION_ON],
+			["Never", AppPrefs.MOTION_OFF],
+		], AppPrefs.arcade_motion, 1, Vector2(340, 52), MenuStyle.MENU_NAME_SIZE)
+	drop.item_selected.connect(func(id: Variant) -> void:
+		AppPrefs.arcade_motion = str(id)
+		AppPrefs.save_prefs()
+	)
+	vbox.add_child(drop)
 
 
 ## The switch that hands the BIOS-boot core options back to the player.

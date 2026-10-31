@@ -41,7 +41,7 @@ const SYSTEM_MAP := {
 	# "Nintendo GBA e-Reader", an accessory system of its own there the same way
 	# the Famicom Disk System and the Satellaview are.
 	"ereader": 119,
-	"fbneo": 75,
+	"arcade": 75,
 	"fds": 106,
 	"gb": 9,
 	# Unlike the NES/Famicom, ScreenScraper does split these two.
@@ -53,14 +53,12 @@ const SYSTEM_MAP := {
 	# Game & Watch. A Tiger or Acclaim title reaches it as a name search and
 	# usually misses, which costs it art rather than giving it the wrong art.
 	"gameandwatch": 52,
-	"hbmame": 75,
 	"intellivision": 115,
 	"j2me": 302,
 	"atarijaguarcd": 171,
 	"jollycv": 48,
 	"lowresnx": 244,
 	"macintosh": 146,
-	"mame": 75,
 	# Each board is a platform of its own there, checked on screenscraper.fr.
 	"naomi": 56,
 	"naomi2": 230,
@@ -131,10 +129,32 @@ const SYSTEM_MAP := {
 
 
 ## Returns the screenscraper systemeid for a project systemid, or -1 if unmapped.
+## Whether a ScreenScraper system id is one of the arcade tiles' (MAME, FBNeo), whose games are
+## boards in a cabinet.
+static func is_arcade_systemeid(systemeid: int) -> bool:
+	if systemeid <= 0:
+		return false
+	for sid: String in ArcadeProfiles.systems():
+		if get_systemeid(sid) == systemeid:
+			return true
+	return false
+
+
+## The same for every system that plays in a cabinet, a Neo Geo MVS among them (is_arcade_systemeid is the
+## romset families only).
+static func is_cabinet_systemeid(systemeid: int) -> bool:
+	if systemeid <= 0:
+		return false
+	for sid: String in ArcadeProfiles.cabinet_systems():
+		if get_systemeid(sid) == systemeid:
+			return true
+	return false
+
+
 static func get_systemeid(systemid: String) -> int:
 	if _mod_map.has(systemid):
 		return int(_mod_map[systemid])
-	return SYSTEM_MAP.get(systemid, -1)
+	return SYSTEM_MAP.get(SystemIds.canonical(systemid), -1)
 
 
 ## Mappings contributed by mods.

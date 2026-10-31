@@ -239,7 +239,7 @@ const CORES: Dictionary = {
 		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP],
 		"cross_play": false,
 		"rollback_needs_pins": true,
-		"systems": ["neogeo", "fbneo"],
+		"systems": ["neogeo", "arcade"],
 		"options": {"fbneo-netplay-deterministic": "enabled"},
 	},
 	# RetroXR's fork (retroxr branch) past v3: a savestate load is exact (the
