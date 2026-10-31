@@ -18,11 +18,11 @@
 ## are showing written under it (set_step).
 ##
 ## Emits:
-##   dismissed — Got it pressed
+##   dismissed(for_good) — Got it (false) or Don't Show Again (true) pressed
 class_name Welcome2D
 extends Control
 
-signal dismissed
+signal dismissed(for_good: bool)
 
 const TITLE := "Welcome to RetroXR"
 ## Where the ROM folder goes in a line (roms_folder()).
@@ -77,6 +77,9 @@ const DONT_QUEST: Array[String] = [
 		+ "Android files them under another owner (uid), so RetroXR can't change or delete them "
 		+ "and may not see them at all. Use the Web File Manager only.",
 ]
+
+## Under the buttons: where the page is switched back on, and seen meanwhile.
+const AGAIN_NOTE := "Turn it back on in OPTIONS > General (Show Welcome Page at Start), or see it any time from ABOUT."
 
 const COLOR_DO := Color(0.45, 0.85, 0.45)
 const COLOR_DONT := Color(1.0, 0.55, 0.50)
@@ -196,7 +199,9 @@ func _build() -> void:
 	vbox.add_child(fill)
 	vbox.add_child(MenuStyle.spacer(20))
 
-	var row := MenuStyle.hbox(0)
+	# Got it closes it for now; Don't Show Again also keeps it off at start, quieter
+	# beside it because it is the one to think about.
+	var row := MenuStyle.hbox(28)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_child(row)
 	var got_it := MenuStyle.row_button("Got it", 34, 360, 88, false)
@@ -204,11 +209,14 @@ func _build() -> void:
 	var style := MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 10)
 	for state: String in ["normal", "hover", "pressed"]:
 		got_it.add_theme_stylebox_override(state, style)
-	got_it.pressed.connect(_on_got_it)
+	got_it.pressed.connect(func() -> void: dismissed.emit(false))
 	row.add_child(got_it)
+	var never := MenuStyle.row_button("Don't Show Again", 26, 360, 88, false)
+	never.name = "NeverAgain"
+	never.pressed.connect(func() -> void: dismissed.emit(true))
+	row.add_child(never)
 
-	var again := MenuStyle.label("You can see this again from the menu's ABOUT page.",
-		18, MenuStyle.COLOR_DESC)
+	var again := MenuStyle.label(AGAIN_NOTE, 18, MenuStyle.COLOR_DESC)
 	again.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(again)
 
@@ -299,6 +307,3 @@ func _item(text: String, bullet_color: Color) -> HBoxContainer:
 	row.add_child(body)
 	return row
 
-
-func _on_got_it() -> void:
-	dismissed.emit()

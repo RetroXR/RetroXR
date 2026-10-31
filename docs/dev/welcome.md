@@ -1,6 +1,7 @@
-# The first-time welcome page (WelcomePanel)
+# The welcome page (WelcomePanel)
 
-One page that stands in front of the player the first time a room is ready:
+One page that stands in front of the player when the room is ready, at the start of
+every launch until they say not to:
 **DO** (open the menu, download the recommended cores, where ROMs go, build it like
 the real thing, grab/drop, options, focus) and **DON'T** (games or BIOS files you
 don't own), beside a looping **clip of the menu being used** and, on the headset's
@@ -11,13 +12,14 @@ Tab key and one at a desk has no left stick.
 | file | what |
 |---|---|
 | `Scripts/UI/panels/welcome_2d.gd` (`Welcome2D`) + `Scenes/UI/welcome_2d.tscn` | the page, built in code from MenuStyle: the copy (consts `DO_VR`, `DO_DESKTOP`, `DONT`) left, the clip (`MENU_CLIP`) right, and on the headset's page the STAGE under it with the step written below (`set_step`) |
-| `Scripts/UI/panels/welcome_panel.gd` (`WelcomePanel`) | the run-time `XRToolsViewport2DIn3D` it is drawn on, `VERSION`, `due()`, `mark_seen()`; stands the ControllerDemo at the stage |
+| `Scripts/UI/panels/welcome_panel.gd` (`WelcomePanel`) | the run-time `XRToolsViewport2DIn3D` it is drawn on, `due()`; stands the ControllerDemo at the stage |
 | `Scripts/UI/panels/controller_demo.gd` (`ControllerDemo`) | the headset page's two controllers and their `STEPS` |
 | `Scripts/UI/panels/controller_stand_in.gd` (`ControllerStandIn`) | a primitive controller with Meta's rig shape, for a hand with no runtime model |
 | `Scripts/XR/controller_rig.gd` (`ControllerRig`) | how a model's rig moves each input, shared with `ControllerModel` |
 | `Textures/welcome/menu_clip.ogv` | the clip: Ogg Theora, 880 x 720, 30 fps, silent, about 20 s |
 | `SpawnMenuController._offer_welcome` / `_show_welcome` | when, and where it stands; hands over the two `ControllerArt`s |
-| `AppPrefs.welcome_seen` | the last `VERSION` the player pressed Got it on |
+| `AppPrefs.show_welcome` / `set_show_welcome` / `show_welcome_changed` | whether it comes up at start; the ONE way to change it |
+| `SpawnMenuOptionsView._build_welcome_option` | OPTIONS > General > Show Welcome Page at Start |
 
 ## When it shows
 
@@ -25,10 +27,15 @@ Tab key and one at a desk has no left stick.
   `notify_scene_content_ready`), then after `LoadingOverlay.overlay_hidden` if the
   curtain is still up — in front of a player who can see it and act on it. Never
   headless. At least `WelcomePanel.MIN_DISTANCE` (1.1 m) off: it is as wide as the menu.
-- Only while `AppPrefs.welcome_seen < WelcomePanel.VERSION`. 0 is the missing-key
-  default, so an EXISTING install saw it once too, on purpose.
-- **Only Got it marks it seen.** Opening the menu (which stands where the page does)
-  or a room change puts it away for that launch only; it comes back next launch.
+- **Every launch while `AppPrefs.show_welcome` is on** (default on, the missing key
+  too). **Got it** puts it away for this launch. **Don't Show Again** also switches
+  it off; **OPTIONS > General > Show Welcome Page at Start** switches it back on.
+  Opening the menu (which stands where the page does) or a room change puts it away
+  and changes nothing.
+- Both go through `AppPrefs.set_show_welcome`, which saves and emits
+  `show_welcome_changed` only on a real change: the OPTIONS switch is built with the
+  menu, before the page is pressed, so it follows that signal, and setting it
+  re-enters the setter, which does nothing when nothing changed (no loop).
 - ABOUT's "Show the Welcome Page Again" stands it again whatever `due()` says
   (`welcome_requested`, relayed by `SpawnMenu2D`).
 - The startup "Menu" HeldHint waits for it (`_hint_waits_for_welcome`): the page says
@@ -82,8 +89,6 @@ no VLC.
 
 ## Rules
 
-- **Raise `WelcomePanel.VERSION` when the page says something new**, and everyone
-  sees it once more. Never lower it.
 - **The copy must match the real bindings.** `welcome_tests copy/` holds the drops to
   `HeldHint.DESKTOP_DROP_GLYPHS` / `VR_DROP_GLYPHS` (the README had the desktop drop
   on Ctrl + click while the code had Shift). Change a binding, change the page and
@@ -108,16 +113,19 @@ no VLC.
 
 ## Checks
 
-- `welcome_tests` (headless): the pref's default, `due()`, round trip; Got it keeps
-  it and a double press does nothing; put away it stays due; the copy against the
+- `welcome_tests` (headless): the pref's default, `due()`, round trip, the setter
+  saying so once; Got it leaves it on, Don't Show Again switches it off and saves, a
+  double press does nothing, put away changes nothing; `options/` the real General
+  row, switched on as a player does, and following the page's Don't Show Again; the copy against the
   bindings and the ROM folder; every line on each page, a height the panel can take,
   the clip on both, the stage on the headset's only; `rig/` the reader on rigs of
   known travel (a click that must not lean); `demo/` the steps' bones, the sequence of
   a combination, and the presses landing on the step's own hand only.
 - `Tools/room/welcome_probe` (WINDOWED; it writes `user://app_prefs.json`, back it
   up): the page in the bedroom with the clip playing, Got it pressed through the
-  quad's own pointer body at the button's real place, ABOUT bringing it back, both
-  pages flat. `--vr` builds the headset's page and watches a whole loop of the demo
+  quad's own pointer body at the button's real place, ABOUT bringing it back, Don't
+  Show Again pressed there and kept, then OPTIONS > General scrolled to the switch,
+  showing off, and pressed on through the menu's own body; the pages flat. `--vr` builds the headset's page and watches a whole loop of the demo
   (every step's own buttons must move); `--menu` walks CORES / SPAWN / TVs with the
   same pointer events and checks each view opened. Record it with Godot's movie
   writer (`--write-movie out.avi --fixed-fps 30`): the probe counts the demo in game

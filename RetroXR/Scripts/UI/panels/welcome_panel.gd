@@ -1,15 +1,15 @@
-## WelcomePanel — the first-time popup: one page (Welcome2D) standing in front of
-## the player the first time the room is ready, saying what to do and what not to.
+## WelcomePanel — the welcome popup: one page (Welcome2D) standing in front of the
+## player when the room is ready, saying what to do and what not to.
 ##
 ## A Viewport2DIn3D like the menu's, so one panel serves the headset (the lasers)
 ## and the desktop (the crosshair) with nothing of either's own. Built when it is
-## shown and freed when it is put away: it is up once in an install's life, and a
-## SubViewport left standing would hold a render target for every session after.
+## shown and freed when it is put away: it is up for a minute at the start of a
+## launch, and a SubViewport left standing would hold a render target all session.
 ##
-## Seen is a VERSION, not a bool (AppPrefs.welcome_seen): raise VERSION when the
-## page says something new and everyone sees it once more. Only Got it marks it
-## seen; put away any other way (the menu opened over it, the room changed), it
-## comes back at the next launch.
+## It comes up at the start of EVERY launch while AppPrefs.show_welcome is on. Got
+## it puts it away for this launch; "Don't Show Again" also switches that off, and
+## OPTIONS > General switches it back on. Put away any other way (the menu opened
+## over it, the room changed) changes nothing.
 ##
 ## SpawnMenuController decides when (once per launch, curtain down) and stands it
 ## where the menu would open. On the headset's page it also hands over the two
@@ -18,10 +18,8 @@
 class_name WelcomePanel
 extends Node3D
 
-## Got it pressed; the page has marked itself seen and is going away.
+## Got it or "Don't Show Again" pressed; the page is going away.
 signal dismissed
-
-const VERSION := 1
 
 const PAGE_SCENE := preload("res://Scenes/UI/welcome_2d.tscn")
 const VIEWPORT_SCENE := preload("res://addons/godot-xr-tools/objects/viewport_2d_in_3d.tscn")
@@ -50,19 +48,9 @@ var _arts: Array = [null, null]
 var _demo: ControllerDemo = null
 
 
-## Whether this install has yet to see the current page.
+## Whether the page comes up at the start of a launch.
 static func due() -> bool:
-	return AppPrefs.welcome_seen < VERSION
-
-
-## Record the current page as seen and keep it. False when the save did not land,
-## in which case the page comes back at the next launch.
-static func mark_seen() -> bool:
-	AppPrefs.welcome_seen = VERSION
-	var saved: bool = AppPrefs.save_prefs()
-	if not saved:
-		push_warning("[Welcome] could not save that version %d was seen; it will show again" % VERSION)
-	return saved
+	return AppPrefs.show_welcome
 
 
 func _init() -> void:
@@ -85,8 +73,7 @@ func show_in_front_of(camera: Node3D, forward: Vector3, distance: float,
 	rotate_object_local(Vector3.UP, PI)
 	reset_physics_interpolation()
 	visible = true
-	print("[Welcome] shown (version %d, %s, %.2f m)" % [VERSION,
-		"vr" if MenuStyle.is_vr_mode() else "desktop", distance])
+	print("[Welcome] shown (%s, %.2f m)" % ["vr" if MenuStyle.is_vr_mode() else "desktop", distance])
 
 
 ## Put away without Got it: not marked seen, so it comes back next launch.
@@ -177,12 +164,14 @@ func page() -> Welcome2D:
 	return _viewport.get_scene_instance() as Welcome2D if _viewport != null else null
 
 
-func _on_page_dismissed() -> void:
+## `for_good`: "Don't Show Again", which switches the page off at start as well.
+func _on_page_dismissed(for_good: bool) -> void:
 	# A click through a Viewport2DIn3D can arrive twice; the second finds it done.
 	if _done:
 		return
 	_done = true
-	print("[Welcome] dismissed (version %d)" % VERSION)
-	mark_seen()
+	print("[Welcome] dismissed%s" % (", and not shown at start again" if for_good else ""))
+	if for_good and not AppPrefs.set_show_welcome(false):
+		push_warning("[Welcome] could not save Don't Show Again; it shows at the next start")
 	dismissed.emit()
 	queue_free()

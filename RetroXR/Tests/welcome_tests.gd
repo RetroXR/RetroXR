@@ -1,10 +1,11 @@
-## welcome_tests — the first-time welcome page (WelcomePanel, Welcome2D).
+## welcome_tests — the welcome page (WelcomePanel, Welcome2D).
 ##
 ## Three things can go wrong and none of them shows in a headless run of the room:
-## the page never shows (the seen version is wrong or not kept), it shows forever
-## (Got it does not stick), or it tells a new player the wrong thing. The last is
-## the likeliest — the README had the desktop drop on Ctrl + click while the code
-## had it on Shift — so the copy is held to the bindings the code really has.
+## the page will not go away for good (Don't Show Again is not kept), will not come
+## back (OPTIONS > General cannot switch it on, or shows the wrong state), or tells
+## a new player the wrong thing. The last is the likeliest — the README had the
+## desktop drop on Ctrl + click while the code had it on Shift — so the copy is
+## held to the bindings the code really has.
 ##
 ## The headset page's controllers (ControllerDemo) press the buttons through the
 ## same ControllerRig the hand's own controller uses; rig/ holds that reader to a
@@ -20,7 +21,7 @@ extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below -- it is checked before
 ## it has recorded itself.
-const EXPECTED_CASES := 42
+const EXPECTED_CASES := 46
 
 
 func _ready() -> void:
@@ -31,6 +32,7 @@ func _ready() -> void:
 
 	_group_prefs()
 	await _group_dismiss()
+	_group_options()
 	_group_copy()
 	await _group_page()
 	_group_rig()
@@ -44,20 +46,33 @@ func _ready() -> void:
 # ── prefs/ ────────────────────────────────────────────────────────────────────
 
 func _group_prefs() -> void:
-	_eq(_app_prefs_default("welcome_seen"), 0, "prefs/a fresh install has seen no welcome page")
+	_eq(_app_prefs_default("show_welcome"), true, "prefs/a fresh install shows the welcome page at start")
 
-	var was: int = AppPrefs.welcome_seen
-	AppPrefs.welcome_seen = 0
-	_ok(WelcomePanel.due(), "prefs/never seen: the page is due")
-	AppPrefs.welcome_seen = WelcomePanel.VERSION - 1
-	_ok(WelcomePanel.due(), "prefs/an older page seen: the new one is due")
-	AppPrefs.welcome_seen = WelcomePanel.VERSION
-	_ok(not WelcomePanel.due(), "prefs/this page seen: not due")
-	AppPrefs.welcome_seen = was
+	var was: bool = AppPrefs.show_welcome
+	AppPrefs.show_welcome = true
+	_ok(WelcomePanel.due(), "prefs/switched on: the page comes up at start")
+	AppPrefs.show_welcome = false
+	_ok(not WelcomePanel.due(), "prefs/switched off: it does not")
+	AppPrefs.show_welcome = was
 
-	var back := _app_prefs_round_trip({"welcome_seen": WelcomePanel.VERSION + 6})
-	_eq(back.get("welcome_seen"), WelcomePanel.VERSION + 6,
-		"prefs/the seen version survives a save and a load")
+	var back := _app_prefs_round_trip({"show_welcome": false})
+	_eq(back.get("show_welcome"), false, "prefs/switched off survives a save and a load")
+
+	# The one way to change it saves it and says so; saying nothing when nothing
+	# changed is what lets the OPTIONS switch follow without a loop.
+	var path: String = AppPrefs.PREFS_PATH
+	var saved_file: Variant = _snapshot_file(path)
+	AppPrefs.show_welcome = true
+	var heard: Array = []
+	var listen := func(on: bool) -> void: heard.append(on)
+	AppPrefs.show_welcome_changed.connect(listen)
+	AppPrefs.set_show_welcome(false)
+	AppPrefs.set_show_welcome(false)
+	_ok(heard == [false] and not bool(JsonStore.read_dict(path).get("show_welcome", true)),
+		"prefs/set_show_welcome saves it and says so, once", str(heard))
+	AppPrefs.show_welcome_changed.disconnect(listen)
+	AppPrefs.show_welcome = was
+	_restore_file(path, saved_file)
 
 
 # ── dismiss/ ──────────────────────────────────────────────────────────────────
@@ -65,43 +80,86 @@ func _group_prefs() -> void:
 func _group_dismiss() -> void:
 	var path: String = AppPrefs.PREFS_PATH
 	var saved_file: Variant = _snapshot_file(path)
-	var was: int = AppPrefs.welcome_seen
+	var was: bool = AppPrefs.show_welcome
 
-	# Got it on the page says so.
+	# The page's two buttons say which was pressed.
 	var page := (load("res://Scenes/UI/welcome_2d.tscn") as PackedScene).instantiate() as Welcome2D
 	page.vr_override = 0
 	add_child(page)
 	await get_tree().process_frame
-	var pressed := [0]
-	page.dismissed.connect(func() -> void: pressed[0] += 1)
+	var pressed: Array = []
+	page.dismissed.connect(func(for_good: bool) -> void: pressed.append(for_good))
 	var got_it := page.find_child("GotIt", true, false) as Button
-	_ok(got_it != null, "dismiss/the page has a Got it button")
-	if got_it != null:
+	var never := page.find_child("NeverAgain", true, false) as Button
+	_ok(got_it != null and never != null, "dismiss/the page has Got it and Don't Show Again")
+	if got_it != null and never != null:
 		got_it.pressed.emit()
-	_eq(pressed[0], 1, "dismiss/pressing Got it dismisses the page")
+		never.pressed.emit()
+	_eq(pressed, [false, true], "dismiss/Got it closes it for now, Don't Show Again for good")
+	_ok(page.find_children("*", "Label", true, false).any(
+			func(n: Node) -> bool: return (n as Label).text == Welcome2D.AGAIN_NOTE)
+		and Welcome2D.AGAIN_NOTE.contains("OPTIONS > General"),
+		"dismiss/the page says where to switch it back on")
 	page.queue_free()
 
-	# ...and the panel, told so, keeps it: in the live prefs and on disk.
-	AppPrefs.welcome_seen = 0
+	# Got it: gone, and back at the next start.
+	AppPrefs.show_welcome = true
 	var panel := WelcomePanel.new()
 	var heard := [0]
 	panel.dismissed.connect(func() -> void: heard[0] += 1)
-	panel._on_page_dismissed()
-	panel._on_page_dismissed()
+	panel._on_page_dismissed(false)
+	panel._on_page_dismissed(false)
 	_eq(heard[0], 1, "dismiss/a second press of a dismissed page does nothing")
-	_ok(AppPrefs.welcome_seen == WelcomePanel.VERSION and not WelcomePanel.due(),
-		"dismiss/Got it marks this version seen", "welcome_seen %d" % AppPrefs.welcome_seen)
-	_eq(int(JsonStore.read_dict(path).get("welcome_seen", -1)), WelcomePanel.VERSION,
-		"dismiss/...and it is saved, so the next launch skips it")
+	_ok(WelcomePanel.due(), "dismiss/after Got it it still comes up at the next start")
 
-	# Put away any other way, it comes back.
-	AppPrefs.welcome_seen = 0
+	# Don't Show Again: off at start, kept on disk.
+	var for_good := WelcomePanel.new()
+	for_good._on_page_dismissed(true)
+	_ok(not WelcomePanel.due() and not bool(JsonStore.read_dict(path).get("show_welcome", true)),
+		"dismiss/after Don't Show Again it is off at start, and saved so")
+
+	# Put away any other way, nothing changes.
+	AppPrefs.show_welcome = true
 	var away := WelcomePanel.new()
 	away.put_away("welcome_tests")
-	_ok(WelcomePanel.due(), "dismiss/put away unread, it is still due next launch")
+	_ok(WelcomePanel.due(), "dismiss/put away unread, it still comes up at the next start")
 
 	await get_tree().process_frame
-	AppPrefs.welcome_seen = was
+	AppPrefs.show_welcome = was
+	_restore_file(path, saved_file)
+
+
+# ── options/ ──────────────────────────────────────────────────────────────────
+
+## OPTIONS > General > Show Welcome Page at Start: the real row, from the real
+## builder, switched as a player switches it.
+func _group_options() -> void:
+	var path: String = AppPrefs.PREFS_PATH
+	var saved_file: Variant = _snapshot_file(path)
+	var was: bool = AppPrefs.show_welcome
+
+	AppPrefs.show_welcome = false
+	var view := SpawnMenuOptionsView.new()
+	var vbox := VBoxContainer.new()
+	view.add_child(vbox)
+	var toggle := view.call("_build_welcome_option", vbox) as VRToggle
+	var titled := vbox.find_children("*", "Label", true, false).any(
+		func(n: Node) -> bool: return (n as Label).text == "Show Welcome Page at Start")
+	_ok(toggle != null and titled and not toggle.button_pressed,
+		"options/General has Show Welcome Page at Start, showing it off when it is off")
+
+	if toggle != null:
+		toggle.button_pressed = true
+	_ok(WelcomePanel.due() and bool(JsonStore.read_dict(path).get("show_welcome", false)),
+		"options/switching it on brings the page back at start, and is saved")
+
+	# The page's Don't Show Again with the tab already built: the switch follows.
+	AppPrefs.set_show_welcome(false)
+	_ok(toggle != null and not toggle.button_pressed and not WelcomePanel.due(),
+		"options/Don't Show Again on the page moves the switch, which stays off")
+
+	view.free()
+	AppPrefs.show_welcome = was
 	_restore_file(path, saved_file)
 
 

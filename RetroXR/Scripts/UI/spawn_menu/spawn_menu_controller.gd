@@ -1234,15 +1234,15 @@ func _show_menu_hint() -> void:
 
 # ── Welcome page ──────────────────────────────────────────────────────────────
 
-## The first-time page (WelcomePanel), once per launch, once the room is ready and
-## the loading curtain is down: in front of a player who can see it and act on it.
-## Seen once is seen for good, until WelcomePanel.VERSION moves.
+## The welcome page (WelcomePanel), once per launch, once the room is ready and the
+## loading curtain is down: in front of a player who can see it and act on it. Every
+## launch while OPTIONS > General > Show Welcome Page at Start is on.
 func _offer_welcome() -> void:
 	if _welcome_offered:
 		return
 	_welcome_offered = true
 	if not WelcomePanel.due():
-		print("[Welcome] not shown: version %d already seen" % AppPrefs.welcome_seen)
+		print("[Welcome] not shown: switched off (OPTIONS > General > Show Welcome Page at Start)")
 		_release_held_hint()
 		return
 	# Nobody to read it, and a page's SubViewport has no business in a headless run.

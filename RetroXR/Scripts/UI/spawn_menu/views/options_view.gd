@@ -86,6 +86,9 @@ var _romm_sync_btn: Button = null
 var _romm_sync_queue: Array[Dictionary] = []
 
 var _tabs: TabContainer = null
+## OPTIONS > General > Show Welcome Page at Start, kept to follow the page's own
+## "Don't Show Again".
+var _welcome_toggle: VRToggle = null
 var _pages: Array[ScrollContainer] = []
 ## The Console Names dropdown, reselected when the outlet region moves an unpicked one.
 var _region_names_drop: VRDropdown = null
@@ -233,6 +236,26 @@ func _option_row(vbox: VBoxContainer, text: String, height := 68, subtitle := ""
 	note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_child(note)
 	return row
+
+
+## The welcome page at start (WelcomePanel): on by default, off from the page's own
+## "Don't Show Again", back on here. The page can switch it with this tab already
+## built, so the switch follows AppPrefs.show_welcome_changed (setting it re-enters
+## set_show_welcome, which does nothing when nothing changed).
+func _build_welcome_option(vbox: VBoxContainer) -> VRToggle:
+	var on_toggled := func(on: bool) -> void:
+		if not AppPrefs.set_show_welcome(on):
+			push_warning("[Options] could not save Show Welcome Page at Start = %s" % on)
+	_welcome_toggle = _toggle_row(vbox, "Show Welcome Page at Start", AppPrefs.show_welcome,
+		on_toggled, Callable(), 68, "What to do and what not to; also from ABOUT, any time")
+	if not AppPrefs.show_welcome_changed.is_connected(_on_show_welcome_changed):
+		AppPrefs.show_welcome_changed.connect(_on_show_welcome_changed)
+	return _welcome_toggle
+
+
+func _on_show_welcome_changed(on: bool) -> void:
+	if is_instance_valid(_welcome_toggle) and _welcome_toggle.button_pressed != on:
+		_welcome_toggle.button_pressed = on
 
 
 ## An on/off setting: _option_row with a VRToggle on the right that starts at
@@ -657,6 +680,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 			AppPrefs.hint_uses.clear()
 		AppPrefs.save_prefs()
 	)
+	_build_welcome_option(vbox)
 
 	vbox.add_child(HSeparator.new())
 

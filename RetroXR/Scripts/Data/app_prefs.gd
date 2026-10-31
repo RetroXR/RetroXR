@@ -19,6 +19,9 @@ signal region_names_changed(region: String)
 ## "Enable Power Simulation" moved (set_power_simulation): every PowerInput in the
 ## room asks again whether its device has power (MainsPower.changed).
 signal power_simulation_changed(on: bool)
+## The welcome page at start was switched (set_show_welcome): from its own "Don't
+## Show Again" or from OPTIONS > General, and each follows the other.
+signal show_welcome_changed(on: bool)
 
 const PREFS_PATH := "user://app_prefs.json"
 
@@ -125,10 +128,11 @@ var show_hints:       bool = true
 ## past HeldHint.LEARNED_AFTER. A dictionary rather than a key per row so a new
 ## hint needs no change here.
 var hint_uses:        Dictionary = {}
-## The last version of the first-time welcome page (WelcomePanel.VERSION) the
-## player pressed Got it on. 0, the missing-key default too, means never: an
-## existing install sees the page once, as a new one does.
-var welcome_seen:     int = 0
+## Whether the welcome page (WelcomePanel) stands in front of the player at the
+## start of every launch. On by default, the missing key too; off from the page's
+## own "Don't Show Again", back on from OPTIONS > General. Change it through
+## set_show_welcome, which says so to whichever of the two is not the one pressed.
+var show_welcome:     bool = true
 ## Whether sound is spatialised by Meta XR Audio rather than Godot's own panning.
 ## Desktop only, and only offered there: on the Quest the SDK is the entire point,
 ## and its binaural rendering is right for a headset. On a desk it is not always —
@@ -257,6 +261,19 @@ func set_system_hidden(systemid: String, hidden: bool) -> void:
 	else:
 		hidden_systems.remove_at(hidden_systems.find(systemid))
 	save_prefs()
+
+
+## Switch the welcome page at start on or off, save it, and say so. False when the
+## save did not land: the switch holds for this launch and is back as it was at the
+## next.
+func set_show_welcome(on: bool) -> bool:
+	if on == show_welcome:
+		return true
+	show_welcome = on
+	var saved := save_prefs()
+	print("[Prefs] welcome page at start -> %s%s" % [on, "" if saved else " (NOT saved)"])
+	show_welcome_changed.emit(on)
+	return saved
 
 
 ## Change the console-name region, save it, and say so.
@@ -429,7 +446,7 @@ func load_prefs() -> void:
 	menu_curved      = JsonStore.get_bool(data, "menu_curved",      menu_curved)
 	show_hints       = JsonStore.get_bool(data, "show_hints",       show_hints)
 	hint_uses        = JsonStore.get_dict(data, "hint_uses",        hint_uses)
-	welcome_seen     = JsonStore.get_int(data, "welcome_seen",     welcome_seen)
+	show_welcome     = JsonStore.get_bool(data, "show_welcome",     show_welcome)
 	spatial_audio_sdk = JsonStore.get_bool(data, "spatial_audio_sdk", spatial_audio_sdk)
 	microphone_enabled = JsonStore.get_bool(data, "microphone_enabled", microphone_enabled)
 	microphone_device = JsonStore.get_string(data, "microphone_device", microphone_device)
@@ -485,7 +502,7 @@ func _prefs_dict() -> Dictionary:
 		"menu_curved":      menu_curved,
 		"show_hints":       show_hints,
 		"hint_uses":        hint_uses,
-		"welcome_seen":     welcome_seen,
+		"show_welcome":     show_welcome,
 		"spatial_audio_sdk": spatial_audio_sdk,
 		"microphone_enabled": microphone_enabled,
 		"microphone_device": microphone_device,

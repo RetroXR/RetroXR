@@ -52,7 +52,7 @@ func _ready() -> void:
 
 	if _vr:
 		Welcome2D.force_vr = 1
-	AppPrefs.welcome_seen = 0
+	AppPrefs.show_welcome = true
 	print("[welprobe] welcome due: %s, page: %s" % [WelcomePanel.due(), "headset" if _vr else "desktop"])
 	var t0 := Time.get_ticks_msec()
 	add_child(SCENE.instantiate())
@@ -83,11 +83,9 @@ func _ready() -> void:
 		return
 	await get_tree().create_timer(0.5).timeout
 	var gone := not is_instance_valid(panel)
-	var kept := int(JsonStore.read_dict(AppPrefs.PREFS_PATH).get("welcome_seen", -1))
-	print("[welprobe] after Got it: page gone %s, saved welcome_seen %d, due %s" % [
-		gone, kept, WelcomePanel.due()])
-	if not gone or kept != WelcomePanel.VERSION or WelcomePanel.due():
-		_fail("Got it did not put the page away and keep it")
+	print("[welprobe] after Got it: page gone %s, still shown at start %s" % [gone, WelcomePanel.due()])
+	if not gone or not WelcomePanel.due():
+		_fail("Got it did not put the page away, or switched it off at start")
 	var hint: Variant = ctrl.get("_menu_hint")
 	print("[welprobe] menu hint shown after the page: %s" % (hint != null and is_instance_valid(hint)))
 	await get_tree().create_timer(0.5).timeout
@@ -103,8 +101,17 @@ func _ready() -> void:
 	if again == null:
 		_fail("ABOUT did not bring the page back")
 	else:
+		# Don't Show Again, pressed where it is: the page goes and stays off at start.
 		await get_tree().create_timer(1.0).timeout
-		again.put_away("welcome_probe")
+		var never := again.page().find_child("NeverAgain", true, false) as Control
+		await _press_on(again.get_node_or_null("WelcomeViewport") as XRToolsViewport2DIn3D, never)
+		await get_tree().create_timer(0.5).timeout
+		var off_saved := not bool(JsonStore.read_dict(AppPrefs.PREFS_PATH).get("show_welcome", true))
+		print("[welprobe] after Don't Show Again: page gone %s, off at start %s, saved off %s" % [
+			not is_instance_valid(again), not WelcomePanel.due(), off_saved])
+		if is_instance_valid(again) or WelcomePanel.due() or not off_saved:
+			_fail("Don't Show Again did not put the page away and keep it off at start")
+		await _switch_back_on(ctrl)
 
 	for kind: Array in [[false, false], [true, false], [true, true]]:
 		await _flat_page(kind[0], kind[1])
@@ -197,6 +204,52 @@ func _button_containing(root: Node, part: String) -> Control:
 		if b.is_visible_in_tree() and "text" in b and part in str(b.get("text")):
 			return b
 	return null
+
+
+## OPTIONS > General > Show Welcome Page at Start: off after Don't Show Again, and
+## switched back on through the menu's own pointer body, as a player would.
+func _switch_back_on(ctrl: Node3D) -> void:
+	ctrl.call("_show_menu")
+	await get_tree().create_timer(0.8).timeout
+	var vp := ctrl.get_node_or_null("SpawnMenuViewport") as XRToolsViewport2DIn3D
+	var menu := vp.get_scene_instance() as Control if vp != null else null
+	await _press_on(vp, _button(menu, "OPTIONS"))
+	await get_tree().create_timer(0.8).timeout
+	var toggle: VRToggle = null
+	for node: Node in menu.find_children("*", "Label", true, false):
+		var l := node as Label
+		if l.text == "Show Welcome Page at Start" and l.is_visible_in_tree():
+			var row := l.get_parent()
+			while row != null and not row is HBoxContainer:
+				row = row.get_parent()
+			if row != null:
+				for child: Node in row.get_children():
+					if child is VRToggle:
+						toggle = child
+	if toggle == null:
+		_fail("no Show Welcome Page at Start switch on OPTIONS")
+		return
+	# Scrolled to, as the player would scroll to it.
+	var scroll := toggle.get_parent()
+	while scroll != null and not scroll is ScrollContainer:
+		scroll = scroll.get_parent()
+	if scroll != null:
+		(scroll as ScrollContainer).ensure_control_visible(toggle)
+	await get_tree().create_timer(0.6).timeout
+	print("[welprobe] OPTIONS switch shows %s after Don't Show Again" % ("on" if toggle.button_pressed else "off"))
+	if toggle.button_pressed:
+		_fail("the OPTIONS switch did not follow Don't Show Again")
+	await _shot("welcome_option_off.png")
+	await _press_on(vp, toggle)
+	await get_tree().create_timer(0.6).timeout
+	var on_saved := bool(JsonStore.read_dict(AppPrefs.PREFS_PATH).get("show_welcome", false))
+	print("[welprobe] switched back on from OPTIONS: switch %s, shown at start %s, saved %s" % [
+		toggle.button_pressed, WelcomePanel.due(), on_saved])
+	if not toggle.button_pressed or not WelcomePanel.due() or not on_saved:
+		_fail("the OPTIONS switch did not bring the page back at start")
+	await _shot("welcome_option_on.png")
+	ctrl.call("_hide_menu")
+	await get_tree().create_timer(0.4).timeout
 
 
 func _button(root: Node, label: String) -> Control:
