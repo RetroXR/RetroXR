@@ -2742,9 +2742,13 @@ func _group_music() -> void:
 			var panel := _panels(model)[pi] as ArcadeControlModule
 			var grip := panel.find_child("PanelGrip", true, false) as Node3D
 			var box := ((grip.find_child("CollisionShape3D", true, false) as CollisionShape3D).shape as BoxShape3D).size
+			# A Taiko drum's zones are its own (the drum cases below): they tilt with the drum, and off a headset the grip is START alone, so a crosshair cannot take the panel from the drum.
+			var drum := panel.find_child("DrumShell", true, false) != null
 			for child in panel.get_children():
 				var stands := child as Node3D
 				if stands == null or not (stands.name == &"Start" or stands.name == &"DialPivot" or str(stands.name).begins_with("Btn")) or stands.position.length() > 0.6:
+					continue
+				if drum and stands.has_meta(&"sector"):
 					continue
 				if absf(stands.position.x - grip.position.x) > box.x * 0.5 or absf(stands.position.y - grip.position.y) > box.y * 0.5:
 					outside.append("%s/%s" % [panel.name, stands.name])
@@ -3807,8 +3811,7 @@ func _group_sticks() -> void:
 					hits_log += " %d/%d %s" % [stick.player, stick.side, zone_name]
 	_ok(hits_ok, "sticks: a don on the left face is BUTTON3, the right face BUTTON2, a ka on the left rim BUTTON4, the right BUTTON1, tapped on the stick's own player's port only (%s)" % hits_log)
 	_ok(not left.strike(&"bogus", 0) and left.strike(ArcadeDrumstick.DON, 1) and input._taps.size() >= 1, "sticks: a hit that is not a don or a ka is nothing")
-	# The swing, pure: where a head comes down on the drum.
-	var panel0 := _panels(model)[0] as ArcadeControlModule
+	# The swing, pure: where a head comes down on the drum (the first panel, taken above for the drum's grip).
 	var zones := ArcadeDrumstick.zones_of(panel0)
 	_ok(zones.size() == 4, "sticks: the drum has four zones to hit (%d)" % zones.size())
 	var swing_ok := true
@@ -3968,7 +3971,8 @@ func _group_sticks() -> void:
 	# The cord's reach: a hand that goes further than it lets go; a stick left beyond it is reeled in.
 	pivots[1].global_position = right.cord_anchor.global_position + Vector3(0.0, 0.0, 2.5)
 	await _wait(25)
-	_ok(not right.is_picked_up(), "sticks: a hand that takes a stick further than its cord reaches lets go of it")
+	# Asked of the HAND: let go, the cord reels the stick in, and its cradle (Holster's dropped zone) can take it back, which also counts as picked up.
+	_ok(not right.held_by_desktop() and not ArcadeInput.held_by_hand(right), "sticks: a hand that takes a stick further than its cord reaches lets go of it")
 	left.global_position = left.cord_anchor.global_position + Vector3(0.0, 0.0, 3.0)
 	left.linear_velocity = Vector3.ZERO
 	await _wait(4)
