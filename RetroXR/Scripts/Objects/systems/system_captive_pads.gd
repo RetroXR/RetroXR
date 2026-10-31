@@ -111,7 +111,9 @@ func _build_controller_well(index: int, rest: Transform3D, pad: Node3D) -> void:
 	# A gun is taken from the hand's reach at its grip, not by hunting for the one point the zone
 	# sits on: 6 cm made a holster feel magnetic, the hand had to be pulled right onto it.
 	well.grab_distance = GUN_WELL_REACH if pad is LightGun else 0.06
-	Holster.prepare_seat(well)
+	# A cabinet's gun follows the holster rule (no preview, back only when let go there). A console's wired pad (a Famicom's) keeps its well's preview: it is not a holster.
+	if pad is LightGun:
+		Holster.prepare_seat(well)
 	_host.add_child(well)
 	well.transform = rest
 	_controller_wells.append(well)
