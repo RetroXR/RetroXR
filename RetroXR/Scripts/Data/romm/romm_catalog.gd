@@ -897,7 +897,8 @@ static func drop_ghosts(lines: Dictionary, ghosts: PackedInt32Array,
 static func skips_item(item: Dictionary) -> bool:
 	if str(item.get("fs_name", "")).begins_with("."):
 		return true
-	if bool(item.get("missing_from_fs", false)):
+	# RomM sends null for a flag it leaves out, and bool(null) is a script error that aborted this check: only a real true is gone.
+	if item.get("missing_from_fs", false) == true:
 		return true
 	return false
 
