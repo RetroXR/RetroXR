@@ -1127,12 +1127,10 @@ func _cap(parent: Node3D, node_name: String, pos: Vector3, radius: float,
 ## How much further than an ordinary cabinet's the control deck or a hood overhangs the coin face (z 0.40, the deck's front edge at 0.47): a Taiko's deck is 0.25 m deeper, a DrumMania's 0.20, and a
 ## sit-down cabinet's hood reaches to z 0.84. A coin door left on the face stood 0.3 to 0.4 m back under a shelf only a hand's depth over the slot: aimed at from above it was a slit, and the hand had to go in
 ## under the shelf to reach it (2026-10-29: "the coin slots are too hidden").
+## A sit-down cabinet's doors stay on the face under its hood: brought out to the hood's edge (z 0.84) they stood in among the dash, the controls and the seat, and a laser from
+## where the player stands, or from behind the controls, met those first (arcade_form_tests reach/ and grip/: Daytona, Scud Race, Hang-On, Lucky & Wild, After Burner, G-LOC).
 func _coin_door_forward() -> float:
-	var front := float(_sh.get("apron_z", 0.47))
-	var hood: Dictionary = _sh.get("hood", {})
-	if not hood.is_empty():
-		front = maxf(front, float(hood.get("z1", 0.0)))
-	return maxf(front - 0.47, 0.0)
+	return maxf(float(_sh.get("apron_z", 0.47)) - 0.47, 0.0)
 
 
 func _build_coin_doors() -> void:
