@@ -573,6 +573,14 @@ func on_bay_unlinked(_bay_unit: ArcadeBayUnit) -> void:
 		_bay.set_gated_slot(null)
 
 
+## The system this cabinet plays with no bay in it: its own bay kind's first (the generic cabinet's JAMMA is `arcade`, the MVS cabinet's `neogeo`).
+## Read from the cabinet's scene, never remembered, so a cabinet saved while another kind of bay was in it cannot bring that system back as its own.
+func own_system() -> String:
+	var kind := _bay.bay_kind if _bay != null else ArcadeProfiles.BAY_JAMMA
+	var systems: Array = ArcadeProfiles.bay_kinds().get(kind, {}).get("systems", [])
+	return str(systems[0]) if not systems.is_empty() else ""
+
+
 ## What the screen shows: the board's picture, or -- while the compartment holds no unit -- whatever machine is
 ## cabled to the cabinet's composite input (ArcadeAvInModule.external_picture). Nothing cabled, nothing in
 ## the bay: the dark tube, as before.

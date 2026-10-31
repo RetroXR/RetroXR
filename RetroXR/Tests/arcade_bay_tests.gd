@@ -377,9 +377,10 @@ func _group_frank() -> void:
 	mvs.slot.pick_up_object(neo)
 	await _wait(6)
 	_ok(sys.rom_path == "/tmp/arcade_bay_test_neogeo.zip", "frank: the cassette is the game")
-	# And back the other way.
+	# And back the other way. Taking the MVS bay out leaves the generic cabinet its OWN kind, with no bay in at all (it stayed `neogeo`, and was saved so).
 	mount.drop_object()
 	await _wait(4)
+	_ok(sys.get_bay() == null and sys.systemid == "arcade", "frank: with the MVS bay taken out the cabinet is arcade again, before any bay goes in (%s)" % sys.systemid)
 	var jamma := await _bay("jamma", mount.global_position + Vector3(0, 1.0, 0))
 	mount.pick_up_object(jamma)
 	await _wait(6)

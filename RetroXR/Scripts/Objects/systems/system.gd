@@ -4166,12 +4166,17 @@ func bay_link_kind() -> String:
 ## Play from `bay`. Returns false when it cannot be taken. A machine holds one bay: a second takes
 ## the place of a docked one and is refused while a cabled one is in.
 func link_bay(bay: ArcadeBayUnit, how: String) -> bool:
-	if bay == null or not is_instance_valid(bay) or bay.slot == null:
+	if bay == null or not is_instance_valid(bay):
+		print("[Arcade] %s: link_bay refused (%s): no bay" % [name, how])
+		return false
+	if bay.slot == null:
+		print("[Arcade] %s: link_bay refused (%s): bay %s has no slot" % [name, how, bay.name])
 		return false
 	if _bay == bay:
 		return true
 	if get_bay() != null:
 		if how == ArcadeBayUnit.CABLE:
+			print("[Arcade] %s: link_bay refused (cable): bay %s is in already (%s), a cabled one is not taken over it" % [name, _bay.name, _bay_how])
 			return false
 		unlink_bay(null)
 	var sid := bay.primary_system()
@@ -4200,6 +4205,7 @@ func unlink_bay(bay: ArcadeBayUnit) -> void:
 		_bay = null
 		return
 	if bay != null and bay != gone:
+		print("[Arcade] %s: unlink_bay ignored: %s is not the bay in it (%s is)" % [name, bay.name, gone.name])
 		return
 	_bay = null
 	_bay_how = ""
@@ -4209,6 +4215,13 @@ func unlink_bay(bay: ArcadeBayUnit) -> void:
 	gone.detach_host()
 	if _model != null and _model.has_method("on_bay_unlinked"):
 		_model.call("on_bay_unlinked", gone)
+	# With the bay gone the cabinet is its own kind again: an MVS bay taken out of the generic cabinet left it `neogeo` (its cores, its bindings, and
+	# the room's save) until another bay went in.
+	var own := str(_model.call("own_system")) if _model != null and _model.has_method("own_system") else ""
+	if not own.is_empty() and own != systemid:
+		print("[Arcade] %s: bay %s out, back to its own system %s (was %s)" % [name, gone.name, own, systemid])
+		systemid = own
+		_model.call("on_machine_system_changed")
 
 
 ## What a disc game still needs from the bay, as the sentence the player reads, or "" when nothing is
