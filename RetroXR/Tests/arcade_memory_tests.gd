@@ -290,6 +290,22 @@ func _group_prune() -> void:
 	A.quarantine(save, "gradius4", "x", 1790009999)
 	_ok(A.list_quarantines(save, "gradius4").size() == 1 and A.list_quarantines(save, "sscope").size() == A.KEEP_NEWEST,
 		"prune: a game's copies are its own count")
+	# Restoring the OLDEST of a full set, with a memory there now: the memory there is set aside first, and the prune that follows must not take the copy
+	# being restored (it did: the restore then failed with "cannot move ... back", the memory gone from its folder and the copy asked for deleted).
+	var s2 := _save()
+	var shas: Array[String] = []
+	for i in A.KEEP_NEWEST:
+		shas.append(_sha(_put(s2, "sscope", "m48t58", 8192, 100 + i)))
+		A.quarantine(s2, "sscope", "copy %d" % i, 1790000000 + i * 10)
+	var now_there := _put(s2, "sscope", "m48t58", 8192, 999)
+	var oldest := A.list_quarantines(s2, "sscope").back() as Dictionary
+	var back := A.restore(s2, "sscope", str(oldest["stamp"]), 1790009000)
+	_ok(bool(back["ok"]) and FileAccess.file_exists(now_there) and _sha(now_there) == shas[0],
+		"prune: restoring the oldest of %d copies brings back that copy, not an error (%s)" % [A.KEEP_NEWEST, str(back["error"])])
+	# One copy fewer than a full set: the memory that was there joined it, the oldest other copy made room, and the one restored left it.
+	var after := A.list_quarantines(s2, "sscope")
+	_ok(after.size() == A.KEEP_NEWEST - 1 and str(after[0]["reason"]) == "before restoring " + str(oldest["stamp"]),
+		"prune: and the memory that was there is kept, set aside in its place (%d copies)" % after.size())
 
 
 # --- launch --------------------------------------------------------------------

@@ -101,7 +101,8 @@ static func prepare_launch(save_root: String, romset: String, now: int = -1) -> 
 
 ## Set `romset`'s whole memory folder aside. Returns {"ok", "stamp", "to", "error"}: `to` is where the folder now is. `reason` goes in the manifest;
 ## `now` is a time for the stamp (unix seconds; the clock when negative). Moves, never deletes; fails (and moves nothing) when there is nothing to set aside.
-static func quarantine(save_root: String, romset: String, reason: String, now: int = -1) -> Dictionary:
+## `keep` is a copy the prune that follows must not take (`restore`'s: the copy it is about to put back).
+static func quarantine(save_root: String, romset: String, reason: String, now: int = -1, keep: String = "") -> Dictionary:
 	var src := nvram_dir(save_root, romset)
 	var files := _files_of(src)
 	if files.is_empty():
@@ -124,7 +125,7 @@ static func quarantine(save_root: String, romset: String, reason: String, now: i
 	if f_out != null:
 		f_out.store_string(JSON.stringify(manifest, "\t"))
 		f_out.close()
-	prune(save_root, romset)
+	prune(save_root, romset, keep)
 	return {"ok": true, "stamp": stamp, "to": held, "error": ""}
 
 
@@ -161,7 +162,8 @@ static func restore(save_root: String, romset: String, stamp: String, now: int =
 		return {"ok": false, "error": "that copy is not there", "replaced": ""}
 	var replaced := ""
 	if not _files_of(nvram_dir(save_root, romset)).is_empty():
-		var moved := quarantine(save_root, romset, "before restoring %s" % stamp, now)
+		# The copy being restored is kept out of the prune: with KEEP_NEWEST copies already set aside, restoring the oldest made a new one and the prune took the copy asked for.
+		var moved := quarantine(save_root, romset, "before restoring %s" % stamp, now, stamp)
 		if not bool(moved["ok"]):
 			return {"ok": false, "error": str(moved["error"]), "replaced": ""}
 		replaced = str(moved["stamp"])
@@ -179,11 +181,17 @@ static func restore(save_root: String, romset: String, stamp: String, now: int =
 	return {"ok": true, "error": "", "replaced": replaced}
 
 
-## Keep the newest KEEP_NEWEST copies of `romset`'s: the older ones are the one place this class deletes, and only what it set aside itself.
-static func prune(save_root: String, romset: String) -> void:
+## Keep the newest KEEP_NEWEST copies of `romset`'s: the older ones are the one place this class deletes, and only what it set aside itself. `keep` (a stamp) is never taken.
+static func prune(save_root: String, romset: String, keep: String = "") -> void:
 	var rows := list_quarantines(save_root, romset)
-	for i in range(KEEP_NEWEST, rows.size()):
-		_remove_tree(str(rows[i]["dir"]))
+	var kept := 0
+	for row: Dictionary in rows:
+		if str(row["stamp"]) == keep:
+			continue
+		kept += 1
+		if kept > KEEP_NEWEST - (1 if not keep.is_empty() else 0):
+			print("[ArcadeMemory] %s: pruning the copy set aside at %s" % [romset, str(row["stamp"])])
+			_remove_tree(str(row["dir"]))
 
 
 ## The stamp of a moment: UTC, sortable ("20261026T143005Z").
