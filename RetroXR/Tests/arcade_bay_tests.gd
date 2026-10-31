@@ -145,6 +145,33 @@ func _disc_fixture() -> void:
 		h.close()
 
 
+## Deleting a game's disc takes its disc images and nothing else from the folder named for it: the folder only shares the board's name. It took the whole
+## tree, so a player's own files beside the CHD (samples, notes) went too, and a plain board's same-named folder was emptied with no disc in it.
+func _disc_delete_cases() -> void:
+	var r := ProjectSettings.globalize_path("user://arcade_disc_delete_test")
+	var made: Array[String] = ["game.zip", "game/a.chd", "game/notes.txt", "game/sub/b.chd", "game/keep/sample.wav",
+		"plain.zip", "plain/readme.txt", "only.zip", "only/x.chd"]
+	for f: String in made:
+		DirAccess.make_dir_recursive_absolute(r.path_join(f).get_base_dir())
+		var h := FileAccess.open(r.path_join(f), FileAccess.WRITE)
+		h.store_8(1)
+		h.close()
+	var gone := ArcadeDiscs.delete_for(r.path_join("game.zip"))
+	_ok(gone == 2 and not FileAccess.file_exists(r.path_join("game/a.chd")) and not FileAccess.file_exists(r.path_join("game/sub/b.chd")),
+		"disc: deleting a game takes every disc image in its folder (%d)" % gone)
+	_ok(FileAccess.file_exists(r.path_join("game/notes.txt")) and FileAccess.file_exists(r.path_join("game/keep/sample.wav"))
+			and not DirAccess.dir_exists_absolute(r.path_join("game/sub")),
+		"disc: and leaves the player's own files there, taking only the folders it emptied")
+	_ok(ArcadeDiscs.delete_for(r.path_join("plain.zip")) == 0 and FileAccess.file_exists(r.path_join("plain/readme.txt")),
+		"disc: a plain board's folder of the same name, with no disc in it, is left as it is")
+	_ok(ArcadeDiscs.delete_for(r.path_join("only.zip")) == 1 and not DirAccess.dir_exists_absolute(r.path_join("only")),
+		"disc: a folder that held only discs goes with them")
+	for f: String in made:
+		DirAccess.remove_absolute(r.path_join(f))
+	for d: String in ["game/keep", "game/sub", "game", "plain", "only", ""]:
+		DirAccess.remove_absolute(r.path_join(d))
+
+
 func _disc_cleanup() -> void:
 	for f: String in ["thisgame/a.chd", "other/b.chd", "thisgame.zip", "other.zip", "plain.zip"]:
 		DirAccess.remove_absolute(DISC_ROOT.path_join(f))
@@ -175,6 +202,7 @@ func _group_disc() -> void:
 	_ok(ArcadeDiscs.belongs_to(root.path_join("thisgame/a.chd"), root.path_join("thisgame.zip")), "disc: its CHD belongs to it")
 	_ok(not ArcadeDiscs.belongs_to(root.path_join("other/b.chd"), root.path_join("thisgame.zip")), "disc: another game's does not")
 	_ok(ArcadeDiscs.board_for(root.path_join("thisgame/a.chd")) == root.path_join("thisgame.zip"), "disc: a CHD names its board")
+	_disc_delete_cases()
 
 	var sys := await _cabinet("arcade_cabinet_generic", "arcade")
 	var bay := sys.get_bay()

@@ -99,19 +99,25 @@ static func is_disc_object(obj: Node) -> bool:
 	return obj is RetroDisc and applies(str(obj.get("systemid")))
 
 
-## Delete the disc folder a board owns, files first. Returns how many files went. Only ever the
-## folder named for the board, and only when it sits beside it -- never a path the caller made up.
+## Delete the disc images a board owns: every `.chd` in the folder named for it (and in folders under it, as RomM can nest them), then each folder left
+## EMPTY. Anything else in there (samples, notes, a file the player put beside the disc) and the folders holding it are left alone: the folder only shares the
+## board's name. Returns how many images went. Only ever the folder beside the board -- never a path the caller made up.
 static func delete_for(board_path: String) -> int:
 	if board_path.is_empty() or not is_board_path(board_path):
 		return 0
 	var folder := folder_for(board_path)
 	if not DirAccess.dir_exists_absolute(folder):
 		return 0
-	var removed := _delete_tree(folder)
+	var removed := _delete_discs(folder)
+	if DirAccess.dir_exists_absolute(folder):
+		print("[ArcadeDiscs] %s: %d disc image(s) deleted; its folder still holds files that are not discs, so it stays" % [board_path.get_file(), removed])
+	else:
+		print("[ArcadeDiscs] %s: %d disc image(s) deleted with their folder" % [board_path.get_file(), removed])
 	return removed
 
 
-static func _delete_tree(dir_path: String) -> int:
+## Delete the disc images under `dir_path`, then the folder itself if that left it empty (remove_absolute refuses a folder that is not).
+static func _delete_discs(dir_path: String) -> int:
 	var removed := 0
 	var dir := DirAccess.open(dir_path)
 	if dir == null:
@@ -124,7 +130,7 @@ static func _delete_tree(dir_path: String) -> int:
 		if name != "." and name != "..":
 			if dir.current_is_dir():
 				subdirs.append(name)
-			else:
+			elif is_disc_path(name):
 				files.append(name)
 		name = dir.get_next()
 	dir.list_dir_end()
@@ -132,8 +138,9 @@ static func _delete_tree(dir_path: String) -> int:
 		if DirAccess.remove_absolute(dir_path.path_join(f)) == OK:
 			removed += 1
 	for d: String in subdirs:
-		removed += _delete_tree(dir_path.path_join(d))
-	DirAccess.remove_absolute(dir_path)
+		removed += _delete_discs(dir_path.path_join(d))
+	if DirAccess.get_files_at(dir_path).is_empty() and DirAccess.get_directories_at(dir_path).is_empty():
+		DirAccess.remove_absolute(dir_path)
 	return removed
 
 
