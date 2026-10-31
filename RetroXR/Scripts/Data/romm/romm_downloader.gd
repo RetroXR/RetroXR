@@ -186,8 +186,12 @@ func _worker(args: Dictionary) -> void:
 	# A disc folder that is already on disk, whole, is not fetched again: a board deleted and downloaded
 	# afresh, or a disc copied in by hand, finds its disc where MAME looks for it. Asked of the server
 	# (its files and their sizes) and compared with what is there; any doubt downloads as before.
+	# The server's list of the folder's files, asked ONCE: the on-disk check uses it and so does placing a one-file folder below (a second request that
+	# failed threw a finished download away).
+	var server_files: Array = []
 	if folder:
-		var held := disc_folder_on_disk(_folder_files(args, rom_id, fs_name), systemid, fs_name)
+		server_files = _folder_files(args, rom_id, fs_name)
+		var held := disc_folder_on_disk(server_files, systemid, fs_name)
 		if bool(held["complete"]):
 			print("[RommDownloader] %s is already on disk, %d file(s): not downloading it again"
 				% [fs_name, (held["members"] as Array).size()])
@@ -214,7 +218,7 @@ func _worker(args: Dictionary) -> void:
 	if folder:
 		_clear_stray_folder_file(systemid, fs_name)
 	if folder and not _is_archive(dest):
-		var placed := _place_single_file(args, dest, systemid, fs_name, rom_id)
+		var placed := _place_single_file(args, dest, systemid, fs_name, rom_id, server_files)
 		if not str(placed.get("error", "")).is_empty():
 			_emit_finished.call_deferred(rom_id, false, "", str(placed["error"]))
 			return
@@ -266,11 +270,13 @@ static func is_disc_folder(entry: Dictionary, systemid: String) -> bool:
 ## folder, or [] when the server could not be asked or has none. One small request, on the worker.
 func _folder_files(args: Dictionary, rom_id: int, fs_name: String) -> Array:
 	var http := RommHttp.new()
-	if http.open(args["base_url"], func() -> bool: return _abort) != RommHttp.Result.OK:
+	if http.open(str(args.get("base_url", "")), func() -> bool: return _abort) != RommHttp.Result.OK:
+		push_warning("[RommDownloader] %s: cannot reach the server to list the disc folder's files" % fs_name)
 		return []
-	var resp := http.get_json("/api/roms/%d" % rom_id, args["headers"], func() -> bool: return _abort)
+	var resp := http.get_json("/api/roms/%d" % rom_id, args.get("headers", PackedStringArray()), func() -> bool: return _abort)
 	http.close()
 	if int(resp["result"]) != RommHttp.Result.OK or not resp["data"] is Dictionary:
+		push_warning("[RommDownloader] %s: the server did not list the disc folder's files (result %d)" % [fs_name, int(resp["result"])])
 		return []
 	return folder_files_of((resp["data"] as Dictionary).get("files", []), fs_name)
 
@@ -332,12 +338,13 @@ func _clear_stray_folder_file(systemid: String, fs_name: String) -> void:
 
 
 ## A disc folder that arrived as the one file in it: move it to `<fs_name>/<its own name>`, the name
-## RomM keeps it under (asked of the server: the download carries none we read). Returns
+## RomM keeps it under (asked of the server: the download carries none we read). `known` is the server's list
+## of the folder's files when it was asked already; only an empty one is asked again. Returns
 ## {launch, relative, error}.
 func _place_single_file(args: Dictionary, downloaded: String, systemid: String, fs_name: String,
-		rom_id: int) -> Dictionary:
+		rom_id: int, known: Array = []) -> Dictionary:
 	_clear_stray_folder_file(systemid, fs_name)
-	var files := _folder_files(args, rom_id, fs_name)
+	var files := known if not known.is_empty() else _folder_files(args, rom_id, fs_name)
 	var inner := str((files[0] as Dictionary)["relative"]) if files.size() == 1 else ""
 	if ArchiveSafety.safe_member(inner).is_empty():
 		DirAccess.remove_absolute(downloaded)

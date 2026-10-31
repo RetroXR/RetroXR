@@ -1156,6 +1156,24 @@ func _test_disc_folder_single_file() -> void:
 	_ok(RommDownloader.is_disc_folder({"fs_name": "azumanga"}, "arcade"), "disc/a no-extension name on arcade is a disc folder")
 	_ok(not RommDownloader.is_disc_folder({"fs_name": "azumanga.zip"}, "arcade"), "disc/a zip is not")
 	_ok(not RommDownloader.is_disc_folder({"fs_name": "azumanga"}, "psx"), "disc/nor is a folder on another system")
+	# The list the on-disk check already had is used, not asked for again: with the server gone by then, the finished download is still placed
+	# (a second request that failed threw it away with "RomM did not name the disc file").
+	var again := RommCacheManifest.local_path(SID, "kgame.download")
+	DirAccess.make_dir_recursive_absolute(again.get_base_dir())
+	var g := FileAccess.open(again, FileAccess.WRITE)
+	g.store_buffer("MComprHD".to_utf8_buffer())
+	g.close()
+	var dl2 := RommDownloader.new()
+	var gone_server := {"base_url": "http://127.0.0.1:9", "headers": PackedStringArray()}
+	var placed := dl2._place_single_file(gone_server, again, SID, "kgame", 8, [{"name": "k.chd", "size": 8, "relative": "k.chd"}])
+	var k_target := RommCacheManifest.local_path(SID, "kgame/k.chd")
+	_ok(str(placed.get("error", "x")) == "" and FileAccess.file_exists(k_target),
+		"disc/a one-file folder is placed from the list already asked for, with the server gone (%s)" % str(placed.get("error", "")))
+	dl2.free()
+	DirAccess.remove_absolute(k_target)
+	DirAccess.remove_absolute(k_target.get_base_dir())
+	DirAccess.remove_absolute(again)
+	DirAccess.remove_absolute(again.get_base_dir())
 
 
 ## The disc folder unpacks INTO a folder of its name, whether or not RomM's archive carries one.
