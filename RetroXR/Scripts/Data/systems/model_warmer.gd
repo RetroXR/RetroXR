@@ -82,11 +82,22 @@ static func _tree() -> SceneTree:
 	return Engine.get_main_loop() as SceneTree
 
 
+## False on the dummy renderer (a `--headless` run: every test suite, every headless probe). Its mesh RID owner
+## is not thread-safe, unlike the real renderers', and a GLB loaded on a loader thread builds its meshes on that
+## thread: racing the main thread's own meshes, it handed out a bad RID ("Attempting to initialize the wrong
+## RID", then null meshes) and killed the process with 0xC0000005, mid-run or at exit while a load was still in
+## flight. SceneManager starts the shell warm in every process, suites included, so any suite could lose that
+## race (headphones_tests about 1 run in 10). Headless nothing is drawn, so there is nothing to warm either: a
+## shell asset is loaded on the caller's thread when something actually asks for it.
+static func loads_threaded() -> bool:
+	return DisplayServer.get_name() != "headless"
+
+
 ## Fire the threaded request for a path unless it is already held, in flight, or
 ## cached. Costs the main thread nothing; acquire() collects the result.
 static func _request(path: String) -> void:
 	if path.is_empty() or _held.has(path) or _pending.has(path) \
-			or ResourceLoader.has_cached(path):
+			or ResourceLoader.has_cached(path) or not loads_threaded():
 		return
 	if ResourceLoader.load_threaded_request(path) == OK:
 		_pending[path] = true
@@ -115,7 +126,7 @@ static func acquire(path: String) -> Resource:
 		return _held[path]
 	if _pending.has(path):
 		return await _finish_pending(path)
-	if ResourceLoader.has_cached(path):
+	if ResourceLoader.has_cached(path) or not loads_threaded():
 		var res := load(path)
 		if res != null:
 			_held[path] = res
@@ -254,6 +265,10 @@ static func warm_shells(host: Node) -> void:
 	if _shells_started or host == null or not host.is_inside_tree():
 		return
 	_shells_started = true
+	if not loads_threaded():
+		_shells_finished = true
+		print("[ModelWarmer] headless: no shell warm (nothing is drawn, and the dummy renderer's meshes are main-thread only)")
+		return
 	var tree := host.get_tree()
 	var t := Time.get_ticks_usec()
 	var tex0: float = Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED)

@@ -483,6 +483,32 @@ can never hang the run.
   2026-10-14: `autoload_order_tests` exited 0x7F with them listed and 0 without. Put
   an empty `.gdignore` back in `android/build/` and delete the `res://android/` lines
   from the list. Both are local state, not files to commit.
+- **A suite that CRASHes (0xC0000005) now and then, mid-run or after its RESULT line, with
+  nothing in the log: a model loading on a loader thread.** A `--headless` run uses the
+  dummy renderer, whose mesh RID owner is NOT thread-safe (the real renderers' are). A GLB
+  loaded with `load_threaded_request` builds its meshes on the loader thread, and racing
+  the main thread's own meshes it hands out a bad RID: stderr shows `Attempting to
+  initialize the wrong RID` and `Parameter "m" is null` from
+  `servers/rendering/dummy/storage/mesh_storage.h`, then the process dies. Stdout often
+  stops short of the crash, so read stderr. `SceneManager._warm_models` started
+  `ModelWarmer`'s shell warm in EVERY process, suites included, so any suite could lose
+  the race; `headphones_tests` lost it about 1 run in 15 (2026-10-31). Fixed in
+  `ModelWarmer.loads_threaded()`: headless it never loads threaded and skips the shell
+  warm (nothing is drawn), and `acquire()` loads on the caller's thread. **Never add a
+  threaded load that can run headless without that check.** To count a crash like this,
+  loop the suite the runner's way (`subprocess`, piped output, 4 at a time): it was 4 in
+  60 before the fix and 0 in 40 after.
+- **Debugging one of these: `Godot_..._console.exe` is only a WRAPPER.** It starts
+  `Godot_v4.7.2-stable_win64.exe` as a child and returns its exit code, so a debugger on
+  the console exe sees a clean `exit` and nothing else (WinDbg's `cdbX64` showed 72
+  "clean" runs that way). Give it `-o` to debug the child too, e.g.
+  `cdbX64 -G -o -c "sxd -c2 \".echo AV; kn 60; lm; q\" av; g" <console exe> --headless ...`.
+  Godot's own crash handler stays silent in these, and Windows Error Reporting keeps
+  nothing a normal user can read.
+- **Still open (2026-10-31): `combo_tv_tests` and `speaker_tests` crash 0xC0000005
+  mid-run without that fix's stderr**: `combo_tv_tests` about 2 runs in 12 one at a
+  time, always within the five frames after a set builds its VCR and DVD in (not the
+  DVD tray's mesh collision: 12 in 40 without it). Not yet traced.
 - **PowerShell buffers `& $godot ... | Out-String` until the process exits**, so a
   backgrounded run shows an empty output file until it finishes. The Bash tool with
   `timeout 90 "$godot" ... 2>&1 | grep` streams and bounds the run — prefer it.
