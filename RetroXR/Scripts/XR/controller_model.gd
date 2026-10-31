@@ -67,9 +67,9 @@ func _on_profile_changed(_role: String) -> void:
 #
 # The runtime hands the controller over with an AnimationPlayer describing how
 # each of its inputs moves it. Nothing here chooses an axis or a travel distance:
-# for every input we find the stretch of that clip in which its bone moves, and
-# sample it. A rig from another vendor, with different geometry and different
-# bone axes, animates for the same reason.
+# ControllerRig reads, for every bone the clip moves, where it rests and how far
+# it goes, and a press interpolates between the two. A rig from another vendor,
+# with different geometry and different bone axes, animates for the same reason.
 
 ## Which bone each action actuates. Face buttons are named for the letters
 ## printed on them, so they differ per hand.
@@ -106,18 +106,7 @@ func _resolve_rig() -> void:
 	# actuate every input in turn on its own, over the top of the real ones.
 	anim.stop()
 	var clip: Animation = anim.get_animation(clips[0])
-
-	for track in clip.get_track_count():
-		var kind := clip.track_get_type(track)
-		if kind != Animation.TYPE_ROTATION_3D and kind != Animation.TYPE_POSITION_3D:
-			continue
-		var bone_name := String(clip.track_get_path(track).get_concatenated_subnames())
-		var bone := _skeleton.find_bone(bone_name)
-		if bone < 0:
-			continue
-		var driven: Dictionary = _driven.get(bone_name, {"bone": bone})
-		_read_extremes(clip, track, kind, driven)
-		_driven[bone_name] = driven
+	_driven = ControllerRig.read(_skeleton, clip)
 	_read_stick(clip)
 
 
@@ -139,50 +128,12 @@ func _invalidate_rig() -> void:
 	_stick.clear()
 
 
-## The clip runs every input in turn across five seconds, and a button's stretch
-## of it presses twice. So the timeline is no use as a dial — what is wanted from
-## each track is only where the bone rests and how far it travels, and a press
-## interpolates between the two.
-func _read_extremes(clip: Animation, track: int, kind: int, driven: Dictionary) -> void:
-	var count := clip.track_get_key_count(track)
-	if count == 0:
-		return
-	var rest: Variant = clip.track_get_key_value(track, 0)
-	var far: Variant = rest
-	var furthest := 0.0
-	for k in count:
-		var v: Variant = clip.track_get_key_value(track, k)
-		var dist: float = _deviation(rest, v)
-		if dist > furthest:
-			furthest = dist
-			far = v
-	if kind == Animation.TYPE_ROTATION_3D:
-		driven["rot_rest"] = rest
-		driven["rot_far"] = far
-	else:
-		driven["pos_rest"] = rest
-		driven["pos_far"] = far
-
-
-func _deviation(rest: Variant, v: Variant) -> float:
-	if rest is Quaternion:
-		return (rest as Quaternion).angle_to(v as Quaternion)
-	if rest is Vector3:
-		return (rest as Vector3).distance_to(v as Vector3)
-	return 0.0
-
-
 ## Put a bone `amount` of the way from where the rig rests it to as far as the
 ## rig ever takes it.
 func _actuate(bone_name: String, amount: float) -> void:
-	var driven: Variant = _driven.get(bone_name)
-	if driven == null or not _rig_is_valid():
+	if not _driven.has(bone_name) or not _rig_is_valid():
 		return
-	var t := clampf(amount, 0.0, 1.0)
-	if driven.has("rot_rest"):
-		_skeleton.set_bone_pose_rotation(driven["bone"], (driven["rot_rest"] as Quaternion).slerp(driven["rot_far"], t))
-	if driven.has("pos_rest"):
-		_skeleton.set_bone_pose_position(driven["bone"], (driven["pos_rest"] as Vector3).lerp(driven["pos_far"], t))
+	ControllerRig.actuate(_skeleton, _driven, bone_name, amount)
 
 
 ## A stick has two axes where the clip has one timeline, so the rig sweeps it

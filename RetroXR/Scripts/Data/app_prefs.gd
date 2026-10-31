@@ -125,6 +125,10 @@ var show_hints:       bool = true
 ## past HeldHint.LEARNED_AFTER. A dictionary rather than a key per row so a new
 ## hint needs no change here.
 var hint_uses:        Dictionary = {}
+## The last version of the first-time welcome page (WelcomePanel.VERSION) the
+## player pressed Got it on. 0, the missing-key default too, means never: an
+## existing install sees the page once, as a new one does.
+var welcome_seen:     int = 0
 ## Whether sound is spatialised by Meta XR Audio rather than Godot's own panning.
 ## Desktop only, and only offered there: on the Quest the SDK is the entire point,
 ## and its binaural rendering is right for a headset. On a desk it is not always —
@@ -425,6 +429,7 @@ func load_prefs() -> void:
 	menu_curved      = JsonStore.get_bool(data, "menu_curved",      menu_curved)
 	show_hints       = JsonStore.get_bool(data, "show_hints",       show_hints)
 	hint_uses        = JsonStore.get_dict(data, "hint_uses",        hint_uses)
+	welcome_seen     = JsonStore.get_int(data, "welcome_seen",     welcome_seen)
 	spatial_audio_sdk = JsonStore.get_bool(data, "spatial_audio_sdk", spatial_audio_sdk)
 	microphone_enabled = JsonStore.get_bool(data, "microphone_enabled", microphone_enabled)
 	microphone_device = JsonStore.get_string(data, "microphone_device", microphone_device)
@@ -480,6 +485,7 @@ func _prefs_dict() -> Dictionary:
 		"menu_curved":      menu_curved,
 		"show_hints":       show_hints,
 		"hint_uses":        hint_uses,
+		"welcome_seen":     welcome_seen,
 		"spatial_audio_sdk": spatial_audio_sdk,
 		"microphone_enabled": microphone_enabled,
 		"microphone_device": microphone_device,

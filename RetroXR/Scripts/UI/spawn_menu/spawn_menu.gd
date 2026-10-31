@@ -46,6 +46,9 @@ signal pad_rebind_started(target: String)
 ## into the room being stood in. The controller does it, as it does a room change,
 ## so it can close the menu first.
 signal mods_apply_requested(restart: bool)
+## ABOUT's "Show the welcome page again". The controller puts the menu away and
+## stands the page (WelcomePanel) where it was.
+signal welcome_requested
 
 ## Shared core info database — populated on _ready, used by Download & Manager tabs.
 var core_db: CoreInfoDatabase = null
@@ -521,6 +524,7 @@ func _build_ui() -> void:
 	_about_view = SpawnMenuAboutView.create(self)
 	_about_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	content.add_child(_about_view)
+	_about_view.welcome_requested.connect(func() -> void: welcome_requested.emit())
 
 	# Over the views, not inside one: a download raised on the SPAWN tab must stay
 	# up when the player switches to CORES.

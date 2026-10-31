@@ -203,7 +203,7 @@ reads on the TV's on-screen display.
 
 **Desktop**: the remote snaps to the lower-right corner aiming where you look (like the
 light gun). `Arrow Up`/`Arrow Down` move the selection, `Enter` activates, and — because
-it is FPS-snapped — dropping it requires **`Ctrl` + Left-click** (plain click won't drop it).
+it is FPS-snapped — dropping it requires **`Shift` + Left-click** (plain click won't drop it).
 
 <img src="docs/images/obj_remote.png" width="310" alt="The TV remote, held in a hand, with its floating command menu popped up above it: eject, a D-pad with a centre OK, transport buttons, a menu button, and audio/subtitle cells." />
 
@@ -396,7 +396,7 @@ When no VR headset is detected, RetroXR falls back to a desktop mode with mouse/
 
 **Interaction**
 - Left-click — grab/pick up object under cursor (or shoot, if holding the light gun)
-- `Ctrl` + Left-click — drop held object (required for FPS-snapped objects: light gun,
+- `Shift` + Left-click — drop held object (required for FPS-snapped objects: light gun,
   TV remote; plain click also drops everything else)
 - Scroll wheel — push/pull held object along view ray (disabled while FPS-snapped)
 - Middle-mouse drag — rotate held object in place

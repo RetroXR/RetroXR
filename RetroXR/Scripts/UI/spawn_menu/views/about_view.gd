@@ -10,6 +10,9 @@
 class_name SpawnMenuAboutView
 extends ScrollContainer
 
+## "Show the welcome page again" pressed (WelcomePanel). The menu relays it.
+signal welcome_requested
+
 ## [header, [[title, author, licence], ...], note] — note "" for no note.
 const SECTIONS: Array = [
 	["OPEN SOURCE LIBRARIES", [
@@ -155,6 +158,14 @@ func _build() -> void:
 	vbox.add_child(target_lbl)
 
 	_build_update_section(vbox)
+
+	# The first-time page, for whoever pressed Got it too fast or wants it back.
+	var welcome_row := MenuStyle.hbox(0)
+	welcome_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(welcome_row)
+	var welcome_btn := MenuStyle.row_button("Show the Welcome Page Again", 22, 460, 60, false)
+	welcome_btn.pressed.connect(func() -> void: welcome_requested.emit())
+	welcome_row.add_child(welcome_btn)
 
 	vbox.add_child(MenuStyle.spacer(18))
 

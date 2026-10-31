@@ -1,0 +1,188 @@
+## WelcomePanel — the first-time popup: one page (Welcome2D) standing in front of
+## the player the first time the room is ready, saying what to do and what not to.
+##
+## A Viewport2DIn3D like the menu's, so one panel serves the headset (the lasers)
+## and the desktop (the crosshair) with nothing of either's own. Built when it is
+## shown and freed when it is put away: it is up once in an install's life, and a
+## SubViewport left standing would hold a render target for every session after.
+##
+## Seen is a VERSION, not a bool (AppPrefs.welcome_seen): raise VERSION when the
+## page says something new and everyone sees it once more. Only Got it marks it
+## seen; put away any other way (the menu opened over it, the room changed), it
+## comes back at the next launch.
+##
+## SpawnMenuController decides when (once per launch, curtain down) and stands it
+## where the menu would open. On the headset's page it also hands over the two
+## controllers' art, and a ControllerDemo stands the player's own controllers in
+## front of the page's stage, pressing each button the page talks about.
+class_name WelcomePanel
+extends Node3D
+
+## Got it pressed; the page has marked itself seen and is going away.
+signal dismissed
+
+const VERSION := 1
+
+const PAGE_SCENE := preload("res://Scenes/UI/welcome_2d.tscn")
+const VIEWPORT_SCENE := preload("res://addons/godot-xr-tools/objects/viewport_2d_in_3d.tscn")
+
+## Metres, and the page's pixels: the menu's density (2000 px a metre). The page
+## is built at this size and then made as tall as what is on it (_fit), between
+## the two bounds: the headset's page carries the controllers' stage and the
+## desktop's does not, a Quest's ROM folder wraps to more lines, and a fixed
+## height left a band of nothing over Got it.
+const SCREEN_SIZE := Vector2(1.1, 0.75)
+const VIEWPORT_SIZE := Vector2(2200, 1500)
+const MIN_PX := 700.0
+const MAX_PX := 2000.0
+## How far off it stands, at the least: it is as wide as the menu and taller.
+const MIN_DISTANCE := 1.1
+## How far in front of the page the controllers stand, so they read as things
+## and not a picture on it.
+const DEMO_LIFT := 0.07
+## Redraws a second. Throttled rather than every frame: the page only changes
+## under a laser's hover, and a headset frame has better things to spend on.
+const REDRAW_FPS := 30.0
+
+var _viewport: XRToolsViewport2DIn3D = null
+var _done := false
+var _arts: Array = [null, null]
+var _demo: ControllerDemo = null
+
+
+## Whether this install has yet to see the current page.
+static func due() -> bool:
+	return AppPrefs.welcome_seen < VERSION
+
+
+## Record the current page as seen and keep it. False when the save did not land,
+## in which case the page comes back at the next launch.
+static func mark_seen() -> bool:
+	AppPrefs.welcome_seen = VERSION
+	var saved: bool = AppPrefs.save_prefs()
+	if not saved:
+		push_warning("[Welcome] could not save that version %d was seen; it will show again" % VERSION)
+	return saved
+
+
+func _init() -> void:
+	# Placed in the world, not carried with the controller it hangs under: that node
+	# is moved to wherever the menu opens.
+	top_level = true
+
+
+## Stand the page `distance` in front of `camera` along `forward` (level, unit),
+## facing it, a touch below eye height as the menu is. `left_art` / `right_art`
+## are the hands' ControllerArt, shown on the headset's page (either may be null).
+func show_in_front_of(camera: Node3D, forward: Vector3, distance: float,
+		left_art: ControllerArt = null, right_art: ControllerArt = null) -> void:
+	_arts = [left_art, right_art]
+	distance = maxf(distance, MIN_DISTANCE)
+	_build()
+	global_position = camera.global_position + forward * distance + Vector3(0, -0.05, 0)
+	# look_at turns -Z to the camera; the viewport's face is +Z, so half a turn more.
+	look_at(camera.global_position, Vector3.UP)
+	rotate_object_local(Vector3.UP, PI)
+	reset_physics_interpolation()
+	visible = true
+	print("[Welcome] shown (version %d, %s, %.2f m)" % [VERSION,
+		"vr" if MenuStyle.is_vr_mode() else "desktop", distance])
+
+
+## Put away without Got it: not marked seen, so it comes back next launch.
+func put_away(reason: String) -> void:
+	if _done:
+		return
+	_done = true
+	print("[Welcome] put away unread (%s); it shows again next launch" % reason)
+	queue_free()
+
+
+func _build() -> void:
+	if _viewport != null:
+		return
+	# Instanced from the addon scene, not .new(): the SubViewport, mesh and
+	# collision body are scene children.
+	_viewport = VIEWPORT_SCENE.instantiate() as XRToolsViewport2DIn3D
+	_viewport.name = "WelcomeViewport"
+	_viewport.screen_size = SCREEN_SIZE
+	_viewport.viewport_size = VIEWPORT_SIZE
+	_viewport.update_mode = XRToolsViewport2DIn3D.UpdateMode.UPDATE_THROTTLED
+	_viewport.throttle_fps = REDRAW_FPS
+	# SCISSOR, not TRANSPARENT: alpha-blended, the page was drawn in the
+	# transparent pass and the bedroom window's string lights, two metres behind
+	# it, came through the text (measured in welcome_probe). Scissored it is drawn
+	# opaque and still keeps its rounded corners.
+	_viewport.transparent = XRToolsViewport2DIn3D.TransparancyMode.SCISSOR
+	_viewport.unshaded = true
+	add_child(_viewport)
+	_viewport.scene = PAGE_SCENE
+	var page := _viewport.get_scene_instance() as Welcome2D
+	if page == null:
+		push_warning("[Welcome] the page did not instantiate; nothing to press")
+		return
+	page.dismissed.connect(_on_page_dismissed)
+	# Out of sight until it is the right size, so it never shows at the wrong one.
+	_viewport.visible = false
+	_fit.call_deferred(page)
+
+
+## Make the quad as tall as the page's content once that has been laid out.
+func _fit(page: Welcome2D) -> void:
+	for i in 2:
+		await get_tree().process_frame
+	if _done or not is_instance_valid(page) or not is_instance_valid(_viewport):
+		return
+	var want := page.content_height()
+	var px := ceilf(clampf(want, MIN_PX, MAX_PX))
+	if want > MAX_PX:
+		push_warning("[Welcome] the page wants %d px, cut to %d: shorten the copy" % [want, MAX_PX])
+	_viewport.viewport_size = Vector2(VIEWPORT_SIZE.x, px)
+	_viewport.screen_size = Vector2(SCREEN_SIZE.x, SCREEN_SIZE.x * px / VIEWPORT_SIZE.x)
+	_viewport.visible = true
+	print("[Welcome] page fitted: %d px, %.2f x %.2f m" % [px, _viewport.screen_size.x,
+		_viewport.screen_size.y])
+	if page.stage_rect().has_area():
+		# Laid out again at the new height a frame later; the stage moves with it.
+		await get_tree().process_frame
+		if not _done and is_instance_valid(page):
+			_stand_demo(page)
+
+
+## The player's controllers, in front of the page's stage, telling it which step
+## they are on.
+func _stand_demo(page: Welcome2D) -> void:
+	var rect := page.stage_rect()
+	var vs := _viewport.viewport_size
+	var ss := _viewport.screen_size
+	var at := Vector3((rect.get_center().x / vs.x - 0.5) * ss.x,
+		(0.5 - rect.get_center().y / vs.y) * ss.y, DEMO_LIFT)
+	_demo = ControllerDemo.new()
+	_demo.name = "ControllerDemo"
+	_demo.position = at
+	_demo.step_changed.connect(page.set_step)
+	add_child(_demo)
+	_demo.setup(_arts[0] as ControllerArt, _arts[1] as ControllerArt)
+	print("[Welcome] controller demo at the stage (%.2f, %.2f) m: left %s, right %s" % [
+		at.x, at.y, _demo.source_of("left"), _demo.source_of("right")])
+
+
+## The controller demo, once it stands; for probes.
+func demo() -> ControllerDemo:
+	return _demo
+
+
+## The page, once built; for probes.
+func page() -> Welcome2D:
+	return _viewport.get_scene_instance() as Welcome2D if _viewport != null else null
+
+
+func _on_page_dismissed() -> void:
+	# A click through a Viewport2DIn3D can arrive twice; the second finds it done.
+	if _done:
+		return
+	_done = true
+	print("[Welcome] dismissed (version %d)" % VERSION)
+	mark_seen()
+	dismissed.emit()
+	queue_free()

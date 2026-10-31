@@ -123,6 +123,15 @@ var _menu_hint: HeldHint = null
 ## Seconds after setup before it opens, so it lands on a settled room and a
 ## tracked hand rather than during the fade-in.
 const STARTUP_HINT_DELAY := 2.0
+## The first-time welcome page while it is up (WelcomePanel), else null.
+var _welcome: WelcomePanel = null
+## Whether this launch has decided about the welcome page: once per process,
+## however many rooms follow.
+var _welcome_offered := false
+## The startup "Menu" hint came due while the welcome page was pending or up, and
+## waits for it: the page says the same thing, and two popups at once is how
+## neither gets read.
+var _hint_waits_for_welcome := false
 
 var _locomotion_manager: LocomotionManager = null
 var _move_turn: Node = null
@@ -208,6 +217,9 @@ func _deferred_setup() -> void:
 	# the room's own fade-in — and, in VR, so the hand it pins to is being
 	# tracked rather than parked at the rig origin.
 	await get_tree().create_timer(STARTUP_HINT_DELAY).timeout
+	if _welcome_holds_hint():
+		_hint_waits_for_welcome = true
+		return
 	_show_menu_hint()
 
 
@@ -251,6 +263,7 @@ func _connect_menu_signals() -> void:
 	spawn_menu.scene_slot_create_requested.connect(_on_slot_create)
 	spawn_menu.scene_slot_rename_requested.connect(_on_slot_rename)
 	spawn_menu.mods_apply_requested.connect(_on_mods_apply_requested)
+	spawn_menu.welcome_requested.connect(_on_welcome_requested)
 	spawn_menu.options_view().auto_save_changed.connect(_on_auto_save_changed)
 	spawn_menu.options_view().hud_changed.connect(_on_hud_changed)
 	spawn_menu.options_view().aim_crosshair_changed.connect(_on_aim_crosshair_changed)
@@ -289,6 +302,7 @@ func _connect_menu_signals() -> void:
 		await _autoload_slot(room)
 		await get_tree().process_frame
 		sm.notify_scene_content_ready(room)
+	_offer_welcome()
 
 
 ## Every room change closes the menu, whoever started it: the Rooms tab, a slot
@@ -296,6 +310,10 @@ func _connect_menu_signals() -> void:
 ## The rig is carried across, so a menu left open stayed standing at its old world
 ## position, which in the new room is anywhere.
 func _on_scene_changed(scene_id: String) -> void:
+	if is_instance_valid(_welcome):
+		_welcome.put_away("the room changed to %s" % scene_id)
+		_welcome = null
+		_release_held_hint()
 	if not _viewport_node.visible:
 		return
 	print("[SpawnMenu] room changing to %s: closing the menu" % scene_id)
@@ -802,6 +820,12 @@ func _menu_distance(forward: Vector3) -> float:
 
 
 func _show_menu() -> void:
+	# The menu opens where the welcome page stands. Opening it is what the page's
+	# first line teaches, so the hint it was holding back has nothing left to say.
+	if is_instance_valid(_welcome):
+		_welcome.put_away("the menu was opened")
+		_welcome = null
+		_hint_waits_for_welcome = false
 	if _camera:
 		var forward := -_camera.global_transform.basis.z
 		forward.y = 0.0
@@ -1206,6 +1230,88 @@ func _show_menu_hint() -> void:
 		_menu_hint.pin_to_host(
 			Vector3(0.0, 0.10, -0.06) if vr else Vector3(0.72, -0.44, -0.95))
 	_menu_hint.show_unheld()
+
+
+# ── Welcome page ──────────────────────────────────────────────────────────────
+
+## The first-time page (WelcomePanel), once per launch, once the room is ready and
+## the loading curtain is down: in front of a player who can see it and act on it.
+## Seen once is seen for good, until WelcomePanel.VERSION moves.
+func _offer_welcome() -> void:
+	if _welcome_offered:
+		return
+	_welcome_offered = true
+	if not WelcomePanel.due():
+		print("[Welcome] not shown: version %d already seen" % AppPrefs.welcome_seen)
+		_release_held_hint()
+		return
+	# Nobody to read it, and a page's SubViewport has no business in a headless run.
+	if DisplayServer.get_name() == "headless":
+		print("[Welcome] not shown: headless")
+		_release_held_hint()
+		return
+	var overlay := get_node_or_null("/root/LoadingOverlay")
+	if overlay != null and overlay.is_active():
+		print("[Welcome] due; waiting for the loading curtain")
+		await overlay.overlay_hidden
+	_show_welcome()
+	if not is_instance_valid(_welcome):
+		_release_held_hint()
+
+
+## Stand the welcome page where the menu would open, replacing one already up.
+func _show_welcome() -> void:
+	if not is_instance_valid(_camera):
+		push_warning("[Welcome] no camera to stand the page in front of; not shown")
+		return
+	if is_instance_valid(_welcome):
+		_welcome.put_away("shown again")
+	var forward := -_camera.global_transform.basis.z
+	forward.y = 0.0
+	if forward.length_squared() < 0.001:
+		forward = Vector3.FORWARD
+	forward = forward.normalized()
+	_welcome = WelcomePanel.new()
+	_welcome.name = "WelcomePanel"
+	add_child(_welcome)
+	_welcome.dismissed.connect(_on_welcome_dismissed)
+	_welcome.show_in_front_of(_camera, forward, _menu_distance(forward),
+		_controller_art(_left_ctrl), _controller_art(_right_ctrl))
+
+
+## A hand's runtime controller model (ControllerModel's "ModelArt"), for the
+## welcome page to show; null off a headset.
+func _controller_art(ctrl: XRController3D) -> ControllerArt:
+	if not is_instance_valid(ctrl):
+		return null
+	return ctrl.get_node_or_null("ModelArt") as ControllerArt
+
+
+func _on_welcome_dismissed() -> void:
+	_welcome = null
+	_release_held_hint()
+
+
+## ABOUT's "Show the welcome page again": put the menu away and stand the page
+## where it was, whether or not it has been seen.
+func _on_welcome_requested() -> void:
+	print("[Welcome] asked for again from ABOUT")
+	_hide_menu()
+	_show_welcome()
+
+
+## Whether the startup hint should wait: the page is up, or this launch has yet
+## to decide about a page that is due.
+func _welcome_holds_hint() -> bool:
+	return is_instance_valid(_welcome) or (not _welcome_offered and WelcomePanel.due())
+
+
+## Show the startup hint the welcome page held back, if it did.
+func _release_held_hint() -> void:
+	if not _hint_waits_for_welcome:
+		return
+	_hint_waits_for_welcome = false
+	_show_menu_hint()
 
 
 ## Re-measure on every drop, not just at spawn: a console's lid can be open, a
