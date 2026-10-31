@@ -839,7 +839,7 @@ func _sync_worker(args: Dictionary) -> void:
 
 	var rows := _rows_from_lines(merged)
 
-	var written := _write_index(dir, rows)
+	var written := _write_index(dir, rows, systemid)
 	if not str(written["error"]).is_empty():
 		_finish.call_deferred(systemid, false, 0, 0, str(written["error"]))
 		return
@@ -1013,8 +1013,9 @@ static func _rows_from_lines(lines: Dictionary) -> Array:
 ## sidecar losing it in the same pass — a jsonl one line out of step with the
 ## offsets sidecar shows wrong rows rather than failing.
 ##
-## Returns {error, total, shown}; `error` is empty on success.
-static func _write_index(dir: String, rows: Array) -> Dictionary:
+## Returns {error, total, shown}; `error` is empty on success. `systemid` is the platform the index is for: whether its rows can be disc folders
+## (an arcade game's CHDs) is asked of IT, not of the folder's name, which is an alias (fba, cps2, stv...) as often as not. Empty: the folder's name is asked.
+static func _write_index(dir: String, rows: Array, systemid: String = "") -> Dictionary:
 	var tmp_jsonl := dir.path_join("index.jsonl.part")
 	var out := FileAccess.open(tmp_jsonl, FileAccess.WRITE)
 	if out == null:
@@ -1075,8 +1076,8 @@ static func _write_index(dir: String, rows: Array) -> Dictionary:
 		return {"error": "Could not replace the index (is it open?)",
 			"total": 0, "shown": 0}
 
-	return {"error": "", "total": rows.size(),
-		"shown": count_shown(fs_bases, fs_exts, ArcadeDiscs.applies(dir.get_base_dir().get_file()))}
+	var discs := ArcadeDiscs.applies(systemid if not systemid.is_empty() else dir.get_base_dir().get_file())
+	return {"error": "", "total": rows.size(), "shown": count_shown(fs_bases, fs_exts, discs)}
 
 
 ## Drop rows by RomM id, rewriting the index and its sidecars. Returns how many
@@ -1100,7 +1101,7 @@ func remove_rows(systemid: String, ids: Array) -> int:
 	if _loaded_systemid == systemid:
 		unload_index()
 
-	var written := _write_index(index_dir(systemid), _rows_from_lines(lines))
+	var written := _write_index(index_dir(systemid), _rows_from_lines(lines), systemid)
 	if not str(written["error"]).is_empty():
 		push_warning("[RommCatalog] %s" % str(written["error"]))
 		return 0

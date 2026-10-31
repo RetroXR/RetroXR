@@ -80,6 +80,7 @@ func _ready() -> void:
 	await _test_disc_folder_single_file()
 	await _test_disc_folder_not_fetched_again()
 	_test_disc_folder_on_disk()
+	_test_disc_count_under_alias()
 	await _test_state_upload_body()
 	await _test_save_upload_still_works()
 	await _test_xbox_archive_upload()
@@ -1051,6 +1052,20 @@ func _test_disc_folder_not_fetched_again() -> void:
 
 ## A disc folder already on disk is not fetched again: the server's file list is compared with what is
 ## under <folder>/ by name and size.
+## An arcade library in an ALIAS folder (fba, cps2, stv...) counts a game with a disc once: the index writer asks the platform, not the folder's name,
+## whether a row can be a disc folder. It asked the name, and every aliased arcade library's badge counted each disc folder as a game.
+func _test_disc_count_under_alias() -> void:
+	var dir := "user://romm_tests_alias/fba/.romm"
+	_rm_rf("user://romm_tests_alias")
+	DirAccess.make_dir_recursive_absolute(dir)
+	var lines := {}
+	lines[1] = JSON.stringify({"id": 1, "name": "This Game", "sort_name": "this game", "fs_name": "thisgame.zip", "regions": []})
+	lines[2] = JSON.stringify({"id": 2, "name": "thisgame", "sort_name": "thisgame", "fs_name": "thisgame", "regions": []})
+	var written := RommCatalog._write_index(dir, RommCatalog._rows_from_lines(lines), "arcade")
+	_eq(int(written["shown"]), 1, "disc/an arcade library in an alias folder counts the board, not its disc folder")
+	_rm_rf("user://romm_tests_alias")
+
+
 func _test_disc_folder_on_disk() -> void:
 	const SID := "__disc_held_selftest"
 	var records := [
