@@ -800,8 +800,10 @@ func set_external_button(lid: int, down: bool) -> void:
 	if bool(_external.get(lid, false)) == down:
 		return
 	_external[lid] = down
+	# What the core hears is the hand's press ORed with the machine's (_told): the hand's own side is passed as it is, or the machine letting go of a
+	# button the hand still holds read as a release for a frame (an extra shot, a second START).
 	if _connected_system != null and _port_index >= 0:
-		_set_button(_connected_system.get_libretro_node(), lid, false)
+		_set_button(_connected_system.get_libretro_node(), lid, hand_button(lid))
 
 
 ## Whether the HAND is holding a button down (the machine's own presses, set_external_button, left

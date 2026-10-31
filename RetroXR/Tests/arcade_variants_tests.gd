@@ -569,6 +569,10 @@ func _group_fire() -> void:
 
 ## A hand the suite works by hand: an XRController3D bound to a tracker whose inputs it sets, tracked (it has a
 ## pose, so get_is_active is true). `origin` puts it beside another hand under one XROrigin3D.
+	_external_release_keeps_hand(ControllerBindings.LIGHTGUN_TRIGGER, "the trigger")
+	_external_release_keeps_hand(ControllerBindings.LIGHTGUN_START, "START")
+
+
 func _fake_hand(side := "right", origin: XROrigin3D = null) -> Dictionary:
 	if origin == null:
 		origin = XROrigin3D.new()
@@ -589,6 +593,33 @@ func _drop_fake_hand(gun: LightGun, hand: Dictionary) -> void:
 	gun._pressed_out.clear()
 	XRServer.remove_tracker(hand["tracker"] as XRControllerTracker)
 	(hand["origin"] as Node).free()
+
+
+## The machine letting go of a button the HAND still holds: the core keeps hearing it held. set_external_button pushed the hand's side as up, so a held
+## trigger or START read as released for a frame and pressed again (an extra shot, a second START). What reaches the core is caught by a subclass's _set_button.
+const _PUSH_SPY := """
+extends "res://Scripts/Objects/peripherals/light_gun.gd"
+var pushed: Array = []
+func _set_button(_libretro: Libretro, button: int, pressed: bool) -> void:
+	pushed.append([button, _told(button, pressed)])
+"""
+
+
+func _external_release_keeps_hand(lid: int, label: String) -> void:
+	var spy := GDScript.new()
+	spy.source_code = _PUSH_SPY
+	spy.reload()
+	var gun: Variant = spy.new()
+	var host := RetroSystem.new()
+	gun._connected_system = host
+	gun._port_index = 0
+	gun._pressed_out[lid] = true
+	gun.set_external_button(lid, true)
+	gun.set_external_button(lid, false)
+	var last: Array = (gun.pushed as Array).back() if not (gun.pushed as Array).is_empty() else []
+	_ok(last == [lid, true], "fire: the machine letting go of %s while the hand holds it leaves it held for the core (%s)" % [label, str(gun.pushed)])
+	(gun as Node).free()
+	host.free()
 
 
 # --- aim -----------------------------------------------------------------------
