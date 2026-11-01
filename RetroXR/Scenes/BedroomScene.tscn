@@ -739,20 +739,6 @@ multicolour = PackedColorArray()
 wash_energy = 0.34
 wash_range = 2.6
 
-[node name="PosterLights" type="Node3D" parent="." unique_id=910426253 groups=["string_light"]]
-script = ExtResource("36_strlights")
-path = PackedVector3Array(2.505, 2.09, -1.48, 2.505, 2.09, -0.72, 2.505, 1.11, -0.72, 2.505, 1.11, -1.48)
-closed = true
-sag = 0.025
-bulbs_per_metre = 7.5
-bulb_radius = 0.016
-wire_radius = 0.0012
-bulb_color = Color(1, 0.8, 0.5, 1)
-emission_energy = 1.7
-multicolour = PackedColorArray()
-wash_energy = 0.26
-wash_range = 1.8
-
 [node name="Baseboard" type="Node3D" parent="." unique_id=1576235813]
 
 [node name="NorthBase" type="MeshInstance3D" parent="Baseboard" unique_id=1472070671]
