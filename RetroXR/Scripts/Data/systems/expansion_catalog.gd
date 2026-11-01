@@ -1079,9 +1079,11 @@ static func missing_row(id: String) -> Dictionary:
 		return {}
 	if bool(_field(id, "firmware_all")):
 		# A checklist names the file that is actually missing, never any_of.
+		# `all_missing` lists every one, so the spawn row can say "sk.bin,
+		# sk2chip.bin" at once rather than the second after the first is fixed.
 		var missing := firmware_missing(id)
 		return {"path": missing[0] if not missing.is_empty() else str(wanted[0]),
-			"desc": "%s BIOS" % label, "dest": ""}
+			"desc": "%s BIOS" % label, "dest": "", "all_missing": missing}
 	var out := {"path": str(wanted[0]), "desc": "%s BIOS" % label, "dest": ""}
 	if wanted.size() > 1:
 		out["any_of"] = wanted

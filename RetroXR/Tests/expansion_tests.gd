@@ -1561,12 +1561,16 @@ func _lockon_firmware_gate() -> void:
 	_ok(not ExpansionCatalog.firmware_present("sonic_knuckles")
 			and str(ExpansionCatalog.missing_row("sonic_knuckles").get("path", "")) == "sk.bin",
 		"lockon/ with neither file the adapter cannot start, and power-on names sk.bin")
+	_ok(str(_lockon_spawn_item().get("missing", "")) == "BIOS missing: sk.bin, sk2chip.bin",
+		"lockon/ and the Genesis card's row names BOTH missing files")
 	_lockon_scratch(dests[0])
 	_refresh_gpgx_firmware()
 	_ok(not ExpansionCatalog.firmware_present("sonic_knuckles")
 			and str(ExpansionCatalog.missing_row("sonic_knuckles").get("path", "")) == "sk2chip.bin"
 			and not ExpansionCatalog.missing_row("sonic_knuckles").has("any_of"),
 		"lockon/ sk.bin ALONE is not enough: power-on names sk2chip.bin")
+	_ok(str(_lockon_spawn_item().get("missing", "")) == "BIOS missing: sk2chip.bin",
+		"lockon/ and the row then names only sk2chip.bin")
 	_lockon_scratch(dests[1])
 	_refresh_gpgx_firmware()
 	_ok(ExpansionCatalog.firmware_present("sonic_knuckles")
@@ -1582,6 +1586,13 @@ func _lockon_firmware_gate() -> void:
 	for i in dests.size():
 		restored = restored and FileAccess.file_exists(dests[i]) == moved[i]
 	_ok(restored, "lockon/ and the player's files are back exactly as they were")
+
+
+func _lockon_spawn_item() -> Dictionary:
+	for item: Dictionary in SpawnCatalog.items_for("genesis"):
+		if str(item.get("spawn", "")) == "expansion:sonic_knuckles":
+			return item
+	return {}
 
 
 func _lockon_scratch(path: String) -> void:

@@ -843,7 +843,7 @@ static func _unit_item(id: String) -> Dictionary:
 		if miss.has("where"):
 			item["missing"] = "Not in your library: %s" % str(miss["path"])
 		else:
-			var files: Array = miss.get("any_of", [miss["path"]])
+			var files: Array = miss.get("any_of", miss.get("all_missing", [miss["path"]]))
 			item["missing"] = "BIOS missing: %s" % ", ".join(files)
 	return item
 
