@@ -68,9 +68,16 @@ func build_phones() -> void:
 	var port := scene.instantiate() as TrsPort
 	port.name = "PhonesOut"
 	port.direction = RcaPort.Direction.OUT
+	# A detailed shell moulds its own PHONES mouth; the socket's collar drawn over it
+	# is a second jack on top of the first. A stand-in has none, so there the collar
+	# IS the jack. A seat can say otherwise with `drawn`.
+	var drawn := bool(seat.get("drawn", model.has_baked_shell()))
+	port.show_jack = not drawn
 	_host.add_child(port)
 	place_phones(port, seat)
 	phones = port
+	print("[RetroSystem] %s: headphone jack built, %s" % [_host.systemid,
+		"the shell draws its mouth" if drawn else "socket drawn"])
 
 
 ## The accessory socket a headphone adapter plugs into, on hardware whose sound

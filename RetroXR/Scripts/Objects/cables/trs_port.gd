@@ -11,10 +11,12 @@
 ## crossed-channel case to model either — unlike a pair of phono cords, a stereo
 ## plug cannot be put in half way round.
 ##
-## The jack visual is a child named TrsJack, so RcaPort's own _tint_jack and
-## show_jack — both of which look for a child named RcaJack — find nothing and no-op.
-## That is deliberate: the green collar is baked into the mesh, and PC99's colour
-## code is a property of the socket's function, not something a scene picks.
+## The jack visual is a child named TrsJack, so RcaPort's _tint_jack, which looks for
+## a child named RcaJack, finds nothing and no-ops. That is deliberate: the green
+## collar is baked into the mesh, and PC99's colour code is a property of the
+## socket's function, not something a scene picks. show_jack DOES reach it
+## (_jack_node): a detailed handheld shell moulds its own PHONES mouth, and the
+## collar drawn over that read as a second socket (SystemAvPorts.build_phones).
 class_name TrsPort
 extends RcaPort
 
@@ -31,3 +33,8 @@ func _own_connector() -> String:
 func _ready() -> void:
 	super._ready()
 	channel = RcaPort.Channel.AUDIO_STEREO
+
+
+## The mouth show_jack shows or hides.
+func _jack_node() -> Node3D:
+	return get_node_or_null("TrsJack") as Node3D

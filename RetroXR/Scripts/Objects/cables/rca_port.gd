@@ -60,7 +60,7 @@ enum Direction { OUT, IN }
 @export var show_jack: bool = true:
 	set(value):
 		show_jack = value
-		var jack := get_node_or_null("RcaJack") as Node3D
+		var jack := _jack_node()
 		if jack != null:
 			jack.visible = show_jack
 
@@ -113,9 +113,15 @@ func _ready() -> void:
 	super._ready()
 	add_to_group(GROUP)
 	_tint_jack()
-	var jack := get_node_or_null("RcaJack") as Node3D
+	var jack := _jack_node()
 	if jack != null:
 		jack.visible = show_jack
+
+
+## The mouth show_jack shows or hides. A subclass whose jack mesh has another name
+## (TrsPort's TrsJack) answers its own.
+func _jack_node() -> Node3D:
+	return get_node_or_null("RcaJack") as Node3D
 
 
 func _tint_jack() -> void:
