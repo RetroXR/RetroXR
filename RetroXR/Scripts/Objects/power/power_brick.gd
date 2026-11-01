@@ -66,6 +66,7 @@ func _ready() -> void:
 	_spec = PowerBrickCatalog.variant(brick_id, variant)
 	form = str(_spec.get("form", "wall_wart"))
 	_build()
+	_colour_cords()
 	for plug: PowerPlug in [wall_plug, dc_plug]:
 		if plug != null:
 			plug.cable = self
@@ -73,6 +74,19 @@ func _ready() -> void:
 		dc_plug.connector if dc_plug != null else "-",
 		", prongs %s" % wall_plug.connector if wall_plug != null else ""])
 	_build_ropes.call_deferred()
+
+
+## Both leads in the real part's colour (the row's `cord`, the model's own `*_Cord`
+## stub), before the ropes are first laid. A row without one keeps the scene's black.
+func _colour_cords() -> void:
+	var colour: Variant = _spec.get("cord", null)
+	if not colour is Color:
+		return
+	if _dc_rope != null:
+		_dc_rope.rope_color = colour
+	if _ac_rope != null:
+		_ac_rope.rope_color = colour
+		_ac_rope.ribbon_colors = PackedColorArray([colour, colour])
 
 
 # ── building it ──────────────────────────────────────────────────────────────

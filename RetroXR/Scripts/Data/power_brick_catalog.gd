@@ -16,6 +16,9 @@
 ##              goes into whatever takes that barrel. A variant may override it.
 ##   plug_mm    the DC plug's size, x y z in mm (the item's `plug` model, size_mm).
 ##   source     the RetroXR-models item, for the model swap (`model` once imported).
+##   cord       the colour of its leads, both of them: the item's own `*_Cord` material
+##              (params.py), so the rope runs on from the stub the model draws. Most are
+##              black; the Wii's and the 3DS's light gray, the PSone's its blue-gray body.
 ##   plug_model a GLB scene for the DC plug (a mod's, override_brick), its origin the
 ##              face that stops against the jack, the barrel along +Z, a `CordExit` node
 ##              where the lead leaves. A variant may name its own.
@@ -105,15 +108,15 @@ static func _shipped() -> Dictionary:
 	var mgb := _wart([44.0, 71.5, 57.12], [0.0, -42.0, -20.0])
 	var psone := _wart([50.0, 94.5, 43.5], [0.0, -55.5, -13.5])
 	_rows_cache = {
-		"nes_ac_adapter": {"label": "NES AC Adapter (NES-002)", "fits": ["nes"],
+		"nes_ac_adapter": {"label": "NES AC Adapter (NES-002)", "cord": Color8(24, 24, 26), "fits": ["nes"],
 			"dc_plug": "barrel_5_5x2_1", "plug_mm": [9.6, 9.6, 38.0], "source": "nintendo/nes/psu",
 			"variants": {"usa": _wart([57.0, 100.5, 81.3], [0.0, -57.0, -32.0]),
 				"eur": nes_pal, "ukv": nes_pal, "aus": nes_pal}},
 		# The Famicom's and the Super Famicom's: one adapter, 5.5 x 2.1.
-		"hvc_ac_adapter": {"label": "Famicom AC Adapter (HVC-002)", "fits": ["famicom", "sfc", "virtualboy"],
+		"hvc_ac_adapter": {"label": "Famicom AC Adapter (HVC-002)", "cord": Color8(24, 24, 26), "fits": ["famicom", "sfc", "virtualboy"],
 			"dc_plug": "barrel_5_5x2_1", "plug_mm": [9.6, 9.6, 38.0], "source": "nintendo/snes/psu",
 			"variants": {"jpn": _wart([57.0, 96.5, 81.6], [0.0, -55.0, -32.0])}},
-		"snes_ac_adapter": {"label": "Super NES AC Adapter (SNS-002)", "fits": ["snes", "virtualboy"],
+		"snes_ac_adapter": {"label": "Super NES AC Adapter (SNS-002)", "cord": Color8(24, 24, 26), "fits": ["snes", "virtualboy"],
 			"dc_plug": "snes_dc_plug", "plug_mm": [10.4, 10.4, 39.0], "source": "nintendo/snes/psu",
 			"variants": {"usa": _wart([57.0, 96.5, 81.3], [0.0, -55.0, -32.0])}},
 		# NUS-002: the whole module docks into the console's back; its mains cord is fixed.
@@ -124,49 +127,49 @@ static func _shipped() -> Dictionary:
 				"jpn": {"form": "dock", "size_mm": [113.64, 42.65, 73.41], "ac": [0.0, 21.0, -36.7]},
 				"eur": {"form": "dock", "size_mm": [113.64, 42.65, 73.41], "ac": [0.0, 21.0, -36.7]},
 				"ukv": {"form": "dock", "size_mm": [113.64, 42.65, 73.41], "ac": [0.0, 21.0, -36.7]}}},
-		"gamecube_ac_adapter": {"label": "GameCube AC Adapter (DOL-002)", "fits": ["gc"],
+		"gamecube_ac_adapter": {"label": "GameCube AC Adapter (DOL-002)", "cord": Color8(24, 24, 26), "fits": ["gc"],
 			"dc_plug": "gc_dc_plug", "plug_mm": [17.8, 14.0, 56.5], "source": "nintendo/gamecube/psu",
 			"variants": {"usa": gc, "jpn": gc, "eur": gc, "ukv": gc, "aus": gc}},
-		"wii_ac_adapter": {"label": "Wii AC Adapter (RVL-002)", "fits": ["wii"],
+		"wii_ac_adapter": {"label": "Wii AC Adapter (RVL-002)", "cord": Color8(200, 200, 198), "fits": ["wii"],
 			"dc_plug": "wii_dc_plug", "plug_mm": [13.1, 17.5, 53.0], "source": "nintendo/wii/psu",
 			"variants": {"usa": wii, "jpn": wii, "eur": wii, "ukv": wii, "aus": wii, "kor": wii}},
 		# Sega's MK-2103: the Genesis Model 2's, the 32X's, the Nomad's and the US Game Gear's.
-		"sega_mk2103_adapter": {"label": "Sega AC Adapter (MK-2103)", "fits": ["genesis", "sega32x"],
+		"sega_mk2103_adapter": {"label": "Sega AC Adapter (MK-2103)", "cord": Color8(26, 26, 28), "fits": ["genesis", "sega32x"],
 			"dc_plug": "eiaj_03", "plug_mm": [9.8, 9.8, 44.0], "source": "sega/32x/psu",
 			"variants": {"usa": mk2103_us, "jpn": mk2103_us, "eur": mk2103_eu, "ukv": mk2103_eu,
 				"aus": mk2103_eu}},
-		"jaguar_ac_adapter": {"label": "Jaguar AC Adapter (PP-912)", "fits": ["atarijaguar"],
+		"jaguar_ac_adapter": {"label": "Jaguar AC Adapter (PP-912)", "cord": Color8(24, 24, 26), "fits": ["atarijaguar"],
 			"dc_plug": "barrel_5_5x2_1", "plug_mm": [9.7, 9.7, 40.0], "source": "atari/jaguar/psu",
 			"variants": {"usa": _wart([60.0, 81.5, 72.7], [-8.0, -46.5, -28.0])}},
-		"psone_ac_adapter": {"label": "PSone AC Adapter (SCPH-113)", "fits": ["psone", "psx"],
+		"psone_ac_adapter": {"label": "PSone AC Adapter (SCPH-113)", "cord": Color8(98, 102, 112), "fits": ["psone", "psx"],
 			"dc_plug": "eiaj_03", "plug_mm": [9.5, 25.5, 22.5], "source": "sony/ps1/psu-psone",
 			"variants": {"usa": psone, "jpn": psone, "eur": psone, "ukv": psone}},
 		# The slim PS2's brick has a C8 inlet: a figure-eight cord feeds it.
-		"ps2_slim_ac_adapter": {"label": "PS2 Slim AC Adapter (SCPH-70100)", "fits": ["ps2_slim", "ps2"],
+		"ps2_slim_ac_adapter": {"label": "PS2 Slim AC Adapter (SCPH-70100)", "cord": Color8(24, 24, 26), "fits": ["ps2_slim", "ps2"],
 			"dc_plug": "eiaj_03", "plug_mm": [10.6, 10.6, 45.0], "source": "sony/ps2/psu-slim",
 			"variants": {"usa": _inlet([60.0, 28.8, 145.5], [0.0, 12.0, 83.5], [0.0, 12.0, -60.8])}},
 		# ── the handhelds' ─────────────────────────────────────────────────────
 		# DMG-03: a rechargeable pack on a cord into the Game Boy's DC IN.
-		"dmg_battery_pack": {"label": "Game Boy Battery Pack (DMG-03)", "fits": ["gb"],
+		"dmg_battery_pack": {"label": "Game Boy Battery Pack (DMG-03)", "cord": Color8(24, 24, 26), "fits": ["gb"],
 			"dc_plug": "dmg_dc_plug", "plug_mm": [7.6, 21.1, 20.0], "source": "nintendo/gb/psu",
 			"variants": {"usa": {"form": "battery_pack", "size_mm": [60.0, 33.04, 118.5],
 				"dc": [0.0, 15.0, 66.0]}}},
-		"gbc_ac_adapter": {"label": "Game Boy Color AC Adapter (MGB-005)", "fits": ["gbc"],
+		"gbc_ac_adapter": {"label": "Game Boy Color AC Adapter (MGB-005)", "cord": Color8(24, 24, 26), "fits": ["gbc"],
 			"dc_plug": "gbc_dc_plug", "plug_mm": [6.8, 6.8, 33.0], "source": "nintendo/gbc/psu",
 			"variants": {"usa": mgb, "jpn": mgb, "eur": mgb, "aus": mgb}},
-		"ags_ac_adapter": {"label": "GBA SP / DS AC Adapter (AGS-002)", "fits": ["nds"],
+		"ags_ac_adapter": {"label": "GBA SP / DS AC Adapter (AGS-002)", "cord": Color8(24, 24, 26), "fits": ["nds"],
 			"dc_plug": "ext2_plug", "plug_mm": [15.8, 10.0, 37.0], "source": "nintendo/gba/psu-sp",
 			"variants": {"usa": _wart([53.0, 75.3, 41.9], [0.0, -43.4, -11.8])}},
-		"wap_ac_adapter": {"label": "3DS AC Adapter (WAP-002)", "fits": ["n3ds", "nds"],
+		"wap_ac_adapter": {"label": "3DS AC Adapter (WAP-002)", "cord": Color8(206, 206, 204), "fits": ["n3ds", "nds"],
 			"dc_plug": "dsi_dc_plug", "plug_mm": [10.6, 8.6, 35.5], "source": "nintendo/3ds/psu",
 			"variants": {"usa": wap, "jpn": wap, "eur": wap, "ukv": wap, "aus": wap}},
-		"psp_ac_adapter": {"label": "PSP AC Adapter (PSP-380)", "fits": ["psp"],
+		"psp_ac_adapter": {"label": "PSP AC Adapter (PSP-380)", "cord": Color8(24, 24, 26), "fits": ["psp"],
 			"dc_plug": "psp_dc_plug", "plug_mm": [8.0, 23.5, 21.5], "source": "sony/psp/psu",
 			"variants": {"usa": _inlet([46.0, 22.12, 74.5], [0.0, 8.0, 44.0], [0.0, 11.0, -29.7])}},
-		"gamegear_ac_adapter": {"label": "Game Gear AC Adapter", "fits": ["gamegear"],
+		"gamegear_ac_adapter": {"label": "Game Gear AC Adapter", "cord": Color8(26, 26, 28), "fits": ["gamegear"],
 			"dc_plug": "gg_dc_plug", "plug_mm": [10.0, 10.0, 42.0], "source": "sega/game-gear/psu",
 			"variants": {"jpn": mk2103_eu, "eur": mk2103_eu, "ukv": mk2103_eu, "asia": mk2103_eu}},
-		"lynx_ac_adapter": {"label": "Lynx AC Adapter (PAG-1200)", "fits": ["atarilynx"],
+		"lynx_ac_adapter": {"label": "Lynx AC Adapter (PAG-1200)", "cord": Color8(24, 24, 26), "fits": ["atarilynx"],
 			"dc_plug": "dmg_dc_plug", "plug_mm": [7.9, 7.9, 33.5], "source": "atari/lynx/psu",
 			"variants": {"usa": _wart([57.0, 78.5, 66.8], [-6.0, -44.5, -25.0])}},
 	}
@@ -285,6 +288,8 @@ static func variant(id: String, name: String) -> Dictionary:
 	out["plug_mm"] = r.get("plug_mm", [9.0, 9.0, 35.0])
 	if not out.has("plug_model") and r.has("plug_model"):
 		out["plug_model"] = r["plug_model"]
+	if not out.has("cord") and r.has("cord"):
+		out["cord"] = r["cord"]
 	return out
 
 
