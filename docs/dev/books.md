@@ -453,7 +453,10 @@ only freedoms are angles about the gutter:
 
 Checks: `book_flop_tests` `contact/` (the pure sim against flat surfaces, each with a control that
 goes through), `finger/` and `room/` (the real book over a real `StaticBody3D`, a layer-17 slab
-between them that the rays must not see, and at the table's edge). Mutation-tested 2026-10-30,
+between them that the rays must not see, and at the table's edge) and `turn/` (pages turned by
+hand, let go high and low, and by key, both ways, with the sim stepped against a table every
+frame, hanging onto it and resting on it: every turn finishes, lands ON the far page, and the
+halves never go through the table; 2026-11-02). Mutation-tested 2026-10-30,
 each mutation turning its own case red: contact off; clearance not measured from the binding; no
 rest support; finger side forgotten; approach speed kept; contact turning a held hinge; rays
 seeing held things; leaves not pushed; a crossed surface reaching 4 cm; no look before casting;

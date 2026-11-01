@@ -51,6 +51,7 @@ func _ready() -> void:
 	await _test_fan_lid()
 	await _test_thick_book()
 	await _test_book_meets_room()
+	await _test_turn_on_table()
 
 	_finish()
 
@@ -2133,6 +2134,89 @@ func _test_book_meets_room() -> void:
 		"room/a book nobody holds is given nothing to meet")
 
 	table.queue_free()
+	var cache_dir: String = book._cache_dir
+	book.queue_free()
+	await _settle()
+	_remove_tree(cache_dir)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(CBZ_PATH))
+
+
+## Pages turned while the halves meet a table, the sim stepped every frame with
+## the table in it as the held tick steps it: hanging onto it from the spine, and
+## resting flat on it. The page-turn oracles hold as on a book in the air — the
+## page lands ON the far page, never under it — the halves never go through the
+## table, nothing turns non-finite, the loose leaves stay in order, and every turn
+## finishes.
+func _test_turn_on_table() -> void:
+	_write_cbz(CBZ_PATH)
+	var book := BOOK_SCENE.instantiate() as PDFBook
+	book.freeze = true
+	book.pdf_path = ProjectSettings.globalize_path(CBZ_PATH)
+	add_child(book)
+	await _settle()
+	await _drain_renders(book)
+	for setting: Array in [["hanging onto it", -0.04], ["resting on it", 0.0]]:
+		var label: String = setting[0]
+		book._despawn_active_leaf()
+		book.set_page(PDFBook.BookState.OPEN, 4)
+		await _settle()
+		var table := Vector3(0.0, 0.0, float(setting[1]) if float(setting[1]) < 0.0 else book._flop._faces[1].x)
+		book._flop.reset()
+		_surface(book._flop, UP, table)
+		for t in 300:
+			book._flop.step(DT, FACE_UP, FACE_UP)
+		book._push_flop(true)
+		var turns := [["by hand, let go high (falls over)", 1, 0.08], ["by hand, let go low (rolls)", 1, 0.02],
+			["by hand, backward", -1, 0.05], ["by key, forward", 1, -1.0], ["by key, backward", -1, -1.0]]
+		for turn: Array in turns:
+			var dir: int = turn[1]
+			var height: float = turn[2]
+			var before: int = book._current_leaf
+			var w := book._book_width
+			if height > 0.0:
+				var plane := book._page_plane_z(dir)
+				book._on_page_grab_begin(dir, _hand_at(book, Vector3(dir * w * 0.85, -0.02, plane + 0.004)))
+				for i in 20:
+					_surface(book._flop, UP, table)
+					book._flop.step(DT, FACE_UP, FACE_UP)
+					book._push_flop(false)
+					book._update_fold_from_hand(_hand_at(book,
+						Vector3(dir * w * lerpf(0.85, -0.5, float(i) / 19.0), -0.02, plane + height)))
+				book._on_page_grab_end(dir)
+			else:
+				book._play_turn(dir, {}, PDFBook.KEY_TURN_TIME)
+			var deepest := -INF
+			var through := -INF
+			var finite := true
+			var ordered := true
+			var last := {}
+			for i in 2000:
+				book._flop.step(DT, FACE_UP, FACE_UP)
+				book._push_flop(false)
+				await get_tree().process_frame
+				for side: int in [-1, 1]:
+					var p := book._flop.params(side)
+					finite = finite and p.is_finite()
+					through = maxf(through, _through(book._flop, side, UP, table))
+					for k in book._flop.fan_count(side) - 1:
+						ordered = ordered and book._flop.fan_delta(side, k) >= book._flop.fan_delta(side, k + 1)
+				if book._active_leaf == null:
+					break
+				if height > 0.0:
+					last = _against_far(book)
+					deepest = maxf(deepest, float(last["deepest"]))
+			var turned: bool = book._current_leaf == before + dir
+			_ok(turned and finite and ordered and through < 0.0015,
+				"turn/%s: %s, it turns (%d -> %d), the halves never go through the table (worst %+.1f mm), finite, leaves in order"
+					% [label, turn[0], before, book._current_leaf, through * 1000.0])
+			if height > 0.0:
+				var landed: bool = not last.is_empty() and float(last["over"]) > 0.5 and float(last["highest"]) < 0.002
+				_ok(deepest < 0.001 and landed,
+					"turn/%s: %s, it lands ON the far page, never under it (deepest %+.1f mm, %.0f%% over, highest %+.1f mm)"
+						% [label, turn[0], deepest * 1000.0, float(last.get("over", 0.0)) * 100.0,
+						float(last.get("highest", 0.0)) * 1000.0])
+			await _settle()
+	book._flop.patches.clear()
 	var cache_dir: String = book._cache_dir
 	book.queue_free()
 	await _settle()
