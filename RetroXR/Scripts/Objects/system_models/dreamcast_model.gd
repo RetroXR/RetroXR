@@ -69,8 +69,9 @@ func _ready() -> void:
 		add_child(_glb)
 
 	_hide_seat_previews()
+	_mark_ac_inlet()
 
-	_lid = _glb.find_child("Lid", true, false) as Node3D
+	_lid =_glb.find_child("Lid", true, false) as Node3D
 	if _lid != null:
 		_setup_lid()
 
@@ -78,6 +79,25 @@ func _ready() -> void:
 	if _power_light_mesh != null:
 		prep_power_light(LED_COLOR, LED_COLOR, LED_ENERGY, 1.0)
 		set_power_light(false)
+
+
+## The shell draws its AC IN (a polarized figure-eight, top right of the back as you
+## stand behind it, above SERIAL) but the export marks no empty there, so the power
+## socket went to SystemPower's generic spot, low on the other side. This is the
+## mouth SystemPower.MODEL_INLETS looks for: the middle between the two pins, in
+## the plane of the back (AvOut's z), measured off an orthographic render of the
+## shell's back (pins at x -61.3 / -69.0 mm, y 32.7). Move it into
+## prepare_dreamcast.py as an exported empty when the asset is next re-exported.
+const _AC_IN_MOUTH := Vector3(-0.0651, 0.0327, -0.0976)
+
+
+func _mark_ac_inlet() -> void:
+	if _glb == null or _glb.find_child("ACIn", true, false) != null:
+		return
+	var mouth := Node3D.new()
+	mouth.name = "ACIn"
+	mouth.position = _AC_IN_MOUTH
+	_glb.add_child(mouth)
 
 
 func _mesh(part_name: String) -> MeshInstance3D:

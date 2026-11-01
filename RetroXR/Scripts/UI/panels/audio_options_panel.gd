@@ -51,6 +51,7 @@ func _populate() -> void:
 		return
 	ui.populate(_player.player_label, _player.get_ignore_gravity())
 	ui.populate_debug(_player.debug_state())
+	PowerMenuRows.ensure_in(ui, _player.power_input())
 
 
 func _on_ignore_gravity_toggled(enabled: bool) -> void:

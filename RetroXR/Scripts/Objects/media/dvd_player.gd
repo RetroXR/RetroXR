@@ -165,6 +165,8 @@ func _setup_box_buttons() -> void:
 
 
 func _on_box_button(id: String) -> void:
+	if not _mains_gate(id.to_upper()):
+		return
 	if not _box_button_enabled(id, is_in_menu()):
 		return
 	match id:
@@ -372,6 +374,11 @@ func is_tray_open() -> bool:
 # --- The display ---
 
 ## What the display shows now, and redraw it if that changed.
+func _on_mains_redraw() -> void:
+	_vfd_key = ""
+	_update_vfd()
+
+
 func _update_vfd() -> void:
 	if _vfd == null:
 		return
@@ -407,6 +414,8 @@ func _update_vfd() -> void:
 ## TITLE nn CHP nn H:MM:SS in seven segments after a play or pause symbol, or one word for the tray and the disc
 ## (OPEN, CLOSE, NO DISC, LOADING, STOP, MENU), in Michroma. 10 px a millimeter of panel.
 func _paint_vfd(c: Control, size: Vector2) -> void:
+	if not mains_live():
+		return
 	if _vfd_state.is_empty():
 		return
 	var word: String = _vfd_state["word"]
@@ -501,6 +510,8 @@ func _pump_audio() -> void:
 ## Toggle the disc menu-control routing is done via the remote; the front Menu
 ## button just returns to the disc's root menu.
 func _on_menu_pressed() -> void:
+	if not _mains_gate("MENU"):
+		return
 	dvd_root_menu()
 
 
@@ -527,6 +538,8 @@ func _on_media_removed() -> void:
 
 
 func _on_eject_pressed() -> void:
+	if not _mains_gate("EJECT"):
+		return
 	_log_event("pressed OPEN/CLOSE")
 	_on_tray_key()
 
@@ -548,6 +561,8 @@ func _log_tag() -> String:
 
 
 func _on_play_pressed() -> void:
+	if not _mains_gate("PLAY"):
+		return
 	_log_event("pressed PLAY")
 	if _net_forward_cmd("play"):
 		return
@@ -563,6 +578,8 @@ func _on_play_pressed() -> void:
 
 
 func _on_pause_pressed() -> void:
+	if not _mains_gate("PAUSE"):
+		return
 	_log_event("pressed PAUSE")
 	if _net_forward_cmd("pause"):
 		return
@@ -577,6 +594,8 @@ func _on_pause_pressed() -> void:
 ## Fast-forward button: toggle forward scan (press again, or Play/Pause, to exit).
 ## No-op while showing a disc menu (there's nothing to scan through there).
 func _on_ff_pressed() -> void:
+	if not _mains_gate("FF"):
+		return
 	_log_event("pressed FF")
 	if _net_forward_cmd("ff"):
 		return
@@ -592,6 +611,8 @@ func _on_ff_pressed() -> void:
 
 ## Rewind button: toggle reverse scan (press again, or Play/Pause, to exit).
 func _on_rewind_pressed() -> void:
+	if not _mains_gate("REW"):
+		return
 	_log_event("pressed REW")
 	if _net_forward_cmd("rew"):
 		return
@@ -653,6 +674,8 @@ func _end_scan_hold() -> void:
 
 
 func _on_stop_pressed() -> void:
+	if not _mains_gate("STOP"):
+		return
 	_log_event("pressed STOP")
 	if _net_forward_cmd("stop"):
 		return
@@ -660,6 +683,8 @@ func _on_stop_pressed() -> void:
 
 
 func play() -> void:
+	if not _mains_gate("play"):
+		return
 	if _vlc == null:
 		push_error("[DVDPlayer] VlcPlayer unavailable (extension not loaded)")
 		return
@@ -759,6 +784,8 @@ func dvd_root_menu() -> void:
 
 
 func dvd_next_chapter() -> void:
+	if not _mains_gate("NEXT"):
+		return
 	_log_event("pressed NEXT CHAPTER")
 	if _net_forward_cmd("next_ch"): return
 	if _vlc:
@@ -768,6 +795,8 @@ func dvd_next_chapter() -> void:
 
 
 func dvd_prev_chapter() -> void:
+	if not _mains_gate("PREV"):
+		return
 	_log_event("pressed PREV CHAPTER")
 	if _net_forward_cmd("prev_ch"): return
 	if _vlc:

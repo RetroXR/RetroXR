@@ -172,6 +172,15 @@ void VlcPlayer::Shutdown(int budget_ms)
     }
 }
 
+// One libvlc_new at a time in the whole process. Two players warming up together
+// (a combination set's built-in VCR and DVD, built in the same frame) each held
+// only their own m_instance_mutex, so their WarmUp threads ran libvlc_new at once:
+// libVLC's first-time init (libvlc_InternalInit) read uninitialised heap
+// (0xbaadf00d) and killed the process with 0xC0000005, traced under cdb
+// 2026-11-01. The plugin path is a process environment variable that libvlc_new
+// reads, so it is set under the same lock.
+static std::mutex s_libvlc_new_mutex;
+
 void VlcPlayer::EnsureInstance()
 {
     // Held for the whole of libvlc_new: WarmUp() and Open() both come through
@@ -180,6 +189,7 @@ void VlcPlayer::EnsureInstance()
     std::lock_guard<std::mutex> lock(m_instance_mutex);
     if (m_vlc)
         return;
+    std::lock_guard<std::mutex> process_lock(s_libvlc_new_mutex);
 #ifdef __ANDROID__
     if (!ensure_android_jvm())
     {

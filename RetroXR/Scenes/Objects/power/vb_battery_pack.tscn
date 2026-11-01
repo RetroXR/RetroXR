@@ -1,0 +1,46 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/power/vb_power_unit.gd" id="1_unit"]
+[ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="Script" uid="uid://b8uwrf51jd5xm" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="3_grabpoint"]
+
+; The Virtual Boy's battery pack (VUE-007): six AA cells behind an end lid, clipped
+; onto the controller's back (VbPowerUnit builds its walls, seats and lid). The shapes
+; are sized in code from VbPowerUnit.SIZE.
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_unit"]
+friction = 0.8
+
+[sub_resource type="BoxShape3D" id="Shape_body"]
+size = Vector3(0.0564, 0.0342, 0.064)
+
+[sub_resource type="BoxShape3D" id="Shape_pointer"]
+size = Vector3(0.0684, 0.0462, 0.076)
+
+[node name="VbBatteryPack" type="RigidBody3D" groups=["hand_held_device"]]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.06
+physics_material_override = SubResource("PhysMat_unit")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_unit")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("Shape_body")
+
+; IDENTITY: the controller's PackMount stands where the unit's middle belongs.
+[node name="GrabPoint" type="Marker3D" parent="."]
+visible = false
+script = ExtResource("3_grabpoint")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+shape = SubResource("Shape_pointer")

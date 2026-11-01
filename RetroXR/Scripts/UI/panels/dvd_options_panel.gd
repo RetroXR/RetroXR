@@ -59,6 +59,7 @@ func _populate() -> void:
 		return
 	ui.populate(_dvd.get_audio_tracks(), _dvd.get_audio_track(),
 		_dvd.get_subtitle_tracks(), _dvd.get_subtitle(), _dvd.get_ignore_gravity())
+	PowerMenuRows.ensure_in(ui, _dvd.power_input())
 
 
 func _on_ignore_gravity_toggled(enabled: bool) -> void:

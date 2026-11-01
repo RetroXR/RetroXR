@@ -772,6 +772,10 @@ func _populate_systems_detail(systemid: String, vbox: VBoxContainer) -> void:
 				card_hold.held.connect(
 					_show_model_spawn_options.bind(systemid, item, "%s_memory_card" % family))
 				_mark_holdable(btn, _default_key(systemid, token), card_colors)
+		elif item.has("power_row"):
+			# An AC adapter or a power cord: one model per outlet region, as on the
+			# Power tab (PowerSpawnRows).
+			_wire_power_row(btn, item["power_row"] as Dictionary)
 		elif not (item.get("variants", []) as Array).is_empty():
 			# A console that comes in several colors. Pressed, it spawns as its
 			# row has it; held for a second, it asks which, as a ROM's row asks
@@ -2781,18 +2785,25 @@ func _add_spawn_tab(tabs: TabContainer, tab_title: String, items: Array) -> VBox
 	vbox.add_theme_constant_override("separation", 14)
 	scroll.add_child(vbox)
 	vbox.add_child(MenuStyle.spacer(10))
-	for item: Array in items:
-		vbox.add_child(_spawn_tab_button(item))
+	for item: Variant in items:
+		vbox.add_child(_spawn_item_button(item))
 	return vbox
 
 
-## Every mains lead the game ships, the player's region's first: the ones whose
-## wall plug fits the room's outlets, then the rest, which still spawn -- an
-## import's cord is a real thing to own -- but go into nothing on this wall.
+## A spawn tab's row: an [label, token(, variants)] row, or a PowerSpawnRows row (a
+## cord or an adapter in one model per outlet region).
+func _spawn_item_button(item: Variant) -> Button:
+	if item is Dictionary:
+		return _power_row_button(item as Dictionary)
+	return _spawn_tab_button(item as Array)
+
+
+## The Power tab: a row per kind of power cord and per AC adapter, each spawning the
+## model for the Options outlet region (held: another region's, PowerSpawnRows), the
+## strip and the travel adapter sold where the room is, and the cells.
 func _power_items() -> Array:
-	var all := []
-	for token: String in MainsRegions.CORDS:
-		all.append([str((MainsRegions.CORDS[token] as Dictionary)["label"]), token])
+	var all: Array = []
+	all.append_array(PowerSpawnRows.cord_rows())
 	# More sockets on a 3 ft cord, the strip sold where the room is --
 	# including, if you like, for its own plug.
 	all.append(["%d-Outlet Power Strip" % MainsRegions.strip_outlets(AppPrefs.mains_region),
@@ -2800,17 +2811,127 @@ func _power_items() -> Array:
 	# And any wall plug into this room's wall: the region's prongs, a universal
 	# socket.
 	all.append(["Universal Travel Adapter", "travel_adapter"])
-	var own: Array = MainsRegions.of(AppPrefs.mains_region).get("cords", []) \
-		+ ["travel_adapter"]
-	var first := []
-	var rest := []
-	for item: Array in all:
-		(first if own.has(item[1]) else rest).append(item)
+	all.append_array(PowerSpawnRows.brick_rows())
+	# The Virtual Boy's: on its controller's back, not the console (VbPowerUnit).
+	all.append(["Virtual Boy Battery Pack (VUE-007)", "vb_battery_pack"])
+	all.append(["Virtual Boy AC Adapter Tap (VUE-011)", "vb_ac_tap"])
 	# And the cells a handheld, a printer, a Wii Remote or a Rumble Pak runs on,
 	# whatever the region: they go in a battery bay (CellSlots). Each comes in
 	# BatteryCell's labels, picked by holding its row.
-	return first + rest + [["AA Battery", "battery_aa", BatteryCell.VARIANTS],
+	return all + [["AA Battery", "battery_aa", BatteryCell.VARIANTS],
 		["AAA Battery", "battery_aaa", BatteryCell.VARIANTS]]
+
+
+## What a press of a region row spawns: the row's MAKE DEFAULT pick while it lists
+## it, else the model for the Options outlet region.
+func _power_row_default(row: Dictionary) -> Dictionary:
+	var key := _default_key(POWER_CARD, str(row.get("key", "")))
+	return PowerSpawnRows.default_of(row, AppPrefs.spawn_default(key), AppPrefs.mains_region)
+
+
+## A region row: pressed, the default model; held a second, the region picker. At its
+## right end, the outlet glyph of the region whose model a press gives -- the glyph
+## the Outlet Region dropdown leads that region with.
+func _power_row_button(row: Dictionary) -> Button:
+	var btn := Button.new()
+	btn.text = "  +  " + str(row.get("label", ""))
+	btn.custom_minimum_size = Vector2(0, 80)
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	btn.add_theme_font_size_override("font_size", 26)
+	_wire_power_row(btn, row)
+	return btn
+
+
+func _wire_power_row(btn: Button, row: Dictionary) -> void:
+	var hold := HoldPress.attach(btn)
+	hold.clicked.connect(func() -> void:
+		var chosen := _power_row_default(row)
+		if not chosen.is_empty():
+			print("[Spawn] %s: %s" % [row.get("label", ""), chosen.get("label", "")])
+			spawn_requested.emit(str(chosen["token"])))
+	hold.held.connect(_show_region_spawn_options.bind(row))
+	_mark_region_row(btn, row)
+
+
+## The region glyph at the row's right end, and what it says.
+func _mark_region_row(btn: Button, row: Dictionary) -> void:
+	var chosen := _power_row_default(row)
+	if chosen.is_empty():
+		return
+	var mark := btn.get_node_or_null("RegionMark") as Label
+	if mark == null:
+		mark = Label.new()
+		mark.name = "RegionMark"
+		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mark.add_theme_font_override("font", MenuIcons.symbols())
+		mark.add_theme_font_size_override("font_size", 34)
+		mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		mark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		mark.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+		mark.offset_left = -120
+		mark.offset_right = -18
+		btn.add_child(mark)
+	# The flag of where the model was sold and the outlet its plug goes in.
+	mark.text = PowerSpawnRows.mark_of(chosen)
+	btn.tooltip_text = "%s. Hold to choose another." % PowerSpawnRows.words_of(chosen)
+
+
+## Which region's model to spawn: a tile per model, each led by its region's outlet
+## glyph, MAKE DEFAULT (what a plain press gives from then on) and SPAWN. Opens on the
+## row's default.
+func _show_region_spawn_options(row: Dictionary) -> void:
+	var vbox := _open_spawn_options_panel(str(row.get("label", "")))
+	var key := _default_key(POWER_CARD, str(row.get("key", "")))
+	var chosen := {"v": _power_row_default(row)}
+	vbox.add_child(MenuStyle.header("Outlet Region"))
+	var group := ButtonGroup.new()
+	var list := MenuStyle.vbox(8)
+	list.name = "Variants"
+	vbox.add_child(list)
+	var make_default := MenuStyle.row_button("  MAKE DEFAULT", 22, 0, 64, false)
+	make_default.name = "MakeDefault"
+	var show_default := func() -> void:
+		var picked := str((chosen["v"] as Dictionary).get("id", ""))
+		var is_default: bool = picked == str(_power_row_default(row).get("id", ""))
+		make_default.disabled = is_default
+		make_default.text = "  DEFAULT FOR THIS ROW" if is_default else "  MAKE DEFAULT"
+	for v: Dictionary in row.get("variants", []):
+		var tile := Button.new()
+		var kind := MainsRegions.plug_type(str(v.get("plug", "")))
+		tile.text = "  %s    %s%s" % [PowerSpawnRows.mark_of(v), str(v["label"]),
+			"  (%s)" % kind if not kind.is_empty() else ""]
+		tile.custom_minimum_size = Vector2(0, 64)
+		tile.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tile.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		tile.add_theme_font_override("font", MenuIcons.symbols())
+		tile.add_theme_font_size_override("font_size", 22)
+		tile.toggle_mode = true
+		tile.button_group = group
+		tile.button_pressed = str(v["id"]) == str((chosen["v"] as Dictionary).get("id", ""))
+		tile.pressed.connect(func() -> void:
+			chosen["v"] = v
+			show_default.call())
+		list.add_child(tile)
+	vbox.add_child(MenuStyle.spacer(6))
+	show_default.call()
+	make_default.pressed.connect(func() -> void:
+		AppPrefs.set_spawn_default(key, str((chosen["v"] as Dictionary).get("id", "")))
+		show_default.call()
+		# The rows behind the panel show the new default's glyph.
+		refresh_power_tab()
+		if _systems_browser != null:
+			_systems_browser.refresh_detail())
+	vbox.add_child(make_default)
+	var go := MenuStyle.row_button("  +  SPAWN", 26, 0, 80, false)
+	go.name = "SpawnVariant"
+	go.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 8))
+	go.pressed.connect(func() -> void:
+		var v: Dictionary = chosen["v"]
+		_close_spawn_options_panel()
+		if not v.is_empty():
+			spawn_requested.emit(str(v["token"])))
+	vbox.add_child(go)
 
 
 ## Re-sort the Power tab after the region changed.
@@ -2818,8 +2939,8 @@ func refresh_power_tab() -> void:
 	if not is_instance_valid(_power_vbox):
 		return
 	_clear_vbox(_power_vbox)
-	for item: Array in _power_items():
-		_power_vbox.add_child(_spawn_tab_button(item))
+	for item: Variant in _power_items():
+		_power_vbox.add_child(_spawn_item_button(item))
 
 
 ## The Power tab's own name for the defaults its rows keep (_default_key), as a

@@ -74,6 +74,8 @@ const _REFERENCE_FIELDS := [
 	"nunchuk", "motion_plus", "expansion_cover", "pak", "gb_cart",
 	# The clip-on accessory on an expansion unit -- the 32X's Model 2 spacer.
 	"accessory",
+	# The battery pack or AC adapter tap on a Virtual Boy controller's back.
+	"power_unit",
 	# An arcade cabinet's bay, and the board standing in a bay.
 	"bay", "board",
 ]
@@ -252,6 +254,8 @@ const NUNCHUK_SCENE          := preload("res://Scenes/Objects/controllers/wii/nu
 const MOTION_PLUS_SCENE      := preload("res://Scenes/Objects/controllers/wii/motion_plus.tscn")
 const RUMBLE_PAK_SCENE       := preload("res://Scenes/Objects/controllers/n64/rumble_pak.tscn")
 const SEGA32X_SPACER_SCENE   := preload("res://Scenes/Objects/peripherals/sega32x_spacer.tscn")
+const VB_BATTERY_PACK_SCENE  := preload("res://Scenes/Objects/power/vb_battery_pack.tscn")
+const VB_AC_TAP_SCENE        := preload("res://Scenes/Objects/power/vb_ac_tap.tscn")
 const CONTROLLER_PAK_SCENE   := preload("res://Scenes/Objects/controllers/n64/controller_pak.tscn")
 const VMU_SCENE              := preload("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn")
 const JUMP_PACK_SCENE        := preload("res://Scenes/Objects/controllers/dreamcast/jump_pack.tscn")
@@ -326,6 +330,9 @@ const LEAD_SCENES := {
 	"power_cord": POWER_CORD_SCENE,
 	"power_strip": POWER_STRIP_SCENE,
 	"travel_adapter": TRAVEL_ADAPTER_SCENE,
+	# An AC adapter (PowerBrick): one scene for every adapter, which one in the
+	# entry's "brick" and "variant" (_restore_lead_fields).
+	"power_brick": preload("res://Scenes/Objects/power/power_brick.tscn"),
 	"nema_1_15_to_c7_cord": NEMA_1_15_C7_CORD_SCENE,
 	"nema_1_15_polarized_to_c7_polarized_cord": NEMA_1_15_C7P_CORD_SCENE,
 	# The other mains regions' leads (MainsRegions.CORDS), baked by
@@ -412,6 +419,11 @@ const PLAIN_SCENES := {
 	# restored from that UNIT's entry ("accessory"), as the paks are from their
 	# controller's.
 	"sega32x_spacer": SEGA32X_SPACER_SCENE,
+	# The Virtual Boy's battery pack and AC adapter tap: a pose here (and the tap's
+	# variant, which jack it has), the cells and lid as any object's, and which
+	# controller it is on restored from that CONTROLLER's entry ("power_unit").
+	"vb_battery_pack": VB_BATTERY_PACK_SCENE,
+	"vb_ac_tap": VB_AC_TAP_SCENE,
 	"transfer_pak": TRANSFER_PAK_SCENE,
 	# The Dreamcast's VMU is the same shape of thing as the Controller Pak — a
 	# card that seats in a controller — so it carries card fields on top of the
@@ -1223,6 +1235,22 @@ static func _entry_validation_error(entry: Dictionary, ids: Dictionary) -> Strin
 			return "attached.to %s" % ref_error
 		if not attached.get("zone") is String:
 			return "attached.zone is not a string"
+	if entry.has("mains_cord"):
+		if not entry["mains_cord"] is Dictionary:
+			return "mains_cord is not a dictionary"
+		var cord := entry["mains_cord"] as Dictionary
+		if cord.has("hidden") and not cord["hidden"] is bool:
+			return "mains_cord.hidden is not a boolean"
+		for field: String in ["position", "rotation"]:
+			if cord.has(field):
+				var cord_pose := _vec3_validation_error(cord[field])
+				if not cord_pose.is_empty():
+					return "mains_cord %s %s" % [field, cord_pose]
+		if cord.has("port") and not cord["port"] is String:
+			return "mains_cord.port is not a string"
+		var cord_ref := _reference_validation_error(cord.get("device"), ids)
+		if not cord_ref.is_empty():
+			return "mains_cord.device %s" % cord_ref
 	if entry.has("body"):
 		if not entry["body"] is Dictionary:
 			return "body is not a dictionary"
@@ -1633,6 +1661,7 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 	_restore_attachment(root, obj, spawned, rec)
 	_restore_cover_slots(root, obj, spawned, rec)
 	_restore_cell_slots(root, obj, spawned, rec)
+	_restore_mains_cord(root, obj, spawned, rec)
 
 	for row: Array in _restore_kind_rows():
 		if is_instance_of(obj, row[0]):
@@ -1669,6 +1698,7 @@ static func _restore_kind_rows() -> Array:
 		[PowerCord, &"_restore_lead"],
 		[PowerStrip, &"_restore_lead"],
 		[TravelAdapter, &"_restore_lead"],
+		[PowerBrick, &"_restore_lead"],
 		[SpeakerStand, &"_restore_speaker_stand"],
 		[ConsoleStand, &"_restore_console_stand"],
 		[SensorBar, &"_restore_sensor_bar"],
@@ -1960,6 +1990,12 @@ func _restore_peripheral(root: Node, id: int, obj: Node, spawned: Dictionary, re
 		(obj as RetroController).restore_pak(
 			_resolve_ref(root, spawned, rec.get("pak")) as N64Pak)
 		_restore_vmu_slots(obj, root, spawned, rec.get("vmus"))
+		# A Virtual Boy pad's pack or tap. A save from before they were things of their
+		# own names neither, and that pad gets the pack it was drawn with.
+		if obj is VbController:
+			(obj as VbController).restore_power_unit(
+				_resolve_ref(root, spawned, rec.get("power_unit")) as VbPowerUnit,
+				rec.has("power_unit"))
 	var port_idx := int(rec.get("port_index", -1))
 	if port_idx < 0:
 		return
@@ -2339,7 +2375,39 @@ func serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		var cell_slots := _cell_slots_field(node, node_to_id)
 		if not cell_slots.is_empty():
 			entry["cell_slots"] = cell_slots
+		var mains_cord := _mains_cord_field(node, node_to_id)
+		if not mains_cord.is_empty():
+			entry["mains_cord"] = mains_cord
 	return entry
+
+
+## An appliance's own mains cord (CaptiveMainsCord): hidden or not, its plug's pose
+## and the socket it is in. Written for every object with one, so an entry without it
+## is one saved before appliances had cords: its cord comes back loose behind it.
+func _mains_cord_field(node: Node, node_to_id: Dictionary) -> Dictionary:
+	var input := PowerInput.of(node)
+	var cord: CaptiveMainsCord = input.captive as CaptiveMainsCord if input != null else null
+	if cord == null or not is_instance_valid(cord) or not cord.is_inside_tree():
+		return {}
+	var rec := cord.save_record()
+	rec["device"] = _ref(node_to_id, rec.get("device") as Node)
+	return rec
+
+
+## Put an appliance's cord back: hidden, or its plug in the socket the save names.
+## Pass 2, so every outlet, strip and adapter it can be in exists.
+func _restore_mains_cord(root: Node, obj: Node, spawned: Dictionary, entry: Dictionary) -> void:
+	var saved: Variant = entry.get("mains_cord")
+	var input := PowerInput.of(obj)
+	var cord: CaptiveMainsCord = input.captive as CaptiveMainsCord if input != null else null
+	if cord == null:
+		return
+	if not saved is Dictionary:
+		print("[Power] %s: saved before it had a cord; the cord lies loose behind it" % obj.name)
+		return
+	var rec := (saved as Dictionary).duplicate()
+	rec["device"] = _resolve_ref(root, spawned, rec.get("device"))
+	cord.restore_record(rec)
 
 
 ## The removable covers a mod gave an object (CoverSlots): each slot and its
@@ -2460,6 +2528,8 @@ static func _save_kind_rows() -> Array:
 		# or pad slot each is in is saved on the thing it is in.
 		[RumblePak, "rumble_pak"],
 		[Sega32xSpacer, "sega32x_spacer"],
+		# Its type is its kind's; a tap adds which jack it has.
+		[VbPowerUnit, "", &"_vb_power_unit_entry"],
 		[JumpPack, "jump_pack"],
 		# Pose only, for the Jump Pack's reason; the bay it is in is on the thing
 		# the bay belongs to. Its type is its size, which the cell answers for.
@@ -2537,6 +2607,7 @@ static func _save_kind_rows() -> Array:
 		[PowerCord, "", &"_serialize_power_cord"],
 		[PowerStrip, "", &"_serialize_power_strip"],
 		[TravelAdapter, "", &"_serialize_travel_adapter"],
+		[PowerBrick, "", &"_serialize_power_brick"],
 	]
 	return _save_kinds
 
@@ -2649,6 +2720,13 @@ func _battery_entry(cell: BatteryCell, id: int, n3d: Node3D,
 
 func _seat_entry(seat: Seat, id: int, n3d: Node3D, _node_to_id: Dictionary) -> Dictionary:
 	return _base(id, seat.type_id, n3d)
+
+
+func _vb_power_unit_entry(unit: VbPowerUnit, id: int, n3d: Node3D, _node_to_id: Dictionary) -> Dictionary:
+	var entry := _base(id, unit.save_type(), n3d)
+	if unit.kind == "tap":
+		entry["variant"] = unit.variant
+	return entry
 
 
 ## The pose and the board standing in it. Whether it is in a cabinet's mount is on the
@@ -2986,6 +3064,9 @@ func _serialize_peripheral(node: Node, id: int, n3d: Node3D, node_to_id: Diction
 		var vmus := _vmu_slot_refs(node, node_to_id)
 		if not vmus.is_empty():
 			entry["vmus"] = vmus
+		# Written empty too: "nothing on its back" is not a save from before packs.
+		if node is VbController:
+			entry["power_unit"] = _ref(node_to_id, (node as VbController).get_power_unit())
 	return entry
 
 
@@ -3081,6 +3162,8 @@ func _serialize_lead(node: Node, id: int, n3d: Node3D, node_to_id: Dictionary) -
 		return _serialize_power_strip(node as PowerStrip, id, n3d, node_to_id)
 	if node is TravelAdapter:
 		return _serialize_travel_adapter(node as TravelAdapter, id, n3d, node_to_id)
+	if node is PowerBrick:
+		return _serialize_power_brick(node as PowerBrick, id, n3d, node_to_id)
 	return {}
 
 
@@ -3160,6 +3243,24 @@ func _serialize_travel_adapter(adapter: TravelAdapter, id: int, n3d: Node3D,
 		"plugs": _plug_records(adapter.seating(), node_to_id),
 		"spliced": adapter.spliced,
 	})
+
+
+## An AC adapter: which one and which region's, its plugs as any lead's, and its
+## body's pose for a form whose body is not one of its plugs (the strip's reason).
+## A plug in its C8 inlet is recorded by THAT cord, naming this brick and "AcInlet".
+func _serialize_power_brick(brick: PowerBrick, id: int, n3d: Node3D,
+		node_to_id: Dictionary) -> Dictionary:
+	var entry := _base(id, "composite_cable", n3d).merged({
+		"cords": brick.cord_count(),
+		"kind": "power_brick",
+		"brick": brick.brick_id,
+		"variant": brick.variant,
+		"plugs": _plug_records(brick.seating(), node_to_id),
+	})
+	var body_pose := brick.carried_body_pose()
+	if not body_pose.is_empty():
+		entry["body"] = body_pose
+	return entry
 
 
 ## One JSON record per connector, from either kind of lead's seating().
@@ -3257,6 +3358,9 @@ func _instantiate_light_gun(data: Dictionary) -> Node3D:
 ## What a lead has to be told before it enters the tree: its plug colour and its
 ## cord length. Nothing for anything else.
 func _restore_lead_fields(obj: Node3D, data: Dictionary) -> void:
+	if obj is PowerBrick:
+		(obj as PowerBrick).brick_id = str(data.get("brick", ""))
+		(obj as PowerBrick).variant = str(data.get("variant", ""))
 	if obj is TravelAdapter:
 		(obj as TravelAdapter).spliced = bool(data.get("spliced", false))
 	if obj is CompositeCable:
@@ -3301,6 +3405,10 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 		var printer := obj as GbPrinter
 		if printer != null:
 			printer.paper_roll = str(data.get("paper", ""))
+		# Which jack a Virtual Boy tap has, before its _ready builds it.
+		var unit := obj as VbPowerUnit
+		if unit != null:
+			unit.variant = str(data.get("variant", ""))
 	elif _LOAD_KINDS.has(obj_type):
 		obj = call(_LOAD_KINDS[obj_type] as StringName, data)
 	else:

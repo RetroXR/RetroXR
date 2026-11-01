@@ -280,6 +280,12 @@ func _process(delta: float) -> void:
 # --- The display ---
 
 ## What the display shows now, and redraw it if that changed (the time once a second).
+func _on_mains_redraw() -> void:
+	_vfd_key = ""
+	if _vfd != null:
+		_vfd.refresh()
+
+
 func _update_vfd() -> void:
 	if _vfd == null:
 		return
@@ -309,6 +315,9 @@ func _update_vfd() -> void:
 ## seven segments, REPEAT / SHUFFLE lamps, and under them the music calendar: the disc's tracks lit, the one playing
 ## boxed. RetroXR-models generic/cd-player tools/vfd.py's layout.
 func _paint_vfd(c: Control, size: Vector2) -> void:
+	# No power, no display.
+	if not mains_live():
+		return
 	if _vfd_state.is_empty():
 		return
 	var h := size.y

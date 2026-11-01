@@ -1,0 +1,99 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="1_snapzone"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/power/dc_port.gd" id="2_portscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="3_snaphigh"]
+
+; The collar round the hole: a rounded ring standing a little proud of the shell.
+[sub_resource type="TorusMesh" id="Mesh_collar"]
+inner_radius = 0.0031
+outer_radius = 0.0052
+rings = 28
+ring_segments = 10
+
+[sub_resource type="CylinderMesh" id="Mesh_floor"]
+top_radius = 0.0036
+bottom_radius = 0.0036
+height = 0.0002
+radial_segments = 20
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Mesh_pin"]
+top_radius = 0.00105
+bottom_radius = 0.00105
+height = 0.0026
+radial_segments = 10
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_collar"]
+albedo_color = Color(0.1, 0.1, 0.105, 1)
+roughness = 0.45
+
+[sub_resource type="StandardMaterial3D" id="Mat_floor"]
+albedo_color = Color(0.01, 0.01, 0.012, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="Mat_pin"]
+albedo_color = Color(0.78, 0.78, 0.76, 1)
+metallic = 0.9
+roughness = 0.3
+
+[sub_resource type="CylinderMesh" id="Mesh_plug_ghost"]
+top_radius = 0.0055
+bottom_radius = 0.0055
+height = 0.02
+radial_segments = 16
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_plug_ghost"]
+transparency = 1
+albedo_color = Color(0.2, 0.5, 1, 0.45)
+emission_enabled = true
+emission = Color(0, 0.15, 0.5, 1)
+emission_energy_multiplier = 0.4
+
+; A console's DC IN: the barrel jack its AC adapter's plug goes into (SystemPower
+; builds one on the back of a machine whose PowerProfiles row says "dc").
+;
+; One scene for every barrel: `connector` is NOT written here, because the jack is
+; made at run time and SystemPower sets the plug standard the machine takes
+; (barrel_5_5x2_1, eiaj_03, a proprietary plug's name) before it enters the tree.
+; DcPort._own_connector then reads "" from this file and leaves that alone.
+;
+; Placed the way every socket is: +Z out of the shell, the zone where a seated
+; plug's ORIGIN belongs.
+[node name="BarrelDcPort" instance=ExtResource("1_snapzone")]
+grab_distance = 0.05
+script = ExtResource("2_portscript")
+
+; The jack as it looks from outside (DcMouth; a model that draws its own jack hides it
+; and DcPin by name, SystemPower): a low collar round the hole, 1 mm proud of the shell;
+; the hole a near-black face just proud of the shell inside it (a bore drawn INTO the
+; shell cannot be seen: a stand-in's body is a solid box whose face hides it); and the
+; centre pin's tip showing in the middle, where a plug's barrel slides over it. Every
+; part's axis is the socket's Z (each mesh's Y turned onto it; the collar's flattened).
+[node name="DcMouth" type="Node3D" parent="."]
+
+[node name="Collar" type="MeshInstance3D" parent="DcMouth"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 0.5, 0, 0, 0, 0.0005)
+mesh = SubResource("Mesh_collar")
+surface_material_override/0 = SubResource("Mat_collar")
+
+[node name="Hole" type="MeshInstance3D" parent="DcMouth"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.0002)
+mesh = SubResource("Mesh_floor")
+surface_material_override/0 = SubResource("Mat_floor")
+
+[node name="DcPin" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.0008)
+mesh = SubResource("Mesh_pin")
+surface_material_override/0 = SubResource("Mat_pin")
+
+[node name="SnapHighlight" type="Node3D" parent="."]
+script = ExtResource("3_snaphigh")
+
+; The plug's body, back along -Z from the mating face as the other sockets' ghosts are.
+[node name="HighlightMesh" type="MeshInstance3D" parent="SnapHighlight"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.012)
+mesh = SubResource("Mesh_plug_ghost")
+surface_material_override/0 = SubResource("Mat_plug_ghost")

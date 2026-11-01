@@ -113,6 +113,8 @@ func _populate() -> void:
 	ui.populate_crt(_tv.get_crt_params())
 	_controls_state = _tv.menu_state()
 	ui.populate_controls(_controls_state)
+	# Its System tab: what it runs on, and Show Power Cord (docs/dev/power.md).
+	PowerMenuRows.ensure_in(ui, _tv.power_input())
 	# No tuner is built here any more. This used to be the first thing that
 	# legitimately needed one — the panel carried the channel list — and opening a
 	# set's menu to resize it spun up a VlcPlayer as a side effect. The list is on

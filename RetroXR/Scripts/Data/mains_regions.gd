@@ -426,6 +426,51 @@ static func glyph_of(id: String) -> int:
 	return int(of(id).get("glyph", 0xF0427))
 
 
+## A wall plug's own outlet, by the plug's standard: its glyph (the symbols font) and
+## IEC type letter. What a row in the spawn menu shows for a model, rather than its
+## region's outlet: North America's outlet is a Type B, but an adapter sold there
+## has a two-blade Type A plug. The longest prefix wins (polarized plugs included).
+const PLUG_OUTLETS := {
+	"nema_1_15": [0xF1109, "A"],   # md-power_socket_jp: two flat slots
+	"nema_5_15": [0xF07E9, "B"],   # md-power_socket_us
+	"cee_7_16": [0xF07E7, "C"],    # md-power_socket_eu: the Europlug's two round pins
+	"cee_7_7": [0xF1107, "F"],     # md-power_socket_de: Schuko, which also fits E
+	"bs_1363": [0xF07E8, "G"],     # md-power_socket_uk
+	"as_3112": [0xF0905, "I"],     # md-power_socket_au
+}
+
+
+## The outlet glyph for a plug of `connector`, or the glyph of `region`'s own outlet
+## for a plug this table does not name.
+static func plug_glyph(connector: String, region: String) -> int:
+	var hit := _plug_outlet(connector)
+	return int(hit[0]) if not hit.is_empty() else glyph_of(region)
+
+
+## "Type A" for a plug of `connector`, or "" for one the table does not name.
+static func plug_type(connector: String) -> String:
+	var hit := _plug_outlet(connector)
+	return "Type %s" % str(hit[1]) if not hit.is_empty() else ""
+
+
+static func _plug_outlet(connector: String) -> Array:
+	var best := ""
+	for prefix: String in PLUG_OUTLETS:
+		if connector.begins_with(prefix) and prefix.length() > best.length():
+			best = prefix
+	return PLUG_OUTLETS[best] if not best.is_empty() else []
+
+
+## The flag for a mains region, as regional indicator letters (MenuIcons' flags
+## font): North America the US's, Europe the EU's, the UK Great Britain's, every
+## other region its own ISO code.
+static func flag_of(id: String) -> String:
+	var iso := str({"na": "US", "uk": "GB", "eu": "EU"}.get(id, id.to_upper()))
+	if iso.length() != 2:
+		return ""
+	return String.chr(0x1F1E6 + iso.unicode_at(0) - 65) + String.chr(0x1F1E6 + iso.unicode_at(1) - 65)
+
+
 ## The region for a locale such as "en_GB" or "ja", or DEFAULT.
 static func for_locale(locale: String) -> String:
 	var parts := locale.replace("-", "_").split("_")

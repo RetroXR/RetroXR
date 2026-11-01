@@ -63,6 +63,7 @@ func _on_seated(what: Node3D) -> void:
 	_last_plug = what
 	_log_seating("seated", _last_plug)
 	_announce(_last_plug)
+	_mains_moved()
 
 
 func _on_unseated() -> void:
@@ -70,6 +71,14 @@ func _on_unseated() -> void:
 	_last_plug = null
 	_log_seating("pulled", plug)
 	_announce(plug)
+	_mains_moved()
+
+
+## A mains socket or a DC jack took or let go of a plug: whatever runs off it may
+## have gained or lost its supply (MainsPower).
+func _mains_moved() -> void:
+	if (self is PowerPort or self is DcPort) and is_inside_tree():
+		MainsPower.changed(get_tree())
 
 
 ## Every connection in the room passes through here, so this is the one place

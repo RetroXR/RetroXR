@@ -393,6 +393,9 @@ var _captive_pads: SystemCaptivePads = null
 ## is told about it -- lifted out into SystemPorts. Made in _init; the cabinet's
 ## socket zones are handed to it in _ready.
 var _ports: SystemPorts = null
+## What the machine runs on and what its supply coming or going does (SystemPower,
+## docs/dev/power.md). Its PowerInput is built with the model.
+var _power_ctl: SystemPower = null
 
 # Its tables under the names they had here, forwarded: the model packs' probes
 # read and stand these in by name (`sys.set("_controller_info", ...)`).
@@ -491,6 +494,10 @@ func _init() -> void:
 	_expansions.name = "SystemExpansions"
 	add_child(_expansions)
 	_expansions.setup(self)
+	_power_ctl = SystemPower.new()
+	_power_ctl.name = "SystemPower"
+	add_child(_power_ctl)
+	_power_ctl.setup(self)
 
 
 func _add_storage(storage: ConsoleStorage, node_name: String) -> ConsoleStorage:
@@ -794,6 +801,10 @@ func _load_system_model() -> void:
 		_on_cartridge_inserted, _on_cartridge_removed)
 	_build_handheld()
 	_build_slot2()
+	# Last of the model's sockets: the mains inlet or DC jack goes on the back of
+	# the body it has by now, and a handheld's own DC IN is already in its scene.
+	_power_ctl.build(str(row.get("id", "")))
+	_power_ctl.refresh_label("%s (%s)" % [_display_name(), name])
 	# Restore a saved lid pose — a clamshell's hinge (DS/3DS/GBA SP) or a console's
 	# cartridge-bay flap (the NES). Last, and for every model rather than only the
 	# handhelds, because a disc loader and configure_cartridge_slot both re-gate the
@@ -815,10 +826,10 @@ func _check_listed_sockets() -> void:
 	if not row.has("sockets") or SystemModelRegistry.owner_of(id).is_empty():
 		return
 	var built: Array = []
-	# Every lead's socket, A/V and link alike; not the mains inlet, which no row
-	# lists because the power cord is the game's own.
+	# Every lead's socket, A/V and link alike; not the mains inlet or the DC jack,
+	# which no row lists because the power cord and the AC adapter are the game's own.
 	for node: Node in find_children("*", "Port", true, false):
-		if node is PowerPort:
+		if node is PowerPort or node is DcPort:
 			continue
 		var c := (node as Port).connector
 		if not built.has(c):
@@ -1817,6 +1828,10 @@ func request_attract_media() -> void:
 func power_on() -> void:
 	if is_powered_on or attracting:
 		return
+	# No supply, no machine: not even its attract (SystemPower says why on its card).
+	# Before the attract branch, so an unplugged cabinet does not show its game either.
+	if not _power_ctl.allows_power_on():
+		return
 	# A use of the cabinet (a coin, a pressed panel, a gun in hand) asked for the real game this time.
 	var released := _attract_released
 	_attract_released = false
@@ -2282,8 +2297,31 @@ func _stop_core() -> void:
 	net_refresh_link_cables()
 
 
+## What the machine runs on, for its menu's Power section (SystemPower).
+func power_input() -> PowerInput:
+	return _power_ctl.input if _power_ctl != null else null
+
+
+## An arcade cabinet's own cord put away (plugged in out of sight) or brought back:
+## the System tab's Show Power Cord, and a peer's EV_MAINS_CORD_HIDDEN.
+func set_mains_cord_hidden(on: bool) -> void:
+	var input := power_input()
+	var cord: CaptiveMainsCord = input.captive as CaptiveMainsCord if input != null else null
+	if cord == null or cord.hidden == on:
+		return
+	cord.set_hidden(on)
+	NetworkManager.report_event(NetEvents.Event.EV_MAINS_CORD_HIDDEN, {"obj": self, "hidden": on})
+
+
 ## Toggle power -- the power button, and the netplay-aware way in. See power_on.
 func toggle_power() -> void:
+	# Switching ON needs a supply. Asked here as well as in power_on, because a host
+	# starting a lockstep session goes netplay_start_host -> net_start_core on every
+	# peer and never reaches power_on. A client asks nothing: its press goes to the
+	# host, whose own cords decide when it applies EV_SYS_POWER here.
+	if not (is_powered_on or attracting) and not NetworkManager.is_client() \
+			and not _power_ctl.allows_power_on():
+		return
 	if NetworkManager.is_active() and not NetworkManager.is_event_applying():
 		# A running lockstep game: power stops it on every peer.
 		if NetworkManager.netplay_running() and NetworkManager.netplay_system() == self:

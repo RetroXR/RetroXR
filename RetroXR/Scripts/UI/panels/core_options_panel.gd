@@ -152,6 +152,8 @@ func _populate() -> void:
 		FirmwareState.shared().evaluate(core, FirmwareRequirements.for_core(core)))
 	_populate_cartridge_tab(ui)
 	_populate_saves_tab(ui)
+	# What it runs on, and an arcade cabinet's Show Power Cord (docs/dev/power.md).
+	PowerMenuRows.ensure_in(ui, _system.power_input())
 
 
 ## Hand the Saves tab to the memory this machine keeps -- a Saturn's own, a Sega

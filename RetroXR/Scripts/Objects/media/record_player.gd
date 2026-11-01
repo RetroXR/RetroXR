@@ -271,6 +271,9 @@ func _goto_track(idx: int) -> void:
 func _on_play_pressed() -> void:
 	if _net_forward_cmd("play"):
 		return
+	# No power, no motor.
+	if not _mains_gate("START"):
+		return
 	_motor = true
 	super._on_play_pressed()
 
@@ -288,7 +291,7 @@ func _on_stop_pressed() -> void:
 ## a net state the peer is following. The base retries on its next heartbeat, so a
 ## client whose arm has not replicated yet recovers on its own rather than sticking.
 func play() -> void:
-	if _arm_parked():
+	if _arm_parked() or not _mains_gate("play"):
 		return
 	_motor = true
 	super.play()
@@ -647,6 +650,12 @@ func _hang(part_name: String, pivot: Node3D, rest_x: float) -> void:
 
 ## START-STOP: one key for the motor, as on the real thing. Only the deck's own key
 ## toggles; the remote's PLAY and STOP keep meaning play and stop.
+## The supply went: the platter runs down with the sound.
+func _on_mains_redraw() -> void:
+	if not mains_live():
+		_motor = false
+
+
 func _on_start_stop_pressed() -> void:
 	_log_event("START-STOP: motor %s" % ("off" if _motor else "on"))
 	if _motor:

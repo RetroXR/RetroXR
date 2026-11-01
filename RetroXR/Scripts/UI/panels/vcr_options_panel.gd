@@ -62,6 +62,7 @@ func _populate() -> void:
 	ui.populate(_vcr.vcr_effect_enabled, _vcr.scan_speed, _vcr.get_ignore_gravity())
 	ui.populate_vcr(_vcr.get_vcr_params())
 	ui.populate_debug(_vcr.debug_state())
+	PowerMenuRows.ensure_in(ui, _vcr.power_input())
 
 
 func _on_ignore_gravity_toggled(enabled: bool) -> void:

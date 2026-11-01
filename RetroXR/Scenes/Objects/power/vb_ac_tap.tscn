@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://Scenes/Objects/power/vb_battery_pack.tscn" id="1_pack"]
+
+; The Virtual Boy's AC adapter tap (VUE-011): the pack's outline, a DC jack on its
+; back the Super NES adapter's plug goes into (the Famicom's in Japan). VbPowerUnit
+; builds it; `variant` settles to the outlet region's on a fresh spawn.
+
+[node name="VbAcTap" instance=ExtResource("1_pack")]
+kind = "tap"

@@ -557,9 +557,18 @@ can never hang the run.
   corruption). A crash like this is
   worth checking against `git stash list` and the log's own lines before chasing it: a
   run measured on a tree that is not the one you think is the commonest false lead.
-  Ruled out on the way: concurrent libVLC instance creation (`VlcPlayer.warm_up`, 900
-  warm-ups in waves of six, no crash) and memory (a run peaks at about 570 MB, at the
-  combo set's DVD build).
+  Ruled out on the way: memory (a run peaks at about 570 MB, at the combo set's DVD
+  build). Concurrent libVLC instance creation was ruled out then too (`VlcPlayer.warm_up`,
+  900 warm-ups in waves of six), **wrongly**: see the next entry.
+- **`combo_tv_tests` crashing 0xC0000005 AGAIN, with the ModelWarmer fix in (2026-11-01):
+  two `libvlc_new` at once.** Traced under cdb (`kn` at the AV): a `VlcPlayer::WarmUp`
+  thread in `libvlc_new` -> `libvlc_InternalInit`, reading `0xbaadf00d`. A combination
+  set builds its VCR and DVD in one frame and both warm up; each held only its OWN
+  `m_instance_mutex`, so their threads ran libVLC's first-time init together, and both
+  set `VLC_PLUGIN_PATH` (process environment) while the other read it. About 1 run in 3
+  alone. Fixed in `vlc-godot/src/VlcPlayer.cpp` with one process-wide lock around the
+  environment and `libvlc_new` (`s_libvlc_new_mutex`): 0 in 20 (4 at a time). Rebuilt
+  windows, android and linux.
 - **PowerShell buffers `& $godot ... | Out-String` until the process exits**, so a
   backgrounded run shows an empty output file until it finishes. The Bash tool with
   `timeout 90 "$godot" ... 2>&1 | grep` streams and bounds the run — prefer it.

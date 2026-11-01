@@ -470,8 +470,19 @@ func _test_autosave() -> void:
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 	_ok(parsed is Dictionary and (parsed as Dictionary).get("version", 0) == ScenePersistence.VERSION,
 		"autosave/wrote a current-version slot")
-	_eq(((parsed as Dictionary).get("objects", []) as Array).size(), 2,
-		"autosave/wrote both objects")
+	# Both machines, and nothing else but the covers they carry: a primitive Game Boy
+	# has its battery cover now (BatteryBay), saved as an object of its own as every
+	# cover in the room is.
+	var systems := 0
+	var others: Array = []
+	for obj: Variant in (parsed as Dictionary).get("objects", []):
+		var kind := str((obj as Dictionary).get("type", ""))
+		if kind == "system":
+			systems += 1
+		elif kind != "port_cover":
+			others.append(kind)
+	_eq(systems, 2, "autosave/wrote both objects")
+	_eq(others, [], "autosave/and nothing but their covers besides")
 
 	# A deleted slot file must be rewritten even though the digest still matches:
 	# the digest describes what we last wrote, not what is on disk now.
@@ -1526,12 +1537,14 @@ func _test_thumbnail() -> void:
 
 ## PLAIN_SCENES types whose save row picks the type at save time (a peripheral,
 ## an audio deck, a battery, a cabinet, a stand, a seat or an arcade bay by its
-## scene), or that are an old name read back only ("ray_gun").
+## scene, a Virtual Boy pack or tap by its kind), or that are an old name read back
+## only ("ray_gun").
 const _BUILT_TYPES := ["light_gun", "ray_gun", "retro_keyboard", "wiimote",
 	"cd_player", "cassette_player", "record_player", "battery_aa", "battery_aaa",
 	"loudspeaker", "subwoofer", "speaker_stand_120", "speaker_stand_100",
 	"seat_racing", "seat_stool", "seat_chair", "seat_cushion", "seat_sofa", "seat_bed",
-	"arcade_bay_jamma", "arcade_bay_mvs", "arcade_bay_laserdisc", "arcade_bay_discrete"]
+	"arcade_bay_jamma", "arcade_bay_mvs", "arcade_bay_laserdisc", "arcade_bay_discrete",
+	"vb_battery_pack", "vb_ac_tap"]
 
 
 ## PLAIN_SCENES is read only when LOADING; a type with no save row is never

@@ -196,6 +196,12 @@ func _on_counter_reset() -> void:
 # --- The display ---
 
 ## What the display shows now, and redraw it if that changed (the meters at most METER_HZ).
+func _on_mains_redraw() -> void:
+	_vfd_key = ""
+	if _vfd != null:
+		_vfd.refresh()
+
+
 func _update_vfd() -> void:
 	if _vfd == null:
 		return
@@ -220,6 +226,9 @@ func _update_vfd() -> void:
 ## The counter in seven segments with the play direction under it, NR B/C and TYPE II CrO2 (lit with a tape in), and
 ## two peak meters on a -20 .. +6 scale: RetroXR-models generic/cassette-deck tools/vfd.py's layout.
 func _paint_vfd(c: Control, size: Vector2) -> void:
+	# No power, no display.
+	if not mains_live():
+		return
 	if _vfd_state.is_empty():
 		return
 	var h := size.y

@@ -308,6 +308,19 @@ func register_console_stand(stand_id: String, row: Dictionary) -> bool:
 ## stand-in its real model. `changes` is merged over the shipped row (any of
 ## `scene`, `seat`, `seat_rotation_deg`, `parts`, `label`, `fits`, `face`, ...),
 ## and the stand keeps its id, so every save that names it gets the new one.
+## Give a shipped AC adapter (PowerBrickCatalog, docs/dev/power.md) its model in
+## place of the primitive box: `changes` is {"plug_model": the DC plug's scene,
+## "variants": {"usa": {"model": scene, "plug_model"?, "model_offset"?}, ...}}, a
+## variant per region's model the adapter comes in (PowerBrickCatalog.variants_of).
+## Only the look: what it fits, its form and its plug's standard stay the game's.
+func override_power_brick(brick_id: String, changes: Dictionary) -> bool:
+	var err := PowerBrickCatalog.override_brick(brick_id, changes, id)
+	if not err.is_empty():
+		return _fail("power brick %s: %s" % [brick_id, err])
+	_note("object", str(PowerBrickCatalog.row(brick_id).get("label", brick_id)))
+	return true
+
+
 func override_console_stand(stand_id: String, changes: Dictionary) -> bool:
 	var err := StandCatalog.override_stand(stand_id, changes, id)
 	if not err.is_empty():
@@ -524,6 +537,7 @@ func withdraw() -> void:
 	ScenePersistence.drop_mod_objects(id)
 	RetroTV.drop_mod_shells(id)
 	StandCatalog.drop_mod(id)
+	PowerBrickCatalog.drop_mod(id)
 	_hooks.drop_owner(id)
 
 

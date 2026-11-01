@@ -16,6 +16,9 @@ extends Node
 signal mains_region_changed(region: String)
 ## The console-name region moved (set_region_names): tiles and titles rename.
 signal region_names_changed(region: String)
+## "Enable Power Simulation" moved (set_power_simulation): every PowerInput in the
+## room asks again whether its device has power (MainsPower.changed).
+signal power_simulation_changed(on: bool)
 
 const PREFS_PATH := "user://app_prefs.json"
 
@@ -64,6 +67,12 @@ var region_names: String = ""
 ## Whether a fingertip presses the buttons on pads, handhelds and the like
 ## (ControlPoke). On by default; read every frame, so a change takes at once.
 var poke_controls:    bool = true
+## "Enable Power Simulation" (MainsPower, PowerInput): on, a console, a set or a deck
+## switches on only when a live supply reaches it -- a mains cord into a wall outlet,
+## a strip in the wall, an AC adapter, cells in every bay. Off by default, which is how
+## the room behaved before anything consumed power: everything powers whatever its
+## cords do. A room with no wall outlet at all powers everything either way.
+var power_simulation: bool = false
 ## Whether a held TV remote floats its button grid (TVRemote). Off by default: the thumbstick
 ## then lights the handset's own keys and a stick click presses the lit one. Switched on the
 ## remote's own menu; read every frame, so a change takes at once.
@@ -247,6 +256,19 @@ func set_region_names(region: String) -> void:
 	region_names_changed.emit(region)
 
 
+## Change "Enable Power Simulation", save it, and say so: every powered device in
+## the room re-asks for its supply (MainsPower listens).
+func set_power_simulation(on: bool) -> void:
+	if on == power_simulation:
+		return
+	power_simulation = on
+	save_prefs()
+	print("[Prefs] power simulation -> %s" % on)
+	power_simulation_changed.emit(on)
+	if is_inside_tree():
+		MainsPower.changed(get_tree())
+
+
 ## Change the mains region, save it, and say so.
 func set_mains_region(id: String) -> void:
 	if id == mains_region:
@@ -379,6 +401,7 @@ func load_prefs() -> void:
 	xr_display_mode = _prefs_xr_display_mode(data, "xr_display_mode", xr_display_mode)
 	controller_hands = JsonStore.get_bool(data, "controller_hands", controller_hands)
 	poke_controls    = JsonStore.get_bool(data, "poke_controls",    poke_controls)
+	power_simulation = JsonStore.get_bool(data, "power_simulation", power_simulation)
 	remote_button_menu = JsonStore.get_bool(data, "remote_button_menu", remote_button_menu)
 	system_filter    = JsonStore.get_bool(data, "system_filter",    system_filter)
 	bios_boot_override = JsonStore.get_bool(data, "bios_boot_override", bios_boot_override)
@@ -431,6 +454,7 @@ func save_prefs() -> bool:
 		"xr_display_mode":  xr_display_mode,
 		"controller_hands": controller_hands,
 		"poke_controls":    poke_controls,
+		"power_simulation": power_simulation,
 		"remote_button_menu": remote_button_menu,
 		"system_filter":    system_filter,
 		"bios_boot_override": bios_boot_override,

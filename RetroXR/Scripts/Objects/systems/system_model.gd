@@ -658,6 +658,14 @@ func power_slider() -> VRSlider:
 	return _power_slider if is_instance_valid(_power_slider) else null
 
 
+## The machine's power switch if it LATCHES -- a slide that stays where the hand
+## left it -- or null for a push button or a spring-return slide. SystemPower reads
+## it: a latched switch left at ON switches the machine on when its supply arrives.
+func latching_power_switch() -> VRSlider:
+	var slide := power_slider()
+	return slide if slide != null and not slide is VRSpringReturnSlider else null
+
+
 ## Place the sockets built from av_port_channels, in that same order. Called once,
 ## with the ports already children of the system.
 func configure_av_ports(_ports: Array) -> void:

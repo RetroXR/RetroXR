@@ -321,6 +321,12 @@ var _panel: TvPanel = null
 # The VCR or DVD player built into a combination set's cabinet — see tv_decks.gd.
 var _decks: TvDecks = null
 var _tv_enabled: bool = true
+## What the set runs on: its own mains cord, out of its model's PowerCordExit as a
+## deck's is (ApplianceMains.hook_up, docs/dev/power.md; it had a C8 inlet until
+## 2026-11-01).
+## _tv_enabled is the POWER switch, which latches as an old set's push-push switch
+## does; the picture and the sound need the switch AND the supply (is_on).
+var _power: PowerInput = null
 
 # Selected input and the built-in tuner. The tuner is created on first use rather
 # than in _ready — the first time the RF dial lands on one of an aerial's channels —
@@ -500,10 +506,53 @@ func showing_broadcast() -> bool:
 	return current_source == Source.RF and rf_air_index >= 0
 
 
-## Whether the set is switched on. Read by the display and audio helpers to
-## decide whether to paint or to make a sound.
+## Whether the set is on: switched on, and with power. Read by the display and
+## audio helpers to decide whether to paint or to make a sound.
 func is_on() -> bool:
+	return _tv_enabled and (_power == null or _power.is_live())
+
+
+## Whether its POWER switch is in, power or not (the menu's switch shows this).
+func is_switched_on() -> bool:
 	return _tv_enabled
+
+
+## The set's intake, for its menu's Power section.
+func power_input() -> PowerInput:
+	return _power
+
+
+## Put the set's own cord away (plugged in out of sight) or bring it back: the
+## System tab's Show Power Cord, and a peer's EV_MAINS_CORD_HIDDEN.
+## The Plain Monitor (a computer monitor, `crt_plain`), as opposed to a television.
+func is_monitor() -> bool:
+	return tv_model == "crt_plain" or tv_model == "crt_monitor"
+
+
+func set_mains_cord_hidden(on: bool) -> void:
+	var cord: CaptiveMainsCord = _power.captive as CaptiveMainsCord if _power != null else null
+	if cord == null or cord.hidden == on:
+		return
+	cord.set_hidden(on)
+	NetworkManager.report_event(NetEvents.Event.EV_MAINS_CORD_HIDDEN, {"obj": self, "hidden": on})
+
+
+## The supply came or went under the set. With its switch in, that is the set
+## coming on or going dark, as pulling an old set's plug does.
+func _on_mains_changed(_live: bool) -> void:
+	if not _tv_enabled:
+		return
+	if is_on():
+		_display.play_power_on_anim()
+		show_osd_timed("POWER", 3.0)
+	else:
+		_display.stop_power_on_anim()
+		hide_osd()
+		_osd.clear_volume()
+	print("[TV] %s: %s" % [name, "power came back: the set comes on" if is_on()
+		else "lost its power: the set goes dark"])
+	_sync_tuner()
+	_audio.apply_volume()
 
 
 ## Which of the RF switch's two channels the dial last stood on — 3 or 4. A console
@@ -590,6 +639,16 @@ func _ready() -> void:
 	# and so a cabinet that carries fewer than four has already said so.
 	_panel.disable_absent_inputs()
 	_panel.print_legends()
+	# The set's mains INLET (a C8: the figure-eight cord goes in), where its cabinet's
+	# cord would leave (PowerCordExit) or on the back of it. Before the decks: a deck
+	# built in runs off the set's supply.
+	# A computer monitor takes a kettle lead in a C14 inlet, as real ones do; a set has a
+	# cord of its own.
+	if is_monitor():
+		_power = ApplianceMains.hook_up_inlet(self, shell() if shell() != null else self, "c14")
+	else:
+		_power = ApplianceMains.hook_up(self, shell() if shell() != null else self)
+	_power.power_changed.connect(_on_mains_changed)
 	# After the phono inputs are settled, because a built-in deck takes the first
 	# composite input past them.
 	_decks.build()
@@ -1069,6 +1128,10 @@ func on_audio_source_routed(_source: Node3D) -> void:
 # buttons, so the volume label / power button color stay in sync.
 
 func remote_power_toggle() -> void:
+	# No power, no receiver: the remote's beam reaches nothing.
+	if _power != null and not _power.is_live():
+		print("[TV] %s: the remote's POWER reached a set with no power" % name)
+		return
 	_on_tv_toggle()
 
 
@@ -1742,7 +1805,10 @@ func on_rf_channel_changed() -> void:
 func _on_tv_toggle() -> void:
 	_tv_enabled = not _tv_enabled
 	_tv_toggle_btn.set_color(Color(0.0, 1.0, 0.0) if _tv_enabled else Color(1.0, 0.1, 0.1))
-	if _tv_enabled:
+	if _tv_enabled and not is_on():
+		# The switch is in, and nothing happens: the set has no power (its cord).
+		print("[TV] %s: switched on with no power -- %s" % [name, _power.why_not() if _power != null else "?"])
+	elif _tv_enabled:
 		_display.play_power_on_anim()
 		# Coming back on while muted keeps the sticky MUTE indicator, otherwise
 		# show the usual POWER flash.

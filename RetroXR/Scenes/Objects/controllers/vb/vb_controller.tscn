@@ -13,7 +13,7 @@ friction = 0.8
 size = Vector3(0.169, 0.02, 0.066)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_center"]
-size = Vector3(0.056, 0.056, 0.044)
+size = Vector3(0.04, 0.034, 0.042)
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_grip"]
 radius = 0.0155
@@ -41,10 +41,6 @@ roughness = 0.45
 [sub_resource type="StandardMaterial3D" id="Mat_red"]
 albedo_color = Color(0.72, 0.1, 0.12, 1)
 roughness = 0.4
-
-[sub_resource type="StandardMaterial3D" id="Mat_pack"]
-albedo_color = Color(0.13, 0.13, 0.14, 1)
-roughness = 0.6
 
 [sub_resource type="StandardMaterial3D" id="Mat_knob"]
 albedo_color = Color(0.62, 0.62, 0.65, 1)
@@ -93,9 +89,6 @@ size = Vector3(0.04, 0.034, 0.042)
 [sub_resource type="BoxMesh" id="BoxMesh_neck"]
 size = Vector3(0.03, 0.018, 0.026)
 
-[sub_resource type="BoxMesh" id="BoxMesh_pack"]
-size = Vector3(0.056, 0.024, 0.03)
-
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_grip"]
 radius = 0.0155
 height = 0.095
@@ -121,7 +114,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.004, -0.01)
 shape = SubResource("BoxShape3D_wings")
 
 [node name="CollisionCenter" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.02, 0.008)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.01, 0.008)
 shape = SubResource("BoxShape3D_center")
 
 [node name="CollisionGripL" type="CollisionShape3D" parent="."]
@@ -273,11 +266,6 @@ surface_material_override/0 = SubResource("Mat_grey")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.03, -0.0055, -0.014)
 mesh = SubResource("CylinderMesh_shoulder")
 surface_material_override/0 = SubResource("Mat_grey")
-
-[node name="BatteryPack" type="MeshInstance3D" parent="." unique_id=927806445]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.03, 0.008)
-mesh = SubResource("BoxMesh_pack")
-surface_material_override/0 = SubResource("Mat_pack")
 
 [node name="PowerSlider" type="Area3D" parent="." unique_id=508315096]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0125, -0.02)

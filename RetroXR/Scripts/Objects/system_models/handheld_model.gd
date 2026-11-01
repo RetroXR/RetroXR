@@ -579,6 +579,13 @@ func configure_handheld_controls(host: Node3D) -> void:
 		_power_switch.value_changed.connect(_on_power_switch_changed)
 
 
+## A handheld's authored slide latches; its spring-return one does not.
+func latching_power_switch() -> VRSlider:
+	if is_instance_valid(_power_switch) and not _power_switch is VRSpringReturnSlider:
+		return _power_switch
+	return super()
+
+
 func _on_power_switch_changed(v: float) -> void:
 	if _host == null or not _host.has_method("toggle_power"):
 		return

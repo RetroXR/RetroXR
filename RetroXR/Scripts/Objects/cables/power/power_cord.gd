@@ -25,7 +25,33 @@ func _build_rope() -> void:
 	rope._init_points()
 
 func on_plug_seating_changed() -> void:
-	pass
+	# Told to the other players, one event per end that moved (MainsSync).
+	MainsSync.report(self)
+
+
+## A peer's seat of one of this lead's ends (EV_RCA_PLUG), and its pull.
+func net_seat_plug(end: int, _cord: int, device: Node3D, port_name: String) -> void:
+	MainsSync.seat(plug_at(end), device, port_name)
+
+
+func net_release_plug(end: int, _cord: int) -> void:
+	MainsSync.release(plug_at(end))
+
+
+# ── Mains (MainsPower) ─────────────────────────────────────────────────────────
+
+## Power at one of this lead's plugs: the appliance end has it while the wall end
+## sits in a live socket. The wall end never does -- nothing feeds back.
+func mains_live_at(at: Node, seen: Dictionary) -> bool:
+	return at == appliance_plug and MainsPower.seated_live(wall_plug, seen)
+
+
+func mains_noun() -> String:
+	return "power cord"
+
+
+func mains_wall_plug() -> Node3D:
+	return wall_plug
 
 
 ## Unseat both connectors, then free the lead.

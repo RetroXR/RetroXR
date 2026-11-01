@@ -822,6 +822,54 @@ api.override_console_stand("wii_stand", {
   holding a stand whose mod is gone loads without it, and the console keeps its
   own saved place.
 
+## AC adapters
+
+The game ships every console's and handheld's AC adapter as a primitive box
+(`PowerBrickCatalog`: the NES-002, the DOL-002, the N64's NUS-002 module, ...),
+each in the models its regions sold (`usa`, `eur`, `ukv`, `aus`, `jpn`, `kor`,
+`asia`). A mod gives one its real model; what it plugs into, its form and its
+plug's standard stay the game's (docs/dev/power.md).
+
+```gdscript
+api.override_power_brick("nes_ac_adapter", {
+    "plug_model": "res://mods/xenu.nesadapter/model/nes_ac_adapter_plug.glb",
+    "variants": {
+        "usa": {"model": "res://mods/xenu.nesadapter/model/nes_ac_adapter_usa.glb"},
+        "eur": {"model": "res://mods/xenu.nesadapter/model/nes_ac_adapter_eur.glb"},
+    },
+})
+```
+
+- **Frames.** A wall wart's origin is the face its blades stand out of, blades
+  along +Z (a wall plug's frame). An in-line brick, an inlet brick or a pack lies
+  on its floor, its origin under its middle. A plug's origin is the face of its
+  hood that stops against the jack, its barrel along +Z. A model framed otherwise
+  passes `"model_offset": Transform3D(...)` in its variant (the N64's module).
+- **Empties.** `DCCordAnchor` and `ACCordAnchor` are where the cords leave the
+  body; `ACInAnchor` is an inlet brick's C8 mouth; the plug's `CordExit` is where
+  its lead leaves. They are points: which way a cord goes is the face of the
+  model's bounds it is on. Missing ones fall back to the primitive's.
+- Only `plug_model`, and per variant `model`, `plug_model` and `model_offset`, may
+  be given. A region the adapter was never sold in is refused, as is a scene that
+  is not in the pack. A region you give no model keeps its primitive.
+- One mod per adapter; switching it off brings the primitives back. Its boxes are
+  fitted to what the model draws (a wall wart's stop at its face, not its blades).
+
+### The Virtual Boy's pack and tap
+
+The pack (VUE-007) and the AC adapter tap (VUE-011) are the game's `VbPowerUnit`s,
+clipped onto the controller's `PackMount`. A mod dresses them with
+`api.dress(&"VbPowerUnit", "shell", cb)`: wait for the unit's `ready`, hide what
+`unit.shell_meshes()` returns and hang your model on it. Its frame is RetroXR-models'
+controller `BatteryPackPivot` (the pack's middle; +Y the face on the controller, -Z the
+cord end), and its cell seats and the tap's jack are already where that model has them.
+Their lids are `PortCover`s on the sockets `vb_battery_pack_lid` and `vb_ac_tap_lid`
+(`api.dress(&"PortCover", socket, cb)`). The controller itself (`VbController`) finds its
+controls on a reshelled Model by name (`ButtonA`, `ButtonB`, `Select`, `Start`,
+`ShoulderL`, `ShoulderR`, `DPadL`, `DPadR`), a D-pad under a `*Pivot` node rocking about
+that node; move its `PackMount` after `ready` if your pack sits elsewhere.
+`xenu.vbpad` is the worked example.
+
 ## Attaching to existing code
 
 ```gdscript

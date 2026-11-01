@@ -141,6 +141,11 @@ const _PERIPHERALS: Dictionary = {
 	],
 	"virtualboy": [
 		{"kind": "peripheral", "label": "Controller", "spawn": "vb_controller"},
+		# What clips onto the controller's back and powers the console up its cord
+		# (VbPowerUnit). The controller comes with a pack; these are a second one and
+		# the tap, which takes the Super NES adapter's plug (the Famicom's in Japan).
+		{"kind": "peripheral", "label": "Battery Pack (VUE-007)", "spawn": "vb_battery_pack"},
+		{"kind": "peripheral", "label": "AC Adapter Tap (VUE-011)", "spawn": "vb_ac_tap"},
 	],
 	# The NES pad is named here rather than left to the generic row because the
 	# console moulds its own connector and the pad wears it (plug_mesh_path), so
@@ -605,6 +610,21 @@ static func _items_for(systemid: String) -> Array:
 	for stand_id: String in StandCatalog.stands_for_card(systemid):
 		items.append({"kind": "peripheral", "label": StandCatalog.label_of(stand_id),
 			"spawn": CONSOLE_STAND_PREFIX + stand_id})
+	# What it runs on (docs/dev/power.md): its AC adapter, or the figure-eight cord
+	# for a console with its supply inside. Each in its outlet region's model.
+	for brick_id: String in PowerBrickCatalog.for_machine("", systemid):
+		var brick_row := PowerSpawnRows.brick_row(brick_id)
+		items.append({"kind": "peripheral", "label": str(brick_row["label"]),
+			"spawn": PowerBrickCatalog.PREFIX + brick_id, "power_row": brick_row})
+	var inlets: Array = [str(PowerProfiles.for_machine("", systemid).get("inlet", ""))]
+	for model_row: Dictionary in SystemModelRegistry.rows_for(systemid):
+		inlets.append(str(PowerProfiles.for_machine(str(model_row.get("id", "")), systemid).get("inlet", "")))
+	for cord_row: Dictionary in PowerSpawnRows.cord_rows():
+		var wanted := (str(cord_row["key"]) == "cord_c7" and (inlets.has("c8") or inlets.has("c8p"))) \
+			or (str(cord_row["key"]) == "cord_c13" and inlets.has("c14"))
+		if wanted:
+			items.append({"kind": "peripheral", "label": str(cord_row["label"]),
+				"spawn": str((cord_row["variants"] as Array)[0]["token"]), "power_row": cord_row})
 	# The machines that bolt onto this one -- but ONLY those actually filed under
 	# this card, or a unit would be offered from two places at once and this card
 	# would grow a row that duplicates a whole tile.
@@ -1097,6 +1117,7 @@ enum TokenKind {
 	PAD_RECEIVER,   ## "pad_receiver:<guid>:<ordinal>" -- guid, ordinal
 	TV_SHELL,       ## "tv:<shell>" -- shell
 	CONSOLE_STAND,  ## "console_stand:<id>" -- stand_id (a StandCatalog id)
+	POWER_BRICK,    ## "power_brick:<id>" -- brick_id (a PowerBrickCatalog id); variant = its region's model
 	MOD,            ## "mod:<type>" -- mod_type
 	PLAIN,          ## anything else: a literal type, a persistence type or a bare systemid
 }
@@ -1155,6 +1176,9 @@ static func parse_token(raw: String) -> Dictionary:
 	elif type.begins_with(CONSOLE_STAND_PREFIX):
 		parsed["kind"] = TokenKind.CONSOLE_STAND
 		parsed["stand_id"] = type.substr(CONSOLE_STAND_PREFIX.length())
+	elif type.begins_with(PowerBrickCatalog.PREFIX):
+		parsed["kind"] = TokenKind.POWER_BRICK
+		parsed["brick_id"] = type.substr(PowerBrickCatalog.PREFIX.length())
 	elif type.begins_with("mod:"):
 		parsed["kind"] = TokenKind.MOD
 		parsed["mod_type"] = type.substr("mod:".length())

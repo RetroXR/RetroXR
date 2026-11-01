@@ -7,6 +7,7 @@
 [ext_resource type="Shader" uid="uid://ck7deycag7kku" path="res://Shaders/ceiling_tiles.gdshader" id="21_ceiltiles"]
 [ext_resource type="PackedScene" path="res://Scenes/player_rig.tscn" id="23_playerrig"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/furniture/table.tscn" id="24_table"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/room/wall_outlet.tscn" id="90_outlet"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProcSkyMat"]
 sky_top_color = Color(0.18, 0.31, 0.55, 1)
@@ -467,3 +468,66 @@ gi_bake = "arcade"
 [node name="PropLighting" type="Node" parent="." unique_id=1033434418]
 script = ExtResource("26_proplight")
 shell_lighting_path = NodePath("../ShellLighting")
+
+; Wall outlets (docs/dev/power.md): a duplex every 2 m along each wall's inner face,
+; 0.3 m up, the plate's +Z into the room, none in the north doorway (|x| < 0.6).
+; Every plate follows the player's outlet region (WallOutlet). Their names are what
+; a save names a plug's socket by (Outlets/<name>/TopPort), so they are never renamed.
+[node name="Outlets" type="Node3D" parent="." unique_id=1681269517]
+
+[node name="OutletSouthM4" parent="Outlets" unique_id=295475825 instance=ExtResource("90_outlet")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -4, 0.3, 5)
+
+[node name="OutletSouthM2" parent="Outlets" unique_id=348631442 instance=ExtResource("90_outlet")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2, 0.3, 5)
+
+[node name="OutletSouthP0" parent="Outlets" unique_id=946286267 instance=ExtResource("90_outlet")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.3, 5)
+
+[node name="OutletSouthP2" parent="Outlets" unique_id=228274995 instance=ExtResource("90_outlet")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2, 0.3, 5)
+
+[node name="OutletSouthP4" parent="Outlets" unique_id=1592839769 instance=ExtResource("90_outlet")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 4, 0.3, 5)
+
+[node name="OutletNorthM4" parent="Outlets" unique_id=193205835 instance=ExtResource("90_outlet")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.3, -5)
+
+[node name="OutletNorthM2" parent="Outlets" unique_id=208288515 instance=ExtResource("90_outlet")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0.3, -5)
+
+[node name="OutletNorthP2" parent="Outlets" unique_id=1498555985 instance=ExtResource("90_outlet")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.3, -5)
+
+[node name="OutletNorthP4" parent="Outlets" unique_id=570689661 instance=ExtResource("90_outlet")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0.3, -5)
+
+[node name="OutletEastM4" parent="Outlets" unique_id=689884006 instance=ExtResource("90_outlet")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5, 0.3, -4)
+
+[node name="OutletEastM2" parent="Outlets" unique_id=807274087 instance=ExtResource("90_outlet")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5, 0.3, -2)
+
+[node name="OutletEastP0" parent="Outlets" unique_id=369029739 instance=ExtResource("90_outlet")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5, 0.3, 0)
+
+[node name="OutletEastP2" parent="Outlets" unique_id=405090865 instance=ExtResource("90_outlet")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5, 0.3, 2)
+
+[node name="OutletEastP4" parent="Outlets" unique_id=1058671048 instance=ExtResource("90_outlet")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 5, 0.3, 4)
+
+[node name="OutletWestM4" parent="Outlets" unique_id=1303293419 instance=ExtResource("90_outlet")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -5, 0.3, -4)
+
+[node name="OutletWestM2" parent="Outlets" unique_id=1888421232 instance=ExtResource("90_outlet")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -5, 0.3, -2)
+
+[node name="OutletWestP0" parent="Outlets" unique_id=1905269052 instance=ExtResource("90_outlet")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -5, 0.3, 0)
+
+[node name="OutletWestP2" parent="Outlets" unique_id=1898074739 instance=ExtResource("90_outlet")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -5, 0.3, 2)
+
+[node name="OutletWestP4" parent="Outlets" unique_id=1149144451 instance=ExtResource("90_outlet")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -5, 0.3, 4)

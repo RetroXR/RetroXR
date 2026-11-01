@@ -46,6 +46,9 @@ tree is vendored yet.
 
 **scons is not installed system-wide in either WSL distro** (`Ubuntu` has g++ but no
 scons; `FedoraLinux-44` has neither on PATH). Install it into the distro first.
+On this Windows box WSL had no distro at all on 2026-11-01; `wsl --install -d Ubuntu
+--no-launch` gave Ubuntu 26.04 (default user root), and `apt-get install build-essential
+scons python3 libvlc-dev pkg-config` is everything `build.py linux --only vlc-godot` needs.
 On the native CachyOS box there is no `pip` on PATH at all (Python 3.14, externally
 managed) — `uv tool install scons` is the one that works there, and it lands in
 `~/.local/bin` just the same.

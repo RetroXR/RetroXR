@@ -5,20 +5,17 @@ const SPAWN_MENU_CONTROLLER := preload(
 const VIEWPORT_2D_IN_3D := preload(
 	"res://addons/godot-xr-tools/objects/viewport_2d_in_3d.tscn")
 const SPAWN_MENU := preload("res://Scenes/UI/spawn_menu.tscn")
+## The Power tab's cord rows (PowerSpawnRows): a plain press spawns the cord of the
+## Options outlet region -- run in the US region, the two US ones.
 const CASES := [
 	{
-		"label": "NEMA 5-15P to C13 Cable",
+		"label": "Power Cord (C13)",
 		"scene": "res://Scenes/Objects/cables/power_cord.tscn",
 		"ribbon": 1,
 	},
 	{
-		"label": "NEMA 1-15P to C7 Cable",
+		"label": "Figure-8 Power Cord (C7)",
 		"scene": "res://Scenes/Objects/cables/nema_1_15_to_c7_cord.tscn",
-		"ribbon": 2,
-	},
-	{
-		"label": "Polarized NEMA 1-15P to C7P Cable",
-		"scene": "res://Scenes/Objects/cables/nema_1_15_polarized_to_c7_polarized_cord.tscn",
 		"ribbon": 2,
 	},
 ]
@@ -33,6 +30,7 @@ func _ready() -> void:
 	# "test" is an authored, slotless room id, so the controller also skips its
 	# startup slot restore without changing the user's persisted preference.
 	SceneManager.current_scene_id = "test"
+	AppPrefs.mains_region = MainsRegions.DEFAULT
 	var controller := Node3D.new()
 	controller.name = "SpawnMenuController"
 	controller.set_script(SPAWN_MENU_CONTROLLER)
@@ -51,7 +49,12 @@ func _ready() -> void:
 		if button == null:
 			continue
 		var before := get_tree().get_nodes_in_group("spawned").size()
-		button.pressed.emit()
+		# A region row is a HoldPress: a short press is its `clicked`.
+		var hold := button.find_children("*", "HoldPress", true, false)
+		if not hold.is_empty():
+			(hold[0] as HoldPress).clicked.emit()
+		else:
+			button.pressed.emit()
 		await get_tree().process_frame
 		await get_tree().physics_frame
 		var spawned := get_tree().get_nodes_in_group("spawned")

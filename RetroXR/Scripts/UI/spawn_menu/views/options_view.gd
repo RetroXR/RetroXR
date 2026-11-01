@@ -225,7 +225,13 @@ func _option_row(vbox: VBoxContainer, text: String, height := 68, subtitle := ""
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(col)
 	col.add_child(title)
-	col.add_child(MenuStyle.label(subtitle, 16, MenuStyle.COLOR_LICENSE))
+	# Wrapped to the menu's width: on one line a long subtitle (Enable Power
+	# Simulation's) set the row's least width, and a narrow menu cut its right side off.
+	var note := MenuStyle.label(subtitle, 16, MenuStyle.COLOR_LICENSE)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size.x = 1
+	note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_child(note)
 	return row
 
 
@@ -669,6 +675,14 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 		AppPrefs.set_mains_region(str(id))
 	)
 	vbox.add_child(region_drop)
+	# On, a device switches on only when a live supply reaches it (MainsPower): a
+	# cord into the wall or a strip in it, an AC adapter, cells in every bay.
+	# Switching it on cuts whatever is running unplugged, so the row says so.
+	_toggle_row(vbox, "Enable Power Simulation", AppPrefs.power_simulation,
+		func(on: bool) -> void:
+			AppPrefs.set_power_simulation(on),
+		Callable(), 84,
+		"On: devices need power: plug them in, put cells in (turning this on switches off anything running unplugged). Off: everything powers as if plugged in.")
 	vbox.add_child(HSeparator.new())
 
 	# Physical XR device presentation. The mode updates the live rig; the runtime

@@ -1,0 +1,80 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/power/captive_mains_cord.gd" id="1_cord"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/power/power_plug.gd" id="2_plug"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/nema_1_15_polarized_plug.res" id="3_plug"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="5_highlight"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="6_grab"]
+
+[sub_resource type="BoxShape3D" id="Shape_plug"]
+size = Vector3(0.030, 0.020, 0.063)
+
+[sub_resource type="BoxShape3D" id="Shape_pointer"]
+size = Vector3(0.044, 0.040, 0.064)
+
+[sub_resource type="PhysicsMaterial" id="Phys_plug"]
+friction = 0.8
+
+; ── CaptiveMainsCord: an appliance's own mains cord ─────────────────────────────
+;
+; The rope starts at the appliance's PowerCordExit (handed over by CaptiveMainsCord.
+; attach) and ends in this wall plug: PowerCord's WallPlug, its prongs whatever the
+; player's region sells an appliance with (set_region swaps the connector, the mesh
+; and the box). The root never moves: it hangs off the current scene, not the
+; appliance, as the captive video lead does.
+[node name="CaptiveMainsCord" type="Node3D"]
+script = ExtResource("1_cord")
+
+[node name="WallPlug" type="RigidBody3D" parent="."]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("Phys_plug")
+mass = 0.055
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plug")
+connector = "nema_1_15_polarized_plug"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WallPlug"]
+transform = Transform3D(1,0,0,0,1,0,0,0,1,0,0.0042,-0.0155)
+shape = SubResource("Shape_plug")
+
+[node name="PlugTip" type="MeshInstance3D" parent="WallPlug"]
+mesh = ExtResource("3_plug")
+
+[node name="PointerArea" type="StaticBody3D" parent="WallPlug"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WallPlug/PointerArea"]
+transform = Transform3D(1,0,0,0,1,0,0,0,1,0,0.0042,-0.0155)
+shape = SubResource("Shape_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="WallPlug"]
+script = ExtResource("5_highlight")
+
+[node name="SnapGrabPoint" parent="WallPlug" instance=ExtResource("6_grab")]
+transform = Transform3D(-1,0,0,0,1,0,0,0,-1,0,0,0)
+
+; 60 x 30 mm = 1.8 m of two-conductor zip cord, as the C7 leads are. The count is
+; fixed here and never raised on a live rope (rope.md).
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 60
+segment_length = 0.03
+constraint_iterations = 8
+bend_stiffness = 0.20
+tube_radius = 0.0018
+tube_sides = 8
+smoothing = 2
+rope_color = Color(0.035,0.035,0.04,1)
+ribbon_count = 2
+ribbon_spacing = 0.0036
+ribbon_colors = PackedColorArray(0.035,0.035,0.04,1, 0.035,0.035,0.04,1)
+ribbon_axis = Vector3(1,0,0)
+surface_collision_mask = 7
+collision_radius = 0.0045
+self_collision = true
+end_align_stiffness = 0.72
+end_stiffness = 0.48
+end_stiff_segments = 2

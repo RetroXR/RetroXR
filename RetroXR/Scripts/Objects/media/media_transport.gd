@@ -30,6 +30,11 @@ extends XRToolsPickable
 ## _apply_av_feed, which is the one place the cable graph is turned into routing.
 var connected_tv: RetroTV = null
 
+## What the deck runs on: its own mains cord, or the set it is built into
+## (ApplianceMains, docs/dev/power.md). With no power its keys do nothing, what is
+## playing stops and its display is dark.
+var _mains: PowerInput = null
+
 ## The set this deck is built into, or null for a deck standing on its own. Set
 ## once, by TvDecks, before anything is played. A built-in deck is the same deck
 ## with no body and no lead — see build_into.
@@ -132,6 +137,55 @@ func _emit_through(tv: Node3D) -> void:
 		_emitter.set_emit_direction(tv.get_screen_normal(), tv.get_screen_up())
 
 
+func _ready() -> void:
+	super._ready()
+	_mains = ApplianceMains.hook_up(self, get_node_or_null("Model"))
+	_mains.power_changed.connect(_on_mains_changed)
+
+
+## Whether the deck has power (its own cord, or the set it is built into).
+func mains_live() -> bool:
+	return _mains == null or _mains.is_live()
+
+
+## The deck's intake, for its menu's Power section.
+func power_input() -> PowerInput:
+	return _mains
+
+
+## A key on a deck with no power does nothing, as on the hardware, and says why in
+## the log. A peer's event is the host's, already decided.
+func _mains_gate(what: String) -> bool:
+	if mains_live() or NetworkManager.is_event_applying():
+		return true
+	print("[%s] %s: %s -- no power (%s)" % [_log_tag(), name, what, _mains.why_not()])
+	return false
+
+
+## The supply came or went: with none, what is playing stops and the display goes
+## dark (the subclass redraws it, _on_mains_redraw).
+func _on_mains_changed(live: bool) -> void:
+	print("[%s] %s: %s" % [_log_tag(), name, "power came back" if live else "lost its power"])
+	if not live and bool(get("is_playing")) and has_method("stop"):
+		call("stop")
+	_on_mains_redraw()
+
+
+## Redraw what shows power (a display, a lamp). Each deck its own.
+func _on_mains_redraw() -> void:
+	pass
+
+
+## Put the deck's own cord away (plugged in out of sight) or bring it back: the System
+## tab's Show Power Cord, and a peer's EV_MAINS_CORD_HIDDEN.
+func set_mains_cord_hidden(on: bool) -> void:
+	var cord: CaptiveMainsCord = _mains.captive as CaptiveMainsCord if _mains != null else null
+	if cord == null or cord.hidden == on:
+		return
+	cord.set_hidden(on)
+	NetworkManager.report_event(NetEvents.Event.EV_MAINS_CORD_HIDDEN, {"obj": self, "hidden": on})
+
+
 ## Make this deck part of `tv`, a combination set: the picture and both channels
 ## go straight to it, with no lead, and the deck stops being a thing of its own.
 ##
@@ -152,6 +206,8 @@ func _emit_through(tv: Node3D) -> void:
 ## (_front_panel) ignores it: its keys are on its face already.
 func build_into(tv: RetroTV, keep_housing: bool, controls: Variant = null) -> void:
 	built_into = tv
+	# Built in, it runs off the set's supply and has no cord of its own.
+	ApplianceMains.follow(self, tv.power_input())
 	enabled = false
 	freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 	freeze = true

@@ -22,6 +22,8 @@ static func change_region(tree: SceneTree, id: String) -> void:
 	var seats := _room_seats(tree)
 	PowerStrip.apply_region(tree, id)
 	TravelAdapter.apply_region(tree, id)
+	# An appliance's own cord is the one sold where the room is, as the strip is.
+	CaptiveMainsCord.apply_region(tree, id)
 	WallOutlet.apply_region(tree, id)
 	# Every plug whose socket is still there first, so the ones moved off a
 	# shrunk strip take only sockets nobody had.

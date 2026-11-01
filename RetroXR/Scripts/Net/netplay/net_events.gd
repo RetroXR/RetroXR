@@ -72,4 +72,9 @@ enum Event {
 	                     #               (0 its own speakers / 1 stereo out / 2 surround)
 	EV_AMP_MODE,         # {amp, mode}   a surround amplifier's decoder
 	                     #               (SurroundAmp.DecodeMode: 0 Pro Logic II / 1 Dolby Surround)
+	# An appliance's own mains cord (CaptiveMainsCord, docs/dev/power.md), named by
+	# its appliance: the cord is not an object of its own on the wire.
+	EV_MAINS_CORD_PLUG,  # {obj, dev, port}  its plug seated in a socket
+	EV_MAINS_CORD_UNPLUG, # {obj}            ...and pulled out
+	EV_MAINS_CORD_HIDDEN, # {obj, hidden}    Show Power Cord
 }

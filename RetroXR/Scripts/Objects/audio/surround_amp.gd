@@ -93,6 +93,9 @@ var _speaker_dest: Dictionary = {}
 var _vfd: VfdDisplay = null
 ## The level bar's step last drawn, so turning the knob redraws only on a new step.
 var _vfd_step: int = -1
+## What the amplifier runs on: its own mains cord (docs/dev/power.md). With no power
+## nothing it is carrying reaches its speakers and its display is dark.
+var _mains: PowerInput = null
 
 
 func _ready() -> void:
@@ -108,7 +111,37 @@ func _ready() -> void:
 	_mode_btn.button_pressed.connect(cycle_mode)
 	_dress()
 	_print_legends()
+	_mains = ApplianceMains.hook_up(self, _model)
+	_mains.power_changed.connect(_on_mains_changed)
 	_refresh_display()
+
+
+## Whether the amplifier has power.
+func mains_live() -> bool:
+	return _mains == null or _mains.is_live()
+
+
+## The amplifier's intake, for its menu's Power section.
+func power_input() -> PowerInput:
+	return _mains
+
+
+## The supply came or went: the level every source plays at follows (nothing with
+## none), and the display.
+func _on_mains_changed(live: bool) -> void:
+	print("[SurroundAmp] %s: %s" % [name, "power came back" if live else "lost its power: silent"])
+	_push_volume_all()
+	_notify_upstream()
+	_refresh_display()
+
+
+## Put the amplifier's own cord away or bring it back (Show Power Cord, a peer's event).
+func set_mains_cord_hidden(on: bool) -> void:
+	var cord: CaptiveMainsCord = _mains.captive as CaptiveMainsCord if _mains != null else null
+	if cord == null or cord.hidden == on:
+		return
+	cord.set_hidden(on)
+	NetworkManager.report_event(NetEvents.Event.EV_MAINS_CORD_HIDDEN, {"obj": self, "hidden": on})
 
 
 # ── the sink contract ────────────────────────────────────────────────────────
@@ -201,6 +234,10 @@ func hide_osd() -> void:
 
 ## SURROUND MODE: the next decoder.
 func cycle_mode() -> void:
+	# A dead amplifier's key does nothing.
+	if not mains_live():
+		print("[SurroundAmp] %s: SURROUND MODE -- no power (%s)" % [name, _mains.why_not()])
+		return
 	set_decode_mode((decode_mode + 1) % DECODE_NAMES.size())
 
 
@@ -255,7 +292,7 @@ func _refresh_level() -> void:
 ## What reaches the speakers: the knob, or nothing with no speaker plugged in — the
 ## same rule a set switched to external speakers follows.
 func effective_volume() -> float:
-	return _volume if has_cabled_speakers() else 0.0
+	return _volume if has_cabled_speakers() and mains_live() else 0.0
 
 
 ## Everything a machine needs to be decoding through this amplifier. The decoder
@@ -317,7 +354,7 @@ func _refresh_display() -> void:
 	if _display == null:
 		return
 	_display.text = DECODE_NAMES[decode_mode]
-	_display.modulate = DISPLAY_LIT if has_cabled_speakers() else DISPLAY_DIM
+	_display.modulate = DISPLAY_LIT if has_cabled_speakers() and mains_live() else DISPLAY_DIM
 	if _vfd != null:
 		_vfd_step = roundi(_volume * VFD_BARS)
 		_vfd.refresh()
@@ -399,6 +436,8 @@ func vfd_lamp_lit(i: int) -> bool:
 ## The VFD: the decoder's name large on the left with the knob's level bar under it, and
 ## the speaker map on the right, a lamp per output round the seat.
 func _paint_vfd(c: Control, s: Vector2) -> void:
+	if not mains_live():
+		return
 	var on := has_cabled_speakers()
 	var ink := VfdDisplay.LIT if on else VFD_DIM
 	c.draw_string(VfdDisplay.font(), Vector2(s.x * 0.03, s.y * 0.52), DECODE_NAMES[decode_mode],

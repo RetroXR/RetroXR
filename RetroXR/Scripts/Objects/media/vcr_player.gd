@@ -258,20 +258,35 @@ func _dress() -> void:
 
 ## POWER: the display and the lamp go to standby and come back; the deck itself has no power state.
 func _on_power_pressed() -> void:
+	if not _mains_gate("POWER"):
+		return
 	_log_event("pressed POWER")
 	_set_power(not _power_on)
 
 
 func _set_power(on: bool) -> void:
 	_power_on = on
-	for led in _model.parts("PowerLed"):
-		(led as MeshInstance3D).material_override = _led_on_mat if on else _led_off_mat
+	_light_led()
 	_vfd_key = ""
 	print("[VCR] %s: display %s" % [name, "on" if on else "on standby"])
 
 
+## The lamp: lit while the deck is out of standby AND has power.
+func _light_led() -> void:
+	var lit := _power_on and mains_live()
+	for led in _model.parts("PowerLed"):
+		(led as MeshInstance3D).material_override = _led_on_mat if lit else _led_off_mat
+
+
+func _on_mains_redraw() -> void:
+	_light_led()
+	_vfd_key = ""
+
+
 ## REC: a key every deck of its day had. This one plays tapes and records nothing, and says so.
 func _on_record_pressed() -> void:
+	if not _mains_gate("REC"):
+		return
 	_log_event("pressed REC (this deck plays tapes; it records nothing)")
 	_osd("REC: NO RECORDING", false)
 
@@ -384,7 +399,7 @@ func _update_vfd() -> void:
 ## The approved layout (RetroXR-models generic/vcr, tools/vfd.py): VIDEO / SP and the cassette on the left, the
 ## tape counter H:MM:SS in seven segments, ST / SAP and the boxed lamps on the right. 1260 x 250 px.
 func _paint_vfd(c: Control, _size: Vector2) -> void:
-	if not _power_on or _vfd_state.is_empty():
+	if not _power_on or not mains_live() or _vfd_state.is_empty():
 		return
 	var tape: bool = _vfd_state["tape"]
 	var secs: float = _vfd_state["secs"]
@@ -585,6 +600,8 @@ func _on_media_removed() -> void:
 
 
 func _on_eject_pressed() -> void:
+	if not _mains_gate("EJECT"):
+		return
 	_log_event("pressed EJECT")
 	_slot.eject()
 
@@ -756,6 +773,8 @@ func _log_tag() -> String:
 
 
 func _on_play_pressed() -> void:
+	if not _mains_gate("PLAY"):
+		return
 	_log_event("pressed PLAY")
 	if _net_forward_cmd("play"):
 		return
@@ -776,6 +795,8 @@ func _on_play_pressed() -> void:
 
 
 func _on_pause_pressed() -> void:
+	if not _mains_gate("PAUSE"):
+		return
 	_log_event("pressed PAUSE")
 	if _net_forward_cmd("pause"):
 		return
@@ -790,6 +811,8 @@ func _on_pause_pressed() -> void:
 
 
 func _on_stop_pressed() -> void:
+	if not _mains_gate("STOP"):
+		return
 	_log_event("pressed STOP")
 	if _net_forward_cmd("stop"):
 		return
@@ -800,6 +823,8 @@ func _on_stop_pressed() -> void:
 ## From stop it plays from where the tape is and scans back from there: a tape
 ## played to its end from the end of its last recording.
 func _on_rewind_pressed() -> void:
+	if not _mains_gate("REW"):
+		return
 	_log_event("pressed REW")
 	if _net_forward_cmd("rew"):
 		return
@@ -831,6 +856,8 @@ func _on_rewind_pressed() -> void:
 
 ## Fast-forward button: toggle forward scan (press again, or Play/Pause, to exit).
 func _on_ff_pressed() -> void:
+	if not _mains_gate("FF"):
+		return
 	_log_event("pressed FF")
 	if _net_forward_cmd("ff"):
 		return
@@ -876,6 +903,8 @@ func _apply_volume() -> void:
 
 
 func play() -> void:
+	if not _mains_gate("play"):
+		return
 	if connected_tv == null:
 		push_error("[VCRPlayer] Cannot play - no TV connected")
 		return

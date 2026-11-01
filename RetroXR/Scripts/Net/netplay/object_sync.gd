@@ -1016,6 +1016,9 @@ const EV_NODE_KEYS := {
 	NetEvents.Event.EV_TV_AUDIO_MODE:   ["tv"],
 	NetEvents.Event.EV_TV_AUDIO_OUT:    ["tv"],
 	NetEvents.Event.EV_AMP_MODE:        ["amp"],
+	NetEvents.Event.EV_MAINS_CORD_PLUG: ["obj", "dev"],
+	NetEvents.Event.EV_MAINS_CORD_UNPLUG: ["obj"],
+	NetEvents.Event.EV_MAINS_CORD_HIDDEN: ["obj"],
 	NetEvents.Event.EV_TV_ASPECT:       ["tv"],
 	NetEvents.Event.EV_TV_SOURCE:       ["tv"],
 	NetEvents.Event.EV_TV_CHANNEL:      ["tv"],
@@ -1207,6 +1210,18 @@ func _dispatch_event(kind: NetEvents.Event, args: Dictionary) -> void:
 			args["tv"].set_audio_out(int(args.get("mode", 0)))
 		NetEvents.Event.EV_AMP_MODE:
 			args["amp"].set_decode_mode(int(args.get("mode", 0)))
+		NetEvents.Event.EV_MAINS_CORD_PLUG:
+			var plugged := PowerInput.of(args["obj"])
+			if plugged != null and plugged.captive is CaptiveMainsCord:
+				MainsSync.seat((plugged.captive as CaptiveMainsCord).wall_plug, args["dev"],
+					str(args.get("port", "")))
+		NetEvents.Event.EV_MAINS_CORD_UNPLUG:
+			var pulled := PowerInput.of(args["obj"])
+			if pulled != null and pulled.captive is CaptiveMainsCord:
+				MainsSync.release((pulled.captive as CaptiveMainsCord).wall_plug)
+		NetEvents.Event.EV_MAINS_CORD_HIDDEN:
+			if args["obj"].has_method("set_mains_cord_hidden"):
+				args["obj"].set_mains_cord_hidden(bool(args.get("hidden", false)))
 		NetEvents.Event.EV_TV_ASPECT:
 			args["tv"].set_widescreen(bool(args.get("on", false)))
 		NetEvents.Event.EV_TV_SOURCE:

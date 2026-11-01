@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=26 format=3]
 
 [ext_resource type="Script" path="res://Scripts/Objects/system_models/nintendo_64_model.gd" id="1_n64"]
 
@@ -28,6 +28,37 @@ size = Vector3(0.054, 0.022, 0.115)
 
 [sub_resource type="BoxMesh" id="Mesh_base_front"]
 size = Vector3(0.054, 0.022, 0.049)
+
+; The power supply bay. A real NUS-001 has no mains inlet: the NUS-002 module
+; slides into a bay in the back of the base, behind the right-hand controller
+; ports, and its own back face closes the console's. 113.64 x 42.65 x 73.41 mm
+; (PowerBrickCatalog n64_psu), centred 70 mm left of the middle seen from the
+; front -- the RetroXR-models console's PsuSeat -- and open underneath, as the
+; module is part of the underside. So the rear of the base is cut: the slab below
+; 0.023 and the side box above it stop at the bay's front (z -0.022), the bay
+; gets a 3 mm outer wall and a 2 mm roof under the deck, and the rear box gives
+; up the 14 mm of it the bay reaches.
+[sub_resource type="BoxMesh" id="Mesh_base_lower_front"]
+size = Vector3(0.26, 0.023, 0.117)
+
+[sub_resource type="BoxMesh" id="Mesh_base_lower_rear"]
+size = Vector3(0.143, 0.023, 0.073)
+
+[sub_resource type="BoxMesh" id="Mesh_base_side_front"]
+size = Vector3(0.103, 0.022, 0.117)
+
+[sub_resource type="BoxMesh" id="Mesh_base_rear_right"]
+size = Vector3(0.04, 0.022, 0.115)
+
+[sub_resource type="BoxMesh" id="Mesh_base_rear_left"]
+size = Vector3(0.014, 0.022, 0.042)
+
+[sub_resource type="BoxMesh" id="Mesh_bay_wall"]
+size = Vector3(0.003, 0.045, 0.073)
+
+[sub_resource type="BoxMesh" id="Mesh_bay_roof"]
+size = Vector3(0.114, 0.002, 0.073)
+
 
 [sub_resource type="StandardMaterial3D" id="Mat_body"]
 albedo_color = Color(0.53, 0.54, 0.57, 1)
@@ -84,13 +115,18 @@ script = ExtResource("1_n64")
 
 ; Solid under the shaft floor.
 [node name="BaseLower" type="MeshInstance3D" parent="Base"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0115, 0)
-mesh = SubResource("Mesh_base_lower")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0115, 0.0365)
+mesh = SubResource("Mesh_base_lower_front")
+surface_material_override/0 = SubResource("Mat_body")
+
+[node name="BaseLowerRear" type="MeshInstance3D" parent="Base"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0585, 0.0115, -0.0585)
+mesh = SubResource("Mesh_base_lower_rear")
 surface_material_override/0 = SubResource("Mat_body")
 
 [node name="BaseLeft" type="MeshInstance3D" parent="Base"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0785, 0.034, 0)
-mesh = SubResource("Mesh_base_side")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0785, 0.034, 0.0365)
+mesh = SubResource("Mesh_base_side_front")
 surface_material_override/0 = SubResource("Mat_body")
 
 [node name="BaseRight" type="MeshInstance3D" parent="Base"]
@@ -99,8 +135,23 @@ mesh = SubResource("Mesh_base_side")
 surface_material_override/0 = SubResource("Mat_body")
 
 [node name="BaseRear" type="MeshInstance3D" parent="Base"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.034, -0.0375)
-mesh = SubResource("Mesh_base_rear")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.007, 0.034, -0.0375)
+mesh = SubResource("Mesh_base_rear_right")
+surface_material_override/0 = SubResource("Mat_body")
+
+[node name="BaseRearLeft" type="MeshInstance3D" parent="Base"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.02, 0.034, -0.001)
+mesh = SubResource("Mesh_base_rear_left")
+surface_material_override/0 = SubResource("Mat_body")
+
+[node name="PsuBayWall" type="MeshInstance3D" parent="Base"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.1285, 0.0225, -0.0585)
+mesh = SubResource("Mesh_bay_wall")
+surface_material_override/0 = SubResource("Mat_body")
+
+[node name="PsuBayRoof" type="MeshInstance3D" parent="Base"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, 0.044, -0.0585)
+mesh = SubResource("Mesh_bay_roof")
 surface_material_override/0 = SubResource("Mat_body")
 
 [node name="BaseFront" type="MeshInstance3D" parent="Base"]
@@ -228,7 +279,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.102, 0.045, 0.045)
 ; connector's number and the plug floats off the back or sinks into it.
 ;
 ; x +0.095: the LEFT of the rear face as you stand behind the machine, which is
-; where a real N64 has it (the DC inlet is on the right, and is not modelled). The
+; where a real N64 has it (the power supply bay is on the right: PsuSeat below). The
 ; model's front is +Z, so from behind +X is the left. The bezel is 23.5 mm wide,
 ; leaving ~22 mm to the 130 mm edge.
 ;
@@ -242,6 +293,13 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.102, 0.045, 0.045)
 ; the back and rolls the key 180 degrees, and BOTH matrices are symmetric -- so
 ; the row/column trap cannot tell them apart and neither can a printed basis. The
 ; check that can fail is a render of a SEATED plug, never an empty socket.
+; The power supply's mouth: the middle of the bay's open back, in the plane of the
+; back face, where the module's own back ends up (SystemPower.MODEL_INLETS; its
+; MOUTH_OUT is -Z, so no basis is needed here). y is half the module's height: it
+; stands on the table, as the bay is open underneath.
+[node name="PsuSeat" type="Marker3D" parent="Rear"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, 0.0213, -0.095)
+
 [node name="AvSeat" type="Marker3D" parent="Rear"]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.095, 0.022, -0.097)
 

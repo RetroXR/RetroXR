@@ -219,6 +219,9 @@ func _seat_saved(seat_name: String) -> void:
 
 func _on_changed() -> void:
 	_refresh.call_deferred()
+	# A cell in or out is a supply come or gone (PowerInput counts the bays).
+	if is_inside_tree():
+		MainsPower.changed(get_tree())
 
 
 ## Every slot open or shut with the bay, and every cell in one with it.

@@ -73,6 +73,11 @@ const LEVEL_FALL := 1.8           # per second
 @onready var _next_button: VRButton = get_node_or_null("NextButton")
 
 
+## What the deck runs on: its own mains cord. With no power its keys do nothing,
+## what is playing stops and its display is dark.
+var _mains: PowerInput = null
+
+
 func _ready() -> void:
 	super._ready()
 	add_to_group("audio_player")
@@ -115,6 +120,52 @@ func _ready() -> void:
 
 	_setup_audio()
 	_update_status()
+	# Its own mains cord, from the model's PowerCordExit (docs/dev/power.md).
+	_mains = ApplianceMains.hook_up(self, get_node_or_null("Model"))
+	_mains.power_changed.connect(_on_mains_changed)
+
+
+## Whether the deck has power (its own mains cord, docs/dev/power.md).
+func mains_live() -> bool:
+	return _mains == null or _mains.is_live()
+
+
+## The deck's intake, for its menu's Power section.
+func power_input() -> PowerInput:
+	return _mains
+
+
+## A key on a deck with no power does nothing, as on the hardware, and says why in
+## the log. A peer's event is the host's, already decided.
+func _mains_gate(what: String) -> bool:
+	if mains_live() or NetworkManager.is_event_applying():
+		return true
+	print("[%s] %s: %s -- no power (%s)" % [_log_tag(), name, what, _mains.why_not()])
+	return false
+
+
+## The supply came or went: with none, what is playing stops and the display goes
+## dark (a deck redraws it in _on_mains_redraw).
+func _on_mains_changed(live: bool) -> void:
+	print("[%s] %s: %s" % [_log_tag(), name, "power came back" if live else "lost its power"])
+	if not live and is_playing:
+		stop()
+	_on_mains_redraw()
+
+
+## Redraw what shows power (a display, a lamp, a motor). Each deck its own.
+func _on_mains_redraw() -> void:
+	pass
+
+
+## Put the deck's own cord away (plugged in out of sight) or bring it back: the System
+## tab's Show Power Cord, and a peer's EV_MAINS_CORD_HIDDEN.
+func set_mains_cord_hidden(on: bool) -> void:
+	var cord: CaptiveMainsCord = _mains.captive as CaptiveMainsCord if _mains != null else null
+	if cord == null or cord.hidden == on:
+		return
+	cord.set_hidden(on)
+	NetworkManager.report_event(NetEvents.Event.EV_MAINS_CORD_HIDDEN, {"obj": self, "hidden": on})
 
 
 ## The menu's Debug tab: the record, tape or disc in the deck, what the player is
@@ -483,6 +534,8 @@ func remote_goto_track(idx: int) -> void:
 
 
 func _on_play_pressed() -> void:
+	if not _mains_gate("PLAY"):
+		return
 	_log_event("pressed PLAY")
 	if _net_forward_cmd("play"):
 		return
@@ -499,6 +552,8 @@ func _on_play_pressed() -> void:
 
 
 func _on_pause_pressed() -> void:
+	if not _mains_gate("PAUSE"):
+		return
 	_log_event("pressed PAUSE")
 	if _net_forward_cmd("pause"):
 		return
@@ -520,6 +575,8 @@ func _on_stop_pressed() -> void:
 
 
 func _on_rewind_pressed() -> void:
+	if not _mains_gate("REW"):
+		return
 	_log_event("pressed REW")
 	if not has_scan():
 		return
@@ -534,6 +591,8 @@ func _on_rewind_pressed() -> void:
 
 
 func _on_ff_pressed() -> void:
+	if not _mains_gate("FF"):
+		return
 	_log_event("pressed FF")
 	if not has_scan():
 		return
@@ -548,6 +607,8 @@ func _on_ff_pressed() -> void:
 
 
 func _on_next_pressed() -> void:
+	if not _mains_gate("NEXT"):
+		return
 	_log_event("pressed NEXT")
 	if not has_track_skip():
 		return
@@ -557,6 +618,8 @@ func _on_next_pressed() -> void:
 
 
 func _on_prev_pressed() -> void:
+	if not _mains_gate("PREV"):
+		return
 	_log_event("pressed PREV")
 	if not has_track_skip():
 		return
@@ -583,6 +646,8 @@ func _goto_track(idx: int) -> void:
 
 
 func play() -> void:
+	if not _mains_gate("play"):
+		return
 	if _vlc == null:
 		push_error("[RetroAudioPlayer] VlcPlayer unavailable (extension not loaded)")
 		return

@@ -1,0 +1,153 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/power/power_brick.gd" id="1_brick"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/power/power_strip_body.gd" id="2_body"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/power/power_plug.gd" id="3_plug"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_highlight"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_grab"]
+
+[sub_resource type="BoxShape3D" id="Shape_body"]
+size = Vector3(0.06, 0.04, 0.12)
+
+[sub_resource type="BoxShape3D" id="Shape_plug"]
+size = Vector3(0.012, 0.012, 0.04)
+
+[sub_resource type="PhysicsMaterial" id="Phys_body"]
+friction = 0.9
+
+[sub_resource type="PhysicsMaterial" id="Phys_plug"]
+friction = 0.8
+
+; ── PowerBrick: an AC adapter, built from its PowerBrickCatalog row ─────────────
+;
+; One scene for every adapter: power_brick.gd sizes the body from the row (the
+; RetroXR-models item's own size_mm), keeps the parts its form has and frees the rest.
+; A wall wart is all WallPlug (the prongs on its body); an in-line brick is Body with
+; both cords fixed; an inlet brick is Body with a C8 inlet; the N64's is all DcPlug
+; (it docks); a battery pack is Body and a DC cord. The root never moves, as the
+; strip's: the player carries the Body (or the plug that is the body).
+[node name="PowerBrick" type="Node3D"]
+script = ExtResource("1_brick")
+
+[node name="Body" type="RigidBody3D" parent="."]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("Phys_body")
+mass = 0.35
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_body")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Body"]
+shape = SubResource("Shape_body")
+
+[node name="PointerArea" type="StaticBody3D" parent="Body"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Body/PointerArea"]
+shape = SubResource("Shape_body")
+
+[node name="PickableHighlight" type="Node3D" parent="Body"]
+script = ExtResource("4_highlight")
+
+[node name="WallPlug" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.3, 0.02, 0)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("Phys_plug")
+mass = 0.06
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("3_plug")
+connector = "nema_1_15_plug"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WallPlug"]
+shape = SubResource("Shape_plug")
+
+[node name="PlugTip" type="MeshInstance3D" parent="WallPlug"]
+
+[node name="PointerArea" type="StaticBody3D" parent="WallPlug"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WallPlug/PointerArea"]
+shape = SubResource("Shape_plug")
+
+[node name="PickableHighlight" type="Node3D" parent="WallPlug"]
+script = ExtResource("4_highlight")
+
+[node name="SnapGrabPoint" parent="WallPlug" instance=ExtResource("5_grab")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="DcPlug" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.01, 0)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("Phys_plug")
+mass = 0.03
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("3_plug")
+connector = "barrel_5_5x2_1"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="DcPlug"]
+shape = SubResource("Shape_plug")
+
+[node name="PlugTip" type="MeshInstance3D" parent="DcPlug"]
+
+[node name="PointerArea" type="StaticBody3D" parent="DcPlug"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="DcPlug/PointerArea"]
+shape = SubResource("Shape_plug")
+
+[node name="PickableHighlight" type="Node3D" parent="DcPlug"]
+script = ExtResource("4_highlight")
+
+[node name="SnapGrabPoint" parent="DcPlug" instance=ExtResource("5_grab")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
+
+; The DC lead: a thin round cord, 60 x 30 mm = 1.8 m (the NES-002's is about that).
+; Counts are fixed here and never raised on a live rope (rope.md).
+[node name="DcRope" type="VerletRope" parent="."]
+segment_count = 60
+segment_length = 0.03
+constraint_iterations = 8
+bend_stiffness = 0.20
+tube_radius = 0.0019
+tube_sides = 8
+smoothing = 2
+rope_color = Color(0.03, 0.03, 0.035, 1)
+surface_collision_mask = 7
+collision_radius = 0.0045
+self_collision = true
+end_align_stiffness = 0.72
+end_stiffness = 0.48
+end_stiff_segments = 2
+
+; The mains side of an in-line brick and the N64's module: two-conductor zip cord,
+; 50 x 30 mm = 1.5 m.
+[node name="AcRope" type="VerletRope" parent="."]
+segment_count = 50
+segment_length = 0.03
+constraint_iterations = 8
+bend_stiffness = 0.20
+tube_radius = 0.0018
+tube_sides = 8
+smoothing = 2
+rope_color = Color(0.035, 0.035, 0.04, 1)
+ribbon_count = 2
+ribbon_spacing = 0.0036
+ribbon_colors = PackedColorArray(0.035, 0.035, 0.04, 1, 0.035, 0.035, 0.04, 1)
+ribbon_axis = Vector3(1, 0, 0)
+surface_collision_mask = 7
+collision_radius = 0.0045
+self_collision = true
+end_align_stiffness = 0.72
+end_stiffness = 0.48
+end_stiff_segments = 2

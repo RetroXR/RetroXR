@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/power_port.tscn" id="1_port"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/iec_c14_inlet.res" id="2_inlet"]
+
+; A panel-mount C14 inlet (the C13 kettle lead's): an arcade cabinet's mains input. The
+; mesh's seating plane is the port's origin, its shroud out along +Z (gen_power_connectors).
+[node name="IecC14Port" instance=ExtResource("1_port")]
+connector = "iec_c13_plug"
+
+[node name="Inlet" type="MeshInstance3D" parent="." index="0"]
+mesh = ExtResource("2_inlet")
+
+[editable path="SnapHighlight"]

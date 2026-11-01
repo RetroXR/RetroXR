@@ -80,7 +80,30 @@ static func apply_region(tree: SceneTree, id: String) -> void:
 
 
 func on_plug_seating_changed() -> void:
-	pass
+	# Told to the other players, one event per end that moved (MainsSync).
+	MainsSync.report(self)
+
+
+## A peer's seat of one of this lead's ends (EV_RCA_PLUG), and its pull.
+func net_seat_plug(end: int, _cord: int, device: Node3D, port_name: String) -> void:
+	MainsSync.seat(plug_at(end), device, port_name)
+
+
+func net_release_plug(end: int, _cord: int) -> void:
+	MainsSync.release(plug_at(end))
+
+
+## Power at the universal socket on the back while the prongs are in a live socket.
+func mains_live_at(at: Node, seen: Dictionary) -> bool:
+	return at == socket and MainsPower.seated_live(wall_plug, seen)
+
+
+func mains_noun() -> String:
+	return "travel adapter"
+
+
+func mains_wall_plug() -> Node3D:
+	return wall_plug
 
 
 ## Let go of the wall and of the plug in it, then free it.

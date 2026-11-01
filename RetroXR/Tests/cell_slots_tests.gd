@@ -145,8 +145,9 @@ func _test_labels() -> void:
 		(view as Node).free()
 	for token: String in ["battery_aa", "battery_aaa"]:
 		var row: Array = []
-		for item: Array in power:
-			if item[1] == token:
+		# A cord or an adapter is a region row (a Dictionary, PowerSpawnRows).
+		for item: Variant in power:
+			if item is Array and (item as Array)[1] == token:
 				row = item
 		_ok(row.size() > 2 and (row[2] as Array).size() == BatteryCell.VARIANTS.size(),
 			"labels/the Power tab's %s row comes in every label" % token)

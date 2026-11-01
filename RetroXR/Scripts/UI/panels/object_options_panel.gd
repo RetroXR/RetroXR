@@ -108,6 +108,9 @@ func _populate() -> void:
 		_ui_connected = true
 	ui.populate(_display_name())
 	ui.set_tuning(RopeTuning.rope_of(_object) if RopeTuning.enabled else null)
+	# Anything that runs on power (an amplifier): what it runs on, and its cord.
+	if is_instance_valid(_object) and _object.has_method("power_input"):
+		PowerMenuRows.ensure_in(ui, _object.call("power_input") as PowerInput)
 	_info_drawn = []
 	_choices_drawn = []
 	_refresh_info()

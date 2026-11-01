@@ -207,7 +207,34 @@ static func apply_region(tree: SceneTree, id: String) -> void:
 
 
 func on_plug_seating_changed() -> void:
-	pass
+	# Told to the other players, one event per end that moved (MainsSync).
+	MainsSync.report(self)
+
+
+## A peer's seat of one of this lead's ends (EV_RCA_PLUG), and its pull.
+func net_seat_plug(end: int, _cord: int, device: Node3D, port_name: String) -> void:
+	MainsSync.seat(plug_at(end), device, port_name)
+
+
+func net_release_plug(end: int, _cord: int) -> void:
+	MainsSync.release(plug_at(end))
+
+
+## Power at one of the strip's sockets: there while its own plug is in a live socket,
+## and never through one of its own sockets (MainsPower's walk stops at the loop).
+func mains_live_at(at: Node, seen: Dictionary) -> bool:
+	var port := at as PowerPort
+	if port == null or not port.enabled or port.get_parent() != _body:
+		return false
+	return MainsPower.seated_live(wall_plug, seen)
+
+
+func mains_noun() -> String:
+	return "power strip"
+
+
+func mains_wall_plug() -> Node3D:
+	return wall_plug
 
 
 ## The sockets, in order along the strip, shut ones too (Port.enabled).

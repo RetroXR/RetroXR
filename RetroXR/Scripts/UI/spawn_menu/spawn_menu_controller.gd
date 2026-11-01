@@ -1278,6 +1278,14 @@ func _on_spawn_requested(raw: String) -> void:
 			stand.stand_id = parsed["stand_id"]
 			_place_spawned(stand, "console_stand")
 			return
+		# An AC adapter, its id and its region's model BEFORE it enters the tree: it
+		# builds its body, its plugs and its cords from them in _ready.
+		SpawnCatalog.TokenKind.POWER_BRICK:
+			var brick := ScenePersistence.instantiate("power_brick") as PowerBrick
+			brick.brick_id = parsed["brick_id"]
+			brick.variant = parsed["variant"]
+			_place_spawned(brick, "power_brick")
+			return
 		# A mod prop. The token IS the registered persistence type, so the thing that
 		# spawns and the thing that is saved cannot drift apart — the scene and the
 		# metadata stamp both come from ScenePersistence's own registry.

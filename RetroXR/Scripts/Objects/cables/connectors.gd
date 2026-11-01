@@ -55,6 +55,16 @@ const LABELS := {
 	"dsi_dc_plug": "a Nintendo DSi or 3DS AC adapter plug",
 	"psp_dc_plug": "a PSP AC adapter plug",
 	"gg_dc_plug": "a Game Gear AC adapter plug",
+	# A console's DC IN, named after the plug's standard (RetroXR-models
+	# common/powerkit.py) so two consoles that take the same barrel take each
+	# other's adapter, as they do. Voltage is not modelled; fit is.
+	"barrel_5_5x2_1": "a 5.5 x 2.1 mm barrel plug",
+	"barrel_5_5x2_5": "a 5.5 x 2.5 mm barrel plug",
+	"eiaj_03": "a 4.75 x 1.7 mm (EIAJ-03) barrel plug",
+	"snes_dc_plug": "a Super NES AC adapter plug",
+	"gc_dc_plug": "a GameCube AC adapter plug",
+	"wii_dc_plug": "a Wii AC adapter plug",
+	"n64_psu_dock": "a Nintendo 64 power supply",
 	"jamma_plug": "a JAMMA harness plug",
 	"gamecube_controller": "a GameCube controller plug",
 	"playstation_controller": "a PlayStation controller plug",
@@ -135,6 +145,13 @@ const ALSO_FITS := {
 	"is_1293_plug": ["is_1293_socket", "universal_socket"],
 	"si_32_plug": ["si_32_socket", "universal_socket"],
 	"link_plug": ["agb_link_plug"],
+	# A plain figure-eight's two round lobes go into a polarized inlet too (its
+	# squared lobe has room for a round one); a polarized plug's squared lobe does
+	# not go into a plain inlet.
+	"iec_c7_plug": ["iec_c7_polarized_plug"],
+	# A 2.5 mm hole slides over a 2.1 mm pin, loosely; a 2.1 mm hole does not go
+	# over a 2.5 mm pin.
+	"barrel_5_5x2_5": ["barrel_5_5x2_1"],
 }
 
 ## The controller port each console has, by systemid: what a pad's plug has to be
