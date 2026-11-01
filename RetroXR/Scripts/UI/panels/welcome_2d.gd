@@ -11,19 +11,23 @@
 ## also loads files differently: through the Web File Manager only (QUEST_ROMS_LINE),
 ## with a DON'T for every other way in (DONT_QUEST).
 ##
-## Two columns: the copy on the left; on the right a looping clip of the menu
+## Two columns: the copy on the left, ending in buttons to the site and the Discord
+## (WEBSITE_URL, DISCORD_URL); on the right a looping clip of the menu
 ## being used (MENU_CLIP, recorded from the real menu by
 ## Tools/room/welcome_clip_probe) and, on the headset's page, the STAGE: an empty
 ## box the 3D controllers (ControllerDemo) stand in front of, with the step they
 ## are showing written under it (set_step).
 ##
-## Two pages: what to do and not (the copy, the menu clip, the headset's stage), and
-## after Next, a console being hooked up (HOOKUP_CLIP, filmed in the room by
-## Tools/room/nes_hookup_probe) with a few words on it. Got it and Don't Show Again
-## are under both; only the page shown plays its clip.
+## Two pages, three on a Quest: what to do and not (the copy, the menu clip, the
+## headset's stage); after Next, a console being hooked up (HOOKUP_CLIP, filmed in
+## the room by Tools/room/nes_hookup_probe) with a few words on it; and on a Quest,
+## after another Next, a game put on the headset through the Web File Manager
+## (UPLOAD_CLIP, filmed in a browser against the real server by
+## Tools/art/film_web_upload.py). Done and Don't Show Again are under the LAST page
+## only, Next under every other; only the page shown plays its clip.
 ##
 ## Emits:
-##   dismissed(for_good) — Got it (false) or Don't Show Again (true) pressed
+##   dismissed(for_good) — Done (false) or Don't Show Again (true) pressed
 ##   page_changed(index) — Next or Back: the panel refits to the page shown
 class_name Welcome2D
 extends Control
@@ -75,7 +79,7 @@ const DONT: Array[String] = [
 const QUEST_ROMS_LINE := "Load your own game files with the Web File Manager: switch it on in " \
 	+ "OPTIONS > File Server, then open http://localhost:8080 in this headset's own browser, or " \
 	+ "the other address it shows on a phone or PC on the same Wi-Fi. Enter the PIN and upload " \
-	+ "into roms, a folder per system (snes, n64, psx ...). Or connect a RomM server in OPTIONS > RomM."
+	+ "into media > roms, a folder per system (snes, n64, psx ...). Or connect a RomM server in OPTIONS > RomM."
 
 ## A Quest's own DON'T. A file that a file manager app, a PC over USB or adb puts in
 ## the app's folder belongs to that other owner (uid): RetroXR, which Android runs as
@@ -86,6 +90,14 @@ const DONT_QUEST: Array[String] = [
 		+ "Android files them under another owner (uid), so RetroXR can't change or delete them "
 		+ "and may not see them at all. Use the Web File Manager only.",
 ]
+
+## Where to read more and to ask, at the foot of page one: the site (installing,
+## playing, the devlog; the README's link) and the Discord (the invite the release
+## notes post). Buttons that open the browser, with the address on each, so it can
+## be typed on a phone too.
+const LINKS_HEADER := "MORE HELP"
+const WEBSITE_URL := "https://retroxr.app"
+const DISCORD_URL := "https://discord.gg/pgUkRhafca"
 
 ## Under the buttons: where the page is switched back on, and seen meanwhile.
 const AGAIN_NOTE := "Turn it back on in OPTIONS > General (Show Welcome Page at Start), or see it any time from ABOUT."
@@ -110,7 +122,25 @@ const HOOKUP_LINES: Array[String] = [
 	"Then POWER, and the game is on the TV.",
 ]
 const HOOKUP_CREDIT := "Game shown: BrickBreaker by Aleff Correa (MIT)."
+## How big the clip on page two and page three is drawn.
 const HOOKUP_SIZE := Vector2(1280, 720)
+
+## Page three, a Quest's only: a game uploaded through the Web File Manager, the
+## headset's one way in (QUEST_ROMS_LINE, DONT_QUEST). A desktop has a folder of its
+## own to put games in, which page one names.
+const UPLOAD_CLIP := "res://Textures/welcome/upload_clip.ogv"
+const UPLOAD_TITLE := "Putting your games on the Quest"
+const UPLOAD_LINES: Array[String] = [
+	"Game files go onto the Quest through RetroXR's own Web File Manager, in a web browser.",
+	"Switch it on in OPTIONS > File Server. It shows two addresses and a PIN.",
+	# The address leads its line: wrapped, it broke after "http://".
+	"Open http://localhost:8080 in this headset's own browser, or the other address on a "
+		+ "phone or PC on the same Wi-Fi.",
+	"Enter the PIN, then open media > roms and the game's system: nes, snes, psx ...",
+	"Press choose files and pick the game, or drop files on the page. choose folder sends "
+		+ "a whole folder.",
+	"Then open that system under SPAWN, and the game is there.",
+]
 
 const PAD := 48
 const TITLE_PT := 46
@@ -132,15 +162,26 @@ var android_override := -1
 ## The same for a page built where nothing can set vr_override first (inside the
 ## panel's viewport): a probe filming the headset's page on a desk sets it.
 static var force_vr := -1
+## And android_override's, for a probe filming a Quest's page on a desk.
+static var force_android := -1
+## What a link button calls with its address: the browser. The suite swaps it for a
+## recorder, so pressing one in a test opens nothing.
+var open_url := Callable(OS, "shell_open")
 
 ## The rounded plate everything is on; its minimum size is the page's.
 var _plate: Control = null
 var _pages: Array[Control] = []
+## Each page's clip, by page; null where a build has none.
+var _players: Array[VideoStreamPlayer] = []
 var _page := 0
 var _next: Button = null
 var _back: Button = null
+var _done: Button = null
+var _never: Button = null
+var _again: Label = null
 var _clip: VideoStreamPlayer = null
 var _hookup: VideoStreamPlayer = null
+var _upload: VideoStreamPlayer = null
 var _stage: Control = null
 var _step_label: Label = null
 
@@ -176,7 +217,8 @@ func _ready() -> void:
 
 
 func _is_android() -> bool:
-	return OS.has_feature("android") if android_override < 0 else android_override == 1
+	var pick := android_override if android_override >= 0 else force_android
+	return OS.has_feature("android") if pick < 0 else pick == 1
 
 
 func _is_vr() -> bool:
@@ -199,6 +241,12 @@ func _build() -> void:
 	second.name = "PageHookup"
 	vbox.add_child(second)
 	_pages = [first, second]
+	var third: Container = null
+	if android:
+		third = MenuStyle.vbox(14)
+		third.name = "PageUpload"
+		vbox.add_child(third)
+		_pages.append(third)
 
 	var title := MenuStyle.label(TITLE, TITLE_PT, MenuStyle.COLOR_TITLE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -222,11 +270,22 @@ func _build() -> void:
 	copy.add_child(MenuStyle.label("DON'T", HEADER_PT, COLOR_DONT))
 	for line: String in dont_lines(android):
 		copy.add_child(_item(line, COLOR_DONT))
+	copy.add_child(MenuStyle.spacer(8))
+
+	copy.add_child(MenuStyle.label(LINKS_HEADER, HEADER_PT, MenuStyle.COLOR_TITLE))
+	var links := MenuStyle.hbox(20)
+	copy.add_child(links)
+	links.add_child(_link_button("Website", "Website", WEBSITE_URL))
+	links.add_child(_link_button("Discord", "Discord", DISCORD_URL))
 
 	_build_clip(shown)
 	if vr:
 		_build_stage(shown)
-	_build_hookup_page(second)
+	_hookup = _build_clip_page(second, HOOKUP_CLIP, "HookupClip", HOOKUP_TITLE, HOOKUP_LINES, HOOKUP_CREDIT)
+	_players = [_clip, _hookup]
+	if third != null:
+		_upload = _build_clip_page(third, UPLOAD_CLIP, "UploadClip", UPLOAD_TITLE, UPLOAD_LINES, "")
+		_players.append(_upload)
 
 	# The button sits at the foot of the page, a fixed gap under the copy when the
 	# page is fitted to it (WelcomePanel), and at the bottom of a taller one.
@@ -235,40 +294,49 @@ func _build() -> void:
 	vbox.add_child(fill)
 	vbox.add_child(MenuStyle.spacer(20))
 
-	# Got it closes it for now; Don't Show Again also keeps it off at start, quieter
-	# beside it because it is the one to think about.
+	# Done closes it for now; Don't Show Again also keeps it off at start, quieter
+	# beside it because it is the one to think about. Both, and the note on turning
+	# it back on, stand on the LAST page only: the way out is through every page.
+	# The way on is green on every page: Next until the last, then Done.
 	var row := MenuStyle.hbox(28)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_child(row)
+	var style := MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 10)
 	_back = MenuStyle.row_button("Back", 30, 240, 88, false)
 	_back.name = "Back"
-	_back.pressed.connect(func() -> void: show_page(0))
+	_back.pressed.connect(func() -> void: show_page(_page - 1))
 	row.add_child(_back)
-	var got_it := MenuStyle.row_button("Got it", 34, 360, 88, false)
-	got_it.name = "GotIt"
-	var style := MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 10)
+	_done = MenuStyle.row_button("Done", 34, 360, 88, false)
+	_done.name = "Done"
 	for state: String in ["normal", "hover", "pressed"]:
-		got_it.add_theme_stylebox_override(state, style)
-	got_it.pressed.connect(func() -> void: dismissed.emit(false))
-	row.add_child(got_it)
-	var never := MenuStyle.row_button("Don't Show Again", 26, 360, 88, false)
-	never.name = "NeverAgain"
-	never.pressed.connect(func() -> void: dismissed.emit(true))
-	row.add_child(never)
-	_next = MenuStyle.row_button("Next", 30, 240, 88, false)
+		_done.add_theme_stylebox_override(state, style)
+	_done.pressed.connect(func() -> void: dismissed.emit(false))
+	row.add_child(_done)
+	_never = MenuStyle.row_button("Don't Show Again", 26, 360, 88, false)
+	_never.name = "NeverAgain"
+	_never.pressed.connect(func() -> void: dismissed.emit(true))
+	row.add_child(_never)
+	_next = MenuStyle.row_button("Next", 34, 360, 88, false)
 	_next.name = "Next"
-	_next.pressed.connect(func() -> void: show_page(1))
+	for state: String in ["normal", "hover", "pressed"]:
+		_next.add_theme_stylebox_override(state, style)
+	_next.pressed.connect(func() -> void: show_page(_page + 1))
 	row.add_child(_next)
 
-	var again := MenuStyle.label(AGAIN_NOTE, 18, MenuStyle.COLOR_DESC)
-	again.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(again)
+	_again = MenuStyle.label(AGAIN_NOTE, 18, MenuStyle.COLOR_DESC)
+	_again.name = "AgainNote"
+	_again.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(_again)
 	show_page(0)
 
 
-## Page two: the hookup clip, and beside it what it shows, in a few lines.
-func _build_hookup_page(page: Container) -> void:
-	var title := MenuStyle.label(HOOKUP_TITLE, TITLE_PT, MenuStyle.COLOR_TITLE)
+## A clip page (the hookup, a Quest's upload): its title, the clip at `path`, and
+## beside it what the clip shows: `lines[0]` as the lead, the rest as steps, then
+## `credit` if there is one. Returns the clip's player, or null when the build has
+## no clip, which leaves a note where it would be.
+func _build_clip_page(page: Container, path: String, player_name: String, heading: String,
+		lines: Array[String], credit: String) -> VideoStreamPlayer:
+	var title := MenuStyle.label(heading, TITLE_PT, MenuStyle.COLOR_TITLE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	page.add_child(title)
 	page.add_child(MenuStyle.spacer(4))
@@ -278,18 +346,19 @@ func _build_hookup_page(page: Container) -> void:
 	frame.add_theme_stylebox_override("panel", MenuStyle.rounded(Color.BLACK, 8))
 	frame.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	columns.add_child(frame)
-	if ResourceLoader.exists(HOOKUP_CLIP):
-		_hookup = VideoStreamPlayer.new()
-		_hookup.name = "HookupClip"
-		_hookup.stream = load(HOOKUP_CLIP) as VideoStream
-		_hookup.custom_minimum_size = HOOKUP_SIZE
-		_hookup.expand = true
-		_hookup.loop = true
-		_hookup.volume_db = -80.0
-		frame.add_child(_hookup)
+	var player: VideoStreamPlayer = null
+	if ResourceLoader.exists(path):
+		player = VideoStreamPlayer.new()
+		player.name = player_name
+		player.stream = load(path) as VideoStream
+		player.custom_minimum_size = HOOKUP_SIZE
+		player.expand = true
+		player.loop = true
+		player.volume_db = -80.0
+		frame.add_child(player)
 	else:
-		push_warning("[Welcome] no hookup clip at %s; the page shows a note instead" % HOOKUP_CLIP)
-		var note := MenuStyle.label("(the hookup clip is missing from this build)", CAPTION_PT,
+		push_warning("[Welcome] no clip at %s; the %s page shows a note instead" % [path, heading])
+		var note := MenuStyle.label("(this clip is missing from this build)", CAPTION_PT,
 			MenuStyle.COLOR_DESC)
 		note.custom_minimum_size = HOOKUP_SIZE
 		note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -298,44 +367,61 @@ func _build_hookup_page(page: Container) -> void:
 	var words := MenuStyle.vbox(16, false)
 	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	columns.add_child(words)
-	var lead := MenuStyle.label(HOOKUP_LINES[0], ITEM_PT, COLOR_ITEM)
+	var lead := MenuStyle.label(lines[0], ITEM_PT, COLOR_ITEM)
 	lead.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	words.add_child(lead)
-	for line: String in HOOKUP_LINES.slice(1):
+	for line: String in lines.slice(1):
 		words.add_child(_item(line, COLOR_DO))
-	var credit := MenuStyle.label(HOOKUP_CREDIT, CAPTION_PT, MenuStyle.COLOR_DESC)
-	credit.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	words.add_child(MenuStyle.spacer(8))
-	words.add_child(credit)
+	if not credit.is_empty():
+		var credit_label := MenuStyle.label(credit, CAPTION_PT, MenuStyle.COLOR_DESC)
+		credit_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		words.add_child(MenuStyle.spacer(8))
+		words.add_child(credit_label)
+	return player
 
 
-## Show page `index` (0 the welcome, 1 the hookup): its clip plays, the other's
-## waits, and Next / Back stand where they lead somewhere.
+## Show page `index` (0 the welcome, 1 the hookup, 2 a Quest's upload): its clip
+## plays, the others wait, and Next / Back stand where they lead somewhere.
 func show_page(index: int) -> void:
 	_page = clampi(index, 0, _pages.size() - 1)
 	for i in _pages.size():
 		_pages[i].visible = i == _page
+		var player: VideoStreamPlayer = _players[i] if i < _players.size() else null
+		if player == null:
+			continue
+		if i == _page and not player.is_playing():
+			player.play()
+		player.paused = i != _page
+	var last := _page == _pages.size() - 1
 	if _next != null:
-		_next.visible = _page == 0
+		_next.visible = not last
 	if _back != null:
-		_back.visible = _page == 1
-	if _clip != null:
-		_clip.paused = _page != 0
-	if _hookup != null:
-		if _page == 1 and not _hookup.is_playing():
-			_hookup.play()
-		_hookup.paused = _page != 1
+		_back.visible = _page > 0
+	for way_out: Control in [_done, _never, _again]:
+		if way_out != null:
+			way_out.visible = last
+	print("[Welcome] page %d of %d" % [_page + 1, _pages.size()])
 	page_changed.emit(_page)
 
 
-## The page shown: 0 the welcome, 1 the hookup.
+## The page shown: 0 the welcome, 1 the hookup, 2 a Quest's upload.
 func page_index() -> int:
 	return _page
+
+
+## How many pages there are: three on a Quest, two elsewhere.
+func page_count() -> int:
+	return _pages.size()
 
 
 ## Page two's clip player, or null when the build has no clip.
 func hookup_player() -> VideoStreamPlayer:
 	return _hookup
+
+
+## Page three's clip player: null off a Quest, or when the build has no clip.
+func upload_player() -> VideoStreamPlayer:
+	return _upload
 
 
 ## The menu clip, looping, framed, with what it shows written under it.
@@ -409,6 +495,22 @@ func clip_player() -> VideoStreamPlayer:
 ## laid out measures itself at whatever width it last had.
 func content_height() -> float:
 	return _plate.get_combined_minimum_size().y if _plate != null else 0.0
+
+
+## A button that opens `url` (through open_url), the address written on it after
+## `what` so it can be typed elsewhere.
+func _link_button(node_name: String, what: String, url: String) -> Button:
+	var b := MenuStyle.row_button("%s   %s" % [what, url.trim_prefix("https://")], ITEM_PT, 0, 72, false)
+	b.name = node_name
+	b.pressed.connect(_open_link.bind(url))
+	return b
+
+
+func _open_link(url: String) -> void:
+	print("[Welcome] opening %s" % url)
+	var err: Variant = open_url.call(url)
+	if err is int and err != OK:
+		push_warning("[Welcome] could not open %s (error %d)" % [url, err])
 
 
 ## One line under a heading: a bullet in the heading's colour, the text beside it,

@@ -1,16 +1,19 @@
 ## The first-time welcome page (WelcomePanel) in the real room, and both of its pages flat.
 ##
 ## Opens the bedroom with the welcome due, waits for the page to stand in front of the camera and
-## photographs it; presses Got it through the panel's own pointer body (the path a laser or the
-## desktop crosshair takes, at the button's real place on the quad) and checks it went and was
-## kept; asks for it again the way ABOUT does; then renders the desktop and headset pages flat.
+## photographs it; goes through its pages with Next and Back and presses Done on the last
+## through the panel's own pointer body (the path a laser or the desktop crosshair takes, at
+## the button's real place on the quad) and checks it went and was kept; asks for it again the
+## way ABOUT does; then renders the desktop and headset pages flat.
 ##
 ##   --vr       the HEADSET's page, on a desk: no runtime controller models here, so the
 ##              ControllerDemo shows the stand-in, and the probe checks it presses each step's
 ##              button and moves through the steps.
-##   --menu     after Got it, open the menu and go through it with the same pointer events:
+##   --menu     after Done, open the menu and go through it with the same pointer events:
 ##              CORES, then SPAWN, then TVs.
-##   --linger=S seconds the page stays up before Got it (default 2.5); for a recording.
+##   --quest    a QUEST's page, on a desk: its file lines, and a third page after the hookup,
+##              the Web File Manager upload, which the probe goes to with Next and back from.
+##   --linger=S seconds each page stays up (default 2.5); for a recording.
 ##
 ## Every press shows a cyan dot where it lands. To record it, Godot's movie writer at a fixed
 ## rate, so the clip on the page and the controllers run at their real speed:
@@ -31,6 +34,7 @@ const PAGE := preload("res://Scenes/UI/welcome_2d.tscn")
 var _out := ""
 var _vr := false
 var _menu := false
+var _quest := false
 var _linger := 2.5
 var _failed := false
 
@@ -43,6 +47,8 @@ func _ready() -> void:
 			_vr = true
 		elif a == "--menu":
 			_menu = true
+		elif a == "--quest":
+			_quest = true
 		elif a.begins_with("--linger="):
 			_linger = float(a.trim_prefix("--linger="))
 	DirAccess.make_dir_recursive_absolute(_out)
@@ -52,8 +58,11 @@ func _ready() -> void:
 
 	if _vr:
 		Welcome2D.force_vr = 1
+	if _quest:
+		Welcome2D.force_android = 1
 	AppPrefs.show_welcome = true
-	print("[welprobe] welcome due: %s, page: %s" % [WelcomePanel.due(), "headset" if _vr else "desktop"])
+	print("[welprobe] welcome due: %s, page: %s%s" % [WelcomePanel.due(), "headset" if _vr else "desktop",
+		", a Quest's" if _quest else ""])
 	var t0 := Time.get_ticks_msec()
 	add_child(SCENE.instantiate())
 
@@ -86,22 +95,44 @@ func _ready() -> void:
 		_fail("Next did not show the hookup page with its clip playing")
 	await _shot("welcome_page2%s.png" % ("_vr" if _vr else ""))
 	await get_tree().create_timer(maxf(0.0, _linger - 2.5)).timeout
+	# A Quest's third page, the upload, after another Next; nowhere else is there one.
+	var next := panel.page().find_child("Next", true, false) as Control
+	print("[welprobe] pages: %d, Next on page 2: %s" % [panel.page().page_count(), next.visible])
+	if next.visible != _quest or panel.page().page_count() != (3 if _quest else 2):
+		_fail("page 2 should have a Next only on a Quest's page")
+	if _quest:
+		await _press_on(vp_w, next)
+		await get_tree().create_timer(2.5).timeout
+		var up := panel.page().upload_player()
+		print("[welprobe] after Next: page %d, upload clip %s, playing %s, hookup paused %s" % [
+			panel.page().page_index() + 1, "present" if up != null else "MISSING",
+			up != null and up.is_playing() and not up.paused, hook != null and hook.paused])
+		if panel.page().page_index() != 2 or up == null or up.paused or hook == null or not hook.paused:
+			_fail("Next did not show the upload page with only its clip playing")
+		await _shot("welcome_page3%s.png" % ("_vr" if _vr else ""))
+		await get_tree().create_timer(maxf(0.0, _linger - 2.5)).timeout
+		await _press_on(vp_w, panel.page().find_child("Back", true, false) as Control)
+		await get_tree().create_timer(1.0).timeout
+		if panel.page().page_index() != 1:
+			_fail("Back on the upload page did not return to the hookup")
 	await _press_on(vp_w, panel.page().find_child("Back", true, false) as Control)
 	await get_tree().create_timer(1.0).timeout
 	if panel.page().page_index() != 0:
 		_fail("Back did not return to the welcome page")
+	var done := panel.page().find_child("Done", true, false) as Control
+	if done.visible or (panel.page().find_child("NeverAgain", true, false) as Control).visible:
+		_fail("Done or Don't Show Again shows before the last page")
 
-	# Got it, pressed where it really is on the quad.
-	var page := panel.page()
-	var got_it := page.find_child("GotIt", true, false) as Control if page != null else null
-	if not await _press_on(panel.get_node_or_null("WelcomeViewport") as XRToolsViewport2DIn3D, got_it):
+	# Done, on the last page, pressed where it really is on the quad.
+	await _to_last_page(panel)
+	if not await _press_on(vp_w, done):
 		_end()
 		return
 	await get_tree().create_timer(0.5).timeout
 	var gone := not is_instance_valid(panel)
-	print("[welprobe] after Got it: page gone %s, still shown at start %s" % [gone, WelcomePanel.due()])
+	print("[welprobe] after Done: page gone %s, still shown at start %s" % [gone, WelcomePanel.due()])
 	if not gone or not WelcomePanel.due():
-		_fail("Got it did not put the page away, or switched it off at start")
+		_fail("Done did not put the page away, or switched it off at start")
 	var hint: Variant = ctrl.get("_menu_hint")
 	print("[welprobe] menu hint shown after the page: %s" % (hint != null and is_instance_valid(hint)))
 	await get_tree().create_timer(0.5).timeout
@@ -117,8 +148,10 @@ func _ready() -> void:
 	if again == null:
 		_fail("ABOUT did not bring the page back")
 	else:
-		# Don't Show Again, pressed where it is: the page goes and stays off at start.
+		# Don't Show Again, on the last page, pressed where it is: the page goes and
+		# stays off at start.
 		await get_tree().create_timer(1.0).timeout
+		await _to_last_page(again)
 		var never := again.page().find_child("NeverAgain", true, false) as Control
 		await _press_on(again.get_node_or_null("WelcomeViewport") as XRToolsViewport2DIn3D, never)
 		await get_tree().create_timer(0.5).timeout
@@ -132,6 +165,21 @@ func _ready() -> void:
 	for kind: Array in [[false, false], [true, false], [true, true]]:
 		await _flat_page(kind[0], kind[1])
 	_end()
+
+
+## Next pressed where it is until it goes: Done and Don't Show Again are on the
+## last page only.
+func _to_last_page(panel: WelcomePanel) -> void:
+	var vp := panel.get_node_or_null("WelcomeViewport") as XRToolsViewport2DIn3D
+	var next := panel.page().find_child("Next", true, false) as Control
+	for i in panel.page().page_count():
+		if not next.visible:
+			break
+		await _press_on(vp, next)
+		await get_tree().create_timer(0.8).timeout
+	print("[welprobe] on the last page: %d of %d" % [panel.page().page_index() + 1, panel.page().page_count()])
+	if panel.page().page_index() != panel.page().page_count() - 1:
+		_fail("Next never reached the last page")
 
 
 ## The page's clip is there and playing.
@@ -380,5 +428,6 @@ func _fail(why: String) -> void:
 
 func _end() -> void:
 	Welcome2D.force_vr = -1
+	Welcome2D.force_android = -1
 	print("[welprobe] %s" % ("FAIL" if _failed else "PASS"))
 	get_tree().quit(1 if _failed else 0)

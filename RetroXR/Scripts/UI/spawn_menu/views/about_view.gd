@@ -164,7 +164,7 @@ func _build() -> void:
 
 	_build_update_section(vbox)
 
-	# The first-time page, for whoever pressed Got it too fast or wants it back.
+	# The first-time page, for whoever pressed Done too fast or wants it back.
 	var welcome_row := MenuStyle.hbox(0)
 	welcome_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_child(welcome_row)

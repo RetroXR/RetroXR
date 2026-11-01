@@ -4,7 +4,7 @@ One page that stands in front of the player when the room is ready, at the start
 every launch until they say not to:
 **DO** (open the menu, download the recommended cores, where ROMs go, build it like
 the real thing, grab/drop, options, focus) and **DON'T** (games or BIOS files you
-don't own), beside a looping **clip of the menu being used** and, on the headset's
+don't own), then **MORE HELP**: buttons to the site and the Discord, beside a looping **clip of the menu being used** and, on the headset's
 page, **the player's own controllers pressing each button**. A headset and a desk
 get different pages, built once by `MenuStyle.is_vr_mode()`: a player in VR has no
 Tab key and one at a desk has no left stick.
@@ -19,6 +19,8 @@ Tab key and one at a desk has no left stick.
 | `Textures/welcome/menu_clip.ogv` | page 1's clip: Ogg Theora, 880 x 720, 30 fps, silent, about 20 s |
 | `Textures/welcome/hookup_clip.ogv` | page 2's clip: an NES hooked up in the bedroom, 960 x 540, about 30 s |
 | `Tools/room/nes_hookup_probe` + `Tools/room/roms/brix.nes` | films page 2's clip; the ROM is BrickBreaker (MIT), credited in ABOUT |
+| `Textures/welcome/upload_clip.ogv` | page 3's clip, a Quest's only: a ROM uploaded through the Web File Manager, 960 x 540, about 21 s |
+| `Tools/net/web_upload_probe` + `Tools/art/film_web_upload.py` | serve a scratch data folder with the real `WebFileServer`, and film page 3's clip in Chromium against it |
 | `SpawnMenuController._offer_welcome` / `_show_welcome` | when, and where it stands; hands over the two `ControllerArt`s |
 | `AppPrefs.show_welcome` / `set_show_welcome` / `show_welcome_changed` | whether it comes up at start; the ONE way to change it |
 | `SpawnMenuOptionsView._build_welcome_option` | OPTIONS > General > Show Welcome Page at Start |
@@ -30,8 +32,10 @@ Tab key and one at a desk has no left stick.
   curtain is still up — in front of a player who can see it and act on it. Never
   headless. At least `WelcomePanel.MIN_DISTANCE` (1.1 m) off: it is as wide as the menu.
 - **Every launch while `AppPrefs.show_welcome` is on** (default on, the missing key
-  too). **Got it** puts it away for this launch. **Don't Show Again** also switches
+  too). **Done** puts it away for this launch. **Don't Show Again** also switches
   it off; **OPTIONS > General > Show Welcome Page at Start** switches it back on.
+  **Both stand on the LAST page only** (with the note saying where the switch is):
+  the way out is through every page; Next, green as Done is, stands on every other.
   Opening the menu (which stands where the page does) or a room change puts it away
   and changes nothing.
 - Both go through `AppPrefs.set_show_welcome`, which saves and emits
@@ -73,10 +77,13 @@ Tab key and one at a desk has no left stick.
 ## Page two: hooking up a console
 
 **Next** (page 1) shows `HOOKUP_TITLE`, the hookup clip and `HOOKUP_LINES` beside it,
-with the game's credit; **Back** returns. Got it and Don't Show Again are under both.
-`show_page` pauses the hidden page's clip and plays the shown one's;
+with the game's credit; **Back** returns. Done and Don't Show Again are under the
+last page. Next and Back step one page (`show_page(_page ± 1)`) and stand only where they
+lead somewhere: page 2 is the last page off a Quest, so it has no Next there.
+`show_page` pauses every hidden page's clip and plays the shown one's;
 `page_changed` makes WelcomePanel refit (the pages differ in height) and shows the
-3D controllers only on page 1, where their stage is.
+3D controllers only on page 1, where their stage is. Both clip pages are built by
+`_build_clip_page`, the clip drawn at `HOOKUP_SIZE`.
 
 The clip is FILMED in the real app by `Tools/room/nes_hookup_probe` (windowed):
 
@@ -101,6 +108,45 @@ The clip is FILMED in the real app by `Tools/room/nes_hookup_probe` (windowed):
 - The NES-001 is the shipped detailed model: there is no primitive NES (the
   Famicom is the primitive), and the NES has no mains inlet, so no power lead.
 - Encode: `encode_welcome_clip.py <frames> --name hookup_clip --width 960`.
+
+## Page three, a Quest's only: putting games on
+
+On a Quest (`_is_android()`, or `android_override` / `force_android` for a desk),
+Next on page 2 shows `UPLOAD_TITLE`, the upload clip and `UPLOAD_LINES`: OPTIONS >
+File Server, the headset's own address, the PIN, media > roms > the system, choose
+files, then the system's page under SPAWN, which rescans its folder when opened
+(`SpawnMenuSpawnView._populate_cartridges_detail` drops its cached listing), so the game is there. A desktop
+has a folder of its own, which page 1 names, so it gets no such page.
+`welcome_tests copy/` holds the lines to the server: `headset_url()`, its `media`
+root, and the words on its own buttons (`WebFileServer._HTML`'s "choose files" /
+"choose folder").
+
+The clip is the REAL server in a real browser, never a mock-up:
+
+- `Tools/net/web_upload_probe` (headless) points the data root at
+  `<scratch>/data` through `DataPaths.set_config_path_for_tests`, lays out a few
+  `roms/<system>/` folders, and serves it with `WebFileServer` on 8080, PIN 1234, until
+  `<scratch>/stop` appears. It refuses to run without `--scratch`: it never serves
+  the player's own folder.
+- `Tools/art/film_web_upload.py` (Playwright Chromium, 960 x 540) signs in, opens
+  media > roms > nes, picks `Tools/room/roms/brix.nes` through the page's own file
+  chooser, waits for it in the list, checks it reached the scratch folder, writes
+  `stop`. Wait for the probe's `[webprobe] serving` line before starting it: the
+  first try started the browser before the server listened (`ERR_CONNECTION_REFUSED`).
+- The cursor, the captions and the address bar are drawn BY THE PAGE (an init
+  script); a recording has none of them.
+- **Frames come from Chromium's screencast** (`Page.startScreencast`, PNG, each
+  stamped with its swap time) laid on a 30 fps timeline, each held until the next.
+  Playwright's own recorder draws at the page's CSS size whatever the device scale
+  (a page zoomed for legibility came out small in a grey frame) and is lossy VP8 on
+  top of Theora. The screencast is CSS pixels too, so the page is laid out at 960 x
+  540, a phone's width: shown 1280 wide on the welcome page, its 14 px text reads a
+  third larger. Its waits go through `page.wait_for_timeout`, never `time.sleep`:
+  a frame is sent only once the last is acked, and acks are answered only while
+  Playwright has control.
+- Inside a folder the list always has its `..` row, so an empty folder never says
+  "Empty": wait for the `..` row pointing back up instead.
+- Encode: `encode_welcome_clip.py <scratch>/frames --name upload_clip`.
 
 ## The menu clip
 
@@ -137,6 +183,12 @@ no VLC.
   headset's own browser opens with no other device; OPTIONS > File Server shows it
   beside the LAN address (`address_text`), and `welcome_tests` holds the line to it. `android_override` / `do_lines(vr, android)` / `dont_lines(android)` let the
   suite and the probe build a Quest's page on a desk.
+- **The links are the project's own, held by the suite**: `WEBSITE_URL` is the
+  README's (`retroxr.app`), `DISCORD_URL` the invite `release.yml` posts in every
+  release's notes; `welcome_tests` reads both files, so a new invite changes all
+  three or goes red. A button opens through `open_url` (`OS.shell_open`; the suite
+  swaps in a recorder) and writes its address on itself, for typing on a phone. What
+  `shell_open` does on a Quest (the headset's browser, presumably) is OWED.
 - The quad is **SCISSOR**, not TRANSPARENT: alpha-blended, the bedroom window's
   string lights two metres behind came through the text (measured in the probe).
 - The quad is **fitted to the page** a couple of frames after it is built
@@ -148,21 +200,25 @@ no VLC.
 ## Checks
 
 - `welcome_tests` (headless): the pref's default, `due()`, round trip, the setter
-  saying so once; Got it leaves it on, Don't Show Again switches it off and saves, a
+  saying so once; Done leaves it on, Don't Show Again switches it off and saves, a
   double press does nothing, put away changes nothing; `options/` the real General
   row, switched on as a player does, and following the page's Don't Show Again; the copy against the
   bindings and the ROM folder; every line on each page, a height the panel can take,
   the clip on both, the stage on the headset's only; `rig/` the reader on rigs of
   known travel (a click that must not lean); `demo/` the steps' bones, the sequence of
-  a combination, and the presses landing on the step's own hand only.
+  a combination, and the presses landing on the step's own hand only; `page/` Next
+  and Back through two pages off a Quest and three on one, only the shown page's
+  clip playing, the ways out on the last page only, the upload page's every step,
+  and the links.
 - `Tools/room/welcome_probe` (WINDOWED; it writes `user://app_prefs.json`, back it
-  up): the page in the bedroom with the clip playing, Got it pressed through the
-  quad's own pointer body at the button's real place, ABOUT bringing it back, Don't
+  up): the page in the bedroom with the clip playing, Next to the last page and Done
+  pressed through the quad's own pointer body at the button's real place, ABOUT bringing it back, Don't
   Show Again pressed there and kept, then OPTIONS > General scrolled to the switch,
   showing off, and pressed on through the menu's own body; Next and Back pressed
   the same way, page 2's clip checked playing; the pages flat. `--vr` builds the headset's page and watches a whole loop of the demo
   (every step's own buttons must move); `--menu` walks CORES / SPAWN / TVs with the
-  same pointer events and checks each view opened. Record it with Godot's movie
+  same pointer events and checks each view opened; `--quest` builds a Quest's page
+  and presses on to page 3 and back (and fails if page 2 has a Next without it). Record it with Godot's movie
   writer (`--write-movie out.avi --fixed-fps 30`): the probe counts the demo in game
   time, so it holds under the writer's slow frames.
 

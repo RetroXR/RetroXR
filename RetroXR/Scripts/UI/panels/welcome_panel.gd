@@ -18,7 +18,7 @@
 class_name WelcomePanel
 extends Node3D
 
-## Got it or "Don't Show Again" pressed; the page is going away.
+## Done or "Don't Show Again" pressed; the page is going away.
 signal dismissed
 
 const PAGE_SCENE := preload("res://Scenes/UI/welcome_2d.tscn")
@@ -28,7 +28,7 @@ const VIEWPORT_SCENE := preload("res://addons/godot-xr-tools/objects/viewport_2d
 ## is built at this size and then made as tall as what is on it (_fit), between
 ## the two bounds: the headset's page carries the controllers' stage and the
 ## desktop's does not, a Quest's ROM folder wraps to more lines, and a fixed
-## height left a band of nothing over Got it.
+## height left a band of nothing over its buttons.
 const SCREEN_SIZE := Vector2(1.1, 0.75)
 const VIEWPORT_SIZE := Vector2(2200, 1500)
 const MIN_PX := 700.0
@@ -76,7 +76,7 @@ func show_in_front_of(camera: Node3D, forward: Vector3, distance: float,
 	print("[Welcome] shown (%s, %.2f m)" % ["vr" if MenuStyle.is_vr_mode() else "desktop", distance])
 
 
-## Put away without Got it: not marked seen, so it comes back next launch.
+## Put away without Done: not marked seen, so it comes back next launch.
 func put_away(reason: String) -> void:
 	if _done:
 		return
@@ -144,7 +144,6 @@ func _fit(page: Welcome2D) -> void:
 ## Next or Back: the page is another height, and the controllers belong to the
 ## first page's stage only.
 func _on_page_changed(index: int, page: Welcome2D) -> void:
-	print("[Welcome] page %d of 2" % (index + 1))
 	if _demo != null:
 		_demo.visible = index == 0
 	_fit(page)

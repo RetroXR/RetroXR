@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Encode one of the welcome page's clips from a probe's frames.
 
-    python Tools/art/encode_welcome_clip.py <frames dir> [--name menu_clip|hookup_clip]
-        [--width 880] [--mp4 preview.mp4]
+    python Tools/art/encode_welcome_clip.py <frames dir>
+        [--name menu_clip|hookup_clip|upload_clip] [--width 880] [--mp4 preview.mp4]
 
 Reads <frames dir>/f_00000.png (or .jpg) ... at 30 fps and writes
 RetroXR/Textures/welcome/<name>.ogv: Ogg Theora, no sound, which Godot plays with
@@ -13,6 +13,7 @@ outside Godot.
 
     menu_clip    Tools/room/welcome_clip_probe   the menu being used, 880 x 720
     hookup_clip  Tools/room/nes_hookup_probe      an NES hooked up, 960 x 540
+    upload_clip  Tools/art/film_web_upload.py     a ROM put on a Quest from its browser, 960 x 540
 
 Uses the ffmpeg imageio-ffmpeg bundles (Tools/requirements.txt), which has
 libtheora; a system ffmpeg may not.
@@ -27,8 +28,9 @@ import imageio_ffmpeg
 
 FPS = 30
 # Theora's quality, 0-10. The menu is flat colour and text, the room is not: 7
-# keeps the menu's text edges clean, 6 keeps the room clip a few MB.
-QUALITY = {"menu_clip": 7, "hookup_clip": 6}
+# keeps the menu's text edges clean, 6 keeps the room clip a few MB. The upload
+# clip is a web page, so text as the menu is.
+QUALITY = {"menu_clip": 7, "hookup_clip": 6, "upload_clip": 7}
 OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "RetroXR", "Textures", "welcome")
 
 

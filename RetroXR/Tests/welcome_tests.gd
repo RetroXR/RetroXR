@@ -21,7 +21,7 @@ extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below -- it is checked before
 ## it has recorded itself.
-const EXPECTED_CASES := 51
+const EXPECTED_CASES := 60
 
 
 func _ready() -> void:
@@ -89,20 +89,20 @@ func _group_dismiss() -> void:
 	await get_tree().process_frame
 	var pressed: Array = []
 	page.dismissed.connect(func(for_good: bool) -> void: pressed.append(for_good))
-	var got_it := page.find_child("GotIt", true, false) as Button
+	var done := page.find_child("Done", true, false) as Button
 	var never := page.find_child("NeverAgain", true, false) as Button
-	_ok(got_it != null and never != null, "dismiss/the page has Got it and Don't Show Again")
-	if got_it != null and never != null:
-		got_it.pressed.emit()
+	_ok(done != null and never != null, "dismiss/the page has Done and Don't Show Again")
+	if done != null and never != null:
+		done.pressed.emit()
 		never.pressed.emit()
-	_eq(pressed, [false, true], "dismiss/Got it closes it for now, Don't Show Again for good")
+	_eq(pressed, [false, true], "dismiss/Done closes it for now, Don't Show Again for good")
 	_ok(page.find_children("*", "Label", true, false).any(
 			func(n: Node) -> bool: return (n as Label).text == Welcome2D.AGAIN_NOTE)
 		and Welcome2D.AGAIN_NOTE.contains("OPTIONS > General"),
 		"dismiss/the page says where to switch it back on")
 	page.queue_free()
 
-	# Got it: gone, and back at the next start.
+	# Done: gone, and back at the next start.
 	AppPrefs.show_welcome = true
 	var panel := WelcomePanel.new()
 	var heard := [0]
@@ -110,7 +110,7 @@ func _group_dismiss() -> void:
 	panel._on_page_dismissed(false)
 	panel._on_page_dismissed(false)
 	_eq(heard[0], 1, "dismiss/a second press of a dismissed page does nothing")
-	_ok(WelcomePanel.due(), "dismiss/after Got it it still comes up at the next start")
+	_ok(WelcomePanel.due(), "dismiss/after Done it still comes up at the next start")
 
 	# Don't Show Again: off at start, kept on disk.
 	var for_good := WelcomePanel.new()
@@ -204,13 +204,23 @@ func _group_copy() -> void:
 	# and its DON'T warns off every other way in, and says why.
 	var quest := "\n".join(Welcome2D.do_lines(true, true))
 	_ok(quest.contains("Web File Manager") and quest.contains("OPTIONS > File Server")
-		and quest.contains(WebFileServer.headset_url()) and not quest.contains(Welcome2D.roms_folder()),
+		and quest.contains(WebFileServer.headset_url()) and quest.contains("media > roms")
+		and not quest.contains(Welcome2D.roms_folder()),
 		"copy/on a Quest, the ROM line sends files through the Web File Manager, at the headset's own address too")
 	var quest_dont := " ".join(Welcome2D.dont_lines(true))
 	_ok(quest_dont.contains("file manager") and quest_dont.contains("USB") and quest_dont.contains("adb")
 		and quest_dont.contains("uid") and quest_dont.contains("Web File Manager only")
 		and quest_dont.contains("you don't own"),
 		"copy/on a Quest, a DON'T warns off file managers, USB and adb, says why, and keeps the rest")
+	# The upload page walks the real server: its switch, its addresses, its folders
+	# and the words on its own buttons.
+	var upload := " ".join(Welcome2D.UPLOAD_LINES)
+	_ok(upload.contains("Web File Manager") and upload.contains("OPTIONS > File Server")
+		and upload.contains(WebFileServer.headset_url()) and upload.contains("PIN")
+		and upload.contains("media > roms") and WebFileServer._roots().has("media")
+		and upload.contains("choose files") and WebFileServer._HTML.contains(">choose files<")
+		and upload.contains("choose folder") and WebFileServer._HTML.contains(">choose folder<"),
+		"copy/the upload page names the server's switch, the headset's address, the PIN, its folders and buttons")
 	_ok(not " ".join(Welcome2D.dont_lines(false)).contains("uid")
 		and "\n".join(Welcome2D.do_lines(true, false)).contains(Welcome2D.roms_folder()),
 		"copy/off a Quest, the folder line stays and there is no Quest warning")
@@ -222,10 +232,12 @@ func _group_copy() -> void:
 func _group_page() -> void:
 	_ok(ResourceLoader.exists(Welcome2D.MENU_CLIP), "page/the menu clip ships with the build")
 	_ok(ResourceLoader.exists(Welcome2D.HOOKUP_CLIP), "page/the hookup clip ships with the build")
+	_ok(ResourceLoader.exists(Welcome2D.UPLOAD_CLIP), "page/the upload clip ships with the build")
 
 	# Next and Back, pressed as a player presses them.
 	var two := (load("res://Scenes/UI/welcome_2d.tscn") as PackedScene).instantiate() as Welcome2D
 	two.vr_override = 0
+	two.android_override = 0
 	var two_box := Control.new()
 	two_box.size = WelcomePanel.VIEWPORT_SIZE
 	add_child(two_box)
@@ -235,8 +247,12 @@ func _group_page() -> void:
 	var back := two.find_child("Back", true, false) as Button
 	var heard: Array = []
 	two.page_changed.connect(func(i: int) -> void: heard.append(i))
+	var out_on_first := _ways_out_shown(two)
 	if next != null:
 		next.pressed.emit()
+	_ok(out_on_first == 0 and _ways_out_shown(two) == 3,
+		"page/Done, Don't Show Again and its note stand on the last page only",
+		"%d of 3 on page 1, %d on page 2" % [out_on_first, _ways_out_shown(two)])
 	var texts: Array = two.find_children("*", "Label", true, false).filter(
 		func(n: Node) -> bool: return (n as Label).is_visible_in_tree()).map(
 		func(n: Node) -> String: return (n as Label).text)
@@ -245,6 +261,9 @@ func _group_page() -> void:
 		and two.hookup_player() != null and two.hookup_player().stream != null
 		and back != null and back.visible and not next.visible,
 		"page/Next shows the hookup page: its clip, its words, the credit and Back", str(heard))
+	_ok(two.page_count() == 2 and two.upload_player() == null
+		and two.find_child("PageUpload", true, false) == null and not next.visible,
+		"page/off a Quest the hookup is the last page: no upload page, no Next")
 	_ok(two.clip_player().paused and not two.hookup_player().paused,
 		"page/only the page shown plays its clip")
 	if back != null:
@@ -252,6 +271,27 @@ func _group_page() -> void:
 	_ok(two.page_index() == 0 and next.visible and not back.visible and not two.clip_player().paused
 		and two.hookup_player().paused and heard == [1, 0],
 		"page/Back returns to the welcome, its clip playing again", str(heard))
+
+	# Page one's foot links the site and the Discord: the README's and the release
+	# notes' own, opened through open_url (swapped here, so nothing opens).
+	var opened: Array = []
+	two.open_url = func(url: String) -> int:
+		opened.append(url)
+		return OK
+	var site := two.find_child("Website", true, false) as Button
+	var chat := two.find_child("Discord", true, false) as Button
+	if site != null and chat != null:
+		site.pressed.emit()
+		chat.pressed.emit()
+	var checkout := ProjectSettings.globalize_path("res://").path_join("..")
+	var readme := FileAccess.get_file_as_string(checkout.path_join("README.md"))
+	var release := FileAccess.get_file_as_string(checkout.path_join(".github/workflows/release.yml"))
+	_ok(site != null and site.is_visible_in_tree() and chat != null and chat.is_visible_in_tree()
+		and "retroxr.app" in site.text and Welcome2D.DISCORD_URL.trim_prefix("https://") in chat.text
+		and opened == [Welcome2D.WEBSITE_URL, Welcome2D.DISCORD_URL]
+		and readme.contains("(%s)" % Welcome2D.WEBSITE_URL) and release.contains(Welcome2D.DISCORD_URL),
+		"page/page one links the site and the Discord, the README's and the release notes' own",
+		"opened %s, README %d chars, release.yml %d chars" % [opened, readme.length(), release.length()])
 	two_box.queue_free()
 
 	# A Quest's page carries its own lines.
@@ -272,6 +312,38 @@ func _group_page() -> void:
 			qmissing.append(line)
 	_ok(qmissing.is_empty() and Welcome2D.QUEST_ROMS_LINE in qshown and Welcome2D.DONT_QUEST[0] in qshown,
 		"page/a Quest's page shows the Web File Manager line and its own DON'T", str(qmissing))
+
+	# ...and a third page after the hookup: the upload, reached with Next and left
+	# with Back one page at a time.
+	var qnext := qpage.find_child("Next", true, false) as Button
+	var qback := qpage.find_child("Back", true, false) as Button
+	qnext.pressed.emit()
+	var next_on_hookup := qnext.visible
+	var out_on_hookup := _ways_out_shown(qpage)
+	qnext.pressed.emit()
+	_ok(out_on_hookup == 0 and _ways_out_shown(qpage) == 3,
+		"page/on a Quest the ways out move to page 3, off the hookup",
+		"%d of 3 on page 2, %d on page 3" % [out_on_hookup, _ways_out_shown(qpage)])
+	var qtexts: Array = qpage.find_children("*", "Label", true, false).filter(
+		func(n: Node) -> bool: return (n as Label).is_visible_in_tree()).map(
+		func(n: Node) -> String: return (n as Label).text)
+	var up := qpage.upload_player()
+	_ok(qpage.page_count() == 3 and next_on_hookup and qpage.page_index() == 2
+		and not qnext.visible and qback.visible and up != null and up.stream != null and not up.paused
+		and qpage.hookup_player().paused and qpage.clip_player().paused,
+		"page/on a Quest, Next on the hookup shows the upload page, only its clip playing",
+		"pages %d, Next on the hookup %s, at %d" % [qpage.page_count(), next_on_hookup, qpage.page_index()])
+	var up_missing: Array[String] = []
+	for line: String in Welcome2D.UPLOAD_LINES + [Welcome2D.UPLOAD_TITLE]:
+		if line not in qtexts:
+			up_missing.append(line)
+	_ok(up_missing.is_empty(), "page/the upload page shows its title and every step", str(up_missing))
+	qback.pressed.emit()
+	var back_to := qpage.page_index()
+	qback.pressed.emit()
+	_ok(back_to == 1 and qpage.page_index() == 0 and qnext.visible and not qback.visible
+		and up != null and up.paused and not qpage.clip_player().paused,
+		"page/Back steps back through a Quest's pages one at a time", "via %d to %d" % [back_to, qpage.page_index()])
 	qbox.queue_free()
 	for vr: bool in [false, true]:
 		var page := (load("res://Scenes/UI/welcome_2d.tscn") as PackedScene).instantiate() as Welcome2D
@@ -295,7 +367,7 @@ func _group_page() -> void:
 			"page/the %s page shows its title and every line" % ("headset" if vr else "desktop"),
 			str(missing))
 		# The panel is made as tall as this; nothing, or more than it allows, and
-		# the page is a sliver or loses its Got it button.
+		# the page is a sliver or loses its buttons.
 		var h := page.content_height()
 		_ok(h > WelcomePanel.MIN_PX * 0.5 and h < WelcomePanel.MAX_PX,
 			"page/the %s page measures a height the panel can take" % ("headset" if vr else "desktop"),
@@ -319,6 +391,17 @@ func _group_page() -> void:
 
 ## ControllerRig against rigs of known travel: the stand-in's own clip, and one
 ## made here with a stick that both leans and clicks.
+## How many of the page's ways out (Done, Don't Show Again, the note on turning it
+## back on) are there and showing: 3 on the last page, 0 on any other.
+func _ways_out_shown(page: Welcome2D) -> int:
+	var shown := 0
+	for node_name: String in ["Done", "NeverAgain", "AgainNote"]:
+		var c := page.find_child(node_name, true, false) as Control
+		if c != null and c.visible:
+			shown += 1
+	return shown
+
+
 func _group_rig() -> void:
 	var model := ControllerStandIn.build(true)
 	var skel := model.get_node("Skeleton3D") as Skeleton3D
