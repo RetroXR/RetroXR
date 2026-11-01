@@ -307,7 +307,11 @@ func _hand_did_it() -> bool:
 	var host := get_parent()
 	if host == null:
 		return true
-	return host.has_method("is_restoring_media") and host.is_restoring_media()
+	# NOT restoring. 110f65db turned the old `host.get("_restoring_media") != true`
+	# into the accessor and lost the negation, so for two months every LIVE insert,
+	# tray push and controller plug skipped its slide and its sound, and only a
+	# restore made them. bay_tests restore/ now holds both sides.
+	return not (host.has_method("is_restoring_media") and host.is_restoring_media())
 
 
 func _on_power_button_pressed() -> void:

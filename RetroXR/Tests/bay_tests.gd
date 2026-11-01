@@ -635,6 +635,27 @@ func _group_restore() -> void:
 		"restore/and lands without clicking the tray shut")
 	await _clear()
 
+	# The other side of the same guard: what a HAND does is heard. The cases above are
+	# green whatever a live insert does, which is how the guard ran backwards for two
+	# months (110f65db) with every one of them passing.
+	var live := await _console("nes", "nes")
+	var live_cart := await _cart("nes")
+	var live_slot := live.get_node("CartridgeSlot") as XRToolsSnapZone
+	var model: Variant = live.get_model()
+	_ok(not model._sfx_cart_insert.is_empty() and not model._sfx_tray_down.is_empty(),
+		"restore/the cart and the cradle have sounds that could be heard")
+	model._sfx_last.erase("cart_insert")
+	model._sfx_last.erase("tray")
+	live_slot.pick_up_object(live_cart)
+	await _wait(4)
+	_ok(model._hand_did_it() and model._sfx_last.has("cart_insert"),
+		"restore/a hand's cart is heard going in", "sounds %s" % model._sfx_last)
+	model.push_tray_down()
+	await _wait(30)
+	_ok(model.is_tray_down() and model._sfx_last.has("tray"),
+		"restore/and a hand's push clicks the cradle down", "sounds %s" % model._sfx_last)
+	await _clear()
+
 
 # --- other ----------------------------------------------------------------------
 
