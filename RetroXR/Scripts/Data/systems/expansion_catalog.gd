@@ -42,6 +42,11 @@
 ##               (missing_row). The Sega CD, BS-X cartridge, Sufami Turbo, both
 ##               Super Game Boys and the Saturn's ROM carts and Video CD Card
 ##               name some.
+##   firmware_all
+##               `firmware` is a CHECKLIST rather than alternatives: every file
+##               must be there, and missing_row names the first that is not.
+##               Sonic & Knuckles, whose core locks on only when both sk.bin and
+##               sk2chip.bin load.
 ##   card        the systemid whose spawn card offers this unit, overriding the
 ##               media rule in card_systemid. Only the Super Game Boys name it,
 ##               and only because a player went looking for one on the Super
@@ -195,6 +200,7 @@ const _UNITS: Array = [
 	preload("res://Scripts/Data/systems/expansions/sega_cd.gd"),
 	preload("res://Scripts/Data/systems/expansions/sega_cd_ram_cart.gd"),
 	preload("res://Scripts/Data/systems/expansions/sega_32x.gd"),
+	preload("res://Scripts/Data/systems/expansions/sonic_knuckles.gd"),
 	preload("res://Scripts/Data/systems/expansions/power_base_converter.gd"),
 	preload("res://Scripts/Data/systems/expansions/fm_sound_unit.gd"),
 	preload("res://Scripts/Data/systems/expansions/sega_saturn_ram_cart.gd"),
@@ -221,7 +227,7 @@ const _UNITS: Array = [
 const _ORDER: Array = [
 	"nintendo_64dd", "nintendo_64dd_dev", "expansion_pak", "jumper_pak", "fds", "satellaview",
 	"bsx_cart", "sufami_turbo", "super_game_boy", "super_game_boy_2",
-	"sega_cd", "sega_cd_ram_cart", "sega_32x", "power_base_converter", "fm_sound_unit",
+	"sega_cd", "sega_cd_ram_cart", "sega_32x", "sonic_knuckles", "power_base_converter", "fm_sound_unit",
 	"sega_saturn_ram_cart", "sega_saturn_extram_1m", "sega_saturn_extram_4m",
 	"sega_saturn_kof95_rom", "sega_saturn_ultraman_rom", "sega_saturn_vcd_card",
 	"pc_engine_cd", "jaguar_cd", "ereader", "ereader_plus", "ereader_usa",
@@ -334,6 +340,7 @@ const FIELDS := {
 	"bays": 1,
 	"firmware": [],
 	"firmware_first_present": false,
+	"firmware_all": false,
 	"rom_code": "",
 	"rom_title": "",
 	"rom_from_firmware": false,
@@ -1000,6 +1007,9 @@ static func firmware_present(id: String) -> bool:
 	if core.is_empty():
 		return true
 
+	if bool(_field(id, "firmware_all")):
+		return firmware_missing(id).is_empty()
+
 	var declared := false
 	for status_row: Dictionary in FirmwareState.shared().evaluate(
 			core, FirmwareRequirements.for_core(core)):
@@ -1022,6 +1032,33 @@ static func firmware_present(id: String) -> bool:
 	return false
 
 
+## The files of a `firmware_all` unit that are not on disk, in row order. Each
+## counts as there when the core's .info row says PRESENT or MISMATCH (the gate's
+## own rule above), or, for a file the .info does not declare, when it is in the
+## core's system directory. Empty for a unit with no recipe or no firmware.
+static func firmware_missing(id: String) -> Array[String]:
+	var out: Array[String] = []
+	var wanted := firmware_of(id)
+	var core := str(boot_for(host_of(id), [id]).get("core", ""))
+	if wanted.is_empty() or core.is_empty():
+		return out
+	var status_of := {}
+	for status_row: Dictionary in FirmwareState.shared().evaluate(
+			core, FirmwareRequirements.for_core(core)):
+		status_of[str(status_row.get("path", ""))] = int(status_row.get("status", -1))
+	for name: Variant in wanted:
+		var file := str(name)
+		var there := false
+		if status_of.has(file):
+			var status := int(status_of[file])
+			there = status == FirmwareState.Status.PRESENT 					or status == FirmwareState.Status.MISMATCH
+		else:
+			there = FileAccess.file_exists(FirmwareRequirements.destination(core, file))
+		if not there:
+			out.append(file)
+	return out
+
+
 ## What a machine built with this unit is missing, as a row of BiosBoot's
 ## missing_required shape ({path, desc, any_of?, where?}), or {} when nothing is.
 ##
@@ -1040,6 +1077,11 @@ static func missing_row(id: String) -> Dictionary:
 	var wanted := firmware_of(id)
 	if wanted.is_empty():
 		return {}
+	if bool(_field(id, "firmware_all")):
+		# A checklist names the file that is actually missing, never any_of.
+		var missing := firmware_missing(id)
+		return {"path": missing[0] if not missing.is_empty() else str(wanted[0]),
+			"desc": "%s BIOS" % label, "dest": ""}
 	var out := {"path": str(wanted[0]), "desc": "%s BIOS" % label, "dest": ""}
 	if wanted.size() > 1:
 		out["any_of"] = wanted

@@ -1475,6 +1475,126 @@ func _run() -> void:
 		await _group_spacer()
 	if _want("markets"):
 		await _group_markets()
+	if _want("lockon"):
+		await _group_lockon()
+
+
+# ── lockon/ — Sonic & Knuckles, a cartridge with a Genesis slot in its roof ────
+
+## The lock-on cartridge: the content is the game in its TOP slot, the S&K half
+## is sk.bin + sk2chip.bin in genesis_plus_gx's system folder, and the core only
+## locks on under genesis_plus_gx_lock_on = "sonic & knuckles". What the room
+## decides is all checked here; that the core then plays Sonic 3 & Knuckles is
+## Tools/cores/sk_lockon_probe's (a real core and ROMs).
+func _group_lockon() -> void:
+	_ok(_spawn_card_has("genesis", "sonic_knuckles"),
+		"lockon/ the Genesis card offers the Sonic & Knuckles cartridge")
+	var boot := ExpansionCatalog.boot_for("genesis", ["sonic_knuckles"])
+	_ok(str(boot.get("core", "")) == "genesis_plus_gx",
+		"lockon/ the stack pins genesis_plus_gx (picodrive has no lock-on)")
+
+	var bare := await _console("genesis")
+	_ok(bare.all_forced_options("genesis_plus_gx").get("genesis_plus_gx_lock_on", "") == "disabled",
+		"lockon/ a bare Genesis pins lock-on OFF, so a stale .opt value cannot reach it")
+	_ok(not bare.all_forced_options("picodrive").has("genesis_plus_gx_lock_on"),
+		"lockon/ and another core is not pinned with genesis_plus_gx's key")
+	await _clear()
+	var sms := await _console("mastersystem")
+	_ok(not sms.all_forced_options("genesis_plus_gx").has("genesis_plus_gx_lock_on"),
+		"lockon/ nor is a Master System on the same core")
+	await _clear()
+
+	var md := await _console("genesis")
+	var sk := await _unit("sonic_knuckles")
+	_ok(sk.is_in_group("cartridge"), "lockon/ the adapter is itself a cartridge")
+	var slot := md._cartridge_slot as XRToolsSnapZone
+	_ok(slot != null and slot.snap_filter.call(sk), "lockon/ and the Genesis slot takes it")
+	var top := await _cart("genesis", "/roms/genesis/Sonic The Hedgehog 3 (USA).md")
+	_ok(sk._accepts_media(top), "lockon/ its own slot takes a Genesis cartridge")
+	_ok(not sk._accepts_media(await _cart("snes", "/roms/snes/x.sfc")),
+		"lockon/ and refuses a Super NES one")
+
+	md.restore_cartridge(sk)
+	await _wait(5)
+	md.expansion_launch().apply_expansion_launch()
+	_ok(md.rom_path.get_file() == "sk.bin",
+		"lockon/ with its slot empty the machine boots the adapter's own sk.bin")
+	_ok(md.all_forced_options("genesis_plus_gx").get("genesis_plus_gx_lock_on", "") == "disabled",
+		"lockon/ and lock-on stays OFF (S&K alone, never locked onto itself)")
+
+	sk.restore_media_in_slot(top)
+	await _wait(5)
+	md.expansion_launch().apply_expansion_launch()
+	_ok(md.rom_path == "/roms/genesis/Sonic The Hedgehog 3 (USA).md",
+		"lockon/ with a game in its slot, that game is the content")
+	_ok(md.all_forced_options("genesis_plus_gx").get("genesis_plus_gx_lock_on", "") == "sonic & knuckles",
+		"lockon/ and lock-on is pinned ON")
+	await _clear()
+
+	await _lockon_firmware_gate()
+
+
+## Both files or the adapter refuses: the core locks on only when sk2chip.bin
+## ALSO loads, so sk.bin alone must still say "missing". Driven on the REAL
+## genesis_plus_gx system folder, as _sgb_gate_positive is: a player's dumps are
+## renamed aside and put back, scratch files written and removed, so the count
+## and the outcome do not depend on what this machine has installed.
+func _lockon_firmware_gate() -> void:
+	var names: Array[String] = ["sk.bin", "sk2chip.bin"]
+	var dests: Array[String] = []
+	for name in names:
+		dests.append(FirmwareRequirements.destination("genesis_plus_gx", name))
+	for dest in dests:
+		var aside := dest + ".expansion_tests_backup"
+		if FileAccess.file_exists(aside) and not FileAccess.file_exists(dest):
+			DirAccess.rename_absolute(aside, dest)
+			print("[exp] lockon/ restored %s left aside by an earlier run" % dest.get_file())
+	var moved: Array[bool] = []
+	for dest in dests:
+		var real := FileAccess.file_exists(dest)
+		moved.append(real)
+		if real:
+			DirAccess.rename_absolute(dest, dest + ".expansion_tests_backup")
+	DirAccess.make_dir_recursive_absolute(dests[0].get_base_dir())
+
+	_refresh_gpgx_firmware()
+	_ok(not ExpansionCatalog.firmware_present("sonic_knuckles")
+			and str(ExpansionCatalog.missing_row("sonic_knuckles").get("path", "")) == "sk.bin",
+		"lockon/ with neither file the adapter cannot start, and power-on names sk.bin")
+	_lockon_scratch(dests[0])
+	_refresh_gpgx_firmware()
+	_ok(not ExpansionCatalog.firmware_present("sonic_knuckles")
+			and str(ExpansionCatalog.missing_row("sonic_knuckles").get("path", "")) == "sk2chip.bin"
+			and not ExpansionCatalog.missing_row("sonic_knuckles").has("any_of"),
+		"lockon/ sk.bin ALONE is not enough: power-on names sk2chip.bin")
+	_lockon_scratch(dests[1])
+	_refresh_gpgx_firmware()
+	_ok(ExpansionCatalog.firmware_present("sonic_knuckles")
+			and ExpansionCatalog.missing_row("sonic_knuckles").is_empty(),
+		"lockon/ with both files the adapter can start")
+
+	for i in dests.size():
+		DirAccess.remove_absolute(dests[i])
+		if moved[i]:
+			DirAccess.rename_absolute(dests[i] + ".expansion_tests_backup", dests[i])
+	_refresh_gpgx_firmware()
+	var restored := true
+	for i in dests.size():
+		restored = restored and FileAccess.file_exists(dests[i]) == moved[i]
+	_ok(restored, "lockon/ and the player's files are back exactly as they were")
+
+
+func _lockon_scratch(path: String) -> void:
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		_ok(false, "lockon/ can write %s to drive the gate" % path.get_file())
+		return
+	f.store_string("retroxr expansion_tests scratch, safe to delete")
+	f.close()
+
+
+func _refresh_gpgx_firmware() -> void:
+	FirmwareState.shared().evaluate("genesis_plus_gx", FirmwareRequirements.for_core("genesis_plus_gx"))
 
 
 # ── spacer/ — the 32X's Model 2 spacer, a clip-on accessory ───────────────────

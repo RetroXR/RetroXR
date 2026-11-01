@@ -383,3 +383,52 @@ booting past a drive -- a Mega Drive game on a Mega Drive standing on a Sega CD 
 found by the first resolving token of the recipe being `host`. Before this the
 units were left off every card, so a player with Sega CD discs and no BIOS saw no
 Sega CD at all and nothing said why. `expansion_tests scd_missing/`.
+
+### 2j-sk. Sonic & Knuckles — Lock-On Technology
+
+`sonic_knuckles` (`Scripts/Data/systems/expansions/sonic_knuckles.gd`) is a Genesis
+cartridge with a Genesis slot under a lid in its roof: `MOUNT_CARTRIDGE`, `media`
+`genesis`, offered on the Genesis card. Seat Sonic 3 in it and the console plays
+Sonic 3 & Knuckles; Sonic 2 makes Knuckles in Sonic 2; anything else S&K does not
+recognise gives Blue Sphere.
+
+**The core does all of it; the room only builds the machine.** Our genesis_plus_gx
+fork carries upstream's lock-on unchanged (`core/cart_hw/md_cart.c`, `TYPE_SK`):
+the content is the TOP cartridge, and with `genesis_plus_gx_lock_on = "sonic &
+knuckles"` it loads `system/sk.bin` (2 MB, header `SONIC & KNUCKLES` at 0x120)
+over $000000-$1FFFFF and `system/sk2chip.bin` (256 KB, the Sonic 2 "UPMEM" chip)
+at $300000. The option is read at load (`reinit`), so a game seated while the
+console runs plays on its next power-on. Refused for a top ROM over 4 MB.
+
+**Both files, or nothing.** sk2chip.bin is read INSIDE the sk.bin branch and the
+lock-on flag set only when it loads too, so without it the console plays the top
+cartridge alone, silently, for every game and not only Sonic 2. Hence the row's
+`firmware_all` (a new catalog field: `firmware` as a checklist rather than
+alternatives; `ExpansionCatalog.firmware_missing`, and `missing_row` names the
+first missing file), so power-on refuses with "BIOS required" naming it.
+The adapter's own program is the firmware (`rom_from_firmware`, the Super Game
+Boy's arrangement): with its slot empty the plain `expansion:` token falls back
+to sk.bin, which plays plain Sonic & Knuckles.
+
+`ForcedCoreOptions.sonic_knuckles_lock_on`, Genesis + genesis_plus_gx only, both
+ways: ON when the unit is in the stack and `rom_path` (which the stack has set by
+then, `ExpansionLaunch.apply_expansion_launch`) is not sk.bin; OFF with the slot
+empty (S&K locked onto its own ROM) and on a bare Genesis (the key lives in the
+one shared `.opt`). The BOOT row pins genesis_plus_gx: picodrive has no lock-on.
+Power-on logs `[Expansion] Sonic & Knuckles lock-on <value> (top slot <rom>)`.
+
+**Measured 2026-11-01** with `Tools/cores/sk_lockon_probe` (windowed, one leg per
+process: `lock`, `bare` the control, `alone`), No-Intro dumps, the room's own
+RetroSystem: Sonic 3 -> the SONIC 3 & KNUCKLES title and S&K's Data Select (the
+bare leg differs at every sample); Sonic 2 -> Knuckles in Sonic 2; Sonic 1 ->
+the "NO WAY?" screen, then Blue Sphere on A+B+C (`--press=abc`); **The Lion King
+(3 MB) -> plain Sonic & Knuckles, frame for frame the alone leg's**. That last is
+the real hardware: the cartridge's mapper shows a large game's LAST 2 MB, finds
+no header there and boots S&K alone, so it is not a bug to fix.
+
+`expansion_tests --only=lockon` drives the gate on the REAL genesis_plus_gx system
+folder (a player's files moved aside and back, scratch ones written and removed).
+
+Owed: a model (the box is a primitive, size ESTIMATED, no hinged lid), the
+headset, the Quest, and netplay (peers need identical sk.bin/sk2chip.bin; what
+the session fingerprint covers there is unchecked).

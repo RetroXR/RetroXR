@@ -28,6 +28,7 @@ static func all(core: String, systemid: String, rom_path: String,
 	out.merge(disk_drive(core, systemid, expansions, media_path), true)
 	out.merge(expansion_pak(core, expansions), true)
 	out.merge(fm_sound_unit(core, systemid, expansions), true)
+	out.merge(sonic_knuckles_lock_on(core, systemid, rom_path, expansions), true)
 	out.merge(saturn_cart(core, systemid, expansions), true)
 	out.merge(saturn_mpeg_card(core, systemid, expansions), true)
 	out.merge(bios_pinned(core, systemid, rom_path), true)
@@ -325,6 +326,28 @@ static func fm_sound_unit(core: String, systemid: String, expansions: Array) -> 
 	if systemid != "mastersystem" or core != "genesis_plus_gx":
 		return {}
 	return {"genesis_plus_gx_ym2413": "enabled" if expansions.has("fm_sound_unit") else "disabled"}
+
+
+## Sonic & Knuckles' lock-on (the `sonic_knuckles` unit): ON only while a game
+## stands in the adapter's own slot, which is when the stack hands the core that
+## game rather than the adapter's sk.bin; then genesis_plus_gx maps the S&K ROM
+## over it (md_cart.c TYPE_SK). OFF with the slot empty -- S&K locked onto its own
+## ROM is not a machine anyone can build -- and OFF on a bare Genesis, for the
+## Expansion Pak's reason: the key lives in the one shared .opt, and a value left
+## by a lock-on run would make the next plain Genesis load try to lock on.
+##
+## Genesis only, as fm_sound_unit is Master System only: the same core runs the
+## Game Gear, Master System and Sega CD, and this key means nothing to them. Read
+## at load, so a game seated while the console runs plays on its next power-on.
+static func sonic_knuckles_lock_on(core: String, systemid: String, rom_path: String,
+		expansions: Array) -> Dictionary:
+	if systemid != "genesis" or core != "genesis_plus_gx":
+		return {}
+	var on := false
+	if expansions.has("sonic_knuckles") and not rom_path.is_empty():
+		var own := ExpansionCatalog.firmware_rom_path("sonic_knuckles")
+		on = own.is_empty() or rom_path.simplify_path() != own.simplify_path()
+	return {"genesis_plus_gx_lock_on": "sonic & knuckles" if on else "disabled"}
 
 
 ## What is in the cartridge slot behind a Saturn's lid, by unit id, as each core

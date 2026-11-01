@@ -259,6 +259,18 @@ func apply_expansion_launch() -> Dictionary:
 
 	_host.rom_path = roms[0]
 	_stack_set_rom_path = true
+	var core := str(spec.get("core", ""))
+	print("[Expansion] %s boots %s on %s" % [str(_host.systemid), roms[0].get_file(),
+		core if not core.is_empty() else "the console's core"])
+	# genesis_plus_gx says nothing when lock-on does not happen (a missing
+	# sk2chip.bin plays the top game alone), so say which way it was asked.
+	var lock := ForcedCoreOptions.sonic_knuckles_lock_on(core, str(_host.systemid),
+		roms[0], _host.get_expansions().map(func(u: RetroExpansion) -> String: return u.expansion_id))
+	if not lock.is_empty() and _host.get_expansions().any(
+			func(u: RetroExpansion) -> bool: return u.expansion_id == "sonic_knuckles"):
+		print("[Expansion] Sonic & Knuckles lock-on %s (top slot %s)" % [
+			lock["genesis_plus_gx_lock_on"],
+			"empty: S&K alone" if lock["genesis_plus_gx_lock_on"] == "disabled" else roms[0].get_file()])
 	return spec
 
 
