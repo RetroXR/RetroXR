@@ -76,6 +76,8 @@ func _ready() -> void:
 		return
 	_button.button_pressed.connect(_on_pressed)
 	_button.press_gate = _poke_allowed
+	# A toggle flips; it does not sink like a doorbell while it is held.
+	_button.depress_depth = 0.0
 	_lever = _button.get_node_or_null("ButtonMesh") as Node3D
 	if _lever != null:
 		_lever.position = PIVOT
