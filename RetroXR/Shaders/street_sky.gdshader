@@ -6,5 +6,9 @@ shader_type spatial;
 
 void fragment() {
 	vec2 uv = pano_uv();
-	ALBEDO = decode(mix(texture(key_a, uv).rgb, texture(key_b, uv).rgb, blend)) * exposure;
+	vec3 c = texture(key_a, uv).rgb;
+	if (blend > 0.0) {
+		c = mix(c, texture(key_b, uv).rgb, blend);
+	}
+	ALBEDO = decode(c) * exposure;
 }

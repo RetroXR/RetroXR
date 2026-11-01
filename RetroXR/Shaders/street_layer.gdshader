@@ -32,7 +32,11 @@ void fragment() {
 		vec2 per_rad = vec2(1.0 / (ranges.y - ranges.x), 1.0 / (ranges.w - ranges.z)) / crop.zw;
 		t += leaf * sway * per_rad * vec2(gust + flutter, 0.35 * flutter - 0.15 * abs(gust));
 	}
-	vec4 c = mix(texture(key_a, t), texture(key_b, t), blend);
+	// most of the day the two bound keys are the same one and nothing blends: read it once
+	vec4 c = texture(key_a, t);
+	if (blend > 0.0) {
+		c = mix(c, texture(key_b, t), blend);
+	}
 	vec3 l = decode(c.rgb);
 	vec2 tu = (uv - tv_rect.xy) / max(tv_rect.zw, vec2(1e-6));
 	l += texture(tv_mask, tu).r * tv_light;
