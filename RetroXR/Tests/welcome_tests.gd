@@ -21,7 +21,7 @@ extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below -- it is checked before
 ## it has recorded itself.
-const EXPECTED_CASES := 46
+const EXPECTED_CASES := 51
 
 
 func _ready() -> void:
@@ -179,6 +179,10 @@ func _group_copy() -> void:
 	_ok("keyboard_shift_outline" in HeldHint.DESKTOP_DROP_GLYPHS and desk.contains("Shift + click")
 		and not desk.contains("Ctrl"),
 		"copy/the desktop drop is Shift + click, as HeldHint teaches it")
+	# Keyboard capture on a held pad: the two keys ScrollLockCapture really toggles on.
+	_ok(KEY_F3 in ScrollLockCapture.TOGGLE_KEYS and KEY_SCROLLLOCK in ScrollLockCapture.TOGGLE_KEYS
+		and desk.contains("F3") and desk.contains("Scroll Lock"),
+		"copy/the desktop page names F3 and Scroll Lock for playing a held pad from the keyboard")
 	var words: Array[String] = []
 	for glyph: String in HeldHint.VR_DROP_GLYPHS:
 		for word: String in ["grip", "trigger", "stick"]:
@@ -217,6 +221,38 @@ func _group_copy() -> void:
 ## Every line is on the page that is built, either way round, and it can be measured.
 func _group_page() -> void:
 	_ok(ResourceLoader.exists(Welcome2D.MENU_CLIP), "page/the menu clip ships with the build")
+	_ok(ResourceLoader.exists(Welcome2D.HOOKUP_CLIP), "page/the hookup clip ships with the build")
+
+	# Next and Back, pressed as a player presses them.
+	var two := (load("res://Scenes/UI/welcome_2d.tscn") as PackedScene).instantiate() as Welcome2D
+	two.vr_override = 0
+	var two_box := Control.new()
+	two_box.size = WelcomePanel.VIEWPORT_SIZE
+	add_child(two_box)
+	two_box.add_child(two)
+	await get_tree().process_frame
+	var next := two.find_child("Next", true, false) as Button
+	var back := two.find_child("Back", true, false) as Button
+	var heard: Array = []
+	two.page_changed.connect(func(i: int) -> void: heard.append(i))
+	if next != null:
+		next.pressed.emit()
+	var texts: Array = two.find_children("*", "Label", true, false).filter(
+		func(n: Node) -> bool: return (n as Label).is_visible_in_tree()).map(
+		func(n: Node) -> String: return (n as Label).text)
+	_ok(two.page_index() == 1 and not (two.find_child("PageWelcome", true, false) as Control).visible
+		and Welcome2D.HOOKUP_TITLE in texts and Welcome2D.HOOKUP_CREDIT in texts
+		and two.hookup_player() != null and two.hookup_player().stream != null
+		and back != null and back.visible and not next.visible,
+		"page/Next shows the hookup page: its clip, its words, the credit and Back", str(heard))
+	_ok(two.clip_player().paused and not two.hookup_player().paused,
+		"page/only the page shown plays its clip")
+	if back != null:
+		back.pressed.emit()
+	_ok(two.page_index() == 0 and next.visible and not back.visible and not two.clip_player().paused
+		and two.hookup_player().paused and heard == [1, 0],
+		"page/Back returns to the welcome, its clip playing again", str(heard))
+	two_box.queue_free()
 
 	# A Quest's page carries its own lines.
 	var qpage := (load("res://Scenes/UI/welcome_2d.tscn") as PackedScene).instantiate() as Welcome2D

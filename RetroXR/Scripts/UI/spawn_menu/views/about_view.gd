@@ -70,6 +70,11 @@ const SECTIONS: Array = [
 		["ScreenScraper", "screenscraper.fr contributors", "CC BY-NC-SA 4.0"],
 	], "Box art, screenshots and game details are scraped from screenscraper.fr."],
 
+	["IN THE WELCOME VIDEO", [
+		["BrickBreaker", "Aleff Correa", "MIT"],
+	], "The homebrew NES game played in the welcome page's hookup clip. Only the "
+		+ "footage ships, not the game."],
+
 	# The CC BY entries are the reason this section exists: attribution is a
 	# licence condition for them. The CC0 ones are credited anyway.
 	["3D MODELS", [

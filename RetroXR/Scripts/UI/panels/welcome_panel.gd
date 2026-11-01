@@ -109,6 +109,7 @@ func _build() -> void:
 		push_warning("[Welcome] the page did not instantiate; nothing to press")
 		return
 	page.dismissed.connect(_on_page_dismissed)
+	page.page_changed.connect(_on_page_changed.bind(page))
 	# Out of sight until it is the right size, so it never shows at the wrong one.
 	_viewport.visible = false
 	_fit.call_deferred(page)
@@ -129,21 +130,39 @@ func _fit(page: Welcome2D) -> void:
 	_viewport.visible = true
 	print("[Welcome] page fitted: %d px, %.2f x %.2f m" % [px, _viewport.screen_size.x,
 		_viewport.screen_size.y])
-	if page.stage_rect().has_area():
+	if page.page_index() == 0 and page.stage_rect().has_area():
 		# Laid out again at the new height a frame later; the stage moves with it.
 		await get_tree().process_frame
-		if not _done and is_instance_valid(page):
+		if _done or not is_instance_valid(page):
+			return
+		if _demo == null:
 			_stand_demo(page)
+		else:
+			_demo.position = _stage_point(page)
+
+
+## Next or Back: the page is another height, and the controllers belong to the
+## first page's stage only.
+func _on_page_changed(index: int, page: Welcome2D) -> void:
+	print("[Welcome] page %d of 2" % (index + 1))
+	if _demo != null:
+		_demo.visible = index == 0
+	_fit(page)
+
+
+## Where the page's stage is, in the panel's space, just in front of the quad.
+func _stage_point(page: Welcome2D) -> Vector3:
+	var rect := page.stage_rect()
+	var vs := _viewport.viewport_size
+	var ss := _viewport.screen_size
+	return Vector3((rect.get_center().x / vs.x - 0.5) * ss.x,
+		(0.5 - rect.get_center().y / vs.y) * ss.y, DEMO_LIFT)
 
 
 ## The player's controllers, in front of the page's stage, telling it which step
 ## they are on.
 func _stand_demo(page: Welcome2D) -> void:
-	var rect := page.stage_rect()
-	var vs := _viewport.viewport_size
-	var ss := _viewport.screen_size
-	var at := Vector3((rect.get_center().x / vs.x - 0.5) * ss.x,
-		(0.5 - rect.get_center().y / vs.y) * ss.y, DEMO_LIFT)
+	var at := _stage_point(page)
 	_demo = ControllerDemo.new()
 	_demo.name = "ControllerDemo"
 	_demo.position = at

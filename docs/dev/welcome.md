@@ -16,7 +16,9 @@ Tab key and one at a desk has no left stick.
 | `Scripts/UI/panels/controller_demo.gd` (`ControllerDemo`) | the headset page's two controllers and their `STEPS` |
 | `Scripts/UI/panels/controller_stand_in.gd` (`ControllerStandIn`) | a primitive controller with Meta's rig shape, for a hand with no runtime model |
 | `Scripts/XR/controller_rig.gd` (`ControllerRig`) | how a model's rig moves each input, shared with `ControllerModel` |
-| `Textures/welcome/menu_clip.ogv` | the clip: Ogg Theora, 880 x 720, 30 fps, silent, about 20 s |
+| `Textures/welcome/menu_clip.ogv` | page 1's clip: Ogg Theora, 880 x 720, 30 fps, silent, about 20 s |
+| `Textures/welcome/hookup_clip.ogv` | page 2's clip: an NES hooked up in the bedroom, 960 x 540, about 30 s |
+| `Tools/room/nes_hookup_probe` + `Tools/room/roms/brix.nes` | films page 2's clip; the ROM is BrickBreaker (MIT), credited in ABOUT |
 | `SpawnMenuController._offer_welcome` / `_show_welcome` | when, and where it stands; hands over the two `ControllerArt`s |
 | `AppPrefs.show_welcome` / `set_show_welcome` / `show_welcome_changed` | whether it comes up at start; the ONE way to change it |
 | `SpawnMenuOptionsView._build_welcome_option` | OPTIONS > General > Show Welcome Page at Start |
@@ -67,6 +69,38 @@ Tab key and one at a desk has no left stick.
   a dark room says nothing.
 - **Desktop checks only ever see the stand-in**: OpenXR hands over no model without a
   running headset session. How the real models look on the page is OWED to a headset.
+
+## Page two: hooking up a console
+
+**Next** (page 1) shows `HOOKUP_TITLE`, the hookup clip and `HOOKUP_LINES` beside it,
+with the game's credit; **Back** returns. Got it and Don't Show Again are under both.
+`show_page` pauses the hidden page's clip and plays the shown one's;
+`page_changed` makes WelcomePanel refit (the pages differ in height) and shows the
+3D controllers only on page 1, where their stage is.
+
+The clip is FILMED in the real app by `Tools/room/nes_hookup_probe` (windowed):
+
+- **The bedroom without its PlayerRig** (it is what restores the player's saved
+  room; no welcome page, no menu), mods off, its own camera in a SubViewport with a
+  caption bar drawn over it.
+- **A table**, the RETRO XR set and the NES side by side facing the camera, the
+  table 0.35 m off the wall so a camera fits behind the set, where its inputs are.
+  Both are stood ON the table by what they draw (`_rest_on`): placed by origin the
+  set sank half its height into the top.
+- **Every step through the calls a hand's own makes**: plugs eased to just off the
+  socket, then the zone's `pick_up_object`; the model's `play_open`/`play_close`;
+  the cart onto the tray's perch and in, `toggle_cart_tray()`; POWER's VRButton
+  `button_pressed`; START through a stand-in fingertip (`PressPoke`, a ControlPoke
+  whose poll holds the bit), so the pad's cap moves AND the core reads it.
+- **Frames on the WALL clock** (a slow frame is repeated, never stretched): the
+  core runs on its own thread in real time, and a game-time film would show the
+  game fast or slow. `--layout` places everything connected and saves a still per
+  framing, to stage by.
+- **Checked as it films**: the tray latched and the machine reading the cart, a
+  picture on the set, START changing what the set shows. It fails otherwise.
+- The NES-001 is the shipped detailed model: there is no primitive NES (the
+  Famicom is the primitive), and the NES has no mains inlet, so no power lead.
+- Encode: `encode_welcome_clip.py <frames> --name hookup_clip --width 960`.
 
 ## The menu clip
 
@@ -125,7 +159,8 @@ no VLC.
   up): the page in the bedroom with the clip playing, Got it pressed through the
   quad's own pointer body at the button's real place, ABOUT bringing it back, Don't
   Show Again pressed there and kept, then OPTIONS > General scrolled to the switch,
-  showing off, and pressed on through the menu's own body; the pages flat. `--vr` builds the headset's page and watches a whole loop of the demo
+  showing off, and pressed on through the menu's own body; Next and Back pressed
+  the same way, page 2's clip checked playing; the pages flat. `--vr` builds the headset's page and watches a whole loop of the demo
   (every step's own buttons must move); `--menu` walks CORES / SPAWN / TVs with the
   same pointer events and checks each view opened. Record it with Godot's movie
   writer (`--write-movie out.avi --fixed-fps 30`): the probe counts the demo in game

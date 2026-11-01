@@ -75,6 +75,22 @@ func _ready() -> void:
 	await _shot("welcome_room%s.png" % ("_vr" if _vr else ""))
 	await get_tree().create_timer(maxf(0.0, _linger - 2.5)).timeout
 
+	# Next, pressed where it is: the hookup page, its clip playing; then Back.
+	var vp_w := panel.get_node_or_null("WelcomeViewport") as XRToolsViewport2DIn3D
+	await _press_on(vp_w, panel.page().find_child("Next", true, false) as Control)
+	await get_tree().create_timer(2.5).timeout
+	var hook := panel.page().hookup_player()
+	print("[welprobe] after Next: page %d, hookup clip %s, playing %s" % [panel.page().page_index() + 1,
+		"present" if hook != null else "MISSING", hook != null and hook.is_playing() and not hook.paused])
+	if panel.page().page_index() != 1 or hook == null or hook.paused:
+		_fail("Next did not show the hookup page with its clip playing")
+	await _shot("welcome_page2%s.png" % ("_vr" if _vr else ""))
+	await get_tree().create_timer(maxf(0.0, _linger - 2.5)).timeout
+	await _press_on(vp_w, panel.page().find_child("Back", true, false) as Control)
+	await get_tree().create_timer(1.0).timeout
+	if panel.page().page_index() != 0:
+		_fail("Back did not return to the welcome page")
+
 	# Got it, pressed where it really is on the quad.
 	var page := panel.page()
 	var got_it := page.find_child("GotIt", true, false) as Control if page != null else null

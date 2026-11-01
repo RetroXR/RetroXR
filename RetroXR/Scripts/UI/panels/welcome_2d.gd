@@ -17,12 +17,19 @@
 ## box the 3D controllers (ControllerDemo) stand in front of, with the step they
 ## are showing written under it (set_step).
 ##
+## Two pages: what to do and not (the copy, the menu clip, the headset's stage), and
+## after Next, a console being hooked up (HOOKUP_CLIP, filmed in the room by
+## Tools/room/nes_hookup_probe) with a few words on it. Got it and Don't Show Again
+## are under both; only the page shown plays its clip.
+##
 ## Emits:
 ##   dismissed(for_good) — Got it (false) or Don't Show Again (true) pressed
+##   page_changed(index) — Next or Back: the panel refits to the page shown
 class_name Welcome2D
 extends Control
 
 signal dismissed(for_good: bool)
+signal page_changed(index: int)
 
 const TITLE := "Welcome to RetroXR"
 ## Where the ROM folder goes in a line (roms_folder()).
@@ -51,6 +58,8 @@ const DO_DESKTOP: Array[String] = [
 		+ "controller in a port, then flip the power switch.",
 	"Click to pick something up and click again to put it down; Shift + click puts down "
 		+ "anything, even a light gun. The scroll wheel moves it nearer or further.",
+	"Holding a controller or handheld that is plugged in? Press F3 (or Scroll Lock) and the "
+		+ "keyboard plays it: WASD is the d-pad, Enter is START. Press it again to walk again.",
 	"Look at anything and press Tab for its options.",
 	"Look at a TV and press F11 to fill the window with its picture. F11 again to come back.",
 ]
@@ -90,6 +99,19 @@ const COLOR_ITEM := Color(0.86, 0.86, 0.96)
 const MENU_CLIP := "res://Textures/welcome/menu_clip.ogv"
 const CLIP_CAPTION := "The menu: open it, download the emulators from CORES, then SPAWN a console and a TV."
 
+## Page two: an NES hooked up in the bedroom, filmed in the real app.
+const HOOKUP_CLIP := "res://Textures/welcome/hookup_clip.ogv"
+const HOOKUP_TITLE := "Hooking up a console"
+const HOOKUP_LINES: Array[String] = [
+	"Everything in the room connects the way the real thing does.",
+	"The AV lead from the console's jacks to the TV's inputs: yellow to yellow, red to red.",
+	"A controller into port 1.",
+	"The game in. On an NES: lift the flap, lay the cartridge in the tray, press it down, shut the flap.",
+	"Then POWER, and the game is on the TV.",
+]
+const HOOKUP_CREDIT := "Game shown: BrickBreaker by Aleff Correa (MIT)."
+const HOOKUP_SIZE := Vector2(1280, 720)
+
 const PAD := 48
 const TITLE_PT := 46
 const HEADER_PT := 32
@@ -113,7 +135,12 @@ static var force_vr := -1
 
 ## The rounded plate everything is on; its minimum size is the page's.
 var _plate: Control = null
+var _pages: Array[Control] = []
+var _page := 0
+var _next: Button = null
+var _back: Button = null
 var _clip: VideoStreamPlayer = null
+var _hookup: VideoStreamPlayer = null
 var _stage: Control = null
 var _step_label: Label = null
 
@@ -165,13 +192,21 @@ func _build() -> void:
 	var vbox := MenuStyle.vbox(14)
 	margin.add_child(vbox)
 
+	var first := MenuStyle.vbox(14)
+	first.name = "PageWelcome"
+	vbox.add_child(first)
+	var second := MenuStyle.vbox(14)
+	second.name = "PageHookup"
+	vbox.add_child(second)
+	_pages = [first, second]
+
 	var title := MenuStyle.label(TITLE, TITLE_PT, MenuStyle.COLOR_TITLE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(title)
-	vbox.add_child(MenuStyle.spacer(4))
+	first.add_child(title)
+	first.add_child(MenuStyle.spacer(4))
 
 	var columns := MenuStyle.hbox(44)
-	vbox.add_child(columns)
+	first.add_child(columns)
 	var copy := MenuStyle.vbox(14, false)
 	copy.custom_minimum_size.x = TEXT_WIDTH
 	copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -191,6 +226,7 @@ func _build() -> void:
 	_build_clip(shown)
 	if vr:
 		_build_stage(shown)
+	_build_hookup_page(second)
 
 	# The button sits at the foot of the page, a fixed gap under the copy when the
 	# page is fitted to it (WelcomePanel), and at the bottom of a taller one.
@@ -204,6 +240,10 @@ func _build() -> void:
 	var row := MenuStyle.hbox(28)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_child(row)
+	_back = MenuStyle.row_button("Back", 30, 240, 88, false)
+	_back.name = "Back"
+	_back.pressed.connect(func() -> void: show_page(0))
+	row.add_child(_back)
 	var got_it := MenuStyle.row_button("Got it", 34, 360, 88, false)
 	got_it.name = "GotIt"
 	var style := MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 10)
@@ -215,10 +255,87 @@ func _build() -> void:
 	never.name = "NeverAgain"
 	never.pressed.connect(func() -> void: dismissed.emit(true))
 	row.add_child(never)
+	_next = MenuStyle.row_button("Next", 30, 240, 88, false)
+	_next.name = "Next"
+	_next.pressed.connect(func() -> void: show_page(1))
+	row.add_child(_next)
 
 	var again := MenuStyle.label(AGAIN_NOTE, 18, MenuStyle.COLOR_DESC)
 	again.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(again)
+	show_page(0)
+
+
+## Page two: the hookup clip, and beside it what it shows, in a few lines.
+func _build_hookup_page(page: Container) -> void:
+	var title := MenuStyle.label(HOOKUP_TITLE, TITLE_PT, MenuStyle.COLOR_TITLE)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	page.add_child(title)
+	page.add_child(MenuStyle.spacer(4))
+	var columns := MenuStyle.hbox(40)
+	page.add_child(columns)
+	var frame := PanelContainer.new()
+	frame.add_theme_stylebox_override("panel", MenuStyle.rounded(Color.BLACK, 8))
+	frame.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	columns.add_child(frame)
+	if ResourceLoader.exists(HOOKUP_CLIP):
+		_hookup = VideoStreamPlayer.new()
+		_hookup.name = "HookupClip"
+		_hookup.stream = load(HOOKUP_CLIP) as VideoStream
+		_hookup.custom_minimum_size = HOOKUP_SIZE
+		_hookup.expand = true
+		_hookup.loop = true
+		_hookup.volume_db = -80.0
+		frame.add_child(_hookup)
+	else:
+		push_warning("[Welcome] no hookup clip at %s; the page shows a note instead" % HOOKUP_CLIP)
+		var note := MenuStyle.label("(the hookup clip is missing from this build)", CAPTION_PT,
+			MenuStyle.COLOR_DESC)
+		note.custom_minimum_size = HOOKUP_SIZE
+		note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		frame.add_child(note)
+	var words := MenuStyle.vbox(16, false)
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	columns.add_child(words)
+	var lead := MenuStyle.label(HOOKUP_LINES[0], ITEM_PT, COLOR_ITEM)
+	lead.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	words.add_child(lead)
+	for line: String in HOOKUP_LINES.slice(1):
+		words.add_child(_item(line, COLOR_DO))
+	var credit := MenuStyle.label(HOOKUP_CREDIT, CAPTION_PT, MenuStyle.COLOR_DESC)
+	credit.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	words.add_child(MenuStyle.spacer(8))
+	words.add_child(credit)
+
+
+## Show page `index` (0 the welcome, 1 the hookup): its clip plays, the other's
+## waits, and Next / Back stand where they lead somewhere.
+func show_page(index: int) -> void:
+	_page = clampi(index, 0, _pages.size() - 1)
+	for i in _pages.size():
+		_pages[i].visible = i == _page
+	if _next != null:
+		_next.visible = _page == 0
+	if _back != null:
+		_back.visible = _page == 1
+	if _clip != null:
+		_clip.paused = _page != 0
+	if _hookup != null:
+		if _page == 1 and not _hookup.is_playing():
+			_hookup.play()
+		_hookup.paused = _page != 1
+	page_changed.emit(_page)
+
+
+## The page shown: 0 the welcome, 1 the hookup.
+func page_index() -> int:
+	return _page
+
+
+## Page two's clip player, or null when the build has no clip.
+func hookup_player() -> VideoStreamPlayer:
+	return _hookup
 
 
 ## The menu clip, looping, framed, with what it shows written under it.
