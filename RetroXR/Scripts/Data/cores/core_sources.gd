@@ -163,10 +163,15 @@ const SOURCES := {
 	# (docs/dev/ethernet-lan.md).
 	#
 	# GPL-3.0, so the tag beside the binary is the source obligation, as Dolphin's.
+	#
+	# Hidden on Quest (the owner's call, 2026-11-01): no row in the download list
+	# there, ours or the buildbot's, and the PS2 tile recommends Play! instead.
+	# The Android build is still published; hidden_on is the only switch.
 	"pcsx2": {
 		"repo":  "RetroXR/ps2",
 		"known_tag": "retroxr-pcsx2-libretro-v6",
 		"label": "LRPS2 (retroXR build)",
+		"hidden_on": ["Android"],
 		"assets": {
 			"Windows": "pcsx2_libretro.dll.zip",
 			"Android": "pcsx2_libretro_android.so.zip",
@@ -665,6 +670,18 @@ const SOURCES := {
 }
 
 
+## True when a core is kept out of the download list on `platform` (an OS name),
+## whoever builds it: the buildbot's row for it is dropped too, not just ours.
+static func is_hidden_on(core_name: String, platform: String) -> bool:
+	var src: Dictionary = SOURCES.get(core_name, {})
+	return platform in (src.get("hidden_on", []) as Array)
+
+
+## is_hidden_on for the platform this is running on.
+static func is_hidden_here(core_name: String) -> bool:
+	return is_hidden_on(core_name, OS.get_name())
+
+
 ## True when we publish this core ourselves AND have a build for this platform.
 ## Both halves matter: the Linux answer is "we know this core, but not here".
 static func has(core_name: String) -> bool:
@@ -768,6 +785,6 @@ static func is_released(core_name: String) -> bool:
 static func active_core_names() -> Array[String]:
 	var out: Array[String] = []
 	for core_name: Variant in SOURCES:
-		if has(str(core_name)):
+		if has(str(core_name)) and not is_hidden_here(str(core_name)):
 			out.append(str(core_name))
 	return out

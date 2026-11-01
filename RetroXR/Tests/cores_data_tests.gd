@@ -28,7 +28,7 @@ extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below -- it is checked before
 ## it has recorded itself.
-const EXPECTED_CASES := 88
+const EXPECTED_CASES := 92
 
 
 var _dir := ""
@@ -284,6 +284,13 @@ func _group_sources() -> void:
 			not_built.append(name)
 	_ok(not_built.is_empty(), "sources/every active core is built for this platform",
 		", ".join(not_built))
+
+	# pcsx2 stays out of the Quest's download list, and only there.
+	_ok(CoreSources.is_hidden_on("pcsx2", "Android"), "sources/pcsx2 is hidden on Quest")
+	_ok(not CoreSources.is_hidden_on("pcsx2", "Windows"), "sources/but not on desktop")
+	_ok(not CoreSources.is_hidden_on("play", "Android"), "sources/Play! still shows on Quest")
+	_ok(not CoreSources.is_hidden_on("nestopia", "Android"),
+		"sources/a buildbot-only core is never hidden")
 
 
 # ── forced/ ───────────────────────────────────────────────────────────────────

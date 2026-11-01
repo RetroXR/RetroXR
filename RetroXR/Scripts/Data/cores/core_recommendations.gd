@@ -260,6 +260,9 @@ const RECOMMENDED := {
 	"ps2": {
 		"core": "pcsx2",
 		"why":  "The only PS2 core here",
+		# pcsx2 is hidden on Quest (CoreSources hidden_on), so Play! is the one.
+		"android": "play",
+		"why_android": "Play! is the PS2 core offered on Quest",
 	},
 
 	# ── Microsoft ────────────────────────────────────────────────────────────

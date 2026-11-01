@@ -259,6 +259,11 @@ func _on_listing_completed(result: int, response_code: int,
 ## buildbot listed them — CoreSources.has() is false there, so a Linux player
 ## still gets the stock Dolphin instead of a row that cannot download.
 func _apply_own_sources(entries: Array[Dictionary]) -> Array[Dictionary]:
+	# A core hidden on this platform (pcsx2 on Quest) loses the buildbot's row as
+	# well; active_core_names leaves it out, so nothing below adds one back.
+	for i: int in range(entries.size() - 1, -1, -1):
+		if CoreSources.is_hidden_here(str(entries[i].get("core_name", ""))):
+			entries.remove_at(i)
 	var listed: Dictionary = {}
 	for entry: Dictionary in entries:
 		var core_name: String = entry.get("core_name", "")
