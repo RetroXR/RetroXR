@@ -81,9 +81,9 @@ var system_filter:    bool = true:
 var bios_boot_override: bool = false
 
 ## A switched-on arcade cabinet shows its game's video instead of running it, until somebody uses it
-## (ArcadeAttract). Off by default: a video decode per cabinet is real work, most of all in a headset.
-## Each cabinet can override it (RetroSystem.attract_override).
-var arcade_attract_mode: bool = false
+## (ArcadeAttract). On by default (2026-11-01: it was off while it was thought heavy and unstable, and it proved
+## neither). Each cabinet can override it (RetroSystem.attract_override).
+var arcade_attract_mode: bool = true
 ## How a gun game's foot pedal is worked, in a headset that reads no feet (ArcadeInput._takes_cover). You are out
 ## of cover, the pedal down, while you hold the gun, and something takes cover: the gun hand's A or X and the pedal
 ## key in every mode, the free hand's trigger as well in PEDAL_FREE_HAND, ducking as well in PEDAL_DUCK.

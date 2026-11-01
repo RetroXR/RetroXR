@@ -221,7 +221,7 @@ func _group_rules() -> void:
 	_ok(ArcadeAttract.effective_pref(false, ON) and not ArcadeAttract.effective_pref(true, OFF),
 		"rules: its own override beats the global option, either way")
 	# wanted(pref, override, has_game, external, netplay)
-	_ok(not ArcadeAttract.wanted(false, F, true, false, false), "rules: off by default, a cabinet runs its game as ever")
+	_ok(not ArcadeAttract.wanted(false, F, true, false, false), "rules: with the option off, a cabinet runs its game as ever")
 	_ok(ArcadeAttract.wanted(true, F, true, false, false), "rules: on, with a game in it, it attracts")
 	_ok(not ArcadeAttract.wanted(true, F, false, false, false), "rules: with no game or bay there is nothing to show")
 	_ok(not ArcadeAttract.wanted(true, F, true, true, false), "rules: a console cabled to the A/V input owns the screen")

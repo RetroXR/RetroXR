@@ -553,8 +553,9 @@ sidecars, `ArcadeCabinetArt.romm_id`). **Nothing is fetched or scraped for this*
 
 ## Attract mode: a cabinet that is on shows its game instead of running it (2026-10-22)
 
-`feat/attract-mode`. **OFF by default** (`AppPrefs.arcade_attract_mode`; Options > the toggle under "Override BIOS Boot Options"), because a video decode per cabinet is real
-work, most of all on a Quest. Each cabinet has its own say over it (System tab > "Attract Mode": Follow global / Always on / Always off,
+`feat/attract-mode`. **ON by default** since 2026-11-01 (`AppPrefs.arcade_attract_mode`; Options > the toggle under "Override BIOS Boot Options"). It shipped
+off, because a video decode per cabinet looked heavy and unstable, most of all on a Quest; in use it was neither, so its author asked for it on.
+A player's saved choice still wins: `prefs.json` keeps the value it was saved with. Each cabinet has its own say over it (System tab > "Attract Mode": Follow global / Always on / Always off,
 `RetroSystem.attract_override`, saved in the room as `attract` ONLY when not "follow").
 
 - **When it applies** (`ArcadeAttract.wanted`, `RetroSystem.attract_applies`): the option is on for this cabinet, a board is in the bay (or its docked/cabled bay), no console is cabled
