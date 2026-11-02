@@ -133,14 +133,72 @@ func _run() -> void:
 		print("[fourrender] %s knob %s -> %s" % [k, before[k], (knobs[k] as Node3D).position])
 	print("[fourrender] at 2: NES pads on ports %s" % str(pads.map(func(p: Node) -> int: return int(p.call("get_port_index")))))
 	await _shot(sv, cam, fsp + Vector3(-0.06, 0.24, 0.20), fsp + Vector3(0, 0.02, 0), "four_score_top_2p.png")
+	await _satellite(sv, cam)
 	get_tree().quit(0)
+
+
+## The NES Satellite: a second NES with the receiver in its ports, the transmitter
+## out on the desk switched on with three pads, and a second transmitter turned
+## over with its battery door off and six C cells in.
+func _satellite(sv: SubViewport, cam: Camera3D) -> void:
+	var nes := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
+	nes.systemid = "nes"
+	add_child(nes)
+	nes.global_position = Vector3(1.25, 0.0, -0.05)
+	nes.freeze = true
+	for i in range(10):
+		await get_tree().process_frame
+	var rx := _spawn("res://Scenes/Objects/controllers/nes/nes_satellite_receiver.tscn", Vector3(1.6, 0.03, 0.3)) as NesSatelliteReceiver
+	var tx := _spawn("res://Scenes/Objects/controllers/nes/nes_satellite.tscn", Vector3(1.27, 0.002, 0.72)) as NesSatellite
+	tx.freeze = true
+	var pads: Array = []
+	for i in 3:
+		pads.append(_spawn("res://Scenes/Objects/controllers/nes/nes_controller.tscn", Vector3(1.05 + 0.2 * i, 0.03, 1.05)))
+	var under := _spawn("res://Scenes/Objects/controllers/nes/nes_satellite.tscn", Vector3(1.85, 0.25, 0.55)) as NesSatellite
+	under.global_basis = Basis(Vector3.BACK, PI)
+	under.freeze = true
+	for i in range(6):
+		await get_tree().physics_frame
+	nes.restore_controller_plug(0, rx)
+	for i in 3:
+		tx.restore_socket(i, pads[i])
+	tx.press_power()
+	# The door off, the cells in.
+	var covers := CoverSlots.of(under)
+	if covers != null:
+		for socket: String in covers.sockets():
+			var zone := covers.slot(socket)
+			if zone != null and is_instance_valid(zone.picked_up_object):
+				var door := zone.picked_up_object as Node3D
+				zone.drop_object()
+				door.queue_free()
+	var cells := CellSlots.of(under)
+	if cells != null:
+		for seat: String in cells.seats():
+			var cell := _spawn("res://Scenes/Objects/batteries/battery_c.tscn", Vector3(2.2, 0.1, 0.5))
+			await get_tree().physics_frame
+			cells.slot(seat).pick_up_object(cell)
+	for i in range(120):
+		await get_tree().physics_frame
+	print("[fourrender] satellite: paired %s, powered %s, link %s, pads on ports %s, cells in the turned one %d" % [
+		tx.receiver() == rx, tx.is_powered(), tx.link_up(),
+		str(pads.map(func(p: Node) -> int: return int(p.call("get_port_index")))),
+		cells.cells().size() if cells != null else -1])
+	var mid := (nes.global_position + tx.global_position) * 0.5
+	await _shot(sv, cam, mid + Vector3(0.35, 0.55, 0.85), mid + Vector3(0, 0.0, 0.05), "satellite_overview.png")
+	var t := tx.global_position
+	await _shot(sv, cam, t + Vector3(-0.22, 0.26, 0.24), t + Vector3(-0.04, 0.03, 0.0), "satellite_top.png")
+	var r := rx.global_position
+	await _shot(sv, cam, r + Vector3(0.14, 0.09, 0.2), r + Vector3(0.0, 0.0, -0.02), "satellite_receiver.png")
+	var u := under.global_position
+	await _shot(sv, cam, u + Vector3(0.12, 0.30, 0.22), u + Vector3(0, 0.0, 0.0), "satellite_battery_bay.png")
 
 
 func _add_desk() -> void:
 	var body := StaticBody3D.new()
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(1.6, 0.06, 1.1)
+	box.size = Vector3(3.0, 0.06, 1.6)
 	shape.shape = box
 	body.add_child(shape)
 	var mesh := MeshInstance3D.new()
@@ -153,7 +211,7 @@ func _add_desk() -> void:
 	mesh.material_override = mat
 	body.add_child(mesh)
 	add_child(body)
-	body.global_position = Vector3(0, -0.03, 0.15)
+	body.global_position = Vector3(0.6, -0.03, 0.35)
 
 
 func _shot(sv: SubViewport, cam: Camera3D, eye: Vector3, target: Vector3, file: String) -> void:

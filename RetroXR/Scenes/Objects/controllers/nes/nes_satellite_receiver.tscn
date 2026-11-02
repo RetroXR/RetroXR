@@ -1,0 +1,39 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/controllers/nes_satellite_receiver.gd" id="1_satrx"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="3_snapgp"]
+
+; Resized in code to the body (NesSatelliteReceiver._build).
+[sub_resource type="BoxShape3D" id="BoxShape3D_rx"]
+size = Vector3(0.062, 0.056, 0.076)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_rx"]
+bounce = 0.0
+friction = 0.8
+
+; The NES Satellite's receiver. Its origin is its LEFT plug's seating reference
+; (+Z into the console), so it seats in an NES's port 1 as a plug does and fills
+; port 2 with its other plug (socket_span 2). Body, plugs, lens and LED are built
+; in code; see nes_satellite_receiver.gd.
+[node name="NesSatelliteReceiver" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.12
+physics_material_override = SubResource("PhysMat_rx")
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("1_satrx")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.00895, -0.002, -0.038)
+shape = SubResource("BoxShape3D_rx")
+
+; As every ControllerPlug's: turned half round about X, so a socket that aligns
+; this to itself seats the plugs connector-first and upright.
+[node name="SnapGrabPoint" parent="." instance=ExtResource("3_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")

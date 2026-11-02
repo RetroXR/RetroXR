@@ -12,6 +12,9 @@
 ##   --leg=4p    the Four Score at 4, a pad in each of its four sockets
 ##   --leg=2p    the same at 2 (the unit's own control: no signature)
 ##   --leg=none  two pads straight in the NES's ports, nothing else
+##   --leg=sat   the NES Satellite: receiver in the ports, transmitter 1.4 m away,
+##               switched on, a pad in each socket
+##   --leg=satoff the same never switched on (the control: no input reaches it)
 ##
 ## --steps: comma-separated `from-to:player:buttons`, buttons joined by `+` from
 ## a b select start up down left right; a player's buttons are held over the
@@ -34,6 +37,7 @@ var _shots: Array[int] = []
 var _pads: Array = []
 var _lib: Object = null
 var _sent: Array[int] = [-1, -1, -1, -1]
+var _tx: NesSatellite = null
 
 
 func _ready() -> void:
@@ -99,6 +103,19 @@ func _run() -> void:
 	if leg == "none":
 		for i in 2:
 			sys.restore_controller_plug(i, _pads[i].call("get_plug"))
+	elif leg == "sat" or leg == "satoff":
+		# The Satellite: its receiver in the ports, the transmitter 1.4 m out with
+		# its lens toward the console, pads in its four sockets. "satoff" never
+		# presses its power switch: the control.
+		var rx := _spawn("res://Scenes/Objects/controllers/nes/nes_satellite_receiver.tscn", Vector3(0.4, 0, 0.4)) as NesSatelliteReceiver
+		_tx = _spawn("res://Scenes/Objects/controllers/nes/nes_satellite.tscn", Vector3(0, 0, 1.4)) as NesSatellite
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		sys.restore_controller_plug(0, rx)
+		for i in 4:
+			_tx.restore_socket(i, _pads[i])
+		if leg == "sat":
+			_tx.press_power()
 	else:
 		var fs := _spawn("res://Scenes/Objects/controllers/nes/nes_four_score.tscn", Vector3(0, 0, 0.3)) as NesFourScore
 		await get_tree().physics_frame
@@ -113,6 +130,8 @@ func _run() -> void:
 	for p: Variant in _pads:
 		(p as Node).set_physics_process(false)
 		(p as Node).set_process(false)
+	if _tx != null:
+		print("[fourgame] satellite: powered %s, link %s" % [_tx.is_powered(), _tx.link_up()])
 	print("[fourgame] %s: players on libretro ports %s" % [leg, str(_pads.map(
 		func(p: Variant) -> int: return int((p as Node).call("get_port_index"))))])
 

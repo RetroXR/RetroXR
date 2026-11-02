@@ -20,6 +20,11 @@
 ##   names/     Mesen's names for the same devices
 ##   save/      both adapters come back with their lead seated, their switches
 ##              and their pads
+##   satellite/ the NES Satellite: its receiver fills both ports, the transmitter
+##              pairs with it, 3 or 4 occupied makes it four-player; off, out of
+##              range, out of the beam or behind a wall the console hears released
+##              pads (routing kept); TURBO, GUN, the seven-minute auto-off, six C
+##              cells, and both halves saved
 ##   unwired/   with no adapter, a core start tells fceumm an NES's ports 3 and 4
 ##              and a Famicom's 3-5 are EMPTY: left at its "Auto" it plugs in a Four
 ##              Score or a Famicom adapter by itself for games in its own lists
@@ -30,6 +35,8 @@ const FOUR_SCORE_SCENE := preload("res://Scenes/Objects/controllers/nes/nes_four
 const HORI_SCENE := preload("res://Scenes/Objects/controllers/famicom/famicom_four_players_adaptor.tscn")
 const NES_PAD_SCENE := preload("res://Scenes/Objects/controllers/nes/nes_controller.tscn")
 const GENERIC_PAD_SCENE := preload("res://Scenes/Objects/controllers/retro_controller.tscn")
+const SATELLITE_SCENE := preload("res://Scenes/Objects/controllers/nes/nes_satellite.tscn")
+const SATELLITE_RX_SCENE := preload("res://Scenes/Objects/controllers/nes/nes_satellite_receiver.tscn")
 
 const NONE := 0
 const JOYPAD := 1
@@ -87,6 +94,8 @@ func _ready() -> void:
 		await _group_names()
 	if _want("unwired"):
 		await _group_unwired()
+	if _want("satellite"):
+		await _group_satellite()
 	if _want("save"):
 		await _group_save()
 	await _clear()
@@ -372,6 +381,146 @@ func _group_names() -> void:
 	_eq(_ids(nes).slice(2, 4), [MESEN_STANDARD, MESEN_STANDARD],
 		"names/Mesen's Four Score players 3 and 4 are its Standard Controller")
 	_eq(_ids(fc)[4], MESEN_FC_4P, "names/its Famicom adapter is its Four Player Adapter")
+	await _clear()
+
+
+# ── satellite ─────────────────────────────────────────────────────────────────
+
+func _group_satellite() -> void:
+	var sim_before: bool = AppPrefs.power_simulation
+	AppPrefs.power_simulation = false
+	var sys := await _console("nes", Vector3(0, 1, 0), FCEUMM_PORTS)
+	var rx := _make(SATELLITE_RX_SCENE, Vector3(0.3, 1, 0.4)) as NesSatelliteReceiver
+	# The transmitter 1.5 m in front of the console, its lens (-Z) toward it.
+	var tx := _make(SATELLITE_SCENE, Vector3(0, 0.99, 1.5)) as NesSatellite
+	var pads: Array = []
+	for i in 4:
+		pads.append(_make(NES_PAD_SCENE, Vector3(-0.3 + 0.2 * i, 1, 2.2)))
+	await _wait(6)
+	_ok(tx.receiver() == null, "satellite/no receiver seated, nothing to pair with")
+	var zones: Array = sys.controller_ports().zones
+	_ok((zones[0] as XRToolsSnapZone).snap_filter.call(rx), "satellite/the receiver goes in at port 1")
+	_ok(not (zones[1] as XRToolsSnapZone).snap_filter.call(rx), "satellite/and not at port 2")
+	sys.restore_controller_plug(0, rx)
+	await _wait(4)
+	_eq(sys.cabinet_ports_of_plug(rx), [0, 1] as Array[int], "satellite/seated, the receiver fills both ports")
+	_ok(tx.receiver() == rx and rx.transmitter == tx, "satellite/the transmitter pairs with it")
+	for i in 2:
+		tx.restore_socket(i, pads[i])
+	await _wait(6)
+	_eq([_port_of(pads[0]), _port_of(pads[1])], [0, 1], "satellite/sockets 1 and 2 are players 1 and 2")
+	_eq(_ids(sys).slice(2, 4), [NONE, NONE], "satellite/with 3 and 4 empty it is a two-player adapter")
+	tx.restore_socket(2, pads[2])
+	await _wait(6)
+	_eq(_port_of(pads[2]), 2, "satellite/a controller in socket 3 is player 3")
+	_eq(_ids(sys).slice(2, 4), [FCEUMM_GAMEPAD, FCEUMM_GAMEPAD], "satellite/and makes it a four-player adapter")
+
+	var a_held := {"btn": 1 << ControllerBindings.JOYPAD_A, "alx": 0, "aly": 0, "arx": 0, "ary": 0}
+	_ok(not tx.is_powered() and int(sys.filter_port_input(2, a_held)["btn"]) == 0,
+		"satellite/switched off, the console hears a released pad")
+	var power := tx.get_node_or_null("Top/PowerSwitch") as VRButton
+	_ok(power != null, "satellite/it has a power switch")
+	if power != null:
+		power.button_pressed.emit()
+	await _wait(NesSatellite.LOOK_TICKS + 2)
+	_ok(tx.is_powered(), "satellite/a press switches it on")
+	var led := tx.get_node_or_null("Top/PowerLed") as MeshInstance3D
+	_ok(led != null and (led.material_override as StandardMaterial3D).emission_enabled, "satellite/its red LED lights")
+	_ok(tx.link_up(), "satellite/in range and in the beam, the link is up")
+	_eq(int(sys.filter_port_input(2, a_held)["btn"]), 1 << ControllerBindings.JOYPAD_A, "satellite/and the press gets through")
+
+	# Something in the way.
+	var wall := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.6, 0.6, 0.05)
+	shape.shape = box
+	wall.add_child(shape)
+	add_child(wall)
+	_spawned.append(wall)
+	wall.global_position = Vector3(0, 1.0, 0.8)
+	await _wait(NesSatellite.LOOK_TICKS + 2)
+	_ok(not tx.link_up() and int(sys.filter_port_input(2, a_held)["btn"]) == 0,
+		"satellite/a wall between the lenses cuts it")
+	_eq(_port_of(pads[2]), 2, "satellite/without re-plugging anything")
+	wall.global_position = Vector3(3, 1.0, 0.8)
+	await _wait(NesSatellite.LOOK_TICKS + 2)
+	_ok(tx.link_up(), "satellite/taken away, the link is back")
+	# Out of the beam: turned 90 degrees.
+	tx.global_basis = Basis(Vector3.UP, PI * 0.5)
+	await _wait(NesSatellite.LOOK_TICKS + 2)
+	_ok(not tx.link_up(), "satellite/turned away, out of the beam")
+	tx.global_basis = Basis.IDENTITY
+	# Past 15 feet.
+	tx.global_position = Vector3(0, 0.99, 5.2)
+	await _wait(NesSatellite.LOOK_TICKS + 2)
+	_ok(not tx.link_up(), "satellite/past 15 feet, nothing")
+	tx.global_position = Vector3(0, 0.99, 1.5)
+	await _wait(NesSatellite.LOOK_TICKS + 2)
+	_ok(tx.link_up(), "satellite/back in range")
+
+	# TURBO as the Four Score's, through the link.
+	var turbo := tx.get_node_or_null("Top/TurboA") as VRButton
+	if turbo != null:
+		turbo.button_pressed.emit()
+	_ok(tx.turbo_a and int(tx.turbo_frame(a_held, 2)["btn"]) == 0, "satellite/TURBO A latches and masks A")
+	tx.set_turbo("a", false)
+
+	# GUN: sockets 3 and 4 are not carried.
+	tx.set_gun_mode(true)
+	await _wait(2)
+	_eq(_port_of(pads[2]), -1, "satellite/at GUN socket 3 reaches nothing")
+	_eq(_ids(sys).slice(2, 4), [NONE, NONE], "satellite/and it is a two-player adapter")
+	tx.set_gun_mode(false)
+	await _wait(2)
+	_eq(_port_of(pads[2]), 2, "satellite/back at CTLR, player 3 again")
+
+	# Seven minutes unused.
+	tx.set("_idle", NesSatellite.AUTO_OFF_SECONDS - 0.01)
+	await _wait(3)
+	_ok(not tx.is_powered(), "satellite/seven minutes unused, it turns itself off")
+	await _wait(NesSatellite.LOOK_TICKS + 2)
+	_ok(not tx.link_up(), "satellite/and the link goes with it")
+
+	# The cells. Its own supply is the six C cells under it; with none in, that is
+	# dead (a room with no outlet powers everything anyway, so this asks the supply
+	# itself, the room's leniency left out).
+	var bay := CellSlots.of(tx)
+	_eq(bay.seats().size() if bay != null else 0, 6, "satellite/its bay takes six cells")
+	_eq(CellSlots.size_of_seat(bay.seats()[0]) if bay != null and not bay.seats().is_empty() else "",
+		"C", "satellite/C cells")
+	var supply := PowerInput.of(tx)
+	_ok(supply != null and not bool(supply.own_supply()["supplied"]),
+		"satellite/with none in, its own supply is dead")
+
+	# Saved: the transmitter (its switches, its pads) and the receiver (its seat).
+	var sp := ScenePersistence.new()
+	tx.set_gun_mode(true)
+	var ids := {sys: 7, tx: 1, rx: 2, pads[0]: 8, pads[1]: 9, pads[2]: 10}
+	var trec: Dictionary = sp.serialize_node(tx, 1, ids)
+	var rrec: Dictionary = sp.serialize_node(rx, 2, ids)
+	_eq(str(trec.get("type", "")), "nes_satellite", "satellite/the transmitter has an entry of its own")
+	_ok(bool(trec.get("gun_mode", false)) and int(trec.get("port_index", 0)) == -1,
+		"satellite/with its mode switch, and no seat of its own")
+	_eq(trec.get("sockets"), [8, 9, 10, null], "satellite/and its pads")
+	_eq(str(rrec.get("type", "")), "nes_satellite_receiver", "satellite/the receiver has one too")
+	_ok(rrec.get("system") == 7 and int(rrec.get("port_index", -1)) == 0, "satellite/naming its console and port")
+	var room: Array = [trec, rrec, sp.serialize_node(sys, 7, ids), sp.serialize_node(pads[0], 8, ids),
+		sp.serialize_node(pads[1], 9, ids), sp.serialize_node(pads[2], 10, ids)]
+	_eq(ScenePersistence._objects_validation_error(room), "", "satellite/and the room's entries validate")
+	(zones[0] as XRToolsSnapZone).drop_object()
+	await _wait(3)
+	_ok(tx.receiver() == null and _port_of(pads[0]) == -1, "satellite/the receiver pulled, the transmitter lets go")
+	var back := sp.deserialize_object(rrec) as NesSatelliteReceiver
+	_ok(back != null, "satellite/the receiver is rebuilt")
+	if back != null:
+		add_child(back)
+		_spawned.append(back)
+		await _wait(2)
+		sp._restore_satellite_receiver(self, 2, back, {7: sys}, rrec)
+		await _wait(4)
+		_ok(back.is_plugged_in() and tx.receiver() == back, "satellite/seated again, and the transmitter pairs with it")
+	AppPrefs.power_simulation = sim_before
 	await _clear()
 
 

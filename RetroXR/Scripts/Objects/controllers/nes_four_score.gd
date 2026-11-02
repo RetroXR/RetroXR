@@ -106,12 +106,18 @@ static func _top_xform() -> Transform3D:
 ## Read off the console: the block is told it seated once per socket it fills.
 func _lead_ports() -> Array[int]:
 	var out: Array[int] = [-1, -1]
-	if not is_instance_valid(_system) or _cable_plug == null:
+	if not is_instance_valid(_system) or _lead() == null:
 		return out
-	var sockets := _system.cabinet_ports_of_plug(_cable_plug)
+	var sockets := _system.cabinet_ports_of_plug(_lead())
 	for k in mini(sockets.size(), 2):
 		out[k] = sockets[k]
 	return out
+
+
+## Whether the back row (sockets 3 and 4) is on: the 2/4 switch at 4. The Satellite
+## decides it otherwise (NesSatellite._four_player).
+func _four_player() -> bool:
+	return mode == MODE_4P
 
 
 ## Sockets 1 and 3 ride the left plug's line, 2 and 4 the right one's; the second
@@ -123,7 +129,7 @@ func _routes() -> Array[int]:
 	for i in range(SOCKETS):
 		var line := lines[i % 2]
 		var row := i / 2
-		if line < 0 or (row == 1 and mode != MODE_4P):
+		if line < 0 or (row == 1 and not _four_player()):
 			continue
 		out[i] = line + 2 * row
 	return out
@@ -157,14 +163,14 @@ func port_device(_machine: Node, port: int) -> Dictionary:
 			return dev if not dev.is_empty() \
 				else {"type": RETRO_DEVICE_NONE, "names": PackedStringArray()}
 		if port == line + 2:
-			if mode == MODE_4P:
+			if _four_player():
 				return {"type": RETRO_DEVICE_JOYPAD, "names": PackedStringArray(GAMEPAD_NAMES)}
 			return {"type": RETRO_DEVICE_NONE, "names": PackedStringArray()}
 	return {"type": RETRO_DEVICE_NONE, "names": PackedStringArray()}
 
 
 func _dead_reason(i: int) -> String:
-	if i >= 2 and mode != MODE_4P:
+	if i >= 2 and not _four_player():
 		return ": sockets 3 and 4 are off at 2"
 	return ": its plug is in no port"
 
@@ -384,14 +390,14 @@ func _build_mode_switch() -> VRSlider:
 ## press holds the switch down and turbo on, the next lets it back up. So the cap
 ## stays down while its turbo is on (VRButton.set_latched_pressed).
 func _build_extra_controls() -> void:
-	_turbo_b_button = _build_turbo_button("TurboB", _turbo_x("b"), "b")
-	_turbo_a_button = _build_turbo_button("TurboA", _turbo_x("a"), "a")
+	_turbo_b_button = _build_turbo_button("TurboB", Vector3(_turbo_x("b"), 0.003, CONTROL_Z), "b")
+	_turbo_a_button = _build_turbo_button("TurboA", Vector3(_turbo_x("a"), 0.003, CONTROL_Z), "a")
 	# As loaded (a save's), quietly: nothing was switched.
 	_turbo_a_button.set_latched_pressed(turbo_a)
 	_turbo_b_button.set_latched_pressed(turbo_b)
 
 
-func _build_turbo_button(node_name: String, x: float, button: String) -> VRButton:
+func _build_turbo_button(node_name: String, pos: Vector3, button: String) -> VRButton:
 	var b := VRButton.new()
 	b.name = node_name
 	# Its own grey: state_tint would repaint the cap in the hover colours.
@@ -412,7 +418,7 @@ func _build_turbo_button(node_name: String, x: float, button: String) -> VRButto
 	mesh.material_override = _material(CAP_GREY, 0.5)
 	b.add_child(mesh)
 	_top.add_child(b)
-	b.position = Vector3(x, 0.003, CONTROL_Z)
+	b.position = pos
 	b.button_pressed.connect(func() -> void: _press_turbo(button))
 	return b
 

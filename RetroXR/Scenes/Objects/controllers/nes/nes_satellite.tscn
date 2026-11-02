@@ -1,0 +1,40 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/controllers/nes_satellite.gd" id="1_sat"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+
+; Resized in code to the box (NesSatellite._build_body).
+[sub_resource type="BoxShape3D" id="BoxShape3D_sat"]
+size = Vector3(0.175, 0.056, 0.24)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_sat"]
+bounce = 0.0
+friction = 0.8
+
+; The NES Satellite's transmitter: four sockets, TURBO B/A, the CTLR/GUN switch, the
+; power switch and its LED, the infrared lens at the -Z end, six C cells under a
+; door in its bottom. Built in code; see nes_satellite.gd. Heavier than a pad for
+; the cells (six C are about 400 g) -- an estimate, the empty unit's weight is not
+; known.
+[node name="NesSatellite" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.7
+physics_material_override = SubResource("PhysMat_sat")
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("1_sat")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.028, 0)
+shape = SubResource("BoxShape3D_sat")
+
+[node name="Ports" type="Node3D" parent="."]
+
+; No cord: the base class reaches for this by path, and nothing hangs off it.
+[node name="CableAttachPoint" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0.12)
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")

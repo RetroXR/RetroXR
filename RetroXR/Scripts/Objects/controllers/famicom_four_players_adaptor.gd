@@ -68,8 +68,8 @@ func _tag() -> String:
 
 ## Whether the lead is in a console's accessory connector.
 func _in_console() -> bool:
-	return is_instance_valid(_system) and _cable_plug != null \
-		and _system.cabinet_port_of_plug(_cable_plug) == RetroSystem.ACCESSORY_SLOT
+	return is_instance_valid(_system) and _lead() != null \
+		and _system.cabinet_port_of_plug(_lead()) == RetroSystem.ACCESSORY_SLOT
 
 
 ## Sockets 1 and 2 are players 3 and 4 (libretro ports 2 and 3) in both positions;

@@ -116,6 +116,67 @@ Routing:
 Swapping the block's plugs is impossible, but the rule is general: socket i rides plug i % 2, and its port is
 that plug's port plus 2 for the back row.
 
+
+## The NES Satellite (NES-032 transmitter, NES-033 receiver)
+
+Added 2026-11-02 after the Four Score. Two objects, both on the NES card, plus a "C Battery" row there:
+
+| object | spawn token / save type | what it is |
+|---|---|---|
+| `NesSatellite` (`nes_satellite.tscn`) | `nes_satellite` | the transmitter: four sockets, TURBO B/A, CTLR/GUN slide, power button and red LED, the black IR lens at its -Z end, six C cells under a door in its bottom |
+| `NesSatelliteReceiver` (`nes_satellite_receiver.tscn`) | `nes_satellite_receiver` | the receiver: two NES plugs on its back (it IS its own plug, socket_span 2, so it seats like the Four Score's block), an IR lens on its upper front angled up, a signal LED |
+
+**From Nintendo's booklet** (archive.org NESManuals "NES Satellite_text.pdf", read page by page) and the Commons
+photograph:
+- The receiver goes "straight into the sockets in the Control Deck", gripped by ribs on its sides. Its LED flashes
+  as information is received, and every few seconds besides.
+- The transmitter takes **six "C" cells**, behind a battery door on its **bottom**.
+- **Power switch:** "depress the Power Switch, the red LED will light ... pressing the switch again will turn the
+  power off". Left on and unused for **seven minutes, it turns itself off**. That is electronic, so the button is
+  momentary and the unit holds the state (`press_power`).
+- **Mode switch:** "CTLR" or "GUN". GUN is for any game using the Zapper, which must be in **socket 2**.
+- **TURBO buttons:** A and B, for all sockets at once.
+- **No 2/4 switch.** It "operates differently in the three or four-player mode", so a controller in socket 3 or 4
+  makes it a four-player adapter (`_four_player`). One- and two-player games want 3 and 4 empty.
+- **Range** 1 to 15 feet. The beam is "approximately 60 degrees from side to side and 30 degrees up and down".
+  Nothing may block the signal, and the lenses face each other.
+
+**Not known, and chosen:**
+- Every size (175 x 56 x 240 mm transmitter, 62 x 56 x 56 mm receiver, from the photograph).
+- The receiver's acceptance angle (80 degrees off its lens face).
+- Whether TURBO survives a power cycle. Here it latches like the Four Score's.
+- The mass with cells (0.7 kg).
+
+**How it works in the room:**
+- **Pairing.** The transmitter pairs with the nearest seated receiver that no other transmitter has (`_repair`).
+  This runs whenever a receiver seats or leaves, and once a second. It then routes exactly as the Four Score
+  through its block (NesFourScore: `_lead()` is the receiver).
+- **The infrared is a GATE on input, not on routing.** `filter_port_input` passes a pad's frame only while
+  `link_up()`: powered, receiver seated, within 0.30-4.57 m, inside the 60 x 30 degree beam, the transmitter
+  inside the receiver's face, and a clear ray between the lenses (`IrBus.SIGHT_MASK`: the room and loose
+  objects block, held things do not). Otherwise the console hears a released pad. The routing stays put, so a
+  hand between the lenses never re-plugs four pads.
+- The link is looked at every 6 physics ticks.
+- Any press resets the 7-minute timer and blinks the receiver.
+- **CTLR with a gun in socket 2:** announced as a plain pad, since the light lines are not carried. At GUN it is
+  the Zapper, and sockets 3 and 4 are dead.
+- **Battery bay:** `BatteryBay` (six C, along z) and `PowerInput`. The switch does nothing without a live supply,
+  and pulling the cells switches it off. As everywhere, a room with power simulation off, or with no wall outlet,
+  powers it anyway.
+- **Saves:** the transmitter's entry holds `gun_mode`, `turbo_a`/`turbo_b` and `sockets`, and saves no seat. The
+  receiver's own entry (`nes_satellite_receiver`) holds its `system` and `port_index`. Power is not saved: it
+  comes back off, as after an auto-off.
+
+**Checked:**
+- `four_player_tests` `satellite/` (39 cases): pairing, two/four-player by sockets 3-4, power, the beam,
+  range, a wall, TURBO, GUN, the auto-off, the six C seats, and both halves saved. Mutation-tested: gate off (2
+  red), no sight ray (1), always four-player (1).
+- `four_score_game_probe --leg=sat`: Bomberman II through the Satellite, as `4p` (READY with P1 P2 P3, P3
+  moving). `--leg=satoff`, never switched on, is the control: START never gets through and the game stays on
+  its title.
+- `four_player_render_probe` (windowed) draws the set on a second NES, and a second transmitter turned over with
+  its door off and six C cells in.
+
 ## Saves
 
 The entries (`_serialize_four_player` / `_load_four_player` / `_restore_four_player` in `ScenePersistence`) hold:
@@ -174,3 +235,5 @@ a frame after spawning.
 - Hori's 4P protocol in the fceumm fork.
 - A Famicom expansion-port pad model. Today the generic pad and a real pad's receiver go in the adaptor's sockets.
 - Real sizes, if a unit or its manual turns up.
+- The Satellite: a Zapper through it at GUN with a real core; its LED's every-few-seconds blink with no input;
+  interference between two Satellites (here a receiver serves one transmitter).

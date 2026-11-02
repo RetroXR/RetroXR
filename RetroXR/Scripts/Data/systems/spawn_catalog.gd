@@ -164,6 +164,11 @@ const _PERIPHERALS: Dictionary = {
 		# Four players: its one lead ends in a block of two plugs that fills both
 		# ports (NesFourScore).
 		{"kind": "peripheral", "label": "Four Score (NES-034)", "spawn": "nes_four_score"},
+		# The wireless one: the transmitter takes the pads (and six C cells under its
+		# bottom), the receiver goes in the console's two ports (NesSatellite).
+		{"kind": "peripheral", "label": "Satellite (NES-032)", "spawn": "nes_satellite"},
+		{"kind": "peripheral", "label": "Satellite Receiver (NES-033)", "spawn": "nes_satellite_receiver"},
+		{"kind": "peripheral", "label": "C Battery", "spawn": "battery_c"},
 	],
 	# No pads: both are moulded onto cords that come out of the back of the
 	# machine and arrive with it, so there is no such thing as a spare. What IS

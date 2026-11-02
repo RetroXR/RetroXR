@@ -161,6 +161,17 @@ func _tag() -> String:
 	return "FourPlayerAdapter"
 
 
+## The end that sits in the console: the cord's plug, or (the NES Satellite) the
+## receiver it is paired with. Null while there is none.
+func _lead() -> Node3D:
+	return _cable_plug
+
+
+## Whether this adapter has a cord of its own to make (the Satellite has none).
+func _has_cable() -> bool:
+	return true
+
+
 # ── Sockets ───────────────────────────────────────────────────────────────────
 
 func _build_ports() -> void:
@@ -224,12 +235,17 @@ func _attach_socket(i: int, routes: Array[int]) -> void:
 		return
 	var port := routes[i]
 	if port < 0:
-		print("[%s] socket %d holds a pad and reaches no port (%dP%s)" % [_tag(), i + 1, mode, _dead_reason(i)])
+		print("[%s] socket %d holds a pad and reaches no port (%s%s)" % [_tag(), i + 1, _mode_text(), _dead_reason(i)])
 		return
 	print("[%s] socket %d -> libretro port %d" % [_tag(), i + 1, port])
 	_system.attach_expanded_controller(port, _sub_plugs[i], false)
 	_bound[i] = port
 	_system.reannounce_port(port)
+
+
+## The switch's position, for log lines.
+func _mode_text() -> String:
+	return "%dP" % mode
 
 
 ## Why socket `i` reaches nothing, for the log line. The subclass knows.
@@ -255,7 +271,8 @@ func on_plugged_in(system: RetroSystem, port_index: int) -> void:
 func on_unplugged() -> void:
 	if _system == null:
 		return
-	if _cable_plug != null and _cable_plug.is_plugged_in():
+	var lead := _lead()
+	if lead != null and bool(lead.call("is_plugged_in")):
 		_resync()
 		return
 	print("[%s] lead unplugged" % _tag())
@@ -364,9 +381,9 @@ func get_connected_system() -> RetroSystem:
 ## The console socket the lead is in (the first, for the Four Score's block; the
 ## accessory connector's RetroSystem.ACCESSORY_SLOT for the Famicom's), or -1.
 func get_cabinet_port() -> int:
-	if not is_instance_valid(_system) or _cable_plug == null:
+	if not is_instance_valid(_system) or _lead() == null:
 		return -1
-	return _system.cabinet_port_of_plug(_cable_plug)
+	return _system.cabinet_port_of_plug(_lead())
 
 
 ## The device in each socket (the pad, not its plug), null where empty.
@@ -454,6 +471,8 @@ func get_plug() -> ControllerPlug:
 
 
 func _spawn_cable() -> void:
+	if not _has_cable():
+		return
 	_cable_instance = CONTROLLER_CABLE_SCENE.instantiate()
 	call_deferred("_add_cable_to_scene")
 

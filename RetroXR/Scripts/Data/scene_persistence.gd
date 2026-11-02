@@ -71,7 +71,9 @@ const _BOOL_FIELDS := ["video_out", "ignore_gravity", "crt_enabled", "half_pages
 	# A mixed shell colour forced as metal flake -- see RetroCartridge.shell_flake.
 	"shell_flake",
 	# A Four Score's TURBO buttons (NesFourScore), latched down = on; absent = off.
-	"turbo_a", "turbo_b"]
+	"turbo_a", "turbo_b",
+	# An NES Satellite's mode switch at GUN (NesSatellite); absent = CTLR.
+	"gun_mode"]
 const _REFERENCE_FIELDS := [
 	"tv", "cartridge", "memcard", "tape", "disc", "media", "system",
 	"nunchuk", "motion_plus", "expansion_cover", "pak", "gb_cart",
@@ -183,6 +185,8 @@ const LIGHT_GUN_SCENE        := preload("res://Scenes/Objects/peripherals/light_
 const RETRO_MULTITAP_SCENE   := preload("res://Scenes/Objects/controllers/retro_multitap.tscn")
 const NES_FOUR_SCORE_SCENE   := preload("res://Scenes/Objects/controllers/nes/nes_four_score.tscn")
 const FAMICOM_FOUR_PLAYERS_SCENE := preload("res://Scenes/Objects/controllers/famicom/famicom_four_players_adaptor.tscn")
+const NES_SATELLITE_SCENE    := preload("res://Scenes/Objects/controllers/nes/nes_satellite.tscn")
+const NES_SATELLITE_RX_SCENE := preload("res://Scenes/Objects/controllers/nes/nes_satellite_receiver.tscn")
 const VCR_SCENE              := preload("res://Scenes/Objects/appliances/vcr_player.tscn")
 const TAPE_SCENE             := preload("res://Scenes/Objects/media/vcr_tape.tscn")
 const DVD_SCENE              := preload("res://Scenes/Objects/appliances/dvd_player.tscn")
@@ -1716,6 +1720,7 @@ static func _restore_kind_rows() -> Array:
 		[InputReceiver, &"_restore_receiver"],
 		[RetroMultitap, &"_restore_multitap"],
 		[FourPlayerAdapter, &"_restore_four_player"],
+		[NesSatelliteReceiver, &"_restore_satellite_receiver"],
 		[RetroController, &"_restore_peripheral"],
 		[LightGun, &"_restore_peripheral"],
 		[RetroMouse, &"_restore_peripheral"],
@@ -2600,6 +2605,7 @@ static func _save_kind_rows() -> Array:
 		[Wiimote, "", &"_serialize_peripheral"],
 		[RetroMultitap, "", &"_serialize_multitap"],
 		[FourPlayerAdapter, "", &"_serialize_four_player"],
+		[NesSatelliteReceiver, "", &"_serialize_satellite_receiver"],
 		[Loudspeaker, "", &"_loudspeaker_entry"],
 		[SpeakerStand, "", &"_speaker_stand_entry"],
 		# Which stand, and the console mounted in it: the STAND records it, for
@@ -3141,13 +3147,44 @@ func _serialize_four_player(adapter: FourPlayerAdapter, id: int, n3d: Node3D,
 	if adapter is NesFourScore:
 		entry["turbo_a"] = (adapter as NesFourScore).turbo_a
 		entry["turbo_b"] = (adapter as NesFourScore).turbo_b
+	if adapter is NesSatellite:
+		entry["gun_mode"] = (adapter as NesSatellite).gun_mode
 	return entry
+
+
+## The NES Satellite's receiver: the console it is in and the first port it fills.
+func _serialize_satellite_receiver(rx: NesSatelliteReceiver, id: int, n3d: Node3D,
+		node_to_id: Dictionary) -> Dictionary:
+	var port_index := rx.get_cabinet_port()
+	return _base(id, "nes_satellite_receiver", n3d).merged({
+		"system": _ref(node_to_id, rx.get_connected_system() if port_index >= 0 else null),
+		"port_index": port_index,
+	})
+
+
+func _load_satellite_receiver(_data: Dictionary) -> Node3D:
+	return NES_SATELLITE_RX_SCENE.instantiate() as Node3D
+
+
+func _restore_satellite_receiver(root: Node, id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
+	var port := int(rec.get("port_index", -1))
+	if port < 0:
+		return
+	var sys := _resolve_ref(root, spawned, rec.get("system")) as RetroSystem
+	if sys == null:
+		push_warning("[ScenePersistence] nes_satellite_receiver id=%d: system not found" % id)
+		return
+	(obj as NesSatelliteReceiver).restore_port_connection(sys, port)
 
 
 ## Build the adapter an entry names, its switches set before _ready builds them.
 func _load_four_player(data: Dictionary) -> Node3D:
-	var scene: PackedScene = NES_FOUR_SCORE_SCENE \
-		if str(data.get("type", "")) == "nes_four_score" else FAMICOM_FOUR_PLAYERS_SCENE
+	var scene: PackedScene = FAMICOM_FOUR_PLAYERS_SCENE
+	match str(data.get("type", "")):
+		"nes_four_score":
+			scene = NES_FOUR_SCORE_SCENE
+		"nes_satellite":
+			scene = NES_SATELLITE_SCENE
 	var adapter := scene.instantiate() as FourPlayerAdapter
 	var tap_mode := int(data.get("tap_mode", FourPlayerAdapter.MODE_4P))
 	if tap_mode == FourPlayerAdapter.MODE_2P or tap_mode == FourPlayerAdapter.MODE_4P:
@@ -3155,6 +3192,8 @@ func _load_four_player(data: Dictionary) -> Node3D:
 	if adapter is NesFourScore:
 		(adapter as NesFourScore).turbo_a = bool(data.get("turbo_a", false))
 		(adapter as NesFourScore).turbo_b = bool(data.get("turbo_b", false))
+	if adapter is NesSatellite:
+		(adapter as NesSatellite).gun_mode = bool(data.get("gun_mode", false))
 	return adapter
 
 
@@ -3550,6 +3589,10 @@ const _LOAD_KINDS := {
 	# pads' own entries name no port.
 	"nes_four_score": &"_load_four_player",
 	"famicom_four_players_adaptor": &"_load_four_player",
+	# The NES Satellite: its transmitter as the adapters (no lead: the receiver's
+	# own entry says where IT is), and the receiver, seated in a console's ports.
+	"nes_satellite": &"_load_four_player",
+	"nes_satellite_receiver": &"_load_satellite_receiver",
 	"retro_mouse": &"_load_retro_mouse",
 	"snes_mouse": &"_load_snes_mouse",
 	"pad_receiver": &"_load_pad_receiver",
