@@ -120,12 +120,19 @@ func _setup_loader() -> void:
 		% [name, _model.levels.size(), size.x * 1000.0, size.y * 1000.0])
 
 
+## How far the PHONES jack sits back of the model's mouth (m): the plug then seats flush with the bezel.
+const PHONES_SEAT_BACK := 0.00075
+
+
 ## PHONES and LEVEL: the jack on the model's PhonesOut mouth, and the model's PhonesLevel knob (every level) hung on
 ## the LevelKnob's pivot at the knob's axis, so turning the VRKnob turns it. The knob's box is the knob.
 func _dress_phones() -> void:
 	var jack := get_node_or_null("PhonesOut") as Node3D
 	if jack != null and _model.part("PhonesOut") != null:
 		DeckFace.seat_port(_model, jack, "PhonesOut")
+		# The model's mouth is the bezel ring's face: seated there a 3.5 mm plug stood 0.75 mm proud of it. Back
+		# along the jack's own -Z, into the deck, so the plug's collar meets the bezel.
+		jack.transform = jack.transform.translated_local(Vector3(0.0, 0.0, -PHONES_SEAT_BACK))
 		for mouth in _model.parts("PhonesOut"):
 			mouth.name = "PhonesOutMouth"
 	else:

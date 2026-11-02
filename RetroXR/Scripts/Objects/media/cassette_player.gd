@@ -89,6 +89,7 @@ func _setup_loader() -> void:
 		# meet the port, not the empty (the Model node comes first).
 		for mouth in _model.parts(port):
 			mouth.name = port + "Mouth"
+	_dress_level_knob()
 	_model.hide_part("Display")
 	var panel := _model.part("Display") as MeshInstance3D
 	var size := Vector2(0.19, 0.036)
@@ -111,6 +112,149 @@ func _setup_loader() -> void:
 		get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D], ["Door", "DoorGlass"], FRONT)
 	print("[Cassette] %s: dressed with the RETRO XR model (%d levels, display %.0f x %.0f mm)"
 		% [name, _model.levels.size(), size.x * 1000.0, size.y * 1000.0])
+
+
+## The front knob's axis on the model's face (x, y; m) and how far round it a triangle is
+## still the knob's. The model draws the knob in its Body (it has no part of its own),
+## standing 11 mm out of the fascia from FRONT.
+const KNOB_AT := Vector2(0.186, -0.022)
+const KNOB_REACH := 0.018
+## Each Body mesh, cut in two: [the body less the knob, the knob]. Shared by every deck.
+static var _knob_split := {}
+
+
+## LEVEL: the model's front knob made a VRKnob that sets the deck's output level, as the CD
+## player's LEVEL knob is. The knob's triangles are cut out of every level's Body onto the
+## knob's pivot, so turning the VRKnob turns the knob that is drawn, and the knob's box is
+## the knob: the body's boxes stop at FRONT, so a pointer reaches it.
+func _dress_level_knob() -> void:
+	var knob := get_node_or_null("LevelKnob") as VRKnob
+	var bodies := _model.parts("Body")
+	if knob == null or bodies.is_empty():
+		push_warning("[Cassette] %s: no LEVEL knob (scene %s, model body %s)" % [name, knob != null, not bodies.is_empty()])
+		return
+	var pivot := knob.get_node("KnobPivot") as Node3D
+	var caps: Array[MeshInstance3D] = []
+	var hosts: Array[MeshInstance3D] = []
+	for i in bodies.size():
+		var body := bodies[i] as MeshInstance3D
+		if body == null or body.mesh == null:
+			continue
+		var split := _split_knob(body.mesh)
+		if split.is_empty():
+			push_warning("[Cassette] %s: no knob found in level %d's Body" % [name, i])
+			continue
+		body.mesh = split[0]
+		var cap := MeshInstance3D.new()
+		cap.name = "ModelLevel%d" % i
+		cap.mesh = split[1]
+		cap.material_override = body.material_override
+		cap.cast_shadow = body.cast_shadow
+		cap.layers = body.layers
+		cap.visibility_range_begin = body.visibility_range_begin
+		cap.visibility_range_end = body.visibility_range_end
+		cap.visibility_range_begin_margin = body.visibility_range_begin_margin
+		cap.visibility_range_end_margin = body.visibility_range_end_margin
+		cap.visibility_range_fade_mode = body.visibility_range_fade_mode
+		for g in body.get_groups():
+			if not str(g).begins_with("_"):
+				cap.add_to_group(g)
+		caps.append(cap)
+		hosts.append(body)
+	if caps.is_empty():
+		return
+	# The axis: the middle of the close level's knob, at its back (where it meets the fascia).
+	var box := caps[0].mesh.get_aabb()
+	var axis := global_transform.affine_inverse() * hosts[0].global_transform \
+		* Vector3(box.get_center().x, box.get_center().y, box.position.z)
+	knob.position = axis
+	var turned := pivot.rotation
+	pivot.rotation = Vector3.ZERO
+	for i in caps.size():
+		pivot.add_child(caps[i])
+		caps[i].global_transform = hosts[i].global_transform
+	ApplianceModel.fit_box(knob.get_node_or_null("CollisionShape3D") as CollisionShape3D,
+		ApplianceModel.node_bounds(caps[0], knob))
+	pivot.rotation = turned
+	knob.value_changed.connect(_on_level_knob)
+	set_output_level(knob.value)
+	print("[Cassette] %s: LEVEL knob cut out of the model at (%.3f, %.3f, %.3f), %.0f mm across, level %.2f"
+		% [name, axis.x, axis.y, axis.z, box.size.x * 1000.0, output_level])
+
+
+func _on_level_knob(v: float) -> void:
+	set_output_level(v)
+
+
+## [body less the knob, the knob] for one of the model's Body meshes, or [] if no triangle
+## stands out of the fascia round KNOB_AT. Cut once per mesh and shared.
+static func _split_knob(src: Mesh) -> Array:
+	if _knob_split.has(src):
+		return _knob_split[src]
+	var rest := ArrayMesh.new()
+	var knob := ArrayMesh.new()
+	var found := false
+	for s in src.get_surface_count():
+		var arr := src.surface_get_arrays(s)
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+		if idx.is_empty():
+			idx = PackedInt32Array(range(v.size()))
+		var keep := PackedInt32Array()
+		var take := PackedInt32Array()
+		for i in range(0, idx.size() - 2, 3):
+			var mine := true
+			for k in 3:
+				var p := v[idx[i + k]]
+				if p.z <= FRONT + 0.0002 or Vector2(p.x, p.y).distance_to(KNOB_AT) > KNOB_REACH:
+					mine = false
+					break
+			# Packed arrays are values: append to the one meant, not to a copy of it.
+			if mine:
+				take.append_array([idx[i], idx[i + 1], idx[i + 2]])
+			else:
+				keep.append_array([idx[i], idx[i + 1], idx[i + 2]])
+		var mat := src.surface_get_material(s)
+		if not keep.is_empty():
+			var a := arr.duplicate()
+			a[Mesh.ARRAY_INDEX] = keep
+			rest.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a)
+			rest.surface_set_material(rest.get_surface_count() - 1, mat)
+		if not take.is_empty():
+			found = true
+			knob.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, _compact(arr, take))
+			knob.surface_set_material(knob.get_surface_count() - 1, mat)
+	var out: Array = [rest, knob] if found else []
+	_knob_split[src] = out
+	return out
+
+
+## A surface's arrays holding only the vertices `indices` use, renumbered: the knob's own
+## mesh, whose bounds are then the knob's (with the body's whole vertex buffer they were the body's).
+static func _compact(arr: Array, indices: PackedInt32Array) -> Array:
+	var count := (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+	var remap := {}
+	var order := PackedInt32Array()
+	var new_idx := PackedInt32Array()
+	for i in indices:
+		if not remap.has(i):
+			remap[i] = order.size()
+			order.append(i)
+		new_idx.append(remap[i])
+	var out := []
+	out.resize(Mesh.ARRAY_MAX)
+	for t in Mesh.ARRAY_MAX:
+		if t == Mesh.ARRAY_INDEX or arr[t] == null:
+			continue
+		var src: Variant = arr[t]
+		@warning_ignore("integer_division")
+		var per: int = src.size() / count
+		var dst: Variant = src.slice(0, 0)
+		for i in order:
+			dst.append_array(src.slice(i * per, i * per + per))
+		out[t] = dst
+	out[Mesh.ARRAY_INDEX] = new_idx
+	return out
 
 
 ## A tape has no spin to keep; `_yaw` is accepted for the shared deck contract.

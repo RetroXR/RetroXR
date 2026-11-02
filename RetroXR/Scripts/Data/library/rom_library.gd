@@ -618,6 +618,27 @@ static func music_tracks(album_path: String) -> PackedStringArray:
 	return tracks
 
 
+## The playlist (.m3u / .m3u8) that decides an album's tracks, by music_tracks' rule, or
+## "" when there is none (the folder's own files, or a single file). For the Debug tab.
+static func music_playlist(album_path: String) -> String:
+	if album_path.is_empty():
+		return ""
+	if is_playlist(album_path) and not DirAccess.dir_exists_absolute(album_path):
+		return album_path
+	if not DirAccess.dir_exists_absolute(album_path):
+		return ""
+	var lists: Array[String] = []
+	for fname in DirAccess.get_files_at(album_path):
+		if fname.get_extension().to_lower() in PLAYLIST_EXTENSIONS:
+			lists.append(fname)
+	lists.sort_custom(func(a: String, b: String) -> bool:
+		return a.naturalnocasecmp_to(b) < 0)
+	for list: String in lists:
+		if not playlist_entries(album_path.path_join(list), MUSIC_EXTENSIONS).is_empty():
+			return album_path.path_join(list)
+	return ""
+
+
 ## Find a local album (folder or file) in the music root whose basename matches
 ## `name`, for verify-by-name netplay resolution (albums have no single hash).
 ## Returns the local path, or "" if the peer doesn't have that album.

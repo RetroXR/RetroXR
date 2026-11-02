@@ -264,6 +264,11 @@ func _t_cd() -> void:
 	_ok(mouth != null and jack.global_position.distance_to(mouth.global_position) < 0.0015
 		and jack.global_basis.z.dot(mouth.global_basis.z) > 0.999,
 		"cd/seated on the model's jack mouth, opening out of the front")
+	# Seated ON the mouth (the bezel ring's face) a plug stood 0.75 mm proud of the ring: the jack sits back of it.
+	var proud := (jack.global_position - mouth.global_position).dot(mouth.global_basis.z.normalized())
+	var want := DeckFace.PORT_PROUD - CDPlayer.PHONES_SEAT_BACK
+	_ok(absf(proud - want) < 0.00005, "cd/the jack stands %.2f mm out of the mouth, not 1 mm, so the plug meets the bezel (want %.2f)"
+		% [proud * 1000.0, want * 1000.0])
 	_ok(_plug(hp).is_in_group(jack.snap_require), "cd/the headphones' plug fits it")
 	# The line out to the set: a stereo pair of phono cords, white and red.
 	var lead := RCA_CABLE.instantiate() as CompositeCable

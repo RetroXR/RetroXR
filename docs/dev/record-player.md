@@ -75,8 +75,10 @@ through `set_audio_volume` -- a set its input's volume, the surround amplifier i
 and silence while the amplifier has no speaker on its back -- and each frame the deck's
 two voices stand on the sink's `get_speaker_positions()` (the amplifier's FL / FR, folded
 wherever those have no cabinet). The deck has no FreeSurround of its own, so through the
-amplifier a record plays in stereo on the front pair and is not matrix-decoded. With no
-lead it plays from the deck as before, at the level it had when the first lead went in.
+amplifier a record plays in stereo on the front pair and is not matrix-decoded. **With no
+lead it is SILENT** (2026-11-03, every deck: a deck has no speaker, and it used to play from
+the deck itself, heard "through the air" with nothing plugged in); headphones in a PHONES jack
+take the sound before the line out. `deck_tests out/`.
 The ground post stays the model's: the room has no ground lead. `NameLabel` is hidden
 (the model carries the brand; the base still writes its text). Cases: `speaker_tests`
 `amp/the turntable's line out ...`, `amp/a turntable cabled into AUDIO IN ...`; probe
@@ -89,3 +91,23 @@ The ground post stays the model's: the room has no ground lead. `NameLabel` is h
 Probe: `Tools/av/turntable_model_probe.tscn` (windowed: `--resolution 1280x720
 --position 20,20 -- --out=<dir>`) renders it playing with the cover up, a tonearm
 close-up, the cover down, and frames of the cover opening and the arm swinging in.
+
+## Every deck's Debug tab, LEVEL knobs and the tape's winding (2026-11-03)
+
+- **Debug** (`RetroAudioPlayer.debug_state`): the album's path and the playlist (.m3u) that
+  set its order (`RomLibrary.music_playlist`, music_tracks' own rule), every track by name
+  and folder with the one in the deck marked and a missing file flagged (`track_rows`), an
+  **Audio out** section (what carries the sound, PHONES / line out L / R and the device and
+  socket each reaches, `audio_out_rows`), and the levels: the sink's volume, the deck's
+  output level and, on the CD player, PHONES level (its LEVEL knob). The page polls once a
+  second.
+- **The cassette deck's LEVEL knob** is drawn in the model's `Body` (no part of its own), so
+  `cassette_player.gd` `_dress_level_knob` cuts the triangles standing out of the fascia round
+  (0.186, -0.022) out of every level's Body onto a VRKnob's pivot (`LevelKnob`, cached per
+  mesh). It sets `output_level`, applied on whatever carries the sound; saved and synced as
+  every knob. Re-export the model and the cut must be re-checked (`deck_tests out/`).
+- **A tape winds THROUGH its tracks** (`_scan_cross`): FF off one's end opens the next and
+  winds on, REW off one's start opens the one before 0.5 s short of its end; only the album's
+  ends stop it (`_end_scan_tape`), and there it STAYS: PLAY (or putting it in) does nothing at
+  the end until REW, and a tape that plays out is no longer wound back to the start. FF / REW
+  start from STOP on a tape. A CD's scan still holds at its track's end. `deck_tests wind/`.

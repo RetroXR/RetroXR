@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" uid="uid://dumi6xohsvole" path="res://imported-assets/appliances/cassette_deck/cassette_mobile_lod1.glb" id="8_lod1"]
 [ext_resource type="PackedScene" uid="uid://bwjstmtis0130" path="res://imported-assets/appliances/cassette_deck/cassette_mobile_lod2.glb" id="9_lod2"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="10_rcaport"]
+[ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_knob.gd" id="11_vrknob"]
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_cas"]
 friction = 0.8
@@ -32,6 +33,10 @@ emission_energy_multiplier = 0.4
 ; Placeholder boxes; ApplianceModel.adopt_button() replaces each key's with the model's own key and fits the box to it.
 [sub_resource type="BoxShape3D" id="BoxShape3D_btn"]
 size = Vector3(0.03, 0.02, 0.03)
+
+; The LEVEL knob's box; cassette_player.gd fits it to the knob it cuts out of the model's body.
+[sub_resource type="BoxShape3D" id="Shape_level"]
+size = Vector3(0.03, 0.03, 0.011)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
 size = Vector3(0.43, 0.12, 0.3)
@@ -241,3 +246,19 @@ direction = 0
 transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.118, 0, -0.159)
 channel = 2
 direction = 0
+
+; LEVEL: the deck's output level, a VRKnob over the model's front knob (merged into its Body, so cassette_player.gd
+; cuts the knob's triangles out onto KnobPivot, turned about its own +Z). Placed on the knob at _ready; the room save
+; and netplay carry it as they do every knob.
+[node name="LevelKnob" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.186, -0.022, 0.15)
+collision_layer = 1048576
+collision_mask = 0
+script = ExtResource("11_vrknob")
+engage_radius = 0.03
+value = 1.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelKnob"]
+shape = SubResource("Shape_level")
+
+[node name="KnobPivot" type="Node3D" parent="LevelKnob"]

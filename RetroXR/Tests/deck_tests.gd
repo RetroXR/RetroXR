@@ -31,10 +31,12 @@
 ##   tape/     a tape keeps its place, and its menu says where that is
 ##   label/    a tape, cassette or record wears the pictures found beside its file
 ##   playlist/ an .m3u sets what plays and in what order, for albums and tapes
+##   wind/     a cassette's FF/REW winds through its tracks, from play or stop, and the tape stays where it ran out
+##   out/      a deck with no lead is silent; the cassette's LEVEL knob; the Debug tab's audio out
 extends "res://Tests/test_suite.gd"
 
 const GROUPS := ["base", "save", "media", "gate", "drawer", "arm", "model", "scrub", "net", "remote", "tape", "label",
-	"playlist"]
+	"playlist", "wind", "out"]
 
 const RECORD_PLAYER := preload("res://Scenes/Objects/appliances/record_player.tscn")
 const CD_PLAYER := preload("res://Scenes/Objects/appliances/cd_player.tscn")
@@ -88,6 +90,10 @@ func _ready() -> void:
 		await _test_label_media()
 	if _want("playlist"):
 		await _test_playlist()
+	if _want("wind"):
+		await _test_wind()
+	if _want("out"):
+		await _test_out()
 
 	await _cleanup()
 	_finish()
@@ -787,6 +793,19 @@ func _test_playlist() -> void:
 		"playlist/the music scan lists a loose playlist and a folder holding only one, not a dead one or an empty folder")
 	_eq(RomLibrary.music_tracks(_scratch.path_join("music/Pointer")), PackedStringArray([b]),
 		"playlist/a folder's playlist may name tracks outside it")
+	# The Debug tab names the playlist that decided the order, or none.
+	_eq(RomLibrary.music_playlist(_scratch.path_join("ordered")), _scratch.path_join("ordered/ordered.m3u"),
+		"playlist/the Debug tab names the folder's playlist that sets its order")
+	_eq(RomLibrary.music_playlist(_scratch.path_join("stale")), "",
+		"playlist/and none for a folder whose playlist names nothing there")
+	_eq(RomLibrary.music_playlist(mix), mix, "playlist/a loose playlist is its own")
+	_eq(RomLibrary.music_playlist(_scratch.path_join("album")), "", "playlist/a folder with none has none")
+	var rows := RetroAudioPlayer.track_rows(PackedStringArray([o10, o1, _scratch.path_join("ordered/gone.mp3")]), 1,
+		_scratch.path_join("ordered"))
+	_ok(rows.size() == 3 and str(rows[1][0]).begins_with("▶") and not str(rows[0][0]).begins_with("▶")
+		and str(rows[0][1]).begins_with("10 c.mp3") and str(rows[0][1]).contains(_scratch.path_join("ordered"))
+		and str(rows[2][1]).contains("MISSING") and not str(rows[0][1]).contains("MISSING"),
+		"playlist/the Debug tab lists every track by name and folder, marks the one playing and a missing file")
 	var w := _scratch_file("weird/Odd.m3u/x.mp3")
 	_eq(RomLibrary.music_tracks(_scratch.path_join("weird/Odd.m3u")), PackedStringArray([w]),
 		"playlist/a FOLDER named like a playlist is still a folder")
@@ -890,6 +909,186 @@ func _test_playlist() -> void:
 		back.free()
 	vcr._vlc = null
 	RomLibrary._remove_tree(_scratch)
+
+
+# ── wind/ ─────────────────────────────────────────────────────────────────────
+
+## A cassette winds THROUGH its tracks: FF off the end of one goes on into the next, REW
+## off the start of one back into the end of the one before, still scanning; only the
+## album's ends stop it, and there it stays. It used to stop at every track's end, and
+## a tape that played out wound itself back to the start. A real deck also winds with
+## no PLAY pressed, so FF / REW start from stop. On FakeVlc, driven by hand.
+func _test_wind() -> void:
+	var deck := await _deck(CASSETTE_PLAYER) as RetroAudioPlayer
+	deck.set_process(false)
+	var fake := FakeVlc.new()
+	deck._vlc = fake
+	var tape := AUDIO_CASSETTE.instantiate() as AudioCassette
+	add_child(tape)
+	_spawned.append(tape)
+	deck._snapped_media = tape
+	deck._tracks = PackedStringArray(["C:/w/a.ogg", "C:/w/b.ogg", "C:/w/c.ogg"])
+	deck._track_bytes = PackedInt64Array([1, 1, 1])
+	var scan := func(dir: int, at_ms: int) -> void:
+		deck._scan_dir = dir
+		fake.time_ms = at_ms
+		deck._scan_accum = RetroAudioPlayer.SCAN_SEEK_INTERVAL
+		deck._update_scan(0.0)
+
+	deck._track_idx = 0
+	deck.play()
+	fake.length_ms = 100000
+	_ok(deck.is_playing, "wind/the stand-in player plays (or nothing below means anything)")
+	scan.call(1, 99900)
+	_ok(deck._track_idx == 1 and str(fake.opened.back()).ends_with("b.ogg") and deck._scan_dir == 1
+		and deck.is_playing, "wind/FF off the end of a track winds on into the next, still scanning")
+	scan.call(-1, 100)
+	_ok(deck._track_idx == 0 and str(fake.opened.back()).ends_with("a.ogg") and deck._scan_dir == -1
+		and deck._resume_at == INF, "wind/REW off the start of a track winds back into the one before")
+	deck._update_scan(0.0)
+	_eq(deck._track_idx, 0, "wind/and waits there until it can seek")
+	deck._resume_tape()
+	_ok(fake.time_ms == 99500 and deck._resume_at == 0.0,
+		"wind/to just short of its end (where a seek would finish it), and winds on from there")
+
+	deck._track_idx = 2
+	deck.play()
+	scan.call(1, 99900)
+	_ok(not deck.is_playing and deck._scan_dir == 0 and tape.tape_track == 2 and tape.tape_progress == 1.0
+		and is_equal_approx(tape.tape_time, 100.0) and deck.tape_at_end(),
+		"wind/FF off the end of the last track stops the tape at its end")
+	deck._on_play_pressed()
+	_ok(not deck.is_playing, "wind/and PLAY does nothing there until it is rewound")
+	deck._on_ff_pressed()
+	_ok(not deck.is_playing, "wind/nor FF")
+	deck._on_rewind_pressed()
+	_ok(deck.is_playing and deck._scan_dir == -1 and deck._track_idx == 2 and str(fake.opened.back()).ends_with("c.ogg"),
+		"wind/REW from stop winds back from where the tape stands")
+	deck._resume_tape()
+	_eq(fake.time_ms, 99500, "wind/from the end of the last track")
+	deck._track_idx = 0
+	scan.call(-1, 100)
+	_ok(not deck.is_playing and tape.tape_track == 0 and tape.tape_time == 0.0 and tape.tape_progress == 0.0
+		and not deck.tape_at_end(), "wind/REW off the start of the first track stops the tape at its start")
+	var opened := fake.opened.size()
+	deck._on_rewind_pressed()
+	_ok(not deck.is_playing and fake.opened.size() == opened, "wind/and REW from stop at the start does nothing")
+	deck._on_ff_pressed()
+	_ok(deck.is_playing and deck._scan_dir == 1 and deck._track_idx == 0, "wind/FF from stop winds forward")
+	deck.stop()
+
+	# Played out: the tape stays at its end. It used to wind itself back to track one.
+	deck._track_idx = 2
+	deck.play()
+	deck._on_track_finished()
+	_ok(not deck.is_playing and tape.tape_track == 2 and tape.tape_progress == 1.0 and deck.tape_at_end(),
+		"wind/a tape that plays to its end stays at its end, not rewound")
+	# libVLC finishing a track under a scan winds on, rather than playing the next one at speed 1.
+	deck._track_idx = 0
+	tape.tape_progress = 0.0
+	deck.play()
+	deck._scan_dir = 1
+	deck._on_track_finished()
+	_ok(deck.is_playing and deck._track_idx == 1 and deck._scan_dir == 1,
+		"wind/a track finishing under FF winds on into the next, still scanning")
+	deck.stop()
+
+	# A CD keeps its own way: FF off a track's end holds there.
+	var cd := await _deck(CD_PLAYER) as RetroAudioPlayer
+	cd.set_process(false)
+	var cd_fake := FakeVlc.new()
+	cd._vlc = cd_fake
+	cd._tracks = PackedStringArray(["C:/w/a.ogg", "C:/w/b.ogg"])
+	cd._track_idx = 0
+	cd.play()
+	cd_fake.length_ms = 100000
+	cd._scan_dir = 1
+	cd_fake.time_ms = 99990
+	cd._scan_accum = RetroAudioPlayer.SCAN_SEEK_INTERVAL
+	cd._update_scan(0.0)
+	_ok(cd._track_idx == 0 and cd._scan_dir == 0 and cd._paused, "wind/a CD's scan still holds at its track's end")
+	cd.stop()
+	deck._vlc = null
+	cd._vlc = null
+
+
+# ── out/ ──────────────────────────────────────────────────────────────────────
+
+## A deck has no speaker: with no lead its sound goes nowhere. It used to play from the
+## deck itself, heard "through the air" with nothing plugged in. The cassette deck's LEVEL
+## knob is cut out of the model's body, reachable by a ray, and sets its output level; the
+## CD's LEVEL is on its Debug tab.
+func _test_out() -> void:
+	var specs := [[RECORD_PLAYER, "the turntable"], [CD_PLAYER, "the CD deck"], [CASSETTE_PLAYER, "the cassette deck"]]
+	var lane := 0
+	var decks: Array[RetroAudioPlayer] = []
+	for spec: Array in specs:
+		var deck := await _deck(spec[0]) as RetroAudioPlayer
+		decks.append(deck)
+		deck.set_process(false)
+		var em := deck.get_node("SpatialAudioEmitter") as SpatialAudioEmitter
+		_ok(em._ch_gain_l == 0.0 and em._ch_gain_r == 0.0, "out/%s with no lead is silent" % spec[1])
+		var rows := deck.audio_out_rows()
+		_ok(str(rows[0][1]).begins_with("nothing: silent"), "out/and its Debug tab says so")
+		var sink := Node3D.new()
+		sink.name = "Sink%d" % lane
+		add_child(sink)
+		_spawned.append(sink)
+		deck._route_sound(sink, 0, 1)
+		_ok(em._ch_gain_l == 1.0 and em._ch_gain_r == 1.0, "out/a lead to speakers carries %s" % spec[1])
+		deck._route_sound(sink, 0, -1)
+		_ok(em._ch_gain_l == 1.0 and em._ch_gain_r == 0.0, "out/a channel whose cord reaches nothing is silent")
+		_ok(str(deck.audio_out_rows()[0][1]) == "Sink%d via LINE OUT" % lane, "out/the Debug tab names what carries it",
+			str(deck.audio_out_rows()[0][1]))
+		deck._route_sound(null, -1, -1)
+		_ok(em._ch_gain_l == 0.0 and em._ch_gain_r == 0.0, "out/pulled, %s goes silent again" % spec[1])
+		lane += 1
+		deck.global_position = Vector3(-40.0, 50.0, 5.0 * lane)
+
+	var tape := decks[2]
+	var knob := tape.get_node("LevelKnob") as VRKnob
+	var pivot := knob.get_node("KnobPivot")
+	var cap := pivot.get_node_or_null("ModelLevel0") as MeshInstance3D
+	var body := (tape.get_node("Model") as ApplianceModel).part("Body") as MeshInstance3D
+	_ok(cap != null and cap.mesh.get_faces().size() > 0 and body.mesh.get_faces().size() > 0,
+		"out/the cassette deck's knob is cut out of the body onto the knob's pivot")
+	_ok(knob.position.distance_to(Vector3(0.186, -0.022, 0.150)) < 0.004,
+		"out/and stands on the fascia where the model draws it (%s)" % knob.position)
+	knob.set_value(0.25)
+	_ok(is_equal_approx(tape.output_level, 0.25), "out/turning it sets the deck's output level")
+	var sink2 := Node3D.new()
+	add_child(sink2)
+	_spawned.append(sink2)
+	tape._route_sound(sink2, 0, 1)
+	var em2 := tape.get_node("SpatialAudioEmitter") as SpatialAudioEmitter
+	_ok(is_equal_approx(em2._ch_gain_l, 0.25) and is_equal_approx(em2._ch_gain_r, 0.25),
+		"out/which is what reaches the speakers")
+	_ok(_deck_row(tape, "Output level") == "25%", "out/and is on its Debug tab")
+	tape._route_sound(null, -1, -1)
+	tape.freeze = true
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var at := knob.global_position
+	var q := PhysicsRayQueryParameters3D.create(at + tape.global_basis.z * 0.5, at - tape.global_basis.z * 0.01,
+		XRToolsFunctionPointer.DEFAULT_MASK)
+	q.collide_with_areas = true
+	var hit := tape.get_world_3d().direct_space_state.intersect_ray(q)
+	_ok(hit.get("collider") == knob, "out/a pointer ray from the front meets the knob, not the deck's box (%s)"
+		% hit.get("collider"))
+
+	var cd := decks[1]
+	(cd.get_node("LevelKnob") as VRKnob).set_value(0.4)
+	_ok(_deck_row(cd, "PHONES level") == "40%", "out/the CD's LEVEL knob moves its PHONES level on the Debug tab")
+
+
+## A row's value in a deck's Debug tab "Deck" section.
+func _deck_row(deck: RetroAudioPlayer, label: String) -> String:
+	for section: Array in deck.debug_state():
+		if section[0] == "Deck":
+			for row: Array in section[1]:
+				if row[0] == label:
+					return str(row[1])
+	return "(no row)"
 
 
 # ── base/ ─────────────────────────────────────────────────────────────────────

@@ -1,12 +1,16 @@
 ## RetroAudioPlayer — shared base for the pickable CD and cassette players. Plays
 ## an inserted audio album (a folder of tracks, or a single audio file) through
 ## the libVLC-backed VlcPlayer GDExtension — the same engine as the VCR/DVD, but
-## audio-only and self-contained: the sound emanates from the unit's own
-## spatialised AudioStreamPlayer3D, so no TV or cable is needed.
+## audio-only. A deck has no speaker of its own: its sound comes out only of what
+## a lead carries it to -- headphones in PHONES first, else the speakers its line
+## out reaches (a set, the surround amplifier) -- and with no lead it is SILENT,
+## the transport running on as a real deck's does. See "Line out" below.
 ##
 ## Subclasses (CDPlayer / CassettePlayer) provide the scene + button set. The CD
 ## has Prev/Next track buttons (and the remote shows them); the cassette is a
-## linear tape (play/pause/stop/ff/rew only, tracks auto-advance, no skip).
+## linear tape (play/pause/stop/ff/rew only, tracks auto-advance, no skip). A
+## tape's FF/REW winds THROUGH the tracks to the album's end or start, from play
+## or from stop, and the tape stays where it ran out (no rewind of its own).
 ##
 ## Transport is host-authoritative in a netplay session (mirrors VCR/DVD): a
 ## client's button/remote intent is forwarded to the host, which executes it and
@@ -179,6 +183,11 @@ func debug_state() -> Array:
 		media_rows.append(["In the deck", _media_word(_snapped_media)])
 		media_rows.append(["Album", album_path.get_file() if not album_path.is_empty()
 			else "(none)"])
+		media_rows.append(["Album path", album_path if not album_path.is_empty() else "(none)"])
+		var playlist := RomLibrary.music_playlist(album_path)
+		var from_folder := DirAccess.dir_exists_absolute(album_path)
+		media_rows.append(["Playlist (m3u)", playlist if not playlist.is_empty()
+			else ("none: tracks from the folder" if from_folder else "none")])
 		media_rows.append(["Track", "%d of %d" % [_track_idx + 1, _tracks.size()]
 			if not _tracks.is_empty() else "—"])
 		var path := _tracks[_track_idx] if _track_idx < _tracks.size() else ""
@@ -189,12 +198,79 @@ func debug_state() -> Array:
 				MediaDebug.time_text(int(float(tape.get("tape_time")) * 1000.0), true),
 				float(tape.get("tape_progress")) * 100.0 if "tape_progress" in tape else 0.0]])
 	var out: Array = [["Media", media_rows]]
+	if is_instance_valid(_snapped_media):
+		out.append(["Tracks", track_rows(_tracks, _track_idx, album_path)])
+	out.append(["Audio out", audio_out_rows()])
 	out.append_array(MediaDebug.vlc_sections(_vlc, false))
 	var deck: Array = [["Deck", player_label]]
 	deck.append_array(_debug_deck_rows())
-	deck.append(["Volume", "%d%%" % roundi(_volume_linear * 100.0)])
+	deck.append(["Volume (the sink's)", "%d%%" % roundi(_volume_linear * 100.0)])
+	deck.append(["Output level", "%d%%" % roundi(output_level * 100.0)])
+	if get_node_or_null("PhonesOut") != null:
+		deck.append(["PHONES level", "%d%%" % roundi(phones_level * 100.0)])
 	out.append(["Deck", deck])
 	return out
+
+
+## Every track the album lists (its m3u's order, else the folder's), one row each: the
+## file's name, then the folder it is in. The one in the deck is marked.
+static func track_rows(tracks: PackedStringArray, current: int, album: String) -> Array:
+	if tracks.is_empty():
+		return [["Tracks", "none found in %s" % album if not album.is_empty() else "none"]]
+	var rows: Array = []
+	for i in tracks.size():
+		var path := tracks[i]
+		var missing := "" if FileAccess.file_exists(path) else "  MISSING"
+		rows.append(["%s %d" % ["▶" if i == current else "  ", i + 1],
+			"%s%s   (%s)" % [path.get_file(), missing, path.get_base_dir()]])
+	return rows
+
+
+## Where the deck's sound goes, for the Debug tab: what is in PHONES and in each line-out
+## jack, and what carries the sound now (or that nothing does, so it is silent).
+func audio_out_rows() -> Array:
+	var rows: Array = []
+	var sink := sound_sink()
+	if sink == null:
+		rows.append(["Sound to", "nothing: silent (no lead to headphones or speakers)"
+			if has_line_out() else "the deck's own speakers (it has no outputs)"])
+	else:
+		rows.append(["Sound to", "%s via %s" % [_device_word(sink), "PHONES" if _via_phones else "LINE OUT"]])
+	for jack: String in ["PhonesOut", "AudioLOut", "AudioROut"]:
+		var port := get_node_or_null(jack) as RcaPort
+		if port == null:
+			continue
+		var word: String = {"PhonesOut": "PHONES", "AudioLOut": "Line out L", "AudioROut": "Line out R"}[jack]
+		rows.append([word, _jack_target(port)])
+	if sink != null and not _via_phones:
+		rows.append(["Speakers", "L -> %s, R -> %s" % [
+			"speaker %d" % _sink_left if _sink_left >= 0 else "nowhere",
+			"speaker %d" % _sink_right if _sink_right >= 0 else "nowhere"]])
+	return rows
+
+
+## What a lead in one of the deck's jacks reaches: the device and the socket on it.
+func _jack_target(port: RcaPort) -> String:
+	for link: Dictionary in AvGraph.links_for(self):
+		if link["out"] != port:
+			continue
+		var to := link["in"] as RcaPort
+		var dev := to.get_device()
+		if dev == null:
+			return "a lead, to nothing"
+		var where := to.port_label()
+		if dev is RetroTV:
+			var input := (dev as RetroTV).input_for_device(self)
+			if input >= 0:
+				where = "%s %s" % [(dev as RetroTV).source_name(input), where]
+		return "%s, %s" % [_device_word(dev), where]
+	return "empty"
+
+
+static func _device_word(dev: Node) -> String:
+	if dev is RetroTV:
+		return "TV (%s)" % dev.name
+	return String(dev.name)
 
 
 ## A deck's own mechanics for its Debug tab, as [label, value] rows.
@@ -260,6 +336,8 @@ func _setup_audio() -> void:
 	# most of what makes it feel like an object in the room.
 	_emitter.speaker_separation = 0.18
 	add_child(_emitter)
+	# Silent until a lead carries the sound somewhere (on_av_topology_changed).
+	_apply_channel_gains()
 
 
 func _process(delta: float) -> void:
@@ -296,9 +374,12 @@ func _take_tape_place(media: Node) -> void:
 func _resume_tape() -> void:
 	if _resume_at <= 0.0 or not is_playing:
 		return
-	if _vlc_length_sec() <= 0.0:
+	var length := _vlc_length_sec()
+	if length <= 0.0:
 		return
-	_vlc_seek_sec(_resume_at)
+	# A scan opening a track (INF: at its end) lands short of the end, where a seek
+	# would finish the track rather than wind it.
+	_vlc_seek_sec(minf(_resume_at, length - SCAN_TRACK_EDGE * 2.0) if _scan_dir != 0 else _resume_at)
 	_resume_at = 0.0
 
 
@@ -393,17 +474,30 @@ func _vlc_seek_sec(sec: float) -> void:
 		_vlc.set_position(clampf(sec / length, 0.0, 1.0))
 
 
-## While scanning, jump the position forward/back in throttled steps. Hitting
-## either end of the current track stops the scan and holds there.
+## While scanning, jump the position forward/back in throttled steps. On a disc,
+## hitting either end of the current track stops the scan and holds there. A tape
+## winds on THROUGH its tracks (_scan_cross) and stops only at the album's ends.
 func _update_scan(delta: float) -> void:
 	if _scan_dir == 0 or not is_playing:
 		return
+	if _resume_at > 0.0:
+		return      # a track just opened mid-scan: wait for _resume_tape's seek
 	_scan_accum += delta
 	if _scan_accum < SCAN_SEEK_INTERVAL:
 		return
 	var length := _vlc_length_sec()
+	if length <= 0.0 and _tape() != null:
+		return      # the track the scan crossed into has not told its length yet
 	var pos := _vlc_time_sec() + _scan_accum * scan_speed * float(_scan_dir)
 	_scan_accum = 0.0
+	if _tape() != null:
+		if pos <= 0.0:
+			_scan_cross(-1)
+		elif pos >= length - SCAN_TRACK_EDGE:
+			_scan_cross(1)
+		else:
+			_vlc_seek_sec(pos)
+		return
 	if pos <= 0.0:
 		_vlc_seek_sec(0.0)
 		_end_scan_hold()
@@ -412,6 +506,86 @@ func _update_scan(delta: float) -> void:
 		_end_scan_hold()
 	else:
 		_vlc_seek_sec(pos)
+
+
+## How near a track's end a tape's scan crosses into the next one: short of the very
+## end, where libVLC would finish the track instead of seeking.
+const SCAN_TRACK_EDGE := 0.25
+
+
+## A tape's scan ran off one end of its track: open the next (or the previous, near its
+## end) and wind on, still scanning. Off the album's end or start the tape stops there.
+func _scan_cross(dir: int) -> void:
+	var to := _track_idx + dir
+	if to < 0 or to >= _tracks.size():
+		_end_scan_tape(dir)
+		return
+	_log_event("%s winds into track %d of %d" % ["FF" if dir > 0 else "REW", to + 1, _tracks.size()])
+	_track_idx = to
+	# Going back, the scan carries on from the end of the track before.
+	_open_scanning(INF if dir < 0 else 0.0)
+
+
+## Open the selected track at `at` seconds (INF: at its end) and keep the scan running,
+## muted. play() resets the scan; it is put back here.
+func _open_scanning(at: float) -> void:
+	var dir := _scan_dir
+	_resume_at = 0.0
+	play()
+	if not is_playing:
+		return
+	_scan_dir = dir
+	_scan_accum = 0.0
+	_resume_at = at
+	_apply_volume()
+	_update_status()
+
+
+## A tape wound to the end (dir +1) or the start (-1) of the album: it stops there, and
+## stays there. Its place is written onto the cassette so PLAY, a save or an eject find it.
+func _end_scan_tape(dir: int) -> void:
+	var tape := _tape()
+	var last := maxi(0, _tracks.size() - 1)
+	_scan_dir = 0
+	if dir > 0:
+		_park_tape_at_end(tape, last)
+	else:
+		_track_idx = 0
+		if tape != null:
+			tape.set("tape_track", 0)
+			tape.set("tape_time", 0.0)
+			tape.set("tape_progress", 0.0)
+	_log_event("tape wound to its %s" % ("END" if dir > 0 else "START"))
+	_resume_at = 0.0
+	if _vlc:
+		_vlc.stop()
+	is_playing = false
+	_paused = false
+	if _emitter:
+		_emitter.flush()
+	_apply_volume()
+	_update_status()
+	_net_push_state()
+
+
+## The tape run out at the end of its last track, written onto the cassette.
+func _park_tape_at_end(tape: Node, last: int) -> void:
+	_track_idx = last
+	if tape == null:
+		return
+	var length := _vlc_length_sec()
+	tape.set("tape_track", last)
+	if length > 0.0:
+		tape.set("tape_time", length)
+	tape.set("tape_progress", 1.0)
+
+
+## Whether the tape in the deck is wound all the way to its end.
+func tape_at_end() -> bool:
+	var tape := _tape()
+	return tape != null and not _tracks.is_empty() \
+		and int(tape.get("tape_track")) >= _tracks.size() - 1 \
+		and float(tape.get("tape_progress")) >= 0.999
 
 
 func _end_scan_hold() -> void:
@@ -445,7 +619,10 @@ func _media_loaded(media: Node3D) -> void:
 	NetworkManager.report_event(NetEvents.Event.EV_AUDIO_INSERT,
 		{"player": self, "media": media, "yaw": media_seat_yaw()})
 	if _autoplay_on_load() and not NetworkManager.is_active():
-		play()
+		if tape_at_end():
+			_log_event("the tape is at its end: not played (rewind it)")
+		else:
+			play()
 	_update_status()
 
 
@@ -548,6 +725,10 @@ func _on_play_pressed() -> void:
 		_update_status()
 		_net_push_state()
 		return
+	if not is_playing and tape_at_end():
+		# A tape that ran out stays out: nothing plays until it is rewound.
+		_log_event("PLAY: the tape is at its end; rewind it first")
+		return
 	play()
 
 
@@ -583,6 +764,7 @@ func _on_rewind_pressed() -> void:
 	if _net_forward_cmd("rew"):
 		return
 	if not is_playing:
+		_scan_from_stop(-1)
 		return
 	_scan_dir = 0 if _scan_dir == -1 else -1
 	_apply_scan_mute()
@@ -599,10 +781,35 @@ func _on_ff_pressed() -> void:
 	if _net_forward_cmd("ff"):
 		return
 	if not is_playing:
+		_scan_from_stop(1)
 		return
 	_scan_dir = 0 if _scan_dir == 1 else 1
 	_apply_scan_mute()
 	_update_status()
+	_net_push_state()
+
+
+## FF / REW on a stopped deck. A tape winds from where it stands (a real deck winds with
+## no play pressed), and stops at the album's end or start; a disc does nothing, as before.
+func _scan_from_stop(dir: int) -> void:
+	var tape := _tape()
+	if tape == null:
+		return
+	if _tracks.is_empty():
+		_rebuild_tracks()
+	if _tracks.is_empty():
+		return
+	if dir > 0 and tape_at_end():
+		_log_event("FF: the tape is already at its end")
+		return
+	var at := float(tape.get("tape_time"))
+	if dir < 0 and int(tape.get("tape_track")) <= 0 and at <= 0.0:
+		_log_event("REW: the tape is already at its start")
+		return
+	_track_idx = clampi(int(tape.get("tape_track")), 0, _tracks.size() - 1)
+	_log_event("%s from stop, track %d at %.1f s" % ["FF" if dir > 0 else "REW", _track_idx + 1, at])
+	_scan_dir = dir
+	_open_scanning(at)
 	_net_push_state()
 
 
@@ -698,6 +905,11 @@ func stop() -> void:
 func _on_track_finished() -> void:
 	if NetworkManager.is_client():
 		return   # the host drives advancement; clients follow its state
+	var tape := _tape()
+	if tape != null and _scan_dir != 0:
+		# libVLC ran a scanning tape off its track before the scan crossed: wind on.
+		_scan_cross(_scan_dir)
+		return
 	_resume_at = 0.0
 	var after := _track_after(_track_idx)
 	if after >= 0:
@@ -705,14 +917,11 @@ func _on_track_finished() -> void:
 		play()
 	else:
 		_log_event("end of album")
-		# The end of the tape. It is wound back to the start, so that PLAY plays
-		# it again: the deck has no way to wind a whole album back by hand.
-		var tape := _tape()
+		# The end of the tape. It STAYS at the end, as a real one does: PLAY does
+		# nothing there until it is rewound (REW winds back through every track).
+		# It used to wind itself back to the start.
 		if tape != null:
-			_track_idx = 0
-			tape.set("tape_track", 0)
-			tape.set("tape_time", 0.0)
-			tape.set("tape_progress", 0.0)
+			_park_tape_at_end(tape, maxi(0, _tracks.size() - 1))
 		is_playing = false
 		_paused = false
 		if _emitter:
@@ -758,8 +967,9 @@ func set_audio_channel_mode(mode: int) -> void:
 #
 # A deck with an `AudioLOut` / `AudioROut` pair (RcaPort, OUT; the RETRO XR turntable)
 # is a SOURCE on the cable graph the way a VCR is: a lead into a set's audio input or
-# the surround amplifier's AUDIO IN carries its sound THERE, and with no lead it plays
-# from the deck itself, as every deck did. Resolved through AvSource, the same answer a
+# the surround amplifier's AUDIO IN carries its sound THERE, and with no lead it is
+# SILENT (2026-11-03: a deck has no speaker; it used to play from the deck itself,
+# heard "through the air" with nothing plugged in). Resolved through AvSource, the same answer a
 # VCR and a console get, on a plug or unplug and never per frame. The sink is told
 # (on_av_source_found) and pushes its level back through set_audio_volume: a set its
 # input's volume, the amplifier its knob (and silence with no speaker on its back). The
@@ -778,6 +988,9 @@ var _sound_sink: Node3D = null
 var _via_phones := false
 ## The headphones' level, 0..1 (the LEVEL knob's value), applied only through PHONES.
 var phones_level := 0.75
+## The deck's own output level, 0..1, on whatever carries its sound (the cassette deck's
+## LEVEL knob); a deck with no such knob leaves it at 1.
+var output_level := 1.0
 var _sink_left := -1
 var _sink_right := -1
 ## The deck's own level, put back when the last lead leaves (a sink sets its own).
@@ -822,7 +1035,13 @@ func set_phones_level(v: float) -> void:
 	_apply_channel_gains()
 
 
-## The sink carrying this deck's sound, or null while it plays from itself.
+## The deck's output level (a LEVEL knob on the deck itself), applied at once.
+func set_output_level(v: float) -> void:
+	output_level = clampf(v, 0.0, 1.0)
+	_apply_channel_gains()
+
+
+## The sink carrying this deck's sound, or null while it is silent (no lead).
 func sound_sink() -> Node3D:
 	return _sound_sink if is_instance_valid(_sound_sink) else null
 
@@ -848,7 +1067,8 @@ func _route_sound(sink: Node3D, l: int, r: int) -> void:
 			if _emitter:
 				_emitter.clear_speaker_positions()
 				_emitter.clear_emit_position()
-			print("[%s] %s: sound back on its own speakers%s" % [_log_tag(), name,
+			print("[%s] %s: no lead carries the sound now: %s%s" % [_log_tag(), name,
+				"silent" if has_line_out() else "on its own speakers (it has no outputs)",
 				" (was %s)" % previous.name if previous != null else ""])
 	if _sound_sink == null and _emitter:
 		_emitter.unit_size = UNIT_SIZE
@@ -856,12 +1076,16 @@ func _route_sound(sink: Node3D, l: int, r: int) -> void:
 
 
 ## A channel whose cord reaches nothing is silenced at its voice; the other plays on. Through PHONES both carry the
-## LEVEL knob's level.
+## LEVEL knob's level. With no lead at all both are silent: a deck has no speaker (a deck with no outputs whatever,
+## which nothing ships, plays from itself rather than never).
 func _apply_channel_gains() -> void:
 	if _emitter == null:
 		return
 	var cabled := _sound_sink != null
-	var g := phones_level if cabled and _via_phones else 1.0
+	if not cabled and has_line_out():
+		_emitter.set_channel_gains(0.0, 0.0)
+		return
+	var g := (phones_level if cabled and _via_phones else 1.0) * output_level
 	_emitter.set_channel_gains((1.0 if not cabled or _sink_left >= 0 else 0.0) * g,
 		(1.0 if not cabled or _sink_right >= 0 else 0.0) * g)
 
