@@ -10,6 +10,12 @@ enum End { WALL = 0, APPLIANCE = 1 }
 @onready var wall_plug: RcaPlug = $WallPlug
 @onready var appliance_plug: RcaPlug = $AppliancePlug
 
+## What the spawn menu puts in the hand that asked for this cord: its appliance end
+## (the C13, C7 or C7P), carried to the device first, the wall plug trailing.
+func spawn_hold_target() -> XRToolsPickable:
+	return appliance_plug
+
+
 func _ready() -> void:
 	wall_plug.cable = self
 	appliance_plug.cable = self

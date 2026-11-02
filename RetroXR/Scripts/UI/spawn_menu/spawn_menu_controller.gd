@@ -1076,9 +1076,52 @@ func _place_spawned(obj: Node3D, type: String) -> void:
 		if held != obj:
 			print("[Spawn] %s: handing over its %s" % [obj.name, held.name])
 		_give_to_grabber(grabber, held)
+		if held != obj:
+			_trail_under_hand(obj, held, grabber)
 
 	if is_instance_valid(obj):
 		_teach_verbs(obj)
+
+
+## How far under the hand the rest of a lead starts, and how far above whatever is
+## under the hand when that is nearer; and how far apart several ends hang.
+const TRAIL_DROP := 0.3
+const TRAIL_CLEAR := 0.03
+const TRAIL_SPREAD := 0.04
+
+
+## The rest of a lead handed over by one part (its other plugs, its body): hung
+## just under the hand, resting on whatever is under it if that is nearer, so
+## nothing starts out by the menu -- where it began at its scene's offset, up to
+## 0.75 m from the held plug, could start inside a table or a wall and be pushed
+## out of it, through the floor. Its rope is laid the frame after the spawn
+## (CompositeCable, PowerCord), so it is laid round these places.
+func _trail_under_hand(obj: Node3D, held: XRToolsPickable, grabber: Node) -> void:
+	var hand := (grabber as Node3D).global_position if grabber is Node3D else held.global_position
+	var parts: Array[XRToolsPickable] = []
+	for n in obj.find_children("*", "XRToolsPickable", true, false):
+		var part := n as XRToolsPickable
+		if part != held and not held.is_ancestor_of(part) and not part.is_ancestor_of(held):
+			parts.append(part)
+	if parts.is_empty():
+		return
+	var down := TRAIL_DROP
+	var query := PhysicsRayQueryParameters3D.create(hand, hand + Vector3.DOWN * (TRAIL_DROP + TRAIL_CLEAR), 1)
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if not hit.is_empty():
+		down = maxf(hand.y - (hit["position"] as Vector3).y - TRAIL_CLEAR, 0.0)
+	var across := global_transform.basis.x
+	across.y = 0.0
+	across = across.normalized() if across.length_squared() > 0.001 else Vector3.RIGHT
+	for i in parts.size():
+		var part := parts[i]
+		part.global_position = hand + Vector3.DOWN * down \
+			+ across * (float(i) - float(parts.size() - 1) * 0.5) * TRAIL_SPREAD
+		if part is RigidBody3D:
+			(part as RigidBody3D).linear_velocity = Vector3.ZERO
+			(part as RigidBody3D).angular_velocity = Vector3.ZERO
+	print("[Spawn] %s: %d other part(s) hung %.2f m under the hand%s" % [obj.name, parts.size(), down,
+		" (resting on %s)" % (hit["collider"] as Node).name if not hit.is_empty() else ""])
 
 
 ## The floor under the player: the XR origin's height, or the world's zero when the

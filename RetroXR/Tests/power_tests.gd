@@ -1504,7 +1504,7 @@ func _test_mod_brick() -> void:
 ## A stand-in desktop hand for the spawn menu: the pivot it looks up, and a
 ## grabber that keeps what it was handed.
 class FakeGrabber:
-	extends Node
+	extends Node3D
 	var given: Node = null
 	func grab_spawned(obj: Node) -> void:
 		given = obj
@@ -1527,11 +1527,22 @@ func _test_spawn_hand() -> void:
 	hand.add_to_group("desktop_hand")
 	_room.add_child(hand)
 	hand.add_child(hand.grabber)
+	# Where a hand is: a metre up, in front of the menu; and a floor under it all.
+	hand.grabber.position = Vector3(0.2, 1.0, -0.4)
+	var floor_body := StaticBody3D.new()
+	var floor_shape := CollisionShape3D.new()
+	var floor_box := BoxShape3D.new()
+	floor_box.size = Vector3(6, 0.02, 6)
+	floor_shape.shape = floor_box
+	floor_body.add_child(floor_shape)
+	floor_body.position.y = -0.01
+	_room.add_child(floor_body)
 	# The production controller and its real menu, as power_spawn_menu_probe builds
 	# them; "test" is a slotless room id, so it restores no slot.
 	var scene_before := str(SceneManager.current_scene_id)
 	SceneManager.current_scene_id = "test"
 	var ctl := Node3D.new()
+	ctl.position = Vector3(0, 1.2, 0)
 	ctl.name = "SpawnMenuController"
 	ctl.set_script(load("res://Scripts/UI/spawn_menu/spawn_menu_controller.gd"))
 	var menu_viewport := (load("res://addons/godot-xr-tools/objects/viewport_2d_in_3d.tscn") as PackedScene) 		.instantiate() as XRToolsViewport2DIn3D
@@ -1560,6 +1571,104 @@ func _test_spawn_hand() -> void:
 			str(given.name) if given != null else "nothing handed over")
 		obj.queue_free()
 		await _wait(2)
+	# Every lead: a power cord by its appliance end; a composite lead by its yellow
+	# plug; a console AV cable by its console plug; a symmetric lead by its A end; a
+	# lead with a body (headphones, RF switch, antenna) by the body.
+	var cables := "res://Scenes/Objects/cables/%s.tscn"
+	var leads := [
+		[cables % "power_cord", "AppliancePlug"],
+		[cables % "nema_1_15_to_c7_cord", "AppliancePlug"],
+		[cables % "bs_1363_c7_cord", "AppliancePlug"],
+		[cables % "composite_cable", "yellow"],
+		[cables % "mono_composite_cable", "yellow"],
+		["res://Scenes/Objects/system_models/nintendo_64/n64_av_cable.tscn", "PlugA0"],
+		["res://Scenes/Objects/system_models/dreamcast/dc_av_cable.tscn", "PlugA0"],
+		[cables % "ps2_av_cable", "PlugA0"],
+		[cables % "speaker_cable", "PlugA0"],
+		[cables % "trs_cable", "PlugA0"],
+		[cables % "vga_cable", "PlugA0"],
+		[cables % "gb_link_cable", "PlugA0"],
+		[cables % "ilink_cable", "PlugA0"],
+		[cables % "ethernet_cable", "PlugA0"],
+		[cables % "link_cable", "PlugA0"],
+		[cables % "psx_link_cable", "PlugA0"],
+		[cables % "saturn_link_cable", "PlugA0"],
+		[cables % "jag_link_cable", "PlugA0"],
+		[cables % "gc_gba_cable", "PlugA0"],
+		[cables % "sp_phones_adapter", "PlugA0"],
+		["res://Scenes/Objects/appliances/headphones.tscn", "Body"],
+		["res://Scenes/Objects/appliances/rf_switch.tscn", "Body"],
+		["res://Scenes/Objects/appliances/antenna.tscn", "Body"],
+	]
+	for spec: Array in leads:
+		var path := str(spec[0])
+		var obj := (load(path) as PackedScene).instantiate() as Node3D
+		hand.grabber.given = null
+		ctl.call("_place_spawned", obj, path.get_file().get_basename())
+		await _wait(3)
+		var given := hand.grabber.given as Node
+		var want := str(spec[1])
+		var ok := given != null and given is XRToolsPickable and obj.is_ancestor_of(given)
+		if ok and want == "yellow":
+			var cable := obj as CompositeCable
+			var idx := int(str(given.name).trim_prefix("PlugA"))
+			ok = str(given.name).begins_with("PlugA") and cable.cord_count() > 1 				and cable.cord_colors[idx].is_equal_approx(RcaJack.COMPOSITE_YELLOW)
+		elif ok:
+			ok = given.name == want
+		_ok(ok, "spawnhand/%s goes into the hand by its %s" % [path.get_file().get_basename(), want],
+			str(given.name) if given != null else "nothing handed over")
+		# The rest of it hangs under the hand and, a second on, has not gone through
+		# the floor (nor been left out by the menu).
+		if given != null:
+			(given as RigidBody3D).freeze = true
+			await get_tree().create_timer(1.0).timeout
+			var worst := ""
+			for n in obj.find_children("*", "XRToolsPickable", true, false):
+				var part := n as Node3D
+				if part == given or given.is_ancestor_of(part) or part.is_ancestor_of(given):
+					continue
+				var p := part.global_position
+				if p.y < -0.005 or Vector2(p.x - 0.2, p.z + 0.4).length() > 0.6:
+					worst = "%s at %s" % [part.name, p]
+			_ok(worst.is_empty(), "spawnhand/%s: the rest stays by the hand, above the floor"
+				% path.get_file().get_basename(), worst)
+		obj.queue_free()
+		await _wait(2)
+	# A table top just under the hand: the rest rests on it rather than starting
+	# inside it.
+	var table := StaticBody3D.new()
+	var table_shape := CollisionShape3D.new()
+	var table_box := BoxShape3D.new()
+	table_box.size = Vector3(1.0, 0.04, 1.0)
+	table_shape.shape = table_box
+	table.add_child(table_shape)
+	table.position = Vector3(0.2, 0.88, -0.4)
+	_room.add_child(table)
+	await _wait(2)
+	var on_table := (load(cables % "composite_cable") as PackedScene).instantiate() as CompositeCable
+	ctl.call("_place_spawned", on_table, "composite_cable")
+	await _wait(2)
+	var lowest := 9.0
+	for n in on_table.find_children("Plug*", "XRToolsPickable", false, false):
+		if n != hand.grabber.given:
+			lowest = minf(lowest, (n as Node3D).global_position.y)
+	_ok(lowest >= 0.9, "spawnhand/with a table just under the hand, the rest starts on it, not in it",
+		"lowest %.3f" % lowest)
+	on_table.queue_free()
+	table.queue_free()
+	await _wait(2)
+	# The yellow plug by its colour, not its place: a composite lead whose yellow cord
+	# comes last is still taken by it.
+	var odd := (load(cables % "composite_cable") as PackedScene).instantiate() as CompositeCable
+	odd.cord_colors = PackedColorArray([RcaJack.AUDIO_WHITE, RcaJack.AUDIO_RED,
+		RcaJack.COMPOSITE_YELLOW])
+	hand.grabber.given = null
+	ctl.call("_place_spawned", odd, "composite_cable")
+	await _wait(3)
+	_eq(str(hand.grabber.given.name) if hand.grabber.given != null else "nothing", "PlugA2",
+		"spawnhand/a lead whose yellow cord is its third goes in by that one")
+	odd.queue_free()
+	await _wait(2)
 	ctl.queue_free()
 	SceneManager.current_scene_id = scene_before
 	await _clear()

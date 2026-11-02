@@ -629,6 +629,30 @@ func cord_count() -> int:
 	return _cords
 
 
+## What the spawn menu puts in the hand that asked for this lead (its root is not a
+## pickable): a body when the lead has one (the headphones, the RF switch, the
+## antenna), else a plug on the A end -- a console AV cable's console plug -- or the B
+## end where there is no A (a captive end). On an end of several cords, the yellow
+## one: the video cord, the one a player reaches for on a composite lead.
+func spawn_hold_target() -> XRToolsPickable:
+	var body := get_node_or_null("Body") as XRToolsPickable
+	if body != null:
+		return body
+	for e: int in [End.A, End.B]:
+		var first: RcaPlug = null
+		for c in maxi(_cords, 1):
+			var plug := _plug_at(e, c)
+			if plug == null:
+				continue
+			if first == null:
+				first = plug
+			if c < cord_colors.size() and cord_colors[c].is_equal_approx(RcaJack.COMPOSITE_YELLOW):
+				return plug
+		if first != null:
+			return first
+	return null
+
+
 ## Where every end is right now, one record per plug.
 func seating() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
