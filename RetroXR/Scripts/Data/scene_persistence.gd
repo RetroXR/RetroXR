@@ -52,7 +52,8 @@ const _NUMBER_FIELDS := [
 	"page_leaf", "sensitivity", "stick_distance", "device_type", "port_index",
 	"volume", "cords",
 	"pad_ordinal", "fit_mode", "roll",
-	# A multitap's SELECT switch: 2 or 5 (RetroMultitap.MODE_2P / MODE_5P).
+	# A multitap's SELECT switch: 2 or 5 (RetroMultitap.MODE_2P / MODE_5P); a
+	# four-player adapter's 2/4 switch: 2 or 4 (FourPlayerAdapter).
 	"tap_mode",
 	# A cabinet's own say over the arcade attract option -- see RetroSystem.attract_override.
 	"attract",
@@ -68,7 +69,9 @@ const _BOOL_FIELDS := ["video_out", "ignore_gravity", "crt_enabled", "half_pages
 	# absent = off.
 	"screen_glow",
 	# A mixed shell colour forced as metal flake -- see RetroCartridge.shell_flake.
-	"shell_flake"]
+	"shell_flake",
+	# A Four Score's TURBO buttons (NesFourScore), latched down = on; absent = off.
+	"turbo_a", "turbo_b"]
 const _REFERENCE_FIELDS := [
 	"tv", "cartridge", "memcard", "tape", "disc", "media", "system",
 	"nunchuk", "motion_plus", "expansion_cover", "pak", "gb_cart",
@@ -178,6 +181,8 @@ const POSTER_SCENE           := preload("res://Scenes/Objects/media/poster.tscn"
 const RETRO_CONTROLLER_SCENE := preload("res://Scenes/Objects/controllers/retro_controller.tscn")
 const LIGHT_GUN_SCENE        := preload("res://Scenes/Objects/peripherals/light_gun.tscn")
 const RETRO_MULTITAP_SCENE   := preload("res://Scenes/Objects/controllers/retro_multitap.tscn")
+const NES_FOUR_SCORE_SCENE   := preload("res://Scenes/Objects/controllers/nes/nes_four_score.tscn")
+const FAMICOM_FOUR_PLAYERS_SCENE := preload("res://Scenes/Objects/controllers/famicom/famicom_four_players_adaptor.tscn")
 const VCR_SCENE              := preload("res://Scenes/Objects/appliances/vcr_player.tscn")
 const TAPE_SCENE             := preload("res://Scenes/Objects/media/vcr_tape.tscn")
 const DVD_SCENE              := preload("res://Scenes/Objects/appliances/dvd_player.tscn")
@@ -1710,6 +1715,7 @@ static func _restore_kind_rows() -> Array:
 		[N64Vru, &"_restore_n64_vru"],
 		[InputReceiver, &"_restore_receiver"],
 		[RetroMultitap, &"_restore_multitap"],
+		[FourPlayerAdapter, &"_restore_four_player"],
 		[RetroController, &"_restore_peripheral"],
 		[LightGun, &"_restore_peripheral"],
 		[RetroMouse, &"_restore_peripheral"],
@@ -2593,6 +2599,7 @@ static func _save_kind_rows() -> Array:
 		[RetroKeyboard, "", &"_serialize_peripheral"],
 		[Wiimote, "", &"_serialize_peripheral"],
 		[RetroMultitap, "", &"_serialize_multitap"],
+		[FourPlayerAdapter, "", &"_serialize_four_player"],
 		[Loudspeaker, "", &"_loudspeaker_entry"],
 		[SpeakerStand, "", &"_speaker_stand_entry"],
 		# Which stand, and the console mounted in it: the STAND records it, for
@@ -3014,7 +3021,8 @@ func _serialize_peripheral(node: Node, id: int, n3d: Node3D, node_to_id: Diction
 	# console files it under the port the tap fans out to, a number that is also
 	# one of the console's own sockets, so writing it here plugged the pad
 	# straight into the console on the next load.
-	if connected_sys != null and _multitap_holding(node, node_to_id) != null:
+	if connected_sys != null and (_multitap_holding(node, node_to_id) != null
+			or _adapter_holding(node, node_to_id) != null):
 		connected_sys = null
 	# The CABINET socket, which is what restore_controller_plug takes — not the
 	# peripheral's own _port_index, which is the libretro port and is pinned to 0
@@ -3103,6 +3111,71 @@ func _serialize_multitap(tap: RetroMultitap, id: int, n3d: Node3D,
 	if tap.scene_file_path != RETRO_MULTITAP_SCENE.resource_path:
 		entry["scene"] = tap.scene_file_path
 	return entry
+
+
+## The four-player adapter whose socket holds `peripheral`, or null.
+func _adapter_holding(peripheral: Node, node_to_id: Dictionary) -> FourPlayerAdapter:
+	for node: Variant in node_to_id:
+		var adapter := node as FourPlayerAdapter
+		if is_instance_valid(adapter) and adapter.socket_of(peripheral) >= 0:
+			return adapter
+	return null
+
+
+## A four-player adapter: the console socket its lead is in (the first of the Four
+## Score block's two; the accessory connector's slot for the Famicom's), its 2/4
+## switch, the Four Score's TURBO buttons, and what is in each socket.
+func _serialize_four_player(adapter: FourPlayerAdapter, id: int, n3d: Node3D,
+		node_to_id: Dictionary) -> Dictionary:
+	var connected_sys: RetroSystem = adapter.get_connected_system()
+	var port_index := adapter.get_cabinet_port()
+	var sockets: Array = []
+	for peripheral: Variant in adapter.socket_peripherals():
+		sockets.append(_ref(node_to_id, peripheral as Node))
+	var entry := _base(id, adapter.save_type(), n3d).merged({
+		"system": _ref(node_to_id, connected_sys if port_index >= 0 else null),
+		"port_index": port_index,
+		"tap_mode": adapter.mode,
+		"sockets": sockets,
+	})
+	if adapter is NesFourScore:
+		entry["turbo_a"] = (adapter as NesFourScore).turbo_a
+		entry["turbo_b"] = (adapter as NesFourScore).turbo_b
+	return entry
+
+
+## Build the adapter an entry names, its switches set before _ready builds them.
+func _load_four_player(data: Dictionary) -> Node3D:
+	var scene: PackedScene = NES_FOUR_SCORE_SCENE \
+		if str(data.get("type", "")) == "nes_four_score" else FAMICOM_FOUR_PLAYERS_SCENE
+	var adapter := scene.instantiate() as FourPlayerAdapter
+	var tap_mode := int(data.get("tap_mode", FourPlayerAdapter.MODE_4P))
+	if tap_mode == FourPlayerAdapter.MODE_2P or tap_mode == FourPlayerAdapter.MODE_4P:
+		adapter.mode = tap_mode
+	if adapter is NesFourScore:
+		(adapter as NesFourScore).turbo_a = bool(data.get("turbo_a", false))
+		(adapter as NesFourScore).turbo_b = bool(data.get("turbo_b", false))
+	return adapter
+
+
+## The pads in its sockets, then its lead, as the multitap's: both wait for cords
+## made a frame after spawning.
+func _restore_four_player(root: Node, id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
+	var adapter := obj as FourPlayerAdapter
+	var sockets: Variant = rec.get("sockets", [])
+	if sockets is Array:
+		for i in mini((sockets as Array).size(), FourPlayerAdapter.SOCKETS):
+			var held := _resolve_ref(root, spawned, (sockets as Array)[i])
+			if held != null:
+				adapter.restore_socket(i, held)
+	var lead_port := int(rec.get("port_index", -1))
+	if lead_port < 0:
+		return
+	var lead_sys := _resolve_ref(root, spawned, rec.get("system")) as RetroSystem
+	if lead_sys == null:
+		push_warning("[ScenePersistence] %s id=%d: system not found" % [adapter.save_type(), id])
+		return
+	adapter.restore_port_connection(lead_sys, lead_port)
 
 
 ## The tap the entry names, or the plain one (see _instantiate_controller).
@@ -3472,6 +3545,11 @@ const _LOAD_KINDS := {
 	# its four sockets. The pads' own entries name no port: the tap's is the end
 	# that means something.
 	"retro_multitap": &"_load_retro_multitap",
+	# The two four-player adapters: where the lead is, the 2/4 switch (and the Four
+	# Score's TURBO buttons), and the pad in each socket. As the multitap's, the
+	# pads' own entries name no port.
+	"nes_four_score": &"_load_four_player",
+	"famicom_four_players_adaptor": &"_load_four_player",
 	"retro_mouse": &"_load_retro_mouse",
 	"snes_mouse": &"_load_snes_mouse",
 	"pad_receiver": &"_load_pad_receiver",

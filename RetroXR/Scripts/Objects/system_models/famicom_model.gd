@@ -72,6 +72,19 @@ func configure_controller_ports(port_zones: Array) -> void:
 			zone.global_transform = seat.global_transform
 
 
+## The 15-pin expansion connector on the front, where the 4 Players Adaptor's
+## plug goes (Connectors.ACCESSORY_PORTS). Offered at the socket's mouth, as the
+## NES's controller ports are.
+func configure_accessory_port(zone: Node3D) -> void:
+	var seat := get_node_or_null("Front/AccessorySeat") as Node3D
+	if seat == null:
+		push_warning("[FamicomModel] no Front/AccessorySeat: the expansion connector stays on the box's face")
+		return
+	zone.global_transform = seat.global_transform
+	if "preview_offset" in zone:
+		zone.set("preview_offset", Vector3(0, 0, 0.01))
+
+
 const _PADS := "res://Scenes/Objects/controllers/famicom/"
 
 

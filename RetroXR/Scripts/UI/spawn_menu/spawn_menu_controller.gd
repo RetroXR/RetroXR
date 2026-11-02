@@ -26,6 +26,9 @@ const RETRO_MOUSE_SCENE     := preload("res://Scenes/Objects/peripherals/retro_m
 # The Super NES Mouse: its own shell and connector, and it fits only a SNES.
 const SNES_MOUSE_SCENE      := preload("res://Scenes/Objects/peripherals/snes_mouse.tscn")
 const RETRO_MULTITAP_SCENE  := preload("res://Scenes/Objects/controllers/retro_multitap.tscn")
+# The two four-player adapters, offered on the NES's and the Famicom's cards.
+const NES_FOUR_SCORE_SCENE  := preload("res://Scenes/Objects/controllers/nes/nes_four_score.tscn")
+const FAMICOM_FOUR_PLAYERS_SCENE := preload("res://Scenes/Objects/controllers/famicom/famicom_four_players_adaptor.tscn")
 # A wireless receiver for one real gamepad — plugged into a port instead of held.
 const PAD_RECEIVER_SCENE    := preload("res://Scenes/Objects/controllers/pad_receiver.tscn")
 const CONSOLE_STAND_SCENE   := preload("res://Scenes/Objects/stands/console_stand.tscn")
@@ -1380,6 +1383,10 @@ func _on_spawn_requested(raw: String) -> void:
 			obj = SNES_MOUSE_SCENE.instantiate() as Node3D
 		"retro_multitap":
 			obj = RETRO_MULTITAP_SCENE.instantiate() as Node3D
+		"nes_four_score":
+			obj = NES_FOUR_SCORE_SCENE.instantiate() as Node3D
+		"famicom_four_players_adaptor":
+			obj = FAMICOM_FOUR_PLAYERS_SCENE.instantiate() as Node3D
 		# The N64 pad. Its three paks are not here: they seat in a CONTROLLER
 		# rather than a console, carry no port to pick, and reach the room as
 		# PLAIN_SCENES rows through the ScenePersistence fallback below.

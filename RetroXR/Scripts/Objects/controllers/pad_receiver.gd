@@ -246,10 +246,14 @@ func _process(_delta: float) -> void:
 ## is running (the gate applies the agreed frame on every peer), else directly.
 ## Verbatim from RetroController — the seam is the same for every pad.
 func _send_joypad(btn: int, alx: int, aly: int, arx: int, ary: int) -> void:
-	if NetworkManager.netplay_route(_connected_system, _port_index,
-			{"btn": btn, "alx": alx, "aly": aly, "arx": arx, "ary": ary}):
+	# Through whatever the port puts between pad and core first (a Four Score's
+	# TURBO), so netplay carries the frame the core will see.
+	var pad := _connected_system.filter_port_input(_port_index,
+			{"btn": btn, "alx": alx, "aly": aly, "arx": arx, "ary": ary})
+	if NetworkManager.netplay_route(_connected_system, _port_index, pad):
 		return
-	_connected_system.get_libretro_node().SetJoypadState(_port_index, btn, alx, aly, arx, ary)
+	_connected_system.get_libretro_node().SetJoypadState(_port_index,
+		pad["btn"], pad["alx"], pad["aly"], pad["arx"], pad["ary"])
 
 
 ## Rumble from the core, on THIS receiver's pad alone. A held controller shakes

@@ -412,6 +412,11 @@ var _usb_plugs: Array:
 ## kinds can never be mistaken for each other. USB socket k is USB_SLOT_BASE + k.
 const USB_SLOT_BASE := 16
 
+## The accessory connector's number where it is saved or sent (the Famicom's
+## 15-pin expansion port, SystemPorts.build_accessory_port): past the USB sockets,
+## for the same reason they are past the controller ports.
+const ACCESSORY_SLOT := 24
+
 
 ## Real-world cross-compatibility: media of these systemids also fits.
 ## (The GBA plays original Game Boy and Game Boy Color carts — and mgba runs
@@ -789,6 +794,7 @@ func _load_system_model() -> void:
 	_model.attach_to_host(self)
 	_ports.build_zones()
 	_ports.build_usb()
+	_ports.build_accessory_port()
 	_captive_pads.spawn(_ports.zones)
 	_spawn_captive_gear()
 	_build_memcard_slots()
@@ -3906,6 +3912,41 @@ func detach_expanded_controller(port: int, plug: Node3D, announce := true) -> vo
 	_ports.unbind(port, plug, -1, announce)
 
 
+## Let an adapter decide what libretro port `port` is to the core, whatever pad
+## feeds it, and announce it now: a Four Score is "Gamepad" on ports 2 and 3 with
+## or without pads in its sockets 3 and 4. `owner` answers
+## port_device(machine, port) -> {type, names}. See SystemPorts.port_owners.
+func own_port_device(port: int, owner: Node) -> void:
+	_ports.own_port_device(port, owner)
+
+
+## Give the port back (only if `owner` holds it) and announce what is left there.
+func disown_port_device(port: int, owner: Node) -> void:
+	_ports.disown_port_device(port, owner)
+
+
+## Every cabinet socket `plug` is in, in order: two for the Four Score's block,
+## which fills both of an NES's ports (SystemPorts.socket_span_of).
+func cabinet_ports_of_plug(plug: Node) -> Array[int]:
+	return _ports.cabinet_ports_of_plug(plug)
+
+
+## Put `filter` between port `port`'s pad and the core (its
+## filter_port_input(port, pad) -> pad): the Four Score's TURBO switches.
+func set_input_filter(port: int, filter: Node) -> void:
+	_ports.set_input_filter(port, filter)
+
+
+func clear_input_filter(port: int, filter: Node) -> void:
+	_ports.clear_input_filter(port, filter)
+
+
+## A pad's frame for port `port` after whatever filter is on it. Asked by every
+## corded pad before its frame goes to the core or to netplay.
+func filter_port_input(port: int, pad: Dictionary) -> Dictionary:
+	return _ports.filter_port_input(port, pad)
+
+
 ## Release a controller port from replicated state -- see SystemPorts.net_release.
 func net_release_controller_port(port_index: int) -> void:
 	_ports.net_release(port_index)
@@ -4396,6 +4437,16 @@ func net_release_memory_card(slot: int) -> void:
 ## "controller_plug" group, and several things in it are not that class — a VMU,
 ## an N64 pak, the GameCube-to-GBA lead's console end.
 func restore_controller_plug(port_index: int, plug: Node3D) -> void:
+	if port_index == ACCESSORY_SLOT:
+		var zone := _ports.accessory_zone
+		if zone != null and not is_instance_valid(zone.picked_up_object):
+			_restoring_media = true
+			zone.pick_up_object(plug)
+			_restoring_media = false
+		else:
+			print("[RetroSystem] %s: saved plug for the accessory connector not restored (%s)" % [systemid,
+				"this console has none" if zone == null else "connector taken"])
+		return
 	if port_index >= USB_SLOT_BASE:
 		var k := port_index - USB_SLOT_BASE
 		var usb_zones := _ports.usb_zones
@@ -4411,6 +4462,18 @@ func restore_controller_plug(port_index: int, plug: Node3D) -> void:
 	if port_index < 0 or port_index >= port_zones.size():
 		print("[RetroSystem] %s: saved plug for port %d not restored: no such socket"
 			% [systemid, port_index])
+		return
+	# A socket this console does not have (an NES's third: build_zones hides it)
+	# takes nothing, and nor does one the Four Score's block is filling beside its
+	# first. A shared room replays every port bind as a restore, including a pad's
+	# in an adapter's socket (an EXPANDED port, numbered past the console's own)
+	# and the block's second socket; seated here, each was pulled into a hidden
+	# zone. NOT `enabled`: a hardwired pad's socket is locked (disabled) before its
+	# cord exists, and its pending seat lands here afterwards.
+	if not (port_zones[port_index] as Node3D).visible or _ports.is_spanned(port_index):
+		print("[RetroSystem] %s: plug for port %d not restored: %s" % [systemid, port_index,
+			"the console has no such socket" if not (port_zones[port_index] as Node3D).visible
+				else "a two-plug block is filling it"])
 		return
 	# Never evict. XRToolsSnapZone.pick_up_object drops whatever a zone is already
 	# holding, so two peripherals naming the same slot would restore as one plugged

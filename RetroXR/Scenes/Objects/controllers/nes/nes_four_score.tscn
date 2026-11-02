@@ -1,0 +1,39 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/controllers/nes_four_score.gd" id="1_fourscore"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+
+; Replaced in code by the wedge's own convex hull (NesFourScore._build_body);
+; this box is only what stands before _ready.
+[sub_resource type="BoxShape3D" id="BoxShape3D_fs"]
+size = Vector3(0.205, 0.045, 0.105)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_fs"]
+bounce = 0.0
+friction = 0.8
+
+; The body, sockets, switches and printing are built in code: a primitive at
+; estimated sizes, see nes_four_score.gd. Only what the base class reaches for by
+; path is authored: the sockets' parent and where the cord leaves (the rear edge,
+; right of centre, its -Z out of the body).
+[node name="NesFourScore" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.25
+physics_material_override = SubResource("PhysMat_fs")
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("1_fourscore")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0225, 0)
+shape = SubResource("BoxShape3D_fs")
+
+[node name="Ports" type="Node3D" parent="."]
+
+[node name="CableAttachPoint" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.03, 0.02, -0.0525)
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")

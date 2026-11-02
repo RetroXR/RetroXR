@@ -161,6 +161,9 @@ const _PERIPHERALS: Dictionary = {
 		# How this console actually reached a set in 1985, and the reason its rear
 		# panel wears an RF SWITCH socket and a CH3/CH4 slide beside it.
 		{"kind": "peripheral", "label": "RF Switch (RXR-003)", "spawn": "rf_switch"},
+		# Four players: its one lead ends in a block of two plugs that fills both
+		# ports (NesFourScore).
+		{"kind": "peripheral", "label": "Four Score (NES-034)", "spawn": "nes_four_score"},
 	],
 	# No pads: both are moulded onto cords that come out of the back of the
 	# machine and arrive with it, so there is no such thing as a spare. What IS
@@ -168,6 +171,12 @@ const _PERIPHERALS: Dictionary = {
 	# the RF socket beside the channel switch.
 	"famicom": [
 		{"kind": "peripheral", "label": "RF Switch (RXR-003)", "spawn": "rf_switch"},
+		# Players 3 and 4, through the 15-pin expansion port on the front
+		# (FamicomFourPlayersAdaptor). Its sockets take expansion-port pads; the
+		# game ships none, so the Controllers tab's generic pad and a real pad's
+		# receiver are what go in them.
+		{"kind": "peripheral", "label": "4 Players Adaptor (HJ-17)",
+			"spawn": "famicom_four_players_adaptor"},
 	],
 	# Same reasoning as the NES: the console moulds its own DE-9 sockets and the
 	# stick wears the matching plug, so the two only look right together. Named

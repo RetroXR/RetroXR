@@ -228,6 +228,18 @@ const GAME_LEADS := {
 ## front take a GunCon 2.
 const USB_A := "usb_a"
 
+## The Famicom's 15-pin expansion connector (a DA-15), on its front: the plug of
+## everything that went into that port, and the sockets of the 4 Players Adaptor,
+## which take the same expansion-port pads.
+const FAMICOM_EXPANSION := "famicom_expansion"
+
+## The accessory connector each console has, by systemid, and the libretro port its
+## device is announced on: fceumm and Mesen both read the Famicom's expansion port
+## as their fifth (port 4), listing the four-player adapter there.
+const ACCESSORY_PORTS := {
+	"famicom": {"connector": FAMICOM_EXPANSION, "port": 4},
+}
+
 ## The USB-A sockets each console has, by systemid. A plug in USB socket k is the
 ## device on the core's port k, which the core plugs into its own USB port k and
 ## keeps the pad on that port besides (SystemPorts.announce_port).

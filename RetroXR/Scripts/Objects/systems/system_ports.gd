@@ -56,6 +56,48 @@ var usb_controllers: Array = []
 ## (ensure_devices_bound). Cleared at every core start.
 var devices_settled := false
 
+## Ports whose DEVICE an adapter decides, whatever pad feeds them: libretro port ->
+## the adapter (own_port_device). A Four Score at 4P is "Gamepad" on ports 2 and
+## 3 whether or not its sockets 3 and 4 hold a pad: fceumm reads players 3 and 4
+## only off a port announced as its Gamepad (the plain joypad id is its "Auto",
+## which reads them for the games in its own list and no others), and the game
+## finds the adapter there with the sockets empty, as on the hardware. At 2P it is
+## nothing. The owner answers port_device(machine, lib_port) -> {type, names}, and
+## the pads in its sockets bind with announce false: they feed the port, the
+## owner says what it is.
+var port_owners: Dictionary = {}
+
+## What changes a port's input on its way to the core: libretro port -> the node
+## whose filter_port_input(port, pad) -> pad it is (set_input_filter). A Four
+## Score's TURBO switches, which mask A and B on every pad it carries.
+var input_filters: Dictionary = {}
+
+## The sockets a plug seated beside another one is filling as well (socket_span):
+## cabinet index -> whether that zone was enabled before, so letting go puts back
+## what build_zones said. The Four Score's lead ends in ONE moulded block carrying
+## two NES plugs at the console's pitch, so seating it fills both ports.
+var _spanned: Dictionary = {}
+
+## The console's accessory connector (Connectors.ACCESSORY_PORTS: the Famicom's
+## 15-pin expansion port on its front), what is seated in it, and the libretro
+## port its device is announced on. Built in code by build_accessory_port().
+var accessory_zone: XRToolsSnapZone = null
+var accessory_plug: Node3D = null
+var accessory_lib_port := -1
+
+## Ports a core would otherwise fill on a GUESS, told they are empty at every core
+## start unless something in the room is on them. A port the room never announces
+## stays at the core's own default, which for the NES cores is "Auto": fceumm then
+## plugs in a Four Score by itself for every game in its fourscore list, and a
+## Famicom 4-player adapter on port 4 for its famicom_4p list (Mesen does the same
+## from its database). Measured with Bomberman II (USA): with no Four Score in the
+## room its BATTLE MODE showed three players, where the real console without one --
+## and the Four Score switched to 2 -- will not open BATTLE MODE at all.
+const UNWIRED_PORTS := {
+	"nes": [2, 3],
+	"famicom": [2, 3, 4],
+}
+
 ## Words a core uses for a light gun in its own device list, for the cores that
 ## give one a base type other than RETRO_DEVICE_LIGHTGUN.
 const _LIGHTGUN_WORDS: Array = [
@@ -82,8 +124,9 @@ func wire_zones(port_zones: Array) -> void:
 		# stayed set and the slot stayed occupied. `plugs` is what remembers.
 		zone.has_dropped.connect(func() -> void: on_port_released(idx))
 		# A SNES pad does not fit a PlayStation. Same gate the cartridge slot
-		# uses for media, applied to the connector.
-		zone.snap_filter = accepts_plug
+		# uses for media, applied to the connector -- and to the sockets beside
+		# this one for a plug that fills more than one (accepts_plug_at).
+		zone.snap_filter = accepts_plug_at.bind(idx)
 
 
 ## Show the controller ports this console really had.
@@ -105,6 +148,11 @@ func build_zones() -> void:
 	for i in range(zones.size()):
 		var active := i < port_count
 		zones[i].visible = active
+		# A socket a two-plug block is filling stays shut until the block leaves,
+		# and then takes what this says now.
+		if _spanned.has(i):
+			_spanned[i] = active
+			continue
 		zones[i].enabled = active
 
 
@@ -145,6 +193,36 @@ func build_usb() -> void:
 	model.configure_usb_ports(usb_zones)
 
 
+## The accessory connector, for a console that has one (Connectors.ACCESSORY_PORTS):
+## the Famicom's 15-pin expansion port, where the 4 Players Adaptor (and in time a
+## Zapper, an Arkanoid paddle, a keyboard) plugs in. On the box's front face until
+## the model puts it on its own shell (configure_accessory_port). What is seated
+## is announced on the connector's libretro port (fceumm and Mesen read the
+## Famicom expansion port as their fifth) by its own device type and names, as a
+## USB device is.
+func build_accessory_port() -> void:
+	var model := _host.get_model()
+	if accessory_zone != null or model == null or model.is_handheld():
+		return
+	var spec: Dictionary = Connectors.ACCESSORY_PORTS.get(_host.systemid, {})
+	if spec.is_empty():
+		return
+	accessory_lib_port = int(spec.get("port", -1))
+	var zone := RetroSystem.SNAP_ZONE_SCENE.instantiate() as XRToolsSnapZone
+	zone.name = "AccessoryPort"
+	zone.snap_require = "controller_plug"
+	zone.snap_filter = accepts_accessory_plug
+	zone.grab_distance = 0.03
+	_host.add_child(zone)
+	zone.position = Vector3(0.0, -0.025, 0.125)
+	zone.has_picked_up.connect(on_accessory_snapped)
+	zone.has_dropped.connect(on_accessory_released)
+	accessory_zone = zone
+	print("[RetroSystem] %s: accessory connector '%s' built, its device on libretro port %d"
+		% [_host.systemid, spec.get("connector", ""), accessory_lib_port])
+	model.configure_accessory_port(zone)
+
+
 # --- Gates ---
 
 ## Port gate: is this plug what the ports take? One that says nothing (the game's
@@ -152,6 +230,41 @@ func build_usb() -> void:
 func accepts_plug(obj: Node3D) -> bool:
 	var plug := Connectors.of(obj)
 	return plug.is_empty() or plug == _host.controller_connector()
+
+
+## Port gate for socket `i`: the plug fits (accepts_plug), and a plug that fills
+## more than one socket finds every socket beside this one there, open and empty.
+## The Four Score's block has its plugs at the console's own pitch, port 1's on
+## the left, so it goes in at port 1 and nowhere else on an NES.
+func accepts_plug_at(obj: Node3D, i: int) -> bool:
+	if not accepts_plug(obj):
+		return false
+	for k in range(1, socket_span_of(obj)):
+		if not _open_for_span(i + k):
+			return false
+	return true
+
+
+## Whether socket `j` is there, open and empty for a block's second plug.
+func _open_for_span(j: int) -> bool:
+	if j >= zones.size():
+		return false
+	var zone := zones[j] as XRToolsSnapZone
+	return zone.enabled and not is_instance_valid(zone.picked_up_object) \
+		and not (j < plugs.size() and is_instance_valid(plugs[j]))
+
+
+## How many side-by-side sockets `plug` fills: its socket_span, else one.
+static func socket_span_of(plug: Object) -> int:
+	if plug != null and "socket_span" in plug:
+		return maxi(1, int(plug.get("socket_span")))
+	return 1
+
+
+## Accessory gate: the plug is this console's accessory connector.
+func accepts_accessory_plug(obj: Node3D) -> bool:
+	var spec: Dictionary = Connectors.ACCESSORY_PORTS.get(_host.systemid, {})
+	return not spec.is_empty() and Connectors.of(obj) == str(spec.get("connector", ""))
 
 
 ## USB gate: a USB-A plug, and nothing else.
@@ -195,6 +308,24 @@ func reannounce_all() -> void:
 	for k in usb_plugs.size():
 		if usb_plug_at(k) != null:
 			announce_port(k)
+	if accessory_plug_at(accessory_lib_port) != null:
+		announce_port(accessory_lib_port)
+	_announce_unwired()
+
+
+## Tell the core the ports UNWIRED_PORTS lists are empty, those that are: no pad,
+## no adapter deciding them, nothing in a USB socket or the accessory connector.
+func _announce_unwired() -> void:
+	var said: Array = []
+	for p: int in UNWIRED_PORTS.get(_host.systemid, []):
+		if port_owner(p) != null or usb_plug_at(p) != null or accessory_plug_at(p) != null:
+			continue
+		if p < controllers.size() and is_instance_valid(controllers[p]):
+			continue
+		set_device(p, RetroSystem.RETRO_DEVICE_NONE)
+		said.append(p)
+	if not said.is_empty():
+		print("[RetroSystem] %s: ports %s have nothing on them, said so (no core guess)" % [_host.systemid, str(said)])
 
 
 ## Tell the core what is on cabinet port `i` again, now: a multitap's SELECT
@@ -204,8 +335,52 @@ func reannounce_port(i: int) -> void:
 		announce_cabinet_port(i)
 
 
+## Let `owner` decide what libretro port `lib_port` is to the core (see
+## port_owners), and tell the core now.
+func own_port_device(lib_port: int, owner: Node) -> void:
+	if lib_port < 0 or lib_port >= controllers.size() or not is_instance_valid(owner):
+		print("[RetroSystem] port %d device claim refused: %s" % [lib_port,
+			"no owner" if not is_instance_valid(owner) else "no such port"])
+		return
+	var held := port_owner(lib_port)
+	if held != null and held != owner:
+		print("[RetroSystem] port %d: %s takes its device over from %s" % [lib_port, owner.name, held.name])
+	port_owners[lib_port] = owner
+	announce_port(lib_port)
+
+
+## Give port `lib_port`'s device back, if `owner` is the one deciding it, and tell
+## the core what the port is without it: the pad there as itself, else nothing.
+func disown_port_device(lib_port: int, owner: Node) -> void:
+	if not port_owners.has(lib_port) or port_owners[lib_port] != owner:
+		return
+	port_owners.erase(lib_port)
+	print("[RetroSystem] port %d's device released by %s" % [lib_port,
+		owner.name if is_instance_valid(owner) else "a freed adapter"])
+	announce_port(lib_port)
+
+
+## The adapter deciding port `lib_port`'s device, or null. One freed without
+## letting go is forgotten here.
+func port_owner(lib_port: int) -> Node:
+	if not port_owners.has(lib_port):
+		return null
+	var held: Variant = port_owners[lib_port]
+	if not is_instance_valid(held):
+		port_owners.erase(lib_port)
+		print("[RetroSystem] port %d: its adapter is gone, the port is its own again" % lib_port)
+		return null
+	return held as Node
+
+
 ## Tell the core what the peripheral in cabinet slot `i` is, if one is there.
 func announce_cabinet_port(i: int) -> void:
+	var owner := port_owner(i)
+	if owner != null and owner.has_method("port_device"):
+		var dev: Dictionary = owner.call("port_device", _host, i)
+		var names: PackedStringArray = dev.get("names", PackedStringArray())
+		set_device(i, core_device_id(int(dev.get("type", RetroSystem.RETRO_DEVICE_NONE)), i, names))
+		return
 	var ctrl: Node = controllers[i]
 	# A multitap at 5P is the port's device, whatever pad is in its first socket
 	# (that pad is what `controllers` holds, for rumble and netplay): it is what
@@ -680,7 +855,21 @@ func cabinet_port_of_plug(plug: Node) -> int:
 	for i in plugs.size():
 		if plugs[i] == plug:
 			return i
+	if accessory_plug != null and accessory_plug == plug:
+		return RetroSystem.ACCESSORY_SLOT
 	return -1
+
+
+## Every cabinet socket `plug` is in, in socket order: one for an ordinary plug,
+## two for the Four Score's block (socket_span).
+func cabinet_ports_of_plug(plug: Node) -> Array[int]:
+	var out: Array[int] = []
+	if plug == null:
+		return out
+	for i in plugs.size():
+		if plugs[i] == plug:
+			out.append(i)
+	return out
 
 
 ## Which cabinet socket holds this peripheral, or -1 if the system is not holding
@@ -710,6 +899,45 @@ func on_port_snapped(port_index: int, controller: Node3D) -> void:
 	# computer systems the mouse is forced to port 0 (where those cores poll it),
 	# so a mouse + keyboard can share the cabinet. See libretro_port_for().
 	bind(libretro_port_for(device_type, port_index), controller, port_index)
+	_take_spanned(port_index, controller, device_type)
+
+
+## A plug that fills more than one socket (socket_span) takes the ones beside the
+## socket it seated in as well: each is shut to anything else and bound to the same
+## plug, so the core hears a device on every port the block fills and the plug's
+## owner is told of each (on_plugged_in, once per port). A socket that cannot take
+## it -- a restore that put the block where the console has no neighbour -- is
+## left out and said so.
+func _take_spanned(port_index: int, plug: Node3D, device_type: int) -> void:
+	for k in range(1, socket_span_of(plug)):
+		var j := port_index + k
+		if not _open_for_span(j):
+			print("[RetroSystem] port %d: %s fills %d sockets, and socket %d cannot take its plug %d"
+				% [port_index, plug.name, socket_span_of(plug), j, k + 1])
+			continue
+		_spanned[j] = (zones[j] as XRToolsSnapZone).enabled
+		(zones[j] as XRToolsSnapZone).enabled = false
+		print("[RetroSystem] port %d: %s's plug %d fills socket %d too" % [port_index, plug.name, k + 1, j])
+		bind(libretro_port_for(device_type, j), plug, j)
+
+
+## Whether cabinet socket `i` is filled by a block seated in the socket beside it.
+func is_spanned(i: int) -> bool:
+	return _spanned.has(i)
+
+
+## Let go of every socket `plug` was filling beside `port_index`, and open them.
+func _free_spanned(port_index: int, plug: Node3D, device_type: int) -> void:
+	for j in range(port_index + 1, plugs.size()):
+		if plugs[j] != plug:
+			continue
+		plugs[j] = null
+		if _spanned.has(j):
+			if j < zones.size():
+				(zones[j] as XRToolsSnapZone).enabled = bool(_spanned[j])
+			_spanned.erase(j)
+		print("[RetroSystem] port %d: socket %d freed with it" % [port_index, j])
+		unbind(libretro_port_for(device_type, j), plug, j)
 
 
 func on_port_released(port_index: int) -> void:
@@ -719,6 +947,7 @@ func on_port_released(port_index: int) -> void:
 		print("[RetroSystem] port %d emptied with no plug recorded" % port_index)
 		return
 	var device_type: int = plug.get("device_type") if "device_type" in plug else 1
+	_free_spanned(port_index, plug, device_type)
 	# Clear the SAME libretro port the snap set (a computer mouse claimed port 0,
 	# not its cabinet slot; a computer keyboard claimed none).
 	unbind(libretro_port_for(device_type, port_index), plug, port_index)
@@ -757,8 +986,12 @@ func bind(lib_port: int, plug: Node3D, cabinet_index: int, announce_device := tr
 		[cabinet_index, device_type, lib_port, announce])
 	# A device in the USB socket of this number is what the core is told about:
 	# it keeps the pad on the port besides (see announce_port).
+	# A port an adapter decides is the adapter's to announce (port_owners).
 	if announce_device and claims_port_device(device_type) and usb_plug_at(lib_port) == null:
-		set_device(lib_port, announce)
+		if port_owner(lib_port) != null:
+			announce_cabinet_port(lib_port)
+		else:
+			set_device(lib_port, announce)
 	# The bound node is a ControllerPlug (cable end). Unwrap to the actual
 	# RetroController so rumble can be routed to its set_rumble() method.
 	var ctrl := controller_of(plug)
@@ -792,7 +1025,7 @@ func unbind(lib_port: int, plug: Node3D, cabinet_index: int, announce_device := 
 	if slot < controllers.size():
 		controllers[slot] = null
 	if announce_device and claims_port_device(device_type):
-		if usb_plug_at(lib_port) != null:
+		if usb_plug_at(lib_port) != null or port_owner(lib_port) != null:
 			announce_port(lib_port)
 		else:
 			set_device(lib_port, RetroSystem.RETRO_DEVICE_NONE)
@@ -878,6 +1111,76 @@ func on_usb_released(k: int) -> void:
 		{"sys": _host, "port": RetroSystem.USB_SLOT_BASE + k})
 
 
+## A plug seated in the accessory connector: its device is announced on the
+## connector's libretro port, and it is told it is there.
+func on_accessory_snapped(plug: Node3D) -> void:
+	if not is_instance_valid(plug):
+		print("[RetroSystem] accessory connector refused a seat: no plug")
+		return
+	var model := _host.get_model()
+	if model != null and accessory_zone != null:
+		model.play_port_plug_insert(plug, accessory_zone)
+	_host.add_collision_exception_with(plug)
+	accessory_plug = plug
+	print("[RetroSystem] accessory connector: %s seated, its device on libretro port %d"
+		% [plug.name, accessory_lib_port])
+	announce_port(accessory_lib_port)
+	_tell_plugged_in(plug, accessory_lib_port)
+	NetworkManager.report_event(NetEvents.Event.EV_PORT_PLUG,
+		{"sys": _host, "ctrl": controller_of(plug), "port": RetroSystem.ACCESSORY_SLOT})
+
+
+func on_accessory_released() -> void:
+	var plug := accessory_plug
+	accessory_plug = null
+	print("[RetroSystem] accessory connector emptied")
+	if accessory_lib_port >= 0:
+		announce_port(accessory_lib_port)
+	if not is_instance_valid(plug):
+		return
+	_host.remove_collision_exception_with(plug)
+	_tell_unplugged(plug)
+	NetworkManager.report_event(NetEvents.Event.EV_PORT_UNPLUG,
+		{"sys": _host, "port": RetroSystem.ACCESSORY_SLOT})
+
+
+## The plug in the accessory connector when its device is on `lib_port`, or null.
+func accessory_plug_at(lib_port: int) -> Node3D:
+	if lib_port < 0 or lib_port != accessory_lib_port or not is_instance_valid(accessory_plug):
+		return null
+	return accessory_plug
+
+
+## Put `filter` between port `lib_port`'s pad and the core: filter_port_input(port,
+## pad) -> pad is asked of it for every frame a pad sends there. One per port; a
+## second takes over from the first, and says so.
+func set_input_filter(lib_port: int, filter: Node) -> void:
+	if lib_port < 0 or not is_instance_valid(filter):
+		return
+	var held: Variant = input_filters.get(lib_port)
+	if is_instance_valid(held) and held != filter:
+		print("[RetroSystem] port %d: %s takes over the input filter from %s"
+			% [lib_port, filter.name, (held as Node).name])
+	input_filters[lib_port] = filter
+
+
+## Take `filter` off port `lib_port`, if it is the one there.
+func clear_input_filter(lib_port: int, filter: Node) -> void:
+	if input_filters.has(lib_port) and input_filters[lib_port] == filter:
+		input_filters.erase(lib_port)
+
+
+## A pad's frame on its way to port `lib_port`, after the filter there.
+func filter_port_input(lib_port: int, pad: Dictionary) -> Dictionary:
+	if not input_filters.has(lib_port):
+		return pad
+	var filter: Variant = input_filters[lib_port]
+	if not is_instance_valid(filter):
+		input_filters.erase(lib_port)
+		return pad
+	return (filter as Node).call("filter_port_input", lib_port, pad)
+
+
 ## The plug in the USB socket of this number, or null.
 func usb_plug_at(lib_port: int) -> Node3D:
 	if lib_port < 0 or lib_port >= usb_plugs.size() or not is_instance_valid(usb_plugs[lib_port]):
@@ -889,11 +1192,14 @@ func usb_plug_at(lib_port: int) -> Node3D:
 ## that number if there is one, else the pad in the controller port, else nothing.
 func announce_port(lib_port: int) -> void:
 	var usb := usb_plug_at(lib_port)
+	if usb == null:
+		usb = accessory_plug_at(lib_port)
 	if usb != null:
 		var dev: int = usb.get("device_type") if "device_type" in usb else 1
 		set_device(lib_port, core_device_id(dev, lib_port, device_names_of(usb)))
 		return
-	if lib_port < controllers.size() and is_instance_valid(controllers[lib_port]):
+	if lib_port < controllers.size() and (port_owner(lib_port) != null
+			or is_instance_valid(controllers[lib_port])):
 		announce_cabinet_port(lib_port)
 		return
 	set_device(lib_port, RetroSystem.RETRO_DEVICE_NONE)

@@ -1768,6 +1768,8 @@ func _test_storage() -> void:
 		"mouse": "res://Scenes/Objects/peripherals/retro_mouse.tscn",
 		"keyboard": "res://Scenes/Objects/peripherals/retro_keyboard.tscn",
 		"multitap": "res://Scenes/Objects/controllers/retro_multitap.tscn",
+		"Four Score": "res://Scenes/Objects/controllers/nes/nes_four_score.tscn",
+		"4 Players Adaptor": "res://Scenes/Objects/controllers/famicom/famicom_four_players_adaptor.tscn",
 		"Nunchuk": "res://Scenes/Objects/controllers/wii/nunchuk.tscn",
 		"sensor bar": "res://Scenes/Objects/system_models/wii/sensor_bar.tscn",
 	}

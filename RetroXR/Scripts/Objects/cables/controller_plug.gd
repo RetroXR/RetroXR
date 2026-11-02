@@ -27,6 +27,10 @@ var systemid: String = ""
 ## What this plug is, copied off its controller (Connectors.of): its console's
 ## controller port, unless the controller says otherwise; "" fits any port.
 var connector: String = ""
+## How many side-by-side controller sockets this plug fills: 1 for every lead but
+## the Four Score's, which ends in one moulded block carrying two NES plugs at the
+## console's pitch (SystemPorts.accepts_plug_at / _take_spanned).
+var socket_span: int = 1
 
 ## Local point the cable leaves this plug at, fed to VerletRope.end_anchor_offset.
 ## The generic plug reads its own CordExit marker (the end of the strain-relief

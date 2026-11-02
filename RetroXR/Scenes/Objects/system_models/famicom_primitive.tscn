@@ -119,13 +119,21 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, -0.01)
 
 [node name="Front" type="Node3D" parent="."]
 
-; The 15-pin expansion connector, centred on the front face. Geometry only: no
-; ExpansionCatalog unit names famicom as its host, so nothing can be seated in
-; it -- the Disk System's row still says nes, and host is single-valued.
+; The 15-pin expansion connector, centred on the front face. No ExpansionCatalog
+; unit names famicom as its host (the Disk System's row still says nes, and host
+; is single-valued); what seats in it is a LEAD: the console's accessory
+; connector (SystemPorts.build_accessory_port), placed on AccessorySeat below.
 [node name="ExpansionRecess" type="MeshInstance3D" parent="Front"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0.0755)
 mesh = SubResource("Mesh_expansion")
 surface_material_override/0 = SubResource("Mat_dark")
+
+; Where a 15-pin plug seats in that connector: its +Z out of the front face,
+; rolled half round about Z as the NES's front controller ports are, so a plug
+; (whose grab point is turned half round about X) goes in connector-first and
+; upright. R_z(180) is its own transpose, so rows and columns read alike.
+[node name="AccessorySeat" type="Marker3D" parent="Front"]
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, 0.015, 0.0765)
 
 ; The machine's own printing, on the front wall of the deck between the wells.
 ; The wordmark beside it on the hardware is deliberately not drawn -- see the

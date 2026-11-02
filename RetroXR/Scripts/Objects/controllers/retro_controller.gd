@@ -927,6 +927,9 @@ func _send_joypad(btn: int, alx: int, aly: int, arx: int, ary: int) -> void:
 ## pad has no plug, and overrides this (and the two below) to send the frame to
 ## every receiver that hears it instead.
 func _deliver_joypad(pad: Dictionary) -> void:
+	# Through whatever the port puts between pad and core first (a Four Score's
+	# TURBO), so netplay carries the frame the core will see.
+	pad = _connected_system.filter_port_input(_port_index, pad)
 	if NetworkManager.netplay_route(_connected_system, _port_index, pad):
 		return
 	_connected_system.get_libretro_node().SetJoypadState(_port_index,

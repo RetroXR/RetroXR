@@ -1,0 +1,39 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/controllers/famicom_four_players_adaptor.gd" id="1_hori"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+
+; Replaced in code by the half-disc's own convex hull
+; (FamicomFourPlayersAdaptor._build_body); this box only stands before _ready.
+[sub_resource type="BoxShape3D" id="BoxShape3D_hori"]
+size = Vector3(0.17, 0.03, 0.085)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_hori"]
+bounce = 0.0
+friction = 0.8
+
+; The body, sockets, switch and printing are built in code: a primitive at
+; estimated sizes, see famicom_four_players_adaptor.gd. Authored: the sockets'
+; parent, and where the cord leaves (the middle of the straight back edge, its -Z
+; out of the body).
+[node name="FamicomFourPlayersAdaptor" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.2
+physics_material_override = SubResource("PhysMat_hori")
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("1_hori")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0.0075)
+shape = SubResource("BoxShape3D_hori")
+
+[node name="Ports" type="Node3D" parent="."]
+
+[node name="CableAttachPoint" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.014, -0.035)
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
