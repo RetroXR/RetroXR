@@ -125,6 +125,8 @@ func _ready() -> void:
 	_build_accessory_mount()
 	_build_ethernet_port()
 	_build_link_relay()
+	# A unit with a supply of its own (the 32X's adapter jack).
+	ExpansionPower.build(self)
 	_update_label()
 	_build_panel()
 

@@ -110,6 +110,10 @@ const _ROWS := {
 		"bay": {"size": "AAA", "count": 1, "along": "x", "at": [0.0, 0.1]}},
 	"supervision":              {"cells": "4 x AA",
 		"bay": {"size": "AA", "count": 4, "along": "x", "at": [0.0, 0.22]}},
+	# ── expansions with a supply of their own (ExpansionPower), by expansion id ───
+	# The 32X's ADAPTOR jack: the MK-2103's EIAJ-03, a second adapter beside the
+	# Genesis's (RetroXR-models sega/32x/console build_32x.py, its DCInPort).
+	"sega_32x":                 {"inlet": "dc", "takes": "EIAJ-03", "brick": "sega_mk2103_adapter"},
 	# Nothing on the console: the VUE-007 pack (6 x AA) or the VUE-011 tap clips onto
 	# the controller, and the supply comes up its cord.
 	"virtualboy":               {"cells": "6 x AA, in the controller's pack", "through": "controller"},

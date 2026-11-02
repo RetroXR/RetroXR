@@ -158,7 +158,7 @@ func refresh_label(text: String) -> void:
 ## why on the machine's notice card when it may not.
 func allows_power_on() -> bool:
 	if input == null or input.is_live():
-		return true
+		return _expansions_allow()
 	var why := input.why_not()
 	print("[Power] %s: will not switch on -- %s" % [input.label, why])
 	var toast := _host._machine_toast()
@@ -166,6 +166,42 @@ func allows_power_on() -> bool:
 		toast.show_notice(_host._display_name(), "No power", _remedy(why),
 			AchievementToast.ACCENT_NOTICE)
 	return false
+
+
+## An expansion on the machine that takes its own supply (the 32X, ExpansionPower)
+## must have it too: a Genesis with an unpowered 32X on it shows no picture.
+func _expansions_allow() -> bool:
+	var unit := ExpansionPower.dead_unit(_host)
+	if unit == null:
+		return true
+	var unit_input := PowerInput.of(unit)
+	var why := unit_input.why_not()
+	var named := ExpansionCatalog.label_of(unit.expansion_id)
+	print("[Power] %s: will not switch on -- its %s has no power: %s" % [input.label if input != null
+		else _host.name, named, why])
+	var toast := _host._machine_toast()
+	if toast != null:
+		var remedy := "%s: %s" % [named, why]
+		if why.begins_with("Not plugged in"):
+			remedy += ". The %s takes its own AC adapter, on its card in the spawn menu." % named
+		toast.show_notice(_host._display_name(), "No power", remedy, AchievementToast.ACCENT_NOTICE)
+	return false
+
+
+## A unit on the machine (ExpansionPower) lost or got its own supply. Lost while the
+## machine runs: it goes off, as pulling the 32X's adapter does. Back with the
+## machine's switch left ON: on again, as the machine's own supply coming back does.
+func on_expansion_power(unit: RetroExpansion, live: bool) -> void:
+	if not is_instance_valid(_host) or NetworkManager.is_client():
+		return
+	var running := _host.is_powered_on or _host.attracting
+	if not live and running:
+		_switch_off("its %s lost its supply (%s)" % [ExpansionCatalog.label_of(unit.expansion_id),
+			PowerInput.of(unit).why_not()])
+	elif live and not running and _slide_on() and (input == null or input.is_live()):
+		print("[Power] %s: its %s has power again with the switch ON -- switching on"
+			% [input.label if input != null else _host.name, ExpansionCatalog.label_of(unit.expansion_id)])
+		_host.toggle_power()
 
 
 ## What the card says: the supply, and what to do about it.
@@ -307,21 +343,26 @@ func _on_power_changed(live: bool) -> void:
 		return
 	var running := _host.is_powered_on or _host.attracting
 	if not live and running:
-		var latched := _slide_on()
-		print("[Power] %s lost its supply while on -- switching off (%s)" % [input.label, input.why_not()])
-		if NetworkManager.netplay_running() and NetworkManager.netplay_covers(_host):
-			NetworkManager.netplay_stop("unplugged")
-		else:
-			_host.power_off()
-			if NetworkManager.is_active() and NetworkManager.is_host():
-				NetworkManager.report_event(NetEvents.Event.EV_SYS_POWER_STATE,
-					{"sys": _host, "on": false})
-		# The slide stays where the hand left it: the machine comes back with the supply.
-		if latched:
-			_set_slide(true)
-	elif live and not running and _slide_on():
+		_switch_off("lost its supply (%s)" % input.why_not())
+	elif live and not running and _slide_on() and ExpansionPower.dead_unit(_host) == null:
 		print("[Power] %s: supply arrived with its power switch ON -- switching on" % input.label)
 		_host.toggle_power()
+
+
+## Switch a running machine off because a supply went: `why` says which, for the log.
+func _switch_off(why: String) -> void:
+	var latched := _slide_on()
+	print("[Power] %s %s while on -- switching off" % [input.label if input != null else _host.name, why])
+	if NetworkManager.netplay_running() and NetworkManager.netplay_covers(_host):
+		NetworkManager.netplay_stop("unplugged")
+	else:
+		_host.power_off()
+		if NetworkManager.is_active() and NetworkManager.is_host():
+			NetworkManager.report_event(NetEvents.Event.EV_SYS_POWER_STATE,
+				{"sys": _host, "on": false})
+	# The slide stays where the hand left it: the machine comes back with the supply.
+	if latched:
+		_set_slide(true)
 
 
 ## Whether the machine's power switch latches and stands at ON. A push button

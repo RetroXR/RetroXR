@@ -14,6 +14,22 @@ class_name DcPort
 extends Port
 
 
+## The object a save records a plug in this jack against: the device on its signal
+## path, as for any Port, else the nearest spawned thing above it -- an expansion's
+## own jack (the 32X's, ExpansionPower) has no signal path, and no owner was a plug
+## that came back loose from every load.
+func get_device() -> Node3D:
+	var device := super.get_device()
+	if device != null:
+		return device
+	var at: Node = get_parent()
+	while at != null:
+		if at.is_in_group("spawned"):
+			return at as Node3D
+		at = at.get_parent()
+	return null
+
+
 ## What an export's scene conversion can undo: the connector the socket's own
 ## scene writes on its root.
 func _own_connector() -> String:

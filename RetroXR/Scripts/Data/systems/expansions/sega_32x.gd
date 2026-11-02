@@ -42,6 +42,12 @@ const ROW := {
 	# not there: the 32X passes the cartridge bus straight through to the console.
 	# ExpansionLaunch boots one on the console's own core, not the 32X's.
 	"passes": ["genesis"],
+	# Its ADAPTOR jack (ExpansionPower; what it takes is PowerProfiles' "sega_32x"):
+	# the middle of the jack's mouth in the rear panel, in the shell's GLB frame --
+	# RetroXR-models sega/32x/console's DC_JACK (-18.87, 31.40) on the panel face at
+	# y 53.66 (Blender mm), which glTF's Y-up turns into (x, z, -y). The models'
+	# newer export carries it as a `DCInPort` empty, which wins when present.
+	"power_jack": Vector3(-0.01887, 0.0314, -0.05366),
 }
 
 const SHELL := "res://imported-assets/consoles/sega_32x/sega32x.glb"

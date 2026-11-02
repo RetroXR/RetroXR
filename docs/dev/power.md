@@ -101,6 +101,23 @@ because nothing in it could ever be plugged in. The Arcade Room and the bedroom 
   naming its jack keeps the stand-in's cells and bay. As with link cables, the models carry
   geometry and an empty at the mouth; the CONNECTOR is the game's (`Connectors`), named on
   the node or, for power, by these rows. `power_tests standards/`.
+- **Expansions with a supply of their own** (2026-11-02, `ExpansionPower`): the 32X
+  takes its own MK-2103 in its ADAPTOR jack, beside the Genesis's. PowerProfiles keys
+  such a unit by its expansion id (`sega_32x`: `inlet` "dc", `takes` "EIAJ-03", `brick`);
+  a unit with no row runs off its console (Satellaview, 64DD, Super Game Boy). The jack,
+  `PowerInlet` on the unit, goes in the shell's own marker (a `SystemPower.MODEL_INLETS`
+  name, RetroXR-models' newer 32X export has `DCInPort`), else the row's `power_jack` (a
+  point in the shell's GLB frame: the shipped scanned shell predates its marker), else
+  low on the back of the box; on a shell its drawing is hidden. The CONSOLE decides:
+  `SystemPower.allows_power_on` refuses while a unit on it has no supply (the card names
+  the unit and its adapter), a unit losing its supply under a running console switches it
+  off (`on_expansion_power`, the same `_switch_off` as the console's own), and one getting
+  it back with the console's switch left ON switches it on. A save records a plug in the
+  unit's jack against the unit (`DcPort.get_device` falls back to the nearest spawned
+  ancestor: the unit has no signal path). The Sega CD, the Famicom Disk System and the
+  Game Boy Printer also take their own supply and are NOT done: which adapter each Sega
+  CD model takes is unverified. `power_tests expansion/`, `Tools/room/expansion_power_probe`
+  (windowed).
 - **Handhelds.** Cells in EVERY bay, or a live DC adapter where the hardware runs off one,
   or a built-in pack (GBA SP, DS, 3DS, PSP: treated as always charged, so the machine is
   always powered; their jack only charges, so it is not an inlet).

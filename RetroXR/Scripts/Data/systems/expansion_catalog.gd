@@ -92,6 +92,10 @@
 ##               seated, relative to a cartridge (whose +Z, its label, faces away
 ##               from the player). The e-Reader is 180: its front -- card slit,
 ##               sticker -- faces the player. Absent, 0.
+##   power_jack  where the shell draws its own DC IN, a point in the shell's GLB
+##               frame (metres), for a unit with a supply of its own (PowerProfiles
+##               keyed by the unit's id; ExpansionPower). A `DCInPort` empty in the
+##               shell wins. The 32X's ADAPTOR jack.
 ##   accessory_group
 ##               a clip-on accessory this unit takes, by the group it joins: the
 ##               unit grows an AccessoryMount snap zone at its shell's origin,
@@ -355,6 +359,7 @@ const FIELDS := {
 	"seat_yaw": 0.0,
 	"swipe_slit": null,
 	"accessory_group": "",
+	"power_jack": null,
 	"cap_color": Color(0, 0, 0, 0),
 	"socket": "",
 	"cover_socket": "",
@@ -433,6 +438,8 @@ const _SHELL_FIELDS := {
 	"shell": TYPE_STRING, "size": TYPE_VECTOR3, "shell_lods": TYPE_ARRAY,
 	"connector": TYPE_VECTOR3, "swipe_slit": TYPE_TRANSFORM3D, "seat_yaw": TYPE_FLOAT,
 	"shell_offset": TYPE_VECTOR3, "jack": TYPE_TRANSFORM3D,
+	# Where the shell draws its DC IN (ExpansionPower), in its own GLB frame.
+	"power_jack": TYPE_VECTOR3,
 	# Where the shell's link socket and plug are -- on a unit whose row has them;
 	# a shell does not give a unit a socket its hardware never had.
 	"link_socket": TYPE_TRANSFORM3D, "link_plug": TYPE_VECTOR3,

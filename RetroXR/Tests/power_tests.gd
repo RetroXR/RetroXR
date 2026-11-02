@@ -73,6 +73,8 @@ func _ready() -> void:
 		await _test_vb()
 	if _want("standards"):
 		await _test_standards()
+	if _want("expansion"):
+		await _test_expansion()
 
 	AppPrefs.power_simulation = sim_before
 	AppPrefs.mains_region = region_before
@@ -1263,3 +1265,81 @@ func _test_standards() -> void:
 	_eq(gb_jack.connector, "barrel_3_5x1_35", "standards/the Game Boy's jack takes 3.5 x 1.35")
 	_ok(lynx.dc_plug.is_in_group(gb_jack.snap_require), "standards/so the Lynx's adapter fits it, as it does")
 	await _clear()
+
+
+## The 32X takes its own adapter (ExpansionPower): a Genesis with an unpowered 32X
+## on it will not start, and pulling the 32X's adapter switches the pair off.
+func _test_expansion() -> void:
+	var plate := _new_room()
+	var md := await _machine("genesis", "")
+	var unit := preload("res://Scenes/Objects/expansion.tscn").instantiate() as RetroExpansion
+	unit.expansion_id = "sega_32x"
+	unit.position = Vector3(-1, 0.5, 0)
+	unit.freeze = true
+	_room.add_child(unit)
+	unit.add_to_group("spawned")
+	await _wait(8)
+	var jack := unit.get_node_or_null(ExpansionPower.INLET_NAME) as DcPort
+	_ok(jack != null, "expansion/the 32X has its own DC IN")
+	if jack == null:
+		await _clear()
+		return
+	_eq(jack.connector, "eiaj_03", "expansion/which takes the MK-2103's EIAJ-03")
+	var s := unit.size()
+	# On the rear panel, where the shell draws it: (-18.9, 31.4, -53.7) mm in the GLB.
+	# A barrel jack's point IS its face (it has no proud Inlet body, as a C8 does).
+	var face := jack.position
+	var shell := unit.get_node_or_null("Shell") as Node3D
+	if shell != null:
+		var want := shell.transform * Vector3(-0.01887, 0.0314, -0.05366)
+		_ok(face.distance_to(want) < 0.001, "expansion/its face is the shell's jack mouth",
+			"%s vs %s" % [face, want])
+		_ok(not (jack.get_node("DcMouth") as Node3D).visible, "expansion/and the shell draws it, not the stand-in")
+	_ok(jack.transform.basis.z.dot(Vector3.BACK) < -0.99, "expansion/facing out of the back (-Z)",
+		str(jack.transform.basis.z))
+	_ok(face.z < -s.z * 0.4, "expansion/on the back of the unit", str(face))
+	# The Genesis on its own adapter, in the wall.
+	var md_jack := PowerInput.of(md).inlets()[0] as DcPort
+	var md_brick := _brick("sega_mk2103_adapter", "usa", Vector3(0.5, 0.3, 0.5))
+	var x_brick := _brick("sega_mk2103_adapter", "usa", Vector3(-0.5, 0.3, 0.5))
+	await _wait(4)
+	md_jack.pick_up_object(md_brick.dc_plug)
+	(plate.get_node("TopPort") as PowerPort).pick_up_object(md_brick.wall_plug)
+	await _wait(3)
+	unit.bind_to_host(md)
+	await _wait(2)
+	_ok(md.expansion_ids() == ["sega_32x"], "expansion/the 32X is on the Genesis")
+	md.toggle_power()
+	await _wait(2)
+	_ok(not md.is_powered_on, "expansion/its 32X unplugged: the Genesis will not start")
+	_ok(ExpansionPower.dead_unit(md) == unit, "expansion/and it is the 32X that has none")
+	_ok(x_brick.dc_plug.is_in_group(jack.snap_require), "expansion/the MK-2103 fits the 32X")
+	jack.pick_up_object(x_brick.dc_plug)
+	(plate.get_node("BottomPort") as PowerPort).pick_up_object(x_brick.wall_plug)
+	await _wait(3)
+	_ok(PowerInput.of(unit).is_live(), "expansion/its own adapter in the wall: the 32X has power",
+		PowerInput.of(unit).describe())
+	md.toggle_power()
+	await _wait(2)
+	_ok(md.is_powered_on, "expansion/and the pair starts")
+	# A save records the plug against the 32X (DcPort.get_device), so it comes back in it.
+	var seats := x_brick.seating()
+	var dc_seat: Dictionary = {}
+	for seat: Dictionary in seats:
+		if int(seat["end"]) == PowerBrick.END_DC:
+			dc_seat = seat
+	_ok(dc_seat.get("device") == unit and str(dc_seat.get("port", "")) == ExpansionPower.INLET_NAME,
+		"expansion/a save names the 32X's PowerInlet", str(dc_seat))
+	# Pulled from the wall, the 32X loses its supply, and the Genesis goes off.
+	(plate.get_node("BottomPort") as PowerPort).drop_object()
+	await _wait(4)
+	_ok(not md.is_powered_on, "expansion/the 32X's adapter pulled: the Genesis switches off")
+	unit.unbind_from_host()
+	await _wait(2)
+	md.toggle_power()
+	await _wait(2)
+	_ok(md.is_powered_on, "expansion/the 32X taken off, the Genesis runs alone again")
+	md.power_off()
+	unit.queue_free()
+	await _clear()
+
