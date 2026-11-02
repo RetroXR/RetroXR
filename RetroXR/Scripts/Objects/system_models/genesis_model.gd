@@ -46,6 +46,7 @@ func _ready() -> void:
 		add_child(_glb)
 	# prepare_genesis.py exports the shell centred on its footprint and resting on
 	# y = 0, so every constant below is in the GLB's own frame and no re-centre runs.
+	_mark_dc_in()
 
 
 func _shell_mesh(mesh_name: String) -> MeshInstance3D:
@@ -202,6 +203,26 @@ func configure_controller_ports(port_zones: Array) -> void:
 ## around it, raycast off the shell at -0.1043 — the mouth itself is recessed 1.5 mm
 ## behind that and opens to 6.2 mm.
 const _AV_OUT := Vector3(-0.0398, 0.0263, -0.1043)
+## The moulded DC jack's mouth, beside the A/V OUT on the same rear plate: the middle
+## of its round socket, measured off an orthographic render of the shell's back by the
+## same method that reads _AV_OUT above back exactly (-0.0398, 0.0262); its gold pin
+## sits 0.9 mm above that middle, as moulded. The export marks no empty there, so the
+## power socket went to SystemPower's generic spot, 80 mm away; this is the mouth
+## SystemPower.MODEL_INLETS looks for, and the stand-in jack's drawing is hidden.
+## With the MK-2103's 9.8 mm plug centred here the A/V plug's head (_AV_NUDGE) clears
+## it by 0.35 mm.
+const _DC_IN := Vector3(-0.0489, 0.0262, -0.1043)
+
+
+func _mark_dc_in() -> void:
+	if _glb == null or _glb.find_child("DCInPort", true, false) != null:
+		return
+	var mouth := Node3D.new()
+	mouth.name = "DCInPort"
+	mouth.position = _DC_IN
+	_glb.add_child(mouth)
+
+
 ## Off the panel by half a millimetre, so the plug's head — whose origin is its front
 ## face, the face that stops on the panel — is never coplanar with the case.
 const _AV_PROUD := 0.0005

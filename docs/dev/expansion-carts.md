@@ -419,11 +419,14 @@ one is 30 cm.
   overlap the MK-2103's 9.8 mm plug in that jack by 1.6 mm; 2 mm over it clears by
   0.35 mm and still covers the mouth. The shield goes into the case behind the head.
   The leads' plug colliders and the socket's ghost are the head's size.
-- **The Genesis's adapter does not go in its moulded DC jack.** RetroXR's Genesis shell
-  carries no inlet marker, so `SystemPower` builds a stand-in DC jack low on the right of
-  its back (`place_inlet`) and the moulded jack beside the A/V OUT stays empty
-  (`sega32x_av_probe` measures the A/V plug 80 mm from it). The nudge is for the day the
-  inlet goes in the moulded jack.
+- **The Genesis's adapter goes in its moulded DC jack** (fixed 2026-11-02). The shell
+  carries no inlet marker, so `genesis_model.gd` adds one, `DCInPort` at `_DC_IN`
+  (-0.0489, 0.0262, -0.1043): the middle of the moulded socket, measured off an
+  orthographic render of the shell's back by the method that reads `_AV_OUT` back exactly.
+  `SystemPower.seat_on_model_inlet` puts the socket there and hides the stand-in's drawn
+  jack. With the MK-2103 in it, `sega32x_av_probe` measures the Video Link Cable's plug
+  in A/V OUT 11.1 mm from the DC plug's axis, 0.45 mm clear (it was 80 mm off, in a
+  stand-in jack low on the right of the back).
 - **The primitive box takes both leads too.** The box stands in for a Genesis only
   when its shell is not there (a checkout without the GLB, a room naming the
   placeholder), and it wore a phono row that took neither the A/V Cable nor the Video

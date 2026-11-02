@@ -1264,6 +1264,20 @@ func _test_standards() -> void:
 			"standards/a European Game Gear adapter's 5.5 mm plug does not")
 	await _clear()
 	_new_room()
+	# The Genesis's socket is its shell's moulded DC jack, beside the A/V OUT, not a
+	# stand-in on the back (genesis_model.gd _DC_IN).
+	var md := await _machine("genesis", "")
+	var md_jack := PowerInput.of(md).inlets()[0] as DcPort
+	var md_mouth := (md._model as Node).find_child("DCInPort", true, false) as Node3D
+	_ok(md_mouth != null and md_jack.has_meta(&"on_model_inlet"),
+		"standards/the Genesis's adapter goes in the moulded jack (DCInPort)")
+	if md_mouth != null:
+		_ok(md_jack.global_position.distance_to(md_mouth.global_position) < 0.002,
+			"standards/its socket is at the moulded mouth",
+			"%.1f mm" % (md_jack.global_position.distance_to(md_mouth.global_position) * 1000.0))
+		_ok(not (md_jack.get_node("DcMouth") as Node3D).visible, "standards/and the stand-in jack is not drawn over it")
+	await _clear()
+	_new_room()
 	var gb := await _machine("gb", "game_boy_primitive")
 	var gb_jack := PowerInput.of(gb).inlets()[0] as DcPort
 	var lynx := _brick("lynx_ac_adapter", "usa", Vector3(0.5, 0.3, 0.5))
