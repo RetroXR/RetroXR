@@ -34,6 +34,12 @@ const HOLD_S := 0.25
 
 ## A joiner whose host dies after accepting it would otherwise sit under the
 ## curtain for ever. Long enough not to fire on a slow but working transfer.
+##
+## Counted from the moment the joiner's OWN room is ready, never from the accept:
+## a joiner in another room first loads the host's, which on a Quest alone can
+## take 20 s and more, and a clock that ran through that told players the host
+## "did not respond" while the join was still working (a player took it as a
+## request they had to accept; there is none).
 const JOIN_TIMEOUT_S := 30.0
 
 ## owner -> {weight, progress, text, detail, order}
@@ -45,6 +51,9 @@ var _shown_progress: float = 0.0
 var _hide_token: int = 0
 var _suspended: bool = false
 var _join_token: int = 0
+## The join wait, in seconds. A seam for loading_overlay_tests, which cannot sit
+## through 30 s; nothing else sets it.
+var join_timeout_s: float = JOIN_TIMEOUT_S
 
 
 func _ready() -> void:
@@ -283,7 +292,10 @@ func _connect_scene_manager() -> void:
 	# A transition hands the view to LoadingRig, which owns a WorldEnvironment and
 	# must be the only screen up. Suspending on the signal keeps SceneManager from
 	# having to know we exist at that end.
-	sm.scene_changed.connect(func(_id: String) -> void: suspend())
+	sm.scene_changed.connect(func(_id: String) -> void:
+		suspend()
+		_on_join_room_changed())
+	sm.scene_content_ready.connect(_on_join_room_ready)
 
 
 func _connect_netplay() -> void:
@@ -302,13 +314,53 @@ func _connect_netplay() -> void:
 func _on_net_session_started(is_host: bool) -> void:
 	if is_host:
 		return
+	# The accept has already sent us after the host's room when it is not ours
+	# (_follow_host_scene runs before session_started), so the room being ready
+	# NOW is exactly "nothing left to load here".
+	var sm := get_node_or_null("/root/SceneManager")
+	_begin_join(sm == null or sm.is_scene_content_ready(sm.current_scene_id))
+
+
+## A joiner's curtain. The room snapshot is only asked for once our room's own
+## restore is done (NetworkManager._setup_world), so the clock starts there.
+func _begin_join(room_ready: bool) -> void:
 	begin(&"netplay", "JOINING ROOM", 1.0)
+	if room_ready:
+		_arm_join_timeout()
+	else:
+		_join_token += 1  # disarm anything left from an earlier join
+		set_phase(&"netplay", "LOADING THE HOST'S ROOM", 0.02)
+		print("[LoadingOverlay] join: loading the host's room first; the %.0f s wait starts after" % join_timeout_s)
+
+
+## The room under a joiner moved (it followed the host, or the host changed
+## rooms mid-join): stop the clock until the new one has loaded.
+func _on_join_room_changed() -> void:
+	if not _owners.has(&"netplay") or _owners[&"netplay"].get("failed", false):
+		return
+	_join_token += 1
+	set_phase(&"netplay", "LOADING THE HOST'S ROOM", 0.02)
+	print("[LoadingOverlay] join: room changed; wait paused until it has loaded")
+
+
+func _on_join_room_ready(scene_id: String) -> void:
+	if not _owners.has(&"netplay") or _owners[&"netplay"].get("failed", false):
+		return
+	var sm := get_node_or_null("/root/SceneManager")
+	if sm != null and scene_id != sm.current_scene_id:
+		return  # a stale completion from a room already left
+	_arm_join_timeout()
+
+
+func _arm_join_timeout() -> void:
 	set_phase(&"netplay", "WAITING FOR THE HOST", 0.02)
 	_join_token += 1
 	var token := _join_token
-	await get_tree().create_timer(JOIN_TIMEOUT_S).timeout
+	print("[LoadingOverlay] join: room ready; waiting up to %.0f s for the host's snapshot" % join_timeout_s)
+	await get_tree().create_timer(join_timeout_s).timeout
 	if token == _join_token and _owners.has(&"netplay"):
-		fail(&"netplay", "HOST DID NOT RESPOND")
+		print("[LoadingOverlay] join: no snapshot from the host within %.0f s of the room being ready" % join_timeout_s)
+		fail(&"netplay", "HOST DID NOT SEND THE ROOM")
 
 
 ## The savestate transfer the netplay session runs alongside the world snapshot.

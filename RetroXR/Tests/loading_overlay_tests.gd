@@ -276,6 +276,46 @@ func _test_netplay() -> void:
 	LoadingOverlay.end(&"netplay")
 	await _settle()
 
+	# The join wait counts from the joiner's room being READY. Started at the
+	# accept, it ran through loading the host's room and told players the host
+	# "did not respond" mid-load (2026-11-03, a player on Discord).
+	var saved_timeout: float = LoadingOverlay.join_timeout_s
+	LoadingOverlay.join_timeout_s = 0.3
+	var room: String = SceneManager.current_scene_id
+	LoadingOverlay._begin_join(false)
+	await get_tree().create_timer(0.6).timeout
+	_ok(not _join_failed(), "netplay/no timeout while the host's room is still loading")
+	_ok(_join_text().contains("LOADING THE HOST'S ROOM"), "netplay/and it says that is what it is doing")
+	LoadingOverlay._on_join_room_ready(room + "_stale")
+	await get_tree().create_timer(0.6).timeout
+	_ok(not _join_failed(), "netplay/a stale room's completion does not start the clock")
+	LoadingOverlay._on_join_room_ready(room)
+	_ok(_join_text().contains("WAITING FOR THE HOST"), "netplay/the room ready, it waits for the host")
+	await get_tree().create_timer(0.6).timeout
+	_ok(_join_failed(), "netplay/and times out once the room is ready and nothing came")
+	LoadingOverlay.end(&"netplay")
+	await _settle()
+
+	# A room change mid-wait (the host moved) stops the clock again.
+	LoadingOverlay._begin_join(true)
+	await get_tree().create_timer(0.1).timeout
+	LoadingOverlay._on_join_room_changed()
+	await get_tree().create_timer(0.6).timeout
+	_ok(not _join_failed(), "netplay/a room change mid-wait pauses the clock")
+	LoadingOverlay.end(&"netplay")
+	await _settle()
+	LoadingOverlay.join_timeout_s = saved_timeout
+
+
+func _join_failed() -> bool:
+	var owners: Dictionary = LoadingOverlay._owners
+	return owners.has(&"netplay") and bool(owners[&"netplay"].get("failed", false))
+
+
+func _join_text() -> String:
+	var owners: Dictionary = LoadingOverlay._owners
+	return str(owners[&"netplay"].get("text", "")) if owners.has(&"netplay") else ""
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 

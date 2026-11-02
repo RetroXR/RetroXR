@@ -373,6 +373,8 @@ func _send_snapshot(peer_id: int) -> void:
 func _world_snapshot(entries: Array, room_state: Array) -> void:
 	var root: Node = _nm.world_root_node()
 	if root == null:
+		# Dropped, and the joiner's curtain then waits out its timeout: say so.
+		push_warning("[NetObjectSync] world snapshot (%d objects) dropped: no world root yet" % entries.size())
 		return
 	var count: int = _suppressed(_world_snapshot_body.bind(root, entries, room_state))
 	print("[NetObjectSync] snapshot applied: %d objects" % count)

@@ -132,6 +132,18 @@ once per handler and peer. An op FAILURE (`_op_fail`) ends the session only from
 a peer the op is waiting on, as `_op_ack` counts only those. Host-to-client
 messages are `authority` RPCs and need no check. `netplay_tests --only=unaccepted`.
 
+**A join is never approved by the host (2026-11-03).** `_register` accepts on
+its own (protocol, room size, mods); the only approval-style prompt is the
+"press RESET to let them in" toast for a pad picked up in a RUNNING game. The
+joiner's curtain (`LoadingOverlay`, owner `netplay`) waits for `world_applied`,
+and its 30 s clock starts when the joiner's OWN room is content-ready, never
+at the accept: `_accept` sends a joiner in another room after the host's first,
+a Quest load alone can exceed 20 s, and a clock running through it said "HOST
+DID NOT RESPOND" mid-load, which a player took as a request to accept. A room
+change mid-wait pauses it again; the failure now reads "HOST DID NOT SEND THE
+ROOM", and a snapshot dropped for want of a world root warns
+(`[NetObjectSync] world snapshot … dropped`). `loading_overlay_tests --only=netplay`.
+
 ### 2g. Netplay over a link cable — one session, two machines
 
 **A link cable never crosses the network.** `LinkCoordinator` is a process-wide
