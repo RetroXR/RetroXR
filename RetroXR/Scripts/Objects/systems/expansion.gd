@@ -127,6 +127,9 @@ func _ready() -> void:
 	_build_link_relay()
 	# A unit with a supply of its own (the 32X's adapter jack).
 	ExpansionPower.build(self)
+	# A unit the console's picture passes through (the 32X's A/V IN and OUT). After
+	# the supply: whether it passes follows it.
+	ExpansionAv.build(self)
 	_update_label()
 	_build_panel()
 
@@ -1203,9 +1206,36 @@ func _on_ethernet_plug_out() -> void:
 func drop_and_free() -> void:
 	if _ethernet_port != null and _ethernet_port.picked_up_object != null:
 		_ethernet_port.drop_object()
+	ExpansionAv.drop_plugs(self)
 	# The console's link port, and any lead in it, go back where they came from.
 	_release_link_port()
 	super.drop_and_free()
+
+
+# ── A/V through the unit ──────────────────────────────────────────────────────
+
+## A cord moved on one of this unit's A/V sockets (ExpansionAv): the machine feeding
+## its A/V IN works out again where its picture goes. Also what makes the unit the
+## DEVICE its sockets belong to (Port.get_device walks for this method), so a plug in
+## them is saved and sent against the unit. A no-op on a unit with no A/V sockets.
+func on_av_topology_changed(_links: Array) -> void:
+	ExpansionAv.on_topology(self)
+
+
+## The A/V IN the console's picture comes into, or null on a unit with none. With
+## av_through_out and av_passes, what makes this unit a pass-through to AvGraph.
+func av_through_in() -> RcaPort:
+	return get_node_or_null(ExpansionAv.IN_NAME) as RcaPort
+
+
+## The A/V OUT the set is cabled to, or null.
+func av_through_out() -> RcaPort:
+	return get_node_or_null(ExpansionAv.OUT_NAME) as RcaPort
+
+
+## Whether what comes in goes out now: while the unit has a supply.
+func av_passes() -> bool:
+	return ExpansionAv.passes(self)
 
 
 # ── the console's link port, carried through ──────────────────────────────────

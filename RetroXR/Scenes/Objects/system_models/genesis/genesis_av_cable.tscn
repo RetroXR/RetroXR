@@ -20,12 +20,12 @@ friction = 0.8
 [sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
 radius = 0.032
 
-; The mini-DIN's moulded head, 7.2 mm round and 9 mm long, from gen_genesis_av.gd.
+; The mini-DIN's moulded head, 11.5 mm round and 12 mm long, from gen_genesis_av.gd.
 ; Sized to the HEAD, not the whole plug: the shield is inside the console whenever
 ; the connector matters, and a shape over it would let the plug be grabbed through
 ; the back panel. A box, not a cylinder or sphere: those roll.
 [sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
-size = Vector3(0.0072, 0.0072, 0.009)
+size = Vector3(0.0115, 0.0115, 0.012)
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_avpointer"]
 radius = 0.022
@@ -73,7 +73,7 @@ connector = "genesis_av_plug"
 ; cylinder, which sat in FRONT of its origin, was swapped for the real mesh: the plug
 ; became ungrabbable the moment it was plugged in.
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0045)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.006)
 shape = SubResource("BoxShape3D_plugfit")
 
 [node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
@@ -84,7 +84,7 @@ collision_layer = 1048576
 collision_mask = 0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0045)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.006)
 shape = SubResource("SphereShape3D_avpointer")
 
 [node name="PickableHighlight" type="Node3D" parent="PlugA0"]

@@ -149,21 +149,26 @@ func av_port_channels() -> Array:
 	return [RcaPort.Channel.VIDEO, RcaPort.Channel.AUDIO_L, RcaPort.Channel.AUDIO_R]
 
 
-## Platforms whose picture leaves by Nintendo's AV Multi Out, so the box wears that
-## socket in place of the phono row and takes the console's own lead, the
-## Stereo AV Cable. The Super NES is where Nintendo started using it; the N64's
-## model already wears the same socket.
-const _MULTI_OUT_PLATFORMS: Array[String] = ["snes"]
-const _MULTI_OUT_SCENE := "res://Scenes/Objects/system_models/nintendo_64/n64_av_port.tscn"
+## Platforms whose picture leaves by one multi-way socket, so the box wears that socket
+## in place of the phono row and takes the console's own lead. The Super NES's is
+## Nintendo's AV Multi Out (where Nintendo started using it; the N64's model wears the
+## same socket) and takes the Stereo AV Cable. The Genesis's is its Model 2's 9-pin
+## mini-DIN, the A/V Cable's: the box stands in for a Genesis only when its shell is not
+## there (a checkout without the GLB, a room that names the placeholder), and a phono
+## row then took neither the console's lead nor the 32X's Video Link Cable.
+const _MULTI_OUT_SCENES := {
+	"snes": "res://Scenes/Objects/system_models/nintendo_64/n64_av_port.tscn",
+	"genesis": "res://Scenes/Objects/system_models/genesis/genesis_av_port.tscn",
+}
 
 
 ## The same three signals either way; only the number of holes differs.
 func av_ports_are_multi_way() -> bool:
-	return _MULTI_OUT_PLATFORMS.has(_systemid())
+	return _MULTI_OUT_SCENES.has(_systemid())
 
 
 func av_multi_port_scene() -> String:
-	return _MULTI_OUT_SCENE if av_ports_are_multi_way() else ""
+	return str(_MULTI_OUT_SCENES.get(_systemid(), ""))
 
 
 ## The cabinet this box dresses, which knows what it is standing in for.
@@ -183,11 +188,23 @@ func _systemid() -> String:
 ## A Multi Out goes where the middle phono jack would, turned about Y rather than
 ## X, as the N64 seats it, so its key stays on top. Its zone is the plug's shroud
 ## face, 2 mm proud of the panel (n64_av_port.tscn), and the panel is at z -0.125.
+##
+## The Genesis's mini-DIN goes there too, turned about X as genesis_model.gd turns
+## its own (the plug's half turn about X then stands it upright, keyway on top), its
+## zone 0.5 mm proud of the panel where the plug's head stops, and its jack drawn: the
+## box moulds no socket (MultiAvPort.draw_jack).
 func configure_av_ports(ports: Array) -> void:
 	if av_ports_are_multi_way():
-		if not ports.is_empty():
-			(ports[0] as Node3D).transform = Transform3D(Basis(Vector3.UP, PI),
-				Vector3(0.1, 0.0, -0.127))
+		if ports.is_empty():
+			return
+		var port := ports[0] as Node3D
+		if _systemid() == "genesis":
+			port.transform = Transform3D(Basis(Vector3.RIGHT, PI), Vector3(0.1, 0.0, -0.1255))
+			if port is MultiAvPort and not (port as MultiAvPort).draw_jack(true):
+				push_warning("[RetroSystemModelDefault] the Genesis socket scene draws no jack: "
+					+ "the box shows an empty panel where its A/V OUT is")
+		else:
+			port.transform = Transform3D(Basis(Vector3.UP, PI), Vector3(0.1, 0.0, -0.127))
 		return
 	for i in ports.size():
 		var port: Node3D = ports[i]

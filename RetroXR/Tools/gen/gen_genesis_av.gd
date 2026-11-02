@@ -9,21 +9,28 @@
 ## and one drawn over the shell's own would z-fight it.
 ##
 ## ── Dimensions ───────────────────────────────────────────────────────────────
-## Sized to the SHELL, not to the connector standard. A real mini-DIN shield is
-## 9.5 mm across; the A/V OUT moulded into this model opens to 6.2 mm (measured by
-## raycasting the GLB's rear panel: the mouth recesses 1.5 mm behind a panel face at
-## z = -0.1043, and a ray 3.5 mm off centre already lands on the case). A 9.5 mm shield
-## would stand on the case beside the hole it is meant to be in, so the shield here is
-## 5.6 mm and the moulded head in proportion to it.
+## The CONNECTOR's, at real size: the Kycon KMDLAX mini-DIN plug drawing
+## (RetroXR-models sega/genesis/av-plug/references) for the shield, Sega's moulding
+## hugging it in the proportion photographs show.
 ##
-##   shield       5.6 dia, standing 6.5 proud of the head (it goes into the socket)
-##   head         7.2 dia x 9 long, black, a thin collar round the shield
-##   boot         ribbed, 11 mm to the cord
+##   shield       8.95 dia, standing 6.5 proud of the head (it goes into the socket)
+##   head         11.5 dia x 12 long, black, a collar round the shield
+##   boot         ribbed, 12 mm to the cord
+##   pins         0.65 dia, on the real 9-pin layout (below)
+##
+## It was baked at 5.6 / 7.2 mm until 2026-11-02, sized to RetroXR's Genesis shell (a
+## third-party Model 2), whose moulded A/V OUT opens to only 6.2 mm with its DC jack
+## 9 mm away. That plug sat loose in the 32X's sockets, which RetroXR-models modelled to
+## the real hardware (a 9.7 mm metal shell in a 13 mm hole). Real size fits the 32X and
+## the primitive box's drawn socket; on the Genesis shell the head covers the small
+## moulded mouth and genesis_model.gd seats it 2 mm off-centre, away from the DC jack,
+## so it clears the MK-2103's 9.8 mm plug beside it.
 ##
 ## ── Contracts ────────────────────────────────────────────────────────────────
 ## gen_wii_av.gd's: connector on +Z, cable trailing -Z (VerletRope's plug_exit_axis),
-## origin on the HEAD's front face. That face is what stops on the panel, so a seated
-## plug's origin is the panel plane and genesis_model.gd places the port there.
+## origin on the HEAD's front face. That face is what stops on the panel (on the 32X,
+## on the socket's face inside its panel hole), so a seated plug's origin is that plane
+## and the socket's zone is placed there.
 ##
 ## One surface on the shared connector material (Shaders/connector.gdshader), the part
 ## carried in vertex colour: matte black moulding, chrome shield and pins, black insert.
@@ -38,7 +45,7 @@ const PlugMats := preload("res://Tools/gen/plug_materials.gd")
 
 const OUT_PLUG := "res://Scenes/Objects/system_models/genesis/genesis_av_plug.res"
 
-const SHIELD_R := 0.0028
+const SHIELD_R := 0.004475
 const SHIELD_WALL := 0.0003
 const Z_SHIELD := 0.0065         # the shield's front edge
 const Z_INSERT := 0.0053         # the black insert's face, recessed inside the shield
@@ -48,40 +55,38 @@ const Z_INSERT := 0.0053         # the black insert's face, recessed inside the 
 ## drawing was wrong, and a photo of a Model 2's own A/V OUT shows why: its top row is
 ## UNEVEN — two holes toward one side, one out at the other, and a gap between.
 ##
-## The console model's own A/V OUT moulds exactly that pattern, so the pins are placed
-## on ITS nine contacts rather than on the photo's proportions — the thing the plug has
-## to meet is that socket. A plug laid out off the photo alone had the right shape and
-## the wrong size: its pins were spread wider and sat a row high, and the bottom two
-## landed between contacts.
-##
-## Measured by genesis_render_probe --insert: the socket shot face-on through an
-## ORTHOGRAPHIC camera (15.35 um a pixel whatever the depth — a perspective lens put
-## the contacts 2.5% wide), the nine gold contacts found by colour and centred.
+## The pins are on the 32X's socket's contacts, RetroXR-models sega/32x/console
+## prep_scan.py DIN_PINS: a user's pin-out diagram and a photo of the 32X's own socket,
+## measured in pin pitches (1.78 mm, from the 9.7 mm shell opening) with the photo's
+## foreshortening removed, the grid 0.27 pitch below the shell's axis, rows 1.12 pitches
+## apart. It is the same Sega socket as the Model 2's: the bake before this one placed
+## its pins on RetroXR's Genesis shell's moulded contacts (genesis_render_probe
+## --insert), the same pattern at 64%.
 ## Offsets from the socket's centre, in the CONSOLE's frame, in millimetres. A seated
-## plug's axes ARE the console's (+X to +X, +Y up; the probe prints it), so these are
-## the plug's own pin positions with no mirroring — the pattern already comes out as a
-## plug's should, the socket's mirror image:
+## plug's axes ARE the console's (+X to +X, +Y up), so these are the plug's own pin
+## positions with no mirroring -- the socket's (seen looking in, the viewer's right is
+## -X) put where they land:
 ##
-##   plug, face on:     Red    .  AudL  AudR        y = +0.55   x = -1.69, +0.42, +1.67
-##                     Green Comp CSync Mono        y = -0.54   x = -1.88, -0.63, +0.62, +1.86
-##                           Blue  +5V              y = -1.65   x = -0.61, +0.64
+##   plug, face on:     Red    .  AudL  AudR        y = +1.51   x = -2.22, +0.44, +2.22
+##                     Green Comp CSync Mono        y = -0.48   x = -2.67, -0.89, +0.89, +2.67
+##                           Blue  +5V              y = -2.47   x = -0.89, +0.89
 ##
-## Centred 0.55 mm BELOW the shield's axis, as the socket's contact block is. Which pin
-## is which only matters for reading the layout; the room routes by cord, not pin.
+## Which pin is which only matters for reading the layout; the room routes by cord, not
+## pin.
 ##
 ## The keyway is still a notch in the top of the insert, as on any mini-DIN: 26.1 wide
 ## at the insert's rim, 18.2 at its floor, reaching in to r = 36.4, on the generic
 ## drawing's scale (shield r = 58.5, insert 52).
 const DRAWING_SHIELD_R := 58.5
-## Metres, off the console model's socket (see above).
+## Metres, off the 32X's socket (see above).
 const PIN_LAYOUT := [
-	Vector2(-0.001685, 0.00055), Vector2(0.000419, 0.00055), Vector2(0.001668, 0.00055),
-	Vector2(-0.001877, -0.00054), Vector2(-0.000629, -0.00054),
-	Vector2(0.000618, -0.00054), Vector2(0.001860, -0.00054),
-	Vector2(-0.000611, -0.00165), Vector2(0.000637, -0.00165),
+	Vector2(-0.002225, 0.001513), Vector2(0.000445, 0.001513), Vector2(0.002225, 0.001513),
+	Vector2(-0.002670, -0.000481), Vector2(-0.000890, -0.000481),
+	Vector2(0.000890, -0.000481), Vector2(0.002670, -0.000481),
+	Vector2(-0.000890, -0.002474), Vector2(0.000890, -0.002474),
 ]
-## Pin diameter over shield diameter on real hardware (about 1 mm on 9.5 mm).
-const PIN_TO_SHIELD := 0.105
+## The KMDLAX drawing's pin, 0.65 mm.
+const PIN_R := 0.000325
 const DRAWING_INSERT_R := 52.0
 const DRAWING_KEY_RIM_HALF := 13.03
 const DRAWING_KEY_FLOOR_HALF := 9.08
@@ -90,19 +95,19 @@ const PIN_PROUD := 0.0008
 ## How far the keyway sinks into the insert.
 const KEY_DEPTH := 0.0012
 
-## A thin collar, not a knob: 7.2 mm round over a 5.6 mm shield, the proportion the real
-## Genesis 2 plug has (its moulding hugs the shield). A first bake at 12 mm made the
-## head more than twice the shield's width and read as a lump on the back of the console.
-const HEAD_R := 0.0036
-const HEAD_CHAMFER := 0.0004
-## Short, as the real moulding is: 9 mm of head and 11 mm of ribbed relief behind the
-## shield, 20 mm in all. A first bake ran 16 + 18 = 34 mm and stood out of the console
-## like a stalk.
-const Z_HEAD_BACK := -0.009
-const Z_CORD := -0.020
+## A collar, not a knob: 11.5 mm round over an 8.95 mm shield, the proportion the real
+## Genesis 2 plug has (its moulding hugs the shield). An early bake gave a head more than
+## twice the shield's width and it read as a lump on the back of the console. 11.5 mm
+## sits in the 32X's 13 mm panel hole, on the socket's face.
+const HEAD_R := 0.00575
+const HEAD_CHAMFER := 0.0006
+## Short, as the real moulding is: 12 mm of head and 12 mm of ribbed relief behind the
+## shield. An early bake ran a 34 mm stalk at a far smaller head.
+const Z_HEAD_BACK := -0.012
+const Z_CORD := -0.024
 const RELIEF_RIBS := 4
 const RELIEF_RIB_AMP := 0.0004
-const BOOT_R := 0.0036
+const BOOT_R := 0.0046
 ## The ribbon of three 2.2 mm cords genesis_av_cable.tscn ships is 6.6 mm across; the
 ## boot has to end wider than what it grips. Change that scene's tube_radius and this
 ## together.
@@ -183,9 +188,9 @@ func _build_plug() -> void:
 
 	# Nine pins standing out of it, on the console socket's nine contacts.
 	st.set_color(PlugMats.chrome_vertex())
-	# Sized from hardware, not the drawing, which draws pins as labelled bubbles 2.4 mm
-	# across on a 9.5 mm shell. A real contact is about 1 mm: 0.105 of the shield.
-	var pin_r: float = SHIELD_R * PIN_TO_SHIELD
+	# Sized from the plug drawing, not the pinout drawing, which draws pins as labelled
+	# bubbles 2.4 mm across on a 9.5 mm shell.
+	var pin_r: float = PIN_R
 	for pin: Vector2 in PIN_LAYOUT:
 		_lathe(st, PackedVector2Array([
 			Vector2(Z_INSERT - 0.0002, pin_r),

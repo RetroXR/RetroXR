@@ -370,6 +370,95 @@ cameras; it only ever hides, so hidden hand poses and highlights stay hidden), a
 prints facing, gap, plug depth, spacer contact, the cart against `CartFloor`, and
 the flap angles.
 
+### 2j″. The 32X's A/V IN and A/V OUT, and the Video Link Cable (2026-11-02)
+
+On the real hookup the console's picture goes THROUGH the 32X: Sega packed every 32X
+with the **Video Link Cable (600-6411)**, a short patch lead with the Genesis Model 2's
+9-pin mini-DIN at both ends, from the console's A/V OUT into the 32X's A/V IN. The 32X
+lays its own picture over the console's and the set is cabled to the 32X's A/V OUT
+(chromagi.com's 600-6411 / 600-6412 pages; the **Conversion Cable, 600-6412**, adapted
+a Model 1's 8-pin DIN, and RetroXR has only the Model 2, so it is not built). Sega's
+length is not on record; replacement leads for this hookup are sold at 30 cm, so this
+one is 30 cm.
+
+- **Sockets.** The row's `av_socket` (the Genesis's own `genesis_av_port.tscn`) and
+  `av_in` / `av_out`, points in the shell's GLB frame: RetroXR-models'
+  `prep_scan.py` `MINIDIN` centres (-1.8, 31.3) and (17.2, 31.3) on the socket's black
+  face 1.2 mm inside the panel (y 53.66 − 1.2), in glTF's (x, z, −y). An `AvInPort` /
+  `AvOutPort` empty in the shell wins (the models' export carries none yet).
+  `ExpansionAv.build` makes them, named `AvIn` / `AvOut` (saved: never rename), the IN
+  as `MultiAvPort.input`, turned exactly as the Genesis's own A/V OUT is so the plug
+  stands upright in all three (+Z out of the panel, +Y down, composed with the plug's
+  half turn about X).
+- **The unit is the sockets' device**: `RetroExpansion` answers
+  `on_av_topology_changed`, so `Port.get_device()` stops there, and a plug in them is
+  saved and sent against the unit by the socket's name, as its ADAPTOR jack is.
+  `EthernetPort.get_device` already treated a unit as a device; `DcPort`'s fallback
+  gives the same answer.
+- **What passes is `AvGraph`'s** (`av-suite.md`, "Pass-throughs"): a console whose
+  A/V OUT reaches the 32X's A/V IN is given the 32X's onward links as its own, so the
+  set files the Genesis on its input and the console sends it picture and sound, with
+  no code in either. The 32X only tells the console when to look again (a cord moved
+  on one of its sockets, its supply came or went): the set's lead on the A/V OUT never
+  touches the console, so nothing else would.
+- **An unpowered 32X passes nothing** (`ExpansionAv.passes`: its `PowerInput`, the
+  MK-2103 in its ADAPTOR jack). With power simulation off everything has a supply.
+- **The console's own A/V OUT still carries the whole picture with a 32X fitted.**
+  The core draws the 32X's layer and the Mega Drive's as ONE frame, so a set cabled
+  straight to the Genesis still shows a 32X game, as it always has. On the hardware
+  that lead shows the Mega Drive's layer alone; there is no way to get it from the
+  core. Rooms saved before this keep working.
+- **The mini-DIN plug is the connector's REAL size** (`gen_genesis_av.gd`: an 8.95 mm
+  shield, the Kycon KMDLAX drawing's; an 11.5 mm head; pins on the 32X socket's
+  `DIN_PINS` layout), for every lead that wears it. Until 2026-11-02 it was 5.6 / 7.2 mm,
+  sized to RetroXR's Genesis shell, a third-party Model 2 whose moulded A/V OUT opens to
+  only 6.2 mm with its DC jack 9 mm away; in the 32X's sockets, modelled to the real
+  hardware (a 9.7 mm shell in a 13 mm hole), it sat loose with a ring of socket round
+  it. On the Genesis shell the bigger head covers the small mouth and is seated 2 mm
+  off-centre, away from the DC jack (`genesis_model.gd` `_AV_NUDGE`): centred, it would
+  overlap the MK-2103's 9.8 mm plug in that jack by 1.6 mm; 2 mm over it clears by
+  0.35 mm and still covers the mouth. The shield goes into the case behind the head.
+  The leads' plug colliders and the socket's ghost are the head's size.
+- **The Genesis's adapter does not go in its moulded DC jack.** RetroXR's Genesis shell
+  carries no inlet marker, so `SystemPower` builds a stand-in DC jack low on the right of
+  its back (`place_inlet`) and the moulded jack beside the A/V OUT stays empty
+  (`sega32x_av_probe` measures the A/V plug 80 mm from it). The nudge is for the day the
+  inlet goes in the moulded jack.
+- **The primitive box takes both leads too.** The box stands in for a Genesis only
+  when its shell is not there (a checkout without the GLB, a room naming the
+  placeholder), and it wore a phono row that took neither the A/V Cable nor the Video
+  Link Cable. `RetroSystemModelDefault._MULTI_OUT_SCENES` now gives a `genesis` box the
+  Genesis's own socket where the SNES box wears its Multi Out: on the back panel at
+  (0.1, 0, -0.1255), turned about X as `genesis_model.gd` turns its own.
+- **A socket drawn where nothing moulds one.** `genesis_av_port.tscn` carries a
+  `PanelJack`, HIDDEN (the Genesis's shell and the 32X's mould their own, and a second
+  drawn over either would z-fight it); a surface that moulds none turns it on with
+  `MultiAvPort.draw_jack(true)` -- the primitive box, and a 32X on its plain box
+  (`ExpansionAv.place`, `BOX_PROUD` off the face). The mesh is
+  `Tools/gen/gen_genesis_av_jack.gd`'s, the 32X socket's sizes: a 12.4 mm chrome flange,
+  a dark 9.7 mm mouth and the 7.7 mm insert with nine contact holes on the plug's pins,
+  all FLAT and 0.2-0.4 mm proud of the panel. A first bake with a real 7 mm bore drew its mouth behind the solid box's face,
+  which hid it, and the socket read as a chrome ring round a patch of box.
+
+Tested by `av_tests` `routing/` (the 32X's six cases: sockets, keying, the hookup in
+every order with a no-cable control, an unpowered 32X, the primitive box through the
+whole hookup, and the drawn jack shown only on a bare face), mutation-checked (no
+splice, a 32X that tells nobody, a 32X that always passes, the box back on its phono
+row, a jack never drawn). How it looks:
+
+```bash
+"$godot" --path RetroXR --resolution 960x720 --position 20,20 \
+  res://Tools/models/sega32x_av_probe.tscn -- --out=C:/path/to/stills [--nolink] [--primitive]
+```
+
+Windowed. It seats the 32X with its spacer on a Genesis, shoots the empty sockets,
+plugs an MK-2103 into the console's DC jack and the 32X's ADAPTOR, cables both leads
+(a set off camera), prints which input the set files the Genesis on, which way the
+32X's plug stands and how far each A/V plug's head clears the nearest DC plug, and
+shoots the back of the stack, the console's A/V OUT and the 32X's panel. `--nolink` leaves the Video Link Cable out: the set must
+then have no Genesis on it. `--primitive` puts the 32X on the primitive box. Headset,
+Quest and netplay OWED.
+
 ## Firmware never hides a unit (2026-10-26)
 
 Every expansion unit is offered on its spawn card whether or not its firmware is

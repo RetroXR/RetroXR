@@ -20,6 +20,9 @@ const VGA_CABLE := preload("res://Scenes/Objects/cables/vga_cable.tscn")
 const N64_AV_CABLE := preload("res://Scenes/Objects/system_models/nintendo_64/n64_av_cable.tscn")
 const WII_AV_CABLE := preload("res://Scenes/Objects/system_models/wii/wii_av_cable.tscn")
 const GENESIS_AV_CABLE := preload("res://Scenes/Objects/system_models/genesis/genesis_av_cable.tscn")
+const VIDEO_LINK_CABLE := preload("res://Scenes/Objects/system_models/genesis/sega32x_video_link_cable.tscn")
+const EXPANSION_SCENE := preload("res://Scenes/Objects/expansion.tscn")
+const OUTLET := preload("res://Scenes/Objects/room/wall_outlet.tscn")
 const DC_AV_CABLE := preload("res://Scenes/Objects/system_models/dreamcast/dc_av_cable.tscn")
 const TRS_CABLE := preload("res://Scenes/Objects/cables/trs_cable.tscn")
 const SPEAKERS := preload("res://Scenes/Objects/appliances/speaker_pair.tscn")
@@ -147,6 +150,12 @@ func _run() -> void:
 		["routing/a Genesis wears one 9-pin socket, not a captive lead", _r_genesis_socket],
 		["routing/its lead carries all three signals down the mini-DIN", _r_genesis_lead],
 		["routing/a Genesis lead fits only a Genesis", _r_genesis_keying],
+		["routing/a 32X wears an A/V IN and an A/V OUT on its back", _r_32x_sockets],
+		["routing/the Video Link Cable fits the Genesis and both 32X sockets", _r_32x_keying],
+		["routing/a Genesis reaches the set through the 32X's A/V OUT", _r_32x_through],
+		["routing/an unpowered 32X passes nothing", _r_32x_unpowered],
+		["routing/the primitive Genesis box wears the mini-DIN and takes both 32X leads", _r_genesis_box_minidin],
+		["routing/a mini-DIN draws its own jack only on a face that moulds none (32X)", _r_minidin_jack_drawn_only_on_a_bare_face],
 		["routing/a Dreamcast wears ONE AV OUT, on its own marker", _r_dc_av_out],
 		["routing/the Dreamcast lead carries all three signals", _r_dc_lead],
 		["routing/no other console's lead fits a Dreamcast, nor the reverse", _r_dc_keying],
@@ -919,6 +928,287 @@ func _r_genesis_keying() -> void:
 	for c in 3:
 		var phono := ours.get_node("PlugB%d" % c) as RcaPlug
 		_ok(phono.is_in_group("composite_plug"), "far plug %d is a plain phono" % c)
+
+
+## A 32X standing beside the Genesis: what its sockets carry is decided by the cords,
+## not by whether it is seated in the cartridge slot.
+func _x32(near: Node3D) -> RetroExpansion:
+	var unit := EXPANSION_SCENE.instantiate() as RetroExpansion
+	unit.expansion_id = "sega_32x"
+	unit.freeze = true
+	unit.position = near.position + Vector3(0.0, 0.2, 0.0)
+	add_child(unit)
+	unit.add_to_group("spawned")
+	_spawned.append(unit)
+	await _wait(10)
+	return unit
+
+
+func _r_32x_sockets() -> void:
+	var md := await _genesis()
+	var unit := await _x32(md)
+	var a_in := unit.av_through_in()
+	var a_out := unit.av_through_out()
+	_ok(a_in != null and a_out != null, "a 32X builds an A/V IN and an A/V OUT")
+	if a_in == null or a_out == null:
+		return
+	_ok(a_in is MultiAvPort and a_out is MultiAvPort, "both the one-hole mini-DIN socket")
+	_check_eq(a_in.connector, "genesis_av_plug", "the A/V IN takes the Genesis's mini-DIN")
+	_check_eq(a_out.connector, "genesis_av_plug", "and so does the A/V OUT")
+	_check_eq(a_in.direction, RcaPort.Direction.IN, "the A/V IN is an input")
+	_check_eq(a_out.direction, RcaPort.Direction.OUT, "and the A/V OUT an output")
+	_ok(a_in.get_device() == unit and a_out.get_device() == unit, "both belong to the 32X")
+	_ok(AvGraph.is_through(unit), "so the 32X is a pass-through")
+	# On the rear panel, facing out of it, and turned exactly as the Genesis's own A/V
+	# OUT is, so the same plug stands upright in all three. By sign, not by eye.
+	var multi := md.find_child("AvMultiOut", true, false) as Node3D
+	var console_basis := (md.global_transform.affine_inverse() * multi.global_transform).basis
+	for port: RcaPort in [a_in, a_out]:
+		var local := unit.global_transform.affine_inverse() * port.global_transform
+		_ok(local.origin.z < -0.045, "%s is on the rear panel (z %.4f)" % [port.name, local.origin.z])
+		_ok(local.basis.z.z < -0.99, "%s faces out of it (+Z %s)" % [port.name, local.basis.z])
+		_ok(local.basis.is_equal_approx(console_basis),
+			"%s is turned as the Genesis's A/V OUT is (%s vs %s)" % [port.name, local.basis, console_basis])
+	# Where the scanned shell has them: RetroXR-models' MINIDIN centres on the socket face.
+	var shell := unit.get_node_or_null("Shell") as Node3D
+	if shell != null:
+		var want := shell.transform * Vector3(-0.0018, 0.0313, -0.05246)
+		_ok(a_in.position.distance_to(want) < 0.0005, "the A/V IN is in the shell's socket",
+			"%s vs %s" % [a_in.position, want])
+	_ok(a_out.position.x - a_in.position.x > 0.018 and absf(a_out.position.y - a_in.position.y) < 0.0005,
+		"the A/V OUT is 19 mm along +X from it, at the same height",
+		"%s / %s" % [a_in.position, a_out.position])
+
+
+func _r_32x_keying() -> void:
+	var md := await _genesis()
+	var unit := await _x32(md)
+	var multi := md.find_child("AvMultiOut", true, false) as XRToolsSnapZone
+	var link := VIDEO_LINK_CABLE.instantiate() as Node3D
+	link.position = md.position + Vector3(0.0, 0.3, -0.3)
+	add_child(link)
+	_spawned.append(link)
+	await _wait(20)
+	_check_eq((link as CompositeCable).cord_count(), 1, "the Video Link Cable is one cord")
+	for end: String in ["PlugA0", "PlugB0"]:
+		var plug := link.get_node(end) as RcaPlug
+		for zone: XRToolsSnapZone in [multi, unit.av_through_in(), unit.av_through_out()]:
+			_ok(zone != null and plug.is_in_group(zone.snap_require),
+				"its %s fits %s" % [end, zone.name if zone != null else "<missing>"])
+		_ok(not plug.is_in_group("composite_plug") and not plug.is_in_group("n64_av_plug"),
+			"and %s is no phono and no Nintendo plug" % end)
+
+
+## The whole hookup, in every order a player might make it: the set's lead on the
+## 32X's A/V OUT first (a control: with no Video Link Cable nothing reaches the set),
+## then the Video Link Cable; each pulled and put back. The set's lead never touches
+## the console, so the console hears of it only through the 32X (ExpansionAv).
+func _r_32x_through() -> void:
+	var tv := _tv()
+	var md := await _genesis()
+	var unit := await _x32(md)
+	var multi := md.find_child("AvMultiOut", true, false) as RcaPort
+	var a_in := unit.av_through_in()
+	var a_out := unit.av_through_out()
+	if multi == null or a_in == null or a_out == null:
+		_ok(false, "the Genesis and the 32X have their sockets")
+		return
+	var ins := _input_ports(tv, RetroTV.Source.COMPOSITE_4)
+	var lead := GENESIS_AV_CABLE.instantiate() as Node3D
+	lead.position = unit.position + Vector3(0.5, 0, -0.5)
+	add_child(lead)
+	_spawned.append(lead)
+	await _wait(20)
+	a_out.pick_up_object(lead.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	for c in 3:
+		(ins[c] as RcaPort).pick_up_object(lead.get_node("PlugB%d" % c) as RcaPlug)
+		await _wait(6)
+	await _wait(30)
+	_check_eq(_which_input(tv, md), -1, "control: the set's lead on the 32X alone brings no Genesis")
+	_ok(md.connected_tv != tv, "control: and the console feeds no set")
+
+	var link := VIDEO_LINK_CABLE.instantiate() as Node3D
+	link.position = md.position + Vector3(0.0, 0.3, -0.3)
+	add_child(link)
+	_spawned.append(link)
+	await _wait(20)
+	multi.pick_up_object(link.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	a_in.pick_up_object(link.get_node("PlugB0") as RcaPlug)
+	await _wait(30)
+	_check_eq(_which_input(tv, md), RetroTV.Source.COMPOSITE_4,
+		"the Video Link Cable in: the set files the Genesis on the input the 32X's lead reaches")
+	_ok(md.connected_tv == tv, "and the console feeds that set")
+	var route: Dictionary = md.audio_speakers()
+	_check_eq(route.get("left"), 0, "its left channel lands on the left speaker")
+	_check_eq(route.get("right"), 1, "and its right on the right")
+	# Saved and sent against the 32X, by the socket's name.
+	var seat_b := {}
+	for seat: Dictionary in (link as CompositeCable).seating():
+		if int(seat["end"]) == 1:
+			seat_b = seat
+	_ok(seat_b.get("device") == unit and str(seat_b.get("port", "")) == ExpansionAv.IN_NAME,
+		"a save names the 32X's AvIn", str(seat_b))
+	_ok(CompositeCable.port_named(unit, ExpansionAv.IN_NAME) == a_in, "and the name finds the socket again")
+
+	await _unplug(lead.get_node("PlugA0") as RcaPlug)
+	_check_eq(_which_input(tv, md), -1, "the set's lead out of the 32X's A/V OUT: the Genesis leaves the set")
+	_ok(md.connected_tv != tv, "and the console knows it feeds no set")
+	a_out.pick_up_object(lead.get_node("PlugA0") as RcaPlug)
+	await _wait(30)
+	_check_eq(_which_input(tv, md), RetroTV.Source.COMPOSITE_4, "back in the A/V OUT: the Genesis is back")
+
+	await _unplug(link.get_node("PlugA0") as RcaPlug)
+	_check_eq(_which_input(tv, md), -1, "the Video Link Cable out of the console: the set loses it again")
+	multi.pick_up_object(link.get_node("PlugA0") as RcaPlug)
+	await _wait(30)
+	_check_eq(_which_input(tv, md), RetroTV.Source.COMPOSITE_4, "and back in, back again")
+
+
+## The 32X lays its picture over the console's from its own supply: with power
+## simulation on, a wall outlet in the room and no adapter in the 32X, its A/V OUT
+## is dead. Switching the option back off brings the picture back with no cord moved.
+func _r_32x_unpowered() -> void:
+	var tv := _tv()
+	var md := await _genesis()
+	var unit := await _x32(md)
+	var multi := md.find_child("AvMultiOut", true, false) as RcaPort
+	var ins := _input_ports(tv, RetroTV.Source.COMPOSITE_4)
+	var lead := GENESIS_AV_CABLE.instantiate() as Node3D
+	var link := VIDEO_LINK_CABLE.instantiate() as Node3D
+	lead.position = unit.position + Vector3(0.5, 0, -0.5)
+	link.position = md.position + Vector3(0.0, 0.3, -0.3)
+	add_child(lead)
+	add_child(link)
+	_spawned.append(lead)
+	_spawned.append(link)
+	await _wait(20)
+	multi.pick_up_object(link.get_node("PlugA0") as RcaPlug)
+	unit.av_through_in().pick_up_object(link.get_node("PlugB0") as RcaPlug)
+	await _wait(6)
+	unit.av_through_out().pick_up_object(lead.get_node("PlugA0") as RcaPlug)
+	for c in 3:
+		(ins[c] as RcaPort).pick_up_object(lead.get_node("PlugB%d" % c) as RcaPlug)
+		await _wait(6)
+	await _wait(30)
+	_check_eq(_which_input(tv, md), RetroTV.Source.COMPOSITE_4,
+		"wired up with power simulation off: the picture passes")
+
+	var sim := AppPrefs.power_simulation
+	var outlet := OUTLET.instantiate() as Node3D
+	outlet.position = md.position + Vector3(0.0, 0.3, -1.0)
+	add_child(outlet)
+	_spawned.append(outlet)
+	AppPrefs.power_simulation = true
+	MainsPower.changed(get_tree())
+	await _wait(10)
+	_ok(not unit.av_passes(), "power simulation on, an outlet in the room, no adapter in the 32X: it passes nothing")
+	_check_eq(_which_input(tv, md), -1, "and the set loses the Genesis")
+	AppPrefs.power_simulation = sim
+	MainsPower.changed(get_tree())
+	await _wait(10)
+	_ok(unit.av_passes(), "power simulation off again: the 32X passes")
+	_check_eq(_which_input(tv, md), RetroTV.Source.COMPOSITE_4, "and the Genesis is back on the set")
+
+
+## The box that stands in for a Genesis when its shell is not there wore a phono row,
+## which took neither the console's own A/V Cable nor the 32X's Video Link Cable. It
+## wears the Model 2's mini-DIN now, with the socket drawn (the box moulds none), and the
+## whole 32X hookup runs through it.
+func _r_genesis_box_minidin() -> void:
+	var tv := _tv()
+	var sys := SYSTEM_SCENE.instantiate() as RetroSystem
+	sys.systemid = "genesis"
+	sys.model_id = SystemModelRegistry.PLACEHOLDER_ID
+	sys.freeze = true
+	sys.position = Vector3(_spawned.size() * 3.0 + 2.0, 1, 0)
+	add_child(sys)
+	sys.add_to_group("spawned")
+	_spawned.append(sys)
+	await _wait(60)
+	_ok(not sys.get_model().brings_own_body(), "the console under test is the primitive box")
+	var multi := sys.find_child("AvMultiOut", true, false) as RcaPort
+	_ok(multi is MultiAvPort and multi.connector == "genesis_av_plug",
+		"it wears the Genesis's mini-DIN, which takes the A/V Cable")
+	var phonos := 0
+	for node in sys.find_children("*", "RcaPort", true, false):
+		if node != multi:
+			phonos += 1
+	_check_eq(phonos, 0, "and no phono row beside it")
+	if multi == null:
+		return
+	var local := sys.global_transform.affine_inverse() * multi.global_transform
+	_ok(absf(local.origin.z + 0.1255) < 0.0005 and local.basis.z.z < -0.99,
+		"on the back panel, facing out of it (%s)" % str(local.origin))
+	_ok(local.basis.is_equal_approx(Basis(Vector3.RIGHT, PI)),
+		"turned as the Genesis's own socket is, so the plug stands upright (%s)" % str(local.basis))
+	var jack := multi.get_node_or_null("PanelJack") as Node3D
+	_ok(jack != null and jack.is_visible_in_tree(), "and the socket is drawn: the box moulds none")
+
+	# The whole hookup through it: box -> Video Link Cable -> 32X -> A/V Cable -> set.
+	var unit := await _x32(sys)
+	var link := VIDEO_LINK_CABLE.instantiate() as Node3D
+	var lead := GENESIS_AV_CABLE.instantiate() as Node3D
+	link.position = sys.position + Vector3(0.0, 0.3, -0.3)
+	lead.position = unit.position + Vector3(0.5, 0, -0.5)
+	add_child(link)
+	add_child(lead)
+	_spawned.append(link)
+	_spawned.append(lead)
+	await _wait(20)
+	var ins := _input_ports(tv, RetroTV.Source.COMPOSITE_4)
+	unit.av_through_out().pick_up_object(lead.get_node("PlugA0") as RcaPlug)
+	for c in 3:
+		(ins[c] as RcaPort).pick_up_object(lead.get_node("PlugB%d" % c) as RcaPlug)
+		await _wait(6)
+	multi.pick_up_object(link.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	unit.av_through_in().pick_up_object(link.get_node("PlugB0") as RcaPlug)
+	await _wait(30)
+	_check_eq(_which_input(tv, sys), RetroTV.Source.COMPOSITE_4,
+		"the box reaches the set through the 32X's A/V OUT")
+	# And the A/V Cable straight from the box, the 32X's lead moved over to it.
+	await _unplug(link.get_node("PlugA0") as RcaPlug)
+	_check_eq(_which_input(tv, sys), -1, "its Video Link Cable pulled, the set loses it")
+	await _unplug(lead.get_node("PlugA0") as RcaPlug)
+	multi.pick_up_object(lead.get_node("PlugA0") as RcaPlug)
+	await _wait(30)
+	_check_eq(_which_input(tv, sys), RetroTV.Source.COMPOSITE_4, "and the A/V Cable in the box itself reaches it")
+
+
+## The drawn jack is for a surface that moulds none. The Genesis's shell and the 32X's
+## scanned one mould their own, so there it must stay hidden (a second socket drawn over
+## a moulded one z-fights it) -- and a 32X wearing its plain box draws both of its own.
+func _r_minidin_jack_drawn_only_on_a_bare_face() -> void:
+	var md := await _genesis()
+	var unit := await _x32(md)
+	var multi := md.find_child("AvMultiOut", true, false) as Node3D
+	var shelled: Array[Node3D] = [multi, unit.av_through_in(), unit.av_through_out()]
+	for port: Node3D in shelled:
+		var jack: Node3D = null
+		if port != null:
+			jack = port.get_node_or_null("PanelJack") as Node3D
+		_ok(jack != null and not jack.visible,
+			"%s: a moulded socket draws no second jack" % (port.name if port != null else "<missing>"))
+	# The 32X with no shell to wear (a checkout without the GLB): its box's back panel.
+	var shell := unit.get_node_or_null("Shell") as Node3D
+	if shell == null:
+		_skip("the 32X has no shell here; the box fallback is all there is")
+		return
+	shell.name = "ShellAway"
+	var port := (load(ExpansionCatalog.av_socket_of("sega_32x")) as PackedScene).instantiate() as MultiAvPort
+	port.input = true
+	unit.add_child(port)
+	var where := ExpansionAv.place(unit, port, "av_in")
+	shell.name = "Shell"
+	_ok(where.contains("box"), "with no shell the socket goes on the box (%s)" % where)
+	var s := unit.size()
+	_ok(absf(port.position.z - (-s.z * 0.5 - ExpansionAv.BOX_PROUD)) < 0.0001 and port.transform.basis.z.z < -0.99,
+		"0.5 mm off the box's back face, facing out (%s)" % str(port.position))
+	var jack := port.get_node_or_null("PanelJack") as Node3D
+	_ok(jack != null and jack.visible, "and the box's socket is drawn")
+	port.queue_free()
 
 
 func _d_monitor_default() -> void:

@@ -439,3 +439,39 @@ disc, tape or record plays at the headphones' near-ear law. The cassette deck's 
 jack); `appliance_pointer_tests` checks the knob's box is the knob. How it looks: `Tools/av/bring_in_probe`
 (windowed, `-- --no-mods`).
 
+
+### Pass-throughs: a device in the middle of the signal (2026-11-02)
+
+The 32X has an A/V IN and an A/V OUT (`expansion-carts.md` 2j″): the console's lead goes
+INTO it and the set's lead comes OUT of it. Nothing before it stood in the middle of a
+picture -- the RF switch is a lead, not a device -- so `AvGraph.links_for` now splices
+one out, and every reader of the graph is unchanged:
+
+- A device answers `av_through_in()`, `av_through_out()` and `av_passes()` to be a
+  pass-through (`RetroExpansion`, through `ExpansionAv`). `AvGraph.is_through`.
+- A **source** whose output reaches a pass-through's IN is also given the
+  pass-through's onward links, with the source's own socket as their `out`. So
+  `AvSource.resolve(console)` finds the set as its sink, `TvPanel._input_for_device`
+  files the console on the set's input, and the console's own menu finds the set it
+  is wired to.
+- A **sink** whose input is cabled to a pass-through's OUT sees the socket feeding the
+  pass-through as the `out` (`AvGraph.source_of`). The arcade cabinet's VIDEO IN, the
+  amplifier's `_notify_upstream` and the set's `miswired` all read their source as
+  `out.get_device()`, and get the console, not the 32X.
+- The pass-through itself reads its OWN sockets unspliced (`AvGraph.own_links`): it is
+  asking what feeds it. A spliced link carries `via` (the pass-through).
+- Not passing (`av_passes()` false) or nothing in its IN: the link stays as it is, its
+  `out` the pass-through's own socket, whose device no sink takes a picture from.
+- The cord index carries over unchanged. Right for every pairing that can be cabled
+  today (the console's socket and the 32X's are all `MultiAvPort`s, one cord-to-signal
+  map, and one mini-DIN lead between two of them carries all of it); a pass-through
+  between sockets with different maps would need a mapping here.
+- **The pass-through must tell its feeder when to look again.** A cable tells only the
+  devices its own ends sit in, and the set's lead on the 32X's A/V OUT never touches
+  the console. `ExpansionAv.on_topology` tells everything cabled to the unit (and what
+  was, last time), guarded against two pass-throughs cabled into each other.
+
+`av_tests` `routing/` holds it: `a Genesis reaches the set through the 32X's A/V OUT`
+seats the set's lead first (the control: no Genesis on the set), then the Video Link
+Cable, and pulls and re-seats each; `an unpowered 32X passes nothing`. Mutation-checked:
+no splice fails 8 checks, a 32X that tells nobody 4, a 32X that always passes 2.

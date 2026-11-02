@@ -194,6 +194,7 @@ const MONO_CABLE_SCENE       := preload("res://Scenes/Objects/cables/mono_compos
 const WII_AV_CABLE_SCENE     := preload("res://Scenes/Objects/system_models/wii/wii_av_cable.tscn")
 const N64_AV_CABLE_SCENE     := preload("res://Scenes/Objects/system_models/nintendo_64/n64_av_cable.tscn")
 const GENESIS_AV_CABLE_SCENE := preload("res://Scenes/Objects/system_models/genesis/genesis_av_cable.tscn")
+const SEGA32X_VIDEO_LINK_CABLE_SCENE := preload("res://Scenes/Objects/system_models/genesis/sega32x_video_link_cable.tscn")
 const PS2_AV_CABLE_SCENE     := preload("res://Scenes/Objects/cables/ps2_av_cable.tscn")
 const DC_AV_CABLE_SCENE      := preload("res://Scenes/Objects/system_models/dreamcast/dc_av_cable.tscn")
 const VGA_CABLE_SCENE        := preload("res://Scenes/Objects/cables/vga_cable.tscn")
@@ -301,6 +302,7 @@ const LEAD_SCENES := {
 	"wii_av_cable": WII_AV_CABLE_SCENE,
 	"n64_av_cable": N64_AV_CABLE_SCENE,
 	"genesis_av_cable": GENESIS_AV_CABLE_SCENE,
+	"sega32x_video_link_cable": SEGA32X_VIDEO_LINK_CABLE_SCENE,
 	"dc_av_cable": DC_AV_CABLE_SCENE,
 	"ps2_av_cable": PS2_AV_CABLE_SCENE,
 	"vga_cable": VGA_CABLE_SCENE,

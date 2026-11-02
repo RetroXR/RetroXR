@@ -198,6 +198,10 @@ const _PERIPHERALS: Dictionary = {
 	# (items_for appends a unit card's own rows after its units).
 	"sega32x": [
 		{"kind": "peripheral", "label": "Model 2 Spacer", "spawn": "sega32x_spacer"},
+		# Sega's Video Link Cable, packed with every 32X: the Genesis's A/V OUT into the
+		# 32X's A/V IN, mini-DIN at both ends (ExpansionAv). The set then takes the
+		# console's own A/V Cable from the 32X's A/V OUT.
+		{"kind": "peripheral", "label": "Video Link Cable", "spawn": "sega32x_video_link_cable"},
 	],
 	# A cabinet's bay is its own object now (ArcadeBayUnit), and the harness lead joins one standing
 	# elsewhere to a cabinet. Every cabinet's card offers every kind: a bay clipped into another kind's
@@ -235,8 +239,8 @@ const _NO_STANDIN_CONSOLE: Array[String] = ["dreamcast", "genesis"]
 ## The Famicom is here for a stronger reason than the other three: it has no
 ## composite socket at all, so the generic lead would fit its television and
 ## nothing on the console. Its card lists the RF switch instead. The Genesis, for
-## the Wii's and N64's reason: its one socket is a 9-pin mini-DIN. The Super NES for
-## the N64's: even its primitive box wears a Multi Out.
+## the Wii's and N64's reason: its one socket is a 9-pin mini-DIN, on its primitive box
+## too. The Super NES for the N64's: even its primitive box wears a Multi Out.
 ## The arcade cabinet is here for the opposite of a missing socket: its monitor is part
 ## of it, so there is no lead to run anywhere.
 const _OWN_AV_LEAD: Array[String] = ["nes", "famicom", "wii", "n64", "genesis", "snes", "arcade",

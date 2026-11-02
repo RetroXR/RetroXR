@@ -48,6 +48,16 @@ const ROW := {
 	# y 53.66 (Blender mm), which glTF's Y-up turns into (x, z, -y). The models'
 	# newer export carries it as a `DCInPort` empty, which wins when present.
 	"power_jack": Vector3(-0.01887, 0.0314, -0.05366),
+	# Its A/V IN and A/V OUT, the two 9-pin mini-DINs beside that jack (ExpansionAv):
+	# the console's picture and sound come in through Sega's Video Link Cable
+	# (600-6411, mini-DIN at both ends, packed with every 32X) and the set is cabled
+	# to the A/V OUT. The Genesis Model 2's own socket, so its own leads fit.
+	# RetroXR-models sega/32x/console prep_scan.py's MINIDIN centres, av_in (-1.8,
+	# 31.3) and av_out (17.2, 31.3), on the socket's black face 1.2 mm inside the
+	# panel (y 53.66 - 1.2), in glTF's (x, z, -y): where the plug's head stops.
+	"av_socket": "res://Scenes/Objects/system_models/genesis/genesis_av_port.tscn",
+	"av_in": Vector3(-0.0018, 0.0313, -0.05246),
+	"av_out": Vector3(0.0172, 0.0313, -0.05246),
 }
 
 const SHELL := "res://imported-assets/consoles/sega_32x/sega32x.glb"

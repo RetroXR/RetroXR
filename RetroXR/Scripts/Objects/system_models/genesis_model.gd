@@ -205,6 +205,15 @@ const _AV_OUT := Vector3(-0.0398, 0.0263, -0.1043)
 ## Off the panel by half a millimetre, so the plug's head — whose origin is its front
 ## face, the face that stops on the panel — is never coplanar with the case.
 const _AV_PROUD := 0.0005
+## How far the plug seats off the moulded mouth's centre, toward +X, away from the DC
+## jack. This shell's rear panel is small: its mouth opens to 6.2 mm (a real Model 2's
+## to 9.7) with the DC jack 9 mm away. The plug is the connector's real size
+## (gen_genesis_av.gd: an 11.5 mm head, so it fits the 32X's sockets, which are
+## modelled to the hardware), and centred here its head overlapped the MK-2103's
+## 9.8 mm plug in the DC jack by 1.6 mm. 2 mm over, the two clear by 0.35 mm and the
+## head still covers the mouth (3.1 + 2.0 < 5.75). The shield goes into the case
+## behind the head, where nothing sees it.
+const _AV_NUDGE := Vector3(0.002, 0.0, 0.0)
 
 
 ## A socket, not a captive lead: the Model 2 shipped its A/V cable loose, a 9-pin
@@ -233,7 +242,7 @@ func configure_av_ports(ports: Array) -> void:
 	if ports.is_empty():
 		return
 	var port := ports[0] as Node3D
-	port.position = _AV_OUT - Vector3(0.0, 0.0, _AV_PROUD)
+	port.position = _AV_OUT + _AV_NUDGE - Vector3(0.0, 0.0, _AV_PROUD)
 	port.rotation = Vector3(PI, 0.0, 0.0)
 
 

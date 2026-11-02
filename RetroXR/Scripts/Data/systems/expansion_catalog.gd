@@ -96,6 +96,15 @@
 ##               frame (metres), for a unit with a supply of its own (PowerProfiles
 ##               keyed by the unit's id; ExpansionPower). A `DCInPort` empty in the
 ##               shell wins. The 32X's ADAPTOR jack.
+##   av_socket, av_in, av_out
+##               for a unit the console's picture and sound pass THROUGH: the
+##               socket scene both of its A/V sockets are (av_socket, whose
+##               connector is the lead that fits), and the middle of each one's
+##               mouth, a point in the shell's GLB frame (metres) like power_jack;
+##               an `AvInPort` / `AvOutPort` empty in the shell wins. The 32X's
+##               A/V IN takes the Genesis's A/V OUT through Sega's Video Link Cable
+##               and its A/V OUT goes to the set (ExpansionAv, AvGraph).
+##               Absent, the unit has no A/V sockets.
 ##   accessory_group
 ##               a clip-on accessory this unit takes, by the group it joins: the
 ##               unit grows an AccessoryMount snap zone at its shell's origin,
@@ -360,6 +369,9 @@ const FIELDS := {
 	"swipe_slit": null,
 	"accessory_group": "",
 	"power_jack": null,
+	"av_socket": "",
+	"av_in": null,
+	"av_out": null,
 	"cap_color": Color(0, 0, 0, 0),
 	"socket": "",
 	"cover_socket": "",
@@ -440,6 +452,9 @@ const _SHELL_FIELDS := {
 	"shell_offset": TYPE_VECTOR3, "jack": TYPE_TRANSFORM3D,
 	# Where the shell draws its DC IN (ExpansionPower), in its own GLB frame.
 	"power_jack": TYPE_VECTOR3,
+	# Where the shell draws its A/V IN and A/V OUT (ExpansionAv), on a unit whose
+	# row has them.
+	"av_in": TYPE_VECTOR3, "av_out": TYPE_VECTOR3,
 	# Where the shell's link socket and plug are -- on a unit whose row has them;
 	# a shell does not give a unit a socket its hardware never had.
 	"link_socket": TYPE_TRANSFORM3D, "link_plug": TYPE_VECTOR3,
@@ -480,6 +495,18 @@ static func shell_offset_of(id: String) -> Vector3:
 ## `jack`), or null for the middle of the face left outside the console.
 static func ethernet_jack_of(id: String) -> Variant:
 	return _field(id, "jack")
+
+
+## The socket scene a unit's A/V IN and A/V OUT are (the row docs' `av_socket`), or ""
+## for a unit with no A/V sockets.
+static func av_socket_of(id: String) -> String:
+	return str(_field(id, "av_socket"))
+
+
+## Where the shell draws one of those sockets, `av_in` or `av_out` (a point in its GLB
+## frame), or null.
+static func av_jack_of(id: String, which: String) -> Variant:
+	return _field(id, which)
 
 
 ## The socket that carries the console's link port up through the unit (the row

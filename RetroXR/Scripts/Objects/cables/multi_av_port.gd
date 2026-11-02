@@ -50,10 +50,30 @@ func channel_for(cord: int) -> Channel:
 	return CORD_CHANNELS[cord]
 
 
-## A console's output, always. Pinned here rather than left to the scene for the reason
-## VgaPort pins its own: every machine with this socket is a source, so an IN authored
-## by mistake would be a silent dead lead.
+## An A/V IN of this shape rather than a console's A/V OUT: the 32X's, which takes the
+## console's own lead (Sega's Video Link Cable, mini-DIN at both ends) and passes it on
+## to its A/V OUT beside it (ExpansionAv, AvGraph). Set in code before the socket enters
+## the tree; never in a scene, so a console's socket cannot be made an input by mistake.
+var input := false
+
+
+## Show or hide the socket's own drawing of its mouth: a child named PanelJack, which a
+## socket scene carries hidden when the hardware it belongs to moulds its own
+## (genesis_av_port.tscn: the Genesis's shell and the 32X's do). A surface that moulds
+## none -- the primitive box, a unit's plain box -- turns it on. False when the scene
+## has none to show.
+func draw_jack(on: bool) -> bool:
+	var jack := get_node_or_null("PanelJack") as Node3D
+	if jack == null:
+		return false
+	jack.visible = on
+	return true
+
+
+## A console's output, unless built as `input`. Pinned here rather than left to the scene
+## for the reason VgaPort pins its own: every machine with this socket is a source, so an
+## IN authored by mistake would be a silent dead lead.
 func _ready() -> void:
 	super._ready()
-	direction = RcaPort.Direction.OUT
+	direction = RcaPort.Direction.IN if input else RcaPort.Direction.OUT
 	channel = RcaPort.Channel.VIDEO
