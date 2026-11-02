@@ -392,12 +392,19 @@ func _make_dc_plug() -> void:
 		dc_plug.cable_anchor = _local_to(dc_plug, exit) if exit != null \
 			else Vector3(0, 0, -size.z)
 		return
-	var box := BoxMesh.new()
-	box.size = size
-	box.material = _material(PLUG_COLOR)
-	tip.mesh = box
-	tip.position = Vector3(0, 0, -size.z * 0.5)
-	_fit_shapes(dc_plug, tip.position, size, 0.012)
+	# A plug, not a box (DcPlugShape): the sleeve or tongue that goes in, the
+	# overmould and the boot, an L plug's boot turning down. Built in the plug frame.
+	var shape := DcPlugShape.build(dc_plug.connector, size, PLUG_COLOR)
+	tip.mesh = shape["mesh"]
+	tip.position = Vector3.ZERO
+	var body: AABB = shape["body"]
+	_fit_shapes(dc_plug, body.get_center(), body.size, 0.012)
+	var exit := dc_plug.get_node_or_null(PlugExit.MARKER) as Node3D
+	if exit == null:
+		exit = Marker3D.new()
+		exit.name = PlugExit.MARKER
+		dc_plug.add_child(exit)
+	exit.transform = shape["exit"]
 	dc_plug._derive_cable_anchor()
 
 
