@@ -261,6 +261,7 @@ const VMU_SCENE              := preload("res://Scenes/Objects/controllers/dreamc
 const JUMP_PACK_SCENE        := preload("res://Scenes/Objects/controllers/dreamcast/jump_pack.tscn")
 const BATTERY_AA_SCENE       := preload("res://Scenes/Objects/batteries/battery_aa.tscn")
 const BATTERY_AAA_SCENE      := preload("res://Scenes/Objects/batteries/battery_aaa.tscn")
+const BATTERY_C_SCENE        := preload("res://Scenes/Objects/batteries/battery_c.tscn")
 const XBOX_MU_SCENE          := preload("res://Scenes/Objects/controllers/xbox/xbox_mu.tscn")
 const DC_MICROPHONE_SCENE    := preload("res://Scenes/Objects/controllers/dreamcast/dc_microphone.tscn")
 const GC_MICROPHONE_SCENE    := preload("res://Scenes/Objects/controllers/gamecube/gc_microphone.tscn")
@@ -439,6 +440,7 @@ const PLAIN_SCENES := {
 	# whose bay it is (cell_slots).
 	"battery_aa": BATTERY_AA_SCENE,
 	"battery_aaa": BATTERY_AAA_SCENE,
+	"battery_c": BATTERY_C_SCENE,
 	# Pose only, like the pack: which slot it is in is saved on the pad holding
 	# it, not here.
 	"dc_microphone": DC_MICROPHONE_SCENE,

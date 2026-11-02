@@ -114,6 +114,12 @@ const _ROWS := {
 	# The 32X's ADAPTOR jack: the MK-2103's EIAJ-03, a second adapter beside the
 	# Genesis's (RetroXR-models sega/32x/console build_32x.py, its DCInPort).
 	"sega_32x":                 {"inlet": "dc", "takes": "EIAJ-03", "brick": "sega_mk2103_adapter"},
+	# The Sega CD's own (Model 1 and 2): the MK-1602's 5.5 x 2.1, beside the Genesis's.
+	"sega_cd":                  {"inlet": "dc", "takes": "5.5x2.1", "brick": "sega_mk1602_adapter"},
+	# The Disk System's drive: its HVC-025 (plug UNVERIFIED) or six C cells, in a bay
+	# underneath (where on the real drive is not verified).
+	"fds":                      {"inlet": "dc", "takes": "5.5x2.1", "brick": "hvc025_ac_adapter",
+		"cells": "6 x C", "bay": {"size": "C", "count": 6, "along": "x", "at": [0.0, 0.0]}},
 	# Nothing on the console: the VUE-007 pack (6 x AA) or the VUE-011 tap clips onto
 	# the controller, and the supply comes up its cord.
 	"virtualboy":               {"cells": "6 x AA, in the controller's pack", "through": "controller"},

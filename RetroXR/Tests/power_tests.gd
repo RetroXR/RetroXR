@@ -75,6 +75,8 @@ func _ready() -> void:
 		await _test_standards()
 	if _want("expansion"):
 		await _test_expansion()
+	if _want("units"):
+		await _test_units()
 
 	AppPrefs.power_simulation = sim_before
 	AppPrefs.mains_region = region_before
@@ -1341,5 +1343,100 @@ func _test_expansion() -> void:
 	_ok(md.is_powered_on, "expansion/the 32X taken off, the Genesis runs alone again")
 	md.power_off()
 	unit.queue_free()
+	await _clear()
+
+
+## The Sega CD and the Disk System's drive take their own 5.5 x 2.1 adapter, and the
+## Game Boy Printer runs on six AA cells in a bay underneath.
+func _test_units() -> void:
+	var plate := _new_room()
+	for row: Array in [["sega_cd", "sega_mk1602_adapter", "usa"], ["fds", "hvc025_ac_adapter", "jpn"]]:
+		var unit := preload("res://Scenes/Objects/expansion.tscn").instantiate() as RetroExpansion
+		unit.expansion_id = str(row[0])
+		unit.freeze = true
+		unit.position = Vector3(-1, 0.5, 0)
+		_room.add_child(unit)
+		unit.add_to_group("spawned")
+		await _wait(6)
+		var jack := unit.get_node_or_null(ExpansionPower.INLET_NAME) as DcPort
+		_ok(jack != null and jack.connector == "barrel_5_5x2_1",
+			"units/%s has its own 5.5 x 2.1 DC IN" % row[0], jack.connector if jack != null else "none")
+		if jack == null:
+			continue
+		_ok(jack.position.z < -unit.size().z * 0.45, "units/%s's jack is on its back" % row[0], str(jack.position))
+		_ok((jack.get_node("DcMouth") as Node3D).visible, "units/%s's box draws the stand-in jack" % row[0])
+		var brick := _brick(str(row[1]), str(row[2]), Vector3(0.5, 0.3, 0.5))
+		await _wait(4)
+		_ok(brick.dc_plug.is_in_group(jack.snap_require), "units/its %s fits it" % row[1])
+		_ok(not PowerInput.of(unit).is_live(), "units/%s: unplugged, no power" % row[0])
+		jack.pick_up_object(brick.dc_plug)
+		(plate.get_node("TopPort") as PowerPort).pick_up_object(brick.wall_plug)
+		await _wait(4)
+		_ok(PowerInput.of(unit).is_live(), "units/%s: its adapter in the wall, power" % row[0],
+			PowerInput.of(unit).describe())
+		(plate.get_node("TopPort") as PowerPort).drop_object()
+		await _wait(2)
+		brick.drop_and_free()
+		unit.queue_free()
+		await _wait(3)
+	_ok(PowerBrickCatalog.for_machine("", "genesis").has("sega_mk1602_adapter"),
+		"units/the Genesis card offers the Sega CD's MK-1602")
+	# The Disk System's drive runs on six C cells too, with no adapter at all.
+	_eq(CellSlots.size_of_seat("BatteryC3"), "C", "units/BatteryC3 is a C seat")
+	var fds := preload("res://Scenes/Objects/expansion.tscn").instantiate() as RetroExpansion
+	fds.expansion_id = "fds"
+	fds.freeze = true
+	fds.position = Vector3(-1, 0.5, 0)
+	_room.add_child(fds)
+	fds.add_to_group("spawned")
+	await _wait(6)
+	var fds_slots := CellSlots.of(fds)
+	var fds_covers := CoverSlots.of(fds)
+	_eq(fds_slots.seats().size() if fds_slots != null else -1, 6, "units/the drive has six seats")
+	_ok(fds_slots != null and CellSlots.size_of_seat(fds_slots.seats()[0]) == "C", "units/for C cells")
+	_ok(PowerInput.of(fds).describe().contains("No batteries (takes 6 C)"), "units/and says so",
+		PowerInput.of(fds).describe())
+	if fds_slots != null and fds_covers != null and not fds_covers.sockets().is_empty():
+		await _pull(fds_covers.slot(fds_covers.sockets()[0]))
+		await _wait(3)
+		var c_cell := ScenePersistence.instantiate("battery_c") as XRToolsPickable
+		var aa_cell := _cell()
+		_room.add_child(c_cell)
+		await _wait(2)
+		var first_seat := fds_slots.slot(fds_slots.seats()[0])
+		_ok(not aa_cell.is_in_group(first_seat.snap_require), "units/an AA does not fit a C seat")
+		_ok(c_cell.is_in_group(first_seat.snap_require), "units/a C does")
+		first_seat.pick_up_object(c_cell)
+		for seat: String in fds_slots.seats().slice(1):
+			var more := ScenePersistence.instantiate("battery_c") as XRToolsPickable
+			_room.add_child(more)
+			fds_slots.slot(seat).pick_up_object(more)
+		await _wait(4)
+		_ok(PowerInput.of(fds).is_live(), "units/six C cells in: the drive has power, no adapter",
+			PowerInput.of(fds).describe())
+	fds.queue_free()
+	await _wait(3)
+	# The printer: six AA underneath, nothing else.
+	var printer := (load("res://Scenes/Objects/peripherals/gb_printer.tscn") as PackedScene).instantiate() as GbPrinter
+	printer.freeze = true
+	printer.position = Vector3(1, 0.5, 0)
+	_room.add_child(printer)
+	await _wait(6)
+	var slots := CellSlots.of(printer)
+	var covers := CoverSlots.of(printer)
+	_eq(slots.seats().size() if slots != null else -1, 6, "units/the printer has six seats")
+	_ok(slots != null and CellSlots.size_of_seat(slots.seats()[0]) == "AA", "units/for AA cells")
+	var supply := PowerInput.of(printer)
+	_ok(supply != null and not supply.is_live(), "units/no cells: the printer has no power")
+	_ok(not printer.power_on(), "units/and will not switch on")
+	_ok(not printer.is_powered_on, "units/it stays off")
+	if slots != null and covers != null and not covers.sockets().is_empty():
+		await _pull(covers.slot(covers.sockets()[0]))
+		await _wait(3)
+		for seat: String in slots.seats():
+			slots.slot(seat).pick_up_object(_cell())
+		await _wait(4)
+		_ok(supply.is_live(), "units/six cells in: power", supply.describe())
+	printer.queue_free()
 	await _clear()
 

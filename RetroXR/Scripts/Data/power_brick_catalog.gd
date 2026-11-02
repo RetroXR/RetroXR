@@ -115,6 +115,14 @@ static func _shipped() -> Dictionary:
 		"hvc_ac_adapter": {"label": "Famicom AC Adapter (HVC-002)", "cord": Color8(24, 24, 26), "fits": ["famicom", "sfc", "virtualboy"],
 			"dc_plug": "barrel_5_5x2_1", "plug_mm": [9.6, 9.6, 38.0], "source": "nintendo/snes/psu",
 			"variants": {"jpn": _wart([57.0, 96.5, 81.6], [0.0, -55.0, -32.0])}},
+		# HVC-025: the Disk System drive's own, because an HVC-002 cannot run both
+		# the drive and the Famicom (gametechwiki "Famicom Disk system"; maru-chang's
+		# HVC parts list). No RetroXR-models item yet: the HVC-002's shape and size
+		# stand in for it, and its plug is taken to be the HVC-002's 5.5 x 2.1 --
+		# both UNVERIFIED.
+		"hvc025_ac_adapter": {"label": "Disk Drive AC Adapter (HVC-025)", "cord": Color8(24, 24, 26),
+			"fits": ["famicom", "nes"], "dc_plug": "barrel_5_5x2_1", "plug_mm": [9.6, 9.6, 38.0],
+			"variants": {"jpn": _wart([57.0, 96.5, 81.6], [0.0, -55.0, -32.0])}},
 		"snes_ac_adapter": {"label": "Super NES AC Adapter (SNS-002)", "cord": Color8(24, 24, 26), "fits": ["snes", "virtualboy"],
 			"dc_plug": "snes_dc_plug", "plug_mm": [10.4, 10.4, 39.0], "source": "nintendo/snes/psu",
 			"variants": {"usa": _wart([57.0, 96.5, 81.3], [0.0, -55.0, -32.0])}},
@@ -132,6 +140,13 @@ static func _shipped() -> Dictionary:
 		"wii_ac_adapter": {"label": "Wii AC Adapter (RVL-002)", "cord": Color8(200, 200, 198), "fits": ["wii"],
 			"dc_plug": "wii_dc_plug", "plug_mm": [13.1, 17.5, 53.0], "source": "nintendo/wii/psu",
 			"variants": {"usa": wii, "jpn": wii, "eur": wii, "ukv": wii, "aus": wii, "kor": wii}},
+		# Sega's MK-1602: the Genesis Model 1's and the Sega CD's (Model 1 and 2), 9 V
+		# 1.2 A, 5.5 x 2.1 centre negative (retroregister.com Barrel Power Supplies;
+		# segaretro "AC adaptor"; segakore's MK-1602 page). No RetroXR-models item yet:
+		# the MK-2103's US body stands in for its size, ESTIMATED.
+		"sega_mk1602_adapter": {"label": "Sega AC Adapter (MK-1602)", "cord": Color8(26, 26, 28),
+			"fits": ["genesis", "segacd"], "dc_plug": "barrel_5_5x2_1", "plug_mm": [9.6, 9.6, 40.0],
+			"variants": {"usa": mk2103_us}},
 		# Sega's MK-2103: the Genesis Model 2's, the 32X's, the Nomad's and the US Game Gear's.
 		"sega_mk2103_adapter": {"label": "Sega AC Adapter (MK-2103)", "cord": Color8(26, 26, 28), "fits": ["genesis", "sega32x", "gamegear"],
 			"dc_plug": "eiaj_03", "plug_mm": [9.8, 9.8, 44.0], "source": "sega/32x/psu",

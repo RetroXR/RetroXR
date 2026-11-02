@@ -27,6 +27,7 @@ static func build(unit: RetroExpansion) -> PowerInput:
 	var profile := PowerProfiles.for_machine(unit.expansion_id, "")
 	if str(profile.get("inlet", "")) != "dc":
 		return null
+	_build_bay(unit, profile)
 	var input := PowerInput.on(unit)
 	input.label = "%s (%s)" % [ExpansionCatalog.label_of(unit.expansion_id), unit.name]
 	var jack := DC_PORT.instantiate() as DcPort
@@ -38,6 +39,20 @@ static func build(unit: RetroExpansion) -> PowerInput:
 	input.power_changed.connect(func(live: bool) -> void: _on_power_changed(unit, live))
 	print("[Power] %s: its own DC IN (%s), %s" % [input.label, jack.connector, where])
 	return input
+
+
+## The profile's battery bay (the Disk System drive's six C cells), cut into the
+## underside of the unit's box as a handheld stand-in's is (BatteryBay). A unit
+## whose box is hidden under a shell still gets its seats and cover.
+static func _build_bay(unit: RetroExpansion, profile: Dictionary) -> void:
+	var bay: Dictionary = profile.get("bay", {})
+	if bay.is_empty():
+		return
+	var body := unit.get_node_or_null("Body") as MeshInstance3D
+	var s := unit.size()
+	var seats := BatteryBay.build(unit, AABB(-s * 0.5, s), bay, "%s_battery_cover" % unit.expansion_id,
+		Color(0.38, 0.38, 0.40), body)
+	print("[Power] %s: battery bay built, %d %s seats" % [unit.expansion_id, seats, str(bay.get("size", "AA"))])
 
 
 ## Stand the jack in the unit's mouth for it. Returns where it went, for the log.

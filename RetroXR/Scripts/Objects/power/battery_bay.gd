@@ -5,7 +5,7 @@
 ## docs/dev/power.md.
 ##
 ## Built from a PowerProfiles row's "bay", so a handheld's compartment is data:
-##   size     "AA" or "AAA"
+##   size     "AA", "AAA" or "C"
 ##   count    cells in it (a split bay: in each half)
 ##   along    "x" or "z": which way a cell lies in the model's frame
 ##   at       [u, v]: the bay's middle as fractions of the body's width (x) and
@@ -21,7 +21,7 @@ class_name BatteryBay
 extends RefCounted
 
 ## Cell sizes in mm: diameter and length (IEC LR6 / LR03).
-const CELLS := {"AA": Vector2(14.5, 50.5), "AAA": Vector2(10.5, 44.5)}
+const CELLS := {"AA": Vector2(14.5, 50.5), "AAA": Vector2(10.5, 44.5), "C": Vector2(26.2, 50.0)}
 const GAP := 0.001
 const COVER_THICK := 0.0016
 ## Between the cover's inside and the cells, and the cells and the pocket's floor.

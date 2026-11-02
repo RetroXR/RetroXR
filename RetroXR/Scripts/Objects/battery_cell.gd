@@ -1,4 +1,4 @@
-## BatteryCell — an AA or AAA cell: a thing of its own, put in a battery bay's
+## BatteryCell — an AA, AAA or C cell: a thing of its own, put in a battery bay's
 ## slot of its size (CellSlots) with the bay's cover off.
 ##
 ## Its middle at its origin, its + end toward +Z and the label's front toward +Y,
@@ -9,7 +9,7 @@
 class_name BatteryCell
 extends XRToolsPickable
 
-## "AA" or "AAA". Set by the scene; the cell joins CellSlots.group_for(size)
+## "AA", "AAA" or "C". Set by the scene; the cell joins CellSlots.group_for(size)
 ## there too, which is what a slot of that size takes.
 @export var size := "AA"
 
@@ -26,6 +26,7 @@ const VARIANTS: Array = [
 const LABELS := {
 	"AA": {"black_gold": preload("res://imported-assets/batteries/labels/battery_aa_black_gold.png")},
 	"AAA": {"black_gold": preload("res://imported-assets/batteries/labels/battery_aaa_black_gold.png")},
+	"C": {"black_gold": preload("res://imported-assets/batteries/labels/battery_c_black_gold.png")},
 }
 ## The model's label material, by its name in the GLB.
 const LABEL_MATERIAL := "Label"

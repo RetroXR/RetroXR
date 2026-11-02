@@ -2819,7 +2819,8 @@ func _power_items() -> Array:
 	# whatever the region: they go in a battery bay (CellSlots). Each comes in
 	# BatteryCell's labels, picked by holding its row.
 	return all + [["AA Battery", "battery_aa", BatteryCell.VARIANTS],
-		["AAA Battery", "battery_aaa", BatteryCell.VARIANTS]]
+		["AAA Battery", "battery_aaa", BatteryCell.VARIANTS],
+		["C Battery", "battery_c", BatteryCell.VARIANTS]]
 
 
 ## What a press of a region row spawns: the row's MAKE DEFAULT pick while it lists

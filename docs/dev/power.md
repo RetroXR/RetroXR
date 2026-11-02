@@ -114,10 +114,20 @@ because nothing in it could ever be plugged in. The Arcade Room and the bedroom 
   off (`on_expansion_power`, the same `_switch_off` as the console's own), and one getting
   it back with the console's switch left ON switches it on. A save records a plug in the
   unit's jack against the unit (`DcPort.get_device` falls back to the nearest spawned
-  ancestor: the unit has no signal path). The Sega CD, the Famicom Disk System and the
-  Game Boy Printer also take their own supply and are NOT done: which adapter each Sega
-  CD model takes is unverified. `power_tests expansion/`, `Tools/room/expansion_power_probe`
-  (windowed).
+  ancestor: the unit has no signal path). The **Sega CD** (Model 1 and 2) takes the
+  Genesis Model 1's MK-1602, 5.5 x 2.1 centre negative (`sega_mk1602_adapter`; one forum
+  post has a Model 2 on an MK-2103, every other source the MK-1602); the **Disk System's
+  drive** takes its own HVC-025 (`hvc025_ac_adapter`: plug taken to be the HVC-002's
+  5.5 x 2.1, UNVERIFIED) or six C cells in a bay cut into its underside (`ExpansionPower`
+  builds the profile's `bay`; where the real drive's is was not verified). The C cell
+  (`battery_c`, `CellSlots` size "C", seats `BatteryC<n>`) is RetroXR-models'
+  generic/battery, its label painted by Codex in the AA's style. Neither the MK-1602 nor
+  the HVC-025 has a model yet: primitives sized from the MK-2103 and the HVC-002,
+  ESTIMATED. Both units are boxes, so the jack is on the back of the box. The **Game Boy
+  Printer** runs on six AA only, no jack (Nintendo's support page): `GbPrinter` builds a
+  BatteryBay under its body (`BATTERY_BAY`, cover `gb_printer_battery_cover`), refuses to
+  switch on without all six, and goes off when one comes out. `power_tests expansion/`
+  `units/`, `Tools/room/expansion_power_probe` (windowed).
 - **Handhelds.** Cells in EVERY bay, or a live DC adapter where the hardware runs off one,
   or a built-in pack (GBA SP, DS, 3DS, PSP: treated as always charged, so the machine is
   always powered; their jack only charges, so it is not an inlet).

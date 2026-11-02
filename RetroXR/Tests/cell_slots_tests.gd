@@ -131,6 +131,13 @@ func _test_labels() -> void:
 	_ok(worn != null and worn == BatteryCell.LABELS["AAA"]["black_gold"],
 		"labels/an AAA asked for in Black & Gold wears it", str(worn))
 	_ok(_label_override(plain) == null, "labels/a cell asked for nothing wears the model's own label")
+	var gold_c := ScenePersistence.instantiate("battery_c") as BatteryCell
+	SystemModelRegistry.set_variant_of(gold_c, "black_gold")
+	add_child(gold_c)
+	await _wait(2)
+	_ok(_label_texture(gold_c) == BatteryCell.LABELS["C"]["black_gold"],
+		"labels/a C asked for in Black & Gold wears it too", str(_label_texture(gold_c)))
+	gold_c.queue_free()
 	var rec: Dictionary = ScenePersistence.new().serialize_node(gold, 3, {gold: 3})
 	_ok(rec.get("model_variant") == "black_gold", "labels/its label is saved", str(rec.get("model_variant")))
 	rec["id"] = 3
@@ -143,7 +150,7 @@ func _test_labels() -> void:
 	var power: Array = view.call("_power_items")
 	if view is Node:
 		(view as Node).free()
-	for token: String in ["battery_aa", "battery_aaa"]:
+	for token: String in ["battery_aa", "battery_aaa", "battery_c"]:
 		var row: Array = []
 		# A cord or an adapter is a region row (a Dictionary, PowerSpawnRows).
 		for item: Variant in power:

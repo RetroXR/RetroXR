@@ -24,7 +24,7 @@ const NODE_NAME := "CellSlots"
 const SLOT_GROUP := &"cell_slot"
 const GROUP := "battery_cell"
 ## The sizes a seat can be, longest name first so AAA is not read as AA.
-const SIZES: Array[String] = ["AAA", "AA"]
+const SIZES: Array[String] = ["AAA", "AA", "C"]
 
 const _ZONE_SCENE := preload("res://Scenes/Objects/cell_slot.tscn")
 ## On a restored object: what its save said about its cells (told()).
@@ -42,7 +42,7 @@ var _blocker := Callable()
 var _held_shut: Array[XRToolsPickable] = []
 
 
-## The group a cell of `size` ("AA", "AAA") joins, and a slot for it requires.
+## The group a cell of `size` ("AA", "AAA", "C") joins, and a slot for it requires.
 static func group_for(size: String) -> String:
 	return GROUP + ":" + size.to_lower()
 

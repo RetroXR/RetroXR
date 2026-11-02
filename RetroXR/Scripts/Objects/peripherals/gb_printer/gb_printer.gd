@@ -206,6 +206,7 @@ func _ready() -> void:
 	# trap); a positive pitch would lean it over the front instead.
 	_pivot.rotation.x = -deg_to_rad(PAPER_LEAN_DEG)
 	_lay_paper(null, 0)
+	_build_power()
 	_show_power()
 	# Always processing: the paper swings and settles whether or not the printer
 	# is on. Off, it is the roll's end, and costs next to nothing.
@@ -223,6 +224,43 @@ func _exit_tree() -> void:
 
 # --- Power ----------------------------------------------------------------------
 
+## Six AA cells underneath, lying side by side across it, which is all the real
+## one runs on: no DC jack (Nintendo's support page, "Power supply: 6 AA alkaline
+## batteries"). Built by BatteryBay as a handheld's is, cut into the body box.
+const BATTERY_BAY := {"size": "AA", "count": 6, "along": "x", "at": [0.0, 0.0]}
+const BATTERY_COVER := "gb_printer_battery_cover"
+
+## Its intake: the cells in its bay (PowerInput counts them off CellSlots).
+var _supply: PowerInput = null
+
+
+func _build_power() -> void:
+	var body := get_node_or_null("BodyMesh") as MeshInstance3D
+	if body != null and body.mesh != null:
+		var box := body.transform * body.get_aabb()
+		var shell := Color(0.74, 0.74, 0.72)
+		var mat := body.get_active_material(0) as StandardMaterial3D
+		if mat != null:
+			shell = mat.albedo_color
+		var seats := BatteryBay.build(self, box, BATTERY_BAY, BATTERY_COVER, shell, body)
+		# The flat plate drawn where the door is: the bay's own cover is the door now.
+		var door := get_node_or_null("BatteryDoor") as Node3D
+		if seats > 0 and door != null:
+			door.visible = false
+		print("[GbPrinter] battery bay built: %d AA seats" % seats)
+	_supply = PowerInput.on(self)
+	_supply.label = "Game Boy Printer (%s)" % name
+	_supply.power_changed.connect(_on_supply_changed)
+
+
+## The cells came out (or the room's power rule changed) with the printer on: it
+## goes off, as pulling a cell does. A press puts it back on once they are in.
+func _on_supply_changed(live: bool) -> void:
+	if not live and is_powered_on and not NetworkManager.is_client():
+		print("[GbPrinter] %s lost its supply while on -- switching off (%s)" % [name, _supply.why_not()])
+		power_off()
+
+
 func toggle_power() -> void:
 	if is_powered_on:
 		power_off()
@@ -235,6 +273,10 @@ func toggle_power() -> void:
 func power_on() -> bool:
 	if is_powered_on:
 		return true
+	if _supply != null and not _supply.is_live():
+		print("[GbPrinter] %s: will not switch on -- %s" % [name, _supply.why_not()])
+		_notice("No power", "%s. It runs on six AA batteries, in the bay underneath." % _supply.why_not())
+		return false
 	var why := standalone_blocker()
 	if not why.is_empty():
 		_notice("Printer core missing", why)
