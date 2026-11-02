@@ -71,6 +71,8 @@ func _ready() -> void:
 		await _test_models()
 	if _want("vb"):
 		await _test_vb()
+	if _want("standards"):
+		await _test_standards()
 
 	AppPrefs.power_simulation = sim_before
 	AppPrefs.mains_region = region_before
@@ -442,7 +444,7 @@ func _test_latch() -> void:
 		return
 	# A lead whose appliance end is the Game Boy's adapter plug.
 	var cord := _cord()
-	(cord.appliance_plug as RcaPlug).set_connector("dmg_dc_plug")
+	(cord.appliance_plug as RcaPlug).set_connector("barrel_3_5x1_35")
 	await _wait(2)
 	jack.pick_up_object(cord.appliance_plug)
 	await _wait(2)
@@ -841,6 +843,20 @@ func _test_spawn() -> void:
 		"spawn/a model row with its own power registers")
 	_eq(str(PowerProfiles.for_machine("power.test:psone", "psx").get("plug", "")), "eiaj_03",
 		"spawn/and its own power wins over its platform's figure-eight inlet")
+	_eq(str(PowerProfiles.for_machine("power.test:psone", "psx").get("inlet", "")), "dc",
+		"spawn/laid over it field by field: the inlet is the PSone's")
+	# A handheld shell names only its jack, in the models' words, and keeps the
+	# stand-in's cells, bay and adapter.
+	var gb_row := {"platform": "gb", "label": "Test Game Boy", "handheld": true,
+		"scene": "res://Scenes/Objects/system_models/game_boy_primitive.tscn",
+		"power": {"takes": "EIAJ-01"}}
+	_eq(SystemModelRegistry.register_mod_row("power.test:gb", gb_row, "power.test"), "",
+		"spawn/a handheld row naming its jack registers")
+	var gb_power := PowerProfiles.for_machine("power.test:gb", "gb")
+	_eq(PowerProfiles.plug_of(gb_power), "eiaj_01", "spawn/its jack takes what it says")
+	_eq(str(gb_power.get("cells", "")), "4 x AA", "spawn/and it keeps the stand-in's cells")
+	_ok(gb_power.has("bay") and str(gb_power.get("brick", "")) == "dmg_battery_pack",
+		"spawn/its bay and its adapter")
 	SystemModelRegistry.drop_mod("power.test")
 	_ok(PowerBrickCatalog.for_machine("", "psx").has("psone_ac_adapter"),
 		"spawn/the PlayStation card offers the PSone's adapter")
@@ -1189,4 +1205,61 @@ func _test_vb() -> void:
 	_eq(jp.variant, "jpn", "vb/a tap bought in Japan")
 	_eq(jp.jack.connector if jp.jack != null else "", "barrel_5_5x2_1", "vb/takes the HVC-002's plug")
 	AppPrefs.mains_region = region
+	await _clear()
+
+
+## A jack is named by the plug STANDARD it takes, in RetroXR-models' words: the NES
+## takes the NES-002's 5.5 x 2.5, the (US) Game Gear the MK-2103's EIAJ-03, the Game
+## Boy and the Lynx one 3.5 x 1.35, and a mod's row can say so with `takes`.
+func _test_standards() -> void:
+	_new_room()
+	_eq(Connectors.of_takes("EIAJ-03"), "eiaj_03", "standards/a models BARREL key is a connector")
+	_eq(Connectors.of_takes("3.5x1.35"), "barrel_3_5x1_35", "standards/the Game Boy's barrel")
+	_eq(Connectors.of_takes("snes_dc_plug"), "snes_dc_plug", "standards/a keyed plug is named as it is")
+	_eq(PowerProfiles.plug_of({"inlet": "dc", "takes": "EIAJ-01", "plug": "eiaj_03"}), "eiaj_01",
+		"standards/a row's takes wins over its plug")
+	for key: String in Connectors.BARRELS:
+		_ok(Connectors.LABELS.has(Connectors.BARRELS[key]), "standards/%s has a label" % key)
+	# Each shipped adapter's plug is what its model's params.py `barrel` says.
+	var want := {"nes_ac_adapter": "barrel_5_5x2_5", "hvc_ac_adapter": "barrel_5_5x2_1",
+		"dmg_battery_pack": "barrel_3_5x1_35", "lynx_ac_adapter": "barrel_3_5x1_35",
+		"gbc_ac_adapter": "eiaj_01", "psp_ac_adapter": "eiaj_02", "sega_mk2103_adapter": "eiaj_03",
+		"psone_ac_adapter": "eiaj_03", "ps2_slim_ac_adapter": "eiaj_03", "jaguar_ac_adapter": "barrel_5_5x2_1",
+		"gamegear_ac_adapter": "barrel_5_5x2_1"}
+	for id: String in want:
+		for v: String in PowerBrickCatalog.variants_of(id):
+			_eq(str(PowerBrickCatalog.variant(id, v).get("dc_plug", "")), want[id],
+				"standards/%s (%s) has a %s plug" % [id, v, want[id]])
+	var nes := await _machine("nes", "nes")
+	var nes_jack := PowerInput.of(nes).inlets()[0] as DcPort
+	_eq(nes_jack.connector, "barrel_5_5x2_5", "standards/the NES's jack takes 5.5 x 2.5")
+	var hvc := _brick("hvc_ac_adapter", "jpn", Vector3(-0.5, 0.3, 0.5))
+	var nes_us := _brick("nes_ac_adapter", "usa", Vector3(0.5, 0.3, 0.5))
+	await _wait(4)
+	_ok(nes_us.dc_plug.is_in_group(nes_jack.snap_require), "standards/the NES-002 goes into it")
+	_ok(not hvc.dc_plug.is_in_group(nes_jack.snap_require),
+		"standards/a Famicom adapter's 2.1 mm plug does not (its pin is 2.5)")
+	await _clear()
+	_new_room()
+	var gg := await _machine("gamegear", "game_gear")
+	var inlets := PowerInput.of(gg).inlets()
+	var gg_jack: DcPort = inlets[0] as DcPort if not inlets.is_empty() else null
+	_eq(gg_jack.connector if gg_jack != null else "none", "eiaj_03", "standards/the US Game Gear takes EIAJ-03")
+	_eq(str(PowerProfiles.for_machine("game_gear", "gamegear").get("brick", "")), "sega_mk2103_adapter",
+		"standards/its adapter is the MK-2103")
+	var mk := _brick("sega_mk2103_adapter", "usa", Vector3(0.5, 0.3, 0.5))
+	var pal_gg := _brick("gamegear_ac_adapter", "eur", Vector3(-0.5, 0.3, 0.5))
+	await _wait(4)
+	if gg_jack != null:
+		_ok(mk.dc_plug.is_in_group(gg_jack.snap_require), "standards/the MK-2103 goes in")
+		_ok(not pal_gg.dc_plug.is_in_group(gg_jack.snap_require),
+			"standards/a European Game Gear adapter's 5.5 mm plug does not")
+	await _clear()
+	_new_room()
+	var gb := await _machine("gb", "game_boy_primitive")
+	var gb_jack := PowerInput.of(gb).inlets()[0] as DcPort
+	var lynx := _brick("lynx_ac_adapter", "usa", Vector3(0.5, 0.3, 0.5))
+	await _wait(4)
+	_eq(gb_jack.connector, "barrel_3_5x1_35", "standards/the Game Boy's jack takes 3.5 x 1.35")
+	_ok(lynx.dc_plug.is_in_group(gb_jack.snap_require), "standards/so the Lynx's adapter fits it, as it does")
 	await _clear()

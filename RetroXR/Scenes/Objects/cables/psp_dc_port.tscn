@@ -43,7 +43,7 @@ emission_energy_multiplier = 0.4
 
 ; DC IN: the PSP's DC IN 5V, on its bottom edge: the PSP-100/PSP-380's EIAJ-02 barrel, 4.0 x 1.7, center positive.
 ; A DcPort with no lead of the game's own yet: the adapter and its cord come from
-; a mod (RetroXR-models' power supply items), whose plug names "psp_dc_plug".
+; a mod (RetroXR-models' power supply items), whose plug names "eiaj_02".
 ;
 ; Placed the way every socket is: +Z out of the shell, the zone where a seated
 ; plug's ORIGIN belongs, the face of the plug's barrel or hood, which stops
@@ -56,7 +56,7 @@ emission_energy_multiplier = 0.4
 [node name="PspDcPort" instance=ExtResource("1_snapzone")]
 grab_distance = 0.05
 script = ExtResource("2_portscript")
-connector = "psp_dc_plug"
+connector = "eiaj_02"
 
 [node name="DcMouth" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.0001)

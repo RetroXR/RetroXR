@@ -99,7 +99,6 @@ static func _shipped() -> Dictionary:
 	if not _rows_cache.is_empty():
 		return _rows_cache
 	var nes_pal := _inline([57.0, 50.6, 114.0], [0.0, 25.0, 57.0], [0.0, 25.0, -57.0])
-	nes_pal["dc_plug"] = "barrel_5_5x2_5"
 	var gc := _inline([67.0, 40.0, 153.0], [0.0, 20.0, 76.5], [0.0, 20.0, -76.5])
 	var wii := _inline([55.0, 45.6, 171.0], [0.0, 14.0, 85.5], [0.0, 14.0, -85.5])
 	var mk2103_us := _wart([57.0, 85.0, 69.65], [-10.0, -46.5, -34.0])
@@ -109,7 +108,7 @@ static func _shipped() -> Dictionary:
 	var psone := _wart([50.0, 94.5, 43.5], [0.0, -55.5, -13.5])
 	_rows_cache = {
 		"nes_ac_adapter": {"label": "NES AC Adapter (NES-002)", "cord": Color8(24, 24, 26), "fits": ["nes"],
-			"dc_plug": "barrel_5_5x2_1", "plug_mm": [9.6, 9.6, 38.0], "source": "nintendo/nes/psu",
+			"dc_plug": "barrel_5_5x2_5", "plug_mm": [9.6, 9.6, 38.0], "source": "nintendo/nes/psu",
 			"variants": {"usa": _wart([57.0, 100.5, 81.3], [0.0, -57.0, -32.0]),
 				"eur": nes_pal, "ukv": nes_pal, "aus": nes_pal}},
 		# The Famicom's and the Super Famicom's: one adapter, 5.5 x 2.1.
@@ -134,7 +133,7 @@ static func _shipped() -> Dictionary:
 			"dc_plug": "wii_dc_plug", "plug_mm": [13.1, 17.5, 53.0], "source": "nintendo/wii/psu",
 			"variants": {"usa": wii, "jpn": wii, "eur": wii, "ukv": wii, "aus": wii, "kor": wii}},
 		# Sega's MK-2103: the Genesis Model 2's, the 32X's, the Nomad's and the US Game Gear's.
-		"sega_mk2103_adapter": {"label": "Sega AC Adapter (MK-2103)", "cord": Color8(26, 26, 28), "fits": ["genesis", "sega32x"],
+		"sega_mk2103_adapter": {"label": "Sega AC Adapter (MK-2103)", "cord": Color8(26, 26, 28), "fits": ["genesis", "sega32x", "gamegear"],
 			"dc_plug": "eiaj_03", "plug_mm": [9.8, 9.8, 44.0], "source": "sega/32x/psu",
 			"variants": {"usa": mk2103_us, "jpn": mk2103_us, "eur": mk2103_eu, "ukv": mk2103_eu,
 				"aus": mk2103_eu}},
@@ -151,11 +150,11 @@ static func _shipped() -> Dictionary:
 		# ── the handhelds' ─────────────────────────────────────────────────────
 		# DMG-03: a rechargeable pack on a cord into the Game Boy's DC IN.
 		"dmg_battery_pack": {"label": "Game Boy Battery Pack (DMG-03)", "cord": Color8(24, 24, 26), "fits": ["gb"],
-			"dc_plug": "dmg_dc_plug", "plug_mm": [7.6, 21.1, 20.0], "source": "nintendo/gb/psu",
+			"dc_plug": "barrel_3_5x1_35", "plug_mm": [7.6, 21.1, 20.0], "source": "nintendo/gb/psu",
 			"variants": {"usa": {"form": "battery_pack", "size_mm": [60.0, 33.04, 118.5],
 				"dc": [0.0, 15.0, 66.0]}}},
 		"gbc_ac_adapter": {"label": "Game Boy Color AC Adapter (MGB-005)", "cord": Color8(24, 24, 26), "fits": ["gbc"],
-			"dc_plug": "gbc_dc_plug", "plug_mm": [6.8, 6.8, 33.0], "source": "nintendo/gbc/psu",
+			"dc_plug": "eiaj_01", "plug_mm": [6.8, 6.8, 33.0], "source": "nintendo/gbc/psu",
 			"variants": {"usa": mgb, "jpn": mgb, "eur": mgb, "aus": mgb}},
 		"ags_ac_adapter": {"label": "GBA SP / DS AC Adapter (AGS-002)", "cord": Color8(24, 24, 26), "fits": ["nds"],
 			"dc_plug": "ext2_plug", "plug_mm": [15.8, 10.0, 37.0], "source": "nintendo/gba/psu-sp",
@@ -164,13 +163,18 @@ static func _shipped() -> Dictionary:
 			"dc_plug": "dsi_dc_plug", "plug_mm": [10.6, 8.6, 35.5], "source": "nintendo/3ds/psu",
 			"variants": {"usa": wap, "jpn": wap, "eur": wap, "ukv": wap, "aus": wap}},
 		"psp_ac_adapter": {"label": "PSP AC Adapter (PSP-380)", "cord": Color8(24, 24, 26), "fits": ["psp"],
-			"dc_plug": "psp_dc_plug", "plug_mm": [8.0, 23.5, 21.5], "source": "sony/psp/psu",
+			"dc_plug": "eiaj_02", "plug_mm": [8.0, 23.5, 21.5], "source": "sony/psp/psu",
 			"variants": {"usa": _inlet([46.0, 22.12, 74.5], [0.0, 8.0, 44.0], [0.0, 11.0, -29.7])}},
-		"gamegear_ac_adapter": {"label": "Game Gear AC Adapter", "cord": Color8(26, 26, 28), "fits": ["gamegear"],
-			"dc_plug": "gg_dc_plug", "plug_mm": [10.0, 10.0, 42.0], "source": "sega/game-gear/psu",
+		# Japan's, Europe's and Asia's Game Gear adapters: a 5.5 x 2.1 plug, for those
+		# markets' jack (the Mega Drive 1 style). The game's Game Gear is the US build,
+		# whose EIAJ-03 jack takes the MK-2103 instead, so this card fits none of the
+		# game's machines but those that take a 5.5 x 2.1 (the Famicom, a Jaguar...); it
+		# stays on the Power tab (sega/game-gear/psu research/notes.md).
+		"gamegear_ac_adapter": {"label": "Game Gear AC Adapter (Japan / Europe)", "cord": Color8(26, 26, 28), "fits": [],
+			"dc_plug": "barrel_5_5x2_1", "plug_mm": [10.0, 10.0, 42.0], "source": "sega/game-gear/psu",
 			"variants": {"jpn": mk2103_eu, "eur": mk2103_eu, "ukv": mk2103_eu, "asia": mk2103_eu}},
 		"lynx_ac_adapter": {"label": "Lynx AC Adapter (PAG-1200)", "cord": Color8(24, 24, 26), "fits": ["atarilynx"],
-			"dc_plug": "dmg_dc_plug", "plug_mm": [7.9, 7.9, 33.5], "source": "atari/lynx/psu",
+			"dc_plug": "barrel_3_5x1_35", "plug_mm": [7.9, 7.9, 33.5], "source": "atari/lynx/psu",
 			"variants": {"usa": _wart([57.0, 78.5, 66.8], [-6.0, -44.5, -25.0])}},
 	}
 	return _rows_cache

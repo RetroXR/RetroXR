@@ -43,7 +43,7 @@ emission_energy_multiplier = 0.4
 
 ; DC IN: the Game Gear's DC 9V, on its top edge: Sega's 5.5 x 2.1 barrel, center negative.
 ; A DcPort with no lead of the game's own yet: the adapter and its cord come from
-; a mod (RetroXR-models' power supply items), whose plug names "gg_dc_plug".
+; a mod (RetroXR-models' power supply items), whose plug names "eiaj_03".
 ;
 ; Placed the way every socket is: +Z out of the shell, the zone where a seated
 ; plug's ORIGIN belongs, the face of the plug's barrel or hood, which stops
@@ -56,7 +56,7 @@ emission_energy_multiplier = 0.4
 [node name="GgDcPort" instance=ExtResource("1_snapzone")]
 grab_distance = 0.05
 script = ExtResource("2_portscript")
-connector = "gg_dc_plug"
+connector = "eiaj_03"
 
 [node name="DcMouth" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.0001)

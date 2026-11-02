@@ -48,19 +48,20 @@ const LABELS := {
 	"saturn_link_plug": "a Saturn link cable plug",
 	"jag_link_plug": "a JagLink cable plug",
 	"ilink_plug": "an i.LINK cable plug",
-	# The handhelds' DC IN sockets (Scenes/Objects/cables/*_dc_port.tscn): each AC
-	# adapter's own plug. The DS's takes the Game Boy Advance SP's EXT.2 plug.
-	"dmg_dc_plug": "a Game Boy AC adapter plug",
-	"gbc_dc_plug": "a Game Boy Color AC adapter plug",
-	"dsi_dc_plug": "a Nintendo DSi or 3DS AC adapter plug",
-	"psp_dc_plug": "a PSP AC adapter plug",
-	"gg_dc_plug": "a Game Gear AC adapter plug",
-	# A console's DC IN, named after the plug's standard (RetroXR-models
-	# common/powerkit.py) so two consoles that take the same barrel take each
-	# other's adapter, as they do. Voltage is not modelled; fit is.
+	# DC IN, named after the plug's STANDARD (RetroXR-models common/powerkit.py BARREL,
+	# the key a model's jack `takes` and its adapter's plug `barrel`), so anything that
+	# takes the same barrel takes the same adapters, as on the hardware: the Game Boy's
+	# and the Lynx's 3.5 x 1.35, the US Game Gear's, Genesis 2's and PSone's EIAJ-03.
+	# Voltage and polarity are not modelled; fit is. BARRELS maps the models' keys.
+	"barrel_3_5x1_35": "a 3.5 x 1.35 mm barrel plug",
 	"barrel_5_5x2_1": "a 5.5 x 2.1 mm barrel plug",
 	"barrel_5_5x2_5": "a 5.5 x 2.5 mm barrel plug",
+	"eiaj_01": "a 2.35 x 0.7 mm (EIAJ-01) barrel plug",
+	"eiaj_02": "a 4.0 x 1.7 mm (EIAJ-02) barrel plug",
 	"eiaj_03": "a 4.75 x 1.7 mm (EIAJ-03) barrel plug",
+	# Keyed plugs only their own adapter fits. The DS's DC IN takes the Game Boy
+	# Advance SP's EXT.2 plug (ext2_plug).
+	"dsi_dc_plug": "a Nintendo DSi or 3DS AC adapter plug",
 	"snes_dc_plug": "a Super NES AC adapter plug",
 	"gc_dc_plug": "a GameCube AC adapter plug",
 	"wii_dc_plug": "a Wii AC adapter plug",
@@ -92,6 +93,25 @@ const LABELS := {
 	"is_1293_plug": "an Indian 6 A plug",
 	"si_32_plug": "an Israeli three-pin plug",
 }
+
+## RetroXR-models' barrel standards (common/powerkit.py BARREL) as connectors: what a
+## model's jack `takes` and a plug's `barrel` say, so a mod's row can name a jack in
+## the models' own words (`"power": {"takes": "EIAJ-03"}`, PowerProfiles.plug_of).
+## A keyed plug (snes_dc_plug, gc_dc_plug, ...) is named by its connector as it is.
+const BARRELS := {
+	"3.5x1.35": "barrel_3_5x1_35",
+	"5.5x2.1": "barrel_5_5x2_1",
+	"5.5x2.5": "barrel_5_5x2_5",
+	"EIAJ-01": "eiaj_01",
+	"EIAJ-02": "eiaj_02",
+	"EIAJ-03": "eiaj_03",
+}
+
+
+## The connector for what a model's jack takes: a BARRELS key, or a connector name.
+static func of_takes(takes: String) -> String:
+	return str(BARRELS.get(takes, takes))
+
 
 ## A plug that also goes into another connector's socket, as on the hardware. Said
 ## once, here, by the plug joining that socket's group too -- a snap zone filters

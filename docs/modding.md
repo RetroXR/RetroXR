@@ -674,6 +674,7 @@ are `RcaPlug` (an A/V lead) and `LinkPlug` (a link lead).
 | `link_plug`, `gg_link_plug`, `ws_link_plug`, `comlynx_plug`, `ngp_link_plug`, `vb_link_plug` | handheld link sockets |
 | `psx_link_plug`, `saturn_link_plug`, `jag_link_plug`, `ilink_plug` | console link sockets |
 | `nema_5_15_plug`, `iec_c13_plug`, `iec_c7_plug`, ... | power |
+| `barrel_3_5x1_35`, `barrel_5_5x2_1`, `barrel_5_5x2_5`, `eiaj_01`, `eiaj_02`, `eiaj_03` | DC barrel jacks, by the plug's standard (`snes_dc_plug`, `gc_dc_plug`, `wii_dc_plug`, `dsi_dc_plug`, `ext2_plug`, `n64_psu_dock` are keyed) |
 | `<systemid>_controller` | a console's controller port, except those shared below |
 | `playstation_controller` | PlayStation and PlayStation 2 |
 | `gamecube_controller` | GameCube, and the Wii's GameCube ports |
@@ -854,6 +855,20 @@ api.override_power_brick("nes_ac_adapter", {
   is not in the pack. A region you give no model keeps its primitive.
 - One mod per adapter; switching it off brings the primitives back. Its boxes are
   fitted to what the model draws (a wall wart's stop at its face, not its blades).
+
+### What a console's DC IN takes
+
+A model row says what its machine runs on in `"power"`, the game's power-profile
+fields, laid over its platform's row (or its stand-in's), so give only what differs.
+Name a DC jack in RetroXR-models' own words with `takes`: a `common/powerkit.py`
+`BARREL` key (`"3.5x1.35"`, `"5.5x2.1"`, `"5.5x2.5"`, `"EIAJ-01"`, `"EIAJ-02"`,
+`"EIAJ-03"`) or a keyed plug's connector (`"snes_dc_plug"`, `"gc_dc_plug"`, ...).
+Any adapter whose plug is that standard then fits, as on the hardware.
+
+```gdscript
+"power": {"inlet": "dc", "takes": "EIAJ-03", "brick": "psone_ac_adapter"},  # a PSone
+"power": {"takes": "3.5x1.35"},   # a Game Boy shell: the stand-in's cells and bay stay
+```
 
 ### The Virtual Boy's pack and tap
 

@@ -83,11 +83,24 @@ because nothing in it could ever be plugged in. The Arcade Room and the bedroom 
   a ray into the model's own triangles (`ApplianceMains.back_surface`: a CRT's back tapers,
   so the bounds' back is the tube's hump; a steep face such as a stand's rim moves the
   search toward the middle). The Panasonic set's inlet floated behind its corner before.
-- **DC connectors are the plug's STANDARD** (`barrel_5_5x2_1`, `barrel_5_5x2_5`, `eiaj_03`,
-  RetroXR-models `common/powerkit.py`), so consoles that take the same barrel take each
-  other's adapter. Voltage is not modelled. Proprietary plugs have their own names
-  (`snes_dc_plug`, `gc_dc_plug`, `wii_dc_plug`, `n64_psu_dock`); the five handheld names
-  stay. A 5.5 x 2.5 plug goes over a 2.1 pin (loosely), not the reverse.
+- **DC connectors are the plug's STANDARD** (2026-11-02: every barrel is, the handhelds'
+  too): `barrel_3_5x1_35` (Game Boy, Lynx), `barrel_5_5x2_1` (Famicom, Super Famicom,
+  Jaguar), `barrel_5_5x2_5` (NES: the NES-002 is 5.5 x 2.5 in every market; it was
+  5.5 x 2.1 in the US, so a Famicom adapter fitted an NES), `eiaj_01` (GBC), `eiaj_02`
+  (PSP), `eiaj_03` (Genesis 2, 32X, PSone, slim PS2, and the US Game Gear, whose jack is
+  the MK-2103's -- the 5.5 x 2.1 `gamegear_ac_adapter` is Japan's and Europe's and fits
+  none of the game's machines but the 5.5 x 2.1 ones, so it is only on the Power tab).
+  Consoles that take the same barrel take each other's adapter. Voltage and polarity are
+  not modelled. Keyed plugs keep their own names (`snes_dc_plug`, `gc_dc_plug`,
+  `wii_dc_plug`, `dsi_dc_plug`, `ext2_plug`, `n64_psu_dock`). A 5.5 x 2.5 plug goes over a
+  2.1 pin (loosely), not the reverse. Where each fact comes from: an adapter's plug is its
+  RetroXR-models item's `plug` `barrel=` (a `common/powerkit.py` `BARREL` key); a console
+  mod's row says what its jack takes in the same words, `"power": {"takes": "EIAJ-03"}`
+  (`Connectors.BARRELS` / `of_takes`, `PowerProfiles.plug_of`; `takes` wins over `plug`),
+  and a mod row's `power` is laid OVER its platform's or stand-in's row, so a handheld shell
+  naming its jack keeps the stand-in's cells and bay. As with link cables, the models carry
+  geometry and an empty at the mouth; the CONNECTOR is the game's (`Connectors`), named on
+  the node or, for power, by these rows. `power_tests standards/`.
 - **Handhelds.** Cells in EVERY bay, or a live DC adapter where the hardware runs off one,
   or a built-in pack (GBA SP, DS, 3DS, PSP: treated as always charged, so the machine is
   always powered; their jack only charges, so it is not an inlet).

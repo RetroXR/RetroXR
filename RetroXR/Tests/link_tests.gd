@@ -2699,12 +2699,12 @@ const SOCKET_SCENES := {
 	"res://Scenes/Objects/cables/psx_link_port.tscn": "psx_link_plug",
 	"res://Scenes/Objects/cables/trs_port.tscn": "trs_plug",
 	"res://Scenes/Objects/cables/vga_port.tscn": "vga_plug",
-	"res://Scenes/Objects/cables/dmg_dc_port.tscn": "dmg_dc_plug",
-	"res://Scenes/Objects/cables/gbc_dc_port.tscn": "gbc_dc_plug",
+	"res://Scenes/Objects/cables/dmg_dc_port.tscn": "barrel_3_5x1_35",
+	"res://Scenes/Objects/cables/gbc_dc_port.tscn": "eiaj_01",
 	"res://Scenes/Objects/cables/nds_dc_port.tscn": "ext2_plug",
 	"res://Scenes/Objects/cables/dsi_dc_port.tscn": "dsi_dc_plug",
-	"res://Scenes/Objects/cables/psp_dc_port.tscn": "psp_dc_plug",
-	"res://Scenes/Objects/cables/gg_dc_port.tscn": "gg_dc_plug",
+	"res://Scenes/Objects/cables/psp_dc_port.tscn": "eiaj_02",
+	"res://Scenes/Objects/cables/gg_dc_port.tscn": "eiaj_03",
 }
 
 
@@ -2743,12 +2743,12 @@ func _test_a_baked_default_still_takes_its_own_plug() -> void:
 ## it, so a seated plug sits outside the shell. The Game Boy Advance has none (its
 ## adapter takes the battery cover's place) and the SP's is its EXT.2 socket.
 const DC_IN := {
-	"res://Scenes/Objects/system_models/game_boy_primitive.tscn": "dmg_dc_plug",
-	"res://Scenes/Objects/system_models/game_boy_color_primitive.tscn": "gbc_dc_plug",
+	"res://Scenes/Objects/system_models/game_boy_primitive.tscn": "barrel_3_5x1_35",
+	"res://Scenes/Objects/system_models/game_boy_color_primitive.tscn": "eiaj_01",
 	"res://Scenes/Objects/system_models/nds_primitive.tscn": "ext2_plug",
 	"res://Scenes/Objects/system_models/n3ds_primitive.tscn": "dsi_dc_plug",
-	"res://Scenes/Objects/system_models/psp_primitive.tscn": "psp_dc_plug",
-	"res://Scenes/Objects/system_models/game_gear.tscn": "gg_dc_plug",
+	"res://Scenes/Objects/system_models/psp_primitive.tscn": "eiaj_02",
+	"res://Scenes/Objects/system_models/game_gear.tscn": "eiaj_03",
 }
 
 

@@ -17,6 +17,9 @@
 ##             N64's NUS-002, which docks into the back). Omitted: no inlet (cells only,
 ##             or a built-in battery).
 ##   plug      for "dc": the connector of the adapter plug the jack takes.
+##   takes     the same in RetroXR-models' words: a powerkit BARREL key ("EIAJ-03",
+##             "3.5x1.35") or a keyed plug's connector, what a console model's params.py
+##             says its jack takes. Wins over `plug` (Connectors.of_takes; plug_of).
 ##   brick     the PowerBrickCatalog row of the machine's own AC adapter.
 ##   internal  a rechargeable pack built in; its DC jack only charges it.
 ##   cells     a note for the menu and the docs only: the bays are the model's
@@ -40,7 +43,7 @@ const _ROWS := {
 	"xbox":       {"inlet": "c8"},    # non-polarized C7
 	"3do":        {"inlet": "c8"},    # FZ-10's
 	# ── consoles on an AC adapter: a DC jack ─────────────────────────────────────
-	"nes":        {"inlet": "dc", "plug": "barrel_5_5x2_1", "brick": "nes_ac_adapter"},
+	"nes":        {"inlet": "dc", "plug": "barrel_5_5x2_5", "brick": "nes_ac_adapter"},   # NES-002: 5.5 x 2.5
 	"famicom":    {"inlet": "dc", "plug": "barrel_5_5x2_1", "brick": "hvc_ac_adapter"},
 	"snes":       {"inlet": "dc", "plug": "snes_dc_plug", "brick": "snes_ac_adapter"},
 	"sfc":        {"inlet": "dc", "plug": "barrel_5_5x2_1", "brick": "hvc_ac_adapter"},
@@ -86,7 +89,9 @@ const _ROWS := {
 	"n3ds_primitive":           {"internal": true, "brick": "wap_ac_adapter"},
 	"psp_primitive":            {"internal": true, "brick": "psp_ac_adapter"},
 	# Three cells in each grip, standing the long way.
-	"game_gear":                {"cells": "6 x AA", "brick": "gamegear_ac_adapter",
+	# The US Game Gear (the model's build) takes EIAJ-03, the MK-2103 it shipped with;
+	# Japan's and Europe's took a 5.5 x 2.1 in another jack (gamegear_ac_adapter).
+	"game_gear":                {"cells": "6 x AA", "brick": "sega_mk2103_adapter", "plug": "eiaj_03",
 		"dc_jack": "res://Scenes/Objects/cables/gg_dc_port.tscn",
 		"bay": {"size": "AA", "count": 3, "along": "z", "at": [0.36, 0.0], "split": true}},
 	# The PAG-1200's plug is the Game Boy's 3.5 mm one (PowerBrickCatalog), so the jack too.
@@ -114,8 +119,20 @@ const _ROWS := {
 static var extra := {}
 
 
-## The row for a machine: its model's, else its platform's, else {}.
+## The row for a machine: its model's, else its platform's, else {}. A mod's model
+## row's own `"power"` is laid OVER what it would otherwise get (its platform's, or
+## its stand-in's), so a Game Boy shell that says what its jack takes (`takes`) keeps
+## the stand-in's cells and bay, and a PSone's {inlet: "dc", ...} replaces the fat
+## PlayStation's C8 field by field.
 static func for_machine(model_id: String, systemid: String) -> Dictionary:
+	var own: Variant = SystemModelRegistry.row_for(model_id).get("power") if not model_id.is_empty() else null
+	var base := _base_for(model_id, systemid)
+	if own is Dictionary and not (own as Dictionary).is_empty():
+		return base.merged(own as Dictionary, true)
+	return base
+
+
+static func _base_for(model_id: String, systemid: String) -> Dictionary:
 	for key: String in [model_id, systemid]:
 		if key.is_empty():
 			continue
@@ -123,12 +140,6 @@ static func for_machine(model_id: String, systemid: String) -> Dictionary:
 			return extra[key]
 		if _ROWS.has(key):
 			return _ROWS[key]
-		# A mod's model says what it runs on in its own row ("power"): a PSone is on
-		# the PlayStation's platform and takes an adapter, where a PS1 takes a cord.
-		if key == model_id:
-			var own: Variant = SystemModelRegistry.row_for(model_id).get("power")
-			if own is Dictionary and not (own as Dictionary).is_empty():
-				return own
 	# A mod's model of a machine the game has a stand-in for (xenu.gb's colours, a 3DS
 	# XL): the stand-in's row, which the facts are about. Rows are keyed by model id, so
 	# without this a Game Boy in another shell had no supply at all.
@@ -152,5 +163,12 @@ static func inlet_connector(profile: Dictionary) -> String:
 		"c14":
 			return "iec_c13_plug"
 		"dc", "dock":
-			return str(profile.get("plug", ""))
+			return plug_of(profile)
 	return ""
+
+
+## The connector of the plug a profile's DC jack takes: its `takes` in the models'
+## words, else its `plug`, else "".
+static func plug_of(profile: Dictionary) -> String:
+	var takes := str(profile.get("takes", ""))
+	return Connectors.of_takes(takes) if not takes.is_empty() else str(profile.get("plug", ""))

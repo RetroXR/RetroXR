@@ -86,6 +86,10 @@ func build(model_id: String) -> void:
 	if inlets.is_empty() and not jack_scene.is_empty() and not input.internal_battery 			and ResourceLoader.exists(jack_scene):
 		var jack := (load(jack_scene) as PackedScene).instantiate() as DcPort
 		jack.name = "DcInPort"
+		# The profile's plug wins over the scene's (a mod's row names what its jack takes).
+		var takes := PowerProfiles.plug_of(profile)
+		if not takes.is_empty():
+			jack.connector = takes
 		_host.add_child(jack)
 		inlets.append(jack)
 		# In the model's inlet when it has one (seat_on_model_inlet, below), else on
@@ -189,7 +193,7 @@ func _make_inlet(profile: Dictionary) -> Node3D:
 			# A barrel jack, or the N64's rear bay the NUS-002 docks into (its whole
 			# body is the plug, PowerBrick "dock"): a socket taking the profile's plug.
 			var dc := DC_PORT.instantiate() as DcPort
-			dc.connector = str(profile.get("plug", ""))
+			dc.connector = PowerProfiles.plug_of(profile)
 			port = dc
 	if port == null:
 		return null
