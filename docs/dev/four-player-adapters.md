@@ -1,4 +1,4 @@
-# Four-player adapters: the NES Four Score and the Famicom 4 Players Adaptor
+# Four-player adapters: the NES Four Score, the NES Satellite, the Famicom 4 Players Adaptor and the PlayStation Multitap
 
 Added 2026-11-02. Two objects, one base class:
 
@@ -176,6 +176,76 @@ photograph:
   its title.
 - `four_player_render_probe` (windowed) draws the set on a second NES, and a second transmitter turned over with
   its door off and six C cells in.
+
+
+## The PlayStation Multitap (SCPH-1070)
+
+Added 2026-11-02. `PsMultitap` (`Scenes/Objects/controllers/playstation/ps_multitap.tscn`, spawn token and save
+type `ps_multitap`), on the PlayStation card.
+
+**From the Commons photograph:**
+- A light grey V of two arms, its rounded vertex toward the players. The cord leaves the inner corner toward the
+  console.
+- Ports A and B on the left arm's outer face, C and D on the right's. Each is a controller socket with a memory
+  card slot over it, lettered on top, with a card mark beside A.
+- **One** connector on the cord goes into a controller port **and** the memory card slot above it.
+- No switch.
+
+**Not known, and chosen:**
+- Every size (arms 130 mm along their outer faces, 34 mm deep, 36 mm tall, at 90 degrees).
+- The connector's shape past "a PS1 plug with a card tongue over it". Here: the PlayStation pad's own plug, a
+  26 mm tongue, and a block joining their backs. The tongue's height is read off the console it seats in
+  (`_place_tongue`), since the slot's place over the port is that model's (13.6 mm on the shipped PlayStation).
+
+**What the cores do (pcsx_rearmed read; nothing else run or pinned):**
+- The multitap is an **option**, `pcsx_rearmed_multitap`: disabled / port 1 / port 2 / ports 1 and 2. It is read
+  live (`update_multitap` -> `padChanged`).
+- Its layout is in `pad.c`:
+  - A tap in port 1 is players 1-4 on libretro ports 0-3, and the console's **port 2 then reads libretro port 4**
+    (`PAD2_startPoll`: `pad_index = portMultitap ? 4 : 1`).
+  - A tap in port 2 is ports 1-4, or 4-7 beside a tap in port 1.
+- It emulates no cards on a tap: `sio.c` knows two cards.
+- Beetle PSX has its own per-port options (`..._enable_multitap_port1/2`); its layout was not read, so it is not
+  pinned.
+
+**How the room does it:**
+- `ForcedCoreOptions.ps_multitap(core, systemid, taps)` pins the option from which ports hold a tap
+  (`SystemPorts.ps_multitap_sockets`, by the group `ps_multitap`). It applies both ways, so a console with none
+  says disabled. The tap calls `RetroSystem.refresh_multitap_option` on every seat and pull, so a running core
+  hears it at once.
+- **Port 2 moves.** `SystemPorts.set_socket_port(1, 4)` while a tap is in port 1 (`socket_port_overrides`):
+  - `libretro_port_for` answers the moved port.
+  - The controllers table files that socket's holder at the moved port (rumble finds it there).
+  - `cabinet_port_of` looks by PLUG first, so a save still names socket 2.
+  - The move is quiet: it re-tables and re-announces, tells the plug's owner, and reports no plug or unplug to
+    netplay. No hand did anything, and every peer makes the same move from its own tap's seat.
+  - A second tap in port 2 is moved with it, so its players are 5-8.
+- **The card slot.** `ControllerPlug.covers_card_slot`:
+  - `accepts_plug_at` refuses the connector while a card is in that port's slot.
+  - Seated, the slot is shut (`_cover_card_slot`, `RetroSystem.is_card_slot_covered`), and opens again when it
+    leaves.
+- **Slot A is the console's slot** for the port the tap is in: `MemoryCardController.on_memcard_inserted` /
+  `on_memcard_removed` with that slot, as the console's own zone would call them. B, C and D take a PlayStation
+  card that no core reads, and say so in the log.
+- **Ports.** Each port is the pad in its socket as itself (a DualShock picks its port's pad type as in the
+  console), or NOTHING: the tap answers "no pad" for an empty socket. The tap owns all four ports
+  (`own_port_device`).
+- **Saves.** The tap's entry adds `tap_cards` (a card reference per slot, validated and dropped-mod-cleaned as
+  `sockets`). The console's own entry names only cards its OWN zones hold (`_console_held_card`), or slot A's card
+  came back in the console's slot where the tap's connector then could not go.
+
+**Checked:**
+- `four_player_tests` `psmultitap/` (31 cases): a card keeps the connector out; seated it shuts card slot 1; A-D
+  are players 1-4; the console's port 2 moves to libretro 4 and still saves as port 2; the option says port 1 for
+  pcsx_rearmed and nothing for another core; an empty socket is no pad; a core start agrees; slot A's card is the
+  console's card 1 and slot B's is not its card 2; the entries validate; a second tap in port 2 is 5-8 with "ports
+  1 and 2"; the first pulled, the second is 2-5 with "port 2", slot 1 open, its card no longer the console's; no
+  tap, "disabled".
+- Mutation-tested: no port-2 move (5 red), no slot-A pass-through (1), no card gate (1).
+- `four_player_render_probe` (windowed) draws it in a PlayStation's port 1 with four pads and a card in slot A.
+
+**OWED:** a real multitap game on pcsx_rearmed (none in this room's library; a game supporting it, such as Crash
+Team Racing or Crash Bash, would be the check); Beetle and SwanStation; a headset; the Quest; a session.
 
 ## Saves
 

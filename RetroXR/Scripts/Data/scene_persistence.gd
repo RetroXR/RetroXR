@@ -187,6 +187,7 @@ const NES_FOUR_SCORE_SCENE   := preload("res://Scenes/Objects/controllers/nes/ne
 const FAMICOM_FOUR_PLAYERS_SCENE := preload("res://Scenes/Objects/controllers/famicom/famicom_four_players_adaptor.tscn")
 const NES_SATELLITE_SCENE    := preload("res://Scenes/Objects/controllers/nes/nes_satellite.tscn")
 const NES_SATELLITE_RX_SCENE := preload("res://Scenes/Objects/controllers/nes/nes_satellite_receiver.tscn")
+const PS_MULTITAP_SCENE      := preload("res://Scenes/Objects/controllers/playstation/ps_multitap.tscn")
 const VCR_SCENE              := preload("res://Scenes/Objects/appliances/vcr_player.tscn")
 const TAPE_SCENE             := preload("res://Scenes/Objects/media/vcr_tape.tscn")
 const DVD_SCENE              := preload("res://Scenes/Objects/appliances/dvd_player.tscn")
@@ -1084,13 +1085,15 @@ static func _prune_unknown_types(objects: Array, path: String) -> Array:
 				var cell_ref: Variant = (one as Dictionary).get("cell") if one is Dictionary else null
 				if _is_integer(cell_ref) and dropped_ids.has(int(cell_ref)):
 					(cell_slots as Dictionary).erase(seat)
-		# A dropped mod's pad in a multitap socket leaves the socket empty.
-		var sockets: Variant = entry.get("sockets")
-		if sockets is Array:
-			for i in (sockets as Array).size():
-				var socket_ref: Variant = (sockets as Array)[i]
-				if _is_integer(socket_ref) and dropped_ids.has(int(socket_ref)):
-					(sockets as Array)[i] = null
+		# A dropped mod's pad in a multitap socket leaves the socket empty, and a
+		# dropped mod's card in a tap's card slot leaves the slot empty.
+		for key: String in ["sockets", "tap_cards"]:
+			var sockets: Variant = entry.get(key)
+			if sockets is Array:
+				for i in (sockets as Array).size():
+					var socket_ref: Variant = (sockets as Array)[i]
+					if _is_integer(socket_ref) and dropped_ids.has(int(socket_ref)):
+						(sockets as Array)[i] = null
 		# A prop sitting in a dropped mod's object is simply loose.
 		var attached: Variant = entry.get("attached")
 		if attached is Dictionary:
@@ -1199,13 +1202,15 @@ static func _entry_validation_error(entry: Dictionary, ids: Dictionary) -> Strin
 			var ref_error := _reference_validation_error(ref, ids)
 			if not ref_error.is_empty():
 				return "extra_tvs member %s" % ref_error
-	if entry.has("sockets"):
-		if not entry["sockets"] is Array:
-			return "sockets is not an array"
-		for ref: Variant in entry["sockets"]:
+	for key: String in ["sockets", "tap_cards"]:
+		if not entry.has(key):
+			continue
+		if not entry[key] is Array:
+			return "%s is not an array" % key
+		for ref: Variant in entry[key]:
 			var ref_error := _reference_validation_error(ref, ids)
 			if not ref_error.is_empty():
-				return "sockets member %s" % ref_error
+				return "%s member %s" % [key, ref_error]
 	if entry.has("tv_inputs"):
 		if not entry["tv_inputs"] is Array:
 			return "tv_inputs is not an array"
@@ -2274,8 +2279,8 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 		"cartridge_b": _ref(node_to_id, sys.get_slot2_cartridge()),
 		# Cards only: a GameCube Microphone's plug is seated here too, and it is
 		# restored from the stick's own entry.
-		"memcard": _ref(node_to_id, sys.memcards().get_snapped_memcard(0) as MemoryCard),
-		"memcard_b": _ref(node_to_id, sys.memcards().get_snapped_memcard(1) as MemoryCard),
+		"memcard": _ref(node_to_id, _console_held_card(sys, 0)),
+		"memcard_b": _ref(node_to_id, _console_held_card(sys, 1)),
 		# Null once a player has pulled the lid off and put it down — a
 		# state worth keeping, since the pak under it is only reachable
 		# while the lid stays off.
@@ -3119,6 +3124,21 @@ func _serialize_multitap(tap: RetroMultitap, id: int, n3d: Node3D,
 	return entry
 
 
+## The card in console slot `slot` when the CONSOLE's own slot holds it, else null.
+## A PlayStation Multitap's slot A is passed through as the console's slot for the
+## port it is in, but the card is in the TAP, which records it (its "tap_cards"):
+## written here too, it came back in the console's slot, where the tap's connector
+## then could not go.
+func _console_held_card(sys: RetroSystem, slot: int) -> MemoryCard:
+	var card := sys.memcards().get_snapped_memcard(slot) as MemoryCard
+	if card == null:
+		return null
+	var slots := sys.memcard_slots()
+	if slot < slots.size() and card.get_picked_up_by() == slots[slot]:
+		return card
+	return null
+
+
 ## The four-player adapter whose socket holds `peripheral`, or null.
 func _adapter_holding(peripheral: Node, node_to_id: Dictionary) -> FourPlayerAdapter:
 	for node: Variant in node_to_id:
@@ -3149,6 +3169,11 @@ func _serialize_four_player(adapter: FourPlayerAdapter, id: int, n3d: Node3D,
 		entry["turbo_b"] = (adapter as NesFourScore).turbo_b
 	if adapter is NesSatellite:
 		entry["gun_mode"] = (adapter as NesSatellite).gun_mode
+	if adapter is PsMultitap:
+		var cards: Array = []
+		for card: Variant in (adapter as PsMultitap).card_peripherals():
+			cards.append(_ref(node_to_id, card as Node))
+		entry["tap_cards"] = cards
 	return entry
 
 
@@ -3185,6 +3210,8 @@ func _load_four_player(data: Dictionary) -> Node3D:
 			scene = NES_FOUR_SCORE_SCENE
 		"nes_satellite":
 			scene = NES_SATELLITE_SCENE
+		"ps_multitap":
+			scene = PS_MULTITAP_SCENE
 	var adapter := scene.instantiate() as FourPlayerAdapter
 	var tap_mode := int(data.get("tap_mode", FourPlayerAdapter.MODE_4P))
 	if tap_mode == FourPlayerAdapter.MODE_2P or tap_mode == FourPlayerAdapter.MODE_4P:
@@ -3201,6 +3228,12 @@ func _load_four_player(data: Dictionary) -> Node3D:
 ## made a frame after spawning.
 func _restore_four_player(root: Node, id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
 	var adapter := obj as FourPlayerAdapter
+	var tap_cards: Variant = rec.get("tap_cards", [])
+	if adapter is PsMultitap and tap_cards is Array:
+		for i in mini((tap_cards as Array).size(), FourPlayerAdapter.SOCKETS):
+			var card := _resolve_ref(root, spawned, (tap_cards as Array)[i])
+			if card != null:
+				(adapter as PsMultitap).restore_card(i, card as Node3D)
 	var sockets: Variant = rec.get("sockets", [])
 	if sockets is Array:
 		for i in mini((sockets as Array).size(), FourPlayerAdapter.SOCKETS):
@@ -3592,6 +3625,8 @@ const _LOAD_KINDS := {
 	# The NES Satellite: its transmitter as the adapters (no lead: the receiver's
 	# own entry says where IT is), and the receiver, seated in a console's ports.
 	"nes_satellite": &"_load_four_player",
+	# The PlayStation Multitap: as the adapters, and the card in each of its slots.
+	"ps_multitap": &"_load_four_player",
 	"nes_satellite_receiver": &"_load_satellite_receiver",
 	"retro_mouse": &"_load_retro_mouse",
 	"snes_mouse": &"_load_snes_mouse",

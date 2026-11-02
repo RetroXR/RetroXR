@@ -85,6 +85,18 @@ var accessory_zone: XRToolsSnapZone = null
 var accessory_plug: Node3D = null
 var accessory_lib_port := -1
 
+## Cabinet sockets that drive a libretro port other than their own: socket ->
+## port. The PlayStation core moves the console's SECOND port to libretro port 4
+## while a multitap is in the first, players 1-4 being the tap's (pcsx_rearmed
+## pad.c, PAD2_startPoll: `pad_index = portMultitap ? 4 : 1`). Set and cleared by
+## set_socket_port, which moves whatever is plugged in there.
+var socket_port_overrides: Dictionary = {}
+
+## Card slots a plug seated in the controller port below them is filling: cabinet
+## index -> whether the slot was enabled before. The PlayStation Multitap's one
+## connector goes into a controller port AND the memory card slot over it.
+var _covered_cards: Dictionary = {}
+
 ## Ports a core would otherwise fill on a GUESS, told they are empty at every core
 ## start unless something in the room is on them. A port the room never announces
 ## stays at the core's own default, which for the NES cores is "Auto": fceumm then
@@ -242,7 +254,100 @@ func accepts_plug_at(obj: Node3D, i: int) -> bool:
 	for k in range(1, socket_span_of(obj)):
 		if not _open_for_span(i + k):
 			return false
+	# A connector that fills the card slot above the port too finds it empty: a
+	# card in it is in the way.
+	if covers_card_slot_of(obj) and _card_in_slot(i):
+		return false
 	return true
+
+
+## Whether `plug` fills the memory card slot over the port it goes in.
+static func covers_card_slot_of(plug: Object) -> bool:
+	return plug != null and "covers_card_slot" in plug and bool(plug.get("covers_card_slot"))
+
+
+## Whether console card slot `i` holds a card.
+func _card_in_slot(i: int) -> bool:
+	var slots: Array = _host.memcard_slots()
+	if i < 0 or i >= slots.size():
+		return false
+	return is_instance_valid((slots[i] as XRToolsSnapZone).picked_up_object)
+
+
+## Shut card slot `i` for a connector filling it (remembering how it was), or open
+## it again.
+func _cover_card_slot(i: int, covered: bool) -> void:
+	var slots: Array = _host.memcard_slots()
+	if i < 0 or i >= slots.size():
+		return
+	var zone := slots[i] as XRToolsSnapZone
+	if covered:
+		if _covered_cards.has(i):
+			return
+		_covered_cards[i] = zone.enabled
+		zone.enabled = false
+		print("[RetroSystem] card slot %d: covered by the connector in port %d" % [i + 1, i + 1])
+	elif _covered_cards.has(i):
+		zone.enabled = bool(_covered_cards[i])
+		_covered_cards.erase(i)
+		print("[RetroSystem] card slot %d: open again" % (i + 1))
+
+
+## Which of the console's controller ports hold a PlayStation Multitap's lead (one
+## bool per port): what ForcedCoreOptions.ps_multitap turns into the core option.
+## By group, not class, so this file names no adapter (ControllerPlug's note).
+func ps_multitap_sockets() -> Array[bool]:
+	var out: Array[bool] = []
+	for i in mini(2, plugs.size()):
+		var held := controller_of(plugs[i]) if is_instance_valid(plugs[i]) else null
+		out.append(held != null and held.is_in_group("ps_multitap"))
+	return out
+
+
+## Whether card slot `i` is covered by a connector in the port below it.
+func is_card_slot_covered(i: int) -> bool:
+	return _covered_cards.has(i)
+
+
+## Drive cabinet socket `socket` on libretro port `lib_port` from now on (-1: its
+## own again). Whatever is plugged in there is unplugged from its old port and
+## plugged into the new one, so it hears of the move (on_plugged_in).
+func set_socket_port(socket: int, lib_port: int) -> void:
+	var had: int = int(socket_port_overrides.get(socket, -1))
+	if had == lib_port:
+		return
+	var plug: Node3D = plugs[socket] if socket >= 0 and socket < plugs.size() else null
+	if not is_instance_valid(plug):
+		plug = null
+	var dev: int = plug.get("device_type") if plug != null and "device_type" in plug else 1
+	var old_lib := libretro_port_for(dev, socket)
+	var old_slot := old_lib if socket_port_overrides.has(socket) else socket
+	if lib_port < 0:
+		socket_port_overrides.erase(socket)
+	else:
+		socket_port_overrides[socket] = lib_port
+	var new_lib := libretro_port_for(dev, socket)
+	var new_slot := new_lib if socket_port_overrides.has(socket) else socket
+	print("[RetroSystem] socket %d now drives libretro port %d%s" % [socket + 1, new_lib,
+		" (%s moved from %d)" % [plug.name, old_lib] if plug != null else ""])
+	if plug == null:
+		return
+	# Moved, not re-plugged: no plug or unplug is reported to netplay, because no
+	# hand did anything -- every peer makes the same move from its own tap's seat.
+	var ctrl := controller_of(plug)
+	if old_slot < controllers.size() and controllers[old_slot] == ctrl:
+		controllers[old_slot] = null
+	_tell_unplugged(plug)
+	announce_port(old_lib)
+	if new_slot < controllers.size():
+		controllers[new_slot] = ctrl
+	if port_owner(new_lib) != null or usb_plug_at(new_lib) != null:
+		announce_port(new_lib)
+	elif claims_port_device(dev):
+		set_device(new_lib, core_device_id(dev, new_lib, device_names_of(plug)))
+	_tell_plugged_in(plug, new_lib)
+	apply_pad_type_option(new_lib, ctrl)
+	apply_pak_option(new_lib, ctrl)
 
 
 ## Whether socket `j` is there, open and empty for a block's second plug.
@@ -539,6 +644,8 @@ func is_computer() -> bool:
 ## are the keyboard and mouse — but a DOS or Amiga core reads its one joystick on
 ## port 0, and a pad announced on port 2 is a pad the game never sees.
 func libretro_port_for(device_type: int, physical_port: int) -> int:
+	if socket_port_overrides.has(physical_port):
+		return int(socket_port_overrides[physical_port])
 	if device_type == RetroSystem.RETRO_DEVICE_MOUSE and is_computer():
 		return 0
 	# The GAME PORT only, not every joypad socket on a computer: a machine with two
@@ -881,6 +988,11 @@ func cabinet_ports_of_plug(plug: Node) -> Array[int]:
 ## a save that recorded _port_index put the mouse and the keyboard both in socket 1
 ## on restore, and one of them was left dangling. Ask the cabinet instead.
 func cabinet_port_of(peripheral: Node) -> int:
+	# By the plug first: a socket moved to another libretro port (set_socket_port)
+	# files its pad at that port, and a save wants the SOCKET.
+	for i in plugs.size():
+		if is_instance_valid(plugs[i]) and controller_of(plugs[i]) == peripheral:
+			return i
 	for i in controllers.size():
 		if is_instance_valid(controllers[i]) and controllers[i] == peripheral:
 			return i
@@ -900,6 +1012,8 @@ func on_port_snapped(port_index: int, controller: Node3D) -> void:
 	# so a mouse + keyboard can share the cabinet. See libretro_port_for().
 	bind(libretro_port_for(device_type, port_index), controller, port_index)
 	_take_spanned(port_index, controller, device_type)
+	if covers_card_slot_of(controller):
+		_cover_card_slot(port_index, true)
 
 
 ## A plug that fills more than one socket (socket_span) takes the ones beside the
@@ -948,6 +1062,8 @@ func on_port_released(port_index: int) -> void:
 		return
 	var device_type: int = plug.get("device_type") if "device_type" in plug else 1
 	_free_spanned(port_index, plug, device_type)
+	if covers_card_slot_of(plug):
+		_cover_card_slot(port_index, false)
 	# Clear the SAME libretro port the snap set (a computer mouse claimed port 0,
 	# not its cabinet slot; a computer keyboard claimed none).
 	unbind(libretro_port_for(device_type, port_index), plug, port_index)
@@ -995,7 +1111,7 @@ func bind(lib_port: int, plug: Node3D, cabinet_index: int, announce_device := tr
 	# The bound node is a ControllerPlug (cable end). Unwrap to the actual
 	# RetroController so rumble can be routed to its set_rumble() method.
 	var ctrl := controller_of(plug)
-	var slot := cabinet_index if cabinet_index >= 0 else lib_port
+	var slot := cabinet_index if cabinet_index >= 0 and not socket_port_overrides.has(cabinet_index) else lib_port
 	if slot < controllers.size():
 		controllers[slot] = ctrl
 	_tell_plugged_in(plug, lib_port)
@@ -1021,7 +1137,7 @@ func unbind(lib_port: int, plug: Node3D, cabinet_index: int, announce_device := 
 		if is_instance_valid(plug) and "device_type" in plug else 1
 	if cabinet_index >= 0 and is_instance_valid(plug):
 		_host.remove_collision_exception_with(plug)
-	var slot := cabinet_index if cabinet_index >= 0 else lib_port
+	var slot := cabinet_index if cabinet_index >= 0 and not socket_port_overrides.has(cabinet_index) else lib_port
 	if slot < controllers.size():
 		controllers[slot] = null
 	if announce_device and claims_port_device(device_type):

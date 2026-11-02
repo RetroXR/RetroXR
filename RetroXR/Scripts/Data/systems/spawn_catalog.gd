@@ -56,6 +56,9 @@ const _PERIPHERALS: Dictionary = {
 		{"kind": "peripheral", "label": "Controller", "spawn": "ps1_controller"},
 		{"kind": "peripheral", "label": "DualShock", "spawn": "ps1_dualshock"},
 		{"kind": "peripheral", "label": "Memory Card", "spawn": "memory_card"},
+		# Four more players: its one connector fills a controller port and the card
+		# slot above it (PsMultitap).
+		{"kind": "peripheral", "label": "Multitap (SCPH-1070)", "spawn": "ps_multitap"},
 	],
 	"ps2": [
 		{"kind": "peripheral", "label": "Memory Card", "spawn": "memory_card"},

@@ -167,6 +167,25 @@ static func dolphin_console(core: String, systemid: String) -> Dictionary:
 	return {}
 
 
+## The PlayStation Multitap: which controller ports hold one (`taps`, one bool per
+## console port), as the core option that turns the core's multitap on. Both
+## ways, as the Expansion Pak's: a console with no tap has none, whatever a
+## previous run left in the option file.
+##
+## pcsx_rearmed's pcsx_rearmed_multitap, read live (update_multitap -> padChanged),
+## so a tap plugged in mid-game is heard at once. Its port layout is what
+## PsMultitap routes for (pad.c: a tap in port 1 is players 1-4, the console's
+## port 2 then reads libretro port 4). No other PlayStation core is pinned: their
+## layouts were not read.
+static func ps_multitap(core: String, systemid: String, taps: Array[bool]) -> Dictionary:
+	if systemid != "psx" or not core.begins_with("pcsx_rearmed"):
+		return {}
+	var one := taps.size() > 0 and taps[0]
+	var two := taps.size() > 1 and taps[1]
+	var mode := "ports 1 and 2" if one and two else ("port 1" if one else ("port 2" if two else "disabled"))
+	return {"pcsx_rearmed_multitap": mode}
+
+
 ## The GameCube Microphone's button. Dolphin reads it from the joypad bit this
 ## option names, on any port; GcMicrophone holds R3, which no GameCube pad sends.
 static func microphone_hotkey(core: String, systemid: String) -> Dictionary:

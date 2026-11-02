@@ -1,0 +1,39 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/controllers/ps_multitap.gd" id="1_psmt"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+
+; Replaced in code by the left arm's box (PsMultitap._build_body, which adds the
+; right arm's and the vertex post's beside it).
+[sub_resource type="BoxShape3D" id="BoxShape3D_psmt"]
+size = Vector3(0.096, 0.036, 0.034)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_psmt"]
+bounce = 0.0
+friction = 0.8
+
+; Sony's PlayStation Multitap (SCPH-1070): a V of two arms, four controller
+; sockets with a memory card slot over each, and one cord whose connector fills a
+; console's controller port and the card slot above it. Built in code; see
+; ps_multitap.gd. The cord leaves the inner corner of the V (the back of the
+; vertex post), its -Z toward the console.
+[node name="PsMultitap" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.25
+physics_material_override = SubResource("PhysMat_psmt")
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("1_psmt")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_psmt")
+
+[node name="Ports" type="Node3D" parent="."]
+
+[node name="CableAttachPoint" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.018, -0.028)
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")

@@ -134,7 +134,43 @@ func _run() -> void:
 	print("[fourrender] at 2: NES pads on ports %s" % str(pads.map(func(p: Node) -> int: return int(p.call("get_port_index")))))
 	await _shot(sv, cam, fsp + Vector3(-0.06, 0.24, 0.20), fsp + Vector3(0, 0.02, 0), "four_score_top_2p.png")
 	await _satellite(sv, cam)
+	await _ps_multitap(sv, cam)
 	get_tree().quit(0)
+
+
+## The PlayStation Multitap in a PlayStation's port 1, a pad in each of A-D and a
+## card in slot A.
+func _ps_multitap(sv: SubViewport, cam: Camera3D) -> void:
+	var ps := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
+	ps.systemid = "psx"
+	add_child(ps)
+	ps.global_position = Vector3(2.75, 0.0, -0.1)
+	ps.freeze = true
+	for i in range(10):
+		await get_tree().process_frame
+	var tap := _spawn("res://Scenes/Objects/controllers/playstation/ps_multitap.tscn", Vector3(2.7, 0.03, 0.42)) as PsMultitap
+	var pads: Array = []
+	for i in 4:
+		pads.append(_spawn("res://Scenes/Objects/controllers/playstation/ps1_controller.tscn",
+			Vector3(2.35 + 0.22 * i, 0.04, 0.95)))
+	var card := _spawn("res://Scenes/Objects/media/memory_card.tscn", Vector3(3.2, 0.05, 0.6))
+	for i in range(6):
+		await get_tree().physics_frame
+	ps.restore_controller_plug(0, tap.get_plug())
+	for i in 4:
+		tap.restore_socket(i, pads[i])
+	tap.restore_card(0, card)
+	for i in range(180):
+		await get_tree().physics_frame
+	print("[fourrender] ps multitap: pads on ports %s, console card 1 is slot A's %s, card slot 1 shut %s" % [
+		str(pads.map(func(p: Node) -> int: return int(p.call("get_port_index")))),
+		ps.memcards().get_snapped_memcard(0) == card, ps.is_card_slot_covered(0)])
+	var t := tap.global_position
+	await _shot(sv, cam, t + Vector3(0.0, 0.42, 0.42), t + Vector3(0.0, 0.0, -0.08), "psmt_overview.png")
+	await _shot(sv, cam, t + Vector3(-0.16, 0.16, 0.20), t + Vector3(-0.04, 0.02, 0.0), "psmt_tap.png")
+	var plug := tap.get_plug()
+	var at := plug.global_position
+	await _shot(sv, cam, at + Vector3(0.10, 0.07, 0.14), at + Vector3(0.0, 0.01, -0.01), "psmt_connector.png")
 
 
 ## The NES Satellite: a second NES with the receiver in its ports, the transmitter
@@ -198,7 +234,7 @@ func _add_desk() -> void:
 	var body := StaticBody3D.new()
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(3.0, 0.06, 1.6)
+	box.size = Vector3(4.4, 0.06, 1.6)
 	shape.shape = box
 	body.add_child(shape)
 	var mesh := MeshInstance3D.new()
@@ -211,7 +247,7 @@ func _add_desk() -> void:
 	mesh.material_override = mat
 	body.add_child(mesh)
 	add_child(body)
-	body.global_position = Vector3(0.6, -0.03, 0.35)
+	body.global_position = Vector3(1.3, -0.03, 0.35)
 
 
 func _shot(sv: SubViewport, cam: Camera3D, eye: Vector3, target: Vector3, file: String) -> void:

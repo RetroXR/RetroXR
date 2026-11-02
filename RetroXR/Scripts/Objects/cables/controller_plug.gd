@@ -31,6 +31,10 @@ var connector: String = ""
 ## the Four Score's, which ends in one moulded block carrying two NES plugs at the
 ## console's pitch (SystemPorts.accepts_plug_at / _take_spanned).
 var socket_span: int = 1
+## Whether this plug also fills the memory card slot over the controller port it
+## goes in: the PlayStation Multitap's one connector does (SystemPorts shuts that
+## slot while it is seated, and refuses it while a card is there).
+var covers_card_slot: bool = false
 
 ## Local point the cable leaves this plug at, fed to VerletRope.end_anchor_offset.
 ## The generic plug reads its own CordExit marker (the end of the strain-relief

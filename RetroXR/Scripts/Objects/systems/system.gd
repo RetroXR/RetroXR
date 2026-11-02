@@ -2881,6 +2881,7 @@ func all_forced_options(core: String) -> Dictionary:
 	out.merge(ForcedCoreOptions.all(core, systemid, rom_path, _expansions.hardware_ids(),
 		card_family(), _seated_cards(), _expansion_launch.host_media_path()), true)
 	out.merge(ForcedCoreOptions.lightgun(core, _has_lightgun()), true)
+	out.merge(ForcedCoreOptions.ps_multitap(core, systemid, _ports.ps_multitap_sockets()), true)
 	for storage: ConsoleStorage in _storages:
 		out.merge(storage.forced_options_for(core), true)
 	return out
@@ -3923,6 +3924,30 @@ func own_port_device(port: int, owner: Node) -> void:
 ## Give the port back (only if `owner` holds it) and announce what is left there.
 func disown_port_device(port: int, owner: Node) -> void:
 	_ports.disown_port_device(port, owner)
+
+
+## Drive cabinet socket `socket` on libretro port `lib_port` (-1: its own again),
+## moving whatever is plugged in there -- see SystemPorts.set_socket_port.
+func set_socket_port(socket: int, lib_port: int) -> void:
+	_ports.set_socket_port(socket, lib_port)
+
+
+## Whether card slot `slot` is filled by the connector in the port below it (the
+## PlayStation Multitap's).
+func is_card_slot_covered(slot: int) -> bool:
+	return _ports.is_card_slot_covered(slot)
+
+
+## Tell a RUNNING core the PlayStation Multitap option the room now says
+## (ForcedCoreOptions.ps_multitap), after a tap was plugged in or pulled. A machine
+## that is off takes it at its next start.
+func refresh_multitap_option() -> void:
+	if not is_powered_on:
+		return
+	var opts := ForcedCoreOptions.ps_multitap(_resolve_core(), systemid, _ports.ps_multitap_sockets())
+	for key: String in opts:
+		if str(_options_values.get(key, "")) != str(opts[key]):
+			set_core_option(key, str(opts[key]))
 
 
 ## Every cabinet socket `plug` is in, in order: two for the Four Score's block,

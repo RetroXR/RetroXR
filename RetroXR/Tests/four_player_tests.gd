@@ -25,6 +25,10 @@
 ##              range, out of the beam or behind a wall the console hears released
 ##              pads (routing kept); TURBO, GUN, the seven-minute auto-off, six C
 ##              cells, and both halves saved
+##   psmultitap/ the PlayStation Multitap: its connector fills port and card slot
+##              (refused over a card), A-D players 1-4 with the console's port 2
+##              moved to libretro port 4, pcsx_rearmed's option pinned, slot A the
+##              console's card, a second tap players 5-8, saves, all of it undone
 ##   unwired/   with no adapter, a core start tells fceumm an NES's ports 3 and 4
 ##              and a Famicom's 3-5 are EMPTY: left at its "Auto" it plugs in a Four
 ##              Score or a Famicom adapter by itself for games in its own lists
@@ -37,6 +41,15 @@ const NES_PAD_SCENE := preload("res://Scenes/Objects/controllers/nes/nes_control
 const GENERIC_PAD_SCENE := preload("res://Scenes/Objects/controllers/retro_controller.tscn")
 const SATELLITE_SCENE := preload("res://Scenes/Objects/controllers/nes/nes_satellite.tscn")
 const SATELLITE_RX_SCENE := preload("res://Scenes/Objects/controllers/nes/nes_satellite_receiver.tscn")
+const PS_MULTITAP_SCENE := preload("res://Scenes/Objects/controllers/playstation/ps_multitap.tscn")
+const PS1_PAD_SCENE := preload("res://Scenes/Objects/controllers/playstation/ps1_controller.tscn")
+const MEMORY_CARD_SCENE := preload("res://Scenes/Objects/media/memory_card.tscn")
+
+## pcsx_rearmed's eight ports (frontend/libretro.c `pads`), each the same list.
+const PCSX_PAD_LIST: Array = [{"name": "standard", "id": 1}, {"name": "dualshock", "id": 517},
+	{"name": "analog", "id": 261}, {"name": "negcon", "id": 773}, {"name": "guncon", "id": 260},
+	{"name": "konami gun", "id": 516}, {"name": "mouse", "id": 258}]
+var PCSX_PORTS: Array = range(8).map(func(p: int) -> Dictionary: return {"port": p, "controllers": PCSX_PAD_LIST})
 
 const NONE := 0
 const JOYPAD := 1
@@ -96,6 +109,8 @@ func _ready() -> void:
 		await _group_unwired()
 	if _want("satellite"):
 		await _group_satellite()
+	if _want("psmultitap"):
+		await _group_psmultitap()
 	if _want("save"):
 		await _group_save()
 	await _clear()
@@ -521,6 +536,125 @@ func _group_satellite() -> void:
 		await _wait(4)
 		_ok(back.is_plugged_in() and tx.receiver() == back, "satellite/seated again, and the transmitter pairs with it")
 	AppPrefs.power_simulation = sim_before
+	await _clear()
+
+
+# ── psmultitap ────────────────────────────────────────────────────────────────
+
+func _group_psmultitap() -> void:
+	var sys := await _console("psx", Vector3(0, 1, 0), PCSX_PORTS)
+	var ports := sys.controller_ports()
+	var zones: Array = ports.zones
+	var card_slots: Array = sys.memcard_slots()
+	var tap := _make(PS_MULTITAP_SCENE, Vector3(0, 1, 0.6)) as PsMultitap
+	var tap2 := _make(PS_MULTITAP_SCENE, Vector3(0.5, 1, 0.6)) as PsMultitap
+	var pads: Array = []
+	for i in 4:
+		pads.append(_make(PS1_PAD_SCENE, Vector3(-0.3 + 0.2 * i, 1, 1.2)))
+	var lone := _make(PS1_PAD_SCENE, Vector3(0.6, 1, 1.2))
+	var card := _make(MEMORY_CARD_SCENE, Vector3(-0.4, 1, 0.4))
+	var card_b := _make(MEMORY_CARD_SCENE, Vector3(-0.5, 1, 0.4))
+	await _wait(4)
+	var plug := tap.get_plug()
+	_ok(plug != null and plug.covers_card_slot, "psmultitap/its connector fills a card slot as well as a port")
+	if plug == null:
+		await _clear()
+		return
+
+	# A card in the console's slot 1 is in the connector's way.
+	sys.memcards().restore_memory_card(card, 0)
+	await _wait(2)
+	_ok(not (zones[0] as XRToolsSnapZone).snap_filter.call(plug), "psmultitap/a card in slot 1 keeps it out of port 1")
+	# Taken out and carried off, as a hand does: let go beside the console, the two
+	# slots would hand it to each other, so they are shut while it leaves.
+	for z: Variant in card_slots:
+		(z as XRToolsSnapZone).enabled = false
+	(card_slots[0] as XRToolsSnapZone).drop_object()
+	card.freeze = true
+	card.global_position = Vector3(-2.0, 1.0, 2.0)
+	await _wait(2)
+	for z: Variant in card_slots:
+		(z as XRToolsSnapZone).enabled = true
+	_ok((zones[0] as XRToolsSnapZone).snap_filter.call(plug), "psmultitap/taken out, it fits")
+
+	# A pad in the console's own port 2 first.
+	sys.restore_controller_plug(1, lone.call("get_plug"))
+	await _wait(3)
+	_eq(_port_of(lone), 1, "psmultitap/a pad in port 2 is player 2")
+
+	sys.restore_controller_plug(0, plug)
+	for i in 4:
+		tap.restore_socket(i, pads[i])
+	await _wait(8)
+	_ok(not (card_slots[0] as XRToolsSnapZone).enabled and sys.is_card_slot_covered(0),
+		"psmultitap/seated in port 1, it shuts card slot 1")
+	_eq([_port_of(pads[0]), _port_of(pads[1]), _port_of(pads[2]), _port_of(pads[3])], [0, 1, 2, 3],
+		"psmultitap/sockets A-D are players 1-4")
+	_eq(_port_of(lone), 4, "psmultitap/and the console's port 2 moves to libretro port 4, as pcsx_rearmed reads it")
+	_ok(sys.port_holder(4) == lone and sys.cabinet_port_of(lone) == 1,
+		"psmultitap/held there, still saved as port 2's")
+	_eq(sys.all_forced_options("pcsx_rearmed_libretro").get("pcsx_rearmed_multitap", ""), "port 1",
+		"psmultitap/pcsx_rearmed is told its multitap is in port 1")
+	_ok(not sys.all_forced_options("mednafen_psx_hw").has("pcsx_rearmed_multitap"),
+		"psmultitap/no other core is told anything")
+	_eq(_ids(sys).slice(0, 5), [1, 1, 1, 1, 1], "psmultitap/five pads, five standard pads")
+	(tap.get("_sub_zones")[1] as XRToolsSnapZone).drop_object()
+	await _wait(2)
+	_eq(_ids(sys)[1], NONE, "psmultitap/an empty socket is no pad")
+	tap.restore_socket(1, pads[1])
+	await _wait(6)
+	sys.controller_ports().reannounce_all()
+	_eq(_ids(sys).slice(0, 5), [1, 1, 1, 1, 1], "psmultitap/a core start says the same")
+
+	# Slot A is the console's card slot 1; slot B is no core's.
+	var card_a := _make(MEMORY_CARD_SCENE, Vector3(-0.6, 1, 0.8))
+	await _wait(2)
+	tap.restore_card(0, card_a)
+	tap.restore_card(1, card_b)
+	await _wait(2)
+	_ok(sys.memcards().get_snapped_memcard(0) == card_a, "psmultitap/a card in slot A is the console's card 1")
+	_ok(sys.memcards().get_snapped_memcard(1) == null, "psmultitap/a card in slot B is not the console's card 2")
+
+	# Saved: the tap holds its cards; the console does not claim slot A's.
+	var sp := ScenePersistence.new()
+	var ids := {sys: 7, tap: 1, card_a: 20, card_b: 21, pads[0]: 8, pads[1]: 9, pads[2]: 10, pads[3]: 11, lone: 12}
+	var trec: Dictionary = sp.serialize_node(tap, 1, ids)
+	var srec: Dictionary = sp.serialize_node(sys, 7, ids)
+	_eq(str(trec.get("type", "")), "ps_multitap", "psmultitap/it has an entry of its own")
+	_ok(trec.get("system") == 7 and int(trec.get("port_index", -1)) == 0, "psmultitap/naming its console and port 1")
+	_eq(trec.get("tap_cards"), [20, 21, null, null], "psmultitap/and the card in each of its slots")
+	_eq(trec.get("sockets"), [8, 9, 10, 11], "psmultitap/and its pads")
+	_ok(srec.get("memcard") == null, "psmultitap/the console does not claim slot A's card as its own")
+	var lone_rec: Dictionary = sp.serialize_node(lone, 12, ids)
+	_eq(int(lone_rec.get("port_index", -1)), 1, "psmultitap/the moved pad is saved in port 2")
+	var room: Array = [trec, srec, lone_rec, sp.serialize_node(card_a, 20, ids), sp.serialize_node(card_b, 21, ids)]
+	for p: int in 4:
+		room.append(sp.serialize_node(pads[p], 8 + p, ids))
+	_eq(ScenePersistence._objects_validation_error(room), "", "psmultitap/and the room's entries validate")
+
+	# A second tap in port 2: players 5-8.
+	(zones[1] as XRToolsSnapZone).drop_object()
+	await _wait(2)
+	sys.restore_controller_plug(1, tap2.get_plug())
+	await _wait(4)
+	_eq(tap2.call("_routes"), [4, 5, 6, 7] as Array[int], "psmultitap/a second tap in port 2 is players 5-8")
+	_eq(sys.all_forced_options("pcsx_rearmed_libretro").get("pcsx_rearmed_multitap", ""), "ports 1 and 2",
+		"psmultitap/both ports, the option says")
+	_ok(not (card_slots[1] as XRToolsSnapZone).enabled, "psmultitap/and card slot 2 is under it")
+
+	# The first tap out: the second is players 2-5, port 2's own numbering again.
+	(zones[0] as XRToolsSnapZone).drop_object()
+	await _wait(4)
+	_eq(tap2.call("_routes"), [1, 2, 3, 4] as Array[int], "psmultitap/the first one out, the second is players 2-5")
+	_eq(sys.all_forced_options("pcsx_rearmed_libretro").get("pcsx_rearmed_multitap", ""), "port 2",
+		"psmultitap/and the option says port 2")
+	_ok((card_slots[0] as XRToolsSnapZone).enabled and not sys.is_card_slot_covered(0), "psmultitap/card slot 1 opens again")
+	_ok(sys.memcards().get_snapped_memcard(0) == null, "psmultitap/and slot A's card is no longer the console's")
+	_eq([_port_of(pads[0]), _port_of(pads[3])], [-1, -1], "psmultitap/its pads reach nothing")
+	(zones[1] as XRToolsSnapZone).drop_object()
+	await _wait(3)
+	_eq(sys.all_forced_options("pcsx_rearmed_libretro").get("pcsx_rearmed_multitap", ""), "disabled",
+		"psmultitap/no tap, no multitap")
 	await _clear()
 
 
