@@ -321,6 +321,39 @@ func override_power_brick(brick_id: String, changes: Dictionary) -> bool:
 	return true
 
 
+## Add an AC adapter of the mod's own (PowerBrickCatalog's row format, docs/modding.md
+## "AC adapters"): `label`, `fits` (the cards that offer it), its plug as `takes` (a
+## RetroXR-models BARREL key: "5.5x2.1", "EIAJ-03", ...) or `dc_plug` (a connector),
+## `plug_mm`, `cord` (its leads' colour), `plug_model`, and `variants`, one per model
+## it comes in, keyed by the game's model names (usa, jpn, eur, ukv, aus, kor, asia:
+## the name decides its wall plug), each {form, size_mm, dc / ac / ac_in anchors,
+## model?, plug_model?, model_offset?}. Spawned from the Power tab and the cards it
+## fits like a shipped one; a console row's `"power"` may name it as its `brick`.
+func register_power_brick(brick_id: String, row: Dictionary) -> bool:
+	if not _namespaced(brick_id, "power brick id"):
+		return false
+	var err := PowerBrickCatalog.register_mod_brick(brick_id, row, id)
+	if not err.is_empty():
+		return _fail("power brick %s: %s" % [brick_id, err])
+	_note("object", str(row.get("label", brick_id)))
+	return true
+
+
+## Add a battery label: another print for the cells, picked on the Power tab by
+## holding a cell's row. `spec`: {label, color (the picker's swatch), textures:
+## {"AA"|"AAA"|"C" -> a texture laid out as that size's label}}. Only the sizes given
+## offer it. Saved on each cell by its id; a cell whose label's mod is gone wears the
+## model's own.
+func register_cell_label(label_id: String, spec: Dictionary) -> bool:
+	if not _namespaced(label_id, "cell label id"):
+		return false
+	var err := BatteryCell.register_mod_label(label_id, spec, id)
+	if not err.is_empty():
+		return _fail("cell label %s: %s" % [label_id, err])
+	_note("object", "%s battery label" % str(spec.get("label", label_id)))
+	return true
+
+
 func override_console_stand(stand_id: String, changes: Dictionary) -> bool:
 	var err := StandCatalog.override_stand(stand_id, changes, id)
 	if not err.is_empty():
@@ -538,6 +571,7 @@ func withdraw() -> void:
 	RetroTV.drop_mod_shells(id)
 	StandCatalog.drop_mod(id)
 	PowerBrickCatalog.drop_mod(id)
+	BatteryCell.drop_mod(id)
 	_hooks.drop_owner(id)
 
 

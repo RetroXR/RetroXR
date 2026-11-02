@@ -77,6 +77,8 @@ func _ready() -> void:
 		await _test_expansion()
 	if _want("units"):
 		await _test_units()
+	if _want("modbrick"):
+		await _test_mod_brick()
 
 	AppPrefs.power_simulation = sim_before
 	AppPrefs.mains_region = region_before
@@ -1438,5 +1440,61 @@ func _test_units() -> void:
 		await _wait(4)
 		_ok(supply.is_live(), "units/six cells in: power", supply.describe())
 	printer.queue_free()
+	await _clear()
+
+
+## A mod adds an adapter of its own (ModApi.register_power_brick): refused when the
+## row is wrong, and when right it is on the Power tab and the cards it fits, builds,
+## fits what its plug standard fits, and goes when the mod does.
+func _test_mod_brick() -> void:
+	var plate := _new_room()
+	var good := {"label": "Test MK-1602", "fits": ["sega_cd", "genesis"], "takes": "5.5x2.1",
+		"cord": Color8(200, 40, 40),
+		"variants": {"usa": {"form": "wall_wart", "size_mm": [57.0, 85.0, 69.0], "dc": [0.0, -46.0, -34.0]}}}
+	var bad := {
+		"no label": {"takes": "5.5x2.1", "variants": good["variants"]},
+		"an unknown plug": good.merged({"takes": "9x9"}, true),
+		"no variants": good.merged({"variants": {}}, true),
+		"an unknown model name": good.merged({"variants": {"mars": good["variants"]["usa"]}}, true),
+		"a form with no anchor": good.merged({"variants": {"usa": {"form": "inline", "size_mm": [1, 2, 3],
+			"dc": [0, 0, 0]}}}, true),
+		"a field it does not have": good.merged({"voltage": 9}, true),
+	}
+	for why: String in bad:
+		_ok(not PowerBrickCatalog.register_mod_brick("test.mod:bad", bad[why], "test.mod").is_empty(),
+			"modbrick/refused: %s" % why)
+	_ok(not PowerBrickCatalog.has("test.mod:bad"), "modbrick/and none of them was added")
+	_ok(not PowerBrickCatalog.register_mod_brick("nes_ac_adapter", good, "test.mod").is_empty(),
+		"modbrick/a shipped id is refused")
+	_eq(PowerBrickCatalog.register_mod_brick("test.mod:mk1602", good, "test.mod"), "", "modbrick/a good row takes")
+	_ok(PowerBrickCatalog.ids().has("test.mod:mk1602"), "modbrick/it is in the catalog")
+	_eq(str(PowerBrickCatalog.variant("test.mod:mk1602", "usa").get("dc_plug", "")), "barrel_5_5x2_1",
+		"modbrick/its plug is the BARREL key's connector")
+	_ok(PowerBrickCatalog.for_machine("", "genesis").has("test.mod:mk1602"), "modbrick/on the Genesis card")
+	var on_tab := false
+	for row: Dictionary in PowerSpawnRows.brick_rows():
+		if str(row.get("key", row.get("id", ""))).contains("test.mod:mk1602") 				or str(row).contains("test.mod:mk1602"):
+			on_tab = true
+	_ok(on_tab, "modbrick/and on the Power tab")
+	var brick := _brick("test.mod:mk1602", "usa", Vector3(0.5, 0.3, 0.5))
+	await _wait(4)
+	_eq(brick.form, "wall_wart", "modbrick/it builds as its form")
+	_eq(brick.wall_plug.connector, "nema_1_15_plug", "modbrick/with its model name's blades")
+	var unit := preload("res://Scenes/Objects/expansion.tscn").instantiate() as RetroExpansion
+	unit.expansion_id = "sega_cd"
+	unit.freeze = true
+	_room.add_child(unit)
+	unit.add_to_group("spawned")
+	await _wait(6)
+	var jack := unit.get_node(ExpansionPower.INLET_NAME) as DcPort
+	_ok(brick.dc_plug.is_in_group(jack.snap_require), "modbrick/it fits the Sega CD's jack")
+	jack.pick_up_object(brick.dc_plug)
+	(plate.get_node("TopPort") as PowerPort).pick_up_object(brick.wall_plug)
+	await _wait(4)
+	_ok(PowerInput.of(unit).is_live(), "modbrick/and powers it", PowerInput.of(unit).describe())
+	_ok(not PowerBrickCatalog.register_mod_brick("test.mod:mk1602", good, "other.mod").is_empty(),
+		"modbrick/a second mod cannot take the same id")
+	PowerBrickCatalog.drop_mod("test.mod")
+	_ok(not PowerBrickCatalog.has("test.mod:mk1602"), "modbrick/the mod gone, it is gone")
 	await _clear()
 

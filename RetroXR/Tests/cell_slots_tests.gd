@@ -138,6 +138,30 @@ func _test_labels() -> void:
 	_ok(_label_texture(gold_c) == BatteryCell.LABELS["C"]["black_gold"],
 		"labels/a C asked for in Black & Gold wears it too", str(_label_texture(gold_c)))
 	gold_c.queue_free()
+	# A mod's label (ModApi.register_cell_label): offered for the sizes it painted,
+	# worn, and gone with the mod.
+	var tex := "res://imported-assets/batteries/labels/battery_aa_black_gold.png"
+	_ok(not BatteryCell.register_mod_label("test.mod:green", {"label": "Green",
+		"textures": {"D": tex}}, "test.mod").is_empty(), "labels/a size there is no cell for is refused")
+	_ok(not BatteryCell.register_mod_label("black_gold", {"label": "X", "textures": {"AA": tex}},
+		"test.mod").is_empty(), "labels/a shipped label's id is refused")
+	_eq(BatteryCell.register_mod_label("test.mod:green", {"label": "Green", "color": Color.GREEN,
+		"textures": {"AA": tex}}, "test.mod"), "", "labels/a mod's label takes")
+	var aa_ids: Array = BatteryCell.variants_for("AA").map(func(v: Dictionary) -> String: return v["id"])
+	var c_ids: Array = BatteryCell.variants_for("C").map(func(v: Dictionary) -> String: return v["id"])
+	_ok(aa_ids.has("test.mod:green"), "labels/the AA row offers it", str(aa_ids))
+	_ok(not c_ids.has("test.mod:green"), "labels/the C row, which it has no texture for, does not")
+	var green := ScenePersistence.instantiate("battery_aa") as BatteryCell
+	SystemModelRegistry.set_variant_of(green, "test.mod:green")
+	add_child(green)
+	await _wait(2)
+	_ok(_label_texture(green) == load(tex), "labels/a cell asked for it wears it")
+	BatteryCell.drop_mod("test.mod")
+	_ok(not BatteryCell.variants_for("AA").map(func(v: Dictionary) -> String: return v["id"]).has("test.mod:green"),
+		"labels/the mod gone, it is not offered")
+	green.wear_label("test.mod:green")
+	_ok(_label_override(green) == null, "labels/and a cell saved in it wears the model's own")
+	green.queue_free()
 	var rec: Dictionary = ScenePersistence.new().serialize_node(gold, 3, {gold: 3})
 	_ok(rec.get("model_variant") == "black_gold", "labels/its label is saved", str(rec.get("model_variant")))
 	rec["id"] = 3

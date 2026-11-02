@@ -278,6 +278,93 @@ static func override_brick(id: String, changes: Dictionary, owner_id: String) ->
 	return ""
 
 
+## The forms an adapter can take (PowerBrick builds each), and the anchors each
+## needs in its variants: where its cords leave, where its inlet is.
+const FORMS := {"wall_wart": ["dc"], "inline": ["dc", "ac"], "inlet": ["dc", "ac_in"],
+	"dock": ["ac"], "battery_pack": ["dc"]}
+## The row fields a mod's own adapter may carry (register_mod_brick).
+const MOD_ROW_FIELDS := ["label", "fits", "dc_plug", "takes", "plug_mm", "cord", "plug_model", "variants",
+	"source"]
+const MOD_VARIANT_FIELDS := ["form", "size_mm", "dc", "ac", "ac_in", "dc_plug", "model", "plug_model",
+	"model_offset"]
+
+
+## Add a mod's own adapter (ModApi.register_power_brick): a row in this table's
+## format, checked here so a mistake is the mod's error line, not a broken brick in
+## the room. Its plug is `dc_plug` (a connector) or `takes` (a RetroXR-models BARREL
+## key, Connectors.of_takes); its variants are keyed by the model names the game
+## knows (VARIANT_PLUGS: the region decides the wall plug). "" when it took.
+static func register_mod_brick(id: String, given: Dictionary, owner_id: String) -> String:
+	if _shipped().has(id):
+		return "'%s' is one of the game's own adapters (use override_power_brick)" % id
+	if extra.has(id):
+		return "'%s' is already added by mod '%s'" % [id, (extra[id] as Dictionary).get("owner", "?")]
+	for field: String in given:
+		if not MOD_ROW_FIELDS.has(field):
+			return "'%s' is not an adapter field (%s)" % [field, ", ".join(MOD_ROW_FIELDS)]
+	if str(given.get("label", "")).strip_edges().is_empty():
+		return "no label"
+	var fits: Variant = given.get("fits", [])
+	if not fits is Array:
+		return "fits is not an array of systemids / model ids"
+	var plug := Connectors.of_takes(str(given.get("takes", ""))) if given.has("takes") 		else str(given.get("dc_plug", ""))
+	if not Connectors.LABELS.has(plug):
+		return "its plug '%s' is not a connector the game knows (a BARREL key in `takes`: %s)" 			% [plug, ", ".join(Connectors.BARRELS.keys())]
+	if given.has("cord") and not given["cord"] is Color:
+		return "cord is not a Color"
+	var mm: Variant = given.get("plug_mm", [9.0, 9.0, 35.0])
+	if not _is_vec3(mm):
+		return "plug_mm is not [x, y, z] in mm"
+	var plug_model := str(given.get("plug_model", ""))
+	if not plug_model.is_empty() and not ResourceLoader.exists(plug_model):
+		return "plug_model: no such scene %s" % plug_model
+	var variants: Variant = given.get("variants", {})
+	if not variants is Dictionary or (variants as Dictionary).is_empty():
+		return "no variants (one per model it comes in: %s)" % ", ".join(VARIANT_PLUGS.keys())
+	for name: Variant in (variants as Dictionary):
+		var v: Variant = (variants as Dictionary)[name]
+		if not VARIANT_PLUGS.has(str(name)):
+			return "variant '%s' is not a model name the game knows (%s)" % [name, ", ".join(VARIANT_PLUGS.keys())]
+		if not v is Dictionary:
+			return "variant %s is not a dictionary" % name
+		for field: String in (v as Dictionary):
+			if not MOD_VARIANT_FIELDS.has(field):
+				return "variant %s: '%s' is not a variant field (%s)" % [name, field, ", ".join(MOD_VARIANT_FIELDS)]
+		var form := str((v as Dictionary).get("form", ""))
+		if not FORMS.has(form):
+			return "variant %s: form '%s' is not one of %s" % [name, form, ", ".join(FORMS.keys())]
+		if not _is_vec3((v as Dictionary).get("size_mm")):
+			return "variant %s: size_mm is not [x, y, z] in mm" % name
+		for anchor: String in FORMS[form]:
+			if not _is_vec3((v as Dictionary).get(anchor)):
+				return "variant %s: a %s needs `%s` ([x, y, z] in mm)" % [name, form, anchor]
+		if (v as Dictionary).has("dc_plug") and not Connectors.LABELS.has(str(v["dc_plug"])):
+			return "variant %s: dc_plug '%s' is not a connector the game knows" % [name, v["dc_plug"]]
+		for field: String in ["model", "plug_model"]:
+			var path := str((v as Dictionary).get(field, ""))
+			if not path.is_empty() and not ResourceLoader.exists(path):
+				return "variant %s %s: no such scene %s" % [name, field, path]
+		if (v as Dictionary).has("model_offset") and not v["model_offset"] is Transform3D:
+			return "variant %s: model_offset is not a Transform3D" % name
+	var row := given.duplicate(true)
+	row.erase("takes")
+	row["dc_plug"] = plug
+	row["owner"] = owner_id
+	extra[id] = row
+	print("[Power] brick %s (%s) added by mod %s: plug %s, %d model(s), fits [%s]" % [id, row["label"],
+		owner_id, plug, (variants as Dictionary).size(), ", ".join(fits)])
+	return ""
+
+
+static func _is_vec3(v: Variant) -> bool:
+	if not v is Array or (v as Array).size() != 3:
+		return false
+	for n: Variant in (v as Array):
+		if not (n is float or n is int):
+			return false
+	return true
+
+
 ## Take back what mod `owner_id` gave (ModApi.withdraw).
 static func drop_mod(owner_id: String) -> void:
 	for id: String in _overrides.keys():

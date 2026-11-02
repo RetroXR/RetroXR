@@ -856,6 +856,51 @@ api.override_power_brick("nes_ac_adapter", {
 - One mod per adapter; switching it off brings the primitives back. Its boxes are
   fitted to what the model draws (a wall wart's stop at its face, not its blades).
 
+### An adapter of your own
+
+`api.register_power_brick` adds an adapter the game does not ship (a third-party one, or a
+model of an adapter the game has no row for). It is spawned from the Power tab and the
+cards it `fits`, saved like a shipped one, and a console row's `"power"` can name it as its
+`brick`. The row is the same format as `PowerBrickCatalog`'s, checked when it registers:
+
+```gdscript
+api.register_power_brick("mymod:mk1602", {
+    "label": "Sega AC Adapter (MK-1602)",
+    "fits": ["genesis", "sega_cd"],     # the cards that offer it (systemids, model ids, expansion ids)
+    "takes": "5.5x2.1",                 # its plug: a powerkit BARREL key, or "dc_plug": a connector
+    "cord": Color8(26, 26, 28),         # its leads' colour
+    "plug_mm": [9.6, 9.6, 40.0],
+    "plug_model": "res://mods/mymod/model/mk1602_plug.glb",
+    "variants": {                       # one per model, by the game's model names: usa jpn eur ukv aus kor asia
+        "usa": {"form": "wall_wart", "size_mm": [57.0, 85.0, 69.0], "dc": [0.0, -46.0, -34.0],
+                "model": "res://mods/mymod/model/mk1602_usa.glb"},
+    },
+})
+```
+
+- `form` is `wall_wart` (needs `dc`), `inline` (`dc` and `ac`), `inlet` (`dc` and `ac_in`),
+  `dock` (`ac`) or `battery_pack` (`dc`); the frames and anchors are as in "AC adapters".
+- The model name decides its wall plug (`usa` a two-blade US plug, `ukv` a BS 1363, ...).
+- Its id is saved: keep it. With the mod gone a saved one comes back as a plain box.
+
+### A battery label of your own
+
+`api.register_cell_label` adds a print for the cells, picked by holding the AA, AAA or C
+Battery row on the Power tab. Paint it on the cell size's own layout (RetroXR-models
+`generic/battery/artwork/label_<size>_template.png`, then scaled to 1024 px across as
+`artwork/variants/make_game_textures.py` does); only the sizes you give offer it.
+
+```gdscript
+api.register_cell_label("mymod:green", {
+    "label": "Green",
+    "color": Color(0.2, 0.7, 0.3),      # the picker's swatch
+    "textures": {"AA": "res://mods/mymod/labels/battery_aa_green.png",
+                 "AAA": "res://mods/mymod/labels/battery_aaa_green.png"},
+})
+```
+
+A cell keeps its label's id in a save; with the mod gone it wears the cell's own label.
+
 ### What a console's DC IN takes
 
 A model row says what its machine runs on in `"power"`, the game's power-profile

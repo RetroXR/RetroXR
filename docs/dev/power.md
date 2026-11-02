@@ -101,6 +101,13 @@ because nothing in it could ever be plugged in. The Arcade Room and the bedroom 
   naming its jack keeps the stand-in's cells and bay. As with link cables, the models carry
   geometry and an empty at the mouth; the CONNECTOR is the game's (`Connectors`), named on
   the node or, for power, by these rows. `power_tests standards/`.
+- **Mods add adapters and battery labels** (2026-11-02): `ModApi.register_power_brick` puts a
+  validated row in `PowerBrickCatalog.extra` (`register_mod_brick`: fields, plug by
+  connector or BARREL key, variants by the known model names, each form's anchors, scenes
+  that exist); everything downstream already read the table. `ModApi.register_cell_label`
+  adds to `BatteryCell._mod_labels`; `variants_for(size)` is what the cell rows offer and
+  `label_texture` what a cell wears. Both are withdrawn with the mod. `power_tests
+  modbrick/`, `cell_slots_tests labels/`.
 - **Expansions with a supply of their own** (2026-11-02, `ExpansionPower`): the 32X
   takes its own MK-2103 in its ADAPTOR jack, beside the Genesis's. PowerProfiles keys
   such a unit by its expansion id (`sega_32x`: `inlet` "dc", `takes` "EIAJ-03", `brick`);

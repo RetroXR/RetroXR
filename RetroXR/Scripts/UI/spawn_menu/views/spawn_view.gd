@@ -2818,9 +2818,9 @@ func _power_items() -> Array:
 	# And the cells a handheld, a printer, a Wii Remote or a Rumble Pak runs on,
 	# whatever the region: they go in a battery bay (CellSlots). Each comes in
 	# BatteryCell's labels, picked by holding its row.
-	return all + [["AA Battery", "battery_aa", BatteryCell.VARIANTS],
-		["AAA Battery", "battery_aaa", BatteryCell.VARIANTS],
-		["C Battery", "battery_c", BatteryCell.VARIANTS]]
+	return all + [["AA Battery", "battery_aa", BatteryCell.variants_for("AA")],
+		["AAA Battery", "battery_aaa", BatteryCell.variants_for("AAA")],
+		["C Battery", "battery_c", BatteryCell.variants_for("C")]]
 
 
 ## What a press of a region row spawns: the row's MAKE DEFAULT pick while it lists
