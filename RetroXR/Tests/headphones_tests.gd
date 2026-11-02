@@ -141,6 +141,10 @@ func _t_scene() -> void:
 	_ok(exit != null and line_in.global_position.distance_to(exit.global_position) < 0.0005
 		and line_in.global_basis.z.dot(-exit.global_basis.z) > 0.999,
 		"scene/on the left cup's CordExit, its mouth along the cord")
+	# The rope leaves a plug along the plug's -Z (rope.md): seated without a snap grab point it took the jack's basis
+	# and the cord went UP into the cup.
+	_ok(exit != null and a.global_basis.z.dot(exit.global_basis.z) > 0.999,
+		"scene/the captive plug's cord end points out of the CordExit, down (%s)" % [-a.global_basis.z])
 	var b := _plug(hp)
 	var tip := b.get_node("PlugTip") as MeshInstance3D
 	_ok(tip.mesh != null and tip.mesh.get_aabb().size.z > 0.04, "scene/the far end wears the model's 3.5 mm plug")
@@ -192,6 +196,22 @@ func _t_jack() -> void:
 	route = gbc.audio_route()
 	_ok(route["tv"] == null and not route["socketed"], "jack/pulled, the handheld plays from itself again")
 	_ok(hp.source() == null, "jack/and the headphones carry nothing")
+	# A shell that draws its own PHONES mouth has no collar 2 mm proud for the handle to stop on: the zone (where the
+	# handle's face goes) is ON the shell's face, `face` from the seat. A stand-in's stays 2 mm out, on its collar.
+	var gba := _handheld("gba")
+	await _wait(60)
+	var gjack := gba.find_child("PhonesOut", true, false) as Node3D
+	var seat: Dictionary = gba.get_model().headphone_jack() if gba.get_model() else {}
+	var collar := gjack.find_child("TrsJack", true, false) as Node3D if gjack else null
+	if gjack == null or seat.is_empty() or collar == null:
+		_ok(false, "jack/the Game Boy Advance has a headphone jack and a seat")
+	else:
+		var mx := gba.get_model().global_transform
+		var n := (mx.basis.orthonormalized() * (seat["normal"] as Vector3)).normalized()
+		var off := (gjack.global_position - mx * (seat["position"] as Vector3)).dot(n)
+		var want := float(seat.get("face", 0.0)) if not collar.visible else 0.002
+		_ok(absf(off - want) < 0.0001, "jack/the zone stands where the handle stops: %.2f mm off the seat (want %.2f, collar %s)"
+			% [off * 1000.0, want * 1000.0, "drawn" if collar.visible else "the shell's"])
 
 
 # ── tv/ ───────────────────────────────────────────────────────────────────────

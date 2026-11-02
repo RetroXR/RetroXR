@@ -178,6 +178,22 @@ boot (`handling/a yanked lead recovers its length`, bound 1.30). The standard fi
 long-range attachments: every particle constrained to lie within its path length of each
 pinned end, which is O(n) per iteration. It is not built.
 
+## A seated plug takes its basis from its SnapGrabPoint -- a captive one too
+
+A snap zone seats a plug at the zone's transform times the plug's grab point's inverse. Every plug carries a
+`SnapGrabPoint` turned half about X, so its +Z goes INTO the socket and its -Z (where the rope leaves) out of the
+socket's mouth. A plug with none takes the socket's own basis and its cord leaves backwards. The headphones' hidden
+captive plug (`PlugA0`, in `Body/LineIn` on the cup's `CordExit`) had none, so the cord rose into the cup before
+hanging (2026-11-03); `headphones_tests` `scene/` asserts the plug's -Z along the CordExit's -Z by sign.
+
+Where the plug STOPS is the socket's: a 3.5 mm `TrsPort` zone stands 2 mm proud for the collar a stand-in draws,
+and a shell that draws its own PHONES mouth has no collar, so `SystemAvPorts.build_phones` puts the zone ON the
+shell face (a seat's optional `face` says where the face is along the normal from `position`, measured off the
+mesh). Before, every detailed handheld held the handle 1.8-2.5 mm off its shell (`jack/` in `headphones_tests`).
+Measured after, handle face to shell: gb/gbc +0.17 mm, gba 0, gamegear -0.24, n3ds -0.19, nds -1.0 (the xenu.nds
+mod's seat is 1 mm inside its shell; the fix is a `face` in that mod), CD player PHONES +0.75 (its zone is
+`DeckFace.seat_port`'s `PORT_PROUD` off the model's mouth).
+
 ## Probes (`RetroXR/Tools/rope/`)
 
 - `floor_ends_probe`: a plain lead and a composite lead dropped on a floor, ticked by

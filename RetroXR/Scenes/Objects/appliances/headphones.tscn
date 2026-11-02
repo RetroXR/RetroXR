@@ -90,6 +90,11 @@ shape = SubResource("BoxShape3D_captive")
 visible = false
 mesh = ExtResource("13_trsplug")
 
+; Seated the way every plug is (PlugB0's): its +Z into the jack, so its -Z, the way the rope leaves, is out of the
+; cup's CordExit. Without it the zone seated the plug on its own basis and the cord left UP, into the cup.
+[node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("12_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
 ; -- End B: the 3.5 mm plug ------------------------------------------------------------------------------------------
 [node name="PlugB0" type="RigidBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0835, -0.06, 0.3)

@@ -267,5 +267,6 @@ func play_cartridge_insert(cartridge: Node3D, slot: Node3D) -> void:
 ## the same 42 mm right of centre along the bottom edge of a 144.5 mm body.
 func headphone_jack() -> Dictionary:
 	if _glb != null:
-		return {"position": _AV_JACK_POS, "normal": _AV_JACK_OUT}
+		# The mouth's rim is 0.45 mm in from _AV_JACK_POS along its axis (measured at the plug handle's radius).
+		return {"position": _AV_JACK_POS, "normal": _AV_JACK_OUT, "face": -0.00045}
 	return edge_jack(0.29)

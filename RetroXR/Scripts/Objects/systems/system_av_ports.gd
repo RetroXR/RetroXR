@@ -75,9 +75,17 @@ func build_phones() -> void:
 	port.show_jack = not drawn
 	_host.add_child(port)
 	place_phones(port, seat)
+	# With no collar drawn there is no rim 2 mm proud for the handle to stop on: it stops on the SHELL, so the zone
+	# goes back onto the face (it stood the handle 1.8-2.5 mm off every detailed handheld, a plug "not all the way
+	# in"). `face` is where the shell's face really is along the normal from `position`, measured off the mesh where
+	# a seat's figure is not on it (Tools: a ray along the jack's axis at the handle's radius).
+	var back := 0.0
+	if drawn:
+		back = 0.002 - float(seat.get("face", 0.0))
+		port.global_position -= port.global_transform.basis.z.normalized() * back
 	phones = port
-	print("[RetroSystem] %s: headphone jack built, %s" % [_host.systemid,
-		"the shell draws its mouth" if drawn else "socket drawn"])
+	print("[RetroSystem] %s: headphone jack built, %s (zone %.2f mm off the seat)" % [_host.systemid,
+		"the shell draws its mouth" if drawn else "socket drawn", (0.002 - back) * 1000.0])
 
 
 ## The accessory socket a headphone adapter plugs into, on hardware whose sound
