@@ -57,7 +57,7 @@ const _BAYS: Dictionary = {
 	"discrete": {"label": "Discrete logic", "systems": ["dice"], "romsets": false},
 }
 
-## Bay kinds a mod added: id -> {label, systems}.
+## Bay kinds a mod added: id -> {label, systems, romsets, owner}.
 static var _mod_bays: Dictionary = {}
 
 ## Joypad bits. A player's panel: up to ten buttons, START, and the coin the gettoniera
@@ -129,8 +129,24 @@ const START_AFTER_COIN_SECONDS := 0.35
 const ARCADE_ALIASES: Array[String] = ["arcade", "cps1", "cps2", "cps3", "mame", "fbneo", "hbmame"]
 
 
-static func register_bay_kind(id: String, label: String, systems: Array) -> void:
-	_mod_bays[id] = {"label": label, "systems": systems.duplicate()}
+## `romsets` false makes the bay a CABINET's, not the romset family's (is_cabinet_system), as the
+## laserdisc and discrete bays are: its systems are not offered the MAME/FinalBurn cores.
+static func register_bay_kind(id: String, label: String, systems: Array, romsets: bool = true,
+		owner_id: String = "") -> void:
+	var canon: Array = []
+	for s: Variant in systems:
+		canon.append(SystemIds.canonical(str(s)))
+	_mod_bays[id] = {"label": label, "systems": canon, "romsets": romsets, "owner": owner_id}
+	print("[ArcadeProfiles] bay kind %s (%s) takes %s%s" % [id, label, canon,
+		"" if owner_id.is_empty() else ", from " + owner_id])
+
+
+## Take back the bay kinds a mod added (ModApi.withdraw).
+static func drop_mod(owner_id: String) -> void:
+	for id: String in _mod_bays.keys():
+		if str(_mod_bays[id].get("owner", "")) == owner_id:
+			_mod_bays.erase(id)
+			print("[ArcadeProfiles] bay kind %s withdrawn with %s" % [id, owner_id])
 
 
 static func bay_kinds() -> Dictionary:

@@ -362,6 +362,41 @@ func override_console_stand(stand_id: String, changes: Dictionary) -> bool:
 	return true
 
 
+## Dress the game's arcade cabinet without taking its morph away (ArcadeDressing, docs/modding.md
+## "Dressing the arcade cabinet"). A cabinet drawn for itself (register_model / override_model) keeps
+## the one form it has; a dressing repaints, hides or adds to the parts the cabinet BUILDS, by their
+## names, after every build, so it still takes the shape of each game in its bay. `row`: any of
+## `variants` (["generic", "neogeo", ...]; "" a cabinet that names none), `shapes` (["upright", ...]),
+## `colors` ({"body"|"trim"|"dark"|part name: Color or "#rrggbb"}), `materials` (the same keys:
+## Material or res:// path), `hide` ([part names]) and `parts` ({part name: res:// .tscn, instanced
+## under that part in its frame}). Cosmetic and local, never saved or sent.
+func dress_arcade_cabinet(dress_id: String, row: Dictionary) -> bool:
+	if not _namespaced(dress_id, "arcade dressing id"):
+		return false
+	var err := ArcadeDressing.register(dress_id, row, id)
+	if not err.is_empty():
+		return _fail("arcade dressing %s: %s" % [dress_id, err])
+	var variants: Array = row.get("variants", [])
+	_note("object", "arcade cabinet dressing (%s)" % ("every cabinet" if variants.is_empty()
+		else ", ".join(PackedStringArray(variants))))
+	return true
+
+
+## Add a kind of arcade bay: which systems' boards it takes (ArcadeProfiles.bay_kinds). A cabinet or
+## bay unit names it as its bay module's `bay_kind`. `romsets` false makes it a cabinet's own system
+## (a laserdisc's, a Neo Geo's), true one more of the MAME/FinalBurn family, whose cores serve it.
+func register_arcade_bay_kind(kind_id: String, label: String, systems: Array, romsets: bool = true) -> bool:
+	if not _namespaced(kind_id, "arcade bay kind id"):
+		return false
+	if ArcadeProfiles.bay_kinds().has(kind_id):
+		return _fail("arcade bay kind %s is already registered" % kind_id)
+	if systems.is_empty():
+		return _fail("arcade bay kind %s takes no system" % kind_id)
+	ArcadeProfiles.register_bay_kind(kind_id, label, systems, romsets, id)
+	_note("object", "%s arcade bay" % label)
+	return true
+
+
 ## Add rows to a console's spawn card — its pads, leads and accessories.
 ##
 ## A mod controller is simply a scene rooted at RetroController; persistence
@@ -572,6 +607,8 @@ func withdraw() -> void:
 	StandCatalog.drop_mod(id)
 	PowerBrickCatalog.drop_mod(id)
 	BatteryCell.drop_mod(id)
+	ArcadeDressing.drop_mod(id)
+	ArcadeProfiles.drop_mod(id)
 	_hooks.drop_owner(id)
 
 

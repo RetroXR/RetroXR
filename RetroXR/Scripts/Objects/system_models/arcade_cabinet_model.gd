@@ -59,14 +59,21 @@ var _pointer_door: CollisionShape3D = null
 
 
 func _ready() -> void:
-	_collect_modules()
 	# The row this scene was baked from: what a game's form is derived from, and what it goes back to.
 	var variant := str(get_meta(ArcadeCabinetBuilder.VARIANT_META, ""))
 	_base_spec = ArcadeCabinetSpecs.variant(variant)
 	if not _base_spec.is_empty():
 		_base_spec["variant"] = variant
 	_form_spec = _base_spec
+	_variant = variant
+	# Before the modules are collected: a dressed marquee is the one that lights.
+	ArcadeDressing.apply(self, _variant, _form_spec)
+	_collect_modules()
 	ArcadeShadowBudget.trim(self)
+
+
+## The row this scene was baked from ("" for a scene that names none), which a mod's dressing picks by.
+var _variant := ""
 
 
 ## Find the modules by type and attach the ones not attached yet (all of them on the first call; after a
@@ -110,8 +117,18 @@ func _collect_modules() -> void:
 	_controls.sort_custom(func(a: ArcadeControlModule, b: ArcadeControlModule) -> bool: return a.player < b.player)
 	var marquee := find_child("Marquee", true, false) as MeshInstance3D
 	_marquee_mat = null
-	if marquee != null and marquee.mesh != null and marquee.mesh.material is StandardMaterial3D:
-		_marquee_mat = marquee.mesh.material as StandardMaterial3D
+	if marquee != null and marquee.mesh != null:
+		var active := marquee.get_active_material(0)
+		if active is StandardMaterial3D and active != marquee.mesh.surface_get_material(0) 				and not active.has_meta(&"arcade_own_copy"):
+			# A mod's paint (ArcadeDressing), which other cabinets share: this one lights its own copy.
+			active = (active as StandardMaterial3D).duplicate()
+			active.set_meta(&"arcade_own_copy", true)
+			if marquee.material_override != null:
+				marquee.material_override = active
+			else:
+				marquee.set_surface_override_material(0, active)
+		if active is StandardMaterial3D:
+			_marquee_mat = active as StandardMaterial3D
 	_art_marquee = find_child("MarqueeArt", true, false) as MeshInstance3D
 	_marquee_title = find_child("MarqueeTitle", true, false) as Label3D
 	_art_sides.clear()
@@ -1227,6 +1244,7 @@ func morph_to(spec: Dictionary) -> void:
 			child.queue_free()
 	ArcadeCabinetBuilder.new(spec, self).build_form()
 	_form_spec = spec
+	ArcadeDressing.apply(self, _variant, _form_spec)
 	_collect_modules()
 	_wire_stage_seats()
 	ArcadeShadowBudget.trim(self)

@@ -254,8 +254,53 @@ The contract is versioned (`ArcadeProfiles.CONTRACT_VERSION`) and **additive onl
 that lacks an optional module is valid. The screen takes its shape from the core's reported
 geometry, not from your quad's size, so give the glass its real `glass_size`; a vertical game
 is pillarboxed in it. The door's angle is saved like any lid and the hinge replicates in a
-shared room. `ArcadeProfiles.register_bay_kind` adds a bay kind (which systems a bay takes);
-it has no `ModApi` wrapper yet. See `docs/dev/arcade.md`.
+shared room. `api.register_arcade_bay_kind("<mod_id>:<kind>", label, systems, romsets = true)` adds a
+bay kind (which systems' boards a bay takes); a bay module names it as its `bay_kind`. `romsets`
+false makes it a cabinet's own system, as the Neo Geo and laserdisc bays are, not one more of the
+MAME/FinalBurn family. See `docs/dev/arcade.md`.
+
+A cabinet you draw yourself **keeps the one form it has**: it names no row of the game's, so it
+cannot take the shape of the game in its bay (no guns, panels or cockpit for the game). To change how
+the game's own cabinet LOOKS and keep that, dress it instead.
+
+### Dressing the arcade cabinet
+
+`api.dress_arcade_cabinet("<mod_id>:<name>", row)` lays your look over the parts the cabinet builds,
+by their names, after every build: when it arrives in the room and every time it takes a game's
+shape. Every field is optional:
+
+| field | what it does |
+|---|---|
+| `variants` | which cabinets: `["generic", "neogeo", "daphne", "daphne_gun", "dice"]`, `""` for a cabinet that names no row (yours). Missing = every cabinet |
+| `shapes` | only forms of these body shapes (`"upright"`, `"wide"`, `"tall"`, ...: `ArcadeCabinetSpecs.shapes()`). Missing = all |
+| `colors` | `{name: Color or "#rrggbb"}`, a plain paint |
+| `materials` | `{name: Material or "res://mods/<id>/....tres"}` |
+| `hide` | `[part names]`: drawn no more; the node stays, so nothing that finds it breaks |
+| `parts` | `{part name: "res://mods/<id>/....tscn"}`, instanced under that part, at its origin and in its frame (the cabinet's axes: +Z out of the front, +Y up; a box part's origin is its centre) |
+
+A name in `colors`/`materials` is a group of the builder's paints (`"body"`: the sides, rear, top,
+coin face and apron; `"trim"`: the trim strips; `"dark"`: the kick plate and the undersides) or a
+part's own name, and every part of that name is dressed, so `"Btn1"` paints button 1 on every
+player's panel. The names are the builder's and do not move, because the controls and the hands find
+the parts by them: `SideL` `SideR` `Rear` `Top` `CoinFace` `Apron` `ApronTrim` `KickPlate` `Marquee`
+`MarqueeTrim` `Bezel` `Glass` `DeckPlate` `Plate` (a panel), `Btn1`..`Btn6` and their `Btn1Rim`..,
+`Start` `StartRim` `StickBall` `StickShaft` `StickBase`, the bay's `DoorMesh` `DoorHandle` `DoorTrim`;
+a cockpit, bike or stage adds its own (open the cabinet in the editor, or let the log tell you: a
+dressing whose part is not in a form says `this form has no ...`). A painted `Marquee` still lights
+when the machine is on. The game's marquee and side art (`MarqueeArt`, `SideArtL/R`) hang over your
+paint while a game is in the bay.
+
+```gdscript
+api.dress_arcade_cabinet("acme.cabinets:woodgrain", {
+	"variants": ["generic"],
+	"materials": {"body": "res://mods/acme.cabinets/woodgrain.tres"},
+	"colors": {"trim": "#c8a040", "Btn1": "#e02020", "Btn2": "#e02020"},
+	"parts": {"Marquee": "res://mods/acme.cabinets/marquee_lamps.tscn"},
+})
+```
+
+Dressings apply in id order, so two mods dressing one part always settle the same way (the later id
+wins). They are cosmetic and local: never saved, never sent, withdrawn with the mod.
 
 ### Colors and editions on one row
 

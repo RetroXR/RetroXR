@@ -91,7 +91,8 @@ optional module is valid. A module finds ITS OWN parts by name inside its own su
 
 `ArcadeProfiles` (`Scripts/Data/systems/arcade_profiles.gd`) is the data: `BAY_KINDS`
 (`jamma` -> `arcade`), which joypad bit is which, the coin pulse length. A mod adds
-a bay kind with `ArcadeProfiles.register_bay_kind` (no `ModApi` wrapper yet).
+a bay kind with `ModApi.register_arcade_bay_kind` (namespaced id, `romsets` as the shipped rows', withdrawn
+with the mod: `ArcadeProfiles.drop_mod`).
 
 **Adding a cabinet.** Cheapest first: (1) **a scene only** (1P, 4P, cocktail, tate) from the
 same modules, as a registry row (or a mod's `register_model` / `override_model`); (2) a new
@@ -920,6 +921,13 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
 - **There is no switch for it** (the System tab's "Cabinet Shape" was removed 2026-10-25, with its `cabinet_shape` key in the room): the cabinet
   always follows the game. A cabinet baked from no row (a mod's) keeps its form, and the model keeps `set_morph_enabled(false)` as a seam for the
   tests and the probes, which look at what the profile alone hides.
+- **A mod's look that keeps the morph is a DRESSING** (2026-11-02, `ArcadeDressing`, `ModApi.dress_arcade_cabinet`, `docs/modding.md` "Dressing the
+  arcade cabinet"): paints, hidden parts and instanced scenes laid over the builder's parts BY NAME, matched by the cabinet's baked `variant` and the
+  form's `shape`. `ArcadeDressing.apply` runs in the model's `_ready` and in `morph_to`, each time BEFORE `_collect_modules`, so the marquee the
+  model lights is the dressed one: a mod's marquee material is shared by every cabinet, so `_collect_modules` gives this cabinet a copy
+  (`arcade_own_copy`) before it touches emission. A paint goes where the builder put its own (`material_override` on the sides and stick balls,
+  else a surface override), never on the mesh's material, which a baked scene shares. A scene is a child named `ModDress_<id>` and is never
+  added twice: the bay is not rebuilt by a morph and is dressed again after one. Never saved, never on the wire. `arcade_dress_tests`.
 - **Netplay**: the form is derived from the board, so two peers build the same one (it decides whether a port is a gun or a socket). Not measured
   with two peers.
 - Tests: `arcade_form_tests` (groups `specs layout build board reach guns ports input animate running boxes footprint bezel odd seating hood scope racegun grip stage helm`; `arcade_tests game/`

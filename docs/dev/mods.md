@@ -539,7 +539,7 @@ before; the loader only ever read.
 
 **2026-10-22: off, removed, updated and shipped-resource mods go live too.** A
 mounted pack still cannot be unmounted, but every way a mod changes the game goes
-through `ModApi` and `withdraw()` takes all of it back (the eleven tables, the node
+through `ModApi` and `withdraw()` takes all of it back (the tables, `ArcadeDressing` and `ArcadeProfiles`' bay kinds among them, the node
 hooks, and now its `on_scene_content_ready` connections, which it used to leave
 connected). So `apply_plan()` returns `unload` and `update` beside `live`:
 
