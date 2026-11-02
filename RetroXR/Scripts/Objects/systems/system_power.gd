@@ -73,6 +73,10 @@ func build(model_id: String) -> void:
 		input.through = _controller_supply
 		input.through_missing = "No controller plugged in (its battery pack or AC adapter tap goes on the controller)"
 	_build_bay(profile)
+	# Fresh from the spawn menu, a handheld comes with its cells in, as a Game Boy came
+	# in its box (four AA); a restored one has what its save says (CellSlots).
+	if profile.has("bay") and not _host.has_meta(CoverSlots.RESTORING):
+		_seed_cells.call_deferred(0)
 	# An arcade cabinet takes a kettle lead in a C14 inlet on its back.
 	if _host._is_cabinet_model() and str(profile.get("inlet", "")).is_empty():
 		profile = {"inlet": "c14"}
@@ -146,6 +150,48 @@ func _build_bay(profile: Dictionary) -> void:
 		shell = mat.albedo_color
 	var seats := BatteryBay.build(model, box, bay, "%s_battery_cover" % _host.systemid, shell, body)
 	print("[Power] %s: battery bay built, %d %s seats" % [_host.systemid, seats, str(bay.get("size", "AA"))])
+
+
+const _CELL_SCENES := {
+	"AA": preload("res://Scenes/Objects/batteries/battery_aa.tscn"),
+	"AAA": preload("res://Scenes/Objects/batteries/battery_aaa.tscn"),
+	"C": preload("res://Scenes/Objects/batteries/battery_c.tscn"),
+}
+## How many frames a handheld waits for a mod's shell to build its own seats.
+const SEED_WAIT_FRAMES := 10
+
+
+## A cell into every empty seat of a handheld fresh from the spawn menu, its cover left
+## on. Only for one in the room's "spawned" set (a room's own furnishings and a save's
+## objects are not seeded: they would gain a set of cells each time they load).
+func _seed_cells(tries: int) -> void:
+	if not is_instance_valid(_host) or not _host.is_inside_tree() or _host.has_meta(CoverSlots.RESTORING):
+		return
+	var slots := CellSlots.of(_host)
+	if slots == null or slots.seats().is_empty():
+		# A mod's shell builds its seats in its own time.
+		if tries < SEED_WAIT_FRAMES:
+			await _host.get_tree().process_frame
+			_seed_cells(tries + 1)
+		else:
+			print("[Power] %s: no battery seats to put cells in" % _host.systemid)
+		return
+	if not _host.is_in_group("spawned"):
+		print("[Power] %s: not a spawned object; its bay is left as it is" % _host.systemid)
+		return
+	var seeded := 0
+	for seat_name: String in slots.seats():
+		var zone := slots.slot(seat_name)
+		var scene := _CELL_SCENES.get(CellSlots.size_of_seat(seat_name)) as PackedScene
+		if zone == null or zone.has_snapped_object() or scene == null:
+			continue
+		var cell := scene.instantiate() as Node3D
+		_host.get_tree().current_scene.add_child(cell)
+		cell.add_to_group("spawned")
+		cell.global_transform = zone.global_transform
+		zone.seat_cell(cell, 0.0)
+		seeded += 1
+	print("[Power] %s: came with its cells in (%d)" % [_host.systemid, seeded])
 
 
 ## The machine's own label for the logs, once its name is known.
@@ -261,6 +307,16 @@ func place_inlet() -> void:
 		return
 	var x := body.end.x - minf(INLET_INSET, body.size.x * 0.25)
 	var y := body.position.y + minf(INLET_LIFT, body.size.y * 0.35)
+	# Never under the A/V row's printed plate or a socket already on the back: the
+	# Jaguar's jack stood behind its AV OUT legend, out of sight and out of reach.
+	# Then the other end of the back, as many machines have it.
+	var taken := _back_panel_rects()
+	if _overlaps(Vector2(x, y), taken):
+		var other := body.position.x + minf(INLET_INSET, body.size.x * 0.25)
+		if not _overlaps(Vector2(other, y), taken):
+			print("[Power] %s: the inlet's spot is under the A/V row; it goes on the other end of the back"
+				% _host.systemid)
+			x = other
 	# On the drawn back where it is (a shell's back is not always the bounds'), set in
 	# so the inlet's face is flush with it.
 	var spot := Vector3(x, y, body.position.z)
@@ -269,6 +325,47 @@ func place_inlet() -> void:
 	var at := Vector3(spot.x, spot.y, spot.z + ApplianceMains.inlet_proud(_inlet))
 	# R_y(180): +Z of the socket out of the back.
 	_inlet.transform = Transform3D(Basis(Vector3(-1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, -1)), at)
+
+
+## Half the room an inlet takes on the back, each way (m): a C8's face is 16 x 10 mm.
+const INLET_HALF := Vector2(0.012, 0.009)
+## How far an A/V legend reaches round a phono jack: a word's half-width each side, and
+## the words plus the AV OUT heading below it.
+const LEGEND_SIDE := 0.016
+const LEGEND_DROP := 0.04
+
+
+## What already stands on the back of the machine, as rects in its X/Y: the A/V
+## legend's printed plate and every socket on the back (a phono row, a link port).
+func _back_panel_rects() -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	var to_host := _host.global_transform.affine_inverse()
+	for child: Node in _host.get_children():
+		if child == _inlet or not child is Node3D:
+			continue
+		var n := child as Node3D
+		if not n.visible:
+			continue
+		if n is AvLegend:
+			var box := ApplianceModel.node_bounds(n, _host)
+			if box.size != Vector3.ZERO:
+				out.append(Rect2(box.position.x, box.position.y, box.size.x, box.size.y))
+		elif n is Port and (to_host * n.global_transform).basis.z.z < -0.5:
+			var at := (to_host * n.global_transform).origin
+			out.append(Rect2(at.x - 0.006, at.y - 0.006, 0.012, 0.012))
+			# A phono jack's words and the AV OUT heading are printed under it (AvLegend
+			# bakes them a few frames later, so its own bounds are not there yet).
+			if n is RcaPort:
+				out.append(Rect2(at.x - LEGEND_SIDE, at.y - LEGEND_DROP, LEGEND_SIDE * 2.0, LEGEND_DROP))
+	return out
+
+
+static func _overlaps(at: Vector2, rects: Array[Rect2]) -> bool:
+	var mine := Rect2(at - INLET_HALF, INLET_HALF * 2.0)
+	for r: Rect2 in rects:
+		if mine.intersects(r):
+			return true
+	return false
 
 
 ## The mouth of the model's own inlet (MODEL_INLETS), or null for a stand-in.

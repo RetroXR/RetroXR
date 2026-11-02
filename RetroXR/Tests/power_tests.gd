@@ -381,6 +381,24 @@ func _machine(systemid: String, model_id: String = "") -> RetroSystem:
 	return sys
 
 
+## Take out the cells a handheld fresh from the menu came with (SystemPower), for a
+## case about a machine with none. Returns how many there were.
+func _empty_bay(sys: Node) -> int:
+	var slots := CellSlots.of(sys)
+	if slots == null:
+		return 0
+	var n := 0
+	for seat: String in slots.seats():
+		var zone := slots.slot(seat)
+		if zone.has_snapped_object():
+			var cell := zone.picked_up_object as Node
+			zone.drop_object()
+			cell.queue_free()
+			n += 1
+	await _wait(3)
+	return n
+
+
 func _test_console() -> void:
 	var plate := _new_room()
 	# A Saturn wears the procedural box: its inlet is built from PowerProfiles.
@@ -441,6 +459,7 @@ func _test_console() -> void:
 func _test_latch() -> void:
 	var plate := _new_room()
 	var gb := await _machine("gb", "game_boy_primitive")
+	await _empty_bay(gb)
 	var jack := gb.find_child("DcInPort", true, false) as DcPort
 	var input := PowerInput.of(gb)
 	_ok(jack != null and input != null and input.inlets().has(jack),
@@ -644,6 +663,9 @@ func _test_bay() -> void:
 	_ok(covers.is_on(socket), "bay/fresh from the menu its cover is on")
 	_ok(slots.is_blocked(), "bay/with the cover on, the bay is shut")
 	var input := PowerInput.of(gb)
+	_eq(slots.cells().size(), 4, "bay/fresh from the menu it has its four AA in")
+	_ok(input.is_live(), "bay/and runs on them")
+	_eq(await _empty_bay(gb), 4, "bay/(taken out for the cases below)")
 	_ok(not input.is_live(), "bay/no cells, no adapter: no power")
 	_ok(input.describe().contains("No batteries (takes 4 AA)"), "bay/it says what it takes", input.describe())
 	await _pull(covers.slot(socket))

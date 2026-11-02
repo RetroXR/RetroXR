@@ -43,6 +43,7 @@ static func _exit(host: Node3D, search: Node) -> Node3D:
 		for alias: String in EXIT_ALIASES:
 			found = search.find_child(alias, true, false) as Node3D
 			if found != null:
+				found = _aimed_out(host, found)
 				break
 	if found != null:
 		found.set_meta(&"from_model", true)
@@ -59,6 +60,42 @@ static func _exit(host: Node3D, search: Node) -> Node3D:
 		var spot := back_surface(host, search, Vector2(x, y), box)
 		# Identity basis: the cord leaves along -Z, out of the back, from just outside it.
 		exit.position = spot - Vector3(0, 0, 0.002)
+	return exit
+
+
+## An older model's anchor keeps its own axes, which are not the contract's: the
+## Panasonic CT-20D10B's CableAnchor has its -Z pointing UP (its Y is the set's +Z), so
+## the cord rose out of the boot and fell over to the right. Its spot is kept and the
+## cord is aimed down whichever of its axes points most out of the host's BACK (-Z),
+## through a child exit; an anchor already aimed that way is used as it is.
+static func _aimed_out(host: Node3D, anchor: Node3D) -> Node3D:
+	var b := (host.global_transform.affine_inverse() * anchor.global_transform).basis.orthonormalized()
+	var back := Vector3(0, 0, -1)
+	var best := Vector3.ZERO
+	var best_dot := -2.0
+	for local: Vector3 in [Vector3.RIGHT, Vector3.LEFT, Vector3.UP, Vector3.DOWN, Vector3.BACK, Vector3.FORWARD]:
+		var d := (b * local).dot(back)
+		if d > best_dot:
+			best_dot = d
+			best = local
+	if best == Vector3.FORWARD:
+		return anchor
+	# The anchor's local axis nearest the host's up, as the exit's up (never the way out).
+	var up := Vector3.ZERO
+	var up_dot := -2.0
+	for local: Vector3 in [Vector3.RIGHT, Vector3.LEFT, Vector3.UP, Vector3.DOWN, Vector3.BACK, Vector3.FORWARD]:
+		if absf(local.dot(best)) > 0.5:
+			continue
+		var d := (b * local).dot(Vector3.UP)
+		if d > up_dot:
+			up_dot = d
+			up = local
+	var exit := Node3D.new()
+	exit.name = EXIT_NAME
+	exit.basis = Basis.looking_at(best, up)
+	anchor.add_child(exit)
+	print("[Power] %s: %s's -Z is not out of the back; the cord leaves along its %s instead"
+		% [host.name, anchor.name, str(best)])
 	return exit
 
 

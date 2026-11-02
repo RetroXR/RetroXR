@@ -292,13 +292,32 @@ func _model_point(node_name: String, fallback: Vector3) -> Vector3:
 
 ## `node`'s position in `carrier`'s frame, in or out of the tree.
 static func _local_to(carrier: Node3D, node: Node3D) -> Vector3:
+	return _xform_to(carrier, node).origin
+
+
+## `node`'s transform in `carrier`'s frame.
+static func _xform_to(carrier: Node3D, node: Node3D) -> Transform3D:
 	var xf := node.transform
 	var at: Node = node.get_parent()
 	while at != null and at != carrier:
 		if at is Node3D:
 			xf = (at as Node3D).transform * xf
 		at = at.get_parent()
-	return xf.origin
+	return xf
+
+
+## The way the DC lead leaves its plug, in the plug's frame: its CordExit's -Z (the
+## model's, or DcPlugShape's). An L plug's boot turns DOWN, and the rope's default
+## (-Z, out of the back) laid the cord at right angles to the strain relief it comes
+## out of. Straight plugs answer -Z, as before.
+func _dc_exit_axis() -> Vector3:
+	if dc_plug == null:
+		return Vector3(0, 0, -1)
+	var exit := dc_plug.find_child(PlugExit.MARKER, true, false) as Node3D
+	if exit == null:
+		return Vector3(0, 0, -1)
+	var axis := -_xform_to(dc_plug, exit).basis.orthonormalized().z
+	return axis.normalized() if axis.length() > 0.5 else Vector3(0, 0, -1)
 
 
 ## A cord's anchor on `carrier`: the worn model's own `node_name` if it has one, else
@@ -487,6 +506,11 @@ func _build_ropes() -> void:
 		rope.start_node = cord[1]
 		rope.end_node = plug
 		rope.end_anchor_offset = plug.cable_anchor
+		if plug == dc_plug and form != "dock":
+			rope.end_exit_axis = _dc_exit_axis()
+			if not rope.end_exit_axis.is_equal_approx(Vector3(0, 0, -1)):
+				print("[Power] %s: its DC lead leaves the plug along %s (the plug's CordExit)"
+					% [name, str(rope.end_exit_axis)])
 		rope._init_points()
 		cord[3] = float(rope.segment_count) * rope.segment_length
 

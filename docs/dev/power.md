@@ -83,6 +83,17 @@ because nothing in it could ever be plugged in. The Arcade Room and the bedroom 
   a ray into the model's own triangles (`ApplianceMains.back_surface`: a CRT's back tapers,
   so the bounds' back is the tube's hump; a steep face such as a stand's rim moves the
   search toward the middle). The Panasonic set's inlet floated behind its corner before.
+  **A built inlet keeps clear of the A/V row** (2026-11-03, `SystemPower._back_panel_rects`):
+  the generic spot (low, right seen from the front) is where a primitive's phono row and its
+  AV OUT legend go too, and the Jaguar's jack stood behind the printed plate; when the spot
+  meets a back-facing socket, or the legend under a phono jack, the inlet goes to the other
+  end of the back. **The Dreamcast's `ACIn` is in the SHELL's frame** (its origin is 29.8 mm
+  above the machine's bottom): the first measurement, taken from the bottom, put the plug
+  25 mm above the drawn inlet; re-measured at 6000 px/m off an orthographic render.
+  **A model's cord anchor that predates the contract is aimed out of the back**
+  (`ApplianceMains._aimed_out`): the Panasonic CT-20D10B's `CableAnchor` has its -Z UP, so
+  its cord rose out of the boot; the cord now leaves along whichever of its axes points
+  most out of the set's back.
 - **DC connectors are the plug's STANDARD** (2026-11-02: every barrel is, the handhelds'
   too): `barrel_3_5x1_35` (Game Boy, Lynx), `barrel_5_5x2_1` (Famicom, Super Famicom,
   Jaguar), `barrel_5_5x2_5` (NES: the NES-002 is 5.5 x 2.5 in every market; it was
@@ -140,8 +151,12 @@ because nothing in it could ever be plugged in. The Arcade Room and the bedroom 
   always powered; their jack only charges, so it is not an inlet).
   An object with bays counts only its cells; cells carry no charge level (a drain model is a
   follow-up). Base-game primitives get their bay from `PowerProfiles` `bay`
-  (`BatteryBay`); a mod's shell that builds its own seats (xenu.gb) keeps them. A fresh
-  spawn's bay is empty with its cover on: cells are the Power tab's AA/AAA rows.
+  (`BatteryBay`); a mod's shell that builds its own seats (xenu.gb) keeps them. **A fresh
+  spawn comes with its cells in** (2026-11-03, the user's call: "the battery pack for the
+  Game Boy should have batteries"), cover on, as a Game Boy came in its box:
+  `SystemPower._seed_cells`, deferred, for a machine in "spawned" and not restoring
+  (`CoverSlots.RESTORING`), waiting up to ten frames for a mod shell's own seats. A save
+  and a room's own furnishings are never seeded. More cells are the Power tab's AA/AAA rows.
 - **A set has a cord of its own, as the decks do** (the user's call, REVERSED 2026-11-01:
   it was a C8 inlet): `ApplianceMains.hook_up(tv, shell)` from the RETRO XR model's
   `PowerCordExit`; a model with none (the Classic box, a mod's set like the Panasonic) gets
@@ -251,7 +266,10 @@ adapter was sold in (`model`), the plug's (`plug_model`), and for the N64's modu
 and box) gives way to the model, its collision and pointer boxes are fitted to what it
 draws (a wall wart's stop at its face), the cords leave from the model's
 `DCCordAnchor` / `ACCordAnchor`, an inlet brick's C8 sits at its `ACInAnchor` with the
-model's pocket as its look, and the DC plug's lead leaves at its `CordExit`. The
+model's pocket as its look, and the DC plug's lead leaves at its `CordExit`, ALONG its
+-Z (`PowerBrick._dc_exit_axis` sets the rope's `end_exit_axis`, 2026-11-03; the rope's
+default is the plug's own -Z, so an L plug -- the DMG-03's, the PSone's, the PSP's, primitive
+or model -- laid its lead out of the back at right angles to the boot turning down). The
 mods are generated in RetroXR-models by `mods/tools/make_power_mods.py` (sixteen,
 `xenu.nesadapter` ... `xenu.3dsadapter`), checked and thumbnailed by
 `mods/probes/powerbrick_probe` through `mods/tools/build_power_mods.sh`.

@@ -84,11 +84,15 @@ func _ready() -> void:
 ## The shell draws its AC IN (a polarized figure-eight, top right of the back as you
 ## stand behind it, above SERIAL) but the export marks no empty there, so the power
 ## socket went to SystemPower's generic spot, low on the other side. This is the
-## mouth SystemPower.MODEL_INLETS looks for: the middle between the two pins, in
-## the plane of the back (AvOut's z), measured off an orthographic render of the
-## shell's back (pins at x -61.3 / -69.0 mm, y 32.7). Move it into
-## prepare_dreamcast.py as an exported empty when the asset is next re-exported.
-const _AC_IN_MOUTH := Vector3(-0.0651, 0.0327, -0.0976)
+## mouth SystemPower.MODEL_INLETS looks for: the middle of the inlet's window, in the
+## plane of the back (AvOut's z), in the SHELL's frame (its origin stands 29.8 mm above
+## the machine's bottom). Measured 2026-11-03 off an orthographic render of the back at
+## 6000 px/m (a SubViewport camera square to the back): window
+## x 443-549 px, y 336-410 px, so x -62.7 mm, 37.8 mm above the bottom = y +8.0 in
+## the shell. It was (-65.1, 32.7) read as the shell's frame, which put the plug 25 mm
+## up, over the top corner of the back. Move it into prepare_dreamcast.py as an
+## exported empty when the asset is next re-exported.
+const _AC_IN_MOUTH := Vector3(-0.0627, 0.0080, -0.0976)
 
 
 func _mark_ac_inlet() -> void:
