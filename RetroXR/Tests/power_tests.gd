@@ -79,6 +79,8 @@ func _ready() -> void:
 		await _test_units()
 	if _want("modbrick"):
 		await _test_mod_brick()
+	if _want("spawnhand"):
+		await _test_spawn_hand()
 
 	AppPrefs.power_simulation = sim_before
 	AppPrefs.mains_region = region_before
@@ -1496,5 +1498,69 @@ func _test_mod_brick() -> void:
 		"modbrick/a second mod cannot take the same id")
 	PowerBrickCatalog.drop_mod("test.mod")
 	_ok(not PowerBrickCatalog.has("test.mod:mk1602"), "modbrick/the mod gone, it is gone")
+	await _clear()
+
+
+## A stand-in desktop hand for the spawn menu: the pivot it looks up, and a
+## grabber that keeps what it was handed.
+class FakeGrabber:
+	extends Node
+	var given: Node = null
+	func grab_spawned(obj: Node) -> void:
+		given = obj
+	func is_holding() -> bool:
+		return false
+
+
+class FakeHand:
+	extends Node3D
+	var grabber := FakeGrabber.new()
+	func owner_pickup() -> Node:
+		return grabber
+
+
+## A travel adapter, a power strip and an AC adapter spawn INTO the hand that asked
+## (their roots are plain Node3Ds: they used to be left standing by the menu).
+func _test_spawn_hand() -> void:
+	_new_room()
+	var hand := FakeHand.new()
+	hand.add_to_group("desktop_hand")
+	_room.add_child(hand)
+	hand.add_child(hand.grabber)
+	# The production controller and its real menu, as power_spawn_menu_probe builds
+	# them; "test" is a slotless room id, so it restores no slot.
+	var scene_before := str(SceneManager.current_scene_id)
+	SceneManager.current_scene_id = "test"
+	var ctl := Node3D.new()
+	ctl.name = "SpawnMenuController"
+	ctl.set_script(load("res://Scripts/UI/spawn_menu/spawn_menu_controller.gd"))
+	var menu_viewport := (load("res://addons/godot-xr-tools/objects/viewport_2d_in_3d.tscn") as PackedScene) 		.instantiate() as XRToolsViewport2DIn3D
+	menu_viewport.name = "SpawnMenuViewport"
+	menu_viewport.scene = load("res://Scenes/UI/spawn_menu.tscn")
+	ctl.add_child(menu_viewport)
+	_room.add_child(ctl)
+	await _wait(4)
+	for spec: Array in [["travel_adapter", "WallPlug"], ["power_strip", "Body"],
+			["power_brick:nes_ac_adapter", "WallPlug"], ["power_brick:ps2_slim_ac_adapter", "Body"],
+			["power_brick:n64_psu", "DcPlug"]]:
+		var token := str(spec[0])
+		var obj: Node3D = null
+		if token.begins_with(PowerBrickCatalog.PREFIX):
+			var b := BRICK_SCENE.instantiate() as PowerBrick
+			b.brick_id = token.trim_prefix(PowerBrickCatalog.PREFIX)
+			obj = b
+		else:
+			obj = ScenePersistence.instantiate(token) as Node3D
+		hand.grabber.given = null
+		ctl.call("_place_spawned", obj, token)
+		await _wait(3)
+		var given := hand.grabber.given as Node
+		_ok(given != null and given is XRToolsPickable and given.name == str(spec[1]) 				and obj.is_ancestor_of(given),
+			"spawnhand/%s goes into the hand by its %s" % [token, spec[1]],
+			str(given.name) if given != null else "nothing handed over")
+		obj.queue_free()
+		await _wait(2)
+	ctl.queue_free()
+	SceneManager.current_scene_id = scene_before
 	await _clear()
 

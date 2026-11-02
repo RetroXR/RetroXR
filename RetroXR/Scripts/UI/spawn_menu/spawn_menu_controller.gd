@@ -1062,9 +1062,20 @@ func _place_spawned(obj: Node3D, type: String) -> void:
 	NetworkManager.on_local_spawn(obj)
 	# Hand it over — except on a netplay client, whose local copy was just
 	# queue_freed by on_local_spawn (the host mints the real one, placed).
-	if grabber != null and not NetworkManager.is_client() and not on_floor \
-			and is_instance_valid(obj) and obj is XRToolsPickable:
-		_give_to_grabber(grabber, obj as XRToolsPickable)
+	# A lead-type thing (a travel adapter, a power strip, an AC adapter: a Node3D
+	# holding its pickable parts) says which part a hand takes; it used to be left
+	# standing by the menu instead.
+	var held: XRToolsPickable = null
+	if is_instance_valid(obj):
+		if obj is XRToolsPickable:
+			held = obj as XRToolsPickable
+		elif obj.has_method("spawn_hold_target"):
+			held = obj.call("spawn_hold_target") as XRToolsPickable
+	if grabber != null and not NetworkManager.is_client() and not on_floor and held != null \
+			and is_instance_valid(held):
+		if held != obj:
+			print("[Spawn] %s: handing over its %s" % [obj.name, held.name])
+		_give_to_grabber(grabber, held)
 
 	if is_instance_valid(obj):
 		_teach_verbs(obj)

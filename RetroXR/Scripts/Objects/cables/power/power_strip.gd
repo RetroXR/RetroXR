@@ -46,6 +46,12 @@ var _us_shapes := {}
 var _anchor_home := Transform3D.IDENTITY
 
 
+## What the spawn menu puts in the hand that asked for this (its root is not a
+## pickable): the strip itself, its cord trailing.
+func spawn_hold_target() -> XRToolsPickable:
+	return _body
+
+
 func _ready() -> void:
 	add_to_group(GROUP)
 	for s in sockets():

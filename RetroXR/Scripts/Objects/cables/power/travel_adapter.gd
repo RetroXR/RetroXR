@@ -31,6 +31,12 @@ var region := ""
 var spliced := false
 
 
+## What the spawn menu puts in the hand that asked for this (its root is not a
+## pickable): the adapter, which is all its plug.
+func spawn_hold_target() -> XRToolsPickable:
+	return wall_plug
+
+
 func _ready() -> void:
 	add_to_group(GROUP)
 	wall_plug.cable = self

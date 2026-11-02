@@ -55,6 +55,17 @@ var _model_scene: PackedScene = null
 var _cords: Array = []
 
 
+## What the spawn menu puts in the hand that asked for this (its root is not a
+## pickable): its body, or for a form whose body IS a
+## plug (a wall wart's is its wall plug, the N64's module its DC plug) that plug.
+func spawn_hold_target() -> XRToolsPickable:
+	if is_instance_valid(_body) and _body is XRToolsPickable:
+		return _body as XRToolsPickable
+	if form == "dock" and dc_plug != null:
+		return dc_plug
+	return wall_plug
+
+
 func _ready() -> void:
 	add_to_group(GROUP)
 	wall_plug = $WallPlug as PowerPlug
