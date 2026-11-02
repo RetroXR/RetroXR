@@ -152,6 +152,12 @@ claims them: flycast without nvmem died on its first write to a protected RAM pa
   value back when it lends nothing. `bay_tests pak/` and `cartdrop/` drop the body
   part-down onto a floor; both mutations (copies off, reduction on) go red. Without the
   copies a Super Famicom turned over sank its Super Game Boy's cartridge 12 cm.
+  The other way reduction goes wrong: pruning (`PruneContactPoints`) ranks a point by the
+  DISTANCE between its pair, which is the same for a gap as for a depth, so a compound
+  piece ending within the 20 mm speculative distance above a surface takes the points
+  from the pieces touching it; the body sinks until that piece touches and stays there,
+  under the 20 mm penetration slop. `xenu.panasonic` 1.0.5 sat 15-19 mm into every table
+  (fixed in 1.0.6; the rule for authors is in `docs/modding.md`, under cabinets).
 - GDExtension registration at `MODULE_INITIALIZATION_LEVEL_SCENE`.
 
 ### Handheld screens: self-lit or lit by the room (2026-10-30)

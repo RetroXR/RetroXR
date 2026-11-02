@@ -137,10 +137,61 @@ const _RIDER_SLAB := 0.03
 
 ## Height of the pickup collider at scale 1.
 func collider_height() -> float:
-	var col := _tv.get_node_or_null("CollisionShape3D") as CollisionShape3D
-	if col == null or not (col.shape is BoxShape3D):
-		return 0.0
-	return (col.shape as BoxShape3D).size.y
+	return body_box().size.y
+
+
+## The set's own collision pieces, as one box in its local frame at scale 1: every
+## enabled CollisionShape3D directly under the set, whatever its shape. Empty when
+## it has none.
+##
+## Not just `$CollisionShape3D`'s box. A shell may make the body out of several
+## convex pieces (xenu.panasonic's is thirteen hulls), and reading the one box
+## answered 0 for all of it — the set's MIDDLE — so a resize grew the cabinet about
+## its centre, into its table, and the standing ray started at mid-height.
+##
+## Cached on the pieces themselves (which shape, where), since a shell swaps them
+## after _ready and a hull's points cost a walk: a resize drag asks five times a tick.
+func body_box() -> AABB:
+	var key: Array = []
+	for child in _tv.get_children():
+		var piece := child as CollisionShape3D
+		if piece != null and not piece.disabled and piece.shape != null:
+			key.append([piece.shape.get_instance_id(), piece.transform])
+	if key == _body_key:
+		return _body_box
+	var box := AABB()
+	var first := true
+	for child in _tv.get_children():
+		var piece := child as CollisionShape3D
+		if piece == null or piece.disabled or piece.shape == null:
+			continue
+		var bounds := _piece_bounds(piece)
+		box = bounds if first else box.merge(bounds)
+		first = false
+	_body_key = key
+	_body_box = box
+	print("[TV] %s: body measured from %d piece(s), base %.3f m, %s m" % [
+		_tv.name, key.size(), box.position.y, str(box.size)])
+	return box
+
+
+var _body_key: Array = []
+var _body_box := AABB()
+
+
+## One piece's bounds in the set's frame: exact for a box and a convex hull, the
+## debug mesh's box for anything else.
+static func _piece_bounds(piece: CollisionShape3D) -> AABB:
+	var shape := piece.shape
+	if shape is BoxShape3D:
+		return piece.transform * AABB(-(shape as BoxShape3D).size * 0.5, (shape as BoxShape3D).size)
+	if shape is ConvexPolygonShape3D and not (shape as ConvexPolygonShape3D).points.is_empty():
+		var points := (shape as ConvexPolygonShape3D).points
+		var box := AABB(piece.transform * points[0], Vector3.ZERO)
+		for point: Vector3 in points:
+			box = box.expand(piece.transform * point)
+		return box
+	return piece.transform * shape.get_debug_mesh().get_aabb()
 
 
 ## The bodies standing on top of the set, measured with the cabinet at `at_scale`.
@@ -151,17 +202,16 @@ func collider_height() -> float:
 ## sockets, none of which wants to be shoved.
 func riders_at(at_scale: float) -> Array[RigidBody3D]:
 	var out: Array[RigidBody3D] = []
-	var col := _tv.get_node_or_null("CollisionShape3D") as CollisionShape3D
-	if col == null or not (col.shape is BoxShape3D) or _tv.get_world_3d() == null \
-			or is_nan(at_scale):
+	var body := body_box()
+	if body.size == Vector3.ZERO or _tv.get_world_3d() == null or is_nan(at_scale):
 		return out
-	var full: Vector3 = (col.shape as BoxShape3D).size * at_scale
+	var full: Vector3 = body.size * at_scale
 	var slab := BoxShape3D.new()
 	# Shy of the footprint on the horizontal axes so a set standing against a wall
 	# does not count the wall, which is static anyway but also not free.
 	slab.size = Vector3(maxf(full.x - 0.01, 0.01), _RIDER_SLAB, maxf(full.z - 0.01, 0.01))
 	var axes := _tv.global_basis.orthonormalized()
-	var centre: Vector3 = _tv.global_position + axes * (col.position * at_scale) \
+	var centre: Vector3 = _tv.global_position + axes * (body.get_center() * at_scale) \
 		+ Vector3.UP * (full.y * 0.5 + _RIDER_SLAB * 0.5)
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.shape = slab
@@ -283,10 +333,10 @@ func is_standing_on_something() -> bool:
 ## solver pushes it out of the way, which is fine. It is immovable world geometry
 ## that turns an overlap into an eviction the set can never win.
 func is_jammed() -> bool:
-	var col := _tv.get_node_or_null("CollisionShape3D") as CollisionShape3D
-	if col == null or not (col.shape is BoxShape3D) or _tv.get_world_3d() == null:
+	var body := body_box()
+	if body.size == Vector3.ZERO or _tv.get_world_3d() == null:
 		return false
-	var full: Vector3 = (col.shape as BoxShape3D).size * _tv.scale_factor
+	var full: Vector3 = body.size * _tv.scale_factor
 	var box := BoxShape3D.new()
 	box.size = Vector3(
 		maxf(full.x - 2.0 * _JAM_DEPTH, 0.01),
@@ -294,7 +344,7 @@ func is_jammed() -> bool:
 		maxf(full.z - 2.0 * _JAM_DEPTH, 0.01))
 	var axes := _tv.global_basis.orthonormalized()
 	# Nudged up off the supporting surface, which sits exactly at the pinned base.
-	var centre: Vector3 = _tv.global_position + axes * (col.position * _tv.scale_factor) \
+	var centre: Vector3 = _tv.global_position + axes * (body.get_center() * _tv.scale_factor) \
 		+ Vector3.UP * _JAM_DEPTH
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.shape = box
@@ -323,10 +373,6 @@ func is_jammed() -> bool:
 ## TVOptionsPanel's viewport quad — most of a metre below the origin — joins the
 ## tree a frame or two after _ready.
 ##
-## Cheap enough to leave uncached: two property reads, and _resize_body_collision
-## swaps the shape out from under any cache when a shell is fitted.
+## Every piece of the collider, not only `$CollisionShape3D`'s box: see body_box().
 func local_bottom_y() -> float:
-	var col := _tv.get_node_or_null("CollisionShape3D") as CollisionShape3D
-	if col == null or not (col.shape is BoxShape3D):
-		return 0.0
-	return col.position.y - (col.shape as BoxShape3D).size.y * 0.5
+	return body_box().position.y

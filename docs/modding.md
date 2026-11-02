@@ -589,6 +589,22 @@ the `ScreenSeat`) gets the picture on that mesh's FRONT faces only. Leave it
 wound facing out of the cabinet, the way an exporter writes it; wound the other
 way it is not drawn at all.
 
+A cabinet that **builds the set's body out of several convex pieces** (to follow
+a bowed front rather than fill the air in front of it with a box) must keep every
+piece either **standing on the base or more than 20 mm above it**. Jolt pools the
+contacts of all the pieces touching the table into one set of four points, and it
+ranks a piece hovering a few millimetres up as highly as one touching. Hovering
+pieces take the points, and the set sinks until they reach the table. Jolt then
+leaves it there, since it does not push out an overlap under 20 mm. The Panasonic
+CT-20D10B (`xenu.panasonic` 1.0.5) sat 15-19 mm into every table this way. A piece
+stacked on another can stand on the base by adding a copy of its bottom edge at
+base height, which changes nothing outside if the piece below already covers that
+footprint. Laid on its side or face the same thing happens along other edges, so
+also set `max_contacts_reported` to at least 1 on the set, once the pieces are in:
+Jolt pools the points only for a body that reports none. The set's resize reads
+every enabled `CollisionShape3D` directly under it, so its base stays put whatever
+the pieces are.
+
 #### A TV/VCR or TV/DVD combination
 
 A cabinet can have the VCR, the DVD player or both **built in**. Add a `Marker3D`

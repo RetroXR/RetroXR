@@ -25,7 +25,7 @@ extends "res://Tests/test_suite.gd"
 
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
 
-const GROUPS := ["clamp", "anchor", "riders", "carry", "standing", "jam", "park"]
+const GROUPS := ["clamp", "anchor", "riders", "carry", "standing", "jam", "park", "pieces"]
 
 ## Measured from tv.tscn. A case that hardcodes a distance derives it from these.
 const BOX := Vector3(0.5, 0.4, 0.3)
@@ -59,6 +59,8 @@ func _ready() -> void:
 		await _test_jam()
 	if _want("park"):
 		await _test_park()
+	if _want("pieces"):
+		await _test_pieces()
 
 	_clear()
 	_finish()
@@ -391,6 +393,53 @@ func _test_park_revalidation() -> void:
 		tv.resizer().revalidate_park()
 	_ok(tv.freeze, "park/revalidation leaves a freeze that is not ours alone")
 	_clear()
+
+
+# ── A body of several pieces ─────────────────────────────────────────────────
+
+## A shell may build the body out of several convex pieces instead of the one box
+## (xenu.panasonic's is thirteen hulls). Every measurement reads all of them:
+## reading `$CollisionShape3D`'s box alone answered 0, the set's MIDDLE, so a
+## resize grew the cabinet about its centre and into its table.
+func _test_pieces() -> void:
+	var tv := await _tv()
+	var body := tv.get_node("CollisionShape3D") as CollisionShape3D
+	body.shape = _hull(Vector3(-0.25, -0.1, -0.15), Vector3(0.25, 0.25, 0.15))
+	var foot := CollisionShape3D.new()
+	foot.shape = _hull(Vector3(-0.2, -0.27, -0.1), Vector3(0.2, -0.1, 0.12))
+	tv.add_child(foot)
+	_close(tv.resizer().local_bottom_y(), -0.27, "pieces/the bottom is the lowest piece's")
+	_close(tv.resizer().collider_height(), 0.52, "pieces/the height spans every piece")
+
+	tv.global_position = Vector3(0, 1, 0)
+	var base := tv.global_position.y - 0.27
+	tv.set_tv_scale(2.0)
+	_close(tv.global_position.y - 0.27 * 2.0, base, "pieces/growing holds the lowest piece still")
+	tv.set_tv_scale(1.0)
+
+	_floor(0.0)
+	tv.global_position = Vector3(0, 0.27, 0)
+	await _settle()
+	_ok(tv.resizer().is_standing_on_something(), "pieces/a set on its lowest piece is standing")
+	_ok(not tv.resizer().is_jammed(), "pieces/and standing is not a jam")
+
+	# The measurement is cached; moving or switching off a piece must still count.
+	foot.position.y = -0.05
+	_close(tv.resizer().local_bottom_y(), -0.32, "pieces/a piece moved is measured where it went")
+	foot.disabled = true
+	_close(tv.resizer().local_bottom_y(), -0.1, "pieces/a disabled piece is not measured")
+	_clear()
+
+
+func _hull(low: Vector3, high: Vector3) -> ConvexPolygonShape3D:
+	var points := PackedVector3Array()
+	for x: float in [low.x, high.x]:
+		for y: float in [low.y, high.y]:
+			for z: float in [low.z, high.z]:
+				points.append(Vector3(x, y, z))
+	var shape := ConvexPolygonShape3D.new()
+	shape.points = points
+	return shape
 
 
 # ── Harness ──────────────────────────────────────────────────────────────────
