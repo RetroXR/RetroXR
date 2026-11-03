@@ -244,8 +244,18 @@ type `ps_multitap`), on the PlayStation card.
 - Mutation-tested: no port-2 move (5 red), no slot-A pass-through (1), no card gate (1).
 - `four_player_render_probe` (windowed) draws it in a PlayStation's port 1 with four pads and a card in slot A.
 
-**OWED:** a real multitap game on pcsx_rearmed (none in this room's library; a game supporting it, such as Crash
-Team Racing or Crash Bash, would be the check); Beetle and SwanStation; a headset; the Quest; a session.
+- **Crash Team Racing (USA) on pcsx_rearmed, 2026-11-03** (`Tools/input/ps_multitap_game_probe`, headless, scratch root, HLE
+  BIOS). The option is the room's own (`port 1`), not set by the probe. Script, in core frames:
+  `3300-3306:1:start,3500-3506:1:down,3530-3536:1:down,3560-3566:1:down,3620-3626:1:cross,3800-3806:1:cross,`
+  `3950-3956:1:down,3990-3996:1:down,4050-4056:1:cross,4400-4406:3:right,4480-4486:4:down,4481-4487:2:right`
+  (VS. > SINGLE > PLAYERS > 4P, then players 2-4 move), shots 4100, 4300, 4390, 4560.
+  - Leg `tap`: 3P and 4P are lit, 4P opens SELECT CHARACTER with four cursors and four kart panels, and players
+    2, 3 and 4 each change their own panel (Cortex to Tiny, Tiny to Pura, Coco to Polar).
+  - Leg `none` (the control: two pads in the console's ports, option `disabled`): 3P and 4P are drawn dark,
+    and 4P flashes red and stays on PLAYERS.
+  - Not run: a race with four players, or the pad on the console's port 2 beside a tap (libretro 4).
+
+**OWED:** Beetle and SwanStation; a headset; the Quest; a session.
 
 ## The PlayStation 2 Multitap (SCPH-10090)
 
