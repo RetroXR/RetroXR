@@ -48,6 +48,21 @@ func _ready() -> void:
 	if _resize_grip == null:
 		push_warning("[Panel] %s: no Viewport2DIn3D child, so no resize grip" % name)
 	visibility_changed.connect(func() -> void: _subject_measured = false)
+	# Connected after the line above, so the object is measured fresh first.
+	visibility_changed.connect(_place_on_show)
+
+
+## Placed and turned on the frame the menu opens, not the next one. show_for sets
+## a position and `visible`, but the facing (and the lift clear of the object) came
+## only from _process -- which had usually already run this frame, the press being
+## handled after the panel's own turn in the tree. So the first frame drew the page
+## at the facing it was left at last time (or the world's +Z, for a new one) and
+## below its lift, and the next frame snapped it round and up: a flick of motion
+## on every open. Every show_for sets its subject and _camera before `visible`.
+func _place_on_show() -> void:
+	if not visible:
+		return
+	_place(0.0)
 
 
 # ── Keeping clear of the object ───────────────────────────────────────────────
@@ -187,18 +202,23 @@ static func _not_the_object(node: Node, stop: Node) -> bool:
 func _process(delta: float) -> void:
 	if not visible:
 		return
+	_ensure_lock_row()
+	_tick_delete_prompt(delta)
+	_place(delta)
+	_update_resize_drag()
+	_while_shown(delta)
+
+
+## Over the object, facing the player, clear of the object's top.
+func _place(delta: float) -> void:
 	var target := _target_node()
 	if is_instance_valid(target):
 		global_position = _anchor()
-	_ensure_lock_row()
-	_tick_delete_prompt(delta)
-	if is_instance_valid(_camera):
+	if is_instance_valid(_camera) and not global_position.is_equal_approx(_camera.global_position):
 		look_at(_camera.global_position, Vector3.UP)
 		rotate_object_local(Vector3.UP, PI)
 	if is_instance_valid(target):
 		_keep_clear_of(target, delta)
-	_update_resize_drag()
-	_while_shown(delta)
 
 
 ## Each frame the panel is shown, after it is placed: what a panel follows while it
