@@ -8,8 +8,8 @@
 script = ExtResource("1_panelscript")
 
 [node name="AudioOptionsViewport" parent="." instance=ExtResource("2_viewport2d3d")]
-screen_size = Vector2(0.4, 0.14)
+screen_size = Vector2(0.4, 0.34)
 scene = ExtResource("3_audioopts2d")
-viewport_size = Vector2(400, 140)
+viewport_size = Vector2(400, 340)
 transparent = 1
 unshaded = true
