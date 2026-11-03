@@ -439,3 +439,51 @@ the Game Boy's 12.4 x 5.9 mouth, the DMG-14 an 18 x 10 x 22 mm black block. `lin
 the adapter and an original make a bus of two, joined once, saved against the
 adapter, and nothing once it is pulled. Headset feel and a real two-core link
 through the adapter are OWED.
+
+### The DMG-07 4 Player Adapter -- 2026-11-03, core only
+
+**A core, as the printer is** (`dmg07`, `~/libretro-cores-retroxr/dmg07-libretro`,
+local repo, MIT, not published yet).
+- No CPU and no game.
+- It attaches FOUR `gb-sio` link ports, one per player. Port k is player k+1, and
+  Game Boy k's port 0 is cabled to it, so each Game Boy is on a cable of two.
+- Both Game Boy drivers refuse a wire of more than two ("a Game Boy link cable
+  carries 2"), so one five-machine bus was never an option. The star has no cycle,
+  so not the infrared deadlock above.
+- The adapter drives the clock for all four. At each byte slot it reads each Game
+  Boy's published register and sends each a CLOCK with its byte, stamped a horizon
+  out, as a Game Boy clocking its own transfer does (`LinkSerial::send`).
+- **FAST clocks.** The real clock is 62.66 kHz (128 us a byte, then 0.9 ms before
+  the next). A normally clocked gambatte takes 976 us a byte and would leave the game
+  39 us. FAST takes 30 us.
+- Player 1's cable powers it: with nothing on port 0 it sends nothing.
+
+**The protocol** (`src/dmg07.c`) is Pan Docs' "4-Player Adapter" chapter.
+- Ping: `FE` then three STAT bytes, `connected << 4 | id`. The replies are read as a
+  SEQUENCE (`88 88 RATE SIZE`), because Pan Docs' two charts disagree on which slot
+  each reply lands in.
+- Three `AA` at a packet's end switch to transmission: a `CC` packet, then data
+  packets of SIZE x 4 bytes, relayed a packet late, zeros for an absent player.
+- Three `FF` from a packet's start restart the ping.
+- `tests/dmg07_test.c` plays four simulated Game Boys through all of it (19 checks).
+
+**Run with four real Game Boys** (`Tools/link/dmg07_probe`: N gambatte cores and the
+adapter on the bus directly, a scratch root holding `cores/dmg07_libretro.dll` and
+`cores/gambatte_libretro.dll`, `--nolink` the control):
+- All four cables come up (`LinkPeerCount` 2 on every port), and five cores run
+  together without a wait.
+- **No game has answered a ping yet:**
+  - **Wario Blast featuring Bomberman! is NOT a DMG-07 game.** Its four-player
+    Battle Mode is the Super Game Boy's, on a Super NES with a multitap.
+    Wikipedia's list puts it under the adapter but says "4 players only with the
+    use of Super Game Boy", and Mario Wiki gives the Super Multitap. In 900 frames
+    of its title no Game Boy armed its serial port.
+  - Bomberman GB (USA, the Japanese Bomberman GB 2) has Story, Lesson and Password
+    and nothing else.
+
+OWED:
+- A real DMG-07 game: F-1 Race, Faceball 2000, Wave Race, Yoshi's Cookie,
+  Micro Machines, Super R.C. Pro-Am, Top Rank Tennis or Trax.
+- mGBA.
+- The room object: a captive player 1 lead and three large-plug sockets.
+- The core's publication and Android build.
