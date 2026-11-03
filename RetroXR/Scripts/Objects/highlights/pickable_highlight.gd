@@ -29,6 +29,10 @@ extends Node3D
 const OUTLINE_SHADER := preload("res://Shaders/outline.gdshader")
 const OUTLINE_MASK_SHADER := preload("res://Shaders/outline_mask.gdshader")
 ## Stand-in for the pair above while foveation is on — see QualityManager.stencil_safe().
+## The mask/primer's render_priority (the outline is one above). Nothing that must
+## survive under a highlight may sort at or above it: the stencil mask and the depth
+## primer both throw away a pass drawn after them (CartridgeColor's clear filter).
+const MASK_RENDER_PRIORITY := 1
 const OUTLINE_HULL_SHADER := preload("res://Shaders/outline_hull.gdshader")
 ## Depth pass ahead of the hull, so a transparent source still hides its middle.
 const OUTLINE_HULL_PRIMER_SHADER := preload("res://Shaders/outline_hull_primer.gdshader")
@@ -101,13 +105,13 @@ func _ready() -> void:
 	set_process(false)
 
 	_outline_material = ShaderMaterial.new()
-	_outline_material.render_priority = 2
+	_outline_material.render_priority = MASK_RENDER_PRIORITY + 1
 
 	if QualityManager.stencil_safe() and not force_hull:
 		_outline_material.shader = OUTLINE_BENT_SHADER if bends_with_parent else OUTLINE_SHADER
 		_mask_material = ShaderMaterial.new()
 		_mask_material.shader = OUTLINE_MASK_BENT_SHADER if bends_with_parent else OUTLINE_MASK_SHADER
-		_mask_material.render_priority = 1
+		_mask_material.render_priority = MASK_RENDER_PRIORITY
 		_mask_material.next_pass = _outline_material
 	else:
 		# Foveation is on, so the stencil pair would take the GPU down with it.
@@ -120,7 +124,7 @@ func _ready() -> void:
 		_outline_material.shader = OUTLINE_HULL_BENT_SHADER if bends_with_parent else OUTLINE_HULL_SHADER
 		_mask_material = ShaderMaterial.new()
 		_mask_material.shader = OUTLINE_HULL_PRIMER_BENT_SHADER if bends_with_parent else OUTLINE_HULL_PRIMER_SHADER
-		_mask_material.render_priority = 1
+		_mask_material.render_priority = MASK_RENDER_PRIORITY
 		_mask_material.next_pass = _outline_material
 	_sync_material_params()
 

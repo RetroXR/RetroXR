@@ -140,7 +140,15 @@ gloss, a milky white; surface-then-filter tints the haze and gloss too, clear
 colored plastic. Until 2026-09-30 the two passes shared one sort key, and the sort
 swapped them as a cart moved, so a clear shell jumped between the two looks (the
 user saw it on Pokemon Crystal and the GBA carts, in the headset and on desktop).
-The fixed order is the clear one. Neither pass writes depth. What an alpha blend
+The fixed order is the clear one. **Both passes sort BELOW the highlight's mask**
+(`CartridgeColor.CLEAR_FILTER_PRIORITY` = `PickableHighlight.MASK_RENDER_PRIORITY` − 1:
+filter 0, surface −1). The mask (priority 1) throws away a filter drawn after it
+where they overlap — the stencil mask on desktop, the near-plane depth primer on a
+Quest — and at the same priority the two were depth-sorted, so a HELD or aimed-at
+Pokemon cart flipped as it moved between dyed clear and an untinted green board under
+milky haze (seen 2026-11-03; found by hiding the mask's `stencil_mode` line, which kept
+the filter). The stencil mechanism itself is not understood (the filter's pipeline
+has stencil off); the order is what is relied on. Neither pass writes depth. What an alpha blend
 got wrong, and why this replaced it: it washed the background toward the shell
 color instead of filtering it (a gray, milky look), faded the reflections with the
 body, and depended on draw order throughout. No screen texture is read, so it costs a Quest

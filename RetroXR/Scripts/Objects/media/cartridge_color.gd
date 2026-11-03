@@ -48,6 +48,9 @@ const PALETTE_PATHS := {
 const FLAKE_SHADER := preload("res://Shaders/cartridge_flake_plastic.gdshader")
 const CLEAR_SHADER := preload("res://Shaders/cartridge_clear_plastic.gdshader")
 const CLEAR_SURFACE_SHADER := preload("res://Shaders/cartridge_clear_plastic_surface.gdshader")
+## The clear filter's render_priority (its surface pass one below): under the
+## highlight's mask, which must never draw ahead of it (see _clear_material).
+const CLEAR_FILTER_PRIORITY := PickableHighlight.MASK_RENDER_PRIORITY - 1
 
 ## Clear plastic: how much of the colour one wall filters per unit of opacity
 ## missing from solid, the light it scatters back, and the gloss a plain colour
@@ -365,6 +368,12 @@ static func _is_clear_flake(finish: Variant) -> bool:
 ## gloss and scatter is added first and the dye then tints it with the board: a
 ## multiply and an add do not commute, and with the same sort key the two swapped
 ## as the cart moved, the shell jumping between clear and a milky white.
+##
+## And both sort BELOW the highlight's mask (CLEAR_FILTER_PRIORITY): a mask or
+## primer drawn ahead of the filter throws the filter away where they overlap (the
+## stencil mask on desktop, the near-plane depth primer on a Quest), and at one
+## priority the two are depth-sorted, so a HELD Pokemon cart flipped between dyed
+## clear and an untinted green board under milky haze as it moved (2026-11-03).
 static func _clear_material(source: BaseMaterial3D) -> ShaderMaterial:
 	var cm := ShaderMaterial.new()
 	cm.shader = CLEAR_SHADER
@@ -372,7 +381,8 @@ static func _clear_material(source: BaseMaterial3D) -> ShaderMaterial:
 	var surface := ShaderMaterial.new()
 	surface.shader = CLEAR_SURFACE_SHADER
 	surface.resource_name = source.resource_name
-	cm.render_priority = surface.render_priority + 1
+	cm.render_priority = CLEAR_FILTER_PRIORITY
+	surface.render_priority = CLEAR_FILTER_PRIORITY - 1
 	surface.set_shader_parameter("specular", source.metallic_specular)
 	surface.set_shader_parameter("normal_enabled", source.normal_enabled and source.normal_texture != null)
 	surface.set_shader_parameter("texture_normal", source.normal_texture)

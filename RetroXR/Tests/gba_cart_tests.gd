@@ -297,6 +297,10 @@ func _test_clear() -> void:
 	var cm := _part(cart, "Front_Shell").get_active_material(0) as ShaderMaterial
 	_ok(cm.render_priority == (cm.next_pass as ShaderMaterial).render_priority + 1,
 		"clear/the filter sorts after the surface pass, every frame")
+	# A held cart is outlined: the highlight's mask, sorted at or below the filter,
+	# threw the filter away and the board showed green under milky haze.
+	_ok(cm.render_priority < PickableHighlight.MASK_RENDER_PRIORITY,
+		"clear/the filter sorts before the highlight's mask, so a held cart stays dyed")
 	CartridgeColor.apply_preset(cart, &"grey", GbaCartShell.SYSTEMID)
 	_ok(_is_standard(cart), "clear/repainting grey makes it solid charcoal again, with the model's culling")
 	cart.free()
