@@ -272,8 +272,8 @@ func _group_page() -> void:
 		and two.hookup_player().paused and heard == [1, 0],
 		"page/Back returns to the welcome, its clip playing again", str(heard))
 
-	# Page one's foot links the site and the Discord: the README's and the release
-	# notes' own, opened through open_url (swapped here, so nothing opens).
+	# Page one's foot links the site (the README's) and the Discord (the page's own
+	# invite), opened through open_url (swapped here, so nothing opens).
 	var opened: Array = []
 	two.open_url = func(url: String) -> int:
 		opened.append(url)
@@ -285,13 +285,12 @@ func _group_page() -> void:
 		chat.pressed.emit()
 	var checkout := ProjectSettings.globalize_path("res://").path_join("..")
 	var readme := FileAccess.get_file_as_string(checkout.path_join("README.md"))
-	var release := FileAccess.get_file_as_string(checkout.path_join(".github/workflows/release.yml"))
 	_ok(site != null and site.is_visible_in_tree() and chat != null and chat.is_visible_in_tree()
-		and "retroxr.app" in site.text and Welcome2D.DISCORD_URL.trim_prefix("https://") in chat.text
-		and opened == [Welcome2D.WEBSITE_URL, Welcome2D.DISCORD_URL]
-		and readme.contains("(%s)" % Welcome2D.WEBSITE_URL) and release.contains(Welcome2D.DISCORD_URL),
-		"page/page one links the site and the Discord, the README's and the release notes' own",
-		"opened %s, README %d chars, release.yml %d chars" % [opened, readme.length(), release.length()])
+		and "retroxr.app" in site.text and "discord.gg/CranAYPfX" in chat.text
+		and opened == [Welcome2D.WEBSITE_URL, "https://discord.gg/CranAYPfX"]
+		and readme.contains("(%s)" % Welcome2D.WEBSITE_URL),
+		"page/page one links the site (the README's) and the Discord, and opens each",
+		"opened %s, README %d chars" % [opened, readme.length()])
 	two_box.queue_free()
 
 	# A Quest's page carries its own lines.

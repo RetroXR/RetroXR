@@ -183,10 +183,11 @@ no VLC.
   headset's own browser opens with no other device; OPTIONS > File Server shows it
   beside the LAN address (`address_text`), and `welcome_tests` holds the line to it. `android_override` / `do_lines(vr, android)` / `dont_lines(android)` let the
   suite and the probe build a Quest's page on a desk.
-- **The links are the project's own, held by the suite**: `WEBSITE_URL` is the
-  README's (`retroxr.app`), `DISCORD_URL` the invite `release.yml` posts in every
-  release's notes; `welcome_tests` reads both files, so a new invite changes all
-  three or goes red. A button opens through `open_url` (`OS.shell_open`; the suite
+- **The links are held by the suite**: `WEBSITE_URL` is the README's
+  (`retroxr.app`, `welcome_tests` reads the README); `DISCORD_URL` is the welcome
+  page's OWN invite (`discord.gg/CranAYPfX`), deliberately not the one `release.yml`
+  posts in the release notes, so changing one never changes the other; the suite
+  pins it by value. A button opens through `open_url` (`OS.shell_open`; the suite
   swaps in a recorder) and writes its address on itself, for typing on a phone. What
   `shell_open` does on a Quest (the headset's browser, presumably) is OWED.
 - The quad is **SCISSOR**, not TRANSPARENT: alpha-blended, the bedroom window's

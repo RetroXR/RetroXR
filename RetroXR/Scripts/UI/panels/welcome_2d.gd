@@ -92,12 +92,12 @@ const DONT_QUEST: Array[String] = [
 ]
 
 ## Where to read more and to ask, at the foot of page one: the site (installing,
-## playing, the devlog; the README's link) and the Discord (the invite the release
-## notes post). Buttons that open the browser, with the address on each, so it can
-## be typed on a phone too.
+## playing, the devlog; the README's link) and the Discord (the welcome page's own
+## invite, not the one the release notes post). Buttons that open the browser, with
+## the address on each, so it can be typed on a phone too.
 const LINKS_HEADER := "MORE HELP"
 const WEBSITE_URL := "https://retroxr.app"
-const DISCORD_URL := "https://discord.gg/pgUkRhafca"
+const DISCORD_URL := "https://discord.gg/CranAYPfX"
 
 ## Under the buttons: where the page is switched back on, and seen meanwhile.
 const AGAIN_NOTE := "Turn it back on in OPTIONS > General (Show Welcome Page at Start), or see it any time from ABOUT."
