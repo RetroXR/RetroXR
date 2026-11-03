@@ -1,4 +1,6 @@
-## Renders the NES Four Score and the Famicom's 4 Players Adaptor plugged in, pads
+## Renders the NES Four Score, the Famicom's 4 Players Adaptor, the Satellite and the
+## PlayStation and PlayStation 2 Multitaps plugged in (`-- --only=ps2`: the PS2's
+## alone), pads
 ## in their sockets, and prints where the parts landed so the seat is checked by
 ## numbers as well as by eye.
 ##
@@ -9,6 +11,7 @@
 extends Node
 
 var out_dir := ""
+var only := ""
 
 
 func _ready() -> void:
@@ -16,6 +19,8 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if str(arg).begins_with("--out="):
 			out_dir = str(arg).trim_prefix("--out=").replace("\\", "/")
+		elif str(arg).begins_with("--only="):
+			only = str(arg).trim_prefix("--only=")
 	get_tree().create_timer(120.0).timeout.connect(func() -> void:
 		print("[fourrender] TIMEOUT")
 		get_tree().quit(1))
@@ -108,6 +113,10 @@ func _run() -> void:
 		LoadingOverlay.end(o)
 	for i in range(20):
 		await get_tree().process_frame
+	if only == "ps2":
+		await _ps2_multitap(sv, cam)
+		get_tree().quit(0)
+		return
 
 	await _shot(sv, cam, Vector3(0.0, 0.62, 0.95), Vector3(0.0, 0.02, 0.12), "four_overview.png")
 	var fsp := fs.global_position
@@ -135,7 +144,45 @@ func _run() -> void:
 	await _shot(sv, cam, fsp + Vector3(-0.06, 0.24, 0.20), fsp + Vector3(0, 0.02, 0), "four_score_top_2p.png")
 	await _satellite(sv, cam)
 	await _ps_multitap(sv, cam)
+	await _ps2_multitap(sv, cam)
 	get_tree().quit(0)
+
+
+## The PlayStation 2 Multitap in a PS2's port 1, a pad in each of A-D (two on each
+## face) and a PS2 card in slot A.
+func _ps2_multitap(sv: SubViewport, cam: Camera3D) -> void:
+	var ps2 := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
+	ps2.systemid = "ps2"
+	add_child(ps2)
+	ps2.global_position = Vector3(4.2, 0.0, -0.1)
+	ps2.freeze = true
+	for i in range(10):
+		await get_tree().process_frame
+	var tap := _spawn("res://Scenes/Objects/controllers/playstation/ps2_multitap.tscn", Vector3(4.2, 0.03, 0.45)) as Ps2Multitap
+	var pads: Array = []
+	for i in 4:
+		pads.append(_spawn("res://Scenes/Objects/controllers/playstation/ps1_controller.tscn",
+			Vector3(3.9 + 0.2 * i, 0.04, 0.95 if i < 2 else 0.15)))
+	var card := _spawn("res://Scenes/Objects/media/ps2_memory_card.tscn", Vector3(4.6, 0.05, 0.6))
+	for i in range(6):
+		await get_tree().physics_frame
+	ps2.restore_controller_plug(0, tap.get_plug())
+	for i in 4:
+		tap.restore_socket(i, pads[i])
+	tap.restore_card(0, card)
+	for i in range(180):
+		await get_tree().physics_frame
+	print("[fourrender] ps2 multitap: pads on ports %s, console card 1 is slot A's %s, card slot 1 shut %s" % [
+		str(pads.map(func(p: Node) -> int: return int(p.call("get_port_index")))),
+		ps2.memcards().get_snapped_memcard(0) == card, ps2.is_card_slot_covered(0)])
+	print("[fourrender] ps2 multitap at %s, basis x %s z %s" % [tap.global_position, tap.global_basis.x, tap.global_basis.z])
+	var t := tap.global_position
+	await _shot(sv, cam, t + Vector3(0.0, 0.55, 0.55), t + Vector3(0.0, 0.0, -0.12), "ps2mt_overview.png")
+	await _shot(sv, cam, t + tap.global_basis * Vector3(-0.10, 0.14, 0.20), t + Vector3(0.0, 0.015, 0.0), "ps2mt_tap.png")
+	await _shot(sv, cam, t + tap.global_basis * Vector3(0.12, 0.13, -0.20), t + Vector3(0.0, 0.015, 0.0), "ps2mt_back.png")
+	var plug := tap.get_plug()
+	var at := plug.global_position
+	await _shot(sv, cam, at + Vector3(0.10, 0.07, 0.14), at + Vector3(0.0, 0.01, -0.01), "ps2mt_connector.png")
 
 
 ## The PlayStation Multitap in a PlayStation's port 1, a pad in each of A-D and a
@@ -234,7 +281,7 @@ func _add_desk() -> void:
 	var body := StaticBody3D.new()
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(4.4, 0.06, 1.6)
+	box.size = Vector3(6.4, 0.06, 1.6)
 	shape.shape = box
 	body.add_child(shape)
 	var mesh := MeshInstance3D.new()
@@ -247,7 +294,7 @@ func _add_desk() -> void:
 	mesh.material_override = mat
 	body.add_child(mesh)
 	add_child(body)
-	body.global_position = Vector3(1.3, -0.03, 0.35)
+	body.global_position = Vector3(2.3, -0.03, 0.35)
 
 
 func _shot(sv: SubViewport, cam: Camera3D, eye: Vector3, target: Vector3, file: String) -> void:

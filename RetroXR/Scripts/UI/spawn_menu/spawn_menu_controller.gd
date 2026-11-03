@@ -32,6 +32,7 @@ const FAMICOM_FOUR_PLAYERS_SCENE := preload("res://Scenes/Objects/controllers/fa
 const NES_SATELLITE_SCENE   := preload("res://Scenes/Objects/controllers/nes/nes_satellite.tscn")
 const NES_SATELLITE_RX_SCENE := preload("res://Scenes/Objects/controllers/nes/nes_satellite_receiver.tscn")
 const PS_MULTITAP_SCENE     := preload("res://Scenes/Objects/controllers/playstation/ps_multitap.tscn")
+const PS2_MULTITAP_SCENE    := preload("res://Scenes/Objects/controllers/playstation/ps2_multitap.tscn")
 # A wireless receiver for one real gamepad — plugged into a port instead of held.
 const PAD_RECEIVER_SCENE    := preload("res://Scenes/Objects/controllers/pad_receiver.tscn")
 const CONSOLE_STAND_SCENE   := preload("res://Scenes/Objects/stands/console_stand.tscn")
@@ -1396,6 +1397,8 @@ func _on_spawn_requested(raw: String) -> void:
 			obj = NES_SATELLITE_RX_SCENE.instantiate() as Node3D
 		"ps_multitap":
 			obj = PS_MULTITAP_SCENE.instantiate() as Node3D
+		"ps2_multitap":
+			obj = PS2_MULTITAP_SCENE.instantiate() as Node3D
 		# The N64 pad. Its three paks are not here: they seat in a CONTROLLER
 		# rather than a console, carry no port to pick, and reach the room as
 		# PLAIN_SCENES rows through the ScenePersistence fallback below.

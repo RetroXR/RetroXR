@@ -1,0 +1,39 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/controllers/ps2_multitap.gd" id="1_ps2mt"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+
+; Resized in code to the body (Ps2Multitap._build_body).
+[sub_resource type="BoxShape3D" id="BoxShape3D_ps2mt"]
+size = Vector3(0.14, 0.031, 0.078)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_ps2mt"]
+bounce = 0.0
+friction = 0.8
+
+; Sony's PlayStation 2 Multitap (SCPH-10090): a black ribbed box, A and B on one
+; long face and C and D on the other, each a controller socket under a memory
+; card slot, and one cord from a short end whose connector fills a console's
+; controller port and the card slot above it. Built in code; see
+; ps2_multitap.gd, which also places CableAttachPoint (its -Z out of the -X end).
+[node name="Ps2Multitap" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.3
+physics_material_override = SubResource("PhysMat_ps2mt")
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("1_ps2mt")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0155, 0)
+shape = SubResource("BoxShape3D_ps2mt")
+
+[node name="Ports" type="Node3D" parent="."]
+
+[node name="CableAttachPoint" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.074, 0.0155, 0)
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")

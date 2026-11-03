@@ -177,13 +177,29 @@ static func dolphin_console(core: String, systemid: String) -> Dictionary:
 ## PsMultitap routes for (pad.c: a tap in port 1 is players 1-4, the console's
 ## port 2 then reads libretro port 4). No other PlayStation core is pinned: their
 ## layouts were not read.
+##
+## The PlayStation 2 Multitap (Ps2Multitap): pcee2's pcsx2_multitap (disabled /
+## port1 / port2 / both, read live: retro_run re-reads it and ApplySettings), and
+## RetroXR's LRPS2 build (pcsx2, fork v7+) answers the SAME key with the same
+## values and pcee2's layout (pcsx2/PAD/PAD.cpp build_pad_map): 1A, 1B-1D with a
+## tap in port 1, 2A, 2B-2D with a tap in port 2 -- pcsx_rearmed's layout again.
+## A build without the key (the buildbot's, our v6 and older) drops it, and keeps
+## its two ports (RetroSystem.refresh_multitap_option says so).
 static func ps_multitap(core: String, systemid: String, taps: Array[bool]) -> Dictionary:
-	if systemid != "psx" or not core.begins_with("pcsx_rearmed"):
-		return {}
 	var one := taps.size() > 0 and taps[0]
 	var two := taps.size() > 1 and taps[1]
-	var mode := "ports 1 and 2" if one and two else ("port 1" if one else ("port 2" if two else "disabled"))
-	return {"pcsx_rearmed_multitap": mode}
+	if systemid == "psx" and core.begins_with("pcsx_rearmed"):
+		var mode := "ports 1 and 2" if one and two else ("port 1" if one else ("port 2" if two else "disabled"))
+		return {"pcsx_rearmed_multitap": mode}
+	if systemid == "ps2" and (core.begins_with("pcee2") or core.begins_with("pcsx2")):
+		return {"pcsx2_multitap": "both" if one and two else ("port1" if one else ("port2" if two else "disabled"))}
+	return {}
+
+
+## The group SystemPorts.ps_multitap_sockets counts for a console: the taps its
+## games read (a SCPH-1070 in a PlayStation, a SCPH-10090 in a PlayStation 2).
+static func multitap_group(systemid: String) -> String:
+	return "ps2_multitap" if systemid == "ps2" else "ps_multitap"
 
 
 ## The GameCube Microphone's button. Dolphin reads it from the joypad bit this

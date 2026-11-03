@@ -2941,7 +2941,8 @@ func all_forced_options(core: String) -> Dictionary:
 	out.merge(ForcedCoreOptions.all(core, systemid, rom_path, _expansions.hardware_ids(),
 		card_family(), _seated_cards(), _expansion_launch.host_media_path()), true)
 	out.merge(ForcedCoreOptions.lightgun(core, _has_lightgun()), true)
-	out.merge(ForcedCoreOptions.ps_multitap(core, systemid, _ports.ps_multitap_sockets()), true)
+	out.merge(ForcedCoreOptions.ps_multitap(core, systemid,
+		_ports.ps_multitap_sockets(ForcedCoreOptions.multitap_group(systemid))), true)
 	for storage: ConsoleStorage in _storages:
 		out.merge(storage.forced_options_for(core), true)
 	return out
@@ -3998,14 +3999,23 @@ func is_card_slot_covered(slot: int) -> bool:
 	return _ports.is_card_slot_covered(slot)
 
 
-## Tell a RUNNING core the PlayStation Multitap option the room now says
+## Tell a RUNNING core the PlayStation (2) Multitap option the room now says
 ## (ForcedCoreOptions.ps_multitap), after a tap was plugged in or pulled. A machine
-## that is off takes it at its next start.
+## that is off takes it at its next start. A core that has said its options and
+## has no such key (an LRPS2 build older than RetroXR's v7, the buildbot's) cannot
+## see a tap: it reads libretro ports 0 and 1 only, so sockets A and B play as the
+## console's ports 1 and 2 and the pad moved to port 4 is lost. Warned at every
+## tap move, which is rare, so the log says why.
 func refresh_multitap_option() -> void:
 	if not is_powered_on:
 		return
-	var opts := ForcedCoreOptions.ps_multitap(_resolve_core(), systemid, _ports.ps_multitap_sockets())
+	var opts := ForcedCoreOptions.ps_multitap(_resolve_core(), systemid,
+		_ports.ps_multitap_sockets(ForcedCoreOptions.multitap_group(systemid)))
 	for key: String in opts:
+		if core_options_known() and not core_declares_option(key):
+			push_warning("[RetroSystem] %s has no %s option: it reads no multitap (libretro ports 0-1 only)"
+				% [_resolve_core(), key])
+			continue
 		if str(_options_values.get(key, "")) != str(opts[key]):
 			set_core_option(key, str(opts[key]))
 

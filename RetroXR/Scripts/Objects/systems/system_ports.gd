@@ -296,11 +296,11 @@ func _cover_card_slot(i: int, covered: bool) -> void:
 ## Which of the console's controller ports hold a PlayStation Multitap's lead (one
 ## bool per port): what ForcedCoreOptions.ps_multitap turns into the core option.
 ## By group, not class, so this file names no adapter (ControllerPlug's note).
-func ps_multitap_sockets() -> Array[bool]:
+func ps_multitap_sockets(group := "ps_multitap") -> Array[bool]:
 	var out: Array[bool] = []
 	for i in mini(2, plugs.size()):
 		var held := controller_of(plugs[i]) if is_instance_valid(plugs[i]) else null
-		out.append(held != null and held.is_in_group("ps_multitap"))
+		out.append(held != null and held.is_in_group(group))
 	return out
 
 

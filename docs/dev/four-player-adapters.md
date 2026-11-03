@@ -1,4 +1,4 @@
-# Four-player adapters: the NES Four Score, the NES Satellite, the Famicom 4 Players Adaptor and the PlayStation Multitap
+# Four-player adapters: the NES Four Score, the NES Satellite, the Famicom 4 Players Adaptor and the PlayStation and PlayStation 2 Multitaps
 
 Added 2026-11-02. Two objects, one base class:
 
@@ -246,6 +246,85 @@ type `ps_multitap`), on the PlayStation card.
 
 **OWED:** a real multitap game on pcsx_rearmed (none in this room's library; a game supporting it, such as Crash
 Team Racing or Crash Bash, would be the check); Beetle and SwanStation; a headset; the Quest; a session.
+
+## The PlayStation 2 Multitap (SCPH-10090)
+
+Added 2026-11-03. `Ps2Multitap` (`Scenes/Objects/controllers/playstation/ps2_multitap.tscn`, spawn token and save
+type `ps2_multitap`), on the PS2 card. A subclass of `PsMultitap`: everything but the body is the PlayStation's.
+
+**From Evan-Amos's photograph** (Wikimedia Commons, `Sony-PlayStation-2-Multitap.jpg`, public domain):
+- A black, flat, rectangular box, its sides ribbed with the PlayStation 2's horizontal grooves.
+- **Ports A and B on one long face, C and D on the other**, each a controller socket under a memory card slot,
+  lettered on top over the port, with a card mark beside A. Going round from the cord's end: A, B along the
+  front, then C, D back along the far face (D at the cord's end, as A is).
+- The cord leaves one short end, and its connector fills a controller port and the card slot over it.
+- No switch. "MULTITAP" across the top; the maker's marks are left off.
+
+**Not known, and chosen:**
+- Every size (140 x 78 x 31 mm, the ports 64 mm apart on a face, the card slot in the second rib from the top and
+  the socket in the fourth).
+- **What either tap does in the other console.** The connectors are the same shape, so a SCPH-1070 goes into a PS2
+  and a SCPH-10090 into a PlayStation. Here, in the other console, socket A is that controller port's pad, B-D
+  reach nothing, port 2 is not moved and no option is set (`PsMultitap._active`, by the console's systemid). What
+  the real hardware does there was not found.
+
+**What the cores do:**
+- **pcee2** (WizzardSK/pcee2-libretro, `pcee2-libretro/Libretro.cpp`, read 2026-11-03):
+  - The option is `pcsx2_multitap`: disabled / port1 / port2 / both. It sets PCSX2's `MultitapPort1/2`, and
+    `retro_run` re-reads it and calls `VMManager::ApplySettings()`, so a change applies mid-game.
+  - Its port map: 1A, then 1B-1D with a tap in port 1, then 2A, then 2B-2D with a tap in port 2. That is
+    pcsx_rearmed's layout, so the console's port 2 is libretro port 4 beside a tap in port 1.
+  - Every mapped pad is a DualShock 2. Its `retro_set_controller_port_device` is empty.
+- **RetroXR's LRPS2 build** (`RetroXR/ps2`, fork v7, `pcsx2/PAD/PAD.cpp`):
+  - The same key, values and port map (`build_pad_map`), so one `ForcedCoreOptions.ps_multitap` row serves both
+    cores.
+  - It declares 8 ports: 0-1 keep the USB devices, 2-7 are a DualShock 2 alone.
+  - Each pad reads its libretro port's latched input through a pad -> port map that is latched with it
+    (`pad_lr_live`), so the EE never reads one frame's map with another frame's input.
+  - A tap's pads share their console port's analog settings. Rumble goes to the pad's own libretro port.
+  - Before v7 the fork forced both taps off in `PAD::LoadConfig`, and only polled ports 0-1.
+- Neither core emulates a card on a tap: slot A is the console's slot for that port, B-D are no core's.
+- An LRPS2 without the key (the buildbot's, our v6 and older) drops it.
+  `RetroSystem.refresh_multitap_option` warns once the core has said its options and the key is not among them.
+  **But the tap still moves port 2 to libretro 4 there.** An old build reads libretro ports 0 and 1 only, so with
+  a tap in port 1, sockets A and B play as the console's ports 1 and 2, and the pad in the console's own port 2 is
+  lost.
+
+**How the room does it:** as the PlayStation's (above), plus:
+- `ForcedCoreOptions.multitap_group(systemid)` picks which taps a console counts, `ps2_multitap` for a PS2 and
+  `ps_multitap` otherwise, through `SystemPorts.ps_multitap_sockets(group)`.
+- Its slots take PS2 cards only (`playstation2`).
+- The connector is the PlayStation pad's plug moulded black.
+
+**Checked:**
+- `four_player_tests` `ps2multitap/` (32 cases):
+  - The connector fills a port and a card slot. The tap is in its own group.
+  - A faces along Z and C the other way, A and B share a face, and the cord leaves the -X end (by sign).
+  - A-D are players 1-4, and port 2 moves to 4 and still saves as port 2.
+  - LRPS2 and pcee2 are told `port1`, then `both` and `port2` with a second tap, then `disabled`; Play! is told
+    nothing. An empty socket is no pad.
+  - A PlayStation card is refused and a PS2 card in slot A is the console's card 1.
+  - The entry validates and builds a `Ps2Multitap` again.
+  - Either tap in the other console is socket A alone, with no option set.
+- Mutation-tested:
+  - Every tap active in any console: 2 red.
+  - The PS2 option row dropped: 6 red.
+- `four_player_render_probe -- --only=ps2` (windowed) draws it in a PS2's port 1 with four pads and a card in slot A.
+- The fork's change builds on Windows (MSVC, `ninja -C build pcsx2_libretro`).
+- The new DLL declares `pcsx2_multitap` with the four values (`core_options_probe --match=multitap`: 80 options).
+  The installed v6 declares 79 and no such key.
+- `Tools/input/ps2_multitap_core_probe` ran the new DLL from a scratch data root on Gran Turismo 4, 2026-11-03.
+  - Leg `tap` sets the option on the running core three times. The core's own WARN lines were "multitap in
+    port 1: 5 libretro ports, the console's port 2 is libretro port 4", then "in ports 1 and 2: 8 ... port 4",
+    then "off: 2 ... port 1".
+  - Leg `none` (the control) printed no layout line.
+  - This is the option path and the port map only. No game that reads a tap was run.
+
+**OWED:**
+- A real four-player PS2 game on either core. TimeSplitters 2 and Gauntlet: Dark Legacy read a tap.
+- The fork's Android build, a published v7 and `CoreSources` moved to it.
+- pcee2 installed in this room.
+- A headset, the Quest and a session.
 
 ## Saves
 

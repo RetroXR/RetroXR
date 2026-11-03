@@ -62,7 +62,7 @@ func _init() -> void:
 
 
 func _ready() -> void:
-	add_to_group("ps_multitap")
+	add_to_group(_tap_group())
 	super._ready()
 
 
@@ -76,6 +76,57 @@ func _tag() -> String:
 
 func _mode_text() -> String:
 	return "no switch"
+
+
+# ── What a kind of tap says (Ps2Multitap overrides these) ─────────────────────
+
+## The group SystemPorts counts this kind of tap by (ps_multitap_sockets), so the
+## core option follows only the taps its console's games read.
+func _tap_group() -> String:
+	return "ps_multitap"
+
+
+## The console whose games read this tap as a multitap.
+func _target_system() -> String:
+	return "psx"
+
+
+## The memory cards its slots take.
+func _card_family() -> String:
+	return "playstation"
+
+
+## The connector's moulding.
+func _plug_colour() -> Color:
+	return GREY
+
+
+## Where port `i`'s face is, +Z out of it and +Y up, and its point on that face
+## at height `y`.
+func _port_basis(i: int) -> Basis:
+	return _face_basis(i)
+
+
+func _port_point(i: int, y: float) -> Vector3:
+	return _face_point(i, y)
+
+
+## The controller socket's middle and the card slot's, above the floor.
+func _socket_height() -> float:
+	return SOCKET_Y
+
+
+func _card_height() -> float:
+	return CARD_Y
+
+
+## Whether the console the lead is in reads this tap as a multitap: a SCPH-1070
+## in a PlayStation, a SCPH-10090 in a PlayStation 2. The connectors are the same
+## shape, so either goes into either console; in the other one, socket A is that
+## controller port's pad and B-D reach nothing (docs/dev/four-player-adapters.md:
+## a choice, not measured).
+func _active() -> bool:
+	return is_instance_valid(_system) and _system.systemid == _target_system()
 
 
 # ── Where it is ───────────────────────────────────────────────────────────────
@@ -102,6 +153,9 @@ func _routes() -> Array[int]:
 	var base := _base()
 	if base < 0:
 		return out
+	if not _active():
+		out[0] = base
+		return out
 	for i in range(SOCKETS):
 		out[i] = base + i
 	return out
@@ -111,7 +165,7 @@ func _owned_ports() -> Array[int]:
 	var out: Array[int] = []
 	var base := _base()
 	if base >= 0:
-		for i in range(SOCKETS):
+		for i in range(SOCKETS if _active() else 1):
 			out.append(base + i)
 	return out
 
@@ -124,6 +178,8 @@ func port_device(_machine: Node, port: int) -> Dictionary:
 
 
 func _dead_reason(_i: int) -> String:
+	if is_instance_valid(_system) and not _active():
+		return ": a %s's games do not read this tap; it is for the %s" % [_system.systemid, _target_system()]
 	return ": the lead is in no console"
 
 
@@ -149,11 +205,11 @@ func on_unplugged() -> void:
 ## In port 1, the console's port 2 reads libretro port 4; anywhere else, not by
 ## this tap's doing.
 func _lay_out(seat: int) -> void:
-	if seat == 0 and is_instance_valid(_system):
+	if seat == 0 and _active():
 		if _moved_port_two != _system:
 			_put_port_two_back()
 			_moved_port_two = _system
-			print("[PsMultitap] in port 1: the console's port 2 is libretro port 4 now")
+			print("[%s] in port 1: the console's port 2 is libretro port 4 now" % _tag())
 			_system.set_socket_port(1, 4)
 	else:
 		_put_port_two_back()
@@ -161,7 +217,7 @@ func _lay_out(seat: int) -> void:
 
 func _put_port_two_back() -> void:
 	if is_instance_valid(_moved_port_two):
-		print("[PsMultitap] out of port 1: the console's port 2 is its own again")
+		print("[%s] out of port 1: the console's port 2 is its own again" % _tag())
 		_moved_port_two.set_socket_port(1, -1)
 	_moved_port_two = null
 
@@ -181,17 +237,17 @@ func _exit_tree() -> void:
 func _sync_card_a() -> void:
 	var seat := _seat()
 	var card: Node3D = _tap_cards[0] if is_instance_valid(_tap_cards[0]) else null
-	var want_sys: RetroSystem = _system if seat >= 0 and seat < 2 and card != null else null
+	var want_sys: RetroSystem = _system if seat >= 0 and seat < 2 and card != null 		and _system.card_family() == _card_family() else null
 	var want_slot := seat if want_sys != null else -1
 	if want_sys == _card_sys and want_slot == _card_slot:
 		return
 	if is_instance_valid(_card_sys) and _card_slot >= 0:
-		print("[PsMultitap] slot A's card leaves the console's card slot %d" % (_card_slot + 1))
+		print("[%s] slot A's card leaves the console's card slot %d" % [_tag(), _card_slot + 1])
 		_card_sys.memcards().on_memcard_removed(_card_slot)
 	_card_sys = want_sys
 	_card_slot = want_slot
 	if want_sys != null:
-		print("[PsMultitap] slot A's card is the console's card %d" % (want_slot + 1))
+		print("[%s] slot A's card is the console's card %d" % [_tag(), want_slot + 1])
 		want_sys.memcards().on_memcard_inserted(card, want_slot)
 
 
@@ -200,7 +256,7 @@ func _on_card_in(i: int, card: Node3D) -> void:
 	if i == 0:
 		_sync_card_a()
 	else:
-		print("[PsMultitap] a card in slot %s: no core here reads a tap's slots B-D" % LETTERS[i])
+		print("[%s] a card in slot %s: no core here reads a tap's slots B-D" % [_tag(), LETTERS[i]])
 
 
 func _on_card_out(i: int) -> void:
@@ -209,9 +265,9 @@ func _on_card_out(i: int) -> void:
 		_sync_card_a()
 
 
-## A PlayStation memory card, as the console's slot takes.
+## A memory card of this tap's family, as the console's slot takes.
 func _accepts_card(obj: Node3D) -> bool:
-	return obj != null and "family" in obj and str(obj.get("family")) == "playstation"
+	return obj != null and "family" in obj and str(obj.get("family")) == _card_family()
 
 
 ## The card in each slot, A to D, null where empty (ScenePersistence).
@@ -228,12 +284,12 @@ func restore_card(i: int, card: Node3D) -> void:
 		return
 	var zone := _card_zones[i] as XRToolsSnapZone
 	if is_instance_valid(zone.picked_up_object):
-		push_warning("[PsMultitap] card slot %s already holds a card" % LETTERS[i])
+		push_warning("[%s] card slot %s already holds a card" % [_tag(), LETTERS[i]])
 		return
 	if card is XRToolsPickable and (card as XRToolsPickable).is_picked_up():
-		push_warning("[PsMultitap] that card is held elsewhere; slot %s left empty" % LETTERS[i])
+		push_warning("[%s] that card is held elsewhere; slot %s left empty" % [_tag(), LETTERS[i]])
 		return
-	print("[PsMultitap] restoring a card into slot %s" % LETTERS[i])
+	print("[%s] restoring a card into slot %s" % [_tag(), LETTERS[i]])
 	zone.pick_up_object(card)
 
 
@@ -348,7 +404,7 @@ func _build_body() -> void:
 ## A controller socket on its face: +Z out, rolled half round about Z as the
 ## console's front ports are, so a plug (grab point turned about X) seats upright.
 func _socket_transform(i: int) -> Transform3D:
-	return Transform3D(_face_basis(i) * Basis(Vector3.BACK, PI), _face_point(i, SOCKET_Y))
+	return Transform3D(_port_basis(i) * Basis(Vector3.BACK, PI), _port_point(i, _socket_height()))
 
 
 func _socket_fits(plug: Node3D) -> bool:
@@ -370,7 +426,7 @@ func _build_extra_controls() -> void:
 		zone.snap_filter = _accepts_card
 		zone.grab_distance = 0.04
 		add_child(zone)
-		zone.transform = Transform3D(_face_basis(i), _face_point(i, CARD_Y))
+		zone.transform = Transform3D(_port_basis(i), _port_point(i, _card_height()))
 		var idx := i
 		zone.has_picked_up.connect(func(obj: Node3D) -> void: _on_card_in(idx, obj))
 		zone.has_dropped.connect(func() -> void: _on_card_out(idx))
@@ -388,7 +444,7 @@ func _dress_plug(plug: ControllerPlug) -> void:
 	var box := BoxMesh.new()
 	box.size = Vector3(0.040, 0.0045, 0.026)
 	tongue.mesh = box
-	tongue.material_override = _material(GREY, 0.55)
+	tongue.material_override = _material(_plug_colour(), 0.55)
 	plug.add_child(tongue)
 	tongue.position = Vector3(0.0, 0.0145, -0.004)
 	_shape_hood(plug)
@@ -406,7 +462,7 @@ func _shape_hood(plug: Node3D) -> void:
 	if hood == null:
 		hood = MeshInstance3D.new()
 		hood.name = "ConnectorHood"
-		hood.material_override = _material(GREY, 0.55)
+		hood.material_override = _material(_plug_colour(), 0.55)
 		plug.add_child(hood)
 	var plug_top := 0.0048
 	var plug_back := -0.0317
@@ -432,8 +488,8 @@ func _place_tongue() -> void:
 	var at := slot.global_position + slot.global_basis.z.normalized() * 0.010
 	tongue.position = lead.global_transform.affine_inverse() * at
 	_shape_hood(lead)
-	print("[PsMultitap] the connector's card tongue sits in card slot %d (%.1f mm over the plug)"
-		% [seat + 1, tongue.position.y * 1000.0])
+	print("[%s] the connector's card tongue sits in card slot %d (%.1f mm over the plug)"
+		% [_tag(), seat + 1, tongue.position.y * 1000.0])
 
 
 func on_plugged_in(system: RetroSystem, port_index: int) -> void:

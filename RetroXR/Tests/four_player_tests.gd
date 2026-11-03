@@ -29,6 +29,11 @@
 ##              (refused over a card), A-D players 1-4 with the console's port 2
 ##              moved to libretro port 4, pcsx_rearmed's option pinned, slot A the
 ##              console's card, a second tap players 5-8, saves, all of it undone
+##   ps2multitap/ the PlayStation 2 Multitap (SCPH-10090): the PlayStation's layout
+##              in its own ribbed box, pcee2's and LRPS2's pcsx2_multitap pinned
+##              (port1 / both / port2 / disabled), PS2 cards only, A and B on one
+##              face and C and D on the other, the cord out of an end; either tap
+##              in the OTHER console is socket A only, no port moved, no option
 ##   unwired/   with no adapter, a core start tells fceumm an NES's ports 3 and 4
 ##              and a Famicom's 3-5 are EMPTY: left at its "Auto" it plugs in a Four
 ##              Score or a Famicom adapter by itself for games in its own lists
@@ -42,6 +47,8 @@ const GENERIC_PAD_SCENE := preload("res://Scenes/Objects/controllers/retro_contr
 const SATELLITE_SCENE := preload("res://Scenes/Objects/controllers/nes/nes_satellite.tscn")
 const SATELLITE_RX_SCENE := preload("res://Scenes/Objects/controllers/nes/nes_satellite_receiver.tscn")
 const PS_MULTITAP_SCENE := preload("res://Scenes/Objects/controllers/playstation/ps_multitap.tscn")
+const PS2_MULTITAP_SCENE := preload("res://Scenes/Objects/controllers/playstation/ps2_multitap.tscn")
+const PS2_CARD_SCENE := preload("res://Scenes/Objects/media/ps2_memory_card.tscn")
 const PS1_PAD_SCENE := preload("res://Scenes/Objects/controllers/playstation/ps1_controller.tscn")
 const MEMORY_CARD_SCENE := preload("res://Scenes/Objects/media/memory_card.tscn")
 
@@ -50,6 +57,13 @@ const PCSX_PAD_LIST: Array = [{"name": "standard", "id": 1}, {"name": "dualshock
 	{"name": "analog", "id": 261}, {"name": "negcon", "id": 773}, {"name": "guncon", "id": 260},
 	{"name": "konami gun", "id": 516}, {"name": "mouse", "id": 258}]
 var PCSX_PORTS: Array = range(8).map(func(p: int) -> Dictionary: return {"port": p, "controllers": PCSX_PAD_LIST})
+
+## LRPS2's eight (pcsx2/PAD/PAD.cpp Input::Init, fork v7): ports 0-1 the USB devices
+## too, 2-7 a DualShock 2 alone.
+var LRPS2_PORTS: Array = range(8).map(func(p: int) -> Dictionary: return {"port": p,
+	"controllers": [{"name": "DualShock 2", "id": 1}, {"name": "GunCon 2", "id": 4},
+		{"name": "USB Keyboard", "id": 3}, {"name": "USB Mouse", "id": 2}] if p < 2
+		else [{"name": "DualShock 2", "id": 1}]})
 
 const NONE := 0
 const JOYPAD := 1
@@ -111,6 +125,8 @@ func _ready() -> void:
 		await _group_satellite()
 	if _want("psmultitap"):
 		await _group_psmultitap()
+	if _want("ps2multitap"):
+		await _group_ps2multitap()
 	if _want("save"):
 		await _group_save()
 	await _clear()
@@ -655,6 +671,137 @@ func _group_psmultitap() -> void:
 	await _wait(3)
 	_eq(sys.all_forced_options("pcsx_rearmed_libretro").get("pcsx_rearmed_multitap", ""), "disabled",
 		"psmultitap/no tap, no multitap")
+	await _clear()
+
+
+# ── ps2multitap ───────────────────────────────────────────────────────────────
+
+func _group_ps2multitap() -> void:
+	var sys := await _console("ps2", Vector3(0, 1, 0), LRPS2_PORTS)
+	var ports := sys.controller_ports()
+	var zones: Array = ports.zones
+	var card_slots: Array = sys.memcard_slots()
+	var tap := _make(PS2_MULTITAP_SCENE, Vector3(0, 1, 0.6)) as Ps2Multitap
+	var tap2 := _make(PS2_MULTITAP_SCENE, Vector3(0.5, 1, 0.6)) as Ps2Multitap
+	var pads: Array = []
+	for i in 4:
+		pads.append(_make(PS1_PAD_SCENE, Vector3(-0.3 + 0.2 * i, 1, 1.2)))
+	var lone := _make(PS1_PAD_SCENE, Vector3(0.6, 1, 1.2))
+	await _wait(4)
+	var plug := tap.get_plug()
+	_ok(plug != null and plug.covers_card_slot, "ps2multitap/its connector fills a card slot as well as a port")
+	_ok(tap.is_in_group("ps2_multitap") and not tap.is_in_group("ps_multitap"),
+		"ps2multitap/it counts as a PS2 tap, not a PlayStation one")
+	_eq(card_slots.size(), 2, "ps2multitap/the PS2 has two card slots")
+	if plug == null or card_slots.size() < 2:
+		await _clear()
+		return
+
+	# The box: A and B out of one long face, C and D out of the other, the cord
+	# out of the -X end. By sign, from the nodes the hands meet.
+	var sz: Array = tap.get("_sub_zones")
+	var a_out := (sz[0] as Node3D).global_basis.z
+	var c_out := (sz[2] as Node3D).global_basis.z
+	_ok(absf(a_out.dot(Vector3.BACK)) > 0.9, "ps2multitap/socket A faces along Z")
+	_ok(a_out.dot(c_out) < -0.9, "ps2multitap/C faces the other way from A")
+	_ok(absf((sz[0] as Node3D).global_position.z - (sz[1] as Node3D).global_position.z) < 0.001,
+		"ps2multitap/A and B share a face")
+	var attach := tap.get_node("CableAttachPoint") as Node3D
+	_ok((-attach.global_basis.z).dot(Vector3.LEFT) > 0.99 and attach.position.x < -0.06,
+		"ps2multitap/the cord leaves the -X end")
+
+	sys.restore_controller_plug(1, lone.call("get_plug"))
+	await _wait(3)
+	sys.restore_controller_plug(0, plug)
+	for i in 4:
+		tap.restore_socket(i, pads[i])
+	await _wait(8)
+	_ok(sys.is_card_slot_covered(0), "ps2multitap/seated in port 1, it shuts card slot 1")
+	_eq([_port_of(pads[0]), _port_of(pads[1]), _port_of(pads[2]), _port_of(pads[3])], [0, 1, 2, 3],
+		"ps2multitap/sockets A-D are players 1-4")
+	_eq(_port_of(lone), 4, "ps2multitap/and the console's port 2 moves to libretro port 4, as both cores lay it out")
+	_ok(sys.cabinet_port_of(lone) == 1, "ps2multitap/still saved as port 2's")
+	_eq(sys.all_forced_options("pcsx2_libretro").get("pcsx2_multitap", ""), "port1",
+		"ps2multitap/LRPS2 is told its multitap is in port 1")
+	_eq(sys.all_forced_options("pcee2_libretro").get("pcsx2_multitap", ""), "port1",
+		"ps2multitap/and pcee2, the same key")
+	_ok(not sys.all_forced_options("play_libretro").has("pcsx2_multitap"), "ps2multitap/Play! is told nothing")
+	_eq(_ids(sys).slice(0, 5), [1, 1, 1, 1, 1], "ps2multitap/five pads, five DualShock 2s")
+	(sz[1] as XRToolsSnapZone).drop_object()
+	await _wait(2)
+	_eq(_ids(sys)[1], NONE, "ps2multitap/an empty socket is no pad")
+	tap.restore_socket(1, pads[1])
+	await _wait(6)
+
+	# Cards: a PS2 card in slot A is the console's card 1; a PlayStation card does not go in.
+	var card_a := _make(PS2_CARD_SCENE, Vector3(-0.6, 1, 0.8))
+	var ps1_card := _make(MEMORY_CARD_SCENE, Vector3(-0.7, 1, 0.8))
+	await _wait(2)
+	var card_zone := (tap.get("_card_zones") as Array)[0] as XRToolsSnapZone
+	_ok(not card_zone.snap_filter.call(ps1_card), "ps2multitap/a PlayStation card does not fit its slots")
+	_ok(card_zone.snap_filter.call(card_a), "ps2multitap/a PS2 card does")
+	tap.restore_card(0, card_a)
+	await _wait(2)
+	_ok(sys.memcards().get_snapped_memcard(0) == card_a, "ps2multitap/a card in slot A is the console's card 1")
+
+	var sp := ScenePersistence.new()
+	var ids := {sys: 7, tap: 1, card_a: 20, pads[0]: 8, pads[1]: 9, pads[2]: 10, pads[3]: 11, lone: 12}
+	var trec: Dictionary = sp.serialize_node(tap, 1, ids)
+	_eq(str(trec.get("type", "")), "ps2_multitap", "ps2multitap/it has an entry of its own")
+	_eq(trec.get("tap_cards"), [20, null, null, null], "ps2multitap/with its card")
+	var room: Array = [trec, sp.serialize_node(sys, 7, ids), sp.serialize_node(lone, 12, ids),
+		sp.serialize_node(card_a, 20, ids)]
+	for p: int in 4:
+		room.append(sp.serialize_node(pads[p], 8 + p, ids))
+	_eq(ScenePersistence._objects_validation_error(room), "", "ps2multitap/and the room's entries validate")
+	var back := sp._load_four_player(trec)
+	_ok(back is Ps2Multitap, "ps2multitap/and its entry builds a PS2 tap again")
+	back.free()
+
+	# A second tap in port 2: players 5-8, both ports.
+	(zones[1] as XRToolsSnapZone).drop_object()
+	await _wait(2)
+	sys.restore_controller_plug(1, tap2.get_plug())
+	await _wait(4)
+	_eq(tap2.call("_routes"), [4, 5, 6, 7] as Array[int], "ps2multitap/a second tap in port 2 is players 5-8")
+	_eq(sys.all_forced_options("pcsx2_libretro").get("pcsx2_multitap", ""), "both", "ps2multitap/both, the option says")
+	(zones[0] as XRToolsSnapZone).drop_object()
+	await _wait(4)
+	_eq(tap2.call("_routes"), [1, 2, 3, 4] as Array[int], "ps2multitap/the first one out, the second is players 2-5")
+	_eq(sys.all_forced_options("pcsx2_libretro").get("pcsx2_multitap", ""), "port2", "ps2multitap/port 2")
+	(zones[1] as XRToolsSnapZone).drop_object()
+	await _wait(3)
+	_eq(sys.all_forced_options("pcsx2_libretro").get("pcsx2_multitap", ""), "disabled", "ps2multitap/no tap, disabled")
+
+	# The PlayStation's tap in a PS2: socket A only, nothing moved, the option off.
+	var ps1_tap := _make(PS_MULTITAP_SCENE, Vector3(-0.5, 1, 0.6)) as PsMultitap
+	var p1 := _make(PS1_PAD_SCENE, Vector3(-0.3, 1, 1.6))
+	var p2 := _make(PS1_PAD_SCENE, Vector3(-0.1, 1, 1.6))
+	await _wait(4)
+	sys.restore_controller_plug(1, lone.call("get_plug"))
+	sys.restore_controller_plug(0, ps1_tap.get_plug())
+	ps1_tap.restore_socket(0, p1)
+	ps1_tap.restore_socket(1, p2)
+	await _wait(8)
+	_eq([_port_of(p1), _port_of(p2), _port_of(lone)], [0, -1, 1],
+		"ps2multitap/a SCPH-1070 in a PS2 is socket A alone, port 2 its own")
+	_eq(sys.all_forced_options("pcsx2_libretro").get("pcsx2_multitap", ""), "disabled",
+		"ps2multitap/and turns no PS2 multitap on")
+	await _clear()
+
+	# And the PS2's tap in a PlayStation: the same.
+	var psx := await _console("psx", Vector3(0, 1, 0), PCSX_PORTS)
+	var tap3 := _make(PS2_MULTITAP_SCENE, Vector3(0, 1, 0.6)) as Ps2Multitap
+	var q1 := _make(PS1_PAD_SCENE, Vector3(-0.3, 1, 1.2))
+	var q2 := _make(PS1_PAD_SCENE, Vector3(-0.1, 1, 1.2))
+	await _wait(4)
+	psx.restore_controller_plug(0, tap3.get_plug())
+	tap3.restore_socket(0, q1)
+	tap3.restore_socket(1, q2)
+	await _wait(8)
+	_eq([_port_of(q1), _port_of(q2)], [0, -1], "ps2multitap/a SCPH-10090 in a PlayStation is socket A alone")
+	_eq(psx.all_forced_options("pcsx_rearmed_libretro").get("pcsx_rearmed_multitap", ""), "disabled",
+		"ps2multitap/and pcsx_rearmed's multitap stays off")
 	await _clear()
 
 

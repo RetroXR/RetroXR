@@ -188,6 +188,7 @@ const FAMICOM_FOUR_PLAYERS_SCENE := preload("res://Scenes/Objects/controllers/fa
 const NES_SATELLITE_SCENE    := preload("res://Scenes/Objects/controllers/nes/nes_satellite.tscn")
 const NES_SATELLITE_RX_SCENE := preload("res://Scenes/Objects/controllers/nes/nes_satellite_receiver.tscn")
 const PS_MULTITAP_SCENE      := preload("res://Scenes/Objects/controllers/playstation/ps_multitap.tscn")
+const PS2_MULTITAP_SCENE     := preload("res://Scenes/Objects/controllers/playstation/ps2_multitap.tscn")
 const VCR_SCENE              := preload("res://Scenes/Objects/appliances/vcr_player.tscn")
 const TAPE_SCENE             := preload("res://Scenes/Objects/media/vcr_tape.tscn")
 const DVD_SCENE              := preload("res://Scenes/Objects/appliances/dvd_player.tscn")
@@ -3217,6 +3218,8 @@ func _load_four_player(data: Dictionary) -> Node3D:
 			scene = NES_SATELLITE_SCENE
 		"ps_multitap":
 			scene = PS_MULTITAP_SCENE
+		"ps2_multitap":
+			scene = PS2_MULTITAP_SCENE
 	var adapter := scene.instantiate() as FourPlayerAdapter
 	var tap_mode := int(data.get("tap_mode", FourPlayerAdapter.MODE_4P))
 	if tap_mode == FourPlayerAdapter.MODE_2P or tap_mode == FourPlayerAdapter.MODE_4P:
@@ -3632,6 +3635,8 @@ const _LOAD_KINDS := {
 	"nes_satellite": &"_load_four_player",
 	# The PlayStation Multitap: as the adapters, and the card in each of its slots.
 	"ps_multitap": &"_load_four_player",
+	# The PlayStation 2 Multitap: the PlayStation's, in another body.
+	"ps2_multitap": &"_load_four_player",
 	"nes_satellite_receiver": &"_load_satellite_receiver",
 	"retro_mouse": &"_load_retro_mouse",
 	"snes_mouse": &"_load_snes_mouse",

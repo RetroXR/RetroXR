@@ -62,6 +62,10 @@ const _PERIPHERALS: Dictionary = {
 	],
 	"ps2": [
 		{"kind": "peripheral", "label": "Memory Card", "spawn": "memory_card"},
+		# Four pads on one controller port, a card slot over each, for pcee2 and
+		# RetroXR's LRPS2 build (Ps2Multitap); its connector fills the console's
+		# card slot as well, as the PlayStation's does.
+		{"kind": "peripheral", "label": "Multitap (SCPH-10090)", "spawn": "ps2_multitap"},
 	],
 	"gc": [
 		{"kind": "peripheral", "label": "Memory Card", "spawn": "memory_card"},
