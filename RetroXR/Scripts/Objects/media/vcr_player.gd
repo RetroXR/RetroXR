@@ -93,6 +93,16 @@ const STALE_FINISH_MSEC := 300
 ## How far short of its end a rewind into the previous recording starts: AT the
 ## end, the player reports that recording finished and winds on again.
 const REW_END_MARGIN := 1.0
+## Each recording's length in seconds, from its file's header, read with
+## _recordings; 0 where the header does not say (see _rec_length).
+var _rec_seconds := PackedFloat64Array()
+## Winding the tape with the deck stopped: -1 back, +1 on, 0 not. A stopped deck
+## with no set to show a picture on winds the tape itself, as a real one does
+## with nothing plugged in: no player, no picture, only the tape's place moving
+## (_run_wind). With a set, REW from stop is still the picture search.
+var _wind_dir: int = 0
+## How fast a wind runs, in tape seconds a second: a T-120 in two minutes.
+const WIND_SPEED := 60.0
 
 
 # Front-loading tape bay (insert ride, eject, grab hand-off, collision) — all owned
@@ -387,12 +397,13 @@ func _update_vfd() -> void:
 	elif not video_path.is_empty() or is_instance_valid(_tape):
 		secs = _tape_time() + _tape_blank()
 	var tape := is_instance_valid(_tape) or _slot.has_media()
+	var scan := _scan_dir if is_playing else _wind_dir
 	var key := "%d|%d|%d|%d|%d|%d" % [int(_power_on), int(secs) if secs >= 0.0 else -1, int(is_playing),
-		int(_paused), _scan_dir, int(tape)]
+		int(_paused), scan, int(tape)]
 	if key == _vfd_key:
 		return
 	_vfd_key = key
-	_vfd_state = {"secs": secs, "playing": is_playing, "paused": _paused, "scan": _scan_dir, "tape": tape}
+	_vfd_state = {"secs": secs, "playing": is_playing, "paused": _paused, "scan": scan, "tape": tape}
 	_vfd.refresh()
 
 
@@ -460,6 +471,9 @@ func _process(delta: float) -> void:
 		if not _blank:
 			_resume_tape()
 			_note_tape()
+	# After _note_tape, which holds a stopped tape still.
+	if _wind_dir != 0:
+		_run_wind(delta)
 	_step_ride(delta)
 	_follow_hand(delta)
 	if is_playing and not _blank:
@@ -640,6 +654,11 @@ func net_get_state() -> Dictionary:
 		"pos": _vlc_time_sec() if is_playing and not _blank else 0.0,
 		# Seconds into the blank tape after the recordings, or -1 in them.
 		"blank": _tape_blank() if is_playing and _blank else -1.0,
+		# A stopped deck winding its tape, and where the tape stands: a peer winds
+		# along and takes the host's place when the wind ends.
+		"wind": _wind_dir if not is_playing else 0,
+		"place": [int(_tape.get("tape_track")), _tape_time(), _tape_blank()]
+			if not is_playing and is_instance_valid(_tape) else [],
 	}
 
 
@@ -652,6 +671,7 @@ func net_apply_state(state: Dictionary) -> void:
 	if not playing:
 		if is_playing:
 			stop()
+		_apply_net_wind(int(state.get("wind", 0)), state.get("place", []))
 		return
 	# The host is on the blank tape after the recordings: so is this deck, with
 	# no picture, its place kept near the host's.
@@ -778,6 +798,7 @@ func _on_play_pressed() -> void:
 	_log_event("pressed PLAY")
 	if _net_forward_cmd("play"):
 		return
+	_stop_wind("PLAY")
 	if is_playing and (_scan_dir != 0 or _paused):
 		# Leaving a scan or resuming from pause both mean "back to normal play".
 		_set_scan(0)
@@ -830,6 +851,10 @@ func _on_rewind_pressed() -> void:
 		return
 	if not is_playing:
 		if not is_instance_valid(_tape) or video_path.is_empty():
+			_log_event("REW: no tape in the deck")
+			return
+		if _winds_stopped() or _wind_dir != 0:
+			_toggle_wind(-1)
 			return
 		# A cassette with blank tape after its recordings stands in that blank:
 		# play() starts it there, and the scan winds back through it.
@@ -862,6 +887,8 @@ func _on_ff_pressed() -> void:
 	if _net_forward_cmd("ff"):
 		return
 	if not is_playing:
+		if is_instance_valid(_tape) and not video_path.is_empty() and (_winds_stopped() or _wind_dir != 0):
+			_toggle_wind(1)
 		return
 	if _scan_dir == 1:
 		_set_scan(0)
@@ -945,6 +972,7 @@ func play() -> void:
 
 
 func stop() -> void:
+	_stop_wind("stop")
 	if not is_playing:
 		return
 	# A stopped tape stays where it stopped, and the next play carries on from
@@ -974,9 +1002,11 @@ func _ensure_recordings() -> void:
 	_recordings_of = video_path
 	_recordings = RomLibrary.video_recordings(video_path)
 	_rec_bytes = PackedInt64Array()
+	_rec_seconds = PackedFloat64Array()
 	for path: String in _recordings:
 		var file := FileAccess.open(path, FileAccess.READ)
 		_rec_bytes.append(file.get_length() if file != null else 0)
+		_rec_seconds.append(VCRTape.file_length(path))
 
 
 ## Open the recording at _rec_idx and set it running. The transport around it
@@ -1313,3 +1343,166 @@ func restore_media(tape: Node3D, _yaw: float = 0.0) -> void:
 ## Which child holds the tape stays this deck's business.
 func net_release_tape() -> void:
 	_tape_slot.drop_object()
+
+
+# --- Winding a stopped tape ---
+
+## A stopped deck winds its tape itself when there is no picture to search
+## through: no set connected, or no player to show one.
+func _winds_stopped() -> bool:
+	return connected_tv == null or _vlc == null
+
+
+## REW or FF on a stopped deck with no set: start winding that way, turn a wind
+## round, or stop one going that way already (the key pressed again).
+func _toggle_wind(dir: int) -> void:
+	var key := "REW" if dir < 0 else "FF"
+	if _wind_dir == dir:
+		_stop_wind(key)
+		_net_push_state()
+		return
+	_ensure_recordings()
+	if _recordings.is_empty():
+		_log_event("%s: nothing on the tape is there to wind through" % key)
+		return
+	if dir < 0 and int(_tape.get("tape_track")) <= 0 and _tape_time() <= 0.0 and _tape_blank() <= 0.0:
+		_log_event("REW: the tape is already at its start")
+		return
+	if dir > 0 and _tape_at_end():
+		_log_event("FF: the tape is already at its end")
+		return
+	_wind_dir = dir
+	_log_event("%s from stop with no set: winding the tape (recording %d at %.1f s, %.1f s into blank)"
+		% [key, int(_tape.get("tape_track")) + 1, _tape_time(), _tape_blank()])
+	_net_push_state()
+
+
+## End a wind where the tape has got to; the next play carries on from there.
+func _stop_wind(why: String) -> void:
+	if _wind_dir == 0:
+		return
+	_wind_dir = 0
+	if is_instance_valid(_tape):
+		_tape.set("tape_speed", 0.0)
+		_log_event("wind stopped (%s): recording %d at %.1f s, %.1f s into blank" % [why,
+			int(_tape.get("tape_track")) + 1, _tape_time(), _tape_blank()])
+	else:
+		_log_event("wind stopped (%s)" % why)
+
+
+## How long recording `idx` is, in seconds; -1 when nothing says. Its header
+## first, else the tape's measured total: all of it for one file, a share by size
+## on disk for a playlist (the share _note_tape weighs the tape's progress by).
+func _rec_length(idx: int) -> float:
+	if idx < 0 or idx >= _recordings.size():
+		return -1.0
+	if idx < _rec_seconds.size() and _rec_seconds[idx] > 0.0:
+		return _rec_seconds[idx]
+	var whole := float(_tape.get("recording_seconds")) if is_instance_valid(_tape) else 0.0
+	if whole <= 0.0:
+		return -1.0
+	if _recordings.size() == 1:
+		return whole
+	var share := RetroAudioPlayer.album_progress(_rec_bytes, idx, 1.0) \
+		- RetroAudioPlayer.album_progress(_rec_bytes, idx, 0.0)
+	return whole * share if share > 0.0 else -1.0
+
+
+## Move the stopped tape's place by one frame of wind: through the blank after the
+## recordings, across from one recording into the next or the one before, and
+## stopping at either end of the cassette. A recording whose length nothing says
+## is wound back past as if it took no tape, and stops a wind going on into it
+## (where its end is cannot be known until a deck has played it).
+func _run_wind(delta: float) -> void:
+	if is_playing or not is_instance_valid(_tape):
+		_stop_wind("deck playing" if is_playing else "no tape")
+		return
+	if not mains_live() and not NetworkManager.is_client():
+		_stop_wind("no power")
+		_net_push_state()
+		return
+	var last := _recordings.size() - 1
+	var track := clampi(int(_tape.get("tape_track")), 0, last)
+	var at := _tape_time()
+	var blank := _tape_blank()
+	var step := delta * WIND_SPEED
+	var done := ""
+	if _wind_dir < 0:
+		if blank > 0.0:
+			# Back through the blank, and what is left of the step into the last recording.
+			var left := step - blank
+			blank = maxf(blank - step, 0.0)
+			step = maxf(left, 0.0)
+			if blank <= 0.0:
+				track = last
+				at = maxf(_rec_length(last), 0.0)
+		at -= step
+		while at < 0.0 and track > 0:
+			track -= 1
+			at += maxf(_rec_length(track), 0.0)
+		if at <= 0.0 and blank <= 0.0 and track == 0:
+			at = 0.0
+			done = "at the start"
+	else:
+		var length := _rec_length(track)
+		if blank <= 0.0:
+			if length < 0.0:
+				done = "recording %d's length is not known until it is played" % (track + 1)
+			else:
+				at += step
+				step = 0.0
+				while at >= length:
+					if track < last:
+						at -= length
+						track += 1
+						length = _rec_length(track)
+						if length < 0.0:
+							at = 0.0
+							done = "recording %d's length is not known until it is played" % (track + 1)
+							break
+					else:
+						# Off the end of the last recording: the rest goes into the blank.
+						step = at - length
+						at = length
+						break
+		if done.is_empty() and track == last and length >= 0.0 and at >= length:
+			var room := _blank_room()
+			blank = minf(blank + step, room)
+			if blank >= room:
+				done = "at the end"
+	_tape.set("tape_track", track)
+	_tape.set("tape_time", at)
+	_tape.set("tape_blank", blank)
+	var length_now := _rec_length(track)
+	if blank > 0.0 or (track == last and length_now >= 0.0 and at >= length_now):
+		_tape.set("tape_progress", 1.0)
+	elif length_now > 0.0:
+		_tape.set("tape_progress", RetroAudioPlayer.album_progress(_rec_bytes, track, at / length_now))
+	_tape.set("tape_speed", WIND_SPEED * float(_wind_dir))
+	# play() takes up from here.
+	_rec_idx = track
+	_resume_at = at
+	_resume_end = false
+	if not done.is_empty():
+		_stop_wind(done)
+		_net_push_state()
+
+
+## A peer follows the host's wind: winds along with it, and takes the host's
+## place for the tape once it is still.
+func _apply_net_wind(wind: int, place: Variant) -> void:
+	if not is_instance_valid(_tape):
+		return
+	if wind != 0:
+		_ensure_recordings()
+		_wind_dir = signi(wind)
+		return
+	_stop_wind("host")
+	if place is Array and (place as Array).size() == 3:
+		var p := place as Array
+		_tape.set("tape_track", int(p[0]))
+		_tape.set("tape_time", float(p[1]))
+		_tape.set("tape_blank", float(p[2]))
+		_rec_idx = maxi(int(p[0]), 0)
+		_resume_at = float(p[1])
+		_resume_end = false

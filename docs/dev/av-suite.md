@@ -164,8 +164,20 @@ is drawn changed (`VCRBody` / `DVDBody` and the old clock are hidden, kept as no
   VIDEO / SP, the cassette (lit with a tape in), the tape counter H:MM:SS in seven
   segments (the time the old clock showed: the recording's, running on into blank
   tape), ST / SAP and REC PLAY PAUSE FF REW lit from `is_playing`, `_paused`,
-  `_scan_dir`. DVD: play or pause, TITLE nn CHP nn H:MM:SS from libVLC, or one word:
+  `_scan_dir` (or, stopped, `_wind_dir`). DVD: play or pause, TITLE nn CHP nn H:MM:SS from libVLC, or one word:
   OPEN, CLOSE, NO DISC, LOADING (1.5 s after taking a disc in), STOP, MENU.
+- **A VCR with no set winds its tape from stop** (2026-11-03). REW from stop used to go
+  through `play()`, which refuses with no TV, so a deck with nothing plugged in could not
+  rewind at all. Now, stopped with no `connected_tv` (or no libVLC), REW / FF set
+  `_wind_dir` and `_run_wind` moves the tape's place (blank, recording, playlist entry) at
+  `WIND_SPEED` (60 s a second: a T-120 in two minutes), with no player and no picture,
+  stopping at the cassette's ends; the key again stops it, the other turns it round,
+  STOP / PLAY / eject / a lost supply end it. A recording's length comes from its header
+  (`VCRTape.file_length`), else the tape's measured total shared out by size; one nothing
+  measures is wound back past as if it took no tape and stops a wind going on into it.
+  With a set connected, REW from stop is still the picture search (and FF from stop still
+  does nothing there). A session gets `wind` and the tape's `place` in `net_get_state`.
+  `deck_tests --only=wind` (`vcr_wind/`).
 
 `deck_model_tests` pins all of it (keys on the model and facing out, sockets on the
 jacks, the display, a restored tape seated and its flap open, eject to the mouth, a

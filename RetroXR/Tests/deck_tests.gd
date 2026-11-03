@@ -92,6 +92,7 @@ func _ready() -> void:
 		await _test_playlist()
 	if _want("wind"):
 		await _test_wind()
+		await _test_vcr_wind()
 	if _want("out"):
 		await _test_out()
 
@@ -912,6 +913,84 @@ func _test_playlist() -> void:
 
 
 # ── wind/ ─────────────────────────────────────────────────────────────────────
+
+## A VCR with no set plugged in winds its tape from stop, as a real one does with
+## nothing connected: REW / FF move the tape's place at WIND_SPEED through the blank
+## and the recording, with no player and no picture, and stop at the cassette's
+## ends. It used to do nothing at all: REW from stop went through play(), which
+## refuses with no TV. Driven by hand, the deck's _process off.
+func _test_vcr_wind() -> void:
+	var vcr := await _deck(VCR_PLAYER) as VCRPlayer
+	vcr.set_process(false)
+	var clip := ProjectSettings.globalize_path("user://deck_tests_wind.mp4")
+	var mp4 := FileAccess.open(clip, FileAccess.WRITE)
+	mp4.big_endian = true
+	mp4.store_32(16)
+	mp4.store_buffer("ftypisom".to_ascii_buffer())
+	mp4.store_32(0)
+	mp4.store_32(116)
+	mp4.store_buffer("moov".to_ascii_buffer())
+	mp4.store_32(108)
+	mp4.store_buffer("mvhd".to_ascii_buffer())
+	for v: int in [0, 0, 0, 600, 60000]:   # 100 s
+		mp4.store_32(v)
+	var pad := PackedByteArray()
+	pad.resize(80)
+	mp4.store_buffer(pad)
+	mp4.close()
+	var tape := VCR_TAPE.instantiate() as VCRTape
+	_spawned.append(tape)
+	tape.video_path = clip
+	add_child(tape)
+	_ok(tape.cassette == 5 and is_equal_approx(tape.blank_seconds(), 200.0),
+		"vcr_wind/the 100 s clip is a T-5 with 200 s of blank after it (or nothing below means anything)")
+	tape.tape_progress = 1.0
+	tape.tape_time = 100.0
+	tape.tape_blank = 30.0
+	vcr.video_path = clip
+	vcr._take_tape_place(tape)
+	_ok(vcr.connected_tv == null, "vcr_wind/no set is connected")
+
+	vcr._on_rewind_pressed()
+	_ok(vcr._wind_dir == -1 and not vcr.is_playing, "vcr_wind/REW from stop with no set winds the tape, not playing")
+	vcr._run_wind(1.0)
+	_ok(tape.tape_blank == 0.0 and is_equal_approx(tape.tape_time, 70.0) and tape.tape_track == 0
+		and is_equal_approx(tape.tape_progress, 0.7) and tape.tape_speed == -VCRPlayer.WIND_SPEED,
+		"vcr_wind/back out of the blank and on into the recording, 60 s of tape a second")
+	_ok(is_equal_approx(vcr._resume_at, 70.0) and vcr._rec_idx == 0, "vcr_wind/and PLAY would take up from there")
+	var state := vcr.net_get_state()
+	_ok(int(state.get("wind", 0)) == -1 and (state.get("place", []) as Array).size() == 3
+		and is_equal_approx(float((state["place"] as Array)[1]), 70.0), "vcr_wind/a session hears the wind and the place")
+	vcr._run_wind(1.0)
+	vcr._run_wind(1.0)
+	_ok(vcr._wind_dir == 0 and tape.tape_time == 0.0 and tape.tape_progress == 0.0 and tape.tape_speed == 0.0,
+		"vcr_wind/it stops at the start of the tape")
+	vcr._on_rewind_pressed()
+	_eq(vcr._wind_dir, 0, "vcr_wind/and REW there does nothing")
+
+	vcr._on_ff_pressed()
+	_eq(vcr._wind_dir, 1, "vcr_wind/FF from stop with no set winds on")
+	vcr._run_wind(1.0)
+	_ok(is_equal_approx(tape.tape_time, 60.0) and tape.tape_blank == 0.0, "vcr_wind/through the recording")
+	vcr._on_ff_pressed()
+	_ok(vcr._wind_dir == 0 and tape.tape_speed == 0.0, "vcr_wind/FF again stops the wind where it is")
+	vcr._on_ff_pressed()
+	vcr._run_wind(1.0)
+	_ok(is_equal_approx(tape.tape_time, 100.0) and is_equal_approx(tape.tape_blank, 20.0) and tape.tape_progress == 1.0,
+		"vcr_wind/off the end of the recording on into the blank")
+	vcr._on_rewind_pressed()
+	_eq(vcr._wind_dir, -1, "vcr_wind/REW while winding on turns it round")
+	vcr._on_stop_pressed()
+	_eq(vcr._wind_dir, 0, "vcr_wind/STOP stops a wind")
+	vcr._on_ff_pressed()
+	vcr._run_wind(10.0)
+	_ok(vcr._wind_dir == 0 and is_equal_approx(tape.tape_blank, 200.0) and tape.at_tape_end(),
+		"vcr_wind/and it stops at the end of the cassette")
+	vcr._on_ff_pressed()
+	_eq(vcr._wind_dir, 0, "vcr_wind/where FF does nothing")
+	vcr._on_media_removed()
+	DirAccess.remove_absolute(clip)
+
 
 ## A cassette winds THROUGH its tracks: FF off the end of one goes on into the next, REW
 ## off the start of one back into the end of the one before, still scanning; only the
