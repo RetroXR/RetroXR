@@ -141,6 +141,17 @@ static func register_bay_kind(id: String, label: String, systems: Array, romsets
 		"" if owner_id.is_empty() else ", from " + owner_id])
 
 
+## The prefix of a core's own option keys that are this romset's DIP switches, or "" for a core that keeps its DIPs
+## elsewhere (MAME's are in its own menu and its cfg file). FinalBurn Neo names each `fbneo-dipswitch-<driver>-<dip>`,
+## the driver being the set's name (measured: the DIP tab lists them, `RetroSystem.DIP_OPTION_MARK`).
+static func dip_option_prefix(core: String, romset: String) -> String:
+	if romset.is_empty():
+		return ""
+	if core == "fbneo":
+		return "fbneo-dipswitch-%s-" % romset
+	return ""
+
+
 ## Take back the bay kinds a mod added (ModApi.withdraw).
 static func drop_mod(owner_id: String) -> void:
 	for id: String in _mod_bays.keys():

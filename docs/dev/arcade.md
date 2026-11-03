@@ -650,7 +650,8 @@ pair works exactly as a downloaded one. A board needs a disc exactly when that f
 - Tests: `arcade_bay_tests disc/` (each case was broken and watched go red), `romm_tests disc/ prefix/`.
 - OWED: a real RomM holding a game with a CHD (the layout of RomM's multi-file archive is handled either way, never seen), a real game
   with a CHD in the core (which MAME sets need which file is MAME's), the look of the drive in a headset, the Quest, netplay (the disc is
-  not replicated; a session refuses nothing for it), cache eviction pairing the two groups.
+  not sent; since 2026-11-03 a session REFUSES a peer whose disc folder differs, by name and size: `netplay.md` "Arcade cabinets"),
+  cache eviction pairing the two groups.
 
 ## Cost of a cabinet (2026-10-24)
 
@@ -928,8 +929,9 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   (`arcade_own_copy`) before it touches emission. A paint goes where the builder put its own (`material_override` on the sides and stick balls,
   else a surface override), never on the mesh's material, which a baked scene shares. A scene is a child named `ModDress_<id>` and is never
   added twice: the bay is not rebuilt by a morph and is dressed again after one. Never saved, never on the wire. `arcade_dress_tests`.
-- **Netplay**: the form is derived from the board, so two peers build the same one (it decides whether a port is a gun or a socket). Not measured
-  with two peers.
+- **Netplay**: the form is derived from the board, so two peers build the same one (it decides whether a port is a gun or a socket);
+  `arcade_netplay_tests form/` builds it on two cabinets with different local settings. The host's DIP switches and the disc manifest go with
+  the game (`netplay.md` "Arcade cabinets"). Not measured with two peers.
 - Tests: `arcade_form_tests` (groups `specs layout build board reach guns ports input animate running boxes footprint bezel odd seating hood scope racegun grip stage helm`; `arcade_tests game/`
   switches the shape off through the seam and keeps testing the hiding). Mutation-tested: 19 breaks of the code, each turned a case red (the first pass found eight
   that did not, among them a duplicate collision box Godot had renamed out of the count and a freed gun that compared equal to null). Pictures: `arcade_cabinet_probe --forms=sf2,pacman,tmnt,...`

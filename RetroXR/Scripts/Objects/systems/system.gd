@@ -2485,6 +2485,7 @@ func net_boot_spec(core: String) -> Dictionary:
 		var splash := BiosBoot.splash_options(core, systemid)
 		if not splash.is_empty():
 			game_boot["boot_options"] = splash
+		_stamp_arcade_boot(game_boot, core)
 		FirmwareDigest.stamp(game_boot, core)
 		return game_boot
 	if not BiosBoot.can_boot_empty(core, systemid):
@@ -2520,8 +2521,10 @@ func net_prepare_boot(spec: Dictionary) -> bool:
 	match str(spec.get("mode", "rom")):
 		"rom":
 			_net_no_content_override = false
-			return net_resolve_rom(str(spec.get("rom_md5", "")),
-				int(spec.get("rom_size", 0)))
+			if not net_resolve_rom(str(spec.get("rom_md5", "")),
+					int(spec.get("rom_size", 0))):
+				return false
+			return _net_prepare_arcade(spec, core)
 		"no_content":
 			if not BiosBoot.can_boot_empty(core, systemid) \
 					or not BiosBoot.boots_with_no_content(core, systemid):
@@ -2539,6 +2542,63 @@ func net_prepare_boot(spec: Dictionary) -> bool:
 			_net_no_content_override = false
 			return not rom_path.is_empty()
 	return false
+
+
+## An arcade game's two things a peer's core reads that the board's hash does not cover (docs/dev/netplay.md
+## "Arcade cabinets"): its disc folder, every image by name and size (`discs`, sent for every board of a system that
+## pairs discs, empty for a plain one, so a peer with a stray folder is caught too), and the host's DIP switches
+## (`game_options`: every saved option under the core's DIP prefix for this romset, defaults left out).
+func _stamp_arcade_boot(game_boot: Dictionary, core: String) -> void:
+	if ArcadeDiscs.applies(systemid):
+		game_boot["discs"] = ArcadeDiscs.net_manifest(rom_path)
+	var prefix := ArcadeProfiles.dip_option_prefix(core, rom_path.get_file().get_basename())
+	if prefix.is_empty():
+		return
+	var values := {}
+	var saved := CoreOptionsStore.load_values(_resolve_dir(), core)
+	for key: String in saved:
+		if key.begins_with(prefix):
+			values[key] = str(saved[key])
+	game_boot["game_options"] = {"prefix": prefix, "values": values}
+	print("[RetroSystem] netplay: %d DIP switch(es) of %s go with the game (the rest at the core's defaults)"
+		% [values.size(), rom_path.get_file().get_basename()])
+
+
+## The client's half of _stamp_arcade_boot, once its own copy of the board is found: the disc folder must hold what
+## the host's does, and the core's DIPs for this game are made the host's -- its saved ones under the prefix dropped
+## (the host left those at their defaults), the host's written. They stay written: the store is what the core reads at
+## load, and the session's own pins are kept the same way.
+func _net_prepare_arcade(spec: Dictionary, core: String) -> bool:
+	if spec.has("discs"):
+		var differs := ArcadeDiscs.net_difference(rom_path, spec["discs"] as Array)
+		if not differs.is_empty():
+			net_boot_failure = "The host's game has a disc this copy does not match: %s" % differs
+			push_warning("[RetroSystem] netplay: %s (%s)" % [net_boot_failure, ArcadeDiscs.folder_for(rom_path)])
+			return false
+	var game_options: Dictionary = spec.get("game_options", {})
+	var prefix := str(game_options.get("prefix", ""))
+	if prefix.is_empty():
+		return true
+	if core.is_empty():
+		net_boot_failure = "The host named no core for this game's DIP switches"
+		push_warning("[RetroSystem] netplay: %s" % net_boot_failure)
+		return false
+	var host_values: Dictionary = game_options.get("values", {})
+	var saved := CoreOptionsStore.load_values(_resolve_dir(), core)
+	var dropped := 0
+	for key: String in saved.keys():
+		if key.begins_with(prefix) and not host_values.has(key):
+			saved.erase(key)
+			dropped += 1
+	for key: Variant in host_values:
+		saved[str(key)] = str(host_values[key])
+	if not CoreOptionsStore.save_values(_resolve_dir(), core, saved):
+		net_boot_failure = "Could not set the host's DIP switches for this game"
+		push_warning("[RetroSystem] netplay: %s (%s)" % [net_boot_failure, core])
+		return false
+	print("[RetroSystem] netplay: the host's %d DIP switch(es) set for %s, %d of this peer's own put back to the default"
+		% [host_values.size(), rom_path.get_file().get_basename(), dropped])
+	return true
 
 
 ## Netplay cold start (client): make sure we own a byte-identical copy of the

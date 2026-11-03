@@ -1355,6 +1355,40 @@ func _test_start() -> void:
 	_ok(not w.host_np.is_active(), "start/and is left with nothing running")
 	_free(w)
 
+	# An arcade board's disc manifest and DIP switches (RetroSystem._stamp_arcade_boot) are boot fields the host's
+	# machine adds; the session must carry them whole to every peer's net_prepare_boot, which is where a cabinet
+	# checks the disc and takes the host's DIPs. Before 2026-11-03 neither was sent and two peers ran one game with
+	# different lives, coinage or difficulty.
+	w = await _pair()
+	var arcade_boot := {
+		"discs": [{"name": "disc.chd", "size": 123456}],
+		"game_options": {"prefix": "fbneo-dipswitch-sf2-", "values": {"fbneo-dipswitch-sf2-Lives": "5"}},
+	}
+	w.host_sys.extra_boot = arcade_boot
+	w.host_nm.netplay_start_host(w.host_sys, "fceumm", "MD5", {0: 1, 1: w.client_id}, 3, 0)
+	_ok(await _until(func() -> bool: return w.host_np.is_running() and w.client_np.is_running()),
+		"start/a game with arcade boot fields starts")
+	_eq(w.client_sys.prepared_spec.get("discs"), arcade_boot["discs"],
+		"start/the host's disc manifest reaches the client's prepare, whole")
+	_eq(w.client_sys.prepared_spec.get("game_options"), arcade_boot["game_options"],
+		"start/and so do its DIP switches")
+	w.host_nm.netplay_stop("done")
+	await _await_frames(5)
+	_free(w)
+
+	# A client whose cabinet refuses those fields (its disc folder does not match) stops the session; it never runs
+	# the game without the half it lacks.
+	w = await _pair()
+	w.host_sys.extra_boot = arcade_boot
+	w.client_sys.refuse_spec_key = "discs"
+	var disc_stops: Array = []
+	w.host_np.session_stopped.connect(func(r: String) -> void: disc_stops.append(r))
+	w.host_nm.netplay_start_host(w.host_sys, "fceumm", "MD5", {0: 1, 1: w.client_id}, 3, 0)
+	_ok(await _until(func() -> bool: return disc_stops.size() > 0),
+		"start/a client that cannot match the host's disc stops the session")
+	_ok(not w.client_sys.started, "start/and never starts its core")
+	_free(w)
+
 	# An unverified core is refused before any of this — the allowlist is the
 	# outer gate and nothing about identity can open it.
 	w = await _pair()
@@ -2781,6 +2815,12 @@ class MockSys extends Node:
 	var link_refreshes := 0
 	var reset_visuals := 0
 	var _port_controllers: Array = []
+	## Fields a real machine adds to its boot (an arcade board's `discs` and `game_options`), and the spec this
+	## machine was last asked to prepare, so a case can see them cross the wire.
+	var extra_boot: Dictionary = {}
+	var prepared_spec: Dictionary = {}
+	## Refuse a spec that carries this key (what a real cabinet does with a disc it does not match).
+	var refuse_spec_key := ""
 
 	## The session asks through the public accessors, so a mock answers them too.
 	func port_holders() -> Array: return _port_controllers
@@ -2833,9 +2873,13 @@ class MockSys extends Node:
 			spec["boot_options"] = boot_options.duplicate()
 		if not firmware_signature.is_empty():
 			spec["firmware"] = firmware_signature
+		spec.merge(extra_boot.duplicate(true), true)
 		return spec
 
 	func net_prepare_boot(spec: Dictionary) -> bool:
+		prepared_spec = spec.duplicate(true)
+		if not refuse_spec_key.is_empty() and spec.has(refuse_spec_key):
+			return false
 		prepared_boot = str(spec.get("mode", "rom"))
 		if prepared_boot != boot_mode:
 			return false

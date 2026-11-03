@@ -72,6 +72,40 @@ static func needs_disc(board_path: String) -> bool:
 	return not disc_for(board_path).is_empty()
 
 
+## What a netplay peer is told of a board's discs: [{name, size}] for each image, sorted by name ([] for a plain board).
+## Not hashed: a CHD is gigabytes, and the board's own hash already says which game it is; the names and sizes say
+## whether a peer's folder holds the same images.
+static func net_manifest(board_path: String) -> Array:
+	var out: Array = []
+	for path in disc_files(board_path):
+		var f := FileAccess.open(path, FileAccess.READ)
+		out.append({"name": path.get_file(), "size": f.get_length() if f != null else -1})
+	return out
+
+
+## How this peer's discs for `board_path` differ from the host's `manifest` (net_manifest), in words, or "" when they
+## are the same images. Names are compared as the filesystem would on a platform that folds case.
+static func net_difference(board_path: String, manifest: Array) -> String:
+	var mine := {}
+	for row: Dictionary in net_manifest(board_path):
+		mine[str(row["name"]).to_lower()] = int(row["size"])
+	var problems := PackedStringArray()
+	var theirs := {}
+	for row: Variant in manifest:
+		if not row is Dictionary:
+			continue
+		var name := str((row as Dictionary).get("name", ""))
+		theirs[name.to_lower()] = true
+		if not mine.has(name.to_lower()):
+			problems.append("%s is missing" % name)
+		elif mine[name.to_lower()] != int((row as Dictionary).get("size", -1)):
+			problems.append("%s is a different size" % name)
+	for name: String in mine:
+		if not theirs.has(name):
+			problems.append("%s is not in the host's" % name)
+	return ", ".join(problems)
+
+
 ## Is `disc_path` one of `board_path`'s discs? Same folder, compared the way the filesystem would
 ## on the platforms that fold case.
 static func belongs_to(disc_path: String, board_path: String) -> bool:

@@ -841,3 +841,40 @@ the `bsnes_sgb_bios` option. So a session could keep `net_start_core` single-pat
   `StartContent` on every peer, from the spec, as the probe does.
 - Publishing: a RetroXR/bsnes-libretro repo, release workflow, `CoreSources` row; the
   Android build; a Quest run; the x86_64 to arm64 question (`cross_play: false` until then).
+
+### Arcade cabinets — what the board's hash does not cover, 2026-11-03: wired, a real session owed
+
+An arcade game runs on the FinalBurn Neo fork (`NetplayCores` "fbneo", the one arcade core vetted for rollback),
+and its board is matched by md5 like any ROM. Two more things a peer's core reads at load were never sent until
+2026-11-03, so two peers ran "the same game" with different lives, coinage or difficulty:
+
+- **The DIP switches.** FinalBurn Neo keeps them as core options, `fbneo-dipswitch-<set>-<dip>`
+  (`ArcadeProfiles.dip_option_prefix`), in each peer's OWN `<core dir>/core_options/fbneo.opt`. The host's
+  `RetroSystem._stamp_arcade_boot` puts `game_options: {prefix, values}` in the machine's boot: every SAVED key under
+  this set's prefix, nothing else (another game's DIPs and the core's other options stay each peer's). A key the host
+  never set is at the core's default, so the client's `_net_prepare_arcade` first DROPS its own keys under the prefix
+  that the host's list lacks, then writes the host's: both cores then start from the same switches. It stays written,
+  as `NetplayCores`' pins do -- the store is what the core reads at load -- so a client's own DIPs for that game are the
+  host's after a session. MAME keeps its DIPs in its own menu and cfg file (no prefix): not covered, and MAME is not a
+  netplay core.
+- **The disc.** A game with a CHD (`ArcadeDiscs`) sends `discs: [{name, size}]` for every board of a system that
+  pairs discs, `[]` for a plain one. Not hashed: a CHD is gigabytes and the board's md5 already names the game. A
+  client whose folder beside its own copy of the board differs -- an image missing, another size, or one the host's
+  does not have (a stray folder MAME would read) -- refuses in `net_prepare_boot` with its own words
+  (`net_boot_failure`), and the session stops.
+
+What the cabinet SENDS during play needs nothing new: every panel, coin, pedal, fingertip and drumstick leaves through
+`netplay_route` (`ArcadeInput._send`) and a captive gun through `netplay_set_lightgun_*`, as a console's pads do; in
+rollback a peer's OWN ports come back false from `route` and go to `SetJoypadState`, which the wrapper redirects, as
+for every rolling core. The form is derived from the board alone (`ArcadeCabinetSpecs.for_game`), so two peers build
+the same panels and guns; attract mode is off on any connected peer (`NetworkManager.is_active()`).
+
+Tests: `arcade_netplay_tests` (`boot/` the cabinet's half on real `RetroSystem`s with scratch roms and option roots,
+`route/` a fake running session catching what a panel, a coin and a gun hand over, `form/` two cabinets with different
+local settings), and `netplay_tests start/` (the two fields crossing loopback to the client's prepare, and a client
+refusing them stopping the session). Every case was broken in the code and watched go red.
+
+OWED: a real FinalBurn Neo session between two machines on an arcade game (rollback under a coin, a gun game, a
+four-player one), a game with a CHD in a session at all (FinalBurn Neo plays almost none), and the bay: docking a bay
+or a `JammaCable` is still not replicated (`arcade.md` "The bay is its own object"), so a peer that moved one can
+disagree about the cabinet's system and core.
