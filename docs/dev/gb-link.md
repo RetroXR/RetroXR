@@ -472,18 +472,49 @@ adapter on the bus directly, a scratch root holding `cores/dmg07_libretro.dll` a
 `cores/gambatte_libretro.dll`, `--nolink` the control):
 - All four cables come up (`LinkPeerCount` 2 on every port), and five cores run
   together without a wait.
-- **No game has answered a ping yet:**
-  - **Wario Blast featuring Bomberman! is NOT a DMG-07 game.** Its four-player
-    Battle Mode is the Super Game Boy's, on a Super NES with a multitap.
-    Wikipedia's list puts it under the adapter but says "4 players only with the
-    use of Super Game Boy", and Mario Wiki gives the Super Multitap. In 900 frames
-    of its title no Game Boy armed its serial port.
-  - Bomberman GB (USA, the Japanese Bomberman GB 2) has Story, Lesson and Password
-    and nothing else.
+- **Wave Race (USA, Europe), 2026-11-03** (gambatte, four Game Boys):
+- Each player picks MULTI, and the adapter logs players 1 to 4 answering one by
+  one. The game replies `88 88 FF 01` (RATE $FF, SIZE 1), then `AA` x3, then `CC`,
+  then transmission.
+- RIDER ENTRY shows each Game Boy its OWN row as "YOU" (the ping's player ids
+  reach the game). Names typed on each machine reach the other three.
+- GAME SELECT and the course menu move in step on all four. The STARTING GRID
+  (1 YOU3, 2 YOU1, 3 YOU4, 4 YOU2) is the same on every screen.
+- On the start line each player's input byte goes out in its own turn, in grid
+  order, one packet in five.
+- **Data is slots 1 to SIZE, not 0.** A Game Boy loads each byte after receiving
+  the one before, so its first byte of a packet goes out one slot in. Pan Docs'
+  prose says the first transfers; GBE+ (`src/dmg/dmg07.cpp`) and the game say
+  slot 1. With slot 0 every relayed byte read zero and nobody saw anyone's name.
+- **A player confirms after player 1.** On the course screen player 1's A sends
+  `02`, the others answer `AD AE AF`, and each of players 2-4 must then press A
+  and Start before the grid appears.
+- **Pacing matters, and Pan Docs' is the one that works.** `DMG07_TIMING=gbe`
+  (GBE+'s 8 x (6 x RATE + 512) cycles a byte, packets back to back) and `=bytes`
+  (no 17 ms floor: 11.4 ms packets at RATE $FF, not 32) both leave the four
+  menus out of step.
+- **OPEN: the race does not start.** The countdown stays at 3 and the clock at
+  00:00:00, with or without A held, though every machine is armed in every slot
+  (`DMG07_TRACE=<packet>`) and the turn-by-turn input keeps flowing.
+
+**Frame rate, four Game Boys and the adapter, one Windows PC:**
+- Paced: 59.0-59.9 fps in every 600-frame window after power-on (the first,
+  through four staggered start-ups, is about 42-48).
+- Unthrottled (`XENU_UNTHROTTLED=1`): 104-114 fps linked, about 1.8 x real time.
+  The same four with `--nolink` run at thousands, so the lockstep is the cost:
+  each Game Boy made 4.9 million advance calls in a minute.
+
+**Earlier ROMs that are not DMG-07 games:**
+- Wario Blast featuring Bomberman!: its four players are the Super Game Boy's,
+  on a Super NES with a multitap. Wikipedia lists it under the adapter but says
+  "4 players only with the use of Super Game Boy", and in 900 frames of its title
+  no Game Boy armed its serial port.
+- Bomberman GB (USA): Story, Lesson and Password only.
 
 OWED:
 - A real DMG-07 game: F-1 Race, Faceball 2000, Wave Race, Yoshi's Cookie,
   Micro Machines, Super R.C. Pro-Am, Top Rank Tennis or Trax.
 - mGBA.
 - The room object: a captive player 1 lead and three large-plug sockets.
+- The frame rate on a Quest.
 - The core's publication and Android build.

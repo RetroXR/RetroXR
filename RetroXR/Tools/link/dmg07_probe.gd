@@ -135,6 +135,12 @@ func _run() -> void:
 	sorted.sort()
 	var shot_i := 0
 	var next_every := every
+	var t0 := Time.get_ticks_usec()
+	var f0: Array[int] = []
+	for gb: Node in _gbs:
+		f0.append(int(gb.GetFrameCount()))
+	var window_t := t0
+	var window_f := int((_gbs[0] as Node).GetFrameCount())
 	while true:
 		var frame := int((_gbs[0] as Node).GetFrameCount())
 		_drive(frame)
@@ -146,7 +152,18 @@ func _run() -> void:
 			next_every += every
 		if frame > last:
 			break
+		# Every 600 of player 1's frames: the rate over that window.
+		if frame - window_f >= 600:
+			var now_t := Time.get_ticks_usec()
+			print("[dmg07] frames %d-%d: %.2f fps" % [window_f, frame, float(frame - window_f) * 1e6 / float(now_t - window_t)])
+			window_t = now_t
+			window_f = frame
 		await get_tree().process_frame
+	var secs := float(Time.get_ticks_usec() - t0) / 1e6
+	var rates: Array = []
+	for i in _gbs.size():
+		rates.append("%.2f" % (float(int((_gbs[i] as Node).GetFrameCount()) - f0[i]) / secs))
+	print("[dmg07] frame rate over %.1f s, players 1-%d: %s fps (a Game Boy is 59.73)" % [secs, _gbs.size(), ", ".join(rates)])
 	if _hub != null:
 		print("[dmg07] adapter peers on ports 0-3: %s" % str(range(4).map(func(p: int) -> int: return int(_hub.LinkPeerCount(p)))))
 	for gb: Node in _gbs:
