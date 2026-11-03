@@ -26,6 +26,11 @@
 class_name GbPrinter
 extends XRToolsPickable
 
+## The roll changed (paper_roll): `paper` is its paper's color. A shell that
+## draws its own roll (a mod's model) tints it from this; paper_color() gives the
+## same color for one wired after the roll was set.
+signal paper_roll_changed(paper: Color)
+
 ## The spawn menu's token and the save file's type.
 const SPAWN_ID := "gb_printer"
 const CORE := "gbprinter"
@@ -108,6 +113,7 @@ var paper_roll: String = GbPrinterPaper.ROLLS[0]["id"]:
 	set(value):
 		paper_roll = str(GbPrinterPaper.roll(value)["id"])
 		_show_roll()
+		paper_roll_changed.emit(paper_color())
 
 var _lib: Node = null
 var _mask := -1
@@ -529,6 +535,11 @@ func _lay_lines() -> void:
 ## The length of paper out of the slot, meters.
 func paper_length() -> float:
 	return _strip.length
+
+
+## The loaded roll's paper color (GbPrinterPaper.ROLLS).
+func paper_color() -> Color:
+	return GbPrinterPaper.roll(paper_roll)["paper"]
 
 
 ## The roll's colors onto the strip.

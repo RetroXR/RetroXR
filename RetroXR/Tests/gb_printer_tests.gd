@@ -73,6 +73,7 @@ func _ready() -> void:
 	_test_rolls_are_nintendos()
 	_test_a_print_keeps_its_roll()
 	await _test_roll_from_the_menu_and_the_save()
+	await _test_roll_tells_a_shell()
 	_test_menu_offers_choices()
 	_test_paper_curls_back()
 	_test_paper_gives_way_to_its_weight()
@@ -202,6 +203,23 @@ func _test_paper_is_as_long_as_the_core_fed() -> void:
 	printer._lay_paper(null, 0)
 	_ok(is_equal_approx(printer.paper_length(), GbPrinter.STUB_LENGTH), "torn off, the roll's end again")
 	printer.free()
+
+
+## A shell that draws its own roll (xenu.gbprinter's model) is told the paper's
+## color when the roll changes, and can ask for it when it is wired later.
+func _test_roll_tells_a_shell() -> void:
+	var printer := (load(PRINTER_SCENE) as PackedScene).instantiate() as GbPrinter
+	add_child(printer)
+	await get_tree().process_frame
+	var heard: Array[Color] = []
+	printer.paper_roll_changed.connect(func(c: Color) -> void: heard.append(c))
+	printer.paper_roll = "yellow"
+	var yellow: Color = GbPrinterPaper.roll("yellow")["paper"]
+	_ok(heard.size() == 1 and _near(heard[0], yellow), "choosing the yellow roll tells a shell its yellow paper (%s)" % [heard])
+	_ok(_near(printer.paper_color(), yellow), "and paper_color() says the same")
+	printer.paper_roll = "white"
+	_ok(heard.size() == 2 and _near(heard[1], GbPrinterPaper.PAPER), "back to white, it says white")
+	printer.queue_free()
 
 
 func _test_rolls_are_nintendos() -> void:
