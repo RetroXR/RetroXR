@@ -556,7 +556,8 @@ static func _items_for(systemid: String) -> Array:
 	# and whatever that unit carries into the room with it (_PERIPHERALS: the
 	# 32X's Model 2 spacer), never a console or a pad.
 	if _is_expansion_media(systemid):
-		return _units_carded_here(systemid) + (_PERIPHERALS.get(systemid, []) as Array).duplicate(true) 			+ _unit_power_items(systemid)
+		var media_items := _units_carded_here(systemid) + (_PERIPHERALS.get(systemid, []) as Array).duplicate(true)
+		return media_items + _unit_power_items(systemid)
 
 	var primitive: Array = []
 	var imported: Array = []
