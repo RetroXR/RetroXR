@@ -9,6 +9,10 @@
 ##         --rom="<a multitap game>.chd" --leg=tap --out=<dir> \
 ##         --steps="900-906:1:start,1200-1206:3:cross" --shots=880,1180,1400
 ##
+## --system=ps2 plays a PS2 game instead, on the PlayStation 2 Multitap and
+## `--core=` (pcsx2 by default: RetroXR's LRPS2 v7+, or pcee2), the root holding
+## cores/<core>_libretro.dll and system/pcsx2.
+##
 ## ONE LEG PER PROCESS:
 ##   --leg=tap   a Multitap in port 1, a pad in each of its sockets A-D
 ##   --leg=none  the control: two pads straight in the console's ports
@@ -30,6 +34,8 @@ var rom_path := ""
 var leg := "tap"
 var out_dir := ""
 var every := 0
+var systemid := "psx"
+var core := ""
 var _steps: Array = []
 var _shots: Array[int] = []
 var _pads: Array = []
@@ -56,11 +62,17 @@ func _ready() -> void:
 			shots_arg = a.trim_prefix("--shots=")
 		elif a.begins_with("--every="):
 			every = int(a.trim_prefix("--every="))
+		elif a.begins_with("--system="):
+			systemid = a.trim_prefix("--system=")
+		elif a.begins_with("--core="):
+			core = a.trim_prefix("--core=")
+	if core.is_empty():
+		core = "pcsx2" if systemid == "ps2" else "pcsx_rearmed"
 	get_tree().create_timer(900.0).timeout.connect(func() -> void:
 		print("[psmtgame] TIMEOUT")
 		get_tree().quit(1))
 	get_tree().current_scene = self
-	if root_dir.is_empty() or not FileAccess.file_exists(root_dir.path_join("cores/pcsx_rearmed_libretro.dll")) \
+	if root_dir.is_empty() or not FileAccess.file_exists(root_dir.path_join("cores/%s_libretro.dll" % core)) \
 			or not FileAccess.file_exists(rom_path) or out_dir.is_empty():
 		print("[psmtgame] need --root=, --rom= and --out=")
 		get_tree().quit(1)
@@ -90,9 +102,9 @@ func _spawn(path: String, at: Vector3) -> Node3D:
 
 func _run() -> void:
 	var sys := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
-	sys.systemid = "psx"
+	sys.systemid = systemid
 	sys.core_directory = root_dir
-	sys.core_name = "pcsx_rearmed"
+	sys.core_name = core
 	add_child(sys)
 	sys.freeze = true
 	for i in 10:
@@ -105,7 +117,8 @@ func _run() -> void:
 		for i in 2:
 			sys.restore_controller_plug(i, _pads[i].call("get_plug"))
 	else:
-		var tap := _spawn("res://Scenes/Objects/controllers/playstation/ps_multitap.tscn", Vector3(0, 0, 0.3)) as PsMultitap
+		var tap_scene := "ps2_multitap" if systemid == "ps2" else "ps_multitap"
+		var tap := _spawn("res://Scenes/Objects/controllers/playstation/%s.tscn" % tap_scene, Vector3(0, 0, 0.3)) as PsMultitap
 		await get_tree().physics_frame
 		await get_tree().physics_frame
 		sys.restore_controller_plug(0, tap.get_plug())
@@ -118,7 +131,8 @@ func _run() -> void:
 		(p as Node).set_process(false)
 	print("[psmtgame] %s: players on libretro ports %s" % [leg, str(_pads.map(
 		func(p: Variant) -> int: return int((p as Node).call("get_port_index"))))])
-	print("[psmtgame] forced %s" % str(ForcedCoreOptions.ps_multitap("pcsx_rearmed", "psx", sys.controller_ports().ps_multitap_sockets())))
+	print("[psmtgame] forced %s" % str(ForcedCoreOptions.ps_multitap(core, systemid,
+		sys.controller_ports().ps_multitap_sockets(ForcedCoreOptions.multitap_group(systemid)))))
 
 	sys.rom_path = rom_path
 	sys.toggle_power()

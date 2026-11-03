@@ -330,8 +330,18 @@ type `ps2_multitap`), on the PS2 card. A subclass of `PsMultitap`: everything bu
   - Leg `none` (the control) printed no layout line.
   - This is the option path and the port map only. No game that reads a tap was run.
 
+- **Gauntlet: Dark Legacy (USA) on RetroXR's LRPS2 (fork `923469e69`, the v7 change), 2026-11-03**
+  (`ps_multitap_game_probe --system=ps2`, headless, scratch root). The option is the room's own (`port1`).
+  Script, in core frames: `1600-1608:1:cross,1900-1908:1:cross,2200-2208:1:cross,3000-3008:1:start,`
+  `3400-3408:1:cross,3800-3808:3:start,3950-3958:2:start,4100-4108:4:start,4250-4258:3:start`
+  (two card prompts and a notice, skip the film, Start, then players join).
+  - Leg `tap`: the first card prompt names **"slot 1A"**, the multitap's naming, then "slot 2". Players 3, 2
+    and 4 each open their own panel with Start, so all four panels are up by frame 4180.
+  - Leg `none` (the control, option `disabled`): the prompt names "slot 1", and only panels 1 and 2 open.
+  - Trap met: a Start pressed while another panel is still opening is dropped by the game. Player 3 at frame
+    3900, during panel 2's opening, read as a failure until the order was changed.
+  - Not run: a level with four players, or pcee2.
 **OWED:**
-- A real four-player PS2 game on either core. TimeSplitters 2 and Gauntlet: Dark Legacy read a tap.
 - The fork's Android build, a published v7 and `CoreSources` moved to it.
 - pcee2 installed in this room.
 - A headset, the Quest and a session.
