@@ -194,6 +194,7 @@ func _run() -> void:
 		["display/coming back shows it again", _d_back],
 		["display/a source that stops is blue, not frozen", _d_stopped],
 		["display/a set switched off is dark", _d_off],
+		["display/power cycling preserves the cabinet tube fit", _d_power_fit],
 		["display/a set that is on lights the room, and again after a power cycle", _d_ambilight],
 		["display/an empty input is blue", _d_empty],
 		["display/a host on the input that sends no picture is blue", _d_no_video_cord],
@@ -1209,6 +1210,28 @@ func _r_minidin_jack_drawn_only_on_a_bare_face() -> void:
 	var jack := port.get_node_or_null("PanelJack") as Node3D
 	_ok(jack != null and jack.visible, "and the box's socket is drawn")
 	port.queue_free()
+
+
+func _d_power_fit() -> void:
+	for cabinet in ["", "crt_plain", "retroxr_crt"]:
+		var tv := TV_SCENE.instantiate() as RetroTV
+		tv.tv_model = cabinet
+		tv.freeze = true
+		add_child(tv)
+		_spawned.append(tv)
+		var fitted := tv.screen_mesh().scale
+		tv.set_power(false)
+		_ok(tv.screen_mesh().scale.is_equal_approx(fitted), "%s: off keeps the fitted tube" % cabinet)
+		tv.set_power(true)
+		_ok(tv.screen_mesh().scale.is_equal_approx(fitted * Vector3(1, 0.02, 1)),
+			"%s: the startup line keeps the fitted width and depth" % cabinet)
+		await get_tree().create_timer(0.5).timeout
+		_ok(tv.screen_mesh().scale.is_equal_approx(fitted), "%s: startup restores the fitted tube" % cabinet)
+		tv.set_power(false)
+		tv.set_power(true)
+		await get_tree().create_timer(0.15).timeout
+		tv.set_power(false)
+		_ok(tv.screen_mesh().scale.is_equal_approx(fitted), "%s: interrupted startup restores the fitted tube" % cabinet)
 
 
 func _d_monitor_default() -> void:

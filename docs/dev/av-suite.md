@@ -475,3 +475,15 @@ one out, and every reader of the graph is unchanged:
 seats the set's lead first (the control: no Genesis on the set), then the Video Link
 Cable, and pulls and re-seats each; `an unpowered 32X passes nothing`. Mutation-checked:
 no splice fails 8 checks, a 32X that tells nobody 4, a 32X that always passes 2.
+
+### A power cycle must preserve the fitted tube (2026-11-02)
+
+`TvDisplay.play_power_on_anim` and `stop_power_on_anim` used to reset ScreenMesh
+scale to ONE. The RETRO XR cabinet seats it at (0.8, 0.84, 0.9), so pressing POWER
+made the picture 25% wider and hid its edges and OSD behind the bezel. Capture the
+fitted scale before the startup animation, collapse only its Y axis, and restore
+that scale on completion or interruption. Stopping without a tween must leave the
+shell's pose alone. `av_tests` display/power covers stock, VGA and RETRO XR shells,
+including interruption. The new case failed eight checks before the fix.
+`Tools/av/tv_picture_fit_probe` renders a power cycle with four coloured picture
+edges and MUTE, with and without the cabinet; windowed, `-- --no-mods --out=`.

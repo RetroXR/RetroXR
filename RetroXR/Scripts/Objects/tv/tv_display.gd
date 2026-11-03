@@ -98,6 +98,7 @@ var _rf_static_material: ShaderMaterial = null
 
 ## The CRT power-on animation (a thin horizontal line expanding to full height).
 var _poweron_tween: Tween = null
+var _poweron_rest_scale := Vector3.ONE
 
 
 func setup(tv: RetroTV) -> void:
@@ -207,15 +208,17 @@ func update_screen_source() -> void:
 ## Retro CRT turn-on: the picture starts as a thin horizontal line and expands
 ## to full height. Scaling the screen mesh squashes everything (picture, OSD).
 func play_power_on_anim() -> void:
-	if _poweron_tween:
-		_poweron_tween.kill()
-	_tv.screen_mesh().scale = Vector3(1.0, 0.02, 1.0)
+	stop_power_on_anim()
+	# The shell sizes its tube with ScreenSeat's scale. Animate relative to that
+	# fitted pose; resetting to ONE enlarges the picture behind the bezel.
+	_poweron_rest_scale = _tv.screen_mesh().scale
+	_tv.screen_mesh().scale = _poweron_rest_scale * Vector3(1.0, 0.02, 1.0)
 	# Snap to the thin line instantly — don't let physics interpolation smooth
 	# the collapse (the expansion itself is tweened below).
 	_tv.screen_mesh().reset_physics_interpolation()
 	_poweron_tween = create_tween()
 	_poweron_tween.tween_interval(0.07)
-	_poweron_tween.tween_property(_tv.screen_mesh(), "scale", Vector3.ONE, 0.3) \
+	_poweron_tween.tween_property(_tv.screen_mesh(), "scale", _poweron_rest_scale, 0.3) \
 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 
@@ -223,7 +226,7 @@ func stop_power_on_anim() -> void:
 	if _poweron_tween:
 		_poweron_tween.kill()
 		_poweron_tween = null
-	_tv.screen_mesh().scale = Vector3.ONE
+		_tv.screen_mesh().scale = _poweron_rest_scale
 
 
 # ── CRT filter ─────────────────────────────────────────────────────────────────
