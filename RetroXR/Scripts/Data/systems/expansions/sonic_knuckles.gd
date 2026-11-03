@@ -57,4 +57,21 @@ const BOOT := {
 		"core": "genesis_plus_gx",
 		"roms": ["expansion:sonic_knuckles"],
 	},
+	# In a 32X's slot (ExpansionCatalog.nests_in), as on the hardware: the 32X
+	# passes the cartridge bus through, sits idle, and the machine is the same
+	# Genesis with S&K in it. A Model 1 on a Sega CD the same: a cartridge boots
+	# before the drive. genesis_plus_gx in every case, which has no 32X -- a 32X
+	# game never goes into S&K's roof (its `media` is genesis).
+	"genesis|sega_32x|sonic_knuckles": {
+		"core": "genesis_plus_gx",
+		"roms": ["expansion:sonic_knuckles"],
+	},
+	"genesis|sega_cd|sonic_knuckles": {
+		"core": "genesis_plus_gx",
+		"roms": ["expansion:sonic_knuckles"],
+	},
+	"genesis|sega_cd|sega_32x|sonic_knuckles": {
+		"core": "genesis_plus_gx",
+		"roms": ["expansion:sonic_knuckles"],
+	},
 }

@@ -13,6 +13,8 @@
 ##   --leg=bare   --rom straight in the Genesis: the CONTROL. Same game, no
 ##                lock-on; its pictures must differ from `lock`'s.
 ##   --leg=alone  the unit with its slot empty: plain Sonic & Knuckles.
+##   --leg=lock32x  a 32X in the Genesis, the unit in the 32X's slot, --rom in the
+##                unit's: the same pictures as `lock` (the 32X passes the bus through).
 ##
 ## THE ORACLE IS THE PICTURE, compared across legs: a lock leg whose frames match
 ## the bare leg's at every sample did not lock on, whatever the log says (the core
@@ -122,7 +124,21 @@ func _run() -> void:
 		unit.global_position = _sys.global_position + Vector3(0, 0.25, 0)
 		unit.freeze = true
 		await _room_frames(4)
-		_sys.restore_cartridge(unit)
+		if _leg == "lock32x":
+			# A 32X in the console and S&K in the 32X's slot (ExpansionCatalog.nests_in).
+			var x := (load(UNIT_SCENE) as PackedScene).instantiate() as RetroExpansion
+			x.expansion_id = "sega_32x"
+			add_child(x)
+			x.global_position = _sys.global_position + Vector3(0.3, 0.25, 0)
+			x.freeze = true
+			await _room_frames(4)
+			_sys.restore_cartridge(x)
+			await _room_frames(4)
+			x.restore_media_in_slot(unit)
+			await _room_frames(4)
+			_eq("the stack is 32X + S&K", _sys.expansion_ids(), ["sega_32x", "sonic_knuckles"])
+		else:
+			_sys.restore_cartridge(unit)
 		if cart != null:
 			await _room_frames(4)
 			unit.restore_media_in_slot(cart)
@@ -134,7 +150,7 @@ func _run() -> void:
 		return _finish()
 	_ok("and the core runs", await _runs())
 	var opt := CoreOptionsStore.load_values(CoreDownloadManager.default_core_root(), CORE)
-	var want := "sonic & knuckles" if _leg == "lock" else "disabled"
+	var want := "sonic & knuckles" if _leg in ["lock", "lock32x"] else "disabled"
 	_eq("the run's .opt pins genesis_plus_gx_lock_on", str(opt.get("genesis_plus_gx_lock_on", "")), want)
 	_eq("the content is the right ROM", _sys.rom_path.get_file(),
 		"sk.bin" if _leg == "alone" else _rom.get_file())

@@ -518,6 +518,23 @@ the "NO WAY?" screen, then Blue Sphere on A+B+C (`--press=abc`); **The Lion King
 the real hardware: the cartridge's mapper shows a large game's LAST 2 MB, finds
 no header there and boots S&K alone, so it is not a bug to fix.
 
+**It goes into a 32X too** (2026-11-03), as on the hardware, where the 32X passes
+the cartridge bus straight through. `ExpansionCatalog.nests_in(unit, outer)`: a
+`MOUNT_CARTRIDGE` unit of a console whose games `outer` `passes` -- so the 32X's
+slot (`_accepts_media`) takes S&K and nothing else of the kind. Seated there, the
+32X binds it to the console the 32X is on (`RetroExpansion._bind_nested`), when it
+is seated or, for an S&K put into a loose 32X, when the 32X goes in later; it
+leaves the stack when lifted out of the 32X or with the 32X. The console's stack
+then reads `genesis|sega_32x|sonic_knuckles`, a BOOT row of its own (genesis_plus_gx,
+lock-on: a cartridge in S&K never needs the 32X; rows for a Sega CD under the
+console too). **A nested unit is the OUTER unit's media and nothing else's**:
+`nested_in()` keeps it out of the console's saved `expansions` list (restore would
+reseat it in the console's own slot, on top of the 32X), out of the console's
+`_on_cartridge_removed` (which unbinds the first cartridge-type unit it finds), and
+out of `SeatedCollision.lend` to the console (the 32X already carries its box).
+Measured: `sk_lockon_probe --leg=lock32x` with Sonic 3 gives the S3&K title, its
+later frames byte-identical to the `lock` leg's.
+
 `expansion_tests --only=lockon` drives the gate on the REAL genesis_plus_gx system
 folder (a player's files moved aside and back, scratch ones written and removed).
 

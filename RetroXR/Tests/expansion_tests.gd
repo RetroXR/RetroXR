@@ -1531,7 +1531,82 @@ func _group_lockon() -> void:
 		"lockon/ and lock-on is pinned ON")
 	await _clear()
 
+	await _lockon_in_32x()
 	await _lockon_firmware_gate()
+
+
+## S&K in a 32X's slot, as on the hardware (the 32X passes the cartridge bus
+## through): it joins the console's stack through the 32X, boots with lock-on on
+## genesis_plus_gx, leaves with either piece, and the save puts it back in the 32X
+## rather than in the console's own slot.
+func _lockon_in_32x() -> void:
+	_ok(ExpansionCatalog.nests_in("sonic_knuckles", "sega_32x"),
+		"lockon/ S&K nests in a 32X")
+	_ok(not ExpansionCatalog.nests_in("sega_32x", "sega_32x")
+			and not ExpansionCatalog.nests_in("super_game_boy", "sega_32x"),
+		"lockon/ and nothing else does (not a 32X in itself, not a Super NES unit)")
+
+	var md := await _console("genesis")
+	var x := await _unit("sega_32x")
+	var sk := await _unit("sonic_knuckles")
+	_ok(x._accepts_media(sk), "lockon/ the 32X's slot takes the S&K cartridge")
+	_ok(not sk._accepts_media(x), "lockon/ and S&K's roof does not take a 32X")
+	# The S&K first, the 32X onto the console after: the join carries it along.
+	x.restore_media_in_slot(sk)
+	await _wait(5)
+	_ok(sk.get_host() == null, "lockon/ in a loose 32X it is bolted to nothing")
+	await _bolt(md, x)
+	_ok(md.expansion_ids() == ["sega_32x", "sonic_knuckles"],
+		"lockon/ the 32X seated, the console's stack is 32X + S&K (got %s)" % [md.expansion_ids()])
+	var top := await _cart("genesis", "/roms/genesis/Sonic The Hedgehog 3 (USA).md")
+	sk.restore_media_in_slot(top)
+	await _wait(5)
+	_ok(str(md.expansion_boot().get("core", "")) == "genesis_plus_gx",
+		"lockon/ which boots on genesis_plus_gx, not the 32X's picodrive")
+	md.expansion_launch().apply_expansion_launch()
+	_ok(md.rom_path == "/roms/genesis/Sonic The Hedgehog 3 (USA).md"
+			and md.all_forced_options("genesis_plus_gx").get("genesis_plus_gx_lock_on", "") == "sonic & knuckles",
+		"lockon/ the game in S&K's roof is the content, with lock-on ON")
+
+	var sp := ScenePersistence.new()
+	var rec := sp._serialize_system(md, 1, md, {md: 1, x: 2, sk: 3, top: 4})
+	_ok(rec.get("expansions", []) == [2],
+		"lockon/ the console saves only the 32X; S&K is the 32X's media (got %s)" % [rec.get("expansions", [])])
+
+	# Out of the 32X's slot: off the console with it.
+	await _unbolt(x._bays[0], sk)
+	_ok(md.expansion_ids() == ["sega_32x"] and sk.get_host() == null and sk.nested_in() == null,
+		"lockon/ lifted out of the 32X, it leaves the stack (got %s)" % [md.expansion_ids()])
+	x.restore_media_in_slot(sk)
+	await _wait(5)
+	_ok(md.expansion_ids() == ["sega_32x", "sonic_knuckles"], "lockon/ and back in, it rejoins")
+	# The 32X off the console takes S&K with it, and the console's slot is empty.
+	await _unbolt(md._cartridge_slot as XRToolsSnapZone, x)
+	_ok(md.expansion_ids().is_empty() and sk.get_host() == null and x.get_host() == null,
+		"lockon/ the 32X lifted off takes S&K with it (got %s)" % [md.expansion_ids()])
+	await _clear()
+
+	# A room saved that way comes back that way: S&K in the 32X, both on the console.
+	var room := Node3D.new()
+	add_child(room)
+	_spawned.append(room)
+	var back := sp.instantiate_objects(room, [
+		{"id": 1, "type": "system", "systemid": "genesis", "position": [40.0, 1.0, 0.0],
+			"rotation": [0.0, 0.0, 0.0], "expansions": [2], "ignore_gravity": true},
+		{"id": 2, "type": "expansion", "expansion_id": "sega_32x", "media": 3,
+			"position": [40.0, 1.1, 0.0], "rotation": [0.0, 0.0, 0.0]},
+		{"id": 3, "type": "expansion", "expansion_id": "sonic_knuckles",
+			"position": [40.0, 1.3, 0.0], "rotation": [0.0, 0.0, 0.0]},
+	])
+	await _wait(10)
+	var md2 := back.get(1) as RetroSystem
+	var x2 := back.get(2) as RetroExpansion
+	var sk2 := back.get(3) as RetroExpansion
+	_ok(md2 != null and x2 != null and sk2 != null and x2.get_media() == sk2
+			and md2.expansion_ids() == ["sega_32x", "sonic_knuckles"]
+			and x2.get_host() == md2 and sk2.get_host() == md2,
+		"lockon/ restored: S&K in the 32X, the 32X in the console, the stack whole")
+	await _clear()
 
 
 ## Both files or the adapter refuses: the core locks on only when sk2chip.bin

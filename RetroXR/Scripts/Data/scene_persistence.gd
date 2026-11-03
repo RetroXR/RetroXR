@@ -2317,6 +2317,11 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 	# has no stack in it changes at all.
 	var units: Array = []
 	for unit in sys.get_expansions():
+		# A unit in another unit's slot (S&K in a 32X) is that unit's media and is
+		# put back by ITS bay record; restore_expansion would reseat it in the
+		# console's own slot, on top of the 32X.
+		if unit.nested_in() != null:
+			continue
 		units.append(_ref(node_to_id, unit))
 	if not units.is_empty():
 		result["expansions"] = units

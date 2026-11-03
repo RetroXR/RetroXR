@@ -4639,6 +4639,10 @@ func _on_cartridge_removed() -> void:
 	# The slot says it is empty, not what left it. If what left was a bolted-on
 	# expansion, that is the join coming apart.
 	for held in get_expansions():
+		# A unit in ANOTHER unit's slot (S&K in a 32X) was never in ours: the unit
+		# that was leaves and takes it along (RetroExpansion._unbind_host).
+		if held.nested_in() != null:
+			continue
 		if ExpansionCatalog.mount_of(held.expansion_id) == ExpansionCatalog.MOUNT_CARTRIDGE:
 			remove_collision_exception_with(held)
 			held.unbind_from_host()

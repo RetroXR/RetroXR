@@ -610,17 +610,27 @@ func _bind_host(sys: RetroSystem) -> void:
 	# Seated in one of the console's sockets (a Super Game Boy or a 32X in the
 	# cartridge slot), this unit is frozen and stands well out of it: the console
 	# carries its box, and through it whatever is in this unit's own bay.
+	# Not when the zone is ANOTHER unit's slot (S&K in a 32X): that unit already
+	# carries our box, and lending it to the console as well would put a second
+	# copy of it there, at a pose read from a zone the console does not own.
 	var zone := _holding_zone()
-	if zone != null:
+	if zone != null and nested_in() == null:
 		SeatedCollision.lend(sys, self, zone)
 	_update_label()
 	host_changed.emit(sys)
+	for unit in _nested_units():
+		_bind_nested(unit)
 
 
 func _unbind_host() -> void:
 	if _host == null:
 		return
 	var was := _host
+	# What is in our slot leaves the console with us.
+	for unit in _nested_units():
+		if unit.get_host() == was:
+			print("[RetroExpansion] %s: off %s with %s" % [unit.expansion_id, was.name, expansion_id])
+			unit.unbind_from_host()
 	_host = null
 	if is_instance_valid(was):
 		print("[RetroExpansion] %s: off %s (%s)" % [expansion_id, was.name, was.systemid])
@@ -954,6 +964,9 @@ func _seat_on_floor(media: String) -> void:
 ## is let through — a blank cartridge is whatever machine it is put into, which
 ## is how RetroSystem treats one too.
 func _accepts_media(obj: Node3D) -> bool:
+	# A unit that goes into this one's slot as a cartridge would (S&K in a 32X).
+	if obj is RetroExpansion:
+		return ExpansionCatalog.nests_in((obj as RetroExpansion).expansion_id, expansion_id)
 	if obj == null or not ("systemid" in obj):
 		return false
 	var mid := str(obj.get("systemid"))
@@ -986,6 +999,7 @@ func _on_media_in(media: Node3D, slot := 0) -> void:
 	if "systemid" in media:
 		_seat_on_floor(str(media.get("systemid")))
 	_swing_flaps(true)
+	_bind_nested(media)
 	_notify_host_media()
 
 
@@ -999,9 +1013,59 @@ func _on_media_out(slot := 0) -> void:
 		remove_collision_exception_with(was)
 		SeatedCollision.withdraw(self, was as CollisionObject3D)
 	_media[slot] = null
+	_unbind_nested(was)
 	_seat_on_floor(ExpansionCatalog.media_of(expansion_id))
 	_swing_flaps(false)
 	_notify_host_media()
+
+
+# ── a unit in this unit's slot ────────────────────────────────────────────────
+
+## The unit whose slot this one is seated in (a 32X, holding Sonic & Knuckles),
+## or null. Set by that unit. Such a unit is bolted to the outer unit's console
+## but is NOT the console's to save or reseat: the outer unit's own bay record
+## puts it back (ScenePersistence leaves it out of the console's "expansions").
+var _outer: RetroExpansion = null
+
+
+func nested_in() -> RetroExpansion:
+	return _outer if is_instance_valid(_outer) else null
+
+
+## A unit just seated in our slot joins our console's stack, as it would sitting
+## in the console's own slot. With no console under us yet it waits: our own
+## _bind_host binds it when we are seated.
+func _bind_nested(media: Node3D) -> void:
+	var unit := media as RetroExpansion
+	if unit == null:
+		return
+	unit._outer = self
+	var h := get_host()
+	if h != null:
+		print("[RetroExpansion] %s: in %s's slot, bolted to %s" % [unit.expansion_id, expansion_id, h.name])
+		unit.bind_to_host(h)
+	else:
+		print("[RetroExpansion] %s: in %s's slot, no console under it yet" % [unit.expansion_id, expansion_id])
+
+
+func _unbind_nested(media: Node3D) -> void:
+	var unit := media as RetroExpansion
+	if unit == null or not is_instance_valid(unit):
+		return
+	if unit._outer == self:
+		unit._outer = null
+	if unit.get_host() != null and unit.get_host() == get_host():
+		print("[RetroExpansion] %s: out of %s's slot" % [unit.expansion_id, expansion_id])
+		unit.unbind_from_host()
+
+
+## The units in our slots, for our own join and parting to carry them with us.
+func _nested_units() -> Array[RetroExpansion]:
+	var out: Array[RetroExpansion] = []
+	for m: Variant in _media:
+		if m is RetroExpansion and is_instance_valid(m):
+			out.append(m as RetroExpansion)
+	return out
 
 
 ## How far a shell's slot flaps swing, and how fast -- the Mega Drive's own figures

@@ -637,6 +637,17 @@ static func passes_of(id: String) -> Array:
 	return _field(id, "passes") as Array
 
 
+## Does unit `id` go into `outer`'s own slot as the console's cartridge would? A
+## cartridge-mounting unit of a console whose games `outer` passes straight
+## through: Sonic & Knuckles in a 32X, which the hardware passes the cartridge bus
+## to. Seated there it is bolted to the console the outer unit is on
+## (RetroExpansion._bind_nested), so the stack reads "32X + S&K".
+static func nests_in(id: String, outer: String) -> bool:
+	if id == outer or mount_of(id) != MOUNT_CARTRIDGE:
+		return false
+	return passes_of(outer).has(host_of(id))
+
+
 static func mount_of(id: String) -> int:
 	return int(_field(id, "mount"))
 
