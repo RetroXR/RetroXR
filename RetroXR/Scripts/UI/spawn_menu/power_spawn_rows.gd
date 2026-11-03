@@ -96,10 +96,11 @@ static func brick_row(id: String) -> Dictionary:
 
 
 ## The wall plug a brick's model has, or "" for one with no mains plug of its own
-## (an inlet brick takes a figure-eight cord; the DMG-03 is a battery pack).
+## (an inlet brick takes a figure-eight cord; the DMG-03 is a battery pack, the DMG-05
+## a case of C cells).
 static func _brick_plug(id: String, name: String) -> String:
 	var form := str(PowerBrickCatalog.variant(id, name).get("form", "wall_wart"))
-	if form == "inlet" or form == "battery_pack":
+	if form == "inlet" or form == "battery_pack" or form == "battery_case":
 		return ""
 	return PowerBrickCatalog.wall_plug_of(name)
 

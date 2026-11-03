@@ -61,6 +61,8 @@ func _ready() -> void:
 		await _test_bay()
 	if _want("brick"):
 		await _test_brick()
+	if _want("case"):
+		await _test_case()
 	if _want("save"):
 		await _test_save()
 	if _want("spawn"):
@@ -381,24 +383,6 @@ func _machine(systemid: String, model_id: String = "") -> RetroSystem:
 	return sys
 
 
-## Take out the cells a handheld fresh from the menu came with (SystemPower), for a
-## case about a machine with none. Returns how many there were.
-func _empty_bay(sys: Node) -> int:
-	var slots := CellSlots.of(sys)
-	if slots == null:
-		return 0
-	var n := 0
-	for seat: String in slots.seats():
-		var zone := slots.slot(seat)
-		if zone.has_snapped_object():
-			var cell := zone.picked_up_object as Node
-			zone.drop_object()
-			cell.queue_free()
-			n += 1
-	await _wait(3)
-	return n
-
-
 func _test_console() -> void:
 	var plate := _new_room()
 	# A Saturn wears the procedural box: its inlet is built from PowerProfiles.
@@ -459,7 +443,6 @@ func _test_console() -> void:
 func _test_latch() -> void:
 	var plate := _new_room()
 	var gb := await _machine("gb", "game_boy_primitive")
-	await _empty_bay(gb)
 	var jack := gb.find_child("DcInPort", true, false) as DcPort
 	var input := PowerInput.of(gb)
 	_ok(jack != null and input != null and input.inlets().has(jack),
@@ -663,9 +646,10 @@ func _test_bay() -> void:
 	_ok(covers.is_on(socket), "bay/fresh from the menu its cover is on")
 	_ok(slots.is_blocked(), "bay/with the cover on, the bay is shut")
 	var input := PowerInput.of(gb)
-	_eq(slots.cells().size(), 4, "bay/fresh from the menu it has its four AA in")
-	_ok(input.is_live(), "bay/and runs on them")
-	_eq(await _empty_bay(gb), 4, "bay/(taken out for the cases below)")
+	# The handheld's own bay comes EMPTY (the user's call, 2026-11-03): cells are the
+	# Power tab's rows. Only the DMG-05 Battery Case comes full (case/).
+	await _wait(10)
+	_eq(slots.cells().size(), 0, "bay/fresh from the menu its bay is empty")
 	_ok(not input.is_live(), "bay/no cells, no adapter: no power")
 	_ok(input.describe().contains("No batteries (takes 4 AA)"), "bay/it says what it takes", input.describe())
 	await _pull(covers.slot(socket))
@@ -764,6 +748,62 @@ func _test_brick() -> void:
 	var pack := _brick("dmg_battery_pack", "usa", Vector3(-1.0, 0.3, 0.5))
 	await _wait(4)
 	_ok(MainsPower.plug_live(pack.dc_plug), "brick/the DMG-03 pack is charged")
+	await _clear()
+
+
+## The DMG-05 Battery Case: four C cells in a bay of its own, full fresh from the
+## menu, and its plug live only while every seat holds a cell.
+func _test_case() -> void:
+	_new_room()
+	_ok(PowerBrickCatalog.for_machine("", "gb").has("dmg_battery_case"), "case/the Game Boy card offers the DMG-05")
+	var case_ := _brick("dmg_battery_case", "", Vector3(-1.0, 0.3, 0.5))
+	await _wait(6)
+	_eq(case_.form, "battery_case", "case/the DMG-05 is a battery case")
+	_eq(case_.dc_plug.connector, "barrel_3_5x1_35", "case/on the Game Boy's plug")
+	var slots := CellSlots.of(case_)
+	var covers := CoverSlots.of(case_)
+	_ok(slots != null and slots.seats().size() == 4, "case/it has four seats, on the brick (what a save records)",
+		str(slots.seats().size() if slots != null else -1))
+	if slots == null or covers == null or covers.sockets().is_empty():
+		await _clear()
+		return
+	_eq(CellSlots.size_of_seat(slots.seats()[0]), "C", "case/for C cells")
+	_eq(slots.cells().size(), 4, "case/fresh from the menu it has its four C cells in")
+	_ok(covers.is_on(covers.sockets()[0]), "case/its cover on")
+	_ok(MainsPower.plug_live(case_.dc_plug), "case/full: its plug is live")
+	# A Game Boy on it runs; a cell out and it is dead.
+	var gb := await _machine("gb", "game_boy_primitive")
+	var jack := gb.find_child("DcInPort", true, false) as DcPort
+	if jack != null:
+		jack.pick_up_object(case_.dc_plug)
+		await _wait(4)
+		_ok(PowerInput.of(gb).is_live(), "case/a Game Boy on the full case has power")
+	await _pull(covers.slot(covers.sockets()[0]))
+	await _wait(3)
+	await _pull(slots.slot(slots.seats()[0]))
+	await _wait(4)
+	_ok(not MainsPower.plug_live(case_.dc_plug), "case/a cell out: its plug is dead")
+	if jack != null:
+		_ok(not PowerInput.of(gb).is_live(), "case/and the Game Boy on it has none")
+	# A save's entry names the cells on the brick.
+	var ids := {case_: 7}
+	for cell: Variant in slots.cells().values():
+		ids[(cell as Array)[0]] = ids.size() + 7
+	var entry: Dictionary = ScenePersistence.new("arcade").serialize_node(case_, 7, ids)
+	_ok(entry.has("cell_slots") and (entry["cell_slots"] as Dictionary).size() == 3,
+		"case/a save records the three cells left", str(entry.get("cell_slots", {})))
+	_ok(entry.has("cover_slots"), "case/and its cover")
+	# A case that is not a fresh spawn (a save's, a room's own) is not filled.
+	var bare := BRICK_SCENE.instantiate() as PowerBrick
+	bare.brick_id = "dmg_battery_case"
+	bare.position = Vector3(1.0, 0.3, 0.5)
+	_room.add_child(bare)
+	await _wait(6)
+	_eq(CellSlots.of(bare).cells().size(), 0, "case/one not spawned from the menu comes empty")
+	# The DMG-03 is still a sealed, charged pack.
+	var pack := _brick("dmg_battery_pack", "usa", Vector3(-1.5, 0.3, 0.5))
+	await _wait(4)
+	_ok(CellSlots.of(pack) == null and MainsPower.plug_live(pack.dc_plug), "case/the DMG-03 has no bay and is charged")
 	await _clear()
 
 
@@ -890,6 +930,22 @@ func _test_spawn() -> void:
 	SystemModelRegistry.drop_mod("power.test")
 	_ok(PowerBrickCatalog.for_machine("", "psx").has("psone_ac_adapter"),
 		"spawn/the PlayStation card offers the PSone's adapter")
+	# An expansion with a supply of its own: its adapter is on the card it is spawned
+	# from (its own card returns before the console's adapter rows).
+	for unit_id: String in ["sega_32x", "sega_cd", "fds"]:
+		var brick := str(PowerProfiles.for_machine(unit_id, "").get("brick", ""))
+		var card := ExpansionCatalog.card_systemid(unit_id)
+		var unit_there := false
+		var brick_there := false
+		for item: Dictionary in SpawnCatalog.items_for(card):
+			var token := str(item.get("spawn", ""))
+			if token == PowerBrickCatalog.PREFIX + brick and item.has("power_row"):
+				brick_there = true
+			if token == "expansion:%s" % unit_id:
+				unit_there = true
+		_ok(not brick.is_empty() and unit_there and brick_there,
+			"spawn/the %s card offers the %s and its %s" % [card, unit_id, brick],
+			"unit %s, brick %s" % [unit_there, brick_there])
 
 
 ## An arcade cabinet takes a kettle lead in the C14 inlet on its back; a deck a room

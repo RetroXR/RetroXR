@@ -34,10 +34,11 @@ const PIN_COLOR := Color(0.78, 0.76, 0.7)
 ## one sold in the player's region, settled in _ready and saved from then on.
 @export var variant := ""
 
-## The variant's form (PowerBrickCatalog): wall_wart, inline, inlet, dock, battery_pack.
+## The variant's form (PowerBrickCatalog): wall_wart, inline, inlet, dock, battery_pack,
+## battery_case.
 var form := ""
 ## The prongs of a wall wart or the plug at the end of the mains cord, or null for a
-## form with no mains side of its own (inlet, battery_pack).
+## form with no mains side of its own (inlet, battery_pack, battery_case).
 var wall_plug: PowerPlug = null
 ## The plug at the end of the DC lead, or the whole module for a dock.
 var dc_plug: PowerPlug = null
@@ -163,7 +164,7 @@ func _build() -> void:
 			else:
 				_add_cord(_ac_rope, _anchor(dc_plug, "AcAnchor", _mm(_spec.get("ac")),
 					Vector3(0, 0, size.z * 0.5), size), wall_plug)
-		"battery_pack":
+		"battery_pack", "battery_case":
 			var box := _make_body(size)
 			_drop(wall_plug)
 			wall_plug = null
@@ -172,6 +173,43 @@ func _build() -> void:
 			_add_cord(_dc_rope, _model_anchor(_body, "DcAnchor", "DCCordAnchor", box,
 				_mm(_spec.get("dc"))), dc_plug)
 			_make_dc_plug()
+			if form == "battery_case":
+				_make_bay(box)
+
+
+## A battery case's bay (the row's `bay`, BatteryBay's spec) cut into the underside
+## of its body. Its cells and cover are the BRICK's (CoverSlots.HOST_META: the brick
+## is what a save records), and a fresh one comes with every seat filled
+## (_fill_bay), as the DMG-05 is nothing without its four C cells.
+func _make_bay(box: AABB) -> void:
+	var bay: Dictionary = _spec.get("bay", {})
+	if bay.is_empty():
+		push_warning("[Power] brick %s (%s): a battery case with no bay in its row" % [brick_id, variant])
+		return
+	_body.set_meta(CoverSlots.HOST_META, self)
+	var body_mesh := _body.get_node_or_null("Box") as MeshInstance3D
+	var seats := BatteryBay.build(_body, box, bay, "%s_battery_cover" % brick_id, BODY_COLOR, body_mesh)
+	print("[Power] brick %s: battery case, %d %s seats" % [brick_id, seats, str(bay.get("size", "AA"))])
+	if not has_meta(CoverSlots.RESTORING):
+		_fill_bay.call_deferred()
+
+
+## Every seat filled, for a case fresh from the spawn menu (in "spawned", not a save's).
+func _fill_bay() -> void:
+	if not is_inside_tree() or has_meta(CoverSlots.RESTORING):
+		return
+	if not is_in_group("spawned"):
+		print("[Power] brick %s: not a spawned object; its bay is left as it is" % brick_id)
+		return
+	print("[Power] brick %s: came with its cells in (%d)" % [brick_id, BatteryBay.fill(self)])
+
+
+## Whether every seat of a battery case's bay holds a cell.
+func bay_full() -> bool:
+	var slots := CellSlots.of(self)
+	if slots == null or slots.seats().is_empty():
+		return false
+	return slots.cells().size() == slots.seats().size()
 
 
 ## A part this form has no use for, gone now: queued, it would run its deferred
@@ -566,6 +604,8 @@ func mains_live_at(at: Node, seen: Dictionary) -> bool:
 	match form:
 		"battery_pack":
 			return true
+		"battery_case":
+			return bay_full()
 		"inlet":
 			var fed: Node3D = inlet.picked_up_object as Node3D if inlet != null else null
 			return fed != null and MainsPower.plug_live(fed, seen)
@@ -576,6 +616,8 @@ func mains_noun() -> String:
 	match form:
 		"battery_pack":
 			return "battery pack"
+		"battery_case":
+			return "battery case"
 		"dock":
 			return "power supply"
 	return "AC adapter"

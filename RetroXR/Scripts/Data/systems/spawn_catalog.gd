@@ -544,6 +544,7 @@ static func _items_for(systemid: String) -> Array:
 		# _units_carded_here.
 		unit_items.append(_unit_item(systemid))
 		unit_items.append_array(_units_carded_here(systemid))
+		unit_items.append_array(_unit_power_items(systemid))
 		return unit_items
 
 	# The same card under another name: the MEDIA of a unit whose id differs from
@@ -555,7 +556,7 @@ static func _items_for(systemid: String) -> Array:
 	# and whatever that unit carries into the room with it (_PERIPHERALS: the
 	# 32X's Model 2 spacer), never a console or a pad.
 	if _is_expansion_media(systemid):
-		return _units_carded_here(systemid) + (_PERIPHERALS.get(systemid, []) as Array).duplicate(true)
+		return _units_carded_here(systemid) + (_PERIPHERALS.get(systemid, []) as Array).duplicate(true) 			+ _unit_power_items(systemid)
 
 	var primitive: Array = []
 	var imported: Array = []
@@ -854,6 +855,33 @@ static func note_built_sockets(owner_id: String, model_id: String, listed: Array
 ## directory there is no shell for it to run.
 ## Whether `systemid` is only the media of an expansion unit -- a card that
 ## files a unit and is no console of its own (its host is somebody else).
+## What the units on an expansion's card run on (docs/dev/power.md "Expansions with a
+## supply of their own"): the adapter each one's PowerProfiles row names -- the 32X's
+## MK-2103, the Sega CD's MK-1602, the Disk System drive's HVC-025 -- and any brick
+## whose `fits` names the card. This card returns before the console path that lists
+## adapters, so the 32X's card offered a unit that will not start without an
+## adapter and not the adapter. A unit that runs off its console (a 64DD) adds none.
+static func _unit_power_items(systemid: String) -> Array:
+	var bricks: Array[String] = []
+	var units: Array[String] = []
+	if ExpansionCatalog.has(systemid) and ExpansionCatalog.has_own_card(systemid):
+		units.append(systemid)
+	units.append_array(ExpansionCatalog.ids_carded_on(systemid))
+	for unit_id: String in units:
+		var brick := str(PowerProfiles.for_machine(unit_id, "").get("brick", ""))
+		if not brick.is_empty() and PowerBrickCatalog.has(brick) and not bricks.has(brick):
+			bricks.append(brick)
+	for brick: String in PowerBrickCatalog.for_machine("", systemid):
+		if not bricks.has(brick):
+			bricks.append(brick)
+	var out: Array = []
+	for brick: String in bricks:
+		var brick_row := PowerSpawnRows.brick_row(brick)
+		out.append({"kind": "peripheral", "label": str(brick_row["label"]),
+			"spawn": PowerBrickCatalog.PREFIX + brick, "power_row": brick_row})
+	return out
+
+
 static func _is_expansion_media(systemid: String) -> bool:
 	for id: String in ExpansionCatalog.ids_carded_on(systemid):
 		if ExpansionCatalog.media_of(id) == systemid 				and ExpansionCatalog.host_of(id) != systemid:

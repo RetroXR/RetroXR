@@ -28,6 +28,8 @@
 ##                "inlet"      a body with a C8 inlet; a figure-eight cord feeds it
 ##                "dock"       the whole body is the plug (the N64's), mains cord fixed
 ##                "battery_pack" a charged pack, no mains side at all
+##                "battery_case" cells in a bay of its own (`bay`, BatteryBay's spec),
+##                             live at its plug only with every seat filled
 ##     size_mm    the body's x y z in mm (asset_stats.json size_mm).
 ##     dc / ac / ac_in  anchors in mm in the model's frame (asset_stats anchors_mm):
 ##                where the DC cord leaves, the mains cord leaves, the C8 inlet is.
@@ -168,6 +170,16 @@ static func _shipped() -> Dictionary:
 			"dc_plug": "barrel_3_5x1_35", "plug_mm": [7.6, 21.1, 20.0], "source": "nintendo/gb/psu",
 			"variants": {"usa": {"form": "battery_pack", "size_mm": [60.0, 33.04, 118.5],
 				"dc": [0.0, 15.0, 66.0]}}},
+		# DMG-05: Nintendo's Battery Case, sold in Japan only -- four C cells in a box on a
+		# cord into the Game Boy's DC IN, the same plug as the DMG-03's (about 40 hours a
+		# set, per consolevariations.com). No measured model: the size is an ESTIMATE, the
+		# four C cells (26.2 x 50 mm, side by side in one row) in a bay cut into its
+		# underside plus the walls round it, so the case is the cells' box and no more.
+		"dmg_battery_case": {"label": "Game Boy Battery Case (DMG-05)", "cord": Color8(24, 24, 26), "fits": ["gb"],
+			"dc_plug": "barrel_3_5x1_35", "plug_mm": [7.6, 21.1, 20.0], "source": "",
+			"variants": {"jpn": {"form": "battery_case", "size_mm": [64.0, 36.0, 120.0],
+				"dc": [0.0, 18.0, 60.0],
+				"bay": {"size": "C", "count": 4, "along": "x", "at": [0.0, 0.0]}}}},
 		"gbc_ac_adapter": {"label": "Game Boy Color AC Adapter (MGB-005)", "cord": Color8(24, 24, 26), "fits": ["gbc"],
 			"dc_plug": "eiaj_01", "plug_mm": [6.8, 6.8, 33.0], "source": "nintendo/gbc/psu",
 			"variants": {"usa": mgb, "jpn": mgb, "eur": mgb, "aus": mgb}},
@@ -281,7 +293,7 @@ static func override_brick(id: String, changes: Dictionary, owner_id: String) ->
 ## The forms an adapter can take (PowerBrick builds each), and the anchors each
 ## needs in its variants: where its cords leave, where its inlet is.
 const FORMS := {"wall_wart": ["dc"], "inline": ["dc", "ac"], "inlet": ["dc", "ac_in"],
-	"dock": ["ac"], "battery_pack": ["dc"]}
+	"dock": ["ac"], "battery_pack": ["dc"], "battery_case": ["dc"]}
 ## The row fields a mod's own adapter may carry (register_mod_brick).
 const MOD_ROW_FIELDS := ["label", "fits", "dc_plug", "takes", "plug_mm", "cord", "plug_model", "variants",
 	"source"]

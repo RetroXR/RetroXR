@@ -24,7 +24,7 @@ because nothing in it could ever be plugged in. The Arcade Room and the bedroom 
 | `PowerProfiles` | `Scripts/Data/power_profiles.gd` | Per model id, then systemid: `inlet` (c8 / c8p / c14 / dc / dock), the DC `plug`, `brick`, `internal`, `bay`. No row = no supply modelled = always on. |
 | `CaptiveMainsCord` | `Scripts/Objects/cables/power/captive_mains_cord.gd` | A deck's or the amplifier's own cord from its `PowerCordExit`, plug in the region's two-pin (or, grounded, three-pin) shape. Child of the current scene, freed with its host, never `spawned`. |
 | `ApplianceMains` | `Scripts/Objects/power/appliance_mains.gd` | `hook_up(host)` gives a deck or the amplifier its PowerInput and its own cord; `hook_up_inlet(host, search, "c8"/"c14")` gives a set (C8) its inlet where the model's cord would leave; `follow(deck, set_input)` for a built-in deck. |
-| `PowerBrickCatalog` / `PowerBrick` | `Scripts/Data/power_brick_catalog.gd`, `Scripts/Objects/power/power_brick.gd`, `Scenes/Objects/power/power_brick.tscn` | Every AC adapter as a primitive built from its row: wall wart, in-line, inlet, dock (N64), battery pack (DMG-03). Its leads take the row's `cord`: the real part's colour, read off the RetroXR-models item's `*_Cord` material (black for most; the Wii's and 3DS's light gray, the PSone's blue-gray; the DMG-03's is black by its research notes, though its plug is gray). |
+| `PowerBrickCatalog` / `PowerBrick` | `Scripts/Data/power_brick_catalog.gd`, `Scripts/Objects/power/power_brick.gd`, `Scenes/Objects/power/power_brick.tscn` | Every AC adapter as a primitive built from its row: wall wart, in-line, inlet, dock (N64), battery pack (DMG-03), battery case (DMG-05, its own C-cell bay). Its leads take the row's `cord`: the real part's colour, read off the RetroXR-models item's `*_Cord` material (black for most; the Wii's and 3DS's light gray, the PSone's blue-gray; the DMG-03's is black by its research notes, though its plug is gray). |
 | `BatteryBay` | `Scripts/Objects/power/battery_bay.gd` | A primitive handheld's compartment from its `bay` row, CUT INTO the body (2026-11-01): the body's box becomes the same box with a pocket in its back (`pocketed_box`), the cells inside, contacts, `BatteryAA<n>` seats (CellSlots) and a lift-off cover per compartment (CoverSlots) flush with the back, in the shell's colour. A seated cover is aimed at by a box of its own width standing `POINTER_REACH` (7 mm) out of the back, past the console's grab box (body + 5 mm), or the desktop ray and the laser took the console instead (`Tools/room/battery_bay_probe`, which checks both). |
 | `PowerMenuRows` | `Scripts/UI/panels/power_menu_rows.gd` | The Power section of a device's System tab: status, supply line, Show Power Cord. |
 | `VbPowerUnit` | `Scripts/Objects/power/vb_power_unit.gd`, `Scenes/Objects/power/vb_battery_pack.tscn`, `vb_ac_tap.tscn` | The Virtual Boy's VUE-007 battery pack (six AA behind an end lid) and VUE-011 AC adapter tap (a DC jack), each a primitive of the pack's measured outline that clips onto the controller's `PackMount`. |
@@ -145,18 +145,31 @@ because nothing in it could ever be plugged in. The Arcade Room and the bedroom 
   Printer** runs on six AA only, no jack (Nintendo's support page): `GbPrinter` builds a
   BatteryBay under its body (`BATTERY_BAY`, cover `gb_printer_battery_cover`), refuses to
   switch on without all six, and goes off when one comes out. `power_tests expansion/`
-  `units/`, `Tools/room/expansion_power_probe` (windowed).
+  `units/`, `Tools/room/expansion_power_probe` (windowed). **Each unit's adapter is on
+  the card it is spawned from** (2026-11-03, `SpawnCatalog._unit_power_items`): an
+  expansion's own card (sega32x, segacd, fds) returns before the console path that lists
+  adapters, so the 32X's card offered a unit that will not start and not the MK-2103.
+  It now lists the adapter each unit's PowerProfiles row names, plus any brick whose
+  `fits` names the card. `power_tests spawn/`.
 - **Handhelds.** Cells in EVERY bay, or a live DC adapter where the hardware runs off one,
   or a built-in pack (GBA SP, DS, 3DS, PSP: treated as always charged, so the machine is
   always powered; their jack only charges, so it is not an inlet).
   An object with bays counts only its cells; cells carry no charge level (a drain model is a
   follow-up). Base-game primitives get their bay from `PowerProfiles` `bay`
   (`BatteryBay`); a mod's shell that builds its own seats (xenu.gb) keeps them. **A fresh
-  spawn comes with its cells in** (2026-11-03, the user's call: "the battery pack for the
-  Game Boy should have batteries"), cover on, as a Game Boy came in its box:
-  `SystemPower._seed_cells`, deferred, for a machine in "spawned" and not restoring
-  (`CoverSlots.RESTORING`), waiting up to ten frames for a mod shell's own seats. A save
-  and a room's own furnishings are never seeded. More cells are the Power tab's AA/AAA rows.
+  spawn's bay is empty** with its cover on: cells are the Power tab's AA/AAA rows. (It
+  was seeded full for a day, 2026-11-03, from a misread note: the user's "the battery
+  pack for the Game Boy should have batteries" meant the DMG-05 case below, and they
+  want a handheld's own bay EMPTY.)
+- **The DMG-05 Battery Case** (`dmg_battery_case`, form `battery_case`, 2026-11-03): Nintendo's
+  Japan-only case of four C cells on a cord into the Game Boy's DC IN (the DMG-03's plug).
+  Its row carries a `bay` (BatteryBay's spec), cut into the underside of its body; the
+  seats and cover are the BRICK's, not its body's (`CoverSlots.HOST_META` on the body names
+  the brick, which is what a save records). It is live at its plug only with every seat
+  filled (`PowerBrick.bay_full`), and it is the one thing that comes FULL: a fresh spawn
+  (in "spawned", not `CoverSlots.RESTORING`) gets `BatteryBay.fill`, cover on. Its size is
+  an ESTIMATE (64 x 36 x 120 mm: four C side by side and the walls round them; no
+  measured model). The DMG-03 stays a sealed, charged pack. `power_tests case/`.
 - **A set has a cord of its own, as the decks do** (the user's call, REVERSED 2026-11-01:
   it was a C8 inlet): `ApplianceMains.hook_up(tv, shell)` from the RETRO XR model's
   `PowerCordExit`; a model with none (the Classic box, a mod's set like the Panasonic) gets

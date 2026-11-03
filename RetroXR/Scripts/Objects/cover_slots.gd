@@ -27,6 +27,9 @@ extends Node
 ## room, so its slots wait for the save instead of seeding covers.
 const RESTORING := &"cover_slots_restoring"
 const NODE_NAME := "CoverSlots"
+## On a pickable that is part of a bigger object (a PowerBrick's body): the node the
+## slots belong to and the save records (host_of).
+const HOST_META := &"slots_host"
 
 const _COVER_SCENE := preload("res://Scenes/Objects/port_cover.tscn")
 const _ZONE_SCENE := preload("res://addons/godot-xr-tools/objects/snap_zone.tscn")
@@ -153,6 +156,12 @@ static func host_of(node: Node) -> Node:
 	var n := node
 	while n != null and not n is XRToolsPickable:
 		n = n.get_parent()
+	# A pickable that is a PART of the object a save records (a battery case's body,
+	# under its PowerBrick) names that object, which holds the slots instead.
+	if n != null and n.has_meta(HOST_META):
+		var owner_node := n.get_meta(HOST_META) as Node
+		if is_instance_valid(owner_node):
+			return owner_node
 	return n
 
 

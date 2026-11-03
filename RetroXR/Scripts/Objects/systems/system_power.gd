@@ -73,10 +73,6 @@ func build(model_id: String) -> void:
 		input.through = _controller_supply
 		input.through_missing = "No controller plugged in (its battery pack or AC adapter tap goes on the controller)"
 	_build_bay(profile)
-	# Fresh from the spawn menu, a handheld comes with its cells in, as a Game Boy came
-	# in its box (four AA); a restored one has what its save says (CellSlots).
-	if profile.has("bay") and not _host.has_meta(CoverSlots.RESTORING):
-		_seed_cells.call_deferred(0)
 	# An arcade cabinet takes a kettle lead in a C14 inlet on its back.
 	if _host._is_cabinet_model() and str(profile.get("inlet", "")).is_empty():
 		profile = {"inlet": "c14"}
@@ -150,48 +146,6 @@ func _build_bay(profile: Dictionary) -> void:
 		shell = mat.albedo_color
 	var seats := BatteryBay.build(model, box, bay, "%s_battery_cover" % _host.systemid, shell, body)
 	print("[Power] %s: battery bay built, %d %s seats" % [_host.systemid, seats, str(bay.get("size", "AA"))])
-
-
-const _CELL_SCENES := {
-	"AA": preload("res://Scenes/Objects/batteries/battery_aa.tscn"),
-	"AAA": preload("res://Scenes/Objects/batteries/battery_aaa.tscn"),
-	"C": preload("res://Scenes/Objects/batteries/battery_c.tscn"),
-}
-## How many frames a handheld waits for a mod's shell to build its own seats.
-const SEED_WAIT_FRAMES := 10
-
-
-## A cell into every empty seat of a handheld fresh from the spawn menu, its cover left
-## on. Only for one in the room's "spawned" set (a room's own furnishings and a save's
-## objects are not seeded: they would gain a set of cells each time they load).
-func _seed_cells(tries: int) -> void:
-	if not is_instance_valid(_host) or not _host.is_inside_tree() or _host.has_meta(CoverSlots.RESTORING):
-		return
-	var slots := CellSlots.of(_host)
-	if slots == null or slots.seats().is_empty():
-		# A mod's shell builds its seats in its own time.
-		if tries < SEED_WAIT_FRAMES:
-			await _host.get_tree().process_frame
-			_seed_cells(tries + 1)
-		else:
-			print("[Power] %s: no battery seats to put cells in" % _host.systemid)
-		return
-	if not _host.is_in_group("spawned"):
-		print("[Power] %s: not a spawned object; its bay is left as it is" % _host.systemid)
-		return
-	var seeded := 0
-	for seat_name: String in slots.seats():
-		var zone := slots.slot(seat_name)
-		var scene := _CELL_SCENES.get(CellSlots.size_of_seat(seat_name)) as PackedScene
-		if zone == null or zone.has_snapped_object() or scene == null:
-			continue
-		var cell := scene.instantiate() as Node3D
-		_host.get_tree().current_scene.add_child(cell)
-		cell.add_to_group("spawned")
-		cell.global_transform = zone.global_transform
-		zone.seat_cell(cell, 0.0)
-		seeded += 1
-	print("[Power] %s: came with its cells in (%d)" % [_host.systemid, seeded])
 
 
 ## The machine's own label for the logs, once its name is known.

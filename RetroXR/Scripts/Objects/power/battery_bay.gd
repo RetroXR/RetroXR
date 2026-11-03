@@ -87,6 +87,37 @@ static func build(model: Node3D, body: AABB, spec: Dictionary, socket_prefix: St
 	return made
 
 
+const _CELL_SCENES := {
+	"AA": preload("res://Scenes/Objects/batteries/battery_aa.tscn"),
+	"AAA": preload("res://Scenes/Objects/batteries/battery_aaa.tscn"),
+	"C": preload("res://Scenes/Objects/batteries/battery_c.tscn"),
+}
+
+
+## A cell into every empty seat of `host`'s bays, the cover left as it is. For a thing
+## that came with its cells (the DMG-05 Battery Case, which is nothing without them);
+## a handheld's bay comes EMPTY (docs/dev/power.md). Only for a fresh spawn: the
+## caller checks the host is in "spawned" and not restoring, or a save would gain a
+## set of cells each time it loads. Returns how many went in.
+static func fill(host: Node) -> int:
+	var slots := CellSlots.of(host)
+	if slots == null or not host.is_inside_tree():
+		return 0
+	var seeded := 0
+	for seat_name: String in slots.seats():
+		var zone := slots.slot(seat_name)
+		var scene := _CELL_SCENES.get(CellSlots.size_of_seat(seat_name)) as PackedScene
+		if zone == null or zone.has_snapped_object() or scene == null:
+			continue
+		var cell := scene.instantiate() as Node3D
+		host.get_tree().current_scene.add_child(cell)
+		cell.add_to_group("spawned")
+		cell.global_transform = zone.global_transform
+		zone.seat_cell(cell, 0.0)
+		seeded += 1
+	return seeded
+
+
 ## How deep a pocket for cells of `cell` (diameter, length; m) is: the cover, the
 ## cells, a clearance either side.
 static func pocket_depth(cell: Vector2) -> float:
