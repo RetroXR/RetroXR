@@ -65,6 +65,8 @@ func _ready() -> void:
 		await _test_forced()
 	if _wants("menu"):
 		_test_menu()
+	if _wants("panel"):
+		await _test_panel()
 
 	_clear_fixtures()
 	await _settle_warm()
@@ -358,6 +360,8 @@ func _test_clear() -> void:
 	# the cart moved and the shell jumped between clear blue and milky white.
 	_ok(front.render_priority == surface.render_priority + 1,
 		"clear/the filter sorts after the surface pass, so the dye tints the gloss and haze every frame")
+	_ok(front.render_priority < PickableHighlight.MASK_RENDER_PRIORITY,
+		"clear/the filter sorts before the highlight's mask, so a held cart stays dyed")
 	var polished := _active(cart, "Front_Shell", &"GBC_Shell_Smooth") as ShaderMaterial
 	_ok(polished != null and polished.shader == CartridgeColor.CLEAR_SHADER, "clear/the lettering and ridges go clear too")
 	var frosted := FROSTED.all(func(p: String) -> bool:
@@ -616,3 +620,23 @@ func _test_menu() -> void:
 	_ok(sent["options"] == {"body_region": GbcCartShell.BODY_GBC}, "menu/the clear body can be forced",
 		str(sent["options"]))
 	holder.queue_free()
+
+
+## Tab on a cartridge from the spawn menu opens its options panel. The panel
+## scene was a compile-time preload in cartridge.gd and came out EMPTY (node
+## count 0: a class cycle back to RetroCartridge captured it mid-load), so the
+## toggle dereferenced a null panel (2026-11-03, Super Mario Bros. Deluxe).
+func _test_panel() -> void:
+	var cart := await _spawn(_write_rom("deluxe.gbc", _header("MARIO DELUXE", 0x80, 0x1B)))
+	var panel := cart.ensure_options_panel()
+	_ok(panel != null and panel.is_inside_tree() and panel.get_parent() == cart,
+		"panel/the cartridge's options panel instantiates and joins the cartridge")
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.position = Vector3(0, 0, 1)
+	cart.toggle_options_ui(cam)
+	_ok(panel != null and panel.visible, "panel/Tab (toggle_options_ui) shows it")
+	cart.toggle_options_ui(cam)
+	_ok(panel != null and not panel.visible, "panel/a second Tab hides it")
+	cam.queue_free()
+	cart.queue_free()
