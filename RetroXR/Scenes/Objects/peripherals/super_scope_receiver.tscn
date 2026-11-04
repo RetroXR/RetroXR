@@ -1,0 +1,37 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/super_scope/super_scope_receiver.gd" id="1_rx"]
+[ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="Script" uid="uid://b8uwrf51jd5xm" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="3_grabpoint"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_rx"]
+bounce = 0.0
+friction = 0.8
+
+; Resized in code to the body (SuperScopeReceiver._build).
+[sub_resource type="BoxShape3D" id="Shape_rx"]
+size = Vector3(0.064, 0.025, 0.064)
+
+; The Super Scope's infrared receiver (SNS-014): a box with its window on -Z and a
+; Super NES controller cord out of +Z, origin under its middle. Built in code
+; (super_scope_receiver.gd).
+[node name="SuperScopeReceiver" type="RigidBody3D" groups=["hand_held_device"]]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.08
+physics_material_override = SubResource("PhysMat_rx")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_rx")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0125, 0)
+shape = SubResource("Shape_rx")
+
+[node name="GrabPoint" type="Marker3D" parent="."]
+visible = false
+script = ExtResource("3_grabpoint")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")

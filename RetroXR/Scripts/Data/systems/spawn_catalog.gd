@@ -211,6 +211,11 @@ const _PERIPHERALS: Dictionary = {
 		# The primitive box on this card wears a Multi Out to take it rather than
 		# phono jacks (RetroSystemModelDefault), as every Super NES model does.
 		{"kind": "peripheral", "label": "Stereo AV Cable", "spawn": "n64_av_cable"},
+		# Nintendo's own gun: the cordless scope (six AA cells in its stock) and its
+		# infrared receiver, which goes in controller port 2 (SuperScope).
+		{"kind": "peripheral", "label": "Super Scope (SNS-013)", "spawn": "super_scope"},
+		{"kind": "peripheral", "label": "Super Scope Receiver (SNS-014)", "spawn": "super_scope_receiver"},
+		{"kind": "peripheral", "label": "AA Battery", "spawn": "battery_aa"},
 	],
 	# The Model 2's A/V OUT is a 9-pin mini-DIN, so the generic composite lead fits
 	# the television and nothing at this end. Sega's own lead: the round plug at the
@@ -414,9 +419,11 @@ const _LINK_LEADS: Dictionary = {
 
 
 ## The gun, offered on the platforms that sold one. One prop rather than a row per
-## card because RetroXR models no Super Scope and no Light Phaser -- it is the
-## generic stand-in, the same one the Controllers tab offers, so it is labelled
-## for what it spawns rather than for the gun a given console shipped.
+## card because RetroXR models few of them (no Light Phaser, no Menacer) -- it is
+## the generic stand-in, the same one the Controllers tab offers, so it is labelled
+## for what it spawns rather than for the gun a given console shipped. The Super
+## NES also has its Super Scope (SuperScope, its own rows above); the generic row
+## stays there for the Justifier and the M.A.C.S. rifle, which it stands in for.
 ##
 ## Listed is hardware that really existed for the platform: the Zapper, the Super
 ## Scope, the Light Phaser, the Menacer and the Justifier, the Saturn's Stunner,

@@ -46,6 +46,8 @@ const _STRING_FIELDS := [
 	# The market a cartridge whose ROM names none fell back to, pinned so a
 	# region change does not swap its body (RetroCartridge.fallback_market).
 	"fallback_market",
+	# Which of a Super Scope's two clips its sight is on: "left" or "right".
+	"sight_side",
 ]
 const _NUMBER_FIELDS := [
 	"lid_angle", "scale_factor", "stereo_mode", "size_scale", "page_state",
@@ -55,6 +57,8 @@ const _NUMBER_FIELDS := [
 	# A multitap's SELECT switch: 2 or 5 (RetroMultitap.MODE_2P / MODE_5P); a
 	# four-player adapter's 2/4 switch: 2 or 4 (FourPlayerAdapter).
 	"tap_mode",
+	# A Super Scope's OFF / ON / TURBO switch (SuperScope.SWITCH_*).
+	"power_switch",
 	# A cabinet's own say over the arcade attract option -- see RetroSystem.attract_override.
 	"attract",
 	# The length a player forced on a lead at spawn, in metres. Absent means the
@@ -81,6 +85,8 @@ const _REFERENCE_FIELDS := [
 	"accessory",
 	# The battery pack or AC adapter tap on a Virtual Boy controller's back.
 	"power_unit",
+	# The sight clipped onto a Super Scope.
+	"sight",
 	# An arcade cabinet's bay, and the board standing in a bay.
 	"bay", "board",
 ]
@@ -261,6 +267,9 @@ const SEAT_SOFA_SCENE        := preload("res://Scenes/Objects/furniture/seat_sof
 const SEAT_BED_SCENE         := preload("res://Scenes/Objects/furniture/seat_bed.tscn")
 const RETRO_MOUSE_SCENE      := preload("res://Scenes/Objects/peripherals/retro_mouse.tscn")
 const SNES_MOUSE_SCENE       := preload("res://Scenes/Objects/peripherals/snes_mouse.tscn")
+const SUPER_SCOPE_SCENE      := preload("res://Scenes/Objects/peripherals/super_scope.tscn")
+const SUPER_SCOPE_RX_SCENE   := preload("res://Scenes/Objects/peripherals/super_scope_receiver.tscn")
+const SUPER_SCOPE_SIGHT_SCENE := preload("res://Scenes/Objects/peripherals/super_scope_sight.tscn")
 const RETRO_KEYBOARD_SCENE   := preload("res://Scenes/Objects/peripherals/retro_keyboard.tscn")
 const WIIMOTE_SCENE          := preload("res://Scenes/Objects/controllers/wii/wiimote.tscn")
 const NUNCHUK_SCENE          := preload("res://Scenes/Objects/controllers/wii/nunchuk.tscn")
@@ -373,6 +382,13 @@ const LEAD_SCENES := {
 
 
 const PLAIN_SCENES := {
+	# Nintendo's Super Scope, its receiver and its sight. The scope's switch is set
+	# before it enters the tree (the plain branch of _deserialize_kind) and its
+	# sight is restored from the SCOPE's entry ("sight", "sight_side"); the
+	# receiver's console port from its own entry, as the Satellite receiver's.
+	"super_scope": SUPER_SCOPE_SCENE,
+	"super_scope_receiver": SUPER_SCOPE_RX_SCENE,
+	"super_scope_sight": SUPER_SCOPE_SIGHT_SCENE,
 	"tv_remote": TV_REMOTE_SCENE,
 	"loudspeaker": LOUDSPEAKER_SCENE,
 	"subwoofer": SUBWOOFER_SCENE,
@@ -1732,6 +1748,9 @@ static func _restore_kind_rows() -> Array:
 		[RetroMultitap, &"_restore_multitap"],
 		[FourPlayerAdapter, &"_restore_four_player"],
 		[NesSatelliteReceiver, &"_restore_satellite_receiver"],
+		[SuperScopeReceiver, &"_restore_super_scope_receiver"],
+		# Before LightGun, which it also is: its port is the receiver's.
+		[SuperScope, &"_restore_super_scope"],
 		[RetroController, &"_restore_peripheral"],
 		[LightGun, &"_restore_peripheral"],
 		[RetroMouse, &"_restore_peripheral"],
@@ -2625,6 +2644,10 @@ static func _save_kind_rows() -> Array:
 		[AudioDisc, "audio_disc", &"_album_fields"],
 		[AudioCassette, "audio_cassette", &"_audio_cassette_fields"],
 		[VinylRecord, "vinyl_record", &"_album_fields"],
+		# Before LightGun, which it also is: no port of its own, a switch and a sight.
+		[SuperScope, "super_scope", &"_super_scope_fields"],
+		[SuperScopeReceiver, "super_scope_receiver", &"_super_scope_receiver_fields"],
+		[SuperScopeSight, "super_scope_sight"],
 		# One builder for the whole family; it picks the type (_serialize_peripheral).
 		[RetroController, "", &"_serialize_peripheral"],
 		[LightGun, "", &"_serialize_peripheral"],
@@ -3209,6 +3232,43 @@ func _serialize_four_player(adapter: FourPlayerAdapter, id: int, n3d: Node3D,
 	return entry
 
 
+## A Super Scope: its switch and the sight on its clip. No port: the receiver's
+## own entry says where that is.
+func _super_scope_fields(scope: SuperScope, node_to_id: Dictionary) -> Dictionary:
+	var entry := {"power_switch": scope.power_switch}
+	var sight := scope.get_sight()
+	if sight != null:
+		entry["sight"] = _ref(node_to_id, sight)
+		entry["sight_side"] = scope.sight_side()
+	return entry
+
+
+func _restore_super_scope(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
+	var sight := _resolve_ref(root, spawned, rec.get("sight")) as SuperScopeSight
+	# Told either way, so a scope saved with its sight off does not grow a new one.
+	(obj as SuperScope).restore_sight(sight, str(rec.get("sight_side", "left")))
+
+
+## The Super Scope's receiver: the console it is in and the socket its cord's plug fills.
+func _super_scope_receiver_fields(rx: SuperScopeReceiver, node_to_id: Dictionary) -> Dictionary:
+	var port_index := rx.get_cabinet_port()
+	return {
+		"system": _ref(node_to_id, rx.get_connected_system() if port_index >= 0 else null),
+		"port_index": port_index,
+	}
+
+
+func _restore_super_scope_receiver(root: Node, id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
+	var port := int(rec.get("port_index", -1))
+	if port < 0:
+		return
+	var sys := _resolve_ref(root, spawned, rec.get("system")) as RetroSystem
+	if sys == null:
+		push_warning("[ScenePersistence] super_scope_receiver id=%d: system not found" % id)
+		return
+	(obj as SuperScopeReceiver).restore_port_connection(sys, port)
+
+
 ## The NES Satellite's receiver: the console it is in and the first port it fills.
 func _serialize_satellite_receiver(rx: NesSatelliteReceiver, id: int, n3d: Node3D,
 		node_to_id: Dictionary) -> Dictionary:
@@ -3592,6 +3652,11 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 		var unit := obj as VbPowerUnit
 		if unit != null:
 			unit.variant = str(data.get("variant", ""))
+		# Where a Super Scope's switch was, before its _ready sets the slide.
+		var scope := obj as SuperScope
+		if scope != null:
+			scope.power_switch = clampi(int(data.get("power_switch", SuperScope.SWITCH_OFF)),
+				SuperScope.SWITCH_OFF, SuperScope.SWITCH_TURBO)
 	elif _LOAD_KINDS.has(obj_type):
 		obj = call(_LOAD_KINDS[obj_type] as StringName, data)
 	else:

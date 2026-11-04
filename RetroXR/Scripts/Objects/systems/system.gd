@@ -3912,8 +3912,8 @@ func reannounce_port(i: int) -> void:
 ## The id the RUNNING core understands for a peripheral -- see
 ## SystemPorts.core_device_id.
 func core_device_id(device_type: int, lib_port: int,
-		named: PackedStringArray = PackedStringArray()) -> int:
-	return _ports.core_device_id(device_type, lib_port, named)
+		named: PackedStringArray = PackedStringArray(), strict := false) -> int:
+	return _ports.core_device_id(device_type, lib_port, named, strict)
 
 
 ## The names a plugged peripheral goes by in a core's device list, or none -- see

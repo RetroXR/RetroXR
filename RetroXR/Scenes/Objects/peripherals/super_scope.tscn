@@ -1,0 +1,72 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/super_scope/super_scope.gd" id="1_scope"]
+[ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="Script" uid="uid://b8uwrf51jd5xm" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="3_grabpoint"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_scope"]
+friction = 0.8
+
+; Resized in code to the body (SuperScope._fit_shapes).
+[sub_resource type="BoxShape3D" id="Shape_body"]
+size = Vector3(0.058, 0.13, 0.607)
+
+[sub_resource type="SphereMesh" id="SphereMesh_dot"]
+radius = 0.004
+height = 0.008
+
+[sub_resource type="StandardMaterial3D" id="Mat_dot"]
+transparency = 1
+albedo_color = Color(1, 0.1, 0.1, 0.55)
+emission_enabled = true
+emission = Color(1, 0, 0, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="BoxShape3D" id="Shape_pointer"]
+size = Vector3(0.078, 0.2, 0.627)
+
+; Nintendo's Super Scope (SNS-013). Its origin is the middle of the grip, -Z toward
+; the muzzle; barrel, stock, controls, battery bay and sight clips are built in
+; code (super_scope.gd). No cord: its receiver (super_scope_receiver.tscn) is what
+; goes in the console.
+[node name="SuperScope" type="RigidBody3D" groups=["hand_held_device"]]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.6
+physics_material_override = SubResource("PhysMat_scope")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_scope")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.066, 0.2165)
+shape = SubResource("Shape_body")
+
+; At the muzzle on the barrel's axis: LightGun aims along its -Z.
+[node name="BarrelTip" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.086, -0.098)
+
+; LightGun's cord end; the scope has no cord, but LightGun reads the node.
+[node name="CableAttachPoint" type="Node3D" parent="."]
+
+[node name="LaserDot" type="MeshInstance3D" parent="."]
+top_level = true
+cast_shadow = 0
+mesh = SubResource("SphereMesh_dot")
+surface_material_override/0 = SubResource("Mat_dot")
+
+; The hand holds the grip: identity, the barrel pointing where the hand does.
+[node name="GrabPoint" type="Marker3D" parent="."]
+visible = false
+script = ExtResource("3_grabpoint")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+shape = SubResource("Shape_pointer")

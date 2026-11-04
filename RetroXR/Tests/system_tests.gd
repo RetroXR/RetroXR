@@ -63,7 +63,9 @@ const FCEUMM_PORTS: Array = [
 ]
 
 ## A core that subclasses the light gun properly, the way libretro.h intends.
-## 260 = SUBCLASS(LIGHTGUN, 0), 516 = SUBCLASS(LIGHTGUN, 1), as snes9x lists them.
+## 260 = SUBCLASS(LIGHTGUN, 0), 516 = SUBCLASS(LIGHTGUN, 1), the ids snes9x gives
+## them. snes9x itself lists its guns on its SECOND port only (super_scope_tests has
+## its real lists); one port is all these resolver cases need.
 ## (These once read 263 and 519, subclasses of a light gun numbered 7, which
 ## matched the game's own wrong id and no core's.)
 const SNES_PORTS: Array = [

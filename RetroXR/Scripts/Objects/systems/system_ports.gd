@@ -344,7 +344,7 @@ func set_socket_port(socket: int, lib_port: int) -> void:
 	if port_owner(new_lib) != null or usb_plug_at(new_lib) != null:
 		announce_port(new_lib)
 	elif claims_port_device(dev):
-		set_device(new_lib, core_device_id(dev, new_lib, device_names_of(plug)))
+		set_device(new_lib, core_device_id(dev, new_lib, device_names_of(plug), strict_names_of(plug)))
 	_tell_plugged_in(plug, new_lib)
 	apply_pad_type_option(new_lib, ctrl)
 	apply_pak_option(new_lib, ctrl)
@@ -511,7 +511,7 @@ func announce_cabinet_port(i: int) -> void:
 	if wii != null and i < plugs.size() and plugs[i] != null:
 		announce = wii.cabinet_device_id(dev)
 	var lib_port := libretro_port_for(dev, i)
-	set_device(lib_port, core_device_id(announce, lib_port, device_names_of(ctrl)))
+	set_device(lib_port, core_device_id(announce, lib_port, device_names_of(ctrl), strict_names_of(ctrl)))
 
 
 ## Say what is on each port a SECOND time, once the core has actually run a frame.
@@ -578,8 +578,16 @@ func ensure_devices_bound() -> bool:
 ## the steering wheel. Where the core lists nothing of its name the pad is
 ## announced as the type it carries, which for a pad is the plain joypad every
 ## core has.
+##
+## `strict` is for a device that is ONE particular thing to the hardware and
+## nothing else (a peripheral's `strict_device_names`): the Super Scope's
+## receiver. Where the core lists devices for the port and none of them has its
+## name, the port is told NONE rather than the bare type -- snes9x lists the
+## Super Scope on its second port only, and a receiver in the first is a plug no
+## game reads, as on the console. A core that lists nothing for the port is
+## told the bare type as before.
 func core_device_id(device_type: int, lib_port: int,
-		named: PackedStringArray = PackedStringArray()) -> int:
+		named: PackedStringArray = PackedStringArray(), strict := false) -> int:
 	if device_type != RetroSystem.RETRO_DEVICE_LIGHTGUN and named.is_empty():
 		return device_type
 	var devices: Array = []
@@ -595,6 +603,9 @@ func core_device_id(device_type: int, lib_port: int,
 		for dev: Dictionary in devices:
 			if String(dev.get("name", "")).to_lower().contains(word.to_lower()):
 				return int(dev.get("id", 0))
+	if strict and not named.is_empty() and not devices.is_empty():
+		print("[RetroSystem] libretro port %d lists no %s: announced as nothing" % [lib_port, "/".join(named)])
+		return RetroSystem.RETRO_DEVICE_NONE
 	if device_type != RetroSystem.RETRO_DEVICE_LIGHTGUN:
 		return device_type
 	var by_name := -1
@@ -616,6 +627,21 @@ static func device_names_of(peripheral: Object) -> PackedStringArray:
 		if names is PackedStringArray:
 			return names
 	return PackedStringArray()
+
+
+## Whether a plugged peripheral's names are the ONLY thing it can be announced as
+## (core_device_id's `strict`), read off the plug or the controller as the names are.
+## A plug copies its controller's names but not this, so a plug is asked of its controller.
+static func strict_names_of(peripheral: Object) -> bool:
+	if peripheral == null:
+		return false
+	if "strict_device_names" in peripheral:
+		return bool(peripheral.get("strict_device_names"))
+	if peripheral.has_method("get_controller"):
+		var ctrl: Variant = peripheral.call("get_controller")
+		if ctrl is Object and is_instance_valid(ctrl) and "strict_device_names" in ctrl:
+			return bool((ctrl as Object).get("strict_device_names"))
+	return false
 
 
 ## Whether a core's device NAME reads as a light gun, for the cores that
@@ -1097,7 +1123,7 @@ func bind(lib_port: int, plug: Node3D, cabinet_index: int, announce_device := tr
 		if wii != null:
 			wii.evict_remote_from(lib_port)
 			announce = wii.cabinet_device_id(device_type)
-	announce = core_device_id(announce, lib_port, device_names_of(plug))
+	announce = core_device_id(announce, lib_port, device_names_of(plug), strict_names_of(plug))
 	print("[RetroSystem] port %d bound: device_type=%d -> libretro port %d (announced %d)" %
 		[cabinet_index, device_type, lib_port, announce])
 	# A device in the USB socket of this number is what the core is told about:
@@ -1312,7 +1338,7 @@ func announce_port(lib_port: int) -> void:
 		usb = accessory_plug_at(lib_port)
 	if usb != null:
 		var dev: int = usb.get("device_type") if "device_type" in usb else 1
-		set_device(lib_port, core_device_id(dev, lib_port, device_names_of(usb)))
+		set_device(lib_port, core_device_id(dev, lib_port, device_names_of(usb), strict_names_of(usb)))
 		return
 	if lib_port < controllers.size() and (port_owner(lib_port) != null
 			or is_instance_valid(controllers[lib_port])):

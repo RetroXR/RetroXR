@@ -564,7 +564,9 @@ func _animate_controls(pressed: Dictionary) -> void:
 		var node: MeshInstance3D = e["node"]
 		var rest: Transform3D = e["rest"]
 		var down := 1.0 if pressed.get(int(e["lid"]), false) else 0.0
-		var tgt := Transform3D(rest.basis, rest.origin + Vector3.DOWN * (BUTTON_PRESS * down))
+		# A cap presses along its own "dir" (a grip's button goes in sideways), else down.
+		var dir: Vector3 = e.get("dir", Vector3.DOWN)
+		var tgt := Transform3D(rest.basis, rest.origin + dir * (BUTTON_PRESS * down))
 		var next := node.transform.interpolate_with(tgt, ANIM_WEIGHT)
 		if next.is_equal_approx(tgt):
 			next = tgt
