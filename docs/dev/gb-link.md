@@ -631,7 +631,7 @@ with all four Game Boys, and plays.
 - **Trax** (RATE $FF, SIZE 1): any press skips its intro to the menu, so START at
   300, DOWN at 450 (MULTI GAME), START at 500; "YOUR NUMBER IS 1-4", MAP 01, four
   tanks each on its own screen.
-- **gambatte needed a fix for two of them** (v6, `link_serial.cpp`). The core calls
+- **gambatte needed a fix for two of them** (v6, released, `link_serial.cpp`). The core calls
   `LinkSerial::check()` on EVERY instruction while the guest is armed, and it
   pumped the bus inbox (a locked `recv`) every time. Wave Race waits armed in HALT
   and never noticed; Super R.C. Pro-Am and Micro Machines busy-loop armed, so a
@@ -671,6 +671,5 @@ with all four Game Boys, and plays.
 
 OWED:
 - Micro Machines (its handshake, above).
-- gambatte v6 in CoreSources, once its release is built.
 - The frame rate on a Quest.
 - A netplay row (`NetplayCores`): no session has been run with it.

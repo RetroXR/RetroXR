@@ -212,11 +212,15 @@ const SOURCES := {
 	# room puts two units in view of each other -- which nothing does yet
 	# (docs/dev/gb-link.md).
 	#
+	# v6 takes the bus lock out of the per-instruction serial check: a game that
+	# busy-loops armed (Super R.C. Pro-Am on the DMG-07) ran at a sixth of real
+	# time, or stalled with four, and nothing is sent to a wire with nobody on it.
+	#
 	# gambatte is GPLv2, so the source obligation is Dolphin's, not mGBA's — the
 	# tag beside the binary is what meets it.
 	"gambatte": {
 		"repo":  "RetroXR/gambatte-libretro",
-		"known_tag": "retroxr-gambatte-libretro-v5",
+		"known_tag": "retroxr-gambatte-libretro-v6",
 		"label": "gambatte (retroXR build)",
 		"assets": {
 			"Windows": "gambatte_libretro.dll.zip",
