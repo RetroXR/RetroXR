@@ -619,6 +619,38 @@ Docs' ping, then GBE+'s transmission. Each half is what one game needs on mGBA:
   the same on both cores.
 - Wave Race races under `mixed` on both, as above.
 
+**Four more, both cores (2026-11-05):** each reaches the adapter's transmission
+with all four Game Boys, and plays.
+- **Faceball 2000** (RATE $FF, SIZE 1): START at the title (frame 1250); the
+  INTER-FACE lobby says "4 Players Ready"; in the maze each player sees the others'
+  faces and names (Player_02...). Later START taps pause it.
+- **Super R.C. Pro-Am** (RATE $F4, SIZE 1): START taps; "READY TO RACE ... PLEASE
+  WAIT FOR PLAYER 1", then four cars on the grid.
+- **Top Rank Tennis** (MBC2, RATE $85, SIZE 3): START taps alone; GROUP PLAY!! with
+  PLAYER 1-4 ON, DOUBLES with the four placed, then "Play!!".
+- **Trax** (RATE $FF, SIZE 1): any press skips its intro to the menu, so START at
+  300, DOWN at 450 (MULTI GAME), START at 500; "YOUR NUMBER IS 1-4", MAP 01, four
+  tanks each on its own screen.
+- **gambatte needed a fix for two of them** (v6, `link_serial.cpp`). The core calls
+  `LinkSerial::check()` on EVERY instruction while the guest is armed, and it
+  pumped the bus inbox (a locked `recv`) every time. Wave Race waits armed in HALT
+  and never noticed; Super R.C. Pro-Am and Micro Machines busy-loop armed, so a
+  Game Boy on the adapter ran at a sixth of real time (Micro Machines' first 600
+  frames took seven minutes, 53 million bus calls a machine) or, with four, Super
+  R.C. Pro-Am never drew a frame. advance() already pumps, and a peer stamps every
+  message at least its horizon ahead, so nothing due before the grant arrives
+  later: the pump in check() was pure cost. publish() also sent every SC flip to a
+  wire with nobody on it (alone, no cable, Super R.C. Pro-Am ran at 28.8 fps); it
+  now waits for a peer. mGBA had neither (53 fps alone and cabled). The fix kept
+  `gb_link_probe` at 28/28 and Wave Race and Yoshi's Cookie four-player unchanged.
+- **Micro Machines does NOT answer the ping.** Its manual: three or four players
+  need the 4-Player adapter, and linked "the game starts directly" in the
+  head-to-head mode. On the adapter its pad is ignored and it shows car and course
+  screens (alone, START gives CHOOSE GAME: One Player / Two Player). On the wire
+  every Game Boy sends $C0 at every slot (now and then $63) and never $88, so the
+  adapter never counts it in. Its own handshake is not Pan Docs' and is not known:
+  OWED, from its code.
+
 **Frame rate, four Game Boys and the adapter, one Windows PC:**
 - Paced: 59.0-59.9 fps in every 600-frame window after power-on (the first,
   through four staggered start-ups, is about 42-48). That is full speed: a Game Boy
@@ -638,7 +670,7 @@ Docs' ping, then GBE+'s transmission. Each half is what one game needs on mGBA:
 - Bomberman GB (USA): Story, Lesson and Password only.
 
 OWED:
-- The rest of the adapter's games: Faceball 2000, Micro Machines, Super R.C.
-  Pro-Am, Top Rank Tennis, Trax.
+- Micro Machines (its handshake, above).
+- gambatte v6 in CoreSources, once its release is built.
 - The frame rate on a Quest.
 - A netplay row (`NetplayCores`): no session has been run with it.
