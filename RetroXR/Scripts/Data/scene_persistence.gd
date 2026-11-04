@@ -227,6 +227,7 @@ const JAG_LINK_CABLE_SCENE  := preload("res://Scenes/Objects/cables/jag_link_cab
 const ILINK_CABLE_SCENE      := preload("res://Scenes/Objects/cables/ilink_cable.tscn")
 const ILINK_HUB_SCENE        := preload("res://Scenes/Objects/cables/ilink_hub.tscn")
 const GB_PRINTER_SCENE       := preload("res://Scenes/Objects/peripherals/gb_printer.tscn")
+const DMG07_ADAPTER_SCENE    := preload("res://Scenes/Objects/peripherals/dmg07_adapter.tscn")
 const ETHERNET_CABLE_SCENE   := preload("res://Scenes/Objects/cables/ethernet_cable.tscn")
 const ETHERNET_HUB_SCENE     := preload("res://Scenes/Objects/cables/ethernet_hub.tscn")
 
@@ -395,6 +396,9 @@ const PLAIN_SCENES := {
 	# Pose only, like the hub: the lead in its EXT.IN socket is saved by the LEAD,
 	# and it comes back switched off. Paper already torn off is a poster of its own.
 	"gb_printer": GB_PRINTER_SCENE,
+	# The pose and where player 1's captive lead is seated (`lead`). A lead in one
+	# of its three sockets is saved by that LEAD, naming the adapter and its socket.
+	"dmg07_adapter": DMG07_ADAPTER_SCENE,
 	# Pose only, for the i.LINK hub's reason.
 	"ethernet_hub": ETHERNET_HUB_SCENE,
 
@@ -1722,6 +1726,7 @@ static func _restore_kind_rows() -> Array:
 		[ConsoleStand, &"_restore_console_stand"],
 		[SensorBar, &"_restore_sensor_bar"],
 		[GcMicrophone, &"_restore_gc_microphone"],
+		[Dmg07Adapter, &"_restore_dmg07"],
 		[N64Vru, &"_restore_n64_vru"],
 		[InputReceiver, &"_restore_receiver"],
 		[RetroMultitap, &"_restore_multitap"],
@@ -1930,6 +1935,17 @@ func _restore_console_stand(root: Node, _id: int, obj: Node, spawned: Dictionary
 func _restore_sensor_bar(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
 	(obj as SensorBar).restore_connection(
 		_resolve_ref(root, spawned, rec.get("system")) as RetroSystem)
+
+
+func _restore_dmg07(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
+	var lead: Variant = rec.get("lead", {})
+	if not lead is Dictionary or (lead as Dictionary).is_empty():
+		return
+	var dev := _resolve_ref(root, spawned, (lead as Dictionary).get("device")) as Node3D
+	if dev == null:
+		push_warning("[ScenePersistence] dmg07_adapter: the device player 1's lead was in is gone")
+		return
+	(obj as Dmg07Adapter).restore_lead(dev, str((lead as Dictionary).get("port", "")))
 
 
 func _restore_gc_microphone(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
@@ -2578,6 +2594,7 @@ static func _save_kind_rows() -> Array:
 		[ILinkHub, "ilink_hub"],
 		# The pose and the roll it is loaded with.
 		[GbPrinter, "gb_printer", &"_gb_printer_fields"],
+		[Dmg07Adapter, "dmg07_adapter", &"_dmg07_fields"],
 		[EthernetHub, "ethernet_hub"],
 		# The pose and the board standing in it; its type is its kind's.
 		[ArcadeBayUnit, "", &"_arcade_bay_entry"],
@@ -2784,6 +2801,15 @@ func _n64_vru_fields(vru: N64Vru, node_to_id: Dictionary) -> Dictionary:
 
 func _gb_printer_fields(printer: GbPrinter, _node_to_id: Dictionary) -> Dictionary:
 	return {"paper": printer.paper_roll}
+
+
+## Where the 4 Player Adapter's captive lead is seated: the device and its socket,
+## or nothing when it lies loose. The lead itself is the adapter's, never saved.
+func _dmg07_fields(adapter: Dmg07Adapter, node_to_id: Dictionary) -> Dictionary:
+	var seat := adapter.lead_seat()
+	if seat.is_empty():
+		return {}
+	return {"lead": {"device": _ref(node_to_id, seat["device"] as Node), "port": str(seat["port"])}}
 
 
 ## The unit, and whatever is in its OWN bay. Which console it is bolted to is

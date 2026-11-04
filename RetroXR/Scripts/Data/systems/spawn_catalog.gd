@@ -99,9 +99,13 @@ const _PERIPHERALS: Dictionary = {
 	# Boy's BIOS / Extras page.
 	"gb": [
 		{"kind": "peripheral", "label": "Game Boy Printer", "spawn": "gb_printer"},
+		# Four Game Boys on one link: player 1's lead is captive, players 2-4 plug a
+		# DMG-04 into its sides (Dmg07Adapter). A core of its own, as the printer's.
+		{"kind": "peripheral", "label": "4 Player Adapter (DMG-07)", "spawn": "dmg07_adapter"},
 	],
 	"gbc": [
 		{"kind": "peripheral", "label": "Game Boy Printer", "spawn": "gb_printer"},
+		{"kind": "peripheral", "label": "4 Player Adapter (DMG-07)", "spawn": "dmg07_adapter"},
 	],
 	# The pad is named here because it is the only one with an expansion port, and
 	# all three paks are useless without it. The paks themselves are listed rather

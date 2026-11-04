@@ -470,6 +470,45 @@ through the adapter are OWED.
 - The app's own `CoreDownloadManager` fetched v1 into the real cores folder, and the
   installed DLL started as "DMG-07 4 Player Adapter 1.0.0".
 
+**The room object (2026-11-04): `Dmg07Adapter`** (`Scenes/Objects/peripherals/dmg07_adapter.tscn`,
+spawn token and save type `dmg07_adapter`, on the Game Boy and Game Boy Color cards).
+- From Evan-Amos's public-domain photograph: a light grey rounded square with a round
+  label on top, player 1's lead captive out of the back, and a socket on each other face:
+  player 2 toward the front of the left side, player 3 toward the right of the front,
+  player 4 toward the back of the right side. Sizes are estimates (85 x 25 x 85 mm).
+- **A machine**, as the printer is: a kept `Libretro` running `dmg07`. Its sockets are
+  `dmg_link_port`s (the DMG-04's large plug) with `link_port` 1-3, so a lead from a Game
+  Boy to the socket for player k+1 is a wire of two: that Game Boy's port 0 and the
+  adapter's port k. The walk stops at a machine, so nothing else is needed.
+- **Player 1's lead is an ordinary DMG-04** (`LinkCable`). One end is seated for good in
+  a hidden `Player1Port` (`link_port` 0) in the back, its plug not grabbable and drawn
+  as the cord's boot. It is the ADAPTER's: taken out of `spawned` (every lead files
+  itself there as it enters the tree), freed with it, and its free end's seat is the
+  adapter's entry (`lead`: device and socket). A lead in one of the three sockets is
+  saved by that lead, naming the adapter and `PlayerNPort`.
+- **Power is player 1's plug in a Game Boy** (`wants_power`, checked on the lead's
+  `topology_changed` and twice a second): the core starts then and stops when it comes
+  out, and every lead on the adapter is re-stated (`_rejoin_leads`). No core installed
+  says so once in a toast. `auto_power` is a test seam: a suite asks `wants_power()`
+  and starts nothing.
+- No netplay: `net_prepare_boot` refuses ("not supported in netplay yet").
+- `dmg07_tests` (33 cases): `scene/` the three sockets on ports 1-3 facing out of their
+  own faces (by sign) and toward the ends the photograph has, port 0 in the back holding
+  the lead's end, the plug not takeable, the lead not `spawned` and freed with the
+  adapter; `bus/` four Game Boys make four wires of two (Game Boy k's port 0 and the
+  adapter's port k-1), and an unpowered adapter joins none; `save/` the entry names
+  where player 1's lead is, validates, and a new adapter puts it back; `spawn/` both
+  cards. Mutation-tested: a socket on the wrong port and the lead left in `spawned`
+  both go red.
+- `Tools/models/dmg07_render_probe` (windowed): four Game Boys round it.
+- `Tools/link/dmg07_room_probe` (real cores, real data root; `--nolink` the control):
+  Wave Race through the ROOM, the four Game Boys' `HandheldInput` held still so the
+  presses land (as `vb_link_room_probe`). Every port on both sides sees 2 machines, the
+  adapter's core pings as player 1's lead goes in, and each Game Boy picking MULTI is
+  heard in turn: `players 1234 answer`, `begin`, `transmission`, and RIDER ENTRY on
+  each with its own row "YOU".
+- Headset, Quest and netplay OWED.
+
 **The protocol** (`src/dmg07.c`) is Pan Docs' "4-Player Adapter" chapter.
 - Ping: `FE` then three STAT bytes, `connected << 4 | id`. The replies are read as a
   SEQUENCE (`88 88 RATE SIZE`), because Pan Docs' two charts disagree on which slot

@@ -1,0 +1,33 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/dmg07/dmg07_adapter.gd" id="1_dmg07"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+
+; Resized in code to the body (Dmg07Adapter._build_body).
+[sub_resource type="BoxShape3D" id="BoxShape3D_dmg07"]
+size = Vector3(0.085, 0.025, 0.085)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_dmg07"]
+bounce = 0.0
+friction = 0.8
+
+; Nintendo's 4 Player Adapter (DMG-07): a rounded square, player 1's lead captive
+; out of the back, sockets for players 2, 3 and 4 on the left, front and right.
+; Built in code (dmg07_adapter.gd), sockets and lead included; it runs a core of
+; its own (dmg07) while player 1's plug is in a Game Boy.
+[node name="Dmg07Adapter" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.12
+physics_material_override = SubResource("PhysMat_dmg07")
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("1_dmg07")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0125, 0)
+shape = SubResource("BoxShape3D_dmg07")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
