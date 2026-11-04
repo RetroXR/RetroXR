@@ -1,0 +1,46 @@
+# Nintendo DMG-07 4 Player Adapter (dmg07-libretro), retroXR's own core.
+#
+# Not an override: libretro has no such core, so this whole entry is ours and
+# CoreInfoDatabase.load_overlay appends it.
+#
+# The core runs no CPU and loads no game. It attaches four link ports on the
+# "gb-sio" wire the retroXR builds of gambatte and mGBA speak, one per player,
+# and drives the serial clock for every Game Boy cabled to it, as the adapter
+# does: the ping phase that gives each its player number, then the packets that
+# carry every player's bytes to all four. Port k is player k+1, and player 1's
+# cable powers it. Built from RetroXR/dmg07-libretro, MIT.
+#
+# No systemid, on purpose: a systemid is a platform, a tile and a roms folder,
+# and an adapter runs no games. Its core is offered on the Game Boy pages of
+# OPTIONS > Cores > BIOS / Extras, as the Game Boy Printer's is.
+
+# Software Information
+display_name = "Nintendo - Game Boy 4 Player Adapter (retroXR)"
+authors = "RetroXR"
+supported_extensions = ""
+corename = "DMG-07 4 Player Adapter (retroXR)"
+license = "MIT"
+permissions = ""
+display_version = "1.0.0"
+
+# Hardware Information
+manufacturer = "Nintendo"
+categories = "Emulator"
+systemname = "Game Boy 4 Player Adapter"
+
+# Libretro Features
+supports_no_game = "true"
+savestate = "true"
+savestate_features = "deterministic"
+cheats = "false"
+input_descriptors = "false"
+memory_descriptors = "false"
+libretro_saves = "false"
+core_options = "false"
+load_subsystem = "false"
+hw_render = "false"
+needs_fullpath = "false"
+disk_control = "false"
+is_experimental = "true"
+
+description = "The DMG-07 4 Player Adapter as the hub of up to four Game Boy link cables on the frontend's link bus. Four players on gambatte or mGBA (retroXR builds) in games made for the adapter, such as Wave Race."

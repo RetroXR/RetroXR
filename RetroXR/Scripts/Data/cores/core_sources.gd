@@ -464,6 +464,26 @@ const SOURCES := {
 			"macOS":   "gbprinter_libretro_{arch}.dylib.zip",
 		},
 	},
+	# The DMG-07 4 Player Adapter, RetroXR's own core: no CPU and no game, the hub
+	# of up to four Game Boy link cables. It attaches four gb-sio ports, one per
+	# player, and drives the clock for every Game Boy cabled to it (gambatte and
+	# mGBA unchanged: each sees a cable of two). Written for RetroXR, so the
+	# buildbot has no row and _list_own_core lists it. MIT.
+	#
+	# v1: Wave Race's four players join, and names, menus and the starting grid
+	# cross to every machine; the race itself does not start yet
+	# (docs/dev/gb-link.md "The DMG-07 4 Player Adapter").
+	"dmg07": {
+		"repo":  "RetroXR/dmg07-libretro",
+		"known_tag": "retroxr-dmg07-libretro-v1",
+		"label": "DMG-07 4 Player Adapter (retroXR)",
+		"assets": {
+			"Windows": "dmg07_libretro.dll.zip",
+			"Android": "dmg07_libretro_android.so.zip",
+			"Linux":   "dmg07_libretro.so.zip",
+			"macOS":   "dmg07_libretro_{arch}.dylib.zip",
+		},
+	},
 	# flycast, so a VMU's screen can be on the VMU.
 	#
 	# Stock flycast has no second video output. Its only way of showing a VMU

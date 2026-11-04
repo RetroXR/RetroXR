@@ -442,8 +442,8 @@ through the adapter are OWED.
 
 ### The DMG-07 4 Player Adapter -- 2026-11-03, core only
 
-**A core, as the printer is** (`dmg07`, `~/libretro-cores-retroxr/dmg07-libretro`,
-local repo, MIT, not published yet).
+**A core, as the printer is** (`dmg07`, RetroXR/dmg07-libretro, MIT, local checkout
+`~/libretro-cores-retroxr/dmg07-libretro`, branch `retroxr`).
 - No CPU and no game.
 - It attaches FOUR `gb-sio` link ports, one per player. Port k is player k+1, and
   Game Boy k's port 0 is cabled to it, so each Game Boy is on a cable of two.
@@ -457,6 +457,18 @@ local repo, MIT, not published yet).
   the next). A normally clocked gambatte takes 976 us a byte and would leave the game
   39 us. FAST takes 30 us.
 - Player 1's cable powers it: with nothing on port 0 it sends nothing.
+
+**Released and downloadable (2026-11-04).**
+- `retroxr-dmg07-libretro-v1` publishes Windows, Android arm64, Linux and macOS
+  (the printer's workflow, `.github/workflows/retroxr-release.yml`).
+- `CoreSources` row `dmg07` and the overlay `libretro-core-info-retroxr/dmg07_libretro.info`
+  (no systemid, as the printer's).
+- It is a download row on the `gb` and `gbc` pages of OPTIONS > Cores > BIOS / Extras,
+  beside the printer's (`cores_view._FOUR_PLAYER_EXTRA`).
+- `gb_printer_tests` `_test_four_player_adapter_core` pins all three. Dropping the `gbc`
+  row turns it red.
+- The app's own `CoreDownloadManager` fetched v1 into the real cores folder, and the
+  installed DLL started as "DMG-07 4 Player Adapter 1.0.0".
 
 **The protocol** (`src/dmg07.c`) is Pan Docs' "4-Player Adapter" chapter.
 - Ping: `FE` then three STAT bytes, `connected << 4 | id`. The replies are read as a
@@ -517,4 +529,4 @@ OWED:
 - mGBA.
 - The room object: a captive player 1 lead and three large-plug sockets.
 - The frame rate on a Quest.
-- The core's publication and Android build.
+- A netplay row (`NetplayCores`): no session has been run with it.

@@ -1009,9 +1009,16 @@ const _PRINTER_EXTRA := {
 	"title": "Game Boy Printer",
 	"desc": "The printer's own core. Spawn the printer from the Game Boy's card and cable it to a Game Boy on gambatte or mGBA.",
 }
+## The DMG-07's: the hub of four Game Boy link cables (docs/dev/gb-link.md). Its
+## room object is not built yet, so the row says what the core is and no more.
+const _FOUR_PLAYER_EXTRA := {
+	"core": "dmg07",
+	"title": "DMG-07 4 Player Adapter",
+	"desc": "The 4 Player Adapter's own core: four Game Boys on gambatte or mGBA on one link, for games made for it such as Wave Race.",
+}
 const _BIOS_EXTRA_CORES := {
-	"gb": [_PRINTER_EXTRA],
-	"gbc": [_PRINTER_EXTRA],
+	"gb": [_PRINTER_EXTRA, _FOUR_PLAYER_EXTRA],
+	"gbc": [_PRINTER_EXTRA, _FOUR_PLAYER_EXTRA],
 }
 
 

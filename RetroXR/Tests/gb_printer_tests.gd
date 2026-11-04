@@ -105,6 +105,7 @@ func _ready() -> void:
 	await _test_netplay_surface()
 	_test_netplay_row()
 	_test_core_source_and_info()
+	_test_four_player_adapter_core()
 	_test_bios_extras_row()
 	_test_bios_extras_row_offers_updates()
 	_test_poster_pictures_travel()
@@ -1399,6 +1400,28 @@ func _test_core_source_and_info() -> void:
 	# No platform of its own: no tile on the spawn menu, no roms folder.
 	var sids := CoreInfoDatabase.systemids_of(info)
 	_ok(sids.is_empty() or sids == ["unknown"], "and names no platform (%s)" % str(sids))
+
+
+## The DMG-07 4 Player Adapter's core (dmg07-libretro) is fetched the printer's
+## way: its own releases, an overlay entry with no platform, and a row on both
+## Game Boy pages of BIOS / Extras beside the printer's.
+func _test_four_player_adapter_core() -> void:
+	_ok(CoreSources.has("dmg07"), "the 4 Player Adapter's core has a source to download from")
+	if CoreSources.has("dmg07"):
+		_ok(CoreSources.asset_for("dmg07").begins_with("dmg07_libretro"), "named as its releases name it")
+	var db := CoreInfoDatabase.new()
+	db.load_overlay(CoreInfoDatabase.OVERLAY_DIR)
+	var info: Dictionary = db.get_by_core_name("dmg07")
+	_ok(not info.is_empty(), "its core info is in the overlay")
+	_eq(str(info.get("supports_no_game", "")), "true", "it starts with no game")
+	var sids := CoreInfoDatabase.systemids_of(info)
+	_ok(sids.is_empty() or sids == ["unknown"], "and names no platform (%s)" % str(sids))
+	var view: GDScript = load("res://Scripts/UI/spawn_menu/views/cores_view.gd")
+	var extras: Dictionary = view.get_script_constant_map().get("_BIOS_EXTRA_CORES", {})
+	for sid: String in ["gb", "gbc"]:
+		var names: Array = (extras.get(sid, []) as Array).map(func(e: Dictionary) -> String: return str(e.get("core", "")))
+		_ok(names.has("dmg07") and names.has(GbPrinter.CORE),
+			"the %s page of BIOS / Extras offers it beside the printer (%s)" % [sid, str(names)])
 
 
 func _test_bios_extras_row_offers_updates() -> void:
