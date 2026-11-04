@@ -655,3 +655,6 @@ the browser pseudo-system `GameSearch.PAGE_ID` (`__` prefix = never hideable); t
 search (`RommClient.search_roms`) covers platforms never synced. Packed arrays are VALUES: an
 `(x as PackedStringArray).append()` on a dictionary entry is lost (the suite caught this).
 The page's look, a real RomM query and a headset are OWED (headless cannot show them).
+
+**`Libretro.GetVideoImage()` is the video handler's OWN image, updated in place every frame: `duplicate()` it before `convert()`/`resize()`.** Changing it in place froze every later screenshot of that run at the first one (the DMG-07 "race stall" of 2026-11-04, `gb-link.md`); hash a probe's screenshots when a sequence looks frozen.
+

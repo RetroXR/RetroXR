@@ -9,12 +9,14 @@
 ##         --rom="<Wave Race>.gb" --out=<dir> 2>&1 | grep -a -E "\[dmg07room\]|\[DMG-07\]"
 ##
 ## Uses the real cores folder (dmg07 and gambatte must be installed) and the real
-## data root. `--nolink` the control: no leads, so nobody answers.
+## data root. `--nolink` the control: no leads, so nobody answers. `--core=mgba`
+## puts mGBA in the Game Boys instead of gambatte.
 extends Node
 
 var rom_path := ""
 var out_dir := ""
 var nolink := false
+var core := "gambatte"
 var _gbs: Array[RetroSystem] = []
 var _adapter: Dmg07Adapter = null
 
@@ -28,6 +30,8 @@ func _ready() -> void:
 			out_dir = a.trim_prefix("--out=").replace("\\", "/")
 		elif a == "--nolink":
 			nolink = true
+		elif a.begins_with("--core="):
+			core = a.trim_prefix("--core=")
 	get_tree().create_timer(300.0).timeout.connect(func() -> void:
 		print("[dmg07room] TIMEOUT")
 		get_tree().quit(1))
@@ -36,9 +40,9 @@ func _ready() -> void:
 		print("[dmg07room] need --rom= and --out=")
 		get_tree().quit(1)
 		return
-	for core in ["dmg07", "gambatte"]:
-		if CoreDownloadManager.installed_core_lib(core).is_empty():
-			print("[dmg07room] SKIP  %s is not installed" % core)
+	for c in ["dmg07", core]:
+		if CoreDownloadManager.installed_core_lib(c).is_empty():
+			print("[dmg07room] SKIP  %s is not installed" % c)
 			get_tree().quit(0)
 			return
 	await _run()
@@ -66,7 +70,7 @@ func _run() -> void:
 	for i in 4:
 		var sys := (load("res://Scenes/Objects/system.tscn") as PackedScene).instantiate() as RetroSystem
 		sys.systemid = "gb"
-		sys.core_name = "gambatte"
+		sys.core_name = core
 		sys.name = "GameBoy%d" % (i + 1)
 		add_child(sys)
 		sys.position = Vector3(-0.6 + 0.4 * i, 0, 0.5)
@@ -141,6 +145,11 @@ func _shot(tag: String) -> void:
 		var img: Image = _gbs[p].get_libretro_node().call("GetVideoImage")
 		if img == null or img.is_empty():
 			continue
+		# A COPY: GetVideoImage hands back the video handler's own image, updated in
+		# place every frame. Converting or resizing it changes its format and size,
+		# the handler's next update no longer fits, and every later shot is the same
+		# stale picture -- which read as a race frozen on its countdown (2026-11-04).
+		img = img.duplicate() as Image
 		img.convert(Image.FORMAT_RGB8)
 		img.resize(320, 288, Image.INTERPOLATE_NEAREST)
 		sheet.blit_rect(img, Rect2i(0, 0, 320, 288), Vector2i(320 * p, 0))

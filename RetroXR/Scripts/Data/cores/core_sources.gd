@@ -470,9 +470,8 @@ const SOURCES := {
 	# mGBA unchanged: each sees a cable of two). Written for RetroXR, so the
 	# buildbot has no row and _list_own_core lists it. MIT.
 	#
-	# v1: Wave Race's four players join, and names, menus and the starting grid
-	# cross to every machine; the race itself does not start yet
-	# (docs/dev/gb-link.md "The DMG-07 4 Player Adapter").
+	# v1: Wave Race's four players join and race (docs/dev/gb-link.md "The DMG-07
+	# 4 Player Adapter").
 	"dmg07": {
 		"repo":  "RetroXR/dmg07-libretro",
 		"known_tag": "retroxr-dmg07-libretro-v1",

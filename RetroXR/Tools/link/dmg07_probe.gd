@@ -16,12 +16,14 @@
 ##                on identical clocks otherwise do everything on the same tick)
 ##
 ## --steps: `from-to:player:buttons`, buttons joined by `+` from a b select start
-## up down left right, held over player 1's frames from..to.
+## up down left right, held over player 1's frames from..to; `buttons/N` taps them
+## for TAP_FRAMES of every N frames instead.
 ##
 ## Wario Blast featuring Bomberman! is what this was first run against
 ## (docs/dev/gb-link.md "The DMG-07").
 extends Node
 
+const TAP_FRAMES := 8
 const BITS := {"b": 0, "select": 2, "start": 3, "up": 4, "down": 5, "left": 6, "right": 7, "a": 8}
 const CORE_OPTIONS := {
 	"gambatte": [["gambatte_gb_link_mode", "Link Cable"], ["gambatte_gb_bootloader", "disabled"]],
@@ -79,11 +81,19 @@ func _ready() -> void:
 		var parts := s.split(":")
 		var span := parts[0].split("-")
 		var mask := 0
-		for b in parts[2].split("+", false):
+		# `buttons/N`: tapped for TAP_FRAMES of every N frames across the span, so a
+		# press the game misses on one frame is taken on a later one.
+		var period := 0
+		var btns := parts[2]
+		if btns.contains("/"):
+			period = int(btns.get_slice("/", 1))
+			btns = btns.get_slice("/", 0)
+		for b in btns.split("+", false):
 			if not BITS.has(b):
 				print("[dmg07] unknown button %s" % b)
 			mask |= 1 << int(BITS.get(b, 0))
-		_steps.append({"from": int(span[0]), "to": int(span[1]), "player": int(parts[1]) - 1, "mask": mask})
+		_steps.append({"from": int(span[0]), "to": int(span[1]), "player": int(parts[1]) - 1, "mask": mask,
+			"period": period})
 	for f in shots_arg.split(",", false):
 		_shots.append(int(f))
 	_write_options()
@@ -179,7 +189,19 @@ func _drive(frame: int) -> void:
 	for p in players:
 		var mask := 0
 		for st: Dictionary in _steps:
-			if int(st["player"]) == p and frame >= int(st["from"]) and frame <= int(st["to"]):
+			if int(st["player"]) != p or frame < int(st["from"]):
+				continue
+			# A step starts when its frame is first SEEN, however late, and lasts its
+			# whole span from there: under load the frames between two of this
+			# loop's passes can jump a short press window entirely, which is how a
+			# press used to vanish (2026-11-04).
+			if int(st.get("began", -1)) < 0:
+				st["began"] = frame
+			var began := int(st["began"])
+			if frame > began + int(st["to"]) - int(st["from"]):
+				continue
+			var period := int(st.get("period", 0))
+			if period <= 0 or (frame - began) % period < TAP_FRAMES:
 				mask |= int(st["mask"])
 		if mask != _masks[p]:
 			print("[dmg07] frame %d: player %d buttons %d" % [frame, p + 1, mask])
@@ -194,6 +216,11 @@ func _shot(frame: int) -> void:
 		var img: Image = (_gbs[p] as Node).call("GetVideoImage")
 		if img == null or img.is_empty():
 			continue
+		# A COPY: GetVideoImage hands back the video handler's own image, updated in
+		# place every frame. Converting or resizing it changes its format and size,
+		# the handler's next update no longer fits, and every later shot is the same
+		# stale picture -- which read as a race frozen on its countdown (2026-11-04).
+		img = img.duplicate() as Image
 		img.convert(Image.FORMAT_RGB8)
 		img.resize(320, 288, Image.INTERPOLATE_NEAREST)
 		sheet.blit_rect(img, Rect2i(0, 0, 320, 288), Vector2i(320 * p, 0))

@@ -537,32 +537,36 @@ adapter on the bus directly, a scratch root holding `cores/dmg07_libretro.dll` a
   the one before, so its first byte of a packet goes out one slot in. Pan Docs'
   prose says the first transfers; GBE+ (`src/dmg/dmg07.cpp`) and the game say
   slot 1. With slot 0 every relayed byte read zero and nobody saw anyone's name.
-- **A player confirms after player 1.** On the course screen player 1's A sends
-  `02`, the others answer `AD AE AF`, and each of players 2-4 must then press A
-  and Start before the grid appears.
-- **Pacing matters, and Pan Docs' is the one that works.** `DMG07_TIMING=gbe`
-  (GBE+'s 8 x (6 x RATE + 512) cycles a byte, packets back to back) and `=bytes`
-  (no 17 ms floor: 11.4 ms packets at RATE $FF, not 32) both leave the four
-  menus out of step.
-- **OPEN: the race does not start.** The countdown stays at 3 and the clock at
-  00:00:00, with or without A held, though every machine is armed in every slot
-  (`DMG07_TRACE=<packet>`) and the turn-by-turn input keeps flowing.
-  - Ruled out:
-    - **A pause.** Starts from players 2-4 after the race screen could pause it, so
-      they were left out (2026-11-04, two runs): it still holds at 3.
-    - **Pacing.** `DMG07_TIMING=dcgb` (DoubleCherryGB's transmission timing,
-      `gb_core/sio/dmg07.cpp`, read for its behaviour: 6144 x (m + 1) cycles a byte,
-      m from RATE's top two bits, packets back to back; 5.9 ms a byte at RATE $FF)
-      puts the menus out of step, as `gbe` and `bytes` do.
-  - **Getting to the race at all is luck of timing.** Player 1's Start on the
-    STARTING GRID began the race in some runs and was ignored in others, with the
-    same script. Presses are timed on player 1's frames while the others run a
-    few frames apart. Probably the game reads the buttons only on some frames.
-  - Not yet tried:
-    - DoubleCherryGB's other difference: it clocks a byte only once every Game
-      Boy has serviced its last serial interrupt (`all_IE_are_handled`).
-    - Comparing the in-race packets with a real unit or another emulator.
-    - A second adapter game.
+- **The race runs (2026-11-04).** Player 1 takes GAME SELECT and the course, the
+  others confirm on the grid, and player 1's Start begins it: the countdown, GO,
+  every Game Boy's race clock counting, each rider moving, and each seen on the
+  others' screens (rider "1" on Game Boy 3's). An mp4 of four screens was the
+  proof. A script that reaches it reliably (`--steps`, player 1's frames):
+  `300-305:1:down,330-335:1:a,340-345:2:down,370-375:2:a,380-385:3:down,410-415:3:a,`
+  `420-425:4:down,450-455:4:a,800-805:1:start,1000-1005:2:start,1150-1155:3:start,`
+  `1300-1305:4:start,1500-1800:1:a/60,1900-2100:2:a/50,1900-2100:3:a/50,`
+  `1900-2100:4:a/50,2200-2500:1:start/60,2700-4600:1:a,...` (`a/60` taps A for 8
+  of every 60 frames).
+- **What read for a day as "the race stalls on its countdown" was the PROBE.**
+  `GetVideoImage()` hands back the video handler's own image, which it updates in
+  place every frame. `dmg07_probe` converted and resized that image for its sheet,
+  which changed the image's format and size; the handler's next update no longer
+  fitted, and every later screenshot was the first one again. So a countdown that
+  read 3 in the first shot read 3 for ever, and a blinking cursor caught in two
+  phases read as four menus out of step. Copy it first (`img.duplicate()`), as the
+  probes do now: one image per screenshot is the tell (hash them).
+- So nothing was ever shown about pacing: Pan Docs' (the default) races, and
+  `DMG07_TIMING=gbe|bytes|dcgb` are untested since the fix. `DMG07_WAIT=1` (hold
+  a slot until every Game Boy taking part is armed, which GBE+ and DoubleCherryGB
+  effectively do) never waited once: every Game Boy was armed at every slot.
+- **Two more probe traps met on the way.** A press window of 6 frames can be
+  jumped entirely when the loop's passes are far apart (two runs at once): a step
+  now starts when its frame is first seen and lasts its full span. And one scratch
+  root, used for many runs and an mGBA attempt, stopped taking any press while a
+  fresh root with the same cores did: give every run a fresh root.
+- **mGBA does not run here.** A Game Boy on mGBA reaches no frame in a headless
+  probe even with no adapter and no lead (`--nolink`), so it is not the adapter's;
+  not looked into. OWED, with mGBA on the adapter.
 
 **Frame rate, four Game Boys and the adapter, one Windows PC:**
 - Paced: 59.0-59.9 fps in every 600-frame window after power-on (the first,
