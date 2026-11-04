@@ -16,6 +16,7 @@
 ##   netplay/     the fingerprint and its mismatch report
 ##   consistency/ cross-table invariants a mod platform would break first
 ##   tvdefaults/  cabinet CRT defaults without overwriting restored/player values
+##   coresys/     a mod platform on one of the game's cores, and its Games tile
 ##
 ## Almost every case runs WITHOUT mounting anything, because a mounted pack
 ## cannot be unmounted and a test that mounts pollutes every case after it.
@@ -26,7 +27,7 @@
 extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 424
+const EXPECTED_CASES := 446
 
 var _only := ""
 var _dir := ""
@@ -59,6 +60,7 @@ func _ready() -> void:
 	if _want("tvdefaults"):  _group_tv_defaults()
 	if _want("attach"):      _group_attach()
 	if _want("mains"):       _group_mains()
+	if _want("coresys"):     _group_coresys()
 
 	_cleanup()
 	# A case that never RAN is not a case that passed: GDScript has no try/catch,
@@ -1044,6 +1046,64 @@ func _group_overlay() -> void:
 	_eq(t.table()["nes"]["name"], "shipped nes",
 		"overlay/withdrawing an override restores the shipped row")
 	_eq(t.table(), base, "overlay/and the table is the shipped one again")
+
+
+## A mod's platform on one of the game's cores: what gives it a Games tile. The
+## tiles are the platforms installed cores serve, so the platform has to reach
+## systemids_of(), its extensions, a default core and a label, and leave all of
+## them when the mod goes.
+func _group_coresys() -> void:
+	_hooks = ModHooks.new(get_tree())
+	var sid := "t_coresys"
+	var db := CoreInfoDatabase.shared()
+	var fceumm := db.get_by_core_name("fceumm")
+	_ok(not fceumm.is_empty(), "coresys/the fixture core is in the database")
+
+	var info := SystemInfo.new()
+	info.systemid = sid
+	info.display_name = "Test Coresys"
+	var api := _api("t.coresys")
+	_ok(api.register_platform({"systemid": sid, "system_info": info,
+		"core": {"core_name": "fceumm", "extensions": [".NES", "unf"]}}),
+		"coresys/a platform with a core key registers", api.errors_text())
+	_ok(CoreInfoDatabase.is_mod_system(sid), "coresys/the platform is on a core")
+	_ok(sid in CoreInfoDatabase.systemids_of(fceumm),
+		"coresys/the core serves the mod's platform", str(CoreInfoDatabase.systemids_of(fceumm)))
+	_ok("nes" in CoreInfoDatabase.systemids_of(fceumm),
+		"coresys/and still serves its own")
+	_eq(CoreInfoDatabase.extensions_for_systemid(sid), ["nes", "unf"] as Array[String],
+		"coresys/the platform reads the extensions given, cleaned")
+	_eq(db.get_by_systemid(sid).size(), 1, "coresys/the core is found under the platform")
+	_eq(db.get_systemname_for_id(sid), "Test Coresys",
+		"coresys/the tile is named by the mod's SystemInfo, not the core")
+
+	# Refusals, each out loud.
+	_ok(not CoreInfoDatabase.register_mod_system("t_coresys2", "no_such_core", ["nes"], "t.x").is_empty(),
+		"coresys/a core the database does not know is refused")
+	_ok(not CoreInfoDatabase.register_mod_system("nes", "fceumm", ["nes"], "t.x").is_empty(),
+		"coresys/a platform the game's cores serve is refused")
+	_ok(not CoreInfoDatabase.register_mod_system("t_coresys2", "fceumm", ["iso"], "t.x").is_empty(),
+		"coresys/an extension the core does not read is refused")
+	_ok(not CoreInfoDatabase.register_mod_system("t_coresys2", "fceumm", [], "t.x").is_empty(),
+		"coresys/no extensions is refused")
+	_ok(not CoreInfoDatabase.register_mod_system(sid, "fceumm", ["nes"], "t.other").is_empty(),
+		"coresys/a second mod cannot take the platform")
+	_ok(not CoreInfoDatabase.is_mod_system("t_coresys2"), "coresys/nothing refused was kept")
+
+	# The default core, as the spawn menu adopts it.
+	var cd := CoreDefaults.new()
+	cd.set_default_core("nes", "fceumm")
+	var adopted := cd.adopt_missing(db, PackedStringArray(["fceumm"]))
+	_ok(sid in adopted, "coresys/the installed core becomes the platform's default", str(adopted))
+	_ok(cd.all_defaults().has(sid), "coresys/so the platform has a tile")
+
+	api.withdraw()
+	_ok(not CoreInfoDatabase.is_mod_system(sid), "coresys/withdraw takes the platform back")
+	_ok(not sid in CoreInfoDatabase.systemids_of(fceumm), "coresys/the core no longer serves it")
+	_eq(CoreInfoDatabase.extensions_for_systemid(sid).size(), 0, "coresys/nor reads for it")
+	_ok(not cd.all_defaults().has(sid), "coresys/a removed mod's platform has no tile")
+	_eq(cd.get_default_core(sid), "fceumm", "coresys/the choice of core is kept for its return")
+	_ok(cd.all_defaults().has("nes"), "coresys/the game's own defaults are untouched")
 
 
 ## A mod's mains regions and its region callback go with it: withdraw() once

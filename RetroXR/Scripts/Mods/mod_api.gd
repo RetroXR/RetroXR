@@ -139,7 +139,10 @@ func register_system_info(info: SystemInfo) -> bool:
 ## pieces fails much later and far from the cause — no remap diagram, or carts
 ## that never get art — so this reports what is missing at registration time.
 ##
-## Keys: systemid, system_info, models, pad_art, media, scraper_id.
+## Keys: systemid, system_info, models, pad_art, media, scraper_id, and core --
+## {core_name, extensions}, see register_core_system. A platform no core of the
+## game's serves needs `core` for a Games tile; one the game already plays
+## (a new model of a shipped machine) leaves it out.
 func register_platform(spec: Dictionary) -> bool:
 	var systemid := SystemIds.canonical(str(spec.get("systemid", "")))
 	if systemid.is_empty():
@@ -171,6 +174,12 @@ func register_platform(spec: Dictionary) -> bool:
 		ok = register_scraper_system(systemid, int(spec["scraper_id"])) and ok
 	else:
 		missing.append("scraper_id (carts never get art)")
+	if spec.has("core"):
+		var core := spec["core"] as Dictionary
+		ok = register_core_system(systemid, str(core.get("core_name", "")),
+			core.get("extensions", []) as Array) and ok
+	elif CoreInfoDatabase.shared().get_by_systemid(systemid).is_empty():
+		missing.append("core (no core plays it, so it has no Games tile)")
 	if not missing.is_empty():
 		_warn("platform %s is incomplete: %s" % [systemid, ", ".join(missing)])
 	if not ok:
@@ -233,6 +242,28 @@ func register_cart_shell(systemid: String, row: Dictionary) -> bool:
 	if not err.is_empty():
 		return _fail("cartridge shell %s: %s" % [systemid, err])
 	_note("media", "%s cartridge shells (%d)" % [systemid, ModCartShells.bodies(systemid).size()])
+	return true
+
+
+## Play this platform on a core the game already has, reading `extensions`.
+##
+## What gives a platform its Games tile: tiles are the platforms installed cores
+## serve, and this makes `core_name` serve one more, as if its .info named it in
+## `secondary_systemids`. With the core installed the tile appears and the core
+## becomes its default; without it the tile waits for the core, like any other.
+## ROMs go in roms/<systemid>/. The tile is named by this platform's SystemInfo
+## (register_system_info) and drawn from res://Textures/SystemIcons/
+## <systemid>.svg and <systemid>-content.svg, which a pack may add.
+##
+## A mod cannot ship a core, so `core_name` must be one the core database knows,
+## and every extension one that core reads. One mod holds a platform, and a
+## platform the game's own cores serve already cannot be taken.
+func register_core_system(systemid: String, core_name: String, extensions: Array) -> bool:
+	systemid = SystemIds.canonical(systemid)
+	var err := CoreInfoDatabase.register_mod_system(systemid, core_name, extensions, id)
+	if not err.is_empty():
+		return _fail("core %s: %s" % [systemid, err])
+	_note("platform", "%s on %s" % [systemid, core_name])
 	return true
 
 
@@ -600,6 +631,7 @@ func withdraw() -> void:
 	ModCartShells.drop_mod(id)
 	ExpansionCatalog.drop_mod(id)
 	ScreenscraperSystems.drop_mod(id)
+	CoreInfoDatabase.drop_mod(id)
 	RoomCatalog.drop_mod(id)
 	SpawnCatalog.drop_mod(id)
 	ScenePersistence.drop_mod_objects(id)

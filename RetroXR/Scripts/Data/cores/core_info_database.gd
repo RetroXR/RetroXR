@@ -30,6 +30,15 @@ var _primary_ids: Dictionary = {}
 
 static var _shared: CoreInfoDatabase = null
 
+## Platforms mods added to cores the game already has:
+## systemid -> {core_name: String, exts: Array[String], owner: String}.
+##
+## Static and read at query time rather than folded into the indices, because
+## there is no single database: the spawn menu parses its own, shared() caches
+## another, and the tests build more. A mod applies after any of them may have
+## loaded, and nothing would reload them. ModApi.register_core_system fills it.
+static var _mod_systems: Dictionary = {}
+
 
 ## Lazily-loaded process-wide instance, for callers that want a single lookup and
 ## should not pay to re-parse every .info file to get it. Safe to cache: the
@@ -75,7 +84,80 @@ static func systemids_of(entry: Dictionary) -> Array[String]:
 		var id: String = sub["id"]
 		if id not in ids:
 			ids.append(id)
+	for id: String in mod_systemids_of_core(str(entry.get("core_name", ""))):
+		if id not in ids:
+			ids.append(id)
 	return ids
+
+
+# ---------------------------------------------------------------------------
+# Platforms added by mods
+# ---------------------------------------------------------------------------
+
+## Add `systemid` as a platform `core_name` serves, reading `exts`, as if the
+## core's .info had named it in `secondary_systemids`. With that core installed
+## the platform gets a Games tile and a default core like any other.
+##
+## "" on success, else why it was refused. Refused: a core the database does not
+## know (a mod cannot ship one), an id some shipped core already serves (this
+## adds platforms; it does not regroup the game's), an id another mod holds, and
+## an extension the core does not read (a core handed a file it never claimed
+## does not boot it, and ModContentPolicy's list of extensions that cannot ride
+## in a pack is built from what the cores declare).
+static func register_mod_system(systemid: String, core_name: String, exts: Array,
+		owner_id: String = "") -> String:
+	if systemid.is_empty():
+		return "systemid is empty"
+	if systemid == "unknown":
+		return "'unknown' is where cores with no systemid are filed, not a platform"
+	var db := shared()
+	var core := db.get_by_core_name(core_name)
+	if core.is_empty():
+		return "no core named '%s' in the core database" % core_name
+	if _mod_systems.has(systemid):
+		var holder := str((_mod_systems[systemid] as Dictionary)["owner"])
+		if holder != owner_id:
+			return "%s is already added by mod '%s'" % [systemid, holder]
+	elif db._by_systemid.has(systemid):
+		return "%s is already a platform of the game's own cores" % systemid
+	var reads: Array[String] = []
+	for e: String in str(core.get("supported_extensions", "")).split("|"):
+		reads.append(e.strip_edges().to_lower())
+	var list: Array[String] = []
+	for e: Variant in exts:
+		var ext := str(e).strip_edges().trim_prefix(".").to_lower()
+		if ext.is_empty() or ext in list:
+			continue
+		if ext not in reads:
+			return "%s does not read .%s" % [core_name, ext]
+		list.append(ext)
+	if list.is_empty():
+		return "%s needs at least one extension" % systemid
+	_mod_systems[systemid] = {"core_name": core_name, "exts": list, "owner": owner_id}
+	return ""
+
+
+## Take back one mod's platforms.
+static func drop_mod(owner_id: String) -> void:
+	for systemid: String in _mod_systems.keys():
+		if str((_mod_systems[systemid] as Dictionary)["owner"]) == owner_id:
+			_mod_systems.erase(systemid)
+
+
+## True while a mod has `systemid` on one of the cores.
+static func is_mod_system(systemid: String) -> bool:
+	return _mod_systems.has(systemid)
+
+
+## The platforms mods added to this core, in the order they were added.
+static func mod_systemids_of_core(core_name: String) -> Array[String]:
+	var out: Array[String] = []
+	if core_name.is_empty():
+		return out
+	for systemid: String in _mod_systems:
+		if str((_mod_systems[systemid] as Dictionary)["core_name"]) == core_name:
+			out.append(systemid)
+	return out
 
 
 ## Extensions (lowercase, no dots) that belong to this systemid: the union of
@@ -101,6 +183,11 @@ static func extensions_for_systemid(systemid: String) -> Array[String]:
 	for e: String in db._secondary_exts.get(systemid, [] as Array[String]):
 		if e not in exts:
 			exts.append(e)
+
+	if _mod_systems.has(systemid):
+		for e: String in (_mod_systems[systemid] as Dictionary)["exts"]:
+			if e not in exts:
+				exts.append(e)
 
 	return exts
 
@@ -181,6 +268,11 @@ func get_by_systemid(systemid: String) -> Array[Dictionary]:
 		var result: Array[Dictionary] = []
 		result.assign(_by_systemid[systemid])
 		return result
+	if _mod_systems.has(systemid):
+		var core := get_by_core_name(str((_mod_systems[systemid] as Dictionary)["core_name"]))
+		if not core.is_empty():
+			var one: Array[Dictionary] = [core]
+			return one
 	return []
 
 
@@ -196,8 +288,13 @@ func get_unique_systemids() -> Array[String]:
 
 ## True when no core claims this systemid as its own and it exists only because
 ## one or more cores named it in `secondary_systemids`.
+##
+## A platform a mod added counts: it too is named by SystemInfo (the mod's own
+## descriptor), not by the core it rides on.
 func is_secondary_systemid(systemid: String) -> bool:
-	return _secondary_exts.has(systemid) and not _primary_ids.has(systemid)
+	if _primary_ids.has(systemid):
+		return false
+	return _secondary_exts.has(systemid) or _mod_systems.has(systemid)
 
 
 ## Labels that beat every core's own `systemname`. The Game Boy, WonderSwan and

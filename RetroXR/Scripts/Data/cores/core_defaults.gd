@@ -13,6 +13,11 @@ extends RefCounted
 
 var _path:     String     = ""
 var _defaults: Dictionary = {}   # systemid -> core_name
+## systemid -> true for each default set while a mod supplied that platform
+## (CoreInfoDatabase.register_mod_system). all_defaults() leaves them out while
+## no mod supplies it, so a removed mod's platform loses its tile; the choice is
+## kept, and comes back with the mod. Saved as "mod_systems".
+var _mod_sids: Dictionary = {}
 
 
 static func default_path() -> String:
@@ -32,6 +37,8 @@ func get_default_core(systemid: String) -> String:
 ## Set which core is the default for a systemid. Call save() to persist.
 func set_default_core(systemid: String, core_name: String) -> void:
 	_defaults[systemid] = core_name
+	if CoreInfoDatabase.is_mod_system(systemid):
+		_mod_sids[systemid] = true
 
 
 ## Give every platform an installed core serves -- its own systemid and its
@@ -65,9 +72,14 @@ func adopt_missing(core_db: CoreInfoDatabase, installed: PackedStringArray) -> A
 	return adopted
 
 
-## Returns a copy of the full defaults dict (systemid -> core_name).
+## Returns a copy of the defaults dict (systemid -> core_name), less any
+## platform a mod supplied that no mod supplies now.
 func all_defaults() -> Dictionary:
-	return _defaults.duplicate()
+	var out := _defaults.duplicate()
+	for sid: String in _mod_sids:
+		if not CoreInfoDatabase.is_mod_system(sid):
+			out.erase(sid)
+	return out
 
 
 ## False when the write did not land, like every other store here. A default
@@ -77,13 +89,21 @@ func save() -> bool:
 	if _path.is_empty():
 		push_error("[CoreDefaults] no path set, call setup() first")
 		return false
-	return JsonStore.write_dict(_path, {"defaults": _defaults}, "CoreDefaults")
+	var data := {"defaults": _defaults}
+	if not _mod_sids.is_empty():
+		data["mod_systems"] = _mod_sids.keys()
+	return JsonStore.write_dict(_path, data, "CoreDefaults")
 
 
 func load_defaults() -> void:
 	if _path.is_empty():
 		return
-	var d: Variant = JsonStore.read_dict(_path, "CoreDefaults").get("defaults")
+	var data := JsonStore.read_dict(_path, "CoreDefaults")
+	var m: Variant = data.get("mod_systems")
+	if m is Array:
+		for sid: Variant in (m as Array):
+			_mod_sids[str(sid)] = true
+	var d: Variant = data.get("defaults")
 	if d is Dictionary:
 		_defaults = SystemIds.rekeyed(d as Dictionary)
 		# Ensure a roms/ folder exists for every configured system

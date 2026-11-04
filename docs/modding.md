@@ -357,11 +357,25 @@ api.register_platform({
     "pad_art": {...},          # or the Controls remap page has no anchors
     "media": {"cart_size": Vector3(0.09, 0.08, 0.01)},
     "scraper_id": 75,          # or its carts never get art — see below
+    "core": {"core_name": "mame", "extensions": ["zip"]},   # or it has no Games tile
 })
 ```
 
-Tile art needs no call: ship `res://Textures/SystemIcons/<systemid>.svg` as a
-claim and `SystemIcons` finds it.
+**The Games tile.** The Games and Systems tabs list the platforms installed cores
+serve, so a platform needs a core before it gets a tile. A mod cannot ship one,
+but it can put its platform on a core the game already has:
+`api.register_core_system(systemid, core_name, extensions)` (the `core` key above
+calls it). The core then serves your platform as if its `.info` named it in
+`secondary_systemids`: with the core installed the tile appears, the core becomes
+the platform's default, and ROMs go in `roms/<systemid>/`. `core_name` must be in
+the core database and every extension one that core reads; a platform the game's
+own cores already serve is refused. A new model of a machine the game already
+plays leaves `core` out. Remove the mod and the tile goes; the player's choice of
+core comes back with it.
+
+Tile art needs no call: ship `res://Textures/SystemIcons/<systemid>.svg` (the
+Systems tile) and `<systemid>-content.svg` (the Games tile) as claims and
+`SystemIcons` finds them. The tile's name is your SystemInfo's `display_name`.
 
 ## Cartridges, discs and scraped art
 

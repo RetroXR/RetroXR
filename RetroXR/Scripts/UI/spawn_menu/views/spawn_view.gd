@@ -3007,7 +3007,19 @@ func _populate_tvs_tab() -> void:
 ## tab was built once; the two grids and an open card are owed a rebuild, which
 ## pays when the tab is next on screen; and a mod's SystemInfo can change what a
 ## ROM folder scan finds.
+##
+## A mod can also put a platform on an installed core
+## (ModApi.register_core_system), after the menu adopted its defaults at boot,
+## so it is given its default core here or its tile has nothing to boot.
 func _on_mods_applied() -> void:
+	if core_defaults != null and core_db != null:
+		var adopted := core_defaults.adopt_missing(core_db,
+			CoreDownloadManager.installed_core_names())
+		if not adopted.is_empty():
+			core_defaults.save()
+			for sid: String in adopted:
+				RomLibrary.ensure_rom_dir(sid)
+			print("[SpawnView] adopted default cores for ", adopted)
 	_populate_tvs_tab()
 	_invalidate_local_scan()
 	refresh_after_core_change("")
