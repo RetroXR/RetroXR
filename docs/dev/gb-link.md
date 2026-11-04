@@ -569,7 +569,7 @@ adapter on the bus directly, a scratch root holding `cores/dmg07_libretro.dll` a
   than a bank, and `GBMBCSwitchSramBank` RETURNED without setting `sramBank`,
   which went on pointing at the mapping the libretro save remap had freed. Every
   other Game Boy ROM here ran. Upstream fixed it (mgba-emu 543a19758, #3859); the
-  fork carries the `mbc.c` half (`0bf7a9ba3`, to be released as mGBA v10). Any
+  fork carries the `mbc.c` half (`0bf7a9ba3`, released as mGBA v10). Any
   MBC2 game crashed the same way.
 - **mGBA races only under GBE+'s pacing, now the adapter's default** (dmg07 v2).
   Under Pan Docs' (`DMG07_TIMING=pandocs`) the four reach the grid and count down
@@ -606,7 +606,6 @@ adapter on the bus directly, a scratch root holding `cores/dmg07_libretro.dll` a
 OWED:
 - A real DMG-07 game: F-1 Race, Faceball 2000, Wave Race, Yoshi's Cookie,
   Micro Machines, Super R.C. Pro-Am, Top Rank Tennis or Trax.
-- The released mGBA v10 and dmg07 v2 in CoreSources (both tagged by hand).
 - The room object: a captive player 1 lead and three large-plug sockets.
 - The frame rate on a Quest.
 - A netplay row (`NetplayCores`): no session has been run with it.

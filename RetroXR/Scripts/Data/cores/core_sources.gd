@@ -98,6 +98,10 @@ const SOURCES := {
 	# period was read back over its flags byte, and both link drivers were left
 	# off the schedule, which stops the machine at the OTHER end of the wire.
 	#
+	# v10 carries upstream's MBC2 fix (mgba-emu 543a19758): a cartridge whose save
+	# RAM is smaller than a bank (Wave Race) left sramBank dangling and crashed at
+	# its first frame (docs/dev/gb-link.md "The DMG-07 4 Player Adapter").
+	#
 	# Unlike Dolphin this is not a GPL obligation -- mGBA is MPL-2.0 -- but the
 	# source sits on the tag beside the binary for the same practical reason: it
 	# is the only way anyone can tell what they are running.
@@ -107,7 +111,7 @@ const SOURCES := {
 	# name here fails silently, as a core that simply never downloads.
 	"mgba": {
 		"repo":  "RetroXR/mgba",
-		"known_tag": "retroxr-mgba-libretro-v9",
+		"known_tag": "retroxr-mgba-libretro-v10",
 		"label": "mGBA (retroXR build)",
 		"assets": {
 			"Windows": "mgba_libretro.dll.zip",
@@ -470,11 +474,12 @@ const SOURCES := {
 	# mGBA unchanged: each sees a cable of two). Written for RetroXR, so the
 	# buildbot has no row and _list_own_core lists it. MIT.
 	#
-	# v1: Wave Race's four players join and race (docs/dev/gb-link.md "The DMG-07
-	# 4 Player Adapter").
+	# v1: Wave Race's four players join and race on gambatte. v2 paces packets as
+	# GBE+ does, under which they race on mGBA too (docs/dev/gb-link.md "The
+	# DMG-07 4 Player Adapter").
 	"dmg07": {
 		"repo":  "RetroXR/dmg07-libretro",
-		"known_tag": "retroxr-dmg07-libretro-v1",
+		"known_tag": "retroxr-dmg07-libretro-v2",
 		"label": "DMG-07 4 Player Adapter (retroXR)",
 		"assets": {
 			"Windows": "dmg07_libretro.dll.zip",
