@@ -142,7 +142,8 @@ func register_system_info(info: SystemInfo) -> bool:
 ## Keys: systemid, system_info, models, pad_art, media, scraper_id, and core --
 ## {core_name, extensions}, see register_core_system. A platform no core of the
 ## game's serves needs `core` for a Games tile; one the game already plays
-## (a new model of a shipped machine) leaves it out.
+## (a new model of a shipped machine) leaves it out. With `core`, also `bios`
+## (register_bios) and `core_options` (register_core_options).
 func register_platform(spec: Dictionary) -> bool:
 	var systemid := SystemIds.canonical(str(spec.get("systemid", "")))
 	if systemid.is_empty():
@@ -180,6 +181,11 @@ func register_platform(spec: Dictionary) -> bool:
 			core.get("extensions", []) as Array) and ok
 	elif CoreInfoDatabase.shared().get_by_systemid(systemid).is_empty():
 		missing.append("core (no core plays it, so it has no Games tile)")
+	# Both ride the core, so they come after it.
+	if spec.has("bios"):
+		ok = register_bios(systemid, spec["bios"] as Dictionary) and ok
+	if spec.has("core_options"):
+		ok = register_core_options(systemid, spec["core_options"] as Dictionary) and ok
 	if not missing.is_empty():
 		_warn("platform %s is incomplete: %s" % [systemid, ", ".join(missing)])
 	if not ok:
@@ -264,6 +270,43 @@ func register_core_system(systemid: String, core_name: String, extensions: Array
 	if not err.is_empty():
 		return _fail("core %s: %s" % [systemid, err])
 	_note("platform", "%s on %s" % [systemid, core_name])
+	return true
+
+
+## Say what BIOS this platform needs, for a platform on a core
+## (register_core_system). `row`:
+##   boot_rom              files, any ONE of which is the BIOS
+##   also_needs            files that must ALL be there as well (optional)
+##   media_needs_boot_rom  true when games will not start without it: power-on
+##                         then stops with "missing BIOS" instead of a black
+##                         screen. Leave it out when the BIOS is only a splash.
+##   splash                core options that play the boot animation when the
+##                         BIOS is there (optional)
+##   why                   a line saying what it is for (optional)
+## Every file must be one the core's .info lists as firmware -- the only files
+## its presence is checked for, and the only ones the core loads. The platform
+## then has a tile of its own on Cores > BIOS listing just those files. A mod
+## cannot ship them: the player supplies their own, as for every machine.
+func register_bios(systemid: String, row: Dictionary) -> bool:
+	systemid = SystemIds.canonical(systemid)
+	var err := BiosBoot.register_mod_row(systemid, row, id)
+	if not err.is_empty():
+		return _fail("bios %s: %s" % [systemid, err])
+	_note("platform", "%s BIOS" % systemid)
+	return true
+
+
+## Core options this platform pins every run, for a platform on a core
+## (register_core_system): {key: value}, both strings, as the core spells them.
+## What makes the shared core this machine -- its .opt file is the shipped
+## machine's too, and that machine's last run would otherwise carry over. Applied
+## after the game's own pins, and shown locked in the core's options panel.
+func register_core_options(systemid: String, options: Dictionary) -> bool:
+	systemid = SystemIds.canonical(systemid)
+	var err := ForcedCoreOptions.register_mod_options(systemid, options, id)
+	if not err.is_empty():
+		return _fail("core options %s: %s" % [systemid, err])
+	_note("platform", "%s core options (%d)" % [systemid, options.size()])
 	return true
 
 
@@ -632,6 +675,8 @@ func withdraw() -> void:
 	ExpansionCatalog.drop_mod(id)
 	ScreenscraperSystems.drop_mod(id)
 	CoreInfoDatabase.drop_mod(id)
+	BiosBoot.drop_mod(id)
+	ForcedCoreOptions.drop_mod(id)
 	RoomCatalog.drop_mod(id)
 	SpawnCatalog.drop_mod(id)
 	ScenePersistence.drop_mod_objects(id)

@@ -593,7 +593,10 @@ func _add_core_option_row(root: String, core_name: String, _systemid: String, ke
 	# player: the hardware one cannot be unlocked at all, the BIOS one is a switch
 	# in OPTIONS > Systems. HARDWARE_PINNED deliberately does not carry the BIOS
 	# keys — it also drives reset_to_defaults, which must keep restoring them.
-	var hardware_pinned: bool = CoreOptionsStore.HARDWARE_PINNED.has(key)
+	# A key a mod platform on this core pins is hardware too: that machine's
+	# next power-on sets it back.
+	var hardware_pinned: bool = CoreOptionsStore.HARDWARE_PINNED.has(key) \
+		or ForcedCoreOptions.mod_pinned_keys(core_name).has(key)
 	var bios_pinned: bool = not AppPrefs.bios_boot_override \
 		and BiosBoot.pinned_keys_for_core(core_name).has(key)
 	var pinned: bool = hardware_pinned or bios_pinned
@@ -908,7 +911,7 @@ func _populate_bios_tab() -> void:
 	for sid: String in _bios_cores_by_system:
 		var rows: Array[Dictionary] = []
 		for c: Dictionary in _bios_cores_by_system[sid]:
-			rows.append_array(_bios_rows_for_core(str(c["core_name"])))
+			rows.append_array(_bios_rows_for_system(str(c["core_name"]), sid))
 		# A core with nothing to declare is not "complete", it is silent — no
 		# tile, so the grid only shows systems where there is something to know.
 		if rows.is_empty():
@@ -937,6 +940,22 @@ func _populate_bios_tab() -> void:
 		})
 
 	_bios_browser.set_systems(systems)
+
+
+## The rows a system's tile shows for one of its cores: all of the core's, except
+## on a platform a mod put on the core, which shows only the files its mod
+## declared (BiosBoot.register_mod_row) -- and so has no tile when it declared
+## none, rather than a second copy of the host machine's.
+func _bios_rows_for_system(core_name: String, systemid: String) -> Array[Dictionary]:
+	var rows := _bios_rows_for_core(core_name)
+	if not CoreInfoDatabase.is_mod_system(systemid):
+		return rows
+	var wanted := BiosBoot.mod_boot_files(systemid)
+	var out: Array[Dictionary] = []
+	for r: Dictionary in rows:
+		if str(r.get("path", "")) in wanted:
+			out.append(r)
+	return out
 
 
 ## Resolved status rows for one core, memoised for the life of this rebuild.
@@ -980,7 +999,7 @@ func _populate_bios_detail(systemid: String, vbox: VBoxContainer) -> void:
 
 	for entry: Dictionary in cores:
 		var cn: String = entry["core_name"]
-		var rows := _bios_rows_for_core(cn)
+		var rows := _bios_rows_for_system(cn, systemid)
 		if rows.is_empty():
 			continue
 

@@ -38,7 +38,64 @@ static func all(core: String, systemid: String, rom_path: String,
 	out.merge(dolphin_console(core, systemid), true)
 	out.merge(game_boy_model(core, systemid), true)
 	out.merge(ethernet_adapter(core, systemid, expansions), true)
+	out.merge(mod_platform(core, systemid), true)
 	return out
+
+
+## systemid -> {core, options: {key: value}, owner}: what a mod platform pins
+## on the core it rides (ModApi.register_core_options).
+static var _mod_options: Dictionary = {}
+
+
+## "" on success, else why it was refused. Only a platform a mod put on a core
+## may pin, and only on that core: a mod pinning a shipped machine's options
+## would be changing hardware this file measured.
+static func register_mod_options(systemid: String, options: Dictionary,
+		owner_id: String = "") -> String:
+	var core := CoreInfoDatabase.mod_core_of(systemid)
+	if core.is_empty():
+		return "%s is not on a core; register_core_system first" % systemid
+	if _mod_options.has(systemid) \
+			and str((_mod_options[systemid] as Dictionary)["owner"]) != owner_id:
+		return "%s's core options are already pinned by mod '%s'" \
+			% [systemid, (_mod_options[systemid] as Dictionary)["owner"]]
+	var clean := {}
+	for k: Variant in options:
+		var key := str(k).strip_edges()
+		if key.is_empty():
+			return "an option key is empty"
+		clean[key] = str(options[k])
+	if clean.is_empty():
+		return "no options given"
+	_mod_options[systemid] = {"core": core, "options": clean, "owner": owner_id}
+	return ""
+
+
+## Every key a mod platform pins on this core, for the options panel to lock.
+static func mod_pinned_keys(core: String) -> Dictionary:
+	var out := {}
+	for sid: String in _mod_options:
+		var row: Dictionary = _mod_options[sid]
+		if str(row["core"]) == core:
+			for key: String in (row["options"] as Dictionary):
+				out[key] = true
+	return out
+
+
+static func drop_mod(owner_id: String) -> void:
+	for sid: String in _mod_options.keys():
+		if str((_mod_options[sid] as Dictionary)["owner"]) == owner_id:
+			_mod_options.erase(sid)
+
+
+## A mod platform's own pins, last so its machine is what it says it is: the
+## core's .opt is shared with the shipped machine it also runs, and whatever
+## that machine's last run saved would otherwise carry over.
+static func mod_platform(core: String, systemid: String) -> Dictionary:
+	var row: Dictionary = _mod_options.get(systemid, {})
+	if row.is_empty() or str(row["core"]) != core:
+		return {}
+	return (row["options"] as Dictionary).duplicate()
 
 
 ## A network adapter in the console: its socket is the frontend's link bus

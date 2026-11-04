@@ -320,11 +320,90 @@ const _ROWS := {
 }
 
 
+## Rows mods declared for their own platforms, keyed like _ROWS, each carrying
+## its mod's id under "owner". ModApi.register_bios fills it.
+static var _mod_rows: Dictionary = {}
+
+## The keys a mod's row may carry. The rest of a row's vocabulary -- empty media,
+## no-content boots, empty_options, retire_files, wii_menu -- was MEASURED per
+## core by the survey this file's header describes, and a wrong value crashes the
+## core (six of sixteen died on a null game) or moves the player's files aside.
+## A mod declares what its BIOS is and whether its games need it; that much is
+## data the mod knows, and all the power-on check and the splash pin need.
+const MOD_ROW_KEYS := ["boot_rom", "also_needs", "media_needs_boot_rom", "splash", "why"]
+
+
 ## The row for one machine, or {} when it has nothing to offer.
 static func entry(core_name: String, systemid: String) -> Dictionary:
 	if core_name.is_empty() or systemid.is_empty():
 		return {}
-	return _ROWS.get(core_name + "/" + systemid, {})
+	var key := core_name + "/" + systemid
+	if _ROWS.has(key):
+		return _ROWS[key]
+	return _mod_rows.get(key, {})
+
+
+## Declare the BIOS of a platform a mod put on a core
+## (CoreInfoDatabase.register_mod_system): which files are its boot ROM
+## (`boot_rom`, any one of them), which must all be there as well
+## (`also_needs`), whether its games need it to start at all
+## (`media_needs_boot_rom`; without it they are not stopped at power-on), and the
+## core options that play the boot animation when it is there (`splash`).
+##
+## Every file must be one the core's .info lists as firmware: those are the only
+## files whose presence is checked (FirmwareState), and the only ones the core
+## looks for. "" on success, else why it was refused.
+static func register_mod_row(systemid: String, row: Dictionary, owner_id: String = "") -> String:
+	var core := CoreInfoDatabase.mod_core_of(systemid)
+	if core.is_empty():
+		return "%s is not on a core; register_core_system first" % systemid
+	var key := core + "/" + systemid
+	if _mod_rows.has(key) and str((_mod_rows[key] as Dictionary)["owner"]) != owner_id:
+		return "%s's BIOS is already declared by mod '%s'" % [systemid, (_mod_rows[key] as Dictionary)["owner"]]
+	for k: Variant in row:
+		if str(k) not in MOD_ROW_KEYS:
+			return "'%s' is not a key a mod's BIOS row may carry (%s)" % [k, ", ".join(MOD_ROW_KEYS)]
+	var listed := {}
+	for req: Dictionary in FirmwareRequirements.for_core(core):
+		listed[str(req["path"])] = true
+	var clean := {"owner": owner_id}
+	for group: String in ["boot_rom", "also_needs"]:
+		var files: Array = []
+		for f: Variant in (row.get(group, []) as Array):
+			var path := str(f).strip_edges()
+			if not listed.has(path):
+				return "%s does not list '%s' as firmware" % [core, path]
+			if path not in files:
+				files.append(path)
+		if not files.is_empty():
+			clean[group] = files
+	if not clean.has("boot_rom"):
+		return "a BIOS row needs at least one boot_rom file"
+	if row.has("media_needs_boot_rom"):
+		clean["media_needs_boot_rom"] = bool(row["media_needs_boot_rom"])
+	if row.has("splash"):
+		var splash := {}
+		for k: Variant in (row["splash"] as Dictionary):
+			splash[str(k)] = str((row["splash"] as Dictionary)[k])
+		clean["splash"] = splash
+	clean["why"] = str(row.get("why", ""))
+	_mod_rows[key] = clean
+	return ""
+
+
+## Take back one mod's BIOS rows.
+static func drop_mod(owner_id: String) -> void:
+	for key: String in _mod_rows.keys():
+		if str((_mod_rows[key] as Dictionary)["owner"]) == owner_id:
+			_mod_rows.erase(key)
+
+
+## The files a mod declared for its platform's BIOS, or [] for a platform with
+## no mod row. What its BIOS tile lists, rather than every file of the core.
+static func mod_boot_files(systemid: String) -> Array:
+	var core := CoreInfoDatabase.mod_core_of(systemid)
+	var row: Dictionary = _mod_rows.get(core + "/" + systemid, {})
+	return (row.get("boot_rom", []) as Array) + (row.get("also_needs", []) as Array)
 
 
 ## Does a game of this systemid need one of the row's boot ROMs to start at all,
@@ -488,10 +567,12 @@ static func pinned_keys_for_core(core_name: String) -> Dictionary:
 	var out: Dictionary = {}
 	if core_name.is_empty():
 		return out
-	for row_key: String in _ROWS:
+	var rows := _ROWS.duplicate()
+	rows.merge(_mod_rows)
+	for row_key: String in rows:
 		if row_key.get_slice("/", 0) != core_name:
 			continue
-		var row: Dictionary = _ROWS[row_key]
+		var row: Dictionary = rows[row_key]
 		for group: String in ["splash", "empty_options"]:
 			for key: Variant in (row.get(group, {}) as Dictionary):
 				out[str(key)] = true

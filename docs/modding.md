@@ -357,7 +357,9 @@ api.register_platform({
     "pad_art": {...},          # or the Controls remap page has no anchors
     "media": {"cart_size": Vector3(0.09, 0.08, 0.01)},
     "scraper_id": 75,          # or its carts never get art — see below
-    "core": {"core_name": "mame", "extensions": ["zip"]},   # or it has no Games tile
+    "core": {"core_name": "some_core", "extensions": ["bin"]},   # or it has no Games tile
+    "bios": {"boot_rom": ["some_bios.bin"], "media_needs_boot_rom": true},
+    "core_options": {"some_core_key": "value"},
 })
 ```
 
@@ -372,6 +374,25 @@ the core database and every extension one that core reads; a platform the game's
 own cores already serve is refused. A new model of a machine the game already
 plays leaves `core` out. Remove the mod and the tile goes; the player's choice of
 core comes back with it.
+
+**Its BIOS.** `api.register_bios(systemid, row)` (the `bios` key) says what the
+platform's BIOS is, for a platform on a core: `boot_rom` (any one of these
+files), `also_needs` (all of these as well), `media_needs_boot_rom` (games will
+not start without it, so power-on says the BIOS is missing instead of showing a
+black screen), `splash` (core options that play the boot animation when it is
+there) and `why`. Every file must be one the core's `.info` lists as firmware,
+because those are the only files the core loads and the only ones checked. The
+platform gets its own tile on Cores > BIOS, listing just those files. A mod
+cannot ship the files: players supply their own, as for every machine. The rest
+of the game's BIOS vocabulary (booting with no media, retiring files) was
+measured core by core and is not open to mods.
+
+**Its core options.** `api.register_core_options(systemid, {key: value})` (the
+`core_options` key) pins options every run, after the game's own. Use it for what
+makes the shared core your machine: the core's `.opt` file is shared with the
+shipped machine it also runs, and that machine's last run would otherwise carry
+over. Pinned keys show locked in that core's options panel, for every machine on
+the core.
 
 Tile art needs no call: ship `res://Textures/SystemIcons/<systemid>.svg` (the
 Systems tile) and `<systemid>-content.svg` (the Games tile) as claims and

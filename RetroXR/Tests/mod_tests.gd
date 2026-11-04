@@ -27,7 +27,7 @@
 extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 446
+const EXPECTED_CASES := 467
 
 var _only := ""
 var _dir := ""
@@ -1096,6 +1096,59 @@ func _group_coresys() -> void:
 	var adopted := cd.adopt_missing(db, PackedStringArray(["fceumm"]))
 	_ok(sid in adopted, "coresys/the installed core becomes the platform's default", str(adopted))
 	_ok(cd.all_defaults().has(sid), "coresys/so the platform has a tile")
+
+	# BIOS and pinned options, on a second platform on a core that lists firmware.
+	var bsid := "t_coresys_bios"
+	_ok(not api.register_bios(bsid, {"boot_rom": ["gba_bios.bin"]}),
+		"coresys/a BIOS for a platform on no core is refused")
+	var api2 := _api("t.coresys.bios")
+	_ok(api2.register_platform({"systemid": bsid,
+		"core": {"core_name": "mgba", "extensions": ["gba"]},
+		"bios": {"boot_rom": ["gba_bios.bin"], "media_needs_boot_rom": true,
+			"splash": {"mgba_skip_bios": "OFF"}, "why": "test"},
+		"core_options": {"mgba_gb_model": "Game Boy Advance"}}),
+		"coresys/a platform with bios and core_options registers", api2.errors_text())
+	var row := BiosBoot.entry("mgba", bsid)
+	_eq(row.get("boot_rom", []), ["gba_bios.bin"], "coresys/the BIOS row is served for the platform")
+	_ok(BiosBoot.media_needs_boot_rom("mgba", bsid), "coresys/its games need the BIOS to start")
+	_eq(BiosBoot.mod_boot_files(bsid), ["gba_bios.bin"], "coresys/its tile lists only the declared files")
+	_ok(BiosBoot.pinned_keys_for_core("mgba").has("mgba_skip_bios"),
+		"coresys/the splash key is locked in the core's options")
+	_ok(BiosBoot.entry("mgba", "gba").has("boot_rom"), "coresys/the shipped GBA row is untouched")
+	_ok(not BiosBoot.register_mod_row(bsid, {"boot_rom": ["nope.bin"]}, "t.coresys.bios").is_empty(),
+		"coresys/a file the core does not list as firmware is refused")
+	_ok(not BiosBoot.register_mod_row(bsid, {"boot_rom": ["gba_bios.bin"], "empty_media": "iso"},
+		"t.coresys.bios").is_empty(), "coresys/a measured-only key is refused")
+	_ok(not BiosBoot.register_mod_row(bsid, {"boot_rom": ["gba_bios.bin"]}, "t.other").is_empty(),
+		"coresys/a second mod cannot redeclare the BIOS")
+
+	var cores_dir := _dir + "/coresys_cores"
+	DirAccess.make_dir_recursive_absolute(cores_dir)
+	var lib := FileAccess.open(cores_dir + "/mgba_libretro.dll", FileAccess.WRITE)
+	lib.close()
+	var by_sys := FirmwareRequirements.installed_cores_by_system(cores_dir,
+		PackedStringArray(["_libretro"]), ".dll")
+	_ok(by_sys.has(bsid), "coresys/the BIOS grid files the core under the mod platform", str(by_sys.keys()))
+	_ok(by_sys.has("gba"), "coresys/and still under its own")
+	_ok(not by_sys.has("gbc"), "coresys/but not under its .info secondaries")
+
+	_eq(ForcedCoreOptions.mod_platform("mgba", bsid), {"mgba_gb_model": "Game Boy Advance"},
+		"coresys/the platform's options are pinned")
+	_ok(ForcedCoreOptions.all("mgba", bsid, "", [], "", [] as Array[bool], "").has("mgba_gb_model"),
+		"coresys/and reach the run's forced options")
+	_eq(ForcedCoreOptions.mod_platform("mgba", "gba"), {}, "coresys/not on the shipped machine")
+	_ok(ForcedCoreOptions.mod_pinned_keys("mgba").has("mgba_gb_model"),
+		"coresys/the pinned key is locked in the core's options")
+	_ok(not ForcedCoreOptions.register_mod_options("gba", {"k": "v"}, "t.x").is_empty(),
+		"coresys/a shipped machine's options cannot be pinned by a mod")
+
+	api2.withdraw()
+	_eq(BiosBoot.entry("mgba", bsid), {}, "coresys/withdraw takes the BIOS row back")
+	_eq(ForcedCoreOptions.mod_platform("mgba", bsid), {}, "coresys/and the pinned options")
+	_ok(not FirmwareRequirements.installed_cores_by_system(cores_dir,
+		PackedStringArray(["_libretro"]), ".dll").has(bsid), "coresys/and the BIOS tile")
+	DirAccess.remove_absolute(cores_dir + "/mgba_libretro.dll")
+	DirAccess.remove_absolute(cores_dir)
 
 	api.withdraw()
 	_ok(not CoreInfoDatabase.is_mod_system(sid), "coresys/withdraw takes the platform back")

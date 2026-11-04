@@ -149,6 +149,13 @@ static func is_mod_system(systemid: String) -> bool:
 	return _mod_systems.has(systemid)
 
 
+## The core a mod put `systemid` on, or "" for any other platform.
+static func mod_core_of(systemid: String) -> String:
+	if not _mod_systems.has(systemid):
+		return ""
+	return str((_mod_systems[systemid] as Dictionary)["core_name"])
+
+
 ## The platforms mods added to this core, in the order they were added.
 static func mod_systemids_of_core(core_name: String) -> Array[String]:
 	var out: Array[String] = []

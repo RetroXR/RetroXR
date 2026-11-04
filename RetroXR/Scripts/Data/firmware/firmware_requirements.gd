@@ -142,12 +142,18 @@ static func installed_cores_by_system(cores_dir := "", suffixes := PackedStringA
 			var sid: String = str(info.get("systemid", "")) if not info.is_empty() else ""
 			if sid.is_empty():
 				sid = "unknown"
-			if not by_system.has(sid):
-				by_system[sid] = []
-			(by_system[sid] as Array).append({
+			var entry := {
 				"core_name": cn,
 				"display_name": str(info.get("corename", cn)) if not info.is_empty() else cn,
-			})
+			}
+			# And under each platform a mod put on it (register_core_system), which
+			# has a BIOS tile of its own showing only the files the mod declared.
+			# Not under the .info's own secondaries: their firmware IS the parent
+			# machine's, and one tile per core is the grid's rule.
+			for for_sid: String in [sid] + CoreInfoDatabase.mod_systemids_of_core(cn):
+				if not by_system.has(for_sid):
+					by_system[for_sid] = []
+				(by_system[for_sid] as Array).append(entry.duplicate())
 		fname = dir.get_next()
 	dir.list_dir_end()
 
