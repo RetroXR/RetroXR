@@ -597,22 +597,48 @@ adapter on the bus directly, a scratch root holding `cores/dmg07_libretro.dll` a
 - The probe pins `mgba_gb_model` "Game Boy" and `mgba_sgb_borders` OFF, as the
   room does (`ForcedCoreOptions.game_boy_model`).
 
+**Three games, both cores (2026-11-04), under `mixed` pacing (dmg07 v3):** Pan
+Docs' ping, then GBE+'s transmission. Each half is what one game needs on mGBA:
+- **Yoshi's Cookie** answers the ping on mGBA only at Pan Docs' spacing. Under
+  GBE+'s ping (bytes 1 ms apart, back to back) no Game Boy ever sent `88`: every one
+  took the adapter for a cable partner and played TWO-player, each seeing itself as
+  player 1 of 2 on the VS setup. With Pan Docs' (or `dcgb`, which keeps that ping)
+  all four answer, RATE $F3, SIZE 1. gambatte answered under either.
+- Script (`--steps`): VS is SELECT on the title, then START; NAME ENTRY takes START
+  then A; player 1 starts the round. `420-425:N:select,480-485:N:start,`
+  `700-705:N:start,760-765:N:start,820-825:N:a` for each N, `900-1300:1:start/60`,
+  then A taps. The VS setup shows players 1-4 with each machine's own number lit,
+  "1 SET READY / GO", and the boards' attacks cross between players (BLIND, PANIC!,
+  SLAVE, -3).
+- **F-1 Race** (MBC2 too, so it needs mGBA v10): MULTI GAME is DOWN, DOWN, START;
+  RACER ENTRY says RACERS LINKED 4; NAME ENTRY wants three letters (A x3) and then
+  START; player 1 takes START POSITION, GROUP SELECT and the course (START or A);
+  each player then MACHINE SELECT (A) and "MACHINE TYPE A OK?" (A), then START. The
+  game sets RATE $28, SIZE 4. Raced: the 3-2-1 lights, four numbered cars, 280
+  km/h on the straight, the lap clocks in step and RANK swapping between machines,
+  the same on both cores.
+- Wave Race races under `mixed` on both, as above.
+
 **Frame rate, four Game Boys and the adapter, one Windows PC:**
 - Paced: 59.0-59.9 fps in every 600-frame window after power-on (the first,
-  through four staggered start-ups, is about 42-48).
+  through four staggered start-ups, is about 42-48). That is full speed: a Game Boy
+  runs at 59.73 fps (4194304 / 70224), not 60. A probe's "frame rate over the run"
+  (55-58) includes the start-up window and is not the steady rate.
 - Unthrottled (`XENU_UNTHROTTLED=1`): 104-114 fps linked, about 1.8 x real time.
   The same four with `--nolink` run at thousands, so the lockstep is the cost:
   each Game Boy made 4.9 million advance calls in a minute.
 
 **Earlier ROMs that are not DMG-07 games:**
 - Wario Blast featuring Bomberman!: its four players are the Super Game Boy's,
-  on a Super NES with a multitap. Wikipedia lists it under the adapter but says
-  "4 players only with the use of Super Game Boy", and in 900 frames of its title
-  no Game Boy armed its serial port.
+  on a Super NES with a multitap. Lists (and a fandom wiki) put it under the
+  adapter, with the note "4 players only with the use of Super Game Boy". On a
+  plain Game Boy its menu is START and PASSWORD alone (START is PLAYER SELECT then
+  ROUND 1-1 VS ENEMY 1), and with four on the adapter no Game Boy ever armed its
+  serial port (re-checked 2026-11-04, after the probe's screenshot fix).
 - Bomberman GB (USA): Story, Lesson and Password only.
 
 OWED:
-- A real DMG-07 game: F-1 Race, Faceball 2000, Wave Race, Yoshi's Cookie,
-  Micro Machines, Super R.C. Pro-Am, Top Rank Tennis or Trax.
+- The rest of the adapter's games: Faceball 2000, Micro Machines, Super R.C.
+  Pro-Am, Top Rank Tennis, Trax.
 - The frame rate on a Quest.
 - A netplay row (`NetplayCores`): no session has been run with it.

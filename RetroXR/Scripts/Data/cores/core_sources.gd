@@ -475,11 +475,12 @@ const SOURCES := {
 	# buildbot has no row and _list_own_core lists it. MIT.
 	#
 	# v1: Wave Race's four players join and race on gambatte. v2 paces packets as
-	# GBE+ does, under which they race on mGBA too (docs/dev/gb-link.md "The
-	# DMG-07 4 Player Adapter").
+	# GBE+ does, under which they race on mGBA too. v3 pings at Pan Docs' spacing
+	# and transmits at GBE+'s, so Yoshi's Cookie (and F-1 Race) are four-player on
+	# mGBA as well as gambatte (docs/dev/gb-link.md "The DMG-07 4 Player Adapter").
 	"dmg07": {
 		"repo":  "RetroXR/dmg07-libretro",
-		"known_tag": "retroxr-dmg07-libretro-v2",
+		"known_tag": "retroxr-dmg07-libretro-v3",
 		"label": "DMG-07 4 Player Adapter (retroXR)",
 		"assets": {
 			"Windows": "dmg07_libretro.dll.zip",
