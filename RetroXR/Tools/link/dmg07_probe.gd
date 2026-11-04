@@ -27,7 +27,11 @@ const TAP_FRAMES := 8
 const BITS := {"b": 0, "select": 2, "start": 3, "up": 4, "down": 5, "left": 6, "right": 7, "a": 8}
 const CORE_OPTIONS := {
 	"gambatte": [["gambatte_gb_link_mode", "Link Cable"], ["gambatte_gb_bootloader", "disabled"]],
-	"mgba": [["mgba_link_cable", "ON"], ["mgba_use_bios", "OFF"]],
+	"mgba": [["mgba_link_cable", "ON"], ["mgba_use_bios", "OFF"],
+		# The room pins these (ForcedCoreOptions.game_boy_model), so the probe
+		# runs the Game Boy the room does. (Wave Race's first-frame crash on mGBA
+		# was MBC2, not the model: docs/dev/gb-link.md.)
+		["mgba_gb_model", "Game Boy"], ["mgba_sgb_borders", "OFF"]],
 }
 
 var root_dir := ""

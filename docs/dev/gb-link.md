@@ -518,7 +518,7 @@ spawn token and save type `dmg07_adapter`, on the Game Boy and Game Boy Color ca
 - Three `FF` from a packet's start restart the ping.
 - `tests/dmg07_test.c` plays four simulated Game Boys through all of it (19 checks).
 
-**Run with four real Game Boys** (`Tools/link/dmg07_probe`: N gambatte cores and the
+**Run with four real Game Boys** (`Tools/link/dmg07_probe`: N gambatte or (`--core=mgba`) mGBA cores and the
 adapter on the bus directly, a scratch root holding `cores/dmg07_libretro.dll` and
 `cores/gambatte_libretro.dll`, `--nolink` the control):
 - All four cables come up (`LinkPeerCount` 2 on every port), and five cores run
@@ -555,18 +555,39 @@ adapter on the bus directly, a scratch root holding `cores/dmg07_libretro.dll` a
   read 3 in the first shot read 3 for ever, and a blinking cursor caught in two
   phases read as four menus out of step. Copy it first (`img.duplicate()`), as the
   probes do now: one image per screenshot is the tell (hash them).
-- So nothing was ever shown about pacing: Pan Docs' (the default) races, and
-  `DMG07_TIMING=gbe|bytes|dcgb` are untested since the fix. `DMG07_WAIT=1` (hold
-  a slot until every Game Boy taking part is armed, which GBE+ and DoubleCherryGB
-  effectively do) never waited once: every Game Boy was armed at every slot.
+- `DMG07_WAIT=1` (hold a slot until every Game Boy taking part is armed, which
+  GBE+ and DoubleCherryGB effectively do) never waited once: every Game Boy was
+  armed at every slot.
 - **Two more probe traps met on the way.** A press window of 6 frames can be
   jumped entirely when the loop's passes are far apart (two runs at once): a step
   now starts when its frame is first seen and lasts its full span. And one scratch
   root, used for many runs and an mGBA attempt, stopped taking any press while a
   fresh root with the same cores did: give every run a fresh root.
-- **mGBA does not run here.** A Game Boy on mGBA reaches no frame in a headless
-  probe even with no adapter and no lead (`--nolink`), so it is not the adapter's;
-  not looked into. OWED, with mGBA on the adapter.
+- **mGBA crashed on Wave Race itself** (2026-11-04), with no adapter, no lead and
+  the link option off: a segfault in `_GBMBC2Read` at the first frame (gdb on a
+  bare libretro harness). Wave Race is MBC2, whose 512-nibble save RAM is smaller
+  than a bank, and `GBMBCSwitchSramBank` RETURNED without setting `sramBank`,
+  which went on pointing at the mapping the libretro save remap had freed. Every
+  other Game Boy ROM here ran. Upstream fixed it (mgba-emu 543a19758, #3859); the
+  fork carries the `mbc.c` half (`0bf7a9ba3`, to be released as mGBA v10). Any
+  MBC2 game crashed the same way.
+- **mGBA races only under GBE+'s pacing, now the adapter's default** (dmg07 v2).
+  Under Pan Docs' (`DMG07_TIMING=pandocs`) the four reach the grid and count down
+  together, then a few frames after GO player 1's rider sits on the line with A
+  held, while gambatte races under the same script. The bytes on the wire were the
+  SAME on both cores (the same slots, every Game Boy armed at every slot,
+  `DMG07_TRACE`), so the fault is how mGBA's Game Boy meets Pan Docs' timing, not
+  the data; not looked into further. Under GBE+'s (8 x (6 x RATE + 512) cycles a
+  byte, packets back to back: 3.9 ms a byte at Wave Race's RATE $FF), with every
+  player holding A from the start line, every screen scrolls, the riders show on
+  each other's screens and the clocks run on both cores; gambatte runs on to TIME
+  OVER. An mp4 of the four mGBA screens was the proof. `DMG07_CLOCK=normal` left
+  player 1 out ("OTHER PLAYERS ARE PLAYING THE GAME").
+- GBE+'s pacing reaches the race sooner, so the script's last Start taps must stop
+  by frame 2400 (`2200-2400:1:start/60`) or one lands after GO and pauses a
+  machine. Wave Race's race HUD BLINKS: a still without it is not a stall.
+- The probe pins `mgba_gb_model` "Game Boy" and `mgba_sgb_borders` OFF, as the
+  room does (`ForcedCoreOptions.game_boy_model`).
 
 **Frame rate, four Game Boys and the adapter, one Windows PC:**
 - Paced: 59.0-59.9 fps in every 600-frame window after power-on (the first,
@@ -585,7 +606,7 @@ adapter on the bus directly, a scratch root holding `cores/dmg07_libretro.dll` a
 OWED:
 - A real DMG-07 game: F-1 Race, Faceball 2000, Wave Race, Yoshi's Cookie,
   Micro Machines, Super R.C. Pro-Am, Top Rank Tennis or Trax.
-- mGBA.
+- The released mGBA v10 and dmg07 v2 in CoreSources (both tagged by hand).
 - The room object: a captive player 1 lead and three large-plug sockets.
 - The frame rate on a Quest.
 - A netplay row (`NetplayCores`): no session has been run with it.
