@@ -547,6 +547,22 @@ adapter on the bus directly, a scratch root holding `cores/dmg07_libretro.dll` a
 - **OPEN: the race does not start.** The countdown stays at 3 and the clock at
   00:00:00, with or without A held, though every machine is armed in every slot
   (`DMG07_TRACE=<packet>`) and the turn-by-turn input keeps flowing.
+  - Ruled out:
+    - **A pause.** Starts from players 2-4 after the race screen could pause it, so
+      they were left out (2026-11-04, two runs): it still holds at 3.
+    - **Pacing.** `DMG07_TIMING=dcgb` (DoubleCherryGB's transmission timing,
+      `gb_core/sio/dmg07.cpp`, read for its behaviour: 6144 x (m + 1) cycles a byte,
+      m from RATE's top two bits, packets back to back; 5.9 ms a byte at RATE $FF)
+      puts the menus out of step, as `gbe` and `bytes` do.
+  - **Getting to the race at all is luck of timing.** Player 1's Start on the
+    STARTING GRID began the race in some runs and was ignored in others, with the
+    same script. Presses are timed on player 1's frames while the others run a
+    few frames apart. Probably the game reads the buttons only on some frames.
+  - Not yet tried:
+    - DoubleCherryGB's other difference: it clocks a byte only once every Game
+      Boy has serviced its last serial interrupt (`all_IE_are_handled`).
+    - Comparing the in-race packets with a real unit or another emulator.
+    - A second adapter game.
 
 **Frame rate, four Game Boys and the adapter, one Windows PC:**
 - Paced: 59.0-59.9 fps in every 600-frame window after power-on (the first,
