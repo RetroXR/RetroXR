@@ -472,15 +472,23 @@ through the adapter are OWED.
 
 **The room object (2026-11-04): `Dmg07Adapter`** (`Scenes/Objects/peripherals/dmg07_adapter.tscn`,
 spawn token and save type `dmg07_adapter`, on the Game Boy and Game Boy Color cards).
-- From Evan-Amos's public-domain photograph: a light grey rounded square with a round
-  label on top, player 1's lead captive out of the back, and a socket on each other face:
-  player 2 toward the front of the left side, player 3 toward the right of the front,
-  player 4 toward the back of the right side. Sizes are estimates (85 x 25 x 85 mm).
+- A light grey rounded square with a round label on top, player 1's lead captive out of
+  the middle of the back, and a socket in the MIDDLE of each other face, under the
+  parting line: player 2 on the left, player 3 on the front, player 4 on the right. The
+  first stand-in had them toward a corner, misread off Evan-Amos's photograph; a listing
+  photograph square-on to an edge and RetroXR-models' `nintendo/gb/four-player-adapter`
+  agree on the middle. Sizes are estimates (85 x 25 x 85 mm; the model's 72.5 x 21.65).
+- **Its mod is `xenu.dmg07`** (RetroXR-models): the model's shell, the sockets moved onto
+  its `PlayerNAnchor`s 1 mm proud, `Player1Port` 30 mm inside the cable's boot with the
+  cord leaving the boot's end, and the lead's free end in the DMG-07's own light grey
+  plug. The lead is a scene of its own (`dmg07_lead.tscn`, inheriting the DMG-04's) so
+  that `xenu.gblink`, which dresses leads by scene path, leaves it alone; `lead_made`
+  tells a mod when it exists (a frame after `_ready`). `mods/probes/dmg07_probe`.
 - **A machine**, as the printer is: a kept `Libretro` running `dmg07`. Its sockets are
   `dmg_link_port`s (the DMG-04's large plug) with `link_port` 1-3, so a lead from a Game
   Boy to the socket for player k+1 is a wire of two: that Game Boy's port 0 and the
   adapter's port k. The walk stops at a machine, so nothing else is needed.
-- **Player 1's lead is an ordinary DMG-04** (`LinkCable`). One end is seated for good in
+- **Player 1's lead is the DMG-04's** (`LinkCable`, `dmg07_lead.tscn`). One end is seated for good in
   a hidden `Player1Port` (`link_port` 0) in the back, its plug not grabbable and drawn
   as the cord's boot. It is the ADAPTER's: taken out of `spawned` (every lead files
   itself there as it enters the tree), freed with it, and its free end's seat is the
@@ -492,14 +500,14 @@ spawn token and save type `dmg07_adapter`, on the Game Boy and Game Boy Color ca
   says so once in a toast. `auto_power` is a test seam: a suite asks `wants_power()`
   and starts nothing.
 - No netplay: `net_prepare_boot` refuses ("not supported in netplay yet").
-- `dmg07_tests` (33 cases): `scene/` the three sockets on ports 1-3 facing out of their
-  own faces (by sign) and toward the ends the photograph has, port 0 in the back holding
-  the lead's end, the plug not takeable, the lead not `spawned` and freed with the
-  adapter; `bus/` four Game Boys make four wires of two (Game Boy k's port 0 and the
+- `dmg07_tests` (36 cases): `scene/` the three sockets on ports 1-3 facing out of their
+  own faces (by sign) and in the middle of each, port 0 in the middle of the back holding
+  the lead's end, the plug not takeable, the lead not `spawned`, its own scene, announced
+  by `lead_made` and freed with the adapter; `bus/` four Game Boys make four wires of two (Game Boy k's port 0 and the
   adapter's port k-1), and an unpowered adapter joins none; `save/` the entry names
   where player 1's lead is, validates, and a new adapter puts it back; `spawn/` both
-  cards. Mutation-tested: a socket on the wrong port and the lead left in `spawned`
-  both go red.
+  cards. Mutation-tested: a socket on the wrong port, the lead left in `spawned`, a
+  socket off the middle, the DMG-04's scene and no `lead_made` all go red.
 - `Tools/models/dmg07_render_probe` (windowed): four Game Boys round it.
 - `Tools/link/dmg07_room_probe` (real cores, real data root; `--nolink` the control):
   Wave Race through the ROOM, the four Game Boys' `HandheldInput` held still so the
@@ -606,6 +614,5 @@ adapter on the bus directly, a scratch root holding `cores/dmg07_libretro.dll` a
 OWED:
 - A real DMG-07 game: F-1 Race, Faceball 2000, Wave Race, Yoshi's Cookie,
   Micro Machines, Super R.C. Pro-Am, Top Rank Tennis or Trax.
-- The room object: a captive player 1 lead and three large-plug sockets.
 - The frame rate on a Quest.
 - A netplay row (`NetplayCores`): no session has been run with it.

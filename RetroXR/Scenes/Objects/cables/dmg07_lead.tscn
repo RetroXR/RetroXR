@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/dmg_link_cable.tscn" id="1_base"]
+
+; Player 1's captive lead on the DMG-07 4 Player Adapter (Dmg07Adapter): the
+; DMG-04's lead, large plug at both ends, one of them seated in the adapter for
+; good. A scene of its own so that it is not a DMG-04 to anything that tells leads
+; apart by their scene: a mod dressing the DMG-04 (xenu.gblink) leaves it alone,
+; and the adapter's own mod dresses it as the DMG-07's cable.
+[node name="LinkCable" instance=ExtResource("1_base")]

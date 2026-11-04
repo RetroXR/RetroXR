@@ -6,10 +6,14 @@
 ##   * A light grey rounded-square box with a round grey-violet label on top.
 ##   * Player 1's lead is CAPTIVE: it leaves the back, toward the left corner,
 ##     and ends in the original Game Boy's large link plug.
-##   * Three sockets, each on a face of its own: player 2 on the left, player 3 on
-##     the front, player 4 on the right, lettered at the corner beside each. They
-##     take the DMG-04's large plug (dmg_link_port), so a Game Boy Color or a later
-##     machine reaches one through the DMG-14 adapter, as on the real one.
+##   * Three sockets, each in the MIDDLE of a face of its own, under the parting
+##     line: player 2 on the left, player 3 on the front, player 4 on the right,
+##     PLAYER n lettered on the top beside each, and player 1's lead out of the
+##     middle of the back (a listing photograph square-on to an edge, and
+##     RetroXR-models nintendo/gb/four-player-adapter; the first stand-in had them
+##     toward a corner, misread off the studio photograph). They take the DMG-04's
+##     large plug (dmg_link_port), so a Game Boy Color or a later machine reaches
+##     one through the DMG-14 adapter, as on the real one.
 ##   * No switch: "the DMG-07 will not power on until its Player 1 cable is plugged
 ##     into a Game Boy link port" (Pan Docs).
 ##
@@ -27,28 +31,32 @@
 ## its wire again whenever it starts or stops (GbPrinter._rejoin_lead).
 ##
 ## Sizes are estimates: 85 x 25 x 85 mm, the corners rounded 14 mm.
+##
+## A mod dresses it (xenu.dmg07): it moves the sockets and Player1Port onto its
+## model's anchors after _ready, and dresses the lead's free plug on lead_made.
 class_name Dmg07Adapter
 extends XRToolsPickable
 
+## Player 1's lead exists (a frame after _ready, as it is added to the room).
+signal lead_made(lead: LinkCable)
 
 const CORE := "dmg07"
-const LEAD_SCENE := preload("res://Scenes/Objects/cables/dmg_link_cable.tscn")
+## Its own scene, not the DMG-04's: see dmg07_lead.tscn.
+const LEAD_SCENE := preload("res://Scenes/Objects/cables/dmg07_lead.tscn")
 
 const SIZE := Vector3(0.085, 0.025, 0.085)
 const CORNER := 0.014
 const SOCKET_Y := 0.011
 ## Players 2-4: the socket's node, the face it is on (its outward normal, +Z the
 ## front) and where along that face from its middle, as a fraction of its width,
-## positive to the left as seen looking at the face: player 2 toward the front of
-## the left side, player 3 toward the right of the front, player 4 toward the back
-## of the right side, as the photograph has them.
+## positive to the left as seen looking at the face: each in the middle.
 const SOCKETS := [
-	{"name": "Player2Port", "link_port": 1, "face": Vector3.LEFT, "along": -0.22},
-	{"name": "Player3Port", "link_port": 2, "face": Vector3.BACK, "along": -0.22},
-	{"name": "Player4Port", "link_port": 3, "face": Vector3.RIGHT, "along": -0.22},
+	{"name": "Player2Port", "link_port": 1, "face": Vector3.LEFT, "along": 0.0},
+	{"name": "Player3Port", "link_port": 2, "face": Vector3.BACK, "along": 0.0},
+	{"name": "Player4Port", "link_port": 3, "face": Vector3.RIGHT, "along": 0.0},
 ]
-## Player 1's lead: out of the back, toward the left corner.
-const CORD_X := -0.018
+## Player 1's lead: out of the middle of the back.
+const CORD_X := 0.0
 
 const GREY := Color(0.80, 0.80, 0.78)
 const LABEL := Color(0.52, 0.50, 0.58)
@@ -214,6 +222,7 @@ func _spawn_lead() -> void:
 	_add_boot(plug_a)
 	_lead.topology_changed.connect(_check_power)
 	print("[Dmg07] %s: player 1's lead made, its end seated in the back" % name)
+	lead_made.emit(_lead)
 	if not _pending_lead_seat.is_empty():
 		var seat := _pending_lead_seat
 		_pending_lead_seat = {}

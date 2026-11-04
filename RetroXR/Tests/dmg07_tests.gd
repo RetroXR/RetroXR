@@ -22,6 +22,8 @@ const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const DMG_LEAD_SCENE := preload("res://Scenes/Objects/cables/dmg_link_cable.tscn")
 
 var _spawned: Array[Node] = []
+## What each adapter's lead_made reported: adapter -> lead.
+var _made := {}
 
 
 func _ready() -> void:
@@ -54,6 +56,7 @@ func _adapter(at: Vector3) -> Dmg07Adapter:
 	a.auto_power = false
 	a.position = at
 	a.freeze = true
+	a.lead_made.connect(func(l: LinkCable) -> void: _made[a] = l)
 	add_child(a)
 	_spawned.append(a)
 	return a
@@ -92,11 +95,13 @@ func _group_scene() -> void:
 	_ok(p2.basis.z.x < -0.9 and p2.origin.x < -0.04, "scene/player 2 faces out of the left side", str(p2.basis.z))
 	_ok(p3.basis.z.z > 0.9 and p3.origin.z > 0.04, "scene/player 3 out of the front", str(p3.basis.z))
 	_ok(p4.basis.z.x > 0.9 and p4.origin.x > 0.04, "scene/player 4 out of the right side", str(p4.basis.z))
-	_ok(p2.origin.z > 0.0 and p3.origin.x > 0.0 and p4.origin.z < 0.0,
-		"scene/toward the front, the right and the back respectively, as the photograph has them")
+	_ok(absf(p2.origin.z) < 0.001 and absf(p3.origin.x) < 0.001 and absf(p4.origin.z) < 0.001,
+		"scene/each in the middle of its face, as the photographs have them",
+		"%.4f %.4f %.4f" % [p2.origin.z, p3.origin.x, p4.origin.z])
 	var cord := a.get_node_or_null("Player1Port") as LinkPort
 	_ok(cord != null and cord.link_port == 0 and cord.transform.origin.z < -0.04 and cord.transform.basis.z.z < -0.9,
 		"scene/player 1's port 0 is in the back, facing out of it")
+	_ok(cord != null and absf(cord.transform.origin.x) < 0.001, "scene/in the middle of the back")
 	var lead := a.lead()
 	_ok(is_instance_valid(lead), "scene/player 1's lead is made")
 	if is_instance_valid(lead):
@@ -105,6 +110,10 @@ func _group_scene() -> void:
 		_ok(not plug_a.enabled, "scene/and cannot be taken out")
 		_ok(not lead.is_in_group("spawned"), "scene/the lead is the adapter's, not an object of its own")
 		_eq((lead.get_node("PlugB0") as RcaPlug).connector, "dmg_link_plug", "scene/its free end is the large plug")
+		# Not the DMG-04's scene: a mod that dresses DMG-04 leads by scene path
+		# (xenu.gblink) must leave it to the adapter's own (xenu.dmg07).
+		_eq(lead.scene_file_path, "res://Scenes/Objects/cables/dmg07_lead.tscn", "scene/the lead is a scene of its own")
+		_ok(_made.get(a) == lead, "scene/and lead_made said so, with the lead")
 	await _clear()
 	_ok(not is_instance_valid(lead), "scene/and goes with the adapter")
 
