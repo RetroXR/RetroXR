@@ -8,9 +8,10 @@ frontend's link bus (env 94, the API of libretro/RetroArch#19454) as protocol
 - Core: `~/libretro-cores-retroxr/virtualjaguar-libretro`, branch `retroxr`
   (upstream libretro/virtualjaguar-libretro v3.6.1). `src/jerry/jlink_linkbus.c`
   is the transport; `uart.c` `UARTOnWire()` routes the plain cable to it.
-  No GitHub fork / release exists yet, so `CoreSources` has no row: the
-  build is installed by hand into `~/retroxr/libretro/cores/` (stock kept as
-  `virtualjaguar_libretro.dll.stock`). Windows: `mingw32-make platform=win CC=gcc`.
+  Published as `RetroXR/virtualjaguar-libretro`, tag `retroxr-virtualjaguar-libretro-v2`
+  (Windows, Android, Linux, macOS), which `CoreSources` names, so the core download
+  is the linking build; its `.info` is the overlay `libretro-core-info-retroxr/
+  virtualjaguar_libretro.info`. Windows: `mingw32-make platform=win CC=gcc`.
 - The core's `virtualjaguar_netlink` option: `auto` (default) resolves to the
   bus whenever the frontend offers one; TCP modes still work and win.
 
@@ -73,8 +74,6 @@ bare Libretro does, so the Doom walk misses its presses there.
 
 ## Owed
 
-- A published core build (Windows + Android) and its `CoreSources` row;
-  until then only a machine with the fork installed by hand links.
 - The BattleSphere dogfight; Voice Modem (Ultra Vortek) stays on the byte
   seam and is not carried by the bus.
 - A headset check of the socket and lead on the Jaguar body.
