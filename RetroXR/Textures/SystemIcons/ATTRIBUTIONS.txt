@@ -61,11 +61,13 @@ verified by opening the file rather than trusting the suffix:
                  untagged.
   ps2            content: the untagged file — the silver DVD underside. "CD" is
                  the same disc with a blue #4b5da7 underside.
-  ps3            console: "(PSN)". The set has no plain PlayStation 3 drawing;
-                 its three PS3 consoles are "(PSN)", "(Downloadable)" and
-                 "(DLC)", one slim-console body under a different glyph, and
-                 "(PSN)"'s face-button shapes are the one that reads as the
-                 console rather than a download.
+  ps3            console: "Sony - Playstation 3" -- lowercase "s", which is
+                 why a case-sensitive search for "PlayStation 3" misses it and
+                 its four model variants (CECHA00 KT, CECH-2000 K/KT, CECH-4000
+                 K/KT). The untagged file draws the original fat console, whose
+                 front slot is the loader MediaDimensions gives this system.
+                 "(PSN)", "(Downloadable)" and "(DLC)" are digital-content tiles
+                 (a glyph on a slim body), not the machine.
   segacd         console: "MK-1601-4102 (U)", the North American Model 1 drawn
                  with the Genesis it bolts to, framed landscape like the rest of
                  the set. NOT the untagged file, which is the bare CD unit seen
@@ -302,7 +304,7 @@ psx.svg                             Sony - PlayStation.svg
 ps2-content.svg                     Sony - PlayStation 2-content.svg
 ps2.svg                             Sony - PlayStation 2.svg
 ps3-content.svg                     Sony - PlayStation 3-content.svg
-ps3.svg                             Sony - PlayStation 3 (PSN).svg
+ps3.svg                             Sony - Playstation 3.svg
 psp-content.svg                     Sony - PlayStation Portable-content.svg
 psp.svg                             Sony - PlayStation Portable.svg
 pokemini-content.svg                Nintendo - Pokemon Mini-content.svg
