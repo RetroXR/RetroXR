@@ -23,3 +23,11 @@
 ##     it is visible, so spinning it is now correct.
 class_name RetroUMD
 extends RetroDisc
+
+
+## A bare platter spins; a UMD a mod has put in its caddy (a "Shell" child, as
+## xenu.umd's) is sealed: it seats as it was authored, square to the door, and
+## the drive does not turn it, or the caddy's corners would sweep through the
+## console round a platter that is not visible anyway.
+func can_visually_spin() -> bool:
+	return not has_node("Shell")
