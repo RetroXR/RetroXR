@@ -257,6 +257,10 @@ const RECOMMENDED := {
 		"core": "ppsspp",
 		"why":  "The only PSP core here, and it scales from Quest to desktop on its own settings",
 	},
+	"pocketstation": {
+		"core": "pokket",
+		"why":  "The only PocketStation core here, and the one the PocketStation in the room runs",
+	},
 	"ps2": {
 		"core": "pcsx2",
 		"why":  "The only PS2 core here",

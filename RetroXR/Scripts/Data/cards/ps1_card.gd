@@ -116,6 +116,7 @@ static func list_saves(data: PackedByteArray, with_icons := true) -> Array[Dicti
 		var blk := i * BLOCK_SIZE
 		@warning_ignore("integer_division")
 		var blocks := maxi(1, size / BLOCK_SIZE)
+		var app := is_pocketstation_app(data, i)
 		out.append({
 			"name": name,
 			"serial": _serial_of(name),
@@ -123,8 +124,26 @@ static func list_saves(data: PackedByteArray, with_icons := true) -> Array[Dicti
 			"blocks": blocks,
 			"block": i,
 			"icons": _icons(data, blk) if with_icons else [],
+			# A PocketStation app ("MCX0"/"MCX1"): the save a PocketStation can run,
+			# and so the one its panel offers to play. Ignored on a plain card, which
+			# has no Play button.
+			"pocketstation": app,
+			"is_game": app,
 		})
 	return out
+
+
+## True when the save starting at `block` is a PocketStation executable: its title
+## frame carries "MCX0" (or "MCX1", with a snapshot) at 0x52, the region psx-spx gives
+## the PocketStation in an otherwise standard "SC" title frame.
+static func is_pocketstation_app(data: PackedByteArray, block: int) -> bool:
+	if not is_card_image(data) or block < 1 or block >= BLOCK_COUNT:
+		return false
+	var blk := block * BLOCK_SIZE
+	if data[blk] != 0x53 or data[blk + 1] != 0x43:   # "SC"
+		return false
+	return data[blk + 0x52] == 0x4D and data[blk + 0x53] == 0x43 and data[blk + 0x54] == 0x58 \
+		and (data[blk + 0x55] == 0x30 or data[blk + 0x55] == 0x31)   # "MCX0" / "MCX1"
 
 
 ## The first block of the save with this filename, or -1.

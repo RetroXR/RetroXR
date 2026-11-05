@@ -1,10 +1,10 @@
-# The PocketStation and pcsx_rearmed — PLAN (2026-11-05)
+# The PocketStation — the room object (built 2026-11-05) and the pcsx_rearmed plan
 
-**Nothing here is built.** Today the PocketStation is only a tile (`SystemInfo/pocketstation.tres`, an
-icon, the buildbot's `pokket` core): spawned, it would be the procedural box taking a "cartridge", and
-nothing joins it to a PlayStation. This is the plan for making it what it is: **a PlayStation memory
-card that is also a handheld**, which is the VMU's arrangement (`VmuCard`), with the PS1 side done in
-our pcsx_rearmed fork.
+**The RetroXR half is built; the pcsx_rearmed half is a plan.** A PocketStation is spawned from the
+PlayStation's card (below "Memory Card"), seats in a PS1's card slot as that console's memory card, and
+out of it runs the `pokket` core on its own card from the card panel, the VMU's arrangement (`VmuCard`).
+What it does not do yet is answer the PlayStation AS a PocketStation: seated, a game sees a plain card
+and offers no download. That half is the plan in "pcsx_rearmed" below.
 
 ## What the hardware does
 
@@ -89,30 +89,59 @@ Three ways were weighed:
 11. **Rebase first?** Upstream reworked SIO receive IRQs in `3a9e0a4ff` (2026-08-16), which the fork does
     not have and which touches exactly this code. Decide before starting; keep the hook small either way.
 
-## RetroXR
+## RetroXR (built 2026-11-05)
 
-1. **`PocketStation`, a `MemoryCard` of family `playstation` that is also a handheld** (VmuCard's
-   arrangement, not a RetroSystem): its image is `save/memcards/playstation/<card_id>.mcr`, so the
-   shelf, the panel, renames and RomM serve it unchanged; it saves and spawns as its own kind, offered
-   beside Memory Card on the PlayStation's card.
-2. **Seated**: `MemoryCardController` sets `pcsx_rearmed_memcard{N}_device=pocketstation` and the id
-   option, both ways (a plain card sets `card` back), at load and on a live seat. Any other PS1 core
-   sees a plain card (logged).
-3. **Pulled**: it runs the `pokket` core on a SCRATCH copy of its image, drained back at power-off
-   (VmuCard's rule: no core writes the card file directly), and seating it ends the game, as a VMU's
-   does. 32 x 32 screen on the model, five buttons through `ControlPoke`, a voice, a CR2032 in a
-   `BatteryBay` for power simulation.
-4. **BIOS rows**: `pocketstation.bin` on the PlayStation's BIOS page (overlay `pcsx_rearmed` .info,
-   optional) as well as the PocketStation's.
-5. **Netplay**: docked, it is part of the PlayStation's deterministic state (item 9); a card moved
-   mid-session is already refused. A loose PocketStation is local only at first.
-6. **Model**: the primitive below. Not wired to anything yet.
+`PocketStation` (`Scripts/Objects/peripherals/pocketstation.gd`, `Scenes/Objects/peripherals/pocketstation.tscn`),
+a `MemoryCard` of family `playstation` that is also a handheld. Not a RetroSystem, for the VMU's reason: it
+is a card first, and has to stay one while seated.
+
+- **Spawned** from the PlayStation's card (`SpawnCatalog` "psx", token `pocketstation`), a plain row, not
+  the card shelf. Saved as its own kind (`ScenePersistence.PLAIN_SCENES`, its `_save_kind_rows` row ABOVE
+  MemoryCard's, or it saves and comes back as a plain card: `pocketstation_tests saved/` goes red when it
+  is moved below), card id and label through `_card_fields`. Which slot holds it is the console's.
+- **A card**: a PS1 slot takes it by family; it mates along -Z as every card does, so the object wears the
+  primitive turned half round about Y and shifted so 28 mm goes in, the hinge 1.4 mm out of the mouth
+  and the base on the slot's axis (`Tools/models/pocketstation_seat_probe`: 28.2 mm in, 1.4 mm out). Its
+  image is `save/memcards/playstation/<card_id>.mcr`, the shelf, the panel, renames and RomM as any card.
+  Its name is on the back, where the real one is lettered.
+- **A handheld**: the card panel (`MemoryCardPanel`, duck-typed as for a VMU) switches it on. The Games
+  tab's first row is the unit's own card ("its own card"); a save marked as a PocketStation app
+  (`PS1Card.is_pocketstation_app`, "MCX0"/"MCX1" at 0x52 of its title frame, `is_game` in `list_saves`)
+  gets a Play button that boots the same card, since Pokket cannot jump past its BIOS menu; the rest of the
+  Games tab is `roms/pocketstation/` (.mcs .pss .gme .mcr .mcd .bin). Pokket's save RAM is the whole flash,
+  a `.mcr` byte for byte, so:
+  - its own card runs on a SCRATCH copy (`user://pocketstation_play/<card_id>.mcr`, content and save path
+    both), and at power-off, once the core has unloaded, the scratch goes back WHOLE through
+    `CardSaveOps.write_card`; while a powered console holds the card it waits (VMU's rule: no core writes
+    a card file directly). A scratch that is not a card image is left where it is and logged.
+  - a library app keeps its own progress in `apps/<md5>.mcr` and never touches the card.
+  - a new unit with no image is given a formatted one (`PS1Card.blank_image`) on its first start; a
+    restored one with its image missing refuses (a blank would read as wiped saves).
+- **Will not run** seated ("seated in a slot"), with no `pokket` core (offered on the PlayStation's BIOS /
+  Extras page as well as its own tile, `cores_view._BIOS_EXTRA_CORES`), with no
+  `system/pokket/pocketstation.bin`, or while its last run's core is still unloading.
+- **Controls**: Pokket reads up/down/left/right and A (Action). The hand is `VmuInput` unchanged (A/X is
+  Action, the stick the four buttons; Scroll Lock captures the keyboard on desktop) and fingertips are
+  `ControlPoke` over the model's caps, which sink along the model's -Y.
+- **Screen** `Model/LidHinge/Screen` through the window shader (`show_picture`); the speaker voices are
+  posed on the unit, out of its back.
+- `pocketstation_tests` (catalog, frame, saved, controls, seat, apps, carry; controls and saved
+  mutation-tested). `Tools/models/pocketstation_seat_probe` (windowed): seated in a PS1, and an
+  asymmetric "F" through `show_picture` on a loose one, upright and unmirrored.
+- **Not yet:** the core run itself on a machine with Pokket installed (OWED), netplay (no `net_*`; a session
+  does not offer it), the docked protocol (pcsx_rearmed below), carrying the clock or a running app
+  across dock/undock, infrared, a `BatteryBay`, the crystal body, and opening an existing shelf card AS a
+  PocketStation (a unit is spawned with a card of its own). Headset feel OWED.
+
+The plan's other items: **seated**, `MemoryCardController` sets `pcsx_rearmed_memcard{N}_device=pocketstation`
+and the id option once the fork has them, both ways; **netplay**, docked it is part of the PlayStation's
+deterministic state (item 9 of the fork).
 
 ## The primitive (built 2026-11-05)
 
 `Scenes/Objects/peripherals/pocketstation_model.tscn`: a plain `Node3D` of parts, lying flat as the
-handheld primitives do (screen +Y, the infrared end -Z, the card edge +Z, centred, metres). Nothing
-spawns it yet: it is the model the PocketStation object will wear. `Tools/models/pocketstation_render_probe`
+handheld primitives do (screen +Y, the infrared end -Z, the card edge +Z, centred, metres). The
+PocketStation object wears it. `Tools/models/pocketstation_render_probe`
 (windowed) renders it beside a PS1 memory card and prints its size, **42.0 x 14.2 x 65.8 mm**: Sony's
 64 x 42 x 13.5 mm body plus what stands proud of it (Sony's manual: "approx. 42 x 14.8 x 65 mm
 including protrusions").

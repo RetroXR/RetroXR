@@ -1,0 +1,66 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/pocketstation.gd" id="1_ps"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/peripherals/pocketstation_model.tscn" id="3_model"]
+
+; The real unit: 64 x 42 x 13.5 mm (Sony, 1998), the primitive's body.
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(0.042, 0.0135, 0.064)
+
+; The pointer target only until the unit is in the room: PointerFit then makes it a
+; box of what the model draws, as a memory card's.
+[sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
+size = Vector3(0.046, 0.017, 0.068)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_ps"]
+bounce = 0.0
+friction = 0.8
+
+; A memory card first: the console's slot takes anything in "memory_card" whose
+; family is its own, and seats it with no rotation, mating along the card's -Z.
+[node name="PocketStation" type="RigidBody3D" groups=["memory_card"]]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_ps")
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("1_ps")
+card_label = "POCKETSTATION"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.003, 0.004)
+shape = SubResource("BoxShape3D_body")
+
+; The primitive is authored as a handheld lies (card edge +Z); turned half round about
+; Y so the card edge leads into a slot along -Z, as a PlayStation card's does. Shifted
+; so 28 mm goes in (a PS1 card's depth), the hinge seam just outside the slot, and the
+; 7.5 mm base centred on the slot's axis with the lid standing above it.
+[node name="Model" parent="." instance=ExtResource("3_model")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.003, 0.004)
+
+; The player's name for the unit, on the back where the real one has its lettering:
+; facing down, reading the right way up with the infrared end at the top.
+[node name="CardLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, -0.004, -0.0225)
+modulate = Color(0.35, 0.35, 0.38, 1)
+text = "POCKETSTATION"
+pixel_size = 0.00012
+font_size = 26
+outline_size = 0
+horizontal_alignment = 1
+vertical_alignment = 1
+max_lines_visible = 2
+width = 220.0
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.003, 0.004)
+shape = SubResource("BoxShape3D_pointer")

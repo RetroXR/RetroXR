@@ -280,6 +280,7 @@ const VB_BATTERY_PACK_SCENE  := preload("res://Scenes/Objects/power/vb_battery_p
 const VB_AC_TAP_SCENE        := preload("res://Scenes/Objects/power/vb_ac_tap.tscn")
 const CONTROLLER_PAK_SCENE   := preload("res://Scenes/Objects/controllers/n64/controller_pak.tscn")
 const VMU_SCENE              := preload("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn")
+const POCKETSTATION_SCENE    := preload("res://Scenes/Objects/peripherals/pocketstation.tscn")
 const JUMP_PACK_SCENE        := preload("res://Scenes/Objects/controllers/dreamcast/jump_pack.tscn")
 const BATTERY_AA_SCENE       := preload("res://Scenes/Objects/batteries/battery_aa.tscn")
 const BATTERY_AAA_SCENE      := preload("res://Scenes/Objects/batteries/battery_aaa.tscn")
@@ -463,6 +464,9 @@ const PLAIN_SCENES := {
 	# card that seats in a controller — so it carries card fields on top of the
 	# pose too.
 	"vmu": VMU_SCENE,
+	# The PocketStation: a PlayStation card that is also a handheld, so it carries card
+	# fields too. Which console slot holds it is saved on the CONSOLE, as a card's is.
+	"pocketstation": POCKETSTATION_SCENE,
 	# The Xbox's Memory Unit: a card in a controller again, in the same two
 	# sockets, so the pad saves which slot holds it exactly as it does a VMU.
 	"xbox_mu": XBOX_MU_SCENE,
@@ -2581,6 +2585,9 @@ static func _save_kind_rows() -> Array:
 		# slots) is saved on the CONTROLLER.
 		[ControllerPak, "controller_pak", &"_card_fields"],
 		[VmuCard, "vmu", &"_card_fields"],
+		# MUST precede the MemoryCard row: a PocketStation is one, and would save as a
+		# plain card (and come back as one) below it.
+		[PocketStation, "pocketstation", &"_card_fields"],
 		[XboxMuCard, "xbox_mu", &"_card_fields"],
 		# The cartridge in its roof is a reference rather than a pose, so a pak put
 		# away with a game still in it comes back holding that same game.
@@ -4003,6 +4010,7 @@ func _load_vinyl_record(data: Dictionary) -> Node3D:
 const _PLAIN_CARD_LABELS := {
 	"controller_pak": "CONTROLLER PAK",
 	"vmu": "VMU",
+	"pocketstation": PocketStation.DEFAULT_LABEL,
 	"xbox_mu": XboxMuCard.DEFAULT_LABEL,
 }
 

@@ -1035,9 +1035,18 @@ const _FOUR_PLAYER_EXTRA := {
 	"title": "DMG-07 4 Player Adapter",
 	"desc": "The 4 Player Adapter's own core: four Game Boys on gambatte or mGBA on one link, for games made for it such as Wave Race.",
 }
+## The PocketStation's: the card that is also a handheld (docs/dev/pocketstation.md).
+## Its core is a platform of its own as well (systemid pocketstation), but the unit is
+## spawned from the PlayStation's card, so the row is offered where it is looked for.
+const _POCKETSTATION_EXTRA := {
+	"core": "pokket",
+	"title": "PocketStation",
+	"desc": "The PocketStation's own core. Spawn it from the PlayStation's card; it needs pocketstation.bin in its BIOS folder.",
+}
 const _BIOS_EXTRA_CORES := {
 	"gb": [_PRINTER_EXTRA, _FOUR_PLAYER_EXTRA],
 	"gbc": [_PRINTER_EXTRA, _FOUR_PLAYER_EXTRA],
+	"psx": [_POCKETSTATION_EXTRA],
 }
 
 

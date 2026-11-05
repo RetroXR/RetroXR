@@ -56,6 +56,9 @@ const _PERIPHERALS: Dictionary = {
 		{"kind": "peripheral", "label": "Controller", "spawn": "ps1_controller"},
 		{"kind": "peripheral", "label": "DualShock", "spawn": "ps1_dualshock"},
 		{"kind": "peripheral", "label": "Memory Card", "spawn": "memory_card"},
+		# A memory card that is also a handheld (PocketStation): it seats in a card slot
+		# as one, and out of it runs the pokket core on its own card, the VMU's way.
+		{"kind": "peripheral", "label": "PocketStation", "spawn": "pocketstation"},
 		# Four more players: its one connector fills a controller port and the card
 		# slot above it (PsMultitap).
 		{"kind": "peripheral", "label": "Multitap (SCPH-1070)", "spawn": "ps_multitap"},
