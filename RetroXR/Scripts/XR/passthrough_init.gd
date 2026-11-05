@@ -14,8 +14,8 @@ extends "res://Scripts/XR/xr_init.gd"
 ## Locomotion can be suspended for as long as passthrough is on: you are standing
 ## in your actual room and can see it, so sliding the world past you puts the two
 ## out of register. Whether it is suspended is the player's call
-## (AppPrefs.passthrough_locomotion), because a real room is usually smaller than
-## the one being furnished and walking alone cannot reach the far end of it.
+## (AppPrefs.passthrough_locomotion, OFF by default), because a real room is usually
+## smaller than the one being furnished and walking alone cannot reach the far end of it.
 const LOCO_OWNER := &"passthrough"
 
 @onready var _viewport: Viewport = get_viewport()

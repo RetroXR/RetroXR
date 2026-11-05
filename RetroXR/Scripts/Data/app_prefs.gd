@@ -150,10 +150,10 @@ var microphone_device: String = ""
 var locomotion_teleport: bool = false
 ## Whether the sticks still drive the player while passthrough is on. Sliding the
 ## world past you while you can see your actual room puts the two out of register,
-## which is why it can be switched off — but the room you are standing in is rarely
-## the size of the one you are furnishing, so walking alone is not enough to reach
-## everything and the default is to leave locomotion working.
-var passthrough_locomotion: bool = true
+## which is why the default is OFF (2026-11-05; it was on). The room you are standing
+## in is rarely the size of the one you are furnishing, so walking alone may not reach
+## everything: Options > "Move in Passthrough" turns the sticks back on.
+var passthrough_locomotion: bool = false
 ## Whether, in passthrough, the real room hides what is behind it: a hand in front
 ## of a console covers it (RealRoom, from Meta's depth). On by default; edges are
 ## ragged and it costs the GPU something, so it can be switched off.
