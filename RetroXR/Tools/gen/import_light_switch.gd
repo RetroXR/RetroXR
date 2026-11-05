@@ -1,5 +1,6 @@
 ## Saves the wall switch's two meshes from the Blender model to the .res files the rooms use:
-## imported-assets/room/light_switch.glb -> Scenes/Objects/room/switch_plate_2gang.res and switch_toggle.res.
+## imported-assets/room/light_switch.glb -> Scenes/Objects/room/switch_plate_2gang.res, switch_plate_3gang.res
+## (the bedroom's) and switch_toggle.res.
 ##
 ##   godot --headless --path RetroXR --import
 ##   godot --headless --path RetroXR --script res://Tools/gen/import_light_switch.gd
@@ -14,6 +15,7 @@ extends SceneTree
 
 const MODEL := "res://imported-assets/room/light_switch.glb"
 const PLATE_PATH := "res://Scenes/Objects/room/switch_plate_2gang.res"
+const PLATE3_PATH := "res://Scenes/Objects/room/switch_plate_3gang.res"
 const TOGGLE_PATH := "res://Scenes/Objects/room/switch_toggle.res"
 
 
@@ -27,7 +29,7 @@ func _init() -> void:
 	var saved := 0
 	for node in root.find_children("*", "MeshInstance3D", true, false):
 		var mi := node as MeshInstance3D
-		var path := PLATE_PATH if mi.name == "plate" else TOGGLE_PATH if mi.name == "toggle" else ""
+		var path: String = {"plate": PLATE_PATH, "plate_3gang": PLATE3_PATH, "toggle": TOGGLE_PATH}.get(String(mi.name), "")
 		if path.is_empty():
 			continue
 		var mesh := mi.mesh.duplicate(true) as ArrayMesh
@@ -37,4 +39,4 @@ func _init() -> void:
 		if err == OK:
 			saved += 1
 	root.free()
-	quit(0 if saved == 2 else 1)
+	quit(0 if saved == 3 else 1)

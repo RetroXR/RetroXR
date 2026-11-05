@@ -13,7 +13,7 @@
 [ext_resource type="Texture2D" uid="uid://crd3kyq60eiic" path="res://imported-assets/bedroom/materials/Carpet016_1K-JPG_Roughness.jpg" id="25_rug_rgh"]
 [ext_resource type="Texture2D" uid="uid://bae2nlfxaoux" path="res://imported-assets/bedroom/materials/Carpet016_1K-JPG_AmbientOcclusion.jpg" id="26_rug_ao"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/room/wall_outlet.tscn" id="28_outlet"]
-[ext_resource type="ArrayMesh" path="res://Scenes/Objects/room/switch_plate_2gang.res" id="28_plate"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/room/switch_plate_3gang.res" id="28_plate"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/room/switch_toggle.res" id="28_toggle"]
 [ext_resource type="Script" uid="uid://coejx45dmdik6" path="res://Scripts/Objects/room/light_switch.gd" id="29_switchscript"]
 [ext_resource type="Script" uid="uid://d3iq3gmwxpvjl" path="res://Scripts/Objects/widgets/vr_button.gd" id="31_vrbutton"]
@@ -43,6 +43,7 @@
 [ext_resource type="Texture2D" uid="uid://jqkn8sivt8as" path="res://imported-assets/bedroom/materials/Ground048_1K-JPG_Roughness.jpg" id="81_soil_rgh"]
 [ext_resource type="Texture2D" uid="uid://cq80huhlnexke" path="res://imported-assets/bedroom/materials/Ground048_1K-JPG_AmbientOcclusion.jpg" id="82_soil_ao"]
 [ext_resource type="Shader" path="res://Shaders/window_glass.gdshader" id="90_glass_shader"]
+[ext_resource type="Script" path="res://Scripts/Objects/room/ceiling_fan_motor.gd" id="92_fanmotor"]
 [ext_resource type="Texture2D" path="res://imported-assets/bedroom/window_dust.png" id="91_window_dust"]
 
 [sub_resource type="ProceduralSkyMaterial" id="Sky_dusk"]
@@ -555,7 +556,7 @@ mesh = ExtResource("28_plate")
 script = ExtResource("29_switchscript")
 
 [node name="Button" type="Area3D" parent="Furniture/SwitchPlate/Ceiling" unique_id=203222188]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.02385, 0, 0.0095)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0477, 0, 0.0095)
 collision_layer = 0
 collision_mask = 0
 script = ExtResource("31_vrbutton")
@@ -570,12 +571,33 @@ shape = SubResource("Shape_bat")
 [node name="ButtonMesh" type="MeshInstance3D" parent="Furniture/SwitchPlate/Ceiling/Button" unique_id=25052855]
 mesh = ExtResource("28_toggle")
 
+[node name="Fan" type="Node3D" parent="Furniture/SwitchPlate"]
+script = ExtResource("29_switchscript")
+target = 2
+group = &"ceiling_fan"
+
+[node name="Button" type="Area3D" parent="Furniture/SwitchPlate/Fan"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.0095)
+collision_layer = 0
+collision_mask = 0
+script = ExtResource("31_vrbutton")
+trigger_radius = 0.028
+depress_depth = 0.006
+depress_axis = Vector3(0, 0, -1)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Furniture/SwitchPlate/Fan/Button"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.008)
+shape = SubResource("Shape_bat")
+
+[node name="ButtonMesh" type="MeshInstance3D" parent="Furniture/SwitchPlate/Fan/Button"]
+mesh = ExtResource("28_toggle")
+
 [node name="Strings" type="Node3D" parent="Furniture/SwitchPlate" unique_id=2147158467]
 script = ExtResource("29_switchscript")
 target = 1
 
 [node name="Button" type="Area3D" parent="Furniture/SwitchPlate/Strings" unique_id=182263476]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.02385, 0, 0.0095)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0477, 0, 0.0095)
 collision_layer = 0
 collision_mask = 0
 script = ExtResource("31_vrbutton")
@@ -708,8 +730,9 @@ shadowless_meshes = PackedStringArray("defaultMaterial4", "defaultMaterial5")
 [node name="Fan" parent="Furniture/FanPivot" unique_id=907614595 instance=ExtResource("14_fan")]
 transform = Transform3D(0.00283, 0, 0, 0, 0.00283, 0, 0, 0, 0.00283, 0.2181, 0.4982, -0.5128)
 
-[node name="FanSpin" type="AnimationPlayer" parent="Furniture" unique_id=1488740817]
+[node name="FanSpin" type="AnimationPlayer" parent="Furniture" unique_id=1488740817 groups=["ceiling_fan"]]
 libraries/ = SubResource("AnimLib_fan")
+script = ExtResource("92_fanmotor")
 autoplay = &"spin"
 
 [node name="Door" parent="Furniture" unique_id=1239216271 instance=ExtResource("19_door")]

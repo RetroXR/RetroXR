@@ -1,13 +1,14 @@
-## Wall switch gang — a VRButton over one toggle bat.
+## Wall switch gang â€” a VRButton over one toggle bat.
 ##
-## Two of these sit on the bedroom's two-gang plate: the left one kills the room's
-## ceiling lights, the right one the string-light strands.
+## Three of these sit on the bedroom's three-gang plate: the left one kills the
+## room's ceiling lights, the middle one the ceiling fan (a GROUP gang on
+## "ceiling_fan", see CeilingFanMotor), the right one the string-light strands.
 ##
 ## The ceiling gang toggles `visible`, never `light_energy`. QualityManager.
 ## _adjust_lights() owns the energy of every node in the "ceiling_light" group
 ## (0.8 desktop, 0.6 Quest) and rewrites it whenever the quality tier changes, so a
 ## switch that wrote an energy back would be silently undone. The string gang has no
-## such owner and StringLights.set_lit() does write energies — see the note there.
+## such owner and StringLights.set_lit() does write energies â€” see the note there.
 ##
 ## One class for both, deliberately: object_sync captures room state by walking
 ## `find_children("*", "LightSwitch")` and keys each record by NODE PATH, and
@@ -50,7 +51,7 @@ const STRING_GROUP := &"string_light"
 ## tip 8 mm and slides the bat's root in the slot.
 ##
 ## The SIGN is not free. The bat is authored running along +Z, out of the wall (see
-## gen_light_switch.gd), and Rx(+t) takes +Z toward -Y — so a POSITIVE rotation
+## gen_light_switch.gd), and Rx(+t) takes +Z toward -Y â€” so a POSITIVE rotation
 ## swings the tip DOWN. Lights on is therefore -LEVER_TILT, and the probe asserts the
 ## tip is higher when on rather than trusting this comment.
 const LEVER_TILT := 0.2618
