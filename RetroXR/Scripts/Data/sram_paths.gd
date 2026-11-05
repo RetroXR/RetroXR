@@ -174,14 +174,33 @@ static func sanitize_card_name(text: String) -> String:
 ## is how CardSaveOps.holder_of finds the console holding one — so two cards of
 ## different families sharing a name would have the "power the console off first"
 ## guard protecting the wrong machine.
-static func unique_card_id(base: String) -> String:
+##
+## `taken` holds ids already answered to by something with no image yet (a card in
+## the room that has never been seated): the disk alone cannot know those, and two
+## cards spawned, the first deleted and a third spawned came out with one name.
+static func unique_card_id(base: String, taken: Dictionary = {}) -> String:
 	var name := sanitize_card_name(base)
-	if find_card(name).is_empty():
+	if find_card(name).is_empty() and not taken.has(name):
 		return name
 	var n := 2
-	while not find_card("%s %d" % [name, n]).is_empty():
+	while not find_card("%s %d" % [name, n]).is_empty() or taken.has("%s %d" % [name, n]):
 		n += 1
 	return "%s %d" % [name, n]
+
+
+## The card_id of every card in the room but `except` (the "memory_card" group:
+## cards, VMUs, Memory Units, Controller Paks), for unique_card_id's `taken`.
+static func room_card_ids(tree: SceneTree, except: Node = null) -> Dictionary:
+	var out := {}
+	if tree == null:
+		return out
+	for n: Node in tree.get_nodes_in_group("memory_card"):
+		if n == except:
+			continue
+		var id := str(n.get("card_id")) if "card_id" in n else ""
+		if not id.is_empty():
+			out[id] = true
+	return out
 
 
 ## Rename a card's image to match its new name. Returns the new card_id, or ""

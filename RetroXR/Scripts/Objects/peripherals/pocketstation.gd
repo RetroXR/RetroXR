@@ -32,11 +32,18 @@ const LIBRARY_SYSTEMID := "pocketstation"
 ## DexDrive dump). A firmware dump kept beside them is a .bin too, and is not a game.
 const LIBRARY_EXTENSIONS: Array[String] = ["mcs", "pss", "gme", "mcr", "mcd", "bin"]
 const DEFAULT_LABEL := "POCKETSTATION"
-## Scratch images: <card_id>.mcr for the card itself, apps/<md5>.mcr for a library app,
-## whose own progress is kept there between plays and never reaches the card.
+## Scratch images: <card_id>.mcr for the card itself, beside <card_id>.base.mcr, the card
+## as it was when the unit switched on (what tells the carry-back whether anything else
+## wrote the card meanwhile); apps/<md5>.mcr for a library app, whose own progress is kept
+## there between plays and never reaches the card; kept/ for a run's progress that met a
+## card changed under it in the same save, set aside rather than lost.
 const PLAY_DIR := "user://pocketstation_play"
 ## Pokket's IR link options (frontends/libretro/libretro.c, OPTION_LINK_*).
 const LINK_OPTION_PREFIX := "pokket_link_"
+## How soon after a running unit is seated its progress may still go on the card under a
+## powered console: the game there has only just been handed the card, and has not yet
+## seen it, let alone saved to it (see _carry_back).
+const FRESH_SEAT_MSEC := 1500
 const HINT_HEIGHT := 0.10
 ## The speaker's distance law, a handheld's.
 const STANDALONE_AUDIO_UNIT_SIZE := 3.0
@@ -71,6 +78,12 @@ var _scratch := ""
 var _scratch_is_card := false
 ## Set at power-off until the core has unloaded and the scratch can be read back.
 var _carry_pending := false
+## When a RUNNING unit was pushed into a slot: its progress is still in the core, the
+## console has just read the card, and the carry-back may write under it once, before
+## the game there can have saved anything (see _carry_back). -1 otherwise.
+var _seated_at_msec := -1
+## Why the last carry-back did not reach the card, for the panel; "" when it did.
+var _carry_failed := ""
 var _opt_defs: Dictionary = {}
 var _opt_values: Dictionary = {}
 ## The snap zone holding this card (a console's slot, a multitap's), or null.
@@ -161,15 +174,31 @@ func _on_grabbed(_pickable: Node3D, by: Node3D) -> void:
 		# and a game running on it stops, as a VMU's does in a controller.
 		_seat = by
 		print("[PocketStation] %s seated in %s" % [card_label, by.get_path()])
+		var was_running := _running
 		power_off()
+		if _carry_pending:
+			# The core still holds the last of the run, and the console reads the card
+			# file the moment this returns: the carry-back lands a few frames later and
+			# re-points the console at it (_carry_back's fresh seat).
+			_seated_at_msec = Time.get_ticks_msec()
+			print("[PocketStation] %s: seated %s, its progress follows as the core unloads"
+				% [card_label, "while running" if was_running else "while switching off"])
+		else:
+			# Progress left waiting from an earlier run goes on the card NOW: the slot
+			# tells the console only after this signal (snap_zone.pick_up_object), so it
+			# reads the card with the progress on it rather than the card from before.
+			_carry_back()
 
 
 func _on_released(_pickable: Node3D, by: Node3D) -> void:
 	if by == _seat:
 		_seat = null
+		_seated_at_msec = -1
 		print("[PocketStation] %s out of its slot" % card_label)
-		# Refused while a console held the card; free to go back now.
-		_carry_back()
+		# Refused while a console held the card; free to go back now. Deferred: the
+		# hand's let_go emits this before the slot's has_dropped lets the console go of
+		# the card, so a call now would still find it held and wait for nothing.
+		_carry_back.call_deferred()
 
 
 func is_seated() -> bool:
@@ -182,10 +211,13 @@ func is_seated() -> bool:
 func standalone_blocker() -> String:
 	if is_seated():
 		return "seated in a slot — pull it out first"
-	# The last run's core still unloading: its final flush has yet to land in the
-	# scratch, and a new run writing that same scratch would race it.
-	if _carry_pending and not _core_unloaded():
+	# The last run's core still unloading -- a card's or an app's: its final flush has
+	# yet to land, and the next run's save path would race it (SetSramPath is not queued
+	# behind a stopping core's flush).
+	if not _running and not _core_unloaded():
 		return "still switching off"
+	if not _carry_failed.is_empty() and FileAccess.file_exists(_card_scratch()):
+		return _carry_failed
 	if not _core_installed():
 		return "the Pokket core is not installed (PlayStation BIOS / Extras)"
 	if not FileAccess.file_exists(bios_path()):
@@ -239,6 +271,14 @@ func power_on(path: String, title := "") -> bool:
 	# The app's own progress, kept between plays: Pokket's save RAM is the card it
 	# builds round the app, and the frontend loads it over that card at the next start.
 	var scratch := PLAY_DIR.path_join("apps").path_join("%s.mcr" % _md5(bytes))
+	# The app's progress is the app's, whichever unit plays it, so two units cannot
+	# play it at once: both cores would flush into the one file.
+	for other: Node in get_tree().get_nodes_in_group("pocketstation"):
+		if other != self and other is PocketStation and (other as PocketStation)._running \
+				and (other as PocketStation)._scratch == scratch:
+			push_warning("[PocketStation] %s cannot run %s: %s is running it"
+				% [card_label, path.get_file(), (other as PocketStation).card_label])
+			return false
 	var name := title if not title.is_empty() else path.get_file().get_basename()
 	return _boot(path, scratch, false, name)
 
@@ -269,8 +309,18 @@ func _boot_card(title: String) -> bool:
 		push_warning("[PocketStation] %s's image is not a PlayStation card" % card_label)
 		return false
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PLAY_DIR))
-	var scratch := PLAY_DIR.path_join("%s.mcr" % card_id)
-	if not AtomicFile.write_bytes(scratch, card, "PocketStation"):
+	var scratch := _card_scratch()
+	# power_on has just tried to carry the last run back; a scratch still here is
+	# progress that could not go (a failed verify), and writing over it would lose it.
+	if FileAccess.file_exists(scratch):
+		push_warning("[PocketStation] %s will not start: its last run is still in %s (%s)"
+			% [card_label, scratch, _carry_failed if not _carry_failed.is_empty() else "not carried back"])
+		return false
+	# The card as it starts, beside the scratch: at the carry-back, a card that no
+	# longer matches it was written by something else meanwhile, and is merged with
+	# rather than overwritten.
+	if not AtomicFile.write_bytes(_card_base(), card, "PocketStation") \
+			or not AtomicFile.write_bytes(scratch, card, "PocketStation"):
 		return false
 	return _boot(scratch, scratch, true, title if not title.is_empty() else card_label)
 
@@ -346,32 +396,160 @@ func _core_unloaded() -> bool:
 	return identity.is_empty()
 
 
-## Put what the device wrote back on the card: the whole image, since the device's
-## flash IS the card. Waits while a powered console holds the card.
-func _carry_back() -> void:
+## Put what the device wrote back on the card, once the core has let go of the scratch.
+##
+## The whole image when the card is still the one the run started from (the device's
+## flash IS the card, so its in-place edits go back byte for byte). When something else
+## wrote the card meanwhile -- a console it sat in, the panel's Delete, a RomM restore, the
+## same card in another slot -- it is MERGED save by save against the card as it started
+## (merge_card), so neither side's saves are lost; a save both changed keeps the card's
+## copy and the run's whole card is set aside in kept/. Waits while a powered console
+## holds the card, except straight after a running unit was seated (`fresh_seat`).
+func _carry_back(fresh_seat := false) -> void:
 	if not is_inside_tree() or _running or card_id.is_empty():
 		return
-	var scratch := PLAY_DIR.path_join("%s.mcr" % card_id)
+	var scratch := _card_scratch()
 	if not FileAccess.file_exists(scratch):
 		return
-	var why := CardSaveOps.in_use_reason(get_tree(), card_id)
-	if not why.is_empty():
-		print("[PocketStation] %s: progress waits in %s (%s)" % [card_label, scratch, why])
-		return
 	var data := FileAccess.get_file_as_bytes(scratch)
-	var path := image_path()
 	if not PS1Card.is_card_image(data):
 		push_warning("[PocketStation] %s: the scratch is not a card image, left where it is" % card_label)
 		return
-	var old := FileAccess.get_file_as_bytes(path) if FileAccess.file_exists(path) else PackedByteArray()
-	if old == data:
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(scratch))
-		return
-	if not CardSaveOps.write_card(get_tree(), CardFormats.for_family(family), path, card_id, data):
-		push_warning("[PocketStation] %s did not verify; progress stays in %s" % [card_label, scratch])
-		return
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(scratch))
-	print("[PocketStation] carried %s's progress back to %s" % [card_label, path])
+	var path := image_path()
+	var now := FileAccess.get_file_as_bytes(path) if FileAccess.file_exists(path) else PackedByteArray()
+	var base := FileAccess.get_file_as_bytes(_card_base()) if FileAccess.file_exists(_card_base()) \
+		else PackedByteArray()
+	var why := CardSaveOps.in_use_reason(get_tree(), card_id)
+	if not why.is_empty():
+		# A running unit pushed into a powered console: the console read the card from
+		# before the run as it took it, and its game is about to look at it. Writing now,
+		# while the card is still exactly that and only moments after, and re-pointing the
+		# console (write_card -> refresh_holder: it flushes only what its game changed,
+		# then reloads) gives the game the run's progress, as docking a real one does.
+		# Any later, the game may have saved into its own copy, so it waits as before.
+		var moments := _seated_at_msec >= 0 and Time.get_ticks_msec() - _seated_at_msec < FRESH_SEAT_MSEC
+		if not (fresh_seat and moments and not base.is_empty() and now == base):
+			print("[PocketStation] %s: progress waits in %s (%s)" % [card_label, scratch, why])
+			return
+		print("[PocketStation] %s: seated as it switched off; its progress goes on the card under the console" % card_label)
+	var out := data
+	var conflicts: Array[String] = []
+	if base.is_empty():
+		# A scratch from before the starting card was kept beside it: nothing tells what
+		# else changed, so the run's card stands, as it always did.
+		if not now.is_empty() and now != data:
+			print("[PocketStation] %s: no starting card beside the scratch; the run's card replaces it" % card_label)
+	elif not now.is_empty() and now != base:
+		var merged := merge_card(base, data, now)
+		out = merged["image"]
+		conflicts = merged["conflicts"]
+		print("[PocketStation] %s changed while it ran: merged, the run's %s, the card's other saves kept%s"
+			% [card_label, str(merged["taken"]), "" if conflicts.is_empty()
+				else "; both changed %s, the card's copy kept" % str(conflicts)])
+	if out != now:
+		if not CardSaveOps.write_card(get_tree(), CardFormats.for_family(family), path, card_id, out):
+			_carry_failed = "its last run did not go back on the card (it did not verify); see the log"
+			push_warning("[PocketStation] %s did not verify; progress stays in %s" % [card_label, scratch])
+			return
+		print("[PocketStation] carried %s's progress back to %s" % [card_label, path])
+	if not conflicts.is_empty():
+		_set_aside(scratch)
+	_carry_failed = ""
+	_seated_at_msec = -1
+	_remove_scratch()
+
+
+## Merge a run's card back onto a card something else wrote meanwhile, save by save,
+## against the card both started from. A save the run changed (made, edited, deleted)
+## and the card did not is the run's; one only the card changed, or that only the card
+## has, stays the card's; one both changed differently is a conflict and keeps the
+## card's copy. Returns {image, taken: names, conflicts: names}.
+static func merge_card(base: PackedByteArray, played: PackedByteArray,
+		now: PackedByteArray) -> Dictionary:
+	var out := now
+	var taken: Array[String] = []
+	var conflicts: Array[String] = []
+	var names := {}
+	for img: PackedByteArray in [base, played]:
+		for s: Dictionary in PS1Card.list_saves(img, false):
+			names[str(s["name"])] = true
+	for n: String in names:
+		var was := _save_bytes(base, n)
+		var ran := _save_bytes(played, n)
+		if ran == was:
+			continue
+		var has := _save_bytes(out, n)
+		if has == ran:
+			continue
+		if has != was:
+			conflicts.append(n)
+			continue
+		var next := out
+		var at := PS1Card.block_of(next, n)
+		if at >= 0:
+			next = PS1Card.delete_save(next, at)
+		if not ran.is_empty() and not next.is_empty():
+			next = PS1Card.insert_save(next, ran)
+		if next.is_empty():
+			# No room for it on the card as it is now.
+			conflicts.append(n)
+			continue
+		out = next
+		taken.append(n)
+	return {"image": out, "taken": taken, "conflicts": conflicts}
+
+
+## One save as a .mcs (extract_save writes it the same wherever it sits), or empty.
+static func _save_bytes(img: PackedByteArray, save_name: String) -> PackedByteArray:
+	var at := PS1Card.block_of(img, save_name)
+	return PS1Card.extract_save(img, at) if at >= 0 else PackedByteArray()
+
+
+func _card_scratch() -> String:
+	return PLAY_DIR.path_join("%s.mcr" % card_id)
+
+
+func _card_base() -> String:
+	return PLAY_DIR.path_join("%s.base.mcr" % card_id)
+
+
+func _remove_scratch() -> void:
+	for p: String in [_card_scratch(), _card_base()]:
+		if FileAccess.file_exists(p):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+
+
+## A run's whole card, kept where nothing reads it, when part of it could not go back.
+func _set_aside(scratch: String) -> void:
+	var dir := PLAY_DIR.path_join("kept")
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
+	var to := dir.path_join("%s-%d.mcr" % [card_id, int(Time.get_unix_time_from_system())])
+	if AtomicFile.write_bytes(to, FileAccess.get_file_as_bytes(scratch), "PocketStation"):
+		push_warning("[PocketStation] %s: the run's own card, with its copy of what both changed, is kept in %s"
+			% [card_label, to])
+
+
+## Why the panel must not rename it now: the scratch and its starting card are filed
+## under the card's id, and a running core flushes to the path it was given.
+func rename_blocker() -> String:
+	if _running:
+		return "switch it off first"
+	if not _core_unloaded() or FileAccess.file_exists(_card_scratch()):
+		return "its last run has not gone back on the card yet"
+	return ""
+
+
+## A new unit must not take the id of a scratch left by one that is gone: its carry-back
+## would put that unit's run on this one's card.
+func _ids_taken() -> Dictionary:
+	var taken := super._ids_taken()
+	var dir := ProjectSettings.globalize_path(PLAY_DIR)
+	if not DirAccess.dir_exists_absolute(dir):
+		return taken
+	for f: String in DirAccess.get_files_at(dir):
+		if f.ends_with(".mcr") and not f.ends_with(".base.mcr"):
+			taken[f.get_basename()] = true
+	return taken
 
 
 # --- The panel's other questions ------------------------------------------------
@@ -460,7 +638,7 @@ func fullscreen_panels() -> Array[Dictionary]:
 func _process(_delta: float) -> void:
 	if _carry_pending and not _running and _core_unloaded():
 		_carry_pending = false
-		_carry_back()
+		_carry_back(is_seated())
 	if _running and _lib != null:
 		_update_audio()
 		show_picture(_lib.GetVideoTexture() as Texture2D)

@@ -263,7 +263,12 @@ func _populate_games(ui: MemoryCard2D) -> void:
 			var pid := int((platform as Dictionary).get("id", 0)) if platform is Dictionary else 0
 			if pid > 0 and menu.romm_catalog.sync_platform(sid, pid, true):
 				note = "Fetching the RomM list…"
+	# By name, but the card's own row (tag "this card", a PocketStation's) stays first.
 	games.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var a_own := str(a.get("tag", "")) == "this card"
+		var b_own := str(b.get("tag", "")) == "this card"
+		if a_own != b_own:
+			return a_own
 		return str(a["label"]).naturalnocasecmp_to(str(b["label"])) < 0)
 	ui.populate_games(games, note, str(_card.call("standalone_blocker")))
 
@@ -537,6 +542,14 @@ func _on_renamed(text: String) -> void:
 	# The field commits on focus loss too, so Tab past it arrives here unchanged.
 	if text == _card.card_id:
 		return
+	# A card keeping files of its own under its id (a PocketStation mid-run) says when
+	# it cannot move them.
+	if _card.has_method("rename_blocker"):
+		var why := str(_card.call("rename_blocker"))
+		if not why.is_empty():
+			_notice("Cannot rename %s: %s" % [_card.card_label, why], MenuToasts.DWELL_FAIL)
+			_populate()
+			return
 	var new_id := SramPaths.rename_card(_card.card_id, text)
 	if new_id.is_empty():
 		_notice("A card named %s already exists" % text, MenuToasts.DWELL_FAIL)

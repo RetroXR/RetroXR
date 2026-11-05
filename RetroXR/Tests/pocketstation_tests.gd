@@ -18,6 +18,8 @@ extends "res://Tests/test_suite.gd"
 
 const SCENE := preload("res://Scenes/Objects/peripherals/pocketstation.tscn")
 const FIXTURE := "__POCKETSTATION_SELFTEST"
+const _DUP := "__PS_SELFTEST_DUP"
+const _ORPHAN := "__PS_SELFTEST_ORPHAN"
 
 var _only := ""
 
@@ -48,6 +50,12 @@ func _ready() -> void:
 		await _test_carry()
 	if _wants("core"):
 		_test_core()
+	if _wants("merge"):
+		await _test_merge()
+	if _wants("dock"):
+		await _test_dock()
+	if _wants("ids"):
+		await _test_ids()
 	_clear_fixtures()
 	await _settle_warm()
 	_finish()
@@ -265,10 +273,18 @@ func _test_carry() -> void:
 
 
 func _clear_fixtures() -> void:
-	for p: String in [SramPaths.card_save_path("playstation", FIXTURE),
-			PocketStation.PLAY_DIR.path_join("%s.mcr" % FIXTURE)]:
+	var paths: Array[String] = [SramPaths.card_save_path("playstation", FIXTURE),
+			PocketStation.PLAY_DIR.path_join("%s.mcr" % FIXTURE),
+			PocketStation.PLAY_DIR.path_join("%s.base.mcr" % FIXTURE),
+			PocketStation.PLAY_DIR.path_join("%s.mcr" % _ORPHAN)]
+	paths.append_array(_kept_files())
+	for p: String in paths:
 		if FileAccess.file_exists(p):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+	# The conflict case makes kept/; leave no empty folder of the suite's behind.
+	var kept := ProjectSettings.globalize_path(PocketStation.PLAY_DIR.path_join("kept"))
+	if DirAccess.dir_exists_absolute(kept) and DirAccess.get_files_at(kept).is_empty() 			and DirAccess.get_directories_at(kept).is_empty():
+		DirAccess.remove_absolute(kept)
 
 
 # ── core/ ─────────────────────────────────────────────────────────────────────
@@ -287,3 +303,213 @@ func _test_core() -> void:
 	var defs := {"pokket_link_layout": 1, "pokket_link_audio": 2, "pokket_link_unit_b_id": 3, "pokket_other": 4}
 	_eq(PocketStation.single_unit_options(defs).keys(), ["pokket_other"],
 		"core/the panel offers none of the IR link's options, and keeps any other")
+
+
+# ── merge/ ────────────────────────────────────────────────────────────────────
+
+const _APP := "BISLPSP00000POCKET"
+const _GAME := "BISLPS000001GAME"
+const _OTHER := "BISLPS000002OTHER"
+
+
+## A copy of `img` with one byte of a save's data changed: an edit its owner made.
+static func _edited(img: PackedByteArray, save_name: String, value: int) -> PackedByteArray:
+	var out := img.duplicate()
+	var at := PS1Card.block_of(out, save_name)
+	if at >= 0:
+		out[at * PS1Card.BLOCK_SIZE + 0x200] = value
+	return out
+
+
+static func _body(img: PackedByteArray, save_name: String) -> PackedByteArray:
+	return PocketStation._save_bytes(img, save_name)
+
+
+## The card as a run started, an app and a game's save on it.
+static func _base_card() -> PackedByteArray:
+	return PS1Card.insert_save(PS1Card.insert_save(PS1Card.blank_image(), _mcs(_APP, true)),
+		_mcs(_GAME, false))
+
+
+func _test_merge() -> void:
+	var base := _base_card()
+	# The run edits its app; meanwhile a console saves the game and adds a save.
+	var played := _edited(base, _APP, 0x11)
+	var now := PS1Card.insert_save(_edited(base, _GAME, 0x22), _mcs(_OTHER, false))
+	var m := PocketStation.merge_card(base, played, now)
+	var out: PackedByteArray = m["image"]
+	_ok(PS1Card.is_card_image(out), "merge/the merge is a card")
+	_ok(_body(out, _APP) == _body(played, _APP), "merge/the run's edit to its app goes back")
+	_ok(_body(out, _GAME) == _body(now, _GAME), "merge/the save a console made while it ran stays")
+	_ok(PS1Card.block_of(out, _OTHER) >= 0, "merge/and so does one it added")
+	_eq((m["conflicts"] as Array).size(), 0, "merge/with nothing both changed")
+	var both := PocketStation.merge_card(base, _edited(base, _GAME, 0x33), now)
+	_eq(both["conflicts"], [_GAME], "merge/a save both changed is a conflict")
+	_ok(_body(both["image"], _GAME) == _body(now, _GAME), "merge/and the card keeps its copy")
+	var no_game := PS1Card.delete_save(base, PS1Card.block_of(base, _GAME))
+	_eq(PS1Card.block_of(PocketStation.merge_card(base, no_game, base)["image"], _GAME), -1,
+		"merge/a save the run deleted goes")
+	_eq(PS1Card.block_of(PocketStation.merge_card(base, base, no_game)["image"], _GAME), -1,
+		"merge/and one deleted from the card while the run left it alone does not come back")
+
+	# Through the unit: the starting card beside the scratch, the card written meanwhile.
+	var ps := _unit(FIXTURE)
+	await get_tree().process_frame
+	var path := SramPaths.card_save_path("playstation", FIXTURE)
+	var scratch := PocketStation.PLAY_DIR.path_join("%s.mcr" % FIXTURE)
+	var base_path := PocketStation.PLAY_DIR.path_join("%s.base.mcr" % FIXTURE)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PocketStation.PLAY_DIR))
+	AtomicFile.write_bytes(path, now, "pocketstation_tests")
+	AtomicFile.write_bytes(base_path, base, "pocketstation_tests")
+	AtomicFile.write_bytes(scratch, played, "pocketstation_tests")
+	ps._carry_back()
+	var card := FileAccess.get_file_as_bytes(path)
+	_ok(_body(card, _APP) == _body(played, _APP), "merge/carried back, the run's progress is on the card")
+	_ok(_body(card, _GAME) == _body(now, _GAME) and PS1Card.block_of(card, _OTHER) >= 0,
+		"merge/and the saves written to the card while it ran survive it")
+	_ok(not FileAccess.file_exists(scratch) and not FileAccess.file_exists(base_path),
+		"merge/the scratch and its starting card are cleared")
+	# Both changed the game's save: the card keeps its copy, the run's is set aside.
+	AtomicFile.write_bytes(path, now, "pocketstation_tests")
+	AtomicFile.write_bytes(base_path, base, "pocketstation_tests")
+	AtomicFile.write_bytes(scratch, _edited(played, _GAME, 0x33), "pocketstation_tests")
+	ps._carry_back()
+	_ok(_body(FileAccess.get_file_as_bytes(path), _GAME) == _body(now, _GAME),
+		"merge/a save both changed keeps the card's copy")
+	_ok(not _kept_files().is_empty() and not FileAccess.file_exists(scratch),
+		"merge/and the run's is kept aside, not lost, nor left to block the next start", str(_kept_files()))
+	# A run still waiting to go back is never written over, nor renamed out from under.
+	AtomicFile.write_bytes(scratch, played, "pocketstation_tests")
+	_ok(not ps._boot_card("t"), "merge/the next start refuses to write over a run still waiting")
+	_ok(not ps.rename_blocker().is_empty(), "merge/and the card cannot be renamed under it", ps.rename_blocker())
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(scratch))
+	_eq(ps.rename_blocker(), "", "merge/with nothing waiting it can")
+	ps.queue_free()
+	await get_tree().process_frame
+
+
+func _kept_files() -> Array[String]:
+	var out: Array[String] = []
+	var dir := PocketStation.PLAY_DIR.path_join("kept")
+	if not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(dir)):
+		return out
+	for f: String in DirAccess.get_files_at(ProjectSettings.globalize_path(dir)):
+		if f.begins_with(FIXTURE):
+			out.append(dir.path_join(f))
+	return out
+
+
+# ── dock/ ─────────────────────────────────────────────────────────────────────
+
+## The unit seated in a PlayStation. The console is marked powered with no core, so
+## its card controller hot-swaps and reports the card in use exactly as a running one.
+func _test_dock() -> void:
+	var sys := (load("res://Scenes/Objects/system.tscn") as PackedScene).instantiate() as RetroSystem
+	sys.systemid = "psx"
+	add_child(sys)
+	sys.freeze = true
+	for i in 10:
+		await get_tree().physics_frame
+	var slot: XRToolsSnapZone = sys.memcard_slots()[0]
+	var ps := _unit(FIXTURE)
+	ps.global_position = slot.global_position + Vector3(0, 0.3, 0.3)
+	await get_tree().process_frame
+	var path := SramPaths.card_save_path("playstation", FIXTURE)
+	var scratch := PocketStation.PLAY_DIR.path_join("%s.mcr" % FIXTURE)
+	var base_path := PocketStation.PLAY_DIR.path_join("%s.base.mcr" % FIXTURE)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PocketStation.PLAY_DIR))
+	var base := _base_card()
+	var played := _edited(base, _APP, 0x11)
+
+	# Progress waiting from an earlier run: on the card BEFORE the console is handed it.
+	AtomicFile.write_bytes(path, base, "pocketstation_tests")
+	AtomicFile.write_bytes(base_path, base, "pocketstation_tests")
+	AtomicFile.write_bytes(scratch, played, "pocketstation_tests")
+	sys.is_powered_on = true
+	var handed: Array = []
+	var look := func(_what: Node3D) -> void: handed.append(FileAccess.get_file_as_bytes(path))
+	slot.has_picked_up.connect(look)
+	slot.pick_up_object(ps)
+	slot.has_picked_up.disconnect(look)
+	_ok(ps.is_seated(), "dock/it seats in the slot")
+	_ok(handed.size() == 1 and _body(handed[0], _APP) == _body(played, _APP),
+		"dock/the console is handed the card with the waiting progress already on it")
+
+	# Pulled with the console on, after the game saved into the card meanwhile: the
+	# progress that waited goes back, and the game's save stays.
+	var now := _edited(base, _GAME, 0x22)
+	AtomicFile.write_bytes(path, now, "pocketstation_tests")
+	AtomicFile.write_bytes(base_path, base, "pocketstation_tests")
+	AtomicFile.write_bytes(scratch, played, "pocketstation_tests")
+	ps._carry_back()
+	_ok(FileAccess.file_exists(scratch), "dock/seated in a running console, progress waits")
+	slot.drop_object()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var card := FileAccess.get_file_as_bytes(path)
+	_ok(not FileAccess.file_exists(scratch) and _body(card, _APP) == _body(played, _APP),
+		"dock/pulled out with the console on, the waiting progress goes back")
+	_ok(_body(card, _GAME) == _body(now, _GAME), "dock/and the game's save made while it was in stays")
+
+	# Switched off by being seated (the core still unloading): the carry-back may write
+	# under the powered console once, at once, while the card is still the one it read.
+	ps.global_position = slot.global_position + Vector3(0, 0.3, 0.3)
+	await get_tree().physics_frame
+	AtomicFile.write_bytes(path, base, "pocketstation_tests")
+	AtomicFile.write_bytes(base_path, base, "pocketstation_tests")
+	AtomicFile.write_bytes(scratch, played, "pocketstation_tests")
+	ps._carry_pending = true
+	slot.pick_up_object(ps)
+	ps._carry_pending = false
+	_ok(_body(FileAccess.get_file_as_bytes(path), _APP) == _body(base, _APP),
+		"dock/seated while switching off, the console first reads the card as it was")
+	var was := ps._seated_at_msec
+	ps._seated_at_msec = Time.get_ticks_msec() - 10000
+	ps._carry_back(true)
+	_ok(FileAccess.file_exists(scratch), "dock/long after the seat it waits, as the game may have saved")
+	ps._seated_at_msec = was
+	AtomicFile.write_bytes(path, now, "pocketstation_tests")
+	ps._carry_back(true)
+	_ok(FileAccess.file_exists(scratch), "dock/and so it does when the card already changed")
+	AtomicFile.write_bytes(path, base, "pocketstation_tests")
+	ps._carry_back(true)
+	_ok(not FileAccess.file_exists(scratch)
+		and _body(FileAccess.get_file_as_bytes(path), _APP) == _body(played, _APP),
+		"dock/moments after, with the card untouched, the progress goes on under the console")
+	slot.drop_object()
+	sys.is_powered_on = false
+	await get_tree().process_frame
+	ps.queue_free()
+	sys.queue_free()
+	await get_tree().process_frame
+
+
+# ── ids/ ──────────────────────────────────────────────────────────────────────
+
+## A new card never takes a name a card in the room already answers to, nor one a
+## PocketStation's waiting run is filed under.
+func _test_ids() -> void:
+	var cards: Array[Node] = []
+	for i in 2:
+		var c := (load("res://Scenes/Objects/media/memory_card.tscn") as PackedScene).instantiate()
+		c.set("card_label", _DUP)
+		add_child(c)
+		cards.append(c)
+	await get_tree().process_frame
+	_ok(str(cards[0].get("card_id")) != str(cards[1].get("card_id")),
+		"ids/two new cards in the room never share a name, image or not",
+		"%s / %s" % [cards[0].get("card_id"), cards[1].get("card_id")])
+	for c in cards:
+		c.queue_free()
+	var scratch := PocketStation.PLAY_DIR.path_join("%s.mcr" % _ORPHAN)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PocketStation.PLAY_DIR))
+	AtomicFile.write_bytes(scratch, PS1Card.blank_image(), "pocketstation_tests")
+	var ps := SCENE.instantiate() as PocketStation
+	ps.card_label = _ORPHAN
+	add_child(ps)
+	ps.freeze = true
+	_ok(ps.card_id != _ORPHAN, "ids/a new unit does not take the id of a run left waiting by one gone",
+		ps.card_id)
+	ps.queue_free()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(scratch))
+	await get_tree().process_frame

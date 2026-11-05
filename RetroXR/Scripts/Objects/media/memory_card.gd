@@ -47,7 +47,7 @@ func _ready() -> void:
 	# Name before id: the id is the name, made unique against what is on disk so
 	# two cards can never end up sharing one image.
 	if card_id.is_empty():
-		card_id = SramPaths.unique_card_id(card_label)
+		card_id = SramPaths.unique_card_id(card_label, _ids_taken())
 		card_label = card_id
 		minted = true
 	_update_label()
@@ -70,6 +70,12 @@ func _ready() -> void:
 ## image: making one for the second would answer a card whose saves have gone
 ## missing with a silent blank, which reads exactly like the saves were wiped.
 var minted := false
+
+
+## Ids a new card must not take besides those on disk: every other card in the room.
+## A subclass keeping files of its own under a card's id adds them (PocketStation).
+func _ids_taken() -> Dictionary:
+	return SramPaths.room_card_ids(get_tree(), self)
 
 
 func _update_label() -> void:

@@ -120,22 +120,41 @@ is a card first, and has to stay one while seated.
   Games tab is `roms/pocketstation/` (.mcs .pss .gme .mcr .mcd .bin). Pokket's save RAM is the whole flash,
   a `.mcr` byte for byte, so:
   - its own card runs on a SCRATCH copy (`user://pocketstation_play/<card_id>.mcr`, content and save path
-    both), and at power-off, once the core has unloaded, the scratch goes back WHOLE through
-    `CardSaveOps.write_card`; while a powered console holds the card it waits (VMU's rule: no core writes
-    a card file directly). A scratch that is not a card image is left where it is and logged.
-  - a library app keeps its own progress in `apps/<md5>.mcr` and never touches the card.
+    both) beside `<card_id>.base.mcr`, the card as it switched on. At power-off, once the core has
+    unloaded, the scratch goes back through `CardSaveOps.write_card`: WHOLE while the card is still the
+    base, and **merged save by save** (`PocketStation.merge_card`, against the base) when anything else
+    wrote it meanwhile -- a console, the panel's Delete, a RomM restore. A save both changed keeps the
+    card's copy and the run's whole card is set aside in `kept/`. While a powered console holds the card
+    it waits (VMU's rule: no core writes a card file directly). A scratch that is not a card image is
+    left where it is and logged.
+  - **Seated, the progress goes on the card BEFORE the console reads it**: the snap zone calls the
+    unit's `pick_up` (its `grabbed`) before it tells the console (`has_picked_up`), so progress already
+    waiting is carried right there; a unit seated while RUNNING still has the last of the run in the
+    core, so its carry-back writes under the powered console once, within `FRESH_SEAT_MSEC` and only
+    while the card is still the base, and `refresh_holder` re-points the console (a hot-swap flushes
+    only what its game changed, then reloads). Pulled out, the carry-back is DEFERRED: the hand's
+    `released` comes before the slot's `has_dropped`, so a call then still found the card held. Before
+    these (review, 2026-11-05) docking a played unit showed the PS1 the card from before the run, and
+    pulling it later wrote the run over whatever the game had saved.
+  - the next start refuses to write over a scratch still waiting, a rename is refused while one is
+    (`rename_blocker`, asked by the panel), and a new unit never takes the id of a waiting scratch
+    (`_ids_taken`); `SramPaths.room_card_ids` keeps every new card's id clear of the cards in the room,
+    not only of the files on disk (two units spawned, the first deleted, a third spawned shared one).
+  - a library app keeps its own progress in `apps/<md5>.mcr` and never touches the card; two units
+    cannot run the same app at once (both cores would flush into that one file).
   - a new unit with no image is given a formatted one (`PS1Card.blank_image`) on its first start; a
     restored one with its image missing refuses (a blank would read as wiped saves).
 - **Will not run** seated ("seated in a slot"), with no `pokket` core (offered on the PlayStation's BIOS /
   Extras page as well as its own tile, `cores_view._BIOS_EXTRA_CORES`), with no
-  `system/pokket/pocketstation.bin`, or while its last run's core is still unloading.
+  `system/pokket/pocketstation.bin`, while its last run's core (card or app) is still unloading, or
+  while its last run could not go back on the card.
 - **Controls**: Pokket reads up/down/left/right and A (Action). The hand is `VmuInput` unchanged (A/X is
   Action, the stick the four buttons; Scroll Lock captures the keyboard on desktop) and fingertips are
   `ControlPoke` over the model's caps, which sink along the model's -Y.
 - **Screen** `Model/LidHinge/Screen` through the window shader (`show_picture`); the speaker voices are
   posed on the unit, out of its back.
-- `pocketstation_tests` (catalog, frame, saved, controls, seat, apps, carry; controls and saved
-  mutation-tested). `Tools/models/pocketstation_seat_probe` (windowed): seated in a PS1, and an
+- `pocketstation_tests` (catalog, frame, saved, controls, seat, apps, carry, core, merge, dock, ids;
+  controls, saved, merge, dock and ids mutation-tested; `dock/` seats it in a PS1 marked powered). `Tools/models/pocketstation_seat_probe` (windowed): seated in a PS1, and an
   asymmetric "F" through `show_picture` on a loose one, upright and unmirrored.
   `Tools/models/pocketstation_menu_probe` (windowed, `--image=` a card, `--root=` a scratch root with
   Pokket): the unit's own panel tab by tab, then switched on from it (Saves shows "Playing ...", the

@@ -204,7 +204,7 @@ func _ready() -> void:
 	if card_label == "VMU":
 		card_label = "VMU %d" % get_tree().get_nodes_in_group("vmu").size()
 	if card_id.is_empty():
-		card_id = SramPaths.unique_card_id(card_label)
+		card_id = SramPaths.unique_card_id(card_label, SramPaths.room_card_ids(get_tree(), self))
 		card_label = card_id
 		minted = true
 	_update_label()

@@ -46,7 +46,8 @@ func _ready() -> void:
 
 func _cleanup() -> void:
 	for p: String in [SramPaths.card_save_path("playstation", CARD_ID),
-			PocketStation.PLAY_DIR.path_join("%s.mcr" % CARD_ID)]:
+			PocketStation.PLAY_DIR.path_join("%s.mcr" % CARD_ID),
+			PocketStation.PLAY_DIR.path_join("%s.base.mcr" % CARD_ID)]:
 		if FileAccess.file_exists(p):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
 

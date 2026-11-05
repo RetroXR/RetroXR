@@ -68,7 +68,7 @@ func _ready() -> void:
 	if card_label == DEFAULT_LABEL:
 		card_label = "%s %d" % [DEFAULT_LABEL, get_tree().get_nodes_in_group("xbox_mu").size()]
 	if card_id.is_empty():
-		card_id = SramPaths.unique_card_id(card_label)
+		card_id = SramPaths.unique_card_id(card_label, SramPaths.room_card_ids(get_tree(), self))
 		card_label = card_id
 		minted = true
 	_update_label()
