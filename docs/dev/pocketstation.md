@@ -54,6 +54,12 @@ Three ways were weighed:
    through `5Ah` F_SN).
 3. **BIOS** `pocketstation.bin` (16 KiB) from the system dir, the name the `pokket` core's .info
    already uses, so one file serves both. Missing: the slot stays a plain card and a WARN says why.
+   **Any 16 KiB image boots, but only the retail J110 dump Pokket was traced on takes the date, time
+   and volume writes** (`psemu_settings_offsets_known`: FNV-1a `0xB2E46838` over the 16 KiB, the .info's
+   md5 `987d6438...`); on any other the RTC starts at its reset value (1 January 1999), which is still
+   deterministic. Log which it is. The `retrobios` set on the dev machine has neither: its
+   `pocketstation.bin` is tagged `C110`/`J110` but hashes `0xDDF1F248` (md5 `0e4712cd...`), and its
+   variant is the `C061`/`J061` prototype, 60 bytes apart (2026-11-05).
 4. **Device glue in our own file**, `libpcsxcore/pocketstation.c`: create, load the BIOS, load flash
    from `Mcd{N}Data`, dock, and run frame by frame until `psemu_com_is_enabled` (the kernel debounces
    the dock; until then the slot answers as EMPTY, as a card still going in would).
