@@ -27,6 +27,9 @@ offering, while KEEPING the preference: a USB microphone plugged back in is used
 capturing from nothing would read as a broken microphone rather than a missing one. The input is
 selected BEFORE the device is switched on, because a driver opens the one it was pointed at, so
 a preference changed mid-run closes and re-opens rather than leaving capture on the old input.
+The list is asked for ONLY while capture is wanted (2026-11-04): it is an OS device enumeration,
+0.36 ms a call on this Windows desk, and the service used to ask every frame of every room,
+microphone game or not (about 1.2 ms a frame in the Starlight Arcade, by switching it off).
 
 **The device opens only while a core is listening.** Each frame the service collects the
 powered-on `retro_system` machines whose `Libretro.IsMicrophoneActive()` is true — a handle

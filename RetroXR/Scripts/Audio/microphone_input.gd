@@ -84,23 +84,27 @@ func tick() -> void:
 	# Chosen before the switch, because a driver opens the device it was pointed
 	# at: selecting one while capture is already running leaves the old input
 	# feeding the ring. A change while live therefore closes and re-opens.
-	var device := resolve_device(AppPrefs.microphone_device, device_list_source.call())
-	if wanted and _device_active and device != _device_in_use:
-		device_switch.call(false)
-		_device_active = false
-	if wanted and device != _device_in_use:
-		device_select.call(device)
-		_device_in_use = device
-		print("[Microphone] input: %s" % device)
-		if device == DEFAULT_DEVICE and not AppPrefs.microphone_device.is_empty() \
-				and AppPrefs.microphone_device != DEFAULT_DEVICE \
-				and _missing_reported != AppPrefs.microphone_device:
-			_missing_reported = AppPrefs.microphone_device
-			print("[Microphone] '%s' is not plugged in; using the system default"
-				% AppPrefs.microphone_device)
-	if wanted and not AppPrefs.microphone_device.is_empty() \
-			and AppPrefs.microphone_device == device:
-		_missing_reported = ""
+	# Only asked while capture is wanted: the list is an OS device enumeration
+	# (0.36 ms a call on Windows, measured), and every frame of a room with no
+	# microphone game running paid for it.
+	if wanted:
+		var device := resolve_device(AppPrefs.microphone_device, device_list_source.call())
+		if _device_active and device != _device_in_use:
+			device_switch.call(false)
+			_device_active = false
+		if device != _device_in_use:
+			device_select.call(device)
+			_device_in_use = device
+			print("[Microphone] input: %s" % device)
+			if device == DEFAULT_DEVICE and not AppPrefs.microphone_device.is_empty() \
+					and AppPrefs.microphone_device != DEFAULT_DEVICE \
+					and _missing_reported != AppPrefs.microphone_device:
+				_missing_reported = AppPrefs.microphone_device
+				print("[Microphone] '%s' is not plugged in; using the system default"
+					% AppPrefs.microphone_device)
+		if not AppPrefs.microphone_device.is_empty() \
+				and AppPrefs.microphone_device == device:
+			_missing_reported = ""
 	if wanted != _device_active:
 		var took: bool = device_switch.call(wanted)
 		_device_active = wanted
