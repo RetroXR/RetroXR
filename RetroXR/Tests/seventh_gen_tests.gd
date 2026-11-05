@@ -90,9 +90,11 @@ func _group_ps3() -> void:
 	# No row is a claim nobody has measured: the XMB is not known to come up with
 	# nothing in the slot. A row goes in with the probe that shows it.
 	_ok(BiosBoot.entry("rpcs3", "ps3").is_empty(), "ps3/and it is not switched on empty")
-	_ok(CoreSources.is_hidden_on("rpcs3", "Android"), "ps3/desktop only: no row on a Quest")
+	# Offered wherever the buildbot builds it, the Quest included, for players to
+	# try (the owner's call, 2026-11-05; it was desktop-only for an afternoon).
+	_ok(not CoreSources.is_hidden_on("rpcs3", "Android"), "ps3/offered on a Quest, to try")
 	_ok(not CoreSources.is_hidden_on("rpcs3", "Windows") and not CoreSources.is_hidden_on("rpcs3", "Linux"),
-		"ps3/and offered on the desktops")
+		"ps3/and on the desktops")
 	_ok(not CoreSources.has("rpcs3"), "ps3/the buildbot's build, not one of ours")
 
 
@@ -136,15 +138,15 @@ func _group_xbox360() -> void:
 	# extensions are its own cores'.
 	_ok(not db.extensions_for_systemid("xbox").has("xex"), "xbox360/and no .xex is offered to xemu")
 	_ok(FirmwareRequirements.for_core("xenia_edge").is_empty(), "xbox360/no firmware to install")
-	_ok(CoreSources.is_hidden_on("xenia_edge", "Android")
-		and not CoreSources.is_hidden_on("xenia_edge", "Windows"), "xbox360/desktop only")
+	_ok(not CoreSources.is_hidden_on("xenia_edge", "Android")
+		and not CoreSources.is_hidden_on("xenia_edge", "Windows"), "xbox360/offered everywhere it is built")
 	_ok(not CoreSources.active_core_names().has("xenia_edge"),
 		"xbox360/and never probed as a release of ours")
 	# The second 360 core, a fork of Xenia Edge with no build anywhere yet.
 	_eq(str(db.get_by_core_name("parallel_xbox360").get("systemid", "")), "xbox360",
 		"xbox360/ParaLLEl Xbox360 is a 360 core too")
-	_ok(CoreSources.is_hidden_on("parallel_xbox360", "Android"),
-		"xbox360/hidden on a Quest before its first build appears")
+	_ok(not CoreSources.is_hidden_on("parallel_xbox360", "Android"),
+		"xbox360/and the fork lists on a Quest the day it is built there")
 	_eq(CoreRecommendations.core_for("xbox360"), "xenia_edge",
 		"xbox360/and xenia_edge stays the one recommended: it is the one built")
 	var no_cards: Array[bool] = []

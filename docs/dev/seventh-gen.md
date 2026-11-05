@@ -7,7 +7,7 @@ Added 2026-11-05. Two systems, each on the libretro buildbot's own build of its 
 | systemid (ES-DE folder) | `ps3` | `xbox360` |
 | libretro's id (`SystemIds.LEGACY`) | `playstation3` | `xbox_360` |
 | core | `rpcs3` (RPCS3, GPLv2, github.com/WizzardSK/rpcs3-libretro) | `xenia_edge` (Xenia Edge, BSD, github.com/WizzardSK/xenia-libretro) |
-| buildbot zips (Windows; Android exists, hidden) | `rpcs3_libretro.dll.zip` / `rpcs3_libretro_android.so.zip` | `xenia_edge_libretro.dll.zip` / `xenia_edge_libretro_android.so.zip` |
+| buildbot zips (Windows / Android) | `rpcs3_libretro.dll.zip` / `rpcs3_libretro_android.so.zip` | `xenia_edge_libretro.dll.zip` / `xenia_edge_libretro_android.so.zip` |
 | content | `iso pkg sfb sfo bin self elf`, full path | `iso xex zar xcp m3u`, full path |
 | firmware | `PS3UPDAT.PUP`, required | none |
 | video | HW: Vulkan (default) or GL 4.5 | HW: Vulkan 1.1 (negotiation v2, v1 fallback) or D3D12 |
@@ -22,17 +22,17 @@ Added 2026-11-05. Two systems, each on the libretro buildbot's own build of its 
 **A second Xbox 360 core, `parallel_xbox360`** ("ParaLLEl Xbox360", a libretro fork of
 Xenia Edge, BSD), has an `.info` (libretro-super `84ccaff5`, 2026-11-03) and NO build on
 the buildbot for any platform yet (checked 2026-11-05). Its `.info` is in, so it lists
-the moment one appears. It is hidden on Android like the others, xenia_edge stays the
-recommended core, and it gets the same debugger-break pin, on the GUESS that the fork kept
+the moment one appears, on any platform. xenia_edge stays the recommended core, and it gets the same debugger-break pin, on the GUESS that the fork kept
 Xenia Edge's option key. Peek its options when a build exists.
 
 Nowhere special. Neither is in `CoreSources.SOURCES`: the download manager lists every
 `*_libretro<ext>.zip` the buildbot serves, so both appear in the Cores tab with nothing
-added there. **Desktop only** (the owner's call, 2026-11-05):
-`CoreSources.HIDDEN_BUILDBOT_CORES` drops both rows on Android, though the buildbot does
-publish Android builds, so a Quest has no core and no tile for either. That table sits
-beside `SOURCES` rather than in it because a `SOURCES` row carries a repo and assets of
-ours. Fork one only when a fix needs to ride with it, as xemu's did.
+added there. **On the Quest too**, wherever the buildbot publishes an Android build, for
+players to try (the owner's call, 2026-11-05). Nobody has run either on a headset, and the
+recommendation text says "untested on Quest". For an afternoon both were desktop-only
+through a `CoreSources.HIDDEN_BUILDBOT_CORES` table; it was removed with no rows left,
+and `hidden_on` in a `SOURCES` row remains the switch for a core of ours. Fork one only
+when a fix needs to ride with it, as xemu's did.
 
 Their `.info` files were copied in by hand from libretro-super and renamed by
 `Tools/rename_systemids.py`; all three are in the mirror's `b90a4ee4` base, so
@@ -112,5 +112,5 @@ front slide (2026-11-05, both shots checked by eye). The placeholder draws four 
 sockets on the PS3 although `native_ports` is 7.
 
 OWED, every one of them: a game booted on either (which is also the first test of RPCS3's
-Vulkan path and Xenia's Vulkan negotiation against our VideoHandler), the Quest (hidden, never tried), real console and pad models, power inlets
+Vulkan path and Xenia's Vulkan negotiation against our VideoHandler), the Quest (offered, never tried: whether a Quest runs either at all is unknown), real console and pad models, power inlets
 (`PowerProfiles` has no row, so both are always powered), the saves.
