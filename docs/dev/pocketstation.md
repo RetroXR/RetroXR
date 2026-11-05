@@ -106,7 +106,38 @@ Three ways were weighed:
    optional) as well as the PocketStation's.
 5. **Netplay**: docked, it is part of the PlayStation's deterministic state (item 9); a card moved
    mid-session is already refused. A loose PocketStation is local only at first.
-6. **Model**: a primitive from the measured unit. Look the dimensions up first.
+6. **Model**: the primitive below. Not wired to anything yet.
+
+## The primitive (built 2026-11-05)
+
+`Scenes/Objects/peripherals/pocketstation_model.tscn`: a plain `Node3D` of parts, lying flat as the
+handheld primitives do (screen +Y, the infrared end -Z, the card edge +Z, centred, metres). Nothing
+spawns it yet: it is the model the PocketStation object will wear. `Tools/models/pocketstation_render_probe`
+(windowed) renders it beside a PS1 memory card and prints its size, **42.0 x 14.2 x 65.8 mm**: Sony's
+64 x 42 x 13.5 mm body plus what stands proud of it (Sony's manual: "approx. 42 x 14.8 x 65 mm
+including protrusions").
+
+- **Sources.** Sony's press release of 1998-10-08 (最大外形寸法 64 x 42 x 13.5 mm, ~30 g with the
+  battery; five input buttons and a reset button; IrDA plus remote-control infrared; ONE red LED;
+  CR2032; white and crystal); photos measured for the layout (Evan Amos and Qurren on Wikimedia
+  Commons, front; consolevariations.com, back and the lid opened), scaled to the 42 mm width.
+- **The screen section is a LID hinged at the seam** 34.6 mm from the top: the step across the
+  face is its edge over the thinner base, and opened it shows two screws and the unit's printed ID
+  (`ID.A03067239` on the one photographed). So the model is a 7.5 mm base the whole length, and a
+  6 mm lid on its upper part under `LidHinge` (turn its X to open it; the probe shows 70 degrees).
+  What the lid is FOR is not settled: docked the device lies flat and the kernel rotates the picture
+  180 degrees (LCD_MODE bit 7), which needs no lid at all.
+- **The outline is a tombstone** (a semicircular top the body's width, straight sides, 3 mm corners
+  at the card end), extruded by `PocketStationShell` (`Scripts/Objects/peripherals/pocketstation_shell.gd`).
+  Boxes and cylinders could not make the LID: its straight part (13.6 mm) is shorter than its arc's
+  radius (20.5 mm), so a whole cylinder poked out past the hinge as a puck (the first render).
+- **Parts by name**, for the object to wire: `Screen` (a 21 mm square for the 32 x 32 LCD) on
+  `ScreenBezel`, `IrWindow` and `Led` at the top edge, `ButtonUp/Left/Right/Down/Action` (Pokket's
+  `PSEMU_BUTTON_*`; each in a grey `...Well` that makes a white button read on a white body),
+  `SpeakerGrille`, `BatteryCover`, `ResetHole` (the small hole by the grille, taken to be the reset),
+  five screws, `CardEdge`, `StrapLug`. No SONY or PocketStation lettering.
+- **Not modelled:** the crystal body, the bezel's rounded corners, the raised panel round the
+  buttons, the grille's holes, the strap.
 
 ## Later
 

@@ -1,0 +1,267 @@
+[gd_scene load_steps=28 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/pocketstation_shell.gd" id="1_shell"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_body"]
+albedo_color = Color(0.89, 0.89, 0.87, 1)
+roughness = 0.45
+
+[sub_resource type="StandardMaterial3D" id="Mat_button"]
+albedo_color = Color(0.93, 0.93, 0.91, 1)
+roughness = 0.4
+
+[sub_resource type="StandardMaterial3D" id="Mat_bezel"]
+albedo_color = Color(0.52, 0.57, 0.66, 1)
+metallic = 0.3
+roughness = 0.35
+
+[sub_resource type="StandardMaterial3D" id="Mat_lcd"]
+albedo_color = Color(0.44, 0.47, 0.40, 1)
+roughness = 0.25
+
+[sub_resource type="StandardMaterial3D" id="Mat_dome"]
+transparency = 1
+albedo_color = Color(0.85, 0.92, 0.95, 0.35)
+roughness = 0.05
+
+[sub_resource type="StandardMaterial3D" id="Mat_led"]
+albedo_color = Color(0.35, 0.04, 0.04, 1)
+roughness = 0.3
+
+[sub_resource type="StandardMaterial3D" id="Mat_grille"]
+albedo_color = Color(0.74, 0.74, 0.72, 1)
+roughness = 0.6
+
+[sub_resource type="StandardMaterial3D" id="Mat_cover"]
+albedo_color = Color(0.86, 0.86, 0.84, 1)
+roughness = 0.5
+
+[sub_resource type="StandardMaterial3D" id="Mat_dark"]
+albedo_color = Color(0.12, 0.12, 0.13, 1)
+roughness = 0.6
+
+[sub_resource type="StandardMaterial3D" id="Mat_screw"]
+albedo_color = Color(0.60, 0.60, 0.62, 1)
+metallic = 0.8
+roughness = 0.35
+
+[sub_resource type="StandardMaterial3D" id="Mat_well"]
+albedo_color = Color(0.66, 0.66, 0.65, 1)
+roughness = 0.6
+
+[sub_resource type="BoxMesh" id="M_bezel"]
+size = Vector3(0.0292, 0.0003, 0.0235)
+
+[sub_resource type="PlaneMesh" id="M_lcd"]
+size = Vector2(0.021, 0.021)
+
+[sub_resource type="BoxMesh" id="M_dome"]
+size = Vector3(0.011, 0.0034, 0.0034)
+
+[sub_resource type="BoxMesh" id="M_led"]
+size = Vector3(0.0015, 0.001, 0.0012)
+
+[sub_resource type="CylinderMesh" id="M_btn"]
+top_radius = 0.0023
+bottom_radius = 0.0023
+height = 0.0016
+radial_segments = 48
+
+[sub_resource type="CylinderMesh" id="M_btn_action"]
+top_radius = 0.0031
+bottom_radius = 0.0031
+height = 0.0016
+radial_segments = 48
+
+[sub_resource type="CylinderMesh" id="M_well"]
+top_radius = 0.003
+bottom_radius = 0.003
+height = 0.0002
+radial_segments = 48
+
+[sub_resource type="CylinderMesh" id="M_well_action"]
+top_radius = 0.0038
+bottom_radius = 0.0038
+height = 0.0002
+radial_segments = 48
+
+[sub_resource type="CylinderMesh" id="M_grille"]
+top_radius = 0.0098
+bottom_radius = 0.0098
+height = 0.0004
+radial_segments = 48
+
+[sub_resource type="CylinderMesh" id="M_cover"]
+top_radius = 0.0114
+bottom_radius = 0.0114
+height = 0.0004
+radial_segments = 48
+
+[sub_resource type="CylinderMesh" id="M_reset"]
+top_radius = 0.0008
+bottom_radius = 0.0008
+height = 0.0004
+radial_segments = 48
+
+[sub_resource type="CylinderMesh" id="M_screw"]
+top_radius = 0.0014
+bottom_radius = 0.0014
+height = 0.0003
+radial_segments = 48
+
+[sub_resource type="CylinderMesh" id="M_screw_small"]
+top_radius = 0.0012
+bottom_radius = 0.0012
+height = 0.0003
+radial_segments = 48
+
+[sub_resource type="BoxMesh" id="M_edge"]
+size = Vector3(0.03, 0.0025, 0.0003)
+
+[sub_resource type="BoxMesh" id="M_lug"]
+size = Vector3(0.004, 0.003, 0.002)
+
+[node name="PocketStationModel" type="Node3D"]
+
+[node name="LidHinge" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.00075, 0.0026)
+
+[node name="BaseShell" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.003, 0)
+script = ExtResource("1_shell")
+width = 0.042
+z_top = -0.032
+z_bottom = 0.032
+thickness = 0.0075
+corner_radius = 0.003
+material = SubResource("Mat_body")
+
+[node name="LidShell" type="MeshInstance3D" parent="LidHinge"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.003, 0)
+script = ExtResource("1_shell")
+width = 0.041
+z_top = -0.0341
+z_bottom = 0
+thickness = 0.006
+corner_radius = 0.0005
+material = SubResource("Mat_body")
+
+[node name="ScreenBezel" type="MeshInstance3D" parent="LidHinge"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0004, 0.00615, -0.0145)
+mesh = SubResource("M_bezel")
+surface_material_override/0 = SubResource("Mat_bezel")
+
+[node name="Screen" type="MeshInstance3D" parent="LidHinge"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0004, 0.00635, -0.0145)
+mesh = SubResource("M_lcd")
+surface_material_override/0 = SubResource("Mat_lcd")
+
+[node name="IrWindow" type="MeshInstance3D" parent="LidHinge"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.00445, -0.0321)
+mesh = SubResource("M_dome")
+surface_material_override/0 = SubResource("Mat_dome")
+
+[node name="Led" type="MeshInstance3D" parent="LidHinge"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.001, 0.00425, -0.0321)
+mesh = SubResource("M_led")
+surface_material_override/0 = SubResource("Mat_led")
+
+[node name="ButtonUp" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0059, 0.00135, 0.0074)
+mesh = SubResource("M_btn")
+surface_material_override/0 = SubResource("Mat_button")
+
+[node name="ButtonUpWell" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0059, 0.00085, 0.0074)
+mesh = SubResource("M_well")
+surface_material_override/0 = SubResource("Mat_well")
+
+[node name="ButtonLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0135, 0.00135, 0.0116)
+mesh = SubResource("M_btn")
+surface_material_override/0 = SubResource("Mat_button")
+
+[node name="ButtonLeftWell" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0135, 0.00085, 0.0116)
+mesh = SubResource("M_well")
+surface_material_override/0 = SubResource("Mat_well")
+
+[node name="ButtonRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0005, 0.00135, 0.0131)
+mesh = SubResource("M_btn")
+surface_material_override/0 = SubResource("Mat_button")
+
+[node name="ButtonRightWell" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0005, 0.00085, 0.0131)
+mesh = SubResource("M_well")
+surface_material_override/0 = SubResource("Mat_well")
+
+[node name="ButtonDown" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0071, 0.00135, 0.0173)
+mesh = SubResource("M_btn")
+surface_material_override/0 = SubResource("Mat_button")
+
+[node name="ButtonDownWell" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0071, 0.00085, 0.0173)
+mesh = SubResource("M_well")
+surface_material_override/0 = SubResource("Mat_well")
+
+[node name="ButtonAction" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0141, 0.00135, 0.0111)
+mesh = SubResource("M_btn_action")
+surface_material_override/0 = SubResource("Mat_button")
+
+[node name="ButtonActionWell" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0141, 0.00085, 0.0111)
+mesh = SubResource("M_well_action")
+surface_material_override/0 = SubResource("Mat_well")
+
+[node name="SpeakerGrille" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0024, -0.0068, -0.0171)
+mesh = SubResource("M_grille")
+surface_material_override/0 = SubResource("Mat_grille")
+
+[node name="BatteryCover" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0068, 0.0085)
+mesh = SubResource("M_cover")
+surface_material_override/0 = SubResource("Mat_cover")
+
+[node name="ResetHole" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.013, -0.00685, -0.0064)
+mesh = SubResource("M_reset")
+surface_material_override/0 = SubResource("Mat_dark")
+
+[node name="Screw1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0178, -0.00685, -0.0145)
+mesh = SubResource("M_screw")
+surface_material_override/0 = SubResource("Mat_screw")
+
+[node name="Screw2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0169, -0.00685, -0.0156)
+mesh = SubResource("M_screw")
+surface_material_override/0 = SubResource("Mat_screw")
+
+[node name="Screw3" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0176, -0.00685, 0.0239)
+mesh = SubResource("M_screw")
+surface_material_override/0 = SubResource("Mat_screw")
+
+[node name="Screw4" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0189, -0.00685, 0.0238)
+mesh = SubResource("M_screw")
+surface_material_override/0 = SubResource("Mat_screw")
+
+[node name="BatteryScrew" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0089, -0.00685, -0.0026)
+mesh = SubResource("M_screw_small")
+surface_material_override/0 = SubResource("Mat_screw")
+
+[node name="CardEdge" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0035, 0.03215)
+mesh = SubResource("M_edge")
+surface_material_override/0 = SubResource("Mat_dark")
+
+[node name="StrapLug" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.004, -0.0325)
+mesh = SubResource("M_lug")
+surface_material_override/0 = SubResource("Mat_body")
