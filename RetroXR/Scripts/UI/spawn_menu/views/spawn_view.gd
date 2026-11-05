@@ -1689,7 +1689,7 @@ func _rebuild_romm_rows() -> void:
 				if not cached_path.is_empty() else local_by_name.get(key, {})
 			if not local.is_empty():
 				matched[key] = true
-				matched[str(local.get("path", "")).get_file().get_basename().to_lower()] = true
+				matched[RomLibrary.content_stem(str(local.get("path", ""))).to_lower()] = true
 
 			for r: String in regions:
 				regions_seen[r] = true

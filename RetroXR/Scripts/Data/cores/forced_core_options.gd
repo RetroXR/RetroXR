@@ -34,6 +34,7 @@ static func all(core: String, systemid: String, rom_path: String,
 	out.merge(bios_pinned(core, systemid, rom_path), true)
 	out.merge(declared_frame_rate(core), true)
 	out.merge(vmu_sound(core), true)
+	out.merge(no_debug_break(core), true)
 	out.merge(microphone_hotkey(core, systemid), true)
 	out.merge(dolphin_console(core, systemid), true)
 	out.merge(game_boy_model(core, systemid), true)
@@ -558,3 +559,16 @@ static func vmu_sound(core: String) -> Dictionary:
 	if not core.begins_with("flycast"):
 		return {}
 	return {"reicast_vmu_sound": "enabled"}
+
+
+## Xenia Edge ships "Break on Unimplemented Instructions" ON. In Xenia that is a
+## debugger break, and with no debugger attached it ends the PROCESS; the core's
+## own docs say it "ends RetroArch". Here the process is the whole room, so one
+## unimplemented PowerPC instruction in one game would take every running
+## machine with it. Off, the instruction is skipped and logged, the game may
+## misbehave, and the player is still standing in the room. Read at load.
+## NOT measured against a game: no 360 title has run here (seventh-gen.md).
+static func no_debug_break(core: String) -> Dictionary:
+	if core != "xenia_edge":
+		return {}
+	return {"xenia_break_on_unimplemented_instructions": "disabled"}

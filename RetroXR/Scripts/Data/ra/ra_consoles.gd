@@ -116,9 +116,12 @@ const CONSOLE_MAP := {
 ##   chip_8, pico8, scummvm    — no RA console
 ##   xbox — rcheevos reserves RC_CONSOLE_XBOX (22) but RA has no sets and no hash
 ##          for it, and xemu publishes no memory map for one to read
+##   ps3, xbox360 — RA has no console for either, and neither core publishes
+##          a memory map (rpcs3 and xenia_edge both say memory_descriptors false)
 const UNSUPPORTED := [
 	"amigacd32", "cdtv", "atari800", "commodore_c128", "spectravideo",
 	"n64dd", "satellaview", "sufami", "chip_8", "pico8", "scummvm", "xbox",
+	"ps3", "xbox360",
 ]
 
 

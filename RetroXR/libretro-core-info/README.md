@@ -43,6 +43,13 @@ plus one line (gearboy, nSide), merge the upstream change into it
 (dolphin, flycast, Beetle Saturn, LRPS2, Virtual Jaguar, xemu) follows that
 build, not upstream.
 
+Two files are NOT from the fork, which does not have them yet:
+`rpcs3_libretro.info` and `xenia_edge_libretro.info` (the PlayStation 3 and the
+Xbox 360, `docs/dev/seventh-gen.md`) were copied on 2026-11-05 from
+libretro/libretro-super `dist/info` (byte-identical to libretro/libretro-core-info)
+and renamed as above. A resync that has them supersedes these; one that does not
+must keep them, or both systems lose their only core.
+
 **To refresh, MERGE — never `cp`**, which throws every line above away:
 
     git clone --filter=blob:none --sparse https://github.com/libretro/libretro-super.git ../libretro-super

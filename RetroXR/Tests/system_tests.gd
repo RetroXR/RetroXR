@@ -323,11 +323,13 @@ func _test_light_gun_cards() -> void:
 	# xbox is here for a different reason from the rest: guns WERE sold for it
 	# (third-party, for The House of the Dead III and Silent Scope), but the xemu
 	# port's only port devices are the two pads, so a gun in this room would be a
-	# prop. It moves across when the core grows a lightgun device.
+	# prop. It moves across when the core grows a lightgun device. The PS3 and the
+	# 360 are here for the same reason: rpcs3 offers DualShock 3 pads only (no
+	# GunCon 3, no Move) and xenia_edge Xbox 360 pads only.
 	var without_gun: Array = ["n64", "gc", "wii", "virtualboy",
 		"gb", "gba", "neogeo", "atari5200", "colecovision",
 		"intellivision", "vectrex", "tg16", "sg-1000", "nds", "dos",
-		"segacd", "xbox"]
+		"segacd", "xbox", "ps3", "xbox360"]
 
 	for sysid: String in with_gun:
 		_ok(not _gun_row(sysid).is_empty(), "gun/%s offers one" % sysid)

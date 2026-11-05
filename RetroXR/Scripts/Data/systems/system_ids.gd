@@ -67,6 +67,7 @@ const LEGACY: Dictionary = {
 	"pc_fx": "pcfx",
 	"playstation": "psx",
 	"playstation2": "ps2",
+	"playstation3": "ps3",
 	"playstation_portable": "psp",
 	"playstation_vita": "psvita",
 	"pokemon_mini": "pokemini",
@@ -87,6 +88,7 @@ const LEGACY: Dictionary = {
 	"thomson_moto": "moto",
 	"virtual_boy": "virtualboy",
 	"wolfenstein3d": "wolfenstein",
+	"xbox_360": "xbox360",
 	"zx_spectrum": "zxspectrum",
 }
 

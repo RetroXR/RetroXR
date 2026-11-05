@@ -193,13 +193,18 @@ func _test_systemid_for() -> void:
 		"neogeo", "slug/the cartridge Neo Geo is untouched")
 
 	# The original Xbox, by IGDB's slug and by the folder names people use to keep
-	# it apart from the 360 -- which must NOT come along: it has no core here, and
-	# a 360 library filed under xbox would be a shelf of discs nothing can run.
+	# it apart from the 360 -- which must NOT come along: a 360 library filed under
+	# xbox would be a shelf of discs xemu cannot run. It is a system of its own.
 	_eq(RommPlatforms.systemid_for({"slug": "xbox", "fs_slug": "xbox"}), "xbox", "slug/the Xbox")
 	_eq(RommPlatforms.systemid_for({"slug": "xbox", "fs_slug": "xbox-original"}),
 		"xbox", "slug/under the folder name that tells it from the 360")
 	_eq(RommPlatforms.systemid_for({"slug": "xbox360", "fs_slug": "xbox360"}),
-		"", "slug/and the 360 is not an Xbox")
+		"xbox360", "slug/and the 360 is not an Xbox, it is the 360")
+	_eq(RommPlatforms.systemid_for({"slug": "xbox360", "fs_slug": "xbox-360"}),
+		"xbox360", "slug/the hyphenated 360 folder too")
+	_eq(RommPlatforms.systemid_for({"slug": "ps3", "fs_slug": "ps3"}), "ps3", "slug/the PS3")
+	_eq(RommPlatforms.systemid_for({"slug": "ps3", "fs_slug": "playstation-3"}),
+		"ps3", "slug/the PS3 under its long folder name")
 
 	# fs_slug beats slug — it is the folder the user named themselves.
 	_eq(RommPlatforms.systemid_for({"slug": "unknown-thing", "fs_slug": "snes"}),

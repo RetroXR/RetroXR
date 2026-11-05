@@ -132,6 +132,8 @@ const GENERATIONS: Array = [
 		"systems": [
 			["nds", "nds_primitive", "Nintendo DS"],
 			["psp", "psp_primitive", "PlayStation Portable"],
+			["xbox360", BOX, "Microsoft Xbox 360"],
+			["ps3", BOX, "PlayStation 3"],
 		],
 	},
 	{

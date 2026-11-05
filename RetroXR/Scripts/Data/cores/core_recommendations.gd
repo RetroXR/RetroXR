@@ -264,6 +264,16 @@ const RECOMMENDED := {
 		"android": "play",
 		"why_android": "Play! is the PS2 core offered on Quest",
 	},
+	# Desktop only: CoreSources.HIDDEN_BUILDBOT_CORES drops both of these from the
+	# Quest's download list, so neither system has a tile there.
+	#
+	# RPCS3's libretro port, as the buildbot builds it. It installs PS3UPDAT.PUP
+	# from system/rpcs3/ on its first start and keeps the console's flash, hard
+	# disk and every game save there, outside any libretro save file.
+	"ps3": {
+		"core": "rpcs3",
+		"why":  "The only PS3 core: RetroXR runs the buildbot's port of RPCS3, which has no save states, so no rewind or netplay",
+	},
 
 	# ── Microsoft ────────────────────────────────────────────────────────────
 	# directxbox declares the system too, and is a stub that boots nothing. xemu
@@ -272,6 +282,12 @@ const RECOMMENDED := {
 	"xbox": {
 		"core": "xemu",
 		"why":  "The only Xbox core that runs a game: RetroXR's libretro port of xemu, experimental, with no save states",
+	},
+	# Xenia Edge's libretro port, as the buildbot builds it. No firmware; its saves,
+	# title updates and DLC live in system/xenia_edge/Xenia-Edge/content/.
+	"xbox360": {
+		"core": "xenia_edge",
+		"why":  "The only Xbox 360 core: the buildbot's port of Xenia Edge, which has no save states, so no rewind or netplay",
 	},
 
 	# ── SNK ──────────────────────────────────────────────────────────────────

@@ -7,8 +7,10 @@ vendored `xemu_libretro.info` describes someone's older attempt the buildbot nev
 
 ## Where the core comes from — our own release, which began as a branch
 
-`github.com/RetroXR/xemu`, branch **`retroxr`**, released as **`retroxr-xemu-libretro-v2`**
-(`bcced37b6d`) on 2026-09-20, after `retroxr-xemu-libretro-v1` (`17e738cbd4`) the day before.
+`github.com/RetroXR/xemu`, branch **`retroxr`**, released as **`retroxr-xemu-libretro-v3`**
+(`777f199ed5`: no emulator change, the first release built by CI and the first Linux x86_64
+build), after `retroxr-xemu-libretro-v2` (`bcced37b6d`) on 2026-09-20 and
+`retroxr-xemu-libretro-v1` (`17e738cbd4`) the day before. The notes on v1/v2 below stand.
 `CoreSources.SOURCES["xemu"]` carries that `known_tag` and still names the `branch`, which
 the tags sit on.
 

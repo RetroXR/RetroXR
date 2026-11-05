@@ -124,10 +124,22 @@ func _build_query_url(rom_path: String, systemeid: int, checksums: Dictionary) -
 	params.append("output=json")
 	params.append("md5=%s" % checksums.get("md5", ""))
 	params.append("sha1=%s" % checksums.get("sha1", ""))
-	params.append("romnom=%s" % rom_path.get_file().uri_encode())
+	params.append("romnom=%s" % romnom_for(rom_path).uri_encode())
 	params.append("romtaille=%d" % checksums.get("size", 0))
 
 	return API_BASE + "?" + "&".join(params)
+
+
+## The file name ScreenScraper is told, which is what it falls back on when the
+## checksums match nothing. A PS3 folder dump is handed to the core by its
+## `PS3_DISC.SFB`, a file every dump has and whose hash identifies no game, so the
+## name is all a scrape has to go on: the game's FOLDER (RomLibrary.content_stem),
+## as ES-DE sends it, not the marker's.
+static func romnom_for(rom_path: String) -> String:
+	var stem := RomLibrary.content_stem(rom_path)
+	if stem != rom_path.get_file().get_basename():
+		return stem
+	return rom_path.get_file()
 
 
 ## `reason` is why the previous attempt failed; it rides along so the retry says

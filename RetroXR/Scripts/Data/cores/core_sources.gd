@@ -699,9 +699,26 @@ const SOURCES := {
 }
 
 
+## Buildbot cores we do NOT build, kept out of the download list on these
+## platforms all the same. A row in SOURCES carries a repo and assets of ours,
+## which these have none of, so they are listed apart rather than as a SOURCES
+## entry with only `hidden_on`.
+##
+## rpcs3 and xenia_edge (the PS3 and the Xbox 360, docs/dev/seventh-gen.md):
+## desktop only, the owner's call (2026-11-05). The buildbot does publish
+## Android builds of both; nobody has run either on a Quest, and a 7th-gen
+## console on a headset's phone SoC is not a thing to offer unmeasured.
+const HIDDEN_BUILDBOT_CORES: Dictionary = {
+	"rpcs3": ["Android"],
+	"xenia_edge": ["Android"],
+}
+
+
 ## True when a core is kept out of the download list on `platform` (an OS name),
 ## whoever builds it: the buildbot's row for it is dropped too, not just ours.
 static func is_hidden_on(core_name: String, platform: String) -> bool:
+	if platform in (HIDDEN_BUILDBOT_CORES.get(core_name, []) as Array):
+		return true
 	var src: Dictionary = SOURCES.get(core_name, {})
 	return platform in (src.get("hidden_on", []) as Array)
 

@@ -292,7 +292,7 @@ func _on_scrape_completed(result: Dictionary, worker: Dictionary) -> void:
 
 	_write_result(rom, systemid, result)
 	var client: ScreenscraperClient = worker["client"]
-	await client.download_all_media(result, systemid, rom.get_file().get_basename())
+	await client.download_all_media(result, systemid, RomLibrary.content_stem(rom))
 	# Not the next game until this one's art has landed: the client keys its
 	# transfers by media type, so a second "wheel" would collide with the first.
 	while is_inside_tree() and client.pending_media_count() > 0:

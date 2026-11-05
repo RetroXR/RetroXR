@@ -38,7 +38,7 @@ static func media_root(systemid: String) -> String:
 ## nested in a folder ("Game (Disc 1)/Game.cue") still scrapes under the leaf.
 static func scraped_for_rom(systemid: String, rom_name: String) -> PackedStringArray:
 	var out := PackedStringArray()
-	var stem := rom_name.get_file().get_basename()
+	var stem := RomLibrary.content_stem(rom_name)
 	if stem.is_empty():
 		return out
 

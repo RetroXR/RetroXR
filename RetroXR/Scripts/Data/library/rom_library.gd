@@ -239,7 +239,7 @@ static func index_by_basename(roms: Array[Dictionary], rom_exts: Array[String]) 
 	var score: Dictionary = {}
 	for rom: Dictionary in roms:
 		var path := str(rom["path"])
-		var key := path.get_file().get_basename().to_lower()
+		var key := content_stem(path).to_lower()
 		var ext := path.get_extension().to_lower()
 		var rank := 0
 		if ext in MANIFEST_EXTS:
@@ -253,6 +253,41 @@ static func index_by_basename(roms: Array[Dictionary], rom_exts: Array[String]) 
 		by_name[key] = rom
 		score[key] = rank
 	return by_name
+
+
+## Marker files whose NAME is the format's, not the game's: every PS3 disc dump
+## is a folder holding `PS3_DISC.SFB`, every installed game a `PARAM.SFO`, and
+## every one runs `USRDIR/EBOOT.BIN`. Keyed by their own stem, every PS3 game in
+## a library is one row and one set of scraped art.
+const GENERIC_MARKER_STEMS: PackedStringArray = ["ps3_disc", "param", "eboot"]
+
+## Folders INSIDE a PS3 game that a marker can sit in, climbed past to reach the
+## folder that is named for the game.
+const _GAME_INNER_DIRS: PackedStringArray = ["ps3_game", "usrdir"]
+
+
+## The name a game is known by in the library: the key it is indexed under, the
+## stem its scraped media is written and found under, and what a RomM `fs_name`
+## is matched against. That is the file's stem, except for a marker named for its
+## FORMAT (GENERIC_MARKER_STEMS), where it is the game's folder:
+## `Uncharted (USA)/PS3_DISC.SFB` -> `Uncharted (USA)`. Takes a filename, a
+## relative or an absolute path; a bare marker with no folder keeps its stem.
+static func content_stem(path: String) -> String:
+	var stem := path.get_file().get_basename()
+	if stem.to_lower() not in GENERIC_MARKER_STEMS:
+		return stem
+	var dir := path.get_base_dir()
+	while not dir.is_empty() and dir.get_file().to_lower() in _GAME_INNER_DIRS:
+		dir = dir.get_base_dir()
+	var folder := dir.get_file()
+	return folder if not folder.is_empty() else stem
+
+
+## Markers preferred when one game folder holds several a core declares, best
+## first. A PS3 disc dump keeps a `PS3_DISC.SFB` beside `PS3_GAME/` and RPCS3's
+## docs name it the file to load; a folder can also hold an update `.pkg` or a
+## stray `.bin`, which the directory order would otherwise pick as often as not.
+const _MARKER_PREFERENCE: PackedStringArray = ["sfb", "sfo"]
 
 
 ## One game per subfolder: find the marker file the core is handed inside each.
@@ -278,23 +313,35 @@ static func _scan_content_folders(dir_path: String, subdirs: Array[String],
 		if not inner:
 			continue
 		inner.list_dir_begin()
+		var pick := ""
+		var pick_rank := _MARKER_PREFERENCE.size()
 		var f := inner.get_next()
 		while f != "":
 			var ext := f.get_extension().to_lower()
 			if not inner.current_is_dir() and not f.begins_with(".") \
 					and ext in marker_exts \
 					and (extensions.is_empty() or ext in extensions):
-				found.append({"path": sub_path.path_join(f), "label": sub})
-				break
+				var rank := _MARKER_PREFERENCE.find(ext)
+				if rank < 0:
+					rank = _MARKER_PREFERENCE.size()
+				# First of its rank wins, so a folder with no preferred marker
+				# (every ScummVM game) picks what it always picked.
+				if pick.is_empty() or rank < pick_rank:
+					pick = f
+					pick_rank = rank
+				if pick_rank == 0:
+					break
 			f = inner.get_next()
 		inner.list_dir_end()
+		if not pick.is_empty():
+			found.append({"path": sub_path.path_join(pick), "label": sub})
 	return found
 
 
 ## Return the scraped manual path (in media/manual/ directory).
 ## Prefers .pdf; falls back to .cbz; returns .pdf path if neither exists.
 static func scraped_manual_path(systemid: String, romname: String) -> String:
-	var base := romname.get_basename()
+	var base := content_stem(romname)
 	var dir := rom_dir_for_system(systemid).path_join("media/manual")
 	for ext in ["pdf", "cbz"]:
 		var path := dir.path_join(base + "." + ext)

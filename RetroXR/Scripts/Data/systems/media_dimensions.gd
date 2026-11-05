@@ -202,6 +202,8 @@ const DISC_DIAMETERS: Dictionary = {
 	"cdi":                   0.12,
 	"pcfx":                 0.12,
 	"xbox":                  0.12,
+	"ps3":                   0.12,   # BD-ROM
+	"xbox360":               0.12,   # DVD-9
 	"gc":              0.08,   # mini-DVD
 	"psp":  0.064,  # UMD (bare disc, no caddy)
 	# ScummVM is not console hardware — it stands in for a 90s PC, whose adventure
@@ -222,6 +224,7 @@ const DISC_DIAMETER_DEFAULT := 0.12
 const PITCH_CD := 1.6
 const PITCH_DVD := 0.74
 const PITCH_GD := 1.1   # GD-ROM packed ~1 GB onto a CD by tightening the pitch
+const PITCH_BD := 0.32  # Blu-ray: a 405 nm laser, so finer still than a DVD
 
 ## Disc finishes:
 ##   data   the reflective layer seen through the substrate (the underside)
@@ -243,6 +246,11 @@ const FINISH_PS1 := {"data": Color(0.07, 0.06, 0.09), "poly": Color(0.035, 0.03,
 ## aluminium, which is why a DVD-9 reads bronze against a DVD-5's silver-violet —
 ## and most of the big PS2 and Wii titles are DVD-9.
 const FINISH_DVD9 := {"data": Color(0.70, 0.58, 0.34), "poly": Color(0.09, 0.10, 0.12), "alpha": 0.28, "pitch": PITCH_DVD}
+## Blu-ray. At 0.32 um the first order only reaches the visible band at grazing
+## angles, so a BD-ROM reads as plain metal with a faint violet sheen where a DVD
+## sweeps a rainbow. A dual-layer BD-50 is silver too (both layers are the same
+## semi-reflective alloy, unlike a DVD-9's gold), which disc_finish() keeps.
+const FINISH_BD := {"data": Color(0.74, 0.75, 0.80), "poly": Color(0.09, 0.10, 0.12), "alpha": 0.28, "pitch": PITCH_BD}
 ## The PS2's blue CD-ROM. Its DVD titles are FINISH_DVD — see disc_finish().
 const FINISH_PS2_CD := {"data": Color(0.10, 0.20, 0.48), "poly": Color(0.04, 0.07, 0.16), "alpha": 0.55, "pitch": PITCH_CD}
 
@@ -255,6 +263,9 @@ const DISC_FINISHES: Dictionary = {
 	"psp": FINISH_DVD,   # UMD is DVD-derived, not a CD
 	# Every Xbox game is a DVD; disc_finish() turns the big ones gold by image size.
 	"xbox":         FINISH_DVD,
+	"ps3":          FINISH_BD,
+	# Every Xbox 360 game shipped on a DVD-9, which disc_finish() turns gold by size.
+	"xbox360":      FINISH_DVD,
 	# playstation2 is resolved per-title in disc_finish(): CD-ROM or DVD.
 }
 
@@ -290,6 +301,9 @@ const SLOT_LOAD_SYSTEMS: Dictionary = {
 	# The one true slot-loader we model: the disc is drawn in and the
 	# EJECT button spits it back out. No lid, no tray.
 	"wii": true,
+	# Every PS3 but the last (the CECH-4000 "super slim" has a top lid) draws its
+	# Blu-ray in through a front slot and spits it out on EJECT.
+	"ps3": true,
 }
 
 ## Lid/tray systems whose tray SLIDES OUT THE FRONT instead of hinging open — the
@@ -306,6 +320,8 @@ const FRONT_TRAY_SYSTEMS: Dictionary = {
 	# Model 2 is a hinged top lid, which is the other branch.
 	"segacd": true,
 	"xbox": true,
+	# A motorised tray out of the front, on every model.
+	"xbox360": true,
 }
 
 
@@ -441,7 +457,8 @@ static func disc_finish(systemid: String, rom_path: String = "") -> Dictionary:
 		finish = _mod_media[systemid]["disc_finish"] as Dictionary
 	else:
 		finish = DISC_FINISHES.get(systemid, FINISH_CD)
-	if float(finish["pitch"]) < 1.0 and _is_dual_layer(rom_path):
+	# A DVD-9's second layer is gold; a Blu-ray's is not, whatever its size.
+	if float(finish["pitch"]) < 1.0 and float(finish["pitch"]) > PITCH_BD 			and _is_dual_layer(rom_path):
 		return FINISH_DVD9
 	return finish
 
@@ -539,7 +556,7 @@ static func load_media_texture(systemid: String, rom_path: String, folder: Strin
 static func load_media_image(systemid: String, rom_path: String, folder: String) -> Image:
 	if systemid.is_empty() or rom_path.is_empty():
 		return null
-	var base := rom_path.get_file().get_basename()
+	var base := RomLibrary.content_stem(rom_path)
 	if base.is_empty():
 		return null
 	# Every folder the system's ROMs live under, not only the first: an arcade game scraped from the
@@ -561,7 +578,7 @@ static func load_media_image(systemid: String, rom_path: String, folder: String)
 static func media_file_path(systemid: String, rom_path: String, folder: String, exts: PackedStringArray) -> String:
 	if systemid.is_empty() or rom_path.is_empty():
 		return ""
-	var base := rom_path.get_file().get_basename()
+	var base := RomLibrary.content_stem(rom_path)
 	if base.is_empty():
 		return ""
 	for rom_dir in RomLibrary.rom_dirs_for_system(systemid):

@@ -68,6 +68,8 @@ const SLUG_MAP := {
 	"playstation": "psx",
 	"ps2": "ps2",
 	"playstation-2": "ps2",
+	"ps3": "ps3",
+	"playstation-3": "ps3",
 	"psp": "psp",
 
 	# Microsoft. "xbox" is both IGDB's slug and ES-DE's folder; the rest are what
@@ -77,6 +79,10 @@ const SLUG_MAP := {
 	"original-xbox": "xbox",
 	"microsoft-xbox": "xbox",
 	"xboxog": "xbox",
+	# The 360 is its own machine on its own core: IGDB's slug, and the hyphenated
+	# folder name. Never folded into "xbox", whose core cannot read its discs.
+	"xbox360": "xbox360",
+	"xbox-360": "xbox360",
 
 	# Sega
 	"megadrive": "genesis",
