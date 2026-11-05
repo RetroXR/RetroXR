@@ -568,7 +568,12 @@ static func vmu_sound(core: String) -> Dictionary:
 ## machine with it. Off, the instruction is skipped and logged, the game may
 ## misbehave, and the player is still standing in the room. Read at load.
 ## NOT measured against a game: no 360 title has run here (seventh-gen.md).
+##
+## parallel_xbox360 is a fork of the same core, pinned by the same key on the
+## guess that the fork kept Xenia Edge's option names: it has no build anywhere
+## yet to peek. A key a core does not declare is ignored, so a wrong guess costs
+## nothing but the protection; check it when a build appears.
 static func no_debug_break(core: String) -> Dictionary:
-	if core != "xenia_edge":
+	if core != "xenia_edge" and core != "parallel_xbox360":
 		return {}
 	return {"xenia_break_on_unimplemented_instructions": "disabled"}

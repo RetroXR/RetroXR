@@ -43,12 +43,12 @@ plus one line (gearboy, nSide), merge the upstream change into it
 (dolphin, flycast, Beetle Saturn, LRPS2, Virtual Jaguar, xemu) follows that
 build, not upstream.
 
-Two files are NOT from the fork, which does not have them yet:
-`rpcs3_libretro.info` and `xenia_edge_libretro.info` (the PlayStation 3 and the
-Xbox 360, `docs/dev/seventh-gen.md`) were copied on 2026-11-05 from
-libretro/libretro-super `dist/info` (byte-identical to libretro/libretro-core-info)
-and renamed as above. A resync that has them supersedes these; one that does not
-must keep them, or both systems lose their only core.
+`rpcs3_libretro.info`, `xenia_edge_libretro.info` and `parallel_xbox360_libretro.info`
+(the PlayStation 3 and the Xbox 360, `docs/dev/seventh-gen.md`) were copied in by hand
+on 2026-11-05 from libretro-super `dist/info` and renamed (`playstation3`, `xbox_360`);
+all three are in `b90a4ee4`, so the merge tool treats them as ordinary upstream files.
+`parallel_xbox360` was copied in AFTER that merge: should a later run report it
+"kept (deleted here)", it went missing from this directory, not from upstream.
 
 **To refresh, MERGE — never `cp`**, which throws every line above away:
 
@@ -71,5 +71,5 @@ The 2026-11-05 merge (`4e1d67c1` -> `b90a4ee4`): 34 files merged, 2 conflicts
 (geargrafx kept "PC Engine"; Virtual Jaguar took upstream's, which matches
 RetroXR's own v3.6.1-based build), 40 new cores, `higan_sfc_balanced` became
 `nside_sfc_balanced` (the buildbot ships only the new name), `radio` came back
-(SystemFilter hides `internet_radio`). `parallel_xbox360` was left out for the
-Xbox 360 work.
+(SystemFilter hides `internet_radio`). `parallel_xbox360` was left out of the merge and
+added with the Xbox 360 work.

@@ -19,6 +19,13 @@ Added 2026-11-05. Two systems, each on the libretro buildbot's own build of its 
 
 ## Where the cores come from
 
+**A second Xbox 360 core, `parallel_xbox360`** ("ParaLLEl Xbox360", a libretro fork of
+Xenia Edge, BSD), has an `.info` (libretro-super `84ccaff5`, 2026-11-03) and NO build on
+the buildbot for any platform yet (checked 2026-11-05). Its `.info` is in, so it lists
+the moment one appears. It is hidden on Android like the others, xenia_edge stays the
+recommended core, and it gets the same debugger-break pin, on the GUESS that the fork kept
+Xenia Edge's option key. Peek its options when a build exists.
+
 Nowhere special. Neither is in `CoreSources.SOURCES`: the download manager lists every
 `*_libretro<ext>.zip` the buildbot serves, so both appear in the Cores tab with nothing
 added there. **Desktop only** (the owner's call, 2026-11-05):
@@ -27,9 +34,10 @@ publish Android builds, so a Quest has no core and no tile for either. That tabl
 beside `SOURCES` rather than in it because a `SOURCES` row carries a repo and assets of
 ours. Fork one only when a fix needs to ride with it, as xemu's did.
 
-Their `.info` files were not in the libretro-super fork RetroXR vendors from, so both
-were copied in by hand from libretro/libretro-super (see `libretro-core-info/README.md`,
-which says what a resync must not lose) and renamed by `Tools/rename_systemids.py`.
+Their `.info` files were copied in by hand from libretro-super and renamed by
+`Tools/rename_systemids.py`; all three are in the mirror's `b90a4ee4` base, so
+`Tools/merge_core_info.py` treats them as ordinary upstream files
+(`libretro-core-info/README.md`).
 
 ## Firmware: the PUP, at the top of the core's folder
 

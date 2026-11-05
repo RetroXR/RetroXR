@@ -704,13 +704,16 @@ const SOURCES := {
 ## which these have none of, so they are listed apart rather than as a SOURCES
 ## entry with only `hidden_on`.
 ##
-## rpcs3 and xenia_edge (the PS3 and the Xbox 360, docs/dev/seventh-gen.md):
-## desktop only, the owner's call (2026-11-05). The buildbot does publish
-## Android builds of both; nobody has run either on a Quest, and a 7th-gen
-## console on a headset's phone SoC is not a thing to offer unmeasured.
+## rpcs3, xenia_edge and parallel_xbox360 (the PS3 and the Xbox 360,
+## docs/dev/seventh-gen.md): desktop only, the owner's call (2026-11-05). The
+## buildbot publishes Android builds of the first two (parallel_xbox360 has no
+## build anywhere yet, and is hidden before one appears); nobody has run any of
+## them on a Quest, and a 7th-gen console on a headset's phone SoC is not a
+## thing to offer unmeasured.
 const HIDDEN_BUILDBOT_CORES: Dictionary = {
 	"rpcs3": ["Android"],
 	"xenia_edge": ["Android"],
+	"parallel_xbox360": ["Android"],
 }
 
 

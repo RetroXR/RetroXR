@@ -17,7 +17,7 @@ extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below -- it is checked before it
 ## has recorded itself. Bump when adding.
-const EXPECTED_CASES := 66
+const EXPECTED_CASES := 70
 
 var _dir := ""
 
@@ -140,6 +140,17 @@ func _group_xbox360() -> void:
 		and not CoreSources.is_hidden_on("xenia_edge", "Windows"), "xbox360/desktop only")
 	_ok(not CoreSources.active_core_names().has("xenia_edge"),
 		"xbox360/and never probed as a release of ours")
+	# The second 360 core, a fork of Xenia Edge with no build anywhere yet.
+	_eq(str(db.get_by_core_name("parallel_xbox360").get("systemid", "")), "xbox360",
+		"xbox360/ParaLLEl Xbox360 is a 360 core too")
+	_ok(CoreSources.is_hidden_on("parallel_xbox360", "Android"),
+		"xbox360/hidden on a Quest before its first build appears")
+	_eq(CoreRecommendations.core_for("xbox360"), "xenia_edge",
+		"xbox360/and xenia_edge stays the one recommended: it is the one built")
+	var no_cards: Array[bool] = []
+	_eq(str(ForcedCoreOptions.all("parallel_xbox360", "xbox360", "game.iso", [], "", no_cards, "")
+		.get("xenia_break_on_unimplemented_instructions", "")), "disabled",
+		"xbox360/the fork gets the debugger-break pin too")
 	# The core's default ends the process on the first unimplemented instruction;
 	# here that process is the room. Asked through all(), the run's real entry.
 	var none: Array[bool] = []
