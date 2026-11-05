@@ -166,7 +166,7 @@ is a card first, and has to stay one while seated.
   letters, digits and the common punctuation still come back as ASCII, so Western titles read
   as before. The glyphs come from the OS's font fallback (the theme font has no CJK): seen on
   Windows (`pocketstation_menu_probe`), the Quest's OWED.
-- **Not yet:** a game PLAYED on the unit and its progress carried back (the app boots, see "Crash Bandicoot 3" below), netplay (no `net_*`; a session
+- **Not yet:** a COMMERCIAL app's save carried back (a test app's is, see "A save, proven" below), netplay (no `net_*`; a session
   does not offer it), the docked protocol (pcsx_rearmed below), carrying the clock or a running app
   across dock/undock, infrared, a `BatteryBay`, the crystal body, and opening an existing shelf card AS a
   PocketStation (a unit is spawned with a card of its own). Headset feel OWED.
@@ -204,6 +204,26 @@ RetroXR's fork r26 9a26363, `scph5500.bin` (the core picks the Japanese BIOS by 
   stopped at" moved only because each run used a different `--every` (`testing.md` already warned;
   the DMG-07 probe hit the same thing the day before). Pokket's `core/` is deterministic (no host
   clock anywhere), so a stop point that moves between runs is the frontend's or the probe's.
+
+## A save, proven (2026-11-05)
+
+Dokodemo Crash-kun played 80 s (allowance day, a minigame, a score of 4 under its 300) and
+wrote nothing, so a commercial app has not been seen to save yet. What proves the path is an
+app made to save: `Tools/gen_pocketstation_save_app.py <dir>` writes `rxr_save_test.mcs` (one
+block, MCX0, its Title Sector built from Pokket's `docs/app-notes.md` and no byte of another
+app) and `rxr_game_save.mcs` beside it. Started from the unit's menu, its hand-assembled ARM
+fills RAM `0x400` with `i ^ 0x5A` and calls the kernel's frame write (`SWI 0x10`, up to ten
+tries) at frame 136, the game save's data at block 2 +`0x400`, as the trading-card app writes
+its game's save; the LCD's top half goes black on success.
+
+    "$godot" --headless --path RetroXR res://Tools/cores/pocketstation_play_probe.tscn --         --root=<scratch root with Pokket + BIOS> --out=<dir>         --saves=<dir>/rxr_save_test.mcs,<dir>/rxr_game_save.mcs --expect-changed=BISLPS-99999GAMESAVE         --steps="400-401:down,440-441:action,480-481:right,520-521:action"
+
+Measured on Pokket v1.23 with the C110 `retrobios` dump: the core flushed its flash at the
+600-frame tick, the unit carried it back, and only `BISLPS-99999GAMESAVE` changed on the card
+(PASS); the frame holds the pattern byte for byte and nothing else on the card moved. The
+control leg (`--expect-unchanged`, no steps into the app) leaves the card as it was (PASS), and
+with `_carry_back` disabled the save leg FAILS (exit 1). An earlier build of the same routine
+in pk_timing_bench's container wrote a three-block app's neighbour at frame 264 the same way.
 
 ## The primitive (built 2026-11-05)
 

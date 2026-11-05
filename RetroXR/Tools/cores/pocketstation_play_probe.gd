@@ -12,6 +12,16 @@
 ##         --image=<a PS1 card .mcr> --out=<dir> --every=16 \
 ##         --steps="200-202:down,240-242:action,280-282:right,320-322:action"
 ##
+## --saves=a.mcs,b.mcs instead of --image: the card is a blank one with those saves put
+## on it in order (PS1Card.insert_save), as a card a PlayStation filled would be.
+##
+## --expect-changed=NAME asserts the run changed that save on the card and no other one;
+## --expect-unchanged that the card came back as it went (the control leg: the same card,
+## no steps into the app). Either makes the exit code 1 on a mismatch.
+##
+## Tools/gen_pocketstation_save_app.py makes an app that saves into a game save beside it:
+##     --saves=<out>/rxr_save_test.mcs,<out>/rxr_game_save.mcs --expect-changed=BISLPS-99999GAMESAVE ##     --steps="400-401:down,440-441:action,480-481:right,520-521:action" --shots=700
+##
 ## --steps: `from-to:buttons`, buttons joined by `+` from up down left right action, held
 ## over the CORE's frames (Pokket runs 32 a second) from..to. The Pokket README's route to
 ## an app: wait out the HELLO animation, Down then Action past the date/time screen, Right
@@ -26,11 +36,14 @@ const SCALE := 10
 
 var root_dir := ""
 var image_path := ""
+var saves_arg := ""
 ## A library app to switch the unit on with instead of its card (the Games tab's other rows).
 var app_path := ""
 var out_dir := ""
 var every := 0
 var keep := false
+var expect_changed := ""
+var expect_unchanged := false
 var _steps: Array = []
 var _shots: Array[int] = []
 var _ps: PocketStation = null
@@ -46,6 +59,8 @@ func _ready() -> void:
 			root_dir = a.trim_prefix("--root=").replace("\\", "/")
 		elif a.begins_with("--image="):
 			image_path = a.trim_prefix("--image=").replace("\\", "/")
+		elif a.begins_with("--saves="):
+			saves_arg = a.trim_prefix("--saves=").replace("\\", "/")
 		elif a.begins_with("--app="):
 			app_path = a.trim_prefix("--app=").replace("\\", "/")
 		elif a.begins_with("--out="):
@@ -58,12 +73,17 @@ func _ready() -> void:
 			every = int(a.trim_prefix("--every="))
 		elif a == "--keep":
 			keep = true
+		elif a.begins_with("--expect-changed="):
+			expect_changed = a.trim_prefix("--expect-changed=")
+		elif a == "--expect-unchanged":
+			expect_unchanged = true
 	get_tree().create_timer(600.0).timeout.connect(func() -> void:
 		print("[psplay] TIMEOUT")
 		get_tree().quit(1))
 	get_tree().current_scene = self
-	if root_dir.is_empty() or out_dir.is_empty() or not FileAccess.file_exists(image_path):
-		print("[psplay] need --root=, --out= and --image=")
+	if root_dir.is_empty() or out_dir.is_empty() \
+			or (not FileAccess.file_exists(image_path) and saves_arg.is_empty()):
+		print("[psplay] need --root=, --out= and --image= or --saves=")
 		get_tree().quit(1)
 		return
 	for s in steps_arg.split(",", false):
@@ -81,7 +101,14 @@ func _ready() -> void:
 
 
 func _run() -> void:
-	var card := FileAccess.get_file_as_bytes(image_path)
+	var card := FileAccess.get_file_as_bytes(image_path) if saves_arg.is_empty() else PS1Card.blank_image()
+	for f: String in saves_arg.split(",", false):
+		var next := PS1Card.insert_save(card, FileAccess.get_file_as_bytes(f))
+		if next.is_empty():
+			print("[psplay] %s does not go on the card" % f)
+			get_tree().quit(1)
+			return
+		card = next
 	var path := SramPaths.card_save_path("playstation", CARD_ID)
 	if not AtomicFile.write_bytes(path, card, "pocketstation_play_probe"):
 		print("[psplay] could not write the fixture card")
@@ -137,8 +164,39 @@ func _run() -> void:
 	# The final flush lands as the core unloads; the unit carries it back then.
 	for i in 180:
 		await get_tree().process_frame
-	_report("after", FileAccess.get_file_as_bytes(path))
-	await _finish(0)
+	var after := FileAccess.get_file_as_bytes(path)
+	_report("after", after)
+	var code := 0
+	if not expect_changed.is_empty() or expect_unchanged:
+		code = _check(_save_digests(card), _save_digests(after))
+	await _finish(code)
+
+
+## Each save's name -> the md5 of its .mcs.
+func _save_digests(data: PackedByteArray) -> Dictionary:
+	var out := {}
+	for s: Dictionary in PS1Card.list_saves(data, false):
+		out[str(s["name"])] = PS1Card.extract_save(data, int(s["block"])).hex_encode().md5_text()
+	return out
+
+
+func _check(before: Dictionary, after: Dictionary) -> int:
+	var changed: Array[String] = []
+	for n: String in before:
+		if str(after.get(n, "")) != str(before[n]):
+			changed.append(n)
+	for n: String in after:
+		if not before.has(n):
+			changed.append(n)
+	var want: Array[String] = []
+	if not expect_unchanged:
+		want.append(expect_changed)
+	var ok := changed == want
+	print("[psplay] %s  saves changed on the card: %s (want %s)" % ["PASS" if ok else "FAIL", changed, want])
+	var scratch := PocketStation.PLAY_DIR.path_join("%s.mcr" % CARD_ID)
+	var carried := not FileAccess.file_exists(scratch)
+	print("[psplay] %s  the run's scratch was carried back and cleared" % ["PASS" if carried else "FAIL"])
+	return 0 if ok and carried else 1
 
 
 func _drive(frame: int) -> void:
@@ -174,7 +232,8 @@ func _report(when: String, data: PackedByteArray) -> void:
 	var saves := PS1Card.list_saves(data, false)
 	print("[psplay] card %s: md5 %s, %d save(s)" % [when, ctx.finish().hex_encode(), saves.size()])
 	for s: Dictionary in saves:
-		print("[psplay]   %-22s %d block(s)%s" % [s["name"], int(s["blocks"]),
+		print("[psplay]   %-22s %d block(s) at %d, md5 %s%s" % [s["name"], int(s["blocks"]), int(s["block"]),
+			PS1Card.extract_save(data, int(s["block"])).hex_encode().md5_text().left(12),
 			"  [PocketStation app]" if bool(s.get("pocketstation", false)) else ""])
 
 
