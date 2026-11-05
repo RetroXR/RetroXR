@@ -24,10 +24,19 @@ File and folder names that merely contain an old id (`nintendo_64_model.gd`,
 
 ## The .info files
 
-`libretro-core-info/` is a `cp` mirror of the libretro-super fork, whose ids are
-libretro's. `Tools/rename_systemids.py` rewrites `systemid` and the id left of each colon
-in `secondary_systemids`, reading the table out of `system_ids.gd` so there is one. **Run it
-after any refresh**, and on the fork's `dist/info` when that is convenient:
+`libretro-core-info/` is libretro-super's `dist/info` with RetroXR's own lines MERGED in
+(`secondary_systemids`, these ids, tile names; its README lists them and names the commit
+last merged). **Refresh it with `Tools/merge_core_info.py`, never `cp`**: a copy wipes about
+70 files' `secondary_systemids` and with them the Game Gear, Sega CD and Game Boy Color
+tiles. The tool renames both upstream sides before it merges, and lists every systemid new
+to RetroXR: give one whose ES-DE folder differs a `LEGACY` entry (ES-DE's
+`es_systems.xml` is the reference: `playstation_vita` -> `psvita`, `fm_towns` -> `fmtowns`,
+`super_acan` -> `supracan` came in on 2026-11-05; `lindbergh`, `model1`, `hikaru` and
+`pocketstation` have no ES-DE folder and keep their names).
+
+`Tools/rename_systemids.py` rewrites `systemid` and the id left of each colon in
+`secondary_systemids`, reading the table out of `system_ids.gd` so there is one. Run it on
+the two directories after adding a `LEGACY` entry:
 
 ```bash
 python Tools/rename_systemids.py RetroXR/libretro-core-info RetroXR/libretro-core-info-retroxr

@@ -28,6 +28,7 @@ const NOT_A_SYSTEM: PackedStringArray = [
 	"native32",         # native32emu — runs native win32 binaries
 	"redbook",          # audio-CD playback
 	"rvvm",             # RISC-V virtual machine
+	"video_processor",  # video_processor — a V4L2 capture card, not a machine
 ]
 
 ## Cores that ship one game (or one game's engine) instead of a platform.
@@ -54,6 +55,7 @@ const SINGLE_GAME: PackedStringArray = [
 const FPS_ENGINES: PackedStringArray = [
 	"doom",             # prboom
 	"doom3",           # boom3, boom3_xp
+	"duke3d",          # eduke32
 	"quake",          # tyrquake
 	"quake_2",
 	"quake3",
