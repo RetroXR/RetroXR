@@ -236,6 +236,26 @@ of bending speed. Real-body drops in three orientations check length, folds,
 table clearance and settling. Loose prints retain their roll curl on landing;
 this is not a permanent-crease simulation.
 
+**A print on a table SETTLES and is left alone (2026-11-04).** The whole-body recovery
+above and Jolt never agree on where a resting print is: Jolt rests its 0.8 mm colliders a
+little into the table, the recovery lifts the body back out, Jolt settles it again, every
+frame, for ever -- a fraction of a millimetre, or a slight rock (up to ~0.05 rad) of a curled
+sheet. Judged by its speeds, the print never went quiet and its body never slept: the flop
+ran its full step, about 1 ms a frame, for as long as the room was open (the Starlight
+Arcade autosave, measured). Now a loose print whose body STAYS within 3 mm and 0.08 rad of
+one pose for half a second, its sheet quiet, is settled: put to sleep and nothing runs. Three
+things each undid that sleep and are why the code reads as it does: a collider refit is
+committed at Jolt's next step and a moved node's transform reaches the server when
+transforms are flushed, and both wake the body (`JoltBody3D::_shapes_committed`,
+`_transform_changed`), so it sleeps only on a frame that refits nothing, after
+`force_update_transform()`; and Jolt wakes a sleeping body whenever an awake one touches it
+(in the room, the printer it came out of), dropping it the ~1 mm it was being lifted, so a
+settled print that wakes within the tolerance is put back on its settled pose and to sleep
+(one transform write) rather than brought back to life. A hand, a stick, a preview, or a real
+move (a knock, its table taken away) brings it back. `gb_printer_tests --only=drop`
+checks all three dropped prints settle and sleep; `[GbPrinter] print settled` logs once per
+landing, and seeing it repeat with `settled print stirs` means something is waking it again.
+
 **Two curls:** a torn print curls at 6.5 cm (`GbThermalRibbon.CURL_RADIUS`), the
 strip still on the printer at 13 cm. At 6.5, 8 and 9 cm a long strip's end curled
 in under the printer's base: the gap between the case and the table is half a

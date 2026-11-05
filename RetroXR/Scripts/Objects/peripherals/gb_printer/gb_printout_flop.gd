@@ -20,6 +20,13 @@ const STATE_META := &"gb_printout_state"
 ## Actual vertex displacement must stay quiet for this long before sleeping.
 const SETTLED := 0.0005
 const SETTLE_TIME := 0.5
+## A loose print whose body STAYS within this of one pose (meters, radians) for
+## SETTLE_TIME, its sheet quiet, is settled: put to sleep and left alone. A
+## curled print on a table rocks up to ~0.05 rad for ever (measured, the drop
+## test): the turn allowed must cover that. A print tipping over speeds up and
+## leaves it at once. No support is asked for: falling, it drifts 3 mm in 25 ms.
+const SETTLE_DRIFT := 0.003
+const SETTLE_TURN := 0.08
 ## How often the surface under a loose print is looked for, seconds, how far
 ## down, and how far each way the patch found reaches.
 const FLOOR_EVERY := 0.25
@@ -44,6 +51,12 @@ var _motion := GbPaperMotion.new()
 var _was_held := false
 var _was_stuck := false
 var _support_quiet := 0.0
+## Settled on its support: put to sleep, and nothing here runs until it is
+## taken, stuck, or its body is moved past SETTLE_DRIFT / SETTLE_TURN.
+var _settled := false
+## Where the body was when its current quiet spell began, and where it settled.
+var _rest_pose := Transform3D()
+var _settled_pose := Transform3D()
 var _floor_hit: Array = []
 var _paper_sweep := GbPaperSweep.new()
 var _floor_wait := 0.0
@@ -112,6 +125,7 @@ func _process(delta: float) -> void:
 		_was_held = false
 		_was_stuck = true
 		_support_quiet = 0.0
+		_settled = false
 		return
 	if _poster.is_previewing():
 		# The Poster has slid its Surface to where the print would stick, and the
@@ -127,6 +141,7 @@ func _process(delta: float) -> void:
 		_drawn.clear()
 		_quiet = 0.0
 		_support_quiet = 0.0
+		_settled = false
 		return
 	var size := _poster.get_sheet_size()
 	if size.x <= 0.0 or size.y <= 0.0:
@@ -152,6 +167,32 @@ func _process(delta: float) -> void:
 		_ribbon.unpin()
 		_quiet = 0.0
 	_was_held = held
+	if _settled:
+		# Awake is not disturbed: Jolt wakes a sleeping body whenever an awake one
+		# touches it (in the room, the printer it came out of). Woken, the body
+		# drops ~1 mm, because the height it settled at is the contact recovery's
+		# and Jolt rests the colliders a little lower, into the table (measured in
+		# the room). Resuming on that put the print straight back into the loop it
+		# had settled out of; it is put back and to sleep instead, one transform
+		# write. Only a hand, or a real move (a knock, its table gone: a fall is
+		# 3 mm in 25 ms), brings the sheet back to life.
+		var now := _poster.global_transform
+		var drift := now.origin.distance_to(_settled_pose.origin)
+		var turn := now.basis.get_rotation_quaternion().angle_to(
+			_settled_pose.basis.get_rotation_quaternion())
+		if not held and drift < SETTLE_DRIFT and turn < SETTLE_TURN:
+			if not _poster.sleeping:
+				_poster.global_transform = _settled_pose
+				_poster.linear_velocity = Vector3.ZERO
+				_poster.angular_velocity = Vector3.ZERO
+				_poster.force_update_transform()
+				_poster.sleeping = true
+			return
+		_settled = false
+		_quiet = 0.0
+		_support_quiet = 0.0
+		print("[GbPrinter] settled print stirs: %s (moved %.2f mm, turned %.3f rad)" % [
+			"picked up" if held else "moved", drift * 1000.0, turn])
 	var xf := _poster.get_global_transform_interpolated()
 	var still := xf.is_equal_approx(_last_pose)
 	_last_pose = xf
@@ -174,14 +215,32 @@ func _process(delta: float) -> void:
 		_poster.global_position += xf.basis * _ribbon.body_shift
 		var normal := (xf.basis * _ribbon.support_normal).normalized()
 		_poster.linear_velocity -= normal * minf(0.0, normal.dot(_poster.linear_velocity))
-	var supported := not held and not _ribbon.support_normal.is_zero_approx()
-	# Small body corrections otherwise keep waking a settled print every tick.
-	# Require quiet rotation as well, so an edge-first landing can still tip over.
-	_support_quiet = _support_quiet + delta if supported and _ribbon.move_speed < SETTLED \
-		and _poster.linear_velocity.length() < 0.01 and _poster.angular_velocity.length() < 0.05 else 0.0
-	if _support_quiet >= SETTLE_TIME:
-		_poster.sleeping = true
+	# Settled is judged by where the body STAYS, not by its speeds. On a table the
+	# contact recovery above and Jolt trade a fraction of a millimetre every frame
+	# (or rock a curled sheet slightly) for ever, so the speeds never went quiet,
+	# the body never slept, and each print cost ~1 ms a frame (2026-11-04). The
+	# turn allowed is small, so an edge-first landing still tips over.
+	var near_rest := xf.origin.distance_to(_rest_pose.origin) < SETTLE_DRIFT \
+		and xf.basis.get_rotation_quaternion().angle_to(
+			_rest_pose.basis.get_rotation_quaternion()) < SETTLE_TURN
+	if not held and _ribbon.move_speed < SETTLED and near_rest:
+		_support_quiet += delta
+	else:
+		_support_quiet = 0.0
+		_rest_pose = xf
 	_quiet = _quiet + delta if still and not held and _ribbon.move_speed < SETTLED else 0.0
+	# Sleep only on a frame that refits nothing and with the lift above already
+	# handed to Jolt: a refit is committed at Jolt's next step and a moved node's
+	# transform reaches the server when transforms are flushed, and BOTH wake
+	# the body (JoltBody3D::_shapes_committed, _transform_changed). Set before
+	# either, every sleep here was undone a step later.
+	if _support_quiet >= SETTLE_TIME and not _needs_redraw():
+		_poster.force_update_transform()
+		_settled = true
+		_settled_pose = _poster.global_transform
+		_poster.sleeping = true
+		print("[GbPrinter] print settled at %s, body put to sleep" % _poster.global_position)
+		return
 	_draw(size)
 
 
@@ -276,16 +335,22 @@ func _fit_body(centers: PackedVector3Array, across: PackedVector3Array) -> void:
 	(pointer.shape as BoxShape3D).size = bounds.size + Vector3.ONE * 0.004
 
 
-func _draw(_sheet_size: Vector2) -> void:
+## Whether the sheet has moved enough since it was last drawn to be drawn (and
+## its colliders refit) again.
+func _needs_redraw() -> bool:
 	var verts := _ribbon.positions
-	if verts.size() == _drawn.size():
-		var moved := false
-		for i in verts.size():
-			if verts[i].distance_squared_to(_drawn[i]) > REDRAW * REDRAW:
-				moved = true
-				break
-		if not moved and _body_owned:
-			return
+	if verts.size() != _drawn.size() or not _body_owned:
+		return true
+	for i in verts.size():
+		if verts[i].distance_squared_to(_drawn[i]) > REDRAW * REDRAW:
+			return true
+	return false
+
+
+func _draw(_sheet_size: Vector2) -> void:
+	if not _needs_redraw():
+		return
+	var verts := _ribbon.positions
 	_drawn = verts.duplicate()
 	var centers := _ribbon.centers()
 	var across := _ribbon.across()

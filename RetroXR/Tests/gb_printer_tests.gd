@@ -1076,13 +1076,19 @@ func _test_printout_lands_without_crumpling() -> void:
 			shortest = minf(shortest, run / flop._ribbon.length)
 	_ok(shortest > 0.99, "dropped prints keep their length throughout impact (%.4f)" % shortest)
 	_ok(worst_bend < deg_to_rad(12), "dropped prints do not form sharp impact folds (%.1f degrees)" % rad_to_deg(worst_bend))
-	for poster in prints:
+	for n in prints.size():
+		var poster := prints[n]
 		var flop := poster.get_node(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
 		var low := INF
 		for p in flop._ribbon.positions:
 			low = minf(low, poster.to_global(p).y)
-		_ok(low > 9.998 and low < 10.005, "print rests on the table (bottom %.4f m)" % low)
-		_ok(flop._ribbon.move_speed < 0.002, "landed print's bending settles (%.5f m/s)" % flop._ribbon.move_speed)
+		_ok(low > 9.998 and low < 10.005, "print %d rests on the table (bottom %.4f m)" % [n, low])
+		_ok(flop._ribbon.move_speed < 0.002, "landed print %d's bending settles (%.5f m/s)" % [n, flop._ribbon.move_speed])
+		# Resting on a table, the contact recovery and Jolt trade a fraction of a
+		# millimetre every frame for ever, so a print judged by its speeds never
+		# slept: ~1 ms a frame each, in a room that had one (2026-11-04).
+		_ok(poster.sleeping and flop._settled,
+			"landed print %d settles and sleeps (sleeping %s, settled %s)" % [n, poster.sleeping, flop._settled])
 		poster.free()
 	table.free()
 
