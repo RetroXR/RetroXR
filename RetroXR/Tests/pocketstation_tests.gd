@@ -46,8 +46,8 @@ func _ready() -> void:
 		_test_apps()
 	if _wants("carry"):
 		await _test_carry()
-	if _wants("bios"):
-		_test_bios()
+	if _wants("core"):
+		_test_core()
 	_clear_fixtures()
 	await _settle_warm()
 	_finish()
@@ -271,15 +271,19 @@ func _clear_fixtures() -> void:
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
 
 
-# ── bios/ ─────────────────────────────────────────────────────────────────────
+# ── core/ ─────────────────────────────────────────────────────────────────────
 
 ## libretro's .info pins pocketstation.bin to one md5, and the BIOS page called
 ## every other dump a wrong file -- but the retail J110 circulates as at least
 ## three files, and Pokket boots any of them (the overlay's header says why).
-func _test_bios() -> void:
+func _test_core() -> void:
 	var reqs := FirmwareRequirements.for_core("pokket")
-	_eq(reqs.size(), 1, "bios/pokket asks for one file")
+	_eq(reqs.size(), 1, "core/pokket asks for one file")
 	var row: Dictionary = reqs[0] if not reqs.is_empty() else {}
-	_eq(str(row.get("path", "")), PocketStation.BIOS_FILE, "bios/the file its unit looks for")
-	_eq(str(row.get("md5", "")), "", "bios/with no md5, so a J110 that is not libretro's is not a wrong file")
-	_ok(bool(row.get("optional", false)), "bios/and optional, as libretro's entry has it")
+	_eq(str(row.get("path", "")), PocketStation.BIOS_FILE, "core/the file its unit looks for")
+	_eq(str(row.get("md5", "")), "", "core/with no md5, so a J110 that is not libretro's is not a wrong file")
+	_ok(bool(row.get("optional", false)), "core/and optional, as libretro's entry has it")
+	# Pokket's only options are its IR link's, which a single unit never loads.
+	var defs := {"pokket_link_layout": 1, "pokket_link_audio": 2, "pokket_link_unit_b_id": 3, "pokket_other": 4}
+	_eq(PocketStation.single_unit_options(defs).keys(), ["pokket_other"],
+		"core/the panel offers none of the IR link's options, and keeps any other")

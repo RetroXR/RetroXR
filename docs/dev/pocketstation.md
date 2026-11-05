@@ -68,7 +68,7 @@ Three ways were weighed:
    a `push` then `b .` for ever where the 061 still has `FlashWriteSerial`), and it boots the app.
    A mask ROM dumps the same twice, so one of them has a bad byte or there is an undocumented
    revision: unknown without the other files. **So RetroXR's overlay `pokket_libretro.info` drops the
-   md5** (the BIOS page called every other J110 "wrong file"); `pocketstation_tests` `bios/`.
+   md5** (the BIOS page called every other J110 "wrong file"); `pocketstation_tests` `core/`.
 4. **Device glue in our own file**, `libpcsxcore/pocketstation.c`: create, load the BIOS, load flash
    from `Mcd{N}Data`, dock, and run frame by frame until `psemu_com_is_enabled` (the kernel debounces
    the dock; until then the slot answers as EMPTY, as a card still going in would).
@@ -137,6 +137,12 @@ is a card first, and has to stay one while seated.
 - `pocketstation_tests` (catalog, frame, saved, controls, seat, apps, carry; controls and saved
   mutation-tested). `Tools/models/pocketstation_seat_probe` (windowed): seated in a PS1, and an
   asymmetric "F" through `show_picture` on a loose one, upright and unmirrored.
+  `Tools/models/pocketstation_menu_probe` (windowed, `--image=` a card, `--root=` a scratch root with
+  Pokket): the unit's own panel tab by tab, then switched on from it (Saves shows "Playing ...", the
+  LCD the BIOS). **Pokket's only options are its IR link's** (`pokket_link_*`, the two-unit subsystem
+  load RetroXR never makes), so `PocketStation.single_unit_options` drops them and the Options tab
+  hides. A Japanese app's title lists as its ASCII alone (Dokodemo Crash-kun's is "3"): `Sjis`
+  drops kana and kanji by design, and the serial on the row is what tells the app apart.
 - **Not yet:** a game PLAYED on the unit and its progress carried back (the app boots, see "Crash Bandicoot 3" below), netplay (no `net_*`; a session
   does not offer it), the docked protocol (pcsx_rearmed below), carrying the clock or a running app
   across dock/undock, infrared, a `BatteryBay`, the crystal body, and opening an existing shelf card AS a

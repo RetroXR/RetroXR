@@ -35,6 +35,8 @@ const DEFAULT_LABEL := "POCKETSTATION"
 ## Scratch images: <card_id>.mcr for the card itself, apps/<md5>.mcr for a library app,
 ## whose own progress is kept there between plays and never reaches the card.
 const PLAY_DIR := "user://pocketstation_play"
+## Pokket's IR link options (frontends/libretro/libretro.c, OPTION_LINK_*).
+const LINK_OPTION_PREFIX := "pokket_link_"
 const HINT_HEIGHT := 0.10
 ## The speaker's distance law, a handheld's.
 const STANDALONE_AUDIO_UNIT_SIZE := 3.0
@@ -391,8 +393,20 @@ func library_systemid() -> String:
 
 
 func _on_options_ready(_categories: Dictionary, definitions: Dictionary, values: Dictionary) -> void:
-	_opt_defs = definitions
+	_opt_defs = single_unit_options(definitions)
 	_opt_values = values
+
+
+## Pokket's options without the ones for its IR LINK, which are all it has (layout,
+## audio, unit B's ID): they act only on the two-unit subsystem load, and a unit here
+## is always one core with one card, so offering them was three switches that did
+## nothing. With none left the panel hides its Options tab.
+static func single_unit_options(definitions: Dictionary) -> Dictionary:
+	var out := {}
+	for key: Variant in definitions:
+		if not str(key).begins_with(LINK_OPTION_PREFIX):
+			out[key] = definitions[key]
+	return out
 
 
 func core_options() -> Dictionary:
@@ -409,7 +423,7 @@ func core_options() -> Dictionary:
 	if peeked.is_empty():
 		out["note"] = CoreOptionsStore.peek_failure_reason(root, STANDALONE_CORE)
 		return out
-	out["definitions"] = peeked["definitions"]
+	out["definitions"] = single_unit_options(peeked["definitions"])
 	out["values"] = CoreOptionsStore.effective_values(peeked,
 		CoreOptionsStore.load_values(root, STANDALONE_CORE))
 	return out
