@@ -46,6 +46,8 @@ func _ready() -> void:
 		_test_apps()
 	if _wants("carry"):
 		await _test_carry()
+	if _wants("bios"):
+		_test_bios()
 	_clear_fixtures()
 	await _settle_warm()
 	_finish()
@@ -267,3 +269,17 @@ func _clear_fixtures() -> void:
 			PocketStation.PLAY_DIR.path_join("%s.mcr" % FIXTURE)]:
 		if FileAccess.file_exists(p):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+
+
+# ── bios/ ─────────────────────────────────────────────────────────────────────
+
+## libretro's .info pins pocketstation.bin to one md5, and the BIOS page called
+## every other dump a wrong file -- but the retail J110 circulates as at least
+## three files, and Pokket boots any of them (the overlay's header says why).
+func _test_bios() -> void:
+	var reqs := FirmwareRequirements.for_core("pokket")
+	_eq(reqs.size(), 1, "bios/pokket asks for one file")
+	var row: Dictionary = reqs[0] if not reqs.is_empty() else {}
+	_eq(str(row.get("path", "")), PocketStation.BIOS_FILE, "bios/the file its unit looks for")
+	_eq(str(row.get("md5", "")), "", "bios/with no md5, so a J110 that is not libretro's is not a wrong file")
+	_ok(bool(row.get("optional", false)), "bios/and optional, as libretro's entry has it")

@@ -60,6 +60,15 @@ Three ways were weighed:
    deterministic. Log which it is. The `retrobios` set on the dev machine has neither: its
    `pocketstation.bin` is tagged `C110`/`J110` but hashes `0xDDF1F248` (md5 `0e4712cd...`), and its
    variant is the `C061`/`J061` prototype, 60 bytes apart (2026-11-05).
+   **The retail J110 circulates as at least THREE files**: the .info's `987d6438...`, retrobios's
+   `0e4712cd...` (CRC `5b91d3e4`) and a player's `d3dc54ef...` (CRC `09881f33`, r/RetroArch,
+   2026-08, where the post's author told them J110 renamed `pocketstation.bin` is the one); the 061
+   there is `3bcdcef3...` (CRC `5fb47dd8`), retrobios's variant byte for byte. retrobios's J110 is the
+   retail 110 by everything Pokket documents (SWI `0Ah`/`0Dh`/`0Eh` at the J110 addresses, SWI `0Fh`
+   a `push` then `b .` for ever where the 061 still has `FlashWriteSerial`), and it boots the app.
+   A mask ROM dumps the same twice, so one of them has a bad byte or there is an undocumented
+   revision: unknown without the other files. **So RetroXR's overlay `pokket_libretro.info` drops the
+   md5** (the BIOS page called every other J110 "wrong file"); `pocketstation_tests` `bios/`.
 4. **Device glue in our own file**, `libpcsxcore/pocketstation.c`: create, load the BIOS, load flash
    from `Mcd{N}Data`, dock, and run frame by frame until `psemu_com_is_enabled` (the kernel debounces
    the dock; until then the slot answers as EMPTY, as a card still going in would).

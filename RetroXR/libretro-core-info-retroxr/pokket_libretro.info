@@ -1,0 +1,53 @@
+# Sony - PocketStation (Pokket), retroXR overlay.
+#
+# Overrides the vendored libretro-core-info entry of the same name. It lives in
+# its own directory because res://libretro-core-info is vendored wholesale from
+# libretro's repository and is refreshed wholesale too -- an edit there would be
+# lost the next time, silently. An overlay REPLACES the entry, so everything
+# below is a whole copy of it with one change: the BIOS carries NO md5.
+#
+# libretro's entry publishes 987d643809d84631677c7b897858c892 for
+# pocketstation.bin, and the BIOS page then calls every other dump a wrong file.
+# But the retail 110 BIOS circulates as at least three different files, all
+# tagged C110/J110 at 0x1DFC/0x3FFC: that one, 0e4712cdf113190a012c5fb415060ec7
+# (retrobios; the SWI table and the dead SWI 0Fh loop are the retail 110 that
+# Pokket's hardware-notes.md describes, and it boots Dokodemo Crash-kun in
+# RetroXR) and d3dc54ef4d2c6a99650cb97786e461ae (a player's, which Pokket's
+# author told them to use, r/RetroArch 2026-08). Pokket boots ANY 16 KiB image;
+# the only thing its exact dump unlocks (psemu_settings_offsets_known: the date,
+# time and volume pokes) is something this libretro core never calls. The 061
+# prototype (3bcdcef3d9aa7af85cd45e29986d11c8) boots too, though Pokket's notes
+# say some games fail on it. docs/dev/pocketstation.md.
+
+# Software Information
+display_name = "Sony - PocketStation (Pokket)"
+authors = "mentalfoundry"
+supported_extensions = "bin|gme|mcd|mcr|mcs|pss"
+corename = "Pokket"
+categories = "Emulator"
+license = "GPLv3"
+permissions = ""
+
+# Hardware Information
+manufacturer = "Sony"
+systemname = "PocketStation"
+systemid = "pocketstation"
+
+# Libretro Features
+database = "Sony - PocketStation"
+display_version = "v1.14"
+supports_no_game = "false"
+hw_render = "false"
+is_experimental = "false"
+savestate = "true"
+savestate_features = "basic"
+cheats = "true"
+libretro_saves = "true"
+
+# BIOS / Firmware
+firmware_count = 1
+firmware0_desc = "pocketstation.bin (PocketStation BIOS)"
+firmware0_path = "pocketstation.bin"
+firmware0_opt = "true"
+
+description = "An open-source Sony PocketStation emulator core, written in portable C. It is meant for reuse across a libretro core, a standalone Windows desktop app, and a PS Vita homebrew port. The emulator is stable, broadly tested by the community, and as cycle-accurate as possible. Loads and saves PlayStation memory card dumps."
