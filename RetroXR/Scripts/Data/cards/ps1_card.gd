@@ -361,7 +361,7 @@ static func _serial_of(name: String) -> String:
 ## Decode a save's title frame. Shared with the PlayStation 2, whose icon.sys
 ## title is the same Shift-JIS in the same full-width forms.
 static func _decode_title(raw: PackedByteArray) -> String:
-	return Sjis.to_ascii(raw)
+	return Sjis.to_text(raw)
 
 
 ## The save's animation frames as 16x16 RGBA images (1-3 of them).

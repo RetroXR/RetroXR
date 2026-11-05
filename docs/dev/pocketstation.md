@@ -141,8 +141,12 @@ is a card first, and has to stay one while seated.
   Pokket): the unit's own panel tab by tab, then switched on from it (Saves shows "Playing ...", the
   LCD the BIOS). **Pokket's only options are its IR link's** (`pokket_link_*`, the two-unit subsystem
   load RetroXR never makes), so `PocketStation.single_unit_options` drops them and the Options tab
-  hides. A Japanese app's title lists as its ASCII alone (Dokodemo Crash-kun's is "3"): `Sjis`
-  drops kana and kanji by design, and the serial on the row is what tells the app apart.
+  hides. **Save titles decode Japanese** (`Sjis.to_text` over `SjisTable`, code page 932 generated
+  by `Tools/gen_sjis_table.py`; PS1, PS2 `icon.sys` and VMU alike): Dokodemo Crash-kun lists as
+  クラッシュ3「どこでもクラッシュくん」, where the old ASCII-only decode left "3". Full-width
+  letters, digits and the common punctuation still come back as ASCII, so Western titles read
+  as before. The glyphs come from the OS's font fallback (the theme font has no CJK): seen on
+  Windows (`pocketstation_menu_probe`), the Quest's OWED.
 - **Not yet:** a game PLAYED on the unit and its progress carried back (the app boots, see "Crash Bandicoot 3" below), netplay (no `net_*`; a session
   does not offer it), the docked protocol (pcsx_rearmed below), carrying the clock or a running app
   across dock/undock, infrared, a `BatteryBay`, the crystal body, and opening an existing shelf card AS a

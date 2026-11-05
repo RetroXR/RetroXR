@@ -481,17 +481,13 @@ static func _read_name(image: PackedByteArray, entry_at: int) -> String:
 
 ## A Shift-JIS description as a title, or "" when nothing of it survives.
 ##
-## The decoder keeps punctuation and drops kana and kanji, so a Japanese title
-## in full-width brackets comes back as "()" — Ikaruga did — which is worse
-## than no title, because the on-card name behind it is at least the game's.
-## Only a decode with a letter or digit in it counts.
+## Brackets, symbols or spaces alone are worse than no title, because the
+## on-card name behind it is at least the game's: only a decode with a letter,
+## a digit, kana or kanji in it counts (Sjis.has_words). Ikaruga's "（イカルガ）"
+## does now; before kana were decoded it came back as a bare "()".
 static func _sjis_title(raw: PackedByteArray) -> String:
-	var s := Sjis.to_ascii(raw)
-	for i in range(s.length()):
-		var c := s.unicode_at(i)
-		if (c >= 0x30 and c <= 0x39) or (c >= 0x41 and c <= 0x5A) or (c >= 0x61 and c <= 0x7A):
-			return s
-	return ""
+	var s := Sjis.to_text(raw)
+	return s if Sjis.has_words(s) else ""
 
 
 static func _read_ascii(image: PackedByteArray, at: int, length: int) -> String:

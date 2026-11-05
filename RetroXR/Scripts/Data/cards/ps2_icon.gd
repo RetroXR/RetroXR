@@ -61,10 +61,10 @@ static func parse_icon_sys(bytes: PackedByteArray) -> Dictionary:
 	# what makes it read as a title and a subtitle.
 	var raw := bytes.slice(SYS_TITLE, SYS_TITLE + SYS_TITLE_LEN)
 	var brk := bytes.decode_u16(SYS_LINE_BREAK)
-	var title := Sjis.to_ascii(raw)
+	var title := Sjis.to_text(raw)
 	if brk > 0 and brk < raw.size():
-		var head := Sjis.to_ascii(raw.slice(0, brk))
-		var tail := Sjis.to_ascii(raw.slice(brk))
+		var head := Sjis.to_text(raw.slice(0, brk))
+		var tail := Sjis.to_text(raw.slice(brk))
 		if not head.is_empty() and not tail.is_empty():
 			title = "%s %s" % [head, tail]
 	return {

@@ -20,7 +20,7 @@ extends "res://Tests/test_suite.gd"
 
 ## How many cases this file contains, NOT counting the guard below — it is
 ## checked before it has recorded itself.
-const EXPECTED_CASES := 672
+const EXPECTED_CASES := 677
 
 var _only := ""
 
@@ -447,6 +447,23 @@ func _test_ps1_contract() -> void:
 	_eq(img[63 * PS1Card.FRAME_SIZE], 0x4D, "ps1/frame 63 carries the header")
 	_eq(img[64 * PS1Card.FRAME_SIZE - 1], 0x0E, "ps1/and its checksum")
 
+	# A save's title is Shift-JIS. These are the bytes Crash Bandicoot 3 (J) wrote
+	# for its PocketStation app; with kana dropped it listed as "3".
+	var crash := PackedByteArray([0x83, 0x4E, 0x83, 0x89, 0x83, 0x62, 0x83, 0x56, 0x83, 0x85,
+		0x82, 0x52, 0x81, 0x75, 0x82, 0xC7, 0x82, 0xB1, 0x82, 0xC5, 0x82, 0xE0, 0x83, 0x4E,
+		0x83, 0x89, 0x83, 0x62, 0x83, 0x56, 0x83, 0x85, 0x82, 0xAD, 0x82, 0xF1, 0x81, 0x76, 0, 0])
+	_eq(PS1Card._decode_title(crash), "クラッシュ3「どこでもクラッシュくん」",
+		"ps1/a Japanese title reads as Japanese, its full-width digit as ASCII")
+	# Kanji (0x889F is the first, 亜), half-width katakana (one byte each) and the
+	# ideographic-space padding a title is filled out with.
+	_eq(Sjis.to_text(PackedByteArray([0x81, 0x40, 0x88, 0x9F, 0xB1, 0xB2, 0x81, 0x40, 0])), "亜ｱｲ",
+		"ps1/kanji and half-width kana decode, the padding is trimmed")
+	# A byte that starts no character is skipped alone, so the next still reads.
+	_eq(Sjis.to_text(PackedByteArray([0x80, 0x82, 0x60, 0xFF, 0x41])), "AA",
+		"ps1/a stray byte costs only itself")
+	_ok(Sjis.has_words("クラッシュ") and not Sjis.has_words("「」・　"),
+		"ps1/kana are words, brackets and dots are not")
+
 
 # --- The Controller Pak -------------------------------------------------------
 
@@ -629,9 +646,9 @@ func _test_vmu_play() -> void:
 	_ok(VMUCard._word_swap(back.slice(VMUCard.DCI_HEADER)).slice(0, vms.size()) == vms,
 		"vmu_play/whose body is the .vms it started as")
 
-	# Titles are Shift-JIS. A Western game's full-width letters decode; a
-	# Japanese game's kana do not, and must fall back to the on-card name
-	# rather than to the low byte of every pair (Ikaruga listed as "ij").
+	# Titles are Shift-JIS. A Western game's full-width letters decode to ASCII,
+	# a Japanese game's kana to kana -- never the low byte of every pair (Ikaruga
+	# listed as "ij" once).
 	var sj := VMUCard.insert_save(VMUCard.blank_image(),
 		_vmu_dci(VMUCard.TYPE_DATA, 0, 2, "SJIS____VMU", "PLACEHOLDER", 1))
 	var at := VMUCard.block_of(sj, "SJIS____VMU") * VMUCard.BLOCK_SIZE
@@ -644,16 +661,24 @@ func _test_vmu_play() -> void:
 		sj[at + VMUCard.V_DESC + i] = wide[i]
 	_eq(str(VMUCard.list_saves(sj, false)[0]["title"]), "ABC 0",
 		"vmu_play/a full-width Shift-JIS description reads as its letters")
-	# Kana inside full-width brackets, the way a Japanese title is written:
-	# the brackets decode and the kana do not, and "()" alone is not a title.
+	# Kana inside full-width brackets, the way a Japanese title is written. The
+	# kana were once dropped, which left "()", and that fell back to the name.
 	var kana := PackedByteArray([0x81, 0x69, 0x83, 0x43, 0x83, 0x4A, 0x83, 0x8B, 0x83, 0x4B, 0x81, 0x6A])
 	for i in range(kana.size()):
 		sj[at + VMUCard.V_DESC + i] = kana[i]
 		sj[at + VMUCard.V_DC_DESC + i] = kana[i]
 	for i in range(kana.size(), 16):
 		sj[at + VMUCard.V_DESC + i] = 0
+	_eq(str(VMUCard.list_saves(sj, false)[0]["title"]), "(イカルガ)",
+		"vmu_play/and kana read as kana: Ikaruga's own title")
+	# Brackets alone are still no title: the on-card name, not "()".
+	var bare := PackedByteArray([0x81, 0x69, 0x81, 0x6A])
+	for i in range(16):
+		sj[at + VMUCard.V_DESC + i] = bare[i] if i < bare.size() else 0
+	for i in range(32):
+		sj[at + VMUCard.V_DC_DESC + i] = bare[i] if i < bare.size() else 0
 	_eq(str(VMUCard.list_saves(sj, false)[0]["title"]), "SJIS____VMU",
-		"vmu_play/and kana fall back to the on-card name, never to mojibake or bare brackets")
+		"vmu_play/brackets with nothing in them fall back to the on-card name")
 
 	# WHICH description wins, taken from a real card. A VMS carries two: sixteen
 	# characters for the file list on the VMU's own 48 x 32 screen, and thirty-two
