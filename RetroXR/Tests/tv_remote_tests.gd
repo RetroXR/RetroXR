@@ -633,9 +633,15 @@ func _step(r: TVRemote, start: String, dir: Vector2) -> String:
 
 
 func _test_stick() -> void:
-	var was: bool = AppPrefs.remote_button_menu
+	var was: int = AppPrefs._remote_button_menu
 	var fresh: Node = (load("res://Scripts/Data/app_prefs.gd") as GDScript).new()
-	_eq(fresh.get("remote_button_menu"), false, "stick/the floating button menu is off by default")
+	_eq(fresh.get("remote_button_menu"), not MenuStyle.is_vr_mode(),
+		"stick/never chosen, the floating button menu is on at a desk and off in a headset")
+	_ok(not fresh.call("_prefs_dict").has("remote_button_menu_choice"),
+		"stick/…and an automatic setting is not saved as a choice")
+	fresh.set("remote_button_menu", false)
+	_eq(fresh.get("remote_button_menu"), false, "stick/chosen off, it stays off at a desk")
+	_eq(fresh.call("_prefs_dict").get("remote_button_menu_choice"), false, "stick/…and that choice is saved")
 	fresh.free()
 	AppPrefs.remote_button_menu = false
 	# The set 1.5 m off along the remote's -Z, a DVD player far off to the side for the second target.
@@ -756,7 +762,7 @@ func _test_stick() -> void:
 	_ok(int(row["selected"]) == 0 and (row["items"] as Array).size() == 2,
 		"stick/the remote's menu offers the floating button menu, showing off")
 	r.options_choose(0, 1)
-	_ok(AppPrefs.remote_button_menu and bool(JsonStore.read_dict(AppPrefs.PREFS_PATH).get("remote_button_menu", false)),
+	_ok(AppPrefs.remote_button_menu and bool(JsonStore.read_dict(AppPrefs.PREFS_PATH).get("remote_button_menu_choice", false)),
 		"stick/switched on there, it is kept in the app's preferences")
 	r._target = tv
 	r._rebuild_grid()
@@ -785,7 +791,7 @@ func _test_stick() -> void:
 		f.close()
 	else:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(AppPrefs.PREFS_PATH))
-	AppPrefs.remote_button_menu = was
+	AppPrefs._remote_button_menu = was
 	_drop_hands()
 
 

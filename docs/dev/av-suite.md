@@ -328,7 +328,10 @@ DVD); the stick now walks the keys themselves, and the floating grid is an optio
   `KEY_FLASH`, and does its cell through `press_key` (a dead key still goes down and does nothing, as a real
   one would). Desktop: the arrows walk it, Enter holds it down. **The remote's own menu** (Tab / pointer
   menu, the generic `ObjectOptionsPanel` through `options_choices`, titled "TV Remote") has a "Floating
-  button menu" Off/On row, `AppPrefs.remote_button_menu`, default off: an APP preference, not saved on the
+  button menu" Off/On row, `AppPrefs.remote_button_menu`, AUTOMATIC until the player picks (on at a desk, where the mouse hand has no
+  stick to light keys with; off in a headset — `MenuStyle.is_vr_mode()`, read live). Only a pick is saved, under
+  `remote_button_menu_choice`: the old `remote_button_menu` key was written on every save, so its `false` is the
+  old default, not a choice, and is ignored. An APP preference, not saved on the
   remote and not synced — how the player likes to drive a remote, kept for every remote and every room, the
   way "Press Controller Buttons by Touch" is. On, the grid is exactly as before (the stick and arrows walk
   it, its presses flash the key) and no key is lit. `tv_remote_tests stick/` (33): the default, the outline,

@@ -73,10 +73,19 @@ var poke_controls:    bool = true
 ## the room behaved before anything consumed power: everything powers whatever its
 ## cords do. A room with no wall outlet at all powers everything either way.
 var power_simulation: bool = false
-## Whether a held TV remote floats its button grid (TVRemote). Off by default: the thumbstick
-## then lights the handset's own keys and a stick click presses the lit one. Switched on the
-## remote's own menu; read every frame, so a change takes at once.
-var remote_button_menu: bool = false
+## Whether a held TV remote floats its button grid (TVRemote). Off, the thumbstick lights the
+## handset's own keys and a stick click presses the lit one. Until the player picks on the
+## remote's own menu it is automatic: ON at a desk (the mouse hand has no stick to light keys
+## with) and off in a headset. Read every frame, so a change takes at once; only a choice is saved.
+var remote_button_menu: bool:
+	get:
+		if _remote_button_menu < 0:
+			return not MenuStyle.is_vr_mode()
+		return _remote_button_menu == 1
+	set(v):
+		_remote_button_menu = 1 if v else 0
+## -1 = automatic (never chosen), 0 off, 1 on.
+var _remote_button_menu: int = -1
 ## Mirrored into SystemFilter.enabled by the setter (see the header).
 var system_filter:    bool = true:
 	set(v):
@@ -402,7 +411,10 @@ func load_prefs() -> void:
 	controller_hands = JsonStore.get_bool(data, "controller_hands", controller_hands)
 	poke_controls    = JsonStore.get_bool(data, "poke_controls",    poke_controls)
 	power_simulation = JsonStore.get_bool(data, "power_simulation", power_simulation)
-	remote_button_menu = JsonStore.get_bool(data, "remote_button_menu", remote_button_menu)
+	# A new key: the old "remote_button_menu" was written on every save whether chosen or not, so a
+	# false in it is the old default, not the player's pick, and would keep a desk's grid off.
+	if data.has("remote_button_menu_choice"):
+		remote_button_menu = JsonStore.get_bool(data, "remote_button_menu_choice", false)
 	system_filter    = JsonStore.get_bool(data, "system_filter",    system_filter)
 	bios_boot_override = JsonStore.get_bool(data, "bios_boot_override", bios_boot_override)
 	arcade_attract_mode = JsonStore.get_bool(data, "arcade_attract_mode", arcade_attract_mode)
@@ -445,7 +457,12 @@ func load_prefs() -> void:
 ## Returns false when the write did not land. Callers that report a setting
 ## as changed should say so instead when this is false.
 func save_prefs() -> bool:
-	return JsonStore.write_dict(PREFS_PATH, {
+	return JsonStore.write_dict(PREFS_PATH, _prefs_dict(), "AppPrefs")
+
+
+## What save_prefs() writes.
+func _prefs_dict() -> Dictionary:
+	var data := {
 		"auto_save_scene":  auto_save_scene,
 		"autosave_periodic": autosave_periodic,
 		"autosave_interval": autosave_interval,
@@ -455,7 +472,6 @@ func save_prefs() -> bool:
 		"controller_hands": controller_hands,
 		"poke_controls":    poke_controls,
 		"power_simulation": power_simulation,
-		"remote_button_menu": remote_button_menu,
 		"system_filter":    system_filter,
 		"bios_boot_override": bios_boot_override,
 		"arcade_attract_mode": arcade_attract_mode,
@@ -483,7 +499,10 @@ func save_prefs() -> bool:
 		"hw_render_overrides": hw_render_overrides,
 		"spawn_defaults": spawn_defaults,
 		"mains_region": mains_region,
-	}, "AppPrefs")
+	}
+	if _remote_button_menu >= 0:
+		data["remote_button_menu_choice"] = _remote_button_menu == 1
+	return data
 
 
 ## Accept only the three named display modes. JSON numbers may be int or float;

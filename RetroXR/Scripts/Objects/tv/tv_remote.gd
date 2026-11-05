@@ -7,8 +7,8 @@
 ## layout on the face — up/down/left/right to the nearest key that way, skipping keys
 ## that do nothing on what it is aimed at — and a stick click (or A/X) presses the
 ## lit key: it sinks while held and does its cell. Desktop: arrow keys walk it, Enter
-## presses. With AppPrefs.remote_button_menu on (the remote's own menu, off by
-## default) the older floating button GRID pops up above the remote instead,
+## presses. With AppPrefs.remote_button_menu on (the remote's own menu; until chosen,
+## on at a desk and off in a headset) the older floating button GRID pops up above the remote instead,
 ## billboarded to the camera, with a stable real-remote-style layout per device
 ## (icons from a Symbols Nerd Font); cells that don't apply right now are greyed and
 ## skipped rather than removed, and the stick and the arrow keys walk the grid.
@@ -447,7 +447,7 @@ func key_live(key_name: String) -> bool:
 
 # ── The keys as the menu (the grid off) ───────────────────────────────────────
 
-## Whether the floating grid shows rather than the keys being lit (the remote's own menu, off by default).
+## Whether the floating grid shows rather than the keys being lit (the remote's own menu; automatic until chosen: on at a desk, off in a headset).
 func grid_menu_on() -> bool:
 	return AppPrefs.remote_button_menu
 
