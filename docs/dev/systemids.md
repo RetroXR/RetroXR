@@ -34,6 +34,17 @@ to RetroXR: give one whose ES-DE folder differs a `LEGACY` entry (ES-DE's
 `super_acan` -> `supracan` came in on 2026-11-05; `lindbergh`, `model1`, `hikaru` and
 `pocketstation` have no ES-DE folder and keep their names).
 
+A new platform needs a `SystemInfo` descriptor too (`RetroXR/SystemInfo/<id>.tres`; RomM
+maps a platform only to a systemid that has one), its media in `MediaDimensions`
+(`DISC_DIAMETERS` for a disc, `FLOPPY_SYSTEMS` for a computer on the PC tower), a
+computer in `SystemModelRegistry._COMPUTER_PLATFORMS`, and an icon when BAXY's Systematic set
+draws it (`Textures/SystemIcons/ATTRIBUTIONS.txt`). The 2026-11-05 merge's platforms got
+theirs, all but one: **`model2` has NO descriptor on purpose.** ES-DE's `model2` folder is
+one of `FOLDER_ALIASES["arcade"]`, where MAME plays those sets in the cabinet, and
+`systems_data_tests` refuses a folder name that is also a system of its own. SM2
+(`sm2_libretro`, systemid `model2`) had no buildbot build anywhere; when it does, making
+Model 2 a system (and taking the folder from MAME) is the decision to make then.
+
 `Tools/rename_systemids.py` rewrites `systemid` and the id left of each colon in
 `secondary_systemids`, reading the table out of `system_ids.gd` so there is one. Run it on
 the two directories after adding a `LEGACY` entry:

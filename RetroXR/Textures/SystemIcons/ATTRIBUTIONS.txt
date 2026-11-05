@@ -26,8 +26,9 @@ and "Nintendo - Game Boy Advance (e-Reader)" are the same art under both names.
 
 Each system also has a "-content" variant: the media you put in the machine
 rather than the machine itself — cartridge, disc, tape, card. Those are here as
-"<systemid>-content.svg" and are what the Cartridges browser draws. Two systems
-have no content art upstream and fall back to their console: piece and ti_83.
+"<systemid>-content.svg" and are what the Cartridges browser draws. Four systems
+have no content art upstream and fall back to their console: piece, ti_83, vmu
+and pocketstation.
 
 Where art exists in several regional variants the North American one was taken,
 verified by opening the file rather than trusting the suffix:
@@ -82,11 +83,25 @@ verified by opening the file rather than trusting the suffix:
                  used.
   naomi2         console: "(alt)", matching naomi; content untagged, as there.
   atomiswave     console and content: "(alt)", the owner's pick.
+  fmtowns        console: the untagged file — the first grey FM Towns, with the
+                 vertical CD tray in its front that MediaDimensions gives it.
+                 "FM Towns Marty" and "Marty 2" are the 1993 console.
+  hyperscan      console: the untagged file. "Alt" is the same body drawn with
+                 the card scanner's wave glyph on it.
+  pocketstation  console: the untagged file, the white unit. "K" is the same
+                 drawing in black, a finish rather than a region.
+  psvita         console: the untagged file, the original oval console. The
+                 tagged files are models and finishes (PCH-1000 B/R/W,
+                 PCH-2000 K/W, the VTE-1000 PlayStation TV), not regions.
+  symbian        console: "Mobile - Symbian", a Nokia handset. "Nokia - N-Gage"
+                 draws the N-Gage itself; the systemid is the operating system
+                 its core runs, N-Gage games included.
 
 Retrieved 2026-07-28; -content art and the SNES console correction 2026-07-30;
 Wii U and Famicom 2026-09-15; Game Boy Color 2026-09-22;
 Neo Geo Pocket Color, WonderSwan Color, NAOMI, NAOMI 2 and Atomiswave
-2026-09-25.
+2026-09-25; PlayStation Vita, PocketStation, FM Towns, Playdia, Super A'Can,
+HyperScan and Symbian 2026-11-05.
 
 file map
 -------------------------------------------------------------------------------
@@ -96,6 +111,10 @@ local file                          upstream file
 2048.svg                            2048.svg
 3do-content.svg                     The 3DO Company - 3DO-content.svg
 3do.svg                             The 3DO Company - 3DO.svg
+fmtowns-content.svg                 Fujitsu - FM Towns-content.svg
+fmtowns.svg                         Fujitsu - FM Towns.svg
+hyperscan-content.svg               Mattel - HyperScan-content.svg
+hyperscan.svg                       Mattel - HyperScan.svg
 n3ds-content.svg                    Nintendo - Nintendo 3DS-content.svg
 n3ds.svg                            Nintendo - Nintendo 3DS.svg
 _default.svg                        default.svg
@@ -147,8 +166,17 @@ commodore_c64dtv-content.svg        Commodore - 64-content.svg
 commodore_c64dtv.svg                Commodore - 64.svg
 commodore_pet-content.svg           Commodore - PET-content.svg
 commodore_pet.svg                   Commodore - PET.svg
+playdia-content.svg                 Bandai - Playdia-content.svg
+playdia.svg                         Bandai - Playdia.svg
 plus4-content.svg                   Commodore - Plus-4-content.svg
 plus4.svg                           Commodore - Plus-4.svg
+pocketstation.svg                   Sony - PlayStation (PocketStation).svg
+psvita-content.svg                  Sony - PlayStation Vita-content.svg
+psvita.svg                          Sony - PlayStation Vita.svg
+supracan-content.svg                Funtech - Super Acan-content.svg
+supracan.svg                        Funtech - Super Acan.svg
+symbian-content.svg                 Mobile - Symbian-content.svg
+symbian.svg                         Mobile - Symbian.svg
 vic20-content.svg                   Commodore - VIC-20-content.svg
 vic20.svg                           Commodore - VIC-20.svg
 amstradcpc-content.svg              Amstrad - CPC-content.svg

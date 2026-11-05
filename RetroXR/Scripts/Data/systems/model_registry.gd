@@ -53,7 +53,7 @@ const _COMPUTER_PLATFORMS: Array[String] = [
 	"apple2", "atari800", "atarist", "amiga",
 	"commodore_c128", "c64", "vic20", "amstradcpc", "dos", "msx",
 	"pc88", "pc98", "scummvm", "x1", "x68000", "spectravideo", "zx81",
-	"zxspectrum",
+	"zxspectrum", "fmtowns", "amstrad_pcw", "commander_x16", "rp6502",
 ]
 
 

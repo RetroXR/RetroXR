@@ -146,13 +146,13 @@ const FLOPPY_525_SYSTEMS: Dictionary = {
 ## onto a connector.
 ##
 ## This is every platform the PC tower is hardware for (SystemModelRegistry's
-## _COMPUTER_PLATFORMS) except scummvm, which shipped on CD and appears in
-## DISC_DIAMETERS above. Listed rather than derived for the reason the registry
+## _COMPUTER_PLATFORMS) except scummvm and fmtowns, whose games shipped on CD and
+## which appear in DISC_DIAMETERS above. Listed rather than derived for the reason the registry
 ## lists them too: this is a const table and SystemInfo is a loaded resource, so a
 ## new computer system has to be added here as well as given its .tres.
 ##
 ## Not every one of them really used a floppy — a VIC-20 took cartridges, a ZX81 a
-## cassette — but the tower is already an admitted stand-in for eighteen machines,
+## cassette — but the tower is already an admitted stand-in for twenty-two machines,
 ## and a floppy is the medium it has drives for. The ones whose disk was the
 ## 5.25-inch one are FLOPPY_525_SYSTEMS above, and go in the tower's 5.25-inch
 ## drive; the rest share the 3.5-inch disk.
@@ -181,6 +181,9 @@ const FLOPPY_SYSTEMS: Dictionary = {
 	"spectravideo": true,
 	"zx81": true,
 	"zxspectrum": true,
+	"amstrad_pcw": true,
+	"commander_x16": true,
+	"rp6502": true,
 }
 
 ## Disc diameters: systemid -> diameter in metres. Doubles as the disc-system
@@ -211,6 +214,11 @@ const DISC_DIAMETERS: Dictionary = {
 	# out a disc and RetroSystem take the tray path; the PC tower model then slides
 	# that tray instead of hinging a lid.
 	"scummvm":               0.12,
+	# The FM Towns is a computer that booted its games off CD-ROM (a vertical tray in
+	# the front of the first grey models), so it is the tower with a disc, as ScummVM is.
+	"fmtowns":               0.12,
+	"playdia":               0.12,   # top-loading, a lid over the CD
+	"hyperscan":             0.12,   # UDF CD-ROM under the player's lid
 }
 
 ## Default disc diameter (standard CD/DVD) for a disc systemid without an entry.
