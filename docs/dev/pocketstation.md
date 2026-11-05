@@ -128,7 +128,7 @@ is a card first, and has to stay one while seated.
 - `pocketstation_tests` (catalog, frame, saved, controls, seat, apps, carry; controls and saved
   mutation-tested). `Tools/models/pocketstation_seat_probe` (windowed): seated in a PS1, and an
   asymmetric "F" through `show_picture` on a loose one, upright and unmirrored.
-- **Not yet:** the core run itself on a machine with Pokket installed (OWED), netplay (no `net_*`; a session
+- **Not yet:** a working run on Pokket (it holds on the BIOS's HELLO in RetroXR; see "Crash Bandicoot 3" below), netplay (no `net_*`; a session
   does not offer it), the docked protocol (pcsx_rearmed below), carrying the clock or a running app
   across dock/undock, infrared, a `BatteryBay`, the crystal body, and opening an existing shelf card AS a
   PocketStation (a unit is spawned with a card of its own). Headset feel OWED.
@@ -136,6 +136,35 @@ is a card first, and has to stay one while seated.
 The plan's other items: **seated**, `MemoryCardController` sets `pcsx_rearmed_memcard{N}_device=pocketstation`
 and the id option once the fork has them, both ways; **netplay**, docked it is part of the PlayStation's
 deterministic state (item 9 of the fork).
+
+## Crash Bandicoot 3 (J), measured (2026-11-05)
+
+`Crash Bandicoot 3 - Buttobi! Sekai Isshuu (Japan, Asia)` (SCPS-10073) carries the PocketStation app
+**Dokodemo Crash-kun**. Run with `Tools/cores/pocketstation_dock_probe` (headless, a scratch libretro
+root holding the installed `pcsx_rearmed` and the four PS1 BIOS files, `--leg=pocketstation`) on
+RetroXR's fork r26 9a26363, `scph5500.bin` (the core picks the Japanese BIOS by itself):
+
+- **The download does NOT need a PocketStation.** Title menu → おまけ (third row) → ポケットステーション →
+  あたらしくダウンロード → はい (left, then circle: the cursor starts on いいえ) → オッケー, and the game
+  writes `BISCPSP10073-PDA`, 12 blocks, onto what the core presents as a PLAIN card, with a progress
+  bar and no error. The frames: `--steps="3700-3706:down,3760-3766:down,3840-3846:circle,5100-5106:circle,5700-5706:circle,5900-5906:left,6000-6006:circle,6300-6306:circle"`
+  (circle confirms; core frames at 60 a second). So for this game the pcsx_rearmed half is not
+  needed to get the app onto the card; what it would add is the rest (whatever the game reads back
+  from a docked unit, `5Ah`'s clock and serial among it).
+- **The app file is named as psx-spx says**: the game code's `-` becomes `P` (`SCPSP10073`), and its
+  title frame carries `MCX0`, which `PS1Card.is_pocketstation_app` reads (`[PocketStation app]` in the
+  probe's listing).
+- **Playing it on the unit is NOT working yet.** `Tools/cores/pocketstation_play_probe` (the unit's own
+  `power_on`, Pokket v1.23 from the buildbot in a scratch root via `PocketStation.core_directory`)
+  boots and draws the BIOS's HELLO, then the picture holds on a partial or whole "Hello" for 40 s and
+  the buttons change nothing, with either `retrobios` BIOS (the C110 one and the C061 prototype), on
+  this card, a blank card and the app alone as a `.mcs`. **The point it holds at differs from run to
+  run** ("He", "Hell", "Hello"), which an emulator fed the same inputs would not do, so suspect the
+  frontend side (the picture or the thread) before the BIOS. `retro_run` is being called (the frame
+  counter advances only after it returns) and the software video path queues every frame with no
+  duplicate check. The next step is Pokket's own `core/` built natively with the same BIOS and card
+  (`psemu_run(33000)` a frame, LCD dumped), which tells "Pokket + this BIOS" from "RetroXR"; that run
+  needs a C toolchain build of the cloned source. Also try the reference J110 dump if one turns up.
 
 ## The primitive (built 2026-11-05)
 

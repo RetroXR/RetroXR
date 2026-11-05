@@ -54,6 +54,11 @@ const _CONTROLS: Array = [
 	["ButtonAction", ControllerBindings.JOYPAD_A],
 ]
 
+## A libretro root to run from instead of the player's (its cores/, system/pokket/ and
+## core_options/), as RetroSystem.core_directory: for the probes, which must not install a
+## core into the player's folders. Empty in the room.
+@export var core_directory := ""
+
 var _hint: HeldHint = null
 var _lib: Node = null
 var _running := false
@@ -179,7 +184,7 @@ func standalone_blocker() -> String:
 	# scratch, and a new run writing that same scratch would race it.
 	if _carry_pending and not _core_unloaded():
 		return "still switching off"
-	if CoreDownloadManager.installed_core_lib(STANDALONE_CORE).is_empty():
+	if not _core_installed():
 		return "the Pokket core is not installed (PlayStation BIOS / Extras)"
 	if not FileAccess.file_exists(bios_path()):
 		return "%s is not in Pokket's BIOS folder" % BIOS_FILE
@@ -187,7 +192,20 @@ func standalone_blocker() -> String:
 
 
 func bios_path() -> String:
-	return CoreDownloadManager.default_system_dir(STANDALONE_CORE).path_join(BIOS_FILE)
+	return _core_root().path_join("system").path_join(STANDALONE_CORE).path_join(BIOS_FILE)
+
+
+func _core_root() -> String:
+	return core_directory if not core_directory.is_empty() else CoreDownloadManager.default_core_root()
+
+
+func _core_installed() -> bool:
+	if core_directory.is_empty():
+		return not CoreDownloadManager.installed_core_lib(STANDALONE_CORE).is_empty()
+	for f: String in DirAccess.get_files_at(core_directory.path_join("cores")):
+		if f.begins_with(STANDALONE_CORE + "_libretro."):
+			return true
+	return false
 
 
 ## Where this card's image lives on disk, found or to be made.
@@ -262,7 +280,7 @@ func _boot(content: String, scratch: String, is_card: bool, title: String) -> bo
 	_scratch = scratch
 	_scratch_is_card = is_card
 	_lib.SetSramPath(ProjectSettings.globalize_path(scratch))
-	_lib.StartContent(CoreDownloadManager.default_core_root(), STANDALONE_CORE,
+	_lib.StartContent(_core_root(), STANDALONE_CORE,
 		ProjectSettings.globalize_path(content))
 	_running = true
 	_game_title = title
@@ -383,10 +401,10 @@ func core_options() -> Dictionary:
 		out["definitions"] = _opt_defs
 		out["values"] = _opt_values
 		return out
-	if CoreDownloadManager.installed_core_lib(STANDALONE_CORE).is_empty():
+	if not _core_installed():
 		out["note"] = "The Pokket core is not installed."
 		return out
-	var root := CoreDownloadManager.default_core_root()
+	var root := _core_root()
 	var peeked := CoreOptionsStore.peek(root, STANDALONE_CORE)
 	if peeked.is_empty():
 		out["note"] = CoreOptionsStore.peek_failure_reason(root, STANDALONE_CORE)
@@ -402,7 +420,7 @@ func set_core_option(key: String, value: String) -> void:
 		_lib.call("SetCoreOption", key, value)
 		_opt_values[key] = value
 	else:
-		CoreOptionsStore.set_value(CoreDownloadManager.default_core_root(), STANDALONE_CORE, key, value)
+		CoreOptionsStore.set_value(_core_root(), STANDALONE_CORE, key, value)
 
 
 ## The screen for the desktop fullscreen overlay, as a handheld lists its own.
