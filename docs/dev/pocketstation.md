@@ -128,7 +128,7 @@ is a card first, and has to stay one while seated.
 - `pocketstation_tests` (catalog, frame, saved, controls, seat, apps, carry; controls and saved
   mutation-tested). `Tools/models/pocketstation_seat_probe` (windowed): seated in a PS1, and an
   asymmetric "F" through `show_picture` on a loose one, upright and unmirrored.
-- **Not yet:** a working run on Pokket (it holds on the BIOS's HELLO in RetroXR; see "Crash Bandicoot 3" below), netplay (no `net_*`; a session
+- **Not yet:** a game PLAYED on the unit and its progress carried back (the app boots, see "Crash Bandicoot 3" below), netplay (no `net_*`; a session
   does not offer it), the docked protocol (pcsx_rearmed below), carrying the clock or a running app
   across dock/undock, infrared, a `BatteryBay`, the crystal body, and opening an existing shelf card AS a
   PocketStation (a unit is spawned with a card of its own). Headset feel OWED.
@@ -154,17 +154,18 @@ RetroXR's fork r26 9a26363, `scph5500.bin` (the core picks the Japanese BIOS by 
 - **The app file is named as psx-spx says**: the game code's `-` becomes `P` (`SCPSP10073`), and its
   title frame carries `MCX0`, which `PS1Card.is_pocketstation_app` reads (`[PocketStation app]` in the
   probe's listing).
-- **Playing it on the unit is NOT working yet.** `Tools/cores/pocketstation_play_probe` (the unit's own
-  `power_on`, Pokket v1.23 from the buildbot in a scratch root via `PocketStation.core_directory`)
-  boots and draws the BIOS's HELLO, then the picture holds on a partial or whole "Hello" for 40 s and
-  the buttons change nothing, with either `retrobios` BIOS (the C110 one and the C061 prototype), on
-  this card, a blank card and the app alone as a `.mcs`. **The point it holds at differs from run to
-  run** ("He", "Hell", "Hello"), which an emulator fed the same inputs would not do, so suspect the
-  frontend side (the picture or the thread) before the BIOS. `retro_run` is being called (the frame
-  counter advances only after it returns) and the software video path queues every frame with no
-  duplicate check. The next step is Pokket's own `core/` built natively with the same BIOS and card
-  (`psemu_run(33000)` a frame, LCD dumped), which tells "Pokket + this BIOS" from "RetroXR"; that run
-  needs a C toolchain build of the cloned source. Also try the reference J110 dump if one turns up.
+- **The app plays on the unit.** `Tools/cores/pocketstation_play_probe` (the unit's own `power_on`,
+  Pokket v1.23 from the buildbot in a scratch root via `PocketStation.core_directory`, the C110
+  `retrobios` dump, the card the dock probe left) goes HELLO -> heart -> the date/time screen
+  (`99/01/01`) -> Down, Action -> the app's icon -> Right, Action -> Dokodemo Crash-kun's title
+  (おためし) and Crash: `--every=32 --steps="400-402:down,440-442:action,480-482:right,520-522:action"`
+  (core frames at 32 a second). Nothing was played long enough to write to the card (md5 unchanged).
+- **The first report here said it held on HELLO, and that was the PROBE**: it `resize()`d the image
+  `GetVideoImage()` returns, which is the video handler's own, and `VideoHandler::UpdateTexture` drops
+  every later frame whose size no longer matches it, so the LCD froze on the first shot. The "point it
+  stopped at" moved only because each run used a different `--every` (`testing.md` already warned;
+  the DMG-07 probe hit the same thing the day before). Pokket's `core/` is deterministic (no host
+  clock anywhere), so a stop point that moves between runs is the frontend's or the probe's.
 
 ## The primitive (built 2026-11-05)
 

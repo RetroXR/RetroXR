@@ -153,10 +153,14 @@ func _drive(frame: int) -> void:
 
 
 func _shot(lib: Object, frame: int) -> void:
-	var img: Image = lib.call("GetVideoImage")
-	if img == null or img.is_empty():
+	var live: Image = lib.call("GetVideoImage")
+	if live == null or live.is_empty():
 		print("[psplay] frame %d: no image" % frame)
 		return
+	# A COPY: GetVideoImage is the video handler's own image, and its next update is
+	# dropped if the size no longer matches (VideoHandler::UpdateTexture). Resizing it
+	# in place froze the LCD on the first shot, which read as Pokket stuck on HELLO.
+	var img := live.duplicate() as Image
 	img.resize(img.get_width() * SCALE, img.get_height() * SCALE, Image.INTERPOLATE_NEAREST)
 	var p := out_dir.path_join("lcd_%05d.png" % frame)
 	img.save_png(p)
