@@ -520,7 +520,7 @@ const SOURCES := {
 	# flycast is GPLv2, so the source for these binaries sits on the tag.
 	"flycast": {
 		"repo":  "RetroXR/flycast",
-		"known_tag": "retroxr-flycast-libretro-v4",
+		"known_tag": "retroxr-flycast-libretro-v6",
 		"label": "Flycast (retroXR build)",
 		"assets": {
 			"Windows": "flycast_libretro.dll.zip",
