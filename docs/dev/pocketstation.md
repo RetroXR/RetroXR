@@ -1,6 +1,6 @@
 # The PocketStation — the room object (built 2026-11-05) and the pcsx_rearmed plan
 
-**The RetroXR half is built; the pcsx_rearmed half is a plan.** A PocketStation is spawned from the
+**Both halves are built (2026-11-06): Spyro the Dragon (J) and Spyro x Sparx (J) download their minigames onto it** (see "Spyro, docked" below); the plan below is what was built, with the differences noted there. Before that: **the RetroXR half was built; the pcsx_rearmed half was a plan.** A PocketStation is spawned from the
 PlayStation's card (below "Memory Card"), seats in a PS1's card slot as that console's memory card, and
 out of it runs the `pokket` core on its own card from the card panel, the VMU's arrangement (`VmuCard`).
 What it does not do yet is answer the PlayStation AS a PocketStation: seated, a game sees a plain card
@@ -204,6 +204,46 @@ RetroXR's fork r26 9a26363, `scph5500.bin` (the core picks the Japanese BIOS by 
   stopped at" moved only because each run used a different `--every` (`testing.md` already warned;
   the DMG-07 probe hit the same thing the day before). Pokket's `core/` is deterministic (no host
   clock anywhere), so a stop point that moves between runs is the frontend's or the probe's.
+
+## Spyro, docked (2026-11-06)
+
+Both Japanese Spyros send **`58h`** to slot 1 and offer nothing to a card that does not answer it
+(our pcsx_rearmed's card path took `52h`/`57h` only; `[memcard] slot 1: command 58h not answered`,
+which the fork now logs once a command byte). RetroXR's fork (`RetroXR/pcsx_rearmed`, branch
+`retroxr`, `c3d52064`, NOT yet released: `CoreSources` still names v5) runs a PocketStation there:
+
+- **RetroXR** pins `pcsx_rearmed_memcard{1,2}_device` = `pocketstation` for a seated PocketStation
+  (`ForcedCoreOptions.pocketstation_slots`, at a start and live on a seat or pull,
+  `RetroSystem.refresh_pocketstation_option`; `pocketstation_tests` `slot/`).
+- **The fork** runs Pokket's `core/` (MIT, `deps/pokket`, v1.24 `4bf5429`) in `libpcsxcore/pocketstation.c`:
+  BIOS from the core's system folder, else `../pokket/pocketstation.bin` (RetroXR keeps it there);
+  the card is its flash; docked at the first frame after the option, a PS1 frame of device time a
+  frame; communication enabled a few frames later (until then the slot is EMPTY). `sio.c` hands every
+  byte from `81h` on to the device's kernel and raises the IRQ on its acknowledge.
+  **The replies need a receive FIFO**: the BIOS sends the byte after a read's LSB before reading the
+  LSB's reply, then reads both, and a one-byte buffer made it see `5Ch` twice and abandon every
+  command at the `5Dh` (seen as "メモリーカードにアクセスちゅう" for ever). `PKST_TRACE=1` traces the first
+  600 bytes and the console's reads/control writes. What the device writes is copied into
+  `Mcd{N}Data` + `SaveMcd` (the frontend's SAVE_RAM); a card the frontend swaps in reloads it.
+  Not in savestates yet (logged), so not for netplay.
+- **Spyro the Dragon (J)** (SCPS-10085): after its save check it says ポケットステーションをにんしきしました
+  「とっくん！スパークス」をダウンロードできます, **ダウンロードする** (LEFT, then circle: the cursor starts on
+  ゲームをはじめる) writes `BISCPSP1008300000000`, 10 blocks, beside its save. On the unit (Pokket,
+  `pocketstation_play_probe`) Sparx and the item menu (からっぽ, nothing earned yet); playing it
+  changed the GAME's save, which the unit carried back.
+- **Spyro x Sparx (J)** (SCPS-10128): 「ぼうけん！スパークス」をポケットステーションにダウンロードしますか？,
+  **はい** (LEFT, then circle) writes `BISCPSP10128`, 13 blocks; on the unit its ぼうけん！ title, Sparx,
+  the same menu; its write went back too.
+- Probe steps (`pocketstation_dock_probe`, a root with the fork build, PS1 BIOS and the pokket BIOS):
+  Spyro 1 `2600-2606:start,3000-3006:start,3500-3506:left,3650-3656:circle,...` on a card already
+  holding its save (fresh, the save prompt comes first and the download offer near frame 3900);
+  Spyro 2 `2600-2606:start,3000-3006:start,3400-3406:circle,4300-4306:left,4450-4456:circle`.
+- Building the fork on Windows (msys2 mingw64): `make -f Makefile.libretro platform=win CC="gcc -pipe"`
+  compiles, but the link needs `TMPDIR` and msys make loses it ("Cannot create temporary file in
+  C:\Windows\"): run make's own link line (`make -n ... | grep -- "-o pcsx_rearmed_libretro.dll"`)
+  with `TMPDIR` set and only mingw64 on the PATH.
+- OWED: a release (Windows/Android/Linux/macOS, then `CoreSources`), savestates, a Quest run, and
+  anything the PS1 game reads BACK from the unit (5Bh/5Ch with the app).
 
 ## A save, proven (2026-11-05)
 
