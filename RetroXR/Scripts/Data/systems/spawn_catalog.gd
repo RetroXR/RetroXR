@@ -99,16 +99,22 @@ const _PERIPHERALS: Dictionary = {
 	],
 	# The printer is the far end of a Game Boy link lead, so it is offered where
 	# the lead is. It runs a core of its own (gbprinter), fetched from the Game
-	# Boy's BIOS / Extras page.
+	# Boy's BIOS / Extras page. `needs_core` names it, so the row says so under
+	# its name while it is not installed (_note_missing_cores), as a unit's row
+	# says its missing BIOS.
 	"gb": [
-		{"kind": "peripheral", "label": "Game Boy Printer", "spawn": "gb_printer"},
+		{"kind": "peripheral", "label": "Game Boy Printer", "spawn": "gb_printer",
+			"needs_core": "gbprinter"},
 		# Four Game Boys on one link: player 1's lead is captive, players 2-4 plug a
 		# DMG-04 into its sides (Dmg07Adapter). A core of its own, as the printer's.
-		{"kind": "peripheral", "label": "4 Player Adapter (DMG-07)", "spawn": "dmg07_adapter"},
+		{"kind": "peripheral", "label": "4 Player Adapter (DMG-07)", "spawn": "dmg07_adapter",
+			"needs_core": "dmg07"},
 	],
 	"gbc": [
-		{"kind": "peripheral", "label": "Game Boy Printer", "spawn": "gb_printer"},
-		{"kind": "peripheral", "label": "4 Player Adapter (DMG-07)", "spawn": "dmg07_adapter"},
+		{"kind": "peripheral", "label": "Game Boy Printer", "spawn": "gb_printer",
+			"needs_core": "gbprinter"},
+		{"kind": "peripheral", "label": "4 Player Adapter (DMG-07)", "spawn": "dmg07_adapter",
+			"needs_core": "dmg07"},
 	],
 	# The pad is named here because it is the only one with an expansion port, and
 	# all three paks are useless without it. The paks themselves are listed rather
@@ -574,7 +580,7 @@ static func _items_for(systemid: String) -> Array:
 	# and whatever that unit carries into the room with it (_PERIPHERALS: the
 	# 32X's Model 2 spacer), never a console or a pad.
 	if _is_expansion_media(systemid):
-		var media_items := _units_carded_here(systemid) + (_PERIPHERALS.get(systemid, []) as Array).duplicate(true)
+		var media_items := _units_carded_here(systemid) + _peripheral_rows(systemid)
 		return media_items + _unit_power_items(systemid)
 
 	var primitive: Array = []
@@ -645,7 +651,7 @@ static func _items_for(systemid: String) -> Array:
 		for item: Dictionary in items:
 			if str(item.get("model_id", "")) == chosen:
 				item["default"] = true
-	items.append_array((_PERIPHERALS.get(systemid, []) as Array).duplicate(true))
+	items.append_array(_peripheral_rows(systemid))
 	# The stands a console of this card is mounted in (StandCatalog), shipped and
 	# a mod's alike, beside its other accessories.
 	for stand_id: String in StandCatalog.stands_for_card(systemid):
@@ -906,6 +912,21 @@ static func _is_expansion_media(systemid: String) -> bool:
 		if ExpansionCatalog.media_of(id) == systemid 				and ExpansionCatalog.host_of(id) != systemid:
 			return true
 	return false
+
+
+## The card's own accessory rows (_PERIPHERALS), copied. A row that runs a core of
+## its own (`needs_core`: the Game Boy Printer, the DMG-07) still spawns without
+## it, and until the core is downloaded it carries the same small red `missing`
+## line a unit without its BIOS does. Without that line the only word that the
+## core was missing came after the printer was on the table and a game printed
+## to it.
+static func _peripheral_rows(systemid: String) -> Array:
+	var rows := (_PERIPHERALS.get(systemid, []) as Array).duplicate(true)
+	for row: Dictionary in rows:
+		var core := str(row.get("needs_core", ""))
+		if not core.is_empty() and CoreDownloadManager.installed_core_lib(core).is_empty():
+			row["missing"] = "Core missing: %s (BIOS / Extras)" % core
+	return rows
 
 
 ## Offered whether or not the unit's firmware is installed. A unit without it

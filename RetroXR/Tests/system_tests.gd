@@ -409,6 +409,20 @@ func _test_bsx_card() -> void:
 	_ok(not _spawn_row("satellaview", "expansion:satellaview").is_empty(),
 		"bsx/the base station is offered regardless")
 
+	# The Game Boy Printer and the DMG-07 run cores of their own: offered either
+	# way, and marked in red exactly while that core is not downloaded. The row
+	# names the core by string (SpawnCatalog must not load the peripherals'
+	# scripts), so it is checked against theirs here.
+	for case: Array in [["gb_printer", GbPrinter.CORE], ["dmg07_adapter", Dmg07Adapter.CORE]]:
+		var have := not CoreDownloadManager.installed_core_lib(str(case[1])).is_empty()
+		for sysid: String in ["gb", "gbc"]:
+			var row := _spawn_row(sysid, str(case[0]))
+			var note := str(row.get("missing", ""))
+			_ok(not row.is_empty() and str(row.get("needs_core", "")) == str(case[1])
+					and note.is_empty() == have and (have or note.contains(str(case[1]))),
+				"corenote/%s on %s names its core and is marked missing exactly when %s is not installed (%s)"
+					% [case[0], sysid, case[1], note])
+
 
 ## A card's row carrying `token`, or {} when it offers none.
 func _spawn_row(sysid: String, token: String) -> Dictionary:
