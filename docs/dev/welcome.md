@@ -103,6 +103,39 @@ The clip is FILMED in the real app by `Tools/room/nes_hookup_probe` (windowed):
   core runs on its own thread in real time, and a game-time film would show the
   game fast or slow. `--layout` places everything connected and saves a still per
   framing, to stage by.
+- **Cords on film (the first cut's cables were jumpy; fixed 2026-11-06)**: frames are
+  taken by a loop of their own (`_capture`), and a carried plug moves a step every
+  PHYSICS tick on the wall clock (moved once a rendered frame, about three ticks at
+  the film's rate, the solver got the plug in jumps and the cord swung back and
+  forth). The AV lead is LAID on the table, each plug 16 cm out from its own socket
+  (`_lay_cable`): dropped anywhere, its B end slid to the floor and was hauled a metre
+  up over the table's edge, and its pair lay crossed. Each end's two plugs are
+  carried TOGETHER in a lifted arc (`_seat_all`): one at a time, the first seated
+  held the lead's short fork while the second was taken away from it, and it snapped
+  taut. `_watch_cord` logs the cord's jerk next to each end on every carry; the
+  `--old-seat` leg brings back the old carry as the control (mean jerk 4.2/7.6 mm
+  then, 0.7/1.9 now, the worst B-end jolt 111 mm then, 10 now), and a film with
+  none of its frames flipping back and forth (A-B-A) is the check on the video.
+- **Nothing goes through the console or the set (second cut, same day)**: "straight
+  out of a jack" is from the middle of the thing it is on through the jack, level
+  (`_out_of`), NOT the jack's own Z, which on the console's jacks points up: the AV
+  plugs were brought down through the console's lid. Each pair is laid where it is on
+  the table AND clear of both bodies (`_lay_offset`: straight out, then along the
+  side), and carried on a smooth curve (`_carry_path` + `_along`, Catmull-Rom) up,
+  round to a point straight out from the jack, and in, raised over a body only where
+  the way would meet one. `_inside_body` tests the bodies' DRAWN parts, each in its
+  own frame: their collision reaches far past the shell (a point 16 cm out from a
+  jack was "inside" it) and both are turned, so an axis-aligned box lies too. Every
+  tick of a carry, the push home included but its last quarter, is tested, and one
+  inside fails the film; steering the approach 20 cm into the body fails all five
+  carries, which is the check's control.
+- **The pad's cord** (`ControllerCable`, a node of its own beside the pad, not under
+  it) is laid in ONE circular arc of its own length from the pad to its plug
+  (`_lay_pad_cord`, `VerletRope.restore_points`): dropped, it lay in loops over each
+  other and twitched all film (such a loop never quite sleeps, `rope.md`). An arc
+  crosses itself only past a full circle, so a long cord bends further round, up to
+  330 deg, rather than the pad moving (moved out to fit half a circle, it fell off the
+  table). `_watch_cord` watches it on every carry too.
 - **Checked as it films**: the tray latched and the machine reading the cart, a
   picture on the set, START changing what the set shows. It fails otherwise.
 - The NES-001 is the shipped detailed model: there is no primitive NES (the
