@@ -34,6 +34,13 @@ Three ways were weighed:
 - **The `pokket` libretro core as a separate machine on the link bus** (the Game Boy Printer's model).
   Refused: a card answers inside the byte exchange (/ACK within 100 µs of the clock, psx-spx), so the
   bus would be paying a grain and a horizon per BYTE, for some 140 bytes a sector.
+  **Measured 2026-11-06 (desktop, Windows):** Spyro the Dragon (J)'s download is 127,138 card bytes in
+  1,370 commands, 912 frames of ~140 bytes (one sector a frame). In-process the device's work is
+  4.4 us a byte (median 0.63 ms a busy frame, p95 0.84 ms, the whole download 0.57 s). A bare
+  mutex + condition-variable round trip between two threads (LinkCoordinator's wait, nothing else
+  running, the answering thread doing no work) is 33-36 us: ~4.8 ms of a 16.7 ms frame on the PS1's
+  thread for the wake-ups alone, ~4.3 s over the download, before the device runs a cycle. A floor,
+  not an estimate: the real bus adds horizons and grants, and the Quest was not measured.
 - **Pokket's emulation core linked into pcsx_rearmed, every card byte handed to it.** Taken. Pokket's
   `core/` is MIT (`mentalfoundry/Pokket`, `core/LICENSE`) and has the API for exactly this
   (`psemu_com_set_docked`, `psemu_com_is_enabled`, `psemu_com_set_selected`, `psemu_com_transfer[_timed]`,
