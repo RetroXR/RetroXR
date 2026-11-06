@@ -96,6 +96,8 @@ func on_memcard_inserted(card: Node3D, slot: int) -> void:
 		else:
 			_remount_cards()
 			_set_card_presence(slot, true)
+	if card is PocketStation:
+		_host.refresh_pocketstation_option()
 	NetworkManager.report_event(NetEvents.Event.EV_MEMCARD_INSERT,
 		{"sys": self, "card": card, "slot": slot})
 
@@ -126,6 +128,8 @@ func on_memcard_removed(slot: int) -> void:
 			# an unformatted one, so the game offered to format it instead of
 			# reporting no card at all.
 			_set_card_presence(slot, false)
+	if pulled is PocketStation:
+		_host.refresh_pocketstation_option()
 	NetworkManager.report_event(NetEvents.Event.EV_MEMCARD_REMOVE,
 		{"sys": self, "slot": slot})
 

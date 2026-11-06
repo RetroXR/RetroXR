@@ -254,6 +254,23 @@ static func ps_multitap(core: String, systemid: String, taps: Array[bool]) -> Di
 	return {}
 
 
+## What is in each PlayStation card slot, to RetroXR's pcsx_rearmed (fork v6+):
+## `pcsx_rearmed_memcard{1,2}_device` = "pocketstation" for a seated PocketStation,
+## whose own kernel (Pokket's core, linked into the fork) then answers the console, so
+## a game offers its PocketStation download -- Spyro the Dragon (J) and Spyro x Sparx (J)
+## send 58h and show nothing to a plain card. Pinned both ways, as the Multitap's: an
+## empty slot or a plain card is "card", whatever a previous run left. Read live.
+## `pocketstations` is one bool per slot. docs/dev/pocketstation.md.
+static func pocketstation_slots(core: String, systemid: String, pocketstations: Array[bool]) -> Dictionary:
+	if systemid != "psx" or not core.begins_with("pcsx_rearmed"):
+		return {}
+	var out := {}
+	for slot in 2:
+		var on := slot < pocketstations.size() and pocketstations[slot]
+		out["pcsx_rearmed_memcard%d_device" % (slot + 1)] = "pocketstation" if on else "card"
+	return out
+
+
 ## The group SystemPorts.ps_multitap_sockets counts for a console: the taps its
 ## games read (a SCPH-1070 in a PlayStation, a SCPH-10090 in a PlayStation 2).
 static func multitap_group(systemid: String) -> String:

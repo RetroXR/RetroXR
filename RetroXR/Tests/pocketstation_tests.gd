@@ -56,6 +56,8 @@ func _ready() -> void:
 		await _test_dock()
 	if _wants("ids"):
 		await _test_ids()
+	if _wants("slot"):
+		await _test_slot()
 	_clear_fixtures()
 	await _settle_warm()
 	_finish()
@@ -512,4 +514,40 @@ func _test_ids() -> void:
 		ps.card_id)
 	ps.queue_free()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(scratch))
+	await get_tree().process_frame
+
+
+# ── slot/ ─────────────────────────────────────────────────────────────────────
+
+## A seated PocketStation is the core's to answer as one (pcsx_rearmed's per-slot
+## device option); a plain card, an empty slot or another core is a card.
+func _test_slot() -> void:
+	_eq(ForcedCoreOptions.pocketstation_slots("pcsx_rearmed", "psx", [true, false]),
+		{"pcsx_rearmed_memcard1_device": "pocketstation", "pcsx_rearmed_memcard2_device": "card"},
+		"slot/a PocketStation in slot 1 is pinned as one, slot 2 a card")
+	_eq(ForcedCoreOptions.pocketstation_slots("pcsx_rearmed", "psx", [false, false]),
+		{"pcsx_rearmed_memcard1_device": "card", "pcsx_rearmed_memcard2_device": "card"},
+		"slot/and pinned back to a card when it is pulled")
+	_eq(ForcedCoreOptions.pocketstation_slots("mednafen_psx_hw", "psx", [true, true]), {},
+		"slot/no other core is told anything")
+	_eq(ForcedCoreOptions.pocketstation_slots("pcsx_rearmed", "ps2", [true]), {},
+		"slot/nor another console")
+	var sys := (load("res://Scenes/Objects/system.tscn") as PackedScene).instantiate() as RetroSystem
+	sys.systemid = "psx"
+	add_child(sys)
+	sys.freeze = true
+	for i in 6:
+		await get_tree().physics_frame
+	var ps := _unit(FIXTURE)
+	ps.global_position = sys.memcard_slots()[0].global_position + Vector3(0, 0.3, 0.3)
+	await get_tree().physics_frame
+	sys.memcard_slots()[0].pick_up_object(ps)
+	_eq(str(sys.all_forced_options("pcsx_rearmed").get("pcsx_rearmed_memcard1_device", "")), "pocketstation",
+		"slot/seated in a PlayStation, its run pins slot 1 a PocketStation")
+	sys.memcard_slots()[0].drop_object()
+	await get_tree().process_frame
+	_eq(str(sys.all_forced_options("pcsx_rearmed").get("pcsx_rearmed_memcard1_device", "")), "card",
+		"slot/and pulled, a card again")
+	ps.queue_free()
+	sys.queue_free()
 	await get_tree().process_frame

@@ -2943,6 +2943,7 @@ func all_forced_options(core: String) -> Dictionary:
 	out.merge(ForcedCoreOptions.lightgun(core, _has_lightgun()), true)
 	out.merge(ForcedCoreOptions.ps_multitap(core, systemid,
 		_ports.ps_multitap_sockets(ForcedCoreOptions.multitap_group(systemid))), true)
+	out.merge(ForcedCoreOptions.pocketstation_slots(core, systemid, _seated_pocketstations()), true)
 	for storage: ConsoleStorage in _storages:
 		out.merge(storage.forced_options_for(core), true)
 	return out
@@ -2957,6 +2958,33 @@ func _has_lightgun() -> bool:
 
 
 ## Whether a card is in each slot this console shows.
+## One bool per card slot: whether a PocketStation is seated there.
+func _seated_pocketstations() -> Array[bool]:
+	var out: Array[bool] = []
+	for slot in card_slot_count():
+		out.append(get_snapped_memcard(slot) is PocketStation)
+	return out
+
+
+## Tell a RUNNING core which card slots hold a PocketStation
+## (ForcedCoreOptions.pocketstation_slots), after a card was seated or pulled. A core
+## without the option (the buildbot's pcsx_rearmed, our v5 and older) sees a plain
+## card: said once a seat, since seating is rare.
+func refresh_pocketstation_option() -> void:
+	if not is_powered_on:
+		return
+	var opts := ForcedCoreOptions.pocketstation_slots(_resolve_core(), systemid, _seated_pocketstations())
+	for key: String in opts:
+		if core_options_known() and not core_declares_option(key):
+			if str(opts[key]) == "pocketstation":
+				push_warning("[RetroSystem] %s has no %s option: the PocketStation answers as a plain card"
+					% [_resolve_core(), key])
+			continue
+		if str(_options_values.get(key, "")) != str(opts[key]):
+			print("[RetroSystem] %s = %s" % [key, opts[key]])
+			set_core_option(key, str(opts[key]))
+
+
 func _seated_cards() -> Array[bool]:
 	var out: Array[bool] = []
 	for slot in card_slot_count():
