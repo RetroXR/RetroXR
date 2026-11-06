@@ -348,11 +348,18 @@ const SOURCES := {
 	# Armored Core and Formula 1 misdetecting a cable that is not there.
 	# pcsx_rearmed_link_cable is on by default and is not restart-time.
 	#
+	# v8 also runs a PocketStation in a memory card slot (Pokket's MIT core,
+	# deps/pokket): pcsx_rearmed_memcard{1,2}_device = pocketstation, which
+	# ForcedCoreOptions.pocketstation_slots pins for a seated one, so Spyro 1 and
+	# 2 (J) offer their downloads; the device is in savestates, and its LCD comes
+	# over the device display interface. The v6 and v7 tags have no release (Android
+	# missed the new sources, then GitHub retired macos-14). docs/dev/pocketstation.md.
+	#
 	# pcsx_rearmed is GPLv2, so the source has to sit on the tag beside the
 	# binary — same arrangement as Dolphin and gambatte.
 	"pcsx_rearmed": {
 		"repo":  "RetroXR/pcsx_rearmed",
-		"known_tag": "retroxr-pcsx-rearmed-libretro-v5",
+		"known_tag": "retroxr-pcsx-rearmed-libretro-v8",
 		"label": "PCSX-ReARMed (retroXR build)",
 		"assets": {
 			"Windows": "pcsx_rearmed_libretro.dll.zip",
