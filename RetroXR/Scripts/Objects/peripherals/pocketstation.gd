@@ -176,6 +176,8 @@ func _on_grabbed(_pickable: Node3D, by: Node3D) -> void:
 		print("[PocketStation] %s seated in %s" % [card_label, by.get_path()])
 		var was_running := _running
 		power_off()
+		# Docked, its screen is the console's core's to draw (_show_docked).
+		set_process(true)
 		if _carry_pending:
 			# The core still holds the last of the run, and the console reads the card
 			# file the moment this returns: the carry-back lands a few frames later and
@@ -642,9 +644,11 @@ func _process(_delta: float) -> void:
 	if _running and _lib != null:
 		_update_audio()
 		show_picture(_lib.GetVideoTexture() as Texture2D)
+	elif is_seated():
+		_show_docked()
 	if _anim != null and not _anim.is_empty():
 		_anim.animate(_btn, Vector2.ZERO, Vector2.ZERO, ANIM_WEIGHT)
-	if not _running and not _carry_pending and _btn == 0:
+	if not _running and not _carry_pending and _btn == 0 and not is_seated():
 		_idle_frames += 1
 		if _idle_frames > IDLE_FRAMES_TO_STOP:
 			set_process(false)
@@ -669,6 +673,33 @@ func show_picture(tex: Texture2D) -> void:
 		_screen_mat.set_shader_parameter("source_tex", tex)
 	if _screen.get_surface_override_material(0) != _screen_mat:
 		_screen.set_surface_override_material(0, _screen_mat)
+
+
+## Seated in a running PlayStation whose core runs the device (RetroXR's pcsx_rearmed),
+## the LCD is the console's to draw: the device display interface hands it over as
+## location 1 (a memory card slot), port = the slot. The device turns its own picture
+## half round in the dock, so it lands upright as it is drawn. Off otherwise.
+const _DEVICE_DISPLAY_MEMORY_CARD := 1
+
+
+func _show_docked() -> void:
+	var sys := CardSaveOps.holder_of(get_tree(), card_id) as RetroSystem
+	var lib: Object = sys.get_libretro_node() if sys != null and sys.is_powered_on else null
+	if lib == null or not lib.has_method("GetDeviceScreenTexture"):
+		_show_off()
+		return
+	var slot := sys.memcard_slots().find(_seat)
+	if slot < 0:
+		_show_off()
+		return
+	var tex := lib.call("GetDeviceScreenTexture", _DEVICE_DISPLAY_MEMORY_CARD, slot, 0) as Texture2D
+	if tex == null:
+		_show_off()
+		return
+	if _last_tex == null:
+		print("[PocketStation] %s: showing the docked device's screen from %s, slot %d"
+			% [card_label, sys.systemid, slot + 1])
+	show_picture(tex)
 
 
 func _show_off() -> void:

@@ -249,8 +249,30 @@ which the fork now logs once a command byte). RetroXR's fork (`RetroXR/pcsx_rear
   compiles, but the link needs `TMPDIR` and msys make loses it ("Cannot create temporary file in
   C:\Windows\"): run make's own link line (`make -n ... | grep -- "-o pcsx_rearmed_libretro.dll"`)
   with `TMPDIR` set and only mingw64 on the PATH.
-- OWED: a release (Windows/Android/Linux/macOS, then `CoreSources`), savestates, a Quest run, and
-  anything the PS1 game reads BACK from the unit (5Bh/5Ch with the app).
+- **Its screen while docked** (fork `9d0336e0`, libretro-godot `ba26721`): the **device display
+  interface** (`libretro-godot/src/DeviceDisplayInterface.hpp`, env **97**, EXPERIMENTAL then FINAL as
+  the link/Transfer Pak/controller audio calls; byte-identical copies in both forks) names a screen
+  by location -- `0` a controller (a VMU), `1` a memory card slot -- port and index. It replaces the
+  controller display call (`RETRO_ENVIRONMENT_PRIVATE | 1`), which only knew controllers; Flycast
+  now uses 97 too (fork `b0f321de6`, falling back to the old call on an older frontend; logs "VMU
+  screens: handed over (device display)"), and libretro-godot still answers the old one as location
+  0. The fork hands the 32 x 32 LCD over whenever it changes, as the device draws it: docked, the
+  kernel sets ROT and turns the picture half round so it reads upright in the slot. A seated
+  `PocketStation` reads `GetDeviceScreenTexture(1, slot, 0)` off its console's core every frame
+  (`_show_docked`). **Docked straight from a power-on the BIOS draws NOTHING** (measured: white for
+  3800 frames); a real one goes in already running, so the fork runs 1000 PS1 frames (16.7 s) of
+  device time undocked first -- the clock face then, 120 ms once at the first frame. The docked
+  clock read 00:00 for 90 s of device time: whether it redraws or ticks docked is not known.
+  `pocketstation_dock_probe` saves the device screen beside each shot (`*_lcd.png`).
+- **Savestates carry the device** (fork `9d0336e0`): a `PSIO` chunk (the slot mid-command, its reply
+  FIFO) and a `PKST` chunk (per slot, Pokket's whole state) after sio1's; the card is the device's
+  flash as saved; an older state ends before them. `retro_serialize_size` always reserves two
+  devices, so it never changes in a run. `pocketstation_dock_probe --state-at=F` holds the core
+  (lockstep, no inputs), saves, loads, saves: **only misc's `save_counter` differs (3 bytes at
+  offset 36 of the misc block), the same 3 as the plain-card control**, and a download in progress
+  at F still lands after the load. A real netplay session with one docked is not run yet.
+- OWED: a release (Windows/Android/Linux/macOS, then `CoreSources`), a Quest run, a two-peer session,
+  and anything the PS1 game reads BACK from the unit (5Bh/5Ch with the app).
 
 ## A save, proven (2026-11-05)
 

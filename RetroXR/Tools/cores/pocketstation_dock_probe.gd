@@ -22,6 +22,11 @@
 ##
 ## Crash Bandicoot 3 - Buttobi! Sekai Isshuu (Japan, Asia), SCPS-10073, is what this was
 ## first run against (docs/dev/pocketstation.md).
+##
+## --state-at=F: at core frame F take a savestate (S1), load it straight back and take
+## another (S2): with a PocketStation docked, the two must be the same byte for byte
+## (its CPU, RAM and flash included), and the run then goes on FROM the loaded state, so
+## a download in progress at F must still land on the card.
 extends Node
 
 const BITS := {"cross": 0, "square": 1, "select": 2, "start": 3, "up": 4, "down": 5,
@@ -40,6 +45,10 @@ var _pad: Node = null
 var _card: Node3D = null
 var _lib: Object = null
 var _sent := -1
+var state_at := -1
+var _s1 := PackedByteArray()
+var _state_done := false
+var state_ok := true
 
 
 func _ready() -> void:
@@ -63,6 +72,8 @@ func _ready() -> void:
 			every = int(a.trim_prefix("--every="))
 		elif a == "--keep":
 			keep = true
+		elif a.begins_with("--state-at="):
+			state_at = int(a.trim_prefix("--state-at="))
 	get_tree().create_timer(900.0).timeout.connect(func() -> void:
 		print("[psdock] TIMEOUT")
 		get_tree().quit(1))
@@ -155,6 +166,9 @@ func _run() -> void:
 			next_every += every
 		if frame > last:
 			break
+		if state_at >= 0 and not _state_done and frame >= state_at:
+			_state_done = true
+			await _state_round_trip()
 		await get_tree().process_frame
 	_lib.RequestSramFlush()
 	for i in 30:
@@ -163,7 +177,40 @@ func _run() -> void:
 	for i in 90:
 		await get_tree().process_frame
 	_report_card()
-	await _finish(0)
+	await _finish(0 if state_ok else 1)
+
+
+## S1, load it, S2: the same bytes, or the load lost something.
+func _state_round_trip() -> void:
+	# Held still (lockstep with no inputs posted runs no frame, and still takes the
+	# save and load commands between frames), so S2 sees exactly what the load left.
+	_lib.SetNetplayMode(true, 0x1, -1)
+	for i in 10:
+		await get_tree().process_frame
+	_lib.RequestSaveState()
+	var saved: Array = await _lib.savestate_ready
+	_s1 = saved[0]
+	var f1: int = saved[1]
+	print("[psdock] state S1: %d bytes at frame %d" % [_s1.size(), f1])
+	_lib.RequestLoadState(_s1, f1)
+	var ok: bool = await _lib.savestate_loaded
+	print("[psdock] state S1 loaded back: %s" % ok)
+	_lib.RequestSaveState()
+	var again: Array = await _lib.savestate_ready
+	var s2: PackedByteArray = again[0]
+	print("[psdock] state S2 at frame %d (S1 was %d)" % [int(again[1]), f1])
+	var diff := 0
+	var first := -1
+	if s2.size() == _s1.size():
+		for i in range(s2.size()):
+			if s2[i] != _s1[i]:
+				diff += 1
+				if first < 0:
+					first = i
+	_lib.SetNetplayMode(false, 0x1, -1)
+	state_ok = ok and s2.size() == _s1.size() and diff == 0
+	print("[psdock] %s  save -> load -> save: %d of %d bytes differ%s" % ["PASS" if state_ok else "FAIL",
+		diff if s2.size() == _s1.size() else -1, _s1.size(), "" if first < 0 else " (first at %d)" % first])
 
 
 func _drive(frame: int) -> void:
@@ -185,6 +232,18 @@ func _shot(frame: int) -> void:
 	var path := out_dir.path_join("%s_%05d.png" % [leg, frame])
 	img.save_png(path)
 	print("[psdock] frame %d -> %s" % [frame, path])
+	# The docked device's own screen, as the console's core hands it over (the device
+	# display interface: location 1, a memory card slot; port 0, slot 1).
+	if _lib.has_method("GetDeviceScreenTexture"):
+		var lcd := _lib.call("GetDeviceScreenTexture", 1, 0, 0) as Texture2D
+		var limg: Image = lcd.get_image() if lcd != null else null
+		if limg == null or limg.is_empty():
+			print("[psdock] frame %d: no device screen" % frame)
+		else:
+			var big := limg.duplicate() as Image
+			big.resize(limg.get_width() * 8, limg.get_height() * 8, Image.INTERPOLATE_NEAREST)
+			big.save_png(out_dir.path_join("%s_%05d_lcd.png" % [leg, frame]))
+			print("[psdock] frame %d: device screen %dx%d" % [frame, limg.get_width(), limg.get_height()])
 
 
 ## What the game left on the card: every save, a PocketStation app marked.
