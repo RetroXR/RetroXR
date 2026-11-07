@@ -1118,6 +1118,41 @@ func set_screen_glow(on: bool) -> void:
 	_model.set_screen_glow(on)
 
 
+## The machine menu's LCD tab: the screen look's settings (gameboy_lcd's palette and
+## grid on a Game Boy). [] for a machine whose screen has none, which hides the tab.
+func get_lcd_param_specs() -> Array:
+	if _model == null or not _model.has_method("lcd_param_specs"):
+		return []
+	return _model.call("lcd_param_specs")
+
+
+func get_lcd_params() -> Dictionary:
+	if _model == null or not _model.has_method("get_lcd_params"):
+		return {}
+	return _model.call("get_lcd_params")
+
+
+## What differs from the look's defaults, for the room's save.
+func get_lcd_param_overrides() -> Dictionary:
+	if _model == null or not _model.has_method("get_lcd_param_overrides"):
+		return {}
+	return _model.call("get_lcd_param_overrides")
+
+
+func set_lcd_param(key: String, value: Variant) -> void:
+	if _model == null or not _model.has_method("set_lcd_param"):
+		print("[RetroSystem] %s: no LCD settings; ignoring %s = %s" % [name, key, value])
+		return
+	_model.call("set_lcd_param", key, value)
+
+
+func set_lcd_params(values: Dictionary) -> void:
+	if _model == null or not _model.has_method("set_lcd_params"):
+		print("[RetroSystem] %s: no LCD settings; dropping saved %s" % [name, values])
+		return
+	_model.call("set_lcd_params", values)
+
+
 ## Pose a lid at a saved angle. Public because ScenePersistence has to re-apply it
 ## after seating a cartridge: an insert swings the bay open on its own.
 func set_lid_angle_deg(open_deg: float) -> void:

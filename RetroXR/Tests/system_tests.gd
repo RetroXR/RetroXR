@@ -133,6 +133,7 @@ func _ready() -> void:
 	await _test_model_variant()
 	await _test_power_led()
 	await _test_screen_lit()
+	await _test_lcd_params()
 	await _test_save_state_gates()
 	await _test_sram_paths()
 	await _test_save_migration()
@@ -2529,6 +2530,71 @@ func _test_screen_lit() -> void:
 	sp.call("_update_screen")
 	_ok(_screen_glows(sp_screen.get_surface_override_material(0)),
 		"screen_lit/gba sp's button switches it back on")
+	host.queue_free()
+	await get_tree().process_frame
+
+
+## The machine menu's LCD tab: the Game Boy offers gameboy_lcd's palette and grid,
+## a change reaches BOTH screen materials (self-lit and room-lit), only changes are
+## saved, a restore puts them back, and a screen without settings hides the tab.
+func _test_lcd_params() -> void:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0.5, 0.5, 0.5))
+	var host := _PictureHost.new()
+	host.tex = ImageTexture.create_from_image(img)
+	var gb := (load("res://Scenes/Objects/system_models/game_boy_primitive.tscn") as PackedScene).instantiate()
+	host.add_child(gb)
+	add_child(host)
+	await get_tree().process_frame
+	var specs: Array = gb.call("lcd_param_specs")
+	var keys := specs.map(func(sp: Dictionary) -> String: return str(sp["key"]))
+	_ok(keys == ["gb_palette", "gb_grid_strength", "gb_grid_width"],
+		"lcd/game boy offers palette and grid", str(keys))
+	_ok((gb.call("get_lcd_param_overrides") as Dictionary).is_empty(),
+		"lcd/game boy saves nothing at the defaults")
+	# Both materials built before the change, so a change must reach them live.
+	var mats: Array = []
+	for pref: bool in [true, false]:
+		gb.call("set_screen_glow", pref)
+		gb.call("_update_screen")
+		mats.append((gb.get("_screen") as MeshInstance3D).get_surface_override_material(0))
+	gb.call("set_lcd_param", "gb_palette", 3)
+	gb.call("set_lcd_param", "gb_grid_strength", 0.6)
+	for mat: ShaderMaterial in mats:
+		_ok(mat.get_shader_parameter("gb_c3") == Color(1, 1, 1),
+			"lcd/palette reaches %s" % mat.shader.resource_path, str(mat.get_shader_parameter("gb_c3")))
+		_ok(is_equal_approx(float(mat.get_shader_parameter("gb_grid_strength")), 0.6),
+			"lcd/grid strength reaches %s" % mat.shader.resource_path)
+	var saved: Dictionary = gb.call("get_lcd_param_overrides")
+	_ok(saved.size() == 2 and int(saved.get("gb_palette", -1)) == 3,
+		"lcd/only the changed settings are saved", str(saved))
+	host.queue_free()
+	await get_tree().process_frame
+
+	# A fresh machine restored from that record: the material it builds wears it.
+	host = _PictureHost.new()
+	host.tex = ImageTexture.create_from_image(img)
+	gb = (load("res://Scenes/Objects/system_models/game_boy_primitive.tscn") as PackedScene).instantiate()
+	host.add_child(gb)
+	add_child(host)
+	await get_tree().process_frame
+	gb.call("set_lcd_params", saved.merged({"not_a_setting": 1.0}))
+	gb.call("_update_screen")
+	var mat := (gb.get("_screen") as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
+	_ok(mat != null and mat.get_shader_parameter("gb_c0") == Color(0, 0, 0),
+		"lcd/a restored palette is on the screen's first material")
+	_ok(not (gb.call("get_lcd_params") as Dictionary).has("not_a_setting"),
+		"lcd/an unknown saved key is dropped")
+	host.queue_free()
+	await get_tree().process_frame
+
+	# A screen with no settings: no tab.
+	host = _PictureHost.new()
+	var gg := (load("res://Scenes/Objects/system_models/game_gear.tscn") as PackedScene).instantiate()
+	host.add_child(gg)
+	add_child(host)
+	await get_tree().process_frame
+	_ok((gg.call("lcd_param_specs") as Array).is_empty(), "lcd/game gear has no LCD tab")
 	host.queue_free()
 	await get_tree().process_frame
 

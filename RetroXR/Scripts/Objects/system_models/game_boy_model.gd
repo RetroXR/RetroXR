@@ -9,11 +9,57 @@ const LCD_SHADER := preload("res://Shaders/gameboy_lcd.gdshader")
 const LCD_LIT_SHADER := preload("res://Shaders/gameboy_lcd_lit.gdshader")
 
 
+## The LCD tab's Palette choices, darkest shade first (gameboy_lcd's gb_c0..gb_c3).
+## DMG is the shader's own default, the real panel's greens; the others are
+## approximations of how those machines' panels read, not measured.
+const PALETTES := [
+	["DMG green", [Color(0.059, 0.220, 0.059), Color(0.188, 0.384, 0.188),
+		Color(0.545, 0.675, 0.059), Color(0.608, 0.737, 0.059)]],
+	["Pocket grey", [Color(0.122, 0.122, 0.106), Color(0.302, 0.325, 0.235),
+		Color(0.545, 0.584, 0.427), Color(0.769, 0.812, 0.631)]],
+	["Light teal", [Color(0.0, 0.235, 0.188), Color(0.110, 0.420, 0.333),
+		Color(0.247, 0.647, 0.541), Color(0.424, 0.878, 0.753)]],
+	["Grayscale", [Color(0.0, 0.0, 0.0), Color(0.333, 0.333, 0.333),
+		Color(0.667, 0.667, 0.667), Color(1.0, 1.0, 1.0)]],
+]
+
+
 func _init() -> void:
 	# Game Boy uses the base default cartridge size (57 × 65 × 8 mm).
 	_lcd_shader = LCD_SHADER
 	_lcd_shader_lit = LCD_LIT_SHADER
 	_reflective_lcd = true
+
+
+## gameboy_lcd's settings for the machine menu's LCD tab: its four shades (as a
+## palette) and the pixel grid. gb_resolution is the panel's, not a taste.
+func lcd_param_specs() -> Array:
+	var palettes: Array = []
+	for i in PALETTES.size():
+		palettes.append([PALETTES[i][0], i])
+	return [
+		{"key": "gb_palette", "label": "Palette", "options": palettes},
+		{"key": "gb_grid_strength", "label": "Pixel grid", "min": 0.0, "max": 1.0,
+			"step": 0.02, "fmt": "%.2f"},
+		{"key": "gb_grid_width", "label": "Grid line width", "min": 0.0, "max": 0.5,
+			"step": 0.01, "fmt": "%.2f"},
+	]
+
+
+## The shader's own defaults (gameboy_lcd.gdshaderinc).
+func lcd_param_defaults() -> Dictionary:
+	return {"gb_palette": 0, "gb_grid_strength": 0.22, "gb_grid_width": 0.08}
+
+
+## The palette is a choice standing for four uniforms; the rest are uniforms.
+func _apply_lcd_params(mat: ShaderMaterial) -> void:
+	var params := get_lcd_params()
+	var idx := clampi(int(params["gb_palette"]), 0, PALETTES.size() - 1)
+	var shades: Array = PALETTES[idx][1]
+	for i in 4:
+		mat.set_shader_parameter("gb_c%d" % i, shades[i])
+	mat.set_shader_parameter("gb_grid_strength", float(params["gb_grid_strength"]))
+	mat.set_shader_parameter("gb_grid_width", float(params["gb_grid_width"]))
 
 
 

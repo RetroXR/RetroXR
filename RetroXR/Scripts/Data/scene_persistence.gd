@@ -1248,6 +1248,12 @@ static func _entry_validation_error(entry: Dictionary, ids: Dictionary) -> Strin
 		for key: Variant in (entry["crt_params"] as Dictionary):
 			if not key is String or not _is_finite_number(entry["crt_params"][key]):
 				return "crt_params contains a non-numeric value"
+	if entry.has("lcd_params"):
+		if not entry["lcd_params"] is Dictionary:
+			return "lcd_params is not a dictionary"
+		for key: Variant in (entry["lcd_params"] as Dictionary):
+			if not key is String or not _is_finite_number(entry["lcd_params"][key]):
+				return "lcd_params contains a non-numeric value"
 	if entry.has("controls"):
 		if not entry["controls"] is Dictionary:
 			return "controls is not a dictionary"
@@ -1837,6 +1843,8 @@ func _restore_system(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: 
 		sys.set_screen_light(bool(rec["screen_light"]))
 	if rec.has("screen_glow"):
 		sys.set_screen_glow(bool(rec["screen_glow"]))
+	if rec.get("lcd_params") is Dictionary:
+		sys.set_lcd_params(rec["lcd_params"])
 
 
 func _restore_arcade_bay(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
@@ -2394,6 +2402,10 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 	# "Self-Lit Screen" switched ON; off is the default and goes unsaved.
 	if sys.get_screen_glow() == 1:
 		result["screen_glow"] = true
+	# The LCD tab's settings (a Game Boy's palette and grid), only those changed.
+	var lcd_params := sys.get_lcd_param_overrides()
+	if not lcd_params.is_empty():
+		result["lcd_params"] = lcd_params
 	# Extra video-out channels (dual-screen handhelds: ch 1 = BOTTOM).
 	var extra: Array = []
 	for ch in range(1, sys.get_channel_count()):

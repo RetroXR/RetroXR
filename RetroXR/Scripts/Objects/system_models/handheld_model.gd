@@ -71,6 +71,10 @@ var _reflective_lcd := false
 ## This machine's "Self-Lit Screen" switch: a reflective LCD glows anyway. Off by
 ## default; saved per object (RetroSystem.get_screen_glow).
 var self_lit := false
+## The device look's settings the player changed (the machine menu's LCD tab),
+## key -> value, only the keys lcd_param_defaults() names. Per object and saved
+## with the room (ScenePersistence "lcd_params"), as a TV's CRT settings are.
+var _lcd_params: Dictionary = {}
 ## The last screen_self_lit() _update_screen() saw, for logging a change once.
 var _was_self_lit := -1
 ## What the panel shows with nothing running — the authored, unlit LCD.
@@ -294,11 +298,13 @@ func _update_screen() -> void:
 		if _lcd_material == null:
 			_lcd_material = ShaderMaterial.new()
 			_lcd_material.shader = _lcd_shader
+			_apply_lcd_params(_lcd_material)
 		mat = _lcd_material
 	else:
 		if _lcd_material_lit == null:
 			_lcd_material_lit = ShaderMaterial.new()
 			_lcd_material_lit.shader = _lcd_shader_lit
+			_apply_lcd_params(_lcd_material_lit)
 		mat = _lcd_material_lit
 	if mat.get_shader_parameter("source_tex") != tex:
 		mat.set_shader_parameter("source_tex", tex)
@@ -320,6 +326,75 @@ func has_screen_glow_switch() -> bool:
 
 func set_screen_glow(on: bool) -> void:
 	self_lit = on
+
+
+# ── The device look's settings (the machine menu's LCD tab) ──────────────────
+
+## The rows the LCD tab shows for this machine, in order; [] hides the tab. Each
+## is a Dictionary with "key" and "label", then either a slider's "min", "max",
+## "step" and "fmt", or a choice's "options" ([[name, id], ...]). A subclass whose
+## _lcd_shader has settings worth a player's hand overrides this together with
+## lcd_param_defaults() (and _apply_lcd_params(), if a key is not a uniform).
+func lcd_param_specs() -> Array:
+	return []
+
+
+## Every LCD setting's default, by key. The keys are the only ones accepted.
+func lcd_param_defaults() -> Dictionary:
+	return {}
+
+
+## Every LCD setting as it stands: the defaults with the player's changes over them.
+func get_lcd_params() -> Dictionary:
+	var out := lcd_param_defaults()
+	out.merge(_lcd_params, true)
+	return out
+
+
+## Only what the player changed from the default, for the room's save.
+func get_lcd_param_overrides() -> Dictionary:
+	var defaults := lcd_param_defaults()
+	var out := {}
+	for key: String in _lcd_params:
+		if not is_equal_approx(float(_lcd_params[key]), float(defaults.get(key, 0.0))):
+			out[key] = _lcd_params[key]
+	return out
+
+
+## One setting, from the menu: applied to both materials at once.
+func set_lcd_param(key: String, value: Variant) -> void:
+	if not lcd_param_defaults().has(key):
+		push_warning("[Handheld] %s: no LCD setting %s; ignoring %s" % [name, key, value])
+		return
+	_lcd_params[key] = value
+	_apply_lcd_params_everywhere()
+
+
+## Several at once (a room restore). Unknown keys are dropped quietly but logged:
+## a save written by a machine whose shader has since lost a setting.
+func set_lcd_params(values: Dictionary) -> void:
+	var defaults := lcd_param_defaults()
+	for key: Variant in values:
+		if defaults.has(key):
+			_lcd_params[key] = values[key]
+		else:
+			print("[Handheld] %s: saved LCD setting %s is not this machine's; dropped" % [name, key])
+	print("[Handheld] %s: LCD settings restored %s" % [name, _lcd_params])
+	_apply_lcd_params_everywhere()
+
+
+func _apply_lcd_params_everywhere() -> void:
+	for mat: ShaderMaterial in [_lcd_material, _lcd_material_lit]:
+		if mat != null:
+			_apply_lcd_params(mat)
+
+
+## Push the settings into one of the screen's materials. The base sets each key as
+## the shader uniform of that name; a subclass overrides for keys that are not.
+func _apply_lcd_params(mat: ShaderMaterial) -> void:
+	var params := get_lcd_params()
+	for key: String in params:
+		mat.set_shader_parameter(key, params[key])
 
 
 func _update_screen_light() -> void:
