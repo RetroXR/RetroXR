@@ -713,19 +713,28 @@ static func _items_for(systemid: String) -> Array:
 	# With the peripherals rather than the leads below: it is something you hold.
 	if _LIGHT_GUN_PLATFORMS.has(systemid) and not own.call(ConnectorScan.ROLE_LIGHT_GUN):
 		items.append(_LIGHT_GUN.duplicate())
+	# Each link row says what BIOS this card's console cannot start without, as a
+	# unit's row does (_unit_item): a lead is only worth spawning once both ends
+	# can run, and the line says so before the player cables two machines up.
+	var link_note := link_bios_note(systemid)
+	var link_items: Array = []
 	if _LINK_LEADS.has(systemid):
-		items.append((_LINK_LEADS[systemid] as Dictionary).duplicate())
+		link_items.append((_LINK_LEADS[systemid] as Dictionary).duplicate())
 	if systemid == "gb":
-		items.append(_GBC_LINK_CABLE_ON_DMG.duplicate())
+		link_items.append(_GBC_LINK_CABLE_ON_DMG.duplicate())
 	if systemid == "gb" or systemid == "gbc":
-		items.append(_GB_LINK_ADAPTER.duplicate())
+		link_items.append(_GB_LINK_ADAPTER.duplicate())
 	if systemid == "ps2":
-		items.append(_ILINK_HUB.duplicate())
+		link_items.append(_ILINK_HUB.duplicate())
 	if _ETHERNET_PLATFORMS.has(systemid):
-		items.append(_ETHERNET_CABLE.duplicate())
-		items.append(_ETHERNET_HUB.duplicate())
+		link_items.append(_ETHERNET_CABLE.duplicate())
+		link_items.append(_ETHERNET_HUB.duplicate())
 	if _GC_GBA_PLATFORMS.has(systemid):
-		items.append(_GC_GBA_CABLE.duplicate())
+		link_items.append(_GC_GBA_CABLE.duplicate())
+	for link_item: Dictionary in link_items:
+		if not link_note.is_empty():
+			link_item["missing"] = link_note
+		items.append(link_item)
 	var info := SystemInfo.for_system(systemid)
 	if info != null and info.computer:
 		items.append_array(_COMPUTER_INPUT.duplicate(true))
@@ -927,6 +936,40 @@ static func _peripheral_rows(systemid: String) -> Array:
 		if not core.is_empty() and CoreDownloadManager.installed_core_lib(core).is_empty():
 			row["missing"] = "Core missing: %s (BIOS / Extras)" % core
 	return rows
+
+
+## The red line under a link lead's row when the console this card spawns cannot
+## start: "BIOS missing: <files>" for the files its core's .info marks REQUIRED
+## and that are not installed (BiosBoot.missing_required, the same list the power
+## button refuses on), or "" when nothing is. Optional boot ROMs never count: a
+## Game Boy links without one. `core` defaults to the core a console of this card
+## boots (the player's default from the CORES panel, else the recommended one),
+## which is the core whose BIOS decides it.
+static func link_bios_note(systemid: String, core := "") -> String:
+	if core.is_empty():
+		core = _card_core(systemid)
+	if core.is_empty():
+		return ""
+	var files: Array[String] = []
+	for row: Dictionary in BiosBoot.missing_required(core):
+		var path := str(row.get("path", ""))
+		if not path.is_empty() and not files.has(path):
+			files.append(path)
+	if files.is_empty():
+		return ""
+	print("[SpawnCatalog] %s link rows: %s is missing required BIOS %s" % [systemid, core, files])
+	return "BIOS missing: %s" % ", ".join(files)
+
+
+## The core a console spawned from this card boots with nothing bolted to it,
+## as RetroSystem._bare_core_default resolves it before a per-instance pick.
+static func _card_core(systemid: String) -> String:
+	var defaults := CoreDefaults.new()
+	defaults.setup(CoreDefaults.default_path())
+	var core := defaults.get_default_core(systemid)
+	if core.is_empty():
+		core = CoreRecommendations.core_for(systemid)
+	return core
 
 
 ## Offered whether or not the unit's firmware is installed. A unit without it

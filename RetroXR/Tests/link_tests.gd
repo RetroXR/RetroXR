@@ -34,6 +34,7 @@ func _ready() -> void:
 	await _test_cable_scene()
 	await _test_port_scene()
 	_test_cable_is_spawnable()
+	_test_link_rows_name_a_missing_bios()
 	await _test_gc_gba_cable()
 	await _test_lid_clears_the_socket()
 	await _test_bus_head_is_the_same_on_every_peer()
@@ -95,6 +96,55 @@ class _NetplayStub extends RefCounted:
 
 	func netplay_schedule_link(op: int, entries: Array) -> void:
 		scheduled.append({"op": op, "entries": entries.duplicate(true)})
+
+
+## A link lead's row says what BIOS its console cannot start without, as a
+## unit's row does: the Lynx's lynxboot.img is REQUIRED, and the ComLynx row must
+## name it while it is gone and say nothing once it is there. Driven on the REAL
+## mednafen_lynx system folder: a player's dump is renamed aside and put back.
+## Gambatte's boot ROMs are optional, so a Game Boy's lead never carries a line.
+func _test_link_rows_name_a_missing_bios() -> void:
+	var core := "mednafen_lynx"
+	if FirmwareRequirements.for_core(core).is_empty():
+		_ok(false, "bios_note/mednafen_lynx's .info declares its firmware")
+		return
+	var dest := FirmwareRequirements.destination(core, "lynxboot.img")
+	var aside := dest + ".link_tests_backup"
+	if FileAccess.file_exists(aside) and not FileAccess.file_exists(dest):
+		DirAccess.rename_absolute(aside, dest)
+		print("[link] bios_note/ restored lynxboot.img left aside by an earlier run")
+	var real := FileAccess.file_exists(dest)
+	if real:
+		DirAccess.rename_absolute(dest, aside)
+	var refresh := func() -> void:
+		FirmwareState.shared().evaluate(core, FirmwareRequirements.for_core(core))
+
+	refresh.call()
+	_ok(SpawnCatalog.link_bios_note("atarilynx", core) == "BIOS missing: lynxboot.img",
+		"bios_note/ with no Lynx BIOS the ComLynx row names lynxboot.img (%s)"
+			% SpawnCatalog.link_bios_note("atarilynx", core))
+	var card_note := SpawnCatalog.link_bios_note("atarilynx")
+	var row_note := "<no row>"
+	for item: Dictionary in SpawnCatalog.items_for("atarilynx"):
+		if str(item.get("spawn", "")) == "comlynx_cable":
+			row_note = str(item.get("missing", ""))
+	_ok(row_note == card_note, "bios_note/ the card's ComLynx row carries that note (%s)" % row_note)
+
+	DirAccess.make_dir_recursive_absolute(dest.get_base_dir())
+	var f := FileAccess.open(dest, FileAccess.WRITE)
+	f.store_buffer(PackedByteArray([0]))
+	f.close()
+	refresh.call()
+	_ok(SpawnCatalog.link_bios_note("atarilynx", core).is_empty(),
+		"bios_note/ with the file there the row says nothing")
+	_ok(SpawnCatalog.link_bios_note("gb", "gambatte").is_empty(),
+		"bios_note/ an optional boot ROM never marks a Game Boy lead")
+
+	DirAccess.remove_absolute(dest)
+	if real:
+		DirAccess.rename_absolute(aside, dest)
+	refresh.call()
+	_ok(FileAccess.file_exists(dest) == real, "bios_note/ the player's Lynx BIOS is as it was")
 
 
 func _test_netplay_cable_guard() -> void:
