@@ -449,10 +449,20 @@ turning the model's `PhonesLevel`, which keeps its own node on every level; save
 `audio_player.gd` a lead in PHONES takes the deck's sound INSTEAD of its line out and its own speakers
 (`phones_sink()`, `_via_phones`), at the LEVEL knob's level on both channels (`set_phones_level`). Every deck now reads
 its sink's `get_audio_unit_size()` each frame, so through headphones, or a set whose jack has headphones in it, the
-disc, tape or record plays at the headphones' near-ear law. The cassette deck's model has no PHONES jack.
+disc, tape or record plays at the headphones' near-ear law.
 `headphones_tests cd/` (PHONES over a line out to a set, the distance law, LEVEL, pulled back to the line out, a set's
 jack); `appliance_pointer_tests` checks the knob's box is the knob. How it looks: `Tools/av/bring_in_probe`
 (windowed, `-- --no-mods`).
+
+**The cassette deck has PHONES too (2026-11-07)**: RetroXR-models `generic/cassette-deck` gained the CD player's
+3.5 mm jack and its LEVEL knob (`Phones`, the `PhonesOut` mouth, `PhonesLevel` in MOVING), in the column between the
+door and the transport keys, under EJECT (x -51 mm; the jack at z -8, the knob at -33). The dressing is one function
+for both decks now, `DeckFace.dress_phones(deck, model, knob_path, tag)` (the jack seated `PHONES_SEAT_BACK` behind
+the mouth, the cap hung on the knob's pivot, its box fitted at rest). **The cassette deck's PHONES knob is
+`PhonesKnob`**: its `LevelKnob` was already the model's REC LEVEL made the deck's OUTPUT level, and is persisted by
+path, so it kept its name; through PHONES the two multiply. `headphones_tests cassette/` (the `cd/` checks, run by one
+`_deck_phones` helper, plus the two knobs apart, the output level scaling PHONES, and the cap on the pivot);
+`bring_in_probe` shoots `headphones_in_deck_phones.png` / `deck_phones_close.png`.
 
 
 ### Pass-throughs: a device in the middle of the signal (2026-11-02)

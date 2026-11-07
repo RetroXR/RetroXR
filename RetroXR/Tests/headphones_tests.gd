@@ -12,6 +12,8 @@
 ##   tv/     in a set's jack: the set's sound plays at the cups, at the headphones' level and distance law
 ##   cd/     in the CD player's PHONES: the disc's sound goes to the cups INSTEAD of its line out (cabled to a set) at
 ##           the headphones' distance law, scaled by the LEVEL knob; pulled, it goes back to the line out
+##   cassette/ the same in the cassette deck's PHONES (under EJECT), whose LEVEL is PhonesKnob: the big LevelKnob is
+##           the deck's output level and still scales what the headphones get
 ##   sound/  the host's two voices (a stand-in for Meta XR Audio, which reports unavailable headless) go to the cups,
 ##           L and R, at LEVEL near the head and LEVEL x 0.12 a metre off; dry: the game sets no room on the SDK
 ##   wear/   put on, the headset rides the camera with its ears on the head's; a hand taking it takes it off; the
@@ -27,6 +29,7 @@ const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
 const RCA_CABLE := preload("res://Scenes/Objects/cables/composite_cable.tscn")
 const CD_SCENE := preload("res://Scenes/Objects/appliances/cd_player.tscn")
+const CASSETTE_SCENE := preload("res://Scenes/Objects/appliances/cassette_player.tscn")
 
 var _only := ""
 var _spawned: Array[Node] = []
@@ -67,7 +70,8 @@ func _ready() -> void:
 	_cam.position = Vector3(0, 1.6, 2.0)
 	add_child(_cam)
 	_cam.current = true
-	for c: Array in [["scene", _t_scene], ["jack", _t_jack], ["tv", _t_tv], ["cd", _t_cd], ["sound", _t_sound], ["wear", _t_wear],
+	for c: Array in [["scene", _t_scene], ["jack", _t_jack], ["tv", _t_tv], ["cd", _t_cd], ["cassette", _t_cassette],
+			["sound", _t_sound], ["wear", _t_wear],
 			["save", _t_save], ["ray", _t_ray]]:
 		if not _only.is_empty() and not String(c[0]).begins_with(_only):
 			continue
@@ -242,8 +246,40 @@ func _t_tv() -> void:
 # ── cd/ ───────────────────────────────────────────────────────────────────────
 
 func _t_cd() -> void:
+	await _deck_phones(CD_SCENE, "cd", "LevelKnob")
+
+
+## The cassette deck: its PHONES knob is its own, the big knob (LevelKnob, the model's REC LEVEL) the output level.
+func _t_cassette() -> void:
+	var deck: RetroAudioPlayer = await _deck_phones(CASSETTE_SCENE, "cassette", "PhonesKnob")
+	if deck == null:
+		return
+	var out := deck.get_node_or_null("LevelKnob") as VRKnob
+	var phones := deck.get_node_or_null("PhonesKnob") as VRKnob
+	_ok(out != null and phones != null and out != phones, "cassette/LEVEL (output) and PHONES LEVEL are two knobs")
+	if out == null or phones == null:
+		return
+	_ok(absf(phones.global_position.x - (deck.get_node("PhonesOut") as Node3D).global_position.x) < 0.002
+		and phones.global_position.y < (deck.get_node("PhonesOut") as Node3D).global_position.y,
+		"cassette/the PHONES LEVEL knob stands under its jack, on the model's knob")
 	var hp := _headphones(Vector3(0, 1, 1))
-	var cd := CD_SCENE.instantiate() as CDPlayer
+	await _seat(hp, deck)
+	await _wait(3)
+	var em := deck.get_node("SpatialAudioEmitter") as SpatialAudioEmitter
+	phones.set_value(0.5)
+	out.set_value(0.5)
+	_ok(is_equal_approx(em.get("_ch_gain_l"), 0.25) and is_equal_approx(em.get("_ch_gain_r"), 0.25),
+		"cassette/through PHONES the output level and the PHONES level both scale it (%.2f)" % float(em.get("_ch_gain_l")))
+	var turned: Node3D = phones.get_node("KnobPivot")
+	_ok(turned.get_child_count() > 0 and turned.get_child(0).name == "ModelLevel0",
+		"cassette/the model's PhonesLevel cap rides the knob's pivot, so it turns")
+
+
+## PHONES on a RETRO XR deck: a jack seated on the model's mouth that the headphones fit; headphones in it take the
+## sound from the line out at their distance law, scaled by `knob`; pulled, the line out has it back. Returns the deck.
+func _deck_phones(scene: PackedScene, group: String, knob_path: String) -> RetroAudioPlayer:
+	var hp := _headphones(Vector3(0, 1, 1))
+	var cd := scene.instantiate() as RetroAudioPlayer
 	cd.freeze = true
 	cd.position = Vector3(-3, 1, 0)
 	add_child(cd)
@@ -257,19 +293,21 @@ func _t_cd() -> void:
 	_spawned.append(tv)
 	await _wait(60)
 	var jack := cd.get_node_or_null("PhonesOut") as TrsPort
-	_ok(jack != null and jack.direction == RcaPort.Direction.OUT, "cd/the CD player has a PHONES jack, an OUT")
+	_ok(jack != null and jack.direction == RcaPort.Direction.OUT, "%s/the deck has a PHONES jack, an OUT" % group)
 	if jack == null:
-		return
+		return null
 	var mouth := (cd.get_node("Model") as ApplianceModel).part("PhonesOutMouth")
 	_ok(mouth != null and jack.global_position.distance_to(mouth.global_position) < 0.0015
 		and jack.global_basis.z.dot(mouth.global_basis.z) > 0.999,
-		"cd/seated on the model's jack mouth, opening out of the front")
+		"%s/seated on the model's jack mouth, opening out of the front" % group)
+	if mouth == null:
+		return null
 	# Seated ON the mouth (the bezel ring's face) a plug stood 0.75 mm proud of the ring: the jack sits back of it.
 	var proud := (jack.global_position - mouth.global_position).dot(mouth.global_basis.z.normalized())
-	var want := DeckFace.PORT_PROUD - CDPlayer.PHONES_SEAT_BACK
-	_ok(absf(proud - want) < 0.00005, "cd/the jack stands %.2f mm out of the mouth, not 1 mm, so the plug meets the bezel (want %.2f)"
-		% [proud * 1000.0, want * 1000.0])
-	_ok(_plug(hp).is_in_group(jack.snap_require), "cd/the headphones' plug fits it")
+	var want := DeckFace.PORT_PROUD - DeckFace.PHONES_SEAT_BACK
+	_ok(absf(proud - want) < 0.00005, "%s/the jack stands %.2f mm out of the mouth, not 1 mm, so the plug meets the bezel (want %.2f)"
+		% [group, proud * 1000.0, want * 1000.0])
+	_ok(_plug(hp).is_in_group(jack.snap_require), "%s/the headphones' plug fits it" % group)
 	# The line out to the set: a stereo pair of phono cords, white and red.
 	var lead := RCA_CABLE.instantiate() as CompositeCable
 	add_child(lead)
@@ -281,27 +319,30 @@ func _t_cd() -> void:
 		from.pick_up_object(lead.get_node("PlugA%d" % (i + 1)) as Node3D)
 		to.pick_up_object(lead.get_node("PlugB%d" % (i + 1)) as Node3D)
 	await _wait(30)
-	_ok(cd.sound_sink() == tv, "cd/with the line out to a set, the disc plays on the set", str(cd.sound_sink()))
+	_ok(cd.sound_sink() == tv, "%s/with the line out to a set, the deck plays on the set" % group, str(cd.sound_sink()))
 	await _seat(hp, cd)
-	_ok(cd.sound_sink() == hp, "cd/headphones in PHONES take the sound instead", str(cd.sound_sink()))
+	_ok(cd.sound_sink() == hp, "%s/headphones in PHONES take the sound instead" % group, str(cd.sound_sink()))
 	await _wait(3)
 	var em := cd.get_node("SpatialAudioEmitter") as SpatialAudioEmitter
 	_ok(is_equal_approx(em.unit_size, Headphones.UNIT_SIZE),
-		"cd/at the headphones' near-ear distance law (%.2f m)" % em.unit_size)
-	var knob := cd.get_node("LevelKnob") as VRKnob
+		"%s/at the headphones' near-ear distance law (%.2f m)" % [group, em.unit_size])
+	var knob := cd.get_node(knob_path) as VRKnob
 	knob.set_value(0.5)
-	_ok(is_equal_approx(em.get("_ch_gain_l"), 0.5) and is_equal_approx(em.get("_ch_gain_r"), 0.5),
-		"cd/the LEVEL knob sets both channels' level through PHONES")
+	_ok(is_equal_approx(em.get("_ch_gain_l"), 0.5 * cd.output_level) and is_equal_approx(em.get("_ch_gain_r"), 0.5 * cd.output_level),
+		"%s/the PHONES LEVEL knob (%s) sets both channels' level through PHONES" % [group, knob_path])
 	hp.net_release_plug(1, 0)
 	await _wait(30)
-	_ok(cd.sound_sink() == tv, "cd/pulled, the sound goes back to the line out", str(cd.sound_sink()))
-	_ok(is_equal_approx(em.get("_ch_gain_l"), 1.0) and is_equal_approx(em.unit_size, CDPlayer.UNIT_SIZE),
-		"cd/at full channel level and the deck's own distance law: LEVEL is the headphones' only")
-	# Headphones in the SET's jack: the disc still goes to the set, which plays it at the cups, at their distance law.
+	_ok(cd.sound_sink() == tv, "%s/pulled, the sound goes back to the line out" % group, str(cd.sound_sink()))
+	_ok(is_equal_approx(em.get("_ch_gain_l"), cd.output_level) and is_equal_approx(em.unit_size, RetroAudioPlayer.UNIT_SIZE),
+		"%s/at the output level and the deck's own distance law: PHONES LEVEL is the headphones' only" % group)
+	# Headphones in the SET's jack: the deck still goes to the set, which plays it at the cups, at their distance law.
 	await _seat(hp, tv)
 	await _wait(3)
 	_ok(cd.sound_sink() == tv and is_equal_approx(em.unit_size, Headphones.UNIT_SIZE),
-		"cd/through a set whose jack has the headphones, the deck takes their distance law (%.2f m)" % em.unit_size)
+		"%s/through a set whose jack has the headphones, the deck takes their distance law (%.2f m)" % [group, em.unit_size])
+	hp.net_release_plug(1, 0)
+	await _wait(10)
+	return cd
 
 
 # ── sound/ ────────────────────────────────────────────────────────────────────

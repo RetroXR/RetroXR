@@ -1,5 +1,6 @@
 ## DeckFace — what the RETRO XR VCR and DVD player do to dress their scenes with their models (ApplianceModel):
-## keys on the FRONT panel, phono sockets on the model's jacks, and the model's contract (the per-frame poses its
+## keys on the FRONT panel, phono sockets on the model's jacks, a PHONES jack and its LEVEL knob (the CD player and
+## the cassette deck), and the model's contract (the per-frame poses its
 ## animations carry, exported beside the GLBs as <item>_contract.json).
 class_name DeckFace
 extends RefCounted
@@ -40,6 +41,56 @@ static func seat_port(model: ApplianceModel, port: Node3D, part: String) -> void
 	port.transform = t.translated_local(Vector3(0.0, 0.0, PORT_PROUD))
 	if "show_jack" in port:
 		port.set("show_jack", false)
+
+
+## How far a PHONES jack sits back of the model's mouth (m): the plug then seats flush with the bezel.
+const PHONES_SEAT_BACK := 0.00075
+
+
+## PHONES and its LEVEL knob, on a deck whose model has them (the RETRO XR CD player and cassette deck): the jack
+## (the scene's `PhonesOut`, a TrsPort) on the model's PhonesOut mouth, and the model's PhonesLevel knob (its own node
+## on every level) hung on the VRKnob `knob_path`'s KnobPivot at the knob's axis, so turning the VRKnob turns it and
+## sets the headphones' level (RetroAudioPlayer.set_phones_level). The knob's box is the knob. Run before the deck
+## fits its body's boxes. Logs what it found, and what it could not.
+static func dress_phones(deck: RetroAudioPlayer, model: ApplianceModel, knob_path: String, tag: String) -> void:
+	var jack := deck.get_node_or_null("PhonesOut") as Node3D
+	if jack != null and model.part("PhonesOut") != null:
+		seat_port(model, jack, "PhonesOut")
+		# The model's mouth is the bezel ring's face: seated there a 3.5 mm plug stood 0.75 mm proud of it. Back
+		# along the jack's own -Z, into the deck, so the plug's collar meets the bezel.
+		jack.transform = jack.transform.translated_local(Vector3(0.0, 0.0, -PHONES_SEAT_BACK))
+		# A recursive find on the deck must meet the port, not the model's empty.
+		for mouth in model.parts("PhonesOut"):
+			mouth.name = "PhonesOutMouth"
+	else:
+		push_warning("[%s] %s: no PHONES jack (scene %s, model %s)"
+			% [tag, deck.name, jack != null, model.part("PhonesOut") != null])
+	var knob := deck.get_node_or_null(knob_path) as VRKnob
+	var cap := model.part("PhonesLevel")
+	if knob == null or cap == null:
+		push_warning("[%s] %s: no PHONES LEVEL knob (scene %s, model %s)" % [tag, deck.name, knob != null, cap != null])
+		return
+	var ab := ApplianceModel.node_bounds(cap, deck)
+	knob.position = Vector3(ab.get_center().x, ab.get_center().y, ab.position.z)
+	var pivot := knob.get_node("KnobPivot") as Node3D
+	var turned := pivot.rotation
+	pivot.rotation = Vector3.ZERO
+	model.attach_part("PhonesLevel", pivot)
+	var level := 0
+	for part in pivot.get_children():
+		part.name = "ModelLevel%d" % level       # one per level, siblings now: named apart
+		level += 1
+	# Fitted with the pivot at rest: the cap's box then, which turning a round cap about its axis keeps (a box taken
+	# with the pivot turned would be the turned box's bounds, larger than the cap).
+	var first := pivot.get_node_or_null("ModelLevel0")
+	if first != null:
+		ApplianceModel.fit_box(knob.get_node_or_null("CollisionShape3D") as CollisionShape3D,
+			ApplianceModel.node_bounds(first, knob))
+	pivot.rotation = turned
+	knob.value_changed.connect(deck.set_phones_level)
+	deck.set_phones_level(knob.value)
+	print("[%s] %s: PHONES jack and its LEVEL knob (%s) on the model (level %.2f)"
+		% [tag, deck.name, knob_path, deck.phones_level])
 
 
 ## The model's contract JSON, or {} (logged) when it cannot be read.

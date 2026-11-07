@@ -9,7 +9,9 @@
 ## cassette's own hubs, and a vacuum fluorescent display shows the tape counter,
 ## the play direction, NR B/C and TYPE II and two peak meters. COUNTER RESET zeroes
 ## the counter; REC presses and does nothing more (the deck plays, it does not
-## record). The phono pair on its back is a line out (audio_player.gd).
+## record). The phono pair on its back is a line out; PHONES under EJECT is a 3.5 mm jack whose headphones take the
+## sound instead (audio_player.gd, "PHONES"), at the level the small LEVEL knob under it sets (PhonesKnob). The big
+## knob at the right (LevelKnob, the model's REC LEVEL) is the deck's output level.
 class_name CassettePlayer
 extends RetroAudioPlayer
 
@@ -90,6 +92,7 @@ func _setup_loader() -> void:
 		for mouth in _model.parts(port):
 			mouth.name = port + "Mouth"
 	_dress_level_knob()
+	DeckFace.dress_phones(self, _model, "PhonesKnob", "Cassette")
 	_model.hide_part("Display")
 	var panel := _model.part("Display") as MeshInstance3D
 	var size := Vector2(0.19, 0.036)

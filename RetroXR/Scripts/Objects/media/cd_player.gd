@@ -111,7 +111,7 @@ func _setup_loader() -> void:
 	var nl := get_node_or_null("NameLabel") as Node3D
 	if nl:
 		nl.visible = false
-	_dress_phones()
+	DeckFace.dress_phones(self, _model, "LevelKnob", "CD")
 	# The body and the laser's box are what the model draws, no margin: less the tray, which goes out and in.
 	_model.fit_shapes([get_node_or_null("CollisionShape3D") as CollisionShape3D,
 		get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D], ["Tray"], FRONT)
@@ -120,48 +120,8 @@ func _setup_loader() -> void:
 		% [name, _model.levels.size(), size.x * 1000.0, size.y * 1000.0])
 
 
-## How far the PHONES jack sits back of the model's mouth (m): the plug then seats flush with the bezel.
-const PHONES_SEAT_BACK := 0.00075
-
-
-## PHONES and LEVEL: the jack on the model's PhonesOut mouth, and the model's PhonesLevel knob (every level) hung on
-## the LevelKnob's pivot at the knob's axis, so turning the VRKnob turns it. The knob's box is the knob.
-func _dress_phones() -> void:
-	var jack := get_node_or_null("PhonesOut") as Node3D
-	if jack != null and _model.part("PhonesOut") != null:
-		DeckFace.seat_port(_model, jack, "PhonesOut")
-		# The model's mouth is the bezel ring's face: seated there a 3.5 mm plug stood 0.75 mm proud of it. Back
-		# along the jack's own -Z, into the deck, so the plug's collar meets the bezel.
-		jack.transform = jack.transform.translated_local(Vector3(0.0, 0.0, -PHONES_SEAT_BACK))
-		for mouth in _model.parts("PhonesOut"):
-			mouth.name = "PhonesOutMouth"
-	else:
-		push_warning("[CD] %s: no PHONES jack (scene %s, model %s)" % [name, jack != null, _model.part("PhonesOut") != null])
-	var knob := get_node_or_null("LevelKnob") as VRKnob
-	var cap := _model.part("PhonesLevel")
-	if knob == null or cap == null:
-		push_warning("[CD] %s: no LEVEL knob (scene %s, model %s)" % [name, knob != null, cap != null])
-		return
-	var ab := ApplianceModel.node_bounds(cap, self)
-	knob.position = Vector3(ab.get_center().x, ab.get_center().y, ab.position.z)
-	var pivot := knob.get_node("KnobPivot") as Node3D
-	var turned := pivot.rotation
-	pivot.rotation = Vector3.ZERO
-	_model.attach_part("PhonesLevel", pivot)
-	var level := 0
-	for part in pivot.get_children():
-		part.name = "ModelLevel%d" % level       # one per level, siblings now: named apart
-		level += 1
-	# Fitted with the pivot at rest: the cap's box then, which turning a round cap about its axis keeps (a box taken
-	# with the pivot turned would be the turned box's bounds, larger than the cap).
-	var first := pivot.get_node_or_null("ModelLevel0")
-	if first != null:
-		ApplianceModel.fit_box(knob.get_node_or_null("CollisionShape3D") as CollisionShape3D,
-			ApplianceModel.node_bounds(first, knob))
-	pivot.rotation = turned
-	knob.value_changed.connect(set_phones_level)
-	set_phones_level(knob.value)
-	print("[CD] %s: PHONES jack and LEVEL knob on the model (level %.2f)" % [name, phones_level])
+## How far the PHONES jack sits back of the model's mouth (m); DeckFace's, shared with the cassette deck.
+const PHONES_SEAT_BACK := DeckFace.PHONES_SEAT_BACK
 
 
 ## The tray is solid where it is drawn and nowhere else, as the DVD player's: a trimesh of the close level's own Tray

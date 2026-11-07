@@ -1,10 +1,12 @@
-## The base game's audio cassette held up close, and the headphones in the RETRO XR CD player's PHONES jack, windowed:
+## The base game's audio cassette held up close, and the headphones in the RETRO XR CD player's and cassette deck's
+## PHONES jacks, windowed:
 ##   godot --path RetroXR res://Tools/av/bring_in_probe.tscn --resolution 320x240 --position 20,20 -- --no-mods --out=<dir>
 ## --no-mods: the stock cassette (a mod dressing it, xenu.cassette, would hide it). Renders into its own SubViewport.
 extends Node
 
 const CASSETTE := preload("res://Scenes/Objects/media/audio_cassette.tscn")
 const CD := preload("res://Scenes/Objects/appliances/cd_player.tscn")
+const DECK := preload("res://Scenes/Objects/appliances/cassette_player.tscn")
 const HEADPHONES := preload("res://Scenes/Objects/appliances/headphones.tscn")
 
 var _out := ""
@@ -23,6 +25,7 @@ func _ready() -> void:
 	_stage()
 	await _cassette()
 	await _phones()
+	await _deck_phones()
 	get_tree().quit(0)
 
 
@@ -111,3 +114,33 @@ func _phones() -> void:
 	await _shot("headphones_in_cd_phones.png")
 	_cam.look_at_from_position(Vector3(0.23, 0.07, 0.33), Vector3(0.175, 0.03, 0.15))
 	await _shot("cd_phones_close.png")
+
+
+## The headphones' plug in the cassette deck's PHONES jack under EJECT, its LEVEL knob under it turned to a third.
+func _deck_phones() -> void:
+	for n in _view.get_children():
+		if n is CDPlayer or n is Headphones:
+			n.queue_free()
+	await get_tree().process_frame
+	var deck := DECK.instantiate() as CassettePlayer
+	deck.freeze = true
+	_view.add_child(deck)
+	deck.global_position = Vector3(0, 0.06, 0)
+	var hp := HEADPHONES.instantiate() as Node3D
+	_view.add_child(hp)
+	hp.global_position = Vector3(-0.1, 0.03, 0.45)
+	for i in 20:
+		await get_tree().process_frame
+	var jack := deck.get_node("PhonesOut") as XRToolsSnapZone
+	jack.pick_up_object(hp.get_node("PlugB0") as Node3D)
+	(deck.get_node("PhonesKnob") as VRKnob).set_value(0.3)
+	for i in 90:
+		await get_tree().physics_frame
+	print("[probe] deck sound -> %s, PHONES level %.2f" % [deck.sound_sink().name if deck.sound_sink() != null else "nothing",
+		deck.phones_level])
+	for h in _view.find_children("SnapHighlight", "Node3D", true, false):
+		(h as Node3D).visible = false
+	_cam.look_at_from_position(Vector3(0.05, 0.2, 0.62), Vector3(-0.03, 0.05, 0.15))
+	await _shot("headphones_in_deck_phones.png")
+	_cam.look_at_from_position(Vector3(0.0, 0.09, 0.3), Vector3(-0.051, 0.04, 0.15))
+	await _shot("deck_phones_close.png")
