@@ -253,6 +253,7 @@ const SPEAKER_PAIR_SCENE     := preload("res://Scenes/Objects/appliances/speaker
 const LOUDSPEAKER_SCENE      := preload("res://Scenes/Objects/appliances/loudspeaker.tscn")
 const SUBWOOFER_SCENE        := preload("res://Scenes/Objects/appliances/subwoofer.tscn")
 const SURROUND_AMP_SCENE     := preload("res://Scenes/Objects/appliances/surround_amp.tscn")
+const AV_SWITCH_SCENE        := preload("res://Scenes/Objects/appliances/av_switch.tscn")
 const SPEAKER_STAND_120      := preload("res://Scenes/Objects/appliances/speaker_stand_120.tscn")
 const SPEAKER_STAND_100      := preload("res://Scenes/Objects/appliances/speaker_stand_100.tscn")
 const CONSOLE_STAND_SCENE    := preload("res://Scenes/Objects/stands/console_stand.tscn")
@@ -394,6 +395,8 @@ const PLAIN_SCENES := {
 	"loudspeaker": LOUDSPEAKER_SCENE,
 	"subwoofer": SUBWOOFER_SCENE,
 	"surround_amp": SURROUND_AMP_SCENE,
+	# Pose only: the slide is a VRSlider, saved with the articulated controls.
+	"av_switch": AV_SWITCH_SCENE,
 	# Tokens name the height in centimetres, so a third stand is a third row
 	# rather than a rename of these two.
 	"speaker_stand_120": SPEAKER_STAND_120,
@@ -2684,6 +2687,8 @@ static func _save_kind_rows() -> Array:
 		[ConsoleStand, "console_stand", &"_console_stand_fields"],
 		[SurroundAmp, "surround_amp", &"_surround_amp_fields"],
 		# Deliberately not a pose-only object. The root never moves — the two
+		# Pose only: which input the slide is on is its VRSlider (the articulated controls).
+		[AvSwitch, "av_switch"],
 		# cabinets are separate bodies the player carries around one at a time — so
 		# the root's transform says nothing about where either of them is.
 		[SpeakerPair, "speaker_pair", &"_speaker_pair_fields"],

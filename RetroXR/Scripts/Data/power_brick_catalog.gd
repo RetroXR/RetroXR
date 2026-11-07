@@ -108,6 +108,7 @@ static func _shipped() -> Dictionary:
 	var wap := _wart([46.0, 77.5, 39.7], [0.0, -44.5, -11.5])
 	var mgb := _wart([44.0, 71.5, 57.12], [0.0, -42.0, -20.0])
 	var psone := _wart([50.0, 94.5, 43.5], [0.0, -55.5, -13.5])
+	var avs := _wart([48.0, 62.0, 40.0], [0.0, -36.5, -12.0])
 	_rows_cache = {
 		"nes_ac_adapter": {"label": "NES AC Adapter (NES-002)", "cord": Color8(24, 24, 26), "fits": ["nes"],
 			"dc_plug": "barrel_5_5x2_5", "plug_mm": [9.6, 9.6, 38.0], "source": "nintendo/nes/psu",
@@ -200,6 +201,11 @@ static func _shipped() -> Dictionary:
 		"gamegear_ac_adapter": {"label": "Game Gear AC Adapter (Japan / Europe)", "cord": Color8(26, 26, 28), "fits": [],
 			"dc_plug": "barrel_5_5x2_1", "plug_mm": [10.0, 10.0, 42.0], "source": "sega/game-gear/psu",
 			"variants": {"jpn": mk2103_eu, "eur": mk2103_eu, "ukv": mk2103_eu, "asia": mk2103_eu}},
+		# The AV selector's: a plain 9 V wall wart on a 5.5 x 2.1 plug, the de facto accessory size. No
+		# RetroXR-models item: the size is an ESTIMATE of a small 9 V wart, the same box in every market.
+		"retroxr_av_adapter": {"label": "AV Switch AC Adapter (9 V)", "cord": Color8(24, 24, 26), "fits": ["av_switch"],
+			"dc_plug": "barrel_5_5x2_1", "plug_mm": [9.6, 9.6, 38.0], "source": "",
+			"variants": {"usa": avs, "jpn": avs, "eur": avs, "ukv": avs, "aus": avs}},
 		"lynx_ac_adapter": {"label": "Lynx AC Adapter (PAG-1200)", "cord": Color8(24, 24, 26), "fits": ["atarilynx"],
 			"dc_plug": "barrel_3_5x1_35", "plug_mm": [7.9, 7.9, 33.5], "source": "atari/lynx/psu",
 			"variants": {"usa": _wart([57.0, 78.5, 66.8], [-6.0, -44.5, -25.0])}},

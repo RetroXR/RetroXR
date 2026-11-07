@@ -33,6 +33,16 @@
 ## The cord index carries over unchanged, which is right for what can be cabled
 ## today: the 32X's two sockets and the console's are all MultiAvPorts, the same
 ## cord-to-signal map, and one mini-DIN lead between two of them carries all of it.
+##
+## ── Several sockets through ──────────────────────────────────────────────────
+## A pass-through can carry more than one socket on: the AV selector (AvSwitch)
+## takes a phono trio per input and sends the SELECTED one's video, left and right
+## on to its OUT trio, a jack per signal. Such a device answers `av_through_map()`,
+## {output socket: the input socket it carries}, already empty for anything it is
+## not passing (an input not selected); the 32X's single pair is read as a map of
+## one. Every walk below goes through `through_map()`, and every one carries a
+## `seen` set, so a chain of selectors works and two cabled into each other's inputs
+## end the walk instead of looping.
 class_name AvGraph
 
 
@@ -87,10 +97,26 @@ static func own_links(dev: Node3D) -> Array:
 	return out
 
 
-## Whether `dev` is a pass-through: it has an A/V IN that it carries on to an A/V OUT.
+## Whether `dev` is a pass-through: it has an A/V IN that it carries on to an A/V OUT,
+## or several inputs it carries one of (`av_through_map`).
 static func is_through(dev: Node) -> bool:
-	return is_instance_valid(dev) and dev.has_method("av_through_in") \
-		and dev.call("av_through_in") != null
+	if not is_instance_valid(dev):
+		return false
+	if dev.has_method("av_through_map"):
+		return true
+	return dev.has_method("av_through_in") and dev.call("av_through_in") != null
+
+
+## What `through` carries on right now, {output socket: input socket}: empty when it
+## is not passing. A single A/V IN and OUT (the 32X) is a map of one.
+static func through_map(through: Node) -> Dictionary:
+	if not is_through(through):
+		return {}
+	if through.has_method("av_through_map"):
+		return through.call("av_through_map")
+	if not bool(through.call("av_passes")):
+		return {}
+	return {through.call("av_through_out"): through.call("av_through_in")}
 
 
 ## The output that is really sending what leaves `port`: the socket feeding the
@@ -105,19 +131,27 @@ static func _source_of(port: RcaPort, seen: Dictionary) -> RcaPort:
 	if port == null:
 		return port
 	var through := port.get_device()
-	if not is_through(through) or seen.has(through) or port != through.call("av_through_out") \
-			or not bool(through.call("av_passes")):
+	if not is_through(through) or seen.has(through):
+		return port
+	var map := through_map(through)
+	if not map.has(port):
 		return port
 	seen[through] = true
-	var feed := feeding(through)
+	var feed := feeding_at(through, map[port] as RcaPort)
 	return _source_of(feed, seen) if feed != null else port
 
 
 ## The output cabled into a pass-through's A/V IN, or null.
 static func feeding(through: Node3D) -> RcaPort:
-	if not is_through(through):
+	if not is_through(through) or not through.has_method("av_through_in"):
 		return null
-	var at := through.call("av_through_in") as RcaPort
+	return feeding_at(through, through.call("av_through_in") as RcaPort)
+
+
+## The output cabled into `at`, one of `through`'s own input sockets, or null.
+static func feeding_at(through: Node3D, at: RcaPort) -> RcaPort:
+	if at == null:
+		return null
 	for link: Dictionary in own_links(through):
 		if link["in"] == at and (link["out"] as RcaPort).get_device() != through:
 			return link["out"] as RcaPort
@@ -130,13 +164,18 @@ static func feeding(through: Node3D) -> RcaPort:
 static func _onward(from: RcaPort, to: RcaPort, seen: Dictionary) -> Array:
 	var out: Array = []
 	var through := to.get_device() if to != null else null
-	if not is_through(through) or seen.has(through) or to != through.call("av_through_in") \
-			or not bool(through.call("av_passes")):
+	if not is_through(through) or seen.has(through):
+		return out
+	var map := through_map(through)
+	var outs: Array = []
+	for o: Variant in map:
+		if map[o] == to:
+			outs.append(o)
+	if outs.is_empty():
 		return out
 	seen[through] = true
-	var at := through.call("av_through_out") as RcaPort
 	for link: Dictionary in own_links(through):
-		if link["out"] != at:
+		if not outs.has(link["out"]):
 			continue
 		out.append({"out": from, "in": link["in"], "cord": link.get("cord", 0), "via": through})
 		out.append_array(_onward(from, link["in"] as RcaPort, seen))

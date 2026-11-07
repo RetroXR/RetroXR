@@ -513,3 +513,56 @@ shell's pose alone. `av_tests` display/power covers stock, VGA and RETRO XR shel
 including interruption. The new case failed eight checks before the fix.
 `Tools/av/tv_picture_fit_probe` renders a power cycle with four coloured picture
 edges and MUTE, with and without the cabinet; windowed, `-- --no-mods --out=`.
+### The RETRO XR AV switch: four inputs, one TO TV (2026-11-07)
+
+`AvSwitch` (`Scripts/Objects/av/av_switch.gd`, `Scenes/Objects/appliances/av_switch.tscn`, the Objects tab's
+"AV Switch", saved as `av_switch`) wears RetroXR-models `generic/av-switch` (concept B: every jack on the back, one
+four-position slide under four backlit windows on the front; 280 x 42 x 120 mm, sizes and sources in that item's
+MEASUREMENTS.md). Copy the three `avswitch_mobile*.glb` + `avswitch_contract.json` into
+`imported-assets/appliances/av_switch/`; never edit a GLB.
+
+- **Routing is a pass-through of several sockets** (`AvGraph` "Several sockets through"): the switch answers
+  `av_through_map()`, `{VideoOut: Input<n>Video, AudioLOut: Input<n>AudioL, AudioROut: Input<n>AudioR}` for the
+  selected input n, and AvGraph's walks (`source_of`, `_onward`, `feeding_at`) read every pass-through through
+  `through_map()`, the 32X's single pair being a map of one. So a console on the selected input resolves the set on
+  TO TV as its own sink and the set files it on its input exactly as if cabled directly; an amplifier on TO TV hears
+  it. Nothing downstream has code for a switch.
+- **The switch tells everyone when to look again** (`_notify`, ExpansionAv's arrangement): a cord moved on one of its
+  sockets, or the slide moved, tells every device cabled to it now AND last time; another switch forwards it. A
+  static `_busy` set stops two switches telling each other for ever, and every AvGraph walk carries a `seen` set.
+- **Chains and loops**: a switch on another's input works (the walk goes through both). Two switches cabled into each
+  other's selected inputs is a loop: `loop_refused()` (walked socket by socket: a switch upstream standing on an
+  EMPTY input is a dead end, not a loop), no machine on that input, its label dark, `LOOP refused` in the log and the
+  Debug tab.
+- **The slide** is the scene's `Selector` (a `VRSlider`, `steps` 4, `travel` 96 mm, INPUT 1 at value 0), moved onto
+  the model's `SlideTab` in `_dress_slide`: the close level's tab is its knob, the other levels' follow it, and its box
+  is the tab EXACTLY (`fit_box` of the tab's bounds, `set_knob_collision` so it rides the tab). Hand, laser, desktop
+  ray and fingertip take it as any slider. Saved and synced as every slider is (the articulated controls;
+  `ObjectSync._bind_articulated_controls`), so every peer routes the same: a peer's move arrives through `value_changed`
+  like a hand's. The menu's INPUT 1-4 buttons call `select()`, which is `set_value`: sent the same way.
+- **The labels**: a window lights while a LIVE source reaches its input through any chain (`source_live`: a
+  `RetroSystem` `is_powered_on` or `attracting`; else the device's `mains_live()`; else its `PowerInput`), and the
+  selected one is brightest (emission 2.4 against 0.55). Selected with nothing live is dark. Sources do not say when
+  they are switched on, so the states are polled twice a second and a window is redrawn only when its state CHANGES.
+  Each input has one material, set on the `AVS_LabelWindow` surface of every level's `Label<n>` (found by NAME).
+- **Power**: a 5.5 x 2.1 DC IN (`PowerInlet`, a `DcPort` from `barrel_dc_port.tscn`, on the model's `DcIn` with the
+  drawn jack hidden), PowerProfiles `av_switch` -> brick `retroxr_av_adapter` (a 9 V wall wart, size ESTIMATED). The
+  supply lights the labels ONLY. **The slide is passive and routes with or without it**, as a real mechanical
+  selector does; power simulation on with nothing in DC IN leaves every window dark and the picture going through.
+  Simulation off: always powered.
+- **The menu** (`AvSwitchOptionsPanel` / `AvSwitchOptions2D`, VCROptionsPanel's arrangement, opened from the spawn
+  menu's options on the object): Options (INPUT 1-4, each with what is on it and its label), **Debug**
+  (`AvSwitch.debug_state()` into `DebugRows`, re-read once a second while it is the tab showing, and at once on any
+  change the switch sees), and the Power rows. The Debug tab shows, per input, each jack's lead and its far end, the
+  source machine and its path, whether it is sending and the label state; the slide; what TO TV is cabled to and what
+  it resolves to; DC IN, the supply and the simulation; the chain (fed by / feeds a switch, a refused loop); netplay
+  role and whether the last slide move came off the wire (`NetworkManager.is_event_applying()`). The `[AvSwitch]`
+  log lines (`describe_wiring()`, the label line) say the same things.
+
+`av_switch_tests` (routing/ labels/ unplug/ chain/ save/ power/ ray/ debug/ panel/; a real set, VCR and Genesis
+through its own A/V Cable; the Genesis "on" is its `is_powered_on` set by hand, there being no core). Mutation-checked:
+a map that ignores the slide, a switch that tells nobody, labels that ignore the supply, a selected label no brighter,
+a switched-off source counted live, a Debug row that says empty, "any switch upstream is a loop", a tab box padded
+3 mm: each goes red. `appliance_pointer_tests` has the switch (`avswitch`). Windowed renders and the slide video:
+`Tools/av/av_switch_probe` (`debug_tab.png` is its menu shot). Headset, Quest and a real two-peer session OWED.
+

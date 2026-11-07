@@ -1,0 +1,250 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the front faces +Z, x to the right seen from the front",
+ "size": [
+  0.28,
+  0.042,
+  0.12
+ ],
+ "slide": {
+  "node": "SlideTab",
+  "origin_position_1": [
+   -0.01,
+   -0.0035,
+   0.06
+  ],
+  "axis": [
+   1.0,
+   0.0,
+   0.0
+  ],
+  "pitch_m": 0.032,
+  "positions": 4,
+  "note": "the tab is authored at position 1; position k is +X (glTF) by (k-1) x pitch"
+ },
+ "labels": [
+  {
+   "node": "Label1",
+   "input": 1,
+   "origin": [
+    -0.01,
+    0.009,
+    0.05915
+   ],
+   "size_m": [
+    0.022,
+    0.011
+   ],
+   "lit_material": "AVS_LabelWindow"
+  },
+  {
+   "node": "Label2",
+   "input": 2,
+   "origin": [
+    0.022,
+    0.009,
+    0.05915
+   ],
+   "size_m": [
+    0.022,
+    0.011
+   ],
+   "lit_material": "AVS_LabelWindow"
+  },
+  {
+   "node": "Label3",
+   "input": 3,
+   "origin": [
+    0.054,
+    0.009,
+    0.05915
+   ],
+   "size_m": [
+    0.022,
+    0.011
+   ],
+   "lit_material": "AVS_LabelWindow"
+  },
+  {
+   "node": "Label4",
+   "input": 4,
+   "origin": [
+    0.086,
+    0.009,
+    0.05915
+   ],
+   "size_m": [
+    0.022,
+    0.011
+   ],
+   "lit_material": "AVS_LabelWindow"
+  }
+ ],
+ "jacks": [
+  {
+   "node": "Input1Video",
+   "position": [
+    0.123,
+    0.001,
+    -0.069
+   ],
+   "colour": "yellow",
+   "note": "+Z (glTF) out of the socket"
+  },
+  {
+   "node": "Input1AudioL",
+   "position": [
+    0.11,
+    0.001,
+    -0.069
+   ],
+   "colour": "white",
+   "note": "+Z (glTF) out of the socket"
+  },
+  {
+   "node": "Input1AudioR",
+   "position": [
+    0.097,
+    0.001,
+    -0.069
+   ],
+   "colour": "red",
+   "note": "+Z (glTF) out of the socket"
+  },
+  {
+   "node": "Input2Video",
+   "position": [
+    0.075,
+    0.001,
+    -0.069
+   ],
+   "colour": "yellow",
+   "note": "+Z (glTF) out of the socket"
+  },
+  {
+   "node": "Input2AudioL",
+   "position": [
+    0.062,
+    0.001,
+    -0.069
+   ],
+   "colour": "white",
+   "note": "+Z (glTF) out of the socket"
+  },
+  {
+   "node": "Input2AudioR",
+   "position": [
+    0.049,
+    0.001,
+    -0.069
+   ],
+   "colour": "red",
+   "note": "+Z (glTF) out of the socket"
+  },
+  {
+   "node": "Input3Video",
+   "position": [
+    0.027,
+    0.001,
+    -0.069
+   ],
+   "colour": "yellow",
+   "note": "+Z (glTF) out of the socket"
+  },
+  {
+   "node": "Input3AudioL",
+   "position": [
+    0.014,
+    0.001,
+    -0.069
+   ],
+   "colour": "white",
+   "note": "+Z (glTF) out of the socket"
+  },
+  {
+   "node": "Input3AudioR",
+   "position": [
+    0.001,
+    0.001,
+    -0.069
+   ],
+   "colour": "red",
+   "note": "+Z (glTF) out of the socket"
+  },
+  {
+   "node": "Input4Video",
+   "position": [
+    -0.021,
+    0.001,
+    -0.069
+   ],
+   "colour": "yellow",
+   "note": "+Z (glTF) out of the socket"
+  },
+  {
+   "node": "Input4AudioL",
+   "position": [
+    -0.034,
+    0.001,
+    -0.069
+   ],
+   "colour": "white",
+   "note": "+Z (glTF) out of the socket"
+  },
+  {
+   "node": "Input4AudioR",
+   "position": [
+    -0.047,
+    0.001,
+    -0.069
+   ],
+   "colour": "red",
+   "note": "+Z (glTF) out of the socket"
+  },
+  {
+   "node": "VideoOut",
+   "position": [
+    -0.073,
+    0.001,
+    -0.069
+   ],
+   "colour": "yellow",
+   "note": "+Z (glTF) out of the socket"
+  },
+  {
+   "node": "AudioLOut",
+   "position": [
+    -0.086,
+    0.001,
+    -0.069
+   ],
+   "colour": "white",
+   "note": "+Z (glTF) out of the socket"
+  },
+  {
+   "node": "AudioROut",
+   "position": [
+    -0.099,
+    0.001,
+    -0.069
+   ],
+   "colour": "red",
+   "note": "+Z (glTF) out of the socket"
+  }
+ ],
+ "dc_in": {
+  "node": "DcIn",
+  "position": [
+   -0.122,
+   0.001,
+   -0.063
+  ],
+  "barrel": "5.5x2.1",
+  "note": "+Z (glTF) out of the back; no mains cord: an AC adapter plugs in here"
+ },
+ "triangles": {
+  "high": 36274,
+  "lod0": 6966,
+  "lod1": 4798,
+  "lod2": 3296
+ }
+}

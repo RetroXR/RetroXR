@@ -1,0 +1,15 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://Scripts/UI/panels/av_switch_options_panel.gd" id="1_avspanel"]
+[ext_resource type="PackedScene" uid="uid://clujaf3u776a3" path="res://addons/godot-xr-tools/objects/viewport_2d_in_3d.tscn" id="2_viewport2d3d"]
+[ext_resource type="PackedScene" path="res://Scenes/UI/av_switch_options_2d.tscn" id="3_avs2d"]
+
+[node name="AvSwitchOptionsPanel" type="Node3D"]
+script = ExtResource("1_avspanel")
+
+[node name="AvSwitchOptionsViewport" parent="." instance=ExtResource("2_viewport2d3d")]
+screen_size = Vector2(0.5, 0.4)
+scene = ExtResource("3_avs2d")
+viewport_size = Vector2(500, 400)
+transparent = 1
+unshaded = true

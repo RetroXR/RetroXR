@@ -1,0 +1,177 @@
+[gd_scene load_steps=14 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/av/av_switch.gd" id="1_avs"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="3_rcaport"]
+[ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_slider.gd" id="4_slider"]
+[ext_resource type="Script" path="res://Scripts/Objects/appliance_model.gd" id="5_model"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/av_switch/avswitch_mobile.glb" id="6_lod0"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/av_switch/avswitch_mobile_lod1.glb" id="7_lod1"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/av_switch/avswitch_mobile_lod2.glb" id="8_lod2"]
+[ext_resource type="PackedScene" path="res://Scenes/UI/av_switch_options_panel.tscn" id="9_panel"]
+
+; The RETRO XR AV selector (RetroXR-models generic/av-switch): 280 W x 42 H x 120 D mm, feet included. Origin at the
+; BASE centre; the front (+Z) carries the four-position slide under four label windows, the back (-Z) every jack:
+; INPUT 1-4 (yellow, white, red), TO TV, DC IN. The model's own origin is the middle of its box, 21 mm up: `Model`
+; carries that offset.
+;
+; The scene keeps the nodes the engine works through and AvSwitch._dress places them from the model: every RcaPort
+; on its jack's mouth (show_jack off; the model moulds the jacks), the slide on the model's tab (its box fitted to
+; the tab exactly), the DC IN built in code on the model's DcIn. The transforms below are only where they start.
+; Node names are saved and sent: never rename one.
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_box"]
+bounce = 0.0
+friction = 0.8
+
+; Refitted by ApplianceModel.fit_shapes to what the model draws.
+[sub_resource type="BoxShape3D" id="Shape_box"]
+size = Vector3(0.28, 0.042, 0.12)
+
+; Refitted to the tab exactly (AvSwitch._dress_slide).
+[sub_resource type="BoxShape3D" id="Shape_tab"]
+size = Vector3(0.016, 0.009, 0.004)
+
+; Laser target: refitted exactly too. Only the pointer answers this shape (mask 0).
+[sub_resource type="BoxShape3D" id="Shape_pointer"]
+size = Vector3(0.28, 0.042, 0.12)
+
+[node name="AvSwitch" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_box")
+mass = 0.6
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("1_avs")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.021, 0)
+shape = SubResource("Shape_box")
+
+; Before PickableHighlight: the highlight traces the model's meshes when it is ready.
+[node name="Model" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.021, 0)
+script = ExtResource("5_model")
+level_scenes = Array[PackedScene]([ExtResource("6_lod0"), ExtResource("7_lod1"), ExtResource("8_lod2")])
+
+; The slide: four detents 32 mm apart along +X (INPUT 1 at value 0). Moved onto the model's tab in code; the hand,
+; the laser, the desktop ray and a fingertip all take the tab itself. Saved and synced as every slider is.
+[node name="Selector" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.038, 0.0175, 0.066)
+collision_layer = 1048576
+collision_mask = 0
+script = ExtResource("4_slider")
+travel = 0.096
+steps = 4
+engage_radius = 0.02
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Selector"]
+shape = SubResource("Shape_tab")
+
+; -- Back --
+; Rx(180) turns a socket's +Z out of the back. direction 1 is IN, 0 is OUT; channel 0 video, 1 left, 2 right.
+
+[node name="Input1Video" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.123, 0.022, -0.063)
+channel = 0
+direction = 1
+show_jack = false
+
+[node name="Input1AudioL" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.11, 0.022, -0.063)
+channel = 1
+direction = 1
+show_jack = false
+
+[node name="Input1AudioR" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.097, 0.022, -0.063)
+channel = 2
+direction = 1
+show_jack = false
+
+[node name="Input2Video" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.075, 0.022, -0.063)
+channel = 0
+direction = 1
+show_jack = false
+
+[node name="Input2AudioL" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.062, 0.022, -0.063)
+channel = 1
+direction = 1
+show_jack = false
+
+[node name="Input2AudioR" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.049, 0.022, -0.063)
+channel = 2
+direction = 1
+show_jack = false
+
+[node name="Input3Video" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.027, 0.022, -0.063)
+channel = 0
+direction = 1
+show_jack = false
+
+[node name="Input3AudioL" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.014, 0.022, -0.063)
+channel = 1
+direction = 1
+show_jack = false
+
+[node name="Input3AudioR" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.001, 0.022, -0.063)
+channel = 2
+direction = 1
+show_jack = false
+
+[node name="Input4Video" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.021, 0.022, -0.063)
+channel = 0
+direction = 1
+show_jack = false
+
+[node name="Input4AudioL" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.034, 0.022, -0.063)
+channel = 1
+direction = 1
+show_jack = false
+
+[node name="Input4AudioR" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.047, 0.022, -0.063)
+channel = 2
+direction = 1
+show_jack = false
+
+[node name="VideoOut" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.073, 0.022, -0.063)
+channel = 0
+direction = 0
+show_jack = false
+
+[node name="AudioLOut" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.086, 0.022, -0.063)
+channel = 1
+direction = 0
+show_jack = false
+
+[node name="AudioROut" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.099, 0.022, -0.063)
+channel = 2
+direction = 0
+show_jack = false
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.021, 0)
+shape = SubResource("Shape_pointer")
+
+[node name="AvSwitchOptionsPanel" parent="." instance=ExtResource("9_panel")]

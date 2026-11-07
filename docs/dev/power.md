@@ -151,6 +151,11 @@ because nothing in it could ever be plugged in. The Arcade Room and the bedroom 
   adapters, so the 32X's card offered a unit that will not start and not the MK-2103.
   It now lists the adapter each unit's PowerProfiles row names, plus any brick whose
   `fits` names the card. `power_tests spawn/`.
+- **The AV switch** (2026-11-07, `AvSwitch`, `av-suite.md`): a 5.5 x 2.1 DC IN on its model's `DcIn`
+  (PowerProfiles `av_switch`, brick `retroxr_av_adapter`, a 9 V wall wart whose size is ESTIMATED: no RetroXR-models
+  item). Its supply lights the four label windows and nothing else: the slide is mechanical and routes the picture
+  with no supply at all, so power simulation on with an empty DC IN is dark windows and a working switch. Built in
+  code like `ExpansionPower`'s jack (`AvSwitch._build_power`); the adapter is on the Power tab. `av_switch_tests power/`.
 - **Handhelds.** Cells in EVERY bay, or a live DC adapter where the hardware runs off one,
   or a built-in pack (GBA SP, DS, 3DS, PSP: treated as always charged, so the machine is
   always powered; their jack only charges, so it is not an inlet).

@@ -1031,6 +1031,8 @@ const OBJECTS := [
 	["CD Player",       "cd_player"],
 	["Cassette Player", "cassette_player"],
 	["Record Player",   "record_player"],
+	# Four composite inputs, one TO TV: the slide on the front picks which one the set sees.
+	["AV Switch",       "av_switch"],
 	["TV Remote",       "tv_remote"],
 	["Composite Cable", "composite_cable"],
 	["Mono Composite Cable", "mono_composite_cable"],

@@ -1,4 +1,4 @@
-## The RETRO XR appliances (VCR, DVD player, surround amp, record player, cassette deck, CD player, the RETRO XR
+## The RETRO XR appliances (VCR, DVD player, surround amp, record player, cassette deck, CD player, AV switch, the RETRO XR
 ## television): what the desktop
 ## ray meets is what the model draws. No box is bigger than the model it stands for, every key's box IS its key, and
 ## the ray aimed at a control along the way it faces takes THAT control, in every state that shows it (the set's key
@@ -25,6 +25,7 @@ const ITEMS := {
 	"turntable": "res://Scenes/Objects/appliances/record_player.tscn",
 	"cassette": "res://Scenes/Objects/appliances/cassette_player.tscn",
 	"cd": "res://Scenes/Objects/appliances/cd_player.tscn",
+	"avswitch": "res://Scenes/Objects/appliances/av_switch.tscn",
 	"tv": "res://Scenes/Objects/tv.tscn",
 }
 
