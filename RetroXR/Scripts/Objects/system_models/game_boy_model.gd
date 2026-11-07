@@ -33,7 +33,7 @@ func _init() -> void:
 
 ## gameboy_lcd's settings for the machine menu's LCD tab: its four shades (as a
 ## palette) and the pixel grid. gb_resolution is the panel's, not a taste.
-func lcd_param_specs() -> Array:
+func screen_param_specs() -> Array:
 	var palettes: Array = []
 	for i in PALETTES.size():
 		palettes.append([PALETTES[i][0], i])
@@ -47,13 +47,13 @@ func lcd_param_specs() -> Array:
 
 
 ## The shader's own defaults (gameboy_lcd.gdshaderinc).
-func lcd_param_defaults() -> Dictionary:
+func screen_param_defaults() -> Dictionary:
 	return {"gb_palette": 0, "gb_grid_strength": 0.22, "gb_grid_width": 0.08}
 
 
 ## The palette is a choice standing for four uniforms; the rest are uniforms.
-func _apply_lcd_params(mat: ShaderMaterial) -> void:
-	var params := get_lcd_params()
+func _apply_screen_params(mat: ShaderMaterial) -> void:
+	var params := get_screen_params()
 	var idx := clampi(int(params["gb_palette"]), 0, PALETTES.size() - 1)
 	var shades: Array = PALETTES[idx][1]
 	for i in 4:

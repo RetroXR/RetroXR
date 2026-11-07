@@ -33,6 +33,13 @@ const SIZE_CENTER := Vector3(0.0, 0.90, 0.035)
 @export var screen_front_z := 0.40
 
 var _modules: Array[ArcadeModule] = []
+## The monitor's look as the player set it (the machine menu's Monitor tab). Kept here,
+## not on the screen module: a morph builds a new monitor, which is handed it again.
+var _screen_settings := ScreenSettings.new(
+	{"scanlines": SCREEN_SCANLINES, "gain": SCREEN_GAIN}, "arcade cabinet")
+## arcade_screen.gdshader's own defaults (and ArcadeScreenModule's).
+const SCREEN_SCANLINES := 0.22
+const SCREEN_GAIN := 1.1
 var _screen: ArcadeScreenModule = null
 var _bay: ArcadeBayModule = null
 var _av_in: ArcadeAvInModule = null
@@ -115,6 +122,7 @@ func _collect_modules() -> void:
 			ArcadeProfiles.KIND_SERVICE:
 				_services.append(m as ArcadeServiceModule)
 	_controls.sort_custom(func(a: ArcadeControlModule, b: ArcadeControlModule) -> bool: return a.player < b.player)
+	_apply_screen_look()
 	var marquee := find_child("Marquee", true, false) as MeshInstance3D
 	_marquee_mat = null
 	if marquee != null and marquee.mesh != null:
@@ -1527,3 +1535,44 @@ func _light_marquee(on: bool) -> void:
 		return
 	_marquee_mat.emission_enabled = on
 	_marquee_mat.emission_energy_multiplier = 0.9 if on else 0.0
+
+
+# ── The monitor's look (the machine menu's Monitor tab) ───────────────────────
+
+## The rows the machine menu's screen tab shows (see RetroSystemModelHandheld's).
+func screen_param_specs() -> Array:
+	return [
+		{"key": "scanlines", "label": "Scanlines", "min": 0.0, "max": 1.0,
+			"step": 0.02, "fmt": "%.2f"},
+		{"key": "gain", "label": "Brightness", "min": 0.5, "max": 2.0,
+			"step": 0.05, "fmt": "%.2f"},
+	]
+
+
+func screen_settings_title() -> String:
+	return "Monitor"
+
+
+func get_screen_params() -> Dictionary:
+	return _screen_settings.values()
+
+
+func get_screen_param_overrides() -> Dictionary:
+	return _screen_settings.overrides()
+
+
+func set_screen_param(key: String, value: Variant) -> void:
+	if _screen_settings.set_value(key, value):
+		_apply_screen_look()
+
+
+func set_screen_params(values: Dictionary) -> void:
+	_screen_settings.set_values(values)
+	_apply_screen_look()
+
+
+func _apply_screen_look() -> void:
+	if _screen == null or not is_instance_valid(_screen):
+		return
+	var v := _screen_settings.values()
+	_screen.set_look(float(v["scanlines"]), float(v["gain"]))

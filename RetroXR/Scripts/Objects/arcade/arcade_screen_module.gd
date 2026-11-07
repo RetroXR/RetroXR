@@ -18,6 +18,8 @@ const SHADER := preload("res://Shaders/arcade_screen.gdshader")
 @export var glass_size: Vector2 = Vector2(0.38, 0.285)
 ## Scanline strength handed to the shader; 0 turns them off.
 @export_range(0.0, 1.0) var scanlines: float = 0.22
+## Glass brightness handed to the shader (its `gain`).
+@export_range(0.5, 2.0) var gain: float = 1.1
 ## A game whose second screen is the scope's (Silent Scope, `ArcadeCabinetSpecs.scope_of`): the part of the core's frame the MONITOR shows and the
 ## part the scope's lens does, as fractions of it, y down, and the frame's shape the table expects. Empty = the whole frame on the monitor and no
 ## lens. The cut is made only while the core's frame really is that shape (a different layout, the player's own artwork, would put other things there).
@@ -77,12 +79,14 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 	_material = ShaderMaterial.new()
 	_material.shader = SHADER
 	_material.set_shader_parameter("scanlines", scanlines)
+	_material.set_shader_parameter("gain", gain)
 	if _screen != null:
 		_screen.set_surface_override_material(0, _off_material)
 	_lens_off = _off_material.duplicate() as StandardMaterial3D
 	_lens_material = ShaderMaterial.new()
 	_lens_material.shader = SHADER
 	_lens_material.set_shader_parameter("scanlines", 0.0)
+	_lens_material.set_shader_parameter("gain", gain)
 	_wings.clear()
 	_wing_materials.clear()
 	_bank_fitted = 0.0
@@ -93,9 +97,24 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 		var material := ShaderMaterial.new()
 		material.shader = SHADER
 		material.set_shader_parameter("scanlines", scanlines)
+		material.set_shader_parameter("gain", gain)
 		wing.set_surface_override_material(0, _off_material)
 		_wings.append(wing)
 		_wing_materials.append(material)
+
+
+## The player's look for this monitor (the cabinet menu's Monitor tab), on the
+## monitor and a bank's wings. A scope's lens takes the brightness but never the
+## scanlines: it is an eyepiece, not a tube.
+func set_look(p_scanlines: float, p_gain: float) -> void:
+	scanlines = p_scanlines
+	gain = p_gain
+	for material: ShaderMaterial in [_material] + _wing_materials:
+		if material != null:
+			material.set_shader_parameter("scanlines", scanlines)
+			material.set_shader_parameter("gain", gain)
+	if _lens_material != null:
+		_lens_material.set_shader_parameter("gain", gain)
 
 
 func get_screen() -> MeshInstance3D:

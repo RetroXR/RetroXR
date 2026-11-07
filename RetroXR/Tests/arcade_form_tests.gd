@@ -201,6 +201,9 @@ func _run() -> void:
 	if _want("stage"):
 		await _group_stage()
 		await _clear()
+	if _want("monitor"):
+		await _group_monitor()
+		await _clear()
 
 
 # --- helpers -------------------------------------------------------------------
@@ -5239,3 +5242,58 @@ func _group_bezel() -> void:
 	ArcadeBezel.test_root = ""
 	DirAccess.remove_absolute(dir.path_join("puckman.zip"))
 	DirAccess.remove_absolute(dir)
+
+
+# --- monitor -------------------------------------------------------------------
+
+## The machine menu's Monitor tab: arcade_screen's scanlines and brightness, kept on
+## the CABINET so a morph's new monitor (and a bank's wings, a scope's lens) wears them.
+func _group_monitor() -> void:
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var keys := sys.get_screen_param_specs().map(func(sp: Dictionary) -> String: return str(sp["key"]))
+	_ok(keys == ["scanlines", "gain"] and sys.get_screen_settings_title() == "Monitor",
+		"monitor: a cabinet's menu offers Scanlines and Brightness on a Monitor tab (%s)" % str(keys))
+	_ok(sys.get_screen_param_overrides().is_empty(), "monitor: nothing is saved at the defaults")
+	sys.set_screen_param("scanlines", 0.7)
+	sys.set_screen_param("gain", 1.6)
+	var mat := _monitor_material(model)
+	_ok(mat != null and is_equal_approx(float(mat.get_shader_parameter("scanlines")), 0.7)
+			and is_equal_approx(float(mat.get_shader_parameter("gain")), 1.6),
+		"monitor: a change reaches the monitor at once")
+	model.morph_to(_spec("pacman"))
+	await _wait(2)
+	mat = _monitor_material(model)
+	_ok(mat != null and is_equal_approx(float(mat.get_shader_parameter("scanlines")), 0.7)
+			and is_equal_approx(float(mat.get_shader_parameter("gain")), 1.6),
+		"monitor: and a morph's new monitor wears it")
+	model.morph_to(_spec("sscope"))
+	await _wait(2)
+	var screen := model.modules_of_kind(ArcadeProfiles.KIND_SCREEN)[0] as ArcadeScreenModule
+	var lens := screen.get("_lens_material") as ShaderMaterial
+	_ok(lens != null and is_equal_approx(float(lens.get_shader_parameter("gain")), 1.6)
+			and is_equal_approx(float(lens.get_shader_parameter("scanlines")), 0.0),
+		"monitor: a scope's lens takes the brightness and never the scanlines")
+	model.morph_to(_spec("tx1"))
+	await _wait(2)
+	screen = model.modules_of_kind(ArcadeProfiles.KIND_SCREEN)[0] as ArcadeScreenModule
+	var wings: Array = screen.get("_wing_materials")
+	var wings_ok := wings.size() == 2
+	for w: ShaderMaterial in wings:
+		wings_ok = wings_ok and is_equal_approx(float(w.get_shader_parameter("scanlines")), 0.7)
+	_ok(wings_ok, "monitor: a bank's wing monitors wear it too (%d wings)" % wings.size())
+	var saved := sys.get_screen_param_overrides()
+	_ok(saved.size() == 2, "monitor: only what was changed is saved (%s)" % str(saved))
+	var other := await _machine()
+	other.set_screen_params(saved)
+	mat = _monitor_material(other.get_model() as RetroSystemModelArcadeCabinet)
+	_ok(mat != null and is_equal_approx(float(mat.get_shader_parameter("gain")), 1.6),
+		"monitor: a restored cabinet's monitor wears what was saved")
+
+
+func _monitor_material(model: RetroSystemModelArcadeCabinet) -> ShaderMaterial:
+	var screens := model.modules_of_kind(ArcadeProfiles.KIND_SCREEN)
+	if screens.is_empty():
+		return null
+	return screens[0].get("_material") as ShaderMaterial
+

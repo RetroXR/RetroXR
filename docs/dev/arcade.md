@@ -942,6 +942,17 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
 - OWED: a headset (taking hold of a wheel, a stage under the feet), the Quest (building a cockpit at run time on device), real cores for which pad ids the
   driving and dance games read, two peers, the twin cockpits (Final Lap 3, Daytona's linked twins) and the multi-screen games on a real core ("Several screens").
 
+## The monitor's look: the Monitor tab (2026-11-07)
+
+`arcade_screen.gdshader`'s two settings a player would want, `scanlines` and `gain` (Brightness), are on the
+machine menu's **Monitor** tab: the same tab a Game Boy calls LCD (`core_options_2d.gd` `populate_screen_settings`,
+rows built from the model's `screen_param_specs()`, titled by `screen_settings_title()`). The values live on the
+CABINET MODEL (`ScreenSettings`), never on `ArcadeScreenModule`: a morph builds a new monitor, and
+`_collect_modules()` hands it the look again (`_apply_screen_look`), its bank's wings too. A scope's lens takes the
+brightness and never the scanlines (it is an eyepiece). Per cabinet, saved as `screen_params` (changes only), not
+sent in netplay, as a TV's CRT settings. `fit_scale`, `view_rect`, `quad_aspect` and `scope_reticle` are the game's
+geometry, not tastes, and stay off the menu. `arcade_form_tests --only=monitor`.
+
 ## Several screens: where each one goes (2026-10-26)
 
 **The core hands over ONE frame.** libretro-mame draws the first of the game's views that shows EVERY screen (`render_target::view_for_screen`, `render.cpp`): the layout the driver names

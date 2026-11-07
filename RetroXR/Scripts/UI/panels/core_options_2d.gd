@@ -30,8 +30,8 @@ signal video_out_toggled(enabled: bool)
 signal ignore_gravity_toggled(enabled: bool)
 ## System-tab toggle: a reflective-LCD handheld's screen lights itself.
 signal screen_glow_toggled(enabled: bool)
-## LCD-tab row moved: one of the screen look's settings (RetroSystem.set_lcd_param).
-signal lcd_param_changed(key: String, value: Variant)
+## Screen-tab row moved: one of the screen look's settings (RetroSystem.set_screen_param).
+signal screen_param_changed(key: String, value: Variant)
 ## System-tab toggle (cabinets): wear the game's scraped art on the marquee and sides.
 signal cabinet_art_toggled(enabled: bool)
 ## The cabinet's own say over the arcade attract option (ArcadeAttract.OVERRIDE_*).
@@ -85,15 +85,16 @@ var _screen_glow_row: Control = null
 var _screen_glow_check: VRToggle = null
 var _cabinet_art_row: HBoxContainer = null
 var _dip_tab_idx := -1
-## The LCD tab: the handheld screen look's settings, as a TV's CRT tab has its
-## filter's. Hidden on a machine whose screen has none (populate_lcd).
-var _lcd_tab_idx := -1
-var _lcd_scroll: ScrollContainer = null
-var _lcd_rows: VBoxContainer = null
+## The screen tab: the screen look's settings (LCD on a handheld, Monitor on a
+## cabinet), as a TV's CRT tab has its filter's. Hidden on a machine whose screen
+## has none (populate_screen_settings), titled by the machine.
+var _screen_tab_idx := -1
+var _screen_scroll: ScrollContainer = null
+var _screen_rows: VBoxContainer = null
 ## The specs the rows were last built from: rebuilt only when they change.
-var _lcd_specs: Array = []
-## key -> {"slider", "val", "fmt"} or {"choice"}, for populate_lcd to set.
-var _lcd_controls: Dictionary = {}
+var _screen_specs: Array = []
+## key -> {"slider", "val", "fmt"} or {"choice"}, for populate_screen_settings to set.
+var _screen_controls: Dictionary = {}
 var _dip_scroll: ScrollContainer = null
 var _dip_rows: VBoxContainer = null
 ## What the DIP tab was last told: the core has a screen of its own, the cabinet is on, that screen is open.
@@ -319,23 +320,23 @@ func _build_ui() -> void:
 	_saves_ui.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	saves_outer.add_child(_saves_ui)
 
-	# LCD tab, a handheld's screen look (the Game Boy's palette and pixel grid):
-	# hidden unless the machine's screen has settings, which keeps the indices put.
-	var lcd_outer := VBoxContainer.new()
-	lcd_outer.name = "LCD"
-	tabs.add_child(lcd_outer)
-	_lcd_tab_idx = tabs.get_tab_count() - 1
-	tabs.set_tab_hidden(_lcd_tab_idx, true)
-	_lcd_scroll = ScrollContainer.new()
-	_lcd_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_lcd_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_lcd_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	MenuStyle.fat_vscroll_bar(_lcd_scroll)
-	lcd_outer.add_child(_lcd_scroll)
-	_lcd_rows = VBoxContainer.new()
-	_lcd_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_lcd_rows.add_theme_constant_override("separation", 4)
-	_lcd_scroll.add_child(_lcd_rows)
+	# Screen tab: a handheld's LCD look (the Game Boy's palette and pixel grid) or a
+	# cabinet's monitor; hidden unless the screen has settings, which keeps the indices put.
+	var screen_outer := VBoxContainer.new()
+	screen_outer.name = "Screen"
+	tabs.add_child(screen_outer)
+	_screen_tab_idx = tabs.get_tab_count() - 1
+	tabs.set_tab_hidden(_screen_tab_idx, true)
+	_screen_scroll = ScrollContainer.new()
+	_screen_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_screen_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_screen_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	MenuStyle.fat_vscroll_bar(_screen_scroll)
+	screen_outer.add_child(_screen_scroll)
+	_screen_rows = VBoxContainer.new()
+	_screen_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_screen_rows.add_theme_constant_override("separation", 4)
+	_screen_scroll.add_child(_screen_rows)
 
 	# DIP Switch tab, a cabinet's: hidden on every other machine (set_dip_tab_visible keeps the indices put).
 	var dip_outer := VBoxContainer.new()
@@ -490,8 +491,8 @@ func _build_ui() -> void:
 			_active_scroll = _debug_scroll
 		elif idx == _dip_tab_idx:
 			_active_scroll = _dip_scroll
-		elif idx == _lcd_tab_idx:
-			_active_scroll = _lcd_scroll
+		elif idx == _screen_tab_idx:
+			_active_scroll = _screen_scroll
 		else:
 			# The Cartridge tab hosts a whole CartridgeOptions2D with ribbons of
 			# its own, so it knows which of them is showing and this does not.
@@ -972,20 +973,22 @@ func populate_screen_glow(state: int) -> void:
 	_suppress_signal = false
 
 
-## The LCD tab: `specs` is RetroSystem.get_lcd_param_specs() ([] hides the tab),
-## `values` its get_lcd_params(). Rows are built from the specs, so a machine's
+## The screen tab: `title` is RetroSystem.get_screen_settings_title(), `specs` its
+## get_screen_param_specs() ([] hides the tab), `values` its get_screen_params().
+## Rows are built from the specs, so a machine's
 ## look names its own settings; they are rebuilt only when the specs change.
-func populate_lcd(specs: Array, values: Dictionary) -> void:
-	if _tabs == null or _lcd_tab_idx < 0:
+func populate_screen_settings(title: String, specs: Array, values: Dictionary) -> void:
+	if _tabs == null or _screen_tab_idx < 0:
 		return
-	_tabs.set_tab_hidden(_lcd_tab_idx, specs.is_empty())
-	if specs != _lcd_specs:
-		_build_lcd_rows(specs)
+	_tabs.set_tab_hidden(_screen_tab_idx, specs.is_empty())
+	_tabs.set_tab_title(_screen_tab_idx, title)
+	if specs != _screen_specs:
+		_build_screen_rows(specs)
 	_suppress_signal = true
-	for key: String in _lcd_controls:
+	for key: String in _screen_controls:
 		if not values.has(key):
 			continue
-		var entry: Dictionary = _lcd_controls[key]
+		var entry: Dictionary = _screen_controls[key]
 		if entry.has("choice"):
 			(entry["choice"] as VRDropdown).select_id(int(values[key]))
 		else:
@@ -995,10 +998,10 @@ func populate_lcd(specs: Array, values: Dictionary) -> void:
 	_suppress_signal = false
 
 
-func _build_lcd_rows(specs: Array) -> void:
-	_lcd_specs = specs.duplicate(true)
-	_lcd_controls.clear()
-	for child in _lcd_rows.get_children():
+func _build_screen_rows(specs: Array) -> void:
+	_screen_specs = specs.duplicate(true)
+	_screen_controls.clear()
+	for child in _screen_rows.get_children():
 		child.queue_free()
 	for spec: Dictionary in specs:
 		var key := str(spec["key"])
@@ -1008,11 +1011,11 @@ func _build_lcd_rows(specs: Array) -> void:
 				opts[0][1] if not opts.is_empty() else 0)
 			choice.item_selected.connect(func(id: Variant) -> void:
 				if not _suppress_signal:
-					lcd_param_changed.emit(key, int(id)))
-			_lcd_rows.add_child(choice)
-			_lcd_controls[key] = {"choice": choice}
+					screen_param_changed.emit(key, int(id)))
+			_screen_rows.add_child(choice)
+			_screen_controls[key] = {"choice": choice}
 		else:
-			var built := MenuStyle.slider_row(_lcd_rows, str(spec["label"]),
+			var built := MenuStyle.slider_row(_screen_rows, str(spec["label"]),
 				float(spec["min"]), float(spec["max"]), float(spec["step"]), 70)
 			var slider := built[0] as HSlider
 			var val_lbl := built[1] as Label
@@ -1020,8 +1023,8 @@ func _build_lcd_rows(specs: Array) -> void:
 			slider.value_changed.connect(func(v: float) -> void:
 				val_lbl.text = fmt % v
 				if not _suppress_signal:
-					lcd_param_changed.emit(key, v))
-			_lcd_controls[key] = {"slider": slider, "val": val_lbl, "fmt": fmt}
+					screen_param_changed.emit(key, v))
+			_screen_controls[key] = {"slider": slider, "val": val_lbl, "fmt": fmt}
 
 
 ## The attract row's button: what this cabinet does with the global option.

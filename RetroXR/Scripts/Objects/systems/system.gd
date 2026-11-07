@@ -1118,39 +1118,47 @@ func set_screen_glow(on: bool) -> void:
 	_model.set_screen_glow(on)
 
 
-## The machine menu's LCD tab: the screen look's settings (gameboy_lcd's palette and
-## grid on a Game Boy). [] for a machine whose screen has none, which hides the tab.
-func get_lcd_param_specs() -> Array:
-	if _model == null or not _model.has_method("lcd_param_specs"):
+## The machine menu's screen tab: the screen look's settings (gameboy_lcd's palette
+## and grid on a Game Boy, the monitor's scanlines and brightness on a cabinet). []
+## for a machine whose screen has none, which hides the tab.
+func get_screen_param_specs() -> Array:
+	if _model == null or not _model.has_method("screen_param_specs"):
 		return []
-	return _model.call("lcd_param_specs")
+	return _model.call("screen_param_specs")
 
 
-func get_lcd_params() -> Dictionary:
-	if _model == null or not _model.has_method("get_lcd_params"):
+## The tab's title: "LCD" on a handheld, "Monitor" on a cabinet.
+func get_screen_settings_title() -> String:
+	if _model == null or not _model.has_method("screen_settings_title"):
+		return "Screen"
+	return str(_model.call("screen_settings_title"))
+
+
+func get_screen_params() -> Dictionary:
+	if _model == null or not _model.has_method("get_screen_params"):
 		return {}
-	return _model.call("get_lcd_params")
+	return _model.call("get_screen_params")
 
 
 ## What differs from the look's defaults, for the room's save.
-func get_lcd_param_overrides() -> Dictionary:
-	if _model == null or not _model.has_method("get_lcd_param_overrides"):
+func get_screen_param_overrides() -> Dictionary:
+	if _model == null or not _model.has_method("get_screen_param_overrides"):
 		return {}
-	return _model.call("get_lcd_param_overrides")
+	return _model.call("get_screen_param_overrides")
 
 
-func set_lcd_param(key: String, value: Variant) -> void:
-	if _model == null or not _model.has_method("set_lcd_param"):
-		print("[RetroSystem] %s: no LCD settings; ignoring %s = %s" % [name, key, value])
+func set_screen_param(key: String, value: Variant) -> void:
+	if _model == null or not _model.has_method("set_screen_param"):
+		print("[RetroSystem] %s: no screen settings; ignoring %s = %s" % [name, key, value])
 		return
-	_model.call("set_lcd_param", key, value)
+	_model.call("set_screen_param", key, value)
 
 
-func set_lcd_params(values: Dictionary) -> void:
-	if _model == null or not _model.has_method("set_lcd_params"):
-		print("[RetroSystem] %s: no LCD settings; dropping saved %s" % [name, values])
+func set_screen_params(values: Dictionary) -> void:
+	if _model == null or not _model.has_method("set_screen_params"):
+		print("[RetroSystem] %s: no screen settings; dropping saved %s" % [name, values])
 		return
-	_model.call("set_lcd_params", values)
+	_model.call("set_screen_params", values)
 
 
 ## Pose a lid at a saved angle. Public because ScenePersistence has to re-apply it

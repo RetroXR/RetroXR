@@ -105,7 +105,7 @@ func _ensure_ui_connected() -> void:
 	ui.video_out_toggled.connect(_on_video_out_toggled)
 	ui.ignore_gravity_toggled.connect(_on_ignore_gravity_toggled)
 	ui.screen_glow_toggled.connect(_on_screen_glow_toggled)
-	ui.lcd_param_changed.connect(_on_lcd_param_changed)
+	ui.screen_param_changed.connect(_on_screen_param_changed)
 	ui.cabinet_art_toggled.connect(_on_cabinet_art_toggled)
 	ui.attract_override_changed.connect(_on_attract_override_changed)
 	ui.dip_menu_requested.connect(_on_dip_menu_requested)
@@ -141,7 +141,8 @@ func _populate() -> void:
 		_system.supports_cabinet_art_toggle(), _system.cabinet_art_enabled,
 		_system.attract_override if _system.supports_cabinet_art_toggle() else -1)
 	ui.populate_screen_glow(_system.get_screen_glow())
-	ui.populate_lcd(_system.get_lcd_param_specs(), _system.get_lcd_params())
+	ui.populate_screen_settings(_system.get_screen_settings_title(),
+		_system.get_screen_param_specs(), _system.get_screen_params())
 	_controls_state = _system.controls_state()
 	ui.populate_controls(_controls_state)
 	ui.populate_debug(_system.debug_state())
@@ -361,11 +362,11 @@ func _on_screen_glow_toggled(enabled: bool) -> void:
 		_system.set_screen_glow(enabled)
 
 
-## LCD-tab row moved: applied live to this machine's screen. Cosmetic and local,
+## Screen-tab row moved (LCD / Monitor): applied live to this machine's screen. Cosmetic and local,
 ## as a TV's CRT settings are: never sent to peers.
-func _on_lcd_param_changed(key: String, value: Variant) -> void:
+func _on_screen_param_changed(key: String, value: Variant) -> void:
 	if _system and is_instance_valid(_system):
-		_system.set_lcd_param(key, value)
+		_system.set_screen_param(key, value)
 
 
 ## The cabinet's DIP Switch tab: the core's own DIP screen to open on the game's screen (MAME), or the
