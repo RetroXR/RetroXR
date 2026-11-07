@@ -33,6 +33,9 @@ var _options_rows: VBoxContainer
 var _vhs_scroll: ScrollContainer = null
 var _active_scroll: ScrollContainer = null
 var _debug_scroll: ScrollContainer = null
+## The Debug tab itself: a System tab is added before it at open (PowerMenuRows),
+## so no tab is found by its index here.
+var _debug_outer: Control = null
 var _debug_rows: DebugRows = null
 var _tabs: TabContainer = null
 var _effect_check: VRToggle = null
@@ -97,14 +100,17 @@ func _build_ui() -> void:
 	var dbg_outer := VBoxContainer.new()
 	dbg_outer.name = "Debug"
 	tabs.add_child(dbg_outer)
+	_debug_outer = dbg_outer
 	_debug_scroll = MenuStyle.vscroll()
 	dbg_outer.add_child(_debug_scroll)
 	_debug_rows = DebugRows.new()
 	_debug_scroll.add_child(_debug_rows)
 
 	# Stick-scroll drives whichever tab is visible.
-	tabs.tab_changed.connect(func(idx: int) -> void:
-		_active_scroll = [_options_scroll, _vhs_scroll, _debug_scroll][clampi(idx, 0, 2)])
+	tabs.tab_changed.connect(func(_idx: int) -> void:
+		var shown := tabs.get_current_tab_control()
+		var scrolls := shown.find_children("*", "ScrollContainer", true, false) if shown else []
+		_active_scroll = scrolls[0] as ScrollContainer if not scrolls.is_empty() else null)
 
 
 func _build_option_rows() -> void:
@@ -274,7 +280,7 @@ func populate_vcr(params: Dictionary) -> void:
 ## Drive the active scroll container from an external stick input (pixels > 0 = down).
 ## Whether the Debug tab is the one showing — the panel only reads the deck then.
 func is_debug_tab_shown() -> bool:
-	return _tabs != null and _tabs.current_tab == 2
+	return _tabs != null and _tabs.get_current_tab_control() == _debug_outer
 
 
 ## Fill the Debug tab from VCRPlayer.debug_state().

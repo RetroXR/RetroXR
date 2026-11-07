@@ -25,6 +25,8 @@ var _title_lbl: Label = null
 var _float_check: VRToggle = null
 var _tabs: TabContainer = null
 var _debug_scroll: ScrollContainer = null
+## The Debug tab itself: a System tab is added before it at open (PowerMenuRows).
+var _debug_outer: Control = null
 var _debug_rows: DebugRows = null
 ## Guard so populate() doesn't re-emit while it sets the control.
 var _suppress := false
@@ -59,6 +61,7 @@ func _build_ui() -> void:
 	var dbg := VBoxContainer.new()
 	dbg.name = "Debug"
 	_tabs.add_child(dbg)
+	_debug_outer = dbg
 	_debug_scroll = MenuStyle.vscroll()
 	dbg.add_child(_debug_scroll)
 	_debug_rows = DebugRows.new()
@@ -73,7 +76,7 @@ func _build_ui() -> void:
 
 ## Whether the Debug tab is the one showing — the panel only reads the deck then.
 func is_debug_tab_shown() -> bool:
-	return _tabs != null and _tabs.current_tab == 1
+	return _tabs != null and _tabs.get_current_tab_control() == _debug_outer
 
 
 ## Fill the Debug tab from RetroAudioPlayer.debug_state().

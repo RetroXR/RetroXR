@@ -307,20 +307,6 @@ func _build_ui() -> void:
 	_saves_tab_idx = tabs.get_tab_count() - 1
 	tabs.set_tab_hidden(_saves_tab_idx, true)
 
-	# Debug tab — what the running core says about itself. Last, being for a
-	# player chasing a problem rather than one playing.
-	var debug_outer := VBoxContainer.new()
-	debug_outer.name = "Debug"
-	tabs.add_child(debug_outer)
-	_debug_tab_idx = tabs.get_tab_count() - 1
-	_debug_scroll = ScrollContainer.new()
-	_debug_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_debug_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_debug_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	MenuStyle.fat_vscroll_bar(_debug_scroll)
-	debug_outer.add_child(_debug_scroll)
-	_debug_rows = DebugRows.new()
-	_debug_scroll.add_child(_debug_rows)
 	# Which memory the page shows, when there is more than one: the unit's own and
 	# a Backup RAM Cartridge in the slot.
 	_saves_switch = HBoxContainer.new()
@@ -367,6 +353,21 @@ func _build_ui() -> void:
 	_dip_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_dip_rows.add_theme_constant_override("separation", 4)
 	_dip_scroll.add_child(_dip_rows)
+
+	# Debug tab — what the running core says about itself. LAST in every menu, being
+	# for a player chasing a problem rather than one playing: keep it below any new tab.
+	var debug_outer := VBoxContainer.new()
+	debug_outer.name = "Debug"
+	tabs.add_child(debug_outer)
+	_debug_tab_idx = tabs.get_tab_count() - 1
+	_debug_scroll = ScrollContainer.new()
+	_debug_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_debug_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_debug_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	MenuStyle.fat_vscroll_bar(_debug_scroll)
+	debug_outer.add_child(_debug_scroll)
+	_debug_rows = DebugRows.new()
+	_debug_scroll.add_child(_debug_rows)
 
 	_system_scroll = ScrollContainer.new()
 	_system_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL

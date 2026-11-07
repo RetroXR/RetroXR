@@ -54,6 +54,10 @@ static func _system_rows_of(ui: Control) -> Container:
 		sys = VBoxContainer.new()
 		sys.name = "System"
 		tabs.add_child(sys)
+		# Debug stays the last tab in every menu: a System tab made here goes before it.
+		var debug := tabs.get_node_or_null("Debug")
+		if debug != null:
+			tabs.move_child(sys, debug.get_index())
 		var scroll := ScrollContainer.new()
 		scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
