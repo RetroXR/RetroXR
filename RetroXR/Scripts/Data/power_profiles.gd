@@ -114,9 +114,6 @@ const _ROWS := {
 	# The 32X's ADAPTOR jack: the MK-2103's EIAJ-03, a second adapter beside the
 	# Genesis's (RetroXR-models sega/32x/console build_32x.py, its DCInPort).
 	"sega_32x":                 {"inlet": "dc", "takes": "EIAJ-03", "brick": "sega_mk2103_adapter"},
-	# The RETRO XR AV selector (AvSwitch): a 5.5 x 2.1 DC IN on its back (RetroXR-models generic/av-switch, DcIn).
-	# Its supply lights the label windows only; the slide routes without it.
-	"av_switch":                {"inlet": "dc", "takes": "5.5x2.1", "brick": "retroxr_av_adapter"},
 	# The Sega CD's own (Model 1 and 2): the MK-1602's 5.5 x 2.1, beside the Genesis's.
 	"sega_cd":                  {"inlet": "dc", "takes": "5.5x2.1", "brick": "sega_mk1602_adapter"},
 	# The Disk System's drive: its HVC-025 (plug UNVERIFIED) or six C cells, in a bay

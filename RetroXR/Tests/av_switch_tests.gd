@@ -45,7 +45,9 @@ func _run() -> void:
 		["chain/two switches in a row carry the first one's source to the set", _chain],
 		["chain/two switches cabled into each other are refused safely", _loop],
 		["save/the slide is saved and restored", _save],
-		["power/power simulation on with no DC: labels dark, the slide still routes", _power],
+		["save/a room saved with the old DC adapter drops it, and keeps every other adapter", _save_old_adapter],
+		["power/power simulation on, the cord loose: labels dark, the slide still routes", _power],
+		["power/its own mains cord in a live outlet lights the labels", _power_plugged],
 		["ray/the desktop ray takes the tab, and its box is the tab exactly", _ray],
 		["debug/the Debug tab's rows follow a plug, an unplug and the slide", _debug],
 		["panel/the menu's INPUT buttons move the slide", _panel],
@@ -359,6 +361,20 @@ func _loop() -> void:
 	_eq(sw2.source_device(0), deck, "and switch 2 sees the VCR on INPUT 1, through switch 1")
 
 
+## The switch had a DC IN and a 9 V wall wart until 2026-11-07: a room saved then names that adapter, which nothing
+## takes now. It is dropped on load (a bare box with no row on the floor otherwise); any other adapter still loads.
+func _save_old_adapter() -> void:
+	var sp := ScenePersistence.new()
+	var old := {"type": "composite_cable", "kind": "power_brick", "brick": ScenePersistence.RETIRED_AV_ADAPTER,
+		"variant": "usa", "plugs": [], "cords": 1}
+	_ok(sp.deserialize_object(old) == null, "the retired AV adapter is not restored")
+	var other := sp.deserialize_object({"type": "composite_cable", "kind": "power_brick", "brick": "nes_ac_adapter",
+		"variant": "usa", "plugs": [], "cords": 1})
+	_ok(other is PowerBrick and (other as PowerBrick).brick_id == "nes_ac_adapter", "the NES adapter still is")
+	if other != null:
+		other.free()
+
+
 func _save() -> void:
 	var sw := await _switch()
 	sw.select(2)
@@ -385,9 +401,11 @@ func _power() -> void:
 	var tv: RetroTV = r["tv"]
 	var deck: VCRPlayer = r["deck"]
 	_ok(sw.powered(), "power simulation off: the switch has a supply")
-	_ok(sw.get_node_or_null(AvSwitch.INLET_NAME) is DcPort, "it has a DC IN")
-	_eq((sw.get_node(AvSwitch.INLET_NAME) as DcPort).connector, "barrel_5_5x2_1", "a 5.5 x 2.1 barrel jack")
-	_ok(PowerBrickCatalog.for_machine("av_switch", "").has("retroxr_av_adapter"), "its adapter is in the catalogue")
+	_ok(sw.power_input() != null and sw.power_input().captive is CaptiveMainsCord,
+		"it wears its own mains cord, as the decks do")
+	_ok(sw.find_children("*", "DcPort", true, false).is_empty() and sw.get_node_or_null("PowerInlet") == null,
+		"and has no DC IN any more")
+	_ok(not PowerBrickCatalog.has("retroxr_av_adapter"), "its old 9 V adapter is out of the catalogue")
 	# A source that stays live whatever the mains do (a console "on" is is_powered_on), so a dark label below is
 	# the SWITCH's missing supply and not its source's: the VCR loses its own supply with the option on too.
 	var md: RetroSystem = r["md"]
@@ -403,7 +421,7 @@ func _power() -> void:
 	# The option cut the Genesis's own supply too (MainsPower powers it off): "on" again by hand, after that.
 	md.is_powered_on = true
 	sw._refresh_labels(true)
-	_ok(not sw.powered(), "power simulation on, an outlet in the room, nothing in DC IN: no supply")
+	_ok(not sw.powered(), "power simulation on, an outlet in the room, its cord loose: no supply")
 	var dark := true
 	for i in AvSwitch.INPUTS:
 		dark = dark and sw.label_state(i) == AvSwitch.LabelState.DARK and _label_energy(sw, i) == 0.0
@@ -414,12 +432,60 @@ func _power() -> void:
 	await _wait(5)
 	_ok(not _filed(tv, deck), "and it still routes when moved")
 	_eq(_row(sw, "Power", "Supply"), "dead", "the Debug tab says the supply is dead")
+	_eq(_row(sw, "Power", "Mains cord"), "loose", "and that its cord is loose")
 	AppPrefs.power_simulation = sim
 	MainsPower.changed(get_tree())
 	await _wait(10)
 	sw.select(0)
 	await _wait(3)
 	_ok(sw.powered() and sw.label_state(0) == AvSwitch.LabelState.SELECTED, "power simulation off: lit again")
+	md.is_powered_on = false
+
+
+## The cord, plugged into a live outlet with the simulation on, gives the switch its supply: the labels light, and go
+## dark again when it is pulled.
+func _power_plugged() -> void:
+	var r := await _room()
+	var sw: AvSwitch = r["sw"]
+	var md: RetroSystem = r["md"]
+	var cord := sw.power_input().captive as CaptiveMainsCord
+	await _wait(3)
+	var sim := AppPrefs.power_simulation
+	var outlet := OUTLET.instantiate() as Node3D
+	_put(outlet, sw.global_position + Vector3(0.0, 0.1, -0.4))
+	AppPrefs.power_simulation = true
+	MainsPower.changed(get_tree())
+	await _wait(10)
+	md.is_powered_on = true
+	sw._refresh_labels(true)
+	_ok(not sw.powered() and sw.label_state(2) == AvSwitch.LabelState.DARK, "control: the cord loose, INPUT 3 dark")
+	var top := outlet.get_node("TopPort") as PowerPort
+	top.pick_up_object(cord.wall_plug)
+	await _wait(5)
+	md.is_powered_on = true
+	sw._refresh_labels(true)
+	_ok(sw.powered(), "its own cord in a live outlet: the switch has a supply")
+	_eq(sw.label_state(2), AvSwitch.LabelState.LIT, "the switched-on Genesis lights INPUT 3")
+	_ok(_label_energy(sw, 2) > 0.0, "and its window is drawn lit")
+	_eq(_row(sw, "Power", "Mains cord"), "plugged in", "the Debug tab says the cord is plugged in")
+	_ok(_row(sw, "Power", "Outlet").contains("TopPort"), "and names the socket it is in",
+		_row(sw, "Power", "Outlet"))
+	# Let go and carried clear, frozen there: a plug let go at an outlet is taken by its other socket at once
+	# (power_tests' _pull does the same).
+	for i in 4:
+		var holder := PowerCord.socket_holding(cord.wall_plug)
+		if holder != null:
+			holder.drop_object()
+		cord.wall_plug.global_position = sw.global_position + Vector3(0.35, 0.05, 0.25)
+		cord.wall_plug.freeze = true
+		await get_tree().physics_frame
+	await _wait(5)
+	sw._refresh_labels(true)
+	_ok(PowerCord.socket_holding(cord.wall_plug) == null and not sw.powered()
+		and sw.label_state(2) == AvSwitch.LabelState.DARK, "pulled out: dark again", sw.power_input().describe())
+	AppPrefs.power_simulation = sim
+	MainsPower.changed(get_tree())
+	await _wait(5)
 	md.is_powered_on = false
 
 

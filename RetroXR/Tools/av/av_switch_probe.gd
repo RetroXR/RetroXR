@@ -22,6 +22,9 @@ const CABLE := preload("res://Scenes/Objects/cables/composite_cable.tscn")
 const GENESIS_AV_CABLE := preload("res://Scenes/Objects/system_models/genesis/genesis_av_cable.tscn")
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 const TABLE_SCENE := preload("res://Scenes/Objects/furniture/table.tscn")
+const OUTLET_SCENE := preload("res://Scenes/Objects/room/wall_outlet.tscn")
+const STRIP_SCENE := preload("res://Scenes/Objects/appliances/power_strip.tscn")
+const BRICK_SCENE := preload("res://Scenes/Objects/power/power_brick.tscn")
 const ROM := "res://Tools/room/roms/brix.nes"
 const DESK_XZ := Vector2(-1.4, -1.5)
 const SIZE := Vector2i(1280, 720)
@@ -31,6 +34,9 @@ const HOLD := 48
 var _out := ""
 ## --stills: the three stills only, no video.
 var _stills := false
+## --cord: power simulation ON, everything on a strip (the set's and the switch's own cords, the NES's adapter):
+## cord_back.png (the switch's cord out of its strain relief into the strip) and cord_front.png (labels lit by it).
+var _cord := false
 var _sv: SubViewport
 var _cam: Camera3D
 var _frames := 0
@@ -49,6 +55,8 @@ func _ready() -> void:
 			_out = a.trim_prefix("--out=")
 		elif a == "--stills":
 			_stills = true
+		elif a == "--cord":
+			_cord = true
 	DirAccess.make_dir_recursive_absolute(_out.path_join("frames"))
 	get_tree().create_timer(300.0).timeout.connect(func() -> void:
 		print("[avswitch-probe] TIMEOUT")
@@ -137,6 +145,8 @@ func _stage() -> void:
 		_seat(_sw, ["VideoOut", "AudioLOut", "AudioROut"][c], tv_lead, "PlugA%d" % c)
 		_seat(_tv, ["CompositePort", "AudioLIn", "AudioRIn"][c], tv_lead, "PlugB%d" % c)
 	await _settle(90)
+	if _cord:
+		await _power_up(base)
 	var cart := CART_SCENE.instantiate() as Node3D
 	cart.set("rom_path", ProjectSettings.globalize_path(ROM))
 	cart.set("systemid", "nes")
@@ -161,7 +171,42 @@ func _stage() -> void:
 	print("[avswitch-probe] %s" % _sw.describe_wiring())
 
 
+## --cord: a wall outlet behind the desk, a strip on the desk, and into it the set's cord, the switch's own cord and the
+## NES's AC adapter (its DC plug in the NES); then power simulation on.
+func _power_up(base: Vector3) -> void:
+	var outlet := OUTLET_SCENE.instantiate() as Node3D
+	_put(outlet, base + Vector3(0.55, 0.05, -0.30))
+	var strip := STRIP_SCENE.instantiate() as Node3D
+	_put(strip, base + Vector3(0.30, 0.02, -0.05))
+	var brick := BRICK_SCENE.instantiate() as PowerBrick
+	brick.brick_id = "nes_ac_adapter"
+	add_child(brick)
+	brick.global_position = base + Vector3(-0.30, 0.05, -0.10)
+	await _settle(30)
+	_rest_on(strip, _top)
+	var sockets: Array = strip.call("sockets")
+	(outlet.get_node("TopPort") as PowerPort).pick_up_object(strip.get("wall_plug"))
+	var tv_cord := _tv.power_input().captive as CaptiveMainsCord
+	var sw_cord := _sw.power_input().captive as CaptiveMainsCord
+	(sockets[0] as PowerPort).pick_up_object(sw_cord.wall_plug)
+	(sockets[1] as PowerPort).pick_up_object(tv_cord.wall_plug)
+	(sockets[2] as PowerPort).pick_up_object(brick.wall_plug)
+	(_nes.find_child("PowerInlet", true, false) as XRToolsSnapZone).pick_up_object(brick.dc_plug)
+	await _settle(30)
+	AppPrefs.power_simulation = true
+	MainsPower.changed(get_tree())
+	await _settle(30)
+	print("[avswitch-probe] --cord: switch %s (%s), set %s, NES %s" % [_sw.powered(), _sw.power_input().describe(),
+		_tv.power_input().is_live(), PowerInput.of(_nes).is_live() if PowerInput.of(_nes) else "?"])
+	if not _sw.powered():
+		_failed = true
+		print("[avswitch-probe] FAIL the switch has no supply with its cord in the strip")
+
+
 func _shoot() -> void:
+	if _cord:
+		await _shoot_cord()
+		return
 	var front := _sw.global_position + Vector3(0, 0.03, 0)
 	# Hero: front three-quarter, low, the set behind with its picture.
 	_aim(front + Vector3(0.20, 0.13, 0.46), _sw.global_position + Vector3(0.02, 0.09, -0.16))
@@ -202,6 +247,19 @@ func _shoot() -> void:
 	await _wait(30)
 	await _still("debug_tab.png")
 	print("[avswitch-probe] frames %d" % _frames)
+
+
+func _shoot_cord() -> void:
+	_sw._refresh_labels(true)
+	_aim(_sw.global_position + Vector3(-0.30, 0.22, -0.30), _sw.global_position + Vector3(-0.08, 0.0, -0.06))
+	await _wait(30)
+	await _still("cord_back.png")
+	var front := _sw.global_position + Vector3(0, 0.03, 0)
+	_aim(front + Vector3(0.20, 0.13, 0.46), _sw.global_position + Vector3(0.02, 0.09, -0.16))
+	await _wait(30)
+	await _still("cord_front.png")
+	print("[avswitch-probe] labels %s, the selected input %d" % [[_sw.label_state(0), _sw.label_state(1),
+		_sw.label_state(2), _sw.label_state(3)], int(_sw.call("selected_index")) + 1 if _sw.has_method("selected_index") else -1])
 
 
 func _seat(dev: Node, port_name: String, lead: Node, plug: String) -> void:

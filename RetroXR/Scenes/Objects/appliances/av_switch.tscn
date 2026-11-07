@@ -17,7 +17,7 @@
 ;
 ; The scene keeps the nodes the engine works through and AvSwitch._dress places them from the model: every RcaPort
 ; on its jack's mouth (show_jack off; the model moulds the jacks), the slide on the model's tab (its box fitted to
-; the tab exactly), the DC IN built in code on the model's DcIn. The transforms below are only where they start.
+; the tab exactly), the mains cord hung in code from the model's PowerCordExit. The transforms below are only where they start.
 ; Node names are saved and sent: never rename one.
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_box"]

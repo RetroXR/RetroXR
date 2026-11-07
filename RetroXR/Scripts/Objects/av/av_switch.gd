@@ -16,12 +16,13 @@
 ## ── The labels ──────────────────────────────────────────────────────────────
 ## A label lights while a LIVE source reaches its input (`source_live`: a machine switched on, a deck with a supply),
 ## through any chain of switches; the selected one is brightest. Nothing live there, or no supply on the switch's own DC
-## IN with power simulation on, is dark. Sources do not say when they are switched on, so the states are looked at
+## mains with power simulation on, is dark. Sources do not say when they are switched on, so the states are looked at
 ## twice a second and the windows redrawn only when one CHANGES.
 ##
 ## ── Power ───────────────────────────────────────────────────────────────────
-## A 5.5 x 2.1 mm DC IN on the model's `DcIn` (PowerProfiles "av_switch", the RETRO XR 9 V adapter). It lights the
-## labels only; with power simulation off everything has a supply.
+## Its own mains cord, as the decks have (ApplianceMains.hook_up, from the model's `PowerCordExit` strain relief on the
+## back; docs/dev/power.md). It lights the labels only; with power simulation off everything has a supply. It was a
+## DC IN and a 9 V adapter until 2026-11-07: a room saved then drops that adapter (ScenePersistence).
 class_name AvSwitch
 extends XRToolsPickable
 
@@ -31,9 +32,6 @@ const INPUTS := 4
 ## name a plug's socket by them: never renamed.
 const CHANNELS := ["Video", "AudioL", "AudioR"]
 const OUT_NAMES := ["VideoOut", "AudioLOut", "AudioROut"]
-const DC_PORT := preload("res://Scenes/Objects/cables/barrel_dc_port.tscn")
-const INLET_NAME := "PowerInlet"
-const PROFILE := "av_switch"
 ## The windows' backlight: warm, as the concept draws it.
 const LIT := Color(1.0, 0.78, 0.45)
 const WINDOW_DARK := Color(0.11, 0.10, 0.08)
@@ -55,7 +53,6 @@ var selected := 0
 var _inputs: Array = []
 var _outputs: Array[RcaPort] = []
 var _mains: PowerInput = null
-var _jack: DcPort = null
 ## Per input: the window material every level's label shares, and its state.
 var _windows: Array[StandardMaterial3D] = []
 var _states := PackedInt32Array([-1, -1, -1, -1])
@@ -106,7 +103,6 @@ func _dress() -> void:
 		for ch: String in CHANNELS:
 			names.append("Input%d%s" % [i + 1, ch])
 	names.append_array(OUT_NAMES)
-	names.append("DcIn")
 	for n: String in names:
 		for mouth in _model.parts(n):
 			mouth.name = n + "Mouth"
@@ -181,28 +177,24 @@ func _follow_tab() -> void:
 # ── power ────────────────────────────────────────────────────────────────────
 
 func _build_power() -> void:
-	var profile := PowerProfiles.for_machine(PROFILE, "")
-	_mains = PowerInput.on(self)
+	_mains = ApplianceMains.hook_up(self, _model)
 	_mains.label = "AV Selector (%s)" % name
-	_jack = DC_PORT.instantiate() as DcPort
-	_jack.name = INLET_NAME
-	_jack.connector = PowerProfiles.plug_of(profile)
-	add_child(_jack)
-	var mouth := _model.part("DcInMouth") if _model != null else null
-	if mouth != null:
-		var t := _model.part_transform("DcInMouth", self)
-		var inlet := _jack.get_node_or_null("Inlet") as MeshInstance3D
-		var depth := (inlet.transform * inlet.get_aabb()).end.z if inlet != null and inlet.mesh != null else 0.0
-		_jack.transform = Transform3D(t.basis, t.origin - t.basis.z * depth)
-		for drawn: String in ["Inlet", "DcMouth", "DcPin"]:
-			var part := _jack.get_node_or_null(drawn) as Node3D
-			if part != null:
-				part.visible = false
-	else:
-		push_warning("[AvSwitch] %s: no DcIn on the model; the DC jack stands at the switch's origin" % name)
-	_mains.add_inlet(_jack)
 	_mains.power_changed.connect(_on_power_changed)
-	print("[AvSwitch] %s: DC IN %s (%s)" % [name, _jack.connector, "on the model's DcIn" if mouth else "unplaced"])
+	var cord: CaptiveMainsCord = _mains.captive as CaptiveMainsCord
+	print("[AvSwitch] %s: its own mains cord%s" % [name,
+		" from the model's PowerCordExit" if _model != null and _model.part("PowerCordExit") != null
+		else " (no PowerCordExit on the model: an exit made on its back)" if cord != null else " missing"])
+
+
+## Put the switch's own cord away (plugged in out of sight) or bring it back: the System tab's Show Power Cord, and a
+## peer's EV_MAINS_CORD_HIDDEN, as the decks do (RetroAudioPlayer.set_mains_cord_hidden).
+func set_mains_cord_hidden(on: bool) -> void:
+	var cord: CaptiveMainsCord = _mains.captive as CaptiveMainsCord if _mains != null else null
+	if cord == null or cord.hidden == on:
+		return
+	cord.set_hidden(on)
+	print("[AvSwitch] %s: its mains cord %s" % [name, "put away (plugged in out of sight)" if on else "shown"])
+	NetworkManager.report_event(NetEvents.Event.EV_MAINS_CORD_HIDDEN, {"obj": self, "hidden": on})
 
 
 func power_input() -> PowerInput:
@@ -458,9 +450,12 @@ func debug_state() -> Array:
 	reads.append(["Resolves to", "nothing" if final_dev == null or final_dev == self or final_dev is AvSwitch
 		else _dev_words(final_dev)])
 	out.append(["Output", reads])
-	var plug := _jack.picked_up_object if _jack != null else null
+	var cord: CaptiveMainsCord = _mains.captive as CaptiveMainsCord if _mains != null else null
+	var holder := PowerCord.socket_holding(cord.wall_plug) if cord != null and cord.wall_plug != null else null
 	out.append(["Power", [
-		["DC IN", "plug seated" if plug != null else "empty"],
+		["Mains cord", "none" if cord == null else "put away (plugged in out of sight)" if cord.hidden
+			else "plugged in" if holder != null else "loose"],
+		["Outlet", "-" if holder == null else "%s, %s" % [_dev_words(holder.get_device()), holder.name]],
 		["Supply", "live" if powered() else "dead"],
 		["Power simulation", "on" if AppPrefs.power_simulation else "off"],
 		["Supply line", _mains.describe() if _mains != null else "—"]]])

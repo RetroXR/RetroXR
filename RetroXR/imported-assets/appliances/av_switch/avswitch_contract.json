@@ -231,20 +231,24 @@
    "note": "+Z (glTF) out of the socket"
   }
  ],
- "dc_in": {
-  "node": "DcIn",
+ "power_cord_exit": {
+  "node": "PowerCordExit",
   "position": [
    -0.122,
-   0.001,
-   -0.063
+   -0.008,
+   -0.074
   ],
-  "barrel": "5.5x2.1",
-  "note": "+Z (glTF) out of the back; no mains cord: an AC adapter plugs in here"
+  "direction": [
+   0.0,
+   0.0,
+   -1.0
+  ],
+  "note": "identity basis; the cord leaves along local -Z, out of the back (RetroXR rope rule)"
  },
  "triangles": {
-  "high": 36274,
+  "high": 35720,
   "lod0": 6966,
-  "lod1": 4798,
-  "lod2": 3296
+  "lod1": 4794,
+  "lod2": 3284
  }
 }

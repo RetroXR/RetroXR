@@ -577,17 +577,17 @@ MEASUREMENTS.md). Copy the three `avswitch_mobile*.glb` + `avswitch_contract.jso
   selected one is brightest (emission 2.4 against 0.55). Selected with nothing live is dark. Sources do not say when
   they are switched on, so the states are polled twice a second and a window is redrawn only when its state CHANGES.
   Each input has one material, set on the `AVS_LabelWindow` surface of every level's `Label<n>` (found by NAME).
-- **Power**: a 5.5 x 2.1 DC IN (`PowerInlet`, a `DcPort` from `barrel_dc_port.tscn`, on the model's `DcIn` with the
-  drawn jack hidden), PowerProfiles `av_switch` -> brick `retroxr_av_adapter` (a 9 V wall wart, size ESTIMATED). The
-  supply lights the labels ONLY. **The slide is passive and routes with or without it**, as a real mechanical
-  selector does; power simulation on with nothing in DC IN leaves every window dark and the picture going through.
-  Simulation off: always powered.
+- **Power**: its own mains cord, like the decks' (`ApplianceMains.hook_up` from the model's `PowerCordExit`, a strain
+  relief low past TO TV; Show Power Cord on the System tab puts it away, `set_mains_cord_hidden`). The supply lights
+  the labels ONLY. **The slide is passive and routes with or without it**, as a real mechanical selector does; power
+  simulation on with the cord loose leaves every window dark and the picture going through. Simulation off: always
+  powered. It had a DC IN and a 9 V adapter until 2026-11-07; a room saved with that adapter drops it on load.
 - **The menu** (`AvSwitchOptionsPanel` / `AvSwitchOptions2D`, VCROptionsPanel's arrangement, opened from the spawn
   menu's options on the object): Options (INPUT 1-4, each with what is on it and its label), **Debug**
   (`AvSwitch.debug_state()` into `DebugRows`, re-read once a second while it is the tab showing, and at once on any
   change the switch sees), and the Power rows. The Debug tab shows, per input, each jack's lead and its far end, the
   source machine and its path, whether it is sending and the label state; the slide; what TO TV is cabled to and what
-  it resolves to; DC IN, the supply and the simulation; the chain (fed by / feeds a switch, a refused loop); netplay
+  it resolves to; the mains cord and the outlet it is in, the supply and the simulation; the chain (fed by / feeds a switch, a refused loop); netplay
   role and whether the last slide move came off the wire (`NetworkManager.is_event_applying()`). The `[AvSwitch]`
   log lines (`describe_wiring()`, the label line) say the same things.
 
