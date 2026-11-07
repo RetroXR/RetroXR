@@ -9,7 +9,8 @@
 ## cassette's own hubs, and a vacuum fluorescent display shows the tape counter,
 ## the play direction, NR B/C and TYPE II and two peak meters. COUNTER RESET zeroes
 ## the counter; REC presses and does nothing more (the deck plays, it does not
-## record). The phono pair on its back is a line out; PHONES under EJECT is a 3.5 mm jack whose headphones take the
+## record). The side facing out plays (A or B, shown between the arrows), to the
+## side's end: a short side runs on as blank tape, and it stops at the side's end. The phono pair on its back is a line out; PHONES under EJECT is a 3.5 mm jack whose headphones take the
 ## sound instead (audio_player.gd, "PHONES"). The one knob, VOLUME at the right (LevelKnob), sets the level of both:
 ## PHONES has no knob of its own, so the headphones' own level is held at full.
 class_name CassettePlayer
@@ -275,10 +276,30 @@ static func _compact(arr: Array, indices: PackedInt32Array) -> Array:
 	return out
 
 
-## A tape has no spin to keep; `_yaw` is accepted for the shared deck contract.
-func restore_media(media: Node3D, _yaw: float = 0.0) -> void:
+## A tape has no spin to keep; `_yaw` is accepted for the shared deck contract. `side_out` is the side that faced
+## out (MediaSide): side B is the cassette turned over.
+func restore_media(media: Node3D, _yaw: float = 0.0, side_out: int = 0) -> void:
 	if _slot:
-		_slot.restore(media)
+		_slot.restore(media, 0.0, side_out)
+
+
+## A cassette has two sides: the one facing out plays (RomLibrary.music_sides, TapeSides).
+func plays_sides() -> bool:
+	return true
+
+
+func _seated_side() -> int:
+	return _slot.seated_side if _slot else 0
+
+
+## The tape's side: the shortest standard cassette (C46 .. C120) that holds the album's longer side. Written onto the
+## cassette, whose shell winds its packs to that length.
+func _side_length(a_s: float, b_s: float) -> float:
+	var minutes := TapeSides.tape_minutes(a_s, b_s)
+	var tape := _tape()
+	if tape != null and "tape_minutes" in tape:
+		tape.set("tape_minutes", minutes)
+	return TapeSides.side_s(minutes)
 
 
 ## Ejecting IS how a tape leaves a front loader — the door tips out with it.
@@ -325,11 +346,16 @@ func _turn_spindles(delta: float) -> void:
 	var tape := _snapped_media if is_instance_valid(_snapped_media) else null
 	if tape == null:
 		return
-	for pair: Array in [["ReelL", "HubSupply"], ["ReelR", "HubTakeup"]]:
+	# Side A out, the supply hub stands on the left spindle. Turned over, the take-up hub does, seen from its other
+	# face, so it turns the other way round.
+	var flipped := _side == 1
+	var pairs: Array = [["ReelL", "HubTakeup"], ["ReelR", "HubSupply"]] if flipped \
+		else [["ReelL", "HubSupply"], ["ReelR", "HubTakeup"]]
+	for pair: Array in pairs:
 		var hub := tape.find_child(pair[1], true, false) as Node3D
 		for spindle in _model.parts(pair[0]):
 			if hub != null:
-				spindle.rotation.z = hub.rotation.z
+				spindle.rotation.z = -hub.rotation.z if flipped else hub.rotation.z
 			else:
 				spindle.rotation.z = wrapf(spindle.rotation.z + float(tape.get("tape_speed")) * SPINDLE_PLAY_RATE * delta,
 					0.0, TAU)
@@ -337,12 +363,13 @@ func _turn_spindles(delta: float) -> void:
 
 # --- The counter ---
 
-## What the counter mechanism has counted: how far through the tape it is, a side's worth 0 .. 999. With the tape
-## out it keeps the count it stopped at, as a mechanical counter does.
+## What the counter mechanism has counted: how far through the playing side it is, a side's worth 0 .. 999. With the
+## tape out it keeps the count it stopped at, as a mechanical counter does.
 func _counter_raw() -> int:
 	var tape := _tape()
 	if tape:
-		_counter_last = int(float(tape.get("tape_progress")) * 999.0)
+		# The share of the playing side wound through (side B runs the tape back along side A).
+		_counter_last = int(TapeSides.side_time(float(tape.get("tape_progress")), _side, 1.0) * 999.0)
 	return _counter_last
 
 
@@ -389,7 +416,7 @@ func _update_vfd() -> void:
 	var tape := _tape() != null or (_slot != null and _slot.has_media())
 	var l := int(round(_meter.x * METER_SEGMENTS))
 	var r := int(round(_meter.y * METER_SEGMENTS))
-	var key := "%d|%d|%d|%d" % [counter(), int(tape), int(is_playing and not _paused), _scan_dir]
+	var key := "%d|%d|%d|%d|%d" % [counter(), int(tape), int(is_playing and not _paused), _scan_dir, _side]
 	var meters := "%d|%d" % [l, r]
 	if key == _vfd_key and meters == _vfd_meters:
 		return
@@ -400,6 +427,7 @@ func _update_vfd() -> void:
 	_vfd_key = key
 	_vfd_meters = meters
 	_vfd_state = {"counter": counter(), "tape": tape, "playing": is_playing and not _paused, "scan": _scan_dir,
+		"side": TapeSides.side_name(_side),
 		"l": l, "r": r}
 	_vfd.refresh()
 
@@ -426,6 +454,10 @@ func _paint_vfd(c: Control, size: Vector2) -> void:
 	c.draw_colored_polygon(PackedVector2Array([Vector2(h * 0.92, ay - h * 0.07), Vector2(h * 0.92, ay + h * 0.07),
 		Vector2(h * 1.05, ay)]), VfdDisplay.LIT if fwd else VfdDisplay.GHOST)
 	var lit: bool = _vfd_state["tape"]
+	# The side playing, between the arrows.
+	var side_fs := int(h * 0.16)
+	var sw := VfdDisplay.font().get_string_size(String(_vfd_state["side"]), HORIZONTAL_ALIGNMENT_LEFT, -1, side_fs).x
+	VfdDisplay.text(c, String(_vfd_state["side"]), Vector2(h * 0.68 - sw / 2.0, ay + side_fs * 0.36), side_fs, lit)
 	var fs := int(h * 0.095)
 	VfdDisplay.text(c, "NR B/C", Vector2(h * 1.45, h * 0.31), fs, lit)
 	VfdDisplay.text(c, "TYPE II CrO2", Vector2(h * 1.45, h * 0.49), fs, lit)

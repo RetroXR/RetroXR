@@ -1919,8 +1919,9 @@ func _restore_dvd_player(root: Node, _id: int, obj: Node, spawned: Dictionary, r
 func _restore_audio_player(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
 	var media := _resolve_ref(root, spawned, rec.get("media"))
 	if media is AudioDisc or media is AudioCassette or media is VinylRecord:
+		# The side a cassette faced out / a record lay up with; an old save has none, and played side A.
 		(obj as RetroAudioPlayer).restore_media(
-			media as Node3D, float(rec.get("media_yaw", 0.0)))
+			media as Node3D, float(rec.get("media_yaw", 0.0)), clampi(int(rec.get("media_side", 0)), 0, 1))
 
 
 func _restore_speaker_pair(_root: Node, _id: int, obj: Node, _spawned: Dictionary, rec: Dictionary) -> void:
@@ -2686,9 +2687,9 @@ static func _save_kind_rows() -> Array:
 		# nothing about stands).
 		[ConsoleStand, "console_stand", &"_console_stand_fields"],
 		[SurroundAmp, "surround_amp", &"_surround_amp_fields"],
-		# Deliberately not a pose-only object. The root never moves — the two
 		# Pose only: which input the slide is on is its VRSlider (the articulated controls).
 		[AvSwitch, "av_switch"],
+		# Deliberately not a pose-only object. The root never moves — the two
 		# cabinets are separate bodies the player carries around one at a time — so
 		# the root's transform says nothing about where either of them is.
 		[SpeakerPair, "speaker_pair", &"_speaker_pair_fields"],
@@ -2965,9 +2966,13 @@ func _dvd_disc_fields(dvd: DVDDisc, _node_to_id: Dictionary) -> Dictionary:
 ## rather than another deck's.
 func _audio_player_entry(ap: RetroAudioPlayer, id: int, n3d: Node3D,
 		node_to_id: Dictionary) -> Dictionary:
-	return _base(id, ap.deck_save_type(), n3d).merged({
+	var entry := _base(id, ap.deck_save_type(), n3d).merged({
 		"media": _ref(node_to_id, ap.get_snapped_media()),
 	}).merged(_yaw_field("media_yaw", ap.media_seat_yaw()))
+	# Which side of a cassette or an LP is in play; side A (and every CD) leaves it out.
+	if ap.plays_sides() and ap.get_snapped_media() != null and ap.side_playing() != 0:
+		entry["media_side"] = ap.side_playing()
+	return entry
 
 
 ## An audio disc's or a record's: which album, and what it is called. Read
@@ -2986,6 +2991,8 @@ func _audio_cassette_fields(acass: AudioCassette, node_to_id: Dictionary) -> Dic
 		"tape_track": acass.tape_track,
 		"tape_time": acass.tape_time,
 		"tape_progress": acass.tape_progress,
+		# The side the track and time are on; tape_progress is the tape's one place either way (TapeSides).
+		"tape_side": acass.tape_side,
 	})
 
 
@@ -3638,7 +3645,17 @@ func _restore_lead_fields(obj: Node3D, data: Dictionary) -> void:
 ## Build the object a save entry describes, before it enters the room, or null
 ## for an entry nothing here can make. The counterpart to serialize_node, public
 ## for the same callers.
+## The AV selector's old 9 V adapter (PowerBrickCatalog row removed 2026-11-07): a saved one is dropped on load.
+const RETIRED_AV_ADAPTER := "retroxr_av_adapter"
+
+
 func deserialize_object(data: Dictionary) -> Node3D:
+	# The AV selector had a DC IN and a 9 V wall wart until 2026-11-07; it has its own mains cord now, and nothing
+	# takes that adapter's plug. A room saved before then drops it rather than leaving a bare box on the floor.
+	if str(data.get("kind", "")) == "power_brick" and str(data.get("brick", "")) == RETIRED_AV_ADAPTER:
+		print("[AvSwitch] a saved '%s' (the old DC IN's 9 V adapter) is not restored: the AV selector has its own mains cord now"
+			% RETIRED_AV_ADAPTER)
+		return null
 	var obj := _deserialize_kind(data)
 	# Its color, back on it before it enters the room.
 	var variant: Variant = data.get("model_variant", "")
@@ -4013,6 +4030,8 @@ func _load_audio_cassette(data: Dictionary) -> Node3D:
 	acass.tape_track = maxi(0, int(data.get("tape_track", 0)))
 	acass.tape_time = maxf(0.0, float(data.get("tape_time", 0.0)))
 	acass.tape_progress = clampf(float(data.get("tape_progress", 0.0)), 0.0, 1.0)
+	# An old save has no side: its place was written playing the whole album, which is side A.
+	acass.tape_side = clampi(int(data.get("tape_side", 0)), 0, 1)
 	return acass
 
 

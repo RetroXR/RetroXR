@@ -187,10 +187,20 @@ func _on_arm_lifted() -> void:
 
 
 ## A record is not a RetroDisc, so the well seats it as authored by hand too;
-## `_yaw` is accepted for the shared deck contract.
-func restore_media(media: Node3D, _yaw: float = 0.0) -> void:
+## `_yaw` is accepted for the shared deck contract. `side_out` is the side that
+## was up (MediaSide): side B is the record turned over.
+func restore_media(media: Node3D, _yaw: float = 0.0, side_out: int = 0) -> void:
 	if _tray:
-		_tray.restore(media)
+		_tray.restore(media, 0.0, side_out)
+
+
+## An LP has two sides: the one up plays (RomLibrary.music_sides, TapeSides).
+func plays_sides() -> bool:
+	return true
+
+
+func _seated_side() -> int:
+	return _tray.seated_side if _tray else 0
 
 
 func remove_media() -> void:
@@ -232,28 +242,45 @@ func _on_arm_released(value: float) -> void:
 				stop()
 		return
 	var idx := _track_at(value)
-	_log_event("needle down on track %d" % (idx + 1))
+	if idx < 0:
+		# Past the side's music: the run-out groove. Nothing plays there.
+		_log_event("needle down in the run-out groove of side %s: nothing plays" % TapeSides.side_name(_side))
+		if is_playing:
+			if not _net_forward_cmd("stop"):
+				stop()
+		return
+	_log_event("needle down on track %d of side %s" % [idx + 1, TapeSides.side_name(_side)])
 	if _net_forward_cmd_at("track", idx):
 		return
 	remote_goto_track(idx)
 
 
-## Which track the needle is sitting over. The playable band is mapped across the
-## album, so the outer edge is track 1 and the run-out is the last — which is where
-## the tracks are on the record.
+## Which track the needle is sitting over, or -1 in the run-out groove. The playable
+## band is the LONGER side's music, from the outer edge in, and each track takes
+## its share by its length, which is where the tracks are on a record: a shorter
+## side's music ends early and the rest of the band is its run-out.
 func _track_at(value: float) -> int:
 	if _tracks.is_empty():
-		return 0
-	var t := clampf((value - arm_lead_in) / (arm_lead_out - arm_lead_in), 0.0, 1.0)
-	return clampi(int(t * float(_tracks.size())), 0, _tracks.size() - 1)
+		return -1
+	var f := clampf((value - arm_lead_in) / (arm_lead_out - arm_lead_in), 0.0, 1.0)
+	if not _laid_out():
+		# No lengths to go by: every track the same share of the band, as before.
+		return clampi(int(f * float(_tracks.size())), 0, _tracks.size() - 1)
+	var at := TapeSides.locate(_lens, f * _side_len)
+	if float(at["blank"]) >= 0.0:
+		# The band's very end is the last track's end, not the run-out, on the longer side.
+		return _tracks.size() - 1 if f >= 1.0 and TapeSides.music_s(_lens) >= _side_len - 0.01 else -1
+	return int(at["track"])
 
 
 ## Where the needle should sit for a given track (the start of its band).
 func _arm_value_for(idx: int) -> float:
 	if _tracks.size() <= 0:
 		return arm_lead_in
-	var t := float(idx) / float(_tracks.size())
-	return lerpf(arm_lead_in, arm_lead_out, t)
+	if not _laid_out():
+		return lerpf(arm_lead_in, arm_lead_out, float(idx) / float(_tracks.size()))
+	var t := TapeSides.time_of(_lens, clampi(idx, 0, _tracks.size() - 1), 0.0) / _side_len
+	return lerpf(arm_lead_in, arm_lead_out, clampf(t, 0.0, 1.0))
 
 
 ## Track changed by any route — the remote, a net command, auto-advance at the end

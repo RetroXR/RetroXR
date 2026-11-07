@@ -242,8 +242,9 @@ class MockEventObject extends Node3D:
 	func restore_memory_card(obj: Node, slot := 0) -> void:
 		restored["card"] = obj
 		restored["card_slot"] = slot
-	func restore_media(obj: Node, _yaw := 0.0) -> void:
+	func restore_media(obj: Node, _yaw := 0.0, side := 0) -> void:
 		restored["media"] = obj
+		restored["media_side"] = side
 		media_restores += 1
 	## An audio deck unseats through its own loader now, rather than the event
 	## reaching into get_node("MediaSlot").drop_object(). That reach only ever
@@ -1169,13 +1170,14 @@ func _test_events(p: Pair) -> void:
 	p.host_os.report_event(NetEvents.Event.EV_DVD_INSERT,
 		{"dvd": host_obj, "disc": host_aux})
 	p.host_os.report_event(NetEvents.Event.EV_AUDIO_INSERT,
-		{"player": host_obj, "media": host_aux})
+		{"player": host_obj, "media": host_aux, "side": 1})
 	_ok(await _until(func() -> bool:
 		return client_obj.restored.get("cart") == client_aux \
 			and client_obj.restored.get("card") == client_aux \
 			and client_obj.restored.get("media") == client_aux \
 			and client_obj.media_restores == 3),
 		"events/cartridge, tape, memory-card, DVD and audio insertion take effect")
+	_eq(int(client_obj.restored.get("media_side", -1)), 1, "events/a cassette's or an LP's side rides the insert event")
 	_ok(is_equal_approx(float(client_obj.restored.get("cart_yaw", 0.0)), 0.75),
 		"events/a disc's seat spin rides the insert event to the peer")
 	p.host_os.report_event(NetEvents.Event.EV_CART_REMOVE, {"sys": host_obj})

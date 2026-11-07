@@ -51,6 +51,9 @@ signal closed()
 
 
 var _media: Node3D = null
+## Which side of a two-sided medium (an LP) is up: 0 side A, 1 side B (MediaSide). The side the hand put down, or the
+## one a save / an insert event names.
+var seated_side := 0
 var _holder: Node3D = null
 var _open: bool = false
 var _lid_tween: Tween = null
@@ -169,8 +172,8 @@ func _on_slot_captured(media: Node3D) -> void:
 ## the spin the disc was seated at when it was saved or when the remote hand
 ## put it in (see seat_yaw), so it comes back the way it went in rather than
 ## squared to the authored seat.
-func restore(media: Node3D, yaw: float = 0.0) -> void:
-	_accept(media, false, yaw)
+func restore(media: Node3D, yaw: float = 0.0, side: int = 0) -> void:
+	_accept(media, false, yaw, side)
 
 
 ## The spin of the seated disc about its platter axis, relative to the authored
@@ -193,7 +196,7 @@ func release() -> void:
 		_on_media_taken(_media)
 
 
-func _accept(media: Node3D, by_hand: bool = false, yaw: float = 0.0) -> void:
+func _accept(media: Node3D, by_hand: bool = false, yaw: float = 0.0, side: int = 0) -> void:
 	if not is_instance_valid(media) or _media != null:
 		return
 	if slot.has_snapped_object():
@@ -206,8 +209,14 @@ func _accept(media: Node3D, by_hand: bool = false, yaw: float = 0.0) -> void:
 		rb.freeze = true
 	media.reparent(_holder)
 	var seat := media_local_basis * Basis(Vector3.UP, yaw)
+	seated_side = side if MediaSide.is_two_sided(media) else 0
 	if by_hand:
 		seat = RetroDisc.seat_basis(media_local_basis, media, _holder)
+		seated_side = MediaSide.side_by_hand(media, _holder, media_local_basis)
+	seat = MediaSide.seat_for(media, seat, seated_side)
+	if MediaSide.is_two_sided(media):
+		print("[MediaTray] %s: %s on side %s up (%s)" % [host.name if is_instance_valid(host) else "?", media.name,
+			TapeSides.side_name(seated_side), "by hand" if by_hand else "restored"])
 	media.transform = Transform3D(seat, seat_offset)
 	if is_instance_valid(host):
 		host.add_collision_exception_with(media)

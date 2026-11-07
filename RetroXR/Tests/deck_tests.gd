@@ -323,13 +323,16 @@ func _test_tape() -> void:
 	var shown_c := AUDIO_CASSETTE.instantiate() as AudioCassette
 	_spawned.append(shown_c)
 	shown_c.album_path = "C:/retroxr/music/Mixtape"
-	_eq(shown_c.options_info(), [["Position", "Track 1, 0:00"], ["Path", "C:/retroxr/music/Mixtape"]],
-		"tape/a new cassette's menu: track one at the start")
+	_eq(shown_c.options_info(), [["Position", "Side A, track 1, 0:00"], ["Path", "C:/retroxr/music/Mixtape"]],
+		"tape/a new cassette's menu: side A, track one at the start")
 	shown_c.tape_track = 1
 	shown_c.tape_time = 134.4
 	shown_c.tape_progress = 0.45
-	_eq(shown_c.options_info()[0], ["Position", "Track 2, 2:14  (45% of the tape)"],
-		"tape/a played one: the track counted from one, the time into it, the share of the tape")
+	_eq(shown_c.options_info()[0], ["Position", "Side A, track 2, 2:14  (45% of side A)"],
+		"tape/a played one: the side, the track counted from one, the time into it, the share of the side")
+	shown_c.tape_side = 1
+	_eq(shown_c.options_info()[0], ["Position", "Side B, track 2, 2:14  (55% of side B)"],
+		"tape/on side B the share is side B's: the tape runs back along side A")
 
 	# The UI draws the rows under the title, above the lock row, and rewrites them
 	# in place as the place moves rather than stacking new ones.

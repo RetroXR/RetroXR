@@ -402,13 +402,38 @@ static func is_playlist(path: String) -> bool:
 ## playlist that has gone stale plays what it still can. Read as UTF-8, which
 ## .m3u8 is by definition and most tools now write for .m3u too.
 static func playlist_entries(path: String, exts: Array) -> PackedStringArray:
+	return _parse_playlist(path, exts)["entries"]
+
+
+## Where side B begins in a playlist: the index (into playlist_entries' list, so an entry dropped as missing does
+## not move it) of the first entry after a `#SIDE B` line, or -1 when it has none. `#SIDE A` may head side A and is
+## read as nothing; the marker is matched trimmed and in any case. A cassette or an LP plays the entries before it on
+## side A and the rest on side B (TapeSides).
+static func playlist_side_b_from(path: String, exts: Array) -> int:
+	return _parse_playlist(path, exts)["side_b_from"]
+
+
+## A `#SIDE A` / `#SIDE B` line: "A", "B", or "" for any other line.
+static func playlist_side_marker(line: String) -> String:
+	var l := line.strip_edges().to_upper()
+	if not l.begins_with("#SIDE"):
+		return ""
+	var rest := l.substr(5).strip_edges().trim_prefix(":").strip_edges()
+	return rest if rest == "A" or rest == "B" else ""
+
+
+static func _parse_playlist(path: String, exts: Array) -> Dictionary:
 	var out := PackedStringArray()
+	var side_b := -1
 	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:
-		return out
+		return {"entries": out, "side_b_from": side_b}
 	var base := path.get_base_dir()
 	for raw: String in f.get_as_text().split("\n"):
 		var line := raw.strip_edges().trim_prefix(String.chr(0xFEFF))
+		if line.begins_with("#") and side_b < 0 and playlist_side_marker(line) == "B":
+			side_b = out.size()
+			continue
 		if line.is_empty() or line.begins_with("#"):
 			continue
 		if line.begins_with("file://"):
@@ -422,7 +447,8 @@ static func playlist_entries(path: String, exts: Array) -> PackedStringArray:
 		var full := (line if line.is_absolute_path() else base.path_join(line)).simplify_path()
 		if full.get_extension().to_lower() in exts and FileAccess.file_exists(full):
 			out.append(full)
-	return out
+	# A marker after the last entry still found leaves side B empty, which is what it says.
+	return {"entries": out, "side_b_from": side_b}
 
 
 ## Video file extensions playable via the VlcPlayer GDExtension.
@@ -684,6 +710,24 @@ static func music_playlist(album_path: String) -> String:
 		if not playlist_entries(album_path.path_join(list), MUSIC_EXTENSIONS).is_empty():
 			return album_path.path_join(list)
 	return ""
+
+
+## An album's two sides, as a cassette or an LP holds it: the tracks music_tracks plays, cut where the deciding
+## playlist (music_playlist) has a `#SIDE B` line. With no playlist, or none with a marker, every track is on side A
+## and side B is blank. {a, b: PackedStringArray, playlist: String, marked: bool}. The CD reads music_tracks and
+## plays the whole album.
+static func music_sides(album_path: String) -> Dictionary:
+	var tracks := music_tracks(album_path)
+	var playlist := music_playlist(album_path)
+	var cut := playlist_side_b_from(playlist, MUSIC_EXTENSIONS) if not playlist.is_empty() else -1
+	var marked := cut >= 0
+	if not marked:
+		cut = tracks.size()
+	cut = clampi(cut, 0, tracks.size())
+	var out := {"a": tracks.slice(0, cut), "b": tracks.slice(cut), "playlist": playlist, "marked": marked}
+	print("[Music] %s: side A %d tracks, side B %d (%s)" % [album_path.get_file(), (out["a"] as PackedStringArray).size(),
+		(out["b"] as PackedStringArray).size(), "#SIDE B in %s" % playlist.get_file() if marked else "no #SIDE B marker"])
+	return out
 
 
 ## Find a local album (folder or file) in the music root whose basename matches

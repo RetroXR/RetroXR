@@ -37,6 +37,7 @@ const ROLLER_RADIUS := 3.4
 const SPAN_UNIT := 10.0
 ## Standard tape gauges in mm, thickest first.
 const GAUGES := [0.018, 0.0125, 0.009]
+## A cassette's length (minutes for both sides) until a deck has read its album: AudioCassette.tape_minutes then.
 const TAPE_MINUTES := 60.0
 
 ## How long the reels take to catch up with the tape's place (s): a deck writes it in steps, and a hub that jumped
@@ -92,7 +93,12 @@ func _process(delta: float) -> void:
 # ── the tape ─────────────────────────────────────────────────────────────────
 
 func tape_length() -> float:
-	return TAPE_MINUTES * 0.5 * 60.0 * TAPE_SPEED * LENGTH_FACTOR
+	return tape_minutes() * 0.5 * 60.0 * TAPE_SPEED * LENGTH_FACTOR
+
+
+## The cassette's length, minutes for both sides (C46 .. C120): a longer one is thinner tape on the same hubs.
+func tape_minutes() -> float:
+	return _tape.tape_minutes if _tape != null and _tape.tape_minutes > 0.0 else TAPE_MINUTES
 
 
 ## The thickest standard gauge whose full pack fits the shell.

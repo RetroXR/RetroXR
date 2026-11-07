@@ -179,6 +179,40 @@ control the VCR's audio and screen just like a system.
 
 <img src="docs/images/obj_vcr.png" width="480" alt="The VCR stand-in: a black deck with a tape slot, a glowing counter/clock display, and PLAY, PAUSE, STOP, rewind, fast-forward and EJECT buttons." />
 
+### Music: CDs, cassettes and records
+
+1. Put albums in the `music/` folder (next to `roms/` and `videos/`): `~/retroxr/music` on desktop,
+   `/sdcard/Android/data/com.xenu.retroxr/files/music` on a Quest. An album is a **folder** of tracks
+   (`.mp3`, `.flac`, `.ogg`, `.wav`, `.m4a`, `.aac`, `.opus`, `.wma`), a single loose track, or a loose
+   playlist (`.m3u` / `.m3u8`). A playlist inside the folder sets the track order; otherwise the files
+   play in name order.
+2. The **CDs**, **Tapes** and **Records** tabs of the spawn menu each list every album, as a CD, a
+   cassette or an LP.
+3. Pictures: `cover.jpg` (or `folder` / `front` / `album`) in the folder is side A's label, `back.jpg`
+   side B's; beside a loose album, `Name.png` and `Name B.png`.
+
+**Side A and side B.** A cassette and an LP play one side at a time: the side facing **out** of the
+cassette deck, or **up** on the turntable. Turn it over to play the other. Write where side B begins in
+the album's playlist, with a `#SIDE B` line before its first track:
+
+```m3u
+#EXTM3U
+01 Opening.flac
+02 Second Song.flac
+#SIDE B
+03 Flip Side.flac
+04 Closer.flac
+```
+
+With no `#SIDE B` line, every track is on side A and side B is blank. A CD always plays the whole album.
+A cassette is the shortest standard length that holds the longer side (C46, C60, C90 or C120); a
+shorter side runs on as blank tape to the end of the side, and the tape stops there. As on a real
+tape, there is one tape for both sides: a new cassette starts at side A's beginning, which is the end
+of side B, so turned over it has to be rewound first; stop side A halfway and turn it over, and side B
+starts halfway too. On an LP each track takes its share of the record by length, and past a shorter
+side's last track is its silent run-out groove. In a netplay session a peer that downloads the album
+gets the same sides.
+
 ### TV remote
 
 Spawn a **TV Remote** from the spawn menu's **Objects** tab. While held, point it at a

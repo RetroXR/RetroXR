@@ -9,8 +9,15 @@
 ## Subclasses (CDPlayer / CassettePlayer) provide the scene + button set. The CD
 ## has Prev/Next track buttons (and the remote shows them); the cassette is a
 ## linear tape (play/pause/stop/ff/rew only, tracks auto-advance, no skip). A
-## tape's FF/REW winds THROUGH the tracks to the album's end or start, from play
+## tape's FF/REW winds THROUGH the tracks to the side's end or start, from play
 ## or from stop, and the tape stays where it ran out (no rewind of its own).
+##
+## SIDES. A cassette and an LP play one side of their album (plays_sides()): the
+## tracks before the playlist's `#SIDE B` line are side A, the rest side B
+## (RomLibrary.music_sides), laid out by their real lengths (TapeSides,
+## MusicLengths). Which side plays is the side the medium went in facing out, or
+## up (MediaSide). A tape runs on as BLANK tape after its side's last track to the
+## side's end (_blank), as a real one does; a record's run-out groove plays nothing.
 ##
 ## Transport is host-authoritative in a netplay session (mirrors VCR/DVD): a
 ## client's button/remote intent is forwarded to the host, which executes it and
@@ -48,6 +55,23 @@ var _scan_accum: float = 0.0
 var _resume_at: float = 0.0
 ## Each track's size on disk, beside _tracks: what a tape's progress is weighed by.
 var _track_bytes: PackedInt64Array = PackedInt64Array()
+## A two-sided medium's side playing (0 A, 1 B), both sides' tracks and lengths (seconds), the playing side's lengths
+## beside _tracks, and the side's running length: a tape's side, or an LP's longer side (_side_length).
+var _side := 0
+var _side_tracks: Array[PackedStringArray] = [PackedStringArray(), PackedStringArray()]
+var _side_lens: Array[PackedFloat64Array] = [PackedFloat64Array(), PackedFloat64Array()]
+var _lens := PackedFloat64Array()
+var _side_len := 0.0
+## Whether the album's playlist marks side B (`#SIDE B`); with none, side B is blank.
+var _album_marked := false
+## Seconds into the blank tape after the side's last track, while the tape runs there (playing or winding); -1
+## otherwise. _track_idx is then the track count.
+var _blank := -1.0
+## Blank tape is not silence: a little hiss, linear amplitude.
+const TAPE_HISS := 0.0025
+## Less blank than this after a side's last track is no blank run: the side just ends.
+const BLANK_MIN := 0.05
+var _hiss_rng := RandomNumberGenerator.new()
 const SCAN_SEEK_INTERVAL := 0.08
 ## If Prev is pressed past this point in a track, it restarts the track instead
 ## of skipping to the previous one (standard CD behaviour).
@@ -188,8 +212,16 @@ func debug_state() -> Array:
 		var from_folder := DirAccess.dir_exists_absolute(album_path)
 		media_rows.append(["Playlist (m3u)", playlist if not playlist.is_empty()
 			else ("none: tracks from the folder" if from_folder else "none")])
-		media_rows.append(["Track", "%d of %d" % [_track_idx + 1, _tracks.size()]
-			if not _tracks.is_empty() else "—"])
+		if plays_sides():
+			media_rows.append(["Side", "%s (A %d tracks, B %d; %s)" % [TapeSides.side_name(_side),
+				_side_tracks[0].size(), _side_tracks[1].size(),
+				"#SIDE B in the playlist" if _album_marked else "no #SIDE B: side B is blank"]])
+			media_rows.append(["Side length", "%s of music, %s in all%s" % [
+				MediaDebug.time_text(int(TapeSides.music_s(_lens) * 1000.0), true),
+				MediaDebug.time_text(int(_side_len * 1000.0), true),
+				", lengths measured" if MusicLengths.all_known(_tracks) else ", lengths ESTIMATED from file sizes"]])
+		media_rows.append(["Track", "blank tape, %.1f of %.1f s" % [_blank, _blank_len()] if _blank >= 0.0
+			else ("%d of %d" % [_track_idx + 1, _tracks.size()] if _track_idx < _tracks.size() else "—")])
 		var path := _tracks[_track_idx] if _track_idx < _tracks.size() else ""
 		media_rows.append_array(MediaDebug.file_rows(path))
 		var tape := _tape()
@@ -346,6 +378,7 @@ func _process(delta: float) -> void:
 		_pump_audio()
 	_follow_sink()
 	_update_scan(delta)
+	_run_blank(delta)
 	_resume_tape()
 	_note_tape()
 
@@ -364,15 +397,49 @@ func _tape() -> Node:
 ## medium is loaded, with the track list already built.
 func _take_tape_place(media: Node) -> void:
 	_resume_at = 0.0
-	if media == null or not ("tape_time" in media) or _tracks.is_empty():
+	_blank = -1.0
+	if media == null or not ("tape_time" in media):
+		return
+	if _laid_out():
+		var was := int(media.get("tape_side")) if "tape_side" in media else 0
+		var track := int(media.get("tape_track"))
+		var t := _tape_side_time(media)
+		if was == _side and track >= 0 and track <= _tracks.size():
+			# The same side as last written: its track and time are exact.
+			_track_idx = track
+			_resume_at = maxf(0.0, float(media.get("tape_time")))
+		else:
+			# Turned over, or a track this side has not: from the tape's one place.
+			var at := TapeSides.locate(_lens, t)
+			_track_idx = int(at["track"])
+			_resume_at = float(at["blank"]) if float(at["blank"]) >= 0.0 else float(at["into"])
+		media.set("tape_side", _side)
+		media.set("tape_track", _track_idx)
+		media.set("tape_time", _resume_at)
+		_log_event("tape place: side %s, %s at %.1f s (%.1f s into the %.0f s side%s)" % [TapeSides.side_name(_side),
+			"blank tape" if _track_idx >= _tracks.size() else "track %d" % (_track_idx + 1), _resume_at, t, _side_len,
+			", turned over" if was != _side else ""])
+		return
+	if _tracks.is_empty():
 		return
 	_track_idx = clampi(int(media.get("tape_track")), 0, _tracks.size() - 1)
 	_resume_at = maxf(0.0, float(media.get("tape_time")))
 
 
+## Seconds into the playing side the tape stands at, from what is written on it: its track and time when they were
+## written for this side, else its one place (tape_progress) read from this side.
+func _tape_side_time(tape: Node) -> float:
+	var same := int(tape.get("tape_side")) == _side if "tape_side" in tape else _side == 0
+	if same:
+		var track := int(tape.get("tape_track"))
+		if track >= 0 and track <= _tracks.size():
+			return TapeSides.time_of(_lens, track, maxf(0.0, float(tape.get("tape_time"))))
+	return TapeSides.side_time(float(tape.get("tape_progress")), _side, _side_len)
+
+
 ## Seek to where the tape was, once the track play() opened knows its length.
 func _resume_tape() -> void:
-	if _resume_at <= 0.0 or not is_playing:
+	if _resume_at <= 0.0 or not is_playing or _blank >= 0.0:
 		return
 	var length := _vlc_length_sec()
 	if length <= 0.0:
@@ -390,19 +457,149 @@ func _note_tape() -> void:
 	var tape := _tape()
 	if tape == null:
 		return
-	if not is_playing or _resume_at > 0.0:
+	if not is_playing or (_resume_at > 0.0 and _blank < 0.0):
 		tape.set("tape_speed", 0.0)
 		return
-	var at := _vlc_time_sec()
-	var length := _vlc_length_sec()
-	tape.set("tape_track", _track_idx)
-	tape.set("tape_time", at)
-	if length > 0.0:
-		tape.set("tape_progress", album_progress(_track_bytes, _track_idx, at / length))
+	if _laid_out():
+		var t: float
+		if _blank >= 0.0:
+			t = TapeSides.music_s(_lens) + _blank
+			tape.set("tape_track", _tracks.size())
+			tape.set("tape_time", _blank)
+		else:
+			var into := _vlc_time_sec()
+			tape.set("tape_track", _track_idx)
+			tape.set("tape_time", into)
+			if _track_idx < _lens.size():
+				into = minf(into, _lens[_track_idx])
+			t = TapeSides.time_of(_lens, _track_idx, into)
+		tape.set("tape_side", _side)
+		tape.set("tape_progress", TapeSides.pos_of(_side, t, _side_len))
+	else:
+		var at := _vlc_time_sec()
+		var length := _vlc_length_sec()
+		tape.set("tape_track", _track_idx)
+		tape.set("tape_time", at)
+		if length > 0.0:
+			tape.set("tape_progress", album_progress(_track_bytes, _track_idx, at / length))
+	# The tape's own way: side B runs it back along side A.
+	var way := -1.0 if _side == 1 else 1.0
 	if _paused and _scan_dir == 0:
 		tape.set("tape_speed", 0.0)
 	else:
-		tape.set("tape_speed", scan_speed * float(_scan_dir) if _scan_dir != 0 else 1.0)
+		tape.set("tape_speed", way * (scan_speed * float(_scan_dir) if _scan_dir != 0 else 1.0))
+
+
+# --- Sides (a cassette, an LP) ---
+
+## Whether this deck plays one side of a two-sided medium (the cassette deck, the record player). The CD does not.
+func plays_sides() -> bool:
+	return false
+
+
+## Whether the playing side is laid out: its tracks read by _rebuild_tracks, each with a length, and a side length.
+## Until then (or for a track list set by hand) a tape keeps the one-run behaviour: its ends are the tracks' ends.
+func _laid_out() -> bool:
+	return plays_sides() and _lens.size() == _tracks.size() and _side_len > 0.0
+
+
+## The side the loader seated the medium with (0 A, 1 B). A deck that plays sides answers from its loader.
+func _seated_side() -> int:
+	return 0
+
+
+## A side's running length, seconds, for an album whose sides hold `a_s` and `b_s` of music: an LP's longer side
+## (the arm's band); the cassette deck answers with its tape's side.
+func _side_length(a_s: float, b_s: float) -> float:
+	return maxf(a_s, b_s)
+
+
+## The side playing, 0 A or 1 B.
+func side_playing() -> int:
+	return _side
+
+
+## Lay both sides out by their tracks' lengths (MusicLengths: measured, else estimated) and the playing side's.
+func _measure_sides() -> void:
+	_side_lens = [MusicLengths.lengths_now(_side_tracks[0]), MusicLengths.lengths_now(_side_tracks[1])]
+	_lens = _side_lens[_side]
+	var a_s := TapeSides.music_s(_side_lens[0])
+	var b_s := TapeSides.music_s(_side_lens[1])
+	# An album with no tracks on either side (one not found) has no sides at all: nothing to run on as blank tape.
+	_side_len = _side_length(a_s, b_s) if not (_side_tracks[0].is_empty() and _side_tracks[1].is_empty()) else 0.0
+	_log_event("sides: A %d tracks %.0f s, B %d tracks %.0f s; side %s plays, %.0f s long (%s)" % [
+		_side_tracks[0].size(), a_s, _side_tracks[1].size(), b_s, TapeSides.side_name(_side), _side_len,
+		"#SIDE B marked" if _album_marked else "no #SIDE B: side B blank"])
+
+
+## The tracks' lengths were measured: lay the sides out again. While playing, the track and time are the truth and
+## stay; the tape's place follows from them.
+func _on_lengths_measured(for_album: String) -> void:
+	if for_album != album_path or album_path.is_empty():
+		return
+	_measure_sides()
+
+
+## Seconds of blank tape after the playing side's last track.
+func _blank_len() -> float:
+	return maxf(0.0, _side_len - TapeSides.music_s(_lens))
+
+
+## The tape runs on into its blank, `at` seconds in, still winding if it was (FF / REW keep their way). The sound is
+## the hiss of blank tape; nothing is open in libVLC.
+func _enter_blank(at: float) -> void:
+	_blank = clampf(at, 0.0, _blank_len())
+	_track_idx = _tracks.size()
+	_resume_at = 0.0
+	if _vlc:
+		_vlc.stop()
+	is_playing = true
+	_paused = false
+	if _emitter:
+		_emitter.flush()
+	_log_event("blank tape on side %s: %.1f of %.1f s%s" % [TapeSides.side_name(_side), _blank, _blank_len(),
+		", winding %s" % ("on" if _scan_dir > 0 else "back") if _scan_dir != 0 else ""])
+	_apply_volume()
+	_update_status()
+	_net_push_state()
+
+
+## Run the blank tape on: in play at its own speed, winding at the scan's. Off the side's end it stops there; wound
+## back past the last track it winds on into that track (or, with none on the side, stops at the side's start).
+func _run_blank(delta: float) -> void:
+	if _blank < 0.0 or not is_playing:
+		return
+	if _paused and _scan_dir == 0:
+		return
+	_blank += delta * (scan_speed * float(_scan_dir) if _scan_dir != 0 else 1.0)
+	if _blank >= _blank_len():
+		_blank = -1.0
+		_log_event("end of side %s" % TapeSides.side_name(_side))
+		_end_scan_tape(1)
+	elif _blank < 0.0:
+		_blank = -1.0
+		if _tracks.is_empty():
+			_end_scan_tape(-1)
+		else:
+			_track_idx = _tracks.size() - 1
+			_log_event("REW winds out of the blank into track %d" % _tracks.size())
+			_open_scanning(INF)
+
+
+## The blank tape's hiss, into the emitter as the tracks' PCM goes.
+func _pump_hiss() -> void:
+	if _emitter == null or _paused or _scan_dir != 0:
+		return
+	var want := _emitter.frames_wanted()
+	if want <= 0:
+		return
+	var frames := PackedVector2Array()
+	frames.resize(want)
+	for i in want:
+		frames[i] = Vector2(_hiss_rng.randf_range(-TAPE_HISS, TAPE_HISS), _hiss_rng.randf_range(-TAPE_HISS, TAPE_HISS))
+	_emitter.push_stereo(frames)
+	if wants_levels:
+		_measure(frames)
 
 
 ## How far through an album a point is, 0 to 1: `into` (0 to 1) of track `idx`,
@@ -431,6 +628,9 @@ static func album_progress(bytes: PackedInt64Array, idx: int, into: float) -> fl
 ## own: libVLC has handed over a second or more of PCM by then, and it keeps
 ## playing out of the ring until the drain stops as well.
 func _pump_audio() -> void:
+	if _blank >= 0.0:
+		_pump_hiss()
+		return
 	if _emitter == null or _paused:
 		return
 	# frames_wanted, not "all free space": queue depth is latency.
@@ -478,7 +678,7 @@ func _vlc_seek_sec(sec: float) -> void:
 ## hitting either end of the current track stops the scan and holds there. A tape
 ## winds on THROUGH its tracks (_scan_cross) and stops only at the album's ends.
 func _update_scan(delta: float) -> void:
-	if _scan_dir == 0 or not is_playing:
+	if _scan_dir == 0 or not is_playing or _blank >= 0.0:
 		return
 	if _resume_at > 0.0:
 		return      # a track just opened mid-scan: wait for _resume_tape's seek
@@ -518,6 +718,10 @@ const SCAN_TRACK_EDGE := 0.25
 func _scan_cross(dir: int) -> void:
 	var to := _track_idx + dir
 	if to < 0 or to >= _tracks.size():
+		if dir > 0 and _laid_out() and _tape() != null and _blank_len() > BLANK_MIN:
+			_log_event("FF winds off the last track into the blank tape")
+			_enter_blank(0.0)
+			return
 		_end_scan_tape(dir)
 		return
 	_log_event("%s winds into track %d of %d" % ["FF" if dir > 0 else "REW", to + 1, _tracks.size()])
@@ -547,6 +751,7 @@ func _end_scan_tape(dir: int) -> void:
 	var tape := _tape()
 	var last := maxi(0, _tracks.size() - 1)
 	_scan_dir = 0
+	_blank = -1.0
 	if dir > 0:
 		_park_tape_at_end(tape, last)
 	else:
@@ -554,7 +759,8 @@ func _end_scan_tape(dir: int) -> void:
 		if tape != null:
 			tape.set("tape_track", 0)
 			tape.set("tape_time", 0.0)
-			tape.set("tape_progress", 0.0)
+			tape.set("tape_side", _side)
+			tape.set("tape_progress", TapeSides.pos_of(_side, 0.0, _side_len) if _laid_out() else 0.0)
 	_log_event("tape wound to its %s" % ("END" if dir > 0 else "START"))
 	_resume_at = 0.0
 	if _vlc:
@@ -570,6 +776,17 @@ func _end_scan_tape(dir: int) -> void:
 
 ## The tape run out at the end of its last track, written onto the cassette.
 func _park_tape_at_end(tape: Node, last: int) -> void:
+	if _laid_out():
+		# The end of the SIDE: past its last track and its blank.
+		_blank = -1.0
+		_track_idx = _tracks.size()
+		if tape == null:
+			return
+		tape.set("tape_side", _side)
+		tape.set("tape_track", _tracks.size())
+		tape.set("tape_time", _blank_len())
+		tape.set("tape_progress", TapeSides.pos_of(_side, _side_len, _side_len))
+		return
 	_track_idx = last
 	if tape == null:
 		return
@@ -583,6 +800,8 @@ func _park_tape_at_end(tape: Node, last: int) -> void:
 ## Whether the tape in the deck is wound all the way to its end.
 func tape_at_end() -> bool:
 	var tape := _tape()
+	if tape != null and _laid_out():
+		return _tape_side_time(tape) >= _side_len - BLANK_MIN
 	return tape != null and not _tracks.is_empty() \
 		and int(tape.get("tape_track")) >= _tracks.size() - 1 \
 		and float(tape.get("tape_progress")) >= 0.999
@@ -612,12 +831,13 @@ func _media_loaded(media: Node3D) -> void:
 	_snapped_media = media
 	if media.has_method("get_album_path"):
 		album_path = media.get_album_path()
-	_log_event("in: %s" % album_path)
+	_side = _seated_side() if plays_sides() else 0
+	_log_event("in: %s%s" % [album_path, ", side %s" % TapeSides.side_name(_side) if plays_sides() else ""])
 	_track_idx = 0
 	_rebuild_tracks()
 	_take_tape_place(media)
 	NetworkManager.report_event(NetEvents.Event.EV_AUDIO_INSERT,
-		{"player": self, "media": media, "yaw": media_seat_yaw()})
+		{"player": self, "media": media, "yaw": media_seat_yaw(), "side": _side})
 	if _autoplay_on_load() and not NetworkManager.is_active():
 		if tape_at_end():
 			_log_event("the tape is at its end: not played (rewind it)")
@@ -640,6 +860,7 @@ func _media_unloaded() -> void:
 		tape.set("tape_speed", 0.0)
 	_snapped_media = null
 	_resume_at = 0.0
+	_blank = -1.0
 	stop()
 	album_path = ""
 	_tracks = PackedStringArray()
@@ -649,8 +870,21 @@ func _media_unloaded() -> void:
 
 
 func _rebuild_tracks() -> void:
-	_tracks = RomLibrary.music_tracks(album_path)
-	_track_idx = clampi(_track_idx, 0, maxi(0, _tracks.size() - 1))
+	if plays_sides():
+		var sides := RomLibrary.music_sides(album_path)
+		_album_marked = bool(sides["marked"])
+		_side_tracks = [sides["a"] as PackedStringArray, sides["b"] as PackedStringArray]
+		_tracks = _side_tracks[_side]
+		_measure_sides()
+		var every := PackedStringArray()
+		every.append_array(_side_tracks[0])
+		every.append_array(_side_tracks[1])
+		MusicLengths.request(every, _on_lengths_measured.bind(album_path))
+	else:
+		_tracks = RomLibrary.music_tracks(album_path)
+	# A tape may stand in its blank, past the last track.
+	var top := _tracks.size() if _laid_out() and _tape() != null else maxi(0, _tracks.size() - 1)
+	_track_idx = clampi(_track_idx, 0, top)
 	_track_bytes = PackedInt64Array()
 	for path: String in _tracks:
 		var file := FileAccess.open(path, FileAccess.READ)
@@ -664,8 +898,8 @@ func get_snapped_media() -> Node3D:
 ## Seat a media item programmatically (event / save restore). Each deck seats it
 ## through its own loader (MediaSlot / MediaTray). `yaw` is the spin a round
 ## disc was seated at (media_seat_yaw) when saved or inserted remotely; a tape
-## deck ignores it.
-func restore_media(_media: Node3D, _yaw: float = 0.0) -> void:
+## deck ignores it. `_side_out` is the side a two-sided medium faces out / up with (MediaSide); the CD ignores it.
+func restore_media(_media: Node3D, _yaw: float = 0.0, _side_out: int = 0) -> void:
 	pass
 
 
@@ -797,10 +1031,25 @@ func _scan_from_stop(dir: int) -> void:
 		return
 	if _tracks.is_empty():
 		_rebuild_tracks()
-	if _tracks.is_empty():
+	if _tracks.is_empty() and not _laid_out():
 		return
 	if dir > 0 and tape_at_end():
 		_log_event("FF: the tape is already at its end")
+		return
+	if _laid_out():
+		var t := _tape_side_time(tape)
+		if dir < 0 and t <= 0.0:
+			_log_event("REW: the tape is already at its start")
+			return
+		var loc := TapeSides.locate(_lens, t)
+		_log_event("%s from stop, side %s at %.1f s" % ["FF" if dir > 0 else "REW", TapeSides.side_name(_side), t])
+		_scan_dir = dir
+		if float(loc["blank"]) >= 0.0:
+			_enter_blank(float(loc["blank"]))
+		else:
+			_track_idx = int(loc["track"])
+			_open_scanning(float(loc["into"]))
+		_net_push_state()
 		return
 	var at := float(tape.get("tape_time"))
 	if dir < 0 and int(tape.get("tape_track")) <= 0 and at <= 0.0:
@@ -860,6 +1109,11 @@ func play() -> void:
 		return
 	if _tracks.is_empty():
 		_rebuild_tracks()
+	if _laid_out() and _tape() != null and _track_idx >= _tracks.size():
+		# Past the side's last track (or a side with none): blank tape, from where it stands.
+		_scan_dir = 0
+		_enter_blank(_resume_at)
+		return
 	if _tracks.is_empty():
 		push_error("[RetroAudioPlayer] cannot play — no album inserted")
 		return
@@ -889,6 +1143,7 @@ func stop() -> void:
 	# there. A disc goes back to the start of its track, as before.
 	var tape := _tape()
 	_resume_at = float(tape.get("tape_time")) if tape != null else 0.0
+	_blank = -1.0
 	_scan_dir = 0
 	if _vlc:
 		_vlc.stop()
@@ -915,8 +1170,11 @@ func _on_track_finished() -> void:
 	if after >= 0:
 		_track_idx = after
 		play()
+	elif tape != null and _laid_out() and _blank_len() > BLANK_MIN:
+		_log_event("the last track of side %s played: the blank tape runs on" % TapeSides.side_name(_side))
+		_enter_blank(0.0)
 	else:
-		_log_event("end of album")
+		_log_event("end of side %s" % TapeSides.side_name(_side) if plays_sides() else "end of album")
 		# The end of the tape. It STAYS at the end, as a real one does: PLAY does
 		# nothing there until it is rewound (REW winds back through every track).
 		# It used to wind itself back to the start.
@@ -1155,6 +1413,7 @@ func net_get_state() -> Dictionary:
 		"paused": is_playing and _paused,
 		"track": _track_idx,
 		"pos": _vlc_time_sec() if is_playing else 0.0,
+		"blank": _blank,
 	}
 
 
@@ -1168,6 +1427,18 @@ func net_apply_state(state: Dictionary) -> void:
 		if is_playing:
 			stop()
 		return
+	# The host's tape runs in its blank: so does this one, at the host's place.
+	var blank := float(state.get("blank", -1.0))
+	if blank >= 0.0 and plays_sides():
+		if _blank < 0.0:
+			_scan_dir = 0
+			_enter_blank(blank)
+		elif absf(_blank - blank) > NET_DRIFT_TOLERANCE:
+			_blank = blank
+		_paused = paused
+		_update_status()
+		return
+	_blank = -1.0
 	# The album path is resolved by object_sync after insertion (verify-by-name);
 	# refresh in case it landed after the insert event.
 	if _tracks.is_empty():

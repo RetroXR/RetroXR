@@ -878,3 +878,11 @@ OWED: a real FinalBurn Neo session between two machines on an arcade game (rollb
 four-player one), a game with a CHD in a session at all (FinalBurn Neo plays almost none), and the bay: docking a bay
 or a `JammaCable` is still not replicated (`arcade.md` "The bay is its own object"), so a peer that moved one can
 disagree about the cabinet's system and core.
+
+## Two-sided media (2026-11-07)
+
+`EV_AUDIO_INSERT` carries `side` (0 A, 1 B; absent from an older peer = A), and `RetroAudioPlayer.net_get_state`
+carries `blank` (seconds into a tape's blank run, -1 otherwise). An album's manifest marks the first track of side B
+(`"side_b": true`), and a peer that assembles the album writes the `#SIDE B` line back into its `playlist.m3u8`
+(`NetObjectSync.assembled_playlist_text`), so its copy has the host's sides. Track lengths are measured on each peer
+from its own identical files; nothing about them is sent. `av-suite.md` "Side A and side B".

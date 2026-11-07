@@ -33,6 +33,37 @@ var tape_progress: float = 0.0
 ## How the tape is moving right now: 0 still (out of a deck, stopped or paused),
 ## 1 playing, more winding on, less than 0 winding back.
 var tape_speed: float = 0.0
+## The side `tape_track` / `tape_time` were written for (0 A, 1 B). `tape_progress` is the tape's place whichever side
+## plays (TapeSides); turned over, the deck reads its place from that instead.
+var tape_side: int = 0
+## How long the tape is, minutes for both sides (C46 / C60 / C90 / C120: TapeSides.tape_minutes, the shortest that
+## holds the album's longer side). Derived by the deck from the album, never authored; 60 until a deck has read it.
+var tape_minutes: float = 60.0
+
+
+## The world basis the hand let go of it at (MediaSide): the slot reads which side faces out from it, as a bay reads
+## a disc's spin (RetroDisc). A snap zone handing it on is not a hand and is not recorded.
+var _release_basis := Basis.IDENTITY
+
+
+func let_go(by: Node3D, p_linear_velocity: Vector3, p_angular_velocity: Vector3) -> void:
+	if not (by is XRToolsSnapZone):
+		_release_basis = global_basis.orthonormalized()
+	super(by, p_linear_velocity, p_angular_velocity)
+
+
+## The pose it was let go at, in the frame of `bay`.
+func release_basis_in(bay: Node3D) -> Basis:
+	return bay.global_basis.orthonormalized().inverse() * _release_basis
+
+
+## Side A's face: the label out of the deck along +Z. Turned over about the upright, the exposed tape edge stays down.
+func side_a_axis() -> Vector3:
+	return Vector3.BACK
+
+
+func flip_axis() -> Vector3:
+	return Vector3.UP
 
 ## Where the pictures sit. The paper is the LabelMesh slab, whose face is at
 ## z = 0.0075 (the text is 0.5 mm over it); a picture lies 0.2 mm over the paper
@@ -197,8 +228,11 @@ func get_album_path() -> String:
 ## carries. The share of the tape is left off until a deck has measured it.
 func options_info() -> Array:
 	var s := roundi(tape_time)
+	var side := TapeSides.side_name(tape_side)
 	@warning_ignore("integer_division")
-	var at := "Track %d, %d:%02d" % [tape_track + 1, s / 60, s % 60]
-	if tape_progress > 0.0:
-		at += "  (%d%% of the tape)" % roundi(tape_progress * 100.0)
+	var at := "Side %s, track %d, %d:%02d" % [side, tape_track + 1, s / 60, s % 60]
+	# How far through the side it was written on (side B runs the tape back along side A).
+	var share := TapeSides.side_time(tape_progress, tape_side, 1.0)
+	if share > 0.0:
+		at += "  (%d%% of side %s)" % [roundi(share * 100.0), side]
 	return [["Position", at], ["Path", album_path if album_path != "" else "None"]]

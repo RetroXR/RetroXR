@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <thread>
 #include <cstdlib>
 #include <cstring>
 
@@ -397,7 +398,6 @@ bool VlcPlayer::Open(const String &path, bool is_dvd)
     for (const std::string &opt : media_options)
         libvlc_media_add_option(media, opt.c_str());
 
-
     libvlc_media_player_t *mp = libvlc_media_player_new_from_media(media);
     libvlc_media_release(media);
     if (!mp)
@@ -719,6 +719,41 @@ void VlcPlayer::SetPosition(double pos)
 int64_t VlcPlayer::GetLength() const
 {
     return m_mp ? libvlc_media_player_get_length(static_cast<libvlc_media_player_t *>(m_mp)) : 0;
+}
+
+int64_t VlcPlayer::ProbeLengthMs(const String &path, int timeout_ms)
+{
+    EnsureInstance();
+    if (!m_vlc)
+        return -1;
+    String p = path.replace("\\", "/");
+    if (has_uri_scheme(p))
+        return -1;
+    if (!p.begins_with("/"))
+        p = String("/") + p;
+    const String mrl = String("file://") + p;
+    libvlc_media_t *media = libvlc_media_new_location(static_cast<libvlc_instance_t *>(m_vlc), mrl.utf8().get_data());
+    if (!media)
+        return -1;
+    const int budget = timeout_ms > 0 ? timeout_ms : 3000;
+    if (libvlc_media_parse_with_options(media, libvlc_media_parse_local, budget) != 0)
+    {
+        libvlc_media_release(media);
+        return -1;
+    }
+    // The preparser runs on libVLC's own thread; its status leaves 0 when it is done, failed, skipped or timed out.
+    const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(budget + 250);
+    libvlc_media_parsed_status_t status = static_cast<libvlc_media_parsed_status_t>(0);
+    while ((status = libvlc_media_get_parsed_status(media)) == static_cast<libvlc_media_parsed_status_t>(0)
+           && std::chrono::steady_clock::now() < until)
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    int64_t ms = -1;
+    if (status == libvlc_media_parsed_status_done)
+        ms = libvlc_media_get_duration(media);
+    else
+        libvlc_media_parse_stop(media);
+    libvlc_media_release(media);
+    return ms > 0 ? ms : -1;
 }
 
 int64_t VlcPlayer::GetTime() const
@@ -1104,6 +1139,7 @@ void VlcPlayer::_bind_methods()
     ClassDB::bind_method(D_METHOD("set_media_options", "options"), &VlcPlayer::SetMediaOptions);
     ClassDB::bind_method(D_METHOD("warm_up"), &VlcPlayer::WarmUp);
     ClassDB::bind_method(D_METHOD("is_ready"), &VlcPlayer::IsReady);
+    ClassDB::bind_method(D_METHOD("probe_length_ms", "path", "timeout_ms"), &VlcPlayer::ProbeLengthMs, DEFVAL(3000));
     ClassDB::bind_method(D_METHOD("play"), &VlcPlayer::Play);
     ClassDB::bind_method(D_METHOD("pause"), &VlcPlayer::Pause);
     ClassDB::bind_method(D_METHOD("stop"), &VlcPlayer::Stop);

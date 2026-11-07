@@ -119,3 +119,11 @@ close-up, the cover down, and frames of the cover opening and the arm swinging i
   ends stop it (`_end_scan_tape`), and there it STAYS: PLAY (or putting it in) does nothing at
   the end until REW, and a tape that plays out is no longer wound back to the start. FF / REW
   start from STOP on a tape. A CD's scan still holds at its track's end. `deck_tests wind/`.
+
+## Sides (2026-11-07)
+
+The record plays the side that is UP (`MediaTray.seated_side`, `MediaSide`): put down upside down it lies side B
+up, turned over about X. Its tracks are that side's (`RomLibrary.music_sides`, the playlist's `#SIDE B`), and the
+arm's band (`arm_lead_in`..`arm_lead_out`) is the longer side's music with each track its share by length
+(`TapeSides`; equal shares only while no lengths are known). Past a shorter side's music is its run-out groove:
+the needle there plays nothing. `av-suite.md` "Side A and side B"; `tape_sides_tests record/`.

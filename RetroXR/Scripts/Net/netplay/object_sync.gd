@@ -1289,7 +1289,8 @@ func _dispatch_event(kind: NetEvents.Event, args: Dictionary) -> void:
 			if _nm.is_host():
 				_unsuppressed(_host_dvd_cmd.bind(args["dvd"], str(args.get("cmd", ""))))
 		NetEvents.Event.EV_AUDIO_INSERT:
-			args["player"].restore_media(args["media"], float(args.get("yaw", 0.0)))
+			# The side a cassette or an LP went in with (absent from an older peer: side A).
+			args["player"].restore_media(args["media"], float(args.get("yaw", 0.0)), clampi(int(args.get("side", 0)), 0, 1))
 		NetEvents.Event.EV_AUDIO_REMOVE:
 			# Through the deck's own loader, not the snap zone. A seated item is
 			# NOT held by the zone — MediaSlot/MediaTray both drop it and reparent
@@ -1735,6 +1736,19 @@ const TAPE_CACHE_DIR := "user://net_cache/tapes"
 const SET_PLAYLIST := "playlist.m3u8"
 
 
+## The playlist a peer writes for a set it assembled: its entries in the host's order, and the host's `#SIDE B` line
+## where side B begins (a cassette's or an LP's), so the peer's copy has the same sides.
+static func assembled_playlist_text(dests: Array) -> String:
+	var listed := PackedStringArray()
+	for dest_info: Dictionary in dests:
+		if bool(dest_info.get("side_b", false)):
+			listed.append("#SIDE B")
+		# A name starting "#" would read as a comment line.
+		var entry_name := str(dest_info["name"])
+		listed.append("./" + entry_name if entry_name.begins_with("#") else entry_name)
+	return "#EXTM3U\n" + "\n".join(listed) + "\n"
+
+
 ## An object backed by a SET of files rather than one: any music album, or a tape
 ## that is a playlist.
 func _is_file_set(rec: Dictionary, path: String) -> bool:
@@ -1752,7 +1766,15 @@ static func _file_set_members(album: String, kind: String) -> PackedStringArray:
 ## allow_hash=true hashes every track (blocking — run on a worker thread).
 func _music_manifest_of(album: String, kind: String, allow_hash: bool) -> Array:
 	var out: Array = []
+	# Where side B begins (the playlist's `#SIDE B`), so a peer that fetches the album writes it back.
+	var side_b_from := -1
+	if kind == "music":
+		var sides := RomLibrary.music_sides(album)
+		if bool(sides["marked"]):
+			side_b_from = (sides["a"] as PackedStringArray).size()
+	var index := -1
 	for tp: String in _file_set_members(album, kind):
+		index += 1
 		var md5 := NetFileTransfer.cached_hash_of(tp)
 		if md5.is_empty():
 			if not allow_hash:
@@ -1760,7 +1782,10 @@ func _music_manifest_of(album: String, kind: String, allow_hash: bool) -> Array:
 			md5 = NetFileTransfer.hash_of(tp)
 			if md5.is_empty():
 				continue
-		out.append({"name": tp.get_file(), "md5": md5, "size": NetFileTransfer.size_of(tp)})
+		var row := {"name": tp.get_file(), "md5": md5, "size": NetFileTransfer.size_of(tp)}
+		if index == side_b_from:
+			row["side_b"] = true
+		out.append(row)
 	return out
 
 
@@ -1826,7 +1851,7 @@ func _start_album_fetch(node: Node, album_name: String, tracks: Array) -> void:
 		if dest_name.is_empty() or (taken.has(dest_name) and taken[dest_name] != md5):
 			dest_name = "%d %s" % [i + 1, dest_name]
 		taken[dest_name] = md5
-		dests.append({"name": dest_name, "md5": md5})
+		dests.append({"name": dest_name, "md5": md5, "side_b": bool(td.get("side_b", false))})
 		remaining[md5] = td
 	_album_fetch[net_id] = {"name": album_name, "dir": dir, "single": single, "kind": kind,
 		"prop": prop, "dests": dests, "total": remaining.size(), "remaining": remaining, "final": ""}
@@ -1881,15 +1906,10 @@ func _album_track_ready(net_id: int, md5: String, cache_path: String) -> void:
 	if af["remaining"].is_empty():
 		_album_fetch.erase(net_id)
 		if not af["single"]:
-			var listed := PackedStringArray()
-			for dest_info: Dictionary in af["dests"]:
-				# A name starting "#" would read as a comment line.
-				var entry_name := str(dest_info["name"])
-				listed.append("./" + entry_name if entry_name.begins_with("#") else entry_name)
 			var order := str(af["dir"]).path_join(SET_PLAYLIST)
 			var f := FileAccess.open(order, FileAccess.WRITE)
 			if f != null:
-				f.store_string("#EXTM3U\n" + "\n".join(listed) + "\n")
+				f.store_string(assembled_playlist_text(af["dests"]))
 				f.close()
 			if str(af["kind"]) == "video":
 				af["final"] = order

@@ -60,6 +60,9 @@ var _orig_freeze_mode: RigidBody3D.FreezeMode = RigidBody3D.FREEZE_MODE_KINEMATI
 var _riding: bool = false         # an insert/eject tween is animating the local pose
 # The basis this media is being carried at, set once when it is accepted.
 var _seat_basis: Basis = Basis.IDENTITY
+## Which side of a two-sided medium (a cassette) faces out of the deck: 0 side A, 1 side B (MediaSide). The side the
+## hand put in, or the one a save / an insert event names.
+var seated_side := 0
 
 
 func _ready() -> void:
@@ -121,8 +124,8 @@ func _on_slot_captured(media: Node3D) -> void:
 ## `yaw` is the spin the media was seated at when it was saved or when the
 ## remote hand put it in (see seat_yaw), so a round disc comes back — and shows
 ## on every peer — the way it went in rather than squared to the authored seat.
-func restore(media: Node3D, yaw: float = 0.0) -> void:
-	_accept(media, true, yaw)
+func restore(media: Node3D, yaw: float = 0.0, side: int = 0) -> void:
+	_accept(media, true, yaw, side)
 
 
 ## The spin of the seated media about its platter axis, relative to the authored
@@ -139,7 +142,7 @@ func seat_yaw() -> float:
 ## Assume ownership of `media`: drop the zone's grab (if any), reparent it under the
 ## holder as a frozen rigid child, add the collision exception, and either ride it
 ## in (`seated_now == false`) or place it seated at once (restore, at `yaw`).
-func _accept(media: Node3D, seated_now: bool, yaw: float = 0.0) -> void:
+func _accept(media: Node3D, seated_now: bool, yaw: float = 0.0, side: int = 0) -> void:
 	if not is_instance_valid(media) or _media != null:
 		return
 	slot.enabled = false
@@ -155,8 +158,14 @@ func _accept(media: Node3D, seated_now: bool, yaw: float = 0.0) -> void:
 	media.reparent(_holder)
 	if seated_now:
 		_seat_basis = media_local_basis * Basis(Vector3.UP, yaw)
+		seated_side = side if MediaSide.is_two_sided(media) else 0
 	else:
 		_seat_basis = RetroDisc.seat_basis(media_local_basis, media, _holder)
+		seated_side = MediaSide.side_by_hand(media, _holder, media_local_basis)
+	_seat_basis = MediaSide.seat_for(media, _seat_basis, seated_side)
+	if MediaSide.is_two_sided(media):
+		print("[MediaSlot] %s: %s in side %s out (%s)" % [host.name if is_instance_valid(host) else "?", media.name,
+			TapeSides.side_name(seated_side), "restored" if seated_now else "by hand"])
 	# Not grabbable while it's inside the unit — only once ejected (see eject()).
 	_set_media_interactive(media, false)
 	if is_instance_valid(host):

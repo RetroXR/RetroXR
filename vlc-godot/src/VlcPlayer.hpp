@@ -130,6 +130,11 @@ public:
     double GetPosition() const;   // 0..1
     void SetPosition(double pos);
     int64_t GetLength() const;    // ms
+    // A local file's length (ms) without playing it: libVLC's preparser, local only, waiting up to
+    // `timeout_ms`. -1 when it cannot tell (not a file, a parse failure or timeout, no duration in it).
+    // Blocking, and safe off the main thread once the instance exists (warm_up() on the main thread
+    // first: on Android the JavaVM handoff needs it). RetroXR's cassette and LP sides are laid out by it.
+    int64_t ProbeLengthMs(const godot::String &path, int timeout_ms);
     int64_t GetTime() const;      // ms
     void SetVolume(int volume);   // 0..100 (libVLC internal gain)
     void SetRate(float rate);     // 1.0 = the media's own speed

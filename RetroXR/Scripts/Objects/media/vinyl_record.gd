@@ -34,6 +34,31 @@ var _download_status := ""
 var _own_material := false
 
 
+## The world basis the hand let go of it at (MediaSide): the slot reads which side faces out from it, as a bay reads
+## a disc's spin (RetroDisc). A snap zone handing it on is not a hand and is not recorded.
+var _release_basis := Basis.IDENTITY
+
+
+func let_go(by: Node3D, p_linear_velocity: Vector3, p_angular_velocity: Vector3) -> void:
+	if not (by is XRToolsSnapZone):
+		_release_basis = global_basis.orthonormalized()
+	super(by, p_linear_velocity, p_angular_velocity)
+
+
+## The pose it was let go at, in the frame of `bay`.
+func release_basis_in(bay: Node3D) -> Basis:
+	return bay.global_basis.orthonormalized().inverse() * _release_basis
+
+
+## Side A's face: the top label, +Y. Turned over about X.
+func side_a_axis() -> Vector3:
+	return Vector3.UP
+
+
+func flip_axis() -> Vector3:
+	return Vector3.RIGHT
+
+
 func _ready() -> void:
 	super._ready()
 	add_to_group("vinyl_record")

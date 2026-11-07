@@ -466,6 +466,49 @@ PhonesLevel drawn, the headphones' own level at full); `bring_in_probe` shoots `
 `deck_phones_close.png` and `deck_volume_close.png`.
 
 
+### Side A and side B (2026-11-07)
+
+**Where side B begins is the album's playlist**: a `#SIDE B` line before its first track
+(`RomLibrary.playlist_side_marker`: trimmed, any case, `#SIDE: B` too; `#SIDE A` is read as nothing).
+`RomLibrary.music_sides()` cuts `music_tracks()` there, counted over the entries `playlist_entries` kept, so a
+missing file does not move it; no playlist or no marker puts every track on side A and leaves side B blank.
+`music_tracks()` is unchanged: the CD plays the whole album.
+
+**Which side plays is how it went in** (`MediaSide`): a cassette and an LP record the hand's release pose
+(`let_go` / `release_basis_in`, RetroDisc's arrangement: the snap zone squares the body before the slot sees
+it) and say which local axis is side A's face (`side_a_axis`: the cassette's +Z out of the deck, the LP's +Y up)
+and what they turn over about (`flip_axis`: the cassette's upright, so the exposed edge stays down; the LP's
+X). `MediaSlot` / `MediaTray._accept` seat side B turned half round and keep `seated_side`; `restore()` takes
+the side from a save (`media_side` on the deck's entry, left out for side A) or the insert event (`side`).
+
+**The deck plays that side** (`RetroAudioPlayer.plays_sides()`, the cassette deck and the record player):
+`_tracks` is the side's, laid out by real lengths (`TapeSides`, from `MusicLengths`: VlcPlayer.probe_length_ms,
+libVLC's local preparser, on a worker, cached in `user://music_lengths.json` by size + mtime, an estimate from
+the size until then). **Only once laid out** (`_laid_out()`: lengths for every track and a side length) do the
+side rules apply; a track list set by hand keeps the one-run behaviour, which is what the old `wind/` cases
+drive. An album with no tracks on either side has no sides.
+
+- **A cassette** is the shortest C46 / C60 / C90 / C120 holding the longer side plus 5 s
+  (`TapeSides.tape_minutes`, written onto `AudioCassette.tape_minutes`, which `CompactCassette` winds its packs
+  and gauge to). **The tape has ONE place**, `tape_progress` (0 = side A's start = side B's end): side A winds it
+  up, side B down, so a new tape turned over stands at side B's END (rewind first), and side A stopped at 60 %
+  is side B at 40 %. `tape_track` / `tape_time` are exact for the side they were written on (`tape_side`); a
+  flipped tape is placed from `tape_progress`. After a side's last track the tape runs on as **blank tape**
+  (`_blank`, seconds into it; `_track_idx` = the track count; a faint hiss, `TAPE_HISS`) to the side's end and
+  parks there; FF winds off the last track into it and REW back out of it into the last track. Spindles pair by
+  POSITION (turned over, ReelL carries HubTakeup, its angle negated), the counter is the side's share, the VFD
+  prints `A` / `B` between its arrows, and `tape_speed` is negative on side B.
+- **An LP**: the arm's band is the LONGER side's music, each track its share BY LENGTH (it was equal shares);
+  a needle past a shorter side's music is in the run-out groove and plays nothing (`_track_at` -1).
+- **Netplay**: the insert event carries `side`; `net_get_state` carries `blank`, so a client follows the host
+  through blank tape; the album manifest marks side B's first entry (`side_b`) and a peer that assembles the
+  album writes `#SIDE B` back into its playlist (`NetObjectSync.assembled_playlist_text`).
+
+`tape_sides_tests` (marker, model, seat, deck, record, save, net; mutations: no flip, no marker, no blank run).
+Rebuilt `vlc-godot` is needed for measured lengths (a build without `probe_length_ms` estimates, warned once).
+Headset feel (turning a cassette over in the hand), a real album on the Quest and a two-peer session OWED.
+
+
 ### Pass-throughs: a device in the middle of the signal (2026-11-02)
 
 The 32X has an A/V IN and an A/V OUT (`expansion-carts.md` 2j″): the console's lead goes
@@ -502,17 +545,6 @@ seats the set's lead first (the control: no Genesis on the set), then the Video 
 Cable, and pulls and re-seats each; `an unpowered 32X passes nothing`. Mutation-checked:
 no splice fails 8 checks, a 32X that tells nobody 4, a 32X that always passes 2.
 
-### A power cycle must preserve the fitted tube (2026-11-02)
-
-`TvDisplay.play_power_on_anim` and `stop_power_on_anim` used to reset ScreenMesh
-scale to ONE. The RETRO XR cabinet seats it at (0.8, 0.84, 0.9), so pressing POWER
-made the picture 25% wider and hid its edges and OSD behind the bezel. Capture the
-fitted scale before the startup animation, collapse only its Y axis, and restore
-that scale on completion or interruption. Stopping without a tween must leave the
-shell's pose alone. `av_tests` display/power covers stock, VGA and RETRO XR shells,
-including interruption. The new case failed eight checks before the fix.
-`Tools/av/tv_picture_fit_probe` renders a power cycle with four coloured picture
-edges and MUTE, with and without the cabinet; windowed, `-- --no-mods --out=`.
 ### The RETRO XR AV switch: four inputs, one TO TV (2026-11-07)
 
 `AvSwitch` (`Scripts/Objects/av/av_switch.gd`, `Scenes/Objects/appliances/av_switch.tscn`, the Objects tab's
@@ -566,3 +598,14 @@ a switched-off source counted live, a Debug row that says empty, "any switch ups
 3 mm: each goes red. `appliance_pointer_tests` has the switch (`avswitch`). Windowed renders and the slide video:
 `Tools/av/av_switch_probe` (`debug_tab.png` is its menu shot). Headset, Quest and a real two-peer session OWED.
 
+### A power cycle must preserve the fitted tube (2026-11-02)
+
+`TvDisplay.play_power_on_anim` and `stop_power_on_anim` used to reset ScreenMesh
+scale to ONE. The RETRO XR cabinet seats it at (0.8, 0.84, 0.9), so pressing POWER
+made the picture 25% wider and hid its edges and OSD behind the bezel. Capture the
+fitted scale before the startup animation, collapse only its Y axis, and restore
+that scale on completion or interruption. Stopping without a tween must leave the
+shell's pose alone. `av_tests` display/power covers stock, VGA and RETRO XR shells,
+including interruption. The new case failed eight checks before the fix.
+`Tools/av/tv_picture_fit_probe` renders a power cycle with four coloured picture
+edges and MUTE, with and without the cabinet; windowed, `-- --no-mods --out=`.

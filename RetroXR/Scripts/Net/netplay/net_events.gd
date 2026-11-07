@@ -48,7 +48,7 @@ enum Event {
 	EV_DVD_INSERT,       # {dvd, disc, yaw}
 	EV_DVD_REMOVE,       # {dvd}
 	EV_DVD_CMD,          # {dvd, cmd}    client intent -> host transport/menu
-	EV_AUDIO_INSERT,     # {player, media, yaw}   CD / cassette media inserted
+	EV_AUDIO_INSERT,     # {player, media, yaw, side}   CD / cassette / LP inserted (side: 0 A, 1 B)
 	EV_AUDIO_REMOVE,     # {player}
 	EV_AUDIO_CMD,        # {player, cmd, index?}  client intent -> host transport
 	EV_TV_STEREO,        # {tv, mode}    stereo presentation (0 stereo / 1 left / 2 right)

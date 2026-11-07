@@ -211,7 +211,7 @@ func _track_after(idx: int) -> int:
 var _shuffle_played := {}
 
 
-func restore_media(media: Node3D, yaw: float = 0.0) -> void:
+func restore_media(media: Node3D, yaw: float = 0.0, _side_out: int = 0) -> void:
 	if _slot:
 		_slot.restore(media, yaw)
 
