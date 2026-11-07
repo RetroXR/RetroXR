@@ -10,8 +10,8 @@
 ## the play direction, NR B/C and TYPE II and two peak meters. COUNTER RESET zeroes
 ## the counter; REC presses and does nothing more (the deck plays, it does not
 ## record). The phono pair on its back is a line out; PHONES under EJECT is a 3.5 mm jack whose headphones take the
-## sound instead (audio_player.gd, "PHONES"), at the level the small LEVEL knob under it sets (PhonesKnob). The big
-## knob at the right (LevelKnob, the model's REC LEVEL) is the deck's output level.
+## sound instead (audio_player.gd, "PHONES"). The one knob, VOLUME at the right (LevelKnob), sets the level of both:
+## PHONES has no knob of its own, so the headphones' own level is held at full.
 class_name CassettePlayer
 extends RetroAudioPlayer
 
@@ -23,7 +23,7 @@ const KEYS := {"EjectButton": "ButtonEject", "RewindButton": "ButtonRewind", "Pl
 const METER_SEGMENTS := 28
 ## The meters redraw at most this often while the tape plays (a SubViewport each time).
 const METER_HZ := 12.0
-## The fascia's face (the model's front, z +150 mm): the body's box stops there, the REC LEVEL knob standing out of it.
+## The fascia's face (the model's front, z +150 mm): the body's box stops there, the VOLUME knob standing out of it.
 const FRONT := 0.150
 
 var _slot: MediaSlot = null
@@ -92,7 +92,9 @@ func _setup_loader() -> void:
 		for mouth in _model.parts(port):
 			mouth.name = port + "Mouth"
 	_dress_level_knob()
-	DeckFace.dress_phones(self, _model, "PhonesKnob", "Cassette")
+	# VOLUME (LevelKnob, the output level) is the headphones' level too: their own stays at full.
+	phones_level = 1.0
+	DeckFace.dress_phones(self, _model, "", "Cassette")
 	_model.hide_part("Display")
 	var panel := _model.part("Display") as MeshInstance3D
 	var size := Vector2(0.19, 0.036)
@@ -126,7 +128,7 @@ const KNOB_REACH := 0.018
 static var _knob_split := {}
 
 
-## LEVEL: the model's front knob made a VRKnob that sets the deck's output level, as the CD
+## VOLUME: the model's front knob made a VRKnob that sets the deck's output level (line out and PHONES), as the CD
 ## player's LEVEL knob is. The knob's triangles are cut out of every level's Body onto the
 ## knob's pivot, so turning the VRKnob turns the knob that is drawn, and the knob's box is
 ## the knob: the body's boxes stop at FRONT, so a pointer reaches it.
@@ -134,7 +136,7 @@ func _dress_level_knob() -> void:
 	var knob := get_node_or_null("LevelKnob") as VRKnob
 	var bodies := _model.parts("Body")
 	if knob == null or bodies.is_empty():
-		push_warning("[Cassette] %s: no LEVEL knob (scene %s, model body %s)" % [name, knob != null, not bodies.is_empty()])
+		push_warning("[Cassette] %s: no VOLUME knob (scene %s, model body %s)" % [name, knob != null, not bodies.is_empty()])
 		return
 	var pivot := knob.get_node("KnobPivot") as Node3D
 	var caps: Array[MeshInstance3D] = []
@@ -181,7 +183,7 @@ func _dress_level_knob() -> void:
 	pivot.rotation = turned
 	knob.value_changed.connect(_on_level_knob)
 	set_output_level(knob.value)
-	print("[Cassette] %s: LEVEL knob cut out of the model at (%.3f, %.3f, %.3f), %.0f mm across, level %.2f"
+	print("[Cassette] %s: VOLUME knob cut out of the model at (%.3f, %.3f, %.3f), %.0f mm across, level %.2f"
 		% [name, axis.x, axis.y, axis.z, box.size.x * 1000.0, output_level])
 
 

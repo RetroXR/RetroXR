@@ -367,7 +367,7 @@ decks are. Every node the saves and netplay name is kept; the old box, slit, lid
   The spindles (`ReelL` / `ReelR`) stand at the angle of a drawn cassette's own hubs (`HubSupply` / `HubTakeup`, what
   the `xenu.cassette` mod draws; the deck runs after the shell, `process_priority` 1), or turn at the tape's speed for
   the stand-in box. The Compact Cassette itself is now the base game's too (see below), stepping aside for a mod's. The counter is the tape's place, a side's worth 0-999, from the last COUNTER RESET. REC
-  presses and logs: the deck plays, it does not record. REC LEVEL is molded. The meters read the PCM the deck pumps
+  presses and logs: the deck plays, it does not record. Its one knob is VOLUME (once REC LEVEL; see PHONES below). The meters read the PCM the deck pumps
   (`RetroAudioPlayer.wants_levels` / `levels`, peaks falling 1.8 a second) and redraw at most 12 Hz.
 - **CD:** the tray is the DVD player's (a trimesh `TrayBody` riding the drawer). The model has no REW / FF: those
   buttons stay for the remote's scan, out of play on the box. REPEAT and SHUFFLE choose what plays next through
@@ -455,14 +455,15 @@ jack); `appliance_pointer_tests` checks the knob's box is the knob. How it looks
 (windowed, `-- --no-mods`).
 
 **The cassette deck has PHONES too (2026-11-07)**: RetroXR-models `generic/cassette-deck` gained the CD player's
-3.5 mm jack and its LEVEL knob (`Phones`, the `PhonesOut` mouth, `PhonesLevel` in MOVING), in the column between the
-door and the transport keys, under EJECT (x -51 mm; the jack at z -8, the knob at -33). The dressing is one function
-for both decks now, `DeckFace.dress_phones(deck, model, knob_path, tag)` (the jack seated `PHONES_SEAT_BACK` behind
-the mouth, the cap hung on the knob's pivot, its box fitted at rest). **The cassette deck's PHONES knob is
-`PhonesKnob`**: its `LevelKnob` was already the model's REC LEVEL made the deck's OUTPUT level, and is persisted by
-path, so it kept its name; through PHONES the two multiply. `headphones_tests cassette/` (the `cd/` checks, run by one
-`_deck_phones` helper, plus the two knobs apart, the output level scaling PHONES, and the cap on the pivot);
-`bring_in_probe` shoots `headphones_in_deck_phones.png` / `deck_phones_close.png`.
+3.5 mm jack (`Phones`, the `PhonesOut` mouth) in the column between the door and the transport keys, under EJECT and
+level with the keys' middle (x -51 mm, z -22). **It has no knob of its own: the deck has ONE knob, VOLUME** (the
+model's old REC LEVEL, relabelled; `LevelKnob`, the output level, persisted by path), which sets the line out and
+PHONES alike, so `CassettePlayer` holds `phones_level` at 1.0. The dressing is one function for both decks,
+`DeckFace.dress_phones(deck, model, knob_path, tag)` (the jack seated `PHONES_SEAT_BACK` behind the mouth; with a
+`knob_path` the model's PhonesLevel hung on that knob, as the CD player's; an empty path, the jack alone).
+`headphones_tests cassette/` (the `cd/` checks, run by one `_deck_phones` helper on LevelKnob, plus one knob only, no
+PhonesLevel drawn, the headphones' own level at full); `bring_in_probe` shoots `headphones_in_deck_phones.png`,
+`deck_phones_close.png` and `deck_volume_close.png`.
 
 
 ### Pass-throughs: a device in the middle of the signal (2026-11-02)

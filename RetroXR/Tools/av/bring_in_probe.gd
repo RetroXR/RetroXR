@@ -116,7 +116,7 @@ func _phones() -> void:
 	await _shot("cd_phones_close.png")
 
 
-## The headphones' plug in the cassette deck's PHONES jack under EJECT, its LEVEL knob under it turned to a third.
+## The headphones' plug in the cassette deck's PHONES jack under EJECT, the VOLUME knob turned to a third.
 func _deck_phones() -> void:
 	for n in _view.get_children():
 		if n is CDPlayer or n is Headphones:
@@ -133,14 +133,16 @@ func _deck_phones() -> void:
 		await get_tree().process_frame
 	var jack := deck.get_node("PhonesOut") as XRToolsSnapZone
 	jack.pick_up_object(hp.get_node("PlugB0") as Node3D)
-	(deck.get_node("PhonesKnob") as VRKnob).set_value(0.3)
+	(deck.get_node("LevelKnob") as VRKnob).set_value(0.3)
 	for i in 90:
 		await get_tree().physics_frame
-	print("[probe] deck sound -> %s, PHONES level %.2f" % [deck.sound_sink().name if deck.sound_sink() != null else "nothing",
-		deck.phones_level])
+	print("[probe] deck sound -> %s, VOLUME %.2f" % [deck.sound_sink().name if deck.sound_sink() != null else "nothing",
+		deck.output_level])
 	for h in _view.find_children("SnapHighlight", "Node3D", true, false):
 		(h as Node3D).visible = false
 	_cam.look_at_from_position(Vector3(0.05, 0.2, 0.62), Vector3(-0.03, 0.05, 0.15))
 	await _shot("headphones_in_deck_phones.png")
 	_cam.look_at_from_position(Vector3(0.0, 0.09, 0.3), Vector3(-0.051, 0.04, 0.15))
 	await _shot("deck_phones_close.png")
+	_cam.look_at_from_position(Vector3(0.24, 0.1, 0.32), Vector3(0.186, 0.04, 0.15))
+	await _shot("deck_volume_close.png")

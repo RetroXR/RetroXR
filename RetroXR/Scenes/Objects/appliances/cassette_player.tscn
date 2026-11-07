@@ -39,10 +39,6 @@ size = Vector3(0.03, 0.02, 0.03)
 [sub_resource type="BoxShape3D" id="Shape_level"]
 size = Vector3(0.03, 0.03, 0.011)
 
-; The PHONES LEVEL knob's box; DeckFace.dress_phones fits it to the model's PhonesLevel.
-[sub_resource type="BoxShape3D" id="Shape_phones_level"]
-size = Vector3(0.017, 0.017, 0.009)
-
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
 size = Vector3(0.43, 0.12, 0.3)
 
@@ -252,7 +248,7 @@ transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.11
 channel = 2
 direction = 0
 
-; LEVEL: the deck's output level, a VRKnob over the model's front knob (merged into its Body, so cassette_player.gd
+; VOLUME: the deck's output level (line out and PHONES), a VRKnob over the model's front knob (merged into its Body, so cassette_player.gd
 ; cuts the knob's triangles out onto KnobPivot, turned about its own +Z). Placed on the knob at _ready; the room save
 ; and netplay carry it as they do every knob.
 [node name="LevelKnob" type="Area3D" parent="."]
@@ -269,23 +265,8 @@ shape = SubResource("Shape_level")
 [node name="KnobPivot" type="Node3D" parent="LevelKnob"]
 
 ; PHONES: a 3.5 mm stereo jack under EJECT (a TrsPort, OUT). Headphones in it take the tape's sound instead of the line
-; out (audio_player.gd, "PHONES"); seated on the model's PhonesOut mouth at _ready (DeckFace.dress_phones).
+; out (audio_player.gd, "PHONES"), at the VOLUME knob's level (LevelKnob); seated on the model's PhonesOut mouth at
+; _ready (DeckFace.dress_phones).
 [node name="PhonesOut" parent="." instance=ExtResource("12_trsport")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.051, -0.008, 0.151)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.051, -0.022, 0.151)
 direction = 0
-
-; PHONES LEVEL: the headphones' level, a VRKnob over the model's PhonesLevel under the jack (turned about its own +Z).
-; Placed on the model's knob at _ready; the room save and netplay carry it as they do every knob. LevelKnob above is
-; the deck's output level, and keeps its name (saves hold it).
-[node name="PhonesKnob" type="Area3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.051, -0.033, 0.15)
-collision_layer = 1048576
-collision_mask = 0
-script = ExtResource("11_vrknob")
-engage_radius = 0.03
-value = 0.75
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="PhonesKnob"]
-shape = SubResource("Shape_phones_level")
-
-[node name="KnobPivot" type="Node3D" parent="PhonesKnob"]

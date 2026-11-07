@@ -47,11 +47,12 @@ static func seat_port(model: ApplianceModel, port: Node3D, part: String) -> void
 const PHONES_SEAT_BACK := 0.00075
 
 
-## PHONES and its LEVEL knob, on a deck whose model has them (the RETRO XR CD player and cassette deck): the jack
-## (the scene's `PhonesOut`, a TrsPort) on the model's PhonesOut mouth, and the model's PhonesLevel knob (its own node
-## on every level) hung on the VRKnob `knob_path`'s KnobPivot at the knob's axis, so turning the VRKnob turns it and
-## sets the headphones' level (RetroAudioPlayer.set_phones_level). The knob's box is the knob. Run before the deck
-## fits its body's boxes. Logs what it found, and what it could not.
+## PHONES, on a deck whose model has it (the RETRO XR CD player and cassette deck): the jack (the scene's `PhonesOut`,
+## a TrsPort) on the model's PhonesOut mouth, and, with a `knob_path`, the model's PhonesLevel knob (its own node on
+## every level) hung on that VRKnob's KnobPivot at the knob's axis, so turning the VRKnob turns it and sets the
+## headphones' level (RetroAudioPlayer.set_phones_level); the knob's box is the knob. An empty `knob_path`: the jack has
+## no knob of its own (the cassette deck's VOLUME sets it). Run before the deck fits its body's boxes. Logs what it
+## found, and what it could not.
 static func dress_phones(deck: RetroAudioPlayer, model: ApplianceModel, knob_path: String, tag: String) -> void:
 	var jack := deck.get_node_or_null("PhonesOut") as Node3D
 	if jack != null and model.part("PhonesOut") != null:
@@ -65,6 +66,10 @@ static func dress_phones(deck: RetroAudioPlayer, model: ApplianceModel, knob_pat
 	else:
 		push_warning("[%s] %s: no PHONES jack (scene %s, model %s)"
 			% [tag, deck.name, jack != null, model.part("PhonesOut") != null])
+	if knob_path.is_empty():
+		print("[%s] %s: PHONES jack on the model, no level knob of its own (PHONES level %.2f)"
+			% [tag, deck.name, deck.phones_level])
+		return
 	var knob := deck.get_node_or_null(knob_path) as VRKnob
 	var cap := model.part("PhonesLevel")
 	if knob == null or cap == null:
