@@ -53,7 +53,9 @@ func _ready() -> void:
 	var el: Array = _meta["el"]
 	var ranges := Vector4(deg_to_rad(az[0]), deg_to_rad(az[1]), deg_to_rad(el[0]), deg_to_rad(el[1]))
 	for layer in ["sky", "bg", "fg"]:
-		var shader: Shader = load("res://Shaders/street_sky.gdshader" if layer == "sky" else "res://Shaders/street_layer.gdshader")
+		# the backdrop is solid (it paints the sky where it has none); only the foreground is cut out
+		var shader: Shader = load({"sky": "res://Shaders/street_sky.gdshader", "bg": "res://Shaders/street_backdrop.gdshader",
+			"fg": "res://Shaders/street_layer.gdshader"}[layer])
 		var mat := ShaderMaterial.new()
 		mat.shader = shader
 		mat.set_shader_parameter("proj_p", Vector3(p[0], p[1], p[2]))
@@ -156,6 +158,9 @@ func _apply() -> void:
 		mat.set_shader_parameter("key_a", _tex["%d_%s" % [a, layer]])
 		mat.set_shader_parameter("key_b", _tex["%d_%s" % [c, layer]])
 		mat.set_shader_parameter("blend", f if a != c else 0.0)
+		if layer == "bg" and _mats.has("sky"):
+			mat.set_shader_parameter("sky_a", _tex["%d_sky" % a])
+			mat.set_shader_parameter("sky_b", _tex["%d_sky" % c])
 	_evict(a, c)
 	# the glass: a faint reflection by day, the room plain in it at night
 	var pane := get_node_or_null(glass_path) as MeshInstance3D

@@ -26,11 +26,15 @@ void vertex() {
 	model_pos = VERTEX;
 }
 
-vec2 pano_uv() {
-	vec3 d = normalize(model_pos - proj_p);
+vec2 pano_uv_dir(vec3 d) {
 	float az = atan(d.x, -d.z);
 	float el = asin(clamp(d.y, -1.0, 1.0));
 	return vec2((az - ranges.x) / (ranges.y - ranges.x), (ranges.w - el) / (ranges.w - ranges.z));
+}
+
+// the panorama's UV of this fragment: the direction to it from proj_p
+vec2 pano_uv() {
+	return pano_uv_dir(normalize(model_pos - proj_p));
 }
 
 vec3 decode(vec3 y) {
