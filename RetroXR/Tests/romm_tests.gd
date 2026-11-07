@@ -54,6 +54,7 @@ func _ready() -> void:
 	_test_arcade_boards()
 	_test_firmware_index()
 	_test_bios_download_all()
+	_test_stale_download_button()
 	_test_stats_unchanged()
 	_test_password_not_persisted()
 	_test_scopes()
@@ -583,6 +584,20 @@ func _test_bios_download_all() -> void:
 
 	view.queue_free()
 	fw.free()
+
+
+## A core's row is freed with its detail page while its job waits in the queue;
+## the job starting later must not assign the freed button to a typed var
+## (2026-11-07: "Trying to assign invalid previously freed instance").
+func _test_stale_download_button() -> void:
+	var view := SpawnMenuCoresView.new()
+	add_child(view)
+	var gone := Button.new()
+	view._download_widgets["fakecore"] = {"button": gone}
+	gone.free()
+	view._refresh_download_button("fakecore")
+	_ok(not view._download_widgets.has("fakecore"), "dl_button/a freed row's button is dropped, not assigned")
+	view.queue_free()
 
 
 func _first_button(node: Node) -> Button:

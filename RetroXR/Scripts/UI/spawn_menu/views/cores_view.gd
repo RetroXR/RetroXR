@@ -2521,9 +2521,17 @@ func _refresh_download_button(core_name: String) -> void:
 	var widgets: Dictionary = _download_widgets.get(core_name, {})
 	if widgets.is_empty():
 		return
-	var btn: Button = widgets["button"]
-	if not is_instance_valid(btn):
+	# Check BEFORE the typed assignment: assigning a freed object to a `Button`
+	# is itself the error ("Trying to assign invalid previously freed instance"),
+	# so an is_instance_valid after it never runs. A row's button dies with its
+	# lazily built detail page while its job is still queued (2026-11-07:
+	# xenia_edge's job started after another core finished, its page long gone).
+	var obj: Variant = widgets.get("button")
+	if not is_instance_valid(obj):
+		print("[Cores] download button for %s is gone with its page; dropping it" % core_name)
+		_download_widgets.erase(core_name)
 		return
+	var btn: Button = obj
 	var remote := ""
 	for e: Dictionary in download_manager.available_cores:
 		if e.get("core_name", "") == core_name:
