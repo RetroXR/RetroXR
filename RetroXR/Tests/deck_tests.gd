@@ -1454,6 +1454,28 @@ func _test_cassette_door() -> void:
 	deck._measure(PackedVector2Array([Vector2(0.2, -0.7), Vector2(-0.5, 0.1)]))
 	_ok(is_equal_approx(deck.levels.x, 0.5) and is_equal_approx(deck.levels.y, 0.7), "drawer/the meters read each channel's peak",
 		str(deck.levels))
+	# ...in dB, on the printed scale: each mark's level lights the bar to that mark (full scale reads +6).
+	var at_mark := func(db: float) -> float:
+		return CassettePlayer.meter_fraction(pow(10.0, (db - CassettePlayer.METER_FULL_SCALE_DB) / 20.0))
+	var off := 0.0
+	for i in CassettePlayer.METER_MARKS_DB.size():
+		off = maxf(off, absf(at_mark.call(CassettePlayer.METER_MARKS_DB[i])
+			- (CassettePlayer.METER_MARK_AT + i * CassettePlayer.METER_MARK_STEP)))
+	_ok(off < 1e-4, "drawer/the meters are in dB: each printed mark's level reaches that mark (worst %.5f)" % off)
+	_ok(is_equal_approx(CassettePlayer.meter_fraction(1.0), CassettePlayer.METER_MARK_AT + 6 * CassettePlayer.METER_MARK_STEP),
+		"drawer/a full-scale peak reads +6, the top mark")
+	# Half the amplitude is 6 dB down: +6 -> 0, a mark's worth of bar per step, not half the bar.
+	_ok(absf(CassettePlayer.meter_fraction(0.5) - (CassettePlayer.METER_MARK_AT + 4 * CassettePlayer.METER_MARK_STEP)) < 0.002,
+		"drawer/half the amplitude reads 0 dB (%.3f of the bar)" % CassettePlayer.meter_fraction(0.5))
+	_ok(CassettePlayer.meter_fraction(0.0) == 0.0 and CassettePlayer.meter_fraction(0.001) == 0.0
+		and CassettePlayer.meter_fraction(4.0) == 1.0, "drawer/silence and very quiet are an empty bar, past full scale a full one")
+	var mono := true
+	var prev := -1.0
+	for k in 200:
+		var f := CassettePlayer.meter_fraction(pow(10.0, -60.0 / 20.0 + k * 0.02))
+		mono = mono and f >= prev
+		prev = f
+	_ok(mono, "drawer/a louder peak never lights less")
 
 
 ## Run a deck's drawer until it stops (frames with a fixed step, so this does not wait on a clock).

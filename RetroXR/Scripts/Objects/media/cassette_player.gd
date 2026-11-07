@@ -23,6 +23,17 @@ const KEYS := {"EjectButton": "ButtonEject", "RewindButton": "ButtonRewind", "Pl
 const METER_SEGMENTS := 28
 ## The meters redraw at most this often while the tape plays (a SubViewport each time).
 const METER_HZ := 12.0
+## The meters' printed scale (dB) and where each mark stands along the bar (a fraction of it): mark i at
+## METER_MARK_AT + i * METER_MARK_STEP. The bar is read in dB through these marks, so a peak at -6 lights the bar
+## to the -6 mark; below -20 and above +6 it goes on at the end steps' slopes, to the bar's ends.
+const METER_MARKS_DB: Array[float] = [-20.0, -10.0, -6.0, -3.0, 0.0, 3.0, 6.0]
+const METER_MARK_AT := 0.06
+const METER_MARK_STEP := 0.148
+## What a digital full-scale peak (1.0) reads: the top mark, so the loudest a file can be reaches +6 and the red, and
+## the meter's 0 is 6 dB under full scale (a deck's 0 is its reference level, with headroom over it).
+const METER_FULL_SCALE_DB := 6.0
+## How fast the bars fall back, in bar lengths a second (even in dB: a peak-reading meter's release).
+const METER_FALL := 0.9
 ## The fascia's face (the model's front, z +150 mm): the body's box stops there, the VOLUME knob standing out of it.
 const FRONT := 0.150
 
@@ -38,6 +49,8 @@ var _vfd_wait := 0.0
 var _counter_zero := 0
 ## The count it last read off a tape.
 var _counter_last := 0
+## What the bars show (each a fraction of the bar, on the dB scale), falling back at METER_FALL.
+var _meter := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -292,6 +305,8 @@ func _process(delta: float) -> void:
 	_turn_spindles(delta)
 	if not is_playing:
 		levels = Vector2.ZERO
+	var fall := METER_FALL * delta
+	_meter = Vector2(maxf(_meter.x - fall, meter_fraction(levels.x)), maxf(_meter.y - fall, meter_fraction(levels.y)))
 	_vfd_wait -= delta
 	_update_vfd()
 
@@ -344,6 +359,23 @@ func _on_counter_reset() -> void:
 
 # --- The display ---
 
+## Where a peak (linear, 1.0 = digital full scale) stands along the meter's bar, 0..1, on its printed dB scale.
+static func meter_fraction(peak: float) -> float:
+	if peak <= 0.0:
+		return 0.0
+	var db := 20.0 * log(peak) / log(10.0) + METER_FULL_SCALE_DB
+	var marks := METER_MARKS_DB
+	var last := marks.size() - 1
+	var i := 0
+	if db >= marks[last]:
+		i = last - 1
+	elif db > marks[0]:
+		while db > marks[i + 1]:
+			i += 1
+	var f := METER_MARK_AT + METER_MARK_STEP * (i + (db - marks[i]) / (marks[i + 1] - marks[i]))
+	return clampf(f, 0.0, 1.0)
+
+
 ## What the display shows now, and redraw it if that changed (the meters at most METER_HZ).
 func _on_mains_redraw() -> void:
 	_vfd_key = ""
@@ -355,8 +387,8 @@ func _update_vfd() -> void:
 	if _vfd == null:
 		return
 	var tape := _tape() != null or (_slot != null and _slot.has_media())
-	var l := int(round(levels.x * METER_SEGMENTS))
-	var r := int(round(levels.y * METER_SEGMENTS))
+	var l := int(round(_meter.x * METER_SEGMENTS))
+	var r := int(round(_meter.y * METER_SEGMENTS))
 	var key := "%d|%d|%d|%d" % [counter(), int(tape), int(is_playing and not _paused), _scan_dir]
 	var meters := "%d|%d" % [l, r]
 	if key == _vfd_key and meters == _vfd_meters:
@@ -373,7 +405,7 @@ func _update_vfd() -> void:
 
 
 ## The counter in seven segments with the play direction under it, NR B/C and TYPE II CrO2 (lit with a tape in), and
-## two peak meters on a -20 .. +6 scale: RetroXR-models generic/cassette-deck tools/vfd.py's layout.
+## two peak meters on a -20 .. +6 dB scale (meter_fraction): RetroXR-models generic/cassette-deck tools/vfd.py's layout.
 func _paint_vfd(c: Control, size: Vector2) -> void:
 	# No power, no display.
 	if not mains_live():
@@ -407,8 +439,8 @@ func _paint_vfd(c: Control, size: Vector2) -> void:
 			var on := i < int(row[1])
 			var col := (VfdDisplay.RED if on else VfdDisplay.RED_GHOST) if red else (VfdDisplay.LIT if on else VfdDisplay.GHOST)
 			c.draw_rect(Rect2(mx + i * seg + 1.0, row[2], seg - 3.0, h * 0.075), col)
-	var marks := ["-20", "-10", "-6", "-3", "0", "+3", "+6"]
 	var sfs := int(h * 0.07)
-	for i in marks.size():
-		var w := VfdDisplay.font().get_string_size(marks[i], HORIZONTAL_ALIGNMENT_LEFT, -1, sfs).x
-		VfdDisplay.text(c, marks[i], Vector2(mx + mw * (0.06 + i * 0.148) - w / 2.0, h * 0.47), sfs, true)
+	for i in METER_MARKS_DB.size():
+		var mark := "%+d" % int(METER_MARKS_DB[i]) if METER_MARKS_DB[i] > 0.0 else "%d" % int(METER_MARKS_DB[i])
+		var w := VfdDisplay.font().get_string_size(mark, HORIZONTAL_ALIGNMENT_LEFT, -1, sfs).x
+		VfdDisplay.text(c, mark, Vector2(mx + mw * (METER_MARK_AT + i * METER_MARK_STEP) - w / 2.0, h * 0.47), sfs, true)

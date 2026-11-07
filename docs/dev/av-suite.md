@@ -368,7 +368,7 @@ decks are. Every node the saves and netplay name is kept; the old box, slit, lid
   the `xenu.cassette` mod draws; the deck runs after the shell, `process_priority` 1), or turn at the tape's speed for
   the stand-in box. The Compact Cassette itself is now the base game's too (see below), stepping aside for a mod's. The counter is the tape's place, a side's worth 0-999, from the last COUNTER RESET. REC
   presses and logs: the deck plays, it does not record. Its one knob is VOLUME (once REC LEVEL; see PHONES below). The meters read the PCM the deck pumps
-  (`RetroAudioPlayer.wants_levels` / `levels`, peaks falling 1.8 a second) and redraw at most 12 Hz.
+  (`RetroAudioPlayer.wants_levels` / `levels`) and redraw at most 12 Hz. **They read in dB on their printed scale** (2026-11-07, `CassettePlayer.meter_fraction`): each mark's level lights the bar to that mark, piecewise between marks, a digital full-scale peak reads +6 (the meter's 0 is 6 dB under full scale), and the bars fall back at 0.9 bar lengths a second; before, the bar was linear in amplitude and the marks were print only. They read the PCM before VOLUME, as a deck's do. `deck_tests drawer/`.
 - **CD:** the tray is the DVD player's (a trimesh `TrayBody` riding the drawer). The model has no REW / FF: those
   buttons stay for the remote's scan, out of play on the box. REPEAT and SHUFFLE choose what plays next through
   `RetroAudioPlayer._track_after` (SHUFFLE plays each track once, then ends unless REPEAT); they are the host's own in
