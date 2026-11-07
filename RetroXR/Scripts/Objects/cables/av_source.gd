@@ -67,6 +67,9 @@ static func resolve(dev: Node3D, stereo: bool) -> Feed:
 	var feed := Feed.new()
 	## The sink an RF cord reaches, held back until every link has been walked.
 	var rf_sink: Node3D = null
+	## The loudspeaker cabinets this device's own L and R line out reach.
+	var cab_left: Node3D = null
+	var cab_right: Node3D = null
 	for link in AvGraph.links_for(dev):
 		var out_port: RcaPort = link["out"]
 		if out_port.get_device() != dev:
@@ -98,6 +101,23 @@ static func resolve(dev: Node3D, stereo: bool) -> Feed:
 		if in_ch == RcaPort.Channel.AUDIO_SPEAKER:
 			if RcaPort.SPEAKER_OUT_CHANNELS.has(out_ch):
 				feed.audio_dest[out_ch] = {"sink": target, "speaker": 0}
+			# A SOURCE's line out into a cabinet plays out of it (see LineOutCabinets);
+			# held until every link is walked, like RF, so a set or the amplifier on
+			# the same machine still wins.
+			match out_ch:
+				RcaPort.Channel.AUDIO_L:
+					if cab_left == null:
+						cab_left = target
+					if not stereo and cab_right == null:
+						cab_right = target
+				RcaPort.Channel.AUDIO_R:
+					if cab_right == null:
+						cab_right = target
+				RcaPort.Channel.AUDIO_STEREO:
+					if cab_left == null:
+						cab_left = target
+					if cab_right == null:
+						cab_right = target
 			continue
 		match out_ch:
 			RcaPort.Channel.VIDEO:
@@ -138,6 +158,15 @@ static func resolve(dev: Node3D, stereo: bool) -> Feed:
 					feed.right = 1
 					feed.audio_dest[RcaPort.Channel.AUDIO_L] = {"sink": target, "speaker": 0}
 					feed.audio_dest[RcaPort.Channel.AUDIO_R] = {"sink": target, "speaker": 1}
+	# Loudspeaker cabinets on the line out, if no set, amplifier or headphones took
+	# the sound: one sink for the pair (LineOutCabinets), left first. Before RF, as a
+	# phono lead to a set is. Not for a device that is itself a sink (a set, the
+	# amplifier): ITS L / R are speaker outputs, driven through audio_dest.
+	if feed.audio_sink == null and (cab_left != null or cab_right != null) \
+			and not dev.has_method("get_speaker_positions"):
+		feed.audio_sink = LineOutCabinets.for_device(dev, cab_left, cab_right)
+		feed.left = 0 if cab_left != null else -1
+		feed.right = 1 if cab_right != null else -1
 	# The RF feed last, and only if nothing else claimed the sound. A machine with
 	# phono audio run to a set is being heard through that, and RF is what a
 	# machine with no audio socket at all has instead — so an NES wired both ways

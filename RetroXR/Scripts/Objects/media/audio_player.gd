@@ -967,7 +967,8 @@ func set_audio_channel_mode(mode: int) -> void:
 #
 # A deck with an `AudioLOut` / `AudioROut` pair (RcaPort, OUT; the RETRO XR turntable)
 # is a SOURCE on the cable graph the way a VCR is: a lead into a set's audio input or
-# the surround amplifier's AUDIO IN carries its sound THERE, and with no lead it is
+# the surround amplifier's AUDIO IN carries its sound THERE (a lead straight into loudspeaker
+# cabinets too: LineOutCabinets, one sink for the pair), and with no lead it is
 # SILENT (2026-11-03: a deck has no speaker; it used to play from the deck itself,
 # heard "through the air" with nothing plugged in). Resolved through AvSource, the same answer a
 # VCR and a console get, on a plug or unplug and never per frame. The sink is told

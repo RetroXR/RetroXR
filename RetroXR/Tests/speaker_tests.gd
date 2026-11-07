@@ -25,6 +25,7 @@ const STAND_120 := preload("res://Scenes/Objects/appliances/speaker_stand_120.ts
 const STAND_100 := preload("res://Scenes/Objects/appliances/speaker_stand_100.tscn")
 const AMP := preload("res://Scenes/Objects/appliances/surround_amp.tscn")
 const RECORD_PLAYER := preload("res://Scenes/Objects/appliances/record_player.tscn")
+const CASSETTE_PLAYER := preload("res://Scenes/Objects/appliances/cassette_player.tscn")
 const SOURCE_SCRIPT := preload("res://Tests/speaker_tests_source.gd")
 
 const MESHES := {
@@ -115,6 +116,10 @@ func _run() -> void:
 		["amp/the display lights a lamp per cabled output, and dims with none", _a_vfd],
 		["amp/the turntable's line out sits on its jacks, out of the back", _a_tt_ports],
 		["amp/a turntable cabled into AUDIO IN plays through the amplifier", _a_tt_into_amp],
+		["lineout/a source's L and R play from the cabinets they reach", _l_pair],
+		["lineout/one cord plays its channel alone", _l_one_cord],
+		["lineout/a set's speaker outputs are not a line out", _l_not_a_sink],
+		["lineout/the cassette deck plays out of two cabinets", _l_cassette],
 	]
 
 	for entry in cases:
@@ -1628,3 +1633,83 @@ func _a_tt_into_amp() -> void:
 	_ok(is_equal_approx(rp._volume_linear, 1.0), "at its own level", str(rp._volume_linear))
 	_ok(not em._speaker_override, "its voices back on the deck")
 
+
+
+# ── lineout/ ─────────────────────────────────────────────────────────────────
+# A source's L / R straight into loudspeaker cabinets plays out of them
+# (LineOutCabinets). It used to be silent: a cabinet answered only a set's or the
+# amplifier's speaker outputs, and a deck wired to two cabinets played nothing.
+
+func _l_pair() -> void:
+	var made: Array = await _stereo_source(Vector3(40.0, 0.0, 0.0))
+	var src: Node3D = made[0]
+	var outs: Array = made[1]
+	var left := await _cable_up(outs[0], Vector3(39.0, 0.0, 1.5))
+	var right := await _cable_up(outs[1], Vector3(41.0, 0.0, 1.5))
+	var feed := AvSource.resolve(src, true)
+	var sink := feed.audio_sink as LineOutCabinets
+	_ok(sink != null, "the cabinets are the source's sound sink", str(feed.audio_sink))
+	if sink == null:
+		return
+	_ok(sink.left == left and sink.right == right, "L on the left cabinet, R on the right")
+	_check_eq([feed.left, feed.right], [0, 1], "both channels reach a speaker")
+	var sp := sink.get_speaker_positions()
+	_ok(sp[0].distance_to(left.get_speaker_positions()[0]) < 0.001
+		and sp[1].distance_to(right.get_speaker_positions()[0]) < 0.001,
+		"its two speakers are the two cones", str(sp))
+	_ok(AvSource.resolve(src, true).audio_sink == sink, "a second resolve answers the same sink")
+
+
+func _l_one_cord() -> void:
+	var made: Array = await _stereo_source(Vector3(44.0, 0.0, 0.0))
+	var src: Node3D = made[0]
+	var outs: Array = made[1]
+	var right := await _cable_up(outs[1], Vector3(45.0, 0.0, 1.5))
+	var feed := AvSource.resolve(src, true)
+	_ok(feed.audio_sink is LineOutCabinets, "one cabinet is still a sink", str(feed.audio_sink))
+	_check_eq([feed.left, feed.right], [-1, 1], "R plays, L reaches nothing")
+	if feed.audio_sink is LineOutCabinets:
+		var sp: PackedVector3Array = feed.audio_sink.get_speaker_positions()
+		_ok(sp[1].distance_to(right.get_speaker_positions()[0]) < 0.001, "R stands on its cabinet")
+
+
+## A set's (and the amplifier's) speaker outputs are the same channels as a line
+## out; those cabinets are the set's to drive, never a sink of the set's own.
+func _l_not_a_sink() -> void:
+	var made: Array = await _fake_set()
+	var src: Node3D = made[0]
+	var outs: Array = made[1]
+	await _cable_up(outs[0], Vector3(48.0, 0.0, 1.5))
+	await _cable_up(outs[1], Vector3(49.0, 0.0, 1.5))
+	var feed := AvSource.resolve(src, true)
+	_ok(feed.audio_sink == null, "a set's front outputs make no line-out sink", str(feed.audio_sink))
+	_ok(src.get_node_or_null(LineOutCabinets.NODE_NAME) == null, "and nothing was added to it")
+	_ok(feed.audio_dest.size() == 2, "its two cabinets still resolve as speaker outputs")
+
+
+## The room's case: the RETRO XR cassette deck's line out on two cabinets.
+func _l_cassette() -> void:
+	var deck := CASSETTE_PLAYER.instantiate() as RetroAudioPlayer
+	deck.freeze = true
+	deck.position = Vector3(52.0, 0.0, 0.0)
+	add_child(_hold(deck))
+	await _wait(6)
+	_ok(deck.sound_sink() == null, "uncabled, the deck has no sink")
+	var left := await _cable_up(deck.get_node("AudioLOut") as RcaPort, Vector3(51.0, 0.0, 1.5))
+	var right := await _cable_up(deck.get_node("AudioROut") as RcaPort, Vector3(53.0, 0.0, 1.5))
+	_ok(deck.sound_sink() is LineOutCabinets, "the cabinets carry the tape", str(deck.sound_sink()))
+	await _wait(2)
+	var em := deck.get_node("SpatialAudioEmitter") as SpatialAudioEmitter
+	_ok(em._ch_gain_l > 0.0 and em._ch_gain_r > 0.0, "both channels are heard",
+		"%s %s" % [em._ch_gain_l, em._ch_gain_r])
+	_ok(is_equal_approx(deck._volume_linear, 1.0), "at full level", str(deck._volume_linear))
+	_ok(em._speaker_override
+		and em._speaker_l_pos.distance_to(left.get_speaker_positions()[0]) < 0.001
+		and em._speaker_r_pos.distance_to(right.get_speaker_positions()[0]) < 0.001,
+		"its left and right stand on the two cones",
+		"%s %s" % [em._speaker_l_pos, em._speaker_r_pos])
+	(deck.get_node("AudioLOut") as RcaPort).drop_object()
+	(deck.get_node("AudioROut") as RcaPort).drop_object()
+	await _wait(6)
+	_ok(deck.sound_sink() == null, "both leads out, no sink")
+	_ok(is_zero_approx(em._ch_gain_l) and is_zero_approx(em._ch_gain_r), "and the deck is silent again")

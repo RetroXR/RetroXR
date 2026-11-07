@@ -79,6 +79,14 @@ amplifier a record plays in stereo on the front pair and is not matrix-decoded. 
 lead it is SILENT** (2026-11-03, every deck: a deck has no speaker, and it used to play from
 the deck itself, heard "through the air" with nothing plugged in); headphones in a PHONES jack
 take the sound before the line out. `deck_tests out/`.
+**L / R straight into loudspeaker cabinets PLAY out of them** (2026-11-07; it was silent, a cabinet
+answering only a set's or the amplifier's speaker outputs, so a deck wired to two cabinets played nothing
+and logged nothing): `AvSource.resolve` collects the cabinets a SOURCE's L / R / STEREO reaches and, if no
+set, amplifier or headphones took the sound, answers them as one sink, `LineOutCabinets` (a child of the
+source, left first, full level: a cabinet has no knob). Every source gets it (decks, VCR/DVD, consoles; a
+mono machine's one cord puts both channels on its cabinet). Never for a device that is itself a sink: a
+set's and the amplifier's speaker outputs are the same channels and stay `audio_dest`. Logged as
+`[Speaker] <source>: line out -> L ..., R ...`. `speaker_tests lineout/`.
 The ground post stays the model's: the room has no ground lead. `NameLabel` is hidden
 (the model carries the brand; the base still writes its text). Cases: `speaker_tests`
 `amp/the turntable's line out ...`, `amp/a turntable cabled into AUDIO IN ...`; probe
