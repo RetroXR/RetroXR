@@ -12,6 +12,12 @@
 ## lineup the box reported, and a fresh lookup over the top of both. All of that is
 ## global, so every antenna in the room reads and edits the same configuration —
 ## exactly as every television did before.
+##
+## IPTV playlists (M3U) arrive the same way, through the child M3uFetcher: every
+## `.m3u` in the tv folder and every m3u source in channels.json, the last good
+## download shown first from user://tv_m3u_cache.json. Their channels go on the
+## same list and so on the same dial; each source's rows are replaced whole when
+## it answers, as the tuner's are.
 class_name TVLineup
 extends Node
 
@@ -32,6 +38,10 @@ var _searching := false
 # or simply absent.
 var _config_error := ""
 
+var _m3u: M3uFetcher = null
+# Per playlist key: {name, count, error, pending}. For the status line.
+var _playlists: Dictionary = {}
+
 
 func _ready() -> void:
 	_hdhr = HDHomeRun.new()
@@ -39,6 +49,11 @@ func _ready() -> void:
 	_hdhr.lineup_ready.connect(_on_lineup_ready)
 	_hdhr.discovery_failed.connect(_on_discovery_failed)
 	add_child(_hdhr)
+	_m3u = M3uFetcher.new()
+	_m3u.name = "M3uFetcher"
+	_m3u.playlist_ready.connect(_on_playlist_ready)
+	_m3u.playlist_failed.connect(_on_playlist_failed)
+	add_child(_m3u)
 
 
 ## Whether reload_channels has ever run. The antenna uses it to look once, the first
@@ -65,6 +80,22 @@ func reload_channels() -> void:
 
 	for c in _cfg.stream_channels:
 		channels.append(c)
+
+	# Downloaded playlists' last good copies, for the same reason as the tuner's.
+	# Only for sources still named: a playlist taken out of channels.json takes its
+	# cached channels with it.
+	var playlist_sources := _cfg.playlist_sources()
+	_playlists.clear()
+	for src: Dictionary in playlist_sources:
+		var key := str(src.get("key", ""))
+		var cached := M3uFetcher.cached_channels(key)
+		for c: Variant in cached:
+			if c is Dictionary:
+				var row := (c as Dictionary).duplicate()
+				row["source_key"] = key
+				channels.append(row)
+		_playlists[key] = {"name": str(src.get("name", key.get_file())),
+			"count": cached.size(), "error": "", "pending": true}
 	_sort_channels()
 
 	# A broken file is worth saying out loud. A MISSING one is not: discovery
@@ -82,6 +113,7 @@ func reload_channels() -> void:
 	# reported success or failure.
 	_searching = true
 	_hdhr.find_lineup(_cfg.tuner_host(), _cfg.tuner_auto())
+	_fetch_playlists(playlist_sources)
 
 
 ## What a set with nothing to tune should say on the glass, or "" when there is no
@@ -92,6 +124,10 @@ func fault_text() -> String:
 		return _config_error
 	if channels.is_empty() and not _tuner_error.is_empty():
 		return "TUNER NOT FOUND\n%s" % _tuner_error.to_upper()
+	if channels.is_empty():
+		for p: Dictionary in _playlists.values():
+			if not str(p.get("error", "")).is_empty():
+				return "PLAYLIST ERROR\n%s" % str(p["error"]).to_upper()
 	return ""
 
 
@@ -168,6 +204,74 @@ func _on_discovery_failed(message: String) -> void:
 	_searching = false
 	_tuner_error = message
 	_tuner_info = {}
+	channels_changed.emit()
+
+
+# ── IPTV playlists (the antenna panel's Playlist box) ─────────────────────────
+
+func _fetch_playlists(sources: Array[Dictionary]) -> void:
+	if _m3u == null:
+		return
+	_m3u.fetch(sources)
+
+
+## The playlist URL the panel edits ("" for none) and whether it is switched on.
+func playlist_url() -> String:
+	return _cfg.playlist_url() if _cfg else ""
+
+
+func playlist_enabled() -> bool:
+	return _cfg.playlist_enabled() if _cfg else true
+
+
+## Persist the panel's playlist URL to channels.json and read every playlist again.
+func set_playlist_config(url: String, enabled: bool) -> void:
+	if _cfg == null:
+		_cfg = TVChannels.load_config()
+	if _cfg.playlist_url() == url.strip_edges() and _cfg.playlist_enabled() == enabled:
+		return
+	print("[TVLineup] Playlist set to '%s' (%s)" % [url.strip_edges(), "on" if enabled else "off"])
+	_cfg.set_playlist(url, enabled)
+	reload_channels()
+
+
+## One already-worded line for the panel's playlist status label.
+func playlist_status_line() -> String:
+	if _playlists.is_empty():
+		return "No playlist. Put a .m3u file in %s, or enter a URL." % RomLibrary.default_tv_root()
+	var parts: Array[String] = []
+	for p: Dictionary in _playlists.values():
+		var err := str(p.get("error", ""))
+		if bool(p.get("pending", false)):
+			parts.append("%s: loading…" % p["name"])
+		elif not err.is_empty():
+			parts.append("%s: %s" % [p["name"], err])
+		else:
+			parts.append("%s: %d channels" % [p["name"], int(p.get("count", 0))])
+	return " — ".join(parts)
+
+
+func _on_playlist_ready(key: String, found: Array, info: Dictionary) -> void:
+	var kept: Array[Dictionary] = []
+	for c in channels:
+		if str(c.get("source_key", "")) != key:
+			kept.append(c)
+	channels = kept
+	for c: Variant in found:
+		if c is Dictionary:
+			channels.append(c as Dictionary)
+	_playlists[key] = {"name": str(info.get("name", key.get_file())),
+		"count": found.size(), "error": "", "pending": false}
+	_sort_channels()
+	channels_changed.emit()
+
+
+## A playlist that cannot be read keeps whatever its cache put on the list.
+func _on_playlist_failed(key: String, message: String) -> void:
+	var p: Dictionary = _playlists.get(key, {"name": key.get_file(), "count": 0})
+	p["error"] = message
+	p["pending"] = false
+	_playlists[key] = p
 	channels_changed.emit()
 
 

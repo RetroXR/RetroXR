@@ -3,7 +3,10 @@
 ## The file lives in RomLibrary.default_tv_root() and names *sources*, not
 ## channels: a "stream" source is one channel (a URL you typed), while an
 ## "hdhomerun" source stands for a whole tuner and expands to its full lineup at
-## runtime via HDHomeRun.discover(). Resolving the tuner is asynchronous and
+## runtime via HDHomeRun.discover(), and an "m3u" source is an IPTV playlist (a
+## `url`, or a `path` relative to this folder) that expands to its channels via
+## M3uFetcher. Every `.m3u` file lying in this folder is a playlist too, unnamed
+## here (playlist_sources). Resolving tuner and playlists is asynchronous and
 ## belongs to the caller — this class only parses, holds and saves.
 ##
 ## A resolved channel is a Dictionary:
@@ -87,7 +90,14 @@ func _ingest(data: Variant) -> void:
 		# what makes the bare {name, link} array work unchanged.
 		var kind := str(entry.get("type", "")).to_lower()
 		if kind == "":
-			kind = "hdhomerun" if entry.has("host") and not entry.has("link") else "stream"
+			if entry.has("host") and not entry.has("link"):
+				kind = "hdhomerun"
+			elif is_playlist_link(str(entry.get("link", entry.get("url", entry.get("path", ""))))):
+				# A link to a .m3u is a channel LIST, not one channel. A .m3u8 is
+				# not caught here: that extension is almost always one HLS stream.
+				kind = "m3u"
+			else:
+				kind = "stream"
 		entry = entry.duplicate()
 		entry["type"] = kind
 		sources.append(entry)
@@ -105,6 +115,109 @@ func _ingest(data: Variant) -> void:
 				"source": "stream",
 				"hd": bool(entry.get("hd", false)),
 			})
+
+
+## Whether a link names an M3U channel list rather than a stream. Only `.m3u`;
+## `.m3u8` is the HLS extension and nearly always one stream.
+static func is_playlist_link(link: String) -> bool:
+	var l := link.strip_edges().to_lower()
+	var q := l.find("?")
+	if q >= 0:
+		l = l.substr(0, q)
+	return l.ends_with(".m3u")
+
+
+## Every playlist to read: the m3u sources written in channels.json, then every
+## `.m3u` file lying in the tv folder (sorted by name), which is how a player adds
+## one -- drop the file in, or upload it there through the Web File Manager. A
+## folder file a source already names is not read twice. The folder's are marked
+## `implicit` and never written back by save().
+##
+## Each comes back with `key` (what the lineup and the cache file it under) and
+## `location` (a URL, or an absolute path for a file).
+func playlist_sources() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var named: Dictionary = {}
+	var root := RomLibrary.default_tv_root()
+	for s: Dictionary in sources:
+		if str(s.get("type", "")) != "m3u" or not bool(s.get("enabled", true)):
+			continue
+		var loc := playlist_location(s, root)
+		if loc.is_empty():
+			push_warning("[TVChannels] Skipping playlist '%s': no url or path"
+				% str(s.get("name", "(unnamed)")))
+			continue
+		var entry := s.duplicate()
+		entry["location"] = loc
+		entry["key"] = loc
+		named[loc.simplify_path() if not loc.contains("://") else loc] = true
+		out.append(entry)
+
+	var dir := DirAccess.open(root)
+	if dir:
+		var files: Array[String] = []
+		for f in dir.get_files():
+			if f.to_lower().ends_with(".m3u"):
+				files.append(f)
+		files.sort()
+		for f in files:
+			var path := root.path_join(f)
+			if named.has(path.simplify_path()):
+				continue
+			out.append({"type": "m3u", "name": f.get_basename(), "path": path,
+				"location": path, "key": path, "implicit": true})
+	return out
+
+
+## Where a playlist source points: its `url`, or its `path` (a relative path is
+## relative to the tv folder, where the player keeps channels.json beside it).
+static func playlist_location(s: Dictionary, root: String) -> String:
+	var url := str(s.get("url", s.get("link", ""))).strip_edges()
+	if not url.is_empty():
+		if url.begins_with("file://"):
+			return url.substr(7)
+		return url
+	var path := str(s.get("path", "")).strip_edges()
+	if path.is_empty():
+		return ""
+	if path.is_absolute_path():
+		return path
+	return root.path_join(path)
+
+
+## The playlist URL the antenna menu edits: the first m3u source written in
+## channels.json that names a url. Empty when there is none.
+func playlist_url() -> String:
+	for s: Dictionary in sources:
+		if str(s.get("type", "")) == "m3u" and s.has("url"):
+			return str(s.get("url", "")).strip_edges()
+	return ""
+
+
+func playlist_enabled() -> bool:
+	for s: Dictionary in sources:
+		if str(s.get("type", "")) == "m3u" and s.has("url"):
+			return bool(s.get("enabled", true))
+	return true
+
+
+## Point the menu's playlist at `url` (or switch it off) and persist. Creates the
+## source when the file has none; an empty url removes it.
+func set_playlist(url: String, enabled: bool) -> void:
+	url = url.strip_edges()
+	for i in sources.size():
+		if str(sources[i].get("type", "")) == "m3u" and sources[i].has("url"):
+			if url.is_empty():
+				sources.remove_at(i)
+			else:
+				sources[i]["url"] = url
+				sources[i]["enabled"] = enabled
+			save()
+			return
+	if url.is_empty():
+		return
+	sources.append({"type": "m3u", "name": "Playlist", "url": url, "enabled": enabled})
+	save()
 
 
 ## The first hdhomerun source, or {} when the list names no tuner.

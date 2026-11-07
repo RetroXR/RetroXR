@@ -10,6 +10,7 @@
 ##   channel_selected(index)            — a row in the list was clicked
 ##   tuner_settings_changed(auto, host) — write them to channels.json
 ##   channels_refresh_requested         — re-read channels.json and look again
+##   playlist_settings_changed(on, url) — the M3U playlist box was edited
 ##   close_requested                    — user pressed ✕
 class_name AntennaOptions2D
 extends Control
@@ -21,6 +22,8 @@ signal channel_selected(index: int)
 signal tuner_settings_changed(auto: bool, host: String)
 ## Refresh pressed — re-read channels.json and go looking for the tuner again.
 signal channels_refresh_requested
+## The IPTV playlist box was edited; write it to channels.json and fetch again.
+signal playlist_settings_changed(enabled: bool, url: String)
 
 # ── Palette (matches TVOptions2D / CoreOptions2D) ────────────────────────────────
 const COLOR_BG    := Color(0.08, 0.08, 0.16, 0.96)
@@ -34,6 +37,9 @@ var _auto_toggle: VRCheck = null
 var _host_edit: LineEdit = null
 var _tuner_status: Label = null
 var _link_status: Label = null
+var _playlist_toggle: VRCheck = null
+var _playlist_edit: LineEdit = null
+var _playlist_status: Label = null
 var _channels: Array[Dictionary] = []
 var _current_channel := -1
 # Whether a row can be clicked: only while the lead actually reaches a set.
@@ -125,6 +131,43 @@ func _build_ui() -> void:
 
 	root_vbox.add_child(HSeparator.new())
 
+	# --- IPTV playlist box ---
+	# Same caption-then-box shape as the tuner's. The URL is one m3u source in
+	# channels.json; .m3u files dropped in the tv folder need nothing typed here,
+	# and the status line names that folder so a player can find it.
+	var pl_row := HBoxContainer.new()
+	pl_row.add_theme_constant_override("separation", 8)
+	pl_row.custom_minimum_size = Vector2(0, 52)
+	root_vbox.add_child(pl_row)
+
+	var pl_lbl := Label.new()
+	pl_lbl.text = "IPTV playlist (M3U)"
+	pl_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pl_lbl.add_theme_font_size_override("font_size", 18)
+	pl_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	pl_row.add_child(pl_lbl)
+
+	_playlist_toggle = VRCheck.create(true, func(_on: bool) -> void: _commit_playlist())
+	pl_row.add_child(_playlist_toggle)
+
+	_playlist_edit = LineEdit.new()
+	_playlist_edit.placeholder_text = "https://example.com/playlist.m3u"
+	_playlist_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_playlist_edit.custom_minimum_size = Vector2(0, 38)
+	_playlist_edit.add_theme_font_size_override("font_size", 16)
+	_playlist_edit.text_submitted.connect(func(_t: String) -> void: _commit_playlist())
+	_playlist_edit.focus_exited.connect(_commit_playlist)
+	root_vbox.add_child(_playlist_edit)
+
+	_playlist_status = Label.new()
+	_playlist_status.text = "—"
+	_playlist_status.add_theme_font_size_override("font_size", 15)
+	_playlist_status.add_theme_color_override("font_color", COLOR_ROW)
+	_playlist_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	root_vbox.add_child(_playlist_status)
+
+	root_vbox.add_child(HSeparator.new())
+
 	# --- channel list ---
 	# Virtualised because a broadcast lineup runs to 80-odd rows and building that
 	# many real Controls in a Viewport2DIn3D is not free.
@@ -162,6 +205,9 @@ func _bind_channel_row(row: Control, index: int) -> void:
 	var number := str(ch.get("number", ""))
 	var label := str(ch.get("name", ""))
 	var hd := "  HD" if bool(ch.get("hd", false)) else ""
+	var group := str(ch.get("group", ""))
+	if not group.is_empty():
+		label += "  · %s" % group
 	# The list is worth reading with the lead loose — it is how you find out the
 	# aerial works at all — but there is no set to tune, so the rows do nothing.
 	btn.disabled = not _can_tune
@@ -225,6 +271,19 @@ func populate_tuner(auto: bool, host: String, discovered: String, status: String
 	_suppress_signal = false
 
 
+## Sync the playlist box. `status` is already-worded text for its status line.
+func populate_playlist(enabled: bool, url: String, status: String) -> void:
+	_suppress_signal = true
+	if _playlist_toggle:
+		_playlist_toggle.button_pressed = enabled
+	# Never overwrite what the player is typing.
+	if _playlist_edit and not _playlist_edit.has_focus():
+		_playlist_edit.text = url
+	if _playlist_status:
+		_playlist_status.text = status
+	_suppress_signal = false
+
+
 ## Drive the list from an external stick or wheel input.
 func scroll_active(pixels: float) -> void:
 	if _channels_scroll:
@@ -246,6 +305,13 @@ func _commit_tuner() -> void:
 	if _suppress_signal or _auto_toggle == null or _host_edit == null:
 		return
 	tuner_settings_changed.emit(_auto_toggle.button_pressed, _host_edit.text.strip_edges())
+
+
+func _commit_playlist() -> void:
+	if _suppress_signal or _playlist_toggle == null or _playlist_edit == null:
+		return
+	playlist_settings_changed.emit(_playlist_toggle.button_pressed,
+		_playlist_edit.text.strip_edges())
 
 
 func _on_refresh() -> void:

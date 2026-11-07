@@ -8,8 +8,8 @@
 script = ExtResource("1_panelscript")
 
 [node name="AntennaOptionsViewport" parent="." instance=ExtResource("2_viewport2d3d")]
-screen_size = Vector2(0.55, 0.5)
+screen_size = Vector2(0.55, 0.62)
 scene = ExtResource("3_antopts2d")
-viewport_size = Vector2(550, 500)
+viewport_size = Vector2(550, 620)
 transparent = 1
 unshaded = true

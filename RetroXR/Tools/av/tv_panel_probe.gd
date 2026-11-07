@@ -23,6 +23,13 @@ extends Node
 const TV_UI := preload("res://Scenes/UI/tv_options_2d.tscn")
 const ANTENNA_UI := preload("res://Scenes/UI/antenna_options_2d.tscn")
 
+## IPTV rows from a playlist: number, name, HD, group.
+const PLAYLIST_SAMPLE := [
+	["", "Classic Cartoons", false, "Kids"],
+	["", "Retro Game Shows", false, "Entertainment"],
+	["", "Space Station Live", true, "Science"],
+]
+
 const SAMPLE := [
 	["2.1", "KATU-HD", true], ["2.2", "MeTV", false], ["6.1", "KOIN-HD", true],
 	["8.1", "KGW-HD", true], ["10.1", "OPB-HD", true], ["10.2", "OPB Kids", false],
@@ -75,7 +82,8 @@ func _ready() -> void:
 func _run() -> void:
 	_sv = SubViewport.new()
 	# The size both panel scenes give their viewport.
-	_sv.size = Vector2i(550, 500)
+	# The aerial's panel is 620 tall since it grew the IPTV playlist box.
+	_sv.size = Vector2i(550, 620) if _which == "antenna" else Vector2i(550, 500)
 	_sv.transparent_bg = false
 	_sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(_sv)
@@ -108,10 +116,16 @@ func _show_antenna() -> void:
 	var status := "HDHomeRun FLEX 4K — 192.168.0.100 — 4 tuner(s) — %d channels" % SAMPLE.size()
 	var host := "192.168.0.100"
 	var auto := true
+	var pl_url := "https://example.com/iptv/playlist.m3u"
+	var pl_status := "Playlist: 3 channels — my_channels: 2 channels"
 	if _offline:
 		for row: Array in SAMPLE:
 			channels.append({"number": row[0], "name": row[1], "hd": row[2],
 				"url": "", "source": "hdhomerun"})
+		# A few playlist rows, so the group column is on the photograph.
+		for row: Array in PLAYLIST_SAMPLE:
+			channels.append({"number": row[0], "name": row[1], "hd": row[2],
+				"group": row[3], "url": "", "source": "m3u"})
 	else:
 		# A real lineup, so the list is the real 80-odd broadcast rows.
 		var lineup := TVLineup.new()
@@ -128,11 +142,19 @@ func _show_antenna() -> void:
 		status = lineup.tuner_status_line()
 		host = lineup.discovered_host()
 		auto = lineup.tuner_auto()
+		pl_url = lineup.playlist_url()
+		pl_status = lineup.playlist_status_line()
 
 	ui.populate_link("" if _loose else "TV", false)
 	ui.populate_channels(channels, -1 if _loose else mini(3, channels.size() - 1))
 	ui.populate_tuner(auto, host, host, status)
-	print("[panel] antenna: %d channels; status: %s" % [channels.size(), status])
+	ui.populate_playlist(true, pl_url, pl_status)
+	print("[panel] antenna: %d channels; status: %s; playlist: %s"
+		% [channels.size(), status, pl_status])
+	if _scroll > 0:
+		for f in range(4):
+			await get_tree().process_frame
+		ui.scroll_active(_scroll)
 
 
 func _show_tv() -> void:

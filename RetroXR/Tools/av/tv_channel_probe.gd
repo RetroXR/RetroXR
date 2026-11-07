@@ -15,6 +15,13 @@ extends Node3D
 ##        static        tune a deliberately dead URL, catch the error screen
 ##        static_frames the same, as a numbered sequence for an mp4
 ##        frames        live, as a numbered sequence for an mp4
+##        playlist      IPTV: writes a scratch .m3u into the tv folder (removed on
+##                      exit), waits for the aerial's lineup to read it, tunes the
+##                      --pick=N th playlist channel (0: a local clip, 1: a public
+##                      HLS test stream behind an #EXTVLCOPT user agent) and
+##                      photographs tv_playlist_<N>.png
+##                      --from=<file.m3u> copies a real playlist in instead (an
+##                      iptv-org category list, say), and --pick indexes ITS channels
 ## PNGs land in res://probe_out/ (gitignored).
 
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
@@ -28,14 +35,28 @@ var _lineup: TVLineup = null
 var _started := false
 var _mode := "live"
 var _shot := 0
+var _pick := 0
+var _playlist_path := ""
+var _from := ""
+
+const PLAYLIST_NAME := "zz_tv_channel_probe.m3u"
+## Mux's public HLS test stream (Big Buck Bunny), made for players to test against.
+const HLS_TEST := "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
 
 
 func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--mode="):
 			_mode = arg.split("=")[1]
+		elif arg.begins_with("--pick="):
+			_pick = int(arg.split("=")[1])
+		elif arg.begins_with("--from="):
+			_from = arg.substr(7)
+	if _mode == "playlist":
+		_write_playlist()
 	get_tree().create_timer(120.0).timeout.connect(func() -> void:
 		print("[tvprobe] TIMEOUT")
+		_remove_playlist()
 		get_tree().quit(1))
 	await _build()
 
@@ -96,6 +117,9 @@ func _build() -> void:
 func _on_channels() -> void:
 	if _started or _lineup.channels.is_empty():
 		return
+	if _mode == "playlist":
+		_on_playlist_channels()
+		return
 	# Wait for discovery to settle first. Tuning the moment the CACHED list arrives
 	# races the lineup: _on_lineup_ready re-sorts the channel array underneath a
 	# tune that has already been issued. (The tuner follows the station by URL now,
@@ -119,6 +143,60 @@ func _on_channels() -> void:
 		RetroTV.SOURCE_NAMES[_tv.get_source()], _tv.rf_dial().size(),
 		_tuner.status_banner().replace("\n", " / ")])
 	_run()
+
+
+func _write_playlist() -> void:
+	RomLibrary.ensure_tv_root()
+	_playlist_path = RomLibrary.default_tv_root().path_join(PLAYLIST_NAME)
+	if not _from.is_empty():
+		var err := DirAccess.copy_absolute(_from, _playlist_path)
+		print("[tvprobe] copied %s -> %s (%s)" % [_from, _playlist_path, error_string(err)])
+		return
+	var clip := ProjectSettings.globalize_path("res://Textures/welcome/menu_clip.ogv")
+	var f := FileAccess.open(_playlist_path, FileAccess.WRITE)
+	f.store_string("\n".join(PackedStringArray([
+		"#EXTM3U",
+		"#EXTINF:-1 tvg-chno=\"90\" group-title=\"Local\",Probe Local Clip",
+		clip,
+		"#EXTINF:-1 tvg-chno=\"91\" group-title=\"Test, Streams\",Probe HLS Test",
+		"#EXTVLCOPT:http-user-agent=RetroXR-probe/1.0",
+		"#EXTVLCOPT:sout=#file{dst=probe_should_not_exist.ts}",
+		HLS_TEST,
+	])) + "\n")
+	f.close()
+	print("[tvprobe] wrote %s" % _playlist_path)
+
+
+func _remove_playlist() -> void:
+	if not _playlist_path.is_empty() and FileAccess.file_exists(_playlist_path):
+		DirAccess.remove_absolute(_playlist_path)
+		print("[tvprobe] removed %s" % _playlist_path)
+
+
+func _on_playlist_channels() -> void:
+	var picks: Array[int] = []
+	for i in _lineup.channels.size():
+		if str(_lineup.channels[i].get("source_key", "")).ends_with(PLAYLIST_NAME):
+			picks.append(i)
+	if picks.size() < 2:
+		return
+	_started = true
+	print("[tvprobe] playlist status: %s" % _lineup.playlist_status_line())
+	var index := picks[clampi(_pick, 0, picks.size() - 1)]
+	var ch: Dictionary = _lineup.channels[index]
+	print("[tvprobe] tuning playlist channel %s '%s' [%s] url=%s options=%s"
+		% [ch.get("number", ""), ch.get("name", ""), ch.get("group", ""), ch.get("url", ""),
+		   str(ch.get("vlc_options", []))])
+	_tv.set_channel_index(index)
+	_tuner = _tv.tuner()
+	await _wait_for(func() -> bool: return _tuner.has_picture(), 40.0)
+	print("[tvprobe] picture: %s; banner: %s; error: %s" % [_tuner.has_picture(),
+		_tuner.status_banner().replace("\n", " / "), _tuner.error_text().replace("\n", " / ")])
+	await _settle(30)
+	_save("tv_playlist_%d" % _pick)
+	_remove_playlist()
+	print("[tvprobe] done (%d image(s))" % _shot)
+	get_tree().quit(0)
 
 
 func _run() -> void:

@@ -71,6 +71,7 @@ func _ensure_ui_connected() -> void:
 	ui.channel_selected.connect(_on_channel_selected)
 	ui.tuner_settings_changed.connect(_on_tuner_settings_changed)
 	ui.channels_refresh_requested.connect(_on_channels_refresh)
+	ui.playlist_settings_changed.connect(_on_playlist_settings_changed)
 	_ui_connected = true
 
 
@@ -101,6 +102,8 @@ func _refresh() -> void:
 	ui.populate_channels(lineup.channels, tv.rf_air_index if tv != null else -1)
 	ui.populate_tuner(lineup.tuner_auto(), lineup.tuner_host(),
 		lineup.discovered_host(), lineup.tuner_status_line())
+	ui.populate_playlist(lineup.playlist_enabled(), lineup.playlist_url(),
+		lineup.playlist_status_line())
 
 
 func _tv_display_name(tv: RetroTV) -> String:
@@ -129,6 +132,11 @@ func _on_channel_selected(index: int) -> void:
 func _on_tuner_settings_changed(auto: bool, host: String) -> void:
 	if is_instance_valid(_antenna):
 		_antenna.lineup().set_tuner_config(auto, host)
+
+
+func _on_playlist_settings_changed(enabled: bool, url: String) -> void:
+	if is_instance_valid(_antenna):
+		_antenna.lineup().set_playlist_config(url, enabled)
 
 
 func _on_channels_refresh() -> void:

@@ -57,6 +57,7 @@ var _pending_tune := false
 # The stream the viewer asked for, so a re-sorted list can be followed by station
 # rather than by slot. See _on_lineup_changed.
 var _tuned_url := ""
+var _warned_no_media_options := false
 var _since_tune := 0.0
 var _last_frames := 0
 var _since_frame := 0.0
@@ -226,6 +227,7 @@ func _open_current() -> void:
 	var ch := current_channel()
 	if ch.is_empty():
 		return
+	_apply_media_options(ch)
 	if not _vlc.open(str(ch["url"]), false):
 		_set_error("CANNOT TUNE\n%s" % str(ch.get("name", "")).to_upper())
 		return
@@ -233,6 +235,23 @@ func _open_current() -> void:
 	# Full internal gain; the level the viewer hears is the set's own knob,
 	# applied on the emitter.
 	_vlc.set_volume(100)
+
+
+## An IPTV channel's #EXTVLCOPT options (user agent, referrer…) for the open that
+## follows. Behind has_method: a VlcPlayer built before set_media_options existed
+## (a Quest left on an old build) still plays the stream, without them, and says so
+## once. Sent empty for every other channel so nothing carries over.
+func _apply_media_options(ch: Dictionary) -> void:
+	var opts := PackedStringArray(ch.get("vlc_options", PackedStringArray()))
+	if not _vlc.has_method("set_media_options"):
+		if not opts.is_empty() and not _warned_no_media_options:
+			_warned_no_media_options = true
+			push_warning("[TVTuner] VlcPlayer has no set_media_options (old build): "
+				+ "playing '%s' without %s" % [str(ch.get("name", "")), str(opts)])
+		return
+	if not opts.is_empty():
+		print("[TVTuner] Media options for '%s': %s" % [str(ch.get("name", "")), str(opts)])
+	_vlc.set_media_options(opts)
 
 
 func _on_vlc_error() -> void:

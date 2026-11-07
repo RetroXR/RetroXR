@@ -19,6 +19,7 @@
 #include <godot_cpp/variant/packed_byte_array.hpp>
 #include <godot_cpp/variant/packed_vector2_array.hpp>
 #include <godot_cpp/variant/array.hpp>
+#include <godot_cpp/variant/packed_string_array.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/vector2i.hpp>
 
@@ -46,6 +47,14 @@ public:
     // that only means the MRL parsed: an unreachable host or a stream that never
     // decodes reports itself later through the "error" signal, not here.
     bool Open(const godot::String &path, bool is_dvd = true);
+
+    // Per-media libVLC options ("http-user-agent=...", no leading colon) for the
+    // NEXT Open() only, which applies and clears them. An IPTV playlist's
+    // #EXTVLCOPT lines arrive this way. A playlist is downloaded from anywhere, so
+    // only the names in kAllowedMediaOptions pass (sout and its kin write files);
+    // the rest are refused with a warning. A separate call rather than an Open()
+    // argument so GDScript can skip it on a build that predates it.
+    void SetMediaOptions(const godot::PackedStringArray &options);
 
     // Build the libVLC instance on a worker thread. The first Open() in a process
     // does it inline, and it walks the whole plugin tree to do it -- 55 ms with
@@ -185,6 +194,9 @@ private:
 
     void *m_vlc = nullptr;   // libvlc_instance_t*
     void *m_mp = nullptr;    // libvlc_media_player_t*
+
+    // SetMediaOptions()' list, consumed by the next Open().
+    std::vector<std::string> m_next_media_options;
 
     // Shutdown() has run. The destructor then has nothing left to block on.
     bool m_shutdown_started = false;

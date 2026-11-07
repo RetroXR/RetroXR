@@ -310,8 +310,46 @@ static bool has_uri_scheme(const String &p)
     return true;
 }
 
+// The per-media options an IPTV playlist may set. Mirrors M3uPlaylist's
+// ALLOWED_VLC_OPTIONS; checked here again because this is where they reach libVLC.
+static const char *const kAllowedMediaOptions[] = {
+    "http-user-agent", "http-referrer", "http-referer", "network-caching", "adaptive-logic",
+};
+
+void VlcPlayer::SetMediaOptions(const PackedStringArray &options)
+{
+    m_next_media_options.clear();
+    for (int64_t i = 0; i < options.size(); ++i)
+    {
+        String opt = options[i].strip_edges();
+        if (opt.begins_with(":"))
+            opt = opt.substr(1);
+        const int64_t eq = opt.find("=");
+        const String name = (eq >= 0 ? opt.substr(0, eq) : opt).strip_edges().to_lower();
+        bool allowed = false;
+        for (const char *ok : kAllowedMediaOptions)
+            allowed = allowed || name == String(ok);
+        if (!allowed)
+        {
+            UtilityFunctions::push_warning("VlcPlayer: refused media option '", name, "'");
+            continue;
+        }
+        // A value with a newline could smuggle a second option past the check.
+        if (opt.contains("\n") || opt.contains("\r"))
+        {
+            UtilityFunctions::push_warning("VlcPlayer: refused media option '", name, "' (line break)");
+            continue;
+        }
+        m_next_media_options.push_back(std::string(":") + opt.utf8().get_data());
+    }
+}
+
 bool VlcPlayer::Open(const String &path, bool is_dvd)
 {
+    // Taken now, so a failed Open() does not leave them waiting for the next one.
+    std::vector<std::string> media_options;
+    media_options.swap(m_next_media_options);
+
     EnsureInstance();
     if (!m_vlc)
         return false;
@@ -355,6 +393,10 @@ bool VlcPlayer::Open(const String &path, bool is_dvd)
         // (300 ms) underruns on the first GOP.
         libvlc_media_add_option(media, ":network-caching=1500");
     }
+    // After the default, so a playlist's own network-caching wins.
+    for (const std::string &opt : media_options)
+        libvlc_media_add_option(media, opt.c_str());
+
 
     libvlc_media_player_t *mp = libvlc_media_player_new_from_media(media);
     libvlc_media_release(media);
@@ -1059,6 +1101,7 @@ void VlcPlayer::SetSubtitle(int id)
 void VlcPlayer::_bind_methods()
 {
     ClassDB::bind_method(D_METHOD("open", "path", "is_dvd"), &VlcPlayer::Open, DEFVAL(true));
+    ClassDB::bind_method(D_METHOD("set_media_options", "options"), &VlcPlayer::SetMediaOptions);
     ClassDB::bind_method(D_METHOD("warm_up"), &VlcPlayer::WarmUp);
     ClassDB::bind_method(D_METHOD("is_ready"), &VlcPlayer::IsReady);
     ClassDB::bind_method(D_METHOD("play"), &VlcPlayer::Play);

@@ -84,6 +84,58 @@ replaces the cached lineup wholesale and re-sorts a second after the cached list
 Configuration is still global — every aerial reads and edits the same `channels.json`, as
 every television did before.
 
+### IPTV playlists (M3U)
+
+Added 2026-11-07. An aerial's lineup also carries **IPTV channels from extended-M3U
+playlists** (`#EXTM3U` / `#EXTINF:-1 tvg-chno=".." group-title="..",Name` / stream URL,
+the iptv-org shape). They are rows on the SAME list, so they are on the same RF dial, the
+same Antenna menu and the same tuner; nothing downstream of `TVLineup.channels` knows a
+playlist exists.
+
+**Where a playlist lives** — three ways in, all global to the machine like the rest of the
+lineup (never in a room save, never on the wire):
+
+| how | where |
+|---|---|
+| drop a file (the main way) | any `*.m3u` directly in `<data root>/tv/` (`RomLibrary.default_tv_root()`, beside `channels.json`): desktop `~/retroxr/tv/` (or the relocated data root), Quest `/sdcard/Android/data/com.xenu.retroxr/files/tv/`, reached through the Web File Manager, which serves the whole media root. Read fresh each time; delete it to take its channels away. |
+| a URL on the Antenna menu | the IPTV playlist (M3U) box writes one `{"type":"m3u","url":…,"enabled":…}` source to `channels.json` (`TVChannels.set_playlist`; an empty URL removes it). |
+| by hand | `{"type":"m3u","url":…}` or `{"type":"m3u","path":…}` in `channels.json` (a relative `path` is in the tv folder); optional `number_start` (numbers unnumbered channels from it) and `groups` (keep only those `group-title`s). A bare `{"link": "….m3u"}` is a playlist too. |
+
+`.m3u8` is NOT read from the folder and a `.m3u8` link stays a `stream`: that extension is
+nearly always ONE HLS stream. Typed `"type":"m3u"` it is a playlist, and if it turns out to
+be an HLS media playlist (`#EXT-X-TARGETDURATION` …) it is one channel, its own address.
+
+**The code**: `M3uPlaylist` (`Scripts/Data/tv/m3u_playlist.gd`) is the pure parser;
+`M3uFetcher` (`m3u_fetcher.gd`, a child of `TVLineup` beside `HDHomeRun`) reads every
+`TVChannels.playlist_sources()` one after another (file, or HTTP: 15 s, 20 MB, 4
+redirects) and reports per source. `TVLineup` shows the last good copy of each DOWNLOADED
+list from `user://tv_m3u_cache.json` at once, then replaces that source's rows whole when it
+answers (`source_key`), exactly as the tuner's rows are replaced; a list that fails keeps
+its cached rows. The status line is `playlist_status_line()`; `fault_text()` says
+PLAYLIST ERROR only while the list is otherwise empty.
+
+The parser's traps: the title starts at the first comma OUTSIDE quotes
+(`tvg-name="A, B"`), `#EXTGRP` and `#EXTVLCOPT` belong to the NEXT stream only, and the list
+is cut at `MAX_CHANNELS` (5000: the dial is walked a channel at a time).
+
+**`#EXTVLCOPT` is an allowlist** (`M3uPlaylist.ALLOWED_VLC_OPTIONS`, repeated as
+`kAllowedMediaOptions` in `VlcPlayer.cpp`): `http-user-agent`, `http-referrer`/`referer`,
+`network-caching`, `adaptive-logic`. A playlist comes from anywhere and libVLC's options
+reach far past playback (`sout` writes files). They reach libVLC through
+`VlcPlayer.set_media_options()`, consumed by the NEXT `open()` only, which `TVTuner` calls
+before every tune (empty for an ordinary channel, so nothing carries over). It is a separate
+method and not an `open()` argument ON PURPOSE: the tuner calls it behind `has_method`, so a
+device left on an older vlc-godot build still plays the stream, without the options, and
+logs that once.
+
+Tests: `m3u_tests` (`parse/ options/ config/ build/ lineup/`; local files in the REAL tv
+folder, prefixed `zz_m3u_tests_` and removed, `channels.json` restored byte for byte; the
+lineup under test has no `HDHomeRun` child). Probes, windowed:
+`tv_panel_probe -- --ui=antenna --offline [--scroll=600]` (the box and grouped rows) and
+`tv_channel_probe -- --mode=playlist --pick=0|1` (a scratch `.m3u` in the tv folder: 0 a
+local clip, 1 Mux's public HLS test stream behind a user-agent option and a refused `sout`).
+**OWED:** a real provider's playlist, a remote `.m3u` URL fetched in the room, and the Quest.
+
 ### Who owns the glass, and who is heard
 
 `RetroTV.showing_broadcast()` (`RF` selected and `rf_air_index >= 0`) is what everything
