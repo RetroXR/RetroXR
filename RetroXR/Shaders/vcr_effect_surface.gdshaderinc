@@ -13,27 +13,27 @@ uniform bool osd_enabled = false;
 // Master switch (0 = pass the picture through untouched, 1 = full effect).
 uniform float effect_amount : hint_range(0.0, 1.0) = 1.0;
 
-uniform float aberration : hint_range(0.0, 0.01) = 0.0025;
-uniform float scanline_strength : hint_range(0.0, 1.0) = 0.22;
+uniform float aberration : hint_range(0.0, 0.01) = 0.0015;
+uniform float scanline_strength : hint_range(0.0, 1.0) = 0.12;
 uniform float scanline_count = 240.0;
-uniform float noise_strength : hint_range(0.0, 1.0) = 0.10;
-uniform float wobble_strength : hint_range(0.0, 0.02) = 0.0016;
-uniform float tracking_speed = 0.18;
-uniform float tracking_strength : hint_range(0.0, 0.1) = 0.02;
+uniform float noise_strength : hint_range(0.0, 1.0) = 0.05;
+uniform float wobble_strength : hint_range(0.0, 0.02) = 0.0008;
+uniform float tracking_speed = 0.0;
+uniform float tracking_strength : hint_range(0.0, 0.1) = 0.01;
 // The grey static bar the tracking band draws as it crawls up (0 = none).
-uniform float tracking_noise : hint_range(0.0, 2.0) = 1.0;
-uniform float vignette_strength : hint_range(0.0, 1.0) = 0.30;
-uniform float desaturation : hint_range(0.0, 1.0) = 0.15;
-uniform float brightness = 1.12;
+uniform float tracking_noise : hint_range(0.0, 2.0) = 0.25;
+uniform float vignette_strength : hint_range(0.0, 1.0) = 0.15;
+uniform float desaturation : hint_range(0.0, 1.0) = 0.10;
+uniform float brightness = 1.04;
 
 // ── Extra VHS artifacts (ported from pend00's CC0 "VHS and CRT monitor effect")
 // Vertical roll: a slow bright bar that scrolls up the picture, dragging the
 // image sideways as it passes (the classic "vertical hold" slip).
-uniform float roll_amount : hint_range(0.0, 0.05) = 0.008;
+uniform float roll_amount : hint_range(0.0, 0.05) = 0.002;
 uniform float roll_speed = 0.5;
 uniform float roll_size = 8.0;
 // Banded noise: animated horizontal bands of static that flicker per-line.
-uniform float banded_noise_opacity : hint_range(0.0, 1.0) = 0.15;
+uniform float banded_noise_opacity : hint_range(0.0, 1.0) = 0.04;
 uniform float noise_bands = 24.0;
 uniform float noise_speed = 8.0;
 // Pixelate: crush the sample UV into a coarse grid (VHS luma resolution loss).
@@ -41,7 +41,7 @@ uniform bool pixelate = true;
 uniform vec2 pixelate_resolution = vec2(640.0, 480.0);
 // Discolor: the contrast half of the VHS colour crush (saturation-cut half is
 // the existing `desaturation`); pushes mids apart for that punchy tape look.
-uniform float vhs_contrast : hint_range(0.5, 2.0) = 1.12;
+uniform float vhs_contrast : hint_range(0.5, 2.0) = 1.05;
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
