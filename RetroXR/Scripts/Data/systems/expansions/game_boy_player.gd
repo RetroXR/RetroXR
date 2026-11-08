@@ -38,6 +38,9 @@ const ROW := {
 	# cartridge's top (+Y) out toward the player and its label (+Z) to the floor.
 	"slot_basis": Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0)),
 	"slot_marker_depth": true,
+	# A hand pulls the Game Pak out by its grip, as from a Game Boy Advance; EJECT
+	# pushes it out too.
+	"slot_pull_out": true,
 	# The lever slides toward the front, up to 12 mm.
 	"eject_axis": Vector3(0, 0, 1),
 	"eject_travel": 0.012,

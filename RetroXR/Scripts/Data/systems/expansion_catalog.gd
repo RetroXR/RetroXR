@@ -190,6 +190,11 @@
 ##               MIDDLE is at the shell's SocketMarker (the Game Boy Player's Game
 ##               Pak, whose end stays out of the slot). Absent, to the disk's lip
 ##               just inside the mouth.
+##   slot_pull_out
+##               for a LOADER_SLOT unit: a hand can take seated media straight
+##               out, as from a console's cartridge slot, as well as by EJECT (the
+##               Game Boy Player's Game Pak). Absent, seated media answers to
+##               nothing but EJECT, as a disk in a drive does.
 ##   eject_axis  for a unit whose shell has its own EjectButton cap: the way it is
 ##               pushed, in the unit's frame, when that is not into the front face
 ##               -- the Game Boy Player's lever, in its right side, slides toward
@@ -417,6 +422,7 @@ const FIELDS := {
 	"link_plug": null,
 	"slot_basis": null,
 	"slot_marker_depth": false,
+	"slot_pull_out": false,
 	"eject_axis": null,
 	"eject_travel": NAN,
 }
@@ -816,6 +822,12 @@ static func slot_basis_of(id: String) -> Variant:
 ## shell's SocketMarker, rather than to the disk's lip. See the row docs above.
 static func slot_marker_depth_of(id: String) -> bool:
 	return bool(_field(id, "slot_marker_depth"))
+
+
+## True when a hand can take a LOADER_SLOT unit's seated media straight out. See
+## the row docs above.
+static func slot_pull_out_of(id: String) -> bool:
+	return bool(_field(id, "slot_pull_out"))
 
 
 ## The way a shell's own eject cap is pushed, in the unit's frame, or null for

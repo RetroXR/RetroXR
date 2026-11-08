@@ -797,6 +797,9 @@ func _build_slot_bay(s: Vector3, media: String) -> void:
 	# have turned that axis too, sending the disk down through the floor
 	# of the drive instead of into it.
 	_slot.media_local_basis = Basis.from_euler(Vector3(-PI * 0.5, 0.0, 0.0))
+	# A cartridge comes out in the hand, as from any console's slot; a disk only
+	# by EJECT.
+	_slot.grab_while_seated = ExpansionCatalog.slot_pull_out_of(expansion_id)
 	# A cartridge goes in another way round (the Game Boy Player's, label down and
 	# contacts first): the row says how.
 	var turn: Variant = ExpansionCatalog.slot_basis_of(expansion_id)

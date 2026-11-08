@@ -33,6 +33,9 @@ signal removed()
 @export var media_local_basis: Basis = Basis.IDENTITY
 ## How far past the mouth (into the body, along -Z) the media rides when seated.
 @export var insert_depth: float = 0.10
+## Seated media can be taken straight out by a hand, as from a console's cartridge
+## slot, rather than only once ejected (a disk in a drive). Taking it is a removal.
+@export var grab_while_seated: bool = false
 ## Insert / eject ride duration (seconds).
 @export var ride_time: float = 0.9
 
@@ -166,8 +169,9 @@ func _accept(media: Node3D, seated_now: bool, yaw: float = 0.0, side: int = 0) -
 	if MediaSide.is_two_sided(media):
 		print("[MediaSlot] %s: %s in side %s out (%s)" % [host.name if is_instance_valid(host) else "?", media.name,
 			TapeSides.side_name(seated_side), "restored" if seated_now else "by hand"])
-	# Not grabbable while it's inside the unit — only once ejected (see eject()).
-	_set_media_interactive(media, false)
+	# Not grabbable while it's inside the unit — only once ejected (see eject()) —
+	# unless it is media a hand pulls out, like a cartridge.
+	_set_media_interactive(media, grab_while_seated)
 	if is_instance_valid(host):
 		host.add_collision_exception_with(media)
 	if not media.picked_up.is_connected(_on_media_taken):
@@ -220,8 +224,9 @@ func reload() -> void:
 	if _state != State.PARKED or _media == null:
 		return
 	_state = State.LOADED
-	# Back inside the unit: not grabbable, not pointable (see _set_media_interactive).
-	_set_media_interactive(_media, false)
+	# Back inside the unit: not grabbable, not pointable (see _set_media_interactive),
+	# unless a hand may pull it straight out.
+	_set_media_interactive(_media, grab_while_seated)
 	_ride_to(_seated_pose(), true)
 	inserted.emit(_media)
 
@@ -271,8 +276,8 @@ func _on_media_taken(media: Node3D) -> void:
 		(media as RigidBody3D).freeze_mode = _orig_freeze_mode
 	if "restore_freeze" in media:
 		media.restore_freeze = false
-	# Grabbed while still seated (shouldn't happen — grab is disabled while loaded —
-	# but stays correct if it ever does) counts as removal.
+	# Grabbed while still seated (grab_while_seated, or a grab that slipped past the
+	# disabled one) counts as removal.
 	if _state == State.LOADED:
 		removed.emit()
 	# In a hand it is an ordinary object again, whichever state it left from.
