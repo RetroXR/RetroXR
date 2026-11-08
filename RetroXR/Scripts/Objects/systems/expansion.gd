@@ -689,6 +689,13 @@ func _holding_zone() -> Node3D:
 	return driver.primary.by as XRToolsSnapZone
 
 
+## What it runs on, for its menu's Power section (ObjectOptionsPanel ->
+## PowerMenuRows): the 32X's, the Sega CD's or the Disk System's own supply
+## (ExpansionPower), or null for a unit that runs off its console.
+func power_input() -> PowerInput:
+	return PowerInput.of(self)
+
+
 ## The console this unit is joined to, or null.
 func get_host() -> RetroSystem:
 	return _host if is_instance_valid(_host) else null

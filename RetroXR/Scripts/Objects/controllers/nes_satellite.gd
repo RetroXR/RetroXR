@@ -83,6 +83,12 @@ var _was_paired := false
 ## its first.
 var _known_lines: Array[int] = [-1, -1]
 var _supply: PowerInput = null
+
+
+## What it runs on, for its menu's Power section (ObjectOptionsPanel ->
+## PowerMenuRows): the supply line and whether it has power right now.
+func power_input() -> PowerInput:
+	return _supply
 var _power_button: VRButton = null
 var _power_led: StandardMaterial3D = null
 var _gun_switch: VRSlider = null

@@ -83,6 +83,8 @@ func _ready() -> void:
 		await _test_mod_brick()
 	if _want("spawnhand"):
 		await _test_spawn_hand()
+	if _want("menus"):
+		await _test_power_menus()
 
 	AppPrefs.power_simulation = sim_before
 	AppPrefs.mains_region = region_before
@@ -1797,3 +1799,48 @@ func _test_spawn_hand() -> void:
 	SceneManager.current_scene_id = scene_before
 	await _clear()
 
+
+
+## Everything that runs on a supply of its own shows it on its menu: the Power
+## section (PowerMenuRows) in the generic panel, through its power_input(). The
+## printer, the NES Satellite, the Super Scope, the Virtual Boy's pack and an
+## expansion with its own adapter had none; a unit run off its console still has
+## none.
+func _test_power_menus() -> void:
+	_new_room()
+	var objects := {
+		"gb_printer": ScenePersistence.instantiate("gb_printer"),
+		"super_scope": ScenePersistence.instantiate("super_scope"),
+		"nes_satellite": (load("res://Scenes/Objects/controllers/nes/nes_satellite.tscn") as PackedScene).instantiate(),
+		"vb_battery_pack": ScenePersistence.instantiate("vb_battery_pack"),
+	}
+	for unit_id: String in ["sega_32x", "fds", "satellaview"]:
+		var unit := preload("res://Scenes/Objects/expansion.tscn").instantiate() as RetroExpansion
+		unit.expansion_id = unit_id
+		objects[unit_id] = unit
+	var x := 0.0
+	for key: String in objects:
+		var obj := objects[key] as Node3D
+		if obj is RigidBody3D:
+			(obj as RigidBody3D).freeze = true
+		obj.position = Vector3(x, 0.5, 0)
+		x += 0.6
+		_room.add_child(obj)
+		obj.add_to_group("spawned")
+	await _wait(8)
+	for key: String in objects:
+		var obj := objects[key] as Node3D
+		var expect := key != "satellaview"
+		ObjectOptionsPanel.toggle_for(obj, null)
+		await _wait(6)
+		var panel := obj.get_node_or_null(ObjectOptionsPanel.NODE_NAME) as ObjectOptionsPanel
+		var vp: SubViewport = panel._ui_viewport() if panel != null else null
+		var ui: Node = vp.get_child(0) if vp != null and vp.get_child_count() > 0 else null
+		var rows: Node = ui.find_child("PowerRows", true, false) if ui != null else null
+		if expect:
+			_ok(rows != null, "menus/%s's menu shows what it runs on" % key)
+		else:
+			_ok(ui != null and rows == null, "menus/%s runs off its console: no Power section" % key)
+		if panel != null:
+			panel.hide_panel()
+	await _clear()

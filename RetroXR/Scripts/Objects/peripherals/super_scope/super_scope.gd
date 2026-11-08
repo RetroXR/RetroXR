@@ -112,6 +112,12 @@ var _link_ok := false
 var _look_tick := 0
 var _repair_left := 0.0
 var _supply: PowerInput = null
+
+
+## What it runs on, for its menu's Power section (ObjectOptionsPanel ->
+## PowerMenuRows): the supply line and whether it has power right now.
+func power_input() -> PowerInput:
+	return _supply
 var _switch: VRSlider = null
 var _clips: Array[XRToolsSnapZone] = []
 var _sight: SuperScopeSight = null

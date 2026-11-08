@@ -93,6 +93,12 @@ const _DC_PORT := preload("res://Scenes/Objects/cables/barrel_dc_port.tscn")
 var jack: DcPort = null
 ## Its intake: the pack's cells, or the tap's jack.
 var input: PowerInput = null
+
+
+## What it runs on, for its menu's Power section (ObjectOptionsPanel ->
+## PowerMenuRows): the supply line and whether it has power right now.
+func power_input() -> PowerInput:
+	return input
 ## The plug this switched off under the tap's closed lid, to switch back on.
 var _held_shut: XRToolsPickable = null
 

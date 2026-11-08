@@ -119,6 +119,13 @@ because nothing in it could ever be plugged in. The Arcade Room and the bedroom 
   adds to `BatteryCell._mod_labels`; `variants_for(size)` is what the cell rows offer and
   `label_texture` what a cell wears. Both are withdrawn with the mod. `power_tests
   modbrick/`, `cell_slots_tests labels/`.
+- **Every object with a supply shows it on its menu.** A panel draws the Power section
+  (`PowerMenuRows`) for whatever answers `power_input()`; the generic `ObjectOptionsPanel`
+  asks every object it opens. The Game Boy Printer, the NES Satellite, the Super Scope,
+  the Virtual Boy's pack and tap and `RetroExpansion` (the 32X, Sega CD, Disk System; a
+  unit run off its console returns null and gets none) had a `PowerInput` and no
+  `power_input()`, so their menus said nothing about it (2026-11-08). A new powered
+  object needs the method too: `power_tests menus/`.
 - **Expansions with a supply of their own** (2026-11-02, `ExpansionPower`): the 32X
   takes its own MK-2103 in its ADAPTOR jack, beside the Genesis's. PowerProfiles keys
   such a unit by its expansion id (`sega_32x`: `inlet` "dc", `takes` "EIAJ-03", `brick`);

@@ -240,6 +240,12 @@ const BATTERY_COVER := "gb_printer_battery_cover"
 var _supply: PowerInput = null
 
 
+## What it runs on, for its menu's Power section (ObjectOptionsPanel ->
+## PowerMenuRows): the supply line and whether it has power right now.
+func power_input() -> PowerInput:
+	return _supply
+
+
 func _build_power() -> void:
 	var body := get_node_or_null("BodyMesh") as MeshInstance3D
 	if body != null and body.mesh != null:
