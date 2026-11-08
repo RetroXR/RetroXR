@@ -28,6 +28,15 @@ var _viewport: Viewport = null
 var _chains: Dictionary = {}
 ## The real mouse's chain at the last sync_mouse.
 var _mouse_chain: Array = []
+## The viewport's gui roots, kept between moves. Finding them walks EVERY node
+## under the viewport: the spawn menu holds ~3400, which cost ~6 ms a call on a
+## desktop CPU — several times that on a Quest, and a move arrives every frame
+## for every extra laser, so a second laser on the menu dropped the frame rate.
+## Rebuilt only after a node enters or leaves this viewport (flipping a live
+## Control's top_level does not rebuild it; nothing in the menus does that).
+var _roots: Array[Control] = []
+var _roots_dirty := true
+var _watching := false
 
 
 func _init(viewport: Viewport) -> void:
@@ -36,7 +45,28 @@ func _init(viewport: Viewport) -> void:
 
 ## An extra pointer is at `at`, in the viewport's pixels.
 func move(pointer: Object, at: Vector2) -> void:
-	_set_chain(pointer.get_instance_id(), chain_of(find_control(_viewport, at)))
+	_set_chain(pointer.get_instance_id(), chain_of(_find_control_cached(at)))
+
+
+## find_control over the cached roots.
+func _find_control_cached(at: Vector2) -> Control:
+	if not is_instance_valid(_viewport):
+		return null
+	if not _watching and _viewport.is_inside_tree():
+		var tree := _viewport.get_tree()
+		tree.node_added.connect(_on_tree_changed)
+		tree.node_removed.connect(_on_tree_changed)
+		_watching = true
+	if _roots_dirty or not _watching:
+		_roots.clear()
+		_collect_roots(_viewport, _roots)
+		_roots_dirty = not _watching
+	return _find_in_roots(_roots, at)
+
+
+func _on_tree_changed(node: Node) -> void:
+	if not _roots_dirty and is_instance_valid(_viewport) and _viewport.is_ancestor_of(node):
+		_roots_dirty = true
 
 
 ## An extra pointer is gone from the panel, or is the mouse now.
@@ -122,9 +152,13 @@ static func chain_of(over: Control) -> Array:
 static func find_control(viewport: Viewport, at: Vector2) -> Control:
 	var roots: Array[Control] = []
 	_collect_roots(viewport, roots)
+	return _find_in_roots(roots, at)
+
+
+static func _find_in_roots(roots: Array[Control], at: Vector2) -> Control:
 	for i in range(roots.size() - 1, -1, -1):
 		var root := roots[i]
-		if root.is_visible_in_tree():
+		if is_instance_valid(root) and root.is_visible_in_tree():
 			var hit := _find_at(root, at)
 			if hit != null:
 				return hit

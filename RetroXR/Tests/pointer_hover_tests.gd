@@ -77,6 +77,22 @@ func _hit_cases() -> void:
 		"hit/a top-level control is found outside its parent's container")
 	b.visible = false
 	_ok(PointerHover.find_control(vp, Vector2(80, 30)) != b, "hit/a hidden tile is not hit")
+
+	# The instance path caches the gui roots (a full tree walk, ~6 ms on the
+	# spawn menu). A root added or freed after the cache was built must count.
+	var hover := PointerHover.new(vp)
+	_ok(hover._find_control_cached(Vector2(30, 75)) == floater,
+		"hit/the cached roots find what find_control finds")
+	var late := _button("late", root)
+	late.top_level = true
+	late.position = Vector2(150, 70)
+	late.size = Vector2(40, 20)
+	await get_tree().process_frame
+	_ok(hover._find_control_cached(Vector2(170, 80)) == late,
+		"hit/a top-level control added after the roots were cached is hit")
+	late.free()
+	_ok(hover._find_control_cached(Vector2(170, 80)) == null,
+		"hit/a freed top-level control is dropped from the cached roots")
 	vp.queue_free()
 	await get_tree().process_frame
 
