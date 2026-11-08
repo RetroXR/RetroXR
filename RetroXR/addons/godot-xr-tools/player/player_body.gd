@@ -371,6 +371,7 @@ func _physics_process(delta: float) -> void:
 
 	# Apply the player-body movement to the XR origin
 	var movement := global_transform.origin - position_before_movement
+	movement = _steady_on_ground(movement, position_before_movement, exclusive)
 	origin_node.global_transform.origin += movement
 
 	# Orient the player towards (potentially modified) gravity
@@ -383,6 +384,51 @@ func _physics_process(delta: float) -> void:
 
 	# And we're done!
 	_in_physics_movement = false
+
+
+## RetroXR: the vertical part of the view's movement while standing on the ground.
+##
+## The body's own height is the contact solver's: while the player sped up or slowed
+## down on a flat floor it sank into the floor about half a millimeter, then the
+## penetration recovery popped it 0.87 mm back up, every three or four ticks
+## (measured in the bedroom, 2026-11-08; the floor contact itself stayed at exactly
+## 0). Copied straight onto the XROrigin3D, that sawtooth bobbed the whole view, so
+## everything near you seemed to jitter up and down until you stopped. An object in
+## your hand rides on the origin and bobbed along, so only it looked still. Same
+## code on Quest stick locomotion and desktop WASD.
+##
+## On the ground the view's feet now go to the floor contact under the body instead:
+## the body was seated under the view at the start of the tick
+## (_update_body_under_camera), so its height then is the view's feet, and the view
+## moves vertically by however far those feet are from the contact. On a flat floor
+## that is zero once they meet, whatever the solver does; slopes, steps and moving
+## platforms carry the view exactly as far as the contact moved. The step is held to
+## the body's own vertical speed (at least 2 mm a tick), so a landing still comes
+## down at falling speed rather than in one jump: on_ground holds from 10 cm up.
+## Airborne, rising (a jump), or with no floor contact found, the body's movement
+## passes through unchanged.
+func _steady_on_ground(movement : Vector3, seated : Vector3, exclusive : bool) -> Vector3:
+	if exclusive or not on_ground or velocity.dot(up_player) > 0.05:
+		return movement
+
+	# Find the floor contact under the body where it now stands
+	var hit := move_and_collide(up_gravity * -NEAR_GROUND_DISTANCE, true)
+	if not hit or hit.get_travel().length() > ON_GROUND_DISTANCE:
+		return movement
+	var floor_index := -1
+	for i in hit.get_collision_count():
+		# Only a floor contact: a wall or table edge the capsule is touching
+		# sideways would report a point at waist height
+		if hit.get_normal(i).dot(up_player) > 0.5:
+			floor_index = i
+			break
+	if floor_index < 0:
+		return movement
+
+	var body_rise := up_player.dot(movement)
+	var want := up_player.dot(hit.get_position(floor_index)) - up_player.dot(seated)
+	var limit := maxf(absf(body_rise), 0.002)
+	return movement - up_player * body_rise + up_player * clampf(want, -limit, limit)
 
 
 ## Re-establish the state _ready() sets up, for a world this body has not stood
