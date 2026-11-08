@@ -34,12 +34,33 @@
 ## so a 90° turn about X) to lie along that axle. The pivot itself stays at identity
 ## on a front-facing panel.
 ##
+## Three ways a hand turns it, chosen per knob:
+##   • ROUND THE AXLE (the default) — the fingertip walks round the cap and the cap
+##     follows its angle. Right for a dial on a panel, whose whole face is in reach.
+##   • follow_roll — the controller's roll about the axle. A wand twisted in the fist.
+##   • rim_drag — a straight drag along the rim. A THUMBWHEEL: only a sliver of rim
+##     shows through a shell's edge and the axle is buried inside it, so a hand can
+##     neither circle it nor roll round it. Measured as an angle, a straight swipe
+##     from the rim can never pass 90° (atan of distance over an 8 mm radius) and
+##     turns 7° per millimetre near the rim but next to nothing a few cm out. Rim
+##     drag turns the cap by the distance moved along the rim's tangent instead,
+##     geared by rim_travel, so a thumb-length swipe covers the sweep evenly.
+##
+## Haptics (opt-in, `haptics`): a click as the trigger latches and lets go, a light
+## tick per detent crossed, a firm bump on reaching either end, and an optional
+## stronger detent at the middle (a contrast wheel's "normal"). Each tick is ONE
+## short event: the rumble manager holds the motor ~0.1 s for every frame an event
+## lives, so anything longer smears a fast swipe into a buzz (haptics.gd).
+##
 ## Attach to an Area3D with a child CollisionShape3D covering the cap (the desktop
 ## reticle ray hits this; VR engages on tip proximity to the Area origin).
 class_name VRKnob
 extends Area3D
 
 signal value_changed(value: float)
+## A hand-driven turn was felt: `magnitude` is the pulse sent (detent, centre or end
+## stop). Emitted only while a controller holds the knob, as the pulse is.
+signal detent_felt(magnitude: float)
 
 const POINTABLE_LAYER := 1 << 20
 ## Analog trigger action, read as a float — same contract as VRButton/VRSlider/VRHinge.
@@ -51,6 +72,12 @@ const ICON_HELD := 0xF255    # Nerd Font: closed fist — "holding"
 const SYMBOL_FONT_PATH := "res://fonts/SymbolsNerdFont-Regular.ttf"
 ## Child adopted as the pivot when `target` is unset — see the note there.
 const PIVOT_NAME := "KnobPivot"
+## Haptics: one rumble key for every knob (one hand turns one knob at a time).
+const HAPTIC_KEY := &"vr_knob"
+const HAPTIC_MS := 10
+## Detent ticks closer together than this are dropped, so a fast swipe stays a
+## run of ticks rather than a buzz. End stops and the centre are never dropped.
+const DETENT_MIN_GAP_MS := 30
 
 ## The pivot this knob turns, about its own local Z. Give it the cap mesh as a child
 ## rather than pointing this at the mesh itself — see the axle note above.
@@ -89,8 +116,36 @@ const PIVOT_NAME := "KnobPivot"
 ## a capsule of engage_radius round that line. Zero keeps the ball round the origin a
 ## panel knob uses; a wand sets it to its length, so it can be taken anywhere on it.
 @export var engage_span: Vector2 = Vector2.ZERO
+## VR (hand and laser): turn by dragging ALONG THE RIM rather than round the axle —
+## for a thumbwheel showing through a shell's edge (see the note at the top). The
+## rim is where the knob's CollisionShape3D sits off the axle, so the box must be
+## put over the rim showing (the handheld model scripts do); a box on the axle
+## falls back to where the hand first takes hold.
+@export var rim_drag: bool = false
+## rim_drag: metres of drag along the rim for the whole sweep, deg_at_zero to
+## deg_at_one. Independent of the sweep's degrees, so a 270° wheel and a 153° one
+## take the same swipe.
+@export var rim_travel: float = 0.04
+
+@export_group("Haptics")
+## Rumble the holding controller: latch/release clicks, detents, end stops.
+@export var haptics: bool = false
+## Detents across the sweep: a tick each time the value passes k / detents. 0: none.
+@export var detents: int = 0
+@export_range(0.0, 1.0) var detent_magnitude: float = 0.2
+## The bump on arriving at either end. 0: none.
+@export_range(0.0, 1.0) var end_magnitude: float = 0.5
+## The detent at value 0.5 (needs an even `detents`), felt harder. 0: as any other.
+@export_range(0.0, 1.0) var center_magnitude: float = 0.0
+@export_group("")
 
 var _trigger_ctrl: XRController3D = null   # latched controller (trigger held)
+var _pointer_ctrl: XRController3D = null   # the controller behind a held laser
+# rim_drag: the direction the rim moves as the angle grows (unit, rest-frame XY),
+# and the hand's last rest-frame position.
+var _rim_tangent := Vector2.UP
+var _rim_prev := Vector3.ZERO
+var _last_tick_ms := -DETENT_MIN_GAP_MS
 # follow_roll: which controller axis (0 = X, 2 = Z) is measured, chosen at grab time as
 # the one lying flattest across the axle and kept for the whole twist, so the reading
 # never swaps reference halfway through.
@@ -175,9 +230,13 @@ func _process(_delta: float) -> void:
 	if _trigger_ctrl != null:
 		if not is_instance_valid(_trigger_ctrl) or not _trigger_ctrl.get_is_active() \
 				or _trigger_ctrl.get_float(TRIGGER_ACTION) < TRIGGER_OFF:
+			if haptics and is_instance_valid(_trigger_ctrl):
+				Haptics.click(_trigger_ctrl, false, HAPTIC_KEY)
 			_trigger_ctrl = null
 		elif follow_roll:
 			_track_angle(_roll_at(_trigger_ctrl, _grab_raw_prev))
+		elif rim_drag:
+			_track_rim(PokeTip.tip_of(_trigger_ctrl))
 		else:
 			_track_world_point(PokeTip.tip_of(_trigger_ctrl))
 	elif not _pointer_held:
@@ -196,8 +255,12 @@ func _process(_delta: float) -> void:
 				_trigger_ctrl = ctrl
 				if follow_roll:
 					_begin_roll(ctrl)
+				elif rim_drag:
+					_begin_rim(tip)
 				else:
 					_begin_track(tip)
+				if haptics:
+					Haptics.click(ctrl, true, HAPTIC_KEY)
 				break
 	_update_icon()
 
@@ -214,13 +277,26 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 			_hover_pointers[event.pointer] = true
 		XRToolsPointerEvent.Type.PRESSED:
 			_pointer_held = true
+			# Null for the desktop reticle, which must not rumble.
+			_pointer_ctrl = Haptics.controller_of(event.pointer)
 			if vr:
-				_begin_track(event.position)
+				if rim_drag:
+					_begin_rim(event.position)
+				else:
+					_begin_track(event.position)
+			if haptics:
+				Haptics.click(_pointer_ctrl, true, HAPTIC_KEY)
 		XRToolsPointerEvent.Type.MOVED:
 			if _pointer_held and vr:
-				_track_world_point(event.position)
+				if rim_drag:
+					_track_rim(event.position)
+				else:
+					_track_world_point(event.position)
 		XRToolsPointerEvent.Type.RELEASED:
+			if _pointer_held and haptics:
+				Haptics.click(_pointer_ctrl, false, HAPTIC_KEY)
 			_pointer_held = false
+			_pointer_ctrl = null
 		XRToolsPointerEvent.Type.EXITED:
 			_hover_pointers.erase(event.pointer)
 			# NB: keep _pointer_held — a drag is allowed to leave the cap.
@@ -258,14 +334,8 @@ func _unhandled_input(event: InputEvent) -> void:
 ## and snap the knob to the opposite end. `near_deg` unwraps onto the branch nearest
 ## a reference angle, keeping the twist continuous end to end.
 func _angle_at(world_pos: Vector3, near_deg: float) -> float:
-	if target == null:
-		return NAN
-	var parent := target.get_parent() as Node3D
-	if parent == null:
-		return NAN
-	var rest := Basis.from_euler(Vector3(target.rotation.x, target.rotation.y, 0.0))
-	var rel: Vector3 = rest.inverse() * (parent.to_local(world_pos) - target.position)
-	if Vector2(rel.x, rel.y).length() < 0.001:
+	var rel := _rest_local(world_pos)
+	if not rel.is_finite() or Vector2(rel.x, rel.y).length() < 0.001:
 		return NAN   # hand on the axle — angle undefined
 	var deg := rad_to_deg(atan2(rel.y, rel.x))
 	while deg - near_deg > 180.0:
@@ -287,6 +357,58 @@ func _begin_track(world_pos: Vector3) -> void:
 	var raw := _angle_at(world_pos, cur)
 	_grab_offset_deg = 0.0 if is_nan(raw) else cur - raw
 	_grab_raw_prev = cur if is_nan(raw) else raw
+
+
+## A world point in the cap's rest frame (see _angle_at): Z the axle, X and Y across
+## it, the origin on the axle. Vector3.INF when there is no pivot to measure from.
+func _rest_local(world_pos: Vector3) -> Vector3:
+	if target == null:
+		return Vector3.INF
+	var parent := target.get_parent() as Node3D
+	if parent == null:
+		return Vector3.INF
+	var rest := Basis.from_euler(Vector3(target.rotation.x, target.rotation.y, 0.0))
+	return rest.inverse() * (parent.to_local(world_pos) - target.position)
+
+
+## rim_drag: take hold without moving the cap. The rim is where the grab box sits
+## off the axle -- the sliver a shell shows -- and the drag that turns the cap is
+## along that rim's tangent: Z x radial, the way a rim point goes as the angle grows
+## (rotation about +Z carries +X toward +Y). Fixed for the whole drag, so a hand
+## wandering off the rim keeps turning the wheel the same way.
+func _begin_rim(world_pos: Vector3) -> void:
+	var at := _rest_local(world_pos)
+	if not at.is_finite():
+		return
+	var radial := Vector2.ZERO
+	# The first box, whatever its name: one built in code has a generated one.
+	for child in get_children():
+		if child is CollisionShape3D:
+			var b := _rest_local((child as Node3D).global_position)
+			radial = Vector2(b.x, b.y)
+			break
+	if radial.length() < 0.001:
+		radial = Vector2(at.x, at.y)   # a box on the axle: the rim is where the hand is
+	if radial.length() < 0.001:
+		radial = Vector2.RIGHT
+	radial = radial.normalized()
+	_rim_tangent = Vector2(-radial.y, radial.x)
+	_rim_prev = at
+
+
+## rim_drag: turn by how far the hand moved along the rim since the last frame,
+## geared so rim_travel is the whole sweep. Incremental against the CAP, which is
+## clamped, so pushing past an end and coming back turns at once with no dead travel.
+func _track_rim(world_pos: Vector3) -> void:
+	var at := _rest_local(world_pos)
+	if not at.is_finite() or target == null or rim_travel <= 0.0:
+		return
+	var along := Vector2(at.x - _rim_prev.x, at.y - _rim_prev.y).dot(_rim_tangent)
+	_rim_prev = at
+	if is_zero_approx(along):
+		return
+	var span := absf(deg_at_one - deg_at_zero)
+	_apply_deg(rad_to_deg(target.rotation.z) + along * span / rim_travel, true)
 
 
 ## How far a hand is from where it can take hold: the origin, or with engage_span the
@@ -365,11 +487,58 @@ func _apply_deg(deg: float, emit: bool) -> void:
 	# high bound for everything.
 	deg = clampf(deg, minf(deg_at_zero, deg_at_one), maxf(deg_at_zero, deg_at_one))
 	var span: float = deg_at_one - deg_at_zero
+	var before := value
 	value = 0.0 if is_zero_approx(span) else clampf((deg - deg_at_zero) / span, 0.0, 1.0)
 	if target != null:
 		target.rotation.z = deg_to_rad(deg)
 	if emit:
 		value_changed.emit(value)
+		_feel(before)
+
+
+## The controller holding the knob, whose hand feels it turn: a latched trigger or
+## a held laser. Null for the desktop reticle and for an owner's set_value, neither
+## of which is a hand on the cap.
+func _holding_ctrl() -> XRController3D:
+	if is_instance_valid(_trigger_ctrl):
+		return _trigger_ctrl
+	if _pointer_held and is_instance_valid(_pointer_ctrl):
+		return _pointer_ctrl
+	return null
+
+
+## Haptics for a hand-driven move from `before` to `value`: the end stop on ARRIVING
+## at either end (not every frame pushed against it), else the detent crossed --
+## boundary k sits at value k / detents, and the two ends are the end stops' own, so
+## coming off an end does not tick. Several crossed in one frame are one tick.
+func _feel(before: float) -> void:
+	if not haptics:
+		return
+	var ctrl := _holding_ctrl()
+	if ctrl == null:
+		return
+	var magnitude := 0.0
+	var arrived := (value <= 0.0 and before > 0.0) or (value >= 1.0 and before < 1.0)
+	if arrived:
+		magnitude = end_magnitude
+	elif detents > 0:
+		var a := int(floor(before * detents))
+		var b := int(floor(value * detents))
+		if a != b:
+			var lo := mini(a, b) + 1
+			var hi := maxi(a, b)
+			var centre := int(detents / 2.0)
+			if center_magnitude > 0.0 and detents % 2 == 0 and lo <= centre and centre <= hi:
+				magnitude = center_magnitude
+			elif not (lo == hi and (hi <= 0 or hi >= detents)):
+				var now := Time.get_ticks_msec()
+				if now - _last_tick_ms >= DETENT_MIN_GAP_MS:
+					_last_tick_ms = now
+					magnitude = detent_magnitude
+	if magnitude <= 0.0:
+		return
+	Haptics.pulse(ctrl, magnitude, HAPTIC_MS, HAPTIC_KEY)
+	detent_felt.emit(magnitude)
 
 
 # --- floating hint icon --------------------------------------------------------

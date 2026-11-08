@@ -111,6 +111,9 @@ script = ExtResource("5_knob")
 deg_at_zero = -152.8
 deg_at_one = 0.0
 engage_radius = 0.025
+rim_drag = true
+haptics = true
+detents = 16
 value = 1.0
 
 [node name="KnobPivot" type="Node3D" parent="VolumeSlider"]

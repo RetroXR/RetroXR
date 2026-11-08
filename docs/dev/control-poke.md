@@ -119,3 +119,32 @@ to load this way.
 
 How it feels in a headset — margins (2 mm engage, 6 mm release), the 0.05 s grace
 and the d-pad dead zone — is OWED.
+
+## Knobs: thumbwheels and haptics (`VRKnob`, 2026-11-08)
+
+A `VRKnob` follows the hand ROUND ITS AXLE by default: the fingertip's angle about
+the axle (`_angle_at`), right for a dial on a panel. That is wrong for a handheld's
+edge THUMBWHEEL, whose axle is inside the shell with only a sliver of rim showing:
+a straight swipe from an 8 mm rim can never pass 90 degrees (atan of distance over
+radius), turns about 7 degrees per mm near the rim and next to nothing a few cm out,
+so a 270-degree volume wheel took three strokes or more. `rim_drag` turns the cap by
+the distance moved along the rim's TANGENT instead (Z x the radial to the knob's
+first CollisionShape3D, so the box must sit over the showing rim, as every handheld
+model script puts it), geared so `rim_travel` (4 cm) is the whole sweep whatever its
+degrees. Incremental against the clamped cap, so there is no dead travel coming back
+off an end. Laser drags use it too. `follow_roll` (the blinds' wand) is the third mode.
+
+`haptics` (off by default) adds: a `Haptics.click` on latch and release, a tick
+(`detent_magnitude`) per detent crossed (`detents` across the sweep), a bump
+(`end_magnitude`) on ARRIVING at either end, never for pushing on and never for
+coming off, and an optional stronger centre detent (`center_magnitude`, the DMG's
+contrast). Every pulse is one 10 ms event and detent ticks closer than 30 ms are
+dropped: the rumble manager holds the motor ~0.1 s per frame an event lives, so
+more smears a swipe into a buzz. Only a holding controller rumbles: `set_value`
+(netplay, restore) and the desktop wheel never do. `detent_felt` is emitted with
+each pulse.
+
+On: the game's GBA volume wheel, and in RetroXR-models the DMG's volume and contrast,
+GBC, GBA, Pocket and Game Gear volume, and the Lynx's volume and brightness (all
+`rim_drag`, `haptics`, 16 detents). Panel dials (speakers, decks, the camera's ball,
+the WaveBird channel) keep the angle mode and no haptics. `knob_tests`.
