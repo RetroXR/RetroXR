@@ -56,7 +56,7 @@ func _ensure_ui_connected() -> void:
 
 func _on_input_selected(index: int) -> void:
 	if is_instance_valid(_switch):
-		_switch.select(index)
+		_switch.select(index, "menu")
 
 
 func ui_2d() -> AvSwitchOptions2D:

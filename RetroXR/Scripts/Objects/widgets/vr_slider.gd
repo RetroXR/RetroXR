@@ -61,6 +61,15 @@ const TRIGGER_OFF := 0.4
 @export var contact_margin: float = 0.015
 ## Current value 0..1.
 @export var value: float = 0.0
+## A pointer (the desktop crosshair, a laser) that presses the knob and lets go WITHOUT dragging it steps
+## it on by one detent, wrapping past the last: a selector worked by clicking. Pressing no longer jumps the
+## knob to the ray (it is already under it); a drag past CLICK_DRAG_M along the slot tracks as before.
+## Only with steps >= 3; a two-position switch flips on press anyway. A hand in VR is unchanged.
+@export var click_advances: bool = false
+
+## How far (m, along the slot) the ray must move from where it pressed before a press is a drag, not a
+## click: a third of the AV switch's 32 mm detent pitch, above the hand-shake of a click.
+const CLICK_DRAG_M := 0.006
 
 ## Release distance as a multiple of engage_radius, and how long the binding
 ## survives outside engage_radius. The knob stops tracking at engage_radius
@@ -118,6 +127,13 @@ var _rearmed: Dictionary = {}
 ## The desktop pointer pressed a two-position switch and flipped it; held until the button is
 ## released so that moving the crosshair along the slot does not flip it back.
 var _pointer_flipped := false
+## click_advances: where along the slot (m) the press landed, and whether the ray has since moved far
+## enough along it to be a drag.
+var _press_along := 0.0
+var _pointer_dragging := false
+## What moved the knob last: "click" (a pointer press with no drag), "drag" (a pointer drag), "hand"
+## (a fingertip), "code" (set_value) -- for an owner's log. Set just before value_changed is emitted.
+var last_input := "code"
 var _knob_axis: Vector3 = Vector3.RIGHT
 var _knob_turn_axis: Vector3 = Vector3.UP
 var _knob_anchor: Transform3D = Transform3D()
@@ -177,6 +193,7 @@ func _ready() -> void:
 ## The plain `value` export has no setter, so assigning it moves nothing and tells
 ## nobody; set_value_no_signal moves the knob but stays silent.
 func set_value(v: float) -> void:
+	last_input = "code"
 	_set_from_raw(v)
 
 
@@ -437,7 +454,11 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 		XRToolsPointerEvent.Type.PRESSED:
 			_hover_pointers[event.pointer] = true
 			_pointer_engaged = true
-			if steps == 2:
+			if click_advances and steps >= 3:
+				# Not moved yet: a click steps it on release, a drag past CLICK_DRAG_M tracks.
+				_press_along = _along_of(event.position)
+				_pointer_dragging = false
+			elif steps == 2:
 				# A two-position switch is flipped by pressing it, wherever along the slot the
 				# crosshair is: which half of the slot you pointed at was never something to
 				# aim for, and pointing at the end it already sits at did nothing at all.
@@ -447,15 +468,34 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 				_track_pointer_point(event.position)
 		XRToolsPointerEvent.Type.MOVED:
 			if _pointer_engaged and not _pointer_flipped:
-				_track_pointer_point(event.position)
+				if click_advances and steps >= 3 and not _pointer_dragging:
+					_pointer_dragging = absf(_along_of(event.position) - _press_along) >= CLICK_DRAG_M
+				if not click_advances or steps < 3 or _pointer_dragging:
+					_track_pointer_point(event.position)
 		XRToolsPointerEvent.Type.RELEASED:
+			if _pointer_engaged and click_advances and steps >= 3 and not _pointer_dragging:
+				var at := roundi(value * (steps - 1))
+				last_input = "click"
+				_set_from_raw(float((at + 1) % steps) / float(steps - 1))
 			_pointer_engaged = false
 			_pointer_flipped = false
+			_pointer_dragging = false
 		XRToolsPointerEvent.Type.EXITED:
 			_pointer_engaged = false
 			_pointer_flipped = false
+			_pointer_dragging = false
 			_hover_pointers.erase(event.pointer)
 	_sync_outline()
+
+
+## Whether a pointer (a laser, the desktop crosshair) is on it now.
+func is_pointer_hovered() -> bool:
+	return _pointer_hovered
+
+
+## How far along the slot (m, in this node's frame) a world point lies.
+func _along_of(world_pos: Vector3) -> float:
+	return to_local(world_pos).dot(axis_local.normalized())
 
 
 ## Value the travel axis projects a world point to, unclamped and unsnapped.
@@ -469,6 +509,7 @@ func _raw_value_at(world_pos: Vector3) -> float:
 func _track_world_point(world_pos: Vector3) -> void:
 	if travel <= 0.0:
 		return
+	last_input = "hand"
 	_set_from_raw(_raw_value_at(world_pos) + _grab_offset)
 
 
@@ -477,6 +518,7 @@ func _track_world_point(world_pos: Vector3) -> void:
 func _track_pointer_point(world_pos: Vector3) -> void:
 	if travel <= 0.0:
 		return
+	last_input = "drag"
 	_set_from_raw(_raw_value_at(world_pos))
 
 

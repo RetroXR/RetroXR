@@ -576,6 +576,26 @@ MEASUREMENTS.md). Copy the three `avswitch_mobile*.glb` + `avswitch_contract.jso
   ray and fingertip take it as any slider. Saved and synced as every slider is (the articulated controls;
   `ObjectSync._bind_articulated_controls`), so every peer routes the same: a peer's move arrives through `value_changed`
   like a hand's. The menu's INPUT 1-4 buttons call `select()`, which is `set_value`: sent the same way.
+- **Working it (2026-11-08).** Measured first: a desktop click on the tab did NOTHING (`VRSlider` jumps the knob to
+  where the ray meets it, and the ray only ever meets the tab where the tab already is); a click elsewhere along the
+  slot hit the body and picked the switch up; only a press-and-turn-the-view drag moved it, a detent per 32 mm of
+  sweep (~3.7 deg at half a metre), ending the moment the crosshair left the switch (the pointer sends EXITED). Now:
+  - **a click on a label window selects that input**: each `Label<n>` is a `VRButton` built in code
+    (`_build_label_buttons`), its box the window EXACTLY, its outline the window's own (`set_button_mesh` with no
+    travel), `require_trigger` so a fingertip sliding the tab under the windows never brushes one into switching.
+    The windows sit back in the face behind BOTH the body's box and the laser's, and the resolver stops at the
+    second shell (a control wins from inside only one, within `ENCLOSURE_DEPTH`): `_carve_windows` cuts a pocket
+    over the four, from their backs out through the front, out of both (`ApplianceModel.carve`, as the TV's door);
+  - **a click on the tab steps it on one, 4 wrapping to 1**: `VRSlider.click_advances` (new, default off; the
+    scene sets it): with `steps` >= 3 a press no longer jumps the knob, a ray that moves `CLICK_DRAG_M` (6 mm) along
+    the slot is a drag and tracks as before, and a release with no drag steps one detent;
+  - **a drag still works** and snaps to the nearest detent as it goes; the release after a drag does not step;
+  - **a hand in VR is unchanged** (the fingertip path never sees `click_advances`).
+  Every way is the same slider value, so saving and sync are untouched. The log names what moved it:
+  `slide 1 -> 3 by label click / tab click / drag / hand / menu`, `(from a peer)` when it came off the wire
+  (`VRSlider.last_input`; `select(index, source)`). The first time a pointer lands on a window or the tab, a
+  `HeldHint` row says how it is worked (desktop: "Click a number to switch to it, or the tab to step"; VR: point
+  and pull at a number, or slide the tab), once.
 - **The labels**: a window lights while a LIVE source reaches its input through any chain (`source_live`: a
   `RetroSystem` `is_powered_on` or `attracting`; else the device's `mains_live()`; else its `PowerInput`), and the
   selected one is brightest (emission 2.4 against 0.55). Selected with nothing live is dark. Sources do not say when
@@ -595,12 +615,16 @@ MEASUREMENTS.md). Copy the three `avswitch_mobile*.glb` + `avswitch_contract.jso
   role and whether the last slide move came off the wire (`NetworkManager.is_event_applying()`). The `[AvSwitch]`
   log lines (`describe_wiring()`, the label line) say the same things.
 
-`av_switch_tests` (routing/ labels/ unplug/ chain/ save/ power/ ray/ debug/ panel/; a real set, VCR and Genesis
+`av_switch_tests` (routing/ labels/ unplug/ chain/ save/ power/ ray/ debug/ panel/ click/; a real set, VCR and Genesis
 through its own A/V Cable; the Genesis "on" is its `is_powered_on` set by hand, there being no core). Mutation-checked:
 a map that ignores the slide, a switch that tells nobody, labels that ignore the supply, a selected label no brighter,
 a switched-off source counted live, a Debug row that says empty, "any switch upstream is a loop", a tab box padded
-3 mm: each goes red. `appliance_pointer_tests` has the switch (`avswitch`). Windowed renders and the slide video:
-`Tools/av/av_switch_probe` (`debug_tab.png` is its menu shot). Headset, Quest and a real two-peer session OWED.
+3 mm: each goes red; `click/` drives `InteractionResolver.resolve_desktop` and the pointer's own events (each
+window selects, the tab steps and wraps, a 1.8-detent drag lands on the nearest, a 2 mm wobble is still a click, a
+laser's events on the pointable layer do the same): `click_advances` off, no carve, or `CLICK_DRAG_M` 0 each go red.
+`appliance_pointer_tests` has the switch (`avswitch`), its four windows included. Windowed renders and the slide video:
+`Tools/av/av_switch_probe` (`debug_tab.png` is its menu shot); the desktop clicks and the drag on film:
+`Tools/av/av_switch_click_probe` (a drawn crosshair, the probe's room). Headset, Quest and a real two-peer session OWED.
 
 ### A power cycle must preserve the fitted tube (2026-11-02)
 

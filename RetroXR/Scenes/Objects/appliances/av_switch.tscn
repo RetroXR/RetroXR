@@ -66,6 +66,7 @@ script = ExtResource("4_slider")
 travel = 0.096
 steps = 4
 engage_radius = 0.02
+click_advances = true
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Selector"]
 shape = SubResource("Shape_tab")

@@ -51,6 +51,10 @@ func _run() -> void:
 		["ray/the desktop ray takes the tab, and its box is the tab exactly", _ray],
 		["debug/the Debug tab's rows follow a plug, an unplug and the slide", _debug],
 		["panel/the menu's INPUT buttons move the slide", _panel],
+		["click/a click on each label window selects that input, and its box is the window", _click_labels],
+		["click/a click on the tab steps it on one, wrapping 4 to 1", _click_tab],
+		["click/a drag on the tab moves it to the nearest detent; a wobble is still a click", _drag_tab],
+		["click/the laser's path (the same events on the pointable layer) works the labels and the tab", _laser],
 	]
 	print("[avswitch] running %d cases%s" % [cases.size(), "" if only.is_empty() else " matching '%s'" % only])
 	for c: Array in cases:
@@ -560,3 +564,115 @@ func _panel() -> void:
 	_ok(ui.is_debug_tab_shown(), "the Debug tab can be shown")
 	_ok(ui.find_child("PowerRows", true, false) != null, "the menu has the Power rows")
 	panel.hide_panel()
+
+
+# ── click/ (the desktop crosshair and the laser) ─────────────────────────────
+
+## What the desktop pointer does to whatever the crosshair resolves to at `at`, aimed from the front: the
+## resolver's target, ENTERED, PRESSED, then each of `moves` (world points the ray reaches meanwhile), RELEASED
+## at the last of them. Returns the node the events went to.
+func _pointer_press(sw: AvSwitch, at: Vector3, moves: Array = [], pointer: Node3D = null) -> Node3D:
+	var space := sw.get_world_3d().direct_space_state
+	var t := InteractionResolver.resolve_desktop(space, at + Vector3.BACK * 0.6, at - Vector3.BACK * 0.05, _grabber)
+	if t == null or not is_instance_valid(t.pointer_event_target):
+		return null
+	var p := pointer if pointer != null else _grabber
+	var target := t.pointer_event_target
+	XRToolsPointerEvent.entered(p, target, t.position)
+	XRToolsPointerEvent.pressed(p, target, t.position)
+	var last := t.position
+	for m: Vector3 in moves:
+		XRToolsPointerEvent.moved(p, target, m, last)
+		last = m
+	XRToolsPointerEvent.released(p, target, last)
+	XRToolsPointerEvent.exited(p, target, last)
+	await _wait(2)
+	return target
+
+
+func _window_mid(sw: AvSwitch, i: int) -> Vector3:
+	var part := sw.get_node("Model").call("part", "Label%d" % (i + 1)) as MeshInstance3D
+	return (part.global_transform * part.get_aabb()).get_center()
+
+
+func _tab_mid(sw: AvSwitch) -> Vector3:
+	var tab := sw.get_node("Model").call("part", "SlideTab") as MeshInstance3D
+	return (tab.global_transform * tab.get_aabb()).get_center()
+
+
+func _click_labels() -> void:
+	var sw := await _switch()
+	await _wait(10)
+	for i in [2, 0, 3, 1]:
+		var part := sw.get_node("Model").call("part", "Label%d" % (i + 1)) as MeshInstance3D
+		var button := sw.get_node_or_null("Label%dButton" % (i + 1)) as VRButton
+		_ok(button != null, "label %d is a button" % (i + 1))
+		if button == null:
+			continue
+		var shown := part.global_transform * part.get_aabb()
+		var shape := button.get_node("CollisionShape3D") as CollisionShape3D
+		var box := shape.global_transform * shape.shape.get_debug_mesh().get_aabb()
+		_ok((box.position - shown.position).length() < 0.0001 and (box.size - shown.size).length() < 0.0001,
+			"label %d: its box is the window, no margin" % (i + 1), "box %s / window %s" % [box, shown])
+		var target := await _pointer_press(sw, _window_mid(sw, i))
+		_ok(target == button, "label %d: the desktop ray takes its window" % (i + 1),
+			"took %s" % (str(target.name) if target != null else "-"))
+		_eq(sw.selected, i, "label %d: a click selects input %d" % [i + 1, i + 1])
+
+
+func _click_tab() -> void:
+	var sw := await _switch()
+	await _wait(10)
+	var slider := sw.get_node("Selector") as VRSlider
+	for want in [1, 2, 3, 0, 1]:
+		var target := await _pointer_press(sw, _tab_mid(sw))
+		_ok(target == slider, "the click lands on the tab")
+		_eq(sw.selected, want, "a tab click steps to input %d" % (want + 1))
+
+
+func _drag_tab() -> void:
+	var sw := await _switch()
+	await _wait(10)
+	var slider := sw.get_node("Selector") as VRSlider
+	var along := slider.global_basis.x.normalized()
+	var start := _tab_mid(sw)
+	var pitch := slider.travel / float(slider.steps - 1)
+	# Two detents to the right, in steps, ending a little short of the third position's middle: it snaps to it.
+	var moves: Array = []
+	for k in 8:
+		moves.append(start + along * (pitch * 1.8) * float(k + 1) / 8.0)
+	await _pointer_press(sw, start, moves)
+	_eq(sw.selected, 2, "a drag of 1.8 detents lands on input 3 (the nearest), and the release does not step it")
+	# A 2 mm wobble while pressing is still a click: one step on.
+	var here := _tab_mid(sw)
+	await _pointer_press(sw, here, [here + along * 0.002, here - along * 0.001])
+	_eq(sw.selected, 3, "a press that wobbles 2 mm is a click: input 3 -> 4")
+	# Dragged back past the left end: clamped at input 1, no wrap.
+	here = _tab_mid(sw)
+	await _pointer_press(sw, here, [here - along * 0.05, here - along * 0.2])
+	_eq(sw.selected, 0, "a drag past the left end stops at input 1")
+
+
+## A laser is XRToolsFunctionPointer: it raycasts the pointable layer and sends the same events. Its ray must
+## reach each window and the tab on that layer, and the events must work them.
+func _laser() -> void:
+	var sw := await _switch()
+	await _wait(10)
+	var laser := Node3D.new()
+	laser.name = "LaserStandIn"
+	add_child(laser)
+	var space := sw.get_world_3d().direct_space_state
+	for i in AvSwitch.INPUTS:
+		var mid := _window_mid(sw, i)
+		var q := PhysicsRayQueryParameters3D.create(mid + Vector3.BACK * 0.6, mid - Vector3.BACK * 0.05, 1 << 20)
+		q.collide_with_areas = true
+		q.collide_with_bodies = false
+		var hit := space.intersect_ray(q)
+		_ok(not hit.is_empty() and hit.collider == sw.get_node_or_null("Label%dButton" % (i + 1)),
+			"label %d is on the pointable layer, first along a laser" % (i + 1),
+			"hit %s" % (str((hit.collider as Node).name) if not hit.is_empty() else "-"))
+	await _pointer_press(sw, _window_mid(sw, 3), [], laser)
+	_eq(sw.selected, 3, "a laser's click on label 4 selects it")
+	await _pointer_press(sw, _tab_mid(sw), [], laser)
+	_eq(sw.selected, 0, "a laser's click on the tab steps 4 -> 1")
+	laser.queue_free()
