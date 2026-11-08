@@ -59,6 +59,10 @@ func _ready() -> void:
 		_test_exact_tear_handoff()
 		_finish()
 		return
+	if OS.get_cmdline_user_args().has("--only=desktop_hand"):
+		await _test_desktop_hand_holds_a_print_flat()
+		_finish()
+		return
 	if OS.get_cmdline_user_args().has("--only=drop"):
 		await _test_printout_lands_without_crumpling()
 		_finish()
@@ -94,6 +98,7 @@ func _ready() -> void:
 	await _test_fast_paper_crosses_a_surface()
 	_test_released_print_keeps_its_shape()
 	await _test_wall_preview_is_the_flat_sticker()
+	await _test_desktop_hand_holds_a_print_flat()
 	_test_thermal_ribbon()
 	_test_paper_contact_index()
 	_test_paper_index_matches_all_contacts()
@@ -1208,6 +1213,83 @@ func _test_wall_preview_is_the_flat_sticker() -> void:
 		"preview/taken away from the wall it is curled paper again")
 	poster.free()
 	wall.free()
+
+
+## What holds a pickable in a suite: the interface XRToolsPickable asks of a holder.
+class TestHolder:
+	extends Node3D
+	var picked_up_ranged := false
+	var held: XRToolsPickable
+	func drop_object() -> void:
+		if is_instance_valid(held):
+			held.let_go(self, Vector3.ZERO, Vector3.ZERO)
+
+
+## The desktop hand holds a print as a flat, still sheet to inspect (turn it, size it),
+## and lets the paper curl again on release; a hand that is not the desktop's keeps the
+## hanging paper (2026-11-08: "it floats and keeps moving", Q/E and the turn did nothing
+## useful on the swinging ribbon).
+func _test_desktop_hand_holds_a_print_flat() -> void:
+	# A holder of the shape DesktopPickup's pivot has (picked_up_ranged, drop_object),
+	# in the desktop hand's group; and the same outside it: a headset's hand.
+	var hand := TestHolder.new()
+	hand.add_to_group("desktop_hand")
+	add_child(hand)
+	var other := TestHolder.new()
+	add_child(other)
+	var poster := (load("res://Scenes/Objects/media/poster.tscn") as PackedScene).instantiate() as Poster
+	poster.printout = true
+	poster.size_scale = 0.2 / Poster.BASE_LONG_EDGE
+	add_child(poster)
+	poster.global_transform = Transform3D(Basis(), Vector3(0, 1.5, 0))
+	await get_tree().physics_frame
+	var flop := poster.get_node(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
+	flop.set_process(false)
+	var flat := poster.get_node("Surface/FlatMesh") as MeshInstance3D
+	for i in 3:
+		flop._process(1.0 / 90.0)
+	_ok(flop._mesh.visible and not flat.visible, "hand/a loose print is curled paper")
+	# Held by something that is not the desktop hand: the paper hangs and swings.
+	other.held = poster
+	poster.pick_up(other)
+	_ok(poster.is_picked_up(), "hand/the test hold took (a pickup by a bare node)")
+	flop._process(1.0 / 90.0)
+	_ok(flop._mesh.visible and not flop._was_rigid, "hand/another holder keeps the hanging paper")
+	poster.drop()
+	await get_tree().physics_frame
+	_ok(not poster.is_picked_up(), "hand/dropped, it is held by nothing")
+	# Held by the desktop hand: the flat sheet, no motion, whatever the pose does.
+	hand.held = poster
+	poster.pick_up(hand)
+	_ok(poster.is_picked_up() and poster.get_picked_up_by() == hand,
+		"hand/the desktop hand holds it (by %s)" % poster.get_picked_up_by())
+	flop._process(1.0 / 90.0)
+	_ok(flat.visible and not flop._mesh.visible and flop._was_rigid,
+		"hand/in the desktop hand the print is the flat sheet")
+	var before := flop._ribbon.positions.duplicate()
+	for i in 30:
+		hand.position = Vector3(sin(i * 0.3) * 0.05, 1.5, 0)
+		poster.global_position = hand.position
+		flop._process(1.0 / 90.0)
+	var moved := 0.0
+	for i in before.size():
+		moved = maxf(moved, before[i].distance_to(flop._ribbon.positions[i]))
+	_ok(moved == 0.0, "hand/and the paper does not swing while it is carried (%.5f m)" % moved)
+	# Sized in the hand (Q/E): the flat sheet follows, and the paper is laid at the new size.
+	poster.size_scale = 0.3 / Poster.BASE_LONG_EDGE
+	flop._process(1.0 / 90.0)
+	_ok(flat.visible, "hand/sizing it in the hand keeps it flat")
+	poster.drop()
+	for i in 3:
+		flop._process(1.0 / 90.0)
+	_ok(flop._mesh.visible and not flat.visible and not flop._was_rigid,
+		"hand/let go, it is curled paper again")
+	_ok(absf(flop._ribbon.length - poster.get_sheet_size().y) < 0.001,
+		"hand/laid again at the size it was sized to (%.3f m)" % flop._ribbon.length)
+	_ok(flop._ribbon.mean_curvature() > 1.0, "hand/with its roll's curl (%.1f 1/m)" % flop._ribbon.mean_curvature())
+	poster.free()
+	hand.free()
+	other.free()
 
 
 ## Line n's dots as gbprinter-libretro's own test burns them: no two lines

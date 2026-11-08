@@ -50,6 +50,8 @@ var _body_owned := false
 var _motion := GbPaperMotion.new()
 var _was_held := false
 var _was_stuck := false
+## The desktop hand held it flat last frame (see _desktop_holds).
+var _was_rigid := false
 var _support_quiet := 0.0
 ## Settled on its support: put to sleep, and nothing here runs until it is
 ## taken, stuck, or its body is moved past SETTLE_DRIFT / SETTLE_TURN.
@@ -143,21 +145,46 @@ func _process(delta: float) -> void:
 		_support_quiet = 0.0
 		_settled = false
 		return
+	if _desktop_holds():
+		# In the desktop hand the print is a sheet to LOOK at: flat and still, so
+		# turning it (middle drag) and sizing it (Q/E) work as for any poster. The
+		# hand trails the gaze, and a pinned ribbon swung and curled with every
+		# step of it (2026-11-08, "it floats and keeps moving"). Same look as a
+		# stuck sticker; on release the paper is laid again with its curl below.
+		if not _was_rigid:
+			print("[GbPrinter] %s held by the desktop hand: shown flat and still" % _poster.name)
+		_mesh.visible = false
+		_flat.visible = true
+		_own_rim(false)
+		_own_body(false)
+		_motion.reset()
+		_paper_sweep.reset()
+		_drawn.clear()
+		_quiet = 0.0
+		_support_quiet = 0.0
+		_settled = false
+		_was_held = false
+		_was_rigid = true
+		return
 	var size := _poster.get_sheet_size()
 	if size.x <= 0.0 or size.y <= 0.0:
 		return
 	if _poster.has_meta(STATE_META):
 		adopt_state(_poster.get_meta(STATE_META), size)
 		_poster.remove_meta(STATE_META)
-	elif _size != size or _was_stuck:
+	elif _size != size or _was_stuck or _was_rigid:
 		_size = size
 		var bend := 0.0 if _was_stuck else float(_poster.get_meta(BEND_META, 1.0 / GbThermalRibbon.CURL_RADIUS))
+		if _was_rigid:
+			print("[GbPrinter] %s let go of the desktop hand: paper laid again (size %.1f x %.1f mm)" % [
+				_poster.name, size.x * 1000.0, size.y * 1000.0])
 		if _poster.has_meta(BEND_META):
 			_poster.remove_meta(BEND_META)
 		_ribbon.configure(size.y, size.x, bend)
 		_drawn.clear()
 		_quiet = 0.0
 	_was_stuck = false
+	_was_rigid = false
 	var held := _poster.is_picked_up()
 	if held and not _was_held:
 		var by := _poster.get_picked_up_by()
@@ -242,6 +269,15 @@ func _process(delta: float) -> void:
 		print("[GbPrinter] print settled at %s, body put to sleep" % _poster.global_position)
 		return
 	_draw(size)
+
+
+## Whether the desktop hand (mouse and keyboard) is holding the print. A headset's
+## hands keep the hanging, swinging paper; the desktop one has no hand to feel it.
+func _desktop_holds() -> bool:
+	if not _poster.is_picked_up():
+		return false
+	var by := _poster.get_picked_up_by()
+	return is_instance_valid(by) and by.is_in_group("desktop_hand")
 
 
 func adopt_state(state: Dictionary, size: Vector2) -> void:
