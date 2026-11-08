@@ -702,8 +702,10 @@ shape = SubResource("Shape_tod_ball")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.055, 0, -0.03)
 
 [node name="Blinds" type="Node3D" parent="Furniture" unique_id=1071708532]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9, 2.05, -2.06)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9, 2.022, -2.122)
 script = ExtResource("49_blinds")
+width = 1.46
+height = 1.15
 drop = 0.25
 sun_path = NodePath("../../WindowSun")
 sun_energy = 3.6
@@ -711,7 +713,7 @@ daylight_path = NodePath("../../Dusk")
 env_path = NodePath("../../WorldEnvironment")
 
 [node name="BlindCord" type="Node3D" parent="Furniture" unique_id=1296312692]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.235, 2.02, -2.055)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.225, 1.992, -2.117)
 script = ExtResource("48_pullcord")
 cord_length = 0.46
 segments = 12
