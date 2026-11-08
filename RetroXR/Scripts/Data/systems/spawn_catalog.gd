@@ -724,7 +724,6 @@ static func _items_for(systemid: String) -> Array:
 	# Each link row says what BIOS this card's console cannot start without, as a
 	# unit's row does (_unit_item): a lead is only worth spawning once both ends
 	# can run, and the line says so before the player cables two machines up.
-	var link_note := link_bios_note(systemid)
 	var link_items: Array = []
 	if _LINK_LEADS.has(systemid):
 		link_items.append((_LINK_LEADS[systemid] as Dictionary).duplicate())
@@ -739,6 +738,9 @@ static func _items_for(systemid: String) -> Array:
 		link_items.append(_ETHERNET_HUB.duplicate())
 	if _GC_GBA_PLATFORMS.has(systemid):
 		link_items.append(_GC_GBA_CABLE.duplicate())
+	# Only for a card that has link rows: the note resolves this card's core and
+	# its BIOS, and the Systems grid asks every card for its items on each show.
+	var link_note := link_bios_note(systemid) if not link_items.is_empty() else ""
 	for link_item: Dictionary in link_items:
 		if not link_note.is_empty():
 			link_item["missing"] = link_note
@@ -971,10 +973,13 @@ static func link_bios_note(systemid: String, core := "") -> String:
 
 ## The core a console spawned from this card boots with nothing bolted to it,
 ## as RetroSystem._bare_core_default resolves it before a per-instance pick.
+##
+## Read through CoreDefaults.saved_default_core, not a CoreDefaults.setup() per
+## call: setup() re-parses the file and stats every system's ROM folder, and the
+## Systems grid reached this once per card on every show -- 77 cards, ~6,000
+## folder checks on the Quest's /sdcard, seconds of a frozen menu (2026-11-08).
 static func _card_core(systemid: String) -> String:
-	var defaults := CoreDefaults.new()
-	defaults.setup(CoreDefaults.default_path())
-	var core := defaults.get_default_core(systemid)
+	var core := CoreDefaults.saved_default_core(systemid)
 	if core.is_empty():
 		core = CoreRecommendations.core_for(systemid)
 	return core

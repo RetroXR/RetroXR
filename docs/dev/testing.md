@@ -468,6 +468,32 @@ The rules that fell out of it (the commits `perf(menu)`, `perf(cores)`,
 - **Toasts:** one refresh a frame (MenuToasts), and the quad's arc — a mesh upload and a
   collision cook — only when the host's curve or the quad's size changed.
 
+### Systems tab — `perf/systems_tab_probe`
+
+Times opening SPAWN > Systems the way a player does: the menu shown, the nav switched
+away and back, the Games/Systems sub-tabs switched, each cold then repeated. It records
+every frame for ~2 s after each action and breaks the Systems grid rebuild into pieces.
+Preset "Quest systems tab probe" (`com.xenu.retroxr.stprobe`, the probe-only export).
+
+- **To measure a player's real setup, clone the real app's data into the probe package.**
+  Internal: `adb exec-out run-as com.xenu.retroxr tar cf - files > internal.tar`, push it to
+  `/data/local/tmp`, then `adb shell "run-as com.xenu.retroxr.stprobe sh -c 'cd
+  /data/data/com.xenu.retroxr.stprobe && tar xf /data/local/tmp/…'"` (quote the whole
+  command for the device shell, or tar runs in `/`). External: `cp -r` the real
+  `/sdcard/Android/data/com.xenu.retroxr/files/.` into the probe's folder. Those copies
+  are shell-owned and the probe cannot see them as existing folders, so every
+  `RomLibrary.ensure_rom_dir` turns into a failing mkdir plus a warning — anything that
+  calls it reads far slower than on the real app.
+- **Every switch to the Systems sub-tab rebuilds the grid** (`tab_changed` →
+  `_populate_systems_tab`), which calls `SpawnCatalog.items_for` on every card only to
+  count rows. Anything on that path runs ~77 times a show. Before 2026-11-08,
+  `link_bios_note` → `_card_core` built a `CoreDefaults` and ran `setup()` per card: it
+  re-parsed `core_defaults.json` and stat-ed every system's ROM folder. That was ~6,000
+  /sdcard checks and seconds of frozen menu. Read-only lookups now go through
+  `CoreDefaults.saved_default_core` (cached by file mtime, no folder creation). Quest 3,
+  real data: a Systems switch went from 17.7 s (inflated by the probe-package mkdir
+  failures above) to ~255 ms, of which `items_for` x77 is ~235 ms (snes the slowest at ~21 ms).
+
 ### 1. Compile / import check (catches parse, shader & scene-load errors)
 ```bash
 "$godot" --headless --path "$proj" --editor --quit

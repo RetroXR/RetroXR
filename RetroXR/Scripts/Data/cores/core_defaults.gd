@@ -24,6 +24,27 @@ static func default_path() -> String:
 	return CoreDownloadManager.default_core_root().path_join("core_defaults.json")
 
 
+## Parsed defaults behind saved_default_core, and the file time they were read at.
+static var _saved_cache: Dictionary = {}
+static var _saved_cache_mtime: int = -1
+
+
+## The saved default core for `systemid` at default_path(), or "": a read-only
+## lookup for code that only needs the answer. Parsed once and re-read when the
+## file's modified time changes or any instance saves, so a call costs one stat;
+## and unlike setup() it creates no ROM folders.
+static func saved_default_core(systemid: String) -> String:
+	var path := default_path()
+	var mtime := FileAccess.get_modified_time(path) if FileAccess.file_exists(path) else 0
+	if mtime != _saved_cache_mtime:
+		_saved_cache_mtime = mtime
+		_saved_cache = {}
+		var d: Variant = JsonStore.read_dict(path, "CoreDefaults").get("defaults")
+		if d is Dictionary:
+			_saved_cache = SystemIds.rekeyed(d as Dictionary)
+	return str(_saved_cache.get(systemid, ""))
+
+
 func setup(path: String) -> void:
 	_path = path
 	load_defaults()
@@ -92,6 +113,8 @@ func save() -> bool:
 	var data := {"defaults": _defaults}
 	if not _mod_sids.is_empty():
 		data["mod_systems"] = _mod_sids.keys()
+	# A save within the same second keeps the file's mtime; drop the cache anyway.
+	_saved_cache_mtime = -1
 	return JsonStore.write_dict(_path, data, "CoreDefaults")
 
 
