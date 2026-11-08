@@ -1,0 +1,40 @@
+From: Ryan McClelland <rymcclel@gmail.com>
+Date: Sat, 07 Nov 2026 21:23:16 +0700
+Subject: [PATCH] RenderingServer: hand the main RenderingDevice back to the main
+ thread when the render thread ends
+
+With the Separate thread model, _assign_mt_ids makes the main
+RenderingDevice current on the render thread ("the main RD is created on
+the main thread"). finish() stops that thread and sets server_thread back
+to MAIN_ID, but leaves the RD current on the dead thread. The display
+server then frees the RD on the main thread, ~RenderingDevice calls
+finalize(), and its ERR_RENDER_THREAD_GUARD fails:
+
+  ERROR: This function (finalize) can only be called from the render thread.
+  ERROR: 7 RID allocations of type RenderingDevice::Texture were leaked at exit.
+
+finalize() returns before freeing anything, so every RID the RD still owns
+is reported leaked. Make the RD current on the main thread again once the
+render thread has finished, mirroring _assign_mt_ids. Measured on Windows
+(Vulkan, Forward+): the error and the leak report are gone; the default
+thread model is unaffected.
+---
+diff --git a/servers/rendering/rendering_server_default.cpp b/servers/rendering/rendering_server_default.cpp
+index 49b80b10b6..0c5984ca43 100644
+--- a/servers/rendering/rendering_server_default.cpp
++++ b/servers/rendering/rendering_server_default.cpp
+@@ -297,6 +297,14 @@ void RenderingServerDefault::finish() {
+ 			server_task_id = WorkerThreadPool::INVALID_TASK_ID;
+ 		}
+ 		server_thread = Thread::MAIN_ID;
++		// The render thread made the main RD current on itself (_assign_mt_ids).
++		// It is gone now, and the display server frees the RD on this thread:
++		// without handing it back, ~RenderingDevice's finalize() fails its
++		// render-thread guard and returns early, leaking every RID it owns.
++		RenderingDevice *rd = RenderingDevice::get_singleton();
++		if (rd) {
++			rd->make_current();
++		}
+ 	} else {
+ 		_finish();
+ 	}

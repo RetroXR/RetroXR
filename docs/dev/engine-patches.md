@@ -138,6 +138,23 @@ times too dark in the mid-tones) with no error anywhere. Fixed in the same
 patch; the resolve path had encoded correctly all along, which is how it was
 caught.
 
+### Two shutdown fixes (2026-11-08)
+
+Neither is a Quest defect; both are carried for every target built from the branch.
+
+- `godot-4.7.2-render-thread-rd-handback.patch`: with the SEPARATE render thread,
+  `RenderingServerDefault::finish()` never handed the RenderingDevice back to the main
+  thread, so `~RenderingDevice`'s `finalize()` failed its render-thread guard on quit
+  ("This function (finalize) can only be called from the render thread"), returned early
+  and leaked every RID (upstream issue #119000, same fix as open PR #123391). Tested on a
+  Quest 3 with `thread_model.android=2`: boots, runs, quits on Back with no error. The
+  Quest itself keeps the default model: it ran the same 36/72 either way (performance.md).
+- `godot-4.7.2-safe-numeric-constexpr.patch`: upstream #123291 (master only, never in
+  4.7), `SafeNumeric`/`SafeFlag` constant-initialised. A `profiler=tracy` Windows build
+  exited 3 on `!is_main_thread_assigned` (even `--version`): Tracy's static profiler
+  touched a `thread_local` during CRT start-up and `Thread::caller_id` took the main
+  thread's id from a counter not yet initialised. No known trigger on the Quest.
+
 Rebuild both libraries when a patch changes (each ~1 min incremental, the
 first build of a tree ~5 min):
 `cd ~/godot && ANDROID_HOME=C:/android scons platform=android arch=arm64
