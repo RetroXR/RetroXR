@@ -245,6 +245,8 @@ func _build() -> void:
 		_wand.deg_at_one = -720.0
 		_wand.engage_radius = 0.06
 		_wand.wheel_step = 0.04
+		# twisted in the fist as a real wand is: it turns with the wrist's roll, 1:1
+		_wand.follow_roll = true
 		_wand.value = 0.5 + tilt * 0.5
 		var shape := CollisionShape3D.new()
 		var cap := CapsuleShape3D.new()

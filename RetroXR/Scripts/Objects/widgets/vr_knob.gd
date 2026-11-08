@@ -79,8 +79,18 @@ const PIVOT_NAME := "KnobPivot"
 ## Starting position, 0..1. Applied without emitting in _ready — assigning this at
 ## runtime moves nothing and tells nobody; use set_value / set_value_no_signal.
 @export var value: float = 0.75
+## VR: follow the latched controller's ROLL about the axle, 1:1, instead of where its
+## tip sits around it. For a part you twist in your fist, like a blind's tilt wand: a
+## rod a centimeter thick is turned by rolling the wrist, and the hand hardly moves
+## round it, so the tip's angle about the axle tells nothing. A dial on a panel keeps
+## the default, where the fingertip walks round the cap.
+@export var follow_roll: bool = false
 
 var _trigger_ctrl: XRController3D = null   # latched controller (trigger held)
+# follow_roll: which controller axis (0 = X, 2 = Z) is measured, chosen at grab time as
+# the one lying flattest across the axle and kept for the whole twist, so the reading
+# never swaps reference halfway through.
+var _roll_axis := 0
 # Drag bookkeeping: how far the cap sat from the angle the hand implied when it took
 # hold, and the last raw hand angle (the unwrap reference).
 var _grab_offset_deg: float = 0.0
@@ -162,6 +172,8 @@ func _process(_delta: float) -> void:
 		if not is_instance_valid(_trigger_ctrl) or not _trigger_ctrl.get_is_active() \
 				or _trigger_ctrl.get_float(TRIGGER_ACTION) < TRIGGER_OFF:
 			_trigger_ctrl = null
+		elif follow_roll:
+			_track_angle(_roll_at(_trigger_ctrl, _grab_raw_prev))
 		else:
 			_track_world_point(PokeTip.tip_of(_trigger_ctrl))
 	elif not _pointer_held:
@@ -178,7 +190,10 @@ func _process(_delta: float) -> void:
 					and ctrl.get_float(TRIGGER_ACTION) > TRIGGER_ON:
 				_rearmed[id] = false
 				_trigger_ctrl = ctrl
-				_begin_track(tip)
+				if follow_roll:
+					_begin_roll(ctrl)
+				else:
+					_begin_track(tip)
 				break
 	_update_icon()
 
@@ -270,11 +285,57 @@ func _begin_track(world_pos: Vector3) -> void:
 	_grab_raw_prev = cur if is_nan(raw) else raw
 
 
+## follow_roll: the controller's turn about the axle, in degrees in the cap's rest frame
+## (the same frame and sign as _angle_at), from one of its own axes projected across the
+## axle: a fist rolling round a rod turns every axis of the controller that lies across
+## it by the same angle. NAN when that axis has swung into line with the axle.
+func _roll_at(ctrl: XRController3D, near_deg: float) -> float:
+	if target == null or ctrl == null:
+		return NAN
+	var parent := target.get_parent() as Node3D
+	if parent == null:
+		return NAN
+	var rest := Basis.from_euler(Vector3(target.rotation.x, target.rotation.y, 0.0))
+	var to_rest := (parent.global_basis.orthonormalized() * rest).inverse()
+	var r: Vector3 = to_rest * ctrl.global_basis.orthonormalized()[_roll_axis]
+	if Vector2(r.x, r.y).length() < 0.25:
+		return NAN
+	var deg := rad_to_deg(atan2(r.y, r.x))
+	while deg - near_deg > 180.0:
+		deg -= 360.0
+	while deg - near_deg < -180.0:
+		deg += 360.0
+	return deg
+
+
+## follow_roll: take hold without moving the cap, as _begin_track does, measuring the
+## controller axis that lies flattest across the axle.
+func _begin_roll(ctrl: XRController3D) -> void:
+	if target == null:
+		return
+	var parent := target.get_parent() as Node3D
+	if parent == null:
+		return
+	var rest := Basis.from_euler(Vector3(target.rotation.x, target.rotation.y, 0.0))
+	var to_rest := (parent.global_basis.orthonormalized() * rest).inverse()
+	var b := ctrl.global_basis.orthonormalized()
+	var across_x := Vector2((to_rest * b.x).x, (to_rest * b.x).y).length()
+	var across_z := Vector2((to_rest * b.z).x, (to_rest * b.z).y).length()
+	_roll_axis = 0 if across_x >= across_z else 2
+	var cur := rad_to_deg(target.rotation.z)
+	var raw := _roll_at(ctrl, cur)
+	_grab_offset_deg = 0.0 if is_nan(raw) else cur - raw
+	_grab_raw_prev = cur if is_nan(raw) else raw
+
+
 func _track_world_point(world_pos: Vector3) -> void:
+	_track_angle(_angle_at(world_pos, _grab_raw_prev))
+
+
+func _track_angle(raw: float) -> void:
 	# Unwrap against the PREVIOUS raw angle, not the cap's: once an offset is in play
 	# the two are no longer near each other, and unwrapping against the cap would fold
 	# a large offset into a 360° jump.
-	var raw := _angle_at(world_pos, _grab_raw_prev)
 	if is_nan(raw):
 		return
 	_grab_raw_prev = raw
