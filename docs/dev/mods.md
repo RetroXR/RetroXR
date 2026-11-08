@@ -508,6 +508,14 @@ is on it already: a mod's hook runs as the node enters the tree, before `_ready`
 and a tape is never dressed twice (`xenu.cassette` claims it and checks `has_node("Shell")` itself).
 `audio_cassette_tests mod/` covers a claim, a claiming hook and a hook with no claim.
 
+**A mod's shell still takes the album's pictures (2026-11-08).** A cassette's pictures (`cover` / `back`) go on
+whatever `LabelA` / `LabelB` meshes the `Shell` carries, the game's or a mod's (`AudioCassette._lay_art` through
+`CompactCassette.paint_label`): xenu.cassette wears the same RETRO XR model, so its labels fill with the picture and
+keep the window cut out. Before, a mod's shell fell through to the old stand-in box's quads (80 x 30 mm, solid, 12 mm
+up), which shrank the picture and hid the reels. Only a cassette with no shell labels at all still gets the quads.
+A mod that colours its labels (`wear_paper`) does it as it dresses, before the pictures load, so the two never fight.
+`audio_cassette_tests art/`.
+
 `install(staged, source)`, `vet(path)`, `remove(id)`, `inspect(path)`,
 `remove_unreadable(path)`, `source(id)`, `set_source(id, source)`,
 `find_by_source(key, value)`, and the `mods_changed` signal. There was no such API

@@ -429,6 +429,10 @@ unchanged. `PlugB0` wears the model's plug and is the only connector a player to
 
 ### The base game's Compact Cassette, and the CD player's PHONES (2026-10-31)
 
+(2026-11-08) The album's pictures go on the labels the cassette's shell draws, the game's or a mod's: a mod shell's
+`LabelA` / `LabelB` are painted by `CompactCassette.paint_label` as the game's are; the stand-in quads are only for a
+cassette with no shell labels (`mods.md` "A mod's shell still takes the album's pictures", `audio_cassette_tests art/`).
+
 **The audio cassette wears a real Compact Cassette in the base game** (`CompactCassette`,
 `Scripts/Objects/media/compact_cassette.gd`): RetroXR-models' own `generic/audio-cassette` (the same model the
 `xenu.cassette` mod ships, so no new credit), its three mobile levels in `imported-assets/appliances/audio_cassette/`.

@@ -166,21 +166,51 @@ func _on_label_art(slot: StringName, tex: Texture2D) -> void:
 ## the bare cassette has one on the front only.
 func _lay_art() -> void:
 	var back := _tex_b if _tex_b != null else _tex_a
+	var block := get_node_or_null("LabelMesh") as MeshInstance3D
+	var paper_mat := block.get_active_material(0) as BaseMaterial3D if block != null else null
+	var paper := paper_mat.albedo_color if paper_mat != null else Color(0.9, 0.88, 0.8)
 	if _shell != null:
 		# The shell's own paper labels take the pictures (and the stand-in's cream when there are none).
-		var block := get_node_or_null("LabelMesh") as MeshInstance3D
-		var paper_mat := block.get_active_material(0) as BaseMaterial3D if block != null else null
-		var paper := paper_mat.albedo_color if paper_mat != null else Color(0.9, 0.88, 0.8)
 		_shell.set_label("LabelA", _tex_a, paper)
 		_shell.set_label("LabelB", back, paper)
 		_apply_label_text_visibility()
 		return
+	# A shell a mod hung (xenu.cassette wears the same RETRO XR model): its own LabelA / LabelB take the pictures as
+	# the game's shell's do, filling the label with the window cut out. The stand-in quads below were the old box's,
+	# 80 x 30 mm and solid, which on this model shrank the picture and covered the window.
+	var mod_shell := get_node_or_null("Shell")
+	var side_a: Array = mod_shell.find_children("LabelA", "MeshInstance3D", true, false) if mod_shell != null else []
+	var side_b: Array = mod_shell.find_children("LabelB", "MeshInstance3D", true, false) if mod_shell != null else []
+	if not side_a.is_empty() or not side_b.is_empty():
+		if _tex_a != null or back != null:
+			CompactCassette.paint_label(side_a, _tex_a, paper)
+			CompactCassette.paint_label(side_b, back, paper)
+		for quad: String in ["LabelArt", "LabelArtB", "LabelPaperB"]:
+			var old := get_node_or_null(quad)
+			if old != null:
+				remove_child(old)
+				old.queue_free()
+		_note_art_path("on a mod shell's LabelA / LabelB (%d + %d meshes)" % [side_a.size(), side_b.size()])
+		_apply_label_text_visibility()
+		return
+	_note_art_path("on the stand-in quads (no shell labels)")
 	MediaLabelArt.show_quad(self, "LabelArt", _tex_a, _ART_BOX,
 		Transform3D(Basis.IDENTITY, Vector3(0.0, _ART_Y, _ART_Z)))
 	_lay_back_paper(back != null)
 	MediaLabelArt.show_quad(self, "LabelArtB", back, _ART_BOX,
 		Transform3D(Basis(Vector3.UP, PI), Vector3(0.0, _ART_Y, -_ART_Z)))
 	_apply_label_text_visibility()
+
+
+## Which way this cassette's pictures went, said once (a picture arriving later takes the same way).
+var _art_path_said := ""
+
+
+func _note_art_path(how: String) -> void:
+	if how == _art_path_said or (_tex_a == null and _tex_b == null):
+		return
+	_art_path_said = how
+	print("[AudioCassette] %s: pictures %s" % [name, how])
 
 
 func _lay_back_paper(wanted: bool) -> void:

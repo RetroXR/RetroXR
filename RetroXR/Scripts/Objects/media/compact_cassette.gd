@@ -219,9 +219,21 @@ func _clear_plastic(level: Node3D) -> void:
 ## One label ("LabelA" or "LabelB") on every level: the picture when there is one, fitted inside the label and not
 ## stretched (on paper of `paper`'s colour, as the stand-in's quads fitted it), else plain paper of that colour.
 func set_label(label: String, texture: Texture2D, paper: Color) -> void:
-	var fitted: Texture2D = null
+	var meshes: Array = []
 	for level in levels:
 		var mi := level.find_child(label, true, false) as MeshInstance3D
+		if mi != null:
+			meshes.append(mi)
+	paint_label(meshes, texture, paper)
+
+
+## The picture on one label's meshes (every level of a model, the game's or a mod's: the RETRO XR cassette's
+## LabelA / LabelB, its window cut out of the mesh), fitted onto paper of the label's proportions, or plain paper
+## with none. Each mesh keeps its own material, duplicated, so the cut-out and the shading are the model's.
+static func paint_label(meshes: Array, texture: Texture2D, paper: Color) -> void:
+	var fitted: Texture2D = null
+	for node in meshes:
+		var mi := node as MeshInstance3D
 		if mi == null or mi.mesh == null:
 			continue
 		var base := mi.mesh.surface_get_material(0) as StandardMaterial3D

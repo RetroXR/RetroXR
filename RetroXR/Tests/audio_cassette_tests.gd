@@ -10,6 +10,9 @@
 ##   tape/   the hubs and packs follow the tape's own place (tape_progress), eased; the deck reads those hubs
 ##   mod/    a mod that holds the AudioCassette/shell dressing keeps the game's shell off; one whose hook has already
 ##           hung its Shell (it runs as the cassette enters the tree, before _ready) is never dressed twice
+##   art/    the album's pictures go on the labels a shell draws: the game's, and a mod's (xenu.cassette wears the
+##           same model, LabelA / LabelB), filling the label with its window cut out; only a cassette with no shell
+##           labels at all gets the old stand-in quads, which on the model shrank the picture and hid the window
 extends "res://Tests/test_suite.gd"
 
 const CASSETTE := preload("res://Scenes/Objects/media/audio_cassette.tscn")
@@ -27,7 +30,7 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.split("=")[1]
-	for c: Array in [["shell", _t_shell], ["tape", _t_tape], ["mod", _t_mod]]:
+	for c: Array in [["shell", _t_shell], ["tape", _t_tape], ["mod", _t_mod], ["art", _t_art]]:
 		if not _only.is_empty() and not String(c[0]).begins_with(_only):
 			continue
 		await (c[1] as Callable).call()
@@ -163,3 +166,78 @@ func _t_mod() -> void:
 	var t4 := _cassette()
 	await _wait(3)
 	_ok(t4.get_node_or_null("Shell") is CompactCassette, "mod/the mod gone, a new cassette wears the game's shell again")
+
+
+# ── art/ ──────────────────────────────────────────────────────────────────────
+
+## A picture as a label loader hands one over.
+func _picture() -> Texture2D:
+	var img := Image.create(64, 29, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0.9, 0.3, 0.2))
+	return ImageTexture.create_from_image(img)
+
+
+## The material a label mesh wears now (its override, else its own).
+func _label_texture(mi: MeshInstance3D) -> Texture2D:
+	var m := mi.get_surface_override_material(0) as StandardMaterial3D
+	if m == null:
+		m = mi.mesh.surface_get_material(0) as StandardMaterial3D
+	return m.albedo_texture if m != null else null
+
+
+## A stand-in for a mod's shell, as xenu.cassette hangs one: a Shell holding the model's LabelA / LabelB (with
+## `labels`), each a thin box the label's size wearing a material of its own.
+func _hang_mod_shell(n: Node, labels: bool) -> void:
+	if n.has_node("Shell"):
+		return
+	var shell := Node3D.new()
+	shell.name = "Shell"
+	if labels:
+		for side: String in ["LabelA", "LabelB"]:
+			var mi := MeshInstance3D.new()
+			mi.name = side
+			var box := BoxMesh.new()
+			box.size = Vector3(0.0896, 0.0404, 0.00025)
+			box.material = StandardMaterial3D.new()
+			mi.mesh = box
+			shell.add_child(mi)
+	n.add_child(shell)
+
+
+func _t_art() -> void:
+	var tex := _picture()
+	# 1. The game's own shell: the picture on its labels (the path that was always right).
+	var own := _cassette()
+	await _wait(3)
+	own._on_label_art(&"a", tex)
+	var own_shell := own.get_node_or_null("Shell") as CompactCassette
+	var own_a := own_shell.levels[0].find_child("LabelA", true, false) as MeshInstance3D if own_shell else null
+	_ok(own_a != null and _label_texture(own_a) != null and own.get_node_or_null("LabelArt") == null,
+		"art/the game's shell wears the picture on its own LabelA, no quad")
+	# 2. A mod's shell with the model's labels: the same, on ITS labels.
+	var hooks := _hooks()
+	hooks.claim_dress(FAKE_MOD, &"AudioCassette", "shell")
+	hooks.watch_nodes(FAKE_MOD, &"AudioCassette", func(n: Node) -> void: _hang_mod_shell(n, true))
+	var t := _cassette()
+	await _wait(3)
+	t._on_label_art(&"a", tex)
+	var shell := t.get_node_or_null("Shell") as Node3D
+	var a := shell.get_node_or_null("LabelA") as MeshInstance3D if shell else null
+	var b := shell.get_node_or_null("LabelB") as MeshInstance3D if shell else null
+	var on_a := _label_texture(a) if a else null
+	_ok(on_a != null and t.get_node_or_null("LabelArt") == null and t.get_node_or_null("LabelArtB") == null,
+		"art/a mod's shell wears the picture on its own LabelA, and no stand-in quad covers it")
+	_ok(on_a != null and absf(float(on_a.get_width()) / float(on_a.get_height()) - 0.0896 / 0.0404) < 0.01,
+		"art/fitted to the label's own proportions, so it fills it (%s)" % [on_a.get_size() if on_a else "none"])
+	_ok(b != null and _label_texture(b) != null, "art/side B with no picture of its own wears side A's")
+	_ok(not (t.get_node("CassetteLabel") as Label3D).visible, "art/the picture carries the name: the text steps aside")
+	# 3. A shell with no labels at all (the plain stand-in box's case): the quads, as before.
+	hooks.drop_owner(FAKE_MOD)
+	hooks.claim_dress(FAKE_MOD, &"AudioCassette", "shell")
+	hooks.watch_nodes(FAKE_MOD, &"AudioCassette", func(n: Node) -> void: _hang_mod_shell(n, false))
+	var bare := _cassette()
+	await _wait(3)
+	bare._on_label_art(&"a", tex)
+	var quad := bare.get_node_or_null("LabelArt") as Node3D
+	_ok(quad != null and quad.visible, "art/a shell with no labels gets the stand-in quad, as the box always did")
+	hooks.drop_owner(FAKE_MOD)
