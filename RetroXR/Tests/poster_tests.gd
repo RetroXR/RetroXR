@@ -802,7 +802,7 @@ func _test_desktop() -> void:
 	p.size_scale = 0.001
 	_ok(absf(p.size_scale - 0.05) < 0.0001, "desktop/and no smaller")
 	p.size_scale = 99.0
-	_ok(absf(p.size_scale - 3.0) < 0.0001, "desktop/still capped at 3x")
+	_ok(absf(p.size_scale - 8.0) < 0.0001, "desktop/still capped at 8x")
 	p.size_scale = 1.0
 	await get_tree().process_frame
 

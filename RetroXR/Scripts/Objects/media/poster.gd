@@ -36,7 +36,7 @@ const EMISSION_ENERGY := 0.1
 		if is_inside_tree():
 			_load_image()
 
-@export_range(0.05, 3.0) var size_scale: float = 1.0:
+@export_range(0.05, 8.0) var size_scale: float = 1.0:
 	set(value):
 		size_scale = clampf(value, SIZE_MIN, SIZE_MAX)
 		if is_inside_tree():
@@ -281,11 +281,11 @@ func _apply_dimensions() -> void:
 # where a menu-spawned object is handed to the grabber before its deferred node
 # lookup has resolved the locomotion manager, and the block is silently dropped.
 
-## Full size range, in multiples of BASE_LONG_EDGE. A postcard to a door.
+## Full size range, in multiples of BASE_LONG_EDGE. A postcard to a 4 m wall mural.
 ## 0.05 is a 25 mm sticker on the 0.5 m sheet — small enough to badge a console
 ## rather than cover it.
 const SIZE_MIN := 0.05
-const SIZE_MAX := 3.0
+const SIZE_MAX := 8.0
 ## Multiples per second while a button is held.
 const RESIZE_SPEED := 0.6
 

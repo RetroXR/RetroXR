@@ -26,7 +26,7 @@ const COLOR_ROW := Color(0.65, 0.65, 0.80)
 const COLOR_ON := Color(0.25, 0.45, 0.85)
 
 const MIN_SIZE := 0.05
-const MAX_SIZE := 3.0
+const MAX_SIZE := 8.0
 
 var _size_slider: HSlider = null
 var _size_val: Label = null
