@@ -138,7 +138,7 @@ times too dark in the mid-tones) with no error anywhere. Fixed in the same
 patch; the resolve path had encoded correctly all along, which is how it was
 caught.
 
-### Two shutdown fixes (2026-11-08)
+### Render-thread and shutdown fixes (2026-11-08)
 
 Neither is a Quest defect; both are carried for every target built from the branch.
 
@@ -154,6 +154,17 @@ Neither is a Quest defect; both are carried for every target built from the bran
   exited 3 on `!is_main_thread_assigned` (even `--version`): Tracy's static profiler
   touched a `thread_local` during CRT start-up and `Thread::caller_id` took the main
   thread's id from a counter not yet initialised. No known trigger on the Quest.
+
+- `godot-4.7.2-render-thread-interpolation.patch` (engine e6a96fe79a): with the SEPARATE
+  render thread, `RenderingServer.tick()`/`pre_draw()` ran on the main thread, and MultiMesh
+  physics interpolation in them writes instance buffers (`_multimesh_set_buffer` ->
+  `buffer_update`): "This function (buffer_update) can only be called from the render thread",
+  and an interpolated MultiMesh's instances scattered or vanished (the bedroom blinds on
+  Windows, 2026-11-08). Both are now queued to the render thread. Upstream has the same code.
+  Desktop builds ship STOCK Godot, so the game also opts its script-driven MultiMeshes out of
+  interpolation (game afcdd6b9); the Quest keeps the default thread model and is unaffected.
+  Checked on a `profiler=tracy` Windows editor from this tree: no `buffer_update` error with
+  interpolation forced on, stock 4.7.2 logs it 8 times.
 
 Rebuild both libraries when a patch changes (each ~1 min incremental, the
 first build of a tree ~5 min):

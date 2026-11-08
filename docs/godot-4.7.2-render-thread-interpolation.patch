@@ -1,0 +1,70 @@
+From e6a96fe79a4389b6e29741db0df3678fed76f0ff Mon Sep 17 00:00:00 2001
+From: Ryan McClelland <rymcclel@gmail.com>
+Date: Sun, 8 Nov 2026 13:19:53 +0700
+Subject: [PATCH] RenderingServer: queue tick() and pre_draw() to the separate
+ render thread
+
+Both advance physics interpolation, and MeshStorage's MultiMesh interpolation writes instance buffers (update_interpolation_tick -> _multimesh_set_buffer -> RD::buffer_update). Called on the main thread with thread_model 2, that failed ERR_RENDER_THREAD_GUARD ("buffer_update can only be called from the render thread") and raced the render thread's reads: an interpolated MultiMesh's instances scattered or vanished. They also ran ahead of the instance transforms still queued for the render thread.
+
+Now pushed onto the command queue like every other RenderingServer call when the caller is not the server thread; single-threaded runs call straight through as before.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../rendering/rendering_server_default.cpp    | 21 +++++++++++++++++++
+ servers/rendering/rendering_server_default.h  |  2 ++
+ 2 files changed, 23 insertions(+)
+
+diff --git a/servers/rendering/rendering_server_default.cpp b/servers/rendering/rendering_server_default.cpp
+index 0c5984ca43..35ae03ddb8 100644
+--- a/servers/rendering/rendering_server_default.cpp
++++ b/servers/rendering/rendering_server_default.cpp
+@@ -460,12 +460,33 @@ void RenderingServerDefault::draw(bool p_present, double frame_step) {
+ 	}
+ }
+ 
++// tick() and pre_draw() advance physics interpolation, and the storage behind it (MultiMesh instance
++// buffers above all, through MeshStorage::update_interpolation_tick/_frame and _multimesh_set_buffer)
++// belongs to the render thread. Called from the main thread they wrote RenderingDevice buffers there
++// ("buffer_update can only be called from the render thread") while the render thread drew from them, and
++// they ran ahead of the instance transforms still queued for it. Queued like every other call.
+ void RenderingServerDefault::tick() {
++	if (Thread::get_caller_id() != server_thread) {
++		command_queue.push(this, &RenderingServerDefault::_tick);
++	} else {
++		_tick();
++	}
++}
++
++void RenderingServerDefault::_tick() {
+ 	RSG::canvas->tick();
+ 	RSG::scene->tick();
+ }
+ 
+ void RenderingServerDefault::pre_draw(bool p_will_draw) {
++	if (Thread::get_caller_id() != server_thread) {
++		command_queue.push(this, &RenderingServerDefault::_pre_draw, p_will_draw);
++	} else {
++		_pre_draw(p_will_draw);
++	}
++}
++
++void RenderingServerDefault::_pre_draw(bool p_will_draw) {
+ 	RSG::scene->pre_draw(p_will_draw);
+ }
+ 
+diff --git a/servers/rendering/rendering_server_default.h b/servers/rendering/rendering_server_default.h
+index 30d52d8e89..117085ca48 100644
+--- a/servers/rendering/rendering_server_default.h
++++ b/servers/rendering/rendering_server_default.h
+@@ -89,6 +89,8 @@ class RenderingServerDefault : public RenderingServer {
+ 	void _thread_loop();
+ 
+ 	void _draw(bool p_swap_buffers, double frame_step);
++	void _tick();
++	void _pre_draw(bool p_will_draw);
+ 	void _run_post_draw_steps();
+ 	void _init();
+ 	void _finish();
+-- 
+2.55.0.windows.3
+
