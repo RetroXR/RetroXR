@@ -69,7 +69,10 @@ extends Node3D
 ## Mesh nodes inside the shell GLB to hide. Chiefly the cabinet's own glass: the
 ## live picture has to land on RetroTV's ScreenMesh, and a modelled pane sitting
 ## in front of it would either z-fight or hide it outright.
-@export var hide_meshes: PackedStringArray = []
+## The default is a TYPED empty array on purpose: written `= []` (an untyped Array), the
+## export's text-to-binary pass dropped the scene's value as "the default", so on Quest the
+## RETRO XR set's Screen stayed drawn over the picture (dark set, sound only).
+@export var hide_meshes: PackedStringArray = PackedStringArray()
 
 ## How the four A/V input groups sit on this cabinet's back, measured in the
 ## PortSeat's own frame. `av_socket_step` walks VIDEO → L → R inside one group,

@@ -17,14 +17,14 @@ extends Node3D
 ## The ceiling fan's glass globe exports as "defaultMaterial4" — the GLB names
 ## every part after the material it uses, so these are positional, not
 ## descriptive. Re-check them if the model is ever replaced.
-@export var glow_meshes: PackedStringArray = []
+@export var glow_meshes: PackedStringArray = PackedStringArray()
 
 @export var glow_color: Color = Color(1, 0.85, 0.6)
 @export var glow_energy: float = 1.6
 
 ## Transmissive fixture parts that must not block their own light's shadow map.
 ## Includes the bulb itself when the light sits inside its modelled envelope.
-@export var shadowless_meshes: PackedStringArray = []
+@export var shadowless_meshes: PackedStringArray = PackedStringArray()
 
 ## Meshes to turn into LIT GLASS — a shade you can see the bulb through.
 ##
@@ -33,7 +33,7 @@ extends Node3D
 ## fan's globe is opaque in the GLB (one material for the whole fixture), so the
 ## spiral CFL modelled inside it was invisible and could not be the thing that
 ## glowed. Making the globe translucent puts the bulb back on show.
-@export var glass_meshes: PackedStringArray = []
+@export var glass_meshes: PackedStringArray = PackedStringArray()
 ## Alpha carries in .a. Frosted rather than clear: the bulb should read as a warm
 ## shape through the glass, not as a crisp spiral.
 @export var glass_color: Color = Color(0.95, 0.93, 0.86, 0.38)

@@ -24,7 +24,7 @@ extends Node3D
 
 
 ## Polyline the strand follows, in this node's local space. Needs 2+ points.
-@export var path: PackedVector3Array = []:
+@export var path: PackedVector3Array = PackedVector3Array():
 	set(v): path = v; _rebuild()
 
 ## Join the last point back to the first, for a frame.
@@ -52,7 +52,7 @@ extends Node3D
 	set(v): emission_energy = v; _rebuild()
 
 ## Cycle bulbs through these instead of one colour. Empty means single-colour.
-@export var multicolour: PackedColorArray = []:
+@export var multicolour: PackedColorArray = PackedColorArray():
 	set(v): multicolour = v; _rebuild()
 
 ## A single dim unshadowed Omni at the path's centroid, for the wash on the
