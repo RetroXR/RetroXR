@@ -42,9 +42,6 @@ const LABEL_POLL_S := 0.5
 
 enum LabelState { DARK, LIT, SELECTED }
 const LABEL_WORDS := ["dark", "lit", "selected"]
-const VR_BUTTON := preload("res://Scripts/Objects/widgets/vr_button.gd")
-## The pointable layer (21, XRPointer) the slide's own box is on.
-const POINTER_LAYER := 1 << 20
 
 ## The input the slide is on, 0-3. Follows the slide; set it with select().
 var selected := 0
@@ -68,12 +65,10 @@ var _said := ""
 var _said_labels := ""
 ## Whether the slide's last move came off the wire (a peer's), for the Debug tab.
 var _last_from_wire := false
-## What asked for the next slide move ("label click", "menu"), said in its log line; empty means the slide
-## itself moved (a tab click, a drag, a hand), which VRSlider.last_input names.
+## What asked for the next slide move ("menu"), said in its log line; empty means the slide itself moved (a drag,
+## a hand), which VRSlider.last_input names.
 var _next_source := ""
-## The four label windows as buttons: a click (crosshair or laser) on one selects that input.
-var _label_buttons: Array[VRButton] = []
-## "Click a number, or the tab, to switch" -- shown once, the first time a pointer lands on the selector.
+## "Drag the switch with the mouse" -- shown once, the first time a pointer lands on the slide.
 var _hint: HeldHint = null
 var _hinted := false
 
@@ -123,42 +118,13 @@ func _dress() -> void:
 			DeckFace.seat_port(_model, port, n + "Mouth")
 	_dress_labels()
 	_dress_slide()
-	_build_label_buttons()
 	for i in range(1, _model.levels.size()):
 		for m in _model.levels[i].find_children("*", "MeshInstance3D", true, false):
 			m.add_to_group("outline_exclude")
 	# Body and laser box are what the model draws: the tab stands proud of them, and the windows are recessed.
 	_model.fit_shapes([get_node_or_null("CollisionShape3D") as CollisionShape3D,
 		get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D], ["SlideTab"])
-	_carve_windows()
 	print("[AvSwitch] %s: dressed from the model (%d levels)" % [name, _model.levels.size()])
-
-
-## The label windows sit back in the face, behind BOTH the body's box and the laser's: the resolver stops at the
-## second shell before it reaches a window (a control wins from inside only ONE, within ENCLOSURE_DEPTH). A pocket
-## over the four windows, from their backs out through the front, is carved out of both (ApplianceModel.carve).
-func _carve_windows() -> void:
-	for path in ["CollisionShape3D", "PointerArea/CollisionShape3D"]:
-		var shape := get_node_or_null(path) as CollisionShape3D
-		if shape == null:
-			continue
-		var space := shape.get_parent() as Node3D
-		var body := _model.bounds(space, ["SlideTab"])
-		var pocket := AABB()
-		var first := true
-		for i in INPUTS:
-			var part := _model.part("Label%d" % (i + 1))
-			if part == null:
-				continue
-			var b := ApplianceModel.node_bounds(part, space)
-			pocket = b if first else pocket.merge(b)
-			first = false
-		if first:
-			return
-		pocket.size.z = body.end.z - pocket.position.z + 0.01
-		var boxes := ApplianceModel.carve(body, pocket)
-		ApplianceModel.fit_collision(shape, boxes)
-		print("[AvSwitch] %s: %s carved round the label windows, %d boxes" % [name, path, boxes.size()])
 
 
 ## One material per input, put on its label's window surface (found by NAME: the exporter keeps no order) on every level.
@@ -206,54 +172,9 @@ func _dress_slide() -> void:
 	_follow_tab()
 
 
-## Each label window is a button whose box is the window exactly (no margin): pointed at and pressed it selects
-## its input. A pointer only -- a fingertip needs the trigger too (`require_trigger`), or a finger sliding the
-## tab under the windows would brush one and switch.
-func _build_label_buttons() -> void:
-	for i in INPUTS:
-		var part := _model.part("Label%d" % (i + 1)) as MeshInstance3D
-		if part == null:
-			push_warning("[AvSwitch] %s: no Label%d on the model; that input is selected by the slide alone" % [name, i + 1])
-			continue
-		var b := Area3D.new()
-		b.set_script(VR_BUTTON)
-		b.name = "Label%dButton" % (i + 1)
-		b.collision_layer = POINTER_LAYER
-		b.collision_mask = 0
-		var shape := CollisionShape3D.new()
-		shape.name = "CollisionShape3D"
-		b.add_child(shape)
-		var cap := MeshInstance3D.new()
-		cap.name = "ButtonMesh"
-		b.add_child(cap)
-		var button := b as VRButton
-		button.depress_depth = 0.0
-		button.depress_axis = Vector3(0, 0, -1)
-		button.require_trigger = true
-		add_child(b)
-		b.global_transform = part.global_transform
-		ApplianceModel.fit_box(shape, ApplianceModel.node_bounds(part, b))
-		# The window itself is what lights when pointed at: its outline, not a second cap over it.
-		button.set_button_mesh(part)
-		button.button_pressed.connect(_on_label_pressed.bind(i))
-		_label_buttons.append(button)
-
-
-func _on_label_pressed(index: int) -> void:
-	if index == selected:
-		print("[AvSwitch] %s: label %d clicked, already selected" % [name, index + 1])
-		return
-	select(index, "label click")
-
-
-## The first time a pointer lands on the selector (a window or the tab), say how it is worked: once.
+## The first time a pointer lands on the slide, say how it is worked: once.
 func _watch_for_pointer() -> void:
-	if _hinted:
-		return
-	var on := _slide.is_pointer_hovered()
-	for b in _label_buttons:
-		on = on or b.is_pointer_hovered()
-	if not on:
+	if _hinted or not _slide.is_pointer_hovered():
 		return
 	_hinted = true
 	if _hint == null:
@@ -261,9 +182,9 @@ func _watch_for_pointer() -> void:
 		if _hint == null:
 			return
 		_hint.add_row(&"av_select_pc", HeldHint.PLATFORM_DESKTOP, ["mouse_left_outline"],
-			"Click a number to switch to it, or the tab to step", HeldHint.WHEN_PLACED, true)
+			"Hold on the switch and drag it with the mouse", HeldHint.WHEN_PLACED, true)
 		_hint.add_row(&"av_select_vr", HeldHint.PLATFORM_VR, ["quest_trigger_{side}_outline"],
-			"Point and pull at a number, or slide the tab", HeldHint.WHEN_PLACED, true)
+			"Hold on the switch and slide it", HeldHint.WHEN_PLACED, true)
 		_hint.fit_above()
 	_hint.show_unheld()
 
@@ -325,7 +246,7 @@ static func _value_of(index: int) -> float:
 
 
 ## Put the slide on input `index` (0-3), as a hand would: it routes, tells everyone and is sent like any slide.
-## `source` is said in the log ("menu", "label click").
+## `source` is said in the log ("menu").
 func select(index: int, source := "code") -> void:
 	_next_source = source
 	_slide.set_value(_value_of(index))
@@ -340,7 +261,7 @@ func _on_slide(v: float) -> void:
 		return
 	var was := selected
 	selected = now
-	var source: String = _next_source if not _next_source.is_empty() 		else {"click": "tab click", "drag": "drag", "hand": "hand"}.get(_slide.last_input, _slide.last_input)
+	var source: String = _next_source if not _next_source.is_empty() else _slide.last_input
 	print("[AvSwitch] %s: slide %d -> %d by %s%s" % [name, was + 1, selected + 1, source,
 		" (from a peer)" if _last_from_wire else ""])
 	_notify("the slide moved")

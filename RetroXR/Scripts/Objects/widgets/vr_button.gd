@@ -582,11 +582,6 @@ func set_selected(on: bool) -> void:
 	_sync_outline()
 
 
-## Whether a pointer (a laser, the desktop crosshair) is on it now.
-func is_pointer_hovered() -> bool:
-	return _pointer_hovered
-
-
 func is_selected() -> bool:
 	return _selected
 

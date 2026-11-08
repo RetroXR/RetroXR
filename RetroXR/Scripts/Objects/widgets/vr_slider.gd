@@ -61,15 +61,16 @@ const TRIGGER_OFF := 0.4
 @export var contact_margin: float = 0.015
 ## Current value 0..1.
 @export var value: float = 0.0
-## A pointer (the desktop crosshair, a laser) that presses the knob and lets go WITHOUT dragging it steps
-## it on by one detent, wrapping past the last: a selector worked by clicking. Pressing no longer jumps the
-## knob to the ray (it is already under it); a drag past CLICK_DRAG_M along the slot tracks as before.
-## Only with steps >= 3; a two-position switch flips on press anyway. A hand in VR is unchanged.
-@export var click_advances: bool = false
+## Desktop (no headset): pressed with the crosshair, the knob is DRAGGED WITH THE MOUSE, the way a slider on a
+## panel is: mouse motion along the slot as it lies on screen moves the knob continuously, the view does not turn
+## and the hand does not follow (the motion is taken in _input and marked handled, before MovementDesktopTurn's
+## _unhandled_input), the drag holds until the button comes up wherever the crosshair is, and the release snaps to
+## the nearest detent. A laser and a hand in VR are unchanged. Off by default (the old press-jumps-to-the-ray).
+@export var mouse_drag: bool = false
 
-## How far (m, along the slot) the ray must move from where it pressed before a press is a drag, not a
-## click: a third of the AV switch's 32 mm detent pitch, above the hand-shake of a click.
-const CLICK_DRAG_M := 0.006
+## mouse_drag: the fewest mouse pixels the whole travel takes, so a slot small on screen (far off, edge on) is
+## not a twitch end to end. Nearer, the slot's own length on screen (the knob keeps up with the mouse).
+const MOUSE_TRAVEL_MIN_PX := 360.0
 
 ## Release distance as a multiple of engage_radius, and how long the binding
 ## survives outside engage_radius. The knob stops tracking at engage_radius
@@ -127,12 +128,11 @@ var _rearmed: Dictionary = {}
 ## The desktop pointer pressed a two-position switch and flipped it; held until the button is
 ## released so that moving the crosshair along the slot does not flip it back.
 var _pointer_flipped := false
-## click_advances: where along the slot (m) the press landed, and whether the ray has since moved far
-## enough along it to be a drag.
-var _press_along := 0.0
-var _pointer_dragging := false
-## What moved the knob last: "click" (a pointer press with no drag), "drag" (a pointer drag), "hand"
-## (a fingertip), "code" (set_value) -- for an owner's log. Set just before value_changed is emitted.
+## mouse_drag: the press is held by the mouse, and the unsnapped value it has carried the knob to.
+var _mouse_held := false
+var _mouse_raw := 0.0
+## What moved the knob last: "drag" (a pointer: the mouse or a laser), "hand" (a fingertip), "code" (set_value),
+## for an owner's log. Set just before value_changed is emitted.
 var last_input := "code"
 var _knob_axis: Vector3 = Vector3.RIGHT
 var _knob_turn_axis: Vector3 = Vector3.UP
@@ -166,6 +166,8 @@ func _init() -> void:
 
 
 func _ready() -> void:
+	# Only a mouse-dragged slider reads input (its _input returns at once unless held anyway).
+	set_process_input(mouse_drag)
 	collision_layer |= POINTABLE_LAYER
 	PokeWake.ensure(self)
 	_knob_axis = axis_local.normalized()
@@ -454,10 +456,12 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 		XRToolsPointerEvent.Type.PRESSED:
 			_hover_pointers[event.pointer] = true
 			_pointer_engaged = true
-			if click_advances and steps >= 3:
-				# Not moved yet: a click steps it on release, a drag past CLICK_DRAG_M tracks.
-				_press_along = _along_of(event.position)
-				_pointer_dragging = false
+			if mouse_drag and not _vr():
+				# Held by the mouse from here: nothing jumps, _input moves it.
+				_mouse_held = true
+				_mouse_raw = value
+				print("[VRSlider] %s: held by the mouse at %.2f (%.0f px end to end)" % [name, value,
+					mouse_px_per_travel()])
 			elif steps == 2:
 				# A two-position switch is flipped by pressing it, wherever along the slot the
 				# crosshair is: which half of the slot you pointed at was never something to
@@ -467,23 +471,17 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 			else:
 				_track_pointer_point(event.position)
 		XRToolsPointerEvent.Type.MOVED:
-			if _pointer_engaged and not _pointer_flipped:
-				if click_advances and steps >= 3 and not _pointer_dragging:
-					_pointer_dragging = absf(_along_of(event.position) - _press_along) >= CLICK_DRAG_M
-				if not click_advances or steps < 3 or _pointer_dragging:
-					_track_pointer_point(event.position)
+			if _pointer_engaged and not _pointer_flipped and not _mouse_held:
+				_track_pointer_point(event.position)
 		XRToolsPointerEvent.Type.RELEASED:
-			if _pointer_engaged and click_advances and steps >= 3 and not _pointer_dragging:
-				var at := roundi(value * (steps - 1))
-				last_input = "click"
-				_set_from_raw(float((at + 1) % steps) / float(steps - 1))
+			_end_mouse_drag()
 			_pointer_engaged = false
 			_pointer_flipped = false
-			_pointer_dragging = false
 		XRToolsPointerEvent.Type.EXITED:
-			_pointer_engaged = false
+			# A mouse drag holds until the button comes up, wherever the crosshair has gone.
+			if not _mouse_held:
+				_pointer_engaged = false
 			_pointer_flipped = false
-			_pointer_dragging = false
 			_hover_pointers.erase(event.pointer)
 	_sync_outline()
 
@@ -493,9 +491,75 @@ func is_pointer_hovered() -> bool:
 	return _pointer_hovered
 
 
-## How far along the slot (m, in this node's frame) a world point lies.
-func _along_of(world_pos: Vector3) -> float:
-	return to_local(world_pos).dot(axis_local.normalized())
+## Whether the mouse is dragging the knob now (mouse_drag).
+func is_mouse_held() -> bool:
+	return _mouse_held
+
+
+func _vr() -> bool:
+	return is_inside_tree() and get_viewport().use_xr
+
+
+## The slot as it lies on screen, from the knob's end at value 0 to its end at value 1: {dir (unit, pixels),
+## len (pixels)}, or {} with no camera.
+func _slot_on_screen() -> Dictionary:
+	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+	if cam == null or travel <= 0.0:
+		return {}
+	var axis := (global_basis * axis_local).normalized() * travel * global_basis.get_scale().x
+	var mid := global_position
+	var a := cam.unproject_position(mid - axis * 0.5)
+	var b := cam.unproject_position(mid + axis * 0.5)
+	var d := b - a
+	if d.length() < 0.001:
+		return {}
+	return {"dir": d.normalized(), "len": d.length()}
+
+
+## Mouse pixels (along the slot on screen) the whole travel takes now: the slot's own length on screen, but never
+## under MOUSE_TRAVEL_MIN_PX.
+func mouse_px_per_travel() -> float:
+	var slot := _slot_on_screen()
+	return MOUSE_TRAVEL_MIN_PX if slot.is_empty() else maxf(float(slot["len"]), MOUSE_TRAVEL_MIN_PX)
+
+
+## mouse_drag: the mouse moves the held knob along the slot on screen, continuously, and the view is left alone
+## (handled here, before MovementDesktopTurn's _unhandled_input reads it). The button coming up ends it even if the
+## pointer never says RELEASED (its target gone).
+func _input(event: InputEvent) -> void:
+	if not _mouse_held:
+		return
+	var mb := event as InputEventMouseButton
+	if mb != null and mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
+		_end_mouse_drag()
+		_pointer_engaged = false
+		return
+	var mm := event as InputEventMouseMotion
+	if mm == null:
+		return
+	get_viewport().set_input_as_handled()
+	var slot := _slot_on_screen()
+	if slot.is_empty():
+		return
+	_mouse_raw = clampf(_mouse_raw + mm.relative.dot(slot["dir"]) / maxf(float(slot["len"]), MOUSE_TRAVEL_MIN_PX),
+		0.0, 1.0)
+	if is_equal_approx(_mouse_raw, value):
+		return
+	last_input = "drag"
+	value = _mouse_raw
+	_update_knob()
+	if not _suppress_signal:
+		value_changed.emit(value)
+
+
+## Let go of a mouse drag: the knob snaps to the nearest detent.
+func _end_mouse_drag() -> void:
+	if not _mouse_held:
+		return
+	_mouse_held = false
+	last_input = "drag"
+	_set_from_raw(_mouse_raw)
+	print("[VRSlider] %s: let go by the mouse at %.2f" % [name, value])
 
 
 ## Value the travel axis projects a world point to, unclamped and unsnapped.
