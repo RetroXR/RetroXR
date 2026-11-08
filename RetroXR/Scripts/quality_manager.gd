@@ -796,6 +796,11 @@ func _log_state() -> void:
 		RenderingServer.get_current_rendering_method(), root.scaling_3d_scale,
 		root.scaling_3d_mode, root.msaa_3d, root.screen_space_aa, preset,
 		shadow_quality, ao_quality, root.positional_shadow_atlas_size])
+	# Which thread draws: project.godot sets Godot's experimental SEPARATE render
+	# thread on Windows (thread_model.windows=2; 2026-11-07, 8.5-9.6 -> 5.1 ms a
+	# frame in the Starlight Arcade). A crash report needs to say which one ran.
+	print("QualityManager: rendering on %s" % (
+		"the main thread" if RenderingServer.is_on_render_thread() else "a separate render thread"))
 
 
 ## Screen-space effects (SSAO here, plus SSIL/SSR/volumetric fog if they are

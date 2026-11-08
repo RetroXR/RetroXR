@@ -41,8 +41,14 @@ func _ready() -> void:
 			for x in image.get_width():
 				image.set_pixel(x, y, Color.RED if x < 4 else Color.GREEN if x < 8 else Color.BLUE)
 		texture.update(image)
-		for frame in 4:
+		# The sample comes back from the render thread a frame or two after it is
+		# asked for (AsyncTextureRead), and a read in flight holds back the next:
+		# wait for it, within a bound, rather than for a fixed count.
+		for frame in 60:
 			await get_tree().process_frame
+			if left.light_color.r > left.light_color.g and light.light_color.g > light.light_color.r \
+					and right.light_color.b > right.light_color.r:
+				break
 		_ok(left.light_color.r > left.light_color.g, "updates/left follows new frame")
 		_ok(light.light_color.g > light.light_color.r, "updates/centre follows new frame")
 		_ok(right.light_color.b > right.light_color.r, "updates/right follows new frame")

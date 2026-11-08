@@ -253,3 +253,140 @@ save folders, the soak probe and ad-hoc runs do NOT, so take a copy of the folde
 **OWED:** the Quest (4 cores plus the render thread compete there; the cores cost several times more per frame than on this laptop,
 so core cost per cabinet and the muted-video idea matter more), a headset, a boss screen, and a second, unthrottled-by-heat
 machine to see what the same scene costs when the GPU gets its clock.
+
+## Whole-room profile with Tracy (Starlight Arcade autosave, 2026-11-04)
+
+Reported: 50-60 fps on the RTX 5070 laptop. At 165 Hz with vsync a frame over 12.1 ms waits for
+every third refresh (55 fps), and the room's main thread was ~12-14 ms on AC. The GPU was 3 ms.
+
+**Measuring traps, each cost a wrong conclusion here:**
+- `Performance.TIME_PROCESS` / `TIME_PHYSICS_PROCESS` are the WORST value of the last second, not a mean
+  (they read 35 ms in a 17 ms frame). Time frames yourself.
+- Jolt reports 0 for `PHYSICS_3D_ACTIVE_OBJECTS`, `_COLLISION_PAIRS` and `_ISLAND_COUNT`.
+- On battery the panel drops to 60 Hz and frames pin at 16.7 ms whatever runs: check `PowerOnline`
+  (`root/wmi BatteryStatus`) before any timing.
+- Switching one thing off at a time and comparing frame times has ~±2 ms of noise across launches and
+  ~±0.5 ms within one: it inflated a 0.44 ms saving to "1.3 ms" once. A/B inside ONE process, alternate
+  the legs, or use Tracy.
+
+**Tracy recipe** (the engine's own `profiler=tracy`; every GDScript function and the main loop are zoned):
+`git clone --depth 1 --branch v0.14.1 https://github.com/wolfpld/tracy ~/tools/tracy`, build
+`capture/` and `csvexport/` with CMake, then in `~/godot`:
+`~/.local/bin/scons platform=windows target=editor profiler=tracy profiler_path=<tracy> optimize=speed lto=none accesskit=no d3d12=no -j16`
+(12 min). Run `tracy-capture -o room.tracy -f -s 75`, then the built editor binary with `--path RetroXR`
+(do one warm-up launch first: the custom build recompiles its shader caches), then
+`tracy-csvexport -u room.tracy` and analyse a steady window on the main thread by nesting (self time).
+The traces are in `~/tools/traces/`.
+
+**Per frame, 25 s steady, 1,391 frames:**
+
+| | ms |
+|---|---:|
+| Jolt step (`3D physics`, 1.6 steps a frame) | 5.09 (3.2 a step) |
+| physics callbacks (`physics_process`: grab drivers 0.46, player body 0.53, cables 0.19, ropes in the 0.67 self) | 2.46 |
+| `process` (of which handhelds' `ControlPoke` polls via `handheld_input._local_state`: 1.6-1.9) | 4.69 |
+| `RenderingServer::draw` (viewport render 3.34, `draw_graph.end` 1.69) | 5.57 |
+| all GDScript functions, own time | 5.96 |
+
+- **The Jolt step is the area monitoring**: all 431 monitoring areas off, 3.2 -> 0.49 ms a step. By group,
+  the 151 `XRToolsSnapZone`s are -1.2 ms a step (~8 us each); everything else (109 VRButtons ~1.2 us each,
+  ports, slots, hinges) is within noise one group at a time and makes up the rest together. Fixed below: an
+  empty zone that snaps only DROPPED objects watches only while a hand holds something.
+- 20 motionless rigid bodies never sleep, because the locked main `Table` (frozen KINEMATIC) never falls
+  back asleep and Jolt keeps everything touching an active body awake. Measured cost: none.
+- The 60 s autosave is a ~37 ms main-thread stall (snapshot 30 ms, encode 5.6 ms).
+- Draws: 1,496 calls, 691k triangles; the 20 consoles are 712 of the calls.
+
+**Fixed (2026-11-04), same room, Tracy, one process, the snap-zone rule A/B by its kill switch:**
+
+| | before | after |
+|---|---:|---:|
+| frame (uncapped) | ~18 ms vsync-paced; 14.48 with only the snap rule off | **11.24 ms (88.8 fps)** |
+| Jolt step | 3.2 ms a step | **0.46 ms a step** (269 -> 0 of 367 zones watching) |
+| `ControlPoke.poll` (28 a frame) | 1.63 ms | 0.26 ms |
+| autosave snapshot + encode | 36-38 ms | ~20 ms (byte-identical slot) |
+
+- Snap zones (`snap_zone.gd`, the xr-tools fork): `_wants_monitoring()` -- an empty DROPPED-mode zone
+  watches only while a pickable is held by anything but a zone (`note_hold`, called from
+  `XRToolsPickable.pick_up` / every `dropped.emit` / `_exit_tree`); off again `IDLE_OFF_DELAY` (0.5 s)
+  after the last hand lets go, because the drop is taken in deferred handlers and reported 0.1 s on.
+  RANGE zones always watch; full zones stopped watching already. `idle_unmonitored` is the kill switch.
+- `ControlPoke.poll` returns at once with no hand near and nothing held, after `SETTLE_FRAMES` (45) for a
+  let-go cap to ease back (`control_poke_tests` `idle_stops` / `idle_wakes`).
+- The snapshot no longer walks every object's subtree three times by class name: VRHinge, VRKnob and
+  VRSlider join `ScenePersistence.CONTROL_GROUP` in `_init`, LightSwitch joins `SWITCH_GROUP`, and the
+  snapshot files those lists in tree order (`is_greater_than`) so an object's list is what its own
+  `find_children` gave. A whole-room `find_children` by class name was tried first and was SLOWER
+  (8 ms a type: it checks every node's script). Ropes are an engine class and keep their walk.
+  `scene_tests --only=descendants`.
+- A locked object freezes STATIC (`ObjectLock`), its own mode restored on unlock: the locked table is no
+  longer a woken kinematic body holding twenty objects awake (`scene_tests --only=lock`).
+
+**Not done, and why:**
+- 60 Hz physics on desktop: `QualityManager.apply_display_rate`'s note keeps the tick fixed for the rope
+  solver (tuned and regression-tested at it; `rope_bench`/`rope_stress` are bit-exact oracles), and
+  `_desktop` is true for PC VR too. With the step now 0.46 ms it would save ~0.5 ms, not 2.5.
+- Rendering (now the largest part, ~5.2 ms of CPU): the main view's render is 3.2 ms and `draw_graph.end`
+  1.6 ms; the 40 `render viewport` zones a frame are every ACTIVE viewport, opened before the skip
+  check, not 40 renders. The lever is the 712 draw calls of the 20 consoles, which is model work.
+- Grab drivers (99 a frame, 0.29 ms) and handheld input's own animation pass (0.9 ms incl.) are left.
+
+**The separate render thread (2026-11-07, Windows only: `rendering/driver/threads/thread_model.windows=2`).**
+Godot's default draws on the main thread after scripts and physics; with the SEPARATE model frame N is
+drawn while frame N+1 runs, so a frame costs the slower half, not the sum. Measured in the Starlight Arcade
+with the stock 4.7.2 binary and every fix above, vsync off, 20 s a run, `--render-thread safe|separate`
+alternated, two runs each:
+
+| | safe (main thread) | separate |
+|---|---:|---:|
+| frame, mean | 8.53 / 9.58 ms (117 / 104 fps) | **5.05 / 5.16 ms (198 / 194 fps)** |
+| p95 / p99 | 12.2-12.3 / 14.1-15.0 ms | 8.7-8.8 / 10.2-10.5 ms |
+
+- Godot marks the model EXPERIMENTAL ("several known bugs which can lead to crashing, especially when using
+  particles or resizing the window"). Measured here: 40 resizes and 4 fullscreen toggles, three runs, no
+  crash; all 104 suites pass on it; the room draws the same (safe vs separate differ on 0.28% of pixels,
+  all on cables, the robot and the clock; two safe runs differ on 0.20%).
+- **A readback stalled the main thread on the render thread** (fixed): `get_image()` on a viewport texture
+  is a round trip that waits for the render thread (and, in either model, for the GPU), which
+  `screen_cast_light.gd` did every `screen_light_interval` frames while a picture showed and
+  `gb_camera_eye.gd` while it films. Both now go through **`AsyncTextureRead`**
+  (`Scripts/Objects/async_texture_read.gd`): `RenderingServer.call_on_render_thread` +
+  `RenderingDevice.texture_get_data_async`, the pixels back a frame or two later; with no RD (headless,
+  Compatibility) or an unmapped format it reads synchronously as before. Measured with 17 of the probe's
+  OWN `ScreenCastLight`s sampling, 20 s a run (`AsyncTextureRead.synchronous` is the A/B switch):
+
+  | | async | blocking `get_image()` |
+  |---|---:|---:|
+  | separate | **4.14 / 4.58 ms** (242 / 219 fps), p99 8.2-8.8 | 13.09 / 11.69 ms (76 / 86 fps), p99 23-27 |
+  | safe | 7.47 ms | 14.74 ms |
+
+  The probe needs lights of its own: feeding the room's lights a picture does nothing, as each TV or
+  handheld re-drives its light from its real screen every frame and an off set switches it back off
+  (the first table's "17 lights sampling" row, since removed, measured no sampling at all).
+- **Never hand the RenderingDevice a GDScript callable that can still be pending at quit.**
+  `Main::cleanup` finishes the script languages BEFORE `finalize_display` flushes and frees the RD, so a
+  lambda in a pending `texture_get_data_async` was called or freed with no GDScript left: a segfault on
+  every quit with a read in flight (3 of 3; 0 of 3 blocking). `AsyncTextureRead` gives the RD only
+  native callables (`Callable.create(Callable(owner, method).bind(w, h, fmt), "call_deferred")`); the
+  owner takes `(data, width, height, format)` and calls `AsyncTextureRead.image_from()`. 3 of 3 clean
+  with 5-9 reads in flight at quit.
+- **Fixed in the ENGINE: quitting logged `This function (finalize) can only be called from the render
+  thread` and leaked the RD's textures**, only in this model. Not Betsy: `RenderingServerDefault::
+  _assign_mt_ids` makes the main RD current on the render thread, `finish()` never hands it back, and
+  `DisplayServerWindows` frees the RD on the main thread, so `~RenderingDevice`'s `finalize()` fails its
+  `ERR_RENDER_THREAD_GUARD` and returns early, leaking every RID it owns. `finish()` now calls
+  `rd->make_current()` once the render thread has exited: `docs/godot-4.7.2-render-thread-rd-handback.patch`
+  (in `~/godot`, not yet committed on `retroxr-4.7.2`). Verified with an editor build: no finalize error,
+  no leak report; stock 4.7.2 still shows both. **Desktop ships the OFFICIAL templates**, so the stock
+  error stays on Windows until upstream fixes it (exit only, harmless). The custom/Tracy build also
+  exited 3 on `Thread::release_main_thread` (`!is_main_thread_assigned`), `--version` included: Tracy's
+  static `s_profiler` touches a `thread_local` during CRT start-up, MSVC's `__dyn_tls_init` then runs
+  EVERY thread-local initialiser, and `Thread::caller_id` took `id_counter.increment()` before
+  `id_counter(1)` was dynamically initialised -- 0 + 1 = `MAIN_ID`, so `make_main_thread()` returned
+  early without setting the flag (found with a stack dump and a `/MAP` link). Upstream fixed it on master
+  (30b9a76d04, `SafeNumeric`/`SafeFlag` constant-initialised), never backported to 4.7: carried as
+  `docs/godot-4.7.2-safe-numeric-constexpr.patch`. Any `profiler=tracy` Windows build needs it; the
+  Quest's (no profiler) has no known trigger.
+- `QualityManager` logs which thread draws (`rendering on a separate render thread` / `the main thread`),
+  read from `RenderingServer.is_on_render_thread()`: ProjectSettings does not report the override.
+- The Quest (Mobile renderer under OpenXR) and Linux/macOS are untouched; try them separately.

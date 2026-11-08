@@ -29,6 +29,8 @@ var _sample_viewport: SubViewport = null
 var _sample_material: ShaderMaterial = null
 var _refresh_frame := 0
 var _picture_active := false
+# A sample read is on its way back from the render thread (AsyncTextureRead).
+var _sample_pending := false
 var _output_active := false
 var _have_colours := false
 var _left_light: SpotLight3D = null
@@ -215,8 +217,19 @@ func _capture_regions() -> void:
 	# Headless uses the dummy texture server; there is no rendered image to read.
 	if RenderingServer.get_rendering_device() == null:
 		return
-	var image := _sample_viewport.get_texture().get_image()
-	if image == null or image.is_empty():
+	# Not get_image(): with the separate render thread that waits for the render
+	# thread every few frames, per lit screen. The picture read is the one the
+	# sampler drew last time round, as before; its colours land a frame or two on.
+	if _sample_pending:
+		return
+	_sample_pending = true
+	AsyncTextureRead.request(_sample_viewport.get_texture(), self, &"_on_sample")
+
+
+func _on_sample(data: PackedByteArray, width: int, height: int, format: int) -> void:
+	_sample_pending = false
+	var image := AsyncTextureRead.image_from(data, width, height, format)
+	if image == null or image.is_empty() or not _picture_active:
 		return
 	var sums := [Color(0.0, 0.0, 0.0), Color(0.0, 0.0, 0.0), Color(0.0, 0.0, 0.0)]
 	var counts := [0, 0, 0]

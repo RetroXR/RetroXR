@@ -106,6 +106,11 @@ var _armed := false
 ## Seconds until the next picture may be taken.
 var _wait := 0.0
 var _feeding: Object = null
+## A picture is on its way back from the render thread (AsyncTextureRead), and
+## the size the core asked for when it was armed.
+var _reading := false
+var _reading_size := Vector2i.ZERO
+var _reading_for: Object = null
 var _backdrop: MeshInstance3D = null
 var _sphere_material: ShaderMaterial = null
 var _depth_material: ShaderMaterial = null
@@ -267,15 +272,35 @@ func _next_picture(size: Vector2i) -> Image:
 		return picture_source.call(size)
 	if not _can_draw():
 		return null
-	# Armed on an earlier frame, so drawn by now: taken, not waited for.
+	# One picture on its way back from the render thread at a time.
+	if _reading:
+		return null
+	# Armed on an earlier frame, so drawn by now: taken, not waited for. Not with
+	# get_image(), which with the separate render thread makes the main thread
+	# wait for the render thread; the picture reaches the core a frame or two on
+	# (_on_camera_picture).
 	if _armed:
 		_armed = false
-		return _viewport.get_texture().get_image()
+		_reading = true
+		_reading_size = size
+		_reading_for = _feeding
+		AsyncTextureRead.request(_viewport.get_texture(), self, &"_on_camera_picture")
+		return null
 	# Set, not added to: a hitch is not made up for with a burst of passes.
 	if _wait <= 0.0 and _armed_on_frame != Engine.get_process_frames():
 		_wait = _period()
 		_arm(size)
 	return null
+
+
+## The picture read back by AsyncTextureRead: to the core being fed now, if any.
+func _on_camera_picture(data: PackedByteArray, width: int, height: int, format: int) -> void:
+	_reading = false
+	var picture := AsyncTextureRead.image_from(data, width, height, format)
+	# The core changed while the picture was on its way: it was sized for the old one.
+	if picture == null or not is_instance_valid(_feeding) or _feeding != _reading_for:
+		return
+	push_picture(_feeding, picture, _reading_size)
 
 
 func _arm(size: Vector2i) -> void:
