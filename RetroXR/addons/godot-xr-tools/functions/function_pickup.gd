@@ -600,6 +600,18 @@ func _pick_up_object(target: Node3D) -> void:
 	if target.has_method("can_pick_up") and not target.can_pick_up(self):
 		return
 
+	# LOCAL PATCH (RetroXR): the other hand's beam lets go first. A ray grab never
+	# calls pick_up, so can_pick_up() says yes to an object at the end of a beam —
+	# but the beam has frozen it, pick_up() would record that as the object's own
+	# state (restore_freeze = true), and on release it would hang in the air. The
+	# beam's transfer release restores the real freeze before this hand takes it.
+	var target_pickable := target as XRToolsPickable
+	if target_pickable:
+		for pickup in get_tree().get_nodes_in_group(PICKUP_GROUP):
+			if pickup != self and pickup is XRToolsFunctionPickup \
+					and pickup.is_ray_grabbing_target(target_pickable):
+				pickup._release_ray_for_transfer()
+
 	# Pick up our target. Note, target may do instant drop_and_free
 	picked_up_ranged = not _object_in_grab_area.has(target)
 	picked_up_object = target
@@ -784,7 +796,8 @@ func _process_pointer_highlight() -> void:
 		var ray_cast := _ray_pointer.get_node_or_null("RayCast") as RayCast3D
 		if ray_cast and ray_cast.is_colliding():
 			var body := _resolve_pickable(ray_cast.get_collider())
-			if body and body.can_pick_up(self) and not _is_target_ray_grabbed_elsewhere(body):
+			if body and body.can_pick_up(self) and not body.is_picked_up() \
+					and not _is_target_ray_grabbed_elsewhere(body):
 				new_target = body
 	_set_pointer_highlight(new_target)
 
@@ -812,7 +825,11 @@ func _start_ray_grab(target: XRToolsPickable) -> void:
 	# zone, which would otherwise be flown out of its socket while the zone went
 	# on believing it still had it. _process_pointer_highlight applies the same
 	# test before offering a target, so this only bites a direct caller.
-	if not target.can_pick_up(self):
+	# LOCAL PATCH (RetroXR): is_picked_up too — can_pick_up() lets a second HAND
+	# through on an object the other hand holds. The beam would then record that
+	# hand's freeze as the object's own (restore_freeze = true) and hand it back on
+	# release: the object hangs in the air where it was let go.
+	if not target.can_pick_up(self) or target.is_picked_up():
 		return
 
 	_start_ray_grab_at(target, global_transform.origin.distance_to(

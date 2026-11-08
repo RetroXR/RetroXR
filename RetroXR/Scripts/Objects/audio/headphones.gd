@@ -197,7 +197,11 @@ func take_off() -> void:
 	worn = false
 	var cam := _wearer
 	_wearer = null
-	if not _body.is_picked_up():
+	if _body.is_picked_up():
+		# Grabbed off the head: XR-tools captured restore_freeze = true from the worn (frozen) body at pick-up and
+		# would hand it back on release, leaving the headset hanging in the air (MediaSlot/MediaTray do the same).
+		_body.restore_freeze = false
+	else:
 		_body.freeze = false
 		if is_instance_valid(cam):
 			# Down in front of the face, where a hand would put them.
