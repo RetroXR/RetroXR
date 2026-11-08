@@ -156,13 +156,17 @@ func _build() -> void:
 			_dc_rope = null
 			_make_dock(size)
 			_make_wall_plug(false, size)
+			# The row's anchor is in the floor frame (origin under the middle, -Z the back);
+			# the module's is its back face's middle, reaching +Z into the bay. Unmoved, the
+			# mains cord started 37 mm behind the module, in the air.
+			var ac := _mm(_spec.get("ac")) + Vector3(0, -size.y * 0.5, size.z * 0.5)
 			if _model_scene != null:
 				var box := _wear(dc_plug)
 				(dc_plug.get_node("PlugTip") as MeshInstance3D).visible = false
 				_add_cord(_ac_rope, _model_anchor(dc_plug, "AcAnchor", "ACCordAnchor", box,
-					_mm(_spec.get("ac"))), wall_plug)
+					ac), wall_plug)
 			else:
-				_add_cord(_ac_rope, _anchor(dc_plug, "AcAnchor", _mm(_spec.get("ac")),
+				_add_cord(_ac_rope, _anchor(dc_plug, "AcAnchor", ac,
 					Vector3(0, 0, size.z * 0.5), size), wall_plug)
 		"battery_pack", "battery_case":
 			var box := _make_body(size)

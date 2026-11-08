@@ -43,7 +43,9 @@
 ##
 ## Frames. A wall wart's is a wall plug's: origin on its mating face, its blades
 ## along +Z, the body behind (-Z). An in-line or pack body's origin is on its floor
-## under its middle, long axis Z. These match the models' published anchors as far as
+## under its middle, long axis Z. A dock's anchors are given in that same floor frame
+## (-Z the face away from the console); PowerBrick moves them onto the module, whose
+## origin is the middle of that back face. These match the models' published anchors as far as
 ## the stats say; the import of each model is where they are checked against it.
 class_name PowerBrickCatalog
 extends RefCounted
@@ -165,11 +167,12 @@ static func _shipped() -> Dictionary:
 			"dc_plug": "eiaj_03", "plug_mm": [10.6, 10.6, 45.0], "source": "sony/ps2/psu-slim",
 			"variants": {"usa": _inlet([60.0, 28.8, 145.5], [0.0, 12.0, 83.5], [0.0, 12.0, -60.8])}},
 		# ── the handhelds' ─────────────────────────────────────────────────────
-		# DMG-03: a rechargeable pack on a cord into the Game Boy's DC IN.
+		# DMG-03: a rechargeable pack on a cord into the Game Boy's DC IN. Its lead leaves
+		# the +Z end face (half the 118.5 mm length); at 66 it started 7 mm out in the air.
 		"dmg_battery_pack": {"label": "Game Boy Battery Pack (DMG-03)", "cord": Color8(24, 24, 26), "fits": ["gb"],
 			"dc_plug": "barrel_3_5x1_35", "plug_mm": [7.6, 21.1, 20.0], "source": "nintendo/gb/psu",
 			"variants": {"usa": {"form": "battery_pack", "size_mm": [60.0, 33.04, 118.5],
-				"dc": [0.0, 15.0, 66.0]}}},
+				"dc": [0.0, 15.0, 59.25]}}},
 		# DMG-05: Nintendo's Battery Case, sold in Japan only -- four C cells in a box on a
 		# cord into the Game Boy's DC IN, the same plug as the DMG-03's (about 40 hours a
 		# set, per consolevariations.com). No measured model: the size is an ESTIMATE, the

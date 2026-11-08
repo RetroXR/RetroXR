@@ -737,6 +737,8 @@ func _test_brick() -> void:
 	var module := _brick("n64_psu", "usa", Vector3(1.5, 0.3, 0.5))
 	await _wait(4)
 	_eq(module.form, "dock", "brick/the NUS-002 docks")
+	_ok(_on_box_face(module.dc_plug, "AcAnchor"), "brick/its mains cord leaves the module, not the air",
+		_anchor_off(module.dc_plug, "AcAnchor"))
 	_ok(dock != null and module.dc_plug.is_in_group(dock.snap_require), "brick/into the N64's back")
 	if dock != null:
 		dock.pick_up_object(module.dc_plug)
@@ -748,7 +750,33 @@ func _test_brick() -> void:
 	var pack := _brick("dmg_battery_pack", "usa", Vector3(-1.0, 0.3, 0.5))
 	await _wait(4)
 	_ok(MainsPower.plug_live(pack.dc_plug), "brick/the DMG-03 pack is charged")
+	_ok(_on_box_face(pack.get_node("Body"), "DcAnchor"), "brick/its lead leaves the pack, not the air",
+		_anchor_off(pack.get_node("Body"), "DcAnchor"))
 	await _clear()
+
+
+## A cord anchor on `carrier` lies on a face of its collision box (within 1 mm).
+func _on_box_face(carrier: Node, anchor_name: String) -> bool:
+	var box := _collision_box(carrier)
+	var anchor := carrier.get_node_or_null(anchor_name) as Node3D
+	if anchor == null or box.size == Vector3.ZERO:
+		return false
+	var d := (anchor.position - box.get_center()).abs() - box.size * 0.5
+	return d.x <= 0.001 and d.y <= 0.001 and d.z <= 0.001 and maxf(d.x, maxf(d.y, d.z)) >= -0.001
+
+
+func _anchor_off(carrier: Node, anchor_name: String) -> String:
+	var anchor := carrier.get_node_or_null(anchor_name) as Node3D
+	return "%s in box %s" % [str(anchor.position) if anchor != null else "none",
+		str(_collision_box(carrier))]
+
+
+func _collision_box(carrier: Node) -> AABB:
+	var col := carrier.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col == null or not (col.shape is BoxShape3D):
+		return AABB()
+	var size := (col.shape as BoxShape3D).size
+	return AABB(col.position - size * 0.5, size)
 
 
 ## The DMG-05 Battery Case: four C cells in a bay of its own, full fresh from the
