@@ -79,7 +79,8 @@ func _item(item: String) -> void:
 			_reach(item + "/door shut", root, ["AudioModeButton", "CRTButton", "AudioOutButton", "AspectButton"])
 			shell.call("set_door_open", true)
 			await _settle()
-			_reach(item + "/door open", root, ["KeyDoorButton"])
+			# Open, the door is still taken by the ray (it is pushed shut from there), and so is every key behind it.
+			_reach(item + "/door open", root, [])
 			await _poke(item + "/door open", root, ["MuteButton", "VolumeDownButton", "VolumeUpButton",
 				"ChannelDownButton", "ChannelUpButton", "TVToggleButton", "SourceButton"])
 		"turntable":

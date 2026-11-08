@@ -213,10 +213,9 @@ sockets through `TvFit`, so the scene carries no hand-measured pose. On top of t
   called). The shell `adopt_button`s all twelve bezel buttons onto the model's keys.
   `VRButton.set_color` leaves a button with `state_tint` off alone, or the set's state
   colours repaint an adopted key.
-- **Key door.** It opens and closes on a press of its face (`KeyDoorButton`, depth 0) and
-  runs `DoorOpen` / `DoorClose`. While it is shut, the five keys behind it (AUDIO MODE,
-  AUDIO OUT, CRT, ASPECT, STEREO) are not interactive. The door is NOT saved or synced: a
-  restored or remote set starts shut.
+- **Key door.** A push-push flap on a hinge of its own (`TvKeyDoor`, 2026-11-08; "The key
+  door" below). While it is shut, and until it stands 60 deg open, the five keys behind it
+  (AUDIO MODE, AUDIO OUT, CRT, ASPECT, STEREO) are not interactive. Saved and synced.
 - **Lamp.** `PowerLed` takes a material of its own, lit while `is_on()`.
 
 `Tools/av/tv_model_probe` (windowed, `-- --out=`) checks the twenty sockets on their mouths
@@ -247,6 +246,53 @@ The TV remote's own `_key_gate` had both faults and has both fixes. `appliance_p
 fingertip 3 cm through every key, holds it there past the grace, and draws it out: each key must have fired ONCE.
 Judging from the sunk cap fails 11 of the set's keys, and taking away `gate_holds` fails 11.
 
+### The key door: a push-push catch (2026-11-08)
+
+The RETRO XR set's door over the five keys in the bezel's bottom right works as the front
+doors of CRT sets did: a **push-push catch** (push to open, push to close) holds it shut;
+a press on the shut door lets the catch go and a spring swings it out, usually slowed by a
+damper; pushed back up until it clicks, the catch takes it again (US5877939A, a television
+"snap door" that a press on the closed door unlatches and springs out; Hitachi 31CX5B's
+manual, "push on the door"; the push catches sold for AV equipment's control flaps:
+https://patents.google.com/patent/US5877939, https://www.manualslib.com/manual/502107/Hitachi-31cx5b.html?page=12,
+https://allfixelectrical.com.au/products/small-push-catch-for-furniture-audio-video-equipment-part-dl1902).
+Some sets had a pull tab instead (Sharp's "PULL-OPEN"); the RETRO XR model has none.
+
+- **The rig** (`RetroXRCrtShell._build_door`): `KeyDoorPivot` stands on the door's own
+  origin, its bottom edge, about whose X the model's `DoorOpen` turns it (+X is outward
+  and down, 100 deg); `attach_part` hangs every level's `KeyDoor` under it, and
+  `KeyDoorHinge` (a `TvKeyDoor`, which is a `VRSpringLatchedHinge` with `push_push`) has
+  ONE box: the door as drawn in the pivot's frame, no margin, so it turns with the door.
+  `DoorOpen`/`DoorClose` are no longer played. The old `KeyDoorButton` is gone.
+- **Poked shut:** a fingertip on the outer face (`poke_close_faces` +Z) drives the door IN
+  (overtravel, `push_push_overtravel_deg` = the angle that moves its top edge 2 mm); 2 mm
+  past the FACE the catch lets go (`TvKeyDoor._on_poke_started` measures from the face:
+  `VRSpringLatchedHinge` measured from wherever the tip came within `poke_face_margin`,
+  12 mm, so the catch let go before the finger touched). The door then rides the finger
+  out and falls open, damped (`_step_spring_open`: 7/s of what is left, at least 25 deg/s,
+  about 0.7 s).
+- **Open:** the same outer face, now facing down, is pushed UP by a fingertip; 3 deg past
+  shut it latches. A finger taken away part-way lets it fall open again. A hand's trigger
+  or a laser drags it (VRHinge), and home it latches there and then (`TvKeyDoor._process`,
+  `HOME_DEG` 0.5, once it has been more than `AWAY_DEG` 5 from home: a trigger that
+  unlatches it holds it AT home). Let go of part-way, it falls open.
+- **Desktop:** a press on the shut door unlatches it (nothing is held, so the release
+  asks nothing). On the open door, a press takes it WITH THE MOUSE (VRSlider.mouse_drag's
+  arrangement, b8d67bfb): `_input` moves it by the mouse motion along its free edge's
+  on-screen path (never under 360 px for the swing) and marks the motion handled, so the
+  view does not turn. Home, it latches with the button still down.
+- **Keys:** live while the door is unlatched and at least `KEYS_LIVE_DEG` 60 open
+  (`_update_door_keys`, every frame, logged on change).
+- **Saved and synced** as every spring-latched hinge is: `VRHinge._init` joins
+  `ScenePersistence.CONTROL_GROUP`, the save records `value` + `latched` at
+  `.../KeyDoorPivot/KeyDoorHinge`, ObjectSync sends both.
+- Log: `[TV] key door: unlatched by <a fingertip|a hand|pointer>`, `pushed shut by ...`,
+  `latched`, `fell open (...)`, `open (100 deg)`, `the five keys behind it are live|dead`.
+
+`tv_key_door_tests` (build/ pointer/ mouse/ poke/ keys/ save/, a tracked fingertip and real
+mouse motion), and `appliance_pointer_tests` tv: the ray takes the door shut and open, and
+the keys once it is open. `Tools/av/tv_door_probe` (windowed) films it. Headset feel OWED.
+
 ### The ray meets what the model draws: no padding (2026-10-30)
 
 Every box the desktop ray (or a hand) meets on the RETRO XR VCR, DVD player, amplifier,
@@ -265,7 +311,7 @@ ray could not press them at all.
   The television's five door keys sit 7.6 mm into the bezel: the pocket runs from the caps'
   BACKS out through the front. A pocket floor level with the key faces ties with the key,
   and the shell wins the tie (the resolver returns the first of two non-controls). The door
-  is left out of the body and is its own box (`KeyDoorButton`, pressed on its face along -Z).
+  is left out of the body: it hangs on its own hinge, whose box is the door (`TvKeyDoor`).
 - **The record player's plinth stops under the 33/45 caps.** The model's `Body` also
   carries the tonearm base, 48 mm higher. The dust cover's lever box is the whole cover, the
   body's `CoverShape` is the cover shut, and the tonearm's lever box is the whole arm. With

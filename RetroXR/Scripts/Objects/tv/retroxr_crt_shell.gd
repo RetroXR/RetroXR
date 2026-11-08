@@ -7,8 +7,8 @@
 ##   - hides the model's own Screen (the set's tube, with the CRT shader, draws the picture there);
 ##   - dresses the twelve bezel buttons with the model's keys (adopt_button, so a key presses with its button);
 ##   - lights the power lamp while the set is on;
-##   - opens and closes the key door (DoorOpen / DoorClose) when it is pressed, and leaves the five keys behind it
-##     dead while it is shut.
+##   - hangs the key door on a hinge of its own (TvKeyDoor: a push-push catch, poked or pressed to fall open, pushed
+##     back up to latch), and leaves the five keys behind it dead until it stands open (KEYS_LIVE_DEG).
 ## The model prints its own legends round every socket, so the set prints none (print_legends = false).
 class_name RetroXRCrtShell
 extends RetroTVShell
@@ -18,7 +18,6 @@ const LEVELS := [
 	"res://imported-assets/appliances/crt_tv/tv_mobile_lod1.glb",
 	"res://imported-assets/appliances/crt_tv/tv_mobile_lod2.glb",
 ]
-const VR_BUTTON := preload("res://Scripts/Objects/widgets/vr_button.gd")
 
 ## RetroTV's bezel button -> the model's key.
 const KEYS := {
@@ -40,14 +39,17 @@ const MOUTHS := [
 	"SpeakerOutSr",
 ]
 
+## The five keys behind the door come alive once it has swung this far open (a fingertip fits behind it), and go
+## dead again below it.
+const KEYS_LIVE_DEG := 60.0
+
 const LED_ON := Color8(60, 235, 110)
 const LED_OFF := Color8(14, 44, 20)
 
 var _model: ApplianceModel = null
-var _door_button: VRButton = null
+var _door: TvKeyDoor = null
 var _door_keys: Array[VRButton] = []
-var _door_open := false
-var _door_busy := false
+var _keys_live: Variant = null
 var _led_on: Variant = null
 var _led_mat: StandardMaterial3D = null
 
@@ -86,13 +88,14 @@ func on_buttons_built(buttons: Array) -> void:
 		adopted += 1
 		if DOOR_KEYS.has(String(btn.name)):
 			_door_keys.append(btn)
-	_build_door_button()
+	_build_door()
 	_fit_collision()
-	_set_door_keys(false)
+	_update_door_keys()
 	print("[TV] RETRO XR cabinet: %d of %d bezel keys on the model; the key door is shut" % [adopted, buttons.size()])
 
 
 func _process(_delta: float) -> void:
+	_update_door_keys()
 	var tv := get_parent() as RetroTV
 	if tv == null:
 		return
@@ -109,7 +112,7 @@ func _process(_delta: float) -> void:
 ## The set's body and the laser's box are what the cabinet draws (TvFit sized them from body_size and padded the
 ## pointer's by 20 mm, which stood in front of every bezel key). The keys behind the door sit 7.6 mm into the bezel,
 ## deeper than the pointer lets a control win from inside a shell, so a pocket over them is carved out of both;
-## the door itself is its own box (_fit_door_button), so it is left out of the body's.
+## the door is its own hinge's box (_build_door) and no longer under the model, so the body's leaves it out.
 func _fit_collision() -> void:
 	var tv := get_parent() as Node3D
 	if tv == null:
@@ -140,77 +143,77 @@ func _fit_collision() -> void:
 		print("[TV] RETRO XR cabinet: %s is the cabinet, %s mm, in %d boxes" % [path, (body.size * 1000.0).snapped(Vector3.ONE * 0.1), boxes.size()])
 
 
-## The door is pressed on its face: a VRButton with no cap of its own, laid over the door wherever it stands.
-func _build_door_button() -> void:
-	if _model.part("KeyDoor") == null:
+## The key door on a hinge of its own: a pivot on the door's bottom edge (the KeyDoor's own origin, about whose X
+## the model's DoorOpen turns it), every level's door hung under it, and a TvKeyDoor whose box is the door as drawn,
+## no margin, in the pivot's frame, so it turns with the door.
+func _build_door() -> void:
+	var door := _model.part("KeyDoor") as MeshInstance3D
+	if door == null:
 		push_warning("[TV] RETRO XR cabinet: the model has no KeyDoor")
 		return
-	var b := Area3D.new()
-	b.set_script(VR_BUTTON)
-	b.name = "KeyDoorButton"
+	var pivot := Node3D.new()
+	pivot.name = "KeyDoorPivot"
+	add_child(pivot)
+	# The door's own place and turn in the cabinet, scale left to the cabinet: rotation.x is then the door's swing.
+	var local := global_transform.affine_inverse() * door.global_transform
+	pivot.transform = Transform3D(local.basis.orthonormalized(), local.origin)
+	_model.attach_part("KeyDoor", pivot)
+	var drawn := ApplianceModel.node_bounds(door, pivot)
+	var hinge := TvKeyDoor.new()
+	hinge.name = "KeyDoorHinge"
+	hinge.target = pivot
+	hinge.min_deg = 0.0
+	hinge.max_deg = TvKeyDoor.OPEN_DEG
+	hinge.start_closed = true
+	hinge.push_push = true
+	hinge.box_engages = true
+	hinge.poke_close_faces = VRHinge.FACE_Z_POS      # its outer face: pushed in shut, pushed up open
+	hinge.close_latch_deg = 2.0
+	# A couple of millimetres in at the door's top edge before the catch lets go.
+	hinge.push_push_unlatch_depth = 0.002
+	hinge.push_push_overtravel_deg = rad_to_deg(atan2(0.002, maxf(drawn.end.y, 0.01)))
+	hinge.position = drawn.get_center()
+	hinge.edge_local = Vector3(drawn.get_center().x, drawn.end.y, drawn.get_center().z)
 	var shape := CollisionShape3D.new()
 	shape.name = "CollisionShape3D"
-	shape.shape = BoxShape3D.new()
-	b.add_child(shape)
-	var cap := MeshInstance3D.new()
-	cap.name = "ButtonMesh"
-	b.add_child(cap)
-	_door_button = b as VRButton
-	_door_button.depress_depth = 0.0
-	_door_button.depress_axis = Vector3(0, 0, -1)     # pressed on its face
-	add_child(_door_button)
-	_door_button.button_pressed.connect(_toggle_door)
-	_fit_door_button()
+	var box := BoxShape3D.new()
+	box.size = drawn.size
+	shape.shape = box
+	hinge.add_child(shape)
+	pivot.add_child(hinge)
+	hinge.place_hint(Vector3(0, 0, drawn.size.z * 0.5 + 0.014))
+	_door = hinge
+	print("[TV] RETRO XR cabinet: key door on its hinge, %s mm, pivot basis x %s, latched shut" % [
+		(drawn.size * 1000.0).snapped(Vector3.ONE * 0.1), pivot.transform.basis.x.snapped(Vector3.ONE * 0.001)])
 
 
-## The door's press box is the door as it stands now, no margin.
-func _fit_door_button() -> void:
-	var door := _model.part("KeyDoor") as MeshInstance3D
-	if door == null or _door_button == null:
+## The five keys behind the door are live only while it stands open past KEYS_LIVE_DEG.
+func _update_door_keys() -> void:
+	var live := _door != null and not _door.is_latched_closed() and _door.get_rotation_deg() >= KEYS_LIVE_DEG
+	if live == _keys_live:
 		return
-	_door_button.transform = Transform3D.IDENTITY
-	ApplianceModel.fit_box(_door_button.get_node("CollisionShape3D") as CollisionShape3D,
-		ApplianceModel.node_bounds(door, _door_button))
-
-
-func _toggle_door() -> void:
-	if _door_busy:
-		return
-	_door_busy = true
-	_door_open = not _door_open
-	var anim := "DoorOpen" if _door_open else "DoorClose"
-	_model.play(anim)
-	print("[TV] key door %s" % ("opening" if _door_open else "closing"))
-	if not _door_open:
-		_set_door_keys(false)
-	await get_tree().create_timer(maxf(_model.animation_length(anim), 0.05)).timeout
-	if not is_inside_tree():
-		return
-	if _door_open:
-		_set_door_keys(true)
-	_fit_door_button()
-	_door_busy = false
-
-
-func _set_door_keys(live: bool) -> void:
+	_keys_live = live
 	for k in _door_keys:
 		k.set_interactive(live)
+	print("[TV] key door: the five keys behind it are %s (door at %.1f deg)" % ["live" if live else "dead",
+		_door.get_rotation_deg() if _door else 0.0])
 
 
-## For tests and probes: open or shut the door at once.
+## The door's hinge (saved and synced as every spring-latched hinge is).
+func key_door() -> TvKeyDoor:
+	return _door
+
+
+## For tests and probes: the door open (unlatched, all the way) or latched shut, at once.
 func set_door_open(open: bool) -> void:
-	if open == _door_open:
+	if _door == null:
 		return
-	_door_open = open
-	var anim := "DoorOpen" if open else "DoorClose"
-	_model.seek(anim, _model.animation_length(anim))
-	_set_door_keys(open)
-	_fit_door_button()
-	print("[TV] key door set %s" % ("open" if open else "shut"))
+	_door.set_state_remote(TvKeyDoor.OPEN_DEG if open else 0.0, not open)
+	_update_door_keys()
 
 
 func is_door_open() -> bool:
-	return _door_open
+	return _door != null and not _door.is_latched_closed()
 
 
 func model() -> ApplianceModel:
