@@ -189,6 +189,11 @@ func _build_bulbs(pts: PackedVector3Array) -> void:
 		mat.emission_operator = BaseMaterial3D.EMISSION_OP_MULTIPLY
 
 	var mmi := MultiMeshInstance3D.new()
+	# Not physics-interpolated: the engine interpolates MultiMeshes in RenderingServer.tick()/pre_draw() on the
+	# main thread, which with the separate render thread (thread_model.windows=2) writes the instance buffer
+	# from the wrong thread ("buffer_update can only be called from the render thread") and scatters the
+	# instances. These are placed from _process and tweens, so they have nothing to interpolate anyway.
+	mmi.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	mmi.name = "Bulbs"
 	mmi.multimesh = mm
 	mmi.material_override = mat
@@ -229,6 +234,8 @@ func _build_wire(pts: PackedVector3Array) -> void:
 	mat.roughness = 0.7
 
 	var mmi := MultiMeshInstance3D.new()
+	# not physics-interpolated: see the note above
+	mmi.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	mmi.name = "Wire"
 	mmi.multimesh = mm
 	mmi.material_override = mat

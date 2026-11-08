@@ -182,6 +182,11 @@ static func _add_plate(parent: Node3D, span: Vector2, downward: bool) -> void:
 	pin_mat.metallic = 0.9
 	pin_mat.roughness = 0.35
 	var pins := MultiMeshInstance3D.new()
+	# Not physics-interpolated: the engine interpolates MultiMeshes in RenderingServer.tick()/pre_draw() on the
+	# main thread, which with the separate render thread (thread_model.windows=2) writes the instance buffer
+	# from the wrong thread ("buffer_update can only be called from the render thread") and scatters the
+	# instances. These are placed from _process and tweens, so they have nothing to interpolate anyway.
+	pins.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	pins.name = "ConnectorPins"
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D

@@ -141,6 +141,11 @@ func _build_beads() -> void:
 	mat.roughness = 0.35
 
 	_beads = MultiMeshInstance3D.new()
+	# Not physics-interpolated: the engine interpolates MultiMeshes in RenderingServer.tick()/pre_draw() on the
+	# main thread, which with the separate render thread (thread_model.windows=2) writes the instance buffer
+	# from the wrong thread ("buffer_update can only be called from the render thread") and scatters the
+	# instances. These are placed from _process and tweens, so they have nothing to interpolate anyway.
+	_beads.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_beads.name = "Beads"
 	_beads.multimesh = mm
 	_beads.material_override = mat

@@ -177,6 +177,11 @@ func _build() -> void:
 	_slat_mat = mat
 
 	_slats = MultiMeshInstance3D.new()
+	# Not physics-interpolated: the engine interpolates MultiMeshes in RenderingServer.tick()/pre_draw() on the
+	# main thread, which with the separate render thread (thread_model.windows=2) writes the instance buffer
+	# from the wrong thread ("buffer_update can only be called from the render thread") and scatters the
+	# instances. These are placed from _process and tweens, so they have nothing to interpolate anyway.
+	_slats.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_slats.name = "Slats"
 	_slats.multimesh = mm
 	_slats.material_override = mat
@@ -189,6 +194,8 @@ func _build() -> void:
 		smm.mesh = parts["ladder_string"]
 		smm.instance_count = slat_count * 2
 		_strings = MultiMeshInstance3D.new()
+		# not physics-interpolated: see the note above
+		_strings.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 		_strings.name = "LadderStrings"
 		_strings.multimesh = smm
 		_strings.material_override = mat
