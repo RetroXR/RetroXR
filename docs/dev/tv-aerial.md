@@ -101,9 +101,20 @@ lineup (never in a room save, never on the wire):
 | a URL on the Antenna menu | the IPTV playlist (M3U) box writes one `{"type":"m3u","url":…,"enabled":…}` source to `channels.json` (`TVChannels.set_playlist`; an empty URL removes it). |
 | by hand | `{"type":"m3u","url":…}` or `{"type":"m3u","path":…}` in `channels.json` (a relative `path` is in the tv folder); optional `number_start` (numbers unnumbered channels from it) and `groups` (keep only those `group-title`s). A bare `{"link": "….m3u"}` is a playlist too. |
 
-`.m3u8` is NOT read from the folder and a `.m3u8` link stays a `stream`: that extension is
-nearly always ONE HLS stream. Typed `"type":"m3u"` it is a playlist, and if it turns out to
-be an HLS media playlist (`#EXT-X-TARGETDURATION` …) it is one channel, its own address.
+`.m3u8` is NOT read from the folder and an untyped `.m3u8` link is not a playlist: that
+extension is nearly always ONE HLS stream. Typed `"type":"m3u"` it is a playlist, and if it
+turns out to be an HLS media playlist (`#EXT-X-TARGETDURATION` …) it is one channel, its own
+address.
+
+**`channels.json` holds no channels any more** (2026-11-08). It used to take one-channel
+`"stream"` entries (`{"name", "link"}`, a typed URL each); a two-line `.m3u` does the same
+and carries groups and headers too, so they were removed, along with the starter file's
+placeholder `Channel 42` (an example.com URL: a dead stop on every fresh install's dial).
+`TVChannels._ingest` now knows two kinds, `hdhomerun` and `m3u`; anything else — a typed
+`stream`, a link that is not `.m3u`, no link — is IGNORED: counted in `ignored`, logged
+(`[TVChannels] Ignoring N stream entries … put them in a .m3u playlist in <tv folder>`),
+and kept in `sources` exactly as written (no `type` stamped on it), so a save from the
+Antenna panel never deletes a line the player wrote. `hdhomerun_tests channels/` holds it.
 
 **The code**: `M3uPlaylist` (`Scripts/Data/tv/m3u_playlist.gd`) is the pure parser;
 `M3uFetcher` (`m3u_fetcher.gd`, a child of `TVLineup` beside `HDHomeRun`) reads every

@@ -8,7 +8,7 @@
 ## and no VlcPlayer.
 ##
 ## Where the list comes from is unchanged: channels.json (TVChannels) for the tuner's
-## address and any hand-written streams, user://tv_lineup_cache.json for the last
+## address and its playlists, user://tv_lineup_cache.json for the last
 ## lineup the box reported, and a fresh lookup over the top of both. All of that is
 ## global, so every antenna in the room reads and edits the same configuration —
 ## exactly as every television did before.
@@ -78,9 +78,6 @@ func reload_channels() -> void:
 			if c is Dictionary:
 				channels.append(c as Dictionary)
 
-	for c in _cfg.stream_channels:
-		channels.append(c)
-
 	# Downloaded playlists' last good copies, for the same reason as the tuner's.
 	# Only for sources still named: a playlist taken out of channels.json takes its
 	# cached channels with it.
@@ -118,7 +115,7 @@ func reload_channels() -> void:
 
 ## What a set with nothing to tune should say on the glass, or "" when there is no
 ## fault worth a banner. A missing tuner only counts while there is nothing else to
-## watch -- a hand-written stream list is a perfectly good aerial without one.
+## watch -- a playlist is a perfectly good aerial without one.
 func fault_text() -> String:
 	if not _config_error.is_empty():
 		return _config_error
@@ -187,7 +184,7 @@ func _on_lineup_ready(found: Array, info: Dictionary) -> void:
 	_searching = false
 	_tuner_info = info
 	_tuner_error = ""
-	# Replace the tuner's channels wholesale; hand-written streams are untouched.
+	# Replace the tuner's channels wholesale; playlist channels are untouched.
 	var kept: Array[Dictionary] = []
 	for c in channels:
 		if str(c.get("source", "")) != "hdhomerun":

@@ -24,7 +24,7 @@ extends "res://Tests/test_suite.gd"
 ## after it simply never prints, leaving a green run that checked less than
 ## it claims. card_tests records finding this the hard way; mutation-testing
 ## cores_data_tests found it again.
-const EXPECTED_CASES := 57
+const EXPECTED_CASES := 59
 
 
 var _hdhr: HDHomeRun = null
@@ -173,6 +173,21 @@ func _group_hosts() -> void:
 ## the tv root and cannot be pointed elsewhere. The existing file is snapshotted
 ## and restored byte for byte, and removed again if there was none -- the same
 ## contract romm_tests and binding_tests follow for the files they must touch.
+## How many sources of `cfg` are typed `kind`.
+static func _typed(cfg: TVChannels, kind: String) -> int:
+	return cfg.sources.filter(func(s: Dictionary) -> bool: return str(s.get("type", "")) == kind).size()
+
+
+## The playlists `cfg` names itself, leaving out the .m3u files lying in the
+## player's real tv folder (playlist_sources adds those too).
+static func _named_playlists(cfg: TVChannels) -> Array:
+	var out: Array = []
+	for s in cfg.playlist_sources():
+		if not bool(s.get("implicit", false)):
+			out.append(s["key"])
+	return out
+
+
 func _group_channels() -> void:
 	var path := TVChannels.config_path()
 	var had := FileAccess.file_exists(path)
@@ -180,22 +195,23 @@ func _group_channels() -> void:
 	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
 
 	# The bare array of {name, link} is the shape people reach for first, and the
-	# header says rejecting it would make a correct-looking file look broken.
-	_write_channels(path, '[{"name": "News 4", "link": "http://x/1.m3u8"}]')
+	# header says rejecting it would make a correct-looking file look broken. A link
+	# to a .m3u is a playlist without saying so.
+	_write_channels(path, '[{"name": "News 4", "link": "http://x/list.m3u"}]')
 	var bare := TVChannels.load_config()
 	_eq(bare.status, TVChannels.Status.OK, "channels/a bare array parses")
-	_eq(bare.stream_channels.size(), 1, "channels/and yields its one channel")
-	if bare.stream_channels.size() == 1:
-		_eq(str(bare.stream_channels[0]["name"]), "News 4", "channels/named as written")
-		_eq(str(bare.stream_channels[0]["url"]), "http://x/1.m3u8", "channels/with its link")
-		_eq(str(bare.sources[0]["type"]), "stream",
-			"channels/an entry with a link is a stream without saying so")
+	_eq(_typed(bare, "m3u"), 1, "channels/and yields its one playlist source")
+	if bare.sources.size() == 1:
+		_eq(str(bare.sources[0]["name"]), "News 4", "channels/named as written")
+		_eq(str(bare.sources[0]["link"]), "http://x/list.m3u", "channels/with its link")
+	_ok(_named_playlists(bare).has("http://x/list.m3u"),
+		"channels/an entry linking a .m3u is a playlist without saying so")
 
-	_write_channels(path, '{"sources": [{"name": "A", "link": "http://a"}]}')
-	_eq(TVChannels.load_config().stream_channels.size(), 1,
+	_write_channels(path, '{"sources": [{"name": "A", "link": "http://a/a.m3u"}]}')
+	_eq(_typed(TVChannels.load_config(), "m3u"), 1,
 		"channels/the sources object form parses")
-	_write_channels(path, '{"channels": [{"name": "B", "link": "http://b"}]}')
-	_eq(TVChannels.load_config().stream_channels.size(), 1,
+	_write_channels(path, '{"channels": [{"name": "B", "link": "http://b/b.m3u"}]}')
+	_eq(_typed(TVChannels.load_config(), "m3u"), 1,
 		"channels/and so does the channels one")
 
 	# A source with a host and no link is a tuner, which is what lets a lineup be
@@ -205,19 +221,24 @@ func _group_channels() -> void:
 	_eq(str(tuned.tuner_source().get("type", "")), "hdhomerun",
 		"channels/a host with no link is a tuner")
 	_eq(tuned.tuner_host(), "192.168.1.9", "channels/and its address is read back")
-	_eq(tuned.stream_channels.size(), 0, "channels/a tuner contributes no direct channel")
+	_eq(_named_playlists(tuned).size(), 0, "channels/a tuner is not a playlist")
 
 	# auto defaults TRUE so a source written as {"type":"hdhomerun"} just works.
 	_write_channels(path, '[{"type": "hdhomerun", "name": "Antenna"}]')
 	_ok(TVChannels.load_config().tuner_auto(),
 		"channels/a tuner with no auto flag discovers itself")
 
-	# A stream with no link is dropped as a CHANNEL but kept as a source, so
-	# saving the file back does not silently delete the player's line.
-	_write_channels(path, '[{"name": "Broken"}, {"name": "Good", "link": "http://g"}]')
+	# The old one-channel "stream" entries (removed 2026-11-08: a .m3u does it) are
+	# ignored, typed or not, and so is a linkless entry -- but each is kept as a
+	# source, as written, so saving the file back never deletes the player's line.
+	_write_channels(path, '[{"name": "Broken"}, {"name": "Old", "link": "http://g/live.m3u8"},'
+		+ ' {"type": "stream", "name": "Typed", "link": "http://t/x"}]')
 	var partial := TVChannels.load_config()
-	_eq(partial.stream_channels.size(), 1, "channels/a linkless stream is not a channel")
-	_eq(partial.sources.size(), 2, "channels/but is still kept as a source")
+	_eq(partial.ignored, 3, "channels/a stream or linkless entry is ignored")
+	_eq(partial.sources.size(), 3, "channels/but is still kept as a source")
+	_ok(partial.sources.size() == 3 and not partial.sources[1].has("type")
+		and str(partial.sources[2]["type"]) == "stream",
+		"channels/and kept as written, not re-typed")
 
 	# The two failure modes the TV must tell apart: no list at all (show a hint)
 	# versus a broken one (show the parser's complaint).
@@ -230,16 +251,18 @@ func _group_channels() -> void:
 	_eq(broken.status, TVChannels.Status.PARSE_ERROR, "channels/a broken file says so")
 	_ok(not broken.error_message.is_empty(), "channels/and carries the complaint")
 
-	# set_tuner creates the source when the file had none, so a stream-only list
+	# set_tuner creates the source when the file had none, so a playlist-only list
 	# can be turned into a tuned set from the options panel.
-	_write_channels(path, '[{"name": "A", "link": "http://a"}]')
+	_write_channels(path, '[{"name": "A", "link": "http://a/a.m3u"},'
+		+ ' {"name": "Old", "link": "http://o/live.m3u8"}]')
 	var grow := TVChannels.load_config()
 	grow.set_tuner(false, "  10.0.0.5  ")
 	_eq(grow.tuner_host(), "10.0.0.5", "channels/set_tuner strips the address it is given")
 	_ok(not grow.tuner_auto(), "channels/and records that discovery is off")
 	var reread := TVChannels.load_config()
 	_eq(reread.tuner_host(), "10.0.0.5", "channels/the change survives a reload")
-	_eq(reread.stream_channels.size(), 1, "channels/without losing the existing stream")
+	_eq(_typed(reread, "m3u"), 1, "channels/without losing the existing playlist")
+	_eq(reread.ignored, 1, "channels/and the ignored line survives the save")
 
 	if had:
 		_write_channels(path, saved)

@@ -135,7 +135,7 @@ func _on_channels() -> void:
 		_lineup.channels.insert(0, {
 			"number": "0.0", "name": "Dead Channel",
 			"url": "http://192.168.0.199:5004/auto/v99.9",
-			"source": "stream", "hd": false,
+			"source": "probe", "hd": false,
 		})
 	_tv.set_channel_index(0)                    # selects RF and lands on the channel
 	_tuner = _tv.tuner()

@@ -261,10 +261,10 @@ func _config_cases() -> void:
 	]})
 	var kinds: Array = []
 	for s in cfg.sources:
-		kinds.append(s["type"])
-	_eq(kinds, ["m3u", "m3u", "stream", "m3u", "m3u"],
-		"config/a .m3u link is a playlist, a .m3u8 link a stream unless typed")
-	_eq(cfg.stream_channels.size(), 1, "config/only the stream is a channel of its own")
+		kinds.append(s.get("type", ""))
+	_eq(kinds, ["m3u", "m3u", "", "m3u", "m3u"],
+		"config/a .m3u link is a playlist, a .m3u8 link nothing unless typed")
+	_eq(cfg.ignored, 1, "config/the .m3u8 link is ignored, as the old stream entries are")
 
 	var before := _tv_folder_m3u()
 	var dropped := _write("folder.m3u", "#EXTM3U\n")
@@ -357,7 +357,7 @@ func _lineup_cases() -> void:
 	var lineup := PlaylistOnlyLineup.new()
 	add_child(lineup)
 	# A stream from channels.json and a tuner channel already on the list.
-	lineup.channels.append({"number": "5", "name": "Typed", "url": "http://t/5", "source": "stream"})
+	lineup.channels.append({"number": "5", "name": "Five", "url": "http://hd/5", "source": "hdhomerun"})
 	lineup.channels.append({"number": "4.1", "name": "Air", "url": "http://hd/4.1", "source": "hdhomerun"})
 
 	var src: Array[Dictionary] = [{"key": path, "location": path, "name": "lineup"}]

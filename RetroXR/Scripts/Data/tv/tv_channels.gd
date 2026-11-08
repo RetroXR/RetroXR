@@ -1,20 +1,18 @@
 ## TVChannels — the set's channel list, read from a user-editable channels.json.
 ##
-## The file lives in RomLibrary.default_tv_root() and names *sources*, not
-## channels: a "stream" source is one channel (a URL you typed), while an
-## "hdhomerun" source stands for a whole tuner and expands to its full lineup at
-## runtime via HDHomeRun.discover(), and an "m3u" source is an IPTV playlist (a
-## `url`, or a `path` relative to this folder) that expands to its channels via
-## M3uFetcher. Every `.m3u` file lying in this folder is a playlist too, unnamed
-## here (playlist_sources). Resolving tuner and playlists is asynchronous and
+## The file lives in RomLibrary.default_tv_root() and names *sources*, never
+## channels: an "hdhomerun" source stands for a whole tuner and expands to its
+## lineup at runtime via HDHomeRun.discover(), and an "m3u" source is an IPTV
+## playlist (a `url`, or a `path` relative to this folder) that expands to its
+## channels via M3uFetcher. Every `.m3u` file lying in this folder is a playlist
+## too, unnamed here (playlist_sources). Resolving both is asynchronous and
 ## belongs to the caller — this class only parses, holds and saves.
 ##
-## A resolved channel is a Dictionary:
-##   { "number": String, "name": String, "url": String,
-##     "source": String, "hd": bool }
-##
-## `number` is free text ("4.1", "42", "") because a broadcast sub-channel is not
-## an integer and a hand-written entry may have no number at all.
+## There used to be a third kind, "stream": one channel typed as a {name, link}
+## entry. It was removed 2026-11-08 -- a two-line .m3u does the same and more.
+## Such an entry is now IGNORED (counted in `ignored`, logged), but kept in
+## `sources` as written, so a save from the antenna panel never deletes a line
+## the player wrote.
 class_name TVChannels
 extends RefCounted
 
@@ -28,8 +26,8 @@ var status: int = Status.MISSING
 var error_message := ""
 ## Source entries exactly as written, order preserved. Saving rewrites these.
 var sources: Array[Dictionary] = []
-## Channels from "stream" sources only; a tuner's lineup is merged in later.
-var stream_channels: Array[Dictionary] = []
+## Entries that are neither a tuner nor a playlist (the old "stream" channels).
+var ignored := 0
 
 
 static func config_path() -> String:
@@ -63,14 +61,17 @@ static func load_config() -> TVChannels:
 
 	cfg._ingest(json.data)
 	cfg.status = Status.OK
-	print("[TVChannels] Loaded %d source(s), %d direct channel(s)"
-		% [cfg.sources.size(), cfg.stream_channels.size()])
+	print("[TVChannels] Loaded %d source(s)" % cfg.sources.size())
+	if cfg.ignored > 0:
+		push_warning(("[TVChannels] Ignoring %d stream entr%s in %s: channels are no longer "
+			+ "typed there; put them in a .m3u playlist in %s") % [cfg.ignored,
+			"y" if cfg.ignored == 1 else "ies", FILE_NAME, RomLibrary.default_tv_root()])
 	return cfg
 
 
-## Accepts either the documented object form or a bare array of {name, link}.
-## The bare array is the shape people reach for first, and rejecting it would
-## make the feature look broken on a file that reads as obviously correct.
+## Accepts either the documented object form or a bare array of sources. The bare
+## array is the shape people reach for first, and rejecting it would make a file
+## that reads as obviously correct look broken.
 func _ingest(data: Variant) -> void:
 	var raw: Array = []
 	if data is Array:
@@ -85,36 +86,25 @@ func _ingest(data: Variant) -> void:
 	for entry_v: Variant in raw:
 		if not (entry_v is Dictionary):
 			continue
-		var entry: Dictionary = entry_v
-		# An entry with a link is a stream whether or not it says so, which is
-		# what makes the bare {name, link} array work unchanged.
+		var entry: Dictionary = (entry_v as Dictionary).duplicate()
+		# A kind can go unsaid: a host with no link is a tuner, a link to a .m3u
+		# is a playlist (a .m3u8 is not: that extension is almost always ONE HLS
+		# stream, which is what the removed "stream" entries were).
 		var kind := str(entry.get("type", "")).to_lower()
 		if kind == "":
 			if entry.has("host") and not entry.has("link"):
 				kind = "hdhomerun"
 			elif is_playlist_link(str(entry.get("link", entry.get("url", entry.get("path", ""))))):
-				# A link to a .m3u is a channel LIST, not one channel. A .m3u8 is
-				# not caught here: that extension is almost always one HLS stream.
 				kind = "m3u"
-			else:
-				kind = "stream"
-		entry = entry.duplicate()
-		entry["type"] = kind
+		if kind == "hdhomerun" or kind == "m3u":
+			entry["type"] = kind
+		else:
+			# Kept exactly as written (no type stamped on it), read as nothing.
+			ignored += 1
+			print("[TVChannels] Ignoring '%s' (%s): not a tuner or a playlist"
+				% [str(entry.get("name", "(unnamed)")),
+				   str(entry.get("link", entry.get("url", "no link")))])
 		sources.append(entry)
-
-		if kind == "stream":
-			var url := str(entry.get("link", entry.get("url", ""))).strip_edges()
-			if url.is_empty():
-				push_warning("[TVChannels] Skipping '%s': no link"
-					% str(entry.get("name", "(unnamed)")))
-				continue
-			stream_channels.append({
-				"number": str(entry.get("number", "")),
-				"name": str(entry.get("name", url)),
-				"url": url,
-				"source": "stream",
-				"hd": bool(entry.get("hd", false)),
-			})
 
 
 ## Whether a link names an M3U channel list rather than a stream. Only `.m3u`;
@@ -242,7 +232,7 @@ func tuner_host() -> String:
 
 ## Point the tuner at a specific address (or back at discovery) and persist.
 ## Creates the hdhomerun source if the file did not have one, so the options
-## panel can turn a stream-only list into a tuned set.
+## panel can turn a playlist-only list into a tuned set.
 func set_tuner(auto: bool, host: String) -> void:
 	var found := false
 	for i in sources.size():
@@ -282,8 +272,6 @@ static func write_default_config() -> void:
 		"version": 1,
 		"sources": [
 			{"type": "hdhomerun", "name": "Antenna", "auto": true, "host": ""},
-			{"type": "stream", "name": "Channel 42", "number": "42",
-			 "link": "https://example.com/stream.m3u8"},
 		],
 	}
 	if JsonStore.write_dict(path, defaults, "TVChannels"):
