@@ -227,6 +227,26 @@ OWED.
 
 **Where the mains cord leaves (2026-10-30).** The VCR, DVD player, amplifier, record player and RETRO XR television models each carry a `PowerCordExit` empty, on every level, at the tip of the AC cord's strain relief on the back (`ApplianceModel.part("PowerCordExit")`; `power_cord_exit` in each `*_contract.json`). Its basis is identity, so a cord leaves along its local -Z, out of the back, as every cord anchor here does; the socket-mouth empties point the other way (+Z out). Nothing draws a cord from it yet.
 
+**"Nothing on the screen on Quest" was every key firing twice (2026-11-08).** The set's picture was never the
+problem: the Quest's `files/logs/godot.log` showed every press of the RETRO XR set's keys TWICE (`[RetroTV] TV: pressed
+POWER`, `pressed POWER`), so POWER switched the set on and straight off again, and MUTE, VOL and SOURCE undid
+themselves. Only a FINGERTIP does it (the desktop ray and the laser go through `pointer_event`), which is why the
+desktop and every render looked right, and the Classic TV's keys carry no fingertip gate, which is why it worked. Two
+faults in `ApplianceModel.footprint_gate`, the gate every adopted key has had since 33500b15:
+- **It judged the finger against the cap as DRAWN.** A pressed cap sinks 1.5 mm, so a finger drawing back passed
+  `hover` over the sunk cap and was let go; the cap rose, the same finger was on the face again, and the key fired a
+  second time. It now judges against where the cap RESTS (`ApplianceModel.cap_rest`: the cap's own turn, read at call
+  time because `DeckFace.adopt_front_key` turns a front key's cap AFTER its gate is made, at the button's recorded
+  `_mesh_local_origin`).
+- **A finger through the key was let go.** In a headset a finger goes on through the cap and the cabinet; past the
+  key's back (or the release radius, once `CONTACT_GRACE` ran out) the press dropped and came back on the way out.
+  The gate is now a column 8 cm deep behind the face (`ApplianceModel.DEPTH`), and `VRButton.gate_holds` keeps a
+  press held for as long as its gate allows the tip, whatever the distance. A NEW press still needs the tip within
+  `trigger_radius`, so nothing reaches a key from behind the set.
+The TV remote's own `_key_gate` had both faults and has both fixes. `appliance_pointer_tests` `poke/` now pushes the
+fingertip 3 cm through every key, holds it there past the grace, and draws it out: each key must have fired ONCE.
+Judging from the sunk cap fails 11 of the set's keys, and taking away `gate_holds` fails 11.
+
 ### The ray meets what the model draws: no padding (2026-10-30)
 
 Every box the desktop ray (or a hand) meets on the RETRO XR VCR, DVD player, amplifier,

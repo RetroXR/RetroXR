@@ -267,6 +267,7 @@ func _dress_keys() -> void:
 		btn.trigger_radius = 0.012
 		btn.contact_margin = 0.004
 		btn.press_gate = _key_gate.bind(key_name, cap)
+		btn.gate_holds = true
 		btn.button_pressed.connect(press_key.bind(key_name))
 		_key_buttons[key_name] = btn
 
@@ -277,9 +278,11 @@ func _dress_keys() -> void:
 func _key_gate(tip: Vector3, key_name: String, cap: MeshInstance3D) -> bool:
 	if cap == null or cap.mesh == null:
 		return false
-	var p := cap.global_transform.affine_inverse() * tip
+	# Judged against where the cap RESTS (its button's frame), never the sunk cap: measured from the sunk cap a finger
+	# drawing back let go, the cap rose, and the same finger pressed the key again.
+	var p := ApplianceModel.cap_rest(cap).affine_inverse() * tip
 	var box := cap.mesh.get_aabb()
-	if p.z > KEY_HOVER or p.z < box.position.z:
+	if p.z > KEY_HOVER or p.z < box.position.z - ApplianceModel.DEPTH:
 		return false
 	if key_name == "KeyOk" or RING_DIRS.has(key_name):
 		var q := global_transform.affine_inverse() * tip

@@ -315,16 +315,28 @@ func _poke(label: String, root: Node3D, skip: Array) -> void:
 			if k != b and int(fired[k]) > 0:
 				others.append(String((k as Node).name))
 		var once := int(fired[b])
+		# A finger in a headset does not stop at the key: it goes on through the cap and the cabinet behind it. Pushed
+		# 3 cm deep and drawn back out, the key must still have fired ONCE. (The fingertip gate once let go of a finger
+		# past the key's back and took it again on the way out: two presses, so a POWER key switched the set on and off.)
+		for d: float in [-0.01, -0.02, -0.03, -0.03, -0.02, -0.01, -travel]:
+			_place(rest + out * d)
+			await _ticks(2)
+			if d <= -0.03:
+				# Held deep for longer than VRButton.CONTACT_GRACE (50 ms), as a finger in a headset is: a headless frame
+				# is far shorter, and the release radius only lets go once the grace has run out.
+				await get_tree().create_timer(0.12).timeout
+		var deep_fired := int(fired[b])
 		for d: float in [0.002, 0.012, 0.03]:
 			_place(rest + out * d)
 			await _ticks(2)
+		var all_fired := int(fired[b])
 		# A press is held through VRButton.CONTACT_GRACE (50 ms) after the tip leaves: a hand takes longer than that to
 		# back off, a headless frame much less.
 		await _wait_until(func() -> bool: return cap.global_position.distance_to(rest) < 0.00001, 0.5)
 		var back := cap.global_position.distance_to(rest)
-		_ok(absf(sunk - travel) < 0.0002 and once == 1 and others.is_empty() and back < 0.00001,
+		_ok(absf(sunk - travel) < 0.0002 and once == 1 and all_fired == 1 and others.is_empty() and back < 0.00001,
 			"%s/poke: %s sinks under the fingertip, fires once, alone, and comes back up" % [label, b.name],
-			"sank %.2f of %.2f mm, fired %d, others fired %s, %.3f mm off rest after" % [sunk * 1000.0, travel * 1000.0,
-				once, others, back * 1000.0])
+			"sank %.2f of %.2f mm, fired %d (%d after a 3 cm push, %d after drawing out), others fired %s, %.3f mm off rest after"
+				% [sunk * 1000.0, travel * 1000.0, once, deep_fired, all_fired, others, back * 1000.0])
 	_place(Vector3(0, 4, 0))
 	await _ticks(2)

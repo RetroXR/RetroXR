@@ -63,6 +63,13 @@ a VRButton whose `press_gate` keeps a fingertip to that key alone (`av-suite.md`
 - The hand holding the object never pokes it (`PokeTip.is_poking`), and nothing
   is tested unless a tip is within 0.35 m of the owner.
 
+- **A fingertip gate on a VRButton judges the finger against where the cap RESTS, never the sunk cap, and holds a
+  press for as long as the finger stays in the key's column** (`ApplianceModel.footprint_gate` + `cap_rest`,
+  `VRButton.gate_holds`, 2026-11-08). Measured from the sunk cap, a finger backing off let go and pressed again, and
+  a finger pushed through the key was dropped at the release radius and pressed again on the way out: every key of
+  the RETRO XR appliances fired twice in a headset (the set's POWER switched itself back off). A suite's poke must
+  push THROUGH the key and hold there past `CONTACT_GRACE`, or it cannot see either fault (av-suite.md).
+
 ## Widgets out of reach sleep (PokeWake, 2026-11-04)
 
 `VRButton`, `VRSlider` and `VRKnob` each asked `PokeTip.any_tip_within` every frame,

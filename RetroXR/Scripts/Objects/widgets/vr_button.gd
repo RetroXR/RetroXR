@@ -63,6 +63,12 @@ const TRIGGER_OFF := 0.4
 ## Optional veto, called with a fingertip's WORLD position; false rejects the poke.
 ## Left empty by every button that has no side to it. See _gate_allows.
 var press_gate: Callable = Callable()
+## With a `press_gate` that describes the key's own column (ApplianceModel.footprint_gate): a held press stays held
+## for as long as the gate allows the fingertip, however far past the face it has gone. A finger in a headset goes
+## on through a key and the cabinet behind it; let go at the release radius, the press came back on the way out and
+## the key fired twice (a set's POWER switched it on and straight off again). A NEW press still needs the tip
+## within trigger_radius.
+var gate_holds: bool = false
 
 # Cached original local position of the active mesh (in its parent's space)
 var _mesh_local_origin: Vector3
@@ -177,7 +183,7 @@ func _process_touch_mode(delta: float) -> void:
 		if not _qualified(_touch_ctrl):
 			_release_touch()
 		elif global_position.distance_to(PokeTip.tip_of(_touch_ctrl)) \
-				<= trigger_radius * RELEASE_SCALE:
+				<= trigger_radius * RELEASE_SCALE or (gate_holds and press_gate.is_valid()):
 			_touch_lost = 0.0
 			return
 		else:

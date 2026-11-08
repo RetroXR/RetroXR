@@ -125,6 +125,7 @@ func adopt_button(button: VRButton, part_name: String, travel: float = 0.0015, e
 		shape.shape = key.mesh.create_trimesh_shape()
 		shape.transform = Transform3D.IDENTITY
 		button.press_gate = footprint_gate(cap, 0.0)      # no reach: a ring's keys are 0.6 mm apart
+		button.gate_holds = true
 	elif shape:
 		var box := BoxShape3D.new()
 		var ab := key.get_aabb()
@@ -134,6 +135,7 @@ func adopt_button(button: VRButton, part_name: String, travel: float = 0.0015, e
 		# A fingertip presses a key only over its own face (1 mm round it), never through a neighbour's: VRButton's
 		# touch is a sphere round the key's centre, and on a front panel MENU's reached the DVD's up arrow below it.
 		button.press_gate = footprint_gate(cap, 0.001)
+		button.gate_holds = true
 	# The sphere must still reach the key's far corners (a 38 mm key is far wider than the 10 mm default); the gate
 	# keeps a wide sphere on its own key.
 	var half := Vector2(key.get_aabb().size.x, key.get_aabb().size.y).length() / 2.0
@@ -250,6 +252,12 @@ func fit_shapes(shapes: Array[CollisionShape3D], except: Array[String] = [], fro
 		print("[Appliance] %s: %s fitted to the model, %s mm" % [name, shape.get_path(), (box.size * 1000.0).snapped(Vector3.ONE * 0.1)])
 
 
+## How far behind a key's back the fingertip gate still counts the finger as on that key: a finger in a headset
+## goes on through the cap and the cabinet (VRButton.gate_holds keeps the press for as long as it stays in this
+## column). Deep enough for any push, short of a set's own depth, so nothing reaches a key from behind the set.
+const DEPTH := 0.08
+
+
 ## A fingertip presses a key only over its own face: inside the outline of the cap's front faces (its local +Z, or
 ## `face_axis`) grown `reach`, and no higher than `hover` over the face. VRButton's touch is a radius round the
 ## key's origin, which on a ring reaches the arcs either side and OK.
@@ -270,11 +278,14 @@ static func footprint_gate(cap: MeshInstance3D, reach: float = 0.001, hover: flo
 	var bottom: float = cap.mesh.get_aabb().position[face_axis]
 	var offsets: Array[Vector2] = [Vector2.ZERO, Vector2(reach, 0), Vector2(-reach, 0), Vector2(0, reach),
 		Vector2(0, -reach)]
+	# Judged against where the cap RESTS, never where it is drawn (cap_rest): a pressed cap sinks, and measured from
+	# the sunk cap a finger drawing back passed `hover` and let go, the cap rose, the same finger was on the face again
+	# and the key fired a second time (a set's POWER on and straight off: the Quest's "nothing on the screen").
 	return func(tip: Vector3) -> bool:
 		if not is_instance_valid(cap):
 			return false
-		var p := cap.global_transform.affine_inverse() * tip
-		if p[face_axis] > top + hover or p[face_axis] < bottom:
+		var p := cap_rest(cap).affine_inverse() * tip
+		if p[face_axis] > top + hover or p[face_axis] < bottom - DEPTH:
 			return false
 		for o in offsets:
 			var q := Vector2(p[u], p[v]) + o
@@ -282,6 +293,18 @@ static func footprint_gate(cap: MeshInstance3D, reach: float = 0.001, hover: flo
 				if Geometry2D.is_point_in_polygon(q, t):
 					return true
 		return false
+
+
+## Where a VRButton's cap rests, in the world: its own turn (DeckFace turns a front key's cap AFTER adopt_button
+## made its gate, so nothing earlier can be kept) at the position the button records as its rest (a press moves only
+## the position, `_mesh_local_origin`).
+static func cap_rest(cap: Node3D) -> Transform3D:
+	var holder := cap.get_parent() as Node3D
+	if holder == null:
+		return cap.global_transform
+	var origin: Variant = holder.get("_mesh_local_origin")
+	var local := Transform3D(cap.transform.basis, origin if origin is Vector3 else cap.position)
+	return holder.global_transform * local
 
 
 ## Hang `part_name` of EVERY level under `under` (a node the scene script already turns), keeping where it is now.
