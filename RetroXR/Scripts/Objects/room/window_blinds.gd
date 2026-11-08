@@ -255,6 +255,8 @@ func _build() -> void:
 		shape.shape = cap
 		shape.position = Vector3(0.0, aabb.position.y + aabb.size.y * 0.5 - grab_y, 0.0)
 		_wand.add_child(shape)
+		# a hand takes hold anywhere along the rod, top to bottom, not only at one spot on it
+		_wand.engage_span = Vector2(aabb.position.y - grab_y, aabb.end.y - grab_y)
 		var pivot := Node3D.new()
 		pivot.name = VRKnob.PIVOT_NAME
 		pivot.rotation = Vector3(deg_to_rad(90.0), 0.0, 0.0)

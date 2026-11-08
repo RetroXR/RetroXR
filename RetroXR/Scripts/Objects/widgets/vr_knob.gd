@@ -85,6 +85,10 @@ const PIVOT_NAME := "KnobPivot"
 ## round it, so the tip's angle about the axle tells nothing. A dial on a panel keeps
 ## the default, where the fingertip walks round the cap.
 @export var follow_roll: bool = false
+## VR: where along the knob's local Y a hand can take hold, from .x to .y (metres), as
+## a capsule of engage_radius round that line. Zero keeps the ball round the origin a
+## panel knob uses; a wand sets it to its length, so it can be taken anywhere on it.
+@export var engage_span: Vector2 = Vector2.ZERO
 
 var _trigger_ctrl: XRController3D = null   # latched controller (trigger held)
 # follow_roll: which controller axis (0 = X, 2 = Z) is measured, chosen at grab time as
@@ -186,7 +190,7 @@ func _process(_delta: float) -> void:
 			var id := ctrl.get_instance_id()
 			var tip: Vector3 = PokeTip.tip_of(ctrl)
 			if _rearmed.get(id, false) \
-					and global_position.distance_to(tip) <= engage_radius \
+					and _engage_distance(tip) <= engage_radius \
 					and ctrl.get_float(TRIGGER_ACTION) > TRIGGER_ON:
 				_rearmed[id] = false
 				_trigger_ctrl = ctrl
@@ -283,6 +287,15 @@ func _begin_track(world_pos: Vector3) -> void:
 	var raw := _angle_at(world_pos, cur)
 	_grab_offset_deg = 0.0 if is_nan(raw) else cur - raw
 	_grab_raw_prev = cur if is_nan(raw) else raw
+
+
+## How far a hand is from where it can take hold: the origin, or with engage_span the
+## nearest point of that stretch of the knob's local Y.
+func _engage_distance(world_pos: Vector3) -> float:
+	if engage_span == Vector2.ZERO:
+		return global_position.distance_to(world_pos)
+	var y := clampf(to_local(world_pos).y, minf(engage_span.x, engage_span.y), maxf(engage_span.x, engage_span.y))
+	return to_global(Vector3(0.0, y, 0.0)).distance_to(world_pos)
 
 
 ## follow_roll: the controller's turn about the axle, in degrees in the cap's rest frame
@@ -413,6 +426,6 @@ func place_hint(local_pos: Vector3) -> void:
 func _vr_hovering() -> bool:
 	for ctrl in _controllers:
 		if ctrl and ctrl.get_is_active() \
-				and global_position.distance_to(PokeTip.tip_of(ctrl)) <= engage_radius:
+				and _engage_distance(PokeTip.tip_of(ctrl)) <= engage_radius:
 			return true
 	return false
