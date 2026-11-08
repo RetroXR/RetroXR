@@ -53,8 +53,10 @@ const ROW := {
 		AABB(Vector3(0.0225 * SX, 0.045, -0.106), Vector3(0.164 * SX, 0.0378, 0.196)),
 		AABB(Vector3(0.0225 * SX, 0.045, 0.090), Vector3(0.164 * SX, 0.006, 0.016)),
 	],
-	# The OPEN knob on the drive's front is a lever pressed DOWN, 2 mm.
-	"eject_axis": Vector3(0.0, -1.0, 0.0),
+	# The OPEN plate lies in the drive's gray nose and presses square into it, 2 mm: the
+	# nose's inward normal (it falls 22 mm over 16 from z 90 to the front edge, 54
+	# degrees; SegaCd2Primitive.NOSE_TOP / NOSE_FOOT).
+	"eject_axis": Vector3(0.0, -0.58817, -0.80874),
 	"eject_travel": 0.002,
 	# The Model 1 Genesis's extension spacer (SegaCd2Spacer.GROUP).
 	"accessory_group": "sega_cd2_spacer",

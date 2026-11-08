@@ -87,10 +87,15 @@ const RECEPTACLE_Z := Vector2(-61.5, 35.4)
 const RECEPTACLE_Y := Vector2(44.0, 67.0)
 const SLOT_Z := Vector2(-54.3, 28.2)
 const SLOT_Y := 58.6
-## The front (params `front`): the ACCESS lamp at x 62, 55 up; the OPEN knob, a 10 x 6
-## lever pressed 2 down, here on the nose's right end.
+## The front (params `front`): the ACCESS lamp at x 62, 55 up. The OPEN knob (the real
+## one a 10 x 6 lever pressed down, on the swept corner) is here a plate on the nose's
+## right end, lying in its slope and pressed square into it: KNOB its middle (x, height),
+## KNOB_SIZE across and along the slope, standing KNOB_PROUD out of a dark bezel.
 const LED := Vector3(62.0, 55.0, 0.0)
-const KNOB := Vector3(170.0, 57.0, 0.0)
+const KNOB := Vector3(166.0, 57.0, 0.0)
+const KNOB_SIZE := Vector2(24.0, 12.0)
+const KNOB_PROUD := 2.5
+const BEZEL := 2.0
 ## The back (params `rear`): all 24 up, AC ADAPTOR at x 10, MIXING -5, RIGHT -24, LEFT -36.
 const JACK_Y := 24.0
 const JACKS := {"DCInPort": 10.0, "MixingAnchor": -5.0, "LineOutRAnchor": -24.0, "LineOutLAnchor": -36.0}
@@ -271,11 +276,20 @@ func _build() -> void:
 	led.set_surface_override_material(0, lamp)
 	# Moved the 0.6 it is thick out of the nose, so it stands on it.
 	led.position += led.basis.y * 0.6 * MM
-	var knob_z: float = nose_at.call(KNOB.y)
-	_box(self, "KnobRecess", Vector3(KNOB.x - 8.0, KNOB.y - 6.0, knob_z - 6.0),
-		Vector3(KNOB.x + 8.0, KNOB.y - 2.5, knob_z + 2.0), dark)
-	_box(self, "EjectButton", Vector3(KNOB.x - 5.0, KNOB.y - 2.5, knob_z - 4.0),
-		Vector3(KNOB.x + 5.0, KNOB.y, knob_z + 2.0), _mat("knob", Color8(20, 20, 21), 0.5))
+	# The OPEN plate and its bezel, both laid in the nose's slope (the slab's own +Y is
+	# the nose's outward normal): the bezel a hair proud of the nose, the plate standing
+	# KNOB_PROUD out of it so its 2 mm press leaves it just proud.
+	var rise := sin(atan2(NOSE_TOP.y - NOSE_FOOT.y, NOSE_FOOT.x - NOSE_TOP.x))
+	var half := KNOB_SIZE.y * 0.5 * rise
+	var bezel_half := (KNOB_SIZE.y * 0.5 + BEZEL) * rise
+	var bezel := _slope(self, "KnobBezel", Vector2(KNOB.x - KNOB_SIZE.x * 0.5 - BEZEL, KNOB.x + KNOB_SIZE.x * 0.5 + BEZEL),
+		Vector2(nose_at.call(KNOB.y + bezel_half), KNOB.y + bezel_half),
+		Vector2(nose_at.call(KNOB.y - bezel_half), KNOB.y - bezel_half), 0.6, dark)
+	bezel.position += bezel.basis.y * 0.4 * MM
+	var knob := _slope(self, "EjectButton", Vector2(KNOB.x - KNOB_SIZE.x * 0.5, KNOB.x + KNOB_SIZE.x * 0.5),
+		Vector2(nose_at.call(KNOB.y + half), KNOB.y + half),
+		Vector2(nose_at.call(KNOB.y - half), KNOB.y - half), KNOB_PROUD, _mat("knob", Color8(46, 46, 49), 0.45))
+	knob.position += knob.basis.y * (KNOB_PROUD + 0.4) * MM
 
 	# The back: the panel the jacks are in, a mouth drawn at AC ADAPTOR (ExpansionPower
 	# hides its own on a shell), and the four markers on the back face.

@@ -1556,6 +1556,15 @@ func _group_segacd2() -> void:
 	var knob := cd.get_node("Shell/EjectButton") as MeshInstance3D
 	_ok(eject != null and knob.visible and eject.depress_depth == 0.002,
 		"segacd2/ OPEN is the knob on the drive's front, pressed 2 mm")
+	# It lies in the gray nose's slope and presses square into it: its face's normal
+	# and its press both run along the nose's (54 degrees, falling to the front).
+	var nose_out := Vector3(0.0, 16.0, 22.0).normalized()
+	var face := (cd.global_transform.basis.inverse() * knob.global_transform.basis.y).normalized()
+	var press := (cd.global_transform.basis.inverse() * (eject.global_transform.basis * eject.depress_axis)).normalized() 		if eject != null else Vector3.ZERO
+	_ok(face.dot(nose_out) > 0.999, "segacd2/ the OPEN plate lies in the nose's slope (%s)" % face)
+	_ok(press.dot(-nose_out) > 0.99, "segacd2/ and presses square into it (%s)" % press)
+	var size := knob.get_aabb().size * 1000.0
+	_ok(size.x >= 23.0, "segacd2/ and is the larger plate, %.0f mm across" % size.x)
 	# The desktop pointer reaches it: the resolver the reticle runs, aimed at the knob
 	# from a seat in front, above and to the right. Its box was once on the drive's
 	# right face, and the drive's box stood in front of the knob.

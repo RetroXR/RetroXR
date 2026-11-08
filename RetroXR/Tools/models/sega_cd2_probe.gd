@@ -157,6 +157,14 @@ func _run() -> void:
 	var cd := await _drive(Vector3(0, 1, 0))
 	var c := cd.global_position
 	await _shot("drive", c + Vector3(0.30, 0.30, 0.55), c)
+	# The OPEN plate in the gray nose, close, then held pressed.
+	var knob := cd.get_node("Shell/EjectButton") as MeshInstance3D
+	var kc := knob.global_transform * knob.get_aabb().get_center()
+	await _shot("open_button", kc + Vector3(-0.06, 0.07, 0.14), kc)
+	var open_btn := cd.get_node("EjectButton") as VRButton
+	open_btn.set_latched_pressed(true)
+	await _shot("open_button_pressed", kc + Vector3(-0.06, 0.07, 0.14), kc)
+	open_btn.set_latched_pressed(false)
 	var tray := cd.get("_tray") as MediaTray
 	tray.set_open(true, false)
 	await _shot("drive_lid_open", c + Vector3(0.25, 0.35, 0.40), c + Vector3(0.10, 0.03, 0))
