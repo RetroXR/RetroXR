@@ -207,6 +207,13 @@ Check an export carries it:
 unzip -l out.apk | grep vr_splash.png
 aapt dump xmltree out.apk AndroidManifest.xml | grep -A1 ossplash
 ```
+**Seen on a Quest 3 (2026-11-08)**: Horizon OS's shell says so in logcat at launch, which is
+the quickest check, with no headset on:
+`TransitionAssetManager: Splash logo found for package: com.xenu.retroxr`, then
+`Successfully loaded splash logo texture (1024x512)` and `Splash logo texture bound to the
+quad material`. `adb exec-out screencap -p` catches it too: the white mark floats in the
+transition room, drawn cream (mono is the system's to tint), and stays up until the app
+draws its first frame, about 10-20 s on a debug build.
 
 ### "Stuck on the loading screen": which engine is it running?
 
