@@ -65,6 +65,21 @@ func _ready() -> void:
 		# The saved window mode and size (or, with none, the default fitted to the
 		# screen), and from here on whatever the player does to the window.
 		QualityManager.begin_window_tracking()
+		_interpolate_desktop_camera()
+
+
+## Godot builds every XRCamera3D with physics interpolation OFF, which is right
+## in a headset (the pose is set each rendered frame) and wrong on desktop: here
+## the camera rides the XROrigin3D, which the player body moves once per 90 Hz
+## physics tick, so the drawn view jumped in whole ticks (15.6 mm then 31.1 mm
+## per 60 fps frame at walking speed instead of an even 23.3 mm) while the
+## interpolated room around it moved smoothly. Looking down at a table while
+## walking, that read as everything jittering up and down until you stopped.
+## Mouse look and turning already run on the physics tick, so they interpolate too.
+func _interpolate_desktop_camera() -> void:
+	for cam: Node in find_children("*", "XRCamera3D", true, false):
+		cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
+		cam.reset_physics_interpolation()
 
 
 ## Report what the session actually came up with, so a bad eye-buffer size is
