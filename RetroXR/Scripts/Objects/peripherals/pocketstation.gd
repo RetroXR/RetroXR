@@ -118,8 +118,10 @@ func _ready() -> void:
 		_screen_off_mat = _screen.get_surface_override_material(0)
 	_bind_controls()
 	# The VMU's hand driver: A is the action button, the stick the four direction
-	# buttons, which is the map Pokket reads (_CONTROLS).
-	_input = VmuInput.attach(self)
+	# buttons, which is the map Pokket reads (_CONTROLS). It lies screen up with the
+	# card edge (-Z) toward the player, so the F3 glyph goes past that end, below it
+	# in view; under -Y would put it beneath the unit, out of sight.
+	_input = VmuInput.attach(self, ScrollLockCapture.PLACE_NEAR_END)
 	grabbed.connect(_on_grabbed)
 	released.connect(_on_released)
 	set_process(false)

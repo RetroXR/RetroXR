@@ -58,12 +58,17 @@ var _latch := InputLatch.new()
 ## Whether the hand blocks are on. Flipped only when the answer changes.
 var _active := false
 var _last_mask := 0
+## Where the F3 / Scroll Lock glyph sits (ScrollLockCapture.PLACE_*).
+var _icon_place := ScrollLockCapture.PLACE_UNDER
 
 
-static func attach(card: Node3D) -> VmuInput:
+## `icon_place`: the VMU stands with its screen on +Z, so the glyph goes under it;
+## a card that lies screen up passes PLACE_NEAR_END.
+static func attach(card: Node3D, icon_place := ScrollLockCapture.PLACE_UNDER) -> VmuInput:
 	var n := VmuInput.new()
 	n.name = "VmuInput"
 	n._card = card
+	n._icon_place = icon_place
 	card.add_child(n)
 	return n
 
@@ -74,8 +79,8 @@ func _ready() -> void:
 	_card.grabbed.connect(_on_grabbed)
 	_card.released.connect(_on_released)
 	_card.dropped.connect(_on_dropped)
-	# Below the card: its +Z face is the screen, and the glyph floated over it.
-	_capture = ScrollLockCapture.attach(_card, _can_capture, ICON_CAPTURE, ICON_SIZE, true)
+	# Not off the +Z face: on a VMU that is the screen, and the glyph floated over it.
+	_capture = ScrollLockCapture.attach(_card, _can_capture, ICON_CAPTURE, ICON_SIZE, _icon_place)
 	call_deferred("_find_rig")
 
 

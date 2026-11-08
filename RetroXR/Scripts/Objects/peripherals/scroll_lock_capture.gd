@@ -40,22 +40,27 @@ var _host: Node3D = null
 var _eligible: Callable = Callable()
 var _icon: Label3D = null
 var _icon_size := 0.035
-## Sit the glyph under the device's bottom edge instead of off its +Z face.
-var _below := false
+## Where the glyph sits: off the +Z face, under the -Y edge, or past the -Z end.
+const PLACE_FRONT := 0
+const PLACE_UNDER := 1
+const PLACE_NEAR_END := 2
+var _place := PLACE_FRONT
 var _loco: LocomotionManager = null
 var _active := false
 
 
 ## `glyph` is a Nerd Font codepoint; `size` is the glyph's height in metres. Where
 ## it sits comes from the host's own shapes, so no caller measures its device.
-## `below` puts it under the device's -Y edge rather than off its +Z face, for a
-## device whose +Z face is a screen the glyph would cover.
+## `place` PLACE_UNDER puts it under the device's -Y edge rather than off its +Z
+## face, for an upright device whose +Z face is a screen the glyph would cover;
+## PLACE_NEAR_END puts it past the -Z end, for one that lies screen up (+Y) with
+## that end toward the player, where under -Y would hide it behind the device.
 static func attach(host: Node3D, eligible: Callable, glyph: int,
-		size := 0.035, below := false) -> ScrollLockCapture:
+		size := 0.035, place := PLACE_FRONT) -> ScrollLockCapture:
 	var cap := ScrollLockCapture.new()
 	cap._host = host
 	cap._eligible = eligible
-	cap._below = below
+	cap._place = place
 	cap._build_icon(glyph, size)
 	cap._find_locomotion_manager.call_deferred()
 	return cap
@@ -182,8 +187,10 @@ func _find_locomotion_manager() -> void:
 ## measured on every show: a shell model can resize the body long after attach.
 func _place_icon() -> void:
 	var clear := _icon_size * 0.5 + ICON_GAP
-	if _below:
+	if _place == PLACE_UNDER:
 		_icon.position = Vector3(0.0, _body_bottom_y() - clear, 0.0)
+	elif _place == PLACE_NEAR_END:
+		_icon.position = Vector3(0.0, 0.0, _body_near_z() - clear)
 	else:
 		_icon.position = Vector3(0.0, 0.0, _body_reach_z() + clear)
 
@@ -196,6 +203,14 @@ func _body_reach_z() -> float:
 	for box: AABB in _body_boxes():
 		reach = maxf(reach, box.end.z)
 	return reach
+
+
+## How far the host's own body reaches along its local -Z, as a z value.
+func _body_near_z() -> float:
+	var near := 0.0
+	for box: AABB in _body_boxes():
+		near = minf(near, box.position.z)
+	return near
 
 
 ## How far down the host's own body reaches along its local -Y, as a y value.
