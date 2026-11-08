@@ -6,15 +6,57 @@ extends RefCounted
 
 const ID := "sega_cd"
 
-# Model 1 and Model 2 both sat UNDER the Mega Drive, which is why the console
-# ends up in the middle of the tower rather than at the bottom of it.
+# The Model 2 (MK-4102, 1993), the top-loader: a long low base whose platform the
+# Genesis stands on, and on its right the drive's housing, its lid hinged at the back.
+# The console is slid on from the left until its expansion edge (the slot in its RIGHT
+# side, behind the panel that comes off) is in the receptacle on the drive's left wall
+# (Sega's manual, "Slide the Genesis sideways, from left to right"). So the console
+# stands BESIDE the drive, not square on top of the unit: `seat` is that wall at the
+# platform's level and the console's foot is its right side (RetroSystemModel.
+# expansion_foot), which is what lets a Genesis Model 2 (220 wide) and a Model 1 (280)
+# both seat against it. A Model 1 overhangs the platform's left end; Sega packed an
+# extension spacer that clips on there for it (SegaCd2Spacer, on this unit's card).
+#
+# Worn as a primitive stand-in (SegaCd2Primitive) built from RetroXR-models'
+# sega/sega-cd/console-2 (Sega's design patent at the published depth), in that model's
+# frame and with its markers' names, so the model can replace it as this shell.
+# 381 x 84.3 x 220 mm (Sega publishes 396 wide; the patent's drawing at the published
+# depth is 381; the models' agent will say if a caliper ever settles it, and then
+# everything in X scales).
+#
+# The Model 1 (MK-4100, the front-loading drawer the console stands right on top of)
+# is not built yet: this unit was a box with a drawer until 2026-11-08.
 const ROW := {
 	"label": "Sega CD",
 	"host": "genesis",
 	"media": "segacd",
 	"mount": ExpansionDefs.MOUNT_BELOW,
-	"size": Vector3(0.32, 0.08, 0.28),
+	# The shell's true bounds, so the per-axis fit is 1:1: the base's 220 deep plus the
+	# AC ADAPTOR mouth drawn 0.6 proud of its back.
+	"size": Vector3(0.381, 0.0843, 0.2206),
+	"shell": SHELL,
 	"loader": MediaDimensions.LOADER_TRAY,
+	"lid": true,
+	# The lid opens about 85 degrees about its rear edge (photographs: 80 to 90).
+	"lid_open_deg": -85.0,
+	# The drive's left wall at x 22.5 mm, on the platform's deck (43 mm): a Model 2's
+	# origin lands at x -87.5 and a Model 1's at -117.5, the models' own ConsoleSeats.
+	# (A Model 2's feet sit in the rails 2 mm lower on the real unit; the stand-in's
+	# rails are drawn, not cut, so it stands on the deck.)
+	"seat": Vector3(0.0225, 0.043, 0.0),
+	# The base the whole length, and the drive above it on the right.
+	"boxes": [
+		AABB(Vector3(-0.1905, 0.0, -0.110), Vector3(0.381, 0.045, 0.220)),
+		AABB(Vector3(0.0225, 0.045, -0.106), Vector3(0.164, 0.0378, 0.212)),
+	],
+	# The OPEN knob on the drive's front is a lever pressed DOWN, 2 mm.
+	"eject_axis": Vector3(0.0, -1.0, 0.0),
+	"eject_travel": 0.002,
+	# The Model 1 Genesis's extension spacer (SegaCd2Spacer.GROUP).
+	"accessory_group": "sega_cd2_spacer",
+	# LINE OUT LEFT / RIGHT and MIXING on the back (ExpansionAudio).
+	"line_out": true,
+	"mixing": true,
 	# The 8 KB of backup RAM inside the unit, which every Sega CD game saves to.
 	"memory": "sega_cd_memory",
 	# Switched on with no disc, a Sega CD runs its BIOS: the CD player and the
@@ -25,6 +67,8 @@ const ROW := {
 	"rom_from_firmware": true,
 	"firmware_first_present": true,
 }
+
+const SHELL := "res://Scenes/Objects/expansions/sega_cd2_primitive.tscn"
 
 
 const BOOT := {

@@ -581,6 +581,14 @@ func headphone_jack() -> Dictionary:
 	return {}
 
 
+## Whether a console that is heard through its phono sockets has a headphone jack as
+## well, built beside them (the Genesis Model 1's PHONES, beside its A/V OUT). Off for
+## every other model: headphone_jack() is asked only of hardware with no phono sockets
+## unless this says otherwise. Asked once the shell is in.
+func phones_with_av_ports() -> bool:
+	return false
+
+
 ## Where this shell's EXT.2 accessory socket is, or {} for hardware without one.
 ## Same form as headphone_jack(). The Game Boy Advance SP's: it has no jack, and
 ## its headphone adapter (PhonesAdapter) plugs in here instead.
@@ -905,6 +913,15 @@ func configure_slot2(_slot: Node3D) -> void:
 ## Expansion/Jumper Pak port is inside the body behind a cover, not on the roof.
 func configure_expansion_socket(_socket: Node3D) -> void:
 	pass
+
+
+## Where this console's foot goes -- the grab point a unit it stands on seats it by --
+## in the host's frame, given the console's measured box. The middle of its underside,
+## as a 64DD or a Satellaview takes its console. A console that joins its unit at a SIDE
+## puts it there (the Genesis: its expansion edge is in its right side, and a Sega CD
+## Model 2's receptacle takes it on the drive's left wall, whatever the console's width).
+func expansion_foot(aabb: AABB) -> Vector3:
+	return Vector3(0.0, aabb.position.y, 0.0)
 
 
 ## Place a socket of a unit's own (ExpansionCatalog's row `socket`), which RetroSystem

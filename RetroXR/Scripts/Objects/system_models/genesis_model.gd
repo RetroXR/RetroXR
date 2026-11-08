@@ -274,7 +274,37 @@ func configure_cable_attach(attach_point: Node3D) -> void:
 	attach_point.rotation = Vector3.ZERO
 
 
+# --- PHONES ------------------------------------------------------------------------
+
+## The Model 1's PHONES jack, where its shell marks it (`PhonesAnchor`, the 3.5 mm
+## stereo jack on the front's left: RetroXR-models sega/genesis/console, which the
+## xenu.genesis1 mod wears on this model). The Model 2 has none: its shell has no such
+## marker and this is {}. The jack is how a Model 1's sound reaches a Sega CD Model 2's
+## LINE OUT, through Sega's sound mixing cable into the drive's MIXING input
+## (ExpansionAudio); headphones in it play the machine's sound as any jack's do.
+func headphone_jack() -> Dictionary:
+	var anchor := _glb.find_child("PhonesAnchor", true, false) as Node3D if _glb != null else null
+	if anchor == null or not anchor.is_inside_tree():
+		return {}
+	# The front face's outward normal: the shell faces +Z.
+	return {"position": to_local(anchor.global_position), "normal": Vector3(0.0, 0.0, 1.0), "drawn": true}
+
+
+## A Genesis with PHONES has the A/V OUT too: both are built.
+func phones_with_av_ports() -> bool:
+	return not headphone_jack().is_empty()
+
+
 # --- placement --------------------------------------------------------------------
+
+## The foot goes at the console's RIGHT side, where its expansion edge is (behind the
+## panel that comes off for a Sega CD), half way along its depth and on its underside:
+## a Sega CD Model 2 seats it there against its drive's left wall, so a Model 2 (220
+## wide) and a Model 1 (280, the xenu.genesis1 mod's, which extends this model) both
+## stand where theirs would. A Model 1 Sega CD would take the same edge.
+func expansion_foot(aabb: AABB) -> Vector3:
+	return Vector3(aabb.end.x, aabb.position.y, aabb.get_center().z)
+
 
 ## The shell, measured: 0.220 x 0.059 x 0.210 m on y = 0 -- Sega's 220 x 212 x 59
 ## (prepare_genesis.py raises the download to it). Its top is a dome (43–53 mm,

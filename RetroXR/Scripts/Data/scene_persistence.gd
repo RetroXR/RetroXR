@@ -216,6 +216,7 @@ const PS2_AV_CABLE_SCENE     := preload("res://Scenes/Objects/cables/ps2_av_cabl
 const DC_AV_CABLE_SCENE      := preload("res://Scenes/Objects/system_models/dreamcast/dc_av_cable.tscn")
 const VGA_CABLE_SCENE        := preload("res://Scenes/Objects/cables/vga_cable.tscn")
 const TRS_CABLE_SCENE        := preload("res://Scenes/Objects/cables/trs_cable.tscn")
+const SEGA_CD_MIXING_CABLE_SCENE := preload("res://Scenes/Objects/cables/sega_cd_mixing_cable.tscn")
 const SP_PHONES_ADAPTER_SCENE := preload("res://Scenes/Objects/cables/sp_phones_adapter.tscn")
 const LINK_CABLE_SCENE       := preload("res://Scenes/Objects/cables/link_cable.tscn")
 const GB_LINK_CABLE_SCENE    := preload("res://Scenes/Objects/cables/gb_link_cable.tscn")
@@ -277,6 +278,7 @@ const NUNCHUK_SCENE          := preload("res://Scenes/Objects/controllers/wii/nu
 const MOTION_PLUS_SCENE      := preload("res://Scenes/Objects/controllers/wii/motion_plus.tscn")
 const RUMBLE_PAK_SCENE       := preload("res://Scenes/Objects/controllers/n64/rumble_pak.tscn")
 const SEGA32X_SPACER_SCENE   := preload("res://Scenes/Objects/peripherals/sega32x_spacer.tscn")
+const SEGA_CD2_SPACER_SCENE  := preload("res://Scenes/Objects/peripherals/sega_cd2_spacer.tscn")
 const VB_BATTERY_PACK_SCENE  := preload("res://Scenes/Objects/power/vb_battery_pack.tscn")
 const VB_AC_TAP_SCENE        := preload("res://Scenes/Objects/power/vb_ac_tap.tscn")
 const CONTROLLER_PAK_SCENE   := preload("res://Scenes/Objects/controllers/n64/controller_pak.tscn")
@@ -330,6 +332,8 @@ const LEAD_SCENES := {
 	"ps2_av_cable": PS2_AV_CABLE_SCENE,
 	"vga_cable": VGA_CABLE_SCENE,
 	"trs_cable": TRS_CABLE_SCENE,
+	# Sega's sound mixing cable: a Genesis Model 1's PHONES into a Sega CD's MIXING.
+	"sega_cd_mixing_cable": SEGA_CD_MIXING_CABLE_SCENE,
 	"sp_phones_adapter": SP_PHONES_ADAPTER_SCENE,
 	"link_cable": LINK_CABLE_SCENE,
 	"gb_link_cable": GB_LINK_CABLE_SCENE,
@@ -457,6 +461,9 @@ const PLAIN_SCENES := {
 	# restored from that UNIT's entry ("accessory"), as the paks are from their
 	# controller's.
 	"sega32x_spacer": SEGA32X_SPACER_SCENE,
+	# The Sega CD Model 2's extension spacer for a Genesis Model 1: the same terms,
+	# which drive it is on restored from that DRIVE's entry ("accessory").
+	"sega_cd2_spacer": SEGA_CD2_SPACER_SCENE,
 	# The Virtual Boy's battery pack and AC adapter tap: a pose here (and the tap's
 	# variant, which jack it has), the cells and lid as any object's, and which
 	# controller it is on restored from that CONTROLLER's entry ("power_unit").
@@ -2613,6 +2620,7 @@ static func _save_kind_rows() -> Array:
 		# or pad slot each is in is saved on the thing it is in.
 		[RumblePak, "rumble_pak"],
 		[Sega32xSpacer, "sega32x_spacer"],
+		[SegaCd2Spacer, "sega_cd2_spacer"],
 		# Its type is its kind's; a tap adds which jack it has.
 		[VbPowerUnit, "", &"_vb_power_unit_entry"],
 		[JumpPack, "jump_pack"],

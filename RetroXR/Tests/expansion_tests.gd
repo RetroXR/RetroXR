@@ -30,6 +30,10 @@
 ##            needs, and the dump gate
 ##   vcdcard/ the Saturn's Video CD Card: a socket of its own in the back panel,
 ##            in beside a cartridge and staying in when the cartridge comes out
+##   segacd2/ the Sega CD Model 2 stand-in: a Genesis seated against its drive's
+##            wall whatever its width, its lid and disc seat, the Model 1's spacer,
+##            and the LINE OUT carrying the console (through the connector, or the
+##            mixing lead from a Model 1's PHONES)
 ##   markets/ a mod's shell for a unit with another market's molding: a unit of
 ##            that market wears its own, at its own size, by its own tongue
 extends "res://Tests/test_suite.gd"
@@ -1473,10 +1477,169 @@ func _run() -> void:
 		await _group_vcdcard()
 	if _want("spacer"):
 		await _group_spacer()
+	if _want("segacd2"):
+		await _group_segacd2()
 	if _want("markets"):
 		await _group_markets()
 	if _want("lockon"):
 		await _group_lockon()
+
+
+# ── segacd2/ — the Sega CD Model 2 ──────────────────────────────────────────
+
+const _MIXING_CABLE := preload("res://Scenes/Objects/cables/sega_cd_mixing_cable.tscn")
+const _CD2_SPACER := preload("res://Scenes/Objects/peripherals/sega_cd2_spacer.tscn")
+const _TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
+const _COMPOSITE := preload("res://Scenes/Objects/cables/composite_cable.tscn")
+const _TRS_PORT := preload("res://Scenes/Objects/cables/trs_port.tscn")
+
+
+## A world point in the drive's shell frame (the RetroXR-models model's), in mm.
+func _in_shell_mm(cd: RetroExpansion, world: Vector3) -> Vector3:
+	var shell := cd.get_node("Shell") as Node3D
+	return shell.global_transform.affine_inverse() * world * 1000.0
+
+
+func _group_segacd2() -> void:
+	var cd := await _unit("sega_cd")
+	var shell := cd.get_node_or_null("Shell") as Node3D
+	_ok(shell is SegaCd2Primitive, "segacd2/ the drive wears the Model 2 stand-in")
+	_ok(shell != null and (shell.scale - Vector3.ONE).length() < 0.001,
+		"segacd2/ fitted 1:1: the row's size is its true bounds")
+	if shell == null:
+		await _clear()
+		return
+	# The console's foot lands on the drive's left wall, on the deck.
+	var socket := cd.get_socket()
+	var at := _in_shell_mm(cd, socket.global_position)
+	_ok(at.distance_to(Vector3(22.5, 43.0, 0.0)) < 0.1,
+		"segacd2/ the socket is at the drive's wall, on the deck (%s)" % at)
+	_ok(cd.get_node_or_null("CollisionShape3D2") != null and cd.get_node_or_null("PointerArea/CollisionShape3D2") != null,
+		"segacd2/ two boxes, the base and the drive, so the console is not inside the unit's")
+
+	var md := await _console("genesis")
+	await _bolt(md, cd)
+	_ok(md.expansion_ids().has("sega_cd"), "segacd2/ the Genesis bolts on")
+	var box := md.body_aabb()
+	# Its right side (its expansion edge) against the wall, its underside on the deck,
+	# centred in depth: a Model 2's origin lands at the model's ConsoleSeat (-87.5).
+	var right := _in_shell_mm(cd, md.global_transform * Vector3(box.end.x, box.position.y, box.get_center().z))
+	_ok(right.distance_to(Vector3(22.5, 43.0, 0.0)) < 0.5,
+		"segacd2/ its right side is against the drive's wall (%s)" % right)
+	var origin := _in_shell_mm(cd, md.global_position)
+	_ok(absf(origin.x + 87.5) < 1.0,
+		"segacd2/ a Model 2 (%.1f wide) stands at the model's ConsoleSeat x -87.5 (%.1f)" % [box.size.x * 1000.0, origin.x])
+	# A Model 1 is 280 wide (the xenu.genesis1 shell's report): the same foot puts its
+	# origin at -117.5, where the spacer's model seats it.
+	var wide := RetroSystemModelGenesis.new()
+	var foot := wide.expansion_foot(AABB(Vector3(-0.140, 0.0, -0.106), Vector3(0.280, 0.0688, 0.212)))
+	wide.free()
+	_ok(absf((22.5 - foot.x * 1000.0) + 117.5) < 0.01 and is_zero_approx(foot.z),
+		"segacd2/ a Model 1's foot is its right side too, putting it at -117.5")
+
+	# The lid and the disc: the shell's own.
+	var tray := cd.get("_tray") as MediaTray
+	_ok(tray != null and tray.lid_pivot == cd.get_node("Shell/LidPivot"), "segacd2/ the lid that swings is the shell's")
+	var bay := cd.get_node("MediaBay") as Node3D
+	_ok(_in_shell_mm(cd, bay.global_position).distance_to(Vector3(106.0, 72.6, 8.0)) < 0.1,
+		"segacd2/ a disc lies on the hub, at the model's DiscSeat")
+	if tray != null:
+		tray.set_open(true, false)
+		_ok(is_equal_approx(tray.lid_pivot.rotation_degrees.x, -85.0), "segacd2/ the lid opens 85 degrees, front edge up")
+		tray.set_open(false, false)
+	var eject := cd.get_node_or_null("EjectButton") as VRButton
+	var knob := cd.get_node("Shell/EjectButton") as MeshInstance3D
+	_ok(eject != null and knob.visible and eject.depress_depth == 0.002,
+		"segacd2/ OPEN is the knob on the drive's front, pressed 2 mm")
+
+	# The spacer clips on at the platform's left end, in the drive's frame.
+	var spacer := _CD2_SPACER.instantiate() as SegaCd2Spacer
+	spacer.freeze = true
+	add_child(spacer)
+	_spawned.append(spacer)
+	await _wait(5)
+	cd.restore_accessory(spacer)
+	await _wait(5)
+	_ok(cd.get_accessory() == spacer and spacer.get_unit() == cd, "segacd2/ the spacer clips on, each knows the other")
+	_ok(spacer.global_position.distance_to(shell.global_position) < 0.001,
+		"segacd2/ in the drive's frame, as modelled")
+	_ok(_in_shell_mm(cd, (spacer.get_node("Model/Bar") as Node3D).global_position).x < -190.5,
+		"segacd2/ beyond the base's left end")
+	_ok(md.get_collision_exceptions().has(spacer), "segacd2/ and exempt from the console standing over it")
+
+	# LINE OUT and MIXING on the back.
+	var line_l := cd.get_node_or_null(ExpansionAudio.LEFT_NAME) as HostLineOut
+	var line_r := cd.get_node_or_null(ExpansionAudio.RIGHT_NAME) as HostLineOut
+	var mix := cd.get_node_or_null(ExpansionAudio.MIXING_NAME) as TrsPort
+	_ok(line_l != null and line_r != null and mix != null, "segacd2/ LINE OUT L and R and MIXING are built")
+	if line_l == null or line_r == null or mix == null:
+		await _clear()
+		return
+	_ok(line_l.channel == RcaPort.Channel.AUDIO_L and line_r.channel == RcaPort.Channel.AUDIO_R
+		and line_l.direction == RcaPort.Direction.OUT and mix.direction == RcaPort.Direction.IN,
+		"segacd2/ LEFT, RIGHT out and MIXING in")
+	for port: Node3D in [line_l, line_r, mix]:
+		var p := _in_shell_mm(cd, port.global_position)
+		var face_out := port.global_transform.basis.z.normalized().dot(-cd.global_transform.basis.z.normalized())
+		_ok(p.z < -110.0 and face_out > 0.99, "segacd2/ %s on the back, facing out (%s)" % [port.name, p])
+	_ok(_in_shell_mm(cd, line_l.global_position).x < _in_shell_mm(cd, line_r.global_position).x,
+		"segacd2/ LEFT is left of RIGHT seen from the front (the model's x -36 and -24)")
+
+	# A Model 2 Genesis on it: its sound reaches the drive through the connector.
+	_ok(ExpansionAudio.carrier(cd) == md and line_l.get_device() == md,
+		"segacd2/ with a Model 2 on it, the LINE OUT is the console's")
+	_ok(line_l.save_owner() == cd, "segacd2/ and a lead in it is saved under the drive")
+	var tv := _TV_SCENE.instantiate() as RetroTV
+	tv.freeze = true
+	tv.position = Vector3(_spawned.size() * 2.0, 1, 3)
+	add_child(tv)
+	tv.add_to_group("spawned")
+	_spawned.append(tv)
+	var lead := _COMPOSITE.instantiate() as Node3D
+	lead.position = tv.position + Vector3(0, 0, 0.6)
+	add_child(lead)
+	_spawned.append(lead)
+	await _wait(20)
+	line_l.pick_up_object(lead.get_node("PlugA1") as RcaPlug)
+	(tv.get_node("AudioLIn") as RcaPort).pick_up_object(lead.get_node("PlugB1") as RcaPlug)
+	line_r.pick_up_object(lead.get_node("PlugA2") as RcaPlug)
+	(tv.get_node("AudioRIn") as RcaPort).pick_up_object(lead.get_node("PlugB2") as RcaPlug)
+	await _wait(25)
+	var feed := AvSource.resolve(md, true)
+	_ok(feed.audio_sink == tv and feed.left == 0 and feed.right == 1,
+		"segacd2/ a set on the LINE OUT plays the Genesis, left and right (%s)" % feed.summary())
+
+	# A console with a PHONES jack (a Model 1: the xenu.genesis1 shell's PhonesAnchor,
+	# here a jack fitted by hand) is heard only through the mixing lead into MIXING.
+	var phones := _TRS_PORT.instantiate() as TrsPort
+	phones.name = "PhonesOut"
+	phones.direction = RcaPort.Direction.OUT
+	md.add_child(phones)
+	phones.position = Vector3(-0.092, 0.011, 0.11)
+	ExpansionAudio.refresh(cd)
+	await _wait(5)
+	_ok(ExpansionAudio.carrier(cd) == null and line_l.get_device() == null,
+		"segacd2/ a Model 1 with no mixing lead: the LINE OUT carries nothing")
+	_ok(AvSource.resolve(md, true).audio_sink != tv, "segacd2/ so the set on it does not play the console")
+	var mixing := _MIXING_CABLE.instantiate() as Node3D
+	mixing.position = md.position + Vector3(0, 0.3, 0)
+	add_child(mixing)
+	_spawned.append(mixing)
+	await _wait(20)
+	phones.pick_up_object(mixing.get_node("PlugA0") as RcaPlug)
+	mix.pick_up_object(mixing.get_node("PlugB0") as RcaPlug)
+	await _wait(25)
+	_ok(ExpansionAudio.mixing_from(cd) == phones and ExpansionAudio.carrier(cd) == md,
+		"segacd2/ the mixing lead from its PHONES into MIXING: the LINE OUT is the console's")
+	_ok(AvSource.resolve(md, true).audio_sink == tv, "segacd2/ and the set on it plays the console")
+	var av: Variant = md.get("_av")
+	_ok(av != null and av.get("audio_sink") == tv, "segacd2/ the console itself routed its sound there")
+	mix.forget_object(mix.seated_plug())
+	mix.drop_object()
+	await _wait(25)
+	_ok(ExpansionAudio.carrier(cd) == null and (av == null or av.get("audio_sink") != tv),
+		"segacd2/ pulled out of MIXING, the set loses the console again")
+	await _clear()
 
 
 # ── lockon/ — Sonic & Knuckles, a cartridge with a Genesis slot in its roof ────
@@ -1717,8 +1880,8 @@ func _group_spacer() -> void:
 	_ok(mount != null, "spacer/ the 32X grows a mount for it")
 	_ok(mount != null and shell != null and mount.position.distance_to(shell.position) < 0.0005,
 		"spacer/ at the shell's own origin, its resting plane")
-	var cd := await _unit("sega_cd")
-	_ok(cd.get_node_or_null("AccessoryMount") == null, "spacer/ and no other unit grows one")
+	var cd := await _unit("nintendo_64dd")
+	_ok(cd.get_node_or_null("AccessoryMount") == null, "spacer/ and a unit whose row names none grows none")
 	await _wait(10)
 
 	x32.restore_accessory(spacer)
@@ -2851,7 +3014,7 @@ func _group_disk() -> void:
 		"disk/ no slit is cut into a shell with its own mouth")
 	_ok(shell == null or dd.get_node_or_null("ExpansionSocket/ConnectorPlate") == null,
 		"disk/ nor a connector plate laid on a shell with its own port")
-	var plain := await _unit("sega_cd")
+	var plain := await _unit("pc_engine_cd")
 	_ok(plain.get_node_or_null("ExpansionSocket/ConnectorPlate") != null,
 		"disk/ while the primitive box keeps its plate")
 	# The same for a unit standing ON its console: a pak given a shell (as the

@@ -1460,7 +1460,11 @@ func _test_units() -> void:
 		if jack == null:
 			continue
 		_ok(jack.position.z < -unit.size().z * 0.45, "units/%s's jack is on its back" % row[0], str(jack.position))
-		_ok((jack.get_node("DcMouth") as Node3D).visible, "units/%s's box draws the stand-in jack" % row[0])
+		# The FDS drive is a box and draws the stand-in jack; the Sega CD wears the
+		# Model 2's shell, whose AC ADAPTOR mouth (DCInPort) the jack sits in, drawn by it.
+		var shelled := unit.get_node_or_null("Shell") != null
+		_ok((jack.get_node("DcMouth") as Node3D).visible != shelled,
+			"units/%s's %s draws the jack" % [row[0], "shell" if shelled else "box"])
 		var brick := _brick(str(row[1]), str(row[2]), Vector3(0.5, 0.3, 0.5))
 		await _wait(4)
 		_ok(brick.dc_plug.is_in_group(jack.snap_require), "units/its %s fits it" % row[1])

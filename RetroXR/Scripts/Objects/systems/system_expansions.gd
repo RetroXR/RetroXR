@@ -89,8 +89,13 @@ func build_hardware() -> XRToolsGrabPointSnap:
 
 	if ExpansionCatalog.host_stands_on_unit(sysid) \
 			and _host.get_node_or_null("ExpansionFoot") == null:
-		return ExpansionPort.build_foot(_host, aabb.position.y, span,
+		var foot := ExpansionPort.build_foot(_host, aabb.position.y, span,
 			not model.brings_own_body())
+		# Where the console's join to a unit under it really is: the middle of its
+		# underside, or its expansion edge on a console that is slid sideways into the
+		# unit's receptacle (a Genesis on a Sega CD Model 2).
+		foot.position = model.expansion_foot(aabb)
+		return foot
 	return null
 
 

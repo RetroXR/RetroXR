@@ -130,6 +130,9 @@ func _ready() -> void:
 	# A unit the console's picture passes through (the 32X's A/V IN and OUT). After
 	# the supply: whether it passes follows it.
 	ExpansionAv.build(self)
+	# A unit whose LINE OUT carries its console's sound (the Sega CD Model 2's, with
+	# its MIXING input for a console that has a PHONES jack).
+	ExpansionAudio.build(self)
 	_update_label()
 	_build_panel()
 
@@ -228,6 +231,7 @@ func _build_body() -> void:
 	# the unit or on it.
 	ptr.size = s
 	pointer_shape.shape = ptr
+	_fit_boxes(shape, pointer_shape)
 
 	_label = $NameLabel as Label3D
 	# Above the slit on a front-loading unit and below the join on a top-mounting
@@ -288,6 +292,32 @@ func _build_shell(s: Vector3) -> void:
 		_led_mat.emission_energy_multiplier = 2.5
 		led.set_surface_override_material(0, _led_mat)
 		host_changed.connect(_watch_access_led)
+
+
+## A shell that is not its bounding box (the row's `boxes`: the Sega CD Model 2's long
+## low base and its tall drive) gets a collision and pointer box per part, so a console
+## standing on the low part is not inside the unit's box, and a beam at it reaches it.
+## The boxes are in the shell's GLB frame, carried into this unit's by the shell's own
+## fit. The first box takes the scene's shape nodes; the rest are added beside them.
+func _fit_boxes(shape: CollisionShape3D, pointer_shape: CollisionShape3D) -> void:
+	var boxes := ExpansionCatalog.boxes_of(_shell_id())
+	if boxes.is_empty() or _shell == null:
+		return
+	for i in boxes.size():
+		var a: AABB = boxes[i]
+		var centre := _shell.transform * a.get_center()
+		var size := a.size * _shell.scale
+		for pair: Array in [[shape, self], [pointer_shape, pointer_shape.get_parent()]]:
+			var target: CollisionShape3D = pair[0]
+			if i > 0:
+				target = CollisionShape3D.new()
+				target.name = "%s%d" % [(pair[0] as Node).name, i + 1]
+				(pair[1] as Node).add_child(target)
+			var box := BoxShape3D.new()
+			box.size = size
+			target.shape = box
+			target.position = centre
+	print("[RetroExpansion] %s: %d collision boxes from its row" % [expansion_id, boxes.size()])
 
 
 ## How far past a level's switch distance the camera has to go before the other
@@ -510,6 +540,12 @@ func _build_connector() -> void:
 		var seat_y := ExpansionCatalog.seat_y_of(_shell_id())
 		_socket = ExpansionPort.build_socket(self, s.y * 0.5 if is_nan(seat_y) else seat_y, span,
 			ExpansionPort.GROUP_SYSTEM, _accepts_host, _shell == null)
+		# A unit the console stands BESIDE part of (the Sega CD Model 2) says where its
+		# foot lands, in the shell's frame: the drive's wall, which a Genesis's right
+		# side goes against whatever its width.
+		var seat: Variant = ExpansionCatalog.seat_of(_shell_id())
+		if seat is Vector3 and _shell != null:
+			_socket.position = _shell.transform * (seat as Vector3)
 		_socket.has_picked_up.connect(_on_host_seated)
 		_socket.has_dropped.connect(_on_host_lifted)
 	else:
@@ -863,7 +899,19 @@ func _build_tray_bay(s: Vector3, media: String, loader: int) -> void:
 	_tray = MediaTray.new()
 	_tray.host = self
 	_tray.slot = _bays[0]
-	if ExpansionCatalog.lid_of(expansion_id):
+	var shell_lid := _shell_node("LidPivot")
+	var shell_seat := _shell_node("DiscSeat")
+	if ExpansionCatalog.lid_of(expansion_id) and shell_lid != null and shell_seat != null:
+		# A shell with its own lid and well (the Sega CD Model 2's, on the drive to
+		# the right of where the console stands): the disc lies where it says, and its
+		# lid is what swings.
+		_bays[0].position = to_local(shell_seat.global_position) if shell_seat.is_inside_tree() 			else _shell.transform * shell_seat.position
+		_tray.lid_pivot = shell_lid
+		var open := ExpansionCatalog.lid_open_deg_of(_shell_id())
+		if not is_nan(open):
+			_tray.lid_open_deg = open
+		add_child(_tray)
+	elif ExpansionCatalog.lid_of(expansion_id):
 		# A LID. The disc lies in a well in the roof and the lid swings up off
 		# it, the way a PlayStation or a GameCube opens.
 		_bays[0].position = Vector3(0.0, s.y * 0.5, 0.0)
@@ -1271,6 +1319,7 @@ func drop_and_free() -> void:
 	if _ethernet_port != null and _ethernet_port.picked_up_object != null:
 		_ethernet_port.drop_object()
 	ExpansionAv.drop_plugs(self)
+	ExpansionAudio.drop_plugs(self)
 	# The console's link port, and any lead in it, go back where they came from.
 	_release_link_port()
 	super.drop_and_free()
@@ -1284,6 +1333,13 @@ func drop_and_free() -> void:
 ## them is saved and sent against the unit. A no-op on a unit with no A/V sockets.
 func on_av_topology_changed(_links: Array) -> void:
 	ExpansionAv.on_topology(self)
+	# A lead into MIXING (or out of it) changes whose sound the LINE OUT carries.
+	ExpansionAudio.refresh(self)
+
+
+## ExpansionAudio's deferred refresh, called on the unit so a freed one drops it.
+func settle_line_out() -> void:
+	ExpansionAudio.settle(self)
 
 
 ## The A/V IN the console's picture comes into, or null on a unit with none. With

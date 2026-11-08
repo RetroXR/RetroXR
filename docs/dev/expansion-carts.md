@@ -462,6 +462,114 @@ shoots the back of the stack, the console's A/V OUT and the 32X's panel. `--noli
 then have no Genesis on it. `--primitive` puts the 32X on the primitive box. Headset,
 Quest and netplay OWED.
 
+### 2j-scd. The Sega CD Model 2 — a stand-in the Genesis stands BESIDE (2026-11-08)
+
+The `sega_cd` unit is now the **Model 2** (MK-4102, the 1993 top-loader). Until
+2026-11-08 it was a 320 x 80 x 280 box with a front drawer that the console sat
+square on top of; the Model 1 (MK-4100, the front-loading drawer) is not built yet.
+The id, its memory, firmware, boot recipe and power profile are unchanged.
+
+**What the hardware is** (Sega's Model 2 manual, `Sega CD System Manual - Model 2 (U)`
+on archive.org; RetroXR-models `sega/sega-cd/console-2`, read off Sega's design patent
+USD351,385 at the published 220 mm depth): a long low base whose platform takes the
+console, and on the right the drive's housing with its lid hinged at the back. The
+console is slid on "sideways, from left to right" until the expansion edge in its
+RIGHT side (behind the panel that comes off) is in the receptacle on the drive's left
+wall. The back has AC ADAPTOR (5.5 x 2.1, MK-1602, 9 V 1.2 A), MIXING (3.5 mm stereo)
+and LINE OUT RIGHT / LEFT (phonos). The front has the ACCESS lamp and the OPEN knob,
+a lever pressed down. Sega packed an **extension spacer and its plate** and a **sound
+mixing cable**, both "for use with the original Genesis model".
+
+**The shell is a primitive in the models' frame** (`SegaCd2Primitive`,
+`Scripts/Objects/systems/sega_cd2_primitive.gd`, built in code because most faces are
+slopes; `Scenes/Objects/expansions/sega_cd2_primitive.tscn`). It uses the model's frame
+(+X right, +Y up, +Z front, y = 0 under the feet, x = 0 mid-plan) and its marker names:
+`LidPivot`, `DiscSeat`, `DCInPort`, `MixingAnchor`, `LineOutLAnchor`,
+`LineOutRAnchor`, `ExpansionAnchor`, plus the expansion code's `EjectButton` (the
+model's `KnobOpen`) and `AccessLed` (its `LampAccess`). **The detailed model can
+replace it as the unit's `shell` without a seat or jack moving** (rename those two
+meshes, or teach `_build_eject_button` / `_build_shell` the model's names). Simplified:
+square corners (the real ones are rounded, and the front-right is swept round 72),
+the drive's convex front as two planes, the knob on the nose, the jacks on the back
+face (not 7 mm into an inset), and the rails and windows drawn as inlays. `size` is
+its true bounds, 381 x 84.3 x 220.6 (the DC mouth stands 0.6 mm proud), so the fit
+is 1:1. Sega publishes 396 wide while the patent gives 381; if a caliper settles it at
+396, everything in X scales (the models' agent will say).
+
+**New row fields** (`ExpansionCatalog`), all shell-overridable except the two audio flags:
+- `seat`: where the console's foot lands, in the shell's frame. Here it is the drive's wall on
+  the deck, (22.5, 43, 0) mm.
+- `boxes`: collision and pointer AABBs in the shell's frame. Here they are the base, and the
+  drive above it, so a console on the platform is not inside the unit's box.
+- `lid_open_deg`: -85.
+- `line_out` and `mixing`: the audio sockets, below.
+
+A shell with `LidPivot` and `DiscSeat` supplies its own lid and disc seat
+(`_build_tray_bay`). The OPEN knob is `eject_axis` down, 2 mm.
+
+**The console's foot is its expansion edge.** `RetroSystemModel.expansion_foot(aabb)`
+puts the foot mid-underside by default. `RetroSystemModelGenesis` puts it at its RIGHT
+side, half way along its depth. So a Genesis Model 2 (220 wide) lands at x -87.5 and a
+Model 1 (the `xenu.genesis1` mod's 280-wide shell, which extends this model) at
+-117.5: both are the models' own `ConsoleSeat`s, with no per-model number anywhere.
+The Sega CD is the only unit a Genesis stands on, so nothing else moved.
+
+**The extension spacer** (`SegaCd2Spacer`, `Scenes/Objects/peripherals/sega_cd2_spacer.tscn`)
+is the 32X spacer's arrangement: a stateless pickable, row `accessory_group`
+`sega_cd2_spacer`, clipped into the drive's `AccessoryMount` (at the shell origin).
+It is saved on the DRIVE as `accessory`. Its geometry, from `console-2-spacer/params.py`
+in the drive's frame, is LOW confidence (read off auction photographs): a ribbed bar 52
+mm out from the platform's left end, level with the rim, with the rails carried on as
+slots, the steel plate under both, and two feet. It changes nothing the machine does.
+A Model 1 seats without it and overhangs, as on the hardware. It is spawned from the
+Sega CD's card ("Extension Spacer (Model 1)").
+
+**Sound: LINE OUT and MIXING** (`ExpansionAudio`, `HostLineOut`):
+- The LINE OUT phonos are `HostLineOut` sockets, the `AdapterJack` arrangement. Their
+  `get_device()` is the console on the drive while that console's sound reaches it, and
+  null otherwise. So the console's own `AvSource.resolve` counts them among its outputs,
+  with no change to AvSource. They are saved under the drive (`save_owner`).
+- The sound reaches the drive (`ExpansionAudio.carrier`) from a console with no PHONES
+  jack (a Model 2, through the connector). From a console WITH one (a Model 1), it
+  reaches it only while a lead runs from that jack into MIXING.
+- `carrier` reads the MIXING plug's own cable, never `AvGraph`: `own_links` asks every
+  socket for its device, the line out's included, which would recurse.
+- `ExpansionAudio.refresh` (deferred, via `RetroExpansion.settle_line_out`) re-resolves
+  the console that carried it before and the one that carries it now, and the leads in
+  the line out. It runs when the console is seated or lifted, when a plug moves in one of
+  the three sockets, and when a cord moves anywhere on the drive (`on_av_topology_changed`).
+- The core gives ONE mixed stream, so this is coarser than the hardware. A real Model 1
+  with no mixing lead still puts the CD's own audio on the line out. Here the line out is
+  the whole machine or nothing, and the console's A/V OUT carries the whole machine either
+  way. A machine plays through one sink (the first AvSource finds).
+
+**The Genesis Model 1's PHONES** is built from the shell's `PhonesAnchor`
+(`RetroSystemModelGenesis.headphone_jack`, `drawn`). `SystemAvPorts.build_phones` used
+to skip any console with phono sockets. A model now opts in with
+`phones_with_av_ports()` (Genesis: true when its shell has the anchor; every other
+model: false). `phones_carry_sound` stays a handheld's: on a console a lead from the
+jack reaches a sink through AvSource like any of its sockets, so headphones in a Model
+1's PHONES play it.
+
+**The sound mixing cable** (`Scenes/Objects/cables/sega_cd_mixing_cable.tscn`) is the
+3.5 mm lead in black (its plug handles take a surface override, because the baked TRS
+plug takes no tint). Its 1.0 m length is an ESTIMATE. It is spawned from the Sega CD's
+card.
+
+Tests: `expansion_tests segacd2/` (31 checks: the 1:1 fit, the socket at the wall, the
+two boxes, a Model 2 at -87.5 and a Model 1's foot at -117.5, the shell's lid at -85 and
+the disc on the DiscSeat, the knob, the spacer in the drive's frame, the three sockets on
+the back facing out, a set on the LINE OUT playing a Model 2, and a PHONES-jack console
+silent there until the mixing lead goes in and again once it is out). Mutation-tested:
+the foot back at the middle fails 3, the line out always carrying fails 3. The suites
+boot with no mods, so the real Model 1 is the probe's:
+`Tools/models/sega_cd2_probe` (windowed) mounts the checkout's
+`mods/xenu.genesis1.zip` in-process, never the player's mods folder. It prints a Model 2
+at -87.5 and the real Model 1 280 wide at -117.5 with its PHONES built, and the line out
+carrying nothing until the mixing lead goes in. Its stills are the drive, the lid open,
+the back, a Model 2 seated, the spacer on, and a Model 1 on it with the lead in.
+Headset, Quest, a real game's audio through the LINE OUT, and netplay are OWED.
+
 ## Firmware never hides a unit (2026-10-26)
 
 Every expansion unit is offered on its spawn card whether or not its firmware is

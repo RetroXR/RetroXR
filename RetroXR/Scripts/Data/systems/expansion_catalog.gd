@@ -105,6 +105,28 @@
 ##               A/V IN takes the Genesis's A/V OUT through Sega's Video Link Cable
 ##               and its A/V OUT goes to the set (ExpansionAv, AvGraph).
 ##               Absent, the unit has no A/V sockets.
+##   seat        MOUNT_BELOW only: where the console's FOOT lands, a point in the
+##               shell's GLB frame (metres), for a unit the console stands BESIDE part of
+##               rather than square on top of. The Sega CD Model 2: its drive's left wall
+##               at the platform's level, where a Genesis's right side (its expansion
+##               edge, RetroSystemModel.expansion_foot) goes, so a Model 2 (220 wide) and
+##               a Model 1 (280) both seat against the receptacle. Absent, the middle of
+##               the roof at `seat_y`.
+##   boxes       the shell's collision and pointer boxes, AABBs in its GLB frame
+##               (metres), for a shell that is not its bounding box -- the Sega CD Model
+##               2's long low base and its tall drive. Absent, one box of `size`.
+##   lid_open_deg
+##               how far a shell's own LidPivot swings open (MediaTray.lid_open_deg,
+##               negative is front edge up). A shell with a LidPivot and a DiscSeat
+##               supplies the lid and the disc's seat (RetroExpansion._build_tray_bay).
+##               Absent, MediaTray's own.
+##   line_out    the unit has a LINE OUT phono pair carrying its CONSOLE's sound
+##               (ExpansionAudio, HostLineOut), at the shell's LineOutLAnchor /
+##               LineOutRAnchor. The Sega CD Model 2.
+##   mixing      the unit has a MIXING 3.5 mm input (the shell's MixingAnchor): a console
+##               whose sound does not reach the unit through its connector (a Genesis
+##               Model 1, which has a PHONES jack) reaches the LINE OUT through a lead
+##               from its PHONES into here.
 ##   accessory_group
 ##               a clip-on accessory this unit takes, by the group it joins: the
 ##               unit grows an AccessoryMount snap zone at its shell's origin,
@@ -368,6 +390,11 @@ const FIELDS := {
 	"seat_yaw": 0.0,
 	"swipe_slit": null,
 	"accessory_group": "",
+	"seat": null,
+	"boxes": [],
+	"lid_open_deg": NAN,
+	"line_out": false,
+	"mixing": false,
 	"power_jack": null,
 	"av_socket": "",
 	"av_in": null,
@@ -461,6 +488,9 @@ const _SHELL_FIELDS := {
 	# Where a console standing on the unit rests, for a shell whose deck is not
 	# its top: the Super Famicom sinks 19 mm into the Satellaview's tray.
 	"seat_y": TYPE_FLOAT,
+	# Where the console's foot lands and the shell's collision boxes, for a unit the
+	# console stands beside part of (the Sega CD Model 2).
+	"seat": TYPE_VECTOR3, "boxes": TYPE_ARRAY, "lid_open_deg": TYPE_FLOAT,
 }
 
 ## unit id -> {owner, fields, variants: {variant id -> fields}}.
@@ -733,6 +763,32 @@ static func connector_of(id: String) -> Variant:
 ## the top of its box. See the row docs above.
 static func seat_y_of(id: String) -> float:
 	return float(_field(id, "seat_y"))
+
+
+## Where a console's foot lands on this unit, a point in its shell's GLB frame, or
+## null for the middle of the roof (seat_y_of). See the row docs above.
+static func seat_of(id: String) -> Variant:
+	return _field(id, "seat")
+
+
+## The shell's collision boxes in its GLB frame, or [] for one box of `size`.
+static func boxes_of(id: String) -> Array:
+	return _field(id, "boxes")
+
+
+## How far a shell's own lid opens, in degrees, or NAN for MediaTray's own.
+static func lid_open_deg_of(id: String) -> float:
+	return float(_field(id, "lid_open_deg"))
+
+
+## Whether the unit has a LINE OUT carrying its console's sound (ExpansionAudio).
+static func line_out_of(id: String) -> bool:
+	return bool(_field(id, "line_out"))
+
+
+## Whether the unit has a MIXING input for a console's PHONES lead (ExpansionAudio).
+static func mixing_of(id: String) -> bool:
+	return bool(_field(id, "mixing"))
 
 
 ## How a LOADER_SLOT unit's media lies as it goes in, in the slot's frame (the

@@ -242,6 +242,14 @@ const _PERIPHERALS: Dictionary = {
 		# console's own A/V Cable from the 32X's A/V OUT.
 		{"kind": "peripheral", "label": "Video Link Cable", "spawn": "sega32x_video_link_cable"},
 	],
+	# What Sega packed with the Sega CD Model 2 for an ORIGINAL Genesis (Model 1): the
+	# extension spacer that clips on the platform's left end under the wider console,
+	# and the sound mixing cable from its PHONES to the drive's MIXING (ExpansionAudio).
+	# A Model 2 Genesis needs neither. On the Sega CD's card, after the unit.
+	"segacd": [
+		{"kind": "peripheral", "label": "Extension Spacer (Model 1)", "spawn": "sega_cd2_spacer"},
+		{"kind": "peripheral", "label": "Sound Mixing Cable", "spawn": "sega_cd_mixing_cable"},
+	],
 	# A cabinet's bay is its own object now (ArcadeBayUnit), and the harness lead joins one standing
 	# elsewhere to a cabinet. Every cabinet's card offers every kind: a bay clipped into another kind's
 	# cabinet is what makes the cabinet play that system.

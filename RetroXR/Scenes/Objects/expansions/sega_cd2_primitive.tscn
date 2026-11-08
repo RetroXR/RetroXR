@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/systems/sega_cd2_primitive.gd" id="1_shell"]
+
+; The Sega CD Model 2's stand-in shell. Its parts are built by the script (most of its
+; faces are slopes); see sega_cd2_primitive.gd for the figures and their sources.
+[node name="SegaCD2" type="Node3D"]
+script = ExtResource("1_shell")

@@ -553,6 +553,9 @@ func _ready() -> void:
 	# nothing plays until a lead is run to the set, as it did on the real thing.
 	if _model.uses_av_ports():
 		_av.build()
+		# A headphone jack beside the sockets, on the model that has one (the Genesis
+		# Model 1's PHONES); build_phones asks the model.
+		_av.build_phones.call_deferred()
 	else:
 		_video_lead.spawn()
 		# Deferred for the reason the name label is: the jack is seated off the

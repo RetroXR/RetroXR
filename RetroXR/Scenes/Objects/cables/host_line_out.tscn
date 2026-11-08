@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="1_rcaport"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/host_line_out.gd" id="2_script"]
+
+; A phono socket whose sound is the console's the unit is bolted to (HostLineOut):
+; the plain phono socket with its device answered by ExpansionAudio. Built OUT with
+; its channel set by ExpansionAudio.
+[node name="HostLineOut" instance=ExtResource("1_rcaport")]
+script = ExtResource("2_script")
+direction = 0

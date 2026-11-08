@@ -1,0 +1,157 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/sega_cd2_spacer.gd" id="1_spacer"]
+[ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="Script" uid="uid://b8uwrf51jd5xm" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="3_grabpoint"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_right.tscn" id="4_rhand"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_left.tscn" id="5_lhand"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_spacer"]
+friction = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Mat_shell"]
+albedo_color = Color(0.07, 0.07, 0.075, 1)
+roughness = 0.55
+metallic = 0.0
+
+[sub_resource type="StandardMaterial3D" id="Mat_dark"]
+albedo_color = Color(0.024, 0.024, 0.027, 1)
+roughness = 0.8
+metallic = 0.0
+
+[sub_resource type="StandardMaterial3D" id="Mat_plate"]
+albedo_color = Color(0.118, 0.118, 0.125, 1)
+roughness = 0.45
+metallic = 0.5
+
+[sub_resource type="StandardMaterial3D" id="Mat_feet"]
+albedo_color = Color(0.133, 0.133, 0.137, 1)
+roughness = 0.9
+metallic = 0.0
+
+[sub_resource type="BoxMesh" id="Box_0"]
+material = SubResource("Mat_shell")
+size = Vector3(0.0524, 0.042, 0.216)
+
+[sub_resource type="BoxMesh" id="Box_1"]
+material = SubResource("Mat_dark")
+size = Vector3(0.0434, 0.0007, 0.007)
+
+[sub_resource type="BoxMesh" id="Box_2"]
+material = SubResource("Mat_shell")
+size = Vector3(0.0016, 0.029, 0.003)
+
+[sub_resource type="BoxMesh" id="Box_3"]
+material = SubResource("Mat_plate")
+size = Vector3(0.084, 0.00135, 0.1)
+
+[sub_resource type="BoxMesh" id="Box_4"]
+material = SubResource("Mat_feet")
+size = Vector3(0.016, 0.0033, 0.008)
+
+; The bar alone: the ribs, plate and feet are within a few millimetres of it.
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(0.0524, 0.042, 0.216)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
+size = Vector3(0.06, 0.048, 0.222)
+
+; The Sega CD Model 2's extension spacer and its plate, a primitive stand-in in the
+; DRIVE's frame (sega_cd2_primitive.gd: +X right, +Y up, +Z front, y = 0 under the
+; drive's feet, x = 0 the middle of its plan), so its origin is the drive's shell
+; origin and an identity GrabPoint seats it at the drive's AccessoryMount. Figures:
+; RetroXR-models sega/sega-cd/console-2-spacer params.py (auction photographs scaled
+; by the drive, the service manual's drawing; LOW confidence): the bar 52 out from the
+; platform's left end (x -243 to -190.6), the drive's depth less its corners, its top
+; level with the rim (45); the platform's two rails carried on as slots; seven ribs
+; down its outer face; the steel plate under both (84 x 100); two rubber feet.
+[node name="SegaCd2Spacer" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.12
+physics_material_override = SubResource("PhysMat_spacer")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_spacer")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2168, 0.024, 0)
+shape = SubResource("BoxShape3D_body")
+
+[node name="Model" type="Node3D" parent="."]
+
+[node name="Bar" type="MeshInstance3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2168, 0.024, 0.0)
+mesh = SubResource("Box_0")
+
+[node name="RailSlot1" type="MeshInstance3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2123, 0.04485, -0.071)
+mesh = SubResource("Box_1")
+
+[node name="RailSlot2" type="MeshInstance3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2123, 0.04485, 0.076)
+mesh = SubResource("Box_1")
+
+[node name="Rib1" type="MeshInstance3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2434, 0.0235, -0.09)
+mesh = SubResource("Box_2")
+
+[node name="Rib2" type="MeshInstance3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2434, 0.0235, -0.06)
+mesh = SubResource("Box_2")
+
+[node name="Rib3" type="MeshInstance3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2434, 0.0235, -0.03)
+mesh = SubResource("Box_2")
+
+[node name="Rib4" type="MeshInstance3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2434, 0.0235, 0.0)
+mesh = SubResource("Box_2")
+
+[node name="Rib5" type="MeshInstance3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2434, 0.0235, 0.03)
+mesh = SubResource("Box_2")
+
+[node name="Rib6" type="MeshInstance3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2434, 0.0235, 0.06)
+mesh = SubResource("Box_2")
+
+[node name="Rib7" type="MeshInstance3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2434, 0.0235, 0.09)
+mesh = SubResource("Box_2")
+
+[node name="Plate" type="MeshInstance3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.19, 0.002275, -0.002)
+mesh = SubResource("Box_3")
+
+[node name="Foot1" type="MeshInstance3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.217, 0.00165, -0.088)
+mesh = SubResource("Box_4")
+
+[node name="Foot2" type="MeshInstance3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.217, 0.00165, 0.088)
+mesh = SubResource("Box_4")
+
+; IDENTITY: a snap zone composes the grab point, and the model shares the drive's
+; frame, so this seats the spacer exactly at the drive's AccessoryMount.
+[node name="GrabPoint" type="Marker3D" parent="."]
+visible = false
+script = ExtResource("3_grabpoint")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2168, 0.024, 0)
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="HandRight" parent="." instance=ExtResource("4_rhand")]
+visible = false
+
+[node name="HandLeft" parent="." instance=ExtResource("5_lhand")]
+visible = false

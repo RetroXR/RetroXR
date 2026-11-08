@@ -56,7 +56,12 @@ var phones: TrsPort = null
 ## meshes, which a detailed shell only has once it is in.
 func build_phones() -> void:
 	var model := _host.get_model()
-	if model == null or model.uses_av_ports() or is_instance_valid(phones):
+	if model == null or is_instance_valid(phones):
+		return
+	# A console heard through its phono sockets has a jack only where its model says it
+	# has both (the Genesis Model 1). A lead from it reaches a sink through AvSource as
+	# any of the console's own sockets does; phones_carry_sound stays a handheld's.
+	if model.uses_av_ports() and not model.phones_with_av_ports():
 		return
 	var seat: Dictionary = model.headphone_jack()
 	if seat.is_empty():
