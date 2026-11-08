@@ -171,6 +171,7 @@ func _test_object(key: String, path: String, kind: String) -> void:
 			await _test_button(label, poke, t)
 	if kind == "handheld":
 		await _test_powered_off(key, obj, poke)
+	await _test_idle(key, poke)
 	obj.queue_free()
 	await get_tree().process_frame
 
@@ -328,6 +329,28 @@ func _test_button(label: String, poke: ControlPoke, t: Dictionary) -> void:
 	AppPrefs.poke_controls = true
 	_check(label + "/off", held_off and _idle(s), _show(s))
 	await _lift(poke)
+
+
+## With no hand near, a poll stops walking the caps once they have settled (it
+## walked them all every frame for nobody: 1.6 ms a frame in a room of handhelds),
+## and a hand coming back still presses the first time.
+func _test_idle(key: String, poke: ControlPoke) -> void:
+	for i in ControlPoke.SETTLE_FRAMES + 5:
+		await _lift(poke)
+	var before := poke.full_passes
+	for i in 10:
+		await _lift(poke)
+	_check(key + "/idle_stops", poke.full_passes == before,
+		"%d full passes in 10 idle frames" % (poke.full_passes - before))
+	for t: Dictionary in poke.targets:
+		var want := _expect(t)
+		if t.has("rocker") or not want.has("btn"):
+			continue
+		var f := _frame(t)
+		var s := await _poke_at(poke, f["centre"] + (f["out"] as Vector3) * (float(f["top"]) + 0.001))
+		_check(key + "/idle_wakes", _matches(s, want), "%s, wanted %s" % [_show(s), want])
+		await _lift(poke)
+		break
 
 
 func _idle(s: Dictionary) -> bool:

@@ -1671,10 +1671,16 @@ func _group_guns() -> void:
 	_ok(ports_free, "guns: and their ports are free again")
 	_ok(model._sockets != null and model._sockets.seat_count() == 2 and model._sockets.holster_count() == 0,
 		"guns: the front sockets are back")
+	# An empty socket watches for a plug only while a hand holds something
+	# (XRToolsSnapZone.note_hold), so ask it as though one did.
+	var probe_held := Node.new()
+	XRToolsSnapZone.note_hold(probe_held, true)
 	var zones_free := true
 	for i in 2:
 		var zone := sys.get_port_zones()[i] as XRToolsSnapZone
-		zones_free = zones_free and zone.monitoring and not zone.has_snapped_object()
+		zones_free = zones_free and zone.enabled and zone._wants_monitoring() and not zone.has_snapped_object()
+	XRToolsSnapZone.note_hold(probe_held, false)
+	probe_held.free()
 	_ok(zones_free, "guns: the sockets the guns were in take a plug again")
 	await _board(sys, "opwolf")
 	await _wait(10)

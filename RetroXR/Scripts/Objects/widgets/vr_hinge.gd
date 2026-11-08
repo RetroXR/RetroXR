@@ -150,6 +150,12 @@ var _poke_release_velocity_deg := 0.0
 var _release_angular_velocity_deg := 0.0
 
 
+# The scene save finds every control it records through this group (one
+# list, not a walk of each object's subtree: ScenePersistence.CONTROL_GROUP).
+func _init() -> void:
+	add_to_group(ScenePersistence.CONTROL_GROUP)
+
+
 func _ready() -> void:
 	collision_layer |= POINTABLE_LAYER
 	_build_icon()

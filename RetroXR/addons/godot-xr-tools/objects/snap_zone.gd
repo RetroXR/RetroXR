@@ -71,6 +71,77 @@ var _object_in_grab_area = Array()
 # a nearby compatible socket for the snap PREVIEW (see grab_driver.gd).
 static var _live_zones: Array[XRToolsSnapZone] = []
 
+## LOCAL PATCH (RetroXR): an EMPTY zone that snaps only what is DROPPED into it
+## watches its sphere only while a hand holds something. Nothing it does reads
+## its overlaps otherwise: the drop, the release report and the close ghost are
+## all about a held object being let go, and the preview is a distance test over
+## _live_zones. Watching all the time was the larger part of Jolt's step: 151 empty
+## sockets, bays and slots in the Starlight Arcade, -1.2 ms a step with them off
+## (Tracy, 2026-11-04). Coming back on, the bodies already inside are reported
+## entered again, so nothing is missed. RANGE zones snap what merely arrives and
+## always watch; a full zone stops watching on its own (pick_up_object).
+##
+## Pickables held by anything but a zone (a hand, the desktop's pivots), by id.
+static var _hand_held: Dictionary = {}
+## Off: every empty zone watches as it always did. A kill switch and a control leg.
+static var idle_unmonitored := true
+## How long after the last hand lets go before the zones stop watching: a drop is
+## taken in deferred `dropped` handlers and reported RELEASE_REPORT_DELAY on.
+const IDLE_OFF_DELAY := 0.5
+static var _off_serial := 0
+
+
+## A pickable has been taken by (`held`) or let go of by a holder that is not a
+## zone. Called by XRToolsPickable.
+static func note_hold(obj: Node, held: bool) -> void:
+	var was := not _hand_held.is_empty()
+	if held:
+		_hand_held[obj.get_instance_id()] = true
+	else:
+		_hand_held.erase(obj.get_instance_id())
+	var now := not _hand_held.is_empty()
+	if now == was:
+		return
+	_off_serial += 1
+	if now:
+		_apply_all_monitoring("%s taken" % obj.name)
+		return
+	var serial := _off_serial
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return
+	tree.create_timer(IDLE_OFF_DELAY).timeout.connect(func() -> void:
+		if serial == _off_serial:
+			_apply_all_monitoring("nothing held for %.1f s" % IDLE_OFF_DELAY))
+
+
+static func _apply_all_monitoring(why: String) -> void:
+	var watching := 0
+	for z: XRToolsSnapZone in _live_zones:
+		if is_instance_valid(z):
+			z._apply_monitoring()
+			if z._wants_monitoring():
+				watching += 1
+	print("[SnapZone] %d of %d zones watching (%s)" % [watching, _live_zones.size(), why])
+
+
+func _wants_monitoring() -> bool:
+	if is_instance_valid(picked_up_object):
+		return false
+	if snap_mode == SnapMode.RANGE or not idle_unmonitored:
+		return true
+	return not _hand_held.is_empty()
+
+
+func _apply_monitoring() -> void:
+	var want := _wants_monitoring()
+	if want == monitoring:
+		return
+	if not want:
+		for o in _object_in_grab_area.duplicate():
+			forget_object(o)
+	set_deferred("monitoring", want)
+
 ## LOCAL PATCH (RetroXR): how deep in a stack of sockets each zone sits, and a
 ## counter that changes whenever the answer might have.
 ##
@@ -490,8 +561,10 @@ func drop_object() -> void:
 	picked_up_object.let_go(self, Vector3.ZERO, Vector3.ZERO)
 	picked_up_object = null
 	# LOCAL PATCH (RetroXR): see pick_up_object. Bodies still inside re-enter
-	# on the next physics step.
-	monitoring = true
+	# on the next physics step. Empty, it watches only while a hand holds
+	# something (_wants_monitoring): a hand pulling the object out is counted a
+	# moment after this, and switches every empty zone back on then.
+	monitoring = _wants_monitoring()
 	has_dropped.emit()
 	highlight_updated.emit(self, enabled)
 	# LOCAL PATCH (RetroXR): the ghost may come back now that the zone is free
@@ -514,6 +587,10 @@ func _initial_object_check() -> void:
 	# Only stop if the user doesn't intend to auto-play
 	if audio is AudioStreamPlayer3D and !audio.autoplay:
 		audio.stop()
+
+	# LOCAL PATCH (RetroXR): an empty zone starts out not watching unless a hand
+	# holds something (see _wants_monitoring).
+	_apply_monitoring()
 
 
 # Called when a body enters the snap zone

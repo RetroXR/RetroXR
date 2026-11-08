@@ -260,6 +260,8 @@ func _suspend(child: Node) -> void:
 		elif _is_poke_widget(node):
 			widgets[node] = node.is_processing()
 			node.set_process(false)
+			# Or a fingertip near it wakes it straight back up (PokeWake).
+			node.set_meta(PokeWake.META_SUSPENDED, true)
 	_suspended[child] = {"pickables": pickables, "widgets": widgets}
 
 
@@ -273,6 +275,7 @@ func _resume(child: Node) -> void:
 	var widgets: Dictionary = record.get("widgets", {})
 	for node: Variant in widgets:
 		if is_instance_valid(node):
+			(node as Node).remove_meta(PokeWake.META_SUSPENDED)
 			(node as Node).set_process(widgets[node])
 
 

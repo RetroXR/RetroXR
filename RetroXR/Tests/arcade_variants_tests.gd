@@ -1622,6 +1622,10 @@ func _group_holster() -> void:
 		# parted from it first (a hand does this in the same frame it takes hold).
 		gun.captive_well = null
 		well.drop_object()
+		# Held, as a hand holds it (after the holster has let go, as pick_up orders
+		# it): an empty holster watches for a drop only while a hand holds
+		# something (XRToolsSnapZone.note_hold).
+		XRToolsSnapZone.note_hold(gun, true)
 		await _wait(2)
 		_ok(well.picked_up_object != gun, "holster: taken out, it is out of the holster")
 		gun.global_position = home + Vector3(0.0, 0.2, 0.9)
@@ -1643,3 +1647,4 @@ func _group_holster() -> void:
 		_ok(well.picked_up_object == gun, "holster: let go at the holster, gun %d goes in" % (i + 1))
 		_ok(gun.global_position.distance_to(home) < 0.03, "holster: exactly where it hung (%.3f m off)" % gun.global_position.distance_to(home))
 		_ok(gun.get_connected_system() == sys, "holster: and is still plugged in")
+		XRToolsSnapZone.note_hold(gun, false)

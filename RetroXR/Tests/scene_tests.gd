@@ -205,9 +205,87 @@ func _ready() -> void:
 		_test_save_registry()
 	if _want_group("thumbnail"):
 		await _test_thumbnail()
+	if _want_group("descendants"):
+		_test_descendant_index()
+	if _want_group("lock"):
+		_test_lock_freeze_mode()
 	_restore()
 
 	_finish()
+
+
+# ── A locked body is a STATIC one ─────────────────────────────────────────────
+
+## Locked, a table authored KINEMATIC stayed an active body once woken and kept
+## everything on it awake (twenty objects in the Starlight Arcade). It locks
+## STATIC and gets its own mode back when unlocked.
+func _test_lock_freeze_mode() -> void:
+	var body := XRToolsPickable.new()
+	body.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	add_child(body)
+	ObjectLock.set_locked(body, true)
+	_ok(body.freeze and body.freeze_mode == RigidBody3D.FREEZE_MODE_STATIC,
+		"lock/locked, it is frozen STATIC (mode %d)" % body.freeze_mode)
+	ObjectLock.set_locked(body, false)
+	_ok(not body.freeze and body.freeze_mode == RigidBody3D.FREEZE_MODE_KINEMATIC,
+		"lock/unlocked, it has its own mode back (mode %d, frozen %s)" % [body.freeze_mode, body.freeze])
+	body.free()
+
+
+# ── The snapshot's one-walk index of controls and ropes ───────────────────────
+
+## A snapshot finds every object's hinges, knobs, sliders and ropes from ONE walk
+## of the room (it was four per object, 21 ms of a 36 ms autosave). For every node
+## the index must give exactly what that node's own find_children gives, in the
+## same order, or the slot's bytes, and their digest, change.
+func _test_descendant_index() -> void:
+	var room := Node3D.new()
+	add_child(room)
+	var a := Node3D.new()
+	room.add_child(a)
+	var b := Node3D.new()
+	a.add_child(b)
+	var k1 := VRKnob.new()
+	a.add_child(k1)
+	var s1 := VRSlider.new()
+	b.add_child(s1)
+	var k2 := VRKnob.new()
+	b.add_child(k2)
+	var h1 := VRHinge.new()
+	room.add_child(h1)
+	var k3 := VRKnob.new()
+	h1.add_child(k3)
+	var rope: Node = ClassDB.instantiate("VerletRope") if ClassDB.class_exists("VerletRope") else null
+	if rope != null:
+		b.add_child(rope)
+	var sp := ScenePersistence.new("arcade")
+	sp._build_descendant_index(room)
+	var mismatches := 0
+	var checked := 0
+	var nodes: Array[Node] = [room]
+	nodes.append_array(room.find_children("*", "", true, false))
+	for n: Node in nodes:
+		for t: String in ["VRHinge", "VRKnob", "VRSlider", "VerletRope"]:
+			var want := n.find_children("*", t, true, false)
+			var got := sp._descendants(n, t)
+			checked += 1
+			if got != want:
+				mismatches += 1
+				print("[scene] descendants mismatch at %s for %s: %s vs %s" % [n.name, t, got, want])
+	_eq(mismatches, 0, "descendants/index matches find_children for every node and type (%d checked)" % checked)
+	var copy := sp._descendants(a, "VRKnob")
+	copy.append(room)
+	_eq(sp._descendants(a, "VRKnob").size(), 2, "descendants/a caller's push does not reach the index")
+	var outside := Node3D.new()
+	add_child(outside)
+	var k4 := VRKnob.new()
+	outside.add_child(k4)
+	_eq(sp._descendants(outside, "VRKnob"), [k4] as Array[Node], "descendants/a node outside the indexed room walks itself")
+	sp._clear_descendant_index()
+	_eq(sp._descendants(a, "VRKnob").size(), 2, "descendants/with no index it walks")
+	_ok(rope != null, "descendants/the VerletRope type is there to index")
+	room.free()
+	outside.free()
 
 
 # ── Which rooms keep slots, and what the active one is ────────────────────────

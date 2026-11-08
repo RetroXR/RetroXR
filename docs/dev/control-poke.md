@@ -63,6 +63,41 @@ a VRButton whose `press_gate` keeps a fingertip to that key alone (`av-suite.md`
 - The hand holding the object never pokes it (`PokeTip.is_poking`), and nothing
   is tested unless a tip is within 0.35 m of the owner.
 
+## Widgets out of reach sleep (PokeWake, 2026-11-04)
+
+`VRButton`, `VRSlider` and `VRKnob` each asked `PokeTip.any_tip_within` every frame,
+in reach or not: 168 polling in the Starlight Arcade autosave (137 buttons, 18
+sliders, 13 knobs), 0.44 ms a frame timed directly; the scanner costs 0.0055 ms. A
+small saving: the room's on/off frame A/B (one process) cannot see it under ~17 ms,
+and the 0.5-1.3 ms an earlier single-script A/B suggested was noise. They are Area3Ds on the pointable
+layer (bit 20), so Jolt's broadphase already indexes them and follows every carried
+console. `PokeWake` (`Scripts/Objects/widgets/poke_wake.gd`, a root child made on
+first use, not an autoload) runs one `intersect_shape` sphere a fingertip a frame
+(`WAKE_RADIUS` = `WIDGET_NEAR` + 0.1 m, areas only, mask bit 20) and switches on the
+widgets it finds; each widget, idle for `SLEEP_AFTER` (30) frames, switches its own
+`_process` off (`PokeWake.tick` at the end of its `_process`). Their code is
+unchanged while they run.
+
+- **A widget the query cannot find never sleeps** (`can_sleep`: pointable bit set, a
+  shape owner with a shape and not disabled, the scanner's World3D). Otherwise it is
+  a button that ignores a finger.
+- **Busy keeps it awake**: a press, an armed trigger, a laser hovering
+  (`pointer_event` wakes it first thing), `set_selected(true)`, a drag.
+- **Something that switches a widget off must say so**, or a fingertip switches it
+  back on: `VRButton.set_interactive(false)` sets `PokeWake.META_OFF`, focus mode's
+  `_suspend` sets `META_SUSPENDED`, and `PokeWake.wake` refuses either. A bare
+  `set_process(false)` is only safe with the pointable layer cleared too (the TV's
+  hidden stereo key does both).
+- New controllers are picked up from `node_added`, so a hand made after the widgets
+  (a late rig, a test's tracked finger) is scanned from its first frame. A widget
+  woken this frame runs from the next: a finger put straight onto a sleeping key
+  still presses it once (`poke_wake_tests press/`).
+- `PokeWake.enabled = false` is the kill switch and the control leg: nothing sleeps.
+- `ControlPoke.poll` itself returns at once with no hand within `NEAR` and nothing held, once
+  `SETTLE_FRAMES` (45) have let a released cap ease back: it walked every cap of every handheld
+  for nobody, 1.63 ms a frame in the Starlight Arcade, 0.26 ms after (`control_poke_tests` `idle_*`).
+  `poke_wake_tests` (20 cases; the wake and can-sleep paths mutation-tested).
+
 ## Testing
 
 `Tests/control_poke_tests.tscn` (no mods): per object, `cover/` (every cap-like

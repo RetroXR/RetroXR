@@ -95,10 +95,19 @@ var _pointer_hover: bool:              # a pointer over the grab box
 	get: return not _hover_pointers.is_empty()
 var _controllers: Array[XRController3D] = []
 var _icon: Label3D = null
+# Frames idle so far (PokeWake.tick).
+var _poke_idle := 0
+
+
+# The scene save finds every control it records through this group (one
+# list, not a walk of each object's subtree: ScenePersistence.CONTROL_GROUP).
+func _init() -> void:
+	add_to_group(ScenePersistence.CONTROL_GROUP)
 
 
 func _ready() -> void:
 	collision_layer |= POINTABLE_LAYER
+	PokeWake.ensure(self)
 	if target == null:
 		target = get_node_or_null(PIVOT_NAME) as Node3D
 	if target == null:
@@ -135,7 +144,10 @@ func _process(_delta: float) -> void:
 	if _trigger_ctrl == null \
 			and not PokeTip.any_tip_within(_controllers, global_position, PokeTip.WIDGET_NEAR):
 		_update_icon()
+		# Idle long enough, the knob sleeps until PokeWake finds a tip in reach.
+		_poke_idle = PokeWake.tick(self, _pointer_held or _pointer_hover, _poke_idle)
 		return
+	_poke_idle = 0
 	# A trigger already down cannot grab control after control as the hand sweeps
 	# across a panel — it has to fall below TRIGGER_OFF first. Same re-arm guard
 	# VRSlider and VRHinge use.
@@ -175,6 +187,8 @@ func _process(_delta: float) -> void:
 ## Press latches; the latch holds through MOVED even if the ray leaves the cap, and
 ## only RELEASED lets go — EXITED just clears the hover highlight, never the drag.
 func pointer_event(event: XRToolsPointerEvent) -> void:
+	# A laser on it needs the hover hint kept every frame.
+	PokeWake.wake(self)
 	var vr := get_viewport().use_xr
 	match event.event_type:
 		XRToolsPointerEvent.Type.ENTERED:

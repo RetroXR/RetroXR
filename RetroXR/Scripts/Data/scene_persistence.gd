@@ -865,7 +865,13 @@ func _collect_objects(root: Node) -> Array[Dictionary]:
 
 ## Everything a slot file holds, ready to encode.
 func _snapshot(root: Node) -> Dictionary:
+	var t0 := Time.get_ticks_usec()
+	_build_descendant_index(root)
 	var out := {"version": VERSION, "objects": _collect_objects(root)}
+	_clear_descendant_index()
+	var ms := (Time.get_ticks_usec() - t0) / 1000.0
+	if ms > 20.0:
+		print("[ScenePersistence] snapshot took %.1f ms (%d objects)" % [ms, (out["objects"] as Array).size()])
 	var fixtures := _collect_fixtures(root)
 	# Omitted entirely when the room has none, so a room without fixtures writes
 	# the same bytes it always did.
@@ -950,7 +956,12 @@ func _restore_fixtures(root: Node, fixtures: Variant) -> void:
 ## they always did.
 func _collect_switches(root: Node) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	for node: Node in root.find_children("*", "LightSwitch", true, false):
+	# The switches' own group, not a walk of the whole room by class name, which
+	# cost 10 ms of every snapshot in the Starlight Arcade (Tracy, 2026-11-04).
+	# Sorted into tree order: that is the order the walk gave, so the bytes hold.
+	for node: Node in _in_tree_order(root, SWITCH_GROUP):
+		if not node is LightSwitch:
+			continue
 		out.append({
 			"path": str(root.get_path_to(node)),
 			"on": bool((node as LightSwitch).lights_on),
@@ -2096,6 +2107,80 @@ func _yaw_field(key: String, yaw: float) -> Dictionary:
 	return {key: yaw}
 
 
+## The controls _base records under every object, found once per snapshot.
+##
+## Each object walked its own subtree for its hinges, knobs and sliders, three
+## walks of a console's thousands of nodes per object: 21 ms of the autosave's
+## 36 ms main-thread stall in the Starlight Arcade (Tracy, 2026-11-04). A walk of
+## the whole room by class name was no better (8 ms a type: it checks every
+## node's script). So the controls join CONTROL_GROUP as they are made, and a
+## snapshot files that list, in tree order, under each control's ancestors: an
+## object's list is exactly what its own find_children gave and the slot's bytes
+## do not change. Ropes are an engine class and keep their own walk. Outside a
+## snapshot (ObjectSync serializes one node at a time) every type walks.
+const CONTROL_GROUP := &"persisted_control"
+const SWITCH_GROUP := &"persisted_light_switch"
+const INDEXED_TYPES: Array[String] = ["VRHinge", "VRKnob", "VRSlider"]
+## Off: every object walks its own subtree, as before. A kill switch and a control leg.
+static var index_descendants := true
+var _descendant_index: Dictionary = {}   # type -> {ancestor instance id: Array[Node]}
+var _indexed_root: Node = null
+
+
+## The members of `group` under `root` (or `root` itself), in tree order: the
+## order find_children returns them in.
+static func _in_tree_order(root: Node, group: StringName) -> Array[Node]:
+	var out: Array[Node] = []
+	if root == null or not root.is_inside_tree():
+		return out
+	for n: Node in root.get_tree().get_nodes_in_group(group):
+		if n == root or root.is_ancestor_of(n):
+			out.append(n)
+	out.sort_custom(func(a: Node, b: Node) -> bool: return b.is_greater_than(a))
+	return out
+
+
+func _build_descendant_index(root: Node) -> void:
+	_clear_descendant_index()
+	if not index_descendants or root == null or not root.is_inside_tree():
+		return
+	for type_name: String in INDEXED_TYPES:
+		_descendant_index[type_name] = {}
+	for n: Node in _in_tree_order(root, CONTROL_GROUP):
+		var type_name := "VRHinge" if n is VRHinge else "VRKnob" if n is VRKnob 			else "VRSlider" if n is VRSlider else ""
+		if type_name.is_empty():
+			continue
+		var by_ancestor: Dictionary = _descendant_index[type_name]
+		var p := n.get_parent()
+		while p != null:
+			var id := p.get_instance_id()
+			if not by_ancestor.has(id):
+				var list: Array[Node] = []
+				by_ancestor[id] = list
+			(by_ancestor[id] as Array[Node]).append(n)
+			if p == root:
+				break
+			p = p.get_parent()
+	_indexed_root = root
+
+
+func _clear_descendant_index() -> void:
+	_descendant_index = {}
+	_indexed_root = null
+
+
+## `node.find_children("*", type_name, true, false)`, from the snapshot's index
+## when there is one for that type. A copy: callers push onto what they get.
+func _descendants(node: Node, type_name: String) -> Array[Node]:
+	if _indexed_root != null and is_instance_valid(_indexed_root) 			and _descendant_index.has(type_name) 			and (node == _indexed_root or _indexed_root.is_ancestor_of(node)):
+		var by_ancestor: Dictionary = _descendant_index[type_name]
+		var found: Array[Node] = []
+		if by_ancestor.has(node.get_instance_id()):
+			found = (by_ancestor[node.get_instance_id()] as Array[Node]).duplicate()
+		return found
+	return node.find_children("*", type_name, true, false)
+
+
 ## id, type and pose — the four fields every entry carries. Each branch of
 ## serialize_node() merges its own fields onto this.
 func _base(id: int, type_name: String, n3d: Node3D) -> Dictionary:
@@ -2207,7 +2292,7 @@ func _restore_attachment(root: Node, obj: Node, spawned: Dictionary, saved: Dict
 ## snapshot/reload preserves handheld lids, console flaps and battery covers.
 func _serialize_articulated_controls(root: Node3D) -> Array:
 	var out: Array = []
-	var hinges: Array[Node] = root.find_children("*", "VRHinge", true, false)
+	var hinges: Array[Node] = _descendants(root, "VRHinge")
 	if root is VRHinge:
 		hinges.push_front(root)
 	for candidate: Node in hinges:
@@ -2224,12 +2309,12 @@ func _serialize_articulated_controls(root: Node3D) -> Array:
 			if hinge is VRSpringLatchedHinge:
 				rec["latched"] = (hinge as VRSpringLatchedHinge).is_latched_closed()
 		out.append(rec)
-	for candidate: Node in root.find_children("*", "VRKnob", true, false):
+	for candidate: Node in _descendants(root, "VRKnob"):
 		var knob := candidate as VRKnob
 		if knob != null:
 			out.append({"path": str(root.get_path_to(knob)),
 				"kind": "knob", "value": knob.get_value()})
-	for candidate: Node in root.find_children("*", "VRSlider", true, false):
+	for candidate: Node in _descendants(root, "VRSlider"):
 		var slider := candidate as VRSlider
 		# A power switch is the one slider whose position is not a pose: it says
 		# whether the machine is RUNNING, and nothing restores a running machine.
@@ -2292,7 +2377,7 @@ func _restore_articulated_controls(root: Node, records: Array) -> void:
 ## player routed a lead around.
 func _serialize_rope_layouts(root: Node3D) -> Array:
 	var layouts: Array = []
-	var ropes: Array[Node] = root.find_children("*", "VerletRope", true, false)
+	var ropes: Array[Node] = _descendants(root, "VerletRope")
 	if root is VerletRope:
 		ropes.push_front(root)
 	for child: Node in ropes:

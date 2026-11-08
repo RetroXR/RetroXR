@@ -101,6 +101,8 @@ var _pointer_hovered: bool:
 	get: return not _hover_pointers.is_empty()
 var _controllers: Array[XRController3D] = []
 var _suppress_signal := false
+# Frames idle so far (PokeWake.tick).
+var _poke_idle := 0
 
 # TRIGGER mode state
 var _armed: bool = false
@@ -141,8 +143,15 @@ var _outline_amber: bool = false
 @onready var _knob: MeshInstance3D = get_node_or_null("KnobMesh") as MeshInstance3D
 
 
+# The scene save finds every control it records through this group (one
+# list, not a walk of each object's subtree: ScenePersistence.CONTROL_GROUP).
+func _init() -> void:
+	add_to_group(ScenePersistence.CONTROL_GROUP)
+
+
 func _ready() -> void:
 	collision_layer |= POINTABLE_LAYER
+	PokeWake.ensure(self)
 	_knob_axis = axis_local.normalized()
 	_knob_turn_axis = knob_turn_axis.normalized()
 	# The authored placeholder is driven from the Area origin at mid-travel, which
@@ -212,12 +221,15 @@ func set_knob_mesh(mesh: MeshInstance3D) -> void:
 func _process(delta: float) -> void:
 	if _pointer_engaged:
 		_sync_outline()
+		_poke_idle = 0
 		return   # pointer drag owns the knob (handled in pointer_event)
 	# A hand nowhere near the knob is asked nothing; an engaged hand keeps
 	# tracking wherever it roams.
+	var near := false
 	if not _controllers.is_empty():
 		if _engaged_ctrl != null \
 				or PokeTip.any_tip_within(_controllers, global_position, PokeTip.WIDGET_NEAR):
+			near = true
 			if require_trigger:
 				_process_trigger_mode()
 			else:
@@ -226,6 +238,9 @@ func _process(delta: float) -> void:
 		else:
 			_armed = false
 	_sync_outline()
+	# Idle long enough, the slider sleeps until PokeWake finds a tip in reach.
+	_poke_idle = PokeWake.tick(self, near or _engaged_ctrl != null or _pointer_hovered
+		or _armed, _poke_idle)
 
 
 ## TOUCH mode — proximity engages, and the value FREEZES the moment
@@ -414,6 +429,8 @@ func accepts_pointer_ray(from: Vector3, at: Vector3) -> bool:
 ## repainting the outline on the event rather than on the next _process — see
 ## VRButton.pointer_event for why the handover cannot wait a frame.
 func pointer_event(event: XRToolsPointerEvent) -> void:
+	# A laser on it needs the outline kept on the knob every frame.
+	PokeWake.wake(self)
 	match event.event_type:
 		XRToolsPointerEvent.Type.ENTERED:
 			_hover_pointers[event.pointer] = true

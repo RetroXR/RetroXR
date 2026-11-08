@@ -107,11 +107,14 @@ var _outline_amber: bool = false
 # Pointable layer this button carries while active, captured before anything
 # switches it off so set_active(true) restores what the scene authored.
 var _active_layer: int = POINTABLE_LAYER
+# Frames idle so far (PokeWake.tick).
+var _poke_idle := 0
 
 
 func _ready() -> void:
 	collision_layer |= POINTABLE_LAYER
 	_active_layer = collision_layer
+	PokeWake.ensure(self)
 	# Attached BEFORE the mesh is looked at, because set_button_mesh only sets an
 	# outline source when there is already an outline to set it on.
 	_outline = WidgetOutline.attach(self)
@@ -140,9 +143,11 @@ func _process(delta: float) -> void:
 	# A hand nowhere near the cap is asked nothing: a press in flight keeps
 	# polling wherever the hand roams, an idle button only wakes for a tip
 	# within reach.
+	var near := false
 	if not _controllers.is_empty():
 		if _touch_ctrl != null or _trigger_pressed \
 				or PokeTip.any_tip_within(_controllers, global_position, PokeTip.WIDGET_NEAR):
+			near = true
 			if require_trigger:
 				_process_trigger_mode()
 			else:
@@ -151,6 +156,9 @@ func _process(delta: float) -> void:
 		else:
 			_armed = false
 	_sync_outline()
+	# Idle long enough, the button sleeps until PokeWake finds a tip in reach.
+	_poke_idle = PokeWake.tick(self, near or _touch_ctrl != null or _trigger_pressed
+		or _pointer_pressed or _pointer_hovered or _selected or _armed, _poke_idle)
 
 
 ## TOUCH mode — crossing trigger_radius fires immediately, and then HOLDS.
@@ -359,6 +367,8 @@ func desktop_aim_volume() -> Dictionary:
 
 
 func pointer_event(event: XRToolsPointerEvent) -> void:
+	# A laser on it needs the outline kept on the cap every frame.
+	PokeWake.wake(self)
 	match event.event_type:
 		XRToolsPointerEvent.Type.ENTERED:
 			_hover_pointers[event.pointer] = true
@@ -479,6 +489,11 @@ func set_active(active: bool) -> void:
 ## hiding them leaves a blank white slab.
 func set_interactive(active: bool) -> void:
 	set_process(active)
+	# Switched off here, PokeWake must not switch it back on.
+	if active:
+		remove_meta(PokeWake.META_OFF)
+	else:
+		set_meta(PokeWake.META_OFF, true)
 	set_deferred("monitoring", active)
 	collision_layer = _active_layer if active else 0
 	if not active:
@@ -562,6 +577,8 @@ func set_selected(on: bool) -> void:
 	if on == _selected:
 		return
 	_selected = on
+	if on:
+		PokeWake.wake(self)
 	_sync_outline()
 
 

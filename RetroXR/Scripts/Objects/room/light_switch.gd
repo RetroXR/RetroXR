@@ -71,6 +71,12 @@ var _button: VRButton = null
 var _lever: Node3D = null
 
 
+# The scene save finds the room's switches through this group, not by walking
+# the whole room for them (ScenePersistence.SWITCH_GROUP).
+func _init() -> void:
+	add_to_group(ScenePersistence.SWITCH_GROUP)
+
+
 func _ready() -> void:
 	_button = find_child("Button", true, false) as VRButton
 	if _button == null:

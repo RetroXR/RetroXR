@@ -463,6 +463,10 @@ func _check_wells(sys: RetroSystem, pads: Array) -> void:
 	pad._allow_drop = true
 	well.enabled = false
 	well.drop_object()
+	# Held, as a hand holds it (after the well has let go, as pick_up orders it):
+	# an empty well watches for a drop only while a hand holds something
+	# (XRToolsSnapZone.note_hold).
+	XRToolsSnapZone.note_hold(pad, true)
 	pad.global_position = rest.origin + Vector3(0.0, 0.30, 0.45)
 	PhysicsServer3D.body_set_state(pad.get_rid(),
 		PhysicsServer3D.BODY_STATE_TRANSFORM, pad.global_transform)
@@ -485,6 +489,7 @@ func _check_wells(sys: RetroSystem, pads: Array) -> void:
 		"captive/and not to the other one, whose cord reaches the far corner")
 	pad.freeze = false
 	pad.emit_signal("dropped", pad)
+	XRToolsSnapZone.note_hold(pad, false)
 	for i in range(12):
 		await get_tree().physics_frame
 	var back: Variant = well.picked_up_object

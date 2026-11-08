@@ -61,6 +61,14 @@ var _controllers: Array[Node3D] = []
 var _rig_retry := 0
 var _frame := -1
 var _state := {"btn": 0, "lstick": Vector2.ZERO, "rstick": Vector2.ZERO}
+## Frames a poll keeps walking the caps with no hand near, so a cap let go eases
+## back to rest (VISUAL_LERP settles in about 20) before the walk stops.
+const SETTLE_FRAMES := 45
+var _quiet_frames := 0
+## A cap was held at the last full pass: its hand must still be let go of.
+var _held_any := false
+## Full walks of the caps so far, for a suite to see the idle poll stop walking.
+var full_passes := 0
 
 
 func _init(owner: Node3D) -> void:
@@ -130,6 +138,20 @@ func poll() -> Dictionary:
 	var live: Array[Node3D] = []
 	if AppPrefs.poke_controls:
 		live = _live_controllers()
+	# No hand near and nothing held down: once every cap has had SETTLE_FRAMES to
+	# ease back to rest, there is nothing to test. Every cap was walked anyway,
+	# its pose, box and contact mesh worked out for no hand at all: 28 polls a
+	# frame, 1.6 ms, in the Starlight Arcade's room of switched-off handhelds
+	# (Tracy, 2026-11-04).
+	if live.is_empty() and not _held_any:
+		if _quiet_frames >= SETTLE_FRAMES:
+			_state = {"btn": 0, "lstick": Vector2.ZERO, "rstick": Vector2.ZERO}
+			return _state
+		_quiet_frames += 1
+	else:
+		_quiet_frames = 0
+	full_passes += 1
+	var any_held := false
 	var btn := 0
 	var lstick := Vector2.ZERO
 	var rstick := Vector2.ZERO
@@ -138,6 +160,8 @@ func poll() -> Dictionary:
 		if not is_instance_valid(node) or not node.is_inside_tree():
 			continue
 		var held := _track(cap, live, delta)
+		if not held.is_empty():
+			any_held = true
 		if cap.has("rocker"):
 			if not held.is_empty():
 				btn |= _rocker_bits(cap, held.keys()[0])
@@ -160,6 +184,7 @@ func poll() -> Dictionary:
 				btn |= 1 << int(src["bit"])
 		elif cap.has("depth"):
 			_press_visual(cap, down, delta)
+	_held_any = any_held
 	_state = {"btn": btn, "lstick": lstick.limit_length(1.0), "rstick": rstick.limit_length(1.0)}
 	return _state
 

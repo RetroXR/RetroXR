@@ -46,18 +46,26 @@ static func set_locked(node: Node, locked: bool) -> void:
 			"enabled": body.enabled,
 			"ranged": body.can_ranged_grab,
 			"freeze": body.freeze,
+			"freeze_mode": body.freeze_mode,
 		})
 		body.set_meta(META_LOCKED, true)
 		body.enabled = false
 		body.can_ranged_grab = false
 		body.linear_velocity = Vector3.ZERO
 		body.angular_velocity = Vector3.ZERO
+		# STATIC, not the scene's own mode: a locked table authored KINEMATIC
+		# (for carrying) stayed an active body for ever once something woke it,
+		# and Jolt keeps everything touching an active body awake: twenty motionless
+		# objects on the Starlight Arcade's table never slept (2026-11-04).
+		body.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 		body.freeze = true
 	else:
 		var prev: Dictionary = body.get_meta(META_PREV, {})
 		body.set_meta(META_LOCKED, false)
 		body.enabled = bool(prev.get("enabled", true))
 		body.can_ranged_grab = bool(prev.get("ranged", true))
+		if prev.has("freeze_mode"):
+			body.freeze_mode = int(prev["freeze_mode"]) as RigidBody3D.FreezeMode
 		body.freeze = bool(prev.get("freeze", false))
 
 

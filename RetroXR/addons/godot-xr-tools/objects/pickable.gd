@@ -138,6 +138,9 @@ func _ready():
 
 # Called when the node exits the tree
 func _exit_tree():
+	# LOCAL PATCH (RetroXR): a pickable freed in a hand is no longer held.
+	XRToolsSnapZone.note_hold(self, false)
+
 	# Skip if not picked up
 	if not is_instance_valid(_grab_driver):
 		return
@@ -285,6 +288,7 @@ func _release_grab(grab: Grab) -> void:
 		global_transform)
 	if not freeze:
 		sleeping = false
+	XRToolsSnapZone.note_hold(self, false)
 	dropped.emit(self)
 
 
@@ -382,6 +386,10 @@ func pick_up(by: Node3D) -> void:
 		var grab := Grab.new(grabber, self, by_grab_point, true)
 		_grab_driver = XRToolsGrabDriver.create_snap(self, grab)
 
+	# LOCAL PATCH (RetroXR): empty snap zones watch only while a hand (anything
+	# but a zone) holds something.
+	XRToolsSnapZone.note_hold(self, not (by is XRToolsSnapZone))
+
 	# Report picked up and grabbed
 	picked_up.emit(self)
 	grabbed.emit(self, by)
@@ -476,6 +484,7 @@ func let_go(by: Node3D, p_linear_velocity: Vector3, p_angular_velocity: Vector3)
 			false)
 
 	# let interested parties know
+	XRToolsSnapZone.note_hold(self, false)
 	dropped.emit(self)
 
 	# LOCAL PATCH (RetroXR): if this went into no socket it was near, say why.
