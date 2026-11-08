@@ -35,6 +35,10 @@ const LABELS := {
 	"wii_av_plug": "a Wii AV Multi Out plug",
 	"dc_av_plug": "a Dreamcast AV OUT plug",
 	"genesis_av_plug": "a Sega A/V OUT plug",
+	# The ORIGINAL Genesis / Mega Drive's (Model 1) A/V OUT: a full-size 8-pin DIN, not
+	# the Model 2's 9-pin mini-DIN. Its own Video Monitor Cable (MK-1605) and the 32X's
+	# Conversion Cable (600-6412) are the plugs that fit it.
+	"genesis1_av_plug": "a Sega Model 1 A/V OUT plug (8-pin DIN)",
 	"ps2_av_multi": "a PlayStation 2 AV MULTI plug",
 	"link_plug": "a Game Boy Color link plug",
 	"agb_link_plug": "a Game Boy Advance link plug",
@@ -220,6 +224,8 @@ const GAME_LEADS := {
 	# OUT is a round mini-DIN of the same look, and the game has no lead of its own
 	# for that socket.
 	"genesis_av_plug": {"spawn": "genesis_av_cable", "label": "A/V Cable"},
+	# The Model 1's own lead for a mod's Model 1 (the game has no model of it).
+	"genesis1_av_plug": {"spawn": "genesis1_av_cable", "label": "Video Monitor Cable (Model 1)"},
 	"wii_av_plug": {"spawn": "wii_av_cable", "label": "AV Cable"},
 	"dc_av_plug": {"spawn": "dc_av_cable", "label": "Stereo AV Cable"},
 }

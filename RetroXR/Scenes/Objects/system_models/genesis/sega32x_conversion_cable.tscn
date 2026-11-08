@@ -1,0 +1,178 @@
+[gd_scene load_steps=18 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/av_adapter.gd" id="1_adapter"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="4_snapgp"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/system_models/genesis/genesis_av_port.tscn" id="5_avport"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/adapter_av_port.gd" id="6_portscript"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
+bounce = 0.0
+friction = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Mat_din_body"]
+albedo_color = Color(0.07, 0.07, 0.075, 1)
+roughness = 0.55
+
+[sub_resource type="StandardMaterial3D" id="Mat_din_skirt"]
+albedo_color = Color(0.72, 0.72, 0.7, 1)
+metallic = 0.85
+roughness = 0.35
+
+; End A, the 8-pin DIN plug, the stand-in genesis1_av_cable.tscn wears (a mod puts the
+; measured one on): the moulded body behind the mating face, the skirt in front of it.
+[sub_resource type="CylinderMesh" id="CylMesh_din_body"]
+material = SubResource("Mat_din_body")
+top_radius = 0.0075
+bottom_radius = 0.008
+height = 0.024
+radial_segments = 20
+
+[sub_resource type="CylinderMesh" id="CylMesh_din_skirt"]
+material = SubResource("Mat_din_skirt")
+top_radius = 0.00615
+bottom_radius = 0.00615
+height = 0.009
+radial_segments = 20
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_dinfit"]
+size = Vector3(0.016, 0.016, 0.024)
+
+; End B, the in-line 9-pin mini-DIN socket: a round moulded body with the socket in
+; its front face, a little fatter than the mini-DIN plug that goes into it.
+[sub_resource type="CylinderMesh" id="CylMesh_socket_body"]
+material = SubResource("Mat_din_body")
+top_radius = 0.0075
+bottom_radius = 0.0075
+height = 0.026
+radial_segments = 20
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_socketfit"]
+size = Vector3(0.015, 0.015, 0.026)
+
+; The laser target until PointerFit refits it to what the plug draws.
+[sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
+radius = 0.022
+
+; Sega's Conversion Cable (600-6412): what goes between an ORIGINAL Genesis / Mega
+; Drive (Model 1) and the 32X. The 32X takes the console's picture through its Video
+; Link Cable, a 9-pin mini-DIN at both ends made for the Model 2; the Model 1's A/V OUT
+; is the larger 8-pin DIN. So: this lead's DIN plug in the Model 1's A/V OUT, the Video
+; Link Cable's plug in the mini-DIN socket at its other end (AvAdapter). It conducts and
+; nothing else, so a lead from its socket is a lead from the console's own A/V OUT --
+; the Video Link Cable on to the 32X, or the Model 2's own A/V Cable straight to a set.
+;
+; One cord, CompositeCable's single-rope path: both ends anchored straight to their
+; bodies. End B fits nothing ("sega32x_conversion_body" is no socket's) -- it is the
+; socket's body, and it hangs.
+[node name="Sega32xConversionCable" type="Node3D"]
+script = ExtResource("1_adapter")
+cord_colors = PackedColorArray(0.05, 0.05, 0.055, 1)
+wire_color = Color(0.05, 0.05, 0.055, 1.0)
+
+; -- End A: the 8-pin DIN plug -------------------------------------------------
+; Turned about Y so the cord trails toward the socket (connector on +Z, cord out of
+; -Z, which is VerletRope's plug_exit_axis). The colliders sit on the BODY, behind the
+; mating face, as on every console-end plug here.
+[node name="PlugA0" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.06)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.03
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+connector = "genesis1_av_plug"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.012)
+shape = SubResource("BoxShape3D_dinfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.012)
+mesh = SubResource("CylMesh_din_body")
+
+[node name="PlugSkirt" type="MeshInstance3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.0045)
+mesh = SubResource("CylMesh_din_skirt")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.012)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA0"]
+script = ExtResource("3_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("4_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; -- End B: the in-line socket ---------------------------------------------------
+; Unturned: its cord trails -Z, back toward the plug, and the socket faces +Z out of
+; the body's front face (z 0), where a seated mini-DIN plug's head stops.
+[node name="PlugB0" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.06)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.02
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+connector = "sega32x_conversion_body"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_socketfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.013)
+mesh = SubResource("CylMesh_socket_body")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB0"]
+script = ExtResource("3_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("4_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; The Model 2's socket as a scene, re-scripted to speak for the console end A is in.
+; Its PanelJack (the drawn mini-DIN mouth) is shown: the stand-in body moulds none.
+[node name="AdapterAvPort" parent="PlugB0" instance=ExtResource("5_avport")]
+script = ExtResource("6_portscript")
+connector = "genesis_av_plug"
+
+[node name="PanelJack" parent="PlugB0/AdapterAvPort"]
+visible = true
+
+; About 150 mm of 4 mm round black cord between the moulded ends (600-6412: a short
+; lead; length not measured), in fifteen segments.
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 15
+segment_length = 0.01
+constraint_iterations = 8
+bend_stiffness = 0.25
+tube_radius = 0.002
+tube_sides = 8
+smoothing = 2
+rope_color = Color(0.05, 0.05, 0.055, 1.0)
+surface_collision_mask = 7
+collision_radius = 0.0025
+self_collision = false
+end_align_stiffness = 0.7
+end_stiffness = 0.35
+end_stiff_segments = 2

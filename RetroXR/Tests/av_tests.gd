@@ -21,6 +21,8 @@ const N64_AV_CABLE := preload("res://Scenes/Objects/system_models/nintendo_64/n6
 const WII_AV_CABLE := preload("res://Scenes/Objects/system_models/wii/wii_av_cable.tscn")
 const GENESIS_AV_CABLE := preload("res://Scenes/Objects/system_models/genesis/genesis_av_cable.tscn")
 const VIDEO_LINK_CABLE := preload("res://Scenes/Objects/system_models/genesis/sega32x_video_link_cable.tscn")
+const GENESIS1_AV_CABLE := preload("res://Scenes/Objects/system_models/genesis/genesis1_av_cable.tscn")
+const CONVERSION_CABLE := preload("res://Scenes/Objects/system_models/genesis/sega32x_conversion_cable.tscn")
 const EXPANSION_SCENE := preload("res://Scenes/Objects/expansion.tscn")
 const OUTLET := preload("res://Scenes/Objects/room/wall_outlet.tscn")
 const DC_AV_CABLE := preload("res://Scenes/Objects/system_models/dreamcast/dc_av_cable.tscn")
@@ -154,6 +156,10 @@ func _run() -> void:
 		["routing/the Video Link Cable fits the Genesis and both 32X sockets", _r_32x_keying],
 		["routing/a Genesis reaches the set through the 32X's A/V OUT", _r_32x_through],
 		["routing/an unpowered 32X passes nothing", _r_32x_unpowered],
+		["routing/a Model 1 lead and the Conversion Cable fit only the 8-pin DIN", _r_genesis1_keying],
+		["routing/the Model 1 lead carries the picture and its one sound channel", _r_genesis1_lead],
+		["routing/a Model 1 reaches the set through the Conversion Cable and the 32X", _r_genesis1_32x],
+		["routing/the Conversion Cable's socket takes the Model 2 lead to a set", _r_genesis1_adapter_direct],
 		["routing/the primitive Genesis box wears the mini-DIN and takes both 32X leads", _r_genesis_box_minidin],
 		["routing/a mini-DIN draws its own jack only on a face that moulds none (32X)", _r_minidin_jack_drawn_only_on_a_bare_face],
 		["routing/a Dreamcast wears ONE AV OUT, on its own marker", _r_dc_av_out],
@@ -3428,3 +3434,121 @@ func _p_sp_adapter_last() -> void:
 	_ok(sp.audio_route()["tv"] == null, "a lead from a loose adapter carries nothing")
 	await _seat_adapter(sp, adapter)
 	_check_eq(sp.audio_route()["tv"], speakers, "plugged in last, the adapter still takes the sound")
+
+
+# -- the Genesis Model 1: the 8-pin DIN, its lead and Sega's Conversion Cable ------------
+
+## A Genesis whose A/V OUT is the Model 1's 8-pin DIN. The game has no Model 1 of its
+## own (a mod's is, its socket genesis1_av_port.tscn), so the test turns the Model 2's
+## socket into one: the same MultiAvPort, keyed to the DIN.
+func _genesis1() -> RetroSystem:
+	var md := await _genesis()
+	var multi := md.find_child("AvMultiOut", true, false) as RcaPort
+	if multi != null:
+		multi.connector = "genesis1_av_plug"
+		multi.snap_require = "genesis1_av_plug"
+	return md
+
+
+func _spawn_lead(scene: PackedScene, at: Vector3) -> Node3D:
+	var lead := scene.instantiate() as Node3D
+	lead.position = at
+	add_child(lead)
+	_spawned.append(lead)
+	await _wait(20)
+	return lead
+
+
+func _r_genesis1_keying() -> void:
+	var lead := await _spawn_lead(GENESIS1_AV_CABLE, Vector3(-2.0, 1.0, 0.0))
+	var conv := await _spawn_lead(CONVERSION_CABLE, Vector3(-2.5, 1.0, 0.0)) as AvAdapter
+	var link := await _spawn_lead(VIDEO_LINK_CABLE, Vector3(-3.0, 1.0, 0.0))
+	var m2 := await _spawn_lead(GENESIS_AV_CABLE, Vector3(-3.5, 1.0, 0.0))
+	var din := lead.get_node("PlugA0") as RcaPlug
+	_ok(din.is_in_group("genesis1_av_plug") and not din.is_in_group("genesis_av_plug"),
+		"the Model 1 lead's plug is the 8-pin DIN, not the mini-DIN")
+	_check_eq((lead as CompositeCable).cord_count(), 2, "and the lead is two cords: picture and mono sound")
+	_ok((conv.get_node("PlugA0") as RcaPlug).is_in_group("genesis1_av_plug"), "the Conversion Cable's plug is the DIN")
+	_ok(not (conv.get_node("PlugB0") as RcaPlug).is_in_group("genesis_av_plug")
+		and not (conv.get_node("PlugB0") as RcaPlug).is_in_group("genesis1_av_plug"),
+		"its socket's body fits no socket")
+	_ok(conv.socket() != null and conv.socket().snap_require == "genesis_av_plug",
+		"its socket takes the mini-DIN")
+	for plug: RcaPlug in [link.get_node("PlugA0") as RcaPlug, m2.get_node("PlugA0") as RcaPlug]:
+		_ok(not plug.is_in_group("genesis1_av_plug"), "a mini-DIN plug does not fit the Model 1's DIN")
+		_ok(plug.is_in_group(conv.socket().snap_require), "and fits the Conversion Cable's socket")
+
+
+func _r_genesis1_lead() -> void:
+	var tv := _tv()
+	var md := await _genesis1()
+	var multi := md.find_child("AvMultiOut", true, false) as RcaPort
+	var ins := _input_ports(tv, RetroTV.Source.COMPOSITE_4)
+	var lead := await _spawn_lead(GENESIS1_AV_CABLE, md.position + Vector3(0.3, 0.3, -0.4))
+	multi.pick_up_object(lead.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	for c in 2:
+		(ins[c] as RcaPort).pick_up_object(lead.get_node("PlugB%d" % c) as RcaPlug)
+		await _wait(6)
+	await _wait(30)
+	_check_eq(_which_input(tv, md), RetroTV.Source.COMPOSITE_4, "the set files the Model 1 on the input its lead reaches")
+	_ok(md.connected_tv == tv, "and the console feeds that set")
+	_check_eq(md.audio_speakers().get("left"), 0, "its one sound channel lands on the left speaker")
+
+
+func _r_genesis1_32x() -> void:
+	var tv := _tv()
+	var md := await _genesis1()
+	var unit := await _x32(md)
+	var multi := md.find_child("AvMultiOut", true, false) as RcaPort
+	var a_in := unit.av_through_in()
+	var a_out := unit.av_through_out()
+	if multi == null or a_in == null or a_out == null:
+		_ok(false, "the Genesis and the 32X have their sockets")
+		return
+	var ins := _input_ports(tv, RetroTV.Source.COMPOSITE_4)
+	var lead := await _spawn_lead(GENESIS_AV_CABLE, unit.position + Vector3(0.5, 0, -0.5))
+	a_out.pick_up_object(lead.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	for c in 3:
+		(ins[c] as RcaPort).pick_up_object(lead.get_node("PlugB%d" % c) as RcaPlug)
+		await _wait(6)
+	var link := await _spawn_lead(VIDEO_LINK_CABLE, md.position + Vector3(0.0, 0.3, -0.3))
+	var conv := await _spawn_lead(CONVERSION_CABLE, md.position + Vector3(0.2, 0.3, -0.3)) as AvAdapter
+	# The Video Link Cable first, into the loose adapter: it carries nothing yet.
+	conv.socket().pick_up_object(link.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	a_in.pick_up_object(link.get_node("PlugB0") as RcaPlug)
+	await _wait(30)
+	_check_eq(_which_input(tv, md), -1, "control: a loose Conversion Cable brings no Genesis to the set")
+	multi.pick_up_object(conv.get_node("PlugA0") as RcaPlug)
+	await _wait(35)
+	_check_eq(conv.host(), md, "seated, the Conversion Cable speaks for the Model 1")
+	_check_eq(_which_input(tv, md), RetroTV.Source.COMPOSITE_4,
+		"the Model 1 reaches the set through the Conversion Cable, the Video Link Cable and the 32X")
+	_ok(md.connected_tv == tv, "and the console feeds that set")
+	# Saved under the adapter: the console has no socket of that name.
+	var seat: Dictionary = (link as CompositeCable)._seat_of(link.get_node("PlugA0") as RcaPlug)
+	_check_eq(seat.get("owner"), conv, "a save names the Video Link Cable's seat under the Conversion Cable")
+	await _unplug(conv.get_node("PlugA0") as RcaPlug)
+	_check_eq(_which_input(tv, md), -1, "the Conversion Cable pulled, the Model 1 leaves the set")
+	_ok(md.connected_tv != tv, "and the console knows it feeds no set")
+
+
+func _r_genesis1_adapter_direct() -> void:
+	var tv := _tv()
+	var md := await _genesis1()
+	var multi := md.find_child("AvMultiOut", true, false) as RcaPort
+	var ins := _input_ports(tv, RetroTV.Source.COMPOSITE_4)
+	var conv := await _spawn_lead(CONVERSION_CABLE, md.position + Vector3(0.2, 0.3, -0.3)) as AvAdapter
+	multi.pick_up_object(conv.get_node("PlugA0") as RcaPlug)
+	await _wait(10)
+	var lead := await _spawn_lead(GENESIS_AV_CABLE, md.position + Vector3(0.5, 0.3, -0.5))
+	conv.socket().pick_up_object(lead.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	for c in 3:
+		(ins[c] as RcaPort).pick_up_object(lead.get_node("PlugB%d" % c) as RcaPlug)
+		await _wait(6)
+	await _wait(30)
+	_check_eq(_which_input(tv, md), RetroTV.Source.COMPOSITE_4,
+		"the Model 2's lead from the Conversion Cable's socket brings the Model 1 to the set")

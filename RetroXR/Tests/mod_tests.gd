@@ -27,7 +27,7 @@
 extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 467
+const EXPECTED_CASES := 469
 
 var _only := ""
 var _dir := ""
@@ -522,7 +522,7 @@ func _group_objects() -> void:
 		"gc_gba_cable": "gc", "psx_link_cable": "psx", "saturn_link_cable": "saturn",
 		"jag_link_cable": "atarijaguar", "ilink_cable": "ps2", "ilink_hub": "ps2",
 		"sensor_bar": "wii", "rf_switch": "nes",
-		"sega32x_video_link_cable": "sega32x"}
+		"sega32x_video_link_cable": "sega32x", "sega32x_conversion_cable": "sega32x"}
 	var tab_tokens := SpawnCatalog.OBJECTS.map(func(r: Array) -> String: return str(r[1]))
 	var on_tab := []
 	var nowhere := []

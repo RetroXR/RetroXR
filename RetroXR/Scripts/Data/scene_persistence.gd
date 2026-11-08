@@ -212,6 +212,8 @@ const WII_AV_CABLE_SCENE     := preload("res://Scenes/Objects/system_models/wii/
 const N64_AV_CABLE_SCENE     := preload("res://Scenes/Objects/system_models/nintendo_64/n64_av_cable.tscn")
 const GENESIS_AV_CABLE_SCENE := preload("res://Scenes/Objects/system_models/genesis/genesis_av_cable.tscn")
 const SEGA32X_VIDEO_LINK_CABLE_SCENE := preload("res://Scenes/Objects/system_models/genesis/sega32x_video_link_cable.tscn")
+const GENESIS1_AV_CABLE_SCENE := preload("res://Scenes/Objects/system_models/genesis/genesis1_av_cable.tscn")
+const SEGA32X_CONVERSION_CABLE_SCENE := preload("res://Scenes/Objects/system_models/genesis/sega32x_conversion_cable.tscn")
 const PS2_AV_CABLE_SCENE     := preload("res://Scenes/Objects/cables/ps2_av_cable.tscn")
 const DC_AV_CABLE_SCENE      := preload("res://Scenes/Objects/system_models/dreamcast/dc_av_cable.tscn")
 const VGA_CABLE_SCENE        := preload("res://Scenes/Objects/cables/vga_cable.tscn")
@@ -328,6 +330,10 @@ const LEAD_SCENES := {
 	"n64_av_cable": N64_AV_CABLE_SCENE,
 	"genesis_av_cable": GENESIS_AV_CABLE_SCENE,
 	"sega32x_video_link_cable": SEGA32X_VIDEO_LINK_CABLE_SCENE,
+	# The Model 1's own lead, and Sega's Conversion Cable between a Model 1 and the
+	# Video Link Cable (AvAdapter: its socket is saved under it, CompositeCable._seat_of).
+	"genesis1_av_cable": GENESIS1_AV_CABLE_SCENE,
+	"sega32x_conversion_cable": SEGA32X_CONVERSION_CABLE_SCENE,
 	"dc_av_cable": DC_AV_CABLE_SCENE,
 	"ps2_av_cable": PS2_AV_CABLE_SCENE,
 	"vga_cable": VGA_CABLE_SCENE,

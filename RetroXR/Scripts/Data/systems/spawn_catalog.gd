@@ -241,6 +241,10 @@ const _PERIPHERALS: Dictionary = {
 		# 32X's A/V IN, mini-DIN at both ends (ExpansionAv). The set then takes the
 		# console's own A/V Cable from the 32X's A/V OUT.
 		{"kind": "peripheral", "label": "Video Link Cable", "spawn": "sega32x_video_link_cable"},
+		# And for an ORIGINAL Genesis (Model 1), whose A/V OUT is the larger 8-pin DIN:
+		# Sega's Conversion Cable (600-6412), its DIN plug in the Model 1, the Video Link
+		# Cable in the mini-DIN socket at its other end (AvAdapter).
+		{"kind": "peripheral", "label": "Conversion Cable (Model 1)", "spawn": "sega32x_conversion_cable"},
 	],
 	# What Sega packed with the Sega CD Model 2 for an ORIGINAL Genesis (Model 1): the
 	# extension spacer that clips on the platform's left end under the wider console,
