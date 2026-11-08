@@ -527,6 +527,22 @@ slots, the steel plate under both, and two feet. It changes nothing the machine 
 A Model 1 seats without it and overhangs, as on the hardware. It is spawned from the
 Sega CD's card ("Extension Spacer (Model 1)").
 
+**An accessory's mount must sit where its BODY is** (row `accessory_at`, shell frame,
+2026-11-08). A snap zone takes on release only a body inside its grab sphere, but its
+ghost is placed by the object's grab point. The spacer's mount sat at the shell's
+origin, 22 cm from the bar, so the ghost lit ("it slots in") and the release let it
+fall. The mount and the spacer's `GrabPoint` are now both the bar's middle (x -224.3,
+24 up), the same point in the same frame, so it seats exactly as before, and the hand
+holds the bar. The 32X's spacer has its body at its origin and needs none.
+
+**The OPEN knob is pressed down, so its hit box is the knob's own.** `_build_eject_button`
+used to put a cap's box on a SIDE face whenever the cap sat proportionally nearer a side
+than the front (meant for the Game Boy Player's sideways lever). Once the 396 width moved
+the knob 89% of the way out, its box went to the drive's right face. It now does that only
+for a sideways `eject_axis`. The drive's collision and pointer box stops where the front
+falls to the nose (z 90); a low box covers the nose's foot, so nothing stands in front of
+the knob. `segacd2/` aims `InteractionResolver.resolve_desktop` at the knob from three seats.
+
 **Sound: LINE OUT and MIXING** (`ExpansionAudio`, `HostLineOut`):
 - The LINE OUT phonos are `HostLineOut` sockets, the `AdapterJack` arrangement. Their
   `get_device()` is the console on the drive while that console's sound reaches it, and

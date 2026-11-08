@@ -1556,6 +1556,20 @@ func _group_segacd2() -> void:
 	var knob := cd.get_node("Shell/EjectButton") as MeshInstance3D
 	_ok(eject != null and knob.visible and eject.depress_depth == 0.002,
 		"segacd2/ OPEN is the knob on the drive's front, pressed 2 mm")
+	# The desktop pointer reaches it: the resolver the reticle runs, aimed at the knob
+	# from a seat in front, above and to the right. Its box was once on the drive's
+	# right face, and the drive's box stood in front of the knob.
+	var kc := knob.global_transform * knob.get_aabb().get_center()
+	var space := get_viewport().get_world_3d().direct_space_state
+	var hits := 0
+	for eye: Vector3 in [Vector3(0.0, 0.45, 0.6), Vector3(0.25, 0.3, 0.5), Vector3(0.2, 0.05, 0.6)]:
+		var from := cd.global_position + eye
+		var t := InteractionResolver.resolve_desktop(space, from, from + (kc - from).normalized() * 2.0, null)
+		if t.is_valid() and t.action_node == eject:
+			hits += 1
+		else:
+			print("[exp] the reticle from %s took %s" % [eye, t.action_node.name if t.is_valid() and t.action_node else "nothing"])
+	_ok(hits == 3, "segacd2/ the desktop reticle aimed at the knob takes OPEN from every seat (%d of 3)" % hits)
 
 	# The spacer clips on at the platform's left end, in the drive's frame.
 	var spacer := _CD2_SPACER.instantiate() as SegaCd2Spacer
@@ -1563,9 +1577,24 @@ func _group_segacd2() -> void:
 	add_child(spacer)
 	_spawned.append(spacer)
 	await _wait(5)
-	cd.restore_accessory(spacer)
+	# Let go where its ghost shows it: the mount takes only a body inside its sphere,
+	# and at the shell's origin it was 22 cm from the bar, so the ghost lit and the
+	# spacer fell away. Through the zone's real release path, not a restore.
+	var mount := cd.get_node("AccessoryMount") as XRToolsSnapZone
+	# In a hand, as a real offer is: an empty zone watches only while one holds something.
+	XRToolsSnapZone.note_hold(spacer, true)
+	spacer.global_transform = mount.snap_pose_for(spacer)
+	await _wait(10)
+	_ok(mount.get("_object_in_grab_area").has(spacer),
+		"segacd2/ offered where its ghost shows it, the spacer's body is in the mount's reach")
+	XRToolsSnapZone.note_hold(spacer, false)
+	mount.call("_on_target_dropped", spacer)
 	await _wait(5)
-	_ok(cd.get_accessory() == spacer and spacer.get_unit() == cd, "segacd2/ the spacer clips on, each knows the other")
+	_ok(cd.get_accessory() == spacer and spacer.get_unit() == cd,
+		"segacd2/ let go there, it clips on and each knows the other")
+	if cd.get_accessory() != spacer:
+		cd.restore_accessory(spacer)
+		await _wait(5)
 	_ok(spacer.global_position.distance_to(shell.global_position) < 0.001,
 		"segacd2/ in the drive's frame, as modelled")
 	_ok(_in_shell_mm(cd, (spacer.get_node("Model/Bar") as Node3D).global_position).x < -198.0,

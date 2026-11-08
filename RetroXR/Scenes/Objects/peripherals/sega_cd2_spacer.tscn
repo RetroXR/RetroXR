@@ -134,9 +134,12 @@ mesh = SubResource("Box_4")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2245, 0.00165, 0.088)
 mesh = SubResource("Box_4")
 
-; IDENTITY: a snap zone composes the grab point, and the model shares the drive's
-; frame, so this seats the spacer exactly at the drive's AccessoryMount.
+; At the bar's middle, the same point as the drive's AccessoryMount (its row's
+; `accessory_at`), in the drive's frame the model shares: a snap zone composes the grab
+; point, so the spacer seats exactly as modelled, and the hand holds the bar rather
+; than the empty origin 22 cm off it.
 [node name="GrabPoint" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2243, 0.024, 0)
 visible = false
 script = ExtResource("3_grabpoint")
 

@@ -105,6 +105,14 @@
 ##               A/V IN takes the Genesis's A/V OUT through Sega's Video Link Cable
 ##               and its A/V OUT goes to the set (ExpansionAv, AvGraph).
 ##               Absent, the unit has no A/V sockets.
+##   accessory_at
+##               where the accessory's mount sits, a point in the shell's GLB frame,
+##               for an accessory whose body is not at the shell's origin: the zone
+##               takes an object only while its BODY is inside its grab sphere, so a
+##               mount at the origin with the accessory's body 22 cm away (the Sega CD
+##               Model 2's extension spacer, out at the platform's left end) showed the
+##               ghost and then let go of it. The accessory's own grab point is the
+##               same point in ITS frame. Absent, the shell's origin (the 32X's spacer).
 ##   seat        MOUNT_BELOW only: where the console's FOOT lands, a point in the
 ##               shell's GLB frame (metres), for a unit the console stands BESIDE part of
 ##               rather than square on top of. The Sega CD Model 2: its drive's left wall
@@ -390,6 +398,7 @@ const FIELDS := {
 	"seat_yaw": 0.0,
 	"swipe_slit": null,
 	"accessory_group": "",
+	"accessory_at": null,
 	"seat": null,
 	"boxes": [],
 	"lid_open_deg": NAN,
@@ -490,7 +499,7 @@ const _SHELL_FIELDS := {
 	"seat_y": TYPE_FLOAT,
 	# Where the console's foot lands and the shell's collision boxes, for a unit the
 	# console stands beside part of (the Sega CD Model 2).
-	"seat": TYPE_VECTOR3, "boxes": TYPE_ARRAY, "lid_open_deg": TYPE_FLOAT,
+	"seat": TYPE_VECTOR3, "boxes": TYPE_ARRAY, "lid_open_deg": TYPE_FLOAT, "accessory_at": TYPE_VECTOR3,
 }
 
 ## unit id -> {owner, fields, variants: {variant id -> fields}}.
@@ -769,6 +778,11 @@ static func seat_y_of(id: String) -> float:
 ## null for the middle of the roof (seat_y_of). See the row docs above.
 static func seat_of(id: String) -> Variant:
 	return _field(id, "seat")
+
+
+## Where a unit's accessory mount sits in its shell's frame, or null for the origin.
+static func accessory_at_of(id: String) -> Variant:
+	return _field(id, "accessory_at")
 
 
 ## The shell's collision boxes in its GLB frame, or [] for one box of `size`.

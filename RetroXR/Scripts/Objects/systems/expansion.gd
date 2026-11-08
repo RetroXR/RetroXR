@@ -1226,6 +1226,12 @@ func _build_accessory_mount() -> void:
 	zone.grab_distance = 0.03
 	add_child(zone)
 	zone.position = _shell.position
+	# Out where the accessory's body is, for one that is not at the origin (the Sega
+	# CD Model 2's spacer): the zone takes only a body inside its sphere.
+	var at: Variant = ExpansionCatalog.accessory_at_of(_shell_id())
+	if at is Vector3:
+		zone.position = _shell.transform * (at as Vector3)
+	print("[RetroExpansion] %s: accessory mount for '%s' at %s" % [expansion_id, group, zone.position])
 	zone.has_picked_up.connect(_on_accessory_in)
 	zone.has_dropped.connect(_on_accessory_out)
 	_accessory_mount = zone
@@ -1537,9 +1543,16 @@ func _build_eject_button(s: Vector3, media: String) -> void:
 		# that volume is never the first thing a beam reaches.
 		var centre := to_local(cap.global_transform * cap.get_aabb().get_center())
 		pos = Vector3(centre.x, centre.y, pos.z)
-		if axis is Vector3 and absf(centre.x) / (s.x * 0.5) > absf(centre.z) / (s.z * 0.5):
+		# Only a cap pushed SIDEWAYS goes on a side face. One pressed down (the Sega
+		# CD Model 2's OPEN knob) is hit where it is: the side test put the Model 2's
+		# knob's box on the drive's right face once the 396 mm width moved it 89% of
+		# the way out, where no beam aimed at the knob reached it.
+		var sideways := axis is Vector3 and absf((axis as Vector3).y) < 0.5
+		if sideways and absf(centre.x) / (s.x * 0.5) > absf(centre.z) / (s.z * 0.5):
 			side = signf(centre.x)
 			pos = Vector3(side * (s.x * 0.5 + 0.004), centre.y, centre.z)
+		elif axis is Vector3:
+			pos = centre
 	var eject := ExpansionShell.build_eject_button(self, pos, func() -> void:
 		if _tray != null:
 			_tray.toggle_open()

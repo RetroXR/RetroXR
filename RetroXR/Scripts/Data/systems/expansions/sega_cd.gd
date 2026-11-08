@@ -44,16 +44,23 @@ const ROW := {
 	# (A Model 2's feet sit in the rails 2 mm lower on the real unit; the stand-in's
 	# rails are drawn, not cut, so it stands on the deck.)
 	"seat": Vector3(0.0225 * SX, 0.043, 0.0),
-	# The base the whole length, and the drive above it on the right.
+	# The base the whole length, the drive above it on the right back to where its front
+	# falls to the nose (z 90), and the nose's foot under the OPEN knob and the ACCESS
+	# lamp: a box over the whole nose stood in front of the knob, and every beam aimed
+	# at it took the drive instead.
 	"boxes": [
 		AABB(Vector3(-0.198, 0.0, -0.110), Vector3(0.396, 0.045, 0.220)),
-		AABB(Vector3(0.0225 * SX, 0.045, -0.106), Vector3(0.164 * SX, 0.0378, 0.212)),
+		AABB(Vector3(0.0225 * SX, 0.045, -0.106), Vector3(0.164 * SX, 0.0378, 0.196)),
+		AABB(Vector3(0.0225 * SX, 0.045, 0.090), Vector3(0.164 * SX, 0.006, 0.016)),
 	],
 	# The OPEN knob on the drive's front is a lever pressed DOWN, 2 mm.
 	"eject_axis": Vector3(0.0, -1.0, 0.0),
 	"eject_travel": 0.002,
 	# The Model 1 Genesis's extension spacer (SegaCd2Spacer.GROUP).
 	"accessory_group": "sega_cd2_spacer",
+	# Its mount at the spacer bar's middle (x -224.3, 24 up), where its body is: at the
+	# shell's origin, 22 cm from the bar, the zone never had the bar in its sphere.
+	"accessory_at": Vector3(-0.2243, 0.024, 0.0),
 	# LINE OUT LEFT / RIGHT and MIXING on the back (ExpansionAudio).
 	"line_out": true,
 	"mixing": true,
