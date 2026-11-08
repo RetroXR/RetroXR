@@ -20,9 +20,8 @@ const ID := "sega_cd"
 # Worn as a primitive stand-in (SegaCd2Primitive) built from RetroXR-models'
 # sega/sega-cd/console-2 (Sega's design patent at the published depth), in that model's
 # frame and with its markers' names, so the model can replace it as this shell.
-# 381 x 84.3 x 220 mm (Sega publishes 396 wide; the patent's drawing at the published
-# depth is 381; the models' agent will say if a caliper ever settles it, and then
-# everything in X scales).
+# 396 x 84.3 x 220 mm: Sega's published width, chosen over the patent drawing's 381
+# (2026-11-08), every x read off the patent stretched by 396 / 381 as the model's are.
 #
 # The Model 1 (MK-4100, the front-loading drawer the console stands right on top of)
 # is not built yet: this unit was a box with a drawer until 2026-11-08.
@@ -33,21 +32,22 @@ const ROW := {
 	"mount": ExpansionDefs.MOUNT_BELOW,
 	# The shell's true bounds, so the per-axis fit is 1:1: the base's 220 deep plus the
 	# AC ADAPTOR mouth drawn 0.6 proud of its back.
-	"size": Vector3(0.381, 0.0843, 0.2206),
+	"size": Vector3(0.396, 0.0843, 0.2206),
 	"shell": SHELL,
 	"loader": MediaDimensions.LOADER_TRAY,
 	"lid": true,
 	# The lid opens about 85 degrees about its rear edge (photographs: 80 to 90).
 	"lid_open_deg": -85.0,
-	# The drive's left wall at x 22.5 mm, on the platform's deck (43 mm): a Model 2's
-	# origin lands at x -87.5 and a Model 1's at -117.5, the models' own ConsoleSeats.
+	# The drive's left wall at x 23.39 mm (the patent's 22.5 x 396 / 381), on the
+	# platform's deck (43 mm): a Model 2's origin lands at x -86.61 and a Model 1's at
+	# -116.61, the models' own ConsoleSeats.
 	# (A Model 2's feet sit in the rails 2 mm lower on the real unit; the stand-in's
 	# rails are drawn, not cut, so it stands on the deck.)
-	"seat": Vector3(0.0225, 0.043, 0.0),
+	"seat": Vector3(0.0225 * SX, 0.043, 0.0),
 	# The base the whole length, and the drive above it on the right.
 	"boxes": [
-		AABB(Vector3(-0.1905, 0.0, -0.110), Vector3(0.381, 0.045, 0.220)),
-		AABB(Vector3(0.0225, 0.045, -0.106), Vector3(0.164, 0.0378, 0.212)),
+		AABB(Vector3(-0.198, 0.0, -0.110), Vector3(0.396, 0.045, 0.220)),
+		AABB(Vector3(0.0225 * SX, 0.045, -0.106), Vector3(0.164 * SX, 0.0378, 0.212)),
 	],
 	# The OPEN knob on the drive's front is a lever pressed DOWN, 2 mm.
 	"eject_axis": Vector3(0.0, -1.0, 0.0),
@@ -69,6 +69,8 @@ const ROW := {
 }
 
 const SHELL := "res://Scenes/Objects/expansions/sega_cd2_primitive.tscn"
+## The patent's x to Sega's published width (SegaCd2Primitive.SX).
+const SX := 396.0 / 381.0
 
 
 const BOOT := {

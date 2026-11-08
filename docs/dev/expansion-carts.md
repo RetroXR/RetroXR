@@ -492,13 +492,15 @@ meshes, or teach `_build_eject_button` / `_build_shell` the model's names). Simp
 square corners (the real ones are rounded, and the front-right is swept round 72),
 the drive's convex front as two planes, the knob on the nose, the jacks on the back
 face (not 7 mm into an inset), and the rails and windows drawn as inlays. `size` is
-its true bounds, 381 x 84.3 x 220.6 (the DC mouth stands 0.6 mm proud), so the fit
-is 1:1. Sega publishes 396 wide while the patent gives 381; if a caliper settles it at
-396, everything in X scales (the models' agent will say).
+its true bounds, 396 x 84.3 x 220.6 (the DC mouth stands 0.6 mm proud), so the fit
+is 1:1. **396 is Sega's published width**, chosen over the patent drawing's 381 on
+2026-11-08: the constants stay the patent's as params.py reads them, and `_stretch`
+multiplies every x by 396 / 381 once the parts are built (`SegaCd2Primitive.SX`), as
+the model does.
 
 **New row fields** (`ExpansionCatalog`), all shell-overridable except the two audio flags:
 - `seat`: where the console's foot lands, in the shell's frame. Here it is the drive's wall on
-  the deck, (22.5, 43, 0) mm.
+  the deck, (23.39, 43, 0) mm (the patent's 22.5 x SX).
 - `boxes`: collision and pointer AABBs in the shell's frame. Here they are the base, and the
   drive above it, so a console on the platform is not inside the unit's box.
 - `lid_open_deg`: -85.
@@ -509,9 +511,9 @@ A shell with `LidPivot` and `DiscSeat` supplies its own lid and disc seat
 
 **The console's foot is its expansion edge.** `RetroSystemModel.expansion_foot(aabb)`
 puts the foot mid-underside by default. `RetroSystemModelGenesis` puts it at its RIGHT
-side, half way along its depth. So a Genesis Model 2 (220 wide) lands at x -87.5 and a
+side, half way along its depth. So a Genesis Model 2 (220 wide) lands at x -86.61 and a
 Model 1 (the `xenu.genesis1` mod's 280-wide shell, which extends this model) at
--117.5: both are the models' own `ConsoleSeat`s, with no per-model number anywhere.
+-116.61: both are the models' own `ConsoleSeat`s, with no per-model number anywhere.
 The Sega CD is the only unit a Genesis stands on, so nothing else moved.
 
 **The extension spacer** (`SegaCd2Spacer`, `Scenes/Objects/peripherals/sega_cd2_spacer.tscn`)
@@ -519,7 +521,8 @@ is the 32X spacer's arrangement: a stateless pickable, row `accessory_group`
 `sega_cd2_spacer`, clipped into the drive's `AccessoryMount` (at the shell origin).
 It is saved on the DRIVE as `accessory`. Its geometry, from `console-2-spacer/params.py`
 in the drive's frame, is LOW confidence (read off auction photographs): a ribbed bar 52
-mm out from the platform's left end, level with the rim, with the rails carried on as
+mm out from the platform's left end (x -250.5 to -198.1, moved 7.5 left with the base's
+end at the 396 width), level with the rim, with the rails carried on as
 slots, the steel plate under both, and two feet. It changes nothing the machine does.
 A Model 1 seats without it and overhangs, as on the hardware. It is spawned from the
 Sega CD's card ("Extension Spacer (Model 1)").
@@ -557,7 +560,7 @@ plug takes no tint). Its 1.0 m length is an ESTIMATE. It is spawned from the Seg
 card.
 
 Tests: `expansion_tests segacd2/` (31 checks: the 1:1 fit, the socket at the wall, the
-two boxes, a Model 2 at -87.5 and a Model 1's foot at -117.5, the shell's lid at -85 and
+two boxes, a Model 2 at -86.61 and a Model 1's foot at -116.61, the shell's lid at -85 and
 the disc on the DiscSeat, the knob, the spacer in the drive's frame, the three sockets on
 the back facing out, a set on the LINE OUT playing a Model 2, and a PHONES-jack console
 silent there until the mixing lead goes in and again once it is out). Mutation-tested:
@@ -565,7 +568,7 @@ the foot back at the middle fails 3, the line out always carrying fails 3. The s
 boot with no mods, so the real Model 1 is the probe's:
 `Tools/models/sega_cd2_probe` (windowed) mounts the checkout's
 `mods/xenu.genesis1.zip` in-process, never the player's mods folder. It prints a Model 2
-at -87.5 and the real Model 1 280 wide at -117.5 with its PHONES built, and the line out
+at -86.6 and the real Model 1 280 wide at -116.6 with its PHONES built, and the line out
 carrying nothing until the mixing lead goes in. Its stills are the drive, the lid open,
 the back, a Model 2 seated, the spacer on, and a Model 1 on it with the lead in.
 Headset, Quest, a real game's audio through the LINE OUT, and netplay are OWED.

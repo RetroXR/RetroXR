@@ -8,8 +8,8 @@
 ## Every figure is the RetroXR-models model's (sega/sega-cd/console-2 params.py, read off
 ## Sega's design patent USD351,385 at the published 220 mm depth, the service manual and
 ## photographs), in THAT model's frame: +X right, +Y up, +Z out of the front, y = 0 under
-## the feet, x = 0 the middle of the 381 mm plan. The markers carry the models' names, so
-## the detailed model can replace this shell without a constant here moving:
+## the feet, x = 0 the middle of the plan. The markers carry the models' names, so the
+## detailed model can replace this shell without a constant here moving:
 ##
 ##   LidPivot     the lid's hinge on its rear edge; MediaTray swings it 85 degrees up
 ##   DiscSeat     a seated disc's middle on the hub, under the lid
@@ -30,13 +30,22 @@
 ## ones are 7 mm into an inset), and the rails and hook windows are dark inlays rather
 ## than pockets. The receptacle, the well under the lid and the hub are there, because a
 ## console seats against the one and a disc lies on the others.
+##
+## 396 mm wide, Sega's published width (2026-11-08, the owner's choice over the patent's
+## 381): the constants below are the patent's as the model's params.py reads them, and
+## every x is stretched by WIDTH / W once the parts are built (_stretch), exactly as the
+## model stretches its own. So the drive's wall is at x 23.39, a Genesis Model 2's
+## origin at -86.61 and a Model 1's at -116.61.
 class_name SegaCd2Primitive
 extends Node3D
 
 const MM := 0.001
 
-## The plan and height (params `overall`; the dish on the lid is the highest point).
+## The plan and height (params `overall`; the dish on the lid is the highest point). W is
+## the patent drawing's width every x below was read at; WIDTH is the unit's.
 const W := 381.0
+const WIDTH := 396.0
+const SX := WIDTH / W
 const D := 220.0
 const H := 84.3
 ## The base (params `base`, `deck`): its top rim 45 up, the platform's deck 2 below the rim.
@@ -279,3 +288,20 @@ func _build() -> void:
 	for marker: String in JACKS:
 		_marker(marker, Vector3(JACKS[marker], JACK_Y, -hz))
 	_marker("DiscSeat", Vector3(WELL_C.x, HUB.y + 0.6, WELL_C.y))
+	_stretch(self)
+	_stretch(pivot)
+
+
+## Every x of `parent`'s children times SX: their offsets and their own x extent. Every
+## part turns about X only (the slopes) or Y (the dish), so the stretch is a left-hand
+## scale along X; LidPivot keeps an identity basis, which MediaTray turns about X.
+func _stretch(parent: Node3D) -> void:
+	var sx := Basis.from_scale(Vector3(SX, 1.0, 1.0))
+	for child in parent.get_children():
+		var n := child as Node3D
+		if n == null:
+			continue
+		if n.name == "LidPivot":
+			n.position.x *= SX
+			continue
+		n.transform = Transform3D(sx * n.transform.basis, Vector3(n.position.x * SX, n.position.y, n.position.z))

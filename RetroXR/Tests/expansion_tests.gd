@@ -1500,6 +1500,11 @@ func _in_shell_mm(cd: RetroExpansion, world: Vector3) -> Vector3:
 	return shell.global_transform.affine_inverse() * world * 1000.0
 
 
+## The drive's wall in its shell's frame, mm: the patent's 22.5 stretched to Sega's
+## published 396 width (SegaCd2Primitive.SX), as the model's ConsoleSeats are.
+const _CD2_WALL := 22.5 * SegaCd2Primitive.SX
+
+
 func _group_segacd2() -> void:
 	var cd := await _unit("sega_cd")
 	var shell := cd.get_node_or_null("Shell") as Node3D
@@ -1512,7 +1517,7 @@ func _group_segacd2() -> void:
 	# The console's foot lands on the drive's left wall, on the deck.
 	var socket := cd.get_socket()
 	var at := _in_shell_mm(cd, socket.global_position)
-	_ok(at.distance_to(Vector3(22.5, 43.0, 0.0)) < 0.1,
+	_ok(at.distance_to(Vector3(_CD2_WALL, 43.0, 0.0)) < 0.1,
 		"segacd2/ the socket is at the drive's wall, on the deck (%s)" % at)
 	_ok(cd.get_node_or_null("CollisionShape3D2") != null and cd.get_node_or_null("PointerArea/CollisionShape3D2") != null,
 		"segacd2/ two boxes, the base and the drive, so the console is not inside the unit's")
@@ -1522,26 +1527,26 @@ func _group_segacd2() -> void:
 	_ok(md.expansion_ids().has("sega_cd"), "segacd2/ the Genesis bolts on")
 	var box := md.body_aabb()
 	# Its right side (its expansion edge) against the wall, its underside on the deck,
-	# centred in depth: a Model 2's origin lands at the model's ConsoleSeat (-87.5).
+	# centred in depth: a Model 2's origin lands at the model's ConsoleSeat (-86.61).
 	var right := _in_shell_mm(cd, md.global_transform * Vector3(box.end.x, box.position.y, box.get_center().z))
-	_ok(right.distance_to(Vector3(22.5, 43.0, 0.0)) < 0.5,
+	_ok(right.distance_to(Vector3(_CD2_WALL, 43.0, 0.0)) < 0.5,
 		"segacd2/ its right side is against the drive's wall (%s)" % right)
 	var origin := _in_shell_mm(cd, md.global_position)
-	_ok(absf(origin.x + 87.5) < 1.0,
-		"segacd2/ a Model 2 (%.1f wide) stands at the model's ConsoleSeat x -87.5 (%.1f)" % [box.size.x * 1000.0, origin.x])
+	_ok(absf(origin.x + 86.61) < 1.0,
+		"segacd2/ a Model 2 (%.1f wide) stands at the model's ConsoleSeat x -86.61 (%.1f)" % [box.size.x * 1000.0, origin.x])
 	# A Model 1 is 280 wide (the xenu.genesis1 shell's report): the same foot puts its
-	# origin at -117.5, where the spacer's model seats it.
+	# origin at -116.61, where the spacer's model seats it.
 	var wide := RetroSystemModelGenesis.new()
 	var foot := wide.expansion_foot(AABB(Vector3(-0.140, 0.0, -0.106), Vector3(0.280, 0.0688, 0.212)))
 	wide.free()
-	_ok(absf((22.5 - foot.x * 1000.0) + 117.5) < 0.01 and is_zero_approx(foot.z),
-		"segacd2/ a Model 1's foot is its right side too, putting it at -117.5")
+	_ok(absf((_CD2_WALL - foot.x * 1000.0) + 116.61) < 0.01 and is_zero_approx(foot.z),
+		"segacd2/ a Model 1's foot is its right side too, putting it at -116.61")
 
 	# The lid and the disc: the shell's own.
 	var tray := cd.get("_tray") as MediaTray
 	_ok(tray != null and tray.lid_pivot == cd.get_node("Shell/LidPivot"), "segacd2/ the lid that swings is the shell's")
 	var bay := cd.get_node("MediaBay") as Node3D
-	_ok(_in_shell_mm(cd, bay.global_position).distance_to(Vector3(106.0, 72.6, 8.0)) < 0.1,
+	_ok(_in_shell_mm(cd, bay.global_position).distance_to(Vector3(106.0 * SegaCd2Primitive.SX, 72.6, 8.0)) < 0.1,
 		"segacd2/ a disc lies on the hub, at the model's DiscSeat")
 	if tray != null:
 		tray.set_open(true, false)
@@ -1563,7 +1568,7 @@ func _group_segacd2() -> void:
 	_ok(cd.get_accessory() == spacer and spacer.get_unit() == cd, "segacd2/ the spacer clips on, each knows the other")
 	_ok(spacer.global_position.distance_to(shell.global_position) < 0.001,
 		"segacd2/ in the drive's frame, as modelled")
-	_ok(_in_shell_mm(cd, (spacer.get_node("Model/Bar") as Node3D).global_position).x < -190.5,
+	_ok(_in_shell_mm(cd, (spacer.get_node("Model/Bar") as Node3D).global_position).x < -198.0,
 		"segacd2/ beyond the base's left end")
 	_ok(md.get_collision_exceptions().has(spacer), "segacd2/ and exempt from the console standing over it")
 
@@ -1583,7 +1588,7 @@ func _group_segacd2() -> void:
 		var face_out := port.global_transform.basis.z.normalized().dot(-cd.global_transform.basis.z.normalized())
 		_ok(p.z < -110.0 and face_out > 0.99, "segacd2/ %s on the back, facing out (%s)" % [port.name, p])
 	_ok(_in_shell_mm(cd, line_l.global_position).x < _in_shell_mm(cd, line_r.global_position).x,
-		"segacd2/ LEFT is left of RIGHT seen from the front (the model's x -36 and -24)")
+		"segacd2/ LEFT is left of RIGHT seen from the front (the model's x -37.4 and -24.9)")
 
 	# A Model 2 Genesis on it: its sound reaches the drive through the connector.
 	_ok(ExpansionAudio.carrier(cd) == md and line_l.get_device() == md,

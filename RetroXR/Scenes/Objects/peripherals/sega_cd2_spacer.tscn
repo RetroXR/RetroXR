@@ -62,7 +62,8 @@ size = Vector3(0.06, 0.048, 0.222)
 ; origin and an identity GrabPoint seats it at the drive's AccessoryMount. Figures:
 ; RetroXR-models sega/sega-cd/console-2-spacer params.py (auction photographs scaled
 ; by the drive, the service manual's drawing; LOW confidence): the bar 52 out from the
-; platform's left end (x -243 to -190.6), the drive's depth less its corners, its top
+; platform's left end (x -250.5 to -198.1: the patent's -243 to -190.6, moved 7.5 left
+; with the base's end when the drive took Sega's published 396 width), the drive's depth less its corners, its top
 ; level with the rim (45); the platform's two rails carried on as slots; seven ribs
 ; down its outer face; the steel plate under both (84 x 100); two rubber feet.
 [node name="SegaCd2Spacer" type="RigidBody3D"]
@@ -76,61 +77,61 @@ angular_damp = 8.0
 script = ExtResource("1_spacer")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2168, 0.024, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2243, 0.024, 0)
 shape = SubResource("BoxShape3D_body")
 
 [node name="Model" type="Node3D" parent="."]
 
 [node name="Bar" type="MeshInstance3D" parent="Model"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2168, 0.024, 0.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2243, 0.024, 0.0)
 mesh = SubResource("Box_0")
 
 [node name="RailSlot1" type="MeshInstance3D" parent="Model"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2123, 0.04485, -0.071)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2198, 0.04485, -0.071)
 mesh = SubResource("Box_1")
 
 [node name="RailSlot2" type="MeshInstance3D" parent="Model"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2123, 0.04485, 0.076)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2198, 0.04485, 0.076)
 mesh = SubResource("Box_1")
 
 [node name="Rib1" type="MeshInstance3D" parent="Model"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2434, 0.0235, -0.09)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2509, 0.0235, -0.09)
 mesh = SubResource("Box_2")
 
 [node name="Rib2" type="MeshInstance3D" parent="Model"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2434, 0.0235, -0.06)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2509, 0.0235, -0.06)
 mesh = SubResource("Box_2")
 
 [node name="Rib3" type="MeshInstance3D" parent="Model"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2434, 0.0235, -0.03)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2509, 0.0235, -0.03)
 mesh = SubResource("Box_2")
 
 [node name="Rib4" type="MeshInstance3D" parent="Model"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2434, 0.0235, 0.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2509, 0.0235, 0.0)
 mesh = SubResource("Box_2")
 
 [node name="Rib5" type="MeshInstance3D" parent="Model"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2434, 0.0235, 0.03)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2509, 0.0235, 0.03)
 mesh = SubResource("Box_2")
 
 [node name="Rib6" type="MeshInstance3D" parent="Model"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2434, 0.0235, 0.06)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2509, 0.0235, 0.06)
 mesh = SubResource("Box_2")
 
 [node name="Rib7" type="MeshInstance3D" parent="Model"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2434, 0.0235, 0.09)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2509, 0.0235, 0.09)
 mesh = SubResource("Box_2")
 
 [node name="Plate" type="MeshInstance3D" parent="Model"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.19, 0.002275, -0.002)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.1975, 0.002275, -0.002)
 mesh = SubResource("Box_3")
 
 [node name="Foot1" type="MeshInstance3D" parent="Model"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.217, 0.00165, -0.088)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2245, 0.00165, -0.088)
 mesh = SubResource("Box_4")
 
 [node name="Foot2" type="MeshInstance3D" parent="Model"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.217, 0.00165, 0.088)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2245, 0.00165, 0.088)
 mesh = SubResource("Box_4")
 
 ; IDENTITY: a snap zone composes the grab point, and the model shares the drive's
@@ -143,7 +144,7 @@ script = ExtResource("3_grabpoint")
 script = ExtResource("2_pickhigh")
 
 [node name="PointerArea" type="StaticBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2168, 0.024, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2243, 0.024, 0)
 collision_layer = 1048576
 collision_mask = 0
 
