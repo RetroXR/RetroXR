@@ -1,6 +1,8 @@
 ## TVRemote — pickable remote control. While held, it raycasts forward from its
-## tip; when pointed at a RetroTV / VCRPlayer / DVDPlayer / CD / Cassette player the
-## target is outlined maroon (PickableHighlight.set_remote_target).
+## tip; when pointed at a device that answers RemoteTarget (the set, the VCR, the DVD
+## player, the CD/cassette/record decks, and any mod object that joins) the target is
+## outlined maroon (PickableHighlight.set_remote_target). Every cell, face and press is
+## the DEVICE's: this file names no device class.
 ##
 ## By default the handset's OWN keys are the menu: the thumbstick walks a highlight
 ## (VRButton.set_selected, the laser's hover outline) over the keys in their real
@@ -68,8 +70,6 @@ const COLOR_PANEL_BG        := Color(0.05, 0.05, 0.1, 0.85)
 const COLOR_GLYPH           := Color(0.88, 0.90, 0.98)
 const COLOR_GLYPH_SELECTED  := Color(1.0, 1.0, 1.0)
 const COLOR_GLYPH_DISABLED  := Color(0.42, 0.42, 0.48, 0.55)
-const COLOR_GLYPH_ON        := Color(0.30, 1.0, 0.42)   # TV power = on
-const COLOR_GLYPH_MUTE      := Color(1.0, 0.35, 0.35)   # TV mute = active
 const COLOR_HILITE          := Color(0.62, 0.10, 0.22, 0.7)
 
 # Symbol codepoints live in TransportGlyphs, shared with the front panels of the
@@ -108,9 +108,9 @@ var _right_vr_ctrl: XRController3D = null
 var _target: Node3D = null
 var _lost_time: float = 0.0
 
-## Whether the aimed set had 3D content at the last grid build, so the 3D key can
-## be added or dropped when that changes.
-var _tv_had_stereo: bool = false
+## The target's RemoteTarget.layout_key at the last grid build: the grid is rebuilt
+## when it changes (a set's 3D key comes and goes with 3D content).
+var _layout_key: Variant = null
 
 # Selection state
 var _selection: int = -1
@@ -146,7 +146,6 @@ const KEY_CELLS := {
 	"KeyFf": "ff", "KeyUp": "up", "KeyDown": "down", "KeyLeft": "left", "KeyRight": "right", "KeyOk": "ok",
 	"KeyMenu": "menu", "KeyAudio": "audio", "KeySubtitle": "subtitle",
 }
-const DVD_CELLS := {"prev": "prev_ch", "next": "next_ch"}
 ## The keys travel 1.5 mm along their own -Z: the long end of a rubber keypad's 0.8-1.5 mm stroke, so a press is
 ## seen from arm's length (each stands 2 mm proud). Only the cap moves: VRButton keeps its shape where it is, and a
 ## fingertip is held by distance and the gate, so the sinking cap cannot slide out from under the finger.
@@ -615,9 +614,9 @@ func _flash_key(id: String) -> void:
 ## The grid cell a model key stands for on the current target.
 func cell_for_key(key_name: String) -> String:
 	var id := str(KEY_CELLS.get(key_name, ""))
-	if _target is DVDPlayer and DVD_CELLS.has(id):
-		return str(DVD_CELLS[id])
-	return id
+	if id.is_empty() or not is_instance_valid(_target):
+		return id
+	return RemoteTarget.key_cell(_target, id)
 
 
 func _find_vr_nodes() -> void:
@@ -827,11 +826,7 @@ func _scan_for_target() -> Node3D:
 
 ## Walk a collider up its ancestors to the owning device, or null.
 func _walk_to_device(node: Node) -> Node3D:
-	while node:
-		if node is RetroTV or node is VCRPlayer or node is DVDPlayer or node is RetroAudioPlayer:
-			return node as Node3D
-		node = node.get_parent()
-	return null
+	return RemoteTarget.of(node)
 
 
 ## Thin-ray hit on the pointable layer (desktop crosshair), walked to its device.
@@ -916,133 +911,16 @@ func _set_target_highlight(target: Node3D, active: bool) -> void:
 
 # ── Layout (per-device cell grid) ─────────────────────────────────────────────
 
-## The static cell specs for the current target: {id, col, row, span} plus a face —
-## either `glyph` (a TransportGlyphs key) or `text` (printed literally).
-## `enabled` is resolved separately each frame in _refresh_states().
+## The cell specs for the current target, from the device itself (RemoteTarget):
+## {id, col, row, span} plus a face — either `glyph` (a TransportGlyphs key) or `text`
+## (printed literally). `enabled` is resolved separately each frame in _refresh_states().
 func _layout_for_target() -> Array:
-	if _target is RetroTV:
-		var tv := _target as RetroTV
-		var cells: Array = [
-			{"id": "power", "glyph": "power", "col": 0, "row": 0, "span": 3},
-			# SOURCE sits directly under power, the way it does on a real handset:
-			# it is a whole-set control, not part of the volume cluster.
-			{"id": "source", "glyph": "source", "col": 0, "row": 1, "span": 3},
-			{"id": "vol_down", "glyph": "vol_down", "col": 0, "row": 2},
-			{"id": "mute", "glyph": "mute", "col": 1, "row": 2},
-			{"id": "vol_up", "glyph": "vol_up", "col": 2, "row": 2},
-		]
-		# The channel keys are always on the handset and grey out when the set is not
-		# on the tuner (see _cell_enabled). They used to be ADDED only while the tuner
-		# was selected, and the grid is rebuilt on a change of TARGET alone — so
-		# switching input with the remote still aimed at the same set left the keys
-		# missing until you looked away and back.
-		var next_row := 3
-		cells.append({"id": "ch_down", "glyph": "ch_down", "col": 0, "row": next_row})
-		cells.append({"id": "ch_up", "glyph": "ch_up", "col": 2, "row": next_row})
-		next_row += 1
-		# The speaker switch always; 3D only while there is something 3D to
-		# switch, which is how the set's own bezel key behaves. Both take their
-		# glyph from the mode they are currently in, so the key reads as a state
-		# rather than a label — see _tv_audio_glyph / _tv_stereo_glyph.
-		# Picture shape rides with them: also a state key, also always available.
-		if tv.has_stereo_source():
-			cells.append({"id": "audio_mode", "glyph": _tv_audio_glyph(tv),
-				"col": 0, "row": next_row})
-			cells.append({"id": "stereo3d", "glyph": _tv_stereo_glyph(tv),
-				"col": 1, "row": next_row})
-			cells.append({"id": "aspect", "text": _tv_aspect_text(tv),
-				"col": 2, "row": next_row})
-		else:
-			cells.append({"id": "audio_mode", "glyph": _tv_audio_glyph(tv),
-				"col": 0, "row": next_row})
-			cells.append({"id": "aspect", "text": _tv_aspect_text(tv),
-				"col": 2, "row": next_row})
-		# Where the sound goes, on a row of its own. One FIXED glyph, unlike the two
-		# state keys above: which position it is in is reported by the OSD and by
-		# the bezel cap's colour, so there is nothing for the symbol to track and no
-		# _live_text or _sizing_faces arm to add. Follows "source", which is the
-		# other key built that way.
-		next_row += 1
-		cells.append({"id": "audio_out", "glyph": "audio_out",
-			"col": 0, "row": next_row})
-		return cells
-	if _target is VCRPlayer:
-		# Eject on its own top row, then the transport grid.
-		return [
-			{"id": "eject", "glyph": "eject", "col": 0, "row": 0, "span": 3},
-			{"id": "prev", "glyph": "prev", "col": 0, "row": 1},
-			{"id": "playpause", "glyph": "play", "col": 1, "row": 1},
-			{"id": "next", "glyph": "next", "col": 2, "row": 1},
-			{"id": "rew", "glyph": "rew", "col": 0, "row": 2},
-			{"id": "stop", "glyph": "stop", "col": 1, "row": 2},
-			{"id": "ff", "glyph": "ff", "col": 2, "row": 2},
-		]
-	if _target is RetroAudioPlayer:
-		# Transport grid: prev/play/next over rew/stop/ff. prev/next greyed unless CD.
-		return [
-			{"id": "prev", "glyph": "prev", "col": 0, "row": 0},
-			{"id": "playpause", "glyph": "play", "col": 1, "row": 0},
-			{"id": "next", "glyph": "next", "col": 2, "row": 0},
-			{"id": "rew", "glyph": "rew", "col": 0, "row": 1},
-			{"id": "stop", "glyph": "stop", "col": 1, "row": 1},
-			{"id": "ff", "glyph": "ff", "col": 2, "row": 1},
-		]
-	if _target is DVDPlayer:
-		# Eject on its own top row, then D-pad cluster + chapter/transport + MENU.
-		return [
-			{"id": "eject", "glyph": "eject", "col": 0, "row": 0, "span": 3},
-			{"id": "up", "glyph": "up", "col": 1, "row": 1},
-			{"id": "left", "glyph": "left", "col": 0, "row": 2},
-			{"id": "ok", "glyph": "ok", "col": 1, "row": 2},
-			{"id": "right", "glyph": "right", "col": 2, "row": 2},
-			{"id": "down", "glyph": "down", "col": 1, "row": 3},
-			{"id": "prev_ch", "glyph": "prev", "col": 0, "row": 4},
-			{"id": "playpause", "glyph": "play", "col": 1, "row": 4},
-			{"id": "next_ch", "glyph": "next", "col": 2, "row": 4},
-			{"id": "rew", "glyph": "rew", "col": 0, "row": 5},
-			{"id": "stop", "glyph": "stop", "col": 1, "row": 5},
-			{"id": "ff", "glyph": "ff", "col": 2, "row": 5},
-			{"id": "menu", "glyph": "menu", "col": 0, "row": 6, "span": 3},
-			# Audio-track + subtitle cycle, two half-width cells filling the row.
-			{"id": "audio", "glyph": "audio", "col": 0.0, "row": 7, "span": 1.5},
-			{"id": "subtitle", "glyph": "subtitle", "col": 1.5, "row": 7, "span": 1.5},
-		]
-	return []
+	if not is_instance_valid(_target):
+		return []
+	return RemoteTarget.layout(_target)
 
 
-## Whether a cell id is usable against the current target's state.
-## Both of the set's tri-state keys print the mode they are IN rather than a
-## label, the same way its bezel caps do.
-func _tv_audio_glyph(tv: RetroTV) -> String:
-	return "audio_stereo" if tv.audio_mode == SpatialAudioEmitter.ChannelMode.STEREO \
-			else "audio_mono"
-
-
-func _tv_stereo_glyph(tv: RetroTV) -> String:
-	return "stereo" if tv.stereo_mode == RetroTV.StereoMode.BOTH else "eye"
-
-
-## The shape the set is showing NOW, not the one the key would switch to — same
-## reading as the audio and 3D keys, where the cell prints the current state.
-##
-## The words, not the crop glyphs it used to carry: the set's own bezel cap prints
-## "16:9" / "4:3" (RetroTV._update_aspect_button) and the handset key for it should
-## say what the cap says. Two picture-shape controls with different faces is one
-## control too many to learn.
-func _tv_aspect_text(tv: RetroTV) -> String:
-	return "16:9" if tv.widescreen else "4:3"
-
-
-## -1 leans left, +1 right, 0 centred — which channel, or which eye. Takes either
-## switch: SpatialAudioEmitter.ChannelMode and RetroTV.StereoMode both put the left
-## at 1 and the right at 2.
-func _tv_side(mode: int) -> float:
-	if mode == 1:
-		return -1.0
-	return 1.0 if mode == 2 else 0.0
-
-
-## A cell is 50 mm wide against the set's 25 mm cap, so the lean is bigger here.
+## A cell is 50 mm wide against the set's 25 mm cap, so a face's lean is bigger here.
 const CELL_LEAN := 0.009
 
 
@@ -1052,42 +930,11 @@ func _lean(label: Label3D, side: float) -> void:
 	label.position.x = float(label.get_meta("home_x")) + side * CELL_LEAN
 
 
+## Whether a cell id is usable against the current target's state.
 func _cell_enabled(id: String) -> bool:
-	if _target is DVDPlayer:
-		var in_menu: bool = (_target as DVDPlayer).is_in_menu()
-		match id:
-			"eject":
-				return (_target as DVDPlayer).has_media()   # only with a disc in
-			"up", "down", "left", "right", "ok":
-				return in_menu       # nav cluster only in a disc menu
-			"menu":
-				return true          # always usable (return to root menu)
-			"audio":
-				return not in_menu and (_target as DVDPlayer).has_audio_options()
-			"subtitle":
-				return not in_menu and (_target as DVDPlayer).has_subtitle_options()
-			_:
-				return not in_menu   # transport/chapter only during playback
-	if _target is VCRPlayer:
-		if id == "eject":
-			return (_target as VCRPlayer).has_media()   # only with a tape in
-		return id != "prev" and id != "next"
-	if _target is RetroAudioPlayer:
-		if id == "prev" or id == "next":
-			return (_target as RetroAudioPlayer).has_track_skip()
-		# A turntable has no scan: you move the needle instead. Greyed for the
-		# same reason prev/next are greyed on a cassette — the deck cannot do it.
-		if id == "rew" or id == "ff":
-			return (_target as RetroAudioPlayer).has_scan()
-		return true
-	if _target is RetroTV:
-		# The channel keys are the one TV cell that can be dead: the set may be on
-		# the component input, where there is no channel to change. On the aerial
-		# input they always have CH3 and CH4 to step between, and an Antenna's
-		# channels besides. Every other key on a set works whatever it is showing.
-		if id == "ch_up" or id == "ch_down":
-			return (_target as RetroTV).can_change_channel()
-	return true
+	if not is_instance_valid(_target):
+		return false
+	return RemoteTarget.cell_enabled(_target, id)
 
 
 # ── Grid widget ───────────────────────────────────────────────────────────────
@@ -1142,22 +989,6 @@ func _spec_text(spec: Dictionary) -> String:
 	return _glyph(str(spec.get("glyph", "")))
 
 
-## The text a state key should be printing right now, or "" for a cell whose face
-## never changes. One list, so a key that reads as a state cannot be given a live
-## face in the layout and then left stale by the per-frame refresh — which is
-## exactly what happened to the picture-shape key.
-func _live_text(id: String) -> String:
-	if id == "playpause":
-		return _glyph("pause" if _target_playing() else "play")
-	if _target is RetroTV:
-		var tv := _target as RetroTV
-		match id:
-			"audio_mode": return _glyph(_tv_audio_glyph(tv))
-			"stereo3d":   return _glyph(_tv_stereo_glyph(tv))
-			"aspect":     return _tv_aspect_text(tv)
-	return ""
-
-
 ## Print `text` on a cell and size it to that cell.
 func _set_cell_text(cell: Dictionary, text: String) -> void:
 	var label := cell["label"] as Label3D
@@ -1173,20 +1004,22 @@ func _set_cell_text(cell: Dictionary, text: String) -> void:
 
 
 ## Every face a key can wear. A state key is sized for the largest of them, so
-## toggling it changes what it says and not how big it says it — "4:3" alone fits
-## at 22 and "16:9" at 17, and a key that jumps a type size mid-press reads as a
-## different key.
+## toggling it changes what it says and not how big it says it.
 func _sizing_faces(id: String, text: String) -> Array:
-	match id:
-		"playpause":  return [_glyph("play"), _glyph("pause")]
-		"audio_mode": return [_glyph("audio_stereo"), _glyph("audio_mono")]
-		"stereo3d":   return [_glyph("stereo"), _glyph("eye")]
-		"aspect":     return ["16:9", "4:3"]
-	return [text]
+	var out: Array = []
+	if is_instance_valid(_target):
+		for face: Variant in RemoteTarget.faces(_target, id):
+			if face is Dictionary:
+				out.append(_spec_text(face))
+	return out if not out.is_empty() else [text]
 
 
+## A TransportGlyphs key's symbol. A key it does not know (a mod's) prints as the
+## key's own text rather than a "?".
 func _glyph(key: String) -> String:
-	return str(_glyphs.get(key, "?"))
+	if _glyphs.has(key):
+		return str(_glyphs[key])
+	return key if not key.is_empty() else "?"
 
 
 ## Font size at which `text` fills CELL_INK_FRACTION of the tile's height without
@@ -1268,6 +1101,7 @@ func _rebuild_grid() -> void:
 	_cells.clear()
 
 	var layout := _layout_for_target()
+	_layout_key = RemoteTarget.layout_key(_target) if is_instance_valid(_target) else null
 	_nrows = 0
 	for spec: Dictionary in layout:
 		_nrows = maxi(_nrows, int(spec["row"]) + 1)
@@ -1327,12 +1161,10 @@ func _refresh_states() -> void:
 	# 3D content can start or stop while the remote stays aimed at the same set,
 	# and the grid is otherwise only built on a target change — so the key would
 	# never appear. Rebuilding is cheap and only happens on the flip.
-	if _target is RetroTV:
-		var has_3d: bool = (_target as RetroTV).has_stereo_source()
-		if has_3d != _tv_had_stereo:
-			_tv_had_stereo = has_3d
-			_rebuild_grid()
-			return
+	if RemoteTarget.layout_changed(RemoteTarget.layout_key(_target), _layout_key):
+		print("[TVRemote] %s: %s changed its layout, rebuilding the grid" % [name, _target.name])
+		_rebuild_grid()
+		return
 	for i in _cells.size():
 		var cell: Dictionary = _cells[i]
 		var id := str(cell["id"])
@@ -1344,21 +1176,17 @@ func _refresh_states() -> void:
 		# Keys that print the state they are IN re-read it here; the rest keep what
 		# _rebuild_grid gave them. Only written on an actual change, because the fit
 		# that follows a write measures the font.
-		var live := _live_text(id)
-		if not live.is_empty() and live != label.text:
-			_set_cell_text(cell, live)
-		if _target is RetroTV:
-			if id == "audio_mode":
-				_lean(label, _tv_side((_target as RetroTV).audio_mode))
-			elif id == "stereo3d":
-				_lean(label, _tv_side((_target as RetroTV).stereo_mode))
-		# Colour: state tints first, then disabled/selected overrides.
+		var face := RemoteTarget.face(_target, id)
+		if face.has("text") or face.has("glyph"):
+			var live := _spec_text(face)
+			if live != label.text:
+				_set_cell_text(cell, live)
+		if face.has("lean"):
+			_lean(label, clampf(float(face["lean"]), -1.0, 1.0))
+		# Colour: the device's state tint first, then disabled/selected overrides.
 		var col := COLOR_GLYPH
-		if _target is RetroTV:
-			if id == "power" and (_target as RetroTV).is_on():
-				col = COLOR_GLYPH_ON
-			elif id == "mute" and (_target as RetroTV).is_muted():
-				col = COLOR_GLYPH_MUTE
+		if face.get("tint") is Color:
+			col = face["tint"]
 		if not en:
 			col = COLOR_GLYPH_DISABLED
 		elif i == _selection:
@@ -1369,17 +1197,6 @@ func _refresh_states() -> void:
 	if _selection < 0 or _selection >= _cells.size() or not bool(_cells[_selection]["enabled"]):
 		_selection = _first_enabled()
 	_refresh_highlight()
-
-
-## True when the target is actively playing (not stopped, not paused).
-func _target_playing() -> bool:
-	if not is_instance_valid(_target):
-		return false
-	if not bool(_target.get("is_playing")):
-		return false
-	if _target.has_method("is_paused"):
-		return not bool(_target.call("is_paused"))
-	return true
 
 
 func _first_enabled() -> int:
@@ -1512,69 +1329,10 @@ func _activate_selected() -> void:
 	_refresh_states()
 
 
-## A single Play/Pause cell: pause if actively playing, else (re)start playback.
-func _toggle_playpause(player: Node) -> void:
-	if _target_playing():
-		player.call("remote_pause")
-	else:
-		player.call("remote_play")
-
-
 func _activate(id: String) -> void:
-	if _target is RetroTV:
-		var tv := _target as RetroTV
-		# The same line the bezel prints, so a key pressed from across the room
-		# shows up in the log beside one pressed on the set.
-		print("[TVRemote] %s: pressed %s" % [tv.name, id])
-		match id:
-			"power": tv.remote_power_toggle()
-			"vol_up": tv.remote_volume_up()
-			"vol_down": tv.remote_volume_down()
-			"mute": tv.remote_mute_toggle()
-			"audio_mode": tv.set_audio_mode(tv.next_audio_mode())
-			# Not a modulo here: the set skips a position that would sound identical
-			# to the one it is on, which this file cannot know about.
-			"audio_out": tv.remote_audio_out_cycle()
-			"stereo3d": tv.set_stereo_mode(tv.next_stereo_mode())
-			"aspect": tv.toggle_aspect()
-			"source": tv.remote_source_cycle()
-			"ch_up": tv.remote_channel_up()
-			"ch_down": tv.remote_channel_down()
-	elif _target is VCRPlayer:
-		var vcr := _target as VCRPlayer
-		match id:
-			"eject": vcr.remote_eject()
-			"playpause": _toggle_playpause(vcr)
-			"stop": vcr.remote_stop()
-			"rew": vcr.remote_rewind()
-			"ff": vcr.remote_ff()
-	elif _target is RetroAudioPlayer:
-		var ap := _target as RetroAudioPlayer
-		match id:
-			"playpause": _toggle_playpause(ap)
-			"stop": ap.remote_stop()
-			"rew": ap.remote_rewind()
-			"ff": ap.remote_ff()
-			"prev": ap.remote_prev()
-			"next": ap.remote_next()
-	elif _target is DVDPlayer:
-		var dvd := _target as DVDPlayer
-		match id:
-			"eject": dvd.remote_eject()
-			"up": dvd.dvd_menu_up()
-			"down": dvd.dvd_menu_down()
-			"left": dvd.dvd_menu_left()
-			"right": dvd.dvd_menu_right()
-			"ok": dvd.dvd_ok()
-			"menu": dvd.dvd_root_menu()
-			"prev_ch": dvd.dvd_prev_chapter()
-			"next_ch": dvd.dvd_next_chapter()
-			"playpause": _toggle_playpause(dvd)
-			"rew": dvd.remote_rewind()
-			"ff": dvd.remote_ff()
-			"stop": dvd.remote_stop()
-			"audio": dvd.dvd_cycle_audio()
-			"subtitle": dvd.dvd_cycle_subtitle()
+	if not is_instance_valid(_target):
+		return
+	RemoteTarget.activate(_target, id)
 
 
 # ── Menu transform ────────────────────────────────────────────────────────────

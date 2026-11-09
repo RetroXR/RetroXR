@@ -753,6 +753,50 @@ func has_media() -> bool:
 	return _slot.has_media()
 
 
+# ── What the remote shows and does on a VCR (RemoteTarget) ────────────────────
+
+func _init() -> void:
+	RemoteTarget.join(self)
+
+
+## Eject on its own top row, then the transport grid.
+func remote_layout() -> Array:
+	return [
+		{"id": "eject", "glyph": "eject", "col": 0, "row": 0, "span": 3},
+		{"id": "prev", "glyph": "prev", "col": 0, "row": 1},
+		{"id": "playpause", "glyph": "play", "col": 1, "row": 1},
+		{"id": "next", "glyph": "next", "col": 2, "row": 1},
+		{"id": "rew", "glyph": "rew", "col": 0, "row": 2},
+		{"id": "stop", "glyph": "stop", "col": 1, "row": 2},
+		{"id": "ff", "glyph": "ff", "col": 2, "row": 2},
+	]
+
+
+## A tape has no tracks to skip; Eject only with one in.
+func remote_cell_enabled(id: String) -> bool:
+	if id == "eject":
+		return has_media()
+	return id != "prev" and id != "next"
+
+
+func remote_cell_face(id: String) -> Dictionary:
+	return RemoteTarget.play_face(self) if id == "playpause" else {}
+
+
+func remote_cell_faces(id: String) -> Array:
+	return RemoteTarget.PLAY_FACES if id == "playpause" else []
+
+
+func remote_activate(id: String) -> void:
+	match id:
+		"eject": remote_eject()
+		"playpause": RemoteTarget.toggle_play(self)
+		"stop": remote_stop()
+		"rew": remote_rewind()
+		"ff": remote_ff()
+		_: print("[VCR] %s: the remote's %s is no key of a VCR's" % [name, id])
+
+
 ## The menu's Debug tab: the tape, what the player is doing with it, the audio it
 ## decodes and where the picture goes. See DebugRows for the shape.
 func debug_state() -> Array:

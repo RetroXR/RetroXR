@@ -340,6 +340,53 @@ func is_paused() -> bool:
 	return _paused
 
 
+# ── What the remote shows and does on a deck (RemoteTarget) ───────────────────
+
+func _init() -> void:
+	RemoteTarget.join(self)
+
+
+## Transport grid: prev/play/next over rew/stop/ff.
+func remote_layout() -> Array:
+	return [
+		{"id": "prev", "glyph": "prev", "col": 0, "row": 0},
+		{"id": "playpause", "glyph": "play", "col": 1, "row": 0},
+		{"id": "next", "glyph": "next", "col": 2, "row": 0},
+		{"id": "rew", "glyph": "rew", "col": 0, "row": 1},
+		{"id": "stop", "glyph": "stop", "col": 1, "row": 1},
+		{"id": "ff", "glyph": "ff", "col": 2, "row": 1},
+	]
+
+
+## prev/next only on a deck that skips tracks (a CD); rew/ff greyed on a turntable,
+## which has no scan — you move the needle, as prev/next are greyed on a cassette.
+func remote_cell_enabled(id: String) -> bool:
+	if id == "prev" or id == "next":
+		return has_track_skip()
+	if id == "rew" or id == "ff":
+		return has_scan()
+	return true
+
+
+func remote_cell_face(id: String) -> Dictionary:
+	return RemoteTarget.play_face(self) if id == "playpause" else {}
+
+
+func remote_cell_faces(id: String) -> Array:
+	return RemoteTarget.PLAY_FACES if id == "playpause" else []
+
+
+func remote_activate(id: String) -> void:
+	match id:
+		"playpause": RemoteTarget.toggle_play(self)
+		"stop": remote_stop()
+		"rew": remote_rewind()
+		"ff": remote_ff()
+		"prev": remote_prev()
+		"next": remote_next()
+		_: print("[AudioPlayer] %s: the remote's %s is no key of a deck's" % [name, id])
+
+
 ## One line in the log for something done to the deck: a button pressed, a
 ## cassette, CD or record going in or out, what it opened to play. Playing well prints nothing
 ## else, so this is how a log shows what was tried before whatever went wrong.

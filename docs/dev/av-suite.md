@@ -338,6 +338,18 @@ stayed, so the keys and the tip did not move; `GrabPoint` and the hand poses wen
 Its 26 keys are the grid's cells (`TVRemote.KEY_CELLS`; PREV/NEXT are `prev_ch`/`next_ch` on a
 DVD); the stick now walks the keys themselves, and the floating grid is an option (below).
 
+- **The remote names no device (`RemoteTarget`, 2026-11-09).** What it can aim at is any Node3D in
+  `RemoteTarget.GROUP` (joined in `_init`) that answers `remote_layout()` + `remote_activate(id)`; the
+  cells, the greying (`remote_cell_enabled`), a state key's face/tint/lean (`remote_cell_face`, sized over
+  `remote_cell_faces`), a handset key's remap (`remote_key_cell`: the DVD's chapters) and when the grid is
+  rebuilt (`remote_layout_key`: the set's 3D key) are the DEVICE's, in `tv.gd`, `vcr_player.gd`,
+  `dvd_player.gd` and `audio_player.gd`. A new kind of target -- a mod's included (`modding.md` "Something
+  the TV remote drives") -- touches no line of `tv_remote.gd`; do not bring a class check back into it.
+  `RemoteTarget.layout` drops (and logs once) a cell off the 3-column grid or with no id/face; an unknown
+  glyph prints as its key. `tv_remote_tests target/` (16) drives a device built in the test; the group
+  check is mutation-tested. A remote that is a mod's own object (the aiming lifted into a reusable
+  emitter) is NOT done yet.
+
 - **Every key is a VRButton** under `Keys`, built in `_dress_keys` and dressed by `adopt_button`
   (1.5 mm travel along the key's -Z: the long end of a rubber keypad's 0.8-1.5 mm stroke, Diamond HMI's
   design guide, so a press is seen from arm's length; only the cap moves, the shape stays put). A key does what its cell does on the device the grid is

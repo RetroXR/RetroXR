@@ -556,6 +556,86 @@ func remote_eject() -> void: _on_eject_pressed()
 func has_media() -> bool: return _slot.has_media()
 
 
+# ── What the remote shows and does on a DVD player (RemoteTarget) ─────────────
+
+func _init() -> void:
+	RemoteTarget.join(self)
+
+
+## Eject on its own top row, then D-pad cluster + chapter/transport + MENU.
+func remote_layout() -> Array:
+	return [
+		{"id": "eject", "glyph": "eject", "col": 0, "row": 0, "span": 3},
+		{"id": "up", "glyph": "up", "col": 1, "row": 1},
+		{"id": "left", "glyph": "left", "col": 0, "row": 2},
+		{"id": "ok", "glyph": "ok", "col": 1, "row": 2},
+		{"id": "right", "glyph": "right", "col": 2, "row": 2},
+		{"id": "down", "glyph": "down", "col": 1, "row": 3},
+		{"id": "prev_ch", "glyph": "prev", "col": 0, "row": 4},
+		{"id": "playpause", "glyph": "play", "col": 1, "row": 4},
+		{"id": "next_ch", "glyph": "next", "col": 2, "row": 4},
+		{"id": "rew", "glyph": "rew", "col": 0, "row": 5},
+		{"id": "stop", "glyph": "stop", "col": 1, "row": 5},
+		{"id": "ff", "glyph": "ff", "col": 2, "row": 5},
+		{"id": "menu", "glyph": "menu", "col": 0, "row": 6, "span": 3},
+		# Audio-track + subtitle cycle, two half-width cells filling the row.
+		{"id": "audio", "glyph": "audio", "col": 0.0, "row": 7, "span": 1.5},
+		{"id": "subtitle", "glyph": "subtitle", "col": 1.5, "row": 7, "span": 1.5},
+	]
+
+
+func remote_cell_enabled(id: String) -> bool:
+	var in_menu := is_in_menu()
+	match id:
+		"eject":
+			return has_media()   # only with a disc in
+		"up", "down", "left", "right", "ok":
+			return in_menu       # nav cluster only in a disc menu
+		"menu":
+			return true          # always usable (return to root menu)
+		"audio":
+			return not in_menu and has_audio_options()
+		"subtitle":
+			return not in_menu and has_subtitle_options()
+	return not in_menu           # transport/chapter only during playback
+
+
+func remote_cell_face(id: String) -> Dictionary:
+	return RemoteTarget.play_face(self) if id == "playpause" else {}
+
+
+func remote_cell_faces(id: String) -> Array:
+	return RemoteTarget.PLAY_FACES if id == "playpause" else []
+
+
+## The handset's PREV/NEXT are this player's chapter keys.
+func remote_key_cell(cell: String) -> String:
+	match cell:
+		"prev": return "prev_ch"
+		"next": return "next_ch"
+	return cell
+
+
+func remote_activate(id: String) -> void:
+	match id:
+		"eject": remote_eject()
+		"up": dvd_menu_up()
+		"down": dvd_menu_down()
+		"left": dvd_menu_left()
+		"right": dvd_menu_right()
+		"ok": dvd_ok()
+		"menu": dvd_root_menu()
+		"prev_ch": dvd_prev_chapter()
+		"next_ch": dvd_next_chapter()
+		"playpause": RemoteTarget.toggle_play(self)
+		"rew": remote_rewind()
+		"ff": remote_ff()
+		"stop": remote_stop()
+		"audio": dvd_cycle_audio()
+		"subtitle": dvd_cycle_subtitle()
+		_: print("[DVD] %s: the remote's %s is no key of a DVD player's" % [name, id])
+
+
 func _log_tag() -> String:
 	return "DVD"
 

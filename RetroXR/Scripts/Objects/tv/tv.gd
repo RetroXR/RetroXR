@@ -588,6 +588,7 @@ const STATIC_LIGHT_COLOR := Color(0.42, 0.44, 0.46)
 ## The helpers are built HERE and not in _ready, because _ready applies the
 ## authored size and wears the shell on its way past, and would find a null.
 func _init() -> void:
+	RemoteTarget.join(self)
 	_resize = TvResize.new()
 	_resize.name = "TvResize"
 	add_child(_resize)
@@ -1178,6 +1179,127 @@ func remote_channel_down() -> void:
 ## so the remote greys its keys off the same list the keys step through.
 func can_change_channel() -> bool:
 	return current_source == Source.RF and rf_dial().size() > 1
+
+
+# ── What the remote shows and does on a set (RemoteTarget) ────────────────────
+
+## The set's cells on the remote's grid.
+func remote_layout() -> Array:
+	var cells: Array = [
+		{"id": "power", "glyph": "power", "col": 0, "row": 0, "span": 3},
+		# SOURCE sits directly under power, the way it does on a real handset:
+		# it is a whole-set control, not part of the volume cluster.
+		{"id": "source", "glyph": "source", "col": 0, "row": 1, "span": 3},
+		{"id": "vol_down", "glyph": "vol_down", "col": 0, "row": 2},
+		{"id": "mute", "glyph": "mute", "col": 1, "row": 2},
+		{"id": "vol_up", "glyph": "vol_up", "col": 2, "row": 2},
+		# The channel keys are always on the handset and grey out when the set is not
+		# on the tuner (remote_cell_enabled). They used to be ADDED only while the tuner
+		# was selected, and the grid is rebuilt on a change of LAYOUT KEY alone — so
+		# switching input with the remote still aimed at the same set left the keys
+		# missing until you looked away and back.
+		{"id": "ch_down", "glyph": "ch_down", "col": 0, "row": 3},
+		{"id": "ch_up", "glyph": "ch_up", "col": 2, "row": 3},
+		# The speaker switch always; 3D only while there is something 3D to switch,
+		# which is how the set's own bezel key behaves. Both print the mode they are
+		# IN (remote_cell_face), so the key reads as a state rather than a label.
+		# Picture shape rides with them: also a state key, also always available.
+		{"id": "audio_mode", "glyph": _remote_audio_glyph(), "col": 0, "row": 4},
+	]
+	if has_stereo_source():
+		cells.append({"id": "stereo3d", "glyph": _remote_stereo_glyph(), "col": 1, "row": 4})
+	cells.append({"id": "aspect", "text": _remote_aspect_text(), "col": 2, "row": 4})
+	# Where the sound goes, on a row of its own. One FIXED glyph: which position it is
+	# in is reported by the OSD and by the bezel cap's colour.
+	cells.append({"id": "audio_out", "glyph": "audio_out", "col": 0, "row": 5})
+	return cells
+
+
+## The 3D key comes and goes with 3D content, which can start or stop while the
+## remote stays aimed at the same set.
+func remote_layout_key() -> Variant:
+	return has_stereo_source()
+
+
+## The channel keys are the one cell that can be dead: the set may be on the
+## component input, where there is no channel to change. Every other key on a set
+## works whatever it is showing.
+func remote_cell_enabled(id: String) -> bool:
+	if id == "ch_up" or id == "ch_down":
+		return can_change_channel()
+	return true
+
+
+## State keys print the mode they are IN, as the bezel caps do; power and mute are
+## tinted while on.
+func remote_cell_face(id: String) -> Dictionary:
+	match id:
+		"power":
+			return {"tint": RemoteTarget.TINT_ON} if is_on() else {}
+		"mute":
+			return {"tint": RemoteTarget.TINT_ALERT} if is_muted() else {}
+		"audio_mode":
+			return {"glyph": _remote_audio_glyph(), "lean": _remote_side(audio_mode)}
+		"stereo3d":
+			return {"glyph": _remote_stereo_glyph(), "lean": _remote_side(stereo_mode)}
+		"aspect":
+			return {"text": _remote_aspect_text()}
+	return {}
+
+
+## Every face a state key can wear: toggling it changes what it says and not how
+## big it says it ("4:3" alone fits at 22 and "16:9" at 17).
+func remote_cell_faces(id: String) -> Array:
+	match id:
+		"audio_mode": return [{"glyph": "audio_stereo"}, {"glyph": "audio_mono"}]
+		"stereo3d":   return [{"glyph": "stereo"}, {"glyph": "eye"}]
+		"aspect":     return [{"text": "16:9"}, {"text": "4:3"}]
+	return []
+
+
+func remote_activate(id: String) -> void:
+	# The same line the bezel prints, so a key pressed from across the room
+	# shows up in the log beside one pressed on the set.
+	print("[TVRemote] %s: pressed %s" % [name, id])
+	match id:
+		"power": remote_power_toggle()
+		"vol_up": remote_volume_up()
+		"vol_down": remote_volume_down()
+		"mute": remote_mute_toggle()
+		"audio_mode": set_audio_mode(next_audio_mode())
+		# Not a modulo: the set skips a position that would sound identical to the
+		# one it is on.
+		"audio_out": remote_audio_out_cycle()
+		"stereo3d": set_stereo_mode(next_stereo_mode())
+		"aspect": toggle_aspect()
+		"source": remote_source_cycle()
+		"ch_up": remote_channel_up()
+		"ch_down": remote_channel_down()
+		_: print("[TVRemote] %s: %s is no key of a set's" % [name, id])
+
+
+func _remote_audio_glyph() -> String:
+	return "audio_stereo" if audio_mode == SpatialAudioEmitter.ChannelMode.STEREO else "audio_mono"
+
+
+func _remote_stereo_glyph() -> String:
+	return "stereo" if stereo_mode == StereoMode.BOTH else "eye"
+
+
+## The shape the set is showing NOW, in the words its own bezel cap prints
+## (_update_aspect_button): two picture-shape controls with different faces is one
+## control too many to learn.
+func _remote_aspect_text() -> String:
+	return "16:9" if widescreen else "4:3"
+
+
+## -1 leans left, +1 right, 0 centred — which channel, or which eye. Takes either
+## switch: SpatialAudioEmitter.ChannelMode and StereoMode both put the left at 1 and
+## the right at 2.
+func _remote_side(mode: int) -> float:
+	if mode == 1:
+		return -1.0
+	return 1.0 if mode == 2 else 0.0
 
 
 # Bezel channel keys. Unlike the remote's — which only light once the aerial input

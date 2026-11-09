@@ -28,6 +28,11 @@
 ##            use for sinks and does nothing; the arrows and Enter do the same on desktop; switched on in the
 ##            remote's own menu the grid comes back, the stick and arrows walk it and no key is lit, and the
 ##            switch is kept in the app's preferences (the player's real file, restored byte for byte).
+##   target/  a device the remote has never heard of (a mod's, built here) joins RemoteTarget and is aimed at;
+##            its shared ids (POWER) take the handset's keys, a greyed cell and a cell it has not got do nothing,
+##            its own remote_key_cell routes NEXT to a cell of its own id, a cell off the 3-column grid is left
+##            out, an unknown glyph prints as its key, its face tints and its layout key rebuilds the grid; the
+##            controls: the same node out of the group, and in the group without the methods, is no target.
 ##   bay/     the battery cover is a CoverSlots cover that is the model's own cover, taken by the desktop ray
 ##            from below; a remote fresh from the spawn menu has two AAA cells in BatteryAAA1/2, shut in
 ##            while the cover is on; off, the ray from below takes each cell (the shell's laser shape has no
@@ -74,7 +79,8 @@ func _run() -> void:
 	add_child(_hand)
 	for c: Array in [["dress/", _test_dress], ["shapes/", _test_shapes], ["ray/", _test_ray],
 			["touch/", _test_touch], ["keys/", _test_keys], ["aim/", _test_aim], ["press/", _test_press],
-			["bay/", _test_bay], ["poke/", _test_poke], ["grid/", _test_grid], ["stick/", _test_stick]]:
+			["bay/", _test_bay], ["poke/", _test_poke], ["grid/", _test_grid], ["stick/", _test_stick],
+			["target/", _test_target]]:
 		if _wanted(str(c[0])):
 			await (c[1] as Callable).call()
 			await _cleanup()
@@ -800,6 +806,107 @@ func _key(code: Key, down: bool) -> InputEventKey:
 	e.physical_keycode = code
 	e.pressed = down
 	return e
+
+
+# ── target/ ───────────────────────────────────────────────────────────────────
+
+## What a mod's object would be: a Node3D with a pointable body, joined in _init.
+class ModDevice extends Node3D:
+	var pressed: Array[String] = []
+	var on := false
+	var extra := false
+
+	func _init(join := true) -> void:
+		if join:
+			RemoteTarget.join(self)
+		var body := StaticBody3D.new()
+		body.name = "PointerArea"
+		body.collision_layer = 1 << 20
+		body.collision_mask = 0
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(0.3, 0.3, 0.3)
+		shape.shape = box
+		body.add_child(shape)
+		add_child(body)
+
+	func remote_layout() -> Array:
+		var cells: Array = [
+			{"id": "power", "glyph": "power", "col": 0, "row": 0, "span": 3},
+			{"id": "fan", "text": "FAN", "col": 0, "row": 1},
+			{"id": "stop", "glyph": "stop", "col": 1, "row": 1},
+			{"id": "odd", "glyph": "no_such_glyph", "col": 2, "row": 1},
+			{"id": "wide", "text": "X", "col": 2, "row": 2, "span": 2},
+		]
+		if extra:
+			cells.append({"id": "boost", "text": "B", "col": 0, "row": 3})
+		return cells
+
+	func remote_cell_enabled(id: String) -> bool:
+		return id != "stop"
+
+	func remote_cell_face(id: String) -> Dictionary:
+		return {"tint": RemoteTarget.TINT_ON} if id == "power" and on else {}
+
+	func remote_key_cell(cell: String) -> String:
+		return "fan" if cell == "next" else cell
+
+	func remote_layout_key() -> Variant:
+		return extra
+
+	func remote_activate(id: String) -> void:
+		pressed.append(id)
+
+
+func _test_target() -> void:
+	var dev := ModDevice.new()
+	dev.position = Vector3(0, 1, -1.5)
+	add_child(dev)
+	_spawned.append(dev)
+	var r := await _remote(Vector3(0, 1.1, 0))
+	await get_tree().physics_frame
+	_ok(RemoteTarget.of(dev.get_node("PointerArea")) == dev, "target/its pointable body walks up to the device")
+	_eq(r.press_key("KeyPower"), "power", "target/POWER aimed at a mod device is its power cell")
+	_eq(str(dev.pressed), str(["power"]), "target/…and the device was told")
+	_eq(r.press_key("KeyStop"), "", "target/a cell it greys does nothing")
+	_eq(r.press_key("KeyEject"), "", "target/a key it has no cell for does nothing")
+	_eq(r.press_key("KeyNext"), "fan", "target/its remote_key_cell routes NEXT to a cell of its own")
+	_eq(str(dev.pressed), str(["power", "fan"]), "target/…and only those two reached it")
+	# The grid, as the floating menu builds it.
+	r._target = dev
+	r._rebuild_grid()
+	var ids: Array[String] = []
+	var texts := {}
+	for c: Dictionary in r._cells:
+		ids.append(str(c["id"]))
+		texts[str(c["id"])] = (c["label"] as Label3D).text
+	_eq(str(ids), str(["power", "fan", "stop", "odd"]), "target/the grid is its layout, the cell off the grid left out")
+	_eq(str(texts.get("fan", "")), "FAN", "target/a text cell prints its text")
+	_eq(str(texts.get("odd", "")), "no_such_glyph", "target/an unknown glyph prints as its key")
+	dev.on = true
+	r._selection = 1
+	r._refresh_states()
+	_ok((r._cells[0]["label"] as Label3D).modulate == RemoteTarget.TINT_ON, "target/its face tints the power cell")
+	_ok(not bool(r._cells[2]["enabled"]), "target/the greyed cell is disabled on the grid")
+	r._activate_selected()
+	_eq(dev.pressed.back(), "fan", "target/the grid's selected cell is pressed on it")
+	dev.extra = true
+	r._refresh_states()
+	_ok(r._cells.size() == 5 and str(r._cells[4]["id"]) == "boost",
+		"target/a changed layout key rebuilds the grid", str(r._cells.size()))
+	r._target = null
+	# Controls: the same device with the same methods out of the group, and a node in the group without them.
+	var loose := ModDevice.new(false)
+	add_child(loose)
+	_spawned.append(loose)
+	_ok(RemoteTarget.of(loose.get_node("PointerArea")) == null, "target/out of the group it is no target")
+	var bare := Node3D.new()
+	RemoteTarget.join(bare)
+	var body := StaticBody3D.new()
+	bare.add_child(body)
+	add_child(bare)
+	_spawned.append(bare)
+	_ok(RemoteTarget.of(body) == null, "target/in the group without the methods it is no target")
 
 
 ## remove_child then free, as deck_tests does: a set's or deck's audio emitter still

@@ -776,6 +776,61 @@ range, the list of rows) rebuilds them, so keep the rest steady. In
 shell turns, the sound plays and netplay hears it as it would a hand. The Game
 Boy packs (`xenu.gb`, `xenu.gbpocket`) offer their contrast wheels this way.
 
+### Something the TV remote drives
+
+The TV remote drives anything that says it can. There is nothing to register in
+`mod.json` or the entry script: the object joins in its own `_init` and answers
+two methods, which is exactly what the shipped set, VCR, DVD player and decks do.
+
+```gdscript
+func _init() -> void:
+	RemoteTarget.join(self)
+
+## The cells of the remote's floating grid, three columns wide:
+## {id, col, row, span?} and a face, `glyph` (a TransportGlyphs key) or `text`.
+func remote_layout() -> Array:
+	return [
+		{"id": "power", "glyph": "power", "col": 0, "row": 0, "span": 3},
+		{"id": "playpause", "glyph": "play", "col": 0, "row": 1},
+		{"id": "fan", "text": "FAN", "col": 1, "row": 1},
+	]
+
+func remote_activate(id: String) -> void:
+	match id:
+		"power": _on_power_pressed()     # the SAME path as your own button
+		"playpause": RemoteTarget.toggle_play(self)
+		"fan": _on_fan_pressed()
+```
+
+Optional, each with a sensible default when left out:
+
+| method | what it is for |
+|---|---|
+| `remote_cell_enabled(id) -> bool` | grey a cell that does nothing right now (default: all live) |
+| `remote_cell_face(id) -> Dictionary` | a STATE key's face now: `glyph`/`text`, `tint` (a `Color`; `RemoteTarget.TINT_ON`, `TINT_ALERT`), `lean` (-1..1). Asked every frame the grid shows: keep it cheap |
+| `remote_cell_faces(id) -> Array` | every face a state key can wear, so it is sized for the largest and does not jump a type size |
+| `remote_key_cell(cell) -> String` | which of your cells a handset key printed `cell` presses (the DVD player's PREV/NEXT are its chapter keys) |
+| `remote_layout_key() -> Variant` | anything that changes when WHICH cells there are changes; the grid is rebuilt then |
+
+- **The handset's own keys press the cell with their printed id**: `power`,
+  `source`, `vol_up`, `vol_down`, `mute`, `ch_up`, `ch_down`, `audio_mode`,
+  `stereo3d`, `aspect`, `audio_out`, `eject`, `prev`, `playpause`, `next`, `rew`,
+  `stop`, `ff`, `up`, `down`, `left`, `right`, `ok`, `menu`, `audio`, `subtitle`.
+  Use those ids where they mean the same thing and the physical keys just work.
+  A cell of your own id is reached through the grid (or `remote_key_cell`).
+- **Do what your own button does, through the same function.** That is what saves
+  the change and carries it to the other players in a session; the remote itself
+  sends nothing over the network.
+- **It has to be found**: a collider on the pointable layer (layer 21, the
+  `PointerArea` body your object already has for the laser) somewhere under it,
+  with clear line of sight. A `PickableHighlight` child gets the maroon outline
+  while it is aimed at.
+- A deck's play/pause: `RemoteTarget.play_face(self)` and
+  `RemoteTarget.PLAY_FACES` read `is_playing` (and `is_paused()` if you have one).
+- A cell off the three columns, with no id, or with neither `glyph` nor `text`
+  is left out and logged once (`[RemoteTarget]`). A `glyph` the remote does not
+  know prints as its own name.
+
 ### Sockets, plugs and what fits
 
 Every socket and every plug in the room has a **connector**, and a plug goes into
