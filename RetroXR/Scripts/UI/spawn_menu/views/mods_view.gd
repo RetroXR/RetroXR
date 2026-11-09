@@ -828,11 +828,11 @@ func _fill_browse_detail() -> void:
 	var title := MenuStyle.label(str(mod["name"]), 26, MenuStyle.COLOR_TITLE)
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	facts.add_child(title)
+	if not str(mod["file_version"]).is_empty():
+		facts.add_child(MenuStyle.label("Version " + str(mod["file_version"]), 16, MenuStyle.COLOR_DESC))
 	if not str(mod["author"]).is_empty():
 		facts.add_child(MenuStyle.label("by " + str(mod["author"]), 18, MenuStyle.COLOR_LICENSE))
 	var lines := PackedStringArray()
-	if not str(mod["file_version"]).is_empty():
-		lines.append("Version " + str(mod["file_version"]))
 	if int(mod["file_size"]) > 0:
 		lines.append(ByteSize.human(int(mod["file_size"])))
 	if int(mod["downloads"]) > 0:
@@ -2050,10 +2050,11 @@ func _fill_installed_detail() -> void:
 	var titles := MenuStyle.vbox(4)
 	titles.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(titles)
-	var title := MenuStyle.label("%s  %s" % [manifest.name, manifest.version],
-		24, MenuStyle.COLOR_TITLE)
+	var title := MenuStyle.label(manifest.name, 24, MenuStyle.COLOR_TITLE)
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	titles.add_child(title)
+	if not manifest.version.is_empty():
+		titles.add_child(MenuStyle.label("Version " + manifest.version, 16, MenuStyle.COLOR_DESC))
 	var by := manifest.author if not manifest.author.is_empty() else "unknown author"
 	titles.add_child(MenuStyle.label("%s — %s" % [manifest.id, by], 15, MenuStyle.COLOR_DESC))
 	titles.add_child(MenuStyle.label(installed_status_text(rec), 16, _status_color(status)))
