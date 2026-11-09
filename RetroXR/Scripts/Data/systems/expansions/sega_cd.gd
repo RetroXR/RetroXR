@@ -63,6 +63,10 @@ const ROW := {
 	# Its mount at the spacer bar's middle (x -224.3, 24 up), where its body is: at the
 	# shell's origin, 22 cm from the bar, the zone never had the bar in its sphere.
 	"accessory_at": Vector3(-0.2243, 0.024, 0.0),
+	# The ACCESS lamp (the shell's AccessLed) is genesis_plus_gx's LED 1: the sub-CPU's
+	# LEDR bit in its LED register at $FF8000, which the BIOS drives (lit while a disc
+	# plays or is read, flashing with no disc or the door open). Its LED 0 is the Z80.
+	"access_led": 1,
 	# LINE OUT LEFT / RIGHT and MIXING on the back (ExpansionAudio).
 	"line_out": true,
 	"mixing": true,

@@ -385,8 +385,10 @@ func _shell_node(node_name: String) -> Node3D:
 
 
 ## The ACCESS lamp is the drive's, so it follows the core's LED interface
-## through the console standing on the unit, as the Satellaview's does.
-const CORE_LED_ACCESS := 0
+## through the console standing on the unit, as the Satellaview's does. Which of
+## the core's LEDs it is, is the row's `access_led` (ExpansionCatalog): snes9x's
+## Satellaview publishes it as LED 0, genesis_plus_gx's Sega CD as LED 1 (its 0 is
+## the Z80).
 
 
 func _watch_access_led(sys: RetroSystem) -> void:
@@ -401,10 +403,12 @@ func _watch_access_led(sys: RetroSystem) -> void:
 	var node: Libretro = sys.get_libretro_node()
 	if node != null and not node.led_state.is_connected(_on_core_led):
 		node.led_state.connect(_on_core_led)
+		print("[RetroExpansion] %s: ACCESS lamp follows %s's core LED %d"
+			% [expansion_id, sys.name, ExpansionCatalog.access_led_of(expansion_id)])
 
 
 func _on_core_led(led: int, on: bool) -> void:
-	if led == CORE_LED_ACCESS:
+	if led == ExpansionCatalog.access_led_of(expansion_id):
 		_set_led(on)
 
 

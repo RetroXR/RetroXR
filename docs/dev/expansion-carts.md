@@ -535,6 +535,20 @@ fall. The mount and the spacer's `GrabPoint` are now both the bar's middle (x -2
 24 up), the same point in the same frame, so it seats exactly as before, and the hand
 holds the bar. The 32X's spacer has its body at its origin and needs none.
 
+**The ACCESS lamp is genesis_plus_gx's LED 1** (row `access_led`, 2026-11-09). The core
+publishes libretro's LED interface: LED 0 is the Z80 running (`zstate`), LED 1 the sub-CPU's
+LEDR bit (its LED register at $FF8000, the red ACCESS lamp the BIOS drives). libretro-godot
+hands the core the interface and re-emits each change as the `Libretro` node's
+`led_state(led, on)`. The unit's `AccessLed` mesh follows the LED its row names: 1 for the
+Sega CD, the default 0 for snes9x's Satellaview. It used to be a fixed 0, so the Sega CD's
+lamp followed the Z80. A mod's shell must name its lamp mesh `AccessLed` (with a
+`BaseMaterial3D` on surface 0) for the lamp to light. Measured with the real core
+(`Tools/cores/sega_cd_led_probe`, `--leg=bios`, a US BIOS, no disc): LED 1 flashed, on
+about 20 frames and off about 10, 73 changes in 20 s, as the manual says it does with no
+disc. The drive's lamp followed it with 0 frames out of step, and LED 0 changed 3 times.
+`--leg=disc --disc=<a Sega CD disc>` is the reading leg (not run yet). `segacd2/` emits
+both LEDs at the lamp, mutation-tested.
+
 **The OPEN knob is pressed down, so its hit box is the knob's own.** `_build_eject_button`
 used to put a cap's box on a SIDE face whenever the cap sat proportionally nearer a side
 than the front (meant for the Game Boy Player's sideways lever). Once the 396 width moved

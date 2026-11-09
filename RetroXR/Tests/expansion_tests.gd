@@ -1525,6 +1525,17 @@ func _group_segacd2() -> void:
 	var md := await _console("genesis")
 	await _bolt(md, cd)
 	_ok(md.expansion_ids().has("sega_cd"), "segacd2/ the Genesis bolts on")
+	# The ACCESS lamp follows genesis_plus_gx's LED 1 (the sub-CPU's LEDR bit), not its
+	# LED 0 (the Z80), which the lamp followed when the index was the Satellaview's 0.
+	var lib := md.get_libretro_node()
+	var lamp_mat := (cd.get_node("Shell/AccessLed") as MeshInstance3D).get_active_material(0) as BaseMaterial3D
+	lib.emit_signal("led_state", 0, true)
+	_ok(not lamp_mat.emission_enabled, "segacd2/ the core's LED 0 (the Z80) leaves the ACCESS lamp dark")
+	lib.emit_signal("led_state", 1, true)
+	_ok(lamp_mat.emission_enabled, "segacd2/ its LED 1 lights the ACCESS lamp")
+	lib.emit_signal("led_state", 1, false)
+	_ok(not lamp_mat.emission_enabled, "segacd2/ and puts it out again")
+	lib.emit_signal("led_state", 0, false)
 	var box := md.body_aabb()
 	# Its right side (its expansion edge) against the wall, its underside on the deck,
 	# centred in depth: a Model 2's origin lands at the model's ConsoleSeat (-86.61).

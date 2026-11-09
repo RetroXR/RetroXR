@@ -105,6 +105,10 @@
 ##               A/V IN takes the Genesis's A/V OUT through Sega's Video Link Cable
 ##               and its A/V OUT goes to the set (ExpansionAv, AvGraph).
 ##               Absent, the unit has no A/V sockets.
+##   access_led  which of the core's LEDs (libretro's LED interface) is the unit's
+##               ACCESS lamp, its shell's `AccessLed` mesh: 0 for snes9x's Satellaview,
+##               1 for genesis_plus_gx's Sega CD (whose LED 0 is the Z80 running,
+##               and LED 1 the sub-CPU's LEDR bit, the red ACCESS lamp). Absent, 0.
 ##   accessory_at
 ##               where the accessory's mount sits, a point in the shell's GLB frame,
 ##               for an accessory whose body is not at the shell's origin: the zone
@@ -404,6 +408,7 @@ const FIELDS := {
 	"swipe_slit": null,
 	"accessory_group": "",
 	"accessory_at": null,
+	"access_led": 0,
 	"seat": null,
 	"boxes": [],
 	"lid_open_deg": NAN,
@@ -784,6 +789,11 @@ static func seat_y_of(id: String) -> float:
 ## null for the middle of the roof (seat_y_of). See the row docs above.
 static func seat_of(id: String) -> Variant:
 	return _field(id, "seat")
+
+
+## Which of the core's LEDs is the unit's ACCESS lamp (the row docs' `access_led`).
+static func access_led_of(id: String) -> int:
+	return int(_field(id, "access_led"))
 
 
 ## Where a unit's accessory mount sits in its shell's frame, or null for the origin.
