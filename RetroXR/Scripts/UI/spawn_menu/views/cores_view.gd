@@ -1033,7 +1033,7 @@ const _PRINTER_EXTRA := {
 const _FOUR_PLAYER_EXTRA := {
 	"core": "dmg07",
 	"title": "DMG-07 4 Player Adapter",
-	"desc": "The 4 Player Adapter's own core: four Game Boys on gambatte or mGBA on one link, for games made for it such as Wave Race.",
+	"desc": "The 4 Player Adapter's own core: four Game Boys on gambatte or mGBA on one link, for games made for it.",
 }
 ## The PocketStation's: the card that is also a handheld (docs/dev/pocketstation.md).
 ## Its core is a platform of its own as well (systemid pocketstation), but the unit is
