@@ -1944,8 +1944,11 @@ func _apply_blocker(restart: bool) -> String:
 
 
 func _installed_tile(rec: ModRecord) -> Button:
-	var tile := _make_tile("%s  %s" % [rec.manifest.name, rec.manifest.version],
-		rec.manifest.author if not rec.manifest.author.is_empty() else rec.id,
+	# The version is the line under the name, ahead of who made it.
+	var by := rec.manifest.author if not rec.manifest.author.is_empty() else rec.id
+	var sub := by if rec.manifest.version.is_empty() \
+		else "Version %s  ·  %s" % [rec.manifest.version, by]
+	var tile := _make_tile(rec.manifest.name, sub,
 		installed_status_text(rec), _status_color(rec.status))
 	if picture_of(rec) != null:
 		_set_art(tile, picture_of(rec))
