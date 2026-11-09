@@ -11,6 +11,7 @@ func _ready() -> void:
 	await _idle_and_held()
 	await _range_and_full()
 	await _kill_switch()
+	await _object_gate()
 	_finish()
 
 
@@ -99,4 +100,27 @@ func _kill_switch() -> void:
 	XRToolsSnapZone._apply_all_monitoring("snap_watch_tests")
 	await _frames(2)
 	_ok(not z.monitoring, "switch/on again, it stops")
+	z.free()
+
+
+## An object's own snap_gate: no preview and no "no reason found" while it says no,
+## and the zone takes it once it says yes (a PocketStation's cover, xenu.pocketstation).
+func _object_gate() -> void:
+	var z := _zone(Vector3(8, 0, 0), XRToolsSnapZone.SnapMode.DROPPED)
+	z.snap_require = "gate_test"
+	var obj := Node3D.new()
+	obj.add_to_group("gate_test")
+	add_child(obj)
+	await _frames(2)
+	_ok(z.can_preview(obj), "gate/with no gate, the zone previews it")
+	var shut := {"why": "cover shut"}
+	obj.set_meta(XRToolsSnapZone.SNAP_GATE_META, func(_zone: XRToolsSnapZone) -> String: return str(shut["why"]))
+	_ok(not z.can_preview(obj), "gate/the object saying no stops the preview")
+	_ok(XRToolsSnapZone.gate_refusal(obj, z) == "cover shut", "gate/and says why")
+	_ok("cover shut" in z._why_no_preview(obj), "gate/the preview log names the object's reason")
+	shut["why"] = ""
+	_ok(z.can_preview(obj), "gate/saying yes lets it in again")
+	obj.set_meta(XRToolsSnapZone.SNAP_GATE_META, Callable())
+	_ok(z.can_preview(obj), "gate/an invalid gate is no gate")
+	obj.free()
 	z.free()

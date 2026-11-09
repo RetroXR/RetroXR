@@ -50,6 +50,25 @@ enum SnapMode {
 ## pick_up_object() (save/netplay restore) bypasses it on purpose.
 var snap_filter: Callable = Callable()
 
+## LOCAL PATCH (RetroXR): the OBJECT's say, where snap_filter is the zone's. An
+## object carrying this meta, a `func(zone) -> String`, goes into no zone while it
+## returns a reason ("" lets it in) — a PocketStation whose cover is not fully
+## open is too thick for a card slot (xenu.pocketstation sets it). Asked for the
+## held preview and again on release, never on reach, so it may change its mind
+## while it is already inside the sphere. pick_up_object() bypasses it, as it
+## does snap_filter: a restored or network-seated object is in already.
+const SNAP_GATE_META := &"snap_gate"
+
+
+## Why `obj`'s own gate keeps it out of `zone` now, or "" when it does not.
+static func gate_refusal(obj: Node, zone: XRToolsSnapZone) -> String:
+	if obj == null or not obj.has_meta(SNAP_GATE_META):
+		return ""
+	var gate: Variant = obj.get_meta(SNAP_GATE_META)
+	if not (gate is Callable) or not (gate as Callable).is_valid():
+		return ""
+	return str((gate as Callable).call(zone))
+
 ## Deny grab-by
 @export var grab_exclude : String= ""
 
@@ -276,6 +295,8 @@ func can_preview(obj: Node3D) -> bool:
 		return false
 	if snap_filter.is_valid() and not snap_filter.call(obj):
 		return false
+	if not gate_refusal(obj, self).is_empty():
+		return false
 	return true
 
 
@@ -456,6 +477,9 @@ func _why_no_preview(obj: Node3D) -> String:
 		return "refuses %s" % snap_exclude
 	if snap_filter.is_valid() and not snap_filter.call(obj):
 		return "its own test (%s) refused it" % snap_filter.get_method()
+	var gated := gate_refusal(obj, self)
+	if not gated.is_empty():
+		return "the object says no: %s" % gated
 	return "no reason found"
 
 
@@ -842,6 +866,12 @@ func _on_target_dropped(target: Node3D) -> void:
 				_note_refusal(target, "%s was nearer, and nothing was previewed" % _zone_label(z))
 				return
 
+	# LOCAL PATCH (RetroXR): the object's own gate, asked now rather than on reach.
+	var gated := gate_refusal(target, self)
+	if not gated.is_empty():
+		_note_refusal(target, "the object says no: %s" % gated)
+		return
+
 	# Pick up the target if we can
 	if target.can_pick_up(self):
 		pick_up_object(target)
@@ -967,6 +997,9 @@ func _why_not(obj: Node3D) -> String:
 	if not _object_in_grab_area.has(obj):
 		return "it never reached the socket: %.0f mm from it, and the socket takes within about %.0f mm" % [
 			global_position.distance_to(obj.global_position) * 1000.0, grab_distance * 1000.0]
+	var gated := gate_refusal(obj, self)
+	if not gated.is_empty():
+		return "the object says no: %s" % gated
 	if snap_mode != SnapMode.DROPPED:
 		return "takes on reach, not on release"
 	if obj.has_method("can_pick_up") and not obj.can_pick_up(self):

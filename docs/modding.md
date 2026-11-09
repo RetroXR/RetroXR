@@ -928,6 +928,22 @@ api.on_mains_region_changed(func(r: String) -> void: _wear_plug_for(r))
 api.register_mains_region("xenu.mains:ar", {...})  # a MainsRegions.REGIONS entry
 ```
 
+**An object that has to be got ready before it goes in** -- a PocketStation is
+too thick for a card slot until its cover is lifted all the way -- says so
+itself, without the socket having heard of it: set the `snap_gate` meta on the
+object to a `func(zone) -> String`, returning `""` to let it in and otherwise the
+reason it will not go. A zone asks it for the held preview and again when the
+object is let go, so it may change its answer while already in reach; a refused
+object shows no preview, drops where it is let go, and the reason goes in the
+socket log. A restored room or a network peer seats it without asking.
+
+```gdscript
+unit.set_meta(&"snap_gate", func(zone: XRToolsSnapZone) -> String:
+	if zone.snap_require != "memory_card" or _cover_open():
+		return ""
+	return "its cover is not lifted all the way")
+```
+
 ### What the spawn card offers
 
 Nothing above is said to the menu separately. The game reads each object a mod
