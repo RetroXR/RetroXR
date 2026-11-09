@@ -299,9 +299,11 @@ All three launch steps are required; undo them after (`guardian_pause 0`, `prox_
   and re-export.
 - `user://` is internal `/data/user/0/com.xenu.retroxr/files/` (`run-as`); ROMs are on
   `/sdcard/Android/data/com.xenu.retroxr/files/`.
-- **Never `adb push` over a file, or into a directory, that the app itself writes** — the
-  app is `other` for everything `shell` creates (0644 files it can never overwrite, 0770
-  dirs it cannot enter), and `chmod 660` makes it worse. Let the app recreate it.
+- **Never `adb push` a file the app may need to change** — it lands `shell`-owned 0644, the
+  app can read it and never overwrite it, and the Web File Manager flags it red; `chmod 660`
+  makes it worse. Upload through the Web File Manager instead (recipe in quest-device.md).
+  On Horizon OS 14 an adb-made FOLDER is fine (2770, the app writes into it); a `0700` one
+  (a file manager's) hides everything in it, which the page now calls `locked`.
 - Microphone unattended: `adb shell pm grant com.xenu.retroxr android.permission.RECORD_AUDIO`.
 - **The launch splash** (the icon Horizon OS shows while the app starts) is the "Quest" preset's
   `instant_splash_screen` packing `application/boot_splash/image` (`Textures/vr_splash.png`, 2:1);

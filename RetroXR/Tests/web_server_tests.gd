@@ -75,6 +75,9 @@ func _ready() -> void:
 		_test_access_problem()
 	if _wants("address"):
 		_test_address_text()
+	if _wants("romnotes"):
+		_test_rom_notes()
+		_test_rom_notes_on_the_wire()
 
 	_cleanup()
 	_finish()
@@ -521,7 +524,143 @@ func _test_access_problem() -> void:
 		FileAccess.set_unix_permissions(shut, 0)  # 0000
 		_eq(WebFileServer.access_problem(shut, true), "locked",
 			"access/a folder the app cannot enter is locked")
+		# Enterable but not listable: open() succeeds and only the listing fails,
+		# which is how a file manager's 0700 folder meets the app on a Quest
+		# (DirAccessJAndroid's open checks only that the folder exists). It hid
+		# every ROM in it while the page called it merely read_only.
+		FileAccess.set_unix_permissions(shut, 219)  # 0333
+		_ok(DirAccess.open(shut) != null, "access/(an enterable, unlistable folder opens)")
+		_eq(WebFileServer.access_problem(shut, true), "locked",
+			"access/a folder the app can open but not list is locked, not read_only")
 		FileAccess.set_unix_permissions(shut, 493)  # 0755
 		DirAccess.remove_absolute(shut)
 
 	_cleanup_up_dir()
+
+
+# ── What the library will make of a folder under roms/ ────────────────────────
+#
+# A file put where the scan never looks, or of a type its system does not take,
+# simply never shows in the app. RomFolderNotes says so on the page, by the scan's
+# own rules: these hold it to them. The root is a made-up path, so nothing is
+# read from disk but the arcade board, which is a file because the check is.
+
+const NOTES_ROOT := "/__rom_notes_root"
+
+
+func _notes(sub: String, dirs: Array, files: Array) -> Dictionary:
+	return RomFolderNotes.describe(NOTES_ROOT,
+		NOTES_ROOT if sub.is_empty() else NOTES_ROOT.path_join(sub), dirs, files)
+
+
+func _note_of(info: Dictionary, name: String) -> String:
+	return str((info.get("notes", {}) as Dictionary).get(name, ""))
+
+
+func _test_rom_notes() -> void:
+	var top := _notes("", ["snes", "sfc", "notasystem", ".hidden"], ["game.gba", "scraper_config.json"])
+	_eq(_note_of(top, "snes"), "", "romnotes/a system's folder is fine")
+	_eq(_note_of(top, "sfc"), "", "romnotes/and so is ES-DE's other name for it")
+	_eq(_note_of(top, "notasystem"), "unknown_folder", "romnotes/a folder no system owns is said")
+	_eq(_note_of(top, ".hidden"), "", "romnotes/a dot folder is left alone")
+	_eq(_note_of(top, "game.gba"), "loose", "romnotes/a game straight in roms/ is in no system")
+	_eq(_note_of(top, "scraper_config.json"), "", "romnotes/the app's own file in roms/ is left alone")
+	var app_files := [ScraperConfig._config_path(), RaConfig.config_path(),
+		RommCacheManifest.manifest_path()].map(func(p: String) -> String: return p.get_file())
+	var own := _notes("", ["unknown"], app_files)
+	_ok((own["notes"] as Dictionary).is_empty(),
+		"romnotes/every file and folder the app itself keeps in roms/ is left alone", str(own["notes"]))
+
+	var snes := _notes("snes", ["media", "Hacks"],
+		["Mario.sfc", "Mario.srm", "Zelda.SMC", "golden.gba", "gamelist.json", "notes.txt"])
+	_ok(not str(snes["system"]).is_empty() and "sfc" in (snes["exts"] as Array),
+		"romnotes/a system folder names the system and what it takes", str(snes))
+	_eq(_note_of(snes, "Mario.sfc"), "", "romnotes/a game it takes is fine")
+	_eq(_note_of(snes, "Zelda.SMC"), "", "romnotes/whatever the case of its extension")
+	_eq(_note_of(snes, "Mario.srm"), "", "romnotes/a save beside its game rides with it")
+	_eq(_note_of(snes, "golden.gba"), "not_listed", "romnotes/another system's game is said")
+	_eq(_note_of(snes, "notes.txt"), "not_listed", "romnotes/so is a stray file")
+	_eq(_note_of(snes, "gamelist.json"), "", "romnotes/the app's gamelist is left alone")
+	_eq(_note_of(snes, "media"), "", "romnotes/the app's media folder is left alone")
+	_eq(_note_of(snes, "Hacks"), "not_scanned", "romnotes/a folder the scan never enters is said")
+
+	var alias := _notes("sfc", [], ["Mario.sfc"])
+	_eq(str(alias["systemid"]), "snes", "romnotes/an alias folder is its system's")
+	_eq(_note_of(alias, "Mario.sfc"), "", "romnotes/and takes that system's games")
+
+	var inside := _notes("gba/Golden Sun", ["Saves"], ["Golden Sun.gba"])
+	_eq(str(inside["here"]), "not_scanned", "romnotes/inside a subfolder the folder itself is said")
+	_eq(_note_of(inside, "Golden Sun.gba"), "not_scanned", "romnotes/and so is a game in it")
+
+	_eq(str(_notes("notasystem", [], ["x.bin"])["here"]), "unknown_folder",
+		"romnotes/inside an unknown folder the folder is said")
+
+	# A disc set lists its descriptor; the tracks beside it are its own.
+	var dc := CoreInfoDatabase.extensions_for_systemid("dreamcast")
+	if "gdi" in dc and "raw" not in dc:
+		_eq(_note_of(_notes("dreamcast", [], ["Game.gdi", "track03.raw"]), "track03.raw"), "",
+			"romnotes/a track beside a disc descriptor rides with it")
+		_eq(_note_of(_notes("dreamcast", [], ["track03.raw"]), "track03.raw"), "not_listed",
+			"romnotes/a track with no descriptor is said")
+
+	# One game a folder: the scan enters each subfolder.
+	if SystemInfo.for_system("ps3") != null and SystemInfo.for_system("ps3").folder_content \
+			and not RomFolderNotes.extensions_for("ps3").is_empty():
+		_eq(_note_of(_notes("ps3", ["BLUS30001"], []), "BLUS30001"), "",
+			"romnotes/a game folder of a folder-content system is fine")
+		_eq(str(_notes("ps3/BLUS30001/PS3_GAME", [], ["EBOOT.BIN"])["here"]), "",
+			"romnotes/and so is anything deep inside it")
+
+	# The library lists of the three that keep their own.
+	_eq(_note_of(_notes("pocketstation", [], ["card.mcr"]), "card.mcr"), "",
+		"romnotes/a PocketStation card is fine in its own library")
+	_eq(_note_of(_notes("ereader", [], ["card-a.raw"]), "card-a.raw"), "",
+		"romnotes/an e-Reader strip is fine in its own library")
+
+	# Arcade: a disc folder named for the board beside it is the board's.
+	var scratch := OS.get_user_data_dir().path_join("__rom_notes_selftest")
+	DirAccess.make_dir_recursive_absolute(scratch.path_join("arcade"))
+	var board := FileAccess.open(scratch.path_join("arcade/kinst.zip"), FileAccess.WRITE)
+	board.store_string("PK")
+	board.close()
+	var arcade := RomFolderNotes.describe(scratch, scratch.path_join("arcade"),
+		["kinst", "extras"], ["kinst.zip"])
+	_eq(_note_of(arcade, "kinst"), "", "romnotes/an arcade disc folder beside its board is fine")
+	_eq(_note_of(arcade, "extras"), "not_scanned", "romnotes/another arcade subfolder is said")
+	_eq(str(RomFolderNotes.describe(scratch, scratch.path_join("arcade/kinst"), [], ["kinst.chd"])["here"]),
+		"", "romnotes/and inside the disc folder nothing is said")
+	DirAccess.remove_absolute(scratch.path_join("arcade/kinst.zip"))
+	DirAccess.remove_absolute(scratch.path_join("arcade"))
+	DirAccess.remove_absolute(scratch)
+
+	# A RomM download is listed through the server's index whatever its type: a
+	# .zip, or a folder its discs unpacked into.
+	var owned := PackedStringArray(["Mario.zip", "FF7/FF7 (Disc 1).cue", "FF7/FF7 (Disc 1).bin"])
+	var romm := RomFolderNotes.describe(NOTES_ROOT, NOTES_ROOT.path_join("snes"),
+		["FF7", "Hacks"], ["Mario.zip", "Other.zip"], owned)
+	_eq(_note_of(romm, "Mario.zip"), "", "romnotes/a RomM download is fine whatever its type")
+	_eq(_note_of(romm, "Other.zip"), "not_listed", "romnotes/a zip copied in by hand is still said")
+	_eq(_note_of(romm, "FF7"), "", "romnotes/a folder a RomM download unpacked into is fine")
+	_eq(_note_of(romm, "Hacks"), "not_scanned", "romnotes/another folder beside it is still said")
+	_eq(str(RomFolderNotes.describe(NOTES_ROOT, NOTES_ROOT.path_join("snes/FF7"), [],
+		["FF7 (Disc 1).cue"], owned)["here"]), "", "romnotes/and inside it nothing is said")
+
+	_eq(RomFolderNotes.describe(NOTES_ROOT, "/elsewhere/snes", [], ["x.sfc"]), {},
+		"romnotes/a folder outside roms/ gets nothing")
+
+
+## The server puts the notes on the listing the page draws.
+func _test_rom_notes_on_the_wire() -> void:
+	var reply := {"dirs": [{"name": "Hacks", "problem": ""}],
+		"files": [{"name": "Mario.sfc", "size": 1, "problem": ""}, {"name": "golden.gba", "size": 1, "problem": ""}],
+		"problem": ""}
+	_srv._add_rom_notes(reply, RomLibrary.default_roms_root().path_join("snes"))
+	_ok(reply.has("rom") and "sfc" in (reply["rom"]["exts"] as Array), "romnotes/the reply names what the folder takes")
+	_eq(str((reply["files"] as Array)[1].get("note", "")), "not_listed", "romnotes/a file the library skips carries its note")
+	_ok(not (reply["files"] as Array)[0].has("note"), "romnotes/a game it lists carries none")
+	_eq(str((reply["dirs"] as Array)[0].get("note", "")), "not_scanned", "romnotes/so does a folder it never enters")
+
+	var books := {"dirs": [], "files": [{"name": "a.pdf", "size": 1, "problem": ""}], "problem": ""}
+	_srv._add_rom_notes(books, WebFileServer.server_root().path_join("books"))
+	_ok(not books.has("rom") and not (books["files"] as Array)[0].has("note"),
+		"romnotes/outside roms/ the listing is untouched")

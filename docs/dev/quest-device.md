@@ -79,6 +79,37 @@ adb shell monkey -p com.xenu.retroxr 1                           # GodotApp isn'
     one, so a system folder made by push gets no `.romm/` index. `romm_catalog.gd` ignores
     the return of `make_dir_recursive_absolute`, so this surfaces one line later and one
     level down as "Cannot write to …/n64/.romm".
+    **Not so on Horizon OS 14 (build 53145330019900520, Quest 3, measured 2026-11-09):**
+    `adb shell mkdir` there makes `drwxrws---` (2770, group 1078), and the app LISTS it,
+    reads it and WRITES into it (a Web File Manager upload into a `shell`-owned
+    `roms/amiga/` landed app-owned, `-rw-rw---- 10223 1078`), although the app's
+    `Groups:` are still `3003 9997 20223 50223`. Files pushed `0644` stay unwritable to
+    it, and a `0700` folder hides everything in it. The likely reason is that `/sdcard`
+    is reached through the FUSE daemon, which is in 1078, so the GROUP bits are what
+    count; that is an inference, the three outcomes are measured.
+  - **What the Web File Manager says about each** (`WebFileServer.access_problem`, red):
+    a file it cannot change is `read_only` (every `adb push`), a folder it cannot LIST
+    is `locked` ("RetroXR cannot see inside this folder, so nothing in it shows up").
+    On Android `DirAccess.open()` succeeds for any folder that exists
+    (`DirAccessJAndroid::change_dir` only checks existence); only `list_dir_begin()`
+    meets the permission, and the server used to ignore that and show a `0700` folder
+    as an empty one that merely could not be written. That is the folder a third-party
+    file manager makes, and the "my ROMs are not there" report.
+  - **MTP (Windows Explorer's "Quest 3") and the Web File Manager both leave files the
+    app's own**; only `adb push` makes `shell` files. To put files on the device from a
+    PC without that, upload through the server: `adb forward tcp:18080 tcp:8080`,
+    `POST /api/login {"pin":…}` (the PIN is `web_server_pin` in
+    `roms/scraper_config.json`), then `curl -H "Expect:" -b <cookies> -F
+    "file=@<name>;filename=<name>" "http://127.0.0.1:18080/api/upload?path=media/<dir>"`
+    → `{"saved":1}`; it replaces a `shell` file in place. Windows curl wants a relative
+    or Windows path, not `/c/...`, and the PC's adb daemon can die mid-run and take the
+    forward with it: re-check `adb forward --list` per file.
+  - **Under `roms/` the page also says what the LIBRARY will make of each entry**
+    (`RomFolderNotes`, yellow, advice only): the system and the types it takes, a file
+    of another type, a subfolder the scan never enters (`roms/gba/Golden Sun/`), a
+    folder no system owns, a file loose in `roms/`. Same rules as `RomLibrary.scan_roms`
+    and the browser's local-only rows; RomM downloads (`romm_cache.json`) are exempt,
+    the browser lists them through the server's index whatever their type.
   - Granting the app access through the bits alone would mean `0666` on files and `0777`
     on directories, because the group is useless to it. Don't. Let the app own what it
     writes: delete the pushed copy and let it be recreated in-app.

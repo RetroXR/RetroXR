@@ -420,7 +420,16 @@ func _handle_list(peer: StreamPeerTCP, rel: String) -> void:
 
 	var dirs: Array = []
 	var files: Array = []
-	dir.list_dir_begin()
+	# On Android, open() only asks whether the folder EXISTS (DirAccessJAndroid's
+	# change_dir); a folder the app may not read fails here instead, and an
+	# unchecked failure listed it as EMPTY -- the "my ROMs are not there" folder a
+	# file manager made, shown as an empty folder that merely could not be written.
+	var list_err := dir.list_dir_begin()
+	if list_err != OK:
+		push_warning("[WebFileServer] access: %s cannot be listed (%s, %s): locked"
+			% [abs_path, error_string(list_err), _mode_text(abs_path)])
+		_send_text(peer, 403, "application/json", JSON.stringify({"error": "locked", "problem": "locked"}))
+		return
 	var entry_name := dir.get_next()
 	while entry_name != "":
 		if not entry_name.begins_with("."):
@@ -439,22 +448,55 @@ func _handle_list(peer: StreamPeerTCP, rel: String) -> void:
 	files.sort_custom(by_name)
 	# The named roots are the app's own; only a folder below one can be someone else's.
 	var here := "" if _is_root_base(abs_path) else _logged_problem(abs_path, true)
-	_send_text(peer, 200, "application/json",
-		JSON.stringify({"dirs": dirs, "files": files, "problem": here}))
+	var reply := {"dirs": dirs, "files": files, "problem": here}
+	_add_rom_notes(reply, abs_path)
+	_send_text(peer, 200, "application/json", JSON.stringify(reply))
+
+
+## Under roms/: what the library will make of each entry (RomFolderNotes), so a
+## file that will never show in the app says so where it was put. Adds "note" to
+## the entries that have one and "rom" {system, exts, here} to the reply.
+func _add_rom_notes(reply: Dictionary, abs_path: String) -> void:
+	var names_of := func(rows: Array) -> Array:
+		return rows.map(func(r: Dictionary) -> String: return str(r["name"]))
+	var roms_root := RomLibrary.default_roms_root()
+	var info := RomFolderNotes.describe(roms_root, abs_path,
+		names_of.call(reply["dirs"]), names_of.call(reply["files"]),
+		RomFolderNotes.romm_owned(RomFolderNotes.systemid_at(roms_root, abs_path)))
+	if info.is_empty():
+		return
+	var notes: Dictionary = info["notes"]
+	for key: String in ["dirs", "files"]:
+		for row: Dictionary in reply[key]:
+			if notes.has(row["name"]):
+				row["note"] = notes[row["name"]]
+	reply["rom"] = {"system": info["system"], "exts": info["exts"], "here": info["here"]}
+	if not notes.is_empty() or not str(info["here"]).is_empty():
+		print("[WebFileServer] roms: %s -> %d note(s)%s" % [abs_path, notes.size(),
+			"" if str(info["here"]).is_empty() else ", folder " + str(info["here"])])
 
 
 ## What stops the app using `path`, or "" when nothing does. Godot cannot say who
 ## OWNS a file, so this asks the only question that matters by trying it:
-##   "locked"     a folder the app cannot open (made 0770/0700 by another app or adb)
-##   "read_only"  a folder it cannot create files in, or a file it cannot change
+##   "locked"     a folder the app cannot open or LIST (made 0700 by another app or
+##                adb): whatever is in it is hidden from the app
+##   "read_only"  a folder it can list but not create files in, or a file it cannot change
 ##   "unreadable" a file it can see by name but cannot open
 ## A folder is proved writable by writing, as DataPaths.validate() proves a data
 ## root: the mode bits cannot be read against an owner we cannot learn. Opening a
 ## file READ_WRITE neither creates nor truncates it.
+## A folder is proved listable by starting a listing: on Android open() succeeds
+## for any folder that exists (DirAccessJAndroid only checks existence), and only
+## list_dir_begin() meets the permission, so a file manager's 0700 folder used to
+## pass as "read_only" and show as empty (measured on a Quest 3, 2026-11-09).
 static func access_problem(path: String, is_dir: bool) -> String:
 	if is_dir:
-		if DirAccess.open(path) == null:
+		var d := DirAccess.open(path)
+		if d == null:
 			return "locked"
+		if d.list_dir_begin() != OK:
+			return "locked"
+		d.list_dir_end()
 		var probe := path.path_join(".retroxr_write_test")
 		var f := FileAccess.open(probe, FileAccess.WRITE)
 		if f == null:
@@ -745,8 +787,12 @@ const _HTML := """<!DOCTYPE html>
 <title>RetroXR Files</title><style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:monospace;background:#111;color:#ccc;padding:16px}
-h1{color:#8af;margin-bottom:12px;font-size:20px}
-#bc{margin-bottom:14px;font-size:14px}
+h1{color:#8af;margin:0;font-size:20px}
+#hd{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+/* The path, and + Folder at its end: a new folder goes into the folder this names. */
+#pr{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+#bc{font-size:14px;min-width:0;overflow-wrap:anywhere}
+#mk{margin:0;padding:4px 10px;font-size:13px;flex:none}
 #bc a{color:#8af;cursor:pointer;text-decoration:none}
 #bc a:hover{text-decoration:underline}
 .sep{color:#444;margin:0 4px}
@@ -771,9 +817,7 @@ button{border:none;padding:3px 8px;border-radius:3px;cursor:pointer;font-size:13
 .dl:hover{background:#070}
 .rm{background:#500;color:#f88}
 .rm:hover{background:#800}
-#tools{margin-bottom:10px}
 #st.err{color:#f88}
-#lg_bar{margin-top:18px}
 .lb{background:#245;color:#8cf;padding:7px 12px;font-size:14px;margin-right:6px}
 .lb:hover{background:#367}
 #warn{display:none;background:#600;border:3px solid #f33;border-radius:8px;padding:16px;
@@ -782,21 +826,36 @@ button{border:none;padding:3px 8px;border-radius:3px;cursor:pointer;font-size:13
 tr.bad{background:#3a0a0a}
 tr.bad:hover{background:#4a0d0d}
 .why{display:block;color:#f88;font-size:13px;margin-top:3px;word-break:normal}
-#lg{margin-top:10px;background:#0b0b0f;border:1px solid #222;border-radius:6px;padding:10px;
-    font-size:12px;color:#aaa;max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-all}
+#rom{display:none;background:#14202c;border:1px solid #2b4560;border-radius:6px;padding:8px 12px;
+     margin-bottom:12px;color:#9cf;font-size:13px;line-height:1.5}
+#rom b{color:#cdf}
+#rom .hint{color:#fc6}
+.note{display:block;color:#fc6;font-size:13px;margin-top:3px;word-break:normal}
+/* The game log is the whole app's, not the folder's: a panel over the page,
+   opened from the header, so it never sits at the end of a long folder. */
+#lgp{display:none;position:fixed;top:0;right:0;bottom:0;width:min(760px,100%);z-index:10;
+     background:#0b0b0f;border-left:1px solid #2b3a4a;box-shadow:-8px 0 24px rgba(0,0,0,.6);
+     flex-direction:column}
+#lgp.open{display:flex}
+#lgh{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid #222}
+#lgh b{color:#8af;font-size:16px;flex:1}
+#lgh .live{color:#6c6;font-size:12px;font-weight:normal;margin-left:8px}
+#lg{flex:1;margin:0;padding:10px 14px;font-size:12px;color:#aaa;overflow:auto;
+    white-space:pre-wrap;word-break:break-all}
 </style></head><body>
-<h1>RetroXR Files</h1>
-<div id="bc"></div>
+<div id="hd"><h1>RetroXR Files</h1><button class="lb" id="lg_show">Game log</button></div>
+<div id="pr"><div id="bc"></div><button class="lb" id="mk">+ Folder</button></div>
 <div id="warn"></div>
+<div id="rom"></div>
 <div id="dz">Drop files or a folder here &nbsp;·&nbsp;
 <label class="pk">choose files<input type="file" id="pf_files" multiple hidden></label> &nbsp;·&nbsp;
 <label class="pk">choose folder<input type="file" id="pf_dir" webkitdirectory hidden></label></div>
-<div id="tools"><button class="lb" id="mk">+ New folder</button></div>
 <div id="st"></div>
 <div id="pb" style="display:none;height:8px;background:#222;border-radius:4px;margin-bottom:10px;overflow:hidden"><div id="pf" style="height:100%;width:0%;background:#8af;border-radius:4px;transition:width .15s"></div></div>
 <table><tbody id="tb"></tbody></table>
-<div id="lg_bar"><button class="lb" id="lg_show">Show game log</button> <button class="lb" id="lg_save">Save game log</button></div>
-<pre id="lg" style="display:none"></pre>
+<div id="lgp"><div id="lgh"><b>Game log<span class="live">● live</span></b>
+<button class="lb" id="lg_save">Save</button><button class="lb" id="lg_close">Close</button></div>
+<pre id="lg"></pre></div>
 <script>
 var cur='';
 function fmt(b){
@@ -831,13 +890,33 @@ window.addEventListener('popstate',function(e){go(e.state?e.state.path:'',false)
 // manager) or adb made the entry under its own owner; RetroXR cannot change that,
 // so the only fix is to delete it there and put it back through this page.
 var WHY={
-  locked:'RetroXR cannot open this folder. Another app (a file manager?) created it under its own owner.',
+  locked:'RetroXR cannot see inside this folder, so nothing in it shows up in the app. Another app (a file manager?) created it under its own owner.',
   read_only:'RetroXR cannot write here. Another app (a file manager?) created it under its own owner.',
   unreadable:'RetroXR cannot read this file. Another app (a file manager?) created it under its own owner.'
 };
 var FIX='Delete it with the app that made it, then upload it again from this page.';
 function why(p){return p?'<span class="why">⚠ '+WHY[p]+'</span>':'';}
+// What the ROM library will make of an entry under roms/ (RomFolderNotes). Advice,
+// not an error: the file is kept, it just will not show in the app as it stands.
+var SYS='';
+var NOTE={
+  unknown_folder:function(){return 'RetroXR has no system for this folder name, so nothing in it shows in the app.';},
+  not_listed:function(){return 'Will not show in '+SYS+': it does not take this file type.';},
+  not_scanned:function(){return 'Will not show in '+SYS+': RetroXR only looks at files directly in the system folder, not in folders inside it.';},
+  loose:function(){return 'Will not show in the app: put it in a system folder (roms/snes, roms/gba, …).';}
+};
+function note(n){return n&&NOTE[n]?'<span class="note">ⓘ '+NOTE[n]()+'</span>':'';}
+function drawRom(d){
+  var r=document.getElementById('rom'),info=d.rom;
+  SYS=info&&info.system?info.system:'this system';
+  if(!info||(!info.system&&!info.here)){r.style.display='none';return;}
+  var h='';
+  if(info.system)h+='<b>'+esc(info.system)+'</b> takes: '+info.exts.map(function(e){return '.'+esc(e);}).join(' ');
+  if(info.here)h+=(h?'<br>':'')+'<span class="hint">ⓘ '+NOTE[info.here]()+'</span>';
+  r.innerHTML=h;r.style.display='block';
+}
 function draw(d){
+  drawRom(d);
   var w=document.getElementById('warn');
   var bad=(d.dirs||[]).concat(d.files||[]).filter(function(e){return e.problem;}).length;
   if(d.problem){
@@ -853,11 +932,11 @@ function draw(d){
   (d.dirs||[]).forEach(function(e){
 	// The top level lists the named roots as bare names.
 	var n=typeof e==='string'?e:e.name,cp=cur?cur+'/'+n:n;
-	h+='<tr'+(e.problem?' class="bad"':'')+'><td class="ic">'+(e.problem?'⚠':'📁')+'</td><td class="nm"><span class="dn" data-nav="'+esc(cp)+'">'+esc(n)+'</span>'+why(e.problem)+'</td><td class="sz">—</td><td class="ac"></td></tr>';
+	h+='<tr'+(e.problem?' class="bad"':'')+'><td class="ic">'+(e.problem?'⚠':'📁')+'</td><td class="nm"><span class="dn" data-nav="'+esc(cp)+'">'+esc(n)+'</span>'+why(e.problem)+note(e.note)+'</td><td class="sz">—</td><td class="ac"></td></tr>';
   });
   (d.files||[]).forEach(function(f){
 	var fp=cur?cur+'/'+f.name:f.name;
-	h+='<tr'+(f.problem?' class="bad"':'')+'><td class="ic">'+(f.problem?'⚠':'📄')+'</td><td class="nm">'+esc(f.name)+why(f.problem)+'</td><td class="sz">'+fmt(f.size)+'</td><td class="ac"><button class="dl" data-dl="'+esc(fp)+'">↓</button> <button class="rm" data-del="'+esc(fp)+'">✕</button></td></tr>';
+	h+='<tr'+(f.problem?' class="bad"':'')+'><td class="ic">'+(f.problem?'⚠':'📄')+'</td><td class="nm">'+esc(f.name)+why(f.problem)+note(f.note)+'</td><td class="sz">'+fmt(f.size)+'</td><td class="ac"><button class="dl" data-dl="'+esc(fp)+'">↓</button> <button class="rm" data-del="'+esc(fp)+'">✕</button></td></tr>';
   });
   if(!h)h='<tr><td colspan="4" style="color:#333;padding:20px;text-align:center">Empty</td></tr>';
   tb.innerHTML=h;
@@ -993,13 +1072,15 @@ function lgPoll(){
 	if(atEnd)lg.scrollTop=lg.scrollHeight;
   }).catch(function(){lgBusy=false;});
 }
+var lgp=document.getElementById('lgp');
+function lgClose(){lgp.classList.remove('open');clearInterval(lgTimer);lgTimer=null;}
 lgs.addEventListener('click',function(){
-  if(lg.style.display!='none'){
-	lg.style.display='none';lgs.textContent='Show game log';clearInterval(lgTimer);lgTimer=null;return;
-  }
-  lg.style.display='block';lgs.textContent='Hide game log';lg.textContent='Loading…';
+  if(lgp.classList.contains('open')){lgClose();return;}
+  lgp.classList.add('open');lg.textContent='Loading…';
   lgOff=0;lgPoll();lgTimer=setInterval(lgPoll,1000);
 });
+document.getElementById('lg_close').addEventListener('click',lgClose);
+document.addEventListener('keydown',function(e){if(e.key=='Escape'&&lgp.classList.contains('open'))lgClose();});
 document.getElementById('lg_save').addEventListener('click',function(){window.location='/api/log?download=1';});
 go('',false);
 </script></body></html>"""
