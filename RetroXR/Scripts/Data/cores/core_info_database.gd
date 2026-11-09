@@ -312,9 +312,6 @@ const SYSTEM_LABELS := {
 	"gb": "Game Boy",
 	"ngp": "Neo Geo Pocket",
 	"wonderswan": "WonderSwan",
-	# Every PS2 core's .info says "Sony PlayStation 2"; the PlayStation's tile
-	# has no maker in it, so neither does this one.
-	"ps2": "PlayStation 2",
 	# Five systemids used to be named "Arcade (various)" by whichever core was
 	# indexed first (and "CP System I" when that was a CPS-only build). One is
 	# Arcade now; the two that are not MAME/FinalBurn romsets say what they are.
