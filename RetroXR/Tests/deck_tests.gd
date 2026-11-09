@@ -580,8 +580,12 @@ func _test_label_media() -> void:
 		var mi := shell.levels[0].find_child(label, true, false) as MeshInstance3D if shell else null
 		var m := mi.get_surface_override_material(0) as StandardMaterial3D if mi else null
 		return m.albedo_texture if m != null and m.albedo_texture is ImageTexture else null
-	got = await _wait_for(func() -> bool: return art.call("LabelA") != null and art.call("LabelB") != null)
-	_ok(got, "label/a cassette with one picture wears it on both faces")
+	var own_h := roundi(MediaLabelPainter.CASSETTE_PX * MediaLabelPainter.CASSETTE_MM.y / MediaLabelPainter.CASSETTE_MM.x)
+	var own_label := func(label: String) -> bool:
+		var t := art.call(label) as Texture2D
+		return t != null and t.get_width() == MediaLabelPainter.CASSETTE_PX and t.get_height() == own_h
+	got = await _wait_for(func() -> bool: return art.call("LabelA") != null and own_label.call("LabelB") and not own_label.call("LabelA"))
+	_ok(got, "label/a cassette with one picture wears it on side A, and RetroXR's own label on side B")
 	if not got:
 		return
 	var front_mi := shell.levels[0].find_child("LabelA", true, false) as MeshInstance3D
@@ -614,9 +618,9 @@ func _test_label_media() -> void:
 	_ok(got, "label/a `Name B.png` is side B, and side A is left as it was")
 
 	cas.album_path = _scratch.path_join("None.mp3")
-	got = await _wait_for(func() -> bool: return art.call("LabelA") == null and art.call("LabelB") == null)
-	_ok(got and cas.get_node_or_null("LabelArt") == null and cas_text.visible,
-		"label/a cassette moved to an album with none drops both faces and shows its name again")
+	got = await _wait_for(func() -> bool: return own_label.call("LabelA") and own_label.call("LabelB"))
+	_ok(got and cas.get_node_or_null("LabelArt") == null and not cas_text.visible,
+		"label/a cassette moved to an album with none wears RetroXR's own label on both faces, which carries its name")
 
 	# Moved twice before the first decode lands: the last one wins.
 	_solid_png(_scratch.path_join("Mix2.png"), 100, 200)
@@ -648,7 +652,10 @@ func _test_label_media() -> void:
 	var tex_a := _record_art(lp, "label_tex")
 	_ok(tex_a.get_width() == 100 and tex_a.get_height() == 100,
 		"label/cut square, since the label is round and a wide picture would be stretched over it")
-	_ok(_record_art(lp, "label_tex_b") == tex_a, "label/a record with one picture has it on both sides")
+	got = await _wait_for(func() -> bool:
+		var b := _record_art(lp, "label_tex_b")
+		return b != null and b.get_width() == MediaLabelPainter.LP_PX)
+	_ok(got, "label/a record with one picture has it on side A and RetroXR's own label underneath")
 	_ok(not lp_text.visible, "label/and the album's name text steps aside")
 	lp.net_set_download_status("12%")
 	_ok(lp_text.visible and lp_text.text == "12%", "label/a transfer's progress still shows on a record")
@@ -672,9 +679,12 @@ func _test_label_media() -> void:
 	_ok(_record_art(lp, "label_tex").get_width() == 100, "label/and side A is not it")
 
 	lp.album_path = _scratch.path_join("None.flac")
-	got = await _wait_for(func() -> bool: return _record_art(lp, "label_tex") == null)
-	_ok(got and _record_art(lp, "label_tex_b") == null and lp_text.visible,
-		"label/a record moved to an album with none drops both and shows its name again")
+	got = await _wait_for(func() -> bool:
+		var a := _record_art(lp, "label_tex")
+		var b := _record_art(lp, "label_tex_b")
+		return a != null and b != null and a.get_width() == MediaLabelPainter.LP_PX and b.get_width() == MediaLabelPainter.LP_PX)
+	_ok(got and not lp_text.visible,
+		"label/a record moved to an album with none wears RetroXR's own label on both sides, which carries its name")
 
 	var doomed_lp := VINYL_RECORD.instantiate() as VinylRecord
 	doomed_lp.album_path = _scratch.path_join("Wide.flac")

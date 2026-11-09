@@ -591,6 +591,32 @@ Rebuilt `vlc-godot` is needed for measured lengths (a build without `probe_lengt
 Headset feel (turning a cassette over in the hand), a real album on the Quest and a two-peer session OWED.
 
 
+### RetroXR's own labels (2026-11-09)
+
+A cassette's or an LP's side with NO picture of its own (`MediaLabelArt.album_side` found none) wears a label
+RetroXR draws: `MediaLabelPainter`. The design is the mock-up the player approved: a cassette's cream label with the
+album's name on the writing strip (two lines at most), warm stripes on side A and cool on side B split about the
+window's middle line, the side in a circle and the tape (`TapeSides.tape_name`, e.g. C46) in a plate of the same size
+either side of the window, and RETRO XR / SIDE A · STEREO along the foot; an LP's round label, red for side A and
+blue for side B, with up to three lines of name above the spindle.
+
+- **The name is fitted by a pure function** (`fit_name`, with `cassette_name_fit` / `lp_name_fit` for the two boxes):
+  one line (not under 3/4 size), then one line without its trailing `(...)` / `[...]`, then 2 (3 on an LP) even lines
+  by words, then cut at a WORD with "..." at the smallest size. `audio_cassette_tests name/`.
+- **It is drawn once on a SubViewport and READ BACK** (with mipmaps), then the canvas is freed; cached by what it shows,
+  and a second ask waits for one already being drawn. **The read is checked against a pixel the label must have** (a
+  cassette's paper corner, an LP's ground): a canvas read before it drew held the freed GPU memory of a deck's VFD,
+  which came back as an LP's label (measured). So it draws for three frames and retries a wrong read twice.
+- **Headless there is no renderer to read**: the painter returns a plain card of the label's size and colour, so the
+  suites exercise everything that wears one; how it looks is a windowed probe's.
+- The loader says NOTHING for a slot whose path is "" (`MediaLabelLoader.request` skips an unchanged empty path), so a
+  medium takes "no picture" from the path itself (`_missing_a` / `_missing_b`). A found picture always wins; side B
+  with only side A's picture now wears RetroXR's label, not side A's picture.
+- **The cassette knows its tape before any deck** (`AudioCassette._measure_tape`, the same `TapeSides.tape_minutes`
+  over `MusicLengths`), and `tape_minutes`' setter redraws the label when a deck measures differently.
+- `CompactCassette.fit_on_paper` passes a picture already the label's shape through as it is (no squeeze to 512).
+- `deck_tests label/` and `audio_cassette_tests shell/` hold the new rule (a 1024 x 462 cassette label, a 512 LP).
+
 ### Pass-throughs: a device in the middle of the signal (2026-11-02)
 
 The 32X has an A/V IN and an A/V OUT (`expansion-carts.md` 2j″): the console's lead goes

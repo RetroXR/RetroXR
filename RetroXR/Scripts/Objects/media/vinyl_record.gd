@@ -32,6 +32,12 @@ var _art_a: Texture2D = null
 var _art_b: Texture2D = null
 var _download_status := ""
 var _own_material := false
+## RetroXR's own label for a side the album has no picture for (MediaLabelPainter), and which sides those are.
+var _gen_a: Texture2D = null
+var _gen_b: Texture2D = null
+var _missing_a := false
+var _missing_b := false
+var _paint_token := 0
 
 
 ## The world basis the hand let go of it at (MediaSide): the slot reads which side faces out from it, as a bay reads
@@ -90,17 +96,77 @@ func _update_label() -> void:
 
 
 func _request_label_art() -> void:
-	_labels.request({
-		&"a": MediaLabelArt.album_side(album_path, "a"),
-		&"b": MediaLabelArt.album_side(album_path, "b"),
-	})
+	var a := MediaLabelArt.album_side(album_path, "a")
+	var b := MediaLabelArt.album_side(album_path, "b")
+	_labels.request({&"a": a, &"b": b})
+	# A side with no picture of its own wears RetroXR's label (the loader says nothing for a path that is "").
+	_missing_a = a.is_empty()
+	_missing_b = b.is_empty()
+	if _missing_a:
+		_art_a = null
+	if _missing_b:
+		_art_b = null
+	_paint_missing()
 
 
 func _on_label_art(slot: StringName, tex: Texture2D) -> void:
 	if slot == &"a":
 		_art_a = tex
+		_missing_a = tex == null
 	else:
 		_art_b = tex
+		_missing_b = tex == null
+	if tex == null:
+		_paint_missing()
+	_apply_art()
+
+
+## The album's name as its labels print it.
+func _label_title() -> String:
+	if not album_label.is_empty():
+		return album_label
+	return album_path.get_file() if DirAccess.dir_exists_absolute(album_path) else album_path.get_file().get_basename()
+
+
+## Draw RetroXR's label for each side with no picture, then put them on. Nothing to name it by: none.
+func _paint_missing() -> void:
+	_paint_token += 1
+	var token := _paint_token
+	var title := _label_title()
+	if title.is_empty() or not (_missing_a or _missing_b):
+		_gen_a = null
+		_gen_b = null
+		_apply_art()
+		return
+	var a: Texture2D = null
+	var b: Texture2D = null
+	if _missing_a:
+		a = await MediaLabelPainter.lp(self, "A", title)
+	if _missing_b and is_instance_valid(self):
+		b = await MediaLabelPainter.lp(self, "B", title)
+	if not is_instance_valid(self) or token != _paint_token:
+		return
+	_gen_a = a
+	_gen_b = b
+	print("[VinylRecord] %s: RetroXR's own label on side %s (\"%s\")" % [name,
+		"A and B" if _missing_a and _missing_b else ("A" if _missing_a else "B"), title])
+	_apply_art()
+
+
+## What each side wears: the album's picture, else RetroXR's label, else (side B) side A's picture.
+func _front_art() -> Texture2D:
+	return _art_a if _art_a != null else _gen_a
+
+
+func _back_art() -> Texture2D:
+	if _art_b != null:
+		return _art_b
+	if _gen_b != null:
+		return _gen_b
+	return _art_a
+
+
+func _apply_art() -> void:
 	var body := get_node_or_null("RecordMesh") as MeshInstance3D
 	var mat := body.get_surface_override_material(0) as ShaderMaterial if body else null
 	if mat != null:
@@ -109,8 +175,8 @@ func _on_label_art(slot: StringName, tex: Texture2D) -> void:
 			mat = mat.duplicate() as ShaderMaterial
 			body.set_surface_override_material(0, mat)
 			_own_material = true
-		mat.set_shader_parameter("label_tex", _art_a)
-		mat.set_shader_parameter("label_tex_b", _art_b if _art_b != null else _art_a)
+		mat.set_shader_parameter("label_tex", _front_art())
+		mat.set_shader_parameter("label_tex_b", _back_art())
 	_apply_label_text_visibility()
 
 
@@ -118,4 +184,4 @@ func _on_label_art(slot: StringName, tex: Texture2D) -> void:
 ## except while a transfer reports progress, which only the text can show.
 func _apply_label_text_visibility() -> void:
 	if _label:
-		_label.visible = _art_a == null or not _download_status.is_empty()
+		_label.visible = _front_art() == null or not _download_status.is_empty()

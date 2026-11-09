@@ -251,6 +251,10 @@ static func paint_label(meshes: Array, texture: Texture2D, paper: Color) -> void
 
 ## `texture` letterboxed onto paper of the label's proportions (`size`, its width and height), at the middle.
 static func fit_on_paper(texture: Texture2D, size: Vector2, paper: Color) -> Texture2D:
+	# Already the label's shape (RetroXR's own label is drawn so): as it is, at its own resolution and mipmaps.
+	if texture is ImageTexture and size.y > 0.0 and texture.get_height() > 0 \
+			and absf(float(texture.get_width()) / texture.get_height() - size.x / size.y) < 0.01:
+		return texture
 	var src := texture.get_image()
 	if src == null or size.x <= 0.0 or size.y <= 0.0:
 		return texture

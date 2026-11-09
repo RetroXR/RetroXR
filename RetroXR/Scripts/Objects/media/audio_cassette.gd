@@ -38,7 +38,14 @@ var tape_speed: float = 0.0
 var tape_side: int = 0
 ## How long the tape is, minutes for both sides (C46 / C60 / C90 / C120: TapeSides.tape_minutes, the shortest that
 ## holds the album's longer side). Derived by the deck from the album, never authored; 60 until a deck has read it.
-var tape_minutes: float = 60.0
+var tape_minutes: float = 60.0:
+	set(v):
+		if is_equal_approx(v, tape_minutes):
+			return
+		tape_minutes = v
+		# A generated label says which tape it is: a deck that measured the album differently draws it again.
+		if is_node_ready() and (_missing_a or _missing_b):
+			_paint_missing()
 
 
 ## The world basis the hand let go of it at (MediaSide): the slot reads which side faces out from it, as a bay reads
@@ -80,6 +87,13 @@ const _ART_BOX := Vector2(0.08, 0.03)
 var _labels: MediaLabelLoader = null
 var _tex_a: Texture2D = null
 var _tex_b: Texture2D = null
+## RetroXR's own label for a side the album has no picture for (MediaLabelPainter), and which sides those are.
+var _gen_a: Texture2D = null
+var _gen_b: Texture2D = null
+var _missing_a := false
+var _missing_b := false
+## Bumped by every paint: a paint that finishes after a newer one has started is dropped.
+var _paint_token := 0
 var _download_status := ""
 
 ## The cassette's own Compact Cassette (CompactCassette, named Shell), or null while a mod's shell dresses it or
@@ -147,31 +161,103 @@ func _update_label() -> void:
 
 
 func _request_label_art() -> void:
-	_labels.request({
-		&"a": MediaLabelArt.album_side(album_path, "a"),
-		&"b": MediaLabelArt.album_side(album_path, "b"),
-	})
+	var a := MediaLabelArt.album_side(album_path, "a")
+	var b := MediaLabelArt.album_side(album_path, "b")
+	_labels.request({&"a": a, &"b": b})
+	# A side with no picture of its own wears RetroXR's label (the loader says nothing for a path that is "").
+	_missing_a = a.is_empty()
+	_missing_b = b.is_empty()
+	if _missing_a:
+		_tex_a = null
+	if _missing_b:
+		_tex_b = null
+	_measure_tape()
+	_paint_missing()
 
 
 func _on_label_art(slot: StringName, tex: Texture2D) -> void:
 	if slot == &"a":
 		_tex_a = tex
+		_missing_a = tex == null
 	else:
 		_tex_b = tex
+		_missing_b = tex == null
+	if tex == null:
+		_paint_missing()
 	_lay_art()
+
+
+## The album's name as its labels print it.
+func _label_title() -> String:
+	if not album_label.is_empty():
+		return album_label
+	return album_path.get_file() if DirAccess.dir_exists_absolute(album_path) else album_path.get_file().get_basename()
+
+
+## The tape this album would be wound on (TapeSides.tape_minutes over its two sides, MusicLengths' lengths), before
+## any deck has read it, so the label and the reels are right from the start. A deck sets it again as it measures.
+func _measure_tape() -> void:
+	if album_path.is_empty():
+		return
+	var sides := RomLibrary.music_sides(album_path)
+	var a_s := TapeSides.music_s(MusicLengths.lengths_now(sides["a"]))
+	var b_s := TapeSides.music_s(MusicLengths.lengths_now(sides["b"]))
+	if a_s <= 0.0 and b_s <= 0.0:
+		return
+	tape_minutes = TapeSides.tape_minutes(a_s, b_s)
+
+
+## Draw RetroXR's label for each side with no picture, then lay them on. Nothing to name it by: none.
+func _paint_missing() -> void:
+	_paint_token += 1
+	var token := _paint_token
+	var title := _label_title()
+	if title.is_empty() or not (_missing_a or _missing_b):
+		_gen_a = null
+		_gen_b = null
+		_lay_art()
+		return
+	var tape := TapeSides.tape_name(tape_minutes)
+	var a: Texture2D = null
+	var b: Texture2D = null
+	if _missing_a:
+		a = await MediaLabelPainter.cassette(self, "A", title, tape)
+	if _missing_b and is_instance_valid(self):
+		b = await MediaLabelPainter.cassette(self, "B", title, tape)
+	if not is_instance_valid(self) or token != _paint_token:
+		return
+	_gen_a = a
+	_gen_b = b
+	print("[AudioCassette] %s: RetroXR's own label on side %s (\"%s\", %s)" % [name,
+		"A and B" if _missing_a and _missing_b else ("A" if _missing_a else "B"), title, tape])
+	_lay_art()
+
+
+## What each side wears: the album's picture, else RetroXR's label, else (side B) side A's picture.
+func _front_art() -> Texture2D:
+	return _tex_a if _tex_a != null else _gen_a
+
+
+func _back_art() -> Texture2D:
+	if _tex_b != null:
+		return _tex_b
+	if _gen_b != null:
+		return _gen_b
+	return _tex_a
 
 
 ## Side A on the front and side B on the back, which is side A again when the
 ## album has no second picture. The back gets a paper label of its own, since
 ## the bare cassette has one on the front only.
 func _lay_art() -> void:
-	var back := _tex_b if _tex_b != null else _tex_a
+	var front := _front_art()
+	var back := _back_art()
 	var block := get_node_or_null("LabelMesh") as MeshInstance3D
 	var paper_mat := block.get_active_material(0) as BaseMaterial3D if block != null else null
 	var paper := paper_mat.albedo_color if paper_mat != null else Color(0.9, 0.88, 0.8)
 	if _shell != null:
 		# The shell's own paper labels take the pictures (and the stand-in's cream when there are none).
-		_shell.set_label("LabelA", _tex_a, paper)
+		_shell.set_label("LabelA", front, paper)
 		_shell.set_label("LabelB", back, paper)
 		_apply_label_text_visibility()
 		return
@@ -182,8 +268,8 @@ func _lay_art() -> void:
 	var side_a: Array = mod_shell.find_children("LabelA", "MeshInstance3D", true, false) if mod_shell != null else []
 	var side_b: Array = mod_shell.find_children("LabelB", "MeshInstance3D", true, false) if mod_shell != null else []
 	if not side_a.is_empty() or not side_b.is_empty():
-		if _tex_a != null or back != null:
-			CompactCassette.paint_label(side_a, _tex_a, paper)
+		if front != null or back != null:
+			CompactCassette.paint_label(side_a, front, paper)
 			CompactCassette.paint_label(side_b, back, paper)
 		for quad: String in ["LabelArt", "LabelArtB", "LabelPaperB"]:
 			var old := get_node_or_null(quad)
@@ -194,7 +280,7 @@ func _lay_art() -> void:
 		_apply_label_text_visibility()
 		return
 	_note_art_path("on the stand-in quads (no shell labels)")
-	MediaLabelArt.show_quad(self, "LabelArt", _tex_a, _ART_BOX,
+	MediaLabelArt.show_quad(self, "LabelArt", front, _ART_BOX,
 		Transform3D(Basis.IDENTITY, Vector3(0.0, _ART_Y, _ART_Z)))
 	_lay_back_paper(back != null)
 	MediaLabelArt.show_quad(self, "LabelArtB", back, _ART_BOX,
@@ -207,7 +293,7 @@ var _art_path_said := ""
 
 
 func _note_art_path(how: String) -> void:
-	if how == _art_path_said or (_tex_a == null and _tex_b == null):
+	if how == _art_path_said or (_front_art() == null and _back_art() == null):
 		return
 	_art_path_said = how
 	print("[AudioCassette] %s: pictures %s" % [name, how])
@@ -236,7 +322,7 @@ func _lay_back_paper(wanted: bool) -> void:
 func _apply_label_text_visibility() -> void:
 	var lbl := get_node_or_null("CassetteLabel") as Label3D
 	if lbl:
-		lbl.visible = _tex_a == null or not _download_status.is_empty()
+		lbl.visible = _front_art() == null or not _download_status.is_empty()
 
 
 ## Netplay: show transfer progress on the cassette label (empty string restores

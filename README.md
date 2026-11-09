@@ -189,7 +189,8 @@ control the VCR's audio and screen just like a system.
 2. The **CDs**, **Tapes** and **Records** tabs of the spawn menu each list every album, as a CD, a
    cassette or an LP.
 3. Pictures: `cover.jpg` (or `folder` / `front` / `album`) in the folder is side A's label, `back.jpg`
-   side B's; beside a loose album, `Name.png` and `Name B.png`.
+   side B's; beside a loose album, `Name.png` and `Name B.png`. A side with no picture wears RetroXR's own
+   label: the album's name, the side (A or B) and, on a cassette, its tape length (C46 to C120).
 
 **Side A and side B.** A cassette and an LP play one side at a time: the side facing **out** of the
 cassette deck, or **up** on the turntable. Turn it over to play the other. Write where side B begins in

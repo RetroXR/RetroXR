@@ -13,6 +13,8 @@
 ##   art/    the album's pictures go on the labels a shell draws: the game's, and a mod's (xenu.cassette wears the
 ##           same model, LabelA / LabelB), filling the label with its window cut out; only a cassette with no shell
 ##           labels at all gets the old stand-in quads, which on the model shrank the picture and hid the window
+##   name/   RetroXR's own label fits the album's name as approved: one line, brackets dropped to stay on one, two
+##           even lines (three on an LP), then cut with "..." at the smallest size; every line inside its box
 extends "res://Tests/test_suite.gd"
 
 const CASSETTE := preload("res://Scenes/Objects/media/audio_cassette.tscn")
@@ -30,7 +32,7 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.split("=")[1]
-	for c: Array in [["shell", _t_shell], ["tape", _t_tape], ["mod", _t_mod], ["art", _t_art]]:
+	for c: Array in [["shell", _t_shell], ["tape", _t_tape], ["mod", _t_mod], ["art", _t_art], ["name", _t_name]]:
 		if not _only.is_empty() and not String(c[0]).begins_with(_only):
 			continue
 		await (c[1] as Callable).call()
@@ -89,7 +91,23 @@ func _t_shell() -> void:
 	var label := shell.levels[0].find_child("LabelA", true, false) as MeshInstance3D
 	var mat := label.get_surface_override_material(0) as StandardMaterial3D if label else null
 	var paper := ((t.get_node("LabelMesh") as MeshInstance3D).get_active_material(0) as StandardMaterial3D).albedo_color
-	_ok(mat != null and mat.albedo_color.is_equal_approx(paper), "shell/with no picture the labels are the stand-in's cream")
+	# With no picture but a name, RetroXR's own label (MediaLabelPainter: a plain card of the label's shape headless).
+	await _wait_until(func() -> bool:
+		var m := label.get_surface_override_material(0) as StandardMaterial3D
+		return m != null and m.albedo_texture != null and m.albedo_texture.get_width() == MediaLabelPainter.CASSETTE_PX, 3.0)
+	mat = label.get_surface_override_material(0) as StandardMaterial3D
+	_ok(mat != null and mat.albedo_texture != null and mat.albedo_texture.get_width() == MediaLabelPainter.CASSETTE_PX,
+		"shell/with no picture but a name, the labels wear RetroXR's own label")
+	# With no name either there is nothing to print: the stand-in's cream.
+	var blank := _cassette()
+	blank.album_label = ""
+	blank._request_label_art()
+	await _wait(3)
+	var blank_shell := blank.get_node_or_null("Shell") as CompactCassette
+	var blank_label := blank_shell.levels[0].find_child("LabelA", true, false) as MeshInstance3D if blank_shell else null
+	var blank_mat := blank_label.get_surface_override_material(0) as StandardMaterial3D if blank_label else null
+	_ok(blank_mat != null and blank_mat.albedo_color.is_equal_approx(paper),
+		"shell/with no name at all, the labels stay the stand-in's paper")
 	_ok(t.find_children("*", "CompactCassette", true, false).size() == 1, "shell/dressed once")
 
 
@@ -241,3 +259,40 @@ func _t_art() -> void:
 	var quad := bare.get_node_or_null("LabelArt") as Node3D
 	_ok(quad != null and quad.visible, "art/a shell with no labels gets the stand-in quad, as the box always did")
 	hooks.drop_owner(FAKE_MOD)
+
+
+# ── name/ ─────────────────────────────────────────────────────────────────────
+
+func _t_name() -> void:
+	var f := MediaLabelPainter.font()
+	var mm := MediaLabelPainter.CASSETTE_PX / MediaLabelPainter.CASSETTE_MM.x
+	var box := MediaLabelPainter.CASSETTE_PX - 8.0 * mm
+	var widest := func(fit: Dictionary) -> float:
+		var w := 0.0
+		for l: String in fit["lines"]:
+			w = maxf(w, f.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fit["size"])).x)
+		return w
+	var short := MediaLabelPainter.cassette_name_fit("Thriller")
+	_ok((short["lines"] as PackedStringArray).size() == 1 and int(short["size"]) == int(5.2 * mm),
+		"name/a short name is one line at full size (%s)" % [short])
+	var two := MediaLabelPainter.cassette_name_fit("Songs from the Big Chair and Other Stories")
+	var two_lines := two["lines"] as PackedStringArray
+	_ok(two_lines.size() == 2 and widest.call(two) <= box, "name/a long one is two lines inside the strip (%s)" % [two_lines])
+	_ok(absi(two_lines[0].length() - two_lines[1].length()) < 12, "name/split evenly by words (%s)" % [two_lines])
+	var brackets := MediaLabelPainter.cassette_name_fit("Electric Ladyland (Remastered 2011) [Deluxe Edition]")
+	_ok(brackets["lines"] == PackedStringArray(["ELECTRIC LADYLAND"]),
+		"name/trailing brackets are dropped to keep it on one line (%s)" % [brackets["lines"]])
+	var long_name := "The Very Best of the Electric Light Orchestra Live at Wembley Arena in the Summer of 1978"
+	var cut := MediaLabelPainter.cassette_name_fit(long_name)
+	var cut_lines := cut["lines"] as PackedStringArray
+	_ok(cut_lines.size() == 2 and cut_lines[1].ends_with("...") and int(cut["size"]) == int(2.6 * mm)
+		and widest.call(cut) <= box, "name/too long even then: two lines at the smallest size, cut with ... (%s)" % [cut_lines])
+	var kept := cut_lines[1].trim_suffix("...").split(" ", false)
+	_ok(not kept.is_empty() and long_name.to_upper().split(" ").has(kept[kept.size() - 1]),
+		"name/and cut at a whole word (%s)" % cut_lines[1])
+	var lp := MediaLabelPainter.lp_name_fit("Songs from the Big Chair and Other Stories")
+	_ok((lp["lines"] as PackedStringArray).size() == 3, "name/an LP gives it three lines (%s)" % [lp["lines"]])
+	_eq(MediaLabelPainter.strip_brackets("Album (Live) [2011]"), "Album", "name/both trailing groups go")
+	_eq(MediaLabelPainter.strip_brackets("(What's the Story) Morning Glory?"), "(What's the Story) Morning Glory?",
+		"name/a group that is not trailing stays")
+	_eq(MediaLabelPainter.strip_brackets("(Untitled)"), "(Untitled)", "name/a name that is all brackets is kept")
