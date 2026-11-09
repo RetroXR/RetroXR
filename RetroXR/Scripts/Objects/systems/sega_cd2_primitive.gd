@@ -264,15 +264,18 @@ func _build() -> void:
 	# The front: the ACCESS lamp and the OPEN knob, both on the nose.
 	var nose_at := func(y: float) -> float:
 		return NOSE_FOOT.x - (y - NOSE_FOOT.y) / (NOSE_TOP.y - NOSE_FOOT.y) * (NOSE_FOOT.x - NOSE_TOP.x)
-	var led := _slope(self, "AccessLed", Vector2(LED.x - 2.0, LED.x + 2.0),
-		Vector2(nose_at.call(LED.y + 1.0), LED.y + 1.0), Vector2(nose_at.call(LED.y - 1.0), LED.y - 1.0), 0.6,
+	# A 3 mm lens (a 4 x 2 one was easy to miss).
+	var led := _slope(self, "AccessLed", Vector2(LED.x - 1.5, LED.x + 1.5),
+		Vector2(nose_at.call(LED.y + 1.2), LED.y + 1.2), Vector2(nose_at.call(LED.y - 1.2), LED.y - 1.2), 0.6,
 		null)
 	# Lit by the core's LED (RetroExpansion._build_shell duplicates it); a surface
 	# material, which is what that reads.
 	led.material_override = null
 	var lamp := StandardMaterial3D.new()
-	lamp.albedo_color = Color8(70, 8, 6)
-	lamp.roughness = 0.3
+	# Near-black red and matte when off: a brighter lens with a gloss read as pale pink
+	# under the room's light, an "off" that looked lit.
+	lamp.albedo_color = Color8(26, 3, 2)
+	lamp.roughness = 0.6
 	led.set_surface_override_material(0, lamp)
 	# Moved the 0.6 it is thick out of the nose, so it stands on it.
 	led.position += led.basis.y * 0.6 * MM

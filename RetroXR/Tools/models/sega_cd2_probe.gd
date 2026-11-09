@@ -165,6 +165,14 @@ func _run() -> void:
 	open_btn.set_latched_pressed(true)
 	await _shot("open_button_pressed", kc + Vector3(-0.06, 0.07, 0.14), kc)
 	open_btn.set_latched_pressed(false)
+	# The ACCESS lamp, dark and lit through the same call the core's LED makes.
+	var lamp := cd.get_node("Shell/AccessLed") as MeshInstance3D
+	var lc := lamp.global_transform * lamp.get_aabb().get_center()
+	await _shot("access_lamp_off", lc + Vector3(0.03, 0.05, 0.12), lc)
+	cd.call("_set_led", true)
+	await _shot("access_lamp_on", lc + Vector3(0.03, 0.05, 0.12), lc)
+	await _shot("access_lamp_on_wide", c + Vector3(0.10, 0.18, 0.42), c + Vector3(0.05, 0.0, 0.05))
+	cd.call("_set_led", false)
 	var tray := cd.get("_tray") as MediaTray
 	tray.set_open(true, false)
 	await _shot("drive_lid_open", c + Vector3(0.25, 0.35, 0.40), c + Vector3(0.10, 0.03, 0))
