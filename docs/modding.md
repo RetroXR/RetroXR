@@ -732,6 +732,50 @@ none of the conventions above can override `_poke_targets()` whole instead (the
 staged shell, including the one that drives your animation with each d-pad bit
 and pokes the arm it sank.
 
+### Rows in the machine's menu
+
+A console or handheld model can put rows of its own in the machine's menu for a
+control the menu has never heard of, such as a contrast wheel or a backlight
+switch, or give itself a whole tab of them. Return them from
+`func menu_rows() -> Array` and take changes in
+`func set_menu_row(id: String, value: Variant) -> void`. Both are plain overrides
+on `RetroSystemModel`, so don't call `super()`. A pack that still loads in older
+builds, which never call them, stays safe.
+
+```gdscript
+func menu_rows() -> Array:
+	return [{"id": "contrast", "label": "Contrast", "value": _contrast_knob.value}]
+
+func set_menu_row(id: String, value: Variant) -> void:
+	if id == "contrast":
+		_contrast_knob.set_value(clampf(float(value), 0.0, 1.0))   # as a thumb would
+```
+
+A row with no `tab` goes on the Controls tab, under Volume. A row with `"tab":
+"Link"` goes on a tab of the model's own called Link, made when the first row names
+it, kept before Debug, and removed once no row names it. Each row is a dictionary:
+
+| key | |
+|---|---|
+| `id` | required, unique: what `set_menu_row` is handed |
+| `label` | the row's name |
+| `tab` | the tab it is on (none, or `"Controls"`: under Volume) |
+| `kind` | `"slider"` (the default), `"toggle"`, `"choice"`, `"button"`, or the read-only `"header"` (a section title) and `"text"` (a label and its value) |
+| `value` | slider: a float; toggle: a bool; choice: one option's value; text: the string shown |
+| `min`, `max`, `step` | a slider's range (0, 1 and 0.01 by default) |
+| `format` | a slider's readout: `"percent"` (the default, its share of min..max) or a format string such as `"%.1f"` |
+| `options` | a choice's `[label, value]` pairs |
+| `disabled` | shown, but not usable |
+
+The menu reads `menu_rows()` again a few times a second while it is open and
+compares what it gets whole. That keeps a row in step with a hand on the shell.
+It also means the rows must hold values only, never nodes or callables. A change
+to a value only moves that row's widget. A change to anything else (a label, a
+range, the list of rows) rebuilds them, so keep the rest steady. In
+`set_menu_row`, move the control itself rather than the effect behind it, so the
+shell turns, the sound plays and netplay hears it as it would a hand. The Game
+Boy packs (`xenu.gb`, `xenu.gbpocket`) offer their contrast wheels this way.
+
 ### Sockets, plugs and what fits
 
 Every socket and every plug in the room has a **connector**, and a plug goes into

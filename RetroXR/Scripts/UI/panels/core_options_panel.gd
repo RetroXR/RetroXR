@@ -271,6 +271,14 @@ func _device_volume() -> float:
 func _on_control_requested(id: String, value: Variant) -> void:
 	if not is_instance_valid(_system):
 		return
+	# A row the machine's model offers (RetroSystemModel.menu_rows). Not printed: a
+	# slider sends one of these for every step of a drag.
+	if id.begins_with(CoreOptions2D.ROW_PREFIX):
+		var model := _system.get_model()
+		if model != null:
+			model.set_menu_row(id.substr(CoreOptions2D.ROW_PREFIX.length()), value)
+		_refresh_controls()
+		return
 	print("[CoreOptionsPanel] %s: control %s%s" % [_system.name, id,
 		"" if value == null else " = %s" % str(value)])
 	match id:

@@ -667,6 +667,37 @@ func set_rf_channel(_channel: int) -> void:
 	pass
 
 
+## Rows of the machine's own for its menu: how a mod offers a control its shell has
+## (a contrast wheel, a backlight switch), or a whole page of them, without the menu
+## knowing what they are. Read again a few times a second while the menu is open, so
+## a row follows a hand on the shell, and compared whole to notice that: so VALUES
+## only, never nodes or callables. A change to anything but a value rebuilds the
+## rows, so keep labels and ranges steady. Each row is a Dictionary:
+##   id        String, required, unique: what set_menu_row is handed back
+##   label     String: the row's name
+##   tab       String: the tab it is on. None (or "Controls") puts it on the
+##             Controls tab under Volume; any other name makes a tab of the
+##             model's own, in the order first named, kept before Debug
+##   kind      "slider" (default), "toggle", "choice", "button", or the read-only
+##             "header" (a section title: label only) and "text" (label and value)
+##   value     slider: float; toggle: bool; choice: one of the options' values;
+##             text: shown as is; button and header: unused
+##   min, max, step   slider only (default 0, 1, 0.01)
+##   format    slider's readout: "percent" (default: the share of min..max), or a
+##             format string for the value, such as "%.1f" or "%d"
+##   options   choice only: Array of [label, value] pairs
+##   disabled  bool: shown, but not to be used
+## Default: none.
+func menu_rows() -> Array:
+	return []
+
+
+## The menu set row `id` (one of menu_rows') to `value`; null for a button. Move the
+## control as a hand would, so the shell, the sound and netplay follow the one path.
+func set_menu_row(_id: String, _value: Variant) -> void:
+	pass
+
+
 ## The handheld's sliding power switch, or null for a machine with a push button.
 ## The menu's Power row moves it rather than toggling behind its back, or the
 ## switch would stand at OFF on a running machine.

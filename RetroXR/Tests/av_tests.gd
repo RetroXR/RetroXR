@@ -214,6 +214,7 @@ func _run() -> void:
 		["menu/3D appears with a 3D source, and a cap press reaches an open menu", _m_follows],
 		["menu/a cord in the wrong jack is named on its input", _m_crossed],
 		["menu/a console's menu has its own switches, and where it is showing", _m_machine],
+		["menu/a model's own rows go under Volume or on a tab of its own", _m_model_rows],
 		["menu/a set with only an L/R pair offers no SURROUND", _m_stereo_only_set],
 		["menu/a deck's Debug tab names its media and where it goes", _m_deck_debug],
 		["display/with no aerial the dial is the consoles' channels and nothing else", _d_dial_bare],
@@ -2781,6 +2782,75 @@ func _m_machine() -> void:
 	_check_eq(ui._tabs.get_tab_title(ui._debug_tab_idx), "Debug", "the menu has a Debug tab")
 	_ok(ui._debug_rows.values.size() == (dbg[0][1] as Array).size()
 		and ui._debug_rows.values[0].text == "Off", "which shows those rows")
+	_check_eq(state["rows"], [], "a stock model offers no rows of its own")
+
+
+## RetroSystemModel.menu_rows, as a mod's model offers them: rows with no tab go
+## under Volume on Controls, a named tab is made before Debug (which stays last) and
+## goes again when no row names it, a value change touches no widget but its own,
+## and every change asks for row:<id>. A suite mounts no mods, so the rows are
+## handed to the menu as controls_state would carry them.
+func _m_model_rows() -> void:
+	var ui := (load("res://Scenes/UI/core_options_2d.tscn") as PackedScene).instantiate() \
+		as CoreOptions2D
+	add_child(ui)
+	_spawned.append(ui)
+	await _wait(2)
+	var asked: Array = []
+	ui.control_requested.connect(func(id: String, v: Variant) -> void: asked.append([id, v]))
+	var tabs_before := ui._tabs.get_tab_count()
+	var rows: Array = [
+		{"id": "contrast", "label": "Contrast", "value": 0.5},
+		{"id": "light", "label": "Backlight", "kind": "toggle", "value": false},
+		{"id": "head", "label": "Cartridge", "kind": "header", "tab": "Link"},
+		{"id": "mode", "label": "Mode", "kind": "choice", "tab": "Link",
+			"options": [["Off", 0], ["Printer", 1]], "value": 1},
+		{"id": "serial", "label": "Serial", "kind": "text", "tab": "Link", "value": "DMG-01"},
+		{"id": "pair", "label": "PAIR", "kind": "button", "tab": "Link"},
+	]
+	ui.populate_controls({"rows": rows})
+	await _wait(1)
+	_ok(ui._ctl_rows.visible and ui._ctl_rows.get_child_count() > 0
+		and ui._ctl_rows.get_parent() == ui._volume_box.get_parent()
+		and ui._ctl_rows.get_index() == ui._volume_box.get_index() + 1,
+		"rows with no tab sit on Controls, right under Volume")
+	_check_eq(ui._tabs.get_tab_count(), tabs_before + 1, "one tab of the model's own is made")
+	var link := ui._tabs.get_tab_count() - 2
+	_check_eq(ui._tabs.get_tab_title(link), "Link", "named as its rows say")
+	_check_eq(ui._debug_tab_idx, ui._tabs.get_tab_count() - 1, "and Debug is still the last tab")
+	_check_eq(ui._tabs.get_tab_title(ui._debug_tab_idx), "Debug", "and its index still finds it")
+	_check_eq(asked, [], "building the rows asks for nothing")
+	var w: Dictionary = ui._ctl_row_widgets
+	_check_eq((w["contrast"]["readout"] as Label).text, "50%", "a slider reads as a percent by default")
+	_check_eq((w["serial"]["readout"] as Label).text, "DMG-01", "a text row shows its value")
+	_check_eq((w["mode"]["widget"] as VRDropdown).get_selected_id(), 1, "a choice shows its value")
+	ui._tabs.current_tab = link
+	_ok(ui._active_scroll != null and ui._active_scroll.is_ancestor_of(w["mode"]["widget"]),
+		"on its tab, the stick scrolls that tab")
+
+	var slider := w["contrast"]["widget"] as HSlider
+	slider.value = 0.75
+	(w["light"]["widget"] as VRToggle).button_pressed = true
+	(w["mode"]["widget"] as VRDropdown).item_selected.emit(0)
+	(w["pair"]["widget"] as Button).pressed.emit()
+	_check_eq(asked, [["row:contrast", 0.75], ["row:light", true], ["row:mode", 0], ["row:pair", null]],
+		"each row asks for row:<id> with its value")
+
+	asked.clear()
+	rows[0]["value"] = 0.25
+	rows[4]["value"] = "CGB-001"
+	ui.populate_controls({"rows": rows})
+	_ok(is_instance_valid(slider) and ui._ctl_row_widgets["contrast"]["widget"] == slider
+		and is_equal_approx(slider.value, 0.25) and (w["serial"]["readout"] as Label).text == "CGB-001",
+		"a new value moves the same widgets, nothing rebuilt")
+	_check_eq(asked, [], "and asks for nothing back")
+
+	ui.populate_controls({"rows": rows.slice(0, 2)})
+	await _wait(1)
+	_check_eq(ui._tabs.get_tab_count(), tabs_before, "with no row naming it, the model's tab goes")
+	_check_eq(ui._tabs.get_tab_title(ui._debug_tab_idx), "Debug", "and Debug is found again")
+	ui.populate_controls({})
+	_ok(not ui._ctl_rows.visible, "with no rows at all, nothing shows under Volume")
 
 
 ## The Panasonic CT-20D10B (a mod) keeps only its L/R audio outs and disables the

@@ -2894,6 +2894,7 @@ func controls_state() -> Dictionary:
 		"eject": _disc_tray.eject_label(),
 		"rf_channel": get_rf_channel(),
 		"rf_options": _model.rf_channel_options() if _model != null else [],
+		"rows": _model.menu_rows() if _model != null else [],
 		"display": "",
 		"wiring": [],
 	}

@@ -59,6 +59,8 @@ const COLOR_ROW   := Color(0.65, 0.65, 0.80)
 ## Matches MenuIcons.TINT_WARN so the "you can't change this" cue reads the same
 ## here as it does everywhere else in the menus.
 const COLOR_LOCKED := Color(1.00, 0.72, 0.20)
+## control_requested's id for a model's own row: this, then the row's id.
+const ROW_PREFIX := "row:"
 
 # ── State ──────────────────────────────────────────────────────────────────────
 var _options_scroll: ScrollContainer
@@ -143,6 +145,15 @@ var _ctl_eject: Button = null
 var _ctl_rf: VRDropdown = null
 ## The channels _ctl_rf was built with, so it is rebuilt only when they change.
 var _ctl_rf_options: Array = []
+## The model's own rows (RetroSystemModel.menu_rows), under Volume.
+var _ctl_rows: VBoxContainer = null
+## Those rows minus their values, as last built: rebuilt only when this changes.
+var _ctl_rows_shape: Array = []
+## Row id -> {kind, widget, readout, row}, for setting values without a rebuild.
+var _ctl_row_widgets: Dictionary = {}
+## The model's own tabs, by title -> {outer, scroll, rows}: made for rows that name
+## a `tab`, kept before Debug, gone when no row names them.
+var _model_tabs: Dictionary = {}
 # Debug tab: what the core reports, as label/value rows.
 var _debug_scroll: ScrollContainer = null
 var _debug_rows: DebugRows = null
@@ -493,6 +504,8 @@ func _build_ui() -> void:
 			_active_scroll = _dip_scroll
 		elif idx == _screen_tab_idx:
 			_active_scroll = _screen_scroll
+		elif _model_tab_scroll(idx) != null:
+			_active_scroll = _model_tab_scroll(idx)
 		else:
 			# The Cartridge tab hosts a whole CartridgeOptions2D with ribbons of
 			# its own, so it knows which of them is showing and this does not.
@@ -574,6 +587,12 @@ func _build_controls_tab(tabs: TabContainer) -> void:
 		_volume_value.text = "%d%%" % roundi(v)
 		if not _suppress_signal:
 			volume_changed.emit(v / 100.0))
+
+	# The machine's own rows, after Volume: what its model's menu_rows() offers.
+	_ctl_rows = VBoxContainer.new()
+	_ctl_rows.add_theme_constant_override("separation", 2)
+	_ctl_rows.visible = false
+	rows.add_child(_ctl_rows)
 
 	_video_out_row = HBoxContainer.new()
 	_video_out_row.custom_minimum_size = Vector2(0, 56)
@@ -659,7 +678,175 @@ func populate_controls(state: Dictionary) -> void:
 			_ctl_rf.set_options(rf_options.map(func(ch: int) -> Array:
 				return ["CH %d" % ch, ch]), int(state.get("rf_channel", rf_options[0])))
 		_ctl_rf.select_id(int(state.get("rf_channel", rf_options[0])))
+	_populate_model_rows(state.get("rows", []))
 	_suppress_signal = false
+
+
+## The model's own rows (RetroSystemModel.menu_rows): built again only when their
+## shape changes (ids, kinds, labels, ranges, options), else only their values set,
+## so a slider being dragged is never pulled out from under the hand.
+func _populate_model_rows(model_rows: Array) -> void:
+	if _ctl_rows == null:
+		return
+	var shape: Array = []
+	for r: Variant in model_rows:
+		if r is Dictionary and not str((r as Dictionary).get("id", "")).is_empty():
+			var s := (r as Dictionary).duplicate()
+			s.erase("value")
+			shape.append(s)
+	if shape != _ctl_rows_shape:
+		_ctl_rows_shape = shape
+		_build_model_rows(shape)
+	_ctl_rows.visible = _ctl_rows.get_child_count() > 0
+	for r: Variant in model_rows:
+		if not r is Dictionary:
+			continue
+		var d := r as Dictionary
+		var w: Dictionary = _ctl_row_widgets.get(str(d.get("id", "")), {})
+		if w.is_empty() or not d.has("value"):
+			continue
+		var v: Variant = d["value"]
+		match str(w["kind"]):
+			"slider":
+				(w["widget"] as HSlider).value = float(v)
+				(w["readout"] as Label).text = _row_readout(w["row"], float(v))
+			"toggle":
+				(w["widget"] as VRToggle).button_pressed = bool(v)
+			"choice":
+				(w["widget"] as VRDropdown).select_id(v)
+			"text":
+				(w["readout"] as Label).text = str(v)
+
+
+## The model's own tab named `title`, made (before Debug, which stays last) if it
+## is not there yet; its rows' container.
+func _model_tab_rows(title: String) -> VBoxContainer:
+	if _model_tabs.has(title):
+		return (_model_tabs[title] as Dictionary)["rows"]
+	var outer := VBoxContainer.new()
+	outer.name = title.validate_node_name()
+	_tabs.add_child(outer)
+	_tabs.move_child(outer, _debug_scroll.get_parent().get_index())
+	_debug_tab_idx = _tabs.get_tab_idx_from_control(_debug_scroll.get_parent() as Control)
+	_tabs.set_tab_title(_tabs.get_tab_idx_from_control(outer), title)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	MenuStyle.fat_vscroll_bar(scroll)
+	outer.add_child(scroll)
+	var rows := VBoxContainer.new()
+	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rows.add_theme_constant_override("separation", 4)
+	scroll.add_child(rows)
+	_model_tabs[title] = {"outer": outer, "scroll": scroll, "rows": rows}
+	return rows
+
+
+## Each model row's widget, built where its `tab` says: the Controls tab under
+## Volume when it names none, else a tab of the model's own. A tab no row names any
+## longer goes.
+func _build_model_rows(shape: Array) -> void:
+	for c in _ctl_rows.get_children():
+		_ctl_rows.remove_child(c)
+		c.queue_free()
+	_ctl_row_widgets.clear()
+	var titles := {}
+	for row: Dictionary in shape:
+		var t := str(row.get("tab", ""))
+		if not t.is_empty() and t != "Controls":
+			titles[t] = true
+	for title: String in _model_tabs.keys():
+		var tab: Dictionary = _model_tabs[title]
+		if titles.has(title):
+			for c in (tab["rows"] as Node).get_children():
+				(tab["rows"] as Node).remove_child(c)
+				c.queue_free()
+			continue
+		if _tabs.current_tab == _tabs.get_tab_idx_from_control(tab["outer"]):
+			_tabs.current_tab = 0
+		_tabs.remove_child(tab["outer"])
+		(tab["outer"] as Node).queue_free()
+		_model_tabs.erase(title)
+	_debug_tab_idx = _tabs.get_tab_idx_from_control(_debug_scroll.get_parent() as Control)
+	for row: Dictionary in shape:
+		var tab_title := str(row.get("tab", ""))
+		var parent: VBoxContainer = _ctl_rows if tab_title.is_empty() or tab_title == "Controls" \
+			else _model_tab_rows(tab_title)
+		var id := ROW_PREFIX + str(row["id"])
+		var label := str(row.get("label", row["id"]))
+		var kind := str(row.get("kind", "slider"))
+		var disabled := bool(row.get("disabled", false))
+		var w := {"kind": kind, "row": row}
+		match kind:
+			"header":
+				var h := MenuStyle.header(label, 20)
+				parent.add_child(h)
+				w["widget"] = h
+			"text":
+				var line := HBoxContainer.new()
+				line.custom_minimum_size = Vector2(0, 40)
+				line.add_theme_constant_override("separation", 8)
+				parent.add_child(line)
+				var name_lbl := MenuStyle.label(label, 18, COLOR_ROW)
+				name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				line.add_child(name_lbl)
+				var value_lbl := MenuStyle.label("", 18, COLOR_ROW)
+				value_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+				line.add_child(value_lbl)
+				w["widget"] = line
+				w["readout"] = value_lbl
+			"toggle":
+				var t := MenuStyle.switch_row(parent, label, false)
+				t.disabled = disabled
+				t.toggled.connect(func(on: bool) -> void: _request_control(id, on))
+				w["widget"] = t
+			"choice":
+				var opts: Array = row.get("options", [])
+				var drop := VRDropdown.create(label, opts,
+					opts[0][1] if not opts.is_empty() else null)
+				drop.item_selected.connect(func(v: Variant) -> void: _request_control(id, v))
+				parent.add_child(drop)
+				w["widget"] = drop
+			"button":
+				var b := _control_key(label, id)
+				b.disabled = disabled
+				parent.add_child(b)
+				w["widget"] = b
+			_:
+				w["kind"] = "slider"
+				var sl: Array = MenuStyle.slider_row(parent, label,
+					float(row.get("min", 0.0)), float(row.get("max", 1.0)),
+					float(row.get("step", 0.01)))
+				var slider := sl[0] as HSlider
+				var readout := sl[1] as Label
+				(sl[2] as Label).add_theme_color_override("font_color", COLOR_ROW)
+				slider.editable = not disabled
+				slider.value_changed.connect(func(v: float) -> void:
+					readout.text = _row_readout(row, v)
+					_request_control(id, v))
+				w["widget"] = slider
+				w["readout"] = readout
+		_ctl_row_widgets[str(row["id"])] = w
+
+
+## The scroll of the model's own tab at `idx`, or null for any other tab.
+func _model_tab_scroll(idx: int) -> ScrollContainer:
+	var control := _tabs.get_tab_control(idx) if _tabs != null and idx >= 0 else null
+	for tab: Dictionary in _model_tabs.values():
+		if tab["outer"] == control:
+			return tab["scroll"]
+	return null
+
+
+## A slider row's readout: its share of min..max as a percent, or `format` applied.
+static func _row_readout(row: Dictionary, v: float) -> String:
+	var fmt := str(row.get("format", "percent"))
+	if fmt == "percent":
+		var lo := float(row.get("min", 0.0))
+		var hi := float(row.get("max", 1.0))
+		return "%d%%" % roundi((v - lo) / (hi - lo) * 100.0 if hi != lo else 0.0)
+	return fmt % (roundi(v) if "%d" in fmt else v)
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
