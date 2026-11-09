@@ -511,6 +511,10 @@ const _SHELL_FIELDS := {
 	# Where the console's foot lands and the shell's collision boxes, for a unit the
 	# console stands beside part of (the Sega CD Model 2).
 	"seat": TYPE_VECTOR3, "boxes": TYPE_ARRAY, "lid_open_deg": TYPE_FLOAT, "accessory_at": TYPE_VECTOR3,
+	# Which way the shell's own OPEN cap presses, and how far: a mod's drive whose knob
+	# is not where the stand-in's is (the Sega CD Model 2's, pressed down on the swept
+	# corner, where the stand-in's plate presses into its sloped nose).
+	"eject_axis": TYPE_VECTOR3, "eject_travel": TYPE_FLOAT,
 }
 
 ## unit id -> {owner, fields, variants: {variant id -> fields}}.

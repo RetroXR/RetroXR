@@ -1489,6 +1489,7 @@ func _run() -> void:
 
 const _MIXING_CABLE := preload("res://Scenes/Objects/cables/sega_cd_mixing_cable.tscn")
 const _CD2_SPACER := preload("res://Scenes/Objects/peripherals/sega_cd2_spacer.tscn")
+const _DISC := preload("res://Scenes/Objects/media/disc.tscn")
 const _TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
 const _COMPOSITE := preload("res://Scenes/Objects/cables/composite_cable.tscn")
 const _TRS_PORT := preload("res://Scenes/Objects/cables/trs_port.tscn")
@@ -1555,13 +1556,60 @@ func _group_segacd2() -> void:
 
 	# The lid and the disc: the shell's own.
 	var tray := cd.get("_tray") as MediaTray
-	_ok(tray != null and tray.lid_pivot == cd.get_node("Shell/LidPivot"), "segacd2/ the lid that swings is the shell's")
+	var shell_lid := cd.get_node("Shell/LidPivot") as Node3D
+	var hinge := cd.get("_lid_hinge") as VRSpringLatchedHinge
+	# Spring-loaded, as a PlayStation's: the hinge moves the shell's lid, not the tray.
+	_ok(tray != null and tray.lid_pivot == null and hinge != null and cd.get("_spring_lid") == shell_lid,
+		"segacd2/ the lid that swings is the shell's, on a spring-latched hinge")
+	_ok(hinge != null and hinge.is_latched_closed() and is_zero_approx(shell_lid.rotation.x),
+		"segacd2/ it starts latched shut")
 	var bay := cd.get_node("MediaBay") as Node3D
 	_ok(_in_shell_mm(cd, bay.global_position).distance_to(Vector3(106.0 * SegaCd2Primitive.SX, 72.6, 8.0)) < 0.1,
 		"segacd2/ a disc lies on the hub, at the model's DiscSeat")
-	if tray != null:
+	if tray != null and hinge != null:
 		tray.set_open(true, false)
-		_ok(is_equal_approx(tray.lid_pivot.rotation_degrees.x, -85.0), "segacd2/ the lid opens 85 degrees, front edge up")
+		_ok(is_equal_approx(shell_lid.rotation_degrees.x, -85.0) and not hinge.is_latched_closed(),
+			"segacd2/ the lid opens 85 degrees, front edge up")
+		tray.set_open(false, false)
+		_ok(is_zero_approx(shell_lid.rotation.x) and hinge.is_latched_closed(), "segacd2/ and a restored close latches it")
+		# OPEN releases the latch and the spring takes it up; OPEN again does nothing.
+		cd.call("_on_open_pressed")
+		await _wait(30)
+		_ok(tray.is_open() and shell_lid.rotation_degrees.x < -80.0,
+			"segacd2/ OPEN springs the lid up (%.1f degrees)" % shell_lid.rotation_degrees.x)
+		cd.call("_on_open_pressed")
+		await _wait(10)
+		_ok(tray.is_open() and shell_lid.rotation_degrees.x < -80.0, "segacd2/ OPEN again leaves it open")
+		# A hand pushes it home: it latches, and the tray closes behind it.
+		hinge.latch_closed()
+		_ok(not tray.is_open() and is_zero_approx(shell_lid.rotation.x), "segacd2/ pushed home by hand, it latches and the tray closes")
+		# A disc on the hub in the open drive is what the desktop ray takes: the drive's
+		# boxes stop at the well's floor under the lid's opening.
+		tray.set_open(true, false)
+		var disc := _DISC.instantiate() as RetroDisc
+		disc.systemid = "segacd"
+		disc.rom_path = "/roms/segacd/game.chd"
+		disc.position = Vector3(0, 3, 0)
+		disc.freeze = true
+		add_child(disc)
+		_spawned.append(disc)
+		await _wait(6)
+		cd.restore_media_in_slot(disc)
+		await _wait(6)
+		var grabber := Node3D.new()
+		add_child(grabber)
+		_spawned.append(grabber)
+		var dspace := get_viewport().get_world_3d().direct_space_state
+		var took := 0
+		for eye: Vector3 in [Vector3(0.0, 0.45, 0.35), Vector3(0.15, 0.4, 0.3), Vector3(-0.1, 0.35, 0.4)]:
+			var from := disc.global_position + eye
+			var t := InteractionResolver.resolve_desktop(dspace, from, from + (disc.global_position - from).normalized() * 2.0, grabber)
+			if t.is_valid() and t.can_grab and t.highlight_node == disc:
+				took += 1
+			else:
+				print("[exp] the reticle from %s took %s at %s" % [eye,
+					t.hit_node.name if t.is_valid() and t.hit_node else "nothing", _in_shell_mm(cd, t.position)])
+		_ok(took == 3, "segacd2/ the desktop reticle aimed at a disc in the open drive takes the disc (%d of 3)" % took)
 		tray.set_open(false, false)
 	var eject := cd.get_node_or_null("EjectButton") as VRButton
 	var knob := cd.get_node("Shell/EjectButton") as MeshInstance3D

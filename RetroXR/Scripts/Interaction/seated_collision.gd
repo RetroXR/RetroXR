@@ -191,11 +191,27 @@ static func _seat_of(host: Node3D, guest: Node3D, zone: Node3D) -> Transform3D:
 	return host.global_transform.affine_inverse() * zone.global_transform * at_zone
 
 
-## A box of its own, INSET smaller; any other shape is shared as it is.
+## A box, cylinder, sphere or capsule of its own, INSET smaller; any other shape is
+## shared as it is. A disc's cylinder shared whole lay exactly on the disc's own, the
+## ray met the two at the same distance, and the host's copy took it: a disc in the
+## Sega CD Model 2's open drive could not be taken out with the desktop ray.
 static func _inset(shape: Shape3D) -> Shape3D:
-	var box := shape as BoxShape3D
-	if box == null:
-		return shape
-	var smaller := BoxShape3D.new()
-	smaller.size = (box.size - Vector3.ONE * INSET * 2.0).max(Vector3.ONE * INSET)
-	return smaller
+	if shape is BoxShape3D:
+		var smaller := BoxShape3D.new()
+		smaller.size = ((shape as BoxShape3D).size - Vector3.ONE * INSET * 2.0).max(Vector3.ONE * INSET)
+		return smaller
+	if shape is CylinderShape3D:
+		var cyl := CylinderShape3D.new()
+		cyl.radius = maxf((shape as CylinderShape3D).radius - INSET, INSET)
+		cyl.height = maxf((shape as CylinderShape3D).height - INSET * 2.0, INSET)
+		return cyl
+	if shape is SphereShape3D:
+		var sph := SphereShape3D.new()
+		sph.radius = maxf((shape as SphereShape3D).radius - INSET, INSET)
+		return sph
+	if shape is CapsuleShape3D:
+		var cap := CapsuleShape3D.new()
+		cap.radius = maxf((shape as CapsuleShape3D).radius - INSET, INSET)
+		cap.height = maxf((shape as CapsuleShape3D).height - INSET * 2.0, cap.radius * 2.0)
+		return cap
+	return shape

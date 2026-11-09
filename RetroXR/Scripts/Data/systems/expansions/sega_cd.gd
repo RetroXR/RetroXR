@@ -47,10 +47,16 @@ const ROW := {
 	# The base the whole length, the drive above it on the right back to where its front
 	# falls to the nose (z 90), and the nose's foot under the OPEN knob and the ACCESS
 	# lamp: a box over the whole nose stood in front of the knob, and every beam aimed
-	# at it took the drive instead.
+	# at it took the drive instead. Under the lid's opening (x 39 to 173.9, from z -70.9
+	# forward) the drive stops at the well's floor (68), with the rim round the opening
+	# above it: a disc on the hub (72.6) lay inside a box to the top, and the desktop
+	# ray took the drive instead of the disc.
 	"boxes": [
 		AABB(Vector3(-0.198, 0.0, -0.110), Vector3(0.396, 0.045, 0.220)),
-		AABB(Vector3(0.0225 * SX, 0.045, -0.106), Vector3(0.164 * SX, 0.0378, 0.196)),
+		AABB(Vector3(0.0225 * SX, 0.045, -0.106), Vector3(0.164 * SX, 0.023, 0.196)),
+		AABB(Vector3(0.0225 * SX, 0.068, -0.106), Vector3(0.164 * SX, 0.0148, 0.0351)),
+		AABB(Vector3(0.0225 * SX, 0.068, -0.0709), Vector3(0.0165 * SX, 0.0148, 0.1609)),
+		AABB(Vector3(0.1739 * SX, 0.068, -0.0709), Vector3(0.0126 * SX, 0.0148, 0.1609)),
 		AABB(Vector3(0.0225 * SX, 0.045, 0.090), Vector3(0.164 * SX, 0.006, 0.016)),
 	],
 	# The OPEN plate lies in the drive's gray nose and presses square into it, 2 mm: the

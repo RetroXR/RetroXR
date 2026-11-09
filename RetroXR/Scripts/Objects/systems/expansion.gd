@@ -88,6 +88,13 @@ var _tray: MediaTray = null
 ## face and the shelf that runs out of it. Null on a lidded unit and on every
 ## other kind of bay.
 var _disc_bay: ProceduralDiscBay = null
+## A spring-loaded lid (the Sega CD Model 2's, as on a PlayStation): the hinge a
+## hand pulls shut, the hidden frame it turns, the shell's LidPivot that follows
+## it, and how far it opens. Null on every other unit.
+var _lid_hinge: VRSpringLatchedHinge = null
+var _lid_driver: Node3D = null
+var _spring_lid: Node3D = null
+var _spring_lid_open_deg := 85.0
 var _media: Array[Node3D] = []
 
 var _body: MeshInstance3D = null
@@ -920,11 +927,24 @@ func _build_tray_bay(s: Vector3, media: String, loader: int) -> void:
 		# the right of where the console stands): the disc lies where it says, and its
 		# lid is what swings.
 		_bays[0].position = to_local(shell_seat.global_position) if shell_seat.is_inside_tree() 			else _shell.transform * shell_seat.position
-		_tray.lid_pivot = shell_lid
+		# Its lid is spring-loaded, as a PlayStation's is: OPEN releases the latch and
+		# the spring takes it up, OPEN again does nothing, and a hand shuts it. The
+		# tray keeps the gates (disc in, disc out) and the hinge moves the lid, so the
+		# tray is given no pivot to tween.
+		# A LidPivot with no mesh is no lid: a mod's Sega CD Model 1 (xenu.segacd) reads
+		# how far it is swung as how far its motorized drawer is out, and that drawer's
+		# button toggles, so it keeps the tray's own swing.
 		var open := ExpansionCatalog.lid_open_deg_of(_shell_id())
-		if not is_nan(open):
-			_tray.lid_open_deg = open
-		add_child(_tray)
+		if shell_lid.find_children("*", "MeshInstance3D", true, false).is_empty():
+			_tray.lid_pivot = shell_lid
+			if not is_nan(open):
+				_tray.lid_open_deg = open
+			add_child(_tray)
+		else:
+			var open_deg := absf(_tray.lid_open_deg if is_nan(open) else open)
+			_tray.lid_pivot = null
+			add_child(_tray)
+			_setup_spring_lid(shell_lid, open_deg)
 	elif ExpansionCatalog.lid_of(expansion_id):
 		# A LID. The disc lies in a well in the roof and the lid swings up off
 		# it, the way a PlayStation or a GameCube opens.
@@ -974,6 +994,122 @@ func _build_tray_bay(s: Vector3, media: String, loader: int) -> void:
 	_tray.loaded.connect(_on_media_in)
 	_tray.unloaded.connect(_on_media_out)
 	_build_eject_button(s, media)
+
+
+## OPEN (or EJECT) pressed. A spring-loaded lid only ever OPENS from it: the real
+## button is a latch release, so pressing it on an open lid does nothing, and the
+## lid is shut by hand. Every other tray and slot toggles, as before.
+func _on_open_pressed() -> void:
+	if _tray != null:
+		if _lid_hinge != null:
+			if not _tray.is_open():
+				_lid_hinge.open()
+				_tray.set_open(true)
+		else:
+			_tray.toggle_open()
+	elif _slot != null:
+		_slot.toggle_eject()
+
+
+## The shell's lid on a VRSpringLatchedHinge, the way playstation_model.gd and
+## dreamcast_model.gd rig theirs: a hidden frame at the hinge, yawed half a turn,
+## is what the hinge turns, and its angle is mirrored onto the lid (front edge up,
+## about the lid's back edge). The grab box covers the lid's free front half only.
+## Built in this unit's own frame, so it does not matter which way the unit faces.
+func _setup_spring_lid(lid: Node3D, open_deg: float) -> void:
+	_spring_lid = lid
+	_spring_lid_open_deg = open_deg
+	var lid_xf := _xf_in_self(lid)
+	_lid_driver = Node3D.new()
+	_lid_driver.name = "LidDriver"
+	add_child(_lid_driver)
+	_lid_driver.transform = Transform3D(Basis(Vector3.UP, PI), lid_xf.origin)
+
+	var hinge := VRSpringLatchedHinge.new()
+	hinge.name = "LidHinge"
+	hinge.target = _lid_driver
+	hinge.min_deg = 0.0
+	hinge.max_deg = open_deg
+	hinge.start_closed = true
+	# Squeeze to swing it shut, as on the PlayStation.
+	hinge.grip_engages = true
+	hinge.collision_layer = 1 | (1 << 20)
+	# The lid's meshes, in the lid's own frame (it is shut while this runs).
+	var ab := AABB()
+	var first := true
+	for n in lid.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi == null or not mi.visible:
+			continue
+		var rel := lid_xf.affine_inverse() * _xf_in_self(mi)
+		var box_ab: AABB = rel * mi.get_aabb()
+		ab = box_ab if first else ab.merge(box_ab)
+		first = false
+	if first:
+		ab = AABB(Vector3(-0.07, -0.004, -0.15), Vector3(0.14, 0.004, 0.15))
+	hinge.engage_radius = clampf(maxf(ab.size.x, ab.size.z) * 0.35, 0.03, 0.09)
+	var col := CollisionShape3D.new()
+	col.name = "CollisionShape3D"
+	var box := BoxShape3D.new()
+	box.size = Vector3(ab.size.x * 0.8, maxf(ab.size.y, 0.012) + 0.012, ab.size.z * 0.5)
+	col.shape = box
+	hinge.add_child(col)
+	lid.add_child(hinge)
+	# Its front half (+Z is the unit's front), riding the lid as it swings.
+	hinge.position = Vector3(ab.get_center().x, ab.position.y + ab.size.y, ab.position.z + ab.size.z * 0.75)
+	hinge.place_hint(Vector3(0.0, 0.02, 0.0))
+	hinge.rotation_changed.connect(_on_lid_swung)
+	_lid_hinge = hinge
+	_tray.opened.connect(_on_spring_tray_opened)
+	_tray.closed.connect(_on_spring_tray_closed)
+
+
+## The spring eases the hinge's frame open without reporting each step (it is
+## VRSpringLatchedHinge._step_spring_open's quiet _apply), so the lid copies that
+## frame every frame. Only a unit with a spring-loaded lid keeps processing.
+func _process(_delta: float) -> void:
+	if _spring_lid == null or _lid_driver == null:
+		set_process(false)
+		return
+	_spring_lid.rotation.x = -_lid_driver.rotation.x
+
+
+## A node's transform in this unit's frame, whether or not the unit is in the tree.
+func _xf_in_self(n: Node3D) -> Transform3D:
+	var xf := Transform3D.IDENTITY
+	var cur: Node = n
+	while cur != null and cur != self:
+		if cur is Node3D:
+			xf = (cur as Node3D).transform * xf
+		cur = cur.get_parent()
+	return xf
+
+
+## The hinge moved (the spring, a hand, or a restore): the lid follows it, and the
+## tray's gates follow the latch. A hand pushing it home closes the tray.
+func _on_lid_swung(deg: float) -> void:
+	if _spring_lid != null:
+		_spring_lid.rotation.x = deg_to_rad(-deg)
+	if _tray == null or _lid_hinge == null:
+		return
+	if _lid_hinge.is_latched_closed():
+		_tray.set_open(false)
+	elif not _tray.is_open():
+		_tray.set_open(true)
+
+
+## The tray was opened by something other than the button (a restore, netplay, a
+## test): the lid is put open at once rather than sprung, as a restored pose is.
+func _on_spring_tray_opened() -> void:
+	if _lid_hinge != null and _lid_hinge.is_node_ready() and _lid_hinge.is_latched_closed():
+		_lid_hinge.set_state_remote(_spring_lid_open_deg, false)
+
+
+## The tray was closed (a restore, netplay, a test, or the hand latching it):
+## latch the lid shut, if it is not already.
+func _on_spring_tray_closed() -> void:
+	if _lid_hinge != null and _lid_hinge.is_node_ready() and not _lid_hinge.is_latched_closed():
+		_lid_hinge.latch_closed()
 
 
 ## A well in the roof. The cart stands proud of it, which is what a 32X
@@ -1549,7 +1685,7 @@ func _build_eject_button(s: Vector3, media: String) -> void:
 	var cap := _shell_node("EjectButton") as MeshInstance3D
 	# A cap pushed some other way than into the front face (the Game Boy Player's
 	# lever, in its right side): its hit box goes on the side face it is in.
-	var axis: Variant = ExpansionCatalog.eject_axis_of(expansion_id)
+	var axis: Variant = ExpansionCatalog.eject_axis_of(_shell_id())
 	var side := 0.0
 	if cap != null:
 		# The hit box stays at the face plane, proud of the unit's own pointer
@@ -1567,11 +1703,7 @@ func _build_eject_button(s: Vector3, media: String) -> void:
 			pos = Vector3(side * (s.x * 0.5 + 0.004), centre.y, centre.z)
 		elif axis is Vector3:
 			pos = centre
-	var eject := ExpansionShell.build_eject_button(self, pos, func() -> void:
-		if _tray != null:
-			_tray.toggle_open()
-		elif _slot != null:
-			_slot.toggle_eject(),
+	var eject := ExpansionShell.build_eject_button(self, pos, _on_open_pressed,
 		"OPEN" if _tray != null else "EJECT")
 	# The shell's own button is the cap; the built one and its legend go.
 	if cap != null:
@@ -1580,7 +1712,7 @@ func _build_eject_button(s: Vector3, media: String) -> void:
 		eject.set_button_mesh(cap)
 		eject.set_depress_axis_world(
 			(global_transform.basis * (axis as Vector3)).normalized() if axis is Vector3 else -global_transform.basis.z)
-		var travel := ExpansionCatalog.eject_travel_of(expansion_id)
+		var travel := ExpansionCatalog.eject_travel_of(_shell_id())
 		eject.depress_depth = _SHELL_EJECT_TRAVEL if is_nan(travel) else travel
 		for child in eject.get_children():
 			if child is Label3D:
