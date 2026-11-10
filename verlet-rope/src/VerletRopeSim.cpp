@@ -3506,11 +3506,47 @@ void VerletRope::UpdateSleepState()
     if (!velocity_still && anchors_still && constraints_settled &&
         m_contact_stable_frames > 90)
     {
+        // Only what is TOUCHING something: a particle with a contact plane, an
+        // end of a segment with a contact, one the cord's own contacts pushed.
+        // It was every particle, the ones in the air too, and a velocity halved
+        // every tick under gravity settles at one tick of gravity, 11 cm a
+        // second: a cord that had been creeping off a table for a second and
+        // then went over sank to the floor like a feather, and one swinging
+        // between two sockets stopped dead in mid-swing. What is in the air
+        // keeps ALL of its motion down along gravity, which is a fall, and
+        // loses a tenth a tick of the rest, which is a swing: sideways, and
+        // back up. (A plain few percent of everything was tried first: too
+        // little to settle a hanging cord in five seconds, and any more of it
+        // is the feather again.)
         constexpr double CONTACT_SETTLE_RETAIN = 0.5;
+        constexpr double AIR_SETTLE_RETAIN = 0.9;
+        const double g_len = m_gravity.length();
+        const Vector3 down = g_len > 1e-9 ? m_gravity / g_len : Vector3();
+        m_settle_touching.assign(count, 0);
         for (int i = 0; i < count; ++i)
-            if (m_inv_mass[i] != 0.0f)
-                m_prev_points[i] = m_points[i] -
-                                   (m_points[i] - m_prev_points[i]) * CONTACT_SETTLE_RETAIN;
+            if (m_c_flags[i] != 0 ||
+                (static_cast<size_t>(i) < m_self_moved.size() && m_self_moved[i] != Vector3()))
+                m_settle_touching[i] = 1;
+        for (size_t s = 0; s < m_seg_a.size(); ++s)
+            if (m_mid_contact[s] != 0)
+            {
+                m_settle_touching[m_seg_a[s]] = 1;
+                m_settle_touching[m_seg_b[s]] = 1;
+            }
+        for (int i = 0; i < count; ++i)
+        {
+            if (m_inv_mass[i] == 0.0f)
+                continue;
+            const Vector3 velocity = m_points[i] - m_prev_points[i];
+            if (m_settle_touching[i])
+            {
+                m_prev_points[i] = m_points[i] - velocity * CONTACT_SETTLE_RETAIN;
+                continue;
+            }
+            const double falling = std::max(0.0, static_cast<double>(velocity.dot(down)));
+            const Vector3 fall = down * falling;
+            m_prev_points[i] = m_points[i] - (fall + (velocity - fall) * AIR_SETTLE_RETAIN);
+        }
     }
     // XENU_ROPE_DIAG=1: once a second, every cord that is awake says what is
     // keeping it awake. A cord that will not lie still in a room cannot be read

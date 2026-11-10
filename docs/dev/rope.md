@@ -195,6 +195,20 @@ asleep.** What it found:
   (`DetectSelfContacts`' `add`): a loose plug lying across its own cord levered its one
   free particle up several millimetres every tick. The plug's body is what is there.
 
+**And a cord that fell like a feather** (2026-11-11). Once a cord's ends have been still
+and its contacts good for a second, the motion it has left is halved every tick, so a
+contact's limit cycle can die (`UpdateSleepState`). That was every particle, the ones in
+the air too, and a velocity halved every tick under gravity settles at one tick of
+gravity, 11 cm a second: a cord that had crept off a table for a second and then went
+over sank to the floor, and one swinging between two sockets stopped dead in mid-swing.
+It predates the substeps. Now only what is TOUCHING is halved (a contact plane, a
+segment contact, a push from the cord's own contacts); what is in the air keeps ALL its
+motion down along gravity and loses a tenth a tick of the rest, which is a swing. A
+plain few percent of everything was tried first: too little to settle a hanging cord,
+and any more of it is the feather again. **`wake()` restarts that second**, so a test
+that holds a cord awake with it can never see this (`awake/a cord still swinging...`
+does not call it).
+
 `pad_cord_probe` (a real pad, its own cable, the engine ticking; `--system=genesis` seats
 the plug in a real console; `--loose`, `--console`) does NOT show any of them, which is
 the point of the paragraph above. `rope_jitter_probe --rest` counts wakes after the first

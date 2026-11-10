@@ -211,7 +211,11 @@ substep build: a cord over a block's corner, and over a table's edge, woken by t
 poll. The bench settles at tick 64 since (the last of the twitch fixes; 48 was measured
 one fix too early), and at tick 54 since verlet-rope moved to godot-cpp master the same
 day: master's vector maths rounds differently in the last bit, and with it "wrapped on a
-ledge" reads stretch 4.00, was 4.01. Nothing else in the table moved.)
+ledge" reads stretch 4.00, was 4.01. Nothing else in the table moved. 2026-11-11, the
+feather fix (`rope.md`): "stretched then freed" and "zero gravity" no longer sleep
+inside the table's 420 ticks (jitter 3.1 and 1.1 mm), a freed cord being allowed to swing
+out now; the rows that lie on or hang from something sleep as before, and the bench is
+still tick 54. rope_tests is 97 cases.)
 (The bench printed 15 until 2026-08-17: DepenetrateLay freed wedged lays and three more
 bench ropes settle; the stress rows that moved are the two impossible lays. Re-baselined
 deliberately — an UNINTENDED move in these numbers is still a stop-everything signal.

@@ -2038,6 +2038,41 @@ func _group_awake() -> void:
 		"%d wakes over three cords, %d never slept" % [total_wakes, never])
 	await _drop_case()
 
+	# A cord still MOVING THROUGH THE AIR a second after it was let go keeps
+	# gravity's pace. Once a cord's ends have been still and its contacts good
+	# for a second (90 ticks), what motion it has left is halved every tick, to
+	# let a contact's limit cycle die. That was done to every particle, the ones
+	# in the air too, and a velocity halved every tick under gravity settles at
+	# one tick of gravity: 1.2 mm a tick, 11 cm a second. A cord that had been
+	# creeping off a table for a while, and then went, sank to the floor like a
+	# feather; a cord swinging between two sockets stopped dead in mid-swing.
+	# No wake() here: waking a cord starts that second again, and hides it.
+	base = _new_case()
+	var swinger := _rope_between(base + Vector3(-0.3, 2.4, 0), base + Vector3(0.3, 2.4, 0), 60, 0.03)
+	swinger.self_collision = false
+	var before_peak := 0.0
+	var after_peak := 0.0
+	var last_swing := swinger.get_points()
+	var swing_tick := 0
+	while swing_tick < 126:
+		await get_tree().physics_frame
+		for k in 6:
+			swinger.step(1.0 / 90.0)
+			var now_swing := swinger.get_points()
+			var fastest := 0.0
+			for i in now_swing.size():
+				fastest = maxf(fastest, now_swing[i].distance_to(last_swing[i]))
+			last_swing = now_swing
+			if swing_tick + k >= 60 and swing_tick + k < 90:
+				before_peak = maxf(before_peak, fastest)
+			elif swing_tick + k >= 96:
+				after_peak = maxf(after_peak, fastest)
+		swing_tick += 6
+	_ok(before_peak > 0.003 and after_peak > before_peak * 0.3,
+		"awake/a cord still swinging a second after it was let go keeps swinging",
+		"fastest particle %.1f mm/tick in ticks 60-90, %.1f in 96-126" % [before_peak * 1000.0, after_peak * 1000.0])
+	await _drop_case()
+
 	# A pad's cord, plugged into a console standing on a table and left in a
 	# heap beside it. The socket is INSIDE the console's box, so the cord's first
 	# particles are inside a solid for good. The sleep poll wakes a cord that a

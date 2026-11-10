@@ -419,6 +419,7 @@ private:
     std::vector<godot::Vector3> m_c_p2;
     std::vector<godot::Vector3> m_c_n2;
     std::vector<uint8_t> m_stuck_passes;
+    std::vector<uint8_t> m_settle_touching;
 
     std::vector<int> m_active_mid;
     std::vector<int> m_active_contact;
