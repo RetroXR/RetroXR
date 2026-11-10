@@ -413,6 +413,13 @@ func _capture_room_state(root: Node) -> Array:
 	for node: Node in root.find_children("*", "TimeOfDay", true, false):
 		out.append({"path": str(root.get_path_to(node)), "kind": "time",
 			"value": float((node as TimeOfDay).time)})
+	# The room's own doors; one inside a spawned object rides with that object.
+	for node: Node in get_tree().get_nodes_in_group(VRDoor.GROUP):
+		var door := node as VRDoor
+		if door == null or not root.is_ancestor_of(door) or not door.is_room_door():
+			continue
+		out.append({"path": str(root.get_path_to(door)), "kind": "door",
+			"value": door.get_angle_deg(), "latched": door.is_latched()})
 	return out
 
 
@@ -444,6 +451,10 @@ func _apply_room_state(root: Node, records: Array) -> void:
 				var value := float(rec.get("value", NAN))
 				if node.has_method("net_set_time") and is_finite(value):
 					node.net_set_time(value)
+			"door":
+				var deg := float(rec.get("value", NAN))
+				if node.has_method("apply_state") and is_finite(deg):
+					node.apply_state(deg, bool(rec.get("latched", true)))
 
 
 @rpc("any_peer", "call_remote", "reliable", 0)
@@ -1028,6 +1039,7 @@ const EV_NODE_KEYS := {
 	NetEvents.Event.EV_PULL_LIGHT:      ["cord"],
 	NetEvents.Event.EV_BLINDS:          ["blinds"],
 	NetEvents.Event.EV_TIME_OF_DAY:     ["clock"],
+	NetEvents.Event.EV_DOOR:            ["door"],
 	NetEvents.Event.EV_SYS_VIDEO_OUT:   ["sys"],
 	NetEvents.Event.EV_SYS_GRAVITY:     ["sys"],
 	NetEvents.Event.EV_TV_SIZE:         ["tv"],
@@ -1245,6 +1257,10 @@ func _dispatch_event(kind: NetEvents.Event, args: Dictionary) -> void:
 		NetEvents.Event.EV_TIME_OF_DAY:
 			if args["clock"].has_method("net_set_time"):
 				args["clock"].net_set_time(float(args.get("time", 0.75)))
+		NetEvents.Event.EV_DOOR:
+			if args["door"].has_method("set_state_remote"):
+				args["door"].set_state_remote(float(args.get("deg", 0.0)),
+					bool(args.get("latched", true)))
 		NetEvents.Event.EV_SYS_VIDEO_OUT:
 			args["sys"].set_video_out_enabled(bool(args.get("on", true)))
 		NetEvents.Event.EV_SYS_GRAVITY:

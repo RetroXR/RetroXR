@@ -635,6 +635,7 @@ func load_slot_async(root: Node, slot_id: String) -> bool:
 	var spawned: Dictionary = await instantiate_objects_async(root, objects)
 	print("[ScenePersistence] loaded %d objects from '%s'" % [spawned.size(), path])
 	return true
+	_restore_doors(root, JsonStore.read_dict(path).get("doors", []))
 
 
 # ── The carry ─────────────────────────────────────────────────────────────────
@@ -889,6 +890,9 @@ func _snapshot(root: Node) -> Dictionary:
 	return out
 
 
+	var doors := _collect_doors(root)
+	if not doors.is_empty():
+		out["doors"] = doors
 ## Authored objects the player can move.
 ##
 ## The arcade's television is instanced by the room rather than spawned into it,
@@ -993,6 +997,40 @@ func _restore_switches(root: Node, switches: Variant) -> void:
 
 func _encode(snapshot: Dictionary) -> String:
 	return JSON.stringify(snapshot, "\t")
+
+## The room's own doors (VRDoor), keyed by node path as the switches are: how far
+## each stands open and whether its latch is in. A door inside a spawned object is
+## left out — its hinge and knob are in that object's own entry. Omitted for a room
+## with no doors, so those slots write the bytes they always did.
+func _collect_doors(root: Node) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for node: Node in _in_tree_order(root, VRDoor.GROUP):
+		var door := node as VRDoor
+		if door == null or not door.is_room_door():
+			continue
+		out.append({
+			"path": str(root.get_path_to(door)),
+			"deg": snappedf(door.get_angle_deg(), 0.01),
+			"latched": door.is_latched(),
+		})
+	return out
+
+
+## Absent from every slot written before doors were recorded, in which case each
+## door keeps the state its scene authored.
+func _restore_doors(root: Node, doors: Variant) -> void:
+	if not doors is Array:
+		return
+	for entry: Variant in doors as Array:
+		if not entry is Dictionary:
+			continue
+		var rec := entry as Dictionary
+		var door := root.get_node_or_null(NodePath(str(rec.get("path", "")))) as VRDoor
+		if door == null:
+			# A room whose door was renamed or removed since the save.
+			continue
+		door.apply_state(float(rec.get("deg", 0.0)), bool(rec.get("latched", true)))
+
 
 
 ## Through JsonStore's staged write, for the same reason _save_manifest is: this

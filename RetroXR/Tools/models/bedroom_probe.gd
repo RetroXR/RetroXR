@@ -61,6 +61,8 @@ const STILLS: Array = [
 	["bookcases", Vector3(-0.55, 1.05, -0.35), Vector3(-2.40, 0.35, -1.30), 55.0],
 	["wardrobe", Vector3(-1.40, 1.60, -0.60), Vector3(0.55, 1.20, 2.10), 66.0],
 	["switch", Vector3(-1.90, 1.45, 1.35), Vector3(-2.60, 1.20, 0.55), 55.0],
+	# The closet's VRDoor, from the bed side: hinge on the left, swinging toward you.
+	["closet", Vector3(-0.55, 1.50, 0.45), Vector3(-1.55, 1.00, 2.30), 62.0],
 ]
 
 # --- Flythrough ------------------------------------------------------------
@@ -162,6 +164,17 @@ func _run() -> void:
 		await get_tree().create_timer(0.3).timeout
 
 
+	# `--door=<deg>` stands every VRDoor in the room that far open (0 = shut and
+	# latched), through the same restore path a save takes.
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--door="):
+			var deg := float(arg.get_slice("=", 1))
+			for door in get_tree().get_nodes_in_group(VRDoor.GROUP):
+				(door as VRDoor).apply_state(deg, deg <= 0.0)
+				print("[probe] door %s -> %.1f deg (latched %s)" % [door.name,
+					(door as VRDoor).get_angle_deg(), (door as VRDoor).is_latched()])
+			await get_tree().create_timer(0.2).timeout
+
 	var globe := get_tree().root.find_child("FanGlobeLight", true, false) as OmniLight3D
 	if globe != null:
 		globe.light_energy = globe_energy
@@ -177,7 +190,31 @@ func _run() -> void:
 
 
 func _do_stills() -> void:
+	# `--stills=a,b` renders only those framings.
+	var only := PackedStringArray()
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--stills="):
+			only = arg.get_slice("=", 1).split(",")
+	# `--door-sweep=N`: the `closet` framing N times as its door turns 0 -> 95 deg,
+	# saved closet_000.png on, for an mp4 of the swing.
+	var sweep := 0
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--door-sweep="):
+			sweep = int(arg.get_slice("=", 1))
 	for shot in STILLS:
+		if not only.is_empty() and not only.has(shot[0]):
+			continue
+		if sweep > 1 and shot[0] == "closet":
+			_cam.fov = shot[3]
+			_cam.global_position = shot[1]
+			_cam.look_at(shot[2], Vector3.UP)
+			for k in sweep:
+				var deg := 95.0 * k / float(sweep - 1)
+				for door in get_tree().get_nodes_in_group(VRDoor.GROUP):
+					(door as VRDoor).apply_state(deg, k == 0)
+				await _save("%s/closet_%03d.png" % [out_dir, k])
+			print("[probe] door sweep: %d frames" % sweep)
+			continue
 		_cam.fov = shot[3]
 		_cam.global_position = shot[1]
 		_cam.look_at(shot[2], Vector3.UP)

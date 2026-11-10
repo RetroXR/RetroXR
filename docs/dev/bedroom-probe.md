@@ -31,6 +31,11 @@ furniture into the walls as blocky blue shadows. The baker also inherited the sa
 time-of-day lever, which a headset wall never follows, so it now pins the authored dusk
 (`-- --time=0..1` to choose another time).
 
+**The closet door** (`VRDoor`, `doors.md`): `--stills=closet` renders only that framing
+(`--stills=a,b` takes any list), `--door=<deg>` stands every VRDoor that far open first
+(0 = shut and latched, through the restore path a save takes), and `--door-sweep=N`
+saves `closet_000.png`… as the door turns 0 -> 95 deg, for an mp4 of the swing.
+
 **Overwriting a texture in place needs a reimport.** A game run keeps serving the
 cached `.ctex`, so two successive recolours of the bed's atlas appeared to do
 nothing at all. Run `--editor --quit` between the overwrite and the render.

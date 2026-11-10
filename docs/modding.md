@@ -699,6 +699,41 @@ rooted at `LightGun`. Persistence already records its scene path and falls back
 to the generic pad if your mod is gone; nothing extra is needed. What it plugs
 into is below.
 
+### Doors that open
+
+A room or a prop gets a door that opens with one node: a `Node3D` carrying
+`res://Scripts/Objects/room/vr_door.gd` (`VRDoor`), at the bottom middle of the doorway,
+its +Y up, X across the opening and Z through it. Set `hinge_side` (`POSITIVE_X` or
+`NEGATIVE_X`) and `swing` (`TOWARD_POSITIVE_Z` or `TOWARD_NEGATIVE_Z`), and give it its
+looks one of three ways:
+
+- **A door model that is one mesh**, as most are (the jamb, the leaf and the knob as
+  surfaces of it), as a child: name the leaf's and the knob's surfaces (or materials) in
+  `leaf_surfaces` and `knob_surfaces`. The game takes them out at run time and sizes the
+  door from the leaf. A name the mesh does not have is logged with the names it does.
+- **Children named `Leaf` and `Knob`**, placed with the door shut, sized by `width`,
+  `height` and `thickness`.
+- **Nothing**: a plain leaf and a brass knob from those same numbers.
+
+```
+[node name="CellarDoor" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, -3)
+script = ExtResource("vr_door")      ; res://Scripts/Objects/room/vr_door.gd
+hinge_side = 1                        ; NEGATIVE_X
+open_deg = 95.0
+leaf_surfaces = PackedStringArray("DoorLeaf")
+knob_surfaces = PackedStringArray("Brass")
+
+[node name="Model" parent="CellarDoor" instance=ExtResource("cellar_door_glb")]
+```
+
+It is latched until its knob is turned (with the wrist, either way), and the same pull
+then swings it. A press on the knob from the desktop or a laser opens or shuts it. It
+latches again when it is let go near shut. In a ROOM it is saved in the slot and shared
+in a session with nothing more to do. In a spawned PROP it is saved and shared as any
+hinge and knob in the prop are. Keep the node's name and path once players have
+saves: the save finds the door by its path. `docs/dev/doors.md` has the details.
+
 ### Buttons a fingertip presses
 
 Every button on a pad, handheld, VMU, Nunchuk or light gun can be pressed with a
