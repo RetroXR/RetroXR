@@ -8,7 +8,7 @@
 ##         [--look=x,y,z] [--from=x,y,z]
 ##
 ## --from / --look place the eye instead (world metres), for a room whose arrival
-## pose faces a wall. The shipped pictures: arcade, den and test from the arrival
+## pose faces a wall. The shipped pictures: arcade and test from the arrival
 ## pose; bedroom with --from=-1.55,1.6,1.6 --look=1.0,1.0,-1.6 (its arrival pose
 ## looks straight at the window wall from a metre away).
 extends Node

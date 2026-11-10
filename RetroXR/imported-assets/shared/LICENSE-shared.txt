@@ -2,8 +2,8 @@ Shared scene assets — attribution and licences.
 
 Assets here are used by MORE THAN ONE room, so they do not live under any one
 room's folder. Scenes/Objects/furniture/table.tscn is the first of them: the
-same table is spawned in the bedroom, the den and the arcade, and pointing it at
-imported-assets/bedroom/ would have made the other two rooms load bedroom
+same table is spawned in the bedroom and the arcade, and pointing it at
+imported-assets/bedroom/ would have made the other room load bedroom
 assets to draw a table.
 
   CC0 1.0 — https://creativecommons.org/publicdomain/zero/1.0/

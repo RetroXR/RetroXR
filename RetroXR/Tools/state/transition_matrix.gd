@@ -10,7 +10,7 @@
 ##   godot --path RetroXR --resolution 480x360 res://Tools/state/transition_matrix.tscn
 extends Node
 
-const ROOMS := ["arcade", "den", "bedroom", "test"]
+const ROOMS := ["arcade", "bedroom", "test"]
 
 ## With `-- --core`, every room gets a console powered on in it before we leave
 ## again, so each transition tears a running libretro core down rather than only
@@ -153,7 +153,7 @@ func _phase_adversarial() -> void:
 	var tree := get_tree()
 
 	await _mark("double change_scene in one frame")
-	SceneManager.change_scene("den")
+	SceneManager.change_scene("test")
 	SceneManager.change_scene("bedroom")
 	await _settle(10.0)
 	if SceneManager.current_scene_id != "bedroom":
@@ -163,9 +163,9 @@ func _phase_adversarial() -> void:
 	await _mark("change_scene interrupting a transition in flight")
 	SceneManager.change_scene("arcade")
 	await tree.create_timer(0.30).timeout
-	SceneManager.change_scene("den")
+	SceneManager.change_scene("test")
 	await _settle(12.0)
-	if SceneManager.current_scene_id != "den":
+	if SceneManager.current_scene_id != "test":
 		_fail("interrupted transition", "latest room request was not installed")
 	_check("interrupted transition")
 

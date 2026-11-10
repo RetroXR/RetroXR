@@ -191,7 +191,7 @@ alone) is the picture and writes the mechanism's frames.
 The spawn menu's **TV** is now `tv:retroxr_crt`: `tv.tscn` wearing the RetroXR-models
 `generic/crt-tv` set (380 x 330 x 400 mm, origin at the body centre). The old box is still
 **Classic TV** (`tv_model ""`), and every room that places a set keeps it, because the
-arcade and den were laid out round that box. The three `tv_mobile*.glb` and
+arcade was laid out round that box. The three `tv_mobile*.glb` and
 `tv_contract.json` live in `imported-assets/appliances/crt_tv/` (never edit a GLB; after a
 re-import, put the extracted textures back to VRAM Compressed and the GLBs back to
 `generate_lods=false`).

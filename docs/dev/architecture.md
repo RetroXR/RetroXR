@@ -105,7 +105,7 @@ claims them: flycast without nvmem died on its first write to a protected RAM pa
   output!` each frame, the app alive at 72 fps): the 2026-10-21 "freeze when passthrough
   was the last environment". `scene_tests boot/` walks every room's root.
 - **The room scenes at the `Scenes/` root are PascalCase on purpose** (`MainScene`,
-  `DenScene`, `BedroomScene`, `PassthroughScene`, `TestScene`, and `BootScene`), unlike
+  `BedroomScene`, `PassthroughScene`, `TestScene`, and `BootScene`), unlike
   every other `.tscn`. `RoomCatalog` names them by path and mods and probes load them by
   path (the mod repo's `menu_probe.gd` loads `MainScene.tscn`), so a rename is a break, not
   a tidy-up. New scenes are snake_case.

@@ -426,7 +426,7 @@ func _build_comfort_options(vbox: VBoxContainer) -> void:
 	vbox.add_child(HSeparator.new())
 
 	# Periodic auto-save, and how often. Only the two furnishable rooms keep slots,
-	# so this does nothing in the den or the bedroom — the same as the switch above,
+	# so this does nothing in the test hallway — the same as the switch above,
 	# and not worth a second explanation in the row.
 	# Its switch goes on last, once the interval row below it exists to dim.
 	var ap_row := _option_row(vbox, "Auto-save Periodically")

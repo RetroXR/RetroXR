@@ -70,7 +70,7 @@ func _enter_room() -> void:
 		queue_free()
 		return
 	scene.add_child(self)
-	# An appliance a room authors (the den's set) is furnished: plugged in behind
+	# An appliance a room authors is furnished: plugged in behind
 	# the furniture. Its cord starts put away; one spawned or restored (in
 	# "spawned" by now) starts shown, and a save says otherwise if it does.
 	if not host.is_in_group("spawned"):

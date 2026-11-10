@@ -4,7 +4,7 @@
 ## user://graphics_prefs.json.
 ##
 ## Each room authors its own Environment for its own look — the arcade's neon
-## haze is not the den's warm lamplight — so the settings here are layered onto
+## haze is not the bedroom's lamplight — so the settings here are layered onto
 ## whatever Environment the current scene brought, never swapped for one.
 extends Node
 

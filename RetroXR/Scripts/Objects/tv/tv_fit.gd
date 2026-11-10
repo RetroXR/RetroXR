@@ -51,8 +51,8 @@ static func seat(node: Node3D, at: Variant) -> void:
 
 
 ## Wear a cabinet variant. A no-op but for the headphone jack when tv_model is
-## empty — that is the acceptance test for this whole mechanism, since the arcade
-## and den TVs must look and behave exactly as they did before. The jack is the one
+## empty — that is the acceptance test for this whole mechanism, since the arcade's
+## TV must look and behave exactly as they did before. The jack is the one
 ## addition, on the stock body's front, clear of its keys (STOCK_PHONES_SEAT).
 ##
 ## Only nodes the shell actually names a seat for are moved; everything else keeps
@@ -135,7 +135,7 @@ func load_shell() -> void:
 ##
 ## BoxShape3D_body and BoxShape3D_pointer are plain sub_resources in tv.tscn, i.e.
 ## SHARED between every TV in the scene — writing a size straight onto them would
-## resize the den's TV too. Duplicate first. (Same trap the resource_local_to_scene
+## resize every other TV too. Duplicate first. (Same trap the resource_local_to_scene
 ## note on Mat_phosphor_a already documents for the phosphor materials.)
 func _resize_body_collision(size: Vector3) -> void:
 	var body_col := _tv.get_node_or_null("CollisionShape3D") as CollisionShape3D

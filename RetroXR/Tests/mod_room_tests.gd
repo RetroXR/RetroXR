@@ -15,7 +15,7 @@ const OWNER := "t.modroom"
 const SLOT_ROOM := "t.modroom:attic"
 const PLAIN_ROOM := "t.modroom:hall"
 ## Any scene that exists does; register_mod_room only checks the path loads.
-const SCENE := "res://Scenes/DenScene.tscn"
+const SCENE := "res://Scenes/TestScene.tscn"
 
 
 ## A lamp a GROUP gang drives: anything with set_lit().

@@ -427,19 +427,19 @@ func _group_rooms() -> void:
 	_eq(RoomCatalog.title_of("bedroom"), "90s BEDROOM", "rooms/bedroom loading title")
 	_eq(RoomCatalog.menu_title_of("bedroom"), "90s Bedroom", "rooms/bedroom menu title")
 	_ok(RoomCatalog.has_slots("arcade"), "rooms/arcade keeps slots")
-	_ok(not RoomCatalog.has_slots("den"), "rooms/den keeps none")
+	_ok(not RoomCatalog.has_slots("test"), "rooms/test keeps none")
 	_eq(RoomCatalog.slot_rooms(), ["arcade", "bedroom", "passthrough"], "rooms/slot rooms")
 	_ok(not RoomCatalog.has("nope"), "rooms/unknown room is absent")
 
 	var owner := "t.room"
 	_eq(RoomCatalog.register_mod_room("t.room:attic", {
-		"path": "res://Scenes/DenScene.tscn", "menu_title": "The Attic"}, owner), "", "rooms/registers")
+		"path": "res://Scenes/TestScene.tscn", "menu_title": "The Attic"}, owner), "", "rooms/registers")
 	_ok(RoomCatalog.has("t.room:attic"), "rooms/mod room exists")
 	_ok(RoomCatalog.is_mod_room("t.room:attic"), "rooms/marked as a mod room")
 	_eq(RoomCatalog.menu_title_of("t.room:attic"), "The Attic", "rooms/menu title kept")
 	_eq(RoomCatalog.title_of("t.room:attic"), "THE ATTIC", "rooms/loading title derived")
 	_ok(RoomCatalog.has_slots("t.room:attic"), "rooms/defaults to keeping slots")
-	_ok(not RoomCatalog.register_mod_room( "arcade", {"path": "res://Scenes/DenScene.tscn"}, owner).is_empty(),
+	_ok(not RoomCatalog.register_mod_room( "arcade", {"path": "res://Scenes/TestScene.tscn"}, owner).is_empty(),
 		"rooms/shipped id refused")
 	_ok(not RoomCatalog.register_mod_room( "t.room:void", {"path": "res://Scenes/Nope.tscn"}, owner).is_empty(),
 		"rooms/missing scene refused")
@@ -447,7 +447,7 @@ func _group_rooms() -> void:
 		"rooms/no path refused")
 	RoomCatalog.drop_mod(owner)
 	_ok(not RoomCatalog.has("t.room:attic"), "rooms/drop removes it")
-	_eq(RoomCatalog.ids().size(), 5, "rooms/shipped rooms survive a drop")
+	_eq(RoomCatalog.ids().size(), 4, "rooms/shipped rooms survive a drop")
 
 	# Pad art tracked no owner until the overlay tables were shared, so a mod's
 	# drawing could be registered and never taken back.

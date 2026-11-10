@@ -118,7 +118,7 @@ const AV_INPUT_NAMES := ["Composite 1", "Composite 2", "Composite 3", "Composite
 @export var crt_enabled: bool = true
 
 ## Which cabinet to wear. Empty = the original box body authored in tv.tscn, and
-## TvFit.load_shell() then only adds the headphone jack — the arcade and den TVs
+## TvFit.load_shell() then only adds the headphone jack — the arcade's TV
 ## must otherwise render bit-identically to before this system existed.
 @export var tv_model: String = ""
 
