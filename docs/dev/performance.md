@@ -445,9 +445,13 @@ Left, measured, not done:
   `Tools/perf/texture_census.py` over a `--verbose` log; the textures made at run time are ~254 MiB
   (`restore_perf_probe --runtime-textures`), 175 of it the five books' pages, RGBA8 on desktop BY DESIGN (books.md:
   a Quest's pages are ETC2, and stock templates have no BC encoder); viewports ~60 MiB; labels ~16 MiB; the rest is
-  the renderer's own (shadows, MSAA, reflections). Asset waste seen: `xenu.panasonic`'s LOD1 and LOD2 carry their
-  own full 2048^2 decal maps (~21 MiB that LODs should save), and `Textures/Media/rxr_disc_label.svg` imports
-  Lossless (7.3 MiB; a texture only, so VRAM Compressed would do).
+  the renderer's own (shadows, MSAA, reflections). Asset waste, FIXED 2026-11-11: `xenu.panasonic`'s LOD1 and
+  LOD2 embedded the same images as LOD0 byte for byte, and Godot extracts a GLB's images per GLB, so the set
+  loaded every map three times. 1.0.7 is built with RetroXR-models `build_mod.py`'s `share_images` (assets.json),
+  which takes the staged GLBs' images out into files they all refer to: desktop textures in the pack 17 -> 7
+  (34.6 -> 11.5 MB), the pack 6.8 -> 3.3 MB, every LOD rendered with the one decal texture. Any mod whose LODs
+  repeat their images can list them the same way. `Textures/Media/rxr_disc_label.svg` (a texture only) imports
+  VRAM Compressed, high quality: 1200^2 BC7 with mipmaps instead of 7.3 MiB lossless.
 - What the uploads cost: the first frame after a synchronous restore is 3.3-3.6 s cold against 1.3-1.4 s with
   every texture already on the GPU (`--twice`, `SECOND first 10 frames`), so ~2 s is uploads and first draws. The
   async restore spreads that over its frames; what its 19.7 s is made of is ~150 frames of a settling room at
