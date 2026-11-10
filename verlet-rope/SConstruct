@@ -8,7 +8,8 @@
 # ever in the same .dll because that was the .dll that existed. Now it is its own
 # extension, built like vlc-godot / godot-pdfium / metaxr-audio: its own SCons
 # invocation (two extensions cannot share one, since godot-cpp's SConstruct runs
-# once per process), reusing the godot-cpp checked out under libretro-godot.
+# once per process), on upstream godot-cpp master (the godot-cpp-master
+# submodule, bound to the 4.7 API); the others reuse libretro-godot's 4.5 branch.
 #
 #   scons platform=windows arch=x86_64 target=template_debug
 #   scons platform=linux   arch=x86_64 target=template_release

@@ -53,7 +53,7 @@ void VerletRope::BuildTrigTables()
     m_sin_table.resize(m_tube_sides);
     for (int j = 0; j < m_tube_sides; ++j)
     {
-        const double angle = Math_TAU * static_cast<double>(j) / static_cast<double>(m_tube_sides);
+        const double angle = Math::TAU * static_cast<double>(j) / static_cast<double>(m_tube_sides);
         m_cos_table[j] = static_cast<float>(std::cos(angle));
         m_sin_table[j] = static_cast<float>(std::sin(angle));
     }
@@ -378,8 +378,8 @@ void VerletRope::RenderCord(int p_cord)
             // Identical wires side by side look the same turned half a turn, so
             // take whichever way round is the smaller twist. With cords of
             // different colours the order is real and the exact roll is kept.
-            if (CordsShareColour() && std::abs(roll) > Math_PI * 0.5)
-                roll -= roll > 0.0 ? Math_PI : -Math_PI;
+            if (CordsShareColour() && std::abs(roll) > Math::PI * 0.5)
+                roll -= roll > 0.0 ? Math::PI : -Math::PI;
             double total = 0.0;
             for (int i = 1; i < count; ++i)
                 total += m_ring_points[i].distance_to(m_ring_points[i - 1]);
