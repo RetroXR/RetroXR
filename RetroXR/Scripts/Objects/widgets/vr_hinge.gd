@@ -163,7 +163,7 @@ func _ready() -> void:
 	# Removed during that frame (a preview thrown away, a room change): get_tree() is null now.
 	if not is_inside_tree():
 		return
-	for node in get_tree().root.find_children("*", "XRController3D", true, false):
+	for node in XrControllers.all(get_tree()):
 		_controllers.append(node as XRController3D)
 
 

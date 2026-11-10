@@ -182,7 +182,7 @@ func _deferred_setup() -> void:
 		_build_hud_toasts()
 
 	# Find left and right XRController3D in a single pass
-	for node: Node in get_tree().root.find_children("*", "XRController3D", true, false):
+	for node: Node in XrControllers.all(get_tree()):
 		var ctrl := node as XRController3D
 		if ctrl.tracker == &"left_hand":
 			_left_ctrl = ctrl
@@ -1789,7 +1789,7 @@ func _on_controller_hands_changed(_enabled: bool) -> void:
 	# ControllerModel.draw_hands is AppPrefs.controller_hands' own (its setter).
 	# Only the device hand follows this switch — the controller art fades on any
 	# grab either way, so forcing it visible here would pop it back mid-hold.
-	for ctrl in get_tree().root.find_children("*", "XRController3D", true, false):
+	for ctrl in XrControllers.all(get_tree()):
 		if ctrl is ControllerModel:
 			ctrl.refresh_device_hand()
 

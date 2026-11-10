@@ -79,7 +79,7 @@ func _ready() -> void:
 	add_child(_plate)
 	_refresh()
 	await get_tree().process_frame
-	for node in get_tree().root.find_children("*", "XRController3D", true, false):
+	for node in XrControllers.all(get_tree()):
 		_controllers.append(node as XRController3D)
 
 

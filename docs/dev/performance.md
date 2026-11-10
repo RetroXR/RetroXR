@@ -390,3 +390,62 @@ alternated, two runs each:
 - `QualityManager` logs which thread draws (`rendering on a separate render thread` / `the main thread`),
   read from `RenderingServer.is_on_render_thread()`: ProjectSettings does not report the override.
 - The Quest (Mobile renderer under OpenXR) and Linux/macOS are untouched; try them separately.
+
+## Restoring a room (2026-11-10)
+
+`Tools/perf/restore_perf_probe` replays a slot READ-ONLY, windowed (headless loads no shell threaded and draws
+nothing, so it measures a different restore): each entry timed by type (its asset wait and its spawn), the
+connection pass, then 120 frames. `--noprefetch` is the control for the prefetch, `--boot` starts the shell warm
+alongside, `--twice` restores again once everything is cached (what is left is node building), `--roomload=` times
+the room scene alone. **Copy the slot first and point `--file=` at the copy**; never run the real app against the
+player's `user://` while another instance is up (its autosave writes the same slot). Run under the Tracy editor
+build (recipe above) to see where a frame went: `tracy-csvexport -u`, then self time inside the long
+`Main::iteration`s, stack-nested by interval.
+
+Starlight Arcade autosave, 151 objects, desktop, stock 4.7.2, separate render thread. Runs vary by a few
+seconds with other Godot instances on the machine:
+
+| | before | after |
+|---|---:|---:|
+| pass 1 (spawn every object) | 15.1 s (6.8 spawn + 8.3 waiting on models) | 4.8-7.6 s (asset wait 5-700 ms) |
+| first frame after | 0.67 s (the waits had drawn frames all along) | 1.3-1.6 s |
+| restore to settled (pass 1 + connections + 120 frames) | 18.7 s | 8.2-10.9 s |
+| everything cached (`--twice`) | 3.2 s | 2.1 s |
+
+What it was, and what changed:
+- **Models were loaded one entry at a time.** `_acquire_entry_assets` requested an entry's GLBs only when the loop
+  reached it, so the loader threads idled between entries. `ScenePersistence.prefetch_assets` requests every
+  entry's models up front, in restore order, and the loop's awaits find them done (`ModelWarmer.prefetch`). A
+  system's model SCENE is in the list too (`SystemModelRegistry.packed_scene` load()ed 13 of them on the main
+  thread, 1.06 s). A model row's `requires` names EVERY regional GLB (a Genesis waits for eight); with the
+  prefetch they load side by side rather than in series.
+- **Threaded loads are low-priority pool tasks**: `low_priority_thread_ratio` 0.3 of the pool, so ~6 loader threads
+  on a 20-thread desktop and ONE on the Quest (`max_threads.android=4`, which is deliberate: the app is confined to
+  three cores, commits `341ced9d` / `d33e46a8`). That is why the boot's shell warm now waits:
+  `SceneManager._after_boot_room` holds `request_shells` + `warm_shells` until the boot room's content is ready
+  (120 s cap). Started at once, it queued its 13 GLBs ahead of the restore's (FIFO) and built and drew each shell on
+  the main thread under the curtain: 10-13 s and +1.4 GiB of texture beside this restore. Only a process that
+  booted through `BootScene` waits; probes and suites warm as before.
+- **Every pickable traced its outline at `_ready`**: `PickableHighlight` 1,372 smoothed-normal copies, each
+  `surface_get_arrays` a round trip to a render thread busy uploading the room's textures (4.6 s under Tracy, the
+  largest single cost). Overlays are now built with no mesh and traced the first time they SHOW (cached per mesh
+  as before); `WidgetOutline.set_source` likewise traces on the first `sync(true)`. The first hover of a model not
+  outlined before pays its trace then (a few ms; a big console's many meshes, more).
+- **Every control walked the whole tree for the controllers**: `find_children("*", "XRController3D")` in each
+  VRButton/VRKnob/VRSlider/VRHinge/PageGrab/pad `_ready`, 2.5 s for 230 buttons. `XrControllers.all(tree)` answers
+  the same list and walks again only when a controller enters or leaves the tree.
+- **`ModHooks` tested every added node against every watcher** (1.39 M `_matches` for 13,605 nodes, ~1.7 s).
+  `_classes_of` works the answer out once per native class and per script; watcher changes drop the caches.
+- `restore_speed_tests` holds each of these to the answers the slow way gave.
+
+Left, measured, not done:
+- Texture memory: +536 MiB in the first frame after, +1.2 GiB by frame 120; the render thread's uploads are most
+  of what is left of that frame. Asset work (sizes, VRAM compression of mod packs' textures), not loading code.
+- The first physics step with 151 new bodies (~430 ms under Tracy) and five books opening their PDFs in `_ready`
+  (~220 ms with `pdf_cache` warm, 1.3 s cold).
+- Spread across pass 1, none over ~350 ms: port covers' `create_convex_shape` (`cover_slots.gd`), model
+  instantiation, mod object scene `load()`s, the core info database's one-time lazy load (399 `.info` files,
+  `CoreInfoDatabase.load_from_project`, ~135 ms, paid by whichever object first asks), a mod's `_wear`.
+- The room scene itself: 0.8-1.1 s by `load()` (BootScene) on desktop; `use_sub_threads` made no consistent
+  difference.
+- The Quest is not measured: the boot-warm wait should matter more there (one loader thread), and is OWED on device.

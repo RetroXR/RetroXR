@@ -352,7 +352,7 @@ func _ray_holder() -> XRController3D:
 
 
 func _find_vr_nodes() -> void:
-	for node: Node in get_tree().root.find_children("*", "XRController3D", true, false):
+	for node: Node in XrControllers.all(get_tree()):
 		var ctrl := node as XRController3D
 		if ctrl == null:
 			continue

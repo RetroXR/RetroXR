@@ -470,7 +470,7 @@ func _ready() -> void:
 	# Removed during that frame (a preview thrown away, a room change): get_tree() is null now.
 	if not is_inside_tree():
 		return
-	for node: Node in get_tree().root.find_children("*", "XRController3D", true, false):
+	for node: Node in XrControllers.all(get_tree()):
 		_controllers.append(node as XRController3D)
 	if not pdf_path.is_empty():
 		load_pdf(pdf_path)

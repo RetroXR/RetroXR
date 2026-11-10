@@ -44,7 +44,7 @@ static func find_rig(tree: SceneTree) -> Dictionary:
 		"left": null,
 		"right": null,
 	}
-	for node: Node in tree.root.find_children("*", "XRController3D", true, false):
+	for node: Node in XrControllers.all(tree):
 		var ctrl := node as XRController3D
 		if ctrl == null:
 			continue

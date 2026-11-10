@@ -1459,11 +1459,10 @@ func instantiate_objects_async(root: Node, objects: Array) -> Dictionary:
 	var total := objects.size()
 	var done := 0
 	restore_progress.emit(0, total)
+	prefetch_assets(objects)
 	for entry: Variant in objects:
-		# A saved bespoke console names a GLB that may still be warming at boot.
-		# Spawning it now would load() that GLB synchronously inside _ready —
-		# measured 6.9 s of frozen frame for the NES on a Quest 3. Await it into
-		# the cache instead; once warm this never suspends.
+		# Await this entry's models into the cache (prefetch_assets started them all);
+		# spawning first would load() them synchronously inside _ready.
 		await _acquire_entry_assets(entry)
 		if not _still_ours(root, generation):
 			_let_go(held)
@@ -1487,17 +1486,54 @@ func instantiate_objects_async(root: Node, objects: Array) -> Dictionary:
 	return spawned
 
 
-## No-op for everything but a system entry whose model carries external assets.
+## Await every model asset an entry's spawn would otherwise load() synchronously.
+## Once warm (or prefetched and finished) this never suspends.
 func _acquire_entry_assets(entry: Variant) -> void:
+	for path: String in _entry_asset_paths(entry):
+		await ModelWarmer.acquire(path)
+
+
+## Start every model asset a restore will need loading at ONCE, before the first
+## object spawns. The loop below acquires them one entry at a time, and a request
+## made only when an entry is reached left the loader threads idle while the main
+## thread waited: 9.1 s of a 15.8 s restore of a 151-object room (desktop,
+## Tools/perf/restore_perf_probe) was that wait, one GLB after another. Requested
+## together they load side by side and in restore order, so the first entries'
+## models are the first to finish. Returns how many paths it asked for.
+func prefetch_assets(objects: Array) -> int:
+	var wanted: Array = []
+	for entry: Variant in objects:
+		for path: String in _entry_asset_paths(entry):
+			if not wanted.has(path):
+				wanted.append(path)
+	var started := ModelWarmer.prefetch(wanted)
+	print("[ScenePersistence] prefetch: %d model assets for %d objects (%d newly requested)"
+		% [wanted.size(), objects.size(), started])
+	return wanted.size()
+
+
+## The external model assets an entry's spawn loads: a system's model row's
+## `requires`, a cartridge's body and its rear sticker. Empty for everything else.
+func _entry_asset_paths(entry: Variant) -> Array:
+	var out: Array = []
 	if not entry is Dictionary:
-		return
+		return out
 	var rec := entry as Dictionary
 	match str(rec.get("type", "")):
 		"system":
+			# A saved bespoke console names a GLB that may still be warming at boot.
+			# Spawning it before it lands would load() it synchronously inside _ready
+			# (6.9 s of frozen frame for the NES on a Quest 3).
 			var row := SystemModelRegistry.resolve(str(rec.get("model_id", "")),
 				SystemIds.canonical(str(rec.get("systemid", ""))))
 			for path: String in row.get("requires", []):
-				await ModelWarmer.acquire(path)
+				out.append(path)
+			# And the model's own scene, which SystemModelRegistry.packed_scene would
+			# otherwise load() on the main thread: 13 of them were 1.06 s of a
+			# 151-object restore. Held, it is a cache hit there.
+			var scene_path := str(row.get("scene", ""))
+			if not scene_path.is_empty() and ResourceLoader.exists(scene_path):
+				out.append(scene_path)
 		"cartridge":
 			# Same story, a cartridge body: the fields as _apply_media_fields reads them.
 			var cart_systemid := SystemIds.canonical(str(rec.get("cart_systemid", "")))
@@ -1506,11 +1542,12 @@ func _acquire_entry_assets(entry: Variant) -> void:
 			var body := RetroCartridge.body_model_for(cart_systemid, cart_rom,
 				str(rec.get("body_region", "")), StringName(str(rec.get("shell_preset", ""))), pin)
 			if not body.is_empty() and ResourceLoader.exists(body):
-				await ModelWarmer.acquire(body)
+				out.append(body)
 			# And the PAL rear sticker a Super Famicom-shaped cartridge wears.
 			var sticker := SnesCartShell.rear_sticker_file(body, cart_systemid, cart_rom, pin)
 			if not sticker.is_empty():
-				await ModelWarmer.acquire(sticker)
+				out.append(sticker)
+	return out
 
 
 func _spawn_entry(root: Node, entry: Variant, spawned: Dictionary, entries: Dictionary,

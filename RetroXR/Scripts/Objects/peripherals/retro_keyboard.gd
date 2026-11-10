@@ -181,7 +181,7 @@ func _ready() -> void:
 
 
 func _find_controllers() -> void:
-	for node: Node in get_tree().root.find_children("*", "XRController3D", true, false):
+	for node: Node in XrControllers.all(get_tree()):
 		_controllers.append(node)
 
 

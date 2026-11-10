@@ -622,7 +622,7 @@ func cell_for_key(key_name: String) -> String:
 func _find_vr_nodes() -> void:
 	_locomotion_manager = SceneServices.locomotion(self) as LocomotionManager
 	_spawn_menu_ctrl = SceneServices.spawn_menu(self)
-	for node: Node in get_tree().root.find_children("*", "XRController3D", true, false):
+	for node: Node in XrControllers.all(get_tree()):
 		var ctrl := node as XRController3D
 		if ctrl == null:
 			continue

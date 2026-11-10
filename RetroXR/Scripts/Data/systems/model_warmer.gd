@@ -105,6 +105,20 @@ static func _request(path: String) -> void:
 		push_warning("[ModelWarmer] threaded request refused: " + path)
 
 
+## Start every path loading in the background at once (each skipped as _request
+## skips it: held, in flight, cached, or headless), so a caller that then
+## acquire()s them one by one waits for the slowest rather than the sum. Returns
+## how many requests it started.
+static func prefetch(paths: Array) -> int:
+	var started := 0
+	for path: String in paths:
+		var was := _pending.has(path)
+		_request(path)
+		if not was and _pending.has(path):
+			started += 1
+	return started
+
+
 ## Start every shell GLB loading in the background. Called first thing at boot,
 ## BEFORE the stand-in warm: these loads are what a spawn or a slot restore has
 ## to wait for, and starting them costs the main thread nothing.

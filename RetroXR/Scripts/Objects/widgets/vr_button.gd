@@ -140,7 +140,7 @@ func _ready() -> void:
 	if not is_inside_tree():
 		return
 	# Find all XRController3D nodes in the scene by type
-	var all := get_tree().root.find_children("*", "XRController3D", true, false)
+	var all := XrControllers.all(get_tree())
 	for node in all:
 		_controllers.append(node as XRController3D)
 

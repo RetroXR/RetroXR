@@ -464,7 +464,7 @@ func _update_platter(delta: float) -> void:
 # GDScript, so it is C++ work in vlc-godot whenever it happens.
 
 func _cache_controllers() -> void:
-	for node in get_tree().root.find_children("*", "XRController3D", true, false):
+	for node in XrControllers.all(get_tree()):
 		_controllers.append(node as XRController3D)
 
 

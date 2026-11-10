@@ -129,9 +129,15 @@ func _init() -> void:
 
 
 ## Point the overlay at the mesh it should trace. Safe to call repeatedly.
+##
+## The trace itself waits for the first sync(true): built here, every button,
+## knob and slider of every object traced its outline as the object was made,
+## 454 of them in one 151-object room restore (583 ms), almost none of which
+## is ever hovered.
 func set_source(src: MeshInstance3D) -> void:
 	_source = src
-	_rebuild()
+	mesh = null
+	_built_from = null
 
 
 ## The source mesh was rebuilt in place (same resource, new geometry). The copy
@@ -170,8 +176,9 @@ func sync(shown: bool) -> void:
 	if not is_instance_valid(_source):
 		visible = false
 		return
-	# Pick up a runtime mesh swap on the source itself.
-	if _source.mesh != _built_from or (_stale and shown):
+	# Pick up a runtime mesh swap on the source itself, or trace it for the first
+	# time (set_source) -- only when it is to be seen.
+	if shown and (_source.mesh != _built_from or _stale):
 		_stale = false
 		_rebuild()
 	if not shown or mesh == null \

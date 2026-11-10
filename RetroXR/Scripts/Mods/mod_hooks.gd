@@ -16,6 +16,17 @@ var _connected := false
 var _tree: SceneTree = null
 ## "<cls>/<key>" -> the mod that dresses it. See claim_dress.
 var _dressers: Dictionary = {}
+## Every class some watcher names: {cls: true}.
+var _watched: Dictionary = {}
+## What _matches would say, worked out once rather than per node per watcher:
+## native class -> {watched cls it is_class()es}, and Script -> {"names": {watched
+## global names on its chain}, "connector": whether its nodes have one}. A room
+## restore adds ~13,600 nodes against ~100 watchers, and asking _matches for each
+## pair was 1.39 M calls, ~1.7 s of the restore before any hook did any work
+## (Tracy, Tools/perf/restore_perf_probe, 2026-11-10). Dropped whenever the
+## watcher set changes.
+var _native_hits: Dictionary = {}
+var _script_hits: Dictionary = {}
 
 
 func _init(tree: SceneTree) -> void:
@@ -28,14 +39,18 @@ func _init(tree: SceneTree) -> void:
 ## script class registered globally -- "RetroSystem", "RetroTV", "Node3D".
 func watch_nodes(owner_id: String, cls: StringName, cb: Callable) -> void:
 	_node_watchers.append({"owner": owner_id, "cls": cls, "cb": cb})
+	_rewatch()
 	if not _connected and _tree != null:
 		_tree.node_added.connect(_on_node_added)
 		_connected = true
 
 
 func _on_node_added(node: Node) -> void:
+	var hits := _classes_of(node)
+	if hits.is_empty():
+		return
 	for w: Dictionary in _node_watchers:
-		if not _matches(node, w["cls"]):
+		if not hits.has(w["cls"]):
 			continue
 		var cb: Callable = w["cb"]
 		if not cb.is_valid():
@@ -43,6 +58,56 @@ func _on_node_added(node: Node) -> void:
 		# A mod that throws must not take the whole tree down with it, and the
 		# blame has to name the mod rather than this file.
 		cb.call(node)
+
+
+## The watched classes `node` answers to: for every watched cls, _matches(node, cls)
+## -- from the caches, so the engine and script checks run once per native class
+## and per script, and only a node whose script has a connector reads it.
+func _classes_of(node: Node) -> Dictionary:
+	var native := node.get_class()
+	var by_native: Variant = _native_hits.get(native)
+	if by_native == null:
+		var found: Dictionary = {}
+		for cls: StringName in _watched:
+			if node.is_class(cls):
+				found[cls] = true
+		_native_hits[native] = found
+		by_native = found
+	var script: Script = node.get_script() as Script
+	if script == null:
+		return by_native
+	var by_script: Variant = _script_hits.get(script)
+	if by_script == null:
+		var names: Dictionary = {}
+		var s: Script = script
+		while s != null:
+			var name := s.get_global_name()
+			if _watched.has(name):
+				names[name] = true
+			s = s.get_base_script()
+		by_script = {"names": names, "connector": "connector" in node}
+		_script_hits[script] = by_script
+	var names_hit: Dictionary = by_script["names"]
+	var connector: StringName = &""
+	if by_script["connector"]:
+		connector = StringName(str(node.get("connector")))
+		if not _watched.has(connector):
+			connector = &""
+	if names_hit.is_empty() and connector == &"":
+		return by_native
+	var out: Dictionary = (by_native as Dictionary).duplicate()
+	out.merge(names_hit)
+	if connector != &"":
+		out[connector] = true
+	return out
+
+
+func _rewatch() -> void:
+	_watched.clear()
+	for w: Dictionary in _node_watchers:
+		_watched[StringName(w["cls"])] = true
+	_native_hits.clear()
+	_script_hits.clear()
 
 
 ## is_class() only knows engine classes. A script class is matched by walking the
@@ -93,3 +158,4 @@ func drop_owner(owner_id: String) -> void:
 		if w["owner"] != owner_id:
 			kept.append(w)
 	_node_watchers = kept
+	_rewatch()

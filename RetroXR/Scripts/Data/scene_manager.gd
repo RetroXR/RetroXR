@@ -734,6 +734,10 @@ func _seat_player_rig(incoming: Node, player: PlayerRig, keep_place := false) ->
 		incoming.move_child(player, index)
 
 
+## How long the shell warm waits for the boot room's restore before it starts anyway.
+const BOOT_WARM_WAIT_MSEC := 120000
+
+
 ## Start the bespoke shells' GLBs loading, off the main thread, so a spawn or a
 ## slot restore finds them (ModelWarmer.acquire) instead of a synchronous load()
 ## that blocked a Quest 3 for 6.9 s for the NES shell. Deferred past the first
@@ -750,11 +754,37 @@ func _seat_player_rig(incoming: Node, player: PlayerRig, keep_place := false) ->
 func _warm_models() -> void:
 	for i in 4:
 		await get_tree().process_frame
-	ModelWarmer.request_shells()
 	ModelWarmer.skip_stand_ins()
 	# Nothing on screen is waiting on the shells: they only make FUTURE spawns
 	# cheap, so the curtain does not wait for them. A restore that needs one
 	# acquires it itself.
 	if has_node("/root/LoadingOverlay"):
 		LoadingOverlay.end(&"boot_warm")
+	await _after_boot_room()
+	ModelWarmer.request_shells()
 	await ModelWarmer.warm_shells(self)
+
+
+## Hold the shell warm until the room this process booted into has its objects.
+## Started at once, the warm competed with that room's own restore for the loader
+## threads (FIFO: the restore's models queued behind every shell, and a Quest has
+## ONE loader thread -- worker_pool/max_threads.android 4 x the low-priority ratio
+## 0.3) and for the main thread (each shell is built and drawn once), all under the
+## curtain the player is waiting on: 10-13 s and +1.4 GiB of texture for six shells
+## beside a 151-object restore (Tools/perf/restore_perf_probe --boot, 2026-11-10).
+## The restore requests the models it needs itself (prefetch_assets). Only a real
+## boot waits: a probe or a suite on the command line never gets content-ready.
+func _after_boot_room() -> void:
+	var scene := get_tree().current_scene
+	var booting := scene is BootScene or (scene != null and RoomCatalog.has(current_scene_id)
+		and scene.scene_file_path == RoomCatalog.path_of(current_scene_id))
+	if not booting:
+		return
+	var t0 := Time.get_ticks_msec()
+	while not is_scene_content_ready(current_scene_id):
+		if Time.get_ticks_msec() - t0 > BOOT_WARM_WAIT_MSEC:
+			print("[SceneManager] shell warm: room '%s' not ready after %d s, warming anyway"
+				% [current_scene_id, BOOT_WARM_WAIT_MSEC / 1000])
+			return
+		await get_tree().process_frame
+	print("[SceneManager] shell warm starts after the room's restore (%d ms)" % (Time.get_ticks_msec() - t0))

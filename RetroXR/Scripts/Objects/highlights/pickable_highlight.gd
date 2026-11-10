@@ -22,7 +22,8 @@
 ## correctly: all masks stamp the union footprint before any outline draws.
 ##
 ## Overlays use a smoothed-normal copy of each source mesh (cached per mesh) so
-## hard edges don't tear the inflated hull open at corners.
+## hard edges don't tear the inflated hull open at corners. The copy is traced
+## the first time an overlay is shown, not when the object is built.
 class_name PickableHighlight
 extends Node3D
 
@@ -165,7 +166,14 @@ func _collect_overlays(node: Node) -> void:
 		if child is MeshInstance3D and not child.is_in_group("outline_exclude"):
 			var src := child as MeshInstance3D
 			var overlay := MeshInstance3D.new()
-			overlay.mesh = _get_outline_mesh(src.mesh)
+			# No mesh yet: the smoothed copy is traced the first time this overlay
+			# SHOWS (_set_overlays_visible, _process). Traced here, every pickable's
+			# copies were built in its _ready, and a restore paid for all of them at
+			# once: 1,372 traces in a 151-object room, each surface_get_arrays a
+			# round trip to a render thread busy uploading that room's textures --
+			# the largest single cost of the restore (Tools/perf/restore_perf_probe,
+			# 2026-11-10). Most objects in a room are never outlined at all.
+			overlay.mesh = null
 			overlay.transform = parent_inv * src.global_transform
 			overlay.material_override = _mask_material
 			overlay.visible = false
@@ -337,6 +345,11 @@ func _set_overlays_visible(shown: bool) -> void:
 		if shown and i < _overlay_sources.size() and is_instance_valid(_overlay_sources[i]):
 			var src := _overlay_sources[i]
 			var was_hidden := not overlay.visible
+			# First show: trace it now (see _collect_overlays). Cached per mesh, so
+			# a second object of the same model pays nothing.
+			var outline_mesh := _get_outline_mesh(src.mesh)
+			if overlay.mesh != outline_mesh:
+				overlay.mesh = outline_mesh
 			overlay.transform = parent_inv * src.global_transform
 			if was_hidden:
 				# _process is off while hidden, so this offset has been frozen since
