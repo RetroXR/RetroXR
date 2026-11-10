@@ -17,6 +17,8 @@
 ##                    debug_disable: 1 edge contacts, 2 strand friction,
 ##                    4 the rays that confirm a cached plane)
 ##   ... -- --substeps=N the solver's substeps
+##   ... -- --rest    nothing moved, nothing woken, 20 s: does it sleep and STAY
+##                    asleep? Counts the wakes after its first sleep.
 ##   ... -- --still   no anchor motion: wake() every tick instead (held awake)
 ##   ... -- --sharp   the boxes' collision margin set to 0. Jolt ROUNDS a box's
 ##                    edges by its margin (up to 4 cm, 8% of its thinnest side)
@@ -68,6 +70,7 @@ var _trace := false
 var _min_y := -1.0
 var _mu_s := -1.0
 var _watch := -1
+var _rest := false
 var _seeds := 1
 var _disable := 0
 var _substeps := 0
@@ -108,6 +111,8 @@ func _ready() -> void:
 			_wave = float(arg.trim_prefix("--wave="))
 		elif arg.begins_with("--substeps="):
 			_substeps = int(arg.trim_prefix("--substeps="))
+		elif arg == "--rest":
+			_rest = true
 		elif arg == "--trace":
 			_trace = true
 		elif arg == "--sharp":
@@ -150,6 +155,9 @@ func _ready() -> void:
 			_stage_camera()
 		_a0 = _a.position
 		_b0 = _b.position
+		if _rest:
+			await _measure_rest()
+			continue
 		runs.append(await _measure())
 	if _seeds > 1:
 		var line := "[jitter] SUMMARY case=%s seeds=%d disable=%d substeps=%d:" % [
@@ -445,6 +453,39 @@ func _measure() -> Dictionary:
 		longest / _rope.segment_length, float(spent) / float(MEASURE)])
 	return {"chatter": chatter, "chatter_mm": chatter_worst * 1000.0, "kicks": kicks, "max": worst * 1000.0, "p95": per_tick[int(float(n) * 0.95)] * 1000.0,
 		"rough": rough / maxf(float(rough_n), 1.0) * 1000.0, "us": float(spent) / float(MEASURE)}
+
+
+## Nothing is moved and nothing is woken: does the cord go to sleep and STAY
+## asleep? A sleeping cord is polled for a change in what it rests on, and a
+## poll that is wrong wakes it, it jolts, settles and sleeps again, about once a
+## second for ever.
+func _measure_rest() -> void:
+	var prev: PackedVector3Array = _rope.get_points()
+	var first := -1
+	var wakes := 0
+	var worst := 0.0
+	var asleep := false
+	var awake_ticks := 0
+	for t in 1800:
+		if t % 4 == 0:
+			await get_tree().physics_frame
+		_rope.step(DT)
+		var now: PackedVector3Array = _rope.get_points()
+		var sleeping: bool = _rope.is_sleeping()
+		if sleeping and first < 0:
+			first = t
+		if first >= 0:
+			if asleep and not sleeping:
+				wakes += 1
+				print("[jitter] woke at tick %d" % t)
+			if not sleeping:
+				awake_ticks += 1
+			for i in now.size():
+				worst = maxf(worst, now[i].distance_to(prev[i]))
+		asleep = sleeping
+		prev = now
+	print("[jitter] REST case=%s: first asleep at tick %d, then %d wakes in %d ticks, awake for %d of them, worst single-tick move %.3f mm" % [
+		_case, first, wakes, 1800 - maxi(first, 0), awake_ticks, worst * 1000.0])
 
 
 func _n(v: Vector3) -> String:

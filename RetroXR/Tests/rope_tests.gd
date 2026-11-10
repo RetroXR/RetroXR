@@ -1879,6 +1879,37 @@ func _chatter(ticks: int, drive: Callable, min_y := -1e9) -> Dictionary:
 	return {"ticks": count, "worst": worst}
 
 
+## Step `ticks` times touching nothing, and count the times the cord wakes
+## after it first sleeps. Returns {first, wakes, worst}: the tick it first
+## slept (-1 for never), the wakes after that, the largest single-tick move
+## after it.
+func _rest_wakes(ticks: int) -> Dictionary:
+	var prev: PackedVector3Array = _rope.get_points()
+	var first := -1
+	var wakes := 0
+	var worst := 0.0
+	var asleep := false
+	var done := 0
+	while done < ticks:
+		await get_tree().physics_frame
+		var n: int = mini(BATCH, ticks - done)
+		for k in n:
+			_rope.step(1.0 / 90.0)
+			var sleeping: bool = _rope.is_sleeping()
+			if sleeping and first < 0:
+				first = done + k
+			var now: PackedVector3Array = _rope.get_points()
+			if first >= 0 and first != done + k:
+				if asleep and not sleeping:
+					wakes += 1
+				for i in now.size():
+					worst = maxf(worst, now[i].distance_to(prev[i]))
+			prev = now
+			asleep = sleeping
+		done += n
+	return {"first": first, "wakes": wakes, "worst": worst}
+
+
 ## A rope laid along `path` at rest, resampled at equal arc length, 30 mm a
 ## segment as the shipped leads are.
 func _rope_along(path: Array[Vector3]) -> VerletRope:
@@ -1971,6 +2002,61 @@ func _group_awake() -> void:
 	_ok(float(cornered["worst"]) < 0.004 and int(cornered["ticks"]) <= 25,
 		"awake/a cord dragged over a block's corner goes round it, not down it in drops",
 		"%d ticks of 720, worst %.2f mm" % [int(cornered["ticks"]), float(cornered["worst"]) * 1000.0])
+	# ...and left alone there it goes to sleep and STAYS asleep. A sleeping cord is
+	# polled for a change in what it rests on. The poll did not know a segment
+	# could be resting on an EDGE: it asked for a surface along the contact's
+	# normal, found a face turned 45 degrees from it, called that a change, and
+	# woke the cord, which jolted, settled and slept again, about once a second
+	# for as long as it lay there (seen in the room as cables twitching).
+	corner_a.position = a_from
+	corner_b.position = b_from
+	var rested := await _rest_wakes(1800)
+	_ok(int(rested["first"]) >= 0 and int(rested["wakes"]) == 0,
+		"awake/a cord left lying over a block's corner sleeps and stays asleep",
+		"first asleep at tick %d, then %d wakes, worst move %.2f mm" % [
+			int(rested["first"]), int(rested["wakes"]), float(rested["worst"]) * 1000.0])
+	await _drop_case()
+
+	# The same over a table's long edge, three cords side by side at different
+	# places along it: every one has to stay asleep.
+	base = _new_case()
+	_box(base + Vector3(-0.5, 0.375, 0), Vector3(1.0, 0.75, 1.6))
+	_box(base + Vector3(0, -0.05, 0), Vector3(6.0, 0.10, 6.0))
+	var total_wakes := 0
+	var never := 0
+	for z: float in [-0.5, 0.0, 0.45]:
+		var cord := _rope_between(base + Vector3(-0.7, 0.76, z), base + Vector3(0.3, 0.76, z + 0.05), 60, 0.03)
+		await _settle(120)
+		await _carry(cord, cord.end_node, base + Vector3(0.22, 0.03, z + 0.1), 90)
+		var lying := await _rest_wakes(1500)
+		total_wakes += int(lying["wakes"])
+		if int(lying["first"]) < 0:
+			never += 1
+		_holder.free()
+	_ok(total_wakes == 0 and never == 0,
+		"awake/cords left hanging over a table's edge stay asleep",
+		"%d wakes over three cords, %d never slept" % [total_wakes, never])
+	await _drop_case()
+
+	# A pad's cord, plugged into a console standing on a table and left in a
+	# heap beside it. The socket is INSIDE the console's box, so the cord's first
+	# particles are inside a solid for good. The sleep poll wakes a cord that a
+	# collider has newly covered, and asked that as "is a particle inside one,
+	# with no contact plane": true of these on every poll once a plane needed a
+	# face under it, so the cord was woken and re-laid about once a second (the
+	# Genesis pad's cord in the room, 2026-11-10: the whole lay shifting in one
+	# frame, and a kink at the port).
+	base = _new_case()
+	_box(base + Vector3(0, 0.70, 0), Vector3(2.0, 0.10, 2.0))
+	_box(base + Vector3(0.30, 0.78, 0), Vector3(0.28, 0.06, 0.20))    # the console
+	var pad_cord := _rope_between(base + Vector3(0.20, 0.775, 0), base + Vector3(-0.75, 0.76, 0.2), 40, 0.03)
+	await _settle(120)
+	await _carry(pad_cord, pad_cord.end_node, base + Vector3(-0.15, 0.76, 0.25), 120)
+	var plugged := await _rest_wakes(1800)
+	_ok(int(plugged["first"]) >= 0 and int(plugged["wakes"]) == 0,
+		"awake/a cord plugged into a console and left in a heap stays asleep",
+		"first asleep at tick %d, then %d wakes, worst move %.2f mm" % [
+			int(plugged["first"]), int(plugged["wakes"]), float(plugged["worst"]) * 1000.0])
 	await _drop_case()
 
 

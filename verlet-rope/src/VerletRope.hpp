@@ -539,6 +539,9 @@ private:
     // DepenetrateLay there, where space-state queries are legal.
     bool m_depen_pending = false;
     bool m_settle_repair_attempted = false;
+    // Not reset by InitPoints, on purpose: only an end moving allows another.
+    int m_hopeless_frames = 0;
+    bool m_relay_attempted = false;
     bool m_asleep = false;
     int m_still_frames = 0;
     int m_contact_stable_frames = 0;
@@ -566,6 +569,15 @@ private:
     int m_debug_edges_found = 0;
     int m_debug_edge_handovers = 0;
     int m_debug_edges_lost = 0;
+    // XENU_ROPE_DIAG: one second's worth of why this cord is awake.
+    int m_diag_ticks = 0;
+    int m_diag_not_still = 0;
+    int m_diag_anchor_moved = 0;
+    int m_diag_unsettled = 0;
+    int m_diag_wake_anchor = 0;
+    int m_diag_wake_env = 0;
+    int m_diag_wake_call = 0;
+    double m_diag_peak = 0.0;
     // Cord count and ring count the current ArrayMesh was built for, so a
     // resize after _ready rebuilds instead of overrunning the ring buffers.
     int m_built_cords = 0;

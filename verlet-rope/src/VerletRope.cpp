@@ -827,6 +827,8 @@ void VerletRope::SetRopeLength(double p_length)
 
 void VerletRope::Wake()
 {
+    if (m_asleep)
+        m_diag_wake_call += 1;
     m_asleep = false;
     m_sleep_environment_frame = 0;
     m_environment_change_polls = 0;

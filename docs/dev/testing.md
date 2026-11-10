@@ -189,9 +189,10 @@ from height) and what a player DOES to one (handling/ — a real lead's plug yan
 partition, a cord wrapped round a post and hauled tight), plus inextensibility,
 determinism, anchor pinning, teleport re-lay, `set_rope_length` and sleep/wake, and
 awake/ — a cord BEING HANDLED (hauled round a square bar, lying across itself, dragged
-over a block's corner), read as chatter, because sleep hides jitter. 93 cases,
+over a block's corner), read as chatter, because sleep hides jitter, and left alone
+afterwards it has to sleep and STAY asleep. 96 cases,
 ~90 s, no GPU. It complements rather than replaces the two BIT-EXACT oracles in `Tools/`
-(`rope_bench --settle` prints `settled_at_tick=50 still_awake=0`, `rope_stress` diffs a
+(`rope_bench --settle` prints `settled_at_tick=48 still_awake=0`, `rope_stress` diffs a
 22-row table): those catch arithmetic drift, this catches a cord that jitters, tunnels or
 will not settle.
 (Re-baselined 2026-11-10 for substeps and the contact changes, `rope.md`: the bench
@@ -205,7 +206,9 @@ carries its end a centimetre off the line between the sockets (on the exact line
 case is planar and an arch has no side to fall to), and the bow-tie crossing is laid at
 rest with `restore_points` (it was nudged part way and left to one integration to
 finish, which is only one integration at one step a tick). The three awake/ cases are
-red on the solver before: 39, 214 and 20 chattering ticks.)
+red on the solver before: 39, 214 and 20 chattering ticks. Two of the three stay-asleep cases were red on the first
+substep build: a cord over a block's corner, and over a table's edge, woken by the sleep
+poll. The bench settles at tick 48 since.)
 (The bench printed 15 until 2026-08-17: DepenetrateLay freed wedged lays and three more
 bench ropes settle; the stress rows that moved are the two impossible lays. Re-baselined
 deliberately — an UNINTENDED move in these numbers is still a stop-everything signal.

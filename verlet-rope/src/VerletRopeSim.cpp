@@ -6,6 +6,8 @@
 // loop to dodge interpreter call overhead, they are ordinary inline functions
 // again here.
 
+#include <godot_cpp/variant/utility_functions.hpp>
+#include <cstdlib>
 #include "VerletRope.hpp"
 
 #include <godot_cpp/classes/engine.hpp>
@@ -34,6 +36,9 @@ constexpr double SLEEP_RMS_VELOCITY_EPS_SQ = 0.0004 * 0.0004;
 // a pathological/tunnelled solve from being frozen and hidden.
 constexpr double SLEEP_STRETCH_ERROR = 4.0;
 constexpr double SLEEP_CONTACT_ERROR = 0.05;
+// How long a cord may hold a segment past SLEEP_STRETCH_ERROR with its ends
+// still before it is laid afresh (see UpdateSleepState).
+constexpr int HOPELESS_FRAMES = 180;
 constexpr double WAKE_ANCHOR_EPS_SQ = 0.0005 * 0.0005;
 // A sleeping rope has no CollisionObject3D of its own, so furniture cannot wake
 // it through a physics callback. Poll its cached contacts at a low cadence:
@@ -660,7 +665,11 @@ void VerletRope::Step(double p_delta)
     if (m_asleep)
     {
         if (AnchorsMoved())
+        {
+            m_diag_wake_anchor += 1;
             Wake();
+            m_diag_wake_call -= 1;
+        }
         else if (++m_sleep_environment_frame >= SLEEP_ENVIRONMENT_INTERVAL)
         {
             m_sleep_environment_frame = 0;
@@ -674,7 +683,9 @@ void VerletRope::Step(double p_delta)
                 if (m_environment_change_polls < 2)
                     return;
                 m_environment_change_polls = 0;
+                m_diag_wake_env += 1;
                 Wake();
+                m_diag_wake_call -= 1;
                 // The poll now discounts shallow "inside" reports already
                 // explained by a valid cached plane, so a confirmed result is
                 // a real removal or intrusion. Discard the old arrangement and
@@ -1350,6 +1361,19 @@ bool VerletRope::EnvironmentChangedWhileSleeping()
         const int b = m_seg_b[s];
         if (m_inv_mass[a] + m_inv_mass[b] == 0.0f)
             continue;
+        // A segment lying over an EDGE is asked the one thing that can be
+        // asked of an edge: is its face still there. The questions below look
+        // for a surface along the contact's normal, and an edge contact's
+        // normal points out of the CORNER: the face found is turned 45 degrees
+        // from it, which read as "the support has changed" on every poll, and
+        // a cord left over a table's edge was woken, jolted (20 mm) and slept
+        // again about once a second for as long as it lay there.
+        if (m_mid_contact[s] & 4)
+        {
+            if (EdgeStillThere(space_state, s))
+                continue;
+            return true;
+        }
         // A capsule-only hit may lie anywhere along the segment. Poll that
         // cached coordinate, not always the midpoint: on a thin plate the
         // midpoint can be in open air while the segment is legitimately held
@@ -1390,7 +1414,12 @@ bool VerletRope::EnvironmentChangedWhileSleeping()
 // actually touching. Self-collision must not drive such a particle INTO it.
 bool VerletRope::RestingNormal(int i, Vector3 &r_normal) const
 {
-    const double touching = m_collision_radius * 1.05;
+    // Within a radius of touching, not "touching": a strand under another one
+    // bobs a millimetre on its surface, and at 5% over the radius that put it in
+    // and out of this test on alternate ticks, so the pair shared the push on
+    // one tick and the upper strand took all of it on the next, which is what
+    // kept it bobbing (a coiled pad cord in the room, 1.5 mm for ever).
+    const double touching = m_collision_radius * 2.0;
     if ((m_c_flags[i] & 1) && (m_points[i] - m_c_p1[i]).dot(m_c_n1[i]) <= touching)
     {
         r_normal = m_c_n1[i];
@@ -1472,6 +1501,20 @@ void VerletRope::DetectSelfContacts()
         c.wb1 = b1 == b0 ? 0.0f : (PushesIntoRest(b1, n) ? 0.0f : m_inv_mass[b1]);
         const double as0 = 1.0 - sa;
         const double bt0 = 1.0 - tb;
+        // A segment that ends at a PIN is the cord entering its plug, and the
+        // plug's own body is what is there (the rope has none, so a strand can
+        // lie where a plug is). When the strand it meets cannot give way either
+        // (it is on the floor), the only thing left to move is the pinned
+        // segment's one free end, about the pin: the contact levered it up
+        // several millimetres every tick and never got anywhere (a loose plug
+        // lying across its own cord in the room: 2-5 mm/tick for ever, and the
+        // plug rocked). That pair is left alone.
+        const bool a_stuck = c.wa0 == 0.0f && c.wa1 == 0.0f;
+        const bool b_stuck = c.wb0 == 0.0f && c.wb1 == 0.0f;
+        const bool a_pinned = a1 != a0 && (m_inv_mass[a0] == 0.0f || m_inv_mass[a1] == 0.0f);
+        const bool b_pinned = b1 != b0 && (m_inv_mass[b0] == 0.0f || m_inv_mass[b1] == 0.0f);
+        if ((a_stuck && b_pinned) || (b_stuck && a_pinned))
+            return;
         if (c.wa0 * as0 * as0 + c.wa1 * sa * sa + c.wb0 * bt0 * bt0 + c.wb1 * tb * tb <= 0.0)
         {
             // Both strands are on the surface: neither can give way to it.
@@ -1535,7 +1578,6 @@ void VerletRope::DetectSelfContacts()
             const int b1 = m_seg_b[sb];
             if (a0 == b0 || a0 == b1 || a1 == b0 || a1 == b1)
                 continue; // neighbours joined by construction
-
             // The first particles around one fray junction deliberately overlap
             // inside the moulded breakout. Preserve the same exemption the point
             // solver uses for that shared construction volume.
@@ -1592,16 +1634,24 @@ void VerletRope::DetectSelfContacts()
             if (s_end && t_end)
                 continue;
             // The branches of one breakout leave it side by side, closer than
-            // the clearance by construction. End-against-middle contacts
-            // between them pushed the fan apart for seconds after a composite
-            // lead landed, and its plugs crept with it (rope_tests "loose
-            // plugs lie still": 164 mm). Between two branches of one end only
-            // a true crossing counts, as before.
-            if ((s_end || t_end) && !m_fray.empty())
+            // the clearance by construction, and ease apart over the taper.
+            // End-against-middle contacts between them there pushed the fan
+            // apart for seconds after a composite lead landed, and its plugs
+            // crept with it (rope_tests "loose plugs lie still": 164 mm): inside
+            // the taper two branches of one end are held apart by their
+            // particles alone. Decided by WHERE ALONG THE BRANCH the segments
+            // are, never by where on them the closest points fall: the first
+            // version asked "is it at an end", and a contact resting just on
+            // that line was on one tick and off the next, so a branch lying
+            // across another dropped 3.4 mm and was put back every other tick
+            // for as long as it lay there (a PS2 A/V lead in the room).
+            if (!m_fray.empty())
             {
-                const int ba = branch_of(a0);
-                const int bb = branch_of(b0);
-                if (ba >= 0 && bb >= 0 && ba != bb && m_fray[ba].at_start == m_fray[bb].at_start)
+                const int ba = branch_of(a1);
+                const int bb = branch_of(b1);
+                if (ba >= 0 && bb >= 0 && ba != bb && m_fray[ba].at_start == m_fray[bb].at_start &&
+                    (a1 - m_fray[ba].first < m_fray_taper_segments ||
+                     b1 - m_fray[bb].first < m_fray_taper_segments))
                     continue;
             }
             Vector3 diff = (q0 + v * t) - (p0 + u * s);
@@ -2969,6 +3019,36 @@ void VerletRope::UpdateSleepState()
                                      worst_contact_error <= SLEEP_CONTACT_ERROR;
     m_debug_stretch_error = worst_stretch_error;
     m_debug_contact_error = worst_contact_error;
+    // A lay that cannot be: a segment several times its length for two seconds
+    // with both ends still. The usual way in is a plug seated in a port on the
+    // FAR side of its console from where the cord lies: the cord's last segment
+    // then runs through the console, the last free particle is pressed against
+    // the near face with nowhere to go, and the cord can never settle, sleep or
+    // stop twitching (a Genesis pad's cord in the room, 2026-11-10: one segment
+    // 7.5x its length through 21 cm of console). The wrong-side recovery walks a
+    // particle back to its predecessor, which is no help when the far end is
+    // the pinned one. Lay the cord afresh between its ends, once, as a teleport
+    // does (DepenetrateLay then routes it round what is in the way), and not
+    // again until an end has moved.
+    if (!anchors_still)
+    {
+        m_hopeless_frames = 0;
+        m_relay_attempted = false;
+    }
+    else if (worst_stretch_error > SLEEP_STRETCH_ERROR)
+        m_hopeless_frames += 1;
+    else
+        m_hopeless_frames = 0;
+    if (m_hopeless_frames > HOPELESS_FRAMES && !m_relay_attempted)
+    {
+        m_relay_attempted = true;
+        m_hopeless_frames = 0;
+        UtilityFunctions::print("[Rope] ", get_path(), ": segment ", worst_stretch_segment, " is ",
+                                worst_stretch_error + 1.0, "x its length and has been for ",
+                                HOPELESS_FRAMES, " ticks with both ends still; laying the cord afresh");
+        InitPoints();
+        return;
+    }
     // A controller or sensor bar is the physical host at a plain Node3D anchor.
     // Jolt may keep a resting host microscopically rocking on an edge; because
     // the endpoint is pinned, that motion drives the whole cable forever. Once
@@ -3024,6 +3104,106 @@ void VerletRope::UpdateSleepState()
             if (m_inv_mass[i] != 0.0f)
                 m_prev_points[i] = m_points[i] -
                                    (m_points[i] - m_prev_points[i]) * CONTACT_SETTLE_RETAIN;
+    }
+    // XENU_ROPE_DIAG=1: once a second, every cord that is awake says what is
+    // keeping it awake. A cord that will not lie still in a room cannot be read
+    // from a probe that does not have the room.
+    static const bool diag = std::getenv("XENU_ROPE_DIAG") != nullptr;
+    if (diag)
+    {
+        m_diag_ticks += 1;
+        m_diag_not_still += velocity_still ? 0 : 1;
+        m_diag_anchor_moved += anchors_still ? 0 : 1;
+        m_diag_unsettled += constraints_settled ? 0 : 1;
+        m_diag_peak = std::max(m_diag_peak, m_debug_max_velocity);
+        if (m_diag_ticks == 89 && m_self_contacts.size() > 20)
+        {
+            for (const SelfContact &c : m_self_contacts)
+                if (c.pushed > 0.0002)
+                    UtilityFunctions::print("[Rope]     (tick before) self a ", c.a0, "-", c.a1, " s ", c.s, " b ", c.b0, "-",
+                                            c.b1, " t ", c.t, " pushed ", c.pushed * 1000.0, " w ", c.wa0, " ", c.wa1, " ",
+                                            c.wb0, " ", c.wb1, " flags ", m_c_flags[c.a0], m_c_flags[c.a1],
+                                            m_c_flags[c.b0], m_c_flags[c.b1], " ya ", m_points[c.a0].y, " yb ", m_points[c.b0].y);
+        }
+        if (m_diag_ticks >= 90)
+        {
+            UtilityFunctions::print(
+                "[Rope] ", get_path(), " awake 90 ticks: moving ", m_diag_not_still,
+                ", anchor moved ", m_diag_anchor_moved, ", unsettled ", m_diag_unsettled,
+                ", wakes anchor/env/call ", m_diag_wake_anchor, "/", m_diag_wake_env, "/", m_diag_wake_call,
+                ", peak ", m_diag_peak * 1000.0, " mm/tick, now max ", m_debug_max_velocity * 1000.0,
+                " rms ", m_debug_rms_velocity * 1000.0, " stretch ", worst_stretch_error,
+                " contact ", worst_contact_error, ", stable ", m_contact_stable_frames,
+                ", self contacts ", static_cast<int>(m_self_contacts.size()),
+                ", ends ", static_cast<int>(sleep_start_role), "/", static_cast<int>(sleep_end_role));
+            if (worst_stretch_segment >= 0 && worst_stretch_error > 0.5)
+            {
+                const int sa = m_seg_a[worst_stretch_segment];
+                const int sb = m_seg_b[worst_stretch_segment];
+                UtilityFunctions::print(
+                    "[Rope]   longest segment ", worst_stretch_segment, " of ",
+                    static_cast<int>(m_seg_a.size()), ": p", sa, " ", m_points[sa], " w ", m_inv_mass[sa],
+                    " flags ", m_c_flags[sa], " n1 ", m_c_n1[sa], " -> p", sb, " ", m_points[sb], " w ",
+                    m_inv_mass[sb], " flags ", m_c_flags[sb], " n1 ", m_c_n1[sb], "; its contact ",
+                    m_mid_contact[worst_stretch_segment], " at ", m_mid_contact_point[worst_stretch_segment],
+                    " n ", m_mid_contact_normal[worst_stretch_segment], " t ",
+                    m_mid_contact_t[worst_stretch_segment], "; anchors ", a_start, " ", a_end);
+                }
+                {
+                // What the cord's contacts with itself are doing: the mover, and
+                // every contact that pushed this tick.
+                int mover = 0;
+                double most = 0.0;
+                for (int i = 0; i < count && have_previous_pose; ++i)
+                {
+                    const double d = m_points[i].distance_squared_to(m_curr_render[i]);
+                    if (d > most)
+                    {
+                        most = d;
+                        mover = i;
+                    }
+                }
+                UtilityFunctions::print("[Rope]   mover p", mover, " of ", count, " (trunk ", TrunkCount(),
+                                        ") moved ", m_points[mover] - m_curr_render[mover], " at ",
+                                        m_points[mover], " flags ", m_c_flags[mover], " w ", m_inv_mass[mover]);
+                int shown = 0;
+                for (const SelfContact &c : m_self_contacts)
+                    if (c.pushed > 0.0002 && shown++ < 12)
+                        UtilityFunctions::print("[Rope]     self a ", c.a0, "-", c.a1, " s ", c.s, " b ", c.b0, "-",
+                                                c.b1, " t ", c.t, " pushed ", c.pushed * 1000.0, " w ", c.wa0, " ", c.wa1, " ",
+                                                c.wb0, " ", c.wb1, " flags ", m_c_flags[c.a0], m_c_flags[c.a1],
+                                                m_c_flags[c.b0], m_c_flags[c.b1], " ya ", m_points[c.a0].y, " yb ", m_points[c.b0].y,
+                                                " fixed ", c.fixed, " n ", c.normal);
+                }
+                if (worst_stretch_segment >= 0 && worst_stretch_error > 0.5)
+                {
+                const int sa = m_seg_a[worst_stretch_segment];
+                const int sb = m_seg_b[worst_stretch_segment];
+                // What stands between the two ends of that segment.
+                Ref<World3D> diag_world = get_world_3d();
+                if (diag_world.is_valid() && m_ray_query.is_valid())
+                {
+                    PhysicsDirectSpaceState3D *diag_space = diag_world->get_direct_space_state();
+                    for (int way = 0; way < 2 && diag_space != nullptr; ++way)
+                    {
+                        m_ray_query->set_from(m_points[way == 0 ? sa : sb]);
+                        m_ray_query->set_to(m_points[way == 0 ? sb : sa]);
+                        const Dictionary between = diag_space->intersect_ray(m_ray_query);
+                        Node *who = between.is_empty() ? nullptr
+                                                       : Object::cast_to<Node>(between["collider"].operator Object *());
+                        UtilityFunctions::print("[Rope]   ray p", way == 0 ? sa : sb, " -> p", way == 0 ? sb : sa,
+                                                ": ", who != nullptr ? String(who->get_path()) : String("nothing"),
+                                                between.is_empty() ? Variant() : between["position"],
+                                                between.is_empty() ? Variant() : between["normal"]);
+                    }
+                    UtilityFunctions::print("[Rope]   start node ", m_start_cached ? String(m_start_cached->get_path()) : String("-"),
+                                            ", end node ", m_end_cached ? String(m_end_cached->get_path()) : String("-"));
+                }
+            }
+            m_diag_ticks = m_diag_not_still = m_diag_anchor_moved = m_diag_unsettled = 0;
+            m_diag_wake_anchor = m_diag_wake_env = m_diag_wake_call = 0;
+            m_diag_peak = 0.0;
+        }
     }
     if (velocity_still && anchors_still && constraints_settled &&
         m_contact_stable_frames >= m_raycast_interval * 2)

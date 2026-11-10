@@ -126,6 +126,45 @@ after the last slice, and the self contacts are found once, after the first inte
 - `substeps = 1` is still a working solver (the probe's `--substeps=1` control leg) and
   keeps every contact change below; it is not bit-identical to the solver before.
 
+## A cord that will not lie still in a ROOM: ask it (`XENU_ROPE_DIAG=1`)
+
+Five causes of a cord "twitching about once a second" were found the same afternoon the
+substeps shipped, none of them reproducible in a probe with a bare rope, all of them in
+the player's own saved room in a minute. Run the app with `XENU_ROPE_DIAG=1` and every
+cord that is awake prints, once a second, why (`[Rope] <path> awake 90 ticks: moving N,
+anchor moved N, unsettled N, wakes anchor/env/call ...`), its fastest particle, the self
+contacts that pushed on two consecutive ticks with their weights, and, for a segment far
+past its length, what a ray finds between its two ends. **A cord that reports nothing is
+asleep.** What it found:
+
+- **The sleep poll did not know an edge contact** (`EnvironmentChangedWhileSleeping`).
+  It asked for a surface along the contact's normal, an edge's normal points out of the
+  corner, the face found is turned 45 degrees from it, and that read as "the support
+  changed": woken, contacts cleared, re-laid, a 20 mm jolt, asleep again. An edge
+  segment is asked `EdgeStillThere` now.
+- **A lay that cannot be** (`HOPELESS_FRAMES`): a pad's plug seated in a port on the far
+  side of its console from where the cord lay, so the cord's last segment ran through
+  21 cm of console, 7.5x its length, for ever. The wrong-side recovery walks a particle
+  back to its PREDECESSOR, no help when the far end is the pinned one. A segment past
+  `SLEEP_STRETCH_ERROR` for 180 ticks with both ends still gets the cord laid afresh,
+  once (logged; not again until an end moves; `InitPoints` must not reset the flag).
+- **A rule decided by where on a segment the closest point falls can flip every tick.**
+  The exemption for two branches of one breakout asked "is it at an end": a contact
+  resting on that line was on one tick and off the next, and a branch lying across
+  another dropped 3.4 mm and was put back, for ever (a PS2 A/V lead). It is decided by
+  where ALONG THE BRANCH the segments are now (inside `fray_taper_segments`).
+- **"Resting on a surface" is within a radius of touching, not 5% over** (`RestingNormal`,
+  2.0 x the radius): a strand under another bobs a millimetre, was in and out of the
+  test on alternate ticks, and the pair shared the push on one tick and not the next.
+- **A segment that ends at a PIN, against a strand that cannot give way, is left alone**
+  (`DetectSelfContacts`' `add`): a loose plug lying across its own cord levered its one
+  free particle up several millimetres every tick. The plug's body is what is there.
+
+`pad_cord_probe` (a real pad, its own cable, the engine ticking; `--system=genesis` seats
+the plug in a real console; `--loose`, `--console`) does NOT show any of them, which is
+the point of the paragraph above. `rope_jitter_probe --rest` counts wakes after the first
+sleep; `rope_tests` `awake/` has the stay-asleep cases.
+
 ## Contact planes are FINITE, and a sharp edge is a line (2026-11-10)
 
 A cached contact plane is infinite and the face it was read from is not. Three rules:
