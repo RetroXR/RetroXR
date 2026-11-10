@@ -24,6 +24,22 @@
 ## leaving it out keeps the source omnidirectional — which is the honest answer for
 ## two boxes pointing in whatever directions the player left them in, where a single
 ## forward vector would have to lie about one of them.
+##
+## ── The model ────────────────────────────────────────────────────────────────
+## Each box wears its RETRO XR model (RetroXR-models generic/computer-speakers, a left
+## and a right GLB) through an ApplianceModel child, `Model`. _dress() puts each box's
+## CableBoss on the model's grommet tip (so the wire leaves through the grommet), its
+## ConeFront on the driver, the right box's LineIn on the model's 3.5 mm socket and the
+## model's knob cap under the VolumeKnob's KnobPivot, and fits each box's body and laser
+## boxes to what its model draws (the knob is the VRKnob's own box). The old primitive
+## meshes keep their nodes, hidden. No speaker-wire clips: the wire and LINE IN are the
+## only connections the pair has.
+##
+## ── The power LED ────────────────────────────────────────────────────────────
+## The volume knob is a click-off pot, as on most desktop speakers: at the bottom of its
+## travel (LED_OFF_BELOW) the amplifier is off, and the green LED beside the knob is lit
+## whenever it is above that. The pair has no mains cord in the game, so the knob's
+## click is the whole of its power state.
 class_name SpeakerPair
 extends Node3D
 
@@ -34,6 +50,18 @@ enum Side { LEFT, RIGHT }
 @onready var _rope: VerletRope = $VerletRope
 @onready var _line_in: TrsPort = $SpeakerR/LineIn
 @onready var _knob: VRKnob = $SpeakerR/VolumeKnob
+
+## The knob's click: below this the amplifier is off and the LED dark.
+const LED_OFF_BELOW := 0.02
+const LED_ON := Color8(60, 235, 110)
+const LED_DARK := Color8(14, 44, 20)
+## The old primitive meshes, hidden once a model dresses the box (the nodes are kept).
+const OLD_MESHES: Array[String] = ["Cabinet", "Baffle", "Cone", "DustCap", "Port", "BackLabel"]
+## The model's empties, renamed `<name>Mouth` so a recursive find meets the scene's node.
+const MOUTHS: Array[String] = ["CableBoss", "LineIn", "DriverCentre"]
+
+var _led_mat: StandardMaterial3D = null
+var _led_on: Variant = null
 
 ## The device currently feeding these speakers, or null.
 var _source: Node3D = null
@@ -48,8 +76,10 @@ var _rope_built := false
 
 func _ready() -> void:
 	add_to_group("spawned")
+	_dress()
 	_volume = _knob.value
 	_knob.value_changed.connect(_on_volume)
+	_update_led()
 	# The SOCKET announces seating, not the plug — a plug taken straight out of one
 	# socket into another leaves the first empty without ever reporting it.
 	_line_in.has_picked_up.connect(func(_w: Node3D) -> void: _push_volume())
@@ -60,6 +90,100 @@ func _ready() -> void:
 	# Building here would pin the wire to the world origin and the tether below
 	# would then haul both boxes back to it.
 	call_deferred("_build_rope")
+
+
+# ── dressing ─────────────────────────────────────────────────────────────────
+
+func _dress() -> void:
+	for box: SpeakerBox in _boxes:
+		var model := box.get_node_or_null("Model") as ApplianceModel
+		if model == null or model.levels.is_empty():
+			push_warning("[Speaker] %s/%s: no model to dress the box from" % [name, box.name])
+			continue
+		for n: String in MOUTHS:
+			for mouth in model.parts(n):
+				mouth.name = n + "Mouth"
+		var boss := box.get_node_or_null("CableBoss") as Node3D
+		if boss != null and model.part("CableBossMouth") != null:
+			boss.transform = model.part_transform("CableBossMouth", box)
+		else:
+			push_warning("[Speaker] %s/%s: no CableBoss on the model or the scene" % [name, box.name])
+		var cone := box.get_node_or_null("ConeFront") as Node3D
+		if cone != null and model.part("DriverCentreMouth") != null:
+			cone.transform = Transform3D(Basis.IDENTITY, model.part_transform("DriverCentreMouth", box).origin)
+		for n: String in OLD_MESHES:
+			var old := box.get_node_or_null(n) as Node3D
+			if old != null:
+				old.visible = false
+		if box == _boxes[Side.RIGHT]:
+			_dress_right(box, model)
+		for i in range(1, model.levels.size()):
+			for m in model.levels[i].find_children("*", "MeshInstance3D", true, false):
+				m.add_to_group("outline_exclude")
+		# The knob is hung under the VRKnob by now (_dress_right), so the box is the cabinet as drawn.
+		model.fit_shapes([box.get_node_or_null("CollisionShape3D") as CollisionShape3D,
+			box.get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D])
+		print("[Speaker] %s/%s: dressed from the model (%d levels), wire at %s" % [name, box.name, model.levels.size(),
+			boss.position.snapped(Vector3.ONE * 0.0001) if boss != null else "nowhere"])
+
+
+## The right box: LINE IN on the model's socket, the model's knob cap under the VolumeKnob's pivot (fitted with the
+## pivot at rest, as DeckFace.dress_phones does), and the LED's own material on every level.
+func _dress_right(box: SpeakerBox, model: ApplianceModel) -> void:
+	if model.part("LineInMouth") != null:
+		DeckFace.seat_port(model, _line_in, "LineInMouth")
+	else:
+		push_warning("[Speaker] %s: the model has no LINE IN socket" % name)
+	var cap := model.part("VolumeKnob")
+	if cap != null:
+		var ab := ApplianceModel.node_bounds(cap, box)
+		var axis := model.part_transform("VolumeKnob", box).origin
+		_knob.position = Vector3(axis.x, axis.y, ab.position.z)
+		var pivot := _knob.get_node("KnobPivot") as Node3D
+		var turned := pivot.rotation
+		pivot.rotation = Vector3.ZERO
+		model.attach_part("VolumeKnob", pivot)
+		var level := 0
+		for part in pivot.get_children():
+			if part.name == "KnobCap" or part.name == "KnobPointer":
+				(part as Node3D).visible = false
+				continue
+			part.name = "ModelLevel%d" % level
+			pivot.move_child(part, level)          # the model's caps first: the knob IS the close level's cap
+			level += 1
+		var first := pivot.get_node_or_null("ModelLevel0")
+		if first != null:
+			ApplianceModel.fit_box(_knob.get_node_or_null("CollisionShape3D") as CollisionShape3D,
+				ApplianceModel.node_bounds(first, _knob))
+		pivot.rotation = turned
+	else:
+		push_warning("[Speaker] %s: the model has no VolumeKnob; the primitive cap stays" % name)
+	_led_mat = StandardMaterial3D.new()
+	var leds := model.parts("PowerLed")
+	for led in leds:
+		(led as MeshInstance3D).material_override = _led_mat
+	if leds.is_empty():
+		push_warning("[Speaker] %s: the model has no PowerLed" % name)
+
+
+## The LED lit while the knob is off its click.
+func _update_led() -> void:
+	if _led_mat == null:
+		return
+	var on := _volume >= LED_OFF_BELOW
+	if on == _led_on:
+		return
+	_led_on = on
+	_led_mat.albedo_color = LED_ON if on else LED_DARK
+	_led_mat.emission_enabled = on
+	_led_mat.emission = LED_ON
+	_led_mat.emission_energy_multiplier = 2.0
+	print("[Speaker] %s: power LED %s (volume %.2f)" % [name, "lit" if on else "dark: the knob is on its click", _volume])
+
+
+## Whether the power LED is lit (for tests and probes).
+func led_lit() -> bool:
+	return _led_on == true
 
 
 ## Wire the two cabinets together. One cord, both ends anchored — the same shape as
@@ -183,6 +307,7 @@ func hide_osd() -> void:
 func _on_volume(v: float) -> void:
 	_volume = v
 	_push_volume()
+	_update_led()
 
 
 ## The same contract every volume control in the project speaks: the sink holds a
@@ -211,6 +336,7 @@ func set_volume(v: float) -> void:
 	if _knob != null:
 		_knob.set_value_no_signal(_volume)
 	_push_volume()
+	_update_led()
 
 
 # ── save / restore ───────────────────────────────────────────────────────────

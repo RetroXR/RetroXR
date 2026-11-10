@@ -1,0 +1,50 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the front faces +Z, x to the right seen from the front; the ORIGIN is the base centre, on the floor",
+ "size": [
+  0.2305,
+  1.0,
+  0.2305
+ ],
+ "levels": [
+  "stand_100_mobile",
+  "stand_100_mobile_lod1",
+  "stand_100_mobile_lod2"
+ ],
+ "master": "stand_100_high",
+ "markers": [
+  {
+   "node": "SpeakerSeat",
+   "position": [
+    0.0,
+    1.0,
+    -0.0
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the seat: the top of the plate's pads, 1000 mm up; a cabinet's origin (its base centre) lands here, +Y up"
+  }
+ ],
+ "own_nodes": [
+  "StandBase",
+  "PillarL",
+  "PillarR",
+  "Plate"
+ ],
+ "triangles": {
+  "high": 6776,
+  "lod0": 1826,
+  "lod1": 1090,
+  "lod2": 722
+ },
+ "variant": "100",
+ "seat_height_m": 1.0,
+ "boxes": {
+  "StandBase": "its own node: RetroXR fits one collision box to its drawn bounds",
+  "PillarL": "its own node: RetroXR fits one collision box to its drawn bounds",
+  "PillarR": "its own node: RetroXR fits one collision box to its drawn bounds",
+  "Plate": "its own node: RetroXR fits one collision box to its drawn bounds"
+ }
+}

@@ -1,0 +1,59 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the front faces +Z, x to the right seen from the front; the ORIGIN is the base centre, on the floor",
+ "size": [
+  0.085,
+  0.145,
+  0.09225
+ ],
+ "levels": [
+  "computer_left_mobile",
+  "computer_left_mobile_lod1",
+  "computer_left_mobile_lod2"
+ ],
+ "master": "computer_left_high",
+ "markers": [
+  {
+   "node": "CableBoss",
+   "position": [
+    0.025,
+    0.028,
+    -0.0495
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the pair's permanent wire leaves here, at the grommet's tip, along local -Z (glTF): out of the back"
+  },
+  {
+   "node": "DriverCentre",
+   "position": [
+    0.0,
+    0.095,
+    0.0413
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "where the sound comes from: the driver behind the grille (RetroXR's ConeFront)"
+  }
+ ],
+ "own_nodes": [
+  "Grille"
+ ],
+ "triangles": {
+  "high": 10292,
+  "lod0": 1564,
+  "lod1": 1048,
+  "lod2": 800
+ },
+ "variant": "left",
+ "grille": {
+  "node": "Grille",
+  "material": "CMP_Grille",
+  "tile_mm": 6.0
+ }
+}

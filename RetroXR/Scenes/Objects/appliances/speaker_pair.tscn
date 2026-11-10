@@ -5,6 +5,13 @@
 [ext_resource type="Script" path="res://Scripts/Objects/audio/speaker_box.gd" id="5_speakerbox"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/trs_port.tscn" id="3_trsport"]
 [ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_knob.gd" id="4_vrknob"]
+[ext_resource type="Script" path="res://Scripts/Objects/appliance_model.gd" id="20_model"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/computer_speakers/computer_left_mobile.glb" id="21_left"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/computer_speakers/computer_left_mobile_lod1.glb" id="22_left"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/computer_speakers/computer_left_mobile_lod2.glb" id="23_left"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/computer_speakers/computer_right_mobile.glb" id="24_right"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/computer_speakers/computer_right_mobile_lod1.glb" id="25_right"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/computer_speakers/computer_right_mobile_lod2.glb" id="26_right"]
 
 ; A small 90s multimedia speaker: 85 W x 145 H x 85 D mm. Origin at the base centre,
 ; so a cabinet set on a desk stands on it rather than sinking in.
@@ -120,6 +127,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0725, 0)
 mesh = SubResource("Mesh_cabinet")
 surface_material_override/0 = SubResource("Mat_beige")
 
+; The RETRO XR model (RetroXR-models generic/computer-speakers, the left box), three levels by distance;
+; SpeakerPair._dress hides the primitive meshes and dresses the box from it.
+[node name="Model" type="Node3D" parent="SpeakerL"]
+script = ExtResource("20_model")
+level_scenes = Array[PackedScene]([ExtResource("21_left"), ExtResource("22_left"), ExtResource("23_left")])
+
 [node name="Baffle" type="MeshInstance3D" parent="SpeakerL"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0725, 0.0435)
 mesh = SubResource("Mesh_baffle")
@@ -196,6 +209,12 @@ shape = SubResource("Shape_box")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0725, 0)
 mesh = SubResource("Mesh_cabinet")
 surface_material_override/0 = SubResource("Mat_beige")
+
+; The RETRO XR model (RetroXR-models generic/computer-speakers, the right box), three levels by distance;
+; SpeakerPair._dress hides the primitive meshes and dresses the box from it.
+[node name="Model" type="Node3D" parent="SpeakerR"]
+script = ExtResource("20_model")
+level_scenes = Array[PackedScene]([ExtResource("24_right"), ExtResource("25_right"), ExtResource("26_right")])
 
 [node name="Baffle" type="MeshInstance3D" parent="SpeakerR"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0725, 0.0435)

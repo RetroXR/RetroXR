@@ -1,0 +1,96 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the front faces +Z, x to the right seen from the front; the ORIGIN is the base centre, on the floor",
+ "size": [
+  0.26,
+  0.286,
+  0.29675
+ ],
+ "levels": [
+  "subwoofer_mobile",
+  "subwoofer_mobile_lod1",
+  "subwoofer_mobile_lod2"
+ ],
+ "master": "subwoofer_high",
+ "markers": [
+  {
+   "node": "SpeakerIn",
+   "position": [
+    0.055,
+    0.205,
+    -0.1505
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "LINE IN (RCA) mouth; local +Z (glTF) points out of the back, the plug goes in along -Z"
+  },
+  {
+   "node": "PowerCordExit",
+   "position": [
+    -0.06,
+    0.072,
+    -0.1555
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the mains cord leaves here, at the strain relief tip, along local -Z (glTF): out of the back"
+  },
+  {
+   "node": "DriverCentre",
+   "position": [
+    0.0,
+    0.1865,
+    0.1384
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "where the sound comes from: the driver behind the grille (RetroXR's ConeFront)"
+  }
+ ],
+ "own_nodes": [
+  "Grille",
+  "VolumeKnob",
+  "PowerRocker"
+ ],
+ "triangles": {
+  "high": 22256,
+  "lod0": 4380,
+  "lod1": 2828,
+  "lod2": 2108
+ },
+ "rocker": {
+  "node": "PowerRocker",
+  "axis": "local X",
+  "on_deg": 9.0,
+  "off_deg": -9.0,
+  "origin": [
+   0.06,
+   0.1,
+   -0.1415
+  ],
+  "note": "authored level; ON is the I (top) half pressed in"
+ },
+ "knob": {
+  "node": "VolumeKnob",
+  "axis": "local Z (out of the back)",
+  "origin": [
+   -0.058,
+   0.2,
+   -0.1415
+  ],
+  "pointer": "up at rest (12 o'clock); the dots run 225 to -45 deg seen from behind"
+ },
+ "grille": {
+  "node": "Grille",
+  "material": "SUB_Grille",
+  "tile_mm": 8.0
+ }
+}

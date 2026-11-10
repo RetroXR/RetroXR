@@ -17,6 +17,7 @@ extends "res://Tests/test_suite.gd"
 
 const SATELLITE := preload("res://Scenes/Objects/appliances/loudspeaker.tscn")
 const SUBWOOFER := preload("res://Scenes/Objects/appliances/subwoofer.tscn")
+const PAIR := preload("res://Scenes/Objects/appliances/speaker_pair.tscn")
 const SPEAKER_CABLE := preload("res://Scenes/Objects/cables/speaker_cable.tscn")
 const RCA_PORT := preload("res://Scenes/Objects/cables/rca_port.tscn")
 const COMPOSITE_CABLE := preload("res://Scenes/Objects/cables/composite_cable.tscn")
@@ -120,6 +121,13 @@ func _run() -> void:
 		["lineout/one cord plays its channel alone", _l_one_cord],
 		["lineout/a set's speaker outputs are not a line out", _l_not_a_sink],
 		["lineout/the cassette deck plays out of two cabinets", _l_cassette],
+		["model/every socket sits on its mouth on the cabinet's model", _m_mouths],
+		["model/the cone is the model's driver", _m_cone],
+		["model/a satellite stands on each stand's plate at its height", _m_stands],
+		["model/a switched-off subwoofer is silent and nothing folds onto it", _m_rig_silent],
+		["model/the computer pair's sockets and wire leave the model", _m_pair],
+		["model/the power LED follows the knob's click", _m_led],
+		["model/the subwoofer's rocker survives a save", _m_rocker_save],
 	]
 
 	for entry in cases:
@@ -657,8 +665,11 @@ func _t_cone() -> void:
 	var raised_cone: float = cab.get_speaker_positions()[0].y
 	_ok(raised_cone - floor_cone > 1.1,
 		"the cone rises with the cabinet (%.3f -> %.3f)" % [floor_cone, raised_cone])
-	_ok(absf(raised_cone - (1.2 + 0.062)) < 0.01,
-		"landing 62 mm up the baffle above the plate")
+	# The cone's height up the baffle is the model's (its DriverCentre), so it is read off the cabinet: what is under
+	# test here is that the plate puts the cabinet's base at exactly 1.2 m.
+	var up := (cab.get_node("ConeFront") as Node3D).position.y
+	_ok(absf(raised_cone - (1.2 + up)) < 0.01,
+		"landing %.0f mm up the baffle above the plate (%.3f)" % [up * 1000.0, raised_cone])
 
 
 func _t_drop() -> void:
@@ -978,6 +989,199 @@ func _s_round_trip() -> void:
 	var sub_entry: Dictionary = persistence.serialize_node(sub, 2, {})
 	# Both scenes share one script, so the token cannot come from the type.
 	_check_eq(sub_entry.get("type", ""), "subwoofer", "and the subwoofer under its own")
+
+
+# ── model: the RETRO XR loudspeakers ─────────────────────────────────────────
+
+## A node's place against a model mouth, in the cabinet's frame: `port` must stand on `mouth` within 1.5 mm (DeckFace
+## seats a socket 1 mm proud of its mouth) and face the way it does.
+func _on_mouth(cab: Node3D, port: Node3D, mouth_name: String, what: String, proud := DeckFace.PORT_PROUD) -> void:
+	var mouth := cab.find_child(mouth_name, true, false) as Node3D
+	_ok(mouth != null, "%s: the model has %s" % [what, mouth_name])
+	if mouth == null or port == null:
+		return
+	var at := cab.global_transform.affine_inverse() * mouth.global_transform
+	var got := cab.global_transform.affine_inverse() * port.global_transform
+	# Exactly where it was put: `proud` out of the mouth along the mouth's +Z (a socket DeckFace seated, 1 mm), or on it
+	# (a marker moved onto it). A tolerance wider than that cannot tell a seated socket from one left where the scene
+	# had it, which on the pair's LINE IN is 0.8 mm away.
+	var want := at.origin + at.basis.z.normalized() * proud
+	_ok(got.origin.distance_to(want) < 0.0001, "%s sits on the model's mouth (%.2f mm off)"
+		% [what, got.origin.distance_to(want) * 1000.0])
+	_ok(got.basis.z.normalized().dot(at.basis.z.normalized()) > 0.999, "%s faces the way the mouth does" % what)
+
+
+func _m_mouths() -> void:
+	for spec in [[SATELLITE, "satellite"], [SUBWOOFER, "subwoofer"]]:
+		var cab := _hold((spec[0] as PackedScene).instantiate()) as Loudspeaker
+		cab.freeze = true
+		add_child(cab)
+		await _wait(3)
+		_on_mouth(cab, cab.get_node("SpeakerIn") as Node3D, "SpeakerInMouth", "%s SpeakerIn" % spec[1])
+		_ok((cab.get_node("SpeakerIn") as Node3D).transform.basis.z.dot(Vector3.FORWARD) > 0.99,
+			"%s: its +Z leaves the back" % spec[1])
+		_ok(not (cab.get_node("BackLabel") as Node3D).visible,
+			"%s: the model prints the back, the old label is hidden" % spec[1])
+		_ok((cab.get_node("Cabinet") as MeshInstance3D).mesh == null, "%s: the old baked cabinet draws nothing" % spec[1])
+
+
+func _m_cone() -> void:
+	for spec in [[SATELLITE, "satellite"], [SUBWOOFER, "subwoofer"]]:
+		var cab := _hold((spec[0] as PackedScene).instantiate()) as Loudspeaker
+		cab.freeze = true
+		add_child(cab)
+		await _wait(3)
+		var mouth := cab.find_child("DriverCentreMouth", true, false) as Node3D
+		var cone := cab.get_node("ConeFront") as Node3D
+		_ok(mouth != null and cone.global_position.distance_to(mouth.global_position) < 0.0005,
+			"%s: the cone is the model's DriverCentre" % spec[1])
+
+
+## Each stand: the model's plate (pads) tops out at the stand's height, the plate's box is the plate, each pillar has
+## a box of its own, and a satellite seated on it stands there.
+func _m_stands() -> void:
+	var x := 3.0
+	for spec in [[STAND_100, 1.0], [STAND_120, 1.2]]:
+		var stand := _hold((spec[0] as PackedScene).instantiate()) as SpeakerStand
+		stand.freeze = true
+		stand.position = Vector3(x, 0, 0)
+		add_child(stand)
+		var cab := _hold(SATELLITE.instantiate()) as Loudspeaker
+		cab.freeze = true
+		cab.position = Vector3(x, 0, 1.0)
+		add_child(cab)
+		await _wait(4)
+		var h: float = spec[1]
+		var plate := stand.find_child("Plate", true, false) as Node3D
+		var top := ApplianceModel.node_bounds(plate, stand).end.y if plate != null else -1.0
+		_ok(absf(top - h) < 0.0005, "%.1f m stand: the model's plate tops out at %.4f" % [h, top])
+		var shape := stand.get_node("TopShape") as CollisionShape3D
+		var box: AABB = shape.transform * shape.shape.get_debug_mesh().get_aabb()
+		_ok(absf(box.end.y - h) < 0.0005, "%.1f m stand: the plate's box tops out there too (%.4f)" % [h, box.end.y])
+		var one := stand.get_node("ColumnShape") as CollisionShape3D
+		var two := stand.get_node_or_null("ColumnShape2") as CollisionShape3D
+		_ok(two != null and one.shape is BoxShape3D and two.shape is BoxShape3D
+			and absf(one.position.x + two.position.x) < 0.0005 and absf(one.position.x) > 0.01,
+			"%.1f m stand: each pillar has a box of its own, either side of the gap" % h)
+		stand.seat().pick_up_object(cab)
+		await _wait(6)
+		_ok(stand.seated_speaker() == cab and absf(cab.global_position.y - h) < 0.005,
+			"%.1f m stand: a satellite seats with its base at %.3f" % [h, cab.global_position.y])
+		x += 1.0
+
+
+## SpeakerRig with a satellite on FL and the subwoofer on LFE: on, LFE plays from the sub at full level; switched off,
+## it plays there at level 0 and no other channel folds onto it.
+func _m_rig_silent() -> void:
+	var sat := _hold(SATELLITE.instantiate()) as Loudspeaker
+	sat.freeze = true
+	sat.position = Vector3(-1, 0, 4)
+	add_child(sat)
+	var sub := _hold(SUBWOOFER.instantiate()) as Subwoofer
+	sub.freeze = true
+	sub.position = Vector3(1, 0, 4)
+	add_child(sub)
+	await _wait(4)
+	var dest := {RcaPort.Channel.AUDIO_L: {"sink": sat, "speaker": 0},
+		RcaPort.Channel.AUDIO_LFE: {"sink": sub, "speaker": 0}}
+	var on: Array = SpeakerRig.route(dest, Vector3.ZERO)
+	var cone: Vector3 = sub.get_speaker_positions()[0]
+	_ok((on[1] as PackedFloat32Array)[3] == 1.0 and (on[0] as PackedVector3Array)[3].distance_to(cone) < 0.001,
+		"on: LFE plays from the subwoofer at full level")
+	var folded_on := 0
+	for i in 6:
+		if i != 3 and (on[0] as PackedVector3Array)[i].distance_to(cone) < 0.001:
+			folded_on += 1
+	sub.power_switch().set_on(false)
+	await _wait(2)
+	var off: Array = SpeakerRig.route(dest, Vector3.ZERO)
+	_ok((off[1] as PackedFloat32Array)[3] == 0.0, "off: LFE is at level 0")
+	_ok((off[0] as PackedVector3Array)[3].distance_to(cone) < 0.001, "off: and it waits at the subwoofer's cone")
+	var onto_sub := false
+	for i in 6:
+		if i != 3 and (off[0] as PackedVector3Array)[i].distance_to(cone) < 0.001 \
+				and (off[1] as PackedFloat32Array)[i] > 0.0:
+			onto_sub = true
+	_ok(not onto_sub, "off: nothing else folds onto the dead box (%d did while it was on)" % folded_on)
+	_ok((off[1] as PackedFloat32Array)[0] == 1.0, "off: the front left still plays from its own cabinet")
+	sub.power_switch().set_on(true)
+
+
+func _m_pair() -> void:
+	var pair := _hold(PAIR.instantiate()) as SpeakerPair
+	pair.position = Vector3(0, 0, 6)
+	add_child(pair)
+	await _wait(4)
+	for box_name in ["SpeakerL", "SpeakerR"]:
+		var box := pair.get_node(box_name) as Node3D
+		_on_mouth(box, box.get_node("CableBoss") as Node3D, "CableBossMouth", "%s CableBoss" % box_name, 0.0)
+		var cone := box.get_node("ConeFront") as Node3D
+		var mouth := box.find_child("DriverCentreMouth", true, false) as Node3D
+		_ok(mouth != null and cone.global_position.distance_to(mouth.global_position) < 0.0005,
+			"%s: the cone is the model's DriverCentre" % box_name)
+		_ok(not (box.get_node("Cabinet") as Node3D).visible, "%s: the primitive cabinet is hidden" % box_name)
+	var right := pair.get_node("SpeakerR") as Node3D
+	_on_mouth(right, right.get_node("LineIn") as Node3D, "LineInMouth", "SpeakerR LINE IN")
+	var rope := pair.get_node("VerletRope") as VerletRope
+	_ok(rope.start_node == pair.get_node("SpeakerL/CableBoss") and rope.end_node == pair.get_node("SpeakerR/CableBoss"),
+		"the wire runs between the two grommets")
+	var ports := pair.find_children("*", "Port", true, false)
+	_ok(ports.size() == 1 and ports[0] == right.get_node("LineIn"),
+		"no speaker-wire clips: LINE IN is the pair's one socket (%d)" % ports.size())
+
+
+func _m_led() -> void:
+	var pair := _hold(PAIR.instantiate()) as SpeakerPair
+	pair.position = Vector3(2, 0, 6)
+	add_child(pair)
+	await _wait(4)
+	var right := pair.get_node("SpeakerR")
+	var leds := right.find_children("PowerLed", "MeshInstance3D", true, false)
+	_ok(leds.size() == 3, "the LED is on every level (%d)" % leds.size())
+	pair.set_volume(0.75)
+	await _wait(1)
+	var mat: StandardMaterial3D = null
+	if not leds.is_empty():
+		mat = (leds[0] as MeshInstance3D).material_override as StandardMaterial3D
+	_ok(pair.led_lit() and mat != null and mat.emission_enabled, "at 0.75 the LED is lit")
+	var shared := true
+	for led in leds:
+		shared = shared and (led as MeshInstance3D).material_override == mat
+	_ok(shared, "every level's LED wears the one lamp")
+	pair.set_volume(0.0)
+	await _wait(1)
+	_ok(not pair.led_lit() and mat != null and not mat.emission_enabled, "turned to its click (0) the LED is dark")
+	pair.set_volume(0.3)
+	await _wait(1)
+	_ok(pair.led_lit(), "turned up again it lights")
+
+
+func _m_rocker_save() -> void:
+	var sub := _hold(SUBWOOFER.instantiate()) as Subwoofer
+	sub.freeze = true
+	sub.position = Vector3(-2, 0, 6)
+	add_child(sub)
+	await _wait(4)
+	_ok(sub.power_switch() is VRLever and sub.power_switch().is_in_group(ScenePersistence.CONTROL_GROUP),
+		"the rocker is a lever in the saved controls")
+	sub.power_switch().set_on(false)
+	var persistence := ScenePersistence.new()
+	var entry: Dictionary = persistence.serialize_node(sub, 7, {})
+	var rec: Dictionary = {}
+	for r: Dictionary in entry.get("articulated", []):
+		if str(r.get("path", "")) == "RockerPivot/PowerSwitch":
+			rec = r
+	_ok(str(rec.get("kind", "")) == "lever" and float(rec.get("value", -1.0)) == 0.0,
+		"it is saved as a lever at 0 (OFF)", str(rec))
+	var back := _hold(SUBWOOFER.instantiate()) as Subwoofer
+	back.freeze = true
+	back.position = Vector3(-3, 0, 6)
+	add_child(back)
+	await _wait(4)
+	_ok(back.is_sounding(), "a fresh subwoofer starts ON")
+	persistence._restore_articulated_controls(back, entry.get("articulated", []))
+	await _wait(2)
+	_ok(not back.power_switch().is_on() and not back.is_sounding(), "restored, it is OFF and silent")
 
 
 # ── held: the six while the picture is in the window ─────────────────────────

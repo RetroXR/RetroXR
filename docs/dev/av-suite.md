@@ -653,6 +653,13 @@ seats the set's lead first (the control: no Genesis on the set), then the Video 
 Cable, and pulls and re-seats each; `an unpowered 32X passes nothing`. Mutation-checked:
 no splice fails 8 checks, a 32X that tells nobody 4, a 32X that always passes 2.
 
+### The RETRO XR loudspeakers (2026-11-10)
+
+The satellite, subwoofer, both stands and the computer pair wear their RETRO XR models; the details (the phono jack in
+the satellite's cup, the sub's rocker and cord, the stands' four boxes, the pair's grommets, LINE IN and LED) are in
+surround.md "The RETRO XR loudspeakers". appliance_pointer_tests walks them like the decks: no box past the model, the
+ray takes the pair's knob from the front and the sub's rocker from behind, and a fingertip throws the rocker.
+
 ### The RETRO XR AV switch: four inputs, one TO TV (2026-11-07)
 
 `AvSwitch` (`Scripts/Objects/av/av_switch.gd`, `Scenes/Objects/appliances/av_switch.tscn`, the Objects tab's

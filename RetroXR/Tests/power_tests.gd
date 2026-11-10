@@ -23,6 +23,7 @@ const CD_SCENE := preload("res://Scenes/Objects/appliances/cd_player.tscn")
 const BRICK_SCENE := preload("res://Scenes/Objects/power/power_brick.tscn")
 const VB_PAD := preload("res://Scenes/Objects/controllers/vb/vb_controller.tscn")
 const VB_TAP := preload("res://Scenes/Objects/power/vb_ac_tap.tscn")
+const SUB_SCENE := preload("res://Scenes/Objects/appliances/subwoofer.tscn")
 
 var _only := ""
 var _room: Node3D = null
@@ -57,6 +58,8 @@ func _ready() -> void:
 		await _test_tv()
 	if _want("decks"):
 		await _test_decks()
+	if _want("sub"):
+		await _test_sub()
 	if _want("bay"):
 		await _test_bay()
 	if _want("brick"):
@@ -626,6 +629,55 @@ func _test_decks() -> void:
 	_ok(amp.mains_live(), "decks/the amplifier plugged in has power")
 	_ok(cd.power_input() != null and not cd.mains_live(), "decks/the CD player is its own and unplugged")
 	_ok(not cd._mains_gate("PLAY"), "decks/its PLAY does nothing")
+	await _clear()
+
+
+# ── the subwoofer ────────────────────────────────────────────────────────────
+
+## The RETRO XR subwoofer: its own cord from the model's PowerCordExit, a LATCHING rocker, and sound only while both
+## say so (Subwoofer.is_sounding, which SpeakerRig obeys). A rocker left ON comes back with the supply.
+func _test_sub() -> void:
+	var plate := _new_room()
+	var sub := _spawn(SUB_SCENE, Vector3(0.4, 0.3, 0)) as Subwoofer
+	await _wait(8)
+	var input := sub.power_input()
+	_ok(input != null and input.captive != null, "sub/the subwoofer has its own mains cord")
+	if input == null or input.captive == null:
+		await _clear()
+		return
+	var cord := input.captive as CaptiveMainsCord
+	var exit := sub.find_child("PowerCordExit", true, false) as Node3D
+	_ok(exit != null and exit.get_meta(&"from_model", false), "sub/it leaves from the model's PowerCordExit")
+	_ok(exit != null and exit.global_basis.z.dot(-sub.global_basis.z) < -0.99,
+		"sub/the cord's exit is out of the back (its -Z along the sub's -Z)")
+	_ok(sub.is_switched_on() and not sub.powered() and not sub.is_sounding(),
+		"sub/unplugged with power simulation on, the rocker ON: silent")
+	(plate.get_node("TopPort") as PowerPort).pick_up_object(cord.wall_plug)
+	await _wait(4)
+	_ok(sub.powered() and sub.is_sounding(), "sub/plugged in: it sounds")
+	sub.power_switch().set_on(false)
+	await _wait(2)
+	_ok(sub.powered() and not sub.is_sounding(), "sub/the rocker OFF: silent, though it has power")
+	sub.power_switch().set_on(true)
+	(plate.get_node("TopPort") as PowerPort).drop_object()
+	await _wait(4)
+	_ok(not sub.is_sounding(), "sub/pulled out: silent again")
+	(plate.get_node("TopPort") as PowerPort).pick_up_object(cord.wall_plug)
+	await _wait(4)
+	_ok(sub.is_sounding(), "sub/a rocker left ON comes back with the supply (it latches)")
+	AppPrefs.power_simulation = false
+	MainsPower.changed(get_tree())
+	(plate.get_node("TopPort") as PowerPort).drop_object()
+	await _wait(4)
+	_ok(sub.is_sounding(), "sub/with power simulation off it sounds unplugged")
+	AppPrefs.power_simulation = true
+	MainsPower.changed(get_tree())
+	await _clear()
+	# No wall outlet in the room: everything is powered (MainsPower.room_has_mains).
+	_new_room(false)
+	var loose := _spawn(SUB_SCENE, Vector3(0.4, 0.3, 0)) as Subwoofer
+	await _wait(8)
+	_ok(loose.is_sounding(), "sub/in a room with no outlet it sounds")
 	await _clear()
 
 

@@ -1,5 +1,5 @@
 ## The RETRO XR appliances (VCR, DVD player, surround amp, record player, cassette deck, CD player, AV switch, the RETRO XR
-## television): what the desktop
+## television, the loudspeakers: satellite, subwoofer, both stands, the computer pair): what the desktop
 ## ray meets is what the model draws. No box is bigger than the model it stands for, every key's box IS its key, and
 ## the ray aimed at a control along the way it faces takes THAT control, in every state that shows it (the set's key
 ## door shut and open, the deck's dust cover open and shut).
@@ -27,6 +27,11 @@ const ITEMS := {
 	"cd": "res://Scenes/Objects/appliances/cd_player.tscn",
 	"avswitch": "res://Scenes/Objects/appliances/av_switch.tscn",
 	"tv": "res://Scenes/Objects/tv.tscn",
+	"satellite": "res://Scenes/Objects/appliances/loudspeaker.tscn",
+	"subwoofer": "res://Scenes/Objects/appliances/subwoofer.tscn",
+	"stand100": "res://Scenes/Objects/appliances/speaker_stand_100.tscn",
+	"stand120": "res://Scenes/Objects/appliances/speaker_stand_120.tscn",
+	"pair": "res://Scenes/Objects/appliances/speaker_pair.tscn",
 }
 
 var _grabber: Node3D
@@ -65,6 +70,11 @@ func _item(item: String) -> void:
 	add_child(root)
 	root.global_position = Vector3(0, 1, 0)
 	await _settle()
+	if root is SpeakerPair:
+		await _pair(item, root as SpeakerPair)
+		root.queue_free()
+		await get_tree().process_frame
+		return
 	var model := root.find_child("Model", true, false) as ApplianceModel
 	_ok(model != null and not model.levels.is_empty(), "%s: wears its model" % item)
 	if model == null:
@@ -95,6 +105,12 @@ func _item(item: String) -> void:
 		"dvd":
 			_reach(item, root, [])
 			_dvd_ring(root)
+		"subwoofer":
+			# The rocker is on the back: taken from behind.
+			_reach(item, root, [], {"PowerSwitch": Vector3.FORWARD})
+			_ok(root.find_children("*", "VRKnob", true, false).is_empty(),
+				"subwoofer/knob: VOLUME is moulded, not a control (the game has no subwoofer level)")
+			await _rocker(item, root as Subwoofer)
 		_:
 			_reach(item, root, [])
 	root.queue_free()
@@ -250,6 +266,69 @@ func _reach(label: String, root: Node3D, skip: Array, from: Dictionary = {}) -> 
 			if t != null and t.action_node != null:
 				got = String(t.action_node.name)
 		_ok(took, "%s/reach: the desktop ray takes %s" % [label, c.name], "it took %s" % got)
+
+
+# ── loudspeakers ──────────────────────────────────────────────────────────────
+
+## The computer pair: two bodies, each its own model, joined by a wire. Each box's body and laser boxes are inside its
+## own model, the knob's box is its knob, and the ray takes the right box's knob from the front.
+func _pair(item: String, pair: SpeakerPair) -> void:
+	for box_name in ["SpeakerL", "SpeakerR"]:
+		var box := pair.get_node(box_name) as RigidBody3D
+		box.freeze = true
+		var model := box.get_node_or_null("Model") as ApplianceModel
+		_ok(model != null and not model.levels.is_empty(), "%s/%s: wears its model" % [item, box_name])
+		if model != null:
+			_boxes("%s/%s" % [item, box_name], box, model)
+	_knob_boxes(item, pair)
+	_reach(item + "/right", pair.get_node("SpeakerR") as Node3D, [])
+
+
+## The subwoofer's rocker: a fingertip pushing the I (top) half in throws it ON, the O half OFF, each landing on its end;
+## a press of the desktop ray toggles it; and what it says is what the sub sounds.
+func _rocker(item: String, sub: Subwoofer) -> void:
+	var sw := sub.power_switch()
+	_ok(sw != null, "%s/rocker: the sub has its power rocker" % item)
+	if sw == null:
+		return
+	_ok(sw.is_on() and sub.is_sounding(), "%s/rocker: it starts ON, and the sub sounds" % item)
+	var cs := sw.get_node("CollisionShape3D") as CollisionShape3D
+	for half: Array in [["I", 1.0, true], ["O", -1.0, false]]:
+		sw.set_on(not bool(half[2]))
+		await _settle()
+		var box := cs.global_transform * cs.shape.get_debug_mesh().get_aabb()
+		var out := -(sw.target.global_basis.z).normalized()          # out of the back
+		var up := (sw.target.global_basis.y).normalized()
+		var depth: float = absf(box.size.dot(out))
+		var face := box.get_center() + out * depth * 0.5 + up * float(half[1]) * box.size.dot(up.abs()) * 0.3
+		for d: float in [0.03, 0.01, 0.003, 0.0005, -0.001, -0.002, -0.003, -0.003]:
+			_place(face + out * d)
+			await _ticks(3)
+		for d: float in [0.003, 0.01, 0.04]:
+			_place(face + out * d)
+			await _ticks(3)
+		await _ticks(4)
+		var v := sw.get_value()
+		_ok(sw.is_on() == bool(half[2]) and (v < 0.0005 or v > 0.9995),
+			"%s/rocker: a fingertip pushing the %s half in throws it %s, onto its end" % [item, half[0],
+			"ON" if half[2] else "OFF"], "value %.3f" % v)
+		_ok(sub.is_sounding() == bool(half[2]), "%s/rocker: and the sub is %s" % [item,
+			"sounding" if half[2] else "silent"])
+	_place(Vector3(0, 4, 0))
+	await _ticks(2)
+	# Let go part way (a finger that stopped short): the detent snaps it to the nearer end.
+	for spec: Array in [[3.0, true], [-3.0, false]]:
+		sw.set_rotation_deg_no_signal(float(spec[0]))
+		await _ticks(4)
+		var v := sw.get_value()
+		_ok(sw.is_on() == bool(spec[1]) and (v < 0.0005 or v > 0.9995),
+			"%s/rocker: left at %+.0f deg it snaps %s" % [item, float(spec[0]), "ON" if spec[1] else "OFF"], "value %.3f" % v)
+	var was := sw.is_on()
+	sw.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.PRESSED, null, sw, Vector3.ZERO, Vector3.ZERO))
+	sw.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.RELEASED, null, sw, Vector3.ZERO, Vector3.ZERO))
+	await _settle()
+	_ok(sw.is_on() != was, "%s/rocker: a press of the desktop ray toggles it" % item)
+	sw.set_on(true)
 
 
 # ── poke/ ─────────────────────────────────────────────────────────────────────

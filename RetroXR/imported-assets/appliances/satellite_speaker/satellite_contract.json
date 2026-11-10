@@ -1,0 +1,66 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the front faces +Z, x to the right seen from the front; the ORIGIN is the base centre, on the floor",
+ "size": [
+  0.0955,
+  0.153,
+  0.115
+ ],
+ "levels": [
+  "satellite_mobile",
+  "satellite_mobile_lod1",
+  "satellite_mobile_lod2"
+ ],
+ "master": "satellite_high",
+ "markers": [
+  {
+   "node": "SpeakerIn",
+   "position": [
+    0.0,
+    0.042,
+    -0.06
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "the phono INPUT (RCA) mouth; local +Z (glTF) points out of the back, the plug goes in along -Z"
+  },
+  {
+   "node": "DriverCentre",
+   "position": [
+    0.0,
+    0.0825,
+    0.0536
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "where the sound comes from: the driver behind the grille, on the cloth face (RetroXR's ConeFront)"
+  }
+ ],
+ "own_nodes": [
+  "Grille"
+ ],
+ "triangles": {
+  "high": 18012,
+  "lod0": 1740,
+  "lod1": 1168,
+  "lod2": 770
+ },
+ "grille": {
+  "node": "Grille",
+  "material": "SAT_Grille",
+  "tile_mm": 6.0
+ },
+ "wall_mount": {
+  "keyhole_centre": [
+   0.0,
+   0.121,
+   -0.055
+  ],
+  "note": "moulded: RetroXR has no wall to hang it on"
+ }
+}

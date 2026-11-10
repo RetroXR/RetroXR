@@ -22,6 +22,18 @@
 ## get_screen_normal is deliberately NOT provided. It is guarded by has_method,
 ## and leaving it out keeps the source omnidirectional — the honest answer for a
 ## cabinet left pointing wherever a hand put it.
+##
+## ── The model ────────────────────────────────────────────────────────────────
+## Both cabinets wear a RETRO XR model (RetroXR-models generic/satellite-speaker,
+## generic/subwoofer) through an ApplianceModel child, `Model`. The scene keeps every
+## node name; _dress() seats SpeakerIn on the model's jack mouth, moves ConeFront onto
+## the model's DriverCentre (the cloth, over the driver) and fits the body's and the
+## laser's boxes to what the model draws, no margin. The model prints the back panel,
+## so the old BackLabel is hidden. A subwoofer has more on its back (Subwoofer).
+##
+## is_sounding() is the one thing a cabinet can say about its sound: SpeakerRig plays a
+## channel that reaches a cabinet that is not sounding at level 0, and folds nothing
+## onto it. A passive satellite always is.
 class_name Loudspeaker
 extends XRToolsPickable
 
@@ -36,6 +48,11 @@ const GROUP := "loudspeaker"
 
 @onready var _cone: Node3D = $ConeFront
 @onready var _input: RcaPort = $SpeakerIn
+@onready var _model: ApplianceModel = get_node_or_null("Model") as ApplianceModel
+
+## The model's empties, renamed `<name>Mouth` so a recursive find on the cabinet meets
+## the scene's node and never the model's.
+const MOUTHS: Array[String] = ["SpeakerIn", "DriverCentre"]
 
 ## The device currently feeding this cabinet, or null.
 var _source: Node3D = null
@@ -45,6 +62,48 @@ func _ready() -> void:
 	super()
 	add_to_group("spawned")
 	add_to_group(GROUP)
+	_dress()
+
+
+## Whether this cabinet makes a sound when a channel reaches it. A passive cabinet
+## always does; Subwoofer answers its switch and its supply.
+func is_sounding() -> bool:
+	return true
+
+
+# ── dressing ─────────────────────────────────────────────────────────────────
+
+func _dress() -> void:
+	if _model == null or _model.levels.is_empty():
+		push_warning("[Speaker] %s: no model to dress the cabinet from" % name)
+		return
+	for n: String in MOUTHS:
+		for mouth in _model.parts(n):
+			mouth.name = n + "Mouth"
+	if _model.part("SpeakerInMouth") != null:
+		DeckFace.seat_port(_model, _input, "SpeakerInMouth")
+	else:
+		push_warning("[Speaker] %s: the model has no SpeakerIn mouth; the jack stays where the scene put it" % name)
+	var driver := _model.part("DriverCentreMouth")
+	if driver != null:
+		_cone.transform = Transform3D(Basis.IDENTITY, _model.part_transform("DriverCentreMouth", self).origin)
+	else:
+		push_warning("[Speaker] %s: the model has no DriverCentre; the cone stays where the scene put it" % name)
+	var label := get_node_or_null("BackLabel") as Node3D
+	if label != null:
+		label.visible = false          # the model prints its own back panel
+	for i in range(1, _model.levels.size()):
+		for m in _model.levels[i].find_children("*", "MeshInstance3D", true, false):
+			m.add_to_group("outline_exclude")
+	_fit_collision()
+	print("[Speaker] %s: dressed from the model (%d levels): jack at %s, cone at %s" % [name, _model.levels.size(),
+		_input.position.snapped(Vector3.ONE * 0.0001), _cone.position.snapped(Vector3.ONE * 0.0001)])
+
+
+## The body's and the laser's boxes are what the model draws, no margin.
+func _fit_collision() -> void:
+	_model.fit_shapes([get_node_or_null("CollisionShape3D") as CollisionShape3D,
+		get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D])
 
 
 # ── the sink contract ────────────────────────────────────────────────────────

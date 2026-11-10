@@ -45,14 +45,29 @@ const FOLD_CHAINS := [
 ## channel plays from; 1 on its own speaker or a phantom midpoint, FOLD_GAIN on
 ## another speaker, 0 with nothing plugged in; and the speakers it landed on, a
 ## PackedInt32Array of one index, of the two whose midpoint it plays at, or empty.
+##
+## A cabinet that is cabled but NOT SOUNDING (a subwoofer switched off, or with no
+## supply: `is_sounding()` false) plays its own channel at level 0 from its own cone
+## and is never a fold target: a real receiver does not know its sub is off, so the
+## bass is simply gone, and nothing else is moved onto a dead box.
 static func route(dest: Dictionary, rest: Vector3) -> Array:
 	var cones: Array = []
+	var silent: Array[bool] = []
 	for ch in RcaPort.SPEAKER_OUT_CHANNELS:
-		cones.append(cabinet_cone(dest.get(ch)))
+		var entry: Variant = dest.get(ch)
+		var dead := not is_sounding(entry)
+		silent.append(dead)
+		cones.append(null if dead else cabinet_cone(entry))
 	var positions := PackedVector3Array()
 	var gains := PackedFloat32Array()
 	var targets: Array = []
 	for i in FOLD_CHAINS.size():
+		if silent[i]:
+			var own: Variant = cabinet_cone(dest.get(RcaPort.SPEAKER_OUT_CHANNELS[i]))
+			positions.push_back(own as Vector3 if own != null else rest)
+			gains.push_back(0.0)
+			targets.append(PackedInt32Array())
+			continue
 		var placed := false
 		for target: Variant in FOLD_CHAINS[i]:
 			if target is Array:
@@ -83,6 +98,15 @@ static func has_cabled(dest: Dictionary) -> bool:
 		if cabinet_of(dest.get(ch)) != null:
 			return true
 	return false
+
+
+## Whether the cabinet an entry reaches makes a sound (true for a channel that reaches
+## nothing, which is the fold's business, and for every cabinet that does not say).
+static func is_sounding(entry: Variant) -> bool:
+	var sink := cabinet_of(entry)
+	if sink == null or not sink.has_method("is_sounding"):
+		return true
+	return bool(sink.call("is_sounding"))
 
 
 ## The device an entry names, or null for a channel with none — and for one whose

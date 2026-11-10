@@ -187,6 +187,36 @@ button's own handler so it lands first; the remote prints `[TVRemote] TV: presse
 AUDIO OUTPUT then reports the outcome, and each machine its own verdict: `[SystemAudio]
 <machine>: surround on, 6 voices` or `declined — spatial audio is off`.
 
+**The RETRO XR loudspeakers (2026-11-10).** The satellite, the subwoofer, both stands and the computer pair wear
+RetroXR-models `generic/satellite-speaker`, `generic/subwoofer`, `generic/speaker-stand` and
+`generic/computer-speakers` (the concepts `spk_satellite_1`, `spk_sub_1`, `spk_stand_2`, `spk_computer_1`; sizes and
+sources in each item's MEASUREMENTS.md), the three `*_mobile*.glb` + the contract copied into
+`imported-assets/appliances/{satellite_speaker,subwoofer,speaker_stand,computer_speakers}/`, never edited. Every scene
+keeps its node names; the old baked `Cabinet`/`Stand` meshes keep their nodes with no mesh (the `.res` files stay for
+speaker_tests' faces/ cases and `Tools/gen`).
+- **The satellite's input is an RCA phono jack in the rear cup** (the concept drew spring terminals), seated by
+  `Loudspeaker._dress` on the model's `SpeakerIn` mouth where the scene's socket always was (centre line, 42 mm up);
+  `ConeFront` moves onto the model's `DriverCentre`; `BackLabel` is hidden (the model prints the back); body and
+  laser boxes are what the model draws (`fit_shapes`). The keyhole wall mount is moulded.
+- **The subwoofer is `Subwoofer` (extends `Loudspeaker`)**: LINE IN on the model's mouth, its own mains cord from the
+  model's `PowerCordExit` (`ApplianceMains.hook_up`, power.md) and a LATCHING rocker (`RockerSwitch`, the model's
+  `PowerRocker` cap on a pivot). The VOLUME knob is MOULDED: no sink in the game carries a per-channel gain. Its boxes
+  are the cabinet less the knob and the rocker, the knob a box of its own, and a pocket over the rocker carved out (it
+  stands 3.4 mm proud inside the cabinet's box, deeper than the ray lets a control win).
+- **A cabinet that is not sounding is silent, never folded** (`Loudspeaker.is_sounding()`, false for a sub switched off
+  or without a supply): `SpeakerRig.route` plays its own channel at level 0 from its own cone and folds no other channel
+  onto it, as a real receiver with a dead sub just loses the bass. `get_speaker_positions()` still answers its one cone
+  (speaker_tests jack/ and every source index it). A sub fed straight from a deck's LINE OUT (`LineOutCabinets`) does
+  not ask yet: it plays switched off there.
+- **The stands**: the model's `SpeakerSeat` is the pads' top at exactly 1.0 / 1.2 m and the zone is put on it; base,
+  each pillar and the plate are their own nodes, so the body is four exact boxes (`CollisionShape3D`, `ColumnShape`,
+  `ColumnShape2`, `TopShape`), never one over both pillars.
+- **The computer pair** has no speaker-wire clips: the wire leaves each box at the model's grommet (`CableBoss` moved
+  onto it), LINE IN (3.5 mm) is on the right box's back, the model's knob cap hangs under the `VolumeKnob`'s pivot, and
+  the green LED is lit while the knob is off its click (`SpeakerPair.LED_OFF_BELOW`): the pair has no mains in the game.
+- Checks: speaker_tests `model/`, appliance_pointer_tests `satellite subwoofer stand100 stand120 pair`, power_tests
+  `--only=sub`.
+
 **The cabinets and their stands.** `Tools/gen/gen_speaker.gd` bakes a satellite
 (95 x 165 x 110 mm) and a subwoofer (260 mm cube); `Tools/gen/gen_speaker_stand.gd` bakes
 1.2 m and 1 m floor stands, the height being to the top plate's upper FACE, which is where

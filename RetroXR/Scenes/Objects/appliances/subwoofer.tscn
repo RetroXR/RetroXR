@@ -1,8 +1,11 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=10 format=3]
 
-[ext_resource type="Script" path="res://Scripts/Objects/audio/loudspeaker.gd" id="1_spk"]
+[ext_resource type="Script" path="res://Scripts/Objects/audio/subwoofer.gd" id="1_spk"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
-[ext_resource type="ArrayMesh" path="res://Scenes/Objects/appliances/speaker_sub.res" id="3_submesh"]
+[ext_resource type="Script" path="res://Scripts/Objects/appliance_model.gd" id="5_model"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/subwoofer/subwoofer_mobile.glb" id="6_lod0"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/subwoofer/subwoofer_mobile_lod1.glb" id="7_lod1"]
+[ext_resource type="PackedScene" path="res://imported-assets/appliances/subwoofer/subwoofer_mobile_lod2.glb" id="8_lod2"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="4_rcaport"]
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_box"]
@@ -18,9 +21,10 @@ size = Vector3(0.29, 0.31, 0.31)
 
 ; The subwoofer: a front-firing 165 mm driver over a front port, on four feet.
 ;
-; Same script as the satellite — a cabinet with one cone and one phono input is
-; the whole of being a loudspeaker here, and what it carries is decided by the
-; television socket its lead sits in, not by the cabinet.
+; A Loudspeaker (Subwoofer extends it) — a cabinet with one cone and one phono
+; input, what it carries decided by the television socket its lead sits in — with
+; an amplifier plate: its own mains cord and a rocker power switch, built in _ready
+; on the model's PowerCordExit and PowerRocker (subwoofer.gd).
 ;
 ; Heavier and higher-friction than the satellite: a sub gets nudged by a foot
 ; rather than picked up, and should stay where it is put.
@@ -39,8 +43,15 @@ speaker_label = "LFE IN"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.157, 0)
 shape = SubResource("Shape_box")
 
+; The old baked cabinet, kept as an empty node (saves and probes name it); the model draws the cabinet now.
 [node name="Cabinet" type="MeshInstance3D" parent="."]
-mesh = ExtResource("3_submesh")
+
+; The RETRO XR model (RetroXR-models generic/subwoofer), three levels by distance. The scene's
+; nodes are dressed from it in _ready (Loudspeaker._dress): the jack on its mouth, the cone on its driver, the
+; boxes fitted to what it draws.
+[node name="Model" type="Node3D" parent="."]
+script = ExtResource("5_model")
+level_scenes = Array[PackedScene]([ExtResource("6_lod0"), ExtResource("7_lod1"), ExtResource("8_lod2")])
 
 ; The driver's face, 190 mm up the baffle.
 [node name="ConeFront" type="Marker3D" parent="."]
