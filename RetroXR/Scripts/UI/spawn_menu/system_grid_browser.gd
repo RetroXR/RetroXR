@@ -624,8 +624,13 @@ func _make_tile(system: Dictionary) -> Button:
 	# rather than leaving every one at its minimum with the slack on the right.
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.set_meta("filter_name", display_name.to_lower())
-	# Folder names and RomM slugs the host says this system also answers to.
-	btn.set_meta("filter_aliases", PackedStringArray(system.get("aliases", PackedStringArray())))
+	# Folder names and RomM slugs the host says this system also answers to. A
+	# host that names none (Systems, Cores, BIOS) still gets the systemid, folder,
+	# slug and regional names, or "snes" finds no "Super Nintendo" tile there.
+	var aliases: Variant = system.get("aliases")
+	if aliases == null and not sid.is_empty() and not sid.begins_with("__"):
+		aliases = GameSearch.system_aliases(sid)
+	btn.set_meta("filter_aliases", PackedStringArray(aliases if aliases != null else PackedStringArray()))
 
 	# A hidden tile only appears at all while the Hidden toggle is on, so it is
 	# dimmed to say why it is here — otherwise turning the toggle on just makes
