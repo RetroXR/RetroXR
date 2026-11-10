@@ -57,6 +57,14 @@ const PAPER_RIM := 0.0015
 ## under the printer.
 const FLOOR_EVERY := 0.2
 const FLOOR_REACH := 1.5
+## The paper on the printer RESTS as a loose print settles: once the printer has
+## stayed where it is drawn and the strip has turned slower than PAPER_SETTLED
+## (rad/s, GbPrinterStrip.motion) for PAPER_SETTLE_TIME, nothing of it runs but
+## the look for what would wake it, and a whole update every FLOOR_EVERY, so a
+## table taken from under it still drops it. Before, every printer stepped,
+## swept and redrew its paper every frame for as long as the room was open.
+const PAPER_SETTLED := 0.02
+const PAPER_SETTLE_TIME := 0.5
 ## Down from every ROOM_SAMPLE of paper, from ROOM_LIFT above it to ROOM_DROP
 ## below, meters; and each patch found reaches PATCH_REACH each way along it,
 ## a little over half the spacing so neighbors meet. No further: a patch found
@@ -155,6 +163,19 @@ var _floor_wait := 0.0
 ## What the last looks round the paper found, in the room: [position, normal].
 var _room_hits: Array = []
 var _paper_sweep := GbPaperSweep.new()
+## The printer and its own bodies, which no ray of the paper's sees: gathered
+## with the room's look (every FLOOR_EVERY), not every frame.
+var _own_rids: Array[RID] = []
+## The paper at rest (PAPER_SETTLED), how long it has been quiet, and what it
+## rested at: the pose the printer was drawn at, the pivot, the paper's length.
+var _paper_resting := false
+var _paper_quiet := 0.0
+var _paper_pose := Transform3D()
+var _paper_pivot := Transform3D()
+var _paper_length := -1.0
+## Whole updates of the paper (step, sweep, draw) since the printer was made:
+## what paper_rest tests count.
+var paper_updates := 0
 @onready var _pivot: Node3D = $PaperPivot
 var _toast: AchievementToast = null
 ## Said once per press, not every frame it is held.
@@ -582,12 +603,29 @@ func options_choose(row: int, item: int) -> void:
 func _move_paper(delta: float) -> void:
 	if delta <= 0.0:
 		return
+	var xf := get_global_transform_interpolated()
+	_floor_wait -= delta
+	_show_paper_rim()
+	var wake := _paper_wake(xf)
+	if wake.is_empty() and _paper_quiet >= PAPER_SETTLE_TIME and _floor_wait > 0.0:
+		if not _paper_resting:
+			_paper_resting = true
+			print("[GbPrinter] paper at rest (%.1f cm out): its step stops until something moves it"
+				% (_strip.length * 100.0))
+		return
+	if not wake.is_empty():
+		_paper_quiet = 0.0
+		if _paper_resting:
+			_paper_resting = false
+			print("[GbPrinter] paper stirs: %s" % wake)
+	paper_updates += 1
+	_paper_pose = xf
+	_paper_pivot = _pivot.transform
+	_paper_length = _strip.length
 	# How the printer is moving (GbPaperMotion: off the pose it is drawn at, and
 	# smoothed), at the slot.
-	var xf := get_global_transform_interpolated()
 	_motion.update(xf, _pivot.position, delta)
 	var g := _motion.gravity
-	_floor_wait -= delta
 	if _floor_wait <= 0.0:
 		_floor_wait = FLOOR_EVERY
 		_find_obstacles()
@@ -597,11 +635,36 @@ func _move_paper(delta: float) -> void:
 	_place_room(xf)
 	_aim_strip()
 	turn_gear(delta)
-	_show_paper_rim()
 	_place_fingers(xf)
 	var shove := _motion.shove
 	_strip.step(delta, Vector2(g.y, g.z), _motion.spin_accel, Vector2(shove.y, shove.z))
 	_draw_paper()
+	if wake.is_empty() and _strip.motion() < PAPER_SETTLED:
+		_paper_quiet += delta
+	else:
+		_paper_quiet = 0.0
+
+
+## Why the paper cannot rest this frame, or "" when nothing would move it: the
+## printer drawn anywhere else than it rested at (carried, knocked, or Jolt
+## settling it), its pivot turned, paper fed or torn, the motor running, a
+## swing given to it (a knock or a tear's flick: GbPrinterStrip.jolt), or a
+## fingertip at it.
+func _paper_wake(xf: Transform3D) -> String:
+	if not xf.is_equal_approx(_paper_pose):
+		return "the printer moved"
+	if not _pivot.transform.is_equal_approx(_paper_pivot):
+		return "the slot turned"
+	if _strip.length != _paper_length:
+		return "paper fed or torn (%.1f cm)" % (_strip.length * 100.0)
+	if _motor_left > 0.0:
+		return "the motor runs"
+	if absf(_strip.sway_speed) >= PAPER_SETTLED:
+		return "swung (%.2f rad/s)" % _strip.sway_speed
+	_place_fingers(xf)
+	if not _strip.fingers.is_empty():
+		return "a fingertip"
+	return ""
 
 
 ## The rim round the paper, as the tear trigger's outline would show: green
@@ -708,6 +771,7 @@ func _find_obstacles() -> void:
 	var own: Array[RID] = [get_rid()]
 	for body in find_children("*", "CollisionObject3D", true, false):
 		own.append((body as CollisionObject3D).get_rid())
+	_own_rids = own
 	var cast := func(from: Vector3, to: Vector3) -> void:
 		var query := PhysicsRayQueryParameters3D.create(from, to)
 		query.exclude = own
@@ -757,10 +821,11 @@ func _sweep_room(xf: Transform3D) -> void:
 	var pts := PackedVector3Array()
 	for p in _strip.points:
 		pts.append(xf * Vector3(_pivot.position.x, p.x, p.y))
-	var own: Array[RID] = [get_rid()]
-	for body in find_children("*", "CollisionObject3D", true, false):
-		own.append((body as CollisionObject3D).get_rid())
-	_paper_sweep.update(get_world_3d().direct_space_state, pts, own, PATCH_REACH)
+	# _find_obstacles' list (it runs first, on the first frame too): a recursive
+	# find_children here was paid every frame.
+	if _own_rids.is_empty():
+		_own_rids = [get_rid()]
+	_paper_sweep.update(get_world_3d().direct_space_state, pts, _own_rids, PATCH_REACH)
 
 
 ## Lay the strip's mesh, the tear trigger and its box from the bend, once some

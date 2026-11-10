@@ -256,6 +256,27 @@ move (a knock, its table taken away) brings it back. `gb_printer_tests --only=dr
 checks all three dropped prints settle and sleep; `[GbPrinter] print settled` logs once per
 landing, and seeing it repeat with `settled print stirs` means something is waking it again.
 
+**The paper on the printer RESTS too (2026-11-10).** Until then every printer stepped,
+swept and redrew its strip every frame for as long as the room was open, standing still
+or not, at up to eight 1/240 s substeps a frame, and the sweep also gathered the printer's
+own bodies with a recursive `find_children` every frame. Now `_move_paper` stops once the
+printer has been drawn at one pose and the strip has turned slower than `PAPER_SETTLED`
+(0.02 rad/s, `GbPrinterStrip.motion()`, which already counts contact buzz under
+`REST_SPEED` as rest) for `PAPER_SETTLE_TIME` (0.5 s). At rest only `_paper_wake` runs, plus
+a whole update every `FLOOR_EVERY` so the room is still looked at (a table taken away still
+drops the paper). It wakes, saying why in `[GbPrinter] paper stirs: …`, on any of these:
+the drawn pose differing from the one it rested at, the pivot turning, the length changing
+(a line fed, a tear), the motor running, a swing (`sway_speed`, which a knock or a tear's
+flick gives it), or a fingertip at the paper. A knock rings a short stub for about two
+seconds before it is quiet. The sweep's exclusions are `_own_rids`, gathered by
+`_find_obstacles`. `gb_printer_tests --only=rest` checks a still printer rests and updates
+only for the room's look (≤ 7 a second, against every frame without it), and that each wake
+brings the paper back; each wake check was mutation-tested. A printer leaves bodies
+BESIDE itself (its battery bay's: `BatteryBay` adds cells to `current_scene`, which in a
+suite is the suite): a case that makes one must free what it added, or a body left in the
+air sits in the next case's stick ray (it previewed `Poster`'s stick and hid the
+bent print). The headset and a Quest's measured saving are OWED.
+
 **Two curls:** a torn print curls at 6.5 cm (`GbThermalRibbon.CURL_RADIUS`), the
 strip still on the printer at 13 cm. At 6.5, 8 and 9 cm a long strip's end curled
 in under the printer's base: the gap between the case and the table is half a

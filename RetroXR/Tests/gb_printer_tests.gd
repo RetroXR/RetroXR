@@ -63,6 +63,10 @@ func _ready() -> void:
 		await _test_printout_lands_without_crumpling()
 		_finish()
 		return
+	if OS.get_cmdline_user_args().has("--only=rest"):
+		await _test_paper_rests_on_a_still_printer()
+		_finish()
+		return
 	_test_offered_on_the_game_boy_cards_only()
 	_test_spawns_and_saves_by_its_token()
 	await _test_scene_shape()
@@ -83,6 +87,7 @@ func _ready() -> void:
 	_test_paper_flops()
 	_test_paper_meets_the_room()
 	await _test_printer_finds_the_room()
+	await _test_paper_rests_on_a_still_printer()
 	await _test_printouts_are_paper()
 	_test_fingers_push_the_paper()
 	await _test_gear_knocks_with_the_core()
@@ -578,6 +583,74 @@ func _test_printouts_are_paper() -> void:
 	_ok(not plain.has_node("PrintoutFlop"), "an ordinary poster is not given one")
 	print_poster.free()
 	plain.free()
+
+
+## Process frames for `seconds` of wall clock (headless frames run unpaced).
+func _run_for(seconds: float) -> void:
+	var until := Time.get_ticks_msec() + int(seconds * 1000.0)
+	while Time.get_ticks_msec() < until:
+		await get_tree().process_frame
+
+
+## Settled, then `poke` called, then whether the paper woke and updated again.
+func _wakes(printer: GbPrinter, what: String, poke: Callable) -> void:
+	# A knock rings a short stub for about two seconds before it is quiet.
+	var until := Time.get_ticks_msec() + 5000
+	while not printer._paper_resting and Time.get_ticks_msec() < until:
+		await get_tree().process_frame
+	_ok(printer._paper_resting, "at rest again before: %s" % what)
+	var before := printer.paper_updates
+	poke.call()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_ok(not printer._paper_resting and printer.paper_updates > before,
+		"%s wakes the paper (%d updates)" % [what, printer.paper_updates - before])
+
+
+func _test_paper_rests_on_a_still_printer() -> void:
+	# A printer standing still on a table, its paper quiet: the paper's step,
+	# sweep and redraw stop, but for the look round the room every FLOOR_EVERY.
+	# Before, every printer did all of it every frame for as long as the room was
+	# open. Whatever can move the paper brings it back at once.
+	var table := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.0, 0.02, 1.0)
+	shape.shape = box
+	table.add_child(shape)
+	table.position = Vector3(0.0, -0.01, 0.0)
+	add_child(table)
+	# A printer leaves things beside itself (its battery cover's body): freed with
+	# it below, or one left in the air stood in the way of the next case's print.
+	var had := get_children()
+	var printer := (load(PRINTER_SCENE) as PackedScene).instantiate() as GbPrinter
+	add_child(printer)
+	printer.freeze = true
+	printer.global_position = Vector3(0.0, 0.0285, 0.0)
+	await _run_for(1.5)
+	_ok(printer._paper_resting, "a still printer's paper comes to rest")
+	var frames := 0
+	var before := printer.paper_updates
+	var until := Time.get_ticks_msec() + 1000
+	while Time.get_ticks_msec() < until:
+		await get_tree().process_frame
+		frames += 1
+	var updates := printer.paper_updates - before
+	_ok(updates <= int(1.0 / GbPrinter.FLOOR_EVERY) + 2 and frames > 20,
+		"at rest, it updates only to look at the room (%d updates in %d frames)" % [updates, frames])
+	await _wakes(printer, "the printer moved", func() -> void:
+		printer.global_position += Vector3(0.0, 0.0, 0.01))
+	await _wakes(printer, "a knock's swing", func() -> void:
+		printer._strip.jolt(GbPrinter.KNOCK_JOLT))
+	await _wakes(printer, "paper fed", func() -> void:
+		printer._strip.set_length(printer._strip.length + GbPrinter.DOT_PITCH * 8.0))
+	await _wakes(printer, "the motor", func() -> void:
+		printer.motor_ran())
+	for n in get_children():
+		if not had.has(n) and n != printer:
+			n.free()
+	printer.free()
+	table.free()
 
 
 func _test_fingers_push_the_paper() -> void:
