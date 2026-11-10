@@ -34,7 +34,7 @@ for a missing one rather than failing.
 - CI is not affected: `release.yml` builds the android extensions from source on every run.
   This bites **locally exported** builds only, which is what sideloading a debug APK is.
 
-### Sibling GDExtensions (archive-godot, verlet-rope, vlc-godot, godot-pdfium, metaxr-audio, surround-godot)
+### Sibling GDExtensions (archive-godot, verlet-rope, vlc-godot, godot-pdfium, metaxr-audio, surround-godot, paper-godot)
 
 Six other C++ GDExtensions live beside libretro-godot, each with the same layout (repo-root
 `<name>/` with `SConstruct` + `SConscript` + `src/`, reusing `../libretro-godot/godot-cpp`,
@@ -108,6 +108,26 @@ deploying to `RetroXR/<name>/`). Build each **from its own directory** (each has
   ```bash
   cd surround-godot && scons platform=windows arch=x86_64 target=template_debug
   cd surround-godot && python tests/run_tests.py     # matrix, ring and pro_logic; no Godot needed
+  ```
+
+- **paper-godot** — `Xenu::PaperStripSolver` and `Xenu::PaperRibbonSolver`, the Game Boy
+  Printer's paper (`GbPrinterStrip`, `GbThermalRibbon`) ported line for line; the scripts
+  keep their API and state and hand `step()` here when the library is loaded, falling back
+  to themselves (logged once: `[GbPrinter] paper strip solver: native (paper-godot)`). All
+  platforms, pure C++. It must match the script TO THE BIT on desktop
+  (`gb_printer_tests --only=native`, `Tools/perf/paper_native_probe.tscn`), which is
+  why the code spells out GDScript's mix of float vector and double scalar arithmetic and
+  builds with `-ffp-contract=off`. **godot-cpp's 4.5 branch has only a FLOAT `wrapf`**:
+  called with doubles it rounds them (the strip parted at 3e-8 on frame one), so the
+  engine's double one is copied into `PaperMath.hpp` (master has it since #2021, never
+  backported). MSVC's and MinGW's `sin`/`cos`/`atan2` part in the last bit of a double, so
+  the check runs with the ENGINE's (`engine_math = true`) and the room with its own. On a
+  Quest the strip parts from the script at 1e-9 from frame one even so (the engine and the
+  library come from different compilers; the ribbon is still exact): reported, not failed.
+  Added 2026-11-10.
+  ```bash
+  python Tools/build.py windows --only paper-godot
+  "$godot" --headless --path RetroXR res://Tools/perf/paper_native_probe.tscn   # PASS, timings
   ```
 
 - **metaxr-audio's objects must be out of the AudioServer before this extension

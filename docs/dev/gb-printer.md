@@ -287,6 +287,25 @@ strip's contact against the case reworked. A strip lying on the case buzzes
 about 0.1 mm a frame for ever; `motion()` ignores contact repair below
 `REST_SPEED` (12 mm/s).
 
+**Native solvers (2026-11-10): `paper-godot`** (`extensions.md`). Both solvers' `step()`
+run as C++ when the library is loaded; the scripts are the reference and the fallback.
+`Tools/perf/paper_native_probe.tscn` runs 45 cases three ways (script, native with the
+engine's trig, native as it runs) and times them; on a Quest 3 (`Quest paper probe`
+preset, `com.xenu.retroxr.ppprobe`), ms a frame, script -> native:
+
+| case | script | native |
+|---|---|---|
+| a held print 0.6 m among 49 patches | 11.5 | 0.49 |
+| a print landing, 1.2 m | 11.0 | 0.44 |
+| the strip, 1.2 m, on the case, a table and a wall | 3.1 | 0.10 |
+| the strip, 0.6 m, against a torn half | 4.4 | 0.09 |
+
+8-51x (2x on the first, cold, 4 cm case); the script ribbon could take a whole 11.1 ms Quest frame alone. Desktop 6-27x. On
+desktop both agree to the bit (`gb_printer_tests --only=native`, mutation-tested by a float
+`wrapf` and by one ribbon iteration fewer); on a Quest the ribbon still does and the strip
+parts at 1e-9 from frame one (compilers), which contact grows as it grows any last-bit
+difference. `paper_cpu_probe -- --compare` matched all 1,200 baseline poses on desktop.
+
 **CPU cost (2026-10-25):** both solvers use `GbPaperContacts`, a 4 cm spatial
 grid over the finite surface patches. Only nearby candidates reach the original
 contact tests, in their original order. Ribbon contact queries again after a

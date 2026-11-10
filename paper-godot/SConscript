@@ -1,0 +1,48 @@
+# type: ignore
+
+Import('env', 'output_dir')
+
+env = env.Clone()
+
+# As verlet-rope: symbols on every non-release target, macOS 13.0.
+from SCons.Script import ARGUMENTS
+if ARGUMENTS.get("platform") == "macos":
+    ARGUMENTS.setdefault("macos_deployment_target", "13.0")
+if ARGUMENTS.get("target", "template_debug") != "template_release":
+    ARGUMENTS.setdefault("debug_symbols", "yes")
+
+env = SConscript("../../libretro-godot/godot-cpp/SConstruct")
+
+env["CXXFLAGS"] = [f for f in env["CXXFLAGS"]
+                   if not str(f).startswith(("/std:c++", "-std=c++"))]
+
+is_windows = env["platform"] == "windows"
+is_android = env["platform"] == "android"
+is_linux   = env["platform"] == "linux"
+is_macos   = env["platform"] == "macos"
+
+if is_windows:
+    env.Append(CXXFLAGS=["/std:c++latest"])
+    env.Append(LINKFLAGS=['/IGNORE:4099'])
+
+if is_android or is_linux or is_macos:
+    env.Append(CXXFLAGS=["-std=c++20"])
+
+# The solvers must give the GDScript reference's numbers to the bit: every
+# multiply and add rounded on its own, as the engine's Variant operators round
+# them. Clang and GCC fuse a*b+c into one FMA by default on arm64 (one rounding,
+# not two), which parts the two at the last bit within a frame.
+if is_android or is_linux or is_macos:
+    env.Append(CCFLAGS=["-ffp-contract=off"])
+if is_windows:
+    env.Append(CCFLAGS=["/fp:precise"])
+
+sources = Glob("src/*.cpp")
+
+lib_prefix = "lib" if (is_android or is_linux) else ""
+library = env.SharedLibrary(
+    "{}/{}paper_godot.{}.{}.{}{}".format(
+        output_dir, lib_prefix, env["platform"], env["target"], env["arch"], env["SHLIBSUFFIX"]),
+    source=sources)
+
+Default(library)

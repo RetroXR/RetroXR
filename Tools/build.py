@@ -6,7 +6,7 @@
     python Tools/build.py linux --only vlc-godot
     python Tools/build.py macos --target debug
 
-Seven extensions live in this workspace and each needs its OWN scons invocation.
+Eight extensions live in this workspace and each needs its OWN scons invocation.
 They share one profiled `godot-cpp` static library, which this script builds once
 per platform/target before linking the extensions with `build_library=no`. Each
 extension also has its own `VariantDir('Temp')`, so it still builds from its own
@@ -56,6 +56,7 @@ EXTENSIONS = [
     ("godot-pdfium", "godot-pdfium", "RetroXR/godot-pdfium", ALL_PLATFORMS),
     ("metaxr-audio", "metaxr-audio", "RetroXR/metaxr-audio", ("windows", "android")),
     ("surround-godot", "surround-godot", "RetroXR/surround-godot", ALL_PLATFORMS),
+    ("paper-godot", "paper-godot", "RetroXR/paper-godot", ALL_PLATFORMS),
 ]
 
 ARCH = {

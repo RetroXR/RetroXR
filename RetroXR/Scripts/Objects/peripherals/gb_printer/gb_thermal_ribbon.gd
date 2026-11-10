@@ -39,6 +39,13 @@ var _weights := PackedFloat64Array()
 var _patch_index := preload("res://Scripts/Objects/peripherals/gb_printer/gb_paper_contacts.gd").new()
 var _self_bounds: Array[AABB] = []
 
+## Whether step() hands the solve to the native PaperRibbonSolver (paper-godot)
+## when that library is loaded: the same numbers to the bit, the script kept as
+## the reference and the fallback (GbPrinterStrip.native says more).
+static var native := true
+static var _said_native := false
+var _solver: Object = null
+
 
 func configure(sheet_length: float, sheet_width: float, curvature := 1.0 / CURL_RADIUS) -> void:
 	length = sheet_length
@@ -148,6 +155,9 @@ func step(delta: float, gravity: Vector3, angular_accel := Vector3.ZERO) -> void
 	support_normal = Vector3.ZERO
 	if delta <= 0.0 or segments == 0:
 		return
+	if native and _native_solver() != null:
+		_step_native(delta, gravity, angular_accel)
+		return
 	if pin_row < 0:
 		_recover_body_contacts()
 	_patch_index.build_3d(patches, SKIN)
@@ -169,6 +179,51 @@ func step(delta: float, gravity: Vector3, angular_accel := Vector3.ZERO) -> void
 		# A capped hitch must not report unfinished bending as settled simply
 		# because more wall time passed than we actually simulated.
 		move_speed = maxf(move_speed, positions[i].distance_to(before[i]) / simulated)
+
+
+## The native solver, made once a ribbon; null where paper-godot is not loaded.
+func _native_solver() -> Object:
+	if _solver == null and ClassDB.class_exists(&"PaperRibbonSolver"):
+		_solver = ClassDB.instantiate(&"PaperRibbonSolver")
+	if not _said_native:
+		_said_native = true
+		print("[GbPrinter] print ribbon solver: %s" % ("native (paper-godot)" if _solver != null
+			else "GDScript (paper-godot not loaded)"))
+	return _solver
+
+
+## step(), by PaperRibbonSolver. The patches come back moved into the recovered
+## body's frame, as _shift_patches moves them, and are written back in place:
+## the caller's arrays are the ones it reads next.
+func _step_native(delta: float, gravity: Vector3, angular_accel: Vector3) -> void:
+	var values := PackedFloat64Array()
+	for patch: Array in patches:
+		var normal: Vector3 = patch[0]
+		var center: Vector3 = patch[2]
+		values.append(normal.x)
+		values.append(normal.y)
+		values.append(normal.z)
+		values.append(float(patch[1]))
+		values.append(center.x)
+		values.append(center.y)
+		values.append(center.z)
+		values.append(float(patch[3]))
+		values.append(float(patch[4]))
+	var out: Array = _solver.solve(delta, gravity, angular_accel, length, width, positions,
+		velocities, pin_row, pin_positions, values)
+	positions = out[0]
+	velocities = out[1]
+	move_speed = out[2]
+	body_shift = out[3]
+	support_normal = out[4]
+	var moved: PackedFloat64Array = out[5]
+	for i in patches.size():
+		var patch: Array = patches[i]
+		var offset := moved[i * 9 + 3]
+		var center := Vector3(moved[i * 9 + 4], moved[i * 9 + 5], moved[i * 9 + 6])
+		if offset != float(patch[1]) or center != (patch[2] as Vector3):
+			patch[1] = offset
+			patch[2] = center
 
 
 func _substep(h: float, gravity: Vector3, angular_accel: Vector3) -> void:

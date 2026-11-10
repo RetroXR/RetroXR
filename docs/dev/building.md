@@ -12,7 +12,7 @@ git submodule update --init --recursive
 
 ### One command for every extension
 
-`Tools/build.py` builds all seven GDExtensions for one platform. It first builds one
+`Tools/build.py` builds all eight GDExtensions for one platform. It first builds one
 shared, trimmed `godot-cpp` static library for each target, then runs the extensions
 sequentially with `build_library=no` (they still cannot share a scons invocation —
 see below). Prefer it over the per-extension recipes further down, which are kept
@@ -35,7 +35,7 @@ whose PATH contains spaces and breaks a bare `export PATH="$HOME/.local/bin:$PAT
 Asking for it from Linux just builds. This replaced `Tools/build_linux.sh`.
 It reports a per-extension pass/fail table and exits non-zero if anything failed.
 
-**Not all seven ship everywhere.** `metaxr-audio` is windows/android only — it wraps
+**Not all eight ship everywhere.** `metaxr-audio` is windows/android only — it wraps
 Meta's `MetaXRAudioUnity` blob, which Meta publishes for win-x64 and android-arm64
 alone, and `metaxr_audio.gdextension` has no Linux or macOS entry. The C++ compiles for
 Linux perfectly well (the loader just finds nothing and `is_available()` returns

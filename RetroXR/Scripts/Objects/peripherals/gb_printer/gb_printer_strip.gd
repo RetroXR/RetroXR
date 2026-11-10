@@ -126,6 +126,17 @@ var _other_bounds := Rect2()
 var _patch_index := preload("res://Scripts/Objects/peripherals/gb_printer/gb_paper_contacts.gd").new()
 var _self_bounds: Array[Rect2] = []
 
+## Whether step() hands the solve to the native PaperStripSolver (paper-godot)
+## when that library is loaded: the script below ported line for line, 8-51x
+## faster on a Quest 3 (a 1.2 m strip on the case and table 3.1 -> 0.10 ms a
+## frame; paper_native_probe). On desktop it steps as this script does to the bit
+## (gb_printer_tests native/); the script stays as the reference and as the
+## fallback where the library is missing. A suite turns it off to test the
+## script itself.
+static var native := true
+static var _said_native := false
+var _solver: Object = null
+
 
 ## Set the paper's length. New paper comes out of the slot with the roll's curl
 ## and pushes what was there out ahead of it, so the shape the strip had is kept,
@@ -191,6 +202,9 @@ func place(at: Vector2, angle: float) -> void:
 func step(dt: float, gravity: Vector2, spin_accel := 0.0, shove := Vector2.ZERO) -> void:
 	if segments == 0 or dt <= 0.0:
 		return
+	if native and _native_solver() != null:
+		_step_native(dt, gravity, spin_accel, shove)
+		return
 	_patch_index.build_2d(patches, SKIN, PATCH_DEPTH)
 	var simulated := minf(dt, MAX_STEP * MAX_SUBSTEPS)
 	var n_steps := maxi(1, ceili(simulated / MAX_STEP))
@@ -205,6 +219,59 @@ func step(dt: float, gravity: Vector2, spin_accel := 0.0, shove := Vector2.ZERO)
 		farthest = maxf(farthest, points[i].distance_squared_to(was[i]))
 	if sqrt(farthest) < REST_SPEED * simulated:
 		_contact_motion = 0.0
+
+
+## The native solver, made once a strip; null where paper-godot is not loaded.
+func _native_solver() -> Object:
+	if _solver == null and ClassDB.class_exists(&"PaperStripSolver"):
+		_solver = ClassDB.instantiate(&"PaperStripSolver")
+	if not _said_native:
+		_said_native = true
+		print("[GbPrinter] paper strip solver: %s" % ("native (paper-godot)" if _solver != null
+			else "GDScript (paper-godot not loaded)"))
+	return _solver
+
+
+## step(), by PaperStripSolver: the obstacles flattened into packed arrays (every
+## number in them a double, as the script reads them), the state handed over and
+## taken back.
+func _step_native(dt: float, gravity: Vector2, spin_accel: float, shove: Vector2) -> void:
+	var box_corners := PackedVector2Array()
+	for box: Rect2 in boxes:
+		box_corners.append(box.position)
+		box_corners.append(box.size)
+	var plane_values := PackedFloat64Array()
+	for plane: Array in planes:
+		var normal: Vector2 = plane[0]
+		plane_values.append(normal.x)
+		plane_values.append(normal.y)
+		plane_values.append(float(plane[1]))
+	var patch_values := PackedFloat64Array()
+	for piece: Array in patches:
+		var normal: Vector2 = piece[0]
+		var center: Vector2 = piece[2]
+		patch_values.append(normal.x)
+		patch_values.append(normal.y)
+		patch_values.append(float(piece[1]))
+		patch_values.append(center.x)
+		patch_values.append(center.y)
+		patch_values.append(float(piece[3]))
+		patch_values.append(float(piece[4]) if piece.size() > 4 else PATCH_DEPTH)
+	var finger_values := PackedFloat64Array()
+	for finger: Array in fingers:
+		var center: Vector2 = finger[0]
+		finger_values.append(center.x)
+		finger_values.append(center.y)
+		finger_values.append(float(finger[1]))
+	var out: Array = _solver.solve(dt, gravity, spin_accel, shove, length, root, root_angle,
+		angles, speeds, points, sway, sway_speed, box_corners, plane_values, patch_values,
+		finger_values, other_paper, _other_bounds)
+	angles = out[0]
+	speeds = out[1]
+	points = out[2]
+	sway = out[3]
+	sway_speed = out[4]
+	_contact_motion = out[5]
 
 
 ## Step the swing: the shove across the strip (the way its middle points) and the

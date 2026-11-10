@@ -63,6 +63,10 @@ func _ready() -> void:
 		await _test_printout_lands_without_crumpling()
 		_finish()
 		return
+	if OS.get_cmdline_user_args().has("--only=native"):
+		_test_native_paper_matches_the_script()
+		_finish()
+		return
 	if OS.get_cmdline_user_args().has("--only=rest"):
 		await _test_paper_rests_on_a_still_printer()
 		_finish()
@@ -102,6 +106,7 @@ func _ready() -> void:
 	_test_thermal_ribbon()
 	_test_paper_contact_index()
 	_test_paper_index_matches_all_contacts()
+	_test_native_paper_matches_the_script()
 	_test_paper_hitch_budget()
 	_test_ribbon_impact_does_not_crumple()
 	await _test_printout_lands_without_crumpling()
@@ -976,6 +981,11 @@ func _test_paper_contact_index() -> void:
 
 
 func _test_paper_index_matches_all_contacts() -> void:
+	# The script's own index against checking every patch: the native solver
+	# keeps an index of its own, so this is the script's, stepped by the script.
+	var were := [GbPrinterStrip.native, GbThermalRibbon.native]
+	GbPrinterStrip.native = false
+	GbThermalRibbon.native = false
 	var a := GbPrinterStrip.new()
 	var b := GbPrinterStrip.new()
 	b._patch_index = AllPaperContacts.new()
@@ -1005,6 +1015,84 @@ func _test_paper_index_matches_all_contacts() -> void:
 		rb.step(1.0 / 90, Vector3.ZERO)
 		same = same and ra.positions == rb.positions and ra.velocities == rb.velocities
 	_ok(same, "a contact crossing cells still matches the original sequential solve exactly")
+	GbPrinterStrip.native = were[0]
+	GbThermalRibbon.native = were[1]
+
+
+## paper-godot's solvers against the scripts they port, to the bit: the strip
+## among boxes, a table, a wall, a finger and the other half of a torn print, and
+## the ribbon held among patches and loose landing on a table (the body recovery
+## moving the caller's patches). With the ENGINE's sin/cos/atan2/exp
+## (`engine_math`): the library's own libm parts from MinGW's in the last bit of a
+## double, which is not the port's doing. A missing library is a failure: the
+## script fallback runs the room at a twentieth of the speed, and on a Quest a
+## stale or missing build is otherwise found only by its frame rate.
+func _test_native_paper_matches_the_script() -> void:
+	if not ClassDB.class_exists(&"PaperStripSolver") or not ClassDB.class_exists(&"PaperRibbonSolver"):
+		_ok(false, "paper-godot is loaded (python Tools/build.py windows --only paper-godot)")
+		return
+	var were := [GbPrinterStrip.native, GbThermalRibbon.native]
+	var make_strip := func() -> GbPrinterStrip:
+		var s := GbPrinterStrip.new()
+		s.set_length(0.6)
+		s.place(Vector2(0.03, 0.0), 0.14)
+		s.boxes = [Rect2(Vector2(-0.0285, -0.07), Vector2(0.057, 0.14))]
+		s.planes = [[Vector2(1.0, 0.0), -0.0285]]
+		for i in 24:
+			s.patches.append([Vector2.RIGHT, -0.03, Vector2(-0.03, (i - 12) * 0.015), 0.012, 0.03])
+		s.patches.append([Vector2(0.0, 1.0), -0.12, Vector2(0.0, -0.12), 0.08])
+		s.fingers = [[Vector2(0.05, -0.004), 0.009]]
+		var other := GbPrinterStrip.new()
+		other.set_length(0.2)
+		other.place(Vector2.ZERO, -0.3)
+		s.meet_other_half(other)
+		return s
+	var a: GbPrinterStrip = make_strip.call()
+	var b: GbPrinterStrip = make_strip.call()
+	GbPrinterStrip.native = true
+	b._native_solver().engine_math = true
+	var first := -1
+	for frame in 90:
+		var shove := Vector2(0.0, sin(frame * 0.1))
+		GbPrinterStrip.native = false
+		a.step(1.0 / 90.0, Vector2(-9.8, 0.0), 0.3 * cos(frame * 0.2), shove)
+		GbPrinterStrip.native = true
+		b.step(1.0 / 90.0, Vector2(-9.8, 0.0), 0.3 * cos(frame * 0.2), shove)
+		if first < 0 and (a.points != b.points or a.angles != b.angles or a.speeds != b.speeds
+				or a.sway_speed != b.sway_speed or a.motion() != b.motion()):
+			first = frame
+	_eq(first, -1, "the native strip steps as the script does, to the bit (first frame parted)")
+	for kind in ["held", "loose"]:
+		var make_ribbon := func() -> GbThermalRibbon:
+			var r := GbThermalRibbon.new()
+			r.configure(0.3, 0.038)
+			if kind == "held":
+				r.pin_nearest(Vector3.ZERO)
+				for i in 24:
+					r.patches.append([Vector3.BACK, -0.025, Vector3(0, (i - 12) * 0.015, -0.025), 0.025, 0.03])
+			else:
+				r.patches = [[Vector3.UP, 0.002, Vector3(0, 0.002, 0), 0.6, 0.03],
+					[Vector3.BACK, 0.05, Vector3(0, 0, 0.05), 0.3, 0.2]]
+			return r
+		var ra: GbThermalRibbon = make_ribbon.call()
+		var rb: GbThermalRibbon = make_ribbon.call()
+		GbThermalRibbon.native = true
+		rb._native_solver().engine_math = true
+		first = -1
+		for frame in 90:
+			var g := Vector3(0, -9.8, 0) if kind == "held" else Vector3.ZERO
+			var spin := Vector3(0, sin(frame * 0.1), 0.2 * cos(frame * 0.3))
+			GbThermalRibbon.native = false
+			ra.step(1.0 / 90.0, g, spin)
+			GbThermalRibbon.native = true
+			rb.step(1.0 / 90.0, g, spin)
+			if first < 0 and (ra.positions != rb.positions or ra.velocities != rb.velocities
+					or ra.move_speed != rb.move_speed or ra.body_shift != rb.body_shift
+					or ra.support_normal != rb.support_normal or ra.patches != rb.patches):
+				first = frame
+		_eq(first, -1, "the native ribbon, %s, steps as the script does, to the bit (first frame parted)" % kind)
+	GbPrinterStrip.native = were[0]
+	GbThermalRibbon.native = were[1]
 
 
 func _test_paper_hitch_budget() -> void:

@@ -109,6 +109,14 @@ RetroXR/surround-godot/*.lib
 RetroXR/surround-godot/*.pdb
 surround-godot/Temp/
 
+# paper-godot build artifacts
+RetroXR/paper-godot/~*
+RetroXR/paper-godot/*.exp
+RetroXR/paper-godot/*.ilk
+RetroXR/paper-godot/*.lib
+RetroXR/paper-godot/*.pdb
+paper-godot/Temp/
+
 # ── Compiled GDExtensions ─────────────────────────────────────────────────────
 # Our own six libraries are BUILD OUTPUT and are not carried in the repo — run
 # `python Tools/build.py <platform>` to produce them. They were tracked until
@@ -143,6 +151,9 @@ RetroXR/metaxr-audio/*metaxr-audio.*.so
 RetroXR/surround-godot/*surround_godot.*.dll
 RetroXR/surround-godot/*surround_godot.*.so
 RetroXR/surround-godot/*surround_godot.*.dylib
+RetroXR/paper-godot/*paper_godot.*.dll
+RetroXR/paper-godot/*paper_godot.*.so
+RetroXR/paper-godot/*paper_godot.*.dylib
 # The plain names release exports ship (Tools/build.py release_names).
 RetroXR/libretro-godot/*libretro_godot.dll
 RetroXR/libretro-godot/*libretro_godot.so
@@ -165,6 +176,9 @@ RetroXR/metaxr-audio/*metaxr-audio.so
 RetroXR/surround-godot/*surround_godot.dll
 RetroXR/surround-godot/*surround_godot.so
 RetroXR/surround-godot/*surround_godot.dylib
+RetroXR/paper-godot/*paper_godot.dll
+RetroXR/paper-godot/*paper_godot.so
+RetroXR/paper-godot/*paper_godot.dylib
 
 # Windows ReplaceFile() backups. The Win32 call that swaps a file in place leaves
 # the old copy behind as `~<name>~RF<hex>.TMP`, and something re-writes the OpenXR
