@@ -92,9 +92,6 @@ func _refresh() -> void:
 
 func _build_offer(ver: String) -> void:
 	add_child(_line("RetroXR %s is available  (this is %s)." % [ver, _svc.current_version]))
-	var notes := str(_svc.release.get("notes", ""))
-	if not notes.is_empty():
-		add_child(MenuStyle.hint(notes))
 	var row := MenuStyle.hbox(10)
 	if _svc.can_auto_install():
 		row.add_child(_button("Update now", func() -> void: request_install(_menu, _svc)))
