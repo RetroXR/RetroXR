@@ -308,6 +308,32 @@ func _group_press() -> void:
 	_ok(slab_top > cushion_top, "press: the trigger's top is above the cushion (%.3f > %.3f)" % [slab_top, cushion_top])
 	_ok(top > 0.0, "press: the body has a pointer box to carry it by")
 	seat.free()
+	# The desktop's aim, through the real resolver and the real physics: the body's pointer box is the seat's own collision
+	# boxes, and a pointer target beats a pickable flush with it, so a box that always claimed the aim left a placed seat
+	# that could not be picked up or moved (2026-11-10). Empty, the side of every seat is the seat (held to carry);
+	# sat on, it is the press that stands the sitter up.
+	var grabber := Node3D.new()
+	add_child(grabber)
+	for id in FAMILIES:
+		var s := _seat(id, Vector3(6.0, 0.0, -6.0), 0.0)
+		# The last seat's stand-up left the rig's capsule on its StandPoint, across this aim: out of the way.
+		_origin.global_position = Vector3(-20.0, 0.0, 20.0)
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		var aim := (s.find_child("PointerArea", false, false) as Node3D).get_child(0) as CollisionShape3D
+		var at := s.global_transform * aim.position
+		var space := s.get_world_3d().direct_space_state
+		var empty := InteractionResolver.resolve_desktop(space, at + Vector3(3.0, 0.0, 0.0), at - Vector3(3.0, 0.0, 0.0), grabber)
+		_ok(empty.kind == InteractionTarget.KIND_PICKABLE and empty.action_node == s and empty.can_grab,
+			"press: %s empty, the desktop's aim at its side is the seat itself, to carry (%s)" % [id, empty.kind])
+		_ok(HoldToGrab.seconds_for(empty.action_node) > 0.0, "press: %s and it is carried by a hold" % id)
+		s.sit()
+		var sat := InteractionResolver.resolve_desktop(space, at + Vector3(3.0, 0.0, 0.0), at - Vector3(3.0, 0.0, 0.0), grabber)
+		_ok(sat.kind == InteractionTarget.KIND_POINTER and sat.action_node is SeatPointerArea,
+			"press: %s sat on, the same aim is the press that stands the sitter up (%s)" % [id, sat.kind])
+		s.stand()
+		s.free()
+	grabber.free()
 	_drop_rig()
 	await _frames(2)
 
