@@ -247,7 +247,7 @@ func _process(delta: float) -> void:
 	var near := false
 	if not _controllers.is_empty():
 		if _engaged_ctrl != null \
-				or PokeTip.any_tip_within(_controllers, global_position, PokeTip.WIDGET_NEAR):
+				or PokeTip.any_tip_within(_controllers, _reach_point(), PokeTip.WIDGET_NEAR):
 			near = true
 			if require_trigger:
 				_process_trigger_mode()
@@ -259,7 +259,18 @@ func _process(delta: float) -> void:
 	_sync_outline()
 	# Idle long enough, the slider sleeps until PokeWake finds a tip in reach.
 	_poke_idle = PokeWake.tick(self, near or _engaged_ctrl != null or _pointer_hovered
-		or _armed, _poke_idle)
+		or _armed or _keep_awake(), _poke_idle)
+
+
+## Where a hand has to be to be asked anything. The slider's own origin; a subclass whose grab point travels far from
+## it (VRDrawer: the handle rides the drawer 30 cm out) answers where that point is now.
+func _reach_point() -> Vector3:
+	return global_position
+
+
+## True while the control is moving by itself (VRDrawer coasting or easing shut), so it does not fall asleep mid-move.
+func _keep_awake() -> bool:
+	return false
 
 
 ## TOUCH mode — proximity engages, and the value FREEZES the moment

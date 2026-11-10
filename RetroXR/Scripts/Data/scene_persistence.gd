@@ -263,6 +263,7 @@ const CONSOLE_STAND_SCENE    := preload("res://Scenes/Objects/stands/console_sta
 const SPEAKER_CABLE_SCENE    := preload("res://Scenes/Objects/cables/speaker_cable.tscn")
 const STORAGE_BOX_SCENE      := preload("res://Scenes/Objects/appliances/storage_box.tscn")
 const TABLE_SCENE            := preload("res://Scenes/Objects/furniture/table.tscn")
+const NIGHTSTAND_SCENE       := preload("res://Scenes/Objects/furniture/nightstand.tscn")
 const SEAT_RACING_SCENE      := preload("res://Scenes/Objects/furniture/seat_racing.tscn")
 const SEAT_STOOL_SCENE       := preload("res://Scenes/Objects/furniture/seat_stool.tscn")
 const SEAT_CHAIR_SCENE       := preload("res://Scenes/Objects/furniture/seat_chair.tscn")
@@ -413,6 +414,8 @@ const PLAIN_SCENES := {
 	"speaker_stand_100": SPEAKER_STAND_100,
 	"trash_can": STORAGE_BOX_SCENE,
 	"table": TABLE_SCENE,
+	# Pose only: how far its drawer is out is a VRSlider (VRDrawer), saved with the articulated controls.
+	"nightstand": NIGHTSTAND_SCENE,
 	# Pose only: where the player is sitting is this session's, never saved.
 	"seat_racing": SEAT_RACING_SCENE,
 	"seat_stool": SEAT_STOOL_SCENE,
@@ -2816,6 +2819,7 @@ static func _save_kind_rows() -> Array:
 		# The pose and the board standing in it; its type is its kind's.
 		[ArcadeBayUnit, "", &"_arcade_bay_entry"],
 		[Table, "table"],
+		[Nightstand, "nightstand"],
 		# Pose only, and in the table for the table's reason: PLAIN_SCENES is read when LOADING. The
 		# scene says which seat it is (`type_id`); that the player sits on it is this session's.
 		[Seat, "", &"_seat_entry"],

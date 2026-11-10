@@ -1,0 +1,63 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/furniture/nightstand.gd" id="1_nst"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="Script" path="res://Scripts/Objects/appliance_model.gd" id="3_model"]
+[ext_resource type="PackedScene" path="res://imported-assets/furniture/nightstand/nightstand_mobile.glb" id="4_lod0"]
+[ext_resource type="PackedScene" path="res://imported-assets/furniture/nightstand/nightstand_mobile_lod1.glb" id="5_lod1"]
+[ext_resource type="PackedScene" path="res://imported-assets/furniture/nightstand/nightstand_mobile_lod2.glb" id="6_lod2"]
+[ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_drawer.gd" id="7_drawer"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_nst"]
+bounce = 0.0
+friction = 0.9
+
+; The pull bar and its posts (140 x 10 mm, 28 mm proud) and room for the fingers behind it, from the drawer front
+; (local z -0.028) to 12 mm past the bar.
+[sub_resource type="BoxShape3D" id="Shape_handle"]
+size = Vector3(0.17, 0.034, 0.04)
+
+; A RETRO XR mid-century nightstand: 500 x 600 x 380 mm, the drawer towards +Z. Origin on the floor, so it stands on
+; whatever it is let go against. Heavy and damped like the speaker stands: furniture, not a prop.
+;
+; Its collision is built by nightstand.gd from the model's contract (the case and legs on this body, the drawer's
+; front, floor and walls on DrawerBody), so this scene carries none of its own.
+[node name="Nightstand" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_nst")
+mass = 14.0
+linear_damp = 6.0
+angular_damp = 9.0
+freeze_mode = 1
+script = ExtResource("1_nst")
+
+; RetroXR-models generic/nightstand, three levels by distance.
+[node name="Model" type="Node3D" parent="."]
+script = ExtResource("3_model")
+level_scenes = Array[PackedScene]([ExtResource("4_lod0"), ExtResource("5_lod1"), ExtResource("6_lod2")])
+
+; The drawer as a body: nightstand.gd moves the model's Drawer and DrawerPull under it and gives it its boxes.
+; sync_to_physics, so as the VRDrawer slides it, what rests in it is carried by friction.
+[node name="DrawerBody" type="AnimatableBody3D" parent="."]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_nst")
+sync_to_physics = true
+
+; The pull, at the model's DrawerHandle with the drawer shut. It stays put; its box rides out with the drawer.
+; push_face: the drawer front (430 x 134 mm, 28 mm behind the bar) can be pushed in with a fingertip.
+[node name="DrawerHandle" type="Area3D" parent="." node_paths=PackedStringArray("target")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.509, 0.203)
+script = ExtResource("7_drawer")
+target = NodePath("../DrawerBody")
+travel = 0.25
+push_face_size = Vector2(0.43, 0.134)
+push_face_offset = -0.028
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="DrawerHandle"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.008)
+shape = SubResource("Shape_handle")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")

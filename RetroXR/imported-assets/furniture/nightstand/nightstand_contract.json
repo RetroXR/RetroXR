@@ -1,0 +1,318 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the front (the drawer) faces +Z, x to the right seen from the front; the ORIGIN is the middle of the footprint, on the floor",
+ "size": [
+  0.5,
+  0.6,
+  0.398
+ ],
+ "levels": [
+  "nightstand_mobile",
+  "nightstand_mobile_lod1",
+  "nightstand_mobile_lod2"
+ ],
+ "master": "nightstand_high",
+ "markers": [
+  {
+   "node": "DrawerHandle",
+   "position": [
+    0.0,
+    0.509,
+    0.203
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the pull bar's middle, drawer SHUT; identity basis, +Z out of the front: the drawer slides out along +Z"
+  },
+  {
+   "node": "DrawerSeat",
+   "position": [
+    0.0,
+    0.458,
+    0.012
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the middle of the drawer's floor inside, drawer SHUT, +Y up (it moves with the drawer)"
+  },
+  {
+   "node": "TopSurface",
+   "position": [
+    0.0,
+    0.6,
+    -0.0
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the middle of the top, +Y up"
+  },
+  {
+   "node": "ShelfSurface",
+   "position": [
+    0.0,
+    0.268,
+    0.004
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the middle of the open shelf's floor, +Y up"
+  }
+ ],
+ "own_nodes": [
+  "Carcass",
+  "Drawer",
+  "DrawerPull"
+ ],
+ "moving": {
+  "Drawer": "slides along +Z by drawer_travel_m",
+  "DrawerPull": "rides with Drawer"
+ },
+ "drawer_travel_m": 0.25,
+ "drawer_inner": {
+  "name": "Inner",
+  "centre": [
+   0.0,
+   0.499,
+   0.012
+  ],
+  "size": [
+   0.396,
+   0.082,
+   0.27
+  ]
+ },
+ "collision": {
+  "carcass": [
+   {
+    "name": "Top",
+    "centre": [
+     0.0,
+     0.589,
+     -0.0
+    ],
+    "size": [
+     0.5,
+     0.022,
+     0.38
+    ]
+   },
+   {
+    "name": "SideL",
+    "centre": [
+     -0.226,
+     0.414,
+     -0.0
+    ],
+    "size": [
+     0.018,
+     0.328,
+     0.35
+    ]
+   },
+   {
+    "name": "SideR",
+    "centre": [
+     0.226,
+     0.414,
+     -0.0
+    ],
+    "size": [
+     0.018,
+     0.328,
+     0.35
+    ]
+   },
+   {
+    "name": "Bottom",
+    "centre": [
+     0.0,
+     0.259,
+     -0.0
+    ],
+    "size": [
+     0.434,
+     0.018,
+     0.35
+    ]
+   },
+   {
+    "name": "Back",
+    "centre": [
+     0.0,
+     0.414,
+     -0.171
+    ],
+    "size": [
+     0.434,
+     0.328,
+     0.008
+    ]
+   },
+   {
+    "name": "Rail",
+    "centre": [
+     0.0,
+     0.431,
+     0.004
+    ],
+    "size": [
+     0.434,
+     0.018,
+     0.342
+    ]
+   }
+  ],
+  "legs": [
+   {
+    "top": [
+     -0.195,
+     0.25,
+     0.135
+    ],
+    "foot": [
+     -0.23,
+     0.0,
+     0.17
+    ],
+    "radius": 0.015
+   },
+   {
+    "top": [
+     -0.195,
+     0.25,
+     -0.135
+    ],
+    "foot": [
+     -0.23,
+     0.0,
+     -0.17
+    ],
+    "radius": 0.015
+   },
+   {
+    "top": [
+     0.195,
+     0.25,
+     0.135
+    ],
+    "foot": [
+     0.23,
+     0.0,
+     0.17
+    ],
+    "radius": 0.015
+   },
+   {
+    "top": [
+     0.195,
+     0.25,
+     -0.135
+    ],
+    "foot": [
+     0.23,
+     0.0,
+     -0.17
+    ],
+    "radius": 0.015
+   }
+  ],
+  "drawer": [
+   {
+    "name": "Front",
+    "centre": [
+     0.0,
+     0.509,
+     0.166
+    ],
+    "size": [
+     0.43,
+     0.134,
+     0.018
+    ]
+   },
+   {
+    "name": "Floor",
+    "centre": [
+     0.0,
+     0.454,
+     0.012
+    ],
+    "size": [
+     0.416,
+     0.008,
+     0.29
+    ]
+   },
+   {
+    "name": "WallL",
+    "centre": [
+     -0.203,
+     0.499,
+     0.012
+    ],
+    "size": [
+     0.01,
+     0.082,
+     0.29
+    ]
+   },
+   {
+    "name": "WallR",
+    "centre": [
+     0.203,
+     0.499,
+     0.012
+    ],
+    "size": [
+     0.01,
+     0.082,
+     0.29
+    ]
+   },
+   {
+    "name": "WallF",
+    "centre": [
+     0.0,
+     0.499,
+     0.152
+    ],
+    "size": [
+     0.396,
+     0.082,
+     0.01
+    ]
+   },
+   {
+    "name": "WallB",
+    "centre": [
+     0.0,
+     0.499,
+     -0.128
+    ],
+    "size": [
+     0.396,
+     0.082,
+     0.01
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres, the drawer SHUT; legs are round, top/foot/radius"
+ },
+ "triangles": {
+  "high": 3264,
+  "lod0": 1632,
+  "lod1": 888,
+  "lod2": 608
+ }
+}
