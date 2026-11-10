@@ -1,5 +1,5 @@
 ## Regression test for the scene-change crash: a libretro core running, then
-## arcade -> test hallway -> bedroom, unattended. Drives SceneManager from /root so
+## arcade -> bedroom -> arcade, unattended. Drives SceneManager from /root so
 ## it outlives the scenes it swaps.
 ##
 ## To run on a Quest, point the QuestTestHall preset at it —
@@ -60,8 +60,8 @@ func _drive() -> void:
 
 	if not await _start_core(arcade):
 		return
-	await _switch("test")
 	await _switch("bedroom")
+	await _switch("arcade")
 	print("[soak] RESULT: SURVIVED all transitions with a core running")
 	get_tree().quit(0)
 

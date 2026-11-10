@@ -29,7 +29,7 @@ func _ready() -> void:
 	get_tree().create_timer(90.0).timeout.connect(func() -> void:
 		print("[seventh-menu] TIMEOUT")
 		get_tree().quit(1))
-	# "test" is an authored, slotless room id: the menu skips its slot restore.
+	# "test" names no room, so it keeps no slots: the menu skips its slot restore.
 	SceneManager.current_scene_id = "test"
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var bg := ColorRect.new()

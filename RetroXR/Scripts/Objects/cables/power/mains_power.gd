@@ -75,7 +75,7 @@ static func _ask(owner: Node, at: Node, seen: Dictionary) -> bool:
 
 
 ## Whether the room has any mains wiring to plug into. A room with no wall outlet
-## (the test hallway, passthrough, most mod rooms) cannot power anything
+## (passthrough, most mod rooms) cannot power anything
 ## by cord, so there everything powers as though the option were on.
 static func room_has_mains(tree: SceneTree) -> bool:
 	if tree == null:

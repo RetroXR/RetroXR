@@ -1,8 +1,8 @@
 ## Rope solver bench — a fixed set of cables over a fixed bit of geometry, for
 ## A/B-ing changes to VerletRope's physics cost.
 ##
-## The test hallway is a bad place to measure this: it costs seconds to build,
-## and its ropes fall asleep at different times on every run, so the amount of
+## A room is a bad place to measure this: the old test hallway cost seconds to
+## build, and its ropes fell asleep at different times on every run, so the amount of
 ## work sampled changes between runs and swamps the effect being measured. Here
 ## the rope count, the anchor spacing and the tick count are all fixed.
 ##

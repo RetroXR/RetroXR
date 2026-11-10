@@ -16,7 +16,7 @@
 ##               slot's own picture is shown over it once the room has one
 ##
 ## has_slots is the one that is not cosmetic. A room whose contents are authored
-## in its own .tscn (the test hallway) must not keep slots: a slot of
+## in its own .tscn must not keep slots: a slot of
 ## what was spawned on top would restore a handful of objects into a room that
 ## already has its own.
 class_name RoomCatalog
@@ -36,11 +36,6 @@ const _ROOMS: Dictionary = {
 	"passthrough": {
 		"path": "res://Scenes/PassthroughScene.tscn",
 		"title": "PASSTHROUGH", "menu_title": "Passthrough AR", "has_slots": true,
-	},
-	"test": {
-		"path": "res://Scenes/TestScene.tscn",
-		"title": "TEST HALLWAY", "menu_title": "Test Hallway", "has_slots": false,
-		"thumbnail": "res://Textures/Rooms/test.png",
 	},
 }
 

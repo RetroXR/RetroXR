@@ -22,6 +22,11 @@ const GROUPS := ["slots", "boot", "ready", "transition", "autosave", "reload", "
 ## A room id no real room has, for the carry: its file lives in a folder of its
 ## own under user://scenes, deleted at the end, never the player's.
 const CARRY_ROOM := "__scene_selftest_carry"
+## A scratch room that keeps no slots, registered for the run and dropped in
+## _restore: every shipped room keeps slots, and these groups need a second,
+## slot-less destination besides the arcade and the bedroom.
+const HALL_OWNER := "t.scenehall"
+const HALL := "t.scenehall:hall"
 const SCENE_MANAGER := preload("res://Scripts/Data/scene_manager.gd")
 ## Scratch slot ids, in the arcade's real directory — slot_dir() is derived from
 ## the room id and cannot be pointed somewhere safer.
@@ -153,6 +158,8 @@ func _ready() -> void:
 			_only = a.trim_prefix("--only=")
 
 	_snapshot()
+	RoomCatalog.register_mod_room(HALL, {"path": "res://Scenes/BedroomScene.tscn",
+		"menu_title": "Scratch Hall", "has_slots": false}, HALL_OWNER)
 	if _want_group("controllers"):
 		_test_controller_scene_allowlist()
 	if _want_group("slots"):
@@ -298,13 +305,13 @@ func _test_slots() -> void:
 	_ok(SceneManager.room_has_slots("arcade"), "slots/arcade has slots")
 	_ok(SceneManager.room_has_slots("passthrough"), "slots/passthrough has slots")
 	_ok(SceneManager.room_has_slots("bedroom"), "slots/bedroom has slots")
-	for room in ["test"]:
+	for room in [HALL]:
 		_ok(not SceneManager.room_has_slots(room), "slots/%s has none" % room)
 	_ok(not SceneManager.room_has_slots("nonesuch"), "slots/unknown room has none")
 
 	# A room nobody has given a slot reads as clean rather than as empty string.
-	SceneManager.active_slots.erase("test")
-	_eq(SceneManager.active_slot("test"), "clean", "slots/default is clean")
+	SceneManager.active_slots.erase(HALL)
+	_eq(SceneManager.active_slot(HALL), "clean", "slots/default is clean")
 
 	# Per room: setting one must not move another.
 	SceneManager.set_active_slot(SLOT_A, "arcade")
@@ -346,8 +353,8 @@ func _test_boot() -> void:
 	var platform_default := "arcade" if OS.has_feature("android") else "bedroom"
 	SceneManager.last_room_id = ""
 	_eq(SceneManager.boot_room(), platform_default, "boot/nothing remembered opens the platform default")
-	SceneManager.last_room_id = "test"
-	_eq(SceneManager.boot_room(), "test", "boot/the remembered room opens")
+	SceneManager.last_room_id = HALL
+	_eq(SceneManager.boot_room(), HALL, "boot/the remembered room opens")
 	SceneManager.last_room_id = "nonesuch"
 	_eq(SceneManager.boot_room(), platform_default, "boot/an unknown room opens the default")
 	SceneManager.last_room_id = "passthrough"
@@ -366,25 +373,25 @@ func _test_boot() -> void:
 	# Remembered when a room a transition installed stands with its contents in
 	# place, not when it is asked for.
 	SceneManager.last_room_id = "arcade"
-	SceneManager.current_scene_id = "test"
+	SceneManager.current_scene_id = HALL
 	SceneManager._content_ready_scene_id = ""
 	SceneManager._installed_room_id = ""
-	SceneManager.notify_scene_content_ready("test")
+	SceneManager.notify_scene_content_ready(HALL)
 	_eq(SceneManager.last_room_id, "arcade", "boot/a room run directly is not remembered")
-	SceneManager._installed_room_id = "test"
+	SceneManager._installed_room_id = HALL
 	SceneManager._transitioning = true
-	SceneManager.notify_scene_content_ready("test")
+	SceneManager.notify_scene_content_ready(HALL)
 	_eq(SceneManager.last_room_id, "arcade", "boot/a room still arriving is not remembered")
 	SceneManager._transitioning = false
-	SceneManager.notify_scene_content_ready("test")
-	_eq(SceneManager.last_room_id, "test", "boot/an arrived room is remembered")
+	SceneManager.notify_scene_content_ready(HALL)
+	_eq(SceneManager.last_room_id, HALL, "boot/an arrived room is remembered")
 
 	# Room and slots share prefs.json; writing either keeps the other.
 	SceneManager.set_active_slot(SLOT_A, "arcade")
 	SceneManager.active_slots.clear()
 	SceneManager.last_room_id = ""
 	SceneManager.load_prefs()
-	_eq(SceneManager.last_room_id, "test", "boot/writing a slot keeps the room")
+	_eq(SceneManager.last_room_id, HALL, "boot/writing a slot keeps the room")
 	SceneManager.current_scene_id = "bedroom"
 	SceneManager._installed_room_id = "bedroom"
 	SceneManager.notify_scene_content_ready("bedroom")
@@ -397,7 +404,7 @@ func _test_boot() -> void:
 	var f := FileAccess.open(SceneManager.PREFS_FILE, FileAccess.WRITE)
 	f.store_string(JSON.stringify({"slots": {"arcade": SLOT_A}}))
 	f = null
-	SceneManager.last_room_id = "test"
+	SceneManager.last_room_id = HALL
 	SceneManager.load_prefs()
 	_eq(SceneManager.boot_room(), platform_default, "boot/prefs without a room open the default")
 
@@ -410,7 +417,7 @@ func _test_ready() -> void:
 	SceneManager._content_ready_scene_id = ""
 
 	_ok(SceneManager.is_room_ready("arcade"), "ready/current room with a scene is ready")
-	_ok(not SceneManager.is_room_ready("test"), "ready/another room is not")
+	_ok(not SceneManager.is_room_ready(HALL), "ready/another room is not")
 
 	# current_scene_id names the DESTINATION the moment a transition is claimed,
 	# while the old room is still standing — so the id alone is not readiness.
@@ -426,7 +433,7 @@ func _test_ready() -> void:
 
 	# A restore that yielded while the player left must not mark the room it
 	# finished in. This is the 24-object-arcade-saved-as-1 bug.
-	SceneManager.notify_scene_content_ready("test")
+	SceneManager.notify_scene_content_ready(HALL)
 	_eq(SceneManager._content_ready_scene_id, "arcade",
 		"ready/stale notify from another room is ignored")
 
@@ -459,7 +466,7 @@ func _test_transition() -> void:
 	# Asking for the room you are already in is a no-op, and cancels anything
 	# queued behind it — a double-tap must not leave a stale destination armed.
 	SceneManager._transitioning = true
-	SceneManager._pending_scene_id = "test"
+	SceneManager._pending_scene_id = HALL
 	SceneManager.change_scene("arcade")
 	_eq(SceneManager._pending_scene_id, "", "transition/same room cancels the queue")
 	_ok(SceneManager._same_scene_request_is_noop("arcade"),
@@ -470,8 +477,8 @@ func _test_transition() -> void:
 	SceneManager._last_load_failed = false
 
 	# While one is in flight, the newest request wins rather than stacking.
-	SceneManager.change_scene("test")
-	_eq(SceneManager._pending_scene_id, "test", "transition/request queues while busy")
+	SceneManager.change_scene(HALL)
+	_eq(SceneManager._pending_scene_id, HALL, "transition/request queues while busy")
 	SceneManager.change_scene("bedroom")
 	_eq(SceneManager._pending_scene_id, "bedroom", "transition/last intent wins")
 	_eq(SceneManager.current_scene_id, "arcade", "transition/queued request does not move the id")
@@ -1537,20 +1544,20 @@ func _thumb_color(tex: Texture2D) -> Color:
 ## A scratch mod room, so nothing here touches the player's own slots: its folder
 ## is removed at the end whatever happened.
 func _test_thumbnail() -> void:
-	for room_id in ["arcade", "bedroom", "test"]:
+	for room_id in ["arcade", "bedroom"]:
 		var stock := RoomCatalog.thumbnail_of(room_id)
 		_ok(ResourceLoader.exists(stock), "thumbnail/%s ships a stock picture (%s)" % [room_id, stock])
 	_eq(RoomCatalog.thumbnail_of("passthrough"), "", "thumbnail/passthrough has none")
 
 	# A mod's wrong path costs the card its picture, not the mod its room.
-	RoomCatalog.register_mod_room(_THUMB_ROOM, {"path": "res://Scenes/TestScene.tscn",
+	RoomCatalog.register_mod_room(_THUMB_ROOM, {"path": "res://Scenes/BedroomScene.tscn",
 		"thumbnail": "res://nope/missing.png"}, _THUMB_OWNER)
 	_ok(RoomCatalog.has(_THUMB_ROOM), "thumbnail/a bad mod thumbnail still registers the room")
 	_eq(RoomCatalog.thumbnail_of(_THUMB_ROOM), "", "thumbnail/a bad mod thumbnail is dropped")
 	RoomCatalog.drop_mod(_THUMB_OWNER)
-	RoomCatalog.register_mod_room(_THUMB_ROOM, {"path": "res://Scenes/TestScene.tscn",
-		"thumbnail": "res://Textures/Rooms/test.png"}, _THUMB_OWNER)
-	_eq(RoomCatalog.thumbnail_of(_THUMB_ROOM), "res://Textures/Rooms/test.png",
+	RoomCatalog.register_mod_room(_THUMB_ROOM, {"path": "res://Scenes/BedroomScene.tscn",
+		"thumbnail": "res://Textures/Rooms/bedroom.png"}, _THUMB_OWNER)
+	_eq(RoomCatalog.thumbnail_of(_THUMB_ROOM), "res://Textures/Rooms/bedroom.png",
 		"thumbnail/a mod thumbnail is kept")
 
 	var sp := ScenePersistence.new(_THUMB_ROOM)
@@ -1690,6 +1697,7 @@ func _snapshot() -> void:
 
 func _restore() -> void:
 	ScenePersistence.flush_pending_writes()
+	RoomCatalog.drop_mod(HALL_OWNER)
 	SceneManager.active_slots = _saved_slots
 	SceneManager.current_scene_id = _saved_scene_id
 	SceneManager.last_room_id = _saved_last_room

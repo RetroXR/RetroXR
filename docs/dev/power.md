@@ -10,8 +10,8 @@ supply reaches it, and pulling the plug switches it off.
 **The rule is opt-in.** Options > General > **Enable Power Simulation**
 (`AppPrefs.power_simulation`) ships OFF, which is exactly the old behaviour: everything
 powers whatever its cords do. Switching it ON turns on the rule, and cuts at once whatever
-is running with no supply. A room with **no wall outlet at all** (the test hallway,
-passthrough, most mod rooms) powers everything either way (`MainsPower.room_has_mains`),
+is running with no supply. A room with **no wall outlet at all** (passthrough,
+most mod rooms) powers everything either way (`MainsPower.room_has_mains`),
 because nothing in it could ever be plugged in. The Arcade Room and the bedroom have outlets.
 
 ## The pieces

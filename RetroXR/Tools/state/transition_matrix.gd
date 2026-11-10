@@ -10,7 +10,11 @@
 ##   godot --path RetroXR --resolution 480x360 res://Tools/state/transition_matrix.tscn
 extends Node
 
-const ROOMS := ["arcade", "bedroom", "test"]
+## A scratch room that keeps no slots, registered for the run: the shipped
+## rooms all keep them, and the adversarial cases need a third destination.
+const HALL_OWNER := "t.matrix"
+const HALL := "t.matrix:hall"
+const ROOMS := ["arcade", "bedroom", HALL]
 
 ## With `-- --core`, every room gets a console powered on in it before we leave
 ## again, so each transition tears a running libretro core down rather than only
@@ -33,6 +37,8 @@ var _watch := false
 
 
 func _ready() -> void:
+	RoomCatalog.register_mod_room(HALL, {"path": "res://Scenes/BedroomScene.tscn",
+		"menu_title": "Scratch Hall", "has_slots": false}, HALL_OWNER)
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	SceneManager.scene_ready.connect(_on_scene_ready)
 	_run.call_deferred()
@@ -42,6 +48,7 @@ func _ready() -> void:
 ## happy path, which is all _run() reaches.
 func _exit_tree() -> void:
 	_release_scratch_slot()
+	RoomCatalog.drop_mod(HALL_OWNER)
 
 
 func _process(_d: float) -> void:
@@ -153,7 +160,7 @@ func _phase_adversarial() -> void:
 	var tree := get_tree()
 
 	await _mark("double change_scene in one frame")
-	SceneManager.change_scene("test")
+	SceneManager.change_scene(HALL)
 	SceneManager.change_scene("bedroom")
 	await _settle(10.0)
 	if SceneManager.current_scene_id != "bedroom":
@@ -163,9 +170,9 @@ func _phase_adversarial() -> void:
 	await _mark("change_scene interrupting a transition in flight")
 	SceneManager.change_scene("arcade")
 	await tree.create_timer(0.30).timeout
-	SceneManager.change_scene("test")
+	SceneManager.change_scene(HALL)
 	await _settle(12.0)
-	if SceneManager.current_scene_id != "test":
+	if SceneManager.current_scene_id != HALL:
 		_fail("interrupted transition", "latest room request was not installed")
 	_check("interrupted transition")
 

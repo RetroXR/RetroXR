@@ -114,10 +114,6 @@ func _build() -> void:
 	grid.add_child(_make_room_card(RoomCatalog.menu_title_of("arcade"), Color(0.15, 0.13, 0.35), "arcade",
 		show_states.bind("arcade")))
 
-	# Test Hallway card → direct scene switch
-	grid.add_child(_make_room_card(RoomCatalog.menu_title_of("test"), Color(0.12, 0.32, 0.30), "test",
-		func(): scene_change_requested.emit("test")))
-
 	# Passthrough card (only if supported) → direct scene switch. Added late: see
 	# _sync_passthrough_card.
 	_sync_passthrough_card()
@@ -234,7 +230,7 @@ func _sync_passthrough_card() -> void:
 ## with it a room) long after that. Before this the tab had a card only for the
 ## shipped rooms, so a room registered through ModApi.register_room could not be
 ## reached at all. A room with slots opens its grid, like the arcade; one without
-## switches straight to it, like the test hallway.
+## switches straight to it.
 func _sync_mod_room_cards() -> void:
 	if _rooms_grid == null:
 		return

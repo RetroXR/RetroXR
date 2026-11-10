@@ -27,7 +27,7 @@ func _ready() -> void:
 	# Assemble only the production controller and its real 2D-in-3D menu. Using
 	# player_rig.tscn here would also start SceneManager and restore the user's
 	# last room, which is unrelated to this probe.
-	# "test" is an authored, slotless room id, so the controller also skips its
+	# "test" names no room, so it keeps no slots and the controller also skips its
 	# startup slot restore without changing the user's persisted preference.
 	SceneManager.current_scene_id = "test"
 	AppPrefs.mains_region = MainsRegions.DEFAULT

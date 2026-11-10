@@ -1664,7 +1664,7 @@ func _test_spawn_hand() -> void:
 	floor_body.position.y = -0.01
 	_room.add_child(floor_body)
 	# The production controller and its real menu, as power_spawn_menu_probe builds
-	# them; "test" is a slotless room id, so it restores no slot.
+	# them; "test" names no room, so it restores no slot.
 	var scene_before := str(SceneManager.current_scene_id)
 	SceneManager.current_scene_id = "test"
 	var ctl := Node3D.new()
