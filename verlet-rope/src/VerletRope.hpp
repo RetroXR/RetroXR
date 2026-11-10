@@ -7,21 +7,26 @@
 // tube), and essentially all of that was interpreter overhead in the solver's
 // inner loops rather than real work.
 //
-// The behaviour is meant to be indistinguishable from the GDScript original —
-// same constraints in the same order, same contact caching, same sleep rules.
-// Tools/rope_bench.tscn A/Bs the cost and renders a settled cable for
-// comparison; a settled cable must look the same as it did before.
+// It began as that script's solver, constraint for constraint. Since
+// 2026-11-10 it is not: a tick is SUBSTEPS slices (4), each a short integration
+// and a share of the iterations, and the cord's contacts with itself are solved
+// inside the loop with the rest (docs/dev/rope.md, "Substeps"). The environment
+// is still asked once a tick.
 //
-// Constraints, in solve order, all iteration-count-independent:
+// Constraints, in solve order:
 //   - Stretch: distance constraints between neighbours (stretch_stiffness).
 //   - Bend: hierarchical, toward the midpoint of neighbours at spacing 1/2/4…,
 //     with a max_bend_degrees free allowance.
 //   - End stiffness: a strain-relief stub holding the first/last few segments
 //     straight, plus a directional stub for an end whose plug orientation is
 //     externally fixed.
+//   - The cord against itself: particle pairs and segment pairs found once a
+//     tick, inelastic, with the same Coulomb friction strand on strand.
 //   - Cached contact planes, per particle and per segment midpoint, with
 //     Coulomb friction (static_friction / kinetic_friction) on velocity, sized
-//     by how hard the planes pushed back.
+//     by how hard the planes pushed back. A plane is kept only while a ray
+//     finds its face under the particle, and a segment lying over a sharp EDGE
+//     holds the edge's line, not a plane.
 //
 // A loose plug is a real RigidBody3D that Jolt owns. The rope never moves it
 // directly: the corrections the solver makes against a pinned end (the last
@@ -113,6 +118,7 @@ public:
     godot::PackedVector3Array GetPoints() const;
     bool RestorePoints(const godot::PackedVector3Array &p_points);
     godot::Dictionary GetSleepMetrics() const;
+    godot::Dictionary GetContactDebug(int p_index) const;
     void NudgePoint(int p_index, const godot::Vector3 &p_delta);
 
     /// How many particles the cord is made of, and where one of them is in
@@ -161,6 +167,9 @@ public:
     XENU_ROPE_PROP(double, KineticFriction, m_kinetic_friction)
     XENU_ROPE_PROP(double, LinearDensity, m_linear_density)
     XENU_ROPE_PROP(int, RaycastInterval, m_raycast_interval)
+    XENU_ROPE_PROP(int, Substeps, m_substeps)
+    XENU_ROPE_PROP(int, DebugDisable, m_debug_disable)
+    XENU_ROPE_PROP(double, WaveDamping, m_wave_damping)
     XENU_ROPE_PROP(bool, SelfCollision, m_self_collision)
     XENU_ROPE_PROP(double, AnchorPull, m_anchor_pull)
     XENU_ROPE_PROP(double, EndAlignStiffness, m_end_align_stiffness)
@@ -249,11 +258,16 @@ private:
 
     // ── Simulation ───────────────────────────────────────────────────────────
     void Integrate(double p_delta);
+    double SliceStiffness(double p_k) const;
     void SolveConstraints(bool p_start_fixed, bool p_end_fixed,
                           const godot::Vector3 &p_start_exit,
                           const godot::Vector3 &p_end_exit);
     void ApplyContactFriction();
-    void SolveSelfCollision();
+    // Self-collision: found once a tick, solved inside the constraint loop with
+    // everything else, and made inelastic afterwards.
+    void DetectSelfContacts();
+    inline void SolveSelfContacts();
+    void FinishSelfContacts();
     bool RestingNormal(int i, godot::Vector3 &r_normal) const;
     bool PushesIntoRest(int i, const godot::Vector3 &d) const;
     void SolveSurfaceCollision(bool p_do_rest);
@@ -263,6 +277,18 @@ private:
     void SweepParticleContacts(godot::PhysicsDirectSpaceState3D *p_space, bool p_do_rest);
     void SolveSegmentCollision(godot::PhysicsDirectSpaceState3D *p_space, bool p_do_rest);
     void RecoverWrongSideParticles(godot::PhysicsDirectSpaceState3D *p_space);
+    bool SurfaceUnder(godot::PhysicsDirectSpaceState3D *p_space, const godot::Vector3 &p_from,
+                      double p_reach, godot::Vector3 &r_point, godot::Vector3 &r_normal);
+    // Edge contacts (see m_edge_point).
+    void UpdateEdgeContacts();
+    bool PlaceEdgeContact(int s);
+    bool EdgeParam(int s, const godot::Vector3 &p_point, const godot::Vector3 &p_dir,
+                   double &r_t) const;
+    void FindEdgeFor(godot::PhysicsDirectSpaceState3D *p_space, int i,
+                     const godot::Vector3 &p_point, const godot::Vector3 &p_normal);
+    bool EdgeStillThere(godot::PhysicsDirectSpaceState3D *p_space, int s);
+    bool PlaneSupported(godot::PhysicsDirectSpaceState3D *p_space, int i, godot::Vector3 &r_point,
+                        godot::Vector3 &r_normal);
     // Which cached contact slot a freshly reported plane belongs in: 1, 2, or 0
     // to keep both slots as they are.
     int ChooseContactSlot(int i, const godot::Vector3 &p_point, const godot::Vector3 &p_normal,
@@ -360,6 +386,14 @@ private:
     std::vector<godot::Vector3> m_mid_contact_point_2;
     std::vector<godot::Vector3> m_mid_contact_normal_2;
     std::vector<float> m_mid_contact_t_2;
+    // A segment lying over a sharp EDGE (m_mid_contact bit 4, with bit 1): the
+    // edge's line and the two faces that meet in it. Slot 1 of the segment's
+    // contact is then re-derived from this line every tick, so the contact
+    // slides along the segment as the cord is pulled round the corner.
+    std::vector<godot::Vector3> m_edge_point;
+    std::vector<godot::Vector3> m_edge_dir;
+    std::vector<godot::Vector3> m_edge_n1;
+    std::vector<godot::Vector3> m_edge_n2;
 
     std::vector<uint8_t> m_c_flags;
     std::vector<godot::Vector3> m_c_p1;
@@ -404,13 +438,45 @@ private:
     std::vector<double> m_fric_heaviest;
     std::vector<godot::Vector3> m_fric_normal;
     std::vector<int> m_fric_touched;
-    // How far self-collision moved each particle this step, so it can undo
-    // exactly what it pushed into a surface and nothing else.
+    // One place the cord touches itself this tick: a point on segment (a0, a1)
+    // at `s` against a point on segment (b0, b1) at `t`. Two particles are the
+    // same thing with a0 == a1 and b0 == b1.
+    struct SelfContact
+    {
+        int a0, a1, b0, b1;
+        float s, t;
+        // Inverse masses, zeroed for an end the push would drive into the
+        // surface it rests on.
+        float wa0, wa1, wb0, wb1;
+        // Closest the two may come.
+        double clearance;
+        // From a to b when found, for the tick they are exactly coincident.
+        godot::Vector3 normal;
+        // Their approach along the normal before the solve (negative: closing),
+        // and how far the solve had to part them, summed over the iterations.
+        double closing_before;
+        double pushed;
+        // Found deep inside each other: parted along `normal` and nothing else.
+        bool fixed;
+    };
+    std::vector<SelfContact> m_self_contacts;
+    // How far the self contacts moved each particle this step, summed over
+    // the iterations: that much of its move is not velocity.
     std::vector<godot::Vector3> m_self_moved;
     double m_step_dt_sq = 1.0 / (60.0 * 60.0);
+    // Substepping: where every particle was when the tick began (the sweeps
+    // cover the whole tick's motion, not the last slice's), where each pinned
+    // end was, and how far through the tick the pins have been carried.
+    std::vector<godot::Vector3> m_tick_from;
+    std::vector<godot::Vector3> m_pin_from;
+    std::vector<godot::Vector3> m_pin_velocity;
+    double m_pin_fraction = 1.0;
+    int m_iterations_now = 0;
     // Segment starting at each particle, or -1 — only used to invalidate a
     // midpoint cache after the tunnel recovery moves a particle.
     std::vector<int> m_next_seg;
+    // Segment ending at each particle, or -1.
+    std::vector<int> m_prev_seg;
     // 0 collides normally; two particles sharing a non-zero id are coincident by
     // construction (a junction) and skip each other. Two ids, not a flag: a
     // particle at the start junction must still collide with one at the end.
@@ -487,6 +553,19 @@ private:
     double m_debug_rms_velocity = 0.0;
     double m_debug_stretch_error = 0.0;
     double m_debug_contact_error = 0.0;
+    // Running totals of the discrete things collision did, for probes that ask
+    // WHICH pass kicked a cord (get_sleep_metrics): a particle's swept snap, a
+    // segment contact whose plane turned to another face, a swept capsule stop,
+    // a wrong-side teleport, and self-collision's particle and segment pairs.
+    int m_debug_sweep_snaps = 0;
+    int m_debug_mid_turns = 0;
+    int m_debug_capsule_stops = 0;
+    int m_debug_recoveries = 0;
+    int m_debug_self_pairs = 0;
+    int m_debug_self_segments = 0;
+    int m_debug_edges_found = 0;
+    int m_debug_edge_handovers = 0;
+    int m_debug_edges_lost = 0;
     // Cord count and ring count the current ArrayMesh was built for, so a
     // resize after _ready rebuilds instead of overrunning the ring buffers.
     int m_built_cords = 0;
@@ -535,6 +614,15 @@ private:
     // plug into newtons. A composite A/V lead is 30-50 g/m.
     double m_linear_density = 0.04;
     int m_raycast_interval = 3;
+    // PROTOTYPE. The solve is run this many times a tick, each over a slice of
+    // the tick with its share of the iterations; the environment is still
+    // queried once a tick. 1 is the solver as it always was.
+    int m_substeps = 4;
+    // Probe control legs only, never saved: 1 no edge contacts, 2 no strand
+    // friction, 4 no rays confirming a cached plane.
+    int m_debug_disable = 0;
+    double m_wave_damping = 0.3;
+    std::vector<godot::Vector3> m_velocity_scratch;
     bool m_self_collision = false;
     double m_anchor_pull = 0.0;
     // Name kept for the scenes that set it: any value above zero couples a

@@ -404,23 +404,33 @@ inline void VerletRope::ProjectPlane(int i, const Vector3 &cp, const Vector3 &n,
 
 void VerletRope::PinAnchors()
 {
+    // With substeps a pinned end is carried to its anchor over the slices of
+    // the tick, not thrown there in the first one.
+    const bool part = m_pin_fraction < 1.0 && m_pin_from.size() == 2 + m_fray.size();
     if (m_start_cached)
     {
         m_points[0] = AnchorPoint(m_start_cached, m_start_anchor_offset, m_points[0]);
+        if (part)
+            m_points[0] = m_pin_from[0].lerp(m_points[0], m_pin_fraction);
         m_prev_points[0] = m_points[0];
     }
     if (m_end_cached)
     {
         const int last = TrunkCount() - 1;
         m_points[last] = AnchorPoint(m_end_cached, m_end_anchor_offset, m_points[last]);
+        if (part)
+            m_points[last] = m_pin_from[1].lerp(m_points[last], m_pin_fraction);
         m_prev_points[last] = m_points[last];
     }
-    for (const FrayChain &fc : m_fray)
+    for (size_t g = 0; g < m_fray.size(); ++g)
     {
+        const FrayChain &fc = m_fray[g];
         if (fc.cached == nullptr)
             continue;
         const int last = fc.first + fc.count - 1;
         m_points[last] = AnchorPoint(fc.cached, fc.offset, m_points[last]);
+        if (part)
+            m_points[last] = m_pin_from[2 + g].lerp(m_points[last], m_pin_fraction);
         m_prev_points[last] = m_points[last];
     }
 }
@@ -585,13 +595,16 @@ void VerletRope::CouplePlug(Node3D *node, int p_configured_role, const Vector3 &
     if (p_slot < 0 || p_slot >= static_cast<int>(m_pin_push.size()))
         return;
     RigidBody3D *rb = Object::cast_to<RigidBody3D>(node);
-    const double scale = m_linear_density * p_segment_length / m_step_dt_sq;
+    // The push is summed over the tick's slices, each a displacement over a
+    // slice's dt^2: the force is their MEAN over that.
+    const int slices = std::max(1, m_substeps);
+    const double scale = m_linear_density * p_segment_length / (m_step_dt_sq * slices);
     Vector3 force = m_pin_push[p_slot] * scale;
     Vector3 torque = m_pin_moment[p_slot] * scale;
     if (force.length_squared() < 1e-14 && torque.length_squared() < 1e-14)
         return;
 
-    const double dt = std::sqrt(m_step_dt_sq);
+    const double dt = std::sqrt(m_step_dt_sq) * slices;
     const double mass = rb->get_mass();
     if (mass > 0.0)
     {
@@ -619,7 +632,9 @@ void VerletRope::Step(double p_delta)
 {
     if (m_points.empty())
         return;
-    m_step_dt_sq = std::max(p_delta * p_delta, 1e-8);
+    const int substeps = std::max(1, m_substeps);
+    const double slice = p_delta / substeps;
+    m_step_dt_sq = std::max(slice * slice, 1e-8);
 
     ReconcileAnchors();
 
@@ -689,7 +704,30 @@ void VerletRope::Step(double p_delta)
     }
     m_mesh_dirty = true;
 
-    Integrate(p_delta);
+    // What the cord does to its pinned ends is summed over the whole tick.
+    m_pin_push.assign(2 + m_fray.size(), Vector3());
+    m_pin_moment.assign(2 + m_fray.size(), Vector3());
+    // Where the pinned ends were, before the first slice carries them on.
+    m_pin_from.resize(2 + m_fray.size());
+    m_pin_from[0] = m_points[0];
+    m_pin_from[1] = m_points[TrunkCount() - 1];
+    m_pin_velocity.assign(2, Vector3());
+    if (m_start_cached)
+        m_pin_velocity[0] = (AnchorPoint(m_start_cached, m_start_anchor_offset, m_points[0]) -
+                             m_points[0]) / static_cast<double>(substeps);
+    if (m_end_cached)
+        m_pin_velocity[1] = (AnchorPoint(m_end_cached, m_end_anchor_offset,
+                                         m_points[TrunkCount() - 1]) -
+                             m_points[TrunkCount() - 1]) / static_cast<double>(substeps);
+    for (size_t g = 0; g < m_fray.size(); ++g)
+        m_pin_from[2 + g] = m_points[m_fray[g].first + m_fray[g].count - 1];
+    if (substeps > 1)
+        m_tick_from = m_points;
+    m_pin_fraction = 1.0 / substeps;
+    Integrate(slice);
+    m_self_contacts.clear();
+    if (m_self_collision)
+        DetectSelfContacts();
 
     // End orientation authority: a plug whose orientation is externally fixed
     // drives the ROPE. A free plug and its cord settle it between them — the
@@ -711,22 +749,30 @@ void VerletRope::Step(double p_delta)
         start_directional ? PlugExitDir(m_start_cached, m_start_exit_axis) : Vector3();
     const Vector3 end_exit = end_directional ? PlugExitDir(m_end_cached, m_end_exit_axis) : Vector3();
 
+    m_iterations_now = std::max(1, static_cast<int>(std::lround(
+                                       static_cast<double>(std::max(m_constraint_iterations, 1)) / substeps)));
     SolveConstraints(start_directional, end_directional, start_exit, end_exit);
+    FinishSelfContacts();
     ApplyContactFriction();
+    for (int k = 1; k < substeps; ++k)
+    {
+        // The same contacts, found at the tick's start, for every slice.
+        m_pin_fraction = static_cast<double>(k + 1) / substeps;
+        Integrate(slice);
+        for (SelfContact &c : m_self_contacts)
+            c.pushed = 0.0;
+        std::fill(m_self_moved.begin(), m_self_moved.end(), Vector3());
+        SolveConstraints(start_directional, end_directional, start_exit, end_exit);
+        FinishSelfContacts();
+        ApplyContactFriction();
+    }
+    m_pin_fraction = 1.0;
 
     // Cadence shared by the heavier environment queries below.
     m_raycast_frame += 1;
     const bool do_rest = m_raycast_frame >= m_raycast_interval;
     if (do_rest)
         m_raycast_frame = 0;
-
-    // Runs every tick, not on the cadence above, despite being the only O(n^2)
-    // pass here. Tried at raycast_interval and a slack cable settles visibly
-    // differently: with the pushout applied on one tick in three, gravity and
-    // the stretch constraints close the coils unopposed in between, and a cord
-    // that should drape off a table collapses into a flat pile on it.
-    if (m_self_collision)
-        SolveSelfCollision();
 
     if (m_surface_collision_mask != 0 && m_ray_query.is_valid())
         SolveSurfaceCollision(do_rest);
@@ -746,11 +792,58 @@ void VerletRope::Step(double p_delta)
     SnapshotRenderState();
 }
 
+// A stiffness given as "the share of the error one iteration takes out", for a
+// slice of the tick. What a share amounts to physically goes with dt^2 (it is a
+// compliance over dt^2), so the same share over slices 1/n as long is a
+// constraint n^2 times as stiff: a cord rated 0.2 stood up like wire at four
+// substeps (rope_tests "the cord lies down": 325 mm tall). Scaled by 1/n^2, and
+// by the iterations a slice has against a whole step's, a hanging loop takes
+// the shape it had at one step a tick (0.6 m between sockets 0.1 m apart, rated
+// 0.2: 259 mm deep against 260; rated 0.3: 255 against 256). 1 stays rigid.
+double VerletRope::SliceStiffness(double p_k) const
+{
+    if (m_substeps <= 1 || p_k <= 0.0 || p_k >= 1.0)
+        return p_k;
+    const double full = std::max(m_constraint_iterations, 1);
+    const double now = std::max(m_iterations_now, 1);
+    const double n_sq = static_cast<double>(m_substeps) * m_substeps;
+    return std::min(p_k, p_k * full / (now * n_sq));
+}
+
 void VerletRope::Integrate(double p_delta)
 {
     const int count = static_cast<int>(m_points.size());
     const Vector3 grav_step = m_gravity * (p_delta * p_delta);
-    const double retain = 1.0 - m_damping;
+    // Damping is per TICK: a slice keeps the root of what a tick keeps.
+    const double retain = m_substeps > 1 ? std::pow(1.0 - m_damping, 1.0 / m_substeps)
+                                         : 1.0 - m_damping;
+    // Internal damping (substeps only): each particle's velocity is drawn a
+    // little toward the mean of its two neighbours'. One step of eight
+    // iterations damped a cord's fast transverse waves heavily and by accident;
+    // slices of two iterations do not, and a hanging span buzzed after every
+    // move of its end. The cord's motion as a whole is not touched: only how
+    // much a particle's velocity differs from the cord either side of it.
+    if (m_substeps > 1 && m_wave_damping > 0.0)
+    {
+        m_velocity_scratch.resize(count);
+        for (int i = 0; i < count; ++i)
+            m_velocity_scratch[i] = m_points[i] - m_prev_points[i];
+        const int trunk = TrunkCount();
+        // A pinned end's velocity is its anchor's (its own history is reset
+        // every time it is pinned): a cord swinging between two fixed sockets
+        // loses its swing to them, as it does to a real cord's ends.
+        if (m_start_cached && m_pin_velocity.size() >= 2)
+            m_velocity_scratch[0] = m_pin_velocity[0];
+        if (m_end_cached && m_pin_velocity.size() >= 2)
+            m_velocity_scratch[trunk - 1] = m_pin_velocity[1];
+        for (int i = 1; i < trunk - 1; ++i)
+        {
+            if (m_inv_mass[i] == 0.0f)
+                continue;
+            const Vector3 mean = (m_velocity_scratch[i - 1] + m_velocity_scratch[i + 1]) * 0.5;
+            m_prev_points[i] -= (mean - m_velocity_scratch[i]) * m_wave_damping;
+        }
+    }
     for (int i = 0; i < count; ++i)
     {
         if (m_inv_mass[i] == 0.0f)
@@ -770,29 +863,34 @@ void VerletRope::SolveConstraints(bool p_start_fixed, bool p_end_fixed,
     // all the loops below are exactly what they were.
     const int count = TrunkCount();
     const int seg_count = static_cast<int>(m_seg_a.size());
-    const int iters = m_constraint_iterations > 1 ? m_constraint_iterations : 1;
-    m_stretch_lambda.assign(seg_count, 0.0);
+    const int iters = m_iterations_now > 0 ? m_iterations_now
+                                           : (m_constraint_iterations > 1 ? m_constraint_iterations : 1);
+    // Once a slice now, so only what is in use is cleared.
+    if (m_stretch_compliance > 0.0 || m_stretch_lambda.size() != static_cast<size_t>(seg_count))
+        m_stretch_lambda.assign(seg_count, 0.0);
     m_mid_contact_lambda.assign(seg_count, 0.0);
     m_mid_contact_lambda_2.assign(seg_count, 0.0);
     m_contact_lambda_1.assign(m_points.size(), 0.0);
     m_contact_lambda_2.assign(m_points.size(), 0.0);
-    m_bend_lambda.clear();
-    m_angle_lambda.clear();
-    m_pin_push.assign(2 + m_fray.size(), Vector3());
-    m_pin_moment.assign(2 + m_fray.size(), Vector3());
+    if (!m_bend_lambda.empty())
+        m_bend_lambda.clear();
+    if (!m_angle_lambda.empty())
+        m_angle_lambda.clear();
 
     // Stretch stiffness is remapped so extensibility is independent of the
     // iteration count (k' = 1-(1-k)^(1/n)); 1.0 stays fully rigid.
     const double k_stretch = 1.0 - std::pow(1.0 - CLAMP(m_stretch_stiffness, 0.0, 1.0), 1.0 / iters);
     // Bend stiffness is applied directly per iteration — remapping it the same
     // way crushes mid-range values into "floppy" at typical iteration counts.
-    const double k_bend = CLAMP(m_bend_stiffness, 0.0, 1.0);
+    const double k_bend = SliceStiffness(CLAMP(m_bend_stiffness, 0.0, 1.0));
     // Angular projection is stronger than the old midpoint displacement for
     // the same numeric rating. Preserve the authored cable feel while making
     // the value iteration-count independent.
     // A bend of angle B deviates the particle L*sin(B/2) from the midpoint;
     // bends up to max_bend_degrees are free.
     const double allowed_dev = m_segment_length * std::sin(Math::deg_to_rad(m_max_bend_degrees) * 0.5);
+
+    UpdateEdgeContacts();
 
     // Contact flags are only rewritten by the throttled rest pass, never inside
     // the solve, so gather the active planes once instead of re-testing every
@@ -818,7 +916,7 @@ void VerletRope::SolveConstraints(bool p_start_fixed, bool p_end_fixed,
         // cable drape, while spacing 2/4/8 keeps long ropes from saturating.
         if (k_bend > 0.0)
         {
-            int levels = 1 + static_cast<int>(std::lround(k_bend * 3.0));
+            int levels = 1 + static_cast<int>(std::lround(CLAMP(m_bend_stiffness, 0.0, 1.0) * 3.0));
             int s = 1;
             while (s * 2 <= count - 1 && levels > 0)
             {
@@ -840,7 +938,7 @@ void VerletRope::SolveConstraints(bool p_start_fixed, bool p_end_fixed,
         // after the general bend so it wins near the ends.
         if (m_end_stiffness > 0.0 && m_end_stiff_segments > 0)
         {
-            const double ke = CLAMP(m_end_stiffness, 0.0, 1.0);
+            const double ke = SliceStiffness(CLAMP(m_end_stiffness, 0.0, 1.0));
             const int n_end = std::min(m_end_stiff_segments, (count - 1) / 2);
             if (iter_i % 2 == 0)
             {
@@ -875,7 +973,7 @@ void VerletRope::SolveConstraints(bool p_start_fixed, bool p_end_fixed,
         if (m_end_stiffness > 0.0 && m_end_stiff_segments > 0 &&
             (p_start_fixed || p_end_fixed))
         {
-            const double ked = CLAMP(m_end_stiffness, 0.0, 1.0);
+            const double ked = SliceStiffness(CLAMP(m_end_stiffness, 0.0, 1.0));
             const int nd = std::min(m_end_stiff_segments, (count - 1) / 2);
             if (p_end_fixed)
             {
@@ -912,6 +1010,10 @@ void VerletRope::SolveConstraints(bool p_start_fixed, bool p_end_fixed,
 
         if (!m_fray.empty())
             SolveFrayConstraints(iter_i, k_stretch, k_bend, allowed_dev);
+
+        // The cord against itself, BEFORE the surfaces: what a crossing pushes
+        // into the floor, the floor's own plane puts back in this same pass.
+        SolveSelfContacts();
 
         // Cached contact planes, solved together with the other constraints so
         // contacts — including edge wraps — are part of the equilibrium instead
@@ -957,7 +1059,7 @@ void VerletRope::SolveFrayConstraints(int p_iter, double, double p_k_bend, doubl
 
         if (p_k_bend > 0.0)
         {
-            int levels = 1 + static_cast<int>(std::lround(p_k_bend * 3.0));
+            int levels = 1 + static_cast<int>(std::lround(CLAMP(m_bend_stiffness, 0.0, 1.0) * 3.0));
             int s = 1;
             while (s * 2 <= fc.count - 1 && levels > 0)
             {
@@ -993,7 +1095,7 @@ void VerletRope::SolveFrayConstraints(int p_iter, double, double p_k_bend, doubl
         // Strain-relief boot at the plug, the same taper the trunk's ends get.
         if (m_end_stiffness > 0.0 && m_end_stiff_segments > 0)
         {
-            const double ke = CLAMP(m_end_stiffness, 0.0, 1.0);
+            const double ke = SliceStiffness(CLAMP(m_end_stiffness, 0.0, 1.0));
             const int n_end = std::min(m_end_stiff_segments, fc.count - 2);
             for (int j = 1; j <= n_end; ++j)
                 SolveBend(last - j, 1, 0.0, StubWeight(ke, j, n_end));
@@ -1133,6 +1235,39 @@ void VerletRope::ApplyContactFriction()
                 continue;
             const double t = slot == 0 ? m_mid_contact_t[s] : m_mid_contact_t_2[s];
             const Vector3 &n = slot == 0 ? m_mid_contact_normal[s] : m_mid_contact_normal_2[s];
+            if (slot == 0 && (m_mid_contact[s] & 4))
+            {
+                // An edge bears on ONE point of the segment, anywhere along it,
+                // and that point's slide is what the edge resists. Charging
+                // each end with a share of the load against its OWN velocity
+                // (right for a midpoint lying on a floor) stopped the hanging
+                // end of a segment pivoting on a table's edge as if it were
+                // the thing touching it.
+                const int ia = m_seg_a[s];
+                const int ib = m_seg_b[s];
+                const double ta = 1.0 - t;
+                const double wa = m_inv_mass[ia];
+                const double wb = m_inv_mass[ib];
+                const double weight = wa * ta * ta + wb * t * t;
+                if (weight <= 0.0)
+                    continue;
+                const Vector3 vel = (m_points[ia] - m_prev_points[ia]) * ta +
+                                    (m_points[ib] - m_prev_points[ib]) * t;
+                const Vector3 slide = vel - n * vel.dot(n);
+                const double len = slide.length();
+                if (len <= 1e-12)
+                    continue;
+                // The multiplier is the push at the contact point per unit of
+                // inverse mass there; `weight` turns it into that point's move.
+                const double load = xpbd ? lambda * weight : lambda;
+                const double share = len <= m_static_friction * load
+                                         ? 1.0
+                                         : std::min(m_kinetic_friction * load / len, 1.0);
+                const Vector3 stop = slide * share;
+                m_prev_points[ia] += stop * (wa * ta / weight);
+                m_prev_points[ib] += stop * (wb * t / weight);
+                continue;
+            }
             load_on(m_seg_a[s], n, lambda * (1.0 - t));
             load_on(m_seg_b[s], n, lambda * t);
         }
@@ -1281,94 +1416,115 @@ bool VerletRope::PushesIntoRest(int i, const Vector3 &d) const
     return len > 1e-12 && d.dot(n) < -0.3 * len;
 }
 
-// Where a cord crosses itself on a surface, the strand underneath is the one
-// resting on it. Three rules keep that crossing still:
+// The cord against itself.
+//
+// Until 2026-11-10 this was one pass AFTER the constraint solve: the eight
+// stretch and bend iterations closed a coil with nothing in their way, the pass
+// pushed it open again, and a stretch pass after that pulled it part of the
+// way shut. A wound-up cord never agreed with itself and churned for as long
+// as it was awake (rope_jitter_probe --case=wound: every tick's worst particle
+// 10 mm off its path). The contacts are now found once a tick, after the
+// integration, and solved INSIDE the loop beside stretch, bend and the
+// surfaces, so a coil is a state the solve arrives at.
+//
+// What a crossing on a surface needs is unchanged:
 //   * A strand resting on a surface is never pushed into it: the strand on top
 //     takes the whole separation. Split evenly, the lower strand was driven
 //     into the floor, the floor threw it back out on the next tick, and a loop
 //     unbending across itself popped a strand a full cord's thickness over or
 //     under the other in a single tick (rope_crossing_probe: 11-12 mm jumps,
 //     and the strands swapped places).
-//   * A contact is INELASTIC: parting two strands creates no velocity (the
-//     history moves with the push), and whatever velocity they had toward each
-//     other stops. The particle pass used to leave the push as velocity, which
-//     bounced a heap; moving the history alone kept the approach, so strands
+//   * A contact is INELASTIC: parting two strands creates no velocity, and
+//     whatever velocity they had toward each other stops (FinishSelfContacts).
+//     Left as velocity the push bounced a heap; keeping the approach, strands
 //     pressed together were pushed again every tick and a composite lead's
 //     breakout knot crept 22 mm across the floor.
-//   * Whatever this pass itself pushed into a surface is lifted back out
-//     afterwards, so no crossing ends a tick inside it. A laid loop settled
-//     with its lower strand's centre at -0.6 mm, half inside the floor. ONLY
-//     what the pass did: re-projecting every resting particle also lifted ones
-//     low for other reasons, and a heap churned at 0.63 mm/tick held awake.
-void VerletRope::SolveSelfCollision()
+//   * Nothing ends a tick inside a surface because of a crossing. That used to
+//     be a lift afterwards; the surface planes are solved after the crossings
+//     in every iteration now, which is the same thing.
+void VerletRope::DetectSelfContacts()
 {
     const int count = static_cast<int>(m_points.size());
     const double min_d = m_collision_radius * 2.0;
-    const double min_d_sq = min_d * min_d;
+    // Found a little early: the solve can bring together strands the
+    // integration left just apart, and a pair not in the list is not solved.
+    const double reach = min_d * 1.25;
+    const double reach_sq = reach * reach;
     m_self_moved.assign(count, Vector3());
+    const auto add = [&](int a0, int a1, double sa, int b0, int b1, double tb, const Vector3 &n,
+                         double clearance) {
+        SelfContact c;
+        c.a0 = a0;
+        c.a1 = a1;
+        c.b0 = b0;
+        c.b1 = b1;
+        c.s = static_cast<float>(sa);
+        c.t = static_cast<float>(tb);
+        c.normal = n;
+        c.clearance = clearance;
+        c.pushed = 0.0;
+        c.fixed = false;
+        // Strand a moves along -n, strand b along +n; an end resting on a
+        // surface the move would drive it into holds still.
+        c.wa0 = PushesIntoRest(a0, -n) ? 0.0f : m_inv_mass[a0];
+        c.wa1 = a1 == a0 ? 0.0f : (PushesIntoRest(a1, -n) ? 0.0f : m_inv_mass[a1]);
+        c.wb0 = PushesIntoRest(b0, n) ? 0.0f : m_inv_mass[b0];
+        c.wb1 = b1 == b0 ? 0.0f : (PushesIntoRest(b1, n) ? 0.0f : m_inv_mass[b1]);
+        const double as0 = 1.0 - sa;
+        const double bt0 = 1.0 - tb;
+        if (c.wa0 * as0 * as0 + c.wa1 * sa * sa + c.wb0 * bt0 * bt0 + c.wb1 * tb * tb <= 0.0)
+        {
+            // Both strands are on the surface: neither can give way to it.
+            c.wa0 = m_inv_mass[a0];
+            c.wa1 = a1 == a0 ? 0.0f : m_inv_mass[a1];
+            c.wb0 = m_inv_mass[b0];
+            c.wb1 = b1 == b0 ? 0.0f : m_inv_mass[b1];
+            if (c.wa0 * as0 * as0 + c.wa1 * sa * sa + c.wb0 * bt0 * bt0 + c.wb1 * tb * tb <= 0.0)
+                return;
+        }
+        const Vector3 va = (m_points[a0] - m_prev_points[a0]) * as0 +
+                           (m_points[a1] - m_prev_points[a1]) * sa;
+        const Vector3 vb = (m_points[b0] - m_prev_points[b0]) * bt0 +
+                           (m_points[b1] - m_prev_points[b1]) * tb;
+        c.closing_before = (vb - va).dot(n);
+        m_self_contacts.push_back(c);
+    };
+
     for (int i = 0; i < count; ++i)
     {
-        const float w_i = m_inv_mass[i];
         const uint8_t g_i = m_self_group[i];
-        Vector3 p_i = m_points[i];
-        Vector3 moved_i;
-        Vector3 history_i;
         // j >= i+2 exempts chain neighbours by ARRAY distance, which stops being
         // chain distance once branches are appended: a branch's head and the
         // trunk's end are coincident but far apart in the array, as are the
         // heads of two branches. m_self_group re-states that by construction.
         for (int j = i + 2; j < count; ++j)
         {
-            const float w_j = m_inv_mass[j];
-            const float w_sum = w_i + w_j;
-            if (w_sum == 0.0f)
+            if (m_inv_mass[i] + m_inv_mass[j] == 0.0f)
                 continue;
             if (g_i != 0 && g_i == m_self_group[j])
                 continue;
-            const Vector3 diff = m_points[j] - p_i;
+            const Vector3 diff = m_points[j] - m_points[i];
             const double d_sq = diff.length_squared();
-            if (d_sq >= min_d_sq || d_sq < 1e-8)
+            if (d_sq >= reach_sq || d_sq < 1e-8)
                 continue;
-            const double dist = std::sqrt(d_sq);
-            const Vector3 push = diff * ((dist - min_d) / dist);
-            // i moves along +push, j along -push.
-            float wi = w_i;
-            float wj = w_j;
-            if (wi != 0.0f && PushesIntoRest(i, push))
-                wi = 0.0f;
-            if (wj != 0.0f && PushesIntoRest(j, -push))
-                wj = 0.0f;
-            if (wi + wj == 0.0f)
-            {
-                wi = w_i;
-                wj = w_j;
-            }
-            const float w_eff = wi + wj;
-            const Vector3 d_i = push * (wi / w_eff);
-            const Vector3 d_j = push * -(wj / w_eff);
-            // Their approach along the contact normal, i toward j, before this push.
-            const Vector3 n = diff / dist;
-            const Vector3 v_i = p_i - (m_prev_points[i] + history_i);
-            const Vector3 v_j = m_points[j] - m_prev_points[j];
-            const double closing = std::max(0.0, static_cast<double>((v_i - v_j).dot(n)));
-            p_i += d_i;
-            moved_i += d_i;
-            history_i += d_i + n * (closing * (wi / w_eff));
-            m_points[j] += d_j;
-            m_prev_points[j] += d_j - n * (closing * (wj / w_eff));
-            m_self_moved[j] += d_j;
+            m_debug_self_pairs += 1;
+            add(i, i, 0.0, j, j, 0.0, diff / std::sqrt(d_sq), min_d);
         }
-        m_points[i] = p_i;
-        m_prev_points[i] += history_i;
-        m_self_moved[i] += moved_i;
     }
+
+    // Which frayed branch a particle belongs to, or -1 for the trunk.
+    const auto branch_of = [this](int i) {
+        for (size_t g = 0; g < m_fray.size(); ++g)
+            if (i >= m_fray[g].first && i < m_fray[g].first + m_fray[g].count)
+                return static_cast<int>(g);
+        return -1;
+    };
 
     // Particle pairs do not see two long segments crossing at their middles:
     // every endpoint can be centimetres clear while the rendered tubes pass
     // straight through each other. Work from the real segment table so fray
     // chain boundaries are topological rather than accidental array adjacency.
     const int seg_count = static_cast<int>(m_seg_a.size());
-    bool segment_corrected = false;
     for (int sa = 0; sa < seg_count; ++sa)
     {
         const int a0 = m_seg_a[sa];
@@ -1397,48 +1553,73 @@ void VerletRope::SolveSelfCollision()
                 continue;
 
             const Vector3 p0 = m_points[a0];
-            const Vector3 p1 = m_points[a1];
             const Vector3 q0 = m_points[b0];
-            const Vector3 q1 = m_points[b1];
-            const Vector3 u = p1 - p0;
-            const Vector3 v = q1 - q0;
+            const Vector3 u = m_points[a1] - p0;
+            const Vector3 v = m_points[b1] - q0;
             const Vector3 w = p0 - q0;
             const double uu = u.dot(u);
             const double uv = u.dot(v);
             const double vv = v.dot(v);
             const double uw = u.dot(w);
             const double vw = v.dot(w);
-            const double denom = uu * vv - uv * uv;
             if (uu < 1e-12 || vv < 1e-12)
                 continue;
-
-            // Only interior/interior contacts belong to this pass, so the
-            // unclamped closest points on the two supporting lines are enough.
-            // Endpoint cases are deliberately left to particle collision below.
-            if (denom < 1e-12)
+            // Closest points of the two SEGMENTS, each clamped to its own
+            // length. Until 2026-11-10 this took the closest points of the two
+            // lines and kept the pair only when both fell inside: the end of
+            // one strand sliding sideways into the middle of another was not a
+            // contact at all until it had gone through the other's centreline,
+            // and then the two were a crossing with nothing to say which was
+            // on top, so one was lifted a whole cord's thickness over the other
+            // in a single tick (rope_jitter_probe --case=wound: strands lying
+            // on the floor jumping 8.5 mm up).
+            const double denom = uu * vv - uv * uv;
+            double s = denom > 1e-12 ? CLAMP((uv * vw - vv * uw) / denom, 0.0, 1.0) : 0.5;
+            double t = (uv * s + vw) / vv;
+            if (t < 0.0)
+            {
+                t = 0.0;
+                s = CLAMP(-uw / uu, 0.0, 1.0);
+            }
+            else if (t > 1.0)
+            {
+                t = 1.0;
+                s = CLAMP((uv - uw) / uu, 0.0, 1.0);
+            }
+            // End against end is the particle pairs' above.
+            const bool s_end = s <= 0.0 || s >= 1.0;
+            const bool t_end = t <= 0.0 || t >= 1.0;
+            if (s_end && t_end)
                 continue;
-            const double s = (uv * vw - vv * uw) / denom;
-            const double t = (uu * vw - uv * uw) / denom;
-            // Endpoint-near contact is already covered by the particle pass.
-            // Solving it again as a segment pair over-inflates tight coils and
-            // makes a shortened rope appear longer. This pass exists for the
-            // blind spot particle collision cannot see: interior crossings.
-            constexpr double INTERIOR_EPS = 0.05;
-            if (s <= INTERIOR_EPS || s >= 1.0 - INTERIOR_EPS ||
-                t <= INTERIOR_EPS || t >= 1.0 - INTERIOR_EPS)
+            // The branches of one breakout leave it side by side, closer than
+            // the clearance by construction. End-against-middle contacts
+            // between them pushed the fan apart for seconds after a composite
+            // lead landed, and its plugs crept with it (rope_tests "loose
+            // plugs lie still": 164 mm). Between two branches of one end only
+            // a true crossing counts, as before.
+            if ((s_end || t_end) && !m_fray.empty())
+            {
+                const int ba = branch_of(a0);
+                const int bb = branch_of(b0);
+                if (ba >= 0 && bb >= 0 && ba != bb && m_fray[ba].at_start == m_fray[bb].at_start)
+                    continue;
+            }
+            Vector3 diff = (q0 + v * t) - (p0 + u * s);
+            const double dist = diff.length();
+            if (dist >= reach)
                 continue;
-            const Vector3 cp = p0 + u * s;
-            const Vector3 cq = q0 + v * t;
-            Vector3 diff = cq - cp;
-            double dist = diff.length();
-            // Leave a small dead band at contact. Correcting numerical dust on
-            // two already-separated strands every tick can keep a draped lead
-            // awake indefinitely.
-            if (dist >= min_d * 0.9)
-                continue;
-
             Vector3 n;
-            if (dist > min_d * 0.01)
+            // Two strands a quarter of their clearance apart or less are IN
+            // each other, and which way their centrelines happen to be offset
+            // says nothing: it is a millimetre of noise that changes sign from
+            // one tick to the next. Parted along it, a kink's two segments went
+            // straight through each other and back every tick, 6 mm each way,
+            // for ever (rope_tests "a swinging cord loses energy"). They are
+            // parted along the perpendicular to both instead, on the side the
+            // offset leans to if it leans at all, and held to that direction
+            // for the whole tick.
+            const bool deep = dist <= min_d * 0.25;
+            if (!deep)
                 n = diff / dist;
             else
             {
@@ -1451,86 +1632,135 @@ void VerletRope::SolveSelfCollision()
                     n = u.cross(ref);
                 }
                 n = n.normalized();
-                dist = 0.0;
+                if (diff.dot(n) < 0.0)
+                    n = -n;
             }
-
-            const double as0 = 1.0 - s;
-            const double as1 = s;
-            const double bt0 = 1.0 - t;
-            const double bt1 = t;
-            // Strand a moves along -n, strand b along +n; an end resting on a
-            // surface the move would drive it into holds still (see above).
-            float wa0 = PushesIntoRest(a0, -n) ? 0.0f : m_inv_mass[a0];
-            float wa1 = PushesIntoRest(a1, -n) ? 0.0f : m_inv_mass[a1];
-            float wb0 = PushesIntoRest(b0, n) ? 0.0f : m_inv_mass[b0];
-            float wb1 = PushesIntoRest(b1, n) ? 0.0f : m_inv_mass[b1];
-            double weight = wa0 * as0 * as0 + wa1 * as1 * as1 + wb0 * bt0 * bt0 + wb1 * bt1 * bt1;
-            if (weight <= 0.0)
-            {
-                wa0 = m_inv_mass[a0];
-                wa1 = m_inv_mass[a1];
-                wb0 = m_inv_mass[b0];
-                wb1 = m_inv_mass[b1];
-                weight = wa0 * as0 * as0 + wa1 * as1 * as1 + wb0 * bt0 * bt0 + wb1 * bt1 * bt1;
-            }
-            if (weight <= 0.0)
-                continue;
-            const double lambda = (min_d - dist) / weight;
-            const Vector3 da0 = -n * (lambda * wa0 * as0);
-            const Vector3 da1 = -n * (lambda * wa1 * as1);
-            const Vector3 db0 = n * (lambda * wb0 * bt0);
-            const Vector3 db1 = n * (lambda * wb1 * bt1);
-            m_points[a0] += da0;
-            m_points[a1] += da1;
-            m_points[b0] += db0;
-            m_points[b1] += db1;
-            // A positional collision correction is not a launch impulse. Move
-            // Verlet history with it so the separated strands do not inherit
-            // the correction as velocity on the next tick.
-            m_prev_points[a0] += da0;
-            m_prev_points[a1] += da1;
-            m_prev_points[b0] += db0;
-            m_prev_points[b1] += db1;
-            m_self_moved[a0] += da0;
-            m_self_moved[a1] += da1;
-            m_self_moved[b0] += db0;
-            m_self_moved[b1] += db1;
-            segment_corrected = true;
-        }
-    }
-    // Collision is applied after the main constraint solve. Restore the length
-    // it may have borrowed in order to part a crossing, otherwise a hard yank
-    // can leave one segment just beyond the established recovery bound.
-    if (segment_corrected && m_stretch_stiffness > 0.0)
-    {
-        const double k = CLAMP(m_stretch_stiffness, 0.0, 1.0);
-        for (int s = 0; s < seg_count; ++s)
-            SolvePair(m_seg_a[s], m_seg_b[s], m_seg_rest[s], k);
-        PinAnchors();
-    }
-
-    // Lift back out of a surface whatever this pass pushed into it, and no more.
-    // The history moves with the lift: it undoes a violation the pass made, and
-    // left as velocity it bounced the strand every tick.
-    for (int i : m_active_contact)
-    {
-        for (int slot = 0; slot < 2; ++slot)
-        {
-            if ((m_c_flags[i] & (1 << slot)) == 0)
-                continue;
-            const Vector3 &n = slot == 0 ? m_c_n1[i] : m_c_n2[i];
-            const Vector3 &cp = slot == 0 ? m_c_p1[i] : m_c_p2[i];
-            const double pushed_in = -m_self_moved[i].dot(n);
-            const double depth = m_collision_radius - (m_points[i] - cp).dot(n);
-            const double lift = std::min(pushed_in, depth);
-            if (lift > 0.0)
-            {
-                m_points[i] += n * lift;
-                m_prev_points[i] += n * lift;
-            }
+            m_debug_self_segments += 1;
+            // A little inside the particles' clearance: two strands lying side
+            // by side are held apart by their particles, and correcting the
+            // numerical dust between their segments as well kept a draped lead
+            // awake indefinitely.
+            add(a0, a1, s, b0, b1, t, n, min_d * 0.92);
+            if (deep && !m_self_contacts.empty())
+                m_self_contacts.back().fixed = true;
         }
     }
 }
+
+
+inline void VerletRope::SolveSelfContacts()
+{
+    for (SelfContact &c : m_self_contacts)
+    {
+        const double s = c.s;
+        const double t = c.t;
+        const double as0 = 1.0 - s;
+        const double bt0 = 1.0 - t;
+        const Vector3 pa = m_points[c.a0] * as0 + m_points[c.a1] * s;
+        const Vector3 pb = m_points[c.b0] * bt0 + m_points[c.b1] * t;
+        const Vector3 diff = pb - pa;
+        double dist = diff.length();
+        if (dist >= c.clearance)
+            continue;
+        Vector3 n = dist > c.clearance * 0.01 ? diff / dist : c.normal;
+        // The side each strand is on was settled when the contact was found.
+        // If an earlier constraint in this pass has carried one THROUGH the
+        // other, parting them along where they are now finishes the swap;
+        // take them back the way they came instead.
+        if (c.fixed || n.dot(c.normal) < 0.0)
+        {
+            n = c.normal;
+            dist = diff.dot(n);
+            if (dist >= c.clearance)
+                continue;
+        }
+        const double weight = c.wa0 * as0 * as0 + c.wa1 * s * s + c.wb0 * bt0 * bt0 + c.wb1 * t * t;
+        const double lambda = (c.clearance - dist) / weight;
+        c.pushed += c.clearance - dist;
+        const Vector3 da0 = n * (-lambda * c.wa0 * as0);
+        const Vector3 db0 = n * (lambda * c.wb0 * bt0);
+        m_points[c.a0] += da0;
+        m_points[c.b0] += db0;
+        m_self_moved[c.a0] += da0;
+        m_self_moved[c.b0] += db0;
+        if (c.a1 != c.a0)
+        {
+            const Vector3 da1 = n * (-lambda * c.wa1 * s);
+            m_points[c.a1] += da1;
+            m_self_moved[c.a1] += da1;
+        }
+        if (c.b1 != c.b0)
+        {
+            const Vector3 db1 = n * (lambda * c.wb1 * t);
+            m_points[c.b1] += db1;
+            m_self_moved[c.b1] += db1;
+        }
+    }
+}
+
+
+// After the solve, on VELOCITY: a strand contact neither bounces nor keeps
+// closing. Every particle's history moves with whatever the contacts pushed
+// it (all of it, not only the part along a contact's normal: a segment lying
+// across another strand was otherwise left ROCKING on it, one end up 2 mm and
+// the other down, the other way round the next tick, which is a motion the
+// contact point itself has no part in), and then any approach still left
+// between two touching points is stopped.
+void VerletRope::FinishSelfContacts()
+{
+    if (m_self_contacts.empty())
+        return;
+    for (size_t i = 0; i < m_self_moved.size(); ++i)
+        m_prev_points[i] += m_self_moved[i];
+    for (const SelfContact &c : m_self_contacts)
+    {
+        if (c.pushed <= 0.0)
+            continue;
+        const double s = c.s;
+        const double t = c.t;
+        const double as0 = 1.0 - s;
+        const double bt0 = 1.0 - t;
+        const Vector3 pa = m_points[c.a0] * as0 + m_points[c.a1] * s;
+        const Vector3 pb = m_points[c.b0] * bt0 + m_points[c.b1] * t;
+        const Vector3 diff = pb - pa;
+        const double dist = diff.length();
+        const Vector3 n = dist > c.clearance * 0.01 ? diff / dist : c.normal;
+        const Vector3 va = (m_points[c.a0] - m_prev_points[c.a0]) * as0 +
+                           (m_points[c.a1] - m_prev_points[c.a1]) * s;
+        const Vector3 vb = (m_points[c.b0] - m_prev_points[c.b0]) * bt0 +
+                           (m_points[c.b1] - m_prev_points[c.b1]) * t;
+        const double parting = (vb - va).dot(n);
+        // Parting velocity is theirs to keep (a hand lifting one strand off
+        // the other); an approach is not.
+        const double wanted = std::max(parting, 0.0);
+        const double weight = c.wa0 * as0 * as0 + c.wa1 * s * s + c.wb0 * bt0 * bt0 + c.wb1 * t * t;
+        // Velocity lives in the history: to change a point's velocity by dv,
+        // move its previous position by -dv.
+        Vector3 dv = n * ((wanted - parting) / weight);
+        // Strand on strand grips as strand on surface does, by the same rule
+        // and on velocity only (see ApplyContactFriction): the load is how far
+        // the solve had to part the two this step. With none, a strand lying
+        // ON another skated from side to side across it for as long as the
+        // cord was awake, and a pile slumped.
+        const Vector3 slide = (vb - va) - n * parting;
+        const double len = slide.length();
+        if (len > 1e-12 && (m_debug_disable & 2) == 0 &&
+            (m_static_friction > 0.0 || m_kinetic_friction > 0.0))
+        {
+            const double share = len <= m_static_friction * c.pushed
+                                     ? 1.0
+                                     : std::min(m_kinetic_friction * c.pushed / len, 1.0);
+            dv -= slide * (share / weight);
+        }
+        m_prev_points[c.a0] += dv * (c.wa0 * as0);
+        m_prev_points[c.b0] -= dv * (c.wb0 * bt0);
+        if (c.a1 != c.a0)
+            m_prev_points[c.a1] += dv * (c.wa1 * s);
+        if (c.b1 != c.b0)
+            m_prev_points[c.b1] -= dv * (c.wb1 * t);
+    }
+}
+
 
 // Which slot a freshly reported plane belongs in. The cascade is ordered by how
 // much the new normal agrees with what is already cached: an almost-exact match
@@ -1604,17 +1834,282 @@ void VerletRope::SolveSurfaceCollision(bool p_do_rest)
 }
 
 
+// ── Edge contacts ───────────────────────────────────────────────────────────
+// A chain of straight segments cannot follow a sharp corner with its particles
+// alone: each particle that passes the edge loses the face it stood on, and the
+// segment behind it has to PIVOT on the edge while it goes round. A plane cached
+// at a fixed place along the segment cannot say that (the contact slides along
+// the segment as the cord is pulled), so a cord dragged over a table's corner
+// dropped a particle 6-13 mm each time one went over (rope_jitter_probe
+// --case=corner). An edge contact keeps the edge's LINE instead, and slot 1 of
+// the segment's contact is re-derived from it every tick: the point of the
+// segment nearest the line must stay one radius clear of it, along the
+// perpendicular from the line. As that point nears an end of the segment the
+// next segment along is given the line TOO: with a particle at the edge both of
+// its segments bear on it, and passing one contact back and forth between them
+// (the first version) left one of the two inside the corner on every tick.
+
+// Where along segment s its line comes nearest the edge line, unclamped.
+// False when the two are parallel (any point of the segment is as near).
+bool VerletRope::EdgeParam(int s, const Vector3 &p_point, const Vector3 &p_dir, double &r_t) const
+{
+    const Vector3 a = m_points[m_seg_a[s]];
+    const Vector3 d = m_points[m_seg_b[s]] - a;
+    const Vector3 w0 = a - p_point;
+    const double dd = d.dot(d);
+    const double de = d.dot(p_dir);
+    const double denom = dd - de * de;
+    if (denom < dd * 1e-6 || dd < 1e-12)
+    {
+        r_t = 0.5;
+        return false;
+    }
+    r_t = (de * static_cast<double>(p_dir.dot(w0)) - static_cast<double>(d.dot(w0))) / denom;
+    return true;
+}
+
+
+// Re-derive slot 1 of segment s's contact from its edge line. False when the
+// nearest point has run off the segment, or the segment has lifted clear.
+bool VerletRope::PlaceEdgeContact(int s)
+{
+    const Vector3 &x = m_edge_point[s];
+    const Vector3 &e = m_edge_dir[s];
+    double raw = 0.5;
+    EdgeParam(s, x, e, raw);
+    const double t = CLAMP(raw, 0.0, 1.0);
+    const Vector3 a = m_points[m_seg_a[s]];
+    const Vector3 d = m_points[m_seg_b[s]] - a;
+    const Vector3 sample = a + d * t;
+    const Vector3 on_edge = x + e * (sample - x).dot(e);
+    const Vector3 w = sample - on_edge;
+    const double dist = w.length();
+    const Vector3 bisector = (m_edge_n1[s] + m_edge_n2[s]).normalized();
+    Vector3 n;
+    if (w.dot(m_edge_n1[s]) < 0.0 && w.dot(m_edge_n2[s]) < 0.0)
+    {
+        // The centreline is inside the corner: out along the perpendicular to
+        // both the edge and the segment, on the open side. At an END of the
+        // segment that perpendicular is the segment's own business and its
+        // neighbour's differs, so there it is the corner's bisector for both.
+        n = e.cross(d);
+        if (raw != t || n.length_squared() < 1e-12)
+            n = bisector;
+        else
+        {
+            n = n.normalized();
+            if (n.dot(bisector) < 0.0)
+                n = -n;
+        }
+    }
+    else if (dist > 1e-6)
+    {
+        n = w / dist;
+        if (dist > m_collision_radius * 3.0)
+            return false;
+    }
+    else
+        n = bisector;
+    m_mid_contact[s] = 1 | 4;
+    m_mid_contact_point[s] = on_edge;
+    m_mid_contact_normal[s] = n;
+    m_mid_contact_t[s] = static_cast<float>(t);
+    return true;
+}
+
+
+void VerletRope::UpdateEdgeContacts()
+{
+    const int seg_count = static_cast<int>(m_seg_a.size());
+    for (int s = 0; s < seg_count; ++s)
+    {
+        if ((m_mid_contact[s] & 4) == 0)
+            continue;
+        if (!PlaceEdgeContact(s))
+        {
+            // Lifted clear, or slid so far along that no part of it is near.
+            m_mid_contact[s] = 0;
+            m_debug_edges_lost += 1;
+            continue;
+        }
+        // The edge is where its two faces END. A plane cached from one of them
+        // holds a particle only on that face's side of the other: past it the
+        // plane is standing in the air (a particle hauled up over a table's
+        // edge was stopped for three ticks by the side face's plane, which
+        // goes on up for ever, until the rest pass let it go). Known exactly
+        // here, so it is said every tick, not found out by a ray every third.
+        const int ends[2] = {m_seg_a[s], m_seg_b[s]};
+        for (int i : ends)
+        {
+            if (m_c_flags[i] == 0)
+                continue;
+            const Vector3 off = m_points[i] - m_edge_point[s];
+            const double past1 = off.dot(m_edge_n1[s]);
+            const double past2 = off.dot(m_edge_n2[s]);
+            for (int slot = 0; slot < 2; ++slot)
+            {
+                if ((m_c_flags[i] & (1 << slot)) == 0)
+                    continue;
+                const Vector3 &n = slot == 0 ? m_c_n1[i] : m_c_n2[i];
+                if ((n.dot(m_edge_n1[s]) > 0.95 && past2 > 0.0) ||
+                    (n.dot(m_edge_n2[s]) > 0.95 && past1 > 0.0))
+                    m_c_flags[i] &= static_cast<uint8_t>(~(1 << slot));
+            }
+        }
+        double raw = 0.5;
+        EdgeParam(s, m_edge_point[s], m_edge_dir[s], raw);
+        const int other = raw > 0.8 ? m_next_seg[m_seg_b[s]] : (raw < 0.2 ? m_prev_seg[m_seg_a[s]] : -1);
+        if (other < 0 || other == s || (m_mid_contact[other] & 4) != 0 ||
+            m_inv_mass[m_seg_a[other]] + m_inv_mass[m_seg_b[other]] == 0.0f)
+            continue;
+        const uint8_t was = m_mid_contact[other];
+        const Vector3 was_point = m_mid_contact_point[other];
+        const Vector3 was_normal = m_mid_contact_normal[other];
+        const float was_t = m_mid_contact_t[other];
+        m_edge_point[other] = m_edge_point[s];
+        m_edge_dir[other] = m_edge_dir[s];
+        m_edge_n1[other] = m_edge_n1[s];
+        m_edge_n2[other] = m_edge_n2[s];
+        if (PlaceEdgeContact(other))
+            m_debug_edge_handovers += 1;
+        else
+        {
+            m_mid_contact[other] = was;
+            m_mid_contact_point[other] = was_point;
+            m_mid_contact_normal[other] = was_normal;
+            m_mid_contact_t[other] = was_t;
+        }
+    }
+}
+
+
+// Particle i has run off the face whose plane it held (p_point, p_normal). Look
+// back under that face from where the particle is now: the face met there is
+// the other side of the edge the cord has gone over. Whichever segment at i
+// crosses the edge gets it.
+void VerletRope::FindEdgeFor(PhysicsDirectSpaceState3D *space_state, int i, const Vector3 &p_point,
+                             const Vector3 &p_normal)
+{
+    if (m_debug_disable & 1)
+        return;
+    const double under = m_collision_radius * 0.5;
+    const double d = (m_points[i] - p_point).dot(p_normal);
+    const Vector3 from = m_points[i] - p_normal * (d + under);
+    Vector3 to = p_point - p_normal * under;
+    const Vector3 along = to - from;
+    if (along.length_squared() < 1e-10)
+        return;
+    to += along.normalized() * m_collision_radius;
+    m_ray_query->set_from(from);
+    m_ray_query->set_to(to);
+    const Dictionary hit = space_state->intersect_ray(m_ray_query);
+    if (hit.is_empty())
+        return;
+    const Vector3 n2 = hit["normal"];
+    const Vector3 p2 = hit["position"];
+    Vector3 e = p_normal.cross(n2);
+    if (n2 == Vector3() || e.length_squared() < 0.09)
+        return; // the same face again, or its back: not a corner
+    e = e.normalized();
+    // A point on both planes: from the hit, in the second face, to the first.
+    const Vector3 u = e.cross(n2);
+    const double denom = u.dot(p_normal);
+    if (std::abs(denom) < 1e-6)
+        return;
+    const Vector3 x = p2 + u * ((p_point - p2).dot(p_normal) / denom);
+    const int candidates[2] = {m_prev_seg[i], m_next_seg[i]};
+    for (int s : candidates)
+    {
+        if (s < 0 || (m_mid_contact[s] & 4) != 0 ||
+            m_inv_mass[m_seg_a[s]] + m_inv_mass[m_seg_b[s]] == 0.0f)
+            continue;
+        const uint8_t was = m_mid_contact[s];
+        m_edge_point[s] = x;
+        m_edge_dir[s] = e;
+        m_edge_n1[s] = p_normal;
+        m_edge_n2[s] = n2;
+        if (PlaceEdgeContact(s))
+        {
+            m_debug_edges_found += 1;
+            return;
+        }
+        m_mid_contact[s] = was;
+    }
+}
+
+
+// Whether the first face of segment s's edge is still where it was, read just
+// inside the edge under the contact (a ray AT an edge is a coin toss).
+bool VerletRope::EdgeStillThere(PhysicsDirectSpaceState3D *space_state, int s)
+{
+    const Vector3 &n1 = m_edge_n1[s];
+    Vector3 inward = m_edge_dir[s].cross(n1);
+    if (inward.dot(m_edge_n2[s]) > 0.0)
+        inward = -inward;
+    const Vector3 on_face = m_mid_contact_point[s] + inward * (m_collision_radius * 0.5);
+    Vector3 point = on_face;
+    Vector3 normal = n1;
+    if (!SurfaceUnder(space_state, on_face + n1 * m_collision_radius, m_collision_radius * 2.0,
+                      point, normal))
+        return false;
+    return normal.dot(n1) > 0.98 && std::abs((point - on_face).dot(n1)) < m_collision_radius * 0.25;
+}
+
+
+// The front face met by a ray from `p_from` along -r_normal within `p_reach`,
+// if it faces the way r_normal does: its point and its own normal come back in
+// the two references.
+bool VerletRope::SurfaceUnder(PhysicsDirectSpaceState3D *space_state, const Vector3 &p_from,
+                              double p_reach, Vector3 &r_point, Vector3 &r_normal)
+{
+    m_ray_query->set_from(p_from);
+    m_ray_query->set_to(p_from - r_normal * p_reach);
+    const Dictionary hit = space_state->intersect_ray(m_ray_query);
+    if (hit.is_empty())
+        return false;
+    const Vector3 n = hit["normal"];
+    if (n == Vector3() || n.dot(r_normal) < 0.7)
+        return false;
+    r_point = hit["position"];
+    r_normal = n;
+    return true;
+}
+
+
+// Whether the surface a cached plane was read from is still under particle i,
+// re-reading the plane from it when it is (a curved surface turns under a cord).
+bool VerletRope::PlaneSupported(PhysicsDirectSpaceState3D *space_state, int i, Vector3 &r_point,
+                                Vector3 &r_normal)
+{
+    if (m_debug_disable & 4)
+        return true;
+    // From no lower than the resting height, so a particle the solve has left
+    // pressed into the surface still finds its face from the front.
+    const double d = (m_points[i] - r_point).dot(r_normal);
+    const double lift = std::max(0.0, m_collision_radius - d);
+    Vector3 point = r_point;
+    Vector3 normal = r_normal;
+    if (!SurfaceUnder(space_state, m_points[i] + r_normal * lift,
+                      lift + std::max(d, 0.0) + m_collision_radius, point, normal))
+        return false;
+    r_point = point;
+    r_normal = normal;
+    return true;
+}
+
+
 // Phase one: each particle's own motion sweep, and its cached contact planes.
 void VerletRope::SweepParticleContacts(PhysicsDirectSpaceState3D *space_state, bool p_do_rest)
 {
     const int count = static_cast<int>(m_points.size());
+    const bool swept = m_substeps > 1 && m_tick_from.size() == m_points.size();
     for (int i = 0; i < count; ++i)
     {
         if (m_inv_mass[i] == 0.0f)
             continue;
         // Sweep this frame's motion so a point can't tunnel through thin
         // geometry, even between rest-query frames.
-        const Vector3 from = m_prev_points[i];
+        const Vector3 from = swept ? m_tick_from[i] : m_prev_points[i];
         const Vector3 to = m_points[i];
         const Vector3 motion = to - from;
         if (motion.length_squared() > 0.000001)
@@ -1627,10 +2122,44 @@ void VerletRope::SweepParticleContacts(PhysicsDirectSpaceState3D *space_state, b
                 const Vector3 hit_normal = hit["normal"];
                 if (hit_normal != Vector3())
                 {
-                    ResolveContact(i, hit["position"], hit_normal);
-                    m_c_flags[i] |= 1;
-                    m_c_p1[i] = hit["position"];
-                    m_c_n1[i] = hit_normal;
+                    const Vector3 hit_point = hit["position"];
+                    const double length = motion.length();
+                    bool keep1 = (m_c_flags[i] & 1) != 0 && PlaneValid(i, m_c_p1[i], m_c_n1[i]);
+                    bool keep2 = (m_c_flags[i] & 2) != 0 && PlaneValid(i, m_c_p2[i], m_c_n2[i]);
+                    int slot = ChooseContactSlot(i, hit_point, hit_normal, keep1, keep2);
+                    if ((hit_point - from).dot(motion) <= length * length)
+                    {
+                        // The centre really crossed the surface this tick: stop
+                        // it where it went in. This plane is not optional, so it
+                        // takes slot 1 even from a full manifold.
+                        ResolveContact(i, hit_point, hit_normal);
+                        m_debug_sweep_snaps += 1;
+                        if (slot == 0)
+                            slot = 1;
+                    }
+                    else
+                    {
+                        // The ray reaches one radius PAST the particle, so this
+                        // hit is ahead of it: the jacket is about to touch, the
+                        // centre has crossed nothing. Snapping to the hit point
+                        // here carried the particle up to a radius along its own
+                        // motion and cut its slide by surface_friction, on any
+                        // tick a resting particle moved a millimetre with the
+                        // slightest lean into its surface (a cord dragged round
+                        // a table corner: 14 mm kicks). Hold it off the plane
+                        // where it IS, without making or keeping velocity into
+                        // the surface, and let the solve own the contact.
+                        const double depth = m_collision_radius - (to - hit_point).dot(hit_normal);
+                        if (depth > 0.0)
+                        {
+                            const double inward = std::min(
+                                0.0, static_cast<double>((to - m_prev_points[i]).dot(hit_normal)));
+                            m_points[i] += hit_normal * depth;
+                            m_prev_points[i] += hit_normal * (depth + inward);
+                        }
+                    }
+                    AssignContactSlot(i, slot, hit_point, hit_normal, keep1, keep2);
+                    m_c_flags[i] = static_cast<uint8_t>((keep1 ? 1 : 0) | (keep2 ? 2 : 0));
                     continue;
                 }
             }
@@ -1652,13 +2181,51 @@ void VerletRope::SweepParticleContacts(PhysicsDirectSpaceState3D *space_state, b
             // reported plane it has passed the surface, and ejecting along this
             // normal can pop it out the FAR side of a slab. Don't cache — the
             // wrong-side recovery below walks it back instead.
+            int fresh = 0;
             if (!rest.is_empty())
             {
-                const Vector3 nn = rest["normal"];
-                const Vector3 np = rest["point"];
-                if (nn != Vector3() && (m_points[i] - np).dot(nn) >= 0.0)
-                    AssignContactSlot(i, ChooseContactSlot(i, np, nn, keep1, keep2), np, nn,
-                                      keep1, keep2);
+                Vector3 nn = rest["normal"];
+                Vector3 np = rest["point"];
+                // The sphere only says which WAY the nearest surface lies; the
+                // surface itself is read with a ray, as the sweep reads it. The
+                // two do not agree near a box's edge (Jolt rounds a box by its
+                // margin for shape queries, up to 4 cm, and a ray sees it
+                // sharp), and a particle fed planes from both was thrown from
+                // one to the other.
+                // When the sphere reports the very plane a slot already holds,
+                // that IS the surface under the particle, read by a ray once
+                // already: no second ray (most of a cord lying on a floor).
+                const double same = m_collision_radius * 0.1;
+                if (keep1 && nn.dot(m_c_n1[i]) > 0.999 &&
+                    std::abs((np - m_c_p1[i]).dot(m_c_n1[i])) < same)
+                    fresh = 1;
+                else if (keep2 && nn.dot(m_c_n2[i]) > 0.999 &&
+                         std::abs((np - m_c_p2[i]).dot(m_c_n2[i])) < same)
+                    fresh = 2;
+                else if (nn != Vector3() && (m_points[i] - np).dot(nn) >= 0.0 &&
+                    ((m_debug_disable & 4) ||
+                     SurfaceUnder(space_state, m_points[i], m_collision_radius * 1.5, np, nn)))
+                {
+                    fresh = ChooseContactSlot(i, np, nn, keep1, keep2);
+                    AssignContactSlot(i, fresh, np, nn, keep1, keep2);
+                }
+            }
+            // A cached plane is infinite; the face it came from is not. Keep a
+            // plane only while there is surface under the particle: one that had
+            // slid off a table's edge used to stand on the table top's plane in
+            // mid air, stuck there by static friction, until it was 6 cm from
+            // where it last touched, and then dropped 13 mm in a tick.
+            // The face a particle has just run off ends in an edge, and the
+            // cord is now lying over it: hand that edge to the segment.
+            if (keep1 && fresh != 1 && !PlaneSupported(space_state, i, m_c_p1[i], m_c_n1[i]))
+            {
+                keep1 = false;
+                FindEdgeFor(space_state, i, m_c_p1[i], m_c_n1[i]);
+            }
+            if (keep2 && fresh != 2 && !PlaneSupported(space_state, i, m_c_p2[i], m_c_n2[i]))
+            {
+                keep2 = false;
+                FindEdgeFor(space_state, i, m_c_p2[i], m_c_n2[i]);
             }
             m_c_flags[i] = static_cast<uint8_t>((keep1 ? 1 : 0) | (keep2 ? 2 : 0));
         }
@@ -1675,6 +2242,7 @@ void VerletRope::SweepParticleContacts(PhysicsDirectSpaceState3D *space_state, b
 void VerletRope::SolveSegmentCollision(PhysicsDirectSpaceState3D *space_state, bool p_do_rest)
 {
     const int seg_count = static_cast<int>(m_seg_a.size());
+    const bool swept = m_substeps > 1 && m_tick_from.size() == m_points.size();
     const auto set_capsule = [&](const Vector3 &a, const Vector3 &b) {
         const Vector3 segment = b - a;
         const double length = segment.length();
@@ -1759,14 +2327,16 @@ void VerletRope::SolveSegmentCollision(PhysicsDirectSpaceState3D *space_state, b
         const int ib = m_seg_b[s];
         if (m_inv_mass[ia] + m_inv_mass[ib] == 0.0f)
             continue;
-        const Vector3 previous_mid = (m_prev_points[ia] + m_prev_points[ib]) * 0.5;
+        const Vector3 from_a = swept ? m_tick_from[ia] : m_prev_points[ia];
+        const Vector3 from_b = swept ? m_tick_from[ib] : m_prev_points[ib];
+        const Vector3 previous_mid = (from_a + from_b) * 0.5;
         const Vector3 current_mid = (m_points[ia] + m_points[ib]) * 0.5;
         const Vector3 motion = current_mid - previous_mid;
         const double capsule_sweep_threshold = m_collision_radius * 4.0;
         if (m_mid_contact[s] == 0 &&
             motion.length_squared() > capsule_sweep_threshold * capsule_sweep_threshold)
         {
-            m_segment_shape_query->set_transform(set_capsule(m_prev_points[ia], m_prev_points[ib]));
+            m_segment_shape_query->set_transform(set_capsule(from_a, from_b));
             m_segment_shape_query->set_motion(Vector3());
             const bool already_touching =
                 !space_state->get_rest_info(m_segment_shape_query).is_empty();
@@ -1780,8 +2350,8 @@ void VerletRope::SolveSegmentCollision(PhysicsDirectSpaceState3D *space_state, b
                     const double unsafe = fractions[1];
                     const Vector3 wanted_a = m_points[ia];
                     const Vector3 wanted_b = m_points[ib];
-                    const Vector3 hit_a = m_prev_points[ia].lerp(wanted_a, unsafe);
-                    const Vector3 hit_b = m_prev_points[ib].lerp(wanted_b, unsafe);
+                    const Vector3 hit_a = from_a.lerp(wanted_a, unsafe);
+                    const Vector3 hit_b = from_b.lerp(wanted_b, unsafe);
                     m_segment_shape_query->set_transform(set_capsule(hit_a, hit_b));
                     m_segment_shape_query->set_motion(Vector3());
                     Dictionary hit = space_state->get_rest_info(m_segment_shape_query);
@@ -1795,8 +2365,8 @@ void VerletRope::SolveSegmentCollision(PhysicsDirectSpaceState3D *space_state, b
                                                          hit_length_sq,
                                                      0.0, 1.0)
                                              : 0.5;
-                        const Vector3 safe_a = m_prev_points[ia].lerp(wanted_a, safe);
-                        const Vector3 safe_b = m_prev_points[ib].lerp(wanted_b, safe);
+                        const Vector3 safe_a = from_a.lerp(wanted_a, safe);
+                        const Vector3 safe_b = from_b.lerp(wanted_b, safe);
                         const Vector3 correction = safe_a.lerp(safe_b, t) -
                                                    wanted_a.lerp(wanted_b, t);
                         const double ta = 1.0 - t;
@@ -1826,11 +2396,22 @@ void VerletRope::SolveSegmentCollision(PhysicsDirectSpaceState3D *space_state, b
                             }
                         }
                         cache_segment_hit(s, hit);
+                        m_debug_capsule_stops += 1;
                     }
                 }
             }
         }
-        if (p_do_rest)
+        if (p_do_rest && (m_mid_contact[s] & 4))
+        {
+            // An edge contact is re-derived from its line every tick. All the
+            // rest pass has to ask is whether the edge is still there.
+            if (!EdgeStillThere(space_state, s))
+            {
+                m_mid_contact[s] = 0;
+                m_debug_edges_lost += 1;
+            }
+        }
+        else if (p_do_rest)
         {
             // Prefer the finite midpoint sphere on broad resting surfaces: a
             // full capsule has infinitely many equally deep contacts there and
@@ -1846,6 +2427,9 @@ void VerletRope::SolveSegmentCollision(PhysicsDirectSpaceState3D *space_state, b
                 // its plane as a smooth surface turns; two planes here would
                 // pinch a cord on a pipe. The two-slot manifold is reserved for
                 // capsule-only edge contacts away from the midpoint.
+                if ((m_mid_contact[s] & 1) &&
+                    m_mid_contact_normal[s].dot(midpoint_rest["normal"].operator Vector3()) < 0.9)
+                    m_debug_mid_turns += 1;
                 m_mid_contact[s] = 0;
                 if (cache_segment_hit(s, midpoint_rest))
                     m_mid_contact_t[s] = 0.5f;
@@ -1914,6 +2498,7 @@ void VerletRope::RecoverWrongSideParticles(PhysicsDirectSpaceState3D *space_stat
         if (m_stuck_passes[i] < 2)
             continue;
         m_stuck_passes[i] = 0;
+        m_debug_recoveries += 1;
         m_points[i] = entry["position"].operator Vector3() + entry_n * m_collision_radius;
         m_prev_points[i] = m_points[i];
         m_c_flags[i] = 0;

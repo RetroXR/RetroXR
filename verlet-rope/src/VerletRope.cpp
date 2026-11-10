@@ -162,6 +162,19 @@ void VerletRope::_bind_methods()
     ClassDB::bind_method(D_METHOD("get_raycast_interval"), &VerletRope::GetRaycastInterval);
     ADD_PROPERTY(PropertyInfo(Variant::INT, "raycast_interval"), "set_raycast_interval", "get_raycast_interval");
 
+    ClassDB::bind_method(D_METHOD("set_substeps", "value"), &VerletRope::SetSubsteps);
+    ClassDB::bind_method(D_METHOD("get_substeps"), &VerletRope::GetSubsteps);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "substeps", PROPERTY_HINT_RANGE, "1,8,1"), "set_substeps",
+                 "get_substeps");
+    ClassDB::bind_method(D_METHOD("set_wave_damping", "value"), &VerletRope::SetWaveDamping);
+    ClassDB::bind_method(D_METHOD("get_wave_damping"), &VerletRope::GetWaveDamping);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "wave_damping", PROPERTY_HINT_RANGE, "0,0.5,0.01"),
+                 "set_wave_damping", "get_wave_damping");
+    ClassDB::bind_method(D_METHOD("set_debug_disable", "value"), &VerletRope::SetDebugDisable);
+    ClassDB::bind_method(D_METHOD("get_debug_disable"), &VerletRope::GetDebugDisable);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "debug_disable", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NONE),
+                 "set_debug_disable", "get_debug_disable");
+
     ClassDB::bind_method(D_METHOD("set_self_collision", "value"), &VerletRope::SetSelfCollision);
     ClassDB::bind_method(D_METHOD("get_self_collision"), &VerletRope::GetSelfCollision);
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "self_collision"), "set_self_collision", "get_self_collision");
@@ -294,6 +307,7 @@ void VerletRope::_bind_methods()
     ClassDB::bind_method(D_METHOD("get_points"), &VerletRope::GetPoints);
     ClassDB::bind_method(D_METHOD("restore_points", "points"), &VerletRope::RestorePoints);
     ClassDB::bind_method(D_METHOD("get_sleep_metrics"), &VerletRope::GetSleepMetrics);
+    ClassDB::bind_method(D_METHOD("get_contact_debug", "index"), &VerletRope::GetContactDebug);
     ClassDB::bind_method(D_METHOD("nudge_point", "index", "delta"), &VerletRope::NudgePoint);
     ClassDB::bind_method(D_METHOD("point_count"), &VerletRope::PointCount);
     ClassDB::bind_method(D_METHOD("point_position", "index"), &VerletRope::PointPosition);
@@ -716,6 +730,31 @@ bool VerletRope::RestorePoints(const PackedVector3Array &p_points)
     return true;
 }
 
+// Particle i's cached contact state, for probes: its two plane slots and the
+// contact of the segment that starts at it. Read-only; nothing here is saved.
+Dictionary VerletRope::GetContactDebug(int p_index) const
+{
+    Dictionary out;
+    if (p_index < 0 || p_index >= static_cast<int>(m_points.size()))
+        return out;
+    out["flags"] = m_c_flags[p_index];
+    out["n1"] = m_c_n1[p_index];
+    out["p1"] = m_c_p1[p_index];
+    out["n2"] = m_c_n2[p_index];
+    out["p2"] = m_c_p2[p_index];
+    out["velocity"] = m_points[p_index] - m_prev_points[p_index];
+    const int s = p_index < static_cast<int>(m_next_seg.size()) ? m_next_seg[p_index] : -1;
+    out["mid"] = s >= 0 ? m_mid_contact[s] : 0;
+    if (s >= 0)
+    {
+        out["mid_n1"] = m_mid_contact_normal[s];
+        out["mid_t1"] = m_mid_contact_t[s];
+        out["mid_n2"] = m_mid_contact_normal_2[s];
+        out["mid_t2"] = m_mid_contact_t_2[s];
+    }
+    return out;
+}
+
 Dictionary VerletRope::GetSleepMetrics() const
 {
     Dictionary out;
@@ -723,6 +762,15 @@ Dictionary VerletRope::GetSleepMetrics() const
     out["rms_velocity"] = m_debug_rms_velocity;
     out["stretch_error"] = m_debug_stretch_error;
     out["contact_error"] = m_debug_contact_error;
+    out["sweep_snaps"] = m_debug_sweep_snaps;
+    out["mid_turns"] = m_debug_mid_turns;
+    out["capsule_stops"] = m_debug_capsule_stops;
+    out["recoveries"] = m_debug_recoveries;
+    out["self_pairs"] = m_debug_self_pairs;
+    out["self_segments"] = m_debug_self_segments;
+    out["edges_found"] = m_debug_edges_found;
+    out["edge_handovers"] = m_debug_edge_handovers;
+    out["edges_lost"] = m_debug_edges_lost;
     out["contact_stable_frames"] = m_contact_stable_frames;
     out["still_frames"] = m_still_frames;
     return out;
@@ -930,6 +978,7 @@ void VerletRope::InitPoints()
     m_stuck_passes.assign(count, 0);
     m_self_group.assign(count, 0);
     m_next_seg.assign(count, -1);
+    m_prev_seg.assign(count, -1);
     m_active_contact.reserve(count);
 
     // Segment table. Without a fray this is exactly (i, i+1) over the trunk, so
@@ -960,6 +1009,13 @@ void VerletRope::InitPoints()
     for (int s = 0; s < seg_count; ++s)
         if (m_next_seg[m_seg_a[s]] < 0)
             m_next_seg[m_seg_a[s]] = s;
+    for (int s = 0; s < seg_count; ++s)
+        if (m_prev_seg[m_seg_b[s]] < 0)
+            m_prev_seg[m_seg_b[s]] = s;
+    m_edge_point.assign(seg_count, Vector3());
+    m_edge_dir.assign(seg_count, Vector3());
+    m_edge_n1.assign(seg_count, Vector3());
+    m_edge_n2.assign(seg_count, Vector3());
     m_mid_contact.assign(seg_count, 0);
     m_mid_contact_point.assign(seg_count, Vector3());
     m_mid_contact_normal.assign(seg_count, Vector3());

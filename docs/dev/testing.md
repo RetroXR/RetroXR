@@ -187,11 +187,25 @@ on a ledge, heaped, bridging a gap; loose/ — a whole lead dropped flat, across
 from height) and what a player DOES to one (handling/ — a real lead's plug yanked at
 5 m/s, towed 2.5 m across the floor, pulled out through a 100 mm slot, carried over a
 partition, a cord wrapped round a post and hauled tight), plus inextensibility,
-determinism, anchor pinning, teleport re-lay, `set_rope_length` and sleep/wake. 90 cases,
-~70 s, no GPU. It complements rather than replaces the two BIT-EXACT oracles in `Tools/`
-(`rope_bench --settle` prints `settled_at_tick=49 still_awake=0`, `rope_stress` diffs a
+determinism, anchor pinning, teleport re-lay, `set_rope_length` and sleep/wake, and
+awake/ — a cord BEING HANDLED (hauled round a square bar, lying across itself, dragged
+over a block's corner), read as chatter, because sleep hides jitter. 93 cases,
+~90 s, no GPU. It complements rather than replaces the two BIT-EXACT oracles in `Tools/`
+(`rope_bench --settle` prints `settled_at_tick=50 still_awake=0`, `rope_stress` diffs a
 22-row table): those catch arithmetic drift, this catches a cord that jitters, tunnels or
 will not settle.
+(Re-baselined 2026-11-10 for substeps and the contact changes, `rope.md`: the bench
+settles at tick 50, was 49, and EVERY `rope_stress` row moved a little, the solver being
+a different one. The rows that moved in kind: "inside a wall" no longer sleeps (jitter
+0.93 -> 0.06 mm), "dragged through wall" jitter 4.4 -> 88 mm with squash 0.62 -> 0.26 and
+"anchor teleported" 4.1 -> 12.7 mm, the impossible lays; "nudged mid-span" 5.2 -> 1.6 mm;
+"wrapped on a ledge" squash 0.72 -> 0.90. The table as it stands is the one to diff
+against. Two cases changed how they are BUILT, not what they ask: "the cord lies down"
+carries its end a centimetre off the line between the sockets (on the exact line the
+case is planar and an arch has no side to fall to), and the bow-tie crossing is laid at
+rest with `restore_points` (it was nudged part way and left to one integration to
+finish, which is only one integration at one step a tick). The three awake/ cases are
+red on the solver before: 39, 214 and 20 chattering ticks.)
 (The bench printed 15 until 2026-08-17: DepenetrateLay freed wedged lays and three more
 bench ropes settle; the stress rows that moved are the two impossible lays. Re-baselined
 deliberately — an UNINTENDED move in these numbers is still a stop-everything signal.

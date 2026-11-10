@@ -87,10 +87,104 @@ creeps), but the creep is a crawl the sleep system parks within a second.
   friction holds the snag harder. Jitter there fell from 81 to 3.7 mm. It is one of
   the two impossible lays, and it was accepted deliberately.
 
+## Substeps: a tick is four short steps (2026-11-10)
+
+`substeps` (C++ default 4, no scene sets it). A tick integrates and solves four times
+over a quarter of the tick each, with a quarter of `constraint_iterations` a slice (2 of
+8), so the constraint work is what it was. The environment is still queried ONCE a tick,
+after the last slice, and the self contacts are found once, after the first integration.
+
+- **Why:** what was left after every contact fix was the same thing in different
+  places, a two-tick limit cycle: a strand rocking on another, a pile that never agreed
+  with itself, a corner's friction sticking on one tick and not the next. One long step
+  and eight Gauss-Seidel passes overshoot and come back; short steps do not. Measured
+  with `rope_jitter_probe` over five starts each (chattering ticks of 718, worst
+  reversal): a hand-wound coil 717 / 24 mm before, 695 / 16 mm with the contact fixes
+  alone, 167 / 1.8 mm with substeps; a heap 107 / 11 mm, 8 / 1.3 mm, 2 / 1.0 mm.
+- **A stiffness rated as "share of the error per iteration" is rescaled per slice**
+  (`SliceStiffness`: bend, end stiffness, the stub). The same share over a step 1/n as
+  long is a constraint n² times as stiff: unscaled, a cord rated 0.2 stood up like wire
+  (`rope_tests` "the cord lies down", 325 mm tall). Scaled by `full / (now × n²)` a
+  hanging loop has the shape it had at one step (0.6 m between sockets 0.1 m apart:
+  259 mm deep against 260 rated 0.2, 255 against 256 rated 0.3). `stretch_stiffness`
+  1 stays rigid. A rating of 0.1 does not match as well (247 against 284).
+- **Pinned ends are carried through the tick**, a quarter of the way per slice
+  (`m_pin_from`, `m_pin_fraction`), not thrown to the anchor in the first slice.
+- **The sweeps cover the whole tick** (`m_tick_from`): a particle's ray and a segment's
+  capsule are cast from where they were when the tick began, not from the last slice.
+- **A plug's force is the MEAN over the slices** (`CouplePlug`): the pin reactions are
+  summed over the tick and divided by the slice's dt² times the slice count. Taken from
+  one slice alone it sent a composite lead's plugs 42 m.
+- **`wave_damping` (0.3)**: each slice a particle's velocity is drawn that share toward
+  the mean of its two neighbours', a pinned neighbour counting as its ANCHOR's velocity.
+  One step of eight iterations damped a cord's fast transverse waves by accident;
+  slices of two do not, and a hanging span buzzed after every move of its end. It also
+  takes a swing out through the cord's fixed ends. Free fall is untouched.
+- `damping` is still per TICK (a slice keeps the root of what a tick keeps).
+- **Cost** (desktop debug, `rope_bench`): 207 -> about 270-290 us per awake rope-tick,
+  16 settling cables asleep at tick 50 (was 49) at 43 us (was 42). A Quest is OWED.
+- `substeps = 1` is still a working solver (the probe's `--substeps=1` control leg) and
+  keeps every contact change below; it is not bit-identical to the solver before.
+
+## Contact planes are FINITE, and a sharp edge is a line (2026-11-10)
+
+A cached contact plane is infinite and the face it was read from is not. Three rules:
+
+- **A plane is kept only while a ray finds its face under the particle**
+  (`PlaneSupported`, on the rest cadence). A particle that slid off a table's edge used
+  to stand on the table top's plane in mid air, stuck there by static friction, until it
+  was two segment lengths from where it last touched, and then dropped 13 mm in a tick
+  (`rope_jitter_probe --case=corner --trace`). The same in reverse: hauled UP over an
+  edge it was stopped by the side face's plane, which goes on up for ever.
+- **The surface is read with a RAY; the sphere query only says which way it lies**
+  (`SurfaceUnder`). Jolt rounds a box's edges by its collision margin for SHAPE queries
+  (up to 4 cm, 8% of its thinnest side) and a ray sees the box sharp, so near any edge
+  the two disagreed by up to 16 mm and a particle fed planes from both was thrown from
+  one to the other. When the sphere reports the plane a slot already holds, that is the
+  confirmation and no ray is sent.
+- **A segment lying over a sharp edge holds the edge's LINE** (`m_edge_*`,
+  `m_mid_contact` bit 4). When a particle runs off a face, `FindEdgeFor` looks back under
+  that face for the one it meets, and the segment gets the line the two share. Slot 1 of
+  its contact is re-derived from the line every slice (`PlaceEdgeContact`): the point of
+  the segment nearest the line stays a radius clear of it, so the contact SLIDES along
+  the segment as the cord is pulled round. Near an end of the segment the next segment
+  is given the line too (passing ONE contact back and forth left one of the two inside
+  the corner every tick). Friction for it acts on that point's velocity, shared to the
+  two ends, not on each end's own. With the line known, a plane from either face is
+  dropped the moment its particle is past the other face (`UpdateEdgeContacts`, plain
+  arithmetic, every slice).
+- **The sweep's ray reaches a radius PAST the particle**, and a hit out there is ahead of
+  it: the particle is held off that plane where it IS. It used to be snapped to the hit
+  point, up to a radius along its own motion.
+
+Still open: over a block's CORNER (three faces) a dragged cord chatters on 7 ticks in 718
+by 1.6 mm (34 by 6 mm before), and over a table's edge 11 by 1.2 mm (6 by 3.9 mm before:
+fewer but larger). A curved surface is unchanged (the pipe wrap is the control: 0).
+
 ## A cord crossing itself: the strand underneath owns the floor
 
-`SolveSelfCollision` runs after the solve. Where a loop crosses over itself on a floor,
-three rules keep the crossing still (2026-09-22):
+Self contacts are found once a tick (`DetectSelfContacts`) and solved INSIDE the
+constraint loop, before the surface planes (`SolveSelfContacts`), since 2026-11-10. Until
+then it was one pass after the solve: eight stretch and bend iterations closed a coil
+with nothing in their way, the pass pushed it open, and a wound-up cord churned for as
+long as it was awake. Also since then:
+
+- **Segment pairs are the closest points of the two SEGMENTS, clamped.** It took the
+  closest points of the two lines and kept a pair only when both fell inside, so the end
+  of one strand sliding into the middle of another was no contact until it had gone
+  through, and was then lifted a cord's thickness over it in one tick (8.5 mm).
+  Between two branches of ONE breakout only a true crossing counts, as before (they
+  leave it closer than the clearance, and the fan was pushed apart for seconds).
+- **Strands found a quarter of their clearance apart or less are parted along the
+  perpendicular to both, held for the tick** (`SelfContact::fixed`). Their offset is a
+  millimetre of noise that changes sign: parted along it a kink's two segments went
+  through each other and back every tick, 6 mm each way, for ever.
+- **Strand on strand has friction**, by `ApplyContactFriction`'s rule, on velocity only,
+  loaded by how far the solve parted the two (`FinishSelfContacts`). With none, a loop
+  lying across itself chattered on 264 ticks of 718 while its end was moved (0 now).
+
+Where a loop crosses over itself on a floor, three rules keep the crossing still
+(2026-09-22):
 
 - **A particle resting on a surface is never pushed into it** (`PushesIntoRest`: a
   push with more than a glancing share into the plane it touches). The strand on top
@@ -106,18 +200,17 @@ three rules keep the crossing still (2026-09-22):
   bounced a heap (2.1 mm/tick held awake with the history left alone). Moving the
   history alone kept the approach, so strands pressed together were pushed again
   every tick, and a composite lead's breakout knot crept 22 mm across the floor
-  (`floor_ends_probe`). The segment pass moves the history but does not yet stop
-  the approach.
-- **Only what the pass pushed into a surface is lifted back out**, with the history
-  (`m_self_moved`). Re-projecting EVERY resting particle instead also lifted ones that
-  were low for other reasons: a heap churned at 0.63 mm/tick held awake. Lifting
-  without moving the history pumped the loops, which then never slept. Both were
-  measured and backed out.
+  (`floor_ends_probe`). Every particle's history moves with ALL the contacts pushed it
+  (`m_self_moved`), not only the part along a contact's normal: a segment lying across
+  a strand was otherwise left rocking on it, one end up 2 mm and the other down, which
+  is a motion the contact point has no part in. Segment pairs stop the approach too.
+- **Nothing ends a tick inside a surface because of a crossing.** That was a lift
+  afterwards, of only what the pass had pushed in; the surface planes are solved after
+  the crossings in every iteration now, which is the same thing.
 
-The heap case measures 0.035 mm/tick held awake (0.35 before). Strand on strand has NO
-friction, only strand on surface: a pile forced awake from the moment it lands (`--heap
---awake`) slumps slowly, and a strand now and then slides off another (a 4 mm drop).
-Left to itself the same pile sleeps by tick ~270 without creeping. A loop tighter than about
+A pile forced awake from the moment it lands (`rope_crossing_probe --heap --awake`)
+moves 0.84 mm/tick at its worst crossing (4.2 before) and still slumps slowly. Left to
+itself the same pile sleeps by tick ~150 (270 before). A loop tighter than about
 10 cm across (40% in the probe) still springs open against friction: at the shipped
 bend stiffness a cord is stiffer than its grip on the floor. Holding it would need
 bend memory (a rest shape that yields to where the cord has lain), which is not built.
@@ -195,6 +288,21 @@ mod's seat is 1 mm inside its shell; the fix is a `face` in that mod), CD player
 `DeckFace.seat_port`'s `PORT_PROUD` off the model's mouth).
 
 ## Probes (`RetroXR/Tools/rope/`)
+
+- `rope_jitter_probe`: does a cord JITTER while it is awake and being handled? Every
+  other check asks whether a cord settles, and sleep hides jitter. One bare rope, an
+  end moved slowly and smoothly, `--case=` `edge` `corner` `wrap` `wrappipe` (the
+  round-bar control: no edges) `loop` `heap` `wound`. Read `chatter`: ticks on which a
+  particle's acceleration turned right round from the tick before, by more than 0.5 mm
+  both times (a span swaying has second differences as large, but they keep their
+  direction). **`--seeds=N` and read the SUMMARY's medians**: a pile lands differently
+  for a millimetre's difference in its start, and one layout's number is mostly about
+  the landing (the heap read 0, 315, 5 and 112 kicks across four small changes before
+  this existed). `--trace` / `--watch=N` print a particle and its neighbours tick by
+  tick round the worst chatter with each cached plane (`get_contact_debug`);
+  `--disable=` and `--substeps=` are the control legs (`debug_disable`: 1 edge
+  contacts, 2 strand friction, 4 the confirming rays); `--sharp` zeroes the boxes'
+  collision margin; `--video=` (windowed).
 
 - `floor_ends_probe`: a plain lead and a composite lead dropped on a floor, ticked by
   the ENGINE (real plug bodies). Prints per-plug travel after landing, peak per-tick

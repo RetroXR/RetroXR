@@ -37,6 +37,8 @@ const LEAD_SCENE := preload("res://Scenes/Objects/cables/trs_cable.tscn")
 ## Ticks per physics frame. The solver's world queries are only legal inside a
 ## physics frame, so the batch runs there rather than in a tight loop of its own.
 const BATCH := 30
+## Groups (`-- --only=<group>`): contact handling integrity anchors sleep loose
+## edges awake budget.
 ## The window a "has it stopped moving?" question is asked over.
 const STILL_WINDOW := 60
 ## A settled cord may still move this much per tick when it is denied sleep.
@@ -84,6 +86,7 @@ func _run() -> void:
 	await _group_sleep()
 	await _group_loose()
 	await _group_edges()
+	await _group_awake()
 	await _group_budget()
 	_finish()
 
@@ -512,7 +515,11 @@ func _group_contact() -> void:
 	var table_rope := _rope_between(
 		base + Vector3(-0.3, 0.76, 0), base + Vector3(0.66, 0.76, 0), 16)
 	await _settle(120)
-	await _carry(table_rope, table_rope.end_node, base + Vector3(0.3, 0.76, 0), 90)
+	# Carried a centimetre OFF the line between the sockets, as any hand does. On
+	# the exact line the whole case lives in one plane, where the slack has only
+	# one way to go, up, and an arch that could fall over sideways has no side
+	# to fall to: with four substeps the cord stood 331 mm tall there and slept.
+	await _carry(table_rope, table_rope.end_node, base + Vector3(0.3, 0.76, 0.01), 90)
 	await _assert_settles("a cord on a table", 1500, STILL_MM)
 	var top := base.y + 0.75
 	var sink := top - _lowest_y()
@@ -1780,12 +1787,10 @@ func _group_edges() -> void:
 		base + Vector3(-0.15, 0.8, 0.15),
 		base + Vector3(0.15, 0.8, -0.15),
 	]
-	var laid := rope.get_points()
-	for i in range(1, 3):
-		# nudge_point changes current but not previous, so the next Verlet integrate
-		# repeats 99% of the displacement. Divide by 1.99 to land on the intended
-		# bow-tie at the moment collision runs, with no accidental endpoint contact.
-		rope.nudge_point(i, (crossed[i] - laid[i]) / 1.99)
+	# Laid AT REST in the bow-tie. This used to nudge the two middle particles
+	# part of the way and let the next integration carry them the rest, which
+	# only lands on the bow-tie when a tick is a single integration.
+	rope.restore_points(PackedVector3Array(crossed))
 	await get_tree().physics_frame
 	rope.step(1.0 / 90.0)
 	var cross_pts := rope.get_points()
@@ -1818,6 +1823,156 @@ func _group_edges() -> void:
 
 
 # ── budget ────────────────────────────────────────────────────────────────────
+
+# ── awake ─────────────────────────────────────────────────────────────────────
+# A cord BEING HANDLED. Everything above asks whether a cord settles, and sleep
+# hides jitter: a cord that chatters while a hand moves it reads a clean zero
+# the moment it is asleep. Here an end is moved slowly and smoothly, so whatever
+# a particle does from one tick to the next beyond a smooth path is the solver's.
+#
+# The measure is CHATTER: a particle whose acceleration (the second difference
+# of its position) turns right round from one tick to the next, by more than
+# half a millimetre both times. A span swaying after its end was moved has
+# second differences as large, but they keep their direction for many ticks.
+#
+# Each case is a bug that shipped until 2026-11-10 (Tools/rope/rope_jitter_probe
+# has the same layouts over five starts each, and the numbers before and after):
+#   * round a square bar: a particle past an edge stood on the plane of the face
+#     it had left, in mid air, then dropped (35 chattering ticks of 718, 10 mm)
+#   * a loop crossing itself: strand on strand had no friction and the contact
+#     ran after the solve, which undid it every tick (264 ticks, 11 mm)
+#   * over a block's corner: the segment over the edge had nothing to pivot on
+#     (34 ticks, 6 mm; 7 ticks of 1.6 mm now, which the bound allows)
+
+## Step `ticks` times, moving the ends with `drive` (called with the tick) before
+## each, and count the ticks on which a particle above `min_y` chattered.
+## Returns {ticks, worst}: how many, and the largest reversal in metres.
+func _chatter(ticks: int, drive: Callable, min_y := -1e9) -> Dictionary:
+	var p1: PackedVector3Array = _rope.get_points()
+	var p0: PackedVector3Array = p1
+	var last := PackedVector3Array()
+	last.resize(p1.size())
+	var count := 0
+	var worst := 0.0
+	var done := 0
+	while done < ticks:
+		await get_tree().physics_frame
+		var n: int = mini(BATCH, ticks - done)
+		for k in n:
+			drive.call(done + k)
+			_rope.step(1.0 / 90.0)
+			var now: PackedVector3Array = _rope.get_points()
+			var hit := 0.0
+			if done + k >= 2 and now.size() == p0.size():
+				for i in range(1, now.size() - 1):
+					var d2: Vector3 = now[i] - p1[i] * 2.0 + p0[i]
+					if now[i].y >= min_y and d2.length() > 0.0005 and last[i].length() > 0.0005 \
+							and d2.dot(last[i]) < -0.5 * d2.length() * last[i].length():
+						hit = maxf(hit, minf(d2.length(), last[i].length()))
+					last[i] = d2
+			if hit > 0.0:
+				count += 1
+				worst = maxf(worst, hit)
+			p0 = p1
+			p1 = now
+		done += n
+	return {"ticks": count, "worst": worst}
+
+
+## A rope laid along `path` at rest, resampled at equal arc length, 30 mm a
+## segment as the shipped leads are.
+func _rope_along(path: Array[Vector3]) -> VerletRope:
+	var length := 0.0
+	for k in path.size() - 1:
+		length += path[k].distance_to(path[k + 1])
+	var segments := int(round(length / 0.03))
+	var rope := _rope_between(path[0], path[path.size() - 1], segments, length / float(segments))
+	var lay := PackedVector3Array()
+	var run := 0.0
+	var k := 0
+	for q in segments + 1:
+		var want := length * float(q) / float(segments)
+		while k < path.size() - 2 and run + path[k].distance_to(path[k + 1]) < want:
+			run += path[k].distance_to(path[k + 1])
+			k += 1
+		var span := path[k].distance_to(path[k + 1])
+		lay.append(path[k].lerp(path[k + 1], clampf((want - run) / maxf(span, 1e-9), 0.0, 1.0)))
+	rope.restore_points(lay)
+	return rope
+
+
+func _group_awake() -> void:
+	if not _wants("awake"):
+		return
+
+	# Two turns round a square bar, one end slackened and hauled, and swung.
+	var base := _new_case()
+	_box(base + Vector3(0, 0.6, 0), Vector3(0.06, 0.06, 1.0))
+	var path: Array[Vector3] = []
+	for k in 41:
+		path.append(base + Vector3(-0.5 + 0.5 * float(k) / 40.0, 0.65, 0.0))
+	for k in range(1, 161):
+		var th := PI * 0.5 - TAU * 2.0 * float(k) / 160.0
+		path.append(base + Vector3(0.05 * cos(th), 0.6 + 0.05 * sin(th), 0.03 * float(k) / 160.0))
+	for k in range(1, 41):
+		path.append(base + Vector3(0.5 * float(k) / 40.0, 0.65, 0.03))
+	var wrap := _rope_along(path)
+	await _settle(240)
+	var wrap_end: Node3D = wrap.end_node
+	var wrap_from := wrap_end.position
+	var wrapped := await _chatter(720, func(t: int) -> void:
+		wrap_end.position = wrap_from + Vector3(
+			-0.03 * (0.5 - 0.5 * cos(TAU * float(t) / 360.0)), 0, 0.03 * sin(TAU * float(t) / 240.0)))
+	_ok(int(wrapped["ticks"]) <= 3,
+		"awake/a cord hauled round a square bar does not chatter",
+		"%d ticks of 720, worst %.2f mm" % [int(wrapped["ticks"]), float(wrapped["worst"]) * 1000.0])
+	await _drop_case()
+
+	# An alpha loop on the floor, crossing itself once, one end moved about.
+	base = _new_case()
+	_box(base + Vector3(0, -0.05, 0), Vector3(4.0, 0.10, 4.0))
+	path = []
+	for k in 401:
+		var t := float(k) / 400.0
+		var up := exp(-pow((t - 0.8) / 0.03, 2.0)) * 0.0045 * 2.2
+		path.append(base + Vector3(0.8 * (t - 0.5) + 0.3 * sin(TAU * t), 0.0045 + up,
+			0.25 * (1.0 - cos(TAU * t))))
+	var loop := _rope_along(path)
+	await _settle(200)
+	var loop_end: Node3D = loop.end_node
+	var loop_from := loop_end.position
+	var looped := await _chatter(720, func(t: int) -> void:
+		loop_end.position = loop_from + Vector3(
+			0.04 * sin(TAU * float(t) / 360.0), 0, 0.03 * sin(TAU * float(t) / 240.0)))
+	_ok(int(looped["ticks"]) <= 3,
+		"awake/a cord lying across itself does not chatter when its end is moved",
+		"%d ticks of 720, worst %.2f mm" % [int(looped["ticks"]), float(looped["worst"]) * 1000.0])
+	await _drop_case()
+
+	# Over the top corner of a block to a socket on the floor, both ends moved.
+	# Only the cord near the block is read: the slack heaped at the floor socket
+	# is the loop case's business.
+	base = _new_case()
+	_box(base + Vector3(-0.5, 0.375, -0.5), Vector3(1.0, 0.75, 1.0))
+	_box(base + Vector3(0, -0.05, 0), Vector3(6.0, 0.10, 6.0))
+	var corner := _rope_between(base + Vector3(-0.6, 0.76, -0.6), base + Vector3(0.28, 0.76, 0.28), 68, 0.03)
+	await _settle(120)
+	var corner_a: Node3D = corner.start_node
+	var corner_b: Node3D = corner.end_node
+	await _carry(corner, corner_b, base + Vector3(0.25, 0.03, 0.25), 90)
+	await _settle(300)
+	var a_from := corner_a.position
+	var b_from := corner_b.position
+	var cornered := await _chatter(720, func(t: int) -> void:
+		var s4 := sin(TAU * float(t) / 360.0)
+		var s3 := sin(TAU * float(t) / 240.0)
+		corner_a.position = a_from + Vector3(0.06 * s4, 0, -0.06 * s4)
+		corner_b.position = b_from + Vector3(0.04 * s3, 0, 0.04 * s3), base.y + 0.3)
+	_ok(float(cornered["worst"]) < 0.004 and int(cornered["ticks"]) <= 25,
+		"awake/a cord dragged over a block's corner goes round it, not down it in drops",
+		"%d ticks of 720, worst %.2f mm" % [int(cornered["ticks"]), float(cornered["worst"]) * 1000.0])
+	await _drop_case()
+
 
 func _group_budget() -> void:
 	if not _wants("budget"):
