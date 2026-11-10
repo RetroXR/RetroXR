@@ -43,14 +43,14 @@ inline double gclamp(double v, double lo, double hi) { return v < lo ? lo : (v >
 // godot-cpp has only a real_t one: called with doubles it rounds to float, and
 // the strip's hinge speeds, read back off the angles through it, parted from
 // the script's at 3e-8 on the first frame.
-inline bool is_zero_approx(double v) { return std::fabs(v) < CMP_EPSILON; }
+inline bool is_zero_approx(double v) { return std::fabs(v) < godot::CMP_EPSILON; }
 inline bool is_equal_approx(double a, double b)
 {
     if (a == b)
         return true;
-    double tolerance = CMP_EPSILON * std::fabs(a);
-    if (tolerance < CMP_EPSILON)
-        tolerance = CMP_EPSILON;
+    double tolerance = godot::CMP_EPSILON * std::fabs(a);
+    if (tolerance < godot::CMP_EPSILON)
+        tolerance = godot::CMP_EPSILON;
     return std::fabs(a - b) < tolerance;
 }
 inline double wrapf(double p_value, double p_min, double p_max)
@@ -113,7 +113,7 @@ inline bool segment_intersects_segment(const Vector2 &p_from_a, const Vector2 &p
     C = Vector2(C.x * Bn.x + C.y * Bn.y, C.y * Bn.x - C.x * Bn.y);
     D = Vector2(D.x * Bn.x + D.y * Bn.y, D.y * Bn.x - D.x * Bn.y);
 
-    if ((C.y < (real_t)-CMP_EPSILON && D.y < (real_t)-CMP_EPSILON) || (C.y > (real_t)CMP_EPSILON && D.y > (real_t)CMP_EPSILON))
+    if ((C.y < (real_t)-godot::CMP_EPSILON && D.y < (real_t)-godot::CMP_EPSILON) || (C.y > (real_t)godot::CMP_EPSILON && D.y > (real_t)godot::CMP_EPSILON))
         return false;
     if (godot::Math::is_equal_approx(C.y, D.y))
         return false;
@@ -155,7 +155,7 @@ inline void closest_points_between_segments(const Vector3 &p_p0, const Vector3 &
     real_t t = 0.0f;
 
     real_t det = a * c - b * b;
-    if (det > CMP_EPSILON) {
+    if (det > godot::CMP_EPSILON) {
         real_t bte = b * e;
         real_t ctd = c * d;
         if (bte <= ctd) {

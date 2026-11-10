@@ -199,11 +199,11 @@ void PaperStripSolver::substep(double h, Vector2 gravity, double spin_accel)
     contact();
     std::vector<bool> contacted(n);
     for (int i = 0; i < n; i++)
-        contacted[i] = std::fabs(wrapf(_angles[i] - free_angles[i], -Math_PI, Math_PI)) > 1e-7;
+        contacted[i] = std::fabs(wrapf(_angles[i] - free_angles[i], -godot::Math::PI, godot::Math::PI)) > 1e-7;
     limit_move(before, was, TERMINAL_SPEED * h);
     for (int i = 0; i < n; i++) {
-        _contact_motion = gmax(_contact_motion, std::fabs(wrapf(_angles[i] - before[i], -Math_PI, Math_PI)) / h);
-        _speeds[i] = contacted[i] ? 0.0 : wrapf(_angles[i] - before[i], -Math_PI, Math_PI) / h;
+        _contact_motion = gmax(_contact_motion, std::fabs(wrapf(_angles[i] - before[i], -godot::Math::PI, godot::Math::PI)) / h);
+        _speeds[i] = contacted[i] ? 0.0 : wrapf(_angles[i] - before[i], -godot::Math::PI, godot::Math::PI) / h;
     }
 }
 
@@ -217,7 +217,7 @@ void PaperStripSolver::limit_move(const std::vector<double> &before, const std::
             return;
         double fraction = gmin(0.9, limit / farthest * 0.95);
         for (int i = 0; i < _segments; i++)
-            _angles[i] = before[i] + wrapf(_angles[i] - before[i], -Math_PI, Math_PI) * fraction;
+            _angles[i] = before[i] + wrapf(_angles[i] - before[i], -godot::Math::PI, godot::Math::PI) * fraction;
         lay_points();
     }
 }
@@ -237,7 +237,7 @@ void PaperStripSolver::contact()
         phi_min = gmin(phi_min, heading);
         phi_max = gmax(phi_max, heading);
     }
-    bool self_contact = phi_max - phi_min >= Math_PI - 0.05;
+    bool self_contact = phi_max - phi_min >= godot::Math::PI - 0.05;
     bool external = !(_boxes.empty() && _planes.empty() && _patches.empty() && _fingers.empty());
     if (!self_contact && !external && _other_paper.empty())
         return;
@@ -277,7 +277,7 @@ void PaperStripSolver::contact()
     for (int i = 0; i < _segments; i++) {
         Vector2 d = out[i + 1] - out[i];
         double seg_phi = _trig.atan2(-(double)d.y, (double)d.x);
-        _angles[i] = wrapf(seg_phi - phi, -Math_PI, Math_PI);
+        _angles[i] = wrapf(seg_phi - phi, -godot::Math::PI, godot::Math::PI);
         phi += _angles[i];
     }
     lay_points();

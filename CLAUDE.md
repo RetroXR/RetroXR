@@ -401,7 +401,7 @@ assembleDebug assembleRelease` in `qr-scanner-android/`, then copy
 
 ## Dependencies
 
-godot-cpp (submodule, 4.5 branch; **`verlet-rope` alone builds on upstream master**, the `godot-cpp-master` submodule bound to the 4.7 API, `building.md`), SDL3 (Windows core loading + GL window; Linux GL window
+godot-cpp (`libretro-godot`'s submodule, **upstream master bound to the 4.7 API**, `api_version=4.7`; it has no 4.6/4.7 branch, `building.md`), SDL3 (Windows core loading + GL window; Linux GL window
 only; not Android), libretro-common, rcheevos (submodule), Vulkan-Headers (submodule),
 moodycamel ReaderWriterQueue, libVLC, PDFium (prebuilts committed; refresh with
 `Tools/download_pdfium.sh`, not the unmaintained `.ps1`), FreeSurround.

@@ -117,10 +117,10 @@ deploying to `RetroXR/<name>/`). Build each **from its own directory** (each has
   platforms, pure C++. It must match the script TO THE BIT on desktop
   (`gb_printer_tests --only=native`, `Tools/perf/paper_native_probe.tscn`), which is
   why the code spells out GDScript's mix of float vector and double scalar arithmetic and
-  builds with `-ffp-contract=off`. **godot-cpp's 4.5 branch has only a FLOAT `wrapf`**:
+  builds with `-ffp-contract=off`. **godot-cpp's 4.5 branch had only a FLOAT `wrapf`**:
   called with doubles it rounds them (the strip parted at 3e-8 on frame one), so the
-  engine's double one is copied into `PaperMath.hpp` (master has it since #2021, never
-  backported). MSVC's and MinGW's `sin`/`cos`/`atan2` part in the last bit of a double, so
+  engine's double one is copied into `PaperMath.hpp`. The project is on godot-cpp master
+  since 2026-11-10, which has the double one (#2021); the copy stays, correct either way. MSVC's and MinGW's `sin`/`cos`/`atan2` part in the last bit of a double, so
   the check runs with the ENGINE's (`engine_math = true`) and the room with its own. On a
   Quest the strip parts from the script at 1e-9 from frame one even so (the engine and the
   library come from different compilers; the ribbon is still exact): reported, not failed.

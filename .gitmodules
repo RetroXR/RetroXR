@@ -1,7 +1,3 @@
 [submodule "libretro-godot"]
 	path = libretro-godot
 	url = https://github.com/RetroXR/libretro-godot.git
-[submodule "godot-cpp-master"]
-	path = godot-cpp-master
-	url = https://github.com/godotengine/godot-cpp.git
-	branch = master

@@ -20,17 +20,17 @@ because they document each build's quirks. The shared API allowlist is
 `Tools/godot_cpp_profile.json`; add a Godot class there when extension C++ starts
 including or calling it.
 
-**Two godot-cpp checkouts, for now.** godot-cpp has no 4.6 or 4.7 branch: upstream
-master carries every API from 4.3 on and is told which to bind (`api_version=4.7`).
-`verlet-rope` builds against master (the superproject's `godot-cpp-master` submodule)
-since 2026-11-10; the other seven still use the 4.5 branch under `libretro-godot`.
-`build.py` builds a static library per checkout in use (`ON_GODOT_CPP_MASTER`), and an
-extension's `SConscript` names the same checkout: keep the two in step. Moving one over:
-add it to that set, point its `SConscript` at `../../godot-cpp-master/SConstruct` with
-`ARGUMENTS.setdefault("api_version", "4.7")`, and fix the fallout. What verlet-rope met:
-`Math_PI` / `Math_TAU` are `Math::PI` / `Math::TAU`, and master's rewritten vector maths
-rounds differently in the last bit (its rope oracles moved: `testing.md`). Master has
-the `double` overloads of `wrapf` and friends that 4.5 only has in `float`.
+**godot-cpp is upstream MASTER, bound to the 4.7 API** (2026-11-10; it was the 4.5
+branch). godot-cpp has no 4.6 or 4.7 branch: master carries every API from 4.3 on and is
+told which to bind. `build.py` passes `api_version=4.7` to godot-cpp and to every
+extension, and each `SConscript` sets the same default for a build by hand. The checkout
+is still `libretro-godot/godot-cpp` (that repo's submodule, `branch = master`), shared by
+all eight. What the move met: `Math_PI` / `Math_TAU` are `Math::PI` / `Math::TAU`,
+`CMP_EPSILON` is `godot::CMP_EPSILON` (it was a macro), and master's rewritten vector
+maths rounds differently in the last bit (the rope's oracles moved: `testing.md`).
+Master has the `double` overloads of `wrapf` and friends that 4.5 only had in `float`.
+A newer master needs an `extension_api-4-7.json` that still matches the engine: build,
+then run a Quest export, which is where a stale binding shows.
 
 ```bash
 python Tools/build.py windows              # both template_debug and template_release

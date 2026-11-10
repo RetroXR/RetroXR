@@ -11,6 +11,9 @@ if ARGUMENTS.get("platform") == "macos":
 if ARGUMENTS.get("target", "template_debug") != "template_release":
     ARGUMENTS.setdefault("debug_symbols", "yes")
 
+# godot-cpp has no 4.6 or 4.7 branch: master carries every API from 4.3 on and
+# binds the one it is told. Tools/build.py passes this too.
+ARGUMENTS.setdefault("api_version", "4.7")
 env = SConscript("../../libretro-godot/godot-cpp/SConstruct")
 
 env["CXXFLAGS"] = [f for f in env["CXXFLAGS"]

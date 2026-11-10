@@ -14,11 +14,10 @@ if ARGUMENTS.get("platform") == "macos":
 if ARGUMENTS.get("target", "template_debug") != "template_release":
     ARGUMENTS.setdefault("debug_symbols", "yes")
 
-# Upstream master, not the 4.5 branch the other extensions still use (see
-# ON_GODOT_CPP_MASTER in Tools/build.py): master binds the 4.7 API, and has the
-# double overloads of the math helpers that 4.5 only has in float.
+# godot-cpp has no 4.6 or 4.7 branch: master carries every API from 4.3 on and
+# binds the one it is told. Tools/build.py passes this too.
 ARGUMENTS.setdefault("api_version", "4.7")
-env = SConscript("../../godot-cpp-master/SConstruct")
+env = SConscript("../../libretro-godot/godot-cpp/SConstruct")
 
 
 # godot-cpp hardcodes C++17 with no option to override it, and its own sources

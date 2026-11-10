@@ -38,15 +38,9 @@ GODOT_CPP = REPO / "libretro-godot/godot-cpp"
 GODOT_CPP_PROFILE = REPO / "Tools/godot_cpp_profile.json"
 
 # godot-cpp has no 4.6 or 4.7 branch: upstream master carries every API from 4.3
-# on and is told which one to bind (api_version). An extension named here builds
-# against THAT checkout (the superproject's godot-cpp-master submodule) instead
-# of the 4.5 branch under libretro-godot, and gets its own static library, built
-# once per target like the other. verlet-rope went first (2026-11-10); the rest
-# move one at a time, each with its own fallout, and this table goes when the
-# last has. An extension's SConscript names the same checkout: keep them in step.
-GODOT_CPP_MASTER = REPO / "godot-cpp-master"
-GODOT_CPP_MASTER_ARGS = ["api_version=4.7"]
-ON_GODOT_CPP_MASTER = {"verlet-rope"}
+# on and binds the one it is told. Every extension builds against master since
+# 2026-11-10 (libretro-godot/godot-cpp), bound to this.
+GODOT_CPP_API = "api_version=4.7"
 
 # name, directory scons runs in (relative to REPO), where the artifacts land, and
 # the platforms the extension actually ships on.
@@ -308,37 +302,23 @@ def main() -> int:
         # independent SCons databases repeatedly compile/archive the same ~1,000
         # generated wrappers. Extension-only flags also cannot leak back into
         # this library when the later invocations use build_library=no.
-        godot_cpp_args = [profile_arg]
+        godot_cpp_args = [profile_arg, GODOT_CPP_API]
         if (target != "template_release"
                 and not any(arg.startswith("debug_symbols=") for arg in args.scons_args)):
             # Preserve the historical local-build default. CI can override this
             # with debug_symbols=no for its load-only DLLs.
             godot_cpp_args.append("debug_symbols=yes")
         godot_cpp_args += args.scons_args
-        # One static library per godot-cpp checkout in use, and only those.
-        built: dict[bool, bool] = {}
-        for on_master in (False, True):
-            if not any((n in ON_GODOT_CPP_MASTER) == on_master for n, _, _, _ in exts):
-                continue
-            label = "godot-cpp-master" if on_master else "godot-cpp"
-            where = GODOT_CPP_MASTER if on_master else GODOT_CPP
-            if not (where / "SConstruct").is_file():
-                sys.exit(f"{label}: no checkout at {where} (git submodule update --init --recursive)")
-            extra = godot_cpp_args + (GODOT_CPP_MASTER_ARGS if on_master else [])
-            ok, secs = run_build(label, where, args.platform, arch,
-                                 target, scons, env, args.jobs, extra)
-            results.append((label, target, ok, secs))
-            built[on_master] = ok
+        ok, secs = run_build("godot-cpp", GODOT_CPP, args.platform, arch,
+                             target, scons, env, args.jobs, godot_cpp_args)
+        results.append(("godot-cpp", target, ok, secs))
+        if not ok:
+            continue
 
-        extension_args = [profile_arg, "build_library=no", *args.scons_args]
+        extension_args = [profile_arg, GODOT_CPP_API, "build_library=no", *args.scons_args]
         for name, subdir, out, _plats in exts:
-            on_master = name in ON_GODOT_CPP_MASTER
-            if not built.get(on_master, False):
-                results.append((name, target, False, 0.0))
-                continue
             ok, secs = run_one(name, subdir, args.platform, arch, target,
-                               scons, env, args.jobs,
-                               extension_args + (GODOT_CPP_MASTER_ARGS if on_master else []))
+                               scons, env, args.jobs, extension_args)
             results.append((name, target, ok, secs))
             if ok and target == "template_release":
                 for plain in release_names(REPO / out, args.platform, arch):
