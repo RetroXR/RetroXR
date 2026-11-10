@@ -392,6 +392,17 @@ Four checks, in this order, and then the player:
    **A download nobody answered for is deleted at the next launch**
    (`_sweep_incoming`, after `_apply_pending`); a `.part` is kept so it can resume.
 
+**Steps 3 and 4 run on the DOWNLOADER'S thread** (2026-11-10). On the main thread,
+each finished download was a visible hitch, one per member of a pack: opening the
+pack, listing it, decoding its thumbnail and, for a bundle, inflating and writing
+every build. `ModManager.vet_file` is static and touches no loader state; it returns
+the thumbnail as `thumbnail_image`, and `with_texture()` makes the texture on the
+main thread. The answer goes to a three-argument hook (`stage`/`install`) with
+`staged`, the download it was asked of. A bundle's `path` is the extracted build,
+so `install()` accepts an answer that names the file either way. A two-argument
+hook still vets for itself. `[Mods] Vetted <file> in N ms` logs the cost.
+`mod_browser_tests offthread/` (mutation-tested: with the worker vet off, 4 cases fail).
+
 **Room is checked before the first byte** (`ModDownloader.space_problem`): twice
 the file plus 16 MiB, less what a partial already holds — twice because a bundle
 is opened beside the download before the download is deleted. A size mod.io did

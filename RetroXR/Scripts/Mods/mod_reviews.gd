@@ -12,6 +12,9 @@
 class_name ModReviews
 extends RefCounted
 
+## The Mods autoload's script, for its static vetting (it has no class_name).
+const _MANAGER := preload("res://Scripts/Mods/mod_manager.gd")
+
 ## A download was parked, answered or thrown away.
 signal changed()
 
@@ -34,15 +37,23 @@ func _loader() -> Node:
 	return loop.root.get_node_or_null("Mods") if loop != null else null
 
 
-## The downloader's install hook: func(staged, source) -> {ok, id, error, restart,
-## review}. Vets the file as an install would, and parks it instead. A file that
-## fails is deleted, with the loader's own sentence as the error. Main thread.
-func stage(staged: String, source: Dictionary) -> Dictionary:
+## The downloader's install hook: func(staged, source, vetted) -> {ok, id, error,
+## restart, review}. Vets the file as an install would, and parks it instead. A file
+## that fails is deleted, with the loader's own sentence as the error. Main thread.
+##
+## `vetted` is ModManager.vet_file()'s answer for `staged`, worked out on the
+## downloader's thread so the main thread only makes the thumbnail texture; with
+## none (or one for another file) the file is vetted here, as before.
+func stage(staged: String, source: Dictionary, vetted: Dictionary = {}) -> Dictionary:
 	var loader := _loader()
 	if loader == null:
 		DirAccess.remove_absolute(staged)
 		return {"ok": false, "id": "", "error": "The mod loader is unavailable", "restart": false}
-	var info: Dictionary = loader.vet(staged)
+	var info: Dictionary
+	if str(vetted.get("staged", "")) == staged and vetted.has("error"):
+		info = _MANAGER.with_texture(vetted)
+	else:
+		info = loader.vet(staged)
 	if not str(info["error"]).is_empty():
 		DirAccess.remove_absolute(str(info.get("path", staged)))
 		DirAccess.remove_absolute(staged)

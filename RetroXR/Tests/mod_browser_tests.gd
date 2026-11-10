@@ -81,6 +81,7 @@ func _ready() -> void:
 	if _want("review"):    _group_review()
 	if _want("autoinstall"): _group_auto_install()
 	if _want("space"):     await _group_space()
+	if _want("offthread"): await _group_offthread()
 	if _want("thumbnail"): _group_thumbnail()
 	if _want("depends"):   _group_depends()
 	if _want("download"):  await _group_download()
@@ -2253,6 +2254,68 @@ func _group_space() -> void:
 	dl.enqueue("modio-7", "Big", "http://127.0.0.1:%d/dl" % server.port, good.size(), _md5(good), {"modio_id": 7})
 	await _until(func() -> bool: return not seen.is_empty())
 	_ok(bool(seen.get("ok", false)), "space/with room it is fetched and installed", str(seen.get("error", "")))
+	dl.queue_free()
+	await get_tree().process_frame
+	server.stop()
+	m.free()
+
+
+# ── offthread/ ────────────────────────────────────────────────────────────────
+
+## A finished download is vetted on the downloader's thread: opened, listed,
+## unwrapped and its picture decoded there, so the main thread is handed the
+## answer. Done on the main thread it was a hitch per mod (a pack of four, four).
+func _group_offthread() -> void:
+	var m := _fresh()
+	var inner := _pack("t.off", "1.0.0", [OS.get_name()])
+	inner["mods/t.off/thumbnail.png"] = _png(512, 288)
+	var bundle := _zip_bytes({"desktop.zip": _zip_bytes(inner),
+		"quest.zip": _zip_bytes(_pack("t.off", "1.0.0", ["Nowhere"]))})
+	var server := ModServer.new()
+	server.routes = {"/dl": {"code": 200, "body": bundle}}
+	if not server.start():
+		_ok(false, "offthread/a local server can listen")
+		return
+	var dl := ModDownloader.new()
+	dl.staging_dir_override = m.incoming_dir()
+	var got := {}
+	dl.install_hook = func(staged: String, source: Dictionary, vetted: Dictionary = {}) -> Dictionary:
+		got.merge({"staged": staged, "vetted": vetted.duplicate()})
+		return m.install(staged, source, vetted)
+	add_child(dl)
+	var seen := {}
+	dl.job_finished.connect(func(_k: String, ok: bool, error: String, _r: Dictionary) -> void:
+		seen.merge({"ok": ok, "error": error}))
+	dl.enqueue("modio-9", "Off", "http://127.0.0.1:%d/dl" % server.port, bundle.size(),
+		_md5(bundle), {"modio_id": 9})
+	await _until(func() -> bool: return not seen.is_empty())
+
+	var vetted: Dictionary = got.get("vetted", {})
+	_ok(not vetted.is_empty(), "offthread/the hook is handed an answer worked out on the worker")
+	_ok(vetted.get("manifest") is ModManifest and str(vetted.get("error", "?")).is_empty(),
+		"offthread/a whole one: manifest read and the file passed", str(vetted.get("error", "")))
+	_eq(str(vetted.get("staged", "")), str(got.get("staged", "")),
+		"offthread/naming the download it was asked of")
+	_ok(str(vetted.get("path", "")) != str(got.get("staged", "")),
+		"offthread/with the bundle already unwrapped to its build")
+	_ok(vetted.get("thumbnail_image") is Image or vetted.get("thumbnail") is Texture2D,
+		"offthread/and the picture already decoded")
+	_ok(bool(seen.get("ok", false)), "offthread/the bundle installs from that answer",
+		str(seen.get("error", "")))
+	_ok(m.mod("t.off") != null and m.mod("t.off").thumbnail is Texture2D,
+		"offthread/with its picture made into a texture on the main thread")
+
+	# A two-argument hook is still called as one, and vets for itself.
+	var legacy := {}
+	dl.install_hook = func(staged: String, source: Dictionary) -> Dictionary:
+		legacy["called"] = true
+		return m.install(staged, source)
+	seen.clear()
+	dl.enqueue("modio-9", "Off", "http://127.0.0.1:%d/dl" % server.port, bundle.size(),
+		_md5(bundle), {"modio_id": 9})
+	await _until(func() -> bool: return not seen.is_empty())
+	_ok(bool(legacy.get("called", false)) and bool(seen.get("ok", false)),
+		"offthread/a hook that takes no answer still installs", str(seen.get("error", "")))
 	dl.queue_free()
 	await get_tree().process_frame
 	server.stop()

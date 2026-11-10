@@ -18,6 +18,9 @@
 class_name ModDownloader
 extends Node
 
+## The Mods autoload's script, for its static vetting (it has no class_name).
+const _MANAGER := preload("res://Scripts/Mods/mod_manager.gd")
+
 ## key identifies the job for the UI and the toast; it is the caller's to choose.
 signal job_started(key: String, label: String, total_bytes: int)
 signal job_progress(key: String, received: int, total: int)
@@ -144,6 +147,11 @@ func _pump() -> void:
 	_current_key = str(job["key"])
 	# Resolved here, on the main thread: the worker must not reach for an autoload.
 	job["part"] = _part_path(_current_key)
+	# Vet on the worker too when the hook can take the answer (reviews.stage and
+	# ModManager.install both can). On the main thread, the vet of each finished
+	# download was a visible hitch -- a bundle's builds are inflated and written.
+	var hook := install_hook if install_hook.is_valid() else Callable(Mods, "install")
+	job["prevet"] = hook.get_argument_count() >= 3
 	print("[ModDownloader] Start %s (%s): %s, %d bytes, md5 %s" % [_current_key,
 		str(job["label"]), _loggable(str(job["url"])), int(job["size"]),
 		str(job.get("md5", "")) if not str(job.get("md5", "")).is_empty() else "none"])
@@ -189,13 +197,22 @@ func _worker(job: Dictionary) -> void:
 		DirAccess.remove_absolute(part)
 		_finish.call_deferred(job, false, "RetroXR cannot write to its mods folder")
 		return
+	if bool(job.get("prevet", false)):
+		var vetted: Dictionary = _MANAGER.vet_file(staged)
+		# Which file it was asked of, so the hook can tell it is this one's.
+		vetted["staged"] = staged
+		job["vetted"] = vetted
 	_install.call_deferred(job, staged)
 
 
 ## Main thread. The loader is not shared with the worker.
 func _install(job: Dictionary, staged: String) -> void:
 	var hook := install_hook if install_hook.is_valid() else Callable(Mods, "install")
-	var result: Dictionary = hook.call(staged, job["source"])
+	var result: Dictionary
+	if job.has("vetted"):
+		result = hook.call(staged, job["source"], job["vetted"])
+	else:
+		result = hook.call(staged, job["source"])
 	print("[ModDownloader] Downloaded %s; install %s%s" % [str(job["key"]),
 		"ok" if bool(result.get("ok", false)) else "refused",
 		"" if str(result.get("error", "")).is_empty() else ": " + str(result["error"])])

@@ -213,7 +213,7 @@ func rescan() -> int:
 ## Find and parse the manifest, which is at res://mods/<id>/mod.json for exactly
 ## one <id>. The id is taken from the FILE LIST rather than trusted from the
 ## manifest, so a mod cannot file itself under a namespace it does not occupy.
-func _manifest_from(reader: ModPackReader, files: PackedStringArray) -> ModManifest:
+static func _manifest_from(reader: ModPackReader, files: PackedStringArray) -> ModManifest:
 	var prefix := ModManifest.NAMESPACE_ROOT
 	for path: String in files:
 		if not path.begins_with(prefix) or not path.ends_with("/mod.json"):
@@ -233,6 +233,12 @@ func _manifest_from(reader: ModPackReader, files: PackedStringArray) -> ModManif
 
 
 func _read_thumbnail(reader: ModPackReader, manifest: ModManifest) -> Texture2D:
+	var img := _read_thumbnail_image(reader, manifest)
+	return ImageTexture.create_from_image(img) if img != null else null
+
+
+## The decode half of _read_thumbnail, safe on any thread: no texture is made.
+static func _read_thumbnail_image(reader: ModPackReader, manifest: ModManifest) -> Image:
 	var path := manifest.own_root() + ModManifest.THUMBNAIL_NAME
 	if not reader.has(path):
 		return null
@@ -242,7 +248,7 @@ func _read_thumbnail(reader: ModPackReader, manifest: ModManifest) -> Texture2D:
 	var img := Image.new()
 	if img.load_png_from_buffer(data) != OK:
 		return null
-	return ImageTexture.create_from_image(img)
+	return img
 
 
 func _record_for(manifest: ModManifest, path: String,
@@ -984,7 +990,14 @@ func _in_netplay() -> bool:
 ## Returns {error, manifest, files, thumbnail}; `error` is "" for a pack that
 ## would be accepted.
 func inspect(path: String) -> Dictionary:
-	var out := {"error": "", "manifest": null, "files": PackedStringArray(), "thumbnail": null}
+	return with_texture(_inspect_file(path))
+
+
+## inspect() on any thread: the thumbnail comes back decoded as `thumbnail_image`
+## and `thumbnail` stays null until with_texture() makes it on the main thread.
+static func _inspect_file(path: String) -> Dictionary:
+	var out := {"error": "", "manifest": null, "files": PackedStringArray(), "thumbnail": null,
+		"thumbnail_image": null}
 	var reader := ModPackReader.open(path)
 	if not reader.error.is_empty():
 		out["error"] = reader.error
@@ -1004,7 +1017,7 @@ func inspect(path: String) -> Dictionary:
 		elif not manifest.runs_here():
 			out["error"] = "not built for %s" % OS.get_name()
 		else:
-			out["thumbnail"] = _read_thumbnail(reader, manifest)
+			out["thumbnail_image"] = _read_thumbnail_image(reader, manifest)
 	reader.close()
 	return out
 
@@ -1015,15 +1028,40 @@ func inspect(path: String) -> Dictionary:
 ## The result carries `path`: the pack to install. That is `path` itself, unless
 ## the download was a BUNDLE (see _unwrap), when it is the build picked out of it.
 func vet(path: String) -> Dictionary:
+	return with_texture(vet_file(path))
+
+
+## vet() without the texture, safe on a worker thread: it touches no loader state,
+## only the file (and, for a bundle, the builds it writes beside it in incoming).
+## The mod.io downloader runs it on its own thread, because opening a pack, listing
+## it, decoding its picture and -- for a bundle -- inflating every build inside it
+## is tens of milliseconds to seconds, and on the main thread it was a hitch per
+## finished download. Hand the result to with_texture() on the main thread.
+static func vet_file(path: String) -> Dictionary:
+	var started := Time.get_ticks_msec()
 	var unwrapped := _unwrap(path)
 	if not str(unwrapped["error"]).is_empty():
 		return {"error": str(unwrapped["error"]), "manifest": null,
-			"files": PackedStringArray(), "thumbnail": null, "path": path}
-	var out := inspect(str(unwrapped["path"]))
+			"files": PackedStringArray(), "thumbnail": null, "thumbnail_image": null,
+			"path": path}
+	var out := _inspect_file(str(unwrapped["path"]))
 	out["path"] = str(unwrapped["path"])
 	if str(out["error"]).is_empty():
 		out["error"] = ModContentPolicy.violation(out["files"])
+	print("[Mods] Vetted %s in %d ms%s" % [str(out["path"]).get_file(),
+		Time.get_ticks_msec() - started,
+		"" if str(out["error"]).is_empty() else ": " + str(out["error"])])
 	return out
+
+
+## Main thread: give a vet_file()/_inspect_file() answer its thumbnail texture.
+## Idempotent; returns the same dictionary.
+static func with_texture(info: Dictionary) -> Dictionary:
+	var img: Variant = info.get("thumbnail_image")
+	if info.get("thumbnail") == null and img is Image:
+		info["thumbnail"] = ImageTexture.create_from_image(img)
+	info["thumbnail_image"] = null
+	return info
 
 
 ## Open a bundle and return the pack inside it that runs here.
@@ -1042,7 +1080,7 @@ func vet(path: String) -> Dictionary:
 ##
 ## Returns {path, error}. A file that is not a bundle is returned untouched and
 ## left for inspect() to judge.
-func _unwrap(path: String) -> Dictionary:
+static func _unwrap(path: String) -> Dictionary:
 	if path.get_extension().to_lower() != "zip":
 		return {"path": path, "error": ""}
 	var reader := ModPackReader.open(path)
@@ -1077,7 +1115,7 @@ func _unwrap(path: String) -> Dictionary:
 			DirAccess.remove_absolute(out_path)
 			reasons.append("%s: not enough space to open it" % inner[i].get_file())
 			continue
-		var info := inspect(out_path)
+		var info := _inspect_file(out_path)
 		if str(info["error"]).is_empty():
 			fits.append(out_path)
 		else:
@@ -1111,9 +1149,13 @@ func _unwrap(path: String) -> Dictionary:
 ## not be put through that twice. It is believed only for the file it names,
 ## and only while that file is still there.
 func install(staged: String, origin: Dictionary = {}, vetted: Dictionary = {}) -> Dictionary:
-	var info := vetted
-	if info.get("manifest") == null or str(info.get("path", "")) != staged \
-			or not str(info.get("error", "")).is_empty() or not FileAccess.file_exists(staged):
+	var info := with_texture(vetted)
+	# The answer is for this file when it names it as the pack, or as the download
+	# it was asked of (a bundle's answer names the build it picked out as `path`).
+	var for_file := str(info.get("path", "")) == staged or str(info.get("staged", "")) == staged
+	if info.get("manifest") == null or not for_file \
+			or not str(info.get("error", "")).is_empty() \
+			or not FileAccess.file_exists(str(info.get("path", ""))):
 		info = vet(staged)
 	if not str(info["error"]).is_empty():
 		DirAccess.remove_absolute(str(info["path"]))
