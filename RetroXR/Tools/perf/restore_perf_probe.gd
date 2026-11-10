@@ -139,6 +139,8 @@ func _ready() -> void:
 		str(sorted.slice(0, 8).map(func(x: int) -> float: return snappedf(x / 1000.0, 0.1)))])
 	print("[probe] first 10 frames %s ms" % str(frames.slice(0, 10).map(func(x: int) -> float: return snappedf(x / 1000.0, 0.1))))
 	print("[probe] TOTAL restore-to-settled %.1f ms" % ((Time.get_ticks_usec() - t_all) / 1000.0))
+	if OS.get_cmdline_user_args().has("--runtime-textures"):
+		_runtime_texture_census()
 	if _twice:
 		# Everything cached now: what is left is building nodes on the main thread.
 		for node: Node in get_tree().get_nodes_in_group("spawned"):
@@ -163,6 +165,16 @@ func _ready() -> void:
 		for k: Variant in k2.slice(0, 15):
 			print("[probe]   2nd %-36s spawn %8.1f ms" % [k, by2[k] / 1000.0])
 		sp._let_go(held2)
+		# The same frames as after the first pass, with every texture already on the GPU:
+		# what is left of the slow first frame is not uploads.
+		var f2: Array = []
+		var l2 := Time.get_ticks_usec()
+		for i in 10:
+			await get_tree().process_frame
+			var n2 := Time.get_ticks_usec()
+			f2.append(snappedf((n2 - l2) / 1000.0, 0.1))
+			l2 = n2
+		print("[probe] SECOND first 10 frames %s ms" % str(f2))
 	get_tree().quit(0)
 
 
@@ -207,3 +219,83 @@ func _time_room_load(mode: String) -> void:
 		(t_load - t) / 1000.0, frames, longest / 1000.0, (t_inst - t_load) / 1000.0])
 	if inst != null:
 		inst.free()
+
+
+## Textures made at RUN time (not an imported .ctex): every SubViewport in the tree, and every
+## texture on a material that has no res:// file of its own, by what owns it. Estimated GPU bytes:
+## an image texture by its format (no mipmaps counted: asking would read each one back from the GPU), a viewport as RGBA8 (RGBA16F when HDR) plus 4-byte depth, times
+## its MSAA samples. Imported textures are Tools/perf/texture_census.py's (from a --verbose log).
+func _runtime_texture_census() -> void:
+	var rows: Array = []
+	for n: Node in get_tree().root.find_children("*", "SubViewport", true, false):
+		var sv := n as SubViewport
+		var px := sv.size.x * sv.size.y
+		var color := 8 if sv.use_hdr_2d else 4
+		var samples: int = [1, 2, 4, 8][clampi(sv.msaa_3d, 0, 3)] if not sv.disable_3d else 1
+		var bytes: int = px * (color + (0 if sv.disable_3d else 4)) * samples
+		rows.append([bytes, "viewport %dx%d msaa%d hdr=%s upd=%d" % [sv.size.x, sv.size.y, samples, sv.use_hdr_2d, sv.render_target_update_mode],
+			_owner_label(sv)])
+	var seen: Dictionary = {}
+	for n: Node in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+		var gi := n as GeometryInstance3D
+		var mats: Array = [gi.material_override, gi.material_overlay]
+		var mi := gi as MeshInstance3D
+		if mi != null and mi.mesh != null:
+			for i in mi.mesh.get_surface_count():
+				mats.append(mi.get_active_material(i))
+		for mat: Variant in mats:
+			_collect_textures(mat, gi, seen, rows, 0)
+	var by: Dictionary = {}
+	var total := 0
+	for r: Array in rows:
+		total += int(r[0])
+		var key := str(r[1]).get_slice(" ", 0) + " / " + str(r[2])
+		by[key] = int(by.get(key, 0)) + int(r[0])
+	print("[probe] runtime textures: %d, est. %.1f MiB" % [rows.size(), total / 1048576.0])
+	var keys := by.keys()
+	keys.sort_custom(func(a: Variant, b: Variant) -> bool: return by[a] > by[b])
+	for k: Variant in keys.slice(0, 20):
+		print("[probe]   %8.1f MiB  %s" % [by[k] / 1048576.0, k])
+	rows.sort_custom(func(a: Array, b: Array) -> bool: return a[0] > b[0])
+	for r: Array in rows.slice(0, 20):
+		print("[probe]   %7.1f MiB  %s  (%s)" % [r[0] / 1048576.0, r[1], r[2]])
+
+
+func _collect_textures(mat: Variant, gi: Node, seen: Dictionary, rows: Array, depth: int) -> void:
+	if not mat is Material or depth > 4:
+		return
+	var texs: Array = []
+	if mat is BaseMaterial3D:
+		for t: int in BaseMaterial3D.TEXTURE_MAX:
+			texs.append((mat as BaseMaterial3D).get_texture(t))
+	elif mat is ShaderMaterial and (mat as ShaderMaterial).shader != null:
+		for u: Dictionary in (mat as ShaderMaterial).shader.get_shader_uniform_list():
+			texs.append((mat as ShaderMaterial).get_shader_parameter(u["name"]))
+	for tex: Variant in texs:
+		if not tex is Texture2D or seen.has((tex as Texture2D).get_rid()):
+			continue
+		var t := tex as Texture2D
+		seen[t.get_rid()] = true
+		if t is ViewportTexture or (t.resource_path.begins_with("res://") and not t.resource_path.contains("::")):
+			continue
+		var bytes := t.get_width() * t.get_height() * 4
+		var what := "image"
+		if t is ImageTexture:
+			var fmt := (t as ImageTexture).get_format()
+			var bpp := {Image.FORMAT_L8: 1, Image.FORMAT_LA8: 2, Image.FORMAT_R8: 1, Image.FORMAT_RG8: 2,
+				Image.FORMAT_RGB8: 4, Image.FORMAT_RGBA8: 4, Image.FORMAT_RGBAH: 8, Image.FORMAT_RGBAF: 16}
+			bytes = int(t.get_width() * t.get_height() * float(bpp.get(fmt, 1)))
+			what = "image fmt%d" % fmt
+		rows.append([bytes, "%s %dx%d %s" % [what, t.get_width(), t.get_height(), t.resource_path], _owner_label(gi)])
+	_collect_textures((mat as Material).next_pass, gi, seen, rows, depth + 1)
+
+
+## The restored object a node belongs to: its "spawned" ancestor's name and script.
+func _owner_label(n: Node) -> String:
+	var at := n
+	while at != null and not at.is_in_group("spawned"):
+		at = at.get_parent()
+	if at == null:
+		return "room/other"
+	var sc := at.get_script() as Script
+	return sc.get_global_name() if sc != null and sc.get_global_name() != &"" else at.name

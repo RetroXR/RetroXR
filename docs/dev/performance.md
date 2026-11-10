@@ -439,8 +439,19 @@ What it was, and what changed:
 - `restore_speed_tests` holds each of these to the answers the slow way gave.
 
 Left, measured, not done:
-- Texture memory: +536 MiB in the first frame after, +1.2 GiB by frame 120; the render thread's uploads are most
-  of what is left of that frame. Asset work (sizes, VRAM compression of mod packs' textures), not loading code.
+- Texture memory, +0.9-1.2 GiB by 120 frames after (`RENDER_TEXTURE_MEM_USED`), is NOT uncompressed mod
+  textures. Counted (2026-11-11): the 444 imported `.ctex` the restore loads are ~405 MiB and all but one
+  VRAM-compressed (BC7 234, BC5 normals 82, BC1 65 MiB; mod packs included), read from each file's header by
+  `Tools/perf/texture_census.py` over a `--verbose` log; the textures made at run time are ~254 MiB
+  (`restore_perf_probe --runtime-textures`), 175 of it the five books' pages, RGBA8 on desktop BY DESIGN (books.md:
+  a Quest's pages are ETC2, and stock templates have no BC encoder); viewports ~60 MiB; labels ~16 MiB; the rest is
+  the renderer's own (shadows, MSAA, reflections). Asset waste seen: `xenu.panasonic`'s LOD1 and LOD2 carry their
+  own full 2048^2 decal maps (~21 MiB that LODs should save), and `Textures/Media/rxr_disc_label.svg` imports
+  Lossless (7.3 MiB; a texture only, so VRAM Compressed would do).
+- What the uploads cost: the first frame after a synchronous restore is 3.3-3.6 s cold against 1.3-1.4 s with
+  every texture already on the GPU (`--twice`, `SECOND first 10 frames`), so ~2 s is uploads and first draws. The
+  async restore spreads that over its frames; what its 19.7 s is made of is ~150 frames of a settling room at
+  60-100 ms each (scripts, physics, live viewports -- the probe has no camera, so not drawing the room).
 - The first physics step with 151 new bodies (~430 ms under Tracy) and five books opening their PDFs in `_ready`
   (~220 ms with `pdf_cache` warm, 1.3 s cold).
 - Spread across pass 1, none over ~350 ms: port covers' `create_convex_shape` (`cover_slots.gd`), model
