@@ -6,6 +6,7 @@
 // loop to dodge interpreter call overhead, they are ordinary inline functions
 // again here.
 
+#include <chrono>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <cstdlib>
 #include "VerletRope.hpp"
@@ -62,6 +63,82 @@ constexpr double TELEPORT_EPS_SQ = 0.4 * 0.4;
 // spun at hundreds of rad/s still reads as a glitch.
 constexpr double MAX_COUPLE_DV = 0.5;
 constexpr double MAX_COUPLE_DW = 12.0;
+
+// XENU_ROPE_PROFILE=1: where a step's time goes, over every cord in the
+// process, printed every PROFILE_STEPS steps. Off, it is one branch a mark.
+enum ProfilePhase
+{
+    PROF_INTEGRATE,
+    PROF_SELF_DETECT,
+    PROF_SOLVE_SETUP,
+    PROF_STRETCH,
+    PROF_BEND,
+    PROF_SELF_SOLVE,
+    PROF_PLANES,
+    PROF_FINISH,
+    PROF_QUERIES,
+    PROF_Q_SEGMENTS,
+    PROF_Q_RECOVER,
+    PROF_REST,
+    PROF_COUNT
+};
+const char *const PROFILE_NAMES[PROF_COUNT] = {"integrate", "self detect", "solve setup", "stretch",
+                                               "bend", "self solve", "planes+pins", "finish+friction",
+                                               "particle queries", "segment queries",
+                                               "recover rays", "couple+sleep"};
+constexpr int PROFILE_STEPS = 2000;
+const bool g_profile = std::getenv("XENU_ROPE_PROFILE") != nullptr;
+int64_t g_profile_ns[PROF_COUNT] = {};
+int g_profile_phase = PROF_REST;
+int g_profile_steps = 0;
+int g_profile_rays = 0;
+int g_profile_shapes = 0;
+std::chrono::steady_clock::time_point g_profile_at;
+
+inline void ProfileMark(int p_next)
+{
+    if (!g_profile)
+        return;
+    const auto now = std::chrono::steady_clock::now();
+    g_profile_ns[g_profile_phase] +=
+        std::chrono::duration_cast<std::chrono::nanoseconds>(now - g_profile_at).count();
+    g_profile_at = now;
+    g_profile_phase = p_next;
+}
+
+void ProfileStepBegin()
+{
+    if (!g_profile)
+        return;
+    g_profile_at = std::chrono::steady_clock::now();
+    g_profile_phase = PROF_INTEGRATE;
+}
+
+void ProfileStepEnd()
+{
+    if (!g_profile)
+        return;
+    ProfileMark(PROF_REST);
+    if (++g_profile_steps < PROFILE_STEPS)
+        return;
+    int64_t total = 0;
+    for (int64_t ns : g_profile_ns)
+        total += ns;
+    String line = String("[Rope] profile, us per awake step (") + String::num_int64(g_profile_steps) + " steps, " +
+                  String::num(static_cast<double>(total) / g_profile_steps / 1000.0, 1) + " in all):";
+    for (int i = 0; i < PROF_COUNT; ++i)
+    {
+        line += String(" ") + PROFILE_NAMES[i] + " " +
+                String::num(static_cast<double>(g_profile_ns[i]) / g_profile_steps / 1000.0, 1);
+        g_profile_ns[i] = 0;
+    }
+    line += String(" | per step: rays ") + String::num(static_cast<double>(g_profile_rays) / g_profile_steps, 1) +
+            " shape queries " + String::num(static_cast<double>(g_profile_shapes) / g_profile_steps, 1);
+    UtilityFunctions::print(line);
+    g_profile_steps = 0;
+    g_profile_rays = 0;
+    g_profile_shapes = 0;
+}
 } // namespace
 
 // ── Constraint primitives ───────────────────────────────────────────────────
@@ -715,6 +792,7 @@ void VerletRope::Step(double p_delta)
     }
     m_mesh_dirty = true;
 
+    ProfileStepBegin();
     // What the cord does to its pinned ends is summed over the whole tick.
     m_pin_push.assign(2 + m_fray.size(), Vector3());
     m_pin_moment.assign(2 + m_fray.size(), Vector3());
@@ -736,9 +814,11 @@ void VerletRope::Step(double p_delta)
         m_tick_from = m_points;
     m_pin_fraction = 1.0 / substeps;
     Integrate(slice);
+    ProfileMark(PROF_SELF_DETECT);
     m_self_contacts.clear();
     if (m_self_collision)
         DetectSelfContacts();
+    ProfileMark(PROF_REST);
 
     // End orientation authority: a plug whose orientation is externally fixed
     // drives the ROPE. A free plug and its cord settle it between them — the
@@ -763,21 +843,26 @@ void VerletRope::Step(double p_delta)
     m_iterations_now = std::max(1, static_cast<int>(std::lround(
                                        static_cast<double>(std::max(m_constraint_iterations, 1)) / substeps)));
     SolveConstraints(start_directional, end_directional, start_exit, end_exit);
+    ProfileMark(PROF_FINISH);
     FinishSelfContacts();
     ApplyContactFriction();
     for (int k = 1; k < substeps; ++k)
     {
         // The same contacts, found at the tick's start, for every slice.
         m_pin_fraction = static_cast<double>(k + 1) / substeps;
+        ProfileMark(PROF_INTEGRATE);
         Integrate(slice);
+        ProfileMark(PROF_FINISH);
         for (SelfContact &c : m_self_contacts)
             c.pushed = 0.0;
         std::fill(m_self_moved.begin(), m_self_moved.end(), Vector3());
         SolveConstraints(start_directional, end_directional, start_exit, end_exit);
+        ProfileMark(PROF_FINISH);
         FinishSelfContacts();
         ApplyContactFriction();
     }
     m_pin_fraction = 1.0;
+    ProfileMark(PROF_QUERIES);
 
     // Cadence shared by the heavier environment queries below.
     m_raycast_frame += 1;
@@ -788,6 +873,7 @@ void VerletRope::Step(double p_delta)
     if (m_surface_collision_mask != 0 && m_ray_query.is_valid())
         SolveSurfaceCollision(do_rest);
 
+    ProfileMark(PROF_REST);
     ApplyAnchorCoupling();
 
     // Loose plugs answer the cord through forces, FREE ends only.
@@ -801,6 +887,7 @@ void VerletRope::Step(double p_delta)
     // Last thing in the tick, after the anchors are pinned: roll the render
     // history forward so _process has two states to interpolate between.
     SnapshotRenderState();
+    ProfileStepEnd();
 }
 
 // A stiffness given as "the share of the error one iteration takes out", for a
@@ -874,6 +961,7 @@ void VerletRope::SolveConstraints(bool p_start_fixed, bool p_end_fixed,
     // all the loops below are exactly what they were.
     const int count = TrunkCount();
     const int seg_count = static_cast<int>(m_seg_a.size());
+    ProfileMark(PROF_SOLVE_SETUP);
     const int iters = m_iterations_now > 0 ? m_iterations_now
                                            : (m_constraint_iterations > 1 ? m_constraint_iterations : 1);
     // Once a slice now, so only what is in use is cleared.
@@ -917,12 +1005,14 @@ void VerletRope::SolveConstraints(bool p_start_fixed, bool p_end_fixed,
 
     for (int iter_i = 0; iter_i < iters; ++iter_i)
     {
+        ProfileMark(PROF_STRETCH);
         // Stretch runs off the segment table, so a branch's link back to the
         // junction is solved with the rest, at the branch's own rest length.
         for (int s = 0; s < seg_count; ++s)
             SolvePair(m_seg_a[s], m_seg_b[s], m_seg_rest[s], k_stretch,
                       m_stretch_compliance > 0.0 ? &m_stretch_lambda[s] : nullptr);
 
+        ProfileMark(PROF_BEND);
         // Bend, hierarchical: adjacent midpoint bending preserves the existing
         // cable drape, while spacing 2/4/8 keeps long ropes from saturating.
         if (k_bend > 0.0)
@@ -1024,7 +1114,9 @@ void VerletRope::SolveConstraints(bool p_start_fixed, bool p_end_fixed,
 
         // The cord against itself, BEFORE the surfaces: what a crossing pushes
         // into the floor, the floor's own plane puts back in this same pass.
+        ProfileMark(PROF_SELF_SOLVE);
         SolveSelfContacts();
+        ProfileMark(PROF_PLANES);
 
         // Cached contact planes, solved together with the other constraints so
         // contacts — including edge wraps — are part of the equilibrium instead
@@ -1325,7 +1417,7 @@ bool VerletRope::EnvironmentChangedWhileSleeping()
         const double probe = m_collision_radius * 3.0;
         m_ray_query->set_from(p + cached_n * probe);
         m_ray_query->set_to(p - cached_n * probe);
-        const Dictionary hit = space_state->intersect_ray(m_ray_query);
+        const Dictionary hit = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query);
         if (hit.is_empty())
             return false;
         const Vector3 n = hit["normal"];
@@ -1383,7 +1475,7 @@ bool VerletRope::EnvironmentChangedWhileSleeping()
                                    ? m_points[a].lerp(m_points[b], m_mid_contact_t[s])
                                    : (m_points[a] + m_points[b]) * 0.5;
         m_shape_query->set_transform(Transform3D(Basis(), sample));
-        const Dictionary rest = space_state->get_rest_info(m_shape_query);
+        const Dictionary rest = (g_profile_shapes += 1, space_state)->get_rest_info(m_shape_query);
         const bool has = !rest.is_empty() && rest["normal"].operator Vector3() != Vector3();
         const bool had = m_mid_contact[s] != 0;
         if (point_inside(sample) && !had)
@@ -1568,12 +1660,28 @@ void VerletRope::DetectSelfContacts()
     // straight through each other. Work from the real segment table so fray
     // chain boundaries are topological rather than accidental array adjacency.
     const int seg_count = static_cast<int>(m_seg_a.size());
+    // Two segments whose middles are further apart than half their lengths and
+    // the reach cannot touch: one subtraction, before the closest-point
+    // arithmetic, for the thousand-odd pairs of a cord that are nowhere near
+    // each other (this loop was a quarter of an awake cord's step).
+    m_self_mid.resize(seg_count);
+    m_self_half.resize(seg_count);
+    for (int s = 0; s < seg_count; ++s)
+    {
+        m_self_mid[s] = (m_points[m_seg_a[s]] + m_points[m_seg_b[s]]) * 0.5;
+        m_self_half[s] = static_cast<float>(m_points[m_seg_a[s]].distance_to(m_points[m_seg_b[s]]) * 0.5);
+    }
     for (int sa = 0; sa < seg_count; ++sa)
     {
         const int a0 = m_seg_a[sa];
         const int a1 = m_seg_b[sa];
+        const Vector3 mid_a = m_self_mid[sa];
+        const double half_a = m_self_half[sa] + reach;
         for (int sb = sa + 1; sb < seg_count; ++sb)
         {
+            const double limit = half_a + m_self_half[sb];
+            if (mid_a.distance_squared_to(m_self_mid[sb]) > limit * limit)
+                continue;
             const int b0 = m_seg_a[sb];
             const int b1 = m_seg_b[sb];
             if (a0 == b0 || a0 == b1 || a1 == b0 || a1 == b1)
@@ -1878,7 +1986,9 @@ void VerletRope::SolveSurfaceCollision(bool p_do_rest)
         return;
 
     SweepParticleContacts(space_state, p_do_rest);
+    ProfileMark(PROF_Q_SEGMENTS);
     SolveSegmentCollision(space_state, p_do_rest);
+    ProfileMark(PROF_Q_RECOVER);
     if (p_do_rest)
         RecoverWrongSideParticles(space_state);
 }
@@ -1938,6 +2048,11 @@ bool VerletRope::PlaceEdgeContact(int s)
     Vector3 n;
     if (w.dot(m_edge_n1[s]) < 0.0 && w.dot(m_edge_n2[s]) < 0.0)
     {
+        // Inside the corner, but only just: a segment cutting it. One that is
+        // deep in the solid (further in than the reach of any contact) is not
+        // lying over this edge, however near the edge's LINE runs to it.
+        if (std::min(-w.dot(m_edge_n1[s]), -w.dot(m_edge_n2[s])) > m_collision_radius * 3.0)
+            return false;
         // The centreline is inside the corner: out along the perpendicular to
         // both the edge and the segment, on the open side. At an END of the
         // segment that perpendicular is the segment's own business and its
@@ -2052,7 +2167,7 @@ void VerletRope::FindEdgeFor(PhysicsDirectSpaceState3D *space_state, int i, cons
     to += along.normalized() * m_collision_radius;
     m_ray_query->set_from(from);
     m_ray_query->set_to(to);
-    const Dictionary hit = space_state->intersect_ray(m_ray_query);
+    const Dictionary hit = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query);
     if (hit.is_empty())
         return;
     const Vector3 n2 = hit["normal"];
@@ -2114,7 +2229,7 @@ bool VerletRope::SurfaceUnder(PhysicsDirectSpaceState3D *space_state, const Vect
 {
     m_ray_query->set_from(p_from);
     m_ray_query->set_to(p_from - r_normal * p_reach);
-    const Dictionary hit = space_state->intersect_ray(m_ray_query);
+    const Dictionary hit = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query);
     if (hit.is_empty())
         return false;
     const Vector3 n = hit["normal"];
@@ -2166,7 +2281,7 @@ void VerletRope::SweepParticleContacts(PhysicsDirectSpaceState3D *space_state, b
         {
             m_ray_query->set_from(from);
             m_ray_query->set_to(to + motion.normalized() * m_collision_radius);
-            Dictionary hit = space_state->intersect_ray(m_ray_query);
+            Dictionary hit = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query);
             if (!hit.is_empty())
             {
                 const Vector3 hit_normal = hit["normal"];
@@ -2224,7 +2339,7 @@ void VerletRope::SweepParticleContacts(PhysicsDirectSpaceState3D *space_state, b
         if (p_do_rest)
         {
             m_shape_query->set_transform(Transform3D(Basis(), m_points[i]));
-            Dictionary rest = space_state->get_rest_info(m_shape_query);
+            Dictionary rest = (g_profile_shapes += 1, space_state)->get_rest_info(m_shape_query);
             bool keep1 = (m_c_flags[i] & 1) != 0 && PlaneValid(i, m_c_p1[i], m_c_n1[i]);
             bool keep2 = (m_c_flags[i] & 2) != 0 && PlaneValid(i, m_c_p2[i], m_c_n2[i]);
             // Deep-penetration guard: if the particle centre is BEHIND the
@@ -2389,11 +2504,11 @@ void VerletRope::SolveSegmentCollision(PhysicsDirectSpaceState3D *space_state, b
             m_segment_shape_query->set_transform(set_capsule(from_a, from_b));
             m_segment_shape_query->set_motion(Vector3());
             const bool already_touching =
-                !space_state->get_rest_info(m_segment_shape_query).is_empty();
+                !(g_profile_shapes += 1, space_state)->get_rest_info(m_segment_shape_query).is_empty();
             if (!already_touching)
             {
                 m_segment_shape_query->set_motion(motion);
-                const PackedFloat32Array fractions = space_state->cast_motion(m_segment_shape_query);
+                const PackedFloat32Array fractions = (g_profile_shapes += 1, space_state)->cast_motion(m_segment_shape_query);
                 if (fractions.size() >= 2 && fractions[0] < 1.0f)
                 {
                     const double safe = fractions[0];
@@ -2404,7 +2519,7 @@ void VerletRope::SolveSegmentCollision(PhysicsDirectSpaceState3D *space_state, b
                     const Vector3 hit_b = from_b.lerp(wanted_b, unsafe);
                     m_segment_shape_query->set_transform(set_capsule(hit_a, hit_b));
                     m_segment_shape_query->set_motion(Vector3());
-                    Dictionary hit = space_state->get_rest_info(m_segment_shape_query);
+                    Dictionary hit = (g_profile_shapes += 1, space_state)->get_rest_info(m_segment_shape_query);
                     if (!hit.is_empty() && hit["normal"].operator Vector3() != Vector3())
                     {
                         const Vector3 hit_segment = hit_b - hit_a;
@@ -2470,7 +2585,7 @@ void VerletRope::SolveSegmentCollision(PhysicsDirectSpaceState3D *space_state, b
             // obstacle intersecting the segment away from its midpoint.
             const Vector3 midpoint = (m_points[ia] + m_points[ib]) * 0.5;
             m_shape_query->set_transform(Transform3D(Basis(), midpoint));
-            const Dictionary midpoint_rest = space_state->get_rest_info(m_shape_query);
+            const Dictionary midpoint_rest = (g_profile_shapes += 1, space_state)->get_rest_info(m_shape_query);
             if (!midpoint_rest.is_empty())
             {
                 // A finite midpoint sphere owns one contact coordinate. Replace
@@ -2488,7 +2603,7 @@ void VerletRope::SolveSegmentCollision(PhysicsDirectSpaceState3D *space_state, b
             {
                 m_segment_shape_query->set_transform(set_capsule(m_points[ia], m_points[ib]));
                 m_segment_shape_query->set_motion(Vector3());
-                if (!cache_segment_hit(s, space_state->get_rest_info(m_segment_shape_query)))
+                if (!cache_segment_hit(s, (g_profile_shapes += 1, space_state)->get_rest_info(m_segment_shape_query)))
                     m_mid_contact[s] = 0;
             }
         }
@@ -2526,7 +2641,7 @@ void VerletRope::RecoverWrongSideParticles(PhysicsDirectSpaceState3D *space_stat
         }
         m_ray_query->set_from(m_points[prev]);
         m_ray_query->set_to(m_points[i] + seg_vec * (m_collision_radius / seg_len));
-        Dictionary entry = space_state->intersect_ray(m_ray_query);
+        Dictionary entry = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query);
         const Vector3 entry_n = entry.is_empty() ? Vector3() : entry["normal"].operator Vector3();
         // Must be meaningfully behind the entered face (not a corner graze)…
         if (entry_n == Vector3() ||
@@ -2538,7 +2653,7 @@ void VerletRope::RecoverWrongSideParticles(PhysicsDirectSpaceState3D *space_stat
         // …and the reverse ray must exit through an opposing face.
         m_ray_query->set_from(m_points[i]);
         m_ray_query->set_to(m_points[prev]);
-        Dictionary exit = space_state->intersect_ray(m_ray_query);
+        Dictionary exit = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query);
         if (exit.is_empty() || entry_n.dot(exit["normal"].operator Vector3()) > -0.7)
         {
             m_stuck_passes[i] = 0;
@@ -2612,12 +2727,12 @@ void VerletRope::DepenetrateLay()
                 const Vector3 b = m_points[first + k + 1];
                 m_ray_query->set_from(a);
                 m_ray_query->set_to(b);
-                const Dictionary entry = space_state->intersect_ray(m_ray_query);
+                const Dictionary entry = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query);
                 if (entry.is_empty())
                     continue;
                 m_ray_query->set_from(b);
                 m_ray_query->set_to(a);
-                const Dictionary exit = space_state->intersect_ray(m_ray_query);
+                const Dictionary exit = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query);
                 if (exit.is_empty())
                     continue;
                 const Vector3 entry_n = entry["normal"];
@@ -2747,7 +2862,7 @@ void VerletRope::DepenetrateLay()
                 {
                     m_shape_query->set_transform(Transform3D(Basis(), current_pos));
                     m_shape_query->set_motion(next_pos - current_pos);
-                    const PackedFloat32Array sweep = space_state->cast_motion(m_shape_query);
+                    const PackedFloat32Array sweep = (g_profile_shapes += 1, space_state)->cast_motion(m_shape_query);
                     if (sweep.size() >= 1 && sweep[0] < 0.999f)
                         continue;
                 }
@@ -2828,7 +2943,7 @@ void VerletRope::DepenetrateLay()
         {
             m_ray_query->set_from(m_points[i] + d * PROBE);
             m_ray_query->set_to(m_points[i]);
-            Dictionary hit = space_state->intersect_ray(m_ray_query);
+            Dictionary hit = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query);
             if (hit.is_empty())
                 continue;
             const Vector3 hp = hit["position"];

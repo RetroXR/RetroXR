@@ -460,6 +460,8 @@ private:
         bool fixed;
     };
     std::vector<SelfContact> m_self_contacts;
+    std::vector<godot::Vector3> m_self_mid;
+    std::vector<float> m_self_half;
     // How far the self contacts moved each particle this step, summed over
     // the iterations: that much of its move is not velocity.
     std::vector<godot::Vector3> m_self_moved;

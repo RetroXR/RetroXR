@@ -192,7 +192,7 @@ awake/ — a cord BEING HANDLED (hauled round a square bar, lying across itself,
 over a block's corner), read as chatter, because sleep hides jitter, and left alone
 afterwards it has to sleep and STAY asleep. 96 cases,
 ~90 s, no GPU. It complements rather than replaces the two BIT-EXACT oracles in `Tools/`
-(`rope_bench --settle` prints `settled_at_tick=48 still_awake=0`, `rope_stress` diffs a
+(`rope_bench --settle` prints `settled_at_tick=64 still_awake=0`, `rope_stress` diffs a
 22-row table): those catch arithmetic drift, this catches a cord that jitters, tunnels or
 will not settle.
 (Re-baselined 2026-11-10 for substeps and the contact changes, `rope.md`: the bench
@@ -208,7 +208,8 @@ rest with `restore_points` (it was nudged part way and left to one integration t
 finish, which is only one integration at one step a tick). The three awake/ cases are
 red on the solver before: 39, 214 and 20 chattering ticks. Two of the three stay-asleep cases were red on the first
 substep build: a cord over a block's corner, and over a table's edge, woken by the sleep
-poll. The bench settles at tick 48 since.)
+poll. The bench settles at tick 64 since (the last of the twitch fixes; 48 was measured
+one fix too early).)
 (The bench printed 15 until 2026-08-17: DepenetrateLay freed wedged lays and three more
 bench ropes settle; the stress rows that moved are the two impossible lays. Re-baselined
 deliberately — an UNINTENDED move in these numbers is still a stop-everything signal.

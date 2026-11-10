@@ -121,8 +121,22 @@ after the last slice, and the self contacts are found once, after the first inte
   slices of two do not, and a hanging span buzzed after every move of its end. It also
   takes a swing out through the cord's fixed ends. Free fall is untouched.
 - `damping` is still per TICK (a slice keeps the root of what a tick keeps).
-- **Cost** (desktop debug, `rope_bench`): 207 -> about 270-290 us per awake rope-tick,
-  16 settling cables asleep at tick 50 (was 49) at 43 us (was 42). A Quest is OWED.
+- **Cost** (desktop debug, `rope_bench`): 207 -> about 220-250 us per awake rope-tick,
+  16 settling cables asleep at tick 64 (was 49) at 43 us (was 42). A Quest is OWED.
+- **Where a step goes: `XENU_ROPE_PROFILE=1`** prints, every 2000 steps, the time per
+  phase over every cord in the process and the queries made. Measured on `rope_bench`
+  (16 awake cables on table slabs): the physics QUERIES are over half (about 57 shape
+  queries and 25 rays a cord a tick, 2-3 us each: every call returns a Dictionary), bend
+  15%, stretch 6%, the self contacts' search 7%. That search was a quarter (85 us)
+  until two segments whose middles are too far apart to touch were skipped before the
+  closest-point arithmetic (15 us after; exact, the stress table is identical).
+- **Tried and backed out: culling the queries by stretch.** One sphere round every eight
+  segments, and a stretch's own queries skipped when it touches nothing. It was made
+  exactly equivalent (a segment with a near particle has to count as near: a contact
+  moves the shared particle out of the far stretch's sphere), and it was SLOWER, 330
+  against 269 us on a cord hanging over a table's edge: one big overlap query costs as
+  much as six or seven small ones, and in a furnished room most stretches are near
+  something. A solve on worker threads would touch only the 35% that is not queries.
 - `substeps = 1` is still a working solver (the probe's `--substeps=1` control leg) and
   keeps every contact change below; it is not bit-identical to the solver before.
 
