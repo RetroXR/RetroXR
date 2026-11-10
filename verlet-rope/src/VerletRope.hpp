@@ -96,11 +96,15 @@ public:
     };
 
     VerletRope() = default;
-    ~VerletRope() override = default;
+    ~VerletRope() override;
 
     void _ready() override;
     void _process(double p_delta) override;
     void _physics_process(double p_delta) override;
+    void _enter_tree() override;
+    void _exit_tree() override;
+    // Joins the solve workers. Called when the extension unloads.
+    static void ShutdownSolveWorkers();
 
     // One simulation tick. Bound so a bench can drive the rope off the engine's
     // callback and time it directly; _physics_process is just this plus the
@@ -254,9 +258,23 @@ private:
         // identically forever, and self-collision cannot part them because its
         // divide-by-zero guard skips exactly-coincident pairs.
         float lat_mean = 0.0f;
+        // Read on the main thread before a solve (the solve asks nothing of
+        // the engine): whether this branch's plug holds a directional stub,
+        // and along what.
+        bool stub = false;
+        godot::Vector3 stub_exit;
     };
 
     // ── Simulation ───────────────────────────────────────────────────────────
+    // A tick in three parts, so that the middle one can run on a worker:
+    // StepBegin reads the anchors and everything else the engine has to be
+    // asked (false: nothing to solve this tick), StepSolve is arithmetic on
+    // this cord's own arrays and nothing else, StepEnd asks the physics world
+    // and pushes the plugs. Step() is the three in a row.
+    bool StepBegin(double p_delta);
+    void StepSolve();
+    void StepEnd();
+    static void RunBatch(double p_delta, uint64_t p_frame);
     void Integrate(double p_delta);
     double SliceStiffness(double p_k) const;
     void SolveConstraints(bool p_start_fixed, bool p_end_fixed,
@@ -471,6 +489,20 @@ private:
     // end was, and how far through the tick the pins have been carried.
     std::vector<godot::Vector3> m_tick_from;
     std::vector<godot::Vector3> m_pin_from;
+    // Where each pinned end is going this tick, read once in StepBegin.
+    std::vector<godot::Vector3> m_pin_target;
+    bool m_pins_cached = false;
+    // What StepBegin decided for StepSolve.
+    int m_step_substeps = 1;
+    double m_step_slice = 0.0;
+    bool m_step_start_directional = false;
+    bool m_step_end_directional = false;
+    godot::Vector3 m_step_start_exit;
+    godot::Vector3 m_step_end_exit;
+    // The physics frame this cord's solve was batched on, and whether its
+    // StepEnd is still owed.
+    uint64_t m_batched_frame = UINT64_MAX;
+    bool m_solve_pending = false;
     std::vector<godot::Vector3> m_pin_velocity;
     double m_pin_fraction = 1.0;
     int m_iterations_now = 0;

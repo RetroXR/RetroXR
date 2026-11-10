@@ -6,6 +6,10 @@
 // loop to dodge interpreter call overhead, they are ordinary inline functions
 // again here.
 
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 #include <chrono>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <cstdlib>
@@ -489,9 +493,13 @@ void VerletRope::PinAnchors()
     // With substeps a pinned end is carried to its anchor over the slices of
     // the tick, not thrown there in the first one.
     const bool part = m_pin_fraction < 1.0 && m_pin_from.size() == 2 + m_fray.size();
+    // Inside a solve the anchors were read once, in StepBegin: a solve may be
+    // on a worker thread and asks the engine nothing.
+    const bool cached = m_pins_cached && m_pin_target.size() == 2 + m_fray.size();
     if (m_start_cached)
     {
-        m_points[0] = AnchorPoint(m_start_cached, m_start_anchor_offset, m_points[0]);
+        m_points[0] = cached ? m_pin_target[0]
+                             : AnchorPoint(m_start_cached, m_start_anchor_offset, m_points[0]);
         if (part)
             m_points[0] = m_pin_from[0].lerp(m_points[0], m_pin_fraction);
         m_prev_points[0] = m_points[0];
@@ -499,7 +507,8 @@ void VerletRope::PinAnchors()
     if (m_end_cached)
     {
         const int last = TrunkCount() - 1;
-        m_points[last] = AnchorPoint(m_end_cached, m_end_anchor_offset, m_points[last]);
+        m_points[last] = cached ? m_pin_target[1]
+                                : AnchorPoint(m_end_cached, m_end_anchor_offset, m_points[last]);
         if (part)
             m_points[last] = m_pin_from[1].lerp(m_points[last], m_pin_fraction);
         m_prev_points[last] = m_points[last];
@@ -510,7 +519,7 @@ void VerletRope::PinAnchors()
         if (fc.cached == nullptr)
             continue;
         const int last = fc.first + fc.count - 1;
-        m_points[last] = AnchorPoint(fc.cached, fc.offset, m_points[last]);
+        m_points[last] = cached ? m_pin_target[2 + g] : AnchorPoint(fc.cached, fc.offset, m_points[last]);
         if (part)
             m_points[last] = m_pin_from[2 + g].lerp(m_points[last], m_pin_fraction);
         m_prev_points[last] = m_points[last];
@@ -705,15 +714,260 @@ void VerletRope::CouplePlug(Node3D *node, int p_configured_role, const Vector3 &
 
 // ── Tick ────────────────────────────────────────────────────────────────────
 
+// ── Solving several cords at once ───────────────────────────────────────────
+// A cord's solve (StepSolve) is arithmetic on its own arrays; cords share
+// nothing. So the cords that are awake on a physics frame are solved side by
+// side: the first cord to be ticked on a frame runs StepBegin for every cord in
+// the room (main thread: it reads anchors), hands the solves to a few workers
+// and takes a share itself, and returns when all are done. Each cord's own
+// _physics_process then does only its StepEnd (main thread: the physics world).
+// Nothing outlives the call, so nothing else in the extension has to know.
+//
+// What is NOT shared out is the physics queries, which are over half of a
+// cord's step and belong to the main thread. XENU_ROPE_THREADS=0 solves in
+// line, as before, and so does a frame with fewer than two cords awake.
+namespace
+{
+class SolvePool
+{
+public:
+    explicit SolvePool(int p_workers)
+    {
+        for (int i = 0; i < p_workers; ++i)
+            m_threads.emplace_back([this] { Work(); });
+    }
+
+    ~SolvePool()
+    {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_quit = true;
+        }
+        m_wake.notify_all();
+        for (std::thread &t : m_threads)
+            t.join();
+    }
+
+    // Runs p_job(i) for every i in [0, p_count) and returns when all have run.
+    // The caller takes jobs too.
+    void Run(int p_count, const std::function<void(int)> &p_job)
+    {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_job = &p_job;
+            m_count = p_count;
+            m_next.store(0);
+            m_left = p_count;
+            m_generation += 1;
+        }
+        m_wake.notify_all();
+        Drain(p_job, p_count);
+        // Until every job has run AND every worker that took this batch has
+        // let go of it: the job is the caller's, and gone when this returns.
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_done.wait(lock, [this] { return m_left == 0 && m_busy == 0; });
+        m_job = nullptr;
+    }
+
+private:
+    void Drain(const std::function<void(int)> &p_job, int p_count)
+    {
+        for (;;)
+        {
+            const int i = m_next.fetch_add(1);
+            if (i >= p_count)
+                return;
+            p_job(i);
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_left -= 1;
+        }
+    }
+
+    void Work()
+    {
+        uint64_t seen = 0;
+        for (;;)
+        {
+            const std::function<void(int)> *job = nullptr;
+            int count = 0;
+            {
+                std::unique_lock<std::mutex> lock(m_mutex);
+                m_wake.wait(lock, [&] { return m_quit || m_generation != seen; });
+                if (m_quit)
+                    return;
+                seen = m_generation;
+                job = m_job;
+                count = m_count;
+                if (job == nullptr)
+                    continue; // woke after the batch had finished
+                m_busy += 1;
+            }
+            Drain(*job, count);
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                m_busy -= 1;
+            }
+            m_done.notify_one();
+        }
+    }
+
+    std::vector<std::thread> m_threads;
+    std::mutex m_mutex;
+    std::condition_variable m_wake;
+    std::condition_variable m_done;
+    const std::function<void(int)> *m_job = nullptr;
+    std::atomic<int> m_next{0};
+    int m_count = 0;
+    int m_left = 0;
+    int m_busy = 0;
+    uint64_t m_generation = 0;
+    bool m_quit = false;
+};
+
+// Every cord in a tree, for the batch. Main thread only.
+std::vector<VerletRope *> g_ropes;
+SolvePool *g_pool = nullptr;
+bool g_pool_tried = false;
+uint64_t g_batch_frame = UINT64_MAX;
+
+// Workers besides the main thread: two cores are left for the engine's own
+// threads (render, physics, audio), and past three more the join costs more
+// than short solves give back. None on a machine with no core to spare, or
+// with XENU_ROPE_THREADS=0.
+int SolveWorkerCount()
+{
+    if (const char *e = std::getenv("XENU_ROPE_THREADS"))
+        return std::max(0, std::atoi(e) - 1);
+    const int cores = static_cast<int>(std::thread::hardware_concurrency());
+    return CLAMP(cores - 2, 0, 3);
+}
+
+SolvePool *Pool()
+{
+    if (!g_pool_tried)
+    {
+        g_pool_tried = true;
+        const int workers = SolveWorkerCount();
+        if (workers > 0)
+            g_pool = new SolvePool(workers);
+        UtilityFunctions::print("[Rope] solving cords on ", workers + 1, " thread", workers > 0 ? "s" : "",
+                                workers > 0 ? "" : " (in line)");
+    }
+    return g_pool;
+}
+} // namespace
+
+void VerletRope::ShutdownSolveWorkers()
+{
+    delete g_pool;
+    g_pool = nullptr;
+    g_pool_tried = false;
+}
+
+void VerletRope::_enter_tree()
+{
+    if (std::find(g_ropes.begin(), g_ropes.end(), this) == g_ropes.end())
+        g_ropes.push_back(this);
+}
+
+void VerletRope::_exit_tree()
+{
+    g_ropes.erase(std::remove(g_ropes.begin(), g_ropes.end(), this), g_ropes.end());
+    m_solve_pending = false;
+}
+
+VerletRope::~VerletRope()
+{
+    g_ropes.erase(std::remove(g_ropes.begin(), g_ropes.end(), this), g_ropes.end());
+}
+
+// StepBegin for every cord the engine is about to tick this frame, then their
+// solves together.
+void VerletRope::RunBatch(double p_delta, uint64_t p_frame)
+{
+    static std::vector<VerletRope *> solving;
+    solving.clear();
+    for (VerletRope *rope : g_ropes)
+    {
+        // Only a cord whose own _physics_process is coming this frame: its
+        // StepEnd is done there, and a solve with no StepEnd after it is a
+        // tick with no collision.
+        if (!rope->is_inside_tree() || !rope->is_physics_processing() || !rope->can_process())
+            continue;
+        rope->m_batched_frame = p_frame;
+        rope->m_solve_pending = rope->StepBegin(p_delta);
+        if (rope->m_solve_pending)
+            solving.push_back(rope);
+    }
+    SolvePool *pool = solving.size() >= 2 && !g_profile ? Pool() : nullptr;
+    if (pool == nullptr)
+    {
+        for (VerletRope *rope : solving)
+            rope->StepSolve();
+        return;
+    }
+    pool->Run(static_cast<int>(solving.size()), [](int i) { solving[i]->StepSolve(); });
+}
+
 void VerletRope::_physics_process(double p_delta)
 {
-    Step(p_delta);
+    // XENU_ROPE_FRAMETIME=1: what every cord in the room costs the main thread
+    // a physics frame, printed every 300 frames. The figure threads are for.
+    static const bool timed = std::getenv("XENU_ROPE_FRAMETIME") != nullptr;
+    static int64_t spent_ns = 0;
+    static int64_t batch_ns = 0;
+    static int frames = 0;
+    static int solved = 0;
+    const auto began = timed ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point();
+
+    const uint64_t frame = Engine::get_singleton()->get_physics_frames();
+    if (g_batch_frame != frame)
+    {
+        g_batch_frame = frame;
+        if (timed && ++frames > 300)
+        {
+            UtilityFunctions::print("[Rope] main thread, ms a physics frame: ",
+                                    String::num(static_cast<double>(spent_ns) / 300.0 / 1e6, 3), " for all cords (",
+                                    String::num(static_cast<double>(batch_ns) / 300.0 / 1e6, 3),
+                                    " of it the solves), ", String::num(static_cast<double>(solved) / 300.0, 1),
+                                    " cords awake");
+            spent_ns = batch_ns = 0;
+            solved = 0;
+            frames = 1;
+        }
+        RunBatch(p_delta, frame);
+        if (timed)
+            batch_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                            std::chrono::steady_clock::now() - began).count();
+    }
+    if (m_batched_frame != frame)
+    {
+        // Entered the tree, or was switched on, after this frame's batch.
+        Step(p_delta);
+    }
+    else if (m_solve_pending)
+    {
+        m_solve_pending = false;
+        solved += 1;
+        StepEnd();
+    }
+    if (timed)
+        spent_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::steady_clock::now() - began).count();
 }
 
 void VerletRope::Step(double p_delta)
 {
-    if (m_points.empty())
+    if (!StepBegin(p_delta))
         return;
+    StepSolve();
+    StepEnd();
+}
+
+bool VerletRope::StepBegin(double p_delta)
+{
+    if (m_points.empty())
+        return false;
     const int substeps = std::max(1, m_substeps);
     const double slice = p_delta / substeps;
     m_step_dt_sq = std::max(slice * slice, 1e-8);
@@ -730,7 +984,7 @@ void VerletRope::Step(double p_delta)
     if (AnchorTeleported())
     {
         InitPoints();
-        return;
+        return false;
     }
 
     if (m_depen_pending)
@@ -758,7 +1012,7 @@ void VerletRope::Step(double p_delta)
                 // alternating-normal false positive does not.
                 m_environment_change_polls += 1;
                 if (m_environment_change_polls < 2)
-                    return;
+                    return false;
                 m_environment_change_polls = 0;
                 m_diag_wake_env += 1;
                 Wake();
@@ -787,7 +1041,7 @@ void VerletRope::Step(double p_delta)
             // rolled underneath them. Re-mesh (never re-simulate) when it does.
             if (RibbonEndsTurned())
                 m_mesh_dirty = true;
-            return;
+            return false;
         }
     }
     m_mesh_dirty = true;
@@ -800,25 +1054,29 @@ void VerletRope::Step(double p_delta)
     m_pin_from.resize(2 + m_fray.size());
     m_pin_from[0] = m_points[0];
     m_pin_from[1] = m_points[TrunkCount() - 1];
+    // ...and where they are going: read here, once, for every slice.
+    m_pin_target.resize(2 + m_fray.size());
+    m_pin_target[0] = m_start_cached ? AnchorPoint(m_start_cached, m_start_anchor_offset, m_points[0])
+                                     : m_points[0];
+    m_pin_target[1] = m_end_cached ? AnchorPoint(m_end_cached, m_end_anchor_offset,
+                                                 m_points[TrunkCount() - 1])
+                                   : m_points[TrunkCount() - 1];
     m_pin_velocity.assign(2, Vector3());
     if (m_start_cached)
-        m_pin_velocity[0] = (AnchorPoint(m_start_cached, m_start_anchor_offset, m_points[0]) -
-                             m_points[0]) / static_cast<double>(substeps);
+        m_pin_velocity[0] = (m_pin_target[0] - m_points[0]) / static_cast<double>(substeps);
     if (m_end_cached)
-        m_pin_velocity[1] = (AnchorPoint(m_end_cached, m_end_anchor_offset,
-                                         m_points[TrunkCount() - 1]) -
-                             m_points[TrunkCount() - 1]) / static_cast<double>(substeps);
+        m_pin_velocity[1] = (m_pin_target[1] - m_points[TrunkCount() - 1]) / static_cast<double>(substeps);
     for (size_t g = 0; g < m_fray.size(); ++g)
-        m_pin_from[2 + g] = m_points[m_fray[g].first + m_fray[g].count - 1];
+    {
+        FrayChain &fc = m_fray[g];
+        const int last = fc.first + fc.count - 1;
+        m_pin_from[2 + g] = m_points[last];
+        m_pin_target[2 + g] = fc.cached ? AnchorPoint(fc.cached, fc.offset, m_points[last]) : m_points[last];
+        fc.stub = fc.cached != nullptr && (PlugIsFixed(fc.cached) || PlugIsCoupled(fc.cached, ENDPOINT_AUTO));
+        fc.stub_exit = fc.stub ? PlugExitDir(fc.cached, m_end_exit_axis) : Vector3();
+    }
     if (substeps > 1)
         m_tick_from = m_points;
-    m_pin_fraction = 1.0 / substeps;
-    Integrate(slice);
-    ProfileMark(PROF_SELF_DETECT);
-    m_self_contacts.clear();
-    if (m_self_collision)
-        DetectSelfContacts();
-    ProfileMark(PROF_REST);
 
     // End orientation authority: a plug whose orientation is externally fixed
     // drives the ROPE. A free plug and its cord settle it between them — the
@@ -836,12 +1094,37 @@ void VerletRope::Step(double p_delta)
                                    (!start_fixed && PlugIsCoupled(m_start_cached, m_start_endpoint_role));
     const bool end_directional = EndpointIsDirectional(end_role) ||
                                  (!end_fixed && PlugIsCoupled(m_end_cached, m_end_endpoint_role));
-    const Vector3 start_exit =
-        start_directional ? PlugExitDir(m_start_cached, m_start_exit_axis) : Vector3();
-    const Vector3 end_exit = end_directional ? PlugExitDir(m_end_cached, m_end_exit_axis) : Vector3();
-
+    m_step_start_directional = start_directional;
+    m_step_end_directional = end_directional;
+    m_step_start_exit = start_directional ? PlugExitDir(m_start_cached, m_start_exit_axis) : Vector3();
+    m_step_end_exit = end_directional ? PlugExitDir(m_end_cached, m_end_exit_axis) : Vector3();
+    m_step_substeps = substeps;
+    m_step_slice = slice;
     m_iterations_now = std::max(1, static_cast<int>(std::lround(
                                        static_cast<double>(std::max(m_constraint_iterations, 1)) / substeps)));
+    m_pins_cached = true;
+    return true;
+}
+
+// The solve: this cord's own arrays and nothing else. No engine call, no
+// global, so it can be on any thread while other cords' are on others.
+void VerletRope::StepSolve()
+{
+    const int substeps = m_step_substeps;
+    const double slice = m_step_slice;
+    const bool start_directional = m_step_start_directional;
+    const bool end_directional = m_step_end_directional;
+    const Vector3 start_exit = m_step_start_exit;
+    const Vector3 end_exit = m_step_end_exit;
+
+    m_pin_fraction = 1.0 / substeps;
+    Integrate(slice);
+    ProfileMark(PROF_SELF_DETECT);
+    m_self_contacts.clear();
+    if (m_self_collision)
+        DetectSelfContacts();
+    ProfileMark(PROF_REST);
+
     SolveConstraints(start_directional, end_directional, start_exit, end_exit);
     ProfileMark(PROF_FINISH);
     FinishSelfContacts();
@@ -862,6 +1145,15 @@ void VerletRope::Step(double p_delta)
         ApplyContactFriction();
     }
     m_pin_fraction = 1.0;
+}
+
+void VerletRope::StepEnd()
+{
+    // The ends go where their anchors are NOW. In line that is where the solve
+    // left them; after a batch the anchor's own script may have run since.
+    m_pins_cached = false;
+    m_pin_fraction = 1.0;
+    PinAnchors();
     ProfileMark(PROF_QUERIES);
 
     // Cadence shared by the heavier environment queries below.
@@ -1225,9 +1517,9 @@ void VerletRope::SolveFrayConstraints(int p_iter, double, double p_k_bend, doubl
             // it along the plug's exit axis rather than hanging off it, and so
             // does one whose loose plug is coupled — its body takes the stub's
             // reaction as a torque, so the plug and its boot turn together.
-            if (fc.cached != nullptr && (PlugIsFixed(fc.cached) || PlugIsCoupled(fc.cached, ENDPOINT_AUTO)))
+            if (fc.stub)
             {
-                const Vector3 exit = PlugExitDir(fc.cached, m_end_exit_axis);
+                const Vector3 exit = fc.stub_exit;
                 const Vector3 base = m_points[last];
                 for (int j = 1; j <= n_end; ++j)
                 {

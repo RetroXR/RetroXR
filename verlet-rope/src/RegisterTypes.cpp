@@ -18,6 +18,7 @@ void uninitialize(ModuleInitializationLevel p_level)
 {
     if (p_level != ModuleInitializationLevel::MODULE_INITIALIZATION_LEVEL_SCENE)
         return;
+    Xenu::VerletRope::ShutdownSolveWorkers();
 }
 
 extern "C"

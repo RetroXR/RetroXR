@@ -136,7 +136,28 @@ after the last slice, and the self contacts are found once, after the first inte
   moves the shared particle out of the far stretch's sphere), and it was SLOWER, 330
   against 269 us on a cord hanging over a table's edge: one big overlap query costs as
   much as six or seven small ones, and in a furnished room most stretches are near
-  something. A solve on worker threads would touch only the 35% that is not queries.
+  something.
+- **The solves of the cords awake on a frame run side by side** (2026-11-10). A tick is
+  three parts: `StepBegin` (main thread: anchors, roles, the sleep poll), `StepSolve`
+  (arithmetic on the cord's own arrays, NO engine call and no global), `StepEnd` (main
+  thread: the physics queries, the plugs' forces, sleep). The first cord ticked on a
+  physics frame runs `StepBegin` for every cord in the tree (`RunBatch`), shares the
+  solves between itself and up to three workers (`SolvePool`), and returns when all are
+  done; each cord's own `_physics_process` then does only its `StepEnd`. Nothing
+  outlives the call. `step()` from a script is the three in a row, as it always was, and
+  the split is exact (the stress table is identical). **Anything `StepSolve` reaches
+  must stay free of engine calls**: the anchors' positions and a frayed branch's stub
+  are read in `StepBegin` (`m_pin_target`, `FrayChain::stub`). A cord's ends are
+  re-pinned to its anchors at `StepEnd`, because after a batch the anchor's own script
+  may have run since. Measured in a room with 15-21 cords awake: the solves 0.8-1.2 ms
+  a frame in line, 0.46-0.76 on four threads; all cords together 2.2-3.0 -> 1.9-2.5 ms.
+  The queries are the rest and are the main thread's. `XENU_ROPE_THREADS=1` solves in
+  line (the control); `XENU_ROPE_FRAMETIME=1` prints the main thread's cost a frame;
+  `XENU_ROPE_PROFILE=1` also solves in line (its counters are not shared). Workers are
+  the cores less two, three at most, joined when the extension unloads. **On a Quest 3**
+  (2026-11-10, debug export, nobody wearing it): boots, `[Rope] solving cords on 4
+  threads`, alive and error-free after 2.5 minutes in the bedroom, built on godot-cpp
+  master. Its COST there is still not measured, and nobody has looked at it in a headset.
 - `substeps = 1` is still a working solver (the probe's `--substeps=1` control leg) and
   keeps every contact change below; it is not bit-identical to the solver before.
 
