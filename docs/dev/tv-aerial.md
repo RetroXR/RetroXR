@@ -98,7 +98,7 @@ lineup (never in a room save, never on the wire):
 | how | where |
 |---|---|
 | drop a file (the main way) | any `*.m3u` directly in `<data root>/tv/` (`RomLibrary.default_tv_root()`, beside `channels.json`): desktop `~/retroxr/tv/` (or the relocated data root), Quest `/sdcard/Android/data/com.xenu.retroxr/files/tv/`, reached through the Web File Manager, which serves the whole media root. Read fresh each time; delete it to take its channels away. |
-| a URL on the Antenna menu | the IPTV playlist (M3U) box writes one `{"type":"m3u","url":…,"enabled":…}` source to `channels.json` (`TVChannels.set_playlist`; an empty URL removes it). |
+| a URL on the Antenna menu | the IPTV (M3U) ribbon's playlist box writes one `{"type":"m3u","url":…,"enabled":…}` source to `channels.json` (`TVChannels.set_playlist`; an empty URL removes it). |
 | by hand | `{"type":"m3u","url":…}` or `{"type":"m3u","path":…}` in `channels.json` (a relative `path` is in the tv folder); optional `number_start` (numbers unnumbered channels from it) and `groups` (keep only those `group-title`s). A bare `{"link": "….m3u"}` is a playlist too. |
 
 `.m3u8` is NOT read from the folder and an untyped `.m3u8` link is not a playlist: that
@@ -142,7 +142,7 @@ logs that once.
 Tests: `m3u_tests` (`parse/ options/ config/ build/ lineup/`; local files in the REAL tv
 folder, prefixed `zz_m3u_tests_` and removed, `channels.json` restored byte for byte; the
 lineup under test has no `HDHomeRun` child). Probes, windowed:
-`tv_panel_probe -- --ui=antenna --offline [--scroll=600]` (the box and grouped rows) and
+`tv_panel_probe -- --ui=antenna --offline --tab=1 [--scroll=600]` (the IPTV ribbon: the box and grouped rows) and
 `tv_channel_probe -- --mode=playlist --pick=0|1` (a scratch `.m3u` in the tv folder: 0 a
 local clip, 1 Mux's public HLS test stream behind a user-agent option and a refused `sout`).
 **OWED:** a real provider's playlist, a remote `.m3u` URL fetched in the room, and the Quest.
@@ -168,6 +168,11 @@ The HDHomeRun box is what the aerial IS in this room, so "Find tuner automatical
 the address, Refresh, the status line and the channel list are on the **Antenna's** Tab
 menu (`AntennaOptionsPanel` / `AntennaOptions2D`), created on demand like
 `ObjectOptionsPanel`. `TVOptions2D` is Options | CRT and nothing else.
+
+The Antenna menu has one ribbon per source: **HDHomeRun** (the tuner box and the rows
+whose `source` is `hdhomerun`) and **IPTV (M3U)** (the playlist box and the `m3u` rows).
+Each ribbon's list indexes into the one merged `TVLineup.channels`, so a click emits the
+same index either way; the "Feeding …" line sits above both.
 
 The options walk stops at the first pickable going UP from what the pointer hit, and on an
 aerial that is the BASE (`AntennaBody`), not the `Antenna` root — so the base answers
@@ -195,7 +200,7 @@ disabled under a line saying why.
   glass, which changes the OSD banner under test.
 - Probes, windowed: `Tools/av/antenna_probe.tscn` (three photos, each beside a log line
   saying what the SET believes — a lead that looks seated is not proof),
-  `Tools/av/tv_panel_probe.tscn -- --ui=antenna [--offline] [--loose]`,
+  `Tools/av/tv_panel_probe.tscn -- --ui=antenna [--offline] [--loose] [--tab=0|1]`,
   `Tools/av/tv_channel_probe.tscn` (the only end-to-end check against a real HDHomeRun),
   `Tools/models/famicom_render_probe.tscn` (CH1 and CH2, both positions).
 - **OWED:** nobody has watched a real broadcast through an Antenna yet.

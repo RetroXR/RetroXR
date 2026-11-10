@@ -6,6 +6,11 @@
 ## the list it reports belong on the aerial, and a set with nothing in its coax
 ## socket has neither channels nor anywhere to configure them.
 ##
+## Two ribbons, one per source: HDHomeRun (the tuner's box and the broadcast rows it
+## reports) and IPTV (the M3U playlist box and the rows it lists). Each ribbon's
+## list holds only its own source's channels; the "where the lead goes" line sits
+## above both because it governs either.
+##
 ## Emits:
 ##   channel_selected(index)            — a row in the list was clicked
 ##   tuner_settings_changed(auto, host) — write them to channels.json
@@ -31,8 +36,12 @@ const COLOR_TITLE := Color(0.9,  0.9,  1.0)
 const COLOR_ROW   := Color(0.65, 0.65, 0.80)
 const COLOR_WARN  := Color(1.0,  0.80, 0.35)
 
-var _channels_scroll: ScrollContainer = null
-var _channel_list: VirtualRowList = null
+var _tabs: TabContainer = null
+## Per ribbon: its scroll and its list, in tab order (HDHomeRun, IPTV).
+var _scrolls: Array[ScrollContainer] = []
+var _lists: Array[VirtualRowList] = []
+## Per ribbon: indices into _channels of the rows that ribbon lists.
+var _tab_rows: Array = [[], []]
 var _auto_toggle: VRCheck = null
 var _host_edit: LineEdit = null
 var _tuner_status: Label = null
@@ -76,13 +85,38 @@ func _build_ui() -> void:
 	_link_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	root_vbox.add_child(_link_status)
 
-	# --- tuner box ---
+	# One ribbon per source. Each holds its source's box and only its own rows.
+	_tabs = TabContainer.new()
+	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_tabs.add_theme_font_size_override("font_size", 18)
+	root_vbox.add_child(_tabs)
+
+	var hd_page := _tab_page("HDHomeRun")
+	_build_tuner_box(hd_page)
+	hd_page.add_child(HSeparator.new())
+	_add_channel_list(hd_page, 0)
+
+	var pl_page := _tab_page("IPTV (M3U)")
+	_build_playlist_box(pl_page)
+	pl_page.add_child(HSeparator.new())
+	_add_channel_list(pl_page, 1)
+
+
+func _tab_page(title: String) -> VBoxContainer:
+	var page := VBoxContainer.new()
+	page.name = title
+	page.add_theme_constant_override("separation", 6)
+	_tabs.add_child(page)
+	return page
+
+
+func _build_tuner_box(parent: VBoxContainer) -> void:
 	# Caption on the left, box on the right — the shape the book and VCR panels
 	# already use, and the reason VRCheck carries no text of its own.
 	var auto_row := HBoxContainer.new()
 	auto_row.add_theme_constant_override("separation", 8)
 	auto_row.custom_minimum_size = Vector2(0, 52)
-	root_vbox.add_child(auto_row)
+	parent.add_child(auto_row)
 
 	var auto_lbl := Label.new()
 	auto_lbl.text = "Find tuner automatically"
@@ -96,7 +130,7 @@ func _build_ui() -> void:
 
 	var addr_row := HBoxContainer.new()
 	addr_row.add_theme_constant_override("separation", 8)
-	root_vbox.add_child(addr_row)
+	parent.add_child(addr_row)
 
 	var addr_lbl := Label.new()
 	addr_lbl.text = "Address"
@@ -127,21 +161,20 @@ func _build_ui() -> void:
 	_tuner_status.add_theme_font_size_override("font_size", 15)
 	_tuner_status.add_theme_color_override("font_color", COLOR_ROW)
 	_tuner_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	root_vbox.add_child(_tuner_status)
+	parent.add_child(_tuner_status)
 
-	root_vbox.add_child(HSeparator.new())
 
-	# --- IPTV playlist box ---
+func _build_playlist_box(parent: VBoxContainer) -> void:
 	# Same caption-then-box shape as the tuner's. The URL is one m3u source in
 	# channels.json; .m3u files dropped in the tv folder need nothing typed here,
 	# and the status line names that folder so a player can find it.
 	var pl_row := HBoxContainer.new()
 	pl_row.add_theme_constant_override("separation", 8)
 	pl_row.custom_minimum_size = Vector2(0, 52)
-	root_vbox.add_child(pl_row)
+	parent.add_child(pl_row)
 
 	var pl_lbl := Label.new()
-	pl_lbl.text = "IPTV playlist (M3U)"
+	pl_lbl.text = "Use playlist URL"
 	pl_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	pl_lbl.add_theme_font_size_override("font_size", 18)
 	pl_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -157,33 +190,36 @@ func _build_ui() -> void:
 	_playlist_edit.add_theme_font_size_override("font_size", 16)
 	_playlist_edit.text_submitted.connect(func(_t: String) -> void: _commit_playlist())
 	_playlist_edit.focus_exited.connect(_commit_playlist)
-	root_vbox.add_child(_playlist_edit)
+	parent.add_child(_playlist_edit)
 
 	_playlist_status = Label.new()
 	_playlist_status.text = "—"
 	_playlist_status.add_theme_font_size_override("font_size", 15)
 	_playlist_status.add_theme_color_override("font_color", COLOR_ROW)
 	_playlist_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	root_vbox.add_child(_playlist_status)
+	parent.add_child(_playlist_status)
 
-	root_vbox.add_child(HSeparator.new())
 
-	# --- channel list ---
-	# Virtualised because a broadcast lineup runs to 80-odd rows and building that
-	# many real Controls in a Viewport2DIn3D is not free.
-	_channels_scroll = ScrollContainer.new()
-	_channels_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_channels_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_channels_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	MenuStyle.fat_vscroll_bar(_channels_scroll)
-	root_vbox.add_child(_channels_scroll)
+## A ribbon's channel list. Virtualized because a broadcast lineup runs to 80-odd
+## rows and building that many real Controls in a Viewport2DIn3D is not free.
+func _add_channel_list(parent: VBoxContainer, tab: int) -> void:
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	MenuStyle.fat_vscroll_bar(scroll)
+	parent.add_child(scroll)
 
-	_channel_list = VirtualRowList.new()
-	_channel_list.row_height = 46
-	_channel_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_channel_list.set_row_builder(_build_channel_row)
-	_channel_list.set_row_binder(_bind_channel_row)
-	_channels_scroll.add_child(_channel_list)
+	var list := VirtualRowList.new()
+	list.row_height = 46
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.set_row_builder(_build_channel_row)
+	list.set_row_binder(func(row: Control, i: int) -> void:
+		var rows: Array = _tab_rows[tab]
+		_bind_channel_row(row, int(rows[i]) if i >= 0 and i < rows.size() else -1))
+	scroll.add_child(list)
+	_scrolls.append(scroll)
+	_lists.append(list)
 
 
 func _build_channel_row() -> Control:
@@ -237,8 +273,7 @@ func populate_link(tv_name: String, via_switch: bool) -> void:
 		_link_status.text = "Feeding %s%s" % [tv_name,
 			" through an RF switch" if via_switch else ""]
 		_link_status.add_theme_color_override("font_color", COLOR_TITLE)
-	if _channel_list:
-		_channel_list.rebind_visible()
+	_rebind_lists()
 
 
 ## Refresh the list and which row is lit.
@@ -248,9 +283,21 @@ func populate_channels(channels: Array, current: int) -> void:
 		if c is Dictionary:
 			_channels.append(c as Dictionary)
 	_current_channel = current
-	if _channel_list:
-		_channel_list.set_row_count(_channels.size())
-		_channel_list.rebind_visible()
+	# Split by source: playlist rows to the IPTV ribbon, everything else (the
+	# tuner's rows) to HDHomeRun. Indices stay into _channels, so a click still
+	# emits the index the lineup knows.
+	_tab_rows = [[], []]
+	for i in _channels.size():
+		var tab := 1 if str(_channels[i].get("source", "")) == "m3u" else 0
+		(_tab_rows[tab] as Array).append(i)
+	for t in _lists.size():
+		_lists[t].set_row_count((_tab_rows[t] as Array).size())
+	_rebind_lists()
+
+
+func _rebind_lists() -> void:
+	for list in _lists:
+		list.rebind_visible()
 
 
 ## Sync the tuner controls. `status` is already-worded text for the status line.
@@ -286,8 +333,11 @@ func populate_playlist(enabled: bool, url: String, status: String) -> void:
 
 ## Drive the list from an external stick or wheel input.
 func scroll_active(pixels: float) -> void:
-	if _channels_scroll:
-		_channels_scroll.scroll_vertical += int(pixels)
+	if _tabs == null:
+		return
+	var t := _tabs.current_tab
+	if t >= 0 and t < _scrolls.size():
+		_scrolls[t].scroll_vertical += int(pixels)
 
 
 func _on_auto_toggled(pressed: bool) -> void:

@@ -13,6 +13,7 @@ extends Node
 ##     --offline skips the network and fills the list with a sample lineup, for a
 ##               machine with no HDHomeRun on the LAN. The layout is what it proves.
 ##     --loose   photographs it as it reads with the lead plugged into nothing.
+##     --tab=N   0 the HDHomeRun ribbon, 1 the IPTV (M3U) ribbon.
 ## --ui=tv       TVOptions2D, which no longer has a Channels tab (--tab=0 Controls,
 ##               1 Options, 2 CRT). The list moved to the aerial with the thing it
 ##               describes. Controls is fed TV_SAMPLE, a set with two consoles, an
@@ -99,7 +100,8 @@ func _run() -> void:
 	await get_tree().process_frame
 
 	DirAccess.make_dir_recursive_absolute("res://probe_out")
-	var out := "res://probe_out/%s_panel%s.png" % [_which,
+	var out := "res://probe_out/%s_panel%s%s.png" % [_which,
+		"" if _tab <= 0 else "_tab%d" % _tab,
 		"" if _scroll <= 0 else "_scroll%d" % _scroll]
 	_sv.get_texture().get_image().save_png(out)
 	print("[panel] saved %s" % out)
@@ -149,6 +151,9 @@ func _show_antenna() -> void:
 	ui.populate_channels(channels, -1 if _loose else mini(3, channels.size() - 1))
 	ui.populate_tuner(auto, host, host, status)
 	ui.populate_playlist(true, pl_url, pl_status)
+	var atabs := _find_tabs(ui)
+	if atabs:
+		atabs.current_tab = clampi(_tab, 0, atabs.get_tab_count() - 1)
 	print("[panel] antenna: %d channels; status: %s; playlist: %s"
 		% [channels.size(), status, pl_status])
 	if _scroll > 0:
