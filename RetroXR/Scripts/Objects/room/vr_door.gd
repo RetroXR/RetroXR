@@ -745,6 +745,12 @@ func _build_rig(leaf_meshes: Array[Node3D], knob_meshes: Array[Node3D]) -> void:
 	grab.shape = grab_box
 	hinge.add_child(grab)
 	_pivot.add_child(hinge)
+	# Shut, BEFORE anything else is hung on the leaf. VRSpringLatchedHinge's _ready
+	# swings a door that starts unlatched to max_deg, and the bar (or knob) reparented
+	# onto the leaf after it kept that open pose: shut again, it stood on end by the
+	# hinge jamb (the Starlight Arcade's front doors, the first push doors).
+	if not hinge.start_closed:
+		hinge.set_state_remote(0.0, false, false)
 	hinge.opener = null
 	hinge.leaf_width = _leaf_box.size.x
 	hinge.self_closing = self_closing

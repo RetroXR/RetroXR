@@ -586,6 +586,14 @@ func _push_only() -> void:
 	var h := _hand("push_a")
 	var d := await _push_door(VRDoor.Opener.PUSH_BAR)
 	_ok(not d.is_latched(), "push/a push door has no latch")
+	# Its bar stands where it was built, level across the shut leaf: a door that starts
+	# unlatched swings to max_deg in the hinge's _ready, and a bar hung on the leaf then
+	# came out a quarter turn round, standing on end by the hinge jamb.
+	var bar_mesh := d.get_node_or_null("HingeFrame/HingePivot/Bar") as Node3D
+	var bar_at := d.to_local(bar_mesh.global_position) if bar_mesh != null else Vector3.INF
+	_ok(bar_mesh != null and bar_at.distance_to(d._bar_box.get_center()) < 0.001
+		and (d.global_basis.inverse() * bar_mesh.global_basis).is_equal_approx(Basis.IDENTITY),
+		"push/its bar lies level across the shut leaf, where it was built", str(bar_at))
 	_hand_at(h, _on_bar(d, 0.0, -0.004))
 	await _ticks(3)
 	var tip0 := _on_bar(d, 0.0, 0.02)
