@@ -264,6 +264,8 @@ const SPEAKER_CABLE_SCENE    := preload("res://Scenes/Objects/cables/speaker_cab
 const STORAGE_BOX_SCENE      := preload("res://Scenes/Objects/appliances/storage_box.tscn")
 const TABLE_SCENE            := preload("res://Scenes/Objects/furniture/table.tscn")
 const NIGHTSTAND_SCENE       := preload("res://Scenes/Objects/furniture/nightstand.tscn")
+const MISSION_NIGHTSTAND_SCENE := preload("res://Scenes/Objects/furniture/mission_nightstand.tscn")
+const MISSION_CHEST_SCENE    := preload("res://Scenes/Objects/furniture/mission_chest.tscn")
 const SEAT_RACING_SCENE      := preload("res://Scenes/Objects/furniture/seat_racing.tscn")
 const SEAT_STOOL_SCENE       := preload("res://Scenes/Objects/furniture/seat_stool.tscn")
 const SEAT_CHAIR_SCENE       := preload("res://Scenes/Objects/furniture/seat_chair.tscn")
@@ -416,6 +418,9 @@ const PLAIN_SCENES := {
 	"table": TABLE_SCENE,
 	# Pose only: how far its drawer is out is a VRSlider (VRDrawer), saved with the articulated controls.
 	"nightstand": NIGHTSTAND_SCENE,
+	# Pose only, as the nightstand: every drawer is a VRDrawer saved with the articulated controls.
+	"mission_nightstand": MISSION_NIGHTSTAND_SCENE,
+	"mission_chest": MISSION_CHEST_SCENE,
 	# Pose only: where the player is sitting is this session's, never saved.
 	"seat_racing": SEAT_RACING_SCENE,
 	"seat_stool": SEAT_STOOL_SCENE,
@@ -2914,6 +2919,8 @@ static func _save_kind_rows() -> Array:
 		[ArcadeBayUnit, "", &"_arcade_bay_entry"],
 		[Table, "table"],
 		[Nightstand, "nightstand"],
+		# The scene says which piece it is (`type_id`), as a Seat's does.
+		[DrawerFurniture, "", &"_drawer_furniture_entry"],
 		# Pose only, and in the table for the table's reason: PLAIN_SCENES is read when LOADING. The
 		# scene says which seat it is (`type_id`); that the player sits on it is this session's.
 		[Seat, "", &"_seat_entry"],
@@ -3086,6 +3093,10 @@ func _battery_entry(cell: BatteryCell, id: int, n3d: Node3D,
 
 func _seat_entry(seat: Seat, id: int, n3d: Node3D, _node_to_id: Dictionary) -> Dictionary:
 	return _base(id, seat.type_id, n3d)
+
+
+func _drawer_furniture_entry(piece: DrawerFurniture, id: int, n3d: Node3D, _node_to_id: Dictionary) -> Dictionary:
+	return _base(id, piece.type_id, n3d)
 
 
 func _vb_power_unit_entry(unit: VbPowerUnit, id: int, n3d: Node3D, _node_to_id: Dictionary) -> Dictionary:

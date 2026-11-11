@@ -80,3 +80,18 @@ Tests: `vr_drawer_tests` (`rig contract latch grip coast soft push save carry ha
 mute, the grab offset, the stale re-arm, the physics follow, the inward push, keep-awake, the restore snap). Look:
 `Tools/room/nightstand_probe` (windowed; `--out=`, `--frames`, `--carry`, use `--fixed-fps 72` to record). Headset feel, the Quest's
 cost and a two-peer session OWED.
+
+## Furniture built from its contract: `DrawerFurniture` (the Mission pair)
+
+`Scripts/Objects/furniture/drawer_furniture.gd` builds a piece with any number of drawers from its model's contract,
+read at RUN TIME (`DeckFace.contract`: a `.json` is a JSON resource and ships with the export, as `vcr_contract.json`
+does on a Quest; the walnut nightstand's copied consts were over-cautious). From the contract: the case's collision
+boxes (`collision.case`, named `Case<name>_<n>`), and per drawer a `DrawerBodyN` (front, floor, four walls, the lid),
+a `DrawerVisualN` the model's `DrawerN` hangs from, and a `DrawerHandleN` VRDrawer at the middle of its pulls with one
+handle box across them (a wide drawer's two pulls are one handle). The lid sits under `row_top_y` (the rail above)
+and stops at `case_front_z`; the hold is polled as the nightstand's. `rider_shapes()` is the top (`CaseTop_`), never
+the top rail. Saved as `type_id` through `_drawer_furniture_entry`, each drawer through its VRDrawer's path.
+
+Shipped: `mission_nightstand` (2 drawers) and `mission_chest` (6), the owner's Mission bedroom pair modelled from
+photos in RetroXR-models `generic/mission-bedroom` (sizes ESTIMATED until measured; its `params.py` holds every
+number). `vr_drawer_tests mission/`.

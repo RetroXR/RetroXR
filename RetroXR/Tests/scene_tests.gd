@@ -1701,7 +1701,7 @@ func _test_thumbnail() -> void:
 # ── The save side's type table (ScenePersistence._save_kind_rows) ─────────────
 
 ## PLAIN_SCENES types whose save row picks the type at save time (a peripheral,
-## an audio deck, a battery, a cabinet, a stand, a seat or an arcade bay by its
+## an audio deck, a battery, a cabinet, a stand, a seat, a DrawerFurniture or an arcade bay by its
 ## scene, a Virtual Boy pack or tap by its kind), or that are an old name read back
 ## only ("ray_gun").
 const _BUILT_TYPES := ["light_gun", "ray_gun", "retro_keyboard", "wiimote",
@@ -1709,7 +1709,8 @@ const _BUILT_TYPES := ["light_gun", "ray_gun", "retro_keyboard", "wiimote",
 	"loudspeaker", "subwoofer", "speaker_stand_120", "speaker_stand_100",
 	"seat_racing", "seat_stool", "seat_chair", "seat_cushion", "seat_sofa", "seat_bed",
 	"arcade_bay_jamma", "arcade_bay_mvs", "arcade_bay_laserdisc", "arcade_bay_discrete",
-	"vb_battery_pack", "vb_ac_tap"]
+	"vb_battery_pack", "vb_ac_tap",
+	"mission_nightstand", "mission_chest"]
 
 
 ## PLAIN_SCENES is read only when LOADING; a type with no save row is never

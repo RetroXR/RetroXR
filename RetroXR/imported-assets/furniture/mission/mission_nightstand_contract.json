@@ -1,0 +1,307 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the drawers face +Z, x to the right seen from the front; the ORIGIN is the middle of the footprint, on the floor",
+ "variant": "nightstand",
+ "size": [
+  0.758,
+  0.664,
+  0.438
+ ],
+ "levels": [
+  "mission_nightstand_mobile",
+  "mission_nightstand_mobile_lod1",
+  "mission_nightstand_mobile_lod2"
+ ],
+ "master": "mission_nightstand_high",
+ "markers": [
+  {
+   "node": "TopSurface",
+   "position": [
+    0.0,
+    0.664,
+    -0.0
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the middle of the top, +Y up"
+  }
+ ],
+ "own_nodes": [
+  "Case",
+  "Drawer1",
+  "Drawer2"
+ ],
+ "case_front_z": 0.205,
+ "drawers": [
+  {
+   "node": "Drawer1",
+   "row": 0,
+   "front": {
+    "centre": [
+     0.0,
+     0.5,
+     0.1995
+    ],
+    "size": [
+     0.531,
+     0.203,
+     0.019
+    ]
+   },
+   "inner": {
+    "centre": [
+     0.0,
+     0.495,
+     0.0275
+    ],
+    "size": [
+     0.482,
+     0.162,
+     0.303
+    ]
+   },
+   "pulls": [
+    [
+     0.0,
+     0.5,
+     0.2147
+    ]
+   ],
+   "travel_m": 0.26,
+   "row_top_y": 0.598
+  },
+  {
+   "node": "Drawer2",
+   "row": 1,
+   "front": {
+    "centre": [
+     0.0,
+     0.301,
+     0.1995
+    ],
+    "size": [
+     0.531,
+     0.177,
+     0.019
+    ]
+   },
+   "inner": {
+    "centre": [
+     0.0,
+     0.296,
+     0.0275
+    ],
+    "size": [
+     0.482,
+     0.136,
+     0.303
+    ]
+   },
+   "pulls": [
+    [
+     0.0,
+     0.301,
+     0.2147
+    ]
+   ],
+   "travel_m": 0.26,
+   "row_top_y": 0.386
+  }
+ ],
+ "collision": {
+  "case": [
+   {
+    "name": "Leg",
+    "centre": [
+     -0.286,
+     0.32,
+     0.181
+    ],
+    "size": [
+     0.048,
+     0.64,
+     0.048
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     -0.286,
+     0.32,
+     -0.181
+    ],
+    "size": [
+     0.048,
+     0.64,
+     0.048
+    ]
+   },
+   {
+    "name": "Side",
+    "centre": [
+     -0.295,
+     0.375,
+     -0.0
+    ],
+    "size": [
+     0.018,
+     0.53,
+     0.362
+    ]
+   },
+   {
+    "name": "BracketL",
+    "centre": [
+     -0.3255,
+     0.58,
+     -0.0
+    ],
+    "size": [
+     0.079,
+     0.12,
+     0.41
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     0.286,
+     0.32,
+     0.181
+    ],
+    "size": [
+     0.048,
+     0.64,
+     0.048
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     0.286,
+     0.32,
+     -0.181
+    ],
+    "size": [
+     0.048,
+     0.64,
+     0.048
+    ]
+   },
+   {
+    "name": "Side",
+    "centre": [
+     0.295,
+     0.375,
+     -0.0
+    ],
+    "size": [
+     0.018,
+     0.53,
+     0.362
+    ]
+   },
+   {
+    "name": "BracketR",
+    "centre": [
+     0.3255,
+     0.58,
+     -0.0
+    ],
+    "size": [
+     0.079,
+     0.12,
+     0.41
+    ]
+   },
+   {
+    "name": "Top",
+    "centre": [
+     0.0,
+     0.652,
+     -0.0
+    ],
+    "size": [
+     0.758,
+     0.024,
+     0.438
+    ]
+   },
+   {
+    "name": "TopRail",
+    "centre": [
+     0.0,
+     0.619,
+     0.195
+    ],
+    "size": [
+     0.524,
+     0.042,
+     0.02
+    ]
+   },
+   {
+    "name": "Rail",
+    "centre": [
+     0.0,
+     0.394,
+     0.003
+    ],
+    "size": [
+     0.524,
+     0.016,
+     0.404
+    ]
+   },
+   {
+    "name": "Rail",
+    "centre": [
+     0.0,
+     0.208,
+     0.003
+    ],
+    "size": [
+     0.524,
+     0.016,
+     0.404
+    ]
+   },
+   {
+    "name": "Apron",
+    "centre": [
+     0.0,
+     0.169,
+     0.195
+    ],
+    "size": [
+     0.524,
+     0.062,
+     0.02
+    ]
+   },
+   {
+    "name": "Back",
+    "centre": [
+     0.0,
+     0.375,
+     -0.2018
+    ],
+    "size": [
+     0.572,
+     0.53,
+     0.0056
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres, every drawer SHUT; a drawer slides along +Z by its travel_m and carries its own front and inside"
+ },
+ "estimated": "the outline is estimated from photos: see MEASUREMENTS.md",
+ "triangles": {
+  "high": 3756,
+  "lod0": 1596,
+  "lod1": 716,
+  "lod2": 580
+ }
+}

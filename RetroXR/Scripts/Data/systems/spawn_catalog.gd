@@ -1037,6 +1037,9 @@ const OBJECTS := [
 	["Table",           "table"],
 	# A bedside table whose drawer pulls out by its brass bar (VRDrawer); what is in it rides along.
 	["Nightstand",      "nightstand"],
+	# The Mission bedroom pair, every drawer pulling out by its ring pulls (DrawerFurniture).
+	["Mission Nightstand", "mission_nightstand"],
+	["Mission Chest",      "mission_chest"],
 	# Somewhere to sit: press the cushion to sit, again to get up; hold on it to carry it.
 	["Racing Seat",     "seat_racing"],
 	["Stool",           "seat_stool"],

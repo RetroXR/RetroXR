@@ -1,0 +1,531 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the drawers face +Z, x to the right seen from the front; the ORIGIN is the middle of the footprint, on the floor",
+ "variant": "chest",
+ "size": [
+  1.056,
+  1.256,
+  0.492
+ ],
+ "levels": [
+  "mission_chest_mobile",
+  "mission_chest_mobile_lod1",
+  "mission_chest_mobile_lod2"
+ ],
+ "master": "mission_chest_high",
+ "markers": [
+  {
+   "node": "TopSurface",
+   "position": [
+    0.0,
+    1.256,
+    -0.0
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the middle of the top, +Y up"
+  }
+ ],
+ "own_nodes": [
+  "Case",
+  "Drawer1",
+  "Drawer2",
+  "Drawer3",
+  "Drawer4",
+  "Drawer5",
+  "Drawer6"
+ ],
+ "case_front_z": 0.23,
+ "drawers": [
+  {
+   "node": "Drawer1",
+   "row": 0,
+   "front": {
+    "centre": [
+     -0.2,
+     1.101,
+     0.2245
+    ],
+    "size": [
+     0.391,
+     0.177,
+     0.019
+    ]
+   },
+   "inner": {
+    "centre": [
+     -0.2,
+     1.096,
+     0.0275
+    ],
+    "size": [
+     0.342,
+     0.136,
+     0.353
+    ]
+   },
+   "pulls": [
+    [
+     -0.2,
+     1.101,
+     0.2397
+    ]
+   ],
+   "travel_m": 0.3,
+   "row_top_y": 1.186
+  },
+  {
+   "node": "Drawer2",
+   "row": 0,
+   "front": {
+    "centre": [
+     0.2,
+     1.101,
+     0.2245
+    ],
+    "size": [
+     0.391,
+     0.177,
+     0.019
+    ]
+   },
+   "inner": {
+    "centre": [
+     0.2,
+     1.096,
+     0.0275
+    ],
+    "size": [
+     0.342,
+     0.136,
+     0.353
+    ]
+   },
+   "pulls": [
+    [
+     0.2,
+     1.101,
+     0.2397
+    ]
+   ],
+   "travel_m": 0.3,
+   "row_top_y": 1.186
+  },
+  {
+   "node": "Drawer3",
+   "row": 1,
+   "front": {
+    "centre": [
+     0.0,
+     0.9075,
+     0.2245
+    ],
+    "size": [
+     0.791,
+     0.192,
+     0.019
+    ]
+   },
+   "inner": {
+    "centre": [
+     0.0,
+     0.9025,
+     0.0275
+    ],
+    "size": [
+     0.742,
+     0.151,
+     0.353
+    ]
+   },
+   "pulls": [
+    [
+     -0.20384,
+     0.9075,
+     0.2397
+    ],
+    [
+     0.20384,
+     0.9075,
+     0.2397
+    ]
+   ],
+   "travel_m": 0.3,
+   "row_top_y": 1.0
+  },
+  {
+   "node": "Drawer4",
+   "row": 2,
+   "front": {
+    "centre": [
+     0.0,
+     0.7065,
+     0.2245
+    ],
+    "size": [
+     0.791,
+     0.192,
+     0.019
+    ]
+   },
+   "inner": {
+    "centre": [
+     0.0,
+     0.7015,
+     0.0275
+    ],
+    "size": [
+     0.742,
+     0.151,
+     0.353
+    ]
+   },
+   "pulls": [
+    [
+     -0.20384,
+     0.7065,
+     0.2397
+    ],
+    [
+     0.20384,
+     0.7065,
+     0.2397
+    ]
+   ],
+   "travel_m": 0.3,
+   "row_top_y": 0.799
+  },
+  {
+   "node": "Drawer5",
+   "row": 3,
+   "front": {
+    "centre": [
+     0.0,
+     0.51,
+     0.2245
+    ],
+    "size": [
+     0.791,
+     0.183,
+     0.019
+    ]
+   },
+   "inner": {
+    "centre": [
+     0.0,
+     0.505,
+     0.0275
+    ],
+    "size": [
+     0.742,
+     0.142,
+     0.353
+    ]
+   },
+   "pulls": [
+    [
+     -0.20384,
+     0.51,
+     0.2397
+    ],
+    [
+     0.20384,
+     0.51,
+     0.2397
+    ]
+   ],
+   "travel_m": 0.3,
+   "row_top_y": 0.598
+  },
+  {
+   "node": "Drawer6",
+   "row": 4,
+   "front": {
+    "centre": [
+     0.0,
+     0.3135,
+     0.2245
+    ],
+    "size": [
+     0.791,
+     0.192,
+     0.019
+    ]
+   },
+   "inner": {
+    "centre": [
+     0.0,
+     0.3085,
+     0.0275
+    ],
+    "size": [
+     0.742,
+     0.151,
+     0.353
+    ]
+   },
+   "pulls": [
+    [
+     -0.20384,
+     0.3135,
+     0.2397
+    ],
+    [
+     0.20384,
+     0.3135,
+     0.2397
+    ]
+   ],
+   "travel_m": 0.3,
+   "row_top_y": 0.406
+  }
+ ],
+ "collision": {
+  "case": [
+   {
+    "name": "Leg",
+    "centre": [
+     -0.421,
+     0.615,
+     0.201
+    ],
+    "size": [
+     0.058,
+     1.23,
+     0.058
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     -0.421,
+     0.615,
+     -0.201
+    ],
+    "size": [
+     0.058,
+     1.23,
+     0.058
+    ]
+   },
+   {
+    "name": "Side",
+    "centre": [
+     -0.435,
+     0.67,
+     -0.0
+    ],
+    "size": [
+     0.018,
+     1.12,
+     0.402
+    ]
+   },
+   {
+    "name": "BracketL",
+    "centre": [
+     -0.469,
+     1.1425,
+     -0.0
+    ],
+    "size": [
+     0.086,
+     0.175,
+     0.46
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     0.421,
+     0.615,
+     0.201
+    ],
+    "size": [
+     0.058,
+     1.23,
+     0.058
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     0.421,
+     0.615,
+     -0.201
+    ],
+    "size": [
+     0.058,
+     1.23,
+     0.058
+    ]
+   },
+   {
+    "name": "Side",
+    "centre": [
+     0.435,
+     0.67,
+     -0.0
+    ],
+    "size": [
+     0.018,
+     1.12,
+     0.402
+    ]
+   },
+   {
+    "name": "BracketR",
+    "centre": [
+     0.469,
+     1.1425,
+     -0.0
+    ],
+    "size": [
+     0.086,
+     0.175,
+     0.46
+    ]
+   },
+   {
+    "name": "Top",
+    "centre": [
+     0.0,
+     1.243,
+     -0.0
+    ],
+    "size": [
+     1.056,
+     0.026,
+     0.492
+    ]
+   },
+   {
+    "name": "TopRail",
+    "centre": [
+     0.0,
+     1.208,
+     0.22
+    ],
+    "size": [
+     0.784,
+     0.044,
+     0.02
+    ]
+   },
+   {
+    "name": "Stile",
+    "centre": [
+     0.0,
+     1.101,
+     0.003
+    ],
+    "size": [
+     0.016,
+     0.17,
+     0.454
+    ]
+   },
+   {
+    "name": "Rail",
+    "centre": [
+     0.0,
+     1.008,
+     0.003
+    ],
+    "size": [
+     0.784,
+     0.016,
+     0.454
+    ]
+   },
+   {
+    "name": "Rail",
+    "centre": [
+     0.0,
+     0.807,
+     0.003
+    ],
+    "size": [
+     0.784,
+     0.016,
+     0.454
+    ]
+   },
+   {
+    "name": "Rail",
+    "centre": [
+     0.0,
+     0.606,
+     0.003
+    ],
+    "size": [
+     0.784,
+     0.016,
+     0.454
+    ]
+   },
+   {
+    "name": "Rail",
+    "centre": [
+     0.0,
+     0.414,
+     0.003
+    ],
+    "size": [
+     0.784,
+     0.016,
+     0.454
+    ]
+   },
+   {
+    "name": "Rail",
+    "centre": [
+     0.0,
+     0.213,
+     0.003
+    ],
+    "size": [
+     0.784,
+     0.016,
+     0.454
+    ]
+   },
+   {
+    "name": "Apron",
+    "centre": [
+     0.0,
+     0.1745,
+     0.22
+    ],
+    "size": [
+     0.784,
+     0.061,
+     0.02
+    ]
+   },
+   {
+    "name": "Back",
+    "centre": [
+     0.0,
+     0.67,
+     -0.2268
+    ],
+    "size": [
+     0.842,
+     1.12,
+     0.0056
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres, every drawer SHUT; a drawer slides along +Z by its travel_m and carries its own front and inside"
+ },
+ "estimated": "the outline is estimated from photos: see MEASUREMENTS.md",
+ "triangles": {
+  "high": 11132,
+  "lod0": 4428,
+  "lod1": 2204,
+  "lod2": 1812
+ }
+}

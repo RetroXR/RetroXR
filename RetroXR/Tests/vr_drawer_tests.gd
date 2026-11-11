@@ -3,7 +3,7 @@
 ## front pushes it in (but never one reaching INTO it), the grip never lifts the furniture, its open amount saves, and
 ## what rests in it rides out with it. The nightstand is turned 90 degrees and moved, so a frame mix-up shows.
 ##   godot --headless --path RetroXR res://Tests/vr_drawer_tests.tscn [-- --only=<group>]
-## Groups: rig contract latch grip coast soft push save carry haul real
+## Groups: rig contract latch grip coast soft push save carry haul real mission
 extends "res://Tests/test_suite.gd"
 
 const HAND := &"/vr_drawer_tests/hand"
@@ -65,6 +65,8 @@ func _ready() -> void:
 	if _group("haul"):
 		await _haul(ns)
 		await _rough_haul(ns)
+	if _group("mission"):
+		await _mission()
 	if _group("real"):
 		await _real_hold(ns)
 		await _ray_hold(ns)
@@ -694,3 +696,98 @@ func _ray_hold(ns: Nightstand) -> void:
 		await get_tree().physics_frame
 	_ok(on and not ns.lid_on(), "real/held and let go by a ray (no signals), the lid goes on and comes off again")
 	await _reset(ns)
+
+
+## The Mission pair, built from their contracts by DrawerFurniture: every drawer is its own VRDrawer that moves its
+## own body and drawing and no other, carries what is in it, gets a lid while the piece is held, and saves.
+func _mission() -> void:
+	for v: Array in [["mission_nightstand", 2], ["mission_chest", 6]]:
+		var piece := (ScenePersistence.PLAIN_SCENES[v[0]] as PackedScene).instantiate() as DrawerFurniture
+		piece.position = Vector3(-3.0, 0.0, 2.0) if v[0] == "mission_chest" else Vector3(3.0, 0.0, 2.0)
+		add_child(piece)
+		await _ticks(3)
+		var ds := piece.drawers()
+		_eq(ds.size(), v[1], "mission/%s has its %d drawers" % [v[0], v[1]])
+		if ds.size() != v[1]:
+			piece.queue_free()
+			continue
+		# Its type comes from the instance (`type_id`, as a Seat's), so saved_kind_types() cannot list it: save one.
+		var saved_type := str(ScenePersistence.new()._serialize_kind(piece, 1, {}).get("type", ""))
+		_ok(ScenePersistence.PLAIN_SCENES.has(v[0]) and saved_type == v[0],
+			"mission/%s spawns and saves as itself (saved as '%s')" % [v[0], saved_type])
+		var tops := piece.rider_shapes()
+		_ok(tops.size() == 1 and String(tops[0].name).begins_with("CaseTop_"),
+			"mission/%s carries things on its top (and not its top rail)" % v[0])
+		_ok(ds.all(func(d: VRDrawer) -> bool: return d.handle_mesh != null and d.visual != null),
+			"mission/%s: every drawer is drawn from its own visual and outlined" % v[0])
+		# Pull the LAST drawer out by its handle; only it moves.
+		var k := ds.size() - 1
+		var d := ds[k]
+		var others_before := []
+		for j in ds.size():
+			others_before.append(piece.drawer_body(j).position)
+		var box := _loose_box(piece.global_transform * (piece.drawer_seat_local(k) + Vector3(0, 0.03, 0)))
+		for i in 45:
+			await get_tree().physics_frame
+		var rest := box.global_position
+		var start := d.global_position
+		var out := piece.global_basis.z
+		_place(start)
+		await _ticks(3)
+		_buttons(0.9, 0.0)
+		await _ticks(3)
+		for i in 40:
+			_place(start + out * (0.005 * (i + 1)))
+			await get_tree().physics_frame
+		_buttons(0.0, 0.0)
+		_place(FAR)
+		for i in 30:
+			await get_tree().physics_frame
+		var opened := d.open_distance()
+		var moved_ok := absf(piece.drawer_body(k).position.z - opened) < 0.003 			and absf((piece.get_node("DrawerVisual%d" % (k + 1)) as Node3D).position.z - opened) < 0.003
+		var others_still := true
+		for j in ds.size():
+			if j != k:
+				others_still = others_still and piece.drawer_body(j).position.is_equal_approx(others_before[j])
+		_ok(opened > 0.15 and moved_ok, "mission/%s: its bottom drawer pulls out %.0f mm, body and drawing with it" % [
+			v[0], opened * 1000.0])
+		_ok(others_still, "mission/%s: the other drawers stay shut" % v[0])
+		var rode := (box.global_position - rest).dot(out)
+		_ok(absf(rode - opened) < 0.03, "mission/%s: a box in it rode out %.0f of %.0f mm" % [v[0], rode * 1000.0,
+			opened * 1000.0])
+		box.queue_free()
+		# Held, every drawer has a lid; put down, none.
+		piece.freeze = true
+		piece.collision_layer = piece.picked_up_layer
+		piece.collision_mask = 0
+		for i in 4:
+			await get_tree().physics_frame
+		var lids := 0
+		for j in ds.size():
+			lids += 1 if piece.lid_on(j) else 0
+		piece.freeze = false
+		piece.collision_layer = 4
+		piece.collision_mask = 196613
+		for i in 4:
+			await get_tree().physics_frame
+		var any_left := false
+		for j in ds.size():
+			any_left = any_left or piece.lid_on(j)
+		_ok(lids == ds.size() and not any_left, "mission/%s: held, every drawer has its lid (%d of %d); put down, none" % [
+			v[0], lids, ds.size()])
+		# Saved and restored on a fresh piece.
+		var sp := ScenePersistence.new()
+		var records: Array = sp._serialize_articulated_controls(piece)
+		var fresh := (ScenePersistence.PLAIN_SCENES[v[0]] as PackedScene).instantiate() as DrawerFurniture
+		fresh.position = piece.position + Vector3(0, 0, 2.0)
+		add_child(fresh)
+		await _ticks(3)
+		sp._restore_articulated_controls(fresh, records)
+		for i in 3:
+			await get_tree().physics_frame
+		_ok(absf(fresh.drawers()[k].open_distance() - opened) < 0.001
+			and absf(fresh.drawer_body(k).position.z - opened) < 0.002,
+			"mission/%s: saved and restored, that drawer is %.0f mm out again" % [v[0], opened * 1000.0])
+		fresh.queue_free()
+		piece.queue_free()
+		await _ticks(2)
