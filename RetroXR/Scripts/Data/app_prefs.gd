@@ -67,6 +67,12 @@ var mains_region: String = ""
 ## if it moves), "us" / "eu" / "jp", or "original" for the cores' own names
 ## (cartridges then still follow the outlet region).
 var region_names: String = ""
+## The player's name as cores are told it (GET_USERNAME): a PSP's nickname, a DS's
+## firmware name, a netplay handle. "" = automatic (auto_player_name).
+var player_name: String = ""
+## The language cores are told (GET_LANGUAGE), a CoreLanguage id. "" = automatic,
+## from the system locale.
+var core_language: String = ""
 ## Whether a fingertip presses the buttons on pads, handhelds and the like
 ## (ControlPoke). On by default; read every frame, so a change takes at once.
 var poke_controls:    bool = true
@@ -286,6 +292,85 @@ func set_region_names(region: String) -> void:
 	region_names_changed.emit(region)
 
 
+## Set the player's name for cores ("" = automatic), save it and push it. A core
+## already running keeps the name it started with.
+func set_player_name(name_text: String) -> void:
+	var clean := _clean_player_name(name_text)
+	if clean == player_name:
+		return
+	player_name = clean
+	save_prefs()
+	print("[Prefs] player name -> '%s'" % clean)
+	apply_core_identity()
+
+
+## Set the cores' language (a CoreLanguage id, "" = automatic), save it and push it.
+func set_core_language(id: String) -> void:
+	if id == core_language or (not id.is_empty() and not CoreLanguage.is_language(id)):
+		return
+	core_language = id
+	save_prefs()
+	print("[Prefs] core language -> '%s'" % id)
+	apply_core_identity()
+
+
+## The name used while player_name is empty: the RetroAchievements username if
+## one is saved, else the desktop login name, else "Player". The headset has no
+## login name worth giving (Android's account names need a permission), so it
+## goes straight from RetroAchievements to "Player".
+func auto_player_name() -> String:
+	var ra := get_node_or_null("/root/RA")
+	if ra != null and ra.get("config") != null:
+		var ra_name := _clean_player_name(str(ra.config.username))
+		if not ra_name.is_empty():
+			return ra_name
+	var login := _clean_player_name(os_login_name())
+	return login if not login.is_empty() else "Player"
+
+
+## The desktop login name, or "" where there is none (Android, a web build).
+static func os_login_name() -> String:
+	match OS.get_name():
+		"Windows":
+			return OS.get_environment("USERNAME")
+		"Linux", "macOS", "FreeBSD", "NetBSD", "OpenBSD", "BSD":
+			var user := OS.get_environment("USER")
+			return user if not user.is_empty() else OS.get_environment("LOGNAME")
+	return ""
+
+
+func effective_player_name() -> String:
+	return player_name if not player_name.is_empty() else auto_player_name()
+
+
+## The CoreLanguage id cores are told: the player's pick, else the system's.
+func effective_core_language() -> String:
+	if not core_language.is_empty():
+		return core_language
+	return CoreLanguage.for_locale(OS.get_locale())
+
+
+## Push the name and the language to the extension. Both are globals it copies
+## when a core starts (the name) or asks (the language), so this runs at boot,
+## when either pref changes, and when the RetroAchievements name does (RA calls it).
+func apply_core_identity() -> void:
+	if not ClassDB.class_exists("Libretro"):
+		return
+	ClassDB.class_call_static("Libretro", "SetUsername", effective_player_name())
+	ClassDB.class_call_static("Libretro", "SetLanguage",
+		CoreLanguage.retro_language(effective_core_language()))
+
+
+## One line, no control characters, at most 32 characters: what a console's own
+## name fields can hold is far less, and a core trims to its own limit.
+static func _clean_player_name(text: String) -> String:
+	var out := ""
+	for c in text.strip_edges():
+		if c.unicode_at(0) >= 32 and c.unicode_at(0) != 127:
+			out += c
+	return out.substr(0, 32).strip_edges()
+
+
 ## Change "Enable Power Simulation", save it, and say so: every powered device in
 ## the room re-asks for its supply (MainsPower listens).
 func set_power_simulation(on: bool) -> void:
@@ -317,6 +402,9 @@ func _ready() -> void:
 	# write goes through the setters.
 	ControllerModel.draw_hands = controller_hands
 	SystemFilter.enabled = system_filter
+	# RA is a later autoload, so the name here is the login name until RA has read
+	# its config and calls this again.
+	apply_core_identity()
 	# Spatial audio is deliberately NOT applied here: SpatialAudioListener is a
 	# later autoload and reads this pref in its own _ready. See
 	# _apply_spatial_audio, which serves the player changing it afterwards.
@@ -467,6 +555,10 @@ func load_prefs() -> void:
 	region_names        = JsonStore.get_string(data, "region_names", region_names)
 	if not RegionalNames.is_region(region_names):
 		region_names = ""
+	player_name = _clean_player_name(JsonStore.get_string(data, "player_name", player_name))
+	core_language = JsonStore.get_string(data, "core_language", core_language)
+	if not CoreLanguage.is_language(core_language):
+		core_language = ""
 	compact_tiles       = JsonStore.get_bool(data, "compact_tiles",       compact_tiles)
 	mods_auto_install   = JsonStore.get_bool(data, "mods_auto_install",   mods_auto_install)
 	bedroom_time_of_day = clampf(JsonStore.get_float(data, "bedroom_time_of_day",
@@ -516,6 +608,8 @@ func _prefs_dict() -> Dictionary:
 		"hidden_systems":    hidden_systems,
 		"show_hidden_systems": show_hidden_systems,
 		"region_names":      region_names,
+		"player_name":       player_name,
+		"core_language":     core_language,
 		"compact_tiles":     compact_tiles,
 		"mods_auto_install": mods_auto_install,
 		"bedroom_time_of_day": bedroom_time_of_day,

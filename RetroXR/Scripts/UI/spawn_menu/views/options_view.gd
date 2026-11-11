@@ -92,6 +92,8 @@ var _welcome_toggle: VRToggle = null
 var _pages: Array[ScrollContainer] = []
 ## The Console Names dropdown, reselected when the outlet region moves an unpicked one.
 var _region_names_drop: VRDropdown = null
+## The Player Name field, whose placeholder shows the automatic name.
+var _player_name_edit: LineEdit = null
 
 # Kept so a pairing (typed or scanned) can show its result in the fields the
 # player is looking at, rather than waiting for the view to be rebuilt.
@@ -175,6 +177,7 @@ func _build() -> void:
 	_build_general_options(_page("General"))
 	var systems_page := _page("Systems")
 	_build_region_names_option(systems_page)
+	_build_core_identity_options(systems_page)
 	_build_system_filter_options(systems_page)
 	_build_storage_options(_page("Storage"))
 	if OS.get_name() == "Android":
@@ -1369,6 +1372,48 @@ func _region_names_shown() -> String:
 func _on_mains_for_region_names(_region: String) -> void:
 	if is_instance_valid(_region_names_drop):
 		_region_names_drop.select_id(_region_names_shown())
+
+
+## What the emulators are told: the player's name and language. Both start
+## automatic and say what that resolves to.
+func _build_core_identity_options(vbox: VBoxContainer) -> void:
+	vbox.add_child(MenuStyle.spacer(10))
+	var system_label := CoreLanguage.label(CoreLanguage.for_locale(OS.get_locale()))
+	var items: Array = [["Automatic (%s)" % system_label, "auto"]]
+	for row: Array in CoreLanguage.LANGUAGES:
+		items.append([str(row[1]), str(row[0])])
+	var current := AppPrefs.core_language if not AppPrefs.core_language.is_empty() else "auto"
+	var drop := VRDropdown.create("Emulator Language", items, current, 3,
+		Vector2(340, 52), MenuStyle.MENU_NAME_SIZE)
+	drop.item_selected.connect(func(id: Variant) -> void:
+		AppPrefs.set_core_language("" if str(id) == "auto" else str(id)))
+	vbox.add_child(drop)
+	vbox.add_child(MenuStyle.label(
+		"The system language a console starts in where it has one (GameCube, Wii, PSP, DS, Dreamcast), and the language of core options that are translated. Takes effect the next time a console is switched on.",
+		16, MenuStyle.COLOR_LICENSE))
+
+	vbox.add_child(MenuStyle.spacer(10))
+	_player_name_edit = _add_options_text_field(vbox, "Player Name", AppPrefs.player_name,
+		func(text: String) -> void:
+			AppPrefs.set_player_name(text)
+			if is_instance_valid(_player_name_edit):
+				_player_name_edit.text = AppPrefs.player_name)
+	_player_name_edit.max_length = 32
+	_refresh_player_name_placeholder()
+	if RA.is_available():
+		RA.login_changed.connect(_on_ra_login_for_player_name)
+	vbox.add_child(MenuStyle.label(
+		"The name emulators are given: a PSP's nickname, a DS's owner name, a netplay handle. Left empty it is your RetroAchievements name, else your computer's login name, else \"Player\" (shown in the field).",
+		16, MenuStyle.COLOR_LICENSE))
+
+
+func _refresh_player_name_placeholder() -> void:
+	if is_instance_valid(_player_name_edit):
+		_player_name_edit.placeholder_text = AppPrefs.auto_player_name()
+
+
+func _on_ra_login_for_player_name(_logged_in: bool, _display: String, _error: String) -> void:
+	_refresh_player_name_placeholder()
 
 
 ## System Filter option — off shows the media players, test core and

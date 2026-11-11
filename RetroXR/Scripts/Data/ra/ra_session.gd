@@ -39,6 +39,8 @@ func _ready() -> void:
 func load_data_root() -> void:
 	config = RaConfig.new()
 	config.load_config()
+	# The saved username is the player's automatic name for cores (AppPrefs).
+	AppPrefs.apply_core_identity()
 
 	var ra: Object = _ra()
 	if ra == null:
@@ -251,6 +253,7 @@ func _on_login_result(ok: bool, username: String, token: String, _score: int, er
 	config.username = username
 	config.token = token
 	config.save_config()
+	AppPrefs.apply_core_identity()
 
 	var info := user_info()
 	var display: String = str(info.get("display_name", username))

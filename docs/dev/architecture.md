@@ -38,8 +38,22 @@ Each handler is owned by a `Wrapper` instance and manages one libretro subsystem
   macOS. `PixelSwizzle.hpp` handles the format conversions between them.
 - **AudioHandler** — Audio stream generation and playback
 - **InputHandler** — Per-port input state and joypad/mouse/keyboard mapping (Godot keycodes ↔ libretro keycodes). It does **not** read the global Godot `Input` singleton — there is not one reference to it in `InputHandler.cpp`. State is PUSHED in from GDScript, per port: `Libretro.SetJoypadState(port, buttons, alx, aly, arx, ary)` plus `SetMousePosition`/`SetMouseButtons`, `SetKeyState`, `SetLightgunPosition`/`SetLightgunButtons`, `SetPointerIndexState` (multi-touch/IR), `SetAnalogLeft`/`Right`, `SetSensorAccel`/`SetSensorGyro` and `SetPortDevice`. So two `Libretro` nodes in one scene have entirely independent controller state, which is what lets one room hold several machines — and what lets netplay replay a remote peer's port without touching local hardware. The callers are `retro_controller.gd`, `pad_receiver.gd`, `wiimote.gd`, `handheld_input.gd` and `netplay_session.gd`. A held button is answered 1 or 0 (`ButtonMask.hpp`), never its bit: `input_state` returns an `int16_t`, which dropped the light gun's RELOAD (id 16) for as long as it returned the bit.
-- **EnvironmentHandler** — Libretro environment callbacks (system dirs, VFS, disk control)
-- **OptionsHandler** — Core option parsing (v1/v2 formats), categorization, persistence
+- **EnvironmentHandler** — Libretro environment callbacks (system dirs, VFS, disk control).
+  `GET_USERNAME` and `GET_LANGUAGE` answer process-wide statics, `Libretro.SetUsername` /
+  `SetLanguage` (2026-11-11; before that every core was told "DefaultUser" and English).
+  `AppPrefs.apply_core_identity()` pushes them at boot, when OPTIONS > Systems > Player
+  Name or Emulator Language changes, and when RetroAchievements reads or changes its
+  saved username. Both start automatic: the name is the RetroAchievements username, else
+  the desktop login (`USERNAME`/`USER`; nothing on the headset), else "Player"; the
+  language is `CoreLanguage.for_locale(OS.get_locale())`, with en_GB deliberately read as
+  plain English. A run copies the name as it starts (the core keeps the pointer); the
+  language is read on every ask, so `PeekCoreOptions` follows it too.
+- **OptionsHandler** — Core option parsing (v1/v2 formats), categorization, persistence.
+  The `_INTL` forms take `us` and lay `local` over it by option key, value and category
+  key, string by string, as RetroArch does. A translation is usually partial, and taking
+  `local` alone (as it did until 2026-11-11, harmless only while every core was told
+  English) would drop every option it leaves out. Checked with gambatte and flycast:
+  33 and 89 options in English, Japanese and French alike.
 - **MessageHandler** — Notification/message interface
 - **LogHandler** — Log callback forwarding
 - **CameraHandler** — `RETRO_ENVIRONMENT_GET_CAMERA_INTERFACE`, with the Godot-free
