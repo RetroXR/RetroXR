@@ -156,10 +156,32 @@ after the last slice, and the self contacts are found once, after the first inte
   `XENU_ROPE_PROFILE=1` also solves in line (its counters are not shared). Workers are
   the cores less two, three at most, joined when the extension unloads. **On a Quest 3**
   (2026-11-10, debug export, nobody wearing it): boots, `[Rope] solving cords on 4
-  threads`, alive and error-free after 2.5 minutes in the bedroom, built on godot-cpp
-  master. Its COST there is still not measured, and nobody has looked at it in a headset.
-- `substeps = 1` is still a working solver (the probe's `--substeps=1` control leg) and
-  keeps every contact change below; it is not bit-identical to the solver before.
+  threads`, alive and error-free after 2.5 minutes in the bedroom.
+
+### What a cord costs on a Quest 3 (measured 2026-11-11)
+
+The bedroom's 9 cords, ALL held awake (`debug.xenu.rope_awake`), debug export, headset
+on the desk, the main thread's time a physics frame:
+
+| | all 9 cords | of it the solves | a cord |
+|---|---|---|---|
+| four threads | 1.96 ms | 0.38 ms | 0.22 ms |
+| in line (`rope_threads=1`) | 2.37 ms | 0.77 ms | 0.26 ms |
+| all 9 asleep | 0.13 ms | | |
+
+Nine cords awake at once is 18% of an 11.1 ms frame, and a room at rest is 1%. Where an
+awake cord's 279 us goes, in line (`rope_profile`): the physics QUERIES 170 (particles
+59, segments 86, the wrong-side rays 24), bend 31, coupling + sleep + the render
+snapshot 29 (4 on a desktop: it is engine calls), stretch 14, the self-contact search
+13. So on a Quest too the queries are 61% and the threads reach the other third. A
+room settles in seconds and its cords wake only when handled, which is why the first
+plain run of the room said nothing: `rope_awake` exists to make the worst case stay.
+
+**The switches on a headset** are the same names as debug properties, set BEFORE the app
+starts and cleared after (`RopeSwitch`): `adb shell setprop debug.xenu.rope_frametime 1`,
+and `rope_threads`, `rope_profile`, `rope_diag`, `rope_awake`. On a desktop they are
+the environment variables `XENU_ROPE_FRAMETIME` and so on. Read the answers with
+`adb logcat -d -s godot:* | grep "\[Rope\]"`.
 
 ## A cord that will not lie still in a ROOM: ask it (`XENU_ROPE_DIAG=1`)
 

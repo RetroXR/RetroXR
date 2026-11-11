@@ -6,6 +6,9 @@
 // loop to dodge interpreter call overhead, they are ordinary inline functions
 // again here.
 
+#ifdef __ANDROID__
+#include <sys/system_properties.h>
+#endif
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
@@ -91,7 +94,34 @@ const char *const PROFILE_NAMES[PROF_COUNT] = {"integrate", "self detect", "solv
                                                "particle queries", "segment queries",
                                                "recover rays", "couple+sleep"};
 constexpr int PROFILE_STEPS = 2000;
-const bool g_profile = std::getenv("XENU_ROPE_PROFILE") != nullptr;
+// A switch for a run: an environment variable on a desktop, and on Android
+// (where an app cannot be given one) the debug property of the same name in
+// lower case under debug.xenu., set over adb BEFORE the app starts:
+//   adb shell setprop debug.xenu.rope_frametime 1      (XENU_ROPE_FRAMETIME)
+// An empty property is unset. Returns the value, or nullptr.
+const char *RopeSwitch(const char *p_env, const char *p_property)
+{
+    if (const char *e = std::getenv(p_env))
+        return e;
+#ifdef __ANDROID__
+    static char values[8][PROP_VALUE_MAX];
+    static int used = 0;
+    if (used < 8)
+    {
+        char *value = values[used];
+        if (__system_property_get(p_property, value) > 0)
+        {
+            used += 1;
+            return value;
+        }
+    }
+#else
+    (void)p_property;
+#endif
+    return nullptr;
+}
+
+const bool g_profile = RopeSwitch("XENU_ROPE_PROFILE", "debug.xenu.rope_profile") != nullptr;
 int64_t g_profile_ns[PROF_COUNT] = {};
 int g_profile_phase = PROF_REST;
 int g_profile_steps = 0;
@@ -836,7 +866,7 @@ uint64_t g_batch_frame = UINT64_MAX;
 // with XENU_ROPE_THREADS=0.
 int SolveWorkerCount()
 {
-    if (const char *e = std::getenv("XENU_ROPE_THREADS"))
+    if (const char *e = RopeSwitch("XENU_ROPE_THREADS", "debug.xenu.rope_threads"))
         return std::max(0, std::atoi(e) - 1);
     const int cores = static_cast<int>(std::thread::hardware_concurrency());
     return CLAMP(cores - 2, 0, 3);
@@ -913,7 +943,7 @@ void VerletRope::_physics_process(double p_delta)
 {
     // XENU_ROPE_FRAMETIME=1: what every cord in the room costs the main thread
     // a physics frame, printed every 300 frames. The figure threads are for.
-    static const bool timed = std::getenv("XENU_ROPE_FRAMETIME") != nullptr;
+    static const bool timed = RopeSwitch("XENU_ROPE_FRAMETIME", "debug.xenu.rope_frametime") != nullptr;
     static int64_t spent_ns = 0;
     static int64_t batch_ns = 0;
     static int frames = 0;
@@ -3551,7 +3581,7 @@ void VerletRope::UpdateSleepState()
     // XENU_ROPE_DIAG=1: once a second, every cord that is awake says what is
     // keeping it awake. A cord that will not lie still in a room cannot be read
     // from a probe that does not have the room.
-    static const bool diag = std::getenv("XENU_ROPE_DIAG") != nullptr;
+    static const bool diag = RopeSwitch("XENU_ROPE_DIAG", "debug.xenu.rope_diag") != nullptr;
     if (diag)
     {
         m_diag_ticks += 1;
@@ -3652,7 +3682,12 @@ void VerletRope::UpdateSleepState()
         m_contact_stable_frames >= m_raycast_interval * 2)
     {
         m_still_frames += 1;
-        if (m_still_frames >= SLEEP_FRAMES)
+        // XENU_ROPE_AWAKE=1 (debug.xenu.rope_awake): no cord ever sleeps. Every
+        // cord in the room then runs its whole step every tick, which is the
+        // worst a room can cost and the only way to measure one that settles
+        // in seconds.
+        static const bool never_sleep = RopeSwitch("XENU_ROPE_AWAKE", "debug.xenu.rope_awake") != nullptr;
+        if (m_still_frames >= SLEEP_FRAMES && !never_sleep)
         {
             SleepNow();
         }
