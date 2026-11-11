@@ -24,6 +24,9 @@ var _syncing_screen_lights: bool = false
 ## it loudly and the handler has to ignore the echo. set_pressed_no_signal would
 ## leave the switch and its state disagreeing.
 var _syncing_glow: bool = false
+var _upscaler_opt: VRDropdown = null
+var _path_tracing_tog: VRToggle = null
+var _syncing_path_tracing: bool = false
 
 
 ## `vr_mode` is passed in rather than queried, so the caller decides once and
@@ -147,6 +150,59 @@ func _build(vr_mode: bool) -> void:
 		vbox.add_child(MenuStyle.hint("Resolution the 3D world is drawn at before it is scaled "
 			+ "to the display. Below 100% FSR upscales it for cheaper frames; above 100% "
 			+ "supersamples."))
+
+	# NVIDIA's engine build on an RTX card only: QualityManager says no on the
+	# stock engine, a headset, or a card Streamline does not run DLSS on.
+	if QualityManager.supports_dlss():
+		_upscaler_opt = VRDropdown.create("Upscaler",
+			[["FSR 1", 0], ["DLSS", 1]],
+			1 if QualityManager.effective_dlss() else 0, 2, Vector2(110, 52), 20)
+		_upscaler_opt.item_selected.connect(func(id: Variant) -> void:
+			QualityManager.set_dlss_enabled(int(id) == 1)
+			_sync_rows())
+		vbox.add_child(_upscaler_opt)
+
+		vbox.add_child(MenuStyle.hint("DLSS fills in the missing pixels from earlier frames on "
+			+ "the card's tensor cores: sharper than FSR at the same Render Scale, and it "
+			+ "smooths edges too. 100% and above is DLAA, full resolution with DLSS's "
+			+ "anti-aliasing. Path Tracing always uses it."))
+
+	if QualityManager.supports_path_tracing():
+		vbox.add_child(HSeparator.new())
+		vbox.add_child(MenuStyle.header("PATH TRACING"))
+		_path_tracing_tog = _toggle_row(vbox, "Path Tracing", QualityManager.path_tracing,
+			func(on: bool) -> void:
+				if _syncing_path_tracing:
+					return
+				QualityManager.set_path_tracing(on)
+				_sync_rows())
+
+		vbox.add_child(MenuStyle.hint("Lights the room the way light really travels: every lamp, "
+			+ "neon tube and game screen bounces off the walls, shines in the chrome and casts "
+			+ "soft shadows. It replaces Shadows, Ambient Occlusion and the screen-space effects "
+			+ "and costs far more than all of them, so lower Render Scale to pay for it. "
+			+ "Flat screen only."))
+
+		var bounce_opts: Array = []
+		for n: int in [1, 2, 3, 4, 6, 8]:
+			bounce_opts.append([str(n), n])
+		var bounce_opt := VRDropdown.create("Bounces", bounce_opts,
+			QualityManager.pt_bounces, bounce_opts.size(), Vector2(70, 52), 20)
+		bounce_opt.item_selected.connect(func(id: Variant) -> void:
+			QualityManager.set_pt_bounces(int(id)))
+		vbox.add_child(bounce_opt)
+
+		var spp_opt := VRDropdown.create("Samples per Pixel",
+			[["1", 1], ["2", 2], ["4", 4]],
+			QualityManager.pt_samples, 3, Vector2(70, 52), 20)
+		spp_opt.item_selected.connect(func(id: Variant) -> void:
+			QualityManager.set_pt_samples(int(id)))
+		vbox.add_child(spp_opt)
+
+		vbox.add_child(MenuStyle.hint("Bounces is how far light carries round the room before it "
+			+ "stops: more fills dark corners. Samples is rays a pixel each frame: DLSS gathers "
+			+ "them over time, so 1 is usually enough, and every step up costs the whole "
+			+ "frame again."))
 
 	# The headset's counterpart to the row above, which the mobile backend cannot
 	# take. Never both: render scale is Forward+, this is the headset.
@@ -345,6 +401,23 @@ func _build(vr_mode: bool) -> void:
 	vbox.add_child(HSeparator.new())
 
 
+## A label and a switch on one row, as Glow and Screen Light are built.
+func _toggle_row(vbox: VBoxContainer, text: String, on: bool, cb: Callable) -> VRToggle:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.custom_minimum_size = Vector2(0, 68)
+	vbox.add_child(row)
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", 22)
+	lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(lbl)
+	var tog := VRToggle.create(on, cb)
+	row.add_child(tog)
+	return tog
+
+
 func _resolution_options() -> Array:
 	var screen := DisplayServer.window_get_current_screen()
 	return DesktopWindow.resolution_options(DisplayServer.screen_get_size(screen),
@@ -391,3 +464,10 @@ func _sync_rows() -> void:
 		_syncing_screen_lights = true
 		_screen_lights_tog.button_pressed = QualityManager.screen_lights_enabled
 		_syncing_screen_lights = false
+	# The path tracer forces DLSS on, so the Upscaler row shows what is running.
+	if _upscaler_opt:
+		_upscaler_opt.select_id(1 if QualityManager.effective_dlss() else 0)
+	if _path_tracing_tog:
+		_syncing_path_tracing = true
+		_path_tracing_tog.button_pressed = QualityManager.path_tracing
+		_syncing_path_tracing = false

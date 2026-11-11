@@ -291,6 +291,23 @@ var screen_lights_enabled: bool = true
 ## lights do. Read at material creation by RetroTV.crt_shader(), so a change
 ## reaches sets spawned afterwards.
 var crt_fast: bool = false
+
+## NVIDIA's path tracer and DLSS, which exist only in NVIDIA's engine fork
+## (github.com/NVIDIA-RTX/godot, `nvidia-pt-dlss`), on Forward+ with an RTX card.
+## Stock Godot has neither, so every property and constant of theirs is reached
+## by NAME (set()/ClassDB), never written out: this file must still parse on the
+## stock 4.7.2 that ships, where the rows below are simply not offered. Flat
+## desktop only: neither knows about a second eye (no multiview in either), so a
+## PCVR session stands them down as it does Render Scale.
+var path_tracing: bool = false
+var pt_bounces: int = 3
+var pt_samples: int = 1
+var dlss_enabled: bool = false
+const PT_BOUNCES_MAX := 8
+const PT_SAMPLES_MAX := 4
+## Streamline.StreamlineCapabilityType.STREAMLINE_CAPABILITY_DLSS, by value: the
+## enum is not there to name on a stock engine.
+const _STREAMLINE_CAPABILITY_DLSS := 0
 ## Desktop window state. Empty resolution means "leave the window where it is".
 var window_mode: String = ""
 var resolution: String = ""
@@ -801,6 +818,7 @@ func _log_state() -> void:
 	# frame in the Starlight Arcade). A crash report needs to say which one ran.
 	print("QualityManager: rendering on %s" % (
 		"the main thread" if RenderingServer.is_on_render_thread() else "a separate render thread"))
+	_log_rtx("boot")
 
 
 ## Screen-space effects (SSAO here, plus SSIL/SSR/volumetric fog if they are
@@ -904,12 +922,125 @@ func effective_render_scale() -> float:
 func apply_render_scale() -> void:
 	var root := get_tree().root
 	var scale := effective_render_scale()
+	if effective_dlss():
+		# DLSS has no supersampling: above 1.0 the engine falls back to a bilinear
+		# downsample, so 1.0 (DLAA, anti-aliasing at native) is as high as it goes.
+		root.scaling_3d_mode = ClassDB.class_get_integer_constant(&"Viewport",
+			&"SCALING_3D_MODE_DLSS") as Viewport.Scaling3DMode
+		root.scaling_3d_scale = minf(scale, 1.0)
+		return
 	root.scaling_3d_scale = scale
 	# FSR1 is a spatial upscaler, so it has none of the temporal ghosting that
 	# rules FSR2 out for a head-tracked view. At 1.0 and above it would only cost
 	# a pass for nothing, so bilinear takes over there.
 	root.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if scale < 1.0 \
 		else Viewport.SCALING_3D_MODE_BILINEAR
+
+
+# ── NVIDIA path tracing and DLSS (desktop, NVIDIA's engine only) ─────────────
+
+func _engine_has_path_tracer() -> bool:
+	return ClassDB.class_has_method(&"Environment", &"set_pathtracing_enabled")
+
+
+func _engine_has_dlss() -> bool:
+	return ClassDB.class_has_integer_constant(&"Viewport", &"SCALING_3D_MODE_DLSS")
+
+
+## Whether Streamline found a card and driver that run DLSS. Its DLLs sit beside
+## the executable; without them the engine still builds the mode, and draws a
+## frame nothing upscales.
+func _streamline_has_dlss() -> bool:
+	if not Engine.has_singleton(&"Streamline"):
+		return false
+	return bool(Engine.get_singleton(&"Streamline").call(&"get_capability",
+		_STREAMLINE_CAPABILITY_DLSS))
+
+
+func supports_dlss() -> bool:
+	return supports_render_scale() and _engine_has_dlss() and _streamline_has_dlss()
+
+
+func supports_path_tracing() -> bool:
+	if not supports_render_scale() or not _engine_has_path_tracer():
+		return false
+	var rd := RenderingServer.get_rendering_device()
+	return rd != null and rd.has_feature(ClassDB.class_get_integer_constant(
+		&"RenderingDevice", &"SUPPORTS_RAYTRACING_PIPELINE") as RenderingDevice.Features)
+
+
+func effective_path_tracing() -> bool:
+	return path_tracing and supports_path_tracing()
+
+
+## DLSS when asked for, and always under the path tracer: its denoiser is DLSS
+## Ray Reconstruction, which runs only inside the DLSS pass. Path traced without
+## it, every frame is the raw one-sample-a-pixel grain (measured on the fork's
+## test scene, 2026-11-12).
+func effective_dlss() -> bool:
+	return supports_dlss() and (dlss_enabled or effective_path_tracing())
+
+
+func set_dlss_enabled(on: bool) -> void:
+	dlss_enabled = on
+	apply_render_scale()
+	_log_rtx("DLSS %s" % ("on" if on else "off"))
+	save_prefs()
+
+
+func set_path_tracing(on: bool) -> void:
+	path_tracing = on
+	apply_path_tracing()
+	_log_rtx("path tracing %s" % ("on" if on else "off"))
+	save_prefs()
+
+
+func set_pt_bounces(count: int) -> void:
+	pt_bounces = clampi(count, 0, PT_BOUNCES_MAX)
+	apply_path_tracing()
+	save_prefs()
+
+
+func set_pt_samples(count: int) -> void:
+	pt_samples = clampi(count, 1, PT_SAMPLES_MAX)
+	apply_path_tracing()
+	save_prefs()
+
+
+## The room's Environment carries the switch, and the root viewport the DLSS
+## pass that denoises it, so both move together.
+func apply_path_tracing() -> void:
+	for node in get_tree().root.find_children("*", "WorldEnvironment", true, false):
+		configure_environment(node as WorldEnvironment)
+	apply_render_scale()
+
+
+func _configure_path_tracing(env: Environment) -> void:
+	if not _engine_has_path_tracer():
+		return
+	var on := effective_path_tracing()
+	env.set(&"pathtracing_enabled", on)
+	if on:
+		env.set(&"pathtracing_max_bounces", pt_bounces)
+		env.set(&"pathtracing_samples_per_pixel", pt_samples)
+
+
+## A render-to-texture view sharing the room's World3D (the Game Boy Camera's
+## lens, a thumbnail) would otherwise run a whole path-traced frame of its own
+## for a picture a few hundred pixels across, without the DLSS pass to denoise it.
+func _keep_raster(viewport: SubViewport) -> void:
+	if &"use_pathtracing" in viewport:
+		viewport.set(&"use_pathtracing", false)
+
+
+func _log_rtx(what: String) -> void:
+	var root := get_tree().root
+	print("[Quality] %s: path tracer %s (engine %s, on %s, %d bounces, %d spp), DLSS %s (engine %s, card %s, on %s), mode %d scale %.2f" % [
+		what, "supported" if supports_path_tracing() else "unsupported",
+		_engine_has_path_tracer(), effective_path_tracing(), pt_bounces, pt_samples,
+		"supported" if supports_dlss() else "unsupported", _engine_has_dlss(),
+		_streamline_has_dlss(), effective_dlss(), root.scaling_3d_mode,
+		root.scaling_3d_scale])
 
 
 ## Whether the eye-buffer knob means anything in this session. PCVR is left out
@@ -1545,6 +1676,7 @@ func configure_environment(world_env: WorldEnvironment) -> void:
 	# rather than a remembered per-room value. The one Environment that authors
 	# it off, Resources/env_quest.tres, is referenced by no scene.
 	env.glow_enabled = glow_enabled
+	_configure_path_tracing(env)
 	env.ssao_enabled = ao_quality != AOQuality.OFF and supports_post_effects()
 	if not env.ssao_enabled:
 		return
@@ -1559,6 +1691,8 @@ func _on_node_added(node: Node) -> void:
 		configure_light(node as Light3D)
 	elif node is WorldEnvironment:
 		configure_environment(node as WorldEnvironment)
+	elif node is SubViewport:
+		_keep_raster(node as SubViewport)
 
 
 # ── Persistence ───────────────────────────────────────────────────────────────
@@ -1611,6 +1745,16 @@ func load_prefs() -> void:
 	var fast_crt: Variant = data.get("crt_fast")
 	if typeof(fast_crt) == TYPE_BOOL:
 		crt_fast = fast_crt
+	# Kept whatever the engine: inert where it has no path tracer or DLSS, and
+	# a stock build writing the file back must not strip them from it.
+	var pt: Variant = data.get("path_tracing")
+	if typeof(pt) == TYPE_BOOL:
+		path_tracing = pt
+	var dlss: Variant = data.get("dlss")
+	if typeof(dlss) == TYPE_BOOL:
+		dlss_enabled = dlss
+	pt_bounces = clampi(JsonStore.get_int(data, "pt_bounces", pt_bounces), 0, PT_BOUNCES_MAX)
+	pt_samples = clampi(JsonStore.get_int(data, "pt_samples", pt_samples), 1, PT_SAMPLES_MAX)
 
 
 func save_prefs() -> void:
@@ -1633,4 +1777,8 @@ func save_prefs() -> void:
 		"glow_enabled": glow_enabled,
 		"screen_lights_enabled": screen_lights_enabled,
 		"crt_fast": crt_fast,
+		"path_tracing": path_tracing,
+		"pt_bounces": pt_bounces,
+		"pt_samples": pt_samples,
+		"dlss": dlss_enabled,
 	}, "QualityManager")

@@ -24,7 +24,7 @@ const QM := preload("res://Scripts/quality_manager.gd")
 ## The live autoload's fields this suite moves, put back as found.
 const LIVE_FIELDS := ["msaa_3d", "post_aa", "preset", "shadow_quality", "ao_quality",
 	"frame_cap", "cpu_level", "gpu_level", "glow_enabled", "screen_lights_enabled",
-	"device"]
+	"device", "path_tracing", "pt_bounces", "pt_samples", "dlss_enabled", "render_scale"]
 
 var _only := ""
 var _live: Node = null
@@ -57,6 +57,7 @@ func _ready() -> void:
 	_group_device()
 	_group_effective()
 	_group_lights()
+	_group_rtx()
 
 	_restore()
 	_finish()
@@ -87,6 +88,7 @@ func _restore() -> void:
 	_live.apply_post_aa()
 	_live.apply_shadow_quality()
 	_live.apply_ao_quality()
+	_live.apply_path_tracing()
 	Engine.max_fps = _saved_max_fps
 	_restore_file(QM.PREFS_PATH, _saved_file)
 	_saved_live.clear()
@@ -355,3 +357,79 @@ func _group_lights() -> void:
 	for n: Node in [omni, opted, mobile_only, sun, we]:
 		n.free()
 	headset.free()
+
+
+# ── rtx/ — NVIDIA's path tracer and DLSS: offered only where they run ────────
+# The suite runs on the stock engine, which has neither, so the checks there are
+# that nothing is offered, a saved choice stands down, and the room is left
+# exactly as it was. On NVIDIA's fork with an RTX card the same checks expect
+# what that engine reports instead, so the group holds on both.
+
+func _group_rtx() -> void:
+	if not _wanted("rtx"):
+		return
+	var has_pt := ClassDB.class_has_method(&"Environment", &"set_pathtracing_enabled")
+	var has_dlss := ClassDB.class_has_integer_constant(&"Viewport", &"SCALING_3D_MODE_DLSS")
+	var qm := _fresh()
+	if not has_pt:
+		_ok(not qm.supports_path_tracing(), "rtx/no path tracing on an engine without one")
+	if not has_dlss:
+		_ok(not qm.supports_dlss(), "rtx/no DLSS on an engine without it")
+	# Asked for, but standing down wherever it is not supported.
+	qm.path_tracing = true
+	qm.dlss_enabled = true
+	_eq(qm.effective_path_tracing(), qm.supports_path_tracing(),
+		"rtx/path tracing is on only where it is supported")
+	_eq(qm.effective_dlss(), qm.supports_dlss(), "rtx/DLSS is on only where it is supported")
+	# The path tracer brings DLSS with it: Ray Reconstruction is its denoiser.
+	qm.dlss_enabled = false
+	_eq(qm.effective_dlss(), qm.supports_dlss() and qm.supports_path_tracing(),
+		"rtx/path tracing turns DLSS on with it where both run")
+	qm.path_tracing = false
+	_ok(not qm.effective_dlss(), "rtx/with neither asked for, DLSS is off")
+
+	# An Environment: switched on only where the engine has the property and the
+	# card runs it; on a stock engine the call leaves it alone and errors nowhere.
+	var env := Environment.new()
+	var we := WorldEnvironment.new()
+	we.environment = env
+	qm.path_tracing = true
+	qm.pt_bounces = 5
+	qm.configure_environment(we)
+	if has_pt:
+		_eq(bool(env.get(&"pathtracing_enabled")), qm.supports_path_tracing(),
+			"rtx/the room's Environment is path traced exactly when it can be")
+	else:
+		_ok(not (&"pathtracing_enabled" in env),
+			"rtx/a stock Environment has no path tracer to switch")
+	# A shared-world SubViewport is held to rasterising where the engine has the switch.
+	var sv := SubViewport.new()
+	qm._keep_raster(sv)
+	if &"use_pathtracing" in sv:
+		_ok(not bool(sv.get(&"use_pathtracing")), "rtx/a render-to-texture view stays rasterised")
+	sv.free()
+	we.free()
+	qm.free()
+
+	# The setters clamp and save; read back by a fresh manager.
+	_live.set_pt_bounces(99)
+	_eq(_live.pt_bounces, QM.PT_BOUNCES_MAX, "rtx/bounces past the most are the most")
+	_live.set_pt_samples(0)
+	_eq(_live.pt_samples, 1, "rtx/samples below one are one")
+	_live.set_path_tracing(true)
+	_live.set_dlss_enabled(true)
+	var back := _fresh()
+	back.load_prefs()
+	_ok(back.path_tracing and back.dlss_enabled and back.pt_bounces == QM.PT_BOUNCES_MAX
+			and back.pt_samples == 1,
+		"rtx/the choices are saved whatever the engine, so a stock build keeps them",
+		"pt %s dlss %s bounces %d spp %d" % [back.path_tracing, back.dlss_enabled,
+			back.pt_bounces, back.pt_samples])
+	back.free()
+	# Where DLSS cannot run, a saved choice of it leaves the root on FSR/bilinear.
+	if not _live.supports_dlss():
+		var mode: int = get_tree().root.scaling_3d_mode
+		_ok(mode == Viewport.SCALING_3D_MODE_FSR or mode == Viewport.SCALING_3D_MODE_BILINEAR,
+			"rtx/a saved DLSS choice stands down to FSR or bilinear here", "mode %d" % mode)
+	_live.set_path_tracing(false)
+	_live.set_dlss_enabled(false)
