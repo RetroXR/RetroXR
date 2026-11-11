@@ -3,7 +3,7 @@
 ## front pushes it in (but never one reaching INTO it), the grip never lifts the furniture, its open amount saves, and
 ## what rests in it rides out with it. The nightstand is turned 90 degrees and moved, so a frame mix-up shows.
 ##   godot --headless --path RetroXR res://Tests/vr_drawer_tests.tscn [-- --only=<group>]
-## Groups: rig contract latch grip coast soft push save carry
+## Groups: rig contract latch grip coast soft push save carry haul real
 extends "res://Tests/test_suite.gd"
 
 const HAND := &"/vr_drawer_tests/hand"
@@ -11,11 +11,19 @@ const FAR := Vector3(0, 5, 0)
 const NIGHTSTAND := preload("res://Scenes/Objects/furniture/nightstand.tscn")
 const CONTRACT := "res://imported-assets/furniture/nightstand/nightstand_contract.json"
 
+## Moves the held nightstand on the physics tick at the grab driver's priority (-80), as a hand does.
+class Mover extends Node:
+	var step: Callable
+	func _init() -> void:
+		process_physics_priority = -80
+	func _physics_process(delta: float) -> void:
+		step.call(delta)
+
 class FakePickup extends Node:
 	var enabled := true
 	var picked_up_object: Node = null
 
-var _hand: XRPositionalTracker
+var _hand: XRControllerTracker
 var _ctrl: XRController3D
 var _pickup: FakePickup
 var _only := ""
@@ -54,6 +62,12 @@ func _ready() -> void:
 		await _save(ns)
 	if _group("carry"):
 		await _carry(ns)
+	if _group("haul"):
+		await _haul(ns)
+		await _rough_haul(ns)
+	if _group("real"):
+		await _real_hold(ns)
+		await _ray_hold(ns)
 	XRServer.remove_tracker(_hand)
 	Engine.max_fps = _max_fps
 	_finish()
@@ -65,7 +79,7 @@ func _group(g: String) -> bool:
 
 # --- the hand ---------------------------------------------------------------------------------------------------------
 func _tracked_hand() -> void:
-	_hand = XRPositionalTracker.new()
+	_hand = XRControllerTracker.new()
 	_hand.name = HAND
 	_hand.type = XRServer.TRACKER_CONTROLLER
 	XRServer.add_tracker(_hand)
@@ -148,9 +162,15 @@ func _rig(ns: Nightstand) -> void:
 	var leg_shapes := ns.find_children("LegShape*", "CollisionShape3D", false, false).size()
 	_ok(case_shapes == 6 and leg_shapes == 4, "rig/the case has six boxes and four legs (%d, %d)" % [case_shapes,
 		leg_shapes])
-	_ok(ns.drawer_body().find_child("Drawer", true, false) is MeshInstance3D
-		and ns.drawer_body().find_child("DrawerPull", true, false) is MeshInstance3D,
-		"rig/the model's drawer and pull ride on the drawer body")
+	var drawn := ns.get_node("DrawerVisual")
+	_ok(drawn.find_child("Drawer", true, false) is MeshInstance3D
+		and drawn.find_child("DrawerPull", true, false) is MeshInstance3D
+		and ns.drawer_body().find_children("*", "MeshInstance3D", true, false).is_empty(),
+		"rig/the model's drawer and pull are drawn from DrawerVisual, not the synced body")
+	_ok(ns.drawer().visual == drawn, "rig/the VRDrawer moves DrawerVisual with its body")
+	var riders := ns.rider_shapes()
+	_ok(riders.size() == 2 and riders[0].name == "CaseTop" and riders[1].name == "CaseBottom",
+		"rig/it carries things on its top and its shelf")
 	_ok(d.handle_mesh != null and d.handle_mesh.name == "DrawerPull", "rig/the handle outlined is the pull")
 	_ok(ns.get_collision_exceptions().has(ns.drawer_body()), "rig/the drawer never collides with its own case")
 	var leg := ns.get_node("LegShape0") as CollisionShape3D
@@ -441,4 +461,236 @@ func _carry(ns: Nightstand) -> void:
 	_buttons(0.0, 0.0)
 	_place(FAR)
 	cube.queue_free()
+	await _reset(ns)
+
+
+## Pick the nightstand up as xr-tools does (frozen, on the held layer, nothing collides with it, its riders noted) and
+## carry it as a hand would: 1.1 m across, 0.25 m up and a quarter turn in 1.6 s, with an 8 Hz tremor. A box in the
+## drawer, one on the shelf and one on the top must come with it, and the drawer must never trail the case.
+func _haul(ns: Nightstand) -> void:
+	var d := ns.drawer()
+	await _reset(ns)
+	var boxes := {}
+	for spot: String in ["drawer", "shelf", "top"]:
+		var at: Vector3 = {"drawer": Nightstand.DRAWER_SEAT, "shelf": Nightstand.SHELF_SURFACE,
+			"top": Nightstand.TOP_SURFACE}[spot]
+		boxes[spot] = _loose_box(ns.global_transform * (at + Vector3(0.0, 0.03, 0.0)))
+	for i in 60:
+		await get_tree().physics_frame
+	var local_before := {}
+	for spot: String in boxes:
+		local_before[spot] = ns.global_transform.affine_inverse() * (boxes[spot] as RigidBody3D).global_position
+	var start := ns.global_transform
+	ns.freeze = true
+	ns.collision_layer = 1 << 16
+	ns.collision_mask = 0
+	ns.picked_up.emit(ns)          # as pick_up() does: HeldPhysics notes the riders, the nightstand couples its drawer
+	var t := [0.0]
+	var worst_lag := [0.0]
+	var worst_body := [0.0]
+	var mid := [false]
+	var mover := Mover.new()
+	mover.step = func(delta: float) -> void:
+		t[0] += delta
+		var u := clampf(t[0] / 1.6, 0.0, 1.0)
+		var e := u * u * (3.0 - 2.0 * u)
+		var tremor := Vector3(sin(t[0] * TAU * 8.0), sin(t[0] * TAU * 7.0 + 1.0), 0.0) * 0.004
+		var turned := start.basis.rotated(Vector3.UP, e * PI * 0.5)
+		ns.global_transform = Transform3D(turned, start.origin + Vector3(1.1 * e, 0.25 * sin(PI * u), 0.0) + tremor)
+	add_child(mover)
+	for i in 160:
+		await get_tree().process_frame
+		# What is DRAWN: the drawer's front against the case it belongs in, interpolated as the renderer sees them.
+		var drawn := _drawn_drawer(ns)
+		var want := ns.get_global_transform_interpolated() * Vector3(0, 0, d.open_distance())
+		worst_lag[0] = maxf(worst_lag[0], drawn.distance_to(want))
+		# What COLLIDES: the drawer body as the physics server has it, against the case as it is now.
+		worst_body[0] = maxf(worst_body[0], _drawer_body_error(ns))
+		if i == 80:
+			mid[0] = ns.lid_on() and not (boxes["drawer"] as RigidBody3D).freeze
+	mover.queue_free()
+	for i in 10:
+		await get_tree().physics_frame
+	ns.freeze = false
+	ns.collision_layer = 4
+	ns.collision_mask = 196613
+	ns.dropped.emit(ns)
+	for i in 90:
+		await get_tree().physics_frame
+	_ok(worst_lag[0] < 0.004, "haul/the drawer never trails the case it is carried in (worst %.1f mm)" % (
+		worst_lag[0] * 1000.0))
+	_ok(mid[0], "haul/while carried the drawer has its lid on and what is in it is ordinary physics, not frozen")
+	_ok(not ns.lid_on(), "haul/put down, the lid is off: nothing invisible left in the drawer")
+	_ok(worst_body[0] < 0.02, "haul/the drawer's COLLISION body keeps up with the case while carried (worst %.1f mm)" % (
+		worst_body[0] * 1000.0))
+	_ok(_drawer_body_error(ns) < 0.001, "haul/put down, the drawer's collision body is where the drawer is drawn (%.1f mm)" % (
+		_drawer_body_error(ns) * 1000.0))
+	for spot: String in boxes:
+		var b := boxes[spot] as RigidBody3D
+		var local_after := ns.global_transform.affine_inverse() * b.global_position
+		var moved: float = (local_after - local_before[spot]).length()
+		_ok(moved < 0.03, "haul/a box %s comes with it (%.0f mm from where it lay in it)" % [
+			"in the drawer" if spot == "drawer" else "on the " + spot, moved * 1000.0])
+		b.queue_free()
+	ns.global_transform = start
+	for i in 10:
+		await get_tree().physics_frame
+	await _reset(ns)
+
+
+## Where the drawer's pull is DRAWN this frame: the model's pull node (its origin is the model's, the nightstand's
+## own origin with the drawer shut), interpolated as the renderer sees it.
+func _drawn_drawer(ns: Nightstand) -> Vector3:
+	var pull := ns.drawer().handle_mesh
+	return pull.get_global_transform_interpolated().origin if pull != null else Vector3.INF
+
+
+func _loose_box(at: Vector3) -> RigidBody3D:
+	var cube := RigidBody3D.new()
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.08, 0.03, 0.1)
+	cs.shape = box
+	cube.add_child(cs)
+	cube.mass = 0.2
+	cube.collision_layer = 4
+	cube.collision_mask = 196613
+	var pm := PhysicsMaterial.new()
+	pm.friction = 0.8
+	cube.physics_material_override = pm
+	add_child(cube)
+	cube.global_position = at
+	return cube
+
+
+## Hauled hard: the same path in 0.3 s (peaks near 6 m/s) tipped 25 degrees on the way, and stopped dead. Things in the
+## SHUT drawer must still be IN it. Riding by friction with nothing over them, two of three boxes left it; the drawer
+## has a lid while the nightstand is held (Nightstand._physics_process).
+func _rough_haul(ns: Nightstand) -> void:
+	await _reset(ns)
+	var inner := AABB(Vector3(-0.198, 0.458, -0.123), Vector3(0.396, 0.082, 0.27))
+	var boxes: Array[RigidBody3D] = []
+	for x: float in [-0.12, 0.0, 0.12]:
+		boxes.append(_loose_box(ns.global_transform * (Nightstand.DRAWER_SEAT + Vector3(x, 0.03, 0.0))))
+	for i in 60:
+		await get_tree().physics_frame
+	var start := ns.global_transform
+	ns.freeze = true
+	ns.collision_layer = 1 << 16
+	ns.collision_mask = 0
+	ns.picked_up.emit(ns)          # as pick_up() does: HeldPhysics notes the riders, the nightstand couples its drawer
+	var t := [0.0]
+	var mover := Mover.new()
+	mover.step = func(delta: float) -> void:
+		t[0] += delta
+		var u := clampf(t[0] / 0.3, 0.0, 1.0)
+		var e := u * u * (3.0 - 2.0 * u)
+		ns.global_transform = Transform3D(start.basis.rotated(Vector3.UP, e * PI * 0.5).rotated(Vector3.RIGHT,
+			sin(PI * u) * 0.44),
+			start.origin + Vector3(1.1 * e, 0.25 * sin(PI * u), 0.0))
+	add_child(mover)
+	for i in 70:
+		await get_tree().physics_frame
+	mover.queue_free()
+	ns.freeze = false
+	ns.collision_layer = 4
+	ns.collision_mask = 196613
+	ns.dropped.emit(ns)
+	for i in 60:
+		await get_tree().physics_frame
+	_ok(boxes.all(func(b: RigidBody3D) -> bool: return not b.freeze) and not ns.lid_on(),
+		"haul/put down, nothing in the drawer is frozen and the lid is off")
+	var kept := 0
+	var where := []
+	for b in boxes:
+		var local := ns.global_transform.affine_inverse() * b.global_position
+		where.append((local * 1000.0).round())
+		if inner.grow(0.012).has_point(local):
+			kept += 1
+		b.queue_free()
+	_ok(kept == boxes.size(), "haul/hauled hard and stopped dead, every box is still in the drawer (%d of %d: %s)" % [
+		kept, boxes.size(), str(where)])
+	ns.global_transform = start
+	for i in 10:
+		await get_tree().physics_frame
+	await _reset(ns)
+
+
+## How far the drawer body the PHYSICS SERVER has (what things in the drawer collide with) is from where the drawer is.
+func _drawer_body_error(ns: Nightstand) -> float:
+	var server: Transform3D = PhysicsServer3D.body_get_state(ns.drawer_body().get_rid(),
+		PhysicsServer3D.BODY_STATE_TRANSFORM)
+	var want := ns.global_transform * Transform3D(Basis(), Vector3(0, 0, ns.drawer().open_distance()))
+	return server.origin.distance_to(want.origin)
+
+
+## The REAL hold: xr-tools' own pick_up() by a real XRToolsFunctionPickup on the hand, carried by moving the hand, and
+## let_go() with the nightstand 0.3 m up, so it drops. What is in the drawer must come along and, once it has all
+## settled, the drawer must hold nothing invisible: a box put in afterwards lies on the drawer's floor.
+func _real_hold(ns: Nightstand) -> void:
+	await _reset(ns)
+	var drawer_box := _loose_box(ns.global_transform * (Nightstand.DRAWER_SEAT + Vector3(0.0, 0.03, 0.0)))
+	for i in 60:
+		await get_tree().physics_frame
+	var local_before := ns.global_transform.affine_inverse() * drawer_box.global_position
+	var hand := load("res://addons/godot-xr-tools/functions/function_pickup.tscn").instantiate() as Node3D
+	hand.name = "RealPickup"
+	_ctrl.add_child(hand)
+	var start := ns.global_transform
+	# The hand where the nightstand's origin is, so the grab's pull-in has nothing to pull.
+	_place(start.origin)
+	await _ticks(3)
+	ns.pick_up(hand)
+	var worst_body := 0.0
+	for i in 120:
+		var u := clampf(i / 90.0, 0.0, 1.0)
+		var e := u * u * (3.0 - 2.0 * u)
+		_place(start.origin + Vector3(0.9 * e, 0.3 * e, 0.0))
+		await get_tree().physics_frame
+		worst_body = maxf(worst_body, _drawer_body_error(ns))
+	ns.let_go(hand, Vector3.ZERO, Vector3.ZERO)
+	for i in 150:
+		await get_tree().physics_frame
+	var settled_err := _drawer_body_error(ns)
+	var local_after := ns.global_transform.affine_inverse() * drawer_box.global_position
+	_ok(worst_body < 0.02, "real/held by xr-tools, the drawer's collision body keeps up (worst %.1f mm)" % (
+		worst_body * 1000.0))
+	_ok(settled_err < 0.002, "real/dropped and settled, the collision body is where the drawer is (%.1f mm)" % (
+		settled_err * 1000.0))
+	_ok((local_after - local_before).length() < 0.03 and not drawer_box.freeze,
+		"real/the box in the drawer came along and is loose again (%.0f mm, frozen %s)" % [
+		(local_after - local_before).length() * 1000.0, drawer_box.freeze])
+	var probe := _loose_box(ns.global_transform * (Nightstand.DRAWER_SEAT + Vector3(0.1, 0.03, 0.06)))
+	for i in 90:
+		await get_tree().physics_frame
+	var up := (ns.global_transform.affine_inverse() * probe.global_position).y - Nightstand.DRAWER_SEAT.y
+	_ok(absf(up - 0.015) < 0.004, "real/a box put in afterwards lies on the drawer's floor, nothing invisible under it (%.1f mm up)" % (
+		up * 1000.0))
+	print("[vr_drawer] real: nightstand at %s, drawer body server %s" % [ns.global_position,
+		(PhysicsServer3D.body_get_state(ns.drawer_body().get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM) as Transform3D).origin])
+	probe.queue_free()
+	drawer_box.queue_free()
+	hand.queue_free()
+	ns.global_transform = start
+	for i in 10:
+		await get_tree().physics_frame
+	await _reset(ns)
+
+
+## Held the way a RAY grab holds (frozen, on the held layer, and no picked_up / dropped from the pickable at all):
+## the lid must still go on and, the most important half, come OFF when it is let go.
+func _ray_hold(ns: Nightstand) -> void:
+	await _reset(ns)
+	ns.freeze = true
+	ns.collision_layer = ns.picked_up_layer
+	ns.collision_mask = 0
+	for i in 5:
+		await get_tree().physics_frame
+	var on := ns.lid_on()
+	ns.freeze = false
+	ns.collision_layer = 4
+	ns.collision_mask = 196613
+	for i in 5:
+		await get_tree().physics_frame
+	_ok(on and not ns.lid_on(), "real/held and let go by a ray (no signals), the lid goes on and comes off again")
 	await _reset(ns)

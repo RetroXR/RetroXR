@@ -44,6 +44,11 @@ const PUSH_DEPTH := 0.04
 
 ## The drawer (or tray) the handle pulls. Moved along axis_local, in its own parent's frame.
 @export var target: Node3D
+## What DRAWS the drawer, when the target is a physics body: a plain Node3D (the model's drawer and pull hang from it)
+## moved with the same smoothed position as the body. A synced body gets its pose written back by the physics sync a
+## tick late, so with physics interpolation on, a drawer drawn from the body trailed its case by up to 13.7 mm while
+## the furniture was carried (vr_drawer_tests haul/); a plain child of the case interpolates WITH it.
+@export var visual: Node3D
 ## The handle as drawn. Optional: without it the drawer still works, with no outline and no crosshair test.
 @export var handle_mesh: MeshInstance3D
 ## The GRIP latches too, not only the trigger (and mutes the hand's pickup in the handle box).
@@ -219,6 +224,8 @@ func _physics_process(delta: float) -> void:
 	# Every tick, moving or not: the furniture under it may have moved. And never read back target.position as where
 	# the drawer is: a synced body hands the node its PREVIOUS physics pose until the tick has run.
 	target.position = _follow
+	if is_instance_valid(visual):
+		visual.position = _follow
 
 
 func _target_want() -> Vector3:
@@ -440,6 +447,9 @@ func _update_knob() -> void:
 		_follow = _target_want()
 		_follow_v = Vector3.ZERO
 		target.position = _follow
+		if _target_body and is_instance_valid(visual):
+			visual.position = _follow
+			visual.reset_physics_interpolation()
 
 
 func _on_value_changed(v: float) -> void:

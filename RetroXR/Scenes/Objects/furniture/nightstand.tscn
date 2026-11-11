@@ -37,7 +37,7 @@ script = ExtResource("1_nst")
 script = ExtResource("3_model")
 level_scenes = Array[PackedScene]([ExtResource("4_lod0"), ExtResource("5_lod1"), ExtResource("6_lod2")])
 
-; The drawer as a body: nightstand.gd moves the model's Drawer and DrawerPull under it and gives it its boxes.
+; The drawer as a body: nightstand.gd gives it its boxes (the drawing is DrawerVisual's).
 ; sync_to_physics, so as the VRDrawer slides it, what rests in it is carried by friction.
 [node name="DrawerBody" type="AnimatableBody3D" parent="."]
 collision_layer = 4
@@ -45,12 +45,17 @@ collision_mask = 196613
 physics_material_override = SubResource("PhysMat_nst")
 sync_to_physics = true
 
+; What draws the drawer: the model's Drawer and DrawerPull hang here, and the VRDrawer moves it with the body (a
+; plain node interpolates with the case; the synced body is written back a tick late).
+[node name="DrawerVisual" type="Node3D" parent="."]
+
 ; The pull, at the model's DrawerHandle with the drawer shut. It stays put; its box rides out with the drawer.
 ; push_face: the drawer front (430 x 134 mm, 28 mm behind the bar) can be pushed in with a fingertip.
-[node name="DrawerHandle" type="Area3D" parent="." node_paths=PackedStringArray("target")]
+[node name="DrawerHandle" type="Area3D" parent="." node_paths=PackedStringArray("target", "visual")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.509, 0.203)
 script = ExtResource("7_drawer")
 target = NodePath("../DrawerBody")
+visual = NodePath("../DrawerVisual")
 travel = 0.25
 push_face_size = Vector2(0.43, 0.134)
 push_face_offset = -0.028

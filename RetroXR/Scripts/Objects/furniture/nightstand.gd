@@ -41,6 +41,13 @@ const DRAWER_BOXES := [
 	[Vector3(0.0, 0.499, -0.128), Vector3(0.396, 0.082, 0.01)],   # WallB
 ]
 const DRAWER_TRAVEL := 0.25
+## The drawer's inside (drawer shut, this node's frame).
+const DRAWER_INNER := AABB(Vector3(-0.198, 0.458, -0.123), Vector3(0.396, 0.082, 0.27))
+## While the nightstand is held, the drawer gets a LID just under the case top (whose underside is at 0.578): only
+## over the part of the drawer still inside the case, so a pulled-out drawer stays open at the front.
+const LID_Y := Vector2(0.566, 0.576)
+## Where the case's front is (this node's frame): the lid stops here.
+const CASE_FRONT_Z := 0.175
 const DRAWER_HANDLE := Vector3(0.0, 0.509, 0.203)
 ## The middle of the drawer's floor inside (drawer shut), the top and the shelf: +Y up.
 const DRAWER_SEAT := Vector3(0.0, 0.458, 0.012)
@@ -50,6 +57,10 @@ const SHELF_SURFACE := Vector3(0.0, 0.268, 0.004)
 @onready var _model: ApplianceModel = get_node_or_null("Model") as ApplianceModel
 @onready var _drawer_body: AnimatableBody3D = $DrawerBody
 @onready var _drawer: VRDrawer = $DrawerHandle
+@onready var _drawer_visual: Node3D = $DrawerVisual
+
+var _lid: CollisionShape3D = null
+var _held := false
 
 
 func _ready() -> void:
@@ -63,6 +74,11 @@ func _ready() -> void:
 	_drawer_body.add_collision_exception_with(self)
 	add_collision_exception_with(_drawer_body)
 	_dress()
+	_lid = CollisionShape3D.new()
+	_lid.name = "Lid"
+	_lid.shape = BoxShape3D.new()
+	_lid.disabled = true
+	_drawer_body.add_child(_lid)
 	print("[Nightstand] %s: %d case boxes, %d legs, %d drawer boxes, drawer %.0f mm out of %.0f" % [name, n_case,
 		LEGS.size(), n_drawer, _drawer.open_distance() * 1000.0, DRAWER_TRAVEL * 1000.0])
 
@@ -70,6 +86,55 @@ func _ready() -> void:
 ## The drawer, for a probe, a test or a caller that opens it.
 func drawer() -> VRDrawer:
 	return _drawer
+
+
+## Held, the case goes on the held layer, which nothing loose collides with, so a shut drawer is no longer a closed box:
+## two of three boxes left one hauled hard (vr_drawer_tests haul/). The drawer body is not held, so it gets a lid of
+## its own for the hold: what is in the drawer stays ordinary physics (it slides and knocks about) and cannot leave
+## through the top. The lid is off whenever the nightstand is not held, so it can never be an obstacle in the room.
+##
+## The hold is POLLED (frozen, on the held layer), never `picked_up` / `dropped`: a ray grab emits neither (the addon
+## restores the body itself; SurfaceStick's header has the story), so a lid switched by the signals would stay on
+## after a laser put the nightstand down. (An earlier version froze the drawer's contents for the hold, which read as
+## frozen in a headset and was left frozen by the same missing signal.)
+func _physics_process(_delta: float) -> void:
+	var held := freeze and collision_layer == picked_up_layer
+	if held != _held:
+		_held = held
+		_lid.disabled = not held
+		print("[Nightstand] %s: %s; the drawer's lid %s" % [name, "held" if held else "put down",
+			"on" if held else "off"])
+	if held:
+		_fit_lid()
+
+
+## The lid over the part of the drawer still inside the case, in the drawer body's frame (it rides with the drawer).
+func _fit_lid() -> void:
+	var out := _drawer_body.position.z
+	var z0 := DRAWER_INNER.position.z
+	var z1 := minf(DRAWER_INNER.end.z, CASE_FRONT_Z - out)
+	if z1 - z0 < 0.01:
+		_lid.disabled = true      # the drawer is all the way out: nothing of it under the case top
+		return
+	_lid.disabled = false
+	(_lid.shape as BoxShape3D).size = Vector3(DRAWER_INNER.size.x, LID_Y.y - LID_Y.x, z1 - z0)
+	_lid.position = Vector3(DRAWER_INNER.get_center().x, (LID_Y.x + LID_Y.y) * 0.5, (z0 + z1) * 0.5)
+
+
+## Whether the drawer's lid is on (the nightstand held).
+func lid_on() -> bool:
+	return _lid != null and not _lid.disabled
+
+
+## What it carries things on when it is picked up (HeldObjectPhysics' riders): the top AND the shelf. Its first shape
+## alone was the top, and whatever stood on the shelf hung in the air where the nightstand had been.
+func rider_shapes() -> Array[CollisionShape3D]:
+	var out: Array[CollisionShape3D] = []
+	for shape_name in ["CaseTop", "CaseBottom"]:
+		var cs := get_node_or_null(shape_name) as CollisionShape3D
+		if cs != null:
+			out.append(cs)
+	return out
 
 
 ## The body things in the drawer rest on.
@@ -111,7 +176,8 @@ static func _leg_shape(shape_name: String, top: Vector3, foot: Vector3, radius: 
 	return cs
 
 
-## Put the model's drawer and pull (every level) on the drawer body, and the pull's mesh in the VRDrawer's hand.
+## Hang the model's drawer and pull (every level) on DrawerVisual, which the VRDrawer moves with the body, and put the
+## pull's mesh in its hand.
 func _dress() -> void:
 	if _model == null or _model.levels.is_empty():
 		push_warning("[Nightstand] %s: no model; the drawer has collision and no picture" % name)
@@ -120,7 +186,7 @@ func _dress() -> void:
 	for part_name in ["Drawer", "DrawerPull"]:
 		if _model.part(part_name) == null:
 			push_warning("[Nightstand] %s: the model has no %s" % [name, part_name])
-		_model.attach_part(part_name, _drawer_body)
+		_model.attach_part(part_name, _drawer_visual)
 	if pull != null:
 		_drawer.set_handle_mesh(pull)
 	for i in range(1, _model.levels.size()):

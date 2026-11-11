@@ -480,10 +480,31 @@ func watch_riders(body: Variant) -> void:
 ## seated in a socket, and all three want to stay where they are.
 func _riders_on(body: RigidBody3D) -> Array[RigidBody3D]:
 	var out: Array[RigidBody3D] = []
-	var cs := _first_shape(body)
 	var world := body.get_world_3d()
-	if cs == null or world == null:
+	if world == null:
 		return out
+	for cs in _support_shapes(body):
+		_riders_on_shape(body, cs, world, out)
+	return out
+
+
+## The shapes a body carries things on. Its first shape, unless it names more: a piece of furniture with more than one
+## surface (the nightstand's top AND its shelf, `rider_shapes()`) would otherwise leave all but one behind when carried.
+func _support_shapes(body: RigidBody3D) -> Array[CollisionShape3D]:
+	var shapes: Array[CollisionShape3D] = []
+	if body.has_method("rider_shapes"):
+		for v: Variant in body.call("rider_shapes"):
+			var cs := v as CollisionShape3D
+			if cs != null and cs.shape != null and not cs.disabled:
+				shapes.append(cs)
+	if shapes.is_empty():
+		var first := _first_shape(body)
+		if first != null:
+			shapes.append(first)
+	return shapes
+
+
+func _riders_on_shape(body: RigidBody3D, cs: CollisionShape3D, world: World3D, out: Array[RigidBody3D]) -> void:
 	var top := _world_aabb(cs).end.y
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.shape = cs.shape
@@ -505,7 +526,6 @@ func _riders_on(body: RigidBody3D) -> Array[RigidBody3D]:
 			continue
 		if not out.has(rider):
 			out.append(rider)
-	return out
 
 
 ## A collision shape's bounds in world space. Shape3D publishes no extent of its

@@ -43,6 +43,29 @@ keeps its own `_follow`, never `target.position`), and a synced body keeps its o
 nightstand settling left the drawer 1.75 mm off), so the pose is written every tick. A restore or
 `set_value_no_signal` SNAPS (contents laid back by the save must not have the drawer slide out under them).
 
+**Draw a body target from a plain node (`visual`)**: physics interpolation is on, and a synced body's pose is
+written back by the physics sync a tick late, so a drawer drawn from the body trailed its case by up to 13.7 mm while
+the furniture was carried. The model's drawer hangs from `DrawerVisual`, which the VRDrawer moves with the same
+smoothed position: 0.0 mm (`vr_drawer_tests haul/`).
+
+## Carrying furniture with things in it
+
+A picked-up pickable goes on the held layer (17) that nothing loose collides with. Three consequences, measured with
+a mover at the grab driver's priority (`vr_drawer_tests haul/`) and in the windowed `nightstand_probe --carry`:
+- **The shelf**: `HeldObjectPhysics` couples the RIDERS of a held body, but found them on its FIRST shape only (the
+  top), so a box on the shelf hung in the air 1.1 m behind. A body may now name its support shapes,
+  `rider_shapes()`; the nightstand answers its top and its shelf floor. Nothing else implements it, so no other
+  pickable changed.
+- **The drawer**: a shut drawer is no longer a closed box (the case is intangible), and two of three boxes left one
+  hauled hard. While the nightstand is HELD the drawer body gets a `Lid` just under the case top, over the part of the
+  drawer still inside the case (so a pulled-out drawer stays open at the front); what is in the drawer stays ordinary
+  physics, sliding and knocking about, and cannot leave through the top. Off whenever it is not held.
+- **The hold is POLLED** (`freeze` and the held layer), never `picked_up` / `dropped`: a RAY grab emits neither on the
+  pickable (the addon restores the body itself; SurfaceStick's header). A first version froze the drawer's contents
+  for the hold on those signals: it read as frozen in a headset, and a ray release left them frozen, solid obstacles
+  in the drawer ("an invisible object in there"). `vr_drawer_tests real/` drives xr-tools' own `pick_up`/`let_go`
+  with a real `XRToolsFunctionPickup`, and a ray-style hold with no signals at all.
+
 ## The nightstand (`Scenes/Objects/furniture/nightstand.tscn`, `Nightstand`)
 
 RetroXR-models `generic/nightstand` (Blender 5.3, its own level loop on applkit geometry; real walnut/birch textures,
@@ -53,7 +76,7 @@ pose only, the drawer rides `articulated`. `nightstand.gd` builds the collision 
 walls on `DrawerBody`, which never collides with the case (an exception both ways). `vr_drawer_tests contract/` fails
 if the consts and the contract part.
 
-Tests: `vr_drawer_tests` (`rig contract latch grip coast soft push save carry`; every mechanism mutation-tested: the
+Tests: `vr_drawer_tests` (`rig contract latch grip coast soft push save carry haul`; every mechanism mutation-tested: the
 mute, the grab offset, the stale re-arm, the physics follow, the inward push, keep-awake, the restore snap). Look:
-`Tools/room/nightstand_probe` (windowed; `--out=`, `--frames`, use `--fixed-fps 72` to record). Headset feel, the Quest's
+`Tools/room/nightstand_probe` (windowed; `--out=`, `--frames`, `--carry`, use `--fixed-fps 72` to record). Headset feel, the Quest's
 cost and a two-peer session OWED.
