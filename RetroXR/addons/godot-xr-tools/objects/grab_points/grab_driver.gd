@@ -82,6 +82,17 @@ var _primary_by_zone : bool = false
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _physics_process(delta : float) -> void:
+	# LOCAL PATCH (RetroXR): the driver is the target's SIBLING, so it outlives a target freed while held (an arcade
+	# cabinet rebuilding its captive guns). Everything below reaches into `target`, and a release build does not
+	# check for a freed object: `target.call("constrain_grab", ...)` on a freed light gun killed the Quest (tombstones
+	# 2026-11-09, Object::_call_bind on a null vtable). A driver with nothing to drive goes away.
+	if not is_instance_valid(target):
+		print("[Grab] driver %s: its target was freed while held; discarding the driver" % name)
+		remote_path = NodePath()
+		queue_free()
+		set_physics_process(false)
+		return
+
 	# Skip if no primary node or its grabber has been freed
 	if not is_instance_valid(primary) or not is_instance_valid(primary.by):
 		return

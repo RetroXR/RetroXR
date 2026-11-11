@@ -166,6 +166,21 @@ Neither is a Quest defect; both are carried for every target built from the bran
   Checked on a `profiler=tracy` Windows editor from this tree: no `buffer_update` error with
   interpolation forced on, stock 4.7.2 logs it 8 times.
 
+### Never-waited tasks at quit (2026-11-11)
+
+- `godot-4.7.2-worker-pool-shutdown.patch` (engine c21eee7ebe): a `WorkerThreadPool` task nobody
+  waited for stays in the pool's `tasks` until `finish()`, which runs from `unregister_core_types()`,
+  after `ScriptServer::finish_languages()`. A GDScript lambda kept there holds its script, and
+  freeing it ran `~GDScript` against a finished `GDScriptLanguage`: a quit crash (Quest tombstone
+  2026-11-09, `recursive_mutex::lock` <- `GDScript::cancel_pending_functions` <- `~GDScript` <-
+  `~GDScriptLambdaCallable` <- `WorkerThreadPool::finish` <- `unregister_core_types`; the frames were
+  named by relinking `bin/obj` without `-s`, see quest-device.md "Reading a tombstone").
+  `exit_languages_threads()` now releases every COMPLETED task's callable while the languages are up
+  (outside the lock); a task still queued keeps its callable, as a worker can still pick it up. The
+  same crash is what `book_tests`' exit code guards (testing.md). Desktop runs stock Godot, so the
+  game claims its fire-and-forget tasks itself as well (`BackgroundTask`, `background_task_tests`).
+  Built for both targets; not yet run on a headset.
+
 Rebuild both libraries when a patch changes (each ~1 min incremental, the
 first build of a tree ~5 min):
 `cd ~/godot && ANDROID_HOME=C:/android scons platform=android arch=arm64

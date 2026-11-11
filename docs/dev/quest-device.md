@@ -274,6 +274,28 @@ installed `libgodot_android.so`'s build-id (`llvm-readelf -n`) tells stock from 
 without symbols. A SIGSEGV in a `binder:` thread on attach is ART's implicit null check,
 not a crash. Delete the lldb-server copy from the app dir afterwards.
 
+### Reading a tombstone
+
+A Quest bug report (`adb bugreport`, or the headset's own, a zip) keeps native crashes in
+`FS/data/tombstones/tombstone_NN`: `Cmdline: com.xenu.retroxr`, the crashing thread, the
+signal, registers and a backtrace (no `logs:` section on Horizon OS). The engine frames have
+no names because the shipped library is stripped (`.dynsym` only), but it is built with
+plain `-s` and no LTO, so **relinking `~/godot/bin/obj` without `-s` gives the same code with
+symbols**: `scons -n verbose=yes platform=android arch=arm64 target=template_release
+generate_apk=no` prints the link line (`-o bin\libgodot.android.template_release.arm64.so`);
+run it with another `-o`, without `-s`, from a response file. Its build-id differs (the hash
+covers the symbol table), so compare `.text`'s bytes with the shipped one before trusting it
+(identical on 2026-11-11), then `llvm-symbolizer --obj=<relinked> 0x<pc> …`. Only while
+`bin/obj` still holds the objects of the build the tombstone names (its `BuildId` against
+`Tools/engine`'s); an older engine is still in the LFS cache
+(`git log -- Tools/engine/...`, then `.git/lfs/objects/<oid>`) and its frames can be matched
+to the new library by instruction bytes, PC-relative words masked. A core's frames have no
+build-id (the Quest cannot read the `libretro/temp/<core><hash>.so` copy), so they need that
+core's own symbolised Android build. A release build does not check for freed objects: a
+GDScript call on one is a SIGSEGV with a near-null fault address and a zero vtable
+(`Object::_call_bind`, `Object::get_class_name`), where a debug export says `previously freed`
+with the script and line -- export debug to find which script.
+
 ### Profiling a boot (where the time goes)
 
 `simpleperf` ships on the headset and samples a debuggable app without root, user space

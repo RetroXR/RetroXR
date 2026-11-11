@@ -1567,7 +1567,7 @@ func _augment_file_fields(node: Node, entry: Dictionary) -> void:
 		if album_net_id < 0 or node.has_meta("net_hashing"):
 			return
 		node.set_meta("net_hashing", true)
-		WorkerThreadPool.add_task(func() -> void:
+		BackgroundTask.start(func() -> void:
 			var m := _music_manifest_of(album, kind, true)   # blocking hash on the worker
 			call_deferred("_on_music_hashed", album_net_id, album, m))
 		return
@@ -1589,7 +1589,7 @@ func _augment_file_fields(node: Node, entry: Dictionary) -> void:
 	if net_id < 0 or node.has_meta("net_hashing"):
 		return
 	node.set_meta("net_hashing", true)
-	WorkerThreadPool.add_task(func() -> void:
+	BackgroundTask.start(func() -> void:
 		var h := NetFileTransfer.hash_of(path)
 		call_deferred("_on_file_hashed", net_id, h, path))
 

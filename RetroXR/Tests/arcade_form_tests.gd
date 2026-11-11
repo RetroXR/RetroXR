@@ -1638,6 +1638,25 @@ func _group_mount() -> void:
 	var holstered := sys.captive_controllers()[0] as LightGun
 	_ok(not holstered.is_mounted() and holstered.captive_well != null and holstered.mount_turn() == Vector2.ZERO,
 		"mount: a gun in a holster (Time Crisis) is not fixed: it is taken out and carried")
+	await _gun_freed_while_held()
+
+
+## A gun freed in a hand (a cabinet rebuilding its captive guns). The grab driver is the gun's SIBLING and outlives it;
+## it used to go on calling the dead gun's `constrain_grab`, which a release build does not check -- the Quest died in
+## Object::_call_bind (tombstones 2026-11-09). Here, a debug build, the old driver logs a SCRIPT ERROR, which fails the run.
+func _gun_freed_while_held() -> void:
+	var gun := (load("res://Scenes/Objects/peripherals/light_gun.tscn") as PackedScene).instantiate() as LightGun
+	add_child(gun)
+	var by := Node3D.new()
+	add_child(by)
+	by.global_transform = gun.global_transform
+	var driver := XRToolsGrabDriver.create_snap(gun, Grab.new(Grabber.new(by), gun, null, true))
+	await _wait(2)
+	_ok(is_instance_valid(driver) and driver._constrains, "mount: a held light gun's driver asks the gun where the hold puts it")
+	gun.free()
+	await _wait(3)
+	_ok(not is_instance_valid(driver), "mount: a gun freed while held takes its grab driver with it, which never touches it again")
+	by.free()
 
 
 # --- guns ----------------------------------------------------------------------

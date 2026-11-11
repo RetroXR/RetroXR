@@ -198,6 +198,10 @@ PowerShell buffers output until exit.
   print `node.transform.basis.x/.y/.z` from a probe first.
 - `FileAccess.file_exists("res://….tscn")` is false in exported builds — use
   `ResourceLoader.exists()`.
+- **Never throw a `WorkerThreadPool.add_task` id away**: wait on it, or start the job with
+  `BackgroundTask.start` (claims it once it has run). An unclaimed lambda stays in the pool until
+  teardown, after GDScript has finished, and crashed the Quest on quit (engine-patches.md
+  "Never-waited tasks at quit"; desktop runs stock Godot, without that patch).
 - **Never raise a live `VerletRope`'s `segment_count` (or `tube_sides`/`smoothing`) without
   re-laying it.** The setter resizes nothing while the solver bounds its loops by
   `segment_count + 1`, so the next tick writes off the end of `m_points` — heap corruption,

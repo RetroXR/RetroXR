@@ -55,7 +55,7 @@ static func request(paths: PackedStringArray, done: Callable) -> void:
 		return
 	var probe := _probe
 	print("[MusicLengths] measuring %d track(s), e.g. %s" % [missing.size(), missing[0].get_file()])
-	WorkerThreadPool.add_task(func() -> void:
+	BackgroundTask.start(func() -> void:
 		var measured := 0
 		for p in missing:
 			var ms: int = probe.call("probe_length_ms", ProjectSettings.globalize_path(p), PROBE_TIMEOUT_MS)

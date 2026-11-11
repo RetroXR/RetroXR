@@ -184,7 +184,7 @@ func load_state(state_id: String) -> void:
 	_load_id = state_id
 	_load_gen += 1
 	# Reading it is the slow half on a big state, so it is not done here.
-	WorkerThreadPool.add_task(_read_state_task.bind(core, _host.rom_path, state_id, _load_gen))
+	BackgroundTask.start(_read_state_task.bind(core, _host.rom_path, state_id, _load_gen), false, "save state read")
 
 
 func _read_state_task(core: String, rom: String, state_id: String, gen: int) -> void:

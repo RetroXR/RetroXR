@@ -242,11 +242,11 @@ static func warm_cache(dirs: Array, extensions: Array = [], budget := 400) -> in
 	return pending.size()
 
 
-## Warm the cache without blocking the caller. Fire-and-forget: nothing waits on
-## the task, because nothing needs to -- an unfinished sweep only means the next
+## Warm the cache without blocking the caller. Fire-and-forget (BackgroundTask claims
+## the task once it has run): nothing waits on it, because nothing needs to -- an unfinished sweep only means the next
 ## lookup does its own hashing, which is what it did before this existed.
 static func warm_cache_async(dirs: Array, extensions: Array = [], budget := 400) -> void:
-	WorkerThreadPool.add_task(
+	BackgroundTask.start(
 		func() -> void: warm_cache(dirs, extensions, budget), false,
 		"netplay hash warm-up")
 

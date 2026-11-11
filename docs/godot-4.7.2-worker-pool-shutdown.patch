@@ -1,0 +1,54 @@
+From c21eee7ebe50e2e571599bacafe67b7765f6c5b9 Mon Sep 17 00:00:00 2001
+From: Ryan McClelland <rymcclel@gmail.com>
+Date: Wed, 11 Nov 2026 12:58:26 +0700
+Subject: [PATCH] WorkerThreadPool: release finished tasks' callables before
+ the script languages finish
+
+A task nobody waited for stays in `tasks` until finish(), which runs from
+unregister_core_types(), after ScriptServer::finish_languages(). A GDScript
+lambda kept there holds its script, and freeing it then ran ~GDScript against a
+finished GDScriptLanguage: SIGSEGV in recursive_mutex::lock under
+GDScript::cancel_pending_functions on quit (RetroXR, Quest tombstone 2026-11-09).
+exit_languages_threads() now lets go of every COMPLETED task's callable while
+the languages are still up; a task still queued keeps its callable.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ core/object/worker_thread_pool.cpp | 21 +++++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+
+diff --git a/core/object/worker_thread_pool.cpp b/core/object/worker_thread_pool.cpp
+index f5574c47a0..71962ab4bd 100644
+--- a/core/object/worker_thread_pool.cpp
++++ b/core/object/worker_thread_pool.cpp
+@@ -854,6 +854,27 @@ void WorkerThreadPool::exit_languages_threads() {
+ 	while (runlevel_data.exit_languages.num_exited_threads != threads.size()) {
+ 		control_cond_var.wait(lock);
+ 	}
++
++	// RetroXR: a task nobody waited for stays in `tasks` until finish(), which runs from unregister_core_types(),
++	// long after ScriptServer::finish_languages(). A GDScript lambda kept there holds a reference to its script, and
++	// freeing it then ran ~GDScript against a finished GDScriptLanguage (a SIGSEGV in recursive_mutex::lock under
++	// GDScript::cancel_pending_functions, Quest tombstone 2026-11-09). Let go of every COMPLETED task's callable now,
++	// while the languages are still up: it has run and nothing can call it again. (A task still queued keeps its
++	// callable, as before; a worker may yet pick it up.) They are released outside the lock: a callable's destructor
++	// may reach back into this pool.
++	LocalVector<Callable> leftovers;
++	for (KeyValue<TaskID, Task *> &E : tasks) {
++		if (E.value->completed && E.value->callable.is_valid()) {
++			leftovers.push_back(E.value->callable);
++			E.value->callable = Callable();
++		}
++	}
++	if (!leftovers.is_empty()) {
++		print_verbose(vformat("WorkerThreadPool: releasing %d task callable(s) never waited for, before the script languages finish.", leftovers.size()));
++		lock.temp_unlock();
++		leftovers.clear();
++		lock.temp_relock();
++	}
+ }
+ 
+ void WorkerThreadPool::finish() {
+-- 
+2.55.0.windows.3
+

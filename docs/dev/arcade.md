@@ -1052,6 +1052,10 @@ spent), and a photograph of the real cabinet is still wanted before the 3D struc
   go by the way the hand points. Let go, the gun stays as it was aimed and goes with its cabinet (`LightGun._physics_process` pins it to the mount while no
   hand holds it). Carried off by the hand it cannot be: the pivot stays on the post whatever the hand wants (`arcade_form_tests mount/` drives the real
   grab driver with a hand two metres off).
+- **A gun freed in a hand takes its driver with it** (2026-11-11): the driver is the gun's SIBLING, and it went on calling the freed gun's `constrain_grab`,
+  which a release build does not check -- the Quest crashed in `Object::_call_bind` (tombstones 2026-11-09). `XRToolsGrabDriver._physics_process` now frees
+  itself first thing once its target is gone (`[Grab] driver ...` in the log); `arcade_form_tests mount/` frees a held light gun (a debug run of the old
+  driver logs `Cannot call method 'call' on a previously freed instance`, which fails the run).
 - **Not changed:** a pistol in a holster is still taken out and carried (Time Crisis, Point Blank, House of the Dead), and its well still puts it back where it
   was let go near. The cord follows the gun's cord boss as before.
 - **What a fixed gun looks like** (2026-10-27, the spec's `gun_scene`, `ArcadeCabinetSpecs.GUN_SCENES`, the table's `y` on a gun game): the pistol by default, else `stick` (Rail Chase's: a joystick-like handle)
