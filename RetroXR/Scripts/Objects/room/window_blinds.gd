@@ -121,6 +121,12 @@ var _bottom: MeshInstance3D = null
 var _tween: Tween = null
 
 
+# The scene save finds the room's blinds through this group, not by walking the
+# whole room for them (ScenePersistence.BLINDS_GROUP).
+func _init() -> void:
+	add_to_group(ScenePersistence.BLINDS_GROUP)
+
+
 func _ready() -> void:
 	if not sun_path.is_empty():
 		_sun = get_node_or_null(sun_path) as Light3D
@@ -412,6 +418,17 @@ func _on_wand_turned(v: float) -> void:
 		_tilt_report_at = now
 		NetworkManager.report_event(NetEvents.Event.EV_BLINDS,
 			{"blinds": self, "drop": drop, "tilt": tilt})
+
+
+## A slot restore: drop and tilt at once, no animation and nothing reported. A pull
+## still easing toward its target would otherwise land after this and undo it.
+func apply_state(p_drop: float, p_tilt: float) -> void:
+	if _tween != null and _tween.is_valid():
+		_tween.kill()
+	_tween = null
+	drop = p_drop
+	set_tilt_remote(p_tilt)
+	print("[WindowBlinds] %s restored: drop %.2f tilt %.2f" % [name, drop, tilt])
 
 
 ## Another player turned the wand, or a late join is catching up: set it without reporting it back.

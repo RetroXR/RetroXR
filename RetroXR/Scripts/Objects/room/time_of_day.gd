@@ -229,6 +229,12 @@ var _last_apply: float = -1000.0
 var _pending: bool = false
 
 
+# The scene save finds the room's clock through this group, not by walking the
+# whole room for it (ScenePersistence.CLOCK_GROUP).
+func _init() -> void:
+	add_to_group(ScenePersistence.CLOCK_GROUP)
+
+
 func _ready() -> void:
 	# Nothing here runs per frame; every apply is driven by the lever's signal.
 	set_process(false)

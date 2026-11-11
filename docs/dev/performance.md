@@ -314,7 +314,9 @@ The traces are in `~/tools/traces/`.
 - `ControlPoke.poll` returns at once with no hand near and nothing held, after `SETTLE_FRAMES` (45) for a
   let-go cap to ease back (`control_poke_tests` `idle_stops` / `idle_wakes`).
 - The snapshot no longer walks every object's subtree three times by class name: VRHinge, VRKnob and
-  VRSlider join `ScenePersistence.CONTROL_GROUP` in `_init`, LightSwitch joins `SWITCH_GROUP`, and the
+  VRSlider join `ScenePersistence.CONTROL_GROUP` in `_init`, LightSwitch joins `SWITCH_GROUP` (WindowBlinds
+  `BLINDS_GROUP` and TimeOfDay `CLOCK_GROUP` likewise, 2026-11-11: the slot's `"blinds"` {path, drop, tilt}
+  and `"time_of_day"` {path, time} sections, `scene_tests --only=blinds`), and the
   snapshot files those lists in tree order (`is_greater_than`) so an object's list is what its own
   `find_children` gave. A whole-room `find_children` by class name was tried first and was SLOWER
   (8 ms a type: it checks every node's script). Ropes are an engine class and keep their walk.

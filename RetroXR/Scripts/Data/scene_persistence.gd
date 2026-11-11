@@ -635,10 +635,13 @@ func load_slot_async(root: Node, slot_id: String) -> bool:
 	# authored place would be laid out to the wrong end of the room.
 	_restore_fixtures(root, _read_fixtures(path))
 	_restore_switches(root, _read_switches(path))
+	_restore_doors(root, JsonStore.read_dict(path).get("doors", []))
+	var room_state := JsonStore.read_dict(path)
+	_restore_blinds(root, room_state.get("blinds", []))
+	_restore_clocks(root, room_state.get("time_of_day", []))
 	var spawned: Dictionary = await instantiate_objects_async(root, objects)
 	print("[ScenePersistence] loaded %d objects from '%s'" % [spawned.size(), path])
 	return true
-	_restore_doors(root, JsonStore.read_dict(path).get("doors", []))
 
 
 # ── The carry ─────────────────────────────────────────────────────────────────
@@ -890,12 +893,18 @@ func _snapshot(root: Node) -> Dictionary:
 	var switches := _collect_switches(root)
 	if not switches.is_empty():
 		out["switches"] = switches
-	return out
-
-
 	var doors := _collect_doors(root)
 	if not doors.is_empty():
 		out["doors"] = doors
+	var blinds := _collect_blinds(root)
+	if not blinds.is_empty():
+		out["blinds"] = blinds
+	var clocks := _collect_clocks(root)
+	if not clocks.is_empty():
+		out["time_of_day"] = clocks
+	return out
+
+
 ## Authored objects the player can move.
 ##
 ## The arcade's television is instanced by the room rather than spawned into it,
@@ -998,9 +1007,6 @@ func _restore_switches(root: Node, switches: Variant) -> void:
 		sw.set_lights_on(bool(rec.get("on", true)))
 
 
-func _encode(snapshot: Dictionary) -> String:
-	return JSON.stringify(snapshot, "\t")
-
 ## The room's own doors (VRDoor), keyed by node path as the switches are: how far
 ## each stands open and whether its latch is in. A door inside a spawned object is
 ## left out — its hinge and knob are in that object's own entry. Omitted for a room
@@ -1033,6 +1039,91 @@ func _restore_doors(root: Node, doors: Variant) -> void:
 			# A room whose door was renamed or removed since the save.
 			continue
 		door.apply_state(float(rec.get("deg", 0.0)), bool(rec.get("latched", true)))
+
+
+func _encode(snapshot: Dictionary) -> String:
+	return JSON.stringify(snapshot, "\t")
+
+
+## The room's window blinds (WindowBlinds), keyed by node path as the switches are:
+## how far each is lowered and how its slats are turned. They are scene-placed, so
+## the object walk never sees them, and the bedroom came back at its authored drop
+## however it was left. Omitted for a room with none, so those slots keep their bytes.
+func _collect_blinds(root: Node) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for node: Node in _in_tree_order(root, BLINDS_GROUP):
+		var blinds := node as WindowBlinds
+		if blinds == null:
+			continue
+		out.append({
+			"path": str(root.get_path_to(blinds)),
+			"drop": snappedf(blinds.drop, 0.0001),
+			"tilt": snappedf(blinds.tilt, 0.0001),
+		})
+	return out
+
+
+## Absent from every slot written before blinds were recorded, in which case each
+## keeps the drop and tilt its scene authored.
+func _restore_blinds(root: Node, blinds: Variant) -> void:
+	if not blinds is Array:
+		return
+	for entry: Variant in blinds as Array:
+		if not entry is Dictionary:
+			continue
+		var rec := entry as Dictionary
+		var node := root.get_node_or_null(NodePath(str(rec.get("path", "")))) as WindowBlinds
+		if node == null:
+			print("[ScenePersistence] blinds '%s' not in this room; skipped" % str(rec.get("path", "")))
+			continue
+		var drop := float(rec.get("drop", NAN))
+		var tilt := float(rec.get("tilt", NAN))
+		if not is_finite(drop):
+			drop = node.drop
+		if not is_finite(tilt):
+			tilt = node.tilt
+		node.apply_state(drop, tilt)
+
+
+## The room's time-of-day clock (TimeOfDay, the bedroom's lever), keyed by path.
+## AppPrefs still remembers the last time set, app-wide; this is the time THIS slot
+## was saved at, so loading a slot brings back its own sky. A clock with `persist`
+## off wants the authored moment every load and is left out.
+func _collect_clocks(root: Node) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for node: Node in _in_tree_order(root, CLOCK_GROUP):
+		var clock := node as TimeOfDay
+		if clock == null or not clock.persist:
+			continue
+		out.append({
+			"path": str(root.get_path_to(clock)),
+			"time": snappedf(clock.time, 0.0001),
+		})
+	return out
+
+
+## Absent from every slot written before the time was recorded, in which case the
+## clock keeps what AppPrefs gave it at _ready.
+func _restore_clocks(root: Node, clocks: Variant) -> void:
+	if not clocks is Array:
+		return
+	for entry: Variant in clocks as Array:
+		if not entry is Dictionary:
+			continue
+		var rec := entry as Dictionary
+		var clock := root.get_node_or_null(NodePath(str(rec.get("path", "")))) as TimeOfDay
+		if clock == null:
+			print("[ScenePersistence] clock '%s' not in this room; skipped" % str(rec.get("path", "")))
+			continue
+		if not clock.persist:
+			continue
+		var t := float(rec.get("time", NAN))
+		if not is_finite(t):
+			continue
+		# The lever's arm without its signal, then one immediate apply: the path a
+		# late joiner takes, so it is not reported as the player moving it.
+		clock.net_set_time(t)
+		print("[ScenePersistence] %s restored to time %.3f" % [clock.name, clock.time])
 
 
 
@@ -2204,6 +2295,9 @@ func _yaw_field(key: String, yaw: float) -> Dictionary:
 ## snapshot (ObjectSync serializes one node at a time) every type walks.
 const CONTROL_GROUP := &"persisted_control"
 const SWITCH_GROUP := &"persisted_light_switch"
+## WindowBlinds and TimeOfDay join these in _init, as LightSwitch joins SWITCH_GROUP.
+const BLINDS_GROUP := &"persisted_window_blinds"
+const CLOCK_GROUP := &"persisted_time_of_day"
 const INDEXED_TYPES: Array[String] = ["VRHinge", "VRKnob", "VRSlider"]
 ## Off: every object walks its own subtree, as before. A kill switch and a control leg.
 static var index_descendants := true

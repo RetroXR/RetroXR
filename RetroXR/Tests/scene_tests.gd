@@ -18,7 +18,7 @@ extends "res://Tests/test_suite.gd"
 ## set_active_slot() writes user://scenes/prefs.json. Both are snapshotted at the
 ## start and put back at the end, so a red run cannot cost anyone their room.
 
-const GROUPS := ["slots", "boot", "ready", "transition", "autosave", "reload", "carry", "restart", "overlap", "curtain", "fixture", "switch", "power", "cords", "vlc", "manifest", "stack"]
+const GROUPS := ["slots", "boot", "ready", "transition", "autosave", "reload", "carry", "restart", "overlap", "curtain", "fixture", "switch", "blinds", "power", "cords", "vlc", "manifest", "stack"]
 ## A room id no real room has, for the carry: its file lives in a folder of its
 ## own under user://scenes, deleted at the end, never the player's.
 const CARRY_ROOM := "__scene_selftest_carry"
@@ -186,6 +186,8 @@ func _ready() -> void:
 		await _test_fixture()
 	if _want_group("switch"):
 		await _test_switch()
+	if _want_group("blinds"):
+		await _test_blinds_and_time()
 	if _want_group("power"):
 		await _test_power()
 	if _want_group("cords"):
@@ -1117,6 +1119,84 @@ func _test_switch() -> void:
 	var src := FileAccess.get_file_as_string("res://Scenes/BedroomScene.tscn")
 	_ok(src.contains("light_switch.gd"),
 		"switch/the bedroom still authors a light switch")
+
+
+# -- The room's blinds and its time of day ------------------------------------
+
+## Both are scene-placed, so the object walk never sees them: the bedroom's blinds
+## came back at their authored drop and its sky at whatever time AppPrefs last
+## held, whichever slot was loaded. Each is recorded by path, as a switch is.
+func _test_blinds_and_time() -> void:
+	var sp := ScenePersistence.new("bedroom")
+	var blinds := WindowBlinds.new()
+	blinds.name = "Blinds"
+	add_child(blinds)
+	var clock := TimeOfDay.new()
+	clock.name = "Clock"
+	add_child(clock)
+	await get_tree().process_frame
+	blinds.apply_state(0.5, -0.4)
+	clock.net_set_time(0.3)
+
+	# Through JSON, as a slot file is.
+	var snap: Dictionary = JSON.parse_string(JSON.stringify(sp._snapshot(self)))
+	_ok(snap.has("blinds"), "blinds/a room with blinds writes the section")
+	_ok(snap.has("time_of_day"), "blinds/a room with a clock writes the time")
+	var b_recs: Array = snap.get("blinds", [])
+	var t_recs: Array = snap.get("time_of_day", [])
+	_eq(b_recs.size(), 1, "blinds/exactly one blind recorded")
+	_eq(t_recs.size(), 1, "blinds/exactly one clock recorded")
+	if b_recs.size() == 1:
+		_eq(str(b_recs[0].get("path", "")), "Blinds", "blinds/recorded by path")
+		_ok(absf(float(b_recs[0].get("drop", -1.0)) - 0.5) < 0.001
+			and absf(float(b_recs[0].get("tilt", 9.0)) + 0.4) < 0.001,
+			"blinds/records drop and tilt as left")
+	if t_recs.size() == 1:
+		_ok(absf(float(t_recs[0].get("time", -1.0)) - 0.3) < 0.001,
+			"blinds/records the time as left")
+
+	# The load path must move them, not just read them back.
+	blinds.apply_state(1.0, 0.0)
+	clock.net_set_time(0.9)
+	sp._restore_blinds(self, b_recs)
+	sp._restore_clocks(self, t_recs)
+	_ok(absf(blinds.drop - 0.5) < 0.001 and absf(blinds.tilt + 0.4) < 0.001,
+		"blinds/saved blinds come back as left")
+	_ok(absf(clock.time - 0.3) < 0.001, "blinds/the saved time comes back")
+
+	# A pull still easing when the load lands must not finish over the restore.
+	blinds.pull_step()
+	sp._restore_blinds(self, [{"path": "Blinds", "drop": 0.25, "tilt": 0.0}])
+	await get_tree().create_timer(blinds.animate_time + 0.1).timeout
+	_ok(absf(blinds.drop - 0.25) < 0.001, "blinds/a restore wins over a pull in flight")
+
+	# An old slot carries neither section and changes nothing; a missing node or a
+	# junk record is skipped.
+	sp._restore_blinds(self, [])
+	sp._restore_clocks(self, [])
+	sp._restore_blinds(self, [{"path": "Gone", "drop": 0.0}, "junk"])
+	sp._restore_clocks(self, [{"path": "Gone", "time": 0.0}, "junk", {"path": "Clock"}])
+	_ok(absf(blinds.drop - 0.25) < 0.001 and absf(clock.time - 0.3) < 0.001,
+		"blinds/an old slot, a missing node or a junk record changes nothing")
+
+	# A clock that wants its authored moment every load is neither saved nor restored.
+	clock.persist = false
+	_ok(not sp._snapshot(self).has("time_of_day"), "blinds/persist off writes no time")
+	sp._restore_clocks(self, [{"path": "Clock", "time": 0.9}])
+	_ok(absf(clock.time - 0.3) < 0.001, "blinds/persist off ignores a saved time")
+
+	blinds.queue_free()
+	clock.queue_free()
+	await get_tree().process_frame
+	var empty := sp._snapshot(self)
+	_ok(not empty.has("blinds") and not empty.has("time_of_day"),
+		"blinds/a room without them writes no section")
+
+	# Worth nothing unless the bedroom still authors both. Read from the .tscn
+	# because the room cannot be loaded here.
+	var src := FileAccess.get_file_as_string("res://Scenes/BedroomScene.tscn")
+	_ok(src.contains("window_blinds.gd") and src.contains("time_of_day.gd"),
+		"blinds/the bedroom still authors blinds and a time-of-day clock")
 
 
 # ── A machine's core must not outlive the machine ─────────────────────────────
