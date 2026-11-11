@@ -66,6 +66,13 @@ func _process(delta: float) -> void:
 		toggle_requested.emit()
 
 
+## Springing home is moving by itself: stay awake until it is there. PokeWake puts
+## an idle slider to sleep 30 frames after the last hand leaves, and a switch let
+## go mid-travel used to stop wherever it was when that happened.
+func _keep_awake() -> bool:
+	return value > 0.0
+
+
 ## How far through the current hold the switch is, 0..1 — for a caller that wants
 ## to show progress. Zero whenever it is not being held at the active end.
 func hold_progress() -> float:

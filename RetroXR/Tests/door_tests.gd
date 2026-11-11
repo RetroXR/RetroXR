@@ -28,6 +28,13 @@ func _ready() -> void:
 	await _model_split()
 	await _save_records_room_doors()
 	await _net_room_state_and_events()
+	await _bar_geometry()
+	await _bar_short_push()
+	await _bar_push_through()
+	await _bar_ends_do_nothing()
+	await _closer()
+	await _bar_pointer()
+	await _bar_springs_home_asleep()
 	for h in _hands:
 		XRServer.remove_tracker(h["tracker"] as XRControllerTracker)
 	_finish()
@@ -118,6 +125,16 @@ func _geometry() -> void:
 			_ok(absf(knob90.x - (0.45 * -latch_x)) < 0.08,
 				tag + ": ...in line with the hinge edge", str(knob90))
 			_ok(is_equal_approx(knob90.y, knob0.y), tag + ": ...at the same height")
+			# The leaf's collision goes with it: a ray through the middle of the doorway
+			# meets nothing once it is open (it stood shut there once, an invisible wall).
+			await get_tree().physics_frame
+			await get_tree().physics_frame
+			var space := get_viewport().world_3d.direct_space_state
+			var through := PhysicsRayQueryParameters3D.create(d.to_global(Vector3(0, 1.0, -0.6)),
+				d.to_global(Vector3(0, 1.0, 0.6)))
+			var hit := space.intersect_ray(through)
+			_ok(hit.is_empty(), tag + ": open, the doorway is clear (the leaf's collision swung too)",
+				str(hit.get("position", "")))
 			await _free(d)
 
 
@@ -293,6 +310,28 @@ func _model_split() -> void:
 		_ok(absf(d.knob.position.length()) > 0.0 and absf(d.to_local(d.knob.global_position).y - 0.876) < 0.02,
 			"split/the knob's axle is at the model's knob height",
 			str(d.to_local(d.knob.global_position)))
+	# The latch bolt is its own part: it slides into the edge with the knob, never turns with it.
+	var bolt := d.get_node_or_null("HingeFrame/HingePivot/Bolt") as Node3D
+	_ok(bolt != null and absf(d._bolt_travel - 0.0102) < 0.001,
+		"split/the latch bolt is its own part, about 10 mm out of the edge",
+		"travel %.4f" % d._bolt_travel)
+	if bolt != null:
+		var rest := bolt.transform
+		var at0 := d.to_local(bolt.global_position)
+		d.knob.return_speed_deg = 0.0   # held where it is put
+		d.knob.set_value_no_signal(0.5 + 0.5 * d.unlatch_turn)
+		await _ticks(2)
+		var at1 := d.to_local(bolt.global_position)
+		_ok(absf((at1.x - at0.x) - d._bolt_travel) < 0.0005 and absf(at1.y - at0.y) < 1e-5
+			and absf(at1.z - at0.z) < 1e-5,
+			"split/turned to the unlatch point, the bolt is in flush with the edge", str(at1 - at0))
+		_ok(bolt.transform.basis.is_equal_approx(rest.basis), "split/...sliding, not turning")
+		d.knob.set_value_no_signal(0.5 + 0.25 * d.unlatch_turn)
+		await _ticks(2)
+		_ok(absf(d.bolt_in() - 0.5) < 0.01, "split/half the turn, half way in", "%.2f" % d.bolt_in())
+		d.knob.set_value_no_signal(0.5)
+		await _ticks(2)
+		_ok(bolt.transform.is_equal_approx(rest), "split/at rest, it is back out")
 	d.open_to(90.0, false)
 	var leaf_c := d.to_local(leaf.global_transform * leaf.mesh.get_aabb().get_center()) if leaf != null else Vector3.ZERO
 	_ok(leaf_c.z > 0.3, "split/open, the model's leaf stands out on +Z", str(leaf_c))
@@ -373,3 +412,155 @@ func _net_room_state_and_events() -> void:
 	_eq(reports.size(), 0, "net/...without an echo either")
 	nm.free()
 	await _free(root)
+
+
+# --- the crash bar ---------------------------------------------------------------
+
+## A crash-bar door at the origin: hinges +X, swings toward +Z, so the bar is on -Z.
+func _bar_door(swing := VRDoor.Swing.TOWARD_POSITIVE_Z, closing := false) -> VRDoor:
+	var d := VRDoor.new()
+	d.opener = VRDoor.Opener.PUSH_BAR
+	d.swing = swing
+	d.width = 0.9
+	d.self_closing = closing
+	d.log_name = "bar"
+	add_child(d)
+	await _ticks(2)
+	return d
+
+
+## A point on the bar's face, `depth` metres in from where it rests (negative: in front).
+func _on_bar(d: VRDoor, x: float, depth: float) -> Vector3:
+	var half: Vector3 = d.bar._half_extents()
+	return d.bar.to_global(Vector3(x, 0.0, -half.z + depth))
+
+
+## The bar is on the face the door swings AWAY from, either way it swings.
+func _bar_geometry() -> void:
+	for swing: int in [VRDoor.Swing.TOWARD_POSITIVE_Z, VRDoor.Swing.TOWARD_NEGATIVE_Z]:
+		var d := await _bar_door(swing)
+		var s := 1.0 if swing == VRDoor.Swing.TOWARD_POSITIVE_Z else -1.0
+		var at := d.to_local(d.bar.global_position)
+		_ok(at.z * s < -0.04, "bar/geometry: the bar stands out of the push face (swing %+d)" % int(s),
+			str(at))
+		var into: Vector3 = d.global_basis.inverse() * (d.bar.global_basis * Vector3(0, 0, 1))
+		_ok(into.z * s > 0.99, "bar/geometry: it is pushed the way the door swings (swing %+d)" % int(s),
+			str(into))
+		_ok(d.knob == null, "bar/geometry: a bar door has no knob")
+		await _free(d)
+
+
+## A fingertip pushes the bar part way: it goes in as far as the tip, the latch holds,
+## and drawn back the bar springs out again.
+func _bar_short_push() -> void:
+	var h := _hand("bar_a")
+	var d := await _bar_door()
+	_hand_at(h, _on_bar(d, 0.1, -0.004))
+	await _ticks(3)
+	_ok(d.bar.is_pushed(), "bar/short: a fingertip at the bar's face takes it")
+	_hand_at(h, _on_bar(d, 0.1, 0.01))
+	await _ticks(3)
+	_ok(absf(d.bar.value - 0.4) < 0.05, "bar/short: it goes in as far as the tip",
+		"value %.2f" % d.bar.value)
+	_ok(d.is_latched(), "bar/short: 40% of the way, the latch holds")
+	_hand_at(h, _on_bar(d, 0.1, -0.15))
+	await _ticks(20)
+	_ok(not d.bar.is_pushed() and is_zero_approx(d.bar.value), "bar/short: let go, it springs back out",
+		"value %.2f" % d.bar.value)
+	_ok(d.is_latched(), "bar/short: ...still latched")
+	_hand_at(h, Vector3(0, 10, 0))
+	await _free(d)
+
+
+## Pushed through, the latch goes and the same hand walks the leaf open; drawn back,
+## the leaf carries on a little and stops (no closer).
+func _bar_push_through() -> void:
+	var h := _hand("bar_b")
+	var d := await _bar_door()
+	_hand_at(h, _on_bar(d, 0.0, -0.004))
+	await _ticks(3)
+	var tip0 := _on_bar(d, 0.0, 0.02)
+	_hand_at(h, tip0)
+	await _ticks(3)
+	_ok(not d.is_latched(), "bar/through: pushed 80% in, the latch lets go")
+	_ok(d.hinge.is_pushing(), "bar/through: ...and the hand pushes the leaf")
+	var hinge_at := d.to_global(Vector3(0.45, 0.0, 0.0175))
+	hinge_at.y = tip0.y
+	for k in range(1, 9):
+		var turn := Basis(Vector3.UP, deg_to_rad(5.0 * k))
+		_hand_at(h, hinge_at + turn * (tip0 - hinge_at))
+		await _ticks(1)
+	var walked := d.get_angle_deg()
+	_ok(walked > 30.0 and walked < 45.0, "bar/through: walking on swings the door away from the bar",
+		"%.1f deg" % walked)
+	_hand_at(h, tip0 + Vector3(0, 0, -0.4))
+	await _ticks(40)
+	_ok(not d.hinge.is_pushing(), "bar/through: drawn back, the hand lets go")
+	_ok(d.get_angle_deg() >= walked - 0.01, "bar/through: ...and the leaf does not fall back (it coasts or stops)",
+		"%.1f -> %.1f" % [walked, d.get_angle_deg()])
+	_ok(is_zero_approx(d.bar.value), "bar/through: the bar is back out")
+	_hand_at(h, Vector3(0, 10, 0))
+	await _free(d)
+
+
+## A fingertip just past the bar's end, or a hand pulling from the far side, does nothing.
+func _bar_ends_do_nothing() -> void:
+	var h := _hand("bar_c")
+	var d := await _bar_door()
+	var half: Vector3 = d.bar._half_extents()
+	_hand_at(h, _on_bar(d, half.x + 0.05, -0.004))
+	await _ticks(3)
+	_hand_at(h, _on_bar(d, half.x + 0.05, 0.02))
+	await _ticks(3)
+	_ok(not d.bar.is_pushed() and is_zero_approx(d.bar.value), "bar/ends: past the bar's end it is not pushed")
+	_ok(d.is_latched(), "bar/ends: ...and the door stays latched")
+	_hand_at(h, Vector3(0, 10, 0))
+	await _free(d)
+
+
+## A door with a closer comes home and latches by itself; one without stays put.
+func _closer() -> void:
+	var d := await _bar_door(VRDoor.Swing.TOWARD_POSITIVE_Z, true)
+	d.apply_state(30.0, false)
+	await _wait_until(func() -> bool: return d.is_latched(), 8.0)
+	_ok(d.is_latched() and is_zero_approx(d.get_angle_deg()), "closer/a self-closing door shuts and latches",
+		"%.1f deg" % d.get_angle_deg())
+	# Slowly, as an overhead closer does: from 30 degrees it takes seconds, not a snap.
+	var slow := await _bar_door(VRDoor.Swing.TOWARD_POSITIVE_Z, true)
+	slow.apply_state(30.0, false)
+	await get_tree().create_timer(1.0).timeout
+	_ok(slow.get_angle_deg() > 10.0 and not slow.is_latched(), "closer/...slowly (still open a second later)",
+		"%.1f deg" % slow.get_angle_deg())
+	await _free(slow)
+	await _free(d)
+	var still := await _bar_door()
+	still.apply_state(30.0, false)
+	await _ticks(60)
+	_ok(absf(still.get_angle_deg() - 30.0) < 0.01, "closer/without a closer it stays open")
+	await _free(still)
+
+
+## A press on the bar from the desktop opens the door; a closer brings it back after a moment.
+func _bar_pointer() -> void:
+	var d := await _bar_door(VRDoor.Swing.TOWARD_POSITIVE_Z, true)
+	d.bar.pointer_pressed.emit()
+	await _wait_until(func() -> bool: return d.get_angle_deg() > d.desktop_open_deg - 0.5, 3.0)
+	_ok(absf(d.get_angle_deg() - d.desktop_open_deg) < 0.5, "bar/pointer: a press opens it",
+		"%.1f deg" % d.get_angle_deg())
+	await _ticks(30)
+	_ok(d.get_angle_deg() > d.desktop_open_deg - 1.0, "bar/pointer: it stands open a moment first")
+	await _wait_until(func() -> bool: return d.is_latched(), 15.0)
+	_ok(d.is_latched(), "bar/pointer: then the closer shuts and latches it")
+	await _free(d)
+
+
+## A spring-return slider let go part way keeps itself awake until it is home: PokeWake
+## puts an idle one to sleep after 30 frames, and a slow spring outlasts that.
+func _bar_springs_home_asleep() -> void:
+	var d := await _bar_door()
+	d.bar.return_speed = 0.5   # two seconds home
+	d.bar.set_value_no_signal(1.0)
+	await _wait_until(func() -> bool: return is_zero_approx(d.bar.value), 4.0)
+	_ok(is_zero_approx(d.bar.value), "bar/spring: a slow spring still gets home (it does not fall asleep)",
+		"value %.2f" % d.bar.value)
+	await _free(d)

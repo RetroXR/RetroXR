@@ -727,8 +727,19 @@ knob_surfaces = PackedStringArray("Brass")
 [node name="Model" parent="CellarDoor" instance=ExtResource("cellar_door_glb")]
 ```
 
-It is latched until its knob is turned (with the wrist, either way), and the same pull
-then swings it. A press on the knob from the desktop or a laser opens or shuts it. It
+For an exit door, set `opener = 1` (`PUSH_BAR`): a crash bar across the face the door
+swings away from (`bar_height`, `bar_length`, `bar_standoff`, or `bar_surfaces` /
+a `Bar` mesh child). Pushing it 60% of the way in lets the latch go, and the same push
+walks the door open. A fingertip pushes it too. `self_closing = true` gives the door an
+overhead closer (`closer_speed_deg`, 12 by default): left alone, it eases shut and
+latches.
+
+If your door's model loads after the room (a GLB picked at run time), build the VRDoor
+with no model and hand it the meshes when they arrive: `door.dress_leaf(leaf_node)` and
+`door.dress_opener(bar_mesh)`, each placed as it stands with the door shut.
+
+A knob door is latched until its knob is turned (with the wrist, either way), and the
+same pull then swings it. A press on the knob from the desktop or a laser opens or shuts it. It
 latches again when it is let go near shut. In a ROOM it is saved in the slot and shared
 in a session with nothing more to do. In a spawned PROP it is saved and shared as any
 hinge and knob in the prop are. Keep the node's name and path once players have

@@ -81,6 +81,62 @@ static func split_outside_slab(mesh: Mesh, surface: int, xf: Transform3D,
 	return [outer, inner]
 
 
+## A triangle surface's connected PIECES (vertices welded by position, to 0.1 mm, so
+## a piece's split normals and seams do not cut it), each as
+## {"tris": PackedInt32Array (an index array), "box": AABB through `xf`}. A lockset
+## is several parts in one material: the knobs and their roses, the latch bolt, the
+## faceplate on the edge and its screws; what moves is a whole part, never part of one.
+static func pieces(mesh: Mesh, surface: int, xf: Transform3D) -> Array[Dictionary]:
+	var arrays := mesh.surface_get_arrays(surface)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var index: PackedInt32Array = _indices(arrays)
+	var parent := PackedInt32Array()
+	parent.resize(verts.size())
+	for k in verts.size():
+		parent[k] = k
+	var seen := {}
+	for k in verts.size():
+		var key := (verts[k] * 10000.0).round()
+		if seen.has(key):
+			_union(parent, k, seen[key])
+		else:
+			seen[key] = k
+	for t in range(0, index.size() - 2, 3):
+		_union(parent, index[t], index[t + 1])
+		_union(parent, index[t], index[t + 2])
+	var by_root := {}
+	for t in range(0, index.size() - 2, 3):
+		var r := _find(parent, index[t])
+		if not by_root.has(r):
+			by_root[r] = {"tris": PackedInt32Array(), "box": AABB(xf * verts[index[t]], Vector3.ZERO)}
+		var piece: Dictionary = by_root[r]
+		var tris: PackedInt32Array = piece["tris"]
+		var box: AABB = piece["box"]
+		for j in 3:
+			tris.append(index[t + j])
+			box = box.expand(xf * verts[index[t + j]])
+		piece["tris"] = tris
+		piece["box"] = box
+	var out: Array[Dictionary] = []
+	for r in by_root:
+		out.append(by_root[r])
+	return out
+
+
+static func _find(parent: PackedInt32Array, a: int) -> int:
+	while parent[a] != a:
+		parent[a] = parent[parent[a]]
+		a = parent[a]
+	return a
+
+
+static func _union(parent: PackedInt32Array, a: int, b: int) -> void:
+	var ra := _find(parent, a)
+	var rb := _find(parent, b)
+	if ra != rb:
+		parent[ra] = rb
+
+
 ## Copy one surface of `mesh` onto `dst` (only `triangles` of it, when given), with
 ## its material — `material` instead, when a node overrode it.
 static func append_surface(dst: ArrayMesh, mesh: Mesh, surface: int,

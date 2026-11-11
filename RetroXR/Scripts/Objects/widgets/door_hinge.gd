@@ -19,11 +19,27 @@
 class_name DoorHinge
 extends VRSpringLatchedHinge
 
-## A hand whose fingertip is in the knob's reach takes the KNOB, not the leaf, so a
-## trigger at the knob never swings the door without turning the knob first.
-var knob: VRKnob = null
+## A door closer: an unlatched leaf nobody is moving eases shut by itself and the
+## bolt drops in, as an exit door's overhead closer does.
+@export var self_closing: bool = false
+## The closer's speed, degrees a second; it slows over the last 10 degrees. A real
+## overhead closer is SLOW: several seconds from wide open, so a door shuts behind you.
+@export var closer_speed_deg: float = 12.0
+
+## The door's opener (DoorKnob or DoorPushBar): a fingertip in its reach takes the
+## OPENER, not the leaf, so a trigger at the knob or a hand on the bar never swings
+## the door without working the latch first.
+var opener: Node3D = null
+## The leaf's width, how far from the hinge a pushing hand can be and still be on it.
+var leaf_width: float = 0.9
+## Held off by the door's own code: a desktop swing or a remote update moving it.
+var closer_hold: bool = false
 # Opened past close_latch_deg since the last unlatch: a door swinging home latches.
 var _armed := false
+# push_with: the hand walking the leaf open, and how fast it was going.
+var _pusher: XRController3D = null
+var _push_velocity_deg := 0.0
+var _closer_wait := 0.0
 
 
 func _init() -> void:
@@ -88,13 +104,42 @@ func grab_with(ctrl: XRController3D, action: String = TRIGGER_ACTION) -> void:
 	_latch(ctrl, action, PokeTip.tip_of(ctrl))
 
 
+## A hand that just pushed the crash bar through walks the leaf open: it follows the
+## hand FORWARD only (a door is pushed, not pulled, from the bar side), with no button
+## held, and lets go when the hand falls behind it or leaves it. What speed it had
+## carries on as release momentum, so a push sends it swinging.
+func push_with(ctrl: XRController3D) -> void:
+	if ctrl == null or target == null:
+		return
+	_pusher = ctrl
+	_push_velocity_deg = 0.0
+	_release_angular_velocity_deg = 0.0
+	_begin_track(PokeTip.tip_of(ctrl))
+
+
+func is_pushing() -> bool:
+	return _pusher != null
+
+
+## Keep the closer off for `seconds` (a desktop swing opens it for a moment first).
+func hold_closer(seconds: float) -> void:
+	_closer_wait = maxf(_closer_wait, seconds)
+
+
 ## Whether a hand, a pointer or a fingertip is driving the leaf right now.
 func is_held() -> bool:
-	return _trigger_ctrl != null or _pointer_held or _poke_ctrl != null
+	return _trigger_ctrl != null or _pointer_held or _poke_ctrl != null or _pusher != null
+
+
+func _can_engage() -> bool:
+	return _pusher == null and super._can_engage()
 
 
 func _process(delta: float) -> void:
 	super._process(delta)
+	_step_push(delta)
+	if _closer_wait > 0.0:
+		_closer_wait = maxf(0.0, _closer_wait - delta)
 	if _latched_closed or target == null:
 		return
 	var cur := rad_to_deg(target.rotation.x)
@@ -105,13 +150,62 @@ func _process(delta: float) -> void:
 		latch_closed()
 
 
-## No spring: an unlatched door stays where it was left.
-func _step_spring_open(_delta: float) -> void:
-	pass
+func _step_push(delta: float) -> void:
+	if _pusher == null:
+		return
+	var why := ""
+	var raw := NAN
+	if not is_instance_valid(_pusher) or not _pusher.get_is_active() \
+			or not PokeTip.is_poking(_pusher):
+		why = "hand gone"
+	else:
+		var tip := PokeTip.tip_of(_pusher)
+		var parent := target.get_parent() as Node3D
+		var rel: Vector3 = parent.to_local(tip) - target.position
+		var r := Vector2(rel.y, rel.z).length()
+		if r > leaf_width + 0.1 or r < 0.05:
+			why = "off the leaf"
+		else:
+			raw = _angle_at(tip, _grab_raw_prev)
+			if is_nan(raw):
+				why = "at the hinge"
+	if why.is_empty():
+		_grab_raw_prev = raw
+		var cur := rad_to_deg(target.rotation.x)
+		var wanted := raw + _grab_offset_deg
+		if wanted < cur - 3.0:
+			why = "drew back"
+		elif wanted > cur:
+			var next := minf(wanted, max_deg)
+			_apply(next, true)
+			if delta > 0.0:
+				_push_velocity_deg = lerpf(_push_velocity_deg, (next - cur) / delta, 0.5)
+			return
+		else:
+			_push_velocity_deg = lerpf(_push_velocity_deg, 0.0, 0.2)
+			return
+	print("[Door] push let go at %.1f deg (%s), carrying %.0f deg/s" % [
+		rad_to_deg(target.rotation.x), why, _push_velocity_deg])
+	_pusher = null
+	_release_angular_velocity_deg = clampf(_push_velocity_deg, 0.0, poke_momentum_max_deg_per_sec)
+	_push_velocity_deg = 0.0
+
+
+## No spring: an unlatched door stays where it was left, unless it has a closer.
+func _step_spring_open(delta: float) -> void:
+	if not self_closing or closer_hold or _closer_wait > 0.0 or is_held() or target == null:
+		return
+	if absf(_release_angular_velocity_deg) > 1.0:
+		return   # still swinging from a push: the closer takes it once it has stopped
+	var cur := rad_to_deg(target.rotation.x)
+	if cur <= min_deg:
+		return
+	var slow := 0.4 + 0.6 * clampf((cur - min_deg) / 10.0, 0.0, 1.0)
+	_apply(move_toward(cur, min_deg, closer_speed_deg * slow * delta), true)
 
 
 func _tip_in_activation_region(tip: Vector3) -> bool:
-	if knob != null and is_instance_valid(knob) and knob.has_method("in_reach") \
-			and knob.call("in_reach", tip):
+	if opener != null and is_instance_valid(opener) and opener.has_method("in_reach") \
+			and opener.call("in_reach", tip):
 		return false
 	return super._tip_in_activation_region(tip)

@@ -95,6 +95,10 @@ unchanged while they run.
   `_suspend` sets `META_SUSPENDED`, and `PokeWake.wake` refuses either. A bare
   `set_process(false)` is only safe with the pointable layer cleared too (the TV's
   hidden stereo key does both).
+- **Anything that moves by itself keeps itself awake until it stops** (`_keep_awake`):
+  a drawer coasting, a knob springing back (`DoorKnob`), and every `VRSpringReturnSlider`
+  while it returns home (2026-11-11; a slow spring used to stop part way once the hand
+  had been gone 30 frames, `door_tests bar/spring`).
 - New controllers are picked up from `node_added`, so a hand made after the widgets
   (a late rig, a test's tracked finger) is scanned from its first frame. A widget
   woken this frame runs from the next: a finger put straight onto a sleeping key

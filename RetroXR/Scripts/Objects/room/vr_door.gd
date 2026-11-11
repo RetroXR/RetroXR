@@ -43,6 +43,8 @@ signal latched
 
 enum HingeSide { POSITIVE_X, NEGATIVE_X }
 enum Swing { TOWARD_POSITIVE_Z, TOWARD_NEGATIVE_Z }
+## What lets the latch go: a knob turned by the wrist, or a crash bar pushed in.
+enum Opener { KNOB, PUSH_BAR }
 
 ## Every VRDoor, for the scene save and netplay's room state.
 const GROUP := &"vr_door"
@@ -60,6 +62,12 @@ const REPORT_MIN_DEG := 0.5
 @export var latched_at_start: bool = true
 ## How far the knob must turn from rest, 0..1, before the latch lets go.
 @export_range(0.05, 1.0) var unlatch_turn: float = 0.6
+## KNOB: turned either way, then pulled or pushed. PUSH_BAR: a crash bar across the
+## face OPPOSITE the swing (the side the door is pushed from), pushed in to open.
+@export var opener: Opener = Opener.KNOB
+## A door closer: let go anywhere, it eases shut and latches (an exit door's).
+@export var self_closing: bool = false
+@export var closer_speed_deg: float = 12.0
 ## A press on the knob from a pointer swings the door this far.
 @export var desktop_open_deg: float = 80.0
 @export var swing_seconds: float = 0.6
@@ -79,16 +87,41 @@ const REPORT_MIN_DEG := 0.5
 ## The knob's x and y in this node's frame. Zero: 6 cm in from the latch edge, 0.9 m up.
 @export var knob_position: Vector2 = Vector2.ZERO
 
+@export_group("Push bar (no model)")
+## The bar's middle above the floor.
+@export var bar_height: float = 1.0
+## Its length. Zero: the leaf's width less 16 cm.
+@export var bar_length: float = 0.0
+## Its section: how tall, and how deep (out from the leaf).
+@export var bar_section: Vector2 = Vector2(0.06, 0.035)
+## From the push face to the bar's middle.
+@export var bar_standoff: float = 0.05
+## How far it goes in.
+@export var bar_travel: float = 0.025
+
 @export_group("Model")
 ## The door model's MeshInstance3D. Empty: the first one under this node.
 @export var model: NodePath
 @export var leaf_surfaces: PackedStringArray = PackedStringArray()
 @export var knob_surfaces: PackedStringArray = PackedStringArray()
+## PUSH_BAR: the bar's surfaces, taken whole.
+@export var bar_surfaces: PackedStringArray = PackedStringArray()
 
 ## Test seam: when set, called with the EV_DOOR arguments instead of NetworkManager.
 var report_to: Callable = Callable()
 var hinge: DoorHinge = null
 var knob: DoorKnob = null
+var bar: DoorPushBar = null
+var _bar_box := AABB()           # the bar, door frame, out
+var _placeholder_leaf: Node3D = null
+var _placeholder_opener: Node3D = null
+# The latch bolt, when the model has one: it slides into the leaf's edge as the knob
+# turns (or the bar goes in), all the way at the point the latch lets go.
+var _bolt: Node3D = null
+var _bolt_rest := Transform3D()
+var _bolt_dir := Vector3.ZERO       # door frame until the rig is built, then HingePivot's
+var _bolt_travel := 0.0
+var _bolt_in := -1.0
 var _frame: Node3D = null
 var _pivot: Node3D = null
 var _leaf_box := AABB()          # the leaf, door frame, shut
@@ -149,7 +182,11 @@ func open_to(degrees: float, animate: bool = true) -> void:
 		hinge.open()
 		if knob != null:
 			knob.set_value_no_signal(1.0)   # the knob turns as it lets go; it springs back
+		if bar != null:
+			bar.set_value_no_signal(1.0)    # so does the bar
 	_swing_to(degrees, false, animate)
+	if animate and hinge.self_closing:
+		hinge.hold_closer(swing_seconds + 2.0)   # stand open a moment before the closer takes it
 
 
 ## Swing it shut and latch it.
@@ -196,6 +233,52 @@ func set_state_remote(degrees: float, p_latched: bool) -> void:
 		hinge.set_state_remote(hinge.get_rotation_deg(), false, false)
 
 
+## Hang a model's leaf on the door after it is built: a mod whose door model loads
+## late (a room GLB picked per quality tier) gives its own leaf mesh here. Placed as
+## it stands in the world WITH THE DOOR SHUT, whatever the door is doing now; the
+## plain leaf built in its place is hidden.
+func dress_leaf(node: Node3D) -> void:
+	if node == null or _pivot == null:
+		return
+	_adopt_at_rest(node, _pivot, Transform3D.IDENTITY)
+	if _placeholder_leaf != null and _placeholder_leaf != node:
+		_placeholder_leaf.hide()
+	print("[Door] %s dressed with leaf '%s'" % [_name(), node.name])
+
+
+## The same for the knob (any Node3D, turned with it) or the crash bar (a
+## MeshInstance3D, which then slides in and out as the bar).
+func dress_opener(node: Node3D) -> void:
+	if node == null or _pivot == null:
+		return
+	if bar != null:
+		var mi := node as MeshInstance3D
+		if mi == null:
+			push_warning("[Door] %s: a push bar is dressed with a MeshInstance3D, not '%s'"
+				% [_name(), node.get_class()])
+			return
+		bar.set_value_no_signal(0.0)
+		_adopt_at_rest(mi, _pivot, Transform3D.IDENTITY)
+		bar.set_knob_mesh(mi)
+	elif knob != null:
+		knob.set_value_no_signal(0.5)
+		var kp := knob.get_node(VRKnob.PIVOT_NAME) as Node3D
+		_adopt_at_rest(node, kp, knob.transform * kp.transform)
+	if _placeholder_opener != null and _placeholder_opener != node:
+		_placeholder_opener.hide()
+	print("[Door] %s dressed with opener '%s'" % [_name(), node.name])
+
+
+## Move `node` under `parent` so that it sits where it stands now RELATIVE TO THE
+## SHUT DOOR. `parent_in_pivot` is the parent's pose in HingePivot with the door shut.
+func _adopt_at_rest(node: Node3D, parent: Node3D, parent_in_pivot: Transform3D) -> void:
+	var world := node.global_transform
+	if node.get_parent() != null:
+		node.get_parent().remove_child(node)
+	parent.add_child(node)
+	node.transform = (global_transform * _frame.transform * parent_in_pivot).affine_inverse() * world
+
+
 ## Inside a spawned object, which saves and syncs this door's controls itself.
 func is_room_door() -> bool:
 	var p := get_parent()
@@ -212,10 +295,45 @@ func _process(delta: float) -> void:
 	if hinge == null:
 		return
 	_drive_knob()
+	_drive_bolt()
 	if hinge.is_held() and _tween != null and _tween.is_valid():
 		_kill_tween()   # a hand takes over from a desktop swing
+	hinge.closer_hold = (_tween != null and _tween.is_valid()) or not is_nan(_remote_target)
 	_drive_remote(delta)
 	_watch_state()
+
+
+## The crash bar pushed past its threshold: the latch lets go, and the hand pushing
+## it walks the leaf open (DoorHinge.push_with).
+func _on_bar_through() -> void:
+	_remote_target = NAN
+	var ctrl := bar.pushing_ctrl()
+	if hinge.is_latched_closed():
+		print("[Door] %s unlatched by the push bar (%.2f in)" % [_name(), bar.value])
+		hinge.open()
+	if ctrl != null:
+		hinge.push_with(ctrl)
+
+
+## The bolt follows the knob or the bar: out at rest, flush in the edge at the point
+## the latch lets go. It springs back out as they do, open or shut, as a real one.
+func _drive_bolt() -> void:
+	if _bolt == null:
+		return
+	var t := 0.0
+	if knob != null:
+		t = clampf(knob.turn() / maxf(unlatch_turn, 0.01), 0.0, 1.0)
+	elif bar != null:
+		t = clampf(bar.value / maxf(bar.active_threshold, 0.01), 0.0, 1.0)
+	if is_equal_approx(t, _bolt_in):
+		return
+	_bolt_in = t
+	_bolt.transform = Transform3D(_bolt_rest.basis, _bolt_rest.origin + _bolt_dir * _bolt_travel * t)
+
+
+## How far in the bolt is, 0 (out) to 1 (flush); -1 with no bolt.
+func bolt_in() -> float:
+	return _bolt_in if _bolt != null else -1.0
 
 
 ## The knob decides the latch, and hands its hand on to the leaf.
@@ -245,7 +363,7 @@ func _drive_knob() -> void:
 func _drive_remote(delta: float) -> void:
 	if is_nan(_remote_target):
 		return
-	if hinge.is_held() or (knob != null and knob.is_held()):
+	if hinge.is_held() or (knob != null and knob.is_held()) or (bar != null and bar.is_pushed()):
 		_remote_target = NAN   # a hand here wins
 		return
 	var cur := hinge.get_rotation_deg()
@@ -353,7 +471,9 @@ func _split_model(leaf_out: Array[Node3D], knob_out: Array[Node3D]) -> bool:
 	var to_door := global_transform.affine_inverse() * mi.global_transform
 	var missing := PackedStringArray()
 	var leaf_ids := DoorModelSplit.find_surfaces(mesh, leaf_surfaces, missing)
-	var knob_ids := DoorModelSplit.find_surfaces(mesh, knob_surfaces, missing)
+	var push_bar := opener == Opener.PUSH_BAR
+	var knob_ids := DoorModelSplit.find_surfaces(mesh,
+		bar_surfaces if push_bar else knob_surfaces, missing)
 	if not missing.is_empty():
 		push_warning("[Door] %s: the model has no surface %s (it has %s)" % [
 			_name(), ", ".join(missing), ", ".join(_surface_names(mesh))])
@@ -367,26 +487,63 @@ func _split_model(leaf_out: Array[Node3D], knob_out: Array[Node3D]) -> bool:
 	var z_max := _leaf_box.end.z
 	var knob_box := AABB()
 	var knob_first := true
+	var lock_pieces: Array[Dictionary] = []
+	# The latch edge: the leaf's side away from the hinges.
+	var latch_neg := hinge_side == HingeSide.POSITIVE_X
+	var latch_x := _leaf_box.position.x if latch_neg else _leaf_box.end.x
 	for i in mesh.get_surface_count():
 		var mat := mi.get_surface_override_material(i)
 		if leaf_ids.has(i):
 			DoorModelSplit.append_surface(leaf_mesh, mesh, i, mat)
+		elif knob_ids.has(i) and push_bar:
+			# A bar is all bar: taken whole.
+			DoorModelSplit.append_surface(knob_mesh, mesh, i, mat)
+			var bar_ids: Array[int] = [i]
+			var ab := DoorModelSplit.bounds(mesh, bar_ids, to_door)
+			knob_box = ab if knob_first else knob_box.merge(ab)
+			knob_first = false
 		elif knob_ids.has(i):
-			var parts := DoorModelSplit.split_outside_slab(mesh, i, to_door, z_min, z_max)
-			if not parts[0].is_empty():
-				DoorModelSplit.append_surface(knob_mesh, mesh, i, mat, parts[0])
-				var verts: PackedVector3Array = mesh.surface_get_arrays(i)[Mesh.ARRAY_VERTEX]
-				for k in parts[0]:
-					var p := to_door * verts[k]
-					if knob_first:
-						knob_box = AABB(p, Vector3.ZERO)
-						knob_first = false
-					else:
-						knob_box = knob_box.expand(p)
-			if not parts[1].is_empty():
-				DoorModelSplit.append_surface(leaf_mesh, mesh, i, mat, parts[1])
+			# By PIECE (a lockset is several parts in one material): one standing
+			# wholly out of a face turns with the knob; the biggest one CROSSING the
+			# latch edge (out of it and on into the bore) is the bolt; the rest (the
+			# faceplate on the edge and its screws) stays on the leaf.
+			for piece in DoorModelSplit.pieces(mesh, i, to_door):
+				var box: AABB = piece["box"]
+				piece["surface"] = i
+				piece["material"] = mat
+				if box.position.z >= z_max - 0.001 or box.end.z <= z_min + 0.001:
+					piece["to"] = "knob"
+					knob_box = box if knob_first else knob_box.merge(box)
+					knob_first = false
+				elif box.position.x < latch_x - 0.001 and box.end.x > latch_x + 0.001:
+					piece["to"] = "edge"
+				else:
+					piece["to"] = "leaf"
+				lock_pieces.append(piece)
 		else:
 			DoorModelSplit.append_surface(frame_mesh, mesh, i, mat)
+	# The bolt: the biggest piece crossing the latch edge. The faceplate stands wholly
+	# OUTSIDE it (door.glb's is a slab 7 mm proud with its screws) and stays put: the
+	# first version took the biggest piece outside the edge and slid the plate.
+	var bolt_piece: Dictionary = {}
+	for piece in lock_pieces:
+		if piece["to"] == "edge" and (bolt_piece.is_empty()
+				or (piece["box"] as AABB).get_volume() > (bolt_piece["box"] as AABB).get_volume()):
+			bolt_piece = piece
+	var bolt_mesh := ArrayMesh.new()
+	for piece in lock_pieces:
+		var dst := knob_mesh if piece["to"] == "knob" else (bolt_mesh if piece == bolt_piece else leaf_mesh)
+		DoorModelSplit.append_surface(dst, mesh, piece["surface"], piece["material"], piece["tris"])
+	if not bolt_piece.is_empty():
+		var bb: AABB = bolt_piece["box"]
+		_bolt_travel = (latch_x - bb.position.x) if latch_neg else (bb.end.x - latch_x)
+		_bolt_dir = Vector3(1.0 if latch_neg else -1.0, 0.0, 0.0)
+		_bolt = MeshInstance3D.new()
+		_bolt.name = "Bolt"
+		(_bolt as MeshInstance3D).mesh = bolt_mesh
+		add_child(_bolt)
+		_bolt.global_transform = mi.global_transform
+		print("[Door] %s: the latch bolt stands %.1f mm out of the edge" % [_name(), _bolt_travel * 1000.0])
 	print("[Door] %s split '%s': %d leaf, %d knob, %d frame surfaces" % [_name(), mi.name,
 		leaf_mesh.get_surface_count(), knob_mesh.get_surface_count(),
 		frame_mesh.get_surface_count()])
@@ -399,15 +556,17 @@ func _split_model(leaf_out: Array[Node3D], knob_out: Array[Node3D]) -> bool:
 	leaf_out.append(leaf_mi)
 	if knob_mesh.get_surface_count() > 0:
 		var knob_mi := MeshInstance3D.new()
-		knob_mi.name = "Knob"
+		knob_mi.name = "Bar" if push_bar else "Knob"
 		knob_mi.mesh = knob_mesh
 		add_child(knob_mi)
 		knob_mi.global_transform = mi.global_transform
 		knob_out.append(knob_mi)
 		_knob_at = Vector3(knob_box.get_center().x, knob_box.get_center().y,
 			_leaf_box.get_center().z)
+		_bar_box = knob_box
 	else:
 		_knob_at = _default_knob_at()
+		_bar_box = _default_bar_box()
 	return true
 
 
@@ -431,10 +590,48 @@ func _adopt_or_build(leaf_out: Array[Node3D], knob_out: Array[Node3D]) -> void:
 		mi.position = _leaf_box.get_center()
 		leaf = mi
 	leaf_out.append(leaf)
+	_placeholder_leaf = leaf
+	if opener == Opener.PUSH_BAR:
+		_bar_box = _default_bar_box()
+		var bar_node := get_node_or_null("Bar") as Node3D
+		if bar_node == null:
+			bar_node = _build_bar_mesh()
+		_placeholder_opener = bar_node
+		knob_out.append(bar_node)
+		return
 	var knob_node := get_node_or_null("Knob") as Node3D
 	if knob_node == null:
 		knob_node = _build_knob_mesh()
+	_placeholder_opener = knob_node
 	knob_out.append(knob_node)
+
+
+## Where the bar goes with no model to say: across the push face (the one the door
+## swings AWAY from), centred on the leaf.
+func _default_bar_box() -> AABB:
+	var sz := 1.0 if swing == Swing.TOWARD_POSITIVE_Z else -1.0
+	var push_face := _leaf_box.position.z if sz > 0.0 else _leaf_box.end.z
+	var length := bar_length if bar_length > 0.0 else maxf(_leaf_box.size.x - 0.16, 0.2)
+	var centre := Vector3(_leaf_box.get_center().x, bar_height, push_face - sz * bar_standoff)
+	var size := Vector3(length, bar_section.x, bar_section.y)
+	return AABB(centre - size * 0.5, size)
+
+
+## A plain aluminium bar.
+func _build_bar_mesh() -> Node3D:
+	var mi := MeshInstance3D.new()
+	mi.name = "Bar"
+	var box := BoxMesh.new()
+	box.size = _bar_box.size
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.78, 0.79, 0.8)
+	mat.metallic = 0.8
+	mat.roughness = 0.35
+	box.material = mat
+	mi.mesh = box
+	add_child(mi)
+	mi.position = _bar_box.get_center()
+	return mi
 
 
 func _default_knob_at() -> Vector3:
@@ -501,6 +698,10 @@ func _build_rig(leaf_meshes: Array[Node3D], knob_meshes: Array[Node3D]) -> void:
 	for m in leaf_meshes:
 		m.reparent(_pivot, true)
 	var to_pivot := _frame.transform.affine_inverse()   # door frame -> pivot, shut
+	if _bolt != null:
+		_bolt.reparent(_pivot, true)
+		_bolt_rest = _bolt.transform
+		_bolt_dir = (to_pivot.basis * _bolt_dir).normalized()
 	var leaf_pivot := to_pivot * _leaf_box
 	# The leaf's collision, which the player and loose objects meet as it swings.
 	if leaf_collision:
@@ -508,6 +709,10 @@ func _build_rig(leaf_meshes: Array[Node3D], knob_meshes: Array[Node3D]) -> void:
 		body.name = "LeafBody"
 		body.collision_layer = 1
 		body.collision_mask = 0
+		# Off: with sync_to_physics an AnimatableBody3D follows only its OWN local
+		# transform, and this one is carried by its parent (HingePivot) turning, so it
+		# stayed where the shut leaf was, an invisible wall across the open doorway.
+		body.sync_to_physics = false
 		_pivot.add_child(body)
 		body.position = leaf_pivot.get_center()
 		var cs := CollisionShape3D.new()
@@ -530,6 +735,15 @@ func _build_rig(leaf_meshes: Array[Node3D], knob_meshes: Array[Node3D]) -> void:
 	grab.shape = grab_box
 	hinge.add_child(grab)
 	_pivot.add_child(hinge)
+	hinge.opener = null
+	hinge.leaf_width = _leaf_box.size.x
+	hinge.self_closing = self_closing
+	hinge.closer_speed_deg = closer_speed_deg
+	if opener == Opener.PUSH_BAR:
+		_build_bar(knob_meshes, to_pivot, sz)
+		if not latched_at_start:
+			hinge.set_state_remote(0.0, false, false)
+		return
 	# The hint on the latch side, at the knob's height.
 	hinge.place_hint(to_pivot * _knob_at - hinge.position + Vector3(0.0, 0.06, 0.0))
 	# The knob: its axle through the leaf (the door's Z), at the knob.
@@ -550,9 +764,42 @@ func _build_rig(leaf_meshes: Array[Node3D], knob_meshes: Array[Node3D]) -> void:
 	for m in knob_meshes:
 		m.reparent(knob_pivot, true)
 	knob.pointer_pressed.connect(toggle)
-	hinge.knob = knob
+	hinge.opener = knob
 	if not latched_at_start:
 		hinge.set_state_remote(0.0, false, false)
+
+
+## The crash bar: a DoorPushBar at the bar's middle, its +Z into the door (the way
+## it is pushed, which is the way the door swings), riding the leaf.
+func _build_bar(bar_meshes: Array[Node3D], to_pivot: Transform3D, sz: float) -> void:
+	bar = DoorPushBar.new()
+	bar.name = "DoorPushBar"
+	bar.travel = bar_travel
+	var cs := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = _bar_box.size
+	cs.shape = shape
+	bar.add_child(cs)
+	var face := Basis.IDENTITY if sz > 0.0 else Basis(Vector3.UP, PI)
+	_pivot.add_child(bar)
+	bar.transform = to_pivot * Transform3D(face, _bar_box.get_center())
+	for m in bar_meshes:
+		var mi := m as MeshInstance3D
+		if mi == null:
+			for n in m.find_children("*", "MeshInstance3D", true, false):
+				mi = n as MeshInstance3D
+				break
+		if mi == null:
+			push_warning("[Door] %s: the bar '%s' has no mesh to slide; it stays put" % [_name(), m.name])
+			m.reparent(_pivot, true)
+			continue
+		mi.reparent(_pivot, true)
+		bar.set_knob_mesh(mi)
+	bar.toggle_requested.connect(_on_bar_through)
+	bar.pointer_pressed.connect(toggle)
+	hinge.opener = bar
+	hinge.place_hint(to_pivot * _bar_box.get_center() - hinge.position
+		+ (to_pivot.basis * Vector3(0.0, 0.0, -sz)) * 0.06)
 
 
 func _surface_names(mesh: Mesh) -> PackedStringArray:
