@@ -140,6 +140,25 @@ mesh without them. The GLB is never edited.
   `p_arrays[ai].get_type() != PACKED_BYTE_ARRAY`.
 - door.glb result: 3 leaf, 2 knob and 2 frame surfaces (`split/`).
 
+## Push doors (`latching = false`, 2026-11-11)
+
+A shop's front door has no latch at all: it is pushed open from inside and its closer
+brings it home.
+
+- **`latching = false`.** `DoorHinge.has_latch` is false, so the door never latches:
+  - not when released near shut (`_on_released` skips it);
+  - not when it swings home armed;
+  - not through `latch_closed()`, which only drives it to 0;
+  - not by a restore or a remote update (`latched` is forced false).
+
+  `latched_at_start` is ignored.
+- **Opener.** With `opener = PUSH_BAR` the bar is a fixed push bar: give it a tiny
+  `bar_travel` (the Starlight's are 6 mm), and the threshold edge hands the hand
+  straight to `push_with`. With `opener = NONE` there is nothing to push but the leaf
+  itself: a fingertip on either face (poke torque) or a hand on it (trigger / grip).
+- **Checks:** `door_tests push/`. Break both guards (the auto-latch's `has_latch` and
+  `latch_closed`'s) and "does not latch" goes red; either guard alone holds it.
+
 ## The latch bolt, and the invisible wall (2026-11-11)
 
 - **The lockset splits by PIECE, not by triangle.** `DoorModelSplit.pieces` welds

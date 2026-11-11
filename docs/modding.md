@@ -734,6 +734,10 @@ walks the door open. A fingertip pushes it too. `self_closing = true` gives the 
 overhead closer (`closer_speed_deg`, 12 by default): left alone, it eases shut and
 latches.
 
+A shop's front door has no latch: set `latching = false` too, and it is pushed open from
+inside, by its bar (`opener = 1`, with a small `bar_travel`) or by the leaf itself
+(`opener = 2`, `NONE`), and its closer brings it home without latching.
+
 If your door's model loads after the room (a GLB picked at run time), build the VRDoor
 with no model and hand it the meshes when they arrive: `door.dress_leaf(leaf_node)` and
 `door.dress_opener(bar_mesh)`, each placed as it stands with the door shut.

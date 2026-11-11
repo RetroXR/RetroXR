@@ -26,6 +26,8 @@ extends VRSpringLatchedHinge
 ## overhead closer is SLOW: several seconds from wide open, so a door shuts behind you.
 @export var closer_speed_deg: float = 12.0
 
+## False for a push door with no latch: it never latches, however it comes home.
+var has_latch: bool = true
 ## The door's opener (DoorKnob or DoorPushBar): a fingertip in its reach takes the
 ## OPENER, not the leaf, so a trigger at the knob or a hand on the bar never swings
 ## the door without working the latch first.
@@ -65,10 +67,14 @@ func latch_closed(rebound_from_overtravel: bool = false,
 		preserve_poke: bool = false) -> void:
 	_armed = false
 	_release_angular_velocity_deg = 0.0
+	if not has_latch:
+		_apply(min_deg, true)   # shut, and nothing holds it
+		return
 	super.latch_closed(rebound_from_overtravel, preserve_poke)
 
 
 func set_state_remote(degrees: float, latched: bool, emit: bool = true) -> void:
+	latched = latched and has_latch
 	_armed = not latched and degrees > min_deg + close_latch_deg
 	super.set_state_remote(degrees, latched, emit)
 
@@ -145,9 +151,15 @@ func _process(delta: float) -> void:
 	var cur := rad_to_deg(target.rotation.x)
 	if cur > min_deg + close_latch_deg:
 		_armed = true
-	elif _armed and not is_held() and cur <= min_deg + 0.5:
+	elif has_latch and _armed and not is_held() and cur <= min_deg + 0.5:
 		# Swung home on its own: the bolt rides the strike and drops in.
 		latch_closed()
+
+
+## A push door has nothing to catch it near shut: let go there, it simply stays.
+func _on_released() -> void:
+	if has_latch:
+		super._on_released()
 
 
 func _step_push(delta: float) -> void:

@@ -43,8 +43,9 @@ signal latched
 
 enum HingeSide { POSITIVE_X, NEGATIVE_X }
 enum Swing { TOWARD_POSITIVE_Z, TOWARD_NEGATIVE_Z }
-## What lets the latch go: a knob turned by the wrist, or a crash bar pushed in.
-enum Opener { KNOB, PUSH_BAR }
+## What lets the latch go: a knob turned by the wrist, a crash bar pushed in, or
+## nothing at all (a push plate: the leaf itself is pushed; use with latching off).
+enum Opener { KNOB, PUSH_BAR, NONE }
 
 ## Every VRDoor, for the scene save and netplay's room state.
 const GROUP := &"vr_door"
@@ -65,6 +66,9 @@ const REPORT_MIN_DEG := 0.5
 ## KNOB: turned either way, then pulled or pushed. PUSH_BAR: a crash bar across the
 ## face OPPOSITE the swing (the side the door is pushed from), pushed in to open.
 @export var opener: Opener = Opener.KNOB
+## Off: a PUSH door with no latch at all (a shop's front door): a push on its bar or
+## its face always swings it, and its closer brings it back without latching.
+@export var latching: bool = true
 ## A door closer: let go anywhere, it eases shut and latches (an exit door's).
 @export var self_closing: bool = false
 @export var closer_speed_deg: float = 12.0
@@ -194,7 +198,7 @@ func close(animate: bool = true) -> void:
 	if hinge == null or hinge.is_latched_closed():
 		return
 	_remote_target = NAN
-	_swing_to(0.0, true, animate)
+	_swing_to(0.0, latching, animate)
 
 
 ## A press on the knob from a pointer: open a shut door, shut an open one.
@@ -211,6 +215,7 @@ func apply_state(degrees: float, p_latched: bool) -> void:
 		return
 	_kill_tween()
 	_remote_target = NAN
+	p_latched = p_latched and latching
 	hinge.set_state_remote(0.0 if p_latched else clampf(degrees, 0.0, open_deg),
 		p_latched, false)
 	_last_deg = hinge.get_rotation_deg()
@@ -227,6 +232,7 @@ func set_state_remote(degrees: float, p_latched: bool) -> void:
 		apply_state(degrees, p_latched)
 		return
 	_kill_tween()
+	p_latched = p_latched and latching
 	_remote_latched = p_latched
 	_remote_target = 0.0 if p_latched else clampf(degrees, 0.0, open_deg)
 	if hinge.is_latched_closed() and _remote_target > 0.0:
@@ -458,6 +464,7 @@ func _name() -> String:
 func _split_model(leaf_out: Array[Node3D], knob_out: Array[Node3D]) -> bool:
 	if leaf_surfaces.is_empty():
 		return false
+	var no_opener := opener == Opener.NONE
 	var mi := get_node_or_null(model) as MeshInstance3D if not model.is_empty() else null
 	if mi == null:
 		for n in find_children("*", "MeshInstance3D", true, false):
@@ -473,7 +480,7 @@ func _split_model(leaf_out: Array[Node3D], knob_out: Array[Node3D]) -> bool:
 	var leaf_ids := DoorModelSplit.find_surfaces(mesh, leaf_surfaces, missing)
 	var push_bar := opener == Opener.PUSH_BAR
 	var knob_ids := DoorModelSplit.find_surfaces(mesh,
-		bar_surfaces if push_bar else knob_surfaces, missing)
+		PackedStringArray() if no_opener else (bar_surfaces if push_bar else knob_surfaces), missing)
 	if not missing.is_empty():
 		push_warning("[Door] %s: the model has no surface %s (it has %s)" % [
 			_name(), ", ".join(missing), ", ".join(_surface_names(mesh))])
@@ -591,6 +598,8 @@ func _adopt_or_build(leaf_out: Array[Node3D], knob_out: Array[Node3D]) -> void:
 		leaf = mi
 	leaf_out.append(leaf)
 	_placeholder_leaf = leaf
+	if opener == Opener.NONE:
+		return
 	if opener == Opener.PUSH_BAR:
 		_bar_box = _default_bar_box()
 		var bar_node := get_node_or_null("Bar") as Node3D
@@ -726,7 +735,8 @@ func _build_rig(leaf_meshes: Array[Node3D], knob_meshes: Array[Node3D]) -> void:
 	hinge.target = _pivot
 	hinge.min_deg = 0.0
 	hinge.max_deg = open_deg
-	hinge.start_closed = latched_at_start
+	hinge.start_closed = latched_at_start and latching
+	hinge.has_latch = latching
 	hinge.position = leaf_pivot.get_center()
 	var grab := CollisionShape3D.new()
 	grab.name = "CollisionShape3D"
@@ -739,9 +749,10 @@ func _build_rig(leaf_meshes: Array[Node3D], knob_meshes: Array[Node3D]) -> void:
 	hinge.leaf_width = _leaf_box.size.x
 	hinge.self_closing = self_closing
 	hinge.closer_speed_deg = closer_speed_deg
-	if opener == Opener.PUSH_BAR:
-		_build_bar(knob_meshes, to_pivot, sz)
-		if not latched_at_start:
+	if opener == Opener.PUSH_BAR or opener == Opener.NONE:
+		if opener == Opener.PUSH_BAR:
+			_build_bar(knob_meshes, to_pivot, sz)
+		if not hinge.start_closed:
 			hinge.set_state_remote(0.0, false, false)
 		return
 	# The hint on the latch side, at the knob's height.
@@ -765,7 +776,7 @@ func _build_rig(leaf_meshes: Array[Node3D], knob_meshes: Array[Node3D]) -> void:
 		m.reparent(knob_pivot, true)
 	knob.pointer_pressed.connect(toggle)
 	hinge.opener = knob
-	if not latched_at_start:
+	if not hinge.start_closed:
 		hinge.set_state_remote(0.0, false, false)
 
 

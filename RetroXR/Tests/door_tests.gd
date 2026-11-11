@@ -35,6 +35,7 @@ func _ready() -> void:
 	await _closer()
 	await _bar_pointer()
 	await _bar_springs_home_asleep()
+	await _push_only()
 	for h in _hands:
 		XRServer.remove_tracker(h["tracker"] as XRControllerTracker)
 	_finish()
@@ -564,3 +565,53 @@ func _bar_springs_home_asleep() -> void:
 	_ok(is_zero_approx(d.bar.value), "bar/spring: a slow spring still gets home (it does not fall asleep)",
 		"value %.2f" % d.bar.value)
 	await _free(d)
+
+
+# --- push doors (no latch) -------------------------------------------------------
+
+## A push door: no latch, a closer. With a bar (a shop's front door) or none (a push plate).
+func _push_door(op: int) -> VRDoor:
+	var d := VRDoor.new()
+	d.opener = op
+	d.latching = false
+	d.self_closing = true
+	d.width = 0.9
+	d.log_name = "push"
+	add_child(d)
+	await _ticks(2)
+	return d
+
+
+func _push_only() -> void:
+	var h := _hand("push_a")
+	var d := await _push_door(VRDoor.Opener.PUSH_BAR)
+	_ok(not d.is_latched(), "push/a push door has no latch")
+	_hand_at(h, _on_bar(d, 0.0, -0.004))
+	await _ticks(3)
+	var tip0 := _on_bar(d, 0.0, 0.02)
+	_hand_at(h, tip0)
+	await _ticks(3)
+	_ok(d.hinge.is_pushing(), "push/a push on its bar walks the leaf")
+	var hinge_at := d.to_global(Vector3(0.45, 0.0, 0.0175))
+	hinge_at.y = tip0.y
+	for k in range(1, 7):
+		_hand_at(h, hinge_at + Basis(Vector3.UP, deg_to_rad(5.0 * k)) * (tip0 - hinge_at))
+		await _ticks(1)
+	_ok(d.get_angle_deg() > 20.0, "push/...open", "%.1f deg" % d.get_angle_deg())
+	_hand_at(h, Vector3(0, 10, 0))
+	await _wait_until(func() -> bool: return is_zero_approx(d.get_angle_deg()), 10.0)
+	await _ticks(10)
+	_ok(is_zero_approx(d.get_angle_deg()), "push/let go, the closer brings it home")
+	_ok(not d.is_latched(), "push/...and it does not latch")
+	d.apply_state(0.0, true)
+	_ok(not d.is_latched(), "push/a restore cannot latch a door with no latch")
+	await _free(d)
+	var plate := await _push_door(VRDoor.Opener.NONE)
+	_ok(plate.knob == null and plate.bar == null and not plate.is_latched(),
+		"push/a push-plate door has no knob, no bar, no latch")
+	plate.apply_state(25.0, false)
+	await _wait_until(func() -> bool: return is_zero_approx(plate.get_angle_deg()), 10.0)
+	await _ticks(5)
+	_ok(is_zero_approx(plate.get_angle_deg()) and not plate.is_latched(),
+		"push/...and its closer brings it home unlatched")
+	await _free(plate)
