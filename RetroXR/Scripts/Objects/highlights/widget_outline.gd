@@ -96,6 +96,8 @@ func _init() -> void:
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	visible = false
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Its own render layer, so a temporal upscaler's view can leave it to OutlineOverlayView.
+	layers = OutlineOverlayView.LAYER
 	# The inflated hull can reach outside the source mesh's AABB; without this the
 	# overlay pops out at glancing angles.
 	extra_cull_margin = 16.0

@@ -926,6 +926,7 @@ func effective_render_scale() -> float:
 func apply_render_scale() -> void:
 	var root := get_tree().root
 	var scale := effective_render_scale()
+	_sync_outline_view()
 	if effective_dlss():
 		# DLSS has no supersampling: above 1.0 the engine falls back to a bilinear
 		# downsample, so 1.0 (DLAA, anti-aliasing at native) is as high as it goes.
@@ -1039,6 +1040,20 @@ func _configure_path_tracing(env: Environment) -> void:
 func _keep_raster(viewport: SubViewport) -> void:
 	if &"use_pathtracing" in viewport:
 		viewport.set(&"use_pathtracing", false)
+
+
+## While DLSS (temporal) is on, the outlines are drawn after the 3D view instead of inside it, or they
+## trail behind the object as the player moves (OutlineOverlayView has why).
+var _outline_view: Node = null
+
+func _sync_outline_view() -> void:
+	var want := effective_dlss()
+	if want and not is_instance_valid(_outline_view):
+		_outline_view = OutlineOverlayView.new()
+		get_tree().root.add_child.call_deferred(_outline_view)
+	elif not want and is_instance_valid(_outline_view):
+		_outline_view.queue_free()
+		_outline_view = null
 
 
 func _log_rtx(what: String) -> void:

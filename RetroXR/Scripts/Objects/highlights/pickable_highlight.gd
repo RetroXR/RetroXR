@@ -178,6 +178,8 @@ func _collect_overlays(node: Node) -> void:
 			overlay.material_override = _mask_material
 			overlay.visible = false
 			overlay.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			# Its own render layer, so a temporal upscaler's view can leave it to OutlineOverlayView.
+			overlay.layers = OutlineOverlayView.LAYER
 			overlay.extra_cull_margin = 16.0
 			var params: Dictionary = _source_params.get(src.get_instance_id(), {})
 			for param: StringName in params:

@@ -57,7 +57,7 @@ func _ready() -> void:
 	_group_device()
 	_group_effective()
 	_group_lights()
-	_group_rtx()
+	await _group_rtx()
 
 	_restore()
 	_finish()
@@ -394,6 +394,12 @@ func _group_rtx() -> void:
 	qm.path_tracing = false
 	_eq(qm.effective_msaa(), Viewport.MSAA_4X, "rtx/path tracing off, MSAA is back")
 	_ok(not qm.effective_dlss(), "rtx/with neither asked for, DLSS is off")
+	# Outlines leave the 3D view exactly while a temporal upscaler runs (they trailed inside it).
+	await get_tree().process_frame
+	var views := get_tree().root.find_children("*", "OutlineOverlayView", false, false)
+	_eq(views.size(), 1 if _live.effective_dlss() else 0,
+		"rtx/the outline view is up exactly while DLSS runs")
+	_eq(OutlineOverlayView.LAYER, 1 << 19, "rtx/outlines render on their own layer, 20")
 
 	# An Environment: switched on only where the engine has the property and the
 	# card runs it; on a stock engine the call leaves it alone and errors nowhere.
