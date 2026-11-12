@@ -318,6 +318,8 @@ const PT_SAMPLES_MAX := 4
 ## Streamline.StreamlineCapabilityType.STREAMLINE_CAPABILITY_DLSS, by value: the
 ## enum is not there to name on a stock engine.
 const _STREAMLINE_CAPABILITY_DLSS := 0
+## ..._DLSS_RR, the path tracer's denoiser.
+const _STREAMLINE_CAPABILITY_DLSS_RR := 2
 ## Whether the room is path traced now, on every change of the switch. A room whose light is BAKED (a mod's
 ## pre-lit shell) must draw itself unbaked under the tracer, or every wall is a lamp and the frame goes white;
 ## it reads effective_path_tracing() as it builds and listens here after.
@@ -973,22 +975,29 @@ func _engine_has_dlss() -> bool:
 ## the executable; without them the engine still builds the mode, and draws a
 ## frame nothing upscales.
 func _streamline_has_dlss() -> bool:
+	return _streamline_can(_STREAMLINE_CAPABILITY_DLSS)
+
+
+func _streamline_can(capability: int) -> bool:
 	if not Engine.has_singleton(&"Streamline"):
 		return false
-	return bool(Engine.get_singleton(&"Streamline").call(&"get_capability",
-		_STREAMLINE_CAPABILITY_DLSS))
+	return bool(Engine.get_singleton(&"Streamline").call(&"get_capability", capability))
 
 
 func supports_dlss() -> bool:
 	return supports_render_scale() and _engine_has_dlss() and _streamline_has_dlss()
 
 
+## Hardware ray tracing alone is not enough: the tracer's denoiser is DLSS Ray Reconstruction, NVIDIA's
+## alone, and without it every frame is raw one-sample noise. An AMD or Intel card traces rays but would
+## only ever show that, so the switch is offered where Streamline reports Ray Reconstruction too.
 func supports_path_tracing() -> bool:
 	if not supports_render_scale() or not _engine_has_path_tracer():
 		return false
 	var rd := RenderingServer.get_rendering_device()
 	return rd != null and rd.has_feature(ClassDB.class_get_integer_constant(
-		&"RenderingDevice", &"SUPPORTS_RAYTRACING_PIPELINE") as RenderingDevice.Features)
+		&"RenderingDevice", &"SUPPORTS_RAYTRACING_PIPELINE") as RenderingDevice.Features) \
+		and supports_dlss() and _streamline_can(_STREAMLINE_CAPABILITY_DLSS_RR)
 
 
 func effective_path_tracing() -> bool:
@@ -1111,11 +1120,11 @@ func _sync_outline_view() -> void:
 
 func _log_rtx(what: String) -> void:
 	var root := get_tree().root
-	print("[Quality] %s: path tracer %s (engine %s, on %s, %d bounces, %d spp), DLSS %s (engine %s, card %s, on %s), mode %d scale %.2f, msaa %d" % [
+	print("[Quality] %s: path tracer %s (engine %s, on %s, %d bounces, %d spp), DLSS %s (engine %s, card %s, ray reconstruction %s, on %s), mode %d scale %.2f, msaa %d" % [
 		what, "supported" if supports_path_tracing() else "unsupported",
 		_engine_has_path_tracer(), effective_path_tracing(), pt_bounces, pt_samples,
 		"supported" if supports_dlss() else "unsupported", _engine_has_dlss(),
-		_streamline_has_dlss(), effective_dlss(), root.scaling_3d_mode,
+		_streamline_has_dlss(), _streamline_can(_STREAMLINE_CAPABILITY_DLSS_RR), effective_dlss(), root.scaling_3d_mode,
 		root.scaling_3d_scale, root.msaa_3d])
 
 
