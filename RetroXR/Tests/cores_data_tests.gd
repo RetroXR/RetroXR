@@ -28,7 +28,7 @@ extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below -- it is checked before
 ## it has recorded itself.
-const EXPECTED_CASES := 92
+const EXPECTED_CASES := 96
 
 
 var _dir := ""
@@ -359,6 +359,14 @@ func _group_forced() -> void:
 		"forced/flycast is made to announce a frame-rate change")
 	_eq(ForcedCoreOptions.declared_frame_rate("fceumm"), {},
 		"forced/and no other core is handed a reicast key")
+	# A NAOMI 2 game loses the GPU on Vulkan with frame-swap delay on (Virtua Fighter 4 at its first 3D): off for
+	# naomi2, on flycast, and for nothing else.
+	_eq(ForcedCoreOptions.naomi2_frame_swap("flycast", "naomi2").get("reicast_delay_frame_swapping"), "disabled",
+		"forced/a NAOMI 2 game runs with frame-swap delay off")
+	_eq(ForcedCoreOptions.naomi2_frame_swap("flycast", "dreamcast"), {}, "forced/the Dreamcast keeps its own")
+	_eq(ForcedCoreOptions.naomi2_frame_swap("flycast", "naomi"), {}, "forced/and so does the NAOMI")
+	_eq(ForcedCoreOptions.all("flycast", "naomi2", "", [], "", [], "").get("reicast_delay_frame_swapping"), "disabled",
+		"forced/and it survives the merge")
 	# It has to survive the merge, not merely exist: all() is what RetroSystem
 	# calls, and a layer left out of it is a function nothing runs.
 	_eq(ForcedCoreOptions.all("flycast", "dreamcast", "", [], "", [], "")

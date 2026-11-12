@@ -33,6 +33,7 @@ static func all(core: String, systemid: String, rom_path: String,
 	out.merge(saturn_mpeg_card(core, systemid, expansions), true)
 	out.merge(bios_pinned(core, systemid, rom_path), true)
 	out.merge(declared_frame_rate(core), true)
+	out.merge(naomi2_frame_swap(core, systemid), true)
 	out.merge(vmu_sound(core), true)
 	out.merge(no_debug_break(core), true)
 	out.merge(microphone_hotkey(core, systemid), true)
@@ -568,6 +569,17 @@ static func declared_frame_rate(core: String) -> Dictionary:
 	if not core.begins_with("flycast"):
 		return {}
 	return {"reicast_detect_vsync_swap_interval": "enabled"}
+
+
+## A NAOMI 2 game on flycast's Vulkan renderer loses the GPU with "Delay Frame Swapping" on: Virtua Fighter 4
+## (a GD-ROM game through the DIMM board) showed the NAOMI 2 logo, then died with vk::DeviceLostError about 8 s
+## in, the moment its 3D started (2026-11-12, an RTX 5070, caught under gdb). With it off the same run played on
+## past 40 s into the game; internal resolution, alpha sorting, threaded rendering and framebuffer emulation
+## made no difference. Measured on NAOMI 2 only; NAOMI and the Dreamcast are left as they are.
+static func naomi2_frame_swap(core: String, systemid: String) -> Dictionary:
+	if not core.begins_with("flycast") or SystemIds.canonical(systemid) != "naomi2":
+		return {}
+	return {"reicast_delay_frame_swapping": "disabled"}
 
 
 ## flycast sounds VMU beeps only with this on. Our fork hands each card's beep to
