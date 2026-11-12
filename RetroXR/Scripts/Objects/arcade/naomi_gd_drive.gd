@@ -92,7 +92,7 @@ func _build_lid(shell: Node3D) -> void:
 	_grab.add_child(col)
 
 
-## The spindle: a NAOMI disc lies on it, label up, while the lid is open.
+## The spindle: a NAOMI disc lies flat on it, label up, while the lid is open.
 func _build_disc_zone() -> void:
 	var at := find_child("DiscAnchor", true, false) as Node3D
 	_disc_zone = (load("res://addons/godot-xr-tools/objects/snap_zone.tscn") as PackedScene).instantiate() as XRToolsSnapZone
@@ -101,7 +101,8 @@ func _build_disc_zone() -> void:
 	_disc_zone.snap_require = "cartridge"
 	_disc_zone.snap_filter = _accepts_disc
 	at.add_child(_disc_zone)
-	_disc_zone.basis = Basis(Vector3.RIGHT, -PI * 0.5)
+	# A disc is flat in its own frame (thin along its Y, label up): the seat is not turned.
+	_disc_zone.basis = Basis.IDENTITY
 
 
 func _accepts_disc(obj: Node3D) -> bool:

@@ -154,10 +154,12 @@ static func _levels(bay: Node3D, shell: Node3D, lods: Array) -> void:
 		for n in levels[i].find_children("*", "GeometryInstance3D", true, false):
 			var g := n as GeometryInstance3D
 			g.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+			# No margins: with fading off, a margin on the next level's begin left a band (0.8 to 0.9 m) where neither
+			# level drew -- the GD-ROM drive vanished there in a video of the hookup.
 			g.visibility_range_begin = begin
-			g.visibility_range_begin_margin = LOD_HYSTERESIS if begin > 0.0 else 0.0
+			g.visibility_range_begin_margin = 0.0
 			g.visibility_range_end = end
-			g.visibility_range_end_margin = LOD_HYSTERESIS if end > 0.0 else 0.0
+			g.visibility_range_end_margin = 0.0
 
 
 ## Each of the bay's markers (its seats, its sockets' anchors) onto the model's node of that name, keeping
