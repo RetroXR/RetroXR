@@ -125,8 +125,8 @@ editor converts project files. Test from a copy:
    (+Coarse/Fine, zero) and `textureQueryLod` (level 0, a MACRO: Vulkan GLSL refuses
    a sampler constructor as a call argument), as the fork already had for
    `fwidth`: 14 of RetroXR's 20 failing groups compile and the bedroom has none
-   left. Still failing: `texture()` with a bias, and `sampler2DArray` uniforms (the
-   fork's bindless textures are 2D only: the printer paper). `texture()`/`textureProj()` with a bias are now
+   left. Still failing: `sampler2DArray` uniforms (the fork's bindless textures are
+   2D only: the printer paper). `texture()`/`textureProj()` with a bias are now
    their Lod forms in hit shaders (engine `342d992bfa`, `function_renames_by_arity`), so only the
    `sampler2DArray` case is left.
 6. **Raster-only tricks are traced as solid geometry by default.** The hover
