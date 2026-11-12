@@ -57,6 +57,8 @@ const BAY_NAOMI := "naomi"
 ## The NAOMI 2 board: its own games and the NAOMI's cartridges.
 const BAY_NAOMI2 := "naomi2"
 const BAY_SEGA_JVS := "sega_jvs"
+## The Sammy Atomiswave (flycast): a board of its own with a JAMMA edge, its game on a cartridge.
+const BAY_ATOMISWAVE := "atomiswave"
 const _BAYS: Dictionary = {
 	"jamma": {"label": "JAMMA", "systems": ["arcade"]},
 	"mvs": {"label": "Neo Geo MVS", "systems": ["neogeo"], "romsets": false},
@@ -65,6 +67,7 @@ const _BAYS: Dictionary = {
 	"naomi": {"label": "NAOMI", "systems": ["naomi", "naomi2"], "romsets": false},
 	"naomi2": {"label": "NAOMI 2", "systems": ["naomi2", "naomi"], "romsets": false},
 	"sega_jvs": {"label": "JAMMA and NAOMI", "systems": ["arcade", "naomi", "naomi2"], "romsets": false},
+	"atomiswave": {"label": "Atomiswave", "systems": ["atomiswave"], "romsets": false},
 }
 
 ## Bay kinds a mod added: id -> {label, systems, romsets, owner}.

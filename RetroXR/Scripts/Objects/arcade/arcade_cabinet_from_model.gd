@@ -14,7 +14,8 @@
 ##   BoardDoorPivot (the board's door, swinging about +Y, opening at negative angles) the bay's door, with a hinge to take it by
 ##   BoardTrayPivot (a tray sliding out along +Z by `tray_travel`)                  a drawer the bay rides on
 ##   BoardAnchor                                                                    the bay's BayMount: the board (an
-##                                                                                  ArcadeBayUnit) clips in there
+##                                                                                  ArcadeBayUnit) clips in there, turned
+##                                                                                  by `bay_roll_deg`
 ##   Marquee, MarqueeArt                                                            found by the cabinet as they are
 ##
 ## The parts are moved under the modules keeping where they are; the rest of the model stays as drawn. The
@@ -47,6 +48,9 @@ const SCRIPT_DRAWER := "res://Scripts/Objects/widgets/vr_drawer.gd"
 @export var door_open_deg: float = 100.0
 ## How far the board's tray slides out (metres); 0: it does not.
 @export var tray_travel: float = 0.0
+## The board's turn in its mount about the cabinet's front axis (+Z), degrees: 0 stands it on its base; -90 stands
+## it on edge with its top toward +X (the Atomiswave AWSD's PCB base). The model's BoardAnchor carries no turn.
+@export var bay_roll_deg: float = 0.0
 
 var _model: Node3D = null
 
@@ -294,7 +298,7 @@ func _build_bay() -> void:
 	var mount := Marker3D.new()
 	mount.name = "BayMount"
 	holder.add_child(mount)
-	mount.global_transform = Transform3D(Basis.IDENTITY, anchor.global_position)
+	mount.global_transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(bay_roll_deg)), anchor.global_position)
 	if tray != null and tray_travel > 0.0:
 		var tb := _mesh_bounds_in(tray, m)
 		var drawer := Area3D.new()

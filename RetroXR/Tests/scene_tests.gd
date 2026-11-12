@@ -1707,7 +1707,7 @@ func _test_thumbnail() -> void:
 const _BUILT_TYPES := ["light_gun", "ray_gun", "retro_keyboard", "wiimote",
 	"cd_player", "cassette_player", "record_player", "battery_aa", "battery_aaa", "battery_c",
 	"loudspeaker", "subwoofer", "speaker_stand_120", "speaker_stand_100",
-	"arcade_bay_jamma", "arcade_bay_mvs", "arcade_bay_laserdisc", "arcade_bay_discrete", "arcade_bay_naomi", "arcade_bay_naomi2", "jvs_jamma_converter", "naomi_dimm_board", "naomi_gd_drive", "naomi_key",
+	"arcade_bay_jamma", "arcade_bay_mvs", "arcade_bay_laserdisc", "arcade_bay_discrete", "arcade_bay_naomi", "arcade_bay_naomi2", "arcade_bay_atomiswave", "jvs_jamma_converter", "naomi_dimm_board", "naomi_gd_drive", "naomi_key",
 	"vb_battery_pack", "vb_ac_tap",
 	"mission_nightstand", "mission_chest"]
 

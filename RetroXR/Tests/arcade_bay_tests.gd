@@ -124,6 +124,8 @@ func _run() -> void:
 		await _group_ext()
 	if _want("disc"):
 		await _group_disc()
+	if _want("atomiswave"):
+		await _group_atomiswave()
 	if _want("naomi"):
 		await _group_naomi()
 	if _want("hookup"):
@@ -362,6 +364,39 @@ func _group_pull() -> void:
 
 
 # --- naomi ---------------------------------------------------------------------
+
+## The Atomiswave bay: a board of its own with a JAMMA edge. Its cartridge lies flat, label up; the bay keeps a
+## JAMMA socket (on its edge, where the harness goes); in the generic cabinet the cabinet plays Atomiswave; and a
+## cabinet that stands the board on edge (ArcadeCabinetFromModel.bay_roll_deg) turns the mount.
+func _group_atomiswave() -> void:
+	var bay := await _bay("atomiswave", Vector3(0, 0, 4))
+	_ok(bay.bay_kind == "atomiswave" and bay.primary_system() == "atomiswave", "atomiswave: the bay is an Atomiswave (%s)" % bay.primary_system())
+	var cart := await _board("atomiswave", Vector3(0, 2, 4))
+	var jamma := await _board("arcade", Vector3(1, 2, 4))
+	_ok(bay.accepts_board(cart) and not bay.accepts_board(jamma), "atomiswave: it takes an Atomiswave cartridge and not a JAMMA board")
+	_ok(MediaDimensions.cart_size("atomiswave").is_equal_approx(Vector3(0.0983, 0.0915, 0.0241)), "atomiswave: the cartridge is the Atomiswave's size")
+	bay.slot.pick_up_object(cart)
+	await _wait(10)
+	_ok(cart.global_basis.z.normalized().y > 0.99, "atomiswave: the cartridge lies flat, label up")
+	_ok(cart.global_basis.y.normalized().x < -0.99, "atomiswave: its connector (-Y) toward the board's right")
+	var port := bay.find_child("JammaPort", true, false) as Node3D
+	var edge := bay.find_child("JammaEdgeAnchor", true, false) as Node3D
+	_ok(port != null and edge != null and port.get_parent() == edge, "atomiswave: its JAMMA socket is on its edge")
+	_ok(edge != null and edge.position.z > bay.box_size().z * 0.5, "atomiswave: and the edge stands out of the front")
+	await _clear()
+
+	var sys := await _cabinet("arcade_cabinet_generic", "arcade")
+	var mount := _mount_of(sys)
+	mount.drop_object()
+	await _wait(4)
+	var aw := await _bay("atomiswave", mount.global_position + Vector3(0, 1.0, 0))
+	mount.pick_up_object(aw)
+	await _wait(6)
+	_ok(sys.get_bay() == aw and sys.systemid == "atomiswave", "atomiswave: an Atomiswave in the generic cabinet plays Atomiswave (%s)" % sys.systemid)
+	var game := await _board("atomiswave", Vector3(3, 3, 0))
+	_ok(sys._accepts_media(game), "atomiswave: the cabinet takes the Atomiswave cartridge")
+	await _clear()
+
 
 const NAOMI_SHELL := "user://arcade_bay_naomi_shell_test.tscn"
 
@@ -890,7 +925,7 @@ func _group_ext() -> void:
 # --- names ---------------------------------------------------------------------
 
 func _group_names() -> void:
-	for kind: String in ["jamma", "mvs", "laserdisc", "discrete", "naomi", "naomi2"]:
+	for kind: String in ["jamma", "mvs", "laserdisc", "discrete", "naomi", "naomi2", "atomiswave"]:
 		var scene := ArcadeBayUnit.scene_for(kind)
 		_ok(scene != null, "names: %s has a scene" % kind)
 		if scene != null:

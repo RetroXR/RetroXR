@@ -52,6 +52,10 @@ const CART_SIZES: Dictionary = {
 	# CartSeat is turned for it); the NAOMI 2 takes the same carts.
 	"naomi":         Vector3(0.2546, 0.1258, 0.020),
 	"naomi2":        Vector3(0.2546, 0.1258, 0.020),
+	# The Atomiswave's cartridge (the models repo's sammy/atomiswave/cart, whose frame this is: across its label X,
+	# up from its connector edge Y, the label +Z): 98.3 x 91.5 x 24.1. It lies label up in the board's well, its
+	# connector toward the board's right (the Atomiswave bay's CartSeat is turned for it).
+	"atomiswave":    Vector3(0.0983, 0.0915, 0.0241),
 	# The laserdisc and discrete-logic cabinets take the bare board (their real discs and
 	# shells are not modelled yet), so they stand the same size in the bay.
 	"daphne":        Vector3(0.200, 0.300, 0.035),

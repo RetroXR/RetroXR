@@ -47,6 +47,7 @@ const SCENES := {
 	"discrete": "res://Scenes/Objects/peripherals/arcade_bay_discrete.tscn",
 	"naomi": "res://Scenes/Objects/peripherals/arcade_bay_naomi.tscn",
 	"naomi2": "res://Scenes/Objects/peripherals/arcade_bay_naomi2.tscn",
+	"atomiswave": "res://Scenes/Objects/peripherals/arcade_bay_atomiswave.tscn",
 }
 
 ## What the player is told it is, by kind.
@@ -57,6 +58,7 @@ const LABELS := {
 	"discrete": "DICE Arcade Bay",
 	"naomi": "Sega NAOMI",
 	"naomi2": "Sega NAOMI 2",
+	"atomiswave": "Sammy Atomiswave",
 }
 
 ## Which ArcadeProfiles bay kind this is (it names what boards fit).

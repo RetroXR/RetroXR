@@ -59,6 +59,10 @@ func _kinds() -> Dictionary:
 		# The NAOMI 2: the same case in its dark blue-gray (the models repo's sega/naomi/board-2); it takes NAOMI carts too.
 		"naomi2": {"size": Vector3(0.272, 0.066, 0.340), "body": Color(0.24, 0.27, 0.32),
 			"trim": Color(0.78, 0.78, 0.80), "legend": "NAOMI 2"},
+		# The Sammy Atomiswave: a red case 222 x 63.8 x 218 on its 271-wide bracket plate (the models repo's
+		# sammy/atomiswave/board), the cartridge lying label up in a well on top, its own JAMMA edge out of the front.
+		"atomiswave": {"size": Vector3(0.271, 0.0638, 0.218), "body": Color(0.72, 0.08, 0.10),
+			"trim": Color(0.75, 0.76, 0.78), "legend": "ATOMISWAVE"},
 	}
 
 
@@ -109,11 +113,22 @@ func _initialize() -> void:
 	elif kind == "naomi" or kind == "naomi2":
 		seat = _build_naomi(root, size, body, dark, metal)
 		top = size.y
+	elif kind == "atomiswave":
+		seat = _build_atomiswave(root, size, body, dark, metal)
+		top = size.y
 	else:
 		seat = _build_jamma_board(root, deck, size, v["pcb"], dark, metal)
 		top = SOCKET_TOP + lift
 	seat.name = "CartSeat"
-	if kind == "mvs" or kind == "naomi" or kind == "naomi2":
+	if kind == "atomiswave":
+		var aw := U.node(root, root, "Label3D", "Legend", Vector3(0.06, size.y + 0.0004, 0.06)) as Label3D
+		aw.basis = Basis(Vector3.RIGHT, -PI * 0.5)
+		aw.text = str(v["legend"])
+		aw.pixel_size = 0.0004
+		aw.font_size = 48
+		aw.modulate = Color(0.95, 0.95, 0.96)
+		aw.outline_size = 0
+	elif kind == "mvs" or kind == "naomi" or kind == "naomi2":
 		U.box(root, root, "Stripe", Vector3(size.x, 0.006, 0.002), Vector3(0, size.y - 0.008, size.z * 0.5 + 0.001), trim)
 		var legend := U.node(root, root, "Label3D", "Legend", Vector3(0, size.y * 0.5, size.z * 0.5 + 0.0025)) as Label3D
 		legend.text = str(v["legend"])
@@ -145,9 +160,15 @@ func _initialize() -> void:
 	if port_scene != null:
 		var port := port_scene.instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE) as Node3D
 		port.name = "JammaPort"
-		deck.add_child(port)
-		port.owner = root
-		port.position = Vector3(0, port_y, size.z * 0.5 + 0.004)
+		if kind == "atomiswave":
+			# On the board's own JAMMA edge: under its marker, which a mod's model moves onto its JammaEdgeAnchor.
+			var edge := deck.find_child("JammaEdgeAnchor", false, false) as Node3D
+			edge.add_child(port)
+			port.owner = root
+		else:
+			deck.add_child(port)
+			port.owner = root
+			port.position = Vector3(0, port_y, size.z * 0.5 + 0.004)
 
 	# Collision: the base box (a board in the slot is its own body). Pointer: a box a ray finds.
 	var col := U.node(root, root, "CollisionShape3D", "CollisionShape3D", Vector3(0, top * 0.5, 0)) as CollisionShape3D
@@ -281,6 +302,53 @@ func _build_naomi(root: Node, size: Vector3, body: Material, dark: Material, met
 			metal if str(s[0]).begins_with("Vga") or str(s[0]).begins_with("Jvs") else dark)
 		U.node(root, root, "Marker3D", str(s[0]), Vector3(s[1], s[2], fz + dims.z))
 	var seat := U.node(root, root, "Marker3D", "CartSeat", Vector3(0, floor_y + CART_T * 0.5, well_z)) as Marker3D
+	seat.basis = Basis(Vector3(0, 0, -1), Vector3(-1, 0, 0), Vector3(0, 1, 0))
+	return seat
+
+
+## The Atomiswave's stand-in (the models repo's sammy/atomiswave/board, in its frame moved back to the case's middle):
+## the bracket plate it stands on, the red case on it, the cartridge's well in the top behind the port block, and
+## the JAMMA edge standing 11.4 out of the front through its slot. JammaEdgeAnchor is the edge's tip, where the
+## harness goes on along -Z (the bay's JammaPort hangs on it); the cartridge lies label up in the well, its
+## connector toward the board's right: CartSeat is turned as the NAOMI's is (the cartridge's +Z up, its +Y to
+## the board's left). In an AWSD the board stands on edge (its cabinet turns the mount). Returns CartSeat.
+func _build_atomiswave(root: Node, size: Vector3, body: Material, dark: Material, metal: Material) -> Marker3D:
+	const CASE := Vector3(0.222, 0.0638, 0.218)
+	const PLATE_T := 0.0015
+	const WELL_X := Vector2(-0.080, 0.023)        # the well across, and front to back (the case's middle 0)
+	const WELL_Z := Vector2(-0.069, 0.029)
+	const WELL_FLOOR := 0.0438
+	const CART_T := 0.0241                          # the cartridge's thickness (MediaDimensions CART_SIZES)
+	var gold := U.mat(Color(0.85, 0.66, 0.22), 1.0, 0.3)
+	var green := U.mat(Color(0.05, 0.30, 0.15), 0.0, 0.5)
+	U.box(root, root, "BracketPlate", Vector3(size.x, PLATE_T, size.z), Vector3(0, PLATE_T * 0.5, 0), metal)
+	var y0 := PLATE_T
+	var wx := WELL_X.y - WELL_X.x
+	var wz := WELL_Z.y - WELL_Z.x
+	var wy := CASE.y - WELL_FLOOR
+	# The case under the well's floor, then the rim round the well to the top.
+	U.box(root, root, "AtomiswaveCase", Vector3(CASE.x, WELL_FLOOR - y0, CASE.z), Vector3(0, y0 + (WELL_FLOOR - y0) * 0.5, 0), body)
+	var left := WELL_X.x + CASE.x * 0.5
+	var right := CASE.x * 0.5 - WELL_X.y
+	U.box(root, root, "WellRimL", Vector3(left, wy, CASE.z), Vector3(-CASE.x * 0.5 + left * 0.5, WELL_FLOOR + wy * 0.5, 0), body)
+	U.box(root, root, "WellRimR", Vector3(right, wy, CASE.z), Vector3(CASE.x * 0.5 - right * 0.5, WELL_FLOOR + wy * 0.5, 0), body)
+	var front := CASE.z * 0.5 - WELL_Z.y
+	var back := WELL_Z.x + CASE.z * 0.5
+	var cx := (WELL_X.x + WELL_X.y) * 0.5
+	U.box(root, root, "WellRimF", Vector3(wx, wy, front), Vector3(cx, WELL_FLOOR + wy * 0.5, CASE.z * 0.5 - front * 0.5), body)
+	U.box(root, root, "WellRimB", Vector3(wx, wy, back), Vector3(cx, WELL_FLOOR + wy * 0.5, -CASE.z * 0.5 + back * 0.5), body)
+	U.box(root, root, "WellFloor", Vector3(wx, 0.0005, wz), Vector3(cx, WELL_FLOOR + 0.00025, (WELL_Z.x + WELL_Z.y) * 0.5), dark)
+	# The JAMMA edge: 112 across, 1.6 thick, its tip 11.4 out of the case's front, gold fingers on both faces.
+	var tip := CASE.z * 0.5 + 0.0114
+	U.box(root, root, "JammaEdge", Vector3(0.112, 0.0016, 0.026), Vector3(-0.035, 0.0232, tip - 0.013), green)
+	for sy in [-1.0, 1.0]:
+		U.box(root, root, "JammaFingers%s" % ("T" if sy > 0 else "B"), Vector3(0.110, 0.0002, 0.008),
+			Vector3(-0.035, 0.0232 + sy * 0.0009, tip - 0.0045), gold)
+	U.node(root, root, "Marker3D", "JammaEdgeAnchor", Vector3(-0.035, 0.0232, tip))
+	# The port block's two D-subs on the front, right of the edge (VDO under SRL): dark blocks, for the look.
+	for s: Array in [["SocketVdo", 0.022], ["SocketSrl", 0.038]]:
+		U.box(root, root, str(s[0]), Vector3(0.031, 0.0126, 0.006), Vector3(0.091, float(s[1]), CASE.z * 0.5 + 0.003), metal)
+	var seat := U.node(root, root, "Marker3D", "CartSeat", Vector3(-0.0285, WELL_FLOOR + CART_T * 0.5, -0.020)) as Marker3D
 	seat.basis = Basis(Vector3(0, 0, -1), Vector3(-1, 0, 0), Vector3(0, 1, 0))
 	return seat
 

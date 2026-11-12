@@ -249,6 +249,7 @@ const ARCADE_BAY_LASERDISC_SCENE := preload("res://Scenes/Objects/peripherals/ar
 const ARCADE_BAY_DISCRETE_SCENE := preload("res://Scenes/Objects/peripherals/arcade_bay_discrete.tscn")
 const ARCADE_BAY_NAOMI_SCENE := preload("res://Scenes/Objects/peripherals/arcade_bay_naomi.tscn")
 const ARCADE_BAY_NAOMI2_SCENE := preload("res://Scenes/Objects/peripherals/arcade_bay_naomi2.tscn")
+const ARCADE_BAY_ATOMISWAVE_SCENE := preload("res://Scenes/Objects/peripherals/arcade_bay_atomiswave.tscn")
 const JVS_JAMMA_CONVERTER_SCENE := preload("res://Scenes/Objects/peripherals/jvs_jamma_converter.tscn")
 const NAOMI_DIMM_SCENE := preload("res://Scenes/Objects/peripherals/naomi_dimm_board.tscn")
 const NAOMI_GD_DRIVE_SCENE := preload("res://Scenes/Objects/peripherals/naomi_gd_drive.tscn")
@@ -275,12 +276,6 @@ const TABLE_SCENE            := preload("res://Scenes/Objects/furniture/table.ts
 const NIGHTSTAND_SCENE       := preload("res://Scenes/Objects/furniture/nightstand.tscn")
 const MISSION_NIGHTSTAND_SCENE := preload("res://Scenes/Objects/furniture/mission_nightstand.tscn")
 const MISSION_CHEST_SCENE    := preload("res://Scenes/Objects/furniture/mission_chest.tscn")
-const SEAT_RACING_SCENE      := preload("res://Scenes/Objects/furniture/seat_racing.tscn")
-const SEAT_STOOL_SCENE       := preload("res://Scenes/Objects/furniture/seat_stool.tscn")
-const SEAT_CHAIR_SCENE       := preload("res://Scenes/Objects/furniture/seat_chair.tscn")
-const SEAT_CUSHION_SCENE     := preload("res://Scenes/Objects/furniture/seat_cushion.tscn")
-const SEAT_SOFA_SCENE        := preload("res://Scenes/Objects/furniture/seat_sofa.tscn")
-const SEAT_BED_SCENE         := preload("res://Scenes/Objects/furniture/seat_bed.tscn")
 const RETRO_MOUSE_SCENE      := preload("res://Scenes/Objects/peripherals/retro_mouse.tscn")
 const SNES_MOUSE_SCENE       := preload("res://Scenes/Objects/peripherals/snes_mouse.tscn")
 const SUPER_SCOPE_SCENE      := preload("res://Scenes/Objects/peripherals/super_scope.tscn")
@@ -441,13 +436,6 @@ const PLAIN_SCENES := {
 	# Pose only, as the nightstand: every drawer is a VRDrawer saved with the articulated controls.
 	"mission_nightstand": MISSION_NIGHTSTAND_SCENE,
 	"mission_chest": MISSION_CHEST_SCENE,
-	# Pose only: where the player is sitting is this session's, never saved.
-	"seat_racing": SEAT_RACING_SCENE,
-	"seat_stool": SEAT_STOOL_SCENE,
-	"seat_chair": SEAT_CHAIR_SCENE,
-	"seat_cushion": SEAT_CUSHION_SCENE,
-	"seat_sofa": SEAT_SOFA_SCENE,
-	"seat_bed": SEAT_BED_SCENE,
 	# Pose only: the hub has no state of its own. Which lead is in which of its
 	# sockets is recorded by each LEAD, naming this hub and "PortN".
 	"ilink_hub": ILINK_HUB_SCENE,
@@ -468,6 +456,7 @@ const PLAIN_SCENES := {
 	"arcade_bay_discrete": ARCADE_BAY_DISCRETE_SCENE,
 	"arcade_bay_naomi": ARCADE_BAY_NAOMI_SCENE,
 	"arcade_bay_naomi2": ARCADE_BAY_NAOMI2_SCENE,
+	"arcade_bay_atomiswave": ARCADE_BAY_ATOMISWAVE_SCENE,
 	# The board that puts a NAOMI in a JAMMA cabinet (JvsJammaConverter); its cords are leads of their own.
 	"jvs_jamma_converter": JVS_JAMMA_CONVERTER_SCENE,
 	# The NAOMI's GD-ROM system (NaomiGdRom): the DIMM board, the drive, a game's key chip (its game in "rom").

@@ -44,6 +44,7 @@ const _ARCADE_BAY_ROWS: Array = [
 	{"kind": "peripheral", "label": "DICE Arcade Bay", "spawn": "arcade_bay_discrete"},
 	{"kind": "peripheral", "label": "Sega NAOMI", "spawn": "arcade_bay_naomi"},
 	{"kind": "peripheral", "label": "Sega NAOMI 2", "spawn": "arcade_bay_naomi2"},
+	{"kind": "peripheral", "label": "Sammy Atomiswave", "spawn": "arcade_bay_atomiswave"},
 	{"kind": "peripheral", "label": "JAMMA Cable", "spawn": "jamma_cable"},
 	# A NAOMI's cords to the cabinet (NaomiHookup): power, JVS, VGA and the two phono leads.
 	{"kind": "peripheral", "label": "NAOMI Power Harness", "spawn": "naomi_power_cable"},
@@ -299,6 +300,7 @@ const _PERIPHERALS: Dictionary = {
 	"neogeo": _ARCADE_BAY_ROWS,
 	"daphne": _ARCADE_BAY_ROWS,
 	"dice": _ARCADE_BAY_ROWS,
+	"atomiswave": _ARCADE_BAY_ROWS,
 	"naomi": _NAOMI_ROWS,
 	"naomi2": _NAOMI_ROWS,
 }
@@ -1085,13 +1087,6 @@ const OBJECTS := [
 	# The Mission bedroom pair, every drawer pulling out by its ring pulls (DrawerFurniture).
 	["Mission Nightstand", "mission_nightstand"],
 	["Mission Chest",      "mission_chest"],
-	# Somewhere to sit: press the cushion to sit, again to get up; hold on it to carry it.
-	["Racing Seat",     "seat_racing"],
-	["Stool",           "seat_stool"],
-	["Chair",           "seat_chair"],
-	["Floor Cushion",   "seat_cushion"],
-	["Sofa",            "seat_sofa"],
-	["Bed",             "seat_bed"],
 	["Storage Box",     "trash_can"],
 	["VCR",             "vcr_player"],
 	["DVD Player",      "dvd_player"],
