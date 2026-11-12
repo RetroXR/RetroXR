@@ -72,6 +72,10 @@ const SCRIPT_DRAWER := "res://Scripts/Objects/widgets/vr_drawer.gd"
 ## generic shell's boxes (which stood a slab across a low bay's tray and walls in front of its doors). A models repo
 ## item makes the list from its own mesh (naomi-universal's tools/collision_boxes.py).
 @export var solid_boxes: Array[AABB] = []
+## Which of the model's variants this cabinet is (a regional build: the NAOMI Universal's JP coin entry on its panel, or its US
+## coin door): the model's Variant<name> meshes other than this one are hidden, and a marker is looked for as <name>_<marker>
+## first (JP_CoinSlot1), then as itself. Empty: the model as drawn.
+@export var variant: String = ""
 
 var _model: Node3D = null
 
@@ -86,6 +90,9 @@ func _ready() -> void:
 	var ab := _mesh_bounds(_model)
 	# The front face's middle to the base's: back by half the depth.
 	_model.position = Vector3(0.0, 0.0, -(ab.position.z + ab.size.z * 0.5))
+	# The other variants' parts out of sight (and out of the bounds the cabinet's size comes from: measured above, with all).
+	for v in _model.find_children("Variant*", "Node3D", true, false):
+		(v as Node3D).visible = variant.is_empty() or str(v.name) == "Variant" + variant
 	var root := get_parent()
 	if root != null:
 		root.set("cabinet_width", ab.size.x)
@@ -301,6 +308,10 @@ func _io_board(lead: Node3D) -> Node3D:
 
 
 func _part(part_name: String) -> Node3D:
+	if not variant.is_empty():
+		var own := _model.find_child(variant + "_" + part_name, true, false) as Node3D
+		if own != null:
+			return own
 	return _model.find_child(part_name, true, false) as Node3D
 
 
