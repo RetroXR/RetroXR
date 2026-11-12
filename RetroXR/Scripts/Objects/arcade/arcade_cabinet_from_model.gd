@@ -18,6 +18,8 @@
 ##                                                                                  by `bay_roll_deg`
 ##   <Name>DoorPivot (another door, swinging about +Y; hinged on its left edge it      a door of its own that opens, with a
 ##   opens at negative angles, on its right edge at positive)                       hinge to take it by (<Name>Grab)
+##   <Name>HatchPivot (a service hatch hinged along its bottom edge)                 a hatch that drops open outward, about
+##                                                                                  the cabinet's X, with a hinge to take it by
 ##   <Lead>Aim (beside any of the leads below)                                      the way that lead's socket faces: its
 ##                                                                                  plug comes from there
 ##   GdDriveAnchor                                                                  where a NAOMI GD-ROM drive stands: a
@@ -139,11 +141,14 @@ func _lead_facing(lead: String, at: Vector3) -> Basis:
 ## about +Y toward the player to `door_open_deg` (the hinge on the door's left edge opens it at negative angles, on its
 ## right edge at positive). A VRHinge, so a save keeps how far open it is.
 func _build_doors() -> void:
-	for pivot_node in _model.find_children("*DoorPivot", "Node3D", true, false):
+	var pivots: Array[Node] = _model.find_children("*DoorPivot", "Node3D", true, false)
+	pivots.append_array(_model.find_children("*HatchPivot", "Node3D", true, false))
+	for pivot_node in pivots:
 		var door := pivot_node as Node3D
 		if door.name == "BoardDoorPivot" or not is_ancestor_of(door):
 			continue
 		var door_name := str(door.name).trim_suffix("Pivot")
+		var hatch := door_name.ends_with("Hatch")
 		var m := Node3D.new()
 		m.name = door_name + "Hinge"
 		add_child(m)
@@ -154,7 +159,12 @@ func _build_doors() -> void:
 		axis.name = "DoorAxis"
 		m.add_child(axis)
 		var hx := Vector3(0, 1, 0) if right_edge else Vector3(0, -1, 0)
-		axis.global_transform = Transform3D(Basis(hx, Vector3(-hx.y, 0, 0), Vector3(0, 0, 1)), door.global_position)
+		var axis_basis := Basis(hx, Vector3(-hx.y, 0, 0), Vector3(0, 0, 1))
+		if hatch:
+			# A hatch drops open about the cabinet's X, its top swinging away from the cabinet: on the back (-Z) about -X.
+			var back := to_local(door.global_position).z < 0.0
+			axis_basis = Basis(Vector3(-1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, -1)) if back else Basis.IDENTITY
+		axis.global_transform = Transform3D(global_basis * axis_basis, door.global_position)
 		var turn := Node3D.new()
 		turn.name = "DoorPivot"
 		axis.add_child(turn)

@@ -534,6 +534,16 @@ func _hk_build(jamma: bool) -> void:
 	dpiv.add_child(dmesh)
 	dmesh.owner = m
 	dmesh.position = Vector3(-0.1, 0.1, -0.0075)
+	# A service hatch on the back, hinged along its bottom edge.
+	var hpiv := _hk_node(m, "Node3D", "ServiceHatchPivot", Vector3(0.0, 1.0, -0.9))
+	var hmesh := MeshInstance3D.new()
+	hmesh.name = "ServiceHatch"
+	var hbm := BoxMesh.new()
+	hbm.size = Vector3(0.2, 0.2, 0.01)
+	hmesh.mesh = hbm
+	hpiv.add_child(hmesh)
+	hmesh.owner = m
+	hmesh.position = Vector3(0.0, 0.1, 0.005)
 	var mp := PackedScene.new()
 	mp.pack(m)
 	ResourceSaver.save(mp, HK_MODEL)
@@ -648,6 +658,15 @@ func _hk_run() -> void:
 		dgrab.set_rotation_deg_remote(90.0)
 		await _wait(2)
 		_ok(dmesh.global_position.z > shut_z + 0.05, "hookup: and opens toward the player (%.3f m)" % (dmesh.global_position.z - shut_z))
+	var hgrab := model.find_child("ServiceHatchGrab", true, false) as VRHinge
+	_ok(hgrab != null, "hookup: the cabinet's service hatch has a hinge")
+	if hgrab != null:
+		var hmesh := model.find_child("ServiceHatch", true, false) as Node3D
+		var shut := hmesh.global_position
+		hgrab.set_rotation_deg_remote(80.0)
+		await _wait(2)
+		var moved := hmesh.global_position - shut
+		_ok(moved.z < -0.05 and moved.y < -0.03, "hookup: and drops open away from the cabinet (%s)" % str(moved))
 	var dmount := model.find_child("GdDriveMount", true, false) as XRToolsSnapZone
 	_ok(dmount != null and dmount.snap_require == NaomiGdDrive.GROUP, "hookup: the cabinet has a place for the GD-ROM drive")
 	if dmount != null:
