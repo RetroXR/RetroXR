@@ -392,7 +392,9 @@ func _test_late_plug_model() -> void:
 	var plug := cable.get_node("ControllerPlug") as ControllerPlug
 	await get_tree().process_frame
 	for generic: String in ["PlugTip", "StrainRelief"]:
-		(plug.get_node(generic) as Node3D).visible = false
+		var part := plug.get_node_or_null(generic) as Node3D
+		if part != null:
+			part.visible = false
 	var model_box := AABB(Vector3(-0.007, -0.003, -0.03), Vector3(0.014, 0.006, 0.038))
 	plug.add_child(_shell("PlugModel", model_box.size, model_box.get_center()))
 	await _settle()
@@ -402,7 +404,9 @@ func _test_late_plug_model() -> void:
 	# Taken off again, the molding is back and so is its target.
 	plug.get_node("PlugModel").free()
 	for generic: String in ["PlugTip", "StrainRelief"]:
-		(plug.get_node(generic) as Node3D).visible = true
+		var part := plug.get_node_or_null(generic) as Node3D
+		if part != null:
+			part.visible = true
 	await _settle()
 	_check_fit(plug, "dress/the molding after the model is taken off")
 	cable.queue_free()
@@ -537,11 +541,13 @@ func _test_resolver_dressed() -> void:
 	await _settle()
 	var plug := cable.get_node("ControllerPlug") as ControllerPlug
 	for generic: String in ["PlugTip", "StrainRelief"]:
-		(plug.get_node(generic) as Node3D).visible = false
+		var part := plug.get_node_or_null(generic) as Node3D
+		if part != null:
+			part.visible = false
 	var model_box := AABB(Vector3(-0.004, -0.003, -0.03), Vector3(0.008, 0.006, 0.04))
 	plug.add_child(_shell("PlugModel", model_box.size, model_box.get_center()))
 	await _settle()
-	var generic_body := AABB(Vector3(-0.01, -0.01, -0.04), Vector3(0.02, 0.02, 0.06))
+	var generic_body := AABB(Vector3(-0.01, -0.0098, -0.04), Vector3(0.02, 0.0196, 0.058))
 	_ok(generic_body.end.x > model_box.end.x + BESIDE[0] and generic_body.end.y > model_box.end.y + BESIDE[0],
 		"resolver/the molding's body reaches past where the dressed plug is aimed beside")
 	_aim_round(plug, "resolver/a plug dressed smaller than its molding")

@@ -1,0 +1,26 @@
+{
+  "frame": "glTF/Godot metres, connector in along +Z, cord out along -Z (controller_cable.tscn ControllerPlug)",
+  "nose": [
+    0.0,
+    0.018
+  ],
+  "cord_exit": [
+    0.0,
+    0.0,
+    -0.04
+  ],
+  "bounds_mm": {
+    "x": [
+      -10.0,
+      10.0
+    ],
+    "y": [
+      -9.6,
+      9.6
+    ],
+    "z": [
+      -40.0,
+      18.0
+    ]
+  }
+}

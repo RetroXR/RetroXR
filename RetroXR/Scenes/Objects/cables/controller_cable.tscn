@@ -1,34 +1,19 @@
-[gd_scene load_steps=10 format=3 uid="uid://controller_cable_001"]
+[gd_scene load_steps=7 format=3 uid="uid://controller_cable_001"]
 
 [ext_resource type="Script" path="res://Scripts/Objects/cables/controller_plug.gd" id="1_plugscript"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="4_snapgp"]
+; RetroXR's own RETRO XR plug (RetroXR-models generic/retropad, build_plug.py), baked by
+; Tools/gen/extract_retropad_plug.gd: one mesh in this node's frame, connector on +Z, cord out at z -0.04.
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/retropad_plug_mesh.res" id="5_plugmesh"]
 
 ; Fitted to the connector mesh (measured by Tools/rope/plug_shape_probe), so a
 ; loose plug lies ON a surface at its real size. It was a sphere two to five
 ; times the plug's thickness, which rolled under any push and held the plug
 ; centimetres off the floor with nothing visibly holding it there.
+; Refitted 2026-11-12 to the RETRO XR plug (retropad_plug_mesh.res): x +-10, y +-9.8, z -40 .. +18 mm.
 [sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
-size = Vector3(0.02, 0.02, 0.06)
-
-; The moulded boot: fat where it meets the connector, tapering down to the cord.
-; Its top (local +Y) maps to world -Z under the -90 rotation below, so top_radius
-; is the CORD end.
-[sub_resource type="CylinderMesh" id="CylMesh_plug"]
-top_radius = 0.006
-bottom_radius = 0.01
-height = 0.04
-
-[sub_resource type="StandardMaterial3D" id="Mat_plug"]
-albedo_color = Color(0.8, 0.8, 0.8, 1.0)
-
-[sub_resource type="CylinderMesh" id="CylMesh_strain"]
-top_radius = 0.008
-bottom_radius = 0.008
-height = 0.02
-
-[sub_resource type="StandardMaterial3D" id="Mat_strain"]
-albedo_color = Color(0.15, 0.15, 0.15, 1.0)
+size = Vector3(0.02, 0.0196, 0.058)
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
 bounce = 0.0
@@ -57,23 +42,15 @@ freeze_mode = 1
 script = ExtResource("1_plugscript")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="ControllerPlug"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.01)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.011)
 shape = SubResource("BoxShape3D_plugfit")
 
-; The two halves, the way round they actually go: the TIP is the dark stub that
-; enters the socket (+Z), and the STRAIN RELIEF is the grey moulded boot the cord
-; leaves from (-Z). They were swapped — the tapered grey piece sat on the socket
-; side, so a cord correctly anchored at the boot came out of what read as the
-; connector, and the shape that reads as a strain relief was buried in the port.
+; The generic plug's whole moulding, one mesh: the octagonal nickel nose that enters the socket (+Z), the red ring,
+; the black boot and its ribbed strain relief, which the cord leaves at z -0.04 (CordExit). ControllerPlug hides it
+; when a pad hands it a connector of its own (set_plug_mesh). It was two primitive cylinders, PlugTip and
+; StrainRelief; the second is gone, and set_plug_mesh skips a name it cannot find.
 [node name="PlugTip" type="MeshInstance3D" parent="ControllerPlug"]
-transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 0.01)
-mesh = SubResource("CylMesh_strain")
-surface_material_override/0 = SubResource("Mat_strain")
-
-[node name="StrainRelief" type="MeshInstance3D" parent="ControllerPlug"]
-transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, -0.02)
-mesh = SubResource("CylMesh_plug")
-surface_material_override/0 = SubResource("Mat_plug")
+mesh = ExtResource("5_plugmesh")
 
 ; Where the cord leaves the generic plug: the OUTER end of the strain-relief boot
 ; (z -0.04), not the plug's origin. The origin sits mid-barrel on the grey tip,
