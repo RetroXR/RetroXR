@@ -61,10 +61,14 @@ const SHELF_SURFACE := Vector3(0.0, 0.268, 0.004)
 
 var _lid: CollisionShape3D = null
 var _held := false
+## Held, it moves like the heavy thing it is, or what is in its drawers is left behind or thrown (HeavyHold).
+var _heavy := HeavyHold.new()
 
 
 func _ready() -> void:
 	super()
+	# After whatever holds it has moved it this tick (the grab driver, the laser's pickup): HeavyHold reads that back.
+	process_physics_priority = 100
 	add_to_group("spawned")
 	var n_case := _build_shapes(self, CASE_BOXES, "Case")
 	for i in LEGS.size():
@@ -74,9 +78,13 @@ func _ready() -> void:
 	_drawer_body.add_collision_exception_with(self)
 	add_collision_exception_with(_drawer_body)
 	_dress()
+	# The lid over the WHOLE drawer, sized once and only switched on and off (see _physics_process).
 	_lid = CollisionShape3D.new()
 	_lid.name = "Lid"
-	_lid.shape = BoxShape3D.new()
+	var lid_box := BoxShape3D.new()
+	lid_box.size = Vector3(DRAWER_INNER.size.x, LID_Y.y - LID_Y.x, DRAWER_INNER.size.z)
+	_lid.shape = lid_box
+	_lid.position = Vector3(DRAWER_INNER.get_center().x, (LID_Y.x + LID_Y.y) * 0.5, DRAWER_INNER.get_center().z)
 	_lid.disabled = true
 	_drawer_body.add_child(_lid)
 	print("[Nightstand] %s: %d case boxes, %d legs, %d drawer boxes, drawer %.0f mm out of %.0f" % [name, n_case,
@@ -88,7 +96,7 @@ func drawer() -> VRDrawer:
 	return _drawer
 
 
-## Held, the case goes on the held layer, which nothing loose collides with, so a shut drawer is no longer a closed box:
+## Held, the case goes on the held layer, which nothing loose collides with, so a drawer is no longer a closed box:
 ## two of three boxes left one hauled hard (vr_drawer_tests haul/). The drawer body is not held, so it gets a lid of
 ## its own for the hold: what is in the drawer stays ordinary physics (it slides and knocks about) and cannot leave
 ## through the top. The lid is off whenever the nightstand is not held, so it can never be an obstacle in the room.
@@ -97,8 +105,9 @@ func drawer() -> VRDrawer:
 ## restores the body itself; SurfaceStick's header has the story), so a lid switched by the signals would stay on
 ## after a laser put the nightstand down. (An earlier version froze the drawer's contents for the hold, which read as
 ## frozen in a headset and was left frozen by the same missing signal.)
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	var held := freeze and collision_layer == picked_up_layer
+	_heavy.step(self, held, delta)
 	if held != _held:
 		_held = held
 		_lid.disabled = not held
@@ -106,21 +115,6 @@ func _physics_process(_delta: float) -> void:
 			"on" if held else "off"])
 		if not held:
 			_report_collision_later()
-	if held:
-		_fit_lid()
-
-
-## The lid over the part of the drawer still inside the case, in the drawer body's frame (it rides with the drawer).
-func _fit_lid() -> void:
-	var out := _drawer_body.position.z
-	var z0 := DRAWER_INNER.position.z
-	var z1 := minf(DRAWER_INNER.end.z, CASE_FRONT_Z - out)
-	if z1 - z0 < 0.01:
-		_lid.disabled = true      # the drawer is all the way out: nothing of it under the case top
-		return
-	_lid.disabled = false
-	(_lid.shape as BoxShape3D).size = Vector3(DRAWER_INNER.size.x, LID_Y.y - LID_Y.x, z1 - z0)
-	_lid.position = Vector3(DRAWER_INNER.get_center().x, (LID_Y.x + LID_Y.y) * 0.5, (z0 + z1) * 0.5)
 
 
 ## Whether the drawer's lid is on (the nightstand held).

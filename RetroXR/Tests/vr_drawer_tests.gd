@@ -77,6 +77,7 @@ func _ready() -> void:
 		await _debug_view_after_carry(ns)
 		await _angled_drop()
 		await _drag_lag()
+		await _pickup_spill()
 	XRServer.remove_tracker(_hand)
 	Engine.max_fps = _max_fps
 	_finish()
@@ -602,7 +603,9 @@ func _rough_haul(ns: Nightstand) -> void:
 	add_child(mover)
 	for i in 70:
 		await get_tree().physics_frame
-	mover.queue_free()
+	# Gone NOW, not at the frame's end: queued, it moved the nightstand once more after it was let go, a teleport with
+	# nothing smoothing it (HeavyHold only follows a HELD piece). A hand lets go outside the physics step.
+	mover.free()
 	ns.freeze = false
 	ns.collision_layer = 4
 	ns.collision_mask = 196613
@@ -1117,3 +1120,76 @@ func _drag_lag() -> void:
 			kind, worst_srv * 1000.0, worst_node * 1000.0])
 		piece.queue_free()
 		await _ticks(2)
+
+
+## PICKED UP with things in an open drawer ("objects sometimes fall through as I pick it up", 2026-11-12): the
+## hand's pull-in (origin to the hand at 2.5 m/s, a metre up for a grab at the top), a desktop-style swing (a quarter
+## turn round a point 1.5 m off in 0.35 s) and a stop dead. What was in the drawer must still be in it.
+func _pickup_spill() -> void:
+	const REMOTE := preload("res://Scenes/Objects/appliances/tv_remote.tscn")
+	for kind in ["nightstand", "mission_chest"]:
+		for how in ["pull_in", "swing"]:
+			var piece := (ScenePersistence.PLAIN_SCENES[kind] as PackedScene).instantiate() as XRToolsPickable
+			piece.position = Vector3(3.0, 0.0, -3.5)
+			add_child(piece)
+			for i in 30:
+				await get_tree().physics_frame
+			var d: VRDrawer = piece.drawers()[0] if piece is DrawerFurniture else (piece as Nightstand).drawer()
+			d.set_value(0.6)
+			for i in 30:
+				await get_tree().physics_frame
+			var seat: Vector3 = (piece as DrawerFurniture).drawer_seat_local(0) if piece is DrawerFurniture \
+				else (piece as Nightstand).drawer_seat_local()
+			var things: Array[RigidBody3D] = []
+			things.append(_loose_box(piece.global_transform * (seat + Vector3(-0.06, 0.03, 0.0))))
+			var remote := REMOTE.instantiate() as RigidBody3D
+			add_child(remote)
+			remote.global_transform = piece.global_transform * Transform3D(Basis(), seat + Vector3(0.08, 0.02, 0.0))
+			things.append(remote)
+			for i in 60:
+				await get_tree().physics_frame
+			var body := d.target as Node3D
+			var start := piece.global_transform
+			piece.freeze = true
+			piece.collision_layer = piece.picked_up_layer
+			piece.collision_mask = 0
+			var t := [0.0]
+			var mover := Mover.new()
+			if how == "pull_in":
+				mover.step = func(delta: float) -> void:
+					t[0] += delta
+					var up := minf(t[0] * 2.5, 1.0)
+					piece.global_transform = Transform3D(start.basis, start.origin + Vector3(0, up, 0))
+			else:
+				var pivot := start.origin + Vector3(0, 1.0, 1.5)
+				mover.step = func(delta: float) -> void:
+					t[0] += delta
+					var a := clampf(t[0] / 0.35, 0.0, 1.0) * PI * 0.5
+					var off := start.origin + Vector3(0, 1.0, 0) - pivot
+					piece.global_transform = Transform3D(start.basis.rotated(Vector3.UP, a),
+						pivot + off.rotated(Vector3.UP, a))
+			add_child(mover)
+			for i in 90:
+				await get_tree().physics_frame
+			mover.queue_free()
+			for i in 30:
+				await get_tree().physics_frame
+			var kept := 0
+			var where := []
+			for th in things:
+				var local := body.global_transform.affine_inverse() * th.global_position
+				var inner: AABB = (piece as DrawerFurniture)._drawers[0]["inner"] if piece is DrawerFurniture \
+					else Nightstand.DRAWER_INNER
+				if inner.grow(0.02).has_point(local):
+					kept += 1
+				else:
+					where.append("%s at %s" % [th.name, local])
+			_ok(kept == things.size(), "again/%s picked up by %s with a box and a remote in its open drawer: %d of %d still in it %s" % [
+				kind, how, kept, things.size(), where])
+			piece.freeze = false
+			piece.collision_layer = 4
+			piece.collision_mask = 196613
+			for th in things:
+				th.queue_free()
+			piece.queue_free()
+			await _ticks(3)

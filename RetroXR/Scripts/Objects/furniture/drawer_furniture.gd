@@ -42,10 +42,14 @@ var _contract: Dictionary = {}
 var _drawers: Array[Dictionary] = []
 var _case_front_z := 0.0
 var _held := false
+## Held, it moves like the heavy thing it is, or what is in its drawers is left behind or thrown (HeavyHold).
+var _heavy := HeavyHold.new()
 
 
 func _ready() -> void:
 	super()
+	# After whatever holds it has moved it this tick (the grab driver, the laser's pickup): HeavyHold reads that back.
+	process_physics_priority = 100
 	add_to_group("spawned")
 	_contract = DeckFace.contract(contract_path, "DrawerFurniture")
 	if _contract.is_empty():
@@ -132,10 +136,21 @@ func _build_drawer(row: Dictionary) -> void:
 	]
 	for s: Array in shapes:
 		body.add_child(_box("Box" + String(s[0]), s[1], s[2]))
+	# The lid: over the WHOLE drawer, under the rail above, sized once. It is only switched on and off (while the piece is
+	# held). Fitted every tick to the part still inside the case, it was a shape rebuilt every tick on a moving body, and
+	# what lay in the drawer fell through its floor or was thrown out of it as the piece was picked up (2026-11-12).
 	var lid := CollisionShape3D.new()
 	lid.name = "Lid"
-	lid.shape = BoxShape3D.new()
+	var lid_box := BoxShape3D.new()
+	var lid_y0 := inner.end.y + LID_GAP
+	var lid_y1 := float(row.get("row_top_y", inner.end.y + 0.02)) - LID_GAP
+	lid_box.size = Vector3(inner.size.x, maxf(lid_y1 - lid_y0, 0.002), inner.size.z)
+	lid.shape = lid_box
+	lid.position = Vector3(inner.get_center().x, (lid_y0 + lid_y1) * 0.5, inner.get_center().z)
 	lid.disabled = true
+	if lid_y1 - lid_y0 < 0.002:
+		lid.set_meta(&"no_room", true)
+		push_warning("[DrawerFurniture] %s: no room for %s's lid under the rail above it" % [name, node])
 	body.add_child(lid)
 	body.add_collision_exception_with(self)
 	add_collision_exception_with(body)
@@ -184,36 +199,18 @@ func _build_drawer(row: Dictionary) -> void:
 
 
 ## Held, every drawer gets its lid; put down, none has one. POLLED: see the header.
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	var held := freeze and collision_layer == picked_up_layer
+	_heavy.step(self, held, delta)
 	if held != _held:
 		_held = held
 		print("[DrawerFurniture] %s: %s; %d drawer lid(s) %s" % [name, "held" if held else "put down",
 			_drawers.size(), "on" if held else "off"])
-		if not held:
-			for d in _drawers:
-				(d["lid"] as CollisionShape3D).disabled = true
-			_report_collision_later()
-	if held:
 		for d in _drawers:
-			_fit_lid(d)
-
-
-## A drawer's lid: under the rail above, over its inside, only as far as the case's front, in its body's frame.
-func _fit_lid(d: Dictionary) -> void:
-	var lid := d["lid"] as CollisionShape3D
-	var inner: AABB = d["inner"]
-	var out := (d["body"] as Node3D).position.z
-	var z0 := inner.position.z
-	var z1 := minf(inner.end.z, _case_front_z - out)
-	var y0 := inner.end.y + LID_GAP
-	var y1 := float(d["row_top"]) - LID_GAP
-	if z1 - z0 < 0.01 or y1 - y0 < 0.002:
-		lid.disabled = true
-		return
-	lid.disabled = false
-	(lid.shape as BoxShape3D).size = Vector3(inner.size.x, y1 - y0, z1 - z0)
-	lid.position = Vector3(inner.get_center().x, (y0 + y1) * 0.5, (z0 + z1) * 0.5)
+			var lid := d["lid"] as CollisionShape3D
+			lid.disabled = not held or lid.has_meta(&"no_room")
+		if not held:
+			_report_collision_later()
 
 
 func _box(shape_name: String, centre: Vector3, size: Vector3) -> CollisionShape3D:

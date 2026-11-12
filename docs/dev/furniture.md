@@ -65,9 +65,21 @@ a mover at the grab driver's priority (`vr_drawer_tests haul/`) and in the windo
   `rider_shapes()`; the nightstand answers its top and its shelf floor. Nothing else implements it, so no other
   pickable changed.
 - **The drawer**: a shut drawer is no longer a closed box (the case is intangible), and two of three boxes left one
-  hauled hard. While the nightstand is HELD the drawer body gets a `Lid` just under the case top, over the part of the
-  drawer still inside the case (so a pulled-out drawer stays open at the front); what is in the drawer stays ordinary
-  physics, sliding and knocking about, and cannot leave through the top. Off whenever it is not held.
+  hauled hard. While the nightstand is HELD the drawer body gets a `Lid` just under the case top over the WHOLE drawer
+  (sized once at build and only switched on and off); what is in the drawer stays ordinary physics, sliding and
+  knocking about, and cannot leave through the top. Off whenever it is not held. (It used to cover only the part
+  still inside the case, refitted every tick; a pulled-out drawer was then open at the front while carried.)
+- **The hold itself: `HeavyHold`** (`Scripts/Objects/furniture/heavy_hold.gd`, both furniture classes,
+  `process_physics_priority` 100 so it runs after the grab driver and the laser's pickup). A hold puts a body where
+  the hand is at ONCE: the pull-in starts at 2.5 m/s in a tick and stops dead, a desktop turn swings a chest at
+  metres a second. Then a drawer's 8 mm floor moved 28 mm a tick, a TV remote went out through it and a box was thrown
+  100 m by walls cutting through it (2026-11-12, "objects sometimes fall through as I pick it up"; `again/` "picked up
+  by"). Now the piece reads back where the hold put it and goes there at up to 1 m/s and 5 m/s^2 (2 rad/s, 10
+  rad/s^2), and is LET GO WITH ITS SPEED (it trails the hand; let go at rest it stopped dead from 1 m/s and threw the
+  boxes through their walls, `haul/`). **The 1 m/s is set by DAMPING**: nearly every loose object has
+  `linear_damp` 5, which Godot applies against the WORLD, not what it rests on, so a drawer carrying it fast has it
+  braking against the floor: the remote rode at 1.06 m/s and was sinking through at 1.39. Test movers must be FREED,
+  not queued, before a let-go: queued, one moved the piece once more after the hold ended, a teleport.
 - **The hold is POLLED** (`freeze` and the held layer), never `picked_up` / `dropped`: a RAY grab emits neither on the
   pickable (the addon restores the body itself; SurfaceStick's header). A first version froze the drawer's contents
   for the hold on those signals: it read as frozen in a headset, and a ray release left them frozen, solid obstacles
@@ -119,7 +131,7 @@ does on a Quest; the walnut nightstand's copied consts were over-cautious). From
 boxes (`collision.case`, named `Case<name>_<n>`), and per drawer a `DrawerBodyN` (front, floor, four walls, the lid),
 a `DrawerVisualN` the model's `DrawerN` hangs from, and a `DrawerHandleN` VRDrawer at the middle of its pulls with one
 handle box across them (a wide drawer's two pulls are one handle). The lid sits under `row_top_y` (the rail above)
-and stops at `case_front_z`; the hold is polled as the nightstand's. `rider_shapes()` is the top (`CaseTop_`), never
+over the whole drawer; the hold is polled as the nightstand's, and moves through `HeavyHold`. `rider_shapes()` is the top (`CaseTop_`), never
 the top rail. Saved as `type_id` through `_drawer_furniture_entry`, each drawer through its VRDrawer's path.
 
 Shipped: `mission_nightstand` (2 drawers) and `mission_chest` (6), the owner's Mission bedroom pair modelled from
