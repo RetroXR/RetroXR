@@ -20,6 +20,9 @@ const POLL := 0.25
 @export var systemid: String = ""
 
 var _key_zone: XRToolsSnapZone = null
+## The turn a mod's model is drawn with (its shell's basis): the sockets face as the model's do, so a model turned
+## right round on the board has its key window and its 50-pin socket turned with it.
+var _turn := Basis.IDENTITY
 var _wait := 0.0
 var _rom := ""
 var _missing: Array = []
@@ -30,7 +33,9 @@ func _ready() -> void:
 	add_to_group("spawned")
 	add_to_group("cartridge")
 	_build_stand_in()
-	ArcadeBayShells.dress(self, KIND, Vector3(0.2546, 0.1258, 0.0415))
+	var shell := ArcadeBayShells.dress(self, KIND, Vector3(0.2546, 0.1258, 0.0415))
+	if shell != null:
+		_turn = shell.basis.orthonormalized()
 	_build_key_zone()
 	_build_data_port()
 	_rom = str(NaomiGdRom.resolve(self)["rom"])
@@ -90,7 +95,7 @@ func _build_key_zone() -> void:
 	_key_zone.snap_require = NaomiGdRom.KEY_GROUP
 	at.add_child(_key_zone)
 	# The key's +Y (up) along this board's +Z, its length across the case (a quarter turn about +Z).
-	_key_zone.basis = Basis(Vector3(0, 0, 1), PI * 0.5) * Basis(Vector3.RIGHT, PI * 0.5)
+	_key_zone.basis = _turn * Basis(Vector3(0, 0, 1), PI * 0.5) * Basis(Vector3.RIGHT, PI * 0.5)
 
 
 ## The 50-pin socket for the GD-ROM cable, on the front lip; the plug goes in along +Y (from the front, -Y).
@@ -100,7 +105,7 @@ func _build_data_port() -> void:
 		return
 	var port := NaomiHookup.make_port(NaomiGdRom.DIMM_DATA, "res://Scripts/Objects/cables/port.gd", NaomiGdRom.GD_PLUG)
 	at.add_child(port)
-	port.basis = Basis(Vector3.RIGHT, PI * 0.5)
+	port.basis = _turn * Basis(Vector3.RIGHT, PI * 0.5)
 
 
 func on_av_topology_changed(_links: Array = []) -> void:
