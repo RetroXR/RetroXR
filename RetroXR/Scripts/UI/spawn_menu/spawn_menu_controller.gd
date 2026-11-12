@@ -1567,7 +1567,9 @@ func _on_spawn_cartridge_requested(rom_path: String, game_label: String, systemi
 	# An arcade game's CHD is a disc too, though its board (the zip) is not: it goes in the CD-ROM bay
 	# under the JAMMA bay.
 	var arcade_disc := ArcadeDiscs.applies(systemid) and ArcadeDiscs.is_disc_path(rom_path)
-	var is_disc := MediaDimensions.is_disc_system(systemid) or arcade_disc
+	# A NAOMI GD-ROM game is its disc (for the drive) and its key chip (for the DIMM board): NaomiGdRom.
+	var gd_game := NaomiGdRom.is_gd_game(systemid, rom_path)
+	var is_disc := MediaDimensions.is_disc_system(systemid) or arcade_disc or gd_game
 	var disc_scene := UMD_DISC_SCENE if systemid == "psp" else DISC_SCENE
 	# The body GLB comes in on the loader threads before the cartridge is built:
 	# RetroCartridge loads it synchronously in _ready, and a cold one froze the
@@ -1590,6 +1592,11 @@ func _on_spawn_cartridge_requested(rom_path: String, game_label: String, systemi
 	cart.shell_flake = bool(options.get("shell_flake", false))
 	cart.body_region = str(options.get("body_region", ""))
 	_place_spawned(cart, "disc" if is_disc else "cartridge")
+	if gd_game:
+		var key := (load("res://Scenes/Objects/peripherals/naomi_key.tscn") as PackedScene).instantiate() as NaomiKey
+		key.rom_path = rom_path
+		cart.get_parent().add_child(key)
+		key.global_position = cart.global_position + Vector3(0.12, 0.0, 0.0)
 
 
 func _on_spawn_manual_requested(pdf_path: String) -> void:

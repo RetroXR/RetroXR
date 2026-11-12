@@ -1,0 +1,44 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/arcade/jvs_jamma_converter.gd" id="1_conv"]
+[ext_resource type="Script" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="2_grab"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_high"]
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_conv"]
+friction = 0.8
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(0.1635, 0.031, 0.0793)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
+size = Vector3(0.17, 0.035, 0.085)
+
+; Sega's JVS-to-JAMMA converter (838-13683): JvsJammaConverter draws its stand-in and makes its sockets.
+[node name="JvsJammaConverter" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.3
+physics_material_override = SubResource("PhysicsMaterial_conv")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_conv")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0155, 0)
+shape = SubResource("BoxShape3D_body")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0155, 0)
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="GrabPoint" type="Marker3D" parent="."]
+visible = false
+script = ExtResource("2_grab")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("3_high")

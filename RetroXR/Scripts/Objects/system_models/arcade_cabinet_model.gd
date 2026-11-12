@@ -149,6 +149,10 @@ func _collect_modules() -> void:
 func _process(delta: float) -> void:
 	for m in _modules:
 		m.tick(delta)
+	_hookup_wait -= delta
+	if _hookup_wait <= 0.0:
+		_hookup_wait = HOOKUP_POLL
+		_poll_hookup()
 	if _watch_descriptors:
 		_descriptor_wait -= delta
 		if _descriptor_wait <= 0.0:
@@ -547,6 +551,9 @@ func _seed_default_bay() -> void:
 	home.add_child(unit)
 	unit.global_position = sys.global_position
 	_mount.pick_up_object(unit)
+	# A NAOMI in a cabinet with its leads comes wired (NaomiHookup.seed_cords).
+	if ArcadeProfiles.is_naomi_bay(kind):
+		NaomiHookup.seed_cords.call_deferred(self, unit, home)
 
 
 ## Put a saved bay back in the mount (RetroSystem.restore_bay), bypassing the reach.
@@ -603,15 +610,64 @@ func on_bay_unlinked(_bay_unit: ArcadeBayUnit) -> void:
 ## The system this cabinet plays with no bay in it: its own bay kind's first (the generic cabinet's JAMMA is `arcade`, the MVS cabinet's `neogeo`).
 ## Read from the cabinet's scene, never remembered, so a cabinet saved while another kind of bay was in it cannot bring that system back as its own.
 func own_system() -> String:
-	var kind := _bay.bay_kind if _bay != null else ArcadeProfiles.BAY_JAMMA
-	var systems: Array = ArcadeProfiles.bay_kinds().get(kind, {}).get("systems", [])
+	var systems := bay_kind_systems()
 	return str(systems[0]) if not systems.is_empty() else ""
+
+
+## Every system this cabinet's bay takes (its bay kind's list): a cabinet whose bay takes JAMMA boards and NAOMI
+## carts plays whichever is in it (RetroSystem follows the seated board's system: docs/dev/naomi-jvs.md, phase 1).
+func bay_kind_systems() -> Array:
+	var kind := _bay.bay_kind if _bay != null else ArcadeProfiles.BAY_JAMMA
+	return ArcadeProfiles.bay_kinds().get(kind, {}).get("systems", [])
 
 
 ## What the screen shows: the board's picture, or -- while the compartment holds no unit -- whatever machine is
 ## cabled to the cabinet's composite input (ArcadeAvInModule.external_picture). Nothing cabled, nothing in
 ## the bay: the dark tube, as before.
+## How often the cords of a NAOMI in the bay are looked at (seconds): a plug going in shows within that.
+const HOOKUP_POLL := 0.25
+var _hookup_wait := 0.0
+## What the cabinet gets from a NAOMI in its bay (NaomiHookup.state): all true for any other board, and in a
+## cabinet without the NAOMI leads.
+var _hookup: Dictionary = {}
+
+
+func _poll_hookup() -> void:
+	var sys := get_parent()
+	var bay: Node = sys.call("get_bay") if sys != null and sys.has_method("get_bay") else null
+	var now := NaomiHookup.state(self, bay)
+	if now == _hookup:
+		return
+	_hookup = now
+	var missing: Array = now.get("missing", [])
+	if missing.is_empty():
+		print("[Arcade] NAOMI hookup: everything plugged in")
+	else:
+		print("[Arcade] NAOMI hookup: missing %s" % ", ".join(PackedStringArray(missing)))
+
+
+## What is not plugged in for the NAOMI in the bay, in words ([] when it all is, or it is not a NAOMI).
+func hookup_missing() -> Array:
+	return _hookup.get("missing", []) as Array
+
+
+## True while the NAOMI's JVS is not reaching the cabinet's I/O board: the panel and the coins do nothing.
+func input_cut() -> bool:
+	return not bool(_hookup.get("input", true))
+
+
+## Which of the NAOMI's two channels reach the amplifier: {"gated": the cabinet is wired and holds a NAOMI,
+## "left", "right"}.
+func audio_gate() -> Dictionary:
+	if _hookup.is_empty() or (_hookup.get("missing", []) as Array).is_empty():
+		return {"gated": false, "left": true, "right": true}
+	return {"gated": true, "left": bool(_hookup.get("audio_l", true)), "right": bool(_hookup.get("audio_r", true))}
+
+
 func host_picture() -> Texture2D:
+	# A NAOMI whose VGA is not on the monitor (or which has no power) shows nothing.
+	if not bool(_hookup.get("video", true)):
+		return null
 	if _attracting():
 		return get_parent().call("attract_picture") as Texture2D
 	var own := super.host_picture()

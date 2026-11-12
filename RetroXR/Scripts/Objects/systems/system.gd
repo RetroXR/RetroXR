@@ -1275,6 +1275,11 @@ func audio_route() -> Dictionary:
 ## gain cache one line BEFORE it assigns _av_tv, where _audio_tv() would still
 ## answer with the old sink.
 func audio_speakers() -> Dictionary:
+	# A cabinet's NAOMI whose phono leads are not on the amplifier: that channel is silent (NaomiHookup).
+	if _model != null and _model.has_method("audio_gate"):
+		var g: Dictionary = _model.call("audio_gate")
+		if bool(g.get("gated", false)):
+			return {"socketed": true, "left": 0 if bool(g["left"]) else -1, "right": 1 if bool(g["right"]) else -1}
 	return {
 		"socketed": not _av_ports.is_empty() or _av.phones_carry_sound(),
 		"left": _av_speaker_l,
@@ -4262,6 +4267,38 @@ func _belongs_here(obj: Node3D, compat: Dictionary) -> bool:
 	return mid == systemid or mid in compat.get(systemid, [])
 
 
+## The systems this machine's bay takes, when its model has a bay that takes several (an arcade cabinet's
+## bay_kind_systems); else none, and the machine takes only its own system's media.
+func _bay_systems() -> Array:
+	# A bay unit in the cabinet decides, not the cabinet's own compartment: an MVS unit in the generic cabinet takes
+	# Neo Geo cassettes and no JAMMA board.
+	var listed: Array = []
+	if get_bay() != null:
+		listed = get_bay().systems()
+	elif _model != null and _model.has_method("bay_kind_systems"):
+		listed = _model.call("bay_kind_systems")
+	var out: Array = []
+	for s: Variant in listed:
+		out.append(SystemIds.canonical(str(s)))
+	return out
+
+
+## A board seated in a bay that takes several systems makes the machine that board's system, so the core
+## follows the board (a NAOMI cart on flycast, a JAMMA board on MAME in the same cabinet), the way link_bay
+## makes the machine the system of the bay unit in it. Nothing runs under the old name: a board is seated
+## with the machine off.
+func _follow_media_system(media: Node3D) -> void:
+	if not ("systemid" in media):
+		return
+	var sid := SystemIds.canonical(str(media.get("systemid")))
+	if sid.is_empty() or sid == systemid or not _bay_systems().has(sid):
+		return
+	print("[Arcade] %s: a %s board seated, the machine follows it from %s" % [name, sid, systemid])
+	systemid = sid
+	if _model != null and _model.has_method("on_machine_system_changed"):
+		_model.call("on_machine_system_changed")
+
+
 ## Slot gate: does this piece of media (cartridge/disc) belong in this system?
 ## The cartridge slot's snap filter, public for the spawner and the suites.
 func accepts_media(obj: Node3D) -> bool:
@@ -4275,6 +4312,10 @@ func accepts_media(obj: Node3D) -> bool:
 		return ExpansionCatalog.host_of(unit.expansion_id) == systemid \
 			and ExpansionCatalog.mount_of(unit.expansion_id) == ExpansionCatalog.MOUNT_CARTRIDGE
 	if _belongs_here(obj, _MEDIA_COMPAT):
+		return true
+	# A cabinet whose bay takes several systems (JAMMA boards and NAOMI carts) takes a board of any of them; the
+	# machine becomes that board's system when it seats (_follow_media_system).
+	if "systemid" in obj and _bay_systems().has(SystemIds.canonical(str(obj.get("systemid")))):
 		return true
 	# An expansion with no bay of its own loads through THIS slot. A Satellaview
 	# pack is a cartridge you push into the Super Famicom on top of it, so the
@@ -4741,6 +4782,7 @@ func _on_cartridge_inserted(cartridge: Node3D) -> void:
 		return
 
 	_snapped_cartridge = cartridge
+	_follow_media_system(cartridge)
 	# Prevent the frozen kinematic cartridge from physically pushing the system body.
 	# Slot/tray loaders let their MediaSlot/MediaTray own the exception (held until
 	# the disc is grabbed clear), so only plain cartridge decks add one here.

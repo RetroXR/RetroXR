@@ -50,11 +50,21 @@ const BAY_JAMMA := "jamma"
 const BAY_MVS := "mvs"
 const BAY_LASERDISC := "laserdisc"
 const BAY_DISCRETE := "discrete"
+## Sega's NAOMI boards (flycast), and Sega's JVS-era cabinets that take a JAMMA board or a NAOMI: the machine is
+## the system of the board seated in it (RetroSystem._follow_media_system; docs/dev/naomi-jvs.md). Not romset
+## families: `arcade` is in that family through `jamma` already, and NAOMI is a system of its own.
+const BAY_NAOMI := "naomi"
+## The NAOMI 2 board: its own games and the NAOMI's cartridges.
+const BAY_NAOMI2 := "naomi2"
+const BAY_SEGA_JVS := "sega_jvs"
 const _BAYS: Dictionary = {
 	"jamma": {"label": "JAMMA", "systems": ["arcade"]},
 	"mvs": {"label": "Neo Geo MVS", "systems": ["neogeo"], "romsets": false},
 	"laserdisc": {"label": "Laserdisc", "systems": ["daphne"], "romsets": false},
 	"discrete": {"label": "Discrete logic", "systems": ["dice"], "romsets": false},
+	"naomi": {"label": "NAOMI", "systems": ["naomi", "naomi2"], "romsets": false},
+	"naomi2": {"label": "NAOMI 2", "systems": ["naomi2", "naomi"], "romsets": false},
+	"sega_jvs": {"label": "JAMMA and NAOMI", "systems": ["arcade", "naomi", "naomi2"], "romsets": false},
 }
 
 ## Bay kinds a mod added: id -> {label, systems, romsets, owner}.
@@ -168,6 +178,11 @@ static func bay_kinds() -> Dictionary:
 
 ## Does a bay of this kind take this system's boards? A legacy id (`mame`, `fbneo`) is read
 ## through SystemIds.canonical, as everywhere: they are the one `arcade` system now.
+## A NAOMI or NAOMI 2 board (each has the NAOMI's sockets, its hookup and its cartridge seat).
+static func is_naomi_bay(bay_kind: String) -> bool:
+	return bay_kind == BAY_NAOMI or bay_kind == BAY_NAOMI2
+
+
 static func bay_accepts(bay_kind: String, systemid: String) -> bool:
 	var row: Dictionary = bay_kinds().get(bay_kind, {})
 	return (row.get("systems", []) as Array).has(SystemIds.canonical(systemid))

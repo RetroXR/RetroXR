@@ -217,6 +217,8 @@ const SEGA32X_CONVERSION_CABLE_SCENE := preload("res://Scenes/Objects/system_mod
 const PS2_AV_CABLE_SCENE     := preload("res://Scenes/Objects/cables/ps2_av_cable.tscn")
 const DC_AV_CABLE_SCENE      := preload("res://Scenes/Objects/system_models/dreamcast/dc_av_cable.tscn")
 const VGA_CABLE_SCENE        := preload("res://Scenes/Objects/cables/vga_cable.tscn")
+const JVS_CABLE_SCENE        := preload("res://Scenes/Objects/cables/jvs_cable.tscn")
+const NAOMI_POWER_CABLE_SCENE := preload("res://Scenes/Objects/cables/naomi_power_cable.tscn")
 const TRS_CABLE_SCENE        := preload("res://Scenes/Objects/cables/trs_cable.tscn")
 const SEGA_CD_MIXING_CABLE_SCENE := preload("res://Scenes/Objects/cables/sega_cd_mixing_cable.tscn")
 const SP_PHONES_ADAPTER_SCENE := preload("res://Scenes/Objects/cables/sp_phones_adapter.tscn")
@@ -245,6 +247,13 @@ const ARCADE_BAY_JAMMA_SCENE := preload("res://Scenes/Objects/peripherals/arcade
 const ARCADE_BAY_MVS_SCENE   := preload("res://Scenes/Objects/peripherals/arcade_bay_mvs.tscn")
 const ARCADE_BAY_LASERDISC_SCENE := preload("res://Scenes/Objects/peripherals/arcade_bay_laserdisc.tscn")
 const ARCADE_BAY_DISCRETE_SCENE := preload("res://Scenes/Objects/peripherals/arcade_bay_discrete.tscn")
+const ARCADE_BAY_NAOMI_SCENE := preload("res://Scenes/Objects/peripherals/arcade_bay_naomi.tscn")
+const ARCADE_BAY_NAOMI2_SCENE := preload("res://Scenes/Objects/peripherals/arcade_bay_naomi2.tscn")
+const JVS_JAMMA_CONVERTER_SCENE := preload("res://Scenes/Objects/peripherals/jvs_jamma_converter.tscn")
+const NAOMI_DIMM_SCENE := preload("res://Scenes/Objects/peripherals/naomi_dimm_board.tscn")
+const NAOMI_GD_DRIVE_SCENE := preload("res://Scenes/Objects/peripherals/naomi_gd_drive.tscn")
+const NAOMI_KEY_SCENE := preload("res://Scenes/Objects/peripherals/naomi_key.tscn")
+const GD_CABLE_SCENE := preload("res://Scenes/Objects/cables/gd_cable.tscn")
 const POWER_CORD_SCENE       := preload("res://Scenes/Objects/cables/power_cord.tscn")
 const POWER_STRIP_SCENE      := preload("res://Scenes/Objects/appliances/power_strip.tscn")
 const TRAVEL_ADAPTER_SCENE   := preload("res://Scenes/Objects/appliances/travel_adapter.tscn")
@@ -340,6 +349,9 @@ const LEAD_SCENES := {
 	"dc_av_cable": DC_AV_CABLE_SCENE,
 	"ps2_av_cable": PS2_AV_CABLE_SCENE,
 	"vga_cable": VGA_CABLE_SCENE,
+	"jvs_cable": JVS_CABLE_SCENE,
+	"naomi_power_cable": NAOMI_POWER_CABLE_SCENE,
+	"gd_cable": GD_CABLE_SCENE,
 	"trs_cable": TRS_CABLE_SCENE,
 	# Sega's sound mixing cable: a Genesis Model 1's PHONES into a Sega CD's MIXING.
 	"sega_cd_mixing_cable": SEGA_CD_MIXING_CABLE_SCENE,
@@ -446,6 +458,14 @@ const PLAIN_SCENES := {
 	"arcade_bay_mvs": ARCADE_BAY_MVS_SCENE,
 	"arcade_bay_laserdisc": ARCADE_BAY_LASERDISC_SCENE,
 	"arcade_bay_discrete": ARCADE_BAY_DISCRETE_SCENE,
+	"arcade_bay_naomi": ARCADE_BAY_NAOMI_SCENE,
+	"arcade_bay_naomi2": ARCADE_BAY_NAOMI2_SCENE,
+	# The board that puts a NAOMI in a JAMMA cabinet (JvsJammaConverter); its cords are leads of their own.
+	"jvs_jamma_converter": JVS_JAMMA_CONVERTER_SCENE,
+	# The NAOMI's GD-ROM system (NaomiGdRom): the DIMM board, the drive, a game's key chip (its game in "rom").
+	"naomi_dimm_board": NAOMI_DIMM_SCENE,
+	"naomi_gd_drive": NAOMI_GD_DRIVE_SCENE,
+	"naomi_key": NAOMI_KEY_SCENE,
 	"light_gun": LIGHT_GUN_SCENE,
 	# Slots written before the rename say "ray_gun".
 	"ray_gun": LIGHT_GUN_SCENE,
@@ -2915,6 +2935,11 @@ static func _save_kind_rows() -> Array:
 		[GbPrinter, "gb_printer", &"_gb_printer_fields"],
 		[Dmg07Adapter, "dmg07_adapter", &"_dmg07_fields"],
 		[EthernetHub, "ethernet_hub"],
+		# A NAOMI's boards: pose (their cords are leads); the key, which game it is.
+		[JvsJammaConverter, "jvs_jamma_converter"],
+		[NaomiDimm, "naomi_dimm_board"],
+		[NaomiGdDrive, "naomi_gd_drive"],
+		[NaomiKey, "naomi_key", &"_naomi_key_fields"],
 		# The pose and the board standing in it; its type is its kind's.
 		[ArcadeBayUnit, "", &"_arcade_bay_entry"],
 		[Table, "table"],
@@ -3137,6 +3162,10 @@ func _gb_printer_fields(printer: GbPrinter, _node_to_id: Dictionary) -> Dictiona
 
 ## Where the 4 Player Adapter's captive lead is seated: the device and its socket,
 ## or nothing when it lies loose. The lead itself is the adapter's, never saved.
+func _naomi_key_fields(key: NaomiKey, _node_to_id: Dictionary) -> Dictionary:
+	return {"rom": key.rom_path}
+
+
 func _dmg07_fields(adapter: Dmg07Adapter, node_to_id: Dictionary) -> Dictionary:
 	var seat := adapter.lead_seat()
 	if seat.is_empty():
@@ -3969,6 +3998,10 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 		# like the notes were wiped.
 		if _PLAIN_CARD_LABELS.has(obj_type):
 			_apply_card_fields(obj, data, str(_PLAIN_CARD_LABELS[obj_type]))
+		# A NAOMI key chip's game, before its _ready.
+		var key := obj as NaomiKey
+		if key != null:
+			key.rom_path = str(data.get("rom", ""))
 		# A Game Boy Printer's roll; a save from before rolls has the first.
 		var printer := obj as GbPrinter
 		if printer != null:

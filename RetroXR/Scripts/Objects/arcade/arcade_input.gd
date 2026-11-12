@@ -1164,6 +1164,10 @@ func _unsupported() -> int:
 
 
 func _send(port: int, mask: int, state: Dictionary) -> void:
+	# A NAOMI whose JVS is not cabled to the I/O board hears nothing: no buttons, no stick, no coins.
+	if _model != null and _model.has_method("input_cut") and bool(_model.call("input_cut")):
+		mask = 0
+		state = {"alx": 0, "aly": 0, "arx": 0, "ary": 0}
 	last_sent[port] = mask
 	if NetworkManager.netplay_route(_host, port, {"btn": mask, "alx": state["alx"],
 			"aly": state["aly"], "arx": state["arx"], "ary": state["ary"]}):

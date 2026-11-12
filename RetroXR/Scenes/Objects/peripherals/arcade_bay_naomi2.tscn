@@ -1,0 +1,233 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/arcade/arcade_bay_unit.gd" id="1_g0mmb"]
+[ext_resource type="Script" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="2_b3gps"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_11m7h"]
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_a0foc"]
+friction = 0.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_yi041"]
+albedo_color = Color(0.24, 0.27, 0.32, 1)
+metallic = 0.3
+roughness = 0.55
+
+[sub_resource type="BoxMesh" id="BoxMesh_qj3cs"]
+material = SubResource("StandardMaterial3D_yi041")
+size = Vector3(0.272, 0.06, 0.34)
+
+[sub_resource type="BoxMesh" id="BoxMesh_3gfpp"]
+material = SubResource("StandardMaterial3D_yi041")
+size = Vector3(0.07100001, 0.006, 0.34)
+
+[sub_resource type="BoxMesh" id="BoxMesh_p0hnu"]
+material = SubResource("StandardMaterial3D_yi041")
+size = Vector3(0.07100001, 0.006, 0.34)
+
+[sub_resource type="BoxMesh" id="BoxMesh_5lwj5"]
+material = SubResource("StandardMaterial3D_yi041")
+size = Vector3(0.13, 0.006, 0.061000008)
+
+[sub_resource type="BoxMesh" id="BoxMesh_1kbj2"]
+material = SubResource("StandardMaterial3D_yi041")
+size = Vector3(0.13, 0.006, 0.021000009)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rxxx7"]
+albedo_color = Color(0.03, 0.03, 0.035, 1)
+roughness = 0.7
+
+[sub_resource type="BoxMesh" id="BoxMesh_mo2vq"]
+material = SubResource("StandardMaterial3D_rxxx7")
+size = Vector3(0.13, 0.0005, 0.258)
+
+[sub_resource type="BoxMesh" id="BoxMesh_yb6tm"]
+material = SubResource("StandardMaterial3D_rxxx7")
+size = Vector3(0.05100001, 0.0006, 0.004)
+
+[sub_resource type="BoxMesh" id="BoxMesh_3tdyn"]
+material = SubResource("StandardMaterial3D_rxxx7")
+size = Vector3(0.05100001, 0.0006, 0.004)
+
+[sub_resource type="BoxMesh" id="BoxMesh_tva7j"]
+material = SubResource("StandardMaterial3D_rxxx7")
+size = Vector3(0.05100001, 0.0006, 0.004)
+
+[sub_resource type="BoxMesh" id="BoxMesh_6mt71"]
+material = SubResource("StandardMaterial3D_rxxx7")
+size = Vector3(0.05100001, 0.0006, 0.004)
+
+[sub_resource type="BoxMesh" id="BoxMesh_2koje"]
+material = SubResource("StandardMaterial3D_rxxx7")
+size = Vector3(0.05100001, 0.0006, 0.004)
+
+[sub_resource type="BoxMesh" id="BoxMesh_6s8sa"]
+material = SubResource("StandardMaterial3D_rxxx7")
+size = Vector3(0.05100001, 0.0006, 0.004)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_74luv"]
+albedo_color = Color(0.65, 0.66, 0.7, 1)
+metallic = 0.9
+roughness = 0.35
+
+[sub_resource type="BoxMesh" id="BoxMesh_x1j8j"]
+material = SubResource("StandardMaterial3D_74luv")
+size = Vector3(0.031, 0.013, 0.004)
+
+[sub_resource type="BoxMesh" id="BoxMesh_f6hf4"]
+material = SubResource("StandardMaterial3D_74luv")
+size = Vector3(0.013, 0.006, 0.004)
+
+[sub_resource type="BoxMesh" id="BoxMesh_hl2go"]
+material = SubResource("StandardMaterial3D_rxxx7")
+size = Vector3(0.01, 0.01, 0.006)
+
+[sub_resource type="BoxMesh" id="BoxMesh_3w8cf"]
+material = SubResource("StandardMaterial3D_rxxx7")
+size = Vector3(0.01, 0.01, 0.006)
+
+[sub_resource type="BoxMesh" id="BoxMesh_tahjs"]
+material = SubResource("StandardMaterial3D_rxxx7")
+size = Vector3(0.032, 0.01, 0.004)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lyt2k"]
+albedo_color = Color(0.78, 0.78, 0.8, 1)
+roughness = 0.4
+
+[sub_resource type="BoxMesh" id="BoxMesh_f7glt"]
+material = SubResource("StandardMaterial3D_lyt2k")
+size = Vector3(0.272, 0.006, 0.002)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_u0piq"]
+size = Vector3(0.272, 0.066, 0.34)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_3uhqw"]
+size = Vector3(0.29200003, 0.086, 0.34)
+
+[node name="ArcadeBay" type="RigidBody3D" unique_id=1616974434]
+collision_layer = 4
+collision_mask = 196613
+mass = 2.0
+physics_material_override = SubResource("PhysicsMaterial_a0foc")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_g0mmb")
+bay_kind = "naomi2"
+type_id = "arcade_bay_naomi2"
+
+[node name="NaomiCase" type="MeshInstance3D" parent="." unique_id=4072991]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("BoxMesh_qj3cs")
+
+[node name="WellRimL" type="MeshInstance3D" parent="." unique_id=1058221500]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.1005, 0.063, 0)
+mesh = SubResource("BoxMesh_3gfpp")
+
+[node name="WellRimR" type="MeshInstance3D" parent="." unique_id=1639471358]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1005, 0.063, 0)
+mesh = SubResource("BoxMesh_p0hnu")
+
+[node name="WellRimF" type="MeshInstance3D" parent="." unique_id=16157986]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.063, 0.13949999)
+mesh = SubResource("BoxMesh_5lwj5")
+
+[node name="WellRimB" type="MeshInstance3D" parent="." unique_id=838751738]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.063, -0.1595)
+mesh = SubResource("BoxMesh_1kbj2")
+
+[node name="WellFloor" type="MeshInstance3D" parent="." unique_id=1200131858]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06025, -0.02)
+mesh = SubResource("BoxMesh_mo2vq")
+
+[node name="Grille1" type="MeshInstance3D" parent="." unique_id=1799594702]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1005, 0.0663, -0.14)
+mesh = SubResource("BoxMesh_yb6tm")
+
+[node name="Grille2" type="MeshInstance3D" parent="." unique_id=1219680367]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1005, 0.0663, -0.132)
+mesh = SubResource("BoxMesh_3tdyn")
+
+[node name="Grille3" type="MeshInstance3D" parent="." unique_id=1780177667]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1005, 0.0663, -0.124000005)
+mesh = SubResource("BoxMesh_tva7j")
+
+[node name="Grille4" type="MeshInstance3D" parent="." unique_id=90008695]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1005, 0.0663, -0.116000004)
+mesh = SubResource("BoxMesh_6mt71")
+
+[node name="Grille5" type="MeshInstance3D" parent="." unique_id=1401248738]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1005, 0.0663, -0.108)
+mesh = SubResource("BoxMesh_2koje")
+
+[node name="Grille6" type="MeshInstance3D" parent="." unique_id=66248789]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1005, 0.0663, -0.1)
+mesh = SubResource("BoxMesh_6s8sa")
+
+[node name="SocketVga" type="MeshInstance3D" parent="." unique_id=665871514]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.085, 0.036, 0.172)
+mesh = SubResource("BoxMesh_x1j8j")
+
+[node name="VgaAnchor" type="Marker3D" parent="." unique_id=1236290480]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.085, 0.036, 0.174)
+
+[node name="SocketJvs" type="MeshInstance3D" parent="." unique_id=115574030]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.04, 0.036, 0.172)
+mesh = SubResource("BoxMesh_f6hf4")
+
+[node name="JvsAnchor" type="Marker3D" parent="." unique_id=1766513469]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.04, 0.036, 0.174)
+
+[node name="SocketAudioL" type="MeshInstance3D" parent="." unique_id=489618618]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.036, 0.17300001)
+mesh = SubResource("BoxMesh_hl2go")
+
+[node name="AudioLAnchor" type="Marker3D" parent="." unique_id=268448172]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.036, 0.176)
+
+[node name="SocketAudioR" type="MeshInstance3D" parent="." unique_id=661958572]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.018, 0.036, 0.17300001)
+mesh = SubResource("BoxMesh_3w8cf")
+
+[node name="AudioRAnchor" type="Marker3D" parent="." unique_id=1921563879]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.018, 0.036, 0.176)
+
+[node name="SocketPower" type="MeshInstance3D" parent="." unique_id=429580447]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.075, 0.028, 0.172)
+mesh = SubResource("BoxMesh_tahjs")
+
+[node name="PowerAnchor" type="Marker3D" parent="." unique_id=1716233120]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.075, 0.028, 0.174)
+
+[node name="CartSeat" type="Marker3D" parent="." unique_id=650654150]
+transform = Transform3D(0, -1, 0, 0, 0, 1, -1, 0, 0, 0, 0.07, -0.02)
+
+[node name="Stripe" type="MeshInstance3D" parent="." unique_id=597382854]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.058, 0.171)
+mesh = SubResource("BoxMesh_f7glt")
+
+[node name="Legend" type="Label3D" parent="." unique_id=358646440]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1, 0.048, 0.1725)
+pixel_size = 0.0004
+modulate = Color(0.92, 0.92, 0.94, 1)
+text = "NAOMI 2"
+font_size = 48
+outline_size = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=796139518]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.033, 0)
+shape = SubResource("BoxShape3D_u0piq")
+
+[node name="PointerArea" type="StaticBody3D" parent="." unique_id=1073618908]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.033, -0.01)
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea" unique_id=1533525558]
+shape = SubResource("BoxShape3D_3uhqw")
+
+[node name="GrabPoint" type="Marker3D" parent="." unique_id=1657811813]
+visible = false
+script = ExtResource("2_b3gps")
+
+[node name="PickableHighlight" type="Node3D" parent="." unique_id=325333567]
+script = ExtResource("3_11m7h")

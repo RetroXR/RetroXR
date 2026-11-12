@@ -42,13 +42,19 @@ func can_visually_spin() -> bool:
 ## An arcade game's CHD is a RetroDisc under the board's systemid, and that systemid names a PCB
 ## model and a board's box (CART_SIZES): neither is this disc's.
 func _has_box_size() -> bool:
-	return not ArcadeDiscs.applies(systemid) and super()
+	return not _plain_disc() and super()
 
 
 func _apply_cart_model() -> void:
-	if ArcadeDiscs.applies(systemid):
+	if _plain_disc():
 		return
 	super()
+
+
+## An arcade game's disc (a CHD beside its board) or a NAOMI GD-ROM: a plain disc, never a cartridge shell a mod gave
+## the system (a NAOMI cartridge's, say).
+func _plain_disc() -> bool:
+	return ArcadeDiscs.applies(systemid) or NaomiGdRom.NAOMI_SYSTEMS.has(SystemIds.canonical(systemid))
 
 
 ## The baked platter closest to this diameter. A miss beyond a couple of

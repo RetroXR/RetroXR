@@ -45,6 +45,8 @@ const SCENES := {
 	"mvs": "res://Scenes/Objects/peripherals/arcade_bay_mvs.tscn",
 	"laserdisc": "res://Scenes/Objects/peripherals/arcade_bay_laserdisc.tscn",
 	"discrete": "res://Scenes/Objects/peripherals/arcade_bay_discrete.tscn",
+	"naomi": "res://Scenes/Objects/peripherals/arcade_bay_naomi.tscn",
+	"naomi2": "res://Scenes/Objects/peripherals/arcade_bay_naomi2.tscn",
 }
 
 ## What the player is told it is, by kind.
@@ -53,6 +55,8 @@ const LABELS := {
 	"mvs": "Neo Geo MVS Arcade Bay",
 	"laserdisc": "Laserdisc Arcade Bay",
 	"discrete": "DICE Arcade Bay",
+	"naomi": "Sega NAOMI",
+	"naomi2": "Sega NAOMI 2",
 }
 
 ## Which ArcadeProfiles bay kind this is (it names what boards fit).
@@ -92,6 +96,10 @@ func _ready() -> void:
 	super._ready()
 	add_to_group("spawned")
 	add_to_group(GROUP)
+	# A mod's model of the real board, worn over the stand-in; it moves the seat and the sockets first.
+	ArcadeBayShells.dress(self, bay_kind, box_size())
+	if ArcadeProfiles.is_naomi_bay(bay_kind):
+		_build_naomi_ports()
 	_build_slot()
 	_build_drive()
 	ArcadeShadowBudget.trim(self)
@@ -222,6 +230,32 @@ func systems() -> Array:
 
 
 ## The system a cabinet plays while this bay is in it: the kind's first.
+## A NAOMI's sockets, on its markers (so a mod's model, which moves the markers, moves them): VGA and the two
+## phono jacks out, the JVS USB-A, the power header in (NaomiHookup reads what is plugged into them). Each takes
+## its plug along -Z, out of the front.
+func _build_naomi_ports() -> void:
+	var rows := [["VgaAnchor", NaomiHookup.BOARD_VGA, "res://Scripts/Objects/cables/vga_port.gd", "vga_plug", RcaPort.Direction.OUT, RcaPort.Channel.VIDEO],
+		["AudioLAnchor", NaomiHookup.BOARD_AUDIO_L, "res://Scripts/Objects/cables/rca_port.gd", Connectors.PHONO, RcaPort.Direction.OUT, RcaPort.Channel.AUDIO_L],
+		["AudioRAnchor", NaomiHookup.BOARD_AUDIO_R, "res://Scripts/Objects/cables/rca_port.gd", Connectors.PHONO, RcaPort.Direction.OUT, RcaPort.Channel.AUDIO_R],
+		["JvsAnchor", NaomiHookup.BOARD_JVS, "res://Scripts/Objects/cables/port.gd", Connectors.USB_A, -1, -1],
+		["PowerAnchor", NaomiHookup.BOARD_POWER, "res://Scripts/Objects/cables/port.gd", NaomiHookup.NAOMI_POWER, -1, -1]]
+	for r: Array in rows:
+		var at := find_child(str(r[0]), true, false) as Node3D
+		if at == null or at.has_node(str(r[1])):
+			continue
+		var port := NaomiHookup.make_port(str(r[1]), str(r[2]), str(r[3]), int(r[4]), int(r[5]))
+		if port is RcaPort:
+			port.set("show_jack", false)
+		at.add_child(port)
+
+
+## The bay's box: its base's width, its height to the seat's top, its depth (the baked collision box).
+func box_size() -> Vector3:
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	var box := col.shape as BoxShape3D if col != null else null
+	return box.size if box != null else Vector3(0.4, 0.05, 0.3)
+
+
 func primary_system() -> String:
 	var all := systems()
 	return str(all[0]) if not all.is_empty() else ""
@@ -229,6 +263,9 @@ func primary_system() -> String:
 
 ## Does this bay take `obj` (a board or a cassette)? An unlabelled one does, as in a console.
 func accepts_board(obj: Node3D) -> bool:
+	# A NAOMI's seat is for a cartridge or the DIMM board: a GD-ROM disc goes in the drive.
+	if ArcadeProfiles.is_naomi_bay(bay_kind) and obj is RetroDisc:
+		return false
 	if obj == null or not ("systemid" in obj):
 		return false
 	# A game's disc goes in the CD-ROM bay, never where its board stands.

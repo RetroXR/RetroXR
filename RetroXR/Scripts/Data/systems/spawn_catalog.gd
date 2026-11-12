@@ -34,7 +34,24 @@ const _ARCADE_BAY_ROWS: Array = [
 	{"kind": "peripheral", "label": "Neo Geo MVS Arcade Bay", "spawn": "arcade_bay_mvs"},
 	{"kind": "peripheral", "label": "Laserdisc Arcade Bay", "spawn": "arcade_bay_laserdisc"},
 	{"kind": "peripheral", "label": "DICE Arcade Bay", "spawn": "arcade_bay_discrete"},
+	{"kind": "peripheral", "label": "Sega NAOMI", "spawn": "arcade_bay_naomi"},
+	{"kind": "peripheral", "label": "Sega NAOMI 2", "spawn": "arcade_bay_naomi2"},
 	{"kind": "peripheral", "label": "JAMMA Cable", "spawn": "jamma_cable"},
+	# A NAOMI's cords to the cabinet (NaomiHookup): power, JVS, VGA and the two phono leads.
+	{"kind": "peripheral", "label": "NAOMI Power Harness", "spawn": "naomi_power_cable"},
+	{"kind": "peripheral", "label": "JVS-to-JAMMA Converter", "spawn": "jvs_jamma_converter"},
+	# The NAOMI's GD-ROM system (a game's disc and key chip come with the game).
+	{"kind": "peripheral", "label": "NAOMI DIMM Board", "spawn": "naomi_dimm_board"},
+	{"kind": "peripheral", "label": "NAOMI GD-ROM Drive", "spawn": "naomi_gd_drive"},
+	{"kind": "peripheral", "label": "GD-ROM Cable", "spawn": "gd_cable"},
+	{"kind": "peripheral", "label": "JVS Cable", "spawn": "jvs_cable"},
+]
+
+## A NAOMI card's: the bays and leads above, and the VGA and phono leads its board's outputs take to a cabinet's
+## monitor and amplifier (NaomiHookup; a cabinet's own card has no video lead: its monitor is part of it).
+const _NAOMI_ROWS: Array = _ARCADE_BAY_ROWS + [
+	{"kind": "peripheral", "label": "VGA Cable", "spawn": "vga_cable"},
+	{"kind": "peripheral", "label": "Composite Cable", "spawn": "composite_cable"},
 ]
 
 ## systemid → the peripherals that belong to that hardware. Systems with no entry
@@ -261,6 +278,8 @@ const _PERIPHERALS: Dictionary = {
 	"neogeo": _ARCADE_BAY_ROWS,
 	"daphne": _ARCADE_BAY_ROWS,
 	"dice": _ARCADE_BAY_ROWS,
+	"naomi": _NAOMI_ROWS,
+	"naomi2": _NAOMI_ROWS,
 }
 
 

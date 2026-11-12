@@ -1,0 +1,163 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/composite_cable.gd" id="1_cablescript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/vga_plug.res" id="3_vgaplug"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
+
+; A box, not the sphere the RCA leads use. A VGA hood is 34 x 16 x 58 mm and a
+; sphere around it is either too small to catch the shell or so large it fouls the
+; back panel it is being offered to. Centred at z -0.020, since the plug's ORIGIN is
+; its mating face and the whole body lies behind it.
+[sub_resource type="StandardMaterial3D" id="PlugMat0"]
+albedo_color = Color(0.12, 0.12, 0.13, 1)
+roughness = 0.6
+
+[sub_resource type="BoxMesh" id="PlugBox0"]
+material = SubResource("PlugMat0")
+size = Vector3(0.016, 0.008, 0.035)
+
+[sub_resource type="StandardMaterial3D" id="PlugMat1"]
+albedo_color = Color(0.12, 0.12, 0.13, 1)
+roughness = 0.6
+
+[sub_resource type="BoxMesh" id="PlugBox1"]
+material = SubResource("PlugMat1")
+size = Vector3(0.016, 0.014, 0.035)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
+size = Vector3(0.034, 0.018, 0.05)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
+bounce = 0.0
+friction = 0.8
+
+; The laser target only until the plug is in the room: PointerFit then makes it
+; a box of what the plug draws (its connector, or a model a mod has put on it)
+; and nothing more. Padded so that a beam from across the room could find a
+; small plug, it stopped the desktop laser in the air beside the plug and handed
+; over the plug instead of whatever was aimed at.
+[sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
+size = Vector3(0.05, 0.03, 0.066)
+
+; A 1.8 m VGA lead: ONE cord, a male DE-15 hood at each end, and nothing else.
+;
+; This is CompositeCable with a single cord, which is all a lead is to that class —
+; it counts the cords its scene ships and resolves what they carry from the sockets
+; the ends land in. One cord takes the single-rope path in _build_rope: no ribbon,
+; no breakout, both ends anchored straight to their plugs.
+;
+; cord_colors carries the hood's own blue rather than a signal colour. The class
+; tints surface 0 of each plug so a cord can be recognised at both ends, and on a
+; one-cord lead there is nothing to tell apart — matching the baked colour makes
+; that tint a no-op instead of repainting a connector that is already right.
+; The JVS cable (Sega 600-7141): a USB A-B cable carrying JVS (RS-485), from a NAOMI's JVS socket (USB-A, End A) to an
+; I/O board's or a JVS-to-JAMMA converter's (USB-B, End B). NaomiHookup reads it. The plugs are the VGA lead's drawing
+; for now (no USB plug model yet).
+[node name="JvsCable" type="Node3D"]
+script = ExtResource("1_cablescript")
+cord_colors = PackedColorArray(0.12, 0.12, 0.13, 1)
+
+; -- End A --------------------------------------------------------------------
+; Turned about Y so the cord trails toward the far end: the plug mesh is authored
+; connector-on-+Z with the cord leaving -Z, which is also VerletRope's
+; plug_exit_axis, so an unturned plug here would leave its tail with a hairpin.
+[node name="PlugA0" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.06
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+connector = "usb_a"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.02)
+shape = SubResource("BoxShape3D_plug")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0095)
+mesh = SubResource("PlugBox0")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.02)
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; -- End B --------------------------------------------------------------------
+; Unturned: its cord already trails -Z, back toward end A.
+[node name="PlugB0" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.06
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+connector = "usb_b"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.02)
+shape = SubResource("BoxShape3D_plug")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0095)
+mesh = SubResource("PlugBox1")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.02)
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; 60 x 30 mm = 1.80 m, the length a VGA lead shipped at. Bought with segment COUNT
+; rather than a longer segment, so the boot and the minimum bend radius stay where
+; cable.tscn tuned them in millimetres.
+;
+; 7.5 mm cord (tube_radius 0.00375) — a shielded VGA lead is nearly double the
+; 4.5 mm controller cord and close to the composite lead's jacket. collision_radius
+; is the standoff the solver holds each particle at from a contact plane, so it has
+; to track the tube or the cord sinks: 0.0051 leaves the same 1.35 mm resting gap
+; the other leads use.
+;
+; No ribbon_count and no fray: this is one wire. CompositeCable's single-cord path
+; anchors the rope's two ends straight to the two plugs, so there is no breakout
+; junction for a fray to hang off.
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 60
+segment_length = 0.03
+constraint_iterations = 8
+bend_stiffness = 0.2
+tube_radius = 0.00375
+tube_sides = 8
+smoothing = 2
+rope_color = Color(0.05, 0.05, 0.06, 1.0)
+surface_collision_mask = 7
+collision_radius = 0.0051
+self_collision = true
+end_align_stiffness = 0.7
+end_stiffness = 0.45
+end_stiff_segments = 2

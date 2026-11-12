@@ -46,6 +46,12 @@ const CART_SIZES: Dictionary = {
 	# The Neo Geo MVS cassette (neogeo_cart.tscn): the edge connector is documented (240
 	# contacts, about 152 mm), the shell's 200 x 130 x 22 mm is an ESTIMATE.
 	"neogeo":        Vector3(0.200, 0.130, 0.022),
+	# The NAOMI ROM cartridge: the case's foot is 254.6 x 125.8 (Sega Retro's scans), its height 20 is
+	# an estimate (the models repo's sega/naomi/cart, whose frame this is: its long side along X, its
+	# label +Z). It lies flat on the board, label up, its long side front to back (the NAOMI bay's
+	# CartSeat is turned for it); the NAOMI 2 takes the same carts.
+	"naomi":         Vector3(0.2546, 0.1258, 0.020),
+	"naomi2":        Vector3(0.2546, 0.1258, 0.020),
 	# The laserdisc and discrete-logic cabinets take the bare board (their real discs and
 	# shells are not modelled yet), so they stand the same size in the bay.
 	"daphne":        Vector3(0.200, 0.300, 0.035),

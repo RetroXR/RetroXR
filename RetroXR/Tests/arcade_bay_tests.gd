@@ -124,6 +124,14 @@ func _run() -> void:
 		await _group_ext()
 	if _want("disc"):
 		await _group_disc()
+	if _want("naomi"):
+		await _group_naomi()
+	if _want("hookup"):
+		await _group_hookup()
+	if _want("converter"):
+		await _group_converter()
+	if _want("gdrom"):
+		await _group_gdrom()
 	if _want("names"):
 		_group_names()
 
@@ -353,6 +361,350 @@ func _group_pull() -> void:
 	await _clear()
 
 
+# --- naomi ---------------------------------------------------------------------
+
+const NAOMI_SHELL := "user://arcade_bay_naomi_shell_test.tscn"
+
+
+## The NAOMI bay: a board of its own kind. Its cartridge lies flat, label up; it goes in the generic
+## cabinet as any bay does and the cabinet plays NAOMI; a mod's model of the board moves its seat.
+func _group_naomi() -> void:
+	var bay := await _bay("naomi", Vector3(0, 0, 4))
+	_ok(bay.bay_kind == "naomi" and bay.primary_system() == "naomi", "naomi: the bay is a NAOMI (%s)" % bay.primary_system())
+	var cart := await _board("naomi", Vector3(0, 2, 4))
+	var jamma := await _board("arcade", Vector3(1, 2, 4))
+	_ok(bay.accepts_board(cart) and not bay.accepts_board(jamma), "naomi: it takes a NAOMI cartridge and not a JAMMA board")
+	_ok(MediaDimensions.cart_size("naomi").is_equal_approx(Vector3(0.2546, 0.1258, 0.020)), "naomi: the cartridge is the NAOMI's size")
+	bay.slot.pick_up_object(cart)
+	await _wait(10)
+	var up := cart.global_basis.z.normalized()
+	_ok(up.y > 0.99, "naomi: the cartridge lies flat, label up (its +Z is %s)" % str(up))
+	_ok(cart.global_basis.x.normalized().z < -0.99, "naomi: its long side front to back, the arrow tab (-X) to the front")
+	for socket: String in ["VgaAnchor", "JvsAnchor", "AudioLAnchor", "AudioRAnchor", "PowerAnchor"]:
+		_ok(bay.find_child(socket, true, false) is Marker3D, "naomi: the front has %s" % socket)
+	_ok(bay.find_child("JammaPort", true, false) == null, "naomi: and no JAMMA socket")
+	await _clear()
+
+	# In the generic cabinet: the cabinet plays NAOMI, and a NAOMI cartridge is its game.
+	var sys := await _cabinet("arcade_cabinet_generic", "arcade")
+	var mount := _mount_of(sys)
+	mount.drop_object()
+	await _wait(4)
+	var naomi := await _bay("naomi", mount.global_position + Vector3(0, 1.0, 0))
+	mount.pick_up_object(naomi)
+	await _wait(6)
+	_ok(sys.get_bay() == naomi and sys.systemid == "naomi", "naomi: a NAOMI in the generic cabinet plays NAOMI (%s)" % sys.systemid)
+	var game := await _board("naomi", Vector3(3, 3, 0))
+	_ok(sys._accepts_media(game), "naomi: the cabinet takes the NAOMI cartridge")
+	await _clear()
+
+	# A mod's model: the stand-in's look hidden, the model fitted over the box, the seat moved onto its CartAnchor.
+	var model := Node3D.new()
+	model.name = "NaomiModel"
+	var mi := MeshInstance3D.new()
+	mi.name = "Body"
+	mi.mesh = BoxMesh.new()                              # 1 m a side, centred: fitted to the bay's box
+	model.add_child(mi)
+	mi.owner = model
+	var anchor := Marker3D.new()
+	anchor.name = "CartAnchor"
+	anchor.position = Vector3(0.1, 0.3, -0.2)
+	model.add_child(anchor)
+	anchor.owner = model
+	var packed := PackedScene.new()
+	packed.pack(model)
+	ResourceSaver.save(packed, NAOMI_SHELL)
+	model.free()
+	var size := Vector3(0.272, 0.066, 0.340)
+	_ok(ArcadeBayShells.register_mod_shell("naomi", {"shell": NAOMI_SHELL, "size": size}, "test.naomi").is_empty(),
+		"naomi: a mod gives the bay a model")
+	_ok(not ArcadeBayShells.register_mod_shell("naomi", {"shell": NAOMI_SHELL, "size": size}, "test.other").is_empty(),
+		"naomi: and a second mod is told who has it")
+	_ok(not ArcadeBayShells.register_mod_shell("naomi", {"shell": NAOMI_SHELL}, "test.naomi").is_empty(),
+		"naomi: a model needs its size")
+	var dressed := await _bay("naomi", Vector3(0, 0, 6))
+	var shell := dressed.get_node_or_null("Shell") as Node3D
+	_ok(shell != null, "naomi: the bay wears the model")
+	var case_mesh := dressed.find_child("NaomiCase", true, false) as GeometryInstance3D
+	_ok(case_mesh != null and not case_mesh.visible, "naomi: and the stand-in's case is hidden")
+	var want := Vector3(0.1 * size.x, 0.3 * size.y + dressed.box_size().y * 0.5, -0.2 * size.z)
+	var seat := dressed.find_child("CartSeat", true, false) as Node3D
+	_ok(seat != null and seat.position.is_equal_approx(want), "naomi: the seat moved onto the model's CartAnchor (%s, want %s)"
+		% [str(seat.position if seat != null else Vector3.ZERO), str(want)])
+	_ok(dressed.slot.transform.origin.is_equal_approx(want), "naomi: and the cartridge slot with it")
+	_ok(dressed.slot.transform.basis.z.y > 0.99, "naomi: the seat keeps its own turn (label up)")
+	ArcadeBayShells.drop_mod("test.naomi")
+	_ok(not ArcadeBayShells.has_shell("naomi"), "naomi: the model goes with its mod")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(NAOMI_SHELL))
+	await _clear()
+
+
+# --- hookup --------------------------------------------------------------------
+
+## Each cabinet its own files: a scene loaded once stays cached under its path.
+var HK_MODEL := "user://arcade_hookup_model_test.tscn"
+var HK_CAB := "user://arcade_hookup_cabinet_test.tscn"
+const HK_ID := "test.hookup:cabinet"
+
+
+func _hk_node(root: Node3D, type: String, node_name: String, at: Vector3) -> Node3D:
+	var n := ClassDB.instantiate(type) as Node3D
+	n.name = node_name
+	root.add_child(n)
+	n.owner = root
+	n.position = at
+	return n
+
+
+## A cabinet built from a model (ArcadeCabinetFromModel) with a NAOMI's leads, its seeded NAOMI wired up cord by cord.
+func _group_hookup() -> void:
+	_hk_build(false)
+	_ok(SystemModelRegistry.register_mod_row(HK_ID, {"platform": ["naomi"], "label": "Hookup test", "sockets": [], "scene": HK_CAB},
+		"test.hookup").is_empty(), "hookup: a cabinet from a model registers")
+	await _hk_run()
+
+
+func _hk_build(jamma: bool) -> void:
+	var tag := "jamma" if jamma else "jvs"
+	HK_MODEL = "user://arcade_hookup_model_%s_test.tscn" % tag
+	HK_CAB = "user://arcade_hookup_cabinet_%s_test.tscn" % tag
+	var m := Node3D.new()
+	m.name = "HookupModel"
+	var body := _hk_node(m, "MeshInstance3D", "Body", Vector3(0, 0.9, -0.45)) as MeshInstance3D
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.7, 1.8, 0.9)
+	body.mesh = bm
+	var glass := _hk_node(m, "MeshInstance3D", "Screen", Vector3(0, 1.3, -0.2)) as MeshInstance3D
+	var qm := QuadMesh.new()
+	qm.size = Vector2(0.5, 0.4)
+	glass.mesh = qm
+	_hk_node(m, "Marker3D", "BoardAnchor", Vector3(0, 0.1, -0.5))
+	_hk_node(m, "Marker3D", "VgaLead", Vector3(-0.2, 0.3, -0.8))
+	_hk_node(m, "Marker3D", "AudioLeadL", Vector3(0.1, 0.1, -0.8))
+	_hk_node(m, "Marker3D", "AudioLeadR", Vector3(0.12, 0.1, -0.8))
+	if jamma:
+		_hk_node(m, "Marker3D", "JammaLead", Vector3(0.0, 0.2, -0.7))
+	else:
+		_hk_node(m, "Marker3D", "JvsLead", Vector3(0.2, 0.1, -0.8))
+	_hk_node(m, "Marker3D", "BoardPowerLead", Vector3(0.25, 0.15, -0.8))
+	var mp := PackedScene.new()
+	mp.pack(m)
+	ResourceSaver.save(mp, HK_MODEL)
+	m.free()
+	var cab := Node3D.new()
+	cab.name = "HookupCabinet"
+	cab.set_script(load("res://Scripts/Objects/system_models/arcade_cabinet_model.gd"))
+	var adapter := Node3D.new()
+	adapter.name = "FromModel"
+	adapter.set_script(load("res://Scripts/Objects/arcade/arcade_cabinet_from_model.gd"))
+	adapter.set("model", load(HK_MODEL))
+	adapter.set("bay_kind", "naomi")
+	cab.add_child(adapter)
+	adapter.owner = cab
+	var cp := PackedScene.new()
+	cp.pack(cab)
+	ResourceSaver.save(cp, HK_CAB)
+	cab.free()
+
+
+func _hk_run() -> void:
+	var sys := await _cabinet(HK_ID, "naomi")
+	await _wait(30)
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var bay := sys.get_bay()
+	_ok(model != null and bay != null and bay.bay_kind == "naomi", "hookup: it comes with a NAOMI")
+	if model == null or bay == null:
+		await _hk_done()
+		return
+	_ok(NaomiHookup.wired(model), "hookup: the cabinet has the NAOMI's leads")
+	_ok(model.find_child("IoBoard", true, false) != null, "hookup: and its I/O board, the JVS socket on it")
+	_ok(model.hookup_missing().is_empty() and not model.input_cut(), "hookup: fresh, it comes wired (%s)" % str(model.hookup_missing()))
+	# Every cord out, both ends.
+	for pn: String in [NaomiHookup.BOARD_POWER, NaomiHookup.BOARD_VGA, NaomiHookup.BOARD_AUDIO_L, NaomiHookup.BOARD_AUDIO_R, NaomiHookup.BOARD_JVS]:
+		(bay.find_child(pn, true, false) as Port).drop_object()
+	for pn: String in [NaomiHookup.CAB_POWER, NaomiHookup.CAB_VGA, NaomiHookup.CAB_AUDIO_L, NaomiHookup.CAB_AUDIO_R, NaomiHookup.CAB_JVS]:
+		(model.find_child(pn, true, false) as Port).drop_object()
+	await _wait(30)
+	var missing := model.hookup_missing()
+	_ok(missing.size() == 4 and model.input_cut() and model.host_picture() == null and bool(model.audio_gate()["gated"]),
+		"hookup: nothing plugged: no power, no picture, no sound, no controls (%s)" % str(missing))
+	# The power harness.
+	var power := _hk_cable("naomi_power_cable")
+	(bay.find_child(NaomiHookup.BOARD_POWER, true, false) as Port).pick_up_object(power.get_node("PlugA0"))
+	(model.find_child(NaomiHookup.CAB_POWER, true, false) as Port).pick_up_object(power.get_node("PlugB0"))
+	await _wait(30)
+	_ok(not model.hookup_missing().has("the NAOMI's power lead"), "hookup: the power harness on: powered (%s)" % str(model.hookup_missing()))
+	# The VGA cable.
+	var vga := _hk_cable("vga_cable")
+	(bay.find_child(NaomiHookup.BOARD_VGA, true, false) as Port).pick_up_object(vga.get_node("PlugA0"))
+	(model.find_child(NaomiHookup.CAB_VGA, true, false) as Port).pick_up_object(vga.get_node("PlugB0"))
+	await _wait(30)
+	_ok(bool(model._hookup.get("video", false)), "hookup: the VGA cable on: the monitor has the picture")
+	# The two phono leads (the composite cable's white and red).
+	var av := _hk_cable("composite_cable")
+	(bay.find_child(NaomiHookup.BOARD_AUDIO_L, true, false) as Port).pick_up_object(av.get_node("PlugA1"))
+	(model.find_child(NaomiHookup.CAB_AUDIO_L, true, false) as Port).pick_up_object(av.get_node("PlugB1"))
+	await _wait(30)
+	var g := model.audio_gate()
+	_ok(bool(g["gated"]) and bool(g["left"]) and not bool(g["right"]) and int(sys.audio_speakers()["right"]) == -1,
+		"hookup: the left lead only: the left channel plays, the right is silent")
+	(bay.find_child(NaomiHookup.BOARD_AUDIO_R, true, false) as Port).pick_up_object(av.get_node("PlugA2"))
+	(model.find_child(NaomiHookup.CAB_AUDIO_R, true, false) as Port).pick_up_object(av.get_node("PlugB2"))
+	# The JVS cable.
+	var jvs := _hk_cable("jvs_cable")
+	(bay.find_child(NaomiHookup.BOARD_JVS, true, false) as Port).pick_up_object(jvs.get_node("PlugA0"))
+	(model.find_child(NaomiHookup.CAB_JVS, true, false) as Port).pick_up_object(jvs.get_node("PlugB0"))
+	await _wait(30)
+	_ok(model.hookup_missing().is_empty() and not model.input_cut() and not bool(model.audio_gate()["gated"]),
+		"hookup: every cord on: the cabinet plays the NAOMI (%s)" % str(model.hookup_missing()))
+	# The power off again: everything goes with it.
+	(model.find_child(NaomiHookup.CAB_POWER, true, false) as Port).drop_object()
+	await _wait(30)
+	_ok(model.input_cut() and not bool(model._hookup.get("video", true)), "hookup: the power harness out: dark and dead again")
+	# A GD-ROM game in this cabinet: the drive runs from the cabinet's supply too.
+	var dimm := _gd_obj("res://Scenes/Objects/peripherals/naomi_dimm_board.tscn", Vector3(2, 2, 2)) as NaomiDimm
+	var drive := _gd_obj("res://Scenes/Objects/peripherals/naomi_gd_drive.tscn", Vector3(2.5, 2, 2)) as NaomiGdDrive
+	var key := _gd_obj("res://Scenes/Objects/peripherals/naomi_key.tscn", Vector3(3, 2, 2)) as NaomiKey
+	key.rom_path = "/tmp/naomi_gd/ikaruga.zip"
+	var disc := DISC_SCENE.instantiate() as RetroDisc
+	disc.systemid = "naomi"
+	disc.rom_path = "/tmp/naomi_gd/ikaruga.zip"
+	disc.freeze = true
+	add_child(disc)
+	_spawned.append(disc)
+	await _wait(6)
+	bay.slot.drop_object()
+	await _wait(4)
+	bay.slot.pick_up_object(dimm)
+	(dimm.find_child("KeySocket", true, false) as XRToolsSnapZone).pick_up_object(key)
+	var gd := _hk_cable("gd_cable")
+	(dimm.find_child(NaomiGdRom.DIMM_DATA, true, false) as Port).pick_up_object(gd.get_node("PlugA0"))
+	(drive.find_child(NaomiGdRom.DRIVE_DATA, true, false) as Port).pick_up_object(gd.get_node("PlugB0"))
+	drive.set_lid_open(true)
+	(drive.find_child("DiscSeat", true, false) as XRToolsSnapZone).pick_up_object(disc)
+	drive.set_lid_open(false)
+	await _wait(30)
+	_ok(dimm.missing().has("the drive's power lead"), "hookup: a GD-ROM drive with no power lead: no game (%s)" % str(dimm.missing()))
+	var dpow := _hk_cable("naomi_power_cable")
+	(drive.find_child(NaomiGdRom.DRIVE_POWER, true, false) as Port).pick_up_object(dpow.get_node("PlugA0"))
+	(model.find_child(NaomiGdRom.CAB_DRIVE_POWER, true, false) as Port).pick_up_object(dpow.get_node("PlugB0"))
+	await _wait(40)
+	_ok(dimm.missing().is_empty() and dimm.get_rom_path() == "/tmp/naomi_gd/ikaruga.zip", "hookup: the drive powered: the DIMM board has the game (%s)" % str(dimm.missing()))
+	await _hk_done()
+
+
+## A JAMMA cabinet (a harness, no I/O board): a fresh one's NAOMI comes with a converter on the harness.
+func _group_converter() -> void:
+	_hk_build(true)
+	_ok(SystemModelRegistry.register_mod_row(HK_ID, {"platform": ["naomi"], "label": "JAMMA test", "sockets": [], "scene": HK_CAB},
+		"test.hookup").is_empty(), "converter: a JAMMA cabinet from a model registers")
+	var sys := await _cabinet(HK_ID, "naomi")
+	await _wait(30)
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var bay := sys.get_bay()
+	_ok(model != null and bay != null and model.find_child(NaomiHookup.CAB_JVS, true, false) == null, "converter: no I/O board in a JAMMA cabinet")
+	var convs := get_tree().get_nodes_in_group(NaomiHookup.CONV_GROUP)
+	_ok(convs.size() == 1, "converter: a fresh one comes with a converter (%d)" % convs.size())
+	for c in convs:
+		_spawned.append(c)
+	_ok(model != null and model.hookup_missing().is_empty() and not model.input_cut(), "converter: wired through it: everything plays (%s)"
+		% str(model.hookup_missing() if model != null else []))
+	if model != null:
+		(model.find_child(NaomiHookup.CAB_JAMMA, true, false) as Port).drop_object()
+		await _wait(30)
+		_ok(model.input_cut() and bool(model._hookup.get("video", false)),
+			"converter: the harness off it: no controls, the picture still on the monitor's own VGA (%s)" % str(model.hookup_missing()))
+	await _hk_done()
+
+
+# --- gdrom ---------------------------------------------------------------------
+
+const GD_ROOT := "user://naomi_gdrom_test"
+
+
+func _gd_obj(scene: String, at: Vector3) -> Node3D:
+	var o := (load(scene) as PackedScene).instantiate() as Node3D
+	o.position = at
+	add_child(o)
+	if o is RigidBody3D:
+		(o as RigidBody3D).freeze = true
+	_spawned.append(o)
+	return o
+
+
+## The GD-ROM system: a DIMM board in a NAOMI, the game's key in it, a drive cabled to it, the game's disc in the drive.
+func _group_gdrom() -> void:
+	var sys := await _cabinet("arcade_cabinet_generic", "arcade")
+	var mount := _mount_of(sys)
+	mount.drop_object()
+	await _wait(4)
+	var naomi := await _bay("naomi", mount.global_position + Vector3(0, 1.0, 0))
+	mount.pick_up_object(naomi)
+	await _wait(6)
+	var dimm := _gd_obj("res://Scenes/Objects/peripherals/naomi_dimm_board.tscn", Vector3(2, 2, 2)) as NaomiDimm
+	var drive := _gd_obj("res://Scenes/Objects/peripherals/naomi_gd_drive.tscn", Vector3(2.5, 2, 2)) as NaomiGdDrive
+	var key := _gd_obj("res://Scenes/Objects/peripherals/naomi_key.tscn", Vector3(3, 2, 2)) as NaomiKey
+	key.rom_path = "/tmp/naomi_gd/ikaruga.zip"
+	var disc := DISC_SCENE.instantiate() as RetroDisc
+	disc.systemid = "naomi"
+	disc.rom_path = "/tmp/naomi_gd/ikaruga.zip"
+	disc.position = Vector3(3.5, 2, 2)
+	disc.freeze = true
+	add_child(disc)
+	_spawned.append(disc)
+	await _wait(8)
+	_ok(not naomi.accepts_board(disc), "gdrom: the NAOMI's seat does not take a disc")
+	_ok(naomi.accepts_board(dimm), "gdrom: it takes the DIMM board")
+	naomi.slot.pick_up_object(dimm)
+	await _wait(20)
+	_ok(sys.systemid == "naomi" and sys.rom_path.is_empty(), "gdrom: the DIMM board alone: no game (%s)" % sys.rom_path)
+	_ok(dimm.missing().size() == 2, "gdrom: it waits for the key and the drive (%s)" % str(dimm.missing()))
+	(dimm.find_child("KeySocket", true, false) as XRToolsSnapZone).pick_up_object(key)
+	var cable := _hk_cable("gd_cable")
+	(dimm.find_child(NaomiGdRom.DIMM_DATA, true, false) as Port).pick_up_object(cable.get_node("PlugA0"))
+	(drive.find_child(NaomiGdRom.DRIVE_DATA, true, false) as Port).pick_up_object(cable.get_node("PlugB0"))
+	var seat := drive.find_child("DiscSeat", true, false) as XRToolsSnapZone
+	_ok(not drive._accepts_disc(disc), "gdrom: the drive's lid shut: no disc goes in")
+	drive.set_lid_open(true)
+	_ok(drive._accepts_disc(disc), "gdrom: the lid open: the disc goes on the spindle")
+	seat.pick_up_object(disc)
+	await _wait(20)
+	_ok(sys.rom_path.is_empty() and dimm.missing().has("the drive's lid shut"), "gdrom: the lid still open: not yet (%s)" % str(dimm.missing()))
+	drive.set_lid_open(false)
+	await _wait(40)
+	_ok(sys.rom_path == "/tmp/naomi_gd/ikaruga.zip", "gdrom: key, cable, disc, lid shut: the cabinet loads the disc's game (%s)" % sys.rom_path)
+	# Another game's key.
+	key.rom_path = "/tmp/naomi_gd/vonot.zip"
+	await _wait(40)
+	_ok(sys.rom_path.is_empty() and str(dimm.missing()).contains("ERROR 33"), "gdrom: another game's key: ERROR 33 (%s)" % str(dimm.missing()))
+	# A GD-ROM game spawns as its disc and its key.
+	DirAccess.make_dir_recursive_absolute(GD_ROOT.path_join("ikaruga"))
+	FileAccess.open(GD_ROOT.path_join("ikaruga.zip"), FileAccess.WRITE).store_string("zip")
+	FileAccess.open(GD_ROOT.path_join("ikaruga/gdl-0010.chd"), FileAccess.WRITE).store_string("chd")
+	var zip := ProjectSettings.globalize_path(GD_ROOT.path_join("ikaruga.zip"))
+	_ok(NaomiGdRom.is_gd_game("naomi", zip) and not NaomiGdRom.is_gd_game("arcade", zip), "gdrom: a NAOMI romset with a GD-ROM image is a GD-ROM game")
+	for f: String in ["ikaruga/gdl-0010.chd", "ikaruga.zip"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(GD_ROOT.path_join(f)))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(GD_ROOT.path_join("ikaruga")))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(GD_ROOT))
+	await _clear()
+
+
+func _hk_cable(kind: String) -> Node3D:
+	var cable := (ScenePersistence.LEAD_SCENES[kind] as PackedScene).instantiate() as Node3D
+	cable.position = Vector3(0, 1.0, 2.0)
+	add_child(cable)
+	_spawned.append(cable)
+	return cable
+
+
+func _hk_done() -> void:
+	SystemModelRegistry.drop_mod("test.hookup")
+	for path: String in [HK_MODEL, HK_CAB]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	await _clear()
+
+
 # --- frank ---------------------------------------------------------------------
 
 func _group_frank() -> void:
@@ -534,7 +886,7 @@ func _group_ext() -> void:
 # --- names ---------------------------------------------------------------------
 
 func _group_names() -> void:
-	for kind: String in ["jamma", "mvs", "laserdisc", "discrete"]:
+	for kind: String in ["jamma", "mvs", "laserdisc", "discrete", "naomi", "naomi2"]:
 		var scene := ArcadeBayUnit.scene_for(kind)
 		_ok(scene != null, "names: %s has a scene" % kind)
 		if scene != null:

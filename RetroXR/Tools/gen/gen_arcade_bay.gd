@@ -51,6 +51,14 @@ func _kinds() -> Dictionary:
 			"trim": Color(0.90, 0.85, 0.70), "legend": "DICE", "pcb": Color(0.30, 0.19, 0.07)},
 		"mvs": {"size": Vector3(0.34, 0.035, 0.20), "body": Color(0.55, 0.56, 0.60),
 			"trim": Color(0.85, 0.07, 0.10), "legend": "NEO GEO"},
+		# The NAOMI is its own board: a case 272 x 66 x 340 (the models repo's sega/naomi/board) with the
+		# cartridge lying flat in a well on top and its sockets on the front. A mod's model replaces the look
+		# (ArcadeBayShells); the markers keep the model's anchor names so it can move them.
+		"naomi": {"size": Vector3(0.272, 0.066, 0.340), "body": Color(0.86, 0.85, 0.80),
+			"trim": Color(0.20, 0.22, 0.26), "legend": "NAOMI"},
+		# The NAOMI 2: the same case in its dark blue-gray (the models repo's sega/naomi/board-2); it takes NAOMI carts too.
+		"naomi2": {"size": Vector3(0.272, 0.066, 0.340), "body": Color(0.24, 0.27, 0.32),
+			"trim": Color(0.78, 0.78, 0.80), "legend": "NAOMI 2"},
 	}
 
 
@@ -98,11 +106,14 @@ func _initialize() -> void:
 	if kind == "mvs":
 		seat = _build_mvs(root, size, body, dark, metal)
 		top = 0.035 + 0.030
+	elif kind == "naomi" or kind == "naomi2":
+		seat = _build_naomi(root, size, body, dark, metal)
+		top = size.y
 	else:
 		seat = _build_jamma_board(root, deck, size, v["pcb"], dark, metal)
 		top = SOCKET_TOP + lift
 	seat.name = "CartSeat"
-	if kind == "mvs":
+	if kind == "mvs" or kind == "naomi" or kind == "naomi2":
 		U.box(root, root, "Stripe", Vector3(size.x, 0.006, 0.002), Vector3(0, size.y - 0.008, size.z * 0.5 + 0.001), trim)
 		var legend := U.node(root, root, "Label3D", "Legend", Vector3(0, size.y * 0.5, size.z * 0.5 + 0.0025)) as Label3D
 		legend.text = str(v["legend"])
@@ -110,6 +121,11 @@ func _initialize() -> void:
 		legend.font_size = 48
 		legend.modulate = Color(0.95, 0.93, 0.85)
 		legend.outline_size = 0
+		if kind == "naomi" or kind == "naomi2":
+			# Smaller, to the right of the sockets, dark on the cream case.
+			legend.position = Vector3(0.10, 0.048, size.z * 0.5 + 0.0025)
+			legend.pixel_size = 0.0004
+			legend.modulate = Color(0.15, 0.16, 0.20) if kind == "naomi" else Color(0.92, 0.92, 0.94)
 	else:
 		# A coloured strip along the shelf's front edge, and the board's name silk-screened on it.
 		U.box(root, deck, "Stripe", Vector3(size.x, 0.004, 0.002), Vector3(0, 0.009, size.z * 0.5 + 0.001), trim)
@@ -124,7 +140,8 @@ func _initialize() -> void:
 	# The sockets are on the FRONT, where a hand reaches them when the bay stands in its compartment with the
 	# door open (the back faces the cabinet's rear wall): the JAMMA socket and, beside it, three phono INs.
 	var port_y := size.y * 0.5 if kind == "mvs" else 0.034
-	var port_scene := load(PORT_SCENE) as PackedScene
+	# A NAOMI has no JAMMA edge: its sockets are the markers _build_naomi puts on its front.
+	var port_scene := load(PORT_SCENE) as PackedScene if kind != "naomi" and kind != "naomi2" else null
 	if port_scene != null:
 		var port := port_scene.instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE) as Node3D
 		port.name = "JammaPort"
@@ -221,6 +238,51 @@ func _build_jamma_board(root: Node, deck: Node3D, size: Vector3, pcb: Color, dar
 		U.cylinder(root, deck, "Wire%d" % (i + 1), 0.0035, 0.20,
 			Vector3(-0.02 + i * 0.008, pcb_y + 0.012 + (i % 2) * 0.004, -0.17), U.mat(wires[i], 0.0, 0.6), Vector3.BACK)
 	return U.node(root, deck, "Marker3D", "CartSeat", Vector3(0, SOCKET_TOP + BOARD_H * 0.5, 0.0)) as Marker3D
+
+
+## The NAOMI's stand-in: the cream case, a cooling grille on top at the back, the cartridge's well
+## in the top, and the filter board's sockets on the front as dark blocks with a marker each, named as
+## the models repo's board anchors (VgaAnchor, JvsAnchor, AudioLAnchor, AudioRAnchor, PowerAnchor), so
+## a mod's model can move them (ArcadeBayShells) and the cords (docs/dev/naomi-jvs.md, phase 3) find
+## them. The cartridge lies flat in the well, label up, its long side (its X) front to back: CartSeat is
+## turned as the model's CartAnchor says -- the cartridge's +Z (its label) up, its -X (the arrow tab)
+## to the front, its +Y to the board's left. Returns CartSeat.
+func _build_naomi(root: Node, size: Vector3, body: Material, dark: Material, metal: Material) -> Marker3D:
+	const WELL := Vector3(0.130, 0.006, 0.258)       # the cartridge's foot (125.8 x 254.6) and a little play
+	const CART_T := 0.020                            # NAOMI cartridge thickness (MediaDimensions CART_SIZES)
+	var well_z := -0.02
+	var floor_y := size.y - WELL.y
+	U.box(root, root, "NaomiCase", Vector3(size.x, floor_y, size.z), Vector3(0, floor_y * 0.5, 0), body)
+	# The rim round the well: four strips standing to the case's full height.
+	var side := (size.x - WELL.x) * 0.5
+	for sx in [-1.0, 1.0]:
+		U.box(root, root, "WellRim%s" % ("L" if sx < 0 else "R"), Vector3(side, WELL.y, size.z),
+			Vector3(sx * (WELL.x * 0.5 + side * 0.5), floor_y + WELL.y * 0.5, 0), body)
+	var front := size.z * 0.5 - (well_z + WELL.z * 0.5)
+	var back := (well_z - WELL.z * 0.5) + size.z * 0.5
+	U.box(root, root, "WellRimF", Vector3(WELL.x, WELL.y, front), Vector3(0, floor_y + WELL.y * 0.5, size.z * 0.5 - front * 0.5), body)
+	U.box(root, root, "WellRimB", Vector3(WELL.x, WELL.y, back), Vector3(0, floor_y + WELL.y * 0.5, -size.z * 0.5 + back * 0.5), body)
+	U.box(root, root, "WellFloor", Vector3(WELL.x, 0.0005, WELL.z), Vector3(0, floor_y + 0.00025, well_z), dark)
+	# The fan grille on the back of the top, beside the well.
+	for i in 6:
+		U.box(root, root, "Grille%d" % (i + 1), Vector3(side - 0.02, 0.0006, 0.004),
+			Vector3(size.x * 0.5 - side * 0.5, size.y + 0.0003, -size.z * 0.5 + 0.03 + i * 0.008), dark)
+	# The filter board's sockets on the front face, left to right as seen from the front: VGA, the JVS
+	# USB, the two phono jacks, the power header. Each block's marker is at its mouth.
+	var fz := size.z * 0.5
+	var sockets := [["VgaAnchor", -0.085, 0.036, Vector3(0.031, 0.013, 0.004)],
+		["JvsAnchor", -0.040, 0.036, Vector3(0.013, 0.006, 0.004)],
+		["AudioLAnchor", 0.000, 0.036, Vector3(0.010, 0.010, 0.006)],
+		["AudioRAnchor", 0.018, 0.036, Vector3(0.010, 0.010, 0.006)],
+		["PowerAnchor", 0.075, 0.028, Vector3(0.032, 0.010, 0.004)]]
+	for s: Array in sockets:
+		var dims: Vector3 = s[3]
+		U.box(root, root, "Socket" + str(s[0]).trim_suffix("Anchor"), dims, Vector3(s[1], s[2], fz + dims.z * 0.5),
+			metal if str(s[0]).begins_with("Vga") or str(s[0]).begins_with("Jvs") else dark)
+		U.node(root, root, "Marker3D", str(s[0]), Vector3(s[1], s[2], fz + dims.z))
+	var seat := U.node(root, root, "Marker3D", "CartSeat", Vector3(0, floor_y + CART_T * 0.5, well_z)) as Marker3D
+	seat.basis = Basis(Vector3(0, 0, -1), Vector3(-1, 0, 0), Vector3(0, 1, 0))
+	return seat
 
 
 ## The CD-ROM bay: a slot-loading drive under the JAMMA shelf, the same width and depth. Its faceplate

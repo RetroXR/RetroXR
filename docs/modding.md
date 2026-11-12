@@ -263,6 +263,25 @@ A cabinet you draw yourself **keeps the one form it has**: it names no row of th
 cannot take the shape of the game in its bay (no guns, panels or cockpit for the game). To change how
 the game's own cabinet LOOKS and keep that, dress it instead.
 
+### A cabinet from a model, and arcade boards' looks
+
+A cabinet modeled elsewhere (a GLB) does not need hand-placed modules: give its scene's root
+`arcade_cabinet_model.gd` and one child running `res://Scripts/Objects/arcade/arcade_cabinet_from_model.gd`
+(`ArcadeCabinetFromModel`) with `model` (the GLB), `players`, `buttons`, `glass_size`, `bay_kind` and `tray_travel`.
+It builds the modules from the model's parts by name: `Stick<n>Pivot`, `P<n>Button<k>Pivot`, `Start<n>Pivot`, `Screen`
+(UV 0..1 over the glass), `CoinSlot<n>`/`CoinSpawn<n>`/`CoinDrop<n>`/`CoinReturn<n>`/`ReturnCup<n>`, `BoardDoorPivot`
+(swinging about +Y), `BoardTrayPivot` (sliding along +Z), `BoardAnchor` (the bay's mount), and the NAOMI leads `VgaLead`,
+`AudioLeadL`/`R`, `JvsLead`, `BoardPowerLead`, `JammaLead`. The model's frame: origin on the floor at the middle of the
+front face, +Y up, the body back along -Z.
+
+`api.override_arcade_bay_shell(kind, {shell, size, shell_lods, shell_offset})` dresses a board the game draws as a stand-in
+-- a bay kind ("naomi", "jamma", ...) or one of `ArcadeBayShells.OTHER_KINDS` (the JVS-to-JAMMA converter, a JVS cabinet's
+I/O board, the NAOMI's DIMM board, GD-ROM drive and key chip) -- in a model, fitted to `size`, or placed true to size by its
+own frame with `origin` (the model's point on the object's origin) and `turn` (a Basis). The model's nodes named as the
+stand-in's markers (`CartAnchor`, `VgaAnchor`, `JvsInAnchor`, `KeyAnchor`, `DiscAnchor`, ...) move them, so seats and sockets
+sit where the model draws them. What the board does -- its sockets, its cords, the NAOMI's hookup (docs/dev/naomi-jvs.md) --
+stays the game's.
+
 ### Dressing the arcade cabinet
 
 `api.dress_arcade_cabinet("<mod_id>:<name>", row)` lays your look over the parts the cabinet builds,

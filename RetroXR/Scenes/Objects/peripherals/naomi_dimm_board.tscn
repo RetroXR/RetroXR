@@ -1,0 +1,44 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/arcade/naomi_dimm.gd" id="1_obj"]
+[ext_resource type="Script" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="2_grab"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_high"]
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_obj"]
+friction = 0.8
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(0.2546, 0.1258, 0.0415)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
+size = Vector3(0.2606, 0.1318, 0.0475)
+
+; The NAOMI's DIMM board (NaomiDimm): the stand-in and its key socket and GD-ROM socket are made by the script.
+[node name="NaomiDimmBoard" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+mass = 1.2
+physics_material_override = SubResource("PhysicsMaterial_obj")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_obj")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.0005)
+shape = SubResource("BoxShape3D_body")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.0005)
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="GrabPoint" type="Marker3D" parent="."]
+visible = false
+script = ExtResource("2_grab")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("3_high")

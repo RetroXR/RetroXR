@@ -119,6 +119,22 @@ func override_expansion_shell(unit_id: String, fields: Dictionary) -> bool:
 	return true
 
 
+## Dress an arcade bay in a model of the real board -- the NAOMI, say -- in place of the stand-in the
+## game baked for its kind ("naomi", "jamma", "mvs" ...; ArcadeBayUnit.SCENES).
+##
+## `fields` is {shell, size} and optionally shell_lods ([[model, metres], ...]) and shell_offset, as an
+## expansion's shell (override_expansion_shell): the model is fitted to `size` over the bay's box. Its
+## nodes named as the bay's markers (CartAnchor for the seat, VgaAnchor, JvsAnchor, PowerAnchor ...)
+## move them, so a cartridge seats and a cord plugs in where the model draws them. What the bay does --
+## the boards it takes, its sockets, its cords -- stays the game's. One mod holds a kind (ArcadeBayShells).
+func override_arcade_bay_shell(kind: String, fields: Dictionary) -> bool:
+	var err := ArcadeBayShells.register_mod_shell(kind, fields, id)
+	if not err.is_empty():
+		return _fail("arcade bay %s: %s" % [kind, err])
+	_note("console", "%s (model)" % str(ArcadeBayUnit.LABELS.get(kind, ArcadeBayShells.OTHER_KINDS.get(kind, kind))))
+	return true
+
+
 ## Add or replace a console's hardware descriptor.
 func register_system_info(info: SystemInfo) -> bool:
 	if info == null or info.systemid.is_empty():
@@ -673,6 +689,7 @@ func withdraw() -> void:
 	MediaDimensions.drop_mod(id)
 	ModCartShells.drop_mod(id)
 	ExpansionCatalog.drop_mod(id)
+	ArcadeBayShells.drop_mod(id)
 	ScreenscraperSystems.drop_mod(id)
 	CoreInfoDatabase.drop_mod(id)
 	BiosBoot.drop_mod(id)
