@@ -106,10 +106,13 @@ editor converts project files. Test from a copy:
    tracer never fills (`ALBEDO` x80), and shadows with NEGATIVE twin lights culled to the shell, which a
    tracer does not honour: mean luma 0.92, white. Under `effective_path_tracing()` the mod swaps the shell's
    materials to `pt_surface` (real albedo; painted glow and the bake's own lamps, bright in the bake AND
-   unsaturated, as emission; `bake_fill` 0.8 of each surface's baked light), hides the twins and lets the
+   unsaturated, as emission), hides the twins and lets the
    shell cast; live through `QualityManager.path_tracing_changed`. 0.213 traced vs 0.225 raster. Its neon,
    EXIT letters, troffer lenses and tubes swap to `pt_emissive` (RetroXR-models `de4be8032`), and the guessed
-   lamps are off (they lit the sign's white board into a blob). Any other pre-lit room needs the same.
+   lamps are off (they lit the sign's white board into a blob). **Baked lighting is the Quest's only**: path
+   traced, the shell keeps none of its bake (`bake_fill` 0, RetroXR-models `pt.bake_fill`), the tracer lights the
+   room (0.089/0.112 vs 0.102/0.126 with 0.8 baked). An untraced desktop keeps the baked shell: it has no
+   traced lighting to use. Any other pre-lit room needs the same.
    **Two tracer rules that cost a round each:** an `unshaded` material's ALBEDO is NOT light to the tracer (it
    is shaded as paint: write EMISSION, render mode shaded); and the tracer does NOT fill uniform ARRAYS
    (`uniform vec3 palette[8]` read as zeros, so the tubes emitted black; use one uniform per slot).
