@@ -19,10 +19,9 @@ extends Node
 ##
 ## Local and cosmetic: nothing is saved and nothing is sent in a session.
 
-## How near a hand must be to a cord's middle line to take it, metres.
-const REACH := 0.06
-## The same for a desk's crosshair ray.
-const DESK_REACH := 0.035
+## How near a hand, or a desk's crosshair ray, must be to a cord's middle line
+## to take it, metres. One figure for both.
+const REACH := 0.025
 ## A desk reaches as far as its pickup does.
 const DESK_MAX_DIST := 5.0
 const DESK_MIN_DIST := 0.15
@@ -112,7 +111,7 @@ func nearest_to_point(point: Vector3, reach: float) -> Dictionary:
 ## The same down a ray. A cord behind something solid is not taken.
 func nearest_to_ray(origin: Vector3, dir: Vector3, max_dist: float) -> Dictionary:
 	var best := {}
-	var best_d := DESK_REACH
+	var best_d := REACH
 	for k in range(_all_ropes().size() - 1, -1, -1):
 		var rope: Node = _ropes[k]
 		if not is_instance_valid(rope):
@@ -123,8 +122,7 @@ func nearest_to_ray(origin: Vector3, dir: Vector3, max_dist: float) -> Dictionar
 		var hit: Dictionary = rope.closest_point_to_ray(origin, dir, max_dist)
 		if int(hit.get("index", -1)) < 0:
 			continue
-		# A fatter cord is a fatter target.
-		var d := float(hit.distance) - float(rope.get_tube_radius())
+		var d := float(hit.distance)
 		if d > best_d:
 			continue
 		best_d = d
