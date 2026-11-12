@@ -267,7 +267,7 @@ the game's own cabinet LOOKS and keep that, dress it instead.
 
 A cabinet modeled elsewhere (a GLB) does not need hand-placed modules: give its scene's root
 `arcade_cabinet_model.gd` and one child running `res://Scripts/Objects/arcade/arcade_cabinet_from_model.gd`
-(`ArcadeCabinetFromModel`) with `model` (the GLB), `players`, `buttons`, `glass_size`, `bay_kind` and `tray_travel`.
+(`ArcadeCabinetFromModel`) with `model` (the GLB), `players`, `buttons`, `glass_size`, `bay_kind` and `tray_travel` (and `bay_roll_deg`, a turn of the board's mount about +Z for a board that stands on edge).
 It builds the modules from the model's parts by name: `Stick<n>Pivot`, `P<n>Button<k>Pivot`, `Start<n>Pivot`, `Screen`
 (UV 0..1 over the glass), `CoinSlot<n>`/`CoinSpawn<n>`/`CoinDrop<n>`/`CoinReturn<n>`/`ReturnCup<n>`, `BoardDoorPivot`
 (swinging about +Y), `BoardTrayPivot` (sliding along +Z), `BoardAnchor` (the bay's mount), and the NAOMI leads `VgaLead`,

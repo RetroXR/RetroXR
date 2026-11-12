@@ -83,5 +83,9 @@ Since: the NAOMI 2 has its own board kind (`naomi2`, it takes NAOMI cartridges t
 power socket, and in a cabinet with the NAOMI leads it needs the supply's second lead (`DrivePowerLeadIn`) before the DIMM board loads a
 game (the hookup test checks it); the new cords have plugs of their own size (boxes, until a mod draws them).
 
+The Atomiswave (the Atomiswave session, 2026-11-12): its own bay kind `atomiswave` (a JAMMA edge, its JammaPort on a
+`JammaEdgeAnchor` marker the board's model moves) and the AWSD cabinet built by ArcadeCabinetFromModel, whose new field
+`bay_roll_deg` turns the mount for a board standing on edge (-90 for the AWSD); mods `xenu.awsd`, `xenu.atomiswave`.
+
 Open: a real GD-ROM game through flycast on this chain (this machine has no NAOMI romsets or BIOS in its roms folders); the cords'
 plugs are plain boxes.
