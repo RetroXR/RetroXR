@@ -130,6 +130,8 @@ func _run() -> void:
 		await _group_naomi()
 	if _want("hookup"):
 		await _group_hookup()
+	if _want("captive"):
+		await _group_captive()
 	if _want("converter"):
 		await _group_converter()
 	if _want("gdrom"):
@@ -499,6 +501,45 @@ func _group_hookup() -> void:
 	await _hk_run()
 
 
+## A cabinet whose VGA lead is its own cord (ArcadeCabinetFromModel.captive_leads): fresh, the cord's cabinet end is in its
+## grommet, hidden and fixed, the cord a metre; only its free end comes out of the board, and back in it the picture is back.
+func _group_captive() -> void:
+	_hk_captive = PackedStringArray(["VgaLead"])
+	_hk_build(false)
+	_hk_captive = PackedStringArray()
+	_ok(SystemModelRegistry.register_mod_row(HK_ID, {"platform": ["naomi"], "label": "Captive test", "sockets": [], "scene": HK_CAB},
+		"test.hookup").is_empty(), "captive: a cabinet from a model registers")
+	var sys := await _cabinet(HK_ID, "naomi")
+	await _wait(30)
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var bay := sys.get_bay()
+	if model == null or bay == null:
+		_ok(false, "captive: it comes with a NAOMI")
+		await _hk_done()
+		return
+	var cab := model.find_child(NaomiHookup.CAB_VGA, true, false) as Port
+	var end := cab.seated_plug() as XRToolsPickable if cab != null else null
+	_ok(cab != null and cab.has_meta(NaomiHookup.CAPTIVE_META) and not cab.enabled, "captive: the VGA lead's socket is the cabinet's own, fixed")
+	var shown := 0
+	if end != null:
+		for mi in end.find_children("*", "MeshInstance3D", true, false):
+			shown += 1 if (mi as MeshInstance3D).visible else 0
+	_ok(end != null and not end.enabled and shown == 0, "captive: its cord's cabinet end is in the grommet, hidden and fixed")
+	var rope := end.get_parent().get_node_or_null("VerletRope") as VerletRope if end != null else null
+	_ok(rope != null and absf(rope.segment_count * rope.segment_length - NaomiHookup.CAPTIVE_LENGTH) < 0.01,
+		"captive: the cord is %.2f m" % (rope.segment_count * rope.segment_length if rope != null else 0.0))
+	_ok(model.hookup_missing().is_empty(), "captive: fresh, it comes wired (%s)" % str(model.hookup_missing()))
+	var out := bay.find_child(NaomiHookup.BOARD_VGA, true, false) as Port
+	var free := out.seated_plug()
+	out.drop_object()
+	await _wait(30)
+	_ok(not bool(model._hookup.get("video", true)) and cab.seated_plug() == end, "captive: its free end out of the board: no picture, the cord still the cabinet's")
+	out.pick_up_object(free)
+	await _wait(30)
+	_ok(bool(model._hookup.get("video", false)), "captive: back in: the picture")
+	await _hk_done()
+
+
 func _hk_build(jamma: bool) -> void:
 	var tag := "jamma" if jamma else "jvs"
 	HK_MODEL = "user://arcade_hookup_model_%s_test.tscn" % tag
@@ -556,6 +597,7 @@ func _hk_build(jamma: bool) -> void:
 	adapter.set_script(load("res://Scripts/Objects/arcade/arcade_cabinet_from_model.gd"))
 	adapter.set("model", load(HK_MODEL))
 	adapter.set("bay_kind", "naomi")
+	adapter.set("captive_leads", _hk_captive)
 	cab.add_child(adapter)
 	adapter.owner = cab
 	var cp := PackedScene.new()
@@ -785,6 +827,9 @@ func _hk_cable(kind: String) -> Node3D:
 	add_child(cable)
 	_spawned.append(cable)
 	return cable
+
+
+var _hk_captive := PackedStringArray()
 
 
 func _hk_done() -> void:

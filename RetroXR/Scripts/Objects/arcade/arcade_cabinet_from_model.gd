@@ -59,6 +59,12 @@ const SCRIPT_DRAWER := "res://Scripts/Objects/widgets/vr_drawer.gd"
 ## The board's turn in its mount about the cabinet's front axis (+Z), degrees: 0 stands it on its base; -90 stands
 ## it on edge with its top toward +X (the Atomiswave AWSD's PCB base). The model's BoardAnchor carries no turn.
 @export var bay_roll_deg: float = 0.0
+## The leads that are the cabinet's own cords, by their marker ("VgaLead", "JvsLead", "BoardPowerLead"): on a real cabinet
+## the monitor's VGA cable, the I/O board's JVS cable and the supply's harness are fitted when it is built and run inside
+## it, so all an operator meets is a cord hanging in the base with a plug on its free end. Each such lead's socket is at
+## its marker (where the cord comes out, a grommet), hidden: the plug that seats there is hidden and fixed, and its cord
+## hangs from there (NaomiHookup.seed_cords lays it, a metre long). A captive JVS lead has no stand-in I/O board.
+@export var captive_leads: PackedStringArray = PackedStringArray()
 
 var _model: Node3D = null
 
@@ -109,11 +115,15 @@ func _build_leads() -> void:
 		var at := _part(str(r[0]))
 		if at == null or (jamma and str(r[0]) == "JvsLead"):
 			continue
-		if str(r[0]) == "JvsLead":
+		var captive := captive_leads.has(str(r[0]))
+		if str(r[0]) == "JvsLead" and not captive:
 			at = _io_board(at)
 		var port := NaomiHookup.make_port(str(r[1]), str(r[2]), str(r[3]), int(r[4]), int(r[5]))
 		if port is RcaPort:
 			port.set("show_jack", false)
+		if captive:
+			port.set_meta(NaomiHookup.CAPTIVE_META, true)
+			port.has_picked_up.connect(_captive_seated.bind(port))
 		# The supply's second lead, for a GD-ROM drive, beside the board's.
 		if str(r[0]) == "BoardPowerLead":
 			var dp := NaomiHookup.make_port(NaomiGdRom.CAB_DRIVE_POWER, "res://Scripts/Objects/cables/port.gd", NaomiHookup.NAOMI_POWER)
@@ -124,6 +134,18 @@ func _build_leads() -> void:
 		else:
 			add_child(port)
 			port.global_transform = Transform3D(_lead_facing(str(r[0]), at.global_position), at.global_position)
+
+
+## The cabinet end of one of its own cords seated: out of sight in the grommet, and fixed there (neither it nor the
+## socket can be taken from). A save brings the cord back seated, and this hides it again.
+func _captive_seated(what: Node3D, port: Port) -> void:
+	if what == null:
+		return
+	for m in what.find_children("*", "MeshInstance3D", true, false):
+		(m as MeshInstance3D).visible = false
+	if what is XRToolsPickable:
+		(what as XRToolsPickable).enabled = false
+	port.enabled = false
 
 
 ## A lead's socket takes its plug along -Z: from the front, or, when the model has a `<lead>Aim` marker, from there.

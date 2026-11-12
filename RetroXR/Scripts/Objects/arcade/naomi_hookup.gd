@@ -28,6 +28,10 @@ const CAB_POWER := "BoardPowerIn"
 const CAB_JAMMA := "JammaPort"
 ## The converter's.
 const CONV_GROUP := "jvs_jamma_converter"
+## On a cabinet socket that is the cabinet end of one of its own cords (ArcadeCabinetFromModel.captive_leads), and how
+## long such a cord is: it hangs from where it comes out into the base, a metre being enough to reach the board.
+const CAPTIVE_META := &"captive_lead"
+const CAPTIVE_LENGTH := 1.0
 const CONV_EDGE := "ConvJammaEdge"
 const CONV_JVS := "ConvJvsIn"
 const CONV_VGA := "ConvVgaIn"
@@ -148,6 +152,10 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 		if ports.has(null):
 			continue
 		var cable := (load("res://Scenes/Objects/cables/%s.tscn" % str(run[0])) as PackedScene).instantiate() as Node3D
+		# The cabinet's own cord: a metre, hanging from its grommet.
+		for port in ports:
+			if (port as Port).has_meta(CAPTIVE_META):
+				CaptiveCord.resize(cable.get_node_or_null("VerletRope") as VerletRope, CAPTIVE_LENGTH)
 		home.add_child(cable)
 		cable.global_position = (bay as Node3D).global_position + Vector3(0, 0.1, 0)
 		for i in seats.size():
