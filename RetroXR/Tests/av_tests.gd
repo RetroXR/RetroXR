@@ -29,6 +29,9 @@ const DC_AV_CABLE := preload("res://Scenes/Objects/system_models/dreamcast/dc_av
 const TRS_CABLE := preload("res://Scenes/Objects/cables/trs_cable.tscn")
 const SPEAKERS := preload("res://Scenes/Objects/appliances/speaker_pair.tscn")
 const RF_SWITCH := preload("res://Scenes/Objects/appliances/rf_switch.tscn")
+const N64_RF_MODULATOR := preload("res://Scenes/Objects/system_models/nintendo_64/n64_rf_modulator.tscn")
+const RF_SWITCH_FAMICOM := preload("res://Scenes/Objects/appliances/rf_switch_famicom.tscn")
+const RF_SWITCH_PAL := preload("res://Scenes/Objects/appliances/rf_switch_pal.tscn")
 const ANTENNA := preload("res://Scenes/Objects/appliances/antenna.tscn")
 const WINDOW_SHADER := preload("res://Shaders/screen_window.gdshader")
 const TV_OPTIONS_UI := preload("res://Scenes/UI/tv_options_2d.tscn")
@@ -183,6 +186,13 @@ func _run() -> void:
 		["wiring/unplugging a machine takes it off both displays", _w_unplug_all],
 		["wiring/an NES feeds composite and RF at the same time", _w_nes_rf],
 		["wiring/an RF cord carries the sound as well", _w_rf_audio],
+		["wiring/an N64 reaches the aerial input through its RF Modulator", _w_n64_rf_modulator],
+		["wiring/pulling the RF Modulator takes the N64 off the aerial input", _w_n64_rf_modulator_pulled],
+		["wiring/an N64 on its RF Modulator survives a save and a load", _w_n64_rf_modulator_round_trip],
+		["wiring/a Famicom reaches the aerial input through its HVC-003", _w_famicom_rf_switch],
+		["wiring/an HVC-003 with an aerial survives a save and a load", _w_famicom_rf_switch_round_trip],
+		["wiring/an N64 reaches the set through a PAL switch plugged onto it", _w_pal_rf_switch],
+		["wiring/a PAL switch with an aerial survives a save and a load", _w_pal_rf_switch_round_trip],
 		["wiring/the channel enum's shipped values never move", _w_channel_values],
 		["wiring/every channel has a name and a speaker index", _w_channel_tables],
 		["wiring/no two legend plates on the back panel overlap", _w_legend_gaps],
@@ -2484,6 +2494,388 @@ func _w_aerial_round_trip() -> void:
 	_check_eq(tv2.current_source, RetroTV.Source.RF, "on the aerial input")
 	_check_eq(_dial_labels(tv2), ["1", "2", "2.1", "3", "4", "4.1", "10.2"],
 		"with the whole dial")
+
+
+## The N64's RF Modulator (NUS-003): a block on the MULTI OUT with an RCA RF OUT,
+## the RF switch's console lead in that, its pigtail in the set's aerial socket.
+## Built in the order a player is most likely to get wrong: the switch into the
+## LOOSE block first (the control: no N64 on the set), the block into the console
+## last. Returns [tv, n64, modulator, switch], or [] when a part is missing.
+func _n64_rf_rig() -> Array:
+	var tv := _tv()
+	var sys := await _n64()
+	var multi := sys.find_child("AvMultiOut", true, false) as RcaPort
+	var mod := await _spawn_lead(N64_RF_MODULATOR, sys.position + Vector3(0.2, 0.3, -0.3)) as RfModulator
+	_ok(multi != null and mod != null and mod.socket() != null,
+		"an N64 with its MULTI OUT, and a modulator with its RF OUT")
+	if multi == null or mod == null or mod.socket() == null:
+		return []
+	var switch := RF_SWITCH.instantiate() as RfSwitch
+	switch.position = sys.position + Vector3(0.4, 0.3, -0.6)
+	(switch.get_node("Body") as RigidBody3D).freeze = true
+	add_child(switch)
+	_spawned.append(switch)
+	await _wait(20)
+	mod.socket().pick_up_object(switch.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	(tv.get_node("RfPort") as RcaPort).pick_up_object(switch.get_node("PlugB0") as RcaPlug)
+	await _wait(30)
+	_check_eq(_which_input(tv, sys), -1, "control: a loose modulator brings no N64 to the set")
+	multi.pick_up_object(mod.get_node("PlugA0") as RcaPlug)
+	await _wait(35)
+	return [tv, sys, mod, switch]
+
+
+func _w_n64_rf_modulator() -> void:
+	var rig: Array = await _n64_rf_rig()
+	if rig.is_empty():
+		return
+	var tv: RetroTV = rig[0]
+	var sys: RetroSystem = rig[1]
+	var mod: RfModulator = rig[2]
+	var switch: RfSwitch = rig[3]
+	var rf_out := mod.socket()
+	_check_eq(rf_out.direction, RcaPort.Direction.OUT, "RF OUT is an output")
+	_check_eq(rf_out.channel, RcaPort.Channel.VIDEO, "carrying the picture")
+	_ok(rf_out.rf_feed, "down a modulated feed, picture and sound on one coax")
+	_ok(mod.find_child("VerletRope", true, false) == null and mod.get_node_or_null("PlugB0") == null,
+		"the block is one plug, with no cord and no far end")
+	_check_eq(mod.host(), sys, "seated, the modulator speaks for the N64")
+	_check_eq(_which_input(tv, sys), RetroTV.Source.RF, "the N64 is on the set's aerial input")
+	var feed: AvSource.Feed = AvSource.resolve(sys, true)
+	_ok(feed.video_sinks.has(tv), "the console's own wiring reaches the set")
+	_check_eq(feed.audio_sink, tv, "and its sound goes down the same coax")
+
+	# The channel is the BLOCK's: the N64 itself has no slide.
+	tv.set_source(RetroTV.Source.RF)
+	await _wait(5)
+	_check_eq(mod.channel(), 3, "the modulator leaves the factory on CH3")
+	_check_eq(sys.get_rf_channel(), 3, "and the console answers with its modulator's channel")
+	tv.rf_channel = 3
+	await _wait(5)
+	_ok(tv.can_paint(sys), "tuned to CH3, the set may paint the N64")
+	tv.rf_channel = 4
+	await _wait(5)
+	_ok(not tv.can_paint(sys), "on CH4 it may not")
+	mod.channel_switch().set_value(1.0)
+	await _wait(5)
+	_check_eq(sys.get_rf_channel(), 4, "slid across, the N64 is on CH4")
+	_ok(tv.can_paint(sys), "and the set on CH4 has it")
+	var options: Array = sys.controls_state()["rf_options"]
+	_ok(options.size() == 2 and options.has(3) and options.has(4),
+		"the N64's menu offers the modulator's slide: got %s" % [options])
+	sys.set_rf_channel(3)
+	await _wait(5)
+	_check_eq(mod.channel(), 3, "and the menu moves the slide")
+
+	# Saved under the modulator: the console has no socket of that name.
+	var seat: Dictionary = (switch as CompositeCable)._seat_of(switch.get_node("PlugA0") as RcaPlug)
+	_check_eq(seat.get("owner"), mod, "a save names the RF switch's seat under the modulator")
+	_check_eq(seat.get("port"), "RfOut", "by its own name")
+	var own: Dictionary = (mod as CompositeCable)._seat_of(mod.get_node("PlugA0") as RcaPlug)
+	_check_eq(own.get("owner"), sys, "and the block's own seat under the console")
+
+
+func _w_n64_rf_modulator_pulled() -> void:
+	var rig: Array = await _n64_rf_rig()
+	if rig.is_empty():
+		return
+	var tv: RetroTV = rig[0]
+	var sys: RetroSystem = rig[1]
+	var mod: RfModulator = rig[2]
+	_check_eq(_which_input(tv, sys), RetroTV.Source.RF, "wired up, the N64 is on the aerial input")
+	await _unplug(mod.get_node("PlugA0") as RcaPlug)
+	_ok(mod.host() == null, "pulled, the modulator speaks for nobody")
+	_check_eq(_which_input(tv, sys), -1, "and the N64 leaves the set")
+	_ok(not AvSource.resolve(sys, true).video_sinks.has(tv), "the console knows it reaches no set")
+	_check_eq(sys.get_rf_channel(), -1, "and has no channel any more")
+
+
+## The whole chain through ScenePersistence, the way a slot load runs it: the block
+## is saved as a lead seated in the console, the RF switch's plug as seated in the
+## block's RF OUT, and the slide as an articulated control.
+func _w_n64_rf_modulator_round_trip() -> void:
+	var rig: Array = await _n64_rf_rig()
+	if rig.is_empty():
+		return
+	var mod: RfModulator = rig[2]
+	mod.set_channel(4)
+	await _wait(5)
+	var persistence := ScenePersistence.new()
+	var objects: Array = persistence._collect_objects(self)
+	var entry := {}
+	for o: Dictionary in objects:
+		if str(o.get("kind", "")) == "n64_rf_modulator":
+			entry = o
+	_ok(not entry.is_empty(), "the modulator serializes as a lead of kind 'n64_rf_modulator'")
+	_check_eq(ScenePersistence._objects_validation_error(objects), "", "and the save validates")
+	_check_eq((entry.get("plugs", []) as Array).size(), 1, "with ONE plug record")
+
+	await _teardown()
+	await _wait(10)
+	var spawned: Dictionary = persistence.instantiate_objects(self, objects)
+	var tv2: RetroTV = null
+	var sys2: RetroSystem = null
+	var mod2: RfModulator = null
+	for node: Variant in spawned.values():
+		_spawned.append(node)
+		if node is RetroTV:
+			tv2 = node
+		elif node is RetroSystem:
+			sys2 = node
+		elif node is RfModulator:
+			mod2 = node
+		# Nothing here has a floor under it.
+		for b: Node in (node as Node).find_children("*", "RigidBody3D", true, false) + [node]:
+			if b is RigidBody3D:
+				(b as RigidBody3D).freeze = true
+	_ok(tv2 != null and sys2 != null and mod2 != null, "a set, an N64 and a modulator come back")
+	if tv2 == null or sys2 == null or mod2 == null:
+		return
+	await _wait(90)
+	_check_eq(mod2.host(), sys2, "the block is back in the console")
+	_check_eq(_which_input(tv2, sys2), RetroTV.Source.RF, "and the N64 on the set's aerial input")
+	_check_eq(mod2.channel(), 4, "with the slide where it was left")
+	_check_eq(sys2.get_rf_channel(), 4, "which is the channel the console answers")
+
+
+# ── the regional RF switches ──────────────────────────────────────────────────
+
+## The Famicom's HVC-003 (FamicomRfSwitch): the RXR-003's routing in a white box,
+## the aerial on a terminal standing up out of its top. Console lead into the
+## Famicom's RF OUT, TV lead into the set, an aerial on the terminal. Returns
+## [tv, famicom, switch, aerial], or [] when a part is missing.
+func _famicom_hvc003_rig() -> Array:
+	var tv := _tv()
+	var fc := SYSTEM_SCENE.instantiate() as Node3D
+	fc.systemid = "famicom"
+	fc.freeze = true
+	fc.position = Vector3(_spawned.size() * 3.0 + 2.0, 1, 0)
+	add_child(fc)
+	fc.add_to_group("spawned")
+	_spawned.append(fc)
+	await _wait(60)
+	var rf_out := fc.find_child("RfOut", true, false) as RcaPort
+	var switch := RF_SWITCH_FAMICOM.instantiate() as FamicomRfSwitch
+	switch.position = fc.position + Vector3(0.3, 0.3, -0.6)
+	(switch.get_node("Body") as RigidBody3D).freeze = true
+	add_child(switch)
+	_spawned.append(switch)
+	await _wait(20)
+	_ok(rf_out != null and switch.ant_port() != null,
+		"a Famicom with its RF OUT, and an HVC-003 with its aerial terminal")
+	if rf_out == null or switch.ant_port() == null:
+		return []
+	var aerial := await _aerial(["4.1"])
+	await _seat_aerial(aerial, switch.ant_port())
+	_check_eq(_which_input(tv, fc), -1, "control: a switch in nothing brings no Famicom")
+	rf_out.pick_up_object(switch.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	(tv.get_node("RfPort") as RcaPort).pick_up_object(switch.get_node("PlugB0") as RcaPlug)
+	await _wait(35)
+	return [tv, fc, switch, aerial]
+
+
+func _w_famicom_rf_switch() -> void:
+	var rig: Array = await _famicom_hvc003_rig()
+	if rig.is_empty():
+		return
+	var tv: RetroTV = rig[0]
+	var fc: RetroSystem = rig[1]
+	var switch: FamicomRfSwitch = rig[2]
+	var aerial: Antenna = rig[3]
+	_ok(switch is RfSwitch, "the HVC-003 is an RfSwitch, so every switch check finds it")
+	_check_eq(_which_input(tv, fc), RetroTV.Source.RF, "the Famicom is on the set's aerial input")
+	_check_eq(switch.reached_set(), tv, "and the switch knows which set it reaches")
+	var feed: AvSource.Feed = AvSource.resolve(fc, true)
+	_check_eq(feed.audio_sink, tv, "with its sound down the same coax")
+	# The terminal stands UP out of the top: a seated F plug arrives from +Y and
+	# points down into it. Sign, not size: the RXR-003's socket faces +X.
+	var port := switch.ant_port()
+	_ok(port.global_basis.z.y > 0.99, "the aerial terminal faces up: zone +Z is %s" % port.global_basis.z)
+	var plug := aerial.get_node("PlugB0") as RcaPlug
+	_ok(plug.global_basis.z.y < -0.99, "and the aerial's plug points down into it: +Z is %s" % plug.global_basis.z)
+	_ok(port.global_position.y > (switch.get_node("Body") as Node3D).global_position.y + 0.015,
+		"standing above the box's top face")
+	_check_eq(tv.aerial(), aerial, "the set has the aerial through the switch's terminal")
+	_ok(aerial.via_switch(), "and the aerial says a switch is in the way")
+	_check_eq(aerial.reached_set(), tv, "and which set it feeds")
+	_check_eq(tv.rf_dial().size(), RetroTV.RF_CHANNELS.size() + 1, "its channel is on the set's dial")
+
+	await _unplug(switch.get_node("PlugB0") as RcaPlug)
+	_check_eq(_which_input(tv, fc), -1, "the TV lead pulled, the Famicom leaves the set")
+	_check_eq(tv.aerial(), null, "and so does the aerial")
+	_check_eq(switch.reached_set(), null, "the switch reaches nothing")
+
+
+func _w_famicom_rf_switch_round_trip() -> void:
+	var rig: Array = await _famicom_hvc003_rig()
+	if rig.is_empty():
+		return
+	var switch: FamicomRfSwitch = rig[2]
+	var body := switch.get_node("Body") as RigidBody3D
+	body.global_position += Vector3(0.05, 0.0, 0.02)
+	await _wait(4)
+	var saved_at := body.global_position
+	var persistence := ScenePersistence.new()
+	var objects: Array = persistence._collect_objects(self)
+	var entry := {}
+	for o: Dictionary in objects:
+		if str(o.get("kind", "")) == "rf_switch_famicom":
+			entry = o
+	_ok(not entry.is_empty(), "the HVC-003 serializes as a lead of kind 'rf_switch_famicom'")
+	_check_eq(ScenePersistence._objects_validation_error(objects), "", "and the save validates")
+	_check_eq((entry.get("plugs", []) as Array).size(), 2, "with two plug records")
+	_ok(entry.has("body"), "and the box's pose")
+
+	await _teardown()
+	await _wait(10)
+	Antenna.lineup_override = func() -> TVLineup:
+		var lineup := StubLineup.new()
+		lineup.put(["4.1"])
+		return lineup
+	var spawned: Dictionary = persistence.instantiate_objects(self, objects)
+	var tv2: RetroTV = null
+	var fc2: RetroSystem = null
+	var switch2: FamicomRfSwitch = null
+	var aerial2: Antenna = null
+	for node: Variant in spawned.values():
+		_spawned.append(node)
+		if node is RetroTV:
+			tv2 = node
+		elif node is RetroSystem:
+			fc2 = node
+		elif node is FamicomRfSwitch:
+			switch2 = node
+		elif node is Antenna:
+			aerial2 = node
+		for b: Node in (node as Node).find_children("*", "RigidBody3D", true, false) + [node]:
+			if b is RigidBody3D:
+				(b as RigidBody3D).freeze = true
+	_ok(tv2 != null and fc2 != null and switch2 != null and aerial2 != null,
+		"a set, a Famicom, an HVC-003 and an aerial come back")
+	if tv2 == null or fc2 == null or switch2 == null or aerial2 == null:
+		Antenna.lineup_override = Callable()
+		return
+	await _wait(90)
+	Antenna.lineup_override = Callable()
+	_ok((switch2.get_node("Body") as Node3D).global_position.distance_to(saved_at) < 0.001,
+		"the box is where it was left")
+	_check_eq(_which_input(tv2, fc2), RetroTV.Source.RF, "the Famicom is back on the aerial input")
+	_check_eq(tv2.aerial(), aerial2, "and the set has the aerial through the switch again")
+
+
+## The PAL SNSP-003 (PalRfSwitch): no TV lead, the box IS the TV plug. An N64 through
+## its RF Modulator, the switch's console lead in the modulator's RF OUT and the
+## box straight onto the set's aerial socket, an aerial in the box's far end.
+## Returns [tv, n64, switch, aerial], or [] when a part is missing.
+func _pal_rf_rig() -> Array:
+	var tv := _tv()
+	var sys := await _n64()
+	var multi := sys.find_child("AvMultiOut", true, false) as RcaPort
+	var mod := await _spawn_lead(N64_RF_MODULATOR, sys.position + Vector3(0.2, 0.3, -0.3)) as RfModulator
+	var switch := await _spawn_lead(RF_SWITCH_PAL, sys.position + Vector3(0.4, 0.3, -0.6)) as PalRfSwitch
+	_ok(multi != null and mod != null and switch != null and switch.ant_port() != null,
+		"an N64, its modulator and a PAL switch with its aerial socket")
+	if multi == null or mod == null or switch == null or switch.ant_port() == null:
+		return []
+	var box := switch.get_node("PlugB0") as RcaPlug
+	box.freeze = true
+	var aerial := await _aerial(["4.1"])
+	await _seat_aerial(aerial, switch.ant_port())
+	mod.socket().pick_up_object(switch.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	multi.pick_up_object(mod.get_node("PlugA0") as RcaPlug)
+	await _wait(10)
+	_check_eq(_which_input(tv, sys), -1, "control: a switch on no set brings the N64 to none")
+	(tv.get_node("RfPort") as RcaPort).pick_up_object(box)
+	await _wait(35)
+	return [tv, sys, switch, aerial]
+
+
+func _w_pal_rf_switch() -> void:
+	var rig: Array = await _pal_rf_rig()
+	if rig.is_empty():
+		return
+	var tv: RetroTV = rig[0]
+	var sys: RetroSystem = rig[1]
+	var switch: PalRfSwitch = rig[2]
+	var aerial: Antenna = rig[3]
+	var box := switch.get_node("PlugB0") as RcaPlug
+	_ok(switch is RfSwitch, "the SNSP-003 is an RfSwitch, so every switch check finds it")
+	_ok(switch.get_node_or_null("Body") == null and switch.get_node_or_null("TvRope") == null,
+		"it has no TV lead and no separate body: the box is its TV plug")
+	_ok(box.is_in_group("coax_plug"), "and the box is an F plug, which the set's socket takes")
+	_check_eq(box.seated_port(), tv.get_node("RfPort") as Port, "seated in the set, not in its own socket")
+	_check_eq(_which_input(tv, sys), RetroTV.Source.RF, "the N64 is on the set's aerial input")
+	_check_eq(switch.reached_set(), tv, "and the switch knows which set it is on")
+	# Seated, the box stands upright (glTF +Y up) with its barrel into the set.
+	var zone := tv.get_node("RfPort") as Node3D
+	_ok(box.global_basis.y.dot(tv.global_basis.y) > 0.99, "the box stands upright on the set: +Y is %s" % box.global_basis.y)
+	_ok(box.global_basis.z.dot(zone.global_basis.z) < -0.99, "with its barrel pointing into the socket")
+	_check_eq(tv.aerial(), aerial, "the set has the aerial through the box's own socket")
+	_ok(aerial.via_switch(), "and the aerial says a switch is in the way")
+	_check_eq(aerial.reached_set(), tv, "and which set it feeds")
+	var port := switch.ant_port()
+	_ok(port.global_basis.z.dot(box.global_basis.z) < -0.99,
+		"the aerial socket faces away from the set, on the box's far end")
+
+	await _unplug(box)
+	_check_eq(_which_input(tv, sys), -1, "pulled off the set, the N64 leaves it")
+	_check_eq(tv.aerial(), null, "and so does the aerial")
+	_check_eq(switch.reached_set(), null, "the switch reaches nothing")
+	_check_eq(port.seated_plug(), aerial.get_node("PlugB0"), "while the aerial stays in the box")
+
+
+func _w_pal_rf_switch_round_trip() -> void:
+	var rig: Array = await _pal_rf_rig()
+	if rig.is_empty():
+		return
+	var persistence := ScenePersistence.new()
+	var objects: Array = persistence._collect_objects(self)
+	var entry := {}
+	for o: Dictionary in objects:
+		if str(o.get("kind", "")) == "rf_switch_pal":
+			entry = o
+	_ok(not entry.is_empty(), "the SNSP-003 serializes as a lead of kind 'rf_switch_pal'")
+	_check_eq(ScenePersistence._objects_validation_error(objects), "", "and the save validates")
+	_check_eq((entry.get("plugs", []) as Array).size(), 2, "with two plug records: the console plug and the box")
+	_ok(not entry.has("body"), "and no body pose: the box is a plug")
+
+	await _teardown()
+	await _wait(10)
+	Antenna.lineup_override = func() -> TVLineup:
+		var lineup := StubLineup.new()
+		lineup.put(["4.1"])
+		return lineup
+	var spawned: Dictionary = persistence.instantiate_objects(self, objects)
+	var tv2: RetroTV = null
+	var sys2: RetroSystem = null
+	var switch2: PalRfSwitch = null
+	var aerial2: Antenna = null
+	for node: Variant in spawned.values():
+		_spawned.append(node)
+		if node is RetroTV:
+			tv2 = node
+		elif node is RetroSystem:
+			sys2 = node
+		elif node is PalRfSwitch:
+			switch2 = node
+		elif node is Antenna:
+			aerial2 = node
+		for b: Node in (node as Node).find_children("*", "RigidBody3D", true, false) + [node]:
+			if b is RigidBody3D:
+				(b as RigidBody3D).freeze = true
+	_ok(tv2 != null and sys2 != null and switch2 != null and aerial2 != null,
+		"a set, an N64, a PAL switch and an aerial come back")
+	if tv2 == null or sys2 == null or switch2 == null or aerial2 == null:
+		Antenna.lineup_override = Callable()
+		return
+	await _wait(90)
+	Antenna.lineup_override = Callable()
+	_check_eq(switch2.reached_set(), tv2, "the box is back on the set")
+	_check_eq(_which_input(tv2, sys2), RetroTV.Source.RF, "and the N64 on its aerial input")
+	_check_eq(tv2.aerial(), aerial2, "with the aerial through the box again")
 
 
 ## An HVC-001 wears a CH1/CH2 slide beside its RF socket, and a set only shows the

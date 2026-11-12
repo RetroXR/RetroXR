@@ -1,0 +1,205 @@
+[gd_scene load_steps=23 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rf_modulator.gd" id="1_modscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="4_snapgp"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="5_rcaport"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/adapter_rca_port.gd" id="6_portscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_slider.gd" id="7_slider"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_block"]
+bounce = 0.0
+friction = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Mat_block"]
+albedo_color = Color(0.1, 0.1, 0.105, 1)
+roughness = 0.75
+
+[sub_resource type="StandardMaterial3D" id="Mat_nose"]
+albedo_color = Color(0.17, 0.17, 0.18, 1)
+roughness = 0.45
+
+[sub_resource type="StandardMaterial3D" id="Mat_slot"]
+shading_mode = 0
+albedo_color = Color(0.02, 0.02, 0.022, 1)
+
+[sub_resource type="StandardMaterial3D" id="Mat_knob"]
+albedo_color = Color(0.22, 0.22, 0.23, 1)
+roughness = 0.6
+
+[sub_resource type="BoxMesh" id="BoxMesh_block"]
+material = SubResource("Mat_block")
+size = Vector3(0.0375, 0.0225, 0.0413)
+
+[sub_resource type="BoxMesh" id="BoxMesh_collar"]
+material = SubResource("Mat_block")
+size = Vector3(0.024, 0.011, 0.0035)
+
+[sub_resource type="BoxMesh" id="BoxMesh_nose"]
+material = SubResource("Mat_nose")
+size = Vector3(0.0194, 0.0068, 0.0128)
+
+[sub_resource type="BoxMesh" id="BoxMesh_foot"]
+material = SubResource("Mat_block")
+size = Vector3(0.0066, 0.005, 0.0075)
+
+[sub_resource type="BoxMesh" id="BoxMesh_slot"]
+material = SubResource("Mat_slot")
+size = Vector3(0.007, 0.0035, 0.0004)
+
+[sub_resource type="BoxMesh" id="BoxMesh_knob"]
+material = SubResource("Mat_knob")
+size = Vector3(0.0025, 0.003, 0.003)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_block"]
+size = Vector3(0.0375, 0.0225, 0.0413)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_foot"]
+size = Vector3(0.0066, 0.005, 0.0075)
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
+radius = 0.03
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_slide"]
+size = Vector3(0.009, 0.008, 0.008)
+
+; ── Nintendo RF Modulator (NUS-003) ─────────────────────────────────────────────
+;
+; A rigid black block whose MULTI OUT plug goes straight into an N64's AV MULTI OUT
+; (no cord), an RCA "RF OUT" jack on its far end for the RF switch's console lead,
+; and a CH3-CH4 slide beside that jack. RfModulator explains the lead it is: ONE
+; plug, PlugA0, which IS the block, no PlugB0 and no VerletRope.
+;
+; ── The frame ───────────────────────────────────────────────────────────────────
+; PlugA0's frame is the N64 AV lead's console plug's (n64_av_cable.tscn): the origin
+; on the MATING plane (the face that stops on the socket's bezel, 2 mm proud of the
+; panel, n64_av_port.tscn), the connector along +Z into the console, the body
+; behind it along -Z. A seated plug stands at zone * R_x(180) (its SnapGrabPoint),
+; so on the N64's marker (+Y up, +Z out of the back) PlugA0's -Y is UP: the block is
+; laid out upside down in this frame, and stands upright on the console.
+;
+; RetroXR-models' nintendo/n64/rf-modulator GLB (glTF: meters, +Y up, base at y 0,
+; the nose pointing -Z, its tip at (0, 0.0105, -0.03695)) goes on PlugA0 by ONE
+; fixed transform. Its mating plane is the nose's ROOT, 12.8 mm (the nose's length)
+; back from the tip, at glTF (0, 0.0105, -0.02415), the collar's face:
+;
+;   p_PlugA0 = R_x(180) * (p_glTF - (0, 0.0105, -0.02415))
+;   i.e. Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0.0105, -0.02415)   (.tscn rows)
+;        x -> x, y -> 0.0105 - y, z -> -0.02415 - z
+;
+; Everything below is that map applied to the model's numbers:
+;   block   37.5 x 22.5 x 41.3, glTF y 0..0.0225, z -0.02065..0.02065
+;           -> PlugA0 y -0.012..0.0105, z -0.0448..-0.0035
+;   collar  24 x 11, 3.5 out of the AV IN end -> z -0.0035..0
+;   nose    19.4 x 6.8 x 12.8 -> z 0..0.0128 (inside the console when seated)
+;   foot    6.6 x 7.5, 5 below the base, under the AV IN end's RF OUT-side corner
+;   RfOut   glTF mouth (-0.0100, 0.0054, 0.02985), mouth facing +Z
+;           -> (-0.0100, 0.0051, -0.0540), basis R_x(180) (mouth facing PlugA0 -Z)
+;   knob    glTF ChannelPivot (0.0035, 0.0082, 0.02065), CH3, slides +X 3 mm
+;           -> ChannelKnob at (0.0035, 0.0023, -0.0448); the VRSlider ChannelSwitch
+;              at mid-travel (0.0050, 0.0023, -0.0448), axis +X (x maps to x)
+;
+; ── For a mod that dresses it ───────────────────────────────────────────────────
+; Hide PlugA0/Shell (every stand-in mesh but the knob), add the GLB under PlugA0 at
+; the transform above, set PlugA0/RfOut's show_jack false (the model moulds its
+; jack), and hand the model's knob to RfModulator.adopt_channel_knob (it hides
+; ChannelKnob). The stand-in is named Shell on purpose: a Multi Out plug that
+; already wears a Shell is one a lead mod (xenu.n64av dresses "n64_av_plug") leaves
+; alone, and this is not that lead's plug.
+[node name="N64RfModulator" type="Node3D"]
+script = ExtResource("1_modscript")
+cord_colors = PackedColorArray(0.1, 0.1, 0.105, 1)
+
+; Turned R_x(180) so the block stands upright as spawned (see the frame above).
+[node name="PlugA0" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_block")
+mass = 0.06
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+connector = "n64_av_plug"
+
+; The colliders sit on the BODY, behind the mating face, never on the nose: the
+; nose is inside the console whenever the connector matters (n64_av_cable.tscn).
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.00075, -0.02415)
+shape = SubResource("BoxShape3D_block")
+
+[node name="FootShape" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.01445, 0.013, -0.00775)
+shape = SubResource("BoxShape3D_foot")
+
+[node name="Shell" type="Node3D" parent="PlugA0"]
+
+[node name="Block" type="MeshInstance3D" parent="PlugA0/Shell"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.00075, -0.02415)
+mesh = SubResource("BoxMesh_block")
+
+[node name="Collar" type="MeshInstance3D" parent="PlugA0/Shell"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.00175)
+mesh = SubResource("BoxMesh_collar")
+
+[node name="Nose" type="MeshInstance3D" parent="PlugA0/Shell"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.0064)
+mesh = SubResource("BoxMesh_nose")
+
+[node name="Foot" type="MeshInstance3D" parent="PlugA0/Shell"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.01445, 0.013, -0.00775)
+mesh = SubResource("BoxMesh_foot")
+
+; The slide's slot on the RF OUT end's face (z -0.0448), just proud of it.
+[node name="ChannelSlot" type="MeshInstance3D" parent="PlugA0/Shell"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.005, 0.0023, -0.045)
+mesh = SubResource("BoxMesh_slot")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.00075, -0.02415)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA0"]
+script = ExtResource("3_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("4_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; RF OUT: speaks for the machine the block is seated in (AdapterRcaPort). The zone
+; is the jack's MOUTH, where a seated phono plug's origin belongs; the drawn jack
+; then lands 0.8 mm inside the face (rca_port.tscn pushes it back 10 mm, the
+; model's sleeve stands 9.2 out). R_x(180): the mouth faces PlugA0 -Z, away from
+; the console, and the RF switch's plug arrives from there.
+[node name="RfOut" parent="PlugA0" instance=ExtResource("5_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -0.01, 0.0051, -0.054)
+script = ExtResource("6_portscript")
+direction = 0
+rf_feed = true
+
+; The cap, authored at the CH3 detent (slider value 0): VRSlider.set_knob_mesh
+; anchors it where it is found at the current value. Not under Shell, so hiding
+; the stand-in leaves it until adopt_channel_knob replaces it.
+[node name="ChannelKnob" type="MeshInstance3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0035, 0.0023, -0.0448)
+mesh = SubResource("BoxMesh_knob")
+
+; CH3 at value 0 (the -X end), CH4 at value 1, 3 mm along +X.
+[node name="ChannelSwitch" type="Area3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.005, 0.0023, -0.0448)
+collision_layer = 1048577
+collision_mask = 0
+monitoring = false
+script = ExtResource("7_slider")
+axis_local = Vector3(1, 0, 0)
+travel = 0.003
+steps = 2
+engage_radius = 0.015
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/ChannelSwitch"]
+shape = SubResource("BoxShape3D_slide")

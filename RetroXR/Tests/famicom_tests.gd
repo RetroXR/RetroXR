@@ -546,7 +546,7 @@ func _test_platform() -> void:
 	# machine and arrive with it, so there is no such thing as a spare.
 	_ok(not ("famicom_controller_i" in labels or "famicom_controller_ii" in labels),
 		"platform/its card offers no pads, because they cannot be lost")
-	_ok("rf_switch" in labels, "platform/it offers the way a Famicom reached a set")
+	_ok("rf_switch_famicom" in labels, "platform/it offers the way a Famicom reached a set (its own HVC-003)")
 	_ok(not ("composite_cable" in labels),
 		"platform/and no composite lead, which fits nothing on this machine")
 

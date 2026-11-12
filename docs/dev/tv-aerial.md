@@ -11,6 +11,7 @@ is found by changing channel:
 |---|---|---|
 | a Famicom | its RF OUT, through the RXR-003 switch | **1, 2** — the CH1/CH2 slide on its back |
 | an NES | its RF OUT, through the RXR-003 switch | **3, 4** — the CH3/CH4 slide on its back |
+| an N64 | its RF Modulator (NUS-003) on the MULTI OUT, then the RXR-003 switch | **3, 4** — the slide on the MODULATOR |
 | broadcast television | an **Antenna** | whatever it receives: `2.1`, `4.1`, `10.2` … |
 
 `RetroTV.rf_dial()` merges them **numerically** with `TVLineup.number_key` —
@@ -61,6 +62,45 @@ order deliberately.
 `RfSwitch.drop_and_free` shuts and empties its ANT socket before the box goes: that socket
 holds somebody ELSE's plug, and freeing a snap zone that is holding a live pickable takes
 the pickable's grab driver with it.
+
+### The N64's RF Modulator (2026-11-11)
+
+The NUS-003 is `RfModulator` (`Scenes/Objects/system_models/nintendo_64/n64_rf_modulator.tscn`,
+spawn and save kind `n64_rf_modulator`, on the n64 card with the RF switch): a `CompositeCable`
+of ONE plug and no rope, like `LinkAdapter`. `PlugA0` (connector `n64_av_plug`) IS the block;
+its RF OUT is `PlugA0/RfOut`, an `AdapterRcaPort` (OUT, VIDEO, `rf_feed`) whose
+`get_device()` is the machine the block is seated in, null while it is loose, and which is
+saved under the block (`save_owner`). The block's `_resolve` re-resolves the lead in RF OUT,
+as `AvAdapter` does, so the console and the set hear of a pull.
+
+**The channel is the block's, not the console's.** `RetroSystem.get_rf_channel` asks
+`RfModulator.channel_on(self)` when its model answers -1, so `TvPanel.rf_tuned` still asks one
+host one question; the machine's menu row (`rf_options`, `set_rf_channel`) follows the same
+fallback. The slide is `PlugA0/ChannelSwitch` (VRSlider, CH3 at value 0), saved as an
+articulated control. `av_tests` `wiring/` "RF Modulator" cases hold it (mutation-checked).
+
+### The regional switches: HVC-003 and SNSP-003 (2026-11-11)
+
+Two subclasses of `RfSwitch`, so every `is RfSwitch` check (RetroTV, `tv_panel.gd`,
+`antenna.gd`) finds them, each with its own scene, spawn and save kind (`LEAD_SCENES`):
+
+- **`FamicomRfSwitch`** (`rf_switch_famicom.tscn`, on the famicom card in place of the
+  RXR-003): the RXR-003's layout in a white box. `Body` IS RetroXR-models' glTF frame
+  (meters, +Y up, base on y = 0), so a mod puts the GLB on `Body` untransformed and hides
+  `Body/Shell`. `Body/AntPort` stands UP out of the top at the coax screw terminal (zone +Z
+  = +Y; an F plug seats moving -Y). The TV lead keeps an F plug (the real one is bare coax).
+- **`PalRfSwitch`** (`rf_switch_pal.tscn`, on the n64 and snes cards): NO TV lead. `PlugB0`
+  IS the box (connector `coax_plug`; the real one is IEC), `PlugB0/AntPort` on its far end,
+  the 3 m console lead from `PlugB0/DeckLeadAttach`. It overrides `ant_port`, `_build_rope`
+  (one rope), the tether (the box is the hauled body), `spawn_hold_target` (the box) and
+  `carried_body_pose` (empty: the box saves as a plug). `AntPort.snap_filter` refuses the
+  switch's own plugs, or the box could seat in its own socket. glTF -> `PlugB0` is a pure
+  translation, `p - (0, 0.009, 0.0176)` (the stock set's `RfPort` is R_x(180) off the set,
+  so a seated plug's frame is the set's and the box stands upright; `av_tests` checks it).
+
+`RfSwitch` now looks its nodes up with `get_node_or_null` so a scene without `Body`/`TvRope`
+loads clean. `av_tests` `wiring/` "HVC-003" and "PAL switch" cases cover routing, the aerial
+through each, pulling, and a save/restore round trip.
 
 ### Reception and playback are two nodes
 

@@ -1,0 +1,206 @@
+[gd_scene load_steps=18 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/pal_rf_switch.gd" id="1_switchscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/rca_plug_yellow.res" id="3_rcaplug"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/coax_port.tscn" id="6_coaxport"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_case"]
+albedo_color = Color(0.1, 0.1, 0.105, 1)
+roughness = 0.7
+
+[sub_resource type="StandardMaterial3D" id="Mat_metal"]
+albedo_color = Color(0.75, 0.75, 0.73, 1)
+metallic = 0.85
+roughness = 0.3
+
+[sub_resource type="BoxMesh" id="BoxMesh_case"]
+material = SubResource("Mat_case")
+size = Vector3(0.0257, 0.018, 0.0352)
+
+[sub_resource type="CylinderMesh" id="CylMesh_barrel"]
+material = SubResource("Mat_metal")
+top_radius = 0.0047
+bottom_radius = 0.0047
+height = 0.0097
+radial_segments = 16
+rings = 1
+
+[sub_resource type="CylinderMesh" id="CylMesh_socket"]
+material = SubResource("Mat_case")
+top_radius = 0.0065
+bottom_radius = 0.0065
+height = 0.003
+radial_segments = 16
+rings = 1
+
+[sub_resource type="BoxMesh" id="BoxMesh_boss"]
+material = SubResource("Mat_case")
+size = Vector3(0.0125, 0.006, 0.006)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_case"]
+size = Vector3(0.0257, 0.018, 0.0352)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_switch"]
+bounce = 0.0
+friction = 0.9
+
+; The RXR-003's fitted phono plug box (Tools/rope/plug_shape_probe).
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
+size = Vector3(0.0144, 0.0144, 0.054)
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
+radius = 0.038
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_boxpointer"]
+radius = 0.032
+
+; ── SNSP-003 RF Switch (PAL) ────────────────────────────────────────────────────
+;
+; PalRfSwitch, an RfSwitch with NO TV lead: the box plugs straight onto the set's
+; aerial socket, so PlugB0 IS the box (connector coax_plug: the set's F socket takes
+; it; the real one is IEC). Its aerial socket is PlugB0/AntPort on the far end, and
+; the console lead (PlugA0, a black phono plug, 3 m) leaves PlugB0/DeckLeadAttach on
+; the box's side. No Body, no TvRope; the one rope is VerletRope (CompositeCable's
+; name for it).
+;
+; ── The frame ───────────────────────────────────────────────────────────────────
+; PlugB0's frame is a plug's: the connector along +Z, the MATING plane at the origin
+; (a seated plug stands at zone * R_x(180), its SnapGrabPoint). RetroXR-models'
+; nintendo/snes/rf-switch-pal GLB (glTF: meters, +Y up, back face on y = 0, box
+; 25.7 x 18 x 35.2 centered in X and Z, the barrel along +Z with its tip at
+; TVPlugAnchor (0, 0.009, 0.0273)) has its mating plane on the face the barrel
+; leaves, z = 0.0176 (the tip less the barrel's 9.7 mm), on the barrel's axis:
+;
+;   p_PlugB0 = p_glTF - (0, 0.009, 0.0176)
+;   i.e. Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.009, -0.0176)   (.tscn rows)
+;
+; A pure translation: the stock set's RfPort zone is R_x(180) off the set, so a
+; seated plug's frame is the set's own and the box stands upright (glTF +Y up).
+; The model's empties, mapped:
+;   TVPlugAnchor      (0, 0.009, 0.0273)       -> (0, 0, 0.0097), the barrel's tip
+;   AntennaAnchor     (0, 0.009, -0.0206)      -> AntPort (0, 0, -0.0382), basis
+;                     R_x(180): the zone's +Z faces PlugB0 -Z, where an aerial plug
+;                     arrives from, and the plug seats moving +Z
+;   ConsoleCordAnchor (0.02535, 0.009, -0.0124) -> DeckLeadAttach (0.02535, 0, -0.03),
+;                     R_y(-90): the rope leaves along its local -Z = +X
+;
+; ── For a mod that dresses it ───────────────────────────────────────────────────
+; PlugB0/Shell holds every stand-in mesh and IS the glTF frame (its transform is the
+; one above, its children in the model's own numbers): hide it and add the GLB under
+; PlugB0 at that transform. Set PlugB0/AntPort's show_jack false if the model
+; moulds its socket.
+[node name="PalRfSwitch" type="Node3D"]
+script = ExtResource("1_switchscript")
+cord_colors = PackedColorArray(0.07, 0.07, 0.08, 1)
+
+; ── End B: the box ─────────────────────────────────────────────────────────────
+[node name="PlugB0" type="RigidBody3D" parent="."]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_switch")
+mass = 0.04
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+connector = "coax_plug"
+
+; The case only, never the barrel: the barrel is inside the set when it matters.
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0176)
+shape = SubResource("BoxShape3D_case")
+
+[node name="Shell" type="Node3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.009, -0.0176)
+
+[node name="Case" type="MeshInstance3D" parent="PlugB0/Shell"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.009, 0)
+mesh = SubResource("BoxMesh_case")
+
+; R_x(90) lays the cylinder's axis along +Z: z 0.0176..0.0273.
+[node name="Barrel" type="MeshInstance3D" parent="PlugB0/Shell"]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0.009, 0.02245)
+mesh = SubResource("CylMesh_barrel")
+
+; The aerial socket's collar on the back face: z -0.0206..-0.0176.
+[node name="AntCollar" type="MeshInstance3D" parent="PlugB0/Shell"]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0.009, -0.0191)
+mesh = SubResource("CylMesh_socket")
+
+; The console cord's strain relief, out of the +X side to ConsoleCordAnchor.
+[node name="CordBoss" type="MeshInstance3D" parent="PlugB0/Shell"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0191, 0.009, -0.0124)
+mesh = SubResource("BoxMesh_boss")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0176)
+shape = SubResource("SphereShape3D_boxpointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="AntPort" parent="PlugB0" instance=ExtResource("6_coaxport")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, -0.0382)
+direction = 1
+
+[node name="DeckLeadAttach" type="Marker3D" parent="PlugB0"]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0.02535, 0, -0.03)
+
+; ── End A: the console plug, 30 cm out along +X, its cord trailing back (R_y(90)).
+[node name="PlugA0" type="RigidBody3D" parent="."]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0.3, 0, -0.03)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_switch")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; ── the console lead: 60 x 50 mm = 3.0 m.
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 60
+segment_length = 0.05
+constraint_iterations = 8
+bend_stiffness = 0.2
+tube_radius = 0.0022
+tube_sides = 6
+smoothing = 2
+rope_color = Color(0.07, 0.07, 0.08, 1)
+surface_collision_mask = 7
+collision_radius = 0.0045
+self_collision = true
+end_align_stiffness = 0.7
+end_stiffness = 0.45
+end_stiff_segments = 2

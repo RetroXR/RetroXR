@@ -1377,8 +1377,23 @@ func is_stereo_output() -> bool:
 ## Asked by a television showing its aerial input: an RF-fed console only appears
 ## when the set is tuned to the channel the console is modulating on. The switch is
 ## the MODEL's — an NES wears one, a Wii does not — so this only forwards.
+##
+## ...unless the model has none and the machine reaches the set through a separate
+## modulator: an N64's RF Modulator (RfModulator) wears the slide, on the block in
+## its MULTI OUT. Asked here rather than by the set, so a set's tuning still asks
+## one question of one host whichever box carries the switch.
 func get_rf_channel() -> int:
-	return _model.get_rf_channel() if _model != null else -1
+	var ch: int = _model.get_rf_channel() if _model != null else -1
+	return ch if ch >= 0 else RfModulator.channel_on(self)
+
+
+## The channels the machine's menu offers for its RF slide: its model's, else its
+## modulator's, else none.
+func _rf_channel_options() -> Array:
+	var options: Array = _model.rf_channel_options() if _model != null else []
+	if options.is_empty() and RfModulator.on(self) != null:
+		options = RfModulator.CHANNELS.duplicate()
+	return options
 
 
 ## The model's channel switch moved. Tell whichever set is showing us on its aerial
@@ -2898,7 +2913,7 @@ func controls_state() -> Dictionary:
 		"has_reset": _reset_button != null and _reset_button.visible,
 		"eject": _disc_tray.eject_label(),
 		"rf_channel": get_rf_channel(),
-		"rf_options": _model.rf_channel_options() if _model != null else [],
+		"rf_options": _rf_channel_options(),
 		"rows": _model.menu_rows() if _model != null else [],
 		"display": "",
 		"wiring": [],
@@ -2972,7 +2987,13 @@ func core_options_snapshot() -> Dictionary:
 
 ## The RF channel slide, set from the menu. The model moves its own switch.
 func set_rf_channel(channel: int) -> void:
-	if _model != null:
+	if _model != null and not _model.rf_channel_options().is_empty():
+		_model.set_rf_channel(channel)
+		return
+	var modulator := RfModulator.on(self)
+	if modulator != null:
+		modulator.set_channel(channel)
+	elif _model != null:
 		_model.set_rf_channel(channel)
 
 

@@ -1,0 +1,231 @@
+[gd_scene load_steps=20 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/famicom_rf_switch.gd" id="1_switchscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rf_switch_body.gd" id="2_bodyscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="4_rcaplugscript"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/rca_plug_yellow.res" id="5_rcaplug"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/coax_plug.res" id="7_coaxplug"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="8_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="9_snapgp"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/coax_port.tscn" id="10_coaxport"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_case"]
+albedo_color = Color(0.9, 0.89, 0.86, 1)
+roughness = 0.6
+
+[sub_resource type="StandardMaterial3D" id="Mat_terminal"]
+albedo_color = Color(0.72, 0.72, 0.7, 1)
+metallic = 0.8
+roughness = 0.35
+
+[sub_resource type="BoxMesh" id="BoxMesh_case"]
+material = SubResource("Mat_case")
+size = Vector3(0.0826, 0.0155, 0.0613)
+
+[sub_resource type="BoxMesh" id="BoxMesh_lip"]
+material = SubResource("Mat_case")
+size = Vector3(0.0866, 0.0015, 0.0653)
+
+[sub_resource type="CylinderMesh" id="CylMesh_terminal"]
+material = SubResource("Mat_terminal")
+top_radius = 0.0035
+bottom_radius = 0.0035
+height = 0.0036
+radial_segments = 12
+rings = 1
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(0.0826, 0.0155, 0.0613)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_bodyptr"]
+size = Vector3(0.096, 0.045, 0.075)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_switch"]
+bounce = 0.0
+friction = 0.9
+
+; The RXR-003's fitted connector boxes (Tools/rope/plug_shape_probe).
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
+size = Vector3(0.0144, 0.0144, 0.054)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit2"]
+size = Vector3(0.0128, 0.0111, 0.0444)
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
+radius = 0.038
+
+; ── HVC-003 RF Switch (Famicom) ─────────────────────────────────────────────────
+;
+; FamicomRfSwitch, an RfSwitch: the RXR-003's layout (rf_switch.tscn) in a small
+; white box. PlugA0 the console lead's black phono plug, PlugB0 the TV lead's F
+; plug (the real lead is bare coax for screw terminals; the game's sets take F),
+; AntPort the aerial's input on the coax screw terminal, standing UP out of the top.
+; The deck rope is named VerletRope for CompositeCable's sake (see rf_switch.tscn).
+;
+; ── The frame ───────────────────────────────────────────────────────────────────
+; Body IS RetroXR-models' glTF frame for nintendo/famicom/rf-switch (meters, +Y up,
+; base on y = 0, centered in X and Z): a mod puts the GLB on Body UNTRANSFORMED,
+; hides Body/Shell (every stand-in mesh) and sets Body/AntPort's show_jack false if
+; the model moulds its terminal. Box 82.6 (X) x 15.5 (Y) x 61.3 (Z) on a lip.
+; Markers on the model's empties:
+;   DeckLeadAttach  DeckCordAnchor ( 0.0425, 0.0062, -0.0040), lead out along +X
+;   TvLeadAttach    TVCordAnchor   ( 0.0159, 0.0062, -0.03185), lead out along -Z
+;   AntPort         AntennaAnchor  (-0.0183, 0.0191,  0.0084), the coax terminal's
+;                   cap top; the zone's +Z is +Y, so an F plug arrives from above
+;                   and seats moving -Y
+[node name="FamicomRfSwitch" type="Node3D"]
+script = ExtResource("1_switchscript")
+cord_colors = PackedColorArray(0.07, 0.07, 0.08, 1)
+
+[node name="Body" type="RigidBody3D" parent="."]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_switch")
+mass = 0.06
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_bodyscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.00775, 0)
+shape = SubResource("BoxShape3D_body")
+
+; Every stand-in mesh, so a mod hides one node.
+[node name="Shell" type="Node3D" parent="Body"]
+
+[node name="Case" type="MeshInstance3D" parent="Body/Shell"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.00775, 0)
+mesh = SubResource("BoxMesh_case")
+
+; The lip round the foot, 2 mm proud of each wall and 1.5 mm tall.
+[node name="Lip" type="MeshInstance3D" parent="Body/Shell"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.00075, 0)
+mesh = SubResource("BoxMesh_lip")
+
+; The coax screw terminal, up from the top face (y 0.0155) to its cap (0.0191).
+[node name="CoaxTerminal" type="MeshInstance3D" parent="Body/Shell"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0183, 0.0173, 0.0084)
+mesh = SubResource("CylMesh_terminal")
+
+[node name="PointerArea" type="StaticBody3D" parent="Body"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Body/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.00775, 0)
+shape = SubResource("BoxShape3D_bodyptr")
+
+[node name="PickableHighlight" type="Node3D" parent="Body"]
+script = ExtResource("8_pickhigh")
+
+; The aerial's input: R_x(-90) turns the zone's +Z (out of the socket) to +Y.
+[node name="AntPort" parent="Body" instance=ExtResource("10_coaxport")]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, -0.0183, 0.0191, 0.0084)
+direction = 1
+
+; A VerletRope leaves its anchor along the anchor's LOCAL -Z. R_y(-90) sends the
+; console lead out +X; the TV lead's marker is unturned, out -Z.
+[node name="DeckLeadAttach" type="Marker3D" parent="Body"]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0.0425, 0.0062, -0.004)
+
+[node name="TvLeadAttach" type="Marker3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0159, 0.0062, -0.03185)
+
+; ── End A: the console plug, 25 cm out along +X, its cord trailing back (R_y(90)).
+[node name="PlugA0" type="RigidBody3D" parent="."]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0.3, 0.0062, -0.004)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_switch")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("4_rcaplugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
+mesh = ExtResource("5_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA0"]
+script = ExtResource("8_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("9_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; ── End B: the TV lead's F plug, 25 cm out along -Z, cord trailing back (R_y(180)).
+[node name="PlugB0" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.0159, 0.0062, -0.28)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_switch")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("4_rcaplugscript")
+connector = "coax_plug"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0098)
+shape = SubResource("BoxShape3D_plugfit2")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
+mesh = ExtResource("7_coaxplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0/PointerArea"]
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB0"]
+script = ExtResource("8_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("9_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; ── the ropes: the RXR-003's 1.80 m console lead and stiff 25 cm TV lead.
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 50
+segment_length = 0.036
+constraint_iterations = 8
+bend_stiffness = 0.2
+tube_radius = 0.0022
+tube_sides = 6
+smoothing = 2
+rope_color = Color(0.07, 0.07, 0.08, 1)
+surface_collision_mask = 7
+collision_radius = 0.0045
+self_collision = true
+end_align_stiffness = 0.7
+end_stiffness = 0.45
+end_stiff_segments = 2
+
+[node name="TvRope" type="VerletRope" parent="."]
+segment_count = 10
+segment_length = 0.025
+constraint_iterations = 8
+bend_stiffness = 0.5
+tube_radius = 0.0028
+tube_sides = 6
+smoothing = 2
+rope_color = Color(0.07, 0.07, 0.08, 1)
+surface_collision_mask = 7
+collision_radius = 0.005
+self_collision = true
+end_align_stiffness = 0.8
+end_stiffness = 0.5
+end_stiff_segments = 2

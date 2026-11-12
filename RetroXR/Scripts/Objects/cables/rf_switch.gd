@@ -36,11 +36,13 @@
 class_name RfSwitch
 extends CompositeCable
 
-@onready var _body: RigidBody3D = $Body
-@onready var _deck_rope: VerletRope = $VerletRope
-@onready var _tv_rope: VerletRope = $TvRope
-@onready var _deck_attach: Node3D = $Body/DeckLeadAttach
-@onready var _tv_attach: Node3D = $Body/TvLeadAttach
+# Looked up rather than `$`-pathed: a regional switch (PalRfSwitch) has no TV lead
+# and no separate Body -- its box IS the TV plug -- and sets these itself.
+@onready var _body: RigidBody3D = get_node_or_null("Body") as RigidBody3D
+@onready var _deck_rope: VerletRope = get_node_or_null("VerletRope") as VerletRope
+@onready var _tv_rope: VerletRope = get_node_or_null("TvRope") as VerletRope
+@onready var _deck_attach: Node3D = get_node_or_null("Body/DeckLeadAttach") as Node3D
+@onready var _tv_attach: Node3D = get_node_or_null("Body/TvLeadAttach") as Node3D
 
 var _deck_reach := 0.0
 var _tv_reach := 0.0
@@ -59,6 +61,8 @@ func _init() -> void:
 func _ready() -> void:
 	super._ready()
 	# A dangling connector must not shove its own box across the desk.
+	if _body == null:
+		return
 	for e in [End.A, End.B]:
 		for plug: RcaPlug in _end_plugs(e):
 			plug.add_collision_exception_with(_body)

@@ -147,6 +147,13 @@ const _PERIPHERALS: Dictionary = {
 		# composite lead fits the television and nothing at this end. Nintendo's
 		# SNS-008, shared by the Super Nintendo, the N64 and the GameCube.
 		{"kind": "peripheral", "label": "Stereo AV Cable", "spawn": "n64_av_cable"},
+		# How an N64 reached a set with only an aerial socket: the block goes on the
+		# MULTI OUT (RfModulator), and the RF switch's lead into its RF OUT.
+		{"kind": "peripheral", "label": "RF Modulator (NUS-003)", "spawn": "n64_rf_modulator"},
+		{"kind": "peripheral", "label": "RF Switch (RXR-003)", "spawn": "rf_switch"},
+		# The PAL one: no TV lead, the box goes straight onto the aerial socket
+		# (PalRfSwitch).
+		{"kind": "peripheral", "label": "RF Switch (SNSP-003, PAL)", "spawn": "rf_switch_pal"},
 	],
 	# The remote is named here even though it fits no socket: it is the Wii's
 	# controller, and a player who spawns a Wii should be offered one without
@@ -212,7 +219,9 @@ const _PERIPHERALS: Dictionary = {
 	# offered is the way a Famicom reached a television, since its only output is
 	# the RF socket beside the channel switch.
 	"famicom": [
-		{"kind": "peripheral", "label": "RF Switch (RXR-003)", "spawn": "rf_switch"},
+		# Its own switch, the HVC-003 (FamicomRfSwitch): the aerial on a screw
+		# terminal on top. The NES card keeps the RXR-003.
+		{"kind": "peripheral", "label": "RF Switch (HVC-003)", "spawn": "rf_switch_famicom"},
 		# Players 3 and 4, through the 15-pin expansion port on the front
 		# (FamicomFourPlayersAdaptor). Its sockets take expansion-port pads; the
 		# game ships none, so the Controllers tab's generic pad and a real pad's
@@ -237,6 +246,10 @@ const _PERIPHERALS: Dictionary = {
 		# The primitive box on this card wears a Multi Out to take it rather than
 		# phono jacks (RetroSystemModelDefault), as every Super NES model does.
 		{"kind": "peripheral", "label": "Stereo AV Cable", "spawn": "n64_av_cable"},
+		# The PAL RF switch, whose box plugs straight onto the aerial socket
+		# (PalRfSwitch). Its lead takes a console RF OUT; the stock box wears none,
+		# so it is a model mod's (xenu.snes) RF OUT that it fits here.
+		{"kind": "peripheral", "label": "RF Switch (SNSP-003, PAL)", "spawn": "rf_switch_pal"},
 		# Nintendo's own gun: the cordless scope (six AA cells in its stock) and its
 		# infrared receiver, which goes in controller port 2 (SuperScope).
 		{"kind": "peripheral", "label": "Super Scope (SNS-013)", "spawn": "super_scope"},

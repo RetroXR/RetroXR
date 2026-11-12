@@ -521,7 +521,7 @@ func _group_objects() -> void:
 		"ngp_link_cable": "ngp", "vb_link_cable": "virtualboy", "comlynx_cable": "atarilynx",
 		"gc_gba_cable": "gc", "psx_link_cable": "psx", "saturn_link_cable": "saturn",
 		"jag_link_cable": "atarijaguar", "ilink_cable": "ps2", "ilink_hub": "ps2",
-		"sensor_bar": "wii", "rf_switch": "nes",
+		"sensor_bar": "wii", "rf_switch": "nes", "rf_switch_famicom": "famicom", "rf_switch_pal": "n64",
 		"sega32x_video_link_cable": "sega32x", "sega32x_conversion_cable": "sega32x"}
 	var tab_tokens := SpawnCatalog.OBJECTS.map(func(r: Array) -> String: return str(r[1]))
 	var on_tab := []

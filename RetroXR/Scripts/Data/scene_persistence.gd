@@ -375,6 +375,14 @@ const LEAD_SCENES := {
 	# A JAMMA harness lead: a cabinet's back socket to a bay's.
 	"jamma_cable": JAMMA_CABLE_SCENE,
 	"rf_switch": RF_SWITCH_SCENE,
+	# The regional switches, both RfSwitch: the Famicom's HVC-003 (FamicomRfSwitch)
+	# and the PAL SNSP-003 (PalRfSwitch), whose box is its TV plug.
+	"rf_switch_famicom": preload("res://Scenes/Objects/appliances/rf_switch_famicom.tscn"),
+	"rf_switch_pal": preload("res://Scenes/Objects/appliances/rf_switch_pal.tscn"),
+	# Nintendo's RF Modulator (NUS-003): a lead of one plug and no cord, the block in
+	# an N64's MULTI OUT; the RF switch's plug in its RF OUT is saved under it
+	# (RfModulator, AdapterRcaPort.save_owner).
+	"n64_rf_modulator": preload("res://Scenes/Objects/system_models/nintendo_64/n64_rf_modulator.tscn"),
 	"antenna": ANTENNA_SCENE,
 	# A headset whose captive cord ends in a 3.5 mm plug (Headphones): a lead with a body on one end, like the aerial.
 	"headphones": preload("res://Scenes/Objects/appliances/headphones.tscn"),
