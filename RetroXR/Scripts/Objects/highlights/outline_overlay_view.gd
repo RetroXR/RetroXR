@@ -44,6 +44,9 @@ func _ready() -> void:
 	add_child(_viewport)
 	_camera = Camera3D.new()
 	_camera.cull_mask = LAYER
+	# It copies the main camera's pose every frame, already interpolated; interpolating it again warned
+	# ("Interpolated Camera3D triggered from outside physics process") and would lag a tick.
+	_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_viewport.add_child(_camera)
 	_camera.current = true
 	_rect = TextureRect.new()
