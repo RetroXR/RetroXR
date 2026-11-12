@@ -1,7 +1,9 @@
 # Seats (§2z-seat)
 
-`Seat` (`Scripts/Objects/room/seat.gd`, extends `XRToolsPickable` like `Table`) is somewhere the player sits: a racing seat, a stool, a chair, a floor cushion, a sofa,
-a bed (`Scenes/Objects/furniture/seat_*.tscn`, baked by `Tools/gen/gen_seats.gd`, primitive boxes: sizes are ordinary furniture, none measured). Spawn menu > Objects.
+`Seat` (`Scripts/Objects/room/seat.gd`, extends `XRToolsPickable` like `Table`) is somewhere the player sits. **No seat is room furniture any more (2026-11-12):** the racing seat, stool, floor cushion and bed were removed, and the chair and sofa
+are TEST FIXTURES (`Tests/fixtures/seat_{chair,sofa}.tscn`, baked by `Tools/gen/gen_seats.gd`, primitive boxes) that `seat_tests` sits on; none is a `PLAIN_SCENES` type or on the
+Objects tab, and a room saved with one loads without it (`unknown object type`). The code stays for the arcade's `CockpitSeat` and for a seat to come. What follows was written
+when the six seats were furniture; read "the seats" as the fixtures.
 
 - **Press the cushion to sit, again to get up; HOLD on the seat to carry it** (`grab_hold_seconds` = `HoldToGrab.DEFAULT_SECONDS`). `SeatTrigger` is a pointable
   `Area3D` slab 3 cm proud of the cushion, so it wins the ray over the body's `PointerArea` (the same rule that makes the arcade's panel grip work); it tints when aimed at.

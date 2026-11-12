@@ -1,5 +1,5 @@
-## Seat — somewhere the player sits: a racing seat, a stool, a cushion on the floor, a chair,
-## a sofa, a bed.
+## Seat — somewhere the player sits. No seat is room furniture any more (2026-11-12): the chair and sofa
+## are test fixtures (Tests/fixtures/, Tools/gen/gen_seats.gd), and the arcade's CockpitSeat shares the sitting.
 ##
 ## Press the seat's cushion (a desktop click, the laser's trigger: SeatTrigger) and the
 ## player is carried onto it: the origin is moved so the HEAD is at the seat's `EyePoint`,

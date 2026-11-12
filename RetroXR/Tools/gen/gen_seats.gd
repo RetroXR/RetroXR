@@ -1,11 +1,12 @@
-## Bakes the seats (Scripts/Objects/room/seat.gd) to Scenes/Objects/furniture/seat_*.tscn:
-## a racing seat, a stool, a floor cushion, a chair, a sofa and a bed.
+## Bakes the seat FIXTURES (Scripts/Objects/room/seat.gd) to Tests/fixtures/seat_*.tscn: a chair and a sofa.
+## No seat is furniture in the room any more (2026-11-12); seat_tests sits on these to test the Seat code,
+## which the arcade's CockpitSeat still shares.
 ##
 ##   godot --headless --path RetroXR --script res://Tools/gen/gen_seats.gd [-- --only=seat_chair]
 ##
 ## FRAME. Origin on the floor at the middle of the seat, the seat FACES -Z (the way the eyes
 ## look). `EyePoint` is where the head goes (seat height + a sitting adult's eye height above
-## it, ~0.78 m; a lying one on the bed is on the pillow); `StandPoint` is on the floor at
+## it, ~0.78 m); `StandPoint` is on the floor at
 ## the seat's side, where the player is put when they get up (to a side because the front is
 ## often a cabinet or a screen). `SeatTrigger` is a slab proud of the cushion, the thing you press.
 ##
@@ -14,7 +15,7 @@
 extends SceneTree
 
 const U := preload("res://Tools/gen/arcade_gen_util.gd")
-const OUT_DIR := "res://Scenes/Objects/furniture/"
+const OUT_DIR := "res://Tests/fixtures/"
 const SCRIPT_SEAT := "res://Scripts/Objects/room/seat.gd"
 const SCRIPT_TRIGGER := "res://Scripts/Objects/room/seat_trigger.gd"
 const SCRIPT_HIGHLIGHT := "res://Scripts/Objects/highlights/pickable_highlight.gd"
@@ -26,33 +27,6 @@ const EYE_ABOVE := 0.78
 ## `trigger` is the cushion's footprint [size x, size z, top y]; `stand_x` the side the player gets up on.
 func _families() -> Dictionary:
 	return {
-		"seat_racing": {
-			"title": "Racing Seat", "mass": 15.0, "seat_top": 0.30, "eye_above": 0.72, "stand_x": 0.62,
-			"parts": [
-				["Rails", Vector3(0.50, 0.04, 0.80), Vector3(0, 0.02, 0.0), "frame"],
-				["Base", Vector3(0.44, 0.10, 0.46), Vector3(0, 0.09, 0.05), "frame"],
-				["Cushion", Vector3(0.40, 0.10, 0.42), Vector3(0, 0.25, 0.04), "shell"],
-				["Back", Vector3(0.42, 0.55, 0.10), Vector3(0, 0.58, 0.30), "shell"],
-				["BolsterL", Vector3(0.07, 0.30, 0.38), Vector3(-0.215, 0.43, 0.10), "shell"],
-				["BolsterR", Vector3(0.07, 0.30, 0.38), Vector3(0.215, 0.43, 0.10), "shell"],
-				["Stitch", Vector3(0.05, 0.50, 0.012), Vector3(0, 0.58, 0.245), "trim"],
-			],
-			"shapes": [[Vector3(0.50, 0.30, 0.80), Vector3(0, 0.15, 0.0)], [Vector3(0.44, 0.55, 0.12), Vector3(0, 0.58, 0.30)]],
-			"trigger": [0.40, 0.42, 0.30], "trigger_z": 0.04,
-		},
-		"seat_stool": {
-			"title": "Stool", "mass": 4.0, "seat_top": 0.75, "eye_above": EYE_ABOVE, "stand_x": 0.5,
-			"parts": [
-				["Seat", Vector3(0.36, 0.05, 0.36), Vector3(0, 0.725, 0), "wood"],
-				["LegFL", Vector3(0.04, 0.70, 0.04), Vector3(-0.15, 0.35, -0.15), "frame"],
-				["LegFR", Vector3(0.04, 0.70, 0.04), Vector3(0.15, 0.35, -0.15), "frame"],
-				["LegBL", Vector3(0.04, 0.70, 0.04), Vector3(-0.15, 0.35, 0.15), "frame"],
-				["LegBR", Vector3(0.04, 0.70, 0.04), Vector3(0.15, 0.35, 0.15), "frame"],
-				["Rest", Vector3(0.34, 0.025, 0.34), Vector3(0, 0.28, 0), "frame"],
-			],
-			"shapes": [[Vector3(0.36, 0.05, 0.36), Vector3(0, 0.725, 0)], [Vector3(0.34, 0.70, 0.34), Vector3(0, 0.35, 0)]],
-			"trigger": [0.36, 0.36, 0.75], "trigger_z": 0.0,
-		},
 		"seat_chair": {
 			"title": "Chair", "mass": 6.0, "seat_top": 0.46, "eye_above": EYE_ABOVE, "stand_x": 0.55,
 			"parts": [
@@ -66,12 +40,6 @@ func _families() -> Dictionary:
 			"shapes": [[Vector3(0.44, 0.46, 0.44), Vector3(0, 0.23, 0)], [Vector3(0.44, 0.48, 0.05), Vector3(0, 0.70, 0.20)]],
 			"trigger": [0.44, 0.44, 0.46], "trigger_z": 0.0,
 		},
-		"seat_cushion": {
-			"title": "Floor Cushion", "mass": 1.0, "seat_top": 0.13, "eye_above": 0.70, "stand_x": 0.6,
-			"parts": [["Pad", Vector3(0.55, 0.13, 0.55), Vector3(0, 0.065, 0), "fabric"]],
-			"shapes": [[Vector3(0.55, 0.13, 0.55), Vector3(0, 0.065, 0)]],
-			"trigger": [0.55, 0.55, 0.13], "trigger_z": 0.0,
-		},
 		"seat_sofa": {
 			"title": "Sofa", "mass": 40.0, "seat_top": 0.44, "eye_above": EYE_ABOVE, "stand_x": 1.2,
 			"parts": [
@@ -83,17 +51,6 @@ func _families() -> Dictionary:
 			],
 			"shapes": [[Vector3(1.80, 0.44, 0.85), Vector3(0, 0.22, 0)], [Vector3(1.80, 0.50, 0.18), Vector3(0, 0.60, 0.33)]],
 			"trigger": [1.40, 0.70, 0.44], "trigger_z": -0.05,
-		},
-		"seat_bed": {
-			"title": "Bed", "mass": 60.0, "seat_top": 0.52, "eye_above": 0.14, "stand_x": 1.1, "eye_z": 0.70,
-			"parts": [
-				["Frame", Vector3(1.40, 0.30, 2.00), Vector3(0, 0.25, 0), "frame"],
-				["Mattress", Vector3(1.34, 0.17, 1.94), Vector3(0, 0.435, 0), "fabric"],
-				["Pillow", Vector3(0.55, 0.10, 0.34), Vector3(0, 0.57, 0.70), "sheet"],
-				["Headboard", Vector3(1.40, 0.70, 0.08), Vector3(0, 0.55, 1.00), "wood"],
-			],
-			"shapes": [[Vector3(1.40, 0.52, 2.00), Vector3(0, 0.26, 0)], [Vector3(1.40, 0.70, 0.08), Vector3(0, 0.55, 1.00)]],
-			"trigger": [1.34, 1.94, 0.52], "trigger_z": 0.0,
 		},
 	}
 

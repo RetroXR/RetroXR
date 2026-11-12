@@ -7,7 +7,7 @@
 ## One PNG: seats.png (front, then `seats_side.png` from the side).
 extends Node3D
 
-const FAMILIES: Array[String] = ["seat_racing", "seat_stool", "seat_chair", "seat_cushion", "seat_sofa", "seat_bed"]
+const FAMILIES: Array[String] = ["seat_chair", "seat_sofa"]
 
 
 func _ready() -> void:
@@ -42,7 +42,7 @@ func _ready() -> void:
 	add_child(floor_mesh)
 	var x := -4.6
 	for id in FAMILIES:
-		var seat := (load("res://Scenes/Objects/furniture/%s.tscn" % id) as PackedScene).instantiate() as Seat
+		var seat := (load("res://Tests/fixtures/%s.tscn" % id) as PackedScene).instantiate() as Seat
 		seat.freeze = true
 		seat.position = Vector3(x, 0.0, 0.0)
 		add_child(seat)

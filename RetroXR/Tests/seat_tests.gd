@@ -12,15 +12,15 @@
 ##   sit/      a rig sits and stands: eyes, heading, locomotion held, the body held, one seat at a time
 ##   press/    the cushion's pointer event sits and stands; the body of the seat does not
 ##   arrow/    a seat in a hand shows a yellow arrow along its facing, and only while it is held
-##   family/   every seat scene has the script, its markers, a cushion and an eye height that is a sitting one
+##   family/   every seat fixture (Tests/fixtures/, baked by gen_seats) has the script, its markers, a cushion and an eye height that is a sitting one
 ##   cockpit/  a sit-down driving cabinet's own seat: eyes level with the middle of its glass, pressed to sit, one seat at a time
 ##   follow/   a seat on a moving base carries the player with it, in position and never in heading
 ##   rider/    a motorbike's and a bicycle's saddle is a seat: pressed to sit, the eyes above it, a floor to get up onto, off the leaning part
 ##   pair/     a cockpit of two seats (Lucky & Wild): each sat in and got up from on its own side, one at a time, no pointer box over either cushion
-##   save/     a seat is a plain scene saved by its token, spawned by it, and offered on the SPAWN menu's Objects tab
+##   save/     no seat is furniture any more: none is a plain scene or on the SPAWN menu's Objects tab
 extends "res://Tests/test_suite.gd"
 
-const FAMILIES: Array[String] = ["seat_racing", "seat_stool", "seat_chair", "seat_cushion", "seat_sofa", "seat_bed"]
+const FAMILIES: Array[String] = ["seat_chair", "seat_sofa"]
 
 var _only := ""
 var _rig: Node3D = null
@@ -110,7 +110,7 @@ func _drop_rig() -> void:
 
 
 func _seat(id: String, at: Vector3, yaw: float) -> Seat:
-	var scene := load("res://Scenes/Objects/furniture/%s.tscn" % id) as PackedScene
+	var scene := load("res://Tests/fixtures/%s.tscn" % id) as PackedScene
 	var seat := scene.instantiate() as Seat
 	seat.freeze = true
 	seat.transform = Transform3D(Basis(Vector3.UP, yaw), at)
@@ -187,7 +187,7 @@ func _group_sit() -> void:
 	_ok(not _camera.global_transform.basis.is_equal_approx(look_before) and _origin.global_position.distance_to(pinned) < 1e-3,
 		"sit: the head turns freely (mouse-look rotates the origin) and the pin leaves the turn alone")
 	_ok(seen == [true], "sit: and the seat says so")
-	var other := _seat("seat_stool", Vector3(-3.0, 0.0, 2.0), 0.0)
+	var other := _seat("seat_sofa", Vector3(-3.0, 0.0, 2.0), 0.0)
 	await _frames(2)
 	other.sit()
 	_ok(Seat.current == other and not seat.is_occupied(), "sit: sitting on another seat gets up from the first")
@@ -216,7 +216,7 @@ func _group_sit() -> void:
 	await _frames(2)
 	_ok(Seat.current == null and _body.enabled and not _loco.is_blocked(LocomotionManager.CHANNEL_ALL) and _near(_camera.position.y, 1.6),
 		"sit: a seat taken out of the room lets go of the player, body and all")
-	var room := _seat("seat_cushion", Vector3(0.0, 0.0, 0.0), 0.0)
+	var room := _seat("seat_chair", Vector3(0.0, 0.0, 0.0), 0.0)
 	await _frames(2)
 	room.sit()
 	Seat.release_all()
@@ -379,7 +379,7 @@ func _group_arrow() -> void:
 
 func _group_family() -> void:
 	for id in FAMILIES:
-		var scene := load("res://Scenes/Objects/furniture/%s.tscn" % id) as PackedScene
+		var scene := load("res://Tests/fixtures/%s.tscn" % id) as PackedScene
 		_ok(scene != null, "family: %s has a scene" % id)
 		var seat := scene.instantiate() as Seat
 		_ok(seat != null and seat.type_id == id, "family: ... it is a Seat and names itself (%s)" % id)
@@ -438,7 +438,7 @@ func _group_cockpit() -> void:
 	var cushion := seat.find_child("SeatCushion", false, false) as Node3D
 	var cushion_top := cab.to_local(cushion.global_position).y + 0.04
 	_ok(_near(eye_local.y - cushion_top, 0.72, 0.005),
-		"cockpit: and a sitting adult's eye height above the cushion, as the racing seat furniture's (%.2f m)" % (eye_local.y - cushion_top))
+		"cockpit: and a sitting adult's eye height above the cushion, as a furniture seat's was (%.2f m)" % (eye_local.y - cushion_top))
 	_ok(_near(Seat.yaw_of(eye.basis), Seat.yaw_of(cab.global_basis), 1e-3), "cockpit: looking the way the cabinet faces, at the screen")
 	# Sitting.
 	var seen: Array = []
@@ -704,15 +704,11 @@ func _group_pair() -> void:
 # --- save ----------------------------------------------------------------------
 
 func _group_save() -> void:
-	for id in FAMILIES:
-		_ok(ScenePersistence.PLAIN_SCENES.has(id), "save: %s is a plain scene" % id)
-		var seat := ScenePersistence.instantiate(id)
-		_ok(seat is Seat and (seat as Seat).type_id == id, "save: and it is spawned by its token")
-		seat.free()
-	# The rows are SpawnCatalog.OBJECTS's, where the Objects tab reads them (SpawnCatalog.objects()). A merge that
-	# took the other side of the menu's list left every seat off the tab and no suite noticed.
+	# The furniture seats were taken out of the room (2026-11-12): the scenes are test fixtures now. A room saved with
+	# one loads without it (an unknown type is skipped with a warning), so none may come back as a token by accident.
 	var offered: Array = []
 	for row: Array in SpawnCatalog.objects():
 		offered.append(str(row[1]))
-	for id in FAMILIES:
-		_ok(id in offered, "save: %s is on the SPAWN menu's Objects tab" % id)
+	for id in ["seat_racing", "seat_stool", "seat_chair", "seat_cushion", "seat_sofa", "seat_bed"]:
+		_ok(not ScenePersistence.PLAIN_SCENES.has(id), "save: %s is no plain scene" % id)
+		_ok(not id in offered, "save: %s is not on the SPAWN menu's Objects tab" % id)

@@ -24,7 +24,7 @@ func _ready() -> void:
 	add_child(floor_body)
 	for i in 20:
 		await get_tree().physics_frame
-	var seat := (load("res://Scenes/Objects/furniture/seat_chair.tscn") as PackedScene).instantiate() as Seat
+	var seat := (load("res://Tests/fixtures/seat_chair.tscn") as PackedScene).instantiate() as Seat
 	seat.freeze = true
 	seat.position = Vector3(2.0, 0.0, 2.0)
 	add_child(seat)
