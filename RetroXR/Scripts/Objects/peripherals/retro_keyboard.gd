@@ -26,7 +26,15 @@ const CONTROLLER_CABLE_SCENE := preload("res://Scenes/Objects/cables/controller_
 const PLUG_MESH := "res://Scenes/Objects/cables/ps2_plug_keyboard.res"
 const RETRO_DEVICE_KEYBOARD := 3
 
-# Key grid geometry (board-local metres). X = right, Z = toward the user.
+## The RETRO XR keyboard's caps (RetroXR-models generic/pc-keyboard, build_keyboard.py export_caps): one node a
+## key, Key_<row>_<column> in _layout's own indices (spacers counted), each the sculpted cap with its legends printed
+## on its top from one atlas. Laid flat, origin at the top's middle; they go in the tilted Keys root (the scene tilts
+## it, keyboard_contract.json "deck"). A key the file does not have keeps the plain box and a floating label.
+const CAPS_SCENE := "res://imported-assets/peripherals/pc_keyboard/keycaps_mobile.glb"
+## The cord leaves the case's back edge this far behind the case (the model's CordBoot).
+const CORD_EXIT_BEHIND := 0.007
+
+# Key grid geometry (Keys-root metres: the deck, tilted in the scene). X = right, Z = toward the user.
 const KEY_PITCH := 0.021       # 1u - full-size 104-key board is ~50 cm wide
 const KEY_GAP := 0.0025        # spacing between caps
 const KEY_TOP_Y := 0.014       # resting key-cap top
@@ -168,6 +176,8 @@ func _ready() -> void:
 	add_to_group("spawned")
 	_build_layout()
 	_build_keys()
+	for led_name: String in LED_NAMES:
+		_set_led(led_name, false)
 	_spawn_cable()
 	grabbed.connect(_on_grabbed_signal)
 	dropped.connect(_on_dropped_signal)
@@ -257,6 +267,14 @@ func _build_layout() -> void:
 func _build_keys() -> void:
 	var cap_mat := StandardMaterial3D.new()
 	cap_mat.albedo_color = Color(0.22, 0.22, 0.26)
+	var caps: Node = null
+	if ResourceLoader.exists(CAPS_SCENE):
+		var ps := load(CAPS_SCENE) as PackedScene
+		if ps != null:
+			caps = ps.instantiate()
+	if caps == null:
+		push_warning("[RetroKeyboard] no keycaps at %s: plain caps and floating labels" % CAPS_SCENE)
+	var modelled := 0
 
 	# Board extents from the layout (key units), centred on the body.
 	var max_xu := 0.0
@@ -273,10 +291,12 @@ func _build_keys() -> void:
 	var x0 := -(max_xu * KEY_PITCH) / 2.0
 	var z0 := -(max_zu * KEY_PITCH) / 2.0
 
-	for rowd: Dictionary in _layout:
+	for r in _layout.size():
+		var rowd: Dictionary = _layout[r]
 		var zr := float(rowd["z"])
 		var x := x0
-		for k: Array in rowd["keys"]:
+		for c in (rowd["keys"] as Array).size():
+			var k: Array = rowd["keys"][c]
 			var w := float(k[2]) * KEY_PITCH
 			if k[0] == null:
 				x += w   # spacer gap
@@ -284,11 +304,35 @@ func _build_keys() -> void:
 			var hu := float(k[3]) if k.size() > 3 else 1.0
 			var d := hu * KEY_PITCH
 			var mesh := MeshInstance3D.new()
+			var cz := z0 + (zr + hu / 2.0) * KEY_PITCH
+			var model: MeshInstance3D = null
+			if caps != null:
+				model = caps.get_node_or_null("Key_%d_%d" % [r, c]) as MeshInstance3D
+			if model != null and model.mesh != null:
+				# The modelled cap, its top at KEY_TOP_Y: its legends are printed on it, both of a key's
+				# characters as a real board's are, so it has no floating label to swap on SHIFT.
+				mesh.mesh = model.mesh
+				mesh.position = Vector3(x + w / 2.0, KEY_TOP_Y, cz)
+				_key_root.add_child(mesh)
+				modelled += 1
+				_keys.append({
+					"rect": Rect2(x, z0 + zr * KEY_PITCH, w, d),
+					"keycode": int(k[1]),
+					"mesh": mesh,
+					"label": null,
+					"base_text": str(k[0]),
+					"shift_text": str(k[0]),
+					"base_y": mesh.position.y,
+					"label_base_y": 0.0,
+				})
+				if not _key_index_by_code.has(int(k[1])):
+					_key_index_by_code[int(k[1])] = _keys.size() - 1
+				x += w
+				continue
 			var box := BoxMesh.new()
 			box.size = Vector3(w - KEY_GAP, 0.008, d - KEY_GAP)
 			mesh.mesh = box
 			mesh.set_surface_override_material(0, cap_mat)
-			var cz := z0 + (zr + hu / 2.0) * KEY_PITCH
 			mesh.position = Vector3(x + w / 2.0, KEY_TOP_Y - 0.004, cz)
 			_key_root.add_child(mesh)
 			var lbl := Label3D.new()
@@ -320,6 +364,10 @@ func _build_keys() -> void:
 				_key_index_by_code[int(k[1])] = _keys.size() - 1
 			x += w
 
+	if caps != null:
+		caps.free()
+		print("[RetroKeyboard] %d of %d keys wear the modelled caps" % [modelled, _keys.size()])
+
 	# Fit the body + collision to the computed grid (the tscn ships a
 	# placeholder size; resources are duplicated so instances never share).
 	var bw := max_xu * KEY_PITCH + 0.024
@@ -336,15 +384,16 @@ func _build_keys() -> void:
 		col.shape = shape
 	var attach := get_node_or_null("CableAttachPoint") as Node3D
 	if attach:
-		attach.position = Vector3(0, 0.008, -bd / 2.0)
+		attach.position = Vector3(0, 0.008, -bd / 2.0 - CORD_EXIT_BEHIND)
 
 	# Pointer-clickable key field. One thin box over the whole grid — the caps
 	# are bare meshes with no colliders, so _key_at() resolves which one was hit.
-	if get_node_or_null("KeyPointerField") == null:
+	# In the Keys root, so it tilts with the caps it stands over.
+	if _key_root.get_node_or_null("KeyPointerField") == null:
 		var field := KeyboardKeyField.create(self,
 			Vector3(0.0, KEY_TOP_Y + 0.002, 0.0),
 			Vector3(max_xu * KEY_PITCH, 0.006, max_zu * KEY_PITCH))
-		add_child(field)
+		_key_root.add_child(field)
 
 
 # ── Cable (mirrors RetroController) ──────────────────────────────────────────
@@ -436,8 +485,37 @@ func _set_capture(active: bool) -> void:
 		return
 	var was := _capture.is_active()
 	_capture.set_active(active)
+	_light_scroll_lock(_capture.is_active())
 	if was and not _capture.is_active():
 		_release_all()
+
+
+## The case's three lock lights. The model draws them lit (its KB_Led glows), so each is given the dark lens until
+## something lights it. Only Scroll Lock means anything here: it shows capture, the state the Scroll Lock key toggles.
+## Num and Caps stay dark -- the core keeps those states and does not tell the room.
+const LED_NAMES := ["LedNum", "LedCaps", "LedScroll"]
+static var _led_off_mat: StandardMaterial3D = null
+static var _led_on_mat: StandardMaterial3D = null
+
+
+func _set_led(led_name: String, on: bool) -> void:
+	var led := find_child(led_name, true, false) as MeshInstance3D
+	if led == null or led.mesh == null:
+		return
+	if _led_off_mat == null:
+		_led_off_mat = StandardMaterial3D.new()
+		_led_off_mat.albedo_color = Color(0.06, 0.16, 0.08)
+		_led_off_mat.roughness = 0.2
+		_led_on_mat = StandardMaterial3D.new()
+		_led_on_mat.albedo_color = Color(0.25, 1.0, 0.35)
+		_led_on_mat.emission_enabled = true
+		_led_on_mat.emission = Color(0.25, 1.0, 0.35)
+		_led_on_mat.emission_energy_multiplier = 2.5
+	led.set_surface_override_material(0, _led_on_mat if on else _led_off_mat)
+
+
+func _light_scroll_lock(on: bool) -> void:
+	_set_led("LedScroll", on)
 
 
 func restore_port_connection(system: RetroSystem, port_index: int) -> void:
@@ -470,7 +548,7 @@ func _scan_hands() -> void:
 		if not is_instance_valid(ctrl) or not (ctrl as XRController3D).get_is_active():
 			continue
 		var name_key := str((ctrl as XRController3D).tracker)
-		var tip: Vector3 = to_local(PokeTip.tip_of(ctrl as Node3D))
+		var tip: Vector3 = _key_root.to_local(PokeTip.tip_of(ctrl as Node3D))
 		var prev: int = _hand_pressed.get(name_key, -1)
 		if tip.y > RELEASE_Y:
 			_hand_armed[name_key] = true
@@ -507,12 +585,12 @@ func _scan_hands() -> void:
 ## True when a cap lies under this world point. KeyboardKeyField asks before
 ## claiming a press, so aims that land between the keys reach the board instead.
 func has_key_at(at: Vector3) -> bool:
-	var local := to_local(at)
+	var local := _key_root.to_local(at)
 	return _key_at(Vector2(local.x, local.z)) >= 0
 
 
 func pointer_press_at(at: Vector3, by: Node3D = null) -> void:
-	var local := to_local(at)
+	var local := _key_root.to_local(at)
 	var hit := _key_at(Vector2(local.x, local.z))
 	if by != null:
 		_pointer_ctrl = Haptics.controller_of(by)
@@ -592,6 +670,8 @@ func _refresh_shift_labels() -> void:
 	_labels_shifted = want
 	for k: Dictionary in _keys:
 		var lbl := k["label"] as Label3D
+		if lbl == null:
+			continue
 		var text: String = k["shift_text"] if want else k["base_text"]
 		if lbl.text == text:
 			continue

@@ -1,0 +1,26 @@
+{
+  "frame": "pc_tower.tscn TrayPivot's own: glTF/Godot metres, +Y up, front +Z; instance it under TrayPivot",
+  "replaces": [
+    "TrayPivot/Shelf",
+    "TrayPivot/Well",
+    "TrayPivot/Spindle"
+  ],
+  "keeps": [
+    "TrayPivot/DiscSeat (y -0.006)"
+  ],
+  "size_mm": [
+    130.0,
+    134.0,
+    10.2
+  ],
+  "top_y": -0.0038,
+  "disc_floor_y": -0.0062,
+  "disc_recess_r": 0.0615,
+  "fascia_mm": {
+    "w": 133.0,
+    "h": 18.5,
+    "cy": -12.75,
+    "z0": 66.5,
+    "z1": 70.0
+  }
+}

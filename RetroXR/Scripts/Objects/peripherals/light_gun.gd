@@ -238,11 +238,25 @@ var _pointer_block := VrPointerBlock.new()
 # hand is doing. Driven from _pressed_now(), the same read that goes to the core,
 # so the shell can never disagree with what the game is being told.
 
-## Buttons that press into the barrel's top face, by the lightgun id they show.
+## The shell's caps, by the lightgun id they show. A gun scene without one of them
+## (the Super Scope, a cabinet's) simply has nothing there to animate.
 const ANIM_BUTTONS: Dictionary = {
 	ControllerBindings.LIGHTGUN_AUX_A: "AuxAButton",
 	ControllerBindings.LIGHTGUN_AUX_B: "AuxBButton",
 	ControllerBindings.LIGHTGUN_START: "StartButton",
+	ControllerBindings.LIGHTGUN_SELECT: "SelectButton",
+	ControllerBindings.LIGHTGUN_AUX_C: "AuxCButton",
+	ControllerBindings.LIGHTGUN_RELOAD: "ReloadButton",
+}
+## Which way each cap travels, where it is not straight down (the RETRO XR gun's,
+## gun_contract.json "press"): A and B are on the slide's two sides and go in
+## sideways, C is on the grip's front strap and goes back, RELOAD is in the base of
+## the grip and goes up.
+const BUTTON_DIRS: Dictionary = {
+	"AuxAButton": Vector3.RIGHT,
+	"AuxBButton": Vector3.LEFT,
+	"AuxCButton": Vector3.BACK,
+	"ReloadButton": Vector3.UP,
 }
 ## Kept well under how far the caps stand proud of the barrel (3 mm) — press
 ## them further and they read as vanishing into it rather than being pushed.
@@ -250,9 +264,23 @@ const BUTTON_PRESS := 0.001
 ## Trigger swing. Negative about +X so the blade's tip sweeps BACK toward the
 ## grip — a positive angle would push it forward, out of the hand.
 const TRIGGER_PULL_DEG := -14.0
+## This gun's own pull, if not TRIGGER_PULL_DEG: the RETRO XR gun's blade sits deep
+## in an M1911-style guard and swings 6 degrees before it meets the guard's back.
+@export var trigger_pull_deg: float = TRIGGER_PULL_DEG
 const ANIM_WEIGHT := 0.4
 
 var _anim_btns: Array[Dictionary] = []   # {node, rest, lid}
+## The RETRO XR gun's d-pad, on the slide's rear face under the shooter's thumb: it rocks toward the arm pressed.
+## Pressed along -Z (into the face), so UP turns about -X and RIGHT about +Y (ControlPoke.rocker derives the arms).
+const DPAD_ROCK_DEG := 7.0
+const DPAD_PRESS := Vector3.FORWARD
+const DPAD_TURN_UP := Vector3.LEFT
+const DPAD_TURN_RIGHT := Vector3.UP
+const DPAD_BITS := [ControllerBindings.LIGHTGUN_DPAD_UP, ControllerBindings.LIGHTGUN_DPAD_DOWN,
+	ControllerBindings.LIGHTGUN_DPAD_LEFT, ControllerBindings.LIGHTGUN_DPAD_RIGHT]
+const ANIM_DPAD_KEY := -2
+var _dpad: MeshInstance3D = null
+var _dpad_rest := Transform3D()
 var _trigger_pivot: Node3D = null
 var _trigger_rest := Transform3D()
 ## The press state each part was last animated toward (lid, or ANIM_TRIGGER_KEY
@@ -271,8 +299,54 @@ func wants_ray_handoff() -> bool:
 	return false
 
 
+## The RETRO XR gun's colourways, the pad's three: the slide (GUN_Top), the frame
+## and grip (GUN_Bottom) and the buttons and seams (GUN_Seam), found by material
+## name on every mesh. The first is the model's own. The muzzle stays orange in all.
+const COLOURWAYS: Dictionary = {
+	"charcoal": {"GUN_Top": Color8(44, 44, 47), "GUN_Bottom": Color8(224, 214, 194), "GUN_Seam": Color8(236, 122, 34)},
+	"cream": {"GUN_Top": Color8(226, 218, 200), "GUN_Bottom": Color8(46, 64, 72), "GUN_Seam": Color8(112, 196, 112)},
+	"red": {"GUN_Top": Color8(150, 50, 44), "GUN_Bottom": Color8(224, 214, 194), "GUN_Seam": Color8(236, 226, 206)},
+}
+
+## The colourway it wears (a COLOURWAYS key; "" the default). Set before it enters
+## the room (SystemModelRegistry.set_variant_of) and saved as model_variant.
+var model_variant: String = "":
+	set(v):
+		model_variant = v
+		if is_node_ready():
+			_apply_colourway()
+
+
+func _apply_colourway() -> void:
+	var paint: Dictionary = COLOURWAYS.get(model_variant, {})
+	if paint.is_empty():
+		# The default (or a gun that is not the RETRO XR one) keeps whatever its meshes wear: a
+		# cabinet's or the Super Scope's own overrides are not this method's to clear.
+		if not model_variant.is_empty():
+			print("[LightGun] %s: colour '%s' is not a RETRO XR colourway, left to whoever offered it"
+				% [name, model_variant])
+		return
+	var shared := {}
+	for node: Node in find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi.mesh == null or mi == _laser_dot:
+			continue
+		for i in mi.mesh.get_surface_count():
+			var mat := mi.mesh.surface_get_material(i) as BaseMaterial3D
+			if mat == null or not paint.has(mat.resource_name):
+				continue
+			if not shared.has(mat.resource_name):
+				var own := mat.duplicate() as BaseMaterial3D
+				own.albedo_color = paint[mat.resource_name]
+				shared[mat.resource_name] = own
+			mi.set_surface_override_material(i, shared[mat.resource_name])
+	if not paint.is_empty():
+		print("[LightGun] %s wears the %s colourway" % [name, model_variant])
+
+
 func _ready() -> void:
 	super._ready()
+	_apply_colourway()
 	# A console's gun is a toggle (take it, it stays until the drop combo); a cabinet's is held while the
 	# button is held: let go and the hand lets go, so it falls (or goes in the holster it is over).
 	press_to_hold = captive
@@ -464,10 +538,16 @@ func _cache_controls() -> void:
 	for lid: int in ANIM_BUTTONS:
 		var m := get_node_or_null(String(ANIM_BUTTONS[lid])) as MeshInstance3D
 		if m != null:
-			_anim_btns.append({"node": m, "rest": m.transform, "lid": lid})
+			var entry := {"node": m, "rest": m.transform, "lid": lid}
+			if BUTTON_DIRS.has(m.name):
+				entry["dir"] = BUTTON_DIRS[m.name]
+			_anim_btns.append(entry)
 	_trigger_pivot = get_node_or_null("TriggerPivot") as Node3D
 	if _trigger_pivot != null:
 		_trigger_rest = _trigger_pivot.transform
+	_dpad = get_node_or_null("DPad") as MeshInstance3D
+	if _dpad != null:
+		_dpad_rest = _dpad.transform
 
 
 ## Hysteresis for the analog VR sources — see InputLatch. Without it a single
@@ -521,6 +601,10 @@ func _merge_poke(out: Dictionary) -> void:
 		for e: Dictionary in _anim_btns:
 			_poke.targets.append({"node": e["node"], "rest": e["rest"],
 				"dir": e.get("dir", Vector3.DOWN), "bit": int(e["lid"])})
+		if _dpad != null:
+			# Rocks about a point 2 mm inside the face, as the d-pad's own pivot boss does.
+			_poke.targets.append(ControlPoke.rocker(_dpad, _dpad_rest, _dpad_rest.origin + DPAD_PRESS * 0.002,
+				DPAD_PRESS, DPAD_TURN_UP, DPAD_TURN_RIGHT, DPAD_BITS))
 		_poke.targets.append_array(_extra_poke_targets())
 	var poked := int(_poke.poll()["btn"])
 	var lid := 0
@@ -549,6 +633,13 @@ func _animate_controls(pressed: Dictionary) -> void:
 		if not (was is bool) or bool(was) != down_now:
 			_anim_last[lid] = down_now
 			changed = true
+	var rock := Vector2(
+		float(pressed.get(ControllerBindings.LIGHTGUN_DPAD_RIGHT, false)) - float(pressed.get(ControllerBindings.LIGHTGUN_DPAD_LEFT, false)),
+		float(pressed.get(ControllerBindings.LIGHTGUN_DPAD_UP, false)) - float(pressed.get(ControllerBindings.LIGHTGUN_DPAD_DOWN, false)))
+	var rock_was: Variant = _anim_last.get(ANIM_DPAD_KEY)
+	if _dpad != null and (not (rock_was is Vector2) or rock_was != rock):
+		_anim_last[ANIM_DPAD_KEY] = rock
+		changed = true
 	var trigger_now: bool = pressed.get(ControllerBindings.LIGHTGUN_TRIGGER, false)
 	var trigger_was: Variant = _anim_last.get(ANIM_TRIGGER_KEY)
 	if not (trigger_was is bool) or bool(trigger_was) != trigger_now:
@@ -573,12 +664,22 @@ func _animate_controls(pressed: Dictionary) -> void:
 		else:
 			at_target = false
 		node.transform = next
+	if _dpad != null:
+		var a := deg_to_rad(DPAD_ROCK_DEG)
+		var tgt_d := Transform3D(Basis(DPAD_TURN_UP, a * rock.y) * Basis(DPAD_TURN_RIGHT, a * rock.x) * _dpad_rest.basis,
+			_dpad_rest.origin)
+		var next_d := _dpad.transform.interpolate_with(tgt_d, ANIM_WEIGHT)
+		if next_d.is_equal_approx(tgt_d):
+			next_d = tgt_d
+		else:
+			at_target = false
+		_dpad.transform = next_d
 	if _trigger_pivot == null:
 		_anim_settled = at_target
 		return
 	var pull := 1.0 if trigger_now else 0.0
 	var tgt_x := Transform3D(
-		_trigger_rest.basis * Basis(Vector3.RIGHT, deg_to_rad(TRIGGER_PULL_DEG * pull)),
+		_trigger_rest.basis * Basis(Vector3.RIGHT, deg_to_rad(trigger_pull_deg * pull)),
 		_trigger_rest.origin)
 	var next_x := _trigger_pivot.transform.interpolate_with(tgt_x, ANIM_WEIGHT)
 	if next_x.is_equal_approx(tgt_x):

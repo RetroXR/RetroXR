@@ -1,9 +1,12 @@
-[gd_scene load_steps=8 format=3 uid="uid://retrokeyboard_01"]
+[gd_scene load_steps=9 format=3 uid="uid://retrokeyboard_01"]
 
 [ext_resource type="Script" path="res://Scripts/Objects/peripherals/retro_keyboard.gd" id="1_kbscript"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_right.tscn" id="3_rhand"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_left.tscn" id="4_lhand"]
+; The RETRO XR keyboard's case (RetroXR-models generic/pc-keyboard, build_keyboard.py; keyboard_contract.json):
+; the shell, its lock lights and their labels, feet and cord boot. The caps are the script's (keycaps_mobile.glb).
+[ext_resource type="PackedScene" path="res://imported-assets/peripherals/pc_keyboard/keyboard_mobile.glb" id="kb_case"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_kb"]
 size = Vector3(0.44, 0.02, 0.16)
@@ -32,12 +35,18 @@ script = ExtResource("1_kbscript")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.01, 0)
 shape = SubResource("BoxShape3D_kb")
 
+[node name="Shell" parent="." instance=ExtResource("kb_case")]
+
 [node name="BaseMesh" type="MeshInstance3D" parent="."]
+visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.006, 0)
 mesh = SubResource("BoxMesh_base")
 surface_material_override/0 = SubResource("Mat_base")
 
+; The deck: tilted 4 degrees, back edge up, and lifted 4 mm, as the case's well is (keyboard_contract.json "deck").
+; The caps, their hit-testing and the pointer field all live in this frame.
 [node name="Keys" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.997564, -0.069757, 0, 0.069757, 0.997564, 0, 0.004, 0)
 
 [node name="CableAttachPoint" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.008, -0.075)

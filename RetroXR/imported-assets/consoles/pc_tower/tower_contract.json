@@ -1,0 +1,48 @@
+{
+  "frame": "glTF/Godot metres, +Y up, front +Z, origin on the floor under the middle (pc_tower.tscn)",
+  "size_mm": [
+    190.0,
+    420.0,
+    440.0
+  ],
+  "back_face_z": -0.22,
+  "bezel_front_z": 0.231,
+  "panel_floor_z": 0.2295,
+  "replaces": [
+    "Case",
+    "Front/Bezel",
+    "Front/Bay",
+    "Front/Floppy525",
+    "Front/Floppy"
+  ],
+  "moves": {
+    "TrayPivot": [
+      0.0,
+      0.3811,
+      0.159
+    ],
+    "Front/EjectButtonAnchor": [
+      0.062,
+      0.35035000000000005,
+      0.234
+    ],
+    "Front/Floppy525Seat (y, x 0)": 0.32505,
+    "Front/FloppySeat (y)": 0.24505
+  },
+  "floppy_controls": {
+    "Drive35Eject": [
+      0.036,
+      0.23505
+    ],
+    "Drive525Lever (hub)": [
+      0.0,
+      0.32505
+    ]
+  },
+  "keeps": [
+    "TrayPivot",
+    "Front/PowerLed",
+    "Front/DriveLed",
+    "every anchor, seat, port and label"
+  ]
+}

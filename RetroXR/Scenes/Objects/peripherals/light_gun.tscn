@@ -5,12 +5,33 @@
 [ext_resource type="Script" uid="uid://b8uwrf51jd5xm" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="3_grabpoint"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_pistol_right.tscn" id="4_rhand"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_pistol_left.tscn" id="5_lhand"]
+; The RETRO XR light gun (RetroXR-models generic/light-gun, build_gun.py; gun_contract.json), baked one
+; mesh per node by Tools/gen/extract_glb_meshes.gd: the buttons stay at the root where LightGun finds
+; them by name, the body parts under Shell. Its trigger swings 6 degrees inside the model's guard.
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/Body.res" id="gun_Body"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/Frame.res" id="gun_Frame"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/Grip.res" id="gun_Grip"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/GripBase.res" id="gun_GripBase"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/GripPanels.res" id="gun_GripPanels"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/TriggerGuard.res" id="gun_TriggerGuard"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/Bushing.res" id="gun_Bushing"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/Lens.res" id="gun_Lens"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/FrontSight.res" id="gun_FrontSight"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/RearSight.res" id="gun_RearSight"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/AuxAButton.res" id="gun_AuxAButton"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/AuxBButton.res" id="gun_AuxBButton"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/StartButton.res" id="gun_StartButton"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/SelectButton.res" id="gun_SelectButton"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/AuxCButton.res" id="gun_AuxCButton"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/ReloadButton.res" id="gun_ReloadButton"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/DPad.res" id="gun_DPad"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/Trigger.res" id="gun_Trigger"]
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_gun"]
 friction = 0.8
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_body"]
-size = Vector3(0.04, 0.12, 0.18)
+size = Vector3(0.033, 0.136, 0.218)
 
 [sub_resource type="BoxMesh" id="BoxMesh_barrel"]
 size = Vector3(0.03, 0.03, 0.14)
@@ -63,51 +84,95 @@ freeze_mode = 1
 linear_damp = 5.0
 angular_damp = 8.0
 script = ExtResource("1_gunscript")
+trigger_pull_deg = -6.0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=794647251]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0163, -0.043)
 shape = SubResource("BoxShape3D_body")
 
 [node name="Barrel" type="MeshInstance3D" parent="." unique_id=162146294]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -0.04)
-mesh = SubResource("BoxMesh_barrel")
-surface_material_override/0 = SubResource("Mat_gun")
+visible = false
 
 [node name="Grip" type="MeshInstance3D" parent="." unique_id=1842809821]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.03, 0.04)
-mesh = SubResource("BoxMesh_grip")
-surface_material_override/0 = SubResource("Mat_gun")
+visible = false
 
 [node name="TriggerPivot" type="Node3D" parent="." unique_id=297764855]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.014, 0.016)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.008, -0.0005)
 
 [node name="Trigger" type="MeshInstance3D" parent="TriggerPivot" unique_id=162746677]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, 0)
-mesh = SubResource("BoxMesh_trigger")
-surface_material_override/0 = SubResource("Mat_ctrl")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+mesh = ExtResource("gun_Trigger")
 
 [node name="AuxAButton" type="MeshInstance3D" parent="." unique_id=1890058294]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.008, 0.046, 0.004)
-mesh = SubResource("Cyl_aux")
-surface_material_override/0 = SubResource("Mat_aux")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0145, 0.031, 0.03)
+mesh = ExtResource("gun_AuxAButton")
 
 [node name="AuxBButton" type="MeshInstance3D" parent="." unique_id=699782923]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.008, 0.046, 0.004)
-mesh = SubResource("Cyl_aux")
-surface_material_override/0 = SubResource("Mat_aux")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0145, 0.031, 0.03)
+mesh = ExtResource("gun_AuxBButton")
 
 [node name="StartButton" type="MeshInstance3D" parent="." unique_id=1494308797]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0465, 0.022)
-mesh = SubResource("BoxMesh_start")
-surface_material_override/0 = SubResource("Mat_ctrl")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.007, 0.048, 0.05)
+mesh = ExtResource("gun_StartButton")
+
+[node name="Shell" type="Node3D" parent="."]
+
+[node name="Body" type="MeshInstance3D" parent="Shell"]
+mesh = ExtResource("gun_Body")
+
+[node name="Frame" type="MeshInstance3D" parent="Shell"]
+mesh = ExtResource("gun_Frame")
+
+[node name="Grip" type="MeshInstance3D" parent="Shell"]
+mesh = ExtResource("gun_Grip")
+
+[node name="GripBase" type="MeshInstance3D" parent="Shell"]
+mesh = ExtResource("gun_GripBase")
+
+[node name="GripPanels" type="MeshInstance3D" parent="Shell"]
+mesh = ExtResource("gun_GripPanels")
+
+[node name="TriggerGuard" type="MeshInstance3D" parent="Shell"]
+mesh = ExtResource("gun_TriggerGuard")
+
+[node name="Bushing" type="MeshInstance3D" parent="Shell"]
+mesh = ExtResource("gun_Bushing")
+
+[node name="Lens" type="MeshInstance3D" parent="Shell"]
+mesh = ExtResource("gun_Lens")
+
+[node name="FrontSight" type="MeshInstance3D" parent="Shell"]
+mesh = ExtResource("gun_FrontSight")
+
+[node name="RearSight" type="MeshInstance3D" parent="Shell"]
+mesh = ExtResource("gun_RearSight")
+
+[node name="SelectButton" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.007, 0.048, 0.05)
+mesh = ExtResource("gun_SelectButton")
+
+[node name="AuxCButton" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.032, 0.008032)
+mesh = ExtResource("gun_AuxCButton")
+
+[node name="ReloadButton" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.083, 0.043)
+mesh = ExtResource("gun_ReloadButton")
+
+[node name="DPad" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0.034, 0.061)
+mesh = ExtResource("gun_DPad")
 
 [node name="BarrelTip" type="Node3D" parent="." unique_id=707446382]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -0.11)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.034, -0.1515)
 
 [node name="RayCast3D" type="RayCast3D" parent="BarrelTip" unique_id=1927578731]
 target_position = Vector3(0, 0, -10)
 
 [node name="CableAttachPoint" type="Node3D" parent="." unique_id=1855654283]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0.05)
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, -0.084, 0.058)
 
 [node name="LaserDot" type="MeshInstance3D" parent="." unique_id=1314143739]
 top_level = true
@@ -116,7 +181,7 @@ mesh = SubResource("SphereMesh_dot")
 surface_material_override/0 = SubResource("Mat_dot")
 
 [node name="GrabPoint" type="Marker3D" parent="." unique_id=1163040171]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.03, 0.04)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.03, 0.034)
 visible = false
 script = ExtResource("3_grabpoint")
 
@@ -128,12 +193,13 @@ collision_layer = 1048576
 collision_mask = 0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea" unique_id=1122600982]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0163, -0.043)
 shape = SubResource("BoxShape3D_pointer")
 
 [node name="HandRight" parent="." unique_id=1162653599 instance=ExtResource("4_rhand")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.03, 0.04)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.03, 0.034)
 visible = false
 
 [node name="HandLeft" parent="." unique_id=933183416 instance=ExtResource("5_lhand")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.03, 0.04)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.03, 0.034)
 visible = false

@@ -4,6 +4,26 @@
 [ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_right.tscn" id="3_rhand"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_left.tscn" id="4_lhand"]
+; The RETRO XR pad (RetroXR-models generic/retropad, build_pad.py; pad_contract.json), baked one mesh per
+; node by Tools/gen/extract_glb_meshes.gd. Every node keeps its path and origin; the shell's three
+; materials are what a colourway repaints (RetroPadController.COLOURWAYS).
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/DPad.res" id="pad_DPad"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/FaceA.res" id="pad_FaceA"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/FaceB.res" id="pad_FaceB"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/FaceX.res" id="pad_FaceX"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/FaceY.res" id="pad_FaceY"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/Select.res" id="pad_Select"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/Shell.res" id="pad_Shell"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/ShoulderL.res" id="pad_ShoulderL"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/ShoulderR.res" id="pad_ShoulderR"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/Start.res" id="pad_Start"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/StickL.res" id="pad_StickL"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/StickL_Cap.res" id="pad_StickL_Cap"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/StickR.res" id="pad_StickR"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/StickR_Cap.res" id="pad_StickR_Cap"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/TriggerL.res" id="pad_TriggerL"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/TriggerR.res" id="pad_TriggerR"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/CordBoot.res" id="pad_CordBoot"]
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_ctrl"]
 friction = 0.8
@@ -109,32 +129,32 @@ shape = SubResource("BoxShape3D_body")
 [node name="Model" type="Node3D" parent="." unique_id=465789963]
 
 [node name="Shell" type="MeshInstance3D" parent="Model" unique_id=813771698]
-mesh = SubResource("BoxMesh_shell")
-surface_material_override/0 = SubResource("Mat_shell")
+mesh = ExtResource("pad_Shell")
 
 [node name="ShellCapL" type="MeshInstance3D" parent="Model" unique_id=1653052986]
+visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.045, 0, 0)
 mesh = SubResource("CylinderMesh_cap")
 surface_material_override/0 = SubResource("Mat_shell")
 
 [node name="ShellCapR" type="MeshInstance3D" parent="Model" unique_id=1718265561]
+visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.045, 0, 0)
 mesh = SubResource("CylinderMesh_cap")
 surface_material_override/0 = SubResource("Mat_shell")
 
 [node name="DPad" type="MeshInstance3D" parent="Model" unique_id=776377440]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.044, 0.0145, -0.01)
-mesh = SubResource("BoxMesh_dpad_h")
-surface_material_override/0 = SubResource("Mat_dark")
+mesh = ExtResource("pad_DPad")
 
 [node name="DPadCross" type="MeshInstance3D" parent="Model/DPad" unique_id=518150368]
+visible = false
 mesh = SubResource("BoxMesh_dpad_v")
 surface_material_override/0 = SubResource("Mat_dark")
 
 [node name="FaceX" type="MeshInstance3D" parent="Model" unique_id=1443718328]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.044, 0.0135, -0.0235)
-mesh = SubResource("CylinderMesh_face")
-surface_material_override/0 = SubResource("Mat_face_x")
+mesh = ExtResource("pad_FaceX")
 
 [node name="Label" type="Label3D" parent="Model/FaceX" unique_id=698746997]
 transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0.0031, 0)
@@ -145,8 +165,7 @@ font_size = 40
 
 [node name="FaceY" type="MeshInstance3D" parent="Model" unique_id=911686178]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0305, 0.0135, -0.01)
-mesh = SubResource("CylinderMesh_face")
-surface_material_override/0 = SubResource("Mat_face_y")
+mesh = ExtResource("pad_FaceY")
 
 [node name="Label" type="Label3D" parent="Model/FaceY" unique_id=1659168029]
 transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0.0031, 0)
@@ -157,8 +176,7 @@ font_size = 40
 
 [node name="FaceA" type="MeshInstance3D" parent="Model" unique_id=392155557]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0575, 0.0135, -0.01)
-mesh = SubResource("CylinderMesh_face")
-surface_material_override/0 = SubResource("Mat_face_a")
+mesh = ExtResource("pad_FaceA")
 
 [node name="Label" type="Label3D" parent="Model/FaceA" unique_id=1994907538]
 transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0.0031, 0)
@@ -169,8 +187,7 @@ font_size = 40
 
 [node name="FaceB" type="MeshInstance3D" parent="Model" unique_id=404509828]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.044, 0.0135, 0.0035)
-mesh = SubResource("CylinderMesh_face")
-surface_material_override/0 = SubResource("Mat_face_b")
+mesh = ExtResource("pad_FaceB")
 
 [node name="Label" type="Label3D" parent="Model/FaceB" unique_id=451622136]
 transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0.0031, 0)
@@ -181,53 +198,46 @@ font_size = 40
 
 [node name="Select" type="MeshInstance3D" parent="Model" unique_id=1981331647]
 transform = Transform3D(0.9396926, 0, -0.34202, 0, 1, 0, 0.34202, 0, 0.9396926, -0.012, 0.0135, -0.008)
-mesh = SubResource("BoxMesh_small")
-surface_material_override/0 = SubResource("Mat_small")
+mesh = ExtResource("pad_Select")
 
 [node name="Start" type="MeshInstance3D" parent="Model" unique_id=596952806]
 transform = Transform3D(0.9396926, 0, 0.34202, 0, 1, 0, -0.34202, 0, 0.9396926, 0.012, 0.0135, -0.008)
-mesh = SubResource("BoxMesh_small")
-surface_material_override/0 = SubResource("Mat_small")
+mesh = ExtResource("pad_Start")
 
 [node name="ShoulderL" type="MeshInstance3D" parent="Model" unique_id=555080294]
-transform = Transform3D(-4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0, 1, -0.031, 0.007, -0.0315)
-mesh = SubResource("CylinderMesh_shoulder")
-surface_material_override/0 = SubResource("Mat_dark")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.031, 0.007, -0.0315)
+mesh = ExtResource("pad_ShoulderL")
 
 [node name="ShoulderR" type="MeshInstance3D" parent="Model" unique_id=350290089]
-transform = Transform3D(-4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0, 1, 0.031, 0.007, -0.0315)
-mesh = SubResource("CylinderMesh_shoulder")
-surface_material_override/0 = SubResource("Mat_dark")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.031, 0.007, -0.0315)
+mesh = ExtResource("pad_ShoulderR")
 
 [node name="TriggerL" type="MeshInstance3D" parent="Model" unique_id=1817108835]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.031, -0.0035, -0.0325)
-mesh = SubResource("BoxMesh_trigger")
-surface_material_override/0 = SubResource("Mat_dark")
+mesh = ExtResource("pad_TriggerL")
 
 [node name="TriggerR" type="MeshInstance3D" parent="Model" unique_id=415229698]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.031, -0.0035, -0.0325)
-mesh = SubResource("BoxMesh_trigger")
-surface_material_override/0 = SubResource("Mat_dark")
+mesh = ExtResource("pad_TriggerR")
 
 [node name="StickL" type="MeshInstance3D" parent="Model" unique_id=1689905218]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.024, 0.017, 0.017)
-mesh = SubResource("CylinderMesh_stick")
-surface_material_override/0 = SubResource("Mat_dark")
+mesh = ExtResource("pad_StickL")
 
 [node name="Cap" type="MeshInstance3D" parent="Model/StickL" unique_id=469708786]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0068, 0)
-mesh = SubResource("CylinderMesh_stick_cap")
-surface_material_override/0 = SubResource("Mat_stick")
+mesh = ExtResource("pad_StickL_Cap")
 
 [node name="StickR" type="MeshInstance3D" parent="Model" unique_id=920311638]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.024, 0.017, 0.017)
-mesh = SubResource("CylinderMesh_stick")
-surface_material_override/0 = SubResource("Mat_dark")
+mesh = ExtResource("pad_StickR")
 
 [node name="Cap" type="MeshInstance3D" parent="Model/StickR" unique_id=1642697750]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0068, 0)
-mesh = SubResource("CylinderMesh_stick_cap")
-surface_material_override/0 = SubResource("Mat_stick")
+mesh = ExtResource("pad_StickR_Cap")
+
+[node name="CordBoot" type="MeshInstance3D" parent="Model"]
+mesh = ExtResource("pad_CordBoot")
 
 [node name="CableAttachPoint" type="Node3D" parent="." unique_id=1053994500]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.032)

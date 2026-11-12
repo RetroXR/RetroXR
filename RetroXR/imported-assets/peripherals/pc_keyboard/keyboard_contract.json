@@ -1,0 +1,61 @@
+{
+  "frame": "glTF/Godot metres, +Y up, front (the user) +Z, origin on the floor under the key grid centre",
+  "case_mm": [
+    507.0,
+    158.4
+  ],
+  "grid_mm": [
+    483.0,
+    134.4
+  ],
+  "pitch_mm": 21.0,
+  "plate_y": 0.006,
+  "key_top_y": 0.014,
+  "deck": {
+    "tilt_deg": 4.0,
+    "lift": 0.004,
+    "note": "Keys root: rotate tilt_deg about +X (back edge up), then lift along +Y; keys laid flat in it"
+  },
+  "cable_exit": [
+    0,
+    0.008,
+    -0.0862
+  ],
+  "leds": [
+    "LedNum",
+    "LedCaps",
+    "LedScroll"
+  ],
+  "caps": {
+    "alpha": [
+      226,
+      217,
+      196
+    ],
+    "mod": [
+      96,
+      92,
+      86
+    ],
+    "skirt_mm": 9.0,
+    "top_inset_mm": [
+      3.2,
+      3.4
+    ],
+    "legend": {
+      "font": "Arimo-Bold",
+      "single_mm": 4.5,
+      "word_mm": 2.2,
+      "ink_on_alpha": [
+        38,
+        36,
+        32
+      ],
+      "ink_on_mod": [
+        238,
+        233,
+        222
+      ]
+    }
+  }
+}

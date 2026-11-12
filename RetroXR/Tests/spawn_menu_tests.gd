@@ -46,6 +46,7 @@ func _ready() -> void:
 	await _group_owed()
 	await _group_art()
 	await _group_scroll()
+	await _group_keep()
 	_group_art_lookup()
 	await _group_idle()
 	await _group_tiles()
@@ -530,7 +531,8 @@ func _group_colors() -> void:
 			continue
 		if btn.text.contains("Box"):
 			console = btn
-		elif btn.has_node("HoldPress"):
+		elif btn.has_node("HoldPress") and not btn.text.contains("Controller") and not btn.text.contains("Light Gun"):
+			# The RETRO XR pad and gun come in colours of their own, so their rows are held too.
 			others_hold += 1
 	var hold := console.get_node_or_null("HoldPress") as HoldPress if console != null else null
 	_ok(hold != null, "colors/the console's row can be held")
@@ -691,7 +693,8 @@ func _group_colors() -> void:
 	for item: Dictionary in SpawnCatalog.items_for("nes"):
 		if str(item.get("spawn", "")) == "light_gun":
 			gun_after = item
-	_ok(not gun_after.is_empty() and not gun_after.has("variants"), "colors/and the game's own row is as it was once the mod is gone")
+	_ok(not gun_after.is_empty() and gun_after.get("variants", []) == SpawnCatalog.RETROPAD_VARIANTS,
+		"colors/and the game's own row is as it was once the mod is gone: its own colours")
 
 
 # ── formats/ — the strings the options panel prints ───────────────────────────
@@ -1806,6 +1809,43 @@ func _group_scroll() -> void:
 	list.rebind_index(12)
 	list.rebind_index(40)
 	_eq(bound, [12], "scroll/one row re-binds on its own, and one off screen not at all")
+
+
+# ── keep/ — a refresh of the open page keeps its place on EVERY frame ─────────
+
+## A scrape that lands re-runs the open page through refresh_detail(). It used to
+## zero the scroll and put it back two frames later, so the list was drawn at row
+## one for those frames: the jump a player saw whenever a game's art arrived.
+func _group_keep() -> void:
+	var browser := SystemGridBrowser.new()
+	browser.size = Vector2(600, 400)
+	add_child(browser)
+	_spawned.append(browser)
+	await get_tree().process_frame
+	browser.set_systems([{"systemid": "nes", "name": "Nintendo (NES)"}])
+	browser.set_detail_populator(func(_sid: String, vbox: VBoxContainer) -> void:
+		var tall := Control.new()
+		tall.custom_minimum_size = Vector2(10, 5000)
+		vbox.add_child(tall))
+	browser.open_system("nes")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var scroll := browser._detail_scroll
+	scroll.scroll_vertical = 1200
+	await get_tree().process_frame
+	_eq(scroll.scroll_vertical, 1200, "keep/the page scrolls (else the rest proves nothing)")
+
+	browser.refresh_detail()
+	var seen: Array = [scroll.scroll_vertical]
+	for i in 3:
+		await get_tree().process_frame
+		seen.append(scroll.scroll_vertical)
+	_eq(seen, [1200, 1200, 1200, 1200],
+		"keep/a refresh never shows the page at the top, not even for a frame")
+
+	# Opening a system is navigation, and that still starts at the top.
+	browser.open_system("nes")
+	_eq(scroll.scroll_vertical, 0, "keep/opening a system starts at the top")
 
 
 # ── art lookup/ — scraped art is not looked for on disk at every bind ─────────

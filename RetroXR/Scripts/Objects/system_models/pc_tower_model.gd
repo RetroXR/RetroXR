@@ -66,6 +66,139 @@ func _ready() -> void:
 	_label_ports()
 	_set_led(_led, false, Color(0.25, 0.85, 0.35))
 	_set_led(_drive_led, false, Color(1.0, 0.7, 0.2))
+	_build_floppy_controls()
+
+
+# --- the floppy drives' own controls ------------------------------------------
+#
+# The CD tray has the machine's EJECT (RetroSystem builds it at EjectButtonAnchor and
+# MediaTray runs it). The two floppy drives eject themselves, as real ones do: the
+# 3.5 in drive's push button and the 5.25 in drive's turning latch, both the shell's
+# own meshes (tower_mobile.glb's Drive35Eject and Drive525Lever) made into VRButtons
+# here. A press takes the disk out of the slot through the SAME path a hand pulling
+# it does (the zone's drop_object -> RetroSystem._on_cartridge_removed: the core is
+# told, netplay hears EV_CART_REMOVE, a running machine keeps running as it does when
+# a disk leaves the drive), then leaves it sticking out of the drive for a hand to
+# take. The slot ignores it until it has been picked up, or it would swallow it back.
+
+## How far a disk springs out of its drive when ejected (along the tower's +Z).
+const FLOPPY35_POP := 0.024
+const FLOPPY525_POP := 0.030
+const FLOPPY_POP_SEC := 0.14
+const EJECT_PRESS := 0.0015
+## The 5.25 in latch: upright across the slot is shut, a quarter turn is open.
+const LATCH_OPEN_TURN := PI * 0.5
+const LATCH_TURN_SEC := 0.16
+
+var _eject35: VRButton = null
+var _latch525: VRButton = null
+var _latch_mesh: MeshInstance3D = null
+var _latch_tween: Tween = null
+
+
+func _build_floppy_controls() -> void:
+	var shell := get_node_or_null("Shell")
+	if shell == null:
+		push_warning("[PCTower] no Shell: the floppy drives get no eject controls")
+		return
+	var cap := shell.find_child("Drive35Eject", true, false) as MeshInstance3D
+	var lever := shell.find_child("Drive525Lever", true, false) as MeshInstance3D
+	if cap == null or lever == null:
+		push_warning("[PCTower] shell lacks Drive35Eject/Drive525Lever: floppy eject controls not built")
+		return
+	_eject35 = _make_button("Floppy35EjectButton", cap, Vector3(0.016, 0.009, 0.012), EJECT_PRESS)
+	_eject35.button_pressed.connect(_on_floppy_eject.bind(false))
+	_latch525 = _make_button("Floppy525LatchButton", lever, Vector3(0.014, 0.030, 0.014), 0.0008)
+	_latch_mesh = lever
+	_latch525.button_pressed.connect(_on_floppy_eject.bind(true))
+	# A disk going into the 5.25 in drive turns the latch shut behind it.
+	var slot := _host_slot()
+	if slot != null and not slot.has_picked_up.is_connected(_on_media_seated):
+		slot.has_picked_up.connect(_on_media_seated)
+	print("[PCTower] floppy controls built: 3.5 in eject at %s, 5.25 in latch at %s"
+		% [_eject35.position, _latch525.position])
+
+
+## A VRButton round one of the shell's own meshes: the mesh becomes its ButtonMesh
+## (so the press sinks the very part drawn), the box its touch and laser target.
+func _make_button(button_name: String, mesh: MeshInstance3D, box: Vector3, depth: float) -> VRButton:
+	var b := VRButton.new()
+	b.name = button_name
+	b.position = mesh.position          # the shell sits at the model root, unmoved
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = box
+	col.shape = shape
+	b.add_child(col)
+	mesh.get_parent().remove_child(mesh)
+	mesh.name = "ButtonMesh"
+	mesh.position = Vector3.ZERO
+	b.add_child(mesh)                   # before b enters the tree: VRButton finds $ButtonMesh on ready
+	b.depress_axis = Vector3(0, 0, -1)  # into the bezel
+	b.depress_depth = depth
+	add_child(b)
+	return b
+
+
+func _host_slot() -> XRToolsSnapZone:
+	var host := get_parent()
+	return host.get_node_or_null("CartridgeSlot") as XRToolsSnapZone if host != null else null
+
+
+func _on_media_seated(_what: Node3D) -> void:
+	if MediaDimensions.uses_floppy_525(_host_systemid()):
+		_turn_latch(false)
+
+
+func _turn_latch(open: bool) -> void:
+	if _latch_mesh == null:
+		return
+	if _latch_tween != null and _latch_tween.is_valid():
+		_latch_tween.kill()
+	_latch_tween = create_tween()
+	_latch_tween.tween_property(_latch_mesh, "rotation:z", LATCH_OPEN_TURN if open else 0.0, LATCH_TURN_SEC) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
+
+## The 3.5 in drive's button (is_525 false) or the 5.25 in drive's latch (true).
+func _on_floppy_eject(is_525: bool) -> void:
+	var drive := "5.25 in" if is_525 else "3.5 in"
+	if is_525:
+		_turn_latch(true)
+	var host := get_parent()
+	var sid := _host_systemid()
+	if host == null or not host.has_method("get_snapped_cartridge"):
+		print("[PCTower] %s eject pressed with no machine to eject from" % drive)
+		return
+	if MediaDimensions.is_disc_system(sid) or MediaDimensions.uses_floppy_525(sid) != is_525:
+		print("[PCTower] %s eject pressed: empty (%s loads from the %s)" % [drive, sid,
+			"CD tray" if MediaDimensions.is_disc_system(sid)
+			else ("5.25 in drive" if MediaDimensions.uses_floppy_525(sid) else "3.5 in drive")])
+		return
+	var cart := host.call("get_snapped_cartridge") as RigidBody3D
+	var slot := _host_slot()
+	if cart == null or slot == null:
+		print("[PCTower] %s eject pressed: no disk in the drive" % drive)
+		return
+	var seated := cart.global_transform
+	# Ignore the disk until a hand has it, or the zone takes it straight back.
+	slot.enabled = false
+	slot.drop_object()
+	cart.freeze = true
+	cart.global_transform = seated
+	var out := global_basis.z.normalized() * (FLOPPY525_POP if is_525 else FLOPPY35_POP)
+	var tw := cart.create_tween()
+	tw.tween_property(cart, "global_position", seated.origin + out, FLOPPY_POP_SEC) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	var reopen := func() -> void:
+		if is_instance_valid(slot) and not slot.enabled:
+			slot.enabled = true
+			print("[PCTower] %s drive takes disks again" % drive)
+	if cart.has_signal("picked_up"):
+		cart.connect("picked_up", func(_by: Variant) -> void: reopen.call(), CONNECT_ONE_SHOT)
+	cart.tree_exiting.connect(reopen, CONNECT_ONE_SHOT)
+	print("[PCTower] %s drive ejected %s (%s): out %.0f mm, the slot waits for a hand" % [drive,
+		cart.name, sid, out.length() * 1000.0])
 
 
 ## Print an icon over each socket instead of its name.
@@ -202,6 +335,7 @@ func configure_buttons(power_btn: VRButton, reset_btn: VRButton, eject_btn: VRBu
 		var pl := power_btn.get_node_or_null("ButtonLabel") as Label3D
 		if pl != null:
 			pl.hide()
+		_dress_cap(power_btn, POWER_CAP)
 	if eject_btn != null:
 		eject_btn.position = $Front/EjectButtonAnchor.position
 		eject_btn.depress_depth = 0.003
@@ -209,8 +343,34 @@ func configure_buttons(power_btn: VRButton, reset_btn: VRButton, eject_btn: VRBu
 		var el := eject_btn.get_node_or_null("ButtonLabel") as Label3D
 		if el != null:
 			el.hide()
+		_dress_cap(eject_btn, EJECT_CAP)
 	if reset_btn != null:
 		reset_btn.set_active(false)
+
+
+
+## The shell's two machine keys, drawn as its own beige plastic in place of
+## RetroSystem's coloured placeholder boxes (which painted a green power block over
+## the PowerBezel ring and a blue one over the CD's face): the power key a square
+## cap seated in that ring's 23 mm opening, the CD's EJECT a small pill under its
+## tray door. Sizes are the shell's (build_tower.py PowerBezel, the CD controls row).
+const POWER_CAP := Vector3(0.0205, 0.0205, 0.006)
+const EJECT_CAP := Vector3(0.010, 0.0036, 0.003)
+const CAP_COLOR := Color(0.784, 0.745, 0.651)
+
+
+func _dress_cap(btn: VRButton, size: Vector3) -> void:
+	var box := BoxMesh.new()
+	box.size = size
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = CAP_COLOR
+	mat.roughness = 0.5
+	var cap := MeshInstance3D.new()
+	cap.name = "ShellCap"
+	cap.mesh = box
+	cap.set_surface_override_material(0, mat)
+	btn.add_child(cap)
+	btn.set_button_mesh(cap)            # hides the placeholder and stops the state tint
 
 
 ## This tower has three drives, and which one a machine loads from is a property of

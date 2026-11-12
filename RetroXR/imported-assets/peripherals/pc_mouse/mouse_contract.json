@@ -1,0 +1,43 @@
+{
+  "frame": "glTF/Godot metres, +Y up, front along -Z, origin on the floor under the middle (retro_mouse.tscn MouseVisual)",
+  "size_mm": [
+    60.0,
+    34.0,
+    100.0
+  ],
+  "nodes": {
+    "BodyMesh": [
+      0,
+      0.014,
+      0
+    ],
+    "LeftButton": [
+      -0.015,
+      0.03,
+      -0.028
+    ],
+    "RightButton": [
+      0.015,
+      0.03,
+      -0.028
+    ],
+    "WheelMesh": [
+      0,
+      0.031,
+      -0.028
+    ],
+    "CableAttachPoint": [
+      0,
+      0.012,
+      -0.056
+    ]
+  },
+  "press": {
+    "direction": [
+      0,
+      -1,
+      0
+    ],
+    "travel": 0.0012
+  }
+}

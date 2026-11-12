@@ -517,7 +517,8 @@ func _test_model_variant() -> void:
 		lid_back.free()
 	# Anything else keeps its color as metadata, which a save writes and a load
 	# gives back before the thing enters the room: no class has to know.
-	var pad := (load("res://Scenes/Objects/controllers/retro_controller.tscn") as PackedScene).instantiate() as RigidBody3D
+	# (The mouse: the RETRO XR pad and gun have colours of their own and keep them as a property, as a lid does.)
+	var pad := (load("res://Scenes/Objects/peripherals/retro_mouse.tscn") as PackedScene).instantiate() as RigidBody3D
 	pad.freeze = true
 	_eq(SystemModelRegistry.variant_of(pad), "", "colors/a controller as it comes has no color")
 	SystemModelRegistry.set_variant_of(pad, "green")

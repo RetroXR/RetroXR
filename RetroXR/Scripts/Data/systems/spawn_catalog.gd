@@ -26,6 +26,14 @@ extends RefCounted
 
 ## The stand-in pad — also the "Primitive Controller" row's spawn token.
 const PRIMITIVE_CONTROLLER := "retro_controller"
+## The RETRO XR pad's and light gun's colourways, held on their rows
+## (RetroPadController.COLOURWAYS, LightGun.COLOURWAYS paint them; the swatch is
+## each one's top).
+const RETROPAD_VARIANTS: Array = [
+	{"id": "charcoal", "label": "Charcoal", "color": Color8(44, 44, 47)},
+	{"id": "cream", "label": "Cream", "color": Color8(226, 218, 200)},
+	{"id": "red", "label": "Red", "color": Color8(150, 50, 44)},
+]
 
 
 ## The arcade bays and their JAMMA lead, on every cabinet's card (see _PERIPHERALS).
@@ -484,7 +492,7 @@ const _LINK_LEADS: Dictionary = {
 ## it was sold for, the 3DO's Gamegun and the CD-i's Peacekeeper. A console that
 ## never had one does not get the row, so the card stays a hardware fact.
 const _LIGHT_GUN: Dictionary = {"kind": "peripheral", "label": "Light Gun",
-	"spawn": "light_gun"}
+	"spawn": "light_gun", "variants": RETROPAD_VARIANTS, "own_variants": true}
 const _LIGHT_GUN_PLATFORMS: Array = [
 	# No sega_cd: its card is the Mega-CD UNIT now, not a console, and the
 	# Menacer and the Justifier plug into the Mega Drive underneath it -- whose
@@ -578,8 +586,12 @@ static func _with_offered_variants(items: Array, systemid: String = "") -> Array
 		var key := "%s|%s" % [systemid, spawn]
 		if not _offered_variants.has(key):
 			key = spawn
-		if row.get("kind", "system") == "peripheral" and not row.has("variants") and _offered_variants.has(key):
+		# A row's colours of the game's own (own_variants: the RETRO XR pad's and gun's) give way to a mod's: a
+		# mod that dresses the row offers the swatches its dressing paints.
+		var replaceable := not row.has("variants") or bool(row.get("own_variants", false))
+		if row.get("kind", "system") == "peripheral" and replaceable and _offered_variants.has(key):
 			row["variants"] = (_offered_variants[key]["variants"] as Array).duplicate(true)
+			row.erase("own_variants")
 	return items
 
 
@@ -792,7 +804,8 @@ static func _items_for(systemid: String) -> Array:
 		items.append(_SP_PHONES_ADAPTER.duplicate())
 	if standins and not own.call(ConnectorScan.ROLE_CONTROLLER):
 		items.append({"kind": "peripheral", "label": "Primitive Controller",
-			"spawn": PRIMITIVE_CONTROLLER})
+			"spawn": PRIMITIVE_CONTROLLER, "variants": RETROPAD_VARIANTS.duplicate(true),
+			"own_variants": true})
 	# The generic lead fits phono jacks. Once no console on the card has any --
 	# the box is gone and every row lists sockets without them -- it would fit the
 	# television and nothing on the console, which is _OWN_AV_LEAD's reason.

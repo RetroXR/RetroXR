@@ -1,9 +1,17 @@
-[gd_scene load_steps=13 format=3 uid="uid://retromouse_0001"]
+[gd_scene load_steps=19 format=3 uid="uid://retromouse_0001"]
 
 [ext_resource type="Script" path="res://Scripts/Objects/peripherals/retro_mouse.gd" id="1_mousescript"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_rounded_right.tscn" id="3_rhand"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_rounded_left.tscn" id="4_lhand"]
+; The RETRO XR mouse (RetroXR-models generic/pc-mouse, build_mouse.py; mouse_contract.json), baked one mesh
+; per node by Tools/gen/extract_glb_meshes.gd onto the nodes the script already moves.
+[ext_resource type="ArrayMesh" path="res://imported-assets/peripherals/pc_mouse/mouse/BodyMesh.res" id="mouse_BodyMesh"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/peripherals/pc_mouse/mouse/LeftButton.res" id="mouse_LeftButton"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/peripherals/pc_mouse/mouse/RightButton.res" id="mouse_RightButton"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/peripherals/pc_mouse/mouse/WheelMesh.res" id="mouse_WheelMesh"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/peripherals/pc_mouse/mouse/WheelSlot.res" id="mouse_WheelSlot"]
+[ext_resource type="ArrayMesh" path="res://imported-assets/peripherals/pc_mouse/mouse/CordBoot.res" id="mouse_CordBoot"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_mouse"]
 size = Vector3(0.062, 0.036, 0.105)
@@ -51,28 +59,30 @@ shape = SubResource("BoxShape3D_mouse")
 
 [node name="BodyMesh" type="MeshInstance3D" parent="MouseVisual"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.014, 0)
-mesh = SubResource("BoxMesh_body")
-surface_material_override/0 = SubResource("Mat_body")
+mesh = ExtResource("mouse_BodyMesh")
 
 [node name="LeftButton" type="MeshInstance3D" parent="MouseVisual"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.015, 0.03, -0.028)
-mesh = SubResource("BoxMesh_btn")
-surface_material_override/0 = SubResource("Mat_btn")
+mesh = ExtResource("mouse_LeftButton")
 
 [node name="RightButton" type="MeshInstance3D" parent="MouseVisual"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.015, 0.03, -0.028)
-mesh = SubResource("BoxMesh_btn")
-surface_material_override/0 = SubResource("Mat_btn")
+mesh = ExtResource("mouse_RightButton")
 
 [node name="WheelMesh" type="MeshInstance3D" parent="MouseVisual"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.031, -0.028)
-mesh = SubResource("BoxMesh_wheel")
-surface_material_override/0 = SubResource("Mat_wheel")
+mesh = ExtResource("mouse_WheelMesh")
 
 ; Under MouseVisual, which is the node RetroMouse glues to the surface — the cord
 ; leaves the shell you can see, not the hand the body is still following.
+[node name="WheelSlot" type="MeshInstance3D" parent="MouseVisual"]
+mesh = ExtResource("mouse_WheelSlot")
+
+[node name="CordBoot" type="MeshInstance3D" parent="MouseVisual"]
+mesh = ExtResource("mouse_CordBoot")
+
 [node name="CableAttachPoint" type="Node3D" parent="MouseVisual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.012, -0.048)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.012, -0.056)
 
 [node name="SurfaceRay" type="RayCast3D" parent="."]
 target_position = Vector3(0, -0.1, 0)

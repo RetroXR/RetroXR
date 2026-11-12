@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3]
+[gd_scene load_steps=23 format=3]
 
 [ext_resource type="Script" path="res://Scripts/Objects/system_models/pc_tower_model.gd" id="1_pctower"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/vga_port.tscn" id="2_vgaport"]
@@ -7,6 +7,13 @@
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/ps2_jack_mouse.res" id="5_ps2jackms"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/power_port.tscn" id="6_powerport"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/iec_c14_inlet.res" id="7_c14"]
+; The RETRO XR tower shell (RetroXR-models generic/pc-tower, build_tower.py; tower_contract.json): case, framed
+; bezel, the drive faces in real bay sizes, light lens, power bezel, printing. It replaces the primitives below
+; (Case, Bezel, Bay, Floppy525, Floppy), which stay hidden because the suites measure their places.
+[ext_resource type="PackedScene" path="res://imported-assets/consoles/pc_tower/tower_mobile.glb" id="8_shell"]
+; The CD-ROM tray (build_tray.py; tray_contract.json), in TrayPivot's own frame so it rides the slide: the
+; stepped plate, its recesses, clips and rails, and the beige fascia that fills the CD slot when it is home.
+[ext_resource type="PackedScene" path="res://imported-assets/consoles/pc_tower/tray_mobile.glb" id="9_tray"]
 
 ; A 90s beige mini-tower: 0.19 W x 0.42 H x 0.44 D, which is a real ATX mini-tower
 ; footprint. Origin at the base centre, so the system sits on the floor at y 0.
@@ -72,7 +79,10 @@ roughness = 0.6
 [node name="PCTowerModel" type="Node3D"]
 script = ExtResource("1_pctower")
 
+[node name="Shell" parent="." instance=ExtResource("8_shell")]
+
 [node name="Case" type="MeshInstance3D" parent="."]
+visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.21, 0)
 mesh = SubResource("Mesh_case")
 surface_material_override/0 = SubResource("Mat_beige")
@@ -81,13 +91,15 @@ surface_material_override/0 = SubResource("Mat_beige")
 [node name="Front" type="Node3D" parent="."]
 
 [node name="Bezel" type="MeshInstance3D" parent="Front"]
+visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.21, 0.223)
 mesh = SubResource("Mesh_bezel")
 surface_material_override/0 = SubResource("Mat_bezel")
 
 ; 5.25 in optical bay, upper front. The tray emerges from this slot.
 [node name="Bay" type="MeshInstance3D" parent="Front"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.012, 0.335, 0.2305)
+visible = false
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.36835, 0.2305)
 mesh = SubResource("Mesh_bay")
 surface_material_override/0 = SubResource("Mat_dark")
 
@@ -95,13 +107,15 @@ surface_material_override/0 = SubResource("Mat_dark")
 ; whose disk was that one (MediaDimensions.FLOPPY_525_SYSTEMS). The gap between the
 ; bay and the 3.5 in slot is 43 mm, and a half-height drive is 41.3.
 [node name="Floppy525" type="MeshInstance3D" parent="Front"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.012, 0.296, 0.2305)
+visible = false
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32505, 0.2305)
 mesh = SubResource("Mesh_floppy525")
 surface_material_override/0 = SubResource("Mat_dark")
 
 ; 3.5 in floppy slot below it, because a tower without one is not a 90s tower.
 [node name="Floppy" type="MeshInstance3D" parent="Front"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.268, 0.2305)
+visible = false
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.24505, 0.2305)
 mesh = SubResource("Mesh_floppy")
 surface_material_override/0 = SubResource("Mat_dark")
 
@@ -134,7 +148,7 @@ surface_material_override/0 = SubResource("Mat_dark")
 ; stands 54 mm out in front of the bezel — far enough to read the label across the
 ; room and to take hold of without reaching into the case.
 [node name="FloppySeat" type="Marker3D" parent="Front"]
-transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0.268, 0.2415)
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0.24505, 0.2415)
 
 ; Where a 5.25 in disk sits in the drive above. Basis is R_y(180) R_x(-90): flat,
 ; label up, and its head window leading. That window is on the disk's -Y edge (see
@@ -147,7 +161,7 @@ transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0
 ; centres 21.35 mm behind it. That leaves 45.3 mm standing out, the label strip
 ; and the jacket under it, with the hub window just inside the drive.
 [node name="Floppy525Seat" type="Marker3D" parent="Front"]
-transform = Transform3D(-1, 0, 0, 0, 0, 1, 0, 1, 0, -0.012, 0.296, 0.21315)
+transform = Transform3D(-1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0.32505, 0.21315)
 
 ; Anchors, not geometry — RetroSystem's own VRButtons are moved onto these, so the
 ; button meshes it already carries are the visible caps.
@@ -157,7 +171,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.042, 0.122, 0.234)
 ; On the drive faceplate to the RIGHT of the slit, not inside it — at x 0.058 with
 ; a 0.152-wide slit the button floated in the opening.
 [node name="EjectButtonAnchor" type="Marker3D" parent="Front"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.064, 0.331, 0.234)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.062, 0.35035, 0.234)
 
 ; --- the sliding tray --------------------------------------------------------
 ; TrayPivot is what pc_tower_model.gd translates along +Z, and what RetroSystem
@@ -165,19 +179,24 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.064, 0.331, 0.234)
 ; tray is INSIDE the case; only its front lip shows in the bay slot — z 0.159 puts
 ; that lip 8.5 mm behind the slit face.
 [node name="TrayPivot" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.012, 0.335, 0.159)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3811, 0.159)
+
+[node name="Tray" parent="TrayPivot" instance=ExtResource("9_tray")]
 
 [node name="Shelf" type="MeshInstance3D" parent="TrayPivot"]
+visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.018, 0)
 mesh = SubResource("Mesh_tray")
 surface_material_override/0 = SubResource("Mat_tray")
 
 [node name="Well" type="MeshInstance3D" parent="TrayPivot"]
+visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0125, 0)
 mesh = SubResource("Mesh_well")
 surface_material_override/0 = SubResource("Mat_dark")
 
 [node name="Spindle" type="MeshInstance3D" parent="TrayPivot"]
+visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.009, 0)
 mesh = SubResource("Mesh_spindle")
 surface_material_override/0 = SubResource("Mat_tray")

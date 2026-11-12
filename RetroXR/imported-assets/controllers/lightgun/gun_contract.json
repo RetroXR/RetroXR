@@ -1,0 +1,171 @@
+{
+  "frame": "glTF/Godot metres, +Y up, muzzle along -Z",
+  "controls": {
+    "AuxAButton": {
+      "origin": [
+        -0.0145,
+        0.031,
+        0.03
+      ],
+      "press": [
+        1,
+        0,
+        0
+      ]
+    },
+    "AuxBButton": {
+      "origin": [
+        0.0145,
+        0.031,
+        0.03
+      ],
+      "press": [
+        -1,
+        0,
+        0
+      ]
+    },
+    "AuxCButton": {
+      "origin": [
+        0.0,
+        -0.032,
+        0.008031746031746032
+      ],
+      "press": [
+        0,
+        0,
+        1
+      ]
+    },
+    "ReloadButton": {
+      "origin": [
+        0.0,
+        -0.083,
+        0.043
+      ],
+      "press": [
+        0,
+        1,
+        0
+      ]
+    },
+    "StartButton": {
+      "origin": [
+        0.007,
+        0.048,
+        0.05
+      ],
+      "press": [
+        0,
+        -1,
+        0
+      ]
+    },
+    "SelectButton": {
+      "origin": [
+        -0.007,
+        0.048,
+        0.05
+      ],
+      "press": [
+        0,
+        -1,
+        0
+      ]
+    },
+    "DPad": {
+      "origin": [
+        0.0,
+        0.034,
+        0.061
+      ],
+      "press": [
+        0,
+        0,
+        -1
+      ]
+    }
+  },
+  "trigger_pivot": [
+    0.0,
+    0.008,
+    -0.0005
+  ],
+  "trigger_motion": {
+    "kind": "swing",
+    "axis": [
+      1,
+      0,
+      0
+    ],
+    "degrees": 6.0
+  },
+  "barrel_tip": [
+    0.0,
+    0.034,
+    -0.1515
+  ],
+  "cable_exit": [
+    0.0,
+    -0.084,
+    0.058
+  ],
+  "grab_point": [
+    0.0,
+    -0.03,
+    0.034
+  ],
+  "colourways": {
+    "A": {
+      "GUN_Top": [
+        44,
+        44,
+        47
+      ],
+      "GUN_Bottom": [
+        224,
+        214,
+        194
+      ],
+      "GUN_Seam": [
+        236,
+        122,
+        34
+      ]
+    },
+    "B": {
+      "GUN_Top": [
+        226,
+        218,
+        200
+      ],
+      "GUN_Bottom": [
+        46,
+        64,
+        72
+      ],
+      "GUN_Seam": [
+        112,
+        196,
+        112
+      ]
+    },
+    "C": {
+      "GUN_Top": [
+        150,
+        50,
+        44
+      ],
+      "GUN_Bottom": [
+        224,
+        214,
+        194
+      ],
+      "GUN_Seam": [
+        236,
+        226,
+        206
+      ]
+    }
+  }
+}

@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Tools/models/retroxr_peripherals_probe.gd" id="1"]
+
+[node name="RetroxrPeripheralsProbe" type="Node"]
+script = ExtResource("1")
