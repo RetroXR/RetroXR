@@ -181,7 +181,8 @@ func _build(vr_mode: bool) -> void:
 			+ "neon tube and game screen bounces off the walls, shines in the chrome and casts "
 			+ "soft shadows. It replaces Shadows, Ambient Occlusion and the screen-space effects "
 			+ "and costs far more than all of them, so lower Render Scale to pay for it. "
-			+ "Flat screen only."))
+			+ "Anti-Aliasing is off while it runs (DLSS smooths the edges) and comes back "
+			+ "when it is turned off. Flat screen only."))
 
 		var bounce_opts: Array = []
 		for n: int in [1, 2, 3, 4, 6, 8]:

@@ -385,7 +385,14 @@ func _group_rtx() -> void:
 	qm.dlss_enabled = false
 	_eq(qm.effective_dlss(), qm.supports_dlss() and qm.supports_path_tracing(),
 		"rtx/path tracing turns DLSS on with it where both run")
+	# MSAA stands down under the tracer (its overlay draws into an MSAA buffer the
+	# fork never resolves), and only there: the saved value is never touched.
+	qm.msaa_3d = Viewport.MSAA_4X
+	_eq(qm.effective_msaa(), Viewport.MSAA_DISABLED if qm.supports_path_tracing() else Viewport.MSAA_4X,
+		"rtx/MSAA is off exactly while path tracing runs")
+	_eq(qm.msaa_3d, Viewport.MSAA_4X, "rtx/and the saved MSAA is kept")
 	qm.path_tracing = false
+	_eq(qm.effective_msaa(), Viewport.MSAA_4X, "rtx/path tracing off, MSAA is back")
 	_ok(not qm.effective_dlss(), "rtx/with neither asked for, DLSS is off")
 
 	# An Environment: switched on only where the engine has the property and the

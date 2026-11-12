@@ -1013,6 +1013,7 @@ func apply_path_tracing() -> void:
 	for node in get_tree().root.find_children("*", "WorldEnvironment", true, false):
 		configure_environment(node as WorldEnvironment)
 	apply_render_scale()
+	apply_msaa()
 
 
 func _configure_path_tracing(env: Environment) -> void:
@@ -1035,12 +1036,12 @@ func _keep_raster(viewport: SubViewport) -> void:
 
 func _log_rtx(what: String) -> void:
 	var root := get_tree().root
-	print("[Quality] %s: path tracer %s (engine %s, on %s, %d bounces, %d spp), DLSS %s (engine %s, card %s, on %s), mode %d scale %.2f" % [
+	print("[Quality] %s: path tracer %s (engine %s, on %s, %d bounces, %d spp), DLSS %s (engine %s, card %s, on %s), mode %d scale %.2f, msaa %d" % [
 		what, "supported" if supports_path_tracing() else "unsupported",
 		_engine_has_path_tracer(), effective_path_tracing(), pt_bounces, pt_samples,
 		"supported" if supports_dlss() else "unsupported", _engine_has_dlss(),
 		_streamline_has_dlss(), effective_dlss(), root.scaling_3d_mode,
-		root.scaling_3d_scale])
+		root.scaling_3d_scale, root.msaa_3d])
 
 
 ## Whether the eye-buffer knob means anything in this session. PCVR is left out
@@ -1495,7 +1496,15 @@ func set_msaa(mode: int) -> void:
 	save_prefs()
 
 
+## Off while path tracing, whatever is saved. The tracer writes its one-sample
+## image straight to the internal texture and the fork skips the colour MSAA
+## resolve for it, but its raster overlay (every alpha-pass material: a TV's
+## picture, the hover outline) still draws into the MULTISAMPLED buffer, which is
+## then never resolved: all of it vanished (measured 2026-11-12, MSAA 4x vs off).
+## Nothing is lost: a traced image has no MSAA to give, and DLSS anti-aliases.
 func effective_msaa() -> Viewport.MSAA:
+	if effective_path_tracing():
+		return Viewport.MSAA_DISABLED
 	return msaa_3d as Viewport.MSAA
 
 
