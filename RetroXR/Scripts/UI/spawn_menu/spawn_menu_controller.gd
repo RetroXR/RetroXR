@@ -84,7 +84,7 @@ var _connect_retry_count: int = 0
 # Scroll state — driven by whichever stick whose controller points at the menu
 var _smoothed_scroll_y: float = 0.0
 ## The Field of View slider's value (OPTIONS); the camera shows it divided by the zoom.
-var _fov_base := 75.0
+var _fov_base := 75.0  # AppPrefs.desktop_fov, applied in _deferred_setup
 
 ## How far in front of the camera the menu stands, before any zoom.
 const MENU_DISTANCE := 0.9
@@ -142,9 +142,7 @@ var _hud_toasts: HudToasts = null
 var _net_notifier: NetHudNotifier = null
 
 # World scale (below 1.0 = player feels smaller / room feels bigger). Applied at
-# startup and tunable from the menu's Controls section. Not persisted — resets to
-# the default each launch (like the other comfort settings).
-const DEFAULT_WORLD_SCALE := 0.85
+# startup from AppPrefs.world_scale and tunable from OPTIONS > General.
 var _world_scale := 1.0
 var _base_eye_height := 1.65   # desktop XRCamera3D rest eye height; cached at setup
 
@@ -175,9 +173,11 @@ func _deferred_setup() -> void:
 		_camera = cams[0] as XRCamera3D
 	if _camera:
 		_desktop_pointer = _camera.get_node_or_null("FunctionDesktopPointer") as XRToolsDesktopFunctionPointer
-		# Cache the un-scaled desktop eye height, then apply the default world scale.
+		# Cache the un-scaled desktop eye height, then apply the saved world scale
+		# and field of view.
 		_base_eye_height = _camera.transform.origin.y
-		_apply_world_scale(DEFAULT_WORLD_SCALE)
+		_apply_world_scale(AppPrefs.world_scale)
+		_fov_base = AppPrefs.desktop_fov
 		_apply_desktop_fov()
 		_build_hud_toasts()
 
@@ -195,6 +195,7 @@ func _deferred_setup() -> void:
 	_locomotion_manager = get_tree().root.find_child("LocomotionManager", true, false) as LocomotionManager
 	_move_turn = get_tree().root.find_child("MovementTurn", true, false)
 	_player_body = get_tree().root.find_child("PlayerBody", true, false) as XRToolsPlayerBody
+	_apply_saved_comfort()
 
 	# FunctionPointer nodes (one per controller) for hit-testing
 	for node: Node in get_tree().root.find_children("*", "XRToolsFunctionPointer", true, false):
@@ -1644,6 +1645,18 @@ func _on_spawn_record_requested(album_path: String) -> void:
 	lp.album_path = album_path
 	lp.album_label = album_path.get_file().get_basename()
 	_place_spawned(lp, "vinyl_record")
+
+
+## The comfort rows the player saved (OPTIONS > General), put on the rig once it is
+## found. The rig is carried between rooms, so once is enough.
+func _apply_saved_comfort() -> void:
+	_on_turn_style_changed("SMOOTH" if AppPrefs.turn_smooth else "SNAP")
+	_on_snap_angle_changed(AppPrefs.snap_turn_angle)
+	_on_height_offset_changed(AppPrefs.height_offset)
+	print("[SpawnMenu] comfort applied: turn %s, snap %d deg, height %+.2f m, world scale %.2f, fov %d (turn=%s body=%s)"
+		% ["smooth" if AppPrefs.turn_smooth else "snap", int(AppPrefs.snap_turn_angle),
+			AppPrefs.height_offset, AppPrefs.world_scale, int(AppPrefs.desktop_fov),
+			_move_turn != null, _player_body != null])
 
 
 func _on_turn_style_changed(value: String) -> void:

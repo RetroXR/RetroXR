@@ -314,18 +314,23 @@ func _build_comfort_options(vbox: VBoxContainer) -> void:
 	if MenuStyle.is_vr_mode():
 		# Turn Style option (XR only)
 		var turn_opt := VRDropdown.create("Turn Style",
-			[["SNAP", "SNAP"], ["SMOOTH", "SMOOTH"]], "SNAP",
+			[["SNAP", "SNAP"], ["SMOOTH", "SMOOTH"]],
+			"SMOOTH" if AppPrefs.turn_smooth else "SNAP",
 			1, Vector2(220, 56), MenuStyle.MENU_NAME_SIZE)
 		turn_opt.item_selected.connect(func(id: Variant) -> void:
+			AppPrefs.turn_smooth = str(id) == "SMOOTH"
+			AppPrefs.save_prefs()
 			turn_style_changed.emit(str(id))
 		)
 		vbox.add_child(turn_opt)
 
 		# Snap Turn Angle option (XR only)
 		var sa_opt := VRDropdown.create("Snap Angle",
-			[["30°", 30.0], ["45°", 45.0], ["60°", 60.0]], 45.0,
+			[["30°", 30.0], ["45°", 45.0], ["60°", 60.0]], AppPrefs.snap_turn_angle,
 			1, Vector2(140, 56), MenuStyle.MENU_NAME_SIZE)
 		sa_opt.item_selected.connect(func(id: Variant) -> void:
+			AppPrefs.snap_turn_angle = float(id)
+			AppPrefs.save_prefs()
 			snap_angle_changed.emit(float(id))
 		)
 		vbox.add_child(sa_opt)
@@ -333,19 +338,22 @@ func _build_comfort_options(vbox: VBoxContainer) -> void:
 		vbox.add_child(HSeparator.new())
 	else:
 		# FOV slider (desktop only)
-		var fov_row := MenuStyle.menu_slider_row(vbox, "Field of View", 60.0, 110.0, 1.0, 60)
+		var fov_row := MenuStyle.menu_slider_row(vbox, "Field of View",
+			AppPrefs.DESKTOP_FOV_MIN, AppPrefs.DESKTOP_FOV_MAX, 1.0, 60)
 		var fov_slider: HSlider = fov_row[0]
 		var fov_val: Label = fov_row[1]
-		fov_slider.value = 75.0
-		fov_val.text = "75°"
+		fov_slider.value = AppPrefs.desktop_fov
+		fov_val.text = "%d°" % int(AppPrefs.desktop_fov)
 
 		fov_slider.value_changed.connect(func(v: float) -> void:
 			fov_val.text = "%d°" % int(v)
+			AppPrefs.desktop_fov = v
+			AppPrefs.save_prefs()
 			fov_changed.emit(v)
 		)
 
 		# Zoom (desktop only): 1.00x is the Field of View above exactly; more shows
-		# everything closer. Saved, unlike the field of view.
+		# everything closer. Saved by QualityManager.
 		var zoom_row := MenuStyle.menu_slider_row(vbox, "Zoom",
 			QualityManager.ZOOM_MIN, QualityManager.ZOOM_MAX, 0.05, 70)
 		var zoom_slider: HSlider = zoom_row[0]
@@ -374,15 +382,18 @@ func _build_comfort_options(vbox: VBoxContainer) -> void:
 		vbox.add_child(HSeparator.new())
 
 	# Height Offset slider
-	var ho_row := MenuStyle.menu_slider_row(vbox, "Height Offset", -1.0, 1.0, 0.01, 80)
+	var ho_row := MenuStyle.menu_slider_row(vbox, "Height Offset",
+		AppPrefs.HEIGHT_OFFSET_MIN, AppPrefs.HEIGHT_OFFSET_MAX, 0.01, 80)
 	var ho_slider: HSlider = ho_row[0]
 	var ho_val: Label = ho_row[1]
-	ho_slider.value = 0.0
-	ho_val.text = "0.00 m"
+	ho_slider.value = AppPrefs.height_offset
+	ho_val.text = "%+.2f m" % AppPrefs.height_offset
 	ho_slider.add_theme_constant_override("grabber_offset", 0)
 
 	ho_slider.value_changed.connect(func(v: float) -> void:
 		ho_val.text = "%+.2f m" % v
+		AppPrefs.height_offset = v
+		AppPrefs.save_prefs()
 		height_offset_changed.emit(v)
 	)
 
@@ -392,25 +403,28 @@ func _build_comfort_options(vbox: VBoxContainer) -> void:
 	# XR only, like Turn Style above: on desktop it only moves the eye height,
 	# which is what the Height Offset slider already does more directly.
 	if MenuStyle.is_vr_mode():
-		# Default matches DEFAULT_WORLD_SCALE in spawn_menu_controller.gd (applied
-		# at startup). Hardcoded rather than read from XRServer.world_scale because
-		# this view is built before the controller's deferred setup applies it.
-		var ws_row := MenuStyle.menu_slider_row(vbox, "World Scale", 0.4, 1.5, 0.05, 80)
+		# Read from AppPrefs rather than XRServer.world_scale: this view is built
+		# before the controller's deferred setup applies it, and passthrough pins 1.0.
+		var ws_row := MenuStyle.menu_slider_row(vbox, "World Scale",
+			AppPrefs.WORLD_SCALE_MIN, AppPrefs.WORLD_SCALE_MAX, 0.05, 80)
 		var ws_slider: HSlider = ws_row[0]
 		var ws_val: Label = ws_row[1]
-		ws_slider.value = 0.85
+		ws_slider.value = AppPrefs.world_scale
 		ws_val.text = "%.2f×" % ws_slider.value
 
 		ws_slider.value_changed.connect(func(v: float) -> void:
 			ws_val.text = "%.2f×" % v
+			AppPrefs.world_scale = v
+			AppPrefs.save_prefs()
 			world_scale_changed.emit(v)
 		)
 
 		# Passthrough pins the scale to 1.0 so the virtual room stays registered
-		# with the real one. Shown as such rather than left live and inert.
+		# with the real one. Shown as such rather than left live and inert; set
+		# without the signal, which would save 1.0 over the player's own scale.
 		var sm_ws := _scene_manager()
 		if sm_ws and sm_ws.current_scene_id == "passthrough":
-			ws_slider.value = 1.0
+			ws_slider.set_value_no_signal(1.0)
 			ws_slider.editable = false
 			ws_val.text = "1.00× (passthrough)"
 

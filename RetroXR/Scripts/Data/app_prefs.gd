@@ -42,6 +42,26 @@ var aim_crosshair:    bool = false
 var mouse_sensitivity: float = 1.0
 const MOUSE_SENSITIVITY_MIN := 0.1
 const MOUSE_SENSITIVITY_MAX := 3.0
+## The comfort rows at the top of OPTIONS > General. SpawnMenuController applies them
+## to the rig once it has found it; each is clamped to its control's range on load.
+## Turn Style (headset): smooth rather than snap turning.
+var turn_smooth: bool = false
+## Snap Angle (headset), one of SNAP_TURN_ANGLES. 45 is what the menu always showed;
+## until it was saved nothing applied it, and the rig turned by xr-tools' own 20.
+var snap_turn_angle: float = 45.0
+const SNAP_TURN_ANGLES: Array[float] = [30.0, 45.0, 60.0]
+## Field of View (desktop), before Zoom (QualityManager.zoom) brings it in.
+var desktop_fov: float = 75.0
+const DESKTOP_FOV_MIN := 60.0
+const DESKTOP_FOV_MAX := 110.0
+## Height Offset (both), metres added to the player's eye height.
+var height_offset: float = 0.0
+const HEIGHT_OFFSET_MIN := -1.0
+const HEIGHT_OFFSET_MAX := 1.0
+## World Scale (headset); passthrough still pins 1.0 while it is up.
+var world_scale: float = 0.85
+const WORLD_SCALE_MIN := 0.4
+const WORLD_SCALE_MAX := 1.5
 enum XRDisplayMode {
 	CONTROLLERS,
 	HANDS,
@@ -516,6 +536,15 @@ func load_prefs() -> void:
 	aim_crosshair    = JsonStore.get_bool(data, "aim_crosshair",    aim_crosshair)
 	mouse_sensitivity = clampf(JsonStore.get_float(data, "mouse_sensitivity", mouse_sensitivity),
 		MOUSE_SENSITIVITY_MIN, MOUSE_SENSITIVITY_MAX)
+	turn_smooth = JsonStore.get_bool(data, "turn_smooth", turn_smooth)
+	var snap := JsonStore.get_float(data, "snap_turn_angle", snap_turn_angle)
+	snap_turn_angle = snap if snap in SNAP_TURN_ANGLES else 45.0
+	desktop_fov = clampf(JsonStore.get_float(data, "desktop_fov", desktop_fov),
+		DESKTOP_FOV_MIN, DESKTOP_FOV_MAX)
+	height_offset = clampf(JsonStore.get_float(data, "height_offset", height_offset),
+		HEIGHT_OFFSET_MIN, HEIGHT_OFFSET_MAX)
+	world_scale = clampf(JsonStore.get_float(data, "world_scale", world_scale),
+		WORLD_SCALE_MIN, WORLD_SCALE_MAX)
 	xr_display_mode = _prefs_xr_display_mode(data, "xr_display_mode", xr_display_mode)
 	controller_hands = JsonStore.get_bool(data, "controller_hands", controller_hands)
 	poke_controls    = JsonStore.get_bool(data, "poke_controls",    poke_controls)
@@ -582,6 +611,11 @@ func _prefs_dict() -> Dictionary:
 		"autosave_interval": autosave_interval,
 		"aim_crosshair":    aim_crosshair,
 		"mouse_sensitivity": mouse_sensitivity,
+		"turn_smooth":      turn_smooth,
+		"snap_turn_angle":  snap_turn_angle,
+		"desktop_fov":      desktop_fov,
+		"height_offset":    height_offset,
+		"world_scale":      world_scale,
 		"xr_display_mode":  xr_display_mode,
 		"controller_hands": controller_hands,
 		"poke_controls":    poke_controls,
