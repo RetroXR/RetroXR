@@ -308,6 +308,10 @@ const PT_SAMPLES_MAX := 4
 ## Streamline.StreamlineCapabilityType.STREAMLINE_CAPABILITY_DLSS, by value: the
 ## enum is not there to name on a stock engine.
 const _STREAMLINE_CAPABILITY_DLSS := 0
+## Whether the room is path traced now, on every change of the switch. A room whose light is BAKED (a mod's
+## pre-lit shell) must draw itself unbaked under the tracer, or every wall is a lamp and the frame goes white;
+## it reads effective_path_tracing() as it builds and listens here after.
+signal path_tracing_changed(on: bool)
 ## Desktop window state. Empty resolution means "leave the window where it is".
 var window_mode: String = ""
 var resolution: String = ""
@@ -989,10 +993,13 @@ func set_dlss_enabled(on: bool) -> void:
 
 
 func set_path_tracing(on: bool) -> void:
+	var was := effective_path_tracing()
 	path_tracing = on
 	apply_path_tracing()
 	_log_rtx("path tracing %s" % ("on" if on else "off"))
 	save_prefs()
+	if effective_path_tracing() != was:
+		path_tracing_changed.emit(effective_path_tracing())
 
 
 func set_pt_bounces(count: int) -> void:

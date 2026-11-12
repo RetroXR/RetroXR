@@ -440,3 +440,14 @@ func _group_rtx() -> void:
 			"rtx/a saved DLSS choice stands down to FSR or bilinear here", "mode %d" % mode)
 	_live.set_path_tracing(false)
 	_live.set_dlss_enabled(false)
+	# The signal carries the EFFECTIVE state and only on a change of it: where the tracer cannot run, the
+	# switch moving says nothing, so a pre-lit room never unbakes itself for a tracer that is not there.
+	var heard: Array = []
+	var on_change := func(on: bool) -> void: heard.append(on)
+	_live.path_tracing_changed.connect(on_change)
+	_live.set_path_tracing(true)
+	_live.set_path_tracing(true)
+	_live.set_path_tracing(false)
+	_live.path_tracing_changed.disconnect(on_change)
+	_eq(heard, [true, false] if _live.supports_path_tracing() else [],
+		"rtx/path_tracing_changed fires on each change of the effective state only")
