@@ -121,8 +121,22 @@ func _follow() -> void:
 		var body := overlay.get_parent() as CollisionObject3D
 		if body == null:
 			continue
-		var t: Transform3D = body.shape_owner_get_transform(overlay.get_meta(&"owner_id", 0))
-		if overlay.transform != t:
+		var owner_id: int = overlay.get_meta(&"owner_id", 0)
+		# A shape switched off is not there: a drawer's lid exists only while its furniture is carried, and drawn on
+		# after it was switched off it read as a box left in the drawer ("the collision is off", 2026-11-12).
+		var on := not body.is_shape_owner_disabled(owner_id)
+		if overlay.visible != on:
+			overlay.visible = on
+		if not on:
+			continue
+		var t: Transform3D = body.shape_owner_get_transform(owner_id)
+		if overlay.top_level:
+			# A body synced to physics (a drawer): drawn where the PHYSICS ENGINE has it. Its node reads back the
+			# previous tick's pose, so riding the node drew a drawer's boxes trailing a pull by twice what the collision
+			# does (6.9 against 3.0 mm at 0.6 m/s, vr_drawer_tests again/).
+			var srv := PhysicsServer3D.body_get_state(body.get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM) as Transform3D
+			overlay.global_transform = srv * t
+		elif overlay.transform != t:
 			overlay.transform = t
 
 
@@ -170,15 +184,17 @@ func _scan() -> void:
 
 func _decorate(body: CollisionObject3D, owner_id: int, shape_id: int, layer: int) -> void:
 	var key := "%d:%d:%d" % [body.get_instance_id(), owner_id, shape_id]
-	if _seen.has(key):
-		return
 	var shape := body.shape_owner_get_shape(owner_id, shape_id)
 	if shape == null:
 		return
-	var debug_mesh := _wire_of(shape.get_debug_mesh())
+	var known: Variant = _seen.get(key)
+	if known is MeshInstance3D and is_instance_valid(known):
+		_refresh(known as MeshInstance3D, shape, layer)
+		return
+	var source := shape.get_debug_mesh()
+	var debug_mesh := _wire_of(source)
 	if debug_mesh == null:
 		return
-	_seen[key] = true
 
 	var overlay := MeshInstance3D.new()
 	overlay.name = "CollisionDebugShape"
@@ -186,6 +202,9 @@ func _decorate(body: CollisionObject3D, owner_id: int, shape_id: int, layer: int
 	overlay.material_override = _material_for(layer)
 	overlay.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	overlay.set_meta(&"owner_id", owner_id)
+	overlay.set_meta(&"source", source.get_rid())
+	overlay.set_meta(&"layer", layer)
+	_seen[key] = overlay
 	# A picture of a box is not part of the thing: a plug's pointer target is fitted
 	# to what it draws, and measuring this would grow it to the box it shows.
 	overlay.add_to_group(PointerFit.EXCLUDE_GROUP)
@@ -193,7 +212,25 @@ func _decorate(body: CollisionObject3D, owner_id: int, shape_id: int, layer: int
 	# The overlay rides the body it describes, so a swinging flap or a carried
 	# console takes its boxes with it for free.
 	body.add_child(overlay)
+	if body is AnimatableBody3D and (body as AnimatableBody3D).sync_to_physics:
+		overlay.top_level = true
+		overlay.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_overlays.append(overlay)
+
+
+## A shape already drawn, seen again by a scan: redrawn if it was resized (a BoxShape3D's debug mesh is a new one
+## after its size changes; a drawer's lid is resized every tick its furniture is carried) and recoloured if its body
+## changed layer (a picked-up pickable goes to the held layer and back).
+func _refresh(overlay: MeshInstance3D, shape: Shape3D, layer: int) -> void:
+	var source := shape.get_debug_mesh()
+	if source != null and source.get_rid() != overlay.get_meta(&"source", RID()):
+		var wire := _wire_of(source, false)
+		if wire != null:
+			overlay.mesh = wire
+			overlay.set_meta(&"source", source.get_rid())
+	if int(overlay.get_meta(&"layer", -1)) != layer:
+		overlay.material_override = _material_for(layer)
+		overlay.set_meta(&"layer", layer)
 
 
 ## Edges only, cached per source mesh RID.
@@ -201,7 +238,8 @@ func _decorate(body: CollisionObject3D, owner_id: int, shape_id: int, layer: int
 ## Shape3D.get_debug_mesh() hands back solid triangles, and a solid volume drawn
 ## with depth testing off paints out the model it is meant to describe — three
 ## nested boxes and you can see nothing at all. Every edge, drawn once.
-static func _wire_of(solid: Mesh) -> ArrayMesh:
+## `cache` false for a shape that is being resized: one entry per size would only grow.
+static func _wire_of(solid: Mesh, cache := true) -> ArrayMesh:
 	if solid == null:
 		return null
 	var key: RID = solid.get_rid()
@@ -246,7 +284,8 @@ static func _wire_of(solid: Mesh) -> ArrayMesh:
 	arrays_out[Mesh.ARRAY_VERTEX] = lines
 	var wire := ArrayMesh.new()
 	wire.add_surface_from_arrays(Mesh.PRIMITIVE_LINES, arrays_out)
-	_wire_cache[key] = wire
+	if cache:
+		_wire_cache[key] = wire
 	return wire
 
 

@@ -74,6 +74,9 @@ func _ready() -> void:
 		await _again(ns)
 		await _again_by_buttons()
 		await _ray_carry_collision()
+		await _debug_view_after_carry(ns)
+		await _angled_drop()
+		await _drag_lag()
 	XRServer.remove_tracker(_hand)
 	Engine.max_fps = _max_fps
 	_finish()
@@ -1002,3 +1005,115 @@ func _ray_carry_collision() -> void:
 	real.queue_free()
 	_pickup.name = "FunctionPickup"
 	await _ticks(2)
+
+
+## The collision VIEW (OPTIONS > Collision Debug, CollisionDebug) after a carry: the lid it drew while the nightstand was
+## held must not stay drawn once the lid is off. It did, as a box in the drawer, and read as "the collision is off after
+## I carried it" (2026-11-12; the physics engine had everything right). Every switched-off shape is hidden.
+func _debug_view_after_carry(ns: Nightstand) -> void:
+	await _reset(ns)
+	ns.drawer().set_value(0.5)
+	for i in 30:
+		await get_tree().physics_frame
+	CollisionDebug.set_enabled(self, true)
+	ns.freeze = true
+	ns.collision_layer = ns.picked_up_layer
+	ns.collision_mask = 0
+	for i in 70:
+		await get_tree().physics_frame
+	var lid_owner := -1
+	var lid_node := ns.drawer_body().get_node_or_null("Lid")
+	for id in ns.drawer_body().get_shape_owners():
+		if ns.drawer_body().shape_owner_get_owner(id) == lid_node:
+			lid_owner = int(id)
+	var lid_drawn := false
+	for o in ns.drawer_body().get_children():
+		if o is MeshInstance3D and o.has_meta(&"owner_id") and (o as MeshInstance3D).visible:
+			lid_drawn = lid_drawn or int(o.get_meta(&"owner_id", -2)) == lid_owner
+	ns.freeze = false
+	ns.collision_layer = 4
+	ns.collision_mask = 196613
+	for i in 70:
+		await get_tree().physics_frame
+	var stale := 0
+	var bodies: Array[CollisionObject3D] = [ns, ns.drawer_body()]
+	for body in bodies:
+		for o in body.get_children():
+			if o is MeshInstance3D and o.has_meta(&"owner_id") and (o as MeshInstance3D).visible \
+					and body.is_shape_owner_disabled(int(o.get_meta(&"owner_id", 0))):
+				stale += 1
+	CollisionDebug.set_enabled(self, false)
+	_ok(lid_drawn and stale == 0 and not ns.lid_on(),
+		"again/the collision view drew the lid while carried and draws no switched-off shape after (lid drawn %s, %d stale)" % [
+		lid_drawn, stale])
+	await _reset(ns)
+
+
+## Dropped at an ANGLE (the owner's repro, 2026-11-12): the piece hits the floor tipped, turns as it settles, and the
+## drawer bodies must turn WITH it. They kept their old world rotation (the follow wrote back only a position), so the
+## drawn drawers were right and their collision swung out of them, more with every knock.
+func _angled_drop() -> void:
+	for kind in ["nightstand", "mission_chest"]:
+		var piece := (ScenePersistence.PLAIN_SCENES[kind] as PackedScene).instantiate() as XRToolsPickable
+		piece.position = Vector3(-3.0, 0.0, -3.0)
+		add_child(piece)
+		for i in 30:
+			await get_tree().physics_frame
+		var ds: Array = piece.drawers() if piece is DrawerFurniture else [(piece as Nightstand).drawer()]
+		for d: VRDrawer in ds:
+			d.set_value(0.6)
+		for i in 30:
+			await get_tree().physics_frame
+		# Held tipped over 35 degrees, 25 cm up, and let go.
+		piece.freeze = true
+		piece.collision_layer = piece.picked_up_layer
+		piece.collision_mask = 0
+		await get_tree().physics_frame
+		piece.global_transform = Transform3D(Basis(Vector3(1, 0, 0.4).normalized(), deg_to_rad(35.0)), Vector3(-3.0, 0.25, -3.0))
+		for i in 5:
+			await get_tree().physics_frame
+		piece.freeze = false
+		piece.collision_layer = 4
+		piece.collision_mask = 196613
+		for i in 240:
+			await get_tree().physics_frame
+		var worst := 0.0
+		var worst_turn := 0.0
+		for d: VRDrawer in ds:
+			var r := d.collision_report()
+			worst = maxf(worst, r["body"])
+			var b_srv := PhysicsServer3D.body_get_state(d.target.get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM) as Transform3D
+			worst_turn = maxf(worst_turn, rad_to_deg(b_srv.basis.get_rotation_quaternion().angle_to(
+				piece.global_basis.get_rotation_quaternion())))
+		_ok(worst < 2.0 and worst_turn < 0.5,
+			"again/%s dropped tipped 35 deg, landed and settled (tilt now %.0f deg): every drawer's collision is with it (%.1f mm at the handle, turned %.2f deg)" % [
+			kind, rad_to_deg(piece.global_basis.y.angle_to(Vector3.UP)), worst, worst_turn])
+		piece.queue_free()
+		await _ticks(2)
+
+
+## Pulled steadily (0.6 m/s, as a hand or a mouse drag does): how far behind the DRAWN drawer the physics engine has
+## its collision, and how far the body's own node (what the collision VIEW rides) is behind it.
+func _drag_lag() -> void:
+	for kind in ["nightstand", "mission_chest"]:
+		var piece := (ScenePersistence.PLAIN_SCENES[kind] as PackedScene).instantiate() as XRToolsPickable
+		piece.position = Vector3(-3.0, 0.0, 3.0)
+		add_child(piece)
+		for i in 30:
+			await get_tree().physics_frame
+		var d: VRDrawer = piece.drawers()[0] if piece is DrawerFurniture else (piece as Nightstand).drawer()
+		var worst_srv := 0.0
+		var worst_node := 0.0
+		var t := 0.0
+		while t < 0.4:
+			d.set_value(clampf(t * 0.6 / d.travel, 0.0, 1.0))
+			await get_tree().process_frame
+			t += get_process_delta_time()
+			var drawn := d.visual.get_global_transform_interpolated()
+			var srv := PhysicsServer3D.body_get_state(d.target.get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM) as Transform3D
+			worst_srv = maxf(worst_srv, srv.origin.distance_to(drawn.origin))
+			worst_node = maxf(worst_node, d.target.get_global_transform_interpolated().origin.distance_to(drawn.origin))
+		_ok(worst_srv < 0.010, "again/%s pulled at 0.6 m/s: its collision is within a physics tick of the drawn drawer (%.1f mm; the body's node, which a view riding it would show, %.1f mm)" % [
+			kind, worst_srv * 1000.0, worst_node * 1000.0])
+		piece.queue_free()
+		await _ticks(2)

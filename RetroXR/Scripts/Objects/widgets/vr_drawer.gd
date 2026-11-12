@@ -75,6 +75,8 @@ var _rearmed_grip: Dictionary = {}
 var _grab_action := TRIGGER_ACTION
 var _muted_pickups: Array[Node] = []
 var _target_rest := Vector3.ZERO
+## The target's rest ROTATION in its parent: written back with the position every tick (see _physics_process).
+var _target_rest_basis := Basis.IDENTITY
 var _target_axis := Vector3.FORWARD
 var _target_rest_value := 0.0
 var _rigged := false
@@ -125,6 +127,7 @@ func _ready() -> void:
 		var world_axis := (global_basis * axis_local.normalized()).normalized()
 		_target_axis = (parent.global_basis.inverse() * world_axis).normalized() if parent else world_axis
 		_target_rest = target.position
+		_target_rest_basis = target.basis
 		_target_rest_value = value
 		_target_body = target is PhysicsBody3D
 		_follow = _target_rest
@@ -226,7 +229,12 @@ func _physics_process(delta: float) -> void:
 		_follow += _follow_v * delta
 	# Every tick, moving or not: the furniture under it may have moved. And never read back target.position as where
 	# the drawer is: a synced body hands the node its PREVIOUS physics pose until the tick has run.
-	target.position = _follow
+	#
+	# The WHOLE local transform, not the position: a synced body keeps its own WORLD pose when its parent moves, so
+	# when the furniture TURNED under physics (dropped at an angle, tipping and settling) the drawer body kept its old
+	# rotation, and writing back only its position left it turned in the case for good: the drawn drawer was right,
+	# its collision swung out of it (2026-11-12, "drop it at an angle ... where the drift begins").
+	target.transform = Transform3D(_target_rest_basis, _follow)
 	if is_instance_valid(visual):
 		visual.position = _follow
 
@@ -343,10 +351,14 @@ func collision_report() -> Dictionary:
 			PhysicsServer3D.BODY_STATE_TRANSFORM) as Transform3D
 		# Against where it SHOULD be (its parent, at the open amount it is drawn at), never the body's own node: a synced
 		# body's node reads back the physics pose, so the two can be wrong together.
+		# Measured AT THE HANDLE, not at the body's origin: the origin is the furniture's floor centre, so a body turned
+		# about it read 0 mm while its boxes swung 40 cm away from it.
 		var parent := target.get_parent() as Node3D
-		var want := parent.global_transform * _follow if parent != null else _follow
-		out["body"] = b_srv.origin.distance_to(want) * 1000.0
-		out["node"] = target.global_position.distance_to(want) * 1000.0
+		var want_local := Transform3D(_target_rest_basis, _follow)
+		var want := parent.global_transform * want_local if parent != null else want_local
+		var at := want.affine_inverse() * _handle_box_world().origin if is_instance_valid(_knob_collision) 			else want.affine_inverse() * global_position
+		out["body"] = (b_srv * at).distance_to(want * at) * 1000.0
+		out["node"] = (target.global_transform * at).distance_to(want * at) * 1000.0
 	return out
 
 
@@ -501,7 +513,7 @@ func _update_knob() -> void:
 		# body reads its PREVIOUS pose until the tick has run; it is there after one.)
 		_follow = _target_want()
 		_follow_v = Vector3.ZERO
-		target.position = _follow
+		target.transform = Transform3D(_target_rest_basis, _follow)
 		if _target_body and is_instance_valid(visual):
 			visual.position = _follow
 			visual.reset_physics_interpolation()
