@@ -21,7 +21,7 @@ extends Node
 
 ## How near a hand, or a desk's crosshair ray, must be to a cord's middle line
 ## to take it, metres. One figure for both.
-const REACH := 0.025
+const REACH := 0.02
 ## A desk reaches as far as its pickup does.
 const DESK_MAX_DIST := 5.0
 const DESK_MIN_DIST := 0.15

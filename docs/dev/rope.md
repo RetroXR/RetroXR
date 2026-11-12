@@ -370,11 +370,11 @@ found by DISTANCE instead, and only by a hand that has nothing else to take.
   dropped if the cord no longer has that particle. `move_hold` wakes the cord only
   when the target moved, so a cord held still sleeps in the hand.
 - **The hands** (`Scripts/Interaction/cord_grab.gd`, the `CordGrab` node in
-  `player_rig.tscn`): in a headset GRIP within 2.5 cm of a cord takes it (`REACH`, one figure for hand and crosshair, to the cord's middle line), but only
+  `player_rig.tscn`): in a headset GRIP within 2 cm of a cord takes it (`REACH`, one figure for hand and crosshair, to the cord's middle line), but only
   when that hand's pickup holds nothing, has no `closest_object`, no pointer target
   and is not muted by a drawer or hinge; the pickup is switched off while the cord
   is held and back on at release. At a desk `DesktopPickup._try_grab` asks
-  `CordGrab.desk_click` LAST, when the crosshair found nothing to pick up (the same 2.5 cm from the ray, and not through anything solid);
+  `CordGrab.desk_click` LAST, when the crosshair found nothing to pick up (the same 2 cm from the ray, and not through anything solid);
   the wheel moves it along the ray and the next click lets go. A pale bead marks
   the spot a hand would take, looked for ten times a second.
 - **Reach**: the hand's target is kept within the cord's length (x `TAUT`, 0.985)
