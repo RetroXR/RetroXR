@@ -399,6 +399,30 @@ func _row(grid: GridContainer, key: String, caption: String) -> void:
 	_val[key] = val
 
 
+## What scales the 3D view now and at what scale: QualityManager's EFFECTIVE choice (the path tracer brings
+## DLSS with it), read with the root's own numbers so the row cannot disagree with what is drawn.
+func _upscaler_text() -> String:
+	var root := get_tree().root
+	var names := {QualityManager.Upscaler.OFF: "off", QualityManager.Upscaler.FSR: "FSR 1",
+		QualityManager.Upscaler.DLSS: "DLSS"}
+	var name: String = names.get(QualityManager.effective_upscaler(), "?")
+	if name == "FSR 1" and root.scaling_3d_mode != Viewport.SCALING_3D_MODE_FSR:
+		name = "bilinear"   # FSR 1 at 100% and above hands over to bilinear (QualityManager.apply_render_scale)
+	return "%s %d%%" % [name, roundi(root.scaling_3d_scale * 100.0)]
+
+
+## Frames generated for each one rendered. Only DLSS can (DLSS-G, NVIDIA's engine: a viewport's
+## frame_generation, which the fork runs at numFramesToGenerate = 1, i.e. 2x); FSR 1 is spatial and has none.
+## Nothing in RetroXR turns it on yet, so this reads "off" until something does.
+func _frame_gen_text() -> String:
+	var root := get_tree().root
+	if not (&"frame_generation" in root):
+		return "none (engine)"
+	if QualityManager.effective_upscaler() != QualityManager.Upscaler.DLSS:
+		return "none (%s)" % ("FSR 1" if QualityManager.effective_upscaler() == QualityManager.Upscaler.FSR else "no DLSS")
+	return "DLSS-G 2x (+1)" if bool(root.get(&"frame_generation")) else "off"
+
+
 func _put(key: String, text: String, color: Color = DIM) -> void:
 	# is_instance_valid, not a null check: a rebuilt section leaves freed labels
 	# behind, and assigning one to a TYPED local throws rather than reading null.
@@ -426,6 +450,10 @@ func _build_frame() -> void:
 	_row(g, "cpu", "process / physics")
 	if MenuStyle.is_vr_mode():
 		_row(g, "eye", "eye buffer")
+	else:
+		# The flat view's upscaler and its frame generation (a headset has neither).
+		_row(g, "upscaler", "upscaler / scale")
+		_row(g, "framegen", "frame gen")
 	# Built on a successful read rather than on a platform check, so a panel never
 	# carries a row that can only ever say n/a — and so a kernel that lays these
 	# out somewhere else simply drops the row instead of printing a wrong number.
@@ -611,6 +639,9 @@ func _update_frame() -> void:
 
 	if _val.has("eye"):
 		_put("eye", _eye_text, WARN if _eye_warn else DIM)
+	if _val.has("upscaler"):
+		_put("upscaler", _upscaler_text(), DIM)
+		_put("framegen", _frame_gen_text(), DIM)
 	# Ungraded, like the two rows above it. A governor sitting at its ceiling is
 	# not a fault — it means the headroom is spent, which is a thing to know and
 	# not a thing to go red about. What judges this section is the rate and the
