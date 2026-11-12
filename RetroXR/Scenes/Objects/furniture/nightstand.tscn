@@ -38,12 +38,14 @@ script = ExtResource("3_model")
 level_scenes = Array[PackedScene]([ExtResource("4_lod0"), ExtResource("5_lod1"), ExtResource("6_lod2")])
 
 ; The drawer as a body: nightstand.gd gives it its boxes (the drawing is DrawerVisual's).
-; sync_to_physics, so as the VRDrawer slides it, what rests in it is carried by friction.
+; sync_to_physics OFF: it is moved as a plain child of the nightstand, so it turns and travels with it; what rests in it
+; is still carried by friction as the VRDrawer slides it (Jolt moves a kinematic body). On, it kept its own world pose
+; when the nightstand turned and its collision swung out of the drawer (furniture.md).
 [node name="DrawerBody" type="AnimatableBody3D" parent="."]
 collision_layer = 4
 collision_mask = 196613
 physics_material_override = SubResource("PhysMat_nst")
-sync_to_physics = true
+sync_to_physics = false
 
 ; What draws the drawer: the model's Drawer and DrawerPull hang here, and the VRDrawer moves it with the body (a
 ; plain node interpolates with the case; the synced body is written back a tick late).

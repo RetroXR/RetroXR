@@ -10,7 +10,7 @@ so a drawer's open amount is saved and synced with no code of its own. `value` 0
 Rig (the nightstand is the worked example):
 - The VRDrawer Area3D stays FIXED on the furniture, its origin at the handle with the drawer SHUT. Its child
   CollisionShape3D (a BoxShape3D) is the handle's grab box and rides out with the drawer.
-- `target` is the drawer. A drawer that is to carry things is an `AnimatableBody3D` (`sync_to_physics` on) with a floor
+- `target` is the drawer. A drawer that is to carry things is an `AnimatableBody3D` (`sync_to_physics` OFF, see below) with a floor
   box and wall boxes; a tray is the same with the floor only. **A hand-written `.tscn` must list the export in the
   node header, `node_paths=PackedStringArray("target")`, or `target` is silently null** (the first build's drawer
   moved nothing).
@@ -37,6 +37,14 @@ Interaction:
 - set from `_process`, the drawer stood still one 90 Hz tick and jumped the next, and the remote slipped (162 / 200 mm);
 - a first-order follow still stepped the SPEED each render frame: 223 / 250 mm at 60 fps;
 - second order: 249 / 250 mm at 60, 72 and 90 fps, back to within 0.2 mm.
+
+**`sync_to_physics` is OFF (2026-11-12) and must stay off.** Everything below about "a synced body" is why: a synced
+body keeps its own WORLD pose when its parent moves and hands its node the previous tick's pose. That is what turned
+a dropped piece's drawer collision out of its drawers, made the collision trail the drawing and needed the follow's own
+bookkeeping. Off, the body is a plain child of the furniture; the drawer suite passed 102/102 with it (the three
+`haul/` box checks that sat at 30-33 mm against a 30 mm limit too), contents still ride (197 / 200 mm, Mission
+245 / 252 and 268 / 277), and even the old position-only write passes the angled drop. The `visual` node, the
+follow's own `_follow` and the full-transform write are kept for now but are no longer load-bearing.
 
 Two traps of `sync_to_physics`: the node reads back its PREVIOUS physics pose until the tick has run (so the follow
 keeps its own `_follow`, never `target.position`), and a synced body keeps its own pose when its PARENT moves (the

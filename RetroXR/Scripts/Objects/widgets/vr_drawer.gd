@@ -8,7 +8,7 @@
 ## Rigging (see Scenes/Objects/furniture/nightstand.tscn):
 ##   • This Area3D stays FIXED on the furniture, its origin where the handle is with the drawer SHUT. Its child
 ##     CollisionShape3D (a BoxShape3D) is the handle's grab box and rides out with the drawer.
-##   • `target` is the drawer. Make it an AnimatableBody3D (sync_to_physics on) with a floor box and wall boxes and
+##   • `target` is the drawer. Make it an AnimatableBody3D (sync_to_physics OFF) with a floor box and wall boxes and
 ##     whatever rests in it is carried out and in by friction; a flat tray is the same with the floor alone.
 ##   • `handle_mesh` is the handle as drawn (outlined while armed, and what the desktop crosshair is held to).
 ##

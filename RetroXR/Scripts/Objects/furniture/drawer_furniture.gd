@@ -116,7 +116,8 @@ func _build_drawer(row: Dictionary) -> void:
 	body.collision_layer = collision_layer
 	body.collision_mask = collision_mask
 	body.physics_material_override = physics_material_override
-	body.sync_to_physics = true
+	# OFF: a plain child of the piece, turning and travelling with it (furniture.md: synced, it kept its own world pose).
+	body.sync_to_physics = false
 	add_child(body)
 	var back_of_front := fc.z - fs.z * 0.5
 	var shapes := [
