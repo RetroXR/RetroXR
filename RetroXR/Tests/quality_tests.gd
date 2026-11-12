@@ -24,7 +24,7 @@ const QM := preload("res://Scripts/quality_manager.gd")
 ## The live autoload's fields this suite moves, put back as found.
 const LIVE_FIELDS := ["msaa_3d", "post_aa", "preset", "shadow_quality", "ao_quality",
 	"frame_cap", "cpu_level", "gpu_level", "glow_enabled", "screen_lights_enabled",
-	"device", "path_tracing", "pt_bounces", "pt_samples", "dlss_enabled", "render_scale"]
+	"device", "path_tracing", "pt_bounces", "pt_samples", "upscaler", "render_scale"]
 
 var _only := ""
 var _live: Node = null
@@ -377,12 +377,12 @@ func _group_rtx() -> void:
 		_ok(not qm.supports_dlss(), "rtx/no DLSS on an engine without it")
 	# Asked for, but standing down wherever it is not supported.
 	qm.path_tracing = true
-	qm.dlss_enabled = true
+	qm.upscaler = QM.Upscaler.DLSS
 	_eq(qm.effective_path_tracing(), qm.supports_path_tracing(),
 		"rtx/path tracing is on only where it is supported")
 	_eq(qm.effective_dlss(), qm.supports_dlss(), "rtx/DLSS is on only where it is supported")
 	# The path tracer brings DLSS with it: Ray Reconstruction is its denoiser.
-	qm.dlss_enabled = false
+	qm.upscaler = QM.Upscaler.FSR
 	_eq(qm.effective_dlss(), qm.supports_dlss() and qm.supports_path_tracing(),
 		"rtx/path tracing turns DLSS on with it where both run")
 	# MSAA stands down under the tracer (its overlay draws into an MSAA buffer the
@@ -430,13 +430,13 @@ func _group_rtx() -> void:
 	_live.set_pt_samples(0)
 	_eq(_live.pt_samples, 1, "rtx/samples below one are one")
 	_live.set_path_tracing(true)
-	_live.set_dlss_enabled(true)
+	_live.set_upscaler(QM.Upscaler.DLSS)
 	var back := _fresh()
 	back.load_prefs()
-	_ok(back.path_tracing and back.dlss_enabled and back.pt_bounces == QM.PT_BOUNCES_MAX
+	_ok(back.path_tracing and back.upscaler == QM.Upscaler.DLSS and back.pt_bounces == QM.PT_BOUNCES_MAX
 			and back.pt_samples == 1,
 		"rtx/the choices are saved whatever the engine, so a stock build keeps them",
-		"pt %s dlss %s bounces %d spp %d" % [back.path_tracing, back.dlss_enabled,
+		"pt %s upscaler %d bounces %d spp %d" % [back.path_tracing, back.upscaler,
 			back.pt_bounces, back.pt_samples])
 	back.free()
 	# Where DLSS cannot run, a saved choice of it leaves the root on FSR/bilinear.
@@ -445,7 +445,25 @@ func _group_rtx() -> void:
 		_ok(mode == Viewport.SCALING_3D_MODE_FSR or mode == Viewport.SCALING_3D_MODE_BILINEAR,
 			"rtx/a saved DLSS choice stands down to FSR or bilinear here", "mode %d" % mode)
 	_live.set_path_tracing(false)
-	_live.set_dlss_enabled(false)
+	_live.set_upscaler(QM.Upscaler.FSR)
+	# Off: no upscaler at all, never below the display's resolution, and no DLSS even path traced.
+	_live.set_render_scale(0.7)
+	_live.set_upscaler(QM.Upscaler.OFF)
+	_eq(get_tree().root.scaling_3d_mode, Viewport.SCALING_3D_MODE_BILINEAR, "rtx/upscaler Off scales with nothing")
+	_eq(get_tree().root.scaling_3d_scale, 1.0, "rtx/upscaler Off draws at the display's resolution, whatever Render Scale says")
+	_live.set_path_tracing(true)
+	_ok(not _live.effective_dlss(), "rtx/upscaler Off keeps DLSS off under the path tracer too")
+	_live.set_path_tracing(false)
+	_live.set_upscaler(QM.Upscaler.FSR)
+	_eq(get_tree().root.scaling_3d_mode, Viewport.SCALING_3D_MODE_FSR if _live.supports_render_scale() else Viewport.SCALING_3D_MODE_BILINEAR,
+		"rtx/back on FSR 1 at 70%, FSR scales it again")
+	var old := _fresh()
+	var f2 := FileAccess.open(QM.PREFS_PATH, FileAccess.WRITE)
+	f2.store_string(JSON.stringify({"dlss": true}))
+	f2.close()
+	old.load_prefs()
+	_eq(old.upscaler, QM.Upscaler.DLSS, "rtx/a prefs file from the DLSS switch reads as the DLSS upscaler")
+	old.free()
 	# The signal carries the EFFECTIVE state and only on a change of it: where the tracer cannot run, the
 	# switch moving says nothing, so a pre-lit room never unbakes itself for a tracer that is not there.
 	var heard: Array = []

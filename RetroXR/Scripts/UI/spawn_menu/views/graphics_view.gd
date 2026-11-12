@@ -151,21 +151,28 @@ func _build(vr_mode: bool) -> void:
 			+ "to the display. Below 100% FSR upscales it for cheaper frames; above 100% "
 			+ "supersamples."))
 
-	# NVIDIA's engine build on an RTX card only: QualityManager says no on the
-	# stock engine, a headset, or a card Streamline does not run DLSS on.
-	if QualityManager.supports_dlss():
-		_upscaler_opt = VRDropdown.create("Upscaler",
-			[["FSR 1", 0], ["DLSS", 1]],
-			1 if QualityManager.effective_dlss() else 0, 2, Vector2(110, 52), 20)
+	# Wherever Render Scale is offered. DLSS only on NVIDIA's engine with an RTX card: QualityManager says
+	# no on the stock engine, a headset, or a card Streamline does not run DLSS on.
+	if QualityManager.supports_render_scale():
+		var ups: Array = [["Off", QualityManager.Upscaler.OFF], ["FSR 1", QualityManager.Upscaler.FSR]]
+		if QualityManager.supports_dlss():
+			ups.append(["DLSS", QualityManager.Upscaler.DLSS])
+		_upscaler_opt = VRDropdown.create("Upscaler", ups,
+			int(QualityManager.effective_upscaler()), ups.size(), Vector2(110, 52), 20)
 		_upscaler_opt.item_selected.connect(func(id: Variant) -> void:
-			QualityManager.set_dlss_enabled(int(id) == 1)
+			QualityManager.set_upscaler(int(id))
 			_sync_rows())
 		vbox.add_child(_upscaler_opt)
 
-		vbox.add_child(MenuStyle.hint("DLSS fills in the missing pixels from earlier frames on "
-			+ "the card's tensor cores: sharper than FSR at the same Render Scale, and it "
-			+ "smooths edges too. 100% and above is DLAA, full resolution with DLSS's "
-			+ "anti-aliasing. Path Tracing always uses it."))
+		var ups_hint := "Off draws the 3D world at the display's own resolution with no upscaler " \
+			+ "(Render Scale below 100% is ignored; above it still supersamples). FSR 1 upscales " \
+			+ "below 100% for cheaper frames."
+		if QualityManager.supports_dlss():
+			ups_hint += " DLSS fills in the missing pixels from earlier frames on the card's " \
+				+ "tensor cores: sharper than FSR at the same Render Scale, and it smooths edges " \
+				+ "too; 100% and above is DLAA. Path Tracing uses DLSS to clean its image unless " \
+				+ "this is Off, which shows the raw, grainy picture."
+		vbox.add_child(MenuStyle.hint(ups_hint))
 
 	if QualityManager.supports_path_tracing():
 		vbox.add_child(HSeparator.new())
@@ -467,7 +474,7 @@ func _sync_rows() -> void:
 		_syncing_screen_lights = false
 	# The path tracer forces DLSS on, so the Upscaler row shows what is running.
 	if _upscaler_opt:
-		_upscaler_opt.select_id(1 if QualityManager.effective_dlss() else 0)
+		_upscaler_opt.select_id(int(QualityManager.effective_upscaler()))
 	if _path_tracing_tog:
 		_syncing_path_tracing = true
 		_path_tracing_tog.button_pressed = QualityManager.path_tracing

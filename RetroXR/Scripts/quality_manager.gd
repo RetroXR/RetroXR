@@ -302,7 +302,11 @@ var crt_fast: bool = false
 var path_tracing: bool = false
 var pt_bounces: int = 3
 var pt_samples: int = 1
-var dlss_enabled: bool = false
+## What scales the 3D pass up to the display (GRAPHICS > Upscaler). OFF draws it at the display's resolution
+## (Render Scale below 100% is held at 100%; above it still supersamples); FSR is FSR 1, the default; DLSS
+## needs NVIDIA's engine and an RTX card. Saved as an int: append only.
+enum Upscaler { OFF, FSR, DLSS }
+var upscaler: Upscaler = Upscaler.FSR
 const PT_BOUNCES_MAX := 8
 const PT_SAMPLES_MAX := 4
 ## Streamline.StreamlineCapabilityType.STREAMLINE_CAPABILITY_DLSS, by value: the
@@ -921,7 +925,10 @@ func set_render_scale(scale: float) -> void:
 ## alone for effective_post_aa()'s reason: flat and PCVR play share one prefs
 ## file, and a headset session must not strip the flat one's setting out of it.
 func effective_render_scale() -> float:
-	return render_scale if supports_render_scale() else 1.0
+	if not supports_render_scale():
+		return 1.0
+	# No upscaler: never below the display's own resolution.
+	return maxf(render_scale, 1.0) if upscaler == Upscaler.OFF else render_scale
 
 
 func apply_render_scale() -> void:
@@ -936,6 +943,9 @@ func apply_render_scale() -> void:
 		root.scaling_3d_scale = minf(scale, 1.0)
 		return
 	root.scaling_3d_scale = scale
+	if upscaler == Upscaler.OFF:
+		root.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+		return
 	# FSR1 is a spatial upscaler, so it has none of the temporal ghosting that
 	# rules FSR2 out for a head-tracked view. At 1.0 and above it would only cost
 	# a pass for nothing, so bilinear takes over there.
@@ -979,18 +989,27 @@ func effective_path_tracing() -> bool:
 	return path_tracing and supports_path_tracing()
 
 
-## DLSS when asked for, and always under the path tracer: its denoiser is DLSS
-## Ray Reconstruction, which runs only inside the DLSS pass. Path traced without
-## it, every frame is the raw one-sample-a-pixel grain (measured on the fork's
-## test scene, 2026-11-12).
+## DLSS when asked for, and under the path tracer unless the upscaler is OFF: its denoiser is DLSS Ray
+## Reconstruction, which runs only inside the DLSS pass. Path traced without it, every frame is the raw
+## one-sample-a-pixel grain (measured on the fork's test scene, 2026-11-12) -- which OFF asks for.
 func effective_dlss() -> bool:
-	return supports_dlss() and (dlss_enabled or effective_path_tracing())
+	if not supports_dlss() or upscaler == Upscaler.OFF:
+		return false
+	return upscaler == Upscaler.DLSS or effective_path_tracing()
 
 
-func set_dlss_enabled(on: bool) -> void:
-	dlss_enabled = on
+## What is scaling the picture now: DLSS where it is in effect (the path tracer brings it), else the
+## choice, with DLSS standing down to FSR where it cannot run.
+func effective_upscaler() -> Upscaler:
+	if effective_dlss():
+		return Upscaler.DLSS
+	return Upscaler.FSR if upscaler == Upscaler.DLSS else upscaler
+
+
+func set_upscaler(choice: int) -> void:
+	upscaler = clampi(choice, Upscaler.OFF, Upscaler.DLSS) as Upscaler
 	apply_render_scale()
-	_log_rtx("DLSS %s" % ("on" if on else "off"))
+	_log_rtx("upscaler %s" % Upscaler.keys()[upscaler])
 	save_prefs()
 
 
@@ -1784,9 +1803,11 @@ func load_prefs() -> void:
 	var pt: Variant = data.get("path_tracing")
 	if typeof(pt) == TYPE_BOOL:
 		path_tracing = pt
-	var dlss: Variant = data.get("dlss")
-	if typeof(dlss) == TYPE_BOOL:
-		dlss_enabled = dlss
+	# The upscaler was a DLSS switch once ("dlss": true); a file from then reads as DLSS.
+	if data.has("upscaler"):
+		upscaler = clampi(JsonStore.get_int(data, "upscaler", upscaler), Upscaler.OFF, Upscaler.DLSS) as Upscaler
+	elif typeof(data.get("dlss")) == TYPE_BOOL and data.get("dlss"):
+		upscaler = Upscaler.DLSS
 	pt_bounces = clampi(JsonStore.get_int(data, "pt_bounces", pt_bounces), 0, PT_BOUNCES_MAX)
 	pt_samples = clampi(JsonStore.get_int(data, "pt_samples", pt_samples), 1, PT_SAMPLES_MAX)
 
@@ -1814,5 +1835,5 @@ func save_prefs() -> void:
 		"path_tracing": path_tracing,
 		"pt_bounces": pt_bounces,
 		"pt_samples": pt_samples,
-		"dlss": dlss_enabled,
+		"upscaler": int(upscaler),
 	}, "QualityManager")
