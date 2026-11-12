@@ -52,14 +52,23 @@ The project imports clean under 4.8-dev (no script/shader errors) and every
 GDExtension built for 4.7 loads. **Never open the real checkout with it** -- the
 editor converts project files. Test from a copy:
 
-- `~/RetroXR-rtx` is a robocopy of `RetroXR/` (no `android/`), with
-  `config/use_custom_user_dir=true` + `custom_user_dir_name="RetroXR-rtx"` so its
-  `user://` is `%APPDATA%/RetroXR-rtx`, seeded from the real one minus caches.
-  Before that was set, runs read AND wrote the player's real saves and prefs.
+- `~/RetroXR-rtx` is a DETACHED git worktree of this repo (`git worktree add
+  --detach ~/RetroXR-rtx master`; refresh with `git -C ~/RetroXR-rtx checkout --detach
+  master`). Its only local edits are test scaffolding, visible in `git diff`:
+  `project.godot` gets `config/use_custom_user_dir=true` +
+  `custom_user_dir_name="RetroXR-rtx"` (so `user://` is `%APPDATA%/RetroXR-rtx`,
+  seeded from the real one minus caches), the `RtxShot` autoload and
+  `pathtracing/max_transparency_layers=0`; `rtx/` is untracked. Never carry those,
+  or the `.import` files the 4.8 editor rewrites, to master. GDExtension binaries,
+  `.godot/` and mod packs are gitignored: copy them in. A plain copy (the first
+  attempt) drifted, and runs before the user dir was set read AND wrote the
+  player's real saves and prefs.
 - `rtx/rtx_shot.gd` (an autoload in the copy only): `RTX_SHOT=secs,...` saves
   the root viewport and logs luma, fps and the environment; `RTX_ENV=k=v,...`
   changes the environment at 30 s (`tonemap exposure ambient glow debug`);
-  `RTX_ROOM=<id>` changes room at 12 s; `RTX_DUMP=1` lists the room shell's meshes.
+  `RTX_ROOM=<id>` changes room at 12 s; `RTX_DUMP=1` lists the room shell's meshes;
+  `RTX_LOOK=<name>` puts a camera before a spawned object and `RTX_HOVER=<name>`
+  shows its hover highlight (35 s); `RTX_NO_DLSS=1` drops to bilinear at 30 s.
 - Never judge it with `--write-movie` or `--fixed-fps` (bug 2 below).
 
 ## The GRAPHICS rows (`QualityManager`, `graphics_view.gd`)
@@ -106,11 +115,24 @@ editor converts project files. Test from a copy:
    traced or not; real time is fine. NVIDIA bug, not chased.
 3. **Intermittent hang entering a room**, path tracing on or off: about 3 launches
    in 14 stopped right after Streamline loaded its plugins, never past it.
-4. **Four RetroXR shaders have no ray-tracing hit shader** and vanish from traced
-   rays: thermal print paper (`sampler2DArray` uniform), CRT screen (`dFdx`), a
-   frosted label (`textureQueryLod`), a `texture()` with a bias. The fork skips a
-   failed hit group instead of falling back; the sources are dumped to
-   `%TEMP%/rt_shader_hg*_closest_hit.glsl` with an `.err.txt`.
+4. **A material whose hit shader fails to compile drops out of the traced scene**
+   (no fallback; sources dumped to `%TEMP%/rt_shader_hg*_closest_hit.glsl` +
+   `.err.txt`). Engine commit `e7868a64a1` adds stand-ins for `dFdx`/`dFdy`
+   (+Coarse/Fine, zero) and `textureQueryLod` (level 0, a MACRO: Vulkan GLSL refuses
+   a sampler constructor as a call argument), as the fork already had for
+   `fwidth`: 14 of RetroXR's 20 failing groups compile and the bedroom has none
+   left. Still failing: `texture()` with a bias, and `sampler2DArray` uniforms (the
+   fork's bindless textures are 2D only: the printer paper).
+6. **Raster-only tricks are traced as solid geometry by default.** The hover
+   highlight is an inflated overlay mesh (stencil mask + outline, `depth_test`
+   disabled); at the default `max_transparency_layers` (4) every alpha-pass material
+   is traced, so the overlay became a shell over the object and hid its labels. At
+   0 the engine is meant to rasterise the alpha list over the traced image, and the
+   labels do stay visible -- but the outline and a TV's picture (the CRT material
+   writes ALPHA for its glass edge) never show, with DLSS on or off: the raster
+   overlay never reaches the final image, or these surfaces never reach its list.
+   Not yet found; the TV picture may also be a ViewportTexture the tracer cannot
+   read. `RTX_LOOK=tv RTX_HOVER=tv` with a raster control leg shows it.
 5. Godot 4.8-dev logs ~11k "causing RenderingServer synchronizations" warnings a
    run with RetroXR's separate render thread, raster or traced alike.
 
