@@ -665,14 +665,18 @@ func _group_gdrom() -> void:
 	(drive.find_child(NaomiGdRom.DRIVE_DATA, true, false) as Port).pick_up_object(cable.get_node("PlugB0"))
 	var seat := drive.find_child("DiscSeat", true, false) as XRToolsSnapZone
 	_ok(not drive._accepts_disc(disc), "gdrom: the drive's lid shut: no disc goes in")
+	var lid := (CoverSlots.of(drive).slot(NaomiGdDrive.LID_SOCKET) as XRToolsSnapZone).picked_up_object as Node3D
 	drive.set_lid_open(true)
-	_ok(drive._accepts_disc(disc), "gdrom: the lid open: the disc goes on the spindle")
+	_ok(lid is PortCover and not drive.lid_shut() and lid.get_parent() != CoverSlots.of(drive).slot(NaomiGdDrive.LID_SOCKET),
+		"gdrom: the lid is not hinged: it comes off the drum as a thing of its own")
+	_ok(drive._accepts_disc(disc), "gdrom: the lid off: the disc goes on the spindle")
 	seat.pick_up_object(disc)
 	await _wait(20)
-	_ok(sys.rom_path.is_empty() and dimm.missing().has("the drive's lid shut"), "gdrom: the lid still open: not yet (%s)" % str(dimm.missing()))
+	_ok(sys.rom_path.is_empty() and dimm.missing().has("the drive's lid shut"), "gdrom: the lid still off: not yet (%s)" % str(dimm.missing()))
 	drive.set_lid_open(false)
 	await _wait(40)
 	_ok(sys.rom_path == "/tmp/naomi_gd/ikaruga.zip", "gdrom: key, cable, disc, lid shut: the cabinet loads the disc's game (%s)" % sys.rom_path)
+	_ok(drive.lid_shut() and not disc.enabled and not seat.enabled, "gdrom: the lid back on: the disc cannot be taken out")
 	# Another game's key.
 	key.rom_path = "/tmp/naomi_gd/vonot.zip"
 	await _wait(40)

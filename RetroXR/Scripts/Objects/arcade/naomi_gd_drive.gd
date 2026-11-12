@@ -1,22 +1,33 @@
 ## NaomiGdDrive — the NAOMI's GD-ROM drive (610-0617): the disc goes on its spindle under the lid, and a GD-ROM
 ## cable joins its 50-pin socket to the DIMM board's (NaomiGdRom).
 ##
-## The lid is a hinge taken by its edge: open, the disc seat takes a NAOMI disc; shut, the disc stays and the drive
-## reads it. Frame: +Y up, origin on the floor at the body's middle (the models repo's gd-rom-drive in its GLB's
-## frame). A mod's model (ArcadeBayShells kind "naomi_gd_drive") replaces the stand-in; its `LidPivot` (the lid)
-## is carried by the hinge, and its DiscAnchor and DataAnchor move the seat and the socket.
+## The lid is not hinged: on the real drive it turns a little clockwise (seen from above) and lifts straight off the
+## drum, one truss screw through its lug holding it in a cabinet. So it is a CoverSlots cover: taken off, put down,
+## put back, saved like a battery cover. Off, the disc seat takes a NAOMI disc; on, the disc stays and the drive reads
+## it. Frame: +Y up, origin on the floor at the body's middle (the models repo's gd-rom-drive in its GLB's frame). A
+## mod's model (ArcadeBayShells kind "naomi_gd_drive") replaces the stand-in; the cover wears its `LidPivot`'s lid
+## mesh, and its DiscAnchor and DataAnchor move the seat and the socket.
 class_name NaomiGdDrive
 extends XRToolsPickable
 
 const KIND := "naomi_gd_drive"
-const LID_OPEN := 100.0
+## The lid's cover slot (CoverSlots), and the way its outer face looks.
+const LID_SOCKET := "naomi_gd_lid"
+const LID_OUT := Vector3.UP
+## The stand-in's lid: a slab on the drum.
+const LID_SIZE := Vector3(0.140, 0.006, 0.140)
+const SHELL_BLUE := Color(0.24, 0.27, 0.32)
 
 @export var type_id: String = KIND
 
 var _disc_zone: XRToolsSnapZone = null
-var _hinge_axis: Node3D = null
+var _lid_zone: XRToolsSnapZone = null
+## The model's lid mesh (LOD0's), which every cover seated here wears; null on the stand-in.
+var _lid_part: MeshInstance3D = null
+## The last cover seen in the slot, for set_lid_open(false).
 var _lid: Node3D = null
-var _grab: VRHinge = null
+## A seated disc held in place while the lid is on.
+var _held_disc: XRToolsPickable = null
 
 
 func _ready() -> void:
@@ -34,13 +45,23 @@ func seated_disc() -> Node:
 	return d if is_instance_valid(d) else null
 
 
+## True while the lid is on the drum.
 func lid_shut() -> bool:
-	return _lid == null or _lid.rotation.x < deg_to_rad(5.0)
+	var covers := CoverSlots.of(self)
+	return covers == null or covers.is_on(LID_SOCKET)
 
 
+## Take the lid off (put down beside the drive) or put it back on: for tests and scripted scenes; a hand does it
+## by taking the cover.
 func set_lid_open(open: bool) -> void:
-	if _lid != null:
-		_lid.rotation.x = deg_to_rad(LID_OPEN if open else 0.0)
+	if _lid_zone == null:
+		return
+	if open and _lid_zone.has_snapped_object():
+		_lid = _lid_zone.picked_up_object
+		_lid_zone.drop_object()
+		_lid.global_position = global_transform * Vector3(0.0, 0.07, 0.18)
+	elif not open and is_instance_valid(_lid) and not _lid_zone.has_snapped_object():
+		_lid_zone.pick_up_object(_lid)
 
 
 func _build_stand_in() -> void:
@@ -51,48 +72,91 @@ func _build_stand_in() -> void:
 	NaomiGdRom.marker(self, "DiscAnchor", Vector3(0.024, 0.026, 0.016))
 	NaomiGdRom.marker(self, "DataAnchor", Vector3(-0.0695, 0.0073, -0.020))
 	NaomiGdRom.marker(self, "PowerAnchor", Vector3(-0.0675, 0.009, 0.015))
-	NaomiGdRom.marker(self, "LidPivotAnchor", Vector3(0.024, 0.051, 0.016 - 0.070))
 
 
-## The lid: a pivot at its back edge turned about +X by a hinge taken by the lid's front edge. The stand-in's lid,
-## or the model's (its LidPivot, moved onto the pivot keeping where it is).
+## The lid: a cover slot on the drum. With the mod's model, round its LOD0 lid mesh (the far levels' lids hidden:
+## the seated cover wears LOD0's at every distance); on the stand-in, a slab on the drum's top.
 func _build_lid(shell: Node3D) -> void:
-	var at := find_child("LidPivotAnchor", true, false) as Node3D
-	_hinge_axis = Node3D.new()
-	_hinge_axis.name = "LidHinge"
-	add_child(_hinge_axis)
-	_hinge_axis.position = at.position
-	_lid = Node3D.new()
-	_lid.name = "LidTurn"
-	_hinge_axis.add_child(_lid)
-	var model_lid := shell.find_child("LidPivot", true, false) as Node3D if shell != null else null
-	if model_lid != null:
-		# The model's lid, and each of its lower levels' (ShellLOD1, ...), keeping where they are.
+	var pivot := shell.find_child("LidPivot", true, false) as Node3D if shell != null else null
+	if pivot != null:
+		_lid_part = _first_mesh(pivot)
+	if _lid_part != null:
 		for level in get_children():
-			if level is Node3D and str(level.name).begins_with("Shell"):
-				var lid := level.find_child("LidPivot", true, false) as Node3D
-				if lid != null:
-					lid.reparent(_lid, true)
+			if level is Node3D and level != shell and str(level.name).begins_with("Shell"):
+				var far := level.find_child("LidPivot", true, false) as Node3D
+				if far != null:
+					far.visible = false
+		_lid_zone = CoverSlots.shell_cover(_lid_part, LID_SOCKET, LID_OUT)
 	else:
-		NaomiGdRom.box(_lid, "LidMesh", Vector3(0.140, 0.006, 0.140), Vector3(0, 0.003, 0.070), Color(0.24, 0.27, 0.32))
-	_grab = (load("res://Scripts/Objects/widgets/vr_hinge.gd") as GDScript).new() as VRHinge
-	_grab.name = "LidGrab"
-	_grab.collision_layer = 0
-	_grab.collision_mask = 0
-	_grab.target = _lid
-	_grab.min_deg = 0.0
-	_grab.max_deg = LID_OPEN
-	_grab.set("engage_radius", 0.08)
-	_lid.add_child(_grab)
-	_grab.position = Vector3(0, 0.006, 0.135)
-	var col := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
-	shape.size = Vector3(0.10, 0.02, 0.03)
-	col.shape = shape
-	_grab.add_child(col)
+		var seat := Transform3D(Basis.IDENTITY, Vector3(0.024, 0.051 + LID_SIZE.y * 0.5, 0.016))
+		_lid_zone = CoverSlots.on(self).build(LID_SOCKET, self, seat, LID_SIZE)
+	if _lid_zone == null:
+		push_warning("[NaomiGdDrive] %s: no slot for the lid" % name)
+		return
+	_lid_zone.has_picked_up.connect(_on_lid_seated)
+	_lid_zone.has_dropped.connect(_refresh_disc.call_deferred)
+	if _lid_zone.picked_up_object != null:
+		_on_lid_seated(_lid_zone.picked_up_object)
 
 
-## The spindle: a NAOMI disc lies flat on it, label up, while the lid is open.
+static func _first_mesh(n: Node) -> MeshInstance3D:
+	if n is MeshInstance3D:
+		return n
+	for c in n.get_children():
+		var m := _first_mesh(c)
+		if m != null:
+			return m
+	return null
+
+
+## The lid went on: one nothing has dressed yet (a fresh one, one from a save) wears the model's lid, or the
+## stand-in's color.
+func _on_lid_seated(what: Node3D) -> void:
+	_lid = what
+	_refresh_disc.call_deferred()
+	var cover := what as PortCover
+	if cover == null or cover.has_node("Shell"):
+		return
+	if _lid_part != null:
+		var copy := _lid_part.duplicate() as MeshInstance3D
+		_lid_part.get_parent().add_child(copy)
+		copy.transform = _lid_part.transform
+		# The levels' distance ranges are the shell's; the cover is drawn at every distance.
+		copy.visibility_range_begin = 0.0
+		copy.visibility_range_end = 0.0
+		CoverSlots.wear(cover, copy, LID_OUT)
+	else:
+		var mesh := cover.get_node_or_null("Mesh") as MeshInstance3D
+		if mesh != null and mesh.material_override == null:
+			var m := StandardMaterial3D.new()
+			m.albedo_color = SHELL_BLUE
+			m.roughness = 0.5
+			mesh.material_override = m
+
+
+## While the lid is on, the disc on the spindle stays there: neither the seat nor the disc can be taken from.
+func _refresh_disc() -> void:
+	if _disc_zone == null or not is_inside_tree():
+		return
+	var shut := lid_shut()
+	_disc_zone.enabled = not shut
+	var disc := _disc_zone.picked_up_object as XRToolsPickable
+	if is_instance_valid(_held_disc) and _held_disc != disc:
+		_held_disc.enabled = true
+		_held_disc = null
+	if is_instance_valid(disc):
+		disc.enabled = not shut
+		_held_disc = disc if shut else null
+
+
+func _exit_tree() -> void:
+	if is_instance_valid(_held_disc):
+		_held_disc.enabled = true
+	_held_disc = null
+	super()
+
+
+## The spindle: a NAOMI disc lies flat on it, label up, while the lid is off.
 func _build_disc_zone() -> void:
 	var at := find_child("DiscAnchor", true, false) as Node3D
 	_disc_zone = (load("res://addons/godot-xr-tools/objects/snap_zone.tscn") as PackedScene).instantiate() as XRToolsSnapZone
@@ -103,6 +167,9 @@ func _build_disc_zone() -> void:
 	at.add_child(_disc_zone)
 	# A disc is flat in its own frame (thin along its Y, label up): the seat is not turned.
 	_disc_zone.basis = Basis.IDENTITY
+	_disc_zone.has_picked_up.connect(func(_d: Node3D) -> void: _refresh_disc.call_deferred())
+	_disc_zone.has_dropped.connect(_refresh_disc.call_deferred)
+	_refresh_disc.call_deferred()
 
 
 func _accepts_disc(obj: Node3D) -> bool:
