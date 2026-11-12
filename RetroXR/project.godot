@@ -324,6 +324,7 @@ common/physics_ticks_per_second=90
 common/physics_interpolation=true
 
 [rendering]
+pathtracing/max_transparency_layers=0
 
 textures/vram_compression/import_etc2_astc=true
 reflections/reflection_atlas/reflection_count=4
