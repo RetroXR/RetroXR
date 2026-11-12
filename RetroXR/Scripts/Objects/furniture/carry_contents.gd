@@ -16,7 +16,7 @@ class_name CarryContents
 extends RefCounted
 
 ## Fastest a bin may move (m/s, at its middle) with what is in it left to physics; latched above it.
-const LATCH_SPEED := 0.6
+var LATCH_SPEED := float(OS.get_environment("CC_LATCH")) if OS.has_environment("CC_LATCH") else 0.6
 ## Let go again once every bin has been slower than this for UNLATCH_AFTER seconds.
 const UNLATCH_SPEED := 0.3
 const UNLATCH_AFTER := 0.2
@@ -37,6 +37,8 @@ var _query_box := BoxShape3D.new()
 
 
 func step(piece: RigidBody3D, held: bool, delta: float) -> void:
+	if OS.has_environment("CC_CCD"):
+		_watch_ccd(piece)
 	var now := piece.global_transform
 	if not held or delta <= 0.0 or not _have_prev:
 		if not _latched.is_empty():
@@ -155,3 +157,41 @@ func _let_go_all(piece: RigidBody3D, motion: Transform3D, delta: float, why: Str
 	_latched.clear()
 	_slow_for = 0.0
 	print("[CarryContents] %s: %s; %d thing(s) let go to ordinary physics" % [piece.name, why, n])
+
+
+## EXPERIMENT (ccd-test worktree): whatever arrives in a bin has its continuous collision switched off at once, while it
+## is still moving, before it settles; given back as it leaves.
+var _ccd_off: Dictionary = {}
+
+func _watch_ccd(piece: RigidBody3D) -> void:
+	if bins.is_empty() or not piece.is_inside_tree():
+		return
+	var space := piece.get_world_3d().direct_space_state
+	_query.shape = _query_box
+	_query.collision_mask = piece.original_collision_layer if piece.original_collision_layer != 0 else 4
+	_query.collide_with_areas = false
+	var found := {}
+	for bin in bins:
+		var frame := bin["frame"] as Node3D
+		if not is_instance_valid(frame):
+			continue
+		var box: AABB = bin["box"]
+		_query_box.size = box.size
+		_query.transform = frame.global_transform * Transform3D(Basis(), box.get_center())
+		for hit in space.intersect_shape(_query, 32):
+			var rb := hit.get("collider") as RigidBody3D
+			if rb == null or rb == piece:
+				continue
+			found[rb.get_instance_id()] = true
+			if rb.continuous_cd and not _ccd_off.has(rb.get_instance_id()):
+				rb.continuous_cd = false
+				_ccd_off[rb.get_instance_id()] = rb
+				print("[CarryContents] %s: %s arrived moving %.2f m/s; continuous collision off" % [piece.name, rb.name,
+					rb.linear_velocity.length()])
+	for id: int in _ccd_off.keys():
+		if found.has(id):
+			continue
+		var rb: Variant = _ccd_off[id]
+		if is_instance_valid(rb):
+			(rb as RigidBody3D).continuous_cd = true
+		_ccd_off.erase(id)
