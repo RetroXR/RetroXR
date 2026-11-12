@@ -15,39 +15,36 @@
 extends "res://Tests/test_suite.gd"
 
 const PRINTER_SCENE := "res://Scenes/Objects/peripherals/gb_printer.tscn"
-## xenu.gbprinter's two collision boxes in the printer's (Y, Z): the body to the
-## deck, and the paper cover's hump standing on it.
-const SHELL_BODY := Rect2(Vector2(-0.02801, -0.0686), Vector2(0.045, 0.1372))
-const SHELL_HUMP := Rect2(Vector2(0.01699, -0.0686), Vector2(0.01102, 0.0468))
-
-
-## Reference narrow phase: offer every patch in its original order.
-class AllPaperContacts extends GbPaperContacts:
-	var all := PackedInt32Array()
-	func build_2d(patches: Array, _skin: float, _depth: float) -> void:
-		_set_count(patches.size())
-	func build_3d(patches: Array, _skin: float) -> void:
-		_set_count(patches.size())
-	func _set_count(count: int) -> void:
-		all.resize(count)
-		for i in count:
-			all[i] = i
-	func query(_p: Vector3) -> PackedInt32Array:
-		return all
-	func shift_frame(_shift: Vector3) -> void:
-		pass
-
-
 func _ready() -> void:
 	suite_tag = "gb-printer"
 	# Only a failure is printed, as before: the paper groups make hundreds of checks.
 	quiet_passes = true
-	get_tree().create_timer(120.0).timeout.connect(func() -> void:
+	get_tree().create_timer(300.0).timeout.connect(func() -> void:
 		print("[gb-printer] TIMEOUT")
 		get_tree().quit(1))
-	if OS.get_cmdline_user_args().has("--only=paper_cpu"):
-		_test_paper_contact_index()
-		_test_paper_index_matches_all_contacts()
+	# Mutation: `-- --only=paper --tune=min_radius:0.0001` (or ei, gj, mu_static,
+	# mu_kinetic, self_gap, iterations, max_speed, drag) changes one of the
+	# solver's constants for the run, and the case that rests on it goes red.
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--tune=") and GbThermalRibbon.has_solver():
+			var knob := arg.trim_prefix("--tune=").split(":")
+			ClassDB.class_call_static(&"PaperSheetSolver", &"tune", knob[0], float(knob[1]))
+			print("[gb-printer] MUTATED: the paper solver's %s = %s" % [knob[0], knob[1]])
+	if OS.get_cmdline_user_args().has("--only=paper"):
+		_test_paper_solver_is_loaded()
+		_test_paper_curls_back()
+		_test_paper_gives_way_to_its_weight()
+		_test_long_paper_lies_smooth()
+		_test_paper_lies_on_what_is_under_it()
+		_test_paper_grows_and_tears()
+		_test_a_fold_comes_to_rest()
+		_test_paper_flops()
+		_test_paper_meets_the_room()
+		_test_fingers_push_the_paper()
+		_test_paper_moves_smoothly()
+		_test_contact_does_not_kick()
+		_test_paper_cannot_cross_itself()
+		_test_paper_rubs_on_what_it_lies_on()
 		_test_paper_hitch_budget()
 		_finish()
 		return
@@ -63,8 +60,8 @@ func _ready() -> void:
 		await _test_printout_lands_without_crumpling()
 		_finish()
 		return
-	if OS.get_cmdline_user_args().has("--only=native"):
-		_test_native_paper_matches_the_script()
+	if OS.get_cmdline_user_args().has("--only=room"):
+		await _test_printer_finds_the_room()
 		_finish()
 		return
 	if OS.get_cmdline_user_args().has("--only=rest"):
@@ -83,8 +80,11 @@ func _ready() -> void:
 	await _test_roll_from_the_menu_and_the_save()
 	await _test_roll_tells_a_shell()
 	_test_menu_offers_choices()
+	_test_paper_solver_is_loaded()
 	_test_paper_curls_back()
 	_test_paper_gives_way_to_its_weight()
+	_test_long_paper_lies_smooth()
+	_test_paper_rubs_on_what_it_lies_on()
 	_test_paper_lies_on_what_is_under_it()
 	_test_paper_grows_and_tears()
 	_test_a_fold_comes_to_rest()
@@ -104,9 +104,6 @@ func _ready() -> void:
 	_test_released_print_keeps_its_shape()
 	await _test_wall_preview_is_the_flat_sticker()
 	_test_thermal_ribbon()
-	_test_paper_contact_index()
-	_test_paper_index_matches_all_contacts()
-	_test_native_paper_matches_the_script()
 	_test_paper_hitch_budget()
 	_test_ribbon_impact_does_not_crumple()
 	await _test_printout_lands_without_crumpling()
@@ -196,6 +193,10 @@ func _test_paper_is_as_long_as_the_core_fed() -> void:
 	printer._lay_paper(tex, 208)
 	_ok(is_equal_approx(printer.paper_length(), 208 * GbPrinter.DOT_PITCH),
 		"208 lines fed is 208 lines of paper (%.4f m)" % printer.paper_length())
+	printer.set_process(false)
+	for i in 30:
+		printer._move_paper(1.0 / 90.0)
+	_ok(not printer.paper().feeding(), "all of it out of the slot within a third of a second")
 	_ok(mesh != null and mesh.get_surface_count() == 1, "drawn as one bent sheet")
 	if mesh != null and mesh.get_surface_count() == 1:
 		var verts: PackedVector3Array = mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
@@ -208,7 +209,15 @@ func _test_paper_is_as_long_as_the_core_fed() -> void:
 		var run := 0.0
 		for i in range(2, verts.size(), 2):
 			run += verts[i].distance_to(verts[i - 2])
-		_ok(absf(run - printer.paper_length()) < 1e-5, "and as long along its bend as the paper is")
+		_ok(absf(run - printer.paper_length()) < 0.0003,
+			"and as long along its bend as the paper is (%.4f of %.4f m)" % [run, printer.paper_length()])
+		var normals: PackedVector3Array = mesh.surface_get_arrays(0)[Mesh.ARRAY_NORMAL]
+		var facets := 0
+		for i in range(2, normals.size() - 2, 2):
+			if normals[i].is_equal_approx(normals[i - 2]) and not verts[i].is_equal_approx(verts[i - 2]) \
+					and absf((verts[i] - verts[i - 2]).angle_to(verts[i + 2] - verts[i])) > 0.01:
+				facets += 1
+		_eq(facets, 0, "shaded as one smooth sheet: no two rows round a bend share a flat normal")
 	var pivot := printer.get_node("PaperPivot") as Node3D
 	_ok(pivot.rotation.x < 0.0, "the slot sends it back toward the roll cover, not over the front")
 	printer._lay_paper(null, 0)
@@ -327,146 +336,222 @@ func _test_menu_offers_choices() -> void:
 	ui.free()
 
 
-## A strip settled for `seconds` under ordinary gravity, straight up out of a slot
-## at the origin.
-func _settled(length: float, seconds: float, gravity := Vector2(-9.8, 0.0),
-		boxes: Array[Rect2] = [], planes: Array = []) -> GbPrinterStrip:
-	var s := GbPrinterStrip.new()
-	s.place(Vector2.ZERO, 0.0)
-	s.boxes = boxes
-	s.planes = planes
-	s.set_length(length)
-	for i in int(seconds * 60.0):
-		s.step(1.0 / 60.0, gravity)
-	return s
+## The printer's frame, as the paper cases below stand in it: +Y up out of the
+## slot, -Z back toward the roll cover, the paper lying across X.
+const G := Vector3(0.0, -9.8, 0.0)
+const STEP := 1.0 / 90.0
+
+
+## Paper fed `length` out of a slot standing straight up at the origin, then
+## stepped `seconds` more.
+func _fed(length: float, seconds: float, gravity := G, boxes: Array[AABB] = [],
+		patches: Array = []) -> GbThermalRibbon:
+	var r := GbThermalRibbon.new()
+	r.set_slot(Vector3.ZERO, Vector3.UP, Vector3.RIGHT)
+	r.boxes = boxes
+	r.patches = patches
+	r.set_out(length)
+	while r.feeding():
+		r.step(STEP, gravity)
+	for i in int(seconds / STEP):
+		r.step(STEP, gravity)
+	return r
+
+
+func _tip(r: GbThermalRibbon) -> Vector3:
+	return (r.positions[2 * r.segments] + r.positions[2 * r.segments + 1]) * 0.5
+
+
+## How long the paper is along its middle, from the slot's mouth to its free end.
+func _run(r: GbThermalRibbon) -> float:
+	var verts: PackedVector3Array = r.outside()[0]
+	var run := 0.0
+	for i in range(2, verts.size(), 2):
+		run += ((verts[i] + verts[i + 1]) * 0.5).distance_to((verts[i - 2] + verts[i - 1]) * 0.5)
+	return run
+
+
+func _test_paper_solver_is_loaded() -> void:
+	# The paper has ONE solver and it is native. A build without it (paper-godot
+	# is built per platform, and the binaries are gitignored) leaves every strip
+	# and print standing still, which is otherwise found only by looking.
+	_ok(GbThermalRibbon.has_solver(),
+		"paper-godot has PaperSheetSolver (python Tools/build.py windows --only paper-godot)")
 
 
 func _test_paper_curls_back() -> void:
 	# Weightless, the paper takes the roll's curl: an arc of CURL_RADIUS, bending
 	# toward -Z (the roll cover's side).
-	var s := _settled(0.08, 3.0, Vector2.ZERO)
-	var tip := s.points[s.points.size() - 1]
-	var turn := 0.08 / GbPrinterStrip.CURL_RADIUS
-	var want := Vector2(sin(turn), -(1.0 - cos(turn))) * GbPrinterStrip.CURL_RADIUS
+	var r := _fed(0.08, 3.0, Vector3.ZERO)
+	var tip := _tip(r)
+	var turn := 0.08 / GbThermalRibbon.CURL_RADIUS
+	var want := Vector3(0.0, sin(turn), -(1.0 - cos(turn))) * GbThermalRibbon.CURL_RADIUS
 	_ok(tip.distance_to(want) < 0.004, "weightless, the paper curls as the roll left it (%s, %s)" % [tip, want])
 	# A short piece stands up out of the slot, curling back.
-	s = _settled(0.03, 3.0)
-	tip = s.points[s.points.size() - 1]
-	_ok(tip.x > 0.02 and tip.y < -0.003, "a short piece stands, curling back (%s)" % tip)
-	_ok(s.motion() < 0.01, "and comes to rest (%.4f)" % s.motion())
+	r = _fed(0.03, 3.0)
+	tip = _tip(r)
+	_ok(tip.y > 0.02 and tip.z < -0.003, "a short piece stands, curling back (%s)" % tip)
+	_ok(r.move_speed < 0.0005, "and comes to rest (%.5f m/s)" % r.move_speed)
 
 
 func _test_paper_gives_way_to_its_weight() -> void:
-	var s := _settled(0.25, 5.0)
-	var tip := s.points[s.points.size() - 1]
-	_ok(tip.x < -0.05, "a long strip flops over and hangs (%s)" % tip)
-	_ok(s.motion() < 0.05, "and settles (%.4f)" % s.motion())
-	var weightless := _settled(0.25, 5.0, Vector2.ZERO)
-	_ok(weightless.points[weightless.points.size() - 1].x > tip.x + 0.05,
-		"lower than the same paper weightless")
+	var r := _fed(0.25, 5.0)
+	var tip := _tip(r)
+	_ok(tip.y < -0.05, "a long strip flops over and hangs (%s)" % tip)
+	_ok(r.move_speed < 0.002, "and settles (%.5f m/s)" % r.move_speed)
+	var weightless := _fed(0.25, 5.0, Vector3.ZERO)
+	_ok(_tip(weightless).y > tip.y + 0.05, "lower than the same paper weightless")
 	# Tipped forward (gravity toward the printer's +Z), the paper falls the other way.
-	var forward := _settled(0.25, 5.0, Vector2(-6.9, 6.9))
-	var fwd_tip := forward.points[forward.points.size() - 1]
-	_ok(fwd_tip.y > tip.y + 0.05, "the printer tipped forward, it falls forward (%s against %s)" % [fwd_tip, tip])
+	var forward := _fed(0.25, 5.0, Vector3(0.0, -6.9, 6.9))
+	var fwd_tip := _tip(forward)
+	_ok(fwd_tip.z > tip.z + 0.05, "the printer tipped forward, it falls forward (%s against %s)" % [fwd_tip, tip])
+	# Paper neither stretches nor narrows, however it hangs.
+	var widest := 0.0
+	for row in r.segments + 1:
+		widest = maxf(widest, absf(r.positions[2 * row].distance_to(r.positions[2 * row + 1]) - r.width))
+	_ok(absf(_run(r) - 0.25) < 0.0005 and widest < 0.0002,
+		"it keeps its length and width (%.4f m long, %.2f mm off its width)" % [_run(r), widest * 1000.0])
 	# A shake moves it, and no faster than paper moves through air.
-	var hung := s.points[s.points.size() - 1]
+	var hung := tip
 	var fastest := 0.0
-	var last := hung
-	for i in 12:
-		s.step(1.0 / 60.0, Vector2(-9.8, 30.0))
-		var now := s.points[s.points.size() - 1]
-		fastest = maxf(fastest, now.distance_to(last) * 60.0)
-		last = now
-	_ok(last.distance_to(hung) > 0.02, "shaken, it swings (%.3f m)" % last.distance_to(hung))
-	_ok(fastest <= GbPrinterStrip.TERMINAL_SPEED + 0.01,
+	for i in 18:
+		r.step(STEP, Vector3(0.0, -9.8, 30.0))
+		for v in r.velocities:
+			fastest = maxf(fastest, v.length())
+	_ok(_tip(r).distance_to(hung) > 0.02, "shaken, it swings (%.3f m)" % _tip(r).distance_to(hung))
+	_ok(fastest <= GbThermalRibbon.MAX_SPEED + 0.01,
 		"never faster than paper through air (%.2f m/s)" % fastest)
+	_ok(absf(_run(r) - 0.25) < 0.008, "and shaken hard, it is still 25 cm of paper (%.4f m)" % _run(r))
+
+
+func _test_long_paper_lies_smooth() -> void:
+	# What this sheet replaced: a 2D chain of 48 hinges, each loaded with all the
+	# paper past it whether or not that paper lay on a table, and folded to any
+	# angle by its contact. A metre of it across a table was a zig-zag of 2 cm
+	# facets, some standing on edge. Fed the same way, this never turns more than
+	# its MIN_RADIUS allows from one row to the next, lies down, and comes to rest.
+	var r := GbThermalRibbon.new()
+	r.set_slot(Vector3(0.0, 0.0305, 0.026), Vector3(0.0, cos(0.14), -sin(0.14)), Vector3.RIGHT)
+	r.boxes = [AABB(Vector3(-0.035, -0.03, -0.0675), Vector3(0.07, 0.06, 0.135))]
+	r.patches = [[Vector3.UP, -0.0305, Vector3(0.0, -0.0305, 0.0), 10.0, 0.05]]
+	r.set_out(GbPrinter.STUB_LENGTH)
+	var paper := GbPrinter.STUB_LENGTH
+	var sharpest := 0.0
+	while paper < 1.0:
+		paper = minf(1.0, paper + 0.04 * STEP)
+		r.set_out(paper)
+		r.step(STEP, G)
+		sharpest = maxf(sharpest, r.sharpest_turn())
+	for i in int(4.0 / STEP):
+		r.step(STEP, G)
+	_ok(r.ds <= 0.0061 and r.segments >= 160, "a metre of paper is rows 6 mm apart (%d of %.1f mm)" % [r.segments, r.ds * 1000.0])
+	_ok(sharpest < deg_to_rad(62.0), "fed onto a table it never folds sharply (%.0f degrees at worst)" % rad_to_deg(sharpest))
+	_ok(r.sharpest_turn() < deg_to_rad(30.0), "and lies in smooth curves (%.0f degrees at rest)" % rad_to_deg(r.sharpest_turn()))
+	_ok(r.move_speed < 0.0005, "at rest (%.5f m/s)" % r.move_speed)
+	var lowest := INF
+	var lying := 0
+	for p in r.positions:
+		lowest = minf(lowest, p.y + 0.0305)
+		if p.y + 0.0305 < 0.003:
+			lying += 1
+	_ok(lowest > -0.0001, "on the table, not in it (%.2f mm)" % (lowest * 1000.0))
+	_ok(lying > r.positions.size() / 4, "much of it lying flat (%d of %d points)" % [lying, r.positions.size()])
+	_ok(absf(_run(r) - 1.0) < 0.01, "a metre long still (%.4f m)" % _run(r))
+	var aside := 0.0
+	for p in r.positions:
+		aside = maxf(aside, absf(p.x) - r.width * 0.5)
+	_ok(aside < 0.02, "and fed straight it lies straight: a ribbon is stiff against twist (%.0f mm to the side)" % (aside * 1000.0))
 
 
 func _test_paper_lies_on_what_is_under_it() -> void:
 	# The roll cover behind the slot, its top 1 cm above it.
-	var cover := Rect2(Vector2(-0.1, -0.2), Vector2(0.11, 0.195))
-	var s := _settled(0.25, 8.0, Vector2(-9.8, 0.0), [cover])
+	var cover := AABB(Vector3(-0.05, -0.1, -0.2), Vector3(0.1, 0.11, 0.195))
+	var r := _fed(0.25, 8.0, G, [cover])
 	var inside := 0
 	var on_top := false
-	for i in range(1, s.points.size()):
-		var p := s.points[i]
+	for i in range(r.box_free_rows * 2, r.positions.size()):
+		var p := r.positions[i]
 		if cover.grow(-0.0005).has_point(p):
 			inside += 1
-		if absf(p.x - cover.end.x) < 0.003 and p.y < cover.end.y and p.y > cover.position.y:
+		if absf(p.y - cover.end.y) < 0.003 and p.z < cover.end.z and p.z > cover.position.z:
 			on_top = true
 	_eq(inside, 0, "the paper does not go into the cover")
 	_ok(on_top, "it lies on top of it")
 	# A table 5 cm under the slot.
-	s = _settled(0.4, 5.0, Vector2(-9.8, 0.0), [], [[Vector2(1.0, 0.0), -0.05]])
+	r = _fed(0.4, 5.0, G, [], [[Vector3.UP, -0.05, Vector3(0.0, -0.05, 0.0), 10.0, 0.05]])
 	var lowest := 0.0
-	for p in s.points:
-		lowest = minf(lowest, p.x)
-	_ok(lowest > -0.0515, "nor through the table under it (%.4f)" % lowest)
-	# The shell's own boxes and slot (xenu.gbprinter), on a table half a millimeter
-	# under its feet: the paper drapes down the back onto the table, never into
-	# the printer or under it through that gap, and comes to rest.
-	s = _on_the_shell(0.25)
-	for i in 900:
-		s.step(1.0 / 60.0, Vector2(-9.8, 0.0))
-	_eq(_in_the_printer(s), 0, "paper on the table stays out of and from under the printer")
+	for p in r.positions:
+		lowest = minf(lowest, p.y)
+	_ok(lowest > -0.0505, "nor through the table under it (%.4f)" % lowest)
+	# The printer's own box and slot, on a table half a millimeter under its feet:
+	# the paper drapes down the back onto the table, never into the printer or
+	# under it through that gap, and comes to rest.
+	r = _on_the_printer(0.25)
+	for i in int(8.0 / STEP):
+		r.step(STEP, G)
+	_eq(_in_the_printer(r), 0, "paper on the table stays out of and from under the printer")
 	var on_table := false
-	for p in s.points:
-		on_table = on_table or p.x < -0.026
+	for p in r.positions:
+		on_table = on_table or p.y < TABLE_Y + 0.002
 	_ok(on_table, "it reaches the table")
-	_ok(s.motion() < 0.01, "and comes to rest (%.4f)" % s.motion())
+	_ok(r.move_speed < 0.0005, "and comes to rest (%.5f m/s)" % r.move_speed)
 
 
-## A strip out of the shell's slot (xenu.gbprinter), with its two boxes, on a
-## table half a millimeter under its feet.
-func _on_the_shell(length: float) -> GbPrinterStrip:
-	var s := GbPrinterStrip.new()
-	s.place(Vector2(0.01739, -0.0123), 0.1396)
-	s.boxes = [SHELL_BODY, SHELL_HUMP]
-	s.planes = [[Vector2(1.0, 0.0), -0.0285]]
-	s.set_length(length)
-	return s
+## The printer's body as the paper meets it, and the table half a millimeter
+## under its feet.
+const BODY := AABB(Vector3(-0.035, -0.03, -0.0675), Vector3(0.07, 0.06, 0.135))
+const TABLE_Y := -0.0305
 
 
-## How many of the strip's points (past the slot's own) are in the shell's boxes
-## or under them, by more than `slack` meters: where the paper turns sharply
-## from the printer's back onto the table a point can sit a millimeter or two in,
-## out of sight under the paper, where the bugs this guards against put it
-## centimeters in.
-func _in_the_printer(s: GbPrinterStrip, slack := 0.002) -> int:
+## Paper out of the printer's slot (leaning 8 degrees back), its body under it,
+## on a table: fed, not yet settled.
+func _on_the_printer(length: float) -> GbThermalRibbon:
+	var r := GbThermalRibbon.new()
+	var lean := deg_to_rad(GbPrinter.PAPER_LEAN_DEG)
+	r.set_slot(Vector3(0.0, 0.0305, 0.026), Vector3(0.0, cos(lean), -sin(lean)), Vector3.RIGHT)
+	r.boxes = [BODY]
+	r.patches = [[Vector3.UP, TABLE_Y, Vector3(0.0, TABLE_Y, 0.0), 10.0, 0.05]]
+	r.set_out(length)
+	while r.feeding():
+		r.step(STEP, G)
+	return r
+
+
+## How many of the paper's points (past the slot's own) are in the printer's body
+## or under it, by more than `slack` meters.
+func _in_the_printer(r: GbThermalRibbon, slack := 0.002) -> int:
 	var n := 0
-	for i in range(3, s.points.size()):
-		var p := s.points[i]
-		for box: Rect2 in [SHELL_BODY, SHELL_HUMP]:
-			var r := box.grow(-slack)
-			if p.y > r.position.y and p.y < r.end.y and p.x < r.end.x:
-				n += 1
-				break
+	var body := BODY.grow(-slack)
+	for i in range(r.box_free_rows * 2, r.positions.size()):
+		var p := r.positions[i]
+		if p.x > body.position.x and p.x < body.end.x and p.z > body.position.z and p.z < body.end.z \
+				and p.y < body.end.y:
+			n += 1
 	return n
 
 
 func _test_paper_moves_smoothly() -> void:
 	# The printer lifted 2 cm off the table and set down again, a long strip
 	# draped down its back onto it. Each frame, how far any point's motion changed
-	# (its second difference): the paper was thrown 13 cm in a frame here, flipping
-	# between lying on the table and curled up the printer's back.
-	var s := _on_the_shell(0.22)
-	for i in 600:
-		s.step(1.0 / 60.0, Vector2(-9.8, 0.0))
+	# (its second difference): the first paper was thrown 13 cm in a frame here,
+	# flipping between lying on the table and curled up the printer's back.
+	var r := _on_the_printer(0.22)
+	for i in int(6.0 / STEP):
+		r.step(STEP, G)
 	var hist: Array = []
 	var worst := 0.0
 	var inside := 0
-	for f in 240:
-		var t := f / 60.0
+	for f in 360:
+		var t := f * STEP
 		var off := -0.02 * (smoothstep(0.0, 1.0, t) - smoothstep(2.0, 3.0, t))
-		s.planes = [[Vector2(1.0, 0.0), -0.0285 + off]]
-		s.step(1.0 / 60.0, Vector2(-9.8, 0.0))
-		# Set down onto the paper, the base's edge pinches it 3.6 mm in for a moment.
-		inside = maxi(inside, _in_the_printer(s, 0.005))
-		hist.append(s.points.duplicate())
+		r.patches = [[Vector3.UP, TABLE_Y + off, Vector3(0.0, TABLE_Y + off, 0.0), 10.0, 0.05]]
+		r.step(STEP, G)
+		inside = maxi(inside, _in_the_printer(r, 0.005))
+		hist.append(r.positions.duplicate())
 		if hist.size() >= 3:
-			var a: PackedVector2Array = hist[-3]
-			var b: PackedVector2Array = hist[-2]
-			var c: PackedVector2Array = hist[-1]
+			var a: PackedVector3Array = hist[-3]
+			var b: PackedVector3Array = hist[-2]
+			var c: PackedVector3Array = hist[-1]
 			for i in c.size():
 				worst = maxf(worst, (c[i] - 2.0 * b[i] + a[i]).length())
 	_ok(worst < 0.02, "lifted and set down, the paper never jumps (%.1f mm)" % (worst * 1000.0))
@@ -474,44 +559,41 @@ func _test_paper_moves_smoothly() -> void:
 
 
 func _test_paper_meets_the_room() -> void:
-	# A table under the printer that ends 10 cm behind it, as patches the room's
-	# rays would find: a long print hangs over the edge and down past it. On one
-	# whole surface, as the paper had before, it could not.
-	# Every ROOM_SAMPLE down the table to its last point before the edge, each
-	# patch reaching PATCH_REACH: as the printer's rays would find it.
+	# A table under the printer that ends just behind it, as patches the room's
+	# rays would find, under both edges of the paper: a long print hangs over the
+	# edge and down past it. On one whole surface it could not.
 	var table: Array = []
 	var z := 0.08
-	while z > -0.10:
-		table.append([Vector2(1.0, 0.0), -0.0285, Vector2(-0.0285, z), GbPrinter.PATCH_REACH])
+	while z > -0.07:
+		for x: float in [-0.019, 0.019]:
+			table.append([Vector3.UP, TABLE_Y, Vector3(x, TABLE_Y, z), GbPrinter.PATCH_REACH])
 		z -= GbPrinter.ROOM_SAMPLE
-	var s := _on_the_shell(0.30)
-	s.planes = []
-	s.patches = table
-	for i in 900:
-		s.step(1.0 / 60.0, Vector2(-9.8, 0.0))
+	var r := _on_the_printer(0.50)
+	r.patches = table
+	for i in int(10.0 / STEP):
+		r.step(STEP, G)
 	var lowest := 0.0
 	var past_edge := 0.0
-	for p in s.points:
-		lowest = minf(lowest, p.x)
-		past_edge = minf(past_edge, p.y)
-	_ok(past_edge < -0.10 and lowest < -0.06,
+	for p in r.positions:
+		lowest = minf(lowest, p.y)
+		past_edge = minf(past_edge, p.z)
+	_ok(past_edge < -0.085 and lowest < -0.08,
 		"a long print hangs over the table's edge (lowest %.3f, back to %.3f)" % [lowest, past_edge])
-	var whole := _on_the_shell(0.30)
-	for i in 900:
-		whole.step(1.0 / 60.0, Vector2(-9.8, 0.0))
+	var whole := _on_the_printer(0.50)
+	for i in int(10.0 / STEP):
+		whole.step(STEP, G)
 	var whole_lowest := 0.0
-	for p in whole.points:
-		whole_lowest = minf(whole_lowest, p.x)
-	_ok(whole_lowest > -0.031, "on one whole surface it could not (%.3f)" % whole_lowest)
+	for p in whole.positions:
+		whole_lowest = minf(whole_lowest, p.y)
+	_ok(whole_lowest > TABLE_Y - 0.0005, "on one whole surface it could not (%.4f)" % whole_lowest)
 	# A wall 12 cm behind the printer, facing it: the print stops against it.
-	var walled := _on_the_shell(0.30)
-	walled.planes = []
-	walled.patches = table + [[Vector2(0.0, 1.0), -0.12, Vector2(0.0, -0.12), 0.08]]
-	for i in 900:
-		walled.step(1.0 / 60.0, Vector2(-9.8, 0.0))
+	var walled := _on_the_printer(0.50)
+	walled.patches = table + [[Vector3.BACK, -0.12, Vector3(0.0, 0.0, -0.12), 0.08]]
+	for i in int(10.0 / STEP):
+		walled.step(STEP, G)
 	var through := 0
-	for p in walled.points:
-		if p.y < -0.123 and p.x > -0.08 and p.x < 0.08:
+	for p in walled.positions:
+		if p.z < -0.123 and p.y > -0.08 and p.y < 0.08:
 			through += 1
 	_eq(through, 0, "nor goes through a wall behind the printer")
 
@@ -526,6 +608,7 @@ func _test_printer_finds_the_room() -> void:
 	table.add_child(shape)
 	table.position = Vector3(0.0, -0.01, 0.0)
 	add_child(table)
+	var had := get_children()
 	var printer := (load(PRINTER_SCENE) as PackedScene).instantiate() as GbPrinter
 	add_child(printer)
 	printer.freeze = true
@@ -535,12 +618,371 @@ func _test_printer_finds_the_room() -> void:
 	printer._find_obstacles()
 	printer._place_room(printer.global_transform)
 	var up := 0
-	for piece: Array in printer._strip.patches:
-		if (piece[0] as Vector2).is_equal_approx(Vector2(1.0, 0.0)):
+	for piece: Array in printer.paper().patches:
+		if (piece[0] as Vector3).is_equal_approx(Vector3.UP):
 			up += 1
 	_ok(up >= 3, "a printer finds the table under its back, slot and front (%d)" % up)
+	_ok(printer.paper().boxes.size() >= 1, "and its own body, which its paper lies on")
+	# The whole of it, in the room: a metre fed out of a real printer onto a real
+	# table lies on the table and comes to rest.
+	printer.set_process(false)
+	printer.paper().set_out(0.6)
+	var sharpest := 0.0
+	for i in int(10.0 / STEP):
+		printer._move_paper(STEP)
+		sharpest = maxf(sharpest, printer.paper().sharpest_turn())
+	var lowest := INF
+	for p in printer.paper().positions:
+		lowest = minf(lowest, printer.to_global(p).y)
+	_ok(lowest > -0.0002 and lowest < 0.002, "60 cm fed from it lies on the table (lowest %.2f mm)" % (lowest * 1000.0))
+	# Arriving whole it comes out at FEED_MAX, twenty times the printer's own
+	# speed, and bends hardest where it falls across the printer's back edge.
+	_ok(sharpest < deg_to_rad(75.0), "never folded flat (%.0f degrees)" % rad_to_deg(sharpest))
+	_ok(printer.paper().sharpest_turn() < deg_to_rad(30.0), "smooth where it lies (%.0f degrees)" % rad_to_deg(printer.paper().sharpest_turn()))
+	_ok(printer._paper_resting, "and comes to rest")
+	for n in get_children():
+		if not had.has(n) and n != printer:
+			n.free()
 	printer.free()
 	table.free()
+
+
+func _test_fingers_push_the_paper() -> void:
+	# A fingertip where the paper stands: the paper bends round it, none of it in.
+	# Between the two edges, where a test of the edges alone would find nothing.
+	var r := _fed(0.10, 3.0)
+	@warning_ignore("integer_division")
+	var mid := r.centers()[r.segments / 2]
+	var finger := mid + Vector3(0.0, 0.0, 0.004)
+	r.fingers = [[finger, 0.009]]
+	for i in 90:
+		r.step(STEP, G)
+	var inside := 0
+	for row in range(r.box_free_rows, r.segments + 1):
+		var near := Geometry3D.get_closest_point_to_segment(finger, r.positions[2 * row], r.positions[2 * row + 1])
+		if near.distance_to(finger) < 0.0085:
+			inside += 1
+	_eq(inside, 0, "a fingertip in the paper's way pushes it aside")
+	r.fingers = []
+	for i in 450:
+		r.step(STEP, G)
+	@warning_ignore("integer_division")
+	var back := r.centers()[r.segments / 2]
+	_ok(back.distance_to(mid) < 0.003, "and taken away, the paper goes back (%.1f mm)" % (back.distance_to(mid) * 1000.0))
+
+
+func _test_paper_flops() -> void:
+	# Pushed and let go: the printer carried forward for a quarter second and
+	# stopped. The paper has its own weight now, so it lags, comes back and
+	# settles where it was, with no swing added to it by hand.
+	var r := _fed(0.10, 3.0)
+	var rest := _tip(r)
+	for i in 23:
+		r.step(STEP, Vector3(0.0, -9.8, -6.0))
+	var pushed := _tip(r)
+	_ok(pushed.z < rest.z - 0.0015, "carried forward, the paper lags behind (%.1f mm)" % ((rest.z - pushed.z) * 1000.0))
+	for i in 360:
+		r.step(STEP, G)
+	_ok(r.move_speed < 0.0005, "stopped, it settles (%.5f m/s)" % r.move_speed)
+	_ok(_tip(r).distance_to(rest) < 0.002, "where it was (%.1f mm off)" % (_tip(r).distance_to(rest) * 1000.0))
+	# A knock turns it about the slot and it rings back to rest.
+	r.jolt(GbPrinter.KNOCK_JOLT)
+	_ok(r.jolted, "a knock is something to wake for")
+	r.step(STEP, G)
+	_ok(r.move_speed > 0.002 and not r.jolted, "and moves the paper (%.4f m/s)" % r.move_speed)
+	for i in 270:
+		r.step(STEP, G)
+	_ok(r.move_speed < 0.0005 and _tip(r).distance_to(rest) < 0.002, "which settles again where it was")
+
+
+func _test_a_fold_comes_to_rest() -> void:
+	# Paper pressed onto a surface right at the slot has to double back along it.
+	# The hinge chain read one hinge folded half a turn back as the other way
+	# round, took that for a speed, and spun without end through its own paper.
+	for length: float in [0.06, 0.1]:
+		var r := GbThermalRibbon.new()
+		r.set_slot(Vector3.ZERO, Vector3.UP, Vector3.RIGHT)
+		var g := Vector3(0.0, 9.81, 0.0)
+		r.patches = [[Vector3.DOWN, -0.02, Vector3(0.0, 0.02, 0.0), 0.3]]
+		r.set_out(length)
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 3
+		var late := 0.0
+		var sharpest := 0.0
+		for f in 720:
+			r.step(STEP, g, Vector3(rng.randf_range(-40.0, 40.0), 0.0, 0.0) if f < 180 else Vector3.ZERO)
+			sharpest = maxf(sharpest, r.sharpest_turn())
+			if f > 540:
+				late = maxf(late, r.move_speed)
+		_ok(late < 0.001, "%.0f cm doubled back on a surface comes to rest (%.5f m/s)" % [length * 100.0, late])
+		_ok(sharpest < deg_to_rad(62.0), "without creasing (%.0f degrees)" % rad_to_deg(sharpest))
+
+
+func _test_paper_grows_and_tears() -> void:
+	var r := _fed(0.05, 2.0)
+	var before := r.positions.duplicate()
+	var rows := r.segments
+	r.set_out(0.05 + GbPrinter.DOT_PITCH)
+	_ok(_tip(r).distance_to((before[before.size() - 2] + before[before.size() - 1]) * 0.5) < 0.0005,
+		"a line fed pushes the paper out without throwing its shape")
+	# Fed a row's worth, a row comes out of the slot: the rows already out are the
+	# same places on the paper they were, not laid again.
+	for i in 60:
+		r.set_out(r.wanted + GbPrinter.DOT_PITCH)
+		r.step(STEP, G)
+	_ok(r.segments == rows + 1 or r.segments == rows + 2, "more paper is more rows (%d, was %d)" % [r.segments, rows])
+	_ok(_tip(r).distance_to((before[before.size() - 2] + before[before.size() - 1]) * 0.5) < 0.012,
+		"put in at the slot: what was out is pushed on, not laid again")
+	_ok(absf(_run(r) - r.out) < 0.0005, "and the paper out is as long as was fed (%.4f of %.4f)" % [_run(r), r.out])
+	r.set_out(GbPrinter.STUB_LENGTH)
+	var still := true
+	for v in r.velocities:
+		still = still and v == Vector3.ZERO
+	_ok(still and is_equal_approx(r.out, GbPrinter.STUB_LENGTH), "torn, a fresh end of roll at rest")
+	# A strip that arrives whole comes out of the slot, at FEED_MAX: never laid
+	# across the room at once, where it would lie in the table.
+	r.set_out(0.5)
+	_ok(r.feeding() and r.out < 0.02 and is_equal_approx(r.wanted, 0.5), "a strip arriving whole is still to come out (%.3f m out)" % r.out)
+	var frames := 0
+	while r.feeding() and frames < 1000:
+		r.step(STEP, G)
+		frames += 1
+	_ok(absf(frames * STEP - 0.5 / GbThermalRibbon.FEED_MAX) < 0.15, "and comes out at FEED_MAX (%.2f s)" % (frames * STEP))
+	# Past MAX_ROWS the rows are made twice as far apart, the same places kept.
+	r = GbThermalRibbon.new()
+	r.set_slot(Vector3.ZERO, Vector3.UP, Vector3.RIGHT)
+	r.set_out(0.01)
+	var paper := 0.01
+	while paper < 1.3:
+		paper += 0.005
+		r.set_out(paper)
+		r.step(STEP, Vector3.ZERO)
+	_ok(r.segments + 1 <= GbThermalRibbon.MAX_ROWS and is_equal_approx(r.ds, GbThermalRibbon.ROW * 2.0),
+		"past %.1f m the rows are twice as far apart (%d rows of %.0f mm)" % [
+			GbThermalRibbon.ROW * GbThermalRibbon.MAX_ROWS, r.segments + 1, r.ds * 1000.0])
+	_ok(absf(_run(r) - r.out) < 0.001, "and the paper as long as it was (%.4f of %.4f)" % [_run(r), r.out])
+
+
+func _test_contact_does_not_kick() -> void:
+	var r := _fed(0.10, 2.0)
+	@warning_ignore("integer_division")
+	var finger := r.centers()[r.segments / 2] + Vector3(0.0, 0.0, 0.004)
+	r.fingers = [[finger, 0.009]]
+	var fastest := 0.0
+	for frame in 120:
+		var before := r.positions.duplicate()
+		r.step(1.0 / 120.0, G)
+		for i in r.positions.size():
+			fastest = maxf(fastest, r.positions[i].distance_to(before[i]) * 120.0)
+	_ok(fastest <= GbThermalRibbon.MAX_SPEED + 0.001,
+		"a suddenly introduced finger cannot bypass the speed limit (%.3f m/s)" % fastest)
+	var nearest := INF
+	for row in range(r.box_free_rows, r.segments + 1):
+		nearest = minf(nearest, Geometry3D.get_closest_point_to_segment(finger,
+			r.positions[2 * row], r.positions[2 * row + 1]).distance_to(finger))
+	_ok(nearest > 0.0085, "bounded contact still recovers out of the finger")
+
+
+## How many times the sheet's middle line crosses itself, seen along its width.
+func _crossings(r: GbThermalRibbon) -> int:
+	var mid := r.centers()
+	var count := 0
+	for i in r.segments:
+		for j in range(i + 2, r.segments):
+			if Geometry2D.segment_intersects_segment(Vector2(mid[i].y, mid[i].z), Vector2(mid[i + 1].y, mid[i + 1].z),
+					Vector2(mid[j].y, mid[j].z), Vector2(mid[j + 1].y, mid[j + 1].z)) != null:
+				count += 1
+	return count
+
+
+func _test_paper_cannot_cross_itself() -> void:
+	# More than two turns of the roll's curl, weightless: curling up as it comes
+	# out of the slot it must rest against the earlier paper, not pass through it.
+	var r := GbThermalRibbon.new()
+	r.set_slot(Vector3.ZERO, Vector3.UP, Vector3.RIGHT)
+	r.set_out(0.9)
+	var worst := 0
+	var frames := 0
+	while (r.feeding() or frames < 540) and frames < 2000:
+		r.step(STEP, Vector3.ZERO)
+		worst = maxi(worst, _crossings(r))
+		frames += 1
+	_eq(worst, 0, "a long curling strip never crosses its earlier paper")
+	_ok(_tip(r).distance_to(Vector3(0.0, 0.9, 0.0)) > 0.2, "self-contact still lets the strip bend")
+	_ok(absf(_run(r) - 0.9) < 0.009, "and preserves the paper's length (%.4f m)" % _run(r))
+
+
+func _test_fast_paper_crosses_a_surface() -> void:
+	var table := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.2, 0.01, 0.2)
+	shape.shape = box
+	table.add_child(shape)
+	table.position = Vector3(5.0, -0.005, 0.0)
+	add_child(table)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var sweep := GbPaperSweep.new()
+	var space := table.get_world_3d().direct_space_state
+	sweep.update(space, PackedVector3Array([Vector3(5.0, 0.02, 0.0)]), [], 0.012)
+	sweep.update(space, PackedVector3Array([Vector3(5.0, -0.06, 0.0)]), [], 0.012)
+	_ok(not sweep.hits.is_empty(), "a fast crossing finds a table even beyond patch depth")
+	if not sweep.hits.is_empty():
+		_ok(float(sweep.hits[0][2]) > 0.06, "the crossed surface keeps enough depth to recover the paper")
+		# And the paper IS recovered through it: a sheet 6 cm under that patch,
+		# deeper than an ordinary patch reaches, comes back up onto it.
+		var sheet := GbThermalRibbon.new()
+		sheet.configure(0.06, 0.038, 0.0)
+		sheet.pin_nearest(Vector3(0.0, 0.03, 0.0))
+		sheet.patches = [[Vector3.BACK, 0.06, Vector3(0.0, 0.0, 0.06), 0.3, float(sweep.hits[0][2])]]
+		for i in 90:
+			sheet.step(STEP, Vector3.ZERO)
+		var lowest := INF
+		for row in sheet.segments + 1:
+			if row != sheet.pin_rows[0]:
+				lowest = minf(lowest, sheet.positions[2 * row].z)
+		_ok(lowest > 0.055, "paper that far under it is brought back out (%.3f m)" % lowest)
+	sweep.update(space, PackedVector3Array([Vector3(5.0, -0.05, 0.0)]), [], 0.012)
+	_ok(not sweep.hits.is_empty(), "deep contact survives the next frame while recovering")
+	sweep.update(space, PackedVector3Array([Vector3(5.0, 0.002, 0.0)]), [], 0.012)
+	_ok(sweep.hits.is_empty(), "clearing the table releases the swept contact")
+	sweep.reset()
+	sweep.update(space, PackedVector3Array([Vector3(5.15, 0.02, 0.0)]), [], 0.012)
+	sweep.update(space, PackedVector3Array([Vector3(5.15, -0.06, 0.0)]), [], 0.012)
+	_ok(sweep.hits.is_empty(), "past the table edge there is no phantom surface")
+	table.free()
+
+
+func _test_paper_hitch_budget() -> void:
+	var a := GbThermalRibbon.new()
+	var b := GbThermalRibbon.new()
+	for sheet: GbThermalRibbon in [a, b]:
+		sheet.set_slot(Vector3.ZERO, Vector3.UP, Vector3.RIGHT)
+		sheet.set_out(0.6)
+	a.step(1.0, G)
+	b.step(1.0 / 30.0, G)
+	_ok(a.positions == b.positions and is_equal_approx(a.out, b.out),
+		"a one-second hitch does not create a second of catch-up work on the printer (%.3f m out)" % a.out)
+	var ra := GbThermalRibbon.new()
+	var rb := GbThermalRibbon.new()
+	for sheet: GbThermalRibbon in [ra, rb]:
+		sheet.configure(0.6, 0.038, 0.0)
+		sheet.pin_nearest(Vector3.ZERO)
+	ra.step(1.0, Vector3(0, -9.8, 0))
+	rb.step(1.0 / 30.0, Vector3(0, -9.8, 0))
+	_ok(ra.positions == rb.positions, "nor in a hand")
+	_eq(ra.move_speed, rb.move_speed, "a capped hitch cannot mistake unfinished bending for rest")
+
+
+func _test_paper_rubs_on_what_it_lies_on() -> void:
+	# Coulomb: paper on a table stays where it lies until the table is tipped
+	# past the angle its friction holds to (24 degrees for 0.45), and past that
+	# it slides. A loose sheet, whose slide is what it hands its body.
+	var slid := {}
+	for tilt: float in [10.0, 40.0]:
+		var sheet := GbThermalRibbon.new()
+		sheet.configure(0.10, 0.038)
+		# Lying curled on a table whose face is the sheet's +Z, tipped toward its +Y.
+		var low := INF
+		for p in sheet.positions:
+			low = minf(low, p.z)
+		sheet.patches = [[Vector3.BACK, low, Vector3(0.0, 0.0, low), 0.5, 0.05]]
+		var t := deg_to_rad(tilt)
+		var along := 0.0
+		# A second to settle onto the table (its curl stands it on its two ends),
+		# then a second counted.
+		for i in 180:
+			sheet.step(STEP, Vector3(0.0, sin(t), -cos(t)) * 9.8)
+			if i >= 90:
+				along += sheet.body_shift.y
+		slid[tilt] = along
+	_ok(absf(slid[10.0]) < 0.0005, "on a table tipped 10 degrees the paper stays put (%.2f mm)" % (slid[10.0] * 1000.0))
+	_ok(slid[40.0] > 0.005, "tipped 40 degrees, past what its friction holds, it slides (%.1f mm)" % (slid[40.0] * 1000.0))
+
+
+func _test_contact_motion_is_not_sleep() -> void:
+	var r := _fed(0.12, 3.0, Vector3.ZERO)
+	@warning_ignore("integer_division")
+	r.fingers = [[r.centers()[r.segments / 2] + Vector3(0.0, 0.0, 0.004), 0.009]]
+	r.step(1.0 / 60.0, Vector3.ZERO)
+	_ok(r.move_speed > 0.002, "positional contact repair cannot report itself asleep")
+	var sheet := GbThermalRibbon.new()
+	sheet.configure(0.12, 0.038)
+	for frame in 180:
+		sheet.step(1.0 / 60.0, Vector3.ZERO)
+	var floor_z := sheet.centers()[-1].z * 0.5
+	sheet.patches = [[Vector3.BACK, floor_z, Vector3(0, 0, floor_z), 0.3, 0.1]]
+	sheet.step(1.0 / 60.0, Vector3.ZERO)
+	_ok(maxf(sheet.move_speed, sheet.body_shift.length() * 60.0) > GbPrintoutFlop.SETTLED,
+		"a recovering ribbon remains awake based on actual sheet or body movement")
+
+
+func _test_exact_tear_handoff() -> void:
+	var image := Image.create(GbPrinterPaper.sheet_width(), 873, false, Image.FORMAT_RGB8)
+	image.fill(Color.WHITE)
+	var path := "user://gb_paper_tear_regression.png"
+	image.save_png(path)
+	var printer := (load(PRINTER_SCENE) as PackedScene).instantiate() as GbPrinter
+	add_child(printer)
+	printer.set_process(false)
+	printer.freeze = true
+	printer.position = Vector3(1, 2, 3)
+	printer.rotation = Vector3(0.2, 0.3, -0.1)
+	# 873 lines of paper out and in the middle of moving: every bend its own.
+	var paper := printer.paper()
+	printer._aim_paper()
+	paper.set_out(873 * GbPrinter.DOT_PITCH)
+	while paper.feeding():
+		paper.step(STEP, Vector3(0.0, -9.8, 3.0))
+	for i in 20:
+		paper.step(STEP, Vector3(2.0, -9.8, -4.0))
+	printer.linear_velocity = Vector3(0.1, 0.2, 0.3)
+	printer.angular_velocity = Vector3(0.3, 0.2, 0.1)
+	var torn := paper.torn_state()
+	var torn_p: PackedVector3Array = torn["positions"]
+	var torn_v: PackedVector3Array = torn["velocities"]
+	# What a tear takes is the paper as it hangs: every row past the slot lies on it.
+	var off := 0.0
+	var moving := 0.0
+	for row in range(paper.box_free_rows, paper.segments + 1):
+		for side in 2:
+			var p := paper.positions[2 * row + side]
+			var nearest := INF
+			for k in range(0, torn_p.size() - 2, 2):
+				nearest = minf(nearest, Geometry3D.get_closest_point_to_segment(p, torn_p[k + side], torn_p[k + 2 + side]).distance_to(p))
+			off = maxf(off, nearest)
+			moving = maxf(moving, paper.velocities[2 * row + side].length())
+	_ok(off < 0.0002, "what is torn off is the paper where it hangs (%.3f mm off it at worst)" % (off * 1000.0))
+	_ok(moving > 0.05, "torn while it moves (%.2f m/s)" % moving)
+	var poster := printer._spawn_printout(path, 873)
+	poster.freeze = true
+	var flop := poster.get_node(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
+	flop.set_process(false)
+	var sheet := flop._ribbon
+	_eq(sheet.positions.size(), torn_p.size(), "the print is the torn paper, row for row")
+	var error := 0.0
+	var speed_error := 0.0
+	for i in mini(sheet.positions.size(), torn_p.size()):
+		var expected := printer.to_global(torn_p[i])
+		var actual := poster.to_global(sheet.positions[i])
+		error = maxf(error, expected.distance_to(actual))
+		var want_v := printer.linear_velocity + printer.angular_velocity.cross(printer.global_basis * torn_p[i]) \
+			+ printer.global_basis * torn_v[i]
+		var got_v := poster.linear_velocity + poster.angular_velocity.cross(actual - poster.global_position) \
+			+ poster.global_basis * sheet.velocities[i]
+		speed_error = maxf(speed_error, want_v.distance_to(got_v))
+	_ok(error < 1e-5, "tearing preserves every bend in world space (%.6f m)" % error)
+	_ok(speed_error < 1e-4, "tearing carries rigid and bending velocities (%.6f m/s)" % speed_error)
+	_ok(absf(sheet.ds - sheet.length / sheet.segments) < 1e-9 and absf(sheet.length - 873 * GbPrinter.DOT_PITCH) < 1e-6,
+		"as a sheet of even rows, the print's length (%.4f m in %d)" % [sheet.length, sheet.segments])
+	_ok((poster.get_node("CollisionShape3D") as CollisionShape3D).disabled,
+		"loose print has no invisible flat collision board")
+	_ok(flop._body_segments.size() >= 10 and flop._body_segments.size() <= GbPrintoutFlop.MAX_COLLIDERS,
+		"collision segments follow the curved paper (%d)" % flop._body_segments.size())
+	poster.free()
+	printer.free()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
 func _test_printouts_are_paper() -> void:
@@ -646,9 +1088,9 @@ func _test_paper_rests_on_a_still_printer() -> void:
 	await _wakes(printer, "the printer moved", func() -> void:
 		printer.global_position += Vector3(0.0, 0.0, 0.01))
 	await _wakes(printer, "a knock's swing", func() -> void:
-		printer._strip.jolt(GbPrinter.KNOCK_JOLT))
+		printer.paper().jolt(GbPrinter.KNOCK_JOLT))
 	await _wakes(printer, "paper fed", func() -> void:
-		printer._strip.set_length(printer._strip.length + GbPrinter.DOT_PITCH * 8.0))
+		printer.paper().set_out(printer.paper().wanted + GbPrinter.DOT_PITCH * 8.0))
 	await _wakes(printer, "the motor", func() -> void:
 		printer.motor_ran())
 	for n in get_children():
@@ -656,25 +1098,6 @@ func _test_paper_rests_on_a_still_printer() -> void:
 			n.free()
 	printer.free()
 	table.free()
-
-
-func _test_fingers_push_the_paper() -> void:
-	# A fingertip where the paper stands: the paper bends round it, none of it in.
-	var s := _settled(0.10, 3.0)
-	var mid := s.points[s.points.size() / 2]
-	var finger := mid + Vector2(0.0, 0.004)
-	s.fingers = [[finger, 0.009]]
-	for i in 60:
-		s.step(1.0 / 60.0, Vector2(-9.8, 0.0))
-	var inside := 0
-	for i in range(3, s.points.size()):
-		if s.points[i].distance_to(finger) < 0.0085:
-			inside += 1
-	_eq(inside, 0, "a fingertip in the paper's way pushes it aside")
-	s.fingers = []
-	for i in 300:
-		s.step(1.0 / 60.0, Vector2(-9.8, 0.0))
-	_ok(s.points[s.points.size() / 2].distance_to(mid) < 0.003, "and taken away, the paper goes back")
 
 
 func _test_gear_knocks_with_the_core() -> void:
@@ -689,11 +1112,10 @@ func _test_gear_knocks_with_the_core() -> void:
 	var t := 0.0
 	while t < 2.5:
 		printer.motor_ran()
-		var swing_before := printer._strip.sway_speed
 		if printer.turn_gear(dt):
 			knocks.append(t + dt)
 			if knocks.size() == 1:
-				_ok(printer._strip.sway_speed > swing_before, "a knock jolts the paper")
+				_ok(printer.paper().jolted, "a knock jolts the paper")
 		t += dt
 	_eq(knocks.size(), 2, "two knocks in two and a half seconds")
 	if knocks.size() == 2:
@@ -710,10 +1132,9 @@ func _test_gear_knocks_with_the_core() -> void:
 
 
 func _test_a_torn_print_keeps_its_bend() -> void:
-	var s := GbPrinterStrip.new()
-	s.set_length(0.1)
-	s.bend_to(12.0)
-	_ok(absf(s.mean_curvature() - 12.0) < 0.01, "a strip takes a bend and says what it is (%.2f)" % s.mean_curvature())
+	var sheet := GbThermalRibbon.new()
+	sheet.configure(0.1, 0.038, 12.0)
+	_ok(absf(sheet.mean_curvature() - 12.0) < 0.01, "a sheet takes a bend and says what it is (%.2f)" % sheet.mean_curvature())
 	var poster := (load("res://Scenes/Objects/media/poster.tscn") as PackedScene).instantiate() as Poster
 	poster.printout = true
 	poster.size_scale = 0.12 / Poster.BASE_LONG_EDGE
@@ -789,331 +1210,6 @@ func _test_paper_is_outlined_round_not_over() -> void:
 	poster.free()
 
 
-func _test_paper_flops() -> void:
-	# Pushed and let go, as BookFlop's pages are: the printer carried forward for a
-	# quarter second and stopped, the paper lags, swings back past where it rests,
-	# and settles. The bend alone never swung back past its rest.
-	var s := _settled(0.10, 3.0)
-	var rest := s.points[s.points.size() - 1]
-	for i in 15:
-		s.step(1.0 / 60.0, Vector2(-9.8, -6.0), 0.0, Vector2(0.0, -6.0))
-	var pushed := s.points[s.points.size() - 1]
-	_ok(pushed.y < rest.y - 0.005, "carried forward, the paper lags behind (%.1f mm)" % ((rest.y - pushed.y) * 1000.0))
-	var past := 0.0
-	for i in 240:
-		s.step(1.0 / 60.0, Vector2(-9.8, 0.0))
-		past = maxf(past, s.points[s.points.size() - 1].y - rest.y)
-	_ok(past > 0.003, "stopped, it swings back past its rest (%.1f mm)" % (past * 1000.0))
-	_ok(s.motion() < 0.01, "and settles (%.4f)" % s.motion())
-	_ok(s.points[s.points.size() - 1].distance_to(rest) < 0.002, "where it was")
-
-
-func _test_a_fold_comes_to_rest() -> void:
-	# A print's half hanging straight down onto a surface at the hand has to
-	# double back along it. One hinge folded half a turn, read back as the other
-	# way round, took that for a speed, and spun without end through its own paper.
-	for length: float in [0.06, 0.1]:
-		var s := GbPrinterStrip.new()
-		s.set_length(length)
-		s.place(Vector2.ZERO, 0.0)
-		var g := Vector2(9.81, 0.0)
-		var n := -g.normalized()
-		s.patches.append([n, 0.0, Vector2.ZERO, 0.3])
-		var rng := RandomNumberGenerator.new()
-		rng.seed = 3
-		var late := 0.0
-		for f in 576:
-			s.step(1.0 / 72.0, g, rng.randf_range(-40.0, 40.0) if f < 144 else 0.0)
-			if f > 432:
-				late = maxf(late, s.motion())
-		_ok(late < 0.05, "a %.0f cm half doubled back on a surface comes to rest (%.3f rad/s)" % [length * 100.0, late])
-
-
-func _test_paper_grows_and_tears() -> void:
-	var s := _settled(0.05, 2.0)
-	var before := s.points[s.points.size() - 1]
-	s.set_length(0.05 + GbPrinter.DOT_PITCH)
-	var shape_kept := s.points[s.points.size() - 1].distance_to(before) < 0.002
-	_ok(shape_kept, "a line fed pushes the paper out without throwing its shape")
-	s.set_length(GbPrinter.STUB_LENGTH)
-	_ok(s.motion() == 0.0 and s.angles[0] == 0.0, "torn, a fresh end of roll at rest")
-
-
-func _test_contact_does_not_kick() -> void:
-	var s := _settled(0.10, 2.0)
-	var finger := s.points[s.segments / 2] + Vector2(0.0, 0.004)
-	s.fingers = [[finger, 0.009]]
-	var fastest := 0.0
-	for frame in 120:
-		var before := s.points.duplicate()
-		s.step(1.0 / 120.0, Vector2(-9.8, 0.0))
-		for i in s.points.size():
-			fastest = maxf(fastest, s.points[i].distance_to(before[i]) * 120.0)
-	_ok(fastest <= GbPrinterStrip.TERMINAL_SPEED + 0.001,
-		"a suddenly introduced finger cannot bypass the speed limit (%.3f m/s)" % fastest)
-	var nearest := INF
-	for i in range(3, s.points.size()):
-		nearest = minf(nearest, s.points[i].distance_to(finger))
-	_ok(nearest > 0.0085, "bounded contact still recovers out of the finger")
-
-
-func _crossings(s: GbPrinterStrip) -> int:
-	var count := 0
-	for i in s.segments:
-		for j in range(i + 2, s.segments):
-			if Geometry2D.segment_intersects_segment(s.points[i], s.points[i + 1], s.points[j], s.points[j + 1]) != null:
-				count += 1
-	return count
-
-
-func _test_paper_cannot_cross_itself() -> void:
-	# More than one circumference, initially straight: curling in zero gravity
-	# must rest against the earlier paper rather than pass through it.
-	var s := GbPrinterStrip.new()
-	s.set_length(0.9)
-	_eq(_crossings(s), 0, "a long print restored at once starts without crossing itself")
-	s.bend_to(0.0)
-	var worst := 0
-	for frame in 360:
-		s.step(1.0 / 60.0, Vector2.ZERO)
-		worst = maxi(worst, _crossings(s))
-	_eq(worst, 0, "a long curling strip never crosses an earlier segment")
-	_ok(s.points[-1].distance_to(Vector2(0.9, 0.0)) > 0.2, "self-contact still lets the strip bend")
-	var run := 0.0
-	for i in s.segments:
-		run += s.points[i].distance_to(s.points[i + 1])
-	_ok(absf(run - s.length) < 1e-5, "self-contact preserves paper length")
-	# A torn print is two strips sharing a grip. They must also meet each other.
-	var up := GbPrinterStrip.new()
-	var down := GbPrinterStrip.new()
-	for half: GbPrinterStrip in [up, down]:
-		half.set_length(0.45)
-		half.bend_to(0.0)
-	var between := 0
-	for frame in 360:
-		up.meet_other_half(down)
-		up.step(1.0 / 60.0, Vector2.ZERO)
-		down.meet_other_half(up)
-		down.step(1.0 / 60.0, Vector2.ZERO)
-		for i in up.segments:
-			for j in down.segments:
-				if i == 0 and j == 0:
-					continue
-				var a := Vector2(-down.points[j].x, down.points[j].y)
-				var b := Vector2(-down.points[j + 1].x, down.points[j + 1].y)
-				if Geometry2D.segment_intersects_segment(up.points[i], up.points[i + 1], a, b) != null:
-					between += 1
-	_eq(between, 0, "the two halves of a torn print cannot cross each other")
-
-
-func _test_fast_paper_crosses_a_surface() -> void:
-	var table := StaticBody3D.new()
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(0.2, 0.01, 0.2)
-	shape.shape = box
-	table.add_child(shape)
-	table.position = Vector3(5.0, -0.005, 0.0)
-	add_child(table)
-	await get_tree().physics_frame
-	await get_tree().physics_frame
-	var sweep := GbPaperSweep.new()
-	var space := table.get_world_3d().direct_space_state
-	sweep.update(space, PackedVector3Array([Vector3(5.0, 0.02, 0.0)]), [], 0.012)
-	sweep.update(space, PackedVector3Array([Vector3(5.0, -0.06, 0.0)]), [], 0.012)
-	_ok(not sweep.hits.is_empty(), "a fast crossing finds a table even beyond patch depth")
-	if not sweep.hits.is_empty():
-		var depth: float = sweep.hits[0][2]
-		var patch := [Vector2.RIGHT, 0.0, Vector2.ZERO, 0.012, depth]
-		_ok(GbPrinterStrip._in_patch(patch, Vector2(-0.06, 0.0)) > 0.06,
-			"the crossed surface keeps enough depth to recover the paper")
-	sweep.update(space, PackedVector3Array([Vector3(5.0, -0.05, 0.0)]), [], 0.012)
-	_ok(not sweep.hits.is_empty(), "deep contact survives the next frame while recovering")
-	sweep.update(space, PackedVector3Array([Vector3(5.0, 0.002, 0.0)]), [], 0.012)
-	_ok(sweep.hits.is_empty(), "clearing the table releases the swept contact")
-	sweep.reset()
-	sweep.update(space, PackedVector3Array([Vector3(5.15, 0.02, 0.0)]), [], 0.012)
-	sweep.update(space, PackedVector3Array([Vector3(5.15, -0.06, 0.0)]), [], 0.012)
-	_ok(sweep.hits.is_empty(), "past the table edge there is no phantom surface")
-	table.free()
-
-
-func _test_paper_contact_index() -> void:
-	var index := GbPaperContacts.new()
-	index.build_3d([[Vector3.BACK, 0.0, Vector3.ZERO, 0.01, 0.03]], GbThermalRibbon.SKIN)
-	_eq(index.query(Vector3(1, 1, 1)).size(), 0, "empty spatial cells do not inherit other cells' patches")
-	_eq(index.query(Vector3(0, 0, -0.01)), PackedInt32Array([0]), "one patch is returned only once")
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 812
-	var patches: Array = []
-	var covered := true
-	var ordered := true
-	for i in 32:
-		var normal := Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1)).normalized()
-		var center := Vector3(rng.randf_range(-0.2, 0.2), rng.randf_range(-0.2, 0.2), rng.randf_range(-0.2, 0.2))
-		patches.append([normal, normal.dot(center), center, 0.025, 0.5 if i % 7 == 0 else 0.03])
-	index.build_3d(patches, GbThermalRibbon.SKIN)
-	for i in patches.size():
-		var p: Vector3 = patches[i][2] - patches[i][0] * float(patches[i][4]) * 0.5
-		var candidates := index.query(p)
-		covered = covered and candidates.has(i)
-		for j in range(1, candidates.size()):
-			ordered = ordered and candidates[j] > candidates[j - 1]
-		# Large-patch fallback must not mutate the cell's cached candidates.
-		ordered = ordered and candidates == index.query(p)
-		var shift := Vector3(0.07, -0.03, 0.09)
-		index.shift_frame(shift)
-		covered = covered and index.query(p - shift).has(i)
-		index.shift_frame(-shift)
-	_ok(covered, "tilted and deep 3D patches remain reachable after body recovery")
-	_ok(ordered, "candidate ordering and uniqueness survive repeated large-patch queries")
-	patches.clear()
-	for i in 32:
-		var normal := Vector2.from_angle(rng.randf_range(-PI, PI))
-		var center := Vector2(rng.randf_range(-0.2, 0.2), rng.randf_range(-0.2, 0.2))
-		patches.append([normal, normal.dot(center), center, 0.012, 0.5 if i % 7 == 0 else 0.03])
-	index.build_2d(patches, GbPrinterStrip.SKIN, GbPrinterStrip.PATCH_DEPTH)
-	covered = true
-	for i in patches.size():
-		var p: Vector2 = patches[i][2] - patches[i][0] * float(patches[i][4]) * 0.5
-		covered = covered and index.query(Vector3(p.x, p.y, 0)).has(i)
-	_ok(covered, "tilted and deep 2D patches remain reachable")
-
-
-func _test_paper_index_matches_all_contacts() -> void:
-	# The script's own index against checking every patch: the native solver
-	# keeps an index of its own, so this is the script's, stepped by the script.
-	var were := [GbPrinterStrip.native, GbThermalRibbon.native]
-	GbPrinterStrip.native = false
-	GbThermalRibbon.native = false
-	var a := GbPrinterStrip.new()
-	var b := GbPrinterStrip.new()
-	b._patch_index = AllPaperContacts.new()
-	for sheet in [a, b]:
-		sheet.set_length(0.6)
-		for i in 32:
-			sheet.patches.append([Vector2.RIGHT, -0.025, Vector2(-0.025, (i - 16) * 0.015), 0.012, 0.03])
-	var same := true
-	for frame in 60:
-		a.step(1.0 / 90, Vector2(-9.8, 0))
-		b.step(1.0 / 90, Vector2(-9.8, 0))
-		same = same and a.points == b.points
-	_ok(same, "indexed strip contact matches checking every patch exactly")
-	var ra := GbThermalRibbon.new()
-	var rb := GbThermalRibbon.new()
-	rb._patch_index = AllPaperContacts.new()
-	for sheet in [ra, rb]:
-		sheet.configure(0.12, 0.038)
-		sheet.pin_nearest(Vector3.ZERO)
-		# The first push crosses spatial cells into the second patch. Looking
-		# up candidates just once per particle misses that later contact.
-		sheet.patches = [[Vector3.RIGHT, 0.09, Vector3(0.09, 0, 0), 0.3, 0.2],
-			[Vector3.BACK, 0.02, Vector3(0.09, 0, 0.02), 0.02, 0.08]]
-	same = true
-	for frame in 12:
-		ra.step(1.0 / 90, Vector3.ZERO)
-		rb.step(1.0 / 90, Vector3.ZERO)
-		same = same and ra.positions == rb.positions and ra.velocities == rb.velocities
-	_ok(same, "a contact crossing cells still matches the original sequential solve exactly")
-	GbPrinterStrip.native = were[0]
-	GbThermalRibbon.native = were[1]
-
-
-## paper-godot's solvers against the scripts they port, to the bit: the strip
-## among boxes, a table, a wall, a finger and the other half of a torn print, and
-## the ribbon held among patches and loose landing on a table (the body recovery
-## moving the caller's patches). With the ENGINE's sin/cos/atan2/exp
-## (`engine_math`): the library's own libm parts from MinGW's in the last bit of a
-## double, which is not the port's doing. A missing library is a failure: the
-## script fallback runs the room at a twentieth of the speed, and on a Quest a
-## stale or missing build is otherwise found only by its frame rate.
-func _test_native_paper_matches_the_script() -> void:
-	if not ClassDB.class_exists(&"PaperStripSolver") or not ClassDB.class_exists(&"PaperRibbonSolver"):
-		_ok(false, "paper-godot is loaded (python Tools/build.py windows --only paper-godot)")
-		return
-	var were := [GbPrinterStrip.native, GbThermalRibbon.native]
-	var make_strip := func() -> GbPrinterStrip:
-		var s := GbPrinterStrip.new()
-		s.set_length(0.6)
-		s.place(Vector2(0.03, 0.0), 0.14)
-		s.boxes = [Rect2(Vector2(-0.0285, -0.07), Vector2(0.057, 0.14))]
-		s.planes = [[Vector2(1.0, 0.0), -0.0285]]
-		for i in 24:
-			s.patches.append([Vector2.RIGHT, -0.03, Vector2(-0.03, (i - 12) * 0.015), 0.012, 0.03])
-		s.patches.append([Vector2(0.0, 1.0), -0.12, Vector2(0.0, -0.12), 0.08])
-		s.fingers = [[Vector2(0.05, -0.004), 0.009]]
-		var other := GbPrinterStrip.new()
-		other.set_length(0.2)
-		other.place(Vector2.ZERO, -0.3)
-		s.meet_other_half(other)
-		return s
-	var a: GbPrinterStrip = make_strip.call()
-	var b: GbPrinterStrip = make_strip.call()
-	GbPrinterStrip.native = true
-	b._native_solver().engine_math = true
-	var first := -1
-	for frame in 90:
-		var shove := Vector2(0.0, sin(frame * 0.1))
-		GbPrinterStrip.native = false
-		a.step(1.0 / 90.0, Vector2(-9.8, 0.0), 0.3 * cos(frame * 0.2), shove)
-		GbPrinterStrip.native = true
-		b.step(1.0 / 90.0, Vector2(-9.8, 0.0), 0.3 * cos(frame * 0.2), shove)
-		if first < 0 and (a.points != b.points or a.angles != b.angles or a.speeds != b.speeds
-				or a.sway_speed != b.sway_speed or a.motion() != b.motion()):
-			first = frame
-	_eq(first, -1, "the native strip steps as the script does, to the bit (first frame parted)")
-	for kind in ["held", "loose"]:
-		var make_ribbon := func() -> GbThermalRibbon:
-			var r := GbThermalRibbon.new()
-			r.configure(0.3, 0.038)
-			if kind == "held":
-				r.pin_nearest(Vector3.ZERO)
-				for i in 24:
-					r.patches.append([Vector3.BACK, -0.025, Vector3(0, (i - 12) * 0.015, -0.025), 0.025, 0.03])
-			else:
-				r.patches = [[Vector3.UP, 0.002, Vector3(0, 0.002, 0), 0.6, 0.03],
-					[Vector3.BACK, 0.05, Vector3(0, 0, 0.05), 0.3, 0.2]]
-			return r
-		var ra: GbThermalRibbon = make_ribbon.call()
-		var rb: GbThermalRibbon = make_ribbon.call()
-		GbThermalRibbon.native = true
-		rb._native_solver().engine_math = true
-		first = -1
-		for frame in 90:
-			var g := Vector3(0, -9.8, 0) if kind == "held" else Vector3.ZERO
-			var spin := Vector3(0, sin(frame * 0.1), 0.2 * cos(frame * 0.3))
-			GbThermalRibbon.native = false
-			ra.step(1.0 / 90.0, g, spin)
-			GbThermalRibbon.native = true
-			rb.step(1.0 / 90.0, g, spin)
-			if first < 0 and (ra.positions != rb.positions or ra.velocities != rb.velocities
-					or ra.move_speed != rb.move_speed or ra.body_shift != rb.body_shift
-					or ra.support_normal != rb.support_normal or ra.patches != rb.patches):
-				first = frame
-		_eq(first, -1, "the native ribbon, %s, steps as the script does, to the bit (first frame parted)" % kind)
-	GbPrinterStrip.native = were[0]
-	GbThermalRibbon.native = were[1]
-
-
-func _test_paper_hitch_budget() -> void:
-	var a := GbPrinterStrip.new()
-	var b := GbPrinterStrip.new()
-	a.set_length(0.6)
-	b.set_length(0.6)
-	a.step(1.0, Vector2(-9.8, 0))
-	b.step(1.0 / 30.0, Vector2(-9.8, 0))
-	_ok(a.points == b.points, "a one-second hitch does not create a second of strip catch-up work")
-	var ra := GbThermalRibbon.new()
-	var rb := GbThermalRibbon.new()
-	for sheet in [ra, rb]:
-		sheet.configure(0.6, 0.038, 0.0)
-		sheet.pin_nearest(Vector3.ZERO)
-	ra.step(1.0, Vector3(0, -9.8, 0))
-	rb.step(1.0 / 30.0, Vector3(0, -9.8, 0))
-	_ok(ra.positions == rb.positions, "a one-second hitch does not create a second of ribbon catch-up work")
-	_eq(ra.move_speed, rb.move_speed, "a capped hitch cannot mistake unfinished bending for rest")
-
-
 func _test_thermal_ribbon() -> void:
 	var sheet := GbThermalRibbon.new()
 	sheet.configure(0.12, 0.038, 0.0)
@@ -1148,32 +1244,21 @@ func _test_thermal_ribbon() -> void:
 	sheet.pin_nearest(Vector3.ZERO)
 	var held := sheet.pin_positions.duplicate()
 	for frame in 60:
-		sheet.step(1.0 / 60.0, Vector3(0, 0, -9.8), Vector3(0, 30, 0))
+		# As hard a turn as a hand gives (GbPaperMotion.SPIN_ACCEL_MAX): the sheet
+		# has a ribbon's own stiffness against twist now, and gives a fifth as much.
+		sheet.step(1.0 / 60.0, Vector3(0, 0, -9.8), Vector3(0, GbPaperMotion.SPIN_ACCEL_MAX, 0))
 	var axis := sheet.across()
-	_ok(absf(axis[0].z) > 0.005 or absf(axis[-1].z) > 0.005, "turning the grip twists the sheet out of its original plane")
-	_ok(sheet.positions[2 * sheet.pin_row].distance_to(held[0]) < 1e-6,
+	_ok(absf(axis[0].z) > 0.005 or absf(axis[-1].z) > 0.005,
+		"turning the grip twists the sheet out of its original plane (%.4f, %.4f)" % [axis[0].z, axis[-1].z])
+	_ok(absf(axis[0].z) < 0.015 and absf(axis[-1].z) < 0.015,
+		"no further than a ribbon's stiffness against twist lets it (%.4f, %.4f)" % [axis[0].z, axis[-1].z])
+	_ok(sheet.positions[2 * sheet.pin_rows[0]].distance_to(held[0]) < 1e-6,
 		"the actual held edge stays in the hand")
 	sheet.unpin()
 	for frame in 180:
 		sheet.step(1.0 / 60.0, Vector3.ZERO)
 	_ok(sheet.move_speed < 0.002 and sheet.mean_curvature() > 10.0,
 		"released twist settles back toward thermal curl (%.4f m/s, %.2f rad/m)" % [sheet.move_speed, sheet.mean_curvature()])
-
-
-func _test_contact_motion_is_not_sleep() -> void:
-	var s := _settled(0.12, 3.0, Vector2.ZERO)
-	s.fingers = [[s.points[s.segments / 2] + Vector2(0, 0.004), 0.009]]
-	s.step(1.0 / 60.0, Vector2.ZERO)
-	_ok(s.motion() > 0.002, "positional contact repair cannot report itself asleep")
-	var sheet := GbThermalRibbon.new()
-	sheet.configure(0.12, 0.038)
-	for frame in 180:
-		sheet.step(1.0 / 60.0, Vector3.ZERO)
-	var floor_z := sheet.centers()[-1].z * 0.5
-	sheet.patches = [[Vector3.BACK, floor_z, Vector3(0, 0, floor_z), 0.3, 0.1]]
-	sheet.step(1.0 / 60.0, Vector3.ZERO)
-	_ok(maxf(sheet.move_speed, sheet.body_shift.length() * 60.0) > GbPrintoutFlop.SETTLED,
-		"a recovering ribbon remains awake based on actual sheet or body movement")
 
 
 func _test_ribbon_impact_does_not_crumple() -> void:
@@ -1254,53 +1339,6 @@ func _test_printout_lands_without_crumpling() -> void:
 	table.free()
 
 
-func _test_exact_tear_handoff() -> void:
-	var image := Image.create(GbPrinterPaper.sheet_width(), 873, false, Image.FORMAT_RGB8)
-	image.fill(Color.WHITE)
-	var path := "user://gb_paper_tear_regression.png"
-	image.save_png(path)
-	var printer := (load(PRINTER_SCENE) as PackedScene).instantiate() as GbPrinter
-	add_child(printer)
-	printer.set_process(false)
-	printer.freeze = true
-	printer.position = Vector3(1, 2, 3)
-	printer.rotation = Vector3(0.2, 0.3, -0.1)
-	printer._strip.set_length(873 * GbPrinter.DOT_PITCH)
-	for i in printer._strip.segments:
-		printer._strip.angles[i] += 0.03 * sin(i * 0.4)
-		printer._strip.speeds[i] = 0.05 * cos(i * 0.3)
-	printer._strip._lay_points()
-	printer.linear_velocity = Vector3(0.1, 0.2, 0.3)
-	printer.angular_velocity = Vector3(0.3, 0.2, 0.1)
-	var velocity := printer._strip.point_velocities()
-	var poster := printer._spawn_printout(path, 873)
-	poster.freeze = true
-	var flop := poster.get_node(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
-	flop.set_process(false)
-	var error := 0.0
-	var speed_error := 0.0
-	var pivot := printer.get_node("PaperPivot") as Node3D
-	for i in printer._strip.points.size():
-		var p := printer._strip.points[i]
-		var original := Vector3(pivot.position.x, p.x, p.y)
-		var expected := printer.to_global(original)
-		var actual := poster.to_global(flop._ribbon.centers()[i])
-		error = maxf(error, expected.distance_to(actual))
-		var want_v := printer.linear_velocity + printer.angular_velocity.cross(printer.global_basis * original) \
-			+ printer.global_basis * Vector3(0, velocity[i].x, velocity[i].y)
-		var got_v := poster.linear_velocity + poster.angular_velocity.cross(actual - poster.global_position) \
-			+ poster.global_basis * flop._ribbon.velocities[2 * i]
-		speed_error = maxf(speed_error, want_v.distance_to(got_v))
-	_ok(error < 1e-5, "tearing preserves every bend in world space (%.6f m)" % error)
-	_ok(speed_error < 1e-5, "tearing carries rigid and bending velocities (%.6f m/s)" % speed_error)
-	_ok((poster.get_node("CollisionShape3D") as CollisionShape3D).disabled,
-		"loose print has no invisible flat collision board")
-	_eq(flop._body_segments.size(), flop._ribbon.segments, "collision segments follow the curved paper")
-	poster.free()
-	printer.free()
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
-
-
 func _test_released_print_keeps_its_shape() -> void:
 	var poster := (load("res://Scenes/Objects/media/poster.tscn") as PackedScene).instantiate() as Poster
 	poster.printout = true
@@ -1317,7 +1355,7 @@ func _test_released_print_keeps_its_shape() -> void:
 	flop._was_held = true
 	var before := flop._ribbon.positions.duplicate()
 	flop._process(1.0 / 10000.0)
-	_eq(flop._ribbon.pin_row, -1, "release removes the grip constraint")
+	_eq(flop._ribbon.pin_rows.size(), 0, "release removes the grip constraint")
 	var moved := 0.0
 	for i in before.size():
 		moved = maxf(moved, before[i].distance_to(flop._ribbon.positions[i]))

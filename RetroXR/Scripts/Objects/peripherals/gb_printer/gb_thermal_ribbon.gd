@@ -1,57 +1,113 @@
-## A thermal sheet with two longitudinal rails. Stretch and shear constraints
-## keep its dimensions; signed bending constraints retain the roll's curvature.
-## All constraints distribute their corrections between the participating
-## particles. Only an explicitly held row is pinned -- a released sheet has no
-## hidden midpoint support. Coordinates and velocities are in the body's frame.
+## GbThermalRibbon — the Game Boy Printer's thermal paper, wherever it is.
+##
+## One sheet and one solver (paper-godot's PaperSheetSolver, which says how it
+## bends, meets things and rubs on them) for all three places the paper is found:
+##
+##   on the printer   fed out of the slot (set_slot, set_out): the rows still in
+##                    the slot are pinned along it and slide out as lines print,
+##                    so what is out is the same paper it was a line ago;
+##   in a hand        a torn print, the row in the hand pinned (pin_nearest);
+##   loose            nothing pinned; its rigid body owns the fall and this only
+##                    relaxes its bend (GbPrintoutFlop).
+##
+## Two particles a row, one on each edge, in the frame of the body the paper
+## belongs to (the printer, the print). This class keeps the sheet, lays fresh
+## paper, feeds it and hands a torn length over; it steps nothing itself. Where
+## paper-godot is not loaded the paper holds its shape and says so once.
+##
+## It was two models: a 2D chain of hinges on the printer (GbPrinterStrip) and
+## this sheet for a torn print, each also kept as a GDScript solver and a native
+## port matched to the bit. The chain is gone (docs/dev/gb-printer.md says why).
 class_name GbThermalRibbon
 extends RefCounted
 
+## The curl the roll leaves in the paper, as a radius, meters: judged from
+## photographs of prints, not measured.
 const CURL_RADIUS := 0.065
-const MAX_STEP := 1.0 / 240.0
-## Match the attached strip's bounded catch-up; retain the small stable steps.
-const MAX_SUBSTEPS := 8
-const ITERATIONS := 8
+## Half the paper's thickness and a little: how far off a surface it lies (the
+## solver's SKIN), and how far behind a patch of surface paper still counts as
+## in it rather than on its far side (under the table it hangs over).
 const SKIN := 0.0004
-const DRAG := 6.0
-const MAX_SPEED := 0.5
-const EI := 3.2e-5
+const PATCH_DEPTH := 0.03
+## A row every ROW of paper, meters, and no more than MAX_ROWS of them: past
+## 1.2 m out the rows are made twice as far apart instead (_coarsen). The paper
+## bends over its own weight in about 8 cm, so a row has to be well under that
+## for the sheet to draw a curve; at the old 48 rows a metre of it was a
+## polyline of 2 cm facets.
+const ROW := 0.006
+const MAX_ROWS := 200
+## Paper this near the slot is the slot's, never pushed by the printer's boxes:
+## the slot is in the printer's top, inside its body's box.
+const CONTACT_FROM := 0.008
+## A knock or a flick turns the paper about the slot; no farther out than this
+## is it carried by the turn, meters.
+const JOLT_REACH := 0.04
+## The fastest paper comes out of the slot, m/s (the printer's own feed is a
+## twentieth of it; at 0.5 a strip arriving whole was shot out hard enough to
+## kink 82 degrees over the printer's back edge), and the longest a fresh end of
+## roll is laid at once.
+const FEED_MAX := 0.2
+const FRESH_MAX := 0.03
+## The paper is stepped in steps of STEP seconds, always: a frame takes as many
+## whole ones as have come due (what is left over waits for the next), and no
+## more than MAX_STEPS however long it was, so a hitch is not caught up. Cut to
+## fit each frame instead, the paper never came to rest in a window: where it
+## rests depends a little on the step, and no two frames' were alike.
+const STEP := 1.0 / 240.0
+const MAX_STEPS := 8
+const MAX_FRAME := STEP * MAX_STEPS
+## The solver's own limit, for what is said about it here: the fastest any point
+## of the paper moves against its frame, m/s.
+const MAX_SPEED := 0.8
 
 var length := 0.0
 var width := 0.038
+## How far apart the rows are, and how many gaps between them.
+var ds := 0.0
 var segments := 0
 var positions := PackedVector3Array()
 var velocities := PackedVector3Array()
-var pin_row := -1
+## Rows held where they are told (two positions a row).
+var pin_rows := PackedInt32Array()
 var pin_positions := PackedVector3Array()
 ## Surface patches: [normal, offset, center, reach, depth] in the body's frame.
 var patches: Array = []
+## The body's own boxes, which rows before `box_free_rows` do not meet.
+var boxes: Array[AABB] = []
+var box_free_rows := 0
+## Fingertips: [center, radius].
+var fingers: Array = []
+## The fastest any particle moved over the last step, m/s.
 var move_speed := 0.0
 ## Loose-sheet contact recovery belongs to the rigid body, not to a crease.
 ## The caller applies this local translation after step(). Patches are shifted
 ## into the recovered body's frame as the solve advances.
 var body_shift := Vector3.ZERO
 var support_normal := Vector3.ZERO
-var _edges: Array[Vector2i] = []
-var _rest := PackedFloat64Array()
-var _mass := 0.0
-var _contact_normals := PackedVector3Array()
-var _weights := PackedFloat64Array()
-var _patch_index := preload("res://Scripts/Objects/peripherals/gb_printer/gb_paper_contacts.gd").new()
-var _self_bounds: Array[AABB] = []
+## Paper past the slot, meters; 0 for a sheet that is not being fed. `wanted`
+## is what set_out asked for, which `out` reaches at FEED_MAX at most.
+var out := 0.0
+var wanted := 0.0
+## A knock or flick since the last step (jolt): something to wake for.
+var jolted := false
 
-## Whether step() hands the solve to the native PaperRibbonSolver (paper-godot)
-## when that library is loaded: the same numbers to the bit, the script kept as
-## the reference and the fallback (GbPrinterStrip.native says more).
-static var native := true
-static var _said_native := false
+var _slot := Vector3.ZERO
+var _slot_dir := Vector3.UP
+var _slot_across := Vector3.RIGHT
 var _solver: Object = null
+## Time not yet stepped, seconds (under one STEP).
+var _due := 0.0
+static var _said := false
 
+
+# --- A sheet on its own (a torn print) -------------------------------------------
 
 func configure(sheet_length: float, sheet_width: float, curvature := 1.0 / CURL_RADIUS) -> void:
 	length = sheet_length
 	width = sheet_width
-	segments = clampi(ceili(length / 0.006), 2, 48)
-	var ds := length / segments
+	out = 0.0
+	segments = clampi(ceili(length / ROW), 2, MAX_ROWS - 1)
+	ds = length / segments
 	positions.resize((segments + 1) * 2)
 	velocities.resize(positions.size())
 	velocities.fill(Vector3.ZERO)
@@ -64,8 +120,9 @@ func configure(sheet_length: float, sheet_width: float, curvature := 1.0 / CURL_
 		positions[2 * row + 1] = center - Vector3.RIGHT * width * 0.5
 		var angle := (row + 0.5 - segments * 0.5) * turn
 		center += Vector3(0.0, cos(angle), -sin(angle)) * ds
-	_center()
-	_constraints()
+	var mean := _mean(positions)
+	for i in positions.size():
+		positions[i] -= mean
 	unpin()
 
 
@@ -75,58 +132,15 @@ func restore(state: Dictionary) -> void:
 	velocities = (state["velocities"] as PackedVector3Array).duplicate()
 	length = float(state["length"])
 	width = float(state["width"])
+	out = 0.0
 	@warning_ignore("integer_division")
 	segments = positions.size() / 2 - 1
-	_constraints()
+	ds = length / maxi(segments, 1)
 	unpin()
 
 
 func snapshot() -> Dictionary:
 	return {"positions": positions.duplicate(), "velocities": velocities.duplicate(), "length": length, "width": width}
-
-
-func _constraints() -> void:
-	_edges.clear()
-	_rest.clear()
-	_mass = maxf(length * 0.0057 / positions.size(), 1e-7)
-	var ds := length / segments
-	for row in segments + 1:
-		_edge(2 * row, 2 * row + 1, width)
-		if row < segments:
-			_edge(2 * row, 2 * row + 2, ds)
-			_edge(2 * row + 1, 2 * row + 3, ds)
-			_edge(2 * row, 2 * row + 3, sqrt(ds * ds + width * width))
-			_edge(2 * row + 1, 2 * row + 2, sqrt(ds * ds + width * width))
-
-
-func _edge(a: int, b: int, rest: float) -> void:
-	_edges.append(Vector2i(a, b))
-	_rest.append(rest)
-
-
-func centers() -> PackedVector3Array:
-	var out := PackedVector3Array()
-	for row in segments + 1:
-		out.append((positions[2 * row] + positions[2 * row + 1]) * 0.5)
-	return out
-
-
-func across() -> PackedVector3Array:
-	var out := PackedVector3Array()
-	for row in segments + 1:
-		out.append((positions[2 * row] - positions[2 * row + 1]).normalized())
-	return out
-
-
-func mean_curvature() -> float:
-	var mid := centers()
-	var axes := across()
-	var total := 0.0
-	for i in range(1, segments):
-		var a := (mid[i] - mid[i - 1]).normalized()
-		var b := (mid[i + 1] - mid[i]).normalized()
-		total += atan2(-a.cross(b).dot(axes[i]), a.dot(b))
-	return total / maxf(length * float(segments - 1) / segments, 1e-8)
 
 
 func pin_nearest(at: Vector3) -> void:
@@ -138,250 +152,397 @@ func pin_nearest(at: Vector3) -> void:
 		if distance < nearest:
 			nearest = distance
 			row = i
-	pin_row = row
+	pin_rows = PackedInt32Array([row])
 	pin_positions = PackedVector3Array([positions[2 * row], positions[2 * row + 1]])
 
 
 func unpin() -> void:
-	pin_row = -1
-	pin_positions.clear()
+	pin_rows = PackedInt32Array()
+	pin_positions = PackedVector3Array()
 
 
-## Relative gravity includes the body's acceleration; angular acceleration is
-## applied at each particle, so turning the hand excites bending and torsion
-## without changing the paper's remembered curl.
-func step(delta: float, gravity: Vector3, angular_accel := Vector3.ZERO) -> void:
+# --- Paper out of a slot (on the printer) ----------------------------------------
+#
+# Rows are counted from the slot: row 0 and 1 are still inside it, pinned on its
+# line, and the last row is the paper's free end. A row is a place ON THE PAPER,
+# a whole number of `ds` from the free end, so feeding moves the pinned rows out
+# along the slot and never re-lays what is already out. When the row nearest the
+# mouth comes out it is let go and another is put in behind it.
+
+## Where the slot is, which way it sends the paper and which way the paper lies
+## across it, in the body's frame.
+func set_slot(at: Vector3, dir: Vector3, across_axis: Vector3) -> void:
+	_slot = at
+	_slot_dir = dir.normalized()
+	_slot_across = across_axis.normalized()
+	if out > 0.0 and positions.size() >= 4:
+		_pin_slot()
+
+
+## Ask for `paper` meters past the slot. More is paper fed: what was out keeps
+## its shape and is pushed on, as fast as it arrives up to FEED_MAX, so a strip
+## that arrives whole still comes out of the slot rather than appearing inside
+## the table. Less is a tear (or the power going off): a fresh end of roll, laid
+## at the roll's curl and at rest.
+func set_out(paper: float) -> void:
+	if paper <= 0.0:
+		return
+	if out <= 0.0 or paper < out:
+		_lay_fresh(minf(paper, FRESH_MAX))
+	wanted = paper
+	_feed(minf(wanted, out + ds))
+
+
+## Whether paper asked for is still on its way out.
+func feeding() -> bool:
+	return wanted > out + 1e-7
+
+
+func _feed(paper: float) -> void:
+	if paper <= out:
+		return
+	out = paper
+	length = out
+	_fit_rows()
+	if segments + 1 > MAX_ROWS:
+		_coarsen()
+	_pin_slot()
+
+
+## How far along the paper from the slot row `row` is; negative inside it.
+func row_out(row: int) -> float:
+	return out - (segments - row) * ds
+
+
+func _rows_for(paper: float, spacing: float) -> int:
+	return ceili(paper / spacing - 1e-6) + 2
+
+
+## As many rows as `out` needs at this `ds`, added or taken at the slot's end.
+func _fit_rows() -> void:
+	var need := _rows_for(out, ds)
+	@warning_ignore("integer_division")
+	var have := positions.size() / 2
+	while have < need:
+		# The row at the mouth is out now: let go where the slot has pushed it to.
+		if have >= 2:
+			var past := out - (have - 2) * ds
+			var c := _slot + _slot_dir * past
+			positions[2] = c + _slot_across * width * 0.5
+			positions[3] = c - _slot_across * width * 0.5
+			velocities[2] = Vector3.ZERO
+			velocities[3] = Vector3.ZERO
+		for k in 2:
+			positions.insert(0, _slot)
+			velocities.insert(0, Vector3.ZERO)
+		have += 1
+	while have > need and have > 2:
+		for k in 2:
+			positions.remove_at(0)
+			velocities.remove_at(0)
+		have -= 1
+	segments = have - 1
+
+
+## The rows inside the slot, on its line.
+func _pin_slot() -> void:
+	pin_rows = PackedInt32Array([0, 1])
+	pin_positions.resize(4)
+	for row in 2:
+		var c := _slot + _slot_dir * row_out(row)
+		pin_positions[2 * row] = c + _slot_across * width * 0.5
+		pin_positions[2 * row + 1] = c - _slot_across * width * 0.5
+		positions[2 * row] = pin_positions[2 * row]
+		positions[2 * row + 1] = pin_positions[2 * row + 1]
+		velocities[2 * row] = Vector3.ZERO
+		velocities[2 * row + 1] = Vector3.ZERO
+	# Paper within CONTACT_FROM of the mouth does not meet the body's boxes.
+	box_free_rows = 2
+	while box_free_rows <= segments and row_out(box_free_rows) < CONTACT_FROM:
+		box_free_rows += 1
+
+
+## A fresh end of roll, `new_out` long: out of the slot and round at the roll's
+## curl, short of a closed loop however long it is, at rest.
+func _lay_fresh(new_out: float) -> void:
+	out = new_out
+	length = out
+	ds = ROW
+	while _rows_for(out, ds) > MAX_ROWS:
+		ds *= 2.0
+	var rows := _rows_for(out, ds)
+	segments = rows - 1
+	positions.resize(rows * 2)
+	velocities.resize(rows * 2)
+	velocities.fill(Vector3.ZERO)
+	var turn := minf(ds / CURL_RADIUS, (TAU - 0.2) / rows)
+	var heading := _slot_dir
+	var c := _slot
+	for row in range(2, rows):
+		var step := row_out(row) - maxf(row_out(row - 1), 0.0)
+		# Toward the side the bend constraint curls to: heading x across.
+		var normal := heading.cross(_slot_across).normalized()
+		heading = (heading * cos(turn) + normal * sin(turn)).normalized()
+		c += heading * step
+		positions[2 * row] = c + _slot_across * width * 0.5
+		positions[2 * row + 1] = c - _slot_across * width * 0.5
+	_pin_slot()
+
+
+## Rows twice as far apart: every other one kept, counted from the free end so
+## the kept ones are still the same places on the paper.
+func _coarsen() -> void:
+	@warning_ignore("integer_division")
+	var rows := positions.size() / 2
+	var kept_p := PackedVector3Array()
+	var kept_v := PackedVector3Array()
+	for row in rows:
+		if (rows - 1 - row) % 2 == 0:
+			kept_p.append(positions[2 * row])
+			kept_p.append(positions[2 * row + 1])
+			kept_v.append(velocities[2 * row])
+			kept_v.append(velocities[2 * row + 1])
+	positions = kept_p
+	velocities = kept_v
+	ds *= 2.0
+	print("[GbPrinter] paper %.2f m out: rows now %.0f mm apart" % [out, ds * 1000.0])
+	_fit_rows()
+
+
+## Turn the paper about the slot by `by` rad/s: the gear's knock coming through
+## the printer, or the stub flicking back as a print tears off it. Positive is
+## the way the paper curls.
+func jolt(by: float) -> void:
+	jolted = true
+	if out <= 0.0:
+		return
+	var mid := centers()
+	var axes := across()
+	for row in range(2, segments + 1):
+		var lever := clampf(row_out(row), 0.0, JOLT_REACH)
+		var along := (mid[row] - mid[row - 1]).normalized()
+		var kick := along.cross(axes[row]).normalized() * by * lever
+		velocities[2 * row] += kick
+		velocities[2 * row + 1] += kick
+
+
+## The paper past the slot as rows of two edges, from the mouth to the free end,
+## with how far down the picture each row is (1 at the mouth, 0 at the free end).
+## What is drawn, and what a tear takes.
+func outside() -> Array:
+	var verts := PackedVector3Array([
+		_slot + _slot_across * width * 0.5, _slot - _slot_across * width * 0.5])
+	var vs := PackedFloat32Array([1.0])
+	for row in range(2, segments + 1):
+		var past := row_out(row)
+		if past <= 1e-6:
+			continue
+		verts.append(positions[2 * row])
+		verts.append(positions[2 * row + 1])
+		vs.append(1.0 - past / out)
+	return [verts, vs]
+
+
+## What is past the slot as a sheet of its own, for the print torn off it
+## (restore): the same paper where it is, its rows evened out along it (the
+## stretch at the mouth is shorter than a row). Positions and velocities in the
+## body's frame.
+func torn_state() -> Dictionary:
+	var rows_p := PackedVector3Array([
+		_slot + _slot_across * width * 0.5, _slot - _slot_across * width * 0.5])
+	var rows_v := PackedVector3Array([Vector3.ZERO, Vector3.ZERO])
+	var at := PackedFloat64Array([0.0])
+	for row in range(2, segments + 1):
+		var past := row_out(row)
+		if past <= 1e-6:
+			continue
+		rows_p.append(positions[2 * row])
+		rows_p.append(positions[2 * row + 1])
+		rows_v.append(velocities[2 * row])
+		rows_v.append(velocities[2 * row + 1])
+		at.append(past)
+	var n := clampi(ceili(out / ROW), 2, MAX_ROWS - 1)
+	var new_p := PackedVector3Array()
+	var new_v := PackedVector3Array()
+	var k := 0
+	for row in n + 1:
+		var s := out * row / n
+		while k < at.size() - 2 and at[k + 1] < s:
+			k += 1
+		var span := at[k + 1] - at[k]
+		var t := clampf((s - at[k]) / span, 0.0, 1.0) if span > 1e-9 else 0.0
+		for side in 2:
+			new_p.append(rows_p[2 * k + side].lerp(rows_p[2 * k + 2 + side], t))
+			new_v.append(rows_v[2 * k + side].lerp(rows_v[2 * k + 2 + side], t))
+	return {"positions": new_p, "velocities": new_v, "length": out, "width": width}
+
+
+# --- Reading it ---------------------------------------------------------------------
+
+func centers() -> PackedVector3Array:
+	var mid := PackedVector3Array()
+	mid.resize(segments + 1)
+	for row in segments + 1:
+		mid[row] = (positions[2 * row] + positions[2 * row + 1]) * 0.5
+	return mid
+
+
+func across() -> PackedVector3Array:
+	var axes := PackedVector3Array()
+	axes.resize(segments + 1)
+	for row in segments + 1:
+		axes[row] = (positions[2 * row] - positions[2 * row + 1]).normalized()
+	return axes
+
+
+func mean_curvature() -> float:
+	var mid := centers()
+	var axes := across()
+	var total := 0.0
+	for i in range(1, segments):
+		var a := (mid[i] - mid[i - 1]).normalized()
+		var b := (mid[i + 1] - mid[i]).normalized()
+		total += atan2(-a.cross(b).dot(axes[i]), a.dot(b))
+	return total / maxf(ds * (segments - 1), 1e-8)
+
+
+## The sharpest the sheet turns between one row and the next, radians.
+func sharpest_turn() -> float:
+	var mid := centers()
+	var sharpest := 0.0
+	for i in range(1, segments):
+		sharpest = maxf(sharpest, (mid[i] - mid[i - 1]).angle_to(mid[i + 1] - mid[i]))
+	return sharpest
+
+
+## Every `every`th row's middle and the free end's two corners: enough of the
+## sheet to look round it by (rays down from it, sweeps between frames) without
+## a ray for each of its particles.
+func samples(every: int) -> PackedVector3Array:
+	var pts := PackedVector3Array()
+	for row in range(0, segments + 1, maxi(every, 1)):
+		pts.append((positions[2 * row] + positions[2 * row + 1]) * 0.5)
+	pts.append(positions[2 * segments])
+	pts.append(positions[2 * segments + 1])
+	return pts
+
+
+## The arrays of a mesh of `verts` (rows of two edges, right then left) shaded as
+## one smooth sheet: each row's normal from the rows either side of it, where one
+## flat normal a row drew every row as a fold. `vs` is each row's v.
+static func mesh_arrays(verts: PackedVector3Array, vs: PackedFloat32Array) -> Array:
+	@warning_ignore("integer_division")
+	var rows := verts.size() / 2
+	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var index := PackedInt32Array()
+	normals.resize(rows * 2)
+	uvs.resize(rows * 2)
+	for i in rows:
+		var ahead := mini(i + 1, rows - 1)
+		var behind := maxi(i - 1, 0)
+		var along := verts[2 * ahead] + verts[2 * ahead + 1] - verts[2 * behind] - verts[2 * behind + 1]
+		var normal := (verts[2 * i] - verts[2 * i + 1]).cross(along).normalized()
+		normals[2 * i] = normal
+		normals[2 * i + 1] = normal
+		uvs[2 * i] = Vector2(1.0, vs[i])
+		uvs[2 * i + 1] = Vector2(0.0, vs[i])
+		if i < rows - 1:
+			var r := i * 2
+			index.append_array([r, r + 1, r + 2, r + 1, r + 3, r + 2])
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = index
+	return arrays
+
+
+# --- Stepping it --------------------------------------------------------------------
+
+## Whether the solver is there: paper-godot loaded, at a build that has it.
+static func has_solver() -> bool:
+	return ClassDB.class_exists(&"PaperSheetSolver")
+
+
+## Step `delta` seconds. `gravity` is the frame's apparent gravity (the body's
+## own acceleration taken off it), `angular_accel` how its turn is speeding up
+## about `origin`; so a hand moving or turning the body excites bending and
+## torsion without changing the paper's remembered curl. `frame_velocity` and
+## `frame_spin` are how the body itself is moving (in its own axes): what paper
+## lying on the ROOM rubs against.
+func step(delta: float, gravity: Vector3, angular_accel := Vector3.ZERO, origin := Vector3.ZERO,
+		frame_velocity := Vector3.ZERO, frame_spin := Vector3.ZERO) -> void:
 	body_shift = Vector3.ZERO
 	support_normal = Vector3.ZERO
+	jolted = false
 	if delta <= 0.0 or segments == 0:
 		return
-	if native and _native_solver() != null:
-		_step_native(delta, gravity, angular_accel)
+	_due += minf(delta, MAX_FRAME)
+	var steps := mini(int(_due / STEP + 1e-6), MAX_STEPS)
+	_due = maxf(0.0, _due - steps * STEP)
+	if feeding():
+		_feed(minf(wanted, out + FEED_MAX * minf(delta, MAX_FRAME)))
+	if _solver == null:
+		if has_solver():
+			_solver = ClassDB.instantiate(&"PaperSheetSolver")
+		if not _said:
+			_said = true
+			if _solver != null:
+				print("[GbPrinter] paper solver: PaperSheetSolver (paper-godot)")
+			else:
+				push_error("[GbPrinter] paper-godot has no PaperSheetSolver (not loaded, or built before it): the paper will not move. Rebuild with Tools/build.py for this platform.")
+		if _solver == null:
+			move_speed = 0.0
+			return
+	# A frame shorter than a step: nothing is due yet, and move_speed stays what
+	# the last step found.
+	if steps == 0:
 		return
-	if pin_row < 0:
-		_recover_body_contacts()
-	_patch_index.build_3d(patches, SKIN)
-	# The grip does not change during a step. Avoid thousands of script calls
-	# and divisions for the same inverse masses in the constraint iterations.
-	_weights.resize(positions.size())
-	_weights.fill(1.0 / _mass)
-	if pin_row >= 0:
-		_weights[2 * pin_row] = 0.0
-		_weights[2 * pin_row + 1] = 0.0
-	var before := positions.duplicate()
-	var simulated := minf(delta, MAX_STEP * MAX_SUBSTEPS)
-	var steps := maxi(1, ceili(simulated / MAX_STEP))
-	var h := simulated / steps
-	for substep in steps:
-		_substep(h, gravity, angular_accel)
-	move_speed = 0.0
-	for i in positions.size():
-		# A capped hitch must not report unfinished bending as settled simply
-		# because more wall time passed than we actually simulated.
-		move_speed = maxf(move_speed, positions[i].distance_to(before[i]) / simulated)
-
-
-## The native solver, made once a ribbon; null where paper-godot is not loaded.
-func _native_solver() -> Object:
-	if _solver == null and ClassDB.class_exists(&"PaperRibbonSolver"):
-		_solver = ClassDB.instantiate(&"PaperRibbonSolver")
-	if not _said_native:
-		_said_native = true
-		print("[GbPrinter] print ribbon solver: %s" % ("native (paper-godot)" if _solver != null
-			else "GDScript (paper-godot not loaded)"))
-	return _solver
-
-
-## step(), by PaperRibbonSolver. The patches come back moved into the recovered
-## body's frame, as _shift_patches moves them, and are written back in place:
-## the caller's arrays are the ones it reads next.
-func _step_native(delta: float, gravity: Vector3, angular_accel: Vector3) -> void:
-	var values := PackedFloat64Array()
-	for patch: Array in patches:
-		var normal: Vector3 = patch[0]
-		var center: Vector3 = patch[2]
-		values.append(normal.x)
-		values.append(normal.y)
-		values.append(normal.z)
-		values.append(float(patch[1]))
-		values.append(center.x)
-		values.append(center.y)
-		values.append(center.z)
-		values.append(float(patch[3]))
-		values.append(float(patch[4]))
-	var out: Array = _solver.solve(delta, gravity, angular_accel, length, width, positions,
-		velocities, pin_row, pin_positions, values)
-	positions = out[0]
-	velocities = out[1]
-	move_speed = out[2]
-	body_shift = out[3]
-	support_normal = out[4]
-	var moved: PackedFloat64Array = out[5]
+	var patch_values := PackedFloat64Array()
+	patch_values.resize(patches.size() * 9)
 	for i in patches.size():
 		var patch: Array = patches[i]
-		var offset := moved[i * 9 + 3]
-		var center := Vector3(moved[i * 9 + 4], moved[i * 9 + 5], moved[i * 9 + 6])
-		if offset != float(patch[1]) or center != (patch[2] as Vector3):
-			patch[1] = offset
-			patch[2] = center
-
-
-func _substep(h: float, gravity: Vector3, angular_accel: Vector3) -> void:
-	var before := positions.duplicate()
-	_contact_normals.resize(positions.size())
-	_contact_normals.fill(Vector3.ZERO)
-	var ds := length / segments
-	var lambda_bend := PackedVector3Array()
-	lambda_bend.resize(positions.size())
-	for i in positions.size():
-		if _weights[i] == 0.0:
-			continue
-		velocities[i] = (velocities[i] * exp(-DRAG * h) + (gravity - angular_accel.cross(positions[i])) * h).limit_length(MAX_SPEED)
-		positions[i] += velocities[i] * h
-	var alpha := (ds * ds * ds / EI) / (h * h)
-	var bend := 2.0 * ds * sin(ds / CURL_RADIUS * 0.5)
-	for iteration in ITERATIONS:
-		# Signed curvature, separately on both rails. The local transverse axis
-		# follows the sheet, allowing twist instead of locking it to a world plane.
-		for row in range(1, segments):
-			var transverse := (positions[row * 2] - positions[row * 2 + 1]).normalized()
-			for side in 2:
-				var b := row * 2 + side
-				var a := b - 2
-				var c := b + 2
-				var normal := (positions[c] - positions[a]).normalized().cross(transverse).normalized()
-				var error := positions[a] - 2.0 * positions[b] + positions[c] - normal * bend
-				var wa := _weights[a]
-				var wb := _weights[b]
-				var wc := _weights[c]
-				var change := (-error - alpha * lambda_bend[b]) / (wa + 4.0 * wb + wc + alpha)
-				lambda_bend[b] += change
-				positions[a] += wa * change
-				positions[b] -= 2.0 * wb * change
-				positions[c] += wc * change
-		for e in _edges.size():
-			var a := _edges[e].x
-			var b := _edges[e].y
-			var d := positions[b] - positions[a]
-			var distance := d.length()
-			var wa := _weights[a]
-			var wb := _weights[b]
-			if distance < 1e-9 or wa + wb == 0.0:
-				continue
-			var change := -(distance - _rest[e]) / (wa + wb)
-			positions[a] -= d / distance * change * wa
-			positions[b] += d / distance * change * wb
-		_surface_contacts()
-		if pin_row >= 0:
-			positions[2 * pin_row] = pin_positions[0]
-			positions[2 * pin_row + 1] = pin_positions[1]
-	_self_contacts(before)
-	# Keep local coordinates centered, but hand contact displacement to the body
-	# below. Discarding it drove the recovered sheet straight back into the floor.
-	var shift := Vector3.ZERO
-	if pin_row < 0:
-		shift = _mean(positions) - _mean(before)
-		for i in positions.size():
-			positions[i] -= shift
-	var farthest := 0.0
-	for i in positions.size():
-		farthest = maxf(farthest, positions[i].distance_to(before[i]))
-	var fraction := minf(1.0, MAX_SPEED * h / maxf(farthest, 1e-9))
-	for i in positions.size():
-		positions[i] = before[i].lerp(positions[i], fraction)
-		velocities[i] = (positions[i] - before[i]) / h
-		# Depenetration is positional repair, not a new bounce or bending impulse.
-		var normal := _contact_normals[i].normalized()
-		velocities[i] -= normal * normal.dot(velocities[i])
-		support_normal += normal
-	if pin_row < 0 and not patches.is_empty():
-		shift *= fraction
-		body_shift += shift
-		_shift_patches(shift)
-
-
-func _shift_patches(shift: Vector3) -> void:
-	_patch_index.shift_frame(shift)
-	for patch: Array in patches:
-		patch[1] -= (patch[0] as Vector3).dot(shift)
-		patch[2] -= shift
-
-
-func _recover_body_contacts() -> void:
-	# First recover penetration caused by the body's fall as a whole. Letting
-	# the individual rails do this buckled the print around its fixed centroid.
-	# Subsequent bending still meets the surface in _surface_contacts().
-	for patch: Array in patches:
 		var normal: Vector3 = patch[0]
-		var depth := 0.0
-		for p in positions:
-			var under := float(patch[1]) + SKIN - normal.dot(p)
-			var d := p - (patch[2] as Vector3)
-			if under > depth and under < float(patch[4]) and (d - normal * normal.dot(d)).length() < float(patch[3]):
-				depth = under
-		if depth > 0.0:
-			var shift := normal * depth
-			body_shift += shift
-			support_normal += normal
-			_shift_patches(shift)
-
-
-func _surface_contacts() -> void:
-	if patches.is_empty():
-		return
-	for i in positions.size():
-		if _weights[i] == 0.0:
-			continue
-		var candidates := _patch_index.query(positions[i])
-		var next := 0
-		var last := -1
-		while next < candidates.size():
-			var index := candidates[next]
-			next += 1
-			if index <= last:
-				continue
-			last = index
-			var patch: Array = patches[index]
-			var normal: Vector3 = patch[0]
-			var p := positions[i]
-			var under := float(patch[1]) + SKIN - normal.dot(p)
-			var d := p - (patch[2] as Vector3)
-			if under > 0.0 and under < float(patch[4]) and (d - normal * normal.dot(d)).length() < float(patch[3]):
-				positions[i] += normal * under
-				_contact_normals[i] += normal
-				# A push can enter another cell. Continue from this patch in the
-				# original ordering, including any later patches newly in reach.
-				candidates = _patch_index.query(positions[i])
-				next = 0
-
-
-func _self_contacts(before: PackedVector3Array) -> void:
-	var mid := centers()
-	_self_bounds.resize(segments)
-	# The narrow phase uses this snapshot of the centerline throughout. Build
-	# each segment's bounds once, rather than once for every possible pair.
-	for row in segments:
-		_self_bounds[row] = AABB(mid[row], Vector3.ZERO).expand(mid[row + 1]).grow(SKIN)
-	for row in segments:
-		var box := AABB(mid[row], Vector3.ZERO).expand(mid[row + 1]).grow(SKIN * 2.0)
-		for other in range(row + 2, segments):
-			if not box.intersects(_self_bounds[other]):
-				continue
-			var nearest := Geometry3D.get_closest_points_between_segments(mid[row], mid[row + 1], mid[other], mid[other + 1])
-			var d := nearest[0] - nearest[1]
-			if d.length_squared() >= SKIN * SKIN * 4.0:
-				continue
-			var normal := d.normalized()
-			if d.length_squared() < 1e-14:
-				var old := (before[2 * row] + before[2 * row + 1]) * 0.5
-				normal = (old - Geometry3D.get_closest_point_to_segment(old, mid[other], mid[other + 1])).normalized()
-			var push := normal * (SKIN * 2.0 - d.length()) * 0.5
-			for i in [row * 2, row * 2 + 1, row * 2 + 2, row * 2 + 3]:
-				if _weights[i] > 0.0:
-					positions[i] += push
-			for i in [other * 2, other * 2 + 1, other * 2 + 2, other * 2 + 3]:
-				if _weights[i] > 0.0:
-					positions[i] -= push
+		var center: Vector3 = patch[2]
+		var at := i * 9
+		patch_values[at] = normal.x
+		patch_values[at + 1] = normal.y
+		patch_values[at + 2] = normal.z
+		patch_values[at + 3] = float(patch[1])
+		patch_values[at + 4] = center.x
+		patch_values[at + 5] = center.y
+		patch_values[at + 6] = center.z
+		patch_values[at + 7] = float(patch[3])
+		patch_values[at + 8] = float(patch[4]) if patch.size() > 4 else PATCH_DEPTH
+	var box_values := PackedVector3Array()
+	for box in boxes:
+		box_values.append(box.position)
+		box_values.append(box.size)
+	var finger_values := PackedFloat64Array()
+	for finger: Array in fingers:
+		var center: Vector3 = finger[0]
+		finger_values.append(center.x)
+		finger_values.append(center.y)
+		finger_values.append(center.z)
+		finger_values.append(float(finger[1]))
+	var result: Array = _solver.solve(steps, STEP, gravity, angular_accel, origin, frame_velocity, frame_spin,
+		ds, width, 1.0 / CURL_RADIUS, positions, velocities, pin_rows, pin_positions,
+		patch_values, box_values, box_free_rows, finger_values)
+	positions = result[0]
+	velocities = result[1]
+	move_speed = result[2]
+	body_shift = result[3]
+	support_normal = result[4]
+	# The patches come back moved into a loose sheet's recovered frame, and are
+	# written back in place: the caller's arrays are the ones it reads next.
+	var moved: PackedFloat64Array = result[5]
+	if not body_shift.is_zero_approx():
+		for i in patches.size():
+			var patch: Array = patches[i]
+			patch[1] = moved[i * 9 + 3]
+			patch[2] = Vector3(moved[i * 9 + 4], moved[i * 9 + 5], moved[i * 9 + 6])
 
 
 static func _mean(points: PackedVector3Array) -> Vector3:
@@ -389,9 +550,3 @@ static func _mean(points: PackedVector3Array) -> Vector3:
 	for p in points:
 		sum += p
 	return sum / maxi(points.size(), 1)
-
-
-func _center() -> void:
-	var center := _mean(positions)
-	for i in positions.size():
-		positions[i] -= center

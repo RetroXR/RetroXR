@@ -1,5 +1,4 @@
-#include "PaperRibbonSolver.hpp"
-#include "PaperStripSolver.hpp"
+#include "PaperSheetSolver.hpp"
 
 #include <gdextension_interface.h>
 #include <godot_cpp/core/defs.hpp>
@@ -12,8 +11,7 @@ void initialize(ModuleInitializationLevel p_level)
     if (p_level != ModuleInitializationLevel::MODULE_INITIALIZATION_LEVEL_SCENE)
         return;
 
-    ClassDB::register_class<Xenu::PaperStripSolver>();
-    ClassDB::register_class<Xenu::PaperRibbonSolver>();
+    ClassDB::register_class<Xenu::PaperSheetSolver>();
 }
 
 void uninitialize(ModuleInitializationLevel p_level)

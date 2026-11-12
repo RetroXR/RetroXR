@@ -44,7 +44,7 @@ const PAPER_WIDTH := 0.038
 ## What stands out of the slot with nothing printed: the end of the roll.
 const STUB_LENGTH := 0.004
 ## How far the slot sends the paper back from upright, toward the roll cover.
-## From there it bends as paper does (GbPrinterStrip).
+## From there it bends as paper does (GbThermalRibbon).
 const PAPER_LEAN_DEG := 8.0
 ## The strip's mesh is laid again once a point of it has moved this far, meters.
 const PAPER_REDRAW := 0.00005
@@ -58,22 +58,22 @@ const PAPER_RIM := 0.0015
 const FLOOR_EVERY := 0.2
 const FLOOR_REACH := 1.5
 ## The paper on the printer RESTS as a loose print settles: once the printer has
-## stayed where it is drawn and the strip has turned slower than PAPER_SETTLED
-## (rad/s, GbPrinterStrip.motion) for PAPER_SETTLE_TIME, nothing of it runs but
+## stayed where it is drawn and no point of the paper has moved faster than
+## PAPER_SETTLED (m/s, GbThermalRibbon.move_speed) for PAPER_SETTLE_TIME, nothing of it runs but
 ## the look for what would wake it, and a whole update every FLOOR_EVERY, so a
 ## table taken from under it still drops it. Before, every printer stepped,
 ## swept and redrew its paper every frame for as long as the room was open.
-const PAPER_SETTLED := 0.02
+const PAPER_SETTLED := 0.0005
 const PAPER_SETTLE_TIME := 0.5
-## Down from every ROOM_SAMPLE of paper, from ROOM_LIFT above it to ROOM_DROP
-## below, meters; and each patch found reaches PATCH_REACH each way along it,
-## a little over half the spacing so neighbors meet. No further: a patch found
-## at a table's edge reaches past it into the air, and at 4 cm a long print's end
-## lay out on nothing beyond the edge instead of hanging over it.
+## Down from both edges of every ROOM_SAMPLE of paper, from ROOM_LIFT above it to
+## ROOM_DROP below, meters; and each patch found reaches PATCH_REACH each way
+## round it, a little over half the spacing so neighbors meet. No further: a
+## patch found at a table's edge reaches past it into the air, and at 4 cm a long
+## print's end lay out on nothing beyond the edge instead of hanging over it.
 const ROOM_SAMPLE := 0.02
 const ROOM_LIFT := 0.01
 const ROOM_DROP := 0.15
-const PATCH_REACH := 0.012
+const PATCH_REACH := 0.014
 ## The gear's turn, as the core keeps it (gbprinter-libretro src/sound.c: keep
 ## these and its TURN_S and TURN_OFFSET_S the same): 1.1407 s a turn, each a
 ## little longer or shorter by a fixed pattern, starting at the knock when the
@@ -83,14 +83,18 @@ const PATCH_REACH := 0.012
 const TURN_S := 1.1407
 const TURN_OFFSET_S: Array[float] = [0.004, -0.009, 0.002, 0.011, -0.005, -0.001, 0.008, -0.010]
 const MOTOR_TAIL_S := 1.5 * 240000.0 / 8388608.0
-## The knock's kick to the paper's swing, rad/s; the stub's flick back as the
-## print tears off it.
+## The knock's turn of the paper about the slot, rad/s; the stub's flick back as
+## the print tears off it (GbThermalRibbon.jolt).
 const KNOCK_JOLT := 1.2
 const TEAR_FLICK := -2.5
-## A fingertip, as the paper meets it: round, this radius, meters; and only
-## within FINGER_NEAR of the slot.
+## A fingertip, as the paper meets it: round, this radius, meters; only within
+## FINGER_NEAR of the slot, and only once it is within FINGER_WAKE of the paper
+## (a hand merely near a resting printer does not wake its paper).
 const FINGER_RADIUS := 0.009
-const FINGER_NEAR := 0.5
+const FINGER_NEAR := 1.5
+const FINGER_WAKE := 0.02
+## The sweep between frames (GbPaperSweep) follows every SWEEP_EVERYth row.
+const SWEEP_EVERY := 3
 
 ## Libretro joypad ids, as bits of the mask: the core's FEED and TEAR.
 const BTN_B := 1 << 0
@@ -145,9 +149,10 @@ var _paper_arrays: ArrayMesh = null
 var _paper_rim: MeshInstance3D = null
 var _paper_rim_mat: StandardMaterial3D = null
 var _paper_box: BoxShape3D = null
-## The paper's bend, and the points its mesh was last laid from.
-var _strip := GbPrinterStrip.new()
-var _drawn := PackedVector2Array()
+## The paper (rows of two edges, in the printer's frame), and the points its mesh
+## was last laid from.
+var _ribbon := GbThermalRibbon.new()
+var _drawn := PackedVector3Array()
 ## The slot as it was last frame, for its acceleration and turn.
 var _motion := GbPaperMotion.new()
 ## The gear's turn (TURN_S): how far round, how many since the motor started,
@@ -535,7 +540,8 @@ func _lay_paper(tex: Texture2D, lines: int) -> void:
 		return
 	_shown_tex = tex
 	_shown_lines = lines
-	_strip.set_length(maxf(STUB_LENGTH, lines * DOT_PITCH))
+	_aim_paper()
+	_ribbon.set_out(maxf(STUB_LENGTH, lines * DOT_PITCH))
 	_paper_mat.set_shader_parameter("layered", false)
 	_paper_mat.set_shader_parameter("print_tex", tex)
 	_draw_paper()
@@ -555,13 +561,20 @@ func _lay_lines() -> void:
 	if lines == _shown_lines:
 		return
 	_shown_lines = lines
-	_strip.set_length(maxf(STUB_LENGTH, lines * DOT_PITCH))
+	_aim_paper()
+	_ribbon.set_out(maxf(STUB_LENGTH, lines * DOT_PITCH))
 	_draw_paper()
 
 
-## The length of paper out of the slot, meters.
+## The length of paper out of the slot, meters: what the core has fed, which the
+## paper drawn catches up with at GbThermalRibbon.FEED_MAX when it arrives at once.
 func paper_length() -> float:
-	return _strip.length
+	return _ribbon.wanted
+
+
+## The paper itself, for a probe or a suite to read.
+func paper() -> GbThermalRibbon:
+	return _ribbon
 
 
 ## The loaded roll's paper color (GbPrinterPaper.ROLLS).
@@ -596,10 +609,9 @@ func options_choose(row: int, item: int) -> void:
 		paper_roll = GbPrinterPaper.ROLLS[item]["id"]
 
 
-## Step the paper's bend: gravity as the printer is turned, less the slot's own
-## acceleration so a shaken printer shakes it, the printer's turn about the
-## paper's hinge line so the paper lags it, and what is in its way. Drawn again
-## only once it has visibly moved.
+## Step the paper: gravity as the printer is turned, less the slot's own
+## acceleration so a shaken printer shakes it, the printer's turn so the paper
+## lags it, and what is in its way. Drawn again only once it has visibly moved.
 func _move_paper(delta: float) -> void:
 	if delta <= 0.0:
 		return
@@ -611,7 +623,7 @@ func _move_paper(delta: float) -> void:
 		if not _paper_resting:
 			_paper_resting = true
 			print("[GbPrinter] paper at rest (%.1f cm out): its step stops until something moves it"
-				% (_strip.length * 100.0))
+				% (_ribbon.out * 100.0))
 		return
 	if not wake.is_empty():
 		_paper_quiet = 0.0
@@ -621,11 +633,11 @@ func _move_paper(delta: float) -> void:
 	paper_updates += 1
 	_paper_pose = xf
 	_paper_pivot = _pivot.transform
-	_paper_length = _strip.length
+	_paper_length = _ribbon.wanted
 	# How the printer is moving (GbPaperMotion: off the pose it is drawn at, and
 	# smoothed), at the slot.
 	_motion.update(xf, _pivot.position, delta)
-	var g := _motion.gravity
+	_aim_paper()
 	if _floor_wait <= 0.0:
 		_floor_wait = FLOOR_EVERY
 		_find_obstacles()
@@ -633,13 +645,12 @@ func _move_paper(delta: float) -> void:
 	# The room is where it is: placed against the printer every frame, so a
 	# printer tipping over it never meets it a fifth of a second late.
 	_place_room(xf)
-	_aim_strip()
 	turn_gear(delta)
 	_place_fingers(xf)
-	var shove := _motion.shove
-	_strip.step(delta, Vector2(g.y, g.z), _motion.spin_accel, Vector2(shove.y, shove.z))
+	_ribbon.step(delta, _motion.gravity, _motion.angular_accel, _pivot.position,
+		_motion.velocity, _motion.spin)
 	_draw_paper()
-	if wake.is_empty() and _strip.motion() < PAPER_SETTLED:
+	if wake.is_empty() and _ribbon.move_speed < PAPER_SETTLED:
 		_paper_quiet += delta
 	else:
 		_paper_quiet = 0.0
@@ -648,21 +659,21 @@ func _move_paper(delta: float) -> void:
 ## Why the paper cannot rest this frame, or "" when nothing would move it: the
 ## printer drawn anywhere else than it rested at (carried, knocked, or Jolt
 ## settling it), its pivot turned, paper fed or torn, the motor running, a
-## swing given to it (a knock or a tear's flick: GbPrinterStrip.jolt), or a
-## fingertip at it.
+## knock or a tear's flick given to it (GbThermalRibbon.jolt), or a fingertip
+## at it.
 func _paper_wake(xf: Transform3D) -> String:
 	if not xf.is_equal_approx(_paper_pose):
 		return "the printer moved"
 	if not _pivot.transform.is_equal_approx(_paper_pivot):
 		return "the slot turned"
-	if _strip.length != _paper_length:
-		return "paper fed or torn (%.1f cm)" % (_strip.length * 100.0)
+	if _ribbon.wanted != _paper_length or _ribbon.feeding():
+		return "paper fed or torn (%.1f cm)" % (_ribbon.wanted * 100.0)
 	if _motor_left > 0.0:
 		return "the motor runs"
-	if absf(_strip.sway_speed) >= PAPER_SETTLED:
-		return "swung (%.2f rad/s)" % _strip.sway_speed
+	if _ribbon.jolted:
+		return "knocked"
 	_place_fingers(xf)
-	if not _strip.fingers.is_empty():
+	if not _ribbon.fingers.is_empty():
 		return "a fingertip"
 	return ""
 
@@ -700,7 +711,7 @@ func turn_gear(delta: float) -> bool:
 	_turn -= 1.0
 	_turns += 1
 	_turn_s = TURN_S + TURN_OFFSET_S[_turns % TURN_OFFSET_S.size()]
-	_strip.jolt(KNOCK_JOLT)
+	_ribbon.jolt(KNOCK_JOLT)
 	return true
 
 
@@ -714,27 +725,31 @@ func _find_controllers() -> void:
 		_controllers.append(node as XRController3D)
 
 
-## The fingertips across the paper's width, near the slot, as round obstacles
-## in the printer's (Y, Z), placed against the printer drawn at `xf`.
+## The fingertips at the paper, as round obstacles in the printer's frame, placed
+## against the printer drawn at `xf`.
 func _place_fingers(xf: Transform3D) -> void:
-	_strip.fingers.clear()
+	_ribbon.fingers.clear()
 	var inv := xf.affine_inverse()
+	var reach := minf(FINGER_NEAR, _ribbon.out + FINGER_RADIUS + FINGER_WAKE)
 	for ctrl in _controllers:
 		if not is_instance_valid(ctrl):
 			continue
 		var tip := inv * PokeTip.tip_of(ctrl)
-		if absf(tip.x - _pivot.position.x) > PAPER_WIDTH * 0.5 + FINGER_RADIUS:
+		if tip.distance_to(_pivot.position) > reach:
 			continue
-		if tip.distance_to(_pivot.position) > FINGER_NEAR:
-			continue
-		_strip.fingers.append([Vector2(tip.y, tip.z), FINGER_RADIUS])
+		# Only a fingertip AT the paper: within FINGER_WAKE of one of its rows.
+		for row in range(0, _ribbon.segments + 1):
+			var nearest := Geometry3D.get_closest_point_to_segment(tip,
+				_ribbon.positions[2 * row], _ribbon.positions[2 * row + 1])
+			if nearest.distance_to(tip) < FINGER_RADIUS + FINGER_WAKE:
+				_ribbon.fingers.append([tip, FINGER_RADIUS])
+				break
 
 
-## Where the slot is and which way it points the paper, in the printer's (Y, Z).
-## The pivot only ever turns about X.
-func _aim_strip() -> void:
-	var up := _pivot.transform.basis.y
-	_strip.place(Vector2(_pivot.position.y, _pivot.position.z), atan2(-up.z, up.y))
+## Where the slot is, which way it sends the paper and which way the paper lies
+## across it, in the printer's frame.
+func _aim_paper() -> void:
+	_ribbon.set_slot(_pivot.position, _pivot.transform.basis.y, _pivot.transform.basis.x)
 
 
 ## What the paper meets: the printer's own boxes (the scene's, or the ones a
@@ -743,14 +758,14 @@ func _aim_strip() -> void:
 ## printer each frame):
 ##   under the printer's back, its slot and its front, straight down, for what it
 ##   stands on;
-##   down from every few centimeters of the paper, for what the paper hangs over
-##   (a table's top, or nothing past its edge);
-##   from each of those points of the paper to the next, for what it runs into
+##   down from both edges of every few centimeters of the paper, for what the
+##   paper hangs over (a table's top, or nothing past its edge);
+##   from each of those rows of the paper to the next, for what it runs into
 ##   (a wall, the Game Boy beside it).
 ## One whole surface under the slot was the paper's only room: it could not hang
 ## over a table's edge, and went through everything else.
 func _find_obstacles() -> void:
-	_strip.boxes.clear()
+	_ribbon.boxes.clear()
 	var z_lo := INF
 	var z_hi := -INF
 	for child in get_children():
@@ -759,7 +774,7 @@ func _find_obstacles() -> void:
 			continue
 		var size := (shape.shape as BoxShape3D).size
 		var c := shape.position
-		_strip.boxes.append(Rect2(Vector2(c.y - size.y * 0.5, c.z - size.z * 0.5), Vector2(size.y, size.z)))
+		_ribbon.boxes.append(AABB(c - size * 0.5, size))
 		z_lo = minf(z_lo, c.z - size.z * 0.5)
 		z_hi = maxf(z_hi, c.z + size.z * 0.5)
 	_room_hits.clear()
@@ -785,42 +800,38 @@ func _find_obstacles() -> void:
 		var from := to_global(Vector3(_pivot.position.x, _pivot.position.y, z))
 		cast.call(from, from + Vector3.DOWN * FLOOR_REACH)
 	var down := (ProjectSettings.get_setting("physics/3d/default_gravity_vector", Vector3.DOWN) as Vector3).normalized()
-	var pts := _strip.points
-	var every := maxi(1, ceili(ROOM_SAMPLE / (_strip.length / maxi(_strip.segments, 1))))
+	var every := maxi(1, ceili(ROOM_SAMPLE / maxf(_ribbon.ds, 0.001)))
 	var last := Vector3.INF
-	for i in range(every, pts.size(), every):
-		var at := to_global(Vector3(_pivot.position.x, pts[i].x, pts[i].y))
-		cast.call(at - down * ROOM_LIFT, at + down * ROOM_DROP)
+	for row in range(_ribbon.segments, 1, -every):
+		var right := to_global(_ribbon.positions[2 * row])
+		var left := to_global(_ribbon.positions[2 * row + 1])
+		cast.call(right - down * ROOM_LIFT, right + down * ROOM_DROP)
+		cast.call(left - down * ROOM_LIFT, left + down * ROOM_DROP)
+		var mid := (right + left) * 0.5
 		if last != Vector3.INF:
-			cast.call(last, at)
-		last = at
+			cast.call(last, mid)
+		last = mid
 
 
 ## The room's patches (_find_obstacles), in the frame of the printer drawn at
-## `xf` this frame, across the middle of the paper.
+## `xf` this frame.
 func _place_room(xf: Transform3D) -> void:
-	_strip.planes.clear()
-	_strip.patches.clear()
+	_ribbon.patches.clear()
 	var inv := xf.affine_inverse()
 	var turn := xf.basis.orthonormalized().inverse()
 	for hit: Array in _room_hits + _paper_sweep.hits:
-		var n: Vector3 = turn * (hit[1] as Vector3)
+		var normal: Vector3 = turn * (hit[1] as Vector3)
 		var at: Vector3 = inv * (hit[0] as Vector3)
-		var n2 := Vector2(n.y, n.z)
-		# A surface the paper's plane is not across: the printer on its side.
-		if n2.length() < 0.3:
-			continue
-		var offset := n.dot(at) - n.x * _pivot.position.x
-		var depth := float(hit[2]) if hit.size() > 2 else GbPrinterStrip.PATCH_DEPTH
-		_strip.patches.append([n2 / n2.length(), offset / n2.length(), Vector2(at.y, at.z), PATCH_REACH, depth / n2.length()])
+		var depth := float(hit[2]) if hit.size() > 2 else GbThermalRibbon.PATCH_DEPTH
+		_ribbon.patches.append([normal, normal.dot(at), at, PATCH_REACH, depth])
 
 
 func _sweep_room(xf: Transform3D) -> void:
 	if not is_inside_tree():
 		return
-	var pts := PackedVector3Array()
-	for p in _strip.points:
-		pts.append(xf * Vector3(_pivot.position.x, p.x, p.y))
+	var pts := _ribbon.samples(SWEEP_EVERY)
+	for i in pts.size():
+		pts[i] = xf * pts[i]
 	# _find_obstacles' list (it runs first, on the first frame too): a recursive
 	# find_children here was paid every frame.
 	if _own_rids.is_empty():
@@ -828,14 +839,15 @@ func _sweep_room(xf: Transform3D) -> void:
 	_paper_sweep.update(get_world_3d().direct_space_state, pts, _own_rids, PATCH_REACH)
 
 
-## Lay the strip's mesh, the tear trigger and its box from the bend, once some
-## point of it has moved. In the pivot's frame, as the pivot holds them: each
-## point is (across, Y, Z) in the printer's, then into the pivot's.
+## Lay the paper's mesh, the tear trigger and its box from the sheet, once some
+## point of it has moved. In the pivot's frame, as the pivot holds them.
 func _draw_paper() -> void:
-	if _paper_arrays == null:
+	if _paper_arrays == null or _ribbon.out <= 0.0:
 		return
-	_aim_strip()
-	var pts := _strip.points
+	_aim_paper()
+	var laid: Array = _ribbon.outside()
+	var pts: PackedVector3Array = laid[0]
+	var vs: PackedFloat32Array = laid[1]
 	if pts.size() == _drawn.size():
 		var moved := false
 		for i in pts.size():
@@ -845,18 +857,11 @@ func _draw_paper() -> void:
 		if not moved:
 			return
 	_drawn = pts.duplicate()
-	var n := pts.size()
-	var dirs := _strip.directions()
 	var to_pivot := _pivot.transform.affine_inverse()
-	var x := _pivot.position.x
-	var half := PAPER_WIDTH * 0.5
-	var mid := PackedVector3Array()
-	mid.resize(n)
 	var box := AABB()
-	for i in n:
-		mid[i] = to_pivot * Vector3(x, pts[i].x, pts[i].y)
-		var row := AABB(mid[i] - Vector3(half, 0, 0), Vector3(PAPER_WIDTH, 0, 0))
-		box = row if i == 0 else box.merge(row)
+	for i in pts.size():
+		pts[i] = to_pivot * pts[i]
+		box = AABB(pts[i], Vector3.ZERO) if i == 0 else box.expand(pts[i])
 	var thick := Vector3(0.0, maxf(0.0, PAPER_HIT_THICKNESS - box.size.y),
 		maxf(0.0, PAPER_HIT_THICKNESS - box.size.z))
 	box = AABB(box.position - thick * 0.5, box.size + thick)
@@ -865,48 +870,26 @@ func _draw_paper() -> void:
 	var center := box.get_center()
 	_paper.position = center
 	_paper_box.size = box.size
-
-	var verts := PackedVector3Array()
-	var normals := PackedVector3Array()
-	var uvs := PackedVector2Array()
-	var index := PackedInt32Array()
-	verts.resize(n * 2)
-	normals.resize(n * 2)
-	uvs.resize(n * 2)
-	for i in n:
-		var t := dirs[i]
-		# The printed face: the paper's +Z when it stands straight up out of the slot.
-		var face := (to_pivot.basis * Vector3(0.0, -t.y, t.x)).normalized()
-		var p := mid[i] - center
-		var v := 1.0 - float(i) / float(n - 1)
-		# Right then left, as QuadMesh lays a row: clockwise seen from the face.
-		verts[i * 2] = p + Vector3(half, 0, 0)
-		verts[i * 2 + 1] = p - Vector3(half, 0, 0)
-		normals[i * 2] = face
-		normals[i * 2 + 1] = face
-		uvs[i * 2] = Vector2(1.0, v)
-		uvs[i * 2 + 1] = Vector2(0.0, v)
-	for i in n - 1:
-		var r := i * 2
-		index.append_array([r, r + 1, r + 2, r + 1, r + 3, r + 2])
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = verts
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_TEX_UV] = uvs
-	arrays[Mesh.ARRAY_INDEX] = index
+	for i in pts.size():
+		pts[i] -= center
 	_paper_arrays.clear_surfaces()
-	_paper_arrays.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	_paper_arrays.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, GbThermalRibbon.mesh_arrays(pts, vs))
 	_paper.mesh_changed()
 	if _paper_rim != null:
+		@warning_ignore("integer_division")
+		var rows := pts.size() / 2
 		var centers := PackedVector3Array()
 		var along := PackedVector3Array()
-		var vs := PackedFloat32Array()
-		for i in n:
-			centers.append(mid[i] - center)
-			along.append((to_pivot.basis * Vector3(0.0, dirs[i].x, dirs[i].y)).normalized())
-			vs.append(1.0 - float(i) / float(n - 1))
-		_paper_rim.mesh = GbPaperRim.build(centers, along, Vector3.RIGHT, half, PAPER_RIM, vs)
+		var across := PackedVector3Array()
+		centers.resize(rows)
+		along.resize(rows)
+		across.resize(rows)
+		for i in rows:
+			centers[i] = (pts[2 * i] + pts[2 * i + 1]) * 0.5
+			across[i] = (pts[2 * i] - pts[2 * i + 1]).normalized()
+		for i in rows:
+			along[i] = (centers[mini(i + 1, rows - 1)] - centers[maxi(i - 1, 0)]).normalized()
+		_paper_rim.mesh = GbPaperRim.build(centers, along, Vector3.RIGHT, PAPER_WIDTH * 0.5, PAPER_RIM, vs, across)
 
 
 ## Tear the paper off at the serrated edge.
@@ -938,14 +921,14 @@ func tear() -> void:
 	_tear_code = _paper_lines.tear_code() if _windowed else 0
 	_tear_frames = TEAR_FRAMES
 	# What is left in the slot flicks back as the print comes away.
-	_strip.jolt(TEAR_FLICK)
+	_ribbon.jolt(TEAR_FLICK)
 	if _mask >= 0:
 		_push_input(_mask | BTN_B, _tear_lines, _tear_code)
 
 
 ## Transfer the actual two edges and their velocities. The new body's origin
-## is the sheet's center of mass; the visible vertices stay exactly where they
-## were on the printer, including nonuniform bends and folds.
+## is the sheet's center of mass; the visible vertices stay where they were on
+## the printer, including nonuniform bends and folds.
 func _spawn_printout(path: String, lines: int) -> Poster:
 	var poster := POSTER_SCENE.instantiate() as Poster
 	var long_edge := maxf(PAPER_WIDTH, lines * DOT_PITCH)
@@ -953,26 +936,27 @@ func _spawn_printout(path: String, lines: int) -> Poster:
 	# size_scale as it stands.
 	poster.size_scale = long_edge / Poster.BASE_LONG_EDGE
 	poster.printout = true
-	var positions := PackedVector3Array()
-	var velocities := PackedVector3Array()
-	var point_velocities := _strip.point_velocities()
+	var state := _ribbon.torn_state()
+	var positions: PackedVector3Array = state["positions"]
+	var velocities: PackedVector3Array = state["velocities"]
 	var center := Vector3.ZERO
 	var mean_velocity := Vector3.ZERO
-	for i in _strip.points.size():
-		var point := Vector3(_pivot.position.x, _strip.points[i].x, _strip.points[i].y)
-		var velocity := Vector3(0.0, point_velocities[i].x, point_velocities[i].y)
-		positions.append(point + Vector3.RIGHT * PAPER_WIDTH * 0.5)
-		positions.append(point - Vector3.RIGHT * PAPER_WIDTH * 0.5)
-		velocities.append_array(PackedVector3Array([velocity, velocity]))
-		center += point
-		mean_velocity += velocity
-	center /= _strip.points.size()
-	mean_velocity /= _strip.points.size()
+	for i in positions.size():
+		center += positions[i]
+		mean_velocity += velocities[i]
+	center /= positions.size()
+	mean_velocity /= positions.size()
 	for i in positions.size():
 		positions[i] -= center
 		velocities[i] -= mean_velocity
-	var state := {"positions": positions, "velocities": velocities, "length": _strip.length, "width": PAPER_WIDTH}
-	poster.set_meta(GbPrintoutFlop.STATE_META, state)
+	# Paper still on its way out of the slot (a strip that arrived whole) is not
+	# yet as long as the print: that print starts as a fresh sheet instead.
+	var whole := absf(_ribbon.out - lines * DOT_PITCH) < 0.002
+	if whole:
+		poster.set_meta(GbPrintoutFlop.STATE_META, state)
+	else:
+		print("[GbPrinter] torn with %.1f of %.1f cm out of the slot: the print starts as a fresh sheet"
+			% [_ribbon.out * 100.0, lines * DOT_PITCH * 100.0])
 	poster.image_path = path
 	var scene := get_tree().current_scene
 	scene.add_child(poster)
@@ -981,9 +965,10 @@ func _spawn_printout(path: String, lines: int) -> Poster:
 	poster.global_transform = Transform3D(b, to_global(center))
 	poster.linear_velocity = linear_velocity + angular_velocity.cross(b * center) + b * mean_velocity
 	poster.angular_velocity = angular_velocity
-	var flop := poster.get_node(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
-	flop.adopt_state(state, poster.get_sheet_size())
-	poster.remove_meta(GbPrintoutFlop.STATE_META)
+	if whole:
+		var flop := poster.get_node(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
+		flop.adopt_state(state, poster.get_sheet_size())
+		poster.remove_meta(GbPrintoutFlop.STATE_META)
 	NetworkManager.on_local_spawn(poster)
 	return poster
 

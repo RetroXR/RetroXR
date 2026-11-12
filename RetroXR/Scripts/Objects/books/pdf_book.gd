@@ -352,7 +352,7 @@ const ROOM_LIFT := 0.015
 ## the half past the edge was held out level over nothing instead of hanging.
 const ROOM_REACH := 0.025
 ## How far behind a surface a point may be and still be pushed out of it
-## (GbPrinterStrip.PATCH_DEPTH, a little deeper: a book swung onto a table moves
+## (GbThermalRibbon.PATCH_DEPTH, a little deeper: a book swung onto a table moves
 ## faster than paper hanging off a printer).
 const ROOM_DEPTH := 0.04
 ## Ticks with nothing met before the log says the pages are clear again.

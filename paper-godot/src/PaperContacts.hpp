@@ -1,9 +1,9 @@
 #pragma once
 
-// GbPaperContacts, ported: a 4 cm grid over the finite surface patches round a
-// piece of paper. Bounds only throw out contacts that cannot happen; the
-// solvers still test each candidate exactly, in the patches' own order. Large
-// recovery patches go on an unbinned list.
+// A 4 cm grid over the finite surface patches round a piece of paper. Bounds
+// only throw out contacts that cannot happen; the solver still tests each
+// candidate exactly, in the patches' own order. Large recovery patches go on an
+// unbinned list.
 
 #include "PaperMath.hpp"
 
@@ -14,17 +14,9 @@
 
 namespace Xenu::Paper
 {
-// [normal, offset, center, reach, depth] in the strip's (Y, Z).
-struct Patch2
-{
-    Vector2 normal;
-    double offset = 0.0;
-    Vector2 center;
-    double reach = 0.0;
-    double depth = 0.0;
-};
-
-// The same in the ribbon's body frame.
+// [normal, offset, center, reach, depth] in the sheet's frame: normal . p >=
+// offset is outside, for paper within `reach` of `center` along the surface and
+// no deeper behind it than `depth`.
 struct Patch3
 {
     Vector3 normal;
@@ -40,23 +32,6 @@ public:
     static constexpr double CELL = 0.04;
     static constexpr int MAX_CELLS = 64;
     static constexpr double PAD = 0.000001;
-
-    void build_2d(const std::vector<Patch2> &patches, double skin)
-    {
-        clear();
-        for (int i = 0; i < (int)patches.size(); i++) {
-            const Patch2 &patch = patches[i];
-            Vector2 n = patch.normal;
-            Vector2 center = patch.center;
-            double depth = patch.depth;
-            center += n * (real_t)(patch.offset + skin - depth * 0.5 - (double)n.dot(center));
-            Vector2 half = Vector2((real_t)std::fabs((double)n.y), (real_t)std::fabs((double)n.x)) * (real_t)patch.reach
-                + n.abs() * (real_t)depth * (real_t)0.5;
-            AABB bounds(Vector3((real_t)((double)center.x - (double)half.x), (real_t)((double)center.y - (double)half.y), 0),
-                Vector3((real_t)((double)half.x * 2), (real_t)((double)half.y * 2), 0));
-            insert(i, bounds.grow((real_t)PAD));
-        }
-    }
 
     void build_3d(const std::vector<Patch3> &patches, double skin)
     {
@@ -77,7 +52,7 @@ public:
         }
     }
 
-    // The caller moved every patch by -shift (the ribbon's body recovery).
+    // The caller moved every patch by -shift (a loose sheet's body recovery).
     void shift_frame(const Vector3 &shift) { _shift += shift; }
 
     // The patches near `p`, in their order.
@@ -114,7 +89,6 @@ private:
         _shift = Vector3();
     }
 
-    // floori(p.x / CELL): the component read as a double, as GDScript reads it.
     static Key cell(const Vector3 &p)
     {
         return Key{(int32_t)std::floor((double)p.x / CELL), (int32_t)std::floor((double)p.y / CELL),

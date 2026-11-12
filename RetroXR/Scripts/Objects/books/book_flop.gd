@@ -684,7 +684,7 @@ func _stack_fan(i: int) -> void:
 
 # ── Contact: what the pages meet ──────────────────────────────────────────────
 #
-# Thermal paper's arrangement (GbPrinterStrip, GbThermalRibbon) on a sim whose
+# Thermal paper's arrangement (GbThermalRibbon) on a sim whose
 # only freedoms are angles about the gutter. PDFBook finds the room with short
 # rays as patches of surface, kept where they are in the room and placed in the
 # book's frame every tick (`patches`); a free fingertip is a round obstacle

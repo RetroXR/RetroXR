@@ -53,7 +53,7 @@ func update(space: PhysicsDirectSpaceState3D, points: PackedVector3Array,
 			var under := -normal.dot(d)
 			if (d + normal * under).length() <= reach:
 				depth = maxf(depth, under)
-		if depth < -GbPrinterStrip.SKIN:
+		if depth < -GbThermalRibbon.SKIN:
 			hits.remove_at(i)
 		else:
-			hits[i][2] = maxf(GbPrinterStrip.PATCH_DEPTH, depth + GbPrinterStrip.SKIN * 2.0)
+			hits[i][2] = maxf(GbThermalRibbon.PATCH_DEPTH, depth + GbThermalRibbon.SKIN * 2.0)

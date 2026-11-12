@@ -110,24 +110,20 @@ deploying to `RetroXR/<name>/`). Build each **from its own directory** (each has
   cd surround-godot && python tests/run_tests.py     # matrix, ring and pro_logic; no Godot needed
   ```
 
-- **paper-godot** — `Xenu::PaperStripSolver` and `Xenu::PaperRibbonSolver`, the Game Boy
-  Printer's paper (`GbPrinterStrip`, `GbThermalRibbon`) ported line for line; the scripts
-  keep their API and state and hand `step()` here when the library is loaded, falling back
-  to themselves (logged once: `[GbPrinter] paper strip solver: native (paper-godot)`). All
-  platforms, pure C++. It must match the script TO THE BIT on desktop
-  (`gb_printer_tests --only=native`, `Tools/perf/paper_native_probe.tscn`), which is
-  why the code spells out GDScript's mix of float vector and double scalar arithmetic and
-  builds with `-ffp-contract=off`. **godot-cpp's 4.5 branch had only a FLOAT `wrapf`**:
-  called with doubles it rounds them (the strip parted at 3e-8 on frame one), so the
-  engine's double one is copied into `PaperMath.hpp`. The project is on godot-cpp master
-  since 2026-11-10, which has the double one (#2021); the copy stays, correct either way. MSVC's and MinGW's `sin`/`cos`/`atan2` part in the last bit of a double, so
-  the check runs with the ENGINE's (`engine_math = true`) and the room with its own. On a
-  Quest the strip parts from the script at 1e-9 from frame one even so (the engine and the
-  library come from different compilers; the ribbon is still exact): reported, not failed.
-  Added 2026-11-10.
+- **paper-godot** — `Xenu::PaperSheetSolver`, the Game Boy Printer's thermal paper
+  (`GbThermalRibbon` is its GDScript face: it keeps the sheet, feeds it and hands a torn
+  length over, and steps nothing itself). All platforms, pure C++, no dependencies. It is
+  the ONLY solver: where the class is missing (the library not loaded, or a platform still
+  on a build from before 2026-11-12) the paper holds its shape and says so once at error
+  level, and `gb_printer_tests` fails. Until then it was two ports (`PaperStripSolver`,
+  `PaperRibbonSolver`) of two GDScript solvers, matched to the bit with `-ffp-contract=off`
+  and the engine's own `sin`/`cos`; all of that is gone with the scripts it matched
+  (`gb-printer.md` says what replaced it and why). `PaperSheetSolver.tune(name, value)` is
+  a probe's knob on its constants, process-wide; nothing shipped calls it.
   ```bash
   python Tools/build.py windows --only paper-godot
-  "$godot" --headless --path RetroXR res://Tools/perf/paper_native_probe.tscn   # PASS, timings
+  python Tools/build.py android --only paper-godot
+  "$godot" --headless --path RetroXR res://Tools/perf/paper_sheet_probe.tscn   # numbers, timings
   ```
 
 - **metaxr-audio's objects must be out of the AudioServer before this extension

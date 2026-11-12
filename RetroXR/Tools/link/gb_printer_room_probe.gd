@@ -153,8 +153,7 @@ func _run() -> void:
 		await _settle(1)
 		if _frames_out and Engine.get_process_frames() % 2 == 0:
 			_frame()
-		var img := pr_lib.GetVideoImage()
-		var lines := img.get_height() if img != null and img.get_width() == 160 else 0
+		var lines := _paper_out(printer).y
 		if not mid_taken and lines >= want_lines / 2:
 			mid_taken = true
 			await _shot("printing")
@@ -164,14 +163,18 @@ func _run() -> void:
 		await _settle(1)
 		if _frames_out and i % 3 == 0:
 			_frame()
-	var paper := pr_lib.GetVideoImage()
+	var paper := _paper_image(printer)
 	print("[gb-printer-room] paper %dx%d after %.1f s" % [paper.get_width(), paper.get_height(),
 		(Time.get_ticks_msec() - started) / 1000.0])
 	_eq("the printer put out the whole print", Vector2i(paper.get_width(), paper.get_height()),
 		Vector2i(160, want_lines))
 	paper.convert(Image.FORMAT_L8)
 	_ok("and it is the picture the Game Boy sent", paper.get_data() == expected.get_data())
-	var strip_len := (printer.get_node("PaperPivot/Paper/ButtonMesh") as MeshInstance3D).mesh.get_aabb().size.y
+	# Along its bend: the paper curls, so its mesh is not as tall as it is long.
+	var strip_len := 0.0
+	var rows: PackedVector3Array = (printer.get_node("PaperPivot/Paper/ButtonMesh") as MeshInstance3D).mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	for i in range(2, rows.size(), 2):
+		strip_len += rows[i].distance_to(rows[i - 2])
 	_ok("the strip in the room is that much paper", absf(strip_len - want_lines * GbPrinter.DOT_PITCH) < 0.0005,
 		"%.4f m against %.4f" % [strip_len, want_lines * GbPrinter.DOT_PITCH])
 	await _shot("printed")
@@ -209,9 +212,7 @@ func _run() -> void:
 			Vector2i(GbPrinterPaper.sheet_width(), want_lines))
 		_keep.append(printout.get_node("Surface"))
 	await _settle(10)
-	var torn := pr_lib.GetVideoImage()
-	_eq("and the printer has none left out", Vector2i(torn.get_width(), torn.get_height()),
-		Vector2i(1, 1))
+	_eq("and the printer has none left out", _paper_out(printer), Vector2i(1, 1) if not printer._windowed else Vector2i(160, 0))
 	await _shot("torn")
 
 	# The lead comes out: the printer is alone again.
@@ -369,3 +370,23 @@ func _restore() -> void:
 	if w != null:
 		w.store_string(_opt_backup)
 		w.close()
+
+
+## The paper out of the printer as the room keeps it: a core sending windows of
+## the strip (GbPaperLines) has only the newest 128 lines in its frame, and the
+## whole strip is the printer's. A COPY: converting the core's own frame in
+## place took its window header with it, and the printer then read the next
+## frame as a whole strip 129 lines long.
+func _paper_image(printer: GbPrinter) -> Image:
+	if printer._windowed:
+		return printer._paper_lines.image()
+	var img: Image = printer.get_libretro_node().GetVideoImage()
+	return img.duplicate() if img != null else null
+
+
+## Its size in dots and lines (160 x 0 with none out, from a core sending windows).
+func _paper_out(printer: GbPrinter) -> Vector2i:
+	if printer._windowed:
+		return Vector2i(160, printer._paper_lines.lines())
+	var img: Image = printer.get_libretro_node().GetVideoImage()
+	return Vector2i(img.get_width(), img.get_height()) if img != null else Vector2i.ZERO

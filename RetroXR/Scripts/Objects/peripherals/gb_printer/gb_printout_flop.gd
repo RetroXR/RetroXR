@@ -32,6 +32,12 @@ const SETTLE_TURN := 0.08
 const FLOOR_EVERY := 0.25
 const FLOOR_REACH := 0.3
 const PATCH_REACH := 0.025
+## A ray down from the paper every this much of it, meters, and a sweep between
+## frames from every SWEEP_EVERYth row; and no more colliders than MAX_COLLIDERS
+## however many rows the sheet has.
+const FLOOR_SAMPLE := 0.012
+const SWEEP_EVERY := 3
+const MAX_COLLIDERS := 48
 ## How wide the highlight round the print is, meters (GbPaperRim).
 const RIM := 0.0015
 ## A point of the mesh moving less than this (meters) is not worth redrawing.
@@ -257,8 +263,11 @@ func adopt_state(state: Dictionary, size: Vector2) -> void:
 func _find_floor(xf: Transform3D) -> void:
 	_floor_hit.clear()
 	var own := _own_rids()
-	for i in range(0, _ribbon.positions.size(), 4):
-		var at := xf * _ribbon.positions[i]
+	# Alternate edges, a ray every FLOOR_SAMPLE of paper.
+	var every := maxi(1, ceili(FLOOR_SAMPLE / maxf(_ribbon.ds, 0.001)))
+	for row in range(0, _ribbon.segments + 1, every):
+		@warning_ignore("integer_division")
+		var at := xf * _ribbon.positions[2 * row + (row / every) % 2]
 		var query := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 0.015, at + Vector3.DOWN * FLOOR_REACH)
 		query.exclude = own
 		var hit := _poster.get_world_3d().direct_space_state.intersect_ray(query)
@@ -284,9 +293,9 @@ func _place_floor(xf: Transform3D) -> void:
 
 
 func _sweep_floor(xf: Transform3D) -> void:
-	var pts := PackedVector3Array()
-	for p in _ribbon.positions:
-		pts.append(xf * p)
+	var pts := _ribbon.samples(SWEEP_EVERY)
+	for i in pts.size():
+		pts[i] = xf * pts[i]
 	_paper_sweep.update(_poster.get_world_3d().direct_space_state, pts, _own_rids(), PATCH_REACH)
 
 
@@ -304,27 +313,33 @@ func _own_body(on: bool) -> void:
 	_body_owned = on
 
 
-## One thin oriented box per segment. The body's support and the pointer bounds
-## follow the curved sheet, including twist. Sticking restores the flat body.
+## Thin oriented boxes along the sheet, each over a few rows (no more than
+## MAX_COLLIDERS of them: a box a row was 199 shapes on one body for a long
+## print). The body's support and the pointer bounds follow the curved sheet,
+## including twist. Sticking restores the flat body.
 func _fit_body(centers: PackedVector3Array, across: PackedVector3Array) -> void:
-	while _body_segments.size() > _ribbon.segments:
+	var span := maxi(1, ceili(float(_ribbon.segments) / MAX_COLLIDERS))
+	var count := ceili(float(_ribbon.segments) / span)
+	while _body_segments.size() > count:
 		var old := _body_segments.pop_back() as CollisionShape3D
 		_poster.remove_child(old)
 		old.queue_free()
-	while _body_segments.size() < _ribbon.segments:
+	while _body_segments.size() < count:
 		var shape := CollisionShape3D.new()
 		shape.name = "PaperSegment%d" % _body_segments.size()
 		shape.shape = BoxShape3D.new()
 		_poster.add_child(shape)
 		_body_segments.append(shape)
-	for i in _ribbon.segments:
-		var y := (centers[i + 1] - centers[i]).normalized()
-		var x := (across[i] + across[i + 1]).normalized()
+	for i in count:
+		var from := i * span
+		var to := mini(from + span, _ribbon.segments)
+		var y := (centers[to] - centers[from]).normalized()
+		var x := (across[from] + across[to]).normalized()
 		var z := x.cross(y).normalized()
 		x = y.cross(z).normalized()
 		var shape := _body_segments[i]
-		(shape.shape as BoxShape3D).size = Vector3(_size.x, centers[i].distance_to(centers[i + 1]), 0.0008)
-		shape.transform = Transform3D(Basis(x, y, z), (centers[i] + centers[i + 1]) * 0.5)
+		(shape.shape as BoxShape3D).size = Vector3(_size.x, centers[from].distance_to(centers[to]), 0.0008)
+		shape.transform = Transform3D(Basis(x, y, z), (centers[from] + centers[to]) * 0.5)
 	_own_body(true)
 	_poster.mass = maxf(0.0001, _ribbon.length * 0.0057 * _ribbon.width / 0.038)
 	var bounds := AABB(_ribbon.positions[0], Vector3.ZERO)
@@ -354,28 +369,12 @@ func _draw(_sheet_size: Vector2) -> void:
 	_drawn = verts.duplicate()
 	var centers := _ribbon.centers()
 	var across := _ribbon.across()
-	var normals := PackedVector3Array()
-	var uvs := PackedVector2Array()
 	var along := PackedVector3Array()
 	var vs := PackedFloat32Array()
-	var index := PackedInt32Array()
 	for i in centers.size():
-		var tangent := (centers[mini(i + 1, _ribbon.segments)] - centers[maxi(i - 1, 0)]).normalized()
-		var normal := across[i].cross(tangent).normalized()
-		var v := 1.0 - float(i) / _ribbon.segments
-		along.append(tangent)
-		vs.append(v)
-		normals.append_array(PackedVector3Array([normal, normal]))
-		uvs.append_array(PackedVector2Array([Vector2(1.0, v), Vector2(0.0, v)]))
-		if i < _ribbon.segments:
-			var r := i * 2
-			index.append_array([r, r + 1, r + 2, r + 1, r + 3, r + 2])
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = verts
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_TEX_UV] = uvs
-	arrays[Mesh.ARRAY_INDEX] = index
+		along.append((centers[mini(i + 1, _ribbon.segments)] - centers[maxi(i - 1, 0)]).normalized())
+		vs.append(1.0 - float(i) / _ribbon.segments)
+	var arrays := GbThermalRibbon.mesh_arrays(verts, vs)
 	_arrays.clear_surfaces()
 	_arrays.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	_mesh.material_override = _flat.get_surface_override_material(0)

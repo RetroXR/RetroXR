@@ -102,126 +102,135 @@ window uploads in 2.2 ms all told.
 
 `GbPrinter` draws the strip coming out of the slot (`gb_printer_paper.gdshader`,
 `layered` for the room's lines), as long as the lines times the dot pitch, sent
-8 degrees back by the slot.
+8 degrees back by the slot. The mesh is laid again only once a point of it has moved
+0.05 mm (`VRButton.mesh_changed` drops the outline's cached copy).
 
-**How it bends** is `GbPrinterStrip` (`gb_printer_strip.gd`), pure and stepped by
-the printer every frame: a 2D elastica in the printer's YZ plane, up to 48 hinged
-segments of about 4 mm. Each hinge springs toward the roll's curl (radius 13 cm,
-judged from photographs of long prints, which make a loose, open curve; at 6 cm a
-22 cm print closed most of a circle and its end came back to the printer's base
-wherever the printer was, pressed there as if stuck) and carries the weight and
-inertia of the paper past it; the stiffness (EI 3.2e-5 N m^2) and weight
-(5.7 g/m) put the length at which it gives way at about 8 cm. So a short print
-stands curling back toward the roll cover, and a long one arcs over it and drops
-down behind the printer onto the table. Gravity is taken in the printer's frame
-less the slot's acceleration, and the printer's angular acceleration about its X
-loads each hinge by the inertia past it. Springs and damping are implicit per
-hinge, which keeps it stable however short the tip's segments; damping is
-critical, so the bend itself never swings back.
+**The paper is ONE sheet and one solver wherever it is (2026-11-12):**
+`GbThermalRibbon` (`gb_thermal_ribbon.gd`) keeps it and paper-godot's
+`PaperSheetSolver` steps it. On the printer its rows inside the slot are pinned; in a
+hand the row in the hand is; loose, nothing is and its rigid body owns the fall. Two
+particles a row, one on each edge of the 38 mm, in the frame of the body it belongs to
+(the printer, the print).
 
-**The flop** is a swing on top of the bend, as `BookFlop` swings a book's pages:
-one springy, lightly damped pendulum for the whole strip (`sway`: about a swing a
-second for 10 cm of paper, softer for longer, damping 0.3 of critical), pushed by
-the slot's smoothed acceleration across the strip and by the printer's turn, its
-angle spread along the strip as extra rest bend for the hinges to follow, so
-contact still holds. Carried and stopped, the paper lags, swings back past its
-rest and settles. Its push is `shove`, the slot's acceleration alone, apart from
-the gravity the bend already takes it in.
+It was two models, each kept twice: a 2D chain of up to 48 hinges on the printer
+(`GbPrinterStrip` + `PaperStripSolver`) and this sheet for a torn print
+(`PaperRibbonSolver`), each a GDScript solver with a native port matched to the bit.
+The chain is gone, and why is worth keeping:
+- **48 hinges whatever the length**: a metre of paper was 2 cm segments, 9 m of it
+  19 cm. The paper bends over its own weight in about 8 cm
+  ((EI / (m g))^(1/3) with EI 3.2e-5 N m^2 and 5.7 g/m), so past 40 cm the chain could
+  only be a polyline.
+- **Every hinge carried all the paper past it**, as a cantilever, whether or not that
+  paper lay on a table: contact was a position fix afterwards with no reaction. A hinge
+  with half a metre of tail on the table saw several radians' worth of torque, lost,
+  and was pushed back by contact every step: the zig-zag pleats, and the buzz
+  `REST_SPEED` hid.
+- **Its contact could fold it to any angle**, read back off the points up to half a
+  turn, and zeroed the folded hinge's speed, so nothing relaxed it.
+- One direction (slot to tip), no friction, one plane (the printer's YZ, so a turned
+  printer swept its whole strip round), flat normals a row, and a swing (`sway`) added
+  by hand because the hinges, each critically damped on its own, never swung back.
 
-**Smooth, not jumpy** (the first version was; numbers from a throwaway probe that
-moves the printer on physics ticks and takes the strip where it is drawn):
-- The printer's motion is read off `get_global_transform_interpolated()`, not
-  `global_transform`. A held printer moves only on physics ticks (90 a second);
-  a frame at 72, 60 or 120 Hz sees one tick's move or two, so the speed read off
-  the ticks stutters, and differenced into an acceleration it shook the paper.
-- Speed and acceleration, and the turn rate and its change, are each smoothed
-  over 80 ms; faster than 4 m/s or 12 rad/s is a jump (a snap into a hand), not a
-  push. The turn used to be dumped into the slot's hinge each frame, which kicked
-  the paper with every millimeter of tracking jitter.
-- The surface under the slot is found every 0.2 s but kept as it is in the room
-  and put against the printer every frame, so a tipping printer never meets it a
-  fifth of a second late.
-- `TERMINAL_SPEED`, 0.5 m/s: no point of the paper moves faster against the
-  printer, a step's whole bend scaled down until none does. The hinges each
-  settle almost at once on their own, and together they snapped a long tail from
-  lying on the table to curled up the printer's back in two frames (13 cm).
-  The limit includes contact correction, and corrected hinges do not turn that
-  positional repair into velocity. A regression introducing a finger into the
-  strip reached 1.02 m/s before this fix (2026-10-24).
-- Contact is follow-the-leader (as for hair): from the slot out, each point is
-  carried by its leader's move, pushed out of what it is in, and set back one
-  segment from its leader; the hinges are read back off the points. Turning
-  hinges to push points out was a lever that threw the free end about, and could
-  not lift a point whose segment ran along the push.
-- Nonadjacent paper segments also make contact, checking segment crossings as
-  well as endpoint clearance. The two halves of a torn print meet each other
-  after mirroring into the same frame. Short monotone strips skip self-contact
-  searches, and bounds reject segments far from the other half.
-  A long strip initialized all at once starts short of a closed loop; its
-  springs then recover the roll's curl while respecting contact.
-- The printer's boxes are one solid (a way out of one must be clear of all; the
-  cover's hump and the body sent a point back and forth between them), and reach
-  all the way down: under the printer is never where paper goes (it crept into
-  the half millimeter the shell stands off the table, and was pinched there when
-  the printer was set down). A way out is never deeper into the table than the
-  point already is, and a point in the corner of printer and table goes into the
-  corner in one push.
-- Measured on that probe, first version against this one: a 10 cm strip on a
-  printer held with tracking noise turned its tip back 246 times in 6 s, now 28
-  (worst jerk 15 mm, now 5); tipped back and forth, 188 times, now 4. A 22 cm
-  strip's worst frame-to-frame jerk, tipped on the table, held, or snapped into a
-  hand: 119, 119 and 111 mm, now 10, 12 and 10.
+**How it bends (`PaperSheetSolver`, C++, `paper-godot/src/`).** A step:
+1. Each free particle is carried on by its velocity, the frame's apparent gravity
+   (`GbPaperMotion`: gravity less the slot's acceleration) and its turn, with air drag.
+2. **Bending and twist, implicitly and exactly** (`bend()`): the positions minimizing
+   inertia + EI/2 per rail on each rail's second difference toward the roll's curl +
+   GJ on each row's rung turning from the last. One symmetric banded system over the
+   particles (half-bandwidth 4), the same for all three axes, factored and solved in
+   O(rows). Bent row by row (Gauss-Seidel, as the torn print was) a correction crosses
+   a row an iteration: at 6 mm rows eight iterations left it a third as stiff as EI
+   says and a fold closed to a 7 mm hairpin, and the thirty-two that got it right cost
+   3 ms a step. With no twist term the rails resist twist only at second order, and a
+   strip fed straight wandered 13 cm to the side.
+3. A few iterations of: **both rails to their length, each as one chain** (`rails()`, a
+   tridiagonal Newton step; taken a gap at a time 25 cm hanging read 27 cm long), the
+   rungs and diagonals, the **fold limit** (no tighter than `MIN_RADIUS` 8 mm: the bend
+   energy's pull back falls off past a right angle and is nothing on a fold laid flat,
+   so a loop falling over could snap shut into a crease and stay), the tether (no row
+   farther from a pinned row than the paper between them), the sheet against itself,
+   the printer's boxes, the room's patches, fingertips, the pins.
+4. **Friction**, Coulomb (0.45 static, 0.35 kinetic), on what each particle did along
+   what it was pressed on against how hard it was pressed; against the ROOM for the
+   room's patches (the frame's own velocity and turn are handed in, so paper lying on a
+   table is dragged by the table when the printer is carried) and against the printer
+   for its boxes. Paper on paper rubs the same way. Then no point moves faster than
+   `MAX_SPEED` (0.8 m/s), and velocities are what the particles did.
 
-New lines push the strip out keeping its shape from the free end; a tear starts a
-fresh end of roll. The mesh, the tear trigger's box and the hover outline are laid
-again only once a point has moved 0.05 mm (`VRButton.mesh_changed` drops the
-outline's cached copy).
+**The step is always 1/240 s** (`GbThermalRibbon.STEP`): a frame takes as many whole
+ones as have come due and carries the rest over, eight at most (a hitch is not caught
+up). Where the sheet rests depends a little on the step (the bend solve and the length
+projection are split), and cut to fit each frame the paper never came to rest in a
+window, whose frames are not all alike: 13-30 mm/s for ever, found by the windowed
+probe and not by any fixed-step suite. `paper_sheet_probe -- --feed --uneven` is that.
 
-**The room** (`_find_obstacles`): short rays every fifth of a second, kept in
-the room and placed against the printer each frame -- down under its back, slot
-and front; down from every 2 cm of the paper; and from each of those points to
-the next -- each hit a patch of surface reaching 1.2 cm each way and only for
-paper within 3 cm behind it (`GbPrinterStrip.patches`). So a print hangs over a
-table's edge and stops against a wall. At 4 cm a patch found at the edge reached
-past it into the air, and a render caught a print's end lying out on nothing.
-`GbPaperSweep` also casts between consecutive rendered positions every frame.
-A crossed surface stays active beyond the ordinary 3 cm cutoff until the paper
-has recovered or moved past the patch. Recovery ignores the opposite face of
-the same collider, so a thin tabletop cannot trap the paper between its top
-and underside. The printer and loose printouts both use these sweeps.
+**Rows are places ON THE PAPER.** A row every 6 mm (`ROW`), counted in whole rows from
+the free end, so feeding slides the two rows still in the slot out along it and lets
+the one at the mouth go; what is already out is never re-laid (the chain re-laid every
+hinge on every line). Past 200 rows (1.2 m) every other row is dropped and they are
+12 mm apart, and so on (`_coarsen`); 9 m of paper is 48 mm rows, coarse again but
+rare. More paper than a row at once (a core sending the whole strip) comes out of the
+slot at `FEED_MAX` (0.2 m/s) rather than being laid across the room inside the table;
+`paper_length()` is what the core fed, `paper().out` what is out so far. Less is a
+tear: a fresh end of roll.
 
-**Fingers** (`_place_fingers`): every controller's poke tip (`PokeTip.tip_of`)
-across the paper's width and near the slot is a round obstacle, 9 mm, so a hand
-nudges, flicks or holds up the paper; tearing still needs the trigger.
+**One curl**, 6.5 cm (`CURL_RADIUS`), for the strip and the print alike. The strip had
+13 cm because at anything tighter its end curled in under the printer's base and the
+chain's contact could not get it out.
 
-**The knock and the tear:** the room counts the gear's turns as the core does
-(above, under Sound) and kicks the paper's swing as each knocks; tearing flicks
-the stub back.
+**The room** (`GbPrinter._find_obstacles`): short rays every fifth of a second, kept
+in the room and placed against the printer each frame -- down under its back, slot
+and front; down from BOTH edges of every 2 cm of the paper; and from each of those
+rows to the next -- each hit a patch of surface reaching 1.4 cm round it and only for
+paper within 3 cm behind it. So a print hangs over a table's edge and stops against a
+wall. `GbPaperSweep` also casts between consecutive rendered positions (every third
+row's middle and the free end's corners: a ray a particle was 400 a frame). A crossed
+surface stays active beyond the ordinary 3 cm cutoff until the paper has recovered or
+moved past the patch.
+
+**The printer's own boxes** are one solid, reaching all the way down (under the printer
+is never where paper goes), and a way out of one is taken only if it is clear of all of
+them and no deeper into a surface than the point already is; now out through any of a
+box's six faces, the paper being free to lie beside the printer. Paper within 8 mm of
+the slot's mouth does not meet them (the slot is inside the body's box). **Known
+limit:** contact is per particle, so paper falling across the printer's back edge bends
+up to ~50 degrees there for a moment (64 at `FEED_MAX`); the edge is not rounded.
+
+**Fingers** (`_place_fingers`): every controller's poke tip within 2 cm of the paper is
+a 9 mm sphere, met by each row's RUNG (the edges are 38 mm apart and a finger between
+them touched neither particle), so a hand nudges, flicks or holds up the paper; tearing
+still needs the trigger.
+
+**The knock and the tear** turn the paper about the slot (`GbThermalRibbon.jolt`, a
+velocity to its first 4 cm) and it rings back by its own weight; `jolted` is the wake.
+
+**Drawn** from the same rows (`GbThermalRibbon.mesh_arrays`, the printer's strip and a
+print alike): each row's normal from the rows either side of it, where one flat normal
+a row drew every row as a fold.
+
+**A tear** takes what is past the slot as a sheet of its own (`torn_state`: the paper
+where it hangs with its velocities, its rows evened out, since the stretch at the
+mouth is shorter than a row) and the print starts from exactly that. Torn while a
+strip is still coming out of the slot, the print starts as a fresh sheet (logged).
 
 **Prints are paper** (`GbPrintoutFlop`, on a Poster marked `printout`, or one
-whose picture is in the prints folder): loose, a print is one `GbThermalRibbon`,
-a sheet of two rails (both edges) held to its length and width, bending toward
-the roll's curl and free to bend sideways and twist. It hangs from the hand and
-swings as it moves and stops. Only the row in the hand is pinned: letting go unpins it and moves
-nothing (two halves anchored at the grip used to stay anchored there after
-release, so where it was last held chose how it lay). A tear hands over the
-strip's actual points and velocities, so the print starts exactly as it was on
-the printer. The body's colliders are segments that follow the sheet, not a
-flat board. Stuck to something it is the flat sticker it always was, and so is
-its stick PREVIEW (`Poster.is_previewing()`): the preview slides the Poster's
-`Surface` to the landing, and the bent mesh is a child of that `Surface`, so it
-used to show the curled paper still simulating on the wall. While previewing the
-flop shows the flat sheet and holds the ribbon still, and the paper picks up
-exactly where it was when the wall leaves reach. It sleeps
-once its points have moved less than 0.5 mm/s for half a second -- not on hinge
-speeds, which contact repair zeroes: a print once slept 37 mm short of its curl.
-`GbPaperMotion` reads how a thing is moving for both (off the pose it is drawn
-at, smoothed). The print's own pointer target, a StaticBody3D round the sheet,
-is left out of its look at the table: taken for a surface, it stood half the
-print up.
+whose picture is in the prints folder): loose, a print is the same sheet. It hangs
+from the hand and swings as it moves and stops. Only the row in the hand is pinned:
+letting go unpins it and moves nothing. The body's colliders are boxes that follow the
+sheet, each over a few rows and no more than 48 of them (a box a row would be 199
+shapes on a long print's body). Stuck to something it is the flat sticker it always
+was, and so is its stick PREVIEW (`Poster.is_previewing()`): the preview slides the
+Poster's `Surface` to the landing, and the bent mesh is a child of that `Surface`, so
+it used to show the curled paper still simulating on the wall. While previewing the
+flop shows the flat sheet and holds the ribbon still, and the paper picks up exactly
+where it was when the wall leaves reach. It sleeps once its points have moved less
+than 0.5 mm/s for half a second. `GbPaperMotion` reads how a thing is moving for both
+(off the pose it is drawn at, smoothed). The print's own pointer target, a
+StaticBody3D round the sheet, is left out of its look at the table: taken for a
+surface, it stood half the print up.
 
 **Dropped prints (2026-10-25):** the rigid body owns falling and impact response;
-the loose ribbon relaxes its bend without a second acceleration impulse from
+the loose sheet relaxes its bend without a second acceleration impulse from
 the body's collision. Existing penetration is recovered by translating the
 whole body (`GbThermalRibbon.body_shift`), with surface patches moved into that
 recovered frame. Bending still respects surface contact. Previously each rail
@@ -231,8 +240,7 @@ landing therefore buckled the print around its center, then flattened its curl.
 Contact-normal velocity is now removed after positional repair, and a supported
 body can sleep after its bending, translation and rotation settle. A regression
 that puts a curled 24 cm print 4 mm into a table preserves its shape and clears
-the table; omitting whole-body recovery makes it deform 5 mm and adds 0.33 m/s
-of bending speed. Real-body drops in three orientations check length, folds,
+the table. Real-body drops in three orientations check length, folds,
 table clearance and settling. Loose prints retain their roll curl on landing;
 this is not a permanent-crease simulation.
 
@@ -258,77 +266,37 @@ landing, and seeing it repeat with `settled print stirs` means something is waki
 
 **The paper on the printer RESTS too (2026-11-10).** Until then every printer stepped,
 swept and redrew its strip every frame for as long as the room was open, standing still
-or not, at up to eight 1/240 s substeps a frame, and the sweep also gathered the printer's
-own bodies with a recursive `find_children` every frame. Now `_move_paper` stops once the
-printer has been drawn at one pose and the strip has turned slower than `PAPER_SETTLED`
-(0.02 rad/s, `GbPrinterStrip.motion()`, which already counts contact buzz under
-`REST_SPEED` as rest) for `PAPER_SETTLE_TIME` (0.5 s). At rest only `_paper_wake` runs, plus
+or not. Now `_move_paper` stops once the printer has been drawn at one pose and no point
+of the paper has moved faster than `PAPER_SETTLED` (0.5 mm/s, `GbThermalRibbon.move_speed`)
+for `PAPER_SETTLE_TIME` (0.5 s). At rest only `_paper_wake` runs, plus
 a whole update every `FLOOR_EVERY` so the room is still looked at (a table taken away still
 drops the paper). It wakes, saying why in `[GbPrinter] paper stirs: …`, on any of these:
 the drawn pose differing from the one it rested at, the pivot turning, the length changing
-(a line fed, a tear), the motor running, a swing (`sway_speed`, which a knock or a tear's
-flick gives it), or a fingertip at the paper. A knock rings a short stub for about two
-seconds before it is quiet. The sweep's exclusions are `_own_rids`, gathered by
-`_find_obstacles`. `gb_printer_tests --only=rest` checks a still printer rests and updates
-only for the room's look (≤ 7 a second, against every frame without it), and that each wake
-brings the paper back; each wake check was mutation-tested. A printer leaves bodies
+(a line fed, a tear, or a strip still coming out), the motor running, a knock or a tear's
+flick (`jolted`), or a fingertip at the paper. The sweep's exclusions are `_own_rids`,
+gathered by `_find_obstacles`. `gb_printer_tests --only=rest` checks a still printer rests
+and updates only for the room's look (≤ 7 a second, against every frame without it), and
+that each wake brings the paper back. A printer leaves bodies
 BESIDE itself (its battery bay's: `BatteryBay` adds cells to `current_scene`, which in a
 suite is the suite): a case that makes one must free what it added, or a body left in the
 air sits in the next case's stick ray (it previewed `Poster`'s stick and hid the
-bent print). The headset and a Quest's measured saving are OWED.
+bent print). A metre of paper printed in the windowed probe rests 1.8 s after the last line.
 
-**Two curls:** a torn print curls at 6.5 cm (`GbThermalRibbon.CURL_RADIUS`), the
-strip still on the printer at 13 cm. At 6.5, 8 and 9 cm a long strip's end curled
-in under the printer's base: the gap between the case and the table is half a
-millimeter, and contact capped at the air's speed limit cannot get it back out
-(uncapped, the paper jumps 24 mm a frame). No radius from 6.5 to 13 passed every
-strip check, so the strip keeps the one that did. One curl for both needs the
-strip's contact against the case reworked. A strip lying on the case buzzes
-about 0.1 mm a frame for ever; `motion()` ignores contact repair below
-`REST_SPEED` (12 mm/s).
+**paper-godot is the only solver, and it is per platform.** The binaries are gitignored
+and `Tools/build.py` builds one platform: a platform left on a build from before
+2026-11-12 has no `PaperSheetSolver`, and there the paper **holds its shape and does not
+move**, said once at error level (`[GbPrinter] paper-godot has no PaperSheetSolver …`).
+`gb_printer_tests` fails on it (`_test_paper_solver_is_loaded`). Rebuild windows AND
+android (`python Tools/build.py <platform> --only paper-godot`). The class name is new on
+purpose: a stale library is told by `ClassDB.class_exists`, not by a call that fails.
 
-**Native solvers (2026-11-10): `paper-godot`** (`extensions.md`). Both solvers' `step()`
-run as C++ when the library is loaded; the scripts are the reference and the fallback.
-`Tools/perf/paper_native_probe.tscn` runs 45 cases three ways (script, native with the
-engine's trig, native as it runs) and times them; on a Quest 3 (`Quest paper probe`
-preset, `com.xenu.retroxr.ppprobe`), ms a frame, script -> native:
-
-| case | script | native |
-|---|---|---|
-| a held print 0.6 m among 49 patches | 11.5 | 0.49 |
-| a print landing, 1.2 m | 11.0 | 0.44 |
-| the strip, 1.2 m, on the case, a table and a wall | 3.1 | 0.10 |
-| the strip, 0.6 m, against a torn half | 4.4 | 0.09 |
-
-8-51x (2x on the first, cold, 4 cm case); the script ribbon could take a whole 11.1 ms Quest frame alone. Desktop 6-27x. On
-desktop both agree to the bit (`gb_printer_tests --only=native`, mutation-tested by a float
-`wrapf` and by one ribbon iteration fewer); on a Quest the ribbon still does and the strip
-parts at 1e-9 from frame one (compilers), which contact grows as it grows any last-bit
-difference. `paper_cpu_probe -- --compare` matched all 1,200 baseline poses on desktop.
-
-**CPU cost (2026-10-25):** both solvers use `GbPaperContacts`, a 4 cm spatial
-grid over the finite surface patches. Only nearby candidates reach the original
-contact tests, in their original order. Ribbon contact queries again after a
-push crosses cells; whole-body recovery shifts the query frame with the patches.
-Large swept-recovery patches use a bounded fallback rather than filling an
-unbounded number of cells. Self-contact bounds are cached per segment, and the
-ribbon's inverse masses are cached per step. These change lookup work, not the
-segment count, collision skin, stiffness or normal simulation rate.
-
-`Tools/perf/paper_cpu_probe.gd` is the repeatable headless microbenchmark:
-five lengths (4 cm to 1.2 m), with and without 49 surface patches, 60 frames per
-case at 90 Hz. `-- --baseline` saves every pose to repo-root `build_out/`;
-`-- --compare` requires all 1,200 poses to match exactly. Measured on this desktop,
-the 1.2 m dense-contact case went from 4.27 to 1.07 ms/update on the printer and
-16.70 to 5.83 ms/update for a held torn print (75% and 65% less solver CPU).
-These timings exclude rendering, room ray casts and rigid-body physics; Quest
-timings remain unmeasured. The pose comparison passed exactly. The paper suite
-also compares indexed contacts with checking every patch, including a push
-into a new cell and translated recovery patches.
-
-Both solvers cap catch-up at eight 1/240-second substeps per frame. Normal
-30 Hz and faster updates are unchanged; below 30 FPS, paper simulation advances
-more slowly instead of accumulating extra work that makes the next frame worse.
+**Cost** (this desktop, the editor's `template_debug` library, a whole frame's steps at
+90 Hz, `Tools/perf/paper_sheet_probe.tscn`): 0.06 ms for 4 cm, 0.18 ms for 22 cm,
+0.4 ms for 60 cm to a metre (100-170 rows) with the printer and a table to meet. The old
+chain was 0.10 ms native on a Quest 3 for 1.2 m and the old 48-row print 0.44; this is
+three to four times the rows of either, so expect it dearer there while a long strip
+MOVES, and nothing once it rests. **Not measured on a Quest** (the `Quest paper probe`
+preset now starts `paper_sheet_probe`, which prints the same lines to logcat).
 
 **Rolls:** `GbPrinterPaper.ROLLS`, the three Nintendo sold: white printing sepia,
 yellow printing black (the roll in the printer's box) and blue printing black
@@ -423,8 +391,13 @@ the same paper from the same agreed inputs.
   Its Album is all locked on a fresh save; its pictures need a save with progress
   (no trustworthy complete save was found online).
 - `Tools/link/gb_printer_room_probe` (windowed, `--frames` for an mp4): a Game Boy
-  stand-in cabled to the printer with the real lead, print, tear. 20/20 both
-  cores. Writes into the REAL prints folder and removes it.
+  stand-in cabled to the printer with the real lead, print, tear. Writes into the
+  REAL prints folder and removes it. It reads the paper from the PRINTER
+  (`_paper_image`): the core's frame is only the newest window of it, and converting
+  that frame in place took its header with it, after which the printer read the next
+  one as a whole 129-line strip (found red on both counts 2026-11-12; not checked
+  when it went red). 21/21 on gambatte and on mGBA with the one-sheet paper
+  (2026-11-12): the print stands out of the slot, tears, and is handed over where it hangs.
 - `Tools/netplay/gb_printer_netplay_probe` (headless): two replicated pairs,
   gated, the cable seated with every core held; then only the printers are held at
   each checkpoint while the Game Boys run on (inputs ahead of the cores, as in a
@@ -432,9 +405,20 @@ the same paper from the same agreed inputs.
   byte-identical across peers at every checkpoint to frame 2400, FEED and TEAR as
   agreed input. 20/20 both cores.
 - `Tests/gb_printer_tests` (headless, no core) and the printer's row in
-  `link_tests`' socket matrix.
+  `link_tests`' socket matrix. `-- --only=paper` is the sheet alone (62 cases, 20 s);
+  `--tune=<constant>:<value>` changes one of the solver's constants for the run, which
+  is how its cases were mutation-tested (2026-11-12: `min_radius:0.0001` reds the
+  creasing cases, `gj:0` the twist bound, `ei:0.000002` seven, `self_gap:0` the
+  self-crossing and the wall, `mu_static:0` the tipped table, `iterations:1` six).
+- `Tools/room/gb_paper_probe` (windowed, `-- --out=DIR`): a real printer on a real table
+  prints a metre, then is carried 20 cm along it; stills and frames for an mp4. How the
+  paper LOOKS is this, not the suite. Measured 2026-11-12: 169 rows of 6 mm, sharpest
+  turn 50 degrees while printing (across the printer's back edge) and 20 at rest, lying
+  on the table (lowest point at the table top), at rest 1.8 s after the last line.
+- `Tools/perf/paper_sheet_probe` (headless): how it stands, falls over and feeds, and
+  what a step costs; `-- --feed --uneven` for a window's uneven frames.
 
-**OWED:** a pulled lead mid-session on mGBA (above), the headset (how the strip and the tear feel), the Quest (the core's
+**OWED:** a pulled lead mid-session on mGBA (above), the headset (how the paper and the tear feel: the one-sheet paper of 2026-11-12 has been seen only in the desktop probe), the paper's cost and look on a Quest, the Quest (the core's
 Android build is in its release; never run on device), a real two-headset
 session, a late join, other printing games (Pokemon's Pokedex, Zelda DX), and a
 recording of the real sound.
