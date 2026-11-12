@@ -59,6 +59,13 @@ const TRIGGER_OFF := 0.4
 ## Default (0,-1,0) pushes down on Y.  For front-face buttons derive it from
 ## the model's Finger Button empty's -Z axis via set_depress_axis_from_node().
 @export var depress_axis: Vector3 = Vector3(0, -1, 0)
+## A glyph (a Symbols Nerd Font codepoint) standing in front of the button while a pointer or a hand is on it: what
+## pressing it does (an arcade cabinet's coin slot shows a coin going in). 0 shows none.
+@export var hover_glyph: int = 0
+## Where the glyph stands, in the button's frame.
+@export var hover_glyph_offset: Vector3 = Vector3(0.0, 0.03, 0.03)
+## The glyph's height, metres.
+@export var hover_glyph_size: float = 0.035
 
 ## Optional veto, called with a fingertip's WORLD position; false rejects the poke.
 ## Left empty by every button that has no side to it. See _gate_allows.
@@ -91,6 +98,7 @@ var _pointer_pressed: bool = false
 ## The pointers on this (a laser per hand, or the desktop reticle). Hover is
 ## any of them, so one leaving does not unlight what the other is still on.
 var _hover_pointers: Dictionary = {}
+var _glyph: Label3D = null
 var _pointer_hovered: bool:
 	get: return not _hover_pointers.is_empty()
 var _latched_pressed: bool = false
@@ -162,6 +170,7 @@ func _process(delta: float) -> void:
 		else:
 			_armed = false
 	_sync_outline()
+	_sync_glyph()
 	# Idle long enough, the button sleeps until PokeWake finds a tip in reach.
 	_poke_idle = PokeWake.tick(self, near or _touch_ctrl != null or _trigger_pressed
 		or _pointer_pressed or _pointer_hovered or _selected or _armed, _poke_idle)
@@ -383,6 +392,7 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 			_hover_pointers.erase(event.pointer)
 			_pointer_pressed = false
 			_update_visual_state()
+			_sync_glyph()
 		XRToolsPointerEvent.Type.PRESSED:
 			_hover_pointers[event.pointer] = true
 			_pointer_pressed = true
@@ -609,6 +619,35 @@ func outline_color() -> Color:
 ## Green while armed (the trigger will act here), amber while the trigger is down.
 ## The pointer-hover outline is unchanged by require_trigger — the laser has always
 ## highlighted what it is over.
+## The hover glyph (hover_glyph): made the first time it is wanted, shown while a pointer or a hand is on the button.
+func _sync_glyph() -> void:
+	if hover_glyph == 0:
+		return
+	var on := _pointer_hovered or _armed or _pointer_pressed
+	if _glyph == null:
+		if not on:
+			return
+		_glyph = Label3D.new()
+		_glyph.name = "HoverGlyph"
+		var fv := FontVariation.new()
+		fv.base_font = ThemeDB.fallback_font
+		var symbols: Font = load(VRHinge.SYMBOL_FONT_PATH)
+		if symbols != null:
+			fv.fallbacks = [symbols]
+		_glyph.font = fv
+		_glyph.font_size = 96
+		_glyph.pixel_size = hover_glyph_size / 96.0
+		_glyph.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_glyph.no_depth_test = true
+		_glyph.render_priority = 2
+		_glyph.outline_size = 18
+		_glyph.outline_modulate = Color(0.0, 0.0, 0.0, 0.7)
+		_glyph.text = String.chr(hover_glyph)
+		add_child(_glyph)
+		_glyph.position = hover_glyph_offset
+	_glyph.visible = on
+
+
 func _sync_outline() -> void:
 	if _outline == null:
 		return

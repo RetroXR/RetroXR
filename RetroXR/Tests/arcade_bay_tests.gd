@@ -566,6 +566,9 @@ func _hk_build(jamma: bool) -> void:
 		_hk_node(m, "Marker3D", "JvsLead", Vector3(0.2, 0.1, -0.8))
 	_hk_node(m, "Marker3D", "BoardPowerLead", Vector3(0.25, 0.15, -0.8))
 	_hk_node(m, "Marker3D", "GdDriveAnchor", Vector3(0.22, 0.0, -0.3))
+	# The main switch on the back, pressed from behind.
+	_hk_node(m, "Marker3D", "PowerSwitchAnchor", Vector3(0.1, 0.12, -0.9))
+	_hk_node(m, "Marker3D", "PowerSwitchAim", Vector3(0.1, 0.12, -1.2))
 	# The VGA socket faces back (its plug from behind); a door at the front right, hinged on its right edge.
 	_hk_node(m, "Marker3D", "VgaLeadAim", Vector3(-0.2, 0.3, -1.2))
 	var dpiv := _hk_node(m, "Node3D", "DriveDoorPivot", Vector3(0.30, 0.05, 0.0))
@@ -619,6 +622,11 @@ func _hk_run() -> void:
 		return
 	_ok(NaomiHookup.wired(model), "hookup: the cabinet has the NAOMI's leads")
 	_ok(model.find_child("IoBoard", true, false) != null, "hookup: and its I/O board, the JVS socket on it")
+	var power_btn := sys.get_node_or_null("PowerButton") as Node3D
+	var switch_at := model.find_child("PowerSwitchAnchor", true, false) as Node3D
+	_ok(power_btn != null and switch_at != null and power_btn.global_position.distance_to(switch_at.global_position) < 0.005
+		and power_btn.global_basis.y.dot(Vector3.FORWARD) > 0.9 and not (power_btn.get_node("ButtonMesh") as Node3D).visible,
+		"hookup: the power button is the cabinet's main switch, on its back, pressed from behind, its own face hidden")
 	_ok(model.hookup_missing().is_empty() and not model.input_cut(), "hookup: fresh, it comes wired (%s)" % str(model.hookup_missing()))
 	# Every cord out, both ends.
 	for pn: String in [NaomiHookup.BOARD_POWER, NaomiHookup.BOARD_VGA, NaomiHookup.BOARD_AUDIO_L, NaomiHookup.BOARD_AUDIO_R, NaomiHookup.BOARD_JVS]:

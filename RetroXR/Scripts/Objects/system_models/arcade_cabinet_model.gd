@@ -725,7 +725,13 @@ func configure_buttons(power_btn: VRButton, reset_btn: VRButton, eject_btn: VRBu
 	eject_btn.set_active(false)
 	eject_btn.hide()
 	var seat: Node3D = _bay.power_switch_seat() if _bay != null else null
-	if seat != null:
+	var switch_at: Variant = get_meta(POWER_SWITCH_META, null)
+	if switch_at is Transform3D:
+		power_btn.global_transform = global_transform * (switch_at as Transform3D)
+		var face := power_btn.get_node_or_null("ButtonMesh") as Node3D
+		if face != null:
+			face.hide()
+	elif seat != null:
 		power_btn.global_transform = seat.global_transform
 	var lbl := power_btn.get_node_or_null("ButtonLabel") as Label3D
 	if lbl != null:
@@ -738,6 +744,9 @@ const POINTER_MESH_META := &"arcade_pointer_mesh"
 ## On the cabinet: its whole collision as boxes (an Array of AABB, the cabinet's frame), in place of the generic shell's
 ## (ArcadeCabinetFromModel.solid_boxes).
 const SHELL_BOXES_META := &"arcade_shell_boxes"
+## On the cabinet: where its main switch is (a Transform3D in the cabinet's frame, the button's +Y out of the switch):
+## the power button goes there with its own look hidden, so the model's switch is what is seen and pressed.
+const POWER_SWITCH_META := &"arcade_power_switch"
 
 
 ## One box per solid part, leaving the bay open so a board can be carried into it.

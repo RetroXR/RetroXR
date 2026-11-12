@@ -22,6 +22,9 @@
 ##                                                                                  the cabinet's X, with a hinge to take it by
 ##   <Lead>Aim (beside any of the leads below)                                      the way that lead's socket faces: its
 ##                                                                                  plug comes from there
+##   PowerSwitchAnchor, PowerSwitchAim                                              the cabinet's main switch (on its AC
+##                                                                                  unit): the power button goes there,
+##                                                                                  pressed toward the anchor from the aim
 ##   GdDriveAnchor                                                                  where a NAOMI GD-ROM drive stands: a
 ##                                                                                  snap zone that takes one (GdDriveMount)
 ##   Marquee, MarqueeArt                                                            found by the cabinet as they are
@@ -99,6 +102,15 @@ func _ready() -> void:
 			var solid: Array = root.get_meta(ArcadeCabinetBuilder.SOLID_BOXES_META, [])
 			solid.append(AABB(Vector3(-ab.size.x * 0.5, 0.0, -half), Vector3(ab.size.x, ab.size.y, half - 0.40)))
 			root.set_meta(ArcadeCabinetBuilder.SOLID_BOXES_META, solid)
+	# The main switch where the model has it: the cabinet's power button goes there (configure_buttons).
+	var sw := _part("PowerSwitchAnchor")
+	if root != null and sw != null:
+		var aim := _part("PowerSwitchAim")
+		var up := (aim.global_position - sw.global_position).normalized() if aim != null else Vector3.BACK
+		var side := Vector3.UP if absf(up.dot(Vector3.UP)) < 0.95 else Vector3.BACK
+		var x := side.cross(up).normalized()
+		var b := Basis(x, up, x.cross(up).normalized())
+		root.set_meta(RetroSystemModelArcadeCabinet.POWER_SWITCH_META, (root as Node3D).global_transform.affine_inverse() * Transform3D(b, sw.global_position))
 	# Aimed at by its own mesh (RetroSystemModelArcadeCabinet._build_pointer_shapes), not the generic shell's boxes.
 	var body := _model.find_child("Body", true, false) as MeshInstance3D
 	if root != null and body != null:

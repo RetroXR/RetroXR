@@ -65,9 +65,16 @@ func _init() -> void:
 	kind = ArcadeProfiles.KIND_COIN
 
 
+## The glyph the coin slot shows while pointed at (Symbols Nerd Font, md f1890).
+const COIN_GLYPH := 0xF1890
+
+
 func attach(p_cabinet: RetroSystemModel) -> void:
 	super.attach(p_cabinet)
 	_slot_button = find_child("CoinSlot", true, false) as VRButton
+	# Pointed at, the slot shows what it does: a coin going in (md-hand_coin, f1890).
+	if _slot_button != null:
+		_slot_button.hover_glyph = COIN_GLYPH
 	_return_button = find_child("CoinReturn", true, false) as VRButton
 	_spawn = find_child("CoinSpawn", true, false) as Node3D
 	_drop = find_child("CoinDrop", true, false) as Node3D
