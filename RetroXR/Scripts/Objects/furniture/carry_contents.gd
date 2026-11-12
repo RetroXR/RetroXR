@@ -19,6 +19,8 @@ extends RefCounted
 ## 3 m/s: below it, what is in it is carried by physics (its continuous collision is off, _watch_ccd); above it, a swing
 ## or a teleport, no physics could follow. CC_LATCH overrides it for testing.
 var LATCH_SPEED := float(OS.get_environment("CC_LATCH")) if OS.has_environment("CC_LATCH") else 3.0
+## Nothing latches below this, however thin (a cartridge's own speed is ~0.7 m/s, _latch_speed).
+const MIN_LATCH_SPEED := 0.4
 ## Let go again once every bin has been slower than this for UNLATCH_AFTER seconds.
 const UNLATCH_SPEED := 0.3
 const UNLATCH_AFTER := 0.2
@@ -34,6 +36,8 @@ var _have_prev := false
 ## Latched bodies by instance id: {body, rel (its pose in the piece's frame), freeze_mode}.
 var _latched: Dictionary = {}
 var _slow_for := 0.0
+## Each body's thinnest extent (m), by instance id: worked out once (_latch_speed).
+var _thin: Dictionary = {}
 var _query := PhysicsShapeQueryParameters3D.new()
 var _query_box := BoxShape3D.new()
 
@@ -51,9 +55,12 @@ func step(piece: RigidBody3D, held: bool, delta: float) -> void:
 		return
 	var motion := now * _prev.affine_inverse()
 	var fastest := _fastest_bin(motion, delta)
-	if fastest > LATCH_SPEED:
+	if fastest > MIN_LATCH_SPEED:
+		# Each thing latches at its OWN speed (_latch_speed: thin things sooner), so a cartridge can be latched while
+		# a box beside it is still riding by physics.
+		_latch_new(piece, fastest, delta)
+	if fastest > MIN_LATCH_SPEED and not _latched.is_empty():
 		_slow_for = 0.0
-		_latch_new(piece, fastest)
 	elif fastest < UNLATCH_SPEED:
 		_slow_for += delta
 	else:
@@ -86,7 +93,7 @@ func _fastest_bin(motion: Transform3D, delta: float) -> float:
 
 ## Latch whatever lies in a bin and is not latched yet. Queried where the bins WERE (the piece has already been moved
 ## this tick, the things in it not yet), and each is put where it lay relative to the piece then.
-func _latch_new(piece: RigidBody3D, speed: float) -> void:
+func _latch_new(piece: RigidBody3D, speed: float, delta: float) -> void:
 	if bins.is_empty() or not piece.is_inside_tree():
 		return
 	var space := piece.get_world_3d().direct_space_state
@@ -108,6 +115,8 @@ func _latch_new(piece: RigidBody3D, speed: float) -> void:
 				continue
 			# Frozen means somebody else owns its pose (a hand, a socket, the cartridge in a console in the drawer).
 			if rb.freeze or (rb is XRToolsPickable and (rb as XRToolsPickable).is_picked_up()):
+				continue
+			if speed < _latch_speed(rb, delta):
 				continue
 			_latched[rb.get_instance_id()] = {"body": rb, "rel": _prev.affine_inverse() * rb.global_transform,
 				"mode": rb.freeze_mode}
@@ -199,3 +208,22 @@ func _watch_ccd(piece: RigidBody3D) -> void:
 		if is_instance_valid(rb):
 			(rb as RigidBody3D).continuous_cd = true
 		_ccd_off.erase(id)
+
+
+## The speed a body is latched at: its bin moving its own THINNEST extent in one tick, never above LATCH_SPEED. A Game
+## Boy cartridge (7.5 mm) fell through a drawer floor lifted at 2.5 m/s, 28 mm a tick, where a 30 mm box and a 22.5 mm
+## remote rode (2026-11-12, again/ "cartridges"): 7.5 mm a tick at 90 Hz is 0.68 m/s.
+func _latch_speed(rb: RigidBody3D, delta: float) -> float:
+	var id := rb.get_instance_id()
+	if not _thin.has(id):
+		var thin := INF
+		for owner_id in rb.get_shape_owners():
+			var t := rb.shape_owner_get_transform(owner_id)
+			for i in rb.shape_owner_get_shape_count(owner_id):
+				var mesh := rb.shape_owner_get_shape(owner_id, i).get_debug_mesh()
+				if mesh == null:
+					continue
+				var box := (t * mesh.get_aabb()).size
+				thin = minf(thin, minf(box.x, minf(box.y, box.z)))
+		_thin[id] = thin if thin < INF else 0.0
+	return minf(LATCH_SPEED, float(_thin[id]) / maxf(delta, 0.0001))
