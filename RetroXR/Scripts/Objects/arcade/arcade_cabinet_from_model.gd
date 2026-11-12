@@ -125,6 +125,25 @@ func _ready() -> void:
 	_build_doors()
 
 
+## A door's solid part: a box over its bounds that swings with it (a body that moves with its pivot), so a cord lies
+## against a shut door rather than through it. On the World layer the cords collide with; the desktop pointer sees past
+## it (InteractionResolver.POINTER_BY_AREA) to the door's own grab.
+func _door_body(pivot: Node3D, bounds: AABB) -> void:
+	var body := AnimatableBody3D.new()
+	body.name = "DoorBody"
+	body.collision_layer = 1
+	body.collision_mask = 0
+	body.sync_to_physics = false
+	body.set_meta(InteractionResolver.POINTER_BY_AREA, true)
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = bounds.size.max(Vector3(0.005, 0.005, 0.005))
+	col.shape = shape
+	col.position = bounds.get_center()
+	body.add_child(col)
+	pivot.add_child(body)
+
+
 ## The cabinet's ends of the board's cords, at the model's leads (NaomiHookup reads them): the monitor's VGA and the
 ## amplifier's phono jacks in, the I/O board's JVS socket (a USB-B), the supply's power lead and, in a JAMMA cabinet,
 ## the JAMMA harness. Each takes its plug along -Z.
@@ -230,6 +249,7 @@ func _build_doors() -> void:
 		grab.set("grip_engages", true)
 		grab.set("box_engages", true)
 		turn.add_child(grab)
+		_door_body(turn, db)
 		grab.position = db.get_center()
 		var col := CollisionShape3D.new()
 		var shape := BoxShape3D.new()
@@ -421,6 +441,7 @@ func _build_bay() -> void:
 		grab.collision_mask = 0
 		grab.set("engage_radius", 0.12)
 		pivot.add_child(grab)
+		_door_body(pivot, db)
 		grab.position = db.get_center()
 		var col := CollisionShape3D.new()
 		var shape := BoxShape3D.new()
