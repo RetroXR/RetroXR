@@ -127,7 +127,7 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 	if harness != null and _port(cabinet, CAB_JVS) == null:
 		var conv := (load("res://Scenes/Objects/peripherals/jvs_jamma_converter.tscn") as PackedScene).instantiate() as Node3D
 		home.add_child(conv)
-		conv.global_transform = (bay as Node3D).global_transform.translated_local(Vector3(0.0, 0.08, 0.0))
+		conv.global_transform = _converter_seat(cabinet, bay as Node3D)
 		if conv is RigidBody3D:
 			(conv as RigidBody3D).freeze = true
 		var jc := (load("res://Scenes/Objects/cables/jamma_cable.tscn") as PackedScene).instantiate() as Node3D
@@ -165,6 +165,26 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 			var plug := cable.get_node_or_null(str(seats[i][0])) as Node3D
 			if plug != null:
 				(ports[i] as Port).pick_up_object(plug)
+
+
+## Where a fresh JAMMA cabinet's converter stands: on the floor under the board, found by a ray down the cabinet's own
+## mesh (a cabinet from a model is aimed at by it); the board's shelf is in the air, and the converter was laid on top of
+## the board or off the shelf's edge. A cabinet without that mesh: on top of the board, as before.
+static func _converter_seat(cabinet: Node, bay: Node3D) -> Transform3D:
+	var on_board := bay.global_transform.translated_local(Vector3(0.0, 0.08, 0.0))
+	var world := bay.get_world_3d()
+	if world == null:
+		return on_board
+	# From under the shelf the board stands on (a few centimetres of plate), down.
+	var from := bay.global_transform * Vector3(0.0, -0.03, 0.0)
+	var q := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 0.6, 1 << 20)
+	q.collide_with_areas = false
+	var hit := world.direct_space_state.intersect_ray(q)
+	# The cabinet's own mesh is its machine's pointer area (the system the cabinet model is in).
+	var machine := (cabinet as Node).get_parent()
+	if hit.is_empty() or machine == null or not machine.is_ancestor_of(hit["collider"] as Node):
+		return on_board
+	return Transform3D(bay.global_basis, hit["position"] as Vector3 + Vector3.UP * 0.001)
 
 
 ## A socket made in code: the snap zone with a script and its plug family set before it is in the tree.
