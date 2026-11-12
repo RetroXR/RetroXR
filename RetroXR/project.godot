@@ -324,11 +324,11 @@ common/physics_ticks_per_second=90
 common/physics_interpolation=true
 
 [rendering]
-pathtracing/max_transparency_layers=0
 
 textures/vram_compression/import_etc2_astc=true
 reflections/reflection_atlas/reflection_count=4
 anti_aliasing/quality/msaa_3d=1
+pathtracing/max_transparency_layers=0
 openxr/multiview=true
 renderer/rendering_method.android="mobile"
 renderer/mobile/render_directly_to_target=true
@@ -337,6 +337,10 @@ driver/threads/thread_model.windows=2
 
 [shader_globals]
 
+path_traced={
+"type": "bool",
+"value": false
+}
 META_ENVIRONMENT_DEPTH_TEXTURE={
 "type": "sampler2DArray",
 "value": ""

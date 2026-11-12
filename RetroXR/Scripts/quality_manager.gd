@@ -361,6 +361,7 @@ func _ready() -> void:
 	_read_vrs_overrides()
 	adjust_lights()
 	apply_render_scale()
+	RenderingServer.global_shader_parameter_set(&"path_traced", effective_path_tracing())
 	apply_msaa()
 	apply_post_aa()
 	apply_forced_quality()
@@ -1018,6 +1019,8 @@ func set_pt_samples(count: int) -> void:
 ## The room's Environment carries the switch, and the root viewport the DLSS
 ## pass that denoises it, so both move together.
 func apply_path_tracing() -> void:
+	# For shaders whose vertex() does what the tracer's capture cannot keep (paper.gdshader's UV).
+	RenderingServer.global_shader_parameter_set(&"path_traced", effective_path_tracing())
 	for node in get_tree().root.find_children("*", "WorldEnvironment", true, false):
 		configure_environment(node as WorldEnvironment)
 	apply_render_scale()

@@ -87,6 +87,11 @@ uniform float stack_layer = 0.0;
 // vertex (UV moves with it); the shape is the same function of u, only sampled
 // where it curves.
 uniform float spine_density = 0.0;
+// Set by QualityManager while NVIDIA's path tracer runs. Its vertex capture keeps the positions vertex()
+// writes but never the UV: a sheet whose columns spine_density had gathered was traced with the mesh's
+// own UVs on the moved points, and its print slid and stretched across the page as the book flopped
+// (2026-11-12). Traced, the columns stay as built.
+global uniform bool path_traced;
 // The bend of the BLOCK of each half (this sheet's own and the far one), for which
 // way is up in the pile. From the sheet's own bend, a page taken off a fan 44
 // degrees up had its up turned so far from the leaf under it that at a grazing
@@ -129,7 +134,7 @@ const float PAPER_PI = 3.14159265;
 void vertex() {
 	float w = max(page_size.x, 1e-5);
 	float h = max(page_size.y, 1e-5);
-	if (spine_density != 0.0) {
+	if (spine_density != 0.0 && !path_traced) {
 		float t = clamp(0.5 + spine_sign * VERTEX.x / w, 0.0, 1.0);
 		t += spine_density * (t * t - t);
 		VERTEX.x = spine_sign * (t - 0.5) * w;
