@@ -66,6 +66,15 @@ a mover at the grab driver's priority (`vr_drawer_tests haul/`) and in the windo
   in the drawer ("an invisible object in there"). `vr_drawer_tests real/` drives xr-tools' own `pick_up`/`let_go`
   with a real `XRToolsFunctionPickup`, and a ray-style hold with no signals at all.
 
+**"The collision is off after I carried it"** (reported 2026-11-12 on PC, laser carry, any drawer; NOT reproduced: a
+real ray grab with a quarter turn, a hand grab and the real buttons all leave every handle area, handle box and drawer
+body where the drawer is drawn, 0.0 mm, headless and windowed at 144 fps; `vr_drawer_tests again/`). So the pieces
+now say it themselves: half a second after being put down each logs `put down at ..., collision against the nodes:`
+with every drawer's handle area, handle box and body (`VRDrawer.collision_report`: the body against its parent times
+the drawn `_follow`, never against its own node, which reads the physics pose back and would be wrong WITH it; the
+`node` figure trails by a tick while the piece is still falling, 17 mm at 1.5 m/s, and means nothing). A laser or
+crosshair press on a handle logs whether it met the box, and a press in the box that is refused logs why.
+
 ## The nightstand (`Scenes/Objects/furniture/nightstand.tscn`, `Nightstand`)
 
 RetroXR-models `generic/nightstand` (Blender 5.3, its own level loop on applkit geometry; real walnut/birch textures,

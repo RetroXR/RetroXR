@@ -192,6 +192,7 @@ func _physics_process(_delta: float) -> void:
 		if not held:
 			for d in _drawers:
 				(d["lid"] as CollisionShape3D).disabled = true
+			_report_collision_later()
 	if held:
 		for d in _drawers:
 			_fit_lid(d)
@@ -227,3 +228,17 @@ func _box(shape_name: String, centre: Vector3, size: Vector3) -> CollisionShape3
 static func _v3(a: Variant) -> Vector3:
 	var arr := a as Array
 	return Vector3(float(arr[0]), float(arr[1]), float(arr[2]))
+
+
+## Put down: half a second on, where the physics engine has each drawer's handle and body against what is drawn. A
+## report of "the collision is off after carrying it" is answered by this line.
+func _report_collision_later() -> void:
+	await get_tree().create_timer(0.5).timeout
+	if not is_inside_tree():
+		return
+	var handles: Array = drawers()
+	var rows := []
+	for d: VRDrawer in handles:
+		var r := d.collision_report()
+		rows.append("%s area %.1f box %.1f body %.1f (node %.1f) mm" % [d.name, r["area"], r["box"], r["body"], r["node"]])
+	print("[DrawerFurniture] %s: put down at %s, collision against the nodes: %s" % [name, global_position, ", ".join(rows)])

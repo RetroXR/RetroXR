@@ -3,7 +3,7 @@
 ## front pushes it in (but never one reaching INTO it), the grip never lifts the furniture, its open amount saves, and
 ## what rests in it rides out with it. The nightstand is turned 90 degrees and moved, so a frame mix-up shows.
 ##   godot --headless --path RetroXR res://Tests/vr_drawer_tests.tscn [-- --only=<group>]
-## Groups: rig contract latch grip coast soft push save carry haul real mission
+## Groups: rig contract latch grip coast soft push save carry haul real mission again
 extends "res://Tests/test_suite.gd"
 
 const HAND := &"/vr_drawer_tests/hand"
@@ -70,6 +70,10 @@ func _ready() -> void:
 	if _group("real"):
 		await _real_hold(ns)
 		await _ray_hold(ns)
+	if _group("again"):
+		await _again(ns)
+		await _again_by_buttons()
+		await _ray_carry_collision()
 	XRServer.remove_tracker(_hand)
 	Engine.max_fps = _max_fps
 	_finish()
@@ -108,6 +112,8 @@ func _place(at: Vector3) -> void:
 func _buttons(trigger: float, grip: float) -> void:
 	_hand.set_input("trigger", trigger)
 	_hand.set_input("grip", grip)
+	_hand.set_input("trigger_click", trigger > 0.5)
+	_hand.set_input("grip_click", grip > 0.5)
 
 
 func _ticks(n: int) -> void:
@@ -791,3 +797,208 @@ func _mission() -> void:
 		fresh.queue_free()
 		piece.queue_free()
 		await _ticks(2)
+
+
+## Opened, then the piece carried and put down, the drawer must still be taken by its handle: with xr-tools' REAL
+## pickup as the hand's FunctionPickup (what PokeTip and the mute read), by a hand grab and by a ray grab.
+func _again(ns: Nightstand) -> void:
+	_pickup.name = "FakePickupAside"
+	var real := load("res://addons/godot-xr-tools/functions/function_pickup.tscn").instantiate() as Node3D
+	real.name = "FunctionPickup"
+	_ctrl.add_child(real)
+	await _ticks(3)
+	for how in ["hand", "ray"]:
+		await _reset(ns)
+		var d := ns.drawer()
+		await _take(ns, 0.9, 0.0)
+		var s0 := _handle(ns)
+		for i in 10:
+			_place(s0 + _out(ns) * 0.012 * (i + 1))
+			await _ticks(1)
+		_buttons(0.0, 0.0)
+		_place(FAR)
+		await _ticks(5)
+		var opened := d.open_distance()
+		var start := ns.global_transform
+		_place(start.origin)
+		await _ticks(3)
+		if how == "hand":
+			real._pick_up_object(ns)
+		else:
+			real._start_ray_grab_at(ns, 0.5)
+		for i in 60:
+			_place(start.origin + Vector3(0.4 * i / 60.0, 0.1, 0.0))
+			if how == "ray":
+				ns.global_position = start.origin + Vector3(0.4 * i / 60.0, 0.1, 0.0)
+			await get_tree().physics_frame
+		if how == "hand":
+			real.drop_object()
+		else:
+			real._end_ray_grab()
+		_place(FAR)
+		for i in 120:
+			await get_tree().physics_frame
+		print("[vr_drawer] again/%s: enabled %s poking %s held_obj %s value %.2f layer %d mask %d frozen %s processing %s" % [
+			how, real.get("enabled"), PokeTip.is_poking(_ctrl), real.get("picked_up_object"), d.value,
+			ns.collision_layer, ns.collision_mask, ns.freeze, d.is_processing()])
+		await _take(ns, 0.9, 0.0)
+		var took_trigger := d.is_held()
+		_buttons(0.0, 0.0)
+		await _ticks(3)
+		await _take(ns, 0.0, 0.9)
+		var took_grip := d.is_held()
+		_buttons(0.0, 0.0)
+		await _ticks(3)
+		_ok(took_trigger and took_grip, "again/opened %.0f mm, carried by %s and put down, the handle is taken again (trigger %s, grip %s)" % [
+			opened * 1000.0, how, took_trigger, took_grip])
+		ns.global_transform = start
+		for i in 10:
+			await get_tree().physics_frame
+	real.queue_free()
+	_pickup.name = "FunctionPickup"
+	await _ticks(2)
+	await _reset(ns)
+
+
+## As a hand does it: the grip squeezed ON the piece's top picks it up (FunctionPickup's own _process), let go puts
+## it down, then the trigger and the grip on each drawer's handle.
+func _again_by_buttons() -> void:
+	_pickup.name = "FakePickupAside"
+	var real := load("res://addons/godot-xr-tools/functions/function_pickup.tscn").instantiate() as Node3D
+	real.name = "FunctionPickup"
+	_ctrl.add_child(real)
+	var laser := load("res://addons/godot-xr-tools/functions/function_pointer.tscn").instantiate() as Node3D
+	laser.name = "FunctionPointer"
+	laser.position = Vector3(0.02, 0.05, -0.1)
+	_ctrl.add_child(laser)
+	for kind in ["mission_nightstand", "mission_chest"]:
+		var piece := (ScenePersistence.PLAIN_SCENES[kind] as PackedScene).instantiate() as DrawerFurniture
+		piece.position = Vector3(3.0, 0.0, 2.0)
+		add_child(piece)
+		for i in 30:
+			await get_tree().physics_frame
+		for d in piece.drawers():
+			var at := d._reach_point()
+			_place(at)
+			await _ticks(4)
+			_buttons(0.9, 0.0)
+			await _ticks(3)
+			for i in 20:
+				_place(at + piece.global_basis.z * 0.008 * (i + 1))
+				await _ticks(1)
+			_buttons(0.0, 0.0)
+			await _ticks(2)
+			_place(FAR)
+			await _ticks(3)
+		print("[vr_drawer] again/buttons %s opened by hand: %s" % [kind, piece.drawers().map(func(d: VRDrawer) -> String:
+			return "%.2f" % d.value)])
+		for i in 30:
+			await get_tree().physics_frame
+		var top := piece.global_transform * Vector3(0, piece.get_node("Model").get("levels")[0].get_aabb().end.y if false else 0.0, 0)
+		var tops := piece.rider_shapes()
+		var top_at := tops[0].global_position + Vector3(0, (tops[0].shape as BoxShape3D).size.y * 0.5 + 0.03, 0)
+		_place(top_at)
+		await _ticks(6)
+		_buttons(0.0, 0.9)
+		await _ticks(6)
+		var held := piece.is_picked_up()
+		for i in 60:
+			_place(top_at + Vector3(0.3 * i / 60.0, 0.05, 0.0))
+			await get_tree().physics_frame
+		_buttons(0.0, 0.0)
+		await _ticks(4)
+		var dropped := not piece.is_picked_up()
+		_place(FAR)
+		for i in 150:
+			await get_tree().physics_frame
+		var took := 0
+		var why := []
+		for d in piece.drawers():
+			for b: Vector2 in [Vector2(0.9, 0.0), Vector2(0.0, 0.9)]:
+				_place(d._reach_point())
+				await _ticks(4)
+				_buttons(b.x, b.y)
+				await _ticks(4)
+				if d.is_held():
+					took += 1
+				else:
+					why.append("%s %s val %.2f inbox %s proc %s pickup-enabled %s poking %s ptr %s push %s" % [d.name, b, d.value,
+						d._tip_in_box(PokeTip.tip_of(_ctrl)), d.is_processing(), real.get("enabled"), PokeTip.is_poking(_ctrl),
+						d._pointer_engaged, d._push_ctrl])
+				_buttons(0.0, 0.0)
+				await _ticks(3)
+				_place(FAR)
+				await _ticks(3)
+		print("[vr_drawer] again/buttons %s: held %s dropped %s at %s up %s; not taken: %s" % [kind, held, dropped,
+			piece.global_position, piece.global_basis.y, why])
+		_ok(held and dropped and took == 2 * piece.drawers().size(),
+			"again/%s picked up by the grip on its top and put down: %d of %d takes" % [kind, took, 2 * piece.drawers().size()])
+		piece.queue_free()
+		await _ticks(2)
+	laser.queue_free()
+	real.queue_free()
+	_pickup.name = "FunctionPickup"
+	await _ticks(2)
+
+
+## Carried by the LASER (the pickup's own _process_ray_grab), turned a quarter and moved, let go: the physics engine
+## must have every drawer's handle area, handle box and body where the nodes are, and a ray at a handle must meet it.
+func _ray_carry_collision() -> void:
+	_pickup.name = "FakePickupAside"
+	var real := load("res://addons/godot-xr-tools/functions/function_pickup.tscn").instantiate() as Node3D
+	real.name = "FunctionPickup"
+	_ctrl.add_child(real)
+	var laser := load("res://addons/godot-xr-tools/functions/function_pointer.tscn").instantiate() as Node3D
+	laser.name = "FunctionPointer"
+	_ctrl.add_child(laser)
+	await _ticks(3)
+	for kind in ["nightstand", "mission_chest"]:
+		var piece := (ScenePersistence.PLAIN_SCENES[kind] as PackedScene).instantiate() as XRToolsPickable
+		piece.position = Vector3(3.0, 0.0, 2.0)
+		add_child(piece)
+		for i in 30:
+			await get_tree().physics_frame
+		var ds: Array = piece.drawers() if piece is DrawerFurniture else [(piece as Nightstand).drawer()]
+		for d: VRDrawer in ds:
+			d.set_value(0.6)
+		for i in 30:
+			await get_tree().physics_frame
+		var hand_at := piece.global_position + Vector3(0, 1.2, 1.5)
+		_place(hand_at)
+		await _ticks(3)
+		_hand.set_pose(&"default", Transform3D(Basis.looking_at(piece.global_position + Vector3(0, 0.4, 0) - hand_at),
+			hand_at), Vector3.ZERO, Vector3.ZERO, XRPose.XR_TRACKING_CONFIDENCE_HIGH)
+		await _ticks(3)
+		var aim := Basis.looking_at(piece.global_position + Vector3(0, 0.4, 0) - hand_at)
+		real._start_ray_grab_at(piece, hand_at.distance_to(piece.global_position))
+		for i in 90:
+			_hand.set_pose(&"default", Transform3D(Basis(Vector3.UP, 0.8 * i / 90.0) * aim, hand_at + Vector3(0.5 * i / 90.0, 0, 0)),
+				Vector3.ZERO, Vector3.ZERO, XRPose.XR_TRACKING_CONFIDENCE_HIGH)
+			real.set("_ray_grab_basis", Basis(Vector3.UP, 1.4 * i / 90.0))
+			await get_tree().physics_frame
+		var mid := piece.global_transform
+		real._end_ray_grab()
+		_place(FAR)
+		for i in 120:
+			await get_tree().physics_frame
+		_ok(mid.origin.distance_to(piece.global_position) > 0.0 and absf(piece.global_basis.get_euler().y) > 1.2,
+			"again/%s: the laser carried it and turned it" % kind)
+		print("[vr_drawer] again %s: held at %s, landed at %s yaw %.0f deg" % [kind, mid.origin, piece.global_position,
+			rad_to_deg(piece.global_basis.get_euler().y)])
+		var space := get_viewport().get_world_3d().direct_space_state
+		for d: VRDrawer in ds:
+			var c := d._knob_collision.global_position
+			var q := PhysicsRayQueryParameters3D.create(c + piece.global_basis.z * 0.5, c, VRButton.POINTABLE_LAYER)
+			q.collide_with_areas = true
+			q.collide_with_bodies = false
+			var hit := space.intersect_ray(q)
+			var r := d.collision_report()
+			_ok(r["area"] < 1.0 and r["box"] < 1.0 and r["body"] < 1.0 and hit.get("collider") == d,
+				"again/%s %s carried by the laser and put down: collision where it is drawn (area %.1f, box %.1f, body %.1f mm, ray meets %s)" % [
+				kind, d.name, r["area"], r["box"], r["body"], hit.get("collider")])
+		piece.queue_free()
+		await _ticks(2)
+	laser.queue_free()
+	real.queue_free()
+	_pickup.name = "FunctionPickup"
+	await _ticks(2)

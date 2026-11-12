@@ -101,6 +101,9 @@ var _snap := false
 ## Where a body target is being led to, in its parent's frame (see _physics_process).
 var _follow := Vector3.ZERO
 var _follow_v := Vector3.ZERO
+## Per controller: a press in the handle box already logged as refused (one line a press, not a frame).
+var _refusal_logged: Dictionary = {}
+var _armed_logged := false
 
 
 func _init() -> void:
@@ -292,15 +295,67 @@ func _process_trigger_mode() -> void:
 			return
 	var ctrl := _hovering_ctrl()
 	_armed = ctrl != null
+	if _armed != _armed_logged:
+		_armed_logged = _armed
+		print("[VRDrawer] %s: a fingertip %s the handle at %.2f" % [name, "is on" if _armed else "left", value])
 	if ctrl == null:
 		return
 	var id := ctrl.get_instance_id()
-	if ctrl.get_float(TRIGGER_ACTION) > TRIGGER_ON and _rearmed.get(id, false):
+	var trigger := ctrl.get_float(TRIGGER_ACTION) > TRIGGER_ON
+	var grip := grip_engages and ctrl.get_float(GRIP_ACTION) > GRIP_ON
+	if trigger and _rearmed.get(id, false):
 		_rearmed[id] = false
 		_latch(ctrl, TRIGGER_ACTION)
-	elif grip_engages and ctrl.get_float(GRIP_ACTION) > GRIP_ON and _rearmed_grip.get(id, false):
+	elif grip and _rearmed_grip.get(id, false):
 		_rearmed_grip[id] = false
 		_latch(ctrl, GRIP_ACTION)
+	elif trigger or grip:
+		# Pressed in the box and not taken: say why, once a press (a squeeze carried in, never let go here).
+		if not _refusal_logged.get(id, false):
+			_refusal_logged[id] = true
+			print("[VRDrawer] %s: %s pressed on the handle but not taken: it was already down when the hand came (let go and press again)" % [
+				name, "trigger" if trigger else "grip"])
+		return
+	_refusal_logged[id] = false
+
+
+## A laser or the desktop crosshair on the handle: logged on press and release (VRSlider does the work).
+func pointer_event(event: XRToolsPointerEvent) -> void:
+	if event.event_type == XRToolsPointerEvent.Type.PRESSED:
+		print("[VRDrawer] %s: pointer pressed at %s (%.2f, box %s)" % [name, event.position, value,
+			"hit" if _tip_in_box(event.position) else "MISSED by %.0f mm" % (_box_gap(event.position) * 1000.0)])
+	elif event.event_type == XRToolsPointerEvent.Type.RELEASED:
+		print("[VRDrawer] %s: pointer released at %.2f" % [name, value])
+	super.pointer_event(event)
+
+
+## Where the physics engine has this handle and its drawer, against the nodes: mm of difference for the area, the handle
+## box and the drawer body. Asked after the furniture is put down; all three must be ~0.
+func collision_report() -> Dictionary:
+	var out := {"area": 0.0, "box": 0.0, "body": 0.0, "node": 0.0}
+	var a_srv := PhysicsServer3D.area_get_transform(get_rid())
+	out["area"] = a_srv.origin.distance_to(global_position) * 1000.0
+	if is_instance_valid(_knob_collision) and PhysicsServer3D.area_get_shape_count(get_rid()) > 0:
+		var s_srv := a_srv * PhysicsServer3D.area_get_shape_transform(get_rid(), 0)
+		out["box"] = s_srv.origin.distance_to(_knob_collision.global_position) * 1000.0
+	if _target_body and is_instance_valid(target):
+		var b_srv := PhysicsServer3D.body_get_state((target as PhysicsBody3D).get_rid(),
+			PhysicsServer3D.BODY_STATE_TRANSFORM) as Transform3D
+		# Against where it SHOULD be (its parent, at the open amount it is drawn at), never the body's own node: a synced
+		# body's node reads back the physics pose, so the two can be wrong together.
+		var parent := target.get_parent() as Node3D
+		var want := parent.global_transform * _follow if parent != null else _follow
+		out["body"] = b_srv.origin.distance_to(want) * 1000.0
+		out["node"] = target.global_position.distance_to(want) * 1000.0
+	return out
+
+
+func _box_gap(world: Vector3) -> float:
+	if not is_instance_valid(_knob_collision) or not _knob_collision.shape is BoxShape3D:
+		return 0.0
+	var local := _handle_box_world().affine_inverse() * world
+	var half := (_knob_collision.shape as BoxShape3D).size * 0.5
+	return (local - local.clamp(-half, half)).length()
 
 
 func _latch(ctrl: XRController3D, action: String) -> void:

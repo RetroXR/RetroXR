@@ -104,6 +104,8 @@ func _physics_process(_delta: float) -> void:
 		_lid.disabled = not held
 		print("[Nightstand] %s: %s; the drawer's lid %s" % [name, "held" if held else "put down",
 			"on" if held else "off"])
+		if not held:
+			_report_collision_later()
 	if held:
 		_fit_lid()
 
@@ -194,3 +196,17 @@ func _dress() -> void:
 			m.add_to_group("outline_exclude")
 	print("[Nightstand] %s: dressed (%d levels), the pull %s" % [name, _model.levels.size(),
 		"found" if pull != null else "MISSING"])
+
+
+## Put down: half a second on, where the physics engine has each drawer's handle and body against what is drawn. A
+## report of "the collision is off after carrying it" is answered by this line.
+func _report_collision_later() -> void:
+	await get_tree().create_timer(0.5).timeout
+	if not is_inside_tree():
+		return
+	var handles: Array = [_drawer]
+	var rows := []
+	for d: VRDrawer in handles:
+		var r := d.collision_report()
+		rows.append("%s area %.1f box %.1f body %.1f (node %.1f) mm" % [d.name, r["area"], r["box"], r["body"], r["node"]])
+	print("[Nightstand] %s: put down at %s, collision against the nodes: %s" % [name, global_position, ", ".join(rows)])
