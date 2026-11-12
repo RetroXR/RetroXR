@@ -37,6 +37,15 @@ from beside the executable; without it DLSS silently does not exist. Copy
 (`sl_version.h` 2.10.0 -> `NVIDIA-RTX/Streamline` release `v2.10.3`, 213 MB zip)
 into `bin/`. Streamline verifies NVIDIA's signature on each and logs it.
 
+**The DLSS model DLLs are NVIDIA's own SDK's, newer than Streamline's** (2026-11-12): `nvngx_dlss.dll`,
+`nvngx_dlssd.dll` (Ray Reconstruction) and `nvngx_dlssg.dll` in `bin/` are **310.9.16** (the DLSS 4.5
+generation, second-gen Ray Reconstruction), from `github.com/NVIDIA/DLSS` tag `v310.9.16`,
+`lib/Windows_x86_64/rel/` (signature checked: NVIDIA Corporation). Streamline 2.10.3's bundled 310.5.2 are kept in
+`bin/dlss-310.5.2-backup/`. The interposer stays 2.10.3 (the engine's headers); the driver loads its own Streamline
+plugins over the air (2.14.16 here, `C:/ProgramData/NVIDIA/NGX/models/sl_*`). Which DLL is really in use is read
+off the running engine's modules (the child `godot.windows.editor.x86_64.exe`, not the console wrapper), never the
+log: Streamline does not log the `nvngx` it opens. RetroXR sets no DLSS preset (Streamline's default).
+
 ## Our fix on top: `4bdd1f149b`
 
 `scene_depth_fetch()` (the new `SCENE_DEPTH` built-in) built a `sampler2D` from
