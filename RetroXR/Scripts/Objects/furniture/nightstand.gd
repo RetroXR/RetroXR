@@ -61,13 +61,13 @@ const SHELF_SURFACE := Vector3(0.0, 0.268, 0.004)
 
 var _lid: CollisionShape3D = null
 var _held := false
-## Held, it moves like the heavy thing it is, or what is in its drawers is left behind or thrown (HeavyHold).
-var _heavy := HeavyHold.new()
+## Held and moved fast, what is in it is latched to it, or it is left behind or thrown (CarryContents).
+var _carry := CarryContents.new()
 
 
 func _ready() -> void:
 	super()
-	# After whatever holds it has moved it this tick (the grab driver, the laser's pickup): HeavyHold reads that back.
+	# After whatever holds it has moved it this tick (the grab driver, the laser's pickup): CarryContents measures that.
 	process_physics_priority = 100
 	add_to_group("spawned")
 	var n_case := _build_shapes(self, CASE_BOXES, "Case")
@@ -87,6 +87,10 @@ func _ready() -> void:
 	_lid.position = Vector3(DRAWER_INNER.get_center().x, (LID_Y.x + LID_Y.y) * 0.5, DRAWER_INNER.get_center().z)
 	_lid.disabled = true
 	_drawer_body.add_child(_lid)
+	# Where it carries things (CarryContents): the drawer's inside, the shelf and over the top.
+	_carry.bins.append({"frame": _drawer_body, "box": DRAWER_INNER.grow(0.01)})
+	_carry.bins.append({"frame": self, "box": AABB(Vector3(-0.217, SHELF_SURFACE.y, -0.17), Vector3(0.434, 0.16, 0.35))})
+	_carry.bins.append({"frame": self, "box": AABB(Vector3(-0.25, TOP_SURFACE.y, -0.19), Vector3(0.5, 0.4, 0.38))})
 	print("[Nightstand] %s: %d case boxes, %d legs, %d drawer boxes, drawer %.0f mm out of %.0f" % [name, n_case,
 		LEGS.size(), n_drawer, _drawer.open_distance() * 1000.0, DRAWER_TRAVEL * 1000.0])
 
@@ -107,7 +111,7 @@ func drawer() -> VRDrawer:
 ## frozen in a headset and was left frozen by the same missing signal.)
 func _physics_process(delta: float) -> void:
 	var held := freeze and collision_layer == picked_up_layer
-	_heavy.step(self, held, delta)
+	_carry.step(self, held, delta)
 	if held != _held:
 		_held = held
 		_lid.disabled = not held
@@ -204,3 +208,8 @@ func _report_collision_later() -> void:
 		var r := d.collision_report()
 		rows.append("%s area %.1f box %.1f body %.1f (node %.1f) mm" % [d.name, r["area"], r["box"], r["body"], r["node"]])
 	print("[Nightstand] %s: put down at %s, collision against the nodes: %s" % [name, global_position, ", ".join(rows)])
+
+
+func _exit_tree() -> void:
+	super()
+	_carry.release(self)

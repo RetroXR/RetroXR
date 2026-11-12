@@ -42,13 +42,13 @@ var _contract: Dictionary = {}
 var _drawers: Array[Dictionary] = []
 var _case_front_z := 0.0
 var _held := false
-## Held, it moves like the heavy thing it is, or what is in its drawers is left behind or thrown (HeavyHold).
-var _heavy := HeavyHold.new()
+## Held and moved fast, what is in it is latched to it, or it is left behind or thrown (CarryContents).
+var _carry := CarryContents.new()
 
 
 func _ready() -> void:
 	super()
-	# After whatever holds it has moved it this tick (the grab driver, the laser's pickup): HeavyHold reads that back.
+	# After whatever holds it has moved it this tick (the grab driver, the laser's pickup): CarryContents measures that.
 	process_physics_priority = 100
 	add_to_group("spawned")
 	_contract = DeckFace.contract(contract_path, "DrawerFurniture")
@@ -64,6 +64,13 @@ func _ready() -> void:
 		n_case += 1
 	for row: Dictionary in _contract.get("drawers", []):
 		_build_drawer(row)
+	# Where it carries things (CarryContents): every drawer's inside, and over the top.
+	for d in _drawers:
+		_carry.bins.append({"frame": d["body"], "box": (d["inner"] as AABB).grow(0.01)})
+	for cs in rider_shapes():
+		var size := (cs.shape as BoxShape3D).size
+		_carry.bins.append({"frame": self, "box": AABB(cs.position + Vector3(-size.x, size.y, -size.z) * 0.5,
+			Vector3(size.x, 0.4, size.z))})
 	if _model != null:
 		for i in range(1, _model.levels.size()):
 			for m in _model.levels[i].find_children("*", "MeshInstance3D", true, false):
@@ -201,7 +208,7 @@ func _build_drawer(row: Dictionary) -> void:
 ## Held, every drawer gets its lid; put down, none has one. POLLED: see the header.
 func _physics_process(delta: float) -> void:
 	var held := freeze and collision_layer == picked_up_layer
-	_heavy.step(self, held, delta)
+	_carry.step(self, held, delta)
 	if held != _held:
 		_held = held
 		print("[DrawerFurniture] %s: %s; %d drawer lid(s) %s" % [name, "held" if held else "put down",
@@ -240,3 +247,8 @@ func _report_collision_later() -> void:
 		var r := d.collision_report()
 		rows.append("%s area %.1f box %.1f body %.1f (node %.1f) mm" % [d.name, r["area"], r["box"], r["body"], r["node"]])
 	print("[DrawerFurniture] %s: put down at %s, collision against the nodes: %s" % [name, global_position, ", ".join(rows)])
+
+
+func _exit_tree() -> void:
+	super()
+	_carry.release(self)

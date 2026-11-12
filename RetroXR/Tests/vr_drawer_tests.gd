@@ -522,7 +522,8 @@ func _haul(ns: Nightstand) -> void:
 		# What COLLIDES: the drawer body as the physics server has it, against the case as it is now.
 		worst_body[0] = maxf(worst_body[0], _drawer_body_error(ns))
 		if i == 80:
-			mid[0] = ns.lid_on() and not (boxes["drawer"] as RigidBody3D).freeze
+			# Moving fast here: what is in it is LATCHED to it (CarryContents), and let go again once it is put down.
+			mid[0] = ns.lid_on() and (boxes["drawer"] as RigidBody3D).freeze
 	mover.queue_free()
 	for i in 10:
 		await get_tree().physics_frame
@@ -534,7 +535,7 @@ func _haul(ns: Nightstand) -> void:
 		await get_tree().physics_frame
 	_ok(worst_lag[0] < 0.004, "haul/the drawer never trails the case it is carried in (worst %.1f mm)" % (
 		worst_lag[0] * 1000.0))
-	_ok(mid[0], "haul/while carried the drawer has its lid on and what is in it is ordinary physics, not frozen")
+	_ok(mid[0], "haul/carried fast, the drawer has its lid on and what is in it is latched to it")
 	_ok(not ns.lid_on(), "haul/put down, the lid is off: nothing invisible left in the drawer")
 	_ok(worst_body[0] < 0.02, "haul/the drawer's COLLISION body keeps up with the case while carried (worst %.1f mm)" % (
 		worst_body[0] * 1000.0))
@@ -610,7 +611,7 @@ func _rough_haul(ns: Nightstand) -> void:
 	for i in 70:
 		await get_tree().physics_frame
 	# Gone NOW, not at the frame's end: queued, it moved the nightstand once more after it was let go, a teleport with
-	# nothing smoothing it (HeavyHold only follows a HELD piece). A hand lets go outside the physics step.
+	# nothing carrying what is in it (CarryContents follows a HELD piece). A hand lets go outside the physics step.
 	mover.free()
 	ns.freeze = false
 	ns.collision_layer = 4
@@ -1192,9 +1193,24 @@ func _pickup_spill() -> void:
 					where.append("%s at %s" % [th.name, local])
 			_ok(kept == things.size(), "again/%s picked up by %s with a box and a remote in its open drawer: %d of %d still in it %s" % [
 				kind, how, kept, things.size(), where])
+			# Back down where it stood (in one tick: latched and carried), held still (let go to physics), put down.
+			piece.global_transform = start
+			for i in 40:
+				await get_tree().physics_frame
+			var loose_held := things.all(func(th: RigidBody3D) -> bool: return not th.freeze)
 			piece.freeze = false
 			piece.collision_layer = 4
 			piece.collision_mask = 196613
+			for i in 60:
+				await get_tree().physics_frame
+			var still := 0
+			for th in things:
+				var inner: AABB = (piece as DrawerFurniture)._drawers[0]["inner"] if piece is DrawerFurniture 					else Nightstand.DRAWER_INNER
+				if not th.freeze and inner.grow(0.02).has_point(body.global_transform.affine_inverse() * th.global_position):
+					still += 1
+			_ok(loose_held and still == things.size(),
+				"again/%s by %s, set down and let go: everything in it is ordinary physics again and still in it (%d of %d; loose while held still: %s)" % [
+				kind, how, still, things.size(), loose_held])
 			for th in things:
 				th.queue_free()
 			piece.queue_free()
