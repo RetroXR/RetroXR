@@ -218,7 +218,8 @@ func _physics_process(delta: float) -> void:
 	if not _target_body or not is_instance_valid(target):
 		return
 	var want := _target_want()
-	if _follow.distance_to(want) < 0.0001 and _follow_v.length() < 0.001:
+	var resting := _follow.distance_to(want) < 0.0001 and _follow_v.length() < 0.001
+	if resting:
 		_follow = want
 		_follow_v = Vector3.ZERO
 	else:
@@ -227,16 +228,17 @@ func _physics_process(delta: float) -> void:
 		var w := 1.0 / FOLLOW_TAU
 		_follow_v += ((want - _follow) * w * w - _follow_v * 2.0 * w) * delta
 		_follow += _follow_v * delta
-	# Every tick, moving or not: the furniture under it may have moved. And never read back target.position as where
-	# the drawer is: a synced body hands the node its PREVIOUS physics pose until the tick has run.
-	#
-	# The WHOLE local transform, not the position: a synced body keeps its own WORLD pose when its parent moves, so
-	# when the furniture TURNED under physics (dropped at an angle, tipping and settling) the drawer body kept its old
-	# rotation, and writing back only its position left it turned in the case for good: the drawn drawer was right,
-	# its collision swung out of it (2026-11-12, "drop it at an angle ... where the drift begins").
+	# Written while it moves, the WHOLE local transform (rotation too). Never read back target.position as where the
+	# drawer is. Both rules date from sync_to_physics (off since 2026-11-12, furniture.md): a synced body read back its
+	# previous pose, and kept its own world pose when its parent turned, so a dropped piece's drawer collision swung out.
 	target.transform = Transform3D(_target_rest_basis, _follow)
 	if is_instance_valid(visual):
 		visual.position = _follow
+	# At rest the body is a plain child of the furniture (sync_to_physics off) and goes where it goes with nothing
+	# written: the tick sleeps until the value moves again (_update_knob wakes it). An idle chest was six transform
+	# writes a tick for nothing.
+	if resting:
+		set_physics_process(false)
 
 
 func _target_want() -> Vector3:
@@ -501,6 +503,8 @@ func _exit_tree() -> void:
 func _update_knob() -> void:
 	if not _rigged:
 		return
+	if _target_body and not is_physics_processing():
+		set_physics_process(true)
 	if is_instance_valid(_knob_collision):
 		_knob_collision.transform = Transform3D(_knob_collision_rest.basis,
 			_knob_collision_rest.origin + axis_local.normalized() * (value - _knob_collision_value) * travel)

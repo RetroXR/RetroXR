@@ -88,9 +88,9 @@ func _ready() -> void:
 	_lid.disabled = true
 	_drawer_body.add_child(_lid)
 	# Where it carries things (CarryContents): the drawer's inside, the shelf and over the top.
-	_carry.bins.append({"frame": _drawer_body, "box": DRAWER_INNER.grow(0.01)})
-	_carry.bins.append({"frame": self, "box": AABB(Vector3(-0.217, SHELF_SURFACE.y, -0.17), Vector3(0.434, 0.16, 0.35))})
-	_carry.bins.append({"frame": self, "box": AABB(Vector3(-0.25, TOP_SURFACE.y, -0.19), Vector3(0.5, 0.4, 0.38))})
+	_carry.add_bin(self, _drawer_body, DRAWER_INNER.grow(0.01), collision_layer)
+	_carry.add_bin(self, self, AABB(Vector3(-0.217, SHELF_SURFACE.y, -0.17), Vector3(0.434, 0.16, 0.35)), collision_layer)
+	_carry.add_bin(self, self, AABB(Vector3(-0.25, TOP_SURFACE.y, -0.19), Vector3(0.5, 0.4, 0.38)), collision_layer)
 	print("[Nightstand] %s: %d case boxes, %d legs, %d drawer boxes, drawer %.0f mm out of %.0f" % [name, n_case,
 		LEGS.size(), n_drawer, _drawer.open_distance() * 1000.0, DRAWER_TRAVEL * 1000.0])
 

@@ -66,11 +66,11 @@ func _ready() -> void:
 		_build_drawer(row)
 	# Where it carries things (CarryContents): every drawer's inside, and over the top.
 	for d in _drawers:
-		_carry.bins.append({"frame": d["body"], "box": (d["inner"] as AABB).grow(0.01)})
+		_carry.add_bin(self, d["body"], (d["inner"] as AABB).grow(0.01), collision_layer)
 	for cs in rider_shapes():
 		var size := (cs.shape as BoxShape3D).size
-		_carry.bins.append({"frame": self, "box": AABB(cs.position + Vector3(-size.x, size.y, -size.z) * 0.5,
-			Vector3(size.x, 0.4, size.z))})
+		_carry.add_bin(self, self, AABB(cs.position + Vector3(-size.x, size.y, -size.z) * 0.5,
+			Vector3(size.x, 0.4, size.z)), collision_layer)
 	if _model != null:
 		for i in range(1, _model.levels.size()):
 			for m in _model.levels[i].find_children("*", "MeshInstance3D", true, false):

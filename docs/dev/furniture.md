@@ -69,21 +69,27 @@ a mover at the grab driver's priority (`vr_drawer_tests haul/`) and in the windo
   (sized once at build and only switched on and off); what is in the drawer stays ordinary physics, sliding and
   knocking about, and cannot leave through the top. Off whenever it is not held. (It used to cover only the part
   still inside the case, refitted every tick; a pulled-out drawer was then open at the front while carried.)
-- **What is in it, carried fast: `CarryContents`** (`Scripts/Objects/furniture/carry_contents.gd`, both furniture
-  classes, `process_physics_priority` 100 so it runs after the grab driver and the laser's pickup). Bins: each
-  drawer's inside, the walnut shelf, over the top. While the piece is held and a bin's middle moves faster than
-  0.6 m/s, whatever lies in the bins is LATCHED to the piece (frozen kinematic, put where it lay in the piece every
-  tick); once every bin has been under 0.3 m/s for 0.2 s, or the piece is put down or leaves the tree, each is let go
-  with the piece's velocity at its place. Only a body it froze is ever unfrozen; one a hand takes out meanwhile is the
-  hand's. Why not physics: every pickable has `continuous_cd` on (HeldObjectPhysics, against throws through the
-  floor), settles 3-5 mm INTO a floor and stays there, and a floor lifting faster than ~1.2-1.3 m/s outruns it (a TV
-  remote dropped straight through a lifted drawer; walls cutting through a box in one tick threw it 100 m).
-  Cancelling its world-frame damping, switching continuous collision off once settled (it does not lift back out), a
-  held-only deeper floor and waking it all failed; a body that never had continuous collision rides at 4 m/s. Holding
-  the PIECE to 1 m/s (HeavyHold, `bffc0c48`) worked and made furniture that cannot keep up with a walk: removed.
-  `again/` "picked up by" lifts at 2.5 m/s and swings at 6.7 m/s, then sets down and checks everything is loose and
-  still in it (red with the latch off). Test boxes have `continuous_cd` on as pickables do; without it they rode where
-  a real thing fell. Test movers must be FREED, not queued, before a let-go: queued, one moved the piece once more.
+- **What is in it: `CarryContents`** (`Scripts/Objects/furniture/carry_contents.gd`, both furniture classes,
+  `process_physics_priority` 100 so it runs after the grab driver and the laser's pickup). Each place it carries
+  things (each drawer's inside, the walnut shelf, over the top) is an `Area3D` "bin" (`add_bin`), so Jolt reports what
+  arrives and leaves; an idle piece runs no queries. Two mechanisms, both measured (`again/`):
+  - **Continuous collision OFF while a thing lies in a bin** (from the tick it arrives, before it settles; given back
+    the tick it leaves, including when a hand picks it up, which moves it to the held layer out of the bin's mask).
+    Every pickable has it on (HeldObjectPhysics, against throws through the floor), and a body that SETTLES with it
+    on rests 3-5 mm into the floor and is outrun by a floor lifting past ~1.3 m/s (a TV remote dropped through).
+    Switching it off once settled does not help; lowering Jolt's `penetration_slop` (2 cm by default) to 2 mm does not
+    either; cancelling damping, a deeper floor and waking it did not.
+  - **Latched while the piece moves faster than physics carries it**: frozen kinematic, put where it lay in the piece
+    every tick, let go with the piece's velocity at its place once every bin has been under 0.3 m/s for 0.2 s or the
+    piece is put down. Each thing at its own speed: its bin moving its THINNEST extent in a tick (a 7.5 mm Game Boy
+    cartridge ~0.68 m/s: it fell through a 2.5 m/s lift a 30 mm box rode), between 0.4 and 3 m/s.
+  Only a body it froze is unfrozen, only one whose continuous collision it took gets it back. `CC_NOCCD=1` /
+  `CC_LATCH=<m/s>` switch the two for testing. Holding the PIECE to 1 m/s instead (HeavyHold, `bffc0c48`) made
+  furniture that cannot keep up with a walk: removed. Test boxes have `continuous_cd` on as pickables do; without it
+  they rode where a real thing fell. Test movers must be FREED, not queued, before a let-go.
+  Cost (20 Mission chests idle, desktop, noisy): the per-tick queries and drawer writes this replaced cost several
+  times more (+5.0 against +1.4 ms a tick); removing the bins changes nothing measurable; the rest is Jolt's own
+  bodies. A resting drawer's VRDrawer switches its physics tick off (`_update_knob` wakes it).
 - **The hold is POLLED** (`freeze` and the held layer), never `picked_up` / `dropped`: a RAY grab emits neither on the
   pickable (the addon restores the body itself; SurfaceStick's header). A first version froze the drawer's contents
   for the hold on those signals: it read as frozen in a headset, and a ray release left them frozen, solid obstacles
