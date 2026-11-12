@@ -79,5 +79,9 @@ Tests: `arcade_bay_tests` groups `naomi`, `hookup`, `converter`, `gdrom`. The mo
 `xenu.newnetcity`, `xenu.naomiuniversal`, `xenu.aerocity`, `xenu.jvsjamma`, `xenu.jvsio`, `xenu.naomigd`) are checked by its probes
 (`naomi_probe`, `cabinets_probe`, `gdrom_probe`).
 
-Open: the drive's power (its socket is not drawn or gated); the cords' plugs are the VGA lead's drawing; NAOMI 2's own board look
-(its bay is the NAOMI's); flycast running an actual GD-ROM game through this chain was not tried on a headset.
+Since: the NAOMI 2 has its own board kind (`naomi2`, it takes NAOMI cartridges too, dressed by `xenu.naomi2`); the GD-ROM drive has a
+power socket, and in a cabinet with the NAOMI leads it needs the supply's second lead (`DrivePowerLeadIn`) before the DIMM board loads a
+game (the hookup test checks it); the new cords have plugs of their own size (boxes, until a mod draws them).
+
+Open: a real GD-ROM game through flycast on this chain (this machine has no NAOMI romsets or BIOS in its roms folders); the cords'
+plugs are plain boxes.
