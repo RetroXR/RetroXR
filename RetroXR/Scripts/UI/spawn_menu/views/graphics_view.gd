@@ -25,6 +25,7 @@ var _syncing_screen_lights: bool = false
 ## leave the switch and its state disagreeing.
 var _syncing_glow: bool = false
 var _upscaler_opt: VRDropdown = null
+var _scale_opt: VRDropdown = null
 var _path_tracing_tog: VRToggle = null
 var _syncing_path_tracing: bool = false
 
@@ -139,17 +140,20 @@ func _build(vr_mode: bool) -> void:
 	# directions, so the row is not offered there at all rather than shown with
 	# values that would break the view.
 	if QualityManager.supports_render_scale():
-		var scale_opt := VRDropdown.create("Render Scale",
-			[["50%", 0.5], ["70%", 0.7], ["85%", 0.85],
-			 ["100%", 1.0], ["125%", 1.25], ["150%", 1.5]],
-			QualityManager.render_scale, 6, Vector2(95, 52), 20)
-		scale_opt.item_selected.connect(func(id: Variant) -> void:
+		# DLSS's own modes (Ultra Performance .. DLAA) while DLSS scales the view, the plain steps
+		# otherwise: _sync_rows swaps them as the upscaler or the path tracer changes.
+		var opts := QualityManager.render_scale_options()
+		_scale_opt = VRDropdown.create("Render Scale", opts,
+			QualityManager.nearest_scale_option(opts, QualityManager.render_scale), 3, Vector2(170, 52), 20)
+		_scale_opt.item_selected.connect(func(id: Variant) -> void:
 			QualityManager.set_render_scale(float(id)))
-		vbox.add_child(scale_opt)
+		vbox.add_child(_scale_opt)
 
 		vbox.add_child(MenuStyle.hint("Resolution the 3D world is drawn at before it is scaled "
 			+ "to the display. Below 100% FSR upscales it for cheaper frames; above 100% "
-			+ "supersamples."))
+			+ "supersamples. With DLSS the choices are its own modes: Quality 67% is the usual "
+			+ "pick, Performance 50% for path tracing at high resolution, DLAA 100% for the "
+			+ "sharpest image with no saving."))
 
 	# Wherever Render Scale is offered. DLSS only on NVIDIA's engine with an RTX card: QualityManager says
 	# no on the stock engine, a headset, or a card Streamline does not run DLSS on.
@@ -158,7 +162,7 @@ func _build(vr_mode: bool) -> void:
 		if QualityManager.supports_dlss():
 			ups.append(["DLSS", QualityManager.Upscaler.DLSS])
 		_upscaler_opt = VRDropdown.create("Upscaler", ups,
-			int(QualityManager.effective_upscaler()), ups.size(), Vector2(110, 52), 20)
+			int(QualityManager.chosen_upscaler()), ups.size(), Vector2(110, 52), 20)
 		_upscaler_opt.item_selected.connect(func(id: Variant) -> void:
 			QualityManager.set_upscaler(int(id))
 			_sync_rows())
@@ -170,8 +174,8 @@ func _build(vr_mode: bool) -> void:
 		if QualityManager.supports_dlss():
 			ups_hint += " DLSS fills in the missing pixels from earlier frames on the card's " \
 				+ "tensor cores: sharper than FSR at the same Render Scale, and it smooths edges " \
-				+ "too; 100% and above is DLAA. Path Tracing uses DLSS to clean its image unless " \
-				+ "this is Off, which shows the raw, grainy picture."
+				+ "too; 100% and above is DLAA. Path Tracing always uses DLSS to clean its image: " \
+				+ "with Off it runs at 100%, so nothing is upscaled but the noise is still removed."
 		vbox.add_child(MenuStyle.hint(ups_hint))
 
 	if QualityManager.supports_path_tracing():
@@ -474,7 +478,11 @@ func _sync_rows() -> void:
 		_syncing_screen_lights = false
 	# The path tracer forces DLSS on, so the Upscaler row shows what is running.
 	if _upscaler_opt:
-		_upscaler_opt.select_id(int(QualityManager.effective_upscaler()))
+		_upscaler_opt.select_id(int(QualityManager.chosen_upscaler()))
+	# Its choices follow the upscaler: DLSS's modes while DLSS scales, the plain steps otherwise.
+	if _scale_opt and not _scale_opt.is_open():
+		var opts := QualityManager.render_scale_options()
+		_scale_opt.set_options(opts, QualityManager.nearest_scale_option(opts, QualityManager.render_scale))
 	if _path_tracing_tog:
 		_syncing_path_tracing = true
 		_path_tracing_tog.button_pressed = QualityManager.path_tracing

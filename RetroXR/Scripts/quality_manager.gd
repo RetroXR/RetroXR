@@ -128,7 +128,13 @@ const AO_TIERS := {
 
 ## Below 1.0 the 3D pass renders small and is upscaled into the full-size (eye)
 ## buffer; above 1.0 it supersamples.
-const RENDER_SCALE_MIN := 0.5
+## 0.33 is DLSS's Ultra Performance, offered only while DLSS scales (render_scale_options()).
+const RENDER_SCALE_MIN := 0.33
+## NVIDIA's own modes, as the Render Scale row offers them while DLSS scales the view. DLAA is DLSS at
+## native resolution: anti-aliasing only, and as high as DLSS goes.
+const DLSS_MODES := [["Ultra Perf 33%", 0.33], ["Performance 50%", 0.5], ["Balanced 58%", 0.58],
+	["Quality 67%", 0.667], ["DLAA 100%", 1.0]]
+const SCALE_STEPS := [["50%", 0.5], ["70%", 0.7], ["85%", 0.85], ["100%", 1.0], ["125%", 1.25], ["150%", 1.5]]
 const RENDER_SCALE_MAX := 1.5
 
 ## Multiplier on the OpenXR runtime's recommended eye-buffer size — the headset's
@@ -989,21 +995,46 @@ func effective_path_tracing() -> bool:
 	return path_tracing and supports_path_tracing()
 
 
-## DLSS when asked for, and under the path tracer unless the upscaler is OFF: its denoiser is DLSS Ray
-## Reconstruction, which runs only inside the DLSS pass. Path traced without it, every frame is the raw
-## one-sample-a-pixel grain (measured on the fork's test scene, 2026-11-12) -- which OFF asks for.
+## DLSS when asked for, and ALWAYS under the path tracer: its denoiser is DLSS Ray Reconstruction, which
+## runs only inside the DLSS pass. Path traced without it, every frame is the raw one-sample-a-pixel grain, in
+## a dim room black noise everywhere (measured; a player hit it with Upscaler Off, 2026-11-12). So OFF under
+## the tracer means "no upscaling", not "no denoiser": DLSS at 100% (DLAA), effective_render_scale()'s hold.
 func effective_dlss() -> bool:
-	if not supports_dlss() or upscaler == Upscaler.OFF:
+	if not supports_dlss():
 		return false
 	return upscaler == Upscaler.DLSS or effective_path_tracing()
 
 
-## What is scaling the picture now: DLSS where it is in effect (the path tracer brings it), else the
-## choice, with DLSS standing down to FSR where it cannot run.
+## The Render Scale row's choices now: DLSS's own modes while DLSS scales the view on the player's say
+## (upscaler DLSS, or FSR under the tracer, which brings DLSS), the plain steps otherwise. OFF keeps the
+## plain steps: nothing below 100% applies to it.
+func render_scale_options() -> Array:
+	if effective_dlss() and upscaler != Upscaler.OFF:
+		return DLSS_MODES
+	return SCALE_STEPS
+
+
+## The option of `options` nearest the saved scale, so the row always shows one of its own values.
+static func nearest_scale_option(options: Array, scale: float) -> float:
+	var best: float = options[0][1]
+	for o: Array in options:
+		if absf(float(o[1]) - scale) < absf(best - scale):
+			best = float(o[1])
+	return best
+
+
+## What is scaling the picture now: DLSS where it is in effect (the path tracer brings it, at 100% under
+## OFF), else the choice, with DLSS standing down to FSR where it cannot run. For the HUD; the Upscaler
+## row shows the CHOICE (chosen_upscaler()).
 func effective_upscaler() -> Upscaler:
 	if effective_dlss():
 		return Upscaler.DLSS
 	return Upscaler.FSR if upscaler == Upscaler.DLSS else upscaler
+
+
+## The player's choice as the row can show it: DLSS stands down to FSR where it cannot run.
+func chosen_upscaler() -> Upscaler:
+	return Upscaler.FSR if upscaler == Upscaler.DLSS and not supports_dlss() else upscaler
 
 
 func set_upscaler(choice: int) -> void:

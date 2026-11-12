@@ -451,9 +451,22 @@ func _group_rtx() -> void:
 	_live.set_upscaler(QM.Upscaler.OFF)
 	_eq(get_tree().root.scaling_3d_mode, Viewport.SCALING_3D_MODE_BILINEAR, "rtx/upscaler Off scales with nothing")
 	_eq(get_tree().root.scaling_3d_scale, 1.0, "rtx/upscaler Off draws at the display's resolution, whatever Render Scale says")
+	# Under the tracer Off still denoises: DLSS at 100% (a player saw black noise everywhere without it).
 	_live.set_path_tracing(true)
-	_ok(not _live.effective_dlss(), "rtx/upscaler Off keeps DLSS off under the path tracer too")
+	_eq(_live.effective_dlss(), _live.supports_path_tracing() and _live.supports_dlss(),
+		"rtx/upscaler Off under the path tracer still runs DLSS, to denoise")
+	if _live.effective_dlss():
+		_eq(get_tree().root.scaling_3d_scale, 1.0, "rtx/and at 100%: Off upscales nothing")
 	_live.set_path_tracing(false)
+	# The Render Scale row's choices: DLSS's modes only while DLSS scales on the player's say.
+	_eq(_live.render_scale_options(), QM.SCALE_STEPS, "rtx/Off offers the plain scale steps")
+	_live.set_upscaler(QM.Upscaler.DLSS)
+	_eq(_live.render_scale_options(), QM.DLSS_MODES if _live.supports_dlss() else QM.SCALE_STEPS,
+		"rtx/DLSS offers its own modes, where it runs")
+	_eq(QM.nearest_scale_option(QM.DLSS_MODES, 0.7), 0.667, "rtx/a saved 70% shows as Quality under DLSS")
+	_eq(QM.nearest_scale_option(QM.DLSS_MODES, 1.5), 1.0, "rtx/a saved 150% shows as DLAA")
+	_live.set_render_scale(0.2)
+	_eq(_live.render_scale if _live.supports_render_scale() else 0.33, 0.33, "rtx/the scale floor is Ultra Performance's 33%")
 	_live.set_upscaler(QM.Upscaler.FSR)
 	_eq(get_tree().root.scaling_3d_mode, Viewport.SCALING_3D_MODE_FSR if _live.supports_render_scale() else Viewport.SCALING_3D_MODE_BILINEAR,
 		"rtx/back on FSR 1 at 70%, FSR scales it again")
