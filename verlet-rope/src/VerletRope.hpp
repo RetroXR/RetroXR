@@ -136,6 +136,22 @@ public:
     godot::Vector3 PointPosition(int p_index) const;
     void SetRopeLength(double p_length);
 
+    /// A hand on the cord, partway along it. `closest_point` finds the spot on
+    /// the trunk nearest a world position ({index, position, distance, along,
+    /// length}; index -1 for a cord with nothing to take). `hold_point` pins
+    /// that particle to a world position the caller then moves with
+    /// `move_hold`; `release_hold` lets it go with the velocity the hand had.
+    /// A held particle is a pin like the cord's ends (inverse mass 0), carried
+    /// to its target over the tick's slices. A pinned end cannot be held.
+    godot::Dictionary ClosestPoint(const godot::Vector3 &p_world) const;
+    godot::Dictionary ClosestPointToRay(const godot::Vector3 &p_origin, const godot::Vector3 &p_dir,
+                                        double p_reach) const;
+    bool HoldPoint(int p_index, const godot::Vector3 &p_world);
+    void MoveHold(int p_index, const godot::Vector3 &p_world);
+    void ReleaseHold(int p_index);
+    bool IsHeld(int p_index) const;
+    int HoldCount() const { return static_cast<int>(m_holds.size()); }
+
     // Anchors. Held as ObjectIDs rather than raw pointers: a plug or a host
     // machine can be freed while the rope still exists, and a stale Node3D* here
     // is a crash rather than a missing cable.
@@ -396,6 +412,18 @@ private:
     std::vector<godot::Vector3> m_points;
     std::vector<godot::Vector3> m_prev_points;
     std::vector<float> m_inv_mass;
+    // Hands on the cord (see HoldPoint). A handful at most.
+    struct Hold
+    {
+        int index = -1;
+        godot::Vector3 target;
+        // Where the particle was when the tick began, and what it moved a
+        // slice of the last tick: the velocity it is let go with.
+        godot::Vector3 from;
+        godot::Vector3 slice_velocity;
+        float free_inv_mass = 1.0f;
+    };
+    std::vector<Hold> m_holds;
 
     std::vector<uint8_t> m_mid_contact;
     std::vector<godot::Vector3> m_mid_contact_point;

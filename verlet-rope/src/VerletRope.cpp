@@ -312,6 +312,14 @@ void VerletRope::_bind_methods()
     ClassDB::bind_method(D_METHOD("point_count"), &VerletRope::PointCount);
     ClassDB::bind_method(D_METHOD("point_position", "index"), &VerletRope::PointPosition);
     ClassDB::bind_method(D_METHOD("set_rope_length", "length"), &VerletRope::SetRopeLength);
+    ClassDB::bind_method(D_METHOD("closest_point", "world"), &VerletRope::ClosestPoint);
+    ClassDB::bind_method(D_METHOD("closest_point_to_ray", "origin", "direction", "reach"),
+                         &VerletRope::ClosestPointToRay);
+    ClassDB::bind_method(D_METHOD("hold_point", "index", "world"), &VerletRope::HoldPoint);
+    ClassDB::bind_method(D_METHOD("move_hold", "index", "world"), &VerletRope::MoveHold);
+    ClassDB::bind_method(D_METHOD("release_hold", "index"), &VerletRope::ReleaseHold);
+    ClassDB::bind_method(D_METHOD("is_held", "index"), &VerletRope::IsHeld);
+    ClassDB::bind_method(D_METHOD("hold_count"), &VerletRope::HoldCount);
     ClassDB::bind_method(D_METHOD("step", "delta"), &VerletRope::Step);
     ClassDB::bind_method(D_METHOD("remesh"), &VerletRope::Remesh);
     ClassDB::bind_method(D_METHOD("is_sleeping"), &VerletRope::IsSleeping);
@@ -784,6 +792,160 @@ void VerletRope::NudgePoint(int p_index, const Vector3 &p_delta)
     Wake();
 }
 
+// The spot on the trunk nearest p_world: measured to the segments, answered as
+// the particle at the nearer end of the nearest one that a hand may take (not a
+// pinned end, not one already held).
+Dictionary VerletRope::ClosestPoint(const Vector3 &p_world) const
+{
+    Dictionary out;
+    out["index"] = -1;
+    const int trunk = TrunkCount();
+    if (static_cast<int>(m_points.size()) < trunk || trunk < 3)
+        return out;
+    double best_sq = 1e30;
+    int best = -1;
+    Vector3 best_at;
+    for (int i = 0; i + 1 < trunk; ++i)
+    {
+        const Vector3 a = m_points[i];
+        const Vector3 ab = m_points[i + 1] - a;
+        const double len_sq = ab.length_squared();
+        const double t = len_sq > 1e-12 ? CLAMP((p_world - a).dot(ab) / len_sq, 0.0, 1.0) : 0.0;
+        const Vector3 at = a + ab * t;
+        const double d_sq = at.distance_squared_to(p_world);
+        if (d_sq >= best_sq)
+            continue;
+        int pick = t < 0.5 ? i : i + 1;
+        if (m_inv_mass[pick] == 0.0f)
+            pick = pick == i ? i + 1 : i;
+        if (m_inv_mass[pick] == 0.0f)
+            continue;
+        best_sq = d_sq;
+        best = pick;
+        best_at = at;
+    }
+    if (best < 0)
+        return out;
+    out["index"] = best;
+    out["position"] = best_at;
+    out["distance"] = std::sqrt(best_sq);
+    out["along"] = best * m_segment_length;
+    out["length"] = (trunk - 1) * m_segment_length;
+    return out;
+}
+
+// The same, for a ray (a desk player's crosshair): the spot on the trunk that
+// passes nearest the ray, with how far down the ray that is ("ray_distance").
+Dictionary VerletRope::ClosestPointToRay(const Vector3 &p_origin, const Vector3 &p_dir, double p_reach) const
+{
+    Dictionary out;
+    out["index"] = -1;
+    const int trunk = TrunkCount();
+    const Vector3 dir = p_dir.normalized();
+    if (static_cast<int>(m_points.size()) < trunk || trunk < 3 || dir == Vector3())
+        return out;
+    double best_sq = 1e30;
+    int best = -1;
+    double best_s = 0.0;
+    Vector3 best_at;
+    for (int i = 0; i + 1 < trunk; ++i)
+    {
+        // Closest points of the ray (s >= 0) and the segment (t in 0..1).
+        const Vector3 a = m_points[i];
+        const Vector3 ab = m_points[i + 1] - a;
+        const Vector3 w = p_origin - a;
+        const double bb = ab.length_squared();
+        const double db = dir.dot(ab);
+        const double dw = dir.dot(w);
+        const double bw = ab.dot(w);
+        const double den = bb - db * db;
+        double t = den > 1e-12 ? CLAMP((bw - db * dw) / den, 0.0, 1.0) : 0.5;
+        double s = CLAMP(t * db - dw, 0.0, p_reach);
+        t = bb > 1e-12 ? CLAMP((bw + s * db) / bb, 0.0, 1.0) : 0.0;
+        const Vector3 at = a + ab * t;
+        const double d_sq = at.distance_squared_to(p_origin + dir * s);
+        if (d_sq >= best_sq)
+            continue;
+        int pick = t < 0.5 ? i : i + 1;
+        if (m_inv_mass[pick] == 0.0f)
+            pick = pick == i ? i + 1 : i;
+        if (m_inv_mass[pick] == 0.0f)
+            continue;
+        best_sq = d_sq;
+        best = pick;
+        best_s = s;
+        best_at = at;
+    }
+    if (best < 0)
+        return out;
+    out["index"] = best;
+    out["position"] = best_at;
+    out["distance"] = std::sqrt(best_sq);
+    out["ray_distance"] = best_s;
+    out["along"] = best * m_segment_length;
+    out["length"] = (trunk - 1) * m_segment_length;
+    return out;
+}
+
+bool VerletRope::IsHeld(int p_index) const
+{
+    for (const Hold &h : m_holds)
+        if (h.index == p_index)
+            return true;
+    return false;
+}
+
+bool VerletRope::HoldPoint(int p_index, const Vector3 &p_world)
+{
+    if (p_index < 0 || p_index >= TrunkCount() || p_index >= static_cast<int>(m_points.size()) ||
+        m_inv_mass[p_index] == 0.0f)
+        return false;
+    Hold h;
+    h.index = p_index;
+    h.target = p_world;
+    h.from = m_points[p_index];
+    h.free_inv_mass = m_inv_mass[p_index];
+    m_holds.push_back(h);
+    m_inv_mass[p_index] = 0.0f;
+    // What it rested on does not hold it any more.
+    m_c_flags[p_index] = 0;
+    Wake();
+    return true;
+}
+
+void VerletRope::MoveHold(int p_index, const Vector3 &p_world)
+{
+    for (Hold &h : m_holds)
+    {
+        if (h.index != p_index)
+            continue;
+        // A hand held still lets the cord sleep in it.
+        if (h.target.distance_squared_to(p_world) > 1e-8)
+            Wake();
+        h.target = p_world;
+        return;
+    }
+}
+
+void VerletRope::ReleaseHold(int p_index)
+{
+    for (size_t k = 0; k < m_holds.size(); ++k)
+    {
+        const Hold h = m_holds[k];
+        if (h.index != p_index)
+            continue;
+        m_holds.erase(m_holds.begin() + static_cast<std::ptrdiff_t>(k));
+        if (p_index < static_cast<int>(m_points.size()))
+        {
+            m_inv_mass[p_index] = h.free_inv_mass;
+            // Let go moving as the hand was, not dropped dead in the air.
+            m_prev_points[p_index] = m_points[p_index] - h.slice_velocity;
+        }
+        Wake();
+        return;
+    }
+}
+
 int VerletRope::PointCount() const
 {
     return static_cast<int>(m_points.size());
@@ -1116,6 +1278,19 @@ void VerletRope::InitPoints()
         m_inv_mass[0] = 1.0f / static_cast<float>(1 + at_start);
     if (at_end > 0 && m_inv_mass[trunk_n - 1] != 0.0f)
         m_inv_mass[trunk_n - 1] = 1.0f / static_cast<float>(1 + at_end);
+    // A cord laid afresh in a hand is still in it.
+    for (size_t k = m_holds.size(); k-- > 0;)
+    {
+        Hold &h = m_holds[k];
+        if (h.index <= 0 || h.index >= trunk_n - 1)
+        {
+            m_holds.erase(m_holds.begin() + static_cast<std::ptrdiff_t>(k));
+            continue;
+        }
+        h.free_inv_mass = 1.0f;
+        h.from = m_points[h.index];
+        m_inv_mass[h.index] = 0.0f;
+    }
 
     // Self-collision exemptions around each junction, where the branch heads and
     // the trunk's end are coincident by construction rather than by collision.

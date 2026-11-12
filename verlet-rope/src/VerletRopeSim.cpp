@@ -554,6 +554,14 @@ void VerletRope::PinAnchors()
             m_points[last] = m_pin_from[2 + g].lerp(m_points[last], m_pin_fraction);
         m_prev_points[last] = m_points[last];
     }
+    // Hands on the cord: the same, to wherever the hand was last said to be.
+    for (const Hold &h : m_holds)
+    {
+        if (h.index < 0 || h.index >= static_cast<int>(m_points.size()))
+            continue;
+        m_points[h.index] = m_pin_fraction < 1.0 ? h.from.lerp(h.target, m_pin_fraction) : h.target;
+        m_prev_points[h.index] = m_points[h.index];
+    }
 }
 
 // True when an anchor is further from the particle pinned to it than it could have
@@ -1104,6 +1112,13 @@ bool VerletRope::StepBegin(double p_delta)
         m_pin_target[2 + g] = fc.cached ? AnchorPoint(fc.cached, fc.offset, m_points[last]) : m_points[last];
         fc.stub = fc.cached != nullptr && (PlugIsFixed(fc.cached) || PlugIsCoupled(fc.cached, ENDPOINT_AUTO));
         fc.stub_exit = fc.stub ? PlugExitDir(fc.cached, m_end_exit_axis) : Vector3();
+    }
+    for (Hold &h : m_holds)
+    {
+        if (h.index < 0 || h.index >= static_cast<int>(m_points.size()))
+            continue;
+        h.from = m_points[h.index];
+        h.slice_velocity = (h.target - h.from) / static_cast<double>(substeps);
     }
     if (substeps > 1)
         m_tick_from = m_points;

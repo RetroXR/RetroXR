@@ -214,6 +214,10 @@ func _unhandled_input(event: InputEvent) -> void:
 						# A click mid-turn is neither a drop nor a press on whatever the turn
 						# has brought under the crosshair.
 						get_viewport().set_input_as_handled()
+					elif CordGrab.instance != null and CordGrab.instance.desk_holding():
+						# A cord taken by its middle (CordGrab): the next click lets go.
+						CordGrab.instance.desk_release()
+						get_viewport().set_input_as_handled()
 					elif _held_object:
 						# The click drops what is held -- but on the way UP, so that a press
 						# on one of the object's own controls (a console's power switch) is
@@ -276,7 +280,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			# the way in, one more notch down catches it into the hand; wheel UP lets it
 			# back out onto the ray.
 			MOUSE_BUTTON_WHEEL_UP:
-				if _held_object and not _is_fps_snap():
+				if mbe.pressed and CordGrab.instance != null and CordGrab.instance.desk_holding():
+					CordGrab.instance.desk_scroll(1)
+					get_viewport().set_input_as_handled()
+				elif _held_object and not _is_fps_snap():
 					if _hand_hold:
 						_release_to_ray()
 					else:
@@ -284,7 +291,10 @@ func _unhandled_input(event: InputEvent) -> void:
 					get_viewport().set_input_as_handled()
 
 			MOUSE_BUTTON_WHEEL_DOWN:
-				if _held_object and not _is_fps_snap():
+				if mbe.pressed and CordGrab.instance != null and CordGrab.instance.desk_holding():
+					CordGrab.instance.desk_scroll(-1)
+					get_viewport().set_input_as_handled()
+				elif _held_object and not _is_fps_snap():
 					if _hand_hold:
 						# Scrolling in again, already in the hand, puts it back the way it was
 						# caught: screen to you, in front of you. For a thing turned to show a
@@ -434,6 +444,10 @@ func _try_grab(inspect := false) -> void:
 
 	var interaction := _resolve_interaction_target(true)
 	if not interaction.can_grab or not is_instance_valid(interaction.action_node):
+		# Nothing to pick up there. A cable has no body for the ray to find: it is
+		# asked last, by distance to the ray.
+		if CordGrab.instance != null 				and CordGrab.instance.desk_click(global_position, -global_transform.basis.z):
+			get_viewport().set_input_as_handled()
 		return
 	# The resolver now runs down the POINTER's ray, which reaches twice as far as
 	# the pickup ray it replaced. Out of arm's reach is out of reach.

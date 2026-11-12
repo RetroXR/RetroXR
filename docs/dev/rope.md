@@ -354,6 +354,40 @@ controllers, as each always did. A body that must be HAULED on its cord (a switc
 speaker cabinet) is `CableHaul`'s job, not this. A new owner of a lead calls
 `PlugTether`; it never writes its own clamp.
 
+## A hand on the cord: taken anywhere along it (`CordGrab`, 2026-11-12)
+
+A cord has no body, so no pickup sphere and no pointer ray can find it. It is
+found by DISTANCE instead, and only by a hand that has nothing else to take.
+
+- **The rope**: `closest_point(world)` / `closest_point_to_ray(origin, dir, reach)`
+  answer the takeable trunk particle nearest a hand or a crosshair (`index`,
+  `position`, `distance`, `along`, `length`, and `ray_distance`); `hold_point(index,
+  world)`, `move_hold`, `release_hold`, `is_held`, `hold_count`. A held particle is
+  a PIN like the ends (inverse mass 0): `PinAnchors` carries it to the hand over
+  the tick's slices, the target is read in `StepBegin` so the solve stays off the
+  engine, and `release_hold` gives it the velocity the hand had. A pinned end is
+  never held (the plug is the thing to take there); a hold survives a re-lay and is
+  dropped if the cord no longer has that particle. `move_hold` wakes the cord only
+  when the target moved, so a cord held still sleeps in the hand.
+- **The hands** (`Scripts/Interaction/cord_grab.gd`, the `CordGrab` node in
+  `player_rig.tscn`): in a headset GRIP within 6 cm of a cord takes it, but only
+  when that hand's pickup holds nothing, has no `closest_object`, no pointer target
+  and is not muted by a drawer or hinge; the pickup is switched off while the cord
+  is held and back on at release. At a desk `DesktopPickup._try_grab` asks
+  `CordGrab.desk_click` LAST, when the crosshair found nothing to pick up (3.5 cm
+  from the ray, measured to the cord's surface, and not through anything solid);
+  the wheel moves it along the ray and the next click lets go. A pale bead marks
+  the spot a hand would take, looked for ten times a second.
+- **Reach**: the hand's target is kept within the cord's length (x `TAUT`, 0.985)
+  of an end that cannot move, so the cord is never stretched by a hand; an end
+  that is a loose plug is reeled along behind through `PlugTether.reel_in`, as
+  every lead does it.
+- Local and cosmetic: not saved, not sent in a session (a peer sees the cord
+  where its own solver puts it).
+
+`rope_tests --only=hold`. Headset feel, the Quest and how a held cord drags a
+loose plug in a room are OWED.
+
 ## A ribbon's lay is held by BOTH connectors
 
 A ribbon (`ribbon_count` > 1, the two-wire mains cords) is one simulated chain. Its

@@ -87,6 +87,7 @@ func _run() -> void:
 	await _group_loose()
 	await _group_edges()
 	await _group_awake()
+	await _group_hold()
 	await _group_budget()
 	_finish()
 
@@ -1930,6 +1931,108 @@ func _rope_along(path: Array[Vector3]) -> VerletRope:
 		lay.append(path[k].lerp(path[k + 1], clampf((want - run) / maxf(span, 1e-9), 0.0, 1.0)))
 	rope.restore_points(lay)
 	return rope
+
+
+## A hand on the cord, partway along it (CordGrab, VerletRope.hold_point).
+func _group_hold() -> void:
+	if not _wants("hold"):
+		return
+
+	# 0.9 m of cord hanging between sockets 0.6 m apart.
+	var base := _new_case()
+	var rope := _rope_between(base + Vector3(-0.3, 1.5, 0), base + Vector3(0.3, 1.5, 0), 30, 0.03)
+	await _settle(300)
+	var low := rope.point_position(15)
+	var found: Dictionary = rope.closest_point(low + Vector3(0, 0, 0.02))
+	_ok(int(found.index) == 15 and absf(float(found.distance) - 0.02) < 0.003,
+		"hold/the spot nearest a hand is found on the cord",
+		"particle %d, %.1f mm away" % [int(found.index), float(found.distance) * 1000.0])
+	var ray: Dictionary = rope.closest_point_to_ray(low + Vector3(0.01, 0.5, 1.0), Vector3(0, -0.5, -1.0), 5.0)
+	_ok(absi(int(ray.index) - 15) <= 1 and float(ray.distance) < 0.012
+			and absf(float(ray.ray_distance) - Vector3(0, 0.5, 1.0).length()) < 0.03,
+		"hold/the spot a crosshair is on is found down its ray",
+		"particle %d, %.1f mm off the ray, %.2f m down it" % [
+				int(ray.index), float(ray.distance) * 1000.0, float(ray.ray_distance)])
+	var ends: Dictionary = rope.closest_point(rope.point_position(0))
+	_ok(not rope.hold_point(0, low) and not rope.hold_point(30, low) and int(ends.index) == 1,
+		"hold/a pinned end is not taken, the particle beside it is",
+		"nearest the start answers particle %d" % int(ends.index))
+
+	# Carried up and sideways: the particle is where the hand is, every tick,
+	# and the cord is not stretched to get it there.
+	var took := rope.hold_point(15, low)
+	var hand := low
+	var off_hand := 0.0
+	var stretched := 0.0
+	var done := 0
+	while done < 90:
+		await get_tree().physics_frame
+		for k in 6:
+			hand += Vector3(0.001, 0.002, 0.001)
+			rope.move_hold(15, hand)
+			rope.step(1.0 / 90.0)
+			off_hand = maxf(off_hand, rope.point_position(15).distance_to(hand))
+			var pts := rope.get_points()
+			for i in pts.size() - 1:
+				stretched = maxf(stretched, pts[i].distance_to(pts[i + 1]) / 0.03)
+		done += 6
+	_ok(took and rope.is_held(15) and off_hand < 0.0005 and stretched < 1.05,
+		"hold/a held spot goes where the hand goes and the cord is not stretched",
+		"%.2f mm off the hand at worst, longest segment %.3f of its length" % [off_hand * 1000.0, stretched])
+
+	# Held still, the cord goes to sleep in the hand.
+	await _settle(900)
+	var slept := rope.is_sleeping()
+	var held_at := rope.point_position(15)
+	_ok(slept and held_at.distance_to(hand) < 0.0005,
+		"hold/a cord held still sleeps in the hand", "asleep %s" % slept)
+
+	# Let go, it falls back, and is an ordinary particle again.
+	# (Swept along Z, across the span, for long enough that the cord beside it
+	# is moving too: one tick's jerk is undone by the cord's own tension.)
+	for k in 30:
+		hand += Vector3(0, 0, 0.004)
+		rope.move_hold(15, hand)
+		rope.step(1.0 / 90.0)
+	rope.release_hold(15)
+	rope.step(1.0 / 90.0)
+	var went := rope.point_position(15).z - hand.z
+	await _settle(400)
+	var fell := hand.y - rope.point_position(15).y
+	rope.nudge_point(15, Vector3(0, 0.01, 0))
+	_ok(not rope.is_held(15) and rope.hold_count() == 0 and went > 0.001 and fell > 0.15,
+		"hold/let go, the spot leaves with the hand's motion and then falls",
+		"went on %.1f mm in the first tick (the hand's 4.0), then fell %.0f mm" % [went * 1000.0, fell * 1000.0])
+
+	# CordGrab keeps the hand inside the cord's reach of an end that cannot move.
+	var grab := CordGrab.new()
+	add_child(grab)
+	grab.set_process(false)
+	await _settle(200)
+	var from: Vector3 = rope.point_position(10)
+	var taken := grab.take(7, rope, 10, from)
+	var far := rope.point_position(0) + Vector3(-1.0, 1.0, 0)
+	done = 0
+	while done < 120:
+		await get_tree().physics_frame
+		for k in 6:
+			grab.carry(7, from.lerp(far, minf(1.0, float(done + k) / 60.0)))
+			rope.step(1.0 / 90.0)
+		done += 6
+	var reach := rope.point_position(10).distance_to(rope.point_position(0))
+	var reach_end := rope.point_position(10).distance_to(rope.point_position(30))
+	var worst_seg := 0.0
+	var pts2 := rope.get_points()
+	for i in pts2.size() - 1:
+		worst_seg = maxf(worst_seg, pts2[i].distance_to(pts2[i + 1]) / 0.03)
+	grab.release(7)
+	_ok(taken and reach <= 0.3 and reach_end <= 0.6 and (reach > 0.28 or reach_end > 0.57)
+			and worst_seg < 1.05 and rope.hold_count() == 0,
+		"hold/a hand cannot carry the cord past its reach from a fixed end",
+		"0.30 m and 0.60 m of cord, held %.3f m and %.3f m from the sockets, longest segment %.3f" % [
+				reach, reach_end, worst_seg])
+	grab.free()
+	await _drop_case()
 
 
 func _group_awake() -> void:
