@@ -522,6 +522,7 @@ func _hk_build(jamma: bool) -> void:
 	else:
 		_hk_node(m, "Marker3D", "JvsLead", Vector3(0.2, 0.1, -0.8))
 	_hk_node(m, "Marker3D", "BoardPowerLead", Vector3(0.25, 0.15, -0.8))
+	_hk_node(m, "Marker3D", "GdDriveAnchor", Vector3(0.22, 0.0, -0.3))
 	var mp := PackedScene.new()
 	mp.pack(m)
 	ResourceSaver.save(mp, HK_MODEL)
@@ -625,6 +626,14 @@ func _hk_run() -> void:
 	(model.find_child(NaomiGdRom.CAB_DRIVE_POWER, true, false) as Port).pick_up_object(dpow.get_node("PlugB0"))
 	await _wait(40)
 	_ok(dimm.missing().is_empty() and dimm.get_rom_path() == "/tmp/naomi_gd/ikaruga.zip", "hookup: the drive powered: the DIMM board has the game (%s)" % str(dimm.missing()))
+	var dmount := model.find_child("GdDriveMount", true, false) as XRToolsSnapZone
+	_ok(dmount != null and dmount.snap_require == NaomiGdDrive.GROUP, "hookup: the cabinet has a place for the GD-ROM drive")
+	if dmount != null:
+		dmount.pick_up_object(drive)
+		await _wait(10)
+		_ok(dmount.picked_up_object == drive and drive.global_position.distance_to(dmount.global_position) < 0.005,
+			"hookup: the drive stands in it (%.3f m off)" % drive.global_position.distance_to(dmount.global_position))
+		_ok(dimm.missing().is_empty(), "hookup: and still reads the disc there (%s)" % str(dimm.missing()))
 	await _hk_done()
 
 

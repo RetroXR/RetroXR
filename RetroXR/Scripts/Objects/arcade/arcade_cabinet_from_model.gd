@@ -16,6 +16,8 @@
 ##   BoardAnchor                                                                    the bay's BayMount: the board (an
 ##                                                                                  ArcadeBayUnit) clips in there, turned
 ##                                                                                  by `bay_roll_deg`
+##   GdDriveAnchor                                                                  where a NAOMI GD-ROM drive stands: a
+##                                                                                  snap zone that takes one (GdDriveMount)
 ##   Marquee, MarqueeArt                                                            found by the cabinet as they are
 ##
 ## The parts are moved under the modules keeping where they are; the rest of the model stays as drawn. The
@@ -81,6 +83,7 @@ func _ready() -> void:
 		_build_coin(n)
 	_build_bay()
 	_build_leads()
+	_build_drive_mount()
 
 
 ## The cabinet's ends of the board's cords, at the model's leads (NaomiHookup reads them): the monitor's VGA and the
@@ -114,6 +117,22 @@ func _build_leads() -> void:
 		else:
 			add_child(port)
 			port.global_transform = Transform3D(Basis.IDENTITY, at.global_position)
+
+
+## A NAOMI GD-ROM drive's place, at the model's GdDriveAnchor (its origin on the floor under the drive's body, its
+## sockets toward -X): a snap zone that takes the drive, so it stands there and rides with the cabinet. A mod zone,
+## so a save records the drive in it (ScenePersistence._attachment_field).
+func _build_drive_mount() -> void:
+	var at := _part("GdDriveAnchor")
+	if at == null:
+		return
+	var zone := (load("res://addons/godot-xr-tools/objects/snap_zone.tscn") as PackedScene).instantiate() as XRToolsSnapZone
+	zone.name = "GdDriveMount"
+	zone.snap_require = NaomiGdDrive.GROUP
+	zone.grab_distance = 0.12
+	zone.add_to_group(ScenePersistence.MOD_ZONE_GROUP)
+	add_child(zone)
+	zone.global_transform = Transform3D(at.global_basis.orthonormalized(), at.global_position)
 
 
 ## A JVS cabinet's I/O board (837-13551) at its JvsLead: a stand-in board (a mod dresses it, ArcadeBayShells kind

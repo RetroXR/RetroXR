@@ -11,6 +11,8 @@ class_name NaomiGdDrive
 extends XRToolsPickable
 
 const KIND := "naomi_gd_drive"
+## The group a cabinet's drive mount (ArcadeCabinetFromModel, at a model's GdDriveAnchor) takes.
+const GROUP := "naomi_gd_drive"
 ## The lid's cover slot (CoverSlots), and the way its outer face looks.
 const LID_SOCKET := "naomi_gd_lid"
 const LID_OUT := Vector3.UP
@@ -33,6 +35,7 @@ var _held_disc: XRToolsPickable = null
 func _ready() -> void:
 	super._ready()
 	add_to_group("spawned")
+	add_to_group(GROUP)
 	_build_stand_in()
 	var shell := ArcadeBayShells.dress(self, KIND, Vector3(0.1635, 0.0585, 0.1535))
 	_build_lid(shell)
