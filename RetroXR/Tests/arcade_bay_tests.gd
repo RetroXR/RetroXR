@@ -526,8 +526,10 @@ func _group_captive() -> void:
 			shown += 1 if (mi as MeshInstance3D).visible else 0
 	_ok(end != null and not end.enabled and shown == 0, "captive: its cord's cabinet end is in the grommet, hidden and fixed")
 	var rope := end.get_parent().get_node_or_null("VerletRope") as VerletRope if end != null else null
-	_ok(rope != null and absf(rope.segment_count * rope.segment_length - NaomiHookup.CAPTIVE_LENGTH) < 0.01,
-		"captive: the cord is %.2f m" % (rope.segment_count * rope.segment_length if rope != null else 0.0))
+	var run := cab.global_position.distance_to((bay.find_child(NaomiHookup.BOARD_VGA, true, false) as Node3D).global_position) if cab != null else 0.0
+	var cord_len: float = rope.segment_count * rope.segment_length if rope != null else 0.0
+	_ok(rope != null and absf(cord_len - run - NaomiHookup.CORD_SPARE) < 0.03,
+		"captive: the cord is cut to its run, %.2f m for %.2f m" % [cord_len, run])
 	_ok(model.hookup_missing().is_empty(), "captive: fresh, it comes wired (%s)" % str(model.hookup_missing()))
 	var out := bay.find_child(NaomiHookup.BOARD_VGA, true, false) as Port
 	var free := out.seated_plug()

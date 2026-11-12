@@ -28,10 +28,11 @@ const CAB_POWER := "BoardPowerIn"
 const CAB_JAMMA := "JammaPort"
 ## The converter's.
 const CONV_GROUP := "jvs_jamma_converter"
-## On a cabinet socket that is the cabinet end of one of its own cords (ArcadeCabinetFromModel.captive_leads), and how
-## long such a cord is: it hangs from where it comes out into the base, a metre being enough to reach the board.
+## On a cabinet socket that is the cabinet end of one of its own cords (ArcadeCabinetFromModel.captive_leads).
 const CAPTIVE_META := &"captive_lead"
-const CAPTIVE_LENGTH := 1.0
+## How much longer than its run (the board's socket to the cabinet's) a cord the cabinet comes with is: a tray's travel (a
+## NAOMI Universal's slides out 330 mm) and a little to spare. Cut to the run, it does not spill out of the bay in coils.
+const CORD_SPARE := 0.45
 const CONV_EDGE := "ConvJammaEdge"
 const CONV_JVS := "ConvJvsIn"
 const CONV_VGA := "ConvVgaIn"
@@ -152,10 +153,12 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 		if ports.has(null):
 			continue
 		var cable := (load("res://Scenes/Objects/cables/%s.tscn" % str(run[0])) as PackedScene).instantiate() as Node3D
-		# The cabinet's own cord: a metre, hanging from its grommet.
-		for port in ports:
-			if (port as Port).has_meta(CAPTIVE_META):
-				CaptiveCord.resize(cable.get_node_or_null("VerletRope") as VerletRope, CAPTIVE_LENGTH)
+		# Cut to its run: the longest board-to-cabinet pair it joins, and CORD_SPARE.
+		var reach := 0.0
+		for i in range(0, ports.size() - 1, 2):
+			reach = maxf(reach, (ports[i] as Node3D).global_position.distance_to((ports[i + 1] as Node3D).global_position))
+		for rope in cable.find_children("*", "VerletRope", true, false):
+			CaptiveCord.resize(rope as VerletRope, reach + CORD_SPARE)
 		home.add_child(cable)
 		cable.global_position = (bay as Node3D).global_position + Vector3(0, 0.1, 0)
 		for i in seats.size():
