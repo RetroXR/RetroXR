@@ -201,7 +201,11 @@ func open_system(systemid: String) -> void:
 		_detail_populator.call(systemid, _detail_vbox)
 	_home_page.visible = false
 	_detail_page.visible = true
-	_detail_scroll.scroll_vertical = 0
+	# A refresh keeps the offset it had. Zeroing it here and putting it back two
+	# frames later (_restore_detail_scroll) drew the page at row one for those
+	# frames: the list visibly jumped every time a scrape landed its art.
+	if not _refreshing:
+		_detail_scroll.scroll_vertical = 0
 	system_opened.emit(systemid)
 	active_scroll_changed.emit(_detail_scroll)
 
@@ -321,15 +325,22 @@ func _sync_hidden_toggle(count: int) -> void:
 	_show_hidden_btn.text = "Hidden (%d)" % count
 
 
-## The page was just rebuilt, so its height is not settled until the containers
-## have re-laid out; assigning scroll_vertical before that clamps it against the
-## old, shorter content and quietly lands short.
+## The fallback for a refresh whose offset did not survive the rebuild.
+##
+## open_system() leaves the offset alone on a refresh, and the populator rebuilds
+## the page in the same call, so the containers lay out once against the new
+## content and the offset normally stands. Should the layout have clamped it
+## anyway, put it back once the height has settled (assigning before that clamps
+## against the stale content) — and only then: writing it unconditionally re-binds
+## the list for nothing.
 func _restore_detail_scroll(at: int) -> void:
 	if at <= 0:
 		return
 	await get_tree().process_frame
 	await get_tree().process_frame
-	if is_instance_valid(_detail_scroll):
+	if is_instance_valid(_detail_scroll) and _detail_scroll.scroll_vertical != at:
+		print("[SystemGrid] refresh moved the scroll %d -> %d; putting it back"
+			% [at, _detail_scroll.scroll_vertical])
 		_detail_scroll.scroll_vertical = at
 
 
