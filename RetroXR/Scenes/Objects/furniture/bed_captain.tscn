@@ -1,0 +1,36 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/room/contract_seat.gd" id="1_cs"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="Script" path="res://Scripts/Objects/appliance_model.gd" id="3_model"]
+[ext_resource type="PackedScene" path="res://imported-assets/furniture/beds/bed_captain_mobile.glb" id="4_lod0"]
+[ext_resource type="PackedScene" path="res://imported-assets/furniture/beds/bed_captain_mobile_lod1.glb" id="5_lod1"]
+[ext_resource type="PackedScene" path="res://imported-assets/furniture/beds/bed_captain_mobile_lod2.glb" id="6_lod2"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_seat"]
+bounce = 0.0
+friction = 0.9
+
+; The captain's bed (queen): golden oak, a bookcase headboard, three drawers in its side. RetroXR-models generic/beds; sizes estimated.
+; Origin on the floor, the front (a bed's foot) towards +Z. ContractSeat builds the collision, the places to sit (and
+; lie), the stand points and the drawers from the contract, so this scene carries none of its own.
+[node name="CaptainBed" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_seat")
+mass = 80.0
+linear_damp = 6.0
+angular_damp = 9.0
+freeze_mode = 1
+script = ExtResource("1_cs")
+contract_path = "res://imported-assets/furniture/beds/bed_captain_contract.json"
+type_id = "bed_captain"
+
+[node name="Model" type="Node3D" parent="."]
+script = ExtResource("3_model")
+level_scenes = Array[PackedScene]([ExtResource("4_lod0"), ExtResource("5_lod1"), ExtResource("6_lod2")])
+switch_distance = 3.0
+far_distance = 7.0
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")

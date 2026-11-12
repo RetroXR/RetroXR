@@ -1087,6 +1087,21 @@ const OBJECTS := [
 	# The Mission bedroom pair, every drawer pulling out by its ring pulls (DrawerFurniture).
 	["Mission Nightstand", "mission_nightstand"],
 	["Mission Chest",      "mission_chest"],
+	# Somewhere to sit (ContractSeat): press a cushion to sit there, again to get up; hold on it to carry it. A bed's
+	# pillow end lies you down, the rest of it sits you on its edge.
+	["Mid-Century Sofa",   "sofa_midcentury"],
+	["Overstuffed Sofa",   "sofa_overstuffed"],
+	["Futon",              "sofa_futon"],
+	["Mission Stool",      "stool_mission"],
+	["Mid-Century Stool",  "stool_midcentury"],
+	["Desk Chair",         "chair_desk"],
+	["Papasan Chair",      "chair_papasan"],
+	["Pouf",               "pouf"],
+	["Captain's Bed (Queen)", "bed_captain"],
+	["Brass Bed (Queen)",     "bed_brass"],
+	["Waterbed (Queen)",      "bed_waterbed"],
+	["Wooden Bed (Twin)",     "bed_wooden"],
+	["Race Car Bed (Twin)",   "bed_racecar"],
 	["Storage Box",     "trash_can"],
 	["VCR",             "vcr_player"],
 	["DVD Player",      "dvd_player"],

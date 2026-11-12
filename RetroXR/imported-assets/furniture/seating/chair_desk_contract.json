@@ -1,0 +1,127 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the front (the way a sitter faces) is +Z, x to the right seen from the front; the ORIGIN is the middle of the footprint, on the floor",
+ "variant": "chair_desk",
+ "title": "Swivel desk chair",
+ "size": [
+  0.61547,
+  1.0,
+  0.65706
+ ],
+ "bounds": {
+  "min": [
+   -0.30774,
+   0.0,
+   -0.33706
+  ],
+  "max": [
+   0.30774,
+   1.0,
+   0.32
+  ]
+ },
+ "levels": [
+  "chair_desk_mobile",
+  "chair_desk_mobile_lod1",
+  "chair_desk_mobile_lod2"
+ ],
+ "master": "chair_desk_high",
+ "own_nodes": [
+  "Body"
+ ],
+ "materials": [
+  "SEAT_Charcoal",
+  "SEAT_Plastic"
+ ],
+ "markers": [
+  {
+   "node": "EyePoint",
+   "position": [
+    0.0,
+    1.26,
+    -0.02
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "where a sitter's head goes; -Z (Godot forward) looks out of the front"
+  },
+  {
+   "node": "StandPoint",
+   "position": [
+    0.60774,
+    0.0,
+    -0.02
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "on the floor beside the piece, where the player is stood when they get up"
+  }
+ ],
+ "seat_top": 0.48,
+ "eye_point": [
+  0.0,
+  1.26,
+  -0.02
+ ],
+ "stand_point": [
+  0.60774,
+  0.0,
+  -0.02
+ ],
+ "seat_trigger": {
+  "centre": [
+   0.0,
+   0.495,
+   -0.02
+  ],
+  "size": [
+   0.5,
+   0.03,
+   0.48
+  ]
+ },
+ "seats": [],
+ "collision": {
+  "boxes": [
+   {
+    "name": "Seat",
+    "centre": [
+     0.0,
+     0.24,
+     -0.02
+    ],
+    "size": [
+     0.5,
+     0.48,
+     0.48
+    ]
+   },
+   {
+    "name": "Back",
+    "centre": [
+     0.0,
+     0.74,
+     -0.28
+    ],
+    "size": [
+     0.44,
+     0.52,
+     0.14
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres; the cushion slab is seat_trigger, not one of these"
+ },
+ "estimated": "every size is estimated from ordinary furniture of the kind: see MEASUREMENTS.md",
+ "triangles": {
+  "high": 2120,
+  "lod0": 1512,
+  "lod1": 1144,
+  "lod2": 648
+ }
+}

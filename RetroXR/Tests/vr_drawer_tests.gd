@@ -3,7 +3,7 @@
 ## front pushes it in (but never one reaching INTO it), the grip never lifts the furniture, its open amount saves, and
 ## what rests in it rides out with it. The nightstand is turned 90 degrees and moved, so a frame mix-up shows.
 ##   godot --headless --path RetroXR res://Tests/vr_drawer_tests.tscn [-- --only=<group>]
-## Groups: rig contract latch grip coast soft push save carry haul real mission again
+## Groups: rig contract latch grip coast soft push save carry haul real mission beds again
 extends "res://Tests/test_suite.gd"
 
 const HAND := &"/vr_drawer_tests/hand"
@@ -67,6 +67,8 @@ func _ready() -> void:
 		await _rough_haul(ns)
 	if _group("mission"):
 		await _mission()
+	if _group("beds"):
+		await _beds()
 	if _group("real"):
 		await _real_hold(ns)
 		await _ray_hold(ns)
@@ -811,6 +813,103 @@ func _mission() -> void:
 		_ok(absf(fresh.drawers()[k].open_distance() - opened) < 0.001
 			and absf(fresh.drawer_body(k).position.z - opened) < 0.002,
 			"mission/%s: saved and restored, that drawer is %.0f mm out again" % [v[0], opened * 1000.0])
+		fresh.queue_free()
+		piece.queue_free()
+		await _ticks(2)
+
+
+## The beds with drawers (ContractSeat, its drawers built by FurnitureDrawers as the Mission pair's): they come out of
+## the bed's SIDE (+X), each moves its own body and drawing, clear of the mattress at full travel, gets a lid while
+## the bed is held, and saves. The bed is turned, so a drawer that slid along the bed's Z instead shows.
+func _beds() -> void:
+	for v: Array in [["bed_captain", 3], ["bed_waterbed", 2]]:
+		var piece := (ScenePersistence.PLAIN_SCENES[v[0]] as PackedScene).instantiate() as ContractSeat
+		piece.transform = Transform3D(Basis(Vector3.UP, 0.6), Vector3(4.0, 0.0, -3.0))
+		add_child(piece)
+		await _ticks(3)
+		var ds := piece.drawers()
+		_eq(ds.size(), v[1], "beds/%s has its %d drawers" % [v[0], v[1]])
+		if ds.size() != v[1]:
+			piece.queue_free()
+			continue
+		_ok(ds.all(func(d: VRDrawer) -> bool: return d.handle_mesh != null and d.visual != null),
+			"beds/%s: every drawer is drawn from its own visual and outlined" % v[0])
+		var out := piece.global_basis.x
+		_ok(ds.all(func(d: VRDrawer) -> bool: return (d.global_basis * d.axis_local).normalized().dot(out) > 0.999),
+			"beds/%s: every drawer slides out of the bed's side (+X)" % v[0])
+		var k := 0
+		var d := ds[k]
+		var body := piece.get_node("DrawerBody%d" % (k + 1)) as Node3D
+		var others_before := []
+		for j in ds.size():
+			others_before.append((piece.get_node("DrawerBody%d" % (j + 1)) as Node3D).position)
+		var start := d.global_position
+		_place(start)
+		await _ticks(3)
+		_buttons(0.9, 0.0)
+		await _ticks(3)
+		for i in 120:
+			_place(start + out * (0.005 * (i + 1)))
+			await get_tree().physics_frame
+		_buttons(0.0, 0.0)
+		_place(FAR)
+		for i in 30:
+			await get_tree().physics_frame
+		var opened := d.open_distance()
+		var visual := piece.get_node("DrawerVisual%d" % (k + 1)) as Node3D
+		_ok(opened > d.travel - 0.01 and absf(body.position.x - opened) < 0.003 and absf(body.position.z) < 0.001
+			and absf(visual.position.x - opened) < 0.003,
+			"beds/%s: its first drawer pulls all the way out of the side, %.0f of %.0f mm, body and drawing with it" % [
+			v[0], opened * 1000.0, d.travel * 1000.0])
+		var others_still := true
+		for j in ds.size():
+			if j != k:
+				others_still = others_still and (piece.get_node("DrawerBody%d" % (j + 1)) as Node3D).position.is_equal_approx(others_before[j])
+		_ok(others_still, "beds/%s: the other drawers stay shut" % v[0])
+		# At full travel the drawer (its walls and its lid) is below the mattress and every bedding box, so the bedding
+		# never stands in its way.
+		var bedding_floor := INF
+		for row: Dictionary in (piece.contract()["collision"] as Dictionary).get("bedding", []):
+			bedding_floor = minf(bedding_floor, float(row["centre"][1]) - float(row["size"][1]) * 0.5)
+		var drawer_top := -INF
+		for j in ds.size():
+			var b := piece.get_node("DrawerBody%d" % (j + 1)) as Node3D
+			for cs: CollisionShape3D in b.find_children("*", "CollisionShape3D", false, false):
+				drawer_top = maxf(drawer_top, cs.position.y + (cs.shape as BoxShape3D).size.y * 0.5)
+		_ok(drawer_top < bedding_floor, "beds/%s: the drawers' tops (lids included, %.0f mm) are under the bedding (%.0f mm)" % [
+			v[0], drawer_top * 1000.0, bedding_floor * 1000.0])
+		# Held, every drawer has a lid; put down, none.
+		piece.freeze = true
+		piece.collision_layer = piece.picked_up_layer
+		piece.collision_mask = 0
+		for i in 4:
+			await get_tree().physics_frame
+		var lids := 0
+		for j in ds.size():
+			lids += 1 if piece.lid_on(j) else 0
+		piece.freeze = false
+		piece.collision_layer = 4
+		piece.collision_mask = 196613
+		for i in 4:
+			await get_tree().physics_frame
+		var any_left := false
+		for j in ds.size():
+			any_left = any_left or piece.lid_on(j)
+		_ok(lids == ds.size() and not any_left, "beds/%s: held, every drawer has its lid (%d of %d); put down, none" % [
+			v[0], lids, ds.size()])
+		# Saved and restored on a fresh bed.
+		var sp := ScenePersistence.new()
+		var records: Array = sp._serialize_articulated_controls(piece)
+		var fresh := (ScenePersistence.PLAIN_SCENES[v[0]] as PackedScene).instantiate() as ContractSeat
+		fresh.position = Vector3(-4.0, 0.0, -6.0)
+		add_child(fresh)
+		await _ticks(3)
+		sp._restore_articulated_controls(fresh, records)
+		for i in 3:
+			await get_tree().physics_frame
+		var fresh_body := fresh.get_node("DrawerBody%d" % (k + 1)) as Node3D
+		_ok(absf(fresh.drawers()[k].open_distance() - opened) < 0.001 and absf(fresh_body.position.x - opened) < 0.002,
+			"beds/%s: saved and restored, that drawer is %.0f mm out again" % [v[0], opened * 1000.0])
 		fresh.queue_free()
 		piece.queue_free()
 		await _ticks(2)

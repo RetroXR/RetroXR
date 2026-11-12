@@ -276,6 +276,22 @@ const TABLE_SCENE            := preload("res://Scenes/Objects/furniture/table.ts
 const NIGHTSTAND_SCENE       := preload("res://Scenes/Objects/furniture/nightstand.tscn")
 const MISSION_NIGHTSTAND_SCENE := preload("res://Scenes/Objects/furniture/mission_nightstand.tscn")
 const MISSION_CHEST_SCENE    := preload("res://Scenes/Objects/furniture/mission_chest.tscn")
+# The RETRO XR seats and beds (ContractSeat, built from their contracts): RetroXR-models generic/seating, generic/beds.
+const SEAT_FURNITURE_IDS := ["sofa_midcentury", "sofa_overstuffed", "sofa_futon", "stool_mission", "stool_midcentury",
+	"chair_desk", "chair_papasan", "pouf", "bed_captain", "bed_brass", "bed_waterbed", "bed_wooden", "bed_racecar"]
+const SOFA_MIDCENTURY_SCENE  := preload("res://Scenes/Objects/furniture/sofa_midcentury.tscn")
+const SOFA_OVERSTUFFED_SCENE := preload("res://Scenes/Objects/furniture/sofa_overstuffed.tscn")
+const SOFA_FUTON_SCENE       := preload("res://Scenes/Objects/furniture/sofa_futon.tscn")
+const STOOL_MISSION_SCENE    := preload("res://Scenes/Objects/furniture/stool_mission.tscn")
+const STOOL_MIDCENTURY_SCENE := preload("res://Scenes/Objects/furniture/stool_midcentury.tscn")
+const CHAIR_DESK_SCENE       := preload("res://Scenes/Objects/furniture/chair_desk.tscn")
+const CHAIR_PAPASAN_SCENE    := preload("res://Scenes/Objects/furniture/chair_papasan.tscn")
+const POUF_SCENE             := preload("res://Scenes/Objects/furniture/pouf.tscn")
+const BED_CAPTAIN_SCENE      := preload("res://Scenes/Objects/furniture/bed_captain.tscn")
+const BED_BRASS_SCENE        := preload("res://Scenes/Objects/furniture/bed_brass.tscn")
+const BED_WATERBED_SCENE     := preload("res://Scenes/Objects/furniture/bed_waterbed.tscn")
+const BED_WOODEN_SCENE       := preload("res://Scenes/Objects/furniture/bed_wooden.tscn")
+const BED_RACECAR_SCENE      := preload("res://Scenes/Objects/furniture/bed_racecar.tscn")
 const RETRO_MOUSE_SCENE      := preload("res://Scenes/Objects/peripherals/retro_mouse.tscn")
 const SNES_MOUSE_SCENE       := preload("res://Scenes/Objects/peripherals/snes_mouse.tscn")
 const SUPER_SCOPE_SCENE      := preload("res://Scenes/Objects/peripherals/super_scope.tscn")
@@ -436,6 +452,21 @@ const PLAIN_SCENES := {
 	# Pose only, as the nightstand: every drawer is a VRDrawer saved with the articulated controls.
 	"mission_nightstand": MISSION_NIGHTSTAND_SCENE,
 	"mission_chest": MISSION_CHEST_SCENE,
+	# Pose only: where the player is sitting is this session's, never saved; a bed's drawers are VRDrawers saved with
+	# the articulated controls.
+	"sofa_midcentury": SOFA_MIDCENTURY_SCENE,
+	"sofa_overstuffed": SOFA_OVERSTUFFED_SCENE,
+	"sofa_futon": SOFA_FUTON_SCENE,
+	"stool_mission": STOOL_MISSION_SCENE,
+	"stool_midcentury": STOOL_MIDCENTURY_SCENE,
+	"chair_desk": CHAIR_DESK_SCENE,
+	"chair_papasan": CHAIR_PAPASAN_SCENE,
+	"pouf": POUF_SCENE,
+	"bed_captain": BED_CAPTAIN_SCENE,
+	"bed_brass": BED_BRASS_SCENE,
+	"bed_waterbed": BED_WATERBED_SCENE,
+	"bed_wooden": BED_WOODEN_SCENE,
+	"bed_racecar": BED_RACECAR_SCENE,
 	# Pose only: the hub has no state of its own. Which lead is in which of its
 	# sockets is recorded by each LEAD, naming this hub and "PortN".
 	"ilink_hub": ILINK_HUB_SCENE,

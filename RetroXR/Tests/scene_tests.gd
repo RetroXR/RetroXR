@@ -1709,7 +1709,9 @@ const _BUILT_TYPES := ["light_gun", "ray_gun", "retro_keyboard", "wiimote",
 	"loudspeaker", "subwoofer", "speaker_stand_120", "speaker_stand_100",
 	"arcade_bay_jamma", "arcade_bay_mvs", "arcade_bay_laserdisc", "arcade_bay_discrete", "arcade_bay_naomi", "arcade_bay_naomi2", "arcade_bay_atomiswave", "jvs_jamma_converter", "naomi_dimm_board", "naomi_gd_drive", "naomi_key",
 	"vb_battery_pack", "vb_ac_tap",
-	"mission_nightstand", "mission_chest"]
+	"mission_nightstand", "mission_chest",
+	"sofa_midcentury", "sofa_overstuffed", "sofa_futon", "stool_mission", "stool_midcentury", "chair_desk",
+	"chair_papasan", "pouf", "bed_captain", "bed_brass", "bed_waterbed", "bed_wooden", "bed_racecar"]
 
 
 ## PLAIN_SCENES is read only when LOADING; a type with no save row is never

@@ -30,7 +30,14 @@
 ## The sitting itself (the pose, the pin, the camera's height, the locomotion block) is SeatSitting, which a sit-down
 ## driving cabinet's own seat (CockpitSeat) uses as well; this is the furniture: a thing you carry about.
 ##
-## The scenes are baked by Tools/gen/gen_seats.gd; a mod's seat is any scene with this script
+## PLACES. A seat can have several places to sit (a sofa's three cushions, a bed's edge and its pillow): each is a
+## SeatTrigger that names its own eye and stand markers (`SeatTrigger.eye_point` / `stand_point`), and a press on it
+## sits at THAT place (`toggle_at`). A trigger that names none is the seat's one place: `EyePoint` and `StandPoint`.
+## Seated, any press on the seat stands the player up, wherever on it (the cushions' laser slabs grow while seated
+## and overlap); to move along a sofa, get up and press the other cushion. ContractSeat builds its places from the
+## model's contract.
+##
+## The test fixtures are baked by Tools/gen/gen_seats.gd; a mod's seat is any scene with this script
 ## and an `EyePoint` and a `StandPoint` marker.
 class_name Seat
 extends XRToolsPickable
@@ -48,6 +55,9 @@ static var current: Node = null
 @export var type_id := "seat_chair"
 
 var _sitting: SeatSitting
+## The place sat in (its eye and stand markers), or null for the seat's own `EyePoint` / `StandPoint`.
+var _place_eye: Node3D = null
+var _place_stand: Node3D = null
 
 
 func _init() -> void:
@@ -171,10 +181,40 @@ func toggle() -> void:
 		sit()
 
 
+## A press on one of the seat's places (a SeatTrigger that names its markers): sit THERE, or, seated anywhere on this
+## seat, stand up.
+func toggle_at(trigger: Node) -> void:
+	if is_occupied():
+		stand()
+		return
+	var eye := trigger.get_node_or_null(trigger.get("eye_point")) as Node3D if trigger != null else null
+	var at := trigger.get_node_or_null(trigger.get("stand_point")) as Node3D if trigger != null else null
+	if eye == null:
+		push_warning("[Seat] %s: %s names no eye marker: sitting at the seat's own EyePoint" % [name, str(trigger)])
+		sit()
+		return
+	sit_place(eye, at)
+
+
+## Sit at a place: the head to `eye`, and up onto `stand_at` (the seat's StandPoint when null).
+func sit_place(eye: Node3D, stand_at: Node3D = null) -> bool:
+	_place_eye = eye
+	_place_stand = stand_at
+	print("[Seat] %s: sitting at %s (stand at %s)" % [name, eye.name, stand_at.name if stand_at != null else "StandPoint"])
+	return _sitting.sit()
+
+
+## The eye marker of the place sat in, or the seat's own `EyePoint` (for a test, a probe).
+func place_eye() -> Node3D:
+	if _place_eye != null and is_instance_valid(_place_eye):
+		return _place_eye
+	return find_child("EyePoint", true, false) as Node3D
+
+
 ## Where the eyes go: `EyePoint`'s transform in the world. -Z is the way the seat faces. A seat
 ## with no marker looks forward from a metre up, which is only the contract failing quietly.
 func eye_transform() -> Transform3D:
-	var marker := find_child("EyePoint", true, false) as Node3D
+	var marker := place_eye()
 	if marker != null:
 		return marker.global_transform
 	return global_transform * Transform3D(Basis.IDENTITY, Vector3(0.0, 1.0, 0.0))
@@ -183,7 +223,7 @@ func eye_transform() -> Transform3D:
 ## Where the feet go when the player gets up: `StandPoint`, on the floor. Without one, half a
 ## metre in front of the seat.
 func stand_point() -> Vector3:
-	var marker := find_child("StandPoint", true, false) as Node3D
+	var marker := _place_stand if _place_stand != null and is_instance_valid(_place_stand) else 		find_child("StandPoint", true, false) as Node3D
 	if marker != null:
 		return marker.global_position
 	return global_transform * Vector3(0.0, 0.0, -0.5)
@@ -196,6 +236,8 @@ func floor_y() -> float:
 
 ## Carry the player onto this seat. False when there is no player to carry (no camera).
 func sit() -> bool:
+	_place_eye = null
+	_place_stand = null
 	return _sitting.sit()
 
 

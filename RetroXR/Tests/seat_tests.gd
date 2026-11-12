@@ -17,7 +17,10 @@
 ##   follow/   a seat on a moving base carries the player with it, in position and never in heading
 ##   rider/    a motorbike's and a bicycle's saddle is a seat: pressed to sit, the eyes above it, a floor to get up onto, off the leaning part
 ##   pair/     a cockpit of two seats (Lucky & Wild): each sat in and got up from on its own side, one at a time, no pointer box over either cushion
-##   save/     no seat is furniture any more: none is a plain scene or on the SPAWN menu's Objects tab
+##   contract/ every RETRO XR seat and bed (ContractSeat) builds from its contract: its places, eyes at a sitting (or lying)
+##             height looking the right way, stand points on the floor beside it, and a press on EACH place sits there
+##   save/     the RETRO XR seats and beds are plain scenes, spawned by their tokens and on the Objects tab; the six old
+##             primitive seats (removed 2026-11-12) stay gone
 extends "res://Tests/test_suite.gd"
 
 const FAMILIES: Array[String] = ["seat_chair", "seat_sofa"]
@@ -74,6 +77,8 @@ func _run() -> void:
 		await _group_rider()
 	if _want("pair"):
 		await _group_pair()
+	if _want("contract"):
+		await _group_contract()
 	if _want("save"):
 		await _group_save()
 
@@ -701,14 +706,105 @@ func _group_pair() -> void:
 	await _frames(2)
 
 
+# --- contract ------------------------------------------------------------------
+
+## Every RETRO XR seat and bed, built from its model's contract (ContractSeat), through the rig, each place pressed.
+func _group_contract() -> void:
+	_make_rig()
+	await _frames(2)
+	for id: String in ScenePersistence.SEAT_FURNITURE_IDS:
+		var seat := (ScenePersistence.PLAIN_SCENES[id] as PackedScene).instantiate() as ContractSeat
+		_ok(seat != null, "contract: %s is a ContractSeat" % id)
+		if seat == null:
+			continue
+		seat.freeze = true
+		# Turned and moved, so a frame mix-up (local against world) shows.
+		seat.transform = Transform3D(Basis(Vector3.UP, 0.7), Vector3(5.0, 0.0, -5.0))
+		add_child(seat)
+		await _frames(2)
+		var size := (seat.contract().get("size", [0, 0, 0]) as Array)
+		var half := Vector2(float(size[0]) * 0.5, float(size[2]) * 0.5)
+		var bed := id.begins_with("bed_")
+		var want := 3 if id.begins_with("sofa_") else (2 if bed else 1)
+		var places := seat.places()
+		_ok(seat.type_id == id and places.size() == want, "contract: %s names itself and has %d places (%d)" % [id, want, places.size()])
+		var model := seat.get_node_or_null("Model") as ApplianceModel
+		_ok(model != null and model.levels.size() == 3, "contract: %s is drawn at three levels" % id)
+		var boxes := 0
+		for c in seat.get_children():
+			boxes += 1 if c is CollisionShape3D else 0
+		var pointer := seat.find_child("PointerArea", false, false)
+		_ok(boxes > 0 and pointer is SeatPointerArea and pointer.get_child_count() == boxes,
+			"contract: %s has its collision (%d boxes) and a body to press that is the same boxes" % [id, boxes])
+		_ok(seat.find_child("EyePoint", false, false) != null and seat.find_child("SeatTrigger", false, false) != null
+			and seat.find_child("StandPoint", false, false) != null, "contract: %s's first place is its own EyePoint / SeatTrigger" % id)
+		var lies := 0
+		for p: Dictionary in places:
+			var eye := p["eye"] as Node3D
+			var stand := p["stand"] as Node3D
+			var trigger := p["trigger"] as SeatTrigger
+			var label := "%s %s" % [id, eye.name]
+			var lie := bool(p["lie"])
+			lies += 1 if lie else 0
+			var h := eye.position.y
+			_ok((lie and h >= 0.6 and h <= 0.95) or (not lie and h >= 1.0 and h <= 1.55),
+				"contract: %s's eyes are at a %s height (%.2f m)" % [label, "lying" if lie else "sitting", h])
+			# The way the eyes look: a seat's front is +Z, a bed's edge +X, lying toward the foot (+Z).
+			var face := Vector3.RIGHT if bed and not lie else Vector3.BACK
+			_ok((-eye.basis.z).dot(face) > 0.99 and absf(eye.basis.y.dot(Vector3.UP) - 1.0) < 1e-4,
+				"contract: %s looks out the right way (%s), head up" % [label, str(-eye.basis.z)])
+			_ok(_near(stand.position.y, 0.0) and (absf(stand.position.x) > half.x or absf(stand.position.z) > half.y),
+				"contract: %s gets up onto the floor beside it (%s)" % [label, str(stand.position)])
+			# Sitting the eyes are well over the cushion; lying, the head is on the pillow, just over the mattress.
+			_ok(trigger.get_node_or_null(trigger.eye_point) == eye and trigger.position.y < h - (0.1 if lie else 0.5),
+				"contract: %s's cushion names it and is under the eyes" % label)
+			# The trigger's slab grows toward the sitter's knees while seated (its -Z): that must be the way they look.
+			_ok((-trigger.basis.z).dot(-eye.basis.z) > 0.99, "contract: %s's slab grows the way the sitter faces" % label)
+			trigger.pointer_event(_event(XRToolsPointerEvent.Type.PRESSED, trigger))
+			var at := eye.global_position
+			_ok(seat.is_occupied() and seat.place_eye() == eye and _near(_camera.global_position.x, at.x, 1e-3)
+				and _near(_camera.global_position.z, at.z, 1e-3) and _near(_camera.global_position.y, at.y, 1e-3),
+				"contract: a press on %s sits the head there" % label)
+			# Seated, any press on the seat gets up (the laser slabs grow and overlap): the FIRST place's, here.
+			var first := places[0]["trigger"] as SeatTrigger
+			first.pointer_event(_event(XRToolsPointerEvent.Type.PRESSED, first))
+			var up := stand.global_position
+			_ok(not seat.is_occupied() and _near(_camera.global_position.x, up.x, 1e-3) and _near(_camera.global_position.z, up.z, 1e-3),
+				"contract: and getting up from %s puts the player on %s" % [label, stand.name])
+		_ok(lies == (1 if bed else 0), "contract: %s %s" % [id, "has one place to lie down" if bed else "has none to lie on"])
+		if id.begins_with("sofa_"):
+			# Each end of a sofa gets up on its own side.
+			var ends_ok := true
+			for p: Dictionary in places:
+				var ex := (p["eye"] as Node3D).position.x
+				if absf(ex) > 0.1:
+					ends_ok = ends_ok and signf((p["stand"] as Node3D).position.x) == signf(ex)
+			_ok(ends_ok, "contract: %s's left and right places get up on their own sides" % id)
+		seat.free()
+		await _frames(1)
+	_drop_rig()
+	await _frames(2)
+
+
 # --- save ----------------------------------------------------------------------
 
 func _group_save() -> void:
-	# The furniture seats were taken out of the room (2026-11-12): the scenes are test fixtures now. A room saved with
-	# one loads without it (an unknown type is skipped with a warning), so none may come back as a token by accident.
+	# The RETRO XR seats and beds: plain scenes, spawned by their tokens, saved as themselves, on the Objects tab. The
+	# rows are SpawnCatalog.OBJECTS's, where the Objects tab reads them; a merge that took the other side of that list
+	# once left every seat off the tab and no suite noticed.
 	var offered: Array = []
 	for row: Array in SpawnCatalog.objects():
 		offered.append(str(row[1]))
+	for id: String in ScenePersistence.SEAT_FURNITURE_IDS:
+		_ok(ScenePersistence.PLAIN_SCENES.has(id) and id in offered, "save: %s is a plain scene on the Objects tab" % id)
+		var seat := ScenePersistence.instantiate(id)
+		var saved := str(ScenePersistence.new()._serialize_kind(seat, 1, {}).get("type", "")) if seat != null else ""
+		_ok(seat is ContractSeat and (seat as Seat).type_id == id and saved == id,
+			"save: %s is spawned by its token and saved as itself ('%s')" % [id, saved])
+		if seat != null:
+			seat.free()
+	# The six primitive seats taken out of the room (2026-11-12) are test fixtures now. A room saved with one loads
+	# without it (an unknown type is skipped with a warning), so none may come back as a token by accident.
 	for id in ["seat_racing", "seat_stool", "seat_chair", "seat_cushion", "seat_sofa", "seat_bed"]:
 		_ok(not ScenePersistence.PLAIN_SCENES.has(id), "save: %s is no plain scene" % id)
 		_ok(not id in offered, "save: %s is not on the SPAWN menu's Objects tab" % id)

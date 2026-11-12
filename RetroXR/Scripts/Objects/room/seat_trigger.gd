@@ -25,6 +25,11 @@ const HOVER_COLOR := Color(WidgetOutline.SELECT_COLOR, 0.22)
 const STAND_REACH_FORWARD := 0.6
 const STAND_REACH_SIDE := 0.2
 
+## The place this trigger sits at, on a seat of several (Seat.toggle_at): its eye and stand markers. Empty: the
+## seat's one place.
+@export var eye_point: NodePath
+@export var stand_point: NodePath
+
 var _hover: MeshInstance3D = null
 var _laser_body: LaserBody = null
 var _laser_shape: CollisionShape3D = null
@@ -117,7 +122,10 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 		XRToolsPointerEvent.Type.PRESSED:
 			# Whatever it is laid over: a Seat, or a driving cabinet's own CockpitSeat.
 			var seat := get_parent()
-			if seat != null and seat.has_method("toggle"):
+			if seat != null and not eye_point.is_empty() and seat.has_method("toggle_at"):
+				print("[Seat] %s %s pressed (occupied=%s)" % [seat.name, name, str(seat.call("is_occupied"))])
+				seat.call("toggle_at", self)
+			elif seat != null and seat.has_method("toggle"):
 				print("[Seat] %s pressed (occupied=%s)" % [seat.name, str(seat.call("is_occupied")) if seat.has_method("is_occupied") else "?"])
 				seat.call("toggle")
 			else:

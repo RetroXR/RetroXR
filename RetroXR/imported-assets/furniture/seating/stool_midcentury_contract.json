@@ -1,0 +1,113 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the front (the way a sitter faces) is +Z, x to the right seen from the front; the ORIGIN is the middle of the footprint, on the floor",
+ "variant": "stool_midcentury",
+ "title": "Mid-century stool",
+ "size": [
+  0.36,
+  0.45,
+  0.36
+ ],
+ "bounds": {
+  "min": [
+   -0.18,
+   0.0,
+   -0.18
+  ],
+  "max": [
+   0.18,
+   0.45,
+   0.18
+  ]
+ },
+ "levels": [
+  "stool_midcentury_mobile",
+  "stool_midcentury_mobile_lod1",
+  "stool_midcentury_mobile_lod2"
+ ],
+ "master": "stool_midcentury_high",
+ "own_nodes": [
+  "Body"
+ ],
+ "materials": [
+  "SEAT_Walnut"
+ ],
+ "markers": [
+  {
+   "node": "EyePoint",
+   "position": [
+    0.0,
+    1.23,
+    -0.0
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "where a sitter's head goes; -Z (Godot forward) looks out of the front"
+  },
+  {
+   "node": "StandPoint",
+   "position": [
+    0.48,
+    0.0,
+    -0.0
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "on the floor beside the piece, where the player is stood when they get up"
+  }
+ ],
+ "seat_top": 0.45,
+ "eye_point": [
+  0.0,
+  1.23,
+  -0.0
+ ],
+ "stand_point": [
+  0.48,
+  0.0,
+  -0.0
+ ],
+ "seat_trigger": {
+  "centre": [
+   0.0,
+   0.465,
+   -0.0
+  ],
+  "size": [
+   0.36,
+   0.03,
+   0.36
+  ]
+ },
+ "seats": [],
+ "collision": {
+  "boxes": [
+   {
+    "name": "Stool",
+    "centre": [
+     0.0,
+     0.225,
+     -0.0
+    ],
+    "size": [
+     0.36,
+     0.45,
+     0.36
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres; the cushion slab is seat_trigger, not one of these"
+ },
+ "estimated": "every size is estimated from ordinary furniture of the kind: see MEASUREMENTS.md",
+ "triangles": {
+  "high": 660,
+  "lod0": 372,
+  "lod1": 228,
+  "lod2": 132
+ }
+}

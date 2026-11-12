@@ -1,0 +1,267 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the FOOT faces +Z, x to the right seen from the foot; the ORIGIN is the middle of the footprint, on the floor",
+ "variant": "bed_wooden",
+ "size": [
+  1.115,
+  1.11,
+  2.12
+ ],
+ "mattress": [
+  0.965,
+  1.905
+ ],
+ "levels": [
+  "bed_wooden_mobile",
+  "bed_wooden_mobile_lod1",
+  "bed_wooden_mobile_lod2"
+ ],
+ "master": "bed_wooden_high",
+ "markers": [
+  {
+   "node": "EyePoint",
+   "position": [
+    0.2325,
+    1.405,
+    -0.0275
+   ],
+   "z_axis": [
+    -1.0,
+    0.0,
+    0.0
+   ],
+   "note": "sit: eyes 0.78 m above the comforter at the +X edge; -Z is the way the eyes face (+X)"
+  },
+  {
+   "node": "LieEyePoint",
+   "position": [
+    0.0,
+    0.805,
+    -0.64
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "lie: the head on the pillow; -Z looks toward the foot (+Z)"
+  },
+  {
+   "node": "StandPoint",
+   "position": [
+    0.8575,
+    0.0,
+    -0.0275
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the floor beside the +X side, 0.30 m out"
+  }
+ ],
+ "eye_point": [
+  0.2325,
+  1.405,
+  -0.0275
+ ],
+ "lie_eye_point": [
+  0.0,
+  0.805,
+  -0.64
+ ],
+ "stand_point": [
+  0.8575,
+  0.0,
+  -0.0275
+ ],
+ "seat_trigger": {
+  "centre": [
+   0.0,
+   0.61,
+   -0.0275
+  ],
+  "size": [
+   0.965,
+   0.03,
+   1.905
+  ],
+  "note": "the top of the bed (mattress footprint, up to the comforter top): press to sit"
+ },
+ "own_nodes": [
+  "Frame",
+  "Bedding"
+ ],
+ "drawer_face_x": null,
+ "drawers": [],
+ "collision": {
+  "frame": [
+   {
+    "name": "HeadPost",
+    "centre": [
+     -0.5225,
+     0.545,
+     -1.025
+    ],
+    "size": [
+     0.07,
+     1.09,
+     0.07
+    ]
+   },
+   {
+    "name": "FootPost",
+    "centre": [
+     -0.5225,
+     0.33,
+     1.025
+    ],
+    "size": [
+     0.07,
+     0.66,
+     0.07
+    ]
+   },
+   {
+    "name": "SideRail",
+    "centre": [
+     -0.5365,
+     0.34,
+     -0.0
+    ],
+    "size": [
+     0.026,
+     0.18,
+     1.98
+    ]
+   },
+   {
+    "name": "HeadPost",
+    "centre": [
+     0.5225,
+     0.545,
+     -1.025
+    ],
+    "size": [
+     0.07,
+     1.09,
+     0.07
+    ]
+   },
+   {
+    "name": "FootPost",
+    "centre": [
+     0.5225,
+     0.33,
+     1.025
+    ],
+    "size": [
+     0.07,
+     0.66,
+     0.07
+    ]
+   },
+   {
+    "name": "SideRail",
+    "centre": [
+     0.5365,
+     0.34,
+     -0.0
+    ],
+    "size": [
+     0.026,
+     0.18,
+     1.98
+    ]
+   },
+   {
+    "name": "HeadBottomRail",
+    "centre": [
+     0.0,
+     0.415,
+     -1.025
+    ],
+    "size": [
+     0.975,
+     0.07,
+     0.032
+    ]
+   },
+   {
+    "name": "Headboard",
+    "centre": [
+     0.0,
+     0.745,
+     -1.025
+    ],
+    "size": [
+     0.975,
+     0.73,
+     0.04
+    ]
+   },
+   {
+    "name": "FootBottomRail",
+    "centre": [
+     0.0,
+     0.28,
+     1.025
+    ],
+    "size": [
+     0.975,
+     0.06,
+     0.036
+    ]
+   },
+   {
+    "name": "FootPanel",
+    "centre": [
+     0.0,
+     0.435,
+     1.025
+    ],
+    "size": [
+     0.975,
+     0.25,
+     0.022
+    ]
+   },
+   {
+    "name": "FootCap",
+    "centre": [
+     0.0,
+     0.5825,
+     1.025
+    ],
+    "size": [
+     0.975,
+     0.045,
+     0.044
+    ]
+   }
+  ],
+  "bedding": [
+   {
+    "name": "Mattress",
+    "centre": [
+     0.0,
+     0.4775,
+     -0.0025
+    ],
+    "size": [
+     1.085,
+     0.295,
+     1.955
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres, every drawer SHUT; a drawer slides along its axis by travel_m and carries its own front and inside"
+ },
+ "estimated": "the mattress is a standard US size; the frame is estimated from the concept: see MEASUREMENTS.md",
+ "triangles": {
+  "high": 3080,
+  "lod0": 1648,
+  "lod1": 788,
+  "lod2": 456
+ }
+}

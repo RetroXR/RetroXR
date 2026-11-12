@@ -1,9 +1,30 @@
 # Seats (§2z-seat)
 
-`Seat` (`Scripts/Objects/room/seat.gd`, extends `XRToolsPickable` like `Table`) is somewhere the player sits. **No seat is room furniture any more (2026-11-12):** the racing seat, stool, floor cushion and bed were removed, and the chair and sofa
-are TEST FIXTURES (`Tests/fixtures/seat_{chair,sofa}.tscn`, baked by `Tools/gen/gen_seats.gd`, primitive boxes) that `seat_tests` sits on; none is a `PLAIN_SCENES` type or on the
-Objects tab, and a room saved with one loads without it (`unknown object type`). The code stays for the arcade's `CockpitSeat` and for a seat to come. What follows was written
-when the six seats were furniture; read "the seats" as the fixtures.
+`Seat` (`Scripts/Objects/room/seat.gd`, extends `XRToolsPickable` like `Table`) is somewhere the player sits. **The seats in the room are the RETRO XR furniture (2026-11-12),
+built from their models' contracts by `ContractSeat`** (`Scripts/Objects/room/contract_seat.gd`): three sofas (`sofa_midcentury`, `sofa_overstuffed`, `sofa_futon`), two stools
+(`stool_mission`, `stool_midcentury`), `chair_desk`, `chair_papasan`, `pouf`, and five beds (`bed_captain`, `bed_brass`, `bed_waterbed` queens; `bed_wooden`, `bed_racecar` twins),
+modelled in RetroXR-models `generic/seating` and `generic/beds` (`imported-assets/furniture/{seating,beds}/`, sizes estimated). Spawn menu > Objects. The six primitive seats
+(racing seat, stool, chair, floor cushion, sofa, bed) were taken out the same day; the chair and sofa are TEST FIXTURES (`Tests/fixtures/seat_{chair,sofa}.tscn`, baked by
+`Tools/gen/gen_seats.gd`), and a room saved with any of the six loads without it (`unknown object type`).
+
+- **Built from the contract, at run time** (as `DrawerFurniture`; a `.json` ships with the export): the scene is only the `Model` (`ApplianceModel`, three levels by distance;
+  sofas and beds switch farther out, 2.5-3 / 6-7 m, so a sitter never sees the swap) and the highlight. `ContractSeat` adds the collision boxes (every list under `collision`), the
+  same boxes as the `PointerArea`, the places and stand points below, and a bed's drawers (`FurnitureDrawers`, furniture.md).
+- **PLACES: a seat can have several.** Each place is an eye marker (`EyePoint`, `EyePoint2`, ...; the contract's `z_axis` is its +Z, so -Z looks out of the front) and a
+  `SeatTrigger` that NAMES it (`SeatTrigger.eye_point` / `stand_point`). A press on a trigger sits at THAT place (`Seat.toggle_at` -> `sit_place`); seated, any press on the seat
+  stands you up, wherever on it (the laser slabs grow while seated and overlap, so a press meant for the next cushion must not move you along it: get up, press again).
+  A trigger that names nothing is the old single place (`EyePoint` / `StandPoint`, `Seat.toggle`), which the fixtures and `CockpitSeat` still use. The FIRST place is the
+  seat's own `EyePoint` / `SeatTrigger` (the facing arrow, a plain `sit()`): a sofa's middle cushion.
+- **A sofa** has its contract's three `seats`, one cushion each. **A bed** is split along its length: the head end (from the head of the mattress to 0.25 m past
+  `lie_eye_point`) LIES you down, the head on the pillow looking toward the foot (no pitch is forced: the head or the mouse looks up); the rest SITS you on the +X edge
+  (`eye_point`, looking out of the side). Eyes: sitting 1.2-1.5 m (a bed's mattress is high), lying 0.65-0.93 m.
+- **Stand points:** the contract's `StandPoint` (0.3 m clear of one side) and its mirror on the other side (`StandPoint2`); each place gets up onto the one nearer it, so the
+  left end of a sofa gets up on the left.
+- **Every trigger is TURNED to its place's heading.** Seated, the laser's slab grows toward the sitter's knees, which is the trigger's -Z (`SeatTrigger.stand_zone`); the
+  fixtures face -Z, these face +Z (a bed's edge +X), so an unturned slab grew BEHIND the sitter. `seat_tests contract/` checks each place's slab against its eyes.
+- `seat_tests contract/` builds all thirteen (places, eye heights, facing, stand points beside the piece, a press on every place sitting there and getting up onto its stand
+  point; mutation-tested: an unturned trigger, a place ignored, a stand point not the nearer one); `save/` that they spawn and save as themselves. How they look, sitting on
+  the sofa and lying on the captain's bed: `Tools/room/furniture_probe` (windowed). A headset (the feel, the laser reaching each cushion) and the Quest's cost OWED.
 
 - **Press the cushion to sit, again to get up; HOLD on the seat to carry it** (`grab_hold_seconds` = `HoldToGrab.DEFAULT_SECONDS`). `SeatTrigger` is a pointable
   `Area3D` slab 3 cm proud of the cushion, so it wins the ray over the body's `PointerArea` (the same rule that makes the arcade's panel grip work); it tints when aimed at.

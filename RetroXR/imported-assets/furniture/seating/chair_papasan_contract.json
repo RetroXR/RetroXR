@@ -1,0 +1,127 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the front (the way a sitter faces) is +Z, x to the right seen from the front; the ORIGIN is the middle of the footprint, on the floor",
+ "variant": "chair_papasan",
+ "title": "Papasan chair",
+ "size": [
+  1.14,
+  0.85445,
+  1.10116
+ ],
+ "bounds": {
+  "min": [
+   -0.57,
+   0.0,
+   -0.45171
+  ],
+  "max": [
+   0.57,
+   0.85445,
+   0.64945
+  ]
+ },
+ "levels": [
+  "chair_papasan_mobile",
+  "chair_papasan_mobile_lod1",
+  "chair_papasan_mobile_lod2"
+ ],
+ "master": "chair_papasan_high",
+ "own_nodes": [
+  "Body"
+ ],
+ "materials": [
+  "SEAT_Rattan",
+  "SEAT_Cream"
+ ],
+ "markers": [
+  {
+   "node": "EyePoint",
+   "position": [
+    0.0,
+    1.18489,
+    0.03882
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "where a sitter's head goes; -Z (Godot forward) looks out of the front"
+  },
+  {
+   "node": "StandPoint",
+   "position": [
+    0.87,
+    0.0,
+    0.03882
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "on the floor beside the piece, where the player is stood when they get up"
+  }
+ ],
+ "seat_top": 0.44489,
+ "eye_point": [
+  0.0,
+  1.18489,
+  0.03882
+ ],
+ "stand_point": [
+  0.87,
+  0.0,
+  0.03882
+ ],
+ "seat_trigger": {
+  "centre": [
+   0.0,
+   0.45989,
+   0.05882
+  ],
+  "size": [
+   0.84,
+   0.03,
+   0.8
+  ]
+ },
+ "seats": [],
+ "collision": {
+  "boxes": [
+   {
+    "name": "Base",
+    "centre": [
+     0.0,
+     0.15,
+     -0.0
+    ],
+    "size": [
+     0.6,
+     0.3,
+     0.6
+    ]
+   },
+   {
+    "name": "Bowl",
+    "centre": [
+     0.0,
+     0.56,
+     0.085
+    ],
+    "size": [
+     1.14,
+     0.52,
+     1.13
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres; the cushion slab is seat_trigger, not one of these"
+ },
+ "estimated": "every size is estimated from ordinary furniture of the kind: see MEASUREMENTS.md",
+ "triangles": {
+  "high": 5536,
+  "lod0": 2368,
+  "lod1": 1296,
+  "lod2": 704
+ }
+}

@@ -147,3 +147,13 @@ the top rail. Saved as `type_id` through `_drawer_furniture_entry`, each drawer 
 Shipped: `mission_nightstand` (2 drawers) and `mission_chest` (6), the owner's Mission bedroom pair modelled from
 photos in RetroXR-models `generic/mission-bedroom` (sizes ESTIMATED until measured; its `params.py` holds every
 number). `vr_drawer_tests mission/`.
+
+**The drawers are built by `FurnitureDrawers`** (`Scripts/Objects/furniture/furniture_drawers.gd`, 2026-11-12), which
+`DrawerFurniture` and a bed (`ContractSeat`, seats.md) share: the same nodes, names and rules. A contract drawer row
+may name its `axis` (the way it comes out, default +Z): everything it is built from is turned into the drawer's own
+frame (its Z the axis), built there as a +Z drawer always was, and turned back, and the `DrawerHandleN` is turned so
+its own Z is the axis (VRDrawer slides along its local Z, and its front push needs that). A +Z drawer is built exactly
+as before (`vr_drawer_tests mission/` unchanged). **The beds' drawers come out of the bed's SIDE (+X)**: three in the
+captain's bed, two in the waterbed's pedestal, saved as sliders, a lid while the bed is held (a `DrawerPoll` child
+polls the hold: a Seat's own physics process runs only while sat on). They sit under the bedding with room to spare
+(drawer tops 361 mm under the captain's bedding at 420, 258 under the waterbed's at 330). `vr_drawer_tests beds/` (mutation-tested: a drawer built along +Z goes red).

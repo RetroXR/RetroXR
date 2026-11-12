@@ -1,0 +1,228 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the FOOT faces +Z, x to the right seen from the foot; the ORIGIN is the middle of the footprint, on the floor",
+ "variant": "bed_brass",
+ "size": [
+  1.672,
+  1.20612,
+  2.23
+ ],
+ "mattress": [
+  1.524,
+  2.032
+ ],
+ "levels": [
+  "bed_brass_mobile",
+  "bed_brass_mobile_lod1",
+  "bed_brass_mobile_lod2"
+ ],
+ "master": "bed_brass_high",
+ "markers": [
+  {
+   "node": "EyePoint",
+   "position": [
+    0.512,
+    1.525,
+    -0.025
+   ],
+   "z_axis": [
+    -1.0,
+    0.0,
+    0.0
+   ],
+   "note": "sit: eyes 0.78 m above the comforter at the +X edge; -Z is the way the eyes face (+X)"
+  },
+  {
+   "node": "LieEyePoint",
+   "position": [
+    -0.381,
+    0.925,
+    -0.701
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "lie: the head on the pillow; -Z looks toward the foot (+Z)"
+  },
+  {
+   "node": "StandPoint",
+   "position": [
+    1.136,
+    0.0,
+    -0.025
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the floor beside the +X side, 0.30 m out"
+  }
+ ],
+ "eye_point": [
+  0.512,
+  1.525,
+  -0.025
+ ],
+ "lie_eye_point": [
+  -0.381,
+  0.925,
+  -0.701
+ ],
+ "stand_point": [
+  1.136,
+  0.0,
+  -0.025
+ ],
+ "seat_trigger": {
+  "centre": [
+   0.0,
+   0.73,
+   -0.025
+  ],
+  "size": [
+   1.524,
+   0.03,
+   2.032
+  ],
+  "note": "the top of the bed (mattress footprint, up to the comforter top): press to sit"
+ },
+ "own_nodes": [
+  "Frame",
+  "Bedding"
+ ],
+ "drawer_face_x": null,
+ "drawers": [],
+ "collision": {
+  "frame": [
+   {
+    "name": "Post",
+    "centre": [
+     -0.802,
+     0.59,
+     -1.081
+    ],
+    "size": [
+     0.052,
+     1.18,
+     0.052
+    ]
+   },
+   {
+    "name": "Post",
+    "centre": [
+     0.802,
+     0.59,
+     -1.081
+    ],
+    "size": [
+     0.052,
+     1.18,
+     0.052
+    ]
+   },
+   {
+    "name": "TopTube",
+    "centre": [
+     0.0,
+     1.18,
+     -1.081
+    ],
+    "size": [
+     1.604,
+     0.052,
+     0.052
+    ]
+   },
+   {
+    "name": "Post",
+    "centre": [
+     -0.802,
+     0.41,
+     1.081
+    ],
+    "size": [
+     0.052,
+     0.82,
+     0.052
+    ]
+   },
+   {
+    "name": "Post",
+    "centre": [
+     0.802,
+     0.41,
+     1.081
+    ],
+    "size": [
+     0.052,
+     0.82,
+     0.052
+    ]
+   },
+   {
+    "name": "TopTube",
+    "centre": [
+     0.0,
+     0.82,
+     1.081
+    ],
+    "size": [
+     1.604,
+     0.052,
+     0.052
+    ]
+   },
+   {
+    "name": "SideRail",
+    "centre": [
+     -0.802,
+     0.35,
+     -0.0
+    ],
+    "size": [
+     0.04,
+     0.1,
+     2.11
+    ]
+   },
+   {
+    "name": "SideRail",
+    "centre": [
+     0.802,
+     0.35,
+     -0.0
+    ],
+    "size": [
+     0.04,
+     0.1,
+     2.11
+    ]
+   }
+  ],
+  "bedding": [
+   {
+    "name": "Mattress",
+    "centre": [
+     0.0,
+     0.5725,
+     -0.0025
+    ],
+    "size": [
+     1.648,
+     0.345,
+     2.077
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres, every drawer SHUT; a drawer slides along its axis by travel_m and carries its own front and inside"
+ },
+ "estimated": "the mattress is a standard US size; the frame is estimated from the concept: see MEASUREMENTS.md",
+ "triangles": {
+  "high": 3840,
+  "lod0": 2264,
+  "lod1": 1656,
+  "lod2": 1104
+ }
+}

@@ -1,0 +1,545 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the FOOT faces +Z, x to the right seen from the foot; the ORIGIN is the middle of the footprint, on the floor",
+ "variant": "bed_waterbed",
+ "size": [
+  1.714,
+  1.26,
+  2.484
+ ],
+ "mattress": [
+  1.524,
+  2.032
+ ],
+ "levels": [
+  "bed_waterbed_mobile",
+  "bed_waterbed_mobile_lod1",
+  "bed_waterbed_mobile_lod2"
+ ],
+ "master": "bed_waterbed_high",
+ "markers": [
+  {
+   "node": "EyePoint",
+   "position": [
+    0.512,
+    1.367,
+    0.159
+   ],
+   "z_axis": [
+    -1.0,
+    0.0,
+    0.0
+   ],
+   "note": "sit: eyes 0.78 m above the comforter at the +X edge; -Z is the way the eyes face (+X)"
+  },
+  {
+   "node": "LieEyePoint",
+   "position": [
+    -0.381,
+    0.77,
+    -0.517
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "lie: the head on the pillow; -Z looks toward the foot (+Z)"
+  },
+  {
+   "node": "StandPoint",
+   "position": [
+    1.157,
+    0.0,
+    0.159
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the floor beside the +X side, 0.30 m out"
+  }
+ ],
+ "eye_point": [
+  0.512,
+  1.367,
+  0.159
+ ],
+ "lie_eye_point": [
+  -0.381,
+  0.77,
+  -0.517
+ ],
+ "stand_point": [
+  1.157,
+  0.0,
+  0.159
+ ],
+ "seat_trigger": {
+  "centre": [
+   0.0,
+   0.572,
+   0.159
+  ],
+  "size": [
+   1.524,
+   0.03,
+   2.032
+  ],
+  "note": "the top of the bed (mattress footprint, up to the comforter top): press to sit"
+ },
+ "own_nodes": [
+  "Frame",
+  "Bedding",
+  "Drawer1",
+  "Drawer2"
+ ],
+ "drawer_face_x": 0.707,
+ "drawers": [
+  {
+   "node": "Drawer1",
+   "front": {
+    "centre": [
+     0.7015,
+     0.15,
+     0.461
+    ],
+    "size": [
+     0.019,
+     0.216,
+     0.646
+    ]
+   },
+   "inner": {
+    "centre": [
+     0.447,
+     0.144,
+     0.461
+    ],
+    "size": [
+     0.49,
+     0.174,
+     0.598
+    ]
+   },
+   "pulls": [
+    [
+     0.735,
+     0.1752,
+     0.461
+    ]
+   ],
+   "travel_m": 0.4,
+   "axis": [
+    1.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "node": "Drawer2",
+   "front": {
+    "centre": [
+     0.7015,
+     0.15,
+     -0.198
+    ],
+    "size": [
+     0.019,
+     0.216,
+     0.646
+    ]
+   },
+   "inner": {
+    "centre": [
+     0.447,
+     0.144,
+     -0.198
+    ],
+    "size": [
+     0.49,
+     0.174,
+     0.598
+    ]
+   },
+   "pulls": [
+    [
+     0.735,
+     0.1752,
+     -0.198
+    ]
+   ],
+   "travel_m": 0.4,
+   "axis": [
+    1.0,
+    0.0,
+    0.0
+   ]
+  }
+ ],
+ "collision": {
+  "frame": [
+   {
+    "name": "RailL",
+    "centre": [
+     -0.7895,
+     0.425,
+     0.159
+    ],
+    "size": [
+     0.055,
+     0.25,
+     2.142
+    ]
+   },
+   {
+    "name": "RailR",
+    "centre": [
+     0.7895,
+     0.425,
+     0.159
+    ],
+    "size": [
+     0.055,
+     0.25,
+     2.142
+    ]
+   },
+   {
+    "name": "RailFoot",
+    "centre": [
+     0.0,
+     0.425,
+     1.2025
+    ],
+    "size": [
+     1.524,
+     0.25,
+     0.055
+    ]
+   },
+   {
+    "name": "RailHead",
+    "centre": [
+     0.0,
+     0.425,
+     -0.8845
+    ],
+    "size": [
+     1.524,
+     0.25,
+     0.055
+    ]
+   },
+   {
+    "name": "CapL",
+    "centre": [
+     -0.789,
+     0.56,
+     0.165
+    ],
+    "size": [
+     0.08,
+     0.02,
+     2.154
+    ]
+   },
+   {
+    "name": "CapR",
+    "centre": [
+     0.789,
+     0.56,
+     0.165
+    ],
+    "size": [
+     0.08,
+     0.02,
+     2.154
+    ]
+   },
+   {
+    "name": "CapFoot",
+    "centre": [
+     0.0,
+     0.56,
+     1.202
+    ],
+    "size": [
+     1.498,
+     0.02,
+     0.08
+    ]
+   },
+   {
+    "name": "PedL",
+    "centre": [
+     -0.697,
+     0.15,
+     0.1315
+    ],
+    "size": [
+     0.02,
+     0.3,
+     1.977
+    ]
+   },
+   {
+    "name": "PedFoot",
+    "centre": [
+     0.01,
+     0.15,
+     1.11
+    ],
+    "size": [
+     1.394,
+     0.3,
+     0.02
+    ]
+   },
+   {
+    "name": "PedHead",
+    "centre": [
+     0.01,
+     0.15,
+     -0.847
+    ],
+    "size": [
+     1.394,
+     0.3,
+     0.02
+    ]
+   },
+   {
+    "name": "PedTop",
+    "centre": [
+     0.697,
+     0.2775,
+     0.1315
+    ],
+    "size": [
+     0.02,
+     0.045,
+     1.937
+    ]
+   },
+   {
+    "name": "PedBottom",
+    "centre": [
+     0.697,
+     0.0225,
+     0.1315
+    ],
+    "size": [
+     0.02,
+     0.045,
+     1.937
+    ]
+   },
+   {
+    "name": "PedStile",
+    "centre": [
+     0.697,
+     0.15,
+     0.9405
+    ],
+    "size": [
+     0.02,
+     0.21,
+     0.319
+    ]
+   },
+   {
+    "name": "PedStile",
+    "centre": [
+     0.697,
+     0.15,
+     0.1315
+    ],
+    "size": [
+     0.02,
+     0.21,
+     0.019
+    ]
+   },
+   {
+    "name": "PedStile",
+    "centre": [
+     0.697,
+     0.15,
+     -0.6775
+    ],
+    "size": [
+     0.02,
+     0.21,
+     0.319
+    ]
+   },
+   {
+    "name": "HeadSideL",
+    "centre": [
+     -0.827,
+     0.617,
+     -1.071
+    ],
+    "size": [
+     0.024,
+     1.234,
+     0.318
+    ]
+   },
+   {
+    "name": "HeadSideR",
+    "centre": [
+     0.827,
+     0.617,
+     -1.071
+    ],
+    "size": [
+     0.024,
+     1.234,
+     0.318
+    ]
+   },
+   {
+    "name": "HeadBack",
+    "centre": [
+     0.0,
+     0.617,
+     -1.236
+    ],
+    "size": [
+     1.678,
+     1.234,
+     0.012
+    ]
+   },
+   {
+    "name": "HeadFront",
+    "centre": [
+     0.0,
+     0.305,
+     -0.924
+    ],
+    "size": [
+     1.63,
+     0.61,
+     0.024
+    ]
+   },
+   {
+    "name": "HeadShelf",
+    "centre": [
+     0.0,
+     0.622,
+     -1.071
+    ],
+    "size": [
+     1.63,
+     0.024,
+     0.318
+    ]
+   },
+   {
+    "name": "Divider",
+    "centre": [
+     -0.403,
+     0.934,
+     -1.071
+    ],
+    "size": [
+     0.024,
+     0.6,
+     0.318
+    ]
+   },
+   {
+    "name": "BayShelf",
+    "centre": [
+     -0.615,
+     0.934,
+     -1.081
+    ],
+    "size": [
+     0.4,
+     0.022,
+     0.298
+    ]
+   },
+   {
+    "name": "Divider",
+    "centre": [
+     0.403,
+     0.934,
+     -1.071
+    ],
+    "size": [
+     0.024,
+     0.6,
+     0.318
+    ]
+   },
+   {
+    "name": "BayShelf",
+    "centre": [
+     0.615,
+     0.934,
+     -1.081
+    ],
+    "size": [
+     0.4,
+     0.022,
+     0.298
+    ]
+   },
+   {
+    "name": "Header",
+    "centre": [
+     0.0,
+     1.189,
+     -1.071
+    ],
+    "size": [
+     0.782,
+     0.09,
+     0.318
+    ]
+   },
+   {
+    "name": "HeadCap",
+    "centre": [
+     0.0,
+     1.247,
+     -1.067
+    ],
+    "size": [
+     1.714,
+     0.026,
+     0.35
+    ]
+   }
+  ],
+  "bedding": [
+   {
+    "name": "Mattress",
+    "centre": [
+     0.0,
+     0.4585,
+     0.159
+    ],
+    "size": [
+     1.524,
+     0.257,
+     2.032
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres, every drawer SHUT; a drawer slides along its axis by travel_m and carries its own front and inside"
+ },
+ "estimated": "the mattress is a standard US size; the frame is estimated from the concept: see MEASUREMENTS.md",
+ "triangles": {
+  "high": 5688,
+  "lod0": 2736,
+  "lod1": 1072,
+  "lod2": 776
+ }
+}

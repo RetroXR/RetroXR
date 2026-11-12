@@ -1,0 +1,253 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the front (the way a sitter faces) is +Z, x to the right seen from the front; the ORIGIN is the middle of the footprint, on the floor",
+ "variant": "sofa_overstuffed",
+ "title": "Overstuffed sofa",
+ "size": [
+  2.15,
+  0.86,
+  0.96
+ ],
+ "bounds": {
+  "min": [
+   -1.075,
+   0.0,
+   -0.48
+  ],
+  "max": [
+   1.075,
+   0.86,
+   0.48
+  ]
+ },
+ "levels": [
+  "sofa_overstuffed_mobile",
+  "sofa_overstuffed_mobile_lod1",
+  "sofa_overstuffed_mobile_lod2"
+ ],
+ "master": "sofa_overstuffed_high",
+ "own_nodes": [
+  "Body"
+ ],
+ "materials": [
+  "SEAT_Green",
+  "SEAT_Darkwood"
+ ],
+ "markers": [
+  {
+   "node": "EyePoint",
+   "position": [
+    0.0,
+    1.23,
+    -0.06
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "where a sitter's head goes; -Z (Godot forward) looks out of the front"
+  },
+  {
+   "node": "EyePoint1",
+   "position": [
+    -0.56,
+    1.23,
+    -0.06
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "where a sitter's head goes; -Z (Godot forward) looks out of the front"
+  },
+  {
+   "node": "EyePoint2",
+   "position": [
+    0.0,
+    1.23,
+    -0.06
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "where a sitter's head goes; -Z (Godot forward) looks out of the front"
+  },
+  {
+   "node": "EyePoint3",
+   "position": [
+    0.56,
+    1.23,
+    -0.06
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "where a sitter's head goes; -Z (Godot forward) looks out of the front"
+  },
+  {
+   "node": "StandPoint",
+   "position": [
+    1.375,
+    0.0,
+    -0.06
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "on the floor beside the piece, where the player is stood when they get up"
+  }
+ ],
+ "seat_top": 0.45,
+ "eye_point": [
+  0.0,
+  1.23,
+  -0.06
+ ],
+ "stand_point": [
+  1.375,
+  0.0,
+  -0.06
+ ],
+ "seat_trigger": {
+  "centre": [
+   0.0,
+   0.465,
+   0.12
+  ],
+  "size": [
+   1.69,
+   0.03,
+   0.7
+  ]
+ },
+ "seats": [
+  {
+   "eye_point": [
+    -0.56,
+    1.23,
+    -0.06
+   ],
+   "seat_trigger": {
+    "centre": [
+     -0.56333,
+     0.465,
+     0.12
+    ],
+    "size": [
+     0.56333,
+     0.03,
+     0.7
+    ]
+   }
+  },
+  {
+   "eye_point": [
+    0.0,
+    1.23,
+    -0.06
+   ],
+   "seat_trigger": {
+    "centre": [
+     0.0,
+     0.465,
+     0.12
+    ],
+    "size": [
+     0.56333,
+     0.03,
+     0.7
+    ]
+   }
+  },
+  {
+   "eye_point": [
+    0.56,
+    1.23,
+    -0.06
+   ],
+   "seat_trigger": {
+    "centre": [
+     0.56333,
+     0.465,
+     0.12
+    ],
+    "size": [
+     0.56333,
+     0.03,
+     0.7
+    ]
+   }
+  }
+ ],
+ "collision": {
+  "boxes": [
+   {
+    "name": "Arm",
+    "centre": [
+     -0.925,
+     0.365,
+     -0.0
+    ],
+    "size": [
+     0.3,
+     0.57,
+     0.96
+    ]
+   },
+   {
+    "name": "Arm",
+    "centre": [
+     0.925,
+     0.365,
+     -0.0
+    ],
+    "size": [
+     0.3,
+     0.57,
+     0.96
+    ]
+   },
+   {
+    "name": "Seat",
+    "centre": [
+     0.0,
+     0.225,
+     -0.0
+    ],
+    "size": [
+     2.15,
+     0.45,
+     0.96
+    ]
+   },
+   {
+    "name": "Back",
+    "centre": [
+     0.0,
+     0.655,
+     -0.325
+    ],
+    "size": [
+     1.69,
+     0.41,
+     0.31
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres; the cushion slab is seat_trigger, not one of these"
+ },
+ "estimated": "every size is estimated from ordinary furniture of the kind: see MEASUREMENTS.md",
+ "triangles": {
+  "high": 3424,
+  "lod0": 2176,
+  "lod1": 1344,
+  "lod2": 672
+ }
+}

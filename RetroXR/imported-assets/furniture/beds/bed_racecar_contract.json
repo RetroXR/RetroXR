@@ -1,0 +1,254 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the FOOT faces +Z, x to the right seen from the foot; the ORIGIN is the middle of the footprint, on the floor",
+ "variant": "bed_racecar",
+ "size": [
+  1.441,
+  0.768,
+  2.626
+ ],
+ "mattress": [
+  0.965,
+  1.905
+ ],
+ "levels": [
+  "bed_racecar_mobile",
+  "bed_racecar_mobile_lod1",
+  "bed_racecar_mobile_lod2"
+ ],
+ "master": "bed_racecar_high",
+ "markers": [
+  {
+   "node": "EyePoint",
+   "position": [
+    0.2325,
+    1.25,
+    -0.0655
+   ],
+   "z_axis": [
+    -1.0,
+    0.0,
+    0.0
+   ],
+   "note": "sit: eyes 0.78 m above the comforter at the +X edge; -Z is the way the eyes face (+X)"
+  },
+  {
+   "node": "LieEyePoint",
+   "position": [
+    0.0,
+    0.645,
+    -0.722
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "lie: the head on the pillow; -Z looks toward the foot (+Z)"
+  },
+  {
+   "node": "StandPoint",
+   "position": [
+    1.0205,
+    0.0,
+    -0.0655
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the floor beside the +X side, 0.30 m out"
+  }
+ ],
+ "eye_point": [
+  0.2325,
+  1.25,
+  -0.0655
+ ],
+ "lie_eye_point": [
+  0.0,
+  0.645,
+  -0.722
+ ],
+ "stand_point": [
+  1.0205,
+  0.0,
+  -0.0655
+ ],
+ "seat_trigger": {
+  "centre": [
+   0.0,
+   0.455,
+   -0.0655
+  ],
+  "size": [
+   0.965,
+   0.03,
+   1.905
+  ],
+  "note": "the top of the bed (mattress footprint, up to the comforter top): press to sit"
+ },
+ "own_nodes": [
+  "Frame",
+  "Bedding"
+ ],
+ "drawer_face_x": null,
+ "drawers": [],
+ "collision": {
+  "frame": [
+   {
+    "name": "Wall",
+    "centre": [
+     -0.5425,
+     0.3725,
+     -0.003
+    ],
+    "size": [
+     0.1,
+     0.505,
+     2.62
+    ]
+   },
+   {
+    "name": "Wall",
+    "centre": [
+     0.5425,
+     0.3725,
+     -0.003
+    ],
+    "size": [
+     0.1,
+     0.505,
+     2.62
+    ]
+   },
+   {
+    "name": "Hood",
+    "centre": [
+     0.0,
+     0.32,
+     1.102
+    ],
+    "size": [
+     0.985,
+     0.4,
+     0.41
+    ]
+   },
+   {
+    "name": "Deck",
+    "centre": [
+     0.0,
+     0.175,
+     -0.0605
+    ],
+    "size": [
+     0.985,
+     0.11,
+     1.935
+    ]
+   },
+   {
+    "name": "Tail",
+    "centre": [
+     0.01,
+     0.34,
+     -1.1515
+    ],
+    "size": [
+     1.005,
+     0.44,
+     0.263
+    ]
+   },
+   {
+    "name": "Wing",
+    "centre": [
+     0.0,
+     0.744,
+     -1.188
+    ],
+    "size": [
+     1.125,
+     0.048,
+     0.21
+    ]
+   },
+   {
+    "name": "Wheel",
+    "centre": [
+     -0.6315,
+     0.24,
+     0.817
+    ],
+    "size": [
+     0.15,
+     0.48,
+     0.48
+    ]
+   },
+   {
+    "name": "Wheel",
+    "centre": [
+     -0.6315,
+     0.24,
+     -0.803
+    ],
+    "size": [
+     0.15,
+     0.48,
+     0.48
+    ]
+   },
+   {
+    "name": "Wheel",
+    "centre": [
+     0.6315,
+     0.24,
+     0.817
+    ],
+    "size": [
+     0.15,
+     0.48,
+     0.48
+    ]
+   },
+   {
+    "name": "Wheel",
+    "centre": [
+     0.6315,
+     0.24,
+     -0.803
+    ],
+    "size": [
+     0.15,
+     0.48,
+     0.48
+    ]
+   }
+  ],
+  "bedding": [
+   {
+    "name": "Mattress",
+    "centre": [
+     0.0,
+     0.35,
+     -0.0655
+    ],
+    "size": [
+     0.965,
+     0.24,
+     1.893
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres, every drawer SHUT; a drawer slides along its axis by travel_m and carries its own front and inside"
+ },
+ "estimated": "the mattress is a standard US size; the frame is estimated from the concept: see MEASUREMENTS.md",
+ "triangles": {
+  "high": 4120,
+  "lod0": 2584,
+  "lod1": 1588,
+  "lod2": 992
+ }
+}
