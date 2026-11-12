@@ -446,6 +446,9 @@ func _carry(ns: Nightstand) -> void:
 	cs.shape = box
 	cube.add_child(cs)
 	cube.mass = 0.2
+	# As every pickable in the game has it (HeldObjectPhysics): a body that settles with it rests a few mm INTO a floor,
+	# and without it these boxes rode a lifted drawer at speeds where a real thing fell out (2026-11-12).
+	cube.continuous_cd = true
 	cube.collision_layer = 4          # a room object's layer and mask, as the nightstand's own
 	cube.collision_mask = 196613
 	var pm := PhysicsMaterial.new()
@@ -565,6 +568,9 @@ func _loose_box(at: Vector3) -> RigidBody3D:
 	cs.shape = box
 	cube.add_child(cs)
 	cube.mass = 0.2
+	# As every pickable in the game has it (HeldObjectPhysics): a body that settles with it rests a few mm INTO a floor,
+	# and without it these boxes rode a lifted drawer at speeds where a real thing fell out (2026-11-12).
+	cube.continuous_cd = true
 	cube.collision_layer = 4
 	cube.collision_mask = 196613
 	var pm := PhysicsMaterial.new()

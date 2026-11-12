@@ -14,9 +14,11 @@ class_name HeavyHold
 extends RefCounted
 
 ## m/s and m/s^2: under what friction holds (0.8 g) and under g, so nothing lifts off the floor of a drawer lowered.
-## The speed is held to 1 m/s by DAMPING: nearly every loose object here has linear_damp 5, which Godot applies against
-## the WORLD, not what it rests on, so the faster a drawer carries it the harder it brakes against the floor. A TV
-## remote rode out at 1.06 m/s and was sinking through the floor at 1.39 (vr_drawer_tests again/ "picked up by").
+## The speed is held to 1 m/s by how JOLT carries things on a moving kinematic floor (measured 2026-11-12, not the
+## damping first blamed): every pickable has continuous collision on (HeldObjectPhysics), settles a few mm INTO a floor
+## and stays there, and a floor lifting faster than about 1.2-1.3 m/s then outruns it and it drops through. Switching
+## its continuous collision off once it has settled does not lift it back out, a deeper floor does not help, nor does
+## cancelling its damping: only a body that never had it rides at 4 m/s. So the hold stays slow enough.
 const MAX_SPEED := 1.0
 const MAX_ACCEL := 5.0
 ## rad/s and rad/s^2.

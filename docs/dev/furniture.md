@@ -76,9 +76,13 @@ a mover at the grab driver's priority (`vr_drawer_tests haul/`) and in the windo
   100 m by walls cutting through it (2026-11-12, "objects sometimes fall through as I pick it up"; `again/` "picked up
   by"). Now the piece reads back where the hold put it and goes there at up to 1 m/s and 5 m/s^2 (2 rad/s, 10
   rad/s^2), and is LET GO WITH ITS SPEED (it trails the hand; let go at rest it stopped dead from 1 m/s and threw the
-  boxes through their walls, `haul/`). **The 1 m/s is set by DAMPING**: nearly every loose object has
-  `linear_damp` 5, which Godot applies against the WORLD, not what it rests on, so a drawer carrying it fast has it
-  braking against the floor: the remote rode at 1.06 m/s and was sinking through at 1.39. Test movers must be FREED,
+  boxes through their walls, `haul/`). **The 1 m/s is set by how Jolt carries things on a moving kinematic floor** (the commit blamed damping; traced
+  after, it was not): every pickable has `continuous_cd` on (HeldObjectPhysics, against throws through the floor),
+  settles 3-5 mm INTO a floor and stays there, and a floor lifting faster than ~1.2-1.3 m/s then outruns it (it keeps
+  the floor's velocity and still loses ~12 mm a tick). Tried and NOT enough: cancelling its world-frame damping,
+  switching its continuous collision off once settled (it does not lift back out), a held-only 25-30 mm floor
+  underneath, waking it. A body that never had continuous collision rides at 4 m/s and 12 m/s^2. Test boxes have
+  `continuous_cd` on as pickables do; without it they rode where a real TV remote fell. Test movers must be FREED,
   not queued, before a let-go: queued, one moved the piece once more after the hold ended, a teleport.
 - **The hold is POLLED** (`freeze` and the held layer), never `picked_up` / `dropped`: a RAY grab emits neither on the
   pickable (the addon restores the body itself; SurfaceStick's header). A first version froze the drawer's contents
