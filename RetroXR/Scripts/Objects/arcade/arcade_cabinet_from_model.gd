@@ -20,6 +20,8 @@
 ##   opens at negative angles, on its right edge at positive)                       hinge to take it by (<Name>Grab)
 ##   <Name>HatchPivot (a service hatch hinged along its bottom edge)                 a hatch that drops open outward, about
 ##                                                                                  the cabinet's X, with a hinge to take it by
+##   <Name>LiftOff (a mesh: a panel held by a lock, no hinge)                         a cover you take off and put back
+##                                                                                  (CoverSlots), wearing the panel
 ##   <Lead>Aim (beside any of the leads below)                                      the way that lead's socket faces: its
 ##                                                                                  plug comes from there
 ##   PowerSwitchAnchor, PowerSwitchAim                                              the cabinet's main switch (on its AC
@@ -130,6 +132,36 @@ func _ready() -> void:
 	_build_leads()
 	_build_drive_mount()
 	_build_doors()
+	_build_lift_offs.call_deferred()
+
+
+## The model's lift-off panels (<Name>LiftOff meshes): each a cover slot round the panel, the panel hidden there and worn by the
+## cover in it, so it is taken off, put down and put back like a battery cover, and a save keeps whether it is on. Deferred:
+## the cabinet must be in its machine (the cover's host) first.
+func _build_lift_offs() -> void:
+	for n in _model.find_children("*LiftOff", "MeshInstance3D", true, false):
+		var part := n as MeshInstance3D
+		var zone := CoverSlots.shell_cover(part, "cabinet_" + str(part.name).to_snake_case(), LIFT_OFF_OUT)
+		if zone == null:
+			continue
+		zone.has_picked_up.connect(_dress_lift_off.bind(part))
+		if zone.picked_up_object != null:
+			_dress_lift_off(zone.picked_up_object, part)
+
+
+## The way a lift-off panel's face looks: the cabinet's front.
+const LIFT_OFF_OUT := Vector3.BACK
+
+
+func _dress_lift_off(what: Node3D, part: MeshInstance3D) -> void:
+	var cover := what as PortCover
+	if cover == null or cover.has_node("Shell"):
+		return
+	var copy := part.duplicate() as MeshInstance3D
+	part.get_parent().add_child(copy)
+	copy.transform = part.transform
+	copy.visible = true
+	CoverSlots.wear(cover, copy, LIFT_OFF_OUT)
 
 
 ## A tray's solid parts, riding with it: its floor (the bottom TRAY_FLOOR of its bounds) and its lip across the front (the
@@ -263,6 +295,17 @@ func _build_doors() -> void:
 			# A hatch drops open about the cabinet's X, its top swinging away from the cabinet: on the back (-Z) about -X.
 			var back := to_local(door.global_position).z < 0.0
 			axis_basis = Basis(Vector3(-1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, -1)) if back else Basis.IDENTITY
+		var line := _part(door_name + "Axis")
+		if line != null:
+			# A door on a leaning face: its hinge is the line from its pivot to <Name>DoorAxis, and it swings out, its middle moving
+			# away from the cabinet's (toward the front for a door on the front).
+			var pv := to_local(door.global_position)
+			var ax := (to_local(line.global_position) - pv).normalized()
+			var mid := mb.get_center()
+			if ax.cross(mid - pv).z * signf(mid.z) < 0.0:
+				ax = -ax
+			var side := ax.cross(Vector3.UP if absf(ax.dot(Vector3.UP)) < 0.95 else Vector3.RIGHT).normalized()
+			axis_basis = Basis(ax, side, ax.cross(side).normalized())
 		axis.global_transform = Transform3D(global_basis * axis_basis, door.global_position)
 		var turn := Node3D.new()
 		turn.name = "DoorPivot"

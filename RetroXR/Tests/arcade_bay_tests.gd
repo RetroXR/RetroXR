@@ -569,6 +569,23 @@ func _hk_build(jamma: bool) -> void:
 	# The main switch on the back, pressed from behind.
 	_hk_node(m, "Marker3D", "PowerSwitchAnchor", Vector3(0.1, 0.12, -0.9))
 	_hk_node(m, "Marker3D", "PowerSwitchAim", Vector3(0.1, 0.12, -1.2))
+	# A panel on the front that lifts off.
+	var lpan := _hk_node(m, "MeshInstance3D", "TestPanelLiftOff", Vector3(0.15, 0.55, 0.0)) as MeshInstance3D
+	var lbm := BoxMesh.new()
+	lbm.size = Vector3(0.2, 0.25, 0.012)
+	lpan.mesh = lbm
+	# A door on the front's leaning face (it leans back 20 degrees going up), hinged on its left edge.
+	var spiv := _hk_node(m, "Node3D", "SlantDoorPivot", Vector3(-0.25, 0.70, 0.30))
+	_hk_node(m, "Marker3D", "SlantDoorAxis", Vector3(-0.25, 0.43, 0.40))
+	var smesh := MeshInstance3D.new()
+	smesh.name = "SlantDoor"
+	var sbm := BoxMesh.new()
+	sbm.size = Vector3(0.2, 0.28, 0.012)
+	smesh.mesh = sbm
+	spiv.add_child(smesh)
+	smesh.owner = m
+	smesh.position = Vector3(0.1, -0.135, 0.05)
+	smesh.rotation_degrees = Vector3(-20.0, 0.0, 0.0)
 	# The VGA socket faces back (its plug from behind); a door at the front right, hinged on its right edge.
 	_hk_node(m, "Marker3D", "VgaLeadAim", Vector3(-0.2, 0.3, -1.2))
 	var dpiv := _hk_node(m, "Node3D", "DriveDoorPivot", Vector3(0.30, 0.05, 0.0))
@@ -710,6 +727,20 @@ func _hk_run() -> void:
 		dgrab.set_rotation_deg_remote(90.0)
 		await _wait(2)
 		_ok(dmesh.global_position.z > shut_z + 0.05, "hookup: and opens toward the player (%.3f m)" % (dmesh.global_position.z - shut_z))
+	await _wait(5)
+	var lift := CoverSlots.of(sys)
+	var lslot := lift.slot("cabinet_test_panel_lift_off") if lift != null else null
+	_ok(lslot != null and lslot.picked_up_object is PortCover and (lslot.picked_up_object as Node3D).has_node("Shell"),
+		"hookup: a lift-off panel is a cover on the cabinet, wearing the panel")
+	var sgrab := model.find_child("SlantDoorGrab", true, false) as VRHinge
+	_ok(sgrab != null, "hookup: the door on the leaning face has a hinge")
+	if sgrab != null:
+		var sdoor := model.find_child("SlantDoor", true, false) as Node3D
+		var s_shut := sdoor.global_position
+		sgrab.set_rotation_deg_remote(80.0)
+		await _wait(2)
+		var s_moved := sdoor.global_position - s_shut
+		_ok(s_moved.z > 0.04, "hookup: and swings out, toward the front (%s)" % str(s_moved))
 	var hgrab := model.find_child("ServiceHatchGrab", true, false) as VRHinge
 	_ok(hgrab != null, "hookup: the cabinet's service hatch has a hinge")
 	if hgrab != null:
