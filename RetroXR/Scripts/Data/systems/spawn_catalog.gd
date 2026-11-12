@@ -48,6 +48,7 @@ const _ARCADE_BAY_ROWS: Array = [
 	{"kind": "peripheral", "label": "JAMMA Cable", "spawn": "jamma_cable"},
 	# A NAOMI's cords to the cabinet (NaomiHookup): power, JVS, VGA and the two phono leads.
 	{"kind": "peripheral", "label": "NAOMI Power Harness", "spawn": "naomi_power_cable"},
+	{"kind": "peripheral", "label": "Stereo RCA Cable", "spawn": "stereo_rca_cable"},
 	{"kind": "peripheral", "label": "JVS-to-JAMMA Converter", "spawn": "jvs_jamma_converter"},
 	# The NAOMI's GD-ROM system (a game's disc and key chip come with the game).
 	{"kind": "peripheral", "label": "NAOMI DIMM Board", "spawn": "naomi_dimm_board"},

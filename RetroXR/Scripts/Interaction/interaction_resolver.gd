@@ -29,6 +29,9 @@ extends RefCounted
 ## 1:World, 3:Pickable, 21:XRPointer, 23:XRPointerSuppress. One mask, because a
 ## nearest-hit rule is meaningless across two queries that see different worlds.
 const QUERY_MASK := (1 << 0) | (1 << 2) | (1 << 20) | (1 << 22)
+## On a body whose pointer area alone is what a pointer meets (a cabinet aimed at by its own mesh): the body's own
+## collision boxes, coarse and standing in front of its doors and its bay, are seen through.
+const POINTER_BY_AREA := &"pointer_by_area"
 
 ## How far past the first grabbable thing a control still wins.
 ##
@@ -89,6 +92,9 @@ static func resolve_desktop(
 		var hit := space_state.intersect_ray(query)
 		if hit.is_empty():
 			break
+		if hit.collider is Node and (hit.collider as Node).has_meta(POINTER_BY_AREA):
+			exclude.append(hit.rid)
+			continue
 
 		var target := _classify(hit, from, grabber)
 		if target.is_valid():

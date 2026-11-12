@@ -142,8 +142,8 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 		_port(conv, CONV_JVS).pick_up_object(jv.get_node("PlugB0"))
 	var runs := [["naomi_power_cable", [["PlugA0", bay, BOARD_POWER], ["PlugB0", cabinet, CAB_POWER]]],
 		["vga_cable", [["PlugA0", bay, BOARD_VGA], ["PlugB0", cabinet, CAB_VGA]]],
-		["composite_cable", [["PlugA1", bay, BOARD_AUDIO_L], ["PlugB1", cabinet, CAB_AUDIO_L],
-			["PlugA2", bay, BOARD_AUDIO_R], ["PlugB2", cabinet, CAB_AUDIO_R]]],
+		["stereo_rca_cable", [["PlugA0", bay, BOARD_AUDIO_L], ["PlugB0", cabinet, CAB_AUDIO_L],
+			["PlugA1", bay, BOARD_AUDIO_R], ["PlugB1", cabinet, CAB_AUDIO_R]]],
 		["jvs_cable", [["PlugA0", bay, BOARD_JVS], ["PlugB0", cabinet, CAB_JVS]]]]
 	for run: Array in runs:
 		var seats: Array = run[1]

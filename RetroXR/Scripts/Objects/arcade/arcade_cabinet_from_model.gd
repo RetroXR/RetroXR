@@ -65,6 +65,10 @@ const SCRIPT_DRAWER := "res://Scripts/Objects/widgets/vr_drawer.gd"
 ## its marker (where the cord comes out, a grommet), hidden: the plug that seats there is hidden and fixed, and its cord
 ## hangs from there (NaomiHookup.seed_cords lays it, a metre long). A captive JVS lead has no stand-in I/O board.
 @export var captive_leads: PackedStringArray = PackedStringArray()
+## The cabinet's collision, box by box, in the model's frame (meters): when given, the whole of it, in place of the
+## generic shell's boxes (which stood a slab across a low bay's tray and walls in front of its doors). A models repo
+## item makes the list from its own mesh (naomi-universal's tools/collision_boxes.py).
+@export var solid_boxes: Array[AABB] = []
 
 var _model: Node3D = null
 
@@ -83,12 +87,22 @@ func _ready() -> void:
 	if root != null:
 		root.set("cabinet_width", ab.size.x)
 		root.set("cabinet_height", ab.size.y)
-		# Whatever of the body is deeper than the generic shell's 0.40 behind the middle: one solid box.
+		# The model's own boxes, moved as the model is; or, whatever of the body is deeper than the generic shell's
+		# 0.40 behind the middle, one solid box.
 		var half := ab.size.z * 0.5
-		if half > 0.40 + 0.01:
+		if not solid_boxes.is_empty():
+			var shell: Array[AABB] = []
+			for bx: AABB in solid_boxes:
+				shell.append(AABB(bx.position + _model.position, bx.size))
+			root.set_meta(RetroSystemModelArcadeCabinet.SHELL_BOXES_META, shell)
+		elif half > 0.40 + 0.01:
 			var solid: Array = root.get_meta(ArcadeCabinetBuilder.SOLID_BOXES_META, [])
 			solid.append(AABB(Vector3(-ab.size.x * 0.5, 0.0, -half), Vector3(ab.size.x, ab.size.y, half - 0.40)))
 			root.set_meta(ArcadeCabinetBuilder.SOLID_BOXES_META, solid)
+	# Aimed at by its own mesh (RetroSystemModelArcadeCabinet._build_pointer_shapes), not the generic shell's boxes.
+	var body := _model.find_child("Body", true, false) as MeshInstance3D
+	if root != null and body != null:
+		root.set_meta(RetroSystemModelArcadeCabinet.POINTER_MESH_META, body)
 	_build_screen(root)
 	for n in range(1, players + 1):
 		_build_panel(n)
@@ -422,11 +436,13 @@ func _build_bay() -> void:
 		drawer.set("travel", tray_travel)
 		# Before it is in the tree: the drawer takes its target's rest where it is when it is ready.
 		drawer.set("target", tray)
-		drawer.position = Vector3(tb.get_center().x, tb.get_center().y, tb.end.z)
+		# Standing out in front of the tray's lip, so a pointer meets it before the board on the tray (whose own
+		# pointer box reaches over the lip).
+		drawer.position = Vector3(tb.get_center().x, tb.get_center().y, tb.end.z + 0.02)
 		m.add_child(drawer)
 		var col := CollisionShape3D.new()
 		var shape := BoxShape3D.new()
-		shape.size = Vector3(maxf(tb.size.x - 0.04, 0.05), maxf(tb.size.y, 0.03), 0.04)
+		shape.size = Vector3(maxf(tb.size.x - 0.04, 0.05), maxf(tb.size.y, 0.03) + 0.02, 0.06)
 		col.shape = shape
 		drawer.add_child(col)
 

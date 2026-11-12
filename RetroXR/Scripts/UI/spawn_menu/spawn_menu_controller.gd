@@ -250,6 +250,7 @@ func _connect_menu_signals() -> void:
 	spawn_menu.close_requested.connect(_hide_menu)
 	spawn_menu.spawn_cartridge_requested.connect(_on_spawn_cartridge_requested)
 	spawn_menu.spawn_view().spawn_manual_requested.connect(_on_spawn_manual_requested)
+	spawn_menu.spawn_view().spawn_key_requested.connect(_on_spawn_key_requested)
 	spawn_menu.spawn_view().spawn_poster_requested.connect(_on_spawn_poster_requested)
 	spawn_menu.spawn_view().spawn_video_requested.connect(_on_spawn_video_requested)
 	spawn_menu.spawn_view().spawn_dvd_requested.connect(_on_spawn_dvd_requested)
@@ -1592,12 +1593,15 @@ func _on_spawn_cartridge_requested(rom_path: String, game_label: String, systemi
 	cart.shell_color = str(options.get("shell_color", ""))
 	cart.shell_flake = bool(options.get("shell_flake", false))
 	cart.body_region = str(options.get("body_region", ""))
+	# A GD-ROM game spawns as its disc; its key chip has its own button on the game's row (_on_spawn_key_requested).
 	_place_spawned(cart, "disc" if is_disc else "cartridge")
-	if gd_game:
-		var key := (load("res://Scenes/Objects/peripherals/naomi_key.tscn") as PackedScene).instantiate() as NaomiKey
-		key.rom_path = rom_path
-		cart.get_parent().add_child(key)
-		key.global_position = cart.global_position + Vector3(0.12, 0.0, 0.0)
+
+
+## A NAOMI GD-ROM game's key chip (the chip button on its row), into the hand like anything spawned.
+func _on_spawn_key_requested(rom_path: String) -> void:
+	var key := (load("res://Scenes/Objects/peripherals/naomi_key.tscn") as PackedScene).instantiate() as NaomiKey
+	key.rom_path = rom_path
+	_place_spawned(key, "peripheral")
 
 
 func _on_spawn_manual_requested(pdf_path: String) -> void:

@@ -23,6 +23,9 @@ signal spawn_requested(type: String)
 signal spawn_cartridge_requested(rom_path: String, game_label: String, systemid: String,
 		options: Dictionary)
 signal spawn_manual_requested(pdf_path: String)
+## A NAOMI GD-ROM game's key chip, for the game at `rom_path` (its row's chip button: the game itself spawns as its
+## disc, and a hand holds one thing at a time).
+signal spawn_key_requested(rom_path: String)
 signal spawn_poster_requested(image_path: String)
 signal spawn_video_requested(video_path: String)
 signal spawn_dvd_requested(dvd_path: String)
@@ -2185,7 +2188,7 @@ func _build_blank_rom_row() -> Control:
 
 	# "Pack" is last and shows only for a .bs: what is written on a Satellaview
 	# memory pack, which the row itself can only summarise.
-	for n: String in ["Detail", "Saves", "Manual", "Scrape", "Pack"]:
+	for n: String in ["Detail", "Saves", "Manual", "Scrape", "Key", "Pack"]:
 		var b := Button.new()
 		b.name = n
 		b.custom_minimum_size = Vector2(66, 100)
@@ -2232,6 +2235,7 @@ func _bind_rom_row(row: Control, index: int) -> void:
 	var manual := row.get_node("Manual") as Button
 	var scrape := row.get_node("Scrape") as Button
 	var pack := row.get_node("Pack") as Button
+	var key := row.get_node("Key") as Button
 
 	_disconnect_all(state.pressed)
 	_disconnect_all(main.pressed)
@@ -2247,6 +2251,14 @@ func _bind_rom_row(row: Control, index: int) -> void:
 	_disconnect_all(manual.pressed)
 	_disconnect_all(scrape.pressed)
 	_disconnect_all(pack.pressed)
+	_disconnect_all(key.pressed)
+	# A NAOMI GD-ROM game (its zip with its disc image beside it): its key chip, its own button.
+	var gd_game := not local_path.is_empty() and NaomiGdRom.is_gd_game(systemid, local_path)
+	key.text = String.chr(MenuIcons.CHIP)
+	key.visible = gd_game
+	key.tooltip_text = "This game's key chip, for the DIMM board"
+	if gd_game:
+		key.pressed.connect(spawn_key_requested.emit.bind(local_path))
 
 	# Rows are pooled, so anything a branch below only sets conditionally has to
 	# be cleared here — otherwise one dead-server row leaves every title it later
@@ -4041,6 +4053,18 @@ func _show_rom_variants_panel(game: Dictionary, systemid: String) -> void:
 			var pdf_path := RomLibrary.scraped_manual_path(systemid, romname)
 			manual_btn.pressed.connect(spawn_manual_requested.emit.bind(pdf_path))
 			row.add_child(manual_btn)
+
+		# A NAOMI GD-ROM game's key chip, its own button: the game spawns as its disc.
+		if NaomiGdRom.is_gd_game(systemid, abs_path):
+			var key_btn := Button.new()
+			key_btn.name = "Key"
+			key_btn.text = String.chr(MenuIcons.CHIP)
+			key_btn.tooltip_text = "This game's key chip, for the DIMM board"
+			key_btn.custom_minimum_size = Vector2(56, 56)
+			key_btn.add_theme_font_override("font", MenuIcons.symbols())
+			key_btn.add_theme_font_size_override("font_size", 24)
+			key_btn.pressed.connect(spawn_key_requested.emit.bind(abs_path))
+			row.add_child(key_btn)
 
 		# Spawn, last so it lines up down the right edge whatever a row lacks.
 		# The title spawns too, but nothing about a logo says so.

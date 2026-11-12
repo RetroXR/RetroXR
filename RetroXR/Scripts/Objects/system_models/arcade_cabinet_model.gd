@@ -732,6 +732,14 @@ func configure_buttons(power_btn: VRButton, reset_btn: VRButton, eject_btn: VRBu
 		lbl.hide()
 
 
+## On the cabinet: the model's mesh (a MeshInstance3D) its pointer area takes instead of the generic boxes
+## (ArcadeCabinetFromModel sets it).
+const POINTER_MESH_META := &"arcade_pointer_mesh"
+## On the cabinet: its whole collision as boxes (an Array of AABB, the cabinet's frame), in place of the generic shell's
+## (ArcadeCabinetFromModel.solid_boxes).
+const SHELL_BOXES_META := &"arcade_shell_boxes"
+
+
 ## One box per solid part, leaving the bay open so a board can be carried into it.
 ## A single box would have kept every hand and board out of the cabinet it plugs into. Run again after a
 ## morph (the shape may be another): the boxes it added the last time go first.
@@ -763,6 +771,12 @@ func configure_collision(host: Node3D) -> void:
 	var solid: Array = get_meta(ArcadeCabinetBuilder.SOLID_BOXES_META, [])
 	for k in solid.size():
 		boxes.append(solid[k] as AABB)
+	# A cabinet from a model brings its own, the whole of it.
+	var shell: Array = get_meta(SHELL_BOXES_META, [])
+	if not shell.is_empty():
+		boxes.clear()
+		for k in shell.size():
+			boxes.append(shell[k] as AABB)
 	var first := host.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	for i in boxes.size():
 		var col: CollisionShape3D = first if i == 0 else CollisionShape3D.new()
@@ -791,9 +805,25 @@ func _build_pointer_shapes(host: Node3D) -> void:
 		return
 	for child in area.get_children():
 		var n := str(child.name)
-		if child is CollisionShape3D and (n.begins_with("PointerBox") or n.begins_with("FormBox") or n == "PointerDoor"):
+		if child is CollisionShape3D and (n.begins_with("PointerBox") or n.begins_with("FormBox") or n == "PointerDoor" or n == "PointerMesh"):
 			area.remove_child(child)
 			child.queue_free()
+	# A cabinet built from a model is aimed at by the model itself: the pointer meets the surfaces it draws, through
+	# its door openings, into its bay and a hatch's hollow, where these boxes (made for the generic shell) stood in front
+	# of every one of them. Its body's own collision boxes are then not what a pointer meets (POINTER_BY_AREA).
+	var pm := get_meta(POINTER_MESH_META, null) as MeshInstance3D
+	if is_instance_valid(pm) and pm.mesh != null:
+		var base := area.get_node_or_null("CollisionShape3D") as CollisionShape3D
+		if base != null:
+			base.disabled = true
+		var col := CollisionShape3D.new()
+		col.name = "PointerMesh"
+		col.shape = pm.mesh.create_trimesh_shape()
+		area.add_child(col)
+		col.global_transform = pm.global_transform
+		host.set_meta(InteractionResolver.POINTER_BY_AREA, true)
+		_pointer_door = null
+		return
 	var first := area.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	var w := cabinet_width
 	var hw := w * 0.5

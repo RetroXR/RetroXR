@@ -255,6 +255,7 @@ const NAOMI_DIMM_SCENE := preload("res://Scenes/Objects/peripherals/naomi_dimm_b
 const NAOMI_GD_DRIVE_SCENE := preload("res://Scenes/Objects/peripherals/naomi_gd_drive.tscn")
 const NAOMI_KEY_SCENE := preload("res://Scenes/Objects/peripherals/naomi_key.tscn")
 const GD_CABLE_SCENE := preload("res://Scenes/Objects/cables/gd_cable.tscn")
+const STEREO_RCA_CABLE_SCENE := preload("res://Scenes/Objects/cables/stereo_rca_cable.tscn")
 const POWER_CORD_SCENE       := preload("res://Scenes/Objects/cables/power_cord.tscn")
 const POWER_STRIP_SCENE      := preload("res://Scenes/Objects/appliances/power_strip.tscn")
 const TRAVEL_ADAPTER_SCENE   := preload("res://Scenes/Objects/appliances/travel_adapter.tscn")
@@ -363,6 +364,7 @@ const LEAD_SCENES := {
 	"jvs_cable": JVS_CABLE_SCENE,
 	"naomi_power_cable": NAOMI_POWER_CABLE_SCENE,
 	"gd_cable": GD_CABLE_SCENE,
+	"stereo_rca_cable": STEREO_RCA_CABLE_SCENE,
 	"trs_cable": TRS_CABLE_SCENE,
 	# Sega's sound mixing cable: a Genesis Model 1's PHONES into a Sega CD's MIXING.
 	"sega_cd_mixing_cable": SEGA_CD_MIXING_CABLE_SCENE,

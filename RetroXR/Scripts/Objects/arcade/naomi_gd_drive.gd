@@ -19,6 +19,9 @@ const LID_OUT := Vector3.UP
 ## The stand-in's lid: a slab on the drum.
 const LID_SIZE := Vector3(0.140, 0.006, 0.140)
 const SHELL_BLUE := Color(0.24, 0.27, 0.32)
+## Where the drive's own shapes stop: under the lid, which is a thing of its own with its own shape (a pointer aimed
+## at the lid met the drive's box first and picked the whole drive up).
+const UNDER_LID := 0.050
 
 @export var type_id: String = KIND
 
@@ -39,6 +42,7 @@ func _ready() -> void:
 	_build_stand_in()
 	var shell := ArcadeBayShells.dress(self, KIND, Vector3(0.1635, 0.0585, 0.1535))
 	_build_lid(shell)
+	_shapes_under_lid()
 	_build_disc_zone()
 	_build_data_port()
 
@@ -100,6 +104,17 @@ func _build_lid(shell: Node3D) -> void:
 	_lid_zone.has_dropped.connect(_refresh_disc.call_deferred)
 	if _lid_zone.picked_up_object != null:
 		_on_lid_seated(_lid_zone.picked_up_object)
+
+
+func _shapes_under_lid() -> void:
+	for path in ["CollisionShape3D", "PointerArea/CollisionShape3D"]:
+		var col := get_node_or_null(path) as CollisionShape3D
+		if col == null or not col.shape is BoxShape3D:
+			continue
+		var box := (col.shape as BoxShape3D).duplicate() as BoxShape3D
+		box.size.y = UNDER_LID
+		col.shape = box
+		col.global_position = global_transform * Vector3(col.position.x if path == "CollisionShape3D" else 0.0, UNDER_LID * 0.5, 0.0)
 
 
 static func _first_mesh(n: Node) -> MeshInstance3D:
