@@ -15,8 +15,9 @@ const KIND := "naomi_dimm_board"
 const POLL := 0.25
 
 @export var type_id: String = KIND
-## The system it serves, as a cartridge says (ArcadeBayUnit.accepts_board reads it).
-@export var systemid: String = "naomi"
+## The system it serves, as a cartridge says (ArcadeBayUnit.accepts_board reads it): none of its own (the NAOMI or NAOMI 2
+## it is seated on gives it its own), then the disc's once it reads one (a NAOMI 2 game makes the cabinet a NAOMI 2).
+@export var systemid: String = ""
 
 var _key_zone: XRToolsSnapZone = null
 var _wait := 0.0
@@ -59,6 +60,8 @@ func _process(delta: float) -> void:
 	if str(r["rom"]) == _rom:
 		return
 	_rom = str(r["rom"])
+	if not str(r.get("systemid", "")).is_empty():
+		systemid = str(r["systemid"])
 	print("[NAOMI] DIMM board: %s" % ("the game is " + _rom.get_file() if not _rom.is_empty() else "no game: missing " + ", ".join(PackedStringArray(_missing))))
 	# Seated: seated again, so the cabinet takes the new game.
 	var zone := get_picked_up_by() as XRToolsSnapZone

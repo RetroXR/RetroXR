@@ -58,7 +58,7 @@ static func resolve(dimm: Node) -> Dictionary:
 			missing.append("the right key chip (ERROR 33: this key is %s's)" % str(key.get("rom_path")).get_file().get_basename())
 	if not missing.is_empty():
 		rom = ""
-	return {"rom": rom, "missing": missing}
+	return {"rom": rom, "missing": missing, "systemid": str(disc.get("systemid")) if disc != null and rom != "" else ""}
 
 
 ## The cabinet the DIMM board's NAOMI is in: the seat it sits on, that seat's bay, the bay's cabinet.
