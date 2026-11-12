@@ -101,20 +101,24 @@ editor converts project files. Test from a copy:
 
 ## Open problems
 
-1. **Pre-lit rooms blow out.** The Starlight Arcade (mod `xenu.starlightarcade`,
-   source not in this repo) bakes its light into `EMISSION`
-   (`baked_surface_shadowed.gdshader`) and darkens shadows with NEGATIVE twin
-   lights limited by cull mask to the shell. In a path tracer every wall is then a
-   light, `ALBEDO = c * 0.8 / total` reads `total` from uniform arrays it does not
-   fill (so x80), and the negative lights are not culled. Mean luma 0.92 vs 0.22.
-   Fix belongs in the room: under path tracing, real albedo, no baked emission, no
-   twin lights. The base game's rooms keep Godot's lighting on desktop
-   (`shell_lighting.gd` swaps to the unshaded twins only on a headset) and trace
-   correctly.
-2. **DLSS under `--fixed-fps` renders black** (and so under `--write-movie`), path
-   traced or not; real time is fine. NVIDIA bug, not chased.
-3. **Intermittent hang entering a room**, path tracing on or off: about 3 launches
-   in 14 stopped right after Streamline loaded its plugins, never past it.
+1. **Pre-lit rooms blew out -- FIXED for the Starlight Arcade** (RetroXR-models `5e50d6a14`). Its shell
+   bakes its light into `EMISSION` (`baked_surface_shadowed`), reads a light total from uniform arrays the
+   tracer never fills (`ALBEDO` x80), and shadows with NEGATIVE twin lights culled to the shell, which a
+   tracer does not honour: mean luma 0.92, white. Under `effective_path_tracing()` the mod swaps the shell's
+   materials to `pt_surface` (real albedo; painted glow and the bake's own lamps, bright in the bake AND
+   unsaturated, as emission; `bake_fill` 0.8 of each surface's baked light), hides the twins and lets the
+   shell cast; live through `QualityManager.path_tracing_changed`. 0.213 traced vs 0.225 raster. Still: the
+   ceiling panels' interiors draw black. Any other pre-lit room needs the same.
+2. **DLSS drew black under `--fixed-fps` / `--write-movie` -- FIXED** (engine `6596d3acd3`): `Main::iteration`
+   returned before the marker that fetches Streamline's frame token, so every frame reused the first one.
+3. **Hang entering a room -- FIXED** (engine `cf4c66767a`), path tracing on or off. Not NVIDIA's: upstream
+   4.8-dev made the shader-cache load a pool group task (#119123), and a pool thread that queued a group then
+   waited on it in `ShaderRD::_compile_version_end`, holding the version mutex. A group wait runs nothing
+   itself, so a room of meshes starved the pool (cdb: 20/20 workers held or waited on version mutexes, the
+   render thread blocked in `enable_group`, main in `push_and_sync`). A pool thread's batch now runs inline.
+   5 of 6 launches hung before, 0 of 8 after. Stock 4.7.2 predates #119123. Capture recipe: attach cdb
+   (WinDbg package, `amd64\cdb.exe -p <pid> -pv`) to `godot.windows.editor.x86_64.exe`, the CHILD of the
+   console wrapper, with a `debug_symbols=yes` build.
 4. **A material whose hit shader fails to compile drops out of the traced scene**
    (no fallback; sources dumped to `%TEMP%/rt_shader_hg*_closest_hit.glsl` +
    `.err.txt`). Engine commit `e7868a64a1` adds stand-ins for `dFdx`/`dFdy`
@@ -122,7 +126,9 @@ editor converts project files. Test from a copy:
    a sampler constructor as a call argument), as the fork already had for
    `fwidth`: 14 of RetroXR's 20 failing groups compile and the bedroom has none
    left. Still failing: `texture()` with a bias, and `sampler2DArray` uniforms (the
-   fork's bindless textures are 2D only: the printer paper).
+   fork's bindless textures are 2D only: the printer paper). `texture()`/`textureProj()` with a bias are now
+   their Lod forms in hit shaders (engine `342d992bfa`, `function_renames_by_arity`), so only the
+   `sampler2DArray` case is left.
 6. **Raster-only tricks are traced as solid geometry by default.** The hover
    highlight is an inflated overlay mesh (stencil mask + outline, `depth_test`
    disabled); at the default `max_transparency_layers` (4) every alpha-pass material
