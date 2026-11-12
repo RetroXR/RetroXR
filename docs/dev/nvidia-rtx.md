@@ -127,12 +127,17 @@ editor converts project files. Test from a copy:
    highlight is an inflated overlay mesh (stencil mask + outline, `depth_test`
    disabled); at the default `max_transparency_layers` (4) every alpha-pass material
    is traced, so the overlay became a shell over the object and hid its labels. At
-   0 the engine is meant to rasterise the alpha list over the traced image, and the
-   labels do stay visible -- but the outline and a TV's picture (the CRT material
-   writes ALPHA for its glass edge) never show, with DLSS on or off: the raster
-   overlay never reaches the final image, or these surfaces never reach its list.
-   Not yet found; the TV picture may also be a ViewportTexture the tracer cannot
-   read. `RTX_LOOK=tv RTX_HOVER=tv` with a raster control leg shows it.
+   0 the engine rasterises the alpha list over the traced image instead -- which the
+   test worktree sets; RetroXR's `project.godot` does not yet.
+7. **MSAA swallowed that overlay -- FIXED in RetroXR (`8f55d951`).** The tracer
+   writes its image to the internal texture and the fork skips the colour MSAA
+   resolve, but the transparent pass draws into `get_color_pass_fb()`, the
+   MULTISAMPLED buffer when MSAA is on, which nothing resolves: a TV's picture (the
+   CRT material writes ALPHA for its glass edge) and the hover outline vanished,
+   DLSS on or off. `QualityManager.effective_msaa()` is off while path tracing
+   (`quality_tests rtx/`). Proven by `RTX_LOOK=tv RTX_HOVER=tv` with the saved MSAA
+   at 4x: screen, outline, labels and the VCR display all drawn, 165 fps. Upstream,
+   the transparent pass should draw into the non-MSAA target under the tracer.
 5. Godot 4.8-dev logs ~11k "causing RenderingServer synchronizations" warnings a
    run with RetroXR's separate render thread, raster or traced alike.
 
