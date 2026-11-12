@@ -132,6 +132,31 @@ func _ready() -> void:
 	_build_doors()
 
 
+## A tray's solid parts, riding with it: its floor (the bottom TRAY_FLOOR of its bounds) and its lip across the front (the
+## front TRAY_LIP of them, its full height). Not one box of its bounds: that would stand a board on the lip's top.
+const TRAY_FLOOR := 0.012
+const TRAY_LIP := 0.008
+
+
+func _tray_body(tray: Node3D) -> void:
+	var b := _mesh_bounds_in(tray, tray)
+	var body := AnimatableBody3D.new()
+	body.name = "TrayBody"
+	body.collision_layer = 1
+	body.collision_mask = 0
+	body.sync_to_physics = false
+	body.set_meta(InteractionResolver.POINTER_BY_AREA, true)
+	for box: AABB in [AABB(b.position, Vector3(b.size.x, minf(TRAY_FLOOR, b.size.y), b.size.z)),
+			AABB(Vector3(b.position.x, b.position.y, b.end.z - TRAY_LIP), Vector3(b.size.x, b.size.y, TRAY_LIP))]:
+		var col := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = box.size.max(Vector3(0.005, 0.005, 0.005))
+		col.shape = shape
+		col.position = box.get_center()
+		body.add_child(col)
+	tray.add_child(body)
+
+
 ## A door's solid part: a box over its bounds that swings with it (a body that moves with its pivot), so a cord lies
 ## against a shut door rather than through it. On the World layer the cords collide with; the desktop pointer sees past
 ## it (InteractionResolver.POINTER_BY_AREA) to the door's own grab.
@@ -471,6 +496,7 @@ func _build_bay() -> void:
 	mount.global_transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(bay_roll_deg)), anchor.global_position)
 	if tray != null and tray_travel > 0.0:
 		var tb := _mesh_bounds_in(tray, m)
+		_tray_body(tray)
 		var drawer := Area3D.new()
 		drawer.name = "TrayHandle"
 		drawer.set_script(load(SCRIPT_DRAWER))
