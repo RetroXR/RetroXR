@@ -522,8 +522,8 @@ func _haul(ns: Nightstand) -> void:
 		# What COLLIDES: the drawer body as the physics server has it, against the case as it is now.
 		worst_body[0] = maxf(worst_body[0], _drawer_body_error(ns))
 		if i == 80:
-			# Moving fast here: what is in it is LATCHED to it (CarryContents), and let go again once it is put down.
-			mid[0] = ns.lid_on() and (boxes["drawer"] as RigidBody3D).freeze
+			# About 1 m/s here: under CarryContents' latch speed, so what is in it is ordinary physics, not frozen.
+			mid[0] = ns.lid_on() and not (boxes["drawer"] as RigidBody3D).freeze
 	mover.queue_free()
 	for i in 10:
 		await get_tree().physics_frame
@@ -535,7 +535,7 @@ func _haul(ns: Nightstand) -> void:
 		await get_tree().physics_frame
 	_ok(worst_lag[0] < 0.004, "haul/the drawer never trails the case it is carried in (worst %.1f mm)" % (
 		worst_lag[0] * 1000.0))
-	_ok(mid[0], "haul/carried fast, the drawer has its lid on and what is in it is latched to it")
+	_ok(mid[0], "haul/carried, the drawer has its lid on and what is in it is ordinary physics, not frozen")
 	_ok(not ns.lid_on(), "haul/put down, the lid is off: nothing invisible left in the drawer")
 	_ok(worst_body[0] < 0.02, "haul/the drawer's COLLISION body keeps up with the case while carried (worst %.1f mm)" % (
 		worst_body[0] * 1000.0))

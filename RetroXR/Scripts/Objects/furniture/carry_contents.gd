@@ -16,7 +16,9 @@ class_name CarryContents
 extends RefCounted
 
 ## Fastest a bin may move (m/s, at its middle) with what is in it left to physics; latched above it.
-var LATCH_SPEED := float(OS.get_environment("CC_LATCH")) if OS.has_environment("CC_LATCH") else 0.6
+## 3 m/s: below it, what is in it is carried by physics (its continuous collision is off, _watch_ccd); above it, a swing
+## or a teleport, no physics could follow. CC_LATCH overrides it for testing.
+var LATCH_SPEED := float(OS.get_environment("CC_LATCH")) if OS.has_environment("CC_LATCH") else 3.0
 ## Let go again once every bin has been slower than this for UNLATCH_AFTER seconds.
 const UNLATCH_SPEED := 0.3
 const UNLATCH_AFTER := 0.2
@@ -37,7 +39,7 @@ var _query_box := BoxShape3D.new()
 
 
 func step(piece: RigidBody3D, held: bool, delta: float) -> void:
-	if OS.has_environment("CC_CCD"):
+	if not OS.has_environment("CC_NOCCD"):
 		_watch_ccd(piece)
 	var now := piece.global_transform
 	if not held or delta <= 0.0 or not _have_prev:
@@ -159,8 +161,10 @@ func _let_go_all(piece: RigidBody3D, motion: Transform3D, delta: float, why: Str
 	print("[CarryContents] %s: %s; %d thing(s) let go to ordinary physics" % [piece.name, why, n])
 
 
-## EXPERIMENT (ccd-test worktree): whatever arrives in a bin has its continuous collision switched off at once, while it
-## is still moving, before it settles; given back as it leaves.
+## TRIAL (2026-11-12, on by default; CC_NOCCD=1 turns it off): whatever arrives in a bin has its continuous collision
+## switched off at once, while it is still moving, before it settles, and given back as it leaves. A body that SETTLED
+## with it on rests a few mm into the floor and a floor lifting past ~1.3 m/s outruns it; switched off as it arrives,
+## physics carries it through a 2.5 m/s lift (vr_drawer_tests again/).
 var _ccd_off: Dictionary = {}
 
 func _watch_ccd(piece: RigidBody3D) -> void:
