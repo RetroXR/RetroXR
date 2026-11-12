@@ -523,6 +523,17 @@ func _hk_build(jamma: bool) -> void:
 		_hk_node(m, "Marker3D", "JvsLead", Vector3(0.2, 0.1, -0.8))
 	_hk_node(m, "Marker3D", "BoardPowerLead", Vector3(0.25, 0.15, -0.8))
 	_hk_node(m, "Marker3D", "GdDriveAnchor", Vector3(0.22, 0.0, -0.3))
+	# The VGA socket faces back (its plug from behind); a door at the front right, hinged on its right edge.
+	_hk_node(m, "Marker3D", "VgaLeadAim", Vector3(-0.2, 0.3, -1.2))
+	var dpiv := _hk_node(m, "Node3D", "DriveDoorPivot", Vector3(0.30, 0.05, 0.0))
+	var dmesh := MeshInstance3D.new()
+	dmesh.name = "DriveDoor"
+	var dbm := BoxMesh.new()
+	dbm.size = Vector3(0.2, 0.2, 0.015)
+	dmesh.mesh = dbm
+	dpiv.add_child(dmesh)
+	dmesh.owner = m
+	dmesh.position = Vector3(-0.1, 0.1, -0.0075)
 	var mp := PackedScene.new()
 	mp.pack(m)
 	ResourceSaver.save(mp, HK_MODEL)
@@ -626,6 +637,17 @@ func _hk_run() -> void:
 	(model.find_child(NaomiGdRom.CAB_DRIVE_POWER, true, false) as Port).pick_up_object(dpow.get_node("PlugB0"))
 	await _wait(40)
 	_ok(dimm.missing().is_empty() and dimm.get_rom_path() == "/tmp/naomi_gd/ikaruga.zip", "hookup: the drive powered: the DIMM board has the game (%s)" % str(dimm.missing()))
+	var vga_in := model.find_child(NaomiHookup.CAB_VGA, true, false) as Node3D
+	_ok(vga_in != null and vga_in.global_basis.z.dot(Vector3.FORWARD) > 0.9, "hookup: the VGA socket faces its aim, a plug from behind (%s)"
+		% (str(vga_in.global_basis.z) if vga_in != null else "none"))
+	var dgrab := model.find_child("DriveDoorGrab", true, false) as VRHinge
+	_ok(dgrab != null, "hookup: the cabinet's other door has a hinge")
+	if dgrab != null:
+		var dmesh := model.find_child("DriveDoor", true, false) as Node3D
+		var shut_z := dmesh.global_position.z
+		dgrab.set_rotation_deg_remote(90.0)
+		await _wait(2)
+		_ok(dmesh.global_position.z > shut_z + 0.05, "hookup: and opens toward the player (%.3f m)" % (dmesh.global_position.z - shut_z))
 	var dmount := model.find_child("GdDriveMount", true, false) as XRToolsSnapZone
 	_ok(dmount != null and dmount.snap_require == NaomiGdDrive.GROUP, "hookup: the cabinet has a place for the GD-ROM drive")
 	if dmount != null:

@@ -16,6 +16,10 @@
 ##   BoardAnchor                                                                    the bay's BayMount: the board (an
 ##                                                                                  ArcadeBayUnit) clips in there, turned
 ##                                                                                  by `bay_roll_deg`
+##   <Name>DoorPivot (another door, swinging about +Y; hinged on its left edge it      a door of its own that opens, with a
+##   opens at negative angles, on its right edge at positive)                       hinge to take it by (<Name>Grab)
+##   <Lead>Aim (beside any of the leads below)                                      the way that lead's socket faces: its
+##                                                                                  plug comes from there
 ##   GdDriveAnchor                                                                  where a NAOMI GD-ROM drive stands: a
 ##                                                                                  snap zone that takes one (GdDriveMount)
 ##   Marquee, MarqueeArt                                                            found by the cabinet as they are
@@ -84,6 +88,7 @@ func _ready() -> void:
 	_build_bay()
 	_build_leads()
 	_build_drive_mount()
+	_build_doors()
 
 
 ## The cabinet's ends of the board's cords, at the model's leads (NaomiHookup reads them): the monitor's VGA and the
@@ -116,7 +121,63 @@ func _build_leads() -> void:
 			at.add_child(port)
 		else:
 			add_child(port)
-			port.global_transform = Transform3D(Basis.IDENTITY, at.global_position)
+			port.global_transform = Transform3D(_lead_facing(str(r[0]), at.global_position), at.global_position)
+
+
+## A lead's socket takes its plug along -Z: from the front, or, when the model has a `<lead>Aim` marker, from there.
+func _lead_facing(lead: String, at: Vector3) -> Basis:
+	var aim := _part(lead + "Aim")
+	if aim == null or aim.global_position.is_equal_approx(at):
+		return Basis.IDENTITY
+	var z := (aim.global_position - at).normalized()
+	var up := Vector3.UP if absf(z.dot(Vector3.UP)) < 0.95 else Vector3.BACK
+	var x := up.cross(z).normalized()
+	return Basis(x, z.cross(x), z)
+
+
+## The model's doors besides the board's (<Name>DoorPivot): each hangs on a hinge of its own a hand takes it by, swinging
+## about +Y toward the player to `door_open_deg` (the hinge on the door's left edge opens it at negative angles, on its
+## right edge at positive). A VRHinge, so a save keeps how far open it is.
+func _build_doors() -> void:
+	for pivot_node in _model.find_children("*DoorPivot", "Node3D", true, false):
+		var door := pivot_node as Node3D
+		if door.name == "BoardDoorPivot" or not is_ancestor_of(door):
+			continue
+		var door_name := str(door.name).trim_suffix("Pivot")
+		var m := Node3D.new()
+		m.name = door_name + "Hinge"
+		add_child(m)
+		var mb := _mesh_bounds_in(door, self)
+		# Hinged on its right edge (its middle left of the pivot): opening is +Y; on its left, -Y.
+		var right_edge := mb.get_center().x < to_local(door.global_position).x
+		var axis := Node3D.new()
+		axis.name = "DoorAxis"
+		m.add_child(axis)
+		var hx := Vector3(0, 1, 0) if right_edge else Vector3(0, -1, 0)
+		axis.global_transform = Transform3D(Basis(hx, Vector3(-hx.y, 0, 0), Vector3(0, 0, 1)), door.global_position)
+		var turn := Node3D.new()
+		turn.name = "DoorPivot"
+		axis.add_child(turn)
+		door.reparent(turn, true)
+		var db := _mesh_bounds_in(door, turn)
+		var grab := Area3D.new()
+		grab.name = door_name + "Grab"
+		grab.set_script(load(SCRIPT_HINGE))
+		grab.collision_layer = 0
+		grab.collision_mask = 0
+		grab.set("engage_radius", 0.12)
+		grab.set("target", turn)
+		grab.set("min_deg", 0.0)
+		grab.set("max_deg", door_open_deg)
+		grab.set("grip_engages", true)
+		grab.set("box_engages", true)
+		turn.add_child(grab)
+		grab.position = db.get_center()
+		var col := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = db.size.max(Vector3(0.03, 0.03, 0.03))
+		col.shape = shape
+		grab.add_child(col)
 
 
 ## A NAOMI GD-ROM drive's place, at the model's GdDriveAnchor (its origin on the floor under the drive's body, its
