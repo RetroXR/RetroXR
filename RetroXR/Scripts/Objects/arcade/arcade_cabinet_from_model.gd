@@ -84,6 +84,10 @@ var _model: Node3D = null
 ## while it is held, so a carried cabinet passes through things as every held object does (HeldObjectPhysics clears the
 ## cabinet's own body, not these).
 var _riding: Array[CollisionObject3D] = []
+## The layer those bodies are on: Pickable (3), the cabinet's own. The cords (their surface mask) and loose objects meet them, the
+## player does not, as with the cabinet itself and everything else that can be moved. On World (1) a cabinet with its doors
+## shut was a wall the player could not walk through (the owner, 2026-11-13).
+const RIDING_LAYER := 4
 ## What a carried cabinet takes along that is not its child: the cords lying in it (VerletRope) and the frozen bodies
 ## standing in it (a JAMMA cabinet's converter). A held cabinet collides with nothing, so left to themselves the cords
 ## trailed out through its walls as it moved, and the converter stayed where the cabinet had been.
@@ -194,7 +198,7 @@ func _tray_body(tray: Node3D) -> void:
 	var body := AnimatableBody3D.new()
 	_riding.append(body)
 	body.name = "TrayBody"
-	body.collision_layer = 1
+	body.collision_layer = RIDING_LAYER
 	body.collision_mask = 0
 	body.sync_to_physics = false
 	body.set_meta(InteractionResolver.POINTER_BY_AREA, true)
@@ -285,7 +289,7 @@ func _physics_process(_delta: float) -> void:
 func _set_riding_solid(solid: bool) -> void:
 	for b in _riding:
 		if is_instance_valid(b):
-			b.collision_layer = 1 if solid else 0
+			b.collision_layer = RIDING_LAYER if solid else 0
 
 
 ## A door's solid part: a box over its bounds that swings with it (a body that moves with its pivot), so a cord lies
@@ -295,7 +299,7 @@ func _door_body(pivot: Node3D, bounds: AABB) -> void:
 	var body := AnimatableBody3D.new()
 	_riding.append(body)
 	body.name = "DoorBody"
-	body.collision_layer = 1
+	body.collision_layer = RIDING_LAYER
 	body.collision_mask = 0
 	body.sync_to_physics = false
 	body.set_meta(InteractionResolver.POINTER_BY_AREA, true)
@@ -356,7 +360,9 @@ func _build_leads() -> void:
 		if str(r[0]) == "BoardPowerLead":
 			var dp := NaomiHookup.make_port(NaomiGdRom.CAB_DRIVE_POWER, "res://Scripts/Objects/cables/port.gd", NaomiHookup.NAOMI_POWER)
 			add_child(dp)
-			dp.global_transform = Transform3D(Basis.IDENTITY, at.global_position + Vector3(0.05, 0.0, 0.0))
+			# In the cabinet's frame, not the world's: one built already turned (a save restoring it) had this socket turned by
+			# the cabinet's own heading.
+			dp.global_transform = Transform3D(global_basis, at.global_position + global_basis * Vector3(0.05, 0.0, 0.0))
 		if at.name == "JvsInAnchor":
 			at.add_child(port)
 		else:
@@ -662,7 +668,10 @@ func _build_bay() -> void:
 	var mount := Marker3D.new()
 	mount.name = "BayMount"
 	holder.add_child(mount)
-	mount.global_transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(bay_roll_deg)), anchor.global_position)
+	# In the cabinet's frame: a world basis here was right only for a cabinet built facing the world's -Z. One built already
+	# turned (every cabinet a saved room restores) got a mount turned back by its own heading, and the board seated yawed in it
+	# (the owner, 2026-11-13, after several "fixed"s that were all tested on cabinets built at 0 degrees).
+	mount.global_transform = Transform3D(global_basis * Basis(Vector3.BACK, deg_to_rad(bay_roll_deg)), anchor.global_position)
 	if tray != null and tray_travel > 0.0:
 		var tb := _mesh_bounds_in(tray, m)
 		_tray_body(tray)
