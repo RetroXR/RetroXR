@@ -105,6 +105,8 @@ var _aimed := false
 var _taken := false
 var _t := 0.0
 var _pop := 0.0
+## Half the glow's outline, in the grip's XY.
+var _half := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -150,6 +152,7 @@ func refresh_shape() -> void:
 	if ring_radius > 0.0:
 		var r := ring_radius + ring_width * 0.5
 		half = Vector2(r, r)
+	_half = half
 	var quad_half := half + Vector2(PAD, PAD)
 	(_quad.mesh as QuadMesh).size = quad_half * 2.0
 	_mat.set_shader_parameter("half_size", size * 0.5)
@@ -196,7 +199,9 @@ func _process(delta: float) -> void:
 			rise = GLYPH_RISE + BOUNCE * h
 			scale_v = Vector3(2.0 - squash, squash, 1.0)
 		scale_v *= 1.0 + 0.6 * _pop
-		# Over the middle of the glow (the stick and the buttons), not of the whole panel.
+		# Over the glow (the stick and the buttons, not the whole panel), clear of its top: a wheel stands up.
+		var b := _quad.global_basis
+		rise += absf(b.x.normalized().y) * _half.x + absf(b.y.normalized().y) * _half.y
 		_glyph.global_transform = Transform3D(Basis.from_scale(scale_v), _quad.global_position + Vector3.UP * rise)
 	elif _strength <= 0.0:
 		set_process(false)
