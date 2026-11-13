@@ -215,7 +215,7 @@ func _convert(mi: MeshInstance3D) -> void:
 		var id := src.get_instance_id()
 		var mat: ShaderMaterial = _materials[id].get_ref() if _materials.has(id) else null
 		if mat == null:
-			mat = _translate(src, _shader, _volume)
+			mat = _translate(src, _shader if src.cull_mode == BaseMaterial3D.CULL_BACK else _double_sided(), _volume)
 			_materials[id] = weakref(mat)
 		mi.set_surface_override_material(i, mat)
 		surfaces.append(i)
@@ -233,7 +233,7 @@ func _convert(mi: MeshInstance3D) -> void:
 func _supported(src: BaseMaterial3D) -> bool:
 	return src != null and src.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED \
 		and src.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL \
-		and src.cull_mode == BaseMaterial3D.CULL_BACK and not src.no_depth_test \
+		and src.cull_mode != BaseMaterial3D.CULL_FRONT and not src.no_depth_test \
 		and src.depth_draw_mode == BaseMaterial3D.DEPTH_DRAW_OPAQUE_ONLY \
 		and src.texture_filter == BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS \
 		and src.texture_repeat and not src.uv1_triplanar and not src.uv2_triplanar \
@@ -283,6 +283,31 @@ func _flatten(src: ShaderMaterial) -> ShaderMaterial:
 ## Shared by instance id, so two props wearing the same source material end up
 ## wearing one replacement and can still batch — the same reason
 ## bedroom_exterior.gd caches its toned materials.
+## The prop shader drawn from both faces, with the normal turned toward the viewer on a back face: a GLB's
+## double-sided material (`cull_mode` DISABLED). Those were left on Godot's lighting -- 834 of the 1,100-odd lit
+## materials still drawn in the Starlight Arcade on a Quest 3 (2026-11-13), and lit materials were most of its frame.
+var _double: Shader
+
+
+func _double_sided() -> Shader:
+	if _double == null:
+		var code := _shader.code
+		if not code.contains("cull_back") or not code.contains("vec3 n = normalize(v_world_normal);"):
+			push_warning("[PropLighting] the prop shader changed: double-sided materials stay single-sided")
+			return _shader
+		code = code.replace("cull_back", "cull_disabled")
+		code = code.replace("vec3 n = normalize(v_world_normal);",
+			"vec3 n = normalize(v_world_normal);" + NL + TAB + "if (!FRONT_FACING) {" + NL + TAB + TAB + "n = -n;" + NL + TAB + "}")
+		_double = Shader.new()
+		_double.code = code
+		print("[PropLighting] double-sided prop shader built")
+	return _double
+
+
+const NL := "\n"
+const TAB := "\t"
+
+
 func _translate(src: BaseMaterial3D, shader: Shader, volume: Dictionary) -> ShaderMaterial:
 	var out := ShaderMaterial.new()
 	out.shader = shader

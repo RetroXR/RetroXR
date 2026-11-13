@@ -334,6 +334,7 @@ renderer/rendering_method.android="mobile"
 renderer/mobile/render_directly_to_target=true
 limits/spatial_indexer/threaded_cull_minimum_instances.android=65536
 driver/threads/thread_model.windows=2
+driver/threads/thread_model.android=2
 
 [shader_globals]
 

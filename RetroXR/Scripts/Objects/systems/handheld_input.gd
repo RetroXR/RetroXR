@@ -296,8 +296,15 @@ const OFF_SETTLE := 1.0
 var _off_settle: float = 0.0
 
 
+var _far_idle := FarIdle.new()
+
+
 func _process(delta: float) -> void:
 	if _host == null:
+		return
+	# Switched off, not held and nobody within reach: stepped ten times a second (FarIdle).
+	delta = _far_idle.step(_host, delta, not bool(_host.get("is_powered_on")) and not is_instance_valid(_holding_ctrl))
+	if delta < 0.0:
 		return
 
 	# Drop combo: evaluated even while the system is powered OFF — the gate

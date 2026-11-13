@@ -146,7 +146,15 @@ func _collect_modules() -> void:
 			_art_sides.append(side)
 
 
+var _far_idle := FarIdle.new()
+
+
 func _process(delta: float) -> void:
+	# Switched off (no core) and nobody within reach: the panel steps ten times a second (FarIdle).
+	var host := get_parent()
+	delta = _far_idle.step(self, delta, host != null and not bool(host.get("is_powered_on")))
+	if delta < 0.0:
+		return
 	for m in _modules:
 		m.tick(delta)
 	_hookup_wait -= delta

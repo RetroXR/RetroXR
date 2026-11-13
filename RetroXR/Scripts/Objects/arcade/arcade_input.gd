@@ -674,8 +674,15 @@ func _update_locomotion_block() -> void:
 		_capture.refresh()
 
 
+var _far_idle := FarIdle.new()
+
+
 func _process(delta: float) -> void:
 	if _host == null:
+		return
+	# No core running and nobody within reach: stepped ten times a second (FarIdle); a hand arriving is near.
+	delta = _far_idle.step(_host, delta, not bool(_host.get("is_powered_on")))
+	if delta < 0.0:
 		return
 	_sync_desktop_scope()
 	if bool(_host.get("attracting")):

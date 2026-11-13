@@ -79,6 +79,8 @@ var _perch_ease : float = 1.0
 # from set_arrived mid-tick) refreshes it before the next use.
 var _primary_cached : Grab = null
 var _primary_by_zone : bool = false
+# LOCAL PATCH (RetroXR): the zone's transform at the last push, for the resting early-out in _physics_process.
+var _rest_zone_xf := Transform3D()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _physics_process(delta : float) -> void:
@@ -96,6 +98,20 @@ func _physics_process(delta : float) -> void:
 	# Skip if no primary node or its grabber has been freed
 	if not is_instance_valid(primary) or not is_instance_valid(primary.by):
 		return
+
+	# LOCAL PATCH (RetroXR): an object resting in a snap zone -- settled, no second hand, nothing constraining it --
+	# goes where the zone is, and the zone has not moved since the last push: nothing to compute. 213 of these
+	# ran every physics tick in the Starlight Arcade (1.27 ms a frame on a Quest 3, 2026-11-13) to find, every
+	# time, that the destination had not changed. The zone's transform and the holder graph are what decide it.
+	if _pushed_once and state == GrabState.SNAP and primary == _primary_cached and _primary_by_zone \
+			and not is_instance_valid(secondary) and not _constrains:
+		var zone_xf: Transform3D = primary.by.global_transform
+		var epoch := XRToolsSnapZone.holder_epoch()
+		# Approximately: a zone on an awake body moves by float noise every tick, and an exact compare never matched.
+		# A real move is far past the tolerance and is pushed as before.
+		if zone_xf.is_equal_approx(_rest_zone_xf) and epoch == _priority_epoch:
+			return
+		_rest_zone_xf = zone_xf
 
 	# Set destination from primary grab
 	var destination := primary.by.global_transform * primary.transform.affine_inverse()

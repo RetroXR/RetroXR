@@ -466,3 +466,196 @@ Left, measured, not done:
 - The room scene itself: 0.8-1.1 s by `load()` (BootScene) on desktop; `use_sub_threads` made no consistent
   difference.
 - The Quest is not measured: the boot-warm wait should matter more there (one loader thread), and is OWED on device.
+
+## The Starlight Arcade on a Quest 3, Perfetto (2026-11-13)
+
+The desktop's autosave (242 entries: 31 consoles, 67 cables, 11 NAOMI bays, 9 cabinets) restored on a Quest 3
+(Horizon OS 14), debug export of `master` + the working tree. **11-15 fps against 72.** The bare room (no slot)
+holds 72 fps at App 5.9 ms, so it is the objects.
+
+**Verdict: CPU-bound on ONE thread.** The main thread (`VkThread`, Godot's main loop on Android) is Running 98.5%
+of wall time; every other app thread is under 3% (`_thread_loop` is a GDScript `Thread`, here the web file server's, not
+the render thread). Godot's own `Frame time` counter: 58 ms. Physics runs 2 ticks a frame
+(the cap), so the room also runs at half speed.
+
+The GPU is NOT what holds it there (31% utilised, `app_gpu_ms` 16.75), but it is over 72 Hz's 13.9 ms on its
+own: the 4x MSAA 2064x2163 eye buffer is 15.4 ms of it, the three full-size MSAA-1 surfaces ~0.6 ms each, a
+2200x1643 surface (a viewport) and the 516x540 / 258x270 / 2x2 chains (glow / luminance) the rest. Fix the CPU
+and the GPU is next. (53 ms of GPU in the first minute is texture upload and the shell warm, not steady state.)
+
+Main thread, simpleperf with DWARF call graphs (no trace session running, so no tracer overhead), share of samples:
+
+| | share | ~ms/frame |
+|---|---:|---:|
+| `SceneTree::physics_process` (2 ticks) | 53.5% | 31 |
+| of it **`Xenu::VerletRope::_physics_process`** | **32.7%** | **19 (9.5 a tick)** |
+| - `SolveSurfaceCollision` -> `get_rest_info` (a `Dictionary` per query through godot-cpp) | 16.5% | |
+| - `SweepParticleContacts` -> `intersect_ray` | 9.6% | |
+| - `StepEnd` -> `CapsuleShape3D::set_height` (every segment collider re-built every tick) | 4.2% | |
+| `RenderingServerDefault::_draw` (of it `swap_buffers` / `_end_frame` = Adreno submit 14%) | 18.6% | 11 |
+| `SceneTree::process` | 17.9% | 10 |
+| all GDScript (`GDScriptInstance::callp`, both trees) | 22.8% | 13 |
+
+Jolt's own step is 2.8 ms; the Jolt time in the flat profile (`QuadTree::CastRay` / `CollideAABox`, ~20%) is the
+ROPE's queries. Script ranking from the Perfetto zones (inflated by the tracer, use for order only):
+`grab_driver.gd` `_physics_process` 425 calls a frame (~212 live drivers a tick: everything seated in a snap zone
+keeps one), `composite_cable.gd` 94, the nine cabinets (`arcade_cabinet_model` `_process`/`_physics_process`/
+`_update_ghost` + `arcade_input._show_hands_only`) ~7 ms together, `handheld_input`, `animated_controller`, 21
+`vr_hinge`s. A Theora decode (`VideoStreamPlaybackTheora`, the welcome clip?) shows at 1.5%.
+
+**Levers, in order:** the ropes (why 67 settled cables are awake at all -- `XENU_ROPE_DIAG=1`; then raw
+`PhysicsServer3D` queries without the `Dictionary`, and no `set_height` on an unchanged segment); grab drivers of
+objects resting in snap zones; the cabinets' per-frame work while nobody is near; then the GPU's MSAA eye buffer.
+Not measured: a RELEASE export (GDScript is slower in a debug template; the rope extension is `-O2` either way).
+
+### Recipe: Perfetto on a Quest
+
+- **The engine can emit Godot's zones into Perfetto** (`profiler=perfetto`; every engine zone and every GDScript
+  call, through the system backend). Build the SDK amalgamation once (`sdk/perfetto.{cc,h}` from the v50.1 tag into
+  `~/tools/perfetto-sdk`), then `ANDROID_HOME=C:/android/sdk ~/.local/bin/scons platform=android arch=arm64
+  target=template_debug generate_apk=no profiler=perfetto profiler_path=~/tools/perfetto-sdk debug_symbols=yes`,
+  `llvm-strip --strip-debug` a copy for the APK and keep the unstripped one for symbols (same build id).
+  `place_engine.py --target debug --so <copy>`, export with `RETROXR_STOCK_ENGINE=1`, then `place_engine.py
+  --target debug` to put the shipping engine back in the shared template.
+- **Stock 4.7.2's `PerfettoScriptTracer` crashes within 30 s** (SIGSEGV in `~PerfettoScriptTracer`, any thread that
+  runs GDScript): `__tracing_system_call` is one unlocked `static HashSet<StringName>` shared by every thread, and
+  `tracing` is uninitialised. Fixed in `~/godot` `core/profiling/profiling.h` (`static thread_local`, `= false`);
+  it touches only `profiler=perfetto` builds.
+- `python Tools/perf/quest_perfetto.py capture --seconds 15 --categories godot --out x.pftrace`, then `analyze`.
+  The Quest's GPU sources are `gpu.counters.oculus` / `gpu.renderstages.oculus` (no counter ids to list: it sends
+  its own set). `godot_scripting` is ~270k events/s in this room: a 192 MiB ring wrapped and the lost interning
+  packets made EVERY later Godot event unreadable (3.5 M `packet_skipped_seq_needs_incremental_state_invalid`) --
+  hence `incremental_state_config` and a DISCARD buffer. `trace_start()` can be hours early (stale process stats):
+  bound windows by `sched`.
+- **A GDExtension's time is NOT zoned**: it shows as `physics_process` SELF time. Ask simpleperf:
+  `simpleperf record --app com.xenu.retroxr -e cpu-clock:u -f 500 --call-graph dwarf,16384 --duration 5`, pull it,
+  `binary_cache_builder.py -i perf.data -lib <dir with the unstripped libgodot_android.so>` (NDK `simpleperf/`),
+  then the NDK's `simpleperf.exe report --symfs binary_cache --tids <main tid> --children --sort symbol`. `-t` alone
+  and kernel events are refused on a retail headset; `--app` on a debuggable build works.
+- The room slot folder on device is `user://scenes/xenu.starlightarcade%3Aarcade/` (the colon escaped, as on
+  desktop); an older `…:arcade/` folder beside it is read by nothing. Copy a desktop slot in through `run-as` and
+  rewrite its absolute `C:/Users/<you>/retroxr/` paths to `/sdcard/Android/data/com.xenu.retroxr/files/`.
+
+### The cause was not the rope: cabinets pushing on their own doors (same day)
+
+`XENU_ROPE_DIAG` / `rope_frametime` on the headset: 47 of 68 cords awake, 26 with an END moving 100-340 mm a
+tick. Restored on a desktop (`restore_perf_probe --room=<mod room> --no-replay --rope-census`, under a scratch
+`APPDATA` so the room's own restore reads a COPY of the slot), the ends were on NAOMI cabinets (New Net City, Aero
+City, NAOMI Universal: mod models through `ArcadeCabinetFromModel`) flying about the room at up to 14 m/s and
+26 rad/s. 8d764ebf / b8eba004 / cff1e958 gave a model's doors and tray solid `AnimatableBody3D`s on the World
+layer, as CHILDREN of the cabinet's RigidBody3D, whose mask takes that layer: Godot does not exempt a body from
+its descendants, so each cabinet pushed against its own doors for ever. Fixed with a collision exception
+(`_exempt_from_own_cabinet`; `arcade_bay_tests` "every door body is exempt", 0 of 3 before). Desktop, same slot:
+awake cords 37 -> 5, rope 6 -> 1.1 ms a tick, probe frame ~27 -> ~11.8 ms.
+
+**Probe trap:** a mod room whose root is `xr_init.gd` with a `scene_id` restores its own slot; replaying `--file`
+on top (the probe's default) doubles every object, bodies inside bodies, and reproduces nothing real.
+
+### What is left on the Quest: the GPU (18 fps, 47-53 ms GPU)
+
+With the cabinets standing where they belong (they had flown out of view before), the eye viewport is GPU-bound.
+`vrsprobe.cfg` `"sweep"` (QualityManager; several what-ifs in one boot, each against a fresh baseline, because a
+relaunch points a headset on a desk somewhere else), eye viewport GPU per frame:
+
+| removed | GPU ms | saves |
+|---|---:|---:|
+| (baseline, 1,230 draws, 1.06 M primitives) | 53 | |
+| every spawned object | 7.1 | 46 |
+| the room's `Set` (its 18 lights, probe, shell) | 28.1 | 25 |
+| the 18 lights | 39.3 | 14 |
+| all but the 4 strongest lights | 45.7 | 7.4 |
+| the reflection probe | 53.2 | 0 |
+| lights AND probe | 27.6 | 26 |
+| MSAA 2x -> off | 39.1 | 14 |
+| lights, probe and MSAA | 21.1 | 32 |
+| every cord (VerletRope tubes, 243 k primitives) | 48.1 | 5.3 |
+| outside backdrops / neon / glass / shell | | <= 1.6 |
+
+`bisect_scenes`: only `system` (31) saves real time alone (10.6 ms), the TVs 2.4; the rest is +-2 ms noise
+each and 46 ms together. The cost is the props being SHADED by Godot's lit path: the Starlight Arcade bakes its
+shell but lights every prop with 18 real lights (no `ShellLighting` / `PropLighting`, which the built-in rooms
+use on a headset to put props on a baked, unshaded shader). Lights alone off is the cheap variant only once the
+probe goes too (26 ms); the count of lights barely matters (4 kept: 7.4). `debug_draw` 3 (overdraw) SIGTRAPs the
+mobile renderer: do not sweep it. The CPU is next after that: ~35 ms of the 58 ms frame is real work at two
+physics ticks a frame (the rest is the driver waiting on the GPU).
+
+### The GPU follows the DRAW count (same day, more sweeps)
+
+The props' cost is not their lighting model and not their pixels. Measured on the headset (eye viewport GPU, the
+same pose within each run):
+
+| what | GPU ms | draws |
+|---|---:|---:|
+| baseline | 52.5 | 1,222 |
+| every StandardMaterial3D per-VERTEX (3,276 of them, census-checked) | 52.8 | 1,211 |
+| mesh LOD threshold 1 -> 64 px | 50.2 | 1,231 (prims 1.06 M -> 0.79 M) |
+| eye buffer 0.85 / 0.7 | 43.4 / 38.0 | |
+| eye 0.85 + MSAA off / eye 0.7 + MSAA off | 30.3 / 28.9 | (a floor that does not follow pixels) |
+| hide parts under 5 / 15 / 40 cm | 39.3 / 29.2 / 16.5 | 707 / 316 / 136 |
+| hide everything past 3 m / 2 m | 17.2 / 4.1 | 257 / 8 |
+| **detail cull k 150 / 80 / 40** (below) | **41.2** / 36.3 / 29.7 | 790 / 585 / 338 |
+| k 40 + MSAA off + eye 0.7 + no prop lights | 12.7 | 335 |
+
+Roughly 30-50 us of GPU a DRAW on a Quest 3 here, lights included, and pipeline compiles were flat across every
+step (not the ubershader fallback). The memory counters (~138 MB written a frame, the size of the whole 4x
+eye buffer) say the driver renders this pass to system memory rather than in tiles, which is why MSAA costs
+14 ms; that it does so for a 1,200-draw pass is the driver's heuristic, not something Vulkan exposes.
+
+- **Shipped: size-scaled detail culling** (`QualityManager.detail_cull_k`, 150 on a Quest, desktop untouched): a
+  part `s` m across stops being drawn beyond `s * 150` m (~8 px on the eye buffer; never under 1.5 m), set as its
+  `visibility_range_end` when it enters the tree; a range its author set is kept. 52.5 -> 42.1 ms, 1,222 -> 787
+  draws; the room runs 21 fps where it ran 17-19. `vrsprobe.cfg` `"detail_cull_k": 0` is the control.
+- **Not shipped, and why:** per-vertex shading (no gain, coarser specular); `rendering/shading/overrides/
+  force_vertex_shading.android` HANGS the room's restore for good (every thread asleep right after the model
+  prefetch, twice, the stock 242-object slot too): it compiles vertex lighting into every custom shader as well.
+  MSAA off, a lower eye buffer and fewer prop lights all reach 72 only together and at a visible price.
+- **What would reach 72 without that price is fewer draws a console**: 25-65 each (`nds_primitive` 65,
+  `ps2slim` 53, `gamecube` 52, `playstation` 49), one per surface. Merging each model's static surfaces by
+  material (at export, RetroXR-models, or at spawn on the headset) is the remaining lever; the CPU, ~35 ms a frame
+  of real work at two physics ticks, is the other half of reaching 72.
+
+`vrsprobe.cfg` keys added for this (`QualityManager._probe_sweep`): `sweep` [steps of `hide`, `hide_groups`,
+`hide_class`, `hide_small` (m), `hide_far` (m), `lights_off`, `max_lights`, `msaa`, `eye_buffer`, `lod_threshold`,
+`debug_draw` (1 = unshaded; 3 = overdraw SIGTRAPs the mobile renderer), `detail_cull_k`, `shading_census`], each
+printing the pipeline-compile counters too. `restore_perf_probe` gained `--gpu-census --no-shadows` and `--set-census`.
+- **Tried and taken out: merging each object's static surfaces at spawn** (one mesh a material, originals on
+  `layers = 0`, unmerged when a hand comes near or a part changes). Merged whole, the small parts lost their own
+  culling: 1,054 draws and 1.29 M primitives against 815 / 0.78 M culled, +4.6 ms GPU. Merged by size bucket with
+  each bucket's far distance: still 1,019 draws against 816, +2.9 ms. Per-part culling drops more than merging
+  saves in this room; a merge pays only at EXPORT, with LODs and culling designed around it (RetroXR-models).
+- **The CPU is the other half**: VrApi CPU+GPU 90-96 ms at 20-21 fps, the main thread ~35 ms of real work at two
+  physics ticks a frame. Fixing only the GPU leaves the room under 30 fps.
+
+### The pipeline on the Quest, later the same day (what moved the frame rate)
+
+Measured by VrApi FPS/App on the headset, the Starlight Arcade save, the headset resting in one pose:
+
+| change | fps | App (GPU) ms |
+|---|---:|---:|
+| cabinet self-collision fixed, detail cull k 150 | 21 | 37 |
+| + `RuntimePropVolume` and double-sided prop shader (props off Godot's lit path) | 22 | 28 |
+| + separate render thread on Android (`thread_model.android=2`) | 26 -> 33 | 27 (frame synthesis removed) |
+| + detail cull k 80, eye buffer 0.85 | 46 | 19 |
+| + MSAA off | 56-60 | 13 |
+| + k 60, eye 0.8 (CPU-bound from here, GPU 75%) | 60-63 | 11 |
+
+- **CPU and GPU were SERIAL** on Android: one thread ran the scripts, recorded the frame, then waited in
+  `swap_buffers` for the GPU, so a frame cost CPU + GPU. The separate render thread overlaps them. Two engine fixes
+  were needed for it and for cold shader caches (both in `~/godot`, uncommitted):
+  - `shader_rd.cpp`: a POOL thread compiles a shader group inline instead of queueing a group task and blocking on
+    it (`wait_for_group_task_completion` does not run queued work): mesh loads held all four Quest workers in
+    `mesh_generate_pipelines` and the restore hung for good on any cold cache (first boot after a shader change).
+  - `pipeline_hash_map_rd.h`: the render thread (a pool thread in separate mode) waits for a pipeline compile WITHOUT
+    collaborating. It picked up a resource load whose `texture_set_path()` flushed the render queue on the same
+    thread, re-entering `_draw` while the main thread held the loader's locks: 1 boot in ~11 hung.
+  Stacks were taken with lldb-server via run-as (quest-device.md) and symbolised by relinking `bin/obj` without `-s`.
+- **The rope went NaN under the render thread** (5 M `must be normalized` lines, 6 fps). Guarded in the extension
+  (StepBegin re-lays a non-finite cord, CouplePlug never applies a non-finite force) and in `PlugTether.reel_in`.
+- **Frame synthesis** (`xr/openxr/extensions/frame_synthesis`, XR_EXT_frame_synthesis) is available on a Quest 3 and
+  enables, but VrApi never showed SpaceWarp engaged (`SP=N/N/N`) and it cost ~6 ms GPU: removed.
+- **Rope switches on a headset: clear them with an EMPTY value** (`setprop debug.xenu.rope_diag "''"`). `0` is a value,
+  and `RopeSwitch` treats any value as ON: every measurement after "switching them off" ran with diag and frame timing.
+- Uniform light specialization (one pipeline per material, `MULTIPLE` light loops for every draw) measured WORSE
+  (51.6 vs 42 ms) and was reverted; per-vertex shading measured nothing.
+- What is left is CPU at ~16 ms with the render thread: GDScript ~50% of the main thread, the rope ~24% (queries
+  returning Dictionaries; handed to the rope session), the welcome panel's Theora clip ~6% while it is open.

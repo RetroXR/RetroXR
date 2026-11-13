@@ -386,6 +386,10 @@ func _ready() -> void:
 	# lights also with every spawned TV or handheld, so both are configured as
 	# they enter the tree rather than swept for.
 	get_tree().node_added.connect(_on_node_added)
+	if not _desktop:
+		# A sleeping cord's support check looks at a rotating quarter of the cord each poll on a headset (the rope's
+		# sleep/ cases: a table taken away still wakes it in 42 ticks); a desktop keeps every particle (stride 1).
+		VerletRope.set_sleep_poll_stride(4)
 	_log_state()
 	_run_vrs_probe()
 
@@ -410,6 +414,12 @@ func _read_vrs_overrides() -> void:
 		_vrs_mode_override = str(cfg["vrs_mode"])
 	if cfg.has("subsampled"):
 		_subsampled_override = bool(cfg["subsampled"])
+	if cfg.has("no_runtime_volume"):
+		runtime_volume_enabled = not bool(cfg["no_runtime_volume"])
+		print("[VRSProbe] runtime prop volume %s" % ("on" if runtime_volume_enabled else "off"))
+	if cfg.has("detail_cull_k"):
+		detail_cull_k = maxf(float(cfg["detail_cull_k"]), 0.0)
+		print("[VRSProbe] detail cull k %.1f" % detail_cull_k)
 	if cfg.has("no_flat"):
 		PropLighting.flatten_enabled = not bool(cfg["no_flat"])
 		print("[VRSProbe] flat prop shaders %s" % ("off" if bool(cfg["no_flat"]) else "on"))
@@ -554,6 +564,14 @@ func _run_vrs_probe() -> void:
 				print("[VRSProbe] yaw step %d" % (i + 1))
 	if cfg.has("max_lights"):
 		_probe_cap_lights(int(cfg["max_lights"]))
+	if cfg.has("frame_synthesis"):
+		# XR_EXT_frame_synthesis (SpaceWarp): the app renders at half rate and the runtime synthesises the rest.
+		var fs: Object = Engine.get_singleton("OpenXRFrameSynthesisExtension") if Engine.has_singleton("OpenXRFrameSynthesisExtension") else null
+		var available: bool = fs != null and bool(fs.call("is_available"))
+		print("[VRSProbe] frame synthesis available=%s" % available)
+		if available:
+			fs.set("enabled", bool(cfg["frame_synthesis"]))
+			print("[VRSProbe] frame synthesis enabled=%s" % fs.call("is_enabled"))
 	if cfg.has("vrs_radius"):
 		_vrs_radius_override = float(cfg["vrs_radius"])
 	if cfg.has("vrs_strength"):
@@ -570,6 +588,8 @@ func _run_vrs_probe() -> void:
 		_probe_profile_transfers = true
 	if cfg.has("profile_scripts"):
 		_probe_profile_scripts(maxi(int(cfg["profile_scripts"]), 1))
+	if cfg.has("sweep"):
+		await _probe_sweep(cfg["sweep"] as Array, maxi(int(cfg.get("frames", 90)), 30))
 	if cfg.has("bisect_scenes"):
 		await _probe_bisect_scenes(maxi(int(cfg["bisect_scenes"]), 30))
 	if cfg.has("bisect_children"):
@@ -666,6 +686,166 @@ func _probe_bisect_scenes(frames: int) -> void:
 			n.visible = true
 		print("[VRSProbe]   without %-22s x%-2d  gpu %.2f ms  saves %.2f ms" % [
 			key, nodes.size(), hidden, baseline - hidden])
+
+
+## Several what-ifs in ONE run, each measured against the same baseline and then undone, because the
+## headset lies on a desk and a relaunch points it somewhere else: `"sweep": [{"label": "no set",
+## "hide": ["Set"], "hide_groups": ["spawned"], "max_lights": 0, "msaa": 0, "lights_off": true, "hide_class": ["ReflectionProbe"],
+## "debug_draw": 1}, ...]` (debug_draw 1 = unshaded: what the props would cost on a baked shader).
+## `lights_off` hides every Light3D; `max_lights` keeps the N strongest. The baseline is re-measured
+## between steps, so a drift (heat, a settling room) shows instead of being read as a saving.
+func _probe_sweep(steps: Array, frames: int) -> void:
+	var root := get_tree().root
+	var rid := root.get_viewport_rid()
+	RenderingServer.viewport_set_measure_render_time(rid, true)
+	for step: Variant in steps:
+		var s: Dictionary = step if step is Dictionary else {}
+		var baseline := await _probe_average_gpu(rid, frames)
+		var hidden: Array[Node3D] = []
+		var hide_node := func(n: Node3D) -> void:
+			if n.visible:
+				n.visible = false
+				hidden.append(n)
+		for want: Variant in s.get("hide", []):
+			for node in root.find_children(String(want), "Node3D", true, false):
+				hide_node.call(node)
+		for g: Variant in s.get("hide_groups", []):
+			for node in get_tree().get_nodes_in_group(String(g)):
+				if node is Node3D:
+					hide_node.call(node)
+		if s.has("hide_small") or s.has("hide_far"):
+			# By size or by distance rather than by kind: many small draws vs few big ones.
+			var cam := root.get_camera_3d()
+			var small := float(s.get("hide_small", 0.0))
+			var far := float(s.get("hide_far", 0.0))
+			for gi: Node in root.find_children("*", "GeometryInstance3D", true, false):
+				var g := gi as GeometryInstance3D
+				if not g.is_visible_in_tree():
+					continue
+				var box := g.global_transform * g.get_aabb()
+				if (small > 0.0 and box.size.length() < small) or (far > 0.0 and cam != null 						and box.get_center().distance_to(cam.global_position) > far):
+					hide_node.call(g)
+		for c: Variant in s.get("hide_class", []):
+			for node in root.find_children("*", String(c), true, false):
+				hide_node.call(node)
+		if bool(s.get("shading_census", false)):
+			_probe_shading_census()
+		if s.has("detail_cull_k"):
+			var k := float(s["detail_cull_k"])
+			for gi in root.find_children("*", "GeometryInstance3D", true, false):
+				_detail_cull(gi as GeometryInstance3D, k)
+		var lod_was := root.mesh_lod_threshold
+		if s.has("lod_threshold"):
+			root.mesh_lod_threshold = float(s["lod_threshold"])
+		var draw_was := root.debug_draw
+		if s.has("debug_draw"):
+			root.debug_draw = int(s["debug_draw"]) as Viewport.DebugDraw
+		var lights: Array[Light3D] = []
+		for node in root.find_children("*", "Light3D", true, false):
+			if (node as Light3D).is_visible_in_tree():
+				lights.append(node as Light3D)
+		if bool(s.get("lights_off", false)) or s.has("max_lights"):
+			lights.sort_custom(func(a: Light3D, b: Light3D) -> bool: return a.light_energy > b.light_energy)
+			for i in range(0 if bool(s.get("lights_off", false)) else int(s["max_lights"]), lights.size()):
+				hide_node.call(lights[i])
+		var msaa_was := root.msaa_3d
+		if s.has("msaa"):
+			root.msaa_3d = int(s["msaa"]) as Viewport.MSAA
+		var scale_was := eye_buffer_scale
+		if s.has("eye_buffer"):
+			eye_buffer_scale = clampf(float(s["eye_buffer"]), EYE_BUFFER_SCALE_MIN, EYE_BUFFER_SCALE_MAX)
+			apply_eye_buffer_scale()
+		var pso0 := _probe_pso_counts()
+		var measured := await _probe_average_gpu(rid, frames)
+		var pso1 := _probe_pso_counts()
+		print("[VRSProbe] pipelines compiled during the step (canvas/mesh/surface/draw/specialization): %s -> %s" % [pso0, pso1])
+		var draws := int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+		var prims := int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
+		for n in hidden:
+			if is_instance_valid(n):
+				n.visible = true
+		root.msaa_3d = msaa_was
+		root.debug_draw = draw_was
+		root.mesh_lod_threshold = lod_was
+		if s.has("detail_cull_k"):
+			for gi in root.find_children("*", "GeometryInstance3D", true, false):
+				if gi.has_meta(&"_detail_cull"):
+					_detail_cull(gi as GeometryInstance3D, detail_cull_k)
+		if s.has("eye_buffer"):
+			eye_buffer_scale = scale_was
+			apply_eye_buffer_scale()
+		print("[VRSProbe] sweep %-28s gpu %6.2f ms (baseline %6.2f, saves %6.2f)  hid %d  lights %d  draws %d  prims %d" % [
+			str(s.get("label", "?")), measured, baseline, baseline - measured, hidden.size(), lights.size(), draws, prims])
+
+
+## What the visible geometry is actually drawn with: material class and shading mode, by count.
+func _probe_shading_census() -> void:
+	var counts: Dictionary = {}
+	for gi: Node in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+		var g := gi as GeometryInstance3D
+		if not g.is_visible_in_tree():
+			continue
+		var mats: Array[Material] = [g.material_override]
+		if g is MeshInstance3D and (g as MeshInstance3D).mesh != null:
+			var mi := g as MeshInstance3D
+			for i in mi.mesh.get_surface_count():
+				mats.append(mi.get_active_material(i))
+		for m in mats:
+			if m == null:
+				continue
+			var key := m.get_class()
+			if m is BaseMaterial3D:
+				key += " shading %d" % int((m as BaseMaterial3D).shading_mode)
+			elif m is ShaderMaterial and (m as ShaderMaterial).shader != null:
+				key += " " + (m as ShaderMaterial).shader.resource_path.get_file()
+			counts[key] = int(counts.get(key, 0)) + 1
+	var keys := counts.keys()
+	keys.sort_custom(func(a: String, b: String) -> bool: return counts[a] > counts[b])
+	for k: String in keys.slice(0, 16):
+		print("[VRSProbe] census %5d  %s" % [counts[k], k])
+	# Why the lit StandardMaterial3Ds were not put on the prop shader: each of PropLighting._supported's rules.
+	var why: Dictionary = {}
+	var seen: Dictionary = {}
+	for gi: Node in get_tree().root.find_children("*", "MeshInstance3D", true, false):
+		var mi := gi as MeshInstance3D
+		if not mi.is_visible_in_tree() or mi.mesh == null:
+			continue
+		for i in mi.mesh.get_surface_count():
+			var m := mi.get_active_material(i) as BaseMaterial3D
+			if m == null or m.shading_mode != BaseMaterial3D.SHADING_MODE_PER_PIXEL or seen.has(m.get_instance_id()):
+				continue
+			seen[m.get_instance_id()] = true
+			var r: Array[String] = []
+			if mi.material_override != null: r.append("material_override")
+			if not (mi.layers & 1): r.append("layer")
+			if m.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED: r.append("transparency")
+			if m.cull_mode != BaseMaterial3D.CULL_BACK: r.append("cull")
+			if m.no_depth_test: r.append("no_depth_test")
+			if m.depth_draw_mode != BaseMaterial3D.DEPTH_DRAW_OPAQUE_ONLY: r.append("depth_draw")
+			if m.texture_filter != BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS: r.append("filter")
+			if not m.texture_repeat: r.append("repeat")
+			if m.uv1_triplanar or m.uv2_triplanar: r.append("triplanar")
+			if m.vertex_color_use_as_albedo: r.append("vertex_color")
+			if m.emission_enabled: r.append("emission")
+			if m.grow: r.append("grow")
+			if m.proximity_fade_enabled or m.distance_fade_mode != BaseMaterial3D.DISTANCE_FADE_DISABLED: r.append("fade")
+			if m.billboard_mode != BaseMaterial3D.BILLBOARD_DISABLED: r.append("billboard")
+			if m.next_pass != null: r.append("next_pass")
+			if mi.get_surface_override_material(i) != null: r.append("surface_override")
+			var key := "+".join(r) if not r.is_empty() else "(none: should have converted)"
+			why[key] = int(why.get(key, 0)) + 1
+	var wk := why.keys()
+	wk.sort_custom(func(a: String, b: String) -> bool: return why[a] > why[b])
+	for k: String in wk.slice(0, 14):
+		print("[VRSProbe] unconverted %5d distinct material(s): %s" % [why[k], k])
+
+
+func _probe_pso_counts() -> Array[int]:
+	return [int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_CANVAS)),
+		int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_MESH)),
+		int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SURFACE)),
+		int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW)),
+		int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SPECIALIZATION))]
 
 
 func _probe_average_gpu(rid: RID, frames: int) -> float:
@@ -1786,6 +1966,95 @@ func _on_node_added(node: Node) -> void:
 		configure_environment(node as WorldEnvironment)
 	elif node is SubViewport:
 		_keep_raster(node as SubViewport)
+	elif not _desktop and node is Node3D and "scene_id" in node:
+		_room_prop_volume.call_deferred(node)
+	elif node is GeometryInstance3D and detail_cull_active():
+		_geometry_queue.append(node)
+		if not _geometry_flush_queued:
+			_geometry_flush_queued = true
+			_flush_geometry.call_deferred()
+
+
+## A room with no baked volume of its own (a mod room) gets one built from its lights at run time, so its props
+## leave Godot's lit path as the built-in rooms' do (RuntimePropVolume). `vrsprobe.cfg` "no_runtime_volume": true
+## is the control arm.
+static var runtime_volume_enabled: bool = true
+
+
+## Tells the cords where the player is, once a frame: a sleeping cord far from the camera polls its supports a
+## quarter as often (VerletRope.set_focus; see SLEEP_ENVIRONMENT_FAR in the extension).
+func _process(_delta: float) -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam != null:
+		VerletRope.set_focus(cam.global_position)
+
+
+func _room_prop_volume(room: Node3D) -> void:
+	if not runtime_volume_enabled or not is_instance_valid(room) or not room.is_inside_tree():
+		return
+	if not RuntimePropVolume.wanted(room) or room.has_node("RuntimePropVolume"):
+		return
+	var v := RuntimePropVolume.new()
+	v.name = "RuntimePropVolume"
+	v.room = room
+	room.add_child(v)
+	print("[QualityManager] %s has no baked volume: building its props' light from its lights" % room.name)
+
+
+# ── Small parts on a headset ──────────────────────────────────────────────────
+
+var _geometry_queue: Array[Node] = []
+var _geometry_flush_queued := false
+
+
+## Small parts drawn far away, culled on the headset by their own size: a part `s` metres across stops being drawn
+## beyond `s * detail_cull_k` metres (never closer than DETAIL_CULL_MIN). Measured in the Starlight Arcade
+## (2026-11-13) the eye viewport's GPU time follows the DRAW count far more than pixels or triangles -- ~30-40 us
+## a draw on a Quest 3, lights included -- and the draws are mostly small parts: hiding everything under 5 cm
+## took 13.7 ms of 53, under 15 cm 23.6. A part already given a range by its author keeps it.
+## K 150 culls a part once it is ~8 px across (1260/K on a Quest 3's eye buffer): 11.5 ms of 53, measured.
+## `vrsprobe.cfg` "detail_cull_k": 0 switches it off (the control arm), any other value sets the multiplier.
+const DETAIL_CULL_MIN := 1.5
+static var detail_cull_k: float = 150.0
+var _detail_culled := 0
+
+
+func detail_cull_active() -> bool:
+	return detail_cull_k > 0.0 and not _desktop and RenderingServer.get_current_rendering_method() == "mobile"
+
+
+func _detail_cull(gi: GeometryInstance3D, k: float) -> void:
+	if gi.visibility_range_end > 0.0 and not gi.has_meta(&"_detail_cull"):
+		return
+	# Only a mesh that comes from a resource (a model, a scene's sub-resource) has its final bounds when it enters the
+	# tree. A cord's tube is built by the rope AFTER that, so it was measured tiny and given the 1.5 m minimum: cords
+	# vanished a couple of metres away (reported in the headset, 2026-11-13). Run-time meshes are never culled here.
+	var mi := gi as MeshInstance3D
+	if gi is VerletRope or mi == null or mi.mesh == null or mi.mesh.resource_path.is_empty():
+		if gi.has_meta(&"_detail_cull"):
+			gi.remove_meta(&"_detail_cull")
+			gi.visibility_range_end = 0.0
+		return
+	var size :=(gi.global_transform.basis * gi.get_aabb().size).abs().length() if gi.is_inside_tree() else gi.get_aabb().size.length()
+	if size <= 0.0:
+		return
+	if not gi.has_meta(&"_detail_cull"):
+		_detail_culled += 1
+	gi.set_meta(&"_detail_cull", true)
+	gi.visibility_range_end = maxf(DETAIL_CULL_MIN, size * k) if k > 0.0 else 0.0
+	gi.visibility_range_end_margin = 0.0 if k <= 0.0 else gi.visibility_range_end * 0.05
+
+
+## Deferred to the end of the frame the nodes arrived in, so a mesh a script assigns in its own _ready is there.
+func _flush_geometry() -> void:
+	_geometry_flush_queued = false
+	var before := _detail_culled
+	for node in _geometry_queue:
+		if is_instance_valid(node):
+			_detail_cull(node as GeometryInstance3D, detail_cull_k)
+	_geometry_queue.clear()
+	if _detail_culled / 500 != before / 500:
+		print("[QualityManager] detail culling: %d part(s) ranged so far (k %.0f)" % [_detail_culled, detail_cull_k])
 
 
 # ── Persistence ───────────────────────────────────────────────────────────────
