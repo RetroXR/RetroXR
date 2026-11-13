@@ -160,6 +160,15 @@ editor converts project files. Test from a copy:
    (`quality_tests rtx/`). Proven by `RTX_LOOK=tv RTX_HOVER=tv` with the saved MSAA
    at 4x: screen, outline, labels and the VCR display all drawn, 165 fps. Upstream,
    the transparent pass should draw into the non-MSAA target under the tracer.
+8. **Text printed on a blended decal was smeared by Ray Reconstruction -- FIXED in RetroXR (`63d527d1`).**
+   The PS1 mod's "SONY"/"PlayStation" (an `ALPHA_DEPTH_PRE_PASS` surface over the shell) blurred to blobs
+   path traced, at DLAA 100% too, while raster + DLSS 58% kept it sharp. The raw trace HAD the text; the RR
+   diffuse-albedo guide (Viewport debug draw 29 on the fork) did not, because with
+   `max_transparency_layers` 0 a blended surface is rasterised over the trace, and RR denoises away colour
+   detail the guides do not explain. `PathTracedDecals` draws such materials (depth pre-pass, alpha from a
+   texture, opaque colour) as alpha SCISSOR while the tracer runs -- opaque to it, so in the guides -- and
+   puts them back after (`quality_tests decal/`). Glass and tints still blend: text on THOSE would still
+   smear; the general fix is the engine's transparent pass writing the RR guides.
 5. Godot 4.8-dev logs ~11k "causing RenderingServer synchronizations" warnings a
    run with RetroXR's separate render thread, raster or traced alike.
 
