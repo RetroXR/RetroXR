@@ -190,6 +190,16 @@ Neither is a Quest defect; both are carried for every target built from the bran
   11.4 -> 10.1 ms. `rendering/renderer/mobile/opaque_near_first` = false switches it off (read every frame;
   `vrsprobe.cfg` `"opaque_near_first": false` is the control arm). The opaque STENCIL path keeps its own sort.
 
+- `godot-4.7.2-upstream-backports.patch` (engine 40d22789de, 2026-11-13): four upstream master fixes cherry-picked
+  with `-x` after a sweep of the 159 master commits touching the mobile renderer, Vulkan, OpenXR, the worker pool,
+  Jolt and Android since 4.7.2 (the 4.7 branch's 90 since are editor fixes): reflection probes leaking the atlas's
+  colour buffer on every clear (`29d351f9eb`; the Starlight Arcade has a probe and runs with 290-900 MB free), the
+  mobile render list reading the pass mode at run time instead of its template argument (`206cc3b68f`), the render
+  graph treating read-only slices of one texture as a dependency on itself (`1ae3ce3a01`), and MultiMesh indirect
+  command buffers leaking (`49af1976af`). Worth porting later, not cherry-pickable: `e27f952ac4` (OpenXR keeps the
+  swapchain when the eye buffer SHRINKS, so a governor eye step stops reallocating it) and `9bafe29097` (a lockless
+  Jolt contact listener).
+
 Rebuild both libraries when a patch changes (each ~1 min incremental, the
 first build of a tree ~5 min):
 `cd ~/godot && ANDROID_HOME=C:/android/sdk ~/.local/bin/scons platform=android arch=arm64
