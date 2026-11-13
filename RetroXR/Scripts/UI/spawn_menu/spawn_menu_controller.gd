@@ -1014,6 +1014,14 @@ func _grabber_busy(grabber: Node) -> bool:
 ## Put a freshly spawned pickable into that hand.
 func _give_to_grabber(grabber: Node, obj: XRToolsPickable) -> void:
 	if grabber is XRToolsFunctionPickup:
+		# In the hand already, not by the menu: a hand takes a thing with no grab point by flying it in from where it is,
+		# and a spawn came in 0.5 m in front of the menu (the owner, 2026-11-13: "it should just spawn right on the
+		# pointer"). The desktop hand does the same in DesktopPickup.grab_spawned.
+		var hand := grabber as Node3D
+		obj.global_position = hand.global_position
+		if obj.is_inside_tree():
+			PhysicsServer3D.body_set_state(obj.get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM, obj.global_transform)
+		obj.reset_physics_interpolation()
 		(grabber as XRToolsFunctionPickup)._pick_up_object(obj)
 	elif grabber != null and grabber.has_method("grab_spawned"):
 		grabber.grab_spawned(obj)
