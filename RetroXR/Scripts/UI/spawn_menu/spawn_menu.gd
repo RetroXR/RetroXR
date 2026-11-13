@@ -340,6 +340,9 @@ func _build_ui() -> void:
 	scale = Vector2(ui_scale, ui_scale)
 	anchor_right  = 1.0 / ui_scale
 	anchor_bottom = 1.0 / ui_scale
+	# Before any row exists: a sentence that never wraps widens the whole page
+	# past the panel, taking the switches and dropdowns off the edge with it.
+	MenuWrap.watch(self)
 
 	var panel := PanelContainer.new()
 	panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
