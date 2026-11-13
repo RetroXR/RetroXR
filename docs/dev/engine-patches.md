@@ -183,13 +183,13 @@ Neither is a Quest defect; both are carried for every target built from the bran
 
 Rebuild both libraries when a patch changes (each ~1 min incremental, the
 first build of a tree ~5 min):
-`cd ~/godot && ANDROID_HOME=C:/android scons platform=android arch=arm64
+`cd ~/godot && ANDROID_HOME=C:/android/sdk ~/.local/bin/scons platform=android arch=arm64
 target=template_release generate_apk=no -j14` (and `template_debug`), then
 copy `platform/android/java/lib/libs/<target>/arm64-v8a/libgodot_android.so`
 over `Tools/engine/android/arm64-v8a/libgodot_android.template_<target>.so`.
 Commit on the engine branch FIRST and build after: the banner's hash is HEAD at build
 time, and a library built from an uncommitted tree names the commit before its fix.
-`scons` is not on PATH in Git Bash: `$APPDATA/Python/Python314/Scripts/scons.exe`.
+`scons` is not on PATH in Git Bash: `~/.local/bin/scons` (2026-11-04). `ANDROID_HOME` is the SDK folder (`C:/android/sdk`, which holds NDK 29); plain `C:/android` fails at once looking for `cmdline-tools`.
 A shader include placed under `shaders/effects/` is not a dependency of the
 forward_mobile shaders (their SCsub globs `*_inc.glsl` and `../*_inc.glsl`), and
 one placed inside the `!MODE_UNSHADED` guard is missing from every unshaded
@@ -197,3 +197,18 @@ variant, which fails at pipeline creation with "no matching overloaded
 function" and a SIGTRAP in a worker thread, not at build time. Measured earlier
 the same day at 1.5x: App 13.1 -> 11.5 ms for the discardable and clear
 patches; the deadlock fix booted 10/10 where stock hung on launch 2.
+
+### Three more (2026-11-13): cold-cache and render-thread deadlocks, Perfetto
+
+- `godot-4.7.2-shader-compile-inline-on-pool-thread.patch`: a pool thread compiles a shader group INLINE.
+  `_compile_version_end` blocked in `wait_for_group_task_completion`, which runs no queued work; mesh loads
+  holding all four Quest workers in `mesh_generate_pipelines` -> `version_is_valid` left nothing to compile, and a
+  room's restore hung for good on any cold shader cache (the first boot after ANY scene-shader change: an app
+  update). Found with lldb-server via run-as (quest-device.md), frames named by relinking `bin/obj` without `-s`.
+- `godot-4.7.2-pump-thread-no-collaboration.patch`: the pump thread (the rendering server's, `thread_model`
+  separate, which `project.godot` now uses on Android) never takes queued tasks while it waits. It ran a resource
+  load whose `texture_set_path()` flushed the render queue on the same thread and drew a frame INSIDE the load:
+  3 of 8 room restores hung; with the patch 10 of 10. **The separate render thread on Android needs this patch:
+  a stock or older template with `thread_model.android=2` hangs boots.**
+- `godot-4.7.2-perfetto-script-tracer.patch`: `profiler=perfetto` builds only (performance.md "Recipe: Perfetto on
+  a Quest"); the script tracer's set was one unlocked static shared by every thread and crashed within seconds.

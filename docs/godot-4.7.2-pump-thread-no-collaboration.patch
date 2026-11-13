@@ -1,0 +1,40 @@
+From 924aeb516e8439ad1dced077666dbecc298dfeba Mon Sep 17 00:00:00 2001
+From: Ryan McClelland <rymcclel@gmail.com>
+Date: Fri, 13 Nov 2026 11:24:51 +0700
+Subject: [PATCH] WorkerThreadPool: the pump thread never takes queued tasks
+ while it waits
+
+With thread_model separate the rendering server runs as a pump task. Waiting
+collaboratively it picked up a resource load, whose texture_set_path()
+flushed the render queue on that same thread and drew a frame inside the
+load, waiting on pipeline compiles no worker was free to run: 3 of 8 room
+restores on a Quest 3 hung. The pump thread now only waits; the other
+workers run the loads and the compiles. 10 of 10 restored.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ core/object/worker_thread_pool.cpp | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/core/object/worker_thread_pool.cpp b/core/object/worker_thread_pool.cpp
+index 71962ab4bd..dd9120b281 100644
+--- a/core/object/worker_thread_pool.cpp
++++ b/core/object/worker_thread_pool.cpp
+@@ -536,7 +536,13 @@ void WorkerThreadPool::_wait_collaboratively(ThreadData *p_caller_pool_thread, T
+ 				}
+ 			}
+ 
+-			if (p_caller_pool_thread->pool->task_queue.first()) {
++			// RetroXR: the thread running a pump task (the rendering server's, thread_model separate) never takes other
++			// tasks while it waits. Yielding for commands it used to pick up a resource load, whose texture_set_path()
++			// then flushed the render queue on this same thread and drew a frame INSIDE the load, waiting on pipeline
++			// compiles that no worker was free to run: the room's restore hung for good, every thread asleep (a Quest
++			// 3, 2026-11-13, with lldb; 1 launch in ~8-11). It is a dedicated render thread; the other workers run
++			// the loads and, waiting collaboratively, the compiles.
++			if (p_caller_pool_thread->pool->task_queue.first() && !p_caller_pool_thread->has_pump_task) {
+ 				task_to_process = task_queue.first()->self();
+ 				if ((p_task == ThreadData::YIELDING || p_caller_pool_thread->has_pump_task == true) && task_to_process->is_pump_task) {
+ 					task_to_process = nullptr;
+-- 
+2.55.0.windows.3
+

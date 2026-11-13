@@ -1,0 +1,44 @@
+From 2acfe250a31194ae97e0108671e4365aa3cbcbd8 Mon Sep 17 00:00:00 2001
+From: Ryan McClelland <rymcclel@gmail.com>
+Date: Fri, 13 Nov 2026 11:24:51 +0700
+Subject: [PATCH] Profiling: per-thread script tracer state for the Perfetto
+ backend
+
+__tracing_system_call was one unlocked static HashSet<StringName> shared by
+every thread that runs GDScript, and PerfettoScriptTracer::tracing was left
+uninitialised: a profiler=perfetto Android build crashed in
+~PerfettoScriptTracer within seconds of boot on a Quest 3. thread_local set,
+tracing = false. Only profiler=perfetto builds compile this.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ core/profiling/profiling.h | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/core/profiling/profiling.h b/core/profiling/profiling.h
+index 9320206ac3..26609a4a6f 100644
+--- a/core/profiling/profiling.h
++++ b/core/profiling/profiling.h
+@@ -132,7 +132,9 @@ struct PerfettoGroupedEventEnder {
+ 	__godot_perfetto_zone_##m_group_name._end_now(); \
+ 	TRACE_EVENT_BEGIN("godot", m_zone_name);
+ 
+-static HashSet<StringName> __tracing_system_call;
++// thread_local: GDScript runs on several threads (worker Threads, the render thread) and a shared, unlocked set
++// was corrupted by them -- a SIGSEGV in ~PerfettoScriptTracer within seconds of boot on a Quest.
++static thread_local HashSet<StringName> __tracing_system_call;
+ 
+ /**
+  * Script tracing may cross function boundaries (tracing started in the caller script), so the logic below only triggers
+@@ -142,7 +144,7 @@ static HashSet<StringName> __tracing_system_call;
+ struct PerfettoScriptTracer {
+ 	StringName name;
+ 	bool is_system_call;
+-	bool tracing;
++	bool tracing = false;
+ 
+ 	PerfettoScriptTracer(const StringName &p_file, const StringName &p_function, const StringName &p_name, int p_line, bool p_system_call) : name(p_name), is_system_call(p_system_call) {
+ 		if (is_system_call || !__tracing_system_call.erase(name)) {
+-- 
+2.55.0.windows.3
+
