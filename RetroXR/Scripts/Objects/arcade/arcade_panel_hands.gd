@@ -176,17 +176,22 @@ func rebuild() -> void:
 	_side_struck.clear()
 	_side_hold.clear()
 	for i in _panel.cap_count():
-		var cap := _panel.cap_node(i) as MeshInstance3D
-		if cap == null or cap.mesh == null:
+		var node := _panel.cap_node(i)
+		var cap := _cap_mesh(node)
+		if cap == null:
 			continue
 		var poke := Poke.new()
-		poke.node = cap
+		poke.node = node
 		poke.mesh = cap
-		poke.local = Transform3D(cap.basis, _panel.cap_rest_position(i))
+		# A cabinet built from a model has each cap as a pivot with the cap's mesh under it (P1Button1Pivot): the zone is
+		# that mesh, where it sits under the pivot at rest.
+		var under := Transform3D.IDENTITY if cap == node else node.global_transform.affine_inverse() * cap.global_transform
+		poke.local = Transform3D(node.basis, _panel.cap_rest_position(i)) * under
 		poke.bit = _panel.cap_bit(i)
-		poke.is_round = cap.mesh is CylinderMesh
-		poke.sector = cap.get_meta(&"sector", {}) as Dictionary
-		poke.foot = bool(cap.get_meta(&"stage_panel", false))
+		var box := cap.mesh.get_aabb()
+		poke.is_round = cap.mesh is CylinderMesh or (cap != node and absf(box.size.x - box.size.z) < 0.15 * maxf(box.size.x, box.size.z))
+		poke.sector = node.get_meta(&"sector", {}) as Dictionary
+		poke.foot = bool(node.get_meta(&"stage_panel", false))
 		_pokes.append(poke)
 	for entry: Array in [["GasPivot", GAS_BIT, "GasDeck"], ["BrakePivot", BRAKE_BIT, "BrakeDeck"]]:
 		var pivot := _panel.find_child(str(entry[0]), true, false) as Node3D
@@ -716,6 +721,19 @@ func grabs() -> Array[ControlGrab]:
 
 func pokes() -> Array[Poke]:
 	return _pokes
+
+
+## The mesh a finger presses for a cap: the cap itself when it is a mesh (a built cabinet), else the one mesh under its
+## pivot (a cabinet from a model).
+static func _cap_mesh(node: Node3D) -> MeshInstance3D:
+	if node == null:
+		return null
+	if node is MeshInstance3D:
+		return node as MeshInstance3D if (node as MeshInstance3D).mesh != null else null
+	for n in node.find_children("*", "MeshInstance3D", true, false):
+		if (n as MeshInstance3D).mesh != null:
+			return n as MeshInstance3D
+	return null
 
 
 # ── a cap, a pedal: pressed by a finger ──────────────────────────────────────
