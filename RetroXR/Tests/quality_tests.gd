@@ -57,6 +57,7 @@ func _ready() -> void:
 	_group_device()
 	_group_effective()
 	_group_lights()
+	_group_foveation()
 	await _group_rtx()
 	await _group_decals()
 
@@ -302,6 +303,47 @@ func _group_effective() -> void:
 		_ok(not _live.supports_eye_buffer_scale() and not _live.supports_perf_levels()
 				and not _live.supports_foveation(),
 			"effective/a desktop offers no eye buffer, perf levels or foveation")
+
+
+# ── foveation/ — the density map's shape ─────────────────────────────────────
+
+## The map as a Quest 3 gets it: the lens centre is 62% across and 40% down the
+## left eye (NDC 0.2425, 0.1932, logged on device 2026-11-13). The old map measured
+## against half the buffer's short side, so the bottom edge was far coarser than
+## the top and the nose side; these hold every edge to the same rate.
+func _group_foveation() -> void:
+	var focus := Vector2(0.2425, 0.1932)
+	var centre := Vector2((focus.x + 1.0) * 0.5, (1.0 - focus.y) * 0.5)
+	var edges := {"top": Vector2(centre.x, 0.0), "bottom": Vector2(centre.x, 1.0),
+		"temple": Vector2(0.0, centre.y), "nose": Vector2(1.0, centre.y)}
+	var previous := {}
+	for level: int in [QM.Foveation.LOW, QM.Foveation.MEDIUM, QM.Foveation.HIGH, QM.Foveation.MAX]:
+		var tier: Dictionary = QM.FOVEATION_TIERS[level]
+		var r: float = tier["min_radius"]
+		var s: float = tier["strength"]
+		_eq(QM.foveation_coarseness(centre, focus, r, s), 0.0,
+			"foveation/level %d is full rate at the lens centre" % level)
+		var at_edge: float = QM.foveation_coarseness(edges["bottom"], focus, r, s)
+		_ok(at_edge > 0.0, "foveation/level %d is coarser at the edge" % level)
+		for side: String in edges:
+			var here: float = QM.foveation_coarseness(edges[side], focus, r, s)
+			_ok(is_equal_approx(here, at_edge),
+				"foveation/level %d: the %s edge is as coarse as the bottom one (%.3f, %.3f)"
+					% [level, side, here, at_edge])
+			var near: Vector2 = centre.lerp(edges[side], 0.25)
+			if level != QM.Foveation.MAX:
+				_eq(QM.foveation_coarseness(near, focus, r, s), 0.0,
+					"foveation/level %d: a quarter of the way to the %s edge is full rate" % [level, side])
+			var half: Vector2 = centre.lerp(edges[side], 0.5)
+			var mid: float = QM.foveation_coarseness(half, focus, r, s)
+			_ok(mid >= float(previous.get(side, 0.0)),
+				"foveation/level %d is no finer than the level below, toward the %s" % [level, side])
+			previous[side] = mid
+		_ok(QM.foveation_coarseness(Vector2(0.0, 1.0), focus, r, s) >= at_edge,
+			"foveation/level %d: a corner is at least as coarse as an edge" % level)
+	# A placeholder focus far outside the buffer must not divide by nothing.
+	var wild: float = QM.foveation_coarseness(Vector2(0.5, 0.5), Vector2(3.0, -3.0), 33.0, 1.0)
+	_ok(wild >= 0.0 and wild <= 1.0, "foveation/a focus outside the buffer still gives a rate")
 
 
 # ── lights/ — a light and an Environment from the tier ───────────────────────

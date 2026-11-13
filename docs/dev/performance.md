@@ -745,6 +745,115 @@ Release, cull k 40, MSAA 2x, eye 0.8, per eye pass (`quest_eye_pass.py`):
 - The fragment counter barely moves even at MAX: the density map does not cut the vertices replayed per bin,
   which is what MSAA multiplies. Foveation does not bring MSAA back here; fewer vertices does.
 
+### What the Quest 3 actually does with the foveation map (2026-11-13, later)
+
+The report was "foveation only does the bottom third, and it changes with the eye buffer". Both were real:
+
+- **Godot's `XRVRS` measures from the focus against half the buffer's SHORT side, in every direction.** The Quest
+  3's lens centre is NDC (0.2425, 0.1932): 62% across (temple side) and 40% down the eye. So HIGH (radius 20,
+  strength 2) reached its coarsest rate 29% of the eye height below the centre, the bottom third, and never above it
+  inside the visible lens.
+- **The boot map was centred on a placeholder.** `get_projection_for_view` answers (0.115, 0.0) until the runtime
+  has located its views, which is not symmetric, so the old "retry while the focus is zero" never retried. Any eye
+  buffer change rebuilt the map on the real focus and the pattern jumped. `QualityManager` now looks again
+  (`FOVEATION_FOCUS_CHECKS`) and rebuilds only when the focus moved.
+- The map is RetroXR's own now (`_make_foveation_map`): distance as a fraction of the way from the lens centre to
+  the edge on that side, so every edge is reached together at any eye buffer size.
+
+**Measure the rate, never infer it from the map.** `vrsprobe.cfg` `"fov_pattern": true` covers the view with one
+random colour a fragment; `adb exec-out screencap -p > cap.png` and `python Tools/perf/fov_pattern_map.py cap.png
+--focus 0.2425,0.1932` print the block size in every cell of each eye (the capture is the eye buffer, undistorted).
+What it showed on the Adreno 740, non-subsampled, MSAA 4x:
+
+- **Full rate or 2x2 blocks, nothing coarser**, whatever the map asks. MAX is 2x2 over most of the eye, not 1/16.
+- **2x2 begins about a fifth of the way to the edge after the map reaches its coarsest value**, with ragged,
+  tile-shaped edges. A gentle ramp never gets there: radius 33 strength 1 was full rate over the whole visible lens.
+- An outer strip about 190 px wide on the temple edge stays at full rate in every map (cause unknown).
+
+Arcade, release, eye 1.229x (2064x2163), MSAA 4x (the log's "msaa 2" is the enum), governor off, one still view, `VrApi` App ms over 25 s:
+
+| map (radius, strength; new measure unless said) | fps | App ms | 2x2 begins (way to the edge) |
+|---|---:|---:|---|
+| OFF | 35.9 | 24.5 | - |
+| old HIGH (XRVRS 20, 2, placeholder focus) | 31.2 | 28.0 | bottom third only |
+| old MAX (XRVRS 5, 10) | 37.8 | 23.2 | not measured |
+| 33, 1 (a ramp) | 26.6 | 32.3 | never |
+| LOW 60, 10 | 30.8 | 28.7 | ~0.9 |
+| MEDIUM 44, 10 | 32.1 | 27.1 | ~0.75 |
+| HIGH 28, 10 | 32.8 | 27.0 | ~0.6 |
+| MAX 5, 10 | 35.0 | 24.8 | ~0.35 |
+
+- **Binding the density map costs about 8 ms here with nothing foveated**, and 2x2 over most of the eye only wins
+  it back. In this view no tier beats OFF. One view, one run a row (HIGH repeated: 32.33, 32.25).
+- A mid-session resize to 1.75x got the app killed again (lmkd), as above; `"boot_eye_buffer"` sets it from the
+  first frame instead (`"boot_msaa"`, `"boot_glow"` likewise: set, never saved).
+
+**Why OFF wins: foveation saves no work on this path, and the frame is geometry-bound.** Perfetto, eye pass only,
+the same view (eye 1.229x, MSAA 4x): fragments shaded 26.0 M OFF, 26.7 M HIGH, 26.3 M MAX, 30.7 M for the ramp
+(which also writes 56 MB against 40). All the extra time is inside the main pass; no pass is added. 2x2 over most of
+the eye and as many fragments as before: the non-subsampled density map shades a tile small and expands it (not
+proven; the counters do not tell scene fragments from expansion). And there is little to save. `VrApi` App ms:
+
+| eye, MSAA | OFF | HIGH | MAX |
+|---|---:|---:|---:|
+| 1.229x, 4x | 24.5 | 27.0 | 24.8 |
+| 1.229x, off | 19.0 | 19.7 | 18.5 |
+| 1.75x, 4x | 31.6 | 35.6 | app died (cause not established) |
+| 1.75x, off | 25.7 | 26.5 | 24.2 |
+
+- Twice the pixels (1.229x -> 1.75x, MSAA off) is 19.0 -> 25.7 ms: about a third of the frame scales with pixels,
+  the rest is geometry. Foveation can only touch that third and its own cost eats it: +-1 ms at every size, MSAA or
+  not. September's 24.8 -> 11.9 ms at 1.75x was a fragment-bound room (lit prop shaders); flat prop shaders and
+  near-first drawing have since removed the fragment cost foveation was saving.
+- Glow is part of the overhead: glow off, HIGH is 26.1 against 25.3 OFF (0.8 ms, not 2.5).
+- **The headset's own map (`vrs_mode` xr, VrApi `Fov=3`) is full rate over the whole eye** by the pattern, at
+  29.1 ms. Subsampled images are refused while glow is on ("rendering features in use": glow is a separate post
+  pass); with glow off the warning goes, the pattern is still full rate and the frame 27.7 ms. Whether the swapchain
+  was really subsampled, and why the runtime's map is inert, are not established. Nothing hung.
+- MSAA 4x is 5.5 ms of this view at 1.229x (24.5 against 19.0).
+
+**The density map works; this room has nothing for it to save (same day, later).** `"fov_load": 60` makes every
+fragment of the pattern 60 sines dearer, a fragment-bound frame on demand. MSAA off, eye 1.229x:
+
+| | OFF | HIGH | MAX | runtime map, level 3 | the same, subsampled |
+|---|---:|---:|---:|---:|---:|
+| load, glow on (fps / ms) | 28.8 / 29.7 | 35.9 / 23.4 | 41.0 / 20.4 | | |
+| load, glow off | 31.9 / 26.7 | | 44.7 / 18.8 | 35.8 / 23.4 | 37.8 / 22.8 |
+
+MAX removes about 82% of the load and HIGH 65%: +42% and +25% fps. Without the load, a map that asks for full rate
+everywhere (`"vrs_strength": 0`) prices the map itself, and MAX against it is all the fragment shading there is:
+
+| MSAA, glow | OFF | map bound, nothing coarse | MAX |
+|---|---:|---:|---:|
+| 4x, on | 24.5 | 26.1 | 24.8 |
+| off, on | 19.0 | 19.7 | 18.5 |
+| 4x, off | 25.3 | 26.0 | 23.9 |
+| off, off | 18.2 | 18.8 | 17.5 |
+
+- The map costs 0.6-1.6 ms and MAX wins back 1.2-2.1: fragment shading is about 2 ms of an 18-25 ms frame.
+- Perfetto counters over the eye pass, OFF against MAX (MSAA 4x, glow on): fragment instructions 107 -> 62 G/s,
+  instructions a fragment 74 -> 32, "% Nearest Filtered" 39 -> 58, fragments shaded unchanged (so that counter is
+  no measure of foveation: cheap fill-in fragments replace scene ones, the expansion), shaders busy 53% -> 45%, and
+  the pass 24.7 -> 25.6 ms. **The shaders are idle half the pass with foveation off**: about 3 M triangles a
+  pass, and it is not shading the GPU waits on (which stage is not shown by these counters).
+- With the governor on (normal play: step 6, eye 0.8x, MSAA off) the room holds 72 fps at 9.8 ms with foveation
+  OFF, HIGH and MAX alike.
+- The runtime's own map does save shading under load (3.3 ms) while the pattern is full rate over the visible lens:
+  it coarsens the hidden border. Subsampled images add 0.6 ms to that. Without a load both are slower than OFF.
+  Runtime level 4 is not a level (VrApi `Fov=0`); the engine then falls back to its own ramp, 33.0 ms.
+- **Geometry is the limit, measured:** the same view and pixels (eye 1.229x, MSAA 4x, glow on), only
+  `detail_cull_k` moved, App ms OFF / MAX: k 0 26.9 / 27.8, k 150 (default) 24.5 / 24.8, k 40 18.4 / 18.0, k 15
+  14.3 / 13.0 (61 -> 65 fps). Culling alone halves the frame; at k 15 the pass is 1.6 M polygons against 2.9 M,
+  shaders busy 63% against 53%, and only there does MAX begin to pay (6%).
+- **Foveating the geometry was tried and removed.** Shrinking a part's detail-cull range outside the middle of the
+  view (nothing inside 25 degrees of straight ahead, a fifth of the range at HIGH and a tenth at MAX by 45 degrees,
+  300 parts looked at a frame) returned 0.8 ms in that view: HIGH 26.3 against 27.0, MAX 23.9 against 24.8, OFF
+  24.4. What costs there is in the middle of the view. (Its first build crashed the headset: a freed part read out
+  of a typed array.)
+- So foveation pays in proportion to fragment cost, and the rooms' flat shaders left almost none: about 2 ms is
+  the most it can ever return here. It becomes worth having again only where a frame is fragment-bound: after the
+  geometry is cut, or with dearer materials.
+
 ### Overdraw: opaque surfaces drawn near first (2026-11-13, night)
 
 The eye pass shaded ~4x its pixels. Godot's mobile renderer orders opaque draws by shader and material, and its

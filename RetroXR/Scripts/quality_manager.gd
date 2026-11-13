@@ -59,19 +59,50 @@ enum Foveation { OFF, LOW, MEDIUM, HIGH, MAX }
 ## small clips this trades for are what the sleep and interpolation hide.
 const MAX_PHYSICS_STEPS := 2
 
+## The map is RetroXR's own (_make_foveation_map), not XRVRS's. Distance is
+## measured from the LENS centre as a fraction of the way to the buffer's edge in
+## that direction: 0 at the centre, 1 on each edge, more in the corners.
+## `min_radius` is the percentage of that way kept at full rate, `strength` the
+## coarseness reached AT the edge (1 = the coarsest the density map allows, and
+## the ramp carries on past it into the corners).
+##
+## XRVRS measured in texels from the focus against half the buffer's SHORT side,
+## whatever the direction. A Quest 3's lens centre is 40% down and 62% across the
+## eye (temple side), so "60% of the short half" was reached 29% of the eye height
+## below the centre and never above it inside the visible lens: HIGH left the
+## bottom third of the view at the coarsest rate and nothing else (2026-11-13).
+## These are an even ring instead, wide in the middle like the system's own FFR.
+##
+## Every tier is a STEP (strength 10), because that is all a Quest 3 does with the
+## map. Measured with the `fov_pattern` probe (one colour a fragment, read back
+## from a capture by Tools/perf/fov_pattern_map.py): the Adreno 740 shades at full
+## rate or in 2x2 blocks and NOTHING coarser, whatever the map asks, and it goes
+## to 2x2 about a fifth of the way to the edge AFTER the map reaches its coarsest
+## value. A gentle ramp therefore foveates nothing and still pays for the density
+## map: radius 33 strength 1 was full rate over the whole visible lens and cost
+## 32.3 ms against 24.5 with foveation off.
+##
+## 2026-11-13, arcade, release, eye buffer 1.229x (2064x2163), MSAA 4x, governor
+## off, one still view (GPU ms a frame, where 2x2 begins as a fraction of the way
+## to the edge):  OFF 24.5 | LOW 28.7, ~0.9 | MEDIUM 27.1, ~0.75 | HIGH 27.0, ~0.6
+## | MAX 24.8, ~0.35. The old HIGH was 28.0 and the old MAX 23.2. In that view NO
+## tier beats OFF: the density map has a fixed cost and the pass is vertex-bound
+## there (performance.md). Foveation pays where the pass is fragment-bound, as at
+## 1.75x on 2026-09-08 (OFF 24.8 ms, old MAX 11.9).
 const FOVEATION_TIERS := {
-	Foveation.LOW: {"min_radius": 45.0, "strength": 0.5},
-	Foveation.MEDIUM: {"min_radius": 30.0, "strength": 1.0},
-	Foveation.HIGH: {"min_radius": 20.0, "strength": 2.0},
-	# The generator's limits: strength 10 puts everything past the centre at the
-	# coarsest texel the density map allows, and radius 5 keeps only the middle
-	# 5% of the eye at full rate. Measured 2026-09-08 in the arcade at eye buffer
-	# 1.75x on a Quest 3, same slot, cold launch per row, MSAA off under VRS:
-	#   OFF 24.8 ms / 34 fps, HIGH 16.5 / 50, r15 s5 13.9 / 59, r8 s8 12.5 / 65,
-	#   MAX 11.9 / 69. The periphery is visibly blocky at this tier; the centre
-	#   is pixel-identical to OFF in every row.
+	Foveation.LOW: {"min_radius": 60.0, "strength": 10.0},
+	Foveation.MEDIUM: {"min_radius": 44.0, "strength": 10.0},
+	Foveation.HIGH: {"min_radius": 28.0, "strength": 10.0},
 	Foveation.MAX: {"min_radius": 5.0, "strength": 10.0},
 }
+## Eye-buffer pixels to one texel of the generated map. The engine copies it into
+## its own density texture (one texel to 32 px on an Adreno) by UV, nearest.
+const FOVEATION_MAP_TEXEL := 32
+## How often (in 12-frame waits) the map's focus is checked again after it is
+## made. The per-view projection is a PLACEHOLDER until the runtime has located
+## its views, and not a symmetric one: a Quest 3 answered (0.115, 0.0) at boot
+## and (0.243, 0.193) once running, so "is it off-centre yet" told nothing.
+const FOVEATION_FOCUS_CHECKS := 40
 
 ## Render scale and the eye buffer are deliberately absent: both are a taste call
 ## about how much resolution to buy, not a quality tier, so a preset never moves
@@ -256,14 +287,14 @@ var display_rate: float = 0.0
 var cpu_level: PerfLevel = PerfLevel.SUSTAINED_HIGH
 var gpu_level: PerfLevel = PerfLevel.SUSTAINED_HIGH
 var foveation_level: Foveation = Foveation.HIGH
-## Keep the XRVRS object alive: it owns the RID returned by make_vrs_texture().
+## The generated map (a Texture2DArray, a layer an eye): the viewport holds only
+## its RID, so this reference is what keeps it alive.
 var _vrs_generator: Object
 var _vrs_refresh_serial: int = 0
-## How many more times the generator may retry for a real per-eye focus. The
-## per-view projection is a symmetric placeholder until the runtime has run
-## its first frame, and a map centred on a placeholder is centred on the
-## buffer, not the lens.
-var _vrs_focus_tries: int = 5
+## How many more times the focus is checked against the live projection.
+var _vrs_focus_tries: int = FOVEATION_FOCUS_CHECKS
+## What the live map was made from, so a check that finds nothing moved makes nothing.
+var _vrs_map_key: Array = []
 ## Whether the requested generated texture and its viewport attachment are live.
 var _foveation_live: bool = false
 ## QA overrides for the VRS knobs, set by `vrsprobe.cfg` and normally unset.
@@ -449,6 +480,21 @@ func _read_vrs_overrides() -> void:
 		# same build, the same headset and the same eye buffer as the real one.
 		# Without that, "the room is the cost" is an attribution nobody checked.
 		_probe_boot_scene(String(cfg["boot_scene"]))
+	if cfg.has("boot_glow"):
+		# Glow is what keeps the mobile renderer off its one-pass path (a separate
+		# post pass), and that is what the engine means by "rendering features in
+		# use" when it refuses subsampled images. Set, never saved.
+		glow_enabled = bool(cfg["boot_glow"])
+		print("[VRSProbe] glow %s for this run" % ("on" if glow_enabled else "off"))
+	if cfg.has("boot_eye_buffer"):
+		# The swapchain is made at this size from the first frame. "eye_buffer"
+		# resizes mid-session, and at 1.75x that reallocation got the app killed
+		# for memory (lmkd) before a single frame at the new size.
+		eye_buffer_scale = clampf(float(cfg["boot_eye_buffer"]), EYE_BUFFER_SCALE_MIN, EYE_BUFFER_SCALE_MAX)
+		print("[VRSProbe] eye buffer x%.3f for this run" % eye_buffer_scale)
+	if cfg.has("boot_msaa"):
+		msaa_3d = clampi(int(cfg["boot_msaa"]), Viewport.MSAA_DISABLED, Viewport.MSAA_8X)
+		print("[VRSProbe] msaa %d for this run" % msaa_3d)
 	if cfg.has("boot_foveation"):
 		foveation_level = clampi(int(cfg["boot_foveation"]),
 			Foveation.OFF, Foveation.MAX) as Foveation
@@ -518,6 +564,8 @@ func _run_vrs_probe() -> void:
 		var m := int(cfg["msaa"])
 		print("[VRSProbe] msaa -> %d" % m)
 		get_tree().root.msaa_3d = m as Viewport.MSAA
+	if bool(cfg.get("fov_pattern", false)) or cfg.has("fov_load"):
+		_probe_foveation_pattern(int(cfg.get("fov_load", 0)))
 	if cfg.has("hide"):
 		# Probe knob for the "what would you cut from the room" question: hide a
 		# named subtree and measure what it was costing, rather than reasoning
@@ -1628,6 +1676,7 @@ func apply_foveation() -> void:
 		xr.set("foveation_dynamic", false)
 		xr.set("foveation_level", int(Foveation.OFF))
 	_vrs_refresh_serial += 1
+	_vrs_focus_tries = FOVEATION_FOCUS_CHECKS
 	if foveation_level == Foveation.OFF or not supports_foveation():
 		root.vrs_mode = Viewport.VRS_DISABLED
 		RenderingServer.viewport_set_vrs_texture(root.get_viewport_rid(), RID())
@@ -1685,59 +1734,157 @@ func _generate_centered_vrs() -> void:
 		print("[QualityManager] VRS_XR runtime density map, xr foveation_level %d, eye %dx%d"
 			% [int(foveation_level), int(size.x), int(size.y)])
 		return
-	var generator: Object = ClassDB.instantiate("XRVRS")
 	var tier: Dictionary = FOVEATION_TIERS[foveation_level]
 	var radius: float = _vrs_radius_override if _vrs_radius_override >= 0.0 \
 		else tier["min_radius"]
 	var strength: float = _vrs_strength_override if _vrs_strength_override >= 0.0 \
 		else tier["strength"]
-	generator.set("vrs_min_radius", radius)
-	generator.set("vrs_strength", strength)
 	# One focus per eye, at the lens centre, not the buffer centre. A Quest
-	# eye frustum is asymmetric - wider toward the temple - so the straight-
-	# ahead ray lands off-centre in the buffer, and a map pinned to (0, 0)
-	# puts its full-rate spot where the player is not looking. This is the
-	# engine's own recipe for its VRS_XR map: project a point straight ahead
-	# through the view's projection and keep the NDC x, y.
+	# eye frustum is asymmetric - wider toward the temple and downward - so the
+	# straight-ahead ray lands off-centre in the buffer, and a map pinned to
+	# (0, 0) puts its full-rate spot where the player is not looking. This is
+	# the engine's own recipe for its VRS_XR map: project a point straight
+	# ahead through the view's projection and keep the NDC x, y.
 	var foci := PackedVector2Array()
 	var views := int(xr.get_view_count())
-	var symmetric := true
 	for v in views:
 		var proj: Projection = xr.get_projection_for_view(v, size.x / size.y, 0.1, 1000.0)
 		var h: Vector4 = proj * Vector4(0.0, 0.0, 999.9, 1.0)
 		var focus := Vector2.ZERO
 		if absf(h.w) > 0.0001:
 			focus = Vector2(h.x / h.w, h.y / h.w)
-		if focus.length() > 0.0005:
-			symmetric = false
 		foci.push_back(focus)
 	while foci.size() < 2:
 		foci.push_back(Vector2.ZERO)
-	if symmetric and _vrs_focus_tries > 0:
-		# Placeholder projection: generate anyway so something is live, and
-		# come back for the real centre once the runtime has a frame.
+	if _vrs_focus_tries > 0:
+		# The projection may still be the runtime's placeholder (see
+		# FOVEATION_FOCUS_CHECKS): make the map from it so something is live,
+		# and look again. A look that finds the same focus makes nothing.
 		_vrs_focus_tries -= 1
-		_schedule_vrs_refresh()
-	var texture: RID = generator.call("make_vrs_texture", size, foci)
-	if not texture.is_valid():
-		push_error("[QualityManager] failed to generate centered XR VRS texture")
-		_foveation_live = false
+		_recheck_vrs_focus()
+	var map_size := Vector2i(ceili(size.x / FOVEATION_MAP_TEXEL), ceili(size.y / FOVEATION_MAP_TEXEL))
+	var key := [map_size, radius, strength, _snapped_foci(foci)]
+	if key == _vrs_map_key and _vrs_generator != null and root.vrs_mode == Viewport.VRS_TEXTURE:
+		_foveation_live = true
 		return
-	RenderingServer.viewport_set_vrs_texture(root.get_viewport_rid(), texture)
+	var map := _make_foveation_map(map_size, foci, radius, strength)
+	if map == null:
+		push_error("[QualityManager] failed to generate the foveation map (%s)" % map_size)
+		_foveation_live = false
+		_vrs_map_key = []
+		return
+	RenderingServer.viewport_set_vrs_texture(root.get_viewport_rid(), map.get_rid())
 	root.vrs_mode = Viewport.VRS_TEXTURE
 	root.vrs_update_mode = Viewport.VRS_UPDATE_ONCE
-	_vrs_generator = generator
+	_vrs_generator = map
+	_vrs_map_key = key
 	_foveation_live = true
-	print(("QualityManager: centered VRS level %d, radius %.1f, strength %.2f, "
-		+ "eye texture %dx%d, foci %s, msaa %d, post_aa %d") % [
+	print(("[QualityManager] foveation map level %d, radius %.1f, strength %.2f, "
+		+ "eye texture %dx%d, map %dx%d, foci %s, msaa %d, post_aa %d") % [
 		int(foveation_level), radius, strength, int(size.x), int(size.y),
-		foci, root.msaa_3d, root.screen_space_aa])
+		map_size.x, map_size.y, foci, root.msaa_3d, root.screen_space_aa])
+
+
+static func _snapped_foci(foci: PackedVector2Array) -> Array:
+	var out := []
+	for f in foci:
+		out.append(f.snappedf(0.002))
+	return out
+
+
+## How coarse the eye is shaded at `uv` (0-1 across the eye buffer, v down), for a
+## lens centre at `focus` (NDC, y up): 0 is full rate, 1 the coarsest the density
+## map allows. The distance is a fraction of the way from the lens centre to the
+## buffer's edge on that side, so every edge is reached at 1 whatever the eye
+## buffer's size and however far off-centre the lens is. See FOVEATION_TIERS.
+static func foveation_coarseness(uv: Vector2, focus: Vector2, radius_pct: float, strength: float) -> float:
+	var centre := Vector2((focus.x + 1.0) * 0.5, (1.0 - focus.y) * 0.5).clamp(
+		Vector2(0.05, 0.05), Vector2(0.95, 0.95))
+	var d := uv - centre
+	var reach := Vector2(1.0 - centre.x if d.x > 0.0 else centre.x,
+		1.0 - centre.y if d.y > 0.0 else centre.y)
+	var inner := clampf(radius_pct / 100.0, 0.0, 0.99)
+	return clampf(((d / reach).length() - inner) / (1.0 - inner) * strength, 0.0, 1.0)
+
+
+## The density map the viewport is given: RG8, a layer an eye, in the engine's
+## "unified" VRS encoding (0 = full rate, 255 = coarsest, the same in R and G).
+static func _make_foveation_map(map_size: Vector2i, foci: PackedVector2Array,
+		radius_pct: float, strength: float) -> Texture2DArray:
+	if map_size.x < 1 or map_size.y < 1 or foci.is_empty():
+		return null
+	var images: Array[Image] = []
+	for focus in foci:
+		var data := PackedByteArray()
+		data.resize(map_size.x * map_size.y * 2)
+		var i := 0
+		for y in map_size.y:
+			for x in map_size.x:
+				var uv := Vector2((x + 0.5) / map_size.x, (y + 0.5) / map_size.y)
+				var value := int(roundf(255.0 * foveation_coarseness(uv, focus, radius_pct, strength)))
+				data[i] = value
+				data[i + 1] = value
+				i += 2
+		images.append(Image.create_from_data(map_size.x, map_size.y, false, Image.FORMAT_RG8, data))
+	var map := Texture2DArray.new()
+	if map.create_from_images(images) != OK:
+		return null
+	return map
+
+
+## `vrsprobe.cfg` "fov_pattern": true covers the whole view with one random colour
+## a FRAGMENT. Where the density map shades one fragment for a block of pixels the
+## block comes out one colour, so a screen capture measures the rate the GPU really
+## used in every part of each eye (Tools/perf/fov_pattern_map.py reads it) - the
+## map this script generates says only what was ASKED for. Probe only, never saved.
+##
+## "fov_load": N makes every one of those fragments N sines dearer, which turns any
+## room into a fragment-bound one: with it, foveation off against MAX says whether
+## the density map saves SHADING at all, apart from what this room has to save.
+func _probe_foveation_pattern(load: int = 0) -> void:
+	var shader := Shader.new()
+	shader.code = """shader_type spatial;
+render_mode unshaded, cull_disabled, depth_test_disabled, skip_vertex_transform, blend_mix;
+void vertex() { POSITION = vec4(VERTEX.xy * 2.0, 1.0, 1.0); }
+uniform int load = 0;
+void fragment() {
+	float acc = fract(FRAGCOORD.x * 0.37 + FRAGCOORD.y * 0.11);
+	for (int i = 0; i < load; i++) { acc = sin(acc * 1.7 + float(i)) * 0.5 + 0.5; }
+	uvec2 p = uvec2(FRAGCOORD.xy) + uvec2(uint(acc * 0.001));
+	uint n = p.x * 1973u + p.y * 9277u + 26699u;
+	n = (n ^ (n >> 13u)) * 1274126177u;
+	n = n ^ (n >> 16u);
+	ALBEDO = vec3(float(n & 255u), float((n >> 8u) & 255u), float((n >> 16u) & 255u)) / 255.0;
+	ALPHA = 1.0;
+}"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("load", load)
+	material.render_priority = RenderingServer.MATERIAL_RENDER_PRIORITY_MAX
+	var quad := QuadMesh.new()
+	quad.size = Vector2(1.0, 1.0)
+	quad.material = material
+	var mesh := MeshInstance3D.new()
+	mesh.name = "FoveationPattern"
+	mesh.mesh = quad
+	mesh.extra_cull_margin = 16384.0
+	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	get_tree().root.add_child(mesh)
+	print("[VRSProbe] foveation pattern on: one colour a fragment over the whole view, load %d" % load)
+
+
+## Look at the focus again a few frames on, without touching the resize serial's
+## meaning: a newer request (a level, an eye buffer) supersedes this one.
+func _recheck_vrs_focus() -> void:
+	var serial := _vrs_refresh_serial
+	_refresh_vrs_after_resize(serial)
 
 
 ## OpenXR rebuilds its swapchain asynchronously after an eye-buffer change. Wait
 ## until that has settled, then regenerate the VRS texture at the new dimensions.
 func _schedule_vrs_refresh() -> void:
 	_vrs_refresh_serial += 1
+	_vrs_focus_tries = FOVEATION_FOCUS_CHECKS
 	var serial := _vrs_refresh_serial
 	_refresh_vrs_after_resize(serial)
 
