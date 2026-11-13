@@ -39,8 +39,9 @@ const DROP_SECONDS := 0.25
 const CREDIT_SECONDS := FLY_MAX + SLIDE_SECONDS + DROP_SECONDS
 ## How far inside the slot the slide ends, out of sight.
 const SLIDE_DEPTH := 0.03
-## A click's token starts here in the camera's frame: low and to the right, in front of the view.
-const FROM_VIEW := Vector3(0.10, -0.10, -0.25)
+## A click's token starts FROM_VIEW_SHARE of the way from the eye to the slot, moved this much right and down in the view.
+const FROM_VIEW_SHARE := 0.35
+const FROM_VIEW := Vector2(0.06, -0.06)
 ## Each play of a sound is pitched by up to this much either way.
 const PITCH_SPREAD := 0.05
 const TOKEN_PATH := "res://imported-assets/arcade/arcade_token.glb"
@@ -173,7 +174,10 @@ func insert_coin() -> void:
 	var start := Transform3D(_slot.slot_basis(), _slot.mouth() - into * 0.25 + Vector3.UP * 0.05)
 	var cam := get_viewport().get_camera_3d() if get_viewport() != null else null
 	if cam != null and cam.is_inside_tree():
-		var at := cam.global_transform * FROM_VIEW
+		# A third of the way from the eye to the slot, low and to the right: always between the two, however near the door
+		# the player stands (a fixed distance ahead of the eye put it inside the door from close by).
+		var cb := cam.global_basis.orthonormalized()
+		var at := cam.global_position.lerp(_slot.mouth(), FROM_VIEW_SHARE) + cb.x * FROM_VIEW.x + cb.y * FROM_VIEW.y
 		# Face to the camera at first, as if just let go.
 		start = Transform3D(Basis(cam.global_basis.x, -cam.global_basis.z, cam.global_basis.y), at)
 	insert_coin_from(start)
