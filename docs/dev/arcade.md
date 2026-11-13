@@ -85,7 +85,7 @@ optional module is valid. A module finds ITS OWN parts by name inside its own su
 |---|---|---|---|
 | `screen` | `ArcadeScreenModule` | `CabinetScreen` (quad) | paints the core's picture, fitted to the glass by the bridge's geometry (below) |
 | `stick_buttons` | `ArcadeControlModule` | `Btn1`..`Btn6`, `Start` (caps), `StickPivot`, `PanelGrip` | one player's panel as ONE controller: the caps sink and the stick leans with the input. A headset's hands work the controls too (`ArcadePanelHands`, "Hands on the panel" below) |
-| `coin` | `ArcadeCoinModule` | `CoinSlot` (VRButton), `CoinSpawn`, `CoinDrop` | a coin is tossed along an arc, drops with a sound, and ONLY THEN says `coin_inserted(player)` |
+| `coin` | `ArcadeCoinModule` | `CoinSlot` (ArcadeCoinSlot), `CoinReturn`, `ReturnCup` | a token pinched at a hand's fingertip is pushed into the slot, or a click flies one in from the view's corner; it slides in edge-on with a scrape, lands in the box with a clunk, and ONLY THEN says `coin_inserted(player)` |
 | `bay` | `ArcadeBayModule` | `DoorPivot`, `DoorGrab` (VRHinge), `CartSeat`, `JammaSocket`, `PowerSwitch` | the lower door gates the cartridge slot; the door angle is the saved `lid_angle` |
 | `sockets` | `ArcadeSocketModule` | `PortSeat1..N` | the front controller / light-gun sockets: places the system's own port zones |
 

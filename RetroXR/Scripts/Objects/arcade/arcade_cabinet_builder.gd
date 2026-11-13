@@ -42,6 +42,7 @@ const SCRIPTS := {
 	"sockets": "res://Scripts/Objects/arcade/arcade_socket_module.gd",
 	"panel": "res://Scripts/Objects/arcade/arcade_panel_grip.gd",
 	"button": "res://Scripts/Objects/widgets/vr_button.gd",
+	"coin_slot": "res://Scripts/Objects/arcade/arcade_coin_slot.gd",
 	"hinge": "res://Scripts/Objects/widgets/vr_hinge.gd",
 	"pedal": "res://Scripts/Objects/arcade/arcade_pedal_module.gd",
 	"av_in": "res://Scripts/Objects/arcade/arcade_av_in_module.gd",
@@ -1169,14 +1170,14 @@ func _build_coin_doors() -> void:
 		rtag.font_size = 24
 		rtag.modulate = Color(0.1, 0.1, 0.12)
 		rtag.outline_size = 0
-		# The slot: a lit lip you poke.
+		# The slot: a lit lip a token goes into (ArcadeCoinSlot), straight into the door, across.
 		var lip := ArcadeParts.node(_owner, door, "Area3D", "CoinSlot", Vector3(0, 0.045, 0.006)) as Area3D
-		lip.set_script(load(SCRIPTS["button"]))
+		lip.set_script(load(SCRIPTS["coin_slot"]))
 		lip.collision_layer = 0
 		lip.collision_mask = 0
-		lip.set("trigger_radius", 0.02)
-		lip.set("depress_depth", 0.002)
-		lip.set("depress_axis", Vector3(0, 0, -1))
+		lip.set("insert_dir", Vector3(0, 0, -1))
+		lip.set("slot_long", Vector3(1, 0, 0))
+		lip.set("slot_length", 0.034)
 		var col := ArcadeParts.node(_owner, lip, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
 		var shape := BoxShape3D.new()
 		shape.size = Vector3(0.07, 0.045, 0.04)
@@ -1190,8 +1191,6 @@ func _build_coin_doors() -> void:
 		tag.font_size = 48
 		tag.modulate = Color(0.1, 0.1, 0.12)
 		tag.outline_size = 0
-		ArcadeParts.node(_owner, door, "Marker3D", "CoinSpawn", Vector3(0, 0.075, 0.075))
-		ArcadeParts.node(_owner, door, "Marker3D", "CoinDrop", Vector3(0, 0.045, 0.0))
 
 
 # ── front sockets ───────────────────────────────────────────────────────────

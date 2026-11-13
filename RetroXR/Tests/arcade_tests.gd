@@ -1180,17 +1180,47 @@ func _group_coin() -> void:
 	_ok(landed.is_empty() and door.in_flight == 1, "coin: a coin is in the air, not yet in the box")
 	_ok(door.find_child("Coin", false, false) != null, "coin: it is a plain mesh")
 	_ok(not door.find_child("Coin", false, false).is_in_group("spawned"), "coin: never a saved object")
-	await get_tree().create_timer(ArcadeCoinModule.FLIGHT_SECONDS + 0.2).timeout
+	await get_tree().create_timer(ArcadeCoinModule.FLY_MAX + ArcadeCoinModule.SLIDE_SECONDS + 0.02).timeout
+	_ok(landed.is_empty() and door.in_flight == 1 and door.find_child("Coin", false, false) == null,
+		"coin: through the slot and out of sight, it is not counted until it lands in the box")
+	await get_tree().create_timer(ArcadeCoinModule.DROP_SECONDS + 0.2).timeout
 	_ok(landed == [1] and door.in_flight == 0, "coin: it lands, and only then is the credit said")
 	_ok(door.find_child("Coin", false, false) == null, "coin: and the mesh is gone")
 	var wav := ArcadeCoinModule.clink()
 	_ok(wav.data.size() > 4000 and wav == ArcadeCoinModule.clink(), "coin: the clink is synthesised once and shared")
+	_ok(ArcadeCoinModule.scrape().data.size() > 1000 and ArcadeCoinModule.scrape() == ArcadeCoinModule.scrape()
+		and ArcadeCoinModule.clunk().data.size() > 4000 and ArcadeCoinModule.clunk() == ArcadeCoinModule.clunk(),
+		"coin: the scrape and the clunk are synthesised once and shared")
+	# The slot: not a button. A token goes in on edge, in the plane of the way in and the slot's long side.
+	var slot := door.find_child("CoinSlot", true, false) as ArcadeCoinSlot
+	_ok(slot != null and door.find_child("CoinSpawn", true, false) == null
+		and door.find_child("CoinDrop", true, false) == null, "coin: the slot is an ArcadeCoinSlot, and no markers")
+	var into := slot.insert_dir_world()
+	var sb := slot.slot_basis()
+	_ok(absf(sb.y.dot(into)) < 0.001 and absf(sb.x.dot(into)) < 0.001 and into.dot(sb.z.normalized()) > 0.999,
+		"coin: edge-on in the slot: its face across the way in (%s, in %s)" % [str(sb.y), str(into)])
+	_ok(slot.mouth().distance_to(slot.global_position - into * 0.015) < 0.0001, "coin: the mouth is just out from the slot")
+	# A token from where a hand had it starts there, and slides in.
+	var at := Transform3D(sb, slot.mouth() + Vector3(0.0, 0.0, 0.001))
+	door.insert_coin_from(at, true)
+	var flying := door.find_child("Coin", false, false) as Node3D
+	_ok(flying != null and flying.global_position.distance_to(at.origin) < 0.002, "coin: a token from a hand starts where the hand had it")
+	await get_tree().create_timer(ArcadeCoinModule.SLIDE_SECONDS + ArcadeCoinModule.DROP_SECONDS + 0.1).timeout
+	_ok(landed.size() == 2, "coin: and goes in without a flight (%d credits)" % landed.size())
+	# In the hand: the hand's frame far out, the slot's at it.
+	var hand := Basis(Vector3.UP, 0.7) * Basis(Vector3.RIGHT, -0.4)
+	var far := ArcadeCoinSlot.held_coin_pose(slot.global_position + Vector3(0, 0.3, 0.3), hand, slot.global_position, sb)
+	var near := ArcadeCoinSlot.held_coin_pose(slot.global_position + into * -0.01, hand, slot.global_position, sb)
+	_ok(far.basis.y.dot(hand.x) > 0.999, "coin: far from the slot a token lies in the hand, face across it")
+	_ok(near.basis.y.dot(sb.y) > 0.999 and near.basis.x.dot(sb.x) > 0.999, "coin: at the slot it stands in the slot's line")
+	# (The coins above rolled out of a cabinet that is off: let the cup empty before counting it.)
+	await get_tree().create_timer(ArcadeCoinModule.RETURN_FALL_SECONDS + ArcadeCoinModule.RETURN_REST_SECONDS + 0.1).timeout
 	# Through the input: with the machine off a coin is not held for the core.
 	var input := model.arcade_input()
 	sys.is_powered_on = false
 	var lying := door.returned
 	door.insert_coin()
-	await get_tree().create_timer(ArcadeCoinModule.FLIGHT_SECONDS + 0.2).timeout
+	await get_tree().create_timer(ArcadeCoinModule.CREDIT_SECONDS + 0.2).timeout
 	_ok(not input.last_sent.has(1), "coin: a switched-off cabinet sends nothing")
 	_ok(door.returned == lying + 1, "coin: it rolls out into the return cup instead")
 	# A cabinet whose game is up: the suite's frame counter says the boot is through.
@@ -1200,9 +1230,12 @@ func _group_coin() -> void:
 	await get_tree().process_frame
 	input.frame_override = input.wait_frames()
 	door.insert_coin()
-	await get_tree().create_timer(ArcadeCoinModule.FLIGHT_SECONDS + 0.05).timeout
-	await get_tree().process_frame
-	_ok(input.last_sent.has(1) and (int(input.last_sent[1]) & (1 << ArcadeProfiles.COIN_BIT)) != 0,
+	var bit_seen := false
+	var until := Time.get_ticks_msec() + int((ArcadeCoinModule.CREDIT_SECONDS + 0.3) * 1000.0)
+	while Time.get_ticks_msec() < until and not bit_seen:
+		await get_tree().process_frame
+		bit_seen = input.last_sent.has(1) and (int(input.last_sent[1]) & (1 << ArcadeProfiles.COIN_BIT)) != 0
+	_ok(bit_seen,
 		"coin: a coin into a running cabinet is the coin bit on its player's port")
 	await get_tree().create_timer(0.3).timeout
 	_ok((int(input.last_sent[1]) & (1 << ArcadeProfiles.COIN_BIT)) == 0, "coin: and the bit is let go")

@@ -4680,7 +4680,7 @@ func _group_reach() -> void:
 			if not door.door_enabled():
 				continue
 			for button_name in ["CoinReturn", "CoinSlot"]:
-				var button := door.find_child(button_name, true, false) as VRButton
+				var button := door.find_child(button_name, true, false) as Area3D
 				if button == null:
 					continue
 				buttons += 1
@@ -4707,7 +4707,7 @@ func _group_grip() -> void:
 			if not door.door_enabled():
 				continue
 			for button_name in ["CoinReturn", "CoinSlot"]:
-				var button := door.find_child(button_name, true, false) as VRButton
+				var button := door.find_child(button_name, true, false) as Area3D
 				if button == null:
 					continue
 				buttons += 1

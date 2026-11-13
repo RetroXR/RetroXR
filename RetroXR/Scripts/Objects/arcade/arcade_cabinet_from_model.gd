@@ -9,8 +9,8 @@
 ##   the model's part (the models repo's convention, sega/arcade/common/candy.py)   becomes
 ##   Stick<n>Pivot, P<n>Button<k>Pivot, Start<n>Pivot                               player n's panel: StickPivot, Btn<k>, Start
 ##   Screen (a mesh whose face is UV-mapped 0..1 over the glass)                    the monitor: CabinetScreen
-##   CoinSlot<n>, CoinSpawn<n>, CoinDrop<n>, CoinReturn<n>, ReturnCup<n>            player n's coin door (its slot and return
-##                                                                                  are buttons made here, at the markers)
+##   CoinSlot<n>, CoinReturn<n>, ReturnCup<n>                                       player n's coin door (its slot an
+##                                                                                  ArcadeCoinSlot, its return a button)
 ##   BoardDoorPivot (the board's door, swinging about +Y, opening at negative angles) the bay's door, with a hinge to take it by
 ##   BoardTrayPivot (a tray sliding out along +Z by `tray_travel`)                  a drawer the bay rides on
 ##   BoardAnchor                                                                    the bay's BayMount: the board (an
@@ -43,6 +43,7 @@ const SCRIPT_SCREEN := "res://Scripts/Objects/arcade/arcade_screen_module.gd"
 const SCRIPT_COIN := "res://Scripts/Objects/arcade/arcade_coin_module.gd"
 const SCRIPT_BAY := "res://Scripts/Objects/arcade/arcade_bay_module.gd"
 const SCRIPT_BUTTON := "res://Scripts/Objects/widgets/vr_button.gd"
+const SCRIPT_COIN_SLOT := "res://Scripts/Objects/arcade/arcade_coin_slot.gd"
 const SCRIPT_HINGE := "res://Scripts/Objects/widgets/vr_hinge.gd"
 const SCRIPT_GRIP := "res://Scripts/Objects/arcade/arcade_panel_grip.gd"
 const SCRIPT_DRAWER := "res://Scripts/Objects/widgets/vr_drawer.gd"
@@ -78,6 +79,12 @@ const SCRIPT_DRAWER := "res://Scripts/Objects/widgets/vr_drawer.gd"
 ## coin door): the model's Variant<name> meshes other than this one are hidden, and a marker is looked for as <name>_<marker>
 ## first (JP_CoinSlot1), then as itself. Empty: the model as drawn.
 @export var variant: String = ""
+## Each coin slot's way in, its long side and length, in the model's frame (ArcadeCoinSlot): a coin goes in on edge, in the
+## plane of the two. The default is a slot on the top of a coin entry, front to back (the candy cabinets', the AWSD's); a
+## coin door's slot in its face is (0, 0, -1) with a vertical (0, 1, 0) long side.
+@export var coin_insert_dir := Vector3.DOWN
+@export var coin_slot_long := Vector3(0, 0, 1)
+@export var coin_slot_length := 0.03
 
 var _model: Node3D = null
 ## The bodies riding the cabinet that are not it (its doors', its hatches', its tray's): the World layer while it stands, none
@@ -768,17 +775,39 @@ func _button(parent: Node3D, button_name: String, at: Vector3, size: Vector3) ->
 	return b
 
 
+## A coin door's slot (ArcadeCoinSlot) at `at`, its way in and its long side `coin_insert_dir` / `coin_slot_long` turned from
+## the model's frame into the door module's. Its pointable box stands out of the slot, against the way in.
+func _coin_slot(m: Node3D, at: Vector3) -> Area3D:
+	var to_m := m.global_basis.inverse() * _model.global_basis
+	var into := (to_m * coin_insert_dir).normalized()
+	var s := Area3D.new()
+	s.name = "CoinSlot"
+	s.set_script(load(SCRIPT_COIN_SLOT))
+	s.collision_layer = 0
+	s.collision_mask = 0
+	s.set("insert_dir", into)
+	s.set("slot_long", (to_m * coin_slot_long).normalized())
+	s.set("slot_length", coin_slot_length)
+	m.add_child(s)
+	s.global_position = at
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(0.05, 0.05, 0.05)
+	col.shape = shape
+	col.position = -into * 0.012
+	s.add_child(col)
+	return s
+
+
 func _build_coin(n: int) -> void:
 	var slot := _part("CoinSlot%d" % n)
 	if slot == null:
 		return
 	var m := _module("CoinP%d" % n, SCRIPT_COIN, n - 1)
-	_button(m, "CoinSlot", slot.global_position, Vector3(0.05, 0.04, 0.04))
+	_coin_slot(m, slot.global_position)
 	var ret := _part("CoinReturn%d" % n)
 	if ret != null:
 		_button(m, "CoinReturn", ret.global_position, Vector3(0.03, 0.03, 0.03))
-	_move(_part("CoinSpawn%d" % n), m, "CoinSpawn")
-	_move(_part("CoinDrop%d" % n), m, "CoinDrop")
 	_move(_part("ReturnCup%d" % n), m, "ReturnCup")
 	slot.queue_free()
 	if ret != null:

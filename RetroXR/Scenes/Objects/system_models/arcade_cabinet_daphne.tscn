@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://Scripts/Objects/arcade/arcade_panel_grip.gd" id="4_48kck"]
 [ext_resource type="Script" path="res://Scripts/Objects/arcade/arcade_coin_module.gd" id="5_vgmc1"]
 [ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_button.gd" id="6_gayh0"]
+[ext_resource type="Script" path="res://Scripts/Objects/arcade/arcade_coin_slot.gd" id="coin_slot_gd"]
 [ext_resource type="Script" path="res://Scripts/Objects/arcade/arcade_socket_module.gd" id="7_nub13"]
 [ext_resource type="Script" path="res://Scripts/Objects/arcade/arcade_bay_module.gd" id="8_30j73"]
 [ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_hinge.gd" id="9_ygyd2"]
@@ -698,10 +699,10 @@ horizontal_alignment = 0
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.045, 0.006)
 collision_layer = 0
 collision_mask = 0
-script = ExtResource("6_gayh0")
-trigger_radius = 0.02
-depress_depth = 0.002
-depress_axis = Vector3(0, 0, -1)
+script = ExtResource("coin_slot_gd")
+insert_dir = Vector3(0, 0, -1)
+slot_long = Vector3(1, 0, 0)
+slot_length = 0.034
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="CoinDoor1/CoinSlot" unique_id=460076134]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.012)
@@ -718,12 +719,6 @@ modulate = Color(0.1, 0.1, 0.12, 1)
 text = "COIN"
 font_size = 48
 outline_size = 0
-
-[node name="CoinSpawn" type="Marker3D" parent="CoinDoor1" unique_id=553794509]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.075, 0.075)
-
-[node name="CoinDrop" type="Marker3D" parent="CoinDoor1" unique_id=2100381]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.045, 0)
 
 [node name="Sockets" type="Node3D" parent="." unique_id=2130842381]
 script = ExtResource("7_nub13")

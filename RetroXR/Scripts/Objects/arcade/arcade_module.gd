@@ -7,7 +7,7 @@
 ## (ArcadeProfiles.CONTRACT_VERSION) and additive only.
 ##
 ## A module finds ITS OWN parts by name inside its own subtree (the player's
-## `Btn1`..`Btn6`, the coin door's `CoinSpawn`), never by a path from the cabinet
+## `Btn1`..`Btn6`, the coin door's `CoinSlot`), never by a path from the cabinet
 ## root, so a module can be moved or duplicated as a unit.
 class_name ArcadeModule
 extends Node3D

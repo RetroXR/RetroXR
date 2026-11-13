@@ -245,7 +245,7 @@ OWN parts by name inside its own subtree. The shipped ones are baked by
 |---|---|---|
 | `arcade_screen_module.gd` | `screen` | `CabinetScreen` (a quad) |
 | `arcade_control_module.gd` | `stick_buttons` | `Btn1`..`Btn6`, `Start` (caps), `StickPivot` (a stick), `DialPivot` (a paddle dial turned by LEFT/RIGHT), `PanelGrip`; all optional; set `player`. A `PanelGrip` with `momentary` is a START button, not a controller to attach to |
-| `arcade_coin_module.gd` | `coin` | `CoinSlot` (VRButton), `CoinSpawn`, `CoinDrop`; set `player` |
+| `arcade_coin_module.gd` | `coin` | `CoinSlot` (an `ArcadeCoinSlot`: set its `insert_dir`, `slot_long`, `slot_length`), `CoinReturn` (VRButton), `ReturnCup`; set `player` |
 | `arcade_bay_module.gd` | `bay` | `DoorPivot`, `DoorGrab` (a VRHinge), `CartSeat`, `PowerSwitch`; set `bay_kind` |
 | `arcade_socket_module.gd` | `sockets` | `PortSeat1..N`, rolled 180 degrees about Z like the NES's; `Holster1..N` (where a gun hangs, aiming down its own -Z) make the cabinet's guns captive |
 | `arcade_pedal_module.gd` | `pedal` | a foot pedal: drawn only, `active` stays false |
@@ -269,7 +269,7 @@ A cabinet modeled elsewhere (a GLB) does not need hand-placed modules: give its 
 `arcade_cabinet_model.gd` and one child running `res://Scripts/Objects/arcade/arcade_cabinet_from_model.gd`
 (`ArcadeCabinetFromModel`) with `model` (the GLB), `players`, `buttons`, `glass_size`, `bay_kind` and `tray_travel` (and `bay_roll_deg`, a turn of the board's mount about +Z for a board that stands on edge).
 It builds the modules from the model's parts by name: `Stick<n>Pivot`, `P<n>Button<k>Pivot`, `Start<n>Pivot`, `Screen`
-(UV 0..1 over the glass), `CoinSlot<n>`/`CoinSpawn<n>`/`CoinDrop<n>`/`CoinReturn<n>`/`ReturnCup<n>`, `BoardDoorPivot`
+(UV 0..1 over the glass), `CoinSlot<n>`/`CoinReturn<n>`/`ReturnCup<n>` (the slot's way in and long side are the exports `coin_insert_dir` and `coin_slot_long`, in the model's frame: by default down through the top of a coin entry, front to back), `BoardDoorPivot`
 (swinging about +Y), `BoardTrayPivot` (sliding along +Z), `BoardAnchor` (the bay's mount), and the NAOMI leads `VgaLead`,
 `AudioLeadL`/`R`, `JvsLead`, `BoardPowerLead`, `JammaLead`. The model's frame: origin on the floor at the middle of the
 front face, +Y up, the body back along -Z.

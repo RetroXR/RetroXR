@@ -501,7 +501,7 @@ func _group_use() -> void:
 	input.frame_override = 0
 	door.insert_coin()
 	_ok(sys.attracting, "use: a coin in the air has not started the game yet")
-	await get_tree().create_timer(ArcadeCoinModule.FLIGHT_SECONDS + 0.2).timeout
+	await get_tree().create_timer(ArcadeCoinModule.CREDIT_SECONDS + 0.2).timeout
 	_ok(_started(log, &"coin"), "use: a coin that lands starts the real game")
 	_ok(log.size() == 1, "use: once (%d)" % log.size())
 	_ok(input.held_coins(0) == 1, "use: the coin that started it is held for the game, not dropped into its boot")
@@ -592,7 +592,7 @@ func _group_coins() -> void:
 			door = m as ArcadeCoinModule
 	var ret := door.find_child("CoinReturn", true, false) as VRButton
 	_ok(ret != null, "coins: the coin door has a coin return to press")
-	var flight := ArcadeCoinModule.FLIGHT_SECONDS + 0.15
+	var flight := ArcadeCoinModule.CREDIT_SECONDS + 0.15
 
 	# A switched-off cabinet cannot take a coin: it goes through and out into the cup.
 	door.insert_coin()
@@ -644,8 +644,7 @@ func _group_coins() -> void:
 	_ok(edges == 2 and input.held_coins(0) == 0, "coins: they go in as two separate coins (%d)" % edges)
 	# Into a game that is up, a coin goes straight in.
 	door.insert_coin()
-	await get_tree().create_timer(ArcadeCoinModule.FLIGHT_SECONDS).timeout
-	var straight: int = await _coin_edges(input, 0, 0.4)
+	var straight: int = await _coin_edges(input, 0, ArcadeCoinModule.CREDIT_SECONDS + 0.4)
 	_ok(straight == 1 and input.held_coins(0) == 0, "coins: a coin into a game that is up goes straight in")
 
 	# START on a game that has started lets a held coin in at once, and itself only after it.
