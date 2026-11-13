@@ -58,6 +58,7 @@ func _ready() -> void:
 	_group_effective()
 	_group_lights()
 	await _group_rtx()
+	await _group_decals()
 
 	_restore()
 	_finish()
@@ -488,3 +489,62 @@ func _group_rtx() -> void:
 	_live.path_tracing_changed.disconnect(on_change)
 	_eq(heard, [true, false] if _live.supports_path_tracing() else [],
 		"rtx/path_tracing_changed fires on each change of the effective state only")
+
+
+## Under the tracer a printed decal (depth pre-pass, alpha from its texture) is drawn as alpha scissor, or
+## Ray Reconstruction smears its text (PathTracedDecals); switching off puts every one back as it was.
+func _group_decals() -> void:
+	if not _wanted("decal"):
+		return
+	var tex := ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBA8))
+	var make := func(transparency: int, textured: bool, alpha: float) -> StandardMaterial3D:
+		var m := StandardMaterial3D.new()
+		m.transparency = transparency as BaseMaterial3D.Transparency
+		m.albedo_texture = tex if textured else null
+		m.albedo_color = Color(1, 1, 1, alpha)
+		m.alpha_scissor_threshold = 0.3
+		return m
+	var decal: StandardMaterial3D = make.call(BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS, true, 1.0)
+	var tinted: StandardMaterial3D = make.call(BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS, true, 0.5)
+	var glass: StandardMaterial3D = make.call(BaseMaterial3D.TRANSPARENCY_ALPHA, true, 1.0)
+	var plain: StandardMaterial3D = make.call(BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS, false, 1.0)
+	_ok(PathTracedDecals.is_decal(decal), "decal/a textured, opaque-coloured depth pre-pass material is a decal")
+	_ok(not PathTracedDecals.is_decal(tinted), "decal/a see-through tint (alpha in its colour) is not")
+	_ok(not PathTracedDecals.is_decal(glass), "decal/plain alpha blending (glass, screens) is not")
+	_ok(not PathTracedDecals.is_decal(plain), "decal/a depth pre-pass with no texture is not")
+
+	var mesh := BoxMesh.new()
+	var shell := MeshInstance3D.new()
+	shell.mesh = mesh
+	shell.material_override = decal
+	var other := MeshInstance3D.new()
+	other.mesh = mesh
+	other.material_override = tinted
+	add_child(shell)
+	add_child(other)
+	var pt := PathTracedDecals.new()
+	add_child(pt)
+	pt.set_active(true)
+	_eq(decal.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR, "decal/switched on, a decal already in the tree is scissor")
+	_eq(decal.alpha_scissor_threshold, PathTracedDecals.THRESHOLD, "decal/at the half-way threshold")
+	_eq(tinted.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS, "decal/a tint is left blending")
+	var late_mat: StandardMaterial3D = make.call(BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS, true, 1.0)
+	var late := MeshInstance3D.new()
+	late.mesh = mesh
+	add_child(late)
+	late.set_surface_override_material(0, late_mat)
+	await get_tree().process_frame
+	_eq(late_mat.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR, "decal/one spawned while on is caught, with a material set after it entered")
+	pt.set_active(false)
+	_eq(decal.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS, "decal/switched off, blending again")
+	_ok(is_equal_approx(decal.alpha_scissor_threshold, 0.3), "decal/with its own threshold back")
+	_eq(late_mat.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS, "decal/the late one too")
+	var after: StandardMaterial3D = make.call(BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS, true, 1.0)
+	var off_mesh := MeshInstance3D.new()
+	off_mesh.mesh = mesh
+	off_mesh.material_override = after
+	add_child(off_mesh)
+	await get_tree().process_frame
+	_eq(after.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS, "decal/off, a new one is left alone")
+	for n: Node in [shell, other, late, off_mesh, pt]:
+		n.queue_free()

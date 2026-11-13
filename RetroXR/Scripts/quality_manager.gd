@@ -374,6 +374,7 @@ func _ready() -> void:
 	adjust_lights()
 	apply_render_scale()
 	RenderingServer.global_shader_parameter_set(&"path_traced", effective_path_tracing())
+	_sync_pt_decals()
 	apply_msaa()
 	apply_post_aa()
 	apply_forced_quality()
@@ -1268,8 +1269,22 @@ func apply_path_tracing() -> void:
 	RenderingServer.global_shader_parameter_set(&"path_traced", effective_path_tracing())
 	for node in get_tree().root.find_children("*", "WorldEnvironment", true, false):
 		configure_environment(node as WorldEnvironment)
+	_sync_pt_decals()
 	apply_render_scale()
 	apply_msaa()
+
+
+## Printed decals drawn as alpha scissor while the tracer runs, or RR smears their text (PathTracedDecals).
+var _pt_decals: PathTracedDecals = null
+
+func _sync_pt_decals() -> void:
+	if _pt_decals == null:
+		if not effective_path_tracing():
+			return
+		_pt_decals = PathTracedDecals.new()
+		_pt_decals.name = "PathTracedDecals"
+		add_child(_pt_decals)
+	_pt_decals.set_active(effective_path_tracing())
 
 
 func _configure_path_tracing(env: Environment) -> void:
