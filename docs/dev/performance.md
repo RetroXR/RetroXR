@@ -641,13 +641,14 @@ Measured by VrApi FPS/App on the headset, the Starlight Arcade save, the headset
 
 - **CPU and GPU were SERIAL** on Android: one thread ran the scripts, recorded the frame, then waited in
   `swap_buffers` for the GPU, so a frame cost CPU + GPU. The separate render thread overlaps them. Two engine fixes
-  were needed for it and for cold shader caches (both in `~/godot`, uncommitted):
+  were needed for it and for cold shader caches (both committed on `retroxr-4.7.2` in `~/godot`; engine-patches.md):
   - `shader_rd.cpp`: a POOL thread compiles a shader group inline instead of queueing a group task and blocking on
     it (`wait_for_group_task_completion` does not run queued work): mesh loads held all four Quest workers in
     `mesh_generate_pipelines` and the restore hung for good on any cold cache (first boot after a shader change).
-  - `pipeline_hash_map_rd.h`: the render thread (a pool thread in separate mode) waits for a pipeline compile WITHOUT
-    collaborating. It picked up a resource load whose `texture_set_path()` flushed the render queue on the same
-    thread, re-entering `_draw` while the main thread held the loader's locks: 1 boot in ~11 hung.
+  - `worker_thread_pool.cpp`: the render thread (the pool thread holding the pump task in separate mode) never
+    collaborates on queued work while it waits. It picked up a resource load whose `texture_set_path()` flushed the
+    render queue on the same thread, re-entering `_draw` while the main thread held the loader's locks: 1 boot in ~11
+    hung. A first fix in `pipeline_hash_map_rd.h` (only the pipeline-compile wait) was not enough; this one held 10/10.
   Stacks were taken with lldb-server via run-as (quest-device.md) and symbolised by relinking `bin/obj` without `-s`.
 - **The rope went NaN under the render thread** (5 M `must be normalized` lines, 6 fps). Guarded in the extension
   (StepBegin re-lays a non-finite cord, CouplePlug never applies a non-finite force) and in `PlugTether.reel_in`.
