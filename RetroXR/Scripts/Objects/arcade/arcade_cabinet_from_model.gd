@@ -553,10 +553,8 @@ func _build_panel(n: int) -> void:
 	for k in range(1, buttons + 1):
 		var cap := _part("P%dButton%dPivot" % [n, k])
 		if cap != null:
-			cap.set_meta(&"press_offset", Vector3(0.0, -ArcadeControlModule.CAP_PRESS * 0.5, 0.0))
 			parts.append(_move(cap, m, "Btn%d" % k))
 	if start != null:
-		start.set_meta(&"press_offset", Vector3(0.0, -ArcadeControlModule.CAP_PRESS * 0.5, 0.0))
 		parts.append(_move(start, m, "Start"))
 	# The whole panel is one thing to take hold of: a box round its controls.
 	var box := AABB()
@@ -567,8 +565,14 @@ func _build_panel(n: int) -> void:
 			b = AABB(p.position, Vector3.ZERO)
 		box = b if first else box.merge(b)
 		first = false
-	# The deck: straight down from above the panel's middle onto the cabinet's own surfaces (the caps' bottoms are under it).
-	var deck_y := _deck_height(m, box)
+	# The deck: its plane under the controls, from rays straight down onto the cabinet's own surfaces (the caps' bottoms
+	# are under it). A panel can slope (the NAOMI Universal's does, in its meshes, not in its nodes).
+	var deck := _deck_frame(m, box)
+	# A cap sinks into the deck, along the deck's own up.
+	var press := deck.basis.z * -ArcadeControlModule.CAP_PRESS * 0.5
+	for p: Node3D in parts:
+		if p.name != &"StickPivot":
+			p.set_meta(&"press_offset", press)
 	# The panel's colour, for its glow and its "1P": the first cap's.
 	var tint: Variant = _part_color(parts[1] if parts.size() > 1 else parts[0])
 	if tint != null:
@@ -592,28 +596,59 @@ func _build_panel(n: int) -> void:
 	grip.collision_mask = 0
 	grip.set("panel_size", Vector2(box.size.x, box.size.z))
 	if not lit_first:
-		# In the grip's XY: x across, y toward the back (-Z in the panel's frame).
-		var c := box.get_center()
-		grip.set_meta(&"glow_rect", Rect2(lit.position.x - c.x, -(lit.end.z - c.z), lit.size.x, lit.size.z).grow(GLOW_CLEAR))
-	# The grip's plane (its XY, facing +Z) lies on the deck: +Z is the panel's up, +Y toward its back. Its glow lies
+		# The stick and the buttons laid onto the deck, in the grip's XY.
+		var inv := deck.affine_inverse()
+		var r := Rect2()
+		for i in 8:
+			var q := inv * lit.get_endpoint(i)
+			r = Rect2(Vector2(q.x, q.y), Vector2.ZERO) if i == 0 else r.expand(Vector2(q.x, q.y))
+		grip.set_meta(&"glow_rect", r.grow(GLOW_CLEAR))
+	# The grip's plane (its XY, facing +Z) lies on the deck: +Z is the deck's up, +Y toward its back. Its glow lies
 	# on the deck under the caps; its box stands round the controls as before.
-	grip.transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5), Vector3(box.get_center().x, deck_y, box.get_center().z))
+	grip.transform = deck
 	m.add_child(grip)
 	var col := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
 	shape.size = Vector3(box.size.x, box.size.z, maxf(box.size.y, 0.06))
 	col.shape = shape
-	col.position = Vector3(0.0, 0.0, box.get_center().y - deck_y)
+	col.position = deck.affine_inverse() * box.get_center()
 	grip.add_child(col)
 
 
-## Where the deck under a panel's controls is, in `m`'s frame (y): the highest of the model's own surfaces (not the
-## panel's controls) straight down from above the middle of `box`; the bottom of `box` when nothing is hit.
-func _deck_height(m: Node3D, box: AABB) -> float:
+## The deck under a panel's controls, in `m`'s frame: its origin on the deck under the middle of `box`, +Z the deck's up,
+## +X across (as `m`'s +X), +Y toward the back. Four rays down round the middle (a quarter of the box each way) give its
+## slope; a panel where fewer than three land is level, at the bottom of `box` when none does.
+func _deck_frame(m: Node3D, box: AABB) -> Transform3D:
 	var c := box.get_center()
-	var from := m.global_transform * Vector3(c.x, box.end.y + 0.05, c.z)
-	var to := m.global_transform * Vector3(c.x, box.position.y - 0.10, c.z)
-	var best := -INF
+	var dx := box.size.x * 0.25
+	var dz := box.size.z * 0.25
+	var mid: Variant = _deck_point(m, box, c.x, c.z)
+	var l: Variant = _deck_point(m, box, c.x - dx, c.z)
+	var r: Variant = _deck_point(m, box, c.x + dx, c.z)
+	var f: Variant = _deck_point(m, box, c.x, c.z + dz)
+	var k: Variant = _deck_point(m, box, c.x, c.z - dz)
+	var up := Vector3.UP
+	if l != null and r != null and f != null and k != null:
+		up = ((r as Vector3) - (l as Vector3)).cross((k as Vector3) - (f as Vector3)).normalized()
+	if up.y < 0.0:
+		up = -up
+	if up.y < 0.5:
+		up = Vector3.UP
+	var origin := Vector3(c.x, box.position.y, c.z)
+	if mid != null:
+		origin = mid as Vector3
+	elif l != null and r != null:
+		origin = ((l as Vector3) + (r as Vector3)) * 0.5
+	var x := (Vector3.RIGHT - up * up.x).normalized()
+	return Transform3D(Basis(x, up.cross(x), up), origin)
+
+
+## Where the model's own surfaces (not the panel's controls) are highest straight down at (x, z) of `m`'s frame, from
+## above `box` to below it; null where nothing is hit.
+func _deck_point(m: Node3D, box: AABB, x: float, z: float) -> Variant:
+	var from := m.global_transform * Vector3(x, box.end.y + 0.05, z)
+	var to := m.global_transform * Vector3(x, box.position.y - 0.10, z)
+	var best: Variant = null
 	for n in _model.find_children("*", "MeshInstance3D", true, false):
 		var mi := n as MeshInstance3D
 		if mi.mesh == null or m.is_ancestor_of(mi) or not mi.is_visible_in_tree():
@@ -629,9 +664,10 @@ func _deck_height(m: Node3D, box: AABB) -> float:
 		var hit := tri.intersect_segment(a, b)
 		if hit.is_empty():
 			continue
-		var y := (m.global_transform.affine_inverse() * (mi.global_transform * (hit["position"] as Vector3))).y
-		best = maxf(best, y)
-	return best if best > -INF else box.position.y
+		var at := m.global_transform.affine_inverse() * (mi.global_transform * (hit["position"] as Vector3))
+		if best == null or at.y > (best as Vector3).y:
+			best = at
+	return best
 
 
 ## A part's colour: its first mesh's first surface's albedo, or null.
