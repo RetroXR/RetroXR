@@ -104,6 +104,8 @@ const CARRY_SETTLE := 30
 const GLOW_CLEAR := 0.012
 ## How far past its marker a cabinet's own cord looks for the surface its grommet is in, metres.
 const CAPTIVE_REACH := 0.15
+## The game's own female phono jack (RcaJack), for a cabinet's amplifier inputs.
+const RCA_JACK_SCENE := "res://Scenes/Objects/cables/rca_jack.tscn"
 ## Less than this from one physics frame to the next is standing still (meters, radians).
 const CARRY_MOVE := 0.0005
 
@@ -356,7 +358,15 @@ func _build_leads() -> void:
 			at = _io_board(at)
 		var port := NaomiHookup.make_port(str(r[1]), str(r[2]), str(r[3]), int(r[4]), int(r[5]))
 		if port is RcaPort:
-			port.set("show_jack", false)
+			# The amplifier's phono inputs are the game's own jack (RcaJack, white or red by channel), in place of the
+			# model's stand-in blocks; the VGA and JAMMA sockets stay the model's.
+			var phono := str(r[3]) == Connectors.PHONO
+			if phono:
+				# As rca_port.tscn has it: the jack's face 10 mm behind the port, its socket out along +Z.
+				var jack := (load(RCA_JACK_SCENE) as PackedScene).instantiate() as Node3D
+				jack.position = Vector3(0.0, 0.0, -0.01002)
+				port.add_child(jack)
+			port.set("show_jack", phono)
 		if captive:
 			port.set_meta(NaomiHookup.CAPTIVE_META, true)
 			port.has_picked_up.connect(_captive_seated.bind(port))
