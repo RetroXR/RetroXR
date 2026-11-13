@@ -598,7 +598,7 @@ same pose within each run):
 
 Roughly 30-50 us of GPU a DRAW on a Quest 3 here, lights included, and pipeline compiles were flat across every
 step (not the ubershader fallback). The memory counters (~138 MB written a frame, the size of the whole 4x
-eye buffer) say the driver renders this pass to system memory rather than in tiles, which is why MSAA costs
+eye buffer) say the driver renders this pass to system memory rather than in tiles (WRONG, see "MSAA and the draw count" below), which is why MSAA costs
 14 ms; that it does so for a 1,200-draw pass is the driver's heuristic, not something Vulkan exposes.
 
 - **Shipped: size-scaled detail culling** (`QualityManager.detail_cull_k`, 150 on a Quest, desktop untouched): a
@@ -697,3 +697,29 @@ in TICKS (a rope's forced sleep after 720, a grab driver resting after 30) now t
 |---|---:|---:|
 | physics 90 Hz (control) | 71.1 | 11 |
 | **physics 72 Hz** | **72.1** | **1** |
+
+### MSAA and the draw count, read from the GPU's own counters (2026-11-13, night)
+
+The earlier line that the eye pass renders "to system memory rather than in tiles" was WRONG. Perfetto's
+`gpu.renderstages.oculus` shows one slice per eye pass (`1344x1408 | 24 bit depth | 8 bit stencil | MSAA = 2`) and
+no bin/sysmem label, but `gpu.counters.oculus` averaged over each pass settles it. Release build, governor off,
+eye buffer 0.8, the same pose; `Tools/perf/quest_eye_pass.py <trace>...` prints this table from a
+`quest_perfetto.py capture`:
+
+| per eye pass | fps | pass ms | vertices shaded | primitives | writes | reads |
+|---|---:|---:|---:|---:|---:|---:|
+| MSAA 2x, detail cull k 150 (1,222 draws) | 42 | 22.7 | 2.09 M | 2.31 M | 33.9 MB | 102 MB |
+| MSAA 2x, k 40 (~340 draws) | 60 | 15.3 | 1.53 M | 1.68 M | 26.8 MB | 81 MB |
+| MSAA off, k 40 | 72 | 11.3 | 1.07 M | 1.34 M | 23.9 MB | 61 MB |
+
+- **The pass IS tiled and MSAA resolves on chip**: MSAA adds 3 MB of writes (sysmem 2x would write 30+ MB more
+  samples); ~24-34 MB is the resolved eyes plus depth. Bandwidth is not what MSAA costs.
+- **MSAA costs GEOMETRY**: 2x samples double a pixel's tile memory, so the frame splits into about twice the bins,
+  and a tiler re-runs each draw's vertices for every bin it lands in: +43% vertices shaded, +4 ms. The pass is
+  vertex-heavy for a VR scene (31-39% of GPU time shading vertices, 176 ALU instructions a vertex), so the bins hurt.
+- **"The draw count cost" is mostly vertices times bins**, the draw count being its proxy: culling 1,222 -> ~340
+  draws saved 7.4 ms (~8 us a draw, its vertices included, not the 30-50 us measured in debug with lit props).
+- Fragments shaded are ~14-20 M a pass for 3.8 M eye pixels: ~4x overdraw, the next thing to look at.
+- So the levers, in order: fewer VERTICES (LODs that actually drop on the dense console models; the props' vertex
+  shader, 176 ALU, is worth reading), then fewer bins (MSAA, eye buffer), then draws. MSAA comes back for free
+  only once the geometry it multiplies is small.
