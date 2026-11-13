@@ -552,7 +552,14 @@ func _build_bay() -> void:
 		var axis := Node3D.new()
 		axis.name = "DoorAxis"
 		m.add_child(axis)
-		axis.global_transform = Transform3D(Basis(Vector3(0, -1, 0), Vector3(1, 0, 0), Vector3(0, 0, 1)), door.global_position)
+		# Opening carries the door away from the cabinet's middle: toward the player for a door on the front, backward for
+		# one on the back (a New Net City's rear hatch swung into the cabinet).
+		var dmid := _mesh_bounds_in(door, self).get_center()
+		var dpv := to_local(door.global_position)
+		var hx := Vector3(0, -1, 0)
+		if hx.cross(dmid - dpv).z * signf(dmid.z) < 0.0:
+			hx = -hx
+		axis.global_transform = Transform3D(global_basis * Basis(hx, Vector3(-hx.y, 0, 0), Vector3(0, 0, 1)), door.global_position)
 		var pivot := Node3D.new()
 		pivot.name = "DoorPivot"
 		axis.add_child(pivot)

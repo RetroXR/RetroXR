@@ -1008,10 +1008,9 @@ func _update_ghost(body: RigidBody3D, delta: float) -> void:
 
 
 func _set_transparency(amount: float) -> void:
-	if _per_instance_fade():
-		for n in find_children("*", "GeometryInstance3D", true, false):
-			(n as GeometryInstance3D).transparency = amount
-		return
+	# The dither on every renderer: the per-instance fade blends dozens of overlapping parts (the shell, the bay's insides,
+	# the board, the cords), sorted per object, and they flickered in front of and behind each other as the cabinet moved
+	# (the owner, 2026-11-13: "it looks rather glitchy"). A dither discards a fixed pattern of pixels: nothing to sort.
 	_set_ghost_materials(amount)
 
 
