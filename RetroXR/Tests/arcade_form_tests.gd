@@ -5144,15 +5144,12 @@ func _group_footprint() -> void:
 	var size := model.ground_footprint()
 	var center := model.ground_footprint_center()
 	_ok(size.y > 2.3 and center.y > 0.7, "footprint: the cockpit's base reaches 2 m forward (%s about %s)" % [str(size), str(center)])
-	var placer := sys.get_node_or_null("GroundPlacement") as GroundPlacement
-	_ok(placer != null and placer.footprint.is_equal_approx(size) and placer.footprint_center.is_equal_approx(center),
-		"footprint: and the rectangle on the floor follows it")
 	model.morph_to(_spec("ddrusa"))
 	await _wait(2)
 	_ok(model.ground_footprint().x > 1.8, "footprint: two dancers' squares are wider than the cabinet (%s)" % str(model.ground_footprint()))
 	model.morph_to(model._base_spec)
 	await _wait(2)
-	_ok(model.ground_footprint().is_equal_approx(Vector2(0.66, 0.80)) and placer.footprint_center.is_zero_approx(),
+	_ok(model.ground_footprint().is_equal_approx(Vector2(0.66, 0.80)) and model.ground_footprint_center().is_zero_approx(),
 		"footprint: back to the cabinet's own")
 
 

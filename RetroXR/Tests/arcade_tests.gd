@@ -134,8 +134,6 @@ func _run() -> void:
 		await _group_attach()
 	if _want("hold"):
 		await _group_hold()
-	if _want("ground"):
-		await _group_ground()
 	if _want("panel"):
 		await _group_panel()
 	if _want("art"):
@@ -839,106 +837,6 @@ func _group_attach() -> void:
 
 # --- hold ----------------------------------------------------------------------
 
-## Setting a cabinet down by aiming at the floor (GroundPlacement): what the rectangle says, and what a
-## release does with it.
-func _group_ground() -> void:
-	var eye := Vector3(0, 1.6, 0)
-	# Aimed down and forward: the spot is where the ray meets the floor, and the front turns to the player.
-	var p := GroundPlacement.placement_for(Vector3(0, 1.2, 0), Vector3(0, -1, -1), 0.0, eye)
-	_ok(not p.is_empty(), "ground: aimed at the floor it gives a spot")
-	var at: Vector3 = p.get("position", Vector3.ONE * 99.0)
-	_ok(_near(at.x, 0.0) and _near(at.y, 0.0) and _near(at.z, -1.2),
-		"ground: where the ray meets the floor (%s)" % at)
-	var front := GroundPlacement.pose_of(p).basis.z
-	_ok(front.dot(Vector3(0, 0, 1)) > 0.99, "ground: its front (+Z) faces the player who aimed from -Z of it")
-	var to_side := GroundPlacement.placement_for(Vector3(0, 1.2, 0), Vector3(1, -1, 0), 0.0, eye)
-	_ok(GroundPlacement.pose_of(to_side).basis.z.dot(Vector3(-1, 0, 0)) > 0.95,
-		"ground: and it turns to wherever the player is, not a fixed way")
-	# The aims that are NOT at the floor drop it as ever.
-	_ok(GroundPlacement.placement_for(Vector3(0, 1.2, 0), Vector3(0, 0, -1), 0.0, eye).is_empty(),
-		"ground: held level it is just in hand")
-	_ok(GroundPlacement.placement_for(Vector3(0, 1.2, 0), Vector3(0, 1, -1), 0.0, eye).is_empty(),
-		"ground: held up, nothing")
-	_ok(GroundPlacement.placement_for(Vector3(0, 0.5, 0), Vector3(0, -0.2, -1), 0.0, eye).is_empty(),
-		"ground: a shallow dip is not pointing at the ground")
-	_ok(GroundPlacement.placement_for(Vector3(0, 1.2, 0), Vector3(0, -0.4, -1), 0.0, eye).is_empty() == false,
-		"ground: but a steeper one is")
-	_ok(GroundPlacement.placement_for(Vector3(0, 2.0, 0), Vector3(0, -0.4, -1), 0.0, eye).is_empty(),
-		"ground: and a spot beyond reach is refused (5 m off, the limit is %.0f)" % GroundPlacement.MAX_REACH)
-	_ok(GroundPlacement.placement_for(Vector3(0, 1.2, 0), Vector3.ZERO, 0.0, eye).is_empty(), "ground: no aim, no spot")
-	# A floor that is not at zero (a raised room, the XR origin's height).
-	var raised := GroundPlacement.placement_for(Vector3(0, 1.7, 0), Vector3(0, -1, -1), 0.5, eye)
-	_ok(_near((raised["position"] as Vector3).y, 0.5), "ground: it stands at the floor's own height")
-
-	# On the cabinet: it carries the component, sized to its base, and a release stands it at the spot.
-	var sys := await _cabinet("arcade")
-	await _wait(3)
-	var placer := sys.get_node_or_null("GroundPlacement") as GroundPlacement
-	_ok(placer != null and placer.host == sys, "ground: the cabinet has its placer")
-	if placer == null:
-		return
-	var cab := sys.get_model() as RetroSystemModelArcadeCabinet
-	_ok(placer.footprint == cab.ground_footprint() and _near(placer.footprint.x, cab.cabinet_width),
-		"ground: sized to the cabinet's base")
-	sys.global_position = Vector3(3, 1.0, 3)
-	sys.rotate_x(0.7)
-	placer.apply(p)
-	await _wait(2)
-	_ok(sys.global_position.distance_to(at) < 0.01, "ground: set down at the spot, with no fall (%s)" % sys.global_position)
-	_ok(sys.global_basis.y.dot(Vector3.UP) > 0.999, "ground: upright, whatever it was held at")
-	_ok(sys.linear_velocity.length() < 0.01, "ground: at rest")
-	# A release with nothing showing leaves it where the hand put it.
-	sys.global_position = Vector3(5, 1.0, 5)
-	placer._on_dropped(sys)
-	await _wait(2)
-	_ok(sys.global_position.distance_to(Vector3(5, 1.0, 5)) < 0.5, "ground: let go with no spot, it is not moved")
-	# Held on the LASER: no GrabDriver and no `dropped`, which is how a headset's laser holds anything. The rectangle shows
-	# while the laser points at the floor, and the frame the laser lets go with it showing stands the cabinet there.
-	var cam := Camera3D.new()
-	add_child(cam)
-	cam.global_position = Vector3(0, 1.6, 0)
-	cam.current = true
-	var origin := XROrigin3D.new()
-	add_child(origin)
-	var hand := XRController3D.new()
-	hand.tracker = &"right_hand"
-	origin.add_child(hand)
-	var pickup := preload("res://addons/godot-xr-tools/functions/function_pickup.tscn").instantiate() as XRToolsFunctionPickup
-	hand.add_child(pickup)
-	await _wait(2)
-	sys.global_position = Vector3(5, 1.0, 5)
-	sys.global_basis = Basis.IDENTITY
-	_ok(placer._ray_holder() == null, "ground: (nothing is held on a laser yet)")
-	pickup._ray_grab_object = sys
-	_ok(placer._ray_holder() == pickup, "ground: a cabinet on a laser is found, though is_picked_up() is %s" % str(sys.is_picked_up()))
-	origin.global_transform = Transform3D(Basis.looking_at(Vector3(0, -1, -1), Vector3.UP), Vector3(0, 1.2, 0))
-	placer._physics_process(0.016)
-	var shown := placer.current_placement()
-	_ok(not shown.is_empty() and _near((shown["position"] as Vector3).z, -1.2),
-		"ground: the laser held down at the floor shows the rectangle where it points (%s)" % str(shown.get("position")))
-	origin.global_transform = Transform3D(Basis.IDENTITY, Vector3(0, 1.2, 0))
-	placer._physics_process(0.016)
-	_ok(placer.current_placement().is_empty(), "ground: the laser held level shows nothing")
-	origin.global_transform = Transform3D(Basis.looking_at(Vector3(0, -1, -1), Vector3.UP), Vector3(0, 1.2, 0))
-	placer._physics_process(0.016)
-	pickup._ray_grab_object = null
-	placer._physics_process(0.016)
-	_ok(sys.global_position.distance_to(at) < 0.01 and sys.global_basis.y.dot(Vector3.UP) > 0.999,
-		"ground: the laser let go of it with the rectangle showing, it stands there upright (%s)" % str(sys.global_position))
-	_ok(placer.current_placement().is_empty(), "ground: and the rectangle is gone")
-	# The control leg: let go with the laser level, it is left where the laser had it.
-	sys.global_position = Vector3(5, 1.0, 5)
-	pickup._ray_grab_object = sys
-	origin.global_transform = Transform3D(Basis.IDENTITY, Vector3(0, 1.2, 0))
-	placer._physics_process(0.016)
-	pickup._ray_grab_object = null
-	placer._physics_process(0.016)
-	_ok(sys.global_position.distance_to(Vector3(5, 1.0, 5)) < 0.5, "ground: (control) a laser let go level leaves it where it is")
-	origin.queue_free()
-	cam.queue_free()
-	placer.queue_free()
-
-
 func _group_hold() -> void:
 	var h := HoldToGrab.new()
 	var thing := Node3D.new()
@@ -968,71 +866,6 @@ func _group_hold() -> void:
 	var sys := await _cabinet("arcade")
 	_ok(_near(HoldToGrab.seconds_for(sys), 1.0) and _near(sys.grab_hold_seconds(), 1.0),
 		"hold: the cabinet asks for one second")
-	# In a hand the cabinet turns see-through (dithered per-instance transparency).
-	var cab := sys.get_model() as RetroSystemModelArcadeCabinet
-	_ok(cab.held_transparency() == 0.0, "hold: a cabinet on the floor is solid")
-	var hand := Node3D.new()
-	add_child(hand)
-	_spawned.append(hand)
-	sys.emit_signal("grabbed", sys, hand)
-	_ok(_near(cab.held_transparency(), RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY),
-		"hold: in a hand it is see-through, so the room behind a 1.8 m box can be seen")
-	sys.emit_signal("dropped", sys)
-	await get_tree().create_timer(1.0).timeout
-	_ok(cab.held_transparency() == 0.0, "hold: and solid again once put down and still")
-	# However it is moved: no signal, just a body that is going somewhere.
-	sys.freeze = false
-	sys.linear_velocity = Vector3(1.0, 0.0, 0.0)
-	cab._update_ghost(sys, 0.016)
-	_ok(_near(cab.held_transparency(), RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY),
-		"hold: a cabinet that is MOVING is see-through too, with no grab at all")
-	sys.linear_velocity = Vector3.ZERO
-	sys.freeze = true
-	for i in 60:
-		cab._update_ghost(sys, 0.016)
-	_ok(cab.held_transparency() == 0.0, "hold: and solid again once it has been still")
-	# The VR ray grab never calls pick_up(): no signal, is_picked_up() false, the body frozen on its
-	# picked-up layer. That is a cabinet in the hand too (the Quest's "stays solid while I carry it").
-	sys.original_collision_layer = 1 << 3
-	sys.picked_up_layer = 1 << 16
-	sys.collision_layer = 1 << 16
-	sys.freeze = true
-	cab._update_ghost(sys, 0.016)
-	_ok(not sys.is_picked_up() and _near(cab.held_transparency(), RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY),
-		"hold: a cabinet carried on the laser (no pick_up, no signal) is see-through")
-	for i in 60:
-		cab._update_ghost(sys, 0.016)
-	_ok(_near(cab.held_transparency(), RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY),
-		"hold: and stays so for as long as it is carried, not just for a moment")
-	sys.collision_layer = sys.original_collision_layer
-	for i in 60:
-		cab._update_ghost(sys, 0.016)
-	_ok(cab.held_transparency() == 0.0, "hold: and solid again after the laser lets go")
-	# The Quest's mobile renderer ignored the per-instance fade, leaving a solid 1.8 m box in front of
-	# the face: there the body is swapped to dithered copies of its own materials while held.
-	var side := cab.find_child("SideL", true, false) as MeshInstance3D
-	var before := side.material_override
-	var shadow_before := side.cast_shadow
-	cab._set_ghost_materials(RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY)
-	_ok(side.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "hold: and casts no shadow while it is a ghost")
-	var ghost := side.material_override as ShaderMaterial
-	_ok(ghost != null and absf(float(ghost.get_shader_parameter("keep")) - (1.0 - RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY)) < 0.001,
-		"hold: without the per-instance fade the body wears dithered copies")
-	_ok(_near(cab.held_transparency(), RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY),
-		"hold: and says it is see-through")
-	var screen_mi := cab.get_builtin_screen()
-	# Dark, the glass is a plain material and is dithered like the rest; with a picture it is a shader
-	# that cannot be, and is out of sight while it is carried.
-	var glass := screen_mi.get_surface_override_material(0)
-	_ok(not screen_mi.visible or (glass is ShaderMaterial and (glass as ShaderMaterial).shader.code.contains("keep")),
-		"hold: the monitor is out of sight or dithered while it is carried")
-	cab._set_ghost_materials(0.0)
-	_ok(screen_mi.visible and not (screen_mi.get_surface_override_material(0) is ShaderMaterial
-		and (screen_mi.get_surface_override_material(0) as ShaderMaterial).shader.code.contains("keep")),
-		"hold: the monitor comes back")
-	_ok(side.cast_shadow == shadow_before, "hold: the shadow comes back with it")
-	_ok(side.material_override == before and cab.held_transparency() == 0.0,
-		"hold: and the copies go when it is put down")
 	var plain := SYSTEM_SCENE.instantiate() as Node3D
 	plain.model_id = "placeholder"
 	plain.systemid = "nes"

@@ -98,7 +98,7 @@ var _carried: Array[Node3D] = []
 ## lead's plug out of its socket; nothing is carried until it has once stood still.
 var _carry_from := Transform3D.IDENTITY
 var _still := 0
-## Physics frames standing still before the insides are let go (GroundPlacement stands a cabinet on the floor after a drop).
+## Physics frames standing still before the insides are let go.
 const CARRY_SETTLE := 30
 ## Less than this from one physics frame to the next is standing still (meters, radians).
 const CARRY_MOVE := 0.0005

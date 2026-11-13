@@ -154,8 +154,6 @@ func _run() -> void:
 	if _want("settle"):
 		await _group_settle()
 		await _clear()
-	if _want("ghost"):
-		await _group_ghost()
 	if _want("fire"):
 		await _group_fire()
 		await _clear()
@@ -407,83 +405,6 @@ func _group_settle() -> void:
 		_ok(pts[pts.size() - 1].distance_to(entry) < 0.05, "settle: and goes into the cabinet at its entry (%.3f m off)" % pts[pts.size() - 1].distance_to(entry))
 		_ok(rope.is_sleeping(), "settle: and it has come to rest")
 	await _clear()
-
-
-# --- ghost ---------------------------------------------------------------------
-
-## Everything that draws, under the machine and what is docked or hung on it.
-func _drawn_parts(sys: RetroSystem) -> Array[Node]:
-	var roots: Array[Node] = [sys]
-	var bay := sys.get_bay()
-	if bay != null:
-		roots.append(bay)
-	for gun in sys.captive_controllers():
-		roots.append(gun)
-	var out: Array[Node] = []
-	for r in roots:
-		for n in r.find_children("*", "GeometryInstance3D", true, false):
-			out.append(n)
-	return out
-
-
-func _is_ghosted(n: GeometryInstance3D) -> bool:
-	if n is Label3D:
-		return (n as Label3D).modulate.a < 0.5
-	var mi := n as MeshInstance3D
-	if mi == null or mi.mesh == null:
-		return false
-	var is_ghost := func(m: Material) -> bool:
-		return m is ShaderMaterial and (m as ShaderMaterial).shader != null \
-			and (m as ShaderMaterial).shader.code.contains("keep")
-	if is_ghost.call(mi.material_override):
-		return true
-	if mi.material_override != null:
-		return false
-	for i in mi.mesh.get_surface_count():
-		if not is_ghost.call(mi.get_surface_override_material(i)):
-			return false
-	return mi.mesh.get_surface_count() > 0
-
-
-## Every part of every cabinet goes see-through when it is carried: the model, the machine's own
-## button, the docked bay, the guns in their holsters. (A part that cannot be dithered is hidden,
-## which takes it out of what is counted here.) A Quest owner found parts left solid in 2026-10-21.
-func _group_ghost() -> void:
-	for id: String in VARIANTS:
-		var info: Array = VARIANTS[id]
-		var sys := await _machine(id, info[0], 30)
-		var model := sys.get_model() as RetroSystemModelArcadeCabinet
-		var before := _drawn_parts(sys).filter(func(n: Node) -> bool: return n.is_visible_in_tree()).size()
-		model._set_ghost_materials(RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY)
-		var solid: Array[String] = []
-		var shown := 0
-		for n in _drawn_parts(sys):
-			if not n.is_visible_in_tree():
-				continue
-			shown += 1
-			if not _is_ghosted(n as GeometryInstance3D):
-				solid.append("%s %s" % [n.get_class(), str(n.get_path())])
-		_ok(solid.is_empty(), "ghost: %s has no part left solid while carried (%d of %d shown, left: %s)"
-			% [id, shown, before, str(solid.slice(0, 6))])
-		_ok(sys.get_bay() == null or _all_ghost_bay(sys), "ghost: %s's docked bay is see-through with it" % id)
-		# A bay that arrives (or a board seated) while it is a ghost is dressed too: a fresh cabinet seeds its
-		# bay a moment after it spawns, which is when it is in the hand.
-		model._ghost_root_count = 0
-		model._relay_ghost()
-		_ok(model._ghost_root_count > 0 and _all_ghost_bay(sys),
-			"ghost: %s lays the ghost again when what moves with it changes" % id)
-		model._set_ghost_materials(0.0)
-		var restored := _drawn_parts(sys).filter(func(n: Node) -> bool: return n.is_visible_in_tree()).size()
-		_ok(restored == before, "ghost: %s shows everything again when put down (%d, was %d)" % [id, restored, before])
-		await _clear()
-
-
-func _all_ghost_bay(sys: RetroSystem) -> bool:
-	for n in sys.get_bay().find_children("*", "MeshInstance3D", true, false):
-		var mi := n as MeshInstance3D
-		if mi.is_visible_in_tree() and mi.mesh != null and not _is_ghosted(mi):
-			return false
-	return true
 
 
 # --- fire ----------------------------------------------------------------------
@@ -1242,12 +1163,6 @@ func _group_art() -> void:
 			"art: %s's marquee art lights with the machine" % id)
 		model.on_power_off()
 		_ok(not (mq.material_override as StandardMaterial3D).emission_enabled, "art: %s's marquee art goes dark with it" % id)
-
-		# Carried: the art is a BaseMaterial3D, so it dithers with the cabinet instead of hiding, and comes back.
-		model._set_ghost_materials(RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY)
-		_ok(mq.visible and sl.visible and _is_ghosted(mq) and _is_ghosted(sl), "art: %s's art is see-through while carried" % id)
-		model._set_ghost_materials(0.0)
-		_ok(_art_tex(mq) == wheel and _art_tex(sl) == cover, "art: %s's art is back when it is put down" % id)
 
 		# The fallbacks: no wheel -> the cover; no cover -> the wheel on the marquee alone; neither -> plain.
 		model.apply_art(null, cover)

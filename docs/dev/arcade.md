@@ -411,12 +411,6 @@ Five things found with the cabinets in a headset; what was done and what is stil
   arcade core it publishes files under `arcade` except `fbalpha` (the last full FB Alpha), which libretro's core-info set has no
   entry for; `libretro-core-info-retroxr/fbalpha_libretro.info` adds it. `mamemess` is `mess`, a softlist build, and was left out.
   `arcade_tests cores/` walks the list by its Android file names.
-- **Solid cabinets on the Quest.** `GeometryInstance3D.transparency` did nothing on the mobile renderer, so the held cabinet
-  stayed a solid 1.8 m box. Forward+ keeps the per-instance fade; mobile and Compatibility swap the body's `material_override`s
-  (the baked cabinet uses those, not mesh materials) for `ALPHA_HASH` copies while it is held and put them back after
-  (`_set_ghost_materials`). A part with an override of its own (the monitor) and parts with no material are left alone. The
-  first grab compiles the hashed shader variant on the device: a hitch, not measured. Test the headset path on a desktop with
-  `--rendering-method mobile`.
 - **No sound from the MAME cores on Quest: NOT FOUND.** The cabinet's routing (`SystemAudio`) was read end to end: it is not
   socketed, its speakers are `audio_speaker_positions()`, and the Meta XR voices take a pose and a distance gain like any
   machine's. Nothing arcade-specific explains silence there, and desktop plays (FBNeo `--audio` measured). Open leads: a core
@@ -520,8 +514,7 @@ sidecars, `ArcadeCabinetArt.romm_id`). **Nothing is fetched or scraped for this*
 - **Hook**: `RetroSystem._on_cartridge_inserted` / `_on_cartridge_removed` call the model's `on_media_inserted(cart)` / `on_media_cleared()`
   (behind `has_method`; every drop, saved-room restore and re-dock reaches them through `_swap_cartridge_slot`). `apply_art(wheel, cover)`
   is the part a suite drives with its own textures (`ArcadeCabinetArt.test_art` hangs art on a ROM path without touching the data root).
-- **Materials are StandardMaterial3D, never a ShaderMaterial**: a carried cabinet dithers BaseMaterial3Ds and HIDES everything else
-  (`_set_ghost_materials`). The marquee art takes `emission_texture` = its own picture, switched with `_light_marquee`, so it glows
+- **Materials are StandardMaterial3D.** The marquee art takes `emission_texture` = its own picture, switched with `_light_marquee`, so it glows
   with the machine like the marquee did; the sides do not.
 - **`MediaDimensions.load_media_image` searches every `RomLibrary.rom_dirs_for_system` folder**, not only the primary one: a game scraped
   from the `mame` tile has its art in `mame/media` while `arcade/` exists, is the primary, and is empty (the board's sticker could not find it either).
@@ -668,22 +661,13 @@ A button on the deck is the cap AND a flange of the same colour round it (`<name
 cap sinks into it when its bit is held (`CAP_PRESS` 6 mm, the flange 5 mm proud), as a moulded pushbutton does. The cap tapers a little
 toward its top. `gen_arcade_cabinet.gd _cap`; the control module still finds only `BtnN` and `Start`.
 
-## Setting a cabinet down by aiming at the floor (2026-10-24)
+## A cabinet is carried and dropped like everything else (2026-11-13)
 
-A cabinet is handed to the hand that spawned or took it (`spawns_on_floor` is false), and dropped from a hand it lands wherever
-it falls. **`GroundPlacement` (`Scripts/Interaction/ground_placement.gd`, added by the model's `configure_cartridge_slot`) lets the
-player aim it down instead**: while the cabinet is held and the aim points at the floor, a yellow rectangle the size of its base
-(`ground_footprint`, width x 0.80 m, a bar along the FRONT) shows where it will stand; letting go stands it there, upright, at rest,
-front toward the player, with no fall (`apply`, through `PhysicsServer3D` like `let_go`). Aim level, up or farther than 4 m and
-nothing shows: it is dropped as ever. The aim is the holding controller's -Z in a headset, the camera's on the desktop.
-`placement_for` is pure and is the whole decision (the rectangle shows what a release does because a release uses the last answer
-it gave); the floor is the XR origin's height. `arcade_tests ground/` (mutation-tested), `arcade_cabinet_probe --shots=ground`.
-**A cabinet held on the LASER is a ray grab (2026-10-27)**, which has no `GrabDriver`: `is_picked_up()` stays false, `get_picked_up_by_controller()` is null and `dropped` is never
-emitted, so in a headset the rectangle never showed and a release dropped the cabinet as ever. `GroundPlacement._ray_holder` asks the pickups (`is_ray_grabbing_target`), aims from
-the laser (`XRToolsFunctionPickup.ray_aim`, a local patch) and stands the cabinet at the last rectangle on the frame the hold ends (`_was_held`; a hand's release still arrives
-through `dropped`). `arcade_tests ground/` drives a real pickup's `_ray_grab_object`.
-OWED: a headset, a real hold with a laser and with the desktop hand, a cabinet carried in netplay (the pose is local), the Quest.
-The MIN_DOWN (17 degrees below level) and the 4 m reach are estimates; the marker does not know about walls or furniture.
+The floor rectangle (`GroundPlacement`, 2026-10-24: aim a held cabinet at the floor and a release stood it there, upright, facing
+the player) and the see-through ghost while held or moving (`_set_ghost_materials`, a screen-space dither) were removed at the
+owner's request: a cabinet now behaves like any other object in the hand and falls where it is let go. It keeps its low center of
+mass, its spin damping and the controller that turns it back upright while nobody holds it (`_physics_process`).
+`ground_footprint` / `FOOTPRINT_META` stay as the description of the form's base (the form tests read them).
 
 ## The cabinet follows the game in its bay (2026-10-22)
 
@@ -911,11 +895,10 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   old holsters are unplugged the way a hand would (`RetroSystem.before_cabinet_form`: the port is unbound, the core told) and freed, and after the
   build (`after_cabinet_form`) the port zones go on the new sockets, a pad in a socket the form does not have (or one a gun now takes) comes out,
   the guns of the new form are built and plugged in, the collision and pointer boxes are laid again (removed first: `configure_collision` and
-  `_build_pointer_shapes` run again on every morph), the art and the game's profile are hung again, the cabinet stays see-through if it is in a
-  hand, and the rectangle on the floor follows (`GroundPlacement.set_footprint(size, center)`: a cockpit's base reaches 2 m forward).
+  `_build_pointer_shapes` run again on every morph), and the art and the game's profile are hung again.
 - **No collision for what the form adds** (a cockpit, a stage): a player walks into a cockpit and sits on their own chair, steps onto
   a stage with their own feet. Those parts are POINTER boxes (`FORM_BOXES_META`, aimed at they are the cabinet, to hold and carry) and the footprint
-  (`FOOTPRINT_META`, a Rect2 in x/z).
+  (`FOOTPRINT_META`, a Rect2 in x/z: a cockpit's base reaches 2 m forward).
 - **Pulling the board gives the cabinet its own form back.** A clone takes its parent's form (the table gives it the same key).
 - **There is no shooting cabinet to spawn** (the `arcade_cabinet_lightgun` row, scene and variant were removed 2026-10-25): a gun game in the generic
   cabinet's bay makes it one. The laserdisc gun cabinet stays: Daphne is not MAME, so nothing tells the generic one what the game is.
