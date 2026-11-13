@@ -25,8 +25,9 @@ const SETTLED_SEC := 10.0
 ## Each verdict is the mean frame rate over this long, and a step waits this long to take effect before the next.
 const WINDOW_SEC := 4.0
 const AFTER_STEP_SEC := 3.0
-## Under this share of the display rate, a window counts against the room; two in a row take a step.
-const SLOW_SHARE := 0.94
+## Under this share of the display rate (70 of 72), a window counts against the room; two in a row take a step.
+## 0.94 stopped the Starlight Arcade at step 5, 69-70 fps, one step short of the 72 that step 6 holds.
+const SLOW_SHARE := 0.97
 
 static var enabled: bool = true
 
