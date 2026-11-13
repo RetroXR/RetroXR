@@ -422,6 +422,11 @@ func _build_rope() -> void:
 func _physics_process(_delta: float) -> void:
 	if not _rope_built or _rope == null or _plugs.is_empty():
 		return
+	# A sleeping cord has nothing to clamp: a plug knocked loose moves the rope's anchor, which wakes the rope (its
+	# own anchor check, every tick), and the clamp runs again from the next one. 46 leads walked their plugs every
+	# tick for nothing in the Starlight Arcade (0.61 ms a frame on a Quest 3, 2026-11-13).
+	if _rope.is_sleeping():
+		return
 	# A one-cord lead has no breakouts to measure against — the two plugs ARE the
 	# rope's ends. So each loose end is clamped to the whole rest length from the
 	# other one, which is the same rule every host applies between its attach point

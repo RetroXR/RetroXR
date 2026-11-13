@@ -57,6 +57,16 @@ constexpr double WAKE_ANCHOR_EPS_SQ = 0.0005 * 0.0005;
 // Quest 3's main thread; two polls have to agree before a wake, so the worst
 // case from a removed support to the cord falling is 60 ticks.
 constexpr int SLEEP_ENVIRONMENT_INTERVAL = 30;
+// A sleeping cord further than SLEEP_FOCUS_NEAR from the player polls this many times less often. Its support is
+// moved by a hand, and a hand is near; 110 cords polling at the near rate were 8% of a Quest 3's main thread in
+// the Starlight Arcade (2026-11-13), each poll ~120 queries that each return a Dictionary.
+constexpr int SLEEP_ENVIRONMENT_FAR = 4;
+// A cord whose ends have not moved for this many ticks is put to sleep whatever it is doing inside: one stretched
+// between ends too far apart, or held in a self-contact limit cycle, otherwise ran its whole step every tick for
+// as long as the room stood (seven such cords in the Starlight Arcade, ~3 ms of a Quest 3's main thread,
+// 2026-11-13). Ten seconds at 72 Hz: nothing a hand is doing is that still. An end that moves wakes it as ever.
+constexpr int FORCE_SLEEP_ENDS_STILL = 720;
+constexpr double SLEEP_FOCUS_NEAR_SQ = 3.0 * 3.0;
 // Further than an anchor can travel in one tick by being carried or thrown: 0.4 m
 // at 60 Hz is 24 m/s, where a hard throw is nearer 10. Every teleport a restore
 // performs is 0.7 m or more, so the gap is wide. See AnchorTeleported.
@@ -362,7 +372,7 @@ inline void VerletRope::SolveAngleBend(int a, int b, int c, double free_angle, d
     // At an exact hairpin the angle gradient is undefined. One deterministic
     // angular projection breaks the symmetry; subsequent iterations use the
     // regular three-particle gradient below.
-    if (sin_turn < 1e-5)
+    if (sin_turn < 1e-5 && axis.is_finite())
     {
         const Vector3 target = Basis(axis, target_turn).xform(u) * outgoing_len;
         const Vector3 correction = target - outgoing;
@@ -746,6 +756,11 @@ void VerletRope::CouplePlug(Node3D *node, int p_configured_role, const Vector3 &
         torque *= MAX_COUPLE_DW / dw;
 
     const Vector3 anchor = AnchorPoint(node, offset, Vector3());
+    // A cord whose particles went non-finite would hand its plug a NaN force here, and Jolt carries it from the
+    // plug to everything touching it: the cord's own guard in StepBegin then found its ANCHORS NaN and could not
+    // re-lay it (a Quest 3, 2026-11-13). The cord is re-laid next tick; the plug is left alone this one.
+    if (!force.is_finite() || !torque.is_finite() || !anchor.is_finite())
+        return;
     rb->apply_force(force, anchor - rb->get_global_position());
     rb->apply_torque(torque);
 }
@@ -1002,6 +1017,22 @@ void VerletRope::Step(double p_delta)
     StepEnd();
 }
 
+int VerletRope::s_sleep_poll_stride = 1;
+
+void VerletRope::SetSleepPollStride(int p_stride)
+{
+    s_sleep_poll_stride = CLAMP(p_stride, 1, 16);
+}
+
+godot::Vector3 VerletRope::s_focus;
+bool VerletRope::s_has_focus = false;
+
+void VerletRope::SetFocus(const godot::Vector3 &p_position)
+{
+    s_focus = p_position;
+    s_has_focus = p_position.is_finite();
+}
+
 bool VerletRope::StepBegin(double p_delta)
 {
     if (m_points.empty())
@@ -1011,6 +1042,33 @@ bool VerletRope::StepBegin(double p_delta)
     m_step_dt_sq = std::max(slice * slice, 1e-8);
 
     ReconcileAnchors();
+
+    // A non-finite particle (a NaN anchor, or one born in a constraint) spreads through every constraint and every
+    // normalize() after it: on a Quest 3 with the separate render thread, five million "Vector3 cannot be
+    // normalized" / "axis must be normalized" lines in a few minutes took the app to 6 fps (2026-11-13). Say which
+    // cord, once, and lay it afresh between its anchors.
+    {
+        bool finite = true;
+        for (size_t i = 0; i < m_points.size() && finite; ++i)
+            finite = m_points[i].is_finite() && (i >= m_prev_points.size() || m_prev_points[i].is_finite());
+        if (!finite)
+        {
+            if (!m_nonfinite_logged)
+            {
+                m_nonfinite_logged = true;
+                const Vector3 a = m_points.front();
+                const Vector3 b = m_points.back();
+                UtilityFunctions::push_warning(String("[Rope] ") + String(get_path()) +
+                                               ": a particle went non-finite; laid afresh (first " + String(a) +
+                                               ", last " + String(b) + ")");
+            }
+            InitPoints();
+            for (size_t i = 0; i < m_points.size(); ++i)
+                if (!m_points[i].is_finite())
+                    return false;  // the anchors themselves are not finite: nothing to solve until they are
+            return false;
+        }
+    }
 
     // A socket taking a plug, or a save putting a device back where it was left,
     // moves an anchor across the room between one tick and the next. Dragging the
@@ -1039,7 +1097,11 @@ bool VerletRope::StepBegin(double p_delta)
             Wake();
             m_diag_wake_call -= 1;
         }
-        else if (++m_sleep_environment_frame >= SLEEP_ENVIRONMENT_INTERVAL)
+        else if (++m_sleep_environment_frame >= SLEEP_ENVIRONMENT_INTERVAL *
+                 ((s_has_focus && !m_points.empty() && m_points.front().distance_squared_to(s_focus) > SLEEP_FOCUS_NEAR_SQ &&
+                   m_points.back().distance_squared_to(s_focus) > SLEEP_FOCUS_NEAR_SQ)
+                      ? SLEEP_ENVIRONMENT_FAR
+                      : 1))
         {
             m_sleep_environment_frame = 0;
             if (EnvironmentChangedWhileSleeping())
@@ -1763,10 +1825,24 @@ bool VerletRope::EnvironmentChangedWhileSleeping()
                std::abs((hp - cached_p).dot(cached_n)) <= m_collision_radius;
     };
 
+    // A poll may look at every particle and segment (stride 1, the default) or
+    // at one in `stride` of them, a different share each poll: a support taken
+    // away or a body put down on a cord spans many of them, and is found a few
+    // polls later for a fraction of the queries. A share that says "changed"
+    // is asked again as it is (the caller wants the same answer twice).
+    const int stride = std::max(1, s_sleep_poll_stride);
+    const int phase = stride > 1 ? m_sleep_poll_phase % stride : 0;
+    const auto changed = [this, stride](bool p_changed) {
+        if (!p_changed && stride > 1)
+            m_sleep_poll_phase = (m_sleep_poll_phase + 1) % stride;
+        return p_changed;
+    };
     const int count = static_cast<int>(m_points.size());
     for (int i = 0; i < count; ++i)
     {
         if (m_inv_mass[i] == 0.0f)
+            continue;
+        if (stride > 1 && i % stride != phase)
             continue;
         // Capsule contacts below are the authoritative support test. Particle
         // planes are only local solver manifold slots and can legitimately go
@@ -1779,7 +1855,7 @@ bool VerletRope::EnvironmentChangedWhileSleeping()
                 ((m_c_flags[i] & 1) && PlaneValid(i, m_c_p1[i], m_c_n1[i])) ||
                 ((m_c_flags[i] & 2) && PlaneValid(i, m_c_p2[i], m_c_n2[i]));
             if (!cached_valid)
-                return true;
+                return changed(true);
         }
     }
 
@@ -1789,6 +1865,8 @@ bool VerletRope::EnvironmentChangedWhileSleeping()
         const int a = m_seg_a[s];
         const int b = m_seg_b[s];
         if (m_inv_mass[a] + m_inv_mass[b] == 0.0f)
+            continue;
+        if (stride > 1 && s % stride != phase)
             continue;
         // A segment lying over an EDGE is asked the one thing that can be
         // asked of an edge: is its face still there. The questions below look
@@ -1801,7 +1879,7 @@ bool VerletRope::EnvironmentChangedWhileSleeping()
         {
             if (EdgeStillThere(space_state, s))
                 continue;
-            return true;
+            return changed(true);
         }
         // A capsule-only hit may lie anywhere along the segment. Poll that
         // cached coordinate, not always the midpoint: on a thin plate the
@@ -1811,13 +1889,20 @@ bool VerletRope::EnvironmentChangedWhileSleeping()
         const Vector3 sample = (m_mid_contact[s] & 1)
                                    ? m_points[a].lerp(m_points[b], m_mid_contact_t[s])
                                    : (m_points[a] + m_points[b]) * 0.5;
+        // One question a segment, not two: a segment with no contact is asked
+        // only whether something now covers it, one with a contact only
+        // whether it still touches. (Both were asked of every segment and one
+        // answer thrown away: a third of a sleeping room's queries.)
+        const bool had = m_mid_contact[s] != 0;
+        if (!had)
+        {
+            if (point_inside(sample))
+                return changed(true);
+            continue;
+        }
         m_shape_query->set_transform(Transform3D(Basis(), sample));
         const Dictionary rest = (g_profile_shapes += 1, space_state)->get_rest_info(m_shape_query);
         const bool has = !rest.is_empty() && rest["normal"].operator Vector3() != Vector3();
-        const bool had = m_mid_contact[s] != 0;
-        if (point_inside(sample) && !had)
-            return true;
-        if (had)
         {
             if (has)
                 continue;
@@ -1832,11 +1917,10 @@ bool VerletRope::EnvironmentChangedWhileSleeping()
             }
             if (surface_still_there)
                 continue;
-            return true;
+            return changed(true);
         }
-        (void)has;
     }
-    return false;
+    return changed(false);
 }
 
 // The surface particle i is resting on, if it is: a cached contact plane it is
@@ -3709,6 +3793,24 @@ void VerletRope::UpdateSleepState()
     }
     else
         m_still_frames = std::max(0, m_still_frames - 1);
+    if (anchors_still)
+        m_ends_still_frames += 1;
+    else
+        m_ends_still_frames = 0;
+    static const bool never_sleep_forced = RopeSwitch("XENU_ROPE_AWAKE", "debug.xenu.rope_awake") != nullptr;
+    if (!m_asleep && !never_sleep_forced && m_ends_still_frames >= FORCE_SLEEP_ENDS_STILL && m_holds.empty())
+    {
+        if (!m_forced_sleep_logged)
+        {
+            m_forced_sleep_logged = true;
+            UtilityFunctions::print("[Rope] ", get_path(), ": ends still for ", FORCE_SLEEP_ENDS_STILL,
+                                    " ticks but not settling (max ", m_debug_max_velocity * 1000.0, " mm/tick, stretch ",
+                                    worst_stretch_error, ", contact ", worst_contact_error, ", ", m_self_contacts.size(),
+                                    " self contacts); put to sleep");
+        }
+        m_ends_still_frames = 0;
+        SleepNow();
+    }
 }
 
 } // namespace Xenu

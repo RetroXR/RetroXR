@@ -1203,6 +1203,35 @@ func _group_sleep() -> void:
 	_ok(not rope.is_sleeping(), "sleep/nudging a point wakes it")
 	await _drop_case()
 
+	# What a cord lies on is taken away while it sleeps: it wakes and falls.
+	# Asked of the whole cord every poll (stride 1), and of a quarter of it a
+	# poll (set_sleep_poll_stride(4), what a headset may ask for): later, never
+	# not at all.
+	for stride: int in [1, 4]:
+		base = _new_case()
+		var top := _box(base + Vector3(0, 0.70, 0), Vector3(2.0, 0.10, 2.0))
+		rope = _rope_between(base + Vector3(-0.3, 0.95, 0), base + Vector3(0.3, 0.95, 0))
+		await _settle(900)
+		var lay_y: float = rope.point_position(12).y
+		var slept: bool = rope.is_sleeping()
+		VerletRope.set_sleep_poll_stride(stride)
+		top.free()
+		await get_tree().physics_frame
+		var woke_at := -1
+		var waited := 0
+		while waited < 600 and woke_at < 0:
+			await _settle(6)
+			waited += 6
+			if not rope.is_sleeping():
+				woke_at = waited
+		await _settle(200)
+		VerletRope.set_sleep_poll_stride(1)
+		var dropped: float = lay_y - rope.point_position(12).y
+		_ok(slept and woke_at >= 0 and dropped > 0.1,
+			"sleep/a cord whose table is taken away wakes and falls (poll stride %d)" % stride,
+			"woke after %d ticks, fell %.0f mm" % [woke_at, dropped * 1000.0])
+		await _drop_case()
+
 
 # ── loose ─────────────────────────────────────────────────────────────────────
 # Every case above pins both ends of the cord, because that is what the room

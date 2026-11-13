@@ -354,6 +354,28 @@ controllers, as each always did. A body that must be HAULED on its cord (a switc
 speaker cabinet) is `CableHaul`'s job, not this. A new owner of a lead calls
 `PlugTether`; it never writes its own clamp.
 
+## What a SLEEPING cord asks the engine (2026-11-13)
+
+A sleeping cord polls its surroundings every 30 ticks
+(`EnvironmentChangedWhileSleeping`), and on a Quest with a room of cords those
+polls were 8% of the main thread: every query is a Dictionary through godot-cpp.
+
+- A segment is asked ONE question, not two: with no contact, "does something
+  cover it now" (a point query); with one, "does it still touch" (a sphere).
+  Both were asked of every segment and one answer thrown away. Same answers,
+  a third fewer queries (3 a segment of a cord lying on a floor -> 2).
+- `VerletRope.set_sleep_poll_stride(n)` (static, default 1 = everything): a
+  poll looks at one particle and segment in n, a different share each poll, and
+  a share that says "changed" is asked again unchanged (the caller wants the
+  same answer twice). Desktop is left at 1, so its results do not move; a
+  headset may ask for 4. `rope_tests` `sleep/` takes a table from under a
+  sleeping cord at stride 1 and 4.
+
+The AWAKE cord's queries (a sphere a particle and a segment each rest pass, a
+ray a moving particle) are not reduced: none can be skipped without knowing
+the answer, and answering them in C++ from the shapes would not match Jolt's
+(it rounds boxes by their margin), so desktop and headset would part.
+
 ## A hand on the cord: taken anywhere along it (`CordGrab`, 2026-11-12)
 
 A cord has no body, so no pickup sphere and no pointer ray can find it. It is

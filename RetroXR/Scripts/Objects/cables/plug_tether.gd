@@ -36,6 +36,11 @@ const SLACK := 0.005
 static func reel_in(plug: RigidBody3D, point: Vector3, from: Vector3, reach: float) -> bool:
 	if not is_instance_valid(plug) or reach <= 0.0:
 		return false
+	# A cord whose particles went non-finite reports a NaN end: every test below is false for NaN, and the plug was
+	# moved by a NaN motion, taking Jolt and the cord's anchors with it (a Quest 3, 2026-11-13). The cord re-lays
+	# itself on its next tick.
+	if not from.is_finite() or not point.is_finite():
+		return false
 	var away := point - from
 	var d := away.length()
 	if d <= reach + SLACK or d < 0.0001:

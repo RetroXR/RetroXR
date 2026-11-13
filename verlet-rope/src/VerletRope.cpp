@@ -303,6 +303,11 @@ void VerletRope::_bind_methods()
     // all) because every caller in Scripts/ already spells it that way.
     ClassDB::bind_method(D_METHOD("_init_points"), &VerletRope::InitPoints);
     ClassDB::bind_method(D_METHOD("wake"), &VerletRope::Wake);
+    ClassDB::bind_static_method("VerletRope", D_METHOD("set_focus", "position"), &VerletRope::SetFocus);
+    ClassDB::bind_static_method("VerletRope", D_METHOD("set_sleep_poll_stride", "stride"),
+                                &VerletRope::SetSleepPollStride);
+    ClassDB::bind_static_method("VerletRope", D_METHOD("get_sleep_poll_stride"),
+                                &VerletRope::GetSleepPollStride);
     ClassDB::bind_method(D_METHOD("rest_length"), &VerletRope::RestLength);
     ClassDB::bind_method(D_METHOD("get_points"), &VerletRope::GetPoints);
     ClassDB::bind_method(D_METHOD("restore_points", "points"), &VerletRope::RestorePoints);

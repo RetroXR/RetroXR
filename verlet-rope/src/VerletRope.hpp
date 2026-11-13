@@ -118,6 +118,17 @@ public:
     // ── Public API used from GDScript ────────────────────────────────────────
     void InitPoints();
     void Wake();
+    // Where the player is (the camera), set once a frame from script: a sleeping cord far from it polls its
+    // supports less often (SLEEP_ENVIRONMENT_FAR). Never set, every cord polls at the near rate.
+    static void SetFocus(const godot::Vector3 &p_position);
+    // How much of a sleeping cord one environment poll looks at: 1 (the
+    // default) all of it, n one particle and segment in n, a different share
+    // each poll. For a device where the polls of a room of cords cost frames.
+    static void SetSleepPollStride(int p_stride);
+    static int GetSleepPollStride() { return s_sleep_poll_stride; }
+    static int s_sleep_poll_stride;
+    static godot::Vector3 s_focus;
+    static bool s_has_focus;
     double RestLength() const;
     godot::PackedVector3Array GetPoints() const;
     bool RestorePoints(const godot::PackedVector3Array &p_points);
@@ -597,10 +608,16 @@ private:
 
     int m_raycast_frame = 0;
     int m_sleep_environment_frame = 0;
+    int m_sleep_poll_phase = 0;
     int m_environment_change_polls = 0;
     // Set by InitPoints, consumed by the first Step after a lay: run
     // DepenetrateLay there, where space-state queries are legal.
     bool m_depen_pending = false;
+    // A particle went non-finite: logged once a cord, re-laid every time (StepBegin).
+    bool m_nonfinite_logged = false;
+    // Ticks both ends have been still, whatever the cord itself is doing (UpdateSleepState's forced sleep).
+    int m_ends_still_frames = 0;
+    bool m_forced_sleep_logged = false;
     bool m_settle_repair_attempted = false;
     // Not reset by InitPoints, on purpose: only an end moving allows another.
     int m_hopeless_frames = 0;
