@@ -387,6 +387,11 @@ func _ready() -> void:
 	# lights also with every spawned TV or handheld, so both are configured as
 	# they enter the tree rather than swept for.
 	get_tree().node_added.connect(_on_node_added)
+	if not _desktop and RenderingServer.get_current_rendering_method() == "mobile" and QUALITY_GOVERNOR.enabled:
+		_governor = QUALITY_GOVERNOR.new()
+		_governor.name = "QualityGovernor"
+		_governor.set("qm", self)
+		add_child(_governor)
 	if not _desktop:
 		# A sleeping cord's support check looks at a rotating quarter of the cord each poll on a headset (the rope's
 		# sleep/ cases: a table taken away still wakes it in 42 ticks); a desktop keeps every particle (stride 1).
@@ -415,6 +420,9 @@ func _read_vrs_overrides() -> void:
 		_vrs_mode_override = str(cfg["vrs_mode"])
 	if cfg.has("subsampled"):
 		_subsampled_override = bool(cfg["subsampled"])
+	if cfg.has("no_governor"):
+		QUALITY_GOVERNOR.enabled = not bool(cfg["no_governor"])
+		print("[VRSProbe] quality governor %s" % ("on" if QUALITY_GOVERNOR.enabled else "off"))
 	if cfg.has("no_runtime_volume"):
 		runtime_volume_enabled = not bool(cfg["no_runtime_volume"])
 		print("[VRSProbe] runtime prop volume %s" % ("on" if runtime_volume_enabled else "off"))
@@ -1989,6 +1997,8 @@ func _on_node_added(node: Node) -> void:
 		_keep_raster(node as SubViewport)
 	elif not _desktop and node is Node3D and "scene_id" in node:
 		_room_prop_volume.call_deferred(node)
+		if _governor != null:
+			_governor.call("room_entered", str(node.get("scene_id")))
 	elif node is GeometryInstance3D and detail_cull_active():
 		_geometry_queue.append(node)
 		if not _geometry_flush_queued:
@@ -2008,6 +2018,26 @@ func _process(_delta: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	if cam != null:
 		VerletRope.set_focus(cam.global_position)
+
+
+## The governor's levers (quality_governor.gd), never saved: a stronger cull for this room, or -1 for the default.
+func set_runtime_detail_cull(k: float) -> void:
+	detail_cull_k = DETAIL_CULL_DEFAULT if k < 0.0 else k
+	if not detail_cull_active():
+		return
+	for gi in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+		_detail_cull(gi as GeometryInstance3D, detail_cull_k)
+
+
+## A ceiling on the eye buffer for this room, below the player's own scale, or -1 to give theirs back.
+func set_runtime_eye_ceiling(ceiling: float) -> void:
+	if not supports_eye_buffer_scale():
+		return
+	var xr := XRServer.find_interface("OpenXR")
+	var scale := eye_buffer_scale if ceiling < 0.0 else minf(eye_buffer_scale, ceiling)
+	xr.set("render_target_size_multiplier", scale)
+	if foveation_live():
+		_schedule_vrs_refresh()
 
 
 func _room_prop_volume(room: Node3D) -> void:
@@ -2036,7 +2066,10 @@ var _geometry_flush_queued := false
 ## K 150 culls a part once it is ~8 px across (1260/K on a Quest 3's eye buffer): 11.5 ms of 53, measured.
 ## `vrsprobe.cfg` "detail_cull_k": 0 switches it off (the control arm), any other value sets the multiplier.
 const DETAIL_CULL_MIN := 1.5
-static var detail_cull_k: float = 150.0
+const DETAIL_CULL_DEFAULT := 150.0
+const QUALITY_GOVERNOR := preload("res://Scripts/quality_governor.gd")
+var _governor: Node
+static var detail_cull_k: float = DETAIL_CULL_DEFAULT
 var _detail_culled := 0
 
 
