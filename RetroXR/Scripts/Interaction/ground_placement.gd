@@ -26,6 +26,8 @@ const MAX_REACH := 4.0
 const YELLOW := Color(1.0, 0.85, 0.10)
 const EDGE := 0.025
 const HEIGHT := 0.012
+## What the floor is to _floor_y: the World layer.
+const FLOOR_MASK := 1
 
 ## The pickable this places (a RetroSystem).
 var host: Node3D = null
@@ -153,6 +155,8 @@ func apply(placement: Dictionary) -> void:
 		PhysicsServer3D.body_set_state(body.get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM, pose)
 		PhysicsServer3D.body_set_state(body.get_rid(), PhysicsServer3D.BODY_STATE_LINEAR_VELOCITY, Vector3.ZERO)
 		PhysicsServer3D.body_set_state(body.get_rid(), PhysicsServer3D.BODY_STATE_ANGULAR_VELOCITY, Vector3.ZERO)
+	# Stood there, not glided there from where it was carried (physics interpolation draws a jump as a slide).
+	host.reset_physics_interpolation()
 
 
 ## Let go while the rectangle was showing: stand it there, once the release has finished with it.
@@ -193,9 +197,18 @@ func _aim(ray_holder: XRToolsFunctionPickup = null) -> Dictionary:
 	return {"origin": cam.global_position, "dir": -cam.global_basis.z, "eye": cam.global_position}
 
 
-## The floor under the player: the XR origin's height, else the world's zero.
+## The floor under the player: what a ray straight down from the camera meets (World), else the XR origin's height, else the
+## world's zero. Not the origin first: crouched on the desktop the body shrinks and the origin sinks below the floor (the
+## camera stays its height above it), and a cabinet stood at the origin's height went into the floor.
 func _floor_y() -> float:
 	var cam := get_viewport().get_camera_3d()
+	if cam != null and is_inside_tree():
+		var q := PhysicsRayQueryParameters3D.create(cam.global_position, cam.global_position + Vector3.DOWN * 4.0, FLOOR_MASK)
+		if host is CollisionObject3D:
+			q.exclude = [(host as CollisionObject3D).get_rid()]
+		var hit: Dictionary = get_viewport().world_3d.direct_space_state.intersect_ray(q)
+		if not hit.is_empty():
+			return (hit["position"] as Vector3).y
 	var node: Node = cam.get_parent() if cam != null else null
 	while node != null:
 		if node is XROrigin3D:

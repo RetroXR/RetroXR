@@ -80,6 +80,10 @@ const SCRIPT_DRAWER := "res://Scripts/Objects/widgets/vr_drawer.gd"
 @export var variant: String = ""
 
 var _model: Node3D = null
+## The bodies riding the cabinet that are not it (its doors', its hatches', its tray's): the World layer while it stands, none
+## while it is held, so a carried cabinet passes through things as every held object does (HeldObjectPhysics clears the
+## cabinet's own body, not these).
+var _riding: Array[CollisionObject3D] = []
 
 
 func _ready() -> void:
@@ -133,6 +137,7 @@ func _ready() -> void:
 	_build_drive_mount()
 	_build_doors()
 	_build_lift_offs.call_deferred()
+	_watch_held.call_deferred()
 
 
 ## The model's lift-off panels (<Name>LiftOff meshes): each a cover slot round the panel, the panel hidden there and worn by the
@@ -173,6 +178,7 @@ const TRAY_LIP := 0.008
 func _tray_body(tray: Node3D) -> void:
 	var b := _mesh_bounds_in(tray, tray)
 	var body := AnimatableBody3D.new()
+	_riding.append(body)
 	body.name = "TrayBody"
 	body.collision_layer = 1
 	body.collision_mask = 0
@@ -190,11 +196,30 @@ func _tray_body(tray: Node3D) -> void:
 	tray.add_child(body)
 
 
+## The cabinet's machine (the pickable it is in): its riding bodies stop colliding while it is held.
+func _watch_held() -> void:
+	var n: Node = get_parent()
+	while n != null and not n is XRToolsPickable:
+		n = n.get_parent()
+	if n == null:
+		return
+	var p := n as XRToolsPickable
+	p.picked_up.connect(func(_by: Variant = null) -> void: _set_riding_solid(false))
+	p.dropped.connect(func(_by: Variant = null) -> void: _set_riding_solid(true))
+
+
+func _set_riding_solid(solid: bool) -> void:
+	for b in _riding:
+		if is_instance_valid(b):
+			b.collision_layer = 1 if solid else 0
+
+
 ## A door's solid part: a box over its bounds that swings with it (a body that moves with its pivot), so a cord lies
 ## against a shut door rather than through it. On the World layer the cords collide with; the desktop pointer sees past
 ## it (InteractionResolver.POINTER_BY_AREA) to the door's own grab.
 func _door_body(pivot: Node3D, bounds: AABB) -> void:
 	var body := AnimatableBody3D.new()
+	_riding.append(body)
 	body.name = "DoorBody"
 	body.collision_layer = 1
 	body.collision_mask = 0
@@ -578,6 +603,24 @@ func _build_bay() -> void:
 		shape.size = Vector3(maxf(tb.size.x - 0.04, 0.05), maxf(tb.size.y, 0.03) + 0.02, 0.06)
 		col.shape = shape
 		drawer.add_child(col)
+		# The tray as drawn is its handle: outlined green when a hand or the crosshair is on it, and what the desktop
+		# crosshair is held to while dragging (without it the drawer had neither). Its lip is a push face: a fingertip
+		# pressing it from in front pushes the tray back in (its face 2 cm behind the handle's box).
+		var tray_mesh := _first_mesh_in(tray)
+		if tray_mesh != null:
+			drawer.call("set_handle_mesh", tray_mesh)
+		drawer.set("push_face_size", Vector2(tb.size.x, maxf(tb.size.y, 0.03)))
+		drawer.set("push_face_offset", -0.02)
+
+
+static func _first_mesh_in(n: Node) -> MeshInstance3D:
+	if n is MeshInstance3D:
+		return n
+	for c in n.get_children():
+		var m := _first_mesh_in(c)
+		if m != null:
+			return m
+	return null
 
 
 ## Bounds of every mesh under `root`, in `root`'s own space.
