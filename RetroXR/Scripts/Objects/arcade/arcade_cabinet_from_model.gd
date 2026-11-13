@@ -102,6 +102,8 @@ var _still := 0
 const CARRY_SETTLE := 30
 ## How far the glow on a panel (ArcadePanelGlow) stands clear of its stick and buttons, metres.
 const GLOW_CLEAR := 0.012
+## How far past its marker a cabinet's own cord looks for the surface its grommet is in, metres.
+const CAPTIVE_REACH := 0.15
 ## Less than this from one physics frame to the next is standing still (meters, radians).
 const CARRY_MOVE := 0.0005
 
@@ -369,7 +371,15 @@ func _build_leads() -> void:
 			at.add_child(port)
 		else:
 			add_child(port)
-			port.global_transform = Transform3D(_lead_facing(str(r[0]), at.global_position), at.global_position)
+			var facing := _lead_facing(str(r[0]), at.global_position)
+			var spot := at.global_position
+			if captive:
+				# A cabinet's own cord comes out of a grommet: its socket sits ON the surface the plug would go into (the base's
+				# ceiling), not where the marker floats a few centimetres short of it, which left the cord's end in the air.
+				var face: Variant = _surface_along(spot, -facing.z, CAPTIVE_REACH)
+				if face != null:
+					spot = face as Vector3
+			port.global_transform = Transform3D(facing, spot)
 
 
 ## The cabinet end of one of its own cords seated: out of sight in the grommet, and fixed there (neither it nor the
@@ -377,6 +387,22 @@ func _build_leads() -> void:
 func _captive_seated(what: Node3D, port: Port) -> void:
 	if what == null:
 		return
+	# The plug sinks into the surface by its own length, so its cord comes out AT the grommet: seated at the surface, its
+	# hidden body hung below it and the cord began that far down in the air (50 mm for the VGA plug). Once per socket: a
+	# save brings the plug back seated and calls this again.
+	if not port.has_meta(&"captive_sunk"):
+		var back := 0.0
+		var inv := port.global_transform.affine_inverse()
+		for m in what.find_children("*", "MeshInstance3D", true, false):
+			var mi := m as MeshInstance3D
+			if mi.mesh == null:
+				continue
+			var box := mi.mesh.get_aabb()
+			for i in 8:
+				back = maxf(back, (inv * (mi.global_transform * box.get_endpoint(i))).z)
+		port.set_meta(&"captive_sunk", back)
+		if back > 0.0:
+			port.global_position -= port.global_basis.z.normalized() * back
 	for m in what.find_children("*", "MeshInstance3D", true, false):
 		(m as MeshInstance3D).visible = false
 	if what is XRToolsPickable:
@@ -384,11 +410,39 @@ func _captive_seated(what: Node3D, port: Port) -> void:
 	port.enabled = false
 
 
+## The first of the model's own surfaces from `from` along `dir` (world), within `reach` metres; null when none.
+func _surface_along(from: Vector3, dir: Vector3, reach: float) -> Variant:
+	var to := from + dir.normalized() * reach
+	var best: Variant = null
+	var best_d := INF
+	for n in _model.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.mesh == null or not mi.is_visible_in_tree():
+			continue
+		var inv := mi.global_transform.affine_inverse()
+		var a := inv * from
+		var b := inv * to
+		if not mi.mesh.get_aabb().intersects_segment(a, b):
+			continue
+		var tri := mi.mesh.generate_triangle_mesh()
+		if tri == null:
+			continue
+		var hit := tri.intersect_segment(a, b)
+		if hit.is_empty():
+			continue
+		var at := mi.global_transform * (hit["position"] as Vector3)
+		if at.distance_to(from) < best_d:
+			best_d = at.distance_to(from)
+			best = at
+	return best
+
+
 ## A lead's socket takes its plug along -Z: from the front, or, when the model has a `<lead>Aim` marker, from there.
 func _lead_facing(lead: String, at: Vector3) -> Basis:
 	var aim := _part(lead + "Aim")
 	if aim == null or aim.global_position.is_equal_approx(at):
-		return Basis.IDENTITY
+		# The cabinet's front, not the world's (one built already turned faced the world's).
+		return global_basis.orthonormalized()
 	var z := (aim.global_position - at).normalized()
 	var up := Vector3.UP if absf(z.dot(Vector3.UP)) < 0.95 else Vector3.BACK
 	var x := up.cross(z).normalized()
