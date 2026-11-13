@@ -19,6 +19,8 @@
 ##     so squeezing the handle never lifts the furniture.
 ##   • Let go moving, it COASTS on (`release_momentum`) against `friction`, and knocks back a little off the stops.
 ##   • The last `soft_close_zone` metres it eases itself shut, as a soft-close runner does.
+##   • A fingertip INSIDE a part-open drawer pushing out against the inside of its front (`pull_face_size`, 0 = off)
+##     pushes it open, following the tip.
 ##   • A bare fingertip pressing the drawer's FRONT (`push_face_size`, 0 = off) pushes it in; only a tip that came from
 ##     in front of the face pushes, so a hand reaching INTO the open drawer for something never shuts it.
 ##   • Desktop: the crosshair on the handle drags it with the mouse (VRSlider.mouse_drag); a VR laser press-drags.
@@ -69,6 +71,12 @@ const PUSH_DEPTH := 0.04
 ## Where the front face is along the axis with the drawer shut, from this node's origin (the handle stands proud of
 ## the front, so this is usually a little negative).
 @export var push_face_offset: float = -0.02
+## The INSIDE of the drawer's front (the face a hand in the open drawer meets), same frame and units as the push face:
+## a fingertip inside the drawer moving OUT against it pushes the drawer open, as a hand in a part-open drawer does.
+## Zero size = off.
+@export var pull_face_size: Vector2 = Vector2.ZERO
+@export var pull_face_centre: Vector2 = Vector2.ZERO
+@export var pull_face_offset: float = -0.06
 
 var _rearmed_grip: Dictionary = {}
 ## Which action the latched hand took hold with, so letting go watches that one.
@@ -94,6 +102,9 @@ var _was_shut := true
 var _push_ready: Dictionary = {}
 var _push_prev: Dictionary = {}
 var _push_ctrl: XRController3D = null
+## Per controller: true while its tip is inside the drawer behind the front's inner face (a push OUT may start).
+var _pull_ready: Dictionary = {}
+var _pull_prev: Dictionary = {}
 ## The frame the latch last looked at the triggers. After a gap (the widget asleep, no hand near) a button already
 ## down is not a press: a hand that squeezed elsewhere and carried the squeeze here must let go first.
 var _trigger_frame := -10
@@ -187,7 +198,7 @@ func _process(delta: float) -> void:
 	if not _controllers.is_empty() and (not _muted_pickups.is_empty()
 			or PokeTip.any_tip_within(_controllers, _reach_point(), PokeTip.WIDGET_NEAR)):
 		_sync_pickup_mutes()
-		if push_face_size != Vector2.ZERO:
+		if push_face_size != Vector2.ZERO or pull_face_size != Vector2.ZERO:
 			_process_push()
 	var held := is_held()
 	if held:
@@ -449,8 +460,13 @@ func _process_push() -> void:
 			continue
 		var id := ctrl.get_instance_id()
 		var local := to_local(PokeTip.tip_of(ctrl))
-		var face := push_face_offset + value * travel
 		var a := local.dot(axis)
+		if pull_face_size != Vector2.ZERO and _process_pull(id, local, a):
+			pushing = ctrl
+			continue
+		if push_face_size == Vector2.ZERO:
+			continue
+		var face := push_face_offset + value * travel
 		var on_face := absf(local.x - push_face_centre.x) <= half.x and absf(local.y - push_face_centre.y) <= half.y
 		var prev: float = _push_prev.get(id, a)
 		_push_prev[id] = a
@@ -467,8 +483,33 @@ func _process_push() -> void:
 			_set_from_raw((a - push_face_offset) / maxf(travel, 0.0001))
 	if pushing != _push_ctrl:
 		if pushing != null:
-			print("[VRDrawer] %s: pushed in by a fingertip from %.2f" % [name, value])
+			print("[VRDrawer] %s: pushed %s by a fingertip from %.2f" % [name,
+				"OUT from inside" if _pull_ready.get(pushing.get_instance_id(), false) else "in", value])
 		_push_ctrl = pushing
+
+
+## The push OUT: a fingertip inside the drawer (behind the front's inner face, within its footprint) that moves out
+## against that face carries the drawer with it. One that arrives from outside (over the front) is not inside yet, and a
+## still tip, or one moving back in, pushes nothing. True while it is pushing.
+func _process_pull(id: int, local: Vector3, a: float) -> bool:
+	var face := pull_face_offset + value * travel
+	var half := pull_face_size * 0.5
+	var on_face := absf(local.x - pull_face_centre.x) <= half.x and absf(local.y - pull_face_centre.y) <= half.y
+	var prev: float = _pull_prev.get(id, a)
+	_pull_prev[id] = a
+	# Off the face's footprint, or out past the front (it went over the top): not a hand inside the drawer.
+	if not on_face or a > face + PUSH_DEPTH:
+		_pull_ready[id] = false
+		return false
+	if a < face - PUSH_SLACK:
+		_pull_ready[id] = true
+		return false
+	if _pull_ready.get(id, false) and a > face and a > prev + 0.0001:
+		_stop_moving()
+		last_input = "hand"
+		_set_from_raw((a - pull_face_offset) / maxf(travel, 0.0001))
+		return true
+	return false
 
 
 ## VRHinge._sync_pickup_mutes: a hand holding nothing with its tip in the handle box (or latched on it) has its pickup

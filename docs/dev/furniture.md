@@ -29,6 +29,12 @@ Interaction:
 - `push_face_size` / `push_face_offset`: a bare fingertip pressing the FRONT pushes it in. Only a tip that came from in
   front of the face AND is moving in pushes: a hand reaching into the open drawer never shuts it, and neither does a
   drawer sliding out onto a still fingertip.
+- `pull_face_size` / `pull_face_offset` / `pull_face_centre`: the INSIDE of the front (the drawer's inside front
+  wall, from its floor to the front's top). A fingertip that is inside a part-open drawer and moves OUT against it
+  pushes the drawer open, following it (2026-11-12: "I can push them in but can't push them out"). Only a tip that was
+  inside behind that face starts it; a tip resting there, going back in, or outside moving away pulls nothing.
+  `FurnitureDrawers` sets it from each drawer's contract `inner` and `front`; the walnut nightstand from
+  `DRAWER_INNER` (`vr_drawer_tests pull/`).
 - `_reach_point()` / `_keep_awake()` are VRSlider hooks it overrides: the handle box can be 25 cm from the origin, and
   a coasting drawer must not fall asleep (PokeWake) mid-slide.
 

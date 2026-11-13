@@ -3,7 +3,7 @@
 ## front pushes it in (but never one reaching INTO it), the grip never lifts the furniture, its open amount saves, and
 ## what rests in it rides out with it. The nightstand is turned 90 degrees and moved, so a frame mix-up shows.
 ##   godot --headless --path RetroXR res://Tests/vr_drawer_tests.tscn [-- --only=<group>]
-## Groups: rig contract latch grip coast soft push save carry haul real mission beds again
+## Groups: rig contract latch grip coast soft push pull save carry haul real mission beds again
 extends "res://Tests/test_suite.gd"
 
 const HAND := &"/vr_drawer_tests/hand"
@@ -58,6 +58,8 @@ func _ready() -> void:
 		await _soft(ns)
 	if _group("push"):
 		await _push(ns)
+	if _group("pull"):
+		await _pull(ns)
 	if _group("save"):
 		await _save(ns)
 	if _group("carry"):
@@ -397,6 +399,81 @@ func _push(ns: Nightstand) -> void:
 	await _ticks(6)
 	_ok(absf(d.value - 0.4) < 0.001, "push/the drawer sliding out onto a still fingertip is not pushed back (%.3f)" % d.value)
 	await _reset(ns)
+
+
+## A hand INSIDE a part-open drawer pushing out against the inside of its front opens it, following the fingertip; a
+## hand resting in it, or moving back in, does not; and one outside the drawer moving away is not inside it.
+func _pull(ns: Nightstand) -> void:
+	var d := ns.drawer()
+	await _reset(ns)
+	d.set_value_no_signal(0.4)
+	await _ticks(2)
+	var out := _out(ns)
+	var up := ns.global_basis.y.normalized()
+	var right := ns.global_basis.x.normalized()
+	# The inside of the front is 56 mm behind the pull's axis; the pull is 51 mm over the drawer's floor. A fingertip
+	# 6 cm inside the drawer, 3 cm below the pull, 10 cm right of the middle.
+	var inner_face := _handle(ns) - out * 0.056 - up * 0.03 + right * 0.1
+	var start := d.open_distance()
+	_place(inner_face - out * 0.06)
+	await _ticks(4)
+	_ok(absf(d.open_distance() - start) < 0.001, "pull/a hand resting inside the drawer moves nothing (%.0f mm)" % (
+		d.open_distance() * 1000.0))
+	for i in 18:
+		_place(inner_face - out * 0.06 + out * 0.006 * (i + 1))
+		await _ticks(1)
+	await _ticks(2)
+	_ok(d.open_distance() - start > 0.035, "pull/a fingertip inside pushing out on the inside of the front opens it (%.0f -> %.0f mm)" % [
+		start * 1000.0, d.open_distance() * 1000.0])
+	# And back in: the drawer stays where it was pushed (the hand leaving it is not a pull).
+	var at := d.open_distance()
+	var tip := inner_face - out * 0.06 + out * 0.108
+	for i in 10:
+		_place(tip - out * 0.01 * (i + 1))
+		await _ticks(1)
+	await _ticks(10)
+	_ok(absf(d.open_distance() - at) < 0.01, "pull/the hand going back in leaves it out (%.0f mm, was %.0f)" % [
+		d.open_distance() * 1000.0, at * 1000.0])
+	_place(FAR)
+	await _ticks(3)
+	# Arriving from OUTSIDE (in front of the drawer) and moving away: not a hand in the drawer.
+	d.set_value_no_signal(0.4)
+	await _ticks(2)
+	var before := d.open_distance()
+	var outside := _handle(ns) + out * 0.06 - up * 0.03 + right * 0.1
+	_place(outside)
+	await _ticks(3)
+	for i in 6:
+		_place(outside + out * 0.01 * (i + 1))
+		await _ticks(1)
+	await _ticks(2)
+	_ok(absf(d.open_distance() - before) < 0.001, "pull/a hand outside the drawer moving away does not pull it (%.0f mm)" % (
+		d.open_distance() * 1000.0))
+	await _reset(ns)
+	# The Mission chest's drawers are built by FurnitureDrawers from its contract: its bottom drawer, from inside.
+	var chest := (ScenePersistence.PLAIN_SCENES["mission_chest"] as PackedScene).instantiate() as DrawerFurniture
+	chest.position = Vector3(-3.0, 0.0, 3.0)
+	add_child(chest)
+	await _ticks(3)
+	var cd: VRDrawer = chest.drawers()[chest.drawers().size() - 1]
+	cd.set_value_no_signal(0.4)
+	await _ticks(3)
+	var c0 := cd.open_distance()
+	var face_at := func(along: float) -> Vector3:
+		return cd.global_transform * Vector3(cd.pull_face_centre.x + 0.05, cd.pull_face_centre.y,
+			cd.pull_face_offset + cd.open_distance() + along)
+	var first: Vector3 = face_at.call(-0.06)
+	_place(first)
+	await _ticks(4)
+	for i in 18:
+		_place(first + cd.global_basis.z.normalized() * 0.006 * (i + 1))
+		await _ticks(1)
+	await _ticks(2)
+	_ok(cd.open_distance() - c0 > 0.035, "pull/the Mission chest's drawer, pushed out from inside, opens (%.0f -> %.0f mm)" % [
+		c0 * 1000.0, cd.open_distance() * 1000.0])
+	_place(FAR)
+	chest.queue_free()
+	await _ticks(3)
 
 
 func _save(ns: Nightstand) -> void:

@@ -78,6 +78,14 @@ func _ready() -> void:
 	_drawer_body.add_collision_exception_with(self)
 	add_collision_exception_with(_drawer_body)
 	_dress()
+	# The inside of the drawer's front wall (DRAWER_INNER's front, up to the front's top): a hand in a part-open drawer
+	# pushes it out there. In the handle's frame, as the push face in the scene.
+	var front: Array = DRAWER_BOXES[0]
+	var front_top: float = (front[0] as Vector3).y + (front[1] as Vector3).y * 0.5
+	_drawer.pull_face_offset = DRAWER_INNER.end.z - DRAWER_HANDLE.z
+	_drawer.pull_face_size = Vector2(DRAWER_INNER.size.x, front_top - DRAWER_INNER.position.y)
+	_drawer.pull_face_centre = Vector2(DRAWER_INNER.get_center().x - DRAWER_HANDLE.x,
+		(DRAWER_INNER.position.y + front_top) * 0.5 - DRAWER_HANDLE.y)
 	# The lid over the WHOLE drawer, sized once and only switched on and off (see _physics_process).
 	_lid = CollisionShape3D.new()
 	_lid.name = "Lid"

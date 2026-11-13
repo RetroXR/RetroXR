@@ -179,6 +179,12 @@ func _build_drawer(row: Dictionary) -> void:
 	handle.push_face_offset = front_face_z - at.z
 	handle.push_face_size = Vector2(fs.x, fs.y)
 	handle.push_face_centre = Vector2(fc.x - at.x, fc.y - at.y)
+	# The inside of the drawer's front wall, from its floor to the top of the front: a hand in a part-open drawer
+	# pushes it out there.
+	var front_top := fc.y + fs.y * 0.5
+	handle.pull_face_offset = inner.end.z - at.z
+	handle.pull_face_size = Vector2(inner.size.x, front_top - inner.position.y)
+	handle.pull_face_centre = Vector2(inner.get_center().x - at.x, (inner.position.y + front_top) * 0.5 - at.y)
 	var hb := _box("CollisionShape3D", Vector3(0, 0, (front_face_z - at.z) * 0.5 + HANDLE_D * 0.25),
 		Vector3(x1 - x0 + 2 * HANDLE_MARGIN, HANDLE_H, HANDLE_D), Basis.IDENTITY)
 	handle.add_child(hb)
