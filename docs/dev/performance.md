@@ -723,3 +723,24 @@ eye buffer 0.8, the same pose; `Tools/perf/quest_eye_pass.py <trace>...` prints 
 - So the levers, in order: fewer VERTICES (LODs that actually drop on the dense console models; the props' vertex
   shader, 176 ALU, is worth reading), then fewer bins (MSAA, eye buffer), then draws. MSAA comes back for free
   only once the geometry it multiplies is small.
+
+### Foveation on the Quest 3 is a density map, and at eye 0.8 it buys little (2026-11-13, night)
+
+VrApi's `Fov=0` does NOT mean foveation is off: it reports only the RUNTIME's level, which `apply_foveation()` keeps
+at 0 on purpose while Godot's own `XRVRS` map is bound (`VRS_TEXTURE`). The Adreno 740 has NO shading-rate
+attachment (`attachment_supported` false) and a density-map one, so `_vrs_detect_method` takes the density map on
+this headset; both our map and, with `vrsprobe` `"vrs_mode": "xr"`, the runtime's are bound and valid (checked with
+temporary engine logging, then reverted: an engine patch to "prefer the density map on Android" was a no-op here).
+Release, cull k 40, MSAA 2x, eye 0.8, per eye pass (`quest_eye_pass.py`):
+
+| foveation | fps | pass ms | fragments |
+|---|---:|---:|---:|
+| OFF | 62 | 14.7 | 15.2 M |
+| HIGH, our map (the default) | 60 | 15.3 | 15.8 M |
+| HIGH, the runtime's map (`vrs_mode` xr) | 58 | 15.7 | 16.3 M |
+| MAX, our map (r 5 %, strength 10) | 70 | 13.0 | 13.8 M |
+
+- At eye 0.8 HIGH is noise; only MAX pays (-1.7 ms), and it was "visibly blocky" at 1.75x in September. The big
+  September gains (34 -> 69 fps) were at eye 1.75x, where the pass was fragment-bound; at 0.8 it is vertex-bound.
+- The fragment counter barely moves even at MAX: the density map does not cut the vertices replayed per bin,
+  which is what MSAA multiplies. Foveation does not bring MSAA back here; fewer vertices does.
