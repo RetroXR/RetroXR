@@ -57,7 +57,9 @@ func room_entered(room_id: String) -> void:
 	_level = 0
 	_room_id = room_id
 	var remembered := int(JsonStore.read_dict(LEVELS_PATH, "QualityGovernor").get(room_id, 0))
-	if remembered > 0:
+	# Off (vrsprobe "no_governor") means off: a remembered level applied anyway made the control arm a copy of the
+	# governed one.
+	if remembered > 0 and enabled:
 		_apply_remembered.call_deferred(mini(remembered, STEPS.size()))
 	_room_since = Time.get_ticks_msec() / 1000.0
 	_spawned = -1
