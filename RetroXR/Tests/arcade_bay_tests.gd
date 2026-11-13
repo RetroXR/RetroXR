@@ -741,6 +741,13 @@ func _hk_run() -> void:
 		await _wait(2)
 		var s_moved := sdoor.global_position - s_shut
 		_ok(s_moved.z > 0.04, "hookup: and swings out, toward the front (%s)" % str(s_moved))
+	# A door's solid body is a child of the cabinet's own RigidBody3D, on a layer the cabinet's mask takes:
+	# unexempted, every cabinet pushed against its own doors and flew about the room (2026-11-13).
+	var parts: Array[Node] = sys.find_children("DoorBody", "PhysicsBody3D", true, false)
+	parts.append_array(sys.find_children("TrayBody", "PhysicsBody3D", true, false))
+	var exempt := parts.filter(func(b: Node) -> bool: return (b as PhysicsBody3D).get_collision_exceptions().has(sys))
+	_ok(not parts.is_empty() and exempt.size() == parts.size(),
+		"hookup: every door body is exempt from its own cabinet (%d of %d)" % [exempt.size(), parts.size()])
 	var hgrab := model.find_child("ServiceHatchGrab", true, false) as VRHinge
 	_ok(hgrab != null, "hookup: the cabinet's service hatch has a hinge")
 	if hgrab != null:

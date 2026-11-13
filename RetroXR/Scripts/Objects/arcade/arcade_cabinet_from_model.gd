@@ -186,6 +186,7 @@ func _tray_body(tray: Node3D) -> void:
 		col.shape = shape
 		col.position = box.get_center()
 		body.add_child(col)
+	_exempt_from_own_cabinet(body)
 	tray.add_child(body)
 
 
@@ -205,7 +206,26 @@ func _door_body(pivot: Node3D, bounds: AABB) -> void:
 	col.shape = shape
 	col.position = bounds.get_center()
 	body.add_child(col)
+	_exempt_from_own_cabinet(body)
 	pivot.add_child(body)
+
+
+## A door's or tray's body is a CHILD of the cabinet's own RigidBody3D, on the World layer its mask takes, and Godot
+## does not exempt a body from its own descendants: every cabinet with one pushed against its own doors for ever and
+## flew about the room (1 kg, up to 14 m/s and 26 rad/s, measured in the Starlight Arcade 2026-11-13), dragging its
+## cords awake with it -- 11 fps on a Quest. Cords and other objects still meet the part; the cabinet does not.
+func _exempt_from_own_cabinet(body: PhysicsBody3D) -> void:
+	body.tree_entered.connect(_exempt_now.bind(body))
+
+
+func _exempt_now(body: PhysicsBody3D) -> void:
+	var up := body.get_parent()
+	while up != null and not up is PhysicsBody3D:
+		up = up.get_parent()
+	if up == null:
+		push_warning("[ArcadeModel] %s has no cabinet body above it to exempt" % body.name)
+		return
+	body.add_collision_exception_with(up as PhysicsBody3D)
 
 
 ## The cabinet's ends of the board's cords, at the model's leads (NaomiHookup reads them): the monitor's VGA and the
