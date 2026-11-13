@@ -116,6 +116,14 @@ RetroXR/paper-godot/*.ilk
 RetroXR/paper-godot/*.lib
 RetroXR/paper-godot/*.pdb
 paper-godot/Temp/
+# grab-godot build artifacts
+RetroXR/grab-godot/~*
+RetroXR/grab-godot/*.exp
+RetroXR/grab-godot/*.ilk
+RetroXR/grab-godot/*.lib
+RetroXR/grab-godot/*.pdb
+grab-godot/Temp/
+grab-godot/*.pdb
 
 # ── Compiled GDExtensions ─────────────────────────────────────────────────────
 # Our own six libraries are BUILD OUTPUT and are not carried in the repo — run
@@ -154,6 +162,9 @@ RetroXR/surround-godot/*surround_godot.*.dylib
 RetroXR/paper-godot/*paper_godot.*.dll
 RetroXR/paper-godot/*paper_godot.*.so
 RetroXR/paper-godot/*paper_godot.*.dylib
+RetroXR/grab-godot/*grab_godot.*.dll
+RetroXR/grab-godot/*grab_godot.*.so
+RetroXR/grab-godot/*grab_godot.*.dylib
 # The plain names release exports ship (Tools/build.py release_names).
 RetroXR/libretro-godot/*libretro_godot.dll
 RetroXR/libretro-godot/*libretro_godot.so
@@ -179,6 +190,9 @@ RetroXR/surround-godot/*surround_godot.dylib
 RetroXR/paper-godot/*paper_godot.dll
 RetroXR/paper-godot/*paper_godot.so
 RetroXR/paper-godot/*paper_godot.dylib
+RetroXR/grab-godot/*grab_godot.dll
+RetroXR/grab-godot/*grab_godot.so
+RetroXR/grab-godot/*grab_godot.dylib
 
 # Windows ReplaceFile() backups. The Win32 call that swaps a file in place leaves
 # the old copy behind as `~<name>~RF<hex>.TMP`, and something re-writes the OpenXR

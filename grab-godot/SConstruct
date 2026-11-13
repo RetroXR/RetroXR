@@ -1,0 +1,19 @@
+# type: ignore
+#
+# Standalone GDExtension: grab_godot (GrabDriverTick: the per-physics-tick half of
+# godot-xr-tools' XRToolsGrabDriver, which stays the GDScript face and the
+# fallback). Built like verlet-rope: its own SCons invocation, reusing the
+# godot-cpp checked out under libretro-godot.
+#
+#   scons platform=windows arch=x86_64 target=template_debug
+#   scons platform=android arch=arm64  target=template_debug ANDROID_HOME=
+#
+# Or, for every extension at once: python Tools/build.py <platform>
+
+VariantDir('Temp', '.', duplicate=0)
+env = Environment()
+
+import os
+output_dir = os.environ.get('GRAB_GODOT_OUTPUT_DIR', '#../RetroXR/grab-godot')
+
+SConscript('Temp/SConscript', exports=['env', 'output_dir'])

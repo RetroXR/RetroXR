@@ -81,6 +81,41 @@ var _primary_cached : Grab = null
 var _primary_by_zone : bool = false
 # LOCAL PATCH (RetroXR): the zone's transform at the last push, for the resting early-out in _physics_process.
 var _rest_zone_xf := Transform3D()
+# LOCAL PATCH (RetroXR): a driver resting in a snap zone stops being ticked at all after REST_AFTER idle ticks
+# (213 of them were 0.9 ms of a Quest 3's frame in GDScript call overhead alone, 2026-11-13). wake() starts it
+# again: a grab added or removed, its zone moving (XRToolsSnapZone's transform notification) or the holder graph
+# changing (XRToolsSnapZone._note_held -> wake_all).
+const REST_AFTER := 30
+static var _resting: Dictionary = {}
+var _rest_ticks := 0
+## LOCAL PATCH (RetroXR): the tick below in C++ (grab-godot's GrabDriverTick, an INTERNAL child at this driver's
+## physics priority, doing exactly what _physics_process does and calling back here only for what is rare or is the
+## room's: _preview_step, _priority_for, _update_weight, set_arrived, _target_gone). The same 213 drivers were 0.9 ms
+## of a Quest 3's debug frame, nearly all of it the cost of entering a script function. Off where the class is
+## missing (grab-godot not built for this platform): this script then ticks itself, as it always did, and
+## grab_driver_tests holds the two to the same poses. A test or probe may switch it before any driver exists; never
+## while drivers live.
+static var native_tick: bool = ClassDB.class_exists(&"GrabDriverTick")
+static var _native_logged := false
+var _tick: Node = null
+
+
+func _ready() -> void:
+	if not _native_logged:
+		_native_logged = true
+		var how := "in C++ (GrabDriverTick)"
+		if not native_tick:
+			how = "in GDScript (native_tick off)" if ClassDB.class_exists(&"GrabDriverTick") \
+				else "in GDScript (no GrabDriverTick: grab-godot is not loaded)"
+		print("[Grab] grab drivers tick %s" % how)
+	if native_tick:
+		_tick = ClassDB.instantiate(&"GrabDriverTick") as Node
+		_tick.name = "Tick"
+		_tick.process_physics_priority = process_physics_priority
+		# INTERNAL: nothing that walks a driver's children ever sees it.
+		add_child(_tick, false, Node.INTERNAL_MODE_FRONT)
+		set_physics_process(false)
+
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _physics_process(delta : float) -> void:
@@ -89,10 +124,7 @@ func _physics_process(delta : float) -> void:
 	# check for a freed object: `target.call("constrain_grab", ...)` on a freed light gun killed the Quest (tombstones
 	# 2026-11-09, Object::_call_bind on a null vtable). A driver with nothing to drive goes away.
 	if not is_instance_valid(target):
-		print("[Grab] driver %s: its target was freed while held; discarding the driver" % name)
-		remote_path = NodePath()
-		queue_free()
-		set_physics_process(false)
+		_target_gone()
 		return
 
 	# Skip if no primary node or its grabber has been freed
@@ -110,8 +142,13 @@ func _physics_process(delta : float) -> void:
 		# Approximately: a zone on an awake body moves by float noise every tick, and an exact compare never matched.
 		# A real move is far past the tolerance and is pushed as before.
 		if zone_xf.is_equal_approx(_rest_zone_xf) and epoch == _priority_epoch:
+			_rest_ticks += 1
+			if _rest_ticks >= REST_AFTER:
+				set_physics_process(false)
+				_note_resting()
 			return
 		_rest_zone_xf = zone_xf
+	_rest_ticks = 0
 
 	# Set destination from primary grab
 	var destination := primary.by.global_transform * primary.transform.affine_inverse()
@@ -179,58 +216,7 @@ func _physics_process(delta : float) -> void:
 		_primary_by_zone = primary.by is XRToolsSnapZone
 	if state == GrabState.SNAP and is_instance_valid(target) \
 			and not _primary_by_zone:
-		var r := _get_preview_radius()
-		var zone := XRToolsSnapZone.find_preview_zone(target, destination.origin, r)
-		# First frame of a grab that took the object out of a socket: it is still
-		# standing in that socket's seated pose, so engage the preview already
-		# blended in. Starting from zero puts it at the hold pose for a frame and
-		# then drags it back over ~0.12 s — a jump out to the hold pose and a jump
-		# back into the seat, most visible on desktop, where the hold pose comes
-		# from where the player is LOOKING and so barely moves. Seeded, the object
-		# simply stays seated until the hold pose leaves the socket's range.
-		if _preview_seed_pending:
-			_preview_seed_pending = false
-			if zone != null and target.global_position.distance_to(
-					zone.snap_pose_for(target).origin) < PREVIEW_SEATED_EPSILON:
-				_preview_blend = 1.0
-				_perch_ease = 0.0
-		if zone == null and is_instance_valid(_preview_zone) \
-				and _preview_zone.can_preview(target) \
-				and _preview_zone.global_position.distance_to(destination.origin) \
-					< (_preview_zone.grab_distance + r) * 1.25:
-			zone = _preview_zone   # hysteresis: hold the zone a bit past range
-		if zone:
-			_preview_zone = zone
-		# Orange snap-preview outline on the held object while it targets a
-		# socket (in range / hysteresis); notify the highlight only on change.
-		var previewing := zone != null
-		if previewing != _prev_previewing:
-			_prev_previewing = previewing
-			_notify_snap_preview(previewing)
-		_preview_blend = move_toward(
-			_preview_blend, 1.0 if zone else 0.0, delta * PREVIEW_BLEND_SPEED)
-		_perch_ease = move_toward(_perch_ease, 1.0, delta * PREVIEW_BLEND_SPEED)
-		# Suppress object<->socket-owner collisions while engaged so the console
-		# isn't shoved by the previewed object (which would jitter the socket).
-		_set_preview_collisions(zone != null)
-		if _preview_blend > 0.001 and is_instance_valid(_preview_zone):
-			# The zone's own preview pose: grab-point-corrected (without it the
-			# ghost shows the raw zone orientation, e.g. a plug backwards) and
-			# offset by whatever stand-off the zone presents its media at.
-			# `destination` here is still where the HAND wants the object; a
-			# disc keeps that pose's spin in its seat, so the zone is given it.
-			var zt := _preview_zone.preview_pose_for(
-				target, _perch_ease, destination.basis)
-			var w := smoothstep(0.0, 1.0, _preview_blend)
-			var scale := destination.basis.get_scale()
-			var q := destination.basis.get_rotation_quaternion().slerp(
-				zt.basis.get_rotation_quaternion(), w)
-			destination = Transform3D(
-				Basis(q).scaled(scale),
-				destination.origin.lerp(zt.origin, w))
-		elif _preview_blend <= 0.001:
-			_set_preview_collisions(false)
-			_preview_zone = null
+		destination = _preview_step(destination, delta)
 
 	# LOCAL PATCH (RetroXR): the stack this driver sits in can change under it --
 	# a loaded 32X is bolted into a console long after its cartridge went in, and
@@ -274,8 +260,119 @@ func _physics_process(delta : float) -> void:
 		target.force_update_transform()
 
 
+## LOCAL PATCH (RetroXR): the snap-zone preview step of a driver held by anything but a socket (see where
+## _physics_process calls it): given where the hold wants the object, where it goes this tick. A function of its own
+## so that the C++ tick (GrabDriverTick) runs this very code.
+func _preview_step(destination: Transform3D, delta: float) -> Transform3D:
+	var r := _get_preview_radius()
+	var zone := XRToolsSnapZone.find_preview_zone(target, destination.origin, r)
+	# First frame of a grab that took the object out of a socket: it is still
+	# standing in that socket's seated pose, so engage the preview already
+	# blended in. Starting from zero puts it at the hold pose for a frame and
+	# then drags it back over ~0.12 s — a jump out to the hold pose and a jump
+	# back into the seat, most visible on desktop, where the hold pose comes
+	# from where the player is LOOKING and so barely moves. Seeded, the object
+	# simply stays seated until the hold pose leaves the socket's range.
+	if _preview_seed_pending:
+		_preview_seed_pending = false
+		if zone != null and target.global_position.distance_to(
+				zone.snap_pose_for(target).origin) < PREVIEW_SEATED_EPSILON:
+			_preview_blend = 1.0
+			_perch_ease = 0.0
+	if zone == null and is_instance_valid(_preview_zone) \
+			and _preview_zone.can_preview(target) \
+			and _preview_zone.global_position.distance_to(destination.origin) \
+				< (_preview_zone.grab_distance + r) * 1.25:
+		zone = _preview_zone   # hysteresis: hold the zone a bit past range
+	if zone:
+		_preview_zone = zone
+	# Orange snap-preview outline on the held object while it targets a
+	# socket (in range / hysteresis); notify the highlight only on change.
+	var previewing := zone != null
+	if previewing != _prev_previewing:
+		_prev_previewing = previewing
+		_notify_snap_preview(previewing)
+	_preview_blend = move_toward(
+		_preview_blend, 1.0 if zone else 0.0, delta * PREVIEW_BLEND_SPEED)
+	_perch_ease = move_toward(_perch_ease, 1.0, delta * PREVIEW_BLEND_SPEED)
+	# Suppress object<->socket-owner collisions while engaged so the console
+	# isn't shoved by the previewed object (which would jitter the socket).
+	_set_preview_collisions(zone != null)
+	if _preview_blend > 0.001 and is_instance_valid(_preview_zone):
+		# The zone's own preview pose: grab-point-corrected (without it the
+		# ghost shows the raw zone orientation, e.g. a plug backwards) and
+		# offset by whatever stand-off the zone presents its media at.
+		# `destination` here is still where the HAND wants the object; a
+		# disc keeps that pose's spin in its seat, so the zone is given it.
+		var zt := _preview_zone.preview_pose_for(
+			target, _perch_ease, destination.basis)
+		var w := smoothstep(0.0, 1.0, _preview_blend)
+		var scale := destination.basis.get_scale()
+		var q := destination.basis.get_rotation_quaternion().slerp(
+			zt.basis.get_rotation_quaternion(), w)
+		destination = Transform3D(
+			Basis(q).scaled(scale),
+			destination.origin.lerp(zt.origin, w))
+	elif _preview_blend <= 0.001:
+		_set_preview_collisions(false)
+		_preview_zone = null
+	return destination
+
+
+## LOCAL PATCH (RetroXR): the target was freed while held (see the top of _physics_process): the driver goes away.
+func _target_gone() -> void:
+	print("[Grab] driver %s: its target was freed while held; discarding the driver" % name)
+	remote_path = NodePath()
+	queue_free()
+	set_physics_process(false)
+	if _tick != null:
+		_tick.set_physics_process(false)
+
+
+## LOCAL PATCH (RetroXR): this driver stopped ticking at rest (REST_AFTER); wake_all() finds it here.
+func _note_resting() -> void:
+	_resting[get_instance_id()] = weakref(self)
+
+
+## LOCAL PATCH (RetroXR): `p_grab.by is XRToolsSnapZone`, for the C++ tick, which cannot ask about a script class.
+static func _by_zone(p_grab: Grab) -> bool:
+	return p_grab.by is XRToolsSnapZone
+
+
+## LOCAL PATCH (RetroXR): tick again (see REST_AFTER).
+func wake() -> void:
+	_rest_ticks = 0
+	if _tick != null:
+		_tick.reset_rest()
+		if not _tick.is_physics_processing():
+			_resting.erase(get_instance_id())
+			_tick.set_physics_process(true)
+		return
+	if not is_physics_processing():
+		_resting.erase(get_instance_id())
+		set_physics_process(true)
+
+
+## LOCAL PATCH (RetroXR): every resting driver ticks again (the holder graph changed under them).
+static func wake_all() -> void:
+	# XRToolsSnapZone._note_held calls this after every bump of its holder epoch; the C++ tick keeps its own copy.
+	if native_tick:
+		ClassDB.class_call_static(&"GrabDriverTick", &"set_holder_epoch", XRToolsSnapZone.holder_epoch())
+	var refs := _resting.values()
+	_resting.clear()
+	for r: WeakRef in refs:
+		var d := r.get_ref() as XRToolsGrabDriver
+		if d != null:
+			d.wake()
+
+
+func _exit_tree() -> void:
+	_resting.erase(get_instance_id())
+
+
 ## Set the secondary grab point
 func add_grab(p_grab : Grab) -> void:
+	wake()
 	# Set the secondary grab
 	if p_grab.hand_point and p_grab.hand_point.mode == XRToolsGrabPointHand.Mode.PRIMARY:
 		print_verbose("%s> new primary grab %s" % [target.name, p_grab.by.name])
@@ -303,6 +400,7 @@ func get_grab(by : Node3D) -> Grab:
 
 
 func remove_grab(p_grab : Grab) -> void:
+	wake()
 	# Remove the appropriate grab
 	if p_grab == primary:
 		# Remove primary (secondary promoted)

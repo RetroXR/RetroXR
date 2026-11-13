@@ -237,6 +237,7 @@ static func _note_held(obj: Node3D, zone: XRToolsSnapZone) -> void:
 	else:
 		_holder_of[obj] = zone
 	_holder_epoch += 1
+	XRToolsGrabDriver.wake_all()
 
 
 ## LOCAL PATCH (RetroXR): the zone the preview ghost last lit, so releasing an
@@ -256,6 +257,15 @@ func is_xr_class(xr_name:  String) -> bool:
 func _enter_tree() -> void:
 	if not Engine.is_editor_hint():
 		_live_zones.append(self)
+
+
+## LOCAL PATCH (RetroXR): a grab driver resting in this zone is not ticked (XRToolsGrabDriver.REST_AFTER); the zone
+## moving -- its console carried, nudged or falling -- wakes the one driving what it holds.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSFORM_CHANGED and is_instance_valid(picked_up_object):
+		var driver: Variant = picked_up_object.get("_grab_driver")
+		if driver is XRToolsGrabDriver:
+			(driver as XRToolsGrabDriver).wake()
 
 
 func _exit_tree() -> void:
@@ -484,6 +494,9 @@ func _why_no_preview(obj: Node3D) -> String:
 
 
 func _ready():
+	# LOCAL PATCH (RetroXR): see _notification -- this zone moving wakes the grab driver it holds.
+	set_notify_transform(true)
+
 	# Set collision shape radius
 	if has_node("CollisionShape3D") and "radius" in $CollisionShape3D.shape:
 		$CollisionShape3D.shape.radius = grab_distance

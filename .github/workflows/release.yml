@@ -388,7 +388,7 @@ jobs:
           # One missing native drops the whole GDExtension at runtime, and a
           # missing vendors .so has previously shipped a Quest build with no
           # passthrough. The APK is the only ground truth for this.
-          for lib in liblibretro_godot libarchive_godot libverlet_rope libpaper_godot libvlc_godot libgodot-pdfium \
+          for lib in liblibretro_godot libarchive_godot libverlet_rope libpaper_godot libgrab_godot libvlc_godot libgodot-pdfium \
                      libmetaxr-audio libgodotopenxrvendors libvlc.so libpdfium.so \
                      libMetaXRAudioUnity.so; do
             grep -q "^lib/arm64-v8a/$lib" entries.txt || {

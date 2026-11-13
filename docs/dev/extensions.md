@@ -34,9 +34,9 @@ for a missing one rather than failing.
 - CI is not affected: `release.yml` builds the android extensions from source on every run.
   This bites **locally exported** builds only, which is what sideloading a debug APK is.
 
-### Sibling GDExtensions (archive-godot, verlet-rope, vlc-godot, godot-pdfium, metaxr-audio, surround-godot, paper-godot)
+### Sibling GDExtensions (archive-godot, verlet-rope, vlc-godot, godot-pdfium, metaxr-audio, surround-godot, paper-godot, grab-godot)
 
-Six other C++ GDExtensions live beside libretro-godot, each with the same layout (repo-root
+Eight other C++ GDExtensions live beside libretro-godot, each with the same layout (repo-root
 `<name>/` with `SConstruct` + `SConscript` + `src/`, reusing `../libretro-godot/godot-cpp`,
 deploying to `RetroXR/<name>/`). Build each **from its own directory** (each has its own
 `VariantDir('Temp')`), or all at once with `Tools/build.py`.
@@ -124,6 +124,32 @@ deploying to `RetroXR/<name>/`). Build each **from its own directory** (each has
   python Tools/build.py windows --only paper-godot
   python Tools/build.py android --only paper-godot
   "$godot" --headless --path RetroXR res://Tools/perf/paper_sheet_probe.tscn   # numbers, timings
+  ```
+
+- **grab-godot** — `Xenu::GrabDriverTick`, the per-physics-tick half of godot-xr-tools'
+  `XRToolsGrabDriver` (`addons/godot-xr-tools/objects/grab_points/grab_driver.gd`, which
+  stays the driver: its fields, API, snap-preview helpers and its own `_physics_process`).
+  A driver that finds the class (`XRToolsGrabDriver.native_tick`, default
+  `ClassDB.class_exists`) adds one as an INTERNAL child at its own physics priority and
+  stops ticking itself; the C++ does what `_physics_process` does line for line and calls
+  back into the script only for what is rare or is the room's (`_preview_step` of a
+  hand-held object, `_priority_for`, `_update_weight`, `set_arrived`, `_target_gone`). The
+  holder epoch it needs is pushed by `XRToolsGrabDriver.wake_all()`, which
+  `XRToolsSnapZone._note_held` calls after every bump. Where the class is missing (a
+  platform not rebuilt) the GDScript tick runs, as before, and `[Grab] grab drivers tick
+  …` says which at the first driver. **A change to either tick must be made to BOTH**:
+  `grab_driver_tests` plays one scripted room with each and holds every pose to 1e-5.
+  Pure C++, all platforms, no new godot-cpp classes. Cost: `Tools/perf/grab_driver_probe`
+  (windowed, `--native=0|1`). Measured on desktop 2026-11-13, 200 drivers, stock 4.7.2
+  editor binary (debug GDScript), GDScript -> C++ per driver per tick: resting 0 -> 0 (they
+  stop ticking, `REST_AFTER`); sockets on float noise (wake and early-out every tick) 1.41
+  -> 1.17 us; sockets moving 3.39 -> 3.01 us; hand-held 10.1 -> 10.4 us (the preview search
+  over every live zone is GDScript either way, and dominates). What remains is not the
+  script call: it is the push itself (RemoteTransform3D -> the body) and the socket's own
+  transform notification and `wake()`, both the same in either mode. A Quest is OWED.
+  ```bash
+  python Tools/build.py windows --only grab-godot
+  python Tools/build.py android --only grab-godot
   ```
 
 - **metaxr-audio's objects must be out of the AudioServer before this extension

@@ -42,7 +42,7 @@ work) and push. If a dirty file overlaps, ask the user rather than merging.
 Needs SCons + MSVC (Windows), GCC/Clang (Linux), Xcode CLT (macOS) or the Android NDK, and
 `git submodule update --init --recursive` first.
 
-`Tools/build.py` builds all eight GDExtensions for one platform (one shared trimmed
+`Tools/build.py` builds all nine GDExtensions for one platform (one shared trimmed
 `godot-cpp` per target, then each extension with `build_library=no`), prints a pass/fail
 table and exits non-zero on failure. Prefer it over the per-extension recipes.
 
@@ -66,11 +66,14 @@ python Tools/build.py windows --jobs 8 -- verbose=yes    # extra args go to scon
   `extensions.md`). Rebuild **both targets**; a missing android build exports a 0-byte `.so`.
 - **`Tools/godot_cpp_profile.json` is the shared API allowlist** — add a Godot class there
   when extension C++ starts using it (forces a godot-cpp rebuild for every extension).
-- The eight: `libretro-godot` (MIT, submodule, published separately), `archive-godot`
+- The nine: `libretro-godot` (MIT, submodule, published separately), `archive-godot`
   (`RommArchiveExtractor`), `verlet-rope` (`Xenu::VerletRope`), `vlc-godot` (`VlcPlayer`,
   the single video backend), `godot-pdfium` (`PDFRenderer`), `metaxr-audio`,
   `surround-godot` (GPL FreeSurround — its own extension for licence reasons, §2r),
-  `paper-godot` (`PaperSheetSolver`, the printer paper's ONE solver, §2e-prt). Each
+  `paper-godot` (`PaperSheetSolver`, the printer paper's ONE solver, §2e-prt),
+  `grab-godot` (`GrabDriverTick`, the C++ per-tick half of xr-tools' `XRToolsGrabDriver`, which
+  falls back to its own GDScript tick where the class is missing; `grab_driver_tests` holds the
+  two to the same poses). Each
   is `<name>/` with its own `SConstruct`, built **from its own directory**, deploying to
   `RetroXR/<name>/`.
 - **Not all ship everywhere:** `metaxr-audio` is windows/android only (Meta's blob);

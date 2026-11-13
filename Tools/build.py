@@ -62,6 +62,7 @@ EXTENSIONS = [
     ("metaxr-audio", "metaxr-audio", "RetroXR/metaxr-audio", ("windows", "android")),
     ("surround-godot", "surround-godot", "RetroXR/surround-godot", ALL_PLATFORMS),
     ("paper-godot", "paper-godot", "RetroXR/paper-godot", ALL_PLATFORMS),
+    ("grab-godot", "grab-godot", "RetroXR/grab-godot", ALL_PLATFORMS),
 ]
 
 ARCH = {

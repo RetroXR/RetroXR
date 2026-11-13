@@ -1,0 +1,42 @@
+# type: ignore
+
+Import('env', 'output_dir')
+
+env = env.Clone()
+
+# As paper-godot: symbols on every non-release target, macOS 13.0.
+from SCons.Script import ARGUMENTS
+if ARGUMENTS.get("platform") == "macos":
+    ARGUMENTS.setdefault("macos_deployment_target", "13.0")
+if ARGUMENTS.get("target", "template_debug") != "template_release":
+    ARGUMENTS.setdefault("debug_symbols", "yes")
+
+# godot-cpp has no 4.6 or 4.7 branch: master carries every API from 4.3 on and
+# binds the one it is told. Tools/build.py passes this too.
+ARGUMENTS.setdefault("api_version", "4.7")
+env = SConscript("../../libretro-godot/godot-cpp/SConstruct")
+
+env["CXXFLAGS"] = [f for f in env["CXXFLAGS"]
+                   if not str(f).startswith(("/std:c++", "-std=c++"))]
+
+is_windows = env["platform"] == "windows"
+is_android = env["platform"] == "android"
+is_linux   = env["platform"] == "linux"
+is_macos   = env["platform"] == "macos"
+
+if is_windows:
+    env.Append(CXXFLAGS=["/std:c++latest"])
+    env.Append(LINKFLAGS=['/IGNORE:4099'])
+
+if is_android or is_linux or is_macos:
+    env.Append(CXXFLAGS=["-std=c++20"])
+
+sources = Glob("src/*.cpp")
+
+lib_prefix = "lib" if (is_android or is_linux) else ""
+library = env.SharedLibrary(
+    "{}/{}grab_godot.{}.{}.{}{}".format(
+        output_dir, lib_prefix, env["platform"], env["target"], env["arch"], env["SHLIBSUFFIX"]),
+    source=sources)
+
+Default(library)
