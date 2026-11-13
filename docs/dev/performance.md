@@ -659,3 +659,24 @@ Measured by VrApi FPS/App on the headset, the Starlight Arcade save, the headset
   (51.6 vs 42 ms) and was reverted; per-vertex shading measured nothing.
 - What is left is CPU at ~16 ms with the render thread: GDScript ~50% of the main thread, the rope ~24% (queries
   returning Dictionaries; handed to the rope session), the welcome panel's Theora clip ~6% while it is open.
+
+### Release build, the same room (2026-11-13, evening)
+
+A RELEASE export installs over a debug one with the debug key
+(`GODOT_ANDROID_KEYSTORE_RELEASE_PATH/_USER/_PASSWORD` = `%APPDATA%\Godot\keystores\debug.keystore`,
+`androiddebugkey`, `android`); it is not debuggable, so the probe cfg goes to
+`/sdcard/Android/data/com.xenu.retroxr/files/vrsprobe.cfg`. Release GDScript is cheaper: the CPU stopped being
+the limit and the GPU became it.
+
+| settings (release) | fps | App ms | GPU% |
+|---|---:|---:|---:|
+| eye 0.8, MSAA off, detail cull k 60 | 69-71 | 13.0 | 98 |
+| eye 0.75, MSAA off, k 60 | 65-69 | 13.1 | 97 (resolution no longer moves it) |
+| eye 0.8, MSAA off, **k 40** | **70-72** | **11.3** | 88 |
+
+- The remaining GPU follows draws and vertices, not pixels: what is left to buy is fewer draws a model and LODs
+  on the dense models, not resolution.
+- Changing foveation mid-session (to MAX) got the app killed by lmkd (`LMKKillNotifier ... RetroXR`): free memory in
+  this room runs 290-900 MB, and the swapchain/VRS reallocation tipped it.
+- Script profile (`vrsprobe` `profile_scripts`, debug): 7.7 ms a frame in 619 callbacks of 127 scripts; the 213
+  grab drivers are 0.9 ms (call overhead, the rest early-out), everything else 0.05-0.6 ms each.

@@ -890,8 +890,14 @@ func _probe_profile_scripts(frames: int) -> void:
 					counts[k] = int(counts.get(k, 0)) + 1
 	var rows: Array = totals.keys()
 	rows.sort_custom(func(a: String, b: String) -> bool: return totals[a] > totals[b])
-	print("[VRSProbe] script profile over %d frames (ms per frame, nodes):" % frames)
-	for i in mini(rows.size(), 25):
+	var total := 0
+	var nodes := 0
+	for k: String in rows:
+		total += int(totals[k])
+		nodes += int(counts.get(k, 0))
+	print("[VRSProbe] script profile over %d frames: %.2f ms a frame in %d callbacks of %d scripts (ms per frame, nodes):" % [
+		frames, float(total) / 1000.0 / float(frames), nodes, rows.size()])
+	for i in mini(rows.size(), 45):
 		var k: String = rows[i]
 		print("[VRSProbe]   %6.2f ms  x%-3d  %s" % [
 			float(totals[k]) / 1000.0 / float(frames), int(counts.get(k, 0)), k])
