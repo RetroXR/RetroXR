@@ -2196,6 +2196,8 @@ func _build_blank_rom_row() -> Control:
 		b.add_theme_font_size_override("font_size", 26)
 		b.add_theme_color_override("font_color", Color(0.72, 0.72, 0.86))
 		row.add_child(b)
+	# The key chip leads, just right of the delete (the owner, 2026-11-13): it is the first thing a GD-ROM game needs.
+	row.move_child(row.get_node("Key"), row.get_node("State").get_index() + 1)
 
 	return row
 
@@ -4065,6 +4067,7 @@ func _show_rom_variants_panel(game: Dictionary, systemid: String) -> void:
 			key_btn.add_theme_font_size_override("font_size", 24)
 			key_btn.pressed.connect(spawn_key_requested.emit.bind(abs_path))
 			row.add_child(key_btn)
+			row.move_child(key_btn, 0)          # leading the row, as on a library row (right of its delete)
 
 		# Spawn, last so it lines up down the right edge whatever a row lacks.
 		# The title spawns too, but nothing about a logo says so.

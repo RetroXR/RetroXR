@@ -432,6 +432,14 @@ func held_object() -> XRToolsPickable:
 func grab_spawned(pickable: XRToolsPickable) -> void:
 	if _held_object or not is_instance_valid(pickable):
 		return
+	# Start it where it will be held, on the pointer's ray at the spawn's distance: it came in by the menu, and the
+	# grab drew it gliding from there to the pointer (the owner, 2026-11-13: "it should just spawn right on the pointer").
+	var fwd := -global_transform.basis.z.normalized()
+	var at := global_position + fwd * clampf(global_position.distance_to(pickable.global_position), MIN_DIST, MAX_DIST)
+	pickable.global_position = at
+	if pickable.is_inside_tree():
+		PhysicsServer3D.body_set_state(pickable.get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM, pickable.global_transform)
+	pickable.reset_physics_interpolation()
 	_grab_target(pickable)
 
 

@@ -155,6 +155,11 @@ func apply(placement: Dictionary) -> void:
 		PhysicsServer3D.body_set_state(body.get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM, pose)
 		PhysicsServer3D.body_set_state(body.get_rid(), PhysicsServer3D.BODY_STATE_LINEAR_VELOCITY, Vector3.ZERO)
 		PhysicsServer3D.body_set_state(body.get_rid(), PhysicsServer3D.BODY_STATE_ANGULAR_VELOCITY, Vector3.ZERO)
+		# And asleep there: stood exactly on the floor it has nothing to settle, and asleep it does not try (the release's
+		# nudge down, the floor's contact slop under its feet). The owner, 2026-11-13: "i still see a cabinet move when i
+		# place it down". Anything that touches it wakes it.
+		body.sleeping = true
+		PhysicsServer3D.body_set_state(body.get_rid(), PhysicsServer3D.BODY_STATE_SLEEPING, true)
 	# Stood there, not glided there from where it was carried (physics interpolation draws a jump as a slide).
 	host.reset_physics_interpolation()
 

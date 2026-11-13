@@ -675,23 +675,26 @@ func _build_bay() -> void:
 		drawer.set("travel", tray_travel)
 		# Before it is in the tree: the drawer takes its target's rest where it is when it is ready.
 		drawer.set("target", tray)
-		# Standing out in front of the tray's lip, so a pointer meets it before the board on the tray (whose own
-		# pointer box reaches over the lip).
-		drawer.position = Vector3(tb.get_center().x, tb.get_center().y, tb.end.z + 0.02)
-		m.add_child(drawer)
+		# Its origin the tray's front face, shut; its grab box round the tray's front lip (the owner, 2026-11-13: it
+		# stood fixed in front of the opening while the tray slid out), from just behind the lip to a little in front of
+		# it, so a pointer from the front meets it before the board on the tray. Added to the drawer BEFORE the drawer
+		# is in the tree: VRSlider adopts its shape in _ready, and only an adopted shape rides out with the knob.
+		drawer.position = Vector3(tb.get_center().x, tb.get_center().y, tb.end.z)
 		var col := CollisionShape3D.new()
 		var shape := BoxShape3D.new()
-		shape.size = Vector3(maxf(tb.size.x - 0.04, 0.05), maxf(tb.size.y, 0.03) + 0.02, 0.06)
+		shape.size = Vector3(maxf(tb.size.x - 0.02, 0.05), maxf(tb.size.y, 0.03) + 0.02, TRAY_LIP + 0.03)
 		col.shape = shape
+		col.position = Vector3(0.0, 0.0, 0.015 - (TRAY_LIP + 0.03) * 0.5)
 		drawer.add_child(col)
+		m.add_child(drawer)
 		# The tray as drawn is its handle: outlined green when a hand or the crosshair is on it, and what the desktop
 		# crosshair is held to while dragging (without it the drawer had neither). Its lip is a push face: a fingertip
-		# pressing it from in front pushes the tray back in (its face 2 cm behind the handle's box).
+		# pressing it from in front pushes the tray back in (its face the lip's front).
 		var tray_mesh := _first_mesh_in(tray)
 		if tray_mesh != null:
 			drawer.call("set_handle_mesh", tray_mesh)
 		drawer.set("push_face_size", Vector2(tb.size.x, maxf(tb.size.y, 0.03)))
-		drawer.set("push_face_offset", -0.02)
+		drawer.set("push_face_offset", 0.0)
 
 
 static func _first_mesh_in(n: Node) -> MeshInstance3D:
