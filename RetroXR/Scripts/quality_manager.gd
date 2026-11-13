@@ -423,6 +423,11 @@ func _read_vrs_overrides() -> void:
 	if cfg.has("no_governor"):
 		QUALITY_GOVERNOR.enabled = not bool(cfg["no_governor"])
 		print("[VRSProbe] quality governor %s" % ("on" if QUALITY_GOVERNOR.enabled else "off"))
+	if cfg.has("opaque_near_first"):
+		# The patched engine draws opaque surfaces near first (docs/godot-4.7.2-opaque-near-first.patch); false is the
+		# control arm. Read by the engine every frame, so it takes effect at once.
+		ProjectSettings.set_setting("rendering/renderer/mobile/opaque_near_first", bool(cfg["opaque_near_first"]))
+		print("[VRSProbe] opaque near first %s" % bool(cfg["opaque_near_first"]))
 	if cfg.has("physics_hz"):
 		physics_hz_override = maxi(int(cfg["physics_hz"]), 0)
 		print("[VRSProbe] physics rate override %d Hz" % physics_hz_override)

@@ -1,0 +1,79 @@
+From bcf004eecc717c20820cb9ce3d2c6f004063cc95 Mon Sep 17 00:00:00 2001
+From: Ryan McClelland <rymcclel@gmail.com>
+Date: Fri, 13 Nov 2026 17:36:41 +0700
+Subject: [PATCH] RenderForwardMobile: draw opaque near first, in half-metre
+ slices
+
+Render priority first, then the instance's distance in 0.5 m slices, then the
+shader/material/geometry key, so a tile GPU rejects hidden fragments early
+without giving up material batching. The engine's own depth_layer is 16 slices
+of the far plane, which put a whole room (XRCamera3D far 4000 m) in slice 0.
+Starlight Arcade, Quest 3, MSAA 2x: 15.4 -> 13.4 ms an eye pass, 12% fewer
+fragments. rendering/renderer/mobile/opaque_near_first = false switches it off.
+---
+ .../forward_mobile/render_forward_mobile.cpp  | 14 ++++++++++-
+ .../forward_mobile/render_forward_mobile.h    | 23 +++++++++++++++++++
+ 2 files changed, 36 insertions(+), 1 deletion(-)
+
+diff --git a/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp b/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp
+index ac7d4fb43a..81dc0740f6 100644
+--- a/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp
++++ b/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp
+@@ -994,7 +994,19 @@ void RenderForwardMobile::_render_scene(RenderDataRD *p_render_data, const Color
+ 
+ 	// fill our render lists early so we can find out if we use various features
+ 	_fill_render_list(RENDER_LIST_OPAQUE, p_render_data, PASS_MODE_COLOR);
+-	if (scene_state.used_opaque_stencil) {
++	// Near first (RetroXR): a tile GPU rejects hidden fragments early only when what hides them was drawn first, and
++	// the shader/material order drew the room in whatever order its materials happened to have (Starlight Arcade on a
++	// Quest 3: 15.4 -> 13.4 ms an eye pass, 12% fewer fragments). Off through the setting, for a comparison.
++	static const StringName near_first_setting = "rendering/renderer/mobile/opaque_near_first";
++	const bool near_first = bool(ProjectSettings::get_singleton()->get_setting(near_first_setting, true));
++	static int near_first_logged = -1;
++	if (int(near_first) != near_first_logged) {
++		near_first_logged = int(near_first);
++		print_line(vformat("RenderForwardMobile: opaque draws near first %s", near_first ? "on" : "OFF"));
++	}
++	if (near_first && !scene_state.used_opaque_stencil) {
++		render_list[RENDER_LIST_OPAQUE].sort_by_priority_depth_slice_then_key();
++	} else if (scene_state.used_opaque_stencil) {
+ 		render_list[RENDER_LIST_OPAQUE].sort_by_key_and_stencil();
+ 	} else {
+ 		render_list[RENDER_LIST_OPAQUE].sort_by_key();
+diff --git a/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.h b/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.h
+index 7605151eed..9726271573 100644
+--- a/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.h
++++ b/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.h
+@@ -369,6 +369,29 @@ private:
+ 			}
+ 		};
+ 
++		struct SortByPriorityDepthSliceThenKey {
++			_FORCE_INLINE_ bool operator()(const GeometryInstanceSurfaceDataCache *A, const GeometryInstanceSurfaceDataCache *B) const {
++				if (A->sort.priority != B->sort.priority) {
++					return A->sort.priority < B->sort.priority;
++				}
++				// depth_layer is 16 slices of the far plane (XRCamera3D's 4000 m: the whole room is slice 0), so slice
++				// the instance's own distance instead, half a metre a slice.
++				const int sa = int(A->owner->depth * 2.0f);
++				const int sb = int(B->owner->depth * 2.0f);
++				if (sa != sb) {
++					return sa < sb;
++				}
++				return (A->sort.sort_key2 == B->sort.sort_key2) ? (A->sort.sort_key1 < B->sort.sort_key1) : (A->sort.sort_key2 < B->sort.sort_key2);
++			}
++		};
++
++		// Near to far in half-metre slices, shader/material/geometry order within a slice,
++		// render priority still first: a tile GPU rejects hidden fragments early when the near things come first.
++		void sort_by_priority_depth_slice_then_key() {
++			SortArray<GeometryInstanceSurfaceDataCache *, SortByPriorityDepthSliceThenKey> sorter;
++			sorter.sort(elements.ptr(), elements.size());
++		}
++
+ 		void sort_by_key_and_stencil() {
+ 			SortArray<GeometryInstanceSurfaceDataCache *, SortByKeyAndStencil> sorter;
+ 			sorter.sort(elements.ptr(), elements.size());
+-- 
+2.55.0.windows.3
+

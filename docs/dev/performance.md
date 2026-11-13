@@ -744,3 +744,18 @@ Release, cull k 40, MSAA 2x, eye 0.8, per eye pass (`quest_eye_pass.py`):
   September gains (34 -> 69 fps) were at eye 1.75x, where the pass was fragment-bound; at 0.8 it is vertex-bound.
 - The fragment counter barely moves even at MAX: the density map does not cut the vertices replayed per bin,
   which is what MSAA multiplies. Foveation does not bring MSAA back here; fewer vertices does.
+
+### Overdraw: opaque surfaces drawn near first (2026-11-13, night)
+
+The eye pass shaded ~4x its pixels. Godot's mobile renderer orders opaque draws by shader and material, and its
+depth slice is a sixteenth of the far plane (4000 m), so the room was drawn in material order. Drawing near first
+(engine patch `godot-4.7.2-opaque-near-first.patch`, engine-patches.md), release, cull k 40, MSAA 2x, eye 0.8:
+
+| opaque order | fps | pass ms | fragments | vertices |
+|---|---:|---:|---:|---:|
+| Godot's (shader/material) | 59 | 15.4 | 15.6 M | 1.54 M |
+| strict front to back (experiment) | 67-68 | 13.4 | 13.7 M | 1.46 M |
+| **priority, 0.5 m depth slices, then material (shipped)** | **65-67** | **13.4** | **13.6 M** | 1.48 M |
+
+Default settings (governor at step 6/6), 43 s settled: mean 71.95 fps, App 10.1 ms, GPU 82% (was ~11.4 ms, 88-92%).
+Fragments are still ~3.6x the eye pixels: transparent layers and quad overshading on tiny triangles (back to LODs).

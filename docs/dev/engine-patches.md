@@ -181,6 +181,15 @@ Neither is a Quest defect; both are carried for every target built from the bran
   game claims its fire-and-forget tasks itself as well (`BackgroundTask`, `background_task_tests`).
   Built for both targets; not yet run on a headset.
 
+- `godot-4.7.2-opaque-near-first.patch` (engine bcf004eecc): the mobile renderer drew opaque surfaces in
+  shader/material order, depth last, and the key's `depth_layer` is 16 slices of the FAR PLANE (XRCamera3D's
+  4000 m), so a whole room was slice 0 and nothing was ever near-first. Now: render priority, then the instance's
+  distance in 0.5 m slices, then the old key, so a tile GPU rejects hidden fragments early and batching inside a
+  slice is kept. Starlight Arcade on a Quest 3, MSAA 2x, cull k 40: 15.4 -> 13.4 ms an eye pass, fragments
+  15.6 -> 13.6 M (a strict depth sort measured the same, without priority or batching); default settings App
+  11.4 -> 10.1 ms. `rendering/renderer/mobile/opaque_near_first` = false switches it off (read every frame;
+  `vrsprobe.cfg` `"opaque_near_first": false` is the control arm). The opaque STENCIL path keeps its own sort.
+
 Rebuild both libraries when a patch changes (each ~1 min incremental, the
 first build of a tree ~5 min):
 `cd ~/godot && ANDROID_HOME=C:/android/sdk ~/.local/bin/scons platform=android arch=arm64
