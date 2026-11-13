@@ -19,9 +19,13 @@ const STEPS: Array[Dictionary] = [
 	{"msaa": 0},
 	{"cull": 40.0},
 ]
-## A room has arrived when it has existed this long and its spawned objects have stopped coming for SETTLED_SEC.
+## A room has arrived when SceneManager says its saved objects are restored (`scene_content_ready`), it has existed
+## this long, and its spawned objects have stopped coming for SETTLED_SEC. Without the first, a 40 s restore read as
+## "settled (2 objects)" 30 s in and the governor judged the room on its 2-20 fps loading frames (Quest, 2026-11-13).
+## RESTORE_GIVE_UP_SEC arms it anyway should that signal never come.
 const MIN_ROOM_SEC := 20.0
 const SETTLED_SEC := 10.0
+const RESTORE_GIVE_UP_SEC := 180.0
 ## Each verdict is the mean frame rate over this long, and a step waits this long to take effect before the next.
 const WINDOW_SEC := 4.0
 const AFTER_STEP_SEC := 3.0
@@ -47,6 +51,7 @@ var _frames := 0
 var _elapsed := 0.0
 var _slow := 0
 var _armed := false
+var _content_ready := false
 
 
 ## A new room: start again from the player's own settings.
@@ -62,6 +67,10 @@ func room_entered(room_id: String) -> void:
 	if remembered > 0 and enabled:
 		_apply_remembered.call_deferred(mini(remembered, STEPS.size()))
 	_room_since = Time.get_ticks_msec() / 1000.0
+	_content_ready = false
+	var sm := get_node_or_null("/root/SceneManager")
+	if sm != null and not sm.is_connected("scene_content_ready", _on_content_ready):
+		sm.connect("scene_content_ready", _on_content_ready)
 	_spawned = -1
 	_armed = false
 	_slow = 0
@@ -78,7 +87,8 @@ func _process(delta: float) -> void:
 		if count != _spawned:
 			_spawned = count
 			_spawned_since = now
-		if _room_since > 0.0 and now - _room_since >= MIN_ROOM_SEC and now - _spawned_since >= SETTLED_SEC:
+		var restored := _content_ready or now - _room_since >= RESTORE_GIVE_UP_SEC
+		if restored and _room_since > 0.0 and now - _room_since >= MIN_ROOM_SEC and now - _spawned_since >= SETTLED_SEC:
 			_armed = true
 			print("[QualityGovernor] room settled (%d objects): watching the frame rate" % count)
 		return
@@ -104,6 +114,11 @@ func _process(delta: float) -> void:
 	_slow = 0
 	_step(fps, rate)
 	_wait = AFTER_STEP_SEC
+
+
+func _on_content_ready(scene_id: String) -> void:
+	_content_ready = true
+	print("[QualityGovernor] %s: room restored, %.0f s after it began" % [scene_id, Time.get_ticks_msec() / 1000.0 - _room_since])
 
 
 func _apply_remembered(level: int) -> void:
