@@ -423,6 +423,9 @@ func _read_vrs_overrides() -> void:
 	if cfg.has("no_governor"):
 		QUALITY_GOVERNOR.enabled = not bool(cfg["no_governor"])
 		print("[VRSProbe] quality governor %s" % ("on" if QUALITY_GOVERNOR.enabled else "off"))
+	if cfg.has("physics_hz"):
+		physics_hz_override = maxi(int(cfg["physics_hz"]), 0)
+		print("[VRSProbe] physics rate override %d Hz" % physics_hz_override)
 	if cfg.has("no_runtime_volume"):
 		runtime_volume_enabled = not bool(cfg["no_runtime_volume"])
 		print("[VRSProbe] runtime prop volume %s" % ("on" if runtime_volume_enabled else "off"))
@@ -1504,9 +1507,8 @@ func set_display_rate(rate: float) -> void:
 ##
 ## There is no separate frame-rate target to keep in step — xr_init.gd disables
 ## vsync and the runtime paces frames through xrWaitFrame, so this IS the target.
-## Engine.physics_ticks_per_second deliberately does NOT follow it: the rope
-## solver is tuned and regression-tested at a fixed tick rate, and moving it under
-## every cable in the room is far more than this setting is worth.
+## On a headset Engine.physics_ticks_per_second follows it (`_match_physics_rate`); on desktop it stays at the
+## project's 90 Hz, where the rope oracles are measured.
 func apply_display_rate() -> void:
 	var best := effective_display_rate()
 	if best <= 0.0:
@@ -1515,6 +1517,26 @@ func apply_display_rate() -> void:
 	xr.call("set_display_refresh_rate", best)
 	print("[QualityManager] display refresh rate %s Hz (available: %s)" % [
 		best, available_display_rates()])
+	_match_physics_rate(best)
+
+
+## `vrsprobe.cfg` "physics_hz": N ticks physics at N instead (90 is the control arm: the old behaviour).
+var physics_hz_override := 0
+
+## A headset ticks physics once per displayed frame. At the project's 90 Hz under a 72 Hz display every fourth
+## frame ran TWO physics ticks (Jolt, every cord, every grab driver and physics script twice), a periodic spike
+## that held the Starlight Arcade at 68-71 fps with the GPU at 88% (2026-11-13, performance.md). The rope steps
+## with the delta it is given (slice = delta / substeps), so a longer tick is a longer step, not a stiffer one.
+## Desktop is left at 90: its rates vary and the bit-exact rope oracles are measured there.
+func _match_physics_rate(display_hz: float) -> void:
+	if _desktop:
+		return
+	var hz := physics_hz_override if physics_hz_override > 0 else int(round(display_hz))
+	if hz <= 0 or Engine.physics_ticks_per_second == hz:
+		return
+	print("[QualityManager] physics rate %d -> %d Hz (display %s Hz)" % [
+		Engine.physics_ticks_per_second, hz, display_hz])
+	Engine.physics_ticks_per_second = hz
 
 
 ## Whether the runtime takes performance-level requests. Asked with has_method

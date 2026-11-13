@@ -680,3 +680,19 @@ the limit and the GPU became it.
   this room runs 290-900 MB, and the swapchain/VRS reallocation tipped it.
 - Script profile (`vrsprobe` `profile_scripts`, debug): 7.7 ms a frame in 619 callbacks of 127 scripts; the 213
   grab drivers are 0.9 ms (call overhead, the rest early-out), everything else 0.05-0.6 ms each.
+
+### Physics ticks once per displayed frame on a headset (2026-11-13, late)
+
+With the quality governor at its last step the room held 68-71, not 72, with the GPU at 88-92% and App ~11.4 ms:
+room to spare on both, so the misses were a periodic spike. Physics ticked at the project's 90 Hz under a 72 Hz
+display, so every fourth frame ran TWO physics ticks (Jolt, every awake cord, grab drivers, every
+`_physics_process`). `QualityManager._match_physics_rate` now sets `Engine.physics_ticks_per_second` to the
+display rate on a headset (desktop stays at 90: the rope oracles are measured there). The rope steps with the delta
+it is given (`slice = delta / substeps`), so the longer tick is a longer step, not a stiffer cord; anything counted
+in TICKS (a rope's forced sleep after 720, a grab driver resting after 30) now takes 1.25x as long.
+`vrsprobe.cfg` `"physics_hz": 90` is the control arm.
+
+| release, default settings, governor at step 6/6, 40 s each | mean fps | seconds under 71 |
+|---|---:|---:|
+| physics 90 Hz (control) | 71.1 | 11 |
+| **physics 72 Hz** | **72.1** | **1** |
