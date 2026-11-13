@@ -130,6 +130,12 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 		conv.global_transform = _converter_seat(cabinet, bay as Node3D)
 		if conv is RigidBody3D:
 			(conv as RigidBody3D).freeze = true
+			# Frozen on the cabinet's floor, inside its boxes: without this it threw the cabinet off itself.
+			var machine: Node = cabinet
+			while machine != null and not machine is RigidBody3D:
+				machine = machine.get_parent()
+			if machine != null:
+				(conv as RigidBody3D).add_collision_exception_with(machine)
 		var jc := (load("res://Scenes/Objects/cables/jamma_cable.tscn") as PackedScene).instantiate() as Node3D
 		home.add_child(jc)
 		jc.global_position = conv.global_position + Vector3(0, 0.1, 0)

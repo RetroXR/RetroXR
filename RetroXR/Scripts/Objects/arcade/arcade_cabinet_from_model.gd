@@ -84,6 +84,20 @@ var _model: Node3D = null
 ## while it is held, so a carried cabinet passes through things as every held object does (HeldObjectPhysics clears the
 ## cabinet's own body, not these).
 var _riding: Array[CollisionObject3D] = []
+## What a carried cabinet takes along that is not its child: the cords lying in it (VerletRope) and the frozen bodies
+## standing in it (a JAMMA cabinet's converter). A held cabinet collides with nothing, so left to themselves the cords
+## trailed out through its walls as it moved, and the converter stayed where the cabinet had been.
+var _pickable: XRToolsPickable = null
+var _carried: Array[Node3D] = []
+## Where the machine was last physics frame, and how many frames it has stood still since it last moved. From 0: a cabinet
+## only just spawned or restored settles as its cords are laid and plugged in, and moving them then left a captive
+## lead's plug out of its socket; nothing is carried until it has once stood still.
+var _carry_from := Transform3D.IDENTITY
+var _still := 0
+## Physics frames standing still before the insides are let go (GroundPlacement stands a cabinet on the floor after a drop).
+const CARRY_SETTLE := 30
+## Less than this from one physics frame to the next is standing still (meters, radians).
+const CARRY_MOVE := 0.0005
 
 
 func _ready() -> void:
@@ -204,8 +218,68 @@ func _watch_held() -> void:
 	if n == null:
 		return
 	var p := n as XRToolsPickable
+	_pickable = p
+	_carry_from = p.global_transform
 	p.picked_up.connect(func(_by: Variant = null) -> void: _set_riding_solid(false))
 	p.dropped.connect(func(_by: Variant = null) -> void: _set_riding_solid(true))
+	set_physics_process(true)
+
+
+## What lies inside the cabinet as it stood at `was` (its machine's transform then): every cord whose every point is within
+## its drawn bounds, every frozen body (not the cabinet's own) whose origin is.
+func _collect_carried(was: Transform3D) -> void:
+	_carried.clear()
+	if _model == null or _pickable == null:
+		return
+	var box := _mesh_bounds_in(_model, self).grow(0.03)
+	var to_me := (was * (_pickable.global_transform.affine_inverse() * global_transform)).affine_inverse()
+	for r in get_tree().root.find_children("*", "VerletRope", true, false):
+		var pts: PackedVector3Array = r.call("get_points")
+		if pts.is_empty():
+			continue
+		var all_in := true
+		for q in pts:
+			if not box.has_point(to_me * q):
+				all_in = false
+				break
+		if all_in:
+			_carried.append(r as Node3D)
+	for b in get_tree().root.find_children("*", "RigidBody3D", true, false):
+		var body := b as RigidBody3D
+		# (not what something holds -- the board in its mount -- nor a plug: its socket or its cord moves it, and one moved
+		# while it was still going into its socket was left out of it)
+		var held := body is CablePlug or (body is XRToolsPickable and (body as XRToolsPickable).is_picked_up())
+		if body.freeze and not held and body != _pickable and not _pickable.is_ancestor_of(body) and box.has_point(to_me * body.global_position):
+			_carried.append(body)
+
+
+## Whenever the machine moves -- carried in a hand or on the desktop, stood on the floor, pushed -- what is inside it moves
+## the same, from the frame it starts moving until it has stood still CARRY_SETTLE frames.
+func _physics_process(_delta: float) -> void:
+	if _pickable == null:
+		return
+	var now := _pickable.global_transform
+	var move := now * _carry_from.affine_inverse()
+	var moved := move.origin.length() > CARRY_MOVE or move.basis.get_rotation_quaternion().get_angle() > CARRY_MOVE
+	if moved:
+		if _still >= CARRY_SETTLE:
+			_collect_carried(_carry_from)
+		_still = 0
+		for n in _carried:
+			if not is_instance_valid(n):
+				continue
+			if n is RigidBody3D:
+				n.global_transform = move * n.global_transform
+			else:
+				var pts: PackedVector3Array = n.call("get_points")
+				for i in pts.size():
+					pts[i] = move * pts[i]
+				n.call("restore_points", pts)
+	elif _still < CARRY_SETTLE:
+		_still += 1
+		if _still == CARRY_SETTLE:
+			_carried.clear()
+	_carry_from = now
 
 
 func _set_riding_solid(solid: bool) -> void:
