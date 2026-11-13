@@ -100,6 +100,8 @@ var _carry_from := Transform3D.IDENTITY
 var _still := 0
 ## Physics frames standing still before the insides are let go.
 const CARRY_SETTLE := 30
+## How far the glow on a panel (ArcadePanelGlow) stands clear of its stick and buttons, metres.
+const GLOW_CLEAR := 0.012
 ## Less than this from one physics frame to the next is standing still (meters, radians).
 const CARRY_MOVE := 0.0005
 
@@ -565,6 +567,23 @@ func _build_panel(n: int) -> void:
 			b = AABB(p.position, Vector3.ZERO)
 		box = b if first else box.merge(b)
 		first = false
+	# The deck: straight down from above the panel's middle onto the cabinet's own surfaces (the caps' bottoms are under it).
+	var deck_y := _deck_height(m, box)
+	# The panel's colour, for its glow and its "1P": the first cap's.
+	var tint: Variant = _part_color(parts[1] if parts.size() > 1 else parts[0])
+	if tint != null:
+		m.set_meta(&"player_color", tint)
+	# The glow lies round the stick and the buttons only (not START), a little clear of them.
+	var lit := AABB()
+	var lit_first := true
+	for p: Node3D in parts:
+		if p.name == &"Start":
+			continue
+		var b := _mesh_bounds_in(p, m)
+		if b.size == Vector3.ZERO:
+			continue
+		lit = b if lit_first else lit.merge(b)
+		lit_first = false
 	box = box.grow(0.03)
 	var grip := Area3D.new()
 	grip.name = "PanelGrip"
@@ -572,13 +591,61 @@ func _build_panel(n: int) -> void:
 	grip.collision_layer = 0
 	grip.collision_mask = 0
 	grip.set("panel_size", Vector2(box.size.x, box.size.z))
+	if not lit_first:
+		# In the grip's XY: x across, y toward the back (-Z in the panel's frame).
+		var c := box.get_center()
+		grip.set_meta(&"glow_rect", Rect2(lit.position.x - c.x, -(lit.end.z - c.z), lit.size.x, lit.size.z).grow(GLOW_CLEAR))
+	# The grip's plane (its XY, facing +Z) lies on the deck: +Z is the panel's up, +Y toward its back. Its glow lies
+	# on the deck under the caps; its box stands round the controls as before.
+	grip.transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5), Vector3(box.get_center().x, deck_y, box.get_center().z))
 	m.add_child(grip)
-	grip.position = box.get_center()
 	var col := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(box.size.x, maxf(box.size.y, 0.06), box.size.z)
+	shape.size = Vector3(box.size.x, box.size.z, maxf(box.size.y, 0.06))
 	col.shape = shape
+	col.position = Vector3(0.0, 0.0, box.get_center().y - deck_y)
 	grip.add_child(col)
+
+
+## Where the deck under a panel's controls is, in `m`'s frame (y): the highest of the model's own surfaces (not the
+## panel's controls) straight down from above the middle of `box`; the bottom of `box` when nothing is hit.
+func _deck_height(m: Node3D, box: AABB) -> float:
+	var c := box.get_center()
+	var from := m.global_transform * Vector3(c.x, box.end.y + 0.05, c.z)
+	var to := m.global_transform * Vector3(c.x, box.position.y - 0.10, c.z)
+	var best := -INF
+	for n in _model.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.mesh == null or m.is_ancestor_of(mi) or not mi.is_visible_in_tree():
+			continue
+		var inv := mi.global_transform.affine_inverse()
+		var a := inv * from
+		var b := inv * to
+		if not mi.mesh.get_aabb().intersects_segment(a, b):
+			continue
+		var tri := mi.mesh.generate_triangle_mesh()
+		if tri == null:
+			continue
+		var hit := tri.intersect_segment(a, b)
+		if hit.is_empty():
+			continue
+		var y := (m.global_transform.affine_inverse() * (mi.global_transform * (hit["position"] as Vector3))).y
+		best = maxf(best, y)
+	return best if best > -INF else box.position.y
+
+
+## A part's colour: its first mesh's first surface's albedo, or null.
+static func _part_color(part: Node3D) -> Variant:
+	if part == null:
+		return null
+	for n in part.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.mesh == null or mi.mesh.get_surface_count() == 0:
+			continue
+		var mat := mi.material_override if mi.material_override != null else mi.get_active_material(0)
+		if mat is BaseMaterial3D:
+			return (mat as BaseMaterial3D).albedo_color
+	return null
 
 
 func _button(parent: Node3D, button_name: String, at: Vector3, size: Vector3) -> Area3D:

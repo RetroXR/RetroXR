@@ -772,22 +772,22 @@ func _group_attach() -> void:
 	var g1 := p1.grip()
 	var g2 := p2.grip()
 	await _wait(2)
-	var plate1 := g1.get_node("PanelHighlight") as MeshInstance3D
-	var plate2 := g2.get_node("PanelHighlight") as MeshInstance3D
-	_ok(not plate1.visible and not plate2.visible, "attach: nothing is lit until a panel is aimed at")
+	var plate1 := g1.get_node("PanelHighlight") as ArcadePanelGlow
+	var plate2 := g2.get_node("PanelHighlight") as ArcadePanelGlow
+	_ok(not plate1.is_lit() and not plate2.is_lit(), "attach: nothing is lit until a panel is aimed at")
 	g1.pointer_event(_event(XRToolsPointerEvent.Type.ENTERED, g1))
-	_ok(plate1.visible and not plate2.visible, "attach: aimed at, player 1's WHOLE panel lights, and only it")
+	_ok(plate1.is_lit() and not plate2.is_lit(), "attach: aimed at, player 1's panel lights, and only it")
 	g1.pointer_event(_event(XRToolsPointerEvent.Type.EXITED, g1))
 	g2.pointer_event(_event(XRToolsPointerEvent.Type.ENTERED, g2))
-	_ok(plate2.visible and not plate1.visible, "attach: aimed at player 2's, that lights instead")
+	_ok(plate2.is_lit() and not plate1.is_lit(), "attach: aimed at player 2's, that lights instead")
 	g2.pointer_event(_event(XRToolsPointerEvent.Type.EXITED, g2))
-	_ok(not plate2.visible, "attach: and goes dark when the aim leaves")
+	_ok(not plate2.is_lit(), "attach: and goes dark when the aim leaves")
 	var input := model.arcade_input()
 	_ok(not input.playing, "attach: not attached to anything yet")
 	g1.pointer_event(_event(XRToolsPointerEvent.Type.PRESSED, g1))
 	_ok(g1.attached and p1.is_attached() and input.playing and input.attached.has(0),
 		"attach: a press attaches you to player 1's panel, as to a controller")
-	_ok(not g1.is_hovered() or plate1.visible, "attach: it stays lit while you are attached")
+	_ok(not g1.is_hovered() or plate1.is_lit(), "attach: it stays lit while you are attached")
 	g2.pointer_event(_event(XRToolsPointerEvent.Type.PRESSED, g2))
 	_ok(g2.attached and not g1.attached and input.attached.has(1) and not input.attached.has(0),
 		"attach: attaching to player 2's lets go of player 1's: one controller, one panel")

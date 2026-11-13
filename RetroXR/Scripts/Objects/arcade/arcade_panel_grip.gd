@@ -19,10 +19,6 @@ signal toggled(attached: bool)
 signal held_changed(held: bool)
 
 const POINTABLE_LAYER := 1 << 20
-## The panel is picked out by a yellow frame round it, as a pad or a stick is (WidgetOutline.SELECT_COLOR), not a green wash over it.
-const OUTLINE_COLOR := WidgetOutline.SELECT_COLOR
-## How thick the frame is, metres.
-const FRAME_WIDTH := 0.006
 ## A hand this close to the panel's centre, squeezing the grip, takes hold of it.
 const REACH := 0.22
 const GRIP_ON := 0.6
@@ -50,8 +46,8 @@ var attached := false
 var held := false
 
 var _hovered := false
-var _plate: MeshInstance3D = null
-var _material: StandardMaterial3D = null
+## The glow on the deck and the bouncing "1P" (ArcadePanelGlow), in place of the yellow frame there was.
+var _glow: ArcadePanelGlow = null
 var _controllers: Array[XRController3D] = []
 var _squeezing: Dictionary = {}
 
@@ -62,21 +58,22 @@ func _ready() -> void:
 	monitoring = false
 	if desktop_rect.has_area() and not get_viewport().use_xr:
 		_narrow_to_desktop_rect()
-	_plate = MeshInstance3D.new()
-	_plate.name = "PanelHighlight"
-	if ring_radius > 0.0:
-		_plate.mesh = _ring_mesh()
-	else:
-		_plate.mesh = frame_mesh(panel_size, FRAME_WIDTH)
-	_material = StandardMaterial3D.new()
-	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_material.albedo_color = OUTLINE_COLOR
-	_plate.material_override = _material
-	_plate.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	# Just above the deck, under the caps: the frame reads as the panel's own edge.
-	_plate.position = Vector3(0.0, 0.0, 0.0045)
-	add_child(_plate)
+	_glow = ArcadePanelGlow.new()
+	_glow.name = "PanelHighlight"
+	_glow.panel_size = panel_size
+	_glow.ring_radius = ring_radius
+	_glow.ring_width = ring_width
+	if has_meta(&"glow_rect"):
+		_glow.rect = get_meta(&"glow_rect") as Rect2
+	var who: Variant = get_parent().get("player") if get_parent() != null else null
+	_glow.player = maxi(int(who), 0) if who != null else 0
+	# The panel's own colour when it has one (a cabinet from a model: its caps'), else the stick ball's for the player.
+	var parent := get_parent()
+	_glow.color = parent.get_meta(&"player_color") as Color if parent != null and parent.has_meta(&"player_color") \
+		else ArcadeCabinetBuilder._player_color(_glow.player)
+	# Just above the deck, under the caps: the glow lies on the panel itself.
+	_glow.position = Vector3(0.0, 0.0, 0.0045)
+	add_child(_glow)
 	_refresh()
 	await get_tree().process_frame
 	for node in XrControllers.all(get_tree()):
@@ -97,34 +94,6 @@ func _narrow_to_desktop_rect() -> void:
 	var centre := desktop_rect.get_center()
 	position += basis * Vector3(centre.x, centre.y, 0.0)
 	panel_size = desktop_rect.size
-
-
-## The annulus a ring grip lights: `ring_width` wide about `ring_radius`, in XY, facing +Z.
-func _ring_mesh() -> ArrayMesh:
-	var outer := ring_radius + ring_width * 0.5
-	var inner := maxf(ring_radius - ring_width * 0.5, 0.0)
-	var n := 48
-	var verts := PackedVector3Array()
-	var normals := PackedVector3Array()
-	var indices := PackedInt32Array()
-	for i in n:
-		var a := TAU * float(i) / float(n)
-		verts.append(Vector3(cos(a) * outer, sin(a) * outer, 0.0))
-		verts.append(Vector3(cos(a) * inner, sin(a) * inner, 0.0))
-		normals.append(Vector3.BACK)
-		normals.append(Vector3.BACK)
-	for i in n:
-		var o0 := i * 2
-		var o1 := ((i + 1) % n) * 2
-		indices.append_array(PackedInt32Array([o0, o0 + 1, o1, o1, o0 + 1, o1 + 1]))
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = verts
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_INDEX] = indices
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return mesh
 
 
 ## A pointer (the desktop reticle, the laser) on the panel: entering lights it, a press
@@ -180,33 +149,6 @@ func is_hovered() -> bool:
 	return _hovered
 
 
-## A flat rectangular frame, `size` across its outside edge and `width` wide, facing +Z: the outline of a panel.
-static func frame_mesh(size: Vector2, width: float) -> ArrayMesh:
-	var ox := size.x * 0.5
-	var oy := size.y * 0.5
-	var ix := maxf(ox - width, 0.0)
-	var iy := maxf(oy - width, 0.0)
-	# Outer corners 0-3 and inner corners 4-7, both counter-clockwise from the bottom left; each side is a quad.
-	var verts := PackedVector3Array([
-		Vector3(-ox, -oy, 0.0), Vector3(ox, -oy, 0.0), Vector3(ox, oy, 0.0), Vector3(-ox, oy, 0.0),
-		Vector3(-ix, -iy, 0.0), Vector3(ix, -iy, 0.0), Vector3(ix, iy, 0.0), Vector3(-ix, iy, 0.0)])
-	var indices := PackedInt32Array()
-	for i in 4:
-		var j := (i + 1) % 4
-		indices.append_array([i, j, j + 4, i, j + 4, i + 4])
-	var normals := PackedVector3Array()
-	normals.resize(8)
-	normals.fill(Vector3.BACK)
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = verts
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_INDEX] = indices
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return mesh
-
-
 func _process(_delta: float) -> void:
 	# VR: a squeeze with a hand over the panel is the same press.
 	for ctrl in _controllers:
@@ -245,6 +187,6 @@ var _vr_near := false
 
 
 func _refresh() -> void:
-	if _plate == null:
+	if _glow == null:
 		return
-	_plate.visible = attached or held or _hovered or _vr_near
+	_glow.set_state(_hovered or _vr_near, attached or held)
