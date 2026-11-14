@@ -319,11 +319,15 @@ func _show_cash(box: PortCover) -> void:
 		pile.add_child(coin)
 
 
-## The box turned over pours its coins out.
+## The box turned over pours its coins out. Its up is its tray's (the model's up), not the cover's: a lift-off cover's +Y is the
+## way it lifts out, the cabinet's front for this one, and a box turned over did not pour.
 func _cash_pour_check() -> void:
 	if not is_instance_valid(_cash_box) or int(_cash_box.get_meta(CASH_COINS_META, 0)) == 0:
 		return
-	if _cash_box.global_basis.y.normalized().dot(Vector3.UP) > CASH_POUR:
+	var shell := _cash_box.get_node_or_null("Shell") as Node3D
+	var tray := shell.get_child(0) as Node3D if shell != null and shell.get_child_count() > 0 else null
+	var up := tray.global_basis.y if tray != null else _cash_box.global_basis.y
+	if up.normalized().dot(Vector3.UP) > CASH_POUR:
 		return
 	_cash_box.set_meta(CASH_COINS_META, 0)
 	_show_cash(_cash_box)
