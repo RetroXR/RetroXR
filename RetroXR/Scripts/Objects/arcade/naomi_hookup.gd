@@ -31,8 +31,9 @@ const CONV_GROUP := "jvs_jamma_converter"
 ## On a cabinet socket that is the cabinet end of one of its own cords (ArcadeCabinetFromModel.captive_leads).
 const CAPTIVE_META := &"captive_lead"
 ## How much longer than its run (the board's socket to the cabinet's) a cord the cabinet comes with is: a tray's travel (a
-## NAOMI Universal's slides out 330 mm) and a little to spare. Cut to the run, it does not spill out of the bay in coils.
-const CORD_SPARE := 0.45
+## NAOMI Universal's slides out 330 mm) and 3 cm. Cut to the run, it does not spill out of the bay in coils (it was 12 cm
+## over the travel: the owner, 2026-11-14, "would it make sense to make some of those cables inside of there shorter").
+const CORD_SPARE := 0.36
 const CONV_EDGE := "ConvJammaEdge"
 const CONV_JVS := "ConvJvsIn"
 const CONV_VGA := "ConvVgaIn"

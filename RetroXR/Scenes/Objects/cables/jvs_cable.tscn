@@ -134,15 +134,11 @@ script = ExtResource("4_pickhigh")
 [node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("5_snapgp")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
 
-; 60 x 30 mm = 1.80 m, the length a VGA lead shipped at. Bought with segment COUNT
-; rather than a longer segment, so the boot and the minimum bend radius stay where
-; cable.tscn tuned them in millimetres.
+; 60 x 30 mm = 1.80 m. A cabinet's cord is cut to its run (NaomiHookup, CaptiveCord.resize).
 ;
-; 7.5 mm cord (tube_radius 0.00375) — a shielded VGA lead is nearly double the
-; 4.5 mm controller cord and close to the composite lead's jacket. collision_radius
-; is the standoff the solver holds each particle at from a contact plane, so it has
-; to track the tube or the cord sinks: 0.0051 leaves the same 1.35 mm resting gap
-; the other leads use.
+; 4.6 mm cord (tube_radius 0.0023): a USB cable's jacket, not the VGA lead's 7.5 (the owner,
+; 2026-11-14: "the usb cable seems kinda thick"). collision_radius tracks the tube, 1.35 mm
+; out, as the other leads do.
 ;
 ; No ribbon_count and no fray: this is one wire. CompositeCable's single-cord path
 ; anchors the rope's two ends straight to the two plugs, so there is no breakout
@@ -152,12 +148,12 @@ segment_count = 60
 segment_length = 0.03
 constraint_iterations = 8
 bend_stiffness = 0.2
-tube_radius = 0.00375
+tube_radius = 0.0023
 tube_sides = 8
 smoothing = 2
 rope_color = Color(0.05, 0.05, 0.06, 1.0)
 surface_collision_mask = 7
-collision_radius = 0.0051
+collision_radius = 0.00365
 self_collision = true
 end_align_stiffness = 0.7
 end_stiffness = 0.45

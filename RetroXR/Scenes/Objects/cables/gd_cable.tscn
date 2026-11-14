@@ -63,7 +63,7 @@ cord_colors = PackedColorArray(0.62, 0.62, 0.64, 1)
 ; connector-on-+Z with the cord leaving -Z, which is also VerletRope's
 ; plug_exit_axis, so an unturned plug here would leave its tail with a hairpin.
 [node name="PlugA0" type="RigidBody3D" parent="."]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.75)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.36)
 collision_layer = 4
 collision_mask = 196613
 physics_material_override = SubResource("PhysMat_plug")
@@ -99,7 +99,7 @@ transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
 ; -- End B --------------------------------------------------------------------
 ; Unturned: its cord already trails -Z, back toward end A.
 [node name="PlugB0" type="RigidBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.75)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.36)
 collision_layer = 4
 collision_mask = 196613
 physics_material_override = SubResource("PhysMat_plug")
@@ -132,21 +132,18 @@ script = ExtResource("4_pickhigh")
 [node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("5_snapgp")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
 
-; 60 x 30 mm = 1.80 m, the length a VGA lead shipped at. Bought with segment COUNT
-; rather than a longer segment, so the boot and the minimum bend radius stay where
-; cable.tscn tuned them in millimetres.
+; 25 x 30 mm = 0.75 m: the run from the DIMM board to the drive standing beside it (the
+; owner, 2026-11-14: "even for the gd rom cable, it seems kind of long"; it was the VGA
+; lead's 1.8 m). Bought with segment COUNT so the boot and the bend radius stay as tuned.
 ;
-; 7.5 mm cord (tube_radius 0.00375) — a shielded VGA lead is nearly double the
-; 4.5 mm controller cord and close to the composite lead's jacket. collision_radius
-; is the standoff the solver holds each particle at from a contact plane, so it has
-; to track the tube or the cord sinks: 0.0051 leaves the same 1.35 mm resting gap
-; the other leads use.
+; 7.5 mm cord (tube_radius 0.00375), collision_radius 0.0051 (the 1.35 mm resting gap the
+; other leads use).
 ;
 ; No ribbon_count and no fray: this is one wire. CompositeCable's single-cord path
 ; anchors the rope's two ends straight to the two plugs, so there is no breakout
 ; junction for a fray to hang off.
 [node name="VerletRope" type="VerletRope" parent="."]
-segment_count = 60
+segment_count = 25
 segment_length = 0.03
 constraint_iterations = 8
 bend_stiffness = 0.2
