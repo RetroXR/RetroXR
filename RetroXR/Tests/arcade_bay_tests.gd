@@ -526,7 +526,10 @@ func _group_captive() -> void:
 			shown += 1 if (mi as MeshInstance3D).visible else 0
 	_ok(end != null and not end.enabled and shown == 0, "captive: its cord's cabinet end is in the grommet, hidden and fixed")
 	var rope := end.get_parent().get_node_or_null("VerletRope") as VerletRope if end != null else null
-	var run := cab.global_position.distance_to((bay.find_child(NaomiHookup.BOARD_VGA, true, false) as Node3D).global_position) if cab != null else 0.0
+	# From where the cord leaves its plug (the grommet: the plug sinks in by its own length), else the socket.
+	var exit := end.find_child("CordExit", true, false) as Node3D if end != null else null
+	var from_at := exit.global_position if exit != null else (cab.global_position if cab != null else Vector3.ZERO)
+	var run := from_at.distance_to((bay.find_child(NaomiHookup.BOARD_VGA, true, false) as Node3D).global_position) if cab != null else 0.0
 	var cord_len: float = rope.segment_count * rope.segment_length if rope != null else 0.0
 	_ok(rope != null and absf(cord_len - run - NaomiHookup.CORD_SPARE) < 0.03,
 		"captive: the cord is cut to its run, %.2f m for %.2f m" % [cord_len, run])
@@ -625,6 +628,9 @@ func _hk_build(jamma: bool) -> void:
 	var cp := PackedScene.new()
 	cp.pack(cab)
 	ResourceSaver.save(cp, HK_CAB)
+	# Written again by a later group (the captive one): the registry keeps every model scene it has loaded, by path, so the
+	# first one written here would be built again in its place.
+	SystemModelRegistry._packed_scenes.erase(HK_CAB)
 	cab.free()
 
 
@@ -719,6 +725,9 @@ func _hk_run() -> void:
 	drive.set_lid_open(false)
 	await _wait(30)
 	_ok(dimm.missing().has("the drive's power lead"), "hookup: a GD-ROM drive with no power lead: no game (%s)" % str(dimm.missing()))
+	# Powering on says which link is missing, not "no cartridge inserted" (the owner, 2026-11-14).
+	var chain_gap: String = sys.call("_media_chain_gap")
+	_ok(sys.rom_path.is_empty() and chain_gap.contains("the drive's power lead"), "hookup: power-on names the missing lead (%s)" % chain_gap)
 	var dpow := _hk_cable("naomi_power_cable")
 	(drive.find_child(NaomiGdRom.DRIVE_POWER, true, false) as Port).pick_up_object(dpow.get_node("PlugA0"))
 	(model.find_child(NaomiGdRom.CAB_DRIVE_POWER, true, false) as Port).pick_up_object(dpow.get_node("PlugB0"))

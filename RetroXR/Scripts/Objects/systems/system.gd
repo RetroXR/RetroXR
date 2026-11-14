@@ -1940,6 +1940,14 @@ func power_on() -> void:
 		push_error("RetroSystem: Cannot power on - %s" % disc_gap)
 		_announce_disc_gap(disc_gap)
 		return
+	# Media that loads its game from a chain of parts (a NAOMI's DIMM board: its key chip, the GD-ROM drive cabled to it, the
+	# disc in that drive, the drive's power lead) hands over no game while a link is missing. Say which link: "no cartridge
+	# inserted" was all the owner was told with the DIMM board in and only the drive's power lead missing (2026-11-14).
+	var media_gap := _media_chain_gap()
+	if not media_gap.is_empty():
+		push_error("RetroSystem: Cannot power on - %s" % media_gap)
+		_announce_disc_gap(media_gap)
+		return
 	# A suite with no core installed stands in for one here: the machine comes up as a started core leaves it.
 	if core_start_stand_in.is_valid():
 		core_start_stand_in.call()
@@ -4608,6 +4616,21 @@ func arcade_disc_changed() -> void:
 		elif gap != _disc_gap_told:
 			_disc_gap_told = gap
 			_announce_disc_gap(gap))
+
+
+## What the seated media's own chain still lacks, as the sentence the player reads, or "" (no such media, or nothing
+## missing, or a game already loaded). The media says it through missing() (NaomiDimm).
+func _media_chain_gap() -> String:
+	if not rom_path.is_empty() or not is_instance_valid(_snapped_cartridge) or not _snapped_cartridge.has_method("missing"):
+		return ""
+	var gaps: Array = _snapped_cartridge.call("missing")
+	if gaps.is_empty():
+		return ""
+	return "The %s has no game yet. Missing: %s." % [_media_label(_snapped_cartridge), ", ".join(PackedStringArray(gaps))]
+
+
+static func _media_label(media: Node) -> String:
+	return "DIMM board" if media is NaomiDimm else str(media.name)
 
 
 func _announce_disc_gap(gap: String) -> void:
