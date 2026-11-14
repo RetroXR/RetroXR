@@ -423,6 +423,12 @@ func _ready() -> void:
 		_governor.name = "QualityGovernor"
 		_governor.set("qm", self)
 		add_child(_governor)
+	if _is_forward_plus() and DisplayServer.get_name() != "headless":
+		# One shadow draw per object instead of one per part (ShadowMerge). Forward+ only: the Quest's props
+		# are on a baked volume and cast nothing. Not headless: nothing is drawn (and a suite makes its own).
+		var merge := ShadowMerge.new()
+		merge.name = "ShadowMerge"
+		add_child(merge)
 	if not _desktop:
 		# A sleeping cord's support check looks at a rotating quarter of the cord each poll on a headset (the rope's
 		# sleep/ cases: a table taken away still wakes it in 42 ticks); a desktop keeps every particle (stride 1).
@@ -462,6 +468,9 @@ func _read_vrs_overrides() -> void:
 	if cfg.has("physics_hz"):
 		physics_hz_override = maxi(int(cfg["physics_hz"]), 0)
 		print("[VRSProbe] physics rate override %d Hz" % physics_hz_override)
+	if cfg.has("no_shadow_merge"):
+		ShadowMerge.enabled = not bool(cfg["no_shadow_merge"])
+		print("[VRSProbe] shadow merge %s" % ("off" if bool(cfg["no_shadow_merge"]) else "on"))
 	if cfg.has("no_runtime_volume"):
 		runtime_volume_enabled = not bool(cfg["no_runtime_volume"])
 		print("[VRSProbe] runtime prop volume %s" % ("on" if runtime_volume_enabled else "off"))

@@ -868,3 +868,50 @@ depth slice is a sixteenth of the far plane (4000 m), so the room was drawn in m
 
 Default settings (governor at step 6/6), 43 s settled: mean 71.95 fps, App 10.1 ms, GPU 82% (was ~11.4 ms, 88-92%).
 Fragments are still ~3.6x the eye pixels: transparent layers and quad overshading on tiny triangles (back to LODs).
+
+## Shadow draws merged per object (desktop, 2026-11-14)
+
+Reported: about 100 fps in the Starlight Arcade autosave (222 objects) on the RTX 5070 laptop, 2560x1440,
+MSAA 4x, the separate render thread. Measured uncapped (vsync off, `Engine.max_fps` 0), each change in ONE
+process against its own baseline:
+
+| | frame | fps | draws |
+|---|---:|---:|---:|
+| baseline | 10.1 ms | ~100 | 8,113 |
+| every light's shadow off | 5.2 ms | 194 | 1,984 |
+| spawned objects cast no shadow | 5.5 ms | 181 | 2,016 |
+| every light hidden | 4.1 ms | 242 | |
+| spawned meshes under 3 cm hidden (518) | 8.0 ms | 125 | 6,101 |
+| every spawned object's callbacks off | 7.0 ms | 143 | |
+| ropes off (87), `PhysicsServer3D` off | ~10 ms | no change | |
+| each object casting from its largest part only | 6.0 ms | 166 | 3,814 |
+
+- **The GPU was not the limit** (root viewport ~5 ms). The frame was the render thread issuing draws: the set
+  has 17 visible shadow-casting lights (12 spots, 4 omnis, 1 directional), and each draws every caster it reaches.
+- A census of the restored room (visible GeometryInstance3Ds per object, detail levels counted once): 3,101
+  surfaces, 2,905 casting. They are already about one surface per material, so merging what the objects SHOW reaches
+  ~2,410 at best (and would break the scripts that hold their parts: LEDs, labels, editions, PropLighting, the
+  outline). A shadow has no material: one shadow mesh per body takes the casters to ~657.
+- Scripts were ~3 ms spread thin (no kind over 0.5 ms; the TVs top). The 50 SubViewports are UPDATE_ONCE and ~0.
+
+**`ShadowMerge`** (`Scripts/Objects/room/shadow_merge.gd`, added by QualityManager on Forward+, never headless;
+`vrsprobe.cfg` `"no_shadow_merge": true` turns it off for a run, `ShadowMerge.set_enabled()` at run time).
+Per spawned object, a few a frame (2.5 ms budget), every part that casts, draws opaque triangles and stays put on
+its physics body is merged in the body's space into a shadows-only `MeshInstance3D` (an INTERNAL child named
+`ShadowMerge`, in `outline_exclude`, with a material override so PropLighting passes it by); the parts keep drawing,
+with `cast_shadow` OFF and the old mode on `META_PART`. Parts with a detail range merge per range and the proxy
+carries the range. Left alone: parts under a pivot, hinge, button, stick, lid, door ... (`MOVER_WORDS`, by node name
+or script) or an animated track, unless under 4 cm (`SMALL_MOVER`: a cap moves a millimeter); alpha-cut/hashed
+surfaces; skinned and blend-shape meshes; ropes. A flat see-through decal (thinner than 1.5 mm) casts nothing.
+Identical objects share one proxy mesh, and a surface's geometry is read once per mesh (each read waits for the render
+thread, `mesh_get_surface` warnings in a debug run). A part added, removed, hidden, shown or given another mesh
+re-merges its object; a watchdog visits each object about once a second and makes a part that moved on its body a
+mover for good. `shadow_merge_tests` (22).
+
+**Measured** (same room, one process, merge on and off alternated three times, 3 s each):
+7.62 ms (131 fps) on, 9.78 ms (102 fps) off; draws 8,000 -> 5,161; 144 proxies standing for 1,052 parts. Screenshots
+of the two legs from one camera differ in 0.009% of pixels by more than 8/255 (the cursor and the robot's idle).
+
+**Left on the table:** the 182 lone parts on their bodies (plug tips, batteries, port covers: one draw already), 58
+ropes, ~200 larger movers, and what objects show (one surface per material). The Quest is untouched (mobile renderer,
+props on a baked volume); OWED there if its props ever cast.
