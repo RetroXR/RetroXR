@@ -123,6 +123,19 @@ const CAPTIVE_REACH := 0.15
 const RCA_JACK_SCENE := "res://Scenes/Objects/cables/rca_jack.tscn"
 ## Less than this from one physics frame to the next is standing still (meters, radians).
 const CARRY_MOVE := 0.0005
+## The cash box (a model's CashBoxLiftOff: the NAOMI Universal's, behind its right door): every coin a player puts in lands in
+## it, a token on the pile, and a box turned over empties (the owner, 2026-11-15). The count rides on the box (CASH_COINS_META),
+## so it goes where the box goes and a save keeps it.
+const CASH_BOX := "CashBoxLiftOff"
+const CASH_COINS_META := &"cash_coins"
+## Tokens drawn at most (the count goes on past it), the pitch they lie at, and the box's sheet under them, metres.
+const CASH_SHOWN := 240
+const CASH_PITCH := 0.027
+const CASH_SHEET := 0.0015
+## The box's up this far below level pours it out.
+const CASH_POUR := -0.3
+var _cash_zone: XRToolsSnapZone = null
+var _cash_box: PortCover = null
 
 
 func _ready() -> void:
@@ -202,6 +215,14 @@ func _build_lift_offs() -> void:
 		if zone == null:
 			continue
 		zone.has_picked_up.connect(_dress_lift_off.bind(part))
+		if str(part.name) == CASH_BOX:
+			_cash_zone = zone
+			var pour := Timer.new()
+			pour.name = "CashPour"
+			pour.wait_time = 0.2
+			pour.autostart = true
+			pour.timeout.connect(_cash_pour_check)
+			add_child(pour)
 		if zone.picked_up_object != null:
 			_dress_lift_off(zone.picked_up_object, part)
 
@@ -230,13 +251,87 @@ const LIFT_OFF_OUT := Vector3.BACK
 
 func _dress_lift_off(what: Node3D, part: MeshInstance3D) -> void:
 	var cover := what as PortCover
-	if cover == null or cover.has_node("Shell"):
+	if cover == null:
 		return
-	var copy := part.duplicate() as MeshInstance3D
-	part.get_parent().add_child(copy)
-	copy.transform = part.transform
-	copy.visible = true
-	CoverSlots.wear(cover, copy, _lift_off_out(part))
+	if not cover.has_node("Shell"):
+		var copy := part.duplicate() as MeshInstance3D
+		part.get_parent().add_child(copy)
+		copy.transform = part.transform
+		copy.visible = true
+		CoverSlots.wear(cover, copy, _lift_off_out(part))
+	if str(part.name) == CASH_BOX:
+		_cash_box = cover
+		_show_cash(cover)
+
+
+## A coin is in: one more on the pile of the box in its place (none there, the coin is gone, as into an empty cabinet's floor).
+func _bank_coin(_player: int) -> void:
+	var box := _cash_zone.picked_up_object as PortCover if _cash_zone != null else null
+	if box == null:
+		return
+	box.set_meta(CASH_COINS_META, int(box.get_meta(CASH_COINS_META, 0)) + 1)
+	_show_cash(box)
+
+
+## Draw the box's pile: its count of tokens on its floor, the first ones scattered over it and the rest on top in layers.
+func _show_cash(box: PortCover) -> void:
+	var shell := box.get_node_or_null("Shell") as Node3D
+	var tray := shell.get_child(0) as MeshInstance3D if shell != null and shell.get_child_count() > 0 else null
+	if tray == null or tray.mesh == null:
+		return
+	var pile := tray.get_node_or_null("CashCoins") as Node3D
+	if pile == null:
+		pile = Node3D.new()
+		pile.name = "CashCoins"
+		tray.add_child(pile)
+	var count := mini(int(box.get_meta(CASH_COINS_META, 0)), CASH_SHOWN)
+	var b := tray.mesh.get_aabb()
+	# Clear of its walls and its pull (on the front) by a coin's radius and a little.
+	var lo := Vector3(b.position.x + 0.006 + ArcadeCoinModule.COIN_RADIUS, 0.0, b.position.z + 0.006 + ArcadeCoinModule.COIN_RADIUS)
+	var hi := Vector3(b.end.x - 0.006 - ArcadeCoinModule.COIN_RADIUS, 0.0, b.end.z - 0.02 - ArcadeCoinModule.COIN_RADIUS)
+	var nx := maxi(1, int((hi.x - lo.x) / CASH_PITCH) + 1)
+	var nz := maxi(1, int((hi.z - lo.z) / CASH_PITCH) + 1)
+	var cells := nx * nz
+	var order: Array[int] = []
+	for i in cells:
+		order.append(i)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 6173
+	for i in range(cells - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var t := order[i]
+		order[i] = order[j]
+		order[j] = t
+	while pile.get_child_count() > count:
+		var gone := pile.get_child(pile.get_child_count() - 1)
+		pile.remove_child(gone)
+		gone.queue_free()
+	for i in range(pile.get_child_count(), count):
+		var cell := order[i % cells]
+		var layer := i / cells
+		rng.seed = 1000 + i
+		var coin := MeshInstance3D.new()
+		coin.mesh = ArcadeCoinModule.token_mesh()
+		coin.position = Vector3(lo.x + (cell % nx) * CASH_PITCH + rng.randf_range(-0.005, 0.005),
+			b.position.y + CASH_SHEET + ArcadeCoinModule.COIN_THICKNESS * (layer + 0.5),
+			lo.z + (cell / nx) * CASH_PITCH + rng.randf_range(-0.005, 0.005))
+		coin.rotation = Vector3(rng.randf_range(-0.08, 0.08), rng.randf_range(0.0, TAU), rng.randf_range(-0.08, 0.08))
+		pile.add_child(coin)
+
+
+## The box turned over pours its coins out.
+func _cash_pour_check() -> void:
+	if not is_instance_valid(_cash_box) or int(_cash_box.get_meta(CASH_COINS_META, 0)) == 0:
+		return
+	if _cash_box.global_basis.y.normalized().dot(Vector3.UP) > CASH_POUR:
+		return
+	_cash_box.set_meta(CASH_COINS_META, 0)
+	_show_cash(_cash_box)
+	var voice := AudioStreamPlayer3D.new()
+	voice.stream = ArcadeCoinModule.rattle()
+	_cash_box.add_child(voice)
+	voice.finished.connect(voice.queue_free)
+	voice.play()
 
 
 ## A tray's solid parts, riding with it: its floor (the bottom TRAY_FLOOR of its bounds) and its lip across the front (the
@@ -843,6 +938,8 @@ func _build_coin(n: int) -> void:
 	if slot == null:
 		return
 	var m := _module("CoinP%d" % n, SCRIPT_COIN, n - 1)
+	if m.has_signal("coin_inserted"):
+		m.connect("coin_inserted", _bank_coin)
 	_coin_slot(m, slot.global_position)
 	var ret := _part("CoinReturn%d" % n)
 	if ret != null:

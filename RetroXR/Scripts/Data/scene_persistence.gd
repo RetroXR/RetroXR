@@ -281,7 +281,8 @@ const MISSION_CHEST_SCENE    := preload("res://Scenes/Objects/furniture/mission_
 # tables. Every drawer and sliding door is a VRDrawer, every hinged door a VRDoor's DoorHinge: articulated controls.
 const LIVING_ROOM_IDS := ["tv_stand_mission", "tv_stand_wall_unit", "tv_stand_credenza", "tv_stand_bench",
 	"tv_stand_corner", "tv_stand_cubby", "bookshelf_oak", "bookshelf_mission", "bookshelf_midcentury", "bookshelf_cube",
-	"bookshelf_pine", "coffee_table_mission", "coffee_table_midcentury", "coffee_table_glass", "coffee_table_pine"]
+	"bookshelf_pine", "coffee_table_mission", "coffee_table_midcentury", "coffee_table_glass", "coffee_table_pine",
+	"computer_desk_laminate", "computer_desk_corner", "computer_desk_mission"]
 const TV_STAND_MISSION_SCENE := preload("res://Scenes/Objects/furniture/tv_stand_mission.tscn")
 const TV_STAND_WALL_UNIT_SCENE := preload("res://Scenes/Objects/furniture/tv_stand_wall_unit.tscn")
 const TV_STAND_CREDENZA_SCENE := preload("res://Scenes/Objects/furniture/tv_stand_credenza.tscn")
@@ -297,6 +298,10 @@ const COFFEE_TABLE_MISSION_SCENE := preload("res://Scenes/Objects/furniture/coff
 const COFFEE_TABLE_MIDCENTURY_SCENE := preload("res://Scenes/Objects/furniture/coffee_table_midcentury.tscn")
 const COFFEE_TABLE_GLASS_SCENE := preload("res://Scenes/Objects/furniture/coffee_table_glass.tscn")
 const COFFEE_TABLE_PINE_SCENE := preload("res://Scenes/Objects/furniture/coffee_table_pine.tscn")
+# The computer desks (the same set): a tower cubby with no back, a keyboard tray, a monitor's top (furniture.md).
+const COMPUTER_DESK_LAMINATE_SCENE := preload("res://Scenes/Objects/furniture/computer_desk_laminate.tscn")
+const COMPUTER_DESK_CORNER_SCENE := preload("res://Scenes/Objects/furniture/computer_desk_corner.tscn")
+const COMPUTER_DESK_MISSION_SCENE := preload("res://Scenes/Objects/furniture/computer_desk_mission.tscn")
 # The RETRO XR seats and beds (ContractSeat, built from their contracts): RetroXR-models generic/seating, generic/beds.
 const SEAT_FURNITURE_IDS := ["sofa_midcentury", "sofa_overstuffed", "sofa_futon", "stool_mission", "stool_midcentury",
 	"chair_desk", "chair_papasan", "pouf", "bed_captain", "bed_brass", "bed_waterbed", "bed_wooden", "bed_racecar",
@@ -497,6 +502,9 @@ const PLAIN_SCENES := {
 	"coffee_table_midcentury": COFFEE_TABLE_MIDCENTURY_SCENE,
 	"coffee_table_glass": COFFEE_TABLE_GLASS_SCENE,
 	"coffee_table_pine": COFFEE_TABLE_PINE_SCENE,
+	"computer_desk_laminate": COMPUTER_DESK_LAMINATE_SCENE,
+	"computer_desk_corner": COMPUTER_DESK_CORNER_SCENE,
+	"computer_desk_mission": COMPUTER_DESK_MISSION_SCENE,
 	# Pose only: where the player is sitting is this session's, never saved; a bed's drawers are VRDrawers saved with
 	# the articulated controls.
 	"sofa_midcentury": SOFA_MIDCENTURY_SCENE,
@@ -3289,10 +3297,15 @@ func _memory_card_fields(card: MemoryCard, _node_to_id: Dictionary) -> Dictionar
 
 
 func _port_cover_fields(cover: PortCover, _node_to_id: Dictionary) -> Dictionary:
-	return {
+	var fields := {
 		"cover_socket": cover.socket_id,
 		"cover_size": [cover.size.x, cover.size.y, cover.size.z],
 	}
+	# A cabinet's cash box: the coins in it (ArcadeCabinetFromModel). Only when there are some, so every other cover saves as it did.
+	var coins := int(cover.get_meta(ArcadeCabinetFromModel.CASH_COINS_META, 0))
+	if coins > 0:
+		fields["coins"] = coins
+	return fields
 
 
 func _poster_fields(poster: Poster, _node_to_id: Dictionary) -> Dictionary:
@@ -4298,6 +4311,8 @@ func _load_port_cover(data: Dictionary) -> Node3D:
 	var cover_size: Array = data.get("cover_size", [])
 	if cover_size.size() == 3:
 		port_cover.size = Vector3(float(cover_size[0]), float(cover_size[1]), float(cover_size[2]))
+	if int(data.get("coins", 0)) > 0:
+		port_cover.set_meta(ArcadeCabinetFromModel.CASH_COINS_META, int(data["coins"]))
 	return port_cover
 
 
