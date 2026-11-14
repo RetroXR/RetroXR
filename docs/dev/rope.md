@@ -399,10 +399,12 @@ found by DISTANCE instead, and only by a hand that has nothing else to take.
   `CordGrab.desk_click` LAST, when the crosshair found nothing to pick up (the same 2 cm from the ray, and not through anything solid);
   the wheel moves it along the ray and the next click lets go. A pale bead marks
   the spot a hand would take, looked for ten times a second.
-- **Reach**: the hand's target is kept within the cord's length (x `TAUT`, 0.985)
-  of an end that cannot move, so the cord is never stretched by a hand; an end
-  that is a loose plug is reeled along behind through `PlugTether.reel_in`, as
-  every lead does it.
+- **Reach**: the hand is never held back (2026-11-14; it was clamped to the
+  cord's straight-line reach at first). Carried past the cord's length from an
+  end that cannot move, the held spot stays in the hand and the cord stretches,
+  as it does behind a held plug, and `KeepTautOutside` keeps it out of what it
+  is hooked round. An end that is a loose plug is reeled along behind through
+  `PlugTether.reel_in`, as every lead does it.
 - Local and cosmetic: not saved, not sent in a session (a peer sees the cord
   where its own solver puts it).
 
@@ -427,14 +429,114 @@ about its own cord axis moves no anchor, so the rope slept on and the wires stay
 put under a turning plug. `ribbon_twist_probe` films it (windowed only: the lay is
 drawn, not simulated).
 
-## A taut cord stretches: the solver's known limit
+## A taut cord stretches, and never goes through what it is hooked on (2026-11-14)
 
-Eight Gauss-Seidel iterations cannot make a long cord inextensible under tension. A lead
-held up by one plug with the other on the floor sits a few percent long along its whole
-length, and most of that (1.23–1.25×) lands in the first segment past the held plug's
-boot (`handling/a yanked lead recovers its length`, bound 1.30). The standard fix is
-long-range attachments: every particle constrained to lie within its path length of each
-pinned end, which is O(n) per iteration. It is not built.
+A hand is a pin: it does not give. A cord wrapped round furniture and pulled
+further than it reaches therefore stretches, with no limit, BY CHOICE (asked: the
+plug stays in the hand; no reach limit, no drop). What it must not do is what it
+did: get drawn through the thing it was hooked on, a particle at a time (a
+cabinet's 2 cm side panel).
+
+Why it went through. Nothing kept a segment's MIDDLE LINE out of a solid. A
+segment holds one edge contact at most; a thin panel's top has two edges closer
+together than a segment is long; the midpoint sphere over a 2 cm top is handed a
+side face as often as the top. So under load the one segment over the top sank,
+its line cutting a corner, then went through side to side, and the old wrong-side
+recovery put a particle back on the face it went in by: the zig-zag.
+
+`KeepTautOutside` (in `SolveSurfaceCollision`, BEFORE the recovery) asks a cord
+with any segment stretched past 2% (`TAUT_STRETCH`), every tick, whether each
+particle can see the next: one ray a segment, a second when the first hits.
+
+- **In and out by two faces of one corner**: the planes meet in the edge. The
+  segment is moved back out by how far in it ran, less a 1.5 mm graze
+  (`TAUT_GRAZE`), and NOT given the edge as a contact: given it, the solve pushes
+  it a whole radius clear next tick, and a cord hauled round a square bar took
+  three 6 mm kicks (`rope_jitter_probe --case=wrap`).
+- **In and out by opposite faces** (through a slab), or anything else: only the
+  part of the tick's move that went IN is undone, so it still slides along and
+  over the thing; failing that, as much of the move as stays clear, by halving.
+  Each end must also have got there without crossing anything (at a yank a
+  segment is on the far side of a panel half a tick on). It is then GIVEN the
+  face it was sinking into as its contact (`m_mid_contact` bit 8, kept from the
+  rest pass and from edge handovers, sliding with it, dropped when the cord is
+  slack or it lifts 3 radii off). Without that it is only held after each
+  solve: in the solve it gives way, the cord either side sags toward the
+  straight line through the panel and all the stretch lands in the two
+  segments beside it (400 mm each, the rest slack).
+- A segment is put back only where it began the tick if that was clear: known
+  when the whole cord ended its last tick clear (`m_taut_clear`, reset by a
+  re-lay), else asked with a ray. A cord laid afresh through a wall, its plug
+  carried to the far side, cannot be made clear by anything and is left to the
+  recovery (`rope_stress` "dragged through wall" is unchanged by this).
+- Passes repeat (`TAUT_PASSES`, 6) because mending one segment moves particles
+  its neighbours share; if that does not end and the cord began the tick clear,
+  the whole cord goes back to where it began.
+
+A cord not stretched past 2% is not asked and solves as before: `rope_bench
+--settle` is unchanged (tick 54), every `rope_stress` row but one is identical
+("wrapped on a ledge", a taut wrap: stretch 4.03 -> 4.04, squash 0.91 -> 0.88),
+and the jitter medians of every resting case match with it on and off
+(`debug_disable` bit 8 switches it off).
+
+`rope_tests` `taut/`: over a 2 cm panel and a 20 cm block, pulled to twice the
+cord's length at a hand's speed and at a yank. With it off the panel cases go
+through (highest point 1000 mm, the edge is at 1300); the block cases pass
+either way (the block was only ever corner-cut, which the cases allow up to
+6 mm). `get_sleep_metrics()` has `taut_crossings` / `taut_edges` /
+`taut_rollbacks` / `taut_whole`.
+
+Known: two neighbouring mends tug the particle they share, so a segment can sit
+about 2 mm inside a corner for some ticks after a yank (under the jacket); and a
+cord that is slack is not protected by any of this (a slack cord over a thin
+panel has not been measured). Headset look and Quest cost are OWED.
+
+### A cord that IS through something is walked round it
+
+`KeepTautOutside` keeps a clear cord clear. A cord can still BE through
+something: laid afresh through a wall (an anchor carried through it in one
+tick), restored into furniture that has moved. Asked of the player
+(2026-11-14): ease it back out, do not pop it; with its ends on opposite sides
+it goes ROUND the thing, as stretched as that takes; look while moving and on
+wake, never at rest.
+
+- `m_cross_check` is set by a wake (from sleep only), a lay, a restore, and by
+  `KeepTautOutside` when it is left with a crossing it cannot mend.
+  `FindCrossings` then casts each trunk segment once (twice if it hits): in and
+  out by OPPOSITE faces is through a slab. One at a time.
+- The way out is the least sideways move that clears the segment: eight
+  directions square to it, upward first, the reach doubling from 3 cm to 4 m,
+  then halved back three times. A move counts only if the moved ends are not
+  inside a solid (a ray begun inside one meets nothing), the segment can see
+  itself there both ways, and each end gets there without crossing anything
+  ELSE (or the nearest way round a wall standing on a thin floor is down,
+  under the floor).
+- `EaseCrossings` walks it 2 cm a tick with its two ends PINNED (`HoldPoint`,
+  as a hand's are: `Escape.pin_a/pin_b`). Moved after each solve and left free
+  in it, the stretch pulled it back as fast as it went and it never arrived.
+  Let go when it can see itself again, after 3 s, or by a re-lay
+  (`DropEscapes`); then the cord is looked at again, for what it left behind.
+- The wrong-side recovery does not run while a walk is on (it puts the same
+  particles back the other way).
+- The "hopeless" re-lay (a cord over-stretched with still ends for 180 ticks is
+  laid afresh) now asks first whether its two ends can see each other. With
+  something between them the lay would be straight through it, and the cord is
+  that long BECAUSE it goes round: it is left, with a log line.
+
+`rope_tests` `through/`: a cord laid through a 3 m wall, ends either side, is
+out in 90 ticks and over the top (highest point 2563 mm; the panel case there
+passes without a walk, the lay's own depenetration puts it over). `rope_stress`
+"dragged through wall" moved on purpose: the cord goes round (escape 0.84 ->
+1.53 m, squash 0.27 -> 0.90, jitter 88 -> 25 mm). `debug_disable` bit 16
+switches the walk off. Not covered: a route that needs two turns (round a
+corner AND over), concave trimesh rooms (point containment answers only for
+convex shapes), how a walk looks in a headset, and what it costs on a Quest.
+
+Eight Gauss-Seidel iterations also cannot make a long cord inextensible: a lead
+held up by one plug with the other on the floor sits a few percent long along its
+whole length, most of it (1.23-1.25x) in the first segment past the held plug's
+boot (`handling/a yanked lead recovers its length`, bound 1.30). Long-range
+attachments would fix that and are not built.
 
 ## A seated plug takes its basis from its SnapGrabPoint -- a captive one too
 

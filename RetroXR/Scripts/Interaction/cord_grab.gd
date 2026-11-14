@@ -13,9 +13,11 @@ extends Node
 ##            the wheel brings it nearer or sends it away; the next click lets go.
 ##
 ## What is held is ONE particle of the rope (VerletRope.hold_point): a pin like
-## the cord's own ends. The hand cannot carry it further than the cord reaches
-## from an end that cannot move (a seated plug, a console's own lead); an end
-## that is a loose plug is reeled along behind (PlugTether, as every lead does).
+## the cord's own ends. The hand is never held back: carried further than the
+## cord reaches from an end that cannot move, the cord stretches, as it does
+## behind a held plug, and stays outside what it is hooked round (the rope's
+## KeepTautOutside). An end that is a loose plug is reeled along behind
+## (PlugTether, as every lead does).
 ##
 ## Local and cosmetic: nothing is saved and nothing is sent in a session.
 
@@ -33,11 +35,6 @@ const GRIP_ACTION := "grip"
 const HOVER_INTERVAL := 0.1
 ## A desk click's key in `_holds`; a headset hand's is its controller's id.
 const DESK_KEY := -1
-## How much of the cord's length between the hand and a fixed end may be drawn
-## out straight. A hair under all of it: a cord pulled dead straight between two
-## pins has nowhere to put its bend stiffness and hums.
-const TAUT := 0.985
-
 static var instance: CordGrab
 
 class Hold:
@@ -188,7 +185,7 @@ func carry(key: int, point: Vector3) -> void:
 		# Freed, or laid afresh too short to keep the hold.
 		release(key)
 		return
-	h.rope.move_hold(h.index, _within_reach(h, point))
+	h.rope.move_hold(h.index, point)
 
 
 func release(key: int) -> void:
@@ -206,28 +203,6 @@ func release(key: int) -> void:
 func release_all() -> void:
 	for key: int in _holds.keys():
 		release(key)
-
-
-## Where the hand may hold the cord: no further from an end that cannot move
-## than the cord between them is long.
-func _within_reach(h: Hold, want: Vector3) -> Vector3:
-	var last := int(h.rope.get_segment_count())
-	# Two fixed ends: the hand stays in both reaches (alternate until it is).
-	for _pass in 6:
-		want = _limit(h.rope, want, 0, h.rope.get_start_node(), h.along)
-		want = _limit(h.rope, want, last, h.rope.get_end_node(), h.length - h.along)
-	return want
-
-
-func _limit(rope: Node3D, want: Vector3, end_index: int, end: Node, cord: float) -> Vector3:
-	if not is_instance_valid(end) or _loose_body(end) != null:
-		return want
-	var at: Vector3 = rope.point_position(end_index)
-	var away := want - at
-	var reach := cord * TAUT
-	if away.length() <= reach:
-		return want
-	return at + away.normalized() * reach
 
 
 ## The free rigid body `end` is or rides on, null when the end cannot be pulled.

@@ -2410,8 +2410,575 @@ void VerletRope::SolveSurfaceCollision(bool p_do_rest)
     ProfileMark(PROF_Q_SEGMENTS);
     SolveSegmentCollision(space_state, p_do_rest);
     ProfileMark(PROF_Q_RECOVER);
-    if (p_do_rest)
+    // Before the recovery below: that one waits two rest passes and then puts
+    // a particle on the face its segment went in by, which on a taut cord is a
+    // dent standing against a panel. It is left what this cannot put right.
+    KeepTautOutside(space_state);
+    if (m_cross_check)
+    {
+        m_cross_check = false;
+        FindCrossings(space_state);
+    }
+    if (!m_escapes.empty())
+        EaseCrossings(space_state);
+    else if (p_do_rest)
         RecoverWrongSideParticles(space_state);
+}
+
+// ── A cord that IS through something ─────────────────────────────────────────
+// KeepTautOutside keeps a clear cord clear. This is for one that is not: laid
+// afresh through a wall (an anchor carried through it in one tick), restored
+// into furniture that has moved, or got through by a way nothing above saw. A
+// segment that goes in by one face and out by the opposite one is through a
+// slab, and no contact can say which way is out. So a way is LOOKED for: the
+// nearest point beside the segment that can see both its ends (out along eight
+// directions square to it, a little further each round, upward first), and the
+// segment is walked there, a step a tick, through the thing and out of it. Its
+// neighbours follow on the stretch constraint, and once it can see itself again
+// it is let go, to lie over whatever edge it came out round. With its two ends
+// on opposite sides of a wall that edge is where the cord stays: round the
+// wall, as long as it has to be.
+//
+// Asked when a cord wakes or is laid, and when KeepTautOutside is left with a
+// crossing it could not mend. Never of a cord at rest.
+namespace
+{
+constexpr double ESCAPE_STEP = 0.02;
+constexpr int ESCAPE_TICKS = 270;
+} // namespace
+
+void VerletRope::FindCrossings(PhysicsDirectSpaceState3D *space_state)
+{
+    const int trunk = TrunkCount();
+    if (trunk < 3 || static_cast<int>(m_points.size()) < trunk || (m_debug_disable & 16))
+        return;
+    // One at a time: the next is looked for when this one is out.
+    if (!m_escapes.empty())
+        return;
+    const auto in_solid = [&](const Vector3 &p_at) {
+        if (m_point_query.is_null())
+            return false;
+        m_point_query->set_position(p_at);
+        return !space_state->intersect_point(m_point_query, 1).is_empty();
+    };
+    const auto sees = [&](const Vector3 &p_from, const Vector3 &p_to) {
+        if (p_from.distance_squared_to(p_to) < 1e-12)
+            return true;
+        m_ray_query->set_from(p_from);
+        m_ray_query->set_to(p_to);
+        if (!(g_profile_rays += 1, space_state)->intersect_ray(m_ray_query).is_empty())
+            return false;
+        m_ray_query->set_from(p_to);
+        m_ray_query->set_to(p_from);
+        return (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query).is_empty();
+    };
+    for (int s = 0; s + 1 < trunk; ++s)
+    {
+        if (m_inv_mass[s] + m_inv_mass[s + 1] == 0.0f)
+            continue;
+        const Vector3 a = m_points[s];
+        const Vector3 b = m_points[s + 1];
+        const Vector3 along = b - a;
+        const double length = along.length();
+        if (length < 1e-6)
+            continue;
+        m_ray_query->set_from(a);
+        m_ray_query->set_to(b);
+        const Dictionary in = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query);
+        if (in.is_empty())
+            continue;
+        m_ray_query->set_from(b);
+        m_ray_query->set_to(a);
+        const Dictionary out = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query);
+        if (out.is_empty())
+            continue;
+        const Vector3 n_in = in["normal"];
+        const Vector3 n_out = out["normal"];
+        // Opposite faces: through a slab. (A corner cut is the solve's.)
+        if (n_in == Vector3() || n_out == Vector3() || n_in.dot(n_out) > -0.7)
+            continue;
+        // Square to the segment, the first direction as near "up" as that is.
+        const Vector3 axis = along / length;
+        Vector3 up = -m_gravity;
+        up -= axis * up.dot(axis);
+        if (up.length_squared() < 1e-6)
+            up = axis.cross(std::abs(axis.x) < 0.9 ? Vector3(1, 0, 0) : Vector3(0, 0, 1));
+        up = up.normalized();
+        const Vector3 side = axis.cross(up);
+        const Vector3 mid = (a + b) * 0.5;
+        // The least sideways move that leaves the segment clear (an end that
+        // is pinned does not move: then it is the free end's move alone).
+        const bool free_a = m_inv_mass[s] != 0.0f;
+        const bool free_b = m_inv_mass[s + 1] != 0.0f;
+        // (A ray begun inside a solid meets nothing: the ends are asked too.)
+        const auto clear_moved = [&](const Vector3 &p_by) {
+            const Vector3 at_a = free_a ? a + p_by : a;
+            const Vector3 at_b = free_b ? b + p_by : b;
+            if ((free_a && in_solid(at_a)) || (free_b && in_solid(at_b)) || !sees(at_a, at_b))
+                return false;
+            // And each end must get there without going through anything ELSE
+            // (what it is in already it cannot see from inside): or the nearest
+            // way round a wall standing on a floor is down, under the floor.
+            const auto way_open = [&](const Vector3 &p_from, const Vector3 &p_to) {
+                m_ray_query->set_from(p_from);
+                m_ray_query->set_to(p_to);
+                return (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query).is_empty();
+            };
+            return (!free_a || way_open(a, at_a)) && (!free_b || way_open(b, at_b));
+        };
+        bool found = false;
+        Vector3 target;
+        for (double reach = 0.03; reach < 4.0 && !found; reach *= 2.0)
+        {
+            // Up, then the two beside it, and so on round to straight down.
+            static const double TURN[8] = {0.0, 0.785398, -0.785398, 1.570796, -1.570796,
+                                           2.356194, -2.356194, 3.141593};
+            for (int k = 0; k < 8 && !found; ++k)
+            {
+                const Vector3 way = up * std::cos(TURN[k]) + side * std::sin(TURN[k]);
+                if (!clear_moved(way * reach))
+                    continue;
+                // Between the last reach that failed and this one: nearer.
+                double near = reach * 0.5;
+                double far = reach;
+                for (int halving = 0; halving < 3; ++halving)
+                {
+                    const double try_at = (near + far) * 0.5;
+                    if (clear_moved(way * try_at))
+                        far = try_at;
+                    else
+                        near = try_at;
+                }
+                // A little past, so it is not left grazing what it came out of.
+                target = mid + way * (far + m_collision_radius * 2.0);
+                found = true;
+            }
+        }
+        if (!found)
+        {
+            if (!m_escape_logged)
+            {
+                m_escape_logged = true;
+                UtilityFunctions::push_warning("[Rope] ", get_path(), " segment ", s,
+                                               " is through something and no way round it was found within 4 m");
+            }
+            continue;
+        }
+        // Its ends are PINS while it is walked (HoldPoint, as a hand's are): the
+        // solve brings the cord either side along with it. Moved after each
+        // solve and left free in it, the stretch pulled it back as fast as it
+        // was walked and it never arrived.
+        Escape e;
+        e.segment = s;
+        e.target = target;
+        e.pin_a = HoldPoint(s, a);
+        e.pin_b = HoldPoint(s + 1, b);
+        if (!e.pin_a && !e.pin_b)
+            continue;
+        m_escapes.push_back(e);
+        m_debug_escapes += 1;
+        UtilityFunctions::print("[Rope] ", get_path(), " segment ", s, " is through something: walking it ",
+                                String::num(mid.distance_to(target) * 100.0, 0), " cm round");
+    }
+}
+
+void VerletRope::EaseCrossings(PhysicsDirectSpaceState3D *space_state)
+{
+    // A cord being walked out is not at rest, whatever its speed says.
+    OpenExcursionWindow();
+    for (size_t k = m_escapes.size(); k-- > 0;)
+    {
+        const Escape e = m_escapes[k];
+        const int ia = e.segment;
+        const int ib = e.segment + 1;
+        const auto let_go = [&]() {
+            m_escapes.erase(m_escapes.begin() + static_cast<std::ptrdiff_t>(k));
+            if (e.pin_a)
+                ReleaseHold(ia);
+            if (e.pin_b)
+                ReleaseHold(ib);
+        };
+        if (ib >= static_cast<int>(m_points.size()) || ib >= TrunkCount())
+        {
+            let_go();
+            continue;
+        }
+        const Vector3 a = m_points[ia];
+        const Vector3 b = m_points[ib];
+        m_ray_query->set_from(a);
+        m_ray_query->set_to(b);
+        bool clear = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query).is_empty();
+        if (clear)
+        {
+            m_ray_query->set_from(b);
+            m_ray_query->set_to(a);
+            clear = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query).is_empty();
+        }
+        if (clear)
+        {
+            let_go();
+            // What it leaves behind may be across the thing in its turn.
+            m_cross_check = true;
+            continue;
+        }
+        // The segment goes sideways toward its way out: what is left of the
+        // move square to it (the cord is free to slide along itself meanwhile).
+        const Vector3 along = b - a;
+        const double length_sq = along.length_squared();
+        Vector3 gap = e.target - (a + b) * 0.5;
+        if (length_sq > 1e-12)
+            gap -= along * (gap.dot(along) / length_sq);
+        const double far = gap.length();
+        m_escapes[k].ticks += 1;
+        if (far < 0.001 || e.ticks >= ESCAPE_TICKS)
+        {
+            // There, and still across (the way out was further on), or it has
+            // been held back too long: look again from where it is now.
+            const bool late = e.ticks >= ESCAPE_TICKS;
+            let_go();
+            if (!late)
+                m_cross_check = true;
+            else if (!m_escape_logged)
+            {
+                m_escape_logged = true;
+                UtilityFunctions::push_warning("[Rope] ", get_path(), " segment ", ia,
+                                               " could not be walked out of what it is through");
+            }
+            continue;
+        }
+        const Vector3 step = gap * (std::min(far, ESCAPE_STEP) / far);
+        if (e.pin_a)
+            MoveHold(ia, a + step);
+        if (e.pin_b)
+            MoveHold(ib, b + step);
+        // It holds nothing while it is inside the thing.
+        m_c_flags[ia] = 0;
+        m_c_flags[ib] = 0;
+        if (m_mid_contact[e.segment] & 8)
+            m_taut_holds -= 1;
+        m_mid_contact[e.segment] = 0;
+    }
+}
+
+// A cord pulled further than it reaches (a hand is a pin: it does not give, so
+// the cord stretches) used to be drawn THROUGH what it was hooked on. Nothing
+// kept a segment's middle line out of a solid: a segment holds one edge at
+// most, a thin panel's top has two closer together than a segment is long, and
+// once the pull beat the contacts the cord sank through the panel a particle
+// at a time (a cabinet's side panel, 2026-11-13).
+//
+// So a stretched cord is asked, every tick, the one thing that is true of any
+// cord lying on or round anything: can each particle see the next. A segment
+// whose middle line now enters a solid has cut a corner, and the two faces its
+// line goes in and out by ARE that corner: it is moved back out of it by as
+// far as it went in. One that goes in and out by opposite faces has crossed a
+// slab; it is put back where it began the tick, which was clear.
+// Only a cord stretched past TAUT_STRETCH pays for this: one at rest is not
+// asked, and solves exactly as before.
+void VerletRope::KeepTautOutside(PhysicsDirectSpaceState3D *space_state)
+{
+    constexpr double TAUT_STRETCH = 1.02;
+    constexpr double TAUT_GRAZE = 0.0015;
+    constexpr int TAUT_PASSES = 6;
+    const int trunk = TrunkCount();
+    if ((m_debug_disable & 8) || trunk < 3 || static_cast<int>(m_points.size()) < trunk)
+        return;
+    bool taut = false;
+    for (int s = 0; s + 1 < trunk && !taut; ++s)
+        taut = m_points[s].distance_squared_to(m_points[s + 1]) >
+               m_segment_length * m_segment_length * TAUT_STRETCH * TAUT_STRETCH;
+    const int all_segments = static_cast<int>(m_seg_a.size());
+    if (!taut)
+    {
+        m_taut_clear = false;
+        if (m_taut_holds > 0)
+        {
+            for (int s = 0; s < all_segments; ++s)
+                if (m_mid_contact[s] & 8)
+                    m_mid_contact[s] = 0;
+            m_taut_holds = 0;
+        }
+        return;
+    }
+    // The faces held segments were given (below) go along with them as they
+    // slide, and are given up by one that has lifted clear.
+    for (int s = 0; s < all_segments && m_taut_holds > 0; ++s)
+    {
+        if ((m_mid_contact[s] & 8) == 0)
+            continue;
+        const Vector3 sample = m_points[m_seg_a[s]].lerp(m_points[m_seg_b[s]], m_mid_contact_t[s]);
+        const Vector3 off = sample - m_mid_contact_point[s];
+        const double d = off.dot(m_mid_contact_normal[s]);
+        if (d > m_collision_radius * 3.0)
+        {
+            m_mid_contact[s] = 0;
+            m_taut_holds -= 1;
+        }
+        else
+            m_mid_contact_point[s] += off - m_mid_contact_normal[s] * d;
+    }
+    const bool have_start = m_tick_from.size() == m_points.size();
+    // Whether the cord began this tick with every segment clear: it ended the
+    // last one so. Then where it began is a place any of it can be put back to.
+    const bool start_clear = m_taut_clear && have_start;
+    const int seg_count = static_cast<int>(m_seg_a.size());
+    // Putting one segment right moves particles its neighbours share, so the
+    // cord is gone over again until a pass finds nothing to do.
+    bool clear = false;
+    for (int pass = 0; pass < TAUT_PASSES && !clear; ++pass)
+    {
+    int mended = 0;
+    int put_back = 0;
+    int left = 0;
+    for (int s = 0; s < seg_count; ++s)
+    {
+        const int ia = m_seg_a[s];
+        const int ib = m_seg_b[s];
+        if (ia >= trunk || ib >= trunk)
+            continue;
+        const float wa = m_inv_mass[ia];
+        const float wb = m_inv_mass[ib];
+        if (wa + wb == 0.0f)
+            continue;
+        const Vector3 a = m_points[ia];
+        const Vector3 b = m_points[ib];
+        if (a.distance_squared_to(b) < 1e-10)
+            continue;
+        m_ray_query->set_from(a);
+        m_ray_query->set_to(b);
+        const Dictionary in = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query);
+        if (in.is_empty())
+            continue;
+        const Vector3 n_in = in["normal"];
+        if (n_in == Vector3())
+            continue;
+        const Vector3 p_in = in["position"];
+        m_ray_query->set_from(b);
+        m_ray_query->set_to(a);
+        const Dictionary out = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query);
+        const Vector3 n_out = out.is_empty() ? Vector3() : out["normal"].operator Vector3();
+        m_debug_taut_crossings += 1;
+
+        bool held = false;
+        const double facing = n_in.dot(n_out);
+        if (n_out != Vector3() && facing > -0.7 && facing < 0.95)
+        {
+            // Two faces of one corner. Their planes meet in the edge: the point
+            // of that line nearest the segment's middle.
+            const Vector3 p_out = out["position"];
+            const Vector3 mid = (a + b) * 0.5;
+            const double d_in = (p_in - mid).dot(n_in);
+            const double d_out = (p_out - mid).dot(n_out);
+            const double det = 1.0 - facing * facing;
+            const uint8_t was = m_mid_contact[s];
+            const Vector3 was_point = m_mid_contact_point[s];
+            const Vector3 was_normal = m_mid_contact_normal[s];
+            const float was_t = m_mid_contact_t[s];
+            m_edge_point[s] = mid + n_in * ((d_in - facing * d_out) / det) +
+                              n_out * ((d_out - facing * d_in) / det);
+            m_edge_dir[s] = n_in.cross(n_out).normalized();
+            m_edge_n1[s] = n_in;
+            m_edge_n2[s] = n_out;
+            const bool placed = PlaceEdgeContact(s);
+            const double t = m_mid_contact_t[s];
+            const Vector3 n = m_mid_contact_normal[s];
+            const Vector3 on_edge = m_mid_contact_point[s];
+            // Only asked where the corner is and which way is out of it: what
+            // the segment holds in the solve stays what it was. (Given the edge
+            // as its contact it is pushed a whole radius clear on the next
+            // tick: a cord hauled round a square bar, whose segments ride with
+            // their middle lines a millimetre inside the corners, took three
+            // 6 mm kicks that way.)
+            m_mid_contact[s] = was;
+            m_mid_contact_point[s] = was_point;
+            m_mid_contact_normal[s] = was_normal;
+            m_mid_contact_t[s] = was_t;
+            if (placed)
+            {
+                // How far inside the corner the middle line runs. A graze is
+                // let be, as it always was (the jacket hides it); past that the
+                // segment is moved back out by the excess and no more, so
+                // nothing is kicked.
+                const double excess = -(a.lerp(b, t) - on_edge).dot(n) - TAUT_GRAZE;
+                if (excess <= 0.0)
+                {
+                    m_debug_taut_crossings -= 1;
+                    continue;
+                }
+                const double ta = 1.0 - t;
+                const double weight = wa * ta * ta + wb * t * t;
+                if (weight > 0.0)
+                {
+                    const Vector3 da = n * (excess * wa * ta / weight);
+                    const Vector3 db = n * (excess * wb * t / weight);
+                    m_points[ia] += da;
+                    m_points[ib] += db;
+                    m_prev_points[ia] += da;
+                    m_prev_points[ib] += db;
+                    const double into = (m_points[ia].lerp(m_points[ib], t) -
+                                         m_prev_points[ia].lerp(m_prev_points[ib], t))
+                                                .dot(n);
+                    if (into < 0.0)
+                    {
+                        m_prev_points[ia] += n * (into * wa * ta / weight);
+                        m_prev_points[ib] += n * (into * wb * t / weight);
+                    }
+                }
+                m_debug_taut_edges += 1;
+                mended += 1;
+                held = true;
+            }
+        }
+        if (held)
+            continue;
+        if (!have_start)
+        {
+            left += 1;
+            continue;
+        }
+        // Through a slab, or into one face with its far end inside: back to
+        // where the tick began, if the segment was clear there.
+        const Vector3 from_a = m_tick_from[ia];
+        const Vector3 from_b = m_tick_from[ib];
+        if (from_a.distance_squared_to(a) + from_b.distance_squared_to(b) < 1e-14)
+        {
+            // Already there, and still crossing.
+            left += 1;
+            continue;
+        }
+        // Where it began the tick has to have been clear itself. A cord that
+        // ended its last tick wholly clear is known to be; otherwise this
+        // segment is asked. (One that was already across something, a cord
+        // laid afresh through a wall with its plug carried to the far side,
+        // is left to the wrong-side recovery.)
+        if (!start_clear)
+        {
+            m_ray_query->set_from(from_a);
+            m_ray_query->set_to(from_b);
+            if (from_a.distance_squared_to(from_b) < 1e-10 ||
+                !(g_profile_rays += 1, space_state)->intersect_ray(m_ray_query).is_empty())
+            {
+                left += 1;
+                continue;
+            }
+        }
+        const auto clear_between = [&](const Vector3 &p_from, const Vector3 &p_to) {
+            if (p_from.distance_squared_to(p_to) < 1e-12)
+                return true;
+            m_ray_query->set_from(p_from);
+            m_ray_query->set_to(p_to);
+            return (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query).is_empty();
+        };
+        // Clear THERE is not enough: at a yank a segment is on the far side of
+        // a panel half a tick on, with nothing between its ends. Each end must
+        // also have got there without going through anything.
+        const auto may_be_at = [&](const Vector3 &p_a, const Vector3 &p_b) {
+            return clear_between(p_a, p_b) && clear_between(from_a, p_a) && clear_between(from_b, p_b);
+        };
+        // Not all the way back. First, only the part of the move that took it
+        // IN is undone (the way back out is toward where it began): what is
+        // left is the cord sliding over and along the thing, which it may do.
+        // Put right back every tick, a held segment was a pin, and the cord
+        // between two of them kept whatever shape it had when the pull began,
+        // a loop standing over a panel's top with the cord taut either side.
+        Vector3 to_a = from_a;
+        Vector3 to_b = from_b;
+        const Vector3 way_out = (from_a + from_b) - (a + b);
+        bool slid = false;
+        if (way_out.length_squared() > 1e-14)
+        {
+            const Vector3 e = way_out.normalized();
+            const Vector3 slide_a = wa != 0.0f ? a + e * (from_a - a).dot(e) : a;
+            const Vector3 slide_b = wb != 0.0f ? b + e * (from_b - b).dot(e) : b;
+            if (may_be_at(slide_a, slide_b))
+            {
+                to_a = slide_a;
+                to_b = slide_b;
+                slid = true;
+            }
+        }
+        if (!slid)
+        {
+            // Else as much of the whole move as leaves it clear, by halving.
+            double keep = 0.0;
+            double span = 1.0;
+            for (int halving = 0; halving < 3; ++halving)
+            {
+                span *= 0.5;
+                const double f = keep + span;
+                if (may_be_at(wa != 0.0f ? from_a.lerp(a, f) : a, wb != 0.0f ? from_b.lerp(b, f) : b))
+                    keep = f;
+            }
+            to_a = from_a.lerp(a, keep);
+            to_b = from_b.lerp(b, keep);
+        }
+        if (wa != 0.0f)
+        {
+            m_points[ia] = to_a;
+            m_prev_points[ia] = to_a;
+        }
+        if (wb != 0.0f)
+        {
+            m_points[ib] = to_b;
+            m_prev_points[ib] = to_b;
+        }
+        // Put back every tick and nothing more, the segment is held only AFTER
+        // each solve: in the solve it gives way, the cord either side of it
+        // sags on toward the straight line through the panel, and all the
+        // stretch ends up in the two segments next to it (two of 400 mm, the
+        // rest slack). So it is given the face it was sinking into as its
+        // contact, to stand on in the solve like any other, until the cord is
+        // slack again or it lifts off.
+        const Vector3 kept_mid = (to_a + to_b) * 0.5;
+        const Vector3 sunk = (a + b) * 0.5 - kept_mid;
+        if (sunk.length_squared() > 1e-14)
+        {
+            const Vector3 down = sunk.normalized();
+            m_ray_query->set_from(kept_mid - down * m_collision_radius);
+            m_ray_query->set_to(kept_mid + sunk + down * (m_collision_radius * 2.0));
+            const Dictionary face = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query);
+            const Vector3 face_n = face.is_empty() ? Vector3() : face["normal"].operator Vector3();
+            if (face_n != Vector3() && face_n.dot(down) < -0.3)
+            {
+                if ((m_mid_contact[s] & 8) == 0)
+                    m_taut_holds += 1;
+                m_mid_contact[s] = 1 | 8;
+                m_mid_contact_point[s] = face["position"];
+                m_mid_contact_normal[s] = face_n;
+                m_mid_contact_t[s] = 0.5f;
+            }
+        }
+        m_debug_taut_rollbacks += 1;
+        mended += 1;
+        put_back += 1;
+    }
+    // Done when a pass finds nothing to do. A last pass that only eased
+    // segments out of corners has left nothing across anything either.
+    if (mended == 0 || (pass == TAUT_PASSES - 1 && put_back == 0))
+    {
+        clear = left == 0;
+        break;
+    }
+    }
+    if (!clear && start_clear)
+    {
+        // Mending it piece by piece did not end: the whole cord goes back to
+        // where it began the tick, which was clear. (Its pinned ends stay with
+        // what holds them.)
+        for (int i = 0; i < trunk; ++i)
+        {
+            if (m_inv_mass[i] == 0.0f)
+                continue;
+            m_points[i] = m_tick_from[i];
+            m_prev_points[i] = m_tick_from[i];
+        }
+        m_debug_taut_rollbacks += 1;
+        m_debug_taut_whole += 1;
+        clear = true;
+    }
+    m_taut_clear = clear;
+    if (!clear && m_escapes.empty())
+        m_cross_check = true;
 }
 
 
@@ -2545,7 +3112,7 @@ void VerletRope::UpdateEdgeContacts()
         double raw = 0.5;
         EdgeParam(s, m_edge_point[s], m_edge_dir[s], raw);
         const int other = raw > 0.8 ? m_next_seg[m_seg_b[s]] : (raw < 0.2 ? m_prev_seg[m_seg_a[s]] : -1);
-        if (other < 0 || other == s || (m_mid_contact[other] & 4) != 0 ||
+        if (other < 0 || other == s || (m_mid_contact[other] & (4 | 8)) != 0 ||
             m_inv_mass[m_seg_a[other]] + m_inv_mass[m_seg_b[other]] == 0.0f)
             continue;
         const uint8_t was = m_mid_contact[other];
@@ -2997,7 +3564,7 @@ void VerletRope::SolveSegmentCollision(PhysicsDirectSpaceState3D *space_state, b
                 m_debug_edges_lost += 1;
             }
         }
-        else if (p_do_rest)
+        else if (p_do_rest && (m_mid_contact[s] & 8) == 0)
         {
             // Prefer the finite midpoint sphere on broad resting surfaces: a
             // full capsule has infinitely many equally deep contacts there and
@@ -3575,10 +4142,34 @@ void VerletRope::UpdateSleepState()
         m_hopeless_frames += 1;
     else
         m_hopeless_frames = 0;
+    if (!m_escapes.empty())
+        m_hopeless_frames = 0;
     if (m_hopeless_frames > HOPELESS_FRAMES && !m_relay_attempted)
     {
         m_relay_attempted = true;
         m_hopeless_frames = 0;
+        // A lay is a straight line between the ends. With something standing
+        // between them (the cord is that long BECAUSE it goes round a wall)
+        // that line is through it: the cord is left as it is.
+        if (m_ray_query.is_valid() && m_surface_collision_mask != 0 && TrunkCount() >= 2)
+        {
+            Ref<World3D> lay_world = get_world_3d();
+            PhysicsDirectSpaceState3D *lay_space =
+                lay_world.is_valid() ? lay_world->get_direct_space_state() : nullptr;
+            if (lay_space != nullptr)
+            {
+                m_ray_query->set_from(m_points[0]);
+                m_ray_query->set_to(m_points[TrunkCount() - 1]);
+                if (!lay_space->intersect_ray(m_ray_query).is_empty())
+                {
+                    UtilityFunctions::print("[Rope] ", get_path(), ": segment ", worst_stretch_segment, " is ",
+                                            worst_stretch_error + 1.0,
+                                            "x its length with both ends still, but something stands between"
+                                            " them: not laid afresh");
+                    return;
+                }
+            }
+        }
         UtilityFunctions::print("[Rope] ", get_path(), ": segment ", worst_stretch_segment, " is ",
                                 worst_stretch_error + 1.0, "x its length and has been for ",
                                 HOPELESS_FRAMES, " ticks with both ends still; laying the cord afresh");

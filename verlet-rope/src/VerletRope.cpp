@@ -710,6 +710,9 @@ PackedVector3Array VerletRope::GetPoints() const
 
 bool VerletRope::RestorePoints(const PackedVector3Array &p_points)
 {
+    m_taut_clear = false;
+    DropEscapes();
+    m_cross_check = true;
     if (p_points.size() != static_cast<int64_t>(m_points.size()) || m_points.empty())
         return false;
     for (int i = 0; i < p_points.size(); ++i)
@@ -784,6 +787,12 @@ Dictionary VerletRope::GetSleepMetrics() const
     out["edges_found"] = m_debug_edges_found;
     out["edge_handovers"] = m_debug_edge_handovers;
     out["edges_lost"] = m_debug_edges_lost;
+    out["taut_crossings"] = m_debug_taut_crossings;
+    out["taut_edges"] = m_debug_taut_edges;
+    out["taut_rollbacks"] = m_debug_taut_rollbacks;
+    out["taut_whole"] = m_debug_taut_whole;
+    out["escapes"] = m_debug_escapes;
+    out["escaping"] = static_cast<int>(m_escapes.size());
     out["contact_stable_frames"] = m_contact_stable_frames;
     out["still_frames"] = m_still_frames;
     return out;
@@ -892,6 +901,20 @@ Dictionary VerletRope::ClosestPointToRay(const Vector3 &p_origin, const Vector3 
     return out;
 }
 
+// The walk out of a solid is over, or void: its pins are let go.
+void VerletRope::DropEscapes()
+{
+    const std::vector<Escape> were = m_escapes;
+    m_escapes.clear();
+    for (const Escape &e : were)
+    {
+        if (e.pin_a)
+            ReleaseHold(e.segment);
+        if (e.pin_b)
+            ReleaseHold(e.segment + 1);
+    }
+}
+
 bool VerletRope::IsHeld(int p_index) const
 {
     for (const Hold &h : m_holds)
@@ -995,7 +1018,11 @@ void VerletRope::SetRopeLength(double p_length)
 void VerletRope::Wake()
 {
     if (m_asleep)
+    {
         m_diag_wake_call += 1;
+        // What woke it may have left it through something (FindCrossings).
+        m_cross_check = true;
+    }
     m_asleep = false;
     m_sleep_environment_frame = 0;
     m_environment_change_polls = 0;
@@ -1132,6 +1159,11 @@ void VerletRope::BuildFrayChains(int &r_total)
 
 void VerletRope::InitPoints()
 {
+    // A fresh lay may run through anything (KeepTautOutside).
+    m_taut_clear = false;
+    m_taut_holds = 0;
+    DropEscapes();
+    m_cross_check = true;
     const int trunk_n = TrunkCount();
     int count = trunk_n;
     BuildFrayChains(count);

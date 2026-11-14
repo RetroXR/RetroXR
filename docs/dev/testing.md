@@ -214,8 +214,9 @@ afterwards it has to sleep and STAY asleep. 96 cases,
 22-row table): those catch arithmetic drift, this catches a cord that jitters, tunnels or
 will not settle.
 (2026-11-14, `KeepTautOutside`, `rope.md`: one `rope_stress` row moved on purpose, "wrapped
-on a ledge", stretch 4.03 -> 4.04 and squash 0.91 -> 0.88; the other 21 and the bench are
-unchanged.)
+on a ledge", stretch 4.03 -> 4.04 and squash 0.91 -> 0.88, and with the walk-out of the same
+day "dragged through wall" (the cord goes round: 30.81/0.27/88.21/0.84 -> 32.72/0.90/25.12/1.53).
+The other 20 rows and the bench are unchanged; `rope_tests` is 112 cases.)
 (Re-baselined 2026-11-10 for substeps and the contact changes, `rope.md`: the bench
 settles at tick 50, was 49, and EVERY `rope_stress` row moved a little, the solver being
 a different one. The rows that moved in kind: "inside a wall" no longer sleeps (jitter

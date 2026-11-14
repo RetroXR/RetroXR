@@ -88,6 +88,8 @@ func _run() -> void:
 	await _group_edges()
 	await _group_awake()
 	await _group_hold()
+	await _group_taut()
+	await _group_through()
 	await _group_budget()
 	_finish()
 
@@ -1962,6 +1964,133 @@ func _rope_along(path: Array[Vector3]) -> VerletRope:
 	return rope
 
 
+## How much of the cord is inside the box at `centre`: particles in it (less a
+## 2 mm skin, so a cord lying ON it does not count), and segments whose middle
+## line goes through its core (less 6 mm: a taut cord's line rides a millimetre
+## or two inside a corner, under its own jacket, and that is not a crossing;
+## one through the middle of a panel is).
+func _inside_box(rope: VerletRope, centre: Vector3, size: Vector3) -> int:
+	var box := AABB(centre - size * 0.5 + Vector3.ONE * 0.002, size - Vector3.ONE * 0.004)
+	var core := AABB(centre - size * 0.5 + Vector3.ONE * 0.006, size - Vector3.ONE * 0.012)
+	var pts := rope.get_points()
+	var n := 0
+	for i in pts.size():
+		if box.has_point(pts[i]):
+			n += 1
+		if i + 1 < pts.size() and core.intersects_segment(pts[i], pts[i + 1]) != null:
+			n += 1
+	return n
+
+
+## A cord round an obstacle, pulled further than it reaches. The hand is a pin,
+## so the cord stretches: it must stay hooked on the obstacle and never be drawn
+## through it (a cabinet's side panel, cut by a cord pulled hard: 2026-11-13).
+func _group_taut() -> void:
+	if not _wants("taut"):
+		return
+
+	# [name, the obstacle's size, ticks the pull takes]
+	var cases := [
+		["a thin panel, at a hand's speed", Vector3(0.02, 0.6, 0.6), 150],
+		["a thin panel, yanked", Vector3(0.02, 0.6, 0.6), 36],
+		["a thick block, at a hand's speed", Vector3(0.20, 0.6, 0.6), 150],
+		["a thick block, yanked", Vector3(0.20, 0.6, 0.6), 36],
+	]
+	for c: Array in cases:
+		var size: Vector3 = c[1]
+		var base := _new_case()
+		var centre := base + Vector3(0, 1.0, 0)
+		_box(centre, size)
+		var half := size.x * 0.5
+		# 0.9 m of cord from a socket on the left, its other end carried over
+		# the top (y 1.3) and down the right side: a cord lying over an edge.
+		var rope := _rope_between(base + Vector3(-0.3 - half, 1.0, 0), base + Vector3(-0.25 - half, 1.05, 0), 30, 0.03)
+		var hand: Node3D = rope.end_node
+		await _carry(rope, hand, base + Vector3(0, 1.45, 0), 60)
+		await _carry(rope, hand, base + Vector3(0.3 + half, 1.0, 0), 60)
+		var before := _inside_box(rope, centre, size)
+		# Pulled away and down, to where the cord would have to be over twice
+		# as long, and where a straight line from socket to hand goes through
+		# the obstacle.
+		var to := base + Vector3(1.2 + half, 0.4, 0)
+		var ticks: int = c[2]
+		var stride: Vector3 = (to - hand.position) / float(ticks)
+		var worst := 0
+		var crossed_ticks := 0
+		var done := 0
+		while done < ticks + 90:
+			await get_tree().physics_frame
+			for k in 6:
+				if done + k < ticks:
+					hand.position += stride
+				rope.step(1.0 / 90.0)
+				var inside := _inside_box(rope, centre, size)
+				worst = maxi(worst, inside)
+				if inside > 0:
+					crossed_ticks += 1
+			done += 6
+		var top := -1e9
+		for p: Vector3 in rope.get_points():
+			top = maxf(top, p.y)
+		var at_hand: float = rope.point_position(30).distance_to(hand.position)
+		_ok(before == 0 and worst == 0 and top > base.y + 1.29 and at_hand < 0.001,
+			"taut/a cord over %s is not drawn through it" % c[0],
+			"%d inside before the pull, %d at worst (%d ticks), highest point %.0f mm (the edge is at 1300), end %.1f mm off the hand" % [
+					before, worst, crossed_ticks, (top - base.y) * 1000.0, at_hand * 1000.0])
+		var m: Dictionary = rope.get_sleep_metrics()
+		print("[taut] %s: crossings %d, given an edge %d, put back %d (the whole cord %d), recoveries %d, edges lost %d" % [
+				c[0], m.taut_crossings, m.taut_edges, m.taut_rollbacks, m.taut_whole, m.recoveries, m.edges_lost])
+		await _drop_case()
+
+
+## A cord that IS through something (laid there: an anchor carried through a
+## wall in one tick, a room restored round furniture that has moved) is walked
+## round it, and stays round it when its ends are on opposite sides.
+func _group_through() -> void:
+	if not _wants("through"):
+		return
+
+	# [name, the obstacle's size, how high the cord must end up to be over it]
+	var cases := [
+		["a panel it can reach over", Vector3(0.02, 0.6, 1.2), 1.29],
+		["a wall far bigger than it is long", Vector3(0.04, 3.0, 3.0), -1.0],
+	]
+	for c: Array in cases:
+		var size: Vector3 = c[1]
+		var base := _new_case()
+		var centre := base + Vector3(0, 1.0, 0)
+		_box(centre, size)
+		# A floor under it, the thing standing on it: no way under.
+		_box(base + Vector3(0, 0.35, 0), Vector3(4.0, 0.7, 4.0))
+		# 0.9 m of cord between sockets 0.62 m apart, either side of it: laid
+		# straight, which is straight through.
+		var rope := _rope_between(base + Vector3(-0.31, 1.0, 0), base + Vector3(0.31, 1.0, 0), 30, 0.03)
+		rope.step(1.0 / 90.0)
+		var at_first := _inside_box(rope, centre, size)
+		var out_at := -1
+		var done := 0
+		while done < 900 and out_at < 0:
+			await _settle(6)
+			done += 6
+			if _inside_box(rope, centre, size) == 0 and int(rope.get_sleep_metrics().escaping) == 0:
+				out_at = done
+		await _settle(300)
+		var after := _inside_box(rope, centre, size)
+		var top := -1e9
+		var longest := 0.0
+		var pts := rope.get_points()
+		for i in pts.size():
+			top = maxf(top, pts[i].y - base.y)
+			if i + 1 < pts.size():
+				longest = maxf(longest, pts[i].distance_to(pts[i + 1]) / 0.03)
+		var m: Dictionary = rope.get_sleep_metrics()
+		_ok(out_at >= 0 and after == 0 and top > float(c[2]) and rope.hold_count() == 0,
+			"through/a cord laid through %s is walked round it" % c[0],
+			"%d inside at first, out after %d ticks, %d inside 300 ticks on, highest point %.0f mm, longest segment %.1fx, %d walked" % [
+					at_first, out_at, after, top * 1000.0, longest, int(m.escapes)])
+		await _drop_case()
+
+
 ## A hand on the cord, partway along it (CordGrab, VerletRope.hold_point).
 func _group_hold() -> void:
 	if not _wants("hold"):
@@ -2033,7 +2162,8 @@ func _group_hold() -> void:
 		"hold/let go, the spot leaves with the hand's motion and then falls",
 		"went on %.1f mm in the first tick (the hand's 4.0), then fell %.0f mm" % [went * 1000.0, fell * 1000.0])
 
-	# CordGrab keeps the hand inside the cord's reach of an end that cannot move.
+	# CordGrab never holds the hand back: carried past the cord's reach from a
+	# socket, the held spot stays in the hand and the cord stretches.
 	var grab := CordGrab.new()
 	add_child(grab)
 	grab.set_process(false)
@@ -2048,18 +2178,12 @@ func _group_hold() -> void:
 			grab.carry(7, from.lerp(far, minf(1.0, float(done + k) / 60.0)))
 			rope.step(1.0 / 90.0)
 		done += 6
+	var off: float = rope.point_position(10).distance_to(far)
 	var reach := rope.point_position(10).distance_to(rope.point_position(0))
-	var reach_end := rope.point_position(10).distance_to(rope.point_position(30))
-	var worst_seg := 0.0
-	var pts2 := rope.get_points()
-	for i in pts2.size() - 1:
-		worst_seg = maxf(worst_seg, pts2[i].distance_to(pts2[i + 1]) / 0.03)
 	grab.release(7)
-	_ok(taken and reach <= 0.3 and reach_end <= 0.6 and (reach > 0.28 or reach_end > 0.57)
-			and worst_seg < 1.05 and rope.hold_count() == 0,
-		"hold/a hand cannot carry the cord past its reach from a fixed end",
-		"0.30 m and 0.60 m of cord, held %.3f m and %.3f m from the sockets, longest segment %.3f" % [
-				reach, reach_end, worst_seg])
+	_ok(taken and off < 0.001 and reach > 1.0 and rope.hold_count() == 0,
+		"hold/a held spot stays in the hand past the cord's reach",
+		"0.30 m of cord from the socket, held %.2f m from it, %.1f mm off the hand" % [reach, off * 1000.0])
 	grab.free()
 	await _drop_case()
 
