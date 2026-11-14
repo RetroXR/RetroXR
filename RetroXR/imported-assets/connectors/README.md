@@ -10,6 +10,7 @@ After a re-import, put the GLBs back to `generate_lods=false` and any extracted 
 |---|---|---|
 | `usb_a_plug/usb_a_plug.glb` | `generic/usb-a-plug/exports/usb_a_plug_mobile.glb` (14db39fe3) | `jvs_cable.tscn` End A; the GunCon 2 mod by path |
 | `rj45_plug/rj45_plug.glb` | `generic/rj45-plug/exports/blue/rj45_plug_blue_mobile_clean.glb` (31693eed2) | both ends of `ethernet_cable.tscn` |
+| `jst_vl_plug/jst_vl_plug.glb` | `generic/jst-vl-plug/exports/naomi/jst_vl_plug_naomi_mobile_clean.glb` | both ends of `naomi_power_cable.tscn` |
 
 Both were mods (`xenu.usba`, `xenu.rj45`) until 2026-11-14. An old `xenu.rj45` still installed changes nothing: it
 skips a plug that already has a `Shell`, and lays the same cord colour and thickness the scene now has.

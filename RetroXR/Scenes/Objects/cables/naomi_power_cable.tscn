@@ -1,33 +1,14 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://Scripts/Objects/cables/composite_cable.gd" id="1_cablescript"]
 [ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
-[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/vga_plug.res" id="3_vgaplug"]
+[ext_resource type="PackedScene" path="res://imported-assets/connectors/jst_vl_plug/jst_vl_plug.glb" id="3_jstvl"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
 
-; A box, not the sphere the RCA leads use. A VGA hood is 34 x 16 x 58 mm and a
-; sphere around it is either too small to catch the shell or so large it fouls the
-; back panel it is being offered to. Centred at z -0.020, since the plug's ORIGIN is
-; its mating face and the whole body lies behind it.
-[sub_resource type="StandardMaterial3D" id="PlugMat0"]
-albedo_color = Color(0.92, 0.9, 0.84, 1)
-roughness = 0.6
-
-[sub_resource type="BoxMesh" id="PlugBox0"]
-material = SubResource("PlugMat0")
-size = Vector3(0.022, 0.012, 0.025)
-
-[sub_resource type="StandardMaterial3D" id="PlugMat1"]
-albedo_color = Color(0.92, 0.9, 0.84, 1)
-roughness = 0.6
-
-[sub_resource type="BoxMesh" id="PlugBox1"]
-material = SubResource("PlugMat1")
-size = Vector3(0.022, 0.012, 0.025)
-
+; The plug's body: the VLP-08V housing, 25.8 x 15.4 x 24 behind its mating face (the plug's ORIGIN), with a little to spare.
 [sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
-size = Vector3(0.034, 0.018, 0.05)
+size = Vector3(0.027, 0.017, 0.026)
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
 bounce = 0.0
@@ -53,7 +34,9 @@ size = Vector3(0.05, 0.03, 0.066)
 ; one-cord lead there is nothing to tell apart — matching the baked colour makes
 ; that tint a no-op instead of repainting a connector that is already right.
 ; The NAOMI's power harness: the cabinet supply's lead to the board's CN1 (JST VL, 8 ways), both ends that plug.
-; NaomiHookup reads it. The plugs are the VGA lead's drawing for now.
+; NaomiHookup reads it. Both ends wear the JST VL plug (RetroXR-models generic/jst-vl-plug,
+; imported-assets/connectors/jst_vl_plug): the VLP-08V housing with its two rows of four cavities and its
+; latch, the seven wires in Sega's colors gathering into a black sleeve, and the model's own CordExit.
 [node name="NaomiPowerCable" type="Node3D"]
 script = ExtResource("1_cablescript")
 cord_colors = PackedColorArray(0.75, 0.12, 0.10, 1)
@@ -75,12 +58,13 @@ script = ExtResource("2_plugscript")
 connector = "jst_vl8"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.02)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.012)
 shape = SubResource("BoxShape3D_plug")
 
-[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0045)
-mesh = SubResource("PlugBox0")
+[node name="Shell" parent="PlugA0" instance=ExtResource("3_jstvl")]
+
+[node name="CordExit" type="Marker3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.054)
 
 [node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
 collision_layer = 1048576
@@ -111,12 +95,13 @@ script = ExtResource("2_plugscript")
 connector = "jst_vl8"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.02)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.012)
 shape = SubResource("BoxShape3D_plug")
 
-[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0045)
-mesh = SubResource("PlugBox1")
+[node name="Shell" parent="PlugB0" instance=ExtResource("3_jstvl")]
+
+[node name="CordExit" type="Marker3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.054)
 
 [node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
 collision_layer = 1048576
