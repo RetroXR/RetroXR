@@ -1098,6 +1098,13 @@ const OBJECTS := [
 	["Desk Chair",         "chair_desk"],
 	["Papasan Chair",      "chair_papasan"],
 	["Pouf",               "pouf"],
+	# Floor seats: their tops under 0.3 m, sat on as a person sits on the floor.
+	["Floor Cushion",      "floor_cushion_square"],
+	["Round Floor Cushion", "floor_cushion_round"],
+	["Zabuton",            "zabuton"],
+	["Flip Chair",         "flip_chair"],
+	["Floor Pillow",       "floor_pillow"],
+	["Floor Rocker",       "floor_rocker"],
 	["Captain's Bed (Queen)", "bed_captain"],
 	["Brass Bed (Queen)",     "bed_brass"],
 	["Waterbed (Queen)",      "bed_waterbed"],

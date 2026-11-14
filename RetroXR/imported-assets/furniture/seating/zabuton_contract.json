@@ -1,0 +1,113 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the front (the way a sitter faces) is +Z, x to the right seen from the front; the ORIGIN is the middle of the footprint, on the floor",
+ "variant": "zabuton",
+ "title": "Zabuton",
+ "size": [
+  0.6,
+  0.083,
+  0.65
+ ],
+ "bounds": {
+  "min": [
+   -0.3,
+   0.0,
+   -0.325
+  ],
+  "max": [
+   0.3,
+   0.083,
+   0.325
+  ]
+ },
+ "levels": [
+  "zabuton_mobile",
+  "zabuton_mobile_lod1",
+  "zabuton_mobile_lod2"
+ ],
+ "master": "zabuton_high",
+ "own_nodes": [
+  "Body"
+ ],
+ "materials": [
+  "SEAT_Navy"
+ ],
+ "markers": [
+  {
+   "node": "EyePoint",
+   "position": [
+    0.0,
+    0.863,
+    -0.0
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "where a sitter's head goes; -Z (Godot forward) looks out of the front"
+  },
+  {
+   "node": "StandPoint",
+   "position": [
+    0.6,
+    0.0,
+    -0.0
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "on the floor beside the piece, where the player is stood when they get up"
+  }
+ ],
+ "seat_top": 0.083,
+ "eye_point": [
+  0.0,
+  0.863,
+  -0.0
+ ],
+ "stand_point": [
+  0.6,
+  0.0,
+  -0.0
+ ],
+ "seat_trigger": {
+  "centre": [
+   0.0,
+   0.098,
+   -0.0
+  ],
+  "size": [
+   0.6,
+   0.03,
+   0.65
+  ]
+ },
+ "seats": [],
+ "collision": {
+  "boxes": [
+   {
+    "name": "Cushion",
+    "centre": [
+     0.0,
+     0.0415,
+     -0.0
+    ],
+    "size": [
+     0.6,
+     0.083,
+     0.65
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres; the cushion slab is seat_trigger, not one of these"
+ },
+ "estimated": "every size is estimated from ordinary furniture of the kind: see MEASUREMENTS.md",
+ "triangles": {
+  "high": 440,
+  "lod0": 352,
+  "lod1": 264,
+  "lod2": 176
+ }
+}

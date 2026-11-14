@@ -279,7 +279,8 @@ const MISSION_NIGHTSTAND_SCENE := preload("res://Scenes/Objects/furniture/missio
 const MISSION_CHEST_SCENE    := preload("res://Scenes/Objects/furniture/mission_chest.tscn")
 # The RETRO XR seats and beds (ContractSeat, built from their contracts): RetroXR-models generic/seating, generic/beds.
 const SEAT_FURNITURE_IDS := ["sofa_midcentury", "sofa_overstuffed", "sofa_futon", "stool_mission", "stool_midcentury",
-	"chair_desk", "chair_papasan", "pouf", "bed_captain", "bed_brass", "bed_waterbed", "bed_wooden", "bed_racecar"]
+	"chair_desk", "chair_papasan", "pouf", "bed_captain", "bed_brass", "bed_waterbed", "bed_wooden", "bed_racecar",
+	"floor_cushion_square", "floor_cushion_round", "zabuton", "flip_chair", "floor_pillow", "floor_rocker"]
 const SOFA_MIDCENTURY_SCENE  := preload("res://Scenes/Objects/furniture/sofa_midcentury.tscn")
 const SOFA_OVERSTUFFED_SCENE := preload("res://Scenes/Objects/furniture/sofa_overstuffed.tscn")
 const SOFA_FUTON_SCENE       := preload("res://Scenes/Objects/furniture/sofa_futon.tscn")
@@ -288,6 +289,12 @@ const STOOL_MIDCENTURY_SCENE := preload("res://Scenes/Objects/furniture/stool_mi
 const CHAIR_DESK_SCENE       := preload("res://Scenes/Objects/furniture/chair_desk.tscn")
 const CHAIR_PAPASAN_SCENE    := preload("res://Scenes/Objects/furniture/chair_papasan.tscn")
 const POUF_SCENE             := preload("res://Scenes/Objects/furniture/pouf.tscn")
+const FLOOR_CUSHION_SQUARE_SCENE := preload("res://Scenes/Objects/furniture/floor_cushion_square.tscn")
+const FLOOR_CUSHION_ROUND_SCENE := preload("res://Scenes/Objects/furniture/floor_cushion_round.tscn")
+const ZABUTON_SCENE          := preload("res://Scenes/Objects/furniture/zabuton.tscn")
+const FLIP_CHAIR_SCENE       := preload("res://Scenes/Objects/furniture/flip_chair.tscn")
+const FLOOR_PILLOW_SCENE     := preload("res://Scenes/Objects/furniture/floor_pillow.tscn")
+const FLOOR_ROCKER_SCENE     := preload("res://Scenes/Objects/furniture/floor_rocker.tscn")
 const BED_CAPTAIN_SCENE      := preload("res://Scenes/Objects/furniture/bed_captain.tscn")
 const BED_BRASS_SCENE        := preload("res://Scenes/Objects/furniture/bed_brass.tscn")
 const BED_WATERBED_SCENE     := preload("res://Scenes/Objects/furniture/bed_waterbed.tscn")
@@ -464,6 +471,12 @@ const PLAIN_SCENES := {
 	"chair_desk": CHAIR_DESK_SCENE,
 	"chair_papasan": CHAIR_PAPASAN_SCENE,
 	"pouf": POUF_SCENE,
+	"floor_cushion_square": FLOOR_CUSHION_SQUARE_SCENE,
+	"floor_cushion_round": FLOOR_CUSHION_ROUND_SCENE,
+	"zabuton": ZABUTON_SCENE,
+	"flip_chair": FLIP_CHAIR_SCENE,
+	"floor_pillow": FLOOR_PILLOW_SCENE,
+	"floor_rocker": FLOOR_ROCKER_SCENE,
 	"bed_captain": BED_CAPTAIN_SCENE,
 	"bed_brass": BED_BRASS_SCENE,
 	"bed_waterbed": BED_WATERBED_SCENE,

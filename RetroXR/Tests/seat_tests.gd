@@ -730,6 +730,9 @@ func _group_contract() -> void:
 		_ok(seat.type_id == id and places.size() == want, "contract: %s names itself and has %d places (%d)" % [id, want, places.size()])
 		var model := seat.get_node_or_null("Model") as ApplianceModel
 		_ok(model != null and model.levels.size() == 3, "contract: %s is drawn at three levels" % id)
+		var floor_ids := ["floor_cushion_square", "floor_cushion_round", "zabuton", "flip_chair", "floor_pillow", "floor_rocker"]
+		_ok(seat.is_floor_seat() == (id in floor_ids), "contract: %s %s a floor seat (seat top %s)" % [id,
+			"is" if id in floor_ids else "is not", str(seat.contract().get("seat_top"))])
 		var boxes := 0
 		for c in seat.get_children():
 			boxes += 1 if c is CollisionShape3D else 0
@@ -747,8 +750,13 @@ func _group_contract() -> void:
 			var lie := bool(p["lie"])
 			lies += 1 if lie else 0
 			var h := eye.position.y
-			_ok((lie and h >= 0.6 and h <= 0.95) or (not lie and h >= 1.0 and h <= 1.55),
-				"contract: %s's eyes are at a %s height (%.2f m)" % [label, "lying" if lie else "sitting", h])
+			# A FLOOR seat (its top under 0.3 m) has a floor-sitter's eyes, under a metre, about 0.78 m over its top; a
+			# chair's are 1.2 m or more. Decided per piece from its contract, never one range wide enough for both.
+			var floor_seat := seat.is_floor_seat()
+			var top := float(seat.contract().get("seat_top", 0.0))
+			var sat_ok := (h >= 0.8 and h <= 1.1 and h - top >= 0.7 and h - top <= 0.85) if floor_seat else (h >= 1.0 and h <= 1.55)
+			_ok((lie and h >= 0.6 and h <= 0.95) or (not lie and sat_ok),
+				"contract: %s's eyes are at a %s height (%.2f m)" % [label, "lying" if lie else ("floor-sitting" if floor_seat else "sitting"), h])
 			# The way the eyes look: a seat's front is +Z, a bed's edge +X, lying toward the foot (+Z).
 			var face := Vector3.RIGHT if bed and not lie else Vector3.BACK
 			_ok((-eye.basis.z).dot(face) > 0.99 and absf(eye.basis.y.dot(Vector3.UP) - 1.0) < 1e-4,

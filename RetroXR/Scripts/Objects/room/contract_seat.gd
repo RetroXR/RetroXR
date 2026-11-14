@@ -69,7 +69,8 @@ func _ready() -> void:
 				m.add_to_group("outline_exclude")
 	else:
 		push_warning("[Seat] %s: no Model node: nothing draws it" % name)
-	print("[Seat] %s (%s): %d collision boxes, %d places (%s), %d drawers, from %s" % [name, type_id, boxes,
+	print("[Seat] %s (%s%s): %d collision boxes, %d places (%s), %d drawers, from %s" % [name, type_id,
+		", a floor seat" if is_floor_seat() else "", boxes,
 		_places.size(), ", ".join(_places.map(func(p: Dictionary) -> String: return "%s%s" % [(p["eye"] as Node).name,
 		" lie" if p["lie"] else ""])), _drawers.rows.size() if _drawers != null else 0, contract_path.get_file()])
 
@@ -94,6 +95,17 @@ func lid_on(i: int) -> bool:
 ## The model's contract, as read.
 func contract() -> Dictionary:
 	return _contract
+
+
+## A seat whose top is under this is sat on as the floor is (a floor cushion, a zabuton, a floor rocker): the eyes a
+## floor-sitting adult's, under a metre, where a chair's are 1.2 m or more.
+const FLOOR_SEAT_TOP := 0.3
+
+
+## Whether this is a FLOOR seat: its contract's `seat_top` under FLOOR_SEAT_TOP. A bed names none: not a floor seat.
+func is_floor_seat() -> bool:
+	var top: Variant = _contract.get("seat_top")
+	return top != null and float(top) < FLOOR_SEAT_TOP
 
 
 func _step_drawers(delta: float) -> void:

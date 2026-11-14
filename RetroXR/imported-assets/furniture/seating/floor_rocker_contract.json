@@ -1,0 +1,127 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the front (the way a sitter faces) is +Z, x to the right seen from the front; the ORIGIN is the middle of the footprint, on the floor",
+ "variant": "floor_rocker",
+ "title": "Floor rocker",
+ "size": [
+  0.52,
+  0.74163,
+  0.74667
+ ],
+ "bounds": {
+  "min": [
+   -0.26,
+   0.0,
+   -0.34667
+  ],
+  "max": [
+   0.26,
+   0.74163,
+   0.4
+  ]
+ },
+ "levels": [
+  "floor_rocker_mobile",
+  "floor_rocker_mobile_lod1",
+  "floor_rocker_mobile_lod2"
+ ],
+ "master": "floor_rocker_high",
+ "own_nodes": [
+  "Body"
+ ],
+ "materials": [
+  "SEAT_Vinyl_black",
+  "SEAT_Vinyl_red"
+ ],
+ "markers": [
+  {
+   "node": "EyePoint",
+   "position": [
+    0.0,
+    0.91,
+    -0.06
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "where a sitter's head goes; -Z (Godot forward) looks out of the front"
+  },
+  {
+   "node": "StandPoint",
+   "position": [
+    0.56,
+    0.0,
+    -0.06
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "on the floor beside the piece, where the player is stood when they get up"
+  }
+ ],
+ "seat_top": 0.15,
+ "eye_point": [
+  0.0,
+  0.91,
+  -0.06
+ ],
+ "stand_point": [
+  0.56,
+  0.0,
+  -0.06
+ ],
+ "seat_trigger": {
+  "centre": [
+   0.0,
+   0.165,
+   0.13
+  ],
+  "size": [
+   0.48,
+   0.03,
+   0.46
+  ]
+ },
+ "seats": [],
+ "collision": {
+  "boxes": [
+   {
+    "name": "Seat",
+    "centre": [
+     0.0,
+     0.075,
+     0.11
+    ],
+    "size": [
+     0.52,
+     0.15,
+     0.58
+    ]
+   },
+   {
+    "name": "Back",
+    "centre": [
+     0.0,
+     0.445,
+     -0.2625
+    ],
+    "size": [
+     0.52,
+     0.59,
+     0.165
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres; the cushion slab is seat_trigger, not one of these"
+ },
+ "estimated": "every size is estimated from ordinary furniture of the kind: see MEASUREMENTS.md",
+ "triangles": {
+  "high": 1076,
+  "lod0": 860,
+  "lod1": 644,
+  "lod2": 428
+ }
+}

@@ -1,0 +1,126 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the front (the way a sitter faces) is +Z, x to the right seen from the front; the ORIGIN is the middle of the footprint, on the floor",
+ "variant": "flip_chair",
+ "title": "Flip chair",
+ "size": [
+  0.62,
+  0.59,
+  0.64071
+ ],
+ "bounds": {
+  "min": [
+   -0.31,
+   0.0,
+   -0.35071
+  ],
+  "max": [
+   0.31,
+   0.59,
+   0.29
+  ]
+ },
+ "levels": [
+  "flip_chair_mobile",
+  "flip_chair_mobile_lod1",
+  "flip_chair_mobile_lod2"
+ ],
+ "master": "flip_chair_high",
+ "own_nodes": [
+  "Body"
+ ],
+ "materials": [
+  "SEAT_Flip_print"
+ ],
+ "markers": [
+  {
+   "node": "EyePoint",
+   "position": [
+    0.0,
+    1.04,
+    0.025
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "where a sitter's head goes; -Z (Godot forward) looks out of the front"
+  },
+  {
+   "node": "StandPoint",
+   "position": [
+    0.61,
+    0.0,
+    0.025
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "on the floor beside the piece, where the player is stood when they get up"
+  }
+ ],
+ "seat_top": 0.26,
+ "eye_point": [
+  0.0,
+  1.04,
+  0.025
+ ],
+ "stand_point": [
+  0.61,
+  0.0,
+  0.025
+ ],
+ "seat_trigger": {
+  "centre": [
+   0.0,
+   0.275,
+   0.065
+  ],
+  "size": [
+   0.62,
+   0.03,
+   0.45
+  ]
+ },
+ "seats": [],
+ "collision": {
+  "boxes": [
+   {
+    "name": "Seat",
+    "centre": [
+     0.0,
+     0.13,
+     -0.0
+    ],
+    "size": [
+     0.62,
+     0.26,
+     0.58
+    ]
+   },
+   {
+    "name": "Back",
+    "centre": [
+     0.0,
+     0.425,
+     -0.25732
+    ],
+    "size": [
+     0.62,
+     0.33,
+     0.19465
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres; the cushion slab is seat_trigger, not one of these"
+ },
+ "estimated": "every size is estimated from ordinary furniture of the kind: see MEASUREMENTS.md",
+ "triangles": {
+  "high": 900,
+  "lod0": 564,
+  "lod1": 324,
+  "lod2": 132
+ }
+}

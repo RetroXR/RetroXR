@@ -1,0 +1,113 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the front (the way a sitter faces) is +Z, x to the right seen from the front; the ORIGIN is the middle of the footprint, on the floor",
+ "variant": "floor_cushion_square",
+ "title": "Square floor cushion",
+ "size": [
+  0.708,
+  0.14,
+  0.708
+ ],
+ "bounds": {
+  "min": [
+   -0.354,
+   0.0,
+   -0.354
+  ],
+  "max": [
+   0.354,
+   0.14,
+   0.354
+  ]
+ },
+ "levels": [
+  "floor_cushion_square_mobile",
+  "floor_cushion_square_mobile_lod1",
+  "floor_cushion_square_mobile_lod2"
+ ],
+ "master": "floor_cushion_square_high",
+ "own_nodes": [
+  "Body"
+ ],
+ "materials": [
+  "SEAT_Teal_cotton"
+ ],
+ "markers": [
+  {
+   "node": "EyePoint",
+   "position": [
+    0.0,
+    0.92,
+    -0.0
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "where a sitter's head goes; -Z (Godot forward) looks out of the front"
+  },
+  {
+   "node": "StandPoint",
+   "position": [
+    0.654,
+    0.0,
+    -0.0
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "note": "on the floor beside the piece, where the player is stood when they get up"
+  }
+ ],
+ "seat_top": 0.14,
+ "eye_point": [
+  0.0,
+  0.92,
+  -0.0
+ ],
+ "stand_point": [
+  0.654,
+  0.0,
+  -0.0
+ ],
+ "seat_trigger": {
+  "centre": [
+   0.0,
+   0.155,
+   -0.0
+  ],
+  "size": [
+   0.7,
+   0.03,
+   0.7
+  ]
+ },
+ "seats": [],
+ "collision": {
+  "boxes": [
+   {
+    "name": "Cushion",
+    "centre": [
+     0.0,
+     0.07,
+     -0.0
+    ],
+    "size": [
+     0.7,
+     0.14,
+     0.7
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres; the cushion slab is seat_trigger, not one of these"
+ },
+ "estimated": "every size is estimated from ordinary furniture of the kind: see MEASUREMENTS.md",
+ "triangles": {
+  "high": 1360,
+  "lod0": 832,
+  "lod1": 624,
+  "lod2": 288
+ }
+}

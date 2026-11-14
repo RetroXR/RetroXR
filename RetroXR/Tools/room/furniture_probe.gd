@@ -1,6 +1,7 @@
-## The RETRO XR seats and beds (ContractSeat) in the Mobile renderer: all thirteen laid out, the beds' drawers open,
-## then the view from the player's own camera sitting on the overstuffed sofa's left cushion and lying on the
-## captain's bed, each sat on through its own trigger's press. Writes stills.
+## The RETRO XR seats and beds (ContractSeat) in the Mobile renderer: all nineteen laid out (the floor seats in a row of
+## their own), the beds' drawers open, then the view from the player's own camera sitting on the overstuffed sofa's left
+## cushion, lying on the captain's bed and sitting on the square floor cushion, each sat on through its own trigger's
+## press. Writes stills.
 ##
 ##     "$godot" --path RetroXR --resolution 1280x720 --position 20,20 res://Tools/room/furniture_probe.tscn -- --out=DIR
 ##
@@ -64,11 +65,16 @@ func _ready() -> void:
 	var beds := [["bed_captain", -4.4], ["bed_brass", -2.2], ["bed_waterbed", 0.0], ["bed_wooden", 2.0], ["bed_racecar", 3.9]]
 	for b: Array in beds:
 		pieces[b[0]] = _spawn(b[0], Vector3(float(b[1]), 0.0, -1.6))
+	# The floor seats in a row in front of the rest.
+	var floor_seats := [["floor_cushion_square", -3.1], ["floor_cushion_round", -2.0], ["zabuton", -1.0],
+		["flip_chair", 0.1], ["floor_pillow", 1.5], ["floor_rocker", 2.9]]
+	for f: Array in floor_seats:
+		pieces[f[0]] = _spawn(f[0], Vector3(float(f[1]), 0.0, 3.4))
 	for i in 20:
 		await get_tree().physics_frame
 	# The boot's loading overlay (not a CanvasLayer) is still up for the first couple of seconds: wait it out.
 	await get_tree().create_timer(3.0).timeout
-	cam.look_at_from_position(Vector3(0.0, 3.2, 8.2), Vector3(0.0, 0.5, -0.2))
+	cam.look_at_from_position(Vector3(0.0, 3.6, 9.4), Vector3(0.0, 0.4, 0.4))
 	for id: String in pieces:
 		var p := pieces[id] as ContractSeat
 		print("[probe] %s at %s (%.1f m from the camera), sleeping %s" % [id, p.global_position,
@@ -84,6 +90,12 @@ func _ready() -> void:
 	await _shot("furniture_beds")
 	cam.look_at_from_position(Vector3(-2.2, 1.5, 4.2), Vector3(-2.2, 0.55, 1.6))
 	await _shot("furniture_sofas")
+	cam.look_at_from_position(Vector3(0.0, 1.7, 6.4), Vector3(0.0, 0.2, 3.4))
+	await _shot("furniture_floor")
+	var rocker := pieces["floor_rocker"] as Node3D
+	print("[probe] floor_rocker at %s, up %s, facing %s" % [rocker.global_position, rocker.global_basis.y, rocker.global_basis.z])
+	cam.look_at_from_position(rocker.global_position + Vector3(1.6, 0.9, 0.9), rocker.global_position + Vector3(0, 0.3, 0))
+	await _shot("furniture_rocker")
 	# The player's own camera, seated: a minimal rig, as seat_tests builds one.
 	var rig := Node3D.new()
 	var origin := XROrigin3D.new()
@@ -124,6 +136,18 @@ func _ready() -> void:
 	print("[probe] lying on %s: camera %s, looking %s" % [bed.name, xcam.global_position, -xcam.global_basis.z])
 	await _shot("furniture_lying_bed")
 	bed.stand()
+	# A floor cushion, turned to face the room: the eyes a floor-sitter's, under a metre.
+	var cushion := pieces["floor_cushion_square"] as ContractSeat
+	cushion.transform = Transform3D(Basis(Vector3.UP, PI), Vector3(-4.6, 0.0, 6.0))
+	await get_tree().physics_frame
+	var place: Dictionary = cushion.places()[0]
+	(place["trigger"] as SeatTrigger).pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.PRESSED, null,
+		place["trigger"], Vector3.ZERO, Vector3.ZERO))
+	await get_tree().physics_frame
+	print("[probe] seated on the floor cushion (floor seat %s): camera %s, %.2f m over the floor, looking %s" % [
+		cushion.is_floor_seat(), xcam.global_position, xcam.global_position.y, -xcam.global_basis.z])
+	await _shot("furniture_seated_floor")
+	cushion.stand()
 	for id: String in pieces:
 		var model := (pieces[id] as Node).get_node("Model") as ApplianceModel
 		print("[probe] %s: %d levels, %d meshes at level 0" % [id, model.levels.size(),
