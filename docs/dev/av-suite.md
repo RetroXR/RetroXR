@@ -154,6 +154,16 @@ is drawn changed (`VCRBody` / `DVDBody` and the old clock are hidden, kept as no
 - **The tape** is the real cassette (`VhsCassette`, ported from the model's demo):
   188 x 104 x 25 mm, wound by where the tape stands on its T-n, its flap, the face
   art on its 80 x 48 label and the spine art and a `SpineTitle` on the spine.
+  The game draws the item's CLEAN chain (no VHS logo). **A mod swaps the MODEL only**,
+  never the code: a hook on `VhsCassette` entering the tree sets `level_paths` before its
+  `_ready` loads them (the `xenu.vhs` mod, 0.2.0+, puts on the BRANDED chain, the VHS logo
+  moulded into the flap's lip; the replacement must carry the same nodes), and a path that
+  does not load falls back to the game's own. A mod that draws the WHOLE tape (a `Shell` on
+  `VCRTape`, or the `VCRTape`/`shell` dress claim: `xenu.vhs` 0.1.x did) has the game's
+  `Cassette` step aside, and `SpineTitle` under the mod's `SpineLabel`, as the audio
+  cassette does; before 2026-11-14 the tape drew twice. `deck_model_tests vhs/`;
+  RetroXR-models `mods/probes/vhs_probe` (run with `-- --no-mods`, or an installed copy
+  of the mod is mounted first and wins).
 - **DVD tray.** `DiscSlot` is on the tray's `DiscSeat` when it is OUT, and on only
   while the tray is out, still and empty. OPEN/CLOSE opens or closes an empty tray,
   or ejects / reloads a disc (`MediaSlot.toggle_eject` through the ride driver, which

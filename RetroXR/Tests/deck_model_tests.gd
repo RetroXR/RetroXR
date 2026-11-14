@@ -45,6 +45,10 @@ func _run() -> void:
 		["vcr/tape/eject carries it out to the mouth, its flap shut", _vcr_eject],
 		["vcr/tape/a tape let go at the mouth is carried in through the door", _vcr_load],
 		["vcr/door/a held tape pushes the flap, which falls shut behind it", _vcr_hand_door],
+		["vhs/model/the game's cassette is the clean chain at every level", _vhs_clean],
+		["vhs/model/a model put on as it enters the tree is drawn, and wound and flapped by the game", _vhs_swapped],
+		["vhs/model/a model that does not load leaves the game's own drawn", _vhs_fallback],
+		["vhs/shell/a mod that draws the whole tape has the game's cassette step aside", _vhs_mod_shell],
 		["dvd/dress/the keys are the model's, on the front, facing out", _dvd_keys],
 		["dvd/dress/the sockets are on the model's jacks", _dvd_ports],
 		["dvd/tray/an empty tray opens and closes, taking a disc only while out", _dvd_tray_empty],
@@ -218,6 +222,79 @@ func _vcr_restore() -> void:
 	var door := (vcr.get_node("Model") as ApplianceModel).part("Door")
 	_ok(absf(door.rotation.x) < 0.01, "the deck's flap is shut in front of it")
 	_ok(not tape.enabled, "and no hand can take it out of the deck")
+
+
+func _vhs_clean() -> void:
+	var cassette := _tape().get_node("Cassette") as VhsCassette
+	await _frames(1)
+	_ok(cassette.levels.size() == VhsCassette.LEVELS.size(), "three levels")
+	for i in cassette.levels.size():
+		_ok(cassette.levels[i].scene_file_path == VhsCassette.LEVELS[i] and VhsCassette.LEVELS[i].contains("_clean"),
+			"level %d is the clean chain's (%s)" % [i, cassette.levels[i].scene_file_path])
+
+
+## What the xenu.vhs mod does: a hook on the cassette entering the tree points it at other models. The game's own far
+## level stands in for a mod's model at every level, so this runs with no mod installed.
+func _vhs_swapped() -> void:
+	var far: String = VhsCassette.LEVELS[2]
+	var hook := func(node: Node) -> void:
+		if node is VhsCassette:
+			(node as VhsCassette).level_paths = [far, far, far]
+	get_tree().node_added.connect(hook)
+	var tape := _tape()
+	get_tree().node_added.disconnect(hook)
+	var cassette := tape.get_node("Cassette") as VhsCassette
+	await _frames(1)
+	var drawn := cassette.levels.map(func(l: Node3D) -> String: return l.scene_file_path)
+	_ok(drawn == [far, far, far], "every level is the model put on (%s)" % str(drawn))
+	var reel := cassette.levels[0].find_child("ReelTakeup", true, false) as Node3D
+	var before := reel.rotation.z
+	cassette.progress = 0.37
+	await _frames(1)
+	_ok(not is_equal_approx(reel.rotation.z, before), "the game winds its reels")
+	cassette.door_open = 1.0
+	var door := cassette.levels[0].find_child("Door", true, false) as Node3D
+	_ok(is_equal_approx(door.rotation.x, deg_to_rad(VhsCassette.DOOR_OPEN_DEGREES)), "and swings its flap")
+
+
+func _vhs_fallback() -> void:
+	var hook := func(node: Node) -> void:
+		if node is VhsCassette:
+			(node as VhsCassette).level_paths = ["res://mods/test.nothere/vhs.glb"]
+	get_tree().node_added.connect(hook)
+	var tape := _tape()
+	get_tree().node_added.disconnect(hook)
+	var cassette := tape.get_node("Cassette") as VhsCassette
+	await _frames(1)
+	var drawn := cassette.levels.map(func(l: Node3D) -> String: return l.scene_file_path)
+	_ok(drawn == VhsCassette.LEVELS, "a missing model and missing levels are the game's own (%s)" % str(drawn))
+
+
+## What xenu.vhs 0.1.x does (and any mod that draws the tape itself): as the tape enters the tree it hangs a Shell
+## and a spine label of its own. The game's cassette and spine title would draw a second tape through it.
+func _vhs_mod_shell() -> void:
+	var hook := func(node: Node) -> void:
+		if node is VCRTape:
+			var shell := Node3D.new()
+			shell.name = "Shell"
+			node.add_child(shell)
+			var spine := Label3D.new()
+			spine.name = VCRTape.MOD_SPINE
+			node.add_child(spine)
+	get_tree().node_added.connect(hook)
+	var tape := _tape()
+	get_tree().node_added.disconnect(hook)
+	await _frames(2)
+	_ok(tape.get_node_or_null("Cassette") == null, "the game's cassette is gone")
+	_ok(not (tape.get_node("SpineTitle") as Label3D).visible, "and so is its spine title, under the mod's own")
+	tape.set_flap(1.0)
+	tape.tape_progress = 0.5
+	await _frames(2)
+	_ok(tape.has_node("Shell"), "the mod's shell stays, and the tape winds and flaps with no cassette of its own")
+	var plain := _tape()
+	await _frames(2)
+	_ok(plain.get_node_or_null("Cassette") != null and (plain.get_node("SpineTitle") as Label3D).visible,
+		"a tape with no mod's shell keeps the game's")
 
 
 func _vcr_eject() -> void:

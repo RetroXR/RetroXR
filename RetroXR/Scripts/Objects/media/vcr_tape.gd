@@ -34,7 +34,7 @@ var tape_track: int = 0
 ## where it was. A save keeps it too. The audio cassette has the same.
 var tape_time: float = 0.0
 ## How far through the recording the tape is, 0 to 1, for anything that shows
-## the tape itself (a mod's reels).
+## the tape itself (VhsCassette's reels).
 var tape_progress: float = 0.0
 ## How the tape is moving right now: 0 still (out of a deck, stopped or paused),
 ## 1 playing, more winding on, less than 0 winding back.
@@ -80,15 +80,46 @@ var _download_status := ""
 ## What the cassette was last wound to, so it is wound again only when the tape moved.
 var _wound_at := Vector2(-1.0, -1.0)
 
+## A mod that draws the whole tape itself dresses VCRTape under this key and hangs a node named Shell on it (the
+## xenu.vhs mod did until 0.2.0, which only swaps VhsCassette's model). The game's cassette then steps aside, as the
+## audio cassette's does, so a tape is never drawn twice.
+const DRESS_CLASS := &"VCRTape"
+const DRESS_KEY := "shell"
+## The spine label such a mod adds beside the game's SpineTitle.
+const MOD_SPINE := "SpineLabel"
+static var _logged_dresser := "-"
+
 
 func _ready() -> void:
 	super()   # XRToolsPickable._ready collects grab points (SnapGrabPoint)
+	_step_aside_for_a_shell()
 	_labels = MediaLabelLoader.new()
 	_labels.name = "LabelLoader"
 	_labels.art_ready.connect(_on_label_art)
 	add_child(_labels)
 	_update_label()
 	_request_label_art()
+
+
+## A mod's hook runs as the tape enters the tree, before this: a Shell on it, or a mod holding the claim, means the
+## mod draws this tape, and the game's cassette goes (it would draw a second one through the mod's).
+func _step_aside_for_a_shell() -> void:
+	var dresser := "a shell already on it" if has_node("Shell") else ""
+	if dresser.is_empty():
+		var mods := get_node_or_null("/root/Mods")
+		if mods != null and mods.has_method("dresser_of"):
+			dresser = str(mods.call("dresser_of", DRESS_CLASS, DRESS_KEY))
+	if dresser.is_empty() or _cassette == null:
+		return
+	if dresser != _logged_dresser:
+		_logged_dresser = dresser
+		print("[VHS] video tapes dressed by %s: the game's cassette steps aside" % dresser)
+	remove_child(_cassette)
+	_cassette.queue_free()
+	_cassette = null
+	var spine := get_node_or_null("SpineTitle") as Label3D
+	if spine != null and has_node(MOD_SPINE):
+		spine.visible = false
 
 
 func _update_label() -> void:
@@ -144,7 +175,7 @@ func _on_label_art(slot: StringName, tex: Texture2D) -> void:
 			Transform3D(Basis(Vector3.RIGHT, PI / 2.0), _SPINE_AT))
 		var spine := get_node_or_null("SpineTitle") as Label3D
 		if spine:
-			spine.visible = tex == null
+			spine.visible = tex == null and not has_node(MOD_SPINE)
 
 
 ## The picture carries the title itself, so the text steps aside for it: except

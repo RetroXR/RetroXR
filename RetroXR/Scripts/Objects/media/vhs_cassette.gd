@@ -1,6 +1,12 @@
 ## VhsCassette — the drawn VHS cassette inside a VCRTape: RetroXR-models' generic/vhs-tape at three levels, the
 ## tape wound onto its reels by how far through the cassette it is, its flap, and label art on its face and spine.
 ##
+## The game draws the item's CLEAN chain (no VHS logo on the flap's lip). A mod can put another model of the same
+## item on in its place (the xenu.vhs mod's branded chain) by setting `level_paths` from an on_node_added/dress
+## hook, which runs as the cassette enters the tree and so before _ready loads the levels. The reels, the flap and
+## the labels are this script's either way: a replacement must carry the same nodes (Door, ReelSupply/Takeup,
+## PackSupply/Takeup, TapeSpan*, LabelFace, LabelSpine).
+##
 ## Ported from that item's godot_demo/vhs_tape.gd, which its validation checks against the model's own
 ## tape_contract.json. Meters; the top face (windows, label) looks along +Z, the flap is the +Y edge, the supply reel
 ## is at -X. Origin: the cassette's center (188 x 104 x 25 mm). The tape winds at the drawn T-n's length:
@@ -55,13 +61,19 @@ var door_open: float = 0.0:
 		for door in _parts("Door"):
 			door.rotation = Vector3(deg_to_rad(DOOR_OPEN_DEGREES) * door_open, 0.0, 0.0)
 
+## The model at each level, near to far: LEVELS unless a mod has put another model on (see the class note). Read
+## once, in _ready.
+var level_paths: Array = LEVELS.duplicate()
+
 var levels: Array[Node3D] = []
 var _wound := false
 
 
 func _ready() -> void:
+	if level_paths != LEVELS:
+		print("[VHS] %s wears another model: %s" % [get_path(), level_paths])
 	for i in LEVELS.size():
-		var level := (load(LEVELS[i]) as PackedScene).instantiate() as Node3D
+		var level := _level_scene(i).instantiate() as Node3D
 		level.name = "LOD%d" % i
 		add_child(level)
 		levels.append(level)
@@ -81,6 +93,18 @@ func _ready() -> void:
 			g.visibility_range_end_margin = HYSTERESIS if i + 1 < LEVELS.size() else 0.0
 	door_open = door_open
 	_wind()
+
+
+## The model at level `i`: the one `level_paths` names, else the game's own, so a mod's model that is not there (a
+## pack only part mounted, too few levels) leaves the cassette drawn rather than missing.
+func _level_scene(i: int) -> PackedScene:
+	var path := str(level_paths[i]) if i < level_paths.size() else ""
+	if path != LEVELS[i]:
+		var swapped := load(path) as PackedScene if not path.is_empty() and ResourceLoader.exists(path) else null
+		if swapped != null:
+			return swapped
+		push_warning("[VHS] %s: level %d model %s did not load; drawing the game's own" % [get_path(), i, path])
+	return load(LEVELS[i]) as PackedScene
 
 
 func _dirty() -> void:
