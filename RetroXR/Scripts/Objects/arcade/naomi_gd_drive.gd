@@ -22,6 +22,8 @@ const SHELL_BLUE := Color(0.24, 0.27, 0.32)
 ## Where the drive's own shapes stop: under the lid, which is a thing of its own with its own shape (a pointer aimed
 ## at the lid met the drive's box first and picked the whole drive up).
 const UNDER_LID := 0.050
+## How far under the disc's seat (DiscAnchor) they stop: a disc's half thickness and a little.
+const UNDER_DISC := 0.003
 
 @export var type_id: String = KIND
 
@@ -107,14 +109,21 @@ func _build_lid(shell: Node3D) -> void:
 
 
 func _shapes_under_lid() -> void:
+	# And under the disc: it lies down in the drum (the model's spindle 26 mm up, the lid's level 50), so a box to the lid's
+	# level stood over it, and a pointer aimed at the disc with the lid off met the drive first and offered to pull the whole
+	# drive out of its mount (the owner, 2026-11-14: "i can't seem to take out the gd rom disk from the gd rom drive").
+	var top := UNDER_LID
+	var spindle := find_child("DiscAnchor", true, false) as Node3D
+	if spindle != null:
+		top = minf(top, (global_transform.affine_inverse() * spindle.global_position).y - UNDER_DISC)
 	for path in ["CollisionShape3D", "PointerArea/CollisionShape3D"]:
 		var col := get_node_or_null(path) as CollisionShape3D
 		if col == null or not col.shape is BoxShape3D:
 			continue
 		var box := (col.shape as BoxShape3D).duplicate() as BoxShape3D
-		box.size.y = UNDER_LID
+		box.size.y = top
 		col.shape = box
-		col.global_position = global_transform * Vector3(col.position.x if path == "CollisionShape3D" else 0.0, UNDER_LID * 0.5, 0.0)
+		col.global_position = global_transform * Vector3(col.position.x if path == "CollisionShape3D" else 0.0, top * 0.5, 0.0)
 
 
 static func _first_mesh(n: Node) -> MeshInstance3D:
