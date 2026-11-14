@@ -2529,7 +2529,7 @@ func _attachment_field(n3d: Node3D, node_to_id: Dictionary, any_zone: bool = fal
 	var host: Node = zone
 	while host != null and not host.is_in_group("spawned"):
 		host = host.get_parent()
-	if not any_zone and not _is_mod_zone(zone, host):
+	if not any_zone and not _is_mod_zone(zone, host) and not _is_plain_seat(host):
 		return {}
 	if host == null:
 		return {"attached": {"to": _ref(node_to_id, zone), "zone": "."}}
@@ -2543,6 +2543,13 @@ func _attachment_field(n3d: Node3D, node_to_id: Dictionary, any_zone: bool = fal
 ## A zone a mod owns. A mod pad, gun or multitap is not a host here even though
 ## it carries the stamp: its sockets are the game's (a VMU slot, a pak port, a
 ## tap's controller sockets), restored by their own fields.
+## A game object whose sockets have no field of their own and nothing to do on a restore but seat what goes in them: the
+## NAOMI's DIMM board (its key chip) and GD-ROM drive (the disc on its spindle). Before this a restored room had the key and
+## the disc lying loose beside them, and the cabinet said its DIMM board was missing both (the owner, 2026-11-14).
+static func _is_plain_seat(host: Node) -> bool:
+	return host is NaomiDimm or host is NaomiGdDrive
+
+
 static func _is_mod_zone(zone: Node, host: Node) -> bool:
 	if zone.is_in_group(MOD_ZONE_GROUP):
 		return true

@@ -869,6 +869,13 @@ func _group_gdrom() -> void:
 	await _wait(40)
 	_ok(sys.rom_path == "/tmp/naomi_gd/ikaruga.zip", "gdrom: key, cable, disc, lid shut: the cabinet loads the disc's game (%s)" % sys.rom_path)
 	_ok(drive.lid_shut() and not disc.enabled and not seat.enabled, "gdrom: the lid back on: the disc cannot be taken out")
+	# A save keeps the key in its socket and the disc on its spindle (they came back loose: the owner, 2026-11-14).
+	var store := ScenePersistence.new("__gdrom_selftest")
+	var map := {dimm: 0, drive: 1, key: 2, disc: 3}
+	var key_rec: Dictionary = store.serialize_node(key, 2, map).get("attached", {})
+	_ok(key_rec == {"to": 0, "zone": str(dimm.get_path_to(dimm.find_child("KeySocket", true, false)))}, "gdrom: a saved key names the DIMM board's socket (%s)" % key_rec)
+	var disc_rec: Dictionary = store.serialize_node(disc, 3, map).get("attached", {})
+	_ok(disc_rec == {"to": 1, "zone": str(drive.get_path_to(seat))}, "gdrom: a saved disc names the drive's spindle (%s)" % disc_rec)
 	# Another game's key.
 	key.rom_path = "/tmp/naomi_gd/vonot.zip"
 	await _wait(40)
