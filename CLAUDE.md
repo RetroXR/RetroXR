@@ -352,8 +352,10 @@ it pulled in its model and textures, 250 ms for one pad) and each stand-in leave
 something installed does its job -- there is no claim API and no list of allowed names (2026-10-17, `docs/dev/mods.md`).
 **A mod can need another** (`mod.json` `dependencies`, `"id"` or `"id>=x.y.z"`): it is mounted after them and NOT AT ALL
 without them (`ModManager.dependency_problem`, FAILED + `blocked_by_dependency`, never mounted), switches cascade both
-ways, and the MODS tab downloads mod.io's dependency list with it (`list_dependencies`, one review). The GunCon 2's
-USB-A plug is `xenu.usba`'s. `mod_browser_tests depends/`.
+ways, and the MODS tab downloads mod.io's dependency list with it (`list_dependencies`, one review). `mod_browser_tests depends/`.
+**The USB-A and RJ45 plug models are the GAME's** (`imported-assets/connectors/`, 2026-11-14; they were the
+`xenu.usba`/`xenu.rj45` mods): the JVS lead's End A and both Ethernet ends wear them IN THEIR SCENES (a `Shell` instance and
+the model's `CordExit`, no stand-in block), and the GunCon 2 mod (0.7.0+, no dependency) names the USB-A by path.
 
 **The MODS tab browses and downloads from mod.io** (game 14432, REST from GDScript, API key
 only — no login, so no subscribe/rate). **Nothing but mod.io's terms is requested until the

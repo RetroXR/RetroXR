@@ -49,7 +49,7 @@ random bytes, made per run and never written to the config. A CoreTiming event
 | class | what it is |
 |---|---|
 | `EthernetPort` | a `PsxLinkPort` taking `ethernet_plug`; `get_machine()` walks through a `RetroExpansion` to the console it is seated on; `get_hub()`; a link LED |
-| `EthernetCable` | a `PsxLinkCable` (`ethernet_cable.tscn`, 2.4 m blue Cat5, RJ45 both ends), in group `ethernet_cable` |
+| `EthernetCable` | a `PsxLinkCable` (`ethernet_cable.tscn`, 2.4 m blue Cat5e, 6 mm cord, both ends wearing the RJ45 plug model, `imported-assets/connectors/rj45_plug`: a `Shell` rolled half about Z so its latch meets the socket's, and its `CordExit`; it was the `xenu.rj45` mod's until 2026-11-14), in group `ethernet_cable` |
 | `EthernetHub` | a pickable box with eight `EthernetPort`s (`Port1`..`Port8`) |
 | `EthernetBus` | the static resolver every lead defers to — ILinkBus's shape |
 | the adapters | expansion units `gamecube_broadband_adapter` (socket `serial_port_1`) and `ps2_network_adapter` (`expansion_bay`), each row carrying `ethernet_port` |

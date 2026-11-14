@@ -71,6 +71,12 @@ func set_connector(to: String) -> void:
 
 
 func _derive_cable_anchor() -> void:
+	# A plug that wears a model in its scene (the Ethernet lead's RJ45, the JVS
+	# lead's USB-A) has no PlugTip block, only the model and its CordExit.
+	var marker := get_node_or_null(PlugExit.MARKER) as Node3D
+	if marker != null:
+		cable_anchor = marker.transform.origin
+		return
 	var tip := get_node_or_null("PlugTip") as MeshInstance3D
 	if tip == null or tip.mesh == null:
 		return

@@ -83,7 +83,7 @@ must be stored uncompressed, or the pack is refused with a message saying so.
   "priority": 0,
   "claims": [],
   "platforms": ["Windows", "Linux", "macOS", "Android"],
-  "dependencies": ["xenu.usba>=0.1.0"]
+  "dependencies": ["someone.plugs>=0.1.0"]
 }
 ```
 
@@ -96,8 +96,8 @@ must be stored uncompressed, or the pack is refused with a message saying so.
 - **`claims`** — paths **outside** `res://mods/<id>/` your pack writes. Empty is
   the normal case and the safe one.
 - **`platforms`** — omit for "everywhere".
-- **`dependencies`** — other mods yours needs, by id: `"xenu.usba"`, or
-  `"xenu.usba>=0.1.0"` for at least that version. Omit for none. See
+- **`dependencies`** — other mods yours needs, by id: `"someone.plugs"`, or
+  `"someone.plugs>=0.1.0"` for at least that version. Omit for none. See
   [Mods that need other mods](#mods-that-need-other-mods).
 
 There is no field naming the pack file: the manifest is *inside* it.
@@ -105,9 +105,13 @@ There is no field naming the pack file: the manifest is *inside* it.
 ### Mods that need other mods
 
 A part many mods share, a plug model say, can be a mod of its own that the others
-list in `dependencies`, rather than a copy in each. The GunCon 2 does this: its
-USB-A plug is `xenu.usba`'s, and its `.tscn` names
-`plug_mesh_path = "res://mods/xenu.usba/model/usb_a_plug.glb"`. What a dependency
+list in `dependencies`, rather than a copy in each: its scenes then name the
+part by its path under `res://mods/<that id>/`. (Check the game first: the USB-A
+and RJ45 plugs are the game's own, in `res://imported-assets/connectors/`, so a
+cord that ends in one names
+`plug_mesh_path = "res://imported-assets/connectors/usb_a_plug/usb_a_plug.glb"`
+and needs no other mod. They were mods, `xenu.usba` and `xenu.rj45`, until
+2026-11-14.) What a dependency
 guarantees:
 
 - **It is mounted first**, whatever either mod's `priority`, so its files are there

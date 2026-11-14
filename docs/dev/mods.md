@@ -499,7 +499,9 @@ itself refuses the manifest.
 - Measured end to end with the real packs: RetroXR-models'
   `mods/probes/usba_deps_probe` (the GunCon 2 alone is never mounted and names
   `xenu.usba`; with the plug, one switch takes both, Apply mounts the plug then the
-  gun, and the spawned gun's plug is the plug mod's model). `mod_browser_tests`
+  gun, and the spawned gun's plug is the plug mod's model; since 2026-11-14 the plug is
+  the game's own and the GunCon 2, 0.7.0, depends on nothing, so the probe tells the old
+  packs' story). `mod_browser_tests`
   `depends/` and the dependency cases in `apply/` and `catalogue/`/`download/` are
   the suite.
 

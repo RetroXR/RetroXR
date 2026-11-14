@@ -28,6 +28,7 @@ const EXPANSION_SCENE := preload("res://Scenes/Objects/expansion.tscn")
 const CABLE_SCENE := "res://Scenes/Objects/cables/ethernet_cable.tscn"
 const HUB_SCENE := "res://Scenes/Objects/cables/ethernet_hub.tscn"
 const ILINK_CABLE_SCENE := "res://Scenes/Objects/cables/ilink_cable.tscn"
+const RJ45_MODEL := "res://imported-assets/connectors/rj45_plug/rj45_plug.glb"
 
 const BBA := "gamecube_broadband_adapter"
 const NETWORK_ADAPTER := "ps2_network_adapter"
@@ -209,6 +210,16 @@ func _test_cable_scene() -> void:
 		_eq(plug.connector, "ethernet_plug", "cable/ %s is an RJ45 plug" % end)
 		_ok(plug.is_in_group(LinkPlug.ANY_GROUP), "cable/ %s is in the link-lead sweep group" % end)
 		_eq(plug.cable, lead, "cable/ %s knows its lead" % end)
+		# The RJ45 plug model is the game's own (it was the xenu.rj45 mod's): both
+		# ends wear it, no stand-in block, and the cord leaves where its boot ends.
+		var shell := plug.get_node_or_null("Shell") as Node3D
+		_ok(shell != null and shell.scene_file_path == RJ45_MODEL, "cable/ %s wears the RJ45 plug model" % end,
+			str(shell.scene_file_path if shell != null else "no Shell"))
+		_ok(plug.get_node_or_null("PlugTip") == null, "cable/ %s has no stand-in block left" % end)
+		_ok(plug.cable_anchor.is_equal_approx(Vector3(0, 0, -0.0271)),
+			"cable/ %s's cord leaves the boot's end" % end, str(plug.cable_anchor))
+	var rope := lead.get_node("VerletRope")
+	_ok(is_equal_approx(float(rope.get("tube_radius")), 0.003), "cable/ the cord is the plug's 6 mm jacket")
 	_ok(lead.is_in_group(EthernetBus.CABLE_GROUP), "cable/ the lead is one EthernetBus walks")
 	_eq(lead.links().size(), 0, "cable/ it carries no A/V links")
 	_ok((lead.linked_machines() as Array).is_empty(), "cable/ unseated, it joins nothing")
@@ -307,7 +318,7 @@ func _test_hub_scene() -> void:
 	ports[0].pick_up_object(plug)
 	await get_tree().physics_frame
 	await get_tree().process_frame
-	var shell := plug.get_node("PlugTip") as Node3D
+	var shell := plug.get_node("CordExit") as Node3D
 	var face := hub.to_local(ports[0].global_position).z
 	var shell_z := hub.to_local(shell.global_position).z
 	_ok(shell_z > face, "hub/ a seated plug's boot stands outside the hub", "boot at z %.4f, face at %.4f" % [shell_z, face])

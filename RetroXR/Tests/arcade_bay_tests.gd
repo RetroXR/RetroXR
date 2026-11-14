@@ -678,6 +678,14 @@ func _hk_run() -> void:
 	(model.find_child(NaomiHookup.CAB_AUDIO_R, true, false) as Port).pick_up_object(av.get_node("PlugB2"))
 	# The JVS cable.
 	var jvs := _hk_cable("jvs_cable")
+	# Its USB-A end wears the game's USB-A plug model (it was the xenu.usba mod's), on every JVS lead, not only on the
+	# ones a fresh cabinet comes wired with; the cord leaves from the model's CordExit.
+	var usba := jvs.get_node("PlugA0") as RcaPlug
+	var usba_shell := usba.get_node_or_null("Shell") as Node3D
+	_ok(usba_shell != null and usba_shell.scene_file_path == "res://imported-assets/connectors/usb_a_plug/usb_a_plug.glb"
+		and usba.get_node_or_null("PlugTip") == null, "hookup: the JVS lead's USB-A end wears the USB-A plug model")
+	_ok(usba.cable_anchor.is_equal_approx(Vector3(0, 0, -0.03225)),
+		"hookup: and its cord leaves the plug's strain relief (%s)" % str(usba.cable_anchor))
 	(bay.find_child(NaomiHookup.BOARD_JVS, true, false) as Port).pick_up_object(jvs.get_node("PlugA0"))
 	(model.find_child(NaomiHookup.CAB_JVS, true, false) as Port).pick_up_object(jvs.get_node("PlugB0"))
 	await _wait(30)

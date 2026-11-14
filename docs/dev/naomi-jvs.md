@@ -63,7 +63,7 @@ Every phase is in. The game ships a stand-in for each part, playable with no mod
    doors, the bay with its door's hinge and its BayMount (on a VRDrawer tray where the model has one).
 3. **Ports, cords, the resolver**: the board's sockets (`ArcadeBayUnit._build_naomi_ports`: VGA and phono out, the JVS USB-A, the JST
    power header) and the cabinet's at its leads (`ArcadeCabinetFromModel._build_leads`); cords `vga_cable`, `composite_cable`,
-   `jvs_cable` (usb_a to usb_b), `naomi_power_cable` (jst_vl8). **`NaomiHookup.state`**, polled by the cabinet 4 times a second, gates
+   `jvs_cable` (usb_a to usb_b; End A wears the game's USB-A plug model, `imported-assets/connectors/usb_a_plug`, in the scene), `naomi_power_cable` (jst_vl8). **`NaomiHookup.state`**, polled by the cabinet 4 times a second, gates
    the picture (`host_picture`), each audio channel (`RetroSystem.audio_speakers`) and the controls and coins (`ArcadeInput._send`); no
    power takes all of them. A cabinet without the NAOMI leads (the Morphing Arcade Cabinet) is not gated. A fresh cabinet's NAOMI comes
    wired (`NaomiHookup.seed_cords`); a restored room keeps its own cords.

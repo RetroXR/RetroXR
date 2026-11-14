@@ -40,9 +40,6 @@ const CONV_VGA := "ConvVgaIn"
 ## The connector families: the NAOMI's JVS socket is a USB-A, an I/O board's or a converter's a USB-B; the
 ## board's power is a JST VL header.
 const USB_B := "usb_b"
-## The USB-A plug's model, from its own mod (xenu.usba, which xenu.naomi depends on): the JVS cable's End A wears it.
-## Without that mod the plug is the cable scene's plain block.
-const USB_A_PLUG_MODEL := "res://mods/xenu.usba/model/usb_a_plug.glb"
 const NAOMI_POWER := "jst_vl8"
 
 
@@ -145,7 +142,6 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 		(_port(conv, CONV_EDGE)).pick_up_object(jc.get_node("PlugA0"))
 		harness.pick_up_object(jc.get_node("PlugB0"))
 		var jv := (load("res://Scenes/Objects/cables/jvs_cable.tscn") as PackedScene).instantiate() as Node3D
-		dress_plug(jv.get_node_or_null("PlugA0") as Node3D, USB_A_PLUG_MODEL)
 		home.add_child(jv)
 		jv.global_position = conv.global_position + Vector3(0, 0.1, 0)
 		_port(bay, BOARD_JVS).pick_up_object(jv.get_node("PlugA0"))
@@ -163,8 +159,6 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 		if ports.has(null):
 			continue
 		var cable := (load("res://Scenes/Objects/cables/%s.tscn" % str(run[0])) as PackedScene).instantiate() as Node3D
-		if str(run[0]) == "jvs_cable":
-			dress_plug(cable.get_node_or_null("PlugA0") as Node3D, USB_A_PLUG_MODEL)
 		# Cut to its run: the longest board-to-cabinet pair it joins, and CORD_SPARE.
 		var reach := 0.0
 		for i in range(0, ports.size() - 1, 2):
@@ -177,30 +171,6 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 			var plug := cable.get_node_or_null(str(seats[i][0])) as Node3D
 			if plug != null:
 				(ports[i] as Port).pick_up_object(plug)
-
-
-## Put a connector model (a mod's .glb in the plug frame: connector +Z, a CordExit marker) on one end of a lead, before
-## the lead is in the tree: the model as its own child, the cable scene's block hidden (the lead tints its plugs' first
-## surface the cord's colour, which would paint a model's shell), and the model's CordExit, so the cord leaves the boot
-## where the model says (RcaPlug reads it in _ready). Nothing happens when the model is not there.
-static func dress_plug(plug: Node3D, model_path: String) -> void:
-	if plug == null or not ResourceLoader.exists(model_path):
-		return
-	var res: Resource = load(model_path)
-	var mesh := PlugExit.mesh_of(res)
-	if mesh == null:
-		return
-	var tip := plug.get_node_or_null("PlugTip") as MeshInstance3D
-	if tip != null:
-		tip.visible = false
-	var mi := MeshInstance3D.new()
-	mi.name = "PlugModel"
-	mi.mesh = mesh
-	plug.add_child(mi)
-	var exit := Marker3D.new()
-	exit.name = PlugExit.MARKER
-	exit.transform = PlugExit.of_resource(res)
-	plug.add_child(exit)
 
 
 ## Where a fresh JAMMA cabinet's converter stands: on the floor under the board, found by a ray down the cabinet's own

@@ -5,19 +5,12 @@
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/vga_plug.res" id="3_vgaplug"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
+[ext_resource type="PackedScene" uid="uid://bg17fr2q2xmsm" path="res://imported-assets/connectors/usb_a_plug/usb_a_plug.glb" id="6_usba"]
 
 ; A box, not the sphere the RCA leads use. A VGA hood is 34 x 16 x 58 mm and a
 ; sphere around it is either too small to catch the shell or so large it fouls the
 ; back panel it is being offered to. Centred at z -0.020, since the plug's ORIGIN is
 ; its mating face and the whole body lies behind it.
-[sub_resource type="StandardMaterial3D" id="PlugMat0"]
-albedo_color = Color(0.12, 0.12, 0.13, 1)
-roughness = 0.6
-
-[sub_resource type="BoxMesh" id="PlugBox0"]
-material = SubResource("PlugMat0")
-size = Vector3(0.016, 0.008, 0.035)
-
 [sub_resource type="StandardMaterial3D" id="PlugMat1"]
 albedo_color = Color(0.12, 0.12, 0.13, 1)
 roughness = 0.6
@@ -28,6 +21,12 @@ size = Vector3(0.016, 0.014, 0.035)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
 size = Vector3(0.034, 0.018, 0.05)
+
+; End A wears the USB-A plug (RetroXR-models generic/usb-a-plug,
+; imported-assets/connectors/usb_a_plug): its bounds, 15.9 x 7.5 x 44.3 mm, the
+; shell 12 mm ahead of the overmold's front face, which is the plug's origin.
+[sub_resource type="BoxShape3D" id="BoxShape3D_usba"]
+size = Vector3(0.01594, 0.0075, 0.04425)
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
 bounce = 0.0
@@ -53,8 +52,9 @@ size = Vector3(0.05, 0.03, 0.066)
 ; one-cord lead there is nothing to tell apart — matching the baked colour makes
 ; that tint a no-op instead of repainting a connector that is already right.
 ; The JVS cable (Sega 600-7141): a USB A-B cable carrying JVS (RS-485), from a NAOMI's JVS socket (USB-A, End A) to an
-; I/O board's or a JVS-to-JAMMA converter's (USB-B, End B). NaomiHookup reads it. The plugs are the VGA lead's drawing
-; for now (no USB plug model yet).
+; I/O board's or a JVS-to-JAMMA converter's (USB-B, End B). NaomiHookup reads it. End A wears the USB-A plug model (it
+; was the xenu.usba mod's until it came into the game) with the model's own CordExit; End B is still a block (no USB-B
+; plug model yet).
 [node name="JvsCable" type="Node3D"]
 script = ExtResource("1_cablescript")
 cord_colors = PackedColorArray(0.12, 0.12, 0.13, 1)
@@ -76,12 +76,13 @@ script = ExtResource("2_plugscript")
 connector = "usb_a"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.02)
-shape = SubResource("BoxShape3D_plug")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.010125)
+shape = SubResource("BoxShape3D_usba")
 
-[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0095)
-mesh = SubResource("PlugBox0")
+[node name="Shell" parent="PlugA0" instance=ExtResource("6_usba")]
+
+[node name="CordExit" type="Marker3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.03225)
 
 [node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
 collision_layer = 1048576
