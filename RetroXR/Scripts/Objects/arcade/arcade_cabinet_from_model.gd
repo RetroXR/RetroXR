@@ -171,6 +171,11 @@ func _ready() -> void:
 		var x := side.cross(up).normalized()
 		var b := Basis(x, up, x.cross(up).normalized())
 		root.set_meta(RetroSystemModelArcadeCabinet.POWER_SWITCH_META, (root as Node3D).global_transform.affine_inverse() * Transform3D(b, sw.global_position))
+		# The switch's own mesh, where the model has one (the NAOMI Universal's PowerSwitchRocker): the button's cap, so it lights
+		# when aimed at and goes in when pressed. Merged into the body it did neither, and a press read as no press at all.
+		var cap := _part("PowerSwitchRocker") as MeshInstance3D
+		if cap != null:
+			root.set_meta(RetroSystemModelArcadeCabinet.POWER_SWITCH_MESH_META, cap)
 	# Aimed at by its own mesh (RetroSystemModelArcadeCabinet._build_pointer_shapes), not the generic shell's boxes.
 	var body := _model.find_child("Body", true, false) as MeshInstance3D
 	if root != null and body != null:

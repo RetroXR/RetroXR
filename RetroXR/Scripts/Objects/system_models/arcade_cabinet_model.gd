@@ -718,6 +718,11 @@ func configure_buttons(power_btn: VRButton, reset_btn: VRButton, eject_btn: VRBu
 		var face := power_btn.get_node_or_null("ButtonMesh") as Node3D
 		if face != null:
 			face.hide()
+		var cap: Variant = get_meta(POWER_SWITCH_MESH_META, null)
+		if cap is MeshInstance3D and is_instance_valid(cap):
+			power_btn.set_button_mesh(cap as MeshInstance3D)
+			power_btn.depress_depth = POWER_SWITCH_TRAVEL
+			power_btn.set_depress_axis_world(-power_btn.global_basis.y)
 	elif seat != null:
 		power_btn.global_transform = seat.global_transform
 	var lbl := power_btn.get_node_or_null("ButtonLabel") as Label3D
@@ -737,6 +742,10 @@ const SHELL_HULLS_META := &"arcade_shell_hulls"
 ## On the cabinet: where its main switch is (a Transform3D in the cabinet's frame, the button's +Y out of the switch):
 ## the power button goes there with its own look hidden, so the model's switch is what is seen and pressed.
 const POWER_SWITCH_META := &"arcade_power_switch"
+## On the cabinet: the model's own switch mesh (a MeshInstance3D), taken as the power button's cap: outlined when aimed at, pushed
+## in POWER_SWITCH_TRAVEL along the button's -Y when pressed.
+const POWER_SWITCH_MESH_META := &"arcade_power_switch_mesh"
+const POWER_SWITCH_TRAVEL := 0.0025
 
 
 ## One box per solid part, leaving the bay open so a board can be carried into it.
