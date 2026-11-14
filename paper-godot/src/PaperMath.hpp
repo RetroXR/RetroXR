@@ -50,7 +50,7 @@ inline void closest_points_between_segments(const Vector3 &p_p0, const Vector3 &
     real_t t = 0.0f;
 
     real_t det = a * c - b * b;
-    if (det > godot::CMP_EPSILON) {
+    if (det > 1e-5) {
         real_t bte = b * e;
         real_t ctd = c * d;
         if (bte <= ctd) {
