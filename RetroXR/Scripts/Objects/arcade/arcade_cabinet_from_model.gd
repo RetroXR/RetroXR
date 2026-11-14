@@ -181,12 +181,18 @@ func _ready() -> void:
 func _build_lift_offs() -> void:
 	for n in _model.find_children("*LiftOff", "MeshInstance3D", true, false):
 		var part := n as MeshInstance3D
-		var zone := CoverSlots.shell_cover(part, "cabinet_" + str(part.name).to_snake_case(), LIFT_OFF_OUT)
+		var zone := CoverSlots.shell_cover(part, "cabinet_" + str(part.name).to_snake_case(), _lift_off_out(part))
 		if zone == null:
 			continue
 		zone.has_picked_up.connect(_dress_lift_off.bind(part))
 		if zone.picked_up_object != null:
 			_dress_lift_off(zone.picked_up_object, part)
+
+
+## Which way a lift-off panel faces out: up for one on the top (its name starts "Top": the NAOMI Universal's TopPanelLiftOff),
+## else the cabinet's front.
+static func _lift_off_out(part: Node) -> Vector3:
+	return Vector3.UP if str(part.name).begins_with("Top") else LIFT_OFF_OUT
 
 
 ## The way a lift-off panel's face looks: the cabinet's front.
@@ -201,7 +207,7 @@ func _dress_lift_off(what: Node3D, part: MeshInstance3D) -> void:
 	part.get_parent().add_child(copy)
 	copy.transform = part.transform
 	copy.visible = true
-	CoverSlots.wear(cover, copy, LIFT_OFF_OUT)
+	CoverSlots.wear(cover, copy, _lift_off_out(part))
 
 
 ## A tray's solid parts, riding with it: its floor (the bottom TRAY_FLOOR of its bounds) and its lip across the front (the
