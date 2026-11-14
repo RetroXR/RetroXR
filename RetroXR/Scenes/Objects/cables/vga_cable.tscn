@@ -2,14 +2,17 @@
 
 [ext_resource type="Script" path="res://Scripts/Objects/cables/composite_cable.gd" id="1_cablescript"]
 [ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
-[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/vga_plug.res" id="3_vgaplug"]
+[ext_resource type="PackedScene" path="res://imported-assets/connectors/vga_plug/vga_plug.glb" id="3_vgaplug"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
 
-; A box, not the sphere the RCA leads use. A VGA hood is 34 x 16 x 58 mm and a
-; sphere around it is either too small to catch the shell or so large it fouls the
-; back panel it is being offered to. Centred at z -0.020, since the plug's ORIGIN is
-; its mating face and the whole body lies behind it.
+; A box, not the sphere the RCA leads use: the hood is 33.5 x 15 x 51 behind the plug's ORIGIN (the
+; insulator's face; the male shell stands 5.7 ahead of it, round the socket's female shell).
+;
+; Each end wears the VGA plug (RetroXR-models generic/vga-plug, imported-assets/connectors/vga_plug): the
+; nickel D shell with its fifteen gold pins in a blue insulator, the flange, the blue overmold with its two
+; ribbed thumbscrews and the ringed strain relief; the model's own CordExit (the owner, 2026-11-14: "make a
+; better looking vga plug").
 [sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
 size = Vector3(0.034, 0.018, 0.05)
 
@@ -60,8 +63,10 @@ connector = "vga_plug"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.02)
 shape = SubResource("BoxShape3D_plug")
 
-[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
-mesh = ExtResource("3_vgaplug")
+[node name="Shell" parent="PlugA0" instance=ExtResource("3_vgaplug")]
+
+[node name="CordExit" type="Marker3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0513)
 
 [node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
 collision_layer = 1048576
@@ -95,8 +100,10 @@ connector = "vga_plug"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.02)
 shape = SubResource("BoxShape3D_plug")
 
-[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
-mesh = ExtResource("3_vgaplug")
+[node name="Shell" parent="PlugB0" instance=ExtResource("3_vgaplug")]
+
+[node name="CordExit" type="Marker3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0513)
 
 [node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
 collision_layer = 1048576
