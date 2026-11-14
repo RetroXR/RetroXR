@@ -28,8 +28,6 @@ const REACH := 0.02
 const DESK_MAX_DIST := 5.0
 const DESK_MIN_DIST := 0.15
 const DESK_SCROLL_STEP := 0.05
-## A grip or click this near a cord and no nearer is logged as a miss.
-const MISS_LOOK := 0.25
 const GRIP_ON := 0.6
 const GRIP_OFF := 0.4
 const GRIP_ACTION := "grip"
@@ -117,9 +115,9 @@ func nearest_to_point(point: Vector3, reach: float) -> Dictionary:
 
 
 ## The same down a ray. A cord behind something solid is not taken.
-func nearest_to_ray(origin: Vector3, dir: Vector3, max_dist: float, reach := REACH) -> Dictionary:
+func nearest_to_ray(origin: Vector3, dir: Vector3, max_dist: float) -> Dictionary:
 	var best := {}
-	var best_d := reach
+	var best_d := REACH
 	for k in range(_all_ropes().size() - 1, -1, -1):
 		var rope: Node = _ropes[k]
 		if not is_instance_valid(rope):
@@ -279,48 +277,14 @@ func _process_headset(look: bool) -> void:
 			continue
 		if not _hand_free(pickup):
 			_mark(key, {})
-			if down and not was:
-				_say_why_not(pickup, hand)
 			continue
 		if down and not was:
 			var hit := nearest_to_point(hand, REACH)
 			if not hit.is_empty():
 				take(key, hit.rope, int(hit.index), hand, pickup)
 				_mark(key, {})
-			else:
-				_say_miss("grip", nearest_to_point(hand, MISS_LOOK))
 		elif look:
 			_mark(key, {} if down else nearest_to_point(hand, REACH))
-
-
-## A grip that took no cord says why, when a cord was near enough to have been
-## meant (a miss is otherwise silent, and cannot be told from a broken grab).
-func _say_miss(how: String, near: Dictionary) -> void:
-	if near.is_empty():
-		return
-	print("[CordGrab] %s took nothing: the nearest cord, %s, is %.1f cm away and the reach is %.1f cm" % [
-			how, _name_of(near.rope), float(near.distance) * 100.0, REACH * 100.0])
-
-
-func _say_why_not(pickup: Node, hand: Vector3) -> void:
-	var near := nearest_to_point(hand, MISS_LOOK)
-	if near.is_empty():
-		return
-	var why := "its pickup is missing"
-	if pickup != null:
-		var other: Variant = pickup.get("closest_object")
-		if not pickup.get("enabled"):
-			why = "its pickup is switched off (a drawer, a hinge or another hold has the hand)"
-		elif is_instance_valid(pickup.get("picked_up_object")):
-			why = "it is holding %s" % (pickup.get("picked_up_object") as Node).name
-		elif is_instance_valid(other):
-			why = "%s is in its reach and is taken first" % (other as Node).name
-		elif is_instance_valid(pickup.get("_pointer_highlighted")):
-			why = "its laser is on %s" % (pickup.get("_pointer_highlighted") as Node).name
-		else:
-			why = "it is pulling something in by its laser"
-	print("[CordGrab] grip did not look for a cord (%s, %.1f cm away): %s" % [
-			_name_of(near.rope), float(near.distance) * 100.0, why])
 
 
 ## A hand that has nothing, and nothing else in reach or under its laser.
@@ -360,7 +324,6 @@ func _desk_camera() -> DesktopPickup:
 func desk_click(origin: Vector3, dir: Vector3) -> bool:
 	var hit := nearest_to_ray(origin, dir, DESK_MAX_DIST)
 	if hit.is_empty():
-		_say_miss("click", nearest_to_ray(origin, dir, DESK_MAX_DIST, MISS_LOOK))
 		return false
 	var at: Vector3 = hit.position
 	if not take(DESK_KEY, hit.rope, int(hit.index), at):
