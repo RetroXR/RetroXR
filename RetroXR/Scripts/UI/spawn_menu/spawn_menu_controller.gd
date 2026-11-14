@@ -457,6 +457,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
+	# [ lowers the height offset, ] raises it, gliding for as long as the key is held
+	# (_tick_height_key). The OS's own key repeat is swallowed: it would stutter.
+	for dir: int in [-1, 1]:
+		var action: StringName = HEIGHT_KEY_ACTIONS[dir < 0]
+		if event.is_action(action):
+			if event.is_action_pressed(action) and _height_key_dir != dir:
+				_height_key_dir = dir
+				print("[SpawnMenu] height offset key %s held from %+.2f m"
+					% ["down" if dir < 0 else "up", AppPrefs.height_offset])
+			get_viewport().set_input_as_handled()
+			return
+
 	# Desktop: scroll wheel scrolls the options panel under the reticle, or falls
 	# back to the visible spawn menu (when no object is held — pickup's push/pull
 	# consumes the wheel first while holding).
@@ -518,6 +530,7 @@ func _note_menu_verb_used() -> void:
 # ── Scroll driving ────────────────────────────────────────────────────────────
 
 func _process(delta: float) -> void:
+	_tick_height_key(delta)
 	var menu_visible: bool = _viewport_node.visible
 
 	# When menu is closed, handle core options panel scroll instead.
@@ -1686,6 +1699,37 @@ func _on_snap_angle_changed(degrees: float) -> void:
 func _on_height_offset_changed(offset: float) -> void:
 	if _player_body:
 		_player_body.player_height_offset = offset
+
+
+## How fast a held [ or ] moves the height offset, in metres a second.
+const HEIGHT_KEY_RATE := 0.5
+## The actions for lowering (true) and raising (false) the height offset.
+const HEIGHT_KEY_ACTIONS := {true: &"desktop_height_down", false: &"desktop_height_up"}
+## -1 while [ is held, +1 while ] is, else 0.
+var _height_key_dir := 0
+
+
+## A held [ / ] glides the height offset through the Height Offset slider's own path
+## (pref, rig, and the slider if the menu is built); the pref is written once, on release.
+## The press is taken from _unhandled_input, so a text field being typed in keeps it.
+func _tick_height_key(delta: float) -> void:
+	if _height_key_dir == 0:
+		return
+	if not Input.is_action_pressed(HEIGHT_KEY_ACTIONS[_height_key_dir < 0]):
+		_height_key_dir = 0
+		AppPrefs.save_prefs()
+		print("[SpawnMenu] height offset %+.2f m from the keyboard, saved (body=%s)"
+			% [AppPrefs.height_offset, _player_body != null])
+		return
+	var offset := clampf(AppPrefs.height_offset + _height_key_dir * HEIGHT_KEY_RATE * delta,
+		AppPrefs.HEIGHT_OFFSET_MIN, AppPrefs.HEIGHT_OFFSET_MAX)
+	if offset == AppPrefs.height_offset:
+		return
+	AppPrefs.height_offset = offset
+	_on_height_offset_changed(offset)
+	var spawn_menu := _get_menu()
+	if spawn_menu and spawn_menu.options_view():
+		spawn_menu.options_view().show_height_offset(offset)
 
 
 func _on_fov_changed(degrees: float) -> void:

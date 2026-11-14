@@ -154,6 +154,18 @@ static func _scene_manager() -> Node:
 	return Engine.get_main_loop().root.get_node_or_null("SceneManager")
 
 
+## The Height Offset row, so a change made elsewhere (the [ and ] keys) shows on it.
+var _height_slider: HSlider = null
+var _height_label: Label = null
+
+
+## Shows a height offset set outside the slider, without echoing it back.
+func show_height_offset(offset: float) -> void:
+	if is_instance_valid(_height_slider):
+		_height_slider.set_value_no_signal(offset)
+	if is_instance_valid(_height_label):
+		_height_label.text = "%+.2f m" % offset
+
 func _platforms() -> Dictionary:
 	return _menu.romm_platforms() if _menu else {}
 
@@ -390,6 +402,8 @@ func _build_comfort_options(vbox: VBoxContainer) -> void:
 	ho_val.text = "%+.2f m" % AppPrefs.height_offset
 	ho_slider.add_theme_constant_override("grabber_offset", 0)
 
+	_height_slider = ho_slider
+	_height_label = ho_val
 	ho_slider.value_changed.connect(func(v: float) -> void:
 		ho_val.text = "%+.2f m" % v
 		AppPrefs.height_offset = v

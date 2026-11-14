@@ -68,6 +68,7 @@ show_target = false
 ; them; Godot would otherwise still contact them from their side.
 [node name="PlayerBody" parent="Staging/XROrigin3D" instance=ExtResource("4_playerbody")]
 collision_mask = 1019
+player_height_min = 0.4
 head_behavior_mode = 0
 player_calibrate_height = false
 

@@ -56,7 +56,7 @@ const DESKTOP_FOV_MIN := 60.0
 const DESKTOP_FOV_MAX := 110.0
 ## Height Offset (both), metres added to the player's eye height.
 var height_offset: float = 0.0
-const HEIGHT_OFFSET_MIN := -1.0
+const HEIGHT_OFFSET_MIN := -1.6
 const HEIGHT_OFFSET_MAX := 1.0
 ## World Scale (headset); passthrough still pins 1.0 while it is up.
 var world_scale: float = 0.85
