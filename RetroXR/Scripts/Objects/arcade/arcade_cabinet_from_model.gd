@@ -79,6 +79,10 @@ const SCRIPT_DRAWER := "res://Scripts/Objects/widgets/vr_drawer.gd"
 ## generic shell's boxes (which stood a slab across a low bay's tray and walls in front of its doors). A models repo
 ## item makes the list from its own mesh (naomi-universal's tools/collision_boxes.py).
 @export var solid_boxes: Array[AABB] = []
+## The cabinet's collision as convex pieces that follow its surfaces (each a cloud of points in the model's frame, meters): when
+## given, in place of `solid_boxes`. Boxes level with the axes stood out in steps round anything that leans (the legs, a sloping
+## top, a monitor's cover: the owner, 2026-11-14). Made from the model's Body by the models repo's convex decomposition.
+@export var solid_hulls: Array[PackedVector3Array] = []
 ## Which of the model's variants this cabinet is (a regional build: the NAOMI Universal's JP coin entry on its panel, or its US
 ## coin door): the model's Variant<name> meshes other than this one are hidden, and a marker is looked for as <name>_<marker>
 ## first (JP_CoinSlot1), then as itself. Empty: the model as drawn.
@@ -141,7 +145,15 @@ func _ready() -> void:
 		# The model's own boxes, moved as the model is; or, whatever of the body is deeper than the generic shell's
 		# 0.40 behind the middle, one solid box.
 		var half := ab.size.z * 0.5
-		if not solid_boxes.is_empty():
+		if not solid_hulls.is_empty():
+			var hulls: Array[PackedVector3Array] = []
+			for h: PackedVector3Array in solid_hulls:
+				var moved := PackedVector3Array()
+				for p in h:
+					moved.append(p + _model.position)
+				hulls.append(moved)
+			root.set_meta(RetroSystemModelArcadeCabinet.SHELL_HULLS_META, hulls)
+		elif not solid_boxes.is_empty():
 			var shell: Array[AABB] = []
 			for bx: AABB in solid_boxes:
 				shell.append(AABB(bx.position + _model.position, bx.size))
@@ -189,10 +201,22 @@ func _build_lift_offs() -> void:
 			_dress_lift_off(zone.picked_up_object, part)
 
 
-## Which way a lift-off panel faces out: up for one on the top (its name starts "Top": the NAOMI Universal's TopPanelLiftOff),
-## else the cabinet's front.
+## Which way a lift-off panel faces out: for one on the top (its name starts "Top": the NAOMI Universal's TopPanelLiftOff), the
+## way its own upward faces face, weighted by their area (a sloping top's slope); else the cabinet's front.
 static func _lift_off_out(part: Node) -> Vector3:
-	return Vector3.UP if str(part.name).begins_with("Top") else LIFT_OFF_OUT
+	var mi := part as MeshInstance3D
+	if not str(part.name).begins_with("Top") or mi == null or mi.mesh == null:
+		return LIFT_OFF_OUT
+	var f := mi.mesh.get_faces()
+	var sum := Vector3.ZERO
+	for i in range(0, f.size() - 2, 3):
+		var a := mi.transform * f[i]
+		var n := (mi.transform * f[i + 1] - a).cross(mi.transform * f[i + 2] - a)
+		if n.y < 0.0:
+			n = -n
+		if n.normalized().y > 0.3:
+			sum += n
+	return sum.normalized() if sum.length() > 0.0 else Vector3.UP
 
 
 ## The way a lift-off panel's face looks: the cabinet's front.

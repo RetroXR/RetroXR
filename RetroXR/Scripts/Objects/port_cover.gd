@@ -99,9 +99,16 @@ func set_pointer_hull(hull: Shape3D, at: Transform3D) -> void:
 func _apply_size() -> void:
 	var shape := get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if shape != null:
-		var box := BoxShape3D.new()
-		box.size = size
-		shape.shape = box
+		# Dressed in a shell's part, it is as solid as the part is: its hull, not its box (a sloping panel's box stood level
+		# round it, far bigger than the panel: the owner, 2026-11-14).
+		if _hull != null:
+			shape.shape = _hull
+			shape.transform = _hull_at
+		else:
+			var box := BoxShape3D.new()
+			box.size = size
+			shape.shape = box
+			shape.transform = Transform3D.IDENTITY
 	var mesh := get_node_or_null("Mesh") as MeshInstance3D
 	if mesh != null:
 		var block := BoxMesh.new()

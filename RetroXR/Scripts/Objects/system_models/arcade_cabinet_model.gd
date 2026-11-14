@@ -731,6 +731,9 @@ const POINTER_MESH_META := &"arcade_pointer_mesh"
 ## On the cabinet: its whole collision as boxes (an Array of AABB, the cabinet's frame), in place of the generic shell's
 ## (ArcadeCabinetFromModel.solid_boxes).
 const SHELL_BOXES_META := &"arcade_shell_boxes"
+## On the cabinet: its whole collision as convex pieces (an Array of PackedVector3Array, the cabinet's frame), in place of any
+## boxes (ArcadeCabinetFromModel.solid_hulls).
+const SHELL_HULLS_META := &"arcade_shell_hulls"
 ## On the cabinet: where its main switch is (a Transform3D in the cabinet's frame, the button's +Y out of the switch):
 ## the power button goes there with its own look hidden, so the model's switch is what is seen and pressed.
 const POWER_SWITCH_META := &"arcade_power_switch"
@@ -774,6 +777,22 @@ func configure_collision(host: Node3D) -> void:
 		for k in shell.size():
 			boxes.append(shell[k] as AABB)
 	var first := host.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	# A cabinet from a model with convex pieces: those, the whole of it, following its surfaces.
+	var hulls: Array = get_meta(SHELL_HULLS_META, [])
+	if not hulls.is_empty():
+		for i in hulls.size():
+			var hc: CollisionShape3D = first if i == 0 else CollisionShape3D.new()
+			if hc == null:
+				continue
+			var cshape := ConvexPolygonShape3D.new()
+			cshape.points = hulls[i] as PackedVector3Array
+			hc.shape = cshape
+			hc.position = Vector3.ZERO
+			if i > 0:
+				hc.name = "CabinetBox%d" % i
+				host.add_child(hc)
+		_build_pointer_shapes(host)
+		return
 	for i in boxes.size():
 		var col: CollisionShape3D = first if i == 0 else CollisionShape3D.new()
 		if col == null:

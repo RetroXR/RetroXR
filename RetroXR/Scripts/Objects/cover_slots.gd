@@ -108,23 +108,46 @@ static func shell_cover(part: MeshInstance3D, socket_id: String, out: Vector3) -
 	return zone
 
 
-## Where a cover made from `part` sits, in the part's parent's frame: the middle
-## of the part's bounds, turned so +Y is `out` (a principal axis) and the other two
-## axes stay on principal axes, so the box's extents keep their meaning.
+## Where a cover made from `part` sits, in the part's parent's frame: turned so +Y is
+## `out` (the other two axes as near the principal ones as that allows), at the middle
+## of the part's own points measured along those axes. For a panel facing along an axis
+## that is the middle of its bounds; for one that is not (a base's sloping top) the box
+## follows the panel instead of standing level round it (the owner, 2026-11-14).
 static func part_seat(part: MeshInstance3D, out: Vector3) -> Transform3D:
-	var box := part.transform * part.get_aabb()
+	var b := _cover_basis(out)
+	var ext := _extent(part, b)
+	return Transform3D(b, b * ((ext[0] + ext[1]) * 0.5))
+
+
+## The cover's box in its own frame (part_seat's): the part's points' extent along its axes.
+static func part_size(part: MeshInstance3D, out: Vector3) -> Vector3:
+	var ext := _extent(part, _cover_basis(out))
+	return ext[1] - ext[0]
+
+
+static func _cover_basis(out: Vector3) -> Basis:
 	var y := out.normalized()
 	var x := Vector3.RIGHT if absf(y.x) < 0.9 else Vector3.BACK
 	var z := x.cross(y).normalized()
 	x = y.cross(z).normalized()
-	return Transform3D(Basis(x, y, z), box.get_center())
+	return Basis(x, y, z)
 
 
-## The cover's box in its own frame (part_seat's).
-static func part_size(part: MeshInstance3D, out: Vector3) -> Vector3:
-	var box := part.transform * part.get_aabb()
-	var b := part_seat(part, out).basis
-	return Vector3(absf(b.x.dot(box.size)), absf(b.y.dot(box.size)), absf(b.z.dot(box.size)))
+## [min, max] of the part's points (in its parent's frame) along the axes of `b`.
+static func _extent(part: MeshInstance3D, b: Basis) -> Array[Vector3]:
+	var inv := b.transposed()
+	var lo := Vector3.INF
+	var hi := -Vector3.INF
+	var pts: PackedVector3Array = part.mesh.get_faces() if part.mesh != null else PackedVector3Array()
+	if pts.is_empty():
+		var box := part.get_aabb()
+		for i in 8:
+			pts.append(box.get_endpoint(i))
+	for p in pts:
+		var q := inv * (part.transform * p)
+		lo = lo.min(q)
+		hi = hi.max(q)
+	return [lo, hi]
 
 
 ## Dress `cover` in `part`, a shell's cover mesh taken from a copy of its model
