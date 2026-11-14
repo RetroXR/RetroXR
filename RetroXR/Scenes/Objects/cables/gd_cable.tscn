@@ -1,33 +1,16 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://Scripts/Objects/cables/composite_cable.gd" id="1_cablescript"]
 [ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
-[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/vga_plug.res" id="3_vgaplug"]
+[ext_resource type="PackedScene" path="res://imported-assets/connectors/hpdb50_plug/hpdb50_plug.glb" id="3_hpdb"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
 
-; A box, not the sphere the RCA leads use. A VGA hood is 34 x 16 x 58 mm and a
-; sphere around it is either too small to catch the shell or so large it fouls the
-; back panel it is being offered to. Centred at z -0.020, since the plug's ORIGIN is
-; its mating face and the whole body lies behind it.
-[sub_resource type="StandardMaterial3D" id="PlugMat0"]
-albedo_color = Color(0.62, 0.62, 0.64, 1)
-roughness = 0.6
-
-[sub_resource type="BoxMesh" id="PlugBox0"]
-material = SubResource("PlugMat0")
-size = Vector3(0.045, 0.012, 0.03)
-
-[sub_resource type="StandardMaterial3D" id="PlugMat1"]
-albedo_color = Color(0.62, 0.62, 0.64, 1)
-roughness = 0.6
-
-[sub_resource type="BoxMesh" id="PlugBox1"]
-material = SubResource("PlugMat1")
-size = Vector3(0.045, 0.012, 0.03)
-
+; A box, not the sphere the RCA leads use: a sphere round a hood is either too small to catch it or so large it fouls the
+; board it is offered to. Centred at z -0.020, since the plug's ORIGIN is its mating face and the whole body lies behind it.
+; The plug's body: the half-pitch D 50's hood, 48.7 x 11.5 x 32 behind its face (the plug's ORIGIN), and its boot.
 [sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
-size = Vector3(0.034, 0.018, 0.05)
+size = Vector3(0.049, 0.012, 0.05)
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
 bounce = 0.0
@@ -41,22 +24,23 @@ friction = 0.8
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
 size = Vector3(0.05, 0.03, 0.066)
 
-; A 1.8 m VGA lead: ONE cord, a male DE-15 hood at each end, and nothing else.
+; ONE cord, a half-pitch D 50 plug at each end, and nothing else.
 ;
 ; This is CompositeCable with a single cord, which is all a lead is to that class —
 ; it counts the cords its scene ships and resolves what they carry from the sockets
 ; the ends land in. One cord takes the single-rope path in _build_rope: no ribbon,
 ; no breakout, both ends anchored straight to their plugs.
 ;
-; cord_colors carries the hood's own blue rather than a signal colour. The class
-; tints surface 0 of each plug so a cord can be recognised at both ends, and on a
-; one-cord lead there is nothing to tell apart — matching the baked colour makes
-; that tint a no-op instead of repainting a connector that is already right.
-; The GD-ROM cable: a 50-pin cable from the NAOMI's DIMM board to its GD-ROM drive (NaomiGdRom). The plugs are the VGA
-; lead's drawing for now.
+; cord_colors carries the hood's own beige rather than a signal color: the class tints a plug's PlugTip by it, and these
+; plugs have none (they wear a model), so it only names the cord.
+; The GD-ROM cable: a 50-pin cable from the NAOMI's DIMM board to its GD-ROM drive (NaomiGdRom). Both ends wear the
+; half-pitch D 50 plug (RetroXR-models generic/hpdb50-plug, imported-assets/connectors/hpdb50_plug): the nickel D with its
+; two rows of 25 blades, the beige hood with its squeeze latches, the ribbed boot, and the model's own CordExit. The cord is
+; beige, 8.7 mm, as the NAOMI's is in the photographs (the owner, 2026-11-15: "make the plug ... look better").
 [node name="GdCable" type="Node3D"]
 script = ExtResource("1_cablescript")
-cord_colors = PackedColorArray(0.62, 0.62, 0.64, 1)
+cord_colors = PackedColorArray(0.84, 0.82, 0.75, 1)
+wire_color = Color(0.84, 0.82, 0.75, 1)
 
 ; -- End A --------------------------------------------------------------------
 ; Turned about Y so the cord trails toward the far end: the plug mesh is authored
@@ -78,9 +62,10 @@ connector = "gd_50pin"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.02)
 shape = SubResource("BoxShape3D_plug")
 
-[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.007)
-mesh = SubResource("PlugBox0")
+[node name="Shell" parent="PlugA0" instance=ExtResource("3_hpdb")]
+
+[node name="CordExit" type="Marker3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.046)
 
 [node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
 collision_layer = 1048576
@@ -114,9 +99,10 @@ connector = "gd_50pin"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.02)
 shape = SubResource("BoxShape3D_plug")
 
-[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.007)
-mesh = SubResource("PlugBox1")
+[node name="Shell" parent="PlugB0" instance=ExtResource("3_hpdb")]
+
+[node name="CordExit" type="Marker3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.046)
 
 [node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
 collision_layer = 1048576
@@ -136,7 +122,7 @@ transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
 ; owner, 2026-11-14: "even for the gd rom cable, it seems kind of long"; it was the VGA
 ; lead's 1.8 m). Bought with segment COUNT so the boot and the bend radius stay as tuned.
 ;
-; 7.5 mm cord (tube_radius 0.00375), collision_radius 0.0051 (the 1.35 mm resting gap the
+; 8.7 mm cord (tube_radius 0.00435, the hood's cord hole), collision_radius 0.0057 (the 1.35 mm resting gap the
 ; other leads use).
 ;
 ; No ribbon_count and no fray: this is one wire. CompositeCable's single-cord path
@@ -147,12 +133,12 @@ segment_count = 25
 segment_length = 0.03
 constraint_iterations = 8
 bend_stiffness = 0.2
-tube_radius = 0.00375
+tube_radius = 0.00435
 tube_sides = 8
 smoothing = 2
-rope_color = Color(0.05, 0.05, 0.06, 1.0)
+rope_color = Color(0.84, 0.82, 0.75, 1.0)
 surface_collision_mask = 7
-collision_radius = 0.0051
+collision_radius = 0.0057
 self_collision = true
 end_align_stiffness = 0.7
 end_stiffness = 0.45

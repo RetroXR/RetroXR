@@ -12,6 +12,7 @@ After a re-import, put the GLBs back to `generate_lods=false` and any extracted 
 | `rj45_plug/rj45_plug.glb` | `generic/rj45-plug/exports/blue/rj45_plug_blue_mobile_clean.glb` (31693eed2) | both ends of `ethernet_cable.tscn` |
 | `jst_vl_plug/jst_vl_plug.glb` | `generic/jst-vl-plug/exports/naomi/jst_vl_plug_naomi_mobile_clean.glb` | both ends of `naomi_power_cable.tscn` |
 | `vga_plug/vga_plug.glb` | `generic/vga-plug/exports/blue/vga_plug_blue_mobile_clean.glb` | both ends of `vga_cable.tscn` |
+| `hpdb50_plug/hpdb50_plug.glb` | `generic/hpdb50-plug/exports/naomi/hpdb50_plug_naomi_mobile_clean.glb` | both ends of `gd_cable.tscn` |
 
 Both were mods (`xenu.usba`, `xenu.rj45`) until 2026-11-14. An old `xenu.rj45` still installed changes nothing: it
 skips a plug that already has a `Shell`, and lays the same cord colour and thickness the scene now has.
