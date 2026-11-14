@@ -130,8 +130,10 @@ transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
 ; No ribbon_count and no fray: this is one wire. CompositeCable's single-cord path
 ; anchors the rope's two ends straight to the two plugs, so there is no breakout
 ; junction for a fray to hang off.
+; 0.6 m (20 x 0.03): spawned, it is a GD-ROM drive's lead from the cabinet's supply beside the board (the owner, 2026-11-15:
+; "the power cable for the GD ROM needs to be about 1/3 in length", from 1.8 m). A cabinet's own harness is cut to its run.
 [node name="VerletRope" type="VerletRope" parent="."]
-segment_count = 60
+segment_count = 20
 segment_length = 0.03
 constraint_iterations = 8
 bend_stiffness = 0.2
