@@ -1,0 +1,231 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the FRONT faces +Z, x to the right seen from the front; the ORIGIN is the middle of the case's footprint, on the floor (overlay fronts and pulls stand a little past it)",
+ "variant": "coffee_table_glass",
+ "size": [
+  1.1,
+  0.43,
+  0.6
+ ],
+ "bounds": {
+  "min": [
+   -0.55,
+   0.0,
+   -0.3
+  ],
+  "max": [
+   0.55,
+   0.43,
+   0.3
+  ]
+ },
+ "levels": [
+  "coffee_table_glass_mobile",
+  "coffee_table_glass_mobile_lod1",
+  "coffee_table_glass_mobile_lod2"
+ ],
+ "master": "coffee_table_glass_high",
+ "markers": [
+  {
+   "node": "TopSurface",
+   "position": [
+    0.0,
+    0.43,
+    -0.0
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the middle of the top"
+  }
+ ],
+ "own_nodes": [
+  "Case"
+ ],
+ "materials": [
+  {
+   "name": "LIV_BlackLacquer",
+   "transparent": false
+  },
+  {
+   "name": "LIV_SmokedGlass",
+   "transparent": false
+  }
+ ],
+ "case_front_z": 0.3,
+ "drawers": [],
+ "doors": [],
+ "surfaces": [
+  {
+   "name": "Top",
+   "top_y": 0.43,
+   "centre": [
+    0.0,
+    0.425,
+    -0.0
+   ],
+   "size": [
+    1.1,
+    0.01,
+    0.6
+   ]
+  },
+  {
+   "name": "Shelf",
+   "top_y": 0.108,
+   "centre": [
+    0.0,
+    0.103,
+    -0.0
+   ],
+   "size": [
+    0.98,
+    0.01,
+    0.48
+   ]
+  }
+ ],
+ "collision": {
+  "case": [
+   {
+    "name": "Leg",
+    "centre": [
+     -0.515,
+     0.209,
+     0.265
+    ],
+    "size": [
+     0.05,
+     0.418,
+     0.05
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     -0.515,
+     0.209,
+     -0.265
+    ],
+    "size": [
+     0.05,
+     0.418,
+     0.05
+    ]
+   },
+   {
+    "name": "SideApron",
+    "centre": [
+     -0.53,
+     0.393,
+     -0.0
+    ],
+    "size": [
+     0.02,
+     0.05,
+     0.48
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     0.515,
+     0.209,
+     0.265
+    ],
+    "size": [
+     0.05,
+     0.418,
+     0.05
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     0.515,
+     0.209,
+     -0.265
+    ],
+    "size": [
+     0.05,
+     0.418,
+     0.05
+    ]
+   },
+   {
+    "name": "SideApron",
+    "centre": [
+     0.53,
+     0.393,
+     -0.0
+    ],
+    "size": [
+     0.02,
+     0.05,
+     0.48
+    ]
+   },
+   {
+    "name": "Apron",
+    "centre": [
+     0.0,
+     0.393,
+     0.28
+    ],
+    "size": [
+     0.98,
+     0.05,
+     0.02
+    ]
+   },
+   {
+    "name": "Apron",
+    "centre": [
+     0.0,
+     0.393,
+     -0.28
+    ],
+    "size": [
+     0.98,
+     0.05,
+     0.02
+    ]
+   },
+   {
+    "name": "Shelf",
+    "centre": [
+     0.0,
+     0.099,
+     -0.0
+    ],
+    "size": [
+     0.98,
+     0.018,
+     0.48
+    ]
+   },
+   {
+    "name": "Glass",
+    "centre": [
+     0.0,
+     0.424,
+     -0.0
+    ],
+    "size": [
+     1.1,
+     0.012,
+     0.6
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres, every drawer and door SHUT. A drawer slides along its axis by travel_m carrying its front and inside; a sliding door the same, carrying nothing; a hinged door turns open_deg about `hinge.axis` through `hinge.point` (a positive turn opens it, right-hand rule)"
+ },
+ "estimated": "every size is estimated (ordinary 1990s furniture, sized for a 27-inch CRT): see MEASUREMENTS.md",
+ "triangles": {
+  "high": 1080,
+  "lod0": 440,
+  "lod1": 120,
+  "lod2": 120
+ }
+}

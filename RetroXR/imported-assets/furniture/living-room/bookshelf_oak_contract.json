@@ -1,0 +1,295 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the FRONT faces +Z, x to the right seen from the front; the ORIGIN is the middle of the case's footprint, on the floor (overlay fronts and pulls stand a little past it)",
+ "variant": "bookshelf_oak",
+ "size": [
+  0.8,
+  1.83,
+  0.3
+ ],
+ "bounds": {
+  "min": [
+   -0.4,
+   0.0,
+   -0.15
+  ],
+  "max": [
+   0.4,
+   1.83,
+   0.15
+  ]
+ },
+ "levels": [
+  "bookshelf_oak_mobile",
+  "bookshelf_oak_mobile_lod1",
+  "bookshelf_oak_mobile_lod2"
+ ],
+ "master": "bookshelf_oak_high",
+ "markers": [
+  {
+   "node": "TopSurface",
+   "position": [
+    0.0,
+    1.83,
+    -0.0
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the middle of the top"
+  }
+ ],
+ "own_nodes": [
+  "Case"
+ ],
+ "materials": [
+  {
+   "name": "LIV_Wood",
+   "transparent": false
+  }
+ ],
+ "case_front_z": 0.15,
+ "drawers": [],
+ "doors": [],
+ "surfaces": [
+  {
+   "name": "Shelf1",
+   "top_y": 0.088,
+   "centre": [
+    0.0,
+    0.083,
+    -0.002
+   ],
+   "size": [
+    0.764,
+    0.01,
+    0.284
+   ]
+  },
+  {
+   "name": "Shelf2",
+   "top_y": 0.4418,
+   "centre": [
+    0.0,
+    0.4368,
+    -0.002
+   ],
+   "size": [
+    0.764,
+    0.01,
+    0.284
+   ]
+  },
+  {
+   "name": "Shelf3",
+   "top_y": 0.7866,
+   "centre": [
+    0.0,
+    0.7816,
+    -0.002
+   ],
+   "size": [
+    0.764,
+    0.01,
+    0.284
+   ]
+  },
+  {
+   "name": "Shelf4",
+   "top_y": 1.1314,
+   "centre": [
+    0.0,
+    1.1264,
+    -0.002
+   ],
+   "size": [
+    0.764,
+    0.01,
+    0.284
+   ]
+  },
+  {
+   "name": "Shelf5",
+   "top_y": 1.4762,
+   "centre": [
+    0.0,
+    1.4712,
+    -0.002
+   ],
+   "size": [
+    0.764,
+    0.01,
+    0.284
+   ]
+  },
+  {
+   "name": "Top",
+   "top_y": 1.83,
+   "centre": [
+    0.0,
+    1.825,
+    -0.0
+   ],
+   "size": [
+    0.8,
+    0.01,
+    0.3
+   ]
+  }
+ ],
+ "wall_back": true,
+ "footprint": {
+  "min": [
+   -0.4,
+   -0.15
+  ],
+  "max": [
+   0.4,
+   0.15
+  ]
+ },
+ "wall_note": "tall and narrow: it stands with its back (glTF -Z) against a wall, or it tips; footprint is (x, z) min/max in metres",
+ "collision": {
+  "case": [
+   {
+    "name": "SideL",
+    "centre": [
+     -0.391,
+     0.915,
+     -0.0
+    ],
+    "size": [
+     0.018,
+     1.83,
+     0.3
+    ]
+   },
+   {
+    "name": "SideR",
+    "centre": [
+     0.391,
+     0.915,
+     -0.0
+    ],
+    "size": [
+     0.018,
+     1.83,
+     0.3
+    ]
+   },
+   {
+    "name": "Top",
+    "centre": [
+     0.0,
+     1.821,
+     -0.0
+    ],
+    "size": [
+     0.764,
+     0.018,
+     0.3
+    ]
+   },
+   {
+    "name": "Kick",
+    "centre": [
+     0.0,
+     0.035,
+     0.131
+    ],
+    "size": [
+     0.764,
+     0.07,
+     0.018
+    ]
+   },
+   {
+    "name": "Deck",
+    "centre": [
+     0.0,
+     0.079,
+     -0.002
+    ],
+    "size": [
+     0.764,
+     0.018,
+     0.284
+    ]
+   },
+   {
+    "name": "Back",
+    "centre": [
+     0.0,
+     0.941,
+     -0.145
+    ],
+    "size": [
+     0.764,
+     1.742,
+     0.008
+    ]
+   },
+   {
+    "name": "Shelf",
+    "centre": [
+     0.0,
+     0.4328,
+     -0.002
+    ],
+    "size": [
+     0.764,
+     0.018,
+     0.284
+    ]
+   },
+   {
+    "name": "Shelf",
+    "centre": [
+     0.0,
+     0.7776,
+     -0.002
+    ],
+    "size": [
+     0.764,
+     0.018,
+     0.284
+    ]
+   },
+   {
+    "name": "Shelf",
+    "centre": [
+     0.0,
+     1.1224,
+     -0.002
+    ],
+    "size": [
+     0.764,
+     0.018,
+     0.284
+    ]
+   },
+   {
+    "name": "Shelf",
+    "centre": [
+     0.0,
+     1.4672,
+     -0.002
+    ],
+    "size": [
+     0.764,
+     0.018,
+     0.284
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres, every drawer and door SHUT. A drawer slides along its axis by travel_m carrying its front and inside; a sliding door the same, carrying nothing; a hinged door turns open_deg about `hinge.axis` through `hinge.point` (a positive turn opens it, right-hand rule)"
+ },
+ "estimated": "every size is estimated (ordinary 1990s furniture, sized for a 27-inch CRT): see MEASUREMENTS.md",
+ "triangles": {
+  "high": 984,
+  "lod0": 408,
+  "lod1": 120,
+  "lod2": 120
+ }
+}

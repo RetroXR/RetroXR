@@ -3,7 +3,7 @@
 ## front pushes it in (but never one reaching INTO it), the grip never lifts the furniture, its open amount saves, and
 ## what rests in it rides out with it. The nightstand is turned 90 degrees and moved, so a frame mix-up shows.
 ##   godot --headless --path RetroXR res://Tests/vr_drawer_tests.tscn [-- --only=<group>]
-## Groups: rig contract latch grip coast soft push pull save carry haul real mission beds again
+## Groups: rig contract latch grip coast soft push pull save carry haul real mission beds living again
 extends "res://Tests/test_suite.gd"
 
 const HAND := &"/vr_drawer_tests/hand"
@@ -18,6 +18,21 @@ class Mover extends Node:
 		process_physics_priority = -80
 	func _physics_process(delta: float) -> void:
 		step.call(delta)
+
+## Reads what CarryContents let go of in the tick it let go, right after it (priority 101 against its 100) and before
+## the physics step: the velocity it gave, not what the room did to it next.
+class ReleaseRecorder extends Node:
+	var things: Array[RigidBody3D] = []
+	var velocities: Array[Vector3] = []
+	var frozen: Array[bool] = []
+	func _init() -> void:
+		process_physics_priority = 101
+	func _physics_process(_delta: float) -> void:
+		if not velocities.is_empty():
+			return
+		for t in things:
+			velocities.append(t.linear_velocity)
+			frozen.append(t.freeze)
 
 class FakePickup extends Node:
 	var enabled := true
@@ -71,6 +86,8 @@ func _ready() -> void:
 		await _mission()
 	if _group("beds"):
 		await _beds()
+	if _group("living"):
+		await _living()
 	if _group("real"):
 		await _real_hold(ns)
 		await _ray_hold(ns)
@@ -605,7 +622,7 @@ func _haul(ns: Nightstand) -> void:
 		if i == 80:
 			# About 1 m/s here: under CarryContents' latch speed, so what is in it is ordinary physics, not frozen.
 			# Carried: what is in it is held in place (CarryContents), and let go again once it is put down.
-			mid[0] = ns.lid_on() and (boxes["drawer"] as RigidBody3D).freeze
+			mid[0] = ns.carry().is_latched(boxes["drawer"]) and (boxes["drawer"] as RigidBody3D).freeze
 	mover.queue_free()
 	for i in 10:
 		await get_tree().physics_frame
@@ -617,8 +634,9 @@ func _haul(ns: Nightstand) -> void:
 		await get_tree().physics_frame
 	_ok(worst_lag[0] < 0.004, "haul/the drawer never trails the case it is carried in (worst %.1f mm)" % (
 		worst_lag[0] * 1000.0))
-	_ok(mid[0], "haul/carried, the drawer has its lid on and what is in it is held in place")
-	_ok(not ns.lid_on(), "haul/put down, the lid is off: nothing invisible left in the drawer")
+	_ok(mid[0], "haul/carried, what is in the drawer is held in place (CarryContents)")
+	_ok(not ns.carry().is_latched(boxes["drawer"]) and not (boxes["drawer"] as RigidBody3D).freeze,
+		"haul/put down, what is in the drawer is let go to ordinary physics")
 	_ok(worst_body[0] < 0.02, "haul/the drawer's COLLISION body keeps up with the case while carried (worst %.1f mm)" % (
 		worst_body[0] * 1000.0))
 	_ok(_drawer_body_error(ns) < 0.001, "haul/put down, the drawer's collision body is where the drawer is drawn (%.1f mm)" % (
@@ -704,8 +722,8 @@ func _rough_haul(ns: Nightstand) -> void:
 	ns.dropped.emit(ns)
 	for i in 60:
 		await get_tree().physics_frame
-	_ok(boxes.all(func(b: RigidBody3D) -> bool: return not b.freeze) and not ns.lid_on(),
-		"haul/put down, nothing in the drawer is frozen and the lid is off")
+	_ok(boxes.all(func(b: RigidBody3D) -> bool: return not b.freeze and not ns.carry().is_latched(b)),
+		"haul/put down, nothing in it is frozen or held")
 	var kept := 0
 	var where := []
 	for b in boxes:
@@ -784,21 +802,26 @@ func _real_hold(ns: Nightstand) -> void:
 
 
 ## Held the way a RAY grab holds (frozen, on the held layer, and no picked_up / dropped from the pickable at all):
-## the lid must still go on and, the most important half, come OFF when it is let go.
+## what is in the drawer must still be held and, the most important half, let go when it is.
 func _ray_hold(ns: Nightstand) -> void:
 	await _reset(ns)
+	var box := _loose_box(ns.global_transform * (ns.drawer_seat_local() + Vector3(0, 0.03, 0)))
+	for i in 45:
+		await get_tree().physics_frame
 	ns.freeze = true
 	ns.collision_layer = ns.picked_up_layer
 	ns.collision_mask = 0
 	for i in 5:
 		await get_tree().physics_frame
-	var on := ns.lid_on()
+	var on := ns.carry().is_latched(box)
 	ns.freeze = false
 	ns.collision_layer = 4
 	ns.collision_mask = 196613
 	for i in 5:
 		await get_tree().physics_frame
-	_ok(on and not ns.lid_on(), "real/held and let go by a ray (no signals), the lid goes on and comes off again")
+	_ok(on and not ns.carry().is_latched(box) and not box.freeze,
+		"real/held and let go by a ray (no signals), what is in the drawer is held, then let go")
+	box.queue_free()
 	await _reset(ns)
 
 
@@ -860,25 +883,24 @@ func _mission() -> void:
 		_ok(absf(rode - opened) < 0.03, "mission/%s: a box in it rode out %.0f of %.0f mm" % [v[0], rode * 1000.0,
 			opened * 1000.0])
 		box.queue_free()
-		# Held, every drawer has a lid; put down, none.
+		# Carried, what is in a drawer is held in place (CarryContents); put down, it is let go.
+		var held_box := _loose_box(piece.global_transform * (piece.drawer_seat_local(0) + Vector3(0, 0.03, 0)))
+		for i in 45:
+			await get_tree().physics_frame
 		piece.freeze = true
 		piece.collision_layer = piece.picked_up_layer
 		piece.collision_mask = 0
 		for i in 4:
 			await get_tree().physics_frame
-		var lids := 0
-		for j in ds.size():
-			lids += 1 if piece.lid_on(j) else 0
+		var was_held := piece.carry().is_latched(held_box)
 		piece.freeze = false
 		piece.collision_layer = 4
 		piece.collision_mask = 196613
 		for i in 4:
 			await get_tree().physics_frame
-		var any_left := false
-		for j in ds.size():
-			any_left = any_left or piece.lid_on(j)
-		_ok(lids == ds.size() and not any_left, "mission/%s: held, every drawer has its lid (%d of %d); put down, none" % [
-			v[0], lids, ds.size()])
+		_ok(was_held and not piece.carry().is_latched(held_box) and not held_box.freeze,
+			"mission/%s: carried, what is in its drawer is held in place; put down, it is let go" % v[0])
+		held_box.queue_free()
 		# Saved and restored on a fresh piece.
 		var sp := ScenePersistence.new()
 		var records: Array = sp._serialize_articulated_controls(piece)
@@ -955,27 +977,26 @@ func _beds() -> void:
 			var b := piece.get_node("DrawerBody%d" % (j + 1)) as Node3D
 			for cs: CollisionShape3D in b.find_children("*", "CollisionShape3D", false, false):
 				drawer_top = maxf(drawer_top, cs.position.y + (cs.shape as BoxShape3D).size.y * 0.5)
-		_ok(drawer_top < bedding_floor, "beds/%s: the drawers' tops (lids included, %.0f mm) are under the bedding (%.0f mm)" % [
+		_ok(drawer_top < bedding_floor, "beds/%s: the drawers' tops (%.0f mm) are under the bedding (%.0f mm)" % [
 			v[0], drawer_top * 1000.0, bedding_floor * 1000.0])
-		# Held, every drawer has a lid; put down, none.
+		# Carried, what is in a drawer is held in place (CarryContents); put down, it is let go.
+		var held_box := _loose_box(piece.global_transform * (piece.drawer_seat_local(0) + Vector3(0, 0.03, 0)))
+		for i in 45:
+			await get_tree().physics_frame
 		piece.freeze = true
 		piece.collision_layer = piece.picked_up_layer
 		piece.collision_mask = 0
 		for i in 4:
 			await get_tree().physics_frame
-		var lids := 0
-		for j in ds.size():
-			lids += 1 if piece.lid_on(j) else 0
+		var was_held := piece.carry().is_latched(held_box)
 		piece.freeze = false
 		piece.collision_layer = 4
 		piece.collision_mask = 196613
 		for i in 4:
 			await get_tree().physics_frame
-		var any_left := false
-		for j in ds.size():
-			any_left = any_left or piece.lid_on(j)
-		_ok(lids == ds.size() and not any_left, "beds/%s: held, every drawer has its lid (%d of %d); put down, none" % [
-			v[0], lids, ds.size()])
+		_ok(was_held and not piece.carry().is_latched(held_box) and not held_box.freeze,
+			"beds/%s: carried, what is in its drawer is held in place; put down, it is let go" % v[0])
+		held_box.queue_free()
 		# Saved and restored on a fresh bed.
 		var sp := ScenePersistence.new()
 		var records: Array = sp._serialize_articulated_controls(piece)
@@ -996,6 +1017,320 @@ func _beds() -> void:
 
 ## Opened, then the piece carried and put down, the drawer must still be taken by its handle: with xr-tools' REAL
 ## pickup as the hand's FunctionPickup (what PokeTip and the mute read), by a hand grab and by a ray grab.
+## The living-room set (2026-11-14): every piece builds what its contract lists; every drawer and SLIDING door opens to
+## its travel along its axis and back; two overlapping sliders keep to their own tracks; every HINGED door swings OUT
+## (toward the front) on its own side, the free edge travelling and the hinge edge staying, and shuts again; a slider
+## and a door are worked by a HAND; their state saves and restores; a box set on a top and on a shelf rests there.
+func _living() -> void:
+	var at := Vector3(0.0, 0.0, -3.0)
+	for id: String in ScenePersistence.LIVING_ROOM_IDS:
+		var piece := (ScenePersistence.PLAIN_SCENES[id] as PackedScene).instantiate() as DrawerFurniture
+		piece.position = at
+		piece.rotation_degrees = Vector3(0, 30, 0)
+		add_child(piece)
+		await _ticks(3)
+		var c: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(piece.contract_path))
+		var want_d: Array = c.get("drawers", [])
+		var want_h: Array = c.get("doors", [])
+		var ds := piece.drawers()
+		var hs := piece.doors()
+		_ok(ds.size() == want_d.size() and hs.size() == want_h.size(),
+			"living/%s builds %d drawers/sliders and %d hinged doors (%d, %d)" % [id, want_d.size(), want_h.size(),
+			ds.size(), hs.size()])
+		var saved_type := str(ScenePersistence.new()._serialize_kind(piece, 1, {}).get("type", ""))
+		var offered := SpawnCatalog.OBJECTS.any(func(r: Array) -> bool: return r[1] == id)
+		_ok(saved_type == id and offered, "living/%s spawns from the Objects tab and saves as itself ('%s')" % [id, saved_type])
+		# Every drawer and slider, one at a time: out by its travel along its own axis, the drawing with it, then home.
+		for i in ds.size():
+			var d := ds[i]
+			var row: Dictionary = want_d[i]
+			var axis := DrawerFurniture._v3(row.get("axis", [0, 0, 1])).normalized()
+			var b0 := piece.drawer_body(i).position
+			d.set_value(1.0)
+			for k in 60:   # the body follows on the physics tick, critically damped (VRDrawer)
+				await get_tree().physics_frame
+			var moved := piece.drawer_body(i).position - b0
+			var travel := float(row.get("travel_m", 0.0))
+			_ok(absf(moved.dot(axis) - travel) < 0.004 and (moved - axis * moved.dot(axis)).length() < 0.002,
+				"living/%s %s slides %.0f mm along %s (%.0f mm, %.1f mm off it)" % [id, row.get("node", "?"),
+				travel * 1000.0, str(axis), moved.dot(axis) * 1000.0, (moved - axis * moved.dot(axis)).length() * 1000.0])
+			d.set_value(0.0)
+			for k in 60:
+				await get_tree().physics_frame
+			_ok(piece.drawer_body(i).position.distance_to(b0) < 0.002, "living/%s %s goes home" % [id, row.get("node", "?")])
+		# Overlapping sliders: never in the same depth, at rest or slid all the way.
+		var sliders := []
+		for i in ds.size():
+			if str(want_d[i].get("kind", "")) == "sliding_door":
+				sliders.append(i)
+		if sliders.size() == 2:
+			for v: float in [0.0, 1.0]:
+				for i: int in sliders:
+					ds[i].set_value(v)
+				for k in 60:
+					await get_tree().physics_frame
+				var a := _slab_aabb(piece, sliders[0])
+				var bb := _slab_aabb(piece, sliders[1])
+				_ok(not a.intersects(bb), "living/%s: its two sliding doors never share a track (%s, both at %.0f%%)" % [
+					id, "z %.3f-%.3f vs %.3f-%.3f" % [a.position.z, a.end.z, bb.position.z, bb.end.z], v * 100.0])
+			for i: int in sliders:
+				ds[i].set_value(0.0)
+		# Every hinged door: out on its own side, the leaf's free edge travelling round the hinge, then shut.
+		for j in hs.size():
+			await _check_door(piece, hs[j], want_h[j], id)
+		piece.queue_free()
+		await _ticks(2)
+	await _living_hand()
+	await _living_save()
+	await _living_rest()
+	await _living_carry()
+
+
+## The world box of a sliding door's slab, in its piece's frame.
+func _slab_aabb(piece: DrawerFurniture, i: int) -> AABB:
+	var cs := piece.drawer_body(i).get_node("BoxFront") as CollisionShape3D
+	var size := (cs.shape as BoxShape3D).size
+	var c := piece.drawer_body(i).position + cs.position
+	return AABB(c - size * 0.5, size).grow(-0.0005)
+
+
+func _check_door(piece: DrawerFurniture, door: VRDoor, row: Dictionary, id: String) -> void:
+	var box: Dictionary = row["box"]
+	var c := DrawerFurniture._v3(box["centre"])
+	var s := DrawerFurniture._v3(box["size"])
+	var left := str(row.get("side", "left")) == "left"
+	var free_x := c.x + (s.x * 0.5 if left else -s.x * 0.5)
+	var hinge_x := c.x - (s.x * 0.5 if left else -s.x * 0.5)
+	var front := c.z + s.z * 0.5
+	var pivot := door.get_node("HingeFrame/HingePivot") as Node3D
+	var free_m := Node3D.new()
+	var hinge_m := Node3D.new()
+	pivot.add_child(free_m)
+	pivot.add_child(hinge_m)
+	free_m.global_position = piece.global_transform * Vector3(free_x, c.y, front)
+	hinge_m.global_position = piece.global_transform * Vector3(hinge_x, c.y, front)
+	var leaf_hung := pivot.find_child(str(row.get("node", "")), true, false) != null
+	_ok(leaf_hung, "living/%s %s: the model's door hangs on the hinge" % [id, row.get("node", "?")])
+	door.open_to(float(row.get("open_deg", 100.0)), false)
+	await get_tree().process_frame
+	var inv := piece.global_transform.affine_inverse()
+	var f := inv * free_m.global_position
+	var h := inv * hinge_m.global_position
+	var out_z := f.z - front
+	var inward := (f.x - free_x) * (-1.0 if left else 1.0)
+	_ok(absf(door.get_angle_deg() - float(row.get("open_deg", 100.0))) < 0.5 and out_z > s.x * 0.8 and inward > s.x * 0.8
+		and h.distance_to(Vector3(hinge_x, c.y, front)) < 0.03,
+		"living/%s %s swings OUT on its %s side to %.0f deg (free edge %.0f mm out, %.0f mm toward the hinge; hinge edge %.0f mm off)" % [
+		id, row.get("node", "?"), row.get("side", "?"), door.get_angle_deg(), out_z * 1000.0, inward * 1000.0,
+		h.distance_to(Vector3(hinge_x, c.y, front)) * 1000.0])
+	door.close(false)
+	await get_tree().process_frame
+	f = inv * free_m.global_position
+	_ok(door.get_angle_deg() < 0.5 and f.distance_to(Vector3(free_x, c.y, front)) < 0.005,
+		"living/%s %s shuts again (%.1f deg)" % [id, row.get("node", "?"), door.get_angle_deg()])
+	free_m.queue_free()
+	hinge_m.queue_free()
+
+
+## A HAND works a sliding door (the credenza's left one, along +X) and a hinged door (the pine bookcase's left one).
+func _living_hand() -> void:
+	var cr := ScenePersistence.instantiate("tv_stand_credenza") as DrawerFurniture
+	cr.position = Vector3(2.0, 0.0, 3.0)
+	add_child(cr)
+	await _ticks(3)
+	var d := cr.drawers()[0]
+	var start := d.global_position
+	var along := d.global_basis.z
+	_place(start)
+	await _ticks(3)
+	_buttons(0.9, 0.0)
+	await _ticks(3)
+	for i in 50:
+		_place(start + along * (0.006 * (i + 1)))
+		await get_tree().physics_frame
+	_buttons(0.0, 0.0)
+	_place(FAR)
+	for i in 20:
+		await get_tree().physics_frame
+	_ok(d.open_distance() > 0.2 and cr.drawer_body(0).position.x > 0.2,
+		"living/hand: a hand slides the credenza's door %.0f mm along +X (body x %.0f mm)" % [d.open_distance() * 1000.0,
+		cr.drawer_body(0).position.x * 1000.0])
+	cr.queue_free()
+	var bk := ScenePersistence.instantiate("bookshelf_pine") as DrawerFurniture
+	bk.position = Vector3(-2.0, 0.0, 3.0)
+	add_child(bk)
+	await _ticks(3)
+	var door := bk.doors()[0]
+	var hinge := door.hinge
+	# Take the leaf near its free edge, on its front face, and walk the hand round the hinge to 70 degrees.
+	var pivot_world := door.global_transform * Vector3(-door.width * 0.5, door.height * 0.5, door.leaf_center_z + door.thickness * 0.5)
+	var r := door.width * 0.8
+	var take := pivot_world + bk.global_basis.x * r
+	_place(take)
+	await _ticks(3)
+	_buttons(0.9, 0.0)
+	await _ticks(3)
+	for i in 40:
+		var ang := deg_to_rad(70.0 * (i + 1) / 40.0)
+		_place(pivot_world + bk.global_basis.x * (r * cos(ang)) + bk.global_basis.z * (r * sin(ang)))
+		await get_tree().physics_frame
+	_buttons(0.0, 0.0)
+	_place(FAR)
+	await _ticks(5)
+	_ok(hinge.get_rotation_deg() > 40.0, "living/hand: a hand swings the pine bookcase's left door open (%.0f deg)" % hinge.get_rotation_deg())
+	bk.queue_free()
+	await _ticks(2)
+
+
+## A slid door and a swung door save with the piece and come back on a fresh one.
+func _living_save() -> void:
+	var a := ScenePersistence.instantiate("tv_stand_wall_unit") as DrawerFurniture
+	a.position = Vector3(4.0, 0.0, -2.0)
+	add_child(a)
+	var b := ScenePersistence.instantiate("bookshelf_midcentury") as DrawerFurniture
+	b.position = Vector3(-4.0, 0.0, -2.0)
+	add_child(b)
+	await _ticks(3)
+	a.doors()[2].open_to(60.0, false)
+	b.drawers()[1].set_value(0.5)
+	await _ticks(2)
+	var sp := ScenePersistence.new()
+	var ra: Array = sp._serialize_articulated_controls(a)
+	var rb: Array = sp._serialize_articulated_controls(b)
+	var a2 := ScenePersistence.instantiate("tv_stand_wall_unit") as DrawerFurniture
+	a2.position = Vector3(4.0, 0.0, 2.0)
+	add_child(a2)
+	var b2 := ScenePersistence.instantiate("bookshelf_midcentury") as DrawerFurniture
+	b2.position = Vector3(-4.0, 0.0, 2.0)
+	add_child(b2)
+	await _ticks(3)
+	_ok(a2.doors()[2].get_angle_deg() < 0.5 and b2.drawers()[1].value == 0.0, "living/save control: fresh pieces start shut")
+	sp._restore_articulated_controls(a2, ra)
+	sp._restore_articulated_controls(b2, rb)
+	await _ticks(3)
+	_ok(absf(a2.doors()[2].get_angle_deg() - 60.0) < 0.5, "living/save: the wall unit's cabinet door comes back 60 deg open (%.1f)" % a2.doors()[2].get_angle_deg(), str(ra))
+	_ok(absf(b2.drawers()[1].value - 0.5) < 0.01, "living/save: the bookcase's sliding door comes back half open (%.2f)" % b2.drawers()[1].value, str(rb))
+	for n in [a, b, a2, b2]:
+		n.queue_free()
+	await _ticks(2)
+
+
+## Held only while carried, on every living-room piece: a box set on every surface its contract names (each top,
+## shelf, cubby, the compartment behind a door) and in every drawer is held in place while the whole piece is carried
+## (it keeps its pose in the piece, frozen on the held layer), and is let go to ordinary physics, moving as the piece
+## moved, the moment it is put down.
+func _living_carry() -> void:
+	for id: String in ScenePersistence.LIVING_ROOM_IDS:
+		var piece := ScenePersistence.instantiate(id) as DrawerFurniture
+		# On the floor (it is 10 m square round the origin): off it, the piece and all in it fell the whole time.
+		piece.position = Vector3(0.0, 0.0, -3.5)
+		add_child(piece)
+		await _ticks(3)
+		var c: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(piece.contract_path))
+		var things: Array[RigidBody3D] = []
+		var where: Array[String] = []
+		for s: Dictionary in c.get("surfaces", []):
+			var sc := DrawerFurniture._v3(s["centre"])
+			things.append(_loose_box(piece.global_transform * Vector3(sc.x, float(s["top_y"]) + 0.02, sc.z)))
+			where.append(str(s.get("name", "?")))
+		var ds := piece.drawers()
+		for i in ds.size():
+			if str((c["drawers"] as Array)[i].get("kind", "")) == "sliding_door":
+				continue
+			things.append(_loose_box(piece.global_transform * (piece.drawer_seat_local(i) + Vector3(0, 0.02, 0))))
+			where.append(str((c["drawers"] as Array)[i].get("node", "?")))
+		for i in 60:
+			await get_tree().physics_frame
+		var rel: Array[Transform3D] = []
+		for t in things:
+			rel.append(piece.global_transform.affine_inverse() * t.global_transform)
+		# Carried: held as a hand holds it (frozen, on the held layer), moved 0.6 m/s sideways and up, turned.
+		piece.freeze = true
+		piece.collision_layer = piece.picked_up_layer
+		piece.collision_mask = 0
+		var v := Vector3(0.6, 0.3, 0.0)
+		for i in 40:
+			piece.global_transform = Transform3D(Basis(Vector3.UP, 0.01) * piece.global_basis,
+				piece.global_position + v / Engine.physics_ticks_per_second)
+			await get_tree().physics_frame
+		# Moved here between ticks (a hand moves it on the tick, before CarryContents): one more tick for the step.
+		await get_tree().physics_frame
+		var held := 0
+		var worst := 0.0
+		var lost: Array[String] = []
+		for k in things.size():
+			var now := piece.global_transform.affine_inverse() * things[k].global_transform
+			var off := now.origin.distance_to(rel[k].origin)
+			worst = maxf(worst, off)
+			if piece.carry().is_latched(things[k]) and things[k].freeze and off < 0.005:
+				held += 1
+			else:
+				lost.append(where[k])
+		_ok(held == things.size(), "living/carry %s: carried, all %d things on its surfaces and in its drawers are held in place (%d; worst %.1f mm; not: %s)" % [
+			id, things.size(), held, worst * 1000.0, ", ".join(lost)])
+		# Still carried and moving, then put down mid-move: let go, moving as the piece moved.
+		for i in 3:
+			piece.global_position += v / Engine.physics_ticks_per_second
+			await get_tree().physics_frame
+		var rec := ReleaseRecorder.new()
+		rec.things = things
+		# Let go mid-move: the hand moved it this tick too (CarryContents gives what it carried the piece's motion over
+		# the tick it was let go on).
+		piece.global_position += v / Engine.physics_ticks_per_second
+		piece.freeze = false
+		piece.collision_layer = 4
+		piece.collision_mask = 196613
+		add_child(rec)
+		# Recorded in the release tick, after CarryContents and before the physics step (ReleaseRecorder).
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		var loose := 0
+		var moving := 0
+		for k in things.size():
+			var t := things[k]
+			if not rec.frozen[k] and not piece.carry().is_latched(t) and t.collision_layer == 4:
+				loose += 1
+			if rec.velocities[k].x > 0.2:
+				moving += 1
+		rec.queue_free()
+		_ok(loose == things.size() and moving == things.size(),
+			"living/carry %s: put down, all %d are ordinary physics again (%d) and leave moving as the piece did (%d)" % [
+			id, things.size(), loose, moving])
+		for t in things:
+			t.queue_free()
+		piece.queue_free()
+		await _ticks(2)
+
+
+## A box set on a TV stand's top and on a bookcase's shelf rests there.
+func _living_rest() -> void:
+	for v: Array in [["tv_stand_bench", "Top"], ["bookshelf_oak", "Shelf2"], ["coffee_table_glass", "Top"]]:
+		var piece := ScenePersistence.instantiate(v[0]) as DrawerFurniture
+		piece.position = Vector3(0.0, 0.0, 4.0)
+		add_child(piece)
+		await _ticks(3)
+		var c: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(piece.contract_path))
+		var surf: Dictionary = {}
+		for s: Dictionary in c.get("surfaces", []):
+			if s.get("name", "") == v[1]:
+				surf = s
+		if surf.is_empty():
+			_ok(false, "living/rest: %s has a surface %s" % [v[0], v[1]])
+			piece.queue_free()
+			continue
+		var centre := DrawerFurniture._v3(surf["centre"])
+		var top := float(surf["top_y"])
+		var box := _loose_box(piece.global_transform * Vector3(centre.x, top + 0.05, centre.z))
+		for i in 90:
+			await get_tree().physics_frame
+		var rest_y := (piece.global_transform.affine_inverse() * box.global_position).y - 0.015
+		_ok(absf(rest_y - top) < 0.012, "living/rest: a box set on %s's %s rests on it (%.0f mm off its top)" % [v[0], v[1],
+			(rest_y - top) * 1000.0])
+		box.queue_free()
+		piece.queue_free()
+		await _ticks(2)
+
+
 func _again(ns: Nightstand) -> void:
 	_pickup.name = "FakePickupAside"
 	var real := load("res://addons/godot-xr-tools/functions/function_pickup.tscn").instantiate() as Node3D
@@ -1213,15 +1548,6 @@ func _debug_view_after_carry(ns: Nightstand) -> void:
 	ns.collision_mask = 0
 	for i in 70:
 		await get_tree().physics_frame
-	var lid_owner := -1
-	var lid_node := ns.drawer_body().get_node_or_null("Lid")
-	for id in ns.drawer_body().get_shape_owners():
-		if ns.drawer_body().shape_owner_get_owner(id) == lid_node:
-			lid_owner = int(id)
-	var lid_drawn := false
-	for o in ns.drawer_body().get_children():
-		if o is MeshInstance3D and o.has_meta(&"owner_id") and (o as MeshInstance3D).visible:
-			lid_drawn = lid_drawn or int(o.get_meta(&"owner_id", -2)) == lid_owner
 	ns.freeze = false
 	ns.collision_layer = 4
 	ns.collision_mask = 196613
@@ -1235,9 +1561,7 @@ func _debug_view_after_carry(ns: Nightstand) -> void:
 					and body.is_shape_owner_disabled(int(o.get_meta(&"owner_id", 0))):
 				stale += 1
 	CollisionDebug.set_enabled(self, false)
-	_ok(lid_drawn and stale == 0 and not ns.lid_on(),
-		"again/the collision view drew the lid while carried and draws no switched-off shape after (lid drawn %s, %d stale)" % [
-		lid_drawn, stale])
+	_ok(stale == 0, "again/the collision view draws no switched-off shape after a carry (%d stale)" % stale)
 	await _reset(ns)
 
 
@@ -1487,6 +1811,7 @@ func _small_items() -> void:
 				c.queue_free()
 			piece.queue_free()
 			await _ticks(3)
+
 
 ## The whole unit carried holds what is in it in place; a drawer slid with the unit standing does not (what is in it
 ## rides and jostles by physics); and a thing a hand takes out of a carried drawer is loose again when it is let go,

@@ -1,0 +1,439 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the FRONT faces +Z, x to the right seen from the front; the ORIGIN is the middle of the case's footprint, on the floor (overlay fronts and pulls stand a little past it)",
+ "variant": "bookshelf_midcentury",
+ "size": [
+  0.9,
+  1.8,
+  0.35
+ ],
+ "bounds": {
+  "min": [
+   -0.45,
+   0.0,
+   -0.175
+  ],
+  "max": [
+   0.45,
+   1.8,
+   0.175
+  ]
+ },
+ "levels": [
+  "bookshelf_midcentury_mobile",
+  "bookshelf_midcentury_mobile_lod1",
+  "bookshelf_midcentury_mobile_lod2"
+ ],
+ "master": "bookshelf_midcentury_high",
+ "markers": [
+  {
+   "node": "TopSurface",
+   "position": [
+    0.0,
+    1.8,
+    -0.0
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the middle of the top"
+  }
+ ],
+ "own_nodes": [
+  "Case",
+  "SlideDoor1",
+  "SlideDoor2"
+ ],
+ "materials": [
+  {
+   "name": "LIV_Brass",
+   "transparent": false
+  },
+  {
+   "name": "LIV_Wood",
+   "transparent": false
+  }
+ ],
+ "case_front_z": 0.175,
+ "drawers": [
+  {
+   "node": "SlideDoor1",
+   "kind": "sliding_door",
+   "front": {
+    "centre": [
+     -0.2085,
+     0.428,
+     0.143
+    ],
+    "size": [
+     0.447,
+     0.514,
+     0.016
+    ]
+   },
+   "inner": {
+    "centre": [
+     -0.2085,
+     0.428,
+     0.143
+    ],
+    "size": [
+     0.447,
+     0.514,
+     0.016
+    ]
+   },
+   "pulls": [
+    [
+     -0.387,
+     0.458,
+     0.152
+    ]
+   ],
+   "travel_m": 0.417,
+   "axis": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "track": [
+    0.135,
+    0.151
+   ],
+   "opening": [
+    -0.432,
+    0.0
+   ]
+  },
+  {
+   "node": "SlideDoor2",
+   "kind": "sliding_door",
+   "front": {
+    "centre": [
+     0.2085,
+     0.428,
+     0.163
+    ],
+    "size": [
+     0.447,
+     0.514,
+     0.016
+    ]
+   },
+   "inner": {
+    "centre": [
+     0.2085,
+     0.428,
+     0.163
+    ],
+    "size": [
+     0.447,
+     0.514,
+     0.016
+    ]
+   },
+   "pulls": [
+    [
+     0.387,
+     0.458,
+     0.172
+    ]
+   ],
+   "travel_m": 0.417,
+   "axis": [
+    -1.0,
+    0.0,
+    0.0
+   ],
+   "track": [
+    0.155,
+    0.171
+   ],
+   "opening": [
+    0.0,
+    0.432
+   ]
+  }
+ ],
+ "doors": [],
+ "surfaces": [
+  {
+   "name": "Cabinet",
+   "top_y": 0.168,
+   "centre": [
+    0.0,
+    0.163,
+    -0.002
+   ],
+   "size": [
+    0.864,
+    0.01,
+    0.334
+   ]
+  },
+  {
+   "name": "Shelf1",
+   "top_y": 0.706,
+   "centre": [
+    0.0,
+    0.701,
+    -0.002
+   ],
+   "size": [
+    0.864,
+    0.01,
+    0.334
+   ]
+  },
+  {
+   "name": "Shelf2",
+   "top_y": 0.984,
+   "centre": [
+    0.0,
+    0.979,
+    -0.002
+   ],
+   "size": [
+    0.864,
+    0.01,
+    0.334
+   ]
+  },
+  {
+   "name": "Shelf3",
+   "top_y": 1.253,
+   "centre": [
+    0.0,
+    1.248,
+    -0.002
+   ],
+   "size": [
+    0.864,
+    0.01,
+    0.334
+   ]
+  },
+  {
+   "name": "Shelf4",
+   "top_y": 1.522,
+   "centre": [
+    0.0,
+    1.517,
+    -0.002
+   ],
+   "size": [
+    0.864,
+    0.01,
+    0.334
+   ]
+  },
+  {
+   "name": "Top",
+   "top_y": 1.8,
+   "centre": [
+    0.0,
+    1.795,
+    -0.0
+   ],
+   "size": [
+    0.9,
+    0.01,
+    0.35
+   ]
+  }
+ ],
+ "wall_back": true,
+ "footprint": {
+  "min": [
+   -0.45,
+   -0.175
+  ],
+  "max": [
+   0.45,
+   0.175
+  ]
+ },
+ "wall_note": "tall and narrow: it stands with its back (glTF -Z) against a wall, or it tips; footprint is (x, z) min/max in metres",
+ "collision": {
+  "case": [
+   {
+    "name": "SideL",
+    "centre": [
+     -0.441,
+     0.975,
+     -0.0
+    ],
+    "size": [
+     0.018,
+     1.65,
+     0.35
+    ]
+   },
+   {
+    "name": "SideR",
+    "centre": [
+     0.441,
+     0.975,
+     -0.0
+    ],
+    "size": [
+     0.018,
+     1.65,
+     0.35
+    ]
+   },
+   {
+    "name": "Top",
+    "centre": [
+     0.0,
+     1.791,
+     -0.0
+    ],
+    "size": [
+     0.864,
+     0.018,
+     0.35
+    ]
+   },
+   {
+    "name": "Bottom",
+    "centre": [
+     0.0,
+     0.159,
+     0.003
+    ],
+    "size": [
+     0.864,
+     0.018,
+     0.344
+    ]
+   },
+   {
+    "name": "CabinetRoof",
+    "centre": [
+     0.0,
+     0.697,
+     0.003
+    ],
+    "size": [
+     0.864,
+     0.018,
+     0.344
+    ]
+   },
+   {
+    "name": "Back",
+    "centre": [
+     0.0,
+     0.975,
+     -0.17
+    ],
+    "size": [
+     0.864,
+     1.614,
+     0.008
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     -0.40188,
+     0.076,
+     0.12288
+    ],
+    "size": [
+     0.06376,
+     0.152,
+     0.05577
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     -0.40188,
+     0.076,
+     -0.12288
+    ],
+    "size": [
+     0.06376,
+     0.152,
+     0.05577
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     0.40188,
+     0.076,
+     0.12288
+    ],
+    "size": [
+     0.06376,
+     0.152,
+     0.05577
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     0.40188,
+     0.076,
+     -0.12288
+    ],
+    "size": [
+     0.06376,
+     0.152,
+     0.05577
+    ]
+   },
+   {
+    "name": "Shelf",
+    "centre": [
+     0.0,
+     0.975,
+     -0.002
+    ],
+    "size": [
+     0.864,
+     0.018,
+     0.334
+    ]
+   },
+   {
+    "name": "Shelf",
+    "centre": [
+     0.0,
+     1.244,
+     -0.002
+    ],
+    "size": [
+     0.864,
+     0.018,
+     0.334
+    ]
+   },
+   {
+    "name": "Shelf",
+    "centre": [
+     0.0,
+     1.513,
+     -0.002
+    ],
+    "size": [
+     0.864,
+     0.018,
+     0.334
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres, every drawer and door SHUT. A drawer slides along its axis by travel_m carrying its front and inside; a sliding door the same, carrying nothing; a hinged door turns open_deg about `hinge.axis` through `hinge.point` (a positive turn opens it, right-hand rule)"
+ },
+ "estimated": "every size is estimated (ordinary 1990s furniture, sized for a 27-inch CRT): see MEASUREMENTS.md",
+ "triangles": {
+  "high": 1996,
+  "lod0": 1036,
+  "lod1": 428,
+  "lod2": 236
+ }
+}

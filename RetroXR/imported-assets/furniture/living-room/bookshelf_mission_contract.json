@@ -1,0 +1,477 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the FRONT faces +Z, x to the right seen from the front; the ORIGIN is the middle of the case's footprint, on the floor (overlay fronts and pulls stand a little past it)",
+ "variant": "bookshelf_mission",
+ "size": [
+  0.93,
+  1.83,
+  0.36
+ ],
+ "bounds": {
+  "min": [
+   -0.465,
+   0.0,
+   -0.18
+  ],
+  "max": [
+   0.465,
+   1.83,
+   0.18
+  ]
+ },
+ "levels": [
+  "bookshelf_mission_mobile",
+  "bookshelf_mission_mobile_lod1",
+  "bookshelf_mission_mobile_lod2"
+ ],
+ "master": "bookshelf_mission_high",
+ "markers": [
+  {
+   "node": "TopSurface",
+   "position": [
+    0.0,
+    1.83,
+    -0.0
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the middle of the top"
+  }
+ ],
+ "own_nodes": [
+  "Case"
+ ],
+ "materials": [
+  {
+   "name": "LIV_Wood",
+   "transparent": false
+  }
+ ],
+ "case_front_z": 0.165,
+ "drawers": [],
+ "doors": [],
+ "surfaces": [
+  {
+   "name": "Shelf1",
+   "top_y": 0.15,
+   "centre": [
+    0.0,
+    0.145,
+    -0.001
+   ],
+   "size": [
+    0.8,
+    0.01,
+    0.312
+   ]
+  },
+  {
+   "name": "Shelf2",
+   "top_y": 0.491,
+   "centre": [
+    0.0,
+    0.486,
+    -0.001
+   ],
+   "size": [
+    0.8,
+    0.01,
+    0.312
+   ]
+  },
+  {
+   "name": "Shelf3",
+   "top_y": 0.822,
+   "centre": [
+    0.0,
+    0.817,
+    -0.001
+   ],
+   "size": [
+    0.8,
+    0.01,
+    0.312
+   ]
+  },
+  {
+   "name": "Shelf4",
+   "top_y": 1.153,
+   "centre": [
+    0.0,
+    1.148,
+    -0.001
+   ],
+   "size": [
+    0.8,
+    0.01,
+    0.312
+   ]
+  },
+  {
+   "name": "Shelf5",
+   "top_y": 1.484,
+   "centre": [
+    0.0,
+    1.479,
+    -0.001
+   ],
+   "size": [
+    0.8,
+    0.01,
+    0.312
+   ]
+  },
+  {
+   "name": "Top",
+   "top_y": 1.83,
+   "centre": [
+    0.0,
+    1.825,
+    -0.0
+   ],
+   "size": [
+    0.93,
+    0.01,
+    0.36
+   ]
+  }
+ ],
+ "wall_back": true,
+ "footprint": {
+  "min": [
+   -0.465,
+   -0.18
+  ],
+  "max": [
+   0.465,
+   0.18
+  ]
+ },
+ "wall_note": "tall and narrow: it stands with its back (glTF -Z) against a wall, or it tips; footprint is (x, z) min/max in metres",
+ "collision": {
+  "case": [
+   {
+    "name": "Post",
+    "centre": [
+     -0.425,
+     0.9025,
+     0.14
+    ],
+    "size": [
+     0.05,
+     1.805,
+     0.05
+    ]
+   },
+   {
+    "name": "Post",
+    "centre": [
+     -0.425,
+     0.9025,
+     -0.14
+    ],
+    "size": [
+     0.05,
+     1.805,
+     0.05
+    ]
+   },
+   {
+    "name": "EndRailT",
+    "centre": [
+     -0.425,
+     1.77,
+     -0.0
+    ],
+    "size": [
+     0.02,
+     0.07,
+     0.23
+    ]
+   },
+   {
+    "name": "EndRailB",
+    "centre": [
+     -0.425,
+     0.12,
+     -0.0
+    ],
+    "size": [
+     0.02,
+     0.06,
+     0.23
+    ]
+   },
+   {
+    "name": "Slat",
+    "centre": [
+     -0.425,
+     0.9425,
+     0.069
+    ],
+    "size": [
+     0.014,
+     1.585,
+     0.03
+    ]
+   },
+   {
+    "name": "Slat",
+    "centre": [
+     -0.425,
+     0.9425,
+     0.023
+    ],
+    "size": [
+     0.014,
+     1.585,
+     0.03
+    ]
+   },
+   {
+    "name": "Slat",
+    "centre": [
+     -0.425,
+     0.9425,
+     -0.023
+    ],
+    "size": [
+     0.014,
+     1.585,
+     0.03
+    ]
+   },
+   {
+    "name": "Slat",
+    "centre": [
+     -0.425,
+     0.9425,
+     -0.069
+    ],
+    "size": [
+     0.014,
+     1.585,
+     0.03
+    ]
+   },
+   {
+    "name": "Post",
+    "centre": [
+     0.425,
+     0.9025,
+     0.14
+    ],
+    "size": [
+     0.05,
+     1.805,
+     0.05
+    ]
+   },
+   {
+    "name": "Post",
+    "centre": [
+     0.425,
+     0.9025,
+     -0.14
+    ],
+    "size": [
+     0.05,
+     1.805,
+     0.05
+    ]
+   },
+   {
+    "name": "EndRailT",
+    "centre": [
+     0.425,
+     1.77,
+     -0.0
+    ],
+    "size": [
+     0.02,
+     0.07,
+     0.23
+    ]
+   },
+   {
+    "name": "EndRailB",
+    "centre": [
+     0.425,
+     0.12,
+     -0.0
+    ],
+    "size": [
+     0.02,
+     0.06,
+     0.23
+    ]
+   },
+   {
+    "name": "Slat",
+    "centre": [
+     0.425,
+     0.9425,
+     0.069
+    ],
+    "size": [
+     0.014,
+     1.585,
+     0.03
+    ]
+   },
+   {
+    "name": "Slat",
+    "centre": [
+     0.425,
+     0.9425,
+     0.023
+    ],
+    "size": [
+     0.014,
+     1.585,
+     0.03
+    ]
+   },
+   {
+    "name": "Slat",
+    "centre": [
+     0.425,
+     0.9425,
+     -0.023
+    ],
+    "size": [
+     0.014,
+     1.585,
+     0.03
+    ]
+   },
+   {
+    "name": "Slat",
+    "centre": [
+     0.425,
+     0.9425,
+     -0.069
+    ],
+    "size": [
+     0.014,
+     1.585,
+     0.03
+    ]
+   },
+   {
+    "name": "Top",
+    "centre": [
+     0.0,
+     1.8175,
+     -0.0
+    ],
+    "size": [
+     0.93,
+     0.025,
+     0.36
+    ]
+   },
+   {
+    "name": "Deck",
+    "centre": [
+     0.0,
+     0.14,
+     0.004
+    ],
+    "size": [
+     0.8,
+     0.02,
+     0.322
+    ]
+   },
+   {
+    "name": "Back",
+    "centre": [
+     0.0,
+     0.9475,
+     -0.1585
+    ],
+    "size": [
+     0.8,
+     1.715,
+     0.009
+    ]
+   },
+   {
+    "name": "Apron",
+    "centre": [
+     0.0,
+     0.119,
+     0.155
+    ],
+    "size": [
+     0.8,
+     0.022,
+     0.02
+    ]
+   },
+   {
+    "name": "Shelf",
+    "centre": [
+     0.0,
+     0.481,
+     -0.001
+    ],
+    "size": [
+     0.8,
+     0.02,
+     0.312
+    ]
+   },
+   {
+    "name": "Shelf",
+    "centre": [
+     0.0,
+     0.812,
+     -0.001
+    ],
+    "size": [
+     0.8,
+     0.02,
+     0.312
+    ]
+   },
+   {
+    "name": "Shelf",
+    "centre": [
+     0.0,
+     1.143,
+     -0.001
+    ],
+    "size": [
+     0.8,
+     0.02,
+     0.312
+    ]
+   },
+   {
+    "name": "Shelf",
+    "centre": [
+     0.0,
+     1.474,
+     -0.001
+    ],
+    "size": [
+     0.8,
+     0.02,
+     0.312
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres, every drawer and door SHUT. A drawer slides along its axis by travel_m carrying its front and inside; a sliding door the same, carrying nothing; a hinged door turns open_deg about `hinge.axis` through `hinge.point` (a positive turn opens it, right-hand rule)"
+ },
+ "estimated": "every size is estimated (ordinary 1990s furniture, sized for a 27-inch CRT): see MEASUREMENTS.md",
+ "triangles": {
+  "high": 2572,
+  "lod0": 1116,
+  "lod1": 356,
+  "lod2": 308
+ }
+}

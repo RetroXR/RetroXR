@@ -1088,6 +1088,23 @@ const OBJECTS := [
 	# The Mission bedroom pair, every drawer pulling out by its ring pulls (DrawerFurniture).
 	["Mission Nightstand", "mission_nightstand"],
 	["Mission Chest",      "mission_chest"],
+	# The living-room set (DrawerFurniture): TV stands, bookcases and coffee tables; their drawers and sliding doors pull,
+	# their cabinet doors swing (VRDoor), their tops and shelves hold a set and its consoles.
+	["Mission TV Stand",         "tv_stand_mission"],
+	["Oak Wall Unit",            "tv_stand_wall_unit"],
+	["Mid-Century Credenza",     "tv_stand_credenza"],
+	["TV Bench",                 "tv_stand_bench"],
+	["Corner TV Stand",          "tv_stand_corner"],
+	["Walnut TV Stand",          "tv_stand_cubby"],
+	["Oak Bookcase",             "bookshelf_oak"],
+	["Mission Bookcase",         "bookshelf_mission"],
+	["Mid-Century Bookcase",     "bookshelf_midcentury"],
+	["Cube Bookcase",            "bookshelf_cube"],
+	["Pine Bookcase",            "bookshelf_pine"],
+	["Mission Coffee Table",     "coffee_table_mission"],
+	["Mid-Century Coffee Table", "coffee_table_midcentury"],
+	["Glass Coffee Table",       "coffee_table_glass"],
+	["Pine Coffee Table",        "coffee_table_pine"],
 	# Somewhere to sit (ContractSeat): press a cushion to sit there, again to get up; hold on it to carry it. A bed's
 	# pillow end lies you down, the rest of it sits you on its edge.
 	["Mid-Century Sofa",   "sofa_midcentury"],

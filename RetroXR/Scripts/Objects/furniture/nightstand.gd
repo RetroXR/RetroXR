@@ -43,10 +43,7 @@ const DRAWER_BOXES := [
 const DRAWER_TRAVEL := 0.25
 ## The drawer's inside (drawer shut, this node's frame).
 const DRAWER_INNER := AABB(Vector3(-0.198, 0.458, -0.123), Vector3(0.396, 0.082, 0.27))
-## While the nightstand is held, the drawer gets a LID just under the case top (whose underside is at 0.578): only
-## over the part of the drawer still inside the case, so a pulled-out drawer stays open at the front.
-const LID_Y := Vector2(0.566, 0.576)
-## Where the case's front is (this node's frame): the lid stops here.
+## Where the case's front is (this node's frame).
 const CASE_FRONT_Z := 0.175
 const DRAWER_HANDLE := Vector3(0.0, 0.509, 0.203)
 ## The middle of the drawer's floor inside (drawer shut), the top and the shelf: +Y up.
@@ -59,7 +56,6 @@ const SHELF_SURFACE := Vector3(0.0, 0.268, 0.004)
 @onready var _drawer: VRDrawer = $DrawerHandle
 @onready var _drawer_visual: Node3D = $DrawerVisual
 
-var _lid: CollisionShape3D = null
 var _held := false
 ## Held and moved fast, what is in it is latched to it, or it is left behind or thrown (CarryContents).
 var _carry := CarryContents.new()
@@ -86,15 +82,6 @@ func _ready() -> void:
 	_drawer.pull_face_size = Vector2(DRAWER_INNER.size.x, front_top - DRAWER_INNER.position.y)
 	_drawer.pull_face_centre = Vector2(DRAWER_INNER.get_center().x - DRAWER_HANDLE.x,
 		(DRAWER_INNER.position.y + front_top) * 0.5 - DRAWER_HANDLE.y)
-	# The lid over the WHOLE drawer, sized once and only switched on and off (see _physics_process).
-	_lid = CollisionShape3D.new()
-	_lid.name = "Lid"
-	var lid_box := BoxShape3D.new()
-	lid_box.size = Vector3(DRAWER_INNER.size.x, LID_Y.y - LID_Y.x, DRAWER_INNER.size.z)
-	_lid.shape = lid_box
-	_lid.position = Vector3(DRAWER_INNER.get_center().x, (LID_Y.x + LID_Y.y) * 0.5, DRAWER_INNER.get_center().z)
-	_lid.disabled = true
-	_drawer_body.add_child(_lid)
 	# Where it carries things (CarryContents): the drawer's inside, the shelf and over the top.
 	_carry.add_bin(self, _drawer_body, DRAWER_INNER.grow(0.01), collision_layer)
 	_carry.add_bin(self, self, AABB(Vector3(-0.217, SHELF_SURFACE.y, -0.17), Vector3(0.434, 0.16, 0.35)), collision_layer)
@@ -108,13 +95,12 @@ func drawer() -> VRDrawer:
 	return _drawer
 
 
-## Held, the case goes on the held layer, which nothing loose collides with, so a drawer is no longer a closed box:
-## two of three boxes left one hauled hard (vr_drawer_tests haul/). The drawer body is not held, so it gets a lid of
-## its own for the hold: what is in the drawer stays ordinary physics (it slides and knocks about) and cannot leave
-## through the top. The lid is off whenever the nightstand is not held, so it can never be an obstacle in the room.
+## Held, the case goes on the held layer, which nothing loose collides with: what is in the drawer, on the shelf and
+## on the top is held in place by CarryContents while it is carried, and let go to ordinary physics when it is put
+## down. (The drawer had a held-only LID for this until 2026-11-14; CarryContents made it redundant.)
 ##
 ## The hold is POLLED (frozen, on the held layer), never `picked_up` / `dropped`: a ray grab emits neither (the addon
-## restores the body itself; SurfaceStick's header has the story), so a lid switched by the signals would stay on
+## restores the body itself; SurfaceStick's header has the story), so anything switched by the signals would stay on
 ## after a laser put the nightstand down. (An earlier version froze the drawer's contents for the hold, which read as
 ## frozen in a headset and was left frozen by the same missing signal.)
 func _physics_process(delta: float) -> void:
@@ -122,16 +108,14 @@ func _physics_process(delta: float) -> void:
 	_carry.step(self, held, delta)
 	if held != _held:
 		_held = held
-		_lid.disabled = not held
-		print("[Nightstand] %s: %s; the drawer's lid %s" % [name, "held" if held else "put down",
-			"on" if held else "off"])
+		print("[Nightstand] %s: %s" % [name, "held" if held else "put down"])
 		if not held:
 			_report_collision_later()
 
 
-## Whether the drawer's lid is on (the nightstand held).
-func lid_on() -> bool:
-	return _lid != null and not _lid.disabled
+## What it holds in place while it is carried (a test, a probe).
+func carry() -> CarryContents:
+	return _carry
 
 
 ## What it carries things on when it is picked up (HeldObjectPhysics' riders): the top AND the shelf. Its first shape

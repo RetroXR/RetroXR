@@ -1,0 +1,34 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/furniture/drawer_furniture.gd" id="1_df"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="Script" path="res://Scripts/Objects/appliance_model.gd" id="3_model"]
+[ext_resource type="PackedScene" path="res://imported-assets/furniture/living-room/coffee_table_mission_mobile.glb" id="4_lod0"]
+[ext_resource type="PackedScene" path="res://imported-assets/furniture/living-room/coffee_table_mission_mobile_lod1.glb" id="5_lod1"]
+[ext_resource type="PackedScene" path="res://imported-assets/furniture/living-room/coffee_table_mission_mobile_lod2.glb" id="6_lod2"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_liv"]
+bounce = 0.0
+friction = 0.9
+
+; A RETRO XR living-room piece (RetroXR-models generic/living-room; sizes estimated). Origin on the floor, its front
+; towards +Z. DrawerFurniture builds the case's collision, every drawer and sliding door and every hinged door from the
+; contract, so this scene carries none of its own.
+[node name="MissionCoffeeTable" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_liv")
+mass = 22.0
+linear_damp = 6.0
+angular_damp = 9.0
+freeze_mode = 1
+script = ExtResource("1_df")
+contract_path = "res://imported-assets/furniture/living-room/coffee_table_mission_contract.json"
+type_id = "coffee_table_mission"
+
+[node name="Model" type="Node3D" parent="."]
+script = ExtResource("3_model")
+level_scenes = Array[PackedScene]([ExtResource("4_lod0"), ExtResource("5_lod1"), ExtResource("6_lod2")])
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")

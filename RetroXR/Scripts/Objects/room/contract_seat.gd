@@ -87,9 +87,14 @@ func drawers() -> Array[VRDrawer]:
 	return _drawers.handles()
 
 
-## Whether drawer `i`'s lid is on (the piece held).
-func lid_on(i: int) -> bool:
-	return _drawers.lid_on(i)
+## The middle of drawer `i`'s floor inside, in this node's frame, wherever the drawer is now (a test, a probe).
+func drawer_seat_local(i: int) -> Vector3:
+	return _drawers.seat_local(i)
+
+
+## What a bed holds in place in its drawers while it is carried (a test, a probe), or null with no drawers.
+func carry() -> CarryContents:
+	return _carry
 
 
 ## The model's contract, as read.

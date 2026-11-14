@@ -71,10 +71,9 @@ a mover at the grab driver's priority (`vr_drawer_tests haul/`) and in the windo
   `rider_shapes()`; the nightstand answers its top and its shelf floor. Nothing else implements it, so no other
   pickable changed.
 - **The drawer**: a shut drawer is no longer a closed box (the case is intangible), and two of three boxes left one
-  hauled hard. While the nightstand is HELD the drawer body gets a `Lid` just under the case top over the WHOLE drawer
-  (sized once at build and only switched on and off); what is in the drawer stays ordinary physics, sliding and
-  knocking about, and cannot leave through the top. Off whenever it is not held. (It used to cover only the part
-  still inside the case, refitted every tick; a pulled-out drawer was then open at the front while carried.)
+  hauled hard. That was answered first by a held-only `Lid` over the drawer, and is now answered by CarryContents
+  (below): what is in it is held in place while the piece is carried. The lids (the nightstand's and every
+  FurnitureDrawers drawer's) were REMOVED on 2026-11-14; nothing latched can leave.
 - **What is in it: `CarryContents`** (`Scripts/Objects/furniture/carry_contents.gd`, both furniture classes,
   `process_physics_priority` 100 so it runs after the grab driver and the laser's pickup). ONE rule (2026-11-14): **the
   whole unit carried, what is in it is HELD IN PLACE; a drawer slid with the unit standing is ordinary physics** (what
@@ -93,8 +92,9 @@ a mover at the grab driver's priority (`vr_drawer_tests haul/`) and in the windo
   `bffc0c48`; then continuous collision switched off in bins plus a latch above a speed set by each thing's thickness,
   `126c19ad`-`179b7f7d`) was four mechanisms patching each other. Test boxes have `continuous_cd` on as pickables do;
   a test of a hand taking something out uses a plain pickable (the TV remote's own toggle-hold re-grabs it after a
-  drop). Test movers must be FREED, not queued, before a let-go. The drawers' held-only lids are now redundant (nothing
-  latched leaves) and are to go once `furniture_drawers.gd` is free to edit. A resting drawer's VRDrawer switches its
+  drop). Test movers must be FREED, not queued, before a let-go. The drawers' held-only lids are GONE (2026-11-14):
+  `haul/`, `real/`, `mission/`, `beds/` check what is in a drawer is latched while carried (`carry().is_latched`)
+  and let go when put down, instead of a lid. A resting drawer's VRDrawer switches its
   physics tick off (`_update_knob` wakes it).
 - **The hold is POLLED** (`freeze` and the held layer), never `picked_up` / `dropped`: a RAY grab emits neither on the
   pickable (the addon restores the body itself; SurfaceStick's header). A first version froze the drawer's contents
@@ -144,10 +144,12 @@ cost and a two-peer session OWED.
 `Scripts/Objects/furniture/drawer_furniture.gd` builds a piece with any number of drawers from its model's contract,
 read at RUN TIME (`DeckFace.contract`: a `.json` is a JSON resource and ships with the export, as `vcr_contract.json`
 does on a Quest; the walnut nightstand's copied consts were over-cautious). From the contract: the case's collision
-boxes (`collision.case`, named `Case<name>_<n>`), and per drawer a `DrawerBodyN` (front, floor, four walls, the lid),
+boxes (`collision.case`, named `Case<name>_<n>`), and per drawer a `DrawerBodyN` (front, floor, four walls),
 a `DrawerVisualN` the model's `DrawerN` hangs from, and a `DrawerHandleN` VRDrawer at the middle of its pulls with one
-handle box across them (a wide drawer's two pulls are one handle). The lid sits under `row_top_y` (the rail above)
-over the whole drawer; the hold is polled as the nightstand's, and what is in it is carried by `CarryContents`. `rider_shapes()` is the top (`CaseTop_`), never
+handle box across them (a wide drawer's two pulls are one handle). The hold is polled as the nightstand's, and what
+is in it is carried by `CarryContents`: a bin per drawer on its body, and a bin per contract `surfaces` row on the
+piece (`DrawerFurniture.surface_bins`: the surface's footprint from its top up to the surface over it, or 0.4 m); a
+contract with no `surfaces` (the Mission pair's) gets one over its top. `rider_shapes()` is the top (`CaseTop_`), never
 the top rail. Saved as `type_id` through `_drawer_furniture_entry`, each drawer through its VRDrawer's path.
 
 Shipped: `mission_nightstand` (2 drawers) and `mission_chest` (6), the owner's Mission bedroom pair modelled from
@@ -160,6 +162,52 @@ may name its `axis` (the way it comes out, default +Z): everything it is built f
 frame (its Z the axis), built there as a +Z drawer always was, and turned back, and the `DrawerHandleN` is turned so
 its own Z is the axis (VRDrawer slides along its local Z, and its front push needs that). A +Z drawer is built exactly
 as before (`vr_drawer_tests mission/` unchanged). **The beds' drawers come out of the bed's SIDE (+X)**: three in the
-captain's bed, two in the waterbed's pedestal, saved as sliders, a lid while the bed is held (a `DrawerPoll` child
-polls the hold: a Seat's own physics process runs only while sat on). They sit under the bedding with room to spare
+captain's bed, two in the waterbed's pedestal, saved as sliders, what is in them held by CarryContents while the bed
+is carried (a `DrawerPoll` child polls the hold: a Seat's own physics process runs only while sat on). They sit under the bedding with room to spare
 (drawer tops 361 mm under the captain's bedding at 420, 258 under the waterbed's at 330). `vr_drawer_tests beds/` (mutation-tested: a drawer built along +Z goes red).
+
+## The living-room set: sliding doors and hinged doors (2026-11-14)
+
+Fifteen pieces from RetroXR-models `generic/living-room` (`imported-assets/furniture/living-room/`), every one a
+`DrawerFurniture` scene: six TV stands (`tv_stand_mission`, `_wall_unit`, `_credenza`, `_bench`, `_corner`, `_cubby`),
+five bookcases (`bookshelf_oak`, `_mission`, `_midcentury`, `_cube`, `_pine`) and four coffee tables
+(`coffee_table_mission`, `_midcentury`, `_glass`, `_pine`). Their contracts add two moving parts to drawers:
+
+- **Sliding doors** are `drawers` rows with `kind: "sliding_door"`, `axis` ±X, `track` (a depth range) and `opening`.
+  `FurnitureDrawers._build_sliding_door` makes each the same VRDrawer as a drawer, sliding along its axis, but its body
+  is the door's slab alone (no box or floor, and no carry bin: what is behind a door is its surface's bin), its handle
+  a box at the
+  finger pull, and no face push or pull (`push_face_size`/`pull_face_size` zero). Two doors that overlap run on two
+  tracks at different depths, so they pass one in front of the other as real ones do: the mid-century bookcase's two
+  doors each cover half the cabinet, so slid together they only swap halves; the credenza's cover two bays and open
+  together. Saved as sliders (`DrawerHandleSlideDoorN`).
+- **Hinged doors** are `doors` rows (`side`, `hinge`, `open_deg`, `box`, `pulls`, `glass`, `inset`).
+  `DrawerFurniture._build_doors` makes each a `VRDoor` named by the row's node (`DoorN`), at the door box's bottom
+  middle, `hinge_side` from `side` (left = -X), swinging toward the front (+Z), with `opener = NONE` and
+  `latching = false`: a push door whose leaf is the model's own `DoorN` part (every level, hung on a `Leaf` holder in
+  the tree first so `attach_part` keeps it where it stands shut, then put under the door before the door is added, so
+  its `_ready` builds the rig once). A hand takes the leaf with the trigger (or the grip at its edge) and swings it, a
+  fingertip pushes it, a laser drags it and a desktop press + wheel turns it (VRHinge). Its `LeafBody` is put on the
+  piece's own layer with a collision exception both ways, or the piece fought its own doors. Inside a spawned object a
+  VRDoor is not a room door (`is_room_door`), so its `DoorHinge` is saved and synced as one of the piece's articulated
+  controls (`hinge`, angle + latched). The hinge line VRDoor uses is the leaf's front edge; the contract's overlay
+  doors hinge at the back edge, 19 mm in: not visible, and nothing hits the case either way. A VRDoor runs a small
+  `_process` (watching its angle for the log and netplay), a few comparisons a door a frame.
+- **The wall unit's tower doors are clear glass** (`LIV_ClearGlass`, alpha 0.12), the set's only transparency; the
+  import keeps it blended (`living_room_probe` logs the surfaces).
+
+Tops, shelves, cubbies and bays are case collision boxes in the contract, so things stand on them, and each is a
+CarryContents bin (`surface_bins`): what stands on it, or in the compartment behind a door, is held in place while
+the piece is carried. A coffee table's drawer sits between its shelf and its top, so its shelf's bin covers it as
+well as the drawer's own. The corner stand's diagonal back is stepped
+boxes; the bookcases carry `wall_back` and `footprint` (no tipping physics). `vr_drawer_tests living/`: every piece
+builds what its contract lists and spawns/saves as itself; every drawer and slider opens its travel along its axis and
+goes home; overlapping sliders never share a track, shut or open; every hinged door swings OUT on its own side to
+`open_deg` (its free edge travelling round, its hinge edge staying) and shuts; a hand slides the credenza's door and
+swings the pine bookcase's; a door angle and a slider save and restore; a box set on a top and on a shelf rests there;
+and on EVERY piece, a box on every surface and in every drawer is held in place while the piece is carried and moved
+(within 5 mm of its place in it) and let go to ordinary physics, moving as the piece did, when it is put down
+(`living/carry`). Mutation-tested (a slider built along +Z, a left door hinged on the right, doors swung inward, no
+surface bins, no drawer bins each go red).
+`Tools/room/living_room_probe` (windowed): all fifteen shut and open, the wall unit's glass with a box behind it, a set
+and a VCR on the Mission stand. Headset feel, Quest cost and a two-peer session OWED.

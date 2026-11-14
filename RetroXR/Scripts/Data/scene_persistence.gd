@@ -277,6 +277,26 @@ const TABLE_SCENE            := preload("res://Scenes/Objects/furniture/table.ts
 const NIGHTSTAND_SCENE       := preload("res://Scenes/Objects/furniture/nightstand.tscn")
 const MISSION_NIGHTSTAND_SCENE := preload("res://Scenes/Objects/furniture/mission_nightstand.tscn")
 const MISSION_CHEST_SCENE    := preload("res://Scenes/Objects/furniture/mission_chest.tscn")
+# The RETRO XR living-room set (DrawerFurniture, RetroXR-models generic/living-room): TV stands, bookcases, coffee
+# tables. Every drawer and sliding door is a VRDrawer, every hinged door a VRDoor's DoorHinge: articulated controls.
+const LIVING_ROOM_IDS := ["tv_stand_mission", "tv_stand_wall_unit", "tv_stand_credenza", "tv_stand_bench",
+	"tv_stand_corner", "tv_stand_cubby", "bookshelf_oak", "bookshelf_mission", "bookshelf_midcentury", "bookshelf_cube",
+	"bookshelf_pine", "coffee_table_mission", "coffee_table_midcentury", "coffee_table_glass", "coffee_table_pine"]
+const TV_STAND_MISSION_SCENE := preload("res://Scenes/Objects/furniture/tv_stand_mission.tscn")
+const TV_STAND_WALL_UNIT_SCENE := preload("res://Scenes/Objects/furniture/tv_stand_wall_unit.tscn")
+const TV_STAND_CREDENZA_SCENE := preload("res://Scenes/Objects/furniture/tv_stand_credenza.tscn")
+const TV_STAND_BENCH_SCENE   := preload("res://Scenes/Objects/furniture/tv_stand_bench.tscn")
+const TV_STAND_CORNER_SCENE  := preload("res://Scenes/Objects/furniture/tv_stand_corner.tscn")
+const TV_STAND_CUBBY_SCENE   := preload("res://Scenes/Objects/furniture/tv_stand_cubby.tscn")
+const BOOKSHELF_OAK_SCENE    := preload("res://Scenes/Objects/furniture/bookshelf_oak.tscn")
+const BOOKSHELF_MISSION_SCENE := preload("res://Scenes/Objects/furniture/bookshelf_mission.tscn")
+const BOOKSHELF_MIDCENTURY_SCENE := preload("res://Scenes/Objects/furniture/bookshelf_midcentury.tscn")
+const BOOKSHELF_CUBE_SCENE   := preload("res://Scenes/Objects/furniture/bookshelf_cube.tscn")
+const BOOKSHELF_PINE_SCENE   := preload("res://Scenes/Objects/furniture/bookshelf_pine.tscn")
+const COFFEE_TABLE_MISSION_SCENE := preload("res://Scenes/Objects/furniture/coffee_table_mission.tscn")
+const COFFEE_TABLE_MIDCENTURY_SCENE := preload("res://Scenes/Objects/furniture/coffee_table_midcentury.tscn")
+const COFFEE_TABLE_GLASS_SCENE := preload("res://Scenes/Objects/furniture/coffee_table_glass.tscn")
+const COFFEE_TABLE_PINE_SCENE := preload("res://Scenes/Objects/furniture/coffee_table_pine.tscn")
 # The RETRO XR seats and beds (ContractSeat, built from their contracts): RetroXR-models generic/seating, generic/beds.
 const SEAT_FURNITURE_IDS := ["sofa_midcentury", "sofa_overstuffed", "sofa_futon", "stool_mission", "stool_midcentury",
 	"chair_desk", "chair_papasan", "pouf", "bed_captain", "bed_brass", "bed_waterbed", "bed_wooden", "bed_racecar",
@@ -461,6 +481,22 @@ const PLAIN_SCENES := {
 	# Pose only, as the nightstand: every drawer is a VRDrawer saved with the articulated controls.
 	"mission_nightstand": MISSION_NIGHTSTAND_SCENE,
 	"mission_chest": MISSION_CHEST_SCENE,
+	# Pose only, as the Mission pair: drawers, sliding doors and hinged doors are articulated controls.
+	"tv_stand_mission": TV_STAND_MISSION_SCENE,
+	"tv_stand_wall_unit": TV_STAND_WALL_UNIT_SCENE,
+	"tv_stand_credenza": TV_STAND_CREDENZA_SCENE,
+	"tv_stand_bench": TV_STAND_BENCH_SCENE,
+	"tv_stand_corner": TV_STAND_CORNER_SCENE,
+	"tv_stand_cubby": TV_STAND_CUBBY_SCENE,
+	"bookshelf_oak": BOOKSHELF_OAK_SCENE,
+	"bookshelf_mission": BOOKSHELF_MISSION_SCENE,
+	"bookshelf_midcentury": BOOKSHELF_MIDCENTURY_SCENE,
+	"bookshelf_cube": BOOKSHELF_CUBE_SCENE,
+	"bookshelf_pine": BOOKSHELF_PINE_SCENE,
+	"coffee_table_mission": COFFEE_TABLE_MISSION_SCENE,
+	"coffee_table_midcentury": COFFEE_TABLE_MIDCENTURY_SCENE,
+	"coffee_table_glass": COFFEE_TABLE_GLASS_SCENE,
+	"coffee_table_pine": COFFEE_TABLE_PINE_SCENE,
 	# Pose only: where the player is sitting is this session's, never saved; a bed's drawers are VRDrawers saved with
 	# the articulated controls.
 	"sofa_midcentury": SOFA_MIDCENTURY_SCENE,

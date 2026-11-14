@@ -1,0 +1,202 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the FRONT faces +Z, x to the right seen from the front; the ORIGIN is the middle of the case's footprint, on the floor (overlay fronts and pulls stand a little past it)",
+ "variant": "tv_stand_bench",
+ "size": [
+  0.9,
+  0.5,
+  0.5
+ ],
+ "bounds": {
+  "min": [
+   -0.45,
+   0.0,
+   -0.25
+  ],
+  "max": [
+   0.45,
+   0.5,
+   0.25
+  ]
+ },
+ "levels": [
+  "tv_stand_bench_mobile",
+  "tv_stand_bench_mobile_lod1",
+  "tv_stand_bench_mobile_lod2"
+ ],
+ "master": "tv_stand_bench_high",
+ "markers": [
+  {
+   "node": "TopSurface",
+   "position": [
+    0.0,
+    0.5,
+    -0.0
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the middle of the top"
+  }
+ ],
+ "own_nodes": [
+  "Case"
+ ],
+ "materials": [
+  {
+   "name": "LIV_Wood",
+   "transparent": false
+  }
+ ],
+ "case_front_z": 0.25,
+ "drawers": [],
+ "doors": [],
+ "surfaces": [
+  {
+   "name": "Top",
+   "top_y": 0.5,
+   "centre": [
+    0.0,
+    0.495,
+    -0.0
+   ],
+   "size": [
+    0.9,
+    0.01,
+    0.5
+   ]
+  },
+  {
+   "name": "ShelfLow",
+   "top_y": 0.058,
+   "centre": [
+    0.0,
+    0.053,
+    -0.007
+   ],
+   "size": [
+    0.864,
+    0.01,
+    0.474
+   ]
+  },
+  {
+   "name": "ShelfMid",
+   "top_y": 0.273,
+   "centre": [
+    0.0,
+    0.268,
+    0.003
+   ],
+   "size": [
+    0.864,
+    0.01,
+    0.494
+   ]
+  }
+ ],
+ "collision": {
+  "case": [
+   {
+    "name": "Top",
+    "centre": [
+     0.0,
+     0.49,
+     -0.0
+    ],
+    "size": [
+     0.9,
+     0.02,
+     0.5
+    ]
+   },
+   {
+    "name": "EndL",
+    "centre": [
+     -0.441,
+     0.24,
+     -0.0
+    ],
+    "size": [
+     0.018,
+     0.48,
+     0.5
+    ]
+   },
+   {
+    "name": "EndR",
+    "centre": [
+     0.441,
+     0.24,
+     -0.0
+    ],
+    "size": [
+     0.018,
+     0.48,
+     0.5
+    ]
+   },
+   {
+    "name": "Back",
+    "centre": [
+     0.0,
+     0.26,
+     -0.245
+    ],
+    "size": [
+     0.864,
+     0.44,
+     0.008
+    ]
+   },
+   {
+    "name": "Kick",
+    "centre": [
+     0.0,
+     0.02,
+     0.221
+    ],
+    "size": [
+     0.864,
+     0.04,
+     0.018
+    ]
+   },
+   {
+    "name": "Shelf",
+    "centre": [
+     0.0,
+     0.049,
+     -0.007
+    ],
+    "size": [
+     0.864,
+     0.018,
+     0.474
+    ]
+   },
+   {
+    "name": "Shelf",
+    "centre": [
+     0.0,
+     0.264,
+     0.003
+    ],
+    "size": [
+     0.864,
+     0.018,
+     0.494
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres, every drawer and door SHUT. A drawer slides along its axis by travel_m carrying its front and inside; a sliding door the same, carrying nothing; a hinged door turns open_deg about `hinge.axis` through `hinge.point` (a positive turn opens it, right-hand rule)"
+ },
+ "estimated": "every size is estimated (ordinary 1990s furniture, sized for a 27-inch CRT): see MEASUREMENTS.md",
+ "triangles": {
+  "high": 740,
+  "lod0": 340,
+  "lod1": 116,
+  "lod2": 84
+ }
+}
