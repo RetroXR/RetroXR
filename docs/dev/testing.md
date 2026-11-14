@@ -15,7 +15,24 @@ All of it works without a VR headset (desktop fallback) and without a display.
 python Tools/run_tests.py            # every suite
 python Tools/run_tests.py --list     # name them and exit
 python Tools/run_tests.py --update-baseline   # after deliberately adding cases
+python Tools/run_tests.py --jobs 6   # 6 at once, each in its own scratch user:// and data root
 ```
+
+**`--jobs N` runs suites side by side, ISOLATED** (2026-11-14). Sequential, every
+suite shares the player's real `user://` and snapshots/restores it, so two at once
+would undo each other. With `--jobs` each suite instead gets a fresh empty home
+(APPDATA/LOCALAPPDATA/USERPROFILE on Windows, HOME/XDG_DATA_HOME elsewhere, and
+TEMP), deleted after it: no shared files, and the player's data is never touched.
+Suites whose script may open a socket (`NET_HINT` in the runner: netplay's fixed
+42913, object_sync's 42917, the fake HTTP servers) run one at a time in a lane of
+their own. Longest first, by `.godot/run_tests_times.json` from the last full run.
+Measured on the 20-thread desktop: sequential ~46 min (52 with a timeout),
+`--jobs 6` ~10 min. **Do not go much past 6**: at 10, `arcade_attract_tests`'
+coin timing (200 ms windows on the wall clock) and `update_tests`' fetch timeout
+failed from CPU load alone. CI (`tests.yml`, a 4-vCPU `windows-latest`) runs
+`--jobs 3`. Every suite's floor is ~12-13 s of Godot boot
+(compiling the ~1500 scripts and resources the autoloads pull in), which is ~24 of
+the 46 minutes; that, not the checks, is what the parallelism buys back.
 
 **A case count that DROPS fails the run.** `Tools/test_baseline.json` records each
 suite's count, and the runner compares against it — because a suite whose group
@@ -196,6 +213,9 @@ afterwards it has to sleep and STAY asleep. 96 cases,
 (`rope_bench --settle` prints `settled_at_tick=54 still_awake=0`, `rope_stress` diffs a
 22-row table): those catch arithmetic drift, this catches a cord that jitters, tunnels or
 will not settle.
+(2026-11-14, `KeepTautOutside`, `rope.md`: one `rope_stress` row moved on purpose, "wrapped
+on a ledge", stretch 4.03 -> 4.04 and squash 0.91 -> 0.88; the other 21 and the bench are
+unchanged.)
 (Re-baselined 2026-11-10 for substeps and the contact changes, `rope.md`: the bench
 settles at tick 50, was 49, and EVERY `rope_stress` row moved a little, the solver being
 a different one. The rows that moved in kind: "inside a wall" no longer sleeps (jitter

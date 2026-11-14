@@ -91,10 +91,13 @@ jobs:
           if [ -s errors.log ]; then cat errors.log; echo "::error::import reported errors"; exit 1; fi
           echo "import clean"
 
-      # run_tests.py picks up $GODOT, runs the suites sequentially, and exits
-      # non-zero if any of them does. It prints only the failing cases.
+      # run_tests.py picks up $GODOT and exits non-zero if any suite does. It
+      # prints only the failing cases. --jobs runs suites side by side, each in
+      # its own scratch user:// and data root (network suites one at a time);
+      # the runner has 4 vCPUs, and more jobs than cores fails the suites that
+      # time things on the wall clock (docs/dev/testing.md).
       - name: Run the test suites
-        run: python Tools/run_tests.py
+        run: python Tools/run_tests.py --jobs 3
 
       - name: Upload the import logs
         if: failure()

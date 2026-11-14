@@ -21,11 +21,20 @@ through the harness (it quit some other way), so its count is unknown and it is
 reported NOSUMMARY rather than OK. One thing else is read from the output: a
 SCRIPT ERROR in a suite that still exits 0 (see SCRIPT below).
 
-Suites run SEQUENTIALLY and never in parallel. Each one writes the player's real
+By default suites run SEQUENTIALLY. Each one writes the player's real
 `user://` state -- prefs.json, controller_bindings.json, the arcade manifest,
-core_options/ -- and each snapshots and restores its own. Two at once would
-restore each other's snapshots and leave the player's settings wherever the race
-landed.
+core_options/ -- and each snapshots and restores its own. Two at once in the
+same `user://` would restore each other's snapshots and leave the player's
+settings wherever the race landed.
+
+`--jobs N` runs N at once by taking that shared state away instead: every suite
+gets a fresh, empty scratch home -- `user://` (APPDATA / XDG_DATA_HOME), the
+`~/retroxr` data root (USERPROFILE / HOME) and the temp folder -- deleted after
+it, so no two suites see each other's files and none touches the player's (an
+empty home is what CI's runner has anyway). Network ports cannot be redirected
+that way, so every suite whose script may open a socket (`NET_HINT`) waits for
+the one before it, in a lane of its own. The longest suites start first, by the
+times of the last parallel run (`.godot/run_tests_times.json`).
 
 Anything after a bare `--` is forwarded to every suite, which is how a suite's
 own `--only=<group>` filter is reached. That is a different flag from this
@@ -41,8 +50,11 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from threading import Lock
 
 REPO = Path(__file__).resolve().parent.parent
 PROJECT = REPO / "RetroXR"
@@ -89,6 +101,15 @@ NOISE = re.compile(
     r"|OpenXR was requested but failed to start",
     re.IGNORECASE,
 )
+
+# A suite whose script matches this may listen on a fixed port (netplay's 42913,
+# object_sync's 42917, the fake RomM / mod.io / update servers), so under --jobs
+# these run one at a time. A false match costs only parallelism.
+NET_HINT = re.compile(
+    r"ENetMultiplayerPeer|create_server|create_client|TCPServer|UDPServer|PacketPeerUDP"
+    r"|\.listen\(|NetworkManager|WebFileServer|NetplaySession|HTTPRequest")
+
+TIMES = PROJECT / ".godot" / "run_tests_times.json"
 
 # The one summary line TestSuite._finish() prints. Anchored on the RESULT word and
 # the closing verdict, so a case's own description can never be read as it. Before
@@ -262,13 +283,41 @@ def interesting(text: str) -> str:
     return "\n".join(lines[:60]).strip()
 
 
+def scratch_env(home: Path) -> dict[str, str]:
+    """An environment whose user://, data root and temp folder all live in `home`."""
+    env = dict(os.environ)
+    tmp = home / "tmp"
+    for d in (home / "AppData" / "Roaming", home / "AppData" / "Local",
+              home / ".local" / "share", tmp):
+        d.mkdir(parents=True, exist_ok=True)
+    if os.name == "nt":
+        env["APPDATA"] = str(home / "AppData" / "Roaming")
+        env["LOCALAPPDATA"] = str(home / "AppData" / "Local")
+        env["USERPROFILE"] = str(home)
+    else:
+        env["HOME"] = str(home)
+        env["XDG_DATA_HOME"] = str(home / ".local" / "share")
+    env["TEMP"] = env["TMP"] = env["TMPDIR"] = str(tmp)
+    return env
+
+
+def is_net_suite(name: str) -> bool:
+    try:
+        return bool(NET_HINT.search((TESTS_DIR / f"{name}.gd").read_text(encoding="utf-8")))
+    except OSError:
+        return True
+
+
 def run_one(godot: str, name: str, timeout: int, extra: list[str],
-            allow_script_errors: bool = False) -> tuple[str, int, int, float, str]:
+            allow_script_errors: bool = False,
+            isolate: bool = False) -> tuple[str, int, int, float, str]:
     cmd = [godot, "--headless", "--path", str(PROJECT), f"res://Tests/{name}.tscn"]
     if extra:
         cmd += ["--", *extra]
 
-    print(f"=== {name}", flush=True)
+    home = Path(tempfile.mkdtemp(prefix=f"retroxr_{name}_")) if isolate else None
+    if not isolate:
+        print(f"=== {name}", flush=True)
     started = time.time()
     try:
         proc = subprocess.run(
@@ -278,6 +327,7 @@ def run_one(godot: str, name: str, timeout: int, extra: list[str],
             encoding="utf-8",
             errors="replace",
             timeout=timeout,
+            env=scratch_env(home) if home else None,
         )
         code, out = proc.returncode, (proc.stdout or "") + (proc.stderr or "")
         timed_out = False
@@ -286,6 +336,9 @@ def run_one(godot: str, name: str, timeout: int, extra: list[str],
         out = (exc.stdout or "") + (exc.stderr or "")
         if isinstance(out, bytes):
             out = out.decode("utf-8", "replace")
+    finally:
+        if home:
+            shutil.rmtree(home, ignore_errors=True)
 
     secs = time.time() - started
     clean = "\n".join(ln for ln in out.splitlines() if not NOISE.search(ln))
@@ -300,13 +353,15 @@ def run_one(godot: str, name: str, timeout: int, extra: list[str],
     hidden = script_errors(clean) if status == "OK" else 0
     if hidden and not allow_script_errors:
         status = "SCRIPT"
+    # In parallel the header waits for the result, or the lines interleave.
+    head = f"=== {name}\n" if isolate else ""
     if timed_out:
-        print(f"    TIMEOUT after {timeout}s", flush=True)
+        print(f"{head}    TIMEOUT after {timeout}s", flush=True)
     else:
         note = f"  <-- exit 0x{code:08X}" if status == "CRASH" else ""
         if hidden:
             note = f"  <-- {hidden} SCRIPT ERROR(s) in a suite that exited 0"
-        print(f"    {status}  {checks} checks, {failures} failed  {secs:.1f}s{note}", flush=True)
+        print(f"{head}    {status}  {checks} checks, {failures} failed  {secs:.1f}s{note}", flush=True)
 
     return status, checks, failures, secs, clean
 
@@ -322,6 +377,9 @@ def main() -> int:
     ap.add_argument("--godot", help="path to the Godot 4.7 binary")
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT,
                     help=f"per-suite seconds (default {DEFAULT_TIMEOUT})")
+    ap.add_argument("--jobs", "-j", type=int, default=1,
+                    help="suites at once, each in its own scratch user:// and data root "
+                         "(default 1: sequential, in the player's real user://)")
     ap.add_argument("--verbose", action="store_true",
                     help="print each suite's filtered output, not only failures'")
     ap.add_argument("--allow-script-errors", action="store_true",
@@ -349,23 +407,33 @@ def main() -> int:
     extra = list(args.forward)
 
     print(f"[tests] {godot}")
-    print(f"[tests] {len(suites)} suite(s), sequential"
+    jobs = max(1, args.jobs)
+    mode = "sequential" if jobs == 1 else f"{jobs} at once, isolated"
+    print(f"[tests] {len(suites)} suite(s), {mode}"
           + (f", forwarding {' '.join(extra)}" if extra else ""))
     print()
 
     results: list[tuple[str, str, int, int, float]] = []
     outputs: dict[str, str] = {}
-    for name in suites:
-        status, checks, failures, secs, out = run_one(godot, name, args.timeout, extra, args.allow_script_errors)
-        results.append((name, status, checks, failures, secs))
-        outputs[name] = out
-        if args.verbose:
-            print(out)
+    wall = time.time()
+    if jobs == 1:
+        for name in suites:
+            status, checks, failures, secs, out = run_one(godot, name, args.timeout, extra, args.allow_script_errors)
+            results.append((name, status, checks, failures, secs))
+            outputs[name] = out
+            if args.verbose:
+                print(out)
+    else:
+        results = run_parallel(godot, suites, jobs, args, extra, outputs)
+    wall = time.time() - wall
 
     print("\n" + "=" * 66)
     for name, status, checks, failures, secs in results:
         print(f"  {status:<7} {name:<22} "
               f"{checks:>5} checks {failures:>4} failed {secs:7.1f}s")
+
+    if jobs > 1:
+        print(f"  wall clock {wall:.0f}s for {sum(r[4] for r in results):.0f}s of suite time")
 
     bad = [(n, s) for n, s, _, _, _ in results if s != "OK"]
     total = sum(c for _, _, c, _, _ in results)
@@ -407,8 +475,59 @@ def main() -> int:
               "--update-baseline and commit Tools/test_baseline.json with it.")
         return 1
 
-    print(f"\nall {len(results)} suites OK -- {total} checks in {elapsed:.0f}s")
+    print(f"\nall {len(results)} suites OK -- {total} checks in {elapsed:.0f}s"
+          + (f" of suite time, {wall:.0f}s wall clock" if jobs > 1 else ""))
     return 0
+
+
+def run_parallel(godot: str, suites: list[str], jobs: int, args, extra: list[str],
+                 outputs: dict[str, str]) -> list[tuple[str, str, int, int, float]]:
+    """Run `suites` `jobs` at once, the network ones one at a time among them.
+
+    The network suites are fed to ONE worker of their own, in order, and the
+    rest to the other `jobs - 1`, so no worker ever sits waiting on a lock.
+    Both queues go longest first, by the last run's times.
+    """
+    try:
+        times = json.loads(TIMES.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        times = {}
+    longest_first = sorted(suites, key=lambda n: -float(times.get(n, 30.0)))
+    net = [n for n in longest_first if is_net_suite(n)]
+    rest = [n for n in longest_first if n not in net]
+    found: dict[str, tuple[str, str, int, int, float]] = {}
+    print_lock = Lock()
+
+    def one(name: str):
+        return name, run_one(godot, name, args.timeout, extra, args.allow_script_errors, isolate=True)
+
+    def net_lane():
+        return [one(n) for n in net]
+
+    def collect(name, res):
+        status, checks, failures, secs, out = res
+        found[name] = (name, status, checks, failures, secs)
+        outputs[name] = out
+        times[name] = round(secs, 1)
+        if args.verbose:
+            with print_lock:
+                print(f"----- {name} -----\n{out}")
+
+    with ThreadPoolExecutor(max_workers=max(1, jobs - 1)) as pool, \
+            ThreadPoolExecutor(max_workers=1) as lane:
+        lane_future = lane.submit(net_lane)
+        for fut in as_completed([pool.submit(one, n) for n in rest]):
+            collect(*fut.result())
+        for name, res in lane_future.result():
+            collect(name, res)
+
+    if not args.only:
+        try:
+            TIMES.parent.mkdir(parents=True, exist_ok=True)
+            TIMES.write_text(json.dumps(times, indent=1, sort_keys=True), encoding="utf-8")
+        except OSError:
+            pass
+    return [found[n] for n in suites]
 
 
 if __name__ == "__main__":
