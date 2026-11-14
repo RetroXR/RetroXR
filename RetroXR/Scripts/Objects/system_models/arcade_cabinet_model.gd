@@ -255,7 +255,10 @@ func toast_anchor() -> Variant:
 		return Vector3(0.0, 1.30, 0.85)
 	var xf: Transform3D = global_transform.affine_inverse() * screen.global_transform
 	var basis := xf.basis.orthonormalized()
-	return Transform3D(basis, xf.origin + basis.z * TOAST_DISTANCE)
+	# From the middle of the glass, not the node's origin: a model's Screen mesh is drawn where the monitor is with its node at
+	# the cabinet's own origin, on the floor, and the notice came up half buried in it (the owner, 2026-11-14).
+	var middle := xf * screen.get_aabb().get_center() if screen is MeshInstance3D else xf.origin
+	return Transform3D(basis, middle + basis.z * TOAST_DISTANCE)
 
 
 ## The options panel stands to the cabinet's RIGHT at eye height, readable from the front,
