@@ -65,6 +65,10 @@ const SCRIPT_DRAWER := "res://Scripts/Objects/widgets/vr_drawer.gd"
 ## The board's turn in its mount about the cabinet's front axis (+Z), degrees: 0 stands it on its base; -90 stands
 ## it on edge with its top toward +X (the Atomiswave AWSD's PCB base). The model's BoardAnchor carries no turn.
 @export var bay_roll_deg: float = 0.0
+## The board's turn in its mount about the cabinet's up (+Y), degrees, before the roll: 0 faces its sockets to the cabinet's
+## front; 180 to its back (the NAOMI Universal's NAOMI lies with its vents toward the tray's front and its wiring at the back
+## end, hard--candy's inside photograph: turned the other way its plugs ran into the tray's lip).
+@export var bay_yaw_deg: float = 0.0
 ## The leads that are the cabinet's own cords, by their marker ("VgaLead", "JvsLead", "BoardPowerLead"): on a real cabinet
 ## the monitor's VGA cable, the I/O board's JVS cable and the supply's harness are fitted when it is built and run inside
 ## it, so all an operator meets is a cord hanging in the base with a plug on its free end. Each such lead's socket is at
@@ -867,7 +871,8 @@ func _build_bay() -> void:
 	# In the cabinet's frame: a world basis here was right only for a cabinet built facing the world's -Z. One built already
 	# turned (every cabinet a saved room restores) got a mount turned back by its own heading, and the board seated yawed in it
 	# (the owner, 2026-11-13, after several "fixed"s that were all tested on cabinets built at 0 degrees).
-	mount.global_transform = Transform3D(global_basis * Basis(Vector3.BACK, deg_to_rad(bay_roll_deg)), anchor.global_position)
+	mount.global_transform = Transform3D(global_basis * Basis(Vector3.UP, deg_to_rad(bay_yaw_deg)) * Basis(Vector3.BACK, deg_to_rad(bay_roll_deg)),
+		anchor.global_position)
 	if tray != null and tray_travel > 0.0:
 		var tb := _mesh_bounds_in(tray, m)
 		_tray_body(tray)
