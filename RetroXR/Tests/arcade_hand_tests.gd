@@ -2767,17 +2767,26 @@ func _group_prompts() -> void:
 		"prompts: seven buttons are three to a row, three rows")
 	# And with the keyboard: the keys of the cabinet's own map.
 	var rows_pc := ArcadePrompts.attach_rows_desktop(0, true, six, "arcade")
-	var key := func(action: String) -> String:
-		return DesktopBindings.display_name_for_system(action, "arcade")
+	var glyph := func(action: String) -> String:
+		return ArcadePrompts.key_glyph(DesktopBindings.event_for_system(action, "arcade"))
+	var gt := HeldHint.GLYPH_TOKEN
 	_ok(ids.call(rows_pc) == [&"ap_move_pc", &"ap_buttons_pc", &"ap_buttons_pc2", &"ap_start_pc"]
-			and str(rows_pc[3][3]) == "%s: start, %s: coin (player 1)" % [key.call("RETRO_JOYPAD_START"), key.call("RETRO_JOYPAD_SELECT")]
-			and str(rows_pc[0][3]) == "%s %s %s %s: move" % [key.call("RETRO_JOYPAD_UP"), key.call("RETRO_JOYPAD_LEFT"), key.call("RETRO_JOYPAD_DOWN"), key.call("RETRO_JOYPAD_RIGHT")]
-			and str(rows_pc[1][3]) == "%s: 1, %s: 2, %s: 3" % [key.call("RETRO_JOYPAD_B"), key.call("RETRO_JOYPAD_A"), key.call("RETRO_JOYPAD_Y")]
-			and str(rows_pc[2][3]) == "%s: 4, %s: 5, %s: 6" % [key.call("RETRO_JOYPAD_X"), key.call("RETRO_JOYPAD_L"), key.call("RETRO_JOYPAD_R")],
-		"prompts: the keyboard's rows name the keys: the buttons in MAME's order, three to a row, then start and the coin (%s)" % str(rows_pc))
+			and rows_pc[3][2] == [glyph.call("RETRO_JOYPAD_START"), glyph.call("RETRO_JOYPAD_SELECT")]
+			and str(rows_pc[3][3]) == "%s start   %s coin (player 1)" % [gt, gt]
+			and rows_pc[0][2] == [glyph.call("RETRO_JOYPAD_UP"), glyph.call("RETRO_JOYPAD_LEFT"), glyph.call("RETRO_JOYPAD_DOWN"), glyph.call("RETRO_JOYPAD_RIGHT")]
+			and str(rows_pc[0][3]) == "%s %s %s %s move" % [gt, gt, gt, gt]
+			and rows_pc[1][2] == [glyph.call("RETRO_JOYPAD_B"), glyph.call("RETRO_JOYPAD_A"), glyph.call("RETRO_JOYPAD_Y")]
+			and str(rows_pc[1][3]) == "%s 1   %s 2   %s 3" % [gt, gt, gt]
+			and rows_pc[2][2] == [glyph.call("RETRO_JOYPAD_X"), glyph.call("RETRO_JOYPAD_L"), glyph.call("RETRO_JOYPAD_R")],
+		"prompts: the keyboard's rows draw the keys: the buttons in MAME's order, three to a row, then start and the coin (%s)" % str(rows_pc))
 	if not DesktopBindings.has_system_override("arcade"):
-		_ok(str(rows_pc[1][3]) == "Ctrl: 1, Alt: 2, Space: 3" and str(rows_pc[3][3]) == "1: start, 5: coin (player 1)",
-			"prompts: a cabinet with no map of its own says MAME's layout: Ctrl Alt Space, 1 and 5 (%s)" % str(rows_pc))
+		_ok(rows_pc[1][2] == ["keyboard_ctrl_outline", "keyboard_alt_outline", "keyboard_space_outline"]
+				and rows_pc[3][2] == ["keyboard_1_outline", "keyboard_5_outline"],
+			"prompts: a cabinet with no map of its own draws MAME's layout: Ctrl Alt Space, 1 and 5 (%s)" % str(rows_pc))
+	# A key is drawn by its name in the glyph set; no key, no glyph.
+	var f12 := InputEventKey.new()
+	f12.physical_keycode = KEY_F12
+	_ok(ArcadePrompts.key_glyph(f12) == "keyboard_f12_outline" and ArcadePrompts.key_glyph(null) == "", "prompts: a key's glyph by its name, none for no key")
 	_ok(ids.call(ArcadePrompts.attach_rows_desktop(0, false, [], "arcade")) == [&"ap_start_pc"], "prompts: a panel with no stick and no buttons says only start and the coin")
 	# A bicycle's bars, taken by a squeeze: what they are for, three lines, in the glyph of the hand that took them.
 	var r := await _rig("propcycl")
@@ -2906,8 +2915,13 @@ func _group_prompts() -> void:
 	_ok(attach_ids.has(&"ap_move_pc") and attach_ids.has(&"ap_buttons_pc") and attach_ids.has(&"ap_start_pc") and panel2.prompt_hint()._desktop_rows and not panel2.prompt_hint()._pinned,
 		"prompts: attaching with the keyboard says the keys: move, the buttons, start and the coin (%s)" % str(attach_ids))
 	_ok(int(AppPrefs.hint_uses.get("ap_move_pc", 0)) == 1 and not AppPrefs.hint_uses.has("ap_buttons_pc"), "prompts: the move line is taught, the game's keys are not counted (%s)" % str(AppPrefs.hint_uses))
-	_ok(_caption_of(panel2, &"ap_start_pc") == "%s: start, %s: coin (player 1)" % [DesktopBindings.display_name_for_system("RETRO_JOYPAD_START", "arcade"), DesktopBindings.display_name_for_system("RETRO_JOYPAD_SELECT", "arcade")],
-		"prompts: and they are the keys of the cabinet's own map (%s)" % _caption_of(panel2, &"ap_start_pc"))
+	var start_row: Array = []
+	for row: Array in panel2.prompt_hint()._last_rows:
+		if row[0] == &"ap_start_pc":
+			start_row = row
+	_ok(not start_row.is_empty() and start_row[2] == [ArcadePrompts.key_glyph(DesktopBindings.event_for_system("RETRO_JOYPAD_START", "arcade")),
+			ArcadePrompts.key_glyph(DesktopBindings.event_for_system("RETRO_JOYPAD_SELECT", "arcade"))],
+		"prompts: and they are the keys of the cabinet's own map (%s)" % str(start_row))
 	panel2.set_attached(false)
 	# With a headset's controller the rows are the controller's, by the player's own map.
 	AppPrefs.hint_uses = {}

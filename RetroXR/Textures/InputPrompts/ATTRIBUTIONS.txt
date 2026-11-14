@@ -25,6 +25,10 @@ texture, from a source that can be re-imported larger if a panel ever grows.
   svg/scale = 2.0 on every one, giving 128 px from Kenney's 64 viewBox — the
   size the PNGs were, so nothing changed on screen.
 
+The keyboard set (every "Keyboard & Mouse/Vector/keyboard_*_outline.svg", 112 files) was added 2026-11-14 from the
+same 1.5A pack, unmodified, with the same import (svg/scale = 2.0): a cabinet's keyboard prompt draws its keys with
+them (ArcadePrompts.key_glyph). keyboard_shift, keyboard_tab and keyboard_scroll_lock were already here.
+
 Ten names ship in both "Nintendo Switch" and "Nintendo Switch 2"; the two copies
 are byte-identical, so which folder a file came from does not matter.
 

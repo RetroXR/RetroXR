@@ -129,8 +129,14 @@ static func _layers_for(systemid: String) -> Array[Dictionary]:
 ## What `event_display_name` would say of `action` once `apply_for_system(systemid)` had run, said without running it: the InputMap belongs to whoever holds the keyboard, and
 ## a cabinet that tells its player the keys must not rewrite it to do so.
 static func display_name_for_system(action: String, systemid: String) -> String:
+	var chosen := event_for_system(action, systemid)
+	return _format_event(chosen) if chosen != null else "(none)"
+
+
+## The event `action` would have once `apply_for_system(systemid)` had run (its first), or null; read without running it, for the same reason.
+static func event_for_system(action: String, systemid: String) -> InputEvent:
 	if not InputMap.has_action(action):
-		return "(none)"
+		return null
 	var chosen: InputEvent = null
 	var setting: Variant = ProjectSettings.get_setting("input/%s" % action, null)
 	if setting is Dictionary:
@@ -142,7 +148,7 @@ static func display_name_for_system(action: String, systemid: String) -> String:
 			var ev := _dict_to_event(layer[action] as Dictionary)
 			if ev != null:
 				chosen = ev
-	return _format_event(chosen) if chosen != null else "(none)"
+	return chosen
 
 
 ## Load saved bindings and apply the global scope. Safe with no file present.

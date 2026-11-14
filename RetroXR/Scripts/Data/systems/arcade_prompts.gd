@@ -98,17 +98,59 @@ static func attach_rows_vr(player: int, has_stick: bool, buttons: Array, button_
 	return rows
 
 
-## What attaching with the keyboard says: the keys of the cabinet's own map as the player has them (DesktopBindings, in the scope of `systemid`, which is not put in the InputMap to say so).
+## What attaching with the keyboard says: the keys of the cabinet's own map as the player has them (DesktopBindings, in the scope of `systemid`, which is not put in the InputMap to say so),
+## each drawn as its key (a glyph, the key's name where there is no glyph for it).
 static func attach_rows_desktop(player: int, has_stick: bool, buttons: Array, systemid: String) -> Array:
 	var rows: Array = []
 	if has_stick:
-		rows.append([&"ap_move_pc", HeldHint.PLATFORM_DESKTOP, [], "%s %s %s %s: move" % [_key("RETRO_JOYPAD_UP", systemid), _key("RETRO_JOYPAD_LEFT", systemid), _key("RETRO_JOYPAD_DOWN", systemid), _key("RETRO_JOYPAD_RIGHT", systemid)]])
-	var items: Array[String] = []
+		var dirs: Array = []
+		for action: String in ["RETRO_JOYPAD_UP", "RETRO_JOYPAD_LEFT", "RETRO_JOYPAD_DOWN", "RETRO_JOYPAD_RIGHT"]:
+			dirs.append([action, ""])
+		var move := _keyed_row(dirs, systemid, " ")
+		rows.append([&"ap_move_pc", HeldHint.PLATFORM_DESKTOP, move[0], "%s move" % move[1]])
+	var items: Array = []
 	for button: Dictionary in buttons:
-		items.append("%s: %s" % [_key(_action_of(int(button["n"])), systemid), _item(button)])
-	rows.append_array(_item_rows(&"ap_buttons_pc", HeldHint.PLATFORM_DESKTOP, items))
-	rows.append([&"ap_start_pc", HeldHint.PLATFORM_DESKTOP, [], "%s: start, %s: coin (player %d)" % [_key("RETRO_JOYPAD_START", systemid), _key("RETRO_JOYPAD_SELECT", systemid), player + 1]])
+		items.append([_action_of(int(button["n"])), _item(button)])
+	for at in range(0, items.size(), PER_ROW):
+		var row := _keyed_row(items.slice(at, at + PER_ROW), systemid, "   ")
+		rows.append([&"ap_buttons_pc" if at == 0 else StringName("ap_buttons_pc%d" % (at / PER_ROW + 1)), HeldHint.PLATFORM_DESKTOP, row[0], row[1]])
+	var start := _keyed_row([["RETRO_JOYPAD_START", "start"], ["RETRO_JOYPAD_SELECT", "coin (player %d)" % (player + 1)]], systemid, "   ")
+	rows.append([&"ap_start_pc", HeldHint.PLATFORM_DESKTOP, start[0], start[1]])
 	return rows
+
+
+## [glyphs, caption] for `items` ([action, words]): each a key's glyph and its words, or the key's name and its words where the
+## key has no glyph (HeldHint lays a caption with a {g} per glyph out glyph by glyph).
+static func _keyed_row(items: Array, systemid: String, sep: String) -> Array:
+	var glyphs: Array = []
+	var parts: Array[String] = []
+	for item: Array in items:
+		var glyph := key_glyph(DesktopBindings.event_for_system(str(item[0]), systemid))
+		var words := str(item[1])
+		if glyph != "":
+			glyphs.append(glyph)
+			parts.append(("%s %s" % [HeldHint.GLYPH_TOKEN, words]).strip_edges())
+		else:
+			parts.append(("%s: %s" % [_key(str(item[0]), systemid), words]) if words != "" else _key(str(item[0]), systemid))
+	# One {g} per glyph: a caption with several lays them out in turn, and one with a single {g} puts its one glyph there.
+	return [glyphs, sep.join(parts)]
+
+
+## The InputPrompts glyph of a keyboard key ("keyboard_ctrl_outline"), or "" for no key or one the set has no glyph for.
+static func key_glyph(event: InputEvent) -> String:
+	var key := event as InputEventKey
+	if key == null:
+		return ""
+	var code := key.physical_keycode if key.physical_keycode != KEY_NONE else key.keycode
+	var text := OS.get_keycode_string(code).to_lower().replace(" ", "_")
+	text = str(KEY_GLYPH_NAMES.get(text, text))
+	var name := "keyboard_%s_outline" % text
+	return name if ResourceLoader.exists("%s/%s%s" % [HeldHint.GLYPH_DIR, name, ConsolePadDiagram.GLYPH_EXT]) else ""
+
+
+## Godot's names for keys where Kenney's file names differ.
+const KEY_GLYPH_NAMES := {"up": "arrow_up", "down": "arrow_down", "left": "arrow_left", "right": "arrow_right", "kp_enter": "numpad_enter",
+	"bracketleft": "bracket_open", "bracketright": "bracket_close", "pageup": "page_up", "pagedown": "page_down", "capslock": "capslock"}
 
 
 ## The buttons by their words ("1 Punch, 2 Kick") when the core named them, else by number ("buttons 1 to 6").
