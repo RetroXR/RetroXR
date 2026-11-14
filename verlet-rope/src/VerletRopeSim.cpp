@@ -2706,16 +2706,38 @@ void VerletRope::KeepTautOutside(PhysicsDirectSpaceState3D *space_state)
     {
         if ((m_mid_contact[s] & 8) == 0)
             continue;
-        const Vector3 sample = m_points[m_seg_a[s]].lerp(m_points[m_seg_b[s]], m_mid_contact_t[s]);
-        const Vector3 off = sample - m_mid_contact_point[s];
-        const double d = off.dot(m_mid_contact_normal[s]);
-        if (d > m_collision_radius * 3.0)
+        const Vector3 seg_a = m_points[m_seg_a[s]];
+        const Vector3 seg_b = m_points[m_seg_b[s]];
+        const Vector3 n = m_mid_contact_normal[s];
+        // The face is finite and the plane kept from it is not: a segment
+        // that has slid off the end of a panel's top went on standing on the
+        // top's plane, a hump in mid air 17 cm past the panel. So the face is
+        // looked for under the segment every tick: where it bears now, then
+        // along it (a stretched segment bridges a narrow top with its middle
+        // well past the edge), and the hold ends when no part of it is over
+        // the face, or it has lifted off.
+        const float tries[4] = {m_mid_contact_t[s], 0.5f, 0.2f, 0.8f};
+        bool there = false;
+        for (int k = 0; k < 4 && !there; ++k)
+        {
+            const Vector3 sample = seg_a.lerp(seg_b, tries[k]);
+            const double d = (sample - m_mid_contact_point[s]).dot(n);
+            if (d > m_collision_radius * 3.0)
+                continue;
+            m_ray_query->set_from(sample + n * m_collision_radius);
+            m_ray_query->set_to(sample - n * (std::max(d, 0.0) + m_collision_radius * 2.0));
+            const Dictionary under = (g_profile_rays += 1, space_state)->intersect_ray(m_ray_query);
+            if (under.is_empty() || under["normal"].operator Vector3().dot(n) <= 0.9)
+                continue;
+            m_mid_contact_point[s] = under["position"];
+            m_mid_contact_t[s] = tries[k];
+            there = true;
+        }
+        if (!there)
         {
             m_mid_contact[s] = 0;
             m_taut_holds -= 1;
         }
-        else
-            m_mid_contact_point[s] += off - m_mid_contact_normal[s] * d;
     }
     const bool have_start = m_tick_from.size() == m_points.size();
     // Whether the cord began this tick with every segment clear: it ended the

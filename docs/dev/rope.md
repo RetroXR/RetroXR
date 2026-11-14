@@ -459,8 +459,13 @@ particle can see the next: one ray a segment, a second when the first hits.
   Each end must also have got there without crossing anything (at a yank a
   segment is on the far side of a panel half a tick on). It is then GIVEN the
   face it was sinking into as its contact (`m_mid_contact` bit 8, kept from the
-  rest pass and from edge handovers, sliding with it, dropped when the cord is
-  slack or it lifts 3 radii off). Without that it is only held after each
+  rest pass and from edge handovers, dropped when the cord is slack or it lifts
+  3 radii off). The face is FINITE: it is looked for under the segment every
+  tick, where it bears and then at 0.5 / 0.2 / 0.8 along it (a stretched
+  segment bridges a 2 cm top with its middle past the edge), and the hold ends
+  when no part of the segment is over it. Carried along as a plane, a segment
+  that slid off the panel's end stood on it in mid air, a 2 cm hump 17 cm
+  past the panel. Without that it is only held after each
   solve: in the solve it gives way, the cord either side sags toward the
   straight line through the panel and all the stretch lands in the two
   segments beside it (400 mm each, the rest slack).
