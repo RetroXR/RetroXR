@@ -83,6 +83,7 @@ func _ready() -> void:
 		await _drag_lag()
 		await _pickup_spill()
 		await _small_items()
+		await _held_only_while_carried()
 	XRServer.remove_tracker(_hand)
 	Engine.max_fps = _max_fps
 	_finish()
@@ -603,7 +604,8 @@ func _haul(ns: Nightstand) -> void:
 		worst_body[0] = maxf(worst_body[0], _drawer_body_error(ns))
 		if i == 80:
 			# About 1 m/s here: under CarryContents' latch speed, so what is in it is ordinary physics, not frozen.
-			mid[0] = ns.lid_on() and not (boxes["drawer"] as RigidBody3D).freeze
+			# Carried: what is in it is held in place (CarryContents), and let go again once it is put down.
+			mid[0] = ns.lid_on() and (boxes["drawer"] as RigidBody3D).freeze
 	mover.queue_free()
 	for i in 10:
 		await get_tree().physics_frame
@@ -615,7 +617,7 @@ func _haul(ns: Nightstand) -> void:
 		await get_tree().physics_frame
 	_ok(worst_lag[0] < 0.004, "haul/the drawer never trails the case it is carried in (worst %.1f mm)" % (
 		worst_lag[0] * 1000.0))
-	_ok(mid[0], "haul/carried, the drawer has its lid on and what is in it is ordinary physics, not frozen")
+	_ok(mid[0], "haul/carried, the drawer has its lid on and what is in it is held in place")
 	_ok(not ns.lid_on(), "haul/put down, the lid is off: nothing invisible left in the drawer")
 	_ok(worst_body[0] < 0.02, "haul/the drawer's COLLISION body keeps up with the case while carried (worst %.1f mm)" % (
 		worst_body[0] * 1000.0))
@@ -1377,7 +1379,8 @@ func _pickup_spill() -> void:
 			piece.global_transform = start
 			for i in 40:
 				await get_tree().physics_frame
-			var loose_held := things.all(func(th: RigidBody3D) -> bool: return not th.freeze)
+			# Held still, still carried: held in place until it is put down.
+			var latched_held := things.all(func(th: RigidBody3D) -> bool: return th.freeze)
 			piece.freeze = false
 			piece.collision_layer = 4
 			piece.collision_mask = 196613
@@ -1388,9 +1391,9 @@ func _pickup_spill() -> void:
 				var inner: AABB = (piece as DrawerFurniture)._drawers[0]["inner"] if piece is DrawerFurniture 					else Nightstand.DRAWER_INNER
 				if not th.freeze and inner.grow(0.02).has_point(body.global_transform.affine_inverse() * th.global_position):
 					still += 1
-			_ok(loose_held and still == things.size(),
-				"again/%s by %s, set down and let go: everything in it is ordinary physics again and still in it (%d of %d; loose while held still: %s)" % [
-				kind, how, still, things.size(), loose_held])
+			_ok(latched_held and still == things.size(),
+				"again/%s by %s, set down and let go: everything in it is ordinary physics again and still in it (%d of %d; held in place while carried: %s)" % [
+				kind, how, still, things.size(), latched_held])
 			for th in things:
 				th.queue_free()
 			piece.queue_free()
@@ -1484,3 +1487,80 @@ func _small_items() -> void:
 				c.queue_free()
 			piece.queue_free()
 			await _ticks(3)
+
+## The whole unit carried holds what is in it in place; a drawer slid with the unit standing does not (what is in it
+## rides and jostles by physics); and a thing a hand takes out of a carried drawer is loose again when it is let go,
+## never left frozen in the air (xr-tools restores the freeze it FOUND, which was the carry's).
+func _held_only_while_carried() -> void:
+	var piece := (ScenePersistence.PLAIN_SCENES["nightstand"] as PackedScene).instantiate() as Nightstand
+	piece.position = Vector3(2.5, 0.0, 3.5)
+	add_child(piece)
+	for i in 30:
+		await get_tree().physics_frame
+	var d := piece.drawer()
+	d.set_value_no_signal(0.3)
+	for i in 10:
+		await get_tree().physics_frame
+	# A plain pickable (the TV remote's own toggle-hold re-grabs it after a drop, which is the remote's business):
+	# a box as a cartridge or a book is held, with continuous collision on as HeldObjectPhysics gives every pickable.
+	var remote := XRToolsPickable.new()
+	remote.name = "PlainPickable"
+	var rcs := CollisionShape3D.new()
+	var rbox := BoxShape3D.new()
+	rbox.size = Vector3(0.05, 0.0225, 0.175)
+	rcs.shape = rbox
+	remote.add_child(rcs)
+	remote.collision_layer = 4
+	remote.collision_mask = 196613
+	remote.linear_damp = 5.0
+	add_child(remote)
+	remote.global_transform = piece.global_transform * Transform3D(Basis(), piece.drawer_seat_local() + Vector3(0.06, 0.02, 0.0))
+	for i in 60:
+		await get_tree().physics_frame
+	# Standing, the drawer slid out: what is in it is never frozen and rides out with it.
+	var rest := remote.global_position
+	var ever_frozen := false
+	d.set_value(0.9)
+	for i in 60:
+		await get_tree().physics_frame
+		ever_frozen = ever_frozen or remote.freeze
+	var rode := (remote.global_position - rest).dot(piece.global_basis.z)
+	_ok(not ever_frozen and rode > 0.1, "again/a drawer slid with the unit standing leaves what is in it loose; it rides (%.0f mm, frozen %s)" % [
+		rode * 1000.0, ever_frozen])
+	# Carried (held, standing still even): held in place.
+	piece.freeze = true
+	piece.collision_layer = piece.picked_up_layer
+	piece.collision_mask = 0
+	for i in 4:
+		await get_tree().physics_frame
+	_ok(remote.freeze and remote.collision_layer == piece.picked_up_layer,
+		"again/the unit carried, what is in it is held in place, on the held layer (frozen %s, layer %d)" % [
+		remote.freeze, remote.collision_layer])
+	# A hand takes it out of the carried drawer and lets it go: loose, on its own layer.
+	_pickup.name = "FakePickupAside"
+	var hand := load("res://addons/godot-xr-tools/functions/function_pickup.tscn").instantiate() as Node3D
+	hand.name = "FunctionPickup"
+	_ctrl.add_child(hand)
+	_place(remote.global_position)
+	await _ticks(3)
+	hand._pick_up_object(remote)
+	for i in 6:
+		await get_tree().physics_frame
+	_place(remote.global_position + Vector3(0.3, 0.3, 0.0))
+	for i in 6:
+		await get_tree().physics_frame
+	hand.drop_object()
+	for i in 10:
+		await get_tree().physics_frame
+	_ok(not remote.freeze and remote.collision_layer == 4,
+		"again/taken out of a carried drawer by a hand and let go, it is loose (frozen %s, layer %d)" % [
+		remote.freeze, remote.collision_layer])
+	piece.freeze = false
+	piece.collision_layer = 4
+	piece.collision_mask = 196613
+	hand.queue_free()
+	_pickup.name = "FunctionPickup"
+	_place(FAR)
+	remote.queue_free()
+	piece.queue_free()
+	await _ticks(3)
