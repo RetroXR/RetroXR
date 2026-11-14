@@ -19,6 +19,8 @@
 ##   pair/     a cockpit of two seats (Lucky & Wild): each sat in and got up from on its own side, one at a time, no pointer box over either cushion
 ##   contract/ every RETRO XR seat and bed (ContractSeat) builds from its contract: its places, eyes at a sitting (or lying)
 ##             height looking the right way, stand points on the floor beside it, and a press on EACH place sits there
+##   getup/    getting up finds a floor: a seat against a wall stands you up in the room, not past the wall; a tipped or
+##             held seat is not sat on; the body seated does not gather speed; the desktop capsule is tall again at once
 ##   save/     the RETRO XR seats and beds are plain scenes, spawned by their tokens and on the Objects tab; the six old
 ##             primitive seats (removed 2026-11-12) stay gone
 extends "res://Tests/test_suite.gd"
@@ -79,6 +81,8 @@ func _run() -> void:
 		await _group_pair()
 	if _want("contract"):
 		await _group_contract()
+	if _want("getup"):
+		await _group_getup()
 	if _want("save"):
 		await _group_save()
 
@@ -790,6 +794,113 @@ func _group_contract() -> void:
 			_ok(ends_ok, "contract: %s's left and right places get up on their own sides" % id)
 		seat.free()
 		await _frames(1)
+	_drop_rig()
+	await _frames(2)
+
+
+# --- getup ---------------------------------------------------------------------
+
+func _box_body(size: Vector3, at: Vector3) -> StaticBody3D:
+	var b := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
+	cs.shape = box
+	cs.position = at
+	b.add_child(cs)
+	return b
+
+
+func _furniture(id: String, at: Vector3) -> ContractSeat:
+	var seat := (ScenePersistence.PLAIN_SCENES[id] as PackedScene).instantiate() as ContractSeat
+	seat.freeze = true
+	seat.position = at
+	add_child(seat)
+	return seat
+
+
+func _press_place(p: Dictionary) -> void:
+	var t := p["trigger"] as SeatTrigger
+	t.pointer_event(_event(XRToolsPointerEvent.Type.PRESSED, t))
+
+
+func _group_getup() -> void:
+	_make_rig()
+	await _frames(2)
+	_body.enabled = true
+	# The Bedroom's floor (5.2 x 4.4, 0.2 thick) and its east wall, the inner face at x = 2.6.
+	var room := Node3D.new()
+	add_child(room)
+	room.add_child(_box_body(Vector3(5.2, 0.2, 4.4), Vector3(0.0, -0.1, 0.0)))
+	room.add_child(_box_body(Vector3(0.15, 2.6, 4.4), Vector3(2.675, 1.3, 0.0)))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	# Pushed up to the wall on the side its stand point is: every place gets up in the room, on the floor (it had
+	# the player past the wall, with no floor under them, falling forever: 2026-11-15).
+	for row: Array in [["stool_mission", 0.19], ["bed_captain", 0.83], ["sofa_overstuffed", 1.07], ["floor_cushion_square", 0.35]]:
+		var seat := _furniture(row[0], Vector3(2.6 - float(row[1]) - 0.01, 0.0, 0.0))
+		await _frames(2)
+		for p: Dictionary in seat.places():
+			_press_place(p)
+			var sat := seat.is_occupied()
+			seat.stand()
+			var cam := _camera.global_position
+			_ok(sat and not seat.is_occupied() and cam.x < 2.6 - 0.15 and absf(cam.z) < 2.2 and _near(_origin.global_position.y, 0.0, 1e-3),
+				"getup: %s %s against the wall gets up in the room, on the floor (head at %s)" % [row[0], (p["eye"] as Node).name, str(cam)])
+		seat.free()
+		await _frames(1)
+	# In the open the stand point is where the player gets up, as before.
+	var open := _furniture("stool_mission", Vector3(-0.5, 0.0, 0.0))
+	await _frames(2)
+	_press_place(open.places()[0])
+	var sp := open.stand_point()
+	open.stand()
+	_ok(_near(_camera.global_position.x, sp.x, 1e-3) and _near(_camera.global_position.z, sp.z, 1e-3),
+		"getup: with room at it, the stand point is where the player gets up")
+	# Seated, the body does not gather speed (a headset's origin lifted to the eyes leaves it in the air).
+	_press_place(open.places()[0])
+	_body.velocity = Vector3(0.0, -30.0, 0.0)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_ok(open.is_occupied() and _body.velocity.length() < 1.0, "getup: seated, the body's speed is held at nothing (%s)" % str(_body.velocity))
+	# The desktop camera is put back up on getting up, and the body's capsule is that tall at once: no fall, no dip.
+	open.stand()
+	var cap := _body.get("_capsule_shape") as CapsuleShape3D
+	var tall := clampf(_camera.position.y + _body.player_head_height + _body.player_height_offset, _body.player_height_min, _body.player_height_max)
+	_ok(cap != null and _near(cap.height, tall, 1e-3),
+		"getup: the capsule is standing height at once (%.3f, want %.3f: camera %.3f, head %.3f, offset %.3f)" % [
+		cap.height if cap != null else -1.0, tall, _camera.position.y, _body.player_head_height, _body.player_height_offset])
+	var low := 0.0
+	for i in 60:
+		await get_tree().physics_frame
+		low = minf(low, _origin.global_position.y)
+	_ok(low > -0.002, "getup: and the view does not dip after getting up (lowest origin %.3f)" % low)
+	# Knocked over: not sat on.
+	var at := open.global_position
+	open.global_transform = Transform3D(Basis(Vector3.BACK, PI * 0.5), at)
+	await get_tree().physics_frame
+	_ok(not open.sit() and Seat.current == null, "getup: a seat on its side is not sat on")
+	open.global_transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(10.0)), at)
+	await get_tree().physics_frame
+	_ok(open.sit() and Seat.current == open, "getup: a seat leaning 10 degrees still is")
+	open.stand()
+	open.free()
+	# In a hand: not sat on.
+	var held_script := GDScript.new()
+	held_script.source_code = "extends Seat
+func is_picked_up() -> bool:
+	return true
+"
+	held_script.reload()
+	var held := (load("res://Tests/fixtures/seat_chair.tscn") as PackedScene).instantiate() as Seat
+	held.set_script(held_script)
+	held.freeze = true
+	held.position = Vector3(-1.5, 0.0, 1.0)
+	add_child(held)
+	await _frames(2)
+	_ok(not (held.call("sit") as bool) and Seat.current == null, "getup: a seat in a hand is not sat on")
+	held.free()
+	room.free()
 	_drop_rig()
 	await _frames(2)
 

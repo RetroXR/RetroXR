@@ -452,6 +452,24 @@ func reset_for_new_world() -> void:
 		global_transform = parent.global_transform
 
 
+## RetroXR: the capsule made the height the view now asks for at once, rather than grown into at
+## player_height_rate. A seat that has just put the desktop camera back up to standing height
+## calls it (SeatSitting.stand): grown, the capsule was short for a few ticks, so the body hung
+## over the floor under the view, fell, and took the view down 5-10 cm, leaving it 7 mm under the
+## floor (2026-11-15). A height override (crouch) in use is left to its own slew.
+func snap_height() -> void:
+	if _player_height_override_enabled or _capsule_shape == null or _collision_node == null \
+			or not is_instance_valid(camera_node):
+		return
+	var ws := XRServer.world_scale
+	var h : float = clamp(
+			camera_node.transform.origin.y + player_head_height * ws + player_height_offset * ws,
+			player_height_min * ws, player_height_max * ws)
+	h = max(h, player_radius * ws)
+	_capsule_shape.height = h
+	_collision_node.transform.origin.y = h / 2.0
+
+
 ## Teleport the player body.
 ## This moves the player without checking for collisions.
 func teleport(target : Transform3D) -> void:
