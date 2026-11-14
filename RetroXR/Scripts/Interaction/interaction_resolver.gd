@@ -7,9 +7,10 @@
 ##   * WORLD IS IN THE MASK, so a wall, a desk or a bookcase is a hit that ends
 ##     the walk. Occlusion is not a separate test bolted onto the result; a wall
 ##     is simply nearer than what is behind it.
-##   * AN AREA IS NOT A SURFACE. A grab zone that is switched off, or holding
-##     nothing, is a volume hanging in the air — the walk sees through it and
-##     carries on. A BODY that yields nothing is the object itself and blocks.
+##   * AN AREA IS NOT A SURFACE. A grab zone -- a socket's reach sphere, holding
+##     something or not -- is a volume hanging in the air: the walk sees through
+##     it and carries on. What a socket holds is reached by its own body. A
+##     BODY that yields nothing is the object itself and blocks.
 ##     Without this the NES's bay zone cast a dead cap over the whole console
 ##     whenever its flap was shut: not the cart (right) and not the console
 ##     (wrong), just nothing at all.
@@ -82,7 +83,6 @@ static func resolve_desktop(
 
 	var exclude: Array[RID] = []
 	var found: InteractionTarget = null
-	var socket: InteractionTarget = null
 
 	for _step in MAX_STEPS:
 		var query := PhysicsRayQueryParameters3D.create(from, to, QUERY_MASK)
@@ -95,23 +95,17 @@ static func resolve_desktop(
 		if hit.collider is Node and (hit.collider as Node).has_meta(POINTER_BY_AREA):
 			exclude.append(hit.rid)
 			continue
+		# A socket's REACH SPHERE is an affordance volume, not a surface: it is
+		# invisible, far bigger than the part it holds, and it overlaps its
+		# neighbors. A console's socket on an expansion unit reaches 160 mm, and
+		# even as a fallback it handed you the console when you pointed at the air
+		# beside the stack. What the socket holds is reached by its own body.
+		if hit.collider is XRToolsSnapZone:
+			exclude.append(hit.rid)
+			continue
 
 		var target := _classify(hit, from, grabber)
 		if target.is_valid():
-			# A socket's REACH SPHERE is an affordance volume, not a surface: it is
-			# invisible, far bigger than the part it holds, and it overlaps its
-			# neighbours. The NES bay's stands 51 mm out through the top of the
-			# deck, and a console's three phono sockets are 120 mm across with
-			# their centres a few tens of mm apart. Taken as a surface it hands you
-			# the cartridge when you point at solid casework, and the nearest plug
-			# when you point at the one behind it. Held back as a fallback, the
-			# plug's OWN body answers first and the sphere only catches an aim that
-			# nothing else claims.
-			if hit.collider is XRToolsSnapZone:
-				if socket == null:
-					socket = target
-				exclude.append(hit.rid)
-				continue
 			if found == null:
 				# Keep walking a little further: this may be the shell around the
 				# control that was actually meant.
@@ -132,18 +126,9 @@ static func resolve_desktop(
 		if hit.collider is Area3D or _is_socketed(hit.collider):
 			exclude.append(hit.rid)
 			continue
-		return _best(found, socket)
+		break
 
-	return _best(found, socket)
-
-
-## What the walk actually reached, preferring a real surface over a socket's reach.
-static func _best(found: InteractionTarget, socket: InteractionTarget) -> InteractionTarget:
-	if found != null:
-		return found
-	if socket != null:
-		return socket
-	return InteractionTarget.none()
+	return found if found != null else InteractionTarget.none()
 
 
 ## A control is something you operate rather than pick up — the kind that is
@@ -169,15 +154,6 @@ static func _classify(
 			return _make_target(InteractionTarget.KIND_BUTTON, hit.collider as Node3D,
 				node as Node3D, node as Node3D, node as Node3D,
 				hit.position, distance, true, false)
-
-		if node is XRToolsSnapZone:
-			var zone := node as XRToolsSnapZone
-			var seated := held_pickable(zone)
-			if seated == null or not is_instance_valid(grabber) \
-					or not zone.can_pick_up(grabber):
-				return InteractionTarget.none()
-			return _make_target(InteractionTarget.KIND_SNAP_PICKABLE, hit.collider as Node3D,
-				zone, seated, null, hit.position, distance, false, true)
 
 		if node is XRToolsPickable:
 			var pickable := node as XRToolsPickable
