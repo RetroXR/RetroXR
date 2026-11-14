@@ -2184,6 +2184,17 @@ func _group_hold() -> void:
 	_ok(taken and off < 0.001 and reach > 1.0 and rope.hold_count() == 0,
 		"hold/a held spot stays in the hand past the cord's reach",
 		"0.30 m of cord from the socket, held %.2f m from it, %.1f mm off the hand" % [reach, off * 1000.0])
+	# A room change takes the rig (and this node with it) out of the tree and
+	# puts it back in a room of other cords: it must find them.
+	var mid_was: Vector3 = rope.point_position(15)
+	var found_before: int = int(grab.nearest_to_point(mid_was, 0.05).get("index", -1))
+	remove_child(grab)
+	var later := _rope_between(base + Vector3(-0.3, 2.5, 0), base + Vector3(0.3, 2.5, 0), 20, 0.03)
+	add_child(grab)
+	var near_new: Dictionary = grab.nearest_to_point(later.point_position(10), 0.05)
+	_ok(found_before >= 0 and near_new.get("rope") == later,
+		"hold/cords are found again after the rig leaves the tree and comes back",
+		"before %d, the new room's cord found %s" % [found_before, near_new.get("rope") == later])
 	grab.free()
 	await _drop_case()
 

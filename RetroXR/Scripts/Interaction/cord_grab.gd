@@ -67,6 +67,15 @@ func _exit_tree() -> void:
 		instance = null
 	if get_tree().node_added.is_connected(_on_node_added):
 		get_tree().node_added.disconnect(_on_node_added)
+	# A room change takes the player's rig out of the old room and seats it in
+	# the new one: this node leaves the tree and comes back. What it knew is
+	# the old room's cords, and it must look and listen again. (Left "known",
+	# it never reconnected, and no cord in any room after the first could be
+	# taken until the app was restarted.)
+	_ropes_known = false
+	_ropes.clear()
+	_grip_down.clear()
+	print("[CordGrab] left the tree: the room's cords are looked for afresh on return")
 
 
 # ── the cords in the room ─────────────────────────────────────────────────────
