@@ -49,6 +49,9 @@ enum Side { LEFT, RIGHT }
 @onready var _boxes: Array[SpeakerBox] = [$SpeakerL, $SpeakerR]
 @onready var _rope: VerletRope = $VerletRope
 @onready var _line_in: TrsPort = $SpeakerR/LineIn
+## The headphone jack on the right box's front (a 3.5 mm OUT). A lead in it to a sink (the headphones) takes the
+## pair's sound: the source's voices go where that sink says, and the boxes are silent, as on a real pair.
+@onready var _phones: TrsPort = get_node_or_null("SpeakerR/PhonesOut") as TrsPort
 @onready var _knob: VRKnob = $SpeakerR/VolumeKnob
 
 ## The knob's click: below this the amplifier is off and the LED dark.
@@ -58,13 +61,16 @@ const LED_DARK := Color8(14, 44, 20)
 ## The old primitive meshes, hidden once a model dresses the box (the nodes are kept).
 const OLD_MESHES: Array[String] = ["Cabinet", "Baffle", "Cone", "DustCap", "Port", "BackLabel"]
 ## The model's empties, renamed `<name>Mouth` so a recursive find meets the scene's node.
-const MOUTHS: Array[String] = ["CableBoss", "LineIn", "DriverCentre"]
+const MOUTHS: Array[String] = ["CableBoss", "LineIn", "PhonesOut", "DriverCentre"]
 
 var _led_mat: StandardMaterial3D = null
 var _led_on: Variant = null
 
 ## The device currently feeding these speakers, or null.
 var _source: Node3D = null
+
+## What the headphone jack's lead reaches (a sink: get_speaker_positions), or null: then the boxes play.
+var _phones_sink: Node3D = null
 
 ## Which colour the pair is in (SpeakerFinish: "" black as it comes, "beige"), both boxes
 ## alike. Set before the pair enters the room (the spawn menu's held row, a restore); the
@@ -144,6 +150,10 @@ func _dress_right(box: SpeakerBox, model: ApplianceModel) -> void:
 		DeckFace.seat_port(model, _line_in, "LineInMouth")
 	else:
 		push_warning("[Speaker] %s: the model has no LINE IN socket" % name)
+	if _phones != null and model.part("PhonesOutMouth") != null:
+		DeckFace.seat_port(model, _phones, "PhonesOutMouth")
+	elif _phones != null:
+		push_warning("[Speaker] %s: the model has no headphone jack; PhonesOut stays where the scene put it" % name)
 	var cap := model.part("VolumeKnob")
 	if cap != null:
 		var ab := ApplianceModel.node_bounds(cap, box)
@@ -269,16 +279,58 @@ func _is_held(box: SpeakerBox) -> bool:
 
 # ── the sink contract ────────────────────────────────────────────────────────
 
-## Nothing to do here: speakers are a sink, and every routing decision is the
-## source's. It exists so RcaPort.get_device() recognises this pair as a device at
-## all — that is the whole of the interface, exactly as it is on a television.
+## Speakers are a sink, and every routing decision is the source's: it exists so
+## RcaPort.get_device() recognises this pair as a device at all, as on a television.
+## The one thing the pair decides is its headphone jack, as a set does its own
+## (RetroTV.on_av_topology_changed): what its lead reaches, told it is carrying us.
 func on_av_topology_changed(_links: Array) -> void:
-	pass
+	var was := phones_sink()
+	_phones_sink = _resolve_phones()
+	var now := phones_sink()
+	if now == was:
+		return
+	if is_instance_valid(was) and was.has_method("on_av_source_lost"):
+		was.on_av_source_lost(self)
+	if now != null and now.has_method("on_av_source_found"):
+		now.on_av_source_found(self)
+	_push_volume()
+	print("[Speaker] %s: headphone jack -> %s" % [name, String(now.name) if now != null else "<none>, the boxes play"])
+
+
+## The sink on the far end of the headphone jack's lead, or null.
+func _resolve_phones() -> Node3D:
+	if not is_instance_valid(_phones):
+		return null
+	for link: Dictionary in AvGraph.links_for(self):
+		if link["out"] != _phones:
+			continue
+		var target: Node3D = (link["in"] as RcaPort).get_device()
+		if target != null and target != self and target.has_method("get_speaker_positions"):
+			return target
+	return null
+
+
+## What the headphone jack carries the sound to, or null while the boxes play.
+func phones_sink() -> Node3D:
+	return _phones_sink if is_instance_valid(_phones_sink) else null
+
+
+## The distance law's reference of what this pair's sound plays through: the jack's sink's own (a pair of headphones)
+## or -1, the source's own. Read every frame by the machines and decks feeding the pair.
+func get_audio_unit_size() -> float:
+	var phones := phones_sink()
+	if phones != null and phones.has_method("get_audio_unit_size"):
+		return float(phones.call("get_audio_unit_size"))
+	return -1.0
 
 
 ## Where the sound comes from, LEFT FIRST. Read every frame by whatever is feeding
-## us, so moving a cabinet moves its channel with it.
+## us, so moving a cabinet moves its channel with it. With a lead in the headphone
+## jack, the sink's (the headphones' cups): the boxes fall silent.
 func get_speaker_positions() -> PackedVector3Array:
+	var phones := phones_sink()
+	if phones != null:
+		return phones.get_speaker_positions()
 	return PackedVector3Array([
 		($SpeakerL/ConeFront as Node3D).global_position,
 		($SpeakerR/ConeFront as Node3D).global_position,
@@ -332,11 +384,26 @@ func _push_volume() -> void:
 	if _source.has_method("on_line_out_level_changed"):
 		_source.on_line_out_level_changed()
 	else:
-		AvSourceContract.push_volume(_source, _volume)
+		AvSourceContract.push_volume(_source, get_volume())
 
 
+## The level this pair hands its source: the knob, times the headphones' own level while they are on the jack (the
+## knob is the amplifier's, and the headphones are on its output).
 func get_volume() -> float:
+	var phones := phones_sink()
+	if phones != null and phones.has_method("get_volume"):
+		return _volume * float(phones.call("get_volume"))
 	return _volume
+
+
+## The knob alone, which is what a save keeps.
+func knob_volume() -> float:
+	return _volume
+
+
+## The headphones on the jack say their level moved (they push it at whatever they are plugged into): fold it in.
+func on_line_out_level_changed() -> void:
+	_push_volume()
 
 
 ## Set the knob and the level together — used by save/restore, which has no hand to

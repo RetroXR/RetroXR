@@ -1125,9 +1125,10 @@ func _m_pair() -> void:
 	var rope := pair.get_node("VerletRope") as VerletRope
 	_ok(rope.start_node == pair.get_node("SpeakerL/CableBoss") and rope.end_node == pair.get_node("SpeakerR/CableBoss"),
 		"the wire runs between the two grommets")
+	_on_mouth(right, right.get_node("PhonesOut") as Node3D, "PhonesOutMouth", "SpeakerR headphone jack")
 	var ports := pair.find_children("*", "Port", true, false)
-	_ok(ports.size() == 1 and ports[0] == right.get_node("LineIn"),
-		"no speaker-wire clips: LINE IN is the pair's one socket (%d)" % ports.size())
+	_ok(ports.size() == 2 and ports.has(right.get_node("LineIn")) and ports.has(right.get_node("PhonesOut")),
+		"no speaker-wire clips: LINE IN and the headphone jack are the pair's only sockets (%d)" % ports.size())
 
 
 func _m_led() -> void:

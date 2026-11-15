@@ -30,6 +30,7 @@ const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
 const RCA_CABLE := preload("res://Scenes/Objects/cables/composite_cable.tscn")
 const CD_SCENE := preload("res://Scenes/Objects/appliances/cd_player.tscn")
 const CASSETTE_SCENE := preload("res://Scenes/Objects/appliances/cassette_player.tscn")
+const PAIR_SCENE := preload("res://Scenes/Objects/appliances/speaker_pair.tscn")
 
 var _only := ""
 var _spawned: Array[Node] = []
@@ -71,7 +72,7 @@ func _ready() -> void:
 	add_child(_cam)
 	_cam.current = true
 	for c: Array in [["scene", _t_scene], ["jack", _t_jack], ["tv", _t_tv], ["cd", _t_cd], ["cassette", _t_cassette],
-			["sound", _t_sound], ["wear", _t_wear],
+			["pair", _t_pair], ["sound", _t_sound], ["wear", _t_wear],
 			["save", _t_save], ["ray", _t_ray]]:
 		if not _only.is_empty() and not String(c[0]).begins_with(_only):
 			continue
@@ -241,6 +242,47 @@ func _t_tv() -> void:
 	await _wait(6)
 	_ok(is_equal_approx(tv.audio().volume_for(RetroTV.Source.COMPOSITE_1), tv.audio().volume() * Headphones.LEVEL),
 		"tv/and at the set's level times the headphones' (%.2f)" % Headphones.LEVEL)
+
+
+# ── pair/ ─────────────────────────────────────────────────────────────────────
+
+## The computer speakers' headphone jack: on the RIGHT box's front only, on the model's mouth. Headphones in it take
+## the pair's sound (its positions, its distance law, its level times theirs); pulled, the boxes play again.
+func _t_pair() -> void:
+	var hp := _headphones(Vector3(0, 1, 1))
+	var pair := PAIR_SCENE.instantiate() as SpeakerPair
+	add_child(pair)
+	_spawned.append(pair)
+	pair.position = Vector3(3, 1, 0)
+	for side: String in ["SpeakerL", "SpeakerR"]:
+		(pair.get_node(side) as RigidBody3D).freeze = true
+	await _wait(10)
+	var jack := pair.get_node_or_null("SpeakerR/PhonesOut") as TrsPort
+	_ok(jack != null and jack.direction == RcaPort.Direction.OUT, "pair/the right box has a headphone jack, an OUT")
+	_ok(pair.get_node_or_null("SpeakerL/PhonesOut") == null, "pair/the left box has none")
+	if jack == null:
+		return
+	var model := pair.get_node("SpeakerR/Model") as ApplianceModel
+	var mouth := model.part("PhonesOutMouth")
+	_ok(mouth != null and jack.global_position.distance_to(mouth.global_position) < 0.002,
+		"pair/it sits on the model's jack mouth", str(jack.global_position - mouth.global_position) if mouth else "no mouth")
+	var box := pair.get_node("SpeakerR") as Node3D
+	_ok(jack.global_basis.z.dot(box.global_basis.z) > 0.999, "pair/and faces out of the FRONT (%s)" % jack.global_basis.z)
+	var boxes := pair.get_speaker_positions()
+	_ok(pair.phones_sink() == null and pair.get_audio_unit_size() <= 0.0, "pair/with nothing in it the boxes play")
+	pair.set_volume(0.5)
+	await _seat(hp, pair)
+	_ok(pair.phones_sink() == hp, "pair/headphones in the jack are its sink", str(pair.phones_sink()))
+	_ok(pair.get_speaker_positions() == hp.get_speaker_positions(), "pair/its sound plays at the cups, not the boxes")
+	_ok(is_equal_approx(pair.get_audio_unit_size(), Headphones.UNIT_SIZE),
+		"pair/at the headphones' near-ear distance law (%.2f m)" % pair.get_audio_unit_size())
+	_ok(is_equal_approx(pair.get_volume(), 0.5 * Headphones.LEVEL) and is_equal_approx(pair.knob_volume(), 0.5),
+		"pair/at the knob's level times the headphones' (%.3f), the knob kept as it is" % pair.get_volume())
+	_ok(hp.source() == pair, "pair/the headphones know who they are carrying", str(hp.source()))
+	hp.net_release_plug(1, 0)
+	await _wait(30)
+	_ok(pair.phones_sink() == null and pair.get_speaker_positions() == boxes and is_equal_approx(pair.get_volume(), 0.5),
+		"pair/pulled, the boxes play again at the knob's level")
 
 
 # ── cd/ ───────────────────────────────────────────────────────────────────────

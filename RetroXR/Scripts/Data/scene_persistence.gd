@@ -3444,7 +3444,7 @@ func _surround_amp_fields(amp: SurroundAmp, _node_to_id: Dictionary) -> Dictiona
 func _speaker_pair_fields(pair: SpeakerPair, _node_to_id: Dictionary) -> Dictionary:
 	return {
 		"boxes": pair.box_poses(),
-		"volume": pair.get_volume(),
+		"volume": pair.knob_volume(),
 	}
 
 

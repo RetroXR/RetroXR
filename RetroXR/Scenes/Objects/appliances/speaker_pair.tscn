@@ -262,6 +262,13 @@ modulate = Color(0.2, 0.18, 0.15, 1)
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0.024, 0.060, -0.0445)
 direction = 1
 
+; The headphone jack, on the FRONT under the grille beside the LED (the model's PhonesOut mouth, which
+; SpeakerPair._dress_right seats it on). An OUT: a lead in it to the headphones takes the pair's sound
+; (SpeakerPair.phones_sink), as a set's jack does. Facing out of the front, so identity.
+[node name="PhonesOut" parent="SpeakerR" instance=ExtResource("3_trsport")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.024, 0.030, 0.0445)
+direction = 0
+
 ; The volume knob, on the FRONT baffle where a hand can reach it.
 ;
 ; KnobPivot's local Z already points out of the baffle, which is what VRKnob turns

@@ -201,6 +201,15 @@ speaker_tests' faces/ cases and `Tools/gen`).
   `ApplianceModel`'s level scenes to them; it is the object's `model_variant`, so the save, object sync and the spawn
   rows' held colours (`SpeakerFinish.VARIANTS`: Black as it comes, Beige) need nothing of their own. It must be set
   before the object enters the tree (the model builds its levels in `_ready`); a late one is refused and logged.
+- **The computer pair's headphone jack (2026-11-15).** The RIGHT box (the one with LINE IN and the knob) has a 3.5 mm
+  OUT on its front, `SpeakerR/PhonesOut` on the model's `PhonesOut` mouth, a printed headphone icon beside it and no
+  words; its logo moved under the control row. It works as a set's jack does (`RetroTV`): `on_av_topology_changed`
+  finds what the jack's lead reaches (`phones_sink()`, a sink answering `get_speaker_positions`), tells it
+  `on_av_source_found(self)`, and while it is there `get_speaker_positions()` and `get_audio_unit_size()` are the
+  sink's, so the source puts its voices in the cups and the boxes are silent. The level the pair hands its source is
+  the knob times the headphones' `get_volume()` (`get_volume`); the save keeps the knob alone (`knob_volume`). Each box's
+  back says LEFT or RIGHT above the logo. `headphones_tests pair/` (mutation-checked), `speaker_tests` (LINE IN and the
+  jack are the pair's only sockets).
 - **The satellite's input is an RCA phono jack in the rear cup** (the concept drew spring terminals), seated by
   `Loudspeaker._dress` on the model's `SpeakerIn` mouth where the scene's socket always was (centre line, 42 mm up);
   `ConeFront` moves onto the model's `DriverCentre`; `BackLabel` is hidden (the model prints the back); body and

@@ -13,6 +13,20 @@
  "master": "computer_right_high",
  "markers": [
   {
+   "node": "PhonesOut",
+   "position": [
+    -0.024,
+    0.03,
+    0.0443
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the headphone jack's mouth (3.5 mm TRS OUT); local +Z (glTF) points out of the front, a plug goes in along -Z"
+  },
+  {
    "node": "CableBoss",
    "position": [
     -0.025,
@@ -61,10 +75,10 @@
   "PowerLed"
  ],
  "triangles": {
-  "high": 19460,
-  "lod0": 2780,
-  "lod1": 1648,
-  "lod2": 1246
+  "high": 22040,
+  "lod0": 3004,
+  "lod1": 1800,
+  "lod2": 1374
  },
  "variant": "right",
  "grille": {
