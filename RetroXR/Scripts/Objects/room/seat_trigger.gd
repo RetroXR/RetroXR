@@ -21,6 +21,8 @@ extends Area3D
 
 const POINTABLE_LAYER := 1 << 20
 const HOVER_COLOR := Color(WidgetOutline.SELECT_COLOR, 0.22)
+## How far over the trigger box's top the light is drawn, metres.
+const HOVER_LIFT := 0.02
 ## How far the laser's slab reaches past the cushion while somebody sits on it, metres: forward (the seat's -Z) and to each side.
 const STAND_REACH_FORWARD := 0.6
 const STAND_REACH_SIDE := 0.2
@@ -52,17 +54,23 @@ func _ready() -> void:
 	monitoring = false
 	var shape := get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if shape != null and shape.shape is BoxShape3D:
+		# The light is the place's TOP only, a flat square HOVER_LIFT over the trigger's box. It was the whole box, whose
+		# top a bed's contract sets AT the comforter's top: the two z-fought in patches. Depth-tested still, so a sofa's
+		# arms and back hide it (with no depth test it was drawn over the arm).
 		_hover = MeshInstance3D.new()
 		_hover.name = "SeatHover"
-		var box := BoxMesh.new()
-		box.size = (shape.shape as BoxShape3D).size
+		var size := (shape.shape as BoxShape3D).size
+		var quad := PlaneMesh.new()
+		quad.size = Vector2(size.x, size.z)
 		var mat := StandardMaterial3D.new()
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		mat.albedo_color = HOVER_COLOR
-		box.material = mat
-		_hover.mesh = box
-		_hover.transform = shape.transform
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mat.render_priority = 9
+		quad.material = mat
+		_hover.mesh = quad
+		_hover.transform = shape.transform.translated_local(Vector3(0.0, size.y * 0.5 + HOVER_LIFT, 0.0))
 		_hover.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_hover.visible = false
 		add_child(_hover)

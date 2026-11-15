@@ -131,6 +131,52 @@ static func resolve_desktop(
 	return found if found != null else InteractionTarget.none()
 
 
+## What the desktop's menu key (Tab) opens a menu over: the object along the camera's aim, or null (the spawn menu).
+## The same walk as `resolve_desktop` -- one mask, nearest hit -- read for the object whose menu it is rather than for
+## what a press would do: anything with a menu of its own (`toggle_options_ui`), else any pickable (a lock is a verb
+## every pickable has). It used to cast against the POINTER layer alone, so it met only what a laser presses: on a piece
+## of furniture with drawers that is the drawer pulls and nothing else -- its case, its drawer fronts, its doors and its
+## shelves are pickable bodies -- and Tab opened the furniture's menu only when the crosshair was on a pull, and the
+## spawn menu otherwise. Nor did it stop at a wall. A volume (an area that is no object's, a snap zone's reach) is seen
+## through, as is a body marked POINTER_BY_AREA; a surface that is no object's (a wall) stops it.
+static func options_host(space_state: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3) -> Node3D:
+	if space_state == null:
+		return null
+	var exclude: Array[RID] = []
+	for _step in MAX_STEPS:
+		var query := PhysicsRayQueryParameters3D.create(from, to, QUERY_MASK)
+		query.collide_with_bodies = true
+		query.collide_with_areas = true
+		query.exclude = exclude
+		var hit := space_state.intersect_ray(query)
+		if hit.is_empty():
+			return null
+		var collider := hit.collider as Node
+		if collider == null or collider.has_meta(POINTER_BY_AREA) or collider is XRToolsSnapZone:
+			exclude.append(hit.rid)
+			continue
+		var host := options_host_of(collider)
+		if host != null:
+			return host
+		if collider is Area3D:
+			exclude.append(hit.rid)
+			continue
+		return null
+	return null
+
+
+## The object whose menu a node is part of, walking up from it: anything with a menu of its own, else any pickable;
+## null for a node inside a panel's viewport (a UI click, never an object's) and for one that is nobody's.
+static func options_host_of(node: Node) -> Node3D:
+	while node:
+		if node is XRToolsViewport2DIn3D:
+			return null
+		if node.has_method("toggle_options_ui") or node is XRToolsPickable:
+			return node as Node3D
+		node = node.get_parent()
+	return null
+
+
 ## A control is something you operate rather than pick up — the kind that is
 ## allowed to win from inside the object housing it.
 static func _is_control(target: InteractionTarget) -> bool:

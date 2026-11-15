@@ -280,6 +280,13 @@ func _group_press() -> void:
 	laser.call("pointer_event", _event(XRToolsPointerEvent.Type.ENTERED, laser))
 	_ok(trigger.is_hovered() and SeatTrigger.HOVER_COLOR.r > 0.9 and SeatTrigger.HOVER_COLOR.g > 0.8 and SeatTrigger.HOVER_COLOR.b < 0.2,
 		"press: aimed at by a laser the cushion is lit, and the light is yellow (not green)")
+	# The light is a flat square clear OVER the place's box: the whole box once, whose top a bed's contract sets at the
+	# comforter's top, so the two z-fought.
+	var hover := trigger.get_node("SeatHover") as MeshInstance3D
+	var hmat := hover.mesh.surface_get_material(0) as StandardMaterial3D
+	var box_top := (trigger.get_node("CollisionShape3D") as Node3D).position.y + rest_box.size.y * 0.5
+	_ok(hover.mesh is PlaneMesh and hmat != null and hover.position.y > box_top + 0.015,
+		"press: the light is a square clear over the cushion's box (%.3f over its top), so nothing fights it" % (hover.position.y - box_top))
 	laser.call("pointer_event", _event(XRToolsPointerEvent.Type.EXITED, laser))
 	# Sat on, the cushion is under the sitter and a laser leaves the hand pointing forward: its slab grows toward the knees
 	# and the sides, and shrinks back when they get up. The Area3D the desktop uses keeps its size.

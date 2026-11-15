@@ -124,6 +124,22 @@ Each piece logs, half a second after it is put down, `collision against the node
 handle box and body offset at the handle (`VRDrawer.collision_report`), and a handle logs laser/crosshair presses and
 refused presses.
 
+**The plain wooden table (`Table`, `table.tscn`) has the same top bin** (2026-11-15): it is no contract piece, so it
+held nothing and what was on it slid off a carried table. Its top box (`CollisionShape3D`, 2 x 0.8 m, top at 0.75 m)
+gets a CarryContents bin `Table.TOP_BIN_H` (0.4 m) high, polled every tick at priority 100 as DrawerFurniture does, and
+it is the table's `rider_shapes()`. `vr_drawer_tests table/` (taking the bin out leaves the boxes 521 mm behind).
+
+## Tab over furniture (the desktop's object menu, 2026-11-15)
+
+Tab opens the menu of what the crosshair is on (`InteractionResolver.options_host`; the generic one, Lock in Place /
+Delete, for a pickable with none of its own). It used to cast against the POINTER layer (21) alone, which on a piece
+with drawers meets only the drawer pulls and door handles: the case, the drawer fronts, the doors and the shelves are
+the piece's own bodies on the pickable layer. So Tab opened the furniture's menu only with the crosshair on a pull,
+and the spawn menu everywhere else ("sometimes it pops up"). It now walks world + pickable + pointer in one nearest-hit
+query, as `resolve_desktop` does: volumes and POINTER_BY_AREA bodies are seen through, a wall stops it. The carry
+bins are on no layer and are never the hit. `vr_drawer_tests tab/` aims at every case box (front, top, side), drawer
+front, pull and door of eight pieces; the pointer layer alone found the oak bookcase on 0 of 30 of them.
+
 ## The nightstand (`Scenes/Objects/furniture/nightstand.tscn`, `Nightstand`)
 
 RetroXR-models `generic/nightstand` (Blender 5.3, its own level loop on applkit geometry; real walnut/birch textures,

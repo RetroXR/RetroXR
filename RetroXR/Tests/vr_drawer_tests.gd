@@ -3,7 +3,7 @@
 ## front pushes it in (but never one reaching INTO it), the grip never lifts the furniture, its open amount saves, and
 ## what rests in it rides out with it. The nightstand is turned 90 degrees and moved, so a frame mix-up shows.
 ##   godot --headless --path RetroXR res://Tests/vr_drawer_tests.tscn [-- --only=<group>]
-## Groups: rig contract latch grip coast soft push pull save carry haul real mission beds living desk again
+## Groups: rig contract latch grip coast soft push pull save carry haul real mission beds living desk table again
 extends "res://Tests/test_suite.gd"
 
 const HAND := &"/vr_drawer_tests/hand"
@@ -90,6 +90,10 @@ func _ready() -> void:
 		await _living()
 	if _group("desk"):
 		await _desk()
+	if _group("table"):
+		await _table_carry()
+	if _group("tab"):
+		await _tab(ns)
 	if _group("real"):
 		await _real_hold(ns)
 		await _ray_hold(ns)
@@ -110,6 +114,142 @@ func _ready() -> void:
 
 func _group(g: String) -> bool:
 	return _only == "" or _only == g
+
+
+# --- tab/ -- the desktop's menu key over furniture with drawers ---------------------------------------------------------
+## Tab opens the menu of whatever the crosshair is on (InteractionResolver.options_host). On a piece with drawers it used
+## to meet only the drawer PULLS (the pointer layer alone), so the menu came up on a pull and the spawn menu everywhere
+## else: the case, a drawer's front, a door, a shelf. Every aim at any part of the piece must give the piece, and a wall
+## in front of it must give nothing.
+func _tab(ns: Nightstand) -> void:
+	var space := ns.get_world_3d().direct_space_state
+	var ids := ["mission_chest", "tv_stand_wall_unit", "tv_stand_credenza", "bookshelf_oak", "computer_desk_mission",
+		"computer_desk_corner", "bed_captain"]
+	var pieces: Array[XRToolsPickable] = [ns]
+	for i in ids.size():
+		var piece := (ScenePersistence.PLAIN_SCENES[ids[i]] as PackedScene).instantiate() as XRToolsPickable
+		piece.position = Vector3(-12.0 + 4.0 * i, 0.0, -4.0)
+		piece.freeze = true
+		add_child(piece)
+		pieces.append(piece)
+	for i in 6:
+		await get_tree().physics_frame
+	for piece in pieces:
+		var box := _tab_local_box(piece)
+		var front := piece.global_basis.z.normalized()
+		var up := Vector3.UP
+		var side := piece.global_basis.x.normalized()
+		var aims: Array = []
+		# Every case box of the piece's own, from in front, from above and from its +X side, each ray starting just
+		# outside the piece (never past a neighbour) and going on through: whatever of the piece it meets first.
+		for cs: Node in piece.get_children():
+			if not (cs is CollisionShape3D and (cs as CollisionShape3D).shape is BoxShape3D):
+				continue
+			# A box with no volume (the corner desk's first diagonal step, 0 wide) is nothing to aim at.
+			var bs := ((cs as CollisionShape3D).shape as BoxShape3D).size
+			if bs.x * bs.y * bs.z < 1e-9:
+				continue
+			var lc := (cs as Node3D).position
+			var at := piece.global_transform * lc
+			aims.append(["%s from the front" % cs.name, piece.global_transform * Vector3(lc.x, lc.y, box.end.z + 0.3),
+				at - front * 0.5])
+			aims.append(["%s from above" % cs.name, piece.global_transform * Vector3(lc.x, box.end.y + 0.3, lc.z),
+				at - up * 0.5])
+			aims.append(["%s from the side" % cs.name, piece.global_transform * Vector3(box.end.x + 0.3, lc.y, lc.z),
+				at - side * 0.5])
+		for body: Node in piece.find_children("DrawerBody*", "AnimatableBody3D", false, false):
+			var face := (body as Node3D).get_node_or_null("BoxFront") as Node3D
+			if face != null:
+				aims.append(["%s's front" % body.name, face.global_position + front * 1.0, face.global_position - front * 0.3])
+		for handle: Node in piece.find_children("DrawerHandle*", "Area3D", false, false):
+			var at := (handle as Node3D).global_position
+			aims.append(["%s (the pull)" % handle.name, at + front * 1.0, at - front * 0.3])
+		for leaf: Node in piece.find_children("LeafBody", "CollisionObject3D", true, false):
+			var at := (leaf as Node3D).global_transform * _tab_shape_centre(leaf)
+			aims.append(["door %s" % leaf.get_parent().get_parent().get_parent().name, at + front * 1.0, at - front * 0.3])
+		var shut := 0
+		var open := 0
+		for a: Array in aims:
+			var host := InteractionResolver.options_host(space, a[1], a[2])
+			var old := _tab_pointer_only(space, a[1], a[2])
+			if host == piece:
+				open += 1
+			else:
+				print("[vr_drawer] tab/ %s: %s gave %s (the pointer layer alone: %s)" % [piece.name, a[0],
+					host.name if host != null else "nothing", old.name if old != null else "nothing"])
+			if old != piece:
+				shut += 1
+		_ok(open == aims.size(), "tab/%s: Tab over any of its %d parts aimed at opens ITS menu (%d did; the pointer layer alone found it on %d)" % [
+			piece.name, aims.size(), open, aims.size() - shut])
+	# A drawer pulled out, aimed into from above: its floor, not the carry bin, and the piece's menu.
+	var chest := pieces[1] as DrawerFurniture
+	var d0 := chest.drawers()[0]
+	d0.set_value(1.0)
+	for i in 30:
+		await get_tree().physics_frame
+	var floor_at := chest.global_transform * chest.drawer_seat_local(0)
+	_ok(InteractionResolver.options_host(space, floor_at + Vector3(0, 1.5, 0), floor_at - Vector3(0, 0.05, 0)) == chest,
+		"tab/an open drawer aimed into from above opens the chest's menu")
+	d0.set_value(0.0)
+	# The control: a wall between the crosshair and the piece stops it (the pointer layer alone saw through it).
+	var wall := StaticBody3D.new()
+	wall.collision_layer = 1
+	var wcs := CollisionShape3D.new()
+	var wbox := BoxShape3D.new()
+	wbox.size = Vector3(2.5, 2.5, 0.1)
+	wcs.shape = wbox
+	wall.add_child(wcs)
+	var target := pieces[2]
+	var tbox := _tab_local_box(target)
+	var first_case: Node3D = null
+	for cs: Node in target.get_children():
+		if cs is CollisionShape3D and first_case == null:
+			first_case = cs as Node3D
+	var lc := first_case.position
+	var tc := target.global_transform * lc
+	var from := target.global_transform * Vector3(lc.x, lc.y, tbox.end.z + 0.8)
+	_ok(InteractionResolver.options_host(space, from, tc) == target,
+		"tab/(the wall's control) the same aim with no wall opens %s's menu" % target.name)
+	wall.position = target.global_transform * Vector3(lc.x, lc.y, tbox.end.z + 0.4)
+	wall.basis = target.global_basis
+	add_child(wall)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_ok(InteractionResolver.options_host(space, from, tc) == null,
+		"tab/a wall in front of the piece: Tab opens no object's menu through it")
+	wall.queue_free()
+	for piece in pieces:
+		if piece != ns:
+			piece.queue_free()
+	await _ticks(2)
+
+
+## The piece's own collision boxes' bounds, in its frame.
+func _tab_local_box(piece: Node3D) -> AABB:
+	var box := AABB()
+	var first := true
+	for cs: Node in piece.get_children():
+		if cs is CollisionShape3D and (cs as CollisionShape3D).shape is BoxShape3D:
+			var size := ((cs as CollisionShape3D).shape as BoxShape3D).size
+			var b := AABB((cs as Node3D).position - size * 0.5, size)
+			box = b if first else box.merge(b)
+			first = false
+	return box
+
+
+func _tab_shape_centre(body: Node) -> Vector3:
+	for cs: Node in body.get_children():
+		if cs is CollisionShape3D:
+			return (cs as Node3D).position
+	return Vector3.ZERO
+
+
+## What the old Tab found: the first collider on the pointer layer alone, walked up (the repro, printed beside).
+func _tab_pointer_only(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3) -> Node3D:
+	var q := PhysicsRayQueryParameters3D.create(from, to, 1 << 20)
+	q.collide_with_areas = true
+	var hit := space.intersect_ray(q)
+	return null if hit.is_empty() else InteractionResolver.options_host_of(hit.collider as Node)
 
 
 # --- the hand ---------------------------------------------------------------------------------------------------------
@@ -1221,6 +1361,62 @@ func _living_save() -> void:
 ## shelf, cubby, the compartment behind a door) and in every drawer is held in place while the whole piece is carried
 ## (it keeps its pose in the piece, frozen on the held layer), and is let go to ordinary physics, moving as the piece
 ## moved, the moment it is put down.
+## The plain wooden table (Table, not a contract piece): what is on its top is held in place while it is carried, as the
+## furniture's tops are, and is ordinary physics again when it is put down.
+func _table_carry() -> void:
+	var table := ScenePersistence.instantiate("table") as Table
+	table.position = Vector3(0.0, 0.0, -3.5)
+	add_child(table)
+	await _ticks(3)
+	var top := table.rider_shapes()[0]
+	var top_y := top.position.y + (top.shape as BoxShape3D).size.y * 0.5
+	var things: Array[RigidBody3D] = []
+	for x: float in [-0.8, 0.0, 0.8]:
+		things.append(_loose_box(table.global_transform * Vector3(x, top_y + 0.02, 0.2)))
+	for i in 60:
+		await get_tree().physics_frame
+	var rel: Array[Transform3D] = []
+	for t in things:
+		rel.append(table.global_transform.affine_inverse() * t.global_transform)
+	table.freeze = true
+	table.collision_layer = table.picked_up_layer
+	table.collision_mask = 0
+	var v := Vector3(0.6, 0.3, 0.0)
+	for i in 40:
+		table.global_transform = Transform3D(Basis(Vector3.UP, 0.01) * table.global_basis,
+			table.global_position + v / Engine.physics_ticks_per_second)
+		await get_tree().physics_frame
+	await get_tree().physics_frame
+	var held := 0
+	var worst := 0.0
+	for k in things.size():
+		var off := (table.global_transform.affine_inverse() * things[k].global_transform).origin.distance_to(rel[k].origin)
+		worst = maxf(worst, off)
+		if table.carry().is_latched(things[k]) and things[k].freeze and off < 0.005:
+			held += 1
+	_ok(held == things.size(), "table/carried, all %d things on the table's top are held in place (%d; worst %.1f mm)" % [
+		things.size(), held, worst * 1000.0])
+	var rec := ReleaseRecorder.new()
+	rec.things = things
+	table.global_position += v / Engine.physics_ticks_per_second
+	table.freeze = false
+	table.collision_layer = 4
+	table.collision_mask = 196613
+	add_child(rec)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var loose := 0
+	for k in things.size():
+		if not rec.frozen[k] and not table.carry().is_latched(things[k]) and things[k].collision_layer == 4:
+			loose += 1
+	rec.queue_free()
+	_ok(loose == things.size(), "table/put down, all %d are ordinary physics again (%d)" % [things.size(), loose])
+	for t in things:
+		t.queue_free()
+	table.queue_free()
+	await _ticks(2)
+
+
 func _living_carry() -> void:
 	for id: String in ScenePersistence.LIVING_ROOM_IDS:
 		var piece := ScenePersistence.instantiate(id) as DrawerFurniture

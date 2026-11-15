@@ -633,57 +633,26 @@ func _get_pointed_options_host(pointer: XRToolsFunctionPointer) -> Node3D:
 	var tgt: Node3D = pointer.last_target
 	if not tgt:
 		return null
-	var node: Node = tgt
-	while node:
-		# If the pointer is inside any viewport, it's a UI click — not an object click
-		if node is XRToolsViewport2DIn3D:
-			return null
-		# Anything with a menu of its own, and — since a lock is a verb every
-		# pickable has — anything that can be picked up at all. The named types
-		# used to be listed here one by one, which is why a table or a trash can
-		# had no menu to open.
-		if node.has_method("toggle_options_ui") or node is XRToolsPickable:
-			return node as Node3D
-		node = node.get_parent()
-	return null
+	# A pointer inside a panel's viewport is a UI click, never an object's; else anything with a menu of its own, or
+	# any pickable (a lock is a verb every pickable has).
+	return InteractionResolver.options_host_of(tgt)
 
 
-## Raycast forward from the camera against the pointable layer (21) and return the
-## RetroSystem / VCRPlayer / PDFBook / RetroCartridge the reticle is aimed at, or
-## null. Used on desktop where the InteractionResolver won't report a bare
-## PointerArea body.
+## The object the reticle is aimed at whose menu Tab opens, or null (InteractionResolver.options_host: world,
+## pickables and pointer bodies in one nearest-hit walk, so a piece of furniture's case, drawer fronts and doors
+## count, not only its pulls, and a wall stops it).
 func _raycast_options_host() -> Node3D:
 	if not is_instance_valid(_camera):
 		return null
 	var space := _camera.get_world_3d().direct_space_state
 	var from := _camera.global_position
 	var to := from - _camera.global_transform.basis.z * 10.0
-	var q := PhysicsRayQueryParameters3D.create(from, to)
-	q.collision_mask = 1 << 20   # 21: pointable
-	q.collide_with_areas = true
-	q.collide_with_bodies = true
-	var hit := space.intersect_ray(q)
-	if hit.is_empty():
-		return null
-	return _options_host_from_target(hit["collider"] as Node3D)
-
-
-## Walk up from a raw target node to find an enclosing options host — a RetroSystem
-## or VCRPlayer (desktop variant of _get_pointed_options_host — works without an
-## XRToolsFunctionPointer).
-func _options_host_from_target(tgt: Node3D) -> Node3D:
-	var node: Node = tgt
-	while node:
-		if node is XRToolsViewport2DIn3D:
-			return null
-		# Anything with a menu of its own, and — since a lock is a verb every
-		# pickable has — anything that can be picked up at all. The named types
-		# used to be listed here one by one, which is why a table or a trash can
-		# had no menu to open.
-		if node.has_method("toggle_options_ui") or node is XRToolsPickable:
-			return node as Node3D
-		node = node.get_parent()
-	return null
+	var host := InteractionResolver.options_host(space, from, to)
+	if host == null:
+		print("[SpawnMenu] Tab: nothing with a menu along the aim; the spawn menu instead")
+	else:
+		print("[SpawnMenu] Tab: the menu of %s" % host.name)
+	return host
 
 
 ## Returns true if pointer's last_target is a node inside the spawn menu viewport.

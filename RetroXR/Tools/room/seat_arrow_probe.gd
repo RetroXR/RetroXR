@@ -68,6 +68,24 @@ func _ready() -> void:
 	await _shot("arrow_sofa_top")
 	cam.look_at_from_position(new_bed.global_position + Vector3(1.4, 1.6, 2.4), new_bed.global_position + Vector3(0, 0.5, 0))
 	await _shot("arrow_bed_close")
+	# The place highlight a laser lights (SeatTrigger's hover), on every place of a sofa and a bed, the arrows hidden.
+	for s: ContractSeat in [new_sofa, new_bed]:
+		s.call("_hide_facing_arrow")
+		for p: Dictionary in s.places():
+			var t := p["trigger"] as SeatTrigger
+			t.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.ENTERED, null, t, Vector3.ZERO, Vector3.ZERO))
+	await get_tree().create_timer(0.4).timeout
+	cam.look_at_from_position(new_bed.global_position + Vector3(1.4, 1.6, 2.4), new_bed.global_position + Vector3(0, 0.5, 0))
+	await _shot("hover_bed")
+	cam.look_at_from_position(new_bed.global_position + Vector3(0.4, 1.0, 1.6), new_bed.global_position + Vector3(0, 0.62, 0.3))
+	await _shot("hover_bed_low")
+	cam.look_at_from_position(new_sofa.global_position + Vector3(0.9, 1.3, 1.6), new_sofa.global_position + Vector3(0, 0.45, 0))
+	await _shot("hover_sofa")
+	for s: ContractSeat in [new_sofa, new_bed]:
+		for p: Dictionary in s.places():
+			var t := p["trigger"] as SeatTrigger
+			t.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.EXITED, null, t, Vector3.ZERO, Vector3.ZERO))
+	arrows = [_new_arrow(new_sofa), _new_arrow(new_bed)]
 	# A clip: dismissed and made again (fade out, fade in), then the pulse and scanlines running.
 	cam.look_at_from_position(new_sofa.global_position + Vector3(0.9, 1.3, 1.6), new_sofa.global_position + Vector3(0, 0.45, 0))
 	var n := 0
