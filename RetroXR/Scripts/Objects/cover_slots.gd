@@ -102,8 +102,9 @@ static func shell_cover(part: MeshInstance3D, socket_id: String, out: Vector3) -
 	var parent := part.get_parent() as Node3D
 	if host == null or parent == null:
 		return null
-	var seat := part_seat(part, out)
-	var zone := on(host).build(socket_id, parent, seat, part_size(part, out))
+	var b := _cover_basis(out)
+	var ext := _extent(part, b)
+	var zone := on(host).build(socket_id, parent, Transform3D(b, b * ((ext[0] + ext[1]) * 0.5)), ext[1] - ext[0])
 	part.visible = false
 	return zone
 
@@ -133,21 +134,33 @@ static func _cover_basis(out: Vector3) -> Basis:
 	return Basis(x, y, z)
 
 
-## [min, max] of the part's points (in its parent's frame) along the axes of `b`.
+## [min, max] of the part's points (in its parent's frame) along the axes of `b`: its vertices, each once (not get_faces(),
+## which copies three per triangle), or its bounds' corners when it has no mesh.
 static func _extent(part: MeshInstance3D, b: Basis) -> Array[Vector3]:
-	var inv := b.transposed()
+	var to_b := Transform3D(b.transposed(), Vector3.ZERO) * part.transform
 	var lo := Vector3.INF
 	var hi := -Vector3.INF
-	var pts: PackedVector3Array = part.mesh.get_faces() if part.mesh != null else PackedVector3Array()
-	if pts.is_empty():
+	var any := false
+	if part.mesh != null:
+		for si in part.mesh.get_surface_count():
+			for p: Vector3 in part.mesh.surface_get_arrays(si)[Mesh.ARRAY_VERTEX]:
+				var q := to_b * p
+				lo = lo.min(q)
+				hi = hi.max(q)
+				any = true
+	if not any:
 		var box := part.get_aabb()
 		for i in 8:
-			pts.append(box.get_endpoint(i))
-	for p in pts:
-		var q := inv * (part.transform * p)
-		lo = lo.min(q)
-		hi = hi.max(q)
+			var q := to_b * box.get_endpoint(i)
+			lo = lo.min(q)
+			hi = hi.max(q)
 	return [lo, hi]
+
+
+## The part a cover wears (wear()), or null when it wears none.
+static func worn_part(cover: Node) -> MeshInstance3D:
+	var shell := cover.get_node_or_null("Shell") if cover != null else null
+	return shell.get_child(0) as MeshInstance3D if shell != null and shell.get_child_count() > 0 else null
 
 
 ## Dress `cover` in `part`, a shell's cover mesh taken from a copy of its model

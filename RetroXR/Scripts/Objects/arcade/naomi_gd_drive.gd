@@ -188,6 +188,8 @@ func _build_disc_zone() -> void:
 	var at := find_child("DiscAnchor", true, false) as Node3D
 	_disc_zone = (load("res://addons/godot-xr-tools/objects/snap_zone.tscn") as PackedScene).instantiate() as XRToolsSnapZone
 	_disc_zone.name = "DiscSeat"
+	# A save keeps the disc on the spindle (ScenePersistence: a zone in this group has its occupant recorded as attached).
+	_disc_zone.add_to_group(ScenePersistence.MOD_ZONE_GROUP)
 	_disc_zone.grab_distance = 0.08
 	_disc_zone.snap_require = "cartridge"
 	_disc_zone.snap_filter = _accepts_disc

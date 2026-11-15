@@ -50,6 +50,11 @@ func missing() -> Array:
 	return _missing
 
 
+## What a player calls it, when power-on says what it is missing (RetroSystem).
+func media_label() -> String:
+	return "DIMM board"
+
+
 func seated_key() -> Node:
 	var k := _key_zone.picked_up_object if _key_zone != null else null
 	return k if is_instance_valid(k) else null
@@ -91,6 +96,8 @@ func _build_key_zone() -> void:
 	var at := find_child("KeyAnchor", true, false) as Node3D
 	_key_zone = (load("res://addons/godot-xr-tools/objects/snap_zone.tscn") as PackedScene).instantiate() as XRToolsSnapZone
 	_key_zone.name = "KeySocket"
+	# A save keeps the key chip in it (ScenePersistence: a zone in this group has its occupant recorded as attached).
+	_key_zone.add_to_group(ScenePersistence.MOD_ZONE_GROUP)
 	_key_zone.grab_distance = 0.05
 	_key_zone.snap_require = NaomiGdRom.KEY_GROUP
 	at.add_child(_key_zone)

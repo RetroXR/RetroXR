@@ -105,6 +105,9 @@ var _aimed := false
 var _taken := false
 var _t := 0.0
 var _pop := 0.0
+## The strength last handed to the shader: written only when it changes (a badge shown for a whole game kept the material
+## dirty every frame).
+var _sent_strength := -1.0
 ## Half the glow's outline, in the grip's XY.
 var _half := Vector2.ZERO
 
@@ -131,8 +134,8 @@ func _ready() -> void:
 	_glyph.font_size = 128
 	_glyph.outline_size = 28
 	_glyph.pixel_size = 0.0004
-	if _font == null and ResourceLoader.exists("res://fonts/Michroma-Regular.ttf"):
-		_font = load("res://fonts/Michroma-Regular.ttf") as Font
+	if _font == null and ResourceLoader.exists(MediaLabelPainter.FONT_PATH):
+		_font = load(MediaLabelPainter.FONT_PATH) as Font
 	if _font != null:
 		_glyph.font = _font
 	_glyph.visible = false
@@ -185,8 +188,9 @@ func _process(delta: float) -> void:
 	_t += delta
 	_strength = move_toward(_strength, 1.0 if _aimed else 0.0, delta * FADE)
 	_pop = maxf(0.0, _pop - delta * 4.0)
-	_mat.set_shader_parameter("strength", _strength)
-	_mat.set_shader_parameter("style", int(style))
+	if _strength != _sent_strength:
+		_sent_strength = _strength
+		_mat.set_shader_parameter("strength", _strength)
 	_quad.visible = _strength > 0.001
 	_glyph.visible = _aimed or _taken
 	if _glyph.visible:

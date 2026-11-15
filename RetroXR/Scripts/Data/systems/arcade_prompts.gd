@@ -103,10 +103,7 @@ static func attach_rows_vr(player: int, has_stick: bool, buttons: Array, button_
 static func attach_rows_desktop(player: int, has_stick: bool, buttons: Array, systemid: String) -> Array:
 	var rows: Array = []
 	if has_stick:
-		var dirs: Array = []
-		for action: String in ["RETRO_JOYPAD_UP", "RETRO_JOYPAD_LEFT", "RETRO_JOYPAD_DOWN", "RETRO_JOYPAD_RIGHT"]:
-			dirs.append([action, ""])
-		var move := _keyed_row(dirs, systemid, " ")
+		var move := _keyed_row([["RETRO_JOYPAD_UP", ""], ["RETRO_JOYPAD_LEFT", ""], ["RETRO_JOYPAD_DOWN", ""], ["RETRO_JOYPAD_RIGHT", ""]], systemid, " ")
 		rows.append([&"ap_move_pc", HeldHint.PLATFORM_DESKTOP, move[0], "%s move" % move[1]])
 	var items: Array = []
 	for button: Dictionary in buttons:
@@ -122,35 +119,21 @@ static func attach_rows_desktop(player: int, has_stick: bool, buttons: Array, sy
 ## [glyphs, caption] for `items` ([action, words]): each a key's glyph and its words, or the key's name and its words where the
 ## key has no glyph (HeldHint lays a caption with a {g} per glyph out glyph by glyph).
 static func _keyed_row(items: Array, systemid: String, sep: String) -> Array:
+	var events := DesktopBindings.events_for_system(items.map(func(item: Array) -> String: return str(item[0])), systemid)
 	var glyphs: Array = []
 	var parts: Array[String] = []
 	for item: Array in items:
-		var glyph := key_glyph(DesktopBindings.event_for_system(str(item[0]), systemid))
+		var ev := events[str(item[0])] as InputEvent
+		var glyph := DesktopBindings.event_glyph(ev)
 		var words := str(item[1])
 		if glyph != "":
 			glyphs.append(glyph)
 			parts.append(("%s %s" % [HeldHint.GLYPH_TOKEN, words]).strip_edges())
 		else:
-			parts.append(("%s: %s" % [_key(str(item[0]), systemid), words]) if words != "" else _key(str(item[0]), systemid))
+			var key := DesktopBindings.event_name(ev)
+			parts.append("%s: %s" % [key, words] if words != "" else key)
 	# One {g} per glyph: a caption with several lays them out in turn, and one with a single {g} puts its one glyph there.
 	return [glyphs, sep.join(parts)]
-
-
-## The InputPrompts glyph of a keyboard key ("keyboard_ctrl_outline"), or "" for no key or one the set has no glyph for.
-static func key_glyph(event: InputEvent) -> String:
-	var key := event as InputEventKey
-	if key == null:
-		return ""
-	var code := key.physical_keycode if key.physical_keycode != KEY_NONE else key.keycode
-	var text := OS.get_keycode_string(code).to_lower().replace(" ", "_")
-	text = str(KEY_GLYPH_NAMES.get(text, text))
-	var name := "keyboard_%s_outline" % text
-	return name if ResourceLoader.exists("%s/%s%s" % [HeldHint.GLYPH_DIR, name, ConsolePadDiagram.GLYPH_EXT]) else ""
-
-
-## Godot's names for keys where Kenney's file names differ.
-const KEY_GLYPH_NAMES := {"up": "arrow_up", "down": "arrow_down", "left": "arrow_left", "right": "arrow_right", "kp_enter": "numpad_enter",
-	"bracketleft": "bracket_open", "bracketright": "bracket_close", "pageup": "page_up", "pagedown": "page_down", "capslock": "capslock"}
 
 
 ## The buttons by their words ("1 Punch, 2 Kick") when the core named them, else by number ("buttons 1 to 6").
@@ -202,10 +185,6 @@ static func _moving_stick(stick_map: Dictionary) -> String:
 		if "left" in target or "dpad" in target:
 			found.append("%s stick" % side.capitalize())
 	return " or ".join(found)
-
-
-static func _key(action: String, systemid: String) -> String:
-	return DesktopBindings.display_name_for_system(action, systemid)
 
 
 ## The action of the key map that plays MAME's button `n` (1 to 10): the one that sets the pad bit the panel's cap n sets.

@@ -4619,18 +4619,15 @@ func arcade_disc_changed() -> void:
 
 
 ## What the seated media's own chain still lacks, as the sentence the player reads, or "" (no such media, or nothing
-## missing, or a game already loaded). The media says it through missing() (NaomiDimm).
+## missing, or a game already loaded). The media says it through missing() and names itself through media_label() (NaomiDimm).
 func _media_chain_gap() -> String:
 	if not rom_path.is_empty() or not is_instance_valid(_snapped_cartridge) or not _snapped_cartridge.has_method("missing"):
 		return ""
 	var gaps: Array = _snapped_cartridge.call("missing")
 	if gaps.is_empty():
 		return ""
-	return "The %s has no game yet. Missing: %s." % [_media_label(_snapped_cartridge), ", ".join(PackedStringArray(gaps))]
-
-
-static func _media_label(media: Node) -> String:
-	return "DIMM board" if media is NaomiDimm else str(media.name)
+	var label := str(_snapped_cartridge.call("media_label")) if _snapped_cartridge.has_method("media_label") else "board"
+	return "The %s has no game yet. Missing: %s." % [label, ", ".join(PackedStringArray(gaps))]
 
 
 func _announce_disc_gap(gap: String) -> void:

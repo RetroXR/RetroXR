@@ -135,7 +135,9 @@ const CASH_SHEET := 0.0015
 ## The box's up this far below level pours it out.
 const CASH_POUR := -0.3
 var _cash_zone: XRToolsSnapZone = null
+## The box last dressed here: it is still watched once it has left its place (that is when it can be turned over).
 var _cash_box: PortCover = null
+var _cash_pour: Timer = null
 
 
 func _ready() -> void:
@@ -160,11 +162,9 @@ func _ready() -> void:
 		var half := ab.size.z * 0.5
 		if not solid_hulls.is_empty():
 			var hulls: Array[PackedVector3Array] = []
+			var shift := Transform3D(Basis.IDENTITY, _model.position)
 			for h: PackedVector3Array in solid_hulls:
-				var moved := PackedVector3Array()
-				for p in h:
-					moved.append(p + _model.position)
-				hulls.append(moved)
+				hulls.append(shift * h)
 			root.set_meta(RetroSystemModelArcadeCabinet.SHELL_HULLS_META, hulls)
 		elif not solid_boxes.is_empty():
 			var shell: Array[AABB] = []
@@ -211,20 +211,23 @@ func _ready() -> void:
 func _build_lift_offs() -> void:
 	for n in _model.find_children("*LiftOff", "MeshInstance3D", true, false):
 		var part := n as MeshInstance3D
-		var zone := CoverSlots.shell_cover(part, "cabinet_" + str(part.name).to_snake_case(), _lift_off_out(part))
+		var out := _lift_off_out(part)
+		var zone := CoverSlots.shell_cover(part, "cabinet_" + str(part.name).to_snake_case(), out)
 		if zone == null:
 			continue
-		zone.has_picked_up.connect(_dress_lift_off.bind(part))
+		zone.has_picked_up.connect(_dress_lift_off.bind(part, out))
 		if str(part.name) == CASH_BOX:
 			_cash_zone = zone
-			var pour := Timer.new()
-			pour.name = "CashPour"
-			pour.wait_time = 0.2
-			pour.autostart = true
-			pour.timeout.connect(_cash_pour_check)
-			add_child(pour)
+			# Only a box out of its place can be turned over: watched while it is out.
+			_cash_pour = Timer.new()
+			_cash_pour.name = "CashPour"
+			_cash_pour.wait_time = 0.2
+			_cash_pour.timeout.connect(_cash_pour_check)
+			add_child(_cash_pour)
+			zone.has_dropped.connect(_cash_pour.start)
+			zone.has_picked_up.connect(func(_b: Node3D) -> void: _cash_pour.stop())
 		if zone.picked_up_object != null:
-			_dress_lift_off(zone.picked_up_object, part)
+			_dress_lift_off(zone.picked_up_object, part, out)
 
 
 ## Which way a lift-off panel faces out: for one on the top (its name starts "Top": the NAOMI Universal's TopPanelLiftOff), the
@@ -249,7 +252,7 @@ static func _lift_off_out(part: Node) -> Vector3:
 const LIFT_OFF_OUT := Vector3.BACK
 
 
-func _dress_lift_off(what: Node3D, part: MeshInstance3D) -> void:
+func _dress_lift_off(what: Node3D, part: MeshInstance3D, out: Vector3) -> void:
 	var cover := what as PortCover
 	if cover == null:
 		return
@@ -258,7 +261,7 @@ func _dress_lift_off(what: Node3D, part: MeshInstance3D) -> void:
 		part.get_parent().add_child(copy)
 		copy.transform = part.transform
 		copy.visible = true
-		CoverSlots.wear(cover, copy, _lift_off_out(part))
+		CoverSlots.wear(cover, copy, out)
 	if str(part.name) == CASH_BOX:
 		_cash_box = cover
 		_show_cash(cover)
@@ -273,20 +276,25 @@ func _bank_coin(_player: int) -> void:
 	_show_cash(box)
 
 
-## Draw the box's pile: its count of tokens on its floor, the first ones scattered over it and the rest on top in layers.
+## Draw the box's pile: its count of tokens on its floor, the first ones scattered over it and the rest on top in layers. One
+## MultiMesh (a pile is up to CASH_SHOWN tokens: one draw, no shadows), its places laid once per tray and shown by count.
 func _show_cash(box: PortCover) -> void:
-	var shell := box.get_node_or_null("Shell") as Node3D
-	var tray := shell.get_child(0) as MeshInstance3D if shell != null and shell.get_child_count() > 0 else null
+	var tray := CoverSlots.worn_part(box)
 	if tray == null or tray.mesh == null:
 		return
-	var pile := tray.get_node_or_null("CashCoins") as Node3D
+	var pile := tray.get_node_or_null("CashCoins") as MultiMeshInstance3D
 	if pile == null:
-		pile = Node3D.new()
+		pile = MultiMeshInstance3D.new()
 		pile.name = "CashCoins"
+		pile.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		pile.multimesh = _cash_places(tray.mesh.get_aabb())
 		tray.add_child(pile)
-	var count := mini(int(box.get_meta(CASH_COINS_META, 0)), CASH_SHOWN)
-	var b := tray.mesh.get_aabb()
-	# Clear of its walls and its pull (on the front) by a coin's radius and a little.
+	pile.multimesh.visible_instance_count = mini(int(box.get_meta(CASH_COINS_META, 0)), CASH_SHOWN)
+
+
+## Where CASH_SHOWN tokens lie in a tray of bounds `b` (the tray's frame): clear of its walls and its pull (on the front) by a
+## coin's radius and a little, the cells taken in a fixed shuffled order, then layer on layer.
+static func _cash_places(b: AABB) -> MultiMesh:
 	var lo := Vector3(b.position.x + 0.006 + ArcadeCoinModule.COIN_RADIUS, 0.0, b.position.z + 0.006 + ArcadeCoinModule.COIN_RADIUS)
 	var hi := Vector3(b.end.x - 0.006 - ArcadeCoinModule.COIN_RADIUS, 0.0, b.end.z - 0.02 - ArcadeCoinModule.COIN_RADIUS)
 	var nx := maxi(1, int((hi.x - lo.x) / CASH_PITCH) + 1)
@@ -302,21 +310,18 @@ func _show_cash(box: PortCover) -> void:
 		var t := order[i]
 		order[i] = order[j]
 		order[j] = t
-	while pile.get_child_count() > count:
-		var gone := pile.get_child(pile.get_child_count() - 1)
-		pile.remove_child(gone)
-		gone.queue_free()
-	for i in range(pile.get_child_count(), count):
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = ArcadeCoinModule.token_mesh()
+	mm.instance_count = CASH_SHOWN
+	for i in CASH_SHOWN:
 		var cell := order[i % cells]
-		var layer := i / cells
-		rng.seed = 1000 + i
-		var coin := MeshInstance3D.new()
-		coin.mesh = ArcadeCoinModule.token_mesh()
-		coin.position = Vector3(lo.x + (cell % nx) * CASH_PITCH + rng.randf_range(-0.005, 0.005),
-			b.position.y + CASH_SHEET + ArcadeCoinModule.COIN_THICKNESS * (layer + 0.5),
-			lo.z + (cell / nx) * CASH_PITCH + rng.randf_range(-0.005, 0.005))
-		coin.rotation = Vector3(rng.randf_range(-0.08, 0.08), rng.randf_range(0.0, TAU), rng.randf_range(-0.08, 0.08))
-		pile.add_child(coin)
+		var turn := Basis.from_euler(Vector3(rng.randf_range(-0.08, 0.08), rng.randf_range(0.0, TAU), rng.randf_range(-0.08, 0.08)))
+		mm.set_instance_transform(i, Transform3D(turn, Vector3(lo.x + (cell % nx) * CASH_PITCH + rng.randf_range(-0.005, 0.005),
+			b.position.y + CASH_SHEET + ArcadeCoinModule.COIN_THICKNESS * (i / cells + 0.5),
+			lo.z + (cell / nx) * CASH_PITCH + rng.randf_range(-0.005, 0.005))))
+	mm.visible_instance_count = 0
+	return mm
 
 
 ## The box turned over pours its coins out. Its up is its tray's (the model's up), not the cover's: a lift-off cover's +Y is the
@@ -324,8 +329,7 @@ func _show_cash(box: PortCover) -> void:
 func _cash_pour_check() -> void:
 	if not is_instance_valid(_cash_box) or int(_cash_box.get_meta(CASH_COINS_META, 0)) == 0:
 		return
-	var shell := _cash_box.get_node_or_null("Shell") as Node3D
-	var tray := shell.get_child(0) as Node3D if shell != null and shell.get_child_count() > 0 else null
+	var tray := CoverSlots.worn_part(_cash_box)
 	var up := tray.global_basis.y if tray != null else _cash_box.global_basis.y
 	if up.normalized().dot(Vector3.UP) > CASH_POUR:
 		return
@@ -546,15 +550,7 @@ func _captive_seated(what: Node3D, port: Port) -> void:
 	# hidden body hung below it and the cord began that far down in the air (50 mm for the VGA plug). Once per socket: a
 	# save brings the plug back seated and calls this again.
 	if not port.has_meta(&"captive_sunk"):
-		var back := 0.0
-		var inv := port.global_transform.affine_inverse()
-		for m in what.find_children("*", "MeshInstance3D", true, false):
-			var mi := m as MeshInstance3D
-			if mi.mesh == null:
-				continue
-			var box := mi.mesh.get_aabb()
-			for i in 8:
-				back = maxf(back, (inv * (mi.global_transform * box.get_endpoint(i))).z)
+		var back := maxf(_mesh_bounds_in(what, port).end.z, 0.0)
 		port.set_meta(&"captive_sunk", back)
 		if back > 0.0:
 			port.global_position -= port.global_basis.z.normalized() * back
@@ -567,12 +563,20 @@ func _captive_seated(what: Node3D, port: Port) -> void:
 
 ## The first of the model's own surfaces from `from` along `dir` (world), within `reach` metres; null when none.
 func _surface_along(from: Vector3, dir: Vector3, reach: float) -> Variant:
-	var to := from + dir.normalized() * reach
 	var best: Variant = null
-	var best_d := INF
+	for at in _model_hits(from, from + dir.normalized() * reach):
+		if best == null or at.distance_to(from) < (best as Vector3).distance_to(from):
+			best = at
+	return best
+
+
+## Where the segment `from`-`to` (world) meets each of the model's visible meshes (not those under `skip`), in world space:
+## each mesh's first hit.
+func _model_hits(from: Vector3, to: Vector3, skip: Node = null) -> Array[Vector3]:
+	var out: Array[Vector3] = []
 	for n in _model.find_children("*", "MeshInstance3D", true, false):
 		var mi := n as MeshInstance3D
-		if mi.mesh == null or not mi.is_visible_in_tree():
+		if mi.mesh == null or not mi.is_visible_in_tree() or (skip != null and skip.is_ancestor_of(mi)):
 			continue
 		var inv := mi.global_transform.affine_inverse()
 		var a := inv * from
@@ -580,16 +584,10 @@ func _surface_along(from: Vector3, dir: Vector3, reach: float) -> Variant:
 		if not mi.mesh.get_aabb().intersects_segment(a, b):
 			continue
 		var tri := mi.mesh.generate_triangle_mesh()
-		if tri == null:
-			continue
-		var hit := tri.intersect_segment(a, b)
-		if hit.is_empty():
-			continue
-		var at := mi.global_transform * (hit["position"] as Vector3)
-		if at.distance_to(from) < best_d:
-			best_d = at.distance_to(from)
-			best = at
-	return best
+		var hit := tri.intersect_segment(a, b) if tri != null else {}
+		if not hit.is_empty():
+			out.append(mi.global_transform * (hit["position"] as Vector3))
+	return out
 
 
 ## A lead's socket takes its plug along -Z: from the front, or, when the model has a `<lead>Aim` marker, from there.
@@ -806,12 +804,8 @@ func _build_panel(n: int) -> void:
 	grip.set("panel_size", Vector2(box.size.x, box.size.z))
 	if not lit_first:
 		# The stick and the buttons laid onto the deck, in the grip's XY.
-		var inv := deck.affine_inverse()
-		var r := Rect2()
-		for i in 8:
-			var q := inv * lit.get_endpoint(i)
-			r = Rect2(Vector2(q.x, q.y), Vector2.ZERO) if i == 0 else r.expand(Vector2(q.x, q.y))
-		grip.set_meta(&"glow_rect", r.grow(GLOW_CLEAR))
+		var on_deck := deck.affine_inverse() * lit
+		grip.set_meta(&"glow_rect", Rect2(on_deck.position.x, on_deck.position.y, on_deck.size.x, on_deck.size.y).grow(GLOW_CLEAR))
 	# The grip's plane (its XY, facing +Z) lies on the deck: +Z is the deck's up, +Y toward its back. Its glow lies
 	# on the deck under the caps; its box stands round the controls as before.
 	grip.transform = deck
@@ -855,25 +849,10 @@ func _deck_frame(m: Node3D, box: AABB) -> Transform3D:
 ## Where the model's own surfaces (not the panel's controls) are highest straight down at (x, z) of `m`'s frame, from
 ## above `box` to below it; null where nothing is hit.
 func _deck_point(m: Node3D, box: AABB, x: float, z: float) -> Variant:
-	var from := m.global_transform * Vector3(x, box.end.y + 0.05, z)
-	var to := m.global_transform * Vector3(x, box.position.y - 0.10, z)
+	var to_m := m.global_transform.affine_inverse()
 	var best: Variant = null
-	for n in _model.find_children("*", "MeshInstance3D", true, false):
-		var mi := n as MeshInstance3D
-		if mi.mesh == null or m.is_ancestor_of(mi) or not mi.is_visible_in_tree():
-			continue
-		var inv := mi.global_transform.affine_inverse()
-		var a := inv * from
-		var b := inv * to
-		if not mi.mesh.get_aabb().intersects_segment(a, b):
-			continue
-		var tri := mi.mesh.generate_triangle_mesh()
-		if tri == null:
-			continue
-		var hit := tri.intersect_segment(a, b)
-		if hit.is_empty():
-			continue
-		var at := m.global_transform.affine_inverse() * (mi.global_transform * (hit["position"] as Vector3))
+	for hit in _model_hits(m.global_transform * Vector3(x, box.end.y + 0.05, z), m.global_transform * Vector3(x, box.position.y - 0.10, z), m):
+		var at := to_m * hit
 		if best == null or at.y > (best as Vector3).y:
 			best = at
 	return best

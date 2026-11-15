@@ -2768,7 +2768,7 @@ func _group_prompts() -> void:
 	# And with the keyboard: the keys of the cabinet's own map.
 	var rows_pc := ArcadePrompts.attach_rows_desktop(0, true, six, "arcade")
 	var glyph := func(action: String) -> String:
-		return ArcadePrompts.key_glyph(DesktopBindings.event_for_system(action, "arcade"))
+		return DesktopBindings.event_glyph(DesktopBindings.event_for_system(action, "arcade"))
 	var gt := HeldHint.GLYPH_TOKEN
 	_ok(ids.call(rows_pc) == [&"ap_move_pc", &"ap_buttons_pc", &"ap_buttons_pc2", &"ap_start_pc"]
 			and rows_pc[3][2] == [glyph.call("RETRO_JOYPAD_START"), glyph.call("RETRO_JOYPAD_SELECT")]
@@ -2786,7 +2786,7 @@ func _group_prompts() -> void:
 	# A key is drawn by its name in the glyph set; no key, no glyph.
 	var f12 := InputEventKey.new()
 	f12.physical_keycode = KEY_F12
-	_ok(ArcadePrompts.key_glyph(f12) == "keyboard_f12_outline" and ArcadePrompts.key_glyph(null) == "", "prompts: a key's glyph by its name, none for no key")
+	_ok(DesktopBindings.event_glyph(f12) == "keyboard_f12_outline" and DesktopBindings.event_glyph(null) == "", "prompts: a key's glyph by its name, none for no key")
 	_ok(ids.call(ArcadePrompts.attach_rows_desktop(0, false, [], "arcade")) == [&"ap_start_pc"], "prompts: a panel with no stick and no buttons says only start and the coin")
 	# A bicycle's bars, taken by a squeeze: what they are for, three lines, in the glyph of the hand that took them.
 	var r := await _rig("propcycl")
@@ -2919,8 +2919,8 @@ func _group_prompts() -> void:
 	for row: Array in panel2.prompt_hint()._last_rows:
 		if row[0] == &"ap_start_pc":
 			start_row = row
-	_ok(not start_row.is_empty() and start_row[2] == [ArcadePrompts.key_glyph(DesktopBindings.event_for_system("RETRO_JOYPAD_START", "arcade")),
-			ArcadePrompts.key_glyph(DesktopBindings.event_for_system("RETRO_JOYPAD_SELECT", "arcade"))],
+	_ok(not start_row.is_empty() and start_row[2] == [DesktopBindings.event_glyph(DesktopBindings.event_for_system("RETRO_JOYPAD_START", "arcade")),
+			DesktopBindings.event_glyph(DesktopBindings.event_for_system("RETRO_JOYPAD_SELECT", "arcade"))],
 		"prompts: and they are the keys of the cabinet's own map (%s)" % str(start_row))
 	panel2.set_attached(false)
 	# With a headset's controller the rows are the controller's, by the player's own map.

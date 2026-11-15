@@ -135,20 +135,54 @@ static func display_name_for_system(action: String, systemid: String) -> String:
 
 ## The event `action` would have once `apply_for_system(systemid)` had run (its first), or null; read without running it, for the same reason.
 static func event_for_system(action: String, systemid: String) -> InputEvent:
-	if not InputMap.has_action(action):
-		return null
-	var chosen: InputEvent = null
-	var setting: Variant = ProjectSettings.get_setting("input/%s" % action, null)
-	if setting is Dictionary:
-		var events: Array = (setting as Dictionary).get("events", []) as Array
-		if not events.is_empty():
-			chosen = events[0] as InputEvent
-	for layer in _layers_for(systemid):
-		if layer.has(action):
-			var ev := _dict_to_event(layer[action] as Dictionary)
-			if ev != null:
-				chosen = ev
-	return chosen
+	return events_for_system([action], systemid).get(action) as InputEvent
+
+
+## event_for_system for several actions, the bindings file read once: action -> its event (null for none).
+static func events_for_system(actions: Array, systemid: String) -> Dictionary:
+	var layers := _layers_for(systemid)
+	var out := {}
+	for action: String in actions:
+		var chosen: InputEvent = null
+		if InputMap.has_action(action):
+			var setting: Variant = ProjectSettings.get_setting("input/%s" % action, null)
+			if setting is Dictionary:
+				var events: Array = (setting as Dictionary).get("events", []) as Array
+				if not events.is_empty():
+					chosen = events[0] as InputEvent
+			for layer in layers:
+				if layer.has(action):
+					var ev := _dict_to_event(layer[action] as Dictionary)
+					if ev != null:
+						chosen = ev
+		out[action] = chosen
+	return out
+
+
+## What a player calls an event's key or button ("Ctrl", "LMB"), "(none)" for none.
+static func event_name(ev: InputEvent) -> String:
+	return _format_event(ev) if ev != null else "(none)"
+
+
+## The InputPrompts glyph of an event's keyboard key ("keyboard_ctrl_outline"), or "" for no key or one the set has no glyph for.
+static func event_glyph(ev: InputEvent) -> String:
+	var key := ev as InputEventKey
+	if key == null:
+		return ""
+	var text := _key_string(key).to_lower().replace(" ", "_")
+	var glyph := "keyboard_%s_outline" % str(KEY_GLYPH_NAMES.get(text, text))
+	return glyph if ResourceLoader.exists("%s/%s%s" % [HeldHint.GLYPH_DIR, glyph, ConsolePadDiagram.GLYPH_EXT]) else ""
+
+
+## Godot's names for keys where Kenney's glyph files differ.
+const KEY_GLYPH_NAMES := {"up": "arrow_up", "down": "arrow_down", "left": "arrow_left", "right": "arrow_right", "kp_enter": "numpad_enter",
+	"bracketleft": "bracket_open", "bracketright": "bracket_close", "pageup": "page_up", "pagedown": "page_down"}
+
+
+## A key's name: its physical key's, else its keycode's.
+static func _key_string(key: InputEventKey) -> String:
+	var s := OS.get_keycode_string(key.physical_keycode)
+	return s if not s.is_empty() else OS.get_keycode_string(key.keycode)
 
 
 ## Load saved bindings and apply the global scope. Safe with no file present.
@@ -242,9 +276,7 @@ static func event_display_name(action: String) -> String:
 static func _format_event(ev: InputEvent) -> String:
 	if ev is InputEventKey:
 		var key := ev as InputEventKey
-		var s := OS.get_keycode_string(key.physical_keycode)
-		if s.is_empty():
-			s = OS.get_keycode_string(key.keycode)
+		var s := _key_string(key)
 		return s if not s.is_empty() else "(key %d)" % key.physical_keycode
 	if ev is InputEventMouseButton:
 		match (ev as InputEventMouseButton).button_index:

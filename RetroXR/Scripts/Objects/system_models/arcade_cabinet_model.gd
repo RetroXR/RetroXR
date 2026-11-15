@@ -788,31 +788,26 @@ func configure_collision(host: Node3D) -> void:
 		boxes.clear()
 		for k in shell.size():
 			boxes.append(shell[k] as AABB)
-	var first := host.get_node_or_null("CollisionShape3D") as CollisionShape3D
-	# A cabinet from a model with convex pieces: those, the whole of it, following its surfaces.
+	# [shape, position] for each piece: a cabinet from a model with convex pieces takes those, the whole of it, following its
+	# surfaces; else the boxes.
+	var pieces: Array = []
 	var hulls: Array = get_meta(SHELL_HULLS_META, [])
-	if not hulls.is_empty():
-		for i in hulls.size():
-			var hc: CollisionShape3D = first if i == 0 else CollisionShape3D.new()
-			if hc == null:
-				continue
-			var cshape := ConvexPolygonShape3D.new()
-			cshape.points = hulls[i] as PackedVector3Array
-			hc.shape = cshape
-			hc.position = Vector3.ZERO
-			if i > 0:
-				hc.name = "CabinetBox%d" % i
-				host.add_child(hc)
-		_build_pointer_shapes(host)
-		return
-	for i in boxes.size():
+	for h in hulls:
+		var cshape := ConvexPolygonShape3D.new()
+		cshape.points = h as PackedVector3Array
+		pieces.append([cshape, Vector3.ZERO])
+	if hulls.is_empty():
+		for bx: AABB in boxes:
+			var shape := BoxShape3D.new()
+			shape.size = bx.size
+			pieces.append([shape, bx.get_center()])
+	var first := host.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	for i in pieces.size():
 		var col: CollisionShape3D = first if i == 0 else CollisionShape3D.new()
 		if col == null:
 			continue
-		var shape := BoxShape3D.new()
-		shape.size = boxes[i].size
-		col.shape = shape
-		col.position = boxes[i].get_center()
+		col.shape = pieces[i][0] as Shape3D
+		col.position = pieces[i][1] as Vector3
 		if i > 0:
 			col.name = "CabinetBox%d" % i
 			host.add_child(col)
