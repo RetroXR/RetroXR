@@ -47,6 +47,8 @@ var _held: MeshInstance3D = null
 var _held_by: XRController3D = null
 var _side := {}
 var _refill := 0.0
+## Loose tokens (ArcadeToken) near the slot: instance id -> how deep through the mouth's plane each was last physics frame.
+var _token_side := {}
 
 
 func _ready() -> void:
@@ -157,6 +159,38 @@ func _process(delta: float) -> void:
 		_hide_held()
 		Haptics.click(best, true, &"coin_slot")
 		coin_entered.emit(pose)
+
+
+## A loose token (ArcadeToken: one off a cash box, in a hand or not) pushed through the mouth goes in as a hand's does: its
+## centre crossing the mouth's plane going inward, inside the opening. It leaves the room, and the module slides a coin in from
+## where it was. Physics frames, so it works on the desktop too; nothing to do when no token is about.
+func _physics_process(_delta: float) -> void:
+	if not _interactive:
+		return
+	var tokens := get_tree().get_nodes_in_group(ArcadeToken.GROUP)
+	if tokens.is_empty():
+		if not _token_side.is_empty():
+			_token_side.clear()
+		return
+	var into := insert_dir_world()
+	var at := mouth()
+	var sb := slot_basis()
+	for n in tokens:
+		var token := n as Node3D
+		var id := token.get_instance_id()
+		var rel := token.global_position - at
+		if rel.length() > REACH:
+			_token_side.erase(id)
+			continue
+		var depth := rel.dot(into)
+		var was: float = _token_side.get(id, -1.0)
+		_token_side[id] = depth
+		if was < 0.0 and depth >= 0.0 and absf(rel.dot(sb.x)) <= slot_length * 0.5 + OPENING_SLACK \
+				and absf(rel.dot(sb.y)) <= OPENING_ACROSS:
+			var from := token.global_transform
+			_token_side.erase(id)
+			token.queue_free()
+			coin_entered.emit(from)
 
 
 func _hide_held() -> void:

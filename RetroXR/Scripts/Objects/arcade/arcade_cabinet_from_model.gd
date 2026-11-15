@@ -297,32 +297,9 @@ static func _cash_inner(b: AABB) -> AABB:
 	return AABB(lo, (hi - lo).max(Vector3.ZERO))
 
 
-## A token: a loose body of its own in the room, the RETRO XR token's mesh, a coin's disc to everything else.
+## A token: a loose thing of its own in the room (ArcadeToken: picked up like any small object, and a coin again in a slot).
 func _cash_token(at: Transform3D) -> RigidBody3D:
-	var token := RigidBody3D.new()
-	token.name = "CashToken"
-	token.collision_layer = 4
-	token.collision_mask = 1 | 4
-	token.mass = 0.008
-	token.continuous_cd = true
-	var pm := PhysicsMaterial.new()
-	pm.friction = 0.6
-	pm.bounce = 0.15
-	token.physics_material_override = pm
-	var col := CollisionShape3D.new()
-	var disc := CylinderShape3D.new()
-	disc.radius = ArcadeCoinModule.COIN_RADIUS
-	disc.height = 0.003
-	col.shape = disc
-	token.add_child(col)
-	var mesh := MeshInstance3D.new()
-	mesh.mesh = ArcadeCoinModule.token_mesh()
-	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	token.add_child(mesh)
-	var room := get_tree().current_scene if get_tree().current_scene != null else get_tree().root
-	room.add_child(token)
-	token.global_transform = at
-	return token
+	return ArcadeToken.make(at, get_tree().current_scene if get_tree().current_scene != null else get_tree().root)
 
 
 ## The box as an open tray to a token: its floor (the cover's own shape, first, so what rests on it rides it when it is
