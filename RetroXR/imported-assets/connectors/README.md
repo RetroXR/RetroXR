@@ -15,7 +15,8 @@ After a re-import, put the GLBs back to `generate_lods=false` and any extracted 
 | `hpdb50_plug/hpdb50_plug.glb` | `generic/hpdb50-plug/exports/naomi/hpdb50_plug_naomi_mobile_clean.glb` | both ends of `gd_cable.tscn` |
 | `ps2_plug/ps2_plug_purple.glb` | `generic/ps2-plug/exports/purple/ps2_plug_purple_mobile_clean.glb` | the PC keyboard's lead (`RetroKeyboard.PLUG_MESH`, through `ControllerPlug.set_plug_mesh`) |
 | `ps2_plug/ps2_plug_green.glb` | `generic/ps2-plug/exports/green/ps2_plug_green_mobile_clean.glb` | the PC mouse's lead (`RetroMouse.PLUG_MESH`) |
-| `trs_plug/trs_plug.glb` | `generic/trs-plug/exports/lime/trs_plug_lime_mobile_clean.glb` | both ends of `trs_cable.tscn` (the Sega CD mixing cable keeps the old baked `trs_plug.res`, painted black, until a black edition exists) |
+| `trs_plug/trs_plug.glb` | `generic/trs-plug/exports/lime/trs_plug_lime_mobile_clean.glb` | both ends of `trs_cable.tscn` |
+| `trs_plug/trs_plug_black.glb` | `generic/trs-plug/exports/black/trs_plug_black_mobile_clean.glb` | the headphones' plug (`HeadphonesPlug.PLUG_GLB`, its mesh and CordExit taken in `_ready`) and both ends of `sega_cd_mixing_cable.tscn` |
 
 The PS/2 and 3.5 mm plugs replaced `Tools/gen/gen_ps2.gd`'s and `gen_trs.gd`'s baked plugs (2026-11-15); the sockets
 are still those generators' `.res`, and the old plug `.res` files stay for them. Both were mods (`xenu.usba`, `xenu.rj45`) until 2026-11-14. An old `xenu.rj45` still installed changes nothing: it

@@ -1,13 +1,16 @@
-## The 3.5 mm plug on the headphones' cord (RetroXR-models generic/headphones-portable, headphones_plug.glb).
+## The 3.5 mm plug on the headphones' cord: the black edition of RetroXR-models generic/trs-plug
+## (imported-assets/connectors/trs_plug/trs_plug_black.glb; it was generic/headphones-portable's own headphones_plug.glb
+## until 2026-11-15).
 ##
 ## An RcaPlug in every way that matters (connector trs_plug, seats in any headphone jack); two additions. Its mesh is
-## the model's PlugTip, put on BEFORE RcaPlug reads it for the cord's anchor; its box is what that mesh draws. And it
+## the model's Plug, put on the PlugTip BEFORE RcaPlug reads it for the cord's anchor, with the model's CordExit as a
+## marker beside it, which RcaPlug takes first; its box is what that mesh draws. And it
 ## carries the headphones' menu: on desktop, with the headset worn, the camera is inside the band and the pointer cannot
 ## reach the headset, so the plug is where "On your head: Off" is.
 class_name HeadphonesPlug
 extends RcaPlug
 
-const PLUG_GLB := "res://imported-assets/appliances/headphones/headphones_plug.glb"
+const PLUG_GLB := "res://imported-assets/connectors/trs_plug/trs_plug_black.glb"
 
 var display_name := "Headphones"
 
@@ -17,8 +20,16 @@ func _ready() -> void:
 	var scene := load(PLUG_GLB) as PackedScene
 	if tip != null and scene != null:
 		var model := scene.instantiate()
-		var src := model.find_child("PlugTip", true, false) as MeshInstance3D
-		if src != null:
+		var src := model.find_child("Plug", true, false) as MeshInstance3D
+		var exit := model.find_child(PlugExit.MARKER, true, false) as Node3D
+		if exit != null and get_node_or_null(PlugExit.MARKER) == null:
+			var marker := Marker3D.new()
+			marker.name = PlugExit.MARKER
+			marker.transform = exit.transform
+			add_child(marker)
+		if src == null:
+			push_warning("[Headphones] %s: %s has no Plug mesh" % [name, PLUG_GLB])
+		else:
 			tip.mesh = src.mesh
 			var shape := get_node_or_null("CollisionShape3D") as CollisionShape3D
 			if shape:

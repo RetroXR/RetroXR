@@ -1,21 +1,18 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://Scripts/Objects/cables/composite_cable.gd" id="1_cablescript"]
 [ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
-[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/trs_plug.res" id="3_trsplug"]
+[ext_resource type="PackedScene" uid="uid://khkgxfrlsy6s" path="res://imported-assets/connectors/trs_plug/trs_plug_black.glb" id="3_trsplug"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
 
-; The handle and shaft together, centred at z -0.0085 — the plug's ORIGIN is its
-; mating face, so the body runs 32 mm back from it and the shaft 15 mm forward.
+; Each end wears the molded 3.5 mm plug in black, Sega's handles' colour (RetroXR-models
+; generic/trs-plug, black edition; imported-assets/connectors/trs_plug/trs_plug_black.glb)
+; with the model's own CordExit. Its box is the model's bounds, 8.2 x 8.2 x 43.2 mm: the
+; plug's ORIGIN is the overmold's front face, the body and boot 28.2 mm back, the shaft
+; 15 mm forward.
 [sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
-size = Vector3(0.012, 0.012, 0.05)
-
-; Sega's handles are black; the baked 3.5 mm plug's are lime and take no tint, so
-; its plastic (surface 0) is overridden.
-[sub_resource type="StandardMaterial3D" id="Mat_handle"]
-albedo_color = Color(0.07, 0.07, 0.075, 1)
-roughness = 0.5
+size = Vector3(0.0082, 0.0082, 0.0432)
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
 bounce = 0.0
@@ -43,10 +40,9 @@ size = Vector3(0.035, 0.035, 0.075)
 ; the ends land in. One cord takes the single-rope path in _build_rope: no ribbon,
 ; no breakout, both ends anchored straight to their plugs.
 ;
-; cord_colors carries the handle's own PC99 lime rather than a signal colour. The
-; class tints surface 0 of each plug so a cord can be recognised at both ends, and
-; on a one-cord lead there is nothing to tell apart — matching the baked colour
-; makes that tint a no-op instead of repainting a connector that is already right.
+; cord_colors carries the handles' own black rather than a signal colour: a one-cord
+; lead has nothing to tell apart, and the class tints only a PlugTip block, which
+; these ends no longer have.
 [node name="SegaCdMixingCable" type="Node3D"]
 script = ExtResource("1_cablescript")
 cord_colors = PackedColorArray(0.07, 0.07, 0.075, 1)
@@ -68,12 +64,13 @@ script = ExtResource("2_plugscript")
 connector = "trs_plug"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0085)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0066)
 shape = SubResource("BoxShape3D_plug")
 
-[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
-mesh = ExtResource("3_trsplug")
-surface_material_override/0 = SubResource("Mat_handle")
+[node name="Shell" parent="PlugA0" instance=ExtResource("3_trsplug")]
+
+[node name="CordExit" type="Marker3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0277)
 
 [node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
 collision_layer = 1048576
@@ -104,12 +101,13 @@ script = ExtResource("2_plugscript")
 connector = "trs_plug"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0085)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0066)
 shape = SubResource("BoxShape3D_plug")
 
-[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
-mesh = ExtResource("3_trsplug")
-surface_material_override/0 = SubResource("Mat_handle")
+[node name="Shell" parent="PlugB0" instance=ExtResource("3_trsplug")]
+
+[node name="CordExit" type="Marker3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0277)
 
 [node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
 collision_layer = 1048576
