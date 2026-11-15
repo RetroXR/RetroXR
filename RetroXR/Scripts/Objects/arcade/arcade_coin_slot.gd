@@ -189,8 +189,15 @@ func _physics_process(_delta: float) -> void:
 				and absf(rel.dot(sb.y)) <= OPENING_ACROSS:
 			var from := token.global_transform
 			_token_side.erase(id)
-			token.queue_free()
+			spend(token)
 			coin_entered.emit(from)
+
+
+## A token goes into a slot: out of whatever hand holds it first (a hand left holding a freed body), then out of the room.
+static func spend(token: Node3D) -> void:
+	if token is XRToolsPickable and (token as XRToolsPickable).is_picked_up():
+		(token as XRToolsPickable).drop()
+	token.queue_free()
 
 
 func _hide_held() -> void:

@@ -101,7 +101,7 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 		_scrape_voice.position = _slot.position
 		_voice.position = _slot.position + _slot.insert_dir.normalized() * 0.08
 		_slot.set_token(token_mesh(), null)
-		_slot.clicked.connect(insert_coin)
+		_slot.clicked.connect(_on_slot_clicked)
 		_slot.coin_entered.connect(func(from: Transform3D) -> void: insert_coin_from(from, true))
 		_lamp = _slot.find_child("ButtonMesh", true, false) as MeshInstance3D
 	if _lamp != null and _lamp.mesh != null and _lamp.mesh.surface_get_material(0) is StandardMaterial3D:
@@ -187,6 +187,33 @@ func insert_coin() -> void:
 		# Face to the camera at first, as if just let go.
 		start = Transform3D(Basis(cam.global_basis.x, -cam.global_basis.z, cam.global_basis.y), at)
 	insert_coin_from(start)
+
+
+## The slot clicked (the desktop reticle, a laser): a token in a hand goes in, flying from where it is held (the owner,
+## 2026-11-15: "can i put them in coin slots"); with none held, one flies in from the corner of the view as always.
+func _on_slot_clicked() -> void:
+	var held := held_token()
+	if held == null:
+		insert_coin()
+		return
+	var from := held.global_transform
+	ArcadeCoinSlot.spend(held)
+	insert_coin_from(from)
+
+
+## The token in a hand nearest this door's slot, or null.
+func held_token() -> ArcadeToken:
+	var best: ArcadeToken = null
+	var best_d := INF
+	for n in get_tree().get_nodes_in_group(ArcadeToken.GROUP):
+		var t := n as ArcadeToken
+		if t == null or t.is_queued_for_deletion() or not t.is_picked_up():
+			continue
+		var d := t.global_position.distance_squared_to(_slot.global_position if _slot != null else global_position)
+		if d < best_d:
+			best_d = d
+			best = t
+	return best
 
 
 ## A token from `from` (world): it flies to the slot's mouth turning edge-on (unless `slide_only`: a hand put it there), then

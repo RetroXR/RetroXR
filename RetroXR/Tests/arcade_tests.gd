@@ -1176,6 +1176,14 @@ func _group_coin() -> void:
 	var landed := []
 	door.coin_inserted.connect(func(p: int) -> void: landed.append(p))
 	_ok(door.player == 1, "coin: the second door is player 2's")
+	# A loose token turns under its own weight: Jolt swaps an inertia it cannot invert for a metre ball's (inverse 312.5 at 8 g),
+	# and a token so heavy to turn stood on its rim wherever it landed.
+	var loose := ArcadeToken.make(Transform3D(Basis.IDENTITY, Vector3(5, 1, 5)), self)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var inv := PhysicsServer3D.body_get_direct_state(loose.get_rid()).inverse_inertia
+	_ok(inv.x > 1.0e5 and inv.y > 1.0e5, "coin: a loose token has a coin's inertia, not Jolt's fallback (inverse %s)" % inv)
+	loose.queue_free()
 	door.insert_coin()
 	_ok(landed.is_empty() and door.in_flight == 1, "coin: a coin is in the air, not yet in the box")
 	_ok(door.find_child("Coin", false, false) != null, "coin: it is a plain mesh")
