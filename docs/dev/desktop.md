@@ -111,6 +111,51 @@ Windows, Linux and macOS builds only; a headset has neither. Source:
 
 ## The hand (`desktop_pickup.gd`)
 
+### Ray floor placement (2026-11-15)
+
+`RayFloorPreview` is shared by `DesktopPickup` and the local XR Tools pickup fork.
+Every pickable exports `ray_floor_preview_default` (false unless its scene/script opts in).
+Hold **Alt** (`desktop_floor_preview`) or the **holding VR hand's A/X**
+(`floor_preview_button_action`, `ax_button`) to invert it temporarily. The mode is
+default XOR button-held, never a latched toggle. Direct hand/caught/FPS holds do not use it.
+
+The shader draws a yaw-aligned bounding footprint below the visible object, with
+antialiased cyan edges, bright corner brackets, faint fill and a slight shimmer.
+A centered arrow points toward the landing pose's authored front (+Z). Its strokes
+use the quad's mesh coordinates (+Y maps to +Z), not a guessed UV facing; the
+asymmetric cabinet in the visual probe has its screen on that same front side.
+`PointerFit.drawn_bounds` excludes hidden stand-ins, hands, outlines and other objects;
+the bounds are re-read so model changes and scale changes show immediately. The last
+horizontal heading is retained when tipped vertically. A downward body-only query
+(World/Pickable/XRPickable, up to 50 m, excluding the held object's subtree) finds the
+centre's supporting plane. Floors, furniture and loose bodies qualify, up to 60 degrees.
+This rectangle describes the bounding footprint, not stability or full support at an edge.
+
+**Release with a valid footprint places the object there.** `solve` runs again at release,
+preserves X/Z, horizontal heading and scale, removes pitch/roll (authored +Y faces
+world up), and seats the upright bounds onto the plane with 3 mm clearance. The
+footprint describes that UPRIGHT landing, not the tilted held silhouette. A vertical
+hold uses the preview's last horizontal heading on release too. Standing a sideways
+object up may raise its origin to keep its base above the surface. Ordinary drops
+retain their rotation. No destination, modifier off on a default-off object, a mounted object,
+or a destination beyond its tether: ordinary release. An engaged socket takes priority.
+Visibility fades, but the logical mode (not the fade alpha) controls placement.
+
+Placement happens before release observers run, with zero linear/angular velocity and
+the existing freeze policy. Desktop uses a transient `_ray_floor_placing` meta during
+`let_go` solely to skip its usual downward wake-up nudge. VR has no GrabDriver; it pushes
+the transform to PhysicsServer explicitly and emits its separate `ray_dropped` signal
+after pose and velocities are final. The helper is local and is never saved or replicated.
+
+`ray_floor_tests` drives both release paths, real support queries, slope bounds, tether
+limits, socket priority and logical visibility; `object_sync_tests` authority cases drive
+a real ray release over loopback. `Tools/room/ray_floor_probe.tscn` is the windowed visual
+proof (before/after PNGs in `build_out`; `-- --record` also writes frames for a clip).
+The footprint and front arrow were also rendered with `--rendering-method mobile`
+on desktop Vulkan (RTX 5070 Laptop), with no shader errors and the same visible
+result. This checks the Mobile rendering path, not Adreno or stereo performance.
+Physical headset button feel and Quest rendering remain hardware checks, not headless claims.
+
 - **Pulled all the way in, one more notch CATCHES the object into the hand** (`_catch`; wheel up lets it
   back out onto the ray at `MIN_DIST`, the pull-in limit, so one notch in catches it again; it used to
   resume at 45 cm, four notches out). It settles into `HAND_LOCAL` (camera-right 0, down 7 cm,

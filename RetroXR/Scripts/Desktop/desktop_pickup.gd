@@ -53,6 +53,8 @@ extends Node3D
 
 const InteractionTargetType := preload("res://Scripts/Interaction/interaction_target.gd")
 
+var _floor_preview: RayFloorPreview
+
 ## Scroll step in metres
 const SCROLL_STEP := 0.075
 const MIN_DIST    := 0.15
@@ -171,6 +173,9 @@ var _click_drag    : float = 0.0
 
 
 func _ready() -> void:
+	_floor_preview = RayFloorPreview.new()
+	_floor_preview.source = self
+	add_child(_floor_preview)
 	# Invisible pivot that the grabbed object follows.
 	# Uses DesktopHandPivot script to satisfy XRToolsPickable's grabber interface
 	# (picked_up_ranged property + drop_object() callback).
@@ -861,6 +866,14 @@ func _log_click_kept() -> void:
 
 ## Drop the currently held object.
 func _drop() -> void:
+	# Query before clearing the hold. Socket previews take priority in solve().
+	var floor_target := floor_preview_target()
+	var placement: Dictionary = {}
+	if floor_target != null:
+		placement = _floor_preview.release_solution(floor_target, floor_preview_modifier()) if is_instance_valid(_floor_preview) \
+			else RayFloorPreview.solve(floor_target, floor_preview_modifier())
+	if is_instance_valid(_floor_preview):
+		_floor_preview.clear()
 	# What goes back to a seat of its own (a cabinet's guns, sticks and guitars: Holster) is told apart BEFORE the release, the companion's slot included.
 	var letting_go: Array[Node3D] = []
 	if _held_object != null:
@@ -877,7 +890,11 @@ func _drop() -> void:
 		var obj := _held_object
 		_held_object = null
 		if obj.is_picked_up() and obj.get_picked_up_by() == _hand_pivot:
+			if not placement.is_empty():
+				RayFloorPreview.place(obj, placement)
+				obj.set_meta(RayFloorPreview.PLACING_META, true)
 			obj.let_go(_hand_pivot, Vector3.ZERO, Vector3.ZERO)
+			obj.remove_meta(RayFloorPreview.PLACING_META)
 			obj.sleeping = false
 	_middle_held = false
 	_hand_hold = false
@@ -893,6 +910,8 @@ func _drop() -> void:
 ## Called by DesktopHandPivot.drop_object() when pickable.gd notifies the
 ## grabber of a drop (e.g. from a snap zone or external pickable.drop() call).
 func _on_pivot_drop_object() -> void:
+	if is_instance_valid(_floor_preview):
+		_floor_preview.clear()
 	_release_companion()
 	_end_inspect()
 	if _held_object and _held_object.is_picked_up() and _held_object.get_picked_up_by() == _hand_pivot:
@@ -918,6 +937,15 @@ func _on_pivot_drop_object() -> void:
 ## look at.
 func _is_fps_snap() -> bool:
 	return _held_object != null and not _inspect and _held_object.get("desktop_fps_snap")
+
+
+## Shared floor-preview provider. Direct/caught holds never place on the floor.
+func floor_preview_target() -> RigidBody3D:
+	return _held_object if is_instance_valid(_held_object) and on_ray() and not get_viewport().use_xr else null
+
+
+func floor_preview_modifier() -> bool:
+	return Input.is_action_pressed(RayFloorPreview.ACTION)
 
 
 ## True while `obj` is held on desktop to look at (picked up with Shift), not to play: an

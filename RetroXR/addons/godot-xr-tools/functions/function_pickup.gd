@@ -51,6 +51,10 @@ class CopiedCollision extends RefCounted:
 ## Action controller button
 @export var action_button_action : String = "trigger_click"
 
+## LOCAL PATCH (RetroXR): temporarily invert the object's ray floor placement default.
+@export var floor_preview_button_action: String = "ax_button"
+var _floor_preview: RayFloorPreview
+
 ## Grab distance
 @export var grab_distance : float = 0.125: set = _set_grab_distance
 
@@ -186,6 +190,10 @@ func _ready():
 		return
 
 	# Create the grab collision shape
+	_floor_preview = RayFloorPreview.new()
+	_floor_preview.source = self
+	add_child(_floor_preview)
+
 	_grab_collision = CollisionShape3D.new()
 	_grab_collision.set_name("GrabCollisionShape")
 	_grab_collision.shape = SphereShape3D.new()
@@ -854,10 +862,16 @@ func _start_ray_grab_at(target: XRToolsPickable, distance: float,
 	_ray_grab_scale = target.global_basis.get_scale()
 	_set_pointer_highlight(null)  # object transitions from "highlighted" to "held"
 	# Freeze physics and move to the held layer (mirrors XRToolsPickable.pick_up)
-	target.restore_freeze = target.freeze
+	# Match the pickable's normal release policy, including transferred holds.
+	match target.release_mode:
+		XRToolsPickable.ReleaseMode.FROZEN: target.restore_freeze = true
+		XRToolsPickable.ReleaseMode.UNFROZEN: target.restore_freeze = false
+		_: target.restore_freeze = target.freeze
 	target.freeze = true
 	target.collision_layer = target.picked_up_layer
 	target.collision_mask = 0
+	target.ray_holder = self
+	target.ray_grabbed.emit(target, self)
 	if _locomotion_manager:
 		_locomotion_manager.set_block(_ray_grab_block_owner, LocomotionManager.CHANNEL_ALL, true)
 	if not transferred:
@@ -979,6 +993,13 @@ func _compute_ray_grab_rotation(delta: float) -> Basis:
 
 # Release the ray-held object and restore its physics.
 func _end_ray_grab() -> void:
+	var floor_target := floor_preview_target()
+	var placement: Dictionary = {}
+	if floor_target != null:
+		placement = _floor_preview.release_solution(floor_target, floor_preview_modifier()) if is_instance_valid(_floor_preview) \
+			else RayFloorPreview.solve(floor_target, floor_preview_modifier())
+	if is_instance_valid(_floor_preview):
+		_floor_preview.clear()
 	_reset_charge()
 	_reel_gated = false
 	if not is_instance_valid(_ray_grab_object):
@@ -990,18 +1011,25 @@ func _end_ray_grab() -> void:
 	# The zone's own capture path can't fire here — it waits on the object's
 	# `dropped` signal, which comes from let_go(), which a ray grab never calls.
 	var socket := _ray_preview_zone if _ray_previewing else null
+	if not placement.is_empty():
+		RayFloorPreview.place(_ray_grab_object, placement)
 
 	_ray_grab_object.freeze = _ray_grab_object.restore_freeze
 	_ray_grab_object.collision_mask = _ray_grab_object.original_collision_mask
 	_ray_grab_object.collision_layer = _ray_grab_object.original_collision_layer
 
 	var released := _ray_grab_object
+	released.ray_holder = null
 	_clear_socket_preview()
 	_ray_grab_object = null
 
 	if is_instance_valid(socket) and socket.can_preview(released) \
 			and released.can_pick_up(socket):
 		socket.pick_up_object(released)
+	elif not placement.is_empty():
+		RayFloorPreview.place(released, placement)
+		if not released.freeze:
+			released.sleeping = false
 	else:
 		# Apply throw velocity so the object can be tossed. LOCAL PATCH (RetroXR): not one too big to throw (an arcade cabinet: `throw_scale()` 0), which
 		# is set down where the laser let go of it.
@@ -1009,6 +1037,8 @@ func _end_ray_grab() -> void:
 		released.linear_velocity = _velocity_averager.linear_velocity() * impulse_factor * throw
 		released.angular_velocity = _velocity_averager.angular_velocity() * throw
 
+	# Final pose and velocities are ready before the existing network release runs.
+	released.ray_dropped.emit(released)
 	if _locomotion_manager:
 		_locomotion_manager.set_block(_ray_grab_block_owner, LocomotionManager.CHANNEL_ALL, false)
 	emit_signal("has_dropped")
@@ -1018,6 +1048,19 @@ func _end_ray_grab() -> void:
 ## Used externally (e.g. spawn_menu_controller) to avoid conflicting grabs.
 func is_ray_grabbing() -> bool:
 	return is_instance_valid(_ray_grab_object)
+
+
+## LOCAL PATCH (RetroXR): common floor-preview provider; an engaged socket wins.
+func floor_preview_target() -> RigidBody3D:
+	if not is_instance_valid(_ray_grab_object):
+		return null
+	if _ray_previewing and is_instance_valid(_ray_preview_zone) and _ray_preview_zone.can_preview(_ray_grab_object):
+		return null
+	return _ray_grab_object
+
+
+func floor_preview_modifier() -> bool:
+	return is_instance_valid(_controller) and _controller.is_button_pressed(floor_preview_button_action)
 
 
 func is_ray_grabbing_target(target: XRToolsPickable) -> bool:
@@ -1224,6 +1267,8 @@ func _release_hand_for_transfer() -> bool:
 # Release from the ray without the throw impulse or the has_dropped signal. The
 # locomotion block stays put — the caller is about to hold the object anyway.
 func _release_ray_for_transfer() -> void:
+	if is_instance_valid(_floor_preview):
+		_floor_preview.clear()
 	# Catching it into the hand abandons whatever socket it was lining up with.
 	_clear_socket_preview()
 	if not is_instance_valid(_ray_grab_object):
@@ -1232,6 +1277,7 @@ func _release_ray_for_transfer() -> void:
 	_ray_grab_object.freeze = _ray_grab_object.restore_freeze
 	_ray_grab_object.collision_mask = _ray_grab_object.original_collision_mask
 	_ray_grab_object.collision_layer = _ray_grab_object.original_collision_layer
+	_ray_grab_object.ray_holder = null
 	_ray_grab_object = null
 	_reel_gated = false
 	if _locomotion_manager:

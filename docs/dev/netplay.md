@@ -4,6 +4,17 @@ Moved verbatim out of `CLAUDE.md` on 2026-09-18; `CLAUDE.md` keeps the summary a
 
 ### 2f. Netplay — a suite, and the one thing it cannot cover
 
+**Ray-held placement (2026-11-15):** a VR ray grab bypasses the pickable's GrabDriver,
+so its ordinary `grabbed`/`dropped` signals never fire. The pickable now exposes
+`ray_grabbed`/`ray_dropped` and `ray_holder`; ObjectSync connects those to the existing
+authority/release handlers, without triggering hand-only gameplay listeners or adding
+wire messages. A floor placement publishes its final pose and zero velocities before
+`ray_dropped`. Revoking authority clears the ray via `_release_ray_for_transfer`, without
+placing or throwing, before freezing the replica. Catching into the hand clears the ray
+holder and continues through the normal hand grab. The authority group of
+`object_sync_tests` covers a real ray pickup, support query, placed release, host result,
+and authority revocation over loopback ENet.
+
 `RetroXR/Tests/netplay_tests.tscn` is 685 cases over the whole lockstep stack,
 headless, ~32 s, exits non-zero. Groups: `cores/` (the determinism allowlist),
 `identity/` (which core builds may play each other), `wire/` (every packed

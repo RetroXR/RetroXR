@@ -23,6 +23,14 @@ const GROUPS := ["registry", "snapshot", "spawn", "motion", "authority",
 var _only := ""
 
 
+## Real VR ray release, without a headset polling over the test's chosen pose.
+class FloorRayPickup extends XRToolsFunctionPickup:
+	func _ready() -> void: pass
+	func _process(_delta: float) -> void: pass
+	func _physics_process(_delta: float) -> void: pass
+	func floor_preview_modifier() -> bool: return true
+
+
 class StubNM extends Node:
 	var world: Node = null
 	var active := false
@@ -751,6 +759,43 @@ func _test_authority(p: Pair) -> void:
 	_vec(host_card.angular_velocity, Vector3(-1.0, 0.5, 2.0),
 		"authority/angular release velocity survives")
 	_ok(client_card.freeze, "authority/the released client replica is frozen again")
+	# A ray has no grab driver, so this must reach sync through its own signals.
+	# Use an actual support query and the production release, not _on_dropped.
+	var floor_body := StaticBody3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(4, 0.2, 4)
+	var col := CollisionShape3D.new()
+	col.shape = shape
+	floor_body.add_child(col)
+	p.client_root.add_child(floor_body)
+	floor_body.global_position = Vector3(30, -0.1, 0)
+	var ray := FloorRayPickup.new()
+	p.client_root.add_child(ray)
+	client_card.global_position = Vector3(30, 3, 0)
+	client_card.rotation = Vector3(0.1, 0.6, 0.2)
+	ray._start_ray_grab_at(client_card, 3.0)
+	_ok(await _until(func() -> bool: return p.host_os._remote_held.has(id)),
+		"authority/ray grab acquires authority without hand callbacks")
+	await _frames(3)
+	var placement := RayFloorPreview.solve(client_card, true)
+	_ok(not placement.is_empty(), "authority/ray footprint finds the support")
+	if not placement.is_empty():
+		ray._end_ray_grab()
+		_ok(await _until(func() -> bool: return not p.host_os._remote_held.has(id)),
+			"authority/ray placement releases authority")
+		_vec(host_card.global_position, placement.pose.origin, "authority/previewed landing reaches host")
+		_vec(host_card.linear_velocity, Vector3.ZERO, "authority/placement has zero linear velocity on host")
+		_vec(host_card.angular_velocity, Vector3.ZERO, "authority/placement has zero angular velocity on host")
+		_ok(client_card.freeze, "authority/placed client returns to replica policy")
+	# Reclaiming a ray-held replica must stop the ray, not snap it to the floor.
+	client_card.global_position = Vector3(30, 3, 0)
+	ray._start_ray_grab_at(client_card, 3.0)
+	await _until(func() -> bool: return p.host_os._remote_held.has(id))
+	p.host_os._on_grabbed(host_card, host_hand)
+	_ok(await _until(func() -> bool: return not ray.is_ray_grabbing()),
+		"authority/revoked ray stops driving the replica")
+	ray.queue_free()
+	floor_body.queue_free()
 	hand.queue_free()
 	host_hand.queue_free()
 

@@ -272,6 +272,12 @@ func _bind(node: Node, id: int) -> void:
 		node.connect("grabbed", _on_grabbed)
 	if node.has_signal("dropped") and not node.is_connected("dropped", _on_dropped):
 		node.connect("dropped", _on_dropped)
+	# Ray grabs bypass the hand GrabDriver and its gameplay signals, but use the
+	# same authority, held-pose and final-release packets.
+	if node.has_signal("ray_grabbed") and not node.is_connected("ray_grabbed", _on_grabbed):
+		node.connect("ray_grabbed", _on_grabbed)
+	if node.has_signal("ray_dropped") and not node.is_connected("ray_dropped", _on_dropped):
+		node.connect("ray_dropped", _on_dropped)
 	var exiting := _on_node_exiting.bind(id, node)
 	if not node.tree_exiting.is_connected(exiting):
 		node.tree_exiting.connect(exiting)
@@ -933,6 +939,10 @@ func _drop_and_free(node: Node) -> void:
 
 ## Let go of a body the host refused us, and hand it back to the replica rules.
 func _drop_and_freeze(node: Node) -> void:
+	var ray_holder: Variant = node.get("ray_holder")
+	if is_instance_valid(ray_holder):
+		# Denial cancels the ray without placing/throwing or sending a release back.
+		ray_holder._release_ray_for_transfer()
 	if node.has_method("drop"):
 		node.call("drop")
 	_freeze_replica(node)
@@ -1960,6 +1970,8 @@ func _is_zone_snapped(node: Node) -> bool:
 
 
 func _is_hand_held(node: Node) -> bool:
+	if is_instance_valid(node.get("ray_holder")):
+		return true
 	if not node.has_method("is_picked_up") or not node.call("is_picked_up"):
 		return false
 	return not _is_zone_snapped(node)

@@ -27,6 +27,12 @@ signal grabbed(pickable, by)
 # Signal emitted when this object is released (primary or secondary)
 signal released(pickable, by)
 
+## LOCAL PATCH (RetroXR): a ray hold has no GrabDriver. Separate notifications
+## let object sync track it without invoking hand-only gameplay callbacks.
+signal ray_grabbed(pickable, by)
+signal ray_dropped(pickable)
+var ray_holder: Node3D = null
+
 # Signal emitted when the user presses the action button while holding this object
 signal action_pressed(pickable)
 
@@ -63,6 +69,10 @@ const DEFAULT_LAYER := 0b0000_0000_0000_0001_0000_0000_0000_0000
 
 ## If true, the pickable supports being picked up
 @export var enabled : bool = true
+
+## LOCAL PATCH (RetroXR): ray-held footprint and place-on-release by default.
+## Alt (desktop) / A or X (holding VR hand) reverses this while held.
+@export var ray_floor_preview_default: bool = false
 
 ## If true, the grip control must be held to keep the object picked up
 @export var press_to_hold : bool = true
@@ -459,7 +469,7 @@ func let_go(by: Node3D, p_linear_velocity: Vector3, p_angular_velocity: Vector3)
 	# nudge so the body immediately enters active simulation instead of waiting
 	# for some later contact to wake it.
 	var release_linear_velocity := p_linear_velocity
-	if not freeze and release_linear_velocity.is_zero_approx():
+	if not freeze and release_linear_velocity.is_zero_approx() and not get_meta(&"_ray_floor_placing", false):
 		var gravity_dir := Vector3.DOWN
 		if ProjectSettings.has_setting("physics/3d/default_gravity_vector"):
 			gravity_dir = ProjectSettings.get_setting("physics/3d/default_gravity_vector")
