@@ -3,7 +3,7 @@
 ## front pushes it in (but never one reaching INTO it), the grip never lifts the furniture, its open amount saves, and
 ## what rests in it rides out with it. The nightstand is turned 90 degrees and moved, so a frame mix-up shows.
 ##   godot --headless --path RetroXR res://Tests/vr_drawer_tests.tscn [-- --only=<group>]
-## Groups: rig contract latch grip coast soft push pull save carry haul real mission beds living again
+## Groups: rig contract latch grip coast soft push pull save carry haul real mission beds living desk again
 extends "res://Tests/test_suite.gd"
 
 const HAND := &"/vr_drawer_tests/hand"
@@ -88,6 +88,8 @@ func _ready() -> void:
 		await _beds()
 	if _group("living"):
 		await _living()
+	if _group("desk"):
+		await _desk()
 	if _group("real"):
 		await _real_hold(ns)
 		await _ray_hold(ns)
@@ -1889,3 +1891,277 @@ func _held_only_while_carried() -> void:
 	remote.queue_free()
 	piece.queue_free()
 	await _ticks(3)
+
+
+## The computer desks (2026-11-15): sized round the game's OWN computer, and proved with the real objects, not numbers.
+## On every desk, turned 30 degrees and moved so a frame mix-up shows:
+## - the PC tower (system.tscn, pc_tower) set in its cubby stands on the cubby floor with 20 mm either side and 30 mm over
+##   it, and NOTHING of the desk is behind it (rays from its back face reach past the desk's back: an open back, so its
+##   leads go out behind);
+## - a plain keyboard-sized box left asleep on the tray rides it out and home exactly; the REAL keyboard
+##   (retro_keyboard.tscn, damped) comes out with it, its whole case past the front, still on the tray, and back under;
+## - the Plain Monitor and the RETRO XR TV each stand on the top (A: under the hutch, with 60 mm over the monitor).
+## `-- --mutate=back` gives the desk a board behind its cubby, `--mutate=lip` takes the tray's lips and front away and
+## makes it frictionless (the keyboard is then left behind), `--mutate=big` makes the monitor 1.3x: each must turn its
+## check red.
+const DESK_IDS := ["computer_desk_laminate", "computer_desk_corner", "computer_desk_mission"]
+const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
+const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
+const KEYBOARD_SCENE := preload("res://Scenes/Objects/peripherals/retro_keyboard.tscn")
+
+
+func _mutation() -> String:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--mutate="):
+			return a.substr(9)
+	return ""
+
+
+func _desk() -> void:
+	var mut := _mutation()
+	for id: String in DESK_IDS:
+		var desk := ScenePersistence.instantiate(id) as DrawerFurniture
+		desk.position = Vector3(0.0, 0.0, -2.5)
+		desk.rotation_degrees = Vector3(0, 30, 0)
+		add_child(desk)
+		await _ticks(3)
+		# Held still: what is measured is the desk's fit, not how far a 40 kg desk is nudged by a 12 kg tower.
+		desk.freeze = true
+		var c: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(desk.contract_path))
+		var comp: Dictionary = c.get("computer", {})
+		_ok(comp.has("tower_cubby") and comp.has("keyboard_tray") and comp.has("monitor_places"),
+			"desk/%s: its contract names the tower cubby, the keyboard tray and the monitor's places" % id)
+		if comp.is_empty():
+			desk.queue_free()
+			continue
+		if mut == "back":
+			var cub: Dictionary = comp["tower_cubby"]
+			var lo := DrawerFurniture._v3(cub["min"])
+			var hi := DrawerFurniture._v3(cub["max"])
+			desk.add_child(desk._box("MutantBack", Vector3((lo.x + hi.x) * 0.5, (lo.y + hi.y) * 0.5, lo.z - 0.01),
+				Vector3(hi.x - lo.x, hi.y - lo.y, 0.01)))
+		await _desk_tower(desk, id, comp)
+		await _desk_keyboard(desk, id, comp, mut == "lip")
+		for model: String in ["crt_plain", "retroxr_crt"]:
+			await _desk_monitor(desk, id, comp, model, mut == "big")
+		desk.queue_free()
+		await _ticks(2)
+
+
+## The box a body's OWN collision shapes fill (its direct CollisionShape3D children: not its sockets, buttons and
+## panels, which are bodies and areas of their own), in `frame`'s space. What it stands and fits by: the tower's is its
+## 190 x 420 x 440 case, the Plain Monitor's its 360 x 390 x 410 cabinet, the keyboard's its 507 x 158 case.
+func _visual_box(node: Node3D, frame: Node3D) -> AABB:
+	var inv := frame.global_transform.affine_inverse()
+	var out := AABB()
+	var first := true
+	for c in node.get_children():
+		var cs := c as CollisionShape3D
+		if cs == null or cs.disabled or cs.shape == null:
+			continue
+		var b := (inv * cs.global_transform) * cs.shape.get_debug_mesh().get_aabb()
+		out = b if first else out.merge(b)
+		first = false
+	return out
+
+
+## Move a drawer the way a hand does, over `seconds` (set_value alone snaps its target, and the body then follows at
+## a speed no hand pulls a keyboard tray at).
+func _ramp(d: VRDrawer, to: float, seconds := 1.0) -> void:
+	var from := d.value
+	var n := int(seconds * Engine.physics_ticks_per_second)
+	for i in n:
+		d.set_value(lerpf(from, to, float(i + 1) / n))
+		await get_tree().physics_frame
+	for i in 60:
+		await get_tree().physics_frame
+
+
+## Put `body` so its visible box's bottom middle lands 8 mm over `at` (frame space: x/z its middle, y its bottom; or its
+## front at `front_z`), facing the frame's `basis`, then let it go and settle.
+func _set_down(body: RigidBody3D, frame: Node3D, basis: Basis, at: Vector3, front_z := INF) -> void:
+	# Worked out from the body's own box BEFORE it is moved: put down overlapping the desk, even frozen for a tick, it
+	# shoves the desk away (the desk was pushed two metres).
+	var own := Transform3D(basis, Vector3.ZERO) * _visual_box(body, body)
+	var origin := Vector3(at.x - own.get_center().x, at.y + 0.008 - own.position.y, at.z - own.get_center().z)
+	if front_z != INF:
+		origin.z = front_z - own.end.z
+	# Unfrozen FIRST, then moved: a frozen (kinematic) body moved by its transform gets the jump as a velocity, which it
+	# keeps when let go (500 m/s: the monitor left the room).
+	body.freeze = false
+	body.global_transform = frame.global_transform * Transform3D(basis, origin)
+	body.linear_velocity = Vector3.ZERO
+	body.angular_velocity = Vector3.ZERO
+	for i in 120:
+		await get_tree().physics_frame
+
+
+func _desk_tower(desk: DrawerFurniture, id: String, comp: Dictionary) -> void:
+	var cub: Dictionary = comp["tower_cubby"]
+	var lo := DrawerFurniture._v3(cub["min"])
+	var hi := DrawerFurniture._v3(cub["max"])
+	var sys := SYSTEM_SCENE.instantiate() as RigidBody3D
+	sys.set("model_id", "pc_tower")
+	sys.set("systemid", "dos")
+	sys.freeze = true
+	sys.position = Vector3(3.0, 1.0, 3.0)
+	add_child(sys)
+	sys.add_to_group("spawned")
+	await _ticks(90)          # the shell's GLB lands
+	# In the cubby, its front 15 mm behind the cubby's front, facing out of the desk.
+	await _set_down(sys, desk, Basis.IDENTITY, Vector3((lo.x + hi.x) * 0.5, lo.y, 0.0), hi.z - 0.015)
+	var b := _visual_box(sys, desk)
+	var left := b.position.x - lo.x
+	var right := hi.x - b.end.x
+	var over := hi.y - b.end.y
+	var floor_gap := b.position.y - lo.y
+	_ok(left >= 0.019 and right >= 0.019 and over >= 0.029 and absf(floor_gap) < 0.01 and b.position.z > lo.z - 0.001,
+		"desk/%s: the PC tower (%.0f x %.0f x %.0f mm) stands in its cubby, %.0f / %.0f mm either side, %.0f mm over it, %.0f mm off the floor" % [
+		id, b.size.x * 1000.0, b.size.y * 1000.0, b.size.z * 1000.0, left * 1000.0, right * 1000.0, over * 1000.0,
+		floor_gap * 1000.0])
+	# Its back: a 3 x 3 grid of rays out of the tower's back face, along the desk's -Z, 1.2 m: none may meet the desk.
+	var space := desk.get_world_3d().direct_space_state
+	var blocked := 0
+	for i in 3:
+		for j in 3:
+			var p := Vector3(lerpf(b.position.x + 0.02, b.end.x - 0.02, i / 2.0),
+				lerpf(b.position.y + 0.03, b.end.y - 0.03, j / 2.0), b.position.z - 0.003)
+			var q := PhysicsRayQueryParameters3D.create(desk.global_transform * p,
+				desk.global_transform * (p + Vector3(0, 0, -1.2)))
+			q.exclude = [sys.get_rid()]
+			var hit: Dictionary = space.intersect_ray(q)
+			if not hit.is_empty() and hit["collider"] == desk:
+				blocked += 1
+	_ok(blocked == 0, "desk/%s: nothing of the desk is behind the tower (%d of 9 rays out of its back meet the desk)" % [
+		id, blocked])
+	sys.queue_free()
+	await _ticks(2)
+
+
+func _desk_keyboard(desk: DrawerFurniture, id: String, comp: Dictionary, mutate_lip: bool) -> void:
+	var tray_row: Dictionary = comp["keyboard_tray"]
+	var c: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(desk.contract_path))
+	var k := -1
+	var rows: Array = c["drawers"]
+	for i in rows.size():
+		if str(rows[i].get("node", "")) == str(tray_row["node"]):
+			k = i
+	_ok(k >= 0, "desk/%s: the keyboard tray %s is one of its drawers" % [id, tray_row["node"]])
+	if k < 0:
+		return
+	var row: Dictionary = rows[k]
+	var axis := DrawerFurniture._v3(row["axis"]).normalized()
+	var travel := float(row["travel_m"])
+	# The face it comes out of, along its axis (a turned tray names it; a front one is the case front).
+	var face := float(row.get("case_face_m", c.get("case_front_z", 0.0)))
+	var tray := desk.drawers()[k]
+	var body := desk.drawer_body(k)
+	if mutate_lip:
+		for n: String in ["BoxWallB", "BoxWallL", "BoxWallR", "BoxWallF", "BoxFront"]:
+			var s := body.get_node_or_null(n) as CollisionShape3D
+			if s != null:
+				s.disabled = true
+		var slick := PhysicsMaterial.new()
+		slick.friction = 0.0
+		body.physics_material_override = slick
+	var seat := desk.drawer_seat_local(k)
+	var inner: Dictionary = row["inner"]
+	var inner_len := float((inner.get("size_local", inner["size"]) as Array)[2])
+	var at := seat + axis * (inner_len * 0.5 - 0.095)
+	var inv := desk.global_transform.affine_inverse()
+	# The CONTROL: a plain keyboard-sized box, set down and left to fall asleep, rides the tray out and home exactly. It
+	# proves the tray carries what is on it, asleep or not.
+	var box := RigidBody3D.new()
+	var bcs := CollisionShape3D.new()
+	var bsh := BoxShape3D.new()
+	bsh.size = Vector3(0.507, 0.02, 0.158)
+	bcs.shape = bsh
+	bcs.position = Vector3(0, 0.01, 0)
+	box.add_child(bcs)
+	box.mass = 1.0
+	box.collision_layer = 4
+	box.collision_mask = 196613
+	var pm := PhysicsMaterial.new()
+	pm.friction = 0.8
+	box.physics_material_override = pm
+	box.position = desk.global_transform * (Vector3(seat.x, 0.05, seat.z) + axis * 0.7)
+	add_child(box)
+	await _ticks(2)
+	await _set_down(box, desk, FurnitureDrawers.axis_basis(axis), Vector3(at.x, seat.y, at.z))
+	var asleep := box.sleeping
+	var q0 := inv * box.global_position
+	await _ramp(tray, 1.0)
+	var q1 := inv * box.global_position
+	await _ramp(tray, 0.0)
+	var q2 := inv * box.global_position
+	var q_out := (q1 - q0).dot(axis)
+	_ok(asleep and absf(q_out - travel) < 0.015 and absf(q1.y - q0.y) < 0.005 and q2.distance_to(q0) < 0.015,
+		"desk/%s: a keyboard-sized box left asleep on the tray rides it %.0f mm out (tray %.0f) and home again (%.0f mm off; asleep before: %s)" % [
+		id, q_out * 1000.0, travel * 1000.0, q2.distance_to(q0) * 1000.0, asleep])
+	box.queue_free()
+	await _ticks(2)
+	# The REAL keyboard (retro_keyboard.tscn): a pull brings it out by the tray's travel, its whole case out from under
+	# the top, still on the tray, and a push takes it back under.
+	var kb := KEYBOARD_SCENE.instantiate() as RigidBody3D
+	kb.position = desk.global_transform * (Vector3(seat.x, 0.05, seat.z) + axis * 0.7)
+	add_child(kb)
+	await _ticks(3)
+	await _set_down(kb, desk, FurnitureDrawers.axis_basis(axis), Vector3(at.x, seat.y, at.z))
+	# Its cord taken off: the cord's plug lies where the keyboard was spawned and tugs it (14-78 mm, measured), which is
+	# the cord's business, not the tray's. The keyboard null-checks its plug.
+	var cable := kb.get("_cable_instance") as Node
+	if is_instance_valid(cable):
+		cable.queue_free()
+	kb.set("_cable_plug", null)
+	kb.set("_cable_rope", null)
+	for i in 30:
+		await get_tree().physics_frame
+	var p0 := inv * kb.global_position
+	_ok(absf(p0.y - seat.y) < 0.03, "desk/%s: the keyboard rests on the tray (%.0f mm over its floor)" % [id,
+		(p0.y - seat.y) * 1000.0])
+	await _ramp(tray, 1.0)
+	var p1 := inv * kb.global_position
+	var out := (p1 - p0).dot(axis)
+	var side := ((p1 - p0) - axis * out).length()
+	var half := _visual_box(kb, kb).size.z * 0.5
+	var back_edge := (p1 - axis * half).dot(axis)
+	_ok(absf(out - travel) < 0.015 and back_edge > face and side < 0.01 and absf(p1.y - p0.y) < 0.005,
+		"desk/%s: pulled out, the tray brings the keyboard %.0f mm out (tray %.0f), its whole case %.0f mm past the front, still on the tray (%.0f mm sideways, %.0f mm up/down)" % [
+		id, out * 1000.0, travel * 1000.0, (back_edge - face) * 1000.0, side * 1000.0, (p1.y - p0.y) * 1000.0])
+	await _ramp(tray, 0.0)
+	var p2 := inv * kb.global_position
+	var front_edge := (p2 + axis * half).dot(axis)
+	_ok(front_edge < face + 0.005 and absf(p2.y - p0.y) < 0.005,
+		"desk/%s: pushed home, the keyboard goes back in under the top on the tray (its front %.0f mm behind the front)" % [
+		id, (face - front_edge) * 1000.0])
+	kb.queue_free()
+	await _ticks(2)
+
+
+func _desk_monitor(desk: DrawerFurniture, id: String, comp: Dictionary, model: String, mutate_big: bool) -> void:
+	var place: Dictionary = (comp["monitor_places"] as Array)[0]
+	var lo := DrawerFurniture._v3(place["min"])
+	var hi := DrawerFurniture._v3(place["max"])
+	var tv := TV_SCENE.instantiate() as RigidBody3D
+	tv.set("tv_model", model)
+	tv.position = Vector3(-3.0, 1.0, 3.0)
+	tv.freeze = true
+	add_child(tv)
+	await _ticks(60)
+	if mutate_big:
+		for ch in tv.get_children():
+			if ch is Node3D:
+				(ch as Node3D).scale *= 1.3
+	# On the place, centred across it, its back 20 mm off the place's back.
+	var own := _visual_box(tv, tv)
+	await _set_down(tv, desk, Basis.IDENTITY, Vector3((lo.x + hi.x) * 0.5, lo.y, 0.0), lo.z + 0.02 + own.size.z)
+	var b := _visual_box(tv, desk)
+	var over := hi.y - b.end.y
+	var need_over := 0.06 if id == "computer_desk_laminate" else 0.0
+	_ok(b.position.x >= lo.x - 0.001 and b.end.x <= hi.x + 0.001 and b.position.z >= lo.z - 0.001
+		and b.end.z <= hi.z + 0.001 and absf(b.position.y - lo.y) < 0.015 and over >= need_over,
+		"desk/%s: the %s (%.0f x %.0f x %.0f mm) stands on %s, %.0f mm off it, %.0f mm deep of %.0f, %.0f mm clear over it" % [
+		id, model, b.size.x * 1000.0, b.size.y * 1000.0, b.size.z * 1000.0, place.get("name", "?"),
+		(b.position.y - lo.y) * 1000.0, b.size.z * 1000.0, (hi.z - lo.z) * 1000.0, over * 1000.0])
+	tv.queue_free()
+	await _ticks(2)

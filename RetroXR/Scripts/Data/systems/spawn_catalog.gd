@@ -1105,6 +1105,11 @@ const OBJECTS := [
 	["Mid-Century Coffee Table", "coffee_table_midcentury"],
 	["Glass Coffee Table",       "coffee_table_glass"],
 	["Pine Coffee Table",        "coffee_table_pine"],
+	# Computer desks (the same set): the PC tower stands in a cubby with an open back, the keyboard rides a pull-out
+	# tray, the monitor stands on the top.
+	["Laminate Computer Desk",   "computer_desk_laminate"],
+	["Corner Computer Desk",     "computer_desk_corner"],
+	["Mission Computer Desk",    "computer_desk_mission"],
 	# Somewhere to sit (ContractSeat): press a cushion to sit there, again to get up; hold on it to carry it. A bed's
 	# pillow end lies you down, the rest of it sits you on its edge.
 	["Mid-Century Sofa",   "sofa_midcentury"],

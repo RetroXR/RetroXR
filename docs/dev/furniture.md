@@ -211,3 +211,45 @@ and on EVERY piece, a box on every surface and in every drawer is held in place 
 surface bins, no drawer bins each go red).
 `Tools/room/living_room_probe` (windowed): all fifteen shut and open, the wall unit's glass with a box behind it, a set
 and a VCR on the Mission stand. Headset feel, Quest cost and a two-peer session OWED.
+
+## Computer desks (2026-11-15)
+
+Three more pieces of the same set (`computer_desk_laminate`, `computer_desk_corner`, `computer_desk_mission`; concept
+sheet `computer_desk_concepts.png` A, B, C), DrawerFurniture scenes like the rest, **sized round the game's own
+computer, not estimated**: the RETRO XR mini-tower (`pc_tower.tscn`, 190 x 420 x 440 mm), the keyboard
+(`retro_keyboard.tscn`, a 507 x 158 mm case) and the Plain Monitor (`tv:crt_plain`, 360 x 390 x 410).
+
+- **The tower cubby** is 250 mm clear across (20+ mm either side of the tower), 580-677 mm high and has **no back**, so
+  a tower's leads go out behind the desk; its CLEAR box is the contract's `computer.tower_cubby` (`open_back`), its floor
+  a surface. A cable notch lined with a black grommet goes through the top's back edge (`computer.cable_gaps`; on the
+  Mission desk the back apron is split under it, on the others the back panel stands in front of it).
+- **The keyboard tray** is a drawer row with `tray: true`: a fascia (its front lip), a floor, a 15 mm lip on the sides
+  and back, 640 x 300 mm inside, out 270 mm. FurnitureDrawers builds it as any drawer, so the keyboard rides out on it
+  by friction (a settled, sleeping one too: measured, nothing has to wake it) and the fascia pushes it home. **The
+  keyboard's own cord can tug it back on the tray**: its plug lies where the keyboard was spawned (or sits in a port),
+  and a cord trailing taut from the tray held the keyboard back 14-78 mm of a 270 mm pull in the tests; under the top there is ~40 mm over a keyboard's keys (11 mm
+  under the Mission desk's front apron). A hand takes the fascia anywhere along it (two grip points near its ends).
+- **The corner desk** is an L whose inside corner is cut on the diagonal; its tray slides out of that diagonal at 45
+  degrees and its pedestal drawers face +X, into the L. **A drawer turned by anything but a quarter turn needs its size
+  in its own frame**: the row's `front` / `inner` carry `size_local` (across, up, along its axis) and FurnitureDrawers
+  uses it (a +X drawer's size can still be turned from the piece's frame, as the beds' are); `case_face_m` names the
+  face it slides out of, for the export check. The top's corner triangle is stepped collision boxes.
+- **The monitor** stands on the top (`computer.monitor_places`): under the laminate desk's hutch with 470 mm clear (80
+  over the monitor), and the RETRO XR TV (380 x 330 x 400) fits each desk too.
+
+`vr_drawer_tests desk/`, with the REAL objects on each desk turned 30 degrees: the PC tower set in its cubby stands on
+the cubby floor with 20+ mm either side and 30+ mm over it, and a 3 x 3 grid of rays out of its back face meets nothing
+of the desk; a plain keyboard-sized box left ASLEEP on the tray rides it out and home within 15 mm (the control), and the
+real keyboard (its cord taken off: see above) rides out by the tray's travel, its whole case past the front, still on
+the tray, and back in under the top; the Plain Monitor and the RETRO XR TV each stand on the top inside the monitor place (and under the hutch with
+60 mm over). Mutation-tested: `-- --mutate=back` (a board behind the cubby), `--mutate=lip` (the tray's lips and fascia
+gone, frictionless: the box and the keyboard are left behind) and `--mutate=big` (the monitor 1.3x: red under the
+hutch, the only place it no longer fits) each turn their checks red. Measure what is placed by the body's OWN
+collision shapes (its direct `CollisionShape3D` children), never its meshes (a tower's port and button meshes made it
+497 mm deep), and put a body down UNFROZEN: a frozen body moved by its transform keeps the jump as a velocity when let
+go (a monitor left the room at 500 m/s), and one put down overlapping the desk, even frozen, shoves the desk.
+`vr_drawer_tests living/` covers them too (every drawer and tray along its axis, carry). RetroXR-models'
+`verify_exports.py` checks the same fits on the meshes (triangle middles, so a flush back board is caught).
+`Tools/room/computer_desk_probe` (windowed): each desk with the tower in, the keyboard on the tray pulled out and the
+monitor on top, and from behind the open cubby. Headset feel, Quest cost and a two-peer session OWED; no chair is
+sized to them yet.

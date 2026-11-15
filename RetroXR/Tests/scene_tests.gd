@@ -1713,6 +1713,7 @@ const _BUILT_TYPES := ["light_gun", "ray_gun", "retro_keyboard", "wiimote",
 	"tv_stand_mission", "tv_stand_wall_unit", "tv_stand_credenza", "tv_stand_bench", "tv_stand_corner", "tv_stand_cubby",
 	"bookshelf_oak", "bookshelf_mission", "bookshelf_midcentury", "bookshelf_cube", "bookshelf_pine",
 	"coffee_table_mission", "coffee_table_midcentury", "coffee_table_glass", "coffee_table_pine",
+	"computer_desk_laminate", "computer_desk_corner", "computer_desk_mission",
 	"sofa_midcentury", "sofa_overstuffed", "sofa_futon", "stool_mission", "stool_midcentury", "chair_desk",
 	"chair_papasan", "pouf", "bed_captain", "bed_brass", "bed_waterbed", "bed_wooden", "bed_racecar",
 	"floor_cushion_square", "floor_cushion_round", "zabuton", "flip_chair", "floor_pillow", "floor_rocker"]

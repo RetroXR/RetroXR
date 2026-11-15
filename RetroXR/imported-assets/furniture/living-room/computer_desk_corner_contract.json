@@ -1,0 +1,689 @@
+{
+ "units": "meters, glTF frame (Godot): +Y up, the FRONT faces +Z, x to the right seen from the front; the ORIGIN is the middle of the case's footprint, on the floor (overlay fronts and pulls stand a little past it)",
+ "variant": "computer_desk_corner",
+ "size": [
+  1.5,
+  0.7515,
+  1.5
+ ],
+ "bounds": {
+  "min": [
+   -0.75,
+   0.0,
+   -0.75
+  ],
+  "max": [
+   0.75,
+   0.7515,
+   0.75
+  ]
+ },
+ "levels": [
+  "computer_desk_corner_mobile",
+  "computer_desk_corner_mobile_lod1",
+  "computer_desk_corner_mobile_lod2"
+ ],
+ "master": "computer_desk_corner_high",
+ "markers": [
+  {
+   "node": "TopSurface",
+   "position": [
+    0.0,
+    0.75,
+    -0.0
+   ],
+   "z_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "note": "the middle of the top"
+  }
+ ],
+ "own_nodes": [
+  "Case",
+  "Drawer1",
+  "Drawer2",
+  "Drawer3"
+ ],
+ "materials": [
+  {
+   "name": "LIV_Brass",
+   "transparent": false
+  },
+  {
+   "name": "LIV_Grommet",
+   "transparent": false
+  },
+  {
+   "name": "LIV_Wood",
+   "transparent": false
+  }
+ ],
+ "case_front_z": 0.75,
+ "drawers": [
+  {
+   "node": "Drawer1",
+   "kind": "drawer",
+   "front": {
+    "centre": [
+     -0.1395,
+     0.5835,
+     0.54
+    ],
+    "size": [
+     0.019,
+     0.283,
+     0.4
+    ],
+    "size_local": [
+     0.4,
+     0.283,
+     0.019
+    ]
+   },
+   "inner": {
+    "centre": [
+     -0.421,
+     0.5845,
+     0.54
+    ],
+    "size": [
+     0.52,
+     0.245,
+     0.35
+    ],
+    "size_local": [
+     0.35,
+     0.245,
+     0.52
+    ]
+   },
+   "pulls": [
+    [
+     -0.1,
+     0.5835,
+     0.54
+    ]
+   ],
+   "travel_m": 0.33,
+   "axis": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "case_face_m": -0.15
+  },
+  {
+   "node": "Drawer2",
+   "kind": "drawer",
+   "front": {
+    "centre": [
+     -0.1395,
+     0.241,
+     0.54
+    ],
+    "size": [
+     0.019,
+     0.394,
+     0.4
+    ],
+    "size_local": [
+     0.4,
+     0.394,
+     0.019
+    ]
+   },
+   "inner": {
+    "centre": [
+     -0.421,
+     0.242,
+     0.54
+    ],
+    "size": [
+     0.52,
+     0.356,
+     0.35
+    ],
+    "size_local": [
+     0.35,
+     0.356,
+     0.52
+    ]
+   },
+   "pulls": [
+    [
+     -0.1,
+     0.241,
+     0.54
+    ]
+   ],
+   "travel_m": 0.33,
+   "axis": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "case_face_m": -0.15
+  },
+  {
+   "node": "Drawer3",
+   "kind": "drawer",
+   "tray": true,
+   "front": {
+    "centre": [
+     0.10328,
+     0.6545,
+     0.10328
+    ],
+    "size": [
+     0.48154,
+     0.057,
+     0.48154
+    ],
+    "size_local": [
+     0.662,
+     0.057,
+     0.019
+    ]
+   },
+   "inner": {
+    "centre": [
+     -0.01021,
+     0.6575,
+     -0.01021
+    ],
+    "size": [
+     0.66468,
+     0.015,
+     0.66468
+    ],
+    "size_local": [
+     0.64,
+     0.015,
+     0.3
+    ]
+   },
+   "pulls": [
+    [
+     0.13121,
+     0.6545,
+     0.13121
+    ],
+    [
+     -0.07455,
+     0.638,
+     0.29455
+    ],
+    [
+     0.29455,
+     0.638,
+     -0.07455
+    ]
+   ],
+   "travel_m": 0.27,
+   "axis": [
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "note": "a keyboard tray: the fascia is its front lip, the sides and back a 15 mm lip; the keyboard rides it out",
+   "case_face_m": 0.13557
+  }
+ ],
+ "doors": [],
+ "surfaces": [
+  {
+   "name": "CubbyFloor",
+   "top_y": 0.048,
+   "centre": [
+    0.607,
+    0.043,
+    -0.45
+   ],
+   "size": [
+    0.25,
+    0.01,
+    0.6
+   ]
+  },
+  {
+   "name": "BackWing",
+   "top_y": 0.75,
+   "centre": [
+    0.0,
+    0.745,
+    -0.45
+   ],
+   "size": [
+    1.5,
+    0.01,
+    0.6
+   ]
+  },
+  {
+   "name": "LeftWing",
+   "top_y": 0.75,
+   "centre": [
+    -0.45,
+    0.745,
+    0.3
+   ],
+   "size": [
+    0.6,
+    0.01,
+    0.9
+   ]
+  },
+  {
+   "name": "Corner",
+   "top_y": 0.75,
+   "centre": [
+    0.11,
+    0.745,
+    0.11
+   ],
+   "size": [
+    0.52,
+    0.01,
+    0.52
+   ],
+   "outline": [
+    [
+     -0.15,
+     0.37
+    ],
+    [
+     0.37,
+     -0.15
+    ],
+    [
+     -0.15,
+     -0.15
+    ]
+   ],
+   "outline_note": "not a rectangle: its outline as (x, z) points, glTF metres"
+  }
+ ],
+ "corner": {
+  "corner_point": [
+   -0.75,
+   0.0,
+   -0.75
+  ],
+  "note": "an L-shaped corner desk: its back (glTF -Z) and left (-X) sides go against two walls meeting in corner_point; the tray slides out of the diagonal along its own axis"
+ },
+ "computer": {
+  "cable_gaps": [
+   {
+    "name": "TopCableGap",
+    "min": [
+     0.064,
+     0.723,
+     -0.75
+    ],
+    "max": [
+     0.146,
+     0.7515,
+     -0.694
+    ],
+    "note": "a gap through the top at its back edge, lined with a grommet: leads drop through it behind the desk"
+   }
+  ],
+  "tower_cubby": {
+   "min": [
+    0.482,
+    0.048,
+    -0.75
+   ],
+   "max": [
+    0.732,
+    0.725,
+    -0.15
+   ],
+   "open_back": true,
+   "note": "the CLEAR space a tower stands in (its floor to what is over it), its front the case front; nothing closes its back, so a tower's leads go out behind. "
+  },
+  "monitor_places": [
+   {
+    "name": "BackWing",
+    "min": [
+     -0.75,
+     0.75,
+     -0.75
+    ],
+    "max": [
+     0.464,
+     1.35,
+     -0.15
+    ],
+    "note": "a clear box on the top a monitor stands in"
+   }
+  ],
+  "keyboard_tray": {
+   "node": "Drawer3",
+   "inner": {
+    "centre": [
+     -0.01021,
+     0.6575,
+     -0.01021
+    ],
+    "size": [
+     0.66468,
+     0.015,
+     0.66468
+    ],
+    "size_local": [
+     0.64,
+     0.015,
+     0.3
+    ]
+   },
+   "travel_m": 0.27,
+   "axis": [
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "note": "inside the lips, shut; the keyboard (507 x 158 mm) and a mouse sit on it"
+  }
+ },
+ "collision": {
+  "case": [
+   {
+    "name": "Top",
+    "centre": [
+     0.0,
+     0.7375,
+     -0.42
+    ],
+    "size": [
+     1.5,
+     0.025,
+     0.54
+    ]
+   },
+   {
+    "name": "Top",
+    "centre": [
+     -0.345,
+     0.7375,
+     -0.72
+    ],
+    "size": [
+     0.81,
+     0.025,
+     0.06
+    ]
+   },
+   {
+    "name": "Top",
+    "centre": [
+     0.45,
+     0.7375,
+     -0.72
+    ],
+    "size": [
+     0.6,
+     0.025,
+     0.06
+    ]
+   },
+   {
+    "name": "Top",
+    "centre": [
+     -0.45,
+     0.7375,
+     0.3
+    ],
+    "size": [
+     0.6,
+     0.025,
+     0.9
+    ]
+   },
+   {
+    "name": "Top",
+    "centre": [
+     -0.15,
+     0.7375,
+     0.32667
+    ],
+    "size": [
+     0.0,
+     0.025,
+     0.08667
+    ]
+   },
+   {
+    "name": "Top",
+    "centre": [
+     -0.10667,
+     0.7375,
+     0.24
+    ],
+    "size": [
+     0.08667,
+     0.025,
+     0.08667
+    ]
+   },
+   {
+    "name": "Top",
+    "centre": [
+     -0.06333,
+     0.7375,
+     0.15333
+    ],
+    "size": [
+     0.17333,
+     0.025,
+     0.08667
+    ]
+   },
+   {
+    "name": "Top",
+    "centre": [
+     -0.02,
+     0.7375,
+     0.06667
+    ],
+    "size": [
+     0.26,
+     0.025,
+     0.08667
+    ]
+   },
+   {
+    "name": "Top",
+    "centre": [
+     0.02333,
+     0.7375,
+     -0.02
+    ],
+    "size": [
+     0.34667,
+     0.025,
+     0.08667
+    ]
+   },
+   {
+    "name": "Top",
+    "centre": [
+     0.06667,
+     0.7375,
+     -0.10667
+    ],
+    "size": [
+     0.43333,
+     0.025,
+     0.08667
+    ]
+   },
+   {
+    "name": "SideR",
+    "centre": [
+     0.741,
+     0.3625,
+     -0.45
+    ],
+    "size": [
+     0.018,
+     0.725,
+     0.6
+    ]
+   },
+   {
+    "name": "CubbyWall",
+    "centre": [
+     0.473,
+     0.3625,
+     -0.45
+    ],
+    "size": [
+     0.018,
+     0.725,
+     0.6
+    ]
+   },
+   {
+    "name": "CubbyKick",
+    "centre": [
+     0.607,
+     0.015,
+     -0.179
+    ],
+    "size": [
+     0.25,
+     0.03,
+     0.018
+    ]
+   },
+   {
+    "name": "CubbyKickB",
+    "centre": [
+     0.607,
+     0.015,
+     -0.721
+    ],
+    "size": [
+     0.25,
+     0.03,
+     0.018
+    ]
+   },
+   {
+    "name": "CubbyFloor",
+    "centre": [
+     0.607,
+     0.039,
+     -0.45
+    ],
+    "size": [
+     0.25,
+     0.018,
+     0.6
+    ]
+   },
+   {
+    "name": "BackPanel",
+    "centre": [
+     -0.112,
+     0.3625,
+     -0.679
+    ],
+    "size": [
+     1.152,
+     0.725,
+     0.018
+    ]
+   },
+   {
+    "name": "SidePanel",
+    "centre": [
+     -0.679,
+     0.3625,
+     -0.17
+    ],
+    "size": [
+     0.018,
+     0.725,
+     1.0
+    ]
+   },
+   {
+    "name": "PedSideF",
+    "centre": [
+     -0.45,
+     0.3625,
+     0.741
+    ],
+    "size": [
+     0.6,
+     0.725,
+     0.018
+    ]
+   },
+   {
+    "name": "PedSideB",
+    "centre": [
+     -0.45,
+     0.3625,
+     0.339
+    ],
+    "size": [
+     0.6,
+     0.725,
+     0.018
+    ]
+   },
+   {
+    "name": "PedBack",
+    "centre": [
+     -0.741,
+     0.3775,
+     0.54
+    ],
+    "size": [
+     0.018,
+     0.695,
+     0.384
+    ]
+   },
+   {
+    "name": "PedFloor",
+    "centre": [
+     -0.441,
+     0.039,
+     0.54
+    ],
+    "size": [
+     0.582,
+     0.018,
+     0.384
+    ]
+   },
+   {
+    "name": "PedKick",
+    "centre": [
+     -0.179,
+     0.015,
+     0.54
+    ],
+    "size": [
+     0.018,
+     0.03,
+     0.384
+    ]
+   }
+  ],
+  "note": "boxes {centre, size} in metres, every drawer and door SHUT. A drawer slides along its axis by travel_m carrying its front and inside; a sliding door the same, carrying nothing; a hinged door turns open_deg about `hinge.axis` through `hinge.point` (a positive turn opens it, right-hand rule)"
+ },
+ "estimated": "every size is estimated (ordinary 1990s furniture, sized for a 27-inch CRT): see MEASUREMENTS.md",
+ "triangles": {
+  "high": 4820,
+  "lod0": 2104,
+  "lod1": 696,
+  "lod2": 556
+ }
+}

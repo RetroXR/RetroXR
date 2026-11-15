@@ -12,6 +12,10 @@
 ## The nodes are the HOST's children, named `DrawerBodyN` / `DrawerVisualN` / `DrawerHandleN` as DrawerFurniture's
 ## always were: a VRDrawer is saved and synced by its path.
 ##
+## A row turned to an angle that is not a quarter turn (the corner computer desk's keyboard tray, 45 degrees) gives its
+## `front` / `inner` size in its own frame too (`size_local`: across, up, along its axis); its `size` is then the
+## turned box's bounds in the piece's frame, which is what its carry bin covers.
+##
 ## A row with `kind: "sliding_door"` (the living-room credenza and bookcase, 2026-11-14) is a door that slides across
 ## its bay along `axis` (±X): the same VRDrawer, but its body is the door's slab alone (no box, no floor, nothing rides in
 ## it), its handle is a box at its finger pull, and nothing pushes it from a face. Two doors that overlap run
@@ -106,9 +110,11 @@ func _build_drawer(row: Dictionary) -> void:
 	var isz_h := _v3(row["inner"]["size"])
 	# ... and in the drawer's own (its Z out of the front), where it is built as a +Z drawer.
 	var fc := bt * _v3(front["centre"])
-	var fs := (bt * _v3(front["size"])).abs()
+	# A drawer turned to a side (+X) has its box's size in the piece's frame turned with it; one turned to any other
+	# angle (the corner desk's tray, 45 degrees) cannot be, so its row carries the size in its own frame (`size_local`).
+	var fs := _v3(front["size_local"]) if front.has("size_local") else (bt * _v3(front["size"])).abs()
 	var ic := bt * ic_h
-	var isz := (bt * isz_h).abs()
+	var isz := _v3(row["inner"]["size_local"]) if (row["inner"] as Dictionary).has("size_local") else (bt * isz_h).abs()
 	var inner := AABB(ic - isz * 0.5, isz)
 	var body_ := AnimatableBody3D.new()
 	body_.name = "DrawerBody" + n
