@@ -35,6 +35,9 @@ uniform int style = 0;
 uniform float strength = 1.0;
 uniform float ring_r = 0.0;
 uniform float ring_w = 0.06;
+// How far the quad reaches past the glow's outline: the glow fades to nothing over it, so the quad's edge never shows as a
+// square round the panel (the owner, 2026-11-15).
+uniform float pad = 0.035;
 
 float sd_box(vec2 p, vec2 b, float r) {
 	vec2 q = abs(p) - b + r;
@@ -82,7 +85,9 @@ void fragment() {
 		g = (smoothstep(0.0048, 0.0025, dist) + exp(-dist / 0.004) * 0.35) * lit + inside * 0.05;
 	}
 	ALBEDO = tint.rgb * 1.6;
-	ALPHA = clamp(g * strength, 0.0, 1.0);
+	float edge = min(quad_half.x - abs(p.x), quad_half.y - abs(p.y));
+	float fade = smoothstep(0.0, pad, edge);
+	ALPHA = clamp(g * strength * fade * fade, 0.0, 1.0);
 }
 """
 
@@ -159,6 +164,7 @@ func refresh_shape() -> void:
 	var quad_half := half + Vector2(PAD, PAD)
 	(_quad.mesh as QuadMesh).size = quad_half * 2.0
 	_mat.set_shader_parameter("half_size", size * 0.5)
+	_mat.set_shader_parameter("pad", PAD)
 	_mat.set_shader_parameter("quad_half", quad_half)
 	_mat.set_shader_parameter("corner", clampf(minf(size.x, size.y) * 0.15, 0.005, 0.025))
 	_mat.set_shader_parameter("ring_r", ring_radius)
