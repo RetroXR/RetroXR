@@ -892,7 +892,7 @@ Optional, each with a sensible default when left out:
 | `remote_cell_faces(id) -> Array` | every face a state key can wear, so it is sized for the largest and does not jump a type size |
 | `remote_key_cell(cell) -> String` | which of your cells a handset key printed `cell` presses (the DVD player's PREV/NEXT are its chapter keys) |
 | `remote_layout_key() -> Variant` | anything that changes when WHICH cells there are changes; the grid is rebuilt then |
-| `remote_receiver() -> Variant` | your IR window as a WORLD `Transform3D`: the remote's cone and sight line aim at its origin, and a remote behind its +Z face does not reach you (default `null`: your pointable body's origin, from every side). A TV takes it from its shell's `IrReceiver` marker |
+| `remote_receiver() -> Variant` | your IR window as a WORLD `Transform3D`: the remote's cone and sight line aim at its origin, and a remote behind its +Z face does not reach you (`null`: your pointable body's origin, from every side). Not answered: the first node named `IrReceiver` under the device, a `Marker3D` or a GLB empty, its +Z out of the window; with none, the body's origin. A TV takes it from its shell's `IrReceiver` marker |
 
 - **The handset's own keys press the cell with their printed id**: `power`,
   `source`, `vol_up`, `vol_down`, `mute`, `ch_up`, `ch_down`, `audio_mode`,

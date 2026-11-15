@@ -29,8 +29,9 @@
 ##   func remote_layout_key() -> Variant
 ##   ## Optional. Where the device's IR receiver is, in WORLD space: the origin is the
 ##   ## point the remote's cone and sight line aim at, +Z the way its window faces (a
-##   ## remote behind that face does not reach it). null, or not answered: the
-##   ## pointable body's origin, seen from every side.
+##   ## remote behind that face does not reach it). null: the pointable body's
+##   ## origin, seen from every side. Not answered: the first `IrReceiver` node under
+##   ## the device (a GLB empty does), else that origin.
 ##   func remote_receiver() -> Variant
 ##
 ## The handset's physical keys (TVRemote.KEY_CELLS) press the cell with their printed
@@ -72,15 +73,33 @@ static func is_target(node: Node) -> bool:
 	return false
 
 
-## The device's IR receiver as a world pose, or null when it names none.
+## The device's IR receiver as a world pose, or null when it names none: what its
+## remote_receiver answers, or else the first IrReceiver node under it (a model's
+## empty, the close level's coming first), its +Z out of the window.
 static func receiver(device: Node) -> Variant:
 	if not device.has_method("remote_receiver"):
-		return null
+		var marker := _receiver_marker(device)
+		return marker.global_transform if marker != null else null
 	var rx: Variant = device.call("remote_receiver")
 	if rx == null or rx is Transform3D:
 		return rx
 	_warn_once(device, "remote_receiver gave %s, not a Transform3D or null: aiming at its middle" % type_string(typeof(rx)))
 	return null
+
+
+## The IrReceiver node under `device`, looked up once and kept on the device (the
+## cone asks every frame the remote is held); null when it has none.
+static func _receiver_marker(device: Node) -> Node3D:
+	const KEY := &"_remote_ir_receiver"
+	if device.has_meta(KEY):
+		var kept: Variant = device.get_meta(KEY)
+		if kept == null:
+			return null
+		if is_instance_valid(kept) and device.is_ancestor_of(kept):
+			return kept as Node3D
+	var found := device.find_child("IrReceiver", true, false) as Node3D
+	device.set_meta(KEY, found)
+	return found
 
 
 ## Walk a collider up its ancestors to the device that owns it, or null.

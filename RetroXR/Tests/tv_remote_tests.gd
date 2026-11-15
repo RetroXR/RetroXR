@@ -40,7 +40,8 @@
 ##   receiver/ a device that names an IR receiver (remote_receiver) is aimed at THERE: pointed at its middle with
 ##            the window 27° off it takes nothing, pointed at the window takes it; a wall across the line to the
 ##            window (and not to the middle) blocks it; the window turned away takes nothing; the controls: the
-##            same device naming none takes the middle, and a set with the stock cabinet names none.
+##            same device naming none takes the middle, and a set with the stock cabinet names none; a device
+##            answering no remote_receiver is aimed at an IrReceiver node under it (a GLB empty), live as it turns.
 extends "res://Tests/test_suite.gd"
 
 const REMOTE := preload("res://Scenes/Objects/appliances/tv_remote.tscn")
@@ -867,6 +868,36 @@ class ModDevice extends Node3D:
 		return null if rx_local == null else global_transform * (rx_local as Transform3D)
 
 
+## A device that answers no remote_receiver: its window is an IrReceiver node nested in a
+## "model", the way a GLB empty lands, 0.7 m right of its middle on its front.
+class MarkedDevice extends Node3D:
+	func _init() -> void:
+		RemoteTarget.join(self)
+		var body := StaticBody3D.new()
+		body.name = "PointerArea"
+		body.collision_layer = 1 << 20
+		body.collision_mask = 0
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(0.3, 0.3, 0.3)
+		shape.shape = box
+		body.add_child(shape)
+		add_child(body)
+		var model := Node3D.new()
+		model.name = "Model"
+		add_child(model)
+		var rx := Node3D.new()
+		rx.name = "IrReceiver"
+		rx.position = Vector3(0.7, 0, 0.15)
+		model.add_child(rx)
+
+	func remote_layout() -> Array:
+		return [{"id": "power", "glyph": "power", "col": 0, "row": 0, "span": 3}]
+
+	func remote_activate(_id: String) -> void:
+		pass
+
+
 func _test_target() -> void:
 	var dev := ModDevice.new()
 	dev.position = Vector3(0, 1, -1.5)
@@ -958,6 +989,21 @@ func _test_receiver() -> void:
 	# The window turned to face away: the remote is behind it.
 	dev.rx_local = Transform3D(Basis(Vector3.UP, PI), Vector3(0.7, 0, 0.15))
 	_eq(r.press_key("KeyPower"), "", "receiver/the window facing away takes nothing")
+	# A device with no remote_receiver: an IrReceiver node under it is the window.
+	dev.rx_local = null
+	var marked := MarkedDevice.new()
+	marked.position = Vector3(0, 1, -1.5)
+	add_child(marked)
+	_spawned.append(marked)
+	dev.position += Vector3(0, -50, 0)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var mw: Variant = RemoteTarget.receiver(marked)
+	_ok(mw is Transform3D and (mw as Transform3D).origin.is_equal_approx(window),
+		"receiver/an IrReceiver node under a device is its window", str(mw))
+	_eq(r.press_key("KeyPower"), "power", "receiver/…and a remote aimed at it takes the device")
+	marked.get_node("Model/IrReceiver").basis = Basis(Vector3.UP, PI)
+	_eq(r.press_key("KeyPower"), "", "receiver/…turned away, nothing (the cached node is the live one)")
 	# The stock cabinet names no window: the set is aimed at in its middle, as before.
 	var tv := await _spawn(TV_SCENE, Vector3(5, 1, 0)) as RetroTV
 	_ok(tv.remote_receiver() == null, "receiver/a set with the stock cabinet names no window")
