@@ -107,6 +107,10 @@ func is_held() -> bool:
 ## Any kind of socket: an A/V jack, a link port, a mains outlet. A caller that
 ## wants an A/V one casts (`as RcaPort`), and a link lead's end comes back null.
 func seated_port() -> Port:
+	# Out of the tree (a deferred call landing during a room teardown) there are no
+	# sockets to ask, and the plug is seated in none of them.
+	if not is_inside_tree():
+		return null
 	for node in get_tree().get_nodes_in_group(Port.ANY_GROUP):
 		var port := node as Port
 		if port != null and port.seated_plug() == self:

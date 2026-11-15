@@ -144,6 +144,12 @@ func _on_channel_slid(value: float) -> void:
 ## has, as AvAdapter does for its socket.
 func _resolve() -> void:
 	super._resolve()
+	# The resolve is deferred, so it can land after the block left the tree (a room
+	# change tearing the old room down): seated nowhere, and no tree to ask.
+	if not is_inside_tree():
+		_seated_in = null
+		print("[RfModulator] resolve skipped: block is out of the tree")
+		return
 	_seated_in = host()
 	if not is_instance_valid(_socket):
 		return
