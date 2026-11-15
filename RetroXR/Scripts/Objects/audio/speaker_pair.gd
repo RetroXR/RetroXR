@@ -66,6 +66,16 @@ var _led_on: Variant = null
 ## The device currently feeding these speakers, or null.
 var _source: Node3D = null
 
+## Which colour the pair is in (SpeakerFinish: "" black as it comes, "beige"), both boxes
+## alike. Set before the pair enters the room (the spawn menu's held row, a restore); the
+## save and object sync carry it as every object's colour (SystemModelRegistry.VARIANT_KEY).
+var model_variant := "":
+	set(v):
+		model_variant = v
+		for side: String in ["SpeakerL", "SpeakerR"]:
+			var box := get_node_or_null(side)
+			SpeakerFinish.apply(box.get_node_or_null("Model") as ApplianceModel if box != null else null, v, box)
+
 ## 0..1, the knob's position. Pushed at the source whenever either changes.
 var _volume: float = 0.75
 

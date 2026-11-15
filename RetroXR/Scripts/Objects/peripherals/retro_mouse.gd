@@ -29,8 +29,9 @@ const MOUSE_BTN_MIDDLE := 1 << 6
 ## this lead from the keyboard's once both are plugged in. A console mouse points
 ## it at its own connector instead. Authored in ControllerPlug's frame (origin at
 ## the seated position, connector on +Z, cable trailing -Z), which is what lets
-## set_plug_mesh derive cable_anchor from it.
-const PLUG_MESH := "res://Scenes/Objects/cables/ps2_plug_mouse.res"
+## set_plug_mesh derive cable_anchor from it. RetroXR-models generic/ps2-plug's
+## green edition (imported-assets/connectors/README.md), with its own CordExit.
+const PLUG_MESH := "res://imported-assets/connectors/ps2_plug/ps2_plug_green.glb"
 @export var plug_mesh_path: String = PLUG_MESH
 
 ## The systemid this mouse physically belongs to, e.g. "snes". A port only

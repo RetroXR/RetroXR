@@ -194,6 +194,13 @@ sources in each item's MEASUREMENTS.md), the three `*_mobile*.glb` + the contrac
 `imported-assets/appliances/{satellite_speaker,subwoofer,speaker_stand,computer_speakers}/`, never edited. Every scene
 keeps its node names; the old baked `Cabinet`/`Stand` meshes keep their nodes with no mesh (the `.res` files stay for
 speaker_tests' faces/ cases and `Tools/gen`).
+- **A beige finish (2026-11-15).** Each of the three loudspeakers (the satellite, the subwoofer, the computer pair; not
+  the stands) also comes in the 1990s computer beige of `generic/pc-tower`: the SAME geometry, nodes, markers and
+  contract, built by the item's `build_all.py` with `-- --finish beige` (RetroXR-models `common/applkit/speakers.py`
+  "finishes"), its files named `<stem>_beige_mobile*.glb` beside the black ones. `SpeakerFinish` swaps an
+  `ApplianceModel`'s level scenes to them; it is the object's `model_variant`, so the save, object sync and the spawn
+  rows' held colours (`SpeakerFinish.VARIANTS`: Black as it comes, Beige) need nothing of their own. It must be set
+  before the object enters the tree (the model builds its levels in `_ready`); a late one is refused and logged.
 - **The satellite's input is an RCA phono jack in the rear cup** (the concept drew spring terminals), seated by
   `Loudspeaker._dress` on the model's `SpeakerIn` mouth where the scene's socket always was (centre line, 42 mm up);
   `ConeFront` moves onto the model's `DriverCentre`; `BackLabel` is hidden (the model prints the back); body and

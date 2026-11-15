@@ -22,8 +22,9 @@ const CONTROLLER_CABLE_SCENE := preload("res://Scenes/Objects/cables/controller_
 ## PC99 purple, the keyboard half of the colour code. Swapped in over the cable
 ## scene's generic tapered cylinder, which is a 20 mm cone standing in for any
 ## plug at all — fine for the console controllers that share this cable, twice
-## life size for a mini-DIN.
-const PLUG_MESH := "res://Scenes/Objects/cables/ps2_plug_keyboard.res"
+## life size for a mini-DIN. RetroXR-models generic/ps2-plug's purple edition
+## (imported-assets/connectors/README.md): the molded mini-DIN 6 with its own CordExit.
+const PLUG_MESH := "res://imported-assets/connectors/ps2_plug/ps2_plug_purple.glb"
 const RETRO_DEVICE_KEYBOARD := 3
 
 ## The RETRO XR keyboard's caps (RetroXR-models generic/pc-keyboard, build_keyboard.py export_caps): one node a

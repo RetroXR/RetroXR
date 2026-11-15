@@ -38,7 +38,7 @@ const BESIDE: Array[float] = [0.005, 0.010]
 
 const CONTROLLER_CABLE := "res://Scenes/Objects/cables/controller_cable.tscn"
 const PS1_PLUG := "res://Scenes/Objects/controllers/playstation/ps1_plug.res"
-const KEYBOARD_PLUG := "res://Scenes/Objects/cables/ps2_plug_keyboard.res"
+const KEYBOARD_PLUG := "res://imported-assets/connectors/ps2_plug/ps2_plug_purple.glb"
 const PS1_PAD := "res://Scenes/Objects/controllers/playstation/ps1_controller.tscn"
 const N64_PAD := "res://Scenes/Objects/controllers/n64/n64_controller.tscn"
 const CONTROLLER_PAK := "res://Scenes/Objects/controllers/n64/controller_pak.tscn"

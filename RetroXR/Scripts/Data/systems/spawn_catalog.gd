@@ -512,7 +512,7 @@ const _LIGHT_GUN_PLATFORMS: Array = [
 
 
 const _TRS_KIT: Array = [
-	{"kind": "peripheral", "label": "Speakers", "spawn": "speaker_pair"},
+	{"kind": "peripheral", "label": "Speakers", "spawn": "speaker_pair", "variants": SpeakerFinish.VARIANTS},
 	{"kind": "peripheral", "label": "3.5 mm Cable", "spawn": "trs_cable"},
 	{"kind": "peripheral", "label": "Headphones", "spawn": "headphones"},
 ]
@@ -1077,11 +1077,17 @@ static var _built_socket_notes: Dictionary = {}
 ## See game_lead_connectors. The game's leads do not change while it runs.
 static var _game_lead_connectors := PackedStringArray()
 
-## The Objects tab's shipped rows, [label, token] -- the token a ScenePersistence
-## type, as every spawn token is. objects() adds the mods' props after them. A lead or
+## The SPAWN menu's three loose-object tabs, key -> title, in tab order. A mod's prop picks
+## one with `"tab"` in its menu (register_mod_spawnable); with none it goes on Objects.
+const SPAWN_TABS := {"furniture": "Furniture", "electronics": "Electronics", "objects": "Objects"}
+const DEFAULT_SPAWN_TAB := "objects"
+
+## Each tab's shipped rows, [label, token(, variants)] -- the token a ScenePersistence
+## type, as every spawn token is. tab_rows() adds the mods' props after them. A lead or
 ## accessory that belongs to a console (its link lead and hub, the Wii's Sensor Bar, the
 ## NES and Famicom's RF Switch) is offered on that console's card (items_for), not here.
-const OBJECTS := [
+## One Objects tab held all of these once and grew past eighty rows (2026-11-15).
+const FURNITURE := [
 	["Table",           "table"],
 	# A bedside table whose drawer pulls out by its brass bar (VRDrawer); what is in it rides along.
 	["Nightstand",      "nightstand"],
@@ -1132,7 +1138,14 @@ const OBJECTS := [
 	["Waterbed (Queen)",      "bed_waterbed"],
 	["Wooden Bed (Twin)",     "bed_wooden"],
 	["Race Car Bed (Twin)",   "bed_racecar"],
-	["Storage Box",     "trash_can"],
+	# Floor stands, so a satellite is at ear height instead of on the carpet.
+	# The height named is to the plate a cabinet stands on.
+	["Speaker Stand 1.2m", "speaker_stand_120"],
+	["Speaker Stand 1m",   "speaker_stand_100"],
+]
+
+## The decks, the sound and the leads that join them.
+const ELECTRONICS := [
 	["VCR",             "vcr_player"],
 	["DVD Player",      "dvd_player"],
 	["CD Player",       "cd_player"],
@@ -1147,20 +1160,17 @@ const OBJECTS := [
 	["3.5 mm Cable",   "trs_cable"],
 	["Ethernet Cable", "ethernet_cable"],
 	["Ethernet Hub",   "ethernet_hub"],
-	["Speakers",       "speaker_pair"],
+	# Held, the loudspeakers offer their finishes: black, or the 1990s computer beige.
+	["Speakers",       "speaker_pair", SpeakerFinish.VARIANTS],
 	# Portable on-ear headphones on a 1.2 m cord: into any headphone jack (a handheld's, a set's).
 	["Headphones",     "headphones"],
 	# A surround rig: a satellite per channel and one subwoofer, each cabled to
 	# a socket on the back of the set with a speaker lead.
-	["Loudspeaker",    "loudspeaker"],
-	["Subwoofer",      "subwoofer"],
+	["Loudspeaker",    "loudspeaker", SpeakerFinish.VARIANTS],
+	["Subwoofer",      "subwoofer", SpeakerFinish.VARIANTS],
 	# Takes a stereo pair in — a machine's own cords, or a set's FL and FR on
 	# STEREO OUT — and drives the six with Pro Logic II or Dolby Surround.
 	["Surround Amp",   "surround_amp"],
-	# Floor stands, so a satellite is at ear height instead of on the carpet.
-	# The height named is to the plate a cabinet stands on.
-	["Speaker Stand 1.2m", "speaker_stand_120"],
-	["Speaker Stand 1m",   "speaker_stand_100"],
 	["RCA Speaker Cable",  "speaker_cable"],
 	# Broadcast television: its lead goes in a set's aerial socket, or in the
 	# RF Switch's ANT socket so a console and the channels share one hole. The
@@ -1168,9 +1178,14 @@ const OBJECTS := [
 	["Antenna", "antenna"],
 ]
 
+## The catch-all: whatever is neither furniture nor electronics.
+const OBJECTS := [
+	["Storage Box",     "trash_can"],
+]
+
 ## Standalone spawnable props, shown on their own rather than under a console
-## (on the Objects tab, after OBJECTS: objects()).
-## type -> {label, owner}
+## (on the tab their menu names, after that tab's shipped rows: tab_rows()).
+## type -> {label, tab, owner}
 static var _mod_spawnables: Dictionary = {}
 
 
@@ -1203,39 +1218,75 @@ static func register_mod_peripherals(systemid: String, items: Array,
 	return ""
 
 
-## A prop the spawn menu can offer directly. `menu` carries at least a label.
+## A prop the spawn menu can offer directly. `menu` carries at least a label, and
+## optionally `tab` (a SPAWN_TABS key, any case; Objects when absent).
 ## "" on success, else why the entry was refused, like every other registrar a
 ## mod reaches. A spawnable filed under an empty type could never be spawned and
-## could never be found again to be withdrawn.
+## could never be found again to be withdrawn; one naming a tab that does not exist
+## is refused rather than quietly put on Objects, where its author would never look.
 static func register_mod_spawnable(type: String, menu: Dictionary,
 		owner_id: String) -> String:
 	if type.is_empty():
 		return "spawnable type is empty"
+	var tab := str(menu.get("tab", DEFAULT_SPAWN_TAB)).strip_edges().to_lower()
+	if not SPAWN_TABS.has(tab):
+		return "unknown spawn tab '%s' (%s)" % [str(menu.get("tab", "")), ", ".join(SPAWN_TABS.keys())]
 	var row := menu.duplicate(true)
 	row["owner"] = owner_id
 	row["label"] = str(menu.get("label", type))
+	row["tab"] = tab
 	_mod_spawnables[type] = row
 	return ""
 
 
-## Every mod prop offered on the menu, as {type, label}.
+## Every mod prop offered on the menu, as {type, label, tab}.
 static func mod_spawnables() -> Array:
 	var out: Array = []
 	for type: String in _mod_spawnables:
-		out.append({"type": type, "label": str(_mod_spawnables[type].get("label", type))})
+		var row: Dictionary = _mod_spawnables[type]
+		out.append({"type": type, "label": str(row.get("label", type)),
+			"tab": str(row.get("tab", DEFAULT_SPAWN_TAB))})
 	return out
 
 
-## The SPAWN menu's Objects tab, as [label, token] rows: the shipped OBJECTS, then every
-## prop a mod registered with a menu label (register_object(type, scene, {"label": ...})),
-## by label, as "mod:<type>". Before these were read here the label was kept and shown
-## nowhere, so a prop that plugs into no console's card could not be spawned at all.
-static func objects() -> Array:
+## The shipped rows of one SPAWN_TABS tab.
+static func _shipped_tab(tab: String) -> Array:
+	match tab:
+		"furniture": return FURNITURE
+		"electronics": return ELECTRONICS
+	return OBJECTS
+
+
+## Every shipped row of every loose-object tab: "is this token offered anywhere".
+static func shipped_tab_rows() -> Array:
+	return FURNITURE + ELECTRONICS + OBJECTS
+
+
+## One SPAWN menu tab (a SPAWN_TABS key), as [label, token] rows: its shipped rows, then
+## every prop a mod registered for it with a menu label (register_object(type, scene,
+## {"label": ..., "tab": ...})), by label, as "mod:<type>". Before these were read here
+## the label was kept and shown nowhere, so a prop that plugs into no console's card
+## could not be spawned at all.
+static func tab_rows(tab: String) -> Array:
 	var mods: Array = []
 	for item: Dictionary in mod_spawnables():
-		mods.append([str(item["label"]), "mod:" + str(item["type"])])
+		if str(item["tab"]) == tab:
+			mods.append([str(item["label"]), "mod:" + str(item["type"])])
 	mods.sort_custom(func(a: Array, b: Array) -> bool: return str(a[0]).naturalnocasecmp_to(str(b[0])) < 0)
-	return OBJECTS.duplicate(true) + mods
+	return _shipped_tab(tab).duplicate(true) + mods
+
+
+static func furniture() -> Array:
+	return tab_rows("furniture")
+
+
+static func electronics() -> Array:
+	return tab_rows("electronics")
+
+
+## The catch-all Objects tab, and where a mod prop naming no tab goes.
+static func objects() -> Array:
+	return tab_rows("objects")
 
 
 static func drop_mod(owner_id: String) -> void:

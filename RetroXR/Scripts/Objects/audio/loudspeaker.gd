@@ -46,6 +46,14 @@ const GROUP := "loudspeaker"
 ## Scene-authored so the satellite and the subwoofer share this script.
 @export var speaker_label: String = "SURROUND"
 
+## Which colour the cabinet is in (SpeakerFinish: "" black as it comes, "beige"). The
+## spawn menu's held row and a restore set it before the cabinet enters the room, and the
+## save and object sync carry it as every object's colour (SystemModelRegistry.VARIANT_KEY).
+var model_variant := "":
+	set(v):
+		model_variant = v
+		SpeakerFinish.apply(get_node_or_null("Model") as ApplianceModel, v, self)
+
 @onready var _cone: Node3D = $ConeFront
 @onready var _input: RcaPort = $SpeakerIn
 @onready var _model: ApplianceModel = get_node_or_null("Model") as ApplianceModel
