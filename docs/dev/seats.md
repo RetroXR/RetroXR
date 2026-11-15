@@ -19,6 +19,11 @@ and six FLOOR seats (2026-11-14: `floor_cushion_square`, `floor_cushion_round`, 
 - **A sofa** has its contract's three `seats`, one cushion each. **A bed** is split along its length: the head end (from the head of the mattress to 0.25 m past
   `lie_eye_point`) LIES you down, the head on the pillow looking toward the foot (no pitch is forced: the head or the mouse looks up); the rest SITS you on the +X edge
   (`eye_point`, looking out of the side). Eyes: sitting 1.2-1.5 m (a bed's mattress is high), lying 0.65-0.93 m.
+- **The facing arrow** (`SeatFacingArrow`, `Shaders/seat_facing_arrow.gdshader`): while a seat is in a hand, an amber hologram (one unshaded quad: outline, glow,
+  scanlines running to the tip, a pulse; no depth test, so the cushion and back never hide it) lies over the first place pointing the way it faces. It fades in on the
+  take and out on the let-go (`dismiss`; the seat drops its reference at once). `Seat._facing_arrow_frame()` says where: a BED overrides it to run from the lying place's
+  pillow toward the foot (+Z), since the first place, sitting on the edge, faces sideways and says nothing about which end goes to the wall. `seat_tests arrow/`;
+  `Tools/room/seat_arrow_probe` (windowed).
 - **A FLOOR seat** (`ContractSeat.is_floor_seat()`: its contract's `seat_top` under 0.3 m, `FLOOR_SEAT_TOP`) is sat on as the floor is: the eyes a floor-sitter's, 0.86-1.04 m over
   the floor and about 0.78 m over its top (0.76 in the reclined rocker), where a chair's are 1.2 m or more. `seat_tests contract/` holds each piece to the range its OWN contract
   puts it in (mutation-tested both ways: no floor seats, every seat a floor seat), never one range wide enough for both. The round and curved ones (round cushion, floor pillow,

@@ -356,12 +356,10 @@ func _group_arrow() -> void:
 	seat.picked_up.emit(seat)
 	var arrow := seat.facing_arrow()
 	_ok(arrow != null and arrow.is_inside_tree() and arrow.get_parent() == seat, "arrow: taken in a hand, it shows one, riding the seat")
-	var parts := arrow.find_children("*", "MeshInstance3D", false, false)
-	var yellow := parts.size() == 2
-	for part in parts:
-		var m := ((part as MeshInstance3D).mesh.material as StandardMaterial3D)
-		yellow = yellow and m.albedo_color.r > 0.9 and m.albedo_color.g > 0.7 and m.albedo_color.b < 0.3
-	_ok(yellow, "arrow: yellow, a shaft and a head")
+	var holo := arrow is SeatFacingArrow and arrow.mesh is PlaneMesh 			and (arrow.mesh.material as ShaderMaterial).shader == SeatFacingArrow.SHADER
+	_ok(holo, "arrow: the amber hologram, one quad drawn by its shader")
+	await get_tree().create_timer(SeatFacingArrow.FADE_IN + 0.1).timeout
+	_ok(arrow.fade() > 0.99, "arrow: faded in (%.2f)" % arrow.fade())
 	var eye := seat.eye_transform()
 	var along := -arrow.global_transform.basis.z
 	var facing := -eye.basis.z
@@ -376,12 +374,34 @@ func _group_arrow() -> void:
 	_ok(along2.dot(-seat.eye_transform().basis.z) > 0.999, "arrow: and it turns with the seat")
 	seat.dropped.emit(seat)
 	await _frames(2)
-	_ok(seat.facing_arrow() == null and seat.find_child("FacingArrow", true, false) == null, "arrow: let go, it is gone")
+	_ok(seat.facing_arrow() == null and is_instance_valid(arrow) and arrow.fade() < 1.0,
+		"arrow: let go, it lets go of it and fades out")
+	await get_tree().create_timer(SeatFacingArrow.FADE_OUT + 0.15).timeout
+	_ok(seat.find_child("FacingArrow", true, false) == null, "arrow: faded, it is gone")
 	seat.picked_up.emit(seat)
 	_ok(seat.facing_arrow() != null, "arrow: and comes again the next time")
 	seat.free()
 	await _frames(2)
 	_ok(true, "arrow: a seat freed in a hand takes it with it")
+	# A bed: from the pillow along the mattress toward the foot (+Z), not the edge place's sideways facing.
+	var bed := (ScenePersistence.PLAIN_SCENES["bed_captain"] as PackedScene).instantiate() as ContractSeat
+	bed.position = Vector3(3.0, 0.0, 0.0)
+	bed.freeze = true
+	add_child(bed)
+	await _frames(2)
+	bed.picked_up.emit(bed)
+	var barrow := bed.facing_arrow()
+	var lie: Dictionary = {}
+	for p: Dictionary in bed.places():
+		if p["lie"]:
+			lie = p
+	var bed_along := bed.global_basis.inverse() * -barrow.global_basis.z
+	_ok(bed_along.dot(Vector3(0, 0, 1)) > 0.999, "arrow: a bed's points to its foot (%s)" % bed_along)
+	var lie_eye := lie["eye"] as Node3D
+	_ok(Vector2(barrow.position.x, barrow.position.z).distance_to(Vector2(lie_eye.position.x, lie_eye.position.z)) < 1e-3,
+		"arrow: and starts at the pillow (%s)" % barrow.position)
+	bed.free()
+	await _frames(2)
 
 
 # --- family --------------------------------------------------------------------

@@ -80,6 +80,17 @@ func places() -> Array[Dictionary]:
 	return _places
 
 
+## A bed's arrow runs along the mattress from the pillow toward the foot (+Z), which is what sets the bed against a wall
+## the right way round; its first place is sitting on the EDGE, whose sideways facing said nothing about that.
+func _facing_arrow_frame() -> Transform3D:
+	for p: Dictionary in _places:
+		if p["lie"]:
+			var eye := p["eye"] as Node3D
+			var trigger := p["trigger"] as Node3D
+			return Transform3D(Basis(Vector3.UP, PI), Vector3(eye.position.x, trigger.position.y + 0.05, eye.position.z))
+	return super()
+
+
 ## The drawers' handles (a bed's), or none.
 func drawers() -> Array[VRDrawer]:
 	if _drawers == null:
