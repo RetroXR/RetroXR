@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Tools/vr/remote_light/remote_light_probe.gd" id="1"]
+
+[node name="RemoteLightProbe" type="Node3D"]
+script = ExtResource("1")

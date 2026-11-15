@@ -123,9 +123,17 @@ func _init() -> void:
 		# out with the depth buffer instead, which needs the source to have
 		# written depth there. A transparent source never does and the hull then
 		# fills it, so the primer goes ahead of it as the base pass.
+		#
+		# Both pass AHEAD of PickableHighlight's primer (MASK_RENDER_PRIORITY). That primer stamps its object's
+		# whole screen footprint at the near plane, and on a held object (a hand-held pickable is outlined) it
+		# covered every widget on the object's face: a hull drawn after it failed the depth test everywhere, so a
+		# held TV remote's lit key, and any button armed on a held pad, showed no ring on a Quest at all
+		# (Tools/vr/remote_light/remote_light_probe --held). Drawn first, the ring is already in the colour buffer
+		# when the stamp lands, and the stamp writes depth only.
+		_outline_material.render_priority = PickableHighlight.MASK_RENDER_PRIORITY - 1
 		var primer := ShaderMaterial.new()
 		primer.shader = OUTLINE_HULL_PRIMER_SHADER
-		primer.render_priority = 1
+		primer.render_priority = PickableHighlight.MASK_RENDER_PRIORITY - 2
 		primer.next_pass = _outline_material
 		material_override = primer
 
