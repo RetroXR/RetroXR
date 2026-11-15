@@ -1,4 +1,18 @@
 {
+ "ir_receiver": {
+  "node": "IrReceiver",
+  "position": [
+   0.192,
+   0.018,
+   0.145
+  ],
+  "direction": [
+   0.0,
+   0.0,
+   1.0
+  ],
+  "note": "the remote-control window, behind the display glass at its right end; RetroXR's TV remote aims here and is not seen from behind it (local +Z out of the front)"
+ },
  "power_cord_exit": {
   "node": "PowerCordExit",
   "position": [

@@ -40,8 +40,9 @@
 ##   receiver/ a device that names an IR receiver (remote_receiver) is aimed at THERE: pointed at its middle with
 ##            the window 27° off it takes nothing, pointed at the window takes it; a wall across the line to the
 ##            window (and not to the middle) blocks it; the window turned away takes nothing; the controls: the
-##            same device naming none takes the middle, and a set with the stock cabinet names none; a device
-##            answering no remote_receiver is aimed at an IrReceiver node under it (a GLB empty), live as it turns.
+##            same device naming none takes the middle; a device answering no remote_receiver is aimed at an
+##            IrReceiver node under it (a GLB empty), live as it turns; the RETRO XR set, VCR, DVD, CD and cassette
+##            decks carry one on their fronts facing out, and the record player none.
 extends "res://Tests/test_suite.gd"
 
 const REMOTE := preload("res://Scenes/Objects/appliances/tv_remote.tscn")
@@ -49,6 +50,8 @@ const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
 const VCR_SCENE := preload("res://Scenes/Objects/appliances/vcr_player.tscn")
 const DVD_SCENE := preload("res://Scenes/Objects/appliances/dvd_player.tscn")
 const RECORD_PLAYER := preload("res://Scenes/Objects/appliances/record_player.tscn")
+const CD_SCENE := preload("res://Scenes/Objects/appliances/cd_player.tscn")
+const CASSETTE_SCENE := preload("res://Scenes/Objects/appliances/cassette_player.tscn")
 
 ## Written out again here, not read from TVRemote.KEY_CELLS: a key wired to the wrong
 ## cell must fail against something it was not copied from.
@@ -1004,9 +1007,36 @@ func _test_receiver() -> void:
 	_eq(r.press_key("KeyPower"), "power", "receiver/…and a remote aimed at it takes the device")
 	marked.get_node("Model/IrReceiver").basis = Basis(Vector3.UP, PI)
 	_eq(r.press_key("KeyPower"), "", "receiver/…turned away, nothing (the cached node is the live one)")
-	# The stock cabinet names no window: the set is aimed at in its middle, as before.
-	var tv := await _spawn(TV_SCENE, Vector3(5, 1, 0)) as RetroTV
-	_ok(tv.remote_receiver() == null, "receiver/a set with the stock cabinet names no window")
+	# The RETRO XR set and decks carry their windows in their models (IrReceiver), on the front, facing out;
+	# the record player has none and is aimed at in its middle.
+	var stock := await _spawn(TV_SCENE, Vector3(4, 1, 0)) as RetroTV
+	_ok(stock.remote_receiver() == null, "receiver/the bare stock body (no cabinet model) names none: its middle")
+	var x := 5.0
+	for row: Array in [["the RETRO XR set", TV_SCENE], ["the VCR", VCR_SCENE], ["the DVD player", DVD_SCENE],
+			["the CD player", CD_SCENE], ["the cassette deck", CASSETTE_SCENE]]:
+		var d: Node3D
+		if row[1] == TV_SCENE:
+			var set_ := TV_SCENE.instantiate() as RetroTV
+			set_.tv_model = "retroxr_crt"
+			set_.freeze = true
+			set_.position = Vector3(x, 1, 0)
+			add_child(set_)
+			_spawned.append(set_)
+			await get_tree().process_frame
+			d = set_
+		else:
+			d = await _spawn(row[1] as PackedScene, Vector3(x, 1, 0))
+		x += 1.0
+		var w: Variant = RemoteTarget.receiver(d)
+		if not w is Transform3D:
+			_ok(false, "receiver/%s names its IR window" % row[0])
+			continue
+		var wt := w as Transform3D
+		var local := d.to_local(wt.origin)
+		_ok(wt.basis.z.normalized().dot(d.global_basis.z.normalized()) > 0.999 and local.z > 0.05,
+			"receiver/%s names its IR window, on its front facing out" % row[0], "%s %s" % [local, wt.basis.z])
+	var rp := await _spawn(RECORD_PLAYER, Vector3(x, 1, 0))
+	_ok(RemoteTarget.receiver(rp) == null, "receiver/the record player names none: its middle, as before")
 
 
 ## remove_child then free, as deck_tests does: a set's or deck's audio emitter still

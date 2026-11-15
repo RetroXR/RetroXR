@@ -374,10 +374,24 @@
   -0.131,
   0.2005
  ],
+ "ir_receiver": {
+  "node": "IrReceiver",
+  "position": [
+   -0.15,
+   -0.138,
+   0.1994
+  ],
+  "direction": [
+   0.0,
+   0.0,
+   1.0
+  ],
+  "note": "the remote window's lens face under the logo; RetroXR's TV remote aims here and is not seen from behind it (local +Z out of the front)"
+ },
  "triangles": {
-  "high": 92594,
-  "lod0": 13762,
-  "lod1": 9318,
-  "lod2": 6742
+  "high": 92870,
+  "lod0": 13918,
+  "lod1": 9434,
+  "lod2": 6818
  }
 }

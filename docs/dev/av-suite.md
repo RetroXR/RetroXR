@@ -236,6 +236,8 @@ OWED.
 
 **Where the mains cord leaves (2026-10-30).** The VCR, DVD player, amplifier, record player and RETRO XR television models each carry a `PowerCordExit` empty, on every level, at the tip of the AC cord's strain relief on the back (`ApplianceModel.part("PowerCordExit")`; `power_cord_exit` in each `*_contract.json`). Its basis is identity, so a cord leaves along its local -Z, out of the back, as every cord anchor here does; the socket-mouth empties point the other way (+Z out). Nothing draws a cord from it yet.
 
+**Where the remote aims (2026-11-15).** The RETRO XR television, VCR, DVD player, CD player and cassette deck models each carry an `IrReceiver` empty on every level (`ir_receiver` in each `*_contract.json`), identity basis, so its +Z points out of the front. On the decks it sits in the display window's mouth at its right end, the receiver behind the smoked glass; the television has a 12 x 7 mm smoked window of its own under the logo. `TVRemote._cone_pick` measures its 20° cone to that point and casts the sight line there (`RemoteTarget.receiver`: a device's `remote_receiver()`, else the first `IrReceiver` node under it; a set asks its shell's seat), and a remote behind the window's face does not reach the device. The record player has none and is aimed at in its middle, as is the bare stock body.
+
 **"Nothing on the screen on Quest" was every key firing twice (2026-11-08).** The set's picture was never the
 problem: the Quest's `files/logs/godot.log` showed every press of the RETRO XR set's keys TWICE (`[RetroTV] TV: pressed
 POWER`, `pressed POWER`), so POWER switched the set on and straight off again, and MUTE, VOL and SOURCE undid
