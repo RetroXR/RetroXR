@@ -25,6 +25,8 @@ extends ArcadeModule
 signal coin_inserted(player: int)
 ## The coin return was pressed on this door.
 signal return_pressed(player: int)
+## A coin this door took (coin_inserted) came back out into the return cup: it is not the cabinet's any more.
+signal coin_returned(player: int)
 
 ## A token flying in from a click: how fast, and the shortest and longest it takes to reach the slot's mouth.
 const FLY_SPEED := 1.4
@@ -75,6 +77,10 @@ var _blink := 0.0
 var in_flight: int = 0
 ## Coins rolled out into the cup and still lying there, for the tests.
 var returned: int = 0
+## The tokens lying in the cup, not yet taken (each an ArcadeToken held still where it fell until a hand takes it).
+var _cup_tokens: Array[ArcadeToken] = []
+## The most tokens left lying in the cup; one more and the oldest goes.
+const CUP_MAX := 8
 
 
 func _init() -> void:
@@ -246,12 +252,14 @@ func _land() -> void:
 	coin_inserted.emit(player)
 
 
-## A coin comes back out: it drops from inside the door into the return cup, rattles, lies there a
-## moment and is gone (coins are infinite: there is nothing to pick up). For a coin the escrow gives
-## back, and for one the cabinet could not take.
+## A coin comes back out: it drops from inside the door into the return cup, rattles, and lies there as a token to pick up
+## (an ArcadeToken, held still where it fell until a hand takes it; the owner, 2026-11-15: "if they go to the return box, it
+## should be pickable there and not the coin box"). For a coin the escrow gives back, and for one the cabinet could not take:
+## either way one the door took, so coin_returned tells the cabinet it is not in its cash box.
 func return_coin() -> void:
 	returned += 1
 	_play(_return_voice)
+	coin_returned.emit(player)
 	if _cup == null or not is_inside_tree():
 		returned = maxi(returned - 1, 0)
 		return
@@ -259,17 +267,37 @@ func return_coin() -> void:
 	coin.name = "ReturnedCoin"
 	coin.mesh = token_mesh()
 	add_child(coin)
-	# From behind the plate above the cup, down into it, ending flat on the cup's floor face up.
-	var rest := _cup.position + Vector3(0.0, -0.006, 0.004)
+	# From behind the plate above the cup, down into it, leaning in the cup; each one still lying there puts the next a
+	# little further forward, against it.
+	_cup_tokens.assign(_cup_tokens.filter(func(t: ArcadeToken) -> bool: return is_instance_valid(t) and t.freeze and not t.is_picked_up()))
+	var rest := _cup.position + Vector3(0.0, -0.006, 0.004 + 0.003 * mini(_cup_tokens.size(), CUP_MAX - 1))
 	var from := rest + Vector3(0.0, 0.05, -0.012)
 	coin.position = from
 	var tween := create_tween()
 	tween.tween_method(_fall.bind(coin, from, rest), 0.0, 1.0, RETURN_FALL_SECONDS)
+	tween.tween_callback(_lie_in_cup.bind(coin))
 	tween.tween_interval(RETURN_REST_SECONDS)
-	tween.tween_callback(func() -> void:
-		returned = maxi(returned - 1, 0)
-		if is_instance_valid(coin):
-			coin.queue_free())
+	tween.tween_callback(func() -> void: returned = maxi(returned - 1, 0))
+
+
+## The fallen coin becomes a token of the room's where it lies, held still (the cup has no floor to physics) until it is
+## picked up, and loose after that.
+func _lie_in_cup(coin: MeshInstance3D) -> void:
+	if not is_instance_valid(coin):
+		return
+	var at := coin.global_transform
+	remove_child(coin)
+	coin.queue_free()
+	var room := get_tree().current_scene if get_tree().current_scene != null else get_tree().root
+	var token := ArcadeToken.make(at, room)
+	token.name = "ReturnedToken"
+	token.freeze = true
+	token.release_mode = XRToolsPickable.ReleaseMode.UNFROZEN
+	_cup_tokens.append(token)
+	while _cup_tokens.size() > CUP_MAX:
+		var old: ArcadeToken = _cup_tokens.pop_front()
+		if is_instance_valid(old):
+			old.queue_free()
 
 
 func _fall(t: float, coin: MeshInstance3D, from: Vector3, to: Vector3) -> void:

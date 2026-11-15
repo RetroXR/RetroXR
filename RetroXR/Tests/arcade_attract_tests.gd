@@ -599,10 +599,15 @@ func _group_coins() -> void:
 	await get_tree().create_timer(flight).timeout
 	_ok(door.returned == 1 and input.held_coins() == 0 and not input.last_sent.has(0),
 		"coins: a coin into a switched-off cabinet rolls out into the return cup, and nothing is sent")
-	_ok(door.find_child("ReturnedCoin", false, false) != null, "coins: the returned coin is there to see")
 	await get_tree().create_timer(ArcadeCoinModule.RETURN_FALL_SECONDS + ArcadeCoinModule.RETURN_REST_SECONDS + 0.2).timeout
-	_ok(door.returned == 0 and door.find_child("ReturnedCoin", false, false) == null,
-		"coins: and it is gone a moment later (coins are infinite)")
+	var lying: Array[Node] = get_tree().get_nodes_in_group(ArcadeToken.GROUP).filter(func(t: Node) -> bool:
+		return t is ArcadeToken and (t as ArcadeToken).freeze and (t as Node3D).global_position.distance_to(door.find_child("ReturnCup", true, false).global_position) < 0.03)
+	_ok(door.returned == 0 and door.find_child("ReturnedCoin", false, false) == null and lying.size() == 1,
+		"coins: and it lies in the cup as a token to pick up (%d there)" % lying.size())
+	_ok(lying.size() == 1 and (lying[0] as ArcadeToken).release_mode == XRToolsPickable.ReleaseMode.UNFROZEN,
+		"coins: held still where it lies until taken, loose once let go")
+	for t in lying:
+		t.queue_free()
 	var rattle := ArcadeCoinModule.rattle()
 	_ok(rattle.data.size() > 4000 and rattle == ArcadeCoinModule.rattle() and rattle != ArcadeCoinModule.clink(),
 		"coins: the return has its own sound, synthesised once and shared")

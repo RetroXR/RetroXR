@@ -289,6 +289,20 @@ func _bank_coin(_player: int) -> void:
 	box.set_meta(CASH_COINS_META, int(box.get_meta(CASH_COINS_META, 0)) + 1)
 
 
+## A coin the door took came back out to the player: the token it put in the box goes (the last one in), and the count
+## with it. None when the box is not in its place, as _bank_coin put none in then.
+func _unbank_coin(_player: int) -> void:
+	var box := _cash_zone.picked_up_object as PortCover if _cash_zone != null else null
+	if box == null:
+		return
+	_cash_tokens.assign(_cash_tokens.filter(func(tk: RigidBody3D) -> bool: return is_instance_valid(tk)))
+	if not _cash_tokens.is_empty():
+		var token: RigidBody3D = _cash_tokens.pop_back()
+		_cash_local.erase(token.get_instance_id())
+		token.queue_free()
+	box.set_meta(CASH_COINS_META, maxi(int(box.get_meta(CASH_COINS_META, 0)) - 1, 0))
+
+
 ## The box's inside to a token (the tray's frame): clear of its walls and its pull by a coin's radius and a little, from its floor.
 static func _cash_inner(b: AABB) -> AABB:
 	var r := ArcadeCoinModule.COIN_RADIUS + 0.004
@@ -992,6 +1006,7 @@ func _build_coin(n: int) -> void:
 	var m := _module("CoinP%d" % n, SCRIPT_COIN, n - 1)
 	if m.has_signal("coin_inserted"):
 		m.connect("coin_inserted", _bank_coin)
+		m.connect("coin_returned", _unbank_coin)
 	_coin_slot(m, slot.global_position)
 	var ret := _part("CoinReturn%d" % n)
 	if ret != null:
