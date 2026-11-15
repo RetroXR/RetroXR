@@ -88,6 +88,10 @@ const SYMBOL_FONT_PATH := "res://fonts/SymbolsNerdFont-Regular.ttf"
 ## forcing the hinge toward one end. Useful for a broad front face that can be
 ## swept either upward or downward.
 @export_flags("-X", "+X", "-Y", "+Y", "-Z", "+Z") var poke_torque_faces: int = 0
+## A torque face is only PUSHED: the leaf moves while the touched face goes away from
+## the fingertip, never back toward it (a finger cannot pull a door). Without it the
+## leaf follows the tip both ways until it is `poke_release_margin` off the face.
+@export var poke_push_only: bool = false
 ## Distance either side of a configured face that starts/keeps a fingertip push.
 @export var poke_face_margin: float = 0.012
 @export var poke_release_margin: float = 0.025
@@ -488,8 +492,29 @@ func _sample_poke_release_velocity(tip: Vector3, previous: Vector3,
 	var instant := rad_to_deg(axis.dot(radial.cross(velocity)) / radius_sq)
 	instant = clampf(instant, -poke_momentum_max_deg_per_sec,
 		poke_momentum_max_deg_per_sec)
+	# A push-only face carries no pull-off into the release: drawing the finger back
+	# leaves the leaf where the push left it.
+	if _poke_mode == POKE_TORQUE:
+		var push := _poke_push_sign(tip)
+		if push != 0.0 and instant * push < 0.0:
+			instant = 0.0
 	var blend := 1.0 - exp(-poke_momentum_response * delta)
 	_poke_release_velocity_deg = lerpf(_poke_release_velocity_deg, instant, blend)
+
+
+## With `poke_push_only`, which way the angle may move under the active torque poke:
+## +1 when a rising angle carries the touched face away from the fingertip (along its
+## inward normal), -1 when a falling one does, 0 when unrestricted.
+func _poke_push_sign(tip: Vector3) -> float:
+	if not poke_push_only or target == null or _poke_shape == null or _poke_face == 0:
+		return 0.0
+	var axis := target.global_transform.basis.x.normalized()
+	var radial := tip - target.global_position
+	radial -= axis * radial.dot(axis)
+	var along := axis.cross(radial).dot(-_face_world_normal(_poke_face, _poke_shape))
+	if absf(along) < 0.000001:
+		return 0.0
+	return signf(along)
 
 
 func _step_release_momentum(delta: float) -> void:
@@ -750,6 +775,9 @@ func _on_poke_motion(world_pos: Vector3, mode: int) -> void:
 	if is_nan(wanted) or target == null:
 		return
 	if mode == POKE_TORQUE:
+		var push := _poke_push_sign(world_pos)
+		if push != 0.0 and (wanted - rad_to_deg(target.rotation.x)) * push < 0.0:
+			return
 		_apply(wanted, true)
 		return
 	var cur := rad_to_deg(target.rotation.x)

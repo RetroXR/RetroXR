@@ -45,6 +45,11 @@ The bedroom closet: `leaf_surfaces = ["Trim_Door"]`,
 - **Unlatched, the leaf stays where it is left** (no spring). It can be taken anywhere:
   with the trigger, with the grip at its edge, or pushed with a fingertip on either
   face (torque faces, with release momentum).
+- **A fingertip only PUSHES** (`VRHinge.poke_push_only`, on for `DoorHinge`). The leaf
+  moves while the touched face goes away from the tip, never back toward it, and a
+  pull-off carries no momentum. Before 2026-11-15 a torque poke followed the tip both
+  ways until it was 25 mm off the face, so drawing the finger back pulled the door
+  shut after it. `door_tests poke/` (with the flag off, the leaf comes back 50 -> 30 deg).
 - **The bolt drops back in by itself:**
   - Let go within `close_latch_deg` (3°), it latches (the parent's `_on_released`).
   - Swung home on its own momentum, it latches once armed (opened past 3° since it was

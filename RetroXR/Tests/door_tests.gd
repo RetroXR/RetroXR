@@ -36,6 +36,7 @@ func _ready() -> void:
 	await _bar_pointer()
 	await _bar_springs_home_asleep()
 	await _push_only()
+	await _poke_pushes_only()
 	for h in _hands:
 		XRServer.remove_tracker(h["tracker"] as XRControllerTracker)
 	_finish()
@@ -623,3 +624,61 @@ func _push_only() -> void:
 	_ok(is_zero_approx(plate.get_angle_deg()) and not plate.is_latched(),
 		"push/...and its closer brings it home unlatched")
 	await _free(plate)
+
+
+## A fingertip only PUSHES the leaf: on the face it pushes open, carried round the arc it
+## swings the leaf; drawn back the same way, the leaf does not come with it (it followed
+## the finger back while the tip was within 25 mm of the face, then coasted after it). The other face
+## still pushes it shut. The push direction is worked out from where the leaf's own
+## points go as it opens, never from the hinge's sign maths.
+func _poke_pushes_only() -> void:
+	var h := _hand("poke_a")
+	var d := await _door()
+	d.apply_state(30.0, false)
+	await _ticks(2)
+	var pivot := d.hinge.target
+	var cs: CollisionShape3D = d.hinge._grab_box()
+	var half: Vector3 = (cs.shape as BoxShape3D).size * 0.5
+	# Shut is rotation 0, so the sign of the 30 degree rotation is the opening way.
+	var r30 := pivot.rotation.x
+	var open_sign := signf(r30)
+	# A leaf point, in the pivot's frame, and where it is with the pivot at `r`.
+	var at := func(local_in_box: Vector3, r: float) -> Vector3:
+		var q: Vector3 = pivot.global_transform.affine_inverse() * (cs.global_transform * local_in_box)
+		return pivot.get_parent().global_transform 			* Transform3D(Basis(Vector3.RIGHT, r), pivot.position) * q
+	var middle := Vector3.ZERO
+	var tangent: Vector3 = at.call(middle, r30 + open_sign * 0.05) - at.call(middle, r30)
+	var push_y := 1.0 if (cs.global_basis * Vector3.UP).dot(tangent) < 0.0 else -1.0
+	var on_push := Vector3(0, push_y * (half.y + 0.003), 0)
+	_hand_at(h, at.call(on_push, r30))
+	await _ticks(3)
+	for k in range(1, 21):
+		_hand_at(h, at.call(on_push, r30 + open_sign * deg_to_rad(1.0 * k)))
+		await _ticks(1)
+	var pushed := d.get_angle_deg()
+	_ok(pushed > 45.0, "poke/a fingertip on the leaf pushes it open", "%.1f deg" % pushed)
+	for k in range(19, -1, -1):
+		_hand_at(h, at.call(on_push, r30 + open_sign * deg_to_rad(1.0 * k)))
+		await _ticks(1)
+	# It may coast on with the push's momentum; it must not come back with the finger.
+	_ok(d.get_angle_deg() > pushed - 0.5,
+		"poke/drawing the fingertip back does not pull the leaf with it",
+		"%.1f -> %.1f deg" % [pushed, d.get_angle_deg()])
+	_hand_at(h, Vector3(0, 10, 0))
+	await _ticks(30)
+	_ok(d.get_angle_deg() > pushed - 0.5, "poke/...and let go it does not coast back toward the hand",
+		"%.1f -> %.1f deg" % [pushed, d.get_angle_deg()])
+	# The control: the other face pushes it shut, so the leaf is not simply frozen.
+	var start := pivot.rotation.x
+	var before := d.get_angle_deg()
+	var on_other := Vector3(0, -push_y * (half.y + 0.003), 0)
+	_hand_at(h, at.call(on_other, start))
+	await _ticks(3)
+	for k in range(1, 21):
+		_hand_at(h, at.call(on_other, start - open_sign * deg_to_rad(1.0 * k)))
+		await _ticks(1)
+	_ok(d.get_angle_deg() < before - 10.0, "poke/the other face pushes it shut",
+		"%.1f -> %.1f deg" % [before, d.get_angle_deg()])
+	_hand_at(h, Vector3(0, 10, 0))
+	await _ticks(2)
+	await _free(d)

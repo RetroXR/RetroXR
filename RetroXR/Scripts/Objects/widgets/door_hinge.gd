@@ -51,8 +51,10 @@ func _init() -> void:
 	close_latch_deg = 3.0
 	box_engages = true
 	grip_engages = true
-	# Both faces: a push moves it whichever way the fingertip travels.
+	# Both faces, PUSHED only: a fingertip on either face moves the leaf away from it,
+	# and drawing it back leaves the leaf where it is (a finger cannot pull a door).
 	poke_torque_faces = FACE_Y_NEG | FACE_Y_POS
+	poke_push_only = true
 	poke_release_momentum = true
 	poke_momentum_max_deg_per_sec = 180.0
 	poke_momentum_damping_deg_per_sec2 = 240.0
