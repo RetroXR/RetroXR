@@ -33,6 +33,13 @@ uniform bool has_albedo_tex = false;
 uniform bool has_normal_tex = false;
 uniform bool has_emission_tex = false;
 uniform float normal_scale : hint_range(0.0, 2.0) = 1.0;
+// The source material's metallic and roughness (scalars; a prop with a metallic
+// MAP keeps 0 here, see PropLighting._translate). A metal has no diffuse at all:
+// its colour is what it reflects, tinted by its albedo. Left out, a near-white
+// metal (the closet door's knob: albedo 0.95, metallic 1) was drawn as matte
+// white paint on a headset while the desktop showed it chrome.
+uniform float metallic : hint_range(0.0, 1.0) = 0.0;
+uniform float roughness : hint_range(0.0, 1.0) = 1.0;
 uniform vec3 uv1_scale = vec3(1.0);
 uniform vec3 uv1_offset = vec3(0.0);
 
@@ -59,6 +66,18 @@ uniform vec3 outside_light : source_color = vec3(0.35, 0.33, 0.30);
 // surface standing ON the boundary - which every wall in a room does, since the
 // volume is fitted to the shell - still reads its own baked lighting.
 const float GI_FADE_METRES = 0.125;
+
+// What a metal reflects where it is not catching the light: the room around it,
+// whose mean radiance is roughly the irradiance times a room's mean albedo. A
+// guess at that albedo, judged against the desktop's Godot-lit render of the
+// knob (`bedroom_probe --stills=closet_knob`, with and without --shell-unshaded).
+const float METAL_ROOM_ALBEDO = 0.35;
+// Cap on the highlight, as a multiple of the irradiance: a smooth metal's lobe
+// normalised to its width runs to hundreds, and the mobile framebuffer clips.
+const float METAL_HIGHLIGHT_MAX = 3.0;
+// The reflected room's level looking down and looking up, about METAL_ROOM_ALBEDO.
+const float METAL_FLOOR = 0.3;
+const float METAL_CEILING = 1.6;
 
 varying vec3 v_world_pos;
 varying vec3 v_world_normal;
@@ -110,15 +129,39 @@ void fragment() {
 	vec4 dr = texture(gi_dir, c);
 	vec3 l = normalize(dr.rgb * 2.0 - 1.0);
 	float ndl = clamp((dot(n, l) + diffuse_wrap) / (1.0 + diffuse_wrap), 0.0, 1.0);
-	vec3 lit = texture(gi_irr, c).rgb * gi_tint * mix(1.0, ndl, dr.a);
+	vec3 irr = texture(gi_irr, c).rgb * gi_tint;
+	vec3 lit = irr * mix(1.0, ndl, dr.a);
 
 	vec3 light = mix(outside_light, lit, inside);
+	vec3 colour = albedo * light;
+	if (metallic > 0.0) {
+		// A metal mirrors the room instead of scattering into it. No probe or
+		// cube map here: the volume's dominant light direction stands in for
+		// the bright part of the room (a highlight that tightens with
+		// smoothness) and the irradiance for the rest. Per-eye VIEW, so the
+		// highlight sits right in each eye.
+		vec3 v = normalize((INV_VIEW_MATRIX * vec4(VIEW, 0.0)).xyz);
+		vec3 r = reflect(-v, n);
+		float gloss = 1.0 - roughness;
+		float power = exp2(10.0 * gloss + 1.0);
+		float lobe = pow(max(dot(r, l), 0.0), power) * (power + 2.0) * 0.125 * dr.a;
+		// A broad sheen around the highlight, so a curved metal shows its form.
+		float sheen = pow(max(dot(r, l), 0.0), max(power * 0.0625, 1.0)) * dr.a;
+		// The room a ray sees is lighter above (walls, ceiling, the lamp) than
+		// below (floor, furniture tops): a flat constant made the knob a disc.
+		float sky = mix(METAL_FLOOR, METAL_CEILING, smoothstep(-0.7, 0.8, r.y));
+		vec3 room = mix(outside_light, irr, inside);
+		vec3 fresnel = mix(albedo, vec3(1.0), pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 5.0));
+		vec3 mirror = fresnel * room
+			* (METAL_ROOM_ALBEDO * (sky + sheen) + min(lobe, METAL_HIGHLIGHT_MAX));
+		colour = mix(colour, mirror, metallic);
+	}
 	vec3 emission = emission_color * emission_energy;
 	if (has_emission_tex) {
 		emission *= texture(emission_tex, UV).rgb;
 	}
 
-	ALBEDO = albedo * light + emission;
+	ALBEDO = colour + emission;
 	// Opaque props must not write ALPHA: even 1.0 selects the transparent pass
 	// and depth_draw_opaque then stops writing depth.
 }

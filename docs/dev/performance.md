@@ -915,3 +915,19 @@ of the two legs from one camera differ in 0.009% of pixels by more than 8/255 (t
 **Left on the table:** the 182 lone parts on their bodies (plug tips, batteries, port covers: one draw already), 58
 ropes, ~200 larger movers, and what objects show (one surface per material). The Quest is untouched (mobile renderer,
 props on a baked volume); OWED there if its props ever cast.
+
+## Metals on the headset's prop shader (2026-11-15)
+
+`PropLighting._translate` carried a prop's albedo, normal and emission onto `pbr_prop_unshaded` and dropped
+metallic, so on a Quest every metal was drawn as matte paint of its albedo: the closet door's knob (door.glb
+`Knob_Metal`, albedo 0.95, metallic 1, roughness 0.375) was flat white where the desktop showed chrome. The
+shader now takes the source's scalar `metallic` and `roughness`: a metal loses its diffuse and reflects the
+baked volume instead (no probe or cube map): a hemispheric "room" from the irradiance, lighter for a ray
+looking up than down, a broad sheen and a roughness-sharpened highlight along the volume's dominant light
+direction, Schlick-tinted by the albedo. All of it is behind a uniform `metallic > 0` branch, so a non-metal
+costs what it did. **A metallic MAP is not sampled** (a StandardMaterial3D `metallic_texture`, an
+`ORMMaterial3D`'s `orm_texture`): those materials stay at metallic 0, the old diffuse look, rather than going all
+metal because their contacts are. The start line counts them (`[PropLighting] N prop material(s) ... , M metal`).
+The constants (`METAL_ROOM_ALBEDO`, `METAL_FLOOR`/`CEILING`, `METAL_HIGHLIGHT_MAX`) were judged by eye against the
+desktop render: `bedroom_probe --stills=closet_knob --empty-room`, with and without `--shell-unshaded`
+(windowed). `prop_lighting_tests` `metal/`. Headset OWED.

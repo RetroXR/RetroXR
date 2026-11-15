@@ -63,6 +63,9 @@ const STILLS: Array = [
 	["switch", Vector3(-1.90, 1.45, 1.35), Vector3(-2.60, 1.20, 0.55), 55.0],
 	# The closet's VRDoor, from the bed side: hinge on the left, swinging toward you.
 	["closet", Vector3(-0.55, 1.50, 0.45), Vector3(-1.55, 1.00, 2.30), 62.0],
+	# The closet door's knob, close: framed off the live DoorKnob in _do_stills (the
+	# positions here are ignored), for judging its metal against `--shell-unshaded`.
+	["closet_knob", Vector3.ZERO, Vector3.ZERO, 30.0],
 ]
 
 # --- Flythrough ------------------------------------------------------------
@@ -218,6 +221,14 @@ func _do_stills() -> void:
 		_cam.fov = shot[3]
 		_cam.global_position = shot[1]
 		_cam.look_at(shot[2], Vector3.UP)
+		if shot[0] == "closet_knob":
+			var knobs := get_tree().root.find_children("*", "DoorKnob", true, false)
+			if knobs.is_empty():
+				print("[probe] closet_knob: no DoorKnob in the room")
+				continue
+			var at: Vector3 = (knobs[0] as Node3D).global_position
+			_cam.global_position = at + Vector3(0.25, 0.12, -0.32)
+			_cam.look_at(at, Vector3.UP)
 		await _save("%s/%s.png" % [out_dir, shot[0]])
 		print("[probe] still %s" % shot[0])
 

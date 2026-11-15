@@ -23,6 +23,41 @@ func _ready() -> void:
 	_ok(replacement.get_shader_parameter("uv1_offset") == src.uv1_offset,
 		"texture offset preserved")
 
+	# A metal keeps its metal: the closet knob (albedo 0.95, metallic 1) was
+	# drawn as white paint on a headset because only the maps were carried.
+	var knob_src := StandardMaterial3D.new()
+	knob_src.metallic = 1.0
+	knob_src.roughness = 0.375
+	var knob := _mesh(knob_src)
+	room.add_child(knob)
+	var plain_src := StandardMaterial3D.new()
+	var plain := _mesh(plain_src)
+	room.add_child(plain)
+	var mapped_src := StandardMaterial3D.new()
+	mapped_src.metallic = 1.0
+	mapped_src.metallic_texture = PlaceholderTexture2D.new()
+	var mapped := _mesh(mapped_src)
+	room.add_child(mapped)
+	var orm_src := ORMMaterial3D.new()
+	orm_src.metallic = 1.0
+	orm_src.orm_texture = PlaceholderTexture2D.new()
+	var orm := _mesh(orm_src)
+	room.add_child(orm)
+	await get_tree().process_frame
+	var knob_mat := knob.get_surface_override_material(0) as ShaderMaterial
+	_ok(knob_mat != null and is_equal_approx(float(knob_mat.get_shader_parameter("metallic")), 1.0)
+		and is_equal_approx(float(knob_mat.get_shader_parameter("roughness")), 0.375),
+		"metal/metallic: scalar metallic and roughness carried across")
+	var plain_mat := plain.get_surface_override_material(0) as ShaderMaterial
+	_ok(plain_mat != null and is_zero_approx(float(plain_mat.get_shader_parameter("metallic"))),
+		"metal/plain: a non-metal stays at metallic 0")
+	var mapped_mat := mapped.get_surface_override_material(0) as ShaderMaterial
+	_ok(mapped_mat != null and is_zero_approx(float(mapped_mat.get_shader_parameter("metallic"))),
+		"metal/mapped: a metallic MAP is not flattened into all-metal")
+	var orm_mat := orm.get_surface_override_material(0) as ShaderMaterial
+	_ok(orm_mat != null and is_zero_approx(float(orm_mat.get_shader_parameter("metallic"))),
+		"metal/orm: an ORM-packed material is not flattened into all-metal")
+
 	var spawned := _mesh(src)
 	room.add_child(spawned)
 	await get_tree().process_frame

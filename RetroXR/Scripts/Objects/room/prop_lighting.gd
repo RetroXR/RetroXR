@@ -62,6 +62,8 @@ const FLAT_ALBEDO_MEAN := {
 static var flatten_enabled: bool = true
 
 var _converted: int = 0
+## Source materials translated as metal (scalar metallic > 0), for the start line.
+var _metals: int = 0
 var _room: Node3D
 var _shader: Shader
 var _volume: Dictionary = {}
@@ -97,7 +99,7 @@ func _ready() -> void:
 		return
 	_start(room, shader, volume)
 	shell.bake_volume_changed.connect(_on_volume_changed)
-	print("[PropLighting] %d prop material(s) on the bake in %s" % [_converted, room.name])
+	print("[PropLighting] %d prop material(s) on the bake in %s, %d metal" % [_converted, room.name, _metals])
 
 
 func _start(room: Node3D, shader: Shader, volume: Dictionary) -> void:
@@ -320,6 +322,17 @@ func _translate(src: BaseMaterial3D, shader: Shader, volume: Dictionary) -> Shad
 	out.set_shader_parameter("has_albedo_tex", albedo != null)
 	if albedo != null:
 		out.set_shader_parameter("albedo_tex", albedo)
+
+	# A metal's colour is what it reflects; carried across or a white metal reads
+	# as white paint (the closet knob on a Quest). Only the scalar: a metallic MAP
+	# (an ORM model's contacts and screws among plastic) is not sampled here, so
+	# such a material stays on the old diffuse look rather than going all metal.
+	var mapped := src.metallic_texture != null 		or (src is ORMMaterial3D and (src as ORMMaterial3D).orm_texture != null)
+	var metal: float = 0.0 if mapped else src.metallic
+	out.set_shader_parameter("metallic", metal)
+	out.set_shader_parameter("roughness", src.roughness)
+	if metal > 0.0:
+		_metals += 1
 
 	var normal := src.normal_texture
 	out.set_shader_parameter("has_normal_tex", normal != null and src.normal_enabled)
