@@ -523,9 +523,12 @@ func _build_leads() -> void:
 		if str(r[0]) == "BoardPowerLead":
 			var dp := NaomiHookup.make_port(NaomiGdRom.CAB_DRIVE_POWER, "res://Scripts/Objects/cables/port.gd", NaomiHookup.NAOMI_POWER)
 			add_child(dp)
-			# In the cabinet's frame, not the world's: one built already turned (a save restoring it) had this socket turned by
-			# the cabinet's own heading.
-			dp.global_transform = Transform3D(global_basis, at.global_position + global_basis * Vector3(0.05, 0.0, 0.0))
+			# Where the model has it (DrivePowerLead: the NAOMI Universal's supply has both leads on its back face), facing as the
+			# board's lead does; else 5 cm beside the board's, in the cabinet's frame, not the world's: one built already turned
+			# (a save restoring it) had this socket turned by the cabinet's own heading.
+			var dlead := _part("DrivePowerLead")
+			var dfacing := _lead_facing(str(r[0]), at.global_position)
+			dp.global_transform = Transform3D(dfacing, dlead.global_position) if dlead != null 				else Transform3D(global_basis, at.global_position + global_basis * Vector3(0.05, 0.0, 0.0))
 		if at.name == "JvsInAnchor":
 			at.add_child(port)
 		else:
