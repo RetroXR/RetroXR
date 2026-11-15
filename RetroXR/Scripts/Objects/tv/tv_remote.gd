@@ -406,7 +406,7 @@ func key_button(key_name: String) -> VRButton:
 func press_key(key_name: String) -> String:
 	var target := _target if is_instance_valid(_target) else _scan_for_target()
 	if target == null:
-		print("[TVRemote] %s: %s pressed, aimed at nothing" % [name, key_name])
+		print("[TVRemote] %s: %s pressed, aimed at nothing (%s)" % [name, key_name, _explain_miss()])
 		return ""
 	var shown := _target
 	_target = target
@@ -792,6 +792,7 @@ func _update_target(delta: float) -> void:
 	if host != null:
 		# New target — switch highlight and rebuild the grid for it.
 		_set_target_highlight(_target, false)
+		print("[TVRemote] %s: now aimed at %s" % [name, host.name])
 		_target = host
 		_lost_time = 0.0
 		_set_target_highlight(_target, true)
@@ -846,56 +847,106 @@ func _ray_device(from: Vector3, dir: Vector3) -> Node3D:
 ##
 ## Where the cone and the sight line point on a device: its IR receiver when it names
 ## one (RemoteTarget.receiver: a set's window beside its keys), else its pointable
-## body's origin, for a set the cabinet's middle. A receiver is seen only from in
+## bodies' origins, for a set the cabinet's middle. A receiver is seen only from in
 ## front of it, along its +Z, the way a window in a cabinet's face is.
 func _cone_pick(from: Vector3, dir: Vector3) -> Node3D:
-	var shape := SphereShape3D.new()
-	shape.radius = target_max_distance
-	var q := PhysicsShapeQueryParameters3D.new()
-	q.shape = shape
-	q.transform = Transform3D(Basis.IDENTITY, from)
-	q.collision_mask = 1 << 20   # 21: pointable (PointerArea bodies)
-	q.exclude = [_pointer_area.get_rid()]
-	var space := get_world_3d().direct_space_state
-	var hits := space.intersect_shape(q, 64)
-
-	# Best dot product (cone centre = 1.0) per device, plus a point to sight-check.
 	var min_dp := cos(deg_to_rad(target_cone_angle_deg))
-	var best_dp: Dictionary = {}   # device -> dp
-	var best_pt: Dictionary = {}   # device -> the point aimed at and sight-checked
-	var receivers: Dictionary = {} # device -> its receiver's world pose, or null
-	for h in hits:
-		var dev := _walk_to_device(h["collider"] as Node)
-		if dev == null:
-			continue
-		if not receivers.has(dev):
-			receivers[dev] = RemoteTarget.receiver(dev)
-		var pt: Vector3 = (h["collider"] as Node3D).global_position
-		var rx: Variant = receivers[dev]
-		if rx is Transform3D:
-			pt = (rx as Transform3D).origin
-			# Behind its window: the cabinet is between the two.
-			if (rx as Transform3D).basis.z.dot(from - pt) <= 0.0:
-				continue
-		var to: Vector3 = pt - from
-		var dist := to.length()
-		if dist > target_max_distance or dist < 0.0001:
-			continue
-		var dp := dir.dot(to / dist)
-		if dp < min_dp:
-			continue
-		if not best_dp.has(dev) or dp > float(best_dp[dev]):
-			best_dp[dev] = dp
-			best_pt[dev] = pt
-
+	var near: Array[Dictionary] = []
+	for c: Dictionary in _aim_candidates(from, dir):
+		if not bool(c["behind"]) and float(c["dp"]) >= min_dp:
+			near.append(c)
 	# Closest-to-centre first; return the first with clear line-of-sight.
-	var devices: Array = best_dp.keys()
-	devices.sort_custom(func(a: Node3D, b: Node3D) -> bool:
-		return float(best_dp[a]) > float(best_dp[b]))
-	for dev: Node3D in devices:
-		if not _occluded(from, best_pt[dev]):
-			return dev
+	near.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a["dp"]) > float(b["dp"]))
+	for c: Dictionary in near:
+		if not _occluded(from, c["pt"]):
+			return c["dev"]
 	return null
+
+
+## Every device in reach, each once: {dev, pt (the point aimed at), dp (its dot with `dir`), rx (aimed at an IR
+## window), behind (the remote is behind that window)}. Walked off RemoteTarget's group, not a physics query: a
+## sphere query returns at most so many shapes, and every key in the room is on the pointable layer (this remote's
+## own 26 among them), so in a room of five sets and their decks the sets past the cap were never seen at all.
+func _aim_candidates(from: Vector3, dir: Vector3) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for node: Node in get_tree().get_nodes_in_group(RemoteTarget.GROUP):
+		var dev := node as Node3D
+		if dev == null or not dev.is_inside_tree() or not RemoteTarget.is_target(dev) or dev.is_ancestor_of(self):
+			continue
+		var pts: Array[Vector3] = []
+		var behind := false
+		var rx: Variant = RemoteTarget.receiver(dev)
+		if rx is Transform3D:
+			pts.append((rx as Transform3D).origin)
+			# Behind its window: the cabinet is between the two.
+			behind = (rx as Transform3D).basis.z.dot(from - pts[0]) <= 0.0
+		else:
+			for body: CollisionObject3D in _pointables(dev):
+				pts.append(body.global_position)
+		var best := {}
+		for pt: Vector3 in pts:
+			var to := pt - from
+			var dist := to.length()
+			if dist > target_max_distance or dist < 0.0001:
+				continue
+			var dp := dir.dot(to / dist)
+			if best.is_empty() or dp > float(best["dp"]):
+				best = {"dev": dev, "pt": pt, "dp": dp, "rx": rx is Transform3D, "behind": behind}
+		if not best.is_empty():
+			out.append(best)
+	return out
+
+
+## A device's bodies on the pointable layer (layer 21) that are its own, not a nested device's: what the remote
+## aims at on a device naming no IR receiver. Kept on the device for POINTABLES_TTL_MS (the remote asks every
+## frame it is held, and a shell or a mod's parts can arrive after the device is in the room).
+const POINTABLES_META := &"_remote_pointables"
+const POINTABLES_TTL_MS := 2000
+
+static func _pointables(dev: Node3D) -> Array:
+	var now := Time.get_ticks_msec()
+	if dev.has_meta(POINTABLES_META):
+		var kept: Array = dev.get_meta(POINTABLES_META)
+		if now - int(kept[0]) < POINTABLES_TTL_MS:
+			return (kept[1] as Array).filter(func(b: Variant) -> bool:
+				return is_instance_valid(b) and (b as Node).is_inside_tree())
+	var found: Array = []
+	var bodies: Array[Node] = dev.find_children("*", "CollisionObject3D", true, false)
+	if dev is CollisionObject3D:
+		bodies.append(dev)
+	for n: Node in bodies:
+		var body := n as CollisionObject3D
+		if body.collision_layer & (1 << 20) and RemoteTarget.of(body) == dev:
+			found.append(body)
+	dev.set_meta(POINTABLES_META, [now, found])
+	return found
+
+
+## Why the remote takes nothing where it points now, for the log line of a key pressed at nothing: the aim, then
+## every device in reach with its angle off the aim (the cone is target_cone_angle_deg), whether the remote is
+## behind its window, and what stands on the sight line. Only on a press, never per frame.
+func _explain_miss() -> String:
+	if _desktop_held:
+		return "desktop crosshair"
+	var from := _tip.global_position
+	var dir := -_tip.global_transform.basis.z
+	var space := get_world_3d().direct_space_state
+	var parts: Array[String] = ["tip %s aiming %s" % [from.snapped(Vector3.ONE * 0.001), dir.snapped(Vector3.ONE * 0.01)]]
+	var all := _aim_candidates(from, dir)
+	all.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a["dp"]) > float(b["dp"]))
+	for c: Dictionary in all:
+		var pt: Vector3 = c["pt"]
+		var ray := PhysicsRayQueryParameters3D.create(from, pt)
+		ray.collision_mask = 1 << 0
+		ray.exclude = [_pointer_area.get_rid()]
+		var hit := space.intersect_ray(ray)
+		var block := "clear" if hit.is_empty() else "blocked by %s" % (hit["collider"] as Node).get_path()
+		parts.append("%s %.2f m, %.0f deg off%s%s, %s" % [(c["dev"] as Node).name, from.distance_to(pt),
+			rad_to_deg(acos(clampf(float(c["dp"]), -1.0, 1.0))), ", aimed at its IR window" if c["rx"] else "",
+			", BEHIND its window" if c["behind"] else "", block])
+	if all.is_empty():
+		parts.append("no device in %.0f m" % target_max_distance)
+	return "; ".join(parts)
 
 
 ## True when world/room geometry (physics layer 1) blocks the straight line from

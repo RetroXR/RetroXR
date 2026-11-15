@@ -43,6 +43,8 @@
 ##            same device naming none takes the middle; a device answering no remote_receiver is aimed at an
 ##            IrReceiver node under it (a GLB empty), live as it turns; the RETRO XR set, VCR, DVD, CD and cassette
 ##            decks carry one on their fronts facing out, and the record player none.
+##   crowd/   a device among 300 other pointable bodies (a room's keys, which share its layer) is still found:
+##            the aim walked a physics query capped at 64 shapes, and a room of five sets lost the sets past it.
 extends "res://Tests/test_suite.gd"
 
 const REMOTE := preload("res://Scenes/Objects/appliances/tv_remote.tscn")
@@ -88,7 +90,7 @@ func _run() -> void:
 	for c: Array in [["dress/", _test_dress], ["shapes/", _test_shapes], ["ray/", _test_ray],
 			["touch/", _test_touch], ["keys/", _test_keys], ["aim/", _test_aim], ["press/", _test_press],
 			["bay/", _test_bay], ["poke/", _test_poke], ["grid/", _test_grid], ["stick/", _test_stick],
-			["target/", _test_target], ["receiver/", _test_receiver]]:
+			["target/", _test_target], ["receiver/", _test_receiver], ["crowd/", _test_crowd]]:
 		if _wanted(str(c[0])):
 			await (c[1] as Callable).call()
 			await _cleanup()
@@ -950,6 +952,36 @@ func _test_target() -> void:
 	add_child(bare)
 	_spawned.append(bare)
 	_ok(RemoteTarget.of(body) == null, "target/in the group without the methods it is no target")
+
+
+# ── crowd/ ────────────────────────────────────────────────────────────────────
+
+func _test_crowd() -> void:
+	# 300 pointable bodies that are no device, round the remote, nearer than the device it points at.
+	var crowd := Node3D.new()
+	add_child(crowd)
+	_spawned.append(crowd)
+	for i in 300:
+		var body := StaticBody3D.new()
+		body.collision_layer = 1 << 20
+		body.collision_mask = 0
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(0.01, 0.01, 0.01)
+		shape.shape = box
+		body.add_child(shape)
+		body.position = Vector3(0.4 + 0.02 * (i % 20), 1 + 0.02 * (i / 20), -0.3)
+		crowd.add_child(body)
+	var dev := ModDevice.new()
+	dev.position = Vector3(0, 1, -3)
+	add_child(dev)
+	_spawned.append(dev)
+	var r := await _remote(Vector3(0, 1.1, 0))
+	await get_tree().physics_frame
+	_eq(r.press_key("KeyPower"), "power", "crowd/a device behind 300 other pointable bodies is still aimed at")
+	r.rotate_y(PI)
+	await get_tree().physics_frame
+	_eq(r.press_key("KeyPower"), "", "crowd/…and turned away, nothing (control)")
 
 
 # ── receiver/ ─────────────────────────────────────────────────────────────────
