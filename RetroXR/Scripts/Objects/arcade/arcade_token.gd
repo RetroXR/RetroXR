@@ -66,6 +66,21 @@ var _nudges := 0
 static var _disc: ConvexPolygonShape3D = null
 
 
+## The token in a hand nearest `at`, or null.
+static func held_near(tree: SceneTree, at: Vector3) -> ArcadeToken:
+	var best: ArcadeToken = null
+	var best_d := INF
+	for n in tree.get_nodes_in_group(GROUP):
+		var t := n as ArcadeToken
+		if t == null or t.is_queued_for_deletion() or not t.is_picked_up():
+			continue
+		var d := t.global_position.distance_squared_to(at)
+		if d < best_d:
+			best_d = d
+			best = t
+	return best
+
+
 ## The physics disc, one shared by every token: a ring of points at the rim on its middle plane, and each face's ring
 ## RIM_BEVEL in.
 static func disc_shape() -> ConvexPolygonShape3D:

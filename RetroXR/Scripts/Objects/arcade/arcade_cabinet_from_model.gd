@@ -219,9 +219,11 @@ func _build_lift_offs() -> void:
 	for n in _model.find_children("*LiftOff", "MeshInstance3D", true, false):
 		var part := n as MeshInstance3D
 		var out := _lift_off_out(part)
-		var zone := CoverSlots.shell_cover(part, "cabinet_" + str(part.name).to_snake_case(), out)
+		var socket := "cabinet_" + str(part.name).to_snake_case()
+		var zone := CoverSlots.shell_cover(part, socket, out)
 		if zone == null:
 			continue
+		_loose_lift_offs[socket] = [part, out]
 		zone.has_picked_up.connect(_dress_lift_off.bind(part, out))
 		if str(part.name) == CASH_BOX:
 			_cash_zone = zone
@@ -235,6 +237,104 @@ func _build_lift_offs() -> void:
 			zone.has_picked_up.connect(func(_b: Node3D) -> void: _cash_watch.stop())
 		if zone.picked_up_object != null:
 			_dress_lift_off(zone.picked_up_object, part, out)
+		for c in get_tree().get_nodes_in_group(PortCover.group_for(socket)):
+			_dress_loose(c)
+	if not _loose_lift_offs.is_empty() and not get_tree().node_added.is_connected(_on_node_added):
+		get_tree().node_added.connect(_on_node_added)
+
+
+## Each lift-off panel's cover socket -> [its panel, the way it faces out]: a cover for one lying loose (a save brought it
+## back out of its place, or after the cabinet was built) is dressed as its panel at once, not left the plain box a cover
+## is until a slot dresses it (the owner, 2026-11-15: "it will just appear as a white cube").
+var _loose_lift_offs := {}
+
+
+func _on_node_added(n: Node) -> void:
+	if n is PortCover:
+		_dress_loose.call_deferred(n)
+
+
+func _dress_loose(n: Node) -> void:
+	var cover := n as PortCover
+	if cover == null or not is_instance_valid(cover) or not cover.is_inside_tree() or cover.has_node("Shell"):
+		return
+	var spec: Variant = _loose_lift_offs.get(cover.socket_id)
+	if spec == null or not is_instance_valid((spec as Array)[0]):
+		return
+	_dress_lift_off(cover, (spec as Array)[0], (spec as Array)[1])
+	if cover == _cash_box and _cash_watch != null:
+		_cash_watch.start()
+
+
+## The cash box in a hand: the tokens in it go with it, each held where it lies in the tray (picked up, the tray left them
+## behind on the floor of the vault: the owner, 2026-11-15, "when i pick it up the coins don't come with it"). Tipped past
+## CASH_SPILL_DEG they are let go to slide and fall out; let go of, they go on with the box's motion.
+const CASH_SPILL_DEG := 40.0
+## Each carried token -> where it lies in the tray (the tray's frame).
+var _cash_carried := {}
+## Tipped out while this hold lasts: not taken back until the box is put down.
+var _cash_spilled := false
+var _cash_tray_was := Transform3D.IDENTITY
+var _cash_rest_frames := 0
+
+
+func _carry_cash(delta: float) -> void:
+	var box := _cash_box
+	var held_by := box.get_picked_up_by() if is_instance_valid(box) and box.is_picked_up() else null
+	var in_hand := held_by != null and not held_by is XRToolsSnapZone
+	var tray := CoverSlots.worn_part(box) if is_instance_valid(box) else null
+	# Let go of, the box falls or is set down: the tokens stay where they lie in it until it has come to rest (freed as it
+	# left the hand, the box still falling, most of them fell through it), or until it is in its place again.
+	if not in_hand:
+		_cash_spilled = false
+		if _cash_carried.is_empty():
+			return
+		if tray == null or held_by != null:
+			_release_cash(Vector3.ZERO)
+			return
+		var at_rest := box.linear_velocity.length() < 0.03 and box.angular_velocity.length() < 0.2
+		_cash_rest_frames = _cash_rest_frames + 1 if at_rest else 0
+		if _cash_rest_frames >= 6:
+			_release_cash(Vector3.ZERO)
+			return
+	else:
+		_cash_rest_frames = 0
+	if tray == null:
+		return
+	var at := tray.global_transform
+	var v := (at.origin - _cash_tray_was.origin) / maxf(delta, 0.001)
+	_cash_tray_was = at
+	if _cash_spilled:
+		return
+	if at.basis.y.normalized().dot(Vector3.UP) < cos(deg_to_rad(CASH_SPILL_DEG)):
+		_cash_spilled = in_hand
+		_release_cash(v)
+		return
+	if _cash_carried.is_empty():
+		if not in_hand:
+			return
+		for token in _cash_tokens:
+			if is_instance_valid(token) and not (token is XRToolsPickable and (token as XRToolsPickable).is_picked_up()):
+				_cash_carried[token] = at.affine_inverse() * token.global_transform
+				token.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+				token.freeze = true
+		return
+	for token: Variant in _cash_carried.keys():
+		var tk := token as RigidBody3D
+		if not is_instance_valid(tk) or (tk is XRToolsPickable and (tk as XRToolsPickable).is_picked_up()):
+			_cash_carried.erase(token)
+			continue
+		tk.global_transform = at * (_cash_carried[token] as Transform3D)
+
+
+func _release_cash(v: Vector3) -> void:
+	for token: Variant in _cash_carried.keys():
+		var tk := token as RigidBody3D
+		if is_instance_valid(tk) and not (tk is XRToolsPickable and (tk as XRToolsPickable).is_picked_up()):
+			tk.freeze = false
+			tk.linear_velocity = v
+			tk.sleeping = false
+	_cash_carried.clear()
 
 
 ## Which way a lift-off panel faces out: for one on the top (its name starts "Top": the NAOMI Universal's TopPanelLiftOff), the
@@ -494,7 +594,8 @@ func _collect_carried(was: Transform3D) -> void:
 
 ## Whenever the machine moves -- carried in a hand or on the desktop, stood on the floor, pushed -- what is inside it moves
 ## the same, from the frame it starts moving until it has stood still CARRY_SETTLE frames.
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
+	_carry_cash(delta)
 	if _pickable == null:
 		return
 	var now := _pickable.global_transform

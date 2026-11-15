@@ -578,7 +578,13 @@ func _screen_transform() -> Transform3D:
 	var model: Node = _model()
 	if model != null and model.has_method("get_builtin_screen"):
 		var screen: Variant = model.call("get_builtin_screen")
-		if screen is Node3D:
+		# The middle of what the screen draws: a model cabinet's screen mesh has its glass in its points, the node itself at the
+		# cabinet's origin on the floor, so its position alone put the "glass" at the player's feet: close up, looking at the
+		# real glass, that point was out of the picture and the video stopped (the owner, 2026-11-15: "will freeze alot").
+		if screen is MeshInstance3D and (screen as MeshInstance3D).mesh != null:
+			var mi := screen as MeshInstance3D
+			xf.origin = mi.global_transform * mi.get_aabb().get_center()
+		elif screen is Node3D:
 			xf.origin = (screen as Node3D).global_position
 	return xf
 

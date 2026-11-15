@@ -189,31 +189,28 @@ func insert_coin() -> void:
 	insert_coin_from(start)
 
 
-## The slot clicked (the desktop reticle, a laser): a token in a hand goes in, flying from where it is held (the owner,
-## 2026-11-15: "can i put them in coin slots"); with none held, one flies in from the corner of the view as always.
+## The slot clicked (the desktop reticle, a laser): the token in a hand it is showing at its mouth slides in from there (the
+## owner, 2026-11-15: "can i put them in coin slots"); with none held, one flies in from the corner of the view as always.
 func _on_slot_clicked() -> void:
-	var held := held_token()
-	if held == null:
-		insert_coin()
+	var shown := _slot.presenting() if _slot != null else null
+	if shown == null:
+		var held := held_token()
+		if held == null:
+			insert_coin()
+			return
+		var from := held.global_transform
+		ArcadeCoinSlot.spend(held)
+		insert_coin_from(from)
 		return
-	var from := held.global_transform
-	ArcadeCoinSlot.spend(held)
-	insert_coin_from(from)
+	var at := _slot.presented_pose()
+	_slot.end_presenting()
+	ArcadeCoinSlot.spend(shown)
+	insert_coin_from(at, true)
 
 
 ## The token in a hand nearest this door's slot, or null.
 func held_token() -> ArcadeToken:
-	var best: ArcadeToken = null
-	var best_d := INF
-	for n in get_tree().get_nodes_in_group(ArcadeToken.GROUP):
-		var t := n as ArcadeToken
-		if t == null or t.is_queued_for_deletion() or not t.is_picked_up():
-			continue
-		var d := t.global_position.distance_squared_to(_slot.global_position if _slot != null else global_position)
-		if d < best_d:
-			best_d = d
-			best = t
-	return best
+	return ArcadeToken.held_near(get_tree(), _slot.global_position if _slot != null else global_position)
 
 
 ## A token from `from` (world): it flies to the slot's mouth turning edge-on (unless `slide_only`: a hand put it there), then

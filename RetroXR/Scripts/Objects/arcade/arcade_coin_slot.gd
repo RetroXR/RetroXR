@@ -6,8 +6,13 @@
 ## going inward, within the opening) and it is in: `coin_entered(from)` with where the token was, and the module slides it on
 ## inside from there. A hand that holds something (a pad, a gun: PokeTip.is_poking false) has no token.
 ##
+## A TOKEN (ArcadeToken, loose or in any hand) goes in when its centre comes into the slot's own box: the box the pointer
+## outlines and shows the coin glyph over, so where a coin is taken is where it is seen to be (the owner, 2026-11-15: "i would
+## expect it to be the same area").
+##
 ## WITH A POINTER (the desktop reticle, a laser) the slot is something to click: aimed at, it is outlined and shows the coin
-## glyph; a press is `clicked`, and the module flies a token in from the corner of the view.
+## glyph. Holding a token, it is shown at the slot's mouth hopping in and out, ready (presenting()); a press is `clicked`,
+## and the module slides that token in. Holding none, a press flies one in from the corner of the view.
 ##
 ## The slot's frame is in its PARENT's frame (the coin door): `insert_dir`, the way a coin goes in; `slot_long`, the slot's
 ## long side; `slot_length` how long it is. A coin stands in the plane of those two (`slot_basis`).
@@ -47,8 +52,15 @@ var _held: MeshInstance3D = null
 var _held_by: XRController3D = null
 var _side := {}
 var _refill := 0.0
-## Loose tokens (ArcadeToken) near the slot: instance id -> how deep through the mouth's plane each was last physics frame.
+## Loose tokens (ArcadeToken) near the slot: instance id -> whether each was in the slot's box last physics frame.
 var _token_side := {}
+## The token in a hand shown at the mouth while a pointer is on the slot, or null; how far through its hop it is.
+var _presenting: ArcadeToken = null
+var _hop := 0.0
+## How far out of the mouth a presented token hops, at the lowest and the highest (metres), and how fast (hops a second).
+const PRESENT_NEAR := 0.004
+const PRESENT_FAR := 0.022
+const PRESENT_HOPS := 1.6
 
 
 func _ready() -> void:
@@ -123,7 +135,63 @@ static func held_coin_pose(tip: Vector3, hand: Basis, slot_pos: Vector3, slot: B
 	return Transform3D(Basis(q), tip - h.z * PINCH_AHEAD)
 
 
+## Whether `p` (world) is in the slot's box: its pointable shapes (boxes), the one a token goes in through.
+func contains(p: Vector3) -> bool:
+	for c in get_children():
+		var col := c as CollisionShape3D
+		if col == null or not col.shape is BoxShape3D:
+			continue
+		var l := col.global_transform.affine_inverse() * p
+		var h := (col.shape as BoxShape3D).size * 0.5
+		if absf(l.x) <= h.x and absf(l.y) <= h.y and absf(l.z) <= h.z:
+			return true
+	return false
+
+
+## The token in a hand being shown at the mouth, or null; and where it is shown.
+func presenting() -> ArcadeToken:
+	return _presenting if is_instance_valid(_presenting) and _presenting.is_picked_up() else null
+
+
+func presented_pose() -> Transform3D:
+	return _held.global_transform if _held != null else Transform3D(slot_basis(), mouth())
+
+
+## The token it showed has gone in: the hop stops, the hand's token is not shown again.
+func end_presenting() -> void:
+	_presenting = null
+	_hide_held()
+
+
+func _present(delta: float) -> bool:
+	var token: ArcadeToken = ArcadeToken.held_near(get_tree(), global_position) if not _hover.is_empty() else null
+	if token != _presenting:
+		_show_token(_presenting, true)
+		_presenting = token
+		_hop = 0.0
+	if token == null:
+		return false
+	_show_token(token, false)
+	_hop += delta
+	var into := insert_dir_world()
+	var out := lerpf(PRESENT_NEAR, PRESENT_FAR, absf(sin(_hop * PI * PRESENT_HOPS)))
+	_held.global_transform = Transform3D(slot_basis(), mouth() - into * out)
+	_held.visible = true
+	return true
+
+
+static func _show_token(token: ArcadeToken, on: bool) -> void:
+	if is_instance_valid(token) and token.has_node("Mesh"):
+		(token.get_node("Mesh") as Node3D).visible = on
+
+
 func _process(delta: float) -> void:
+	if _held != null and _present(delta):
+		return
+	if _controllers.is_empty():
+		if _held_by == null:
+			_hide_held()
+		return
 	_refill = maxf(0.0, _refill - delta)
 	var slot_pos := global_position
 	var best: XRController3D = null
@@ -154,7 +222,11 @@ func _process(delta: float) -> void:
 	var id := best.get_instance_id()
 	var was: float = _side.get(id, -1.0)
 	_side[id] = depth
-	if was < 0.0 and depth >= 0.0 and along <= slot_length * 0.5 + OPENING_SLACK and across <= OPENING_ACROSS:
+	var through := was < 0.0 and depth >= 0.0 and along <= slot_length * 0.5 + OPENING_SLACK and across <= OPENING_ACROSS
+	var was_in: bool = _side.get(-id, false)
+	var now_in := contains(pose.origin)
+	_side[-id] = now_in
+	if through or (now_in and not was_in):
 		_refill = REFILL_SECONDS
 		_hide_held()
 		Haptics.click(best, true, &"coin_slot")
@@ -172,21 +244,16 @@ func _physics_process(_delta: float) -> void:
 		if not _token_side.is_empty():
 			_token_side.clear()
 		return
-	var into := insert_dir_world()
-	var at := mouth()
-	var sb := slot_basis()
 	for n in tokens:
 		var token := n as Node3D
 		var id := token.get_instance_id()
-		var rel := token.global_position - at
-		if rel.length() > REACH:
+		if token == _presenting or token.global_position.distance_to(global_position) > REACH:
 			_token_side.erase(id)
 			continue
-		var depth := rel.dot(into)
-		var was: float = _token_side.get(id, -1.0)
-		_token_side[id] = depth
-		if was < 0.0 and depth >= 0.0 and absf(rel.dot(sb.x)) <= slot_length * 0.5 + OPENING_SLACK \
-				and absf(rel.dot(sb.y)) <= OPENING_ACROSS:
+		var now_in := contains(token.global_position)
+		var was_in: bool = _token_side.get(id, false)
+		_token_side[id] = now_in
+		if now_in and not was_in:
 			var from := token.global_transform
 			_token_side.erase(id)
 			spend(token)
@@ -228,6 +295,12 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 
 func _sync_pointer() -> void:
 	var on := not _hover.is_empty()
+	if on:
+		set_process(true)
+	elif _presenting != null:
+		_show_token(_presenting, true)
+		_presenting = null
+		_hide_held()
 	if _outline != null:
 		_outline.sync(on)
 	if on and _glyph == null:
