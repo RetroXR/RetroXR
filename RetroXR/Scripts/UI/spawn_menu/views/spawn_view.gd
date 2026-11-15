@@ -515,9 +515,11 @@ func _build() -> void:
 	posters_scroll.add_child(_posters_vbox)
 	_populate_posters_tab()
 
-	# The shipped objects, then every prop a mod registered with a menu label: both
-	# SpawnCatalog's, as a console card's rows are (items_for).
-	_add_spawn_tab(tabs, "Objects", SpawnCatalog.objects())
+	# Furniture, Electronics and the catch-all Objects: each tab's shipped rows, then every
+	# prop a mod registered for it with a menu label, all SpawnCatalog's, as a console
+	# card's rows are (items_for).
+	for key: String in SpawnCatalog.SPAWN_TABS:
+		_add_spawn_tab(tabs, str(SpawnCatalog.SPAWN_TABS[key]), SpawnCatalog.tab_rows(key))
 
 	# Mains leads, on their own tab rather than lost among the A/V ones. What
 	# picks one is the shape of the socket on the back of the machine, not what

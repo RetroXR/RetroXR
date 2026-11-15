@@ -355,6 +355,8 @@ func register_room(spec: Dictionary) -> bool:
 
 ## Add a spawnable prop. `type` is the persistence key written into save slots,
 ## so it must be namespaced and must never change once players have used it.
+## `menu` puts it on the SPAWN menu: `label`, and `tab` -- "furniture", "electronics"
+## or "objects" (the default). An unknown tab fails the registration.
 func register_object(type: String, scene_path: String, menu: Dictionary = {}) -> bool:
 	if not _namespaced(type, "object type"):
 		return false
@@ -365,7 +367,10 @@ func register_object(type: String, scene_path: String, menu: Dictionary = {}) ->
 		var menu_err := SpawnCatalog.register_mod_spawnable(type, menu, id)
 		if not menu_err.is_empty():
 			return _fail("object %s: %s" % [type, menu_err])
-	_note("object", str(menu.get("label", type)))
+		_note("object", "%s (%s tab)" % [str(menu.get("label", type)),
+			str(menu.get("tab", SpawnCatalog.DEFAULT_SPAWN_TAB)).to_lower()])
+		return true
+	_note("object", type)
 	return true
 
 

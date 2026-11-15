@@ -21,7 +21,7 @@
 ##             height looking the right way, stand points on the floor beside it, and a press on EACH place sits there
 ##   getup/    getting up finds a floor: a seat against a wall stands you up in the room, not past the wall; a tipped or
 ##             held seat is not sat on; the body seated does not gather speed; the desktop capsule is tall again at once
-##   save/     the RETRO XR seats and beds are plain scenes, spawned by their tokens and on the Objects tab; the six old
+##   save/     the RETRO XR seats and beds are plain scenes, spawned by their tokens and on the Furniture tab; the six old
 ##             primitive seats (removed 2026-11-12) stay gone
 extends "res://Tests/test_suite.gd"
 
@@ -928,14 +928,15 @@ func is_picked_up() -> bool:
 # --- save ----------------------------------------------------------------------
 
 func _group_save() -> void:
-	# The RETRO XR seats and beds: plain scenes, spawned by their tokens, saved as themselves, on the Objects tab. The
-	# rows are SpawnCatalog.OBJECTS's, where the Objects tab reads them; a merge that took the other side of that list
+	# The RETRO XR seats and beds: plain scenes, spawned by their tokens, saved as themselves, on the Furniture tab. The
+	# rows are SpawnCatalog.FURNITURE's, where the Furniture tab reads them; a merge that took the other side of that list
 	# once left every seat off the tab and no suite noticed.
 	var offered: Array = []
-	for row: Array in SpawnCatalog.objects():
+	for row: Array in SpawnCatalog.furniture():
 		offered.append(str(row[1]))
+	var anywhere: Array = SpawnCatalog.shipped_tab_rows().map(func(r: Array) -> String: return str(r[1]))
 	for id: String in ScenePersistence.SEAT_FURNITURE_IDS:
-		_ok(ScenePersistence.PLAIN_SCENES.has(id) and id in offered, "save: %s is a plain scene on the Objects tab" % id)
+		_ok(ScenePersistence.PLAIN_SCENES.has(id) and id in offered, "save: %s is a plain scene on the Furniture tab" % id)
 		var seat := ScenePersistence.instantiate(id)
 		var saved := str(ScenePersistence.new()._serialize_kind(seat, 1, {}).get("type", "")) if seat != null else ""
 		_ok(seat is ContractSeat and (seat as Seat).type_id == id and saved == id,
@@ -946,4 +947,4 @@ func _group_save() -> void:
 	# without it (an unknown type is skipped with a warning), so none may come back as a token by accident.
 	for id in ["seat_racing", "seat_stool", "seat_chair", "seat_cushion", "seat_sofa", "seat_bed"]:
 		_ok(not ScenePersistence.PLAIN_SCENES.has(id), "save: %s is no plain scene" % id)
-		_ok(not id in offered, "save: %s is not on the SPAWN menu's Objects tab" % id)
+		_ok(not id in anywhere, "save: %s is on no SPAWN menu tab" % id)

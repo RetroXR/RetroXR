@@ -528,9 +528,9 @@ func _save(ns: Nightstand) -> void:
 	_ok(ScenePersistence.PLAIN_SCENES.has("nightstand") and ScenePersistence.saved_kind_types().has("nightstand"),
 		"save/the nightstand spawns and saves as nightstand")
 	var spawnable := false
-	for row: Array in SpawnCatalog.OBJECTS:
+	for row: Array in SpawnCatalog.FURNITURE:
 		spawnable = spawnable or row[1] == "nightstand"
-	_ok(spawnable, "save/it is on the spawn menu's Objects tab")
+	_ok(spawnable, "save/it is on the spawn menu's Furniture tab")
 	ns2.queue_free()
 	await _reset(ns)
 
@@ -1040,8 +1040,8 @@ func _living() -> void:
 			"living/%s builds %d drawers/sliders and %d hinged doors (%d, %d)" % [id, want_d.size(), want_h.size(),
 			ds.size(), hs.size()])
 		var saved_type := str(ScenePersistence.new()._serialize_kind(piece, 1, {}).get("type", ""))
-		var offered := SpawnCatalog.OBJECTS.any(func(r: Array) -> bool: return r[1] == id)
-		_ok(saved_type == id and offered, "living/%s spawns from the Objects tab and saves as itself ('%s')" % [id, saved_type])
+		var offered := SpawnCatalog.FURNITURE.any(func(r: Array) -> bool: return r[1] == id)
+		_ok(saved_type == id and offered, "living/%s spawns from the Furniture tab and saves as itself ('%s')" % [id, saved_type])
 		# Every drawer and slider, one at a time: out by its travel along its own axis, the drawing with it, then home.
 		for i in ds.size():
 			var d := ds[i]

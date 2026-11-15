@@ -551,6 +551,8 @@ api.register_room({"id": "xenu.mod:attic", "path": "res://mods/xenu.mod/attic.ts
     "thumbnail": "res://mods/xenu.mod/attic_card.png"})
 api.register_object("xenu.mod:crate", "res://mods/xenu.mod/crate.tscn",
     {"label": "Crate"})
+api.register_object("xenu.mod:lamp", "res://mods/xenu.mod/lamp.tscn",
+    {"label": "Floor Lamp", "tab": "furniture"})
 api.register_tv_shell("xenu.mod:portable", "res://mods/xenu.mod/portable.tscn",
     "Portable TV")
 api.add_peripherals("nes", [{"label": "My Pad", "spawn": "retro_controller"}])
@@ -584,8 +586,10 @@ shipped switches, so keep the path stable.
 A **prop**'s type string is written into save files — permanent once anyone has
 used it. Renaming it orphans every copy in every slot.
 
-A prop registered with a `label` is offered on the **SPAWN menu's Objects tab**,
-after the game's own objects, sorted by label (`SpawnCatalog.objects()`). Without
+A prop registered with a `label` is offered on the SPAWN menu, after the game's own
+rows on its tab, sorted by label (`SpawnCatalog.tab_rows()`). `tab` picks the tab:
+`"furniture"`, `"electronics"` or `"objects"` (the catch-all, and the default). Any
+other value fails the registration, with the reason in the mod's log. Without
 one it is only on a console's card, when it is a pad, gun or lead for that console
 or a row you add with `add_peripherals`.
 

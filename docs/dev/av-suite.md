@@ -674,7 +674,7 @@ ray takes the pair's knob from the front and the sub's rocker from behind, and a
 
 ### The RETRO XR AV switch: four inputs, one TO TV (2026-11-07)
 
-`AvSwitch` (`Scripts/Objects/av/av_switch.gd`, `Scenes/Objects/appliances/av_switch.tscn`, the Objects tab's
+`AvSwitch` (`Scripts/Objects/av/av_switch.gd`, `Scenes/Objects/appliances/av_switch.tscn`, the Electronics tab's
 "AV Switch", saved as `av_switch`) wears RetroXR-models `generic/av-switch` (concept B: every jack on the back, one
 four-position slide under four backlit windows on the front; 280 x 42 x 120 mm, sizes and sources in that item's
 MEASUREMENTS.md). Copy the three `avswitch_mobile*.glb` + `avswitch_contract.json` into

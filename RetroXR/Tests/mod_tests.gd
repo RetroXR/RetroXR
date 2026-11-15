@@ -27,7 +27,7 @@
 extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 469
+const EXPECTED_CASES := 477
 
 var _only := ""
 var _dir := ""
@@ -511,9 +511,37 @@ func _group_objects() -> void:
 	_ok(parsed["kind"] == SpawnCatalog.TokenKind.MOD and parsed.get("mod_type", "") == "t.menu:apple",
 		"objects/menu: a row's token spawns the prop it names", str(parsed))
 	rows[0][0] = "changed"
-	_ok(str(SpawnCatalog.OBJECTS[0][0]) == "Table", "objects/menu: what the menu is handed is a copy")
+	_ok(str(SpawnCatalog.OBJECTS[0][0]) == "Storage Box", "objects/menu: what the menu is handed is a copy")
 	SpawnCatalog.drop_mod("t.menu")
 	_eq(SpawnCatalog.objects().size(), n, "objects/menu: a withdrawn mod's props leave it")
+	# Furniture and Electronics are tabs a mod can name too (`"tab"`, any case); Objects stays
+	# the default, and a tab that does not exist is refused, never quietly put on Objects.
+	_ok(SpawnCatalog.furniture() == SpawnCatalog.FURNITURE and SpawnCatalog.electronics() == SpawnCatalog.ELECTRONICS,
+		"objects/tabs: with no mod, each tab's shipped rows alone")
+	_eq(SpawnCatalog.register_mod_spawnable("t.tab:lamp", {"label": "Lamp", "tab": "furniture"}, "t.tab"), "",
+		"objects/tabs: a furniture prop registers")
+	_eq(SpawnCatalog.register_mod_spawnable("t.tab:radio", {"label": "Radio", "tab": "Electronics"}, "t.tab"), "",
+		"objects/tabs: a tab is read in any case")
+	var lamp := ["Lamp", "mod:t.tab:lamp"]
+	var radio := ["Radio", "mod:t.tab:radio"]
+	_ok(SpawnCatalog.furniture().back() == lamp and not SpawnCatalog.electronics().has(lamp)
+		and not SpawnCatalog.objects().has(lamp), "objects/tabs: a furniture prop is on Furniture alone")
+	_ok(SpawnCatalog.electronics().back() == radio and not SpawnCatalog.furniture().has(radio)
+		and not SpawnCatalog.objects().has(radio), "objects/tabs: an electronics prop is on Electronics alone")
+	var refused := SpawnCatalog.register_mod_spawnable("t.tab:sink", {"label": "Sink", "tab": "kitchen"}, "t.tab")
+	_ok(not refused.is_empty() and not SpawnCatalog.mod_spawnables().any(
+		func(i: Dictionary) -> bool: return i["type"] == "t.tab:sink"), "objects/tabs: an unknown tab is refused", refused)
+	SpawnCatalog.drop_mod("t.tab")
+	_ok(SpawnCatalog.furniture() == SpawnCatalog.FURNITURE and SpawnCatalog.electronics() == SpawnCatalog.ELECTRONICS,
+		"objects/tabs: a withdrawn mod's props leave every tab")
+	# No shipped token is on two tabs.
+	var seen := {}
+	var twice := []
+	for row: Array in SpawnCatalog.shipped_tab_rows():
+		if seen.has(row[1]):
+			twice.append(row[1])
+		seen[row[1]] = true
+	_ok(twice.is_empty(), "objects/tabs: no shipped row is on two tabs", str(twice))
 	# A console's own leads and accessories are on its card, not on the Objects tab -- and
 	# still on the card, or taking them off the tab left them spawnable from nowhere.
 	var on_cards := {"link_cable": "gba", "dmg_link_cable": "gb", "gb_link_cable": "gbc",
@@ -523,7 +551,7 @@ func _group_objects() -> void:
 		"jag_link_cable": "atarijaguar", "ilink_cable": "ps2", "ilink_hub": "ps2",
 		"sensor_bar": "wii", "rf_switch": "nes", "rf_switch_famicom": "famicom", "rf_switch_pal": "n64",
 		"sega32x_video_link_cable": "sega32x", "sega32x_conversion_cable": "sega32x"}
-	var tab_tokens := SpawnCatalog.OBJECTS.map(func(r: Array) -> String: return str(r[1]))
+	var tab_tokens := SpawnCatalog.shipped_tab_rows().map(func(r: Array) -> String: return str(r[1]))
 	var on_tab := []
 	var nowhere := []
 	for token: String in on_cards:
@@ -532,7 +560,7 @@ func _group_objects() -> void:
 		var card: Array = SpawnCatalog.items_for(str(on_cards[token]))
 		if not card.any(func(i: Dictionary) -> bool: return str(i.get("spawn", "")) == token):
 			nowhere.append(token)
-	_ok(on_tab.is_empty(), "objects/menu: a console's leads and accessories are not on the Objects tab", str(on_tab))
+	_ok(on_tab.is_empty(), "objects/menu: a console's leads and accessories are on no loose-object tab", str(on_tab))
 	_ok(nowhere.is_empty(), "objects/menu: each is still on its console's card", str(nowhere))
 
 	# A mod's LEAD saves as a lead. It used to be written as a pose alone, like

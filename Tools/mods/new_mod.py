@@ -52,7 +52,7 @@ func register(api: ModApi) -> void:
 \t# A prop. The type string is written into save slots, so it is permanent
 \t# once anyone has used it -- renaming it orphans every copy in every slot.
 \t# api.register_object("{mod_id}:crate", "res://mods/{mod_id}/crate.tscn",
-\t# \t{{"label": "Crate"}})
+\t# \t{{"label": "Crate"}})  # + "tab": "furniture" / "electronics" (default "objects")
 
 \t# A console. Exactly one of scene/script; `requires` lists assets that must
 \t# be present for the row to be offered at all.

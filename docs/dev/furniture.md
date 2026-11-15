@@ -128,7 +128,7 @@ refused presses.
 
 RetroXR-models `generic/nightstand` (Blender 5.3, its own level loop on applkit geometry; real walnut/birch textures,
 not the swatch atlas; 1.6 k / 0.9 k / 0.6 k triangles, five draws a level), copied into
-`imported-assets/furniture/nightstand/`. Spawn token `nightstand` (Objects tab), save row `[Nightstand, "nightstand"]`:
+`imported-assets/furniture/nightstand/`. Spawn token `nightstand` (Furniture tab), save row `[Nightstand, "nightstand"]`:
 pose only, the drawer rides `articulated`. `nightstand.gd` builds the collision from consts copied from the contract
 (JSON is not exported): the case's six boxes and four leg cylinders on the body, the drawer's front, floor and four
 walls on `DrawerBody`, which never collides with the case (an exception both ways). `vr_drawer_tests contract/` fails
