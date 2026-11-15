@@ -403,8 +403,11 @@ found by DISTANCE instead, and only by a hand that has nothing else to take.
   cord's straight-line reach at first). Carried past the cord's length from an
   end that cannot move, the held spot stays in the hand and the cord stretches,
   as it does behind a held plug, and `KeepTautOutside` keeps it out of what it
-  is hooked round. An end that is a loose plug is reeled along behind through
-  `PlugTether.reel_in`, as every lead does it.
+  is hooked round. What is loose on an end (a plug, a pad) HANGS from the cord:
+  `CableHaul.haul`, an impulse at the point the cord leaves it, so it tips and
+  swings (2026-11-15). Reeled in with `PlugTether.reel_in`, as it was at first,
+  a pad lifted by its wire rose level off the floor: a reel is a move with no
+  turn in it.
 - Local and cosmetic: not saved, not sent in a session (a peer sees the cord
   where its own solver puts it).
 

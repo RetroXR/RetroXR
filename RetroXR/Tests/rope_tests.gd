@@ -2184,6 +2184,43 @@ func _group_hold() -> void:
 	_ok(taken and off < 0.001 and reach > 1.0 and rope.hold_count() == 0,
 		"hold/a held spot stays in the hand past the cord's reach",
 		"0.30 m of cord from the socket, held %.2f m from it, %.1f mm off the hand" % [reach, off * 1000.0])
+	# A thing on the end of a cord taken by its wire HANGS from it: lifted, it
+	# tips until the point the cord leaves it is uppermost. (Reeled in, as a
+	# plug is on its own lead, it rose level: a move with no turn in it.)
+	var floor_at := base + Vector3(3.0, 0.0, 0)
+	_box(floor_at + Vector3(0, -0.05, 0), Vector3(3.0, 0.1, 3.0))
+	var pad := RigidBody3D.new()
+	var pad_shape := CollisionShape3D.new()
+	var pad_box := BoxShape3D.new()
+	pad_box.size = Vector3(0.14, 0.03, 0.08)
+	pad_shape.shape = pad_box
+	pad.add_child(pad_shape)
+	pad.mass = 0.2
+	_case_geometry.add_child(pad)
+	pad.global_position = floor_at + Vector3(0.5, 0.02, 0)
+	var boss := Node3D.new()
+	boss.position = Vector3(-0.07, 0, 0)
+	pad.add_child(boss)
+	var lead := _rope_between(floor_at + Vector3(-0.3, 0.02, 0), floor_at + Vector3(0.43, 0.02, 0), 30, 0.03)
+	lead.end_node = boss
+	lead._init_points()
+	grab.set_physics_process(true)
+	var lifted := grab.take(9, lead, 20, lead.point_position(20))
+	var lift_from: Vector3 = lead.point_position(20)
+	for tick in 240:
+		await get_tree().physics_frame
+		grab.carry(9, lift_from + Vector3(0, minf(1.0, float(tick) / 90.0) * 0.6, 0))
+		lead.step(1.0 / 60.0)
+	var up_of_boss: float = (boss.global_position - pad.global_position).normalized().y
+	var pad_height: float = pad.global_position.y - floor_at.y
+	grab.release(9)
+	grab.set_physics_process(false)
+	_ok(lifted and pad_height > 0.1 and up_of_boss > 0.7,
+		"hold/a pad lifted by its wire hangs from it",
+		"pad %.0f mm off the floor, its cord boss %.2f of the way to straight above its middle" % [
+				pad_height * 1000.0, up_of_boss])
+	pad.queue_free()
+
 	# A room change takes the rig (and this node with it) out of the tree and
 	# puts it back in a room of other cords: it must find them.
 	var mid_was: Vector3 = rope.point_position(15)

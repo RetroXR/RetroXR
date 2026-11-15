@@ -16,8 +16,8 @@ extends Node
 ## the cord's own ends. The hand is never held back: carried further than the
 ## cord reaches from an end that cannot move, the cord stretches, as it does
 ## behind a held plug, and stays outside what it is hooked round (the rope's
-## KeepTautOutside). An end that is a loose plug is reeled along behind
-## (PlugTether, as every lead does).
+## KeepTautOutside). What is loose on an end (a plug, a pad) hangs from the
+## cord by the point the cord leaves it (CableHaul).
 ##
 ## Local and cosmetic: nothing is saved and nothing is sent in a session.
 
@@ -226,19 +226,31 @@ func _loose_body(end: Node) -> RigidBody3D:
 
 
 func _physics_process(_delta: float) -> void:
-	# A loose plug on a held cord follows it, as it follows its own lead.
+	# What is loose on the end of a held cord HANGS from it. It is hauled by
+	# the point the cord leaves it (CableHaul: an impulse there, which the
+	# body's own inertia turns into the tip and the swing), not reeled in: a
+	# reel is a move with no turn in it, and a pad lifted by its wire rose
+	# level off the floor, as if on a tray.
 	for key: int in _holds:
 		var h: Hold = _holds[key]
 		if not is_instance_valid(h.rope):
 			continue
 		var hand: Vector3 = h.rope.point_position(h.index)
 		var last := int(h.rope.get_segment_count())
-		var body := _loose_body(h.rope.get_start_node())
-		if body != null:
-			PlugTether.reel_in(body, h.rope.point_position(0), hand, h.along)
-		body = _loose_body(h.rope.get_end_node())
-		if body != null:
-			PlugTether.reel_in(body, h.rope.point_position(last), hand, h.length - h.along)
+		_hang(_loose_body(h.rope.get_start_node()), h.rope.point_position(0), hand, h.along)
+		_hang(_loose_body(h.rope.get_end_node()), h.rope.point_position(last), hand, h.length - h.along)
+
+
+func _hang(body: RigidBody3D, at: Vector3, hand: Vector3, reach: float) -> void:
+	if body == null or reach <= 0.0 or not at.is_finite() or not hand.is_finite():
+		return
+	# Past the haul's own limit it hands back what is left to take out by
+	# hand: swept, so the body is not carried through a wall.
+	var rest := CableHaul.haul(body, at, hand, reach)
+	if rest != Vector3.ZERO:
+		var hit := body.move_and_collide(rest)
+		if hit != null:
+			body.move_and_collide(hit.get_remainder().slide(hit.get_normal()))
 
 
 # ── hands ─────────────────────────────────────────────────────────────────────
