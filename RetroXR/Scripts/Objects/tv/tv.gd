@@ -1221,6 +1221,18 @@ func remote_layout_key() -> Variant:
 	return has_stereo_source()
 
 
+## Where the remote aims on this set: its shell's IrReceiver window, in world space,
+## or null (the cabinet's middle) on a cabinet that names none.
+func remote_receiver() -> Variant:
+	var s := shell()
+	if s == null:
+		return null
+	var seat: Variant = s.ir_receiver_seat()
+	if seat == null:
+		return null
+	return s.global_transform * (seat as Transform3D)
+
+
 ## The channel keys are the one cell that can be dead: the set may be on the
 ## component input, where there is no channel to change. Every other key on a set
 ## works whatever it is showing.

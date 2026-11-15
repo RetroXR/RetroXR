@@ -692,6 +692,14 @@ named `VcrSeat` and/or `DvdSeat` to the shell scene. Nothing else needs a script
 `res://Tests/fixtures/combo_tv_shell.tscn` is a complete example with both decks
 and both control panels.
 
+#### The remote-control window
+
+Name a `Marker3D` (or a GLB empty) `IrReceiver` at the middle of your cabinet's
+IR window, its +Z pointing out of the cabinet. The TV remote then aims at that
+point: the 20° cone is measured to it, and the sight line that furniture and walls
+can block runs to it. A remote behind the window's face does not reach the set.
+Without the marker the remote aims at the set's middle from every side.
+
 #### A headphone jack
 
 A cabinet gets a working 3.5 mm headphone jack from a `PhonesSeat` marker (or a
@@ -884,6 +892,7 @@ Optional, each with a sensible default when left out:
 | `remote_cell_faces(id) -> Array` | every face a state key can wear, so it is sized for the largest and does not jump a type size |
 | `remote_key_cell(cell) -> String` | which of your cells a handset key printed `cell` presses (the DVD player's PREV/NEXT are its chapter keys) |
 | `remote_layout_key() -> Variant` | anything that changes when WHICH cells there are changes; the grid is rebuilt then |
+| `remote_receiver() -> Variant` | your IR window as a WORLD `Transform3D`: the remote's cone and sight line aim at its origin, and a remote behind its +Z face does not reach you (default `null`: your pointable body's origin, from every side). A TV takes it from its shell's `IrReceiver` marker |
 
 - **The handset's own keys press the cell with their printed id**: `power`,
   `source`, `vol_up`, `vol_down`, `mute`, `ch_up`, `ch_down`, `audio_mode`,

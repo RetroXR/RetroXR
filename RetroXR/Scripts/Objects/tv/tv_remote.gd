@@ -843,6 +843,11 @@ func _ray_device(from: Vector3, dir: Vector3) -> Node3D:
 ## Pick the pointable device nearest the cone centre (largest dot with `dir`) that
 ## is within `target_cone_angle_deg` / `target_max_distance` and not occluded by
 ## world geometry. Mirrors XRToolsFunctionPickup._get_closest_ranged.
+##
+## Where the cone and the sight line point on a device: its IR receiver when it names
+## one (RemoteTarget.receiver: a set's window beside its keys), else its pointable
+## body's origin, for a set the cabinet's middle. A receiver is seen only from in
+## front of it, along its +Z, the way a window in a cabinet's face is.
 func _cone_pick(from: Vector3, dir: Vector3) -> Node3D:
 	var shape := SphereShape3D.new()
 	shape.radius = target_max_distance
@@ -857,13 +862,22 @@ func _cone_pick(from: Vector3, dir: Vector3) -> Node3D:
 	# Best dot product (cone centre = 1.0) per device, plus a point to sight-check.
 	var min_dp := cos(deg_to_rad(target_cone_angle_deg))
 	var best_dp: Dictionary = {}   # device -> dp
-	var best_pt: Dictionary = {}   # device -> collider world position
+	var best_pt: Dictionary = {}   # device -> the point aimed at and sight-checked
+	var receivers: Dictionary = {} # device -> its receiver's world pose, or null
 	for h in hits:
 		var dev := _walk_to_device(h["collider"] as Node)
 		if dev == null:
 			continue
-		var col := h["collider"] as Node3D
-		var to: Vector3 = col.global_position - from
+		if not receivers.has(dev):
+			receivers[dev] = RemoteTarget.receiver(dev)
+		var pt: Vector3 = (h["collider"] as Node3D).global_position
+		var rx: Variant = receivers[dev]
+		if rx is Transform3D:
+			pt = (rx as Transform3D).origin
+			# Behind its window: the cabinet is between the two.
+			if (rx as Transform3D).basis.z.dot(from - pt) <= 0.0:
+				continue
+		var to: Vector3 = pt - from
 		var dist := to.length()
 		if dist > target_max_distance or dist < 0.0001:
 			continue
@@ -872,7 +886,7 @@ func _cone_pick(from: Vector3, dir: Vector3) -> Node3D:
 			continue
 		if not best_dp.has(dev) or dp > float(best_dp[dev]):
 			best_dp[dev] = dp
-			best_pt[dev] = col.global_position
+			best_pt[dev] = pt
 
 	# Closest-to-centre first; return the first with clear line-of-sight.
 	var devices: Array = best_dp.keys()

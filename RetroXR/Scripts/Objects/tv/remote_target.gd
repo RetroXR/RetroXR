@@ -27,6 +27,11 @@
 ##   ## Optional. Anything that changes when the LAYOUT does (which cells there are);
 ##   ## the grid is rebuilt on a change. Default: the layout never changes.
 ##   func remote_layout_key() -> Variant
+##   ## Optional. Where the device's IR receiver is, in WORLD space: the origin is the
+##   ## point the remote's cone and sight line aim at, +Z the way its window faces (a
+##   ## remote behind that face does not reach it). null, or not answered: the
+##   ## pointable body's origin, seen from every side.
+##   func remote_receiver() -> Variant
 ##
 ## The handset's physical keys (TVRemote.KEY_CELLS) press the cell with their printed
 ## id: use the shared ids (power, vol_up, playpause, ok, …) and they work; a cell of a
@@ -65,6 +70,17 @@ static func is_target(node: Node) -> bool:
 		return true
 	_warn_once(node, "joined %s but has no remote_layout/remote_activate: not a target" % GROUP)
 	return false
+
+
+## The device's IR receiver as a world pose, or null when it names none.
+static func receiver(device: Node) -> Variant:
+	if not device.has_method("remote_receiver"):
+		return null
+	var rx: Variant = device.call("remote_receiver")
+	if rx == null or rx is Transform3D:
+		return rx
+	_warn_once(device, "remote_receiver gave %s, not a Transform3D or null: aiming at its middle" % type_string(typeof(rx)))
+	return null
 
 
 ## Walk a collider up its ancestors to the device that owns it, or null.

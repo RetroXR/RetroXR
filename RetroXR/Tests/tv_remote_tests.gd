@@ -37,6 +37,10 @@
 ##            from below; a remote fresh from the spawn menu has two AAA cells in BatteryAAA1/2, shut in
 ##            while the cover is on; off, the ray from below takes each cell (the shell's laser shape has no
 ##            cover in it); back on, they are shut in again; a restored remote seeds none.
+##   receiver/ a device that names an IR receiver (remote_receiver) is aimed at THERE: pointed at its middle with
+##            the window 27° off it takes nothing, pointed at the window takes it; a wall across the line to the
+##            window (and not to the middle) blocks it; the window turned away takes nothing; the controls: the
+##            same device naming none takes the middle, and a set with the stock cabinet names none.
 extends "res://Tests/test_suite.gd"
 
 const REMOTE := preload("res://Scenes/Objects/appliances/tv_remote.tscn")
@@ -80,7 +84,7 @@ func _run() -> void:
 	for c: Array in [["dress/", _test_dress], ["shapes/", _test_shapes], ["ray/", _test_ray],
 			["touch/", _test_touch], ["keys/", _test_keys], ["aim/", _test_aim], ["press/", _test_press],
 			["bay/", _test_bay], ["poke/", _test_poke], ["grid/", _test_grid], ["stick/", _test_stick],
-			["target/", _test_target]]:
+			["target/", _test_target], ["receiver/", _test_receiver]]:
 		if _wanted(str(c[0])):
 			await (c[1] as Callable).call()
 			await _cleanup()
@@ -815,6 +819,8 @@ class ModDevice extends Node3D:
 	var pressed: Array[String] = []
 	var on := false
 	var extra := false
+	## Its IR receiver in its own frame; null names none.
+	var rx_local: Variant = null
 
 	func _init(join := true) -> void:
 		if join:
@@ -856,6 +862,9 @@ class ModDevice extends Node3D:
 
 	func remote_activate(id: String) -> void:
 		pressed.append(id)
+
+	func remote_receiver() -> Variant:
+		return null if rx_local == null else global_transform * (rx_local as Transform3D)
 
 
 func _test_target() -> void:
@@ -907,6 +916,51 @@ func _test_target() -> void:
 	add_child(bare)
 	_spawned.append(bare)
 	_ok(RemoteTarget.of(body) == null, "target/in the group without the methods it is no target")
+
+
+# ── receiver/ ─────────────────────────────────────────────────────────────────
+
+func _test_receiver() -> void:
+	# The device 1.5 m down the remote's -Z; its window 0.7 m to its right on its front face,
+	# 27° off the line to its middle (the cone is 20°).
+	var dev := ModDevice.new()
+	dev.position = Vector3(0, 1, -1.5)
+	add_child(dev)
+	_spawned.append(dev)
+	var r := await _remote(Vector3(0, 1.1, 0))
+	await get_tree().physics_frame
+	_eq(r.press_key("KeyPower"), "power", "receiver/naming none, aimed at its middle it takes the device (control)")
+	dev.rx_local = Transform3D(Basis.IDENTITY, Vector3(0.7, 0, 0.15))
+	var window := (RemoteTarget.receiver(dev) as Transform3D).origin
+	_ok(window.is_equal_approx(Vector3(0.7, 1, -1.35)), "receiver/RemoteTarget.receiver is the device's world pose", str(window))
+	_eq(r.press_key("KeyPower"), "", "receiver/aimed at its middle with the window 27° off, nothing")
+	r.look_at(window, Vector3.UP)
+	await get_tree().physics_frame
+	_eq(r.press_key("KeyPower"), "power", "receiver/aimed at the window it takes the device")
+	# A wall (layer 1) across the line to the window, clear of the line to the middle.
+	var from := r.get_node("Tip").global_position as Vector3
+	var wall := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.12, 0.12, 0.04)
+	shape.shape = box
+	wall.add_child(shape)
+	wall.position = from.lerp(window, 0.8)
+	add_child(wall)
+	_spawned.append(wall)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_eq(r.press_key("KeyPower"), "", "receiver/a wall across the line to the window blocks it")
+	wall.position += Vector3(0, 2, 0)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_eq(r.press_key("KeyPower"), "power", "receiver/…and moved off the line, the window is reached again")
+	# The window turned to face away: the remote is behind it.
+	dev.rx_local = Transform3D(Basis(Vector3.UP, PI), Vector3(0.7, 0, 0.15))
+	_eq(r.press_key("KeyPower"), "", "receiver/the window facing away takes nothing")
+	# The stock cabinet names no window: the set is aimed at in its middle, as before.
+	var tv := await _spawn(TV_SCENE, Vector3(5, 1, 0)) as RetroTV
+	_ok(tv.remote_receiver() == null, "receiver/a set with the stock cabinet names no window")
 
 
 ## remove_child then free, as deck_tests does: a set's or deck's audio emitter still

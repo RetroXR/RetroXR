@@ -41,6 +41,9 @@
 ##                    is the cabinet's +Z (`R_x(+90)`: rows 1,0,0, 0,0,-1, 0,1,0)
 ##                    stands the panel up on the front, the row nearest the deck's
 ##                    front edge lowest. Absent leaves them on top of the deck.
+##   IrReceiver     — the remote-control window: the point the TV remote's cone and
+##                    sight line aim at, its +Z out of the cabinet (a remote behind
+##                    that face does not reach the set). Absent: the set's middle.
 class_name RetroTVShell
 extends Node3D
 
@@ -167,6 +170,7 @@ func vcr_seat() -> Variant:         return _seat("VcrSeat")
 func dvd_seat() -> Variant:         return _seat("DvdSeat")
 func vcr_controls_seat() -> Variant: return _seat("VcrControls")
 func dvd_controls_seat() -> Variant: return _seat("DvdControls")
+func ir_receiver_seat() -> Variant: return _seat("IrReceiver")
 
 
 ## Transform of a named marker relative to this shell's root, or null if absent.
