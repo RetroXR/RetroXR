@@ -144,10 +144,20 @@ func _process(_delta: float) -> void:
 	_request_refresh()
 
 
+## A reach of its own (metres), shorter than its size would give, or 0 for the size's: an arcade tube lights the panel and
+## the player in front of it, not the far side of the room.
+var reach_limit := 0.0:
+	set(value):
+		reach_limit = value
+		_apply_physical_output()
+
+
 func _apply_physical_output() -> void:
 	var linear_scale := sqrt((_screen_size_m.x * _screen_size_m.y) / REFERENCE_AREA_M2)
 	_lit_energy = clampf(REFERENCE_ENERGY * linear_scale, MIN_ENERGY, MAX_ENERGY)
 	var reach := clampf(REFERENCE_RANGE_M * linear_scale, MIN_RANGE_M, MAX_RANGE_M)
+	if reach_limit > 0.0:
+		reach = minf(reach, reach_limit)
 	spot_range = reach
 	spot_angle = GLOW_ANGLE_DEG
 	if _left_light != null:

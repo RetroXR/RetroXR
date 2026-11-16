@@ -281,6 +281,14 @@ const SPEAKER_R := Vector3(0.22, 0.34, 0.44)
 
 ## A third of the width out of the middle: 0.22 on the 0.66 upright, further out on a wider cabinet.
 func audio_speaker_positions() -> PackedVector3Array:
+	# A model that says where its speakers are (SpeakerL / SpeakerR anchors: the NAOMI Universal's under its tube) is heard from
+	# there, in the machine's frame as the rest are.
+	var l := find_child("SpeakerL", true, false) as Node3D
+	var r := find_child("SpeakerR", true, false) as Node3D
+	var host := get_parent() as Node3D
+	if l != null and r != null and host != null and l.is_inside_tree():
+		var to_host := host.global_transform.affine_inverse()
+		return PackedVector3Array([to_host * l.global_position, to_host * r.global_position])
 	var x := cabinet_width / 3.0
 	return PackedVector3Array([Vector3(-x, SPEAKER_L.y, SPEAKER_L.z), Vector3(x, SPEAKER_R.y, SPEAKER_R.z)])
 

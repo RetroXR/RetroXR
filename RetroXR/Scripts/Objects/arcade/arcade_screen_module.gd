@@ -126,7 +126,10 @@ func get_screen() -> MeshInstance3D:
 ## The room lit by the picture, as a television's is (ScreenCastLight: three soft cones taking the picture's left, middle
 ## and right colors; the owner, 2026-11-16: "it should give of light just like a tv does on desktop"). Off on the mobile
 ## renderer, as every screen's is (QualityManager.screen_lights_enabled). Made with the first picture, at the middle of the
-## glass, facing out of it.
+## glass, shining out of the cabinet's front tipped down to the panel and the player, and reaching only the space in front
+## of it (the owner, 2026-11-16: "it should just throw the warm pool of light in front of the 'tv' area").
+const CAST_DOWN_DEG := 15.0
+const CAST_REACH := 2.2
 var _cast_light: ScreenCastLight = null
 var _cast_on := false
 
@@ -162,10 +165,13 @@ func _make_cast_light() -> ScreenCastLight:
 	ScreenCastLight.mark_screen(_screen)
 	_screen.add_child(light)
 	var at := box.get_center() + n * 0.02
-	var up := Vector3.UP if absf(n.dot(Vector3.UP)) < 0.95 else Vector3.BACK
-	# a SpotLight3D shines along its -Z: looking along the glass's normal points it out of the tube
-	light.transform = Transform3D(Basis.looking_at(n, up), at)
+	# out of the cabinet's front, level, then tipped down (in the screen's frame); a SpotLight3D shines along its -Z
+	var up_l := (_screen.global_basis.inverse() * (cabinet.global_basis.y if cabinet != null else Vector3.UP)).normalized()
+	var out := (front - up_l * front.dot(up_l)).normalized()
+	var aim := out.rotated(out.cross(up_l).normalized(), -deg_to_rad(CAST_DOWN_DEG))
+	light.transform = Transform3D(Basis.looking_at(aim, up_l), at)
 	light.configure_screen(glass_size if glass_size.x > 0.0 else Vector2(box.size.x, box.size.y), _screen.global_basis.get_scale().x)
+	light.reach_limit = CAST_REACH
 	return light
 
 
