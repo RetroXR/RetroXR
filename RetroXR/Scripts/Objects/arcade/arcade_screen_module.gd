@@ -121,6 +121,54 @@ func get_screen() -> MeshInstance3D:
 	return _screen
 
 
+# ── the light the tube gives off ────────────────────────────────────────────
+
+## The room lit by the picture, as a television's is (ScreenCastLight: three soft cones taking the picture's left, middle
+## and right colors; the owner, 2026-11-16: "it should give of light just like a tv does on desktop"). Off on the mobile
+## renderer, as every screen's is (QualityManager.screen_lights_enabled). Made with the first picture, at the middle of the
+## glass, facing out of it.
+var _cast_light: ScreenCastLight = null
+var _cast_on := false
+
+
+func cast_light() -> ScreenCastLight:
+	return _cast_light
+
+
+func _cast(tex: Texture2D) -> void:
+	if _cast_light == null:
+		_cast_light = _make_cast_light()
+		if _cast_light == null:
+			return
+	_cast_light.show_picture(tex)
+	_cast_on = true
+
+
+func _make_cast_light() -> ScreenCastLight:
+	if _screen == null or _screen.mesh == null or not _screen.is_inside_tree():
+		return null
+	var box := _screen.get_aabb()
+	# which way the glass faces: its triangles' normals summed by area, turned to the cabinet's front
+	var f := _screen.mesh.get_faces()
+	var n := Vector3.ZERO
+	for i in range(0, f.size() - 2, 3):
+		n += (f[i + 1] - f[i]).cross(f[i + 2] - f[i])
+	var front := (_screen.global_basis.inverse() * (cabinet.global_basis.z if cabinet != null else Vector3.BACK)).normalized()
+	n = n.normalized() if n.length() > 0.0 else front
+	if n.dot(front) < 0.0:
+		n = -n
+	var light := ScreenCastLight.new()
+	light.name = "ScreenCastLight"
+	ScreenCastLight.mark_screen(_screen)
+	_screen.add_child(light)
+	var at := box.get_center() + n * 0.02
+	var up := Vector3.UP if absf(n.dot(Vector3.UP)) < 0.95 else Vector3.BACK
+	# a SpotLight3D shines along its -Z: looking along the glass's normal points it out of the tube
+	light.transform = Transform3D(Basis.looking_at(n, up), at)
+	light.configure_screen(glass_size if glass_size.x > 0.0 else Vector2(box.size.x, box.size.y), _screen.global_basis.get_scale().x)
+	return light
+
+
 # ── the game's bezel ────────────────────────────────────────────────────────
 
 ## How far behind the glass the bezel hangs: in front of the tube, behind the pane.
@@ -229,6 +277,9 @@ func tick(delta: float) -> void:
 		return
 	var tex: Texture2D = null if cabinet.host_picture_on_tv() else cabinet.host_picture()
 	if tex == null:
+		if _cast_light != null and _cast_on:
+			_cast_light.turn_off()
+			_cast_on = false
 		if _screen.get_surface_override_material(0) != _off_material:
 			_screen.set_surface_override_material(0, _off_material)
 		_serial = -1
@@ -247,6 +298,7 @@ func tick(delta: float) -> void:
 func present(tex: Texture2D, external: bool, attract: bool, delta: float) -> void:
 	if _material.get_shader_parameter("source_tex") != tex:
 		_material.set_shader_parameter("source_tex", tex)
+	_cast(tex)
 	if _screen.get_surface_override_material(0) != _material:
 		_screen.set_surface_override_material(0, _material)
 	_refresh_geometry(tex, external, attract)
