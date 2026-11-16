@@ -126,7 +126,7 @@ const CARRY_MOVE := 0.0005
 ## The cash box (a model's CashBoxLiftOff: the NAOMI Universal's, behind its right door): every coin a player puts in drops into
 ## it as a token, a loose thing of its own that jostles as the box is carried and falls out when it is tipped (the owner,
 ## 2026-11-15: "have them just like objects that can jostle around and just fall out"). The box is an open tray to them (its
-## floor, the cover's first shape, carries them as riders: HeldObjectPhysics). How many are in it rides on the box
+## floor and walls stay solid to loose coins even while the box is held). How many are in it rides on the box
 ## (CASH_COINS_META), so a save keeps them; one that has fallen out is the room's, loose, and is not saved.
 const CASH_BOX := "CashBoxLiftOff"
 const CASH_COINS_META := &"cash_coins"
@@ -137,14 +137,19 @@ const CASH_MAX := 60
 const CASH_PITCH := 0.027
 const CASH_SHEET := 0.0015
 const CASH_PULL := 0.012
-const CASH_WALL := 0.006
+const CASH_WALL := 0.02
 var _cash_zone: XRToolsSnapZone = null
+## Hidden model part stays in the cabinet when its removable box leaves.
+var _cash_source: MeshInstance3D = null
 ## The box last dressed here: still watched once it has left its place, which is when tokens can leave it.
 var _cash_box: PortCover = null
-var _cash_watch: Timer = null
-var _cash_tokens: Array[RigidBody3D] = []
-## token instance id -> where it lay in the tray when last seen (the tray's frame): a box put back takes them along.
-var _cash_local: Dictionary = {}
+## Compatibility view for probes; the box owns its live coins, never the cabinet.
+var _cash_tokens: Array[RigidBody3D]:
+	get:
+		var state := _cash_state(_cash_box)
+		if state != null:
+			return state.get("tokens")
+		return []
 
 
 func _ready() -> void:
@@ -227,17 +232,7 @@ func _build_lift_offs() -> void:
 		zone.has_picked_up.connect(_dress_lift_off.bind(part, out))
 		if str(part.name) == CASH_BOX:
 			_cash_zone = zone
-			# Only a box out of its place can lose tokens: watched while it is out.
-			_cash_watch = Timer.new()
-			_cash_watch.name = "CashWatch"
-			_cash_watch.wait_time = 0.25
-			_cash_watch.timeout.connect(_cash_watch_tick)
-			add_child(_cash_watch)
-			zone.has_dropped.connect(func(_b: Node3D) -> void:
-				# (not as the room is cleared: a zone lets go of what it holds on its way out of the tree)
-				if _cash_watch.is_inside_tree():
-					_cash_watch.start())
-			zone.has_picked_up.connect(func(_b: Node3D) -> void: _cash_watch.stop())
+			_cash_source = part
 		if zone.picked_up_object != null:
 			_dress_lift_off(zone.picked_up_object, part, out)
 		for c in get_tree().get_nodes_in_group(PortCover.group_for(socket)):
@@ -268,89 +263,18 @@ func _dress_loose_later(cover: PortCover) -> void:
 	_dress_loose(cover)
 
 
-## Only its look: every cabinet of a kind shares its panels' sockets, so a loose cover may be ANY such cabinet's, and one
-## seated anywhere is its slot's to dress. Its cabinet's bookkeeping (a cash box's coins) is left to the slot it goes into:
-## dressed as this cabinet's own cash box, another cabinet's box became the one whose coins this one watched, and its coins
-## were counted out (the owner, 2026-11-16: "I also no longer see coins in the coin box").
+## Any cabinet of this kind can dress a loose cover. Cash belongs to the BOX:
+## restore it here on load without claiming it as this cabinet's seated box.
 func _dress_loose(n: Node) -> void:
 	var cover := n as PortCover
-	if cover == null or not is_instance_valid(cover) or not cover.is_inside_tree() or cover.has_node("Shell") or cover.is_picked_up():
+	if cover == null or not is_instance_valid(cover) or not cover.is_inside_tree() or cover.is_picked_up():
 		return
 	var spec: Variant = _loose_lift_offs.get(cover.socket_id)
 	if spec == null or not is_instance_valid((spec as Array)[0]):
 		return
 	_wear_panel(cover, (spec as Array)[0], (spec as Array)[1])
-
-
-## The cash box in a hand: the tokens in it go with it, each held where it lies in the tray (picked up, the tray left them
-## behind on the floor of the vault: the owner, 2026-11-15, "when i pick it up the coins don't come with it"). Tipped past
-## CASH_SPILL_DEG they are let go to slide and fall out; let go of, they go on with the box's motion.
-const CASH_SPILL_DEG := 40.0
-## Each carried token -> where it lies in the tray (the tray's frame).
-var _cash_carried := {}
-## Tipped out while this hold lasts: not taken back until the box is put down.
-var _cash_spilled := false
-var _cash_tray_was := Transform3D.IDENTITY
-var _cash_rest_frames := 0
-
-
-func _carry_cash(delta: float) -> void:
-	var box := _cash_box
-	var held_by := box.get_picked_up_by() if is_instance_valid(box) and box.is_picked_up() else null
-	var in_hand := held_by != null and not held_by is XRToolsSnapZone
-	var tray := CoverSlots.worn_part(box) if is_instance_valid(box) else null
-	# Let go of, the box falls or is set down: the tokens stay where they lie in it until it has come to rest (freed as it
-	# left the hand, the box still falling, most of them fell through it), or until it is in its place again.
-	if not in_hand:
-		_cash_spilled = false
-		if _cash_carried.is_empty():
-			return
-		if tray == null or held_by != null:
-			_release_cash(Vector3.ZERO)
-			return
-		var at_rest := box.linear_velocity.length() < 0.03 and box.angular_velocity.length() < 0.2
-		_cash_rest_frames = _cash_rest_frames + 1 if at_rest else 0
-		if _cash_rest_frames >= 6:
-			_release_cash(Vector3.ZERO)
-			return
-	else:
-		_cash_rest_frames = 0
-	if tray == null:
-		return
-	var at := tray.global_transform
-	var v := (at.origin - _cash_tray_was.origin) / maxf(delta, 0.001)
-	_cash_tray_was = at
-	if _cash_spilled:
-		return
-	if at.basis.y.normalized().dot(Vector3.UP) < cos(deg_to_rad(CASH_SPILL_DEG)):
-		_cash_spilled = in_hand
-		_release_cash(v)
-		return
-	if _cash_carried.is_empty():
-		if not in_hand:
-			return
-		for token in _cash_tokens:
-			if is_instance_valid(token) and not (token is XRToolsPickable and (token as XRToolsPickable).is_picked_up()):
-				_cash_carried[token] = at.affine_inverse() * token.global_transform
-				token.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
-				token.freeze = true
-		return
-	for token: Variant in _cash_carried.keys():
-		var tk := token as RigidBody3D
-		if not is_instance_valid(tk) or (tk is XRToolsPickable and (tk as XRToolsPickable).is_picked_up()):
-			_cash_carried.erase(token)
-			continue
-		tk.global_transform = at * (_cash_carried[token] as Transform3D)
-
-
-func _release_cash(v: Vector3) -> void:
-	for token: Variant in _cash_carried.keys():
-		var tk := token as RigidBody3D
-		if is_instance_valid(tk) and not (tk is XRToolsPickable and (tk as XRToolsPickable).is_picked_up()):
-			tk.freeze = false
-			tk.linear_velocity = v
-			tk.sleeping = false
-	_cash_carried.clear()
+	if str(((spec as Array)[0] as Node).name) == CASH_BOX:
+		_cash_solid(cover)
 
 
 ## Which way a lift-off panel faces out: for one on the top (its name starts "Top": the NAOMI Universal's TopPanelLiftOff), the
@@ -383,7 +307,6 @@ func _dress_lift_off(what: Node3D, part: MeshInstance3D, out: Vector3) -> void:
 	if str(part.name) == CASH_BOX:
 		_cash_box = cover
 		_cash_solid(cover)
-		_cash_seat_tokens(cover)
 
 
 ## A cover made to look like the panel it covers (a copy of the panel, worn).
@@ -397,32 +320,35 @@ static func _wear_panel(cover: PortCover, part: MeshInstance3D, out: Vector3) ->
 	CoverSlots.wear(cover, copy, out)
 
 
-## A coin is in: a token drops into the box in its place (none there, the coin is gone, as into an empty cabinet's floor).
+## An accepted coin drops at the deposit position even when the box is absent.
 func _bank_coin(_player: int) -> void:
 	var box := _cash_zone.picked_up_object as PortCover if _cash_zone != null else null
-	var tray := CoverSlots.worn_part(box) if box != null else null
-	if tray == null or tray.mesh == null:
-		return
-	if _cash_tokens.size() < CASH_MAX:
-		var inner := _cash_inner(tray.mesh.get_aabb())
-		var at := Vector3(randf_range(inner.position.x, inner.end.x), inner.position.y + 0.06, randf_range(inner.position.z, inner.end.z))
-		var turn := Basis.from_euler(Vector3(randf_range(-0.6, 0.6), randf_range(0.0, TAU), randf_range(-0.6, 0.6)))
-		_cash_tokens.append(_cash_token(tray.global_transform * Transform3D(turn, at)))
-	box.set_meta(CASH_COINS_META, int(box.get_meta(CASH_COINS_META, 0)) + 1)
+	var state := _cash_state(box)
+	if state != null:
+		state.call("bank")
+	elif is_instance_valid(_cash_source):
+		var room := get_tree().current_scene if get_tree().current_scene != null else get_tree().root
+		ArcadeToken.make(_cash_drop_pose(_cash_source), room)
 
 
-## A coin the door took came back out to the player: the token it put in the box goes (the last one in), and the count
-## with it. None when the box is not in its place, as _bank_coin put none in then.
+## Refund from the box actually seated here, including banked overflow.
 func _unbank_coin(_player: int) -> void:
 	var box := _cash_zone.picked_up_object as PortCover if _cash_zone != null else null
-	if box == null:
-		return
-	_cash_tokens.assign(_cash_tokens.filter(func(tk: RigidBody3D) -> bool: return is_instance_valid(tk)))
-	if not _cash_tokens.is_empty():
-		var token: RigidBody3D = _cash_tokens.pop_back()
-		_cash_local.erase(token.get_instance_id())
-		token.queue_free()
-	box.set_meta(CASH_COINS_META, maxi(int(box.get_meta(CASH_COINS_META, 0)) - 1, 0))
+	var state := _cash_state(box)
+	if state != null:
+		state.call("unbank")
+
+
+## Shared deposit volume, in the mesh's frame; independent of a removed box's pose.
+static func _cash_drop_pose(tray: MeshInstance3D) -> Transform3D:
+	var inner := _cash_inner(tray.mesh.get_aabb())
+	var at := Vector3(randf_range(inner.position.x, inner.end.x), inner.position.y + 0.06, randf_range(inner.position.z, inner.end.z))
+	var turn := Basis.from_euler(Vector3(randf_range(-0.6, 0.6), randf_range(0.0, TAU), randf_range(-0.6, 0.6)))
+	return tray.global_transform * Transform3D(turn, at)
+
+
+static func _cash_state(box: PortCover) -> Node:
+	return box.get_node_or_null("CashPhysics") if is_instance_valid(box) else null
 
 
 ## The box's inside to a token (the tray's frame): clear of its walls and its pull by a coin's radius and a little, from its floor.
@@ -433,14 +359,14 @@ static func _cash_inner(b: AABB) -> AABB:
 	return AABB(lo, (hi - lo).max(Vector3.ZERO))
 
 
-## A token: a loose thing of its own in the room (ArcadeToken: picked up like any small object, and a coin again in a slot).
-func _cash_token(at: Transform3D) -> RigidBody3D:
-	return ArcadeToken.make(at, get_tree().current_scene if get_tree().current_scene != null else get_tree().root)
-
-
 ## The box as an open tray to a token: its floor (the cover's own shape, first, so what rests on it rides it when it is
 ## carried) and four walls, each CASH_WALL thick outward from the sheet, in place of the solid hull of what it wears.
 func _cash_solid(box: PortCover) -> void:
+	if not box.has_node("CashPhysics"):
+		var physics := Node.new()
+		physics.name = "CashPhysics"
+		physics.set_script(preload("res://Scripts/Objects/arcade/arcade_cash_physics.gd"))
+		box.add_child(physics)
 	var tray := CoverSlots.worn_part(box)
 	var main := box.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if tray == null or tray.mesh == null or main == null:
@@ -469,26 +395,17 @@ func _cash_solid(box: PortCover) -> void:
 		if i > 0:
 			col.name = "CashWall%d" % i
 			box.add_child(col)
+	_cash_seat_tokens(box)
 
 
-## The box (back) in its place: the tokens that were in it go in with it where they lay; a box a save brought back gets as many
-## as it says, laid on its floor.
+## Restore once when dressed, whether seated or loose. Seating is never a refill.
 func _cash_seat_tokens(box: PortCover) -> void:
 	var tray := CoverSlots.worn_part(box)
-	if tray == null or tray.mesh == null:
+	var state := _cash_state(box)
+	if tray == null or tray.mesh == null or state == null:
 		return
-	_cash_tokens = _cash_tokens.filter(func(tk: RigidBody3D) -> bool: return is_instance_valid(tk))
-	if _cash_tokens.is_empty():
-		var n := mini(int(box.get_meta(CASH_COINS_META, 0)), CASH_MAX)
-		for place in _cash_places(_cash_inner(tray.mesh.get_aabb()), n):
-			_cash_tokens.append(_cash_token(tray.global_transform * place))
-		return
-	for token in _cash_tokens:
-		var local: Variant = _cash_local.get(token.get_instance_id())
-		if local is Transform3D:
-			token.global_transform = tray.global_transform * (local as Transform3D)
-			token.linear_velocity = Vector3.ZERO
-			token.angular_velocity = Vector3.ZERO
+	state.call("configure", tray, _cash_inner(tray.mesh.get_aabb()))
+	state.call("restore", _cash_places(_cash_inner(tray.mesh.get_aabb()), mini(int(box.get_meta(CASH_COINS_META, 0)), CASH_MAX)))
 
 
 ## Where `n` tokens lie in a box's inside `inner` (the tray's frame): its cells in a fixed shuffled order, then layer on layer.
@@ -514,34 +431,11 @@ static func _cash_places(inner: AABB, n: int) -> Array[Transform3D]:
 	return out
 
 
-## The box out of its place: where each token lies in it, and the ones that have left it let go (the room's now, and not
-## counted); a rattle when some fall out.
+## Explicit flush used by probes; every box also watches its own contents.
 func _cash_watch_tick() -> void:
-	var box := _cash_box
-	var tray := CoverSlots.worn_part(box) if is_instance_valid(box) else null
-	if tray == null or tray.mesh == null:
-		return
-	var inside := tray.mesh.get_aabb().grow(0.01)
-	var to_tray := tray.global_transform.affine_inverse()
-	var kept: Array[RigidBody3D] = []
-	for token in _cash_tokens:
-		if not is_instance_valid(token):
-			continue
-		var local := to_tray * token.global_transform
-		if inside.has_point(local.origin):
-			kept.append(token)
-			_cash_local[token.get_instance_id()] = local
-		else:
-			_cash_local.erase(token.get_instance_id())
-	var lost := _cash_tokens.size() - kept.size()
-	_cash_tokens = kept
-	if lost > 0:
-		box.set_meta(CASH_COINS_META, maxi(int(box.get_meta(CASH_COINS_META, 0)) - lost, kept.size()))
-		var voice := AudioStreamPlayer3D.new()
-		voice.stream = ArcadeCoinModule.rattle()
-		box.add_child(voice)
-		voice.finished.connect(voice.queue_free)
-		voice.play()
+	var state := _cash_state(_cash_box)
+	if state != null:
+		state.call("watch")
 
 
 ## A tray's solid parts, riding with it: its floor (the bottom TRAY_FLOOR of its bounds) and its lip across the front (the
@@ -616,8 +510,7 @@ func _collect_carried(was: Transform3D) -> void:
 
 ## Whenever the machine moves -- carried in a hand or on the desktop, stood on the floor, pushed -- what is inside it moves
 ## the same, from the frame it starts moving until it has stood still CARRY_SETTLE frames.
-func _physics_process(delta: float) -> void:
-	_carry_cash(delta)
+func _physics_process(_delta: float) -> void:
 	if _pickable == null:
 		return
 	var now := _pickable.global_transform

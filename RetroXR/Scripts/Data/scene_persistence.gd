@@ -3296,6 +3296,9 @@ func _port_cover_fields(cover: PortCover, _node_to_id: Dictionary) -> Dictionary
 		"cover_size": [cover.size.x, cover.size.y, cover.size.z],
 	}
 	# A cabinet's cash box: the coins in it (ArcadeCabinetFromModel). Only when there are some, so every other cover saves as it did.
+	var cash := cover.get_node_or_null("CashPhysics")
+	if cash != null:
+		cash.call("watch")
 	var coins := int(cover.get_meta(ArcadeCabinetFromModel.CASH_COINS_META, 0))
 	if coins > 0:
 		fields["coins"] = coins

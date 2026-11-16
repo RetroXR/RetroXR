@@ -74,7 +74,7 @@ func set_pointer_margin(margin: Vector3) -> void:
 		return
 	_pointer_margin = margin
 	if is_node_ready():
-		_apply_size()
+		_apply_pointer()
 
 
 func pointer_margin() -> Vector3:
@@ -114,6 +114,13 @@ func _apply_size() -> void:
 		var block := BoxMesh.new()
 		block.size = size
 		mesh.mesh = block
+	_apply_pointer()
+
+
+## A seated/loose pointer margin is only a targeting change. In particular a
+## cash box replaces the cover's convex hull with an open tray: refreshing its
+## pointer on pickup must not replace that floor with the solid shell hull.
+func _apply_pointer() -> void:
 	var pointer := get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D
 	if pointer != null:
 		if _hull != null and _pointer_margin != POINTER_MARGIN:

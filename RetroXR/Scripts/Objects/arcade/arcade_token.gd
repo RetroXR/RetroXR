@@ -6,6 +6,8 @@ class_name ArcadeToken
 extends XRToolsPickable
 
 const GROUP := &"arcade_token"
+## Loose coins remain solid to a held cash tray, without making other held objects solid.
+const TRAY_LAYER := 1 << 24
 ## A disc thicker to physics than the token is to the eye: a 2 mm disc jitters on a floor and slips through thin sheet.
 const DISC_HEIGHT := 0.003
 ## How far in from the rim each face starts: the rim comes to an edge round the disc's middle. A square rim (a cylinder) is a
@@ -25,7 +27,7 @@ static func make(at: Transform3D, parent: Node) -> ArcadeToken:
 	var token := ArcadeToken.new()
 	token.name = "ArcadeToken"
 	token.collision_layer = 4
-	token.collision_mask = 1 | 4
+	token.collision_mask = 1 | 4 | TRAY_LAYER
 	token.mass = MASS
 	var r2 := ArcadeCoinModule.COIN_RADIUS * ArcadeCoinModule.COIN_RADIUS
 	token.inertia = Vector3(0.25, 0.5, 0.25) * MASS * r2 * INERTIA_SCALE
@@ -50,17 +52,6 @@ static func make(at: Transform3D, parent: Node) -> ArcadeToken:
 	parent.add_child(token)
 	token.global_transform = at
 	return token
-
-
-## A token come to rest standing on its rim, near enough upright (its face's normal within this of level), is given a
-## nudge to tip it over: let go exactly on edge, even on its beveled rim it balanced there and went to sleep standing.
-const STANDING_UP_Y := 0.25
-## How hard each nudge is (an angular impulse, N m s: about 0.025 rad/s to the token), and the most a token gets before
-## it is left be (one leaning on a wall, held up by it), until it is picked up and let go again.
-const NUDGE := 2.0e-8
-const MAX_NUDGES := 40
-
-var _nudges := 0
 
 
 static var _disc: ConvexPolygonShape3D = null
@@ -102,20 +93,3 @@ static func disc_shape() -> ConvexPolygonShape3D:
 func _ready() -> void:
 	super()
 	add_to_group(GROUP)
-	dropped.connect(func(_p: Variant) -> void: _nudges = 0)
-
-
-func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
-	if _nudges >= MAX_NUDGES:
-		return
-	var face := state.transform.basis.y.normalized()
-	if absf(face.y) > STANDING_UP_Y or state.linear_velocity.length_squared() > 0.0004 			or state.angular_velocity.length_squared() > 0.25:
-		return
-	# Turn the face's normal up toward whichever way it already leans (either, exactly on edge).
-	if face.y < 0.0:
-		face = -face
-	var axis := face.cross(Vector3.UP)
-	if axis.length_squared() < 1e-8:
-		return
-	state.apply_torque_impulse(axis.normalized() * NUDGE)
-	_nudges += 1

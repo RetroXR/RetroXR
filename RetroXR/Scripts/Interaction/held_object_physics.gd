@@ -451,6 +451,10 @@ func watch_riders(body: Variant) -> void:
 	var rb := body as RigidBody3D
 	if not is_instance_valid(rb) or not rb.is_inside_tree():
 		return
+	# Cash trays keep their own coin-only collision layer, including stacked coins.
+	# Do not also couple their coins to every object on the held layer.
+	if rb.has_node("CashPhysics"):
+		return
 	# The body holding it is never riding it. A cover seated in a console's floor
 	# has the console sitting on its top face, and coupling the console (its mask
 	# 0 while a room restores, so the bit was ALL it had) left it colliding with

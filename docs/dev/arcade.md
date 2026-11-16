@@ -176,12 +176,87 @@ the board in the bay with the core of its system, as any machine does.
 two writers never fight over one `SetJoypadState`. `port_count_is_fixed()` makes the
 cabinet's own count (two) win over `SystemInfo.native_ports` (four).
 
-**The coin is the only way to insert a credit.** It is a mesh tweened along an arc: no physics
-body, not in `spawned`, never saved. When it drops, the coin door says so and `ArcadeInput` holds
-the coin bit for 0.1 s on that player's port. The bit is `SELECT` (`ArcadeProfiles.COIN_BIT`),
-where MAME and FBNeo read it on a RetroPad; **that is the standard guess and is not confirmed
-against the cores' input descriptors**. Coins are infinite and uncounted. The sound is
-synthesised (no recording exists); the `hardware-sfx` workflow replaces it.
+**The coin is the only way to insert a credit.** The slot approach and slide are animated;
+`coin_inserted(player)` keeps its existing timing and `ArcadeInput` holds SELECT for 0.1 s.
+A model with `CashBoxLiftOff` also drops an `ArcadeToken` on acceptance. With no box seated,
+it still drops at the normal deposit position inside the cabinet.
+Refunds remove a banked token and keep the existing return-cup animation and pickup behavior.
+
+### Loose cash-box coins (2026-11-16)
+
+Coins stay dynamic: no carry freeze, transform copying, fixed spill angle or automatic
+uprighting impulses. The beveled disc and corrected inertia remain. A balanced coin may
+stand on its edge; gravity and contacts decide its resting pose.
+
+`arcade_cash_physics.gd` lives on the box, independently of its cabinet. Held bodies are
+intangible to ordinary objects, so a separate coin-only `AnimatableBody3D` supplies its
+floor and four walls on layer 25 (`ArcadeCashTray`). Tokens include that layer in their
+mask; held tokens have mask zero and can be taken out. Released boxes use their normal
+20 mm outward collision shell. `HeldObjectPhysics` skips generic rider coupling for this
+box: that query caps at eight and misses stacks.
+
+**Fast hand motion needs contacts AND matching physics poses.** The box follows the grab
+driver on physics ticks with a 30 ms critically damped response, capped at 3 m/s and
+12 rad/s; snap zones keep their exact target. The coin-only shell extends outward by the
+recent corner travel (four times the step plus two coin thicknesses, at least 20 mm).
+There is no lid. CCD on coins in a frozen box stalled their contact motion in this case;
+it is disabled there and restored on spill or box release. The guard is top-level so
+intermediate grab-driver writes cannot move it; `sync_to_physics` is ON, and the held box
+is displayed at the guard's completed solver pose. Without that last synchronization,
+recorded upward motion drew the floor a whole physics tick ahead of the coins, visibly
+passing through them, although steady headless checks passed. No coin pose or velocity
+is scripted. Abrupt stops can legitimately throw coins out of the open top.
+
+**Coins belong to the box, not whichever cabinet last dressed it.** Loose saved boxes
+restore their pile when dressed on load, before insertion. The helper restores only once;
+redressing, seating or changing cabinets keeps the same bodies. Acceptance/refund asks the
+box actually in the current slot. Each box watches spills, and saving flushes that watch
+before reading `cash_coins`. Spilled bodies remain loose room objects and are not saved.
+The existing limit of 60 physical tokens remains: excess accepted coins increase the
+banked count without another visible body; refunds consume that overflow first.
+
+**No box is not a missing coin (2026-11-16).** `_cash_source` is the hidden original
+`CashBoxLiftOff` mesh that stays in the cabinet. With an empty slot, `_bank_coin` creates
+a loose token using that mesh's current global transform and the same deposit volume as
+the seated-box path (`_cash_drop_pose`). Moving or carrying the removed box cannot move
+the spawn point; moving the cabinet does. These coins have ordinary CCD/gravity and no
+box-owned saved count. `arcade_cash_no_box_tests` (6 checks) covers removal, one coin per
+acceptance, placement, unchanged removed-box count, falling onto the floor and cabinet
+movement. The actual-model probe accepts `--no-box --record` for the same checks.
+The 60-body cap is an existing Quest performance precaution, not a measured safe limit;
+this missing-box change does not alter it.
+
+
+`arcade_cash_tests` covers ordinary acceptance, carry, release and tilt (23 checks).
+`arcade_cash_fast_tests` checks translation and yaw with 60 coins, allowing escape through
+the open top but rejecting solid-wall crossings (6 checks). Requested motion peaks at
+4.5 m/s translation and 675 degrees/s yaw; the box's carry limits apply.
+`arcade_cash_restore_tests` covers loose restoration, repeated dressing, cabinet changes,
+acceptance/refund, saving spills and overflow (12 checks). Slot credit and return-cup
+behavior remain covered by `arcade_tests` and `arcade_attract_tests`.
+
+**Pickup must preserve the floor (2026-11-16 follow-up).** The first synthetic fixture bypassed
+`CoverSlots`: it passed while the installed box still dropped all its coins. On leaving its
+slot, `CoverSlots._refresh` changes the pointer margin, and `PortCover.set_pointer_margin`
+called `_apply_size`, replacing the tray's floor with the cover's solid convex hull. Tokens
+near the floor were pushed out through the bottom. Pointer-margin changes now call only
+`_apply_pointer`; body geometry is updated only when size or shell geometry changes.
+
+The corrected fixture uses `CoverSlots.wear`, a real cover snap zone, the seated/loose
+refresh callbacks and a hand taking the box out of that zone. Without the fix it fails five
+checks, including all 60 coins lost during lifting. With it, all 23 checks pass. Cover-slot
+and battery-slot suites also pass (39 and 64 checks). Shaking is checked for retention;
+a 35-degree tilt must move the pile relative to the tray below the old scripted 40-degree
+release angle (a gentle shake alone can legitimately stick through static friction).
+
+`Tools/models/arcade_cash_probe` repeats the checks with the installed NAOMI Universal's
+**actual cash-box mesh and cover orientation**, loaded from `--pack=<zip>` (default
+`<data root>/mods/xenu.naomiuniversal.zip`). Run windowed with `--record` to save frames to
+`build_out/coin_frames` (override with `--record-dir=res://../build_out/<folder>`);
+`--fast` selects the fast-motion legs. The probe suspends the loading overlay. It keeps all 60 coins through
+pickup, lifting, set-down and ordinary shaking; tipping empties it. This isolates the real
+box and pickup machinery, not a complete cabinet or a human headset session. Headset/Quest
+feel is still owed.
 
 ## Video geometry and the libretro bridge
 

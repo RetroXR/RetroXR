@@ -328,6 +328,7 @@ RETRO_ANALOG_RIGHT_X_POSITIVE={
 3d_physics/layer_22="XRPoseDetector"
 3d_physics/layer_23="XRPointerSuppress"
 3d_physics/layer_24="FocusScreen"
+3d_physics/layer_25="ArcadeCashTray"
 
 [physics]
 
