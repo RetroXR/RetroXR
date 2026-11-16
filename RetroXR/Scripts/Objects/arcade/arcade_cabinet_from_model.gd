@@ -233,7 +233,10 @@ func _build_lift_offs() -> void:
 			_cash_watch.wait_time = 0.25
 			_cash_watch.timeout.connect(_cash_watch_tick)
 			add_child(_cash_watch)
-			zone.has_dropped.connect(_cash_watch.start)
+			zone.has_dropped.connect(func(_b: Node3D) -> void:
+				# (not as the room is cleared: a zone lets go of what it holds on its way out of the tree)
+				if _cash_watch.is_inside_tree():
+					_cash_watch.start())
 			zone.has_picked_up.connect(func(_b: Node3D) -> void: _cash_watch.stop())
 		if zone.picked_up_object != null:
 			_dress_lift_off(zone.picked_up_object, part, out)
@@ -247,23 +250,36 @@ func _build_lift_offs() -> void:
 ## back out of its place, or after the cabinet was built) is dressed as its panel at once, not left the plain box a cover
 ## is until a slot dresses it (the owner, 2026-11-15: "it will just appear as a white cube").
 var _loose_lift_offs := {}
+## How long a cover a load brings is left to its slot before it counts as loose: a load seats what was seated a pass after
+## it adds it.
+const LOOSE_AFTER_FRAMES := 6
 
 
 func _on_node_added(n: Node) -> void:
 	if n is PortCover:
-		_dress_loose.call_deferred(n)
+		_dress_loose_later(n as PortCover)
 
 
+func _dress_loose_later(cover: PortCover) -> void:
+	for i in LOOSE_AFTER_FRAMES:
+		await get_tree().physics_frame
+		if not is_instance_valid(cover) or not is_inside_tree():
+			return
+	_dress_loose(cover)
+
+
+## Only its look: every cabinet of a kind shares its panels' sockets, so a loose cover may be ANY such cabinet's, and one
+## seated anywhere is its slot's to dress. Its cabinet's bookkeeping (a cash box's coins) is left to the slot it goes into:
+## dressed as this cabinet's own cash box, another cabinet's box became the one whose coins this one watched, and its coins
+## were counted out (the owner, 2026-11-16: "I also no longer see coins in the coin box").
 func _dress_loose(n: Node) -> void:
 	var cover := n as PortCover
-	if cover == null or not is_instance_valid(cover) or not cover.is_inside_tree() or cover.has_node("Shell"):
+	if cover == null or not is_instance_valid(cover) or not cover.is_inside_tree() or cover.has_node("Shell") or cover.is_picked_up():
 		return
 	var spec: Variant = _loose_lift_offs.get(cover.socket_id)
 	if spec == null or not is_instance_valid((spec as Array)[0]):
 		return
-	_dress_lift_off(cover, (spec as Array)[0], (spec as Array)[1])
-	if cover == _cash_box and _cash_watch != null:
-		_cash_watch.start()
+	_wear_panel(cover, (spec as Array)[0], (spec as Array)[1])
 
 
 ## The cash box in a hand: the tokens in it go with it, each held where it lies in the tray (picked up, the tray left them
@@ -363,16 +379,22 @@ func _dress_lift_off(what: Node3D, part: MeshInstance3D, out: Vector3) -> void:
 	var cover := what as PortCover
 	if cover == null:
 		return
-	if not cover.has_node("Shell"):
-		var copy := part.duplicate() as MeshInstance3D
-		part.get_parent().add_child(copy)
-		copy.transform = part.transform
-		copy.visible = true
-		CoverSlots.wear(cover, copy, out)
+	_wear_panel(cover, part, out)
 	if str(part.name) == CASH_BOX:
 		_cash_box = cover
 		_cash_solid(cover)
 		_cash_seat_tokens(cover)
+
+
+## A cover made to look like the panel it covers (a copy of the panel, worn).
+static func _wear_panel(cover: PortCover, part: MeshInstance3D, out: Vector3) -> void:
+	if cover.has_node("Shell"):
+		return
+	var copy := part.duplicate() as MeshInstance3D
+	part.get_parent().add_child(copy)
+	copy.transform = part.transform
+	copy.visible = true
+	CoverSlots.wear(cover, copy, out)
 
 
 ## A coin is in: a token drops into the box in its place (none there, the coin is gone, as into an empty cabinet's floor).
