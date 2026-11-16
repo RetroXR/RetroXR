@@ -573,7 +573,16 @@ func _group_cabinet() -> void:
 	_ok(not body.visible, "cabinet: the generic box is hidden")
 	_ok(model.arcade_input() != null, "cabinet: the input node is on the system")
 	var shapes := sys.find_children("CabinetBox*", "CollisionShape3D", false, false)
-	_ok(shapes.size() == 9, "cabinet: the body is ten boxes, the bay left open and the upper body a hollow shell (%d extra)" % shapes.size())
+	# ten boxes, and the cash vault behind the coin doors (ArcadeCashBox) cut out of the ones it stands in
+	var vault: Variant = model.get_meta(RetroSystemModelArcadeCabinet.CASH_VAULT_META, null)
+	var in_vault := 0
+	for s in shapes:
+		var bs := ((s as CollisionShape3D).shape as BoxShape3D).size
+		var sb := AABB((s as CollisionShape3D).position - bs * 0.5, bs)
+		if vault is AABB and sb.intersection((vault as AABB).grow(-0.001)).size.length() > 0.0005:
+			in_vault += 1
+	_ok(vault is AABB and shapes.size() >= 9 and in_vault == 0,
+		"cabinet: the body is ten boxes, the bay left open, the upper body a hollow shell and the cash vault's room open (%d extra, %d in the vault)" % [shapes.size(), in_vault])
 	var power := sys.get_node("PowerButton") as Node3D
 	var seat := model.find_child("PowerSwitch", true, false) as Node3D
 	_ok(power.global_position.distance_to(seat.global_position) < 0.001, "cabinet: the power switch is where the model seats it")

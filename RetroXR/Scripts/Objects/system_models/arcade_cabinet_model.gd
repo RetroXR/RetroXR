@@ -85,8 +85,8 @@ var _variant := ""
 var _cash: ArcadeCashBox = null
 
 
-## A generated cabinet (its bay the builder's, BayFloor and all) gets a cash box at the front of its bay, and every coin door it
-## has, after a morph its new ones too, puts its coins in it.
+## A generated cabinet (its bay the builder's, BayFloor and all) gets a cash box in a vault behind its coin doors, and every coin
+## door it has, after a morph its new ones too, puts its coins in it.
 func _ensure_cash_box() -> void:
 	if _cash == null:
 		if find_child("FromModel", true, false) != null:
@@ -97,7 +97,7 @@ func _ensure_cash_box() -> void:
 		_cash = ArcadeCashBox.new()
 		_cash.name = "CashBox"
 		add_child(_cash)
-		_cash.setup(bay)
+	_cash.setup(self, _coins)
 	for c in _coins:
 		_cash.take_coins(c)
 
@@ -779,6 +779,36 @@ const POWER_SWITCH_MESH_META := &"arcade_power_switch_mesh"
 const POWER_SWITCH_TRAVEL := 0.0025
 
 
+## On the cabinet: a generated cabinet's cash vault (an AABB, the cabinet's frame), cut out of its collision and its pointer
+## boxes (ArcadeCashBox).
+const CASH_VAULT_META := &"arcade_cash_vault"
+
+
+## `boxes` with `hole` cut out of each that meets it: the part of each below the hole, above it, then (at its height) behind
+## and in front of it, then (at its height and depth) left and right of it. Pure.
+static func carve(boxes: Array[AABB], hole: AABB) -> Array[AABB]:
+	var out: Array[AABB] = []
+	for b in boxes:
+		var i := b.intersection(hole)
+		if i.size.x <= 0.0 or i.size.y <= 0.0 or i.size.z <= 0.0:
+			out.append(b)
+			continue
+		var lo := b.position
+		var hi := b.end
+		var cuts: Array[AABB] = [
+			AABB(lo, Vector3(hi.x - lo.x, i.position.y - lo.y, hi.z - lo.z)),
+			AABB(Vector3(lo.x, i.end.y, lo.z), Vector3(hi.x - lo.x, hi.y - i.end.y, hi.z - lo.z)),
+			AABB(Vector3(lo.x, i.position.y, lo.z), Vector3(hi.x - lo.x, i.size.y, i.position.z - lo.z)),
+			AABB(Vector3(lo.x, i.position.y, i.end.z), Vector3(hi.x - lo.x, i.size.y, hi.z - i.end.z)),
+			AABB(Vector3(lo.x, i.position.y, i.position.z), Vector3(i.position.x - lo.x, i.size.y, i.size.z)),
+			AABB(Vector3(i.end.x, i.position.y, i.position.z), Vector3(hi.x - i.end.x, i.size.y, i.size.z)),
+		]
+		for c in cuts:
+			if c.size.x > 0.0005 and c.size.y > 0.0005 and c.size.z > 0.0005:
+				out.append(c)
+	return out
+
+
 ## One box per solid part, leaving the bay open so a board can be carried into it.
 ## A single box would have kept every hand and board out of the cabinet it plugs into. Run again after a
 ## morph (the shape may be another): the boxes it added the last time go first.
@@ -816,6 +846,10 @@ func configure_collision(host: Node3D) -> void:
 		boxes.clear()
 		for k in shell.size():
 			boxes.append(shell[k] as AABB)
+	# A generated cabinet's cash vault behind its coin panel (ArcadeCashBox): its room is open, cut out of what it stands in.
+	var vault: Variant = get_meta(CASH_VAULT_META, null)
+	if vault is AABB:
+		boxes = carve(boxes, vault as AABB)
 	# [shape, position] for each piece: a cabinet from a model with convex pieces takes those, the whole of it, following its
 	# surfaces; else the boxes.
 	var pieces: Array = []
@@ -899,6 +933,9 @@ func _build_pointer_shapes(host: Node3D) -> void:
 		AABB(Vector3(-hw, 0.92, glass_back_z - 0.05), Vector3(w, marquee_bottom - 0.92, 0.05)),   # behind the glass
 		AABB(Vector3(-hw, marquee_bottom, marquee_front_z - 0.05), Vector3(w, cabinet_height - marquee_bottom, 0.05)),   # marquee
 	]
+	var vault: Variant = get_meta(CASH_VAULT_META, null)
+	if vault is AABB:
+		boxes = carve(boxes, vault as AABB)
 	for i in boxes.size():
 		var col: CollisionShape3D = first if i == 0 else CollisionShape3D.new()
 		if col == null:
