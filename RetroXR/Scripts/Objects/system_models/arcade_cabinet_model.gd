@@ -81,6 +81,25 @@ func _ready() -> void:
 
 ## The row this scene was baked from ("" for a scene that names none), which a mod's dressing picks by.
 var _variant := ""
+## A generated cabinet's cash box (ArcadeCashBox), made with its first modules; a model cabinet has its own (FromModel).
+var _cash: ArcadeCashBox = null
+
+
+## A generated cabinet (its bay the builder's, BayFloor and all) gets a cash box at the front of its bay, and every coin door it
+## has, after a morph its new ones too, puts its coins in it.
+func _ensure_cash_box() -> void:
+	if _cash == null:
+		if find_child("FromModel", true, false) != null:
+			return
+		var bay := find_child("Bay", true, false) as Node3D
+		if bay == null or bay.get_node_or_null("BayFloor") == null:
+			return
+		_cash = ArcadeCashBox.new()
+		_cash.name = "CashBox"
+		add_child(_cash)
+		_cash.setup(bay)
+	for c in _coins:
+		_cash.take_coins(c)
 
 
 ## Find the modules by type and attach the ones not attached yet (all of them on the first call; after a
@@ -122,6 +141,7 @@ func _collect_modules() -> void:
 			ArcadeProfiles.KIND_SERVICE:
 				_services.append(m as ArcadeServiceModule)
 	_controls.sort_custom(func(a: ArcadeControlModule, b: ArcadeControlModule) -> bool: return a.player < b.player)
+	_ensure_cash_box()
 	_apply_screen_look()
 	var marquee := find_child("Marquee", true, false) as MeshInstance3D
 	_marquee_mat = null

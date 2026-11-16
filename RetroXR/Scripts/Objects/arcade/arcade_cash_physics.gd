@@ -146,6 +146,8 @@ func _guard_wall(thickness: float) -> void:
 func configure(tray: MeshInstance3D, inner: AABB) -> void:
 	_tray = tray
 	_inner = inner
+	# brushed sheet steel, not a flat gray (ArcadeCashBox.steel)
+	tray.material_override = ArcadeCashBox.steel()
 	if _guard == null:
 		_guard = AnimatableBody3D.new()
 		_guard.name = "CashCoinCollider"
