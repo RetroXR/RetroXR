@@ -795,6 +795,7 @@ Dictionary VerletRope::GetSleepMetrics() const
     out["escaping"] = static_cast<int>(m_escapes.size());
     out["contact_stable_frames"] = m_contact_stable_frames;
     out["still_frames"] = m_still_frames;
+    out["ends_still_frames"] = m_ends_still_frames;
     return out;
 }
 
@@ -1027,6 +1028,8 @@ void VerletRope::Wake()
     m_sleep_environment_frame = 0;
     m_environment_change_polls = 0;
     m_still_frames = 0;
+    // The forced sleep's patience is from THIS waking (UpdateSleepState).
+    m_ends_still_frames = 0;
     OpenExcursionWindow();
 }
 

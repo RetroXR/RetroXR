@@ -354,6 +354,27 @@ controllers, as each always did. A body that must be HAULED on its cord (a switc
 speaker cabinet) is `CableHaul`'s job, not this. A new owner of a lead calls
 `PlugTether`; it never writes its own clamp.
 
+## The forced sleep counts from the last WAKING (2026-11-17)
+
+A cord whose ends have been still for 720 ticks is put to sleep whatever it is
+doing (`FORCE_SLEEP_ENDS_STILL`: cords that jitter for ever cost a Quest
+frames). The count was never begun again when a cord woke, so it was all the
+time the cord had EVER spent awake with still ends. A cord that had lain on a
+table a while had most of it used up; carry the table off and put it down, and
+the cord was sent back to sleep a moment into its fall, in MID AIR, where
+nothing wakes it: a sleeping cord only asks after what it was touching, and it
+is touching nothing.
+
+- `Wake()` sets `m_ends_still_frames` to 0.
+- A cord really moving (over `FORCE_SLEEP_FAST`, 5 mm a tick) gets four times
+  the patience: it is going somewhere, not jittering in place.
+- `get_sleep_metrics()` has `ends_still_frames`.
+
+`rope_tests` `sleep/`: a cord disturbed where it lies until the old count
+reached 700, then its table taken away, comes down 1.25 m; before, it stopped
+19 cm into the fall. (Two cord lengths, so the cases after it keep their
+places: the loose-plug cases are sensitive to where in the world they stand.)
+
 ## What a SLEEPING cord asks the engine (2026-11-13)
 
 A sleeping cord polls its surroundings every 30 ticks

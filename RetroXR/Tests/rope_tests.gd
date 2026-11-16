@@ -1205,6 +1205,39 @@ func _group_sleep() -> void:
 	_ok(not rope.is_sleeping(), "sleep/nudging a point wakes it")
 	await _drop_case()
 
+	# A cord that has lain awake on a table for most of the forced sleep's
+	# patience (ends still 720 ticks: put to sleep whatever it is doing) and
+	# then has the table carried off must FALL. The patience was never begun
+	# again, so it was sent back to sleep a moment into the fall and hung in
+	# the air for good (a table moved with a cord on it, 2026-11-17).
+	# (Two lengths, and so two cases: the cases after this stand where they
+	# stood, which the loose-plug ones are sensitive to.)
+	for long_segments: int in [100, 70]:
+		base = _new_case()
+		var slab: StaticBody3D = _box(base + Vector3(0, 3.00, 0), Vector3(2.0, 0.10, 2.0))
+		_box(base + Vector3(0, -0.05, 0), Vector3(4.0, 0.10, 4.0))
+		rope = _rope_between(base + Vector3(-0.3, 3.25, 0), base + Vector3(0.3, 3.25, 0), long_segments, 0.03)
+		await _settle(900)
+		# Disturbed again and again where it lies, its ends never moving. Before,
+		# every such spell awake was added to the last; now each begins afresh.
+		var spent: int = 0
+		for bout in 40:
+			spent = int(rope.get_sleep_metrics().ends_still_frames)
+			if spent >= 700:
+				break
+			rope.nudge_point(long_segments / 2, Vector3(0, 0.004, 0))
+			await _settle(clampi(700 - spent, 1, 60))
+		spent = int(rope.get_sleep_metrics().ends_still_frames)
+		var on_table: float = rope.point_position(long_segments / 2).y - base.y
+		slab.free()
+		await get_tree().physics_frame
+		await _settle(500)
+		var came_down: float = on_table - (rope.point_position(long_segments / 2).y - base.y)
+		_ok(came_down > 0.6,
+			"sleep/a cord long disturbed on a table falls when the table is taken away (%d segments)" % long_segments,
+			"lying %.0f mm up with %d still ticks counted, came down %.0f mm" % [on_table * 1000.0, spent, came_down * 1000.0])
+		await _drop_case()
+
 	# What a cord lies on is taken away while it sleeps: it wakes and falls.
 	# Asked of the whole cord every poll (stride 1), and of a quarter of it a
 	# poll (set_sleep_poll_stride(4), what a headset may ask for): later, never

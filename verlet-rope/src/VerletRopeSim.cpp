@@ -66,6 +66,8 @@ constexpr int SLEEP_ENVIRONMENT_FAR = 4;
 // as long as the room stood (seven such cords in the Starlight Arcade, ~3 ms of a Quest 3's main thread,
 // 2026-11-13). Ten seconds at 72 Hz: nothing a hand is doing is that still. An end that moves wakes it as ever.
 constexpr int FORCE_SLEEP_ENDS_STILL = 720;
+// Faster than this (metres a tick) a cord is not jittering in place, it is going somewhere.
+constexpr double FORCE_SLEEP_FAST = 0.005;
 constexpr double SLEEP_FOCUS_NEAR_SQ = 3.0 * 3.0;
 // Further than an anchor can travel in one tick by being carried or thrown: 0.4 m
 // at 60 Hz is 24 m/s, where a hard throw is nearer 10. Every teleport a restore
@@ -4411,7 +4413,17 @@ void VerletRope::UpdateSleepState()
     else
         m_ends_still_frames = 0;
     static const bool never_sleep_forced = RopeSwitch("XENU_ROPE_AWAKE", "debug.xenu.rope_awake") != nullptr;
-    if (!m_asleep && !never_sleep_forced && m_ends_still_frames >= FORCE_SLEEP_ENDS_STILL && m_holds.empty())
+    // A cord that is really MOVING (falling, swinging: a table carried out
+    // from under it) is given four times as long. The count was also never
+    // begun again when a cord woke, so it was the whole time the cord had
+    // EVER been awake with its ends still: one that had lain on a table a
+    // while had most of it used up, and when the table was carried off and
+    // put down it was sent back to sleep a moment into its fall, in mid air,
+    // where nothing wakes it (a sleeping cord asks only after what it was
+    // touching). Wake() begins the count again now.
+    const int still_limit = m_debug_max_velocity > FORCE_SLEEP_FAST ? FORCE_SLEEP_ENDS_STILL * 4
+                                                                    : FORCE_SLEEP_ENDS_STILL;
+    if (!m_asleep && !never_sleep_forced && m_ends_still_frames >= still_limit && m_holds.empty())
     {
         if (!m_forced_sleep_logged)
         {
