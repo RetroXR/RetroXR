@@ -121,6 +121,8 @@ const CARRY_SETTLE := 30
 const GLOW_CLEAR := 0.012
 ## How far past its marker a cabinet's own cord looks for the surface its grommet is in, metres.
 const CAPTIVE_REACH := 0.15
+## How far round a captive lead the nearest wall is looked for when there is none straight behind it.
+const CAPTIVE_WALL_REACH := 0.45
 ## The game's own female phono jack (RcaJack), for a cabinet's amplifier inputs.
 const RCA_JACK_SCENE := "res://Scenes/Objects/cables/rca_jack.tscn"
 ## Less than this from one physics frame to the next is standing still (meters, radians).
@@ -650,6 +652,24 @@ func _build_leads() -> void:
 				var face: Variant = _surface_along(spot, -facing.z, CAPTIVE_REACH)
 				if face != null:
 					spot = face as Vector3
+				else:
+					# Nothing straight behind it (a marker over the board, in the bay's middle): the nearest of the cabinet's
+					# walls round it, up, left, right or back, and the socket on it facing out of it, so the cord comes out of
+					# the wall as the NAOMI Universal's do (the owner, 2026-11-17: "make the vga cord just 'attached' to the
+					# wall like how the universal cabinet does it for the other cabinets").
+					var best: Variant = null
+					var best_dir := Vector3.ZERO
+					for d: Vector3 in [global_basis.y, -global_basis.x, global_basis.x, -global_basis.z]:
+						var hit: Variant = _surface_along(spot, d, CAPTIVE_WALL_REACH)
+						if hit != null and (best == null or spot.distance_to(hit) < spot.distance_to(best)):
+							best = hit
+							best_dir = d.normalized()
+					if best != null:
+						spot = best as Vector3
+						var z := -best_dir
+						var up := global_basis.y if absf(z.dot(global_basis.y)) < 0.95 else -global_basis.z
+						var x := up.cross(z).normalized()
+						facing = Basis(x, z.cross(x), z)
 			port.global_transform = Transform3D(facing, spot)
 
 
