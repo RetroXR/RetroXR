@@ -637,6 +637,8 @@ private:
     // Not reset by InitPoints, on purpose: only an end moving allows another.
     int m_hopeless_frames = 0;
     bool m_relay_attempted = false;
+    static constexpr int TAUT_WHOLE_RUN = 4;
+    int m_taut_whole_run = 0;
     bool m_asleep = false;
     int m_still_frames = 0;
     int m_contact_stable_frames = 0;

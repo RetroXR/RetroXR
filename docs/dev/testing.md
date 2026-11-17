@@ -218,7 +218,7 @@ will not settle.
 (2026-11-14, `KeepTautOutside`, `rope.md`: one `rope_stress` row moved on purpose, "wrapped
 on a ledge", stretch 4.03 -> 4.04 and squash 0.91 -> 0.88; the other 21 and the bench are
 unchanged. The walk-out that also moved "dragged through wall" was removed 2026-11-17 and
-that row is back where it was. `rope_tests` is 116 cases.)
+that row is back where it was. `rope_tests` is 119 cases.)
 (Re-baselined 2026-11-10 for substeps and the contact changes, `rope.md`: the bench
 settles at tick 50, was 49, and EVERY `rope_stress` row moved a little, the solver being
 a different one. The rows that moved in kind: "inside a wall" no longer sleeps (jitter

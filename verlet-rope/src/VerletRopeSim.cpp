@@ -2594,7 +2594,13 @@ void VerletRope::KeepTautOutside(PhysicsDirectSpaceState3D *space_state)
             continue;
         const float wa = m_inv_mass[ia];
         const float wb = m_inv_mass[ib];
-        if (wa + wb == 0.0f)
+        // A segment with a PINNED end goes where what pins it takes it: a plug
+        // sits in or on a body by design, and a board let go of falls with its
+        // plug. Held back to where it began the tick, its free end stayed in
+        // the air while the plug fell away, the cord frozen at fifteen times
+        // its length until the board came to rest (a JVS-to-JAMMA converter
+        // dropped from a hand, 2026-11-17).
+        if (wa == 0.0f || wb == 0.0f)
             continue;
         const Vector3 a = m_points[ia];
         const Vector3 b = m_points[ib];
@@ -2816,8 +2822,20 @@ void VerletRope::KeepTautOutside(PhysicsDirectSpaceState3D *space_state)
         break;
     }
     }
-    if (!clear && start_clear)
+    // The whole cord is put back for a few ticks running at most. Tick after
+    // tick it is a cord frozen in the air, which is worse than what it mends.
+    if (clear)
+        m_taut_whole_run = 0;
+    if (!clear && start_clear && m_taut_whole_run >= TAUT_WHOLE_RUN)
     {
+        if (m_taut_whole_run == TAUT_WHOLE_RUN)
+            UtilityFunctions::print("[Rope] ", get_path(), ": a taut cord could not be kept clear for ",
+                                    TAUT_WHOLE_RUN, " ticks running; let go on");
+        m_taut_whole_run += 1;
+    }
+    else if (!clear && start_clear)
+    {
+        m_taut_whole_run += 1;
         // Mending it piece by piece did not end: the whole cord goes back to
         // where it began the tick, which was clear. (Its pinned ends stay with
         // what holds them.)

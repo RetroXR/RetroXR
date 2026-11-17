@@ -90,6 +90,7 @@ func _run() -> void:
 	await _group_hold()
 	await _group_taut()
 	await _group_through()
+	await _group_falling()
 	await _group_budget()
 	_finish()
 
@@ -2020,6 +2021,46 @@ func _inside_box(rope: VerletRope, centre: Vector3, size: Vector3) -> int:
 		if i + 1 < pts.size() and core.intersects_segment(pts[i], pts[i + 1]) != null:
 			n += 1
 	return n
+
+
+## A taut cord plugged into a thing that is let go of falls WITH it. The plug
+## sits on the thing, so the cord's last segment passes through or beside the
+## thing's own body as it goes; "a taut cord never crosses a solid" put that
+## segment back where it began every tick, and the cord stayed in the air,
+## stretched, while the plug fell away (a converter dropped from a hand at the
+## desk, filmed 2026-11-17). Two cases: the plug on the thing's top, and on its
+## side.
+func _group_falling() -> void:
+	if not _wants("falling"):
+		return
+	for on_top: bool in [true, false]:
+		var base := _new_case()
+		_box(base + Vector3(0, -0.1, 0), Vector3(4.0, 0.2, 4.0))
+		# The thing: a board, held 1.5 m up. Its plug is a node of its own, as a
+		# seated plug is (the rope leaves out only the plug's body, not the board's).
+		var board := _box(Vector3.ZERO, Vector3(0.20, 0.03, 0.06))
+		board.position = base + Vector3(0, 1.5, 0)
+		var seat := Vector3(0, 0.005, 0) if on_top else Vector3(0.095, 0, 0)
+		# 0.75 m of cord to a socket 0.8 m off: taut from the start.
+		var rope := _rope_between(base + Vector3(0.75, 1.22, 0), board.position + seat, 25, 0.03)
+		var plug: Node3D = rope.end_node
+		rope.step(1.0 / 90.0)
+		await _settle(240)
+		# Let go: 18 mm a tick, what the filmed one was doing.
+		var worst := 0.0
+		var behind := 0.0
+		for tick in 50:
+			board.position.y -= 0.018
+			plug.position = board.position + seat
+			await get_tree().physics_frame
+			rope.step(1.0 / 90.0)
+			var pts := rope.get_points()
+			worst = maxf(worst, pts[24].distance_to(pts[25]) / 0.03)
+			behind = maxf(behind, pts[24].y - pts[25].y)
+		_ok(worst < 3.0 and behind < 0.09,
+			"falling/a taut cord goes down with the thing its plug is %s" % ("on top of" if on_top else "in the side of"),
+			"last segment %.1fx its length at worst, the cord's next point %.0f mm above the plug at worst" % [worst, behind * 1000.0])
+		await _drop_case()
 
 
 ## A cord round an obstacle, pulled further than it reaches. The hand is a pin,

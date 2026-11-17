@@ -626,3 +626,22 @@ mod's seat is 1 mm inside its shell; the fix is a `face` in that mod), CD player
   turned a full 360° about its cord axis; the wires must turn with it.
 
 Headset validation of all of this is OWED: nothing here has been felt in a hand.
+
+## A taut cord falls with the thing it is plugged into (2026-11-17)
+
+A JVS-to-JAMMA converter held up by the desk hand, its cord taut, and let go:
+the board and the plug fell and the cord stayed in the air, its last segment
+fifteen times its length, until the board came to rest (`XENU_ROPE_DIAG=1`:
+segment 59 of 60, `p59` free with no contact at y 2.17, the plug at 1.70 and
+falling 18 mm a tick). `KeepTautOutside` was the cause: the plug sits on the
+board, the rope leaves out only the plug's body, so the last segment crossed
+the board as it fell and was put back where it began the tick, every tick.
+
+- A segment with a PINNED end is not kept outside anything: it goes where what
+  pins it takes it.
+- The whole cord is put back for at most `TAUT_WHOLE_RUN` (4) ticks running;
+  after that it is let go on and says so once. Tick after tick it is a cord
+  frozen in the air.
+
+`rope_tests` `falling/` (two cases; without the first rule: 28 times its
+length, the cord 847 mm above its plug). Not seen again in the room yet.
