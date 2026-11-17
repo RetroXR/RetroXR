@@ -24,6 +24,7 @@ angular_damp = 9.0
 freeze_mode = 1
 script = ExtResource("1_cs")
 contract_path = "res://imported-assets/furniture/seating/floor_cushion_round_contract.json"
+round_seat = true
 type_id = "floor_cushion_round"
 
 [node name="Model" type="Node3D" parent="."]

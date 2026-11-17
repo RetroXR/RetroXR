@@ -24,6 +24,7 @@ angular_damp = 9.0
 freeze_mode = 1
 script = ExtResource("1_cs")
 contract_path = "res://imported-assets/furniture/seating/pouf_contract.json"
+round_seat = true
 type_id = "pouf"
 
 [node name="Model" type="Node3D" parent="."]

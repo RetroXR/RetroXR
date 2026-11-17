@@ -1,20 +1,24 @@
 ## The RETRO XR seats and beds (ContractSeat) in the Mobile renderer: all nineteen laid out (the floor seats in a row of
 ## their own), the beds' drawers open, then the view from the player's own camera sitting on the overstuffed sofa's left
 ## cushion, lying on the captain's bed and sitting on the square floor cushion, each sat on through its own trigger's
-## press. Writes stills.
+## press. Writes stills. `--hover` instead lights every place's trigger as an aim does (the SeatHover decal painted on
+## the cushion) and takes close-ups of the sofas, the beds, the floor seats and the round seats, then quits.
 ##
-##     "$godot" --path RetroXR --resolution 1280x720 --position 20,20 res://Tools/room/furniture_probe.tscn -- --out=DIR
+##     "$godot" --path RetroXR --resolution 1280x720 --position 20,20 res://Tools/room/furniture_probe.tscn -- --out=DIR [--hover]
 ##
 ## Windowed, never --headless: the dummy renderer draws nothing.
 extends Node3D
 
 var out_dir := ""
+var hover := false
 
 
 func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if String(a).begins_with("--out="):
 			out_dir = String(a).trim_prefix("--out=")
+		elif a == "--hover":
+			hover = true
 	if out_dir.is_empty():
 		out_dir = OS.get_user_data_dir().path_join("furniture_probe")
 	DirAccess.make_dir_recursive_absolute(out_dir)
@@ -74,6 +78,10 @@ func _ready() -> void:
 		await get_tree().physics_frame
 	# The boot's loading overlay (not a CanvasLayer) is still up for the first couple of seconds: wait it out.
 	await get_tree().create_timer(3.0).timeout
+	if hover:
+		await _hover_shots(cam, pieces)
+		get_tree().quit(0)
+		return
 	cam.look_at_from_position(Vector3(0.0, 3.6, 9.4), Vector3(0.0, 0.4, 0.4))
 	for id: String in pieces:
 		var p := pieces[id] as ContractSeat
@@ -153,6 +161,23 @@ func _ready() -> void:
 		print("[probe] %s: %d levels, %d meshes at level 0" % [id, model.levels.size(),
 			model.levels[0].find_children("*", "MeshInstance3D", true, false).size() if not model.levels.is_empty() else 0])
 	get_tree().quit(0)
+
+
+## Every place lit, then close-ups.
+func _hover_shots(cam: Camera3D, pieces: Dictionary) -> void:
+	for id: String in pieces:
+		for t in (pieces[id] as Node).find_children("SeatTrigger*", "SeatTrigger", false, false):
+			(t as SeatTrigger).pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.ENTERED, null, t,
+				Vector3.ZERO, Vector3.ZERO))
+	await get_tree().create_timer(0.4).timeout
+	cam.look_at_from_position(Vector3(-2.2, 1.6, 4.4), Vector3(-2.2, 0.45, 1.6))
+	await _shot("hover_sofas")
+	cam.look_at_from_position(Vector3(-3.3, 2.2, 1.4), Vector3(-3.3, 0.4, -1.6))
+	await _shot("hover_beds")
+	cam.look_at_from_position(Vector3(-0.6, 1.5, 5.6), Vector3(-0.6, 0.15, 3.4))
+	await _shot("hover_floor")
+	cam.look_at_from_position(Vector3(3.4, 1.8, 3.8), Vector3(3.4, 0.4, 1.6))
+	await _shot("hover_round")
 
 
 func _spawn(id: String, at: Vector3) -> ContractSeat:

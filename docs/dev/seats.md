@@ -43,6 +43,23 @@ and six FLOOR seats (2026-11-14: `floor_cushion_square`, `floor_cushion_round`, 
   that forwards `pointer_event`, as the seat's SIBLING and not the trigger's child (a laser's pickup takes a collider's PARENT for the pickable, so a hold on the cushion still
   carries the seat). Anything else pointable that is an `Area3D` is in the same case (`ArcadePanelGrip` has the squeeze to make up for it). The tint is yellow
   (`WidgetOutline.SELECT_COLOR`). `seat_tests press/`; a real headset OWED.
+- **A place's trigger WINS the ray over the furniture across the whole surface it marks (2026-11-17).** Reported: "depending on where I point,
+  I can sometimes select the whole object". Measured on the contracts: every bed's trigger top was FLUSH with its mattress box (a ray's pick
+  between two coplanar faces is arbitrary), mattresses were wider than their triggers, a rocker's seat ran 4 cm past its trigger's front, every
+  cushion's front and sides under the 3 cm slab were the body's, and the papasan's trigger was BURIED in its one solid `Bowl` box. `ContractSeat.fit_trigger`
+  now fits each trigger over the surface under it (boxes no more than 8 cm under its top; higher ones are backs and arms): top 3 cm over it, a side the
+  surface overhangs by up to 10 cm pushed 2 cm past its edge, bottom 6 cm under it; a SHELL box round the place is wrapped from its top to 6 cm under
+  the place. The light keeps the contract's place (`SeatTrigger.hover_box`). `seat_tests aim/`: a body-only ray (a headset laser's) from a standing hand at
+  a grid on each place and along its front edge must hit a place, or a box TALLER than the place (an arm, a racecar's wall); mutation-tested
+  (unfitted: 18 of 21 fail).
+- **The light is PAINTED ON the cushion (2026-11-17)**: `SeatHover` is a `Decal` pointing down through the trigger's box (from `HOVER_LIFT` over it to
+  `HOVER_REACH` under it, so it lies on a sagging cushion), not the flat translucent square that floated ~5 cm over the fabric with hard edges. Its picture
+  (`SeatTrigger.hover_texture`, made once per size) is a rounded outline set `HOVER_INSET` in from the box's edge (on the edge it ran down a round cushion's
+  side and a sofa cushion's front) over a faint fill; the OUTLINE alone glows (its own emission picture: one picture at a high energy turned cushions solid
+  yellow under filmic). It fades in, breathes and fades out (`is_hovered()` is the AIM, the light may still be fading). A round seat is an ellipse
+  (`ContractSeat.round_seat`: round cushion, pouf, mid-century stool, papasan); a bowl whose sides rise over the box starts its projector higher
+  (`hover_rise`, the papasan 0.25 m). Known: a stool leg right under the seat's edge catches a little of the outline. How it looks:
+  `Tools/room/furniture_probe -- --hover` (windowed). Headset and Quest cost OWED.
 - **SEATED, THE LASER FINDS NOTHING TO PRESS (2026-10-27, VR).** The cushion is under the sitter and a laser leaves the hand pointing forward: a probe with the real rig put a seated hand in 45 poses (beside the hips, in the lap,
   a little forward) with the laser forward and 40 degrees down, and it hit the trigger in 3 of them on the chair, 2 on the racing seat, 3 on the cushion, 0 on the bed (the racing seat's `PointerArea` boxes took most of the rest); aimed
   straight down at the lap it always hit. So while the host is occupied the laser's slab (`SeatTrigger.stand_zone`, the `LaserBody`'s own box; the desktop's Area3D keeps its size) reaches 0.6 m toward the knees and 0.2 m to each side,

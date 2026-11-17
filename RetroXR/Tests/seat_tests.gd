@@ -81,6 +81,8 @@ func _run() -> void:
 		await _group_pair()
 	if _want("contract"):
 		await _group_contract()
+	if _want("aim"):
+		await _group_aim()
 	if _want("getup"):
 		await _group_getup()
 	if _want("save"):
@@ -254,8 +256,29 @@ func _group_press() -> void:
 	_ok(trigger != null and trigger.collision_layer == SeatTrigger.POINTABLE_LAYER, "press: the cushion has a pointable trigger")
 	trigger.pointer_event(_event(XRToolsPointerEvent.Type.ENTERED, trigger))
 	_ok(trigger.is_hovered(), "press: aimed at, it is lit")
+	# The light is painted down onto the cushion, not a card floated over it: a Decal whose projector starts over the
+	# trigger's box and reaches below it, facing down, and it is lit while aimed at.
+	var light := trigger.hover_light()
+	var tbox := (trigger.get_node("CollisionShape3D") as CollisionShape3D).shape as BoxShape3D
+	_ok(light != null and light.visible and light.texture_albedo != null, "press: the light is a decal with a picture, shown while aimed at")
+	_ok(light != null and light.position.y + light.size.y * 0.5 > tbox.size.y * 0.5
+			and light.position.y - light.size.y * 0.5 < -tbox.size.y * 0.5 - 0.1
+			and light.global_basis.y.dot(Vector3.UP) > 0.99,
+		"press: it projects DOWN from over the trigger's box to well under it (onto a sagging cushion)")
 	trigger.pointer_event(_event(XRToolsPointerEvent.Type.EXITED, trigger))
 	_ok(not trigger.is_hovered(), "press: and not when the aim leaves")
+	await get_tree().create_timer(SeatTrigger.HOVER_FADE_OUT + 0.15).timeout
+	_ok(light != null and not light.visible, "press: and the light has faded out and gone")
+	# Its outline: a rounded rectangle keeps its corner's texel in, the ellipse of a round seat leaves it out.
+	var square := SeatTrigger.hover_texture(Vector2(0.6, 0.6), false).get_image()
+	var oval := SeatTrigger.hover_texture(Vector2(0.6, 0.6), true).get_image()
+	var mid := square.get_width() / 2
+	var near_corner := Vector2i(roundi(square.get_width() * 0.1), roundi(square.get_height() * 0.1))
+	_ok(square.get_pixelv(near_corner).a > 0.05 and oval.get_pixelv(near_corner).a == 0.0,
+		"press: a round seat's light is an ellipse, a square seat's keeps its (rounded) corners")
+	var rim_px := roundi((SeatTrigger.HOVER_INSET + SeatTrigger.HOVER_RIM * 0.5) / 0.6 * square.get_height())
+	_ok(square.get_pixel(mid, rim_px).a > 0.9 and square.get_pixel(mid, mid).a < 0.2 and square.get_pixel(mid, 1).a == 0.0,
+		"press: an outline set in from the edge (on the cushion's top, not its rounded side) over a faint middle")
 	trigger.pointer_event(_event(XRToolsPointerEvent.Type.RELEASED, trigger))
 	_ok(not seat.is_occupied(), "press: a release alone does nothing")
 	trigger.pointer_event(_event(XRToolsPointerEvent.Type.PRESSED, trigger))
@@ -280,13 +303,11 @@ func _group_press() -> void:
 	laser.call("pointer_event", _event(XRToolsPointerEvent.Type.ENTERED, laser))
 	_ok(trigger.is_hovered() and SeatTrigger.HOVER_COLOR.r > 0.9 and SeatTrigger.HOVER_COLOR.g > 0.8 and SeatTrigger.HOVER_COLOR.b < 0.2,
 		"press: aimed at by a laser the cushion is lit, and the light is yellow (not green)")
-	# The light is a flat square clear OVER the place's box: the whole box once, whose top a bed's contract sets at the
-	# comforter's top, so the two z-fought.
-	var hover := trigger.get_node("SeatHover") as MeshInstance3D
-	var hmat := hover.mesh.surface_get_material(0) as StandardMaterial3D
-	var box_top := (trigger.get_node("CollisionShape3D") as Node3D).position.y + rest_box.size.y * 0.5
-	_ok(hover.mesh is PlaneMesh and hmat != null and hover.position.y > box_top + 0.015,
-		"press: the light is a square clear over the cushion's box (%.3f over its top), so nothing fights it" % (hover.position.y - box_top))
+	# The light was the whole box once, whose top a bed's contract sets at the comforter's top, so the two z-fought; then a
+	# square floated over it. It is a Decal now: no surface of its own to fight, painted on whatever is under it.
+	var hover := trigger.get_node_or_null("SeatHover")
+	_ok(hover is Decal and not (hover is GeometryInstance3D),
+		"press: the light is a decal painted on the cushion, no surface of its own to z-fight it")
 	laser.call("pointer_event", _event(XRToolsPointerEvent.Type.EXITED, laser))
 	# Sat on, the cushion is under the sitter and a laser leaves the hand pointing forward: its slab grows toward the knees
 	# and the sides, and shrinks back when they get up. The Area3D the desktop uses keeps its size.
@@ -740,6 +761,92 @@ func _group_pair() -> void:
 # --- contract ------------------------------------------------------------------
 
 ## Every RETRO XR seat and bed, built from its model's contract (ContractSeat), through the rig, each place pressed.
+# --- aim ----------------------------------------------------------------------
+
+## Aimed at the place you sit or lie on, a laser must hit THAT place's trigger, never the furniture (which a press then
+## carries off). Reported 2026-11-17: "depending on where I point, I sometimes select the whole object". Every bed's
+## trigger was FLUSH with its mattress (two coplanar faces: which one a ray reports is arbitrary), the mattresses were wider,
+## and every cushion's front was the body's. A ray as a headset's laser casts it (bodies only), from a standing hand
+## in front of each place, at a grid on the place's top and along its front edge 2 cm down. An edge ray that first meets
+## something HIGHER than the place (an arm, a racecar's side) is that thing's, and passes.
+func _group_aim() -> void:
+	var space := get_viewport().world_3d.direct_space_state
+	for id: String in ScenePersistence.SEAT_FURNITURE_IDS:
+		var seat := (ScenePersistence.PLAIN_SCENES[id] as PackedScene).instantiate() as ContractSeat
+		seat.freeze = true
+		seat.transform = Transform3D(Basis(Vector3.UP, 0.7), Vector3(-6.0, 0.0, 6.0))
+		add_child(seat)
+		await _frames(2)
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		var missed: Array[String] = []
+		var rays := 0
+		var lasers: Array = []
+		for p: Dictionary in seat.places():
+			lasers.append((p["trigger"] as SeatTrigger).laser_body())
+		for p: Dictionary in seat.places():
+			var trigger := p["trigger"] as SeatTrigger
+			var hb := trigger.hover_box
+			var fwd := -(p["eye"] as Node3D).global_basis.z
+			fwd.y = 0.0
+			fwd = fwd.normalized()
+			var right := Vector3.UP.cross(fwd).normalized()
+			var top_c := trigger.to_global(hb.position + Vector3(0.0, hb.size.y * 0.5 - 0.03, 0.0))
+			var trigger_top := trigger.to_global(Vector3(0.0, ((trigger.get_node("CollisionShape3D") as CollisionShape3D).shape as BoxShape3D).size.y * 0.5, 0.0)).y
+			# Half-extents along the place's own right / forward, in the world.
+			var hx := absf((trigger.global_basis * Vector3(hb.size.x, 0.0, 0.0)).dot(right)) * 0.5 + absf((trigger.global_basis * Vector3(0.0, 0.0, hb.size.z)).dot(right)) * 0.5
+			var hz := absf((trigger.global_basis * Vector3(hb.size.x, 0.0, 0.0)).dot(fwd)) * 0.5 + absf((trigger.global_basis * Vector3(0.0, 0.0, hb.size.z)).dot(fwd)) * 0.5
+			var hand := top_c + fwd * (hz + 0.8) + Vector3.UP * 0.8
+			for u in [-0.85, 0.0, 0.85]:
+				for v in [-0.6, 0.0, 0.85]:
+					var at: Vector3 = top_c + right * hx * float(u) + fwd * hz * float(v)
+					rays += 1
+					var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(hand, at + (at - hand).normalized() * 0.3))
+					if not _aim_ok(hit, lasers, trigger_top):
+						missed.append("%s top (%.2f,%.2f) -> %s" % [trigger.name, u, v, str(hit.get("collider", "nothing"))])
+				# The front edge, 2 cm under the top, from a hand lower and nearer.
+				var edge: Vector3 = top_c + right * hx * float(u) + fwd * hz + Vector3.UP * -0.02
+				var low := edge + fwd * 0.6 + Vector3.UP * 0.35
+				rays += 1
+				var eh := space.intersect_ray(PhysicsRayQueryParameters3D.create(low, edge + (edge - low).normalized() * 0.3))
+				if not _aim_ok(eh, lasers, trigger_top):
+					missed.append("%s front (%.2f) -> %s at %s" % [trigger.name, u, str(eh.get("collider", "nothing")), str(eh.get("position"))])
+		_ok(missed.is_empty(), "aim: %s: every ray at a place hits its trigger, not the furniture (%d/%d)%s" % [id, rays - missed.size(), rays,
+			"" if missed.is_empty() else ": " + "; ".join(missed.slice(0, 4))])
+		seat.queue_free()
+		await _frames(2)
+	# The papasan's place is reached over its bowl: the trigger covers the shell's top, and its base is still the body.
+	var shell := ContractSeat.fit_trigger(Vector3(0, 0.46, 0.06), Vector3(0.84, 0.03, 0.8),
+		[[Vector3(0, 0.15, 0), Vector3(0.6, 0.3, 0.6)], [Vector3(0, 0.56, 0.085), Vector3(1.14, 0.52, 1.13)]])
+	var s_top: float = (shell[0] as Vector3).y + (shell[1] as Vector3).y * 0.5
+	_ok(is_equal_approx(s_top, 0.82 + ContractSeat.TRIGGER_PROUD) and (shell[1] as Vector3).x > 1.14,
+		"aim: a place buried in a shell box (the papasan's bowl) is reached over the shell's top (%s)" % str(shell))
+	# A flush bed: the trigger is lifted clear of the mattress and covers its sides.
+	var flush := ContractSeat.fit_trigger(Vector3(0, 0.73, 0), Vector3(1.52, 0.03, 2.0), [[Vector3(0, 0.5, 0), Vector3(1.64, 0.49, 2.08)]])
+	_ok(is_equal_approx((flush[0] as Vector3).y + (flush[1] as Vector3).y * 0.5, 0.745 + ContractSeat.TRIGGER_PROUD)
+			and is_equal_approx((flush[1] as Vector3).x, 1.64 + ContractSeat.TRIGGER_OUTSET * 2.0),
+		"aim: a trigger flush with its mattress is lifted clear of it and covers the mattress's sides (%s)" % str(flush))
+
+
+## A laser's hit at a place is right when it is one of the seat's places, or something TALLER than the place (an arm, a
+## racecar's wall) standing in the way: the top of the shape it hit is over the trigger's.
+func _aim_ok(hit: Dictionary, lasers: Array, trigger_top: float) -> bool:
+	if hit.is_empty():
+		return false
+	if hit["collider"] in lasers:
+		return true
+	var body := hit["collider"] as CollisionObject3D
+	var owner_id := body.shape_find_owner(int(hit["shape"]))
+	var cs := body.shape_owner_get_owner(owner_id) as CollisionShape3D
+	if cs == null or not cs.shape is BoxShape3D:
+		return false
+	var half := (cs.shape as BoxShape3D).size * 0.5
+	var top := -INF
+	for corner in [Vector3(half.x, half.y, half.z), Vector3(-half.x, half.y, -half.z)]:
+		top = maxf(top, cs.to_global(corner).y)
+	return top > trigger_top + 0.005
+
+
 func _group_contract() -> void:
 	_make_rig()
 	await _frames(2)

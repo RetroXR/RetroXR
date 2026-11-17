@@ -20,6 +20,11 @@ extends Seat
 
 ## The model's contract.
 @export_file("*.json") var contract_path := ""
+## A round seat (a round cushion, a pouf, a stool): its places light as an ellipse, not a rounded rectangle
+## (SeatTrigger.round_shape). The contract does not say.
+@export var round_seat := false
+## A bowl's sides rise over its places' boxes: their light starts this much higher (SeatTrigger.hover_rise), metres.
+@export var hover_rise := 0.0
 
 ## How far toward the foot of a bed, past the head on the pillow, a press LIES down (the rest of the mattress sits).
 const LIE_ZONE_PAST_EYE := 0.25
@@ -207,19 +212,99 @@ func _build_places() -> void:
 		# The trigger is turned to the place's heading: seated, its laser slab grows toward the sitter's knees, its -Z
 		# (SeatTrigger.stand_zone), and these seats face +Z (a bed's edge +X).
 		var turn := Basis(Vector3.UP, Seat.yaw_of(eye.basis))
+		var fit := fit_trigger(r[2], r[3], _collision_rows())
 		var trigger := SeatTrigger.new()
 		trigger.name = "SeatTrigger" + suffix
-		trigger.transform = Transform3D(turn, r[2])
+		trigger.transform = Transform3D(turn, fit[0])
 		var shape := CollisionShape3D.new()
 		shape.name = "CollisionShape3D"
 		var box := BoxShape3D.new()
-		box.size = (turn.inverse() * (r[3] as Vector3)).abs()
+		box.size = (turn.inverse() * (fit[1] as Vector3)).abs()
 		shape.shape = box
 		trigger.add_child(shape)
+		# The light keeps the contract's place: the cushion, not the box grown over its edges.
+		trigger.hover_box = AABB(turn.inverse() * ((r[2] as Vector3) - (fit[0] as Vector3)), Vector3.ZERO)
+		trigger.hover_box.size = (turn.inverse() * (r[3] as Vector3)).abs()
+		if not (fit[1] as Vector3).is_equal_approx(r[3]) or not (fit[0] as Vector3).is_equal_approx(r[2]):
+			print("[Seat] %s %s: the place's trigger fitted over the surface it marks: %s at %s (contract %s at %s)" % [
+				name, trigger.name, str(fit[1]), str(fit[0]), str(r[3]), str(r[2])])
+		trigger.round_shape = round_seat
+		trigger.hover_rise = hover_rise
 		trigger.eye_point = NodePath("../" + eye.name)
 		trigger.stand_point = NodePath("../" + stand.name)
 		add_child(trigger)
 		_places.append({"trigger": trigger, "eye": eye, "stand": stand, "lie": r[4]})
+
+
+## A place's trigger must WIN the ray over the body on the whole surface it marks, or aiming there picks the seat up
+## instead of sitting. Measured on the contracts (2026-11-17): every bed's trigger top was FLUSH with its mattress box's
+## (which of two coplanar faces a ray reports is arbitrary), the mattresses were wider than their triggers (±0.82 m vs
+## ±0.76), a rocker's seat reached 4 cm past its trigger's front, and on every seat the cushion's front and sides, under a
+## 3 cm slab, were the body's: aimed at a cushion's front edge from standing, the seat was lifted.
+## The SURFACE is every collision box overlapping the trigger whose top is no more than SURFACE_BELOW under the
+## trigger's top (higher ones are backs and arms, deliberately the body's). The trigger's top is kept TRIGGER_PROUD over it,
+## each side of the trigger the surface overhangs by no more than EDGE_SNAP is pushed to OUTSET past the surface's edge
+## (farther is a sofa's seat running under its back: left alone), and its bottom goes TRIGGER_DROP under the surface's top,
+## so the top of the cushion's front and sides is the trigger's. Legs, base, back and arms stay the body to carry it by.
+const TRIGGER_PROUD := 0.03
+const SURFACE_BELOW := 0.08
+const EDGE_SNAP := 0.1
+const TRIGGER_OUTSET := 0.02
+const TRIGGER_DROP := 0.06
+
+
+## `centre`/`size`: the contract's trigger, in the seat's frame; `boxes`: [[centre, size], ...] the collision boxes.
+## Returns [centre, size] of the fitted trigger. Pure.
+static func fit_trigger(centre: Vector3, size: Vector3, boxes: Array) -> Array:
+	var lo := centre - size * 0.5
+	var hi := centre + size * 0.5
+	var surface_top := -INF
+	var s_lo := Vector3(INF, 0.0, INF)
+	var s_hi := Vector3(-INF, 0.0, -INF)
+	for b: Array in boxes:
+		var b_lo: Vector3 = (b[0] as Vector3) - (b[1] as Vector3) * 0.5
+		var b_hi: Vector3 = (b[0] as Vector3) + (b[1] as Vector3) * 0.5
+		if b_hi.x <= lo.x or b_lo.x >= hi.x or b_hi.z <= lo.z or b_lo.z >= hi.z:
+			continue
+		# A SHELL: one box round the place, over its middle and above it (the papasan's bowl is one solid box from
+		# 0.30 to 0.82 m, its trigger at 0.475 buried inside: every laser met the bowl). The trigger wraps the shell from
+		# its top down to TRIGGER_DROP under the place (the box's front is a wall to 0.82 m where the real bowl dips, so a
+		# ray at the front of the cushion met it); under that, the shell and its base stay the body.
+		if b_hi.y > hi.y + 0.001 and b_lo.y < lo.y and b_lo.x <= centre.x and b_hi.x >= centre.x \
+				and b_lo.z <= centre.z and b_hi.z >= centre.z:
+			var top := b_hi.y + TRIGGER_PROUD
+			var c_lo := Vector3(b_lo.x - TRIGGER_OUTSET, maxf(b_lo.y, hi.y - TRIGGER_DROP), b_lo.z - TRIGGER_OUTSET)
+			var c_hi := Vector3(b_hi.x + TRIGGER_OUTSET, top, b_hi.z + TRIGGER_OUTSET)
+			return [(c_lo + c_hi) * 0.5, c_hi - c_lo]
+		if b_hi.y > hi.y + 0.001 or b_hi.y < hi.y - SURFACE_BELOW:
+			continue
+		surface_top = maxf(surface_top, b_hi.y)
+		s_lo = Vector3(minf(s_lo.x, b_lo.x), 0.0, minf(s_lo.z, b_lo.z))
+		s_hi = Vector3(maxf(s_hi.x, b_hi.x), 0.0, maxf(s_hi.z, b_hi.z))
+	if surface_top == -INF:
+		return [centre, size]
+	hi.y = maxf(hi.y, surface_top + TRIGGER_PROUD)
+	lo.y = minf(lo.y, surface_top - TRIGGER_DROP)
+	if s_lo.x < lo.x + 0.001 and lo.x - s_lo.x <= EDGE_SNAP:
+		lo.x = s_lo.x - TRIGGER_OUTSET
+	if s_hi.x > hi.x - 0.001 and s_hi.x - hi.x <= EDGE_SNAP:
+		hi.x = s_hi.x + TRIGGER_OUTSET
+	if s_lo.z < lo.z + 0.001 and lo.z - s_lo.z <= EDGE_SNAP:
+		lo.z = s_lo.z - TRIGGER_OUTSET
+	if s_hi.z > hi.z - 0.001 and s_hi.z - hi.z <= EDGE_SNAP:
+		hi.z = s_hi.z + TRIGGER_OUTSET
+	return [(lo + hi) * 0.5, hi - lo]
+
+
+## The contract's collision boxes as [[centre, size], ...].
+func _collision_rows() -> Array:
+	var out: Array = []
+	var collision: Dictionary = _contract.get("collision", {})
+	for key: String in collision:
+		if collision[key] is Array:
+			for row: Dictionary in collision[key]:
+				out.append([_v3(row["centre"]), _v3(row["size"])])
+	return out
 
 
 ## A contract marker's z axis (its +Z: -Z is the way the eyes look), or `fallback`.
