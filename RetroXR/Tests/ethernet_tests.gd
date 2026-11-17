@@ -566,7 +566,7 @@ func _test_card_out_takes_the_console_off() -> void:
 const COVER_SOCKET := "serial_port_1"
 const COVER_SIZE := Vector3(0.1, 0.02, 0.04)
 ## Any model will do for a shell that only has to exist and load.
-const TEST_SHELL := "res://imported-assets/bedroom/exterior/house_a.glb"
+const TEST_SHELL := "res://imported-assets/consoles/nes/nes_console.glb"
 
 
 ## The stand-in box with a cover over its card socket, as a mod's shell has.

@@ -12,85 +12,17 @@ credits.
 
 === CC BY 4.0 — attribution REQUIRED ============================================
 
-furniture/bed_desk_chair.glb
-    "Bedroom Furniture Set - Game Ready" by General of Thailand (@Melonpolygons)
-    https://sketchfab.com/3d-models/bedroom-furniture-set-game-ready-c30a07d2f8bc4f0a843f1629c5ef78c4
-    14.5k tris. Bed, desk and chair are ONE mesh — they cannot be placed
-    separately. Its second mesh, "Plane_2_0", is the Sketchfab viewer's backdrop
-    grid baked into the download; the scene hides it.
-
-    The bedding was green. bed_Image_1.png is MODIFIED: Tools/recolour_texture.py
-    rewrites just its green hue band to a warm oatmeal. The untouched download is
-    kept beside it as bed_Image_1_source.png, which is what the tool reads, so the
-    colour can be redone without fetching the asset again.
-
-furniture/bookcases.glb
-    "Wooden Bookcases with Books" by Matthew Collings (@mtcollings)
-    https://sketchfab.com/3d-models/wooden-bookcases-with-books-d0618ac16b2a4a87b9b6c7d5e6765626
-    7.1k tris, two bookcases with books already shelved.
-
 furniture/ceiling_fan.glb
     "Ceiling Fan" by lucaboechat
     https://sketchfab.com/3d-models/ceiling-fan-7fe2a7dd27b2467da79c935a32de0eb2
     3.9k tris. Cherry blades, bronze housing, amber glass shade — fan and
     ceiling fixture in one asset.
 
-furniture/tv_stand_corner.glb
-    "3D Corner TV Stand - Wood (Free .fbx)" by Manix3D (@manix3d)
-    https://sketchfab.com/3d-models/3d-corner-tv-stand-wood-free-fbx-d515f335c3b84ab98d0a39131d2f4a34
-    25.4k tris — the heaviest single object in the room. Decimate if the scene
-    comes in over budget.
-
-furniture/chair.glb
-    "Old Computer Chair" by Slava Izvekov (@guantanamera)
-    https://sketchfab.com/3d-models/old-computer-chair-a311529b1ec349c48f789bf4e1f99e89
-    3.9k tris. Wooden seat and back on a chrome 5-star pedestal. Faces +Z.
-
-furniture/door.glb
-    Extracted from "Interior Trim Assets" by Roman (@janwama) — see above.
+furniture/door.glb  (+ trim_kit_0.jpg)
+    Extracted from "Interior Trim Assets" by Roman (@janwama).
     The door leaf, jambs, knob and hinges joined into one object.
 
-furniture/nightstand.glb
-    "nightstand" by ilyafom1
-    https://sketchfab.com/3d-models/nightstand-ac166ce0807345a385b051b06f7960f1
-    864 tris. Drawer over a cupboard, and the drawer is modelled pulled OPEN —
-    it is one mesh with the carcass, so it cannot be closed. That stretches the
-    AABB 0.16 m past the carcass in +X, which is why the scene's footprint comes
-    off the top slab instead. Front is +X.
-
-furniture/light_switch.glb
-    "Simple Light Switch" by BillieBones
-    https://sketchfab.com/3d-models/simple-light-switch-32d02fa06d474f4db5a433aa134be612
-    792 tris. Ships BOTH plate variants side by side, as Object_3 and Object_5 —
-    the author supplies a plain white texture and a grungy one. The scene keeps
-    the grungy Object_5, whose toggle actually reads at arm's length, and hides
-    the other. Front is +Z, and the plate leans ~13 deg off vertical as modelled.
-
 === CC0 — no attribution required, given anyway =================================
-
-furniture/table_lamp.glb
-    "CC0 - Table Lamp 7" by plaggy
-    https://sketchfab.com/3d-models/cc0-table-lamp-7-2de8c76c71504ab9add386fce27204c8
-    4.7k tris. Arrives at real-world scale and centred on its own origin, so
-    seating it on a surface is one half-height lift. Used twice — bedside and
-    desk.
-
-props/throw_pillows_01_*  (+ props/textures/)
-    "Throw Pillows 01" by Serhii Khromov — Poly Haven
-    https://polyhaven.com/a/throw_pillows_01
-    6.4k tris across TWO separate pillow meshes, so one download scatters as
-    several cushions: each scene instance hides one and re-skins the other.
-    Its diffuse is dropped — the bold chevron print lives only there, at 0.772
-    mean saturation, while the normal map carries just folds and the roughness
-    just weave. Flat albedo plus those two gives plain fabric.
-
-props/potted_plant_04_*  (+ props/textures/)
-    "Potted Plant 04" by James Ray Cock — Poly Haven
-    https://polyhaven.com/a/potted_plant_04
-    8.9k tris, 0.27 m tall. Chosen over Potted Plant 01 and 02 on cost, not
-    looks: those are 96k and 70k triangles, either of them more than every other
-    object in this room put together, and both are floor plants rather than the
-    desk-sized one wanted here.
 
 materials/Plaster001_*
     "Plaster 001" — ambientCG, surface photogrammetry
@@ -162,18 +94,6 @@ materials/Ground048_*
     "Ground 048" — ambientCG
     https://ambientcg.com/a/Ground048
     Bare earth for the planting beds.
-
-props/periwinkle_plant_1k.gltf  (+ props/textures/)
-    "Periwinkle Plant" — Poly Haven
-    https://polyhaven.com/a/periwinkle_plant
-    67k tris. Eight of them across a foundation bed and two beds out in the lawn.
-
-    Affordable only because THIS room targets PCVR. The same library's potted
-    plants were turned down earlier in this file at 96k and 70k on the Quest
-    budget, and its grass tufts are photoscans — grass_medium_01 is 1.6 MILLION
-    polygons and is not usable at any quality tier.
-
-exterior/  — see exterior/LICENSE-exterior.txt (Kenney + Quaternius, both CC0).
 
 
 All models downloaded 2026-07-28 at 1K texture resolution. Sketchfab offers up
