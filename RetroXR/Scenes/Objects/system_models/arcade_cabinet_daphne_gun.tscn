@@ -375,7 +375,7 @@ size = Vector3(0.84, 0.4, 0.02)
 
 [sub_resource type="BoxMesh" id="BoxMesh_5tjfe"]
 material = SubResource("StandardMaterial3D_mvv5h")
-size = Vector3(0.84, 0.012, 0.022)
+size = Vector3(0.844, 0.013, 0.022)
 
 [sub_resource type="BoxMesh" id="BoxMesh_q81ci"]
 material = SubResource("StandardMaterial3D_8126q")
@@ -967,7 +967,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, -0.01)
 mesh = SubResource("BoxMesh_xcvhl")
 
 [node name="DoorTrim" type="MeshInstance3D" parent="Bay/DoorPivot" unique_id=264300074]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.394, -0.009)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3945, -0.01)
 mesh = SubResource("BoxMesh_5tjfe")
 
 [node name="DoorHandle" type="MeshInstance3D" parent="Bay/DoorPivot" unique_id=963870558]

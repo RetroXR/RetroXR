@@ -2333,7 +2333,10 @@ func _build_bay() -> void:
 	# The door: a drop-down panel hinged on its bottom edge, +X the hinge axis.
 	var pivot := ArcadeParts.node(_owner, bay, "Node3D", "DoorPivot", Vector3(0, 0.10, 0.40)) as Node3D
 	ArcadeParts.box(_owner, pivot, "DoorMesh", Vector3(_in_w - 0.02, 0.40, 0.02), Vector3(0, 0.20, -0.01), _body)
-	ArcadeParts.box(_owner, pivot, "DoorTrim", Vector3(_in_w - 0.02, 0.012, 0.022), Vector3(0, 0.394, -0.009), _trim)
+	# The trim WRAPS the door's top edge, proud of it on every side (2 mm at the ends, 1 mm
+	# over the top and through both faces): at the door's own width and top it shared three
+	# faces with it and the red z-fought the body colour along the edge and at the ends.
+	ArcadeParts.box(_owner, pivot, "DoorTrim", Vector3(_in_w - 0.016, 0.013, 0.022), Vector3(0, 0.3945, -0.01), _trim)
 	ArcadeParts.box(_owner, pivot, "DoorHandle", Vector3(0.12, 0.018, 0.016), Vector3(0, 0.36, 0.008), _metal)
 	# The grab box rides the door (a child of the pivot), so a door that has swung open
 	# can still be taken hold of. It covers the HANDLE STRIP along the top edge only: a box
