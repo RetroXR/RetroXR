@@ -113,6 +113,8 @@ var _carried: Array[Node3D] = []
 ## lead's plug out of its socket; nothing is carried until it has once stood still.
 var _carry_from := Transform3D.IDENTITY
 var _still := 0
+## Frames moved since what is inside was last collected (full to start: the first move collects).
+var _since_collect := 1 << 20
 ## Physics frames standing still before the insides are let go.
 const CARRY_SETTLE := 30
 ## How far the glow on a panel (ArcadePanelGlow) stands clear of its stick and buttons, metres.
@@ -212,6 +214,7 @@ func _ready() -> void:
 	_build_bay()
 	_build_leads()
 	_build_drive_mount()
+	_build_converter_mount()
 	_build_doors()
 	_build_lift_offs.call_deferred()
 	_watch_held.call_deferred()
@@ -517,8 +520,12 @@ func _physics_process(_delta: float) -> void:
 	var move := now * _carry_from.affine_inverse()
 	var moved := move.origin.length() > CARRY_MOVE or move.basis.get_rotation_quaternion().get_angle() > CARRY_MOVE
 	if moved:
-		if _still >= CARRY_SETTLE:
+		# collected as it starts moving, and again every CARRY_SETTLE frames it goes on moving: a cabinet carried from the moment
+		# it was spawned never stood still, and its cords, laid as it was carried, were left trailing back to where it had been
+		_since_collect += 1
+		if _still >= CARRY_SETTLE or _since_collect >= CARRY_SETTLE:
 			_collect_carried(_carry_from)
+			_since_collect = 0
 		_still = 0
 		# what rides with this machine whatever it was doing when it moved (its converter, frozen in it: a cabinet carried from
 		# the moment it was spawned never stood still long enough to collect it)
@@ -786,6 +793,38 @@ func _build_drive_mount() -> void:
 	zone.add_to_group(ScenePersistence.MOD_ZONE_GROUP)
 	add_child(zone)
 	zone.global_transform = Transform3D(at.global_basis.orthonormalized(), at.global_position)
+
+
+## A JAMMA cabinet's JVS-to-JAMMA converter's place (the owner, 2026-11-17: "make it snap in like the gd rom drive"): a snap zone
+## that takes one (ConverterMount), as the GD-ROM drive's, so a converter in it goes and is saved with the cabinet. At the model's
+## ConverterAnchor (its origin on the floor under the board, +Y up, +Z out of the cabinet's front), else on the floor straight
+## under the board, found down the model's own meshes. A cabinet without a JAMMA harness has none.
+func _build_converter_mount() -> void:
+	if _part("JammaLead") == null:
+		return
+	var xf: Transform3D
+	var at := _part("ConverterAnchor")
+	if at != null:
+		xf = Transform3D(at.global_basis.orthonormalized(), at.global_position)
+	else:
+		var board := _part("BoardAnchor")
+		if board == null:
+			return
+		var up := global_basis.y.normalized()
+		var floor_at: Variant = _surface_along(board.global_position - up * 0.03, -up, 0.8)
+		if floor_at == null:
+			return
+		xf = Transform3D(global_basis.orthonormalized(), (floor_at as Vector3) + up * 0.001)
+	var zone := (load("res://addons/godot-xr-tools/objects/snap_zone.tscn") as PackedScene).instantiate() as XRToolsSnapZone
+	zone.name = CONVERTER_MOUNT
+	zone.snap_require = NaomiHookup.CONV_GROUP
+	zone.grab_distance = 0.10
+	zone.add_to_group(ScenePersistence.MOD_ZONE_GROUP)
+	add_child(zone)
+	zone.global_transform = xf
+
+
+const CONVERTER_MOUNT := "ConverterMount"
 
 
 ## A JVS cabinet's I/O board (837-13551) at its JvsLead: a stand-in board (a mod dresses it, ArcadeBayShells kind

@@ -129,8 +129,15 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 	if harness != null and _port(cabinet, CAB_JVS) == null:
 		var conv := (load("res://Scenes/Objects/peripherals/jvs_jamma_converter.tscn") as PackedScene).instantiate() as Node3D
 		home.add_child(conv)
-		conv.global_transform = _converter_seat(cabinet, bay as Node3D)
-		if conv is RigidBody3D:
+		# Seated in the cabinet's converter mount (ArcadeCabinetFromModel.CONVERTER_MOUNT), as a GD-ROM drive is in its own: it goes
+		# and is saved with the cabinet. A cabinet without one: laid on its floor, frozen, riding with it (below).
+		var mount := (cabinet as Node).find_child(ArcadeCabinetFromModel.CONVERTER_MOUNT, true, false) as XRToolsSnapZone
+		if mount != null:
+			conv.global_transform = mount.global_transform
+			mount.pick_up_object(conv)
+		else:
+			conv.global_transform = _converter_seat(cabinet, bay as Node3D)
+		if mount == null and conv is RigidBody3D:
 			(conv as RigidBody3D).freeze = true
 			# Frozen on the cabinet's floor, inside its boxes: without this it threw the cabinet off itself.
 			var machine: Node = cabinet
@@ -146,7 +153,8 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 					(conv as XRToolsPickable).picked_up.connect(func(_p: Variant) -> void:
 						if conv.has_meta(RIDE_META):
 							conv.remove_meta(RIDE_META), CONNECT_ONE_SHOT)
-		_reseat_later(conv, cabinet, bay as Node3D)
+		if mount == null:
+			_reseat_later(conv, cabinet, bay as Node3D)
 		var jc := (load("res://Scenes/Objects/cables/jamma_cable.tscn") as PackedScene).instantiate() as Node3D
 		home.add_child(jc)
 		jc.global_position = conv.global_position + Vector3(0, 0.1, 0)
