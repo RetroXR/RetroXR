@@ -365,15 +365,17 @@ func _on_coin(player: int, pulse: ArcadeInputState.CoinPulse) -> void:
 	if bool(_host.get("is_powered_on")):
 		if _host.has_method("attract_touch"):
 			_host.call("attract_touch")
-		# Into a game still coming up, or behind coins still waiting: held. Otherwise straight in.
-		if not _escrow.is_empty() or not game_ready():
-			print("[Arcade] coin from player %d held: game ready=%s, %d already held, frame %d of %d" % [
-					player + 1, str(game_ready()), _escrow.total(), frames_run(), wait_frames()])
+		# Into a game still coming up, behind coins still waiting, or on the heels of the last coin (its pulse and gap not
+		# over: two pulses run together are ONE coin to the game, and the second credit was lost): held. Otherwise straight in.
+		if not _escrow.is_empty() or not game_ready() or _escrow.spacing():
+			print("[Arcade] coin from player %d held: game ready=%s, %d already held, last coin still going=%s, frame %d of %d" % [
+					player + 1, str(game_ready()), _escrow.total(), str(_escrow.spacing()), frames_run(), wait_frames()])
 			_escrow.hold(player)
 			_show_held()
 		else:
 			print("[Arcade] coin from player %d in at frame %d" % [player + 1, frames_run()])
 			pulse.insert()
+			_escrow.note_pulse()
 		return
 	# A cabinet that is off cannot take a coin: it goes through the mech and out into the cup.
 	var door := _door_of(player)
@@ -691,6 +693,12 @@ func _process(delta: float) -> void:
 		if not _service_wait.is_empty():
 			print("[Arcade] %d held service press(es) dropped: the cabinet is back to showing its game" % _service_wait.size())
 			_service_wait.clear()
+		# A run that ended straight into the attract (RetroSystem.attract_return: nobody at the cabinet) never passes through
+		# "off" below, so it is ended here. The bridge's frame count runs on across starts: left with the old run's base, the
+		# next game read as already up on its first frame and its coin went into a board still booting. The held coins stay
+		# held: the coin that asks for the next game is put in while the cabinet still attracts.
+		if _run_base >= 0:
+			_end_run(false)
 		# A finger on a cap or a hand on a stick starts the game, as a coin does.
 		_step_hands(delta)
 		_watch_for_use()
@@ -1093,11 +1101,12 @@ func _step_held_coins(delta: float, start_pressed: bool) -> bool:
 
 
 ## The core stopped (or never started): the run is over, and every coin still held rolls out into its cup.
-func _end_run() -> void:
+## `return_coins` false keeps them held (the cabinet went back to showing its game: _process).
+func _end_run(return_coins := true) -> void:
 	var was_running := _run_base >= 0
 	if was_running:
-		print("[Arcade] run ended after %d frames: %d held coin(s) back out, %d service press(es) dropped" % [
-				frames_run(), _escrow.total(), _service_wait.size()])
+		print("[Arcade] run ended after %d frames: %d held coin(s) %s, %d service press(es) dropped" % [
+				frames_run(), _escrow.total(), "back out" if return_coins else "kept", _service_wait.size()])
 	# A press that waited for a run is let go with it.
 	if was_running:
 		_service_wait.clear()
@@ -1110,7 +1119,8 @@ func _end_run() -> void:
 			if panel != null:
 				panel.reset_shift()
 				panel.rest()
-	_return_held()
+	if return_coins:
+		_return_held()
 	_letting_in = false
 	_start_hold = 0.0
 	_queued_start.clear()

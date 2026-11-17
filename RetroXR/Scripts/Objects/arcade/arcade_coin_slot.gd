@@ -203,34 +203,43 @@ func _process(delta: float) -> void:
 		if d < best_d:
 			best_d = d
 			best = c
-	if best == null or _refill > 0.0 or _held == null or _held.mesh == null:
+	if best == null or _held == null or _held.mesh == null:
 		if best == null:
 			_side.clear()
 		_hide_held()
 		return
 	var pose := held_coin_pose(PokeTip.tip_of(best), best.global_basis, slot_pos, slot_basis())
+	var went_in := hand_step(best.get_instance_id(), pose.origin, _refill <= 0.0)
+	if _refill > 0.0:
+		_hide_held()
+		return
 	_held.global_transform = pose
 	_held.visible = true
 	_held_by = best
-	# In: the token's centre crosses the mouth's plane going inward, inside the opening.
-	var into := insert_dir_world()
-	var rel := pose.origin - mouth()
-	var depth := rel.dot(into)
-	var sb := slot_basis()
-	var along := absf(rel.dot(sb.x))
-	var across := absf(rel.dot(sb.y))
-	var id := best.get_instance_id()
-	var was: float = _side.get(id, -1.0)
-	_side[id] = depth
-	var through := was < 0.0 and depth >= 0.0 and along <= slot_length * 0.5 + OPENING_SLACK and across <= OPENING_ACROSS
-	var was_in: bool = _side.get(-id, false)
-	var now_in := contains(pose.origin)
-	_side[-id] = now_in
-	if through or (now_in and not was_in):
+	if went_in:
 		_refill = REFILL_SECONDS
 		_hide_held()
 		Haptics.click(best, true, &"coin_slot")
 		coin_entered.emit(pose)
+
+
+## Where hand `id`'s token is now (`at`, world): true when it has just gone in, its centre crossing the mouth's plane going
+## inward inside the opening, or coming into the slot's box. Which side it is on is kept up whether or not the hand has a
+## token (`armed` false: the refill after one went in). It was not, and the fingertip that pushed a coin in and stayed there
+## was read 0.4 s later against where it had been BEFORE the push: a second coin from the one push.
+func hand_step(id: int, at: Vector3, armed: bool) -> bool:
+	var rel := at - mouth()
+	var depth := rel.dot(insert_dir_world())
+	var sb := slot_basis()
+	var along := absf(rel.dot(sb.x))
+	var across := absf(rel.dot(sb.y))
+	var was: float = _side.get(id, -1.0)
+	_side[id] = depth
+	var through := was < 0.0 and depth >= 0.0 and along <= slot_length * 0.5 + OPENING_SLACK and across <= OPENING_ACROSS
+	var was_in: bool = _side.get(-id, false)
+	var now_in := contains(at)
+	_side[-id] = now_in
+	return armed and (through or (now_in and not was_in))
 
 
 ## A loose token (ArcadeToken: one off a cash box, in a hand or not) pushed through the mouth goes in as a hand's does: its

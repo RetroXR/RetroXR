@@ -1230,6 +1230,17 @@ func _group_coin() -> void:
 	var near := ArcadeCoinSlot.held_coin_pose(slot.global_position + into * -0.01, hand, slot.global_position, sb)
 	_ok(far.basis.y.dot(hand.x) > 0.999, "coin: far from the slot a token lies in the hand, face across it")
 	_ok(near.basis.y.dot(sb.y) > 0.999 and near.basis.x.dot(sb.x) > 0.999, "coin: at the slot it stands in the slot's line")
+	# One push is one coin: the fingertip that pushed it in and stays there through the refill does not put in a second.
+	var hid := 424242
+	var out_at := slot.mouth() - into * 0.03
+	var in_box := slot.mouth() - into * 0.008
+	var past := slot.mouth() + into * 0.004
+	_ok(not slot.hand_step(hid, out_at, true), "coin: a token held out in front of the slot is not in")
+	_ok(slot.hand_step(hid, in_box, true), "coin: pushed into the slot's box it goes in")
+	_ok(not slot.hand_step(hid, past, false), "coin: the hand is empty while it refills")
+	_ok(not slot.hand_step(hid, past, true), "coin: a fingertip left in the slot through the refill is not a second coin")
+	slot.hand_step(hid, out_at, true)
+	_ok(slot.hand_step(hid, in_box, true), "coin: drawn back and pushed in again, it is another")
 	# (The coins above rolled out of a cabinet that is off: let the cup empty before counting it.)
 	await get_tree().create_timer(ArcadeCoinModule.RETURN_FALL_SECONDS + ArcadeCoinModule.RETURN_REST_SECONDS + 0.1).timeout
 	# Through the input: with the machine off a coin is not held for the core.

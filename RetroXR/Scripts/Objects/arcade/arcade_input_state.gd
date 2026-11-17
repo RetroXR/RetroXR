@@ -107,6 +107,14 @@ class CoinEscrow extends RefCounted:
 		_gap = 0.0
 		return out
 
+	## A coin went straight into the game (not through here): the next one, held or not, keeps a pulse and a gap from it.
+	func note_pulse() -> void:
+		_gap = ArcadeProfiles.COIN_PULSE_SECONDS + ArcadeProfiles.COIN_GAP_SECONDS
+
+	## Whether a coin put in now would run into the last one's pulse (two with no gap between them are one long coin).
+	func spacing() -> bool:
+		return _gap > 0.0
+
 	## The player whose coin goes into the game now, or -1. Only while `open` (the game can count it), the
 	## lowest player first, ArcadeProfiles.COIN_PULSE_SECONDS + COIN_GAP_SECONDS apart.
 	func next(delta: float, open: bool) -> int:

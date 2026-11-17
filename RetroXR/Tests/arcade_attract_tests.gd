@@ -651,6 +651,29 @@ func _group_coins() -> void:
 	door.insert_coin()
 	var straight: int = await _coin_edges(input, 0, ArcadeCoinModule.CREDIT_SECONDS + 0.4)
 	_ok(straight == 1 and input.held_coins(0) == 0, "coins: a coin into a game that is up goes straight in")
+	# Two landing together are still two: the second waits out the first one's pulse and gap (run together they were one).
+	await get_tree().create_timer(0.6).timeout
+	door.coin_inserted.emit(0)
+	door.coin_inserted.emit(0)
+	var together: int = await _coin_edges(input, 0, 1.5)
+	_ok(together == 2 and input.held_coins(0) == 0, "coins: two coins landing together are two credits (%d)" % together)
+
+	# Nobody at the cabinet: the run ends straight into the attract (never "off"), and the bridge's frame count runs on.
+	# The next game starts its own count: its coin waits for ITS boot, not read as up from the last run's frames.
+	input.frame_override = 5000
+	await _wait(2)
+	sys.is_powered_on = false
+	sys.attracting = true
+	await get_tree().create_timer(0.35).timeout
+	sys.attracting = false
+	sys.is_powered_on = true
+	await _wait(3)
+	_ok(input.frames_run() == 0 and not input.game_ready(),
+		"coins: a game started after a return to the attract counts its own frames (%d run)" % input.frames_run())
+	door.coin_inserted.emit(0)
+	await _wait(3)
+	_ok(input.held_coins(0) == 1 and not _coin_sent(input, 0), "coins: and its coin is held through its boot, not sent into it")
+	ret.button_pressed.emit()
 
 	# START on a game that has started lets a held coin in at once, and itself only after it.
 	sys.is_powered_on = false
@@ -666,7 +689,13 @@ func _group_coins() -> void:
 		if (m as ArcadeControlModule).player == 0:
 			panel = m as ArcadeControlModule
 	panel.set_attached(true)
-	await _wait(2)
+	# The keys are the cabinet's once its key map is in (a frame or more after the attach). Rewriting the InputMap RELEASES an
+	# action that is down (InputMap.action_erase_events), so a START pressed before that was let go again and never read.
+	var mapped := 0
+	while not input._owns_desktop_scope and mapped < 60:
+		await get_tree().process_frame
+		mapped += 1
+	_ok(input._owns_desktop_scope, "coins: attached, the cabinet's key map is in (%d frames)" % mapped)
 	_ok(input.held_coins(0) == 1 and not input.game_ready(), "coins: a coin held, the game not yet through its boot")
 	Input.action_press("RETRO_JOYPAD_START")
 	var start_bit := 1 << ArcadeProfiles.START_BIT

@@ -182,6 +182,23 @@ A model with `CashBoxLiftOff` also drops an `ArcadeToken` on acceptance. With no
 it still drops at the normal deposit position inside the cabinet.
 Refunds remove a banked token and keep the existing return-cup animation and pickup behavior.
 
+**Three ways a credit went wrong (2026-11-17), each with a case that was broken and went red.**
+- **A run that ends straight into the attract must still be ended.** `RetroSystem.attract_return`
+  (nobody at the cabinet) switches off and attracts in one call, so `ArcadeInput._process` never saw
+  "off" and `_run_base` kept the old run's value. The bridge's `GetFrameCount` runs on across starts
+  (only an abandoned wrapper starts again), so the next game read as up on its first frame and its
+  coin went into a board still booting. The attract branch now calls `_end_run(false)`: the run is
+  over, the held coins stay held. `arcade_attract_tests coins/`.
+- **A coin on the heels of another is held.** A coin into a game that is up went straight to
+  `CoinPulse.insert()`, which only restarts the timer: two within 0.1 s were one long pulse, one
+  credit, two coins banked. A straight coin now tells the escrow (`note_pulse`), and one that arrives
+  inside that pulse and gap (`spacing()`) is held and let in by `next()` as any held coin is.
+- **One push is one coin.** The slot takes a hand's token on either of two edges (the mouth's plane,
+  the pointer box), and the box stands 17 mm out past the mouth. Which side the hand was on was not
+  kept up during the 0.4 s refill, so a fingertip left in the slot was read afterwards against where
+  it had been before the push: a second coin. `ArcadeCoinSlot.hand_step` now runs every frame,
+  armed or not. `arcade_tests coin/`. A headset is still OWED.
+
 ### Loose cash-box coins (2026-11-16)
 
 Coins stay dynamic: no carry freeze, transform copying, fixed spill angle or automatic
