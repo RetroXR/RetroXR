@@ -520,6 +520,12 @@ func _physics_process(_delta: float) -> void:
 		if _still >= CARRY_SETTLE:
 			_collect_carried(_carry_from)
 		_still = 0
+		# what rides with this machine whatever it was doing when it moved (its converter, frozen in it: a cabinet carried from
+		# the moment it was spawned never stood still long enough to collect it)
+		for c in get_tree().get_nodes_in_group(NaomiHookup.CONV_GROUP):
+			var b := c as RigidBody3D
+			if b != null and b.freeze and b.get_meta(NaomiHookup.RIDE_META, null) == _pickable and not _carried.has(b):
+				b.global_transform = move * b.global_transform
 		for n in _carried:
 			if not is_instance_valid(n):
 				continue

@@ -138,6 +138,14 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 				machine = machine.get_parent()
 			if machine != null:
 				(conv as RigidBody3D).add_collision_exception_with(machine)
+				# It rides with its cabinet (ArcadeCabinetFromModel moves it as the cabinet moves) until a hand takes it: frozen in
+				# the room, it stayed where the cabinet had been spawned while the cabinet was carried to its place, and hung in
+				# the air (the owner, 2026-11-17: "THE JAMMA JVS ADAPTER IS STILL FLOATING IN THE AIR AFTER SPAWNING IT").
+				conv.set_meta(RIDE_META, machine)
+				if conv is XRToolsPickable:
+					(conv as XRToolsPickable).picked_up.connect(func(_p: Variant) -> void:
+						if conv.has_meta(RIDE_META):
+							conv.remove_meta(RIDE_META), CONNECT_ONE_SHOT)
 		_reseat_later(conv, cabinet, bay as Node3D)
 		var jc := (load("res://Scenes/Objects/cables/jamma_cable.tscn") as PackedScene).instantiate() as Node3D
 		home.add_child(jc)
@@ -194,6 +202,10 @@ static func _converter_seat(cabinet: Node, bay: Node3D) -> Transform3D:
 	if hit.is_empty() or machine == null or not machine.is_ancestor_of(hit["collider"] as Node):
 		return on_board
 	return Transform3D(bay.global_basis, hit["position"] as Vector3 + Vector3.UP * 0.001)
+
+
+## On a cabinet's converter: the machine it rides with (see seed_cords).
+const RIDE_META := &"naomi_rides_with"
 
 
 ## How long after a fresh cabinet's cords are laid its converter is set on the floor again: the cabinet's mesh (what the seat's ray
