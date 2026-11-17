@@ -413,8 +413,27 @@ func set_mains_region(id: String) -> void:
 	mains_region_changed.emit(id)
 
 
-func _ready() -> void:
+## Whether the autoload has been made. The FIRST AppPrefs is the autoload (every
+## autoload is made before any _ready runs, and before a suite can make its own),
+## and only it reads the player's file; a suite's fresh instance stays at the
+## defaults until it calls load_prefs() itself.
+static var _autoload_made := false
+
+
+## The saved prefs are read HERE, not in _ready. Mods is an earlier autoload and
+## registers the enabled mods from its own _ready, before this node's: a mod that
+## set a pref then (xenu.n64av's set_spawn_default) saved the DEFAULTS over the
+## player's file, and _ready read those back. Every saved pref came back at its
+## default at every launch, the welcome page's Don't Show Again among them
+## (2026-11-17). welcome_tests prefs/ holds a pref set before _ready to keep the file.
+func _init() -> void:
+	if _autoload_made:
+		return
+	_autoload_made = true
 	load_prefs()
+
+
+func _ready() -> void:
 	if mains_region.is_empty() or Connectors.problem(mains_region) != "":
 		mains_region = MainsRegions.for_locale(OS.get_locale())
 	# A member's initializer does not run its setter, so a fresh install (no

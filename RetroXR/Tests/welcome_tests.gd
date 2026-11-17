@@ -21,7 +21,7 @@ extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below -- it is checked before
 ## it has recorded itself.
-const EXPECTED_CASES := 60
+const EXPECTED_CASES := 61
 
 
 func _ready() -> void:
@@ -72,6 +72,27 @@ func _group_prefs() -> void:
 		"prefs/set_show_welcome saves it and says so, once", str(heard))
 	AppPrefs.show_welcome_changed.disconnect(listen)
 	AppPrefs.show_welcome = was
+	_restore_file(path, saved_file)
+
+	# A mod sets a pref while it registers, from Mods' _ready, which runs before
+	# AppPrefs' own: that save must keep what the player saved. AppPrefs read its
+	# file in _ready, so the save wrote the defaults over it and Don't Show Again
+	# came back on at every launch (2026-11-17). Made here as the autoload is made.
+	saved_file = _snapshot_file(path)
+	var script := AppPrefs.get_script() as GDScript
+	var on_disk := JsonStore.read_dict(path)
+	on_disk["show_welcome"] = false
+	on_disk["spawn_defaults"] = {}
+	JsonStore.write_dict(path, on_disk)
+	script.set("_autoload_made", false)
+	var early := script.new() as Node
+	script.set("_autoload_made", true)
+	early.set_spawn_default("welcome_tests_token", "welcome_tests_variant")
+	var kept := JsonStore.read_dict(path)
+	_ok(not bool(kept.get("show_welcome", true)) and early.get("show_welcome") == false
+		and (kept.get("spawn_defaults", {}) as Dictionary).has("welcome_tests_token"),
+		"prefs/a pref set before AppPrefs is ready keeps the player's saved prefs", str(kept.get("show_welcome")))
+	early.free()
 	_restore_file(path, saved_file)
 
 
