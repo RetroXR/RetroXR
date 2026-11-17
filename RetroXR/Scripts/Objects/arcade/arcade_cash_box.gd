@@ -5,8 +5,9 @@
 ##
 ## The coin doors stand on one panel hinged on its left edge (CoinPanel); swung open, the vault behind it is open and the tray
 ## stands on its floor. Its handle is a strip at the panel's right edge, so the slots and the returns on it are aimed at as
-## before; shut, a slab behind it keeps a pointer from reaching the tray through it. The vault's room is cut out of the cabinet's
-## collision and pointer boxes (RetroSystemModelArcadeCabinet.CASH_VAULT_META).
+## before; shut, a slab behind it keeps a pointer from reaching the tray through it. The vault's room AND its mouth (the panel's
+## thickness) are cut out of the cabinet's collision and pointer boxes (RetroSystemModelArcadeCabinet.CASH_VAULT_META); the
+## mouth is shut to coins by a wall of its own (PANEL_WALL) that stands only while the panel is shut.
 ##
 ## It is the model cabinets' cash box, the same code: an ArcadeCabinetFromModel that builds nothing but its CashBoxLiftOff, so
 ## the tray is a cover in a slot of its own (taken out, carried with its coins, put back, saved with its count), its coins are
@@ -28,12 +29,17 @@ const VAULT_WALL := 0.004
 const OPEN_DEG := 100.0
 ## Where the pointer slab behind the shut panel starts (the cabinet's coin-area pointer plate's bottom: 5 cm over the bay's top).
 const SLAB_BOTTOM := 0.55
+## The cabinet body's collision shape in the vault's mouth: the shut panel, to coins.
+const PANEL_WALL := "CashPanelWall"
+## How far past the panel's front face the mouth is cut out of the cabinet's collision.
+const MOUTH_CLEAR := 0.002
 
 var _vault: Node3D = null
 var _tray: MeshInstance3D = null
 var _panel_axis: Node3D = null
 var _panel_turn: Node3D = null
 var _pointer_slab: CollisionShape3D = null
+var _panel_wall: CollisionShape3D = null
 ## The box last seated in the vault (kept as the slot lets go of it on its way out of the tree).
 var _seated: PortCover = null
 
@@ -83,14 +89,19 @@ func setup(cabinet: Node3D, coins: Array) -> void:
 		_vault.add_child(_tray)
 		_tray.position = Vector3(0.0, VAULT_WALL + 0.001, -VAULT_DEPTH * 0.5)
 		_make_slot.call_deferred(_tray)
-	# the vault's room out of the cabinet's collision and pointer boxes
-	# to the panel's back face: the cabinet stays solid through the panel's thickness, so a shut panel holds coins in
+	# the vault's room out of the cabinet's collision and pointer boxes, and its mouth with it, through the panel's thickness
+	# A shut panel holds coins in by a wall of its own in the mouth (_add_panel_wall), gone while the panel is open. The
+	# cut stopped at the panel's back face at first, so the cabinet stayed solid across the OPEN mouth too: a held tray
+	# passes through the cabinet, its coins do not, and a loaded tray pulled out drove them into that unseen wall and
+	# dragged the cabinet with them (63 mm with thirty coins; the owner, 2026-11-17: "as i pull the coin box out, it can
+	# collide with the cabinet and it moves a bit there").
 	var room := AABB(_vault.position + Vector3(-w * 0.5, 0.0, -VAULT_DEPTH), Vector3(w, h, VAULT_DEPTH))
-	cabinet.set_meta(RetroSystemModelArcadeCabinet.CASH_VAULT_META, room)
+	cabinet.set_meta(RetroSystemModelArcadeCabinet.CASH_VAULT_META, AABB(room.position, room.size + Vector3(0.0, 0.0, PANEL_T + MOUTH_CLEAR)))
 	var host := cabinet.get_parent() as Node3D
 	if host != null and cabinet.has_method("configure_collision"):
 		cabinet.call_deferred("configure_collision", host)
 		_add_pointer_slab.call_deferred(host, AABB(room.position, room.size + Vector3(0.0, 0.0, PANEL_T + 0.01)))
+		_add_panel_wall.call_deferred(host, room)
 
 
 ## The coin face (the builder's CoinFace: the front between the bay's door and the control panel) with the panel's opening in
@@ -233,8 +244,27 @@ func _add_pointer_slab(host: Node3D, room: AABB) -> void:
 	_pointer_slab.global_position = cab.to_global(Vector3(room.get_center().x, (y0 + room.end.y) * 0.5, room.end.z - PANEL_T - 0.015))
 
 
-## Shut (within a few degrees), the slab stands; open, it is gone, and a token lying in a return cup (held still there, the
-## cup's) drops: the cup has swung away with the panel.
+## The shut panel to coins: a box of the cabinet's own body filling the vault's mouth (`room`'s front, the panel's thickness),
+## switched off while the panel is open (_physics_process).
+func _add_panel_wall(host: Node3D, room: AABB) -> void:
+	if not host is CollisionObject3D:
+		return
+	if is_instance_valid(_panel_wall):
+		_panel_wall.queue_free()
+	_panel_wall = CollisionShape3D.new()
+	_panel_wall.name = PANEL_WALL
+	var wall := BoxShape3D.new()
+	wall.size = Vector3(room.size.x, room.size.y, PANEL_T)
+	_panel_wall.shape = wall
+	host.add_child(_panel_wall)
+	var cab := get_parent() as Node3D
+	_panel_wall.global_transform = Transform3D(cab.global_basis.orthonormalized(),
+		cab.to_global(Vector3(room.get_center().x, room.get_center().y, room.end.z + PANEL_T * 0.5)))
+	_panel_wall.disabled = is_open()
+
+
+## Shut (within a few degrees), the slab and the wall stand; open, they are gone, and a token lying in a return cup (held still
+## there, the cup's) drops: the cup has swung away with the panel.
 var _was_open := false
 
 
@@ -244,6 +274,8 @@ func _physics_process(_delta: float) -> void:
 	var open := absf(_panel_turn.rotation.x) >= deg_to_rad(4.0)
 	if is_instance_valid(_pointer_slab) and _pointer_slab.disabled != open:
 		_pointer_slab.disabled = open
+	if is_instance_valid(_panel_wall) and _panel_wall.disabled != open:
+		_panel_wall.disabled = open
 	if open and not _was_open:
 		for c in _panel_turn.get_children():
 			if c is ArcadeCoinModule:

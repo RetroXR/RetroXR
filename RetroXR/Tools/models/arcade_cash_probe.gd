@@ -1,6 +1,6 @@
 ## The installed NAOMI Universal's actual cash-box mesh, dressed and seated by
 ## CoverSlots, through the same physics checks as the unattended synthetic tray.
-## Run windowed with -- --record [--pack=<path to xenu.naomiuniversal.zip>].
+## Run windowed with -- --record [--fast | --no-box | --seated] [--pack=<path to xenu.naomiuniversal.zip>].
 extends "res://Tests/arcade_cash_tests.gd"
 
 
@@ -9,6 +9,8 @@ func _ready() -> void:
 		await _run_no_box()
 	elif OS.get_cmdline_user_args().has("--fast"):
 		await _run_fast()
+	elif OS.get_cmdline_user_args().has("--seated"):
+		await _run_seated()
 	else:
 		await super()
 

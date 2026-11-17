@@ -23,6 +23,10 @@ var frame := 0
 var record_dir := "res://../build_out/coin_frames"
 var camera_focus: Node3D
 var camera: Camera3D
+## While set, every frame adds how far each coin in the tray is drawn from its place in it (_process).
+var _watch_drawn := false
+var _drawn_sum := 0.0
+var _drawn_count := 0
 
 
 func _ready() -> void:
@@ -108,7 +112,7 @@ func _ready() -> void:
 	table.queue_free()
 	var local_before: Array[Vector3] = []
 	for token in cabinet._cash_tokens:
-		local_before.append(tray.to_local(token.global_position))
+		local_before.append(_in_tray(token))
 	await _move(Vector3(-0.25, 0, 0), 45)
 	await _frames(30)
 	_ok(_contained() > 30, "shaking does not lose the pile through the floor", "%d remain" % _contained())
@@ -124,7 +128,7 @@ func _ready() -> void:
 	# below the old scripted 40-degree release threshold.
 	var shift := 0.0
 	for i in cabinet._cash_tokens.size():
-		shift = maxf(shift, tray.to_local(cabinet._cash_tokens[i].global_position).distance_to(local_before[i]))
+		shift = maxf(shift, _in_tray(cabinet._cash_tokens[i]).distance_to(local_before[i]))
 	_ok(shift > 0.003, "shake and tilt move coins relative to the tray", "shift %.4f m" % shift)
 	_ok(_all_loose(), "coins remain dynamic below the old spill threshold")
 	for i in 120:
@@ -241,7 +245,15 @@ func _draw_collision_tray() -> bool:
 
 
 func _inside(token: RigidBody3D) -> bool:
-	return tray.mesh.get_aabb().grow(0.008).has_point(tray.to_local(token.global_position))
+	return tray.mesh.get_aabb().grow(0.008).has_point(_in_tray(token))
+
+
+## Where a coin's body is in the tray: the tray as its collider has it (CashPhysics.tray_frame), which trails the drawn tray
+## while the box is carried.
+func _in_tray(token: RigidBody3D) -> Vector3:
+	var state := box.get_node_or_null("CashPhysics")
+	var frame: Transform3D = state.tray_frame() if state != null else tray.global_transform
+	return frame.affine_inverse() * token.global_position
 
 
 func _contained() -> int:
@@ -270,13 +282,17 @@ func _frames(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
 		if record:
-			var focus := camera_focus.global_position if camera_focus != null else box.global_position
-			camera.global_position = focus + Vector3(0.35, 0.55, 0.4)
-			camera.look_at(focus)
-			await RenderingServer.frame_post_draw
-			if frame % 3 == 0:
-				get_viewport().get_texture().get_image().save_png(record_dir.path_join("%05d.png" % frame))
-			frame += 1
+			await _capture()
+
+
+func _capture() -> void:
+	var focus := camera_focus.global_position if camera_focus != null else box.global_position
+	camera.global_position = focus + Vector3(0.35, 0.55, 0.4)
+	camera.look_at(focus)
+	await RenderingServer.frame_post_draw
+	if frame % 3 == 0:
+		get_viewport().get_texture().get_image().save_png(record_dir.path_join("%05d.png" % frame))
+	frame += 1
 
 
 func _run_fast() -> void:
@@ -305,6 +321,10 @@ func _run_fast() -> void:
 		hand._pick_up_object(box)
 		await _frames(10)
 		var from := hand.global_transform
+		var hold := box.get("_grab_driver") as Node3D
+		var off_hold := 0.0
+		var peak := 0.0
+		var last := box.global_position
 		var escaped_top := {}
 		var leaked := {}
 		var bounds := tray.mesh.get_aabb()
@@ -316,14 +336,22 @@ func _run_fast() -> void:
 			else:
 				hand.global_position = from.origin + (Vector3.RIGHT if leg == "side" else Vector3.UP) * 0.6 * smoothstep(0, 1, t)
 			await _frames(1)
+			off_hold = maxf(off_hold, box.global_position.distance_to(hold.global_position))
+			# (its axes against the hold's, about a radian each: a quaternion's angle is good to a milliradian only)
+			off_hold = maxf(off_hold, maxf((box.global_basis.x - hold.global_basis.x).length(), (box.global_basis.z - hold.global_basis.z).length()))
+			peak = maxf(peak, box.global_position.distance_to(last) * Engine.physics_ticks_per_second)
+			last = box.global_position
 			for token in previous_tokens:
 				var id := token.get_instance_id()
-				var at := tray.to_local(token.global_position)
+				var at := _in_tray(token)
 				if at.y >= bounds.end.y - 0.004:
 					escaped_top[id] = true
 				if not escaped_top.has(id) and not bounds.grow(0.025).has_point(at):
 					leaked[id] = true
 		_ok(leaked.is_empty(), "%s cannot pass through a solid wall" % leg, "%d leaks, %d through open top" % [leaked.size(), escaped_top.size()])
+		# The box itself is never slowed for its coins' sake (it was eased and held to 3 m/s until 2026-11-17).
+		_ok(off_hold < 0.0001 and (leg == "spin" or peak > 4.0), "%s: the box is where its hold puts it, at the speed asked" % leg,
+			"%.4f off at most, %.1f m/s at its fastest" % [off_hold, peak])
 	_finish()
 
 
@@ -364,3 +392,201 @@ func _run_no_box() -> void:
 	_ok(next != token and is_equal_approx(at.y, inner.position.y + 0.06), "deposit follows the cabinet after it moves")
 	await _frames(120)
 	_finish()
+
+
+## A box seated in its slot stands on its seat, whatever handed it there and wherever the slot then goes (the owner, 2026-11-17:
+## set in the cabinet and moved a bit, it "appears to be jumping up in to the cabinet in an odd area and then back down every
+## other frame"). The other legs seat the box where it already stands, which is the one case that never showed it.
+func _run_seated() -> void:
+	suite_tag = "cash-seated"
+	record = OS.get_cmdline_user_args().has("--record")
+	get_tree().create_timer(120).timeout.connect(func() -> void: get_tree().quit(1))
+	_setup()
+	await _frames(5)
+	var zone := cabinet._cash_zone
+	# (a recording watches the seat from a fixed place, so the box is SEEN to stand or to move; following the box, as the
+	# other legs' does, a box that jumped looked still)
+	camera_focus = Node3D.new()
+	add_child(camera_focus)
+	camera_focus.global_position = box.global_position + Vector3(0.1, 0.12, 0.05)
+	camera.fov = 60
+	# Empty, carried off and handed back to its slot from there (as a restore or a throw at the slot does).
+	hand.global_transform = box.global_transform
+	hand._pick_up_object(box)
+	await _move(Vector3(0, 0.3, 0), 60)
+	await _frames(30)
+	hand.drop_object()
+	zone.pick_up_object(box)
+	await _frames(90)
+	var rest := await _rest(zone)
+	_ok(rest.x < 0.0001, "handed to its slot, the box stays still", "%.4f m of travel" % rest.x)
+	_ok(rest.y < 0.0001, "handed to its slot, the box and its coin collider are on the seat", "%.4f m off" % rest.y)
+	# Full, in a slot that moves (its cabinet carried) and stops.
+	box.get_node("CashPhysics").free()
+	box.set_meta(cabinet.CASH_COINS_META, 60)
+	cabinet._cash_solid(box)
+	await _frames(240)
+	_eq(_contained(), 60, "the seated box holds sixty coins")
+	var mount := zone.get_parent() as Node3D
+	var from := mount.position
+	var trail := 0.0
+	var drawn := 0.0
+	for i in 30:
+		await get_tree().physics_frame
+		mount.position = from + Vector3(0.2, 0.0, 0.1) * smoothstep(0.0, 1.0, float(i + 1) / 30.0)
+		await _shown()
+		# (from the second tick: a grab driver at rest in a zone is woken by the zone's move a tick late, as for every seated thing)
+		if i > 0:
+			trail = maxf(trail, box.global_position.distance_to(zone.snap_pose_for(box).origin))
+		drawn = maxf(drawn, _drawn_error())
+	_ok(trail < 0.0001, "the box moves with its slot, never behind it", "%.4f m behind at most" % trail)
+	_ok(drawn < 0.0001, "in a moving slot the coins are drawn where they stand in the tray", "%.4f m off at most" % drawn)
+	await _frames(5)
+	rest = await _rest(zone)
+	_ok(rest.x < 0.0001, "its slot stopped, the box stays still", "%.4f m of travel" % rest.x)
+	_ok(rest.y < 0.0001, "its slot stopped, the box and its coin collider are on the seat", "%.4f m off" % rest.y)
+	_eq(_contained(), 60, "a moving slot keeps all sixty coins")
+	# The slot drops in one tick (a carried cabinet let go onto the floor).
+	mount.position.y -= 0.05
+	await _frames(5)
+	rest = await _rest(zone)
+	_ok(rest.x < 0.0001, "its slot dropped, the box stays still", "%.4f m of travel" % rest.x)
+	_ok(rest.y < 0.0001, "its slot dropped, the box and its coin collider are on the seat", "%.4f m off" % rest.y)
+	await _frames(60)
+	_ok(_contained() >= 55, "a dropped slot keeps the pile", "%d remain" % _contained())
+	# Carried at speed: the box is where the hand has it, the coin collider trails it, and the coins are drawn in the tray.
+	# (the recording follows the box from here)
+	camera_focus.queue_free()
+	camera_focus = null
+	camera.fov = 40
+	box.get_node("CashPhysics").free()
+	for token in get_tree().get_nodes_in_group(ArcadeToken.GROUP):
+		token.free()
+	box.set_meta(cabinet.CASH_COINS_META, 60)
+	cabinet._cash_solid(box)
+	await _frames(240)
+	hand.global_transform = box.global_transform
+	hand._pick_up_object(box)
+	await _move(Vector3(0, 0.3, 0), 45)
+	await _frames(30)
+	_eq(_contained(), 60, "lifted out of its slot with sixty coins")
+	# (a table just under the swing, to be let go over)
+	var worn := CoverSlots.worn_part(box)
+	var low := INF
+	for i in 8:
+		low = minf(low, (worn.global_transform * worn.get_aabb().get_endpoint(i)).y)
+	var table := StaticBody3D.new()
+	var top := CollisionShape3D.new()
+	var slab := BoxShape3D.new()
+	slab.size = Vector3(4, 0.1, 4)
+	top.shape = slab
+	table.add_child(top)
+	add_child(table)
+	table.global_position = Vector3(box.global_position.x, low - 0.02 - 0.05, box.global_position.z)
+	var hold := box.get("_grab_driver") as Node3D
+	var shell := box.get_node("CashCoinCollider") as Node3D
+	# The box JUMPS to the hand: a seated one stays in its seat until the hand is some 10 cm out, then catches it up at 2 to
+	# 6 m/s. Its coin collider goes after it no harder than MAX_CARRY_ACCEL, and no coin is thrown (0 to 7 of 30 were, by an
+	# ordinary pull, while the collider went after the box at 2 to 6 g).
+	var tps := float(Engine.physics_ticks_per_second)
+	var limit: float = box.get_node("CashPhysics").MAX_CARRY_ACCEL
+	var shell_last := shell.global_position
+	var shell_speed := 0.0
+	var hardest := 0.0
+	var fastest := 0.0
+	for i in 70:
+		await get_tree().physics_frame
+		if i < 3:
+			# 0.3 m in three ticks
+			hand.position.x += 0.1
+		var speed := shell.global_position.distance_to(shell_last) * tps
+		hardest = maxf(hardest, absf(speed - shell_speed) * tps)
+		fastest = maxf(fastest, speed)
+		shell_speed = speed
+		shell_last = shell.global_position
+	_ok(fastest > 0.5 and hardest < limit * 1.1, "the box jumps to the hand: its coin collider goes after it gently",
+		"%.1f m/s2 at its hardest, %.1f m/s at its fastest" % [hardest, fastest])
+	_ok(shell.global_position.distance_to(box.global_position) < 0.0001, "and reaches it", "%.4f m off" % shell.global_position.distance_to(box.global_position))
+	_eq(_contained(), 60, "and no coin is thrown")
+	var off_hold := 0.0
+	var behind := 0.0
+	drawn = 0.0
+	_watch_drawn = true
+	for i in 40:
+		await get_tree().physics_frame
+		# 1.1 m/s
+		hand.position.x += 1.1 / Engine.physics_ticks_per_second
+		await _shown()
+		off_hold = maxf(off_hold, box.global_position.distance_to(hold.global_position))
+		drawn = maxf(drawn, _drawn_error())
+		behind = maxf(behind, shell.global_position.distance_to(box.global_position))
+	_watch_drawn = false
+	_ok(off_hold < 0.0001, "carried, the box is where its hold puts it", "%.4f m off at most" % off_hold)
+	_ok(behind > 0.01, "carried at speed, the coin collider trails the box", "%.4f m behind" % behind)
+	_ok(drawn < 0.0001, "carried, the coins are drawn where they stand in the tray", "%.4f m off at most" % drawn)
+	# Between ticks too: the poses a frame is DRAWN from are interpolated (the project's physics interpolation), the tray's and
+	# each coin mesh's. Drawn on their bodies the coins trail the tray by 66 mm here; a few slide as the swing starts.
+	var drawn_mean := _drawn_sum / maxf(_drawn_count, 1)
+	_ok(_drawn_count > 0 and drawn_mean < 0.001, "carried, every frame draws the coins in the tray", "%.4f m off on average" % drawn_mean)
+	# Let go mid-swing: the coins end in the box, not where their collider trailed it.
+	hand.drop_object()
+	await _frames(2)
+	_eq(_contained(), 60, "let go mid-swing, the coins are in the box")
+	await _frames(150)
+	_ok(_contained() >= 55, "and stay in it as it lands", "%d remain" % _contained())
+	_finish()
+
+
+## Over `ticks`: how far the box travelled (x) and the farthest it or its coin collider stood from the slot's seat (y).
+func _rest(zone: XRToolsSnapZone, ticks: int = 60) -> Vector2:
+	var lo := Vector3.ONE * INF
+	var hi := Vector3.ONE * -INF
+	var off := 0.0
+	var shell := box.get_node_or_null("CashCoinCollider") as Node3D
+	for i in ticks:
+		await _frames(1)
+		var at := box.global_position
+		lo = lo.min(at)
+		hi = hi.max(at)
+		var seat := zone.snap_pose_for(box).origin
+		off = maxf(off, at.distance_to(seat))
+		if shell != null:
+			off = maxf(off, shell.global_position.distance_to(box.global_position))
+	return Vector2((hi - lo).length(), off)
+
+
+## From the start of a physics tick (where a test moves what it moves) to the frame that draws it: the box is then where its
+## hold put it this tick, and the coins' bodies, their collider and their meshes are all of one step.
+func _shown() -> void:
+	await get_tree().process_frame
+	if record:
+		await _capture()
+
+
+## What a frame draws while _watch_drawn: the interpolated tray and coin meshes, each coin's place in that tray against its
+## body's in the tray as its collider has it.
+func _process(_delta: float) -> void:
+	if not _watch_drawn:
+		return
+	var state := box.get_node_or_null("CashPhysics")
+	if state == null:
+		return
+	var drawn_tray := tray.get_global_transform_interpolated().affine_inverse()
+	for token in cabinet._cash_tokens:
+		if token.freeze or not _inside(token):
+			continue
+		var at := drawn_tray * (token.get_node("Mesh") as Node3D).get_global_transform_interpolated().origin
+		_drawn_sum += at.distance_to(_in_tray(token))
+		_drawn_count += 1
+
+
+## The farthest a coin in the tray is DRAWN from where its body stands in it: its mesh in the drawn tray, against its body in
+## the tray as its collider has it. Read after _shown.
+func _drawn_error() -> float:
+	var worst := 0.0
+	for token in cabinet._cash_tokens:
+		if token.freeze or not _inside(token):
+			continue
+		var at := tray.to_local((token.get_node("Mesh") as Node3D).global_position)
+		worst = maxf(worst, at.distance_to(_in_tray(token)))
+	return worst

@@ -201,9 +201,9 @@ Refunds remove a banked token and keep the existing return-cup animation and pic
 
 ### Loose cash-box coins (2026-11-16)
 
-Coins stay dynamic: no carry freeze, transform copying, fixed spill angle or automatic
-uprighting impulses. The beveled disc and corrected inertia remain. A balanced coin may
-stand on its edge; gravity and contacts decide its resting pose.
+Coins stay dynamic: no carry freeze, per-tick transform copying, fixed spill angle or
+automatic uprighting impulses. The beveled disc and corrected inertia remain. A balanced
+coin may stand on its edge; gravity and contacts decide its resting pose.
 
 `arcade_cash_physics.gd` lives on the box, independently of its cabinet. Held bodies are
 intangible to ordinary objects, so a separate coin-only `AnimatableBody3D` supplies its
@@ -212,17 +212,75 @@ mask; held tokens have mask zero and can be taken out. Released boxes use their 
 20 mm outward collision shell. `HeldObjectPhysics` skips generic rider coupling for this
 box: that query caps at eight and misses stacks.
 
-**Fast hand motion needs contacts AND matching physics poses.** The box follows the grab
-driver on physics ticks with a 30 ms critically damped response, capped at 3 m/s and
-12 rad/s; snap zones keep their exact target. The coin-only shell extends outward by the
-recent corner travel (four times the step plus two coin thicknesses, at least 20 mm).
-There is no lid. CCD on coins in a frozen box stalled their contact motion in this case;
-it is disabled there and restored on spill or box release. The guard is top-level so
-intermediate grab-driver writes cannot move it; `sync_to_physics` is ON, and the held box
-is displayed at the guard's completed solver pose. Without that last synchronization,
-recorded upward motion drew the floor a whole physics tick ahead of the coins, visibly
-passing through them, although steady headless checks passed. No coin pose or velocity
-is scripted. Abrupt stops can legitimately throw coins out of the open top.
+**Fast hand motion needs contacts AND matching physics poses, and the BOX is never the
+one slowed for them (2026-11-17).** `arcade_cash_physics.gd` only READS the box's pose:
+the box is wherever its hand, ray or slot put it, at full speed, as any held thing is.
+What may lag is the coin-only shell (`CashCoinCollider`), which nobody sees. Carried (a
+hand, a ray), the shell follows the box: toward it at the speed its distance allows (eased
+in over 30 ms when near, never faster than it can stop from, 3 m/s at most), its speed
+changed by `MAX_CARRY_ACCEL` (8 m/s2) at most, and turned with a 30 ms critically damped
+response capped at 12 rad/s, so a wall never crosses a coin between two steps; seated in a
+snap zone it is sent the box's own pose. It extends outward by its recent corner travel (four
+times the step plus two coin thicknesses, at least 20 mm). There is no lid. CCD on coins
+in a frozen box stalled their contact motion in this case; it is disabled there and
+restored on spill or box release. The shell is top-level with `sync_to_physics` ON, so
+its node is the solver's COMPLETED pose, a tick behind what it was sent: the pose the
+coins' bodies are at. Abrupt stops can legitimately throw coins out of the open top.
+
+- **Coins are drawn in the tray (`_draw_coins`).** Each coin inside the shell has its
+  `Mesh` child (never its body) set, on the physics tick, to `box * shell^-1 * coin`: the
+  place in the drawn tray that its body has in the shell. Drawn on their bodies they stood
+  through the tray's floor and walls by the shell's lag (a tick at least: the "floor a
+  whole physics tick ahead of the coins" of 2026-11-16; 66 mm at a 1.1 m/s carry). Nothing
+  is done while shell and box coincide (seated at rest, held still). A coin that leaves
+  the tray or is taken by a hand is drawn back onto its body over about 0.1 s. Sixty coins
+  cost 55 us a tick on the desktop while the box moves and 0.5 us at rest (GDScript; a
+  Quest figure is owed).
+- **One rigid hand-off ends a carry (`_hand_off`).** Let go, or taken by a slot, the shell
+  goes to the box at once and the coins in it go with it as one rigid thing, keeping their
+  motion in the tray. It is the one place a coin's pose or velocity is written. Without it
+  a box let go mid-swing left 19 of 60 coins where the shell had trailed, outside it.
+- **Ask a coin's place in the tray through `tray_frame()`** (the tray as the shell has
+  it), never through the drawn tray's transform: `watch()`, the suites and the probe do.
+- **The shell is gentle because it can be (`MAX_CARRY_ACCEL`, 2026-11-17).** A seated box
+  stays in its seat until the hand is some 10 cm out (the socket's hold, the grab driver's
+  preview, as for every seated thing) and then catches the hand up at 2 to 6 m/s, faster
+  than the hand. Eased by the 30 ms alone the shell went after it at 2 to 6 g, and an
+  ORDINARY pull threw coins out of the tray (0 to 7 of 30) and against the cabinet. Held
+  to 8 m/s2 it keeps all thirty through pulls of 0.8 s down to 0.15 s; 12 and 20 m/s2
+  still lost one to four now and then. It plans to slow at 0.8 of that and takes no lead
+  from the box's own speed, so it stays BEHIND the box, on the way the box came, and never
+  runs past a box that stops (into a wall the box stopped short of). The price is distance:
+  it trails by about v2 / 12.8 (8 cm at 1 m/s, 18 cm at 1.5 m/s) and arrives a few tenths
+  of a second after a fast move ends. Translation can no longer throw a coin out; tipping
+  the box still pours them. The turn is not limited this way (a tilt must pour at once).
+- **A held box passes through its cabinet; its coins do not.** They are room bodies pushed
+  by an immovable shell, so whatever stands in their way is shoved, and a cabinet weighs
+  1 kg. The generated cabinet's vault therefore has NO fixed collision across its mouth:
+  `ArcadeCashBox` cuts the room and the panel's thickness out of the cabinet's boxes and
+  shuts the mouth to coins with a shape of its own on the cabinet's body (`CashPanelWall`),
+  disabled while the panel is open, as the pointer slab is. The cut stopped at the panel's
+  back face for a day (so that a shut panel held coins in), which left 12 mm of cabinet
+  across the OPEN mouth: a loaded tray pulled out drove its coins into it and dragged the
+  cabinet 63 to 90 mm (the owner: "as i pull the coin box out, it can collide with the
+  cabinet and it moves a bit there"; an empty tray moved nothing). A pull far off to the
+  side (45 degrees) still takes the tray through the side of the mouth and its coins press
+  on the cabinet there (under 1 mm). A model cabinet's own collision round its cash box is
+  NOT checked by any suite.
+
+**Why (the flip, 2026-11-17).** Until then the box itself was eased and then redrawn at
+the shell's node pose, so the box's pose was both what the shell was sent to and what came
+back from it a tick later. In a hand the easing rewrote the box every tick. Seated,
+nothing did (a grab driver writes only when its destination changes, and stops ticking at
+rest), so the box's last two poses traded places for ever: the seat, and where it had been
+a tick before the last write (the owner: set in the cabinet and moved a bit, it "appears to
+be jumping up in to the cabinet in an odd area and then back down every other frame"). The
+shell is the coins' floor, so they were thrown each tick: a slot that dropped 5 cm in one
+tick (a cabinet let go onto the floor) emptied the box. Carried, the box trailed its hold
+by up to 246 mm and never passed 3 m/s. The suites seated the box where it already stood,
+the one case that never showed it. A box seated in a slot that starts to move is still one
+tick late on the first tick only: the zone wakes its resting grab driver after that tick's
+pass, as for every seated thing.
 
 **Coins belong to the box, not whichever cabinet last dressed it.** Loose saved boxes
 restore their pile when dressed on load, before insertion. The helper restores only once;
@@ -246,8 +304,19 @@ this missing-box change does not alter it.
 
 `arcade_cash_tests` covers ordinary acceptance, carry, release and tilt (23 checks).
 `arcade_cash_fast_tests` checks translation and yaw with 60 coins, allowing escape through
-the open top but rejecting solid-wall crossings (6 checks). Requested motion peaks at
-4.5 m/s translation and 675 degrees/s yaw; the box's carry limits apply.
+the open top but rejecting solid-wall crossings, and that the box is on its hold at every
+tick at the speed asked (9 checks). Requested motion peaks at 4.5 m/s translation and
+675 degrees/s yaw; the carry limits apply to the shell, not to the box.
+`arcade_cash_seated_tests` (21 checks) hands the box to its slot from elsewhere, moves the
+slot and stops it, drops it 5 cm in one tick (the box still and on its seat each time, its
+coins kept), jumps it 0.3 m to the hand in three ticks (the shell after it within its
+limit, no coin thrown), then carries it at 1.1 m/s (the box on its hold, the shell
+trailing, the coins drawn where they stand in the tray, between ticks too) and lets go
+mid-swing (all sixty in the box).
+`arcade_cash_vault_tests` (9 checks) is the one cash suite with a real cabinet: the room's
+generic one standing on a floor, its panel opened, thirty coins banked and the tray pulled
+0.4 m out in half a second. The cabinet must not move (1 mm, 0.1 degrees) and every coin
+must come out in the tray; the mouth's wall stands shut, goes open and stands again.
 `arcade_cash_restore_tests` covers loose restoration, repeated dressing, cabinet changes,
 acceptance/refund, saving spills and overflow (12 checks). Slot credit and return-cup
 behavior remain covered by `arcade_tests` and `arcade_attract_tests`.

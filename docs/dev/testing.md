@@ -757,3 +757,34 @@ loose token at the cabinet's deposit position, leaves the removed box's count un
 falls to the room floor, and follows a moved cabinet. The actual-model windowed probe
 selects this leg with `--no-box --record`.
 `arcade_cash_no_box_tests`, `arcade_cash_tests` and `arcade_cash_restore_tests` pass together (41 checks). Disabling the absent-box spawn makes the new acceptance check fail (zero tokens instead of one); the windowed actual-mesh no-box recording passes all six checks.
+
+### Cash box seated and at full speed (2026-11-17)
+
+`arcade_cash_seated_tests` (21) is the first leg that seats the box anywhere but where it
+already stands (`arcade.md` "Why (the flip)"): handed to its slot from 0.3 m, its slot
+moved and stopped, its slot dropped 5 cm in one tick, then a 1.1 m/s carry and a release
+mid-swing. `arcade_cash_fast_tests` is 9: each leg also checks the box is on its hold
+(`_grab_driver`) every tick and reached the speed asked. `Tools/models/arcade_cash_probe
+--seated --record` repeats the seated leg on the installed NAOMI mesh.
+
+- **Red first.** Before the change, 8 of the first 10 seated checks failed: 0.3 m of travel
+  for ever after the hand-over, 11.2 mm behind a moving slot, 50 mm of travel and 0 coins
+  left after the drop.
+- **Mutations.** Not drawing the coins in the tray: 2 red (11.2 mm and 66 mm off). No
+  hand-off: 2 red (41 of 60 in the box). The box redrawn at the shell's pose again: 10
+  seated and 3 fast red (246 mm off its hold, 3.0 m/s).
+- **A pull, later the same day.** `arcade_cash_vault_tests` (9, ~30 s) builds the room's
+  generic cabinet on a floor and pulls a tray of thirty coins out of its open vault
+  (`arcade.md` "A held box passes through its cabinet; its coins do not"). The mouth left
+  uncut: 2 red (a cabinet box across it, the cabinet dragged 89.6 mm). The seated leg's
+  jump case with the shell's acceleration unlimited: 2 red (55 of 60 coins). What a coin
+  suite on a synthetic tray cannot see is anything the COINS touch outside the tray: this
+  one found both by standing a real cabinet round it. A frame read of the drawn poses
+  (`get_global_transform_interpolated` in `_process`) is in the seated leg for the same
+  reason: node poses say nothing of what is drawn between ticks.
+- **Two traps in such a leg.** Move what you move at the START of a tick
+  (`await get_tree().physics_frame`) and measure in the frame that draws it (`_shown()`:
+  `process_frame`): measured at the next tick's start, the bodies are a step newer than
+  the coin meshes; moved in the idle half, the measure can come before any tick has seen
+  the move. And compare rotations by their axes: `Quaternion.angle_to` is good to about a
+  milliradian.
