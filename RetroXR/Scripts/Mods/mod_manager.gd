@@ -1022,8 +1022,9 @@ static func _inspect_file(path: String) -> Dictionary:
 	return out
 
 
-## inspect(), plus what only a DOWNLOAD is held to: no games and no programs
-## (ModContentPolicy). A pack the player copied in by hand is not asked this.
+## inspect() for a DOWNLOAD. What a pack may carry is policed by mod.io, not
+## here: guessing a game from a file's extension refused mods for files that only
+## shared one with some core's content.
 ##
 ## The result carries `path`: the pack to install. That is `path` itself, unless
 ## the download was a BUNDLE (see _unwrap), when it is the build picked out of it.
@@ -1046,8 +1047,6 @@ static func vet_file(path: String) -> Dictionary:
 			"path": path}
 	var out := _inspect_file(str(unwrapped["path"]))
 	out["path"] = str(unwrapped["path"])
-	if str(out["error"]).is_empty():
-		out["error"] = ModContentPolicy.violation(out["files"])
 	print("[Mods] Vetted %s in %d ms%s" % [str(out["path"]).get_file(),
 		Time.get_ticks_msec() - started,
 		"" if str(out["error"]).is_empty() else ": " + str(out["error"])])

@@ -17,7 +17,8 @@
 ##              after it, switched on and off with it, and says what is missing
 ##   catalogue/ what a mod.io reply becomes, and the request that asks for it
 ##   scan/      a file mod.io has not scanned clean is not offered
-##   policy/    a download may not carry a game or a program
+##   sweep/     a download nobody answered for is deleted at the next launch;
+##              one is never refused for its files' extensions
 ##   collection/ packs: what installing and removing one comes to
 ##   packqueue/ packs queue behind each other, and are asked about in turn
 ##   packreturn/ a pack's question answered goes back to where the player was
@@ -67,7 +68,7 @@ func _ready() -> void:
 	if _want("pending"):   _group_pending()
 	if _want("catalogue"): _group_catalogue()
 	if _want("scan"):      _group_scan()
-	if _want("policy"):    _group_policy()
+	if _want("sweep"):     _group_sweep()
 	if _want("collection"): _group_collection()
 	if _want("packqueue"): _group_pack_queue()
 	if _want("packreturn"): _group_pack_return()
@@ -1010,54 +1011,27 @@ func _group_scan() -> void:
 		"https://binary.modcdn.io/mods/a/b.zip?…", "scan/a logged download leaves its signature out")
 
 
-# ── policy/ ───────────────────────────────────────────────────────────────────
+# ── sweep/ ────────────────────────────────────────────────────────────────────
 
-func _group_policy() -> void:
-	var denied := {"sfc": true, "iso": true, "dll": true}
-	_eq(ModContentPolicy.violation(PackedStringArray(["res://mods/a/mod.json",
-		"res://mods/a/m.gd", "res://mods/a/shell.png", "res://mods/a/x.glb.import",
-		"res://mods/a/_imported/x.glb-1f.scn", "res://mods/a/_imported/t.png-2a.s3tc.ctex"]), denied),
-		"", "policy/scripts, pictures and imported files pass")
-	_ok(ModContentPolicy.violation(PackedStringArray(["res://mods/a/mod.json",
-		"res://mods/a/Game (USA).SFC"]), denied).contains("Game (USA).SFC"),
-		"policy/a game is refused by name, whatever its case")
-	_ok(ModContentPolicy.violation(PackedStringArray(["res://mods/a/lib.dll"]), denied).contains("program"),
-		"policy/a program is refused as one")
-	_eq(ModContentPolicy.violation(PackedStringArray(["res://mods/a/README"]), denied), "",
-		"policy/a file with no extension is not guessed at")
-
-	# The real list, from the core database.
-	var real := ModContentPolicy.denied_extensions()
-	for ext: String in ["iso", "nes", "sfc", "gba", "chd", "cue", "bin", "zip", "md", "exe", "so", "dll"]:
-		_ok(real.has(ext), "policy/.%s is on the list" % ext)
-	for ext: String in ["png", "txt", "ogg", "wav", "gd", "tscn", "json", "ctex", "scn", "import", "glb"]:
-		_ok(not real.has(ext), "policy/.%s is not" % ext)
-
-	# Wired in: a DOWNLOAD carrying a game is refused and deleted...
-	var m := _fresh()
-	var loaded := _pack("t.rom", "1.0.0")
-	loaded["mods/t.rom/Super Game.sfc"] = "not really"
-	var out: Dictionary = m.install(_stage(m, "dl-1.zip", loaded), {"modio_id": 7})
-	_ok(not bool(out["ok"]) and str(out["error"]).contains("Super Game.sfc"),
-		"policy/a download carrying a game is not installed", str(out["error"]))
-	_eq(_listing(_root), PackedStringArray(), "policy/and nothing reaches the mods root")
-	_eq(_listing(m.incoming_dir()), PackedStringArray(), "policy/and the file is deleted")
-	# ...while the same pack copied in by hand is the player's own business.
-	_write_zip(_root.path_join("mine.zip"), loaded)
-	m._discover()
-	_ok(m.mod("t.rom") != null and m.mod("t.rom").status != ModRecord.Status.REFUSED,
-		"policy/a pack the player copied in themselves is not held to it")
-	m.free()
-
+func _group_sweep() -> void:
+	# What a pack may carry is mod.io's to police: a file sharing an extension
+	# with some core's content (a data .bin, a README.md) is not a game.
+	var d := _fresh()
+	var data := _pack("t.data", "1.0.0")
+	data["mods/t.data/sounds.bin"] = "data"
+	data["mods/t.data/README.md"] = "notes"
+	var got: Dictionary = d.install(_stage(d, "dl-2.zip", data), {"modio_id": 9})
+	_ok(bool(got["ok"]), "sweep/a download is not refused for its files' extensions", str(got.get("error", "")))
+	d.free()
 	# A download nobody answered for does not outlive the session; a partial does.
-	m = _fresh()
+	var m := _fresh()
 	_stage(m, "modio-7.zip", _pack("t.left", "1.0.0"))
 	var part := FileAccess.open(m.incoming_dir().path_join("modio-8.zip.part"), FileAccess.WRITE)
 	part.store_string("half")
 	part.close()
 	m._apply_pending()
 	_eq(_listing(m.incoming_dir()), PackedStringArray(["modio-8.zip.part"]),
-		"policy/an unanswered download is swept at the next launch, a partial kept")
+		"sweep/an unanswered download is swept at the next launch, a partial kept")
 	m.free()
 
 
@@ -2102,16 +2076,10 @@ func _group_bundle() -> void:
 	_eq(_listing(_root) + _listing(m.incoming_dir()), PackedStringArray(), "bundle/leaving nothing anywhere")
 
 	# The pack inside is held to everything a bare one is.
-	var loaded := _pack("t.rom", "1.0.0")
-	loaded["mods/t.rom/Game.sfc"] = "not really"
-	out = m.install(_stage(m, "dl-5.zip", {"desktop.zip": _zip_bytes(loaded)}))
-	_ok(not bool(out["ok"]) and str(out["error"]).contains("Game.sfc"),
-		"bundle/a game inside a bundled pack is still refused", str(out["error"]))
-	_eq(_listing(_root) + _listing(m.incoming_dir()), PackedStringArray(), "bundle/and the build is deleted too")
 	var escaped := _pack("t.esc", "1.0.0")
 	escaped["Scripts/evil.gd"] = "extends Node"
 	out = m.install(_stage(m, "dl-6.zip", {"desktop.zip": _zip_bytes(escaped)}))
-	_ok(not bool(out["ok"]), "bundle/so is a namespace escape inside one")
+	_ok(not bool(out["ok"]), "bundle/a namespace escape inside one is still refused")
 
 	# A zip with neither a manifest nor a pack is just a bad pack.
 	out = m.install(_stage(m, "dl-7.zip", {"notes.txt": "hello", "sub/inner.zip": ours}))

@@ -364,7 +364,7 @@ are mod.io collections (`ModCollectionPlan` holds the decisions). The services a
 **`Modio` autoload**'s, after `Mods`: as children of the menu they were cancelled by every
 room change, and a download finishing after the menu died installed with NO review. This REVERSED the old "the app never distributes a mod" rule on 2026-10-06. What
 still holds: a download is fetched only after mod.io's scan is clean, vetted as a boot vets
-it plus `ModContentPolicy` (no games, no programs), WAITS for the player's review, and lands
+it (what a pack may carry is mod.io's to police), WAITS for the player's review, and lands
 DISABLED; netplay still sends only an `id@version` fingerprint, never a pack (a refused peer is also sent the
 host's mod LIST, protocol 13, and its NET view offers each as a mod.io download, a switch, or the
 host's to change: `ModSessionPlan`); **a MOUNTED

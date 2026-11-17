@@ -372,7 +372,10 @@ catalogue as tiles), **Packs** (its collections, `mods_packs_page.gd`) and
 
 ### What a download has to get through
 
-Four checks, in this order, and then the player:
+Three checks, in this order, and then the player. **What a pack may CARRY is
+mod.io's to police** (2026-11-17): the game's old `ModContentPolicy` refused any
+file whose extension some core loads, which also refused files that only shared
+an extension with a ROM format.
 
 1. **mod.io's scan.** `ModioClient.scan_problem`: only `virus_status == 1` with
    `virus_positive == 0` is fetched, asked of the FRESH reply at the press. A file
@@ -380,19 +383,14 @@ Four checks, in this order, and then the player:
    make itself — and its tile reads "Being scanned by mod.io".
 2. **mod.io's MD5**, in the downloader.
 3. **The loader's own vetting** (`inspect`).
-4. **No games, no programs** (`ModContentPolicy`, through `ModManager.vet`): every
-   extension a core loads as content, less text, pictures and sound, plus native
-   code. `.md` is refused on purpose — it is a Mega Drive ROM as well as Markdown.
-   Applied to DOWNLOADS only; a pack the player copied in is not held to it. The
-   same list belongs in mod.io's upload rules.
-5. **The review.** The downloader's install hook is `ModReviews.stage`, so a
+4. **The review.** The downloader's install hook is `ModReviews.stage`, so a
    vetted file is parked, not installed. The review shows the full-access
    warning, what the mod **Replaces**, any file two mods both replace, and an
    "Enable" switch that starts OFF (applied from Installed). Discard deletes the file.
    **A download nobody answered for is deleted at the next launch**
    (`_sweep_incoming`, after `_apply_pending`); a `.part` is kept so it can resume.
 
-**Steps 3 and 4 run on the DOWNLOADER'S thread** (2026-11-10). On the main thread,
+**Step 3 runs on the DOWNLOADER'S thread** (2026-11-10). On the main thread,
 each finished download was a visible hitch, one per member of a pack: opening the
 pack, listing it, decoding its thumbnail and, for a bundle, inflating and writing
 every build. `ModManager.vet_file` is static and touches no loader state; it returns

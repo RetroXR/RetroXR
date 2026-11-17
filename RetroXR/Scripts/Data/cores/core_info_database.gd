@@ -102,8 +102,7 @@ static func systemids_of(entry: Dictionary) -> Array[String]:
 ## know (a mod cannot ship one), an id some shipped core already serves (this
 ## adds platforms; it does not regroup the game's), an id another mod holds, and
 ## an extension the core does not read (a core handed a file it never claimed
-## does not boot it, and ModContentPolicy's list of extensions that cannot ride
-## in a pack is built from what the cores declare).
+## does not boot it).
 static func register_mod_system(systemid: String, core_name: String, exts: Array,
 		owner_id: String = "") -> String:
 	if systemid.is_empty():
