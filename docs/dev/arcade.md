@@ -567,6 +567,11 @@ in the mount (deferred; never on a restore, which is the whole truth about what 
 `JammaPort` (its back, +Z out) and a free bay's (`JammaPort`, `Scripts/Objects/cables/jamma_port.gd`). `JammaCable._resolve` joins them
 with `link_bay(bay, CABLE)`; a docked bay is never cabled, and a cabinet that has a bay takes a second one by cable only after the
 first is out. A docked bay replaces a cabled one. The cabled bay's slot is never gated (no door in the way).
+Both ends of the lead wear the JAMMA harness plug (RetroXR-models `generic/jamma-plug`, `imported-assets/connectors/jamma_plug`): the
+56-way socket with its key at position 7, its origin on the slot's bottom (a board edge's tip, where every JAMMA port stands), and
+its harness fanning UP off the numbered side into a 14 mm loom, so the rope leaves along the plug's -Y (`start_exit_axis`,
+`end_exit_axis`): the Blast City and the Aero City stand their harness socket 85 mm in front of the converter's edge, facing it,
+and plugs whose wires ran straight back would run through each other.
 
 **A cabinet scene with no `BayMount` is the old format** and keeps the old behaviour (a `CartSeat` inside its bay): nothing breaks for a
 mod's cabinet that drew its own.

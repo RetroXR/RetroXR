@@ -5,19 +5,22 @@
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="3_snaphigh"]
 
 ; PLACEHOLDER GEOMETRY, boxes like ilink_port.tscn's: the repo ships only assets it has the right to.
-; The JAMMA harness is a 56-way edge connector, here a flat black mouth 60 x 14 mm with the plug's
-; own shape as the ghost. Placed so the zone sits where a seated plug's ORIGIN belongs, its mating face.
+; The JAMMA harness is a 56-way edge connector, here a flat black mouth 60 x 12 mm (inside the plug's
+; 12.7 when one is in) with the plug's own shape as the ghost. Placed so the zone sits where a seated
+; plug's ORIGIN belongs: the JAMMA plug's (jamma_cable.tscn) is its slot's bottom, where a board edge's
+; tip sits, its slot face 7.62 mm in from the zone and its tails 11.55 mm out.
 
 [sub_resource type="BoxMesh" id="BoxMesh_mouth"]
-size = Vector3(0.06, 0.014, 0.008)
+size = Vector3(0.06, 0.012, 0.008)
 
 ; Unshaded near-black, for the other sockets' reason: a shaded one reads as a raised block, not a hole.
 [sub_resource type="StandardMaterial3D" id="Mat_mouth"]
 albedo_color = Color(0.012, 0.012, 0.015, 1)
 shading_mode = 0
 
+; The plug's connector: its ears 133.96 across, 12.7 through, from its slot face to its tails' tips.
 [sub_resource type="BoxMesh" id="BoxMesh_plug_ghost"]
-size = Vector3(0.06, 0.014, 0.02)
+size = Vector3(0.134, 0.0127, 0.01917)
 
 [sub_resource type="StandardMaterial3D" id="Mat_plug_ghost"]
 transparency = 1
@@ -39,6 +42,6 @@ surface_material_override/0 = SubResource("Mat_mouth")
 script = ExtResource("3_snaphigh")
 
 [node name="HighlightMesh" type="MeshInstance3D" parent="SnapHighlight"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.01)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.001965)
 mesh = SubResource("BoxMesh_plug_ghost")
 surface_material_override/0 = SubResource("Mat_plug_ghost")

@@ -14,6 +14,7 @@ After a re-import, put the GLBs back to `generate_lods=false` and any extracted 
 | `jst_vl_plug/jst_vl_plug.glb` | `generic/jst-vl-plug/exports/naomi/jst_vl_plug_naomi_mobile_clean.glb` | both ends of `naomi_power_cable.tscn` |
 | `vga_plug/vga_plug.glb` | `generic/vga-plug/exports/blue/vga_plug_blue_mobile_clean.glb` | both ends of `vga_cable.tscn` |
 | `hpdb50_plug/hpdb50_plug.glb` | `generic/hpdb50-plug/exports/naomi/hpdb50_plug_naomi_mobile_clean.glb` | both ends of `gd_cable.tscn` |
+| `jamma_plug/jamma_plug.glb` | `generic/jamma-plug/exports/keyed/jamma_plug_keyed_mobile_clean.glb` (the keyed model, d5aebc2ac) | both ends of `jamma_cable.tscn` (`Shell` turned half round about Z; its harness leaves along the plug's -Y, which the rope's exit axes say) |
 | `ps2_plug/ps2_plug_purple.glb` | `generic/ps2-plug/exports/purple/ps2_plug_purple_mobile_clean.glb` | the PC keyboard's lead (`RetroKeyboard.PLUG_MESH`, through `ControllerPlug.set_plug_mesh`) |
 | `ps2_plug/ps2_plug_green.glb` | `generic/ps2-plug/exports/green/ps2_plug_green_mobile_clean.glb` | the PC mouse's lead (`RetroMouse.PLUG_MESH`) |
 | `trs_plug/trs_plug.glb` | `generic/trs-plug/exports/lime/trs_plug_lime_mobile_clean.glb` | both ends of `trs_cable.tscn` |

@@ -1,51 +1,45 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://Scripts/Objects/cables/jamma_cable.gd" id="1_cablescript"]
 [ext_resource type="Script" path="res://Scripts/Objects/cables/link/link_plug.gd" id="2_plugscript"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="4_snapgp"]
+[ext_resource type="PackedScene" uid="uid://beg5d4c0ulu8a" path="res://imported-assets/connectors/jamma_plug/jamma_plug.glb" id="5_jammaplug"]
 
-; PLACEHOLDER GEOMETRY, for saturn_link_cable.tscn's reason: boxes are generated,
-; so they carry no licence at all.
+; Each end wears the JAMMA harness plug (RetroXR-models generic/jamma-plug, the keyed model,
+; imported-assets/connectors/jamma_plug): the blue 56-way 3.96 mm card-edge socket (EDAC
+; 307-056-500-202) with its ears, the lead-in and the 28 + 28 bellows contacts in their pockets,
+; the polarizing key in position 7, the eyelet tails, and the harness's 50 wires fanning up off
+; its numbered side into a black taped loom 14 mm across with a cable tie. Both ends the same,
+; so either end goes on a converter's or a board's edge, or in a cabinet's socket.
 ;
-; A JAMMA harness plug, drawn as a flat black block 60 x 14 mm with a 50 mm contact
-; nose: the edge connector a cabinet harness ends in. Both ends the same, so either end
-; goes in the cabinet's back or the bay's. Derived from ilink_cable.tscn; the numbers are
-; a placeholder's, not a measured connector's.
+; How it is turned. The model's frame: its slot opens toward +Z, the origin on the slot's
+; bottom (where the board edge's tip sits, which is where every JAMMA port stands), position 1
+; on +X, the numbered (component) side +Y. A socket seats the plug half a turn about X
+; (SnapGrabPoint), so Shell is half a turn about Z: together the model's numbered side
+; lies along the socket's +Y and its position 1 toward the socket's -X, which on the JVS-to-JAMMA
+; converter (+Y its component side, pin 1 toward -X) puts the key over the edge's key slot.
+; The harness leaves the loom along the model's +Y (plug -Y): the rope's exit axes say so.
 
-; The overmould, running BACK from the mating face -- the plug's ORIGIN, which is
-; the convention every port in the room places against.
-[sub_resource type="BoxMesh" id="BoxMesh_body"]
-size = Vector3(0.06, 0.014, 0.03)
-
-[sub_resource type="StandardMaterial3D" id="Mat_shell"]
-albedo_color = Color(0.1, 0.1, 0.11, 1)
-roughness = 0.6
-
-; The nose, forward of the mating face. Separate from PlugTip, because RcaPlug
-; derives the cord's exit from PlugTip's AABB alone.
-[sub_resource type="BoxMesh" id="BoxMesh_nose"]
-size = Vector3(0.05, 0.010, 0.008)
-
-; Lightly metallic, not fully -- see saturn_link_cable.tscn.
-[sub_resource type="StandardMaterial3D" id="Mat_nose"]
-albedo_color = Color(0.72, 0.71, 0.69, 1)
-metallic = 0.25
-metallic_specular = 0.75
-roughness = 0.4
-
-; Overmould and nose together, 26 mm end to end, centred 7 mm behind the face.
+; The connector's own box: ears 133.96 across, 12.7 through, from the tails' tips to the slot
+; face (19.17), centred 1.97 mm behind the plug's origin.
 [sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
-size = Vector3(0.06, 0.014, 0.038)
+size = Vector3(0.13396, 0.0127, 0.01917)
+
+; The fan of wires and the loom (plug frame: the model's +Y is the plug's -Y): wide at the tails,
+; narrowing up to the loom 14 mm across; it stops 8 mm short of the loom's top, so the cord
+; leaving there does not start inside its own plug.
+[sub_resource type="ConvexPolygonShape3D" id="ConvexShape_fan"]
+points = PackedVector3Array(-0.055, 0.0034, -0.01155, 0.055, 0.0034, -0.01155, -0.055, 0.0034, -0.022, 0.055, 0.0034, -0.022, -0.0075, -0.055, -0.015, 0.0075, -0.055, -0.015, -0.0075, -0.055, -0.0305, 0.0075, -0.055, -0.0305)
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
 bounce = 0.0
 friction = 0.8
 
-; Laser target, larger than the physics box so a beam from across the room finds
-; a plug on the back of a console. Only the pointer answers it (mask 0).
+; Laser target, the model's bounds (PointerFit fits it to what the plug draws once it is in the
+; room). Only the pointer answers it (mask 0).
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
-size = Vector3(0.09, 0.06, 0.08)
+size = Vector3(0.134, 0.06935, 0.03817)
 
 ; A 1.8 m JAMMA lead: one cord, the same plug at each end, long enough to reach a bay
 ; standing on the floor beside a cabinet.
@@ -67,25 +61,26 @@ script = ExtResource("2_plugscript")
 connector = "jamma_plug"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.007)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.001965)
 shape = SubResource("BoxShape3D_plug")
 
-[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.01)
-mesh = SubResource("BoxMesh_body")
-surface_material_override/0 = SubResource("Mat_shell")
+[node name="FanShape" type="CollisionShape3D" parent="PlugA0"]
+shape = SubResource("ConvexShape_fan")
 
-[node name="PlugNose" type="MeshInstance3D" parent="PlugA0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.003)
-mesh = SubResource("BoxMesh_nose")
-surface_material_override/0 = SubResource("Mat_nose")
+[node name="Shell" parent="PlugA0" instance=ExtResource("5_jammaplug")]
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, 0, 0)
+
+; The loom's top (the model's CordExit, turned with Shell); its -Z along the plug's -Y, the way
+; the harness leaves.
+[node name="CordExit" type="Marker3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, -0.063, -0.02255)
 
 [node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
 collision_layer = 1048576
 collision_mask = 0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.007)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.028325, -0.011465)
 shape = SubResource("BoxShape3D_pointer")
 
 [node name="PickableHighlight" type="Node3D" parent="PlugA0"]
@@ -108,25 +103,24 @@ script = ExtResource("2_plugscript")
 connector = "jamma_plug"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.007)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.001965)
 shape = SubResource("BoxShape3D_plug")
 
-[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.01)
-mesh = SubResource("BoxMesh_body")
-surface_material_override/0 = SubResource("Mat_shell")
+[node name="FanShape" type="CollisionShape3D" parent="PlugB0"]
+shape = SubResource("ConvexShape_fan")
 
-[node name="PlugNose" type="MeshInstance3D" parent="PlugB0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.003)
-mesh = SubResource("BoxMesh_nose")
-surface_material_override/0 = SubResource("Mat_nose")
+[node name="Shell" parent="PlugB0" instance=ExtResource("5_jammaplug")]
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, 0, 0)
+
+[node name="CordExit" type="Marker3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, -0.063, -0.02255)
 
 [node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
 collision_layer = 1048576
 collision_mask = 0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0/PointerArea"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.007)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.028325, -0.011465)
 shape = SubResource("BoxShape3D_pointer")
 
 [node name="PickableHighlight" type="Node3D" parent="PlugB0"]
@@ -135,8 +129,9 @@ script = ExtResource("3_pickhigh")
 [node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("4_snapgp")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
 
-; 60 x 30 mm = 1.80 m against 1.40 m between the plugs, so it hangs. The Saturn
-; lead's solver tuning with a thicker tube: a JAMMA harness is a bundle about 14 mm across.
+; 60 x 30 mm = 1.80 m against 1.40 m between the plugs, so it hangs. The Saturn lead's solver
+; tuning with a thicker tube: the plug's loom, 14 mm across, in the loom's black. The cord
+; leaves each plug along its -Y (the loom's way out), not the default -Z.
 [node name="VerletRope" type="VerletRope" parent="."]
 segment_count = 60
 segment_length = 0.03
@@ -152,3 +147,5 @@ self_collision = true
 end_align_stiffness = 0.7
 end_stiffness = 0.3
 end_stiff_segments = 2
+start_exit_axis = Vector3(0, -1, 0)
+end_exit_axis = Vector3(0, -1, 0)
