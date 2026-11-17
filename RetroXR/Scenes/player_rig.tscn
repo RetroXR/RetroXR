@@ -34,6 +34,20 @@
 [ext_resource type="Material" path="res://Scenes/Objects/hand_poses/held_hand_material.tres" id="26_handmat"]
 [ext_resource type="Script" path="res://Scripts/XR/capsense_finger_snap.gd" id="27_fingersnap"]
 
+; The hands' pointer beams. xr-tools' own pointer.tres is opaque unlit red (its
+; alpha does nothing without transparency on) and the beam ran its full 10 m, so
+; it read as a loud red line across the room. Here it is a faint pale beam that
+; stops at what it hits and brightens while it is on something pointable.
+[sub_resource type="StandardMaterial3D" id="LaserIdle"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.85, 0.92, 1, 0.22)
+
+[sub_resource type="StandardMaterial3D" id="LaserHit"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.8, 0.9, 1, 0.6)
+
 [node name="PlayerRig" type="Node3D"]
 script = ExtResource("0_playerrig")
 
@@ -103,6 +117,9 @@ ranged_enable = false
 
 [node name="FunctionPointer" parent="Staging/XROrigin3D/LeftController" instance=ExtResource("3_pointer")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.02, 0.05, -0.1)
+laser_length = 1
+laser_material = SubResource("LaserIdle")
+laser_hit_material = SubResource("LaserHit")
 
 [node name="MovementDirect" parent="Staging/XROrigin3D/LeftController" instance=ExtResource("5_movdirect")]
 max_speed = 1.4
@@ -132,6 +149,9 @@ ranged_enable = false
 
 [node name="FunctionPointer" parent="Staging/XROrigin3D/RightController" instance=ExtResource("3_pointer")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.02, 0.05, -0.1)
+laser_length = 1
+laser_material = SubResource("LaserIdle")
+laser_hit_material = SubResource("LaserHit")
 
 [node name="MovementTurn" parent="Staging/XROrigin3D/RightController" instance=ExtResource("6_movturn")]
 turn_mode = 1
