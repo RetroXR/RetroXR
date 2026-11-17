@@ -933,6 +933,7 @@ void VerletRope::_exit_tree()
 
 VerletRope::~VerletRope()
 {
+    FreeGatherShape();
     g_ropes.erase(std::remove(g_ropes.begin(), g_ropes.end(), this), g_ropes.end());
 }
 
@@ -2418,6 +2419,9 @@ void VerletRope::SolveSurfaceCollision(bool p_do_rest)
     KeepTautOutside(space_state);
     if (p_do_rest)
         RecoverWrongSideParticles(space_state);
+    static const bool census = RopeSwitch("XENU_ROPE_CENSUS", "debug.xenu.rope_census") != nullptr;
+    if (census)
+        CensusShapes(space_state);
 }
 
 // A cord pulled further than it reaches (a hand is a pin: it does not give, so

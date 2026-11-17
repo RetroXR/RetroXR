@@ -1404,6 +1404,8 @@ void VerletRope::RefreshExclusions()
         m_segment_shape_query->set_exclude(rids);
     if (m_point_query.is_valid())
         m_point_query->set_exclude(rids);
+    if (m_gather_query.is_valid())
+        m_gather_query->set_exclude(rids);
 }
 
 bool VerletRope::AnchorsMoved() const

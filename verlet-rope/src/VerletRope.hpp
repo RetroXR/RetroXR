@@ -55,6 +55,7 @@
 // rays, sleep, render snapshot) is unchanged. Only adjacency-aware code needs
 // the m_seg_* segment table and the m_fray chain table below.
 
+#include "RopeShapes.hpp"
 #include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/classes/capsule_shape3d.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
@@ -323,6 +324,11 @@ private:
     void SolveSegmentCollision(godot::PhysicsDirectSpaceState3D *p_space, bool p_do_rest);
     void RecoverWrongSideParticles(godot::PhysicsDirectSpaceState3D *p_space);
     void KeepTautOutside(godot::PhysicsDirectSpaceState3D *p_space);
+    // The shapes near the cord, read out of the physics server (RopeShapes.hpp,
+    // VerletRopeShapes.cpp). Main thread; m_near is plain data afterwards.
+    void GatherShapes(godot::PhysicsDirectSpaceState3D *p_space);
+    void CensusShapes(godot::PhysicsDirectSpaceState3D *p_space);
+    void FreeGatherShape();
     bool SurfaceUnder(godot::PhysicsDirectSpaceState3D *p_space, const godot::Vector3 &p_from,
                       double p_reach, godot::Vector3 &r_point, godot::Vector3 &r_normal);
     // Edge contacts (see m_edge_point).
@@ -654,6 +660,12 @@ private:
     bool m_taut_clear = false;
     // Segments holding a face KeepTautOutside gave them (m_mid_contact bit 8).
     int m_taut_holds = 0;
+    std::vector<RopeShape> m_near;
+    godot::RID m_gather_box;
+    godot::Ref<godot::PhysicsShapeQueryParameters3D> m_gather_query;
+    bool m_gather_full_logged = false;
+    int m_census_tick = 0;
+    godot::String m_census_last;
     int m_debug_taut_crossings = 0;
     int m_debug_taut_edges = 0;
     int m_debug_taut_rollbacks = 0;

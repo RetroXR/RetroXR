@@ -39,9 +39,28 @@ authored convex or concave shape. Made in code: 123 boxes, 8 spheres, 6 cylinder
 pockets, the arcade cabinet model, the Atari 2600, two adapters, cover slots, the CD
 and DVD players).
 
-This is a count of files, not of a running room. **Stage 0 is a run-time count** in
-the bedroom and the Starlight Arcade with their usual objects out, by shape type,
-before any design choice is treated as settled.
+### Counted in a running room (stage 0, 2026-11-17)
+
+`XENU_ROPE_CENSUS=1` (`debug.xenu.rope_census` on a Quest) makes every cord say
+what `GatherShapes` finds near it. The Starlight Arcade as saved, 69 cords:
+
+| | |
+|---|---|
+| shapes near a cord | median 9, most 48 (the cap; two cords reached it), 8 cords over 24 |
+| boxes | near 141 of 145 reports, 948 in all |
+| convex hulls | near 47 reports, 250 in all |
+| cylinders | near 26 reports, 45 in all |
+| trimeshes | near 3 cords only, but 22 to 44 shapes each, 16,720 to 47,696 triangles |
+| spheres, capsules | none near any cord |
+
+What that settles:
+
+- **Boxes first, convex hulls with them.** A third of the reports have a hull.
+- **Trimeshes cannot be skipped and cannot be tested naively.** The three cords
+  are mains leads beside appliances whose key pockets are carved trimeshes
+  (`ApplianceModel.fit_shapes`): tens of thousands of triangles within a cord's
+  box. They need a grid or tree per shape, built once, and are their own stage.
+- **The cap of 48 is too low** beside an appliance. Raised with the trimesh work.
 
 ## The design
 
@@ -105,7 +124,7 @@ threading, the hand hold, rendering, and every test and probe.
 
 Each ends with something measured, and the old path stays the default until stage 4.
 
-0. **Count and baseline.** Run-time shape census in two rooms. Record today's
+0. **Count and baseline.** DONE for the count (above). Still to record: today's
    numbers for every `rope_jitter_probe` case, the `taut/` and `through/` tests, and
    a Quest capture.
 1. **Snapshot plus box, sphere, capsule, cylinder**, behind a `collision_mode`
