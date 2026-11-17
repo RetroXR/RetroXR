@@ -434,7 +434,13 @@ found by DISTANCE instead, and only by a hand that has nothing else to take.
   move with no turn in it: the pad rose level) and `CableHaul` (a spring: it
   bounced for good, and a damper sized by mass alone was added and then
   replaced by this). Measured with a real Genesis pad lifted by its wire: it
-  turns to hang by its cord and is still within three seconds.
+  turns to hang by its cord and is at rest about a second after the hand stops.
+  Two things kept it WOBBLING after that (mean spin 0.107 rad/s for good, on a
+  body with angular damping 8) until they were fixed: the limit acted only once
+  the cord was over-long, so it was on one tick and off the next (it bears from
+  3 mm short of taut now, `HANG_BEARING`, stopping outward speed only), and it
+  was worked out from the rope's end particle, which is a tick stale (it reads
+  the end node itself, `_end_point`). With both, 0.000.
 - Local and cosmetic: not saved, not sent in a session (a peer sees the cord
   where its own solver puts it).
 

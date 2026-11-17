@@ -31,6 +31,8 @@ const DESK_SCROLL_STEP := 0.05
 ## A cord over its length comes back this share of the excess a tick, and no
 ## faster than HANG_RETURN_MAX metres a second.
 const HANG_RETURN := 0.2
+## This close to its full length the cord is already bearing the weight.
+const HANG_BEARING := 0.003
 const HANG_RETURN_MAX := 3.0
 ## Further over its length than this, what hangs is moved, not pulled.
 const HANG_SLIP := 0.15
@@ -243,8 +245,19 @@ func _physics_process(_delta: float) -> void:
 			continue
 		var hand: Vector3 = h.rope.point_position(h.index)
 		var last := int(h.rope.get_segment_count())
-		_hang(_loose_body(h.rope.get_start_node()), h.rope.point_position(0), hand, h.along)
-		_hang(_loose_body(h.rope.get_end_node()), h.rope.point_position(last), hand, h.length - h.along)
+		_hang(_loose_body(h.rope.get_start_node()), _end_point(h.rope, true, 0), hand, h.along)
+		_hang(_loose_body(h.rope.get_end_node()), _end_point(h.rope, false, last), hand, h.length - h.along)
+
+
+## Where the cord leaves what is on its end, NOW. The rope's own end particle
+## is where that was when the rope last ticked: a tick stale, and a limit
+## worked out from a stale place pushes a hanging pad a little every tick.
+func _end_point(rope: Node3D, at_start: bool, index: int) -> Vector3:
+	var end: Node3D = rope.get_start_node() if at_start else rope.get_end_node()
+	if not is_instance_valid(end):
+		return rope.point_position(index)
+	var offset: Vector3 = rope.get("start_anchor_offset" if at_start else "end_anchor_offset")
+	return end.global_transform * offset
 
 
 func _hang(body: RigidBody3D, at: Vector3, hand: Vector3, reach: float) -> void:
@@ -264,7 +277,12 @@ func _hang(body: RigidBody3D, at: Vector3, hand: Vector3, reach: float) -> void:
 	var out := at - hand
 	var d := out.length()
 	var over := d - reach
-	if over <= 0.0 or d < 0.0001:
+	# Within a hair of taut it is already bearing: there the cord only stops
+	# the point going further out, every tick, as a cord holding a weight does.
+	# Acting only once it was over-long, it was on one tick and off the next
+	# (gravity lengthens it, the pull shortens it), and a pad that had come to
+	# rest was set wobbling again by the pulses.
+	if over <= -HANG_BEARING or d < 0.0001:
 		return
 	out /= d
 	var state := PhysicsServer3D.body_get_direct_state(body.get_rid())
@@ -275,7 +293,7 @@ func _hang(body: RigidBody3D, at: Vector3, hand: Vector3, reach: float) -> void:
 	var speed := (state.linear_velocity + state.angular_velocity.cross(arm)).dot(out)
 	# Back to its length over a few ticks, not in one (that is a kick).
 	var dt := maxf(get_physics_process_delta_time(), 0.001)
-	var wanted := -minf(over * HANG_RETURN / dt, HANG_RETURN_MAX)
+	var wanted := -minf(maxf(over, 0.0) * HANG_RETURN / dt, HANG_RETURN_MAX)
 	if speed <= wanted:
 		return
 	var turn := arm.cross(out)
