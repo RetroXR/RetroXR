@@ -454,7 +454,10 @@ void VerletRope::GatherShapes(PhysicsDirectSpaceState3D *p_space)
                                 " or more shapes near this cord; the rest are not seen");
     }
     m_near.reserve(count);
-    const double reach = m_collision_radius * 2.0;
+    // A shape's bounds are grown by how far a contact reaches
+    // (ContactsFromShapes) and a little: a point outside them is skipped, and
+    // one skipped while still in reach has no plane at all.
+    const double reach = ContactReach() + 0.005;
     for (int k = 0; k < count; ++k)
     {
         const Dictionary hit = found[k];
@@ -538,7 +541,7 @@ void VerletRope::ContactsFromShapes()
     // and costs nothing until it is met, and one that is only made once the
     // cord already touches is too late for a cord pulled hard, which travels
     // further than its own radius inside one slice.
-    const double reach = m_collision_radius * 1.3 + 0.02;
+    const double reach = ContactReach();
     const bool have_from = m_tick_from.size() == m_points.size();
     RopeNearest at;
     for (int i = 0; i < count; ++i)
@@ -639,6 +642,10 @@ void VerletRope::ContactsFromShapes()
             // pivots there and its other end goes in. So the surface is asked
             // after toward each end as well, and a place far enough along from
             // the first is a second contact even when it faces the same way.
+            // (Tried and worse, 2026-11-17: taking only places that face the
+            // way the first does, and asking a box's twelve edges each for
+            // itself. The thin panel under a slow pull depends on this as it
+            // is; the same panel under a yank is still lost.)
             const auto offer = [&](double p_t, const RopeNearest &p_at) {
                 if (p_at.distance >= d2)
                     return;

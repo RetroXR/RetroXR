@@ -164,18 +164,34 @@ Built, and OFF by default: `collision_mode` (0 old, 1 shapes) on a cord, or
 - In this mode none of these run: the sweeps, the cached planes' upkeep, the
   edge system, `KeepTautOutside`, the wrong-side recovery, `DepenetrateLay`.
 
-`rope_tests` with `XENU_ROPE_SHAPES=1`: **109 of 116** (116 of 116 in the
-default mode). Passing there without any of the repair passes: the corner and
-edge cases, the carried-table and long-disturbed sleep cases, the thin panel
-pulled to twice the cord's length at a hand's speed. Failing:
+`rope_tests` with `XENU_ROPE_SHAPES=1`: **116 of 117** (117 of 117 in the
+default mode). What got it from 109 to there, 2026-11-17:
 
-| case | what happens |
-|---|---|
-| `taut/` thin panel, yanked | still drawn through at 44 mm a tick |
-| `taut/` thick block (both) | one item inside for ONE tick, then right |
-| `through/` (both) | a cord LAID through a thing does not come out of it: nothing replaces `DepenetrateLay` yet |
-| `anchors/` restored lay stays stretched | the same |
-| `contact/` a bridged cord sags into the gap | sags 7 mm; the planes made 2 cm early hold it up over the gap |
+- **The bounds were tighter than the reach.** A shape's bounds were grown by two
+  radii and a contact reaches 1.3 radii plus 2 cm, so a point 13 mm over a
+  panel's top was skipped before it was asked and had no plane at all
+  (`ContactReach()` is the one figure now).
+- **The surfaces have the last word of a tick.** A slice's planes are made where
+  the cord was when the slice began, and a particle rounding a corner under a
+  hard pull goes 14 mm in a slice: its segment ended the tick cut 10 mm into the
+  block. One more `ContactsFromShapes` after the last slice, answered alone.
+- **A lay is still freed by `DepenetrateLay`**, in both modes: once a lay, on the
+  main thread, with rays. A lift written for this mode could not go round a
+  table's edge and was removed.
+- **`contact/a bridged cord does sag into the gap` runs with no friction.** With
+  it the spare cord stays on a support (7 mm of sag) or slides in (461 mm) by
+  which way the lay folded; sliding freely it is 487 mm in both modes, and the
+  case asks what it meant to: that nothing but the supports holds the cord up.
+
+Still failing: **`taut/` thin panel, yanked** (a 2 cm panel, the cord pulled to
+twice its length at 44 mm a tick). The same panel at a hand's speed holds, but
+on a narrow margin: a segment lying across a top narrower than itself has to be
+held at BOTH top edges, and it gets its second contact from two fixed samples
+toward its ends. Two more principled versions were tried and were worse (second
+contacts only where they face the way the first does: the slow pull failed;
+each of a box's twelve edges asked for itself: four `taut/` cases failed). What
+is likely needed is contacts remade between solver iterations for a segment
+that bears in two places, not once a slice.
 
 Not done: trimeshes (stage 2; a cord beside an appliance sees them and tests
 nothing), jitter medians in this mode, a look at it in a room, the Quest.

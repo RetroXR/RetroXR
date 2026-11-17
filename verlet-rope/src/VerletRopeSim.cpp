@@ -1089,8 +1089,9 @@ bool VerletRope::StepBegin(double p_delta)
     if (m_depen_pending)
     {
         m_depen_pending = false;
-        if (!UsesShapes())
-            DepenetrateLay();
+        // Once a lay, on the main thread, in either mode: it finds a way
+        // round what the lay runs through with rays, which a lay can afford.
+        DepenetrateLay();
     }
 
     if (m_asleep)
@@ -1289,6 +1290,34 @@ void VerletRope::StepSolve()
         ApplyContactFriction();
     }
     m_pin_fraction = 1.0;
+    if (shapes)
+    {
+        // The last word of the tick is the surfaces'. The planes of a slice
+        // are made where the cord was when the slice began, and a particle
+        // rounding a corner under a hard pull goes further in one slice than
+        // the corner is deep: its segment ended the tick cut 10 mm into a
+        // block. So the surfaces are asked once more, where the cord has come
+        // to, and only they are answered.
+        ContactsFromShapes();
+        const int seg_count = static_cast<int>(m_seg_a.size());
+        for (int s = 0; s < seg_count; ++s)
+        {
+            if (m_mid_contact[s] & 1)
+                SolveMidContact(s, false);
+            if (m_mid_contact[s] & 2)
+                SolveMidContact(s, true);
+        }
+        for (int i = 0, n = static_cast<int>(m_points.size()); i < n; ++i)
+        {
+            if (m_inv_mass[i] == 0.0f)
+                continue;
+            if (m_c_flags[i] & 1)
+                ProjectPlane(i, m_c_p1[i], m_c_n1[i], m_contact_lambda_1[i]);
+            if (m_c_flags[i] & 2)
+                ProjectPlane(i, m_c_p2[i], m_c_n2[i], m_contact_lambda_2[i]);
+        }
+        PinAnchors();
+    }
 }
 
 void VerletRope::StepEnd()

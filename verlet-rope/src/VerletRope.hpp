@@ -331,6 +331,8 @@ private:
     void CensusShapes(godot::PhysicsDirectSpaceState3D *p_space);
     void FreeGatherShape();
     void ContactsFromShapes();
+    // How near a surface gets a plane: well past touching (VerletRopeShapes.cpp).
+    double ContactReach() const { return m_collision_radius * 1.3 + 0.02; }
     void RememberSupports();
     bool ShapesChangedWhileSleeping(godot::PhysicsDirectSpaceState3D *p_space);
     bool UsesShapes() const;

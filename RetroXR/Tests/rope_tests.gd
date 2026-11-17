@@ -680,6 +680,13 @@ func _group_contact() -> void:
 	_box(base + Vector3(0.45, 0.70, 0), Vector3(0.6, 0.10, 1.0))
 	_box(base + Vector3(0, -0.05, 0), Vector3(4.0, 0.10, 4.0))     # the floor
 	_rope_between(base + Vector3(-0.5, 0.76, 0), base + Vector3(0.5, 0.76, 0), 30)
+	# With no friction: this case asks whether anything but the two supports
+	# holds the cord up, and spare cord kept on a support by friction (or by
+	# the bend over its edge) is not that. Rubbing, it sags 461 mm or 7 mm
+	# by which way the lay happened to fold; sliding freely, 487 either way.
+	_rope.static_friction = 0.0
+	_rope.kinetic_friction = 0.0
+	_rope.surface_friction = 0.0
 	await _settle(900)
 	var sag := base.y + 0.75 - _lowest_y()
 	_ok(_lowest_y() > base.y + 0.1,
