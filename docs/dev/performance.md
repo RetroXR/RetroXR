@@ -903,10 +903,25 @@ with `cast_shadow` OFF and the old mode on `META_PART`. Parts with a detail rang
 carries the range. Left alone: parts under a pivot, hinge, button, stick, lid, door ... (`MOVER_WORDS`, by node name
 or script) or an animated track, unless under 4 cm (`SMALL_MOVER`: a cap moves a millimeter); alpha-cut/hashed
 surfaces; skinned and blend-shape meshes; ropes. A flat see-through decal (thinner than 1.5 mm) casts nothing.
-Identical objects share one proxy mesh, and a surface's geometry is read once per mesh (each read waits for the render
-thread, `mesh_get_surface` warnings in a debug run). A part added, removed, hidden, shown or given another mesh
+Identical objects share one proxy mesh. A part added, removed, hidden, shown or given another mesh
 re-merges its object; a watchdog visits each object about once a second and makes a part that moved on its body a
-mover for good. `shadow_merge_tests` (22).
+mover for good. `shadow_merge_tests` (31).
+
+**A surface's geometry is a GPU read, and a read is a stall (2026-11-17).** `surface_get_arrays` goes to
+`MeshStorage::mesh_get_surface`, which `RD::buffer_get_data`s the vertex, attribute and index buffers, and each of
+those calls `_flush_and_stall_for_all_frames()`; the main thread waits through it on the render thread
+(`mesh_get_surface ... synchronizations` warnings). `PrimitiveMesh.get_mesh_arrays()` is the same read. Reading the
+Starlight Arcade's ~1,130 merged surfaces as fast as objects came kept the room at 5-30 fps for ~30 s after it opened.
+So: at most `READS_PER_FRAME` (2) reads a frame, an object waiting (casting as it always did) until all its surfaces
+are in hand; and every surface read is kept in `user://shadow_merge_cache/` (one `.bin` per surface, ~29 MB for the
+arcade, safe to delete) under a key that needs no GPU: an ArrayMesh's `resource_path`, its CPU-side lengths, format
+and AABB, and the export's `BuildInfo.describe()` or in a checkout the source file's mtime; a primitive's class and
+stored properties under this engine hash. A mesh made at run time (no path) is still read, metered. A line
+`[ShadowMerge] N objects merged in T ms: R surfaces read back from the GPU, D from the disk cache` ends each batch.
+Measured on the arcade autosave, desktop, two launches: cold 1,134 reads, `mesh_get_surface` warnings 2,147, ~32 s
+under 40 fps; warm 9 reads, 191 warnings, ~17 s under 40 fps (the rest of that is the restore itself), the room at
+~77 fps after either. The 191 left are other scripts' reads: `held_object_physics._world_aabb`,
+`appliance_model.footprint_gate`, `cover_slots._extent`, `scroll_lock_capture._body_boxes` (594 on the cold launch).
 
 **Measured** (same room, one process, merge on and off alternated three times, 3 s each):
 7.62 ms (131 fps) on, 9.78 ms (102 fps) off; draws 8,000 -> 5,161; 144 proxies standing for 1,052 parts. Screenshots

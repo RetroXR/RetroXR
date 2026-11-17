@@ -10,15 +10,21 @@
 ## windowed A/B of the real room (performance.md, "Shadow draws merged per object").
 extends "res://Tests/test_suite.gd"
 
+const CACHE_DIR := "user://shadow_merge_tests_cache"
+
 var _merge: ShadowMerge
 
 
 func _ready() -> void:
 	suite_tag = "shadow_merge"
 	ShadowMerge.enabled = true
+	# Never the player's own cache: a headless run outside run_tests.py has the real user://.
+	ShadowMerge.cache_dir = CACHE_DIR
+	_remove_dir(CACHE_DIR)
 	_merge = ShadowMerge.new()
 	add_child(_merge)
 	await _run()
+	_remove_dir(CACHE_DIR)
 	_finish()
 
 
@@ -198,3 +204,152 @@ func _run() -> void:
 	_ok(base.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON and not base.has_meta(ShadowMerge.META_PART),
 		"removal/an object leaving the tree gets its parts' shadows back")
 	obj.free()
+
+	await _reads_case()
+	await _disk_case()
+
+
+## An ArrayMesh of a box (what a model's parts are: read back from the GPU unless the disk cache has it).
+func _array_box(size: float, path := "") -> ArrayMesh:
+	var box := BoxMesh.new()
+	box.size = Vector3(size, size, size)
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, box.get_mesh_arrays())
+	if not path.is_empty():
+		am.resource_path = path
+	return am
+
+
+func _object_of(meshes: Array, name: String) -> RigidBody3D:
+	var obj := RigidBody3D.new()
+	obj.name = name
+	obj.freeze = true
+	for i in meshes.size():
+		var mi := MeshInstance3D.new()
+		mi.name = "Part%d" % i
+		mi.mesh = meshes[i]
+		mi.position = Vector3(0.2 * i, 0, 0)
+		obj.add_child(mi)
+	obj.add_to_group("spawned")
+	return obj
+
+
+func _verts_of(meshes: Array) -> int:
+	var n := 0
+	for m: Mesh in meshes:
+		n += _verts(m)
+	return n
+
+
+func _readbacks() -> int:
+	return int(ShadowMerge.stats()["readbacks"])
+
+
+## The Starlight Arcade's crawl after it opened (2026-11-17): every surface read back as fast as objects came, each
+## read stalling the GPU. Reads are now metered a frame at a time, and the object still merges whole.
+func _reads_case() -> void:
+	var meshes: Array = []
+	for i in 8:
+		meshes.append(_array_box(0.05 + 0.01 * i))
+	var obj := _object_of(meshes, "ManyMeshes")
+	var first := _readbacks()
+	var last := first
+	var worst := 0
+	add_child(obj)
+	var until := Time.get_ticks_msec() + 8000
+	while not _merged(obj) and Time.get_ticks_msec() < until:
+		await get_tree().process_frame
+		var now := _readbacks()
+		worst = maxi(worst, now - last)
+		last = now
+	_ok(_merged(obj) and _verts(_main_proxy(obj).mesh) == _verts_of(meshes),
+		"reads/an object of eight run-time meshes still merges whole")
+	_eq(last - first, 8, "reads/each of its surfaces is read back once")
+	_ok(worst <= ShadowMerge.READS_PER_FRAME, "reads/never more than READS_PER_FRAME reads in one frame",
+		"worst %d" % worst)
+	obj.free()
+
+
+## A mesh loaded from a resource is read back once and kept on disk; the next launch (a new ShadowMerge, nothing in
+## memory) builds the same proxy from the file with no GPU read. One that changed under the same path is read again.
+func _disk_case() -> void:
+	_remove_dir(CACHE_DIR)
+	var meshes: Array = [_array_box(0.10, "res://Tests/__shadow_merge_probe_a.mesh"),
+		_array_box(0.12, "res://Tests/__shadow_merge_probe_b.mesh")]
+	var obj := _object_of(meshes, "FromFiles")
+	var before := ShadowMerge.stats()
+	add_child(obj)
+	var ok := await _wait_until(func() -> bool: return _merged(obj), 6.0)
+	var after := ShadowMerge.stats()
+	_ok(ok and int(after["readbacks"]) - int(before["readbacks"]) == 2
+		and int(after["disk_writes"]) - int(before["disk_writes"]) == 2,
+		"disk/a resource's surfaces are read back once and written to the cache", str(after))
+	obj.free()
+
+	_relaunch()
+	obj = _object_of(meshes, "FromFilesAgain")
+	add_child(obj)
+	ok = await _wait_until(func() -> bool: return _merged(obj), 6.0)
+	after = ShadowMerge.stats()
+	_ok(ok and int(after["readbacks"]) == 0 and int(after["disk_hits"]) == 2,
+		"disk/the next launch builds the proxy from the cache with no GPU read", str(after))
+	_ok(ok and _verts(_main_proxy(obj).mesh) == _verts_of(meshes), "disk/and it is the same shadow")
+	obj.free()
+	meshes.clear()
+
+	# Re-imported: the same path, another shape. Its surface is not the one on disk.
+	_relaunch()
+	var sphere := SphereMesh.new()
+	var changed := ArrayMesh.new()
+	changed.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, sphere.get_mesh_arrays())
+	changed.resource_path = "res://Tests/__shadow_merge_probe_a.mesh"
+	meshes = [changed, _array_box(0.12, "res://Tests/__shadow_merge_probe_b.mesh")]
+	obj = _object_of(meshes, "Reimported")
+	add_child(obj)
+	ok = await _wait_until(func() -> bool: return _merged(obj), 6.0)
+	after = ShadowMerge.stats()
+	_ok(ok and int(after["readbacks"]) == 1 and int(after["disk_hits"]) == 1
+		and _verts(_main_proxy(obj).mesh) == _verts_of(meshes),
+		"disk/a mesh that changed under the same path is read again, not taken from the old file", str(after))
+	obj.free()
+
+	# A primitive has no file, but its shape is its properties: two boxes alike are read once, then never again.
+	_relaunch()
+	var boxes: Array = []
+	for i in 2:
+		var b := BoxMesh.new()
+		b.size = Vector3(0.07, 0.07, 0.07)
+		boxes.append(b)
+	var other := BoxMesh.new()
+	other.size = Vector3(0.09, 0.07, 0.07)
+	boxes.append(other)
+	obj = _object_of(boxes, "Primitives")
+	add_child(obj)
+	ok = await _wait_until(func() -> bool: return _merged(obj), 6.0)
+	after = ShadowMerge.stats()
+	_ok(ok and int(after["readbacks"]) == 2 and int(after["disk_hits"]) == 1,
+		"disk/a primitive is read once per shape: the second box alike comes from the cache", str(after))
+	obj.free()
+	_relaunch()
+	obj = _object_of(boxes, "PrimitivesAgain")
+	add_child(obj)
+	ok = await _wait_until(func() -> bool: return _merged(obj), 6.0)
+	after = ShadowMerge.stats()
+	_ok(ok and int(after["readbacks"]) == 0 and _verts(_main_proxy(obj).mesh) == _verts_of(boxes),
+		"disk/and the next launch reads no primitive back", str(after))
+	obj.free()
+
+
+## A new ShadowMerge, as a launch has: nothing kept in memory.
+func _relaunch() -> void:
+	_merge.free()
+	_merge = ShadowMerge.new()
+	add_child(_merge)
+
+
+func _remove_dir(dir: String) -> void:
+	if not DirAccess.dir_exists_absolute(dir):
+		return
+	for f in DirAccess.get_files_at(dir):
+		DirAccess.remove_absolute(dir.path_join(f))
+	DirAccess.remove_absolute(dir)
