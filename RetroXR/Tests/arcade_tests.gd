@@ -910,8 +910,8 @@ func _group_panel() -> void:
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet
 	var size := Vector2(0.6, 0.5)
 	var local: Variant = model.options_panel_anchor(size)
-	_ok(local is Vector3 and (local as Vector3).x > RetroSystemModelArcadeCabinet.SIZE.x * 0.5,
-		"panel: the cabinet's options panel stands to its right")
+	_ok(local is Vector3 and absf((local as Vector3).x) < 0.01 and (local as Vector3).z > 0.47,
+		"panel: the cabinet's options panel stands in front of it, in the middle, out past its control panel")
 	_ok(local is Vector3 and absf((local as Vector3).y - 1.2) < 0.4, "panel: at eye height, not above a 1.8 m box")
 	var world: Variant = sys.options_panel_anchor(size)
 	_ok(world is Vector3 and (world as Vector3).distance_to(sys.global_transform * (local as Vector3)) < 0.001,

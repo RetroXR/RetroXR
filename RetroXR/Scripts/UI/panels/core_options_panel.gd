@@ -46,7 +46,7 @@ var _debug_frames := -1
 ## Centred over the machine, its bottom edge CLEARANCE above the hardware's top.
 ## Half the panel is added because global_position is its centre — placing the
 ## centre at the clearance height is what put the lower half inside the tower.
-## Beside a tall machine the page is clear of it by its place; the rule that lifts a page clear of the object's top is for a page
+## In front of a tall machine the page is clear of it by its place; the rule that lifts a page clear of the object's top is for a page
 ## above it, and here lifted the menu over a 2.2 m cabinet's top for a moment as it opened (the owner, 2026-11-17: "the 'tab menu'
 ## ... will jump up high some times"). Over any other machine, as every panel.
 func _keep_clear_of(target: Node3D, delta: float) -> void:
@@ -56,7 +56,7 @@ func _keep_clear_of(target: Node3D, delta: float) -> void:
 
 
 func _anchor() -> Vector3:
-	# A tall machine (an arcade cabinet) hangs its panel beside itself, where it can be read.
+	# A tall machine (an arcade cabinet) hangs its panel in front of itself, where it can be read.
 	var beside: Variant = _system.options_panel_anchor(_viewport_node.screen_size)
 	if beside != null:
 		return beside as Vector3

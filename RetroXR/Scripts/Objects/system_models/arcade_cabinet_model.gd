@@ -141,6 +141,7 @@ func _collect_modules() -> void:
 			ArcadeProfiles.KIND_SERVICE:
 				_services.append(m as ArcadeServiceModule)
 	_controls.sort_custom(func(a: ArcadeControlModule, b: ArcadeControlModule) -> bool: return a.player < b.player)
+	_front_cache = NAN
 	_ensure_cash_box()
 	_apply_screen_look()
 	var marquee := find_child("Marquee", true, false) as MeshInstance3D
@@ -283,10 +284,37 @@ func toast_anchor() -> Variant:
 	return Transform3D(basis, middle + basis.z * TOAST_DISTANCE)
 
 
-## The options panel stands to the cabinet's RIGHT at eye height, readable from the front,
-## instead of floating above a 1.8 m box where nobody can see it.
-func options_panel_anchor(panel_size: Vector2) -> Variant:
-	return Vector3(cabinet_width * 0.5 + 0.12 + panel_size.x * 0.5, 1.2, 0.25)
+## The options panel stands IN FRONT of the cabinet, in the middle, at eye height, a step out from its front (the control
+## panel's edge): readable where the player stands, not floating above a 1.8 m box where nobody can see it, nor off to its
+## side (the owner, 2026-11-17: "can you put it in front of the cabinet instead ... rather than off to the side").
+const OPTIONS_PANEL_Y := 1.30
+const OPTIONS_PANEL_OUT := 0.40
+
+
+func options_panel_anchor(_panel_size: Vector2) -> Variant:
+	return Vector3(0.0, OPTIONS_PANEL_Y, _front_z() + OPTIONS_PANEL_OUT)
+
+
+## How far forward the cabinet reaches (its control panel's front edge), in its own frame: what it draws, measured once (the
+## cabinet's footprint is its shell's, 0.40, or a form's).
+var _front_cache := NAN
+
+
+func _front_z() -> float:
+	if not is_nan(_front_cache):
+		return _front_cache
+	var front := _footprint_rect().end.y
+	var to_me := global_transform.affine_inverse()
+	for n in find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.mesh == null or not mi.is_visible_in_tree():
+			continue
+		var b := (to_me * mi.global_transform) * mi.get_aabb()
+		# (the cabinet's own parts: nothing standing far out in front of it, a cord, a dancer's stage)
+		if b.end.z < front + 0.5:
+			front = maxf(front, b.end.z)
+	_front_cache = front
+	return front
 
 
 ## Picked up by HOLDING the grab on it for one second, ring filling: a cabinet is not
