@@ -159,14 +159,12 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 		# Each cut to its run, as the board's other cords are below: at the scene's length (1.8 m) the JAMMA lead lay
 		# coiled on the cabinet's floor.
 		_cut_to_run(jc, _port(conv, CONV_EDGE), harness)
-		home.add_child(jc)
-		jc.global_position = conv.global_position + Vector3(0, 0.1, 0)
+		_add_on_run(jc, home, _port(conv, CONV_EDGE), harness)
 		(_port(conv, CONV_EDGE)).pick_up_object(jc.get_node("PlugA0"))
 		harness.pick_up_object(jc.get_node("PlugB0"))
 		var jv := (load("res://Scenes/Objects/cables/jvs_cable.tscn") as PackedScene).instantiate() as Node3D
 		_cut_to_run(jv, _port(bay, BOARD_JVS), _port(conv, CONV_JVS))
-		home.add_child(jv)
-		jv.global_position = conv.global_position + Vector3(0, 0.1, 0)
+		_add_on_run(jv, home, _port(bay, BOARD_JVS), _port(conv, CONV_JVS))
 		_port(bay, BOARD_JVS).pick_up_object(jv.get_node("PlugA0"))
 		_port(conv, CONV_JVS).pick_up_object(jv.get_node("PlugB0"))
 	var runs := [["naomi_power_cable", [["PlugA0", bay, BOARD_POWER], ["PlugB0", cabinet, CAB_POWER]]],
@@ -188,12 +186,22 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 			reach = maxf(reach, (ports[i] as Node3D).global_position.distance_to((ports[i + 1] as Node3D).global_position))
 		for rope in cable.find_children("*", "VerletRope", true, false):
 			CaptiveCord.resize(rope as VerletRope, reach + CORD_SPARE)
-		home.add_child(cable)
-		cable.global_position = (bay as Node3D).global_position + Vector3(0, 0.1, 0)
+		_add_on_run(cable, home, ports[0] as Node3D, ports[1] as Node3D)
 		for i in seats.size():
 			var plug := cable.get_node_or_null(str(seats[i][0])) as Node3D
 			if plug != null:
 				(ports[i] as Port).pick_up_object(plug)
+
+
+## Add a fresh lead to the room halfway along its run, so its cords are laid there and only their ends move onto the sockets.
+## Made 0.1 m over the board (as it was) a short, taut cord's middle could stay draped over or through the board's top
+## (the cabinets probe: a Blast City's phono cord), where the cabinets lay every run clear of the board.
+static func _add_on_run(cable: Node3D, home: Node, a: Node3D, b: Node3D) -> void:
+	var mid := (a.global_position + b.global_position) * 0.5
+	if home is Node3D:
+		cable.position = (home as Node3D).global_transform.affine_inverse() * mid
+	home.add_child(cable)
+	cable.global_position = mid
 
 
 ## Cut a fresh lead's cords to the run between its two sockets, and CORD_SPARE, before it is in the tree.
