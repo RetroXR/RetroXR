@@ -138,6 +138,7 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 				machine = machine.get_parent()
 			if machine != null:
 				(conv as RigidBody3D).add_collision_exception_with(machine)
+		_reseat_later(conv, cabinet, bay as Node3D)
 		var jc := (load("res://Scenes/Objects/cables/jamma_cable.tscn") as PackedScene).instantiate() as Node3D
 		home.add_child(jc)
 		jc.global_position = conv.global_position + Vector3(0, 0.1, 0)
@@ -193,6 +194,28 @@ static func _converter_seat(cabinet: Node, bay: Node3D) -> Transform3D:
 	if hit.is_empty() or machine == null or not machine.is_ancestor_of(hit["collider"] as Node):
 		return on_board
 	return Transform3D(bay.global_basis, hit["position"] as Vector3 + Vector3.UP * 0.001)
+
+
+## How long after a fresh cabinet's cords are laid its converter is set on the floor again: the cabinet's mesh (what the seat's ray
+## meets) is not its pointer's yet when the cords are laid, and a converter seated then was left on top of the board.
+const RESEAT_FRAMES := 10
+
+
+## Set the converter where _converter_seat finds the floor, once the cabinet's mesh is there to find it (left on top of the board,
+## frozen, it hung over the shelf in the Aero City and the Blast City: the owner, 2026-11-17, "the jamma to jvs floats in the
+## air"). Its cords' plugs are in its sockets and go with it. Not if it has been taken in the meantime.
+static func _reseat_later(conv: Node3D, cabinet: Node, bay: Node3D) -> void:
+	for i in RESEAT_FRAMES:
+		if not is_instance_valid(conv) or not conv.is_inside_tree():
+			return
+		await conv.get_tree().physics_frame
+	if not is_instance_valid(conv) or not is_instance_valid(bay) or not is_instance_valid(cabinet):
+		return
+	if conv is XRToolsPickable and (conv as XRToolsPickable).is_picked_up():
+		return
+	var seat := _converter_seat(cabinet, bay)
+	if not seat.origin.is_equal_approx(bay.global_transform.translated_local(Vector3(0.0, 0.08, 0.0)).origin):
+		conv.global_transform = seat
 
 
 ## A socket made in code: the snap zone with a script and its plug family set before it is in the tree.
