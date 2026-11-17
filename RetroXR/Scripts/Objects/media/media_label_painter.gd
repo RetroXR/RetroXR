@@ -1,6 +1,9 @@
 ## MediaLabelPainter — RetroXR's own labels for an album with no pictures: a cassette's side A and side B (the striped
 ## RETRO XR label: the album's name on the writing strip, the side in a circle and the tape in a plate either side of
-## the window, the maker's line along the foot) and an LP's (a round label, warm red for side A, blue for side B).
+## the window, the maker's line along the foot), an LP's (a round label, warm red for side A, blue for side B) and a
+## video tape's face and spine (the cassette's paper and badges, its stripes running warm into cool, as a tape has no
+## sides: the speed in a circle and the tape, T-120, in a plate), and an audio CD's printed face (the name and one
+## stripe band in ink on the bare silver: transparent wherever it is not printed, so the disc's own lacquer shows).
 ##
 ## The name is fitted by `fit_name` (pure: one line, then without its trailing brackets, then more lines, then cut
 ## with "..."), and the label is drawn ONCE on a small off-screen canvas (a SubViewport, as VfdDisplay draws its
@@ -9,7 +12,8 @@
 ##
 ## A medium asks for one only for a side with no picture of its own (`MediaLabelArt.album_side` found none), so an
 ## album's own `cover` / `back` always wins. Nothing is written to disk and nothing goes on the wire: every peer
-## draws the same label from the same name. The layout is the mock-up the player approved (2026-11-07/08).
+## draws the same label from the same name. The layout is the mock-up the player approved (2026-11-07/08; the video
+## tape's, concept A, and the CD's, concept B, 2026-11-17).
 class_name MediaLabelPainter
 extends RefCounted
 
@@ -28,6 +32,9 @@ const STRIPES := {
 	"B": [Color8(120, 220, 210), Color8(60, 170, 205), Color8(60, 110, 190), Color8(92, 62, 160)],
 }
 const LP_GROUND := {"A": Color8(196, 40, 70), "B": Color8(36, 70, 150)}
+## A video tape has no sides: side A's set into side B's, run back, so the band goes yellow .. magenta .. violet .. teal.
+const SWEEP := [Color8(255, 190, 60), Color8(250, 130, 45), Color8(232, 70, 60), Color8(196, 40, 92),
+	Color8(92, 62, 160), Color8(60, 110, 190), Color8(60, 170, 205), Color8(120, 220, 210)]
 
 ## The cassette's label is the model's LabelA / LabelB: 89.6 x 40.4 mm, its window cut out of the mesh at these
 ## shares of its width and height (measured from the mesh's UVs).
@@ -35,6 +42,16 @@ const CASSETTE_MM := Vector2(89.6, 40.4)
 const CASSETTE_PX := 1024
 const WINDOW := Rect2(0.165, 0.37, 0.67, 0.42)
 const LP_PX := 512
+## A video tape's labels are drawn the shape of the paper VCRTape fits a picture in (its _ART_BOX / _SPINE_BOX), so a
+## drawn one fills it as a picture of that shape would.
+const VHS_FACE_MM := Vector2(78.0, 46.0)
+const VHS_SPINE_MM := Vector2(148.0, 19.0)
+const VHS_PX := 1024
+## An audio CD's face covers the disc's bounding square, as the disc shader's label UV does: 120 mm across. The shader
+## prints it only from the mirror band to the rim (AudioDisc.PRINT_FROM, r_data_end), so the face is drawn edge to
+## edge and the hub and rim are the shader's to keep clear.
+const CD_MM := 120.0
+const CD_PX := 1024
 
 static var _cache := {}
 ## Labels being drawn now: a second ask for one waits for it rather than drawing it again.
@@ -95,6 +112,36 @@ static func cassette_name_fit(title: String, px: float = CASSETTE_PX) -> Diction
 static func lp_name_fit(title: String, px: float = LP_PX) -> Dictionary:
 	var k := px / 1024.0
 	return fit_name(font(), title.to_upper(), 600.0 * k, 146.0 * k * 0.9, int(64.0 * k), int(34.0 * k), 3)
+
+
+## The video's name as the tape's face fits it on its writing strip (two lines at most), for a face `px` wide.
+static func vhs_face_name_fit(title: String, px: float = VHS_PX) -> Dictionary:
+	var mm := px / VHS_FACE_MM.x
+	return fit_name(font(), title.to_upper(), px - 8.0 * mm, 10.5 * mm, int(5.4 * mm), int(2.7 * mm), 2)
+
+
+## The video's name as the spine fits it between its stripes and its plate (two lines at most), for a spine `px` long.
+static func vhs_spine_name_fit(title: String, px: float = VHS_PX) -> Dictionary:
+	var mm := px / VHS_SPINE_MM.x
+	return fit_name(font(), title.to_upper(), 110.0 * mm, 12.0 * mm, int(6.6 * mm), int(3.2 * mm), 2)
+
+
+## The album's name as the CD's face fits it above the hub (three lines at most), for a face `px` across.
+static func cd_name_fit(title: String, px: float = CD_PX) -> Dictionary:
+	var mm := px / CD_MM
+	return fit_name(font(), title.to_upper(), 60.0 * mm, 24.0 * mm, int(6.4 * mm), int(3.0 * mm), 3)
+
+
+## What a CD's face says under its name: "12 TRACKS  ·  46:20"; just the tracks while the length is not known.
+static func cd_details(tracks: int, seconds: float) -> String:
+	if tracks <= 0:
+		return ""
+	var count := "%d TRACK%s" % [tracks, "" if tracks == 1 else "S"]
+	var s := roundi(seconds)
+	if s <= 0:
+		return count
+	@warning_ignore("integer_division")
+	return "%s  ·  %d:%02d" % [count, s / 60, s % 60]
 
 
 ## `text` without its trailing (...) / [...] groups, as file names carry them; the text itself if that leaves nothing.
@@ -193,6 +240,53 @@ static func lp(host: Node, side: String, title: String) -> Texture2D:
 	if tex != null:
 		_cache[key] = tex
 	print("[LabelPainter] LP side %s for \"%s\": %s" % [side, title, "drawn" if tex != null else "not drawn"])
+	return tex
+
+
+## A video tape's face label for the video named `title`, on a tape called `tape` ("T-120"). Cached.
+static func vhs_face(host: Node, title: String, tape: String) -> Texture2D:
+	return await _vhs(host, "face", title, tape, VHS_FACE_MM, Vector2i(3, 3),
+		func(c: Control, px: Vector2) -> void: _paint_vhs_face(c, px, title, tape))
+
+
+## A video tape's spine label, the one a deck and a shelf show. Cached.
+static func vhs_spine(host: Node, title: String, tape: String) -> Texture2D:
+	# Probed on the paper between the stripes and the name, 14 mm in and clear of the top edge.
+	return await _vhs(host, "spine", title, tape, VHS_SPINE_MM, Vector2i(roundi(14.0 * VHS_PX / VHS_SPINE_MM.x), 3),
+		func(c: Control, px: Vector2) -> void: _paint_vhs_spine(c, px, title, tape))
+
+
+static func _vhs(host: Node, part: String, title: String, tape: String, size_mm: Vector2, probe: Vector2i,
+		paint: Callable) -> Texture2D:
+	var key := "vhs|%s|%s|%s" % [part, title, tape]
+	if await _wait_for_other(host, key):
+		return _cache.get(key)
+	_drawing[key] = true
+	var px := Vector2(VHS_PX, roundi(VHS_PX * size_mm.y / size_mm.x))
+	var tex := await _draw(host, Vector2i(px), false, func(c: Control) -> void: paint.call(c, px), probe, PAPER)
+	_drawing.erase(key)
+	if tex != null:
+		_cache[key] = tex
+	print("[LabelPainter] VHS %s for \"%s\" (%s): %s" % [part, title, tape,
+		"%dx%d" % [px.x, px.y] if tex != null else "not drawn"])
+	return tex
+
+
+## An audio CD's printed face for the album named `title`, `details` under it (cd_details). Cached.
+static func cd(host: Node, title: String, details: String) -> Texture2D:
+	var key := "cd|%s|%s" % [title, details]
+	if await _wait_for_other(host, key):
+		return _cache.get(key)
+	_drawing[key] = true
+	# Probed on the band, 40 mm right of centre and in its fifth stripe (0.2 .. 2.2 mm below the middle line).
+	var mm := CD_PX / CD_MM
+	var probe := Vector2i(roundi(CD_PX / 2.0 + 40.0 * mm), roundi(CD_PX / 2.0 + 1.2 * mm))
+	var tex := await _draw(host, Vector2i(CD_PX, CD_PX), true,
+		func(c: Control) -> void: _paint_cd(c, float(CD_PX), title, details), probe, SWEEP[4])
+	_drawing.erase(key)
+	if tex != null:
+		_cache[key] = tex
+	print("[LabelPainter] CD face for \"%s\" (%s): %s" % [title, details, "drawn" if tex != null else "not drawn"])
 	return tex
 
 
@@ -375,3 +469,109 @@ static func _paint_lp(c: Control, s: float, side: String, title: String) -> void
 		var size := int(float(row[3]) * k)
 		_text_centred(c, f, str(row[0]), o.x + float(row[1]) * k, o.y + float(row[2]) * k + size * CAP_EM / 2.0, size,
 			PAPER)
+
+
+## The tape in its plate: its name over a smaller line, the pair centred on (`cx`, `yc`) by their capitals.
+static func _plate_text(c: Control, f: Font, tape: String, under: String, cx: float, yc: float, big: int, small: int,
+		between: float) -> void:
+	var big_h := big * CAP_EM_C
+	var small_h := small * CAP_EM
+	var top := yc - (big_h + between + small_h) / 2.0
+	_text_centred(c, f, tape, cx, top + big_h, big, INK)
+	_text_centred(c, f, under, cx, top + big_h + between + small_h, small, INK)
+
+
+static func _paint_vhs_face(c: Control, px: Vector2, title: String, tape: String) -> void:
+	var f := font()
+	var mm := px.x / VHS_FACE_MM.x
+	var w := px.x
+	var h := px.y
+	c.draw_rect(Rect2(Vector2.ZERO, px), PAPER)
+	# The writing strip, as the cassette's: the name in up to two lines over a rule.
+	var fit := vhs_face_name_fit(title, w)
+	_block(c, f, fit["lines"], int(fit["size"]), w / 2.0, 0.8 * mm, 12.6 * mm, INK)
+	c.draw_line(Vector2(4.0 * mm, 13.6 * mm), Vector2(w - 4.0 * mm, 13.6 * mm), RULE, maxf(1.0, 0.15 * mm))
+	# The band, warm into cool, with the badges on its middle line.
+	var pitch := 2.1 * mm
+	var band := 1.95 * mm
+	var y0 := 17.0 * mm
+	for i in SWEEP.size():
+		c.draw_rect(Rect2(0.0, y0 + i * pitch, w, band), SWEEP[i])
+	var yc := y0 + (SWEEP.size() * pitch - (pitch - band)) / 2.0
+	var line := 0.28 * mm
+	var cx := 10.5 * mm
+	var r := 5.8 * mm
+	c.draw_circle(Vector2(cx, yc), r, PAPER)
+	c.draw_arc(Vector2(cx, yc), r - line / 2.0, 0.0, TAU, 96, INK, line, true)
+	var sp := int(3.3 * mm)
+	_text_centred(c, f, "SP", cx, yc + sp * CAP_EM / 2.0, sp, INK)
+	_box(c, Rect2(w / 2.0 - 16.0 * mm, yc - 3.2 * mm, 32.0 * mm, 6.4 * mm), PAPER, 3.2 * mm)
+	var pill := int(2.0 * mm)
+	_text_centred(c, f, "VIDEO CASSETTE", w / 2.0, yc + pill * CAP_EM / 2.0, pill, INK)
+	var pw := 13.6 * mm
+	var ph := 11.6 * mm
+	var pcx := w - 4.2 * mm - pw / 2.0
+	_box(c, Rect2(pcx - pw / 2.0, yc - ph / 2.0, pw, ph), PAPER, 1.6 * mm, INK, line)
+	_plate_text(c, f, tape, "HI-FI", pcx, yc, int(2.2 * mm), int(1.45 * mm), 1.0 * mm)
+	# The maker's line along the foot.
+	c.draw_string(f, Vector2(4.0 * mm, h - 2.4 * mm), "RETRO XR", HORIZONTAL_ALIGNMENT_LEFT, -1, int(2.5 * mm), INK)
+	var foot := "STEREO  ·  NTSC"
+	var fs := int(1.85 * mm)
+	c.draw_string(f, Vector2(w - 4.0 * mm - _width(f, foot, fs), h - 2.4 * mm), foot, HORIZONTAL_ALIGNMENT_LEFT, -1,
+		fs, INK)
+
+
+static func _paint_vhs_spine(c: Control, px: Vector2, title: String, tape: String) -> void:
+	var f := font()
+	var mm := px.x / VHS_SPINE_MM.x
+	var h := px.y
+	c.draw_rect(Rect2(Vector2.ZERO, px), PAPER)
+	# The stripes stand across the left end: the face's band turned on end.
+	for i in SWEEP.size():
+		c.draw_rect(Rect2(i * 1.6 * mm, 0.0, 1.45 * mm, h), SWEEP[i])
+	# The name between the stripes (to 12.8 mm) and the plate (from 129.2 mm), centred in that run.
+	var fit := vhs_spine_name_fit(title, px.x)
+	_block(c, f, fit["lines"], int(fit["size"]), 71.0 * mm, 3.2 * mm, h - 3.2 * mm, INK)
+	var pw := 16.6 * mm
+	var ph := 11.6 * mm
+	var pcx := px.x - 2.2 * mm - pw / 2.0
+	_box(c, Rect2(pcx - pw / 2.0, h / 2.0 - ph / 2.0, pw, ph), PAPER, 1.6 * mm, INK, 0.28 * mm)
+	_plate_text(c, f, tape, "SP  ·  HI-FI", pcx, h / 2.0, int(2.5 * mm), int(1.35 * mm), 1.0 * mm)
+
+
+## `text` round the foot of a circle of radius `r` about `o`, reading left to right, the letters' tops toward the
+## centre and their baseline on the circle; `spacing` added between letters.
+static func _arc_text(c: Control, f: Font, text: String, o: Vector2, r: float, size: int, spacing: float,
+		col: Color) -> void:
+	var widths := PackedFloat32Array()
+	var total := -spacing
+	for i in text.length():
+		var w := f.get_char_size(text.unicode_at(i), size).x + spacing
+		widths.append(w)
+		total += w
+	var along := -total / 2.0
+	for i in text.length():
+		var glyph := widths[i] - spacing
+		var mid := along + glyph / 2.0
+		var th := PI / 2.0 - mid / r
+		c.draw_set_transform(o + Vector2(cos(th), sin(th)) * r, -mid / r, Vector2.ONE)
+		c.draw_char(f, Vector2(-glyph / 2.0, 0.0), text[i], size, col)
+		along += widths[i]
+	c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+static func _paint_cd(c: Control, s: float, title: String, details: String) -> void:
+	var f := font()
+	var mm := s / CD_MM
+	var o := Vector2(s, s) / 2.0
+	# Nothing but ink: the canvas stays clear, and the disc's lacquer shows wherever nothing is printed.
+	# One band straight across, as the cassette's runs through its window; the hub cuts it (the shader's label_r_in).
+	for i in SWEEP.size():
+		c.draw_rect(Rect2(0.0, o.y + (-8.6 + i * 2.2) * mm, s, 2.0 * mm), SWEEP[i])
+	# The name above the hub, its lowest line clear of the 23 mm the print starts at.
+	var fit := cd_name_fit(title, s)
+	_block(c, f, fit["lines"], int(fit["size"]), o.x, o.y - 50.0 * mm, o.y - 24.5 * mm, INK)
+	_text_centred(c, f, "RETRO XR", o.x, o.y + 29.0 * mm, int(3.2 * mm), INK)
+	if not details.is_empty():
+		_text_centred(c, f, details, o.x, o.y + 35.0 * mm, int(2.2 * mm), INK)
+	_arc_text(c, f, "DIGITAL AUDIO  ·  STEREO", o, 53.6 * mm, int(1.7 * mm), 0.25 * mm, INK)

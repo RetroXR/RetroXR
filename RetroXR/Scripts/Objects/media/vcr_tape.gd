@@ -22,6 +22,9 @@ extends XRToolsPickable
 	set(v):
 		video_label = v
 		_update_label()
+		# RetroXR's own labels print the name: a renamed tape draws them again.
+		if is_node_ready():
+			_paint_missing()
 
 
 ## Which recording the tape stands in, counted from 0, for a tape that is a
@@ -53,7 +56,14 @@ const CASSETTES: Array[int] = [5, 10, 15, 20, 30, 60, 90, 120, 160, 180, 210]
 var recording_seconds: float = 0.0
 ## Which cassette it is, T-<this>, in minutes; 0 until the recording's length is
 ## known. Chosen once and kept: a cassette does not change size. Saved.
-var cassette: int = 0
+var cassette: int = 0:
+	set(v):
+		if v == cassette:
+			return
+		cassette = v
+		# RetroXR's own labels name the cassette: one first measured by a deck draws them again.
+		if is_node_ready():
+			_paint_missing()
 ## Seconds into the blank tape after the last recording; 0 while the tape stands
 ## in its recordings. Written by the deck playing or winding it. Saved.
 var tape_blank: float = 0.0
@@ -69,10 +79,20 @@ const _SPINE_AT := Vector3(0.010, -0.0522, -0.0005)
 const _SPINE_BOX := Vector2(0.148, 0.019)
 
 ## Finds and decodes the pictures beside the video file (MediaLabelArt): the
-## sticker for the face (LabelArt) and a strip for the spine (SpineArt). A tape
-## with no sticker shows its title as text. Derived from video_path, never saved.
+## sticker for the face (LabelArt) and a strip for the spine (SpineArt). A slot
+## with no picture wears RetroXR's own label (MediaLabelPainter), naming the
+## video and its cassette. Derived from video_path, never saved.
 var _labels: MediaLabelLoader = null
 var _download_status := ""
+## The video's own pictures, RetroXR's labels for the slots with none, and which slots those are.
+var _pic_front: Texture2D = null
+var _pic_spine: Texture2D = null
+var _gen_front: Texture2D = null
+var _gen_spine: Texture2D = null
+var _missing_front := false
+var _missing_spine := false
+## Bumped by every paint: a paint that finishes after a newer one has started is dropped.
+var _paint_token := 0
 
 
 ## The drawn cassette (VhsCassette), wound to where this tape stands.
@@ -153,29 +173,85 @@ func set_flap(open: float) -> void:
 		_cassette.door_open = open
 
 
-## Look for the pictures beside the video; they decode off the main thread.
+## Look for the pictures beside the video; they decode off the main thread. A
+## slot with none wears RetroXR's label (the loader says nothing for a path
+## that stays "", so "none" is taken from the path itself).
 func _request_label_art() -> void:
-	_labels.request({
-		&"front": MediaLabelArt.sidecar(video_path),
-		&"spine": MediaLabelArt.sidecar(video_path, " spine"),
-	})
+	var front := MediaLabelArt.sidecar(video_path)
+	var spine := MediaLabelArt.sidecar(video_path, " spine")
+	_labels.request({&"front": front, &"spine": spine})
+	_missing_front = front.is_empty()
+	_missing_spine = spine.is_empty()
+	if _missing_front:
+		_pic_front = null
+	if _missing_spine:
+		_pic_spine = null
+	_paint_missing()
 
 
-## Put a picture on the tape, or take it away (a null `tex`) and show the title
-## text again.
+## A picture landed for a slot, or a slot lost its picture (a null `tex`): that
+## one then wears RetroXR's label.
 func _on_label_art(slot: StringName, tex: Texture2D) -> void:
 	if slot == &"front":
-		MediaLabelArt.show_quad(self, "LabelArt", tex, _ART_BOX,
-			Transform3D(Basis.IDENTITY, Vector3(_ART_CENTER.x, _ART_CENTER.y, _ART_Z)))
-		_apply_label_text_visibility()
+		_pic_front = tex
+		_missing_front = tex == null
 	else:
-		# A quad faces +Z; turned +90 degrees about X it faces -Y, out of the spine, with
-		# the top of the picture toward the cassette's top, which reads right from behind.
-		MediaLabelArt.show_quad(self, "SpineArt", tex, _SPINE_BOX,
-			Transform3D(Basis(Vector3.RIGHT, PI / 2.0), _SPINE_AT))
-		var spine := get_node_or_null("SpineTitle") as Label3D
-		if spine:
-			spine.visible = tex == null and not has_node(MOD_SPINE)
+		_pic_spine = tex
+		_missing_spine = tex == null
+	if tex == null:
+		_paint_missing()
+	_lay_art()
+
+
+## The name RetroXR's labels print: the tape's title, else the video's file name.
+func _label_title() -> String:
+	return video_label if not video_label.is_empty() else video_path.get_file().get_basename()
+
+
+## Draw RetroXR's label for each slot with no picture, then lay them on. Until a
+## deck or the file's header says which cassette it is, it is the T-120 the
+## drawn reels show. Nothing to name it by: none, and the title text shows.
+func _paint_missing() -> void:
+	if _labels == null:
+		return
+	_paint_token += 1
+	var token := _paint_token
+	var title := _label_title()
+	if title.is_empty() or not (_missing_front or _missing_spine):
+		_gen_front = null
+		_gen_spine = null
+		_lay_art()
+		return
+	var tape := "T-%d" % (cassette if cassette > 0 else 120)
+	var front: Texture2D = null
+	var spine: Texture2D = null
+	if _missing_front:
+		front = await MediaLabelPainter.vhs_face(self, title, tape)
+	if _missing_spine and is_instance_valid(self):
+		spine = await MediaLabelPainter.vhs_spine(self, title, tape)
+	if not is_instance_valid(self) or token != _paint_token:
+		return
+	_gen_front = front
+	_gen_spine = spine
+	_lay_art()
+
+
+## The video's picture in each slot, else RetroXR's label for it; but a mod that
+## hangs a spine label of its own keeps its spine (a picture still goes on, as before).
+func _lay_art() -> void:
+	var front := _pic_front if _pic_front != null else (_gen_front if _missing_front else null)
+	var spine_tex := _pic_spine if _pic_spine != null else \
+		(_gen_spine if _missing_spine and not has_node(MOD_SPINE) else null)
+	MediaLabelArt.show_quad(self, "LabelArt", front, _ART_BOX,
+		Transform3D(Basis.IDENTITY, Vector3(_ART_CENTER.x, _ART_CENTER.y, _ART_Z)))
+	_apply_label_text_visibility()
+	# A quad faces +Z; turned +90 degrees about X it faces -Y, out of the spine, with
+	# the top of the picture toward the cassette's top, which reads right from behind.
+	MediaLabelArt.show_quad(self, "SpineArt", spine_tex, _SPINE_BOX,
+		Transform3D(Basis(Vector3.RIGHT, PI / 2.0), _SPINE_AT))
+	var spine := get_node_or_null("SpineTitle") as Label3D
+	if spine:
+		spine.visible = spine_tex == null and not has_node(MOD_SPINE)
 
 
 ## The picture carries the title itself, so the text steps aside for it: except

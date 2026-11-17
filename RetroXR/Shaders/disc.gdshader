@@ -84,6 +84,10 @@ uniform float r_data_end = 0.0580;      // pits end, clear outer rim starts
 // opaque white and would paint the whole label side blank.
 uniform sampler2D label_tex : source_color, hint_default_transparent,
 	filter_linear_mipmap_anisotropic, repeat_disable;
+// Where printing starts, metres from the centre. A scraped scan carries its own
+// hole and leaves this 0; art with none (an album cover printed full-bleed, an
+// audio CD's own face) sets it to the mirror band's edge so the hub stays clear.
+uniform float label_r_in = 0.0;
 
 // --- diffraction -----------------------------------------------------------
 // Track pitch in MICROMETRES, and it does real work. At 1.6 (CD) four diffraction
@@ -263,6 +267,7 @@ void fragment() {
 		// from 0.97 to 1.00 of half-width, so trimming here makes every title
 		// finish at the same radius and lets the rim read as polycarbonate.
 		art.a *= 1.0 - smoothstep(r_data_end, r_data_end + 0.0015, r);
+		art.a *= smoothstep(label_r_in - 0.0004, label_r_in, r);
 		vec3 base = mix(poly_color, lacquer_color, metal);
 		ALBEDO = mix(base, art.rgb, art.a);
 		// Matte ink against glossy unprinted lacquer. This one contrast is the

@@ -88,6 +88,7 @@ func _ready() -> void:
 		await _test_label()
 		await _test_label_albums()
 		await _test_label_media()
+		await _test_label_cd()
 	if _want("playlist"):
 		await _test_playlist()
 	if _want("wind"):
@@ -398,9 +399,48 @@ func _test_label() -> void:
 	bare.video_label = "Home Movies"
 	add_child(bare)
 	_spawned.append(bare)
+	# With no picture, RetroXR's own face and spine (MediaLabelPainter: plain cards of their shape headless).
+	var drawn := func(t: VCRTape, quad: String) -> bool:
+		var q := t.get_node_or_null(quad) as MeshInstance3D
+		var m := q.material_override as StandardMaterial3D if q != null else null
+		return m != null and m.albedo_texture != null and m.albedo_texture.get_width() == MediaLabelPainter.VHS_PX
+	_ok(await _wait_for(func() -> bool: return drawn.call(bare, "LabelArt") and drawn.call(bare, "SpineArt")),
+		"label/a tape with no picture wears RetroXR's own face and spine")
+	var face_q := bare.get_node_or_null("LabelArt") as MeshInstance3D
+	# 1024 x 604 px is the paper's 78 x 46 mm to a pixel's rounding.
+	_ok(face_q != null and ((face_q.mesh as QuadMesh).size - Vector2(0.078, 0.046)).length() < 0.0001,
+		"label/drawn the paper's shape, so it fills the paper (%s)" % [(face_q.mesh as QuadMesh).size if face_q else null])
+	_ok(not (bare.get_node("VideoLabel") as Label3D).visible and not (bare.get_node("SpineTitle") as Label3D).visible,
+		"label/and the title text steps aside for it")
+	var face_before: Texture2D = (face_q.material_override as StandardMaterial3D).albedo_texture if face_q else null
+	bare.cassette = 60
+	_ok(await _wait_for(func() -> bool:
+		var q := bare.get_node_or_null("LabelArt") as MeshInstance3D
+		return q != null and (q.material_override as StandardMaterial3D).albedo_texture != face_before),
+		"label/a tape first measured as another cassette draws its label again (T-60, not T-120)")
+	var unnamed := VCR_TAPE.instantiate() as VCRTape
+	add_child(unnamed)
+	_spawned.append(unnamed)
 	await _frames(3)
-	_ok(bare.get_node_or_null("LabelArt") == null and (bare.get_node("VideoLabel") as Label3D).visible,
-		"label/a tape with no picture shows its title as text")
+	_ok(unnamed.get_node_or_null("LabelArt") == null and (unnamed.get_node("VideoLabel") as Label3D).visible,
+		"label/a tape with no video and no name has nothing to print: its text shows")
+	var font := MediaLabelPainter.font()
+	var widest := func(fit: Dictionary) -> float:
+		var w := 0.0
+		for l: String in fit["lines"]:
+			w = maxf(w, font.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fit["size"])).x)
+		return w
+	var face_mm := MediaLabelPainter.VHS_PX / MediaLabelPainter.VHS_FACE_MM.x
+	var spine_mm := MediaLabelPainter.VHS_PX / MediaLabelPainter.VHS_SPINE_MM.x
+	var long_name := "Grandma's 80th Birthday Party at the Lake House"
+	var face_fit := MediaLabelPainter.vhs_face_name_fit(long_name)
+	_ok((face_fit["lines"] as PackedStringArray).size() == 2 and widest.call(face_fit) <= MediaLabelPainter.VHS_PX - 8.0 * face_mm,
+		"label/a long name is two lines inside the face's strip (%s)" % [face_fit["lines"]])
+	_eq(MediaLabelPainter.vhs_spine_name_fit("Home Movies")["lines"], PackedStringArray(["HOME MOVIES"]),
+		"label/a short one is one line on the spine")
+	var spine_fit := MediaLabelPainter.vhs_spine_name_fit(long_name)
+	_ok((spine_fit["lines"] as PackedStringArray).size() <= 2 and widest.call(spine_fit) <= 110.0 * spine_mm,
+		"label/and the long one fits between the spine's stripes and its plate (%s)" % [spine_fit["lines"]])
 
 	var png := _scratch.path_join("Home Movies.png")
 	_solid_png(png, 400, 100)
@@ -457,9 +497,9 @@ func _test_label() -> void:
 	# The path can change under a tape (a netplay peer remaps it to its own file).
 	var other := _scratch.path_join("Other.mp4")
 	tape.video_path = other
-	_ok(await _wait_for(func() -> bool: return tape.get_node_or_null("LabelArt") == null),
-		"label/a tape moved to a video with no picture drops it")
-	_ok(text.visible, "label/and shows its title again")
+	_ok(await _wait_for(func() -> bool: return drawn.call(tape, "LabelArt")),
+		"label/a tape moved to a video with no picture drops it for RetroXR's own label")
+	_ok(not text.visible, "label/which carries the title, so the text stays aside")
 
 	# Moved twice before the first decode lands: the last one wins.
 	var tall := _scratch.path_join("Tall.png")
@@ -547,13 +587,18 @@ func _test_label_media() -> void:
 	tape.video_label = "Home Movies"
 	add_child(tape)
 	_spawned.append(tape)
-	var got: bool = await _wait_for(func() -> bool: return tape.get_node_or_null("SpineArt") != null)
+	var tex_width := func(quad: String) -> int:
+		var q := tape.get_node_or_null(quad) as MeshInstance3D
+		var m := q.material_override as StandardMaterial3D if q != null else null
+		return m.albedo_texture.get_width() if m != null and m.albedo_texture != null else -1
+	var got: bool = await _wait_for(func() -> bool:
+		return tex_width.call("SpineArt") == 800 and tex_width.call("LabelArt") == MediaLabelPainter.VHS_PX)
 	_ok(got, "label/a tape with `Name spine.png` beside its video wears it on the spine")
 	if not got:
 		return
 	var spine := tape.get_node("SpineArt") as MeshInstance3D
-	_ok(tape.get_node_or_null("LabelArt") == null and (tape.get_node("VideoLabel") as Label3D).visible,
-		"label/and a spine alone leaves the face as text")
+	_ok(not (tape.get_node("VideoLabel") as Label3D).visible,
+		"label/and a spine alone leaves the face to RetroXR's own label")
 	# The cassette's spine label (VhsCassette's LabelSpine, 150 x 21 mm) is on its -Y edge, the one a deck shows.
 	_ok(spine.transform.basis.z.is_equal_approx(Vector3(0, -1, 0)) and spine.transform.basis.y.is_equal_approx(Vector3(0, 0, 1)),
 		"label/the strip faces out of the spine, its top toward the cassette's top")
@@ -562,8 +607,8 @@ func _test_label_media() -> void:
 		"label/over the spine label and fitted inside it, not stretched")
 	DirAccess.remove_absolute(_scratch.path_join("Home Movies spine.png"))
 	tape.video_path = _scratch.path_join("Elsewhere.mp4")
-	_ok(await _wait_for(func() -> bool: return tape.get_node_or_null("SpineArt") == null),
-		"label/a tape moved to a video with no spine drops it")
+	_ok(await _wait_for(func() -> bool: return tex_width.call("SpineArt") == MediaLabelPainter.VHS_PX),
+		"label/a tape moved to a video with no spine drops it for RetroXR's own")
 
 	# ── a cassette's two faces ──
 	var song := _scratch.path_join("Mix.mp3")
@@ -693,6 +738,73 @@ func _test_label_media() -> void:
 		"label/a record freed while its pictures decode does not crash")
 
 	RomLibrary._remove_tree(_scratch)
+
+
+## An audio CD's printed face: the album's cover, cut to its middle square, else
+## RetroXR's own (MediaLabelPainter.cd: a plain clear card of its size headless),
+## handed to the disc shader on the disc's own copy of the material and printed
+## from the mirror band out.
+func _test_label_cd() -> void:
+	_scratch = ProjectSettings.globalize_path("user://deck_tests_label_cd")
+	RomLibrary._remove_tree(_scratch)
+	DirAccess.make_dir_recursive_absolute(_scratch)
+	var was_test := MusicLengths.test_mode
+	MusicLengths.test_mode = true
+	var disc_mat := func(d: AudioDisc) -> ShaderMaterial:
+		return (d.get_node("DiscMesh") as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
+	var printed := func(d: AudioDisc) -> Texture2D:
+		var m: ShaderMaterial = disc_mat.call(d)
+		return m.get_shader_parameter("label_tex") as Texture2D if m != null else null
+	_scratch_file("Road Trip Mix/01 Intro.mp3")
+	_scratch_file("Road Trip Mix/02 Drive.mp3")
+	var album := _scratch.path_join("Road Trip Mix")
+
+	var bare := AUDIO_DISC.instantiate() as AudioDisc
+	bare.album_path = album
+	bare.album_label = "Road Trip Mix"
+	add_child(bare)
+	_spawned.append(bare)
+	_ok(await _wait_for(func() -> bool:
+		var t: Texture2D = printed.call(bare)
+		return t != null and t.get_width() == MediaLabelPainter.CD_PX),
+		"label/an audio CD with no cover wears RetroXR's own printed face")
+	_ok(not (bare.get_node("DiscLabel") as Label3D).visible, "label/and its floating title steps aside for it")
+	var bare_mat: ShaderMaterial = disc_mat.call(bare)
+	_ok(bare_mat != null and is_equal_approx(float(bare_mat.get_shader_parameter("label_r_in")), AudioDisc.PRINT_FROM),
+		"label/printed from the mirror band out, so the hub stays clear")
+	bare.net_set_download_status("40%")
+	_ok((bare.get_node("DiscLabel") as Label3D).visible, "label/a transfer's progress still shows over the print")
+	bare.net_set_download_status("")
+
+	var blank := AUDIO_DISC.instantiate() as AudioDisc
+	add_child(blank)
+	_spawned.append(blank)
+	await _frames(3)
+	_ok(disc_mat.call(blank) != bare_mat and printed.call(blank) == null and (blank.get_node("DiscLabel") as Label3D).visible,
+		"label/each disc prints on its own material: one with no album and no name stays bare, its title floating")
+
+	_solid_png(album.path_join("cover.png"), 400, 200)
+	var covered := AUDIO_DISC.instantiate() as AudioDisc
+	covered.album_path = album
+	covered.album_label = "Road Trip Mix"
+	add_child(covered)
+	_spawned.append(covered)
+	_ok(await _wait_for(func() -> bool:
+		var t: Texture2D = printed.call(covered)
+		return t != null and t.get_width() == 200 and t.get_height() == 200),
+		"label/an album's cover is printed on it instead, cut to its middle square")
+
+	_eq(MediaLabelPainter.cd_details(12, 2780.0), "12 TRACKS  ·  46:20", "label/the face gives the tracks and the running time")
+	_eq(MediaLabelPainter.cd_details(1, 0.0), "1 TRACK", "label/just the tracks while the length is not known")
+	_eq(MediaLabelPainter.cd_details(0, 300.0), "", "label/and nothing for an album with no tracks")
+	var font := MediaLabelPainter.font()
+	var fit := MediaLabelPainter.cd_name_fit("The Very Best of the Electric Light Orchestra Live at Wembley")
+	var w := 0.0
+	for l: String in fit["lines"]:
+		w = maxf(w, font.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fit["size"])).x)
+	_ok((fit["lines"] as PackedStringArray).size() <= 3 and w <= 60.0 * MediaLabelPainter.CD_PX / MediaLabelPainter.CD_MM,
+		"label/a long name fits above the hub in three lines at most (%s)" % [fit["lines"]])
+	MusicLengths.test_mode = was_test
 
 
 ## Frees `medium` while its label decode is still on the pool and says whether one
