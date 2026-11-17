@@ -358,8 +358,11 @@ func apply_volume() -> void:
 	# is on Source.RF and has to be silenced with the rest when it is not showing.
 	var systems: Array = _tv.panel().connected_systems()
 	for i in systems.size():
-		var system: Node3D = systems[i]
-		if is_instance_valid(system) and carries_sound(system):
+		var entry: Variant = systems[i]       # untyped: may be a freed source
+		if not is_instance_valid(entry):
+			continue
+		var system := entry as Node3D
+		if carries_sound(system):
 			AvSourceContract.push_volume(system, volume_for(i))
 	if _tv.tuner():
 		_tv.tuner().set_volume(tuner_volume())

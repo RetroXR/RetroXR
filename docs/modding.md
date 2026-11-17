@@ -1030,6 +1030,102 @@ unit.set_meta(&"snap_gate", func(zone: XRToolsSnapZone) -> String:
 	return "its cover is not lifted all the way")
 ```
 
+### A picture on a television
+
+A television does not need a console to show something. It asks whatever is on
+its selected input for a texture and draws its own glass from it, with the CRT,
+the inputs, SOURCE and the desktop fullscreen view all working as usual. A
+capture box, a camera, a PC or anything else a mod makes can put a picture on a
+set by answering the same few methods the VCR and DVD player answer. There is
+nothing to register.
+
+The device is an object of your own (see [Rooms, props, cabinets and
+controllers](#rooms-props-cabinets-and-controllers)) with a VIDEO OUT socket in
+its scene. That's the game's phono socket, with its local +Z pointing out of the
+panel:
+
+```
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="rca_port"]
+
+[node name="VideoOut" parent="." instance=ExtResource("rca_port")]
+channel = 0      ; RcaPort.Channel.VIDEO (1 and 2 are AUDIO_L and AUDIO_R)
+direction = 0    ; RcaPort.Direction.OUT
+```
+
+The player connects it to a set with the ordinary composite cord. The device's
+script, on its root node:
+
+```gdscript
+extends RigidBody3D
+
+var _tv: RetroTV = null          # the set this device's picture cord reaches
+var _frame: Texture2D = null     # whatever you draw into
+
+## The picture. Read by the set EVERY frame and never cached, so return a new
+## object whenever you like (a resolution change) and null for no signal.
+func get_video_texture() -> Texture2D:
+	return _frame
+
+## REQUIRED of every source (AvSourceContract): the set's volume, 0..1, and its
+## mono switch. A silent device leaves them empty.
+func set_audio_volume(_volume: float) -> void:
+	pass
+
+func set_audio_channel_mode(_mode: int) -> void:
+	pass
+
+## A plug moved on one of this device's sockets. REQUIRED: it is also how a
+## socket finds the device it belongs to. Tell the set when the picture cord
+## reaches it or leaves it.
+func on_av_topology_changed(_links: Array) -> void:
+	var feed := AvSource.resolve(self, true)
+	var tv: RetroTV = feed.video_sinks[0] if not feed.video_sinks.is_empty() else null
+	if tv == _tv:
+		return
+	if is_instance_valid(_tv):
+		_tv.on_av_source_lost(self)
+	_tv = tv
+	if tv != null:
+		tv.on_av_source_found(self)
+
+## Despawned or deleted: let go of the set.
+func _exit_tree() -> void:
+	if is_instance_valid(_tv):
+		_tv.on_av_source_lost(self)
+	_tv = null
+```
+
+Optional, each asked with `has_method`:
+
+| method | what it is for |
+|---|---|
+| `display_name() -> String` | the name in the set's SOURCE toast and menu |
+| `sends_video_to(tv) -> bool` | false to keep the picture off a set the device is cabled to (an audio cord in the yellow socket already counts as no picture) |
+| `get_video_stage(tv) -> Dictionary` | `{"shader": Shader, "params": {...}}`, a stage of your own that the set runs in a material it owns, as the VCR's VHS look does (`vcr_player.gd`); `{}` for none |
+
+- **The texture is yours.** An `ImageTexture` you `update()` with new frames, a
+  `ViewportTexture` from a `SubViewport` you render into, or anything else that
+  is a `Texture2D` will work. The set samples it and draws nothing into it.
+- **Sound** is the device's own. Play it from the device. If it should come out
+  of the set, apply the volume `set_audio_volume` hands you, and give the device
+  AUDIO_L/AUDIO_R OUT sockets (`channel = 1` and `2`).
+  `AvSource.resolve(self, true)` reports where each one landed.
+- **Cleanup is the cord.** Unplugged, the set forgets the device and shows its
+  no-signal screen. Despawned, `_exit_tree` lets go. A device freed without
+  calling `on_av_source_lost` drops off the glass too, but say it anyway.
+  Nothing of the game's is replaced, so there is nothing to restore when the
+  mod is disabled.
+- **Frames from outside the game** have to arrive through something GDScript
+  can read, because a mod cannot load native code (see [Limits](#limits)). A
+  mod cannot capture another window or a capture card itself. It can read
+  frames that a separate program serves on the local network, through
+  `StreamPeerTCP`, `HTTPRequest` or `PacketPeerUDP`, decode them with
+  `Image.load_jpg_from_buffer` / `load_png_from_buffer`, and `update()` its
+  `ImageTexture`. The same route works from a PC to a headset over Wi-Fi.
+
+`Tools/av/video_source_probe.gd` builds a device like this one, cables it to a
+set and checks each of the behaviors above.
+
 ### What the spawn card offers
 
 Nothing above is said to the menu separately. The game reads each object a mod

@@ -617,8 +617,10 @@ func source_found(source: Node3D) -> void:
 	_connected_systems[input] = source
 	# Only if its sound is ours: a console with its picture here and its sound in an
 	# amplifier is the amplifier's to set (TvAudio.carries_sound).
+	# Through the contract like every other push, so a source without the method (a
+	# mod's video-only box) is logged once rather than erroring on every plug.
 	if _tv.audio().carries_sound(source):
-		source.set_audio_volume(_tv.audio().volume_for(input))
+		AvSourceContract.push_volume(source, _tv.audio().volume_for(input))
 	_tv.audio().apply_channel_mode()
 	_tv.audio().apply_audio_out()
 	# Same rule as the captive-lead path, and stated the same way: a deck cabled up
@@ -709,10 +711,13 @@ func on_plug_released(input: int) -> void:
 ## so a deck or a machine without one fed through an RF switch should simply appear
 ## rather than being invisibly wrong on both channels.
 func rf_tuned() -> bool:
-	var host: Node3D = _connected_systems[RetroTV.Source.RF] \
+	# Read untyped: assigning a freed source to a typed Node3D is itself an error,
+	# and a mod's device can be freed without telling the set.
+	var entry: Variant = _connected_systems[RetroTV.Source.RF] \
 		if _connected_systems.size() > RetroTV.Source.RF else null
-	if not is_instance_valid(host):
+	if not is_instance_valid(entry):
 		return false
+	var host := entry as Node3D
 	if not host.has_method("get_rf_channel"):
 		return true
 	var ch := int(host.call("get_rf_channel"))
@@ -726,8 +731,8 @@ func rf_tuned() -> bool:
 func host_on(input: int) -> Node3D:
 	if input < 0 or input >= _connected_systems.size():
 		return null
-	var system: Node3D = _connected_systems[input]
-	return system if is_instance_valid(system) else null
+	var system: Variant = _connected_systems[input]     # untyped: may be freed
+	return system as Node3D if is_instance_valid(system) else null
 
 
 ## Every cord into one input that carries a different signal from the socket it is
@@ -792,5 +797,7 @@ func selected_system() -> Node3D:
 	var input := _tv.selected_input()
 	if input < 0:
 		return null
-	var system: Node3D = _connected_systems[input]
-	return system if is_instance_valid(system) else null
+	# Untyped: a source freed without telling the set (a mod's device) is still in
+	# the slot, and assigning it to a typed Node3D errors every frame.
+	var system: Variant = _connected_systems[input]
+	return system as Node3D if is_instance_valid(system) else null
