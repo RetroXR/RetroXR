@@ -1089,7 +1089,8 @@ bool VerletRope::StepBegin(double p_delta)
     if (m_depen_pending)
     {
         m_depen_pending = false;
-        DepenetrateLay();
+        if (!UsesShapes())
+            DepenetrateLay();
     }
 
     if (m_asleep)
@@ -1107,7 +1108,18 @@ bool VerletRope::StepBegin(double p_delta)
                       : 1))
         {
             m_sleep_environment_frame = 0;
-            if (EnvironmentChangedWhileSleeping())
+            if (UsesShapes())
+            {
+                // The shapes it lay on are compared with where they are now:
+                // one answer, no second poll to confirm it.
+                if (ShapesChangedWhileSleeping(SpaceState()))
+                {
+                    m_diag_wake_env += 1;
+                    Wake();
+                    m_diag_wake_call -= 1;
+                }
+            }
+            else if (EnvironmentChangedWhileSleeping())
             {
                 // Edge queries can return a different face (or no face) on one
                 // poll although nothing moved. Require the same conclusion on
@@ -1213,7 +1225,24 @@ bool VerletRope::StepBegin(double p_delta)
     m_iterations_now = std::max(1, static_cast<int>(std::lround(
                                        static_cast<double>(std::max(m_constraint_iterations, 1)) / substeps)));
     m_pins_cached = true;
+    if (UsesShapes())
+        GatherShapes(SpaceState());
     return true;
+}
+
+// Whether this cord tests itself against the shapes near it (the collision
+// plan) or asks the engine about each particle and remembers the planes.
+// XENU_ROPE_SHAPES=1 puts every cord in the room on the new way.
+bool VerletRope::UsesShapes() const
+{
+    static const bool all = RopeSwitch("XENU_ROPE_SHAPES", "debug.xenu.rope_shapes") != nullptr;
+    return (all || m_collision_mode == 1) && m_surface_collision_mask != 0;
+}
+
+PhysicsDirectSpaceState3D *VerletRope::SpaceState() const
+{
+    Ref<World3D> world = get_world_3d();
+    return world.is_valid() ? world->get_direct_space_state() : nullptr;
 }
 
 // The solve: this cord's own arrays and nothing else. No engine call, no
@@ -1227,8 +1256,11 @@ void VerletRope::StepSolve()
     const Vector3 start_exit = m_step_start_exit;
     const Vector3 end_exit = m_step_end_exit;
 
+    const bool shapes = UsesShapes();
     m_pin_fraction = 1.0 / substeps;
     Integrate(slice);
+    if (shapes)
+        ContactsFromShapes();
     ProfileMark(PROF_SELF_DETECT);
     m_self_contacts.clear();
     if (m_self_collision)
@@ -1245,6 +1277,8 @@ void VerletRope::StepSolve()
         m_pin_fraction = static_cast<double>(k + 1) / substeps;
         ProfileMark(PROF_INTEGRATE);
         Integrate(slice);
+        if (shapes)
+            ContactsFromShapes();
         ProfileMark(PROF_FINISH);
         for (SelfContact &c : m_self_contacts)
             c.pushed = 0.0;
@@ -1272,7 +1306,14 @@ void VerletRope::StepEnd()
     if (do_rest)
         m_raycast_frame = 0;
 
-    if (m_surface_collision_mask != 0 && m_ray_query.is_valid())
+    if (UsesShapes())
+    {
+        // Nothing to ask: the contacts were made from the shapes in the solve.
+        static const bool census = RopeSwitch("XENU_ROPE_CENSUS", "debug.xenu.rope_census") != nullptr;
+        if (census)
+            CensusShapes(nullptr);
+    }
+    else if (m_surface_collision_mask != 0 && m_ray_query.is_valid())
         SolveSurfaceCollision(do_rest);
 
     ProfileMark(PROF_REST);

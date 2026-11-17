@@ -201,6 +201,7 @@ public:
     XENU_ROPE_PROP(int, RaycastInterval, m_raycast_interval)
     XENU_ROPE_PROP(int, Substeps, m_substeps)
     XENU_ROPE_PROP(int, DebugDisable, m_debug_disable)
+    XENU_ROPE_PROP(int, CollisionMode, m_collision_mode)
     XENU_ROPE_PROP(double, WaveDamping, m_wave_damping)
     XENU_ROPE_PROP(bool, SelfCollision, m_self_collision)
     XENU_ROPE_PROP(double, AnchorPull, m_anchor_pull)
@@ -329,6 +330,11 @@ private:
     void GatherShapes(godot::PhysicsDirectSpaceState3D *p_space);
     void CensusShapes(godot::PhysicsDirectSpaceState3D *p_space);
     void FreeGatherShape();
+    void ContactsFromShapes();
+    void RememberSupports();
+    bool ShapesChangedWhileSleeping(godot::PhysicsDirectSpaceState3D *p_space);
+    bool UsesShapes() const;
+    godot::PhysicsDirectSpaceState3D *SpaceState() const;
     bool SurfaceUnder(godot::PhysicsDirectSpaceState3D *p_space, const godot::Vector3 &p_from,
                       double p_reach, godot::Vector3 &r_point, godot::Vector3 &r_normal);
     // Edge contacts (see m_edge_point).
@@ -661,6 +667,10 @@ private:
     // Segments holding a face KeepTautOutside gave them (m_mid_contact bit 8).
     int m_taut_holds = 0;
     std::vector<RopeShape> m_near;
+    std::vector<RopeShape> m_sleep_supports;
+    // 0: the engine is asked about each particle and the planes remembered.
+    // 1: the cord tests itself against the shapes near it (RopeShapes.hpp).
+    int m_collision_mode = 0;
     godot::RID m_gather_box;
     godot::Ref<godot::PhysicsShapeQueryParameters3D> m_gather_query;
     bool m_gather_full_logged = false;

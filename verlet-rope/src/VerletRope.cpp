@@ -170,6 +170,10 @@ void VerletRope::_bind_methods()
     ClassDB::bind_method(D_METHOD("get_wave_damping"), &VerletRope::GetWaveDamping);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "wave_damping", PROPERTY_HINT_RANGE, "0,0.5,0.01"),
                  "set_wave_damping", "get_wave_damping");
+    ClassDB::bind_method(D_METHOD("set_collision_mode", "value"), &VerletRope::SetCollisionMode);
+    ClassDB::bind_method(D_METHOD("get_collision_mode"), &VerletRope::GetCollisionMode);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "collision_mode", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NONE),
+                 "set_collision_mode", "get_collision_mode");
     ClassDB::bind_method(D_METHOD("set_debug_disable", "value"), &VerletRope::SetDebugDisable);
     ClassDB::bind_method(D_METHOD("get_debug_disable"), &VerletRope::GetDebugDisable);
     ADD_PROPERTY(PropertyInfo(Variant::INT, "debug_disable", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NONE),
@@ -1025,6 +1029,8 @@ void VerletRope::SleepNow()
     // Zero implied velocities so waking doesn't inherit stale motion — and so a
     // rope stopped mid-oscillation doesn't resume it.
     m_prev_points = m_points;
+    if (UsesShapes())
+        RememberSupports();
 
     // A free plug uses a spherical collision shape but its cable anchor sits
     // several centimetres off-centre. Jolt can leave that sphere microscopically

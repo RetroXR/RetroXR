@@ -141,11 +141,48 @@ Sizes, as estimates and not measurements: stage 1 is the bulk (several days), 2
 depends on stage 0 (a day to several), 3 and 4 about a day each, 5 an afternoon with
 the headset.
 
-## Decisions wanted before stage 1
+## Stage 1 so far (2026-11-17)
 
-- Whether the passthrough room's real-world surfaces must take cords from the start
-  (it decides whether trimeshes are stage 1 or stage 2).
-- Whether a few millimetres of difference between where a plug and its cord rest is
-  acceptable, if stage 1 measures one.
-- Whether the Quest session should hold its own rope work until this lands, since
-  both would be rewriting the same functions.
+Built, and OFF by default: `collision_mode` (0 old, 1 shapes) on a cord, or
+`XENU_ROPE_SHAPES=1` (`debug.xenu.rope_shapes`) for every cord in the room.
+
+- `RopeShapes.hpp`, `VerletRopeShapes.cpp`: the gather, a cache of shape data by
+  RID (hull faces found once, by brute force, up to 96 points; over that a
+  bounding box stands in), nearest-point tests for box, sphere, capsule,
+  cylinder and convex hull, and `ContactsFromShapes`, which writes the SAME
+  plane arrays the solver, the friction and the resting tests already read. So
+  the solve is untouched; only where its planes come from changes.
+- Planes are made for surfaces up to 2 cm past touching (a plane costs nothing
+  until it is met, and a cord pulled hard travels more than its radius a slice).
+- A point found inside a shape goes out by the face it CAME IN by
+  (`rope_way_in`, walked from where it began the tick), not the nearest one.
+- A segment through a box or hull goes out by the face that frees the whole
+  piece inside with the least travel (`segment_through`).
+- A segment may bear on one shape in two places (asked again toward each end).
+- A sleeping cord keeps the shapes it bore on and compares their transforms
+  (`RememberSupports`, `ShapesChangedWhileSleeping`): one gather, no rays.
+- In this mode none of these run: the sweeps, the cached planes' upkeep, the
+  edge system, `KeepTautOutside`, the wrong-side recovery, `DepenetrateLay`.
+
+`rope_tests` with `XENU_ROPE_SHAPES=1`: **109 of 116** (116 of 116 in the
+default mode). Passing there without any of the repair passes: the corner and
+edge cases, the carried-table and long-disturbed sleep cases, the thin panel
+pulled to twice the cord's length at a hand's speed. Failing:
+
+| case | what happens |
+|---|---|
+| `taut/` thin panel, yanked | still drawn through at 44 mm a tick |
+| `taut/` thick block (both) | one item inside for ONE tick, then right |
+| `through/` (both) | a cord LAID through a thing does not come out of it: nothing replaces `DepenetrateLay` yet |
+| `anchors/` restored lay stays stretched | the same |
+| `contact/` a bridged cord sags into the gap | sags 7 mm; the planes made 2 cm early hold it up over the gap |
+
+Not done: trimeshes (stage 2; a cord beside an appliance sees them and tests
+nothing), jitter medians in this mode, a look at it in a room, the Quest.
+
+## Decisions
+
+Answered 2026-11-17: cords must work on the passthrough room's real surfaces
+(so trimeshes are needed before the switch); a few millimetres between where a
+plug and its cord rest is acceptable; the Quest performance session is finished,
+so nothing else is rewriting these functions.
