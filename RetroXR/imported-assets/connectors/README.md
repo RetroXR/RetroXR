@@ -9,6 +9,7 @@ After a re-import, put the GLBs back to `generate_lods=false` and any extracted 
 | folder | source | worn by |
 |---|---|---|
 | `usb_a_plug/usb_a_plug.glb` | `generic/usb-a-plug/exports/usb_a_plug_mobile.glb` (14db39fe3) | `jvs_cable.tscn` End A; the GunCon 2 mod by path |
+| `usb_b_plug/usb_b_plug.glb` | `generic/usb-b-plug/exports/usb_b_plug_mobile.glb` (ba75cddd1) | `jvs_cable.tscn` End B (`PlugB0/Shell`, rolled half round about Z and 3.12 mm back: the scene says why) |
 | `rj45_plug/rj45_plug.glb` | `generic/rj45-plug/exports/blue/rj45_plug_blue_mobile_clean.glb` (31693eed2) | both ends of `ethernet_cable.tscn` |
 | `jst_vl_plug/jst_vl_plug.glb` | `generic/jst-vl-plug/exports/naomi/jst_vl_plug_naomi_mobile_clean.glb` | both ends of `naomi_power_cable.tscn` |
 | `vga_plug/vga_plug.glb` | `generic/vga-plug/exports/blue/vga_plug_blue_mobile_clean.glb` | both ends of `vga_cable.tscn` |

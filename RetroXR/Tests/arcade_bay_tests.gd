@@ -692,9 +692,24 @@ func _hk_run() -> void:
 		and usba.get_node_or_null("PlugTip") == null, "hookup: the JVS lead's USB-A end wears the USB-A plug model")
 	_ok(usba.cable_anchor.is_equal_approx(Vector3(0, 0, -0.03225)),
 		"hookup: and its cord leaves the plug's strain relief (%s)" % str(usba.cable_anchor))
+	# Its USB-B end wears the game's USB-B plug model, its cord out of the model's strain relief too.
+	var usbb := jvs.get_node("PlugB0") as RcaPlug
+	var usbb_shell := usbb.get_node_or_null("Shell") as Node3D
+	_ok(usbb_shell != null and usbb_shell.scene_file_path == "res://imported-assets/connectors/usb_b_plug/usb_b_plug.glb"
+		and usbb.get_node_or_null("PlugTip") == null, "hookup: the JVS lead's USB-B end wears the USB-B plug model")
+	_ok(usbb.cable_anchor.is_equal_approx(Vector3(0, 0, -0.04047)),
+		"hookup: and its cord leaves that plug's strain relief (%s)" % str(usbb.cable_anchor))
 	(bay.find_child(NaomiHookup.BOARD_JVS, true, false) as Port).pick_up_object(jvs.get_node("PlugA0"))
-	(model.find_child(NaomiHookup.CAB_JVS, true, false) as Port).pick_up_object(jvs.get_node("PlugB0"))
+	var jvs_in := model.find_child(NaomiHookup.CAB_JVS, true, false) as Port
+	jvs_in.pick_up_object(usbb)
 	await _wait(30)
+	# Keyed: seated, the USB-B's chamfered corners (its model's +Y) face the socket's +Y, away from the I/O board, where a
+	# right-angle USB-B receptacle has its own; and the shell goes in to the receptacle's stop, 8.88 mm (USB 2.0 Figure
+	# 6-8), the boot standing 3.12 mm off its face.
+	var tip := jvs_in.global_transform.affine_inverse() * (usbb_shell.global_transform * Vector3(0, 0, 0.012))
+	_ok(usbb_shell.global_basis.y.normalized().dot(jvs_in.global_basis.y.normalized()) > 0.999
+		and tip.distance_to(Vector3(0, 0, -0.00888)) < 0.0002,
+		"hookup: the USB-B goes in chamfers to the receptacle's chamfers, its shell 8.88 mm in (tip at %s)" % str(tip))
 	_ok(model.hookup_missing().is_empty() and not model.input_cut() and not bool(model.audio_gate()["gated"]),
 		"hookup: every cord on: the cabinet plays the NAOMI (%s)" % str(model.hookup_missing()))
 	# The power off again: everything goes with it.

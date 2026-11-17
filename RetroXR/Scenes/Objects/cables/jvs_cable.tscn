@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://Scripts/Objects/cables/composite_cable.gd" id="1_cablescript"]
 [ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
@@ -6,27 +6,20 @@
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
 [ext_resource type="PackedScene" uid="uid://bg17fr2q2xmsm" path="res://imported-assets/connectors/usb_a_plug/usb_a_plug.glb" id="6_usba"]
-
-; A box, not the sphere the RCA leads use. A VGA hood is 34 x 16 x 58 mm and a
-; sphere around it is either too small to catch the shell or so large it fouls the
-; back panel it is being offered to. Centred at z -0.020, since the plug's ORIGIN is
-; its mating face and the whole body lies behind it.
-[sub_resource type="StandardMaterial3D" id="PlugMat1"]
-albedo_color = Color(0.12, 0.12, 0.13, 1)
-roughness = 0.6
-
-[sub_resource type="BoxMesh" id="PlugBox1"]
-material = SubResource("PlugMat1")
-size = Vector3(0.016, 0.014, 0.035)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
-size = Vector3(0.034, 0.018, 0.05)
+[ext_resource type="PackedScene" uid="uid://d2snhsi6e448d" path="res://imported-assets/connectors/usb_b_plug/usb_b_plug.glb" id="7_usbb"]
 
 ; End A wears the USB-A plug (RetroXR-models generic/usb-a-plug,
 ; imported-assets/connectors/usb_a_plug): its bounds, 15.9 x 7.5 x 44.3 mm, the
 ; shell 12 mm ahead of the overmold's front face, which is the plug's origin.
 [sub_resource type="BoxShape3D" id="BoxShape3D_usba"]
 size = Vector3(0.01594, 0.0075, 0.04425)
+
+; End B wears the USB-B plug (RetroXR-models generic/usb-b-plug,
+; imported-assets/connectors/usb_b_plug): its bounds, 11.3 x 10.1 x 49.35 mm, the
+; shell 12 mm ahead of the overmold's front face. The box is centred on the model
+; as PlugB0 carries it (3.12 mm back: see its Shell).
+[sub_resource type="BoxShape3D" id="BoxShape3D_usbb"]
+size = Vector3(0.0113, 0.0101, 0.04935)
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
 bounce = 0.0
@@ -53,8 +46,8 @@ size = Vector3(0.05, 0.03, 0.066)
 ; that tint a no-op instead of repainting a connector that is already right.
 ; The JVS cable (Sega 600-7141): a USB A-B cable carrying JVS (RS-485), from a NAOMI's JVS socket (USB-A, End A) to an
 ; I/O board's or a JVS-to-JAMMA converter's (USB-B, End B). NaomiHookup reads it. End A wears the USB-A plug model (it
-; was the xenu.usba mod's until it came into the game) with the model's own CordExit; End B is still a block (no USB-B
-; plug model yet).
+; was the xenu.usba mod's until it came into the game) and End B the USB-B plug model, each with the model's own
+; CordExit.
 [node name="JvsCable" type="Node3D"]
 script = ExtResource("1_cablescript")
 cord_colors = PackedColorArray(0.12, 0.12, 0.13, 1)
@@ -100,6 +93,19 @@ transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
 
 ; -- End B --------------------------------------------------------------------
 ; Unturned: its cord already trails -Z, back toward end A.
+;
+; Its Shell is the USB-B plug model, carried two ways:
+; - Rolled half round about Z, so the shell's chamfered corners (the model's +Y) face
+;   this body's -Y. A socket seats a plug with the plug's +Y along the socket's -Y
+;   (the SnapGrabPoint's half turn about X), which on a board lying flat is down; a
+;   right-angle USB-B receptacle on a board has its chamfered corners up, away from
+;   the board (USB 2.0 Figure 6-14), on the converter's CN2 and the I/O board's CN4
+;   alike, so the roll puts the plug's chamfers to the receptacle's.
+; - 3.12 mm back, so that seated (this body's origin on the socket's mouth) the
+;   shell's front reaches the receptacle's stop 8.88 mm in and the boot stands 3.12 mm
+;   off its face, as USB 2.0 Figure 6-8 mates them (2.67 MIN), instead of the boot
+;   pressed flat to the receptacle with the shell's tip 3.12 mm past its back wall.
+; CordExit and the collision box follow the model there.
 [node name="PlugB0" type="RigidBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.75)
 collision_layer = 4
@@ -113,12 +119,14 @@ script = ExtResource("2_plugscript")
 connector = "usb_b"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.02)
-shape = SubResource("BoxShape3D_plug")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.015795)
+shape = SubResource("BoxShape3D_usbb")
 
-[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0095)
-mesh = SubResource("PlugBox1")
+[node name="Shell" parent="PlugB0" instance=ExtResource("7_usbb")]
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, 0, -0.00312)
+
+[node name="CordExit" type="Marker3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.04047)
 
 [node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
 collision_layer = 1048576
