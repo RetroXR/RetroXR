@@ -89,6 +89,19 @@ func _ready() -> void:
 	await _frames(180)
 	_ok(not box.freeze and _all_loose(), "loaded tray and coins remain dynamic on release")
 	_ok(_contained() >= 55, "setting down retains the loose pile", "%d remain" % _contained())
+	# It stands on its drawn bottom, not on a collision floor hung under it, and stays still there (the owner, 2026-11-17: "the
+	# coin box will rather jump up and down when I set it down").
+	var worn := CoverSlots.worn_part(box)
+	var drawn := worn.get_aabb()
+	var low := INF
+	for i in 8:
+		low = minf(low, (worn.global_transform * drawn.get_endpoint(i)).y)
+	_ok(absf(low - 0.70) < 0.003, "set down, the box stands on its drawn bottom", "%.4f m above the table" % (low - 0.70))
+	var ys: Array[float] = []
+	for i in 60:
+		await _frames(1)
+		ys.append(box.global_position.y)
+	_ok(ys.max() - ys.min() < 0.001, "set down, the box stays still", "%.4f m of travel" % (ys.max() - ys.min()))
 	hand.global_transform = box.global_transform
 	hand._pick_up_object(box)
 	await _move(Vector3(0, 0.2, 0), 90)

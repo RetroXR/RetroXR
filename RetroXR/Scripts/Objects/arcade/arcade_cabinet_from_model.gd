@@ -136,12 +136,10 @@ const CASH_BOX := "CashBoxLiftOff"
 const CASH_COINS_META := &"cash_coins"
 ## Tokens in a box at most (a Quest pays for every loose body): a coin past it is banked and not drawn.
 const CASH_MAX := 60
-## The pitch tokens a save brings back are laid at, the box's sheet, its pull on the front, and the thickness of its walls to a
-## token (thicker than the sheet, so a small fast token cannot pass through), metres.
+## The pitch tokens a save brings back are laid at, the box's sheet and its pull on the front, metres.
 const CASH_PITCH := 0.027
 const CASH_SHEET := 0.0015
 const CASH_PULL := 0.012
-const CASH_WALL := 0.02
 var _cash_zone: XRToolsSnapZone = null
 ## Hidden model part stays in the cabinet when its removable box leaves.
 var _cash_source: MeshInstance3D = null
@@ -365,7 +363,8 @@ static func _cash_inner(b: AABB) -> AABB:
 
 
 ## The box as an open tray to a token: its floor (the cover's own shape, first, so what rests on it rides it when it is
-## carried) and four walls, each CASH_WALL thick outward from the sheet, in place of the solid hull of what it wears.
+## carried) and four walls, each the drawn sheet (CASH_SHEET) with its outer face on the drawn one, in place of the solid
+## hull of what it wears. While it is held its coins meet CashPhysics's coin-only collider instead, thick outward.
 func _cash_solid(box: PortCover) -> void:
 	if not box.has_node("CashPhysics"):
 		var physics := Node.new()
@@ -383,14 +382,17 @@ func _cash_solid(box: PortCover) -> void:
 	var at := (tray.get_parent() as Node3D).transform * tray.transform
 	var b := tray.mesh.get_aabb()
 	var front := b.end.z - CASH_PULL
-	var t := CASH_WALL
-	var bottom := b.position.y + CASH_SHEET
-	var tall := b.size.y + t - CASH_SHEET
-	var parts := [AABB(Vector3(b.position.x, bottom - t, b.position.z), Vector3(b.size.x, t, front - b.position.z)),
-		AABB(Vector3(b.position.x, bottom - t, b.position.z - t + CASH_SHEET), Vector3(b.size.x, tall, t)),
-		AABB(Vector3(b.position.x, bottom - t, front - CASH_SHEET), Vector3(b.size.x, tall, t)),
-		AABB(Vector3(b.position.x - t + CASH_SHEET, bottom - t, b.position.z), Vector3(t, tall, front - b.position.z)),
-		AABB(Vector3(b.end.x - CASH_SHEET, bottom - t, b.position.z), Vector3(t, tall, front - b.position.z))]
+	# The box's own shapes are no bigger than what is drawn: they are what it stands on and what the room meets. Grown 20 mm
+	# outward (as the coin-only collider's are, CashPhysics._guard_wall) its floor hung 18.5 mm under the drawn bottom, so a box
+	# set down flush started buried (HeldObjectPhysics shoved it aside) or stood on the overhang, on spilled coins (the owner,
+	# 2026-11-17: "the coin box will rather jump up and down when I set it down"). Coins in a loose box are continuous
+	# (CashPhysics sets continuous_cd while it is not frozen), so the sheet holds them.
+	var t := CASH_SHEET
+	var parts := [AABB(b.position, Vector3(b.size.x, t, front - b.position.z)),
+		AABB(b.position, Vector3(b.size.x, b.size.y, t)),
+		AABB(Vector3(b.position.x, b.position.y, front - t), Vector3(b.size.x, b.size.y, t)),
+		AABB(b.position, Vector3(t, b.size.y, front - b.position.z)),
+		AABB(Vector3(b.end.x - t, b.position.y, b.position.z), Vector3(t, b.size.y, front - b.position.z))]
 	for i in parts.size():
 		var col := main if i == 0 else CollisionShape3D.new()
 		var shape := BoxShape3D.new()

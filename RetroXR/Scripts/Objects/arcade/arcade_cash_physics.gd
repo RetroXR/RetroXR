@@ -21,6 +21,11 @@ var _travel_hold := 0
 var _follow := Transform3D.IDENTITY
 var _follow_v := Vector3.ZERO
 var _follow_w := Vector3.ZERO
+## Where the hand last put the box, and the pose this script last drew it at: a tick the grab driver does not write (it skips
+## one when the hand has not moved) leaves the box where _sync drew it, which is not a new target. Taken as one, the box was
+## pulled back toward its own older pose and moved in stop-go jerks while it was lowered.
+var _want := Transform3D.IDENTITY
+var _drawn := Transform3D.IDENTITY
 const FOLLOW_TAU := 0.03
 const MAX_CARRY_SPEED := 3.0
 const MAX_CARRY_TURN := 12.0
@@ -56,12 +61,16 @@ func _physics_process(delta: float) -> void:
 func _follow_hand(delta: float) -> void:
 	var by := _box.get_picked_up_by()
 	var moving := _box.freeze and (_box.collision_layer & 4) == 0 and not by is XRToolsSnapZone
-	var want := _box.global_transform
+	var now := _box.global_transform
 	if not moving:
-		_follow = want
+		_follow = now
+		_want = now
 		_follow_v = Vector3.ZERO
 		_follow_w = Vector3.ZERO
 		return
+	if not now.is_equal_approx(_drawn):
+		_want = now
+	var want := _want
 	var w := 1.0 / FOLLOW_TAU
 	_follow_v += ((want.origin - _follow.origin) * w*w - _follow_v * 2*w) * delta
 	_follow_v = _follow_v.limit_length(MAX_CARRY_SPEED)
@@ -117,6 +126,7 @@ func _sync() -> void:
 		# too, rather than a tick ahead of the coins (visible floor penetration).
 		_box.global_transform = _guard.global_transform
 		_box.force_update_transform()
+	_drawn = _box.global_transform
 
 
 func coin_layer_active() -> bool:
