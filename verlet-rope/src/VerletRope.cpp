@@ -307,8 +307,6 @@ void VerletRope::_bind_methods()
     // all) because every caller in Scripts/ already spells it that way.
     ClassDB::bind_method(D_METHOD("_init_points"), &VerletRope::InitPoints);
     ClassDB::bind_method(D_METHOD("wake"), &VerletRope::Wake);
-    ClassDB::bind_method(D_METHOD("set_collision_exceptions", "bodies"), &VerletRope::SetCollisionExceptions);
-    ClassDB::bind_method(D_METHOD("get_collision_exceptions"), &VerletRope::GetCollisionExceptions);
     ClassDB::bind_static_method("VerletRope", D_METHOD("set_focus", "position"), &VerletRope::SetFocus);
     ClassDB::bind_static_method("VerletRope", D_METHOD("set_sleep_poll_stride", "stride"),
                                 &VerletRope::SetSleepPollStride);
@@ -1404,12 +1402,6 @@ void VerletRope::RefreshExclusions()
             n = n->get_parent();
         }
     }
-    for (const uint64_t id : m_exceptions)
-    {
-        CollisionObject3D *co = Object::cast_to<CollisionObject3D>(ObjectDB::get_instance(ObjectID(id)));
-        if (co != nullptr)
-            rids.push_back(co->get_rid());
-    }
     if (m_ray_query.is_valid())
         m_ray_query->set_exclude(rids);
     if (m_shape_query.is_valid())
@@ -1420,40 +1412,6 @@ void VerletRope::RefreshExclusions()
         m_point_query->set_exclude(rids);
     if (m_gather_query.is_valid())
         m_gather_query->set_exclude(rids);
-}
-
-void VerletRope::SetCollisionExceptions(const TypedArray<Node> &p_bodies)
-{
-    std::vector<uint64_t> ids;
-    for (int i = 0; i < p_bodies.size(); ++i)
-    {
-        CollisionObject3D *co = Object::cast_to<CollisionObject3D>(p_bodies[i]);
-        if (co != nullptr)
-            ids.push_back(co->get_instance_id());
-    }
-    if (ids == m_exceptions)
-        return;
-    m_exceptions = ids;
-    RefreshExclusions();
-    // Its cached planes may be the excepted body's: they are dropped as they
-    // fail their own checks, and the cord is woken to find what is there now.
-    m_relay_attempted = false;
-    // A body it meets again may have the cord in it (it hung there while it
-    // did not): freed as a fresh lay is, on the next step.
-    m_depen_pending = true;
-    Wake();
-}
-
-TypedArray<Node> VerletRope::GetCollisionExceptions() const
-{
-    TypedArray<Node> out;
-    for (const uint64_t id : m_exceptions)
-    {
-        Node *n = Object::cast_to<Node>(ObjectDB::get_instance(ObjectID(id)));
-        if (n != nullptr)
-            out.push_back(n);
-    }
-    return out;
 }
 
 bool VerletRope::AnchorsMoved() const

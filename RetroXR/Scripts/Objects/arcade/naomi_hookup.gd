@@ -59,59 +59,6 @@ static func peer(port: Port) -> Port:
 	return null
 
 
-## The cabinet a socket is INSIDE of, or null: a cabinet's own lead, a socket of the board docked in its bay, or of a thing
-## standing in it that was told not to collide with it (the JVS-to-JAMMA converter on its floor).
-static func enclosure_of(port: Port) -> RigidBody3D:
-	var inside := false
-	var n: Node = port
-	while n != null:
-		if n is ArcadeCabinetFromModel:
-			inside = true
-		elif n is ArcadeBayUnit:
-			var bay := n as ArcadeBayUnit
-			return bay.get_host() as RigidBody3D if bay.is_docked() else null
-		elif n is RigidBody3D:
-			if inside:
-				return n as RigidBody3D
-			for other in (n as RigidBody3D).get_collision_exceptions():
-				if other is RigidBody3D and not (other as Node).find_children("*", "ArcadeCabinetFromModel", true, false).is_empty():
-					return other as RigidBody3D
-			return null
-		n = n.get_parent()
-	return null
-
-
-## A cord with EVERY end plugged in inside one cabinet does not meet that cabinet's shell. The shell is solid boxes and hulls
-## where the real cabinet is hollow (what is inside it stands in them), so such a cord was pushed out through the nearest
-## wall and drawn back in to its sockets: a loop out of the cabinet's front, some segments ten times their length. With
-## any end out of its socket, or in something else, it meets the cabinet as any cord does.
-static func enclose(cable: Node) -> void:
-	var machine: RigidBody3D = null
-	var all := true
-	var plugs := 0
-	for n in cable.get_children():
-		var plug := n as RcaPlug
-		if plug == null:
-			continue
-		plugs += 1
-		var m := enclosure_of(plug.seated_port())
-		if m == null or (machine != null and m != machine):
-			all = false
-			break
-		machine = m
-	var want: Array[Node] = []
-	if all and plugs >= 2 and machine != null:
-		want.append(machine)
-	for rope in cable.find_children("*", "VerletRope", true, false):
-		if not rope.has_method("set_collision_exceptions"):
-			continue      # a library built before it: the cord meets the shell, as it did
-		var had: Array = rope.call("get_collision_exceptions")
-		if had.size() == want.size() and (want.is_empty() or had[0] == want[0]):
-			continue
-		rope.call("set_collision_exceptions", want)
-		print("[Naomi] %s: %s" % [cable.name, ("inside %s, does not meet its shell" % machine.name) if not want.is_empty() else "meets the cabinet's shell again"])
-
-
 static func joined(a: Port, b: Port) -> bool:
 	return a != null and b != null and peer(a) == b
 
@@ -182,15 +129,8 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 	if harness != null and _port(cabinet, CAB_JVS) == null:
 		var conv := (load("res://Scenes/Objects/peripherals/jvs_jamma_converter.tscn") as PackedScene).instantiate() as Node3D
 		home.add_child(conv)
-		# Seated in the cabinet's converter mount (ArcadeCabinetFromModel.CONVERTER_MOUNT), as a GD-ROM drive is in its own: it goes
-		# and is saved with the cabinet. A cabinet without one: laid on its floor, frozen, riding with it (below).
-		var mount := (cabinet as Node).find_child(ArcadeCabinetFromModel.CONVERTER_MOUNT, true, false) as XRToolsSnapZone
-		if mount != null:
-			conv.global_transform = mount.global_transform
-			mount.pick_up_object(conv)
-		else:
-			conv.global_transform = _converter_seat(cabinet, bay as Node3D)
-		if mount == null and conv is RigidBody3D:
+		conv.global_transform = _converter_seat(cabinet, bay as Node3D)
+		if conv is RigidBody3D:
 			(conv as RigidBody3D).freeze = true
 			# Frozen on the cabinet's floor, inside its boxes: without this it threw the cabinet off itself.
 			var machine: Node = cabinet
@@ -206,8 +146,7 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 					(conv as XRToolsPickable).picked_up.connect(func(_p: Variant) -> void:
 						if conv.has_meta(RIDE_META):
 							conv.remove_meta(RIDE_META), CONNECT_ONE_SHOT)
-		if mount == null:
-			_reseat_later(conv, cabinet, bay as Node3D)
+		_reseat_later(conv, cabinet, bay as Node3D)
 		var jc := (load("res://Scenes/Objects/cables/jamma_cable.tscn") as PackedScene).instantiate() as Node3D
 		home.add_child(jc)
 		jc.global_position = conv.global_position + Vector3(0, 0.1, 0)

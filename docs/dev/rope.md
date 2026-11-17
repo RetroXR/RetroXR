@@ -626,23 +626,3 @@ mod's seat is 1 mm inside its shell; the fix is a `face` in that mod), CD player
   turned a full 360° about its cord axis; the wires must turn with it.
 
 Headset validation of all of this is OWED: nothing here has been felt in a hand.
-
-## A cord inside a cabinet does not meet the cabinet (2026-11-17)
-
-An arcade cabinet's collision is solid boxes and hulls where the real cabinet
-is hollow, and its NAOMI's cords run inside it. Each was pushed out through the
-nearest wall and drawn back in to its sockets: a loop hanging out of the
-cabinet's front, segments ten times their length (`XENU_ROPE_DIAG=1` on a fresh
-Aero City: a 0.45 m cord between ends 0.40 m apart, drawn out to 1.58 m, its
-last free particle held on the outside of a wall its socket is 0.30 m behind).
-
-`VerletRope.set_collision_exceptions(bodies)` names bodies a cord does not meet
-besides its own plugs. `NaomiHookup.enclose(cable)`, run after every seat or
-pull of a `CompositeCable`'s plug, gives a cord whose EVERY end is plugged in
-inside one cabinet (a cabinet's own lead, a socket of the board docked in its
-bay, the converter on its floor) that cabinet's body, and takes it away again
-when an end comes out; the cord is then freed from the shell as a fresh lay is.
-`rope_tests` `except/` (the third case is the control). A library built before
-the method keeps the old behaviour (`has_method`): rebuild windows AND android.
-Not looked at in a headset; a cord with one end pulled out and carried through
-the cabinet's wall meets the shell from inside, as before.

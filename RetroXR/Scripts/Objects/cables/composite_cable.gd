@@ -510,8 +510,6 @@ func _on_plug_moved() -> void:
 ## are a belt-and-braces second path to the same resolve.
 func on_plug_seating_changed() -> void:
 	call_deferred("_resolve")
-	# After the seat has settled (seated_port reads the sockets): is the whole cord inside one cabinet now?
-	NaomiHookup.enclose.call_deferred(self)
 
 
 ## Undo whatever _resolve() joined at the CORE level. A plain A/V lead has
