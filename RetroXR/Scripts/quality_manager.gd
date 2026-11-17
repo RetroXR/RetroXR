@@ -151,6 +151,9 @@ const SHADOW_TIERS := {
 	},
 }
 
+## Each quadrant of the positional shadow atlas holds 16 shadows (apply_shadow_quality says why they are all alike).
+const UNIFORM_SHADOW_QUADRANT := Viewport.SHADOW_ATLAS_QUADRANT_SUBDIV_16
+
 ## Half-resolution AO is the whole difference between the two tiers in cost.
 const AO_TIERS := {
 	AOQuality.LOW:  {"quality": RenderingServer.ENV_SSAO_QUALITY_LOW,  "half_size": true},
@@ -2086,6 +2089,13 @@ func apply_shadow_quality() -> void:
 	var root := get_tree().root
 	root.positional_shadow_atlas_size = atlas
 	root.positional_shadow_atlas_16_bits = bits16
+	# Every quadrant the same: 64 equal slots (atlas/8 a side). Godot 4.7.2's LightStorage::shadow_atlas_update_light
+	# has a light whose slot is not the size its coverage wants, and that finds no other, redraw its shadow EVERY frame
+	# once anything dirties it (it skips storing its version); with the default 4/4/16/64 quadrants the Starlight
+	# Arcade's 18 lights redrew ~3,000 shadow draws a frame with nothing moving. With one size there is no other size to
+	# want (performance.md, "What redraws the shadows"). The cost: no light's shadow is bigger than atlas/8.
+	for q in 4:
+		root.set_positional_shadow_atlas_quadrant_subdiv(q, UNIFORM_SHADOW_QUADRANT)
 	RenderingServer.directional_shadow_atlas_set_size(atlas * 2, bits16)
 	RenderingServer.directional_soft_shadow_filter_set_quality(tier["filter"])
 	RenderingServer.positional_soft_shadow_filter_set_quality(tier["filter"])

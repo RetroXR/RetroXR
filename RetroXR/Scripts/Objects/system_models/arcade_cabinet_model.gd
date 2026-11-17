@@ -200,20 +200,49 @@ const RIGHT_RATE := 5.0
 const RIGHT_MAX := 3.0
 ## Under this much tilt (radians, a fifth of a degree) it is upright and the controller rests.
 const UPRIGHT_EPS := 0.0035
+## The controller takes hold of a cabinet leaning more than this (radians, two degrees) and lets go once it is back
+## within RELEASE_TILT (half a degree). Under that the floor and the cabinet's own low weight settle it, on whichever
+## edge its base boxes (never dead flat) put it.
+const ENGAGE_TILT := 0.035
+const RELEASE_TILT := 0.0087
+
+## Whether the controller is turning the cabinet upright now.
+var _righting := false
+
+
+## Whether the controller has hold of the cabinet (for the tests).
+func is_righting() -> bool:
+	return _righting
 
 
 ## While nobody holds it, a cabinet tends to STAND: released upright it stays upright; released
 ## leaning, or let fall, it turns back up about the horizontal. Its heading (the turn about UP) is
 ## left alone, the player's to choose. A hand, a frozen or locked cabinet is never touched.
-func _physics_process(delta: float) -> void:
+##
+## It must also let the body SLEEP, so it only takes hold of a real lean. A velocity written wakes a Jolt body, and
+## this used to write one every tick, even upright (stripping the solver's residual turn) and against a floor holding
+## the cabinet a fraction of a degree off, where it rocked one NAOMI cabinet from one edge of its base to the other
+## (0.2 to 0.65 degrees) for good. Four cabinets in the Starlight Arcade never slept, crept micrometres a frame and kept
+## every light reaching them redrawing its shadow (2026-11-17, performance.md "What redraws the shadows").
+func _physics_process(_delta: float) -> void:
 	var body := get_parent() as RigidBody3D
 	if body == null:
 		return
-	if body.freeze:
+	if body.freeze or body.sleeping:
 		return
 	if body.has_method("is_picked_up") and bool(body.call("is_picked_up")):
+		_righting = false
 		return
-	var w := right_angular_velocity(body.global_transform.basis.y, body.angular_velocity)
+	var up := body.global_transform.basis.y
+	var tilt := up.angle_to(Vector3.UP)
+	if not _righting:
+		if tilt < ENGAGE_TILT:
+			return
+		_righting = true
+	elif tilt < RELEASE_TILT:
+		_righting = false
+		return
+	var w := right_angular_velocity(up, body.angular_velocity)
 	if not w.is_equal_approx(body.angular_velocity):
 		body.angular_velocity = w
 

@@ -951,7 +951,7 @@ in the room. Starlight Arcade autosave, desktop, one process, shadow draws per f
 
 1. **Four arcade cabinets never sleep** (`system.gd` bodies, `freeze=false`, `sleeping=false`): they creep 1-147 um a
    frame, everything hooked to them (VGA anchors, port covers, the JVS converter, plugs) with them, and dirty 17 of the
-   18 lights every frame. Why they never sleep is OPEN.
+   18 lights every frame. FIXED below: it was their own standing controller.
 2. **The Robot Gamer's idle** poses its skeleton every frame: two spots.
 3. **Ropes** (145, 30 awake) are ~300 draws; nothing in the room has a TIME shader.
 4. **The atlas, a Godot 4.7.2 bug.** With all of that silenced, every light ALONE settles to 0 shadow draws, yet all
@@ -962,6 +962,23 @@ in the room. Starlight Arcade autosave, desktop, one process, shadow draws per f
    -> 0; the frozen cabinets nudged 1 mm and back -> 2,600-3,650 every frame from then on, on the default quadrants
    (4/4/16/64 shadows); the same on a uniform layout (16/16/16/16) -> 0, twice each. A uniform layout cannot want
    another size, so it never takes that branch; the engine fix is to store the version before that return.
+
+**Fixed (2026-11-18).** *The atlas:* `QualityManager.apply_shadow_quality` gives every quadrant 16 shadows on every
+tier (`UNIFORM_SHADOW_QUADRANT`; `quality_tests` `lights/`). The cost is the biggest shadow a light can have: atlas/8
+a side, 512 px on HIGH where the default's top quadrants gave 1,024 (lights with small coverage got 512 or less
+anyway). *The cabinets:* `XENU_SHADOW_DIRTY_WAKE` showed they touched nothing but the static set; silencing scripts
+bisected the waker to `RetroSystemModelArcadeCabinet._physics_process`, the standing controller, which wrote
+`angular_velocity` every tick (a written velocity wakes a Jolt body): upright, stripping the solver's residual turn; a
+fraction of a degree off, pushing against the floor. A first fix (rest when the tilt stops improving) left one NAOMI
+cabinet rocking from one edge of its base to the other, 0.2 to 0.65 degrees, every 1.5-2.5 s (`XENU_SHADOW_DIRTY_TRACK`).
+So the controller now takes hold only past `ENGAGE_TILT` (2 degrees) and lets go within `RELEASE_TILT` (0.5); below
+that the floor and the low weight settle it, and a sleeping body is never touched (`arcade_variants_tests` `stand/`:
+sleeps on the floor, writes nothing upright, leaves a held 1 degree and a 0.2/0.65 rock alone, keeps righting a held 5).
+
+Same room, as found, after both: **0 objects moving** (31 before), 2 of 18 lights dirty (the robot's), shadow draws
+**7,050-7,370 -> 2,239** (the directional ~1,050 and the robot's two spots), all draws 9,450 -> 4,292, render CPU
+9.6-11.2 -> **6.1 ms**, the probe build's frame 19-23 -> 14.8 ms. Left: the directional light (4 splits to 100 m,
+indoors) and the robot's idle; ShadowMerge now pays only when something moves, and is worth re-measuring.
 
 ## Metals on the headset's prop shader (2026-11-15)
 

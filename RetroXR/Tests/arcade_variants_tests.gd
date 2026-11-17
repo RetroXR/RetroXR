@@ -1341,6 +1341,69 @@ func _group_stand() -> void:
 	sys.angular_velocity = Vector3.ZERO
 	await _wait(120)
 	_ok(sys.global_transform.basis.y.angle_to(Vector3.UP) < 0.01, "stand: let go upright, it stays upright")
+	# And it SLEEPS there. The controller wrote a velocity every tick, even upright, and a written velocity wakes a
+	# Jolt body: four cabinets in the Starlight Arcade never slept and kept every light on them redrawing (2026-11-17).
+	var slept := false
+	for i in 180:
+		await get_tree().physics_frame
+		if sys.sleeping:
+			slept = true
+			break
+	_ok(slept, "stand: and standing on the floor it falls asleep (the controller wakes nothing)")
+	# Upright, the solver's residual turn is the solver's: the controller used to strip it every tick, a write a tick.
+	# In mid-air with no gravity, a thousandth of a radian a second about X must survive a tick, less damping.
+	sys.gravity_scale = 0.0
+	sys.global_transform = Transform3D(Basis.IDENTITY, Vector3(5, 3, 5))
+	sys.linear_velocity = Vector3.ZERO
+	sys.angular_velocity = Vector3(0.001, 0, 0)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	# (Two ticks of the project's angular damping leave ~0.00083; the old controller left 0.)
+	_ok(sys.angular_velocity.x > 0.0005, "stand: upright, it writes no velocity of its own (a residual turn is left alone)",
+		"%.6f rad/s" % sys.angular_velocity.x)
+	sys.gravity_scale = 1.0
+	sys.global_transform = Transform3D(Basis(Vector3.UP, 0.3), Vector3(0, 0.6, 0))
+	sys.angular_velocity = Vector3.ZERO
+	# A small tilt the body cannot get out of (the floor holding it on a base that is not dead flat; here its tilt
+	# axes locked, so whatever the controller writes changes nothing) is not the controller's: the body sleeps there.
+	sys.axis_lock_angular_x = true
+	sys.axis_lock_angular_z = true
+	sys.global_transform = Transform3D(Basis(Vector3.RIGHT, 0.017), Vector3(0, 0.62, 0))
+	sys.sleeping = false
+	slept = false
+	for i in 240:
+		await get_tree().physics_frame
+		if sys.sleeping:
+			slept = true
+			break
+	_ok(slept, "stand: held a degree off upright, it does not push and sleeps there")
+	# A visible lean held the same way is never given up on.
+	sys.global_transform = Transform3D(Basis(Vector3.RIGHT, 0.09), Vector3(0, 0.62, 0))
+	sys.sleeping = false
+	slept = false
+	for i in 240:
+		await get_tree().physics_frame
+		if sys.sleeping:
+			slept = true
+			break
+	_ok(not slept, "stand: but held five degrees off, it keeps turning it up")
+	# Rocking on its base from one edge to the other (0.2 and 0.65 degrees, turn about, as a NAOMI cabinet in the
+	# Starlight Arcade did for good): the controller pushed it off each edge onto the other. It must not take hold.
+	var model: Node = null
+	for c in sys.get_children():
+		if c.has_method("is_righting"):
+			model = c
+	var rocking := Vector3(5, 3, 5)
+	sys.gravity_scale = 0.0
+	var took_hold := false
+	for i in 90:
+		sys.global_transform = Transform3D(Basis(Vector3.RIGHT, deg_to_rad(0.2) if i % 2 == 0 else deg_to_rad(-0.65)), rocking)
+		await get_tree().physics_frame
+		took_hold = took_hold or (model != null and bool(model.call("is_righting")))
+	_ok(model != null and not took_hold, "stand: rocking on its base a fraction of a degree, it is left alone")
+	sys.gravity_scale = 1.0
+	sys.axis_lock_angular_x = false
+	sys.axis_lock_angular_z = false
 	# A frozen one is not touched.
 	sys.freeze = true
 	sys.global_transform = Transform3D(Basis(Vector3.RIGHT, 0.4), Vector3(0, 0.6, 0))

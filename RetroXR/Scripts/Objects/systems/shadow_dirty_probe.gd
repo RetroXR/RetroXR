@@ -22,6 +22,8 @@ extends Node
 
 const FRAMES := 600
 const TIME_FRAMES := 300
+const WAKE_TICKS := 240
+const TRACK_SECONDS := 8
 const TOP := 25
 
 var _wait := 45.0
@@ -55,6 +57,12 @@ func _run() -> void:
 	_collect_lights()
 	await _time("as found")
 	await _watch()
+	if OS.has_environment("XENU_SHADOW_DIRTY_WAKE"):
+		await _wake_check()
+		return
+	if OS.has_environment("XENU_SHADOW_DIRTY_TRACK"):
+		await _track()
+		return
 	if not OS.has_environment("XENU_SHADOW_DIRTY_FREEZE"):
 		return
 	var frozen := PackedStringArray()
@@ -163,6 +171,186 @@ func _watch() -> void:
 		_fps += Performance.get_monitor(Performance.TIME_FPS)
 		await get_tree().process_frame
 	_report()
+
+
+## Why a dynamic body that never stopped moving never sleeps: over WAKE_TICKS physics ticks, its sleeping flag and
+## speeds, and every body it touches (Jolt sleeps an island only when all of it is still) with that body's state.
+func _wake_check() -> void:
+	var bodies: Array[RigidBody3D] = []
+	for t: Dictionary in _tops.values():
+		var body := (t["node"] as WeakRef).get_ref() as RigidBody3D
+		if body != null and not body.freeze and (t["frames"] as Dictionary).size() >= FRAMES / 2:
+			bodies.append(body)
+			body.contact_monitor = true
+			body.max_contacts_reported = 32
+	var seen := {}
+	var asleep := {}
+	var lin := {}
+	var ang := {}
+	# The body's own shapes (Jolt rebuilds and wakes a body whose shape moves, changes or toggles), and what joins or
+	# leaves under it.
+	var pattern := {}
+	var shape_last := {}
+	var shape_changes := {}
+	var tree_events := {}
+	var on_added := func(n: Node) -> void:
+		for b in bodies:
+			if b.is_ancestor_of(n):
+				var k := "%s +%s %s" % [b.name, n.get_class(), String(b.get_path_to(n)).get_slice("/", 0)]
+				tree_events[k] = int(tree_events.get(k, 0)) + 1
+	var on_removed := func(n: Node) -> void:
+		for b in bodies:
+			if b.is_ancestor_of(n):
+				var k := "%s -%s %s" % [b.name, n.get_class(), String(b.get_path_to(n)).get_slice("/", 0)]
+				tree_events[k] = int(tree_events.get(k, 0)) + 1
+	get_tree().node_added.connect(on_added)
+	get_tree().node_removed.connect(on_removed)
+	for i in WAKE_TICKS:
+		await get_tree().physics_frame
+		for b in bodies:
+			var id := b.get_instance_id()
+			pattern[id] = str(pattern.get(id, "")) + ("." if b.sleeping else "W")
+			for s: Node in b.find_children("*", "CollisionShape3D", true, false):
+				var cs := s as CollisionShape3D
+				var owner_body := cs.get_parent()
+				while owner_body != null and not (owner_body is CollisionObject3D):
+					owner_body = owner_body.get_parent()
+				if owner_body != b:
+					continue
+				var state := [b.global_transform.affine_inverse() * cs.global_transform, cs.disabled,
+					cs.shape.get_instance_id() if cs.shape != null else 0]
+				var sid := cs.get_instance_id()
+				if shape_last.has(sid) and shape_last[sid] != state:
+					var what := "moved" if shape_last[sid][0] != state[0] else ("toggled" if shape_last[sid][1] != state[1] else "reshaped")
+					var k := "%s %s %s" % [b.name, what, b.get_path_to(cs)]
+					shape_changes[k] = int(shape_changes.get(k, 0)) + 1
+				shape_last[sid] = state
+			asleep[id] = int(asleep.get(id, 0)) + (1 if b.sleeping else 0)
+			lin[id] = maxf(lin.get(id, 0.0), b.linear_velocity.length())
+			ang[id] = maxf(ang.get(id, 0.0), b.angular_velocity.length())
+			for o: Node3D in b.get_colliding_bodies():
+				var key := "%d>%d" % [id, o.get_instance_id()]
+				var rec: Array = seen.get(key, [b, o, 0, 0])
+				rec[2] += 1
+				if o is RigidBody3D and not (o as RigidBody3D).sleeping and not (o as RigidBody3D).freeze:
+					rec[3] += 1
+				seen[key] = rec
+	get_tree().node_added.disconnect(on_added)
+	get_tree().node_removed.disconnect(on_removed)
+	# One that never slept: silence the scripts on it and under it (callbacks only; the body stays in the simulation),
+	# and if it then sleeps, bisect its direct children to the one whose script wakes it.
+	for b in bodies:
+		if int(asleep.get(b.get_instance_id(), 0)) > 0:
+			continue
+		var nodes: Array[Node] = [b]
+		nodes.append_array(b.find_children("*", "", true, false))
+		var sleeps := await _sleeps_without(b, nodes)
+		print("[ShadowDirty] WAKE %s with every script on and under it silenced: %s" % [b.name, "sleeps" if sleeps else "STILL AWAKE"])
+		if not sleeps:
+			continue
+		if await _sleeps_without(b, [b] as Array[Node]):
+			print("[ShadowDirty] WAKE   ... its own script (%s) alone silenced: sleeps" % (b.get_script() as Script).resource_path.get_file())
+		# Down the tree: at each node, its own script alone; else bisect its children (each with all under it).
+		var at: Node = b
+		for depth in 12:
+			var cand: Array = at.get_children()
+			if cand.is_empty():
+				break
+			while cand.size() > 1:
+				var half := cand.slice(0, cand.size() / 2)
+				if await _sleeps_without(b, _subtree(half)):
+					cand = half
+				else:
+					cand = cand.slice(cand.size() / 2)
+			var c: Node = cand[0]
+			if not await _sleeps_without(b, _subtree([c])):
+				print("[ShadowDirty] WAKE   under %s no single child does it (more than one, or none)" % b.get_path_to(at))
+				break
+			at = c
+			var own := await _sleeps_without(b, [c] as Array[Node])
+			print("[ShadowDirty] WAKE   -> %s (%s)%s" % [b.get_path_to(c),
+				(c.get_script() as Script).resource_path.get_file() if c.get_script() != null else c.get_class(),
+				"  ITS OWN SCRIPT does it" if own else ""])
+			if own:
+				print("[ShadowDirty] WAKE      its _process alone silenced: %s; its _physics_process alone: %s" % [
+					await _sleeps_without(b, [c] as Array[Node], true, false),
+					await _sleeps_without(b, [c] as Array[Node], false, true)])
+				break
+	for k: String in shape_changes:
+		print("[ShadowDirty] WAKE shape %3d ticks  %s" % [shape_changes[k], k])
+	for k: String in tree_events:
+		print("[ShadowDirty] WAKE tree  %3d  %s" % [tree_events[k], k])
+	for b in bodies:
+		print("[ShadowDirty] WAKE pattern %s %s" % [b.name, pattern[b.get_instance_id()]])
+	for b in bodies:
+		var id := b.get_instance_id()
+		print("[ShadowDirty] WAKE %s (%s): asleep %d/%d ticks, max speed %.4f m/s %.4f rad/s, mass %.1f kg, can_sleep %s" % [
+			b.get_path(), _describe(b), asleep[id], WAKE_TICKS, lin[id], ang[id], b.mass, b.can_sleep])
+		for rec: Array in seen.values():
+			if rec[0] != b:
+				continue
+			var o: Node3D = rec[1]
+			var state := ""
+			if o is RigidBody3D:
+				var r := o as RigidBody3D
+				state = "freeze=%s(mode %d) sleeping=%s" % [r.freeze, r.freeze_mode, r.sleeping]
+			print("[ShadowDirty] WAKE   touching %3d ticks, awake+dynamic %3d  %s %s %s" % [rec[2], rec[3], o.get_class(),
+				state, o.get_path()])
+
+
+## Every dynamic body that kept moving, twice a second for TRACK_SECONDS: tilt, heading, where, speeds, sleep, and
+## the standing controller's state if it has one.
+func _track() -> void:
+	var bodies: Array[RigidBody3D] = []
+	for t: Dictionary in _tops.values():
+		var body := (t["node"] as WeakRef).get_ref() as RigidBody3D
+		if body != null and not body.freeze and (t["frames"] as Dictionary).size() >= FRAMES / 2:
+			bodies.append(body)
+	for i in TRACK_SECONDS * 2:
+		for b in bodies:
+			var model: Node = null
+			for c in b.get_children():
+				if c.has_method("is_resting"):
+					model = c
+			var bz := b.global_transform.basis.z
+			print("[ShadowDirty] TRACK %5.1fs %s tilt %.3f deg yaw %.3f deg at %s lin %s ang %s sleeping=%s resting=%s" % [
+				i * 0.5, b.name, rad_to_deg(b.global_transform.basis.y.angle_to(Vector3.UP)), rad_to_deg(atan2(bz.x, bz.z)),
+				b.global_position.snappedf(0.0001), b.linear_velocity.snappedf(0.0001), b.angular_velocity.snappedf(0.0001),
+				b.sleeping, model.call("is_resting") if model != null else "-"])
+		await get_tree().create_timer(0.5).timeout
+
+
+func _subtree(roots: Array) -> Array[Node]:
+	var out: Array[Node] = []
+	for r: Node in roots:
+		out.append(r)
+		out.append_array(r.find_children("*", "", true, false))
+	return out
+
+
+## Whether `body` falls asleep within 90 physics ticks with process and physics_process off on `nodes`; put back after.
+func _sleeps_without(body: RigidBody3D, nodes: Array[Node], process := true, physics := true) -> bool:
+	var was := {}
+	for n in nodes:
+		was[n.get_instance_id()] = [n.is_processing(), n.is_physics_processing()]
+		if process:
+			n.set_process(false)
+		if physics:
+			n.set_physics_process(false)
+	var slept := false
+	for i in 90:
+		await get_tree().physics_frame
+		if body.sleeping:
+			slept = true
+			break
+	for n in nodes:
+		if is_instance_valid(n):
+			n.set_process(was[n.get_instance_id()][0])
+			n.set_physics_process(was[n.get_instance_id()][1])
+	# Let it wake (or not) under its own scripts again before the next question.
+	for i in 30:
+		await get_tree().physics_frame
+	return slept
 
 
 ## Shadow draws a frame, averaged over `n` frames after `settle` (a toggle dirties a light for two frames).

@@ -349,6 +349,20 @@ func _group_foveation() -> void:
 # ── lights/ — a light and an Environment from the tier ───────────────────────
 
 func _group_lights() -> void:
+	# Every tier lays the positional atlas out in one slot size: Godot 4.7.2 redraws, every frame, the shadow of a light
+	# that wants a slot of another size and finds none (QualityManager.apply_shadow_quality; performance.md, "What
+	# redraws the shadows"). _restore puts the player's own tier back.
+	var root := get_tree().root
+	var keep_tier: int = _live.shadow_quality
+	var uniform := true
+	for tier: int in [QM.ShadowQuality.LOW, QM.ShadowQuality.MEDIUM, QM.ShadowQuality.HIGH]:
+		_live.shadow_quality = tier as QM.ShadowQuality
+		_live.apply_shadow_quality()
+		for q in 4:
+			uniform = uniform and root.get_positional_shadow_atlas_quadrant_subdiv(q) == QM.UNIFORM_SHADOW_QUADRANT
+	_live.shadow_quality = keep_tier as QM.ShadowQuality
+	_live.apply_shadow_quality()
+	_ok(uniform, "lights/every tier gives all four atlas quadrants 16 shadows (no light can want another size)")
 	# A fresh instance never ran _ready, so it answers as a headset does
 	# (_desktop false); the live one on this run is the desktop.
 	var headset := _fresh()
