@@ -773,13 +773,13 @@ func configure_buttons(power_btn: VRButton, reset_btn: VRButton, eject_btn: VRBu
 	eject_btn.set_active(false)
 	eject_btn.hide()
 	var seat: Node3D = _bay.power_switch_seat() if _bay != null else null
-	var switch_at: Variant = get_meta(POWER_SWITCH_META, null)
+	var switch_at: Variant = _meta_or_null(POWER_SWITCH_META)
 	if switch_at is Transform3D:
 		power_btn.global_transform = global_transform * (switch_at as Transform3D)
 		var face := power_btn.get_node_or_null("ButtonMesh") as Node3D
 		if face != null:
 			face.hide()
-		var cap: Variant = get_meta(POWER_SWITCH_MESH_META, null)
+		var cap: Variant = _meta_or_null(POWER_SWITCH_MESH_META)
 		if cap is MeshInstance3D and is_instance_valid(cap):
 			power_btn.set_button_mesh(cap as MeshInstance3D)
 			power_btn.depress_depth = POWER_SWITCH_TRAVEL
@@ -812,6 +812,12 @@ const POWER_SWITCH_TRAVEL := 0.0025
 ## On the cabinet: a generated cabinet's cash vault (an AABB, the cabinet's frame), cut out of its collision and its pointer
 ## boxes (ArcadeCashBox).
 const CASH_VAULT_META := &"arcade_cash_vault"
+
+
+## A meta value, or null when the cabinet has none. `get_meta(key, null)` still warns on a missing key: Godot takes a
+## null default as no default.
+func _meta_or_null(key: StringName) -> Variant:
+	return get_meta(key) if has_meta(key) else null
 
 
 ## `boxes` with `hole` cut out of each that meets it: the part of each below the hole, above it, then (at its height) behind
@@ -877,7 +883,7 @@ func configure_collision(host: Node3D) -> void:
 		for k in shell.size():
 			boxes.append(shell[k] as AABB)
 	# A generated cabinet's cash vault behind its coin panel (ArcadeCashBox): its room is open, cut out of what it stands in.
-	var vault: Variant = get_meta(CASH_VAULT_META, null)
+	var vault: Variant = _meta_or_null(CASH_VAULT_META)
 	if vault is AABB:
 		boxes = carve(boxes, vault as AABB)
 	# [shape, position] for each piece: a cabinet from a model with convex pieces takes those, the whole of it, following its
@@ -925,7 +931,7 @@ func _build_pointer_shapes(host: Node3D) -> void:
 	# A cabinet built from a model is aimed at by the model itself: the pointer meets the surfaces it draws, through
 	# its door openings, into its bay and a hatch's hollow, where these boxes (made for the generic shell) stood in front
 	# of every one of them. Its body's own collision boxes are then not what a pointer meets (POINTER_BY_AREA).
-	var pm := get_meta(POINTER_MESH_META, null) as MeshInstance3D
+	var pm := _meta_or_null(POINTER_MESH_META) as MeshInstance3D
 	if is_instance_valid(pm) and pm.mesh != null:
 		var base := area.get_node_or_null("CollisionShape3D") as CollisionShape3D
 		if base != null:
@@ -963,7 +969,7 @@ func _build_pointer_shapes(host: Node3D) -> void:
 		AABB(Vector3(-hw, 0.92, glass_back_z - 0.05), Vector3(w, marquee_bottom - 0.92, 0.05)),   # behind the glass
 		AABB(Vector3(-hw, marquee_bottom, marquee_front_z - 0.05), Vector3(w, cabinet_height - marquee_bottom, 0.05)),   # marquee
 	]
-	var vault: Variant = get_meta(CASH_VAULT_META, null)
+	var vault: Variant = _meta_or_null(CASH_VAULT_META)
 	if vault is AABB:
 		# (through the panel's thickness: a pointer reaches the tray when it is open; the slab behind it stands while shut)
 		boxes = carve(boxes, AABB((vault as AABB).position, (vault as AABB).size + Vector3(0.0, 0.0, 0.03)))

@@ -112,7 +112,8 @@ var _engaged_ctrl: XRController3D = null       # controller holding the trigger
 var _rearmed: Dictionary = {}
 var _last_activate_frame: int = -1
 
-@onready var _mesh: MeshInstance3D = $ButtonMesh
+# Optional: a button made in code (or one using a model's own cap) has no ButtonMesh child and gets one from set_button_mesh.
+@onready var _mesh: MeshInstance3D = get_node_or_null("ButtonMesh") as MeshInstance3D
 
 # Controller nodes — resolved once in _ready
 var _controllers: Array[XRController3D] = []
