@@ -4131,6 +4131,16 @@ void VerletRope::UpdateSleepState()
                 ", ends ", static_cast<int>(sleep_start_role), "/", static_cast<int>(sleep_end_role));
             if (worst_stretch_segment >= 0 && worst_stretch_error > 0.5)
             {
+                // Is it over-long because its ends are further apart than it
+                // is long (nothing to mend), or because it is caught on
+                // something on the way (drawn out further than the gap)?
+                const int last = TrunkCount() - 1;
+                double drawn = 0.0;
+                for (int i = 0; i < last; ++i)
+                    drawn += m_points[i].distance_to(m_points[i + 1]);
+                UtilityFunctions::print("[Rope]   cord ", m_segment_length * last, " m, its ends ",
+                                        m_points[0].distance_to(m_points[last]), " m apart, drawn out to ", drawn,
+                                        " m; from ", m_points[0], " to ", m_points[last]);
                 const int sa = m_seg_a[worst_stretch_segment];
                 const int sb = m_seg_b[worst_stretch_segment];
                 UtilityFunctions::print(

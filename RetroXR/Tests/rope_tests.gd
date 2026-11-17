@@ -90,6 +90,7 @@ func _run() -> void:
 	await _group_hold()
 	await _group_taut()
 	await _group_through()
+	await _group_except()
 	await _group_budget()
 	_finish()
 
@@ -2130,6 +2131,49 @@ func _group_through() -> void:
 			"through/a cord laid through %s comes out and over it" % c[0],
 			"%d inside at first, out after %d ticks, %d inside 300 ticks on, highest point %.0f mm, longest segment %.1fx" % [
 					at_first, out_at, after, top * 1000.0, longest])
+		await _drop_case()
+
+
+## A body the cord is told not to meet (set_collision_exceptions): an arcade
+## cabinet's shell is solid where the cabinet is hollow, and a cord plugged in
+## at both ends inside it was pushed out through the wall (NaomiHookup.enclose).
+## Two cases, the second the first's control: the same block with no exception.
+func _group_except() -> void:
+	if not _wants("except"):
+		return
+	for excepted: bool in [true, false]:
+		var size := Vector3(0.20, 0.6, 1.2)
+		var base := _new_case()
+		var centre := base + Vector3(0, 1.0, 0)
+		var block := _box(centre, size)
+		_box(base + Vector3(0, 0.35, 0), Vector3(4.0, 0.7, 4.0))
+		var rope := _rope_between(base + Vector3(-0.31, 1.0, 0), base + Vector3(0.31, 1.0, 0), 30, 0.03)
+		if excepted:
+			var bodies: Array[Node] = [block]
+			rope.set_collision_exceptions(bodies)
+		rope.step(1.0 / 90.0)
+		await _settle(900)
+		var inside := _inside_box(rope, centre, size)
+		var top := -1e9
+		var longest := 0.0
+		var pts := rope.get_points()
+		for i in pts.size():
+			top = maxf(top, pts[i].y - base.y)
+			if i + 1 < pts.size():
+				longest = maxf(longest, pts[i].distance_to(pts[i + 1]) / 0.03)
+		var detail := "%d inside, highest point %.0f mm, longest segment %.2fx" % [inside, top * 1000.0, longest]
+		if excepted:
+			# It hangs between its sockets, through the block, at its own length.
+			_ok(inside > 0 and top < 1.02 and longest < 1.1,
+				"except/a cord hangs through a body it is told not to meet", detail)
+			# And meets it again when the exception is lifted.
+			var none: Array[Node] = []
+			rope.set_collision_exceptions(none)
+			await _settle(900)
+			inside = _inside_box(rope, centre, size)
+			_ok(inside == 0, "except/the exception lifted, it comes out of the body", "%d inside" % inside)
+		else:
+			_ok(inside == 0 and top > 1.29, "except/with no exception it goes over the same body", detail)
 		await _drop_case()
 
 

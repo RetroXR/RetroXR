@@ -395,6 +395,11 @@ private:
     void CouplePlug(godot::Node3D *node, int p_configured_role, const godot::Vector3 &offset,
                     int p_slot, double p_segment_length);
     void RefreshExclusions();
+    // Bodies the cord does not meet besides its own plugs: a cabinet whose
+    // collision is solid where the real one is hollow, for a cord run inside it.
+    void SetCollisionExceptions(const godot::TypedArray<godot::Node> &p_bodies);
+    godot::TypedArray<godot::Node> GetCollisionExceptions() const;
+    std::vector<uint64_t> m_exceptions;
     void DepenetrateLay();
     // Resolved once per tick so the hot paths don't repeat the ObjectDB lookup.
     void CacheAnchors();
