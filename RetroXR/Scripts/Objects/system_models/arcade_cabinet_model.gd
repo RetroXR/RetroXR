@@ -935,7 +935,8 @@ func _build_pointer_shapes(host: Node3D) -> void:
 	]
 	var vault: Variant = get_meta(CASH_VAULT_META, null)
 	if vault is AABB:
-		boxes = carve(boxes, vault as AABB)
+		# (through the panel's thickness: a pointer reaches the tray when it is open; the slab behind it stands while shut)
+		boxes = carve(boxes, AABB((vault as AABB).position, (vault as AABB).size + Vector3(0.0, 0.0, 0.03)))
 	for i in boxes.size():
 		var col: CollisionShape3D = first if i == 0 else CollisionShape3D.new()
 		if col == null:
@@ -1168,6 +1169,9 @@ func morph_to(spec: Dictionary) -> void:
 		if child.has_meta(ArcadeCabinetBuilder.FORM_META):
 			remove_child(child)
 			child.queue_free()
+	# the form's coin doors stand on the cash vault's panel, not on the cabinet: they go with their form too
+	if _cash != null:
+		_cash.drop_form_doors()
 	ArcadeCabinetBuilder.new(spec, self).build_form()
 	_form_spec = spec
 	ArcadeDressing.apply(self, _variant, _form_spec)

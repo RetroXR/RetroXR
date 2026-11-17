@@ -26,6 +26,8 @@ const PANEL_T := 0.012
 const VAULT_DEPTH := 0.20
 const VAULT_WALL := 0.004
 const OPEN_DEG := 100.0
+## Where the pointer slab behind the shut panel starts (the cabinet's coin-area pointer plate's bottom: 5 cm over the bay's top).
+const SLAB_BOTTOM := 0.55
 
 var _vault: Node3D = null
 var _tray: MeshInstance3D = null
@@ -82,12 +84,13 @@ func setup(cabinet: Node3D, coins: Array) -> void:
 		_tray.position = Vector3(0.0, VAULT_WALL + 0.001, -VAULT_DEPTH * 0.5)
 		_make_slot.call_deferred(_tray)
 	# the vault's room out of the cabinet's collision and pointer boxes
-	var room := AABB(_vault.position + Vector3(-w * 0.5, 0.0, -VAULT_DEPTH), Vector3(w, h, VAULT_DEPTH + PANEL_T + 0.01))
+	# to the panel's back face: the cabinet stays solid through the panel's thickness, so a shut panel holds coins in
+	var room := AABB(_vault.position + Vector3(-w * 0.5, 0.0, -VAULT_DEPTH), Vector3(w, h, VAULT_DEPTH))
 	cabinet.set_meta(RetroSystemModelArcadeCabinet.CASH_VAULT_META, room)
 	var host := cabinet.get_parent() as Node3D
 	if host != null and cabinet.has_method("configure_collision"):
 		cabinet.call_deferred("configure_collision", host)
-		_add_pointer_slab.call_deferred(host, room)
+		_add_pointer_slab.call_deferred(host, AABB(room.position, room.size + Vector3(0.0, 0.0, PANEL_T + 0.01)))
 
 
 ## The coin face (the builder's CoinFace: the front between the bay's door and the control panel) with the panel's opening in
@@ -160,6 +163,8 @@ func _build_coin_panel(cabinet: Node3D, doors: Array[Node3D], w: float, h: float
 		_panel_turn.name = "CoinPanel"
 		_panel_axis.add_child(_panel_turn)
 	else:
+		# rebuilt shut (a morph while it stood open built it crooked: its parts are laid at the shut pose)
+		_panel_turn.rotation = Vector3.ZERO
 		_panel_axis.position = Vector3(-w * 0.5, 0.0, 0.0)
 		for c in _panel_turn.get_children():
 			if not c is ArcadeCoinModule:
@@ -219,11 +224,13 @@ func _add_pointer_slab(host: Node3D, room: AABB) -> void:
 	_pointer_slab = CollisionShape3D.new()
 	_pointer_slab.name = "PointerCashPanel"
 	var slab := BoxShape3D.new()
-	slab.size = Vector3(room.size.x, room.size.y, 0.02)
+	# from SLAB_BOTTOM up, as the cabinet's own coin-area plate: a ray aimed down at the board in the open bay passes under it
+	var y0 := maxf(room.position.y, SLAB_BOTTOM)
+	slab.size = Vector3(room.size.x, room.end.y - y0, 0.02)
 	_pointer_slab.shape = slab
 	area.add_child(_pointer_slab)
 	var cab := get_parent() as Node3D
-	_pointer_slab.global_position = cab.to_global(Vector3(room.get_center().x, room.get_center().y, room.end.z - PANEL_T - 0.015))
+	_pointer_slab.global_position = cab.to_global(Vector3(room.get_center().x, (y0 + room.end.y) * 0.5, room.end.z - PANEL_T - 0.015))
 
 
 ## Shut (within a few degrees), the slab stands; open, it is gone, and a token lying in a return cup (held still there, the
@@ -267,6 +274,18 @@ func _exit_tree() -> void:
 func _forget_seated() -> void:
 	if is_instance_valid(_cash_zone) and _cash_zone.picked_up_object == null:
 		_seated = null
+
+
+## A morph: the form's coin doors on the panel go with their form (morph_to frees the cabinet's own form children; these were
+## moved onto the panel, and kept, a set more each morph, all taking every coin), and the panel is put back shut.
+func drop_form_doors() -> void:
+	if not is_instance_valid(_panel_turn):
+		return
+	_panel_turn.rotation = Vector3.ZERO
+	for c in _panel_turn.get_children():
+		if c.has_meta(ArcadeCabinetBuilder.FORM_META):
+			_panel_turn.remove_child(c)
+			c.queue_free()
 
 
 ## Whether the coin panel is open (the vault reachable).
@@ -367,12 +386,13 @@ static func tray_mesh(size: Vector3) -> ArrayMesh:
 	var back := -size.z * 0.5
 	var d := front - back
 	var zc := (front + back) * 0.5
+	# (the walls stand on the floor, the sides between the front and the back: no two sheets share a face)
 	var parts := [
 		AABB(Vector3(-size.x * 0.5, 0.0, back), Vector3(size.x, t, d)),
-		AABB(Vector3(-size.x * 0.5, 0.0, back), Vector3(size.x, size.y, t)),
-		AABB(Vector3(-size.x * 0.5, 0.0, front - t), Vector3(size.x, size.y, t)),
-		AABB(Vector3(-size.x * 0.5, 0.0, back), Vector3(t, size.y, d)),
-		AABB(Vector3(size.x * 0.5 - t, 0.0, back), Vector3(t, size.y, d)),
+		AABB(Vector3(-size.x * 0.5, t, back), Vector3(size.x, size.y - t, t)),
+		AABB(Vector3(-size.x * 0.5, t, front - t), Vector3(size.x, size.y - t, t)),
+		AABB(Vector3(-size.x * 0.5, t, back + t), Vector3(t, size.y - t, d - 2.0 * t)),
+		AABB(Vector3(size.x * 0.5 - t, t, back + t), Vector3(t, size.y - t, d - 2.0 * t)),
 		# the pull: a lip across the front's top, the box's last CASH_PULL
 		AABB(Vector3(-size.x * 0.25, size.y - 0.004, front), Vector3(size.x * 0.5, 0.004, CASH_PULL)),
 	]
