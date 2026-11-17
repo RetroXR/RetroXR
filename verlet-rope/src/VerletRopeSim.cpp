@@ -4254,7 +4254,7 @@ void VerletRope::UpdateSleepState()
             m_forced_sleep_logged = true;
             UtilityFunctions::print("[Rope] ", get_path(), ": ends still for ", FORCE_SLEEP_ENDS_STILL,
                                     " ticks but not settling (max ", m_debug_max_velocity * 1000.0, " mm/tick, stretch ",
-                                    worst_stretch_error, ", contact ", worst_contact_error, ", ", m_self_contacts.size(),
+                                    worst_stretch_error, ", contact ", worst_contact_error, ", ", static_cast<int64_t>(m_self_contacts.size()),
                                     " self contacts); put to sleep");
         }
         m_ends_still_frames = 0;
