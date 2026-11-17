@@ -168,9 +168,10 @@ const SOURCES := {
 	#
 	# GPL-3.0, so the tag beside the binary is the source obligation, as Dolphin's.
 	#
-	# Hidden on Quest (the owner's call, 2026-11-01): no row in the download list
-	# there, ours or the buildbot's, and the PS2 tile recommends Play! instead.
-	# The Android build is still published; hidden_on is the only switch.
+	# Not on Quest (the owner's call, 2026-11-01): no row in the download list
+	# there, ours or the buildbot's. Since 2026-11-17 the fork builds no Android
+	# binary at all and this entry names none; hidden_on keeps the buildbot's row
+	# hidden as well.
 	"pcsx2": {
 		"repo":  "RetroXR/ps2",
 		"known_tag": "retroxr-pcsx2-libretro-v6",
@@ -178,7 +179,6 @@ const SOURCES := {
 		"hidden_on": ["Android"],
 		"assets": {
 			"Windows": "pcsx2_libretro.dll.zip",
-			"Android": "pcsx2_libretro_android.so.zip",
 			"Linux":   "pcsx2_libretro.so.zip",
 			"macOS":   "pcsx2_libretro_{arch}.dylib.zip",
 		},
