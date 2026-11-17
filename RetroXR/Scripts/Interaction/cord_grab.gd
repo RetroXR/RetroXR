@@ -17,7 +17,7 @@ extends Node
 ## cord reaches from an end that cannot move, the cord stretches, as it does
 ## behind a held plug, and stays outside what it is hooked round (the rope's
 ## KeepTautOutside). What is loose on an end (a plug, a pad) hangs from the
-## cord by the point the cord leaves it (CableHaul).
+## cord by the point the cord leaves it (a length limit: `_hang`).
 ##
 ## Local and cosmetic: nothing is saved and nothing is sent in a session.
 
@@ -28,8 +28,12 @@ const REACH := 0.02
 const DESK_MAX_DIST := 5.0
 const DESK_MIN_DIST := 0.15
 const DESK_SCROLL_STEP := 0.05
-## How much of a hanging body's speed along its taut cord is taken out a tick.
-const HANG_DAMPING := 0.6
+## A cord over its length comes back this share of the excess a tick, and no
+## faster than HANG_RETURN_MAX metres a second.
+const HANG_RETURN := 0.2
+const HANG_RETURN_MAX := 3.0
+## Further over its length than this, what hangs is moved, not pulled.
+const HANG_SLIP := 0.15
 const GRIP_ON := 0.6
 const GRIP_OFF := 0.4
 const GRIP_ACTION := "grip"
@@ -229,7 +233,7 @@ func _loose_body(end: Node) -> RigidBody3D:
 
 func _physics_process(_delta: float) -> void:
 	# What is loose on the end of a held cord HANGS from it. It is hauled by
-	# the point the cord leaves it (CableHaul: an impulse there, which the
+	# the point the cord leaves it (`_hang`: an impulse there, which the
 	# body's own inertia turns into the tip and the swing), not reeled in: a
 	# reel is a move with no turn in it, and a pad lifted by its wire rose
 	# level off the floor, as if on a tray.
@@ -246,24 +250,43 @@ func _physics_process(_delta: float) -> void:
 func _hang(body: RigidBody3D, at: Vector3, hand: Vector3, reach: float) -> void:
 	if body == null or reach <= 0.0 or not at.is_finite() or not hand.is_finite():
 		return
-	# Past the haul's own limit it hands back what is left to take out by
-	# hand: swept, so the body is not carried through a wall.
-	var rest := CableHaul.haul(body, at, hand, reach)
-	# The haul is a spring (an impulse for every metre the cord is over-long)
-	# with nothing to stop it: a pad lifted by its wire bobbed 12 cm up and
-	# down for good, and the cord beside it with it. A taut cord does not
-	# bounce, so while it is taut the speed of the point it leaves the body
-	# by, ALONG the cord, is taken out (most of it a tick: near critical for
-	# CableHaul.GAIN at 60 to 90 ticks a second). Swinging is left alone.
-	var along := hand - at
-	var over := along.length()
-	if over > reach and over > 0.0001:
-		along /= over
-		var arm := at - body.global_position
-		var speed := (body.linear_velocity + body.angular_velocity.cross(arm)).dot(along)
-		body.apply_impulse(along * (-speed * body.mass * HANG_DAMPING), arm)
-	if rest != Vector3.ZERO:
-		var hit := body.move_and_collide(rest)
+	# A cord is a LIMIT on how far the point it leaves the body by may be from
+	# the hand, and it only ever pulls. So when it is taut, exactly the speed
+	# that would stretch it further is taken out of that point, with the pull
+	# a real cord would give: one impulse along the cord, sized by how the body
+	# answers there (its mass AND how readily it turns about that point).
+	#
+	# It was a spring first (CableHaul: an impulse for every metre over-long),
+	# which bounced for good, and then a spring with a damper sized by the
+	# mass alone. A pad's cord leaves by its edge, where it answers a push far
+	# more readily than its mass says, so the damper overdid it every tick and
+	# the pad fought itself in the air.
+	var out := at - hand
+	var d := out.length()
+	var over := d - reach
+	if over <= 0.0 or d < 0.0001:
+		return
+	out /= d
+	var state := PhysicsServer3D.body_get_direct_state(body.get_rid())
+	if state == null:
+		return
+	# (Its centre of mass is given from the body's origin, in the world's axes.)
+	var arm := at - (body.global_position + state.center_of_mass)
+	var speed := (state.linear_velocity + state.angular_velocity.cross(arm)).dot(out)
+	# Back to its length over a few ticks, not in one (that is a kick).
+	var dt := maxf(get_physics_process_delta_time(), 0.001)
+	var wanted := -minf(over * HANG_RETURN / dt, HANG_RETURN_MAX)
+	if speed <= wanted:
+		return
+	var turn := arm.cross(out)
+	var answer := state.inverse_mass + turn.dot(state.inverse_inertia_tensor * turn)
+	if answer <= 0.0:
+		return
+	body.apply_impulse(out * ((wanted - speed) / answer), at - body.global_position)
+	# Far past its length (a hand moved faster than any pull can answer): the
+	# rest is taken out by hand, swept so nothing is carried through a wall.
+	if over > HANG_SLIP:
+		var hit := body.move_and_collide(out * -(over - HANG_SLIP))
 		if hit != null:
 			body.move_and_collide(hit.get_remainder().slide(hit.get_normal()))
 

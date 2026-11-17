@@ -424,15 +424,17 @@ found by DISTANCE instead, and only by a hand that has nothing else to take.
   cord's straight-line reach at first). Carried past the cord's length from an
   end that cannot move, the held spot stays in the hand and the cord stretches,
   as it does behind a held plug, and `KeepTautOutside` keeps it out of what it
-  is hooked round. What is loose on an end (a plug, a pad) HANGS from the cord:
-  `CableHaul.haul`, an impulse at the point the cord leaves it, so it tips and
-  swings (2026-11-15). Reeled in with `PlugTether.reel_in`, as it was at first,
-  a pad lifted by its wire rose level off the floor: a reel is a move with no
-  turn in it.
-  The haul is a spring with nothing to stop it, so while the cord is taut the
-  speed of that point ALONG the cord is taken out (`HANG_DAMPING`, 0.6 a tick):
-  undamped, the pad's distance from the hand went on varying by 48 mm and the
-  cord beside it bounced with it; damped, 4 mm. Swinging is left alone.
+  is hooked round. What is loose on an end (a plug, a pad) HANGS from the cord
+  (`CordGrab._hang`, 2026-11-17): the cord is a LIMIT on how far the point it
+  leaves the body by may be from the hand. When it is taut, the speed that
+  would stretch it is taken out of that point with one impulse along the cord,
+  sized by how the body answers there (inverse mass plus the inverse inertia
+  about that point, from the body's direct state), with a fifth of the excess
+  length returned a tick. Two earlier tries are gone: `PlugTether.reel_in` (a
+  move with no turn in it: the pad rose level) and `CableHaul` (a spring: it
+  bounced for good, and a damper sized by mass alone was added and then
+  replaced by this). Measured with a real Genesis pad lifted by its wire: it
+  turns to hang by its cord and is still within three seconds.
 - Local and cosmetic: not saved, not sent in a session (a peer sees the cord
   where its own solver puts it).
 
