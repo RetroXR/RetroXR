@@ -725,6 +725,8 @@ func _group_ps2multitap() -> void:
 		"ps2multitap/LRPS2 is told its multitap is in port 1")
 	_eq(sys.all_forced_options("pcee2_libretro").get("pcsx2_multitap", ""), "port1",
 		"ps2multitap/and pcee2, the same key")
+	_eq(sys.all_forced_options("armsx2_libretro").get("armsx2_multitap", ""), "port1",
+		"ps2multitap/and ARMSX2, under its own key")
 	_ok(not sys.all_forced_options("play_libretro").has("pcsx2_multitap"), "ps2multitap/Play! is told nothing")
 	_eq(_ids(sys).slice(0, 5), [1, 1, 1, 1, 1], "ps2multitap/five pads, five DualShock 2s")
 	(sz[1] as XRToolsSnapZone).drop_object()
