@@ -4000,28 +4000,6 @@ void VerletRope::UpdateSleepState()
     {
         m_relay_attempted = true;
         m_hopeless_frames = 0;
-        // A lay is a straight line between the ends. With something standing
-        // between them (the cord is that long BECAUSE it goes round a wall)
-        // that line is through it: the cord is left as it is.
-        if (m_ray_query.is_valid() && m_surface_collision_mask != 0 && TrunkCount() >= 2)
-        {
-            Ref<World3D> lay_world = get_world_3d();
-            PhysicsDirectSpaceState3D *lay_space =
-                lay_world.is_valid() ? lay_world->get_direct_space_state() : nullptr;
-            if (lay_space != nullptr)
-            {
-                m_ray_query->set_from(m_points[0]);
-                m_ray_query->set_to(m_points[TrunkCount() - 1]);
-                if (!lay_space->intersect_ray(m_ray_query).is_empty())
-                {
-                    UtilityFunctions::print("[Rope] ", get_path(), ": segment ", worst_stretch_segment, " is ",
-                                            worst_stretch_error + 1.0,
-                                            "x its length with both ends still, but something stands between"
-                                            " them: not laid afresh");
-                    return;
-                }
-            }
-        }
         UtilityFunctions::print("[Rope] ", get_path(), ": segment ", worst_stretch_segment, " is ",
                                 worst_stretch_error + 1.0, "x its length and has been for ",
                                 HOPELESS_FRAMES, " ticks with both ends still; laying the cord afresh");

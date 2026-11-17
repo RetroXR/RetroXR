@@ -550,10 +550,15 @@ second repair pass.
 
 What is left of that work:
 
-- The "hopeless" re-lay (a cord over-stretched with still ends for 180 ticks is
-  laid afresh) first asks whether its two ends can see each other. With
-  something between them the lay would be straight through it; the cord is
-  left, with a log line.
+- Nothing of it is left in the "hopeless" re-lay either. It was given an
+  exception with the walk-out (no re-lay when something stands between the
+  cord's two ends, since a lay is a straight line and would undo the walk),
+  and the exception outlived the walk-out by three days. A cabinet's own leads
+  nearly always have a wall between their ends, so the cords the re-lay exists
+  for were the ones it now skipped (a session's log: segments 12, 49, 60 and
+  83 times their length, "not laid afresh"). Removed 2026-11-17. It is not the
+  whole of that fault: the one such cord in the saved Starlight Arcade is
+  still 5.8 times over-long after its re-lay.
 - `rope_tests` `through/`: a cord laid through a panel or a block it can reach
   over comes out and ends up over it (the lay's own depenetration does that).
 - A cord with its ends either side of a wall far bigger than it is long stays
