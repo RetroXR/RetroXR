@@ -704,7 +704,8 @@ func _group_wide() -> void:
 		var door_lo := 9.0
 		var door_hi := -9.0
 		for i in doors.size():
-			var dx := (doors[i] as Node3D).position.x
+			# In the body's frame: the doors stand on the cash box's hinged CoinPanel, whose axis turns X down the hinge.
+			var dx := model.to_local((doors[i] as Node3D).global_position).x
 			door_lo = minf(door_lo, dx)
 			door_hi = maxf(door_hi, dx)
 			# A door for every panel stands under it; fewer doors (X-Men 6P has four slots) are spread, centred.

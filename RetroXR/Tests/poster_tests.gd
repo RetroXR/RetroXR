@@ -465,13 +465,16 @@ func _test_menu() -> void:
 	# a poster registered in those chains must answer it.
 	_ok(p.has_method("toggle_options_ui"), "menu/the poster exports toggle_options_ui")
 
+	# BOTH chains — the VR pointer's and the desktop Tab's. Missing either means the
+	# menu silently does nothing on that platform. They share one walk now,
+	# InteractionResolver.options_host_of, which asks the object rather than
+	# naming types; a poster is a pickable with a menu of its own, so it is its
+	# own host.
+	_eq(InteractionResolver.options_host_of(p), p, "menu/the poster is its own options host")
 	var src := FileAccess.get_file_as_string(
 		"res://Scripts/UI/spawn_menu/spawn_menu_controller.gd")
-	# BOTH chains — the VR pointer's and the desktop Tab's. Missing either means the
-	# menu silently does nothing on that platform. The chains used to name each
-	# type; they now ask the object, and a poster is a pickable with a menu of
-	# its own, so it is matched by either half of that test.
-	_eq(src.count('node.has_method("toggle_options_ui") or node is XRToolsPickable'), 2,
+	_eq(int(src.contains("InteractionResolver.options_host_of(tgt)"))
+			+ int(src.contains("InteractionResolver.options_host(space, from, to)")), 2,
 		"menu/registered in both host chains")
 
 	var panel := p.get_node_or_null("PosterOptionsPanel")
