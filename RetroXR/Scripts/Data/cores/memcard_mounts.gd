@@ -51,6 +51,20 @@ const _ROWS := {
 		"forced": {},
 		"live_swap": true,
 	},
+	# ARMSX2, the buildbot's ARM64 PCSX2 fork (the PS2 pick on Quest). Its libretro
+	# frontend (pcsx2-libretro/Main.cpp) declares no card option at all: it keeps
+	# upstream PCSX2's defaults, file cards Mcd001.ps2 and Mcd002.ps2 in the data
+	# root's memcards folder, both slots on, and creates a blank card for a
+	# missing file (MemoryCardFile.cpp), so it has LRPS2's phantom card too. With
+	# no option to change, nothing makes it re-open a card while running.
+	"armsx2": {
+		"dir": "pcsx2/memcards",
+		"names": ["Mcd001.ps2", "Mcd002.ps2"],
+		"file_keys": [],
+		"enable_keys": [],
+		"forced": {},
+		"live_swap": false,
+	},
 }
 
 

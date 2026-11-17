@@ -2273,6 +2273,12 @@ func _test_memcard_presence() -> void:
 	_ok(not MemcardMounts.live_swap("pcsx2"),
 		"memcard/a card swap on pcsx2 waits for a power cycle")
 	_ok(MemcardMounts.live_swap("pcee2"), "memcard/where pcee2 re-opens live")
+	var armsx2 := MemcardMounts.for_core("armsx2")
+	_ok(MemcardMounts.has("armsx2"), "memcard/armsx2 mounts its cards as files")
+	_eq(MemcardMounts.scratch_name(armsx2, 1, "MEMORY CARD 1"), "Mcd002.ps2",
+		"memcard/armsx2 keeps PCSX2's fixed names")
+	_ok(not MemcardMounts.live_swap("armsx2"),
+		"memcard/a card swap on armsx2 waits for a power cycle")
 
 	# The gate that decides whether a card is STAGED for the core and whether the
 	# poller that carries its writes back is started at all. Both hang off this
