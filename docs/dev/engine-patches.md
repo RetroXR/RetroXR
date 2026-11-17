@@ -231,3 +231,21 @@ patches; the deadlock fix booted 10/10 where stock hung on launch 2.
   a stock or older template with `thread_model.android=2` hangs boots.**
 - `godot-4.7.2-perfetto-script-tracer.patch`: `profiler=perfetto` builds only (performance.md "Recipe: Perfetto on
   a Quest"); the script tracer's set was one unlocked static shared by every thread and crashed within seconds.
+
+### A shadow stuck redrawing (2026-11-18): `godot-4.7.2-shadow-atlas-stuck-redraw.patch`
+
+`LightStorage::shadow_atlas_update_light` (RD and GLES3) stored a light's version in its atlas slot only on the
+branch where the light does not want to move. A light whose slot is not the size its coverage wants
+(`should_realloc`) and that finds no free slot of that size returned `should_redraw` with the slot's version stale:
+after ONE change it redrew its whole shadow map every frame for as long as it waited, in a crowded atlas for good.
+The patch stores the version in the slot it keeps before that return. Still in upstream `master` and `4.7` as of
+2026-11-14; engine commit `6ea121d9ff`, pushed. Found in the Starlight Arcade on the desktop (performance.md, "What
+redraws the shadows"): ~3,000 shadow draws a frame with nothing moving, every light alone settling to 0.
+Verified on the desktop with a Windows editor built from the branch (`d3d12=no accesskit=no`: their SDKs are not
+installed here): the arcade autosave, `XENU_SHADOW_DIRTY_ATLAS` (every light dirtied once by a hair of shadow bias,
+nothing moved), Godot's default quadrants: stock **4,151 shadow draws every frame from then on**, twice; patched
+**0**, twice. Uniform quadrants: 0 on both.
+
+The desktop runs the stock official engine, so the game ALSO lays the atlas out uniformly
+(`QualityManager.UNIFORM_SHADOW_QUADRANT`), which never reaches that branch; with this patch the Quest could go back
+to Godot's default quadrants and their bigger top slots. The Android libraries in `Tools/engine/` carry it.

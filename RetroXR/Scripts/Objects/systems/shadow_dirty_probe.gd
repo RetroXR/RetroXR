@@ -453,9 +453,13 @@ func _atlas_check() -> void:
 	# Godot 4.7.2 LightStorage::shadow_atlas_update_light: a light that wants a slot of another size
 	# (should_realloc) and finds none returns should_redraw WITHOUT storing its version in its slot, so after one
 	# dirtying it redraws every frame for as long as it stays stuck. Reproduce it on each layout: rebuild the atlas,
-	# settle, dirty every light by nudging the bodies, wait out the 500 ms realloc tolerance, measure.
-	var bodies: Array[RigidBody3D] = _frozen
-	for layout: Array in [original, [3, 3, 3, 3], original, [3, 3, 3, 3]]:
+	# settle, dirty every light once, wait out the 500 ms realloc tolerance, measure. Godot's default layout
+	# (4/4/16/64) is the one that shows it, whatever the game set; on an engine with
+	# godot-4.7.2-shadow-atlas-stuck-redraw.patch it settles on that one too. The dirtying is a hair of shadow bias
+	# on every light and back (a new shadow version, nothing moved): nudging bodies wakes coins and plugs, which then
+	# keep the lights dirty for real and hide the difference.
+	var default_layout := [2, 2, 3, 4]
+	for layout: Array in [default_layout, [3, 3, 3, 3], default_layout, [3, 3, 3, 3]]:
 		for q in 4:
 			root.set_positional_shadow_atlas_quadrant_subdiv(q, 1 if layout[q] != 1 else 2)
 		await get_tree().process_frame
@@ -463,12 +467,14 @@ func _atlas_check() -> void:
 			root.set_positional_shadow_atlas_quadrant_subdiv(q, layout[q])
 		await get_tree().create_timer(1.5).timeout
 		var fresh := await _shadow_draws(4, 20)
-		for b in bodies:
-			b.global_position += Vector3(0, 0.001, 0)
+		for l in _lights:
+			if is_instance_valid(l):
+				l.shadow_bias += 0.001
 		await get_tree().process_frame
 		await get_tree().process_frame
-		for b in bodies:
-			b.global_position -= Vector3(0, 0.001, 0)
+		for l in _lights:
+			if is_instance_valid(l):
+				l.shadow_bias -= 0.001
 		await get_tree().create_timer(1.5).timeout
 		print("[ShadowDirty] ATLAS quadrants %s (enum: 2=4, 3=16, 4=64 shadows each): rebuilt %.0f shadow draws, after a nudge %.0f" % [
 			str(layout), fresh, await _shadow_draws(4, 30)])

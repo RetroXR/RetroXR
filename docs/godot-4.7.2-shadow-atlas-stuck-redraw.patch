@@ -1,0 +1,66 @@
+From 6ea121d9ff1eeefba1ebfb9d771271ff51db0e87 Mon Sep 17 00:00:00 2001
+From: Ryan McClelland <rymcclel@gmail.com>
+Date: Wed, 18 Nov 2026 00:45:20 +0700
+Subject: [PATCH] LightStorage: a light waiting for another atlas slot redraws
+ once, not every frame
+
+shadow_atlas_update_light only stored the light's version in its slot on the
+branch where the light does not want to move. A light whose slot is not the size
+its coverage wants (should_realloc), and that finds no free slot of that size,
+fell through to `return should_redraw` and kept the slot's stale version: after
+a single change to it, it redrew its whole shadow map every frame for as long as
+it waited, which in a crowded atlas is for good.
+
+Store the version in the slot it keeps before that return, in both the RD and
+the GLES3 light storage.
+
+Seen in a room with 18 shadowed lights on the default 4/4/16/64 quadrants: every
+light alone settled to 0 shadow draws, all together held a flat ~3,000 a frame;
+rebuilding the atlas gave 0, nudging a caster by 1 mm brought them back for good.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01HxukFJPS5goon4McaE94uE
+---
+ drivers/gles3/storage/light_storage.cpp                    | 7 +++++++
+ servers/rendering/renderer_rd/storage_rd/light_storage.cpp | 7 +++++++
+ 2 files changed, 14 insertions(+)
+
+diff --git a/drivers/gles3/storage/light_storage.cpp b/drivers/gles3/storage/light_storage.cpp
+index 94c31aec6a..72a94689e6 100644
+--- a/drivers/gles3/storage/light_storage.cpp
++++ b/drivers/gles3/storage/light_storage.cpp
+@@ -1553,6 +1553,13 @@ bool LightStorage::shadow_atlas_update_light(RID p_atlas, RID p_light_instance,
+ 		return true;
+ 	}
+ 
++	if (old_quadrant != SHADOW_INVALID) {
++		// It wanted a slot of another size and found none, so it keeps the one it has: record the version that is
++		// drawn into it now, as the branch above does when it does not want to move. Without this, one change to the
++		// light leaves the slot's version stale and the light redraws its shadow every frame for as long as it waits.
++		shadow_atlas->quadrants[old_quadrant].shadows.write[old_shadow].version = p_light_version;
++	}
++
+ 	return should_redraw;
+ }
+ 
+diff --git a/servers/rendering/renderer_rd/storage_rd/light_storage.cpp b/servers/rendering/renderer_rd/storage_rd/light_storage.cpp
+index 4052fcae55..bf97418bda 100644
+--- a/servers/rendering/renderer_rd/storage_rd/light_storage.cpp
++++ b/servers/rendering/renderer_rd/storage_rd/light_storage.cpp
+@@ -2713,6 +2713,13 @@ bool LightStorage::shadow_atlas_update_light(RID p_atlas, RID p_light_instance,
+ 		return true;
+ 	}
+ 
++	if (old_quadrant != SHADOW_INVALID) {
++		// It wanted a slot of another size and found none, so it keeps the one it has: record the version that is
++		// drawn into it now, as the branch above does when it does not want to move. Without this, one change to the
++		// light leaves the slot's version stale and the light redraws its shadow every frame for as long as it waits.
++		shadow_atlas->quadrants[old_quadrant].shadows.write[old_shadow].version = p_light_version;
++	}
++
+ 	return should_redraw;
+ }
+ 
+-- 
+2.55.0.windows.3
+
