@@ -644,6 +644,8 @@ func _build_leads() -> void:
 			dp.global_transform = Transform3D(dfacing, dlead.global_position) if dlead != null 				else Transform3D(global_basis, at.global_position + global_basis * Vector3(0.05, 0.0, 0.0))
 		if at.name == "JvsInAnchor":
 			at.add_child(port)
+			# Out of the mouth on the board's -Z edge (_io_board), as the converter's USB-B is turned.
+			port.basis = Basis(Vector3.UP, PI)
 		else:
 			add_child(port)
 			var facing := _lead_facing(str(r[0]), at.global_position)
@@ -871,6 +873,10 @@ func _io_board(lead: Node3D) -> Node3D:
 	io.add_child(anchor)
 	anchor.position = Vector3(-0.064, 0.018, -0.046)
 	ArcadeBayShells.dress(io, "jvs_io_board", Vector3(0.155, 0.024, 0.098))
+	# Its USB-B's mouth is on the board's -Z edge: turned so the mouth faces where the plug comes from (the model's
+	# JvsLeadAim, else the cabinet's front), as every lead's socket faces. Unturned, the plug went in from behind the
+	# receptacle, across the board.
+	io.global_basis = _lead_facing("JvsLead", lead.global_position) * Basis(Vector3.UP, PI)
 	io.global_position += lead.global_position - anchor.global_position
 	return anchor
 

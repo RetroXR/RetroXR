@@ -156,11 +156,15 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 		if mount == null:
 			_reseat_later(conv, cabinet, bay as Node3D)
 		var jc := (load("res://Scenes/Objects/cables/jamma_cable.tscn") as PackedScene).instantiate() as Node3D
+		# Each cut to its run, as the board's other cords are below: at the scene's length (1.8 m) the JAMMA lead lay
+		# coiled on the cabinet's floor.
+		_cut_to_run(jc, _port(conv, CONV_EDGE), harness)
 		home.add_child(jc)
 		jc.global_position = conv.global_position + Vector3(0, 0.1, 0)
 		(_port(conv, CONV_EDGE)).pick_up_object(jc.get_node("PlugA0"))
 		harness.pick_up_object(jc.get_node("PlugB0"))
 		var jv := (load("res://Scenes/Objects/cables/jvs_cable.tscn") as PackedScene).instantiate() as Node3D
+		_cut_to_run(jv, _port(bay, BOARD_JVS), _port(conv, CONV_JVS))
 		home.add_child(jv)
 		jv.global_position = conv.global_position + Vector3(0, 0.1, 0)
 		_port(bay, BOARD_JVS).pick_up_object(jv.get_node("PlugA0"))
@@ -190,6 +194,14 @@ static func seed_cords(cabinet: Node, bay: Node, home: Node) -> void:
 			var plug := cable.get_node_or_null(str(seats[i][0])) as Node3D
 			if plug != null:
 				(ports[i] as Port).pick_up_object(plug)
+
+
+## Cut a fresh lead's cords to the run between its two sockets, and CORD_SPARE, before it is in the tree.
+static func _cut_to_run(cable: Node3D, a: Node3D, b: Node3D) -> void:
+	if cable == null or a == null or b == null:
+		return
+	for rope in cable.find_children("*", "VerletRope", true, false):
+		CaptiveCord.resize(rope as VerletRope, a.global_position.distance_to(b.global_position) + CORD_SPARE)
 
 
 ## Where a fresh JAMMA cabinet's converter stands: on the floor under the board, found by a ray down the cabinet's own
