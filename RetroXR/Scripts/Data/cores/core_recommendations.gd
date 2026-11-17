@@ -264,9 +264,10 @@ const RECOMMENDED := {
 	"ps2": {
 		"core": "pcsx2",
 		"why":  "The only PS2 core here",
-		# pcsx2 is hidden on Quest (CoreSources hidden_on), so Play! is the one.
-		"android": "play",
-		"why_android": "Play! is the PS2 core offered on Quest",
+		# pcsx2 is not on Quest (CoreSources: hidden, no Android build); ARMSX2 is
+		# the buildbot's ARM64 PCSX2 fork, built for Android arm64-v8a.
+		"android": "armsx2",
+		"why_android": "ARMSX2, the PCSX2 fork built for ARM64, is the PS2 core for Quest",
 	},
 	# Offered on Quest too, wherever the buildbot publishes an Android build, for
 	# players to try: nobody has run either on a headset (seventh-gen.md).
