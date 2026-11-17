@@ -323,8 +323,6 @@ private:
     void SolveSegmentCollision(godot::PhysicsDirectSpaceState3D *p_space, bool p_do_rest);
     void RecoverWrongSideParticles(godot::PhysicsDirectSpaceState3D *p_space);
     void KeepTautOutside(godot::PhysicsDirectSpaceState3D *p_space);
-    void FindCrossings(godot::PhysicsDirectSpaceState3D *p_space);
-    void EaseCrossings(godot::PhysicsDirectSpaceState3D *p_space);
     bool SurfaceUnder(godot::PhysicsDirectSpaceState3D *p_space, const godot::Vector3 &p_from,
                       double p_reach, godot::Vector3 &r_point, godot::Vector3 &r_normal);
     // Edge contacts (see m_edge_point).
@@ -656,22 +654,6 @@ private:
     bool m_taut_clear = false;
     // Segments holding a face KeepTautOutside gave them (m_mid_contact bit 8).
     int m_taut_holds = 0;
-    // Segments found through something, being walked round it (FindCrossings).
-    struct Escape
-    {
-        int segment = -1;
-        godot::Vector3 target;
-        int ticks = 0;
-        // Which of its ends this pinned for the walk (HoldPoint).
-        bool pin_a = false;
-        bool pin_b = false;
-    };
-    std::vector<Escape> m_escapes;
-    void DropEscapes();
-    // Look for them at the next tick's end: set by a wake and by a lay.
-    bool m_cross_check = false;
-    bool m_escape_logged = false;
-    int m_debug_escapes = 0;
     int m_debug_taut_crossings = 0;
     int m_debug_taut_edges = 0;
     int m_debug_taut_rollbacks = 0;

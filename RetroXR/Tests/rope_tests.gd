@@ -2076,9 +2076,11 @@ func _group_taut() -> void:
 		await _drop_case()
 
 
-## A cord that IS through something (laid there: an anchor carried through a
-## wall in one tick, a room restored round furniture that has moved) is walked
-## round it, and stays round it when its ends are on opposite sides.
+## A cord LAID through something it can reach over (an anchor carried through a
+## panel in one tick, a room restored round furniture that has moved) comes out
+## of it and ends up over it. (One whose ends are either side of a wall far
+## bigger than it is long stays across the wall: nothing here routes it round.
+## A walk-out that did was tried and taken out, rope.md.)
 func _group_through() -> void:
 	if not _wants("through"):
 		return
@@ -2086,7 +2088,7 @@ func _group_through() -> void:
 	# [name, the obstacle's size, how high the cord must end up to be over it]
 	var cases := [
 		["a panel it can reach over", Vector3(0.02, 0.6, 1.2), 1.29],
-		["a wall far bigger than it is long", Vector3(0.04, 3.0, 3.0), -1.0],
+		["a block it can reach over", Vector3(0.20, 0.6, 1.2), 1.29],
 	]
 	for c: Array in cases:
 		var size: Vector3 = c[1]
@@ -2105,7 +2107,7 @@ func _group_through() -> void:
 		while done < 900 and out_at < 0:
 			await _settle(6)
 			done += 6
-			if _inside_box(rope, centre, size) == 0 and int(rope.get_sleep_metrics().escaping) == 0:
+			if _inside_box(rope, centre, size) == 0:
 				out_at = done
 		await _settle(300)
 		var after := _inside_box(rope, centre, size)
@@ -2118,9 +2120,9 @@ func _group_through() -> void:
 				longest = maxf(longest, pts[i].distance_to(pts[i + 1]) / 0.03)
 		var m: Dictionary = rope.get_sleep_metrics()
 		_ok(out_at >= 0 and after == 0 and top > float(c[2]) and rope.hold_count() == 0,
-			"through/a cord laid through %s is walked round it" % c[0],
-			"%d inside at first, out after %d ticks, %d inside 300 ticks on, highest point %.0f mm, longest segment %.1fx, %d walked" % [
-					at_first, out_at, after, top * 1000.0, longest, int(m.escapes)])
+			"through/a cord laid through %s comes out and over it" % c[0],
+			"%d inside at first, out after %d ticks, %d inside 300 ticks on, highest point %.0f mm, longest segment %.1fx" % [
+					at_first, out_at, after, top * 1000.0, longest])
 		await _drop_case()
 
 

@@ -520,46 +520,33 @@ about 2 mm inside a corner for some ticks after a yank (under the jacket); and a
 cord that is slack is not protected by any of this (a slack cord over a thin
 panel has not been measured). Headset look and Quest cost are OWED.
 
-### A cord that IS through something is walked round it
+### A cord that IS through something: the walk-out, tried and taken out
 
 `KeepTautOutside` keeps a clear cord clear. A cord can still BE through
 something: laid afresh through a wall (an anchor carried through it in one
-tick), restored into furniture that has moved. Asked of the player
-(2026-11-14): ease it back out, do not pop it; with its ends on opposite sides
-it goes ROUND the thing, as stretched as that takes; look while moving and on
-wake, never at rest.
+tick), restored into furniture that has moved, or simply wired from a board
+INSIDE an arcade cabinet to something outside it.
 
-- `m_cross_check` is set by a wake (from sleep only), a lay, a restore, and by
-  `KeepTautOutside` when it is left with a crossing it cannot mend.
-  `FindCrossings` then casts each trunk segment once (twice if it hits): in and
-  out by OPPOSITE faces is through a slab. One at a time.
-- The way out is the least sideways move that clears the segment: eight
-  directions square to it, upward first, the reach doubling from 3 cm to 4 m,
-  then halved back three times. A move counts only if the moved ends are not
-  inside a solid (a ray begun inside one meets nothing), the segment can see
-  itself there both ways, and each end gets there without crossing anything
-  ELSE (or the nearest way round a wall standing on a thin floor is down,
-  under the floor).
-- `EaseCrossings` walks it 2 cm a tick with its two ends PINNED (`HoldPoint`,
-  as a hand's are: `Escape.pin_a/pin_b`). Moved after each solve and left free
-  in it, the stretch pulled it back as fast as it went and it never arrived.
-  Let go when it can see itself again, after 3 s, or by a re-lay
-  (`DropEscapes`); then the cord is looked at again, for what it left behind.
-- The wrong-side recovery does not run while a walk is on (it puts the same
-  particles back the other way).
+A walk-out was built for that (2026-11-14: the least sideways move that clears
+the segment, its ends pinned and walked there 2 cm a tick) and removed three
+days later. It cannot tell a cord that has got through a wall from one that has
+to cross it: in the Starlight Arcade it ran twelve times in one session on the
+cabinets' own leads, dragging a segment up to 1.93 m sideways (long spikes
+standing out of the cabinet's side). It was a patch on the patches above; the
+answer to this case is the collision layer in `rope-collision-plan.md`, not a
+second repair pass.
+
+What is left of that work:
+
 - The "hopeless" re-lay (a cord over-stretched with still ends for 180 ticks is
-  laid afresh) now asks first whether its two ends can see each other. With
-  something between them the lay would be straight through it, and the cord is
-  that long BECAUSE it goes round: it is left, with a log line.
-
-`rope_tests` `through/`: a cord laid through a 3 m wall, ends either side, is
-out in 90 ticks and over the top (highest point 2563 mm; the panel case there
-passes without a walk, the lay's own depenetration puts it over). `rope_stress`
-"dragged through wall" moved on purpose: the cord goes round (escape 0.84 ->
-1.53 m, squash 0.27 -> 0.90, jitter 88 -> 25 mm). `debug_disable` bit 16
-switches the walk off. Not covered: a route that needs two turns (round a
-corner AND over), concave trimesh rooms (point containment answers only for
-convex shapes), how a walk looks in a headset, and what it costs on a Quest.
+  laid afresh) first asks whether its two ends can see each other. With
+  something between them the lay would be straight through it; the cord is
+  left, with a log line.
+- `rope_tests` `through/`: a cord laid through a panel or a block it can reach
+  over comes out and ends up over it (the lay's own depenetration does that).
+- A cord with its ends either side of a wall far bigger than it is long stays
+  across the wall, as before (`rope_stress` "dragged through wall" is back to
+  its 2026-11-13 numbers).
 
 Eight Gauss-Seidel iterations also cannot make a long cord inextensible: a lead
 held up by one plug with the other on the floor sits a few percent long along its
