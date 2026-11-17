@@ -66,12 +66,13 @@ const CUSTOM_SHELL_WHEEL := 340.0
 const UNREACHABLE_DIM := Color(1.0, 1.0, 1.0, 0.45)
 
 ## Library systems with no Cartridges tile: their games are picked on an object's
-## own panel, a VMU's on the card's Games tab.
-const NOT_CARTRIDGE_SYSTEMS: Array[String] = [VmuCard.LIBRARY_SYSTEMID]
+## own panel, a VMU's or a PocketStation's on the card's Games tab.
+const NOT_CARTRIDGE_SYSTEMS: Array[String] = [VmuCard.LIBRARY_SYSTEMID, PocketStation.LIBRARY_SYSTEMID]
 
 ## Platforms with no Systems tile: their core runs a peripheral, which is spawned
-## from its console's card (the VMU from the Dreamcast's), never on its own.
-const NOT_SYSTEM_TILES: Array[String] = [VmuCard.LIBRARY_SYSTEMID]
+## from its console's card (the VMU from the Dreamcast's, the PocketStation
+## from the PlayStation's), never on its own.
+const NOT_SYSTEM_TILES: Array[String] = [VmuCard.LIBRARY_SYSTEMID, PocketStation.LIBRARY_SYSTEMID]
 
 var core_db: CoreInfoDatabase = null
 var core_defaults: CoreDefaults = null
