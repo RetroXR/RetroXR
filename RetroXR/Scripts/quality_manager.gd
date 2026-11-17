@@ -391,6 +391,9 @@ func _ready() -> void:
 	# Per-second pacing of every running machine, for a lag measured in the room.
 	if OS.has_environment("XENU_PACE_TRACE"):
 		add_child(load("res://Scripts/Objects/systems/pace_trace.gd").new())
+	# What keeps redrawing the cached spot/omni shadow maps (performance.md, "What dirties the shadows").
+	if OS.has_environment("XENU_SHADOW_DIRTY_PROBE"):
+		add_child(load("res://Scripts/Objects/systems/shadow_dirty_probe.gd").new())
 	# The old full-frame readback needed a 30-frame Quest throttle. The new path
 	# transfers only an older, completed 12x8 pass, so both renderers use this cadence.
 	screen_light_interval = 6

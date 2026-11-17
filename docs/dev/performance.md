@@ -931,6 +931,38 @@ of the two legs from one camera differ in 0.009% of pixels by more than 8/255 (t
 ropes, ~200 larger movers, and what objects show (one surface per material). The Quest is untouched (mobile renderer,
 props on a baked volume); OWED there if its props ever cast.
 
+### What redraws the shadows (2026-11-17)
+
+ShadowMerge made each redraw cheaper; the question it skipped is why spot/omni shadows redraw at all. Godot caches each
+one and redraws it only when a caster in its range changes (`RendererSceneCull::make_shadow_dirty`: a transform not
+EXACTLY `==` the last, an AABB, pairing in or out, a layer or cast change) or a caster has a material it calls animated
+(fragment TIME with discard, vertex TIME). The directional light redraws every frame regardless, once per split.
+`Scripts/Objects/systems/shadow_dirty_probe.gd` (`XENU_SHADOW_DIRTY_PROBE=<seconds>`, steps in its header) watches it
+in the room. Starlight Arcade autosave, desktop, one process, shadow draws per frame of the root viewport:
+
+| state | shadow draws | render CPU |
+|---|---:|---:|
+| as found | 7,370 | 9.6-11.2 ms |
+| the 4 cabinets that never sleep, frozen | 5,280 | 8.1-9.0 ms |
+| and the robot's skinned meshes cast nothing | 4,850 | 7.7-9.3 ms |
+| and the ropes cast nothing | 4,540 | |
+| and the directional light casts nothing | 3,570 | 7.2-8.3 ms |
+| no light casts (the floor) | 0 | 4.9-5.2 ms |
+
+1. **Four arcade cabinets never sleep** (`system.gd` bodies, `freeze=false`, `sleeping=false`): they creep 1-147 um a
+   frame, everything hooked to them (VGA anchors, port covers, the JVS converter, plugs) with them, and dirty 17 of the
+   18 lights every frame. Why they never sleep is OPEN.
+2. **The Robot Gamer's idle** poses its skeleton every frame: two spots.
+3. **Ropes** (145, 30 awake) are ~300 draws; nothing in the room has a TIME shader.
+4. **The atlas, a Godot 4.7.2 bug.** With all of that silenced, every light ALONE settles to 0 shadow draws, yet all
+   of them together stayed at a flat ~3,000-3,800 every frame. `LightStorage::shadow_atlas_update_light`: a light
+   whose slot is not the size its coverage wants (`should_realloc`) and that finds no free slot returns
+   `should_redraw` WITHOUT writing its version into the slot (only the no-realloc branch does), so after ONE dirtying it
+   redraws every frame for as long as it stays stuck. Reproduced on demand (`XENU_SHADOW_DIRTY_ATLAS`): atlas rebuilt
+   -> 0; the frozen cabinets nudged 1 mm and back -> 2,600-3,650 every frame from then on, on the default quadrants
+   (4/4/16/64 shadows); the same on a uniform layout (16/16/16/16) -> 0, twice each. A uniform layout cannot want
+   another size, so it never takes that branch; the engine fix is to store the version before that return.
+
 ## Metals on the headset's prop shader (2026-11-15)
 
 `PropLighting._translate` carried a prop's albedo, normal and emission onto `pbr_prop_unshaded` and dropped
