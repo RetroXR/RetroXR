@@ -55,6 +55,16 @@ static func group_for(socket: String) -> String:
 	return GROUP + ":" + socket
 
 
+## Most a cover's own size adds to its slot's reach, metres.
+const PREVIEW_RADIUS_MAX := 0.05
+
+
+## How far from its slot a held cover snaps back (the grab drivers add it to the slot's reach): its half-diagonal, capped.
+## Uncapped, a cabinet's back panel (385 x 460) went on and stayed on from a third of a meter (the owner, 2026-11-17).
+func preview_radius() -> float:
+	return minf(size.length() * 0.5, PREVIEW_RADIUS_MAX)
+
+
 func _ready() -> void:
 	super()
 	_apply_size()

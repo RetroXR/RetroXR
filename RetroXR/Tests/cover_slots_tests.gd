@@ -46,7 +46,22 @@ func _ready() -> void:
 		await _test_restore(false)
 	if _want("shell"):
 		await _test_shell_cover()
+	if _want("reach"):
+		_test_reach()
 	_finish()
+
+
+## A held cover snaps back from its own size's reach, capped: a cabinet's back panel not from a third of a meter.
+func _test_reach() -> void:
+	var small := PortCover.new()
+	small.size = Vector3(0.05, 0.004, 0.03)
+	var panel := PortCover.new()
+	panel.size = Vector3(0.385, 0.003, 0.46)
+	_ok(is_equal_approx(small.preview_radius(), small.size.length() * 0.5), "reach: a small cover's reach is its half-diagonal")
+	_ok(panel.preview_radius() <= PortCover.PREVIEW_RADIUS_MAX, "reach: a cabinet's back panel reaches %.3f m, not %.3f" % [
+		panel.preview_radius(), panel.size.length() * 0.5])
+	small.free()
+	panel.free()
 
 
 func _want(group: String) -> bool:
