@@ -2,6 +2,30 @@
 
 Moved verbatim out of `CLAUDE.md` on 2026-09-18; `CLAUDE.md` keeps the summary and links here.
 
+### Desktop releases ship it too (2026-11-18)
+
+Until then only the Quest ran the patched engine; Windows, Linux and macOS exported with the stock 4.7.2
+templates, so a fix such as `godot-4.7.2-shadow-atlas-stuck-redraw.patch` never reached a desktop player.
+
+`Tools/engine/ENGINE_COMMIT` pins ONE engine commit (full hash) on `retroxr-4.7.2` for every platform.
+release.yml's `engine` job builds each desktop release template from it on the platform's own runner
+(`windows_release_x86_64.exe`, `linux_release.x86_64`, `linux_release.arm64`, and a universal
+`godot_macos_release.universal` lipo'd from arm64 + x86_64), `production=yes`, with the dependencies Godot's
+own CI installs (AccessKit everywhere, ANGLE and D3D12 on Windows, ANGLE and the Vulkan SDK on macOS) so the
+feature set matches stock. The result is cached by the commit: a release that does not move the engine builds
+nothing. Each export job installs the stock templates as before and then lays our release binary over the
+stock one (inside `macos.zip` on macOS); the debug templates and the Windows console wrapper stay stock, as an
+`--export-release` never uses them. Every desktop export then greps its binary for the pinned commit's first
+nine characters (the version banner, `4.7.2.stable.custom_build.<hash>`) and fails the build without it.
+
+**Moving the engine:** commit on `retroxr-4.7.2` and push it (the job checks out RetroXR/godot at the pin),
+rebuild the two Android libraries into `Tools/engine/android/` (below), and write the new full hash into
+`ENGINE_COMMIT` in the same commit, so the Quest and the desktops never ship different engines.
+
+The editor you run the project in is still whatever Godot you start. To see an engine patch on the desktop
+before a release, run the project with an editor built from the branch (`~/godot/bin/godot.windows.editor.
+x86_64.console.exe`, built with `d3d12=no accesskit=no` when their SDKs are not installed).
+
 ### The Quest ships a PATCHED engine
 
 The stock 4.7.2 Android template has eight defects on a Quest 3 that each have

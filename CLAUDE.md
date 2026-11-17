@@ -100,6 +100,11 @@ python Tools/place_engine.py --target release   # what release.yml runs before t
 python Tools/place_engine.py --target debug     # local Quest export; --check only reports
 ```
 
+**The desktop releases ship it too** (since 2026-11-18): release.yml's `engine` job builds each
+platform's release template from the commit in `Tools/engine/ENGINE_COMMIT`, and every desktop export
+checks it runs that commit. Moving the engine means: commit on `retroxr-4.7.2`, push, rebuild the
+Android libs, and write the new hash into `ENGINE_COMMIT` (engine-patches.md, "Desktop releases").
+
 **Every Android export places the engine itself** (`retroxr_build_stamp`'s export plugin runs
 `place_engine.py`; `RETROXR_STOCK_ENGINE=1` opts out). The gradle template is SHARED by every
 export from the checkout: never `--restore` it to tidy up after a probe. One such restore left

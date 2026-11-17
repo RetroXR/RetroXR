@@ -403,9 +403,99 @@ jobs:
           compression-level: 0   # an APK is already a zip
           retention-days: 14
 
+  # ----------------------------------------------------------------- engine
+  # The desktop builds ship OUR engine, as the Quest build does: Godot 4.7.2 with docs/godot-4.7.2-*.patch
+  # (RetroXR/godot, branch retroxr-4.7.2). Each platform's release template is built here from the commit
+  # pinned in Tools/engine/ENGINE_COMMIT, cached by that commit (a release that does not move the engine
+  # builds nothing), and laid over the stock one in its export job. Only the release binary is ours: an
+  # --export-release never touches the debug templates or the Windows console wrapper, which stay stock.
+  # Dependencies as Godot's own CI installs them, so the template keeps the stock feature set.
+  engine:
+    needs: preflight
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { id: windows, runner: windows-latest, platform: windows, arch: x86_64 }
+          - { id: linux-x86_64, runner: ubuntu-24.04, platform: linuxbsd, arch: x86_64 }
+          - { id: linux-arm64, runner: ubuntu-24.04-arm, platform: linuxbsd, arch: arm64 }
+          - { id: macos, runner: macos-15, platform: macos, arch: universal }
+    name: engine-${{ matrix.id }}
+    steps:
+      - uses: actions/checkout@v7
+        with: { sparse-checkout: Tools/engine/ENGINE_COMMIT, sparse-checkout-cone-mode: false }
+
+      - id: pin
+        shell: bash
+        run: echo "commit=$(tr -d '[:space:]' < Tools/engine/ENGINE_COMMIT)" >> "$GITHUB_OUTPUT"
+
+      - id: cache
+        uses: actions/cache@v6
+        with:
+          path: engine-bin
+          key: engine-template-v1-${{ matrix.id }}-${{ steps.pin.outputs.commit }}
+
+      - if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v7
+        with: { repository: RetroXR/godot, ref: "${{ steps.pin.outputs.commit }}", path: godot }
+
+      - if: steps.cache.outputs.cache-hit != 'true'
+        run: pip install 'scons==4.10.*'
+
+      - name: Dependencies (as Godot's CI installs them)
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
+        working-directory: godot
+        run: |
+          set -euo pipefail
+          case "${{ matrix.platform }}" in
+            linuxbsd) sudo apt-get update && sudo apt-get install -y libwayland-bin ;;
+            windows)  python misc/scripts/install_d3d12_sdk_windows.py
+                      python misc/scripts/install_angle.py ;;
+            macos)    sh misc/scripts/install_vulkan_sdk_macos.sh
+                      python3 misc/scripts/install_angle.py ;;
+          esac
+          if command -v python3 >/dev/null; then python3 misc/scripts/install_accesskit.py; else python misc/scripts/install_accesskit.py; fi
+
+      - name: Build the release template
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
+        working-directory: godot
+        run: |
+          set -euo pipefail
+          mkdir -p ../engine-bin
+          case "${{ matrix.platform }}" in
+            windows)
+              scons platform=windows target=template_release arch=x86_64 production=yes
+              cp bin/godot.windows.template_release.x86_64.exe ../engine-bin/windows_release_x86_64.exe ;;
+            linuxbsd)
+              scons platform=linuxbsd target=template_release arch=${{ matrix.arch }} production=yes
+              cp bin/godot.linuxbsd.template_release.${{ matrix.arch }} ../engine-bin/linux_release.${{ matrix.arch }} ;;
+            macos)
+              scons platform=macos target=template_release arch=arm64 production=yes
+              scons platform=macos target=template_release arch=x86_64 production=yes
+              lipo -create bin/godot.macos.template_release.arm64 bin/godot.macos.template_release.x86_64 \
+                -output ../engine-bin/godot_macos_release.universal ;;
+          esac
+          ls -la ../engine-bin
+
+      - name: It is the pinned engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          short=$(cut -c1-9 <<< "${{ steps.pin.outputs.commit }}")
+          for f in engine-bin/*; do
+            grep -aq "$short" "$f" || { echo "::error::$f does not name engine commit $short"; exit 1; }
+            echo "$f: engine $short"
+          done
+
+      - uses: actions/upload-artifact@v7
+        with: { name: "engine-${{ matrix.id }}", path: engine-bin, retention-days: 3 }
+
   # ------------------------------------------------------------------ windows
   windows:
-    needs: preflight
+    needs: [preflight, engine]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
@@ -457,6 +547,15 @@ jobs:
           Move-Item tpz/templates/* $dest
           Remove-Item godot.zip, templates.zip -Force
 
+      - uses: actions/download-artifact@v8
+        with: { name: engine-windows, path: engine-bin }
+
+      - name: Our engine in place of the stock release template
+        shell: pwsh
+        run: |
+          $dest = "$env:APPDATA\Godot\export_templates\$env:GODOT_TEMPLATE_DIR"
+          Copy-Item engine-bin\windows_release_x86_64.exe "$dest\windows_release_x86_64.exe" -Force
+
       - name: Import, and fail on any script or shader error
         shell: bash
         run: |
@@ -484,6 +583,9 @@ jobs:
           set -euo pipefail
           mkdir -p build_out
           "$GODOT" --headless --path RetroXR --export-release "Windows Desktop" "$PWD/build_out/RetroXR.exe"
+          short=$(head -c9 Tools/engine/ENGINE_COMMIT)
+          grep -aq "$short" build_out/RetroXR.exe || { echo "::error::the export does not run our engine ($short)"; exit 1; }
+          echo "engine $short in the export"
           ls -la build_out
 
       - name: Package
@@ -514,7 +616,7 @@ jobs:
   # dlopens the host's own libSDL3 at runtime. libvlc comes from the system too
   # (vlc-libs), so the AppImage/tarball must not bundle it.
   linux:
-    needs: preflight
+    needs: [preflight, engine]
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -790,6 +892,16 @@ jobs:
           cp -r tpz/templates/* "$dest"
           rm -f godot.zip templates.tpz
 
+      - uses: actions/download-artifact@v8
+        with: { name: "engine-${{ matrix.id }}", path: engine-bin }
+
+      - name: Our engine in place of the stock release template
+        run: |
+          set -euo pipefail
+          dest="$HOME/.local/share/godot/export_templates/$GODOT_TEMPLATE_DIR"
+          cp engine-bin/linux_release.${{ matrix.arch }} "$dest/linux_release.${{ matrix.arch }}"
+          chmod +x "$dest/linux_release.${{ matrix.arch }}"
+
       # The Linux preset is hardcoded to x86_64; switch it for the arm64 export
       # so Godot emits an arm64 binary. Scope the substitution to the block of
       # the preset named "Linux" — a bare s/// would hit the Windows preset's
@@ -835,6 +947,9 @@ jobs:
           set -euo pipefail
           mkdir -p build_out
           "$GODOT" --headless --path RetroXR --export-release "Linux" "$PWD/build_out/RetroXR.${{ matrix.arch }}"
+          short=$(head -c9 Tools/engine/ENGINE_COMMIT)
+          grep -aq "$short" "build_out/RetroXR.${{ matrix.arch }}" || { echo "::error::the export does not run our engine ($short)"; exit 1; }
+          echo "engine $short in the export"
           # Bundle SDL3 next to the binary. The extension links it by soname
           # with no rpath, and SDL3 is new enough that many distros package it
           # nowhere at all - $ORIGIN finds it sitting beside the executable.
@@ -916,7 +1031,7 @@ jobs:
   # and JIT. vlc-godot and metaxr-audio are skipped by build.py (no macOS
   # runtime for either).
   macos:
-    needs: preflight
+    needs: [preflight, engine]
     runs-on: macos-15
     continue-on-error: true
     steps:
@@ -1014,6 +1129,18 @@ jobs:
           cp -r tpz/templates/* "$dest"
           rm -f godot.zip templates.tpz
 
+      - uses: actions/download-artifact@v8
+        with: { name: engine-macos, path: engine-bin }
+
+      - name: Our engine in place of the stock release template
+        run: |
+          set -euo pipefail
+          dest="$HOME/Library/Application Support/Godot/export_templates/$GODOT_TEMPLATE_DIR"
+          rm -rf tplmac && mkdir tplmac && unzip -q "$dest/macos.zip" -d tplmac
+          cp engine-bin/godot_macos_release.universal tplmac/macos_template.app/Contents/MacOS/godot_macos_release.universal
+          chmod +x tplmac/macos_template.app/Contents/MacOS/godot_macos_release.universal
+          (cd tplmac && rm -f "$dest/macos.zip" && zip -q -r -y "$dest/macos.zip" macos_template.app)
+
       - name: Import, and fail on any script or shader error
         shell: bash
         run: |
@@ -1037,6 +1164,9 @@ jobs:
           set -euo pipefail
           mkdir -p build_out
           "$GODOT" --headless --path RetroXR --export-release "macOS" "$PWD/build_out/RetroXR.app"
+          short=$(head -c9 Tools/engine/ENGINE_COMMIT)
+          grep -aq "$short" build_out/RetroXR.app/Contents/MacOS/* || { echo "::error::the export does not run our engine ($short)"; exit 1; }
+          echo "engine $short in the export"
           ls -la build_out
 
       # Godot codesigns during export (codesign/enable=true with the
