@@ -429,6 +429,9 @@ const LEAD_SCENES := {
 	# an N64's MULTI OUT; the RF switch's plug in its RF OUT is saved under it
 	# (RfModulator, AdapterRcaPort.save_owner).
 	"n64_rf_modulator": preload("res://Scenes/Objects/system_models/nintendo_64/n64_rf_modulator.tscn"),
+	# A 3.5 mm stereo plug to two phono jacks (TrsRcaAdapter): a block of one plug and no cord, as the
+	# modulator is; the phono leads in its jacks are saved under it (AdapterRcaPort.save_owner).
+	"trs_rca_adapter": preload("res://Scenes/Objects/cables/trs_rca_adapter.tscn"),
 	"antenna": ANTENNA_SCENE,
 	# A headset whose captive cord ends in a 3.5 mm plug (Headphones): a lead with a body on one end, like the aerial.
 	"headphones": preload("res://Scenes/Objects/appliances/headphones.tscn"),

@@ -519,6 +519,22 @@ unchanged. `PlugB0` wears the model's plug and is the only connector a player to
 - Not yet: the record/cassette/CD players (`audio_player.gd`) do not read a sink's `get_audio_unit_size`, so through a
   set's jack they are heard at their own law; the CD player's PHONES jack is not a socket yet.
 
+### The 3.5 mm TRS to stereo RCA adapter (2026-11-17)
+
+`trs_rca_adapter` (Electronics tab, "3.5 mm to RCA Adapter"; `Scenes/Objects/cables/trs_rca_adapter.tscn`,
+`TrsRcaAdapter`; model RetroXR-models `generic/trs-rca-adapter`, model `mini`, on `trs-plug`'s lathe; asset
+`imported-assets/connectors/trs_rca_adapter/`). The molded black block: a 3.5 mm stereo plug (`trs_plug`) out of a
+smaller, chamfered face at one end, the left (white, +X) and right (red, -X) phono jacks out of the other.
+RfModulator's arrangement: a `CompositeCable` of ONE plug and no rope, `PlugA0` the whole block, its jacks
+`AdapterRcaPort`s (`RcaL`/`RcaR`, AUDIO_L/AUDIO_R) on the model's `RcaJackL`/`RcaJackR` mouths, so a phono pair from
+them is, to AvGraph and AvSource, a pair from whatever the plug is in, and is saved under the adapter. The jacks take
+the DIRECTION of the socket the plug is in, set in `_resolve`: OUT in a PHONES (a deck's, a handheld's, whose own
+speaker is then cut), IN in the PC speakers' line in (a deck's phono line out plays through them).
+
+The models item also builds a 1/4" (6.35 mm) model (`quarter`), which the game does not ship: nothing in it takes a
+1/4" plug. `av_tests phones/` (four cases, each with a loose-adapter control); `Tools/av/trs_rca_adapter_probe`
+(windowed) is how it looks, loose and in a CD player's PHONES with a phono pair in it. The headset and the Quest are OWED.
+
 ### The base game's Compact Cassette, and the CD player's PHONES (2026-10-31)
 
 (2026-11-08) The album's pictures go on the labels the cassette's shell draws, the game's or a mod's: a mod shell's

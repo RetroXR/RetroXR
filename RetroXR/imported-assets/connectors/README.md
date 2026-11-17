@@ -17,6 +17,7 @@ After a re-import, put the GLBs back to `generate_lods=false` and any extracted 
 | `ps2_plug/ps2_plug_green.glb` | `generic/ps2-plug/exports/green/ps2_plug_green_mobile_clean.glb` | the PC mouse's lead (`RetroMouse.PLUG_MESH`) |
 | `trs_plug/trs_plug.glb` | `generic/trs-plug/exports/lime/trs_plug_lime_mobile_clean.glb` | both ends of `trs_cable.tscn` |
 | `trs_plug/trs_plug_black.glb` | `generic/trs-plug/exports/black/trs_plug_black_mobile_clean.glb` | the headphones' plug (`HeadphonesPlug.PLUG_GLB`, its mesh and CordExit taken in `_ready`) and both ends of `sega_cd_mixing_cable.tscn` |
+| `trs_rca_adapter/trs_rca_adapter.glb` | `generic/trs-rca-adapter/exports/mini/trs_rca_adapter_mini_mobile_clean.glb` (the 3.5 mm model) | the whole block of `trs_rca_adapter.tscn` (`PlugA0/Shell`; its `RcaJackL`/`RcaJackR` mouths are where the jacks' zones stand) |
 
 The PS/2 and 3.5 mm plugs replaced `Tools/gen/gen_ps2.gd`'s and `gen_trs.gd`'s baked plugs (2026-11-15); the sockets
 are still those generators' `.res`, and the old plug `.res` files stay for them. Both were mods (`xenu.usba`, `xenu.rj45`) until 2026-11-14. An old `xenu.rj45` still installed changes nothing: it

@@ -205,6 +205,10 @@ func _run() -> void:
 		["phones/the Plain Monitor has one on its bezel", _p_monitor_phones],
 		["phones/an SP is heard through its headphone adapter", _p_sp_adapter],
 		["phones/the adapter last, after the lead to the speakers", _p_sp_adapter_last],
+		["phones/a 3.5 mm to RCA adapter puts a deck's PHONES on a pair of phono leads", _p_trs_rca_adapter],
+		["phones/a handheld's jack reaches a set through the adapter", _p_trs_rca_adapter_handheld],
+		["phones/the adapter is one 3.5 mm plug and two phono jacks, its leads saved under it", _p_trs_rca_adapter_scene],
+		["phones/in the speakers' line in, the adapter takes a deck's phono pair in", _p_trs_rca_adapter_direction],
 		["display/the selected input is shown", _d_selected],
 		["display/another input is blue, not the last picture", _d_away],
 		["display/coming back shows it again", _d_back],
@@ -3896,6 +3900,131 @@ func _p_sp_adapter_last() -> void:
 	_ok(sp.audio_route()["tv"] == null, "a lead from a loose adapter carries nothing")
 	await _seat_adapter(sp, adapter)
 	_check_eq(sp.audio_route()["tv"], speakers, "plugged in last, the adapter still takes the sound")
+
+
+# -- the 3.5 mm TRS to stereo RCA adapter ------------------------------------------------
+
+const TRS_RCA_ADAPTER := preload("res://Scenes/Objects/cables/trs_rca_adapter.tscn")
+const CD_PLAYER := preload("res://Scenes/Objects/appliances/cd_player.tscn")
+
+
+func _cd_player() -> RetroAudioPlayer:
+	var cd := CD_PLAYER.instantiate() as RetroAudioPlayer
+	cd.freeze = true
+	cd.position = Vector3(_spawned.size() * 3.0, 1, 1.2)
+	add_child(cd)
+	cd.add_to_group("spawned")
+	_spawned.append(cd)
+	await _wait(10)
+	return cd
+
+
+## A pair of phono cords (a composite lead's L and R) from the adapter's jacks to a set's audio inputs.
+func _adapter_to_set(adapter: TrsRcaAdapter, tv: RetroTV) -> CompositeCable:
+	var lead := CABLE_SCENE.instantiate() as CompositeCable
+	lead.position = tv.position + Vector3(0.5, 0.5, 0.5)
+	add_child(lead)
+	_spawned.append(lead)
+	await _wait(5)
+	var jacks := adapter.jacks()
+	for i in 2:
+		jacks[i].pick_up_object(lead.get_node("PlugA%d" % (i + 1)) as Node3D)
+		(tv.find_child("AudioLIn" if i == 0 else "AudioRIn", true, false) as RcaPort).pick_up_object(
+			lead.get_node("PlugB%d" % (i + 1)) as Node3D)
+	await _wait(30)
+	return lead
+
+
+func _p_trs_rca_adapter() -> void:
+	var cd := await _cd_player()
+	var tv := _tv()
+	var adapter := await _spawn_lead(TRS_RCA_ADAPTER, cd.position + Vector3(0.3, 0.4, 0.3)) as TrsRcaAdapter
+	_ok(adapter != null and adapter.jacks().size() == 2 and adapter.jacks()[0] != null and adapter.jacks()[1] != null,
+		"an adapter with its two jacks")
+	if adapter == null or adapter.jacks().has(null):
+		return
+	await _adapter_to_set(adapter, tv)
+	_ok(cd.sound_sink() != tv, "control: leads from a LOOSE adapter bring the deck to no set", str(cd.sound_sink()))
+	var phones := cd.get_node("PhonesOut") as RcaPort
+	_ok(adapter.get_node("PlugA0").is_in_group(phones.snap_require), "the adapter's plug fits the deck's PHONES")
+	phones.pick_up_object(adapter.get_node("PlugA0"))
+	await _wait(35)
+	_check_eq(adapter.host(), cd, "seated in PHONES, the adapter speaks for the deck")
+	_ok(cd.sound_sink() == tv, "and its phono leads take the deck's sound to the set", str(cd.sound_sink()))
+	await _unplug(adapter.get_node("PlugA0") as RcaPlug)
+	_ok(adapter.host() == null, "pulled, the adapter speaks for nobody")
+	_ok(cd.sound_sink() != tv, "and the deck leaves the set", str(cd.sound_sink()))
+
+
+## A handheld's headphone jack, through the adapter and a phono pair, to a set's audio inputs: heard on the set, its own
+## speaker cut, as a TRS lead to the speakers does.
+func _p_trs_rca_adapter_handheld() -> void:
+	var gba := _handheld("gba")
+	var tv := _tv()
+	await _wait(60)
+	var adapter := await _spawn_lead(TRS_RCA_ADAPTER, gba.position + Vector3(0.3, 0.4, 0.3)) as TrsRcaAdapter
+	await _adapter_to_set(adapter, tv)
+	_ok(gba.audio_route()["tv"] != tv, "control: through a loose adapter the handheld is not on the set")
+	(gba.find_child("PhonesOut", true, false) as RcaPort).pick_up_object(adapter.get_node("PlugA0"))
+	await _wait(35)
+	var route := gba.audio_route()
+	_check_eq(route["tv"], tv, "in the handheld's jack, the adapter's phono pair puts its sound on the set")
+	_ok(route["socketed"], "and the handheld's own speaker is cut off")
+	await _unplug(adapter.get_node("PlugA0") as RcaPlug)
+	route = gba.audio_route()
+	_ok(route["tv"] == null and not route["socketed"], "pulled, the handheld plays for itself again")
+
+
+func _p_trs_rca_adapter_scene() -> void:
+	var adapter := await _spawn_lead(TRS_RCA_ADAPTER, Vector3(-4.0, 1.0, 0.0)) as TrsRcaAdapter
+	var plug := adapter.get_node("PlugA0") as RcaPlug
+	_ok(plug.is_in_group("trs_plug"), "its plug is the 3.5 mm stereo plug")
+	_ok(adapter.find_child("VerletRope", true, false) == null and adapter.get_node_or_null("PlugB0") == null,
+		"the block is one plug, with no cord and no far end")
+	var jacks := adapter.jacks()
+	_check_eq([jacks[0].channel, jacks[1].channel], [RcaPort.Channel.AUDIO_L, RcaPort.Channel.AUDIO_R],
+		"its jacks are left and right")
+	_ok(jacks[0].position.x > 0.0 and jacks[1].position.x < 0.0, "the left (white) on +X, the right (red) on -X")
+	_ok(jacks[0].snap_require == Connectors.PHONO and jacks[1].snap_require == Connectors.PHONO, "both take a phono plug")
+	_ok(not jacks[0].show_jack and not jacks[1].show_jack, "and the model draws them, not the stand-in jack")
+	var mouth_l := adapter.find_child("RcaJackL", true, false) as Node3D
+	var mouth_r := adapter.find_child("RcaJackR", true, false) as Node3D
+	_ok(mouth_l != null and mouth_r != null
+		and mouth_l.global_position.distance_to(jacks[0].global_position) < 0.0005
+		and mouth_r.global_position.distance_to(jacks[1].global_position) < 0.0005,
+		"each jack's zone is on the model's own mouth")
+	_ok(ScenePersistence.LEAD_SCENES.has("trs_rca_adapter"), "it saves and restores as a lead")
+	var row := SpawnCatalog.ELECTRONICS.filter(func(r: Array) -> bool: return r[1] == "trs_rca_adapter")
+	_check_eq(row.size(), 1, "and spawns from the Electronics tab")
+	# A lead seated in a jack is saved under the adapter: no machine has a socket of that name.
+	var tv := _tv()
+	var lead := await _adapter_to_set(adapter, tv)
+	var seat: Dictionary = lead._seat_of(lead.get_node("PlugA1") as RcaPlug)
+	_check_eq(seat.get("owner"), adapter, "a save names the left lead's seat under the adapter")
+	_check_eq(seat.get("port"), "RcaL", "by its own name")
+
+
+## In the speakers' line IN, the jacks are inputs: a deck's phono line out reaches the PC speakers through it.
+func _p_trs_rca_adapter_direction() -> void:
+	var cd := await _cd_player()
+	var speakers := _speakers()
+	await _wait(20)
+	var adapter := await _spawn_lead(TRS_RCA_ADAPTER, speakers.position + Vector3(0.3, 0.4, 0.3)) as TrsRcaAdapter
+	var lead := CABLE_SCENE.instantiate() as CompositeCable
+	lead.position = cd.position + Vector3(0.5, 0.5, 0.5)
+	add_child(lead)
+	_spawned.append(lead)
+	await _wait(5)
+	for i in 2:
+		(cd.get_node("AudioLOut" if i == 0 else "AudioROut") as RcaPort).pick_up_object(lead.get_node("PlugA%d" % (i + 1)))
+		adapter.jacks()[i].pick_up_object(lead.get_node("PlugB%d" % (i + 1)))
+	await _wait(30)
+	_ok(cd.sound_sink() != speakers, "control: into a loose adapter the deck reaches no speakers", str(cd.sound_sink()))
+	(speakers.find_child("LineIn", true, false) as RcaPort).pick_up_object(adapter.get_node("PlugA0"))
+	await _wait(35)
+	_check_eq([adapter.jacks()[0].direction, adapter.jacks()[1].direction], [RcaPort.Direction.IN, RcaPort.Direction.IN],
+		"in the speakers' line in, both jacks are inputs")
+	_ok(cd.sound_sink() == speakers, "and the deck's phono line out plays through the speakers", str(cd.sound_sink()))
 
 
 # -- the Genesis Model 1: the 8-pin DIN, its lead and Sega's Conversion Cable ------------

@@ -1158,6 +1158,8 @@ const ELECTRONICS := [
 	["Mono Composite Cable", "mono_composite_cable"],
 	["VGA Cable",       "vga_cable"],
 	["3.5 mm Cable",   "trs_cable"],
+	# A 3.5 mm stereo plug to a white and a red phono jack: a PHONES jack's sound onto a pair of phono leads.
+	["3.5 mm to RCA Adapter", "trs_rca_adapter"],
 	["Ethernet Cable", "ethernet_cable"],
 	["Ethernet Hub",   "ethernet_hub"],
 	# Held, the loudspeakers offer their finishes: black, or the 1990s computer beige.
