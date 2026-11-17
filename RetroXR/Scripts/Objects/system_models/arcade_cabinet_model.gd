@@ -158,6 +158,8 @@ func _collect_modules() -> void:
 		if active is StandardMaterial3D:
 			_marquee_mat = active as StandardMaterial3D
 	_art_marquee = find_child("MarqueeArt", true, false) as MeshInstance3D
+	if _art_marquee == null:
+		_art_marquee = _model_marquee_art()
 	_marquee_title = find_child("MarqueeTitle", true, false) as Label3D
 	_art_sides.clear()
 	for n in ["SideArtL", "SideArtR"]:
@@ -1370,7 +1372,16 @@ func _hang_art() -> void:
 	var wheel := _art_wheel
 	var cover := _art_cover
 	var marquee_tex: Texture2D = wheel if wheel != null else cover
-	if _art_marquee != null and marquee_tex != null:
+	if _art_marquee != null and marquee_tex != null and _art_marquee.has_meta(SHEET_META):
+		# a model's marquee sheet: the picture made to the sheet's shape, lit as the sheet is
+		var sheet := _sheet_texture(marquee_tex, float(_art_marquee.get_meta(SHEET_META)), wheel != null)
+		_art_marquee_mat = _art_material(sheet, false)
+		_art_marquee_mat.emission_enabled = _lit
+		_art_marquee_mat.emission_texture = sheet
+		_art_marquee_mat.emission_energy_multiplier = 0.9
+		_art_marquee.material_override = _art_marquee_mat
+		_art_marquee.visible = true
+	elif _art_marquee != null and marquee_tex != null:
 		_art_marquee_mat = _art_material(marquee_tex, wheel != null)
 		_art_marquee_mat.emission_enabled = _lit
 		_art_marquee_mat.emission_texture = marquee_tex
@@ -1406,6 +1417,64 @@ func _hang(slot: MeshInstance3D, tex: Texture2D, mat: StandardMaterial3D) -> voi
 	slot.scale = Vector3(size.x, size.y, 1.0)
 	slot.material_override = mat
 	slot.visible = true
+
+
+## On a model's marquee art layer (_model_marquee_art): the sheet's width over its height.
+const SHEET_META := &"arcade_marquee_sheet_aspect"
+## A wheel on a marquee sheet: how much of the sheet's height and width it may fill.
+const SHEET_WHEEL_FILL := Vector2(0.86, 0.72)
+
+
+## A cabinet from a model has no MarqueeArt quad: its marquee is the model's own sheet (Marquee: UVs 0..1 across it). The art goes
+## on a copy of that sheet a hair in front of it, which is hidden again when the art comes off, so the sheet's own look comes back
+## (the owner, 2026-11-17: "i don't see the marquee at the top being replaced by the game scrape data"). Null without a sheet.
+func _model_marquee_art() -> MeshInstance3D:
+	var mq := find_child("Marquee", true, false) as MeshInstance3D
+	if mq == null or mq.mesh == null or mq.mesh is QuadMesh:
+		return null
+	var art := MeshInstance3D.new()
+	art.name = "MarqueeArt"
+	art.mesh = mq.mesh
+	art.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	art.visible = false
+	mq.get_parent().add_child(art)
+	# a hair toward the front (the model faces +Z), so it is drawn over the sheet and not into it
+	art.transform = mq.transform.translated(Vector3(0.0, 0.0, 0.0008))
+	var b := mq.get_aabb()
+	var across := b.size.x
+	var tall := Vector2(b.size.y, b.size.z).length()
+	art.set_meta(SHEET_META, across / maxf(tall, 0.001))
+	return art
+
+
+## The picture made to a sheet of `aspect` (width over height): a wheel (a logo with alpha) fitted in the middle of black, as a
+## lit marquee shows a title; a cover cut to the sheet's shape round its middle. Never stretched.
+static func _sheet_texture(tex: Texture2D, aspect: float, wheel: bool) -> Texture2D:
+	var src := tex.get_image()
+	if src == null or src.is_empty():
+		return tex
+	src = src.duplicate() as Image
+	if src.is_compressed():
+		src.decompress()
+	src.convert(Image.FORMAT_RGBA8)
+	var w := 1024
+	var h := maxi(16, int(round(w / maxf(aspect, 0.05))))
+	var out := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	out.fill(Color(0.0, 0.0, 0.0, 1.0))
+	var sw := float(src.get_width())
+	var sh := float(src.get_height())
+	if wheel:
+		var k := minf(w * SHEET_WHEEL_FILL.x / sw, h * SHEET_WHEEL_FILL.y / sh)
+		var size := Vector2i(maxi(1, int(sw * k)), maxi(1, int(sh * k)))
+		src.resize(size.x, size.y, Image.INTERPOLATE_LANCZOS)
+		out.blend_rect(src, Rect2i(Vector2i.ZERO, size), Vector2i((w - size.x) / 2, (h - size.y) / 2))
+	else:
+		var k := maxf(w / sw, h / sh)
+		var size := Vector2i(maxi(w, int(sw * k)), maxi(h, int(sh * k)))
+		src.resize(size.x, size.y, Image.INTERPOLATE_LANCZOS)
+		out.blit_rect(src, Rect2i((size.x - w) / 2, (size.y - h) / 2, w, h), Vector2i.ZERO)
+	out.generate_mipmaps()
+	return ImageTexture.create_from_image(out)
 
 
 ## A StandardMaterial3D. A wheel has alpha, a cover does not.
