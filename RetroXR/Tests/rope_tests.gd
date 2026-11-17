@@ -2242,10 +2242,24 @@ func _group_hold() -> void:
 	grab.set_physics_process(true)
 	var lifted := grab.take(9, lead, 20, lead.point_position(20))
 	var lift_from: Vector3 = lead.point_position(20)
-	for tick in 240:
+	# The hand stops at tick 90. What hangs from it must come to rest, not bob.
+	var bob_lo := 1e9
+	var bob_hi := -1e9
+	var cord_lo := 1e9
+	var cord_hi := -1e9
+	for tick in 300:
 		await get_tree().physics_frame
 		grab.carry(9, lift_from + Vector3(0, minf(1.0, float(tick) / 90.0) * 0.6, 0))
 		lead.step(1.0 / 60.0)
+		if tick >= 210:
+			# How far it hangs from the hand, not how high it is: swinging
+			# like a pendulum is right, bouncing on the cord is not.
+			var hangs: float = boss.global_position.distance_to(lead.point_position(20))
+			bob_lo = minf(bob_lo, hangs)
+			bob_hi = maxf(bob_hi, hangs)
+			var beside: float = lead.point_position(27).distance_to(lead.point_position(20))
+			cord_lo = minf(cord_lo, beside)
+			cord_hi = maxf(cord_hi, beside)
 	var up_of_boss: float = (boss.global_position - pad.global_position).normalized().y
 	var pad_height: float = pad.global_position.y - floor_at.y
 	grab.release(9)
@@ -2254,6 +2268,10 @@ func _group_hold() -> void:
 		"hold/a pad lifted by its wire hangs from it",
 		"pad %.0f mm off the floor, its cord boss %.2f of the way to straight above its middle" % [
 				pad_height * 1000.0, up_of_boss])
+	_ok(bob_hi - bob_lo < 0.004 and cord_hi - cord_lo < 0.004,
+		"hold/what hangs from a lifted wire comes to rest",
+		"over the last 90 ticks the pad's distance from the hand varied %.1f mm, the cord beside it %.1f mm" % [
+				(bob_hi - bob_lo) * 1000.0, (cord_hi - cord_lo) * 1000.0])
 	pad.queue_free()
 
 	# A room change takes the rig (and this node with it) out of the tree and

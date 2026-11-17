@@ -28,6 +28,8 @@ const REACH := 0.02
 const DESK_MAX_DIST := 5.0
 const DESK_MIN_DIST := 0.15
 const DESK_SCROLL_STEP := 0.05
+## How much of a hanging body's speed along its taut cord is taken out a tick.
+const HANG_DAMPING := 0.6
 const GRIP_ON := 0.6
 const GRIP_OFF := 0.4
 const GRIP_ACTION := "grip"
@@ -247,6 +249,19 @@ func _hang(body: RigidBody3D, at: Vector3, hand: Vector3, reach: float) -> void:
 	# Past the haul's own limit it hands back what is left to take out by
 	# hand: swept, so the body is not carried through a wall.
 	var rest := CableHaul.haul(body, at, hand, reach)
+	# The haul is a spring (an impulse for every metre the cord is over-long)
+	# with nothing to stop it: a pad lifted by its wire bobbed 12 cm up and
+	# down for good, and the cord beside it with it. A taut cord does not
+	# bounce, so while it is taut the speed of the point it leaves the body
+	# by, ALONG the cord, is taken out (most of it a tick: near critical for
+	# CableHaul.GAIN at 60 to 90 ticks a second). Swinging is left alone.
+	var along := hand - at
+	var over := along.length()
+	if over > reach and over > 0.0001:
+		along /= over
+		var arm := at - body.global_position
+		var speed := (body.linear_velocity + body.angular_velocity.cross(arm)).dot(along)
+		body.apply_impulse(along * (-speed * body.mass * HANG_DAMPING), arm)
 	if rest != Vector3.ZERO:
 		var hit := body.move_and_collide(rest)
 		if hit != null:

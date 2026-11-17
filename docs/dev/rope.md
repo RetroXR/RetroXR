@@ -429,6 +429,10 @@ found by DISTANCE instead, and only by a hand that has nothing else to take.
   swings (2026-11-15). Reeled in with `PlugTether.reel_in`, as it was at first,
   a pad lifted by its wire rose level off the floor: a reel is a move with no
   turn in it.
+  The haul is a spring with nothing to stop it, so while the cord is taut the
+  speed of that point ALONG the cord is taken out (`HANG_DAMPING`, 0.6 a tick):
+  undamped, the pad's distance from the hand went on varying by 48 mm and the
+  cord beside it bounced with it; damped, 4 mm. Swinging is left alone.
 - Local and cosmetic: not saved, not sent in a session (a peer sees the cord
   where its own solver puts it).
 
