@@ -96,10 +96,11 @@ func _ready() -> void:
 	await _shot("welcome_page2%s.png" % ("_vr" if _vr else ""))
 	await get_tree().create_timer(maxf(0.0, _linger - 2.5)).timeout
 	# A Quest's third page, the upload, after another Next; nowhere else is there one.
+	# The support page is last on every platform, so page 2 always has a Next.
 	var next := panel.page().find_child("Next", true, false) as Control
 	print("[welprobe] pages: %d, Next on page 2: %s" % [panel.page().page_count(), next.visible])
-	if next.visible != _quest or panel.page().page_count() != (3 if _quest else 2):
-		_fail("page 2 should have a Next only on a Quest's page")
+	if not next.visible or panel.page().page_count() != (4 if _quest else 3):
+		_fail("page 2 should have a Next, and there should be %d pages" % (4 if _quest else 3))
 	if _quest:
 		await _press_on(vp_w, next)
 		await get_tree().create_timer(2.5).timeout
@@ -125,6 +126,8 @@ func _ready() -> void:
 
 	# Done, on the last page, pressed where it really is on the quad.
 	await _to_last_page(panel)
+	await get_tree().create_timer(0.5).timeout
+	await _shot("welcome_support%s.png" % ("_quest" if _quest else ""))
 	if not await _press_on(vp_w, done):
 		_end()
 		return

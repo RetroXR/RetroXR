@@ -108,7 +108,10 @@ const SECTIONS: Array = [
 		+ "wall and floor surfaces are ambientCG photogrammetry."],
 ]
 
+## Where a player can leave a tip: Ko-fi (one-off) and Patreon. The welcome page's
+## last page (Welcome2D's support page) links the same two, from here.
 const DONATE_URL := "https://ko-fi.com/ryanmcclelland"
+const PATREON_URL := "https://www.patreon.com/cw/RetroXR"
 
 var _menu: Node = null
 var _update_status: Label = null
@@ -185,15 +188,11 @@ func _build() -> void:
 
 	vbox.add_child(MenuStyle.spacer(8))
 
-	var donate_btn := Button.new()
-	donate_btn.text = "  ❤  DONATE  "
-	donate_btn.custom_minimum_size = Vector2(0, 64)
-	donate_btn.add_theme_font_size_override("font_size", 24)
-	var donate_style := MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 8)
-	for state in ["normal", "hover", "pressed"]:
-		donate_btn.add_theme_stylebox_override(state, donate_style)
-	donate_btn.pressed.connect(func(): OS.shell_open(DONATE_URL))
-	vbox.add_child(donate_btn)
+	# Two ways to leave a tip, side by side: Patreon and Ko-fi.
+	var donate_row := MenuStyle.hbox(16)
+	vbox.add_child(donate_row)
+	donate_row.add_child(_donate_button("Patreon", "  ❤  PATREON  ", PATREON_URL))
+	donate_row.add_child(_donate_button("Kofi", "  ❤  KO-FI  ", DONATE_URL))
 
 	vbox.add_child(HSeparator.new())
 
@@ -209,6 +208,21 @@ func _build() -> void:
 			vbox.add_child(note_lbl)
 		vbox.add_child(MenuStyle.spacer(12 if i == SECTIONS.size() - 1 else 6))
 
+
+
+## A green tip button, half the row wide, that opens `url` in the browser.
+func _donate_button(node_name: String, text: String, url: String) -> Button:
+	var b := Button.new()
+	b.name = node_name
+	b.text = text
+	b.custom_minimum_size = Vector2(0, 64)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.add_theme_font_size_override("font_size", 24)
+	var style := MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 8)
+	for state in ["normal", "hover", "pressed"]:
+		b.add_theme_stylebox_override(state, style)
+	b.pressed.connect(func(): OS.shell_open(url))
+	return b
 
 
 ## The version check: what this build is, what GitHub says is newest, a button to

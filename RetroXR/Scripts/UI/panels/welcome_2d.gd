@@ -18,13 +18,16 @@
 ## box the 3D controllers (ControllerDemo) stand in front of, with the step they
 ## are showing written under it (set_step).
 ##
-## Two pages, three on a Quest: what to do and not (the copy, the menu clip, the
+## Three pages, four on a Quest: what to do and not (the copy, the menu clip, the
 ## headset's stage); after Next, a console being hooked up (HOOKUP_CLIP, filmed in
-## the room by Tools/room/nes_hookup_probe) with a few words on it; and on a Quest,
+## the room by Tools/room/nes_hookup_probe) with a few words on it; on a Quest,
 ## after another Next, a game put on the headset through the Web File Manager
 ## (UPLOAD_CLIP, filmed in a browser against the real server by
-## Tools/art/film_web_upload.py). Done and Don't Show Again are under the LAST page
-## only, Next under every other; only the page shown plays its clip.
+## Tools/art/film_web_upload.py); and last, on every platform, the support page:
+## RetroXR is free and stays free, with Patreon and Ko-fi buttons for a tip
+## (SpawnMenuAboutView's PATREON_URL and DONATE_URL, the same two ABOUT has).
+## Done and Don't Show Again are under the LAST page only, Next under every other;
+## only the page shown plays its clip.
 ##
 ## Emits:
 ##   dismissed(for_good) — Done (false) or Don't Show Again (true) pressed
@@ -142,6 +145,16 @@ const UPLOAD_LINES: Array[String] = [
 	"Then open that system under SPAWN, and the game is there.",
 ]
 
+## The last page, on every platform: free for good, and where to leave a tip.
+## The links are ABOUT's (SpawnMenuAboutView), so the two never disagree.
+const SUPPORT_TITLE := "Free, and always will be"
+const SUPPORT_LINES: Array[String] = [
+	"RetroXR is a labor of love. It's free, and it will always be free.",
+	"If you'd like to say thanks and shove a tip in my pocket, Patreon and Ko-fi are below. "
+		+ "It's never expected, and it's always appreciated.",
+	"Both links are in ABOUT too, any time.",
+]
+
 const PAD := 48
 const TITLE_PT := 46
 const HEADER_PT := 32
@@ -247,6 +260,11 @@ func _build() -> void:
 		third.name = "PageUpload"
 		vbox.add_child(third)
 		_pages.append(third)
+	# Last, on every platform.
+	var support := MenuStyle.vbox(14)
+	support.name = "PageSupport"
+	vbox.add_child(support)
+	_pages.append(support)
 
 	var title := MenuStyle.label(TITLE, TITLE_PT, MenuStyle.COLOR_TITLE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -286,6 +304,7 @@ func _build() -> void:
 	if third != null:
 		_upload = _build_clip_page(third, UPLOAD_CLIP, "UploadClip", UPLOAD_TITLE, UPLOAD_LINES, "")
 		_players.append(_upload)
+	_build_support_page(support)
 
 	# The button sits at the foot of the page, a fixed gap under the copy when the
 	# page is fitted to it (WelcomePanel), and at the bottom of a taller one.
@@ -380,7 +399,27 @@ func _build_clip_page(page: Container, path: String, player_name: String, headin
 	return player
 
 
-## Show page `index` (0 the welcome, 1 the hookup, 2 a Quest's upload): its clip
+## The support page: its title, the words, and a button each for Patreon and Ko-fi.
+func _build_support_page(page: Container) -> void:
+	var title := MenuStyle.label(SUPPORT_TITLE, TITLE_PT, MenuStyle.COLOR_TITLE)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	page.add_child(title)
+	page.add_child(MenuStyle.spacer(12))
+	for line: String in SUPPORT_LINES:
+		var words := MenuStyle.label(line, ITEM_PT, COLOR_ITEM)
+		words.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		words.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		page.add_child(words)
+	page.add_child(MenuStyle.spacer(16))
+	var links := MenuStyle.hbox(28)
+	links.alignment = BoxContainer.ALIGNMENT_CENTER
+	page.add_child(links)
+	links.add_child(_link_button("Patreon", "Patreon", SpawnMenuAboutView.PATREON_URL))
+	links.add_child(_link_button("Kofi", "Ko-fi", SpawnMenuAboutView.DONATE_URL))
+
+
+## Show page `index` (0 the welcome, 1 the hookup, then a Quest's upload, then the
+## support page, always last): its clip
 ## plays, the others wait, and Next / Back stand where they lead somewhere.
 func show_page(index: int) -> void:
 	_page = clampi(index, 0, _pages.size() - 1)
@@ -404,7 +443,8 @@ func show_page(index: int) -> void:
 	page_changed.emit(_page)
 
 
-## The page shown: 0 the welcome, 1 the hookup, 2 a Quest's upload.
+## The page shown: 0 the welcome, 1 the hookup, then a Quest's upload, then the
+## support page.
 func page_index() -> int:
 	return _page
 

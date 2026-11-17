@@ -21,7 +21,7 @@ extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below -- it is checked before
 ## it has recorded itself.
-const EXPECTED_CASES := 61
+const EXPECTED_CASES := 64
 
 
 func _ready() -> void:
@@ -271,26 +271,64 @@ func _group_page() -> void:
 	var out_on_first := _ways_out_shown(two)
 	if next != null:
 		next.pressed.emit()
-	_ok(out_on_first == 0 and _ways_out_shown(two) == 3,
-		"page/Done, Don't Show Again and its note stand on the last page only",
-		"%d of 3 on page 1, %d on page 2" % [out_on_first, _ways_out_shown(two)])
+	var out_on_hookup := _ways_out_shown(two)
 	var texts: Array = two.find_children("*", "Label", true, false).filter(
 		func(n: Node) -> bool: return (n as Label).is_visible_in_tree()).map(
 		func(n: Node) -> String: return (n as Label).text)
 	_ok(two.page_index() == 1 and not (two.find_child("PageWelcome", true, false) as Control).visible
 		and Welcome2D.HOOKUP_TITLE in texts and Welcome2D.HOOKUP_CREDIT in texts
 		and two.hookup_player() != null and two.hookup_player().stream != null
-		and back != null and back.visible and not next.visible,
-		"page/Next shows the hookup page: its clip, its words, the credit and Back", str(heard))
-	_ok(two.page_count() == 2 and two.upload_player() == null
-		and two.find_child("PageUpload", true, false) == null and not next.visible,
-		"page/off a Quest the hookup is the last page: no upload page, no Next")
+		and back != null and back.visible and next.visible,
+		"page/Next shows the hookup page: its clip, its words, the credit, Back and Next", str(heard))
+	_ok(two.page_count() == 3 and two.upload_player() == null
+		and two.find_child("PageUpload", true, false) == null,
+		"page/off a Quest there is no upload page: welcome, hookup, support")
 	_ok(two.clip_player().paused and not two.hookup_player().paused,
 		"page/only the page shown plays its clip")
+	next.pressed.emit()
+	_ok(out_on_first == 0 and out_on_hookup == 0 and _ways_out_shown(two) == 3
+		and two.page_index() == 2 and not next.visible,
+		"page/Done, Don't Show Again and its note stand on the last page only, the support page",
+		"%d of 3 on page 1, %d on page 2, %d on page 3" % [out_on_first, out_on_hookup, _ways_out_shown(two)])
+	var stexts: Array = two.find_children("*", "Label", true, false).filter(
+		func(n: Node) -> bool: return (n as Label).is_visible_in_tree()).map(
+		func(n: Node) -> String: return (n as Label).text)
+	var s_missing: Array[String] = []
+	for line: String in Welcome2D.SUPPORT_LINES + [Welcome2D.SUPPORT_TITLE]:
+		if line not in stexts:
+			s_missing.append(line)
+	_ok(s_missing.is_empty() and " ".join(Welcome2D.SUPPORT_LINES).contains("always be free")
+		and two.hookup_player().paused,
+		"page/the support page says it is free for good, every line shown, no clip playing", str(s_missing))
+	# Its buttons open ABOUT's two links, pinned by value (open_url swapped, so
+	# nothing opens).
+	var tipped: Array = []
+	two.open_url = func(url: String) -> int:
+		tipped.append(url)
+		return OK
+	var patreon := two.find_child("Patreon", true, false) as Button
+	var kofi := two.find_child("Kofi", true, false) as Button
+	if patreon != null and kofi != null:
+		patreon.pressed.emit()
+		kofi.pressed.emit()
+	_ok(patreon != null and patreon.is_visible_in_tree() and kofi != null and kofi.is_visible_in_tree()
+		and "patreon.com/cw/RetroXR" in patreon.text and "ko-fi.com/ryanmcclelland" in kofi.text
+		and tipped == ["https://www.patreon.com/cw/RetroXR", "https://ko-fi.com/ryanmcclelland"]
+		and SpawnMenuAboutView.PATREON_URL == tipped[0] and SpawnMenuAboutView.DONATE_URL == tipped[1],
+		"page/the support page's Patreon and Ko-fi buttons open ABOUT's links", str(tipped))
+	# ABOUT carries both as well.
+	var about := SpawnMenuAboutView.create()
+	var about_patreon := about.find_child("Patreon", true, false) as Button
+	var about_kofi := about.find_child("Kofi", true, false) as Button
+	_ok(about_patreon != null and "PATREON" in about_patreon.text and about_kofi != null
+		and "KO-FI" in about_kofi.text,
+		"page/ABOUT has a Patreon button beside the Ko-fi one")
+	about.free()
+	back.pressed.emit()
 	if back != null:
 		back.pressed.emit()
 	_ok(two.page_index() == 0 and next.visible and not back.visible and not two.clip_player().paused
-		and two.hookup_player().paused and heard == [1, 0],
+		and two.hookup_player().paused and heard == [1, 2, 1, 0],
 		"page/Back returns to the welcome, its clip playing again", str(heard))
 
 	# Page one's foot links the site (the README's) and the Discord (the page's own
@@ -339,17 +377,15 @@ func _group_page() -> void:
 	var qback := qpage.find_child("Back", true, false) as Button
 	qnext.pressed.emit()
 	var next_on_hookup := qnext.visible
-	var out_on_hookup := _ways_out_shown(qpage)
+	var q_out_on_hookup := _ways_out_shown(qpage)
 	qnext.pressed.emit()
-	_ok(out_on_hookup == 0 and _ways_out_shown(qpage) == 3,
-		"page/on a Quest the ways out move to page 3, off the hookup",
-		"%d of 3 on page 2, %d on page 3" % [out_on_hookup, _ways_out_shown(qpage)])
+	var q_out_on_upload := _ways_out_shown(qpage)
 	var qtexts: Array = qpage.find_children("*", "Label", true, false).filter(
 		func(n: Node) -> bool: return (n as Label).is_visible_in_tree()).map(
 		func(n: Node) -> String: return (n as Label).text)
 	var up := qpage.upload_player()
-	_ok(qpage.page_count() == 3 and next_on_hookup and qpage.page_index() == 2
-		and not qnext.visible and qback.visible and up != null and up.stream != null and not up.paused
+	_ok(qpage.page_count() == 4 and next_on_hookup and qpage.page_index() == 2
+		and qnext.visible and qback.visible and up != null and up.stream != null and not up.paused
 		and qpage.hookup_player().paused and qpage.clip_player().paused,
 		"page/on a Quest, Next on the hookup shows the upload page, only its clip playing",
 		"pages %d, Next on the hookup %s, at %d" % [qpage.page_count(), next_on_hookup, qpage.page_index()])
@@ -358,6 +394,13 @@ func _group_page() -> void:
 		if line not in qtexts:
 			up_missing.append(line)
 	_ok(up_missing.is_empty(), "page/the upload page shows its title and every step", str(up_missing))
+	qnext.pressed.emit()
+	_ok(q_out_on_hookup == 0 and q_out_on_upload == 0 and _ways_out_shown(qpage) == 3
+		and qpage.page_index() == 3 and not qnext.visible and up.paused,
+		"page/on a Quest the ways out move to page 4, the support page, after the upload",
+		"%d of 3 on page 2, %d on page 3, %d on page 4" % [q_out_on_hookup, q_out_on_upload,
+			_ways_out_shown(qpage)])
+	qback.pressed.emit()
 	qback.pressed.emit()
 	var back_to := qpage.page_index()
 	qback.pressed.emit()

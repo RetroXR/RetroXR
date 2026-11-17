@@ -32,7 +32,10 @@ Tab key and one at a desk has no left stick.
   curtain is still up — in front of a player who can see it and act on it. Never
   headless. At least `WelcomePanel.MIN_DISTANCE` (1.1 m) off: it is as wide as the menu.
 - **Every launch while `AppPrefs.show_welcome` is on** (default on, the missing key
-  too). **Done** puts it away for this launch. **Don't Show Again** also switches
+  too). **AppPrefs reads its file in `_init`, not `_ready`** (2026-11-17): Mods is an
+  earlier autoload and a mod that set a pref while registering (`xenu.n64av`'s
+  `set_spawn_default`) saved the defaults over the player's file first, so Don't Show
+  Again (and every other pref) was back at its default each launch, desktop and Quest. **Done** puts it away for this launch. **Don't Show Again** also switches
   it off; **OPTIONS > General > Show Welcome Page at Start** switches it back on.
   **Both stand on the LAST page only** (with the note saying where the switch is):
   the way out is through every page; Next, green as Done is, stands on every other.
@@ -79,7 +82,7 @@ Tab key and one at a desk has no left stick.
 **Next** (page 1) shows `HOOKUP_TITLE`, the hookup clip and `HOOKUP_LINES` beside it,
 with the game's credit; **Back** returns. Done and Don't Show Again are under the
 last page. Next and Back step one page (`show_page(_page ± 1)`) and stand only where they
-lead somewhere: page 2 is the last page off a Quest, so it has no Next there.
+lead somewhere: the support page is last everywhere, so page 2 always has a Next.
 `show_page` pauses every hidden page's clip and plays the shown one's;
 `page_changed` makes WelcomePanel refit (the pages differ in height) and shows the
 3D controllers only on page 1, where their stage is. Both clip pages are built by
@@ -181,7 +184,19 @@ The clip is the REAL server in a real browser, never a mock-up:
   "Empty": wait for the `..` row pointing back up instead.
 - Encode: `encode_welcome_clip.py <scratch>/frames --name upload_clip`.
 
+## The last page: free, and where to tip
+
+On every platform the last page is `PageSupport` (`_build_support_page`):
+`SUPPORT_TITLE` and `SUPPORT_LINES` (a labor of love, free for good, a tip never
+expected), then a **Patreon** and a **Ko-fi** button through `_link_button`. Their
+addresses are ABOUT's, `SpawnMenuAboutView.PATREON_URL` and `DONATE_URL`, never a
+copy, and ABOUT shows the same two side by side (`_donate_button`). Done and Don't
+Show Again stand here, so every player passes the page once on the way out. No clip:
+`_players` has no entry for it, which `show_page` already skips.
+
 ## The menu clip
+
+
 
 Recorded from the REAL menu, not drawn: `Tools/room/welcome_clip_probe` (windowed)
 builds `spawn_menu.tscn` at its own 2200 x 1800 in a SubViewport and drives it with
