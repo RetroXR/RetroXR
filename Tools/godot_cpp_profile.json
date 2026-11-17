@@ -40,6 +40,7 @@
     "PhysicsPointQueryParameters3D",
     "PhysicsRayQueryParameters3D",
     "PhysicsServer3D",
+    "PhysicsServer3DRenderingServerHandler",
     "PhysicsShapeQueryParameters3D",
     "ProjectSettings",
     "RefCounted",
