@@ -57,12 +57,30 @@ const _ARCADE_BAY_ROWS: Array = [
 	{"kind": "peripheral", "label": "JVS Cable", "spawn": "jvs_cable"},
 ]
 
-## A NAOMI card's: the bays and leads above, and the VGA and phono leads its board's outputs take to a cabinet's
-## monitor and amplifier (NaomiHookup; a cabinet's own card has no video lead: its monitor is part of it).
-const _NAOMI_ROWS: Array = _ARCADE_BAY_ROWS + [
+## A NAOMI card's: the NAOMI's own boards and parts and the leads above that a NAOMI takes (the JAMMA cable and the
+## JVS-to-JAMMA converter for a JAMMA cabinet among them), and the VGA and phono leads its board's outputs take to a
+## cabinet's monitor and amplifier (NaomiHookup; a cabinet's own card has no video lead: its monitor is part of it).
+## Not the other bays (JAMMA, MVS, Laserdisc, DICE, Atomiswave): they are other machines, offered on the arcade card
+## (the owner, 2026-11-17: "the naomi tile cards also seem to list the morphing cabinet, arcade bays, and sammy
+## atomiswave ... they should still be in arcade there").
+const _NAOMI_ROWS: Array = [
+	{"kind": "peripheral", "label": "Sega NAOMI", "spawn": "arcade_bay_naomi"},
+	{"kind": "peripheral", "label": "Sega NAOMI 2", "spawn": "arcade_bay_naomi2"},
+	{"kind": "peripheral", "label": "JAMMA Cable", "spawn": "jamma_cable"},
+	{"kind": "peripheral", "label": "NAOMI Power Harness", "spawn": "naomi_power_cable"},
+	{"kind": "peripheral", "label": "Stereo RCA Cable", "spawn": "stereo_rca_cable"},
+	{"kind": "peripheral", "label": "JVS-to-JAMMA Converter", "spawn": "jvs_jamma_converter"},
+	{"kind": "peripheral", "label": "NAOMI DIMM Board", "spawn": "naomi_dimm_board"},
+	{"kind": "peripheral", "label": "NAOMI GD-ROM Drive", "spawn": "naomi_gd_drive"},
+	{"kind": "peripheral", "label": "GD-ROM Cable", "spawn": "gd_cable"},
+	{"kind": "peripheral", "label": "JVS Cable", "spawn": "jvs_cable"},
 	{"kind": "peripheral", "label": "VGA Cable", "spawn": "vga_cable"},
 	{"kind": "peripheral", "label": "Composite Cable", "spawn": "composite_cable"},
 ]
+
+## Cards whose machine is a board that goes into a cabinet: the card offers no stand-in console (the "Primitive
+## System"), since the cabinet that plays it comes from the arcade card (its Morphing Arcade Cabinet) or a cabinet mod.
+const _BOARD_CARDS: Array[String] = ["naomi", "naomi2"]
 
 ## systemid → the peripherals that belong to that hardware. Systems with no entry
 ## just have none; their hardware rows still come from the registry.
@@ -336,9 +354,10 @@ const _NO_STANDIN_CONSOLE: Array[String] = ["dreamcast", "genesis"]
 ## the Wii's and N64's reason: its one socket is a 9-pin mini-DIN, on its primitive box
 ## too. The Super NES for the N64's: even its primitive box wears a Multi Out.
 ## The arcade cabinet is here for the opposite of a missing socket: its monitor is part
-## of it, so there is no lead to run anywhere.
+## of it, so there is no lead to run anywhere. The NAOMI's card lists its leads itself (_NAOMI_ROWS: VGA and composite),
+## and the generic one beside them was the same lead twice.
 const _OWN_AV_LEAD: Array[String] = ["nes", "famicom", "wii", "n64", "genesis", "snes", "arcade",
-	"daphne", "dice"]
+	"daphne", "dice", "naomi", "naomi2"]
 
 ## Hardware whose picture leaves on a captive pigtail rather than through sockets
 ## (av_port_channels() is empty), so a spawned lead has nothing to enter at that
@@ -694,7 +713,7 @@ static func _items_for(systemid: String) -> Array:
 	# a card with no console.
 	var own_console := (_NO_STANDIN_CONSOLE.has(systemid) or mod_console) \
 		and not imported.is_empty()
-	var boxed := standins and primitive.is_empty() and not own_console
+	var boxed := standins and primitive.is_empty() and not own_console and not _BOARD_CARDS.has(systemid)
 	if boxed:
 		items.append({"kind": "system", "label": "Primitive System",
 			"model_id": SystemModelRegistry.PLACEHOLDER_ID})

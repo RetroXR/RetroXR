@@ -1108,5 +1108,21 @@ func _group_names() -> void:
 			"names: the %s card offers the bays and the lead" % systemid)
 	_ok(not SpawnCatalog.items_for("arcade").any(func(i: Dictionary) -> bool: return bool(i.get("default", false))),
 		"names: and no cabinet on the arcade card is marked \"default\"")
+	# The NAOMI cards offer the NAOMI's boards and leads, not the other machines' bays nor a stand-in console; those stay
+	# on the arcade card (its Morphing Arcade Cabinet, the JAMMA, MVS, Laserdisc, DICE and Atomiswave bays).
+	var others := ["arcade_bay_jamma", "arcade_bay_mvs", "arcade_bay_laserdisc", "arcade_bay_discrete", "arcade_bay_atomiswave"]
+	for systemid: String in ["naomi", "naomi2"]:
+		var card: Array = SpawnCatalog.items_for(systemid)
+		var spawns: Array = card.map(func(i: Dictionary) -> String: return str(i.get("spawn", "")))
+		var models: Array = card.map(func(i: Dictionary) -> String: return str(i.get("model_id", "")))
+		_ok(spawns.has("arcade_bay_naomi") and spawns.has("arcade_bay_naomi2") and spawns.has("jvs_jamma_converter")
+			and spawns.count("composite_cable") == 1
+			and not others.any(func(s: String) -> bool: return spawns.has(s))
+			and not models.has(SystemModelRegistry.PLACEHOLDER_ID) and not models.has(ArcadeProfiles.CABINET_MODEL_ID),
+			"names: the %s card offers the NAOMI's bays and leads, not the other bays nor a stand-in (%s)" % [systemid, spawns])
+	var arcade_card: Array = SpawnCatalog.items_for("arcade")
+	_ok(others.all(func(s: String) -> bool: return arcade_card.any(func(i: Dictionary) -> bool: return str(i.get("spawn", "")) == s))
+		and arcade_card.any(func(i: Dictionary) -> bool: return str(i.get("model_id", "")) == ArcadeProfiles.CABINET_MODEL_ID),
+		"names: the arcade card keeps the Morphing Arcade Cabinet and every bay")
 	_ok(CoreRecommendations.core_for("arcade") == "fbneo", "names: the arcade tile's default core is FinalBurn Neo")
 	_ok(Connectors.label_of("jamma_plug") == "a JAMMA harness plug", "names: the plug has a name")
