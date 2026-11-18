@@ -266,8 +266,15 @@ func _group_device() -> void:
 		qm.eye_buffer_scale = 1.9
 		qm.msaa_3d = Viewport.MSAA_4X
 		qm.preset = QM.Preset.LOW
+		qm.glow_enabled = true
 		qm.device = dev
 		qm.apply_device_defaults()
+		# Every headset starts with glow OFF; only the desktop keeps it.
+		var want_glow := dev == QM.Device.DESKTOP
+		_ok(qm.glow_enabled == want_glow,
+			"device/%s starts with glow %s" % [QM.Device.keys()[dev],
+				"on" if want_glow else "off"],
+			"got glow %s" % qm.glow_enabled)
 		_ok(is_equal_approx(qm.eye_buffer_scale, starts[dev]),
 			"device/%s starts at eye buffer x%.3f" % [QM.Device.keys()[dev], starts[dev]],
 			"got x%.3f" % qm.eye_buffer_scale)

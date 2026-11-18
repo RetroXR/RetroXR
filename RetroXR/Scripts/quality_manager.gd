@@ -268,12 +268,18 @@ enum Device { UNKNOWN, QUEST_2, QUEST_3, QUEST_3S, DESKTOP }
 ## leaves the preset Custom. The Quest 3 and 3S trade MSAA 4x for 2x to buy a 1.75x eye
 ## buffer (2026-11-18): supersampling resolves the minified pictures across the
 ## room that MSAA cannot, and the governor still steps a heavy room down.
+## An optional "glow" sets the starting glow switch (glow is no preset's knob, so
+## the preset is left alone). Every headset row starts it OFF (2026-11-18): it is
+## the only full-frame post-process the mobile backend still runs. UNKNOWN is a
+## headset too, as only a desktop build is DESKTOP.
 const QUEST_3_EYE_BUFFER := 1.75
 const DEVICE_DEFAULTS := {
-	Device.QUEST_2: {"eye_buffer_scale": 1.0},
-	Device.UNKNOWN: {"eye_buffer_scale": 1.0},
-	Device.QUEST_3: {"eye_buffer_scale": QUEST_3_EYE_BUFFER, "msaa": Viewport.MSAA_2X},
-	Device.QUEST_3S: {"eye_buffer_scale": QUEST_3_EYE_BUFFER, "msaa": Viewport.MSAA_2X},
+	Device.QUEST_2: {"eye_buffer_scale": 1.0, "glow": false},
+	Device.UNKNOWN: {"eye_buffer_scale": 1.0, "glow": false},
+	Device.QUEST_3: {"eye_buffer_scale": QUEST_3_EYE_BUFFER, "msaa": Viewport.MSAA_2X,
+			"glow": false},
+	Device.QUEST_3S: {"eye_buffer_scale": QUEST_3_EYE_BUFFER, "msaa": Viewport.MSAA_2X,
+			"glow": false},
 	Device.DESKTOP: {"eye_buffer_scale": EYE_BUFFER_PANEL},
 }
 
@@ -1515,6 +1521,11 @@ func apply_device_defaults() -> void:
 		if is_inside_tree():
 			apply_msaa()
 		print("[QualityManager] device default MSAA %d (preset now Custom)" % msaa_3d)
+	if row.has("glow"):
+		glow_enabled = bool(row["glow"])
+		if is_inside_tree():
+			apply_ao_quality()
+		print("[QualityManager] device default glow %s" % ("on" if glow_enabled else "off"))
 
 
 ## Resize the eye buffer, at startup or mid-session.
