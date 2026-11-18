@@ -84,7 +84,30 @@ func _ready() -> void:
 	hand._pick_up_object(box)
 	await _wait(5)
 	var out := sys.global_basis.z.normalized()
+	var side := sys.global_basis.x.normalized()
 	var from := hand.global_position
+	# On its rail (the slot's preview_rail): the tray comes out with the hand from the first centimetre, on the line out of
+	# its seat though the hand strays, and goes back in with it. Without the rail it stood in its seat until the hand was
+	# some 10 cm out, then caught it up at 2 to 6 m/s.
+	var seat := box.global_position
+	var behind := 0.0
+	var off_line := 0.0
+	var hand_out := 0.0
+	for i in 30:
+		await get_tree().physics_frame
+		# (the box as the tick before left it, against the hand of that tick)
+		var travel := box.global_position - seat
+		behind = maxf(behind, absf(hand_out - travel.dot(out)))
+		off_line = maxf(off_line, (travel - out * travel.dot(out)).length())
+		hand_out = 0.06 * float(i + 1) / 30.0
+		hand.global_position = from + out * hand_out + side * (0.015 * float(i + 1) / 30.0)
+	_ok(behind < 0.005 and off_line < 0.002, "the tray comes out with the hand from the first centimetre, on its rail",
+		"%.1f mm behind and %.1f mm off the line at most, over 60 mm" % [behind * 1000.0, off_line * 1000.0])
+	for i in 30:
+		await get_tree().physics_frame
+		hand.global_position = from + (out * 0.06 + side * 0.015) * (1.0 - float(i + 1) / 30.0)
+	await _wait(3)
+	_ok(box.global_position.distance_to(seat) < 0.001, "and goes back in with it", "%.1f mm from its seat" % (box.global_position.distance_to(seat) * 1000.0))
 	var ticks := int(PULL_SECONDS * Engine.physics_ticks_per_second)
 	var moved := 0.0
 	var turned := 0.0
@@ -97,6 +120,38 @@ func _ready() -> void:
 	_ok(moved < 0.001 and turned < 0.002, "pulling the loaded tray out does not move the cabinet",
 		"%.1f mm and %.2f degrees at most" % [moved * 1000.0, rad_to_deg(turned)])
 	_eq(_in_box(state, tray), COINS, "and every coin comes out in the tray")
+	# Then moved THROUGH the cabinet. A held tray passes through it; its coins are solid, but push nothing (CashPhysics
+	# HELD_COIN_LAYER), and near its own slot they do not meet its cabinet at all. On their own layers they shoved the cabinet
+	# 60 to 115 mm on each of these legs (an empty tray: nothing).
+	start = body.global_transform
+	moved = 0.0
+	for leg: Vector3 in [Vector3.UP * 0.35 - out * 0.3, Vector3.DOWN * 0.35 + out * 0.3, side * 0.35 - out * 0.45, side * 0.5,
+			out * 0.45 - side * 0.85]:
+		from = hand.global_position
+		for i in 60:
+			await get_tree().physics_frame
+			hand.global_position = from + leg * smoothstep(0.0, 1.0, float(i + 1) / 60.0)
+			moved = maxf(moved, body.global_position.distance_to(start.origin))
+		await _wait(20)
+		moved = maxf(moved, body.global_position.distance_to(start.origin))
+	_ok(moved < 0.001, "moved through the cabinet's deck, front and side, the loaded tray does not move it", "%.1f mm at most" % (moved * 1000.0))
+	# What the cabinet scraped out of the tray is a coin of the room's, lying in or by the cabinet, not under the floor.
+	var kept := _in_box(state, tray)
+	var lost_ok := 0
+	var coins := get_tree().get_nodes_in_group(ArcadeToken.GROUP)
+	for node in coins:
+		var t := node as RigidBody3D
+		if (t.collision_layer & 4) != 0 and t.global_position.y > -0.02:
+			lost_ok += 1
+	_ok(kept + lost_ok == coins.size() and coins.size() == COINS, "every coin is in the tray or a coin of the room's above the floor",
+		"%d in the tray, %d of the room's, of %d" % [kept, lost_ok, coins.size()])
+	hand.drop_object()
+	await _wait(3)
+	var own := 0
+	for node in coins:
+		if ((node as RigidBody3D).collision_layer & 4) != 0:
+			own += 1
+	_eq(own, COINS, "let go, every coin is the room's again")
 	panel.rotation.x = 0.0
 	await _wait(5)
 	_ok(wall != null and not wall.disabled, "shut again, the wall stands again")

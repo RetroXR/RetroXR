@@ -350,6 +350,7 @@ func _make_slot(part: MeshInstance3D) -> void:
 					host.remove_collision_exception_with(b))
 	_cash_zone = zone
 	_cash_source = part
+	zone.preview_rail = CASH_RAIL
 	if zone.picked_up_object != null:
 		_seated = zone.picked_up_object as PortCover
 		_dress_lift_off(zone.picked_up_object, part, out)

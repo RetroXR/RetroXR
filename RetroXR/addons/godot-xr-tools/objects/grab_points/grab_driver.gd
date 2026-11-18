@@ -305,7 +305,7 @@ func _preview_step(destination: Transform3D, delta: float) -> Transform3D:
 		# `destination` here is still where the HAND wants the object; a
 		# disc keeps that pose's spin in its seat, so the zone is given it.
 		var zt := _preview_zone.preview_pose_for(
-			target, _perch_ease, destination.basis)
+			target, _perch_ease, destination.basis, destination.origin)
 		var w := smoothstep(0.0, 1.0, _preview_blend)
 		var scale := destination.basis.get_scale()
 		var q := destination.basis.get_rotation_quaternion().slerp(

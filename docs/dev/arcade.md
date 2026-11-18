@@ -254,19 +254,60 @@ coins' bodies are at. Abrupt stops can legitimately throw coins out of the open 
   it trails by about v2 / 12.8 (8 cm at 1 m/s, 18 cm at 1.5 m/s) and arrives a few tenths
   of a second after a fast move ends. Translation can no longer throw a coin out; tipping
   the box still pours them. The turn is not limited this way (a tilt must pour at once).
-- **A held box passes through its cabinet; its coins do not.** They are room bodies pushed
-  by an immovable shell, so whatever stands in their way is shoved, and a cabinet weighs
-  1 kg. The generated cabinet's vault therefore has NO fixed collision across its mouth:
-  `ArcadeCashBox` cuts the room and the panel's thickness out of the cabinet's boxes and
-  shuts the mouth to coins with a shape of its own on the cabinet's body (`CashPanelWall`),
-  disabled while the panel is open, as the pointer slab is. The cut stopped at the panel's
-  back face for a day (so that a shut panel held coins in), which left 12 mm of cabinet
-  across the OPEN mouth: a loaded tray pulled out drove its coins into it and dragged the
-  cabinet 63 to 90 mm (the owner: "as i pull the coin box out, it can collide with the
-  cabinet and it moves a bit there"; an empty tray moved nothing). A pull far off to the
-  side (45 degrees) still takes the tray through the side of the mouth and its coins press
-  on the cabinet there (under 1 mm). A model cabinet's own collision round its cash box is
-  NOT checked by any suite.
+- **A held box passes through the room; its coins meet it, and push nothing
+  (`HELD_COIN_LAYER`).** They are room bodies driven by a shell that cannot be stopped, so
+  on their own layers whatever stood in their way gave, and a cabinet weighs 1 kg: a tray
+  of thirty pulled straight out of a NAOMI Universal, an Aero City or a Blast City moved
+  the cabinet 19 to 78 mm, and moved through a cabinet's deck or side, 60 to 115 mm (the
+  owner: "why do i see the the coins and coin box 'push' the cabinet depending on where i
+  move it"; an empty tray moved nothing). Making them pass through the room with the tray
+  was tried and is NOT wanted (the owner: "the coins should have collision just like any
+  other object"). **The engine's contacts are one-way when one body's mask has the other's
+  layer and not the reverse**: the body that is not seen is immovable in that contact (the
+  Jolt module's `_try_override_collision_response`; `HeldObjectPhysics`' header says only
+  that the contact exists). So while its box is held (in a hand, on a ray, or seated in a
+  cabinet that is itself carried) a coin in the tray is on a layer no body's mask has,
+  XRPickable (19: a hand's grab area finds it there) and the tray's, and its mask stays its
+  own. Out of the tray it is on its own layer again that tick.
+  - **What blocks a coin scrapes it out of the tray**, and the shell is done with it until
+    the box is put down or seated (`_scraped`: it would run the coin over again and push
+    it, the room's now, into whatever scraped it out). A 1 kg block in a carried tray's
+    path: 0.0 mm (298 mm on the coins' own layer). A coin is scraped out when its MIDDLE
+    is `SCRAPE_DEPTH` (8 mm) past a wall or the floor of the shell under the rim (over
+    the rim it was thrown or poured, and is left alone); it is stopped then, and held to
+    1 m/s for 0.3 s (`SCRAPE_SETTLE`), and a coin still in the tray to 3 m/s against the
+    shell. **This is rough, and cannot be made fine**: Jolt lets two bodies overlap by
+    20 mm before it does anything, and a coin is 25 mm across, so a free coin under a
+    pile's weight stands up to 15 mm into a wall (measured, a 675 degrees/s spin) and no
+    smaller depth tells a coin that is held back from one that is not (a rule at 5 mm of
+    the disc let 27 of 60 free coins out through the wall of a spinning tray). The coins
+    a block holds back are a pile pressed between it and the wall, and let go they sprang
+    apart: without the limits two of sixty left at 13 m/s and landed 5 m away.
+  - **Near a slot the box fits, its coins do not meet that slot's cabinet at all**
+    (`HOME_REACH` and the tray's own length, measured from the SHELL, where the coins are;
+    its slot's cabinet always while seated). A model cabinet's collision stands within a
+    millimetre or two of its box (18 to 28 of 30 seated coins were in contact with it, at
+    rest) and in places across the way the box comes out by: one-way alone, a Blast City
+    scraped 4 of 30 out of a straight pull; measured from the box, an Aero City 2.
+  - **Do not tell a blocked coin by its contacts.** `get_colliding_bodies()` counts what is
+    within Jolt's 2 cm of speculative contact, which is every coin over a cabinet's shelf.
+  - **`Tools/models/arcade_cash_cabinet_probe`** is the only check on a MODEL cabinet (a
+    suite boots with no mods): it stands the installed NAOMI Universal (or `--model=`) on a
+    floor, banks thirty coins and pulls the box out. All three read 0.0 mm and 30 of 30.
+- **The generated cabinet's vault has NO fixed collision across its mouth.** `ArcadeCashBox`
+  cuts the room and the panel's thickness out of the cabinet's boxes and shuts the mouth to
+  coins with a shape of its own on the cabinet's body (`CashPanelWall`), disabled while the
+  panel is open, as the pointer slab is. The cut stopped at the panel's back face for a day
+  (so that a shut panel held coins in), which left 12 mm of cabinet across the OPEN mouth.
+- **A cash box is on a rail (`XRToolsSnapZone.preview_rail`, `CASH_RAIL`).** A thing taken
+  out of its seat stays there until the hand has left the slot's reach (a cover's is under
+  10 cm) and then catches the hand up in a tenth of a second, faster than the hand. A slot
+  with a rail shows what is held at it on the line out of the seat (the zone's +Y) at the
+  depth the hold has it: the box comes out with the hand from the first centimetre and goes
+  back in with it. `preview_pose_for` takes the hold's own place for the object (`want`);
+  the grab driver and the laser both pass it. A cabinet's mass is 1 kg and was left so:
+  nothing in the game uses xr-tools' weighted hands and the upright control sets the turn
+  directly, but everything else that pushes a cabinet would feel it.
 
 **Why (the flip, 2026-11-17).** Until then the box itself was eased and then redrawn at
 the shell's node pose, so the box's pose was both what the shell was sent to and what came
@@ -302,21 +343,25 @@ The 60-body cap is an existing Quest performance precaution, not a measured safe
 this missing-box change does not alter it.
 
 
-`arcade_cash_tests` covers ordinary acceptance, carry, release and tilt (23 checks).
+`arcade_cash_tests` covers ordinary acceptance, carry, release and tilt (26 checks).
 `arcade_cash_fast_tests` checks translation and yaw with 60 coins, allowing escape through
 the open top but rejecting solid-wall crossings, and that the box is on its hold at every
 tick at the speed asked (9 checks). Requested motion peaks at 4.5 m/s translation and
 675 degrees/s yaw; the carry limits apply to the shell, not to the box.
-`arcade_cash_seated_tests` (21 checks) hands the box to its slot from elsewhere, moves the
+`arcade_cash_seated_tests` (28 checks) hands the box to its slot from elsewhere, moves the
 slot and stops it, drops it 5 cm in one tick (the box still and on its seat each time, its
 coins kept), jumps it 0.3 m to the hand in three ticks (the shell after it within its
 limit, no coin thrown), then carries it at 1.1 m/s (the box on its hold, the shell
-trailing, the coins drawn where they stand in the tray, between ticks too) and lets go
-mid-swing (all sixty in the box).
-`arcade_cash_vault_tests` (9 checks) is the one cash suite with a real cabinet: the room's
+trailing, the coins drawn where they stand in the tray, between ticks too, and on the held
+coins' layer), lets go mid-swing (all sixty in the box, on their own layer) and carries it
+through a loose 1 kg block (the block not moved, coins scraped out onto the table).
+`arcade_cash_vault_tests` (14 checks) is the one cash suite with a real cabinet: the room's
 generic one standing on a floor, its panel opened, thirty coins banked and the tray pulled
-0.4 m out in half a second. The cabinet must not move (1 mm, 0.1 degrees) and every coin
-must come out in the tray; the mouth's wall stands shut, goes open and stands again.
+0.4 m out in half a second. The tray comes out on its rail with the hand and goes back in;
+the cabinet must not move (1 mm, 0.1 degrees) and every coin must come out in the tray;
+then the tray is taken through the cabinet's deck, front and side (the cabinet not moved,
+every coin in the tray or the room's); the mouth's wall stands shut, goes open and stands
+again.
 `arcade_cash_restore_tests` covers loose restoration, repeated dressing, cabinet changes,
 acceptance/refund, saving spills and overflow (12 checks). Slot credit and return-cup
 behavior remain covered by `arcade_tests` and `arcade_attract_tests`.

@@ -373,6 +373,14 @@ var preview_basis: Basis = Basis.IDENTITY
 var preview_at_seat := false
 
 
+## LOCAL PATCH (RetroXR): a slot on a RAIL, this many metres long, out of the seat along this zone's +Y. What is held at
+## it is shown on that line at the depth the hold has it, not standing in the seat: a drawer comes out with the hand from
+## the first centimetre and goes in with it to the last. Without it a thing taken out of its seat stays there until the hand
+## has left the slot's reach and then catches the hand up in a tenth of a second, faster than the hand (a cabinet's cash box
+## of coins: 2 to 6 m/s). Zero for every other zone. Asked through preview_pose_for's `want`, the hold's own place for it.
+var preview_rail := 0.0
+
+
 ## LOCAL PATCH (RetroXR): "no hand" for preview_pose_for's `held`. A zero
 ## basis rather than identity, because identity is a pose a hand can hold.
 const NO_HAND := Basis(Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
@@ -391,7 +399,7 @@ const NO_HAND := Basis(Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
 ## preview_basis_for, or a caller with no hand (a restore, a test), gets the
 ## authored pose.
 func preview_pose_for(obj: Node3D, amount: float = 1.0,
-		held: Basis = NO_HAND) -> Transform3D:
+		held: Basis = NO_HAND, want: Vector3 = Vector3.INF) -> Transform3D:
 	var t := global_transform if preview_at_seat else snap_pose_for(obj)
 	# In the ZONE's frame, not the object's: the seat is written as a slot-local
 	# pose, so the ghost has to be turned the same way about the same origin.
@@ -403,6 +411,10 @@ func preview_pose_for(obj: Node3D, amount: float = 1.0,
 		t.basis = obj.preview_basis_for(t.basis, held)
 	if preview_offset != Vector3.ZERO and amount > 0.0:
 		t.origin += global_transform.basis * (preview_offset * amount)
+	# LOCAL PATCH (RetroXR): on its rail, as far out as the hold has it (see preview_rail).
+	if preview_rail > 0.0 and want.is_finite():
+		var out := global_transform.basis.y.normalized()
+		t.origin += out * clampf((want - t.origin).dot(out), 0.0, preview_rail)
 	return t
 
 

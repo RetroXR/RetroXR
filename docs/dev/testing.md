@@ -762,7 +762,7 @@ selects this leg with `--no-box --record`.
 
 ### Cash box seated and at full speed (2026-11-17)
 
-`arcade_cash_seated_tests` (21) is the first leg that seats the box anywhere but where it
+`arcade_cash_seated_tests` (28) is the first leg that seats the box anywhere but where it
 already stands (`arcade.md` "Why (the flip)"): handed to its slot from 0.3 m, its slot
 moved and stopped, its slot dropped 5 cm in one tick, then a 1.1 m/s carry and a release
 mid-swing. `arcade_cash_fast_tests` is 9: each leg also checks the box is on its hold
@@ -775,6 +775,14 @@ mid-swing. `arcade_cash_fast_tests` is 9: each leg also checks the box is on its
 - **Mutations.** Not drawing the coins in the tray: 2 red (11.2 mm and 66 mm off). No
   hand-off: 2 red (41 of 60 in the box). The box redrawn at the shell's pose again: 10
   seated and 3 fast red (246 mm off its hold, 3.0 m/s).
+- **What the coins push, later still.** Held, the tray's coins are on a layer nothing is
+  pushed from, a cash slot has a rail, and near its slot the coins do not meet its cabinet
+  (`arcade.md` "A held box passes through the room"). `arcade_cash_vault_tests` is 14 and
+  `arcade_cash_tests` 26. Mutations: the held coins on their own layer, 4 seated red (a
+  1 kg block pushed 298 mm) and, with the exemption off too, 2 vault red (the cabinet
+  191 mm); the slot's rail off, 1 vault red (58 mm behind the hand over 60 mm). The
+  exemption alone is not red in any suite: only a model cabinet's collision crowds its
+  box, and `Tools/models/arcade_cash_cabinet_probe` is where that is read.
 - **A pull, later the same day.** `arcade_cash_vault_tests` (9, ~30 s) builds the room's
   generic cabinet on a floor and pulls a tray of thirty coins out of its open vault
   (`arcade.md` "A held box passes through its cabinet; its coins do not"). The mouth left

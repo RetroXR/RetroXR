@@ -136,6 +136,16 @@ func _ready() -> void:
 		await _frames(1)
 	await _frames(120)
 	_ok(_contained() < 10, "tipping spills coins through the open top", "%d remain" % _contained())
+	var spilled := 0
+	var landed := 0
+	for node in get_tree().get_nodes_in_group(ArcadeToken.GROUP):
+		var token := node as RigidBody3D
+		if token.freeze or token.is_queued_for_deletion() or _inside(token):
+			continue
+		spilled += 1
+		if (token.collision_layer & 4) != 0 and token.global_position.y > -0.02:
+			landed += 1
+	_ok(spilled > 0 and landed == spilled, "poured out of the held tray, the coins are the room's and land on the floor", "%d of %d" % [landed, spilled])
 	cabinet._cash_watch_tick()
 	_ok(int(box.get_meta(cabinet.CASH_COINS_META)) < 10, "spilled coins leave the saved count")
 	hand.drop_object()
@@ -524,6 +534,12 @@ func _run_seated() -> void:
 	_ok(off_hold < 0.0001, "carried, the box is where its hold puts it", "%.4f m off at most" % off_hold)
 	_ok(behind > 0.01, "carried at speed, the coin collider trails the box", "%.4f m behind" % behind)
 	_ok(drawn < 0.0001, "carried, the coins are drawn where they stand in the tray", "%.4f m off at most" % drawn)
+	var held_layer: int = box.get_node("CashPhysics").HELD_COIN_LAYER
+	var one_way := 0
+	for token in cabinet._cash_tokens:
+		if _inside(token) and token.collision_layer == held_layer and (token.collision_mask & 1) != 0:
+			one_way += 1
+	_eq(one_way, 60, "carried, its coins are solid and on the layer nothing is pushed from")
 	# Between ticks too: the poses a frame is DRAWN from are interpolated (the project's physics interpolation), the tray's and
 	# each coin mesh's. Drawn on their bodies the coins trail the tray by 66 mm here; a few slide as the swing starts.
 	var drawn_mean := _drawn_sum / maxf(_drawn_count, 1)
@@ -532,8 +548,68 @@ func _run_seated() -> void:
 	hand.drop_object()
 	await _frames(2)
 	_eq(_contained(), 60, "let go mid-swing, the coins are in the box")
+	var own := 0
+	for token in cabinet._cash_tokens:
+		if (token.collision_layer & 4) != 0:
+			own += 1
+	_eq(own, 60, "and on their own layer again")
 	await _frames(150)
 	_ok(_contained() >= 55, "and stay in it as it lands", "%d remain" % _contained())
+	# Carried THROUGH a loose thing: the coins meet it as any coin would, and push nothing. They are driven by a collider that
+	# cannot be stopped, so on their own layers whatever they met gave (a 1 kg cabinet, 60 to 115 mm). The block scrapes
+	# them out of the tray instead, and they are the room's coins, lying on the table.
+	hand.global_transform = box.global_transform
+	hand._pick_up_object(box)
+	await _move(Vector3(0, 0.03, 0), 30)
+	await _frames(30)
+	var table_top := table.global_position.y + 0.05
+	var block := RigidBody3D.new()
+	block.mass = 1.0
+	block.collision_layer = 4
+	block.collision_mask = 1 | 4
+	var block_col := CollisionShape3D.new()
+	var block_shape := BoxShape3D.new()
+	block_shape.size = Vector3(0.06, 0.2, 0.4)
+	block_col.shape = block_shape
+	block.add_child(block_col)
+	add_child(block)
+	block.global_position = Vector3(box.global_position.x + 0.3, table_top + 0.101, box.global_position.z)
+	await _frames(45)
+	var block_at := block.global_position
+	var before := _contained()
+	var hand_from := hand.position
+	var coin_fastest := 0.0
+	for i in 210:
+		hand.position = hand_from + Vector3(0.6, 0, 0) * smoothstep(0.0, 1.0, minf(1.0, float(i + 1) / 120.0))
+		await _frames(1)
+		for node in get_tree().get_nodes_in_group(ArcadeToken.GROUP):
+			var cv := (node as RigidBody3D).linear_velocity
+			coin_fastest = maxf(coin_fastest, cv.length())
+	var pushed := block.global_position.distance_to(block_at)
+	_ok(before >= 50 and pushed < 0.001, "carried through a loose 1 kg block, the coins do not push it", "%.1f mm, %d coins went at it" % [pushed * 1000.0, before])
+	_ok(_contained() < before, "and the block scrapes coins out of the tray", "%d of %d left in it" % [_contained(), before])
+	var out_ok := 0
+	var out_all := 0
+	var far := 0.0
+	for node in get_tree().get_nodes_in_group(ArcadeToken.GROUP):
+		var t := node as RigidBody3D
+		if t.freeze or _inside(t):
+			continue
+		out_all += 1
+		if t.global_position.y > table_top - 0.005:
+			out_ok += 1
+		far = maxf(far, Vector2(t.global_position.x - block_at.x, t.global_position.z - block_at.z).length())
+	_ok(out_all > 0 and out_ok == out_all, "scraped out, the coins lie on the table: none fell through it", "%d of %d" % [out_ok, out_all])
+	# (squeezed between the tray's collider and the block, two of sixty left at some 13 m/s and landed 5 m away)
+	_ok(far < 0.6 and coin_fastest < 8.0, "and none was shot out of the tray", "%.2f m from the block at the farthest, %.1f m/s at the fastest" % [far, coin_fastest])
+	# (one lying beside the tray is still on the held coins' layer until the tray goes on or is put down)
+	hand.drop_object()
+	await _frames(3)
+	own = 0
+	for node in get_tree().get_nodes_in_group(ArcadeToken.GROUP):
+		if ((node as RigidBody3D).collision_layer & 4) != 0:
+			own += 1
+	_eq(own, get_tree().get_nodes_in_group(ArcadeToken.GROUP).size(), "the tray let go, every coin is the room's again")
 	_finish()
 
 

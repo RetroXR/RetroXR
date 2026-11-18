@@ -140,6 +140,9 @@ const CASH_MAX := 60
 const CASH_PITCH := 0.027
 const CASH_SHEET := 0.0015
 const CASH_PULL := 0.012
+## A cash box comes out of its place and goes into it on a rail this long, along the way it lifts off (the slot's
+## preview_rail): it moves with the hand from the first centimetre.
+const CASH_RAIL := 0.25
 var _cash_zone: XRToolsSnapZone = null
 ## Hidden model part stays in the cabinet when its removable box leaves.
 var _cash_source: MeshInstance3D = null
@@ -236,6 +239,7 @@ func _build_lift_offs() -> void:
 		if str(part.name) == CASH_BOX:
 			_cash_zone = zone
 			_cash_source = part
+			zone.preview_rail = CASH_RAIL
 		if zone.picked_up_object != null:
 			_dress_lift_off(zone.picked_up_object, part, out)
 		for c in get_tree().get_nodes_in_group(PortCover.group_for(socket)):
