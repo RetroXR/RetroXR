@@ -256,17 +256,27 @@ func _group_device() -> void:
 
 	var starts := {
 		QM.Device.QUEST_2: 1.0, QM.Device.UNKNOWN: 1.0,
-		QM.Device.QUEST_3: QM.EYE_BUFFER_PANEL, QM.Device.QUEST_3S: QM.EYE_BUFFER_PANEL,
+		QM.Device.QUEST_3: 1.75, QM.Device.QUEST_3S: QM.EYE_BUFFER_PANEL,
 		QM.Device.DESKTOP: QM.EYE_BUFFER_PANEL,
 	}
+	# Only the Quest 3 moves MSAA off its preset's 4x; everyone else keeps what is set.
+	var msaa_starts := {QM.Device.QUEST_3: Viewport.MSAA_2X}
 	for dev: int in starts:
 		var qm := _fresh()
 		qm.eye_buffer_scale = 1.9
+		qm.msaa_3d = Viewport.MSAA_4X
+		qm.preset = QM.Preset.LOW
 		qm.device = dev
 		qm.apply_device_defaults()
 		_ok(is_equal_approx(qm.eye_buffer_scale, starts[dev]),
 			"device/%s starts at eye buffer x%.3f" % [QM.Device.keys()[dev], starts[dev]],
 			"got x%.3f" % qm.eye_buffer_scale)
+		var want_msaa: int = msaa_starts.get(dev, Viewport.MSAA_4X)
+		var want_preset: int = QM.Preset.CUSTOM if msaa_starts.has(dev) else QM.Preset.LOW
+		_ok(qm.msaa_3d == want_msaa and qm.preset == want_preset,
+			"device/%s starts at MSAA %d, preset %s" % [QM.Device.keys()[dev], want_msaa,
+				QM.Preset.keys()[want_preset]],
+			"got MSAA %d preset %d" % [qm.msaa_3d, qm.preset])
 		qm.free()
 
 	if _live.is_desktop():
