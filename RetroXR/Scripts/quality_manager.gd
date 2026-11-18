@@ -265,7 +265,7 @@ enum Device { UNKNOWN, QUEST_2, QUEST_3, QUEST_3S, DESKTOP }
 ## UNKNOWN takes the conservative row on purpose: an unrecognised headset is far
 ## likelier to be weak than strong, and guessing high is the bug this fixes.
 ## An optional "msaa" (a Viewport.MSAA_*) overrides the boot preset's MSAA and
-## leaves the preset Custom. The Quest 3 trades MSAA 4x for 2x to buy a 1.75x eye
+## leaves the preset Custom. The Quest 3 and 3S trade MSAA 4x for 2x to buy a 1.75x eye
 ## buffer (2026-11-18): supersampling resolves the minified pictures across the
 ## room that MSAA cannot, and the governor still steps a heavy room down.
 const QUEST_3_EYE_BUFFER := 1.75
@@ -273,7 +273,7 @@ const DEVICE_DEFAULTS := {
 	Device.QUEST_2: {"eye_buffer_scale": 1.0},
 	Device.UNKNOWN: {"eye_buffer_scale": 1.0},
 	Device.QUEST_3: {"eye_buffer_scale": QUEST_3_EYE_BUFFER, "msaa": Viewport.MSAA_2X},
-	Device.QUEST_3S: {"eye_buffer_scale": EYE_BUFFER_PANEL},
+	Device.QUEST_3S: {"eye_buffer_scale": QUEST_3_EYE_BUFFER, "msaa": Viewport.MSAA_2X},
 	Device.DESKTOP: {"eye_buffer_scale": EYE_BUFFER_PANEL},
 }
 

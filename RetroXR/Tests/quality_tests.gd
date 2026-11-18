@@ -256,11 +256,11 @@ func _group_device() -> void:
 
 	var starts := {
 		QM.Device.QUEST_2: 1.0, QM.Device.UNKNOWN: 1.0,
-		QM.Device.QUEST_3: 1.75, QM.Device.QUEST_3S: QM.EYE_BUFFER_PANEL,
+		QM.Device.QUEST_3: 1.75, QM.Device.QUEST_3S: 1.75,
 		QM.Device.DESKTOP: QM.EYE_BUFFER_PANEL,
 	}
-	# Only the Quest 3 moves MSAA off its preset's 4x; everyone else keeps what is set.
-	var msaa_starts := {QM.Device.QUEST_3: Viewport.MSAA_2X}
+	# The Quest 3 and 3S move MSAA off their preset's 4x; everyone else keeps what is set.
+	var msaa_starts := {QM.Device.QUEST_3: Viewport.MSAA_2X, QM.Device.QUEST_3S: Viewport.MSAA_2X}
 	for dev: int in starts:
 		var qm := _fresh()
 		qm.eye_buffer_scale = 1.9
