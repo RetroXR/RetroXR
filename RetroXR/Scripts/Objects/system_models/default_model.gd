@@ -162,6 +162,15 @@ const _MULTI_OUT_SCENES := {
 }
 
 
+## Cartridge consoles whose real hardware has an EJECT lever. The box has no lever,
+## so the cabinet's EJECT button stands in for it (CartridgeEjector).
+const _EJECT_LEVER_PLATFORMS: Array[String] = ["snes"]
+
+
+func has_cartridge_eject() -> bool:
+	return _EJECT_LEVER_PLATFORMS.has(_systemid())
+
+
 ## The same three signals either way; only the number of holes differs.
 func av_ports_are_multi_way() -> bool:
 	return _MULTI_OUT_SCENES.has(_systemid())

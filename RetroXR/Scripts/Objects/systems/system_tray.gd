@@ -99,7 +99,13 @@ func build(bespoke: bool, eject_button: VRButton, cartridge_slot: XRToolsSnapZon
 	# A shell that models its own release control (the PSP's sprung OPEN latch)
 	# opts out — it drives request_tray_state directly.
 	var want_eject := has_loader and model.has_eject_button()
-	_eject_button.set_active(want_eject)
+	# A cartridge console with an EJECT lever (the Super NES) wears the button too.
+	var cart_eject := not has_loader and model.has_cartridge_eject()
+	_eject_button.set_active(want_eject or cart_eject)
+	if cart_eject:
+		var lbl := _eject_button.get_node_or_null("ButtonLabel") as Label3D
+		if lbl:
+			lbl.text = "EJECT"
 	# A front-sliding tray is a property of the PROCEDURAL box. A bespoke shell
 	# brings its own mechanism — the PS2 Slim's hinged cover is a lid whatever the
 	# platform row says the family does — so it keeps the lid wording and geometry.
@@ -468,6 +474,10 @@ func on_eject_pressed() -> void:
 				# Pressed again with the disc still resting at the slot mouth, it
 				# takes the disc back — a slot drive has no open tray to leave it on.
 				media_slot.toggle_eject()
+		MediaDimensions.LOADER_NONE:
+			var model := _host.get_model()
+			if model != null and model.has_cartridge_eject():
+				model.eject_cartridge(_cartridge_slot)
 
 
 ## What the menu's OPEN/EJECT row says, or "" for a machine without the button.
@@ -483,6 +493,8 @@ func eject_label() -> String:
 			return "Close tray" if open else "Open tray"
 		MediaDimensions.LOADER_SLOT:
 			return "Eject disc"
+		MediaDimensions.LOADER_NONE:
+			return "Eject cartridge"
 	return "Eject"
 
 

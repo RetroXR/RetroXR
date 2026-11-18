@@ -414,6 +414,18 @@ func has_eject_button() -> bool:
 	return true
 
 
+## Whether this cartridge console has an EJECT lever (the Super NES's), shown as
+## the cabinet's EJECT button. Off by default: most cartridges are pulled by hand.
+func has_cartridge_eject() -> bool:
+	return false
+
+
+## Lift the seated cartridge out of `slot` (CartridgeEjector). Returns it, or null.
+## A shell with a lever of its own calls this from its lever's button.
+func eject_cartridge(slot: XRToolsSnapZone) -> RigidBody3D:
+	return CartridgeEjector.of(self).eject(slot)
+
+
 ## Hide the generic grey port box and its number on every controller port.
 ##
 ## system.tscn ships those as stand-ins for the procedural default shell, which
