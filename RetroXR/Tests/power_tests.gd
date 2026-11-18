@@ -1393,7 +1393,9 @@ func _test_standards() -> void:
 		"dmg_battery_pack": "barrel_3_5x1_35", "lynx_ac_adapter": "barrel_3_5x1_35",
 		"gbc_ac_adapter": "eiaj_01", "psp_ac_adapter": "eiaj_02", "sega_mk2103_adapter": "eiaj_03",
 		"psone_ac_adapter": "eiaj_03", "ps2_slim_ac_adapter": "eiaj_03", "jaguar_ac_adapter": "barrel_5_5x2_1",
-		"gamegear_ac_adapter": "barrel_5_5x2_1"}
+		"gamegear_ac_adapter": "barrel_5_5x2_1", "sega_mk1602_adapter": "barrel_5_5x2_1",
+		"hvc025_ac_adapter": "barrel_5_5x2_1", "sms_ac_adapter": "barrel_5_5x2_1",
+		"pce_ac_adapter": "barrel_5_5x2_1", "tg16_ac_adapter": "barrel_5_5x2_1"}
 	for id: String in want:
 		for v: String in PowerBrickCatalog.variants_of(id):
 			_eq(str(PowerBrickCatalog.variant(id, v).get("dc_plug", "")), want[id],
@@ -1445,6 +1447,32 @@ func _test_standards() -> void:
 	_eq(gb_jack.connector, "barrel_3_5x1_35", "standards/the Game Boy's jack takes 3.5 x 1.35")
 	_ok(lynx.dc_plug.is_in_group(gb_jack.snap_require), "standards/so the Lynx's adapter fits it, as it does")
 	await _clear()
+	# The Master System, PC Engine and TG-16 have their own adapters, and run on them.
+	for row: Array in [["mastersystem", "sms_ac_adapter", "usa"], ["pcengine", "pce_ac_adapter", "jpn"],
+			["tg16", "tg16_ac_adapter", "usa"]]:
+		var plate := _new_room()
+		var sys := await _machine(str(row[0]), "")
+		_eq(str(PowerProfiles.for_machine("", str(row[0])).get("brick", "")), str(row[1]),
+			"standards/the %s's adapter is %s" % row.slice(0, 2))
+		_ok(PowerBrickCatalog.for_machine("", str(row[0])).has(str(row[1])),
+			"standards/its card offers %s" % row[1])
+		var ins := PowerInput.of(sys).inlets()
+		var jack: DcPort = ins[0] as DcPort if not ins.is_empty() else null
+		_ok(jack != null, "standards/the %s has a DC jack" % row[0])
+		if jack == null:
+			await _clear()
+			continue
+		var brick := _brick(str(row[1]), str(row[2]), Vector3(0.5, 0.3, 0.5))
+		await _wait(4)
+		_ok(brick.dc_plug.is_in_group(jack.snap_require), "standards/%s fits the %s" % [row[1], row[0]])
+		jack.pick_up_object(brick.dc_plug)
+		(plate.get_node("TopPort") as PowerPort).pick_up_object(brick.wall_plug)
+		await _wait(4)
+		_ok(PowerInput.of(sys).is_live(), "standards/the %s: its adapter in the wall, power" % row[0],
+			PowerInput.of(sys).describe())
+		(plate.get_node("TopPort") as PowerPort).drop_object()
+		await _wait(2)
+		await _clear()
 
 
 ## The 32X takes its own adapter (ExpansionPower): a Genesis with an unpowered 32X

@@ -52,11 +52,12 @@ const _ROWS := {
 	"wii":        {"inlet": "dc", "plug": "wii_dc_plug", "brick": "wii_ac_adapter"},
 	# The Genesis model is the Model 2: Sega's MK-2103, the 32X's adapter too.
 	"genesis":    {"inlet": "dc", "plug": "eiaj_03", "brick": "sega_mk2103_adapter"},
-	"mastersystem": {"inlet": "dc", "plug": "barrel_5_5x2_1"},
+	"mastersystem": {"inlet": "dc", "plug": "barrel_5_5x2_1", "brick": "sms_ac_adapter"},
 	"atarijaguar": {"inlet": "dc", "plug": "barrel_5_5x2_1", "brick": "jaguar_ac_adapter"},
+	# The AES's PRO-POW comes with the Neo Geo mod, which registers it.
 	"neogeo_mvs_console": {"inlet": "dc", "plug": "barrel_5_5x2_1"},
-	"pcengine":   {"inlet": "dc", "plug": "barrel_5_5x2_1"},
-	"tg16":       {"inlet": "dc", "plug": "barrel_5_5x2_1"},
+	"pcengine":   {"inlet": "dc", "plug": "barrel_5_5x2_1", "brick": "pce_ac_adapter"},
+	"tg16":       {"inlet": "dc", "plug": "barrel_5_5x2_1", "brick": "tg16_ac_adapter"},
 	# The PC tower's model authors its own C14 inlet; the row only says so.
 	"pc_tower":   {"inlet": "c14"},
 	# An arcade cabinet: a C14 inlet on its back, the kettle lead apart (SystemPower).

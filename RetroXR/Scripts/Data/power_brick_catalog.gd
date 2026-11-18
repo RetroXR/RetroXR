@@ -121,12 +121,11 @@ static func _shipped() -> Dictionary:
 			"variants": {"jpn": _wart([57.0, 96.5, 81.6], [0.0, -55.0, -32.0])}},
 		# HVC-025: the Disk System drive's own, because an HVC-002 cannot run both
 		# the drive and the Famicom (gametechwiki "Famicom Disk system"; maru-chang's
-		# HVC parts list). No RetroXR-models item yet: the HVC-002's shape and size
-		# stand in for it, and its plug is taken to be the HVC-002's 5.5 x 2.1 --
-		# both UNVERIFIED.
+		# HVC parts list). The plug's 5.5 x 2.1 is UNVERIFIED.
 		"hvc025_ac_adapter": {"label": "Disk Drive AC Adapter (HVC-025)", "cord": Color8(24, 24, 26),
 			"fits": ["famicom", "nes"], "dc_plug": "barrel_5_5x2_1", "plug_mm": [9.6, 9.6, 38.0],
-			"variants": {"jpn": _wart([57.0, 96.5, 81.6], [0.0, -55.0, -32.0])}},
+			"source": "nintendo/nes/psu-fds",
+			"variants": {"jpn": _wart([57.0, 99.5, 65.12], [-10.0, -56.5, -28.0])}},
 		"snes_ac_adapter": {"label": "Super NES AC Adapter (SNS-002)", "cord": Color8(24, 24, 26), "fits": ["snes", "virtualboy"],
 			"dc_plug": "snes_dc_plug", "plug_mm": [10.4, 10.4, 39.0], "source": "nintendo/snes/psu",
 			"variants": {"usa": _wart([57.0, 96.5, 81.3], [0.0, -55.0, -32.0])}},
@@ -146,16 +145,32 @@ static func _shipped() -> Dictionary:
 			"variants": {"usa": wii, "jpn": wii, "eur": wii, "ukv": wii, "aus": wii, "kor": wii}},
 		# Sega's MK-1602: the Genesis Model 1's and the Sega CD's (Model 1 and 2), 9 V
 		# 1.2 A, 5.5 x 2.1 centre negative (retroregister.com Barrel Power Supplies;
-		# segaretro "AC adaptor"; segakore's MK-1602 page). No RetroXR-models item yet:
-		# the MK-2103's US body stands in for its size, ESTIMATED.
+		# segaretro "AC adaptor"; segakore's MK-1602 page).
 		"sega_mk1602_adapter": {"label": "Sega AC Adapter (MK-1602)", "cord": Color8(26, 26, 28),
-			"fits": ["genesis", "segacd"], "dc_plug": "barrel_5_5x2_1", "plug_mm": [9.6, 9.6, 40.0],
-			"variants": {"usa": mk2103_us}},
+			"fits": ["genesis", "segacd"], "dc_plug": "barrel_5_5x2_1", "plug_mm": [10.0, 10.0, 42.0],
+			"source": "sega/genesis/psu",
+			"variants": {"usa": _wart([57.0, 97.5, 71.7], [-13.5, -55.5, -38.0])}},
+		# MK-3025: the Master System's and the Master System II's, 9 V 1.0 A, 5.5 x 2.1.
+		"sms_ac_adapter": {"label": "Master System AC Adapter (MK-3025)", "cord": Color8(26, 26, 28),
+			"fits": ["mastersystem"], "dc_plug": "barrel_5_5x2_1", "plug_mm": [10.0, 10.0, 42.0],
+			"source": "sega/master-system/psu",
+			"variants": {"usa": _wart([57.0, 77.0, 66.7], [0.0, -44.75, -28.0])}},
 		# Sega's MK-2103: the Genesis Model 2's, the 32X's, the Nomad's and the US Game Gear's.
 		"sega_mk2103_adapter": {"label": "Sega AC Adapter (MK-2103)", "cord": Color8(26, 26, 28), "fits": ["genesis", "sega32x", "gamegear"],
 			"dc_plug": "eiaj_03", "plug_mm": [9.8, 9.8, 44.0], "source": "sega/32x/psu",
 			"variants": {"usa": mk2103_us, "jpn": mk2103_us, "eur": mk2103_eu, "ukv": mk2103_eu,
 				"aus": mk2103_eu}},
+		# NEC's: the PC Engine's PAD-105 (Japan, 9 V 650 mA) and the TurboGrafx-16's
+		# HES-ACA-01 (a desk brick on a fixed cord, 10.5 V 730 mA), both 5.5 x 2.1, so
+		# either runs either.
+		"pce_ac_adapter": {"label": "PC Engine AC Adapter (PAD-105)", "cord": Color8(26, 26, 28),
+			"fits": ["pcengine", "tg16"], "dc_plug": "barrel_5_5x2_1", "plug_mm": [10.7, 10.7, 46.0],
+			"source": "nec/pc-engine/psu",
+			"variants": {"jpn": _wart([57.0, 99.5, 56.25], [12.0, -57.5, -14.0])}},
+		"tg16_ac_adapter": {"label": "TurboGrafx-16 AC Adapter (HES-ACA-01)", "cord": Color8(24, 24, 26),
+			"fits": ["tg16", "pcengine"], "dc_plug": "barrel_5_5x2_1", "plug_mm": [9.7, 9.7, 43.5],
+			"source": "nec/pc-engine/psu-tg16",
+			"variants": {"usa": _inline([55.0, 45.0, 99.0], [0.0, 17.0, 49.5], [0.0, 17.0, -49.5])}},
 		"jaguar_ac_adapter": {"label": "Jaguar AC Adapter (PP-912)", "cord": Color8(24, 24, 26), "fits": ["atarijaguar"],
 			"dc_plug": "barrel_5_5x2_1", "plug_mm": [9.7, 9.7, 40.0], "source": "atari/jaguar/psu",
 			"variants": {"usa": _wart([60.0, 81.5, 72.7], [-8.0, -46.5, -28.0])}},
