@@ -535,7 +535,10 @@ func _physics_process(_delta: float) -> void:
 		# the moment it was spawned never stood still long enough to collect it)
 		for c in get_tree().get_nodes_in_group(NaomiHookup.CONV_GROUP):
 			var b := c as RigidBody3D
-			if b != null and b.freeze and b.get_meta(NaomiHookup.RIDE_META, null) == _pickable and not _carried.has(b):
+			# (has_meta first: get_meta(key, null) logs an error for a missing key, Godot taking a null default as none, and a
+			# converter in a mount or once taken by a hand has no such meta: one error a tick for each, while any cabinet moved)
+			if b != null and b.freeze and b.has_meta(NaomiHookup.RIDE_META) and b.get_meta(NaomiHookup.RIDE_META) == _pickable \
+					and not _carried.has(b):
 				b.global_transform = move * b.global_transform
 		for n in _carried:
 			if not is_instance_valid(n):
