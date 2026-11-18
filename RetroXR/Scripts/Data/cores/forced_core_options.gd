@@ -41,6 +41,7 @@ static func all(core: String, systemid: String, rom_path: String,
 	out.merge(game_boy_model(core, systemid), true)
 	out.merge(ethernet_adapter(core, systemid, expansions), true)
 	out.merge(mod_platform(core, systemid), true)
+	out.merge(paddle_input(core), true)
 	return out
 
 
@@ -608,3 +609,15 @@ static func no_debug_break(core: String) -> Dictionary:
 	if core != "xenia_edge" and core != "parallel_xbox360":
 		return {}
 	return {"xenia_break_on_unimplemented_instructions": "disabled"}
+
+
+## Stella reads a paddle off its port's left-stick X, by default as a RATE
+## (libretro.cxx retro_analog_paddle: += x / 50 a frame) behind a 15% deadzone.
+## A CX30 sends where its knob is (Atari2600CX30), so the axis is a position and
+## nothing around the middle is dead. Nothing else on a 2600 sends that axis.
+## Declared by the stella core (Tools/cores/core_options_probe.gd): absolute
+## enabled/disabled, deadzone 0 and up.
+static func paddle_input(core: String) -> Dictionary:
+	if core != "stella":
+		return {}
+	return {"stella_paddle_analog_absolute": "enabled", "stella_paddle_analog_deadzone": "0"}

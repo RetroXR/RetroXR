@@ -2373,6 +2373,9 @@ func _restore_peripheral(root: Node, id: int, obj: Node, spawned: Dictionary, re
 		_restore_vmu_slots(obj, root, spawned, rec.get("vmus"))
 		# A Virtual Boy pad's pack or tap. A save from before they were things of their
 		# own names neither, and that pad gets the pack it was drawn with.
+		if obj is Atari2600CX30:
+			var partner: Variant = rec.get("partner", {})
+			(obj as Atari2600CX30).restore_partner(partner if partner is Dictionary else {})
 		if obj is VbController:
 			(obj as VbController).restore_power_unit(
 				_resolve_ref(root, spawned, rec.get("power_unit")) as VbPowerUnit,
@@ -3588,6 +3591,9 @@ func _serialize_peripheral(node: Node, id: int, n3d: Node3D, node_to_id: Diction
 		# Written empty too: "nothing on its back" is not a save from before packs.
 		if node is VbController:
 			entry["power_unit"] = _ref(node_to_id, (node as VbController).get_power_unit())
+		# The CX30's partner is not an object of its own: it is saved here.
+		if node is Atari2600CX30:
+			entry["partner"] = (node as Atari2600CX30).partner_pose()
 	return entry
 
 
@@ -3988,6 +3994,7 @@ const CONTROLLER_SCENES := [
 	"res://Scenes/Objects/controllers/famicom/famicom_controller_ii.tscn",
 	"res://Scenes/Objects/controllers/vb/vb_controller.tscn",
 	"res://Scenes/Objects/controllers/atari/atari_2600_cx40.tscn",
+	"res://Scenes/Objects/controllers/atari/atari_2600_cx30.tscn",
 	"res://Scenes/Objects/controllers/playstation/ps1_controller.tscn",
 	"res://Scenes/Objects/controllers/playstation/ps1_dualshock.tscn",
 	"res://Scenes/Objects/controllers/n64/n64_controller.tscn",

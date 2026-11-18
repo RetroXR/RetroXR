@@ -1,0 +1,155 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/controllers/atari_2600_cx30.gd" id="1_padscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_right.tscn" id="3_rhand"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_left.tscn" id="4_lhand"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_ctrl"]
+friction = 0.8
+
+; The case, 60 x 24 x 110 mm: the CX30's covers without the turret
+; (atari/2600/paddles in RetroXR-models; the real case tapers 65 to 54).
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(0.06, 0.024, 0.11)
+
+; The turret and the knob on it, 47.5 across, up to 64.5 mm over the table.
+[sub_resource type="CylinderShape3D" id="CylShape_knob"]
+height = 0.0405
+radius = 0.0238
+
+[sub_resource type="StandardMaterial3D" id="Mat_shell"]
+albedo_color = Color(0.118, 0.118, 0.122, 1)
+roughness = 0.75
+
+[sub_resource type="StandardMaterial3D" id="Mat_knob"]
+albedo_color = Color(0.078, 0.078, 0.082, 1)
+roughness = 0.3
+
+[sub_resource type="StandardMaterial3D" id="Mat_mark"]
+albedo_color = Color(0.85, 0.85, 0.82, 1)
+roughness = 0.6
+
+[sub_resource type="StandardMaterial3D" id="Mat_button"]
+albedo_color = Color(0.839, 0.204, 0.133, 1)
+roughness = 0.3
+
+[sub_resource type="BoxMesh" id="Mesh_body"]
+material = SubResource("Mat_shell")
+size = Vector3(0.06, 0.024, 0.11)
+
+[sub_resource type="CylinderMesh" id="Mesh_turret"]
+material = SubResource("Mat_shell")
+top_radius = 0.0216
+bottom_radius = 0.0255
+height = 0.015
+radial_segments = 32
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Mesh_knob"]
+material = SubResource("Mat_knob")
+top_radius = 0.023
+bottom_radius = 0.0235
+height = 0.023
+radial_segments = 45
+rings = 1
+
+[sub_resource type="BoxMesh" id="Mesh_mark"]
+material = SubResource("Mat_mark")
+size = Vector3(0.003, 0.0008, 0.016)
+
+[sub_resource type="BoxMesh" id="Mesh_button"]
+material = SubResource("Mat_button")
+size = Vector3(0.0076, 0.0088, 0.015)
+
+[sub_resource type="CylinderMesh" id="Mesh_sleeve"]
+material = SubResource("Mat_shell")
+top_radius = 0.003
+bottom_radius = 0.0042
+height = 0.026
+radial_segments = 16
+rings = 1
+
+[node name="Atari2600CX30" type="RigidBody3D" groups=["hand_held_device"]]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.15
+physics_material_override = SubResource("PhysMat_ctrl")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_padscript")
+plug_mesh_path = "res://Scenes/Objects/controllers/atari/atari_2600_plug_paddle.res"
+systemid = "atari2600"
+cable_length = 1.5
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_body")
+
+[node name="KnobShape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03225, -0.0055)
+shape = SubResource("CylShape_knob")
+
+; In the frame of the model's GLB, which rests on its origin: dropped half the
+; case's height to sit the case's middle on the centre of mass.
+[node name="Model" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, 0)
+
+[node name="Body" type="MeshInstance3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.012, 0)
+mesh = SubResource("Mesh_body")
+
+[node name="Turret" type="MeshInstance3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0315, -0.0055)
+mesh = SubResource("Mesh_turret")
+
+; The knob's axis at its foot; it turns about +Y.
+[node name="KnobPivot" type="Node3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0395, -0.0055)
+
+[node name="Knob" type="MeshInstance3D" parent="Model/KnobPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0115, 0)
+mesh = SubResource("Mesh_knob")
+
+; A pointer on the knob's top, toward the label end at the middle of its travel.
+[node name="KnobMark" type="MeshInstance3D" parent="Model/KnobPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0232, 0.011)
+mesh = SubResource("Mesh_mark")
+
+; The fire button's outer face, in the left wall; it presses along +X.
+[node name="ButtonPivot" type="Node3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0376, 0.0105, -0.0375)
+
+[node name="Button" type="MeshInstance3D" parent="Model/ButtonPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0038, 0, 0)
+mesh = SubResource("Mesh_button")
+
+[node name="Sleeve" type="MeshInstance3D" parent="Model"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.012, 0.012, -0.068)
+mesh = SubResource("Mesh_sleeve")
+
+; The cord's end in the sleeve; it leaves along -Z.
+[node name="CableAttachPoint" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.012, 0, -0.0804)
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+shape = SubResource("BoxShape3D_body")
+
+[node name="KnobShape" type="CollisionShape3D" parent="PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03225, -0.0055)
+shape = SubResource("CylShape_knob")
+
+[node name="HandRight" parent="." instance=ExtResource("3_rhand")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.035, 0, 0.02)
+visible = false
+
+[node name="HandLeft" parent="." instance=ExtResource("4_lhand")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.035, 0, 0.02)
+visible = false

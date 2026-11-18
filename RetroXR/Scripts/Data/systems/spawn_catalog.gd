@@ -259,10 +259,10 @@ const _PERIPHERALS: Dictionary = {
 	],
 	# Same reasoning as the NES: the console moulds its own DE-9 sockets and the
 	# stick wears the matching plug, so the two only look right together. Named
-	# CX40 because the 2600 shipped two quite different controllers and the
-	# paddle is still to come.
+	# by model because the 2600 shipped two quite different controllers.
 	"atari2600": [
 		{"kind": "peripheral", "label": "CX40 Joystick", "spawn": "atari_2600_cx40"},
+		{"kind": "peripheral", "label": "CX30 Paddles", "spawn": "atari_2600_cx30"},
 	],
 	# The SNES Mouse is here rather than left to the generic Controllers-tab mouse
 	# because it wears its own connector and only fits a Super NES; the generic one
