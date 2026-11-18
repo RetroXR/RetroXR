@@ -137,7 +137,7 @@ func _build_tray_body() -> void:
 	body.collision_mask = 0
 	var shape := CollisionShape3D.new()
 	shape.name = "CollisionShape3D"
-	shape.shape = tray.mesh.create_trimesh_shape()
+	shape.shape = MeshArraysCache.trimesh_shape(tray.mesh)    # no GPU read after the first launch
 	body.add_child(shape)
 	tray.add_child(body)
 	body.add_collision_exception_with(self)

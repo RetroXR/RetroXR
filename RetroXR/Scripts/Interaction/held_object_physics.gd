@@ -536,7 +536,7 @@ func _riders_on_shape(body: RigidBody3D, cs: CollisionShape3D, world: World3D, o
 ## own — the debug mesh is the one way to ask a shape of any kind how big it is,
 ## and it is built once and cached on the resource.
 func _world_aabb(cs: CollisionShape3D) -> AABB:
-	return cs.global_transform * cs.shape.get_debug_mesh().get_aabb()
+	return cs.global_transform * ShapeBounds.aabb(cs.shape)
 
 
 func _tick_riders(delta: float) -> void:

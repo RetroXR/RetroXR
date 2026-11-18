@@ -235,7 +235,7 @@ func _body_boxes() -> Array[AABB]:
 			var shape: Shape3D = body.shape_owner_get_shape(owner_id, i)
 			if shape == null:
 				continue
-			out.append(xf * shape.get_debug_mesh().get_aabb())
+			out.append(xf * ShapeBounds.aabb(shape))
 	return out
 
 

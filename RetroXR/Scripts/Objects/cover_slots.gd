@@ -143,7 +143,7 @@ static func _extent(part: MeshInstance3D, b: Basis) -> Array[Vector3]:
 	var any := false
 	if part.mesh != null:
 		for si in part.mesh.get_surface_count():
-			for p: Vector3 in part.mesh.surface_get_arrays(si)[Mesh.ARRAY_VERTEX]:
+			for p: Vector3 in MeshArraysCache.vertices(part.mesh, si):    # no GPU read after the first launch
 				var q := to_b * p
 				lo = lo.min(q)
 				hi = hi.max(q)

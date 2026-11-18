@@ -980,6 +980,35 @@ Same room, as found, after both: **0 objects moving** (31 before), 2 of 18 light
 9.6-11.2 -> **6.1 ms**, the probe build's frame 19-23 -> 14.8 ms. Left: the directional light (4 splits to 100 m,
 indoors) and the robot's idle; ShadowMerge now pays only when something moves, and is worth re-measuring.
 
+## Mesh reads (2026-11-18)
+
+Godot keeps no CPU copy of a mesh. `surface_get_arrays()`, `get_faces()`, `create_trimesh_shape()`,
+`create_convex_shape()` and `Shape3D.get_debug_mesh()` all read it back from the GPU, and `buffer_get_data` waits out
+every frame in flight to do it: one read is **11-12 ms on the desktop (up to 30) and 17 ms on a Quest 3**, measured
+on 40 room meshes each. Loading the Starlight Arcade autosave did 171 of them on the desktop and ~123 on the headset:
+about 2 s of stalls. `Mesh.get_faces()` keeps its triangles for one session only, so every launch paid again.
+
+- **`Shape3D.get_debug_mesh()` reads back even for a box**: it builds its filled faces as an ArrayMesh and then
+  calls `surface_get_arrays()` on it. `held_object_physics._world_aabb` (100 a load), `scroll_lock_capture._body_boxes`
+  and `tv_resize` only wanted the shape's box; `ShapeBounds.aabb()` works it out from the shape's own properties
+  (`shape_bounds_tests`: the same box as the debug mesh for every shape kind).
+- **The rest needs real geometry**: `MeshArraysCache` (ShadowMerge's surface cache, moved out and shared) reads a
+  surface back once and keeps it, in memory and on disk under a key that needs no GPU (`user://shadow_merge_cache`,
+  the folder ShadowMerge already used), so every later launch reads the file. `faces()` / `trimesh_shape()` /
+  `vertices()` stand in for `get_faces()` / `create_trimesh_shape()` / `surface_get_arrays()` in
+  `appliance_model` (key caps' footprints and shapes), `cover_slots._extent` and the DVD and CD trays
+  (`mesh_arrays_cache_tests`).
+- **Left reading the GPU**: `cassette_player._split_knob` (rebuilds meshes with every attribute, UVs too, which the
+  cache does not keep), `cover_slots.wear` (`create_convex_shape(true, true)` simplifies the hull the cover collides
+  with; raw points would be a physics change) and `cartridge._label_face_bounds` (needs to know a surface really has
+  normals): 6 reads a load. Meshes made at run time have no key and are read every launch.
+
+Arcade autosave, desktop, `mesh_get_surface ... synchronizations` warnings while it loads: **171 -> 8**, on a second
+launch as on a first once the cache has the room. An engine alternative was prototyped and measured (`perf-
+investigation` in `~/godot-perf`): ArrayMesh keeping the data it was loaded from and answering `surface_get_arrays()`
+with no read (0.03 ms desktop, 0.12 ms Quest, every stall gone), but it keeps every mesh, ~110-140 MB in this room,
+on a headset already swapping; the cache keeps only what is read.
+
 ## Metals on the headset's prop shader (2026-11-15)
 
 `PropLighting._translate` carried a prop's albedo, normal and emission onto `pbr_prop_unshaded` and dropped

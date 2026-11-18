@@ -69,9 +69,8 @@ const READS_PER_FRAME := 2
 
 ## Kill switch (a probe A/Bs it inside one process: launches differ by ~2 ms). Use set_enabled().
 static var enabled: bool = true
-## Where a surface read back once is kept, so the next launch builds its proxies from disk with no GPU read.
-## Only meshes loaded from a resource are kept (see _disk_key); a test points it at its own folder.
-static var cache_dir := "user://shadow_merge_cache"
+## (A surface read back once is kept in memory and on disk by MeshArraysCache, so the next launch builds its proxies
+## with no GPU read; the objects' own geometry reads share it.)
 
 static var _instance: ShadowMerge
 
@@ -84,15 +83,10 @@ var _next_scan := 0
 var _watch_keys: Array = []
 var _watch_i := 0
 var _watch_carry := 0.0
-## "mesh id:surface" -> [WeakRef mesh, PackedVector3Array verts, PackedVector3Array normals, PackedInt32Array indices]
-var _arrays: Dictionary = {}
 ## signature -> WeakRef(ArrayMesh): identical objects share one proxy mesh
 var _proxy_meshes: Dictionary = {}
 ## GPU reads this frame may still make (READS_PER_FRAME).
 var _reads_left := READS_PER_FRAME
-## Where surfaces came from: read back from the GPU, from the disk cache, written to it.
-var _counts := {"readbacks": 0, "disk_hits": 0, "disk_writes": 0}
-var _build_key := ""
 ## The counts as the queue last started filling (empty while it is empty): for _report_batch.
 var _batch: Dictionary = {}
 
@@ -108,7 +102,7 @@ static func stats() -> Dictionary:
 	var out := {"objects": 0, "proxies": 0, "parts": 0, "readbacks": 0, "disk_hits": 0, "disk_writes": 0}
 	if not is_instance_valid(_instance):
 		return out
-	out.merge(_instance._counts, true)
+	out.merge(MeshArraysCache.counts, true)
 	for rec: Dictionary in _instance._objects.values():
 		out["objects"] += 1
 		out["proxies"] += (rec["proxies"] as Array).size()
@@ -122,8 +116,6 @@ func _ready() -> void:
 	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	# Parts are often single-sided shells; a two-sided caster cannot leak light through an open back.
 	_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	# An exported build names itself; a checkout's meshes are told apart by their files' times (_disk_key).
-	_build_key = BuildInfo.describe() if OS.has_feature("template") else "dev"
 	get_tree().node_added.connect(_on_node_added)
 	get_tree().node_removed.connect(_on_node_removed)
 
@@ -163,7 +155,7 @@ func _process(delta: float) -> void:
 				_queue[id] = now + QUIET_MSEC
 	if not _queue.is_empty():
 		if _batch.is_empty():
-			_batch = _counts.duplicate()
+			_batch = MeshArraysCache.counts.duplicate()
 			_batch["at"] = now
 			_batch["objects"] = _objects.size()
 		var t0 := Time.get_ticks_usec()
@@ -185,10 +177,10 @@ func _process(delta: float) -> void:
 
 
 ## One line when the queue runs dry: how long it took and where its surfaces came from. A room opened on a warm
-## cache reads back nothing; a run of readbacks there means meshes the disk cache cannot name (_disk_key).
+## cache reads back nothing; a run of readbacks there means meshes the disk cache cannot name (MeshArraysCache._disk_key).
 func _report_batch(now: int) -> void:
-	var reads := int(_counts["readbacks"]) - int(_batch["readbacks"])
-	var hits := int(_counts["disk_hits"]) - int(_batch["disk_hits"])
+	var reads := int(MeshArraysCache.counts["readbacks"]) - int(_batch["readbacks"])
+	var hits := int(MeshArraysCache.counts["disk_hits"]) - int(_batch["disk_hits"])
 	if reads > 0 or hits > 0:
 		print("[ShadowMerge] %d objects merged in %d ms: %d surfaces read back from the GPU, %d from the disk cache" % [
 			_objects.size() - int(_batch["objects"]), now - int(_batch["at"]), reads, hits])
@@ -375,6 +367,8 @@ func _merge(obj: Node3D) -> void:
 			if mesh == null:
 				continue
 			_proxy_meshes[key] = weakref(mesh)
+			if _proxy_meshes.size() > 4096:
+				_prune_proxy_meshes()
 		var proxy := MeshInstance3D.new()
 		proxy.name = PROXY_NAME
 		proxy.mesh = mesh
@@ -476,141 +470,28 @@ func _sides(mi: MeshInstance3D) -> Vector2:
 	return Vector2(big, minf(local.x, minf(local.y, local.z)))
 
 
-## Have every surface of these meshes in hand, reading back from the GPU only what memory, a primitive's own
-## arrays and the disk cache cannot give, and no more than this frame's READS_PER_FRAME. False while any is
-## still missing.
+## Have every surface of these meshes in hand, reading back from the GPU only what memory and the disk cache
+## (MeshArraysCache) cannot give, and no more than this frame's READS_PER_FRAME. False while any is still missing.
 func _fetch(meshes: Array[Mesh]) -> bool:
 	var whole := true
 	for mesh in meshes:
 		for s in mesh.get_surface_count():
-			if not _known(mesh, s).is_empty():
+			if not MeshArraysCache.known(mesh, s).is_empty():
 				continue
 			if _reads_left <= 0:
 				whole = false
 				continue
 			_reads_left -= 1
-			_read_back(mesh, s)
+			MeshArraysCache.read_back(mesh, s)
 	return whole
 
 
 ## Positions, normals and indices of one surface; read back if nothing else has it (_fetch has, by now).
 func _surface(mesh: Mesh, s: int) -> Array:
-	var hit := _known(mesh, s)
-	return hit if not hit.is_empty() else _read_back(mesh, s)
+	return MeshArraysCache.surface(mesh, s)
 
 
-## One surface's arrays without touching the GPU: from memory or from the disk cache. Empty if only a read back
-## would do. (A primitive is no exception: PrimitiveMesh.get_mesh_arrays() is surface_get_arrays(0), a read back.)
-func _known(mesh: Mesh, s: int) -> Array:
-	var key := "%d:%d" % [mesh.get_instance_id(), s]
-	if _arrays.has(key):
-		var hit: Array = _arrays[key]
-		if (hit[0] as WeakRef).get_ref() == mesh:
-			return hit
-	var disk_key := _disk_key(mesh, s)
-	if disk_key.is_empty():
-		return []
-	var f := FileAccess.open(_disk_file(disk_key), FileAccess.READ)
-	if f == null:
-		return []
-	var stored: Variant = f.get_var()
-	f.close()
-	# A file from another key that hashed alike, or one cut short, is a miss: it is rewritten after the read.
-	if not (stored is Array) or (stored as Array).size() != 4 or not (stored[0] is String) or stored[0] != disk_key \
-			or not (stored[1] is PackedVector3Array) or not (stored[2] is PackedVector3Array) \
-			or not (stored[3] is PackedInt32Array):
-		return []
-	_counts["disk_hits"] += 1
-	var arr := []
-	arr.resize(Mesh.ARRAY_MAX)
-	arr[Mesh.ARRAY_VERTEX] = stored[1]
-	arr[Mesh.ARRAY_NORMAL] = stored[2]
-	arr[Mesh.ARRAY_INDEX] = stored[3]
-	return _keep(mesh, s, arr)
-
-
-## Read one surface back from the GPU (the stall READS_PER_FRAME meters) and keep it, on disk too if it can be
-## found again next launch.
-func _read_back(mesh: Mesh, s: int) -> Array:
-	_counts["readbacks"] += 1
-	var out := _keep(mesh, s, mesh.surface_get_arrays(s))
-	var disk_key := _disk_key(mesh, s)
-	if not disk_key.is_empty():
-		DirAccess.make_dir_recursive_absolute(cache_dir)
-		var f := FileAccess.open(_disk_file(disk_key), FileAccess.WRITE)
-		if f != null:
-			f.store_var([disk_key, out[1], out[2], out[3]])
-			f.close()
-			_counts["disk_writes"] += 1
-	return out
-
-
-## What names a surface across launches without asking the GPU, or "" for a mesh that cannot be found again (one
-## made at run time). A primitive is its class and stored properties under this engine. An ArrayMesh is its path
-## and what it keeps on the CPU — the surface's lengths and format, the mesh's box — and the build: an export's
-## own name, or in a checkout the time of the file the mesh came from, which a re-import changes.
-func _disk_key(mesh: Mesh, s: int) -> String:
-	if mesh is PrimitiveMesh:
-		return _primitive_key(mesh as PrimitiveMesh)
-	var am := mesh as ArrayMesh
-	if am == null or am.resource_path.is_empty():
-		return ""
-	var path := am.resource_path
-	var stamp := _build_key
-	if stamp == "dev":
-		var file := path.get_slice("::", 0)
-		stamp = str(FileAccess.get_modified_time(file)) if FileAccess.file_exists(file) else "0"
-	return "%s|%d|%d|%d|%d|%s|%s" % [path, s, am.surface_get_array_len(s), am.surface_get_array_index_len(s),
-		am.surface_get_format(s), am.get_aabb(), stamp]
-
-
-## Everything a primitive's triangles are made from: its class (and script), each stored property but its
-## material and the resource's own, and the engine that generates them.
-func _primitive_key(mesh: PrimitiveMesh) -> String:
-	var script := mesh.get_script() as Script
-	var parts := PackedStringArray(["primitive", Engine.get_version_info()["hash"], mesh.get_class(),
-		script.resource_path if script != null else ""])
-	for p: Dictionary in mesh.get_property_list():
-		var name: String = p["name"]
-		if not (int(p["usage"]) & PROPERTY_USAGE_STORAGE) or name == "material" or name.begins_with("resource_") \
-				or name == "script":
-			continue
-		parts.append("%s=%s" % [name, var_to_str(mesh.get(name))])
-	return "|".join(parts)
-
-
-func _disk_file(disk_key: String) -> String:
-	return cache_dir.path_join(disk_key.sha256_text().substr(0, 32) + ".bin")
-
-
-## Keep one surface's positions, normals and indices (made whole: an unindexed surface gets its own, missing
-## normals point up).
-func _keep(mesh: Mesh, s: int, arr: Array) -> Array:
-	var key := "%d:%d" % [mesh.get_instance_id(), s]
-	var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX] if arr.size() > Mesh.ARRAY_VERTEX and arr[Mesh.ARRAY_VERTEX] != null \
-		else PackedVector3Array()
-	var normals: PackedVector3Array = arr[Mesh.ARRAY_NORMAL] if arr.size() > Mesh.ARRAY_NORMAL and arr[Mesh.ARRAY_NORMAL] != null \
-		else PackedVector3Array()
-	var indices: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr.size() > Mesh.ARRAY_INDEX and arr[Mesh.ARRAY_INDEX] != null \
-		else PackedInt32Array()
-	if indices.is_empty():
-		indices.resize(verts.size())
-		for i in verts.size():
-			indices[i] = i
-	if normals.size() != verts.size():
-		normals.resize(verts.size())
-		normals.fill(Vector3.UP)
-	var out := [weakref(mesh), verts, normals, indices]
-	_arrays[key] = out
-	if _arrays.size() > 4096:
-		_prune_arrays()
-	return out
-
-
-func _prune_arrays() -> void:
-	for key: String in _arrays.keys():
-		if ((_arrays[key] as Array)[0] as WeakRef).get_ref() == null:
-			_arrays.erase(key)
+func _prune_proxy_meshes() -> void:
 	for key: String in _proxy_meshes.keys():
 		if (_proxy_meshes[key] as WeakRef).get_ref() == null:
 			_proxy_meshes.erase(key)

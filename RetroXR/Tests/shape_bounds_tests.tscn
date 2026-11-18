@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Tests/shape_bounds_tests.gd" id="1"]
+
+[node name="ShapeBoundsTests" type="Node"]
+script = ExtResource("1")

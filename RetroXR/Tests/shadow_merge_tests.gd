@@ -19,7 +19,7 @@ func _ready() -> void:
 	suite_tag = "shadow_merge"
 	ShadowMerge.enabled = true
 	# Never the player's own cache: a headless run outside run_tests.py has the real user://.
-	ShadowMerge.cache_dir = CACHE_DIR
+	MeshArraysCache.cache_dir = CACHE_DIR
 	_remove_dir(CACHE_DIR)
 	_merge = ShadowMerge.new()
 	add_child(_merge)
@@ -342,6 +342,7 @@ func _disk_case() -> void:
 
 ## A new ShadowMerge, as a launch has: nothing kept in memory.
 func _relaunch() -> void:
+	MeshArraysCache.reset()
 	_merge.free()
 	_merge = ShadowMerge.new()
 	add_child(_merge)

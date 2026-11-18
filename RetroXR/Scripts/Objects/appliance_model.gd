@@ -122,7 +122,7 @@ func adopt_button(button: VRButton, part_name: String, travel: float = 0.0015, e
 	button.depress_depth = travel
 	var shape := button.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if shape and exact:
-		shape.shape = key.mesh.create_trimesh_shape()
+		shape.shape = MeshArraysCache.trimesh_shape(key.mesh)    # no GPU read after the first launch
 		shape.transform = Transform3D.IDENTITY
 		button.press_gate = footprint_gate(cap, 0.0)      # no reach: a ring's keys are 0.6 mm apart
 		button.gate_holds = true
@@ -267,7 +267,7 @@ static func footprint_gate(cap: MeshInstance3D, reach: float = 0.001, hover: flo
 	var u := (face_axis + 1) % 3
 	var v := (face_axis + 2) % 3
 	var tris: Array[PackedVector2Array] = []
-	var faces := cap.mesh.get_faces()
+	var faces := MeshArraysCache.faces(cap.mesh)    # get_faces(), without its GPU read after the first launch
 	for i in range(0, faces.size(), 3):
 		var a := faces[i]
 		var b := faces[i + 1]

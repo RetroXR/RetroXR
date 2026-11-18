@@ -191,7 +191,7 @@ static func _piece_bounds(piece: CollisionShape3D) -> AABB:
 		for point: Vector3 in points:
 			box = box.expand(piece.transform * point)
 		return box
-	return piece.transform * shape.get_debug_mesh().get_aabb()
+	return piece.transform * ShapeBounds.aabb(shape)
 
 
 ## The bodies standing on top of the set, measured with the cabinet at `at_scale`.
