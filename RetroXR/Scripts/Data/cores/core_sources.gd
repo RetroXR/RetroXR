@@ -66,7 +66,7 @@ const SOURCES := {
 		# URL — see base_url. It is only the version to show when GitHub cannot be
 		# reached, so an offline player still sees something truthful rather than
 		# a blank.
-		"known_tag": "retroxr-dolphin-libretro-v15",
+		"known_tag": "retroxr-dolphin-libretro-v18",
 		"label": "Dolphin (retroXR build)",
 		# Per platform, because we only publish what we build. A platform absent
 		# here is not an error — the manager falls back to the buildbot for it.
@@ -111,7 +111,7 @@ const SOURCES := {
 	# name here fails silently, as a core that simply never downloads.
 	"mgba": {
 		"repo":  "RetroXR/mgba",
-		"known_tag": "retroxr-mgba-libretro-v10",
+		"known_tag": "retroxr-mgba-libretro-v11",
 		"label": "mGBA (retroXR build)",
 		"assets": {
 			"Windows": "mgba_libretro.dll.zip",
@@ -134,7 +134,7 @@ const SOURCES := {
 	# the fork is where it is built from all the same.
 	"play": {
 		"repo":  "RetroXR/Play-",
-		"known_tag": "retroxr-play-libretro-v2",
+		"known_tag": "retroxr-play-libretro-v4",
 		"label": "Play! (retroXR build)",
 		"assets": {
 			"Windows": "play_libretro.dll.zip",
@@ -220,7 +220,7 @@ const SOURCES := {
 	# tag beside the binary is what meets it.
 	"gambatte": {
 		"repo":  "RetroXR/gambatte-libretro",
-		"known_tag": "retroxr-gambatte-libretro-v6",
+		"known_tag": "retroxr-gambatte-libretro-v7",
 		"label": "gambatte (retroXR build)",
 		"assets": {
 			"Windows": "gambatte_libretro.dll.zip",
@@ -240,7 +240,7 @@ const SOURCES := {
 	# other change: a disabled Sega CD RAM cartridge reads as absent.
 	"genesis_plus_gx": {
 		"repo":  "RetroXR/Genesis-Plus-GX",
-		"known_tag": "retroxr-genesis_plus_gx-libretro-v4",
+		"known_tag": "retroxr-genesis_plus_gx-libretro-v7",
 		"label": "Genesis Plus GX (retroXR build)",
 		"assets": {
 			"Windows": "genesis_plus_gx_libretro.dll.zip",
@@ -359,7 +359,7 @@ const SOURCES := {
 	# binary — same arrangement as Dolphin and gambatte.
 	"pcsx_rearmed": {
 		"repo":  "RetroXR/pcsx_rearmed",
-		"known_tag": "retroxr-pcsx-rearmed-libretro-v8",
+		"known_tag": "retroxr-pcsx-rearmed-libretro-v9",
 		"label": "PCSX-ReARMed (retroXR build)",
 		"assets": {
 			"Windows": "pcsx_rearmed_libretro.dll.zip",
@@ -387,7 +387,7 @@ const SOURCES := {
 	# Beetle Saturn is GPLv2, so the source for these binaries sits on the tag.
 	"mednafen_saturn": {
 		"repo":  "RetroXR/beetle-saturn-libretro",
-		"known_tag": "retroxr-beetle-saturn-libretro-v5",
+		"known_tag": "retroxr-beetle-saturn-libretro-v6",
 		"label": "Beetle Saturn (retroXR build)",
 		"assets": {
 			"Windows": "mednafen_saturn_libretro.dll.zip",
@@ -520,7 +520,7 @@ const SOURCES := {
 	# flycast is GPLv2, so the source for these binaries sits on the tag.
 	"flycast": {
 		"repo":  "RetroXR/flycast",
-		"known_tag": "retroxr-flycast-libretro-v7",
+		"known_tag": "retroxr-flycast-libretro-v9",
 		"label": "Flycast (retroXR build)",
 		"assets": {
 			"Windows": "flycast_libretro.dll.zip",
@@ -531,7 +531,7 @@ const SOURCES := {
 	},
 	"snes9x": {
 		"repo":  "RetroXR/snes9x",
-		"known_tag": "retroxr-snes9x-libretro-v2",
+		"known_tag": "retroxr-snes9x-libretro-v5",
 		"label": "Snes9x (retroXR build)",
 		"assets": {
 			"Windows": "snes9x_libretro.dll.zip",
@@ -583,7 +583,7 @@ const SOURCES := {
 	# binary — same arrangement as Dolphin, gambatte and pcsx_rearmed.
 	"mupen64plus_next": {
 		"repo":  "RetroXR/mupen64plus-libretro-nx",
-		"known_tag": "retroxr-mupen64plus-next-libretro-v5",
+		"known_tag": "retroxr-mupen64plus-next-libretro-v8",
 		"label": "Mupen64Plus-Next (retroXR build)",
 		"assets": {
 			"Windows": "mupen64plus_next_libretro.dll.zip",
@@ -602,7 +602,7 @@ const SOURCES := {
 	# CoreRecommendations already names for nintendo_64 on Android.
 	"mupen64plus_next_gles3": {
 		"repo":  "RetroXR/mupen64plus-libretro-nx",
-		"known_tag": "retroxr-mupen64plus-next-libretro-v5",
+		"known_tag": "retroxr-mupen64plus-next-libretro-v8",
 		"label": "Mupen64Plus-Next GLES3 (retroXR build)",
 		"assets": {
 			"Android": "mupen64plus_next_gles3_libretro_android.so.zip",
