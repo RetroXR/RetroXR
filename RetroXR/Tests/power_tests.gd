@@ -1473,6 +1473,38 @@ func _test_standards() -> void:
 		(plate.get_node("TopPort") as PowerPort).drop_object()
 		await _wait(2)
 		await _clear()
+	# A barrel adapter with no plug model of its own wears the game's generic plug (an
+	# L one where its plug is much taller than wide), its body in the cord's colour; a
+	# keyed plug keeps the primitive.
+	_eq(DcPlugShape.model_path("eiaj_03", Vector3(0.0095, 0.0255, 0.0225)).get_file(), "barrel_plug_eiaj03_l.glb",
+		"standards/a tall EIAJ-03 plug is the L one")
+	_eq(DcPlugShape.model_path("barrel_3_5x1_35", Vector3(0.0079, 0.0079, 0.0335)).get_file(), "barrel_plug_3513.glb",
+		"standards/a round 3.5 mm plug is the straight one")
+	_eq(DcPlugShape.model_path("gc_dc_plug", Vector3(0.0178, 0.014, 0.0565)), "", "standards/a keyed plug has none")
+	for key: String in DcPlugShape.MODELS:
+		for tail: String in ["", "_l"]:
+			var path := DcPlugShape.MODEL_DIR + "barrel_plug_%s%s.glb" % [DcPlugShape.MODELS[key], tail]
+			_ok(ResourceLoader.exists(path), "standards/%s is in the game" % path.get_file())
+	_new_room()
+	var sms := _brick("sms_ac_adapter", "usa", Vector3(0.5, 0.3, 0.5))
+	await _wait(4)
+	var worn := sms.dc_plug.get_node_or_null("Model") as Node3D
+	_ok(worn != null and worn.scene_file_path.ends_with("barrel_plug_5521.glb"),
+		"standards/the MK-3025 wears the generic 5.5 x 2.1 plug", worn.scene_file_path if worn != null else "none")
+	_ok(not (sms.dc_plug.get_node("PlugTip") as Node3D).visible, "standards/and not the primitive")
+	var tinted := false
+	if worn != null:
+		for node: Node in worn.find_children("*", "MeshInstance3D", true, false):
+			var mi := node as MeshInstance3D
+			for i in mi.get_surface_override_material_count():
+				var m := mi.get_surface_override_material(i) as StandardMaterial3D
+				if m != null and m.albedo_color.is_equal_approx(Color8(26, 26, 28)):
+					tinted = true
+	_ok(tinted, "standards/its body takes the cord's colour")
+	var exit := sms.dc_plug.cable_anchor
+	_ok(exit.z < -0.02, "standards/its lead leaves the plug's back (CordExit)", str(exit))
+	sms.drop_and_free()
+	await _clear()
 
 
 ## The 32X takes its own adapter (ExpansionPower): a Genesis with an unpowered 32X

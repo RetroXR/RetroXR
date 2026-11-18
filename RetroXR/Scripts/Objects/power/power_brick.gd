@@ -443,12 +443,18 @@ func _make_dc_plug() -> void:
 	var size := _mm(_spec.get("plug_mm", [9.0, 9.0, 35.0]))
 	var tip := dc_plug.get_node("PlugTip") as MeshInstance3D
 	var plug_scene := _scene_of(str(_spec.get("plug_model", "")), "plug_model")
+	# No model of its own: a barrel standard wears the game's generic plug.
+	var generic := DcPlugShape.model_path(dc_plug.connector, size) if plug_scene == null else ""
+	if not generic.is_empty():
+		plug_scene = load(generic) as PackedScene
 	if plug_scene != null:
 		# The plug's model: its origin the face that stops against the jack, the barrel
 		# along +Z (the game's plug frame), the lead out of its CordExit.
 		tip.visible = false
 		_wear(dc_plug, plug_scene)
 		var model := dc_plug.get_node("Model") as Node3D
+		if not generic.is_empty():
+			_tint_generic_plug(model)
 		var exit := model.find_child("CordExit", true, false) as Node3D
 		dc_plug.cable_anchor = _local_to(dc_plug, exit) if exit != null \
 			else Vector3(0, 0, -size.z)
@@ -467,6 +473,25 @@ func _make_dc_plug() -> void:
 		dc_plug.add_child(exit)
 	exit.transform = shape["exit"]
 	dc_plug._derive_cable_anchor()
+
+
+## The generic plug's overmould in the row's cord colour (the PSone's blue-gray);
+## a row without one keeps the model's black.
+func _tint_generic_plug(model: Node3D) -> void:
+	var colour: Variant = _spec.get("cord", null)
+	if not colour is Color:
+		return
+	for node: Node in model.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		for i in mi.mesh.get_surface_count():
+			var mat := mi.mesh.surface_get_material(i) as StandardMaterial3D
+			if mat == null or mat.resource_name != DcPlugShape.MODEL_BODY:
+				continue
+			var own := mat.duplicate() as StandardMaterial3D
+			own.albedo_color = colour
+			mi.set_surface_override_material(i, own)
 
 
 ## The N64's module: the DC plug IS the body, docking into the console's back.

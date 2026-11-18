@@ -42,6 +42,29 @@ const HOLE := Color(0.03, 0.03, 0.035)
 const RIBS := 4
 const RIB_PROUD := 0.35
 const SEGMENTS := 20
+## The generic plug models (RetroXR-models generic/barrel-plug), by barrel standard:
+## barrel_plug_<key>.glb straight, barrel_plug_<key>_l.glb right-angle.
+const MODEL_DIR := "res://imported-assets/connectors/barrel_plug/"
+const MODELS := {
+	"barrel_5_5x2_1": "5521",
+	"barrel_5_5x2_5": "5525",
+	"barrel_3_5x1_35": "3513",
+	"eiaj_01": "eiaj01",
+	"eiaj_02": "eiaj02",
+	"eiaj_03": "eiaj03",
+}
+## The overmould's material in those models, which takes the adapter's cord colour.
+const MODEL_BODY := "BPLUG_Body"
+
+
+## The generic model for a barrel `connector` at `size` (the row's plug_mm, m), its
+## L plug where the primitive would draw one; "" for a keyed plug.
+static func model_path(connector: String, size: Vector3) -> String:
+	if not MODELS.has(connector):
+		return ""
+	var l_plug := size.y > size.x * 1.6
+	var path := MODEL_DIR + "barrel_plug_%s%s.glb" % [MODELS[connector], "_l" if l_plug else ""]
+	return path if ResourceLoader.exists(path) else ""
 
 
 ## The plug for `connector` at `size` (m, the row's plug_mm): {mesh, body (its
