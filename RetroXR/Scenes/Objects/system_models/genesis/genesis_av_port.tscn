@@ -45,7 +45,7 @@ transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.006)
 mesh = SubResource("CylinderMesh_plug_ghost")
 surface_material_override/0 = SubResource("Mat_plug_ghost")
 
-; The socket drawn, for a surface that moulds none (Tools/gen/gen_genesis_av_jack.gd):
+; The socket drawn, for a surface that moulds none (DevTools/gen/gen_genesis_av_jack.gd):
 ; the primitive box standing in for a Genesis and a 32X wearing its plain box turn it on
 ; (MultiAvPort.draw_jack). HIDDEN here, because the Genesis's shell and the 32X's scanned
 ; one mould their own and a second drawn over either would z-fight it. Its origin is the

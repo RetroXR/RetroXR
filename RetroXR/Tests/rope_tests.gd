@@ -5,8 +5,8 @@
 ##
 ## Exits 0 when everything passes, 1 otherwise, so it can gate a commit.
 ##
-## The rope already has two BIT-EXACT oracles — `Tools/rope/rope_bench.tscn --settle`
-## and `Tools/rope/rope_stress.tscn` — and they are excellent at the one thing they do:
+## The rope already has two BIT-EXACT oracles — `DevTools/rope/rope_bench.tscn --settle`
+## and `DevTools/rope/rope_stress.tscn` — and they are excellent at the one thing they do:
 ## catching arithmetic drift. Neither can tell you whether a cord lying on a table
 ## corner jitters, whether one draped over a pipe falls through it, or whether a
 ## lead dropped on a shelf tunnels. Those are the failures a player sees, and
@@ -1908,7 +1908,7 @@ func _group_edges() -> void:
 # half a millimetre both times. A span swaying after its end was moved has
 # second differences as large, but they keep their direction for many ticks.
 #
-# Each case is a bug that shipped until 2026-11-10 (Tools/rope/rope_jitter_probe
+# Each case is a bug that shipped until 2026-11-10 (DevTools/rope/rope_jitter_probe
 # has the same layouts over five starts each, and the numbers before and after):
 #   * round a square bar: a particle past an edge stood on the plane of the face
 #     it had left, in mid air, then dropped (35 chattering ticks of 718, 10 mm)

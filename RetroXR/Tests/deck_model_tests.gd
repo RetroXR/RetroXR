@@ -5,7 +5,7 @@
 ##   godot --headless --path RetroXR res://Tests/deck_model_tests.tscn
 ##   godot --headless --path RetroXR res://Tests/deck_model_tests.tscn -- --only=vcr/tape
 ##
-## Exits non-zero if anything fails. How the decks LOOK is Tools/av/deck_model_probe, windowed.
+## Exits non-zero if anything fails. How the decks LOOK is DevTools/av/deck_model_probe, windowed.
 extends "res://Tests/test_suite.gd"
 
 const VCR_SCENE := preload("res://Scenes/Objects/appliances/vcr_player.tscn")

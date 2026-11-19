@@ -114,7 +114,7 @@ surface_material_override/0 = SubResource("Mat_socket")
 ;
 ; A half turn is its own transpose, so the row-versus-column trap a .tscn basis
 ; usually sets cannot bite here. It is asserted anyway, by measuring where a
-; seated pak's prong actually ends up: Tools/input/n64_pak_probe.tscn.
+; seated pak's prong actually ends up: DevTools/input/n64_pak_probe.tscn.
 ;
 ; snap_require narrows it to plugs and N64PakPort narrows it again to the
 ; "n64_pak" group, so a cable end offered here is refused.

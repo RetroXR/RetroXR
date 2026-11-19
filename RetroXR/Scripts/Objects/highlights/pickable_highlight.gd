@@ -171,7 +171,7 @@ func _collect_overlays(node: Node) -> void:
 			# copies were built in its _ready, and a restore paid for all of them at
 			# once: 1,372 traces in a 151-object room, each surface_get_arrays a
 			# round trip to a render thread busy uploading that room's textures --
-			# the largest single cost of the restore (Tools/perf/restore_perf_probe,
+			# the largest single cost of the restore (DevTools/perf/restore_perf_probe,
 			# 2026-11-10). Most objects in a room are never outlined at all.
 			overlay.mesh = null
 			overlay.transform = parent_inv * src.global_transform

@@ -102,7 +102,7 @@ however much time passes. Four bugs came out of the same code, each with a selft
 
 `tools/mbc3_rtc_selftest.c` in the fork runs the real `mbc3_rtc.c` over a hand-moved clock and a
 fake storage (the build line is in its header); each of the six fixes, reverted, fails exactly
-its own cases. `Tools/cores/transferpak_clock_probe` is the end-to-end check, against Pokémon
+its own cases. `DevTools/cores/transferpak_clock_probe` is the end-to-end check, against Pokémon
 Stadium (USA) and `rtc_probe`'s cartridge in port 0. **Its oracle is the savestate**, which
 writes per port the 28 fingerprint bytes, five `uint32`s, the clock's `int64 last_time` at +48
 and its counters at +56. Measured 2026-09-16: `fresh` holds the current time and writes a
@@ -115,7 +115,7 @@ the case — and the fork change reaches players only with a new release and a `
 platforms (desktop was sameboy until 2026-10-20), and the pak on mupen64plus — which would take a
 converter between the layouts above.
 
-**Measured 2026-09-16** with `Tools/cores/rtc_probe`, which builds its own cartridge (MBC3 +
+**Measured 2026-09-16** with `DevTools/cores/rtc_probe`, which builds its own cartridge (MBC3 +
 TIMER + RAM + BATTERY) whose program sets the clock to day 100 on the first boot and copies the
 day it reads back into battery RAM on the next, in a NEW process. The oracle is what the game
 saw. gambatte, sameboy and mGBA all read day 100; with the bridge's restore skipped they read
@@ -127,9 +127,9 @@ live clock ran from host time, saved a Unix time of `-1`, and read back day 87. 
 first, and so does the probe now.
 
 ```bash
-"$godot" --headless --path RetroXR res://Tools/cores/rtc_probe.tscn -- \
+"$godot" --headless --path RetroXR res://DevTools/cores/rtc_probe.tscn -- \
   --root=<throwaway root with cores/gambatte_libretro.dll> --core=gambatte --leg=set
-"$godot" --headless --path RetroXR res://Tools/cores/rtc_probe.tscn -- \
+"$godot" --headless --path RetroXR res://DevTools/cores/rtc_probe.tscn -- \
   --root=<same root> --core=gambatte --leg=read
 ```
 

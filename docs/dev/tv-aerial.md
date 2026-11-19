@@ -238,17 +238,17 @@ disabled under a line saying why.
   broadcast for a tuner from inside the suite.
 - `StubTuner` overrides `_start_current`; the base reports "no libVLC" as a fault on the
   glass, which changes the OSD banner under test.
-- Probes, windowed: `Tools/av/antenna_probe.tscn` (three photos, each beside a log line
+- Probes, windowed: `DevTools/av/antenna_probe.tscn` (three photos, each beside a log line
   saying what the SET believes — a lead that looks seated is not proof),
-  `Tools/av/tv_panel_probe.tscn -- --ui=antenna [--offline] [--loose] [--tab=0|1]`,
-  `Tools/av/tv_channel_probe.tscn` (the only end-to-end check against a real HDHomeRun),
-  `Tools/models/famicom_render_probe.tscn` (CH1 and CH2, both positions).
+  `DevTools/av/tv_panel_probe.tscn -- --ui=antenna [--offline] [--loose] [--tab=0|1]`,
+  `DevTools/av/tv_channel_probe.tscn` (the only end-to-end check against a real HDHomeRun),
+  `DevTools/models/famicom_render_probe.tscn` (CH1 and CH2, both positions).
 - **OWED:** nobody has watched a real broadcast through an Antenna yet.
   `tv_channel_probe -- --mode=live` with the HDHomeRun on the LAN is that check.
 
 ### Geometry
 
-`Tools/gen/gen_antenna.gd` → `antenna_body.res`: 150 × 32 × 100 mm base, rods to 0.39 m
+`DevTools/gen/gen_antenna.gd` → `antenna_body.res`: 150 × 32 × 100 mm base, rods to 0.39 m
 over the origin, 476 mm across. Origin at the centre of the BASE so it stands on a set. Two
 surfaces (plastic, plated). Everything round is `_tube`, and its winding only holds while
 `(u, dir, w)` is a RIGHT-HANDED frame — get it backwards and a 3 mm rod renders inside out,

@@ -4,7 +4,7 @@
 ## that reaches it (an omni up to six faces, a directional light one per split). A cabinet is about a
 ## hundred and ninety parts and a room has several such lights: the buttons, the stick, the terminals
 ## and the chips of a board are most of the casters and cast shadows a few pixels wide. Measured on one
-## cabinet with its bay and board (Tools/perf/arcade_mesh_census): 134 shadow draws per light, 71 of
+## cabinet with its bay and board (DevTools/perf/arcade_mesh_census): 134 shadow draws per light, 71 of
 ## them in parts under 10 cm. The cabinet's own shell, the deck and the door keep theirs.
 class_name ArcadeShadowBudget
 extends RefCounted

@@ -112,7 +112,7 @@ An exit door's panic bar, first meant for the Starlight Arcade's STAFF ONLY door
   slider's knob mesh); a knob with any Node3D (it goes under KnobPivot).
 - Checks: `door_tests` `bar/` and `closer/`. Mutations that go red: no keep-awake, a leaf
   that follows the hand both ways, no closer, a 0.3 threshold. How it looks:
-  `Tools/room/door_probe` (windowed, `--opener=bar|knob --deg=`).
+  `DevTools/room/door_probe` (windowed, `--opener=bar|knob --deg=`).
 
 ## Saved and synced
 

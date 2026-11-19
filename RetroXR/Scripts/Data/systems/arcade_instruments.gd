@@ -32,7 +32,7 @@ const DECK_EXTRA := {DECK: 0.0, POPN: 0.0, GUITAR: 0.0, DRUMS: 0.20, TAIKO: 0.25
 ## The gap between two players' panels.
 const PANEL_GAP := 0.03
 
-## What a player holds that is wired to the cabinet, by kind: the scene (Tools/gen/gen_arcade_drumstick.gd) and how long its cord is. A panel's `gear` lists where each one rests (ArcadeCabinetBuilder builds
+## What a player holds that is wired to the cabinet, by kind: the scene (DevTools/gen/gen_arcade_drumstick.gd) and how long its cord is. A panel's `gear` lists where each one rests (ArcadeCabinetBuilder builds
 ## the cradle and the `GearRest` marker the cabinet finds them by; ArcadeGearRack spawns, cords and holsters them).
 const GEAR := {
 	"drumstick": {"scene": "res://Scenes/Objects/peripherals/arcade_drumstick.tscn", "cord": 0.95},

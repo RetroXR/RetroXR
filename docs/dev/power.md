@@ -25,7 +25,7 @@ because nothing in it could ever be plugged in. The Arcade Room and the bedroom 
 | `CaptiveMainsCord` | `Scripts/Objects/cables/power/captive_mains_cord.gd` | A deck's or the amplifier's own cord from its `PowerCordExit`, plug in the region's two-pin (or, grounded, three-pin) shape. Child of the current scene, freed with its host, never `spawned`. |
 | `ApplianceMains` | `Scripts/Objects/power/appliance_mains.gd` | `hook_up(host)` gives a deck or the amplifier its PowerInput and its own cord; `hook_up_inlet(host, search, "c8"/"c14")` gives a set (C8) its inlet where the model's cord would leave; `follow(deck, set_input)` for a built-in deck. |
 | `PowerBrickCatalog` / `PowerBrick` | `Scripts/Data/catalogs/power_brick_catalog.gd`, `Scripts/Objects/power/power_brick.gd`, `Scenes/Objects/power/power_brick.tscn` | Every AC adapter as a primitive built from its row: wall wart, in-line, inlet, dock (N64), battery pack (DMG-03), battery case (DMG-05, its own C-cell bay). Its leads take the row's `cord`: the real part's colour, read off the RetroXR-models item's `*_Cord` material (black for most; the Wii's and 3DS's light gray, the PSone's blue-gray; the DMG-03's is black by its research notes, though its plug is gray). |
-| `BatteryBay` | `Scripts/Objects/power/battery_bay.gd` | A primitive handheld's compartment from its `bay` row, CUT INTO the body (2026-11-01): the body's box becomes the same box with a pocket in its back (`pocketed_box`), the cells inside, contacts, `BatteryAA<n>` seats (CellSlots) and a lift-off cover per compartment (CoverSlots) flush with the back, in the shell's colour. A seated cover is aimed at by a box of its own width standing `POINTER_REACH` (7 mm) out of the back, past the console's grab box (body + 5 mm), or the desktop ray and the laser took the console instead (`Tools/room/battery_bay_probe`, which checks both). |
+| `BatteryBay` | `Scripts/Objects/power/battery_bay.gd` | A primitive handheld's compartment from its `bay` row, CUT INTO the body (2026-11-01): the body's box becomes the same box with a pocket in its back (`pocketed_box`), the cells inside, contacts, `BatteryAA<n>` seats (CellSlots) and a lift-off cover per compartment (CoverSlots) flush with the back, in the shell's colour. A seated cover is aimed at by a box of its own width standing `POINTER_REACH` (7 mm) out of the back, past the console's grab box (body + 5 mm), or the desktop ray and the laser took the console instead (`DevTools/room/battery_bay_probe`, which checks both). |
 | `Subwoofer` / `RockerSwitch` | `Scripts/Objects/audio/subwoofer.gd`, `Scripts/Objects/widgets/rocker_switch.gd` | The RETRO XR subwoofer's own cord (`ApplianceMains.hook_up` from its model's `PowerCordExit`) and its LATCHING rocker: a `VRLever` that rests only at its ends (snaps to the nearer when let go), pushed by a fingertip on either half (push only: drawing the finger back does not pull it), toggled by a press of the ray, saved and synced as a lever. `is_sounding()` = rocker ON and the supply live; SpeakerRig obeys it (surround.md). Starts ON. |
 | `PowerMenuRows` | `Scripts/UI/panels/power_menu_rows.gd` | The Power section of a device's System tab: status, supply line, Show Power Cord. |
 | `VbPowerUnit` | `Scripts/Objects/power/vb_power_unit.gd`, `Scenes/Objects/power/vb_battery_pack.tscn`, `vb_ac_tap.tscn` | The Virtual Boy's VUE-007 battery pack (six AA behind an end lid) and VUE-011 AC adapter tap (a DC jack), each a primitive of the pack's measured outline that clips onto the controller's `PackMount`. |
@@ -155,7 +155,7 @@ because nothing in it could ever be plugged in. The Arcade Room and the bedroom 
   Printer** runs on six AA only, no jack (Nintendo's support page): `GbPrinter` builds a
   BatteryBay under its body (`BATTERY_BAY`, cover `gb_printer_battery_cover`), refuses to
   switch on without all six, and goes off when one comes out. `power_tests expansion/`
-  `units/`, `Tools/room/expansion_power_probe` (windowed). **Each unit's adapter is on
+  `units/`, `DevTools/room/expansion_power_probe` (windowed). **Each unit's adapter is on
   the card it is spawned from** (2026-11-03, `SpawnCatalog._unit_power_items`): an
   expansion's own card (sega32x, segacd, fds) returns before the console path that lists
   adapters, so the 32X's card offered a unit that will not start and not the MK-2103.
@@ -278,11 +278,11 @@ because nothing in it could ever be plugged in. The Arcade Room and the bedroom 
   no controller, an empty pack, the lid, five cells and six under a switch left ON, the
   pack pulled, the tap and the SNES adapter, the controller unplugged, a save round trip
   and an old save, Japan's tap).
-- `Tools/room/power_probe` (windowed): unplugged / plugged in / the outlet close up / the
+- `DevTools/room/power_probe` (windowed): unplugged / plugged in / the outlet close up / the
   set's plug pulled (frames for an mp4) / the cord hidden / a Game Boy's bay shut, open and
   full / the set's System tab. With mods mounted, a Game Boy may wear a mod's shell and its
   own bay; the primitives' bays render under `res://Tests/` (no mods).
-- `Tools/room/vb_power_probe` (windowed): a Virtual Boy controller face down with its pack
+- `DevTools/room/vb_power_probe` (windowed): a Virtual Boy controller face down with its pack
   on, the pack off with its lid off and six cells in (front layer's + ends at the lid),
   and the tap on the controller with the SNS-002's plug in its jack.
 

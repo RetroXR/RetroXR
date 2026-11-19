@@ -87,9 +87,9 @@ so only light and view move them. Two things it took:
 python Tools/gen/gen_n64_cart_colors.py                       # regenerate the table
 python Tools/gen/gen_n64_cart_colors.py --check Z:/roms/n64   # prove it against real ROMs
 "$godot" --headless --path RetroXR res://Tests/n64_cart_tests.tscn
-"$godot" --path RetroXR res://Tools/models/n64_cart_color_demo.tscn    # interactive
+"$godot" --path RetroXR res://DevTools/models/n64_cart_color_demo.tscn    # interactive
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-  res://Tools/models/n64_cart_color_demo.tscn -- --out=<dir> [--stills] [--rom=<file.z64> ...]
+  res://DevTools/models/n64_cart_color_demo.tscn -- --out=<dir> [--stills] [--rom=<file.z64> ...]
 ```
 
 **A normal-mapped triangle with no UV area shades black, and only on some faces.** As

@@ -154,7 +154,7 @@ Refused rather than guessed at in `Qcow2Image`: encryption, a backing file, comp
 clusters, an external data file, extended L2 entries. The dirty bit is accepted — it is about
 refcounts, which nothing reads.
 
-**Measured 2026-09-19**, `Tools/cores/xbox_boot_probe`, xemu `9d29e0b3c6` on Windows (RTX
+**Measured 2026-09-19**, `DevTools/cores/xbox_boot_probe`, xemu `9d29e0b3c6` on Windows (RTX
 5070 Ti, GL renderer), each leg its own process from a throwaway root holding the pristine
 4.5 MB disk:
 
@@ -170,9 +170,9 @@ the run.
 
 ```bash
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-  res://Tools/cores/xbox_boot_probe.tscn -- --root=<throwaway root> \
+  res://DevTools/cores/xbox_boot_probe.tscn -- --root=<throwaway root> \
   --rom="<disc>.iso" --at=8,20,35,50 --press=38:start,42:a --shot=C:/tmp/xbox.png
-"$godot" --headless --path RetroXR res://Tools/cores/xbox_saves_probe.tscn -- \
+"$godot" --headless --path RetroXR res://DevTools/cores/xbox_saves_probe.tscn -- \
   --iso="<disc>.iso" --hdd="<a COPY of xbox_hdd.qcow2>" --zip=C:/tmp/saves.zip
 ```
 
@@ -347,7 +347,7 @@ Then `03a3fb9ea2`, which has both slots and the three messages, with Conker:
 
 ```bash
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-  res://Tools/cores/xbox_boot_probe.tscn -- --root=<throwaway root> --rom="<disc>.iso" \
+  res://DevTools/cores/xbox_boot_probe.tscn -- --root=<throwaway root> --rom="<disc>.iso" \
   --unit=1A,1B [--unit-save | --unit-from=<a qcow2 with that game's saves>] \
   --at=58,66 --press=26:x,30:x,34:x,38:x,42:x,50:down,52:down,54:b --shot=C:/tmp/mu.png
 ```

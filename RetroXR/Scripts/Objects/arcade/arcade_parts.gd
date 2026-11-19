@@ -1,7 +1,7 @@
 ## ArcadeParts — the primitives an arcade cabinet is built from: a material, a node, a box, a cylinder,
 ## a quad.
 ##
-## One implementation for the scenes baked out of band (Tools/gen/*: ArcadeGenUtil delegates here) and
+## One implementation for the scenes baked out of band (DevTools/gen/*: ArcadeGenUtil delegates here) and
 ## for the parts a cabinet builds at run time when it follows the game in its bay (ArcadeCabinetBuilder,
 ## "The cabinet follows the game" in docs/dev/arcade.md). `root` is the node every part is owned by so a
 ## baked scene packs it; at run time it is null and nothing is packed.

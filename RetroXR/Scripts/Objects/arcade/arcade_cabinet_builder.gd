@@ -1,6 +1,6 @@
 ## ArcadeCabinetBuilder — builds an arcade cabinet's nodes from a spec (ArcadeCabinetSpecs).
 ##
-## The same code bakes the shipped scenes out of band (Tools/gen/gen_arcade_cabinet.gd, `bake`) and
+## The same code bakes the shipped scenes out of band (DevTools/gen/gen_arcade_cabinet.gd, `bake`) and
 ## builds a cabinet's FORM again in the room when the game in its bay wants another one
 ## (RetroSystemModelArcadeCabinet.morph_to): the shell, the monitor, the control deck and its panels,
 ## the coin doors, the front sockets or the guns' holsters, the pedal. What the machine is wired to
@@ -51,7 +51,7 @@ const SCRIPTS := {
 	"seat_trigger": "res://Scripts/Objects/room/seat_trigger.gd",
 }
 
-## The rifle a `rifle` gun cabinet rests on its post (Tools/gen/gen_arcade_gun.gd `--variant=rifle`).
+## The rifle a `rifle` gun cabinet rests on its post (DevTools/gen/gen_arcade_gun.gd `--variant=rifle`).
 const RIFLE_SCENE := "res://Scenes/Objects/peripherals/arcade_light_rifle.tscn"
 
 const BUTTON_COLORS := [

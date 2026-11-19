@@ -47,7 +47,7 @@ size = Vector3(0.0257, 0.018, 0.0352)
 bounce = 0.0
 friction = 0.9
 
-; The RXR-003's fitted phono plug box (Tools/rope/plug_shape_probe).
+; The RXR-003's fitted phono plug box (DevTools/rope/plug_shape_probe).
 [sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
 size = Vector3(0.0144, 0.0144, 0.054)
 

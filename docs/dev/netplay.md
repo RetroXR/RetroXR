@@ -54,13 +54,13 @@ NetworkManagers told different mods through `mods_override`) are the group; the 
 in `mods.md`.
 
 What no suite here can cover is a real core's arithmetic. That is
-`Tools/netplay/netplay_spike.gd`, and it now has a **cross-machine leg**, which is the
+`DevTools/netplay/netplay_spike.gd`, and it now has a **cross-machine leg**, which is the
 only thing that tests the one payload lockstep actually puts on the wire — a
 savestate, shipped for a late join or a desync resync:
 
 ```bash
-machine 1:  ... res://Tools/netplay/netplay_spike.tscn -- --spike-state-out=Z:/np.bin
-machine 2:  ... res://Tools/netplay/netplay_spike.tscn -- --spike-state-in=Z:/np.bin
+machine 1:  ... res://DevTools/netplay/netplay_spike.tscn -- --spike-state-out=Z:/np.bin
+machine 2:  ... res://DevTools/netplay/netplay_spike.tscn -- --spike-state-in=Z:/np.bin
 ```
 
 Machine 1 writes its state, the frame, its core identity and its whole phase-A
@@ -118,13 +118,13 @@ identity never arrived in 2888 ticks — and the symptom is a 10 s timeout sayin
 "not measured yet" rather than as a difference; at cold start both peers are
 usually 0 and the version comparison carries the weight.
 
-`RetroXR/Tools/netplay/core_identity_probe.tscn` is the guard for all of that, and it
+`RetroXR/DevTools/netplay/core_identity_probe.tscn` is the guard for all of that, and it
 needs a real core so it stays a probe. It runs the same core twice, gated (a
 netplay cold start: identity must arrive with ZERO frames run) and ungated (the
 size must really get measured), and exits non-zero.
 
 ```bash
-"$godot" --headless --path RetroXR res://Tools/netplay/core_identity_probe.tscn -- \
+"$godot" --headless --path RetroXR res://DevTools/netplay/core_identity_probe.tscn -- \
   --ident-core=fceumm "--ident-rom=$HOME/retroxr/roms/nes/rom.nes"
 ```
 
@@ -225,12 +225,12 @@ Two things this had to get right, and both are the same rule:
   that frame to any core. `link_cable._resolve` hands the decision to the host
   instead of joining on the spot whenever a hand moves.
 
-`RetroXR/Tools/netplay/netplay_link_probe.tscn` is the real-core half — two gambatte
+`RetroXR/DevTools/netplay/netplay_link_probe.tscn` is the real-core half — two gambatte
 Game Boys, the real bus, ROMs from `Tools/gen/gen_gblink_rom.py`:
 
 ```bash
-python Tools/gen/gen_gblink_rom.py     # once, into RetroXR/Tools/gblink/
-"$godot" --headless --path RetroXR res://Tools/netplay/netplay_link_probe.tscn
+python Tools/gen/gen_gblink_rom.py     # once, into RetroXR/DevTools/fixtures/gblink/
+"$godot" --headless --path RetroXR res://DevTools/netplay/netplay_link_probe.tscn
 ```
 
 Its two legs pull opposite ways and both must hold. Fed on both machines, the
@@ -240,7 +240,7 @@ stops dead.** That second leg is the reproduction, and a green there would mean
 the bus had stopped waiting, which is worse than the hang: a cabled netplay pair
 would desync instead of stalling.
 
-`RetroXR/Tools/link/gc_gba_link_probe.tscn` is the same thing for the ASYMMETRIC
+`RetroXR/DevTools/link/gc_gba_link_probe.tscn` is the same thing for the ASYMMETRIC
 lead, which had been reasoned about and unit-tested and never once run with the
 cores that actually speak the JOY bus. It wants Dolphin, mGBA and two commercial
 ROMs, so it is a probe. It reproduces what `GcGbaCable` does on seating, in
@@ -248,8 +248,8 @@ order: `SetControllerPortDevice(port, (7 << 8) | 0)` then
 `LinkConnect(gba, console_port, GBA_JOY_PORT)`.
 
 ```bash
-"$godot" --headless --path RetroXR res://Tools/link/gc_gba_link_probe.tscn
-"$godot" --headless --path RetroXR res://Tools/link/gc_gba_link_probe.tscn -- --gba-empty
+"$godot" --headless --path RetroXR res://DevTools/link/gc_gba_link_probe.tscn
+"$godot" --headless --path RetroXR res://DevTools/link/gc_gba_link_probe.tscn -- --gba-empty
 ```
 
 First run, 2026-08-21, Four Swords Adventures against Super Mario Advance:
@@ -339,10 +339,10 @@ re-anchored every bus on ANY cable change (now it keeps a bus whose members did
 not change) while leaving a LOOSE endpoint's stale origin (now re-anchored).
 
 **Evidence** (Warbirds, two Lynxes, 2800 frames, windows x86_64):
-`Tools/netplay/lynx_rollback_probe` (`--leg=rb|ref|solo|compare`, one per
+`DevTools/netplay/lynx_rollback_probe` (`--leg=rb|ref|solo|compare`, one per
 process): group rollback with the far pad confirmed 67 ms late equals plain
 lockstep at all 186 checkpoints, 8 group rewinds, in flight; a mutant that skips
-the bus restore diverges at the first rewind. `Tools/netplay/lynx_session_probe`
+the bus restore diverges at the first rewind. `DevTools/netplay/lynx_session_probe`
 (`--mode=rollback|lockstep`): two NetworkManagers over loopback ENet, each with
 two `system.tscn` Lynxes and the catalog's ComLynx Cable seated -- 44 group
 rewinds, no desync reported, both peers' CRCs of both machines equal at all 102
@@ -409,7 +409,7 @@ because which of the four a build has varies (no dynarec thread in a Lightrec
 build), and a frontend pinning a name would refuse a build for not declaring an
 option it cannot have.
 
-**Evidence** (WipEout (USA), `Tools/netplay/psx_rollback_probe`, the Lynx probe's
+**Evidence** (WipEout (USA), `DevTools/netplay/psx_rollback_probe`, the Lynx probe's
 legs and oracle driving two PlayStations through `psx_link_probe`'s menu walk
 into a two-player race, `--leg=rb|ref|solo|compare`, one per process):
 
@@ -565,13 +565,13 @@ stub session (`ir_tests` `netplay/`), never present that as the proof.
   is empty while a pair has parted, which `_link_bus_descriptors` reads as "not
   known" for a group of two.
 
-`RetroXR/Tools/netplay/gbc_ir_netplay_probe.tscn` runs TWO copies of the pair in
+`RetroXR/DevTools/netplay/gbc_ir_netplay_probe.tscn` runs TWO copies of the pair in
 one process -- four machines, two buses -- under the netplay gate, posts every
 frame to both copies at once, and compares each machine's RAM checksum with its
 twin's every thirty frames while Mystery Gift runs over the port:
 
 ```bash
-"$godot" --headless --path RetroXR res://Tools/netplay/gbc_ir_netplay_probe.tscn -- \
+"$godot" --headless --path RetroXR res://DevTools/netplay/gbc_ir_netplay_probe.tscn -- \
     "--rom=<Pokemon Gold or Silver>" --save=a.srm --save2=b.srm [--core=mgba] [--core2=gambatte]
 ... -- ... --mutate    # the second copy's calling press lands one frame later: must DIVERGE
 ... -- ... --one       # only the near machines are fed: they must stop, not run on
@@ -628,7 +628,7 @@ eject/replace-image-0/insert on the agreed frame (`ScheduleDiscOp`).
   wait could leave the frames just before it unverified, and the later rewind
   went behind the op, which a replay never re-applies. The card vanished. It now
   also requires `m_np_verified + 1 >= frame`. The group runner never had it.
-- **Proof:** `Tools/netplay/ereader_rollback_probe` (legs `ref`, `rb`, `join`,
+- **Proof:** `DevTools/netplay/ereader_rollback_probe` (legs `ref`, `rb`, `join`,
   `compare`; windowed for the final screen). Real e-Reader (USA) + Air Hockey-e
   strip 1, `--crc=ram`: rb == ref at 42/42 checkpoints (23 after the card) with 42
   rollbacks, join (fresh core, mid-scan snapshot) == ref 21/21, all three reach
@@ -679,7 +679,7 @@ on gets `_net_offer`: the session boots the game on every peer instead.
   `enable_flash_write=enabled` (the scratch-.bin crash, see `VmuCard._boot`),
   `serial_link=disabled`.
 
-`Tools/netplay/vmu_netplay_probe` (two processes, real `NetworkManager`, real
+`DevTools/netplay/vmu_netplay_probe` (two processes, real `NetworkManager`, real
 `vmu_card.tscn`, loopback). Alien Shooter, Windows x86_64:
 
 - library game: rollback, 82 rollbacks, port 0 handed host → client at frame 710,
@@ -750,7 +750,7 @@ the album machinery in `object_sync.gd`; a tape of one file still takes the sing
   `dvd_path` over raw** — a transferred `.iso` on a peer is the same failure, unfixed.
 
 `object_sync_tests --only=playlist` transfers a playlist tape over loopback (a repeat and
-two files called `rec.mp4` from different folders). `Tools/av/vcr_playlist_probe`
+two files called `rec.mp4` from different folders). `DevTools/av/vcr_playlist_probe`
 (windowed, `-- --clips=<dir>` with `red.mp4` and `blue.mp4`) plays one on the real libVLC:
 through the join, FF and REW across it, a `user://` copy, and the raw `user://` path as its
 control. A real two-machine session with a playlist is OWED.
@@ -762,7 +762,7 @@ port 2 is P1 on libretro port 0 and P2-P4 on ports 1-3 (bsnes puts multitap sock
 libretro port n), which is exactly the four ports a netplay frame carries. Bomberman GB (USA,
 Europe) asks the adapter for 1, 2 and 4 players (`MLT_REQ` packets at 0x28030-0x280a0); in
 BATTLE each player presses DOWN on their own pad to go ON, and rounds cycle by themselves.
-`Tools/netplay/sgb_rollback_probe` is `netplay_spike` with the `sgb` subsystem, a port mask,
+`DevTools/netplay/sgb_rollback_probe` is `netplay_spike` with the `sgb` subsystem, a port mask,
 port devices set before `StartContent` (so the multitap is there from frame 0), and
 `--spike-script=bomberman-battle`, which walks to a four-player battle and has every pad
 wander and bomb from frame 1900. Every port is remote under `--spike-rollback`.

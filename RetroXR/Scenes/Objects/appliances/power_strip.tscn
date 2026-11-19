@@ -95,7 +95,7 @@ connector = "nema_5_15_plug"
 
 ; ── the wall plug ─────────────────────────────────────────────────────────────
 ; PowerCord's WallPlug, with the body baked in the case colour
-; (Tools/gen/ivory_plug.gd). Turned R_y(+90) so its cord (plug-local -Z) trails
+; (DevTools/gen/ivory_plug.gd). Turned R_y(+90) so its cord (plug-local -Z) trails
 ; back toward the strip's switch end.
 [node name="WallPlug" type="RigidBody3D" parent="."]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0.55, 0.021, 0)

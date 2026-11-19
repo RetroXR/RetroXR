@@ -11,7 +11,7 @@
 ## the hand-off of every change to a netplay session.
 ##
 ## Whether a linked pair actually trades a Mystery Gift needs two cores and two
-## cartridges and is Tools/link/gbc_ir_room_probe; no core runs here. Which is
+## cartridges and is DevTools/link/gbc_ir_room_probe; no core runs here. Which is
 ## also why nothing here ever lights a window by itself: the glow follows the
 ## cores' own peer count, and without a core that is nought.
 extends "res://Tests/test_suite.gd"

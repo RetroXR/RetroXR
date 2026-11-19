@@ -6,7 +6,7 @@
 ##
 ## No core runs here. What a core is handed is stood in for by FakeLibretro, and
 ## a headless run draws nothing, so the picture is a still a case supplies. That
-## the real core shows the room is Tools/cores/gb_camera_feed_probe.
+## the real core shows the room is DevTools/cores/gb_camera_feed_probe.
 ##
 ##     "$godot" --headless --path RetroXR res://Tests/gb_camera_tests.tscn
 ##     "$godot" --headless --path RetroXR res://Tests/gb_camera_tests.tscn -- --only=ball

@@ -7,7 +7,7 @@ file size; a PNG/WebP (lossless) one as the RGBA8 it is expanded to on upload. P
 kind, by owner (base game or mod id) and the largest textures.
 
     "$godot" --verbose --path RetroXR --resolution 320x240 --position 20,20 \
-        res://Tools/perf/restore_perf_probe.tscn -- --file=<copy of a slot> > run.log 2>&1
+        res://DevTools/perf/restore_perf_probe.tscn -- --file=<copy of a slot> > run.log 2>&1
     python Tools/perf/texture_census.py run.log RetroXR ~/retroxr/mods
 
 Runtime-made textures (book pages, viewports, labels) have no .ctex: restore_perf_probe

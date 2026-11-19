@@ -75,7 +75,7 @@ why the market matters. Everything else is grey, the model's own plastic.
 Assumption open: PAL Killer Instinct in black (European listings show black carts;
 no source says so outright).
 
-`Tools/models/snes_cart_rom_check.tscn -- --roms=<folder>` (headless) runs
+`DevTools/models/snes_cart_rom_check.tscn -- --roms=<folder>` (headless) runs
 market, body and shell over a real set and fails if a tagged file's market
 disagrees with its tag or a coloured shell lands anywhere unexpected. On
 Z:/roms/snes (3,480 ROMs): 1,002 `us`, 1,729 `jp`, 733 `eu`, 3 `au`, 13 of no
@@ -209,5 +209,5 @@ material from `EXTERIOR_PLASTIC` or `OWN_ROUGHNESS` each fail their own cases.
 "$godot" --headless --path RetroXR res://Tests/snes_cart_tests.tscn
 "$godot" --headless --path RetroXR res://Tests/sfc_cart_tests.tscn
 "$godot" --path RetroXR --resolution 1600x900 --position 20,20 \
-  res://Tools/models/snes_cart_render_probe.tscn -- --out=<dir> [--label=<front-face png>]
+  res://DevTools/models/snes_cart_render_probe.tscn -- --out=<dir> [--label=<front-face png>]
 ```

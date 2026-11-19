@@ -84,7 +84,7 @@ save stay where they were. Android still defaults to YabaSanshiro.
 
 ## The room probe
 
-`RetroXR/Tools/link/saturn_link_room_probe.tscn` is the player's path: two
+`RetroXR/DevTools/link/saturn_link_room_probe.tscn` is the player's path: two
 Saturns from `system.tscn` (`core_directory` = the probe root), a spawned
 `saturn_link_cable`, each plug pushed in through `XRToolsSnapZone.pick_up_object`
 BEFORE power, no `LinkConnect`. Steeldom: both reach LINK MODE, then only B
@@ -96,13 +96,13 @@ select screen animates, so it passes unplugged.)
 
 ## The probe
 
-`RetroXR/Tools/link/saturn_link_probe.tscn` — two Saturns in one process, the
+`RetroXR/DevTools/link/saturn_link_probe.tscn` — two Saturns in one process, the
 real bus, one button script per console in **emulated** seconds (frames/60;
 wall-clock presses drift the moment the machine is loaded), a press is
 `t:button[:hold_ms]`:
 
 ```bash
-"$godot" --headless --path RetroXR res://Tools/link/saturn_link_probe.tscn -- \
+"$godot" --headless --path RetroXR res://DevTools/link/saturn_link_probe.tscn -- \
   --root=<root with system/mednafen_saturn and cores/mednafen_saturn_libretro.dll> \
   --rom="Z:/roms/saturn/<disc>.chd" [--nolink] --at=60,70 --shot=<dir>/s.png \
   --press=... --press2=...
@@ -188,7 +188,7 @@ Evidence, windows x86_64:
   6 (310 rewinds) equals lockstep at 300/300; the v2 build under the same
   rollback parts at 190. Deterministic boot: host clock vs none equal 20/20; with
   the option off they differ from frame 60.
-- `Tools/netplay/saturn_rollback_probe` (`--leg=rb|ref|solo|compare`, one per
+- `DevTools/netplay/saturn_rollback_probe` (`--leg=rb|ref|solo|compare`, one per
   process, `--root=` for a fork build, `--option=k=v` for a mutant): Steeldom,
   both consoles in LINK MODE, rb == ref at 150/150 over 40 group rewinds,
   ~28000 messages each way; solo diverges at 70. **With `link_frame_edges` off
@@ -196,7 +196,7 @@ Evidence, windows x86_64:
   The CI-built v3 (the release's Windows asset, from a scratch `--root=`,
   2026-09-30): rb == ref at 150/150 over 40 group rewinds (deepest 7), 28290
   messages each way; solo 66 of 150 differ. PASS.
-- `Tools/netplay/saturn_session_probe` (`--mode=rollback|lockstep`): two
+- `DevTools/netplay/saturn_session_probe` (`--mode=rollback|lockstep`): two
   NetworkManagers over loopback ENet, two cabled `system.tscn` Saturns each (a
   TV stand-in in channel 0: a console refuses a netplay start with no display).
   Rollback: 72 group rewinds, no desync, both peers' CRCs of both machines equal

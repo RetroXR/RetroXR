@@ -56,7 +56,7 @@ An export carries this tree as `plugins\` beside `RetroXR.exe`, next to
 `libvlccore.dll`: it is one of the Windows dependencies in
 `../vlc_godot.gdextension`, and `VlcPlayer` falls back to it when
 `res://vlc-godot/plugins` is not a folder on disk. v0.11.1 and earlier shipped
-without it and played nothing. `Tools/av/vlc_export_probe.tscn` checks that an
+without it and played nothing. `DevTools/av/vlc_export_probe.tscn` checks that an
 export plays.
 
 ## macOS

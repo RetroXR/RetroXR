@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://Scripts/Objects/tv/tv_shell.gd" id="1_shell"]
 
 ; A TV/VCR/DVD combination cabinet, built from one box, for combo_tv_tests and
-; Tools/av/combo_tv_probe. It is also the reference for a mod's own combination
+; DevTools/av/combo_tv_probe. It is also the reference for a mod's own combination
 ; set: every marker a built-in deck reads is here, and nothing else is.
 ;
 ; Layout, in this shell's frame (the set's own): 0.76 x 0.62 x 0.36, centred on the

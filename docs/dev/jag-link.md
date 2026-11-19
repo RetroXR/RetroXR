@@ -34,7 +34,7 @@ Doom 13.
 ## Probe
 
 ```bash
-"$godot" --headless --path RetroXR res://Tools/link/jag_link_probe.tscn -- \
+"$godot" --headless --path RetroXR res://DevTools/link/jag_link_probe.tscn -- \
     "--rom=Z:/roms/atarijaguar/Doom (World).j64" --game=doom [--no-cable | --tcp]
 ```
 `--game=doom|aircars|battlesphere`, or `--steps=` (see the script header).
@@ -65,7 +65,7 @@ cable extends it, under their own connector `jag_link_plug`, so neither the
 PlayStation nor the Saturn lead fits a Jaguar and a JagLink lead fits
 neither of them. `link_tests` covers the gating both ways.
 
-`Tools/link/jag_link_room_probe` builds two `RetroSystem`s, seats each end by
+`DevTools/link/jag_link_room_probe` builds two `RetroSystem`s, seats each end by
 hand and checks nobody -> one end (still nobody) -> both (a pair) -> AirCars'
 Two Player Direct Serial flying one mission clock -> pull a plug (parted).
 It uses AirCars, not Doom: Doom's title is an attract loop that takes A only

@@ -23,7 +23,7 @@ var _watched: Dictionary = {}
 ## global names on its chain}, "connector": whether its nodes have one}. A room
 ## restore adds ~13,600 nodes against ~100 watchers, and asking _matches for each
 ## pair was 1.39 M calls, ~1.7 s of the restore before any hook did any work
-## (Tracy, Tools/perf/restore_perf_probe, 2026-11-10). Dropped whenever the
+## (Tracy, DevTools/perf/restore_perf_probe, 2026-11-10). Dropped whenever the
 ## watcher set changes.
 var _native_hits: Dictionary = {}
 var _script_hits: Dictionary = {}

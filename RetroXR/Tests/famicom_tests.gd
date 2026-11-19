@@ -9,7 +9,7 @@
 ## of player 2's pad, so what is testable without a core is the DECISION — how
 ## loud the room has to be, where the volume slider is, and which port the bit is
 ## allowed to reach. That a game answers a real voice needs the forked core and a
-## mic ROM, and lives in Tools/cores/famicom_mic_probe.
+## mic ROM, and lives in DevTools/cores/famicom_mic_probe.
 extends "res://Tests/test_suite.gd"
 
 const PAD_I := preload("res://Scenes/Objects/controllers/famicom/famicom_controller_i.tscn")

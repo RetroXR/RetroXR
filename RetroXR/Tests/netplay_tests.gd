@@ -20,7 +20,7 @@ extends "res://Tests/test_suite.gd"
 ## would be for anything this suite can assert: the RPCs, the channels, the
 ## serialization and the handshake are all the real ones, and the run stays
 ## deterministic and headless. What it does NOT cover is a real core's
-## arithmetic; that needs two machines and lives in Tools/netplay/netplay_spike.gd
+## arithmetic; that needs two machines and lives in DevTools/netplay/netplay_spike.gd
 ## (--spike-state-out / --spike-state-in for the cross-architecture leg).
 ##
 ## The mock core implements the C++ frame gate — it runs frame N only when
@@ -2236,7 +2236,7 @@ func _test_strategy() -> void:
 ## A cabled pair of cores whose frames end on the same tick of the bus rolls
 ## back as ONE group instead of dropping to lockstep. The C++ half (the frame
 ## edge every member stops at, the bus restored with the cores) is measured with
-## real cores by Tools/netplay/lynx_rollback_probe; this is the session's half:
+## real cores by DevTools/netplay/lynx_rollback_probe; this is the session's half:
 ## it keeps rollback, forms the group on every peer, powers the units on apart,
 ## and joins the cable on a scheduled frame instead of at once.
 func _test_link_rollback() -> void:

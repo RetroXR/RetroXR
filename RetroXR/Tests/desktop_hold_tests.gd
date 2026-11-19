@@ -6,7 +6,7 @@ extends "res://Tests/test_suite.gd"
 ##   godot --headless --path RetroXR res://Tests/desktop_hold_tests.tscn
 ##
 ## Pure: no room, no console, no mouse. That a switch can be aimed at while a console is in the
-## hand, and that pressing it does not drop the console, is `Tools/room/hold_probe --scenario`
+## hand, and that pressing it does not drop the console, is `DevTools/room/hold_probe --scenario`
 ## (windowed).
 
 

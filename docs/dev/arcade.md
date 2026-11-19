@@ -100,10 +100,10 @@ module kind (trackball, wheel + pedals, seat, card reader); (3) a data row; (4) 
 host (a Neo Geo MVS, JVS boards), which should reuse the repo's "unit in a bay" machinery
 (`ExpansionCatalog` hosts, `expansion.gd`) rather than invent a second one.
 
-The scene is **baked** by `Tools/gen/gen_arcade_cabinet.gd` (and the board by
+The scene is **baked** by `DevTools/gen/gen_arcade_cabinet.gd` (and the board by
 `gen_arcade_board.gd`, helpers in `arcade_gen_util.gd`); re-run it to change the geometry:
 
-    "$godot" --headless --path RetroXR --script res://Tools/gen/gen_arcade_cabinet.gd
+    "$godot" --headless --path RetroXR --script res://DevTools/gen/gen_arcade_cabinet.gd
 
 Run `--editor --quit` first when you add a `class_name`: `--script` mode reads the class cache.
 The materials go on the MESH, not as `material_override`, so a later surface override (a
@@ -156,7 +156,7 @@ open, so a ray reaches the door's handle, the coin slot, a player's panel (as on
 The door's `DoorGrab` rides the door (a child of the pivot), so an open door can still be taken hold of.
 The door's `DoorGrab` covers only the HANDLE STRIP along its top edge: a box over the whole door made most
 of the front a door, and aiming anywhere there worked the door instead of picking the cabinet up
-(`Tools/models/grab_map_probe` prints what a pointer aimed at each point would do). A slab behind the SHUT door
+(`DevTools/models/grab_map_probe` prints what a pointer aimed at each point would do). A slab behind the SHUT door
 (`PointerDoor`, off while it is open) makes a ray at it find the cabinet, not the board behind it.
 A hold-to-grab survives the aim wandering off for `HoldToGrab.AIM_GRACE` (0.35 s) while the control stays down.
 **The options panel** stands to the cabinet's RIGHT at eye height (`options_panel_anchor`, a hook any tall machine
@@ -167,7 +167,7 @@ changing it switches a running machine off first.
 **Notices** (a refused game, an achievement) float in FRONT of the monitor, clear of the cabinet (`toast_anchor`
 -> `RetroSystem.toast_anchor_world` -> `AchievementToast._place`): laid over a tilted monitor and a marquee a
 toast is half inside the geometry. Any machine can name a spot the same way; the default is unchanged.
-**The monitor** is built as on a real upright: the glass IS the cabinet's own slanted front edge (the side silhouette `PROFILE` runs from the control deck up to the marquee along it, so the pane lies ON that edge, never in front of it as a floating pane and frame), the tube sits `TUBE_DEPTH` (7 cm) behind the glass and the picture is painted on its face, and the whole monitor leans back about 27 degrees (`arcade_tests` pins all three: glass on the silhouette within 1 cm, picture more than 5 cm behind it, lean 20-35). The marquee overhangs only a little and is closed underneath (`MarqueeUnder`). Edit `Tools/gen/gen_arcade_cabinet.gd` (`GLASS_A`, `GLASS_B`, `TUBE_DEPTH`) and re-bake; the `side` shot of the probe shows it. Notices hang PARALLEL to it (a `Transform3D` from `toast_anchor`, half a metre off the glass).
+**The monitor** is built as on a real upright: the glass IS the cabinet's own slanted front edge (the side silhouette `PROFILE` runs from the control deck up to the marquee along it, so the pane lies ON that edge, never in front of it as a floating pane and frame), the tube sits `TUBE_DEPTH` (7 cm) behind the glass and the picture is painted on its face, and the whole monitor leans back about 27 degrees (`arcade_tests` pins all three: glass on the silhouette within 1 cm, picture more than 5 cm behind it, lean 20-35). The marquee overhangs only a little and is closed underneath (`MarqueeUnder`). Edit `DevTools/gen/gen_arcade_cabinet.gd` (`GLASS_A`, `GLASS_B`, `TUBE_DEPTH`) and re-bake; the `side` shot of the probe shows it. Notices hang PARALLEL to it (a `Transform3D` from `toast_anchor`, half a metre off the glass).
 **Power** is the generic power button, seated inside the bay on the shelf beside the JAMMA socket (labelled
 POWER): open the door, press it, and the machine starts
 the board in the bay with the core of its system, as any machine does.
@@ -291,7 +291,7 @@ coins' bodies are at. Abrupt stops can legitimately throw coins out of the open 
     scraped 4 of 30 out of a straight pull; measured from the box, an Aero City 2.
   - **Do not tell a blocked coin by its contacts.** `get_colliding_bodies()` counts what is
     within Jolt's 2 cm of speculative contact, which is every coin over a cabinet's shelf.
-  - **`Tools/models/arcade_cash_cabinet_probe`** is the only check on a MODEL cabinet (a
+  - **`DevTools/models/arcade_cash_cabinet_probe`** is the only check on a MODEL cabinet (a
     suite boots with no mods): it stands the installed NAOMI Universal (or `--model=`) on a
     floor, banks thirty coins and pulls the box out. All three read 0.0 mm and 30 of 30.
 - **The generated cabinet's vault has NO fixed collision across its mouth.** `ArcadeCashBox`
@@ -380,7 +380,7 @@ and battery-slot suites also pass (39 and 64 checks). Shaking is checked for ret
 a 35-degree tilt must move the pile relative to the tray below the old scripted 40-degree
 release angle (a gentle shake alone can legitimately stick through static friction).
 
-`Tools/models/arcade_cash_probe` repeats the checks with the installed NAOMI Universal's
+`DevTools/models/arcade_cash_probe` repeats the checks with the installed NAOMI Universal's
 **actual cash-box mesh and cover orientation**, loaded from `--pack=<zip>` (default
 `<data root>/mods/xenu.naomiuniversal.zip`). Run windowed with `--record` to save frames to
 `build_out/coin_frames` (override with `--record-dir=res://../build_out/<folder>`);
@@ -421,7 +421,7 @@ Now (`extensions/libretro-godot/src/VideoGeometry.hpp`, header-only and Godot-fr
   frame's orientation and a 4:3 tube, with a warning, rather than failing at call time: **rebuild
   windows AND android**, the binaries are per platform and gitignored (`CLAUDE.md`).
 
-`Tools/models/arcade_cabinet_probe` (windowed) feeds the glass a test card drawn for a TUBE
+`DevTools/models/arcade_cabinet_probe` (windowed) feeds the glass a test card drawn for a TUBE
 (round on 4:3, an ellipse in pixels): it reads as a circle on a landscape frame and, pillarboxed,
 on a portrait one.
 
@@ -456,7 +456,7 @@ same roms folder (`roms/mame/`). Without them the core refuses the game, and the
 (`LogHandler::RecentErrors`) and adds them to the reason, so the toast reads
 `This core refused the game. | dl-1425.bin NOT FOUND (tried in qsound_hle qsound dino) | ...`, plus a line for
 arcade systems saying where such sets go (`RetroSystem._on_content_load_failed`). The files themselves are the
-player's to supply; RetroXR does not download ROM sets. `Tools/cores/arcade_load_probe` (needs a real core and
+player's to supply; RetroXR does not download ROM sets. `DevTools/cores/arcade_load_probe` (needs a real core and
 a romset) starts a set in the cabinet and prints the reason. Cadillacs & Dinosaurs (`dino.zip`) is the case that
 found it: **current MAME** wants `qsound.zip`; FinalBurn Neo has the QSound DSP built in and runs the same zip. `arcade`'s default core is FinalBurn Neo on desktop (2026-10-20: the most games that start at once; MAME runs more sets but wants its own romset version and device ROMs), so pin the core anyway with `--core=fbneo|mame`. The probe's `--audio` (with `--play` for a coin and START) prints the loudest bus peak: a silent attract screen reads -200 dB and is not a fault (dino on FBNeo: -200 dB until a coin and START, then -14 dB; Bubble Bobble and SF2 sound at once). Needs a windowed run and the probe's own camera: a 3D voice nobody listens to also reads silence.
 
@@ -479,7 +479,7 @@ board and the door open, the monitor in both shapes, and a coin in the air. **A 
 ## Performance
 
 How much a cabinet costs, what grows over minutes (nothing, measured), and what was kept: `performance.md`,
-"Arcade cabinets". The probes are `Tools/perf/arcade_scale_probe`, `arcade_soak_probe`, `arcade_mesh_census`.
+"Arcade cabinets". The probes are `DevTools/perf/arcade_scale_probe`, `arcade_soak_probe`, `arcade_mesh_census`.
 `ArcadeShadowBudget` (parts under 10 cm cast no shadow) runs when a cabinet, a bay unit or a board is built; `arcade_tests perf/`.
 
 ## OWED
@@ -503,7 +503,7 @@ behind an option; it is built, without one: "Hands on the panel".)
 ## The other cabinets (2026-10-19)
 
 The generic upright is one of six, all the same shell: **never a fork of the model script**, only a scene (baked by
-`Tools/gen/gen_arcade_cabinet.gd -- --variant=<name>`, the variants are DATA in `_variants()`) and a registry row
+`DevTools/gen/gen_arcade_cabinet.gd -- --variant=<name>`, the variants are DATA in `_variants()`) and a registry row
 (`model_registry.gd`; THE IDS ARE PERSISTED). Generic stays first of the `arcade` rows, so it is the tile's default.
 
 | id | system | panel | bay | guns |
@@ -522,7 +522,7 @@ here, and no `roms/daphne` or `roms/dice` folder: nothing of either was run.
 
 **Guns are captive, like the Famicom's pads.** The gun cabinets' `Sockets` module carries `PortSeat` (where the cord goes in)
 and `Holster` markers; the model's `captive_controllers()` makes one `arcade_light_gun.tscn` per holster
-(`Tools/gen/gen_arcade_gun.gd`: the classic optical-gun shape, orange muzzle, no buttons, a 1.4 m cord) and `RetroSystem`
+(`DevTools/gen/gen_arcade_gun.gd`: the classic optical-gun shape, orange muzzle, no buttons, a 1.4 m cord) and `RetroSystem`
 builds them with the machine, plugs them, locks the ports and keeps them out of `spawned`. What made it work, each one a bug
 found on the way: **`LightGun` had no `captive`** (`pad.set("captive")` is silent on a property that is not there), so it
 joined the group a save sweeps; **a snap zone seats an object by its GRAB POINT**, so the well is the holster marker times
@@ -553,7 +553,7 @@ player as a visible unit in the bay, and a cocktail table. Pinball and claw mach
 real game, the headset, the Quest cost (the boot warms every row without `requires`: five cabinets now), and netplay.
 
 **The Neo Geo MVS is a box with a cassette, not a JAMMA board (2026-10-19).** A Neo Geo game spawns as `neogeo_cart.tscn`
-(`Tools/gen/gen_neogeo_cart.gd`): a plastic cassette with the board's edge standing out of the bottom, a red band, a recessed label
+(`DevTools/gen/gen_neogeo_cart.gd`): a plastic cassette with the board's edge standing out of the bottom, a red band, a recessed label
 and grip ribs, cart frame as every cart (connector -Y, label +Z, `Label` UV-painted). The `mvs` bay holds a RECTANGULAR unit
 (`_build_mvs_unit`: a metal tray, the green motherboard, chips and a power block) with the cartridge slot standing up from its
 middle, the cassette's edge 20 mm into it, label to the front (a vertical-slot MVS). **What is documented and what is guessed:** the
@@ -585,7 +585,7 @@ screen gets a collision box of its own for the coin face it leaves open). A marq
 a hand taking it out (the zone lets go, then the hand picks it up, one frame) is not undone. (Only a gun in a HOLSTER: a gun on a post or a rifle is
 fixed to its swivel and has no well, "Guns on a swivel".)
 
-**The consolized Neo Geo MVS is a console** (`neogeo_mvs_console`, `RetroSystemModelNeoGeoConsole`, `Tools/gen/gen_neogeo_console.gd`): a
+**The consolized Neo Geo MVS is a console** (`neogeo_mvs_console`, `RetroSystemModelNeoGeoConsole`, `DevTools/gen/gen_neogeo_console.gd`): a
 rectangular dark box (340 x 220 x 60 mm, an ESTIMATE) that takes the same MVS cassettes in a slot on its roof, two controller ports and POWER/RESET
 on the front, three phono jacks on the back, so the card offers the composite lead like a SNES. **No such console was ever sold by SNK:** the
 research found only community builds and kits (the Orthros MCS-01, a 2023 Kickstarter "MVS Consolizer Kit"); the official home machine was the
@@ -661,7 +661,7 @@ The first fixes shipped, the run was read off the headset (`adb logcat -d`), and
 
 **What changed.** The bay (slot, board seat, harness socket) used to be baked into the cabinet. It is an `ArcadeBayUnit` now
 (`Scripts/Objects/arcade/arcade_bay_unit.gd`, one scene per kind in `Scenes/Objects/peripherals/arcade_bay_<kind>.tscn`, baked by
-`Tools/gen/gen_arcade_bay.gd -- --kind=jamma|mvs|laserdisc|discrete`; labels "JAMMA / Neo Geo MVS / Laserdisc / DICE Arcade Bay"). It is
+`DevTools/gen/gen_arcade_bay.gd -- --kind=jamma|mvs|laserdisc|discrete`; labels "JAMMA / Neo Geo MVS / Laserdisc / DICE Arcade Bay"). It is
 a pickable like the 32X's spacer, in the `arcade_bay` group, saved as `arcade_bay_<kind>` (`ScenePersistence.PLAIN_SCENES`) with the
 board standing in it (`"board"`). Every cabinet card offers all four kinds and the JAMMA lead.
 
@@ -731,7 +731,7 @@ sidecars, `ArcadeCabinetArt.romm_id`). **Nothing is fetched or scraped for this*
   from the `mame` tile has its art in `mame/media` while `arcade/` exists, is the primary, and is empty (the board's sticker could not find it either).
 - A scene baked before the slots (a mod's cabinet) has no such nodes: the calls are no-ops.
 - `arcade_variants_tests` `art/` (106 checks over the six variants: slots hidden and facing out, wheel/cover/fallbacks, power glow, ghosting, the real
-  seat/pull path). Look: `Tools/models/arcade_cabinet_probe` shots `artfront`/`artright`/`artleft` (`--rom=sf2.zip`, windowed). Measured with SF2's real
+  seat/pull path). Look: `DevTools/models/arcade_cabinet_probe` shots `artfront`/`artright`/`artleft` (`--rom=sf2.zip`, windowed). Measured with SF2's real
   wheel and cover (both sides read the same way round, so neither is mirrored). Headset, Quest and a game with only a RomM cover OWED.
 - Not done: third-party consoles on the composite input; the scraper does not fetch marquee/screenshot art (`screenmarquee`, `ss`) and RomM's are not parsed.
 
@@ -742,13 +742,13 @@ sidecars, `ArcadeCabinetArt.romm_id`). **Nothing is fetched or scraped for this*
   What the tab holds depends on the core:
   - **MAME** has the "DIP Switches" screen on the game's own screen, so the tab is one button, "Open DIP Switches" (`RetroSystem.toggle_core_dip_menu`):
     it taps Tab, Down, Return into the core on port 0 (`DIP_MENU_KEYS`, libretro `RETROK_` codes, through the netplay key schedule like a keyboard;
-    0.12 s held, 0.25 s apart) and the button then reads "Close DIP Switches", which taps Tab. MEASURED with `Tools/cores/arcade_dip_probe` (sf2,
+    0.12 s held, 0.25 s apart) and the button then reads "Close DIP Switches", which taps Tab. MEASURED with `DevTools/cores/arcade_dip_probe` (sf2,
     `--keys=tab,down,return`): Tab opens MAME's menu (Input Settings, **DIP Switches**, Bookkeeping Info...), the sequence lands on the DIP screen.
     `_core_menu_open` is tracked, cleared on power-off; if the player closed the screen with Esc the next press opens the main menu, harmless.
   - **FBNeo** has no such screen (Tab, F2 and F3 do nothing visible, measured on dino). Its DIPs are core options (`fbneo-dipswitch-<game>-...`,
     `DIP_OPTION_MARK`), so the tab LISTS those rows, and only those, with the same stepper as the Options tab (the same `option_changed` path).
   - A core that publishes no DIPs, or a cabinet that is off with no options read yet, gets a one-line note. Another core's DIP screen is a row in
-    `DIP_MENU_KEYS` once measured with the probe. Look: `Tools/models/dip_tab_probe` (windowed). The tab's real behaviour against a running MAME
+    `DIP_MENU_KEYS` once measured with the probe. Look: `DevTools/models/dip_tab_probe` (windowed). The tab's real behaviour against a running MAME
     through the in-room menu is OWED (the keys are measured through the probe; the tab calls the same code).
 - **Cabinet Art** (System tab, on by default): off takes the wheel and cover off the marquee and sides (title back) whatever is in the
   bay, and on hangs them again from the textures kept (`_art_wheel`/`_art_cover`), with no second read of the disk. `RetroSystem.cabinet_art_enabled`
@@ -898,7 +898,7 @@ follows the game; the input is never filtered**, so a cap hidden by a wrong gues
   its SHA256SUMS). (2) The core's `SET_INPUT_DESCRIPTORS` through `Libretro.GetInputDescriptors()` (`[{port, device, index, id,
   description}]`; the C++ already stored them in `InputHandler::m_devices`, nothing read them). `RetroSystemModelArcadeCabinet._poll_descriptors` asks twice a second from power-on until the
   first non-empty answer.
-- **MEASURED (`Tools/cores/arcade_descriptors_probe`, one core per process): FBNeo describes THIS game** (sf2: 14 pad ids per port named "Weak Punch" ... "Coin"; dino: "Attack",
+- **MEASURED (`DevTools/cores/arcade_descriptors_probe`, one core per process): FBNeo describes THIS game** (sf2: 14 pad ids per port named "Weak Punch" ... "Coin"; dino: "Attack",
   "Jump"), **MAME describes the whole RetroPad for every game** (160 rows, all 16 ids, "A", "B", "Joy Left"). So a port that publishes all sixteen ids is ignored
   and the table stands. FBNeo calls pad id 2 **"Coin"**: that CONFIRMS `ArcadeProfiles.COIN_BIT` = SELECT (it was a standard guess). The ports and
   caps follow the descriptors when they speak; `ptblank` and `hotd` give FBNeo no descriptors at all (not its games), so the table does it.
@@ -937,7 +937,7 @@ CPS3 or a NAOMI on Flycast, which take longer?), the Quest, a game that counts c
 `ArcadeCabinetBuilder` (`Scripts/Objects/arcade/arcade_cabinet_builder.gd`) builds a cabinet's nodes from a SPEC, a Dictionary
 (`ArcadeCabinetSpecs`, `Scripts/Data/systems/arcade_cabinet_specs.gd`): the body (`shape`: `upright`, `wide`, `racer`), the look, the bay
 kind, a panel per player, the coin doors, front sockets or guns, what stands in front. **The same code bakes the shipped scenes**
-(`Tools/gen/gen_arcade_cabinet.gd` is a thin wrapper now; `ArcadeParts` holds the primitives, `ArcadeGenUtil` delegates to it) **and builds a
+(`DevTools/gen/gen_arcade_cabinet.gd` is a thin wrapper now; `ArcadeParts` holds the primitives, `ArcadeGenUtil` delegates to it) **and builds a
 form again in the room** (`build_form`). The baked scenes were re-baked and diffed with the unique ids normalised: identical but for 1-ulp float
 noise, so they were left as they were. Every top-level node a form owns carries `FORM_META`; the bay, the JAMMA socket and the composite input
 are built only when baking and never rebuilt (a board, a docked bay, a cord and the power button hang on them). The baked scene names its row
@@ -1035,7 +1035,7 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   that moves the seat, the dash or the glass must keep that**: `arcade_form_tests hood/` measures the distance, the angle and that nothing stands in the line
   of sight. The hood and the glass's wedge are SOLID (`solid_boxes` -> `SOLID_BOXES_META` -> the model's collision, the glass cut into four steps along its
   slope) but are NOT a pointer box: over the coin doors one would stand between a laser and their slots (`reach/`). The cabin's walls carry the glass's line
-  up to the roof and down to the platform. `Tools/models/arcade_cabinet_probe --forms=daytona` takes the view from the seat (`formseat_`).
+  up to the roof and down to the platform. `DevTools/models/arcade_cabinet_probe --forms=daytona` takes the view from the seat (`formseat_`).
   **The pedals** (both gun and driving) are real-pedal shaped since the same day: a gun pedal is a pressed-steel base with a cheek each side of
   the hinge pin, a tread hinged at its heel (toward the player) with its toe toward the screen raised 22 degrees, a matt black ribbed rubber face and
   a toe lip, and a boot and a cord to the cabinet; a driver's two are organ pedals on one axle over a footplate with a heel mat, brake (left) the
@@ -1292,7 +1292,7 @@ hand or a laser reaches them from above once the door is open; a small bracket c
   first start of a game whose default memory is hand built, and **Options > DIP Switch > Game memory** sets a memory aside or puts one back: `arcade-backup-memory.md`.
 - **NEVER RUN AGAINST A CORE here** (the sandbox has no core and no ROM). Measured elsewhere in this file: FBNeo does nothing visible on F2 on dino and its pad
   descriptors for sf2 do not include a service input (`arcade_cabinet_probe`'s recorded lists end at the six buttons and the directions); whether it names the
-  service input on a key descriptor, and what Silent Scope does with F2 under MAME, are OWED to a real run with `Tools/cores/arcade_descriptors_probe`.
+  service input on a key descriptor, and what Silent Scope does with F2 under MAME, are OWED to a real run with `DevTools/cores/arcade_descriptors_probe`.
 - Tests: `arcade_form_tests service/` (the flag for Silent Scope, Street Fighter II, Time Crisis, Pac-Man and an unknown romset; the descriptor lookup; the
   switches on the other side of the compartment from the power switch, on its floor; there for Silent Scope, gone for Time Crisis and back for the next; F2 and 9 with
   nothing named, a pad id and a key when the core names them, a tap that lets go; nothing with no core; the white words, the selector's place and its taps);
@@ -1478,7 +1478,7 @@ every size, speed and place below is an estimate (see the end).
   rest pose; meta gear/side/scene/cord) and its `Entry` child, a node on the apron's face 6 cm under the deck's front edge, straight out from the cradle, where the cord goes in. The panel's grip box (`PanelGrip`) is narrowed to
   the drum with `grip_x` (`gx0/gx1`): at the panel's full width it covered the cradles and a laser at a stick hit the panel instead (the suite found it: `sticks/` "a laser aimed at a stick in its cradle").
   `RetroSystemModelArcadeCabinet.captive_gear()` lists the rows; `RetroSystem` builds them after the form (`after_cabinet_form` -> `_spawn_captive_gear`) and takes them away before the next one and in `_exit_tree`.
-- **`ArcadeGearRack`** (one per machine) turns a row into a stick: an `ArcadeDrumstick` (`Tools/gen/gen_arcade_drumstick.gd` bakes `Scenes/Objects/peripherals/arcade_drumstick.tscn`: 32 cm, the grip's middle is the
+- **`ArcadeGearRack`** (one per machine) turns a row into a stick: an `ArcadeDrumstick` (`DevTools/gen/gen_arcade_drumstick.gd` bakes `Scenes/Objects/peripherals/arcade_drumstick.tscn`: 32 cm, the grip's middle is the
   origin and the grab point, the head along -Z, the cord ring at +Z 0.092 m) laid on its rest and held by a cradle, which is a snap zone (`GearWell<n>`, `snap_require "arcade_gear"`, `snap_filter` = ITS stick only: the
   four sticks of two players are not interchangeable, each has its cord; 10 cm reach, `WELL_REACH`), the mates paired (`mate`), and the cord: a `VerletRope` from the stick's `CableAttachPoint` to the `Entry`, laid hanging
   down the front by `CaptiveCord.hanging_route` (a U `STAND_OFF` 4 cm in front of the apron whose depth is solved against the cord's length, so a long cord lies on the floor in slack and a short one hangs short).
@@ -1565,7 +1565,7 @@ every size, speed and place below is an estimate (see the end).
   player's port, a stick that reads its hand every frame, a swing that is slow (nothing) and fast (a don) and again after rising, the stick held over the drum NOT drawn back, shown in its cradle with the grip there and seated
   on release, a stick in a hand starting an attract game). 37 mutants of the new code (hit mapping, speed, rearm, ports, leader, Shift, turns, tether, reel-in, groups, mates, the cradle's gate, the rest basis, the grip,
   `engaged`, the cord's stand-off and depth, the hand's side, the latch, the buttons, the preview radius, the tick, the push), each turned a case red; the two that first survived (a crossing from below that the
-  speed check hid, a cradle gate whose failure was a script error) got stronger cases. **Probe** `Tools/models/taiko_desktop_probe` (WINDOWED, bare room with the real player rig): the crosshair on a stick, a click
+  speed check hid, a cradle gate whose failure was a script error) got stronger cases. **Probe** `DevTools/models/taiko_desktop_probe` (WINDOWED, bare room with the real player rig): the crosshair on a stick, a click
   takes it and its mate, the sticks ride lower right and lower left, the clicks give the right bits, Shift + click lets go and both fall. In a suite the loading overlay's panel is still up and covers a 64 px window, so a
   synthetic click must be pushed at a point outside the viewport (it was swallowed by the GUI before `_unhandled_input`).
 - **Estimates and OWED.** The stick's size (32 cm, 2 cm), the cradles' place, the cord's 0.95 m, the 0.45 m/s, the zone sizes, the 70 ms, the hand-side rule, the haptic (0.7 for 30 ms), that B / Y and the trigger

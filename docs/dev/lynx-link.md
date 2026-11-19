@@ -52,7 +52,7 @@ own plug family (`comlynx_plug`, junction included), so it fits a Lynx and
 nothing else; that inline junction is how a third to eighth unit chains in, as on
 the real cable.
 
-**Room probe** (`RetroXR/Tools/link/lynx_link_room_probe.tscn`, `-- --roms=Z:/roms`):
+**Room probe** (`RetroXR/DevTools/link/lynx_link_room_probe.tscn`, `-- --roms=Z:/roms`):
 the path a player uses -- three Lynxes from `system.tscn`, the catalog's ComLynx
 Cable seated in two sockets, the units switched on one after another, Slime World
 talking across the lead; then a second lead from the first one's junction to a
@@ -60,11 +60,11 @@ third unit (a bus of three), a plug pulled and pushed back. 19 checks. Windowed
 with `--shot` it photographs the cabled pair to `probe_out/lynx/room/`: both screens
 say "2 PLAYERS", the plugs seated in the bottom edge.
 
-**Probe** (`RetroXR/Tools/link/lynx_link_probe.tscn`, one at a time -- two cabled
+**Probe** (`RetroXR/DevTools/link/lynx_link_probe.tscn`, one at a time -- two cabled
 probes in parallel break each other):
 
 ```bash
-"$godot" --headless --path RetroXR res://Tools/link/lynx_link_probe.tscn -- \
+"$godot" --headless --path RetroXR res://DevTools/link/lynx_link_probe.tscn -- \
     --rom="Z:/roms/atarilynx/Warbirds (USA, Europe).lnx" --count=4 \
     --seq="h10,w1500,s:t,0:B,w200,1:B,w200,2:B,w200,3:B,w300,s:m,0:B,w300,1:B,w300,2:B,w300,3:B,w300,s:r3"
 ```
@@ -131,7 +131,7 @@ in the core made that possible, all in the fork (`link.cpp`, `system.cpp`,
 4. **Mikey's 2^31 cycle fold** (every ~2 minutes) is running, not a jump: the
    link used to lose that step.
 
-Found by `Tools/netplay/lynx_rollback_probe`, which compares group rollback to
+Found by `DevTools/netplay/lynx_rollback_probe`, which compares group rollback to
 lockstep CRC by CRC -- a divergence one frame after a rewind, localised by dumping
 serialized states from both runs and diffing them variable by variable (a
 Mednafen state is named sections of named variables; the parser is ten lines).

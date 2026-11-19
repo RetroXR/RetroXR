@@ -128,7 +128,7 @@ adb shell monkey -p com.xenu.retroxr 1                           # GodotApp isn'
 A probe is never booted automatically, so it has to BE the launched scene. The pattern, used
 by `Quest flycast probe` and `Quest page turn probe`:
 
-1. `project.godot`: `run/main_scene.<feature>="res://Tools/…/<probe>.tscn"`.
+1. `project.godot`: `run/main_scene.<feature>="res://DevTools/…/<probe>.tscn"`.
 2. `export_presets.cfg`: clone the Quest preset with `custom_features="<feature>"` and — the
    part that matters — **its own `package/unique_name`** (`com.xenu.retroxr.fqprobe`,
    `…ptprobe`). A probe build that keeps `com.xenu.retroxr` REPLACES the real app on the
@@ -154,7 +154,7 @@ adb uninstall com.xenu.retroxr.ptprobe     # when done
   close it from, and a wedged one sits there until the battery dies.
 
 ### Running the netplay determinism spike on-device
-`Tools/netplay/netplay_spike.tscn` reads its `--spike-*` args from `user://spike.cfg`
+`DevTools/netplay/netplay_spike.tscn` reads its `--spike-*` args from `user://spike.cfg`
 (one per line) when there are no command-line args, and deletes the cfg immediately so
 a crash can't wedge the app. Nothing boots this one automatically — its NetworkManager
 cfg-file hook and its own `run/main_scene.<feature>` preset were removed 2026-09-09 — so the
@@ -178,7 +178,7 @@ every freeze-based explanation, because those latch. `pick_up()` snapshots
 *every* time thereafter, not once; the same goes for a stale ray grab, a netplay replica
 freeze and a scene restore's `gravity_scale = 0`.
 
-`Tools/vr/pad_drop_probe` drives the real `pick_up`/`let_go` path on a real pad, settled until
+`DevTools/vr/pad_drop_probe` drives the real `pick_up`/`let_go` path on a real pad, settled until
 it is genuinely asleep, across five release shapes (one hand, two hands either order, a release
 racing the toggle-hold re-grab, a release mid-lerp) — **all of them fall**, so whatever it is
 needs the real `XRToolsFunctionPickup` (its grip/combo logic, or a ray grab).
@@ -204,7 +204,7 @@ branch is real: the second of a pair released together with the first (`DesktopP
 `is_picked_up()` false, gravity on it, nothing within 1 m under it, no overlap) and AWAKE for one physics
 step, then ASLEEP with its position and its release nudge (-0.05 m/s) unchanged, and stayed so: **setting
 `sleeping = false` again did not wake it, giving it a velocity did** (`linear_velocity = Vector3(0, -1, 0)`, or
-moving it). 4 runs in 5 under `Tools/models/taiko_desktop_probe` (windowed, llvmpipe: a few frames a second); a
+moving it). 4 runs in 5 under `DevTools/models/taiko_desktop_probe` (windowed, llvmpipe: a few frames a second); a
 headless run with two fake pivots, 8 physics steps a frame at 60 Hz, never did, and an unrelated state query
 (`PhysicsServer3D.body_get_direct_state`) in the probe made it fall, so it depends on timing. Not found:
 which write loses the wake. The sticks work round it (`ArcadeHeldGear._wake_if_hung`: four steps after a

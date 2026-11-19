@@ -5,7 +5,7 @@
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_right.tscn" id="3_rhand"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_left.tscn" id="4_lhand"]
 ; The RETRO XR pad (RetroXR-models generic/retropad, build_pad.py; pad_contract.json), baked one mesh per
-; node by Tools/gen/extract_glb_meshes.gd. Every node keeps its path and origin; the shell's three
+; node by DevTools/gen/extract_glb_meshes.gd. Every node keeps its path and origin; the shell's three
 ; materials are what a colourway repaints (RetroPadController.COLOURWAYS).
 [ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/DPad.res" id="pad_DPad"]
 [ext_resource type="ArrayMesh" path="res://imported-assets/controllers/retropad/pad/FaceA.res" id="pad_FaceA"]

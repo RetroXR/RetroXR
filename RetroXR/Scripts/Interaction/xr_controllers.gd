@@ -4,7 +4,7 @@
 ## input, a book, a remote...) asked `get_tree().root.find_children("*",
 ## "XRController3D", true, false)` in its _ready, and that walks every node in the
 ## room checking its class. A 151-object room restore made 230 VRButtons alone do
-## it: 2.5 s of one frame (Tracy, Tools/perf/restore_perf_probe, 2026-11-10).
+## it: 2.5 s of one frame (Tracy, DevTools/perf/restore_perf_probe, 2026-11-10).
 ##
 ## all() answers exactly what that call does -- the same nodes, in tree order -- and
 ## walks again only when an XRController3D has entered or left the tree since, or

@@ -14,7 +14,7 @@
 [ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="4_snapgp"]
 
-; Fitted to the connector mesh (measured by Tools/rope/plug_shape_probe), so a
+; Fitted to the connector mesh (measured by DevTools/rope/plug_shape_probe), so a
 ; loose plug lies ON a surface at its real size. It was a sphere two to five
 ; times the plug's thickness, which rolled under any push and held the plug
 ; centimetres off the floor with nothing visibly holding it there.

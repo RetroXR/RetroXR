@@ -51,12 +51,12 @@ work in the flycast fork; the interface needs no change for it.
   distance law only: a game sets the speaker's volume itself, as it does on the
   hardware, so the television's level has no say.
 
-`RetroXR/Tools/cores/wiimote_speaker_probe.tscn` is the check, and a probe because
+`RetroXR/DevTools/cores/wiimote_speaker_probe.tscn` is the check, and a probe because
 it wants Dolphin and a Wii disc.
 
 ```bash
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-  res://Tools/cores/wiimote_speaker_probe.tscn
+  res://DevTools/cores/wiimote_speaker_probe.tscn
 ```
 
 **Measured 2026-09-13** against Wii Sports (USA) (Rev 1): the A press on the

@@ -60,7 +60,7 @@ const MAX_LIGHTS := 4
 @export_range(0.0, 1.0) var ambient_floor_ratio: float = 0.45
 
 ## Basename of this room's baked irradiance volumes under `res://Scenes/baked`,
-## as written by `Tools/room/bake_shell_gi.gd`. Empty, or a bake that is not on
+## as written by `DevTools/room/bake_shell_gi.gd`. Empty, or a bake that is not on
 ## disk, leaves every material on the analytic loop — which is what a room
 ## without a bake wants, and is why this is not an error.
 @export var gi_bake: String = ""

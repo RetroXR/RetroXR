@@ -3,7 +3,7 @@
 ##     "$godot" --headless --path RetroXR res://Tests/arcade_hold_tests.tscn
 ##     "$godot" --headless --path RetroXR res://Tests/arcade_hold_tests.tscn -- --only=throw
 ##
-## A hand is faked (a Node3D with `drop_object` and `_pick_up_object`, the two methods XRToolsPickable calls back into: Tools/vr/pad_drop_probe), so the REAL
+## A hand is faked (a Node3D with `drop_object` and `_pick_up_object`, the two methods XRToolsPickable calls back into: DevTools/vr/pad_drop_probe), so the REAL
 ## pick_up and let_go run on a REAL cabinet with the real HeldObjectPhysics autoload, on a floor of its own. What a headset feels like holding one is OWED.
 ##
 ## Groups:

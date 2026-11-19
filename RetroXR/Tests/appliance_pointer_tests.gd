@@ -10,7 +10,7 @@
 ## Body and pointer boxes were padded 5-20 mm past the models and every key 1.5 mm a side; the padded shell stood in
 ## front of the television's keys and the amplifier's SURROUND MODE key, deeper than InteractionResolver lets a
 ## control win from inside one (ENCLOSURE_DEPTH), so the desktop ray could not press them at all.
-## Tools/av/appliance_ray_probe prints the same measurements for every direction.
+## DevTools/av/appliance_ray_probe prints the same measurements for every direction.
 extends "res://Tests/test_suite.gd"
 
 ## Close enough to call two boxes the same: a tenth of a millimeter.

@@ -961,7 +961,7 @@ func _group_launch() -> void:
 
 	# The Expansion Pak has no BOOT row at all — it changes no core and carries
 	# no media, so the forced-option pin is the only thing it does. Both cores
-	# were measured (Tools/cores/core_options_probe.gd) to already emulate WITH
+	# were measured (DevTools/cores/core_options_probe.gd) to already emulate WITH
 	# the pak installed by default, so a BARE console is what needs pushing off
 	# the core's own default, not the attached one.
 	var n64_bare := await _console("n64")
@@ -1057,7 +1057,7 @@ func _group_sgb() -> void:
 	# game through the adapter leaves exactly that file and no cart_save_dir at
 	# all. So a bsnes save is keyed to a FILENAME where every other core's is keyed
 	# to a cartridge, and renaming a ROM orphans it. Proving that needs a real core
-	# and belongs in Tools/cores/sgb_probe, not here.
+	# and belongs in DevTools/cores/sgb_probe, not here.
 	gb.save_id = "dk_gb"
 	_ok(sfc.memcards()._expansion_holding_battery() == null,
 		"sgb/ the adapter holds no battery of its own")
@@ -1750,7 +1750,7 @@ func _group_segacd2() -> void:
 ## is sk.bin + sk2chip.bin in genesis_plus_gx's system folder, and the core only
 ## locks on under genesis_plus_gx_lock_on = "sonic & knuckles". What the room
 ## decides is all checked here; that the core then plays Sonic 3 & Knuckles is
-## Tools/cores/sk_lockon_probe's (a real core and ROMs).
+## DevTools/cores/sk_lockon_probe's (a real core and ROMs).
 func _group_lockon() -> void:
 	_ok(_spawn_card_has("genesis", "sonic_knuckles"),
 		"lockon/ the Genesis card offers the Sonic & Knuckles cartridge")

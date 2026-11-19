@@ -46,7 +46,7 @@ plug's own contacts, friction, damping and sleep decide where it ends up.
 ## Plug colliders are FITTED boxes, never spheres
 
 Every loose plug's physics collider is a box sized to the connector mesh (measured by
-`Tools/rope/plug_shape_probe`). The RCA family used to rest on spheres of radius
+`DevTools/rope/plug_shape_probe`). The RCA family used to rest on spheres of radius
 28–35 mm, two to five times the 14 mm barrel. They rolled under any torque and held
 the plug 27–30 mm off the floor with nothing visible under it. With the coupling
 pushing a plug, a sphere rolls: new code on old spheres travelled 629 mm. The Multi
@@ -587,7 +587,7 @@ Measured after, handle face to shell: gb/gbc +0.17 mm, gba 0, gamegear -0.24, n3
 mod's seat is 1 mm inside its shell; the fix is a `face` in that mod), CD player PHONES +0.75 (its zone is
 `DeckFace.seat_port`'s `PORT_PROUD` off the model's mouth).
 
-## Probes (`RetroXR/Tools/rope/`)
+## Probes (`RetroXR/DevTools/rope/`)
 
 - `rope_jitter_probe`: does a cord JITTER while it is awake and being handled? Every
   other check asks whether a cord settles, and sleep hides jitter. One bare rope, an

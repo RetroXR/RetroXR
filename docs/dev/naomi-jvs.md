@@ -55,7 +55,7 @@ cabinet sits behind a JVS-to-JAMMA I/O board on the cabinet's harness.
 Every phase is in. The game ships a stand-in for each part, playable with no mod; a mod only swaps a part's look.
 
 1. **Board-driven system**: `RetroSystem._bay_systems` / `_follow_media_system`; bay kinds `naomi` and `sega_jvs` (ArcadeProfiles).
-2. **The NAOMI board and cart**: the `naomi` ArcadeBayUnit (baked by `Tools/gen/gen_arcade_bay.gd --kind=naomi`): its CartSeat turned
+2. **The NAOMI board and cart**: the `naomi` ArcadeBayUnit (baked by `DevTools/gen/gen_arcade_bay.gd --kind=naomi`): its CartSeat turned
    for the flat cart (`CART_SIZES` naomi/naomi2 0.2546 x 0.1258 x 0.020, the models repo's cart frame); markers named as the model's
    anchors. **`ArcadeBayShells`** + `ModApi.override_arcade_bay_shell(kind, {shell, size, shell_lods, shell_offset | origin, turn})`:
    a mod's model over a stand-in, its same-name anchors moving the markers (CartSeat <- CartAnchor). **`ArcadeCabinetFromModel`**: a

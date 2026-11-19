@@ -65,7 +65,7 @@ it up every frame and rebuilds it only when the set or its tube changes. Three
 
 `display/a light gun is told the picture point it is aimed at` holds the stock set to
 half a pixel from a raised, off-axis eye, and to offscreen behind, past the edge and on
-the bar. `Tools/av/lightgun_aim_probe` (headless; `--shell=` any installed cabinet,
+the bar. `DevTools/av/lightgun_aim_probe` (headless; `--shell=` any installed cabinet,
 `--curvature=`) prints the old plane's error beside the new one for six eyes and fails
 if the control shows none: Panasonic 61 px → 0.12, stock 26 px → 0.11. Dropping the fit
 or the warp from `ScreenAim` fails it (13.7 and 24.4 px). The Wiimote's pointer
@@ -117,7 +117,7 @@ remote and the netplay transport sync. What changes when it is built in:
 
 `combo_tv_tests` (13 cases) uses the reference cabinet
 `Tests/fixtures/combo_tv_shell.tscn`, plus a copy with three phono rows written to
-`user://` for the "no input left" case. `Tools/av/combo_tv_probe` (windowed,
+`user://` for the "no input left" case. `DevTools/av/combo_tv_probe` (windowed,
 `--out=`, `--housing` the control that shows the decks' boxes) is the picture.
 
 Headless runs of a set with a VCR and a DVD player sometimes print
@@ -193,7 +193,7 @@ is drawn changed (`VCRBody` / `DVDBody` and the old clock are hidden, kept as no
 jacks, the display, a restored tape seated and its flap open, eject to the mouth, a
 load through the door, the flap pushed by a held tape and not by one held spine
 first, the DVD tray empty and with a disc, a restored disc at its saved spin, the
-words). `Tools/av/deck_model_probe` (windowed, `--out=`, `--combo` for the cabinet
+words). `DevTools/av/deck_model_probe` (windowed, `--out=`, `--combo` for the cabinet
 alone) is the picture and writes the mechanism's frames.
 
 ### The RETRO XR television: the set's stock cabinet (2026-10-30)
@@ -228,7 +228,7 @@ sockets through `TvFit`, so the scene carries no hand-measured pose. On top of t
   (AUDIO MODE, AUDIO OUT, CRT, ASPECT, STEREO) are not interactive. Saved and synced.
 - **Lamp.** `PowerLed` takes a material of its own, lit while `is_on()`.
 
-`Tools/av/tv_model_probe` (windowed, `-- --out=`) checks the twenty sockets on their mouths
+`DevTools/av/tv_model_probe` (windowed, `-- --out=`) checks the twenty sockets on their mouths
 with +Z out of the back, the tube on ScreenSeat, the keys, the door, the lamp, a lead in
 AV1 and a 1.5x resize. It renders front, open door, back with leads, and resized. Taking
 out `RfPort`'s or the tube's seat in `TvFit` turns it red. Headset feel and the Quest are
@@ -305,7 +305,7 @@ Some sets had a pull tab instead (Sharp's "PULL-OPEN"); the RETRO XR model has n
 
 `tv_key_door_tests` (build/ pointer/ mouse/ poke/ keys/ save/, a tracked fingertip and real
 mouse motion), and `appliance_pointer_tests` tv: the ray takes the door shut and open, and
-the keys once it is open. `Tools/av/tv_door_probe` (windowed) films it. Headset feel OWED.
+the keys once it is open. `DevTools/av/tv_door_probe` (windowed) films it. Headset feel OWED.
 
 ### The ray meets what the model draws: no padding (2026-10-30)
 
@@ -341,7 +341,7 @@ ray could not press them at all.
   is bigger than the model, and the desktop ray along a control's facing takes THAT
   control, with the set's door shut and open and the deck's cover open and shut. Putting
   the 3 mm key margin back fails 39 cases; dropping the television's carve fails the door
-  keys. `Tools/av/appliance_ray_probe` prints the same numbers for every direction.
+  keys. `DevTools/av/appliance_ray_probe` prints the same numbers for every direction.
 
 ### The RETRO XR remote: a handset with real keys (2026-10-30)
 
@@ -392,9 +392,9 @@ DVD); the stick now walks the keys themselves, and the floating grid is an optio
   `XRPositionalTracker` the suite registers, so VRButton's own path runs) pushed into every key
   lying down and seven held tilted in an active second hand whose thumb on STOP presses nothing,
   and `grid/`. Mutation-tested: travel back to 1.2, no grid flash, no press gate (VOL - fires
-  beside POWER), the holding hand poking. `Tools/av/remote_poke_probe` (windowed) records a
+  beside POWER), the holding hand poking. `DevTools/av/remote_poke_probe` (windowed) records a
   fingertip poking six keys for an mp4.
-  `Tools/av/remote_model_probe` (windowed) renders it held at the RETRO XR set, a key down, the handset
+  `DevTools/av/remote_model_probe` (windowed) renders it held at the RETRO XR set, a key down, the handset
   from above and the bay open with its cells. Headset feel and Quest cost (29 draws at LOD0, 3 at LOD1/2)
   are OWED.
 - **The battery bay is the room's battery bay** (`_dress_battery_bay`): the model's `BatteryCover` becomes a
@@ -432,7 +432,7 @@ DVD); the stick now walks the keys themselves, and the floating grid is an optio
   Enter, the menu row switching the grid on (shown, no key lit, the stick walks the grid) and off, and the
   prefs file written (the player's real file, restored byte for byte). Mutation-tested: default on, no ring
   rule, no dead-key skip, no sink, a key lit under the grid, not saved, no outline each go red.
-  `Tools/av/remote_stick_video_probe` (windowed, `--fixed-fps 30`) records it at the RETRO XR set and stills
+  `DevTools/av/remote_stick_video_probe` (windowed, `--fixed-fps 30`) records it at the RETRO XR set and stills
   the menu.
 
 **Every appliance key is pressed by a fingertip only over its own face (2026-10-30).** VRButton's touch is a
@@ -474,7 +474,7 @@ decks are. Every node the saves and netplay name is kept; the old box, slit, lid
 - Tests: `deck_tests drawer/` (both mechanisms, the zone, the seat and its tilt, REPEAT / SHUFFLE, REW / FF off the box,
   the counter and its reset, REC, the spindles, the meters; mutating the seat's turn, the zone, REPEAT and REW / FF each
   fail it) and `appliance_pointer_tests` (every key: box, desktop ray, fingertip). How they look and run:
-  `Tools/av/audio_deck_video_probe` (windowed, `--deck=cassette|cd --album=<folder>`).
+  `DevTools/av/audio_deck_video_probe` (windowed, `--deck=cassette|cd --album=<folder>`).
 
 ### Headphone jacks, and the RETRO XR headphones (2026-10-30)
 
@@ -514,7 +514,7 @@ unchanged. `PlugB0` wears the model's plug and is the only connector a player to
   middle of the band is empty. The plug's box is its mesh's.
 - `headphones_tests` (scene, jack, tv, sound, wear, save, ray; 49 checks). The sound group drives the real
   `SystemAudio.update_position` with a recording stand-in for the SDK (headless has none).
-  `Tools/av/headphones_probe` (windowed) renders the headset and records its plug going into a Game Boy Color's jack.
+  `DevTools/av/headphones_probe` (windowed) renders the headset and records its plug going into a Game Boy Color's jack.
   Listening (the probe runs no core), the Quest and a real session are OWED.
 - Not yet: the record/cassette/CD players (`audio_player.gd`) do not read a sink's `get_audio_unit_size`, so through a
   set's jack they are heard at their own law; the CD player's PHONES jack is not a socket yet.
@@ -532,7 +532,7 @@ the DIRECTION of the socket the plug is in, set in `_resolve`: OUT in a PHONES (
 speaker is then cut), IN in the PC speakers' line in (a deck's phono line out plays through them).
 
 The models item also builds a 1/4" (6.35 mm) model (`quarter`), which the game does not ship: nothing in it takes a
-1/4" plug. `av_tests phones/` (four cases, each with a loose-adapter control); `Tools/av/trs_rca_adapter_probe`
+1/4" plug. `av_tests phones/` (four cases, each with a loose-adapter control); `DevTools/av/trs_rca_adapter_probe`
 (windowed) is how it looks, loose and in a CD player's PHONES with a phono pair in it. The headset and the Quest are OWED.
 
 ### The base game's Compact Cassette, and the CD player's PHONES (2026-10-31)
@@ -563,7 +563,7 @@ turning the model's `PhonesLevel`, which keeps its own node on every level; save
 its sink's `get_audio_unit_size()` each frame, so through headphones, or a set whose jack has headphones in it, the
 disc, tape or record plays at the headphones' near-ear law.
 `headphones_tests cd/` (PHONES over a line out to a set, the distance law, LEVEL, pulled back to the line out, a set's
-jack); `appliance_pointer_tests` checks the knob's box is the knob. How it looks: `Tools/av/bring_in_probe`
+jack); `appliance_pointer_tests` checks the knob's box is the knob. How it looks: `DevTools/av/bring_in_probe`
 (windowed, `-- --no-mods`).
 
 **The volume knobs turn with a ROLL OF THE WRIST** (2026-11-20, `VRKnob.follow_roll` in the scene): the CD player's
@@ -777,8 +777,8 @@ and on to 0.76 and let go is input 3 exactly; a `_unhandled_input` spy sees no m
 it is let go (and with nothing held, the control); EXITED mid-drag keeps it, a bare button-up ends and snaps it. No
 `set_input_as_handled`, EXITED ending the drag, no snap at let-go, `mouse_drag` off: each goes red.
 `appliance_pointer_tests` has the switch (`avswitch`). Windowed renders and the slide video:
-`Tools/av/av_switch_probe` (`debug_tab.png` is its menu shot); the mouse drag on film, 1 -> 4 -> 2 with the set
-following: `Tools/av/av_switch_drag_probe` (a drawn cursor; a root-viewport camera mirrors the filming one, since
+`DevTools/av/av_switch_probe` (`debug_tab.png` is its menu shot); the mouse drag on film, 1 -> 4 -> 2 with the set
+following: `DevTools/av/av_switch_drag_probe` (a drawn cursor; a root-viewport camera mirrors the filming one, since
 the slider projects through its own viewport). Headset, Quest and a real two-peer session OWED.
 
 ### A power cycle must preserve the fitted tube (2026-11-02)
@@ -790,5 +790,5 @@ fitted scale before the startup animation, collapse only its Y axis, and restore
 that scale on completion or interruption. Stopping without a tween must leave the
 shell's pose alone. `av_tests` display/power covers stock, VGA and RETRO XR shells,
 including interruption. The new case failed eight checks before the fix.
-`Tools/av/tv_picture_fit_probe` renders a power cycle with four coloured picture
+`DevTools/av/tv_picture_fit_probe` renders a power cycle with four coloured picture
 edges and MUTE, with and without the cabinet; windowed, `-- --no-mods --out=`.

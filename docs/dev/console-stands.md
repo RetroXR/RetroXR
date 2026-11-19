@@ -127,7 +127,7 @@ stand, taking its lent shapes back.
   its middle on the seat, faces down, the box above, front kept, no mirror),
   `seat/` (a real Wii and PS2 mounted at 0 mm, the right way up, refused by the
   wrong stand), `save/`.
-- `Tools/room/console_stand_probe` (windowed, `--out=`): stills of both, empty
+- `DevTools/room/console_stand_probe` (windowed, `--out=`): stills of both, empty
   and mounted, and the face-to-seat distance.
 
 **OWED**: the real models (RetroXR-models), a headset (lowering a console in by

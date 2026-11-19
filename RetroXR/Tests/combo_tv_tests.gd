@@ -11,7 +11,7 @@
 ##   godot --headless --path RetroXR res://Tests/combo_tv_tests.tscn -- --only=save
 ##
 ## Exits non-zero if anything fails. How a combination set LOOKS is
-## Tools/av/combo_tv_probe, windowed.
+## DevTools/av/combo_tv_probe, windowed.
 extends "res://Tests/test_suite.gd"
 
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")

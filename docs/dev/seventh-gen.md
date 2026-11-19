@@ -105,7 +105,7 @@ the PUP's path, and `folders/` (keys, markers, manual), mutation-tested on the k
 the marker preference. The Blu-ray's "silver even when dual-layer" rule in
 `disc_finish()` is NOT under test: it needs an image over 4.5 GiB.
 
-**How they stand in the room:** `Tools/models/seventh_gen_render_probe` (windowed,
+**How they stand in the room:** `DevTools/models/seventh_gen_render_probe` (windowed,
 `--out=<prefix>`) spawns both placeholder boxes with a disc of each in front, then slides
 the 360's tray out: the PS3 builds a `MediaSlot` and no tray, the 360 a `MediaTray` with a
 front slide (2026-11-05, both shots checked by eye). The placeholder draws four port

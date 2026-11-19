@@ -32,7 +32,7 @@ The format is `SegaCdBram`, whose error correction is transliterated from buram
 by SHA-256, and `expansion_tests` covers staging (`scd_storage/`) and the units
 and tab (`memory/`).
 
-**Measured 2026-09-14** with `Tools/cores/sega_cd_bram_probe`, US BIOS 1.10:
+**Measured 2026-09-14** with `DevTools/cores/sega_cd_bram_probe`, US BIOS 1.10:
 
 - Its DATA STORAGE INFORMATION screen reports the staged images' own counts — 1
   item, 124 free built-in; 1 item, 252 free on a 128 Kbit cartridge.
@@ -47,7 +47,7 @@ and tab (`memory/`).
 
 ```bash
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-  res://Tools/cores/sega_cd_bram_probe.tscn -- --root=<root with system/bios_CD_U.bin and cores/> \
+  res://DevTools/cores/sega_cd_bram_probe.tscn -- --root=<root with system/bios_CD_U.bin and cores/> \
   --cart=128k --at=11 --press=4:start,6:down,6.8:right,7.6:b --shot=C:/tmp/scd.png
 ```
 
@@ -100,7 +100,7 @@ files, which stay where they are. A new cartridge takes the saves in the per-dis
 `.bcr` files Beetle made while it gave every disc a cartridge of its own; those
 are moved to `legacy/` and renamed `.imported` once taken.
 
-**Measured 2026-09-15** with `Tools/cores/saturn_bram_probe`, Beetle Saturn
+**Measured 2026-09-15** with `DevTools/cores/saturn_bram_probe`, Beetle Saturn
 v1.32.1 and BIOS NTSC-4-V1.01a, on the empty-media cue:
 
 - A blank cartridge Beetle formatted itself hashes the same as
@@ -116,7 +116,7 @@ v1.32.1 and BIOS NTSC-4-V1.01a, on the empty-media cue:
 
 ```bash
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-  res://Tools/cores/saturn_bram_probe.tscn -- --root=<throwaway root with system/mednafen_saturn and cores/> \
+  res://DevTools/cores/saturn_bram_probe.tscn -- --root=<throwaway root with system/mednafen_saturn and cores/> \
   --cart --at=28,31,34 --press=17:up,18:b,20:down,21:down,22:b,24:b,26.5:b,29.5:b --shot=C:/tmp/sat.png
 ```
 
@@ -171,16 +171,16 @@ it, so a disc without its cartridge shows whatever the game itself shows.
   libretro-godot passes a pinned value through unchecked (`SetVariable`,
   `DeserializeFromFile` check only the key).
 
-**Measured 2026-10-14:** `Tools/cores/core_options_probe` peeked the installed
+**Measured 2026-10-14:** `DevTools/cores/core_options_probe` peeked the installed
 Beetle (36 options) and a buildbot YabaSanshiro: every Beetle string in the table is
 one it declares, and YabaSanshiro declares `yabasanshiro_addon_cart` defaulting to
 `4M_extended_ram`. `expansion_tests --only=saturncart` (mutation-tested: dropping
 the empty pin, leaving SaturnStorage pinning the slot, a ROM row without its core,
-and one without its dump each turn a case red). `Tools/models/saturn_cart_render_probe`
+and one without its dump each turn a case red). `DevTools/models/saturn_cart_render_probe`
 (windowed) photographs each of the five seated and prints what it pins.
 
 ```bash
-"$godot" --path RetroXR --resolution 960x720 --position 20,20   res://Tools/models/saturn_cart_render_probe.tscn -- --out=C:/tmp/satcarts
+"$godot" --path RetroXR --resolution 960x720 --position 20,20   res://DevTools/models/saturn_cart_render_probe.tscn -- --out=C:/tmp/satcarts
 ```
 
 Still owed: **no game has been run with any of them** -- this machine has no Saturn

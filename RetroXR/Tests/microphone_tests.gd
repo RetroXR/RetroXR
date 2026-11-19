@@ -7,7 +7,7 @@
 ##
 ## The service reads the device, finds machines and switches capture through
 ## Callables, so every case here drives it with fakes. That a core hears what is
-## pushed needs a real core and lives in Tools/cores/mic_probe.
+## pushed needs a real core and lives in DevTools/cores/mic_probe.
 extends "res://Tests/test_suite.gd"
 
 const SERVICE := preload("res://Scripts/Audio/microphone_input.gd")

@@ -143,7 +143,7 @@ static func of_takes(takes: String) -> String:
 ## The world's wall outlets (MainsRegions) are the same rule at length. A socket
 ## whose name is not a plug's ("cee_7_3_socket") takes more than one family, and
 ## every plug it takes is listed here. Each row is what the pins and the face
-## physically allow, and Tools/gen/mains_specs.gd holds the numbers: the mains
+## physically allow, and DevTools/gen/mains_specs.gd holds the numbers: the mains
 ## region suite seats every plug in every socket by them and fails if this table
 ## says otherwise. So a Europlug goes into nearly anything with round 19 mm
 ## holes, a Schuko into a French socket because it has the socket for the earth

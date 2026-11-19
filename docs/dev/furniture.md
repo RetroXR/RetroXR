@@ -39,7 +39,7 @@ Interaction:
   a coasting drawer must not fall asleep (PokeWake) mid-slide.
 
 **A body target moves on the PHYSICS tick, never from `_process`** (`_physics_process`, a critically damped follow,
-`FOLLOW_TAU` 20 ms). Measured with a TV remote in the drawer (`Tools/room/nightstand_probe`, `--fixed-fps`):
+`FOLLOW_TAU` 20 ms). Measured with a TV remote in the drawer (`DevTools/room/nightstand_probe`, `--fixed-fps`):
 - set from `_process`, the drawer stood still one 90 Hz tick and jumped the next, and the remote slipped (162 / 200 mm);
 - a first-order follow still stepped the SPEED each render frame: 223 / 250 mm at 60 fps;
 - second order: 249 / 250 mm at 60, 72 and 90 fps, back to within 0.2 mm.
@@ -165,7 +165,7 @@ if the consts and the contract part.
 
 Tests: `vr_drawer_tests` (`rig contract latch grip coast soft push save carry haul`; every mechanism mutation-tested: the
 mute, the grab offset, the stale re-arm, the physics follow, the inward push, keep-awake, the restore snap). Look:
-`Tools/room/nightstand_probe` (windowed; `--out=`, `--frames`, `--carry`, use `--fixed-fps 72` to record). Headset feel, the Quest's
+`DevTools/room/nightstand_probe` (windowed; `--out=`, `--frames`, `--carry`, use `--fixed-fps 72` to record). Headset feel, the Quest's
 cost and a two-peer session OWED.
 
 ## Furniture built from its contract: `DrawerFurniture` (the Mission pair)
@@ -244,7 +244,7 @@ and on EVERY piece, a box on every surface and in every drawer is held in place 
 (within 5 mm of its place in it) and let go to ordinary physics, moving as the piece did, when it is put down
 (`living/carry`). Mutation-tested (a slider built along +Z, a left door hinged on the right, doors swung inward, no
 surface bins, no drawer bins each go red).
-`Tools/room/living_room_probe` (windowed): all fifteen shut and open, the wall unit's glass with a box behind it, a set
+`DevTools/room/living_room_probe` (windowed): all fifteen shut and open, the wall unit's glass with a box behind it, a set
 and a VCR on the Mission stand. Headset feel, Quest cost and a two-peer session OWED.
 
 ## Computer desks (2026-11-15)
@@ -285,6 +285,6 @@ collision shapes (its direct `CollisionShape3D` children), never its meshes (a t
 go (a monitor left the room at 500 m/s), and one put down overlapping the desk, even frozen, shoves the desk.
 `vr_drawer_tests living/` covers them too (every drawer and tray along its axis, carry). RetroXR-models'
 `verify_exports.py` checks the same fits on the meshes (triangle middles, so a flush back board is caught).
-`Tools/room/computer_desk_probe` (windowed): each desk with the tower in, the keyboard on the tray pulled out and the
+`DevTools/room/computer_desk_probe` (windowed): each desk with the tower in, the keyboard on the tray pulled out and the
 monitor on top, and from behind the open cubby. Headset feel, Quest cost and a two-peer session OWED; no chair is
 sized to them yet.

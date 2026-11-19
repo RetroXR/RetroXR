@@ -79,7 +79,7 @@ checked through `ILinkBus`'s bookkeeping rather than peer counts.
 
 ## Three screens, verified through the room (2026-09-22)
 
-`Tools/link/gt3_ilink_hub_probe.tscn` + `gt3_three_screen.txt` run three real pcsx2
+`DevTools/link/gt3_ilink_hub_probe.tscn` + `gt3_three_screen.txt` run three real pcsx2
 consoles on Gran Turismo 3 A-spec (USA) v1.10, cabled through a real `ILinkHub` with
 real `ILinkCable`s, and drive the jamesfmackenzie.com three-screen set-up
 (Arcade → i.LINK Battle → **Broadcast** on every console). Windowed, ~6 min a run.
@@ -204,7 +204,7 @@ ends in `FWiopReset`, so a console on a cable meets it from power-on. The fronte
 rule is unchanged and right; any other core that attaches before its guest drives the
 port has to publish from attach for the same reason.
 
-`Tools/link/ilink_power_on_probe` (windowed, scratch home with `probe_home.txt`,
+`DevTools/link/ilink_power_on_probe` (windowed, scratch home with `probe_home.txt`,
 `--rom=`, `--rom2=` for B, `--delay=`, `--out=` for a line-flushed log, a watchdog
 for a stuck main thread) is the check: unfixed core with B on Ace Combat 04, A parks
 at 10 fps for the whole run; fixed, both 60. It flags FROZEN only for a console with

@@ -1,6 +1,6 @@
 ## ArcadeBayShells — a mod's model worn by an arcade bay (ArcadeBayUnit) in place of the look the game baked.
 ##
-## The game ships every bay kind as a stand-in (Tools/gen/gen_arcade_bay.gd): a box of the right size with
+## The game ships every bay kind as a stand-in (DevTools/gen/gen_arcade_bay.gd): a box of the right size with
 ## the seat and the sockets where the real board has them, so a board plays with no mod at all. A mod that
 ## models the real board (the NAOMI, say) hands its GLB here, through ModApi.override_arcade_bay_shell, and
 ## every bay of that kind wears it: the stand-in's meshes and labels are hidden, the model is fitted to

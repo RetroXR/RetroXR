@@ -6,8 +6,8 @@
 ##
 ## The printing itself is the core's, and is proved where the core is: its own
 ## Godot-free test (RetroXR/gbprinter-libretro, `ctest`), and the probes that run
-## it against real Game Boy cores (Tools/link/gb_printer_probe, the Camera's
-## gb_camera_print_probe, Tools/netplay/gb_printer_netplay_probe). What is here is
+## it against real Game Boy cores (DevTools/link/gb_printer_probe, the Camera's
+## gb_camera_print_probe, DevTools/netplay/gb_printer_netplay_probe). What is here is
 ## the room's half: that the printer is offered where it should be and nowhere
 ## else, that it is shaped to take the Game Boy's lead, that the paper on it is as
 ## long as the paper the core fed, that a print is written as the paper it is, and

@@ -1211,7 +1211,7 @@ jobs:
             -f lavfi -i sine=duration=3 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest "$RUNNER_TEMP/clip.mp4"
           probe="$RUNNER_TEMP/probe/RetroXR.app"
           mkdir -p "$(dirname "$probe")" && ditto build_out/RetroXR.app "$probe"
-          printf '[application]\nrun/main_scene="res://Tools/av/vlc_export_probe.tscn"\n' \
+          printf '[application]\nrun/main_scene="res://DevTools/av/vlc_export_probe.tscn"\n' \
             | tee "$probe/Contents/MacOS/override.cfg" > "$probe/Contents/Resources/override.cfg"
           "$probe/Contents/MacOS/RetroXR" --headless --log-file "$RUNNER_TEMP/probe.log" \
             -- "$RUNNER_TEMP/clip.mp4" || true

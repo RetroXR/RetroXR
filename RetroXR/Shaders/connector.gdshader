@@ -10,7 +10,7 @@ shader_type spatial;
 // eight-machine arcade.
 //
 // The part is carried in the VERTEX COLOUR instead: rgb is the part's own
-// albedo, alpha is its class (Tools/gen/plug_materials.gd names them):
+// albedo, alpha is its class (DevTools/gen/plug_materials.gd names them):
 //   1.0   gloss plastic in the INSTANCE tint - the channel-coded body
 //   0.85  gloss plastic in its own colour   - a black coax or DIN body
 //   0.7   matte plastic in its own colour   - a hood, a surround

@@ -27,7 +27,7 @@ size = Vector3(0.13, 0.01, 0.13)
 
 ; A 1.2 m loudspeaker stand.
 ;
-; The mesh is baked by Tools/gen/gen_speaker_stand.gd with its origin at the BASE
+; The mesh is baked by DevTools/gen/gen_speaker_stand.gd with its origin at the BASE
 ; centre, so this scene stands it on the floor by placing the node on the floor.
 ; 1.2 m is to the top plate's upper face, which is where a cabinet's own origin
 ; lands — see speaker_stand.gd.

@@ -1850,7 +1850,7 @@ func _d_crt_fast_tier() -> void:
 ## double-sided, the far half of a deep tube showed through the near half to
 ## anyone standing at the side: the full tier blends its glass edge, so nothing
 ## there writes depth and the back faces were simply painted over the front ones.
-## How it looks is Tools/av/tv_side_view_probe (windowed); this is what keeps a
+## How it looks is DevTools/av/tv_side_view_probe (windowed); this is what keeps a
 ## new stage, or a copy of an old one, from bringing the back faces home.
 func _d_tube_one_sided() -> void:
 	for shader: Shader in [RetroTV.CRT_SHADER, RetroTV.CRT_MOBILE_SHADER,
@@ -2062,7 +2062,7 @@ func _d_rf_tuned() -> void:
 ## what it already holds, and nothing ever cleared it: switch input, or reset a
 ## machine, and the last picture bled back in — "I pressed reset on the PS1 and saw
 ## the Wii for a moment, then the BIOS". Measured in pixels by
-## Tools/av/phosphor_ghost_probe.tscn (a quarter of the old picture on the first frame,
+## DevTools/av/phosphor_ghost_probe.tscn (a quarter of the old picture on the first frame,
 ## gone over eight); asserted here as the thing that decides it, since a headless
 ## run has no renderer to accumulate anything.
 func _d_no_ghost() -> void:
@@ -2133,7 +2133,7 @@ func _d_light_gun_aim() -> void:
 	# the bulging glass, and read x and y off the bounds of a glass this set's
 	# 4:3 picture does not fill. From a standing eye the shot landed 17 px low
 	# here (40 on the Panasonic's deeper tube) and up to 11 px off across.
-	# Tools/av/lightgun_aim_probe measures any shell, a mod's included.
+	# DevTools/av/lightgun_aim_probe measures any shell, a mod's included.
 	var tv := _tv()
 	await _wait(30)
 	var src := StubSource.new()

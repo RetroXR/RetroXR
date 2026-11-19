@@ -1272,7 +1272,7 @@ func _test_sega_cd() -> void:
 ## The Saturn's backup RAM, laid out as Yabause's HLE BIOS lays it out. A blank
 ## cartridge is pinned by the digest of one Beetle Saturn formatted itself, the
 ## one image here that did not come from SaturnBram; what the real BIOS makes of
-## the rest is Tools/cores/saturn_bram_probe's to show.
+## the rest is DevTools/cores/saturn_bram_probe's to show.
 func _test_saturn() -> void:
 	var blank := SaturnBram.blank_image(SaturnBram.INTERNAL_SIZE)
 	_ok(SaturnBram.is_card_image(blank), "saturn/a blank System Memory parses")
@@ -1342,7 +1342,7 @@ func _test_saturn() -> void:
 	_ok(not SaturnBram.is_save(PackedByteArray([1, 2, 3])), "saturn/bytes that are no .ssav are not a save")
 
 
-## Measured with Tools/cores/three_do_nvram_probe (Opera 1.0.0 5a09dc4, FZ-10 BIOS,
+## Measured with DevTools/cores/three_do_nvram_probe (Opera 1.0.0 5a09dc4, FZ-10 BIOS,
 ## Gex): the blank is the one Opera formats, Gex's own file laid into it is the
 ## image the 3DO's OS wrote byte for byte, and the OS's NVRAM check at boot
 ## repairs a bent link and leaves these layouts alone.

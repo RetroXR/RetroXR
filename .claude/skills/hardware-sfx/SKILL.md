@@ -149,7 +149,7 @@ return host.get("_restoring_media") != true     # not bool(host.get(...))
 
 ## 5. Proving it
 
-Write a throwaway probe under `RetroXR/Tools/`, print `[probe]` lines, delete it
+Write a throwaway probe under `RetroXR/DevTools/`, print `[probe]` lines, delete it
 after. Two ways a probe here lies:
 
 - **Calling an override directly can silently resolve to the parent class**, so

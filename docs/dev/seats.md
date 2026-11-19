@@ -6,7 +6,7 @@ built from their models' contracts by `ContractSeat`** (`Scripts/Objects/room/co
 and six FLOOR seats (2026-11-14: `floor_cushion_square`, `floor_cushion_round`, `zabuton`, `flip_chair`, `floor_pillow`, `floor_rocker`), modelled in RetroXR-models
 `generic/seating` and `generic/beds` (`imported-assets/furniture/{seating,beds}/`, sizes estimated). Spawn menu > Objects. `ScenePersistence.SEAT_FURNITURE_IDS` lists them. The six primitive seats
 (racing seat, stool, chair, floor cushion, sofa, bed) were taken out the same day; the chair and sofa are TEST FIXTURES (`Tests/fixtures/seat_{chair,sofa}.tscn`, baked by
-`Tools/gen/gen_seats.gd`), and a room saved with any of the six loads without it (`unknown object type`).
+`DevTools/gen/gen_seats.gd`), and a room saved with any of the six loads without it (`unknown object type`).
 
 - **Built from the contract, at run time** (as `DrawerFurniture`; a `.json` ships with the export): the scene is only the `Model` (`ApplianceModel`, three levels by distance;
   sofas and beds switch farther out, 2.5-3 / 6-7 m, so a sitter never sees the swap) and the highlight. `ContractSeat` adds the collision boxes (every list under `collision`), the
@@ -34,7 +34,7 @@ and six FLOOR seats (2026-11-14: `floor_cushion_square`, `floor_cushion_round`, 
   scanlines running to the tip, a pulse; no depth test, so the cushion and back never hide it) lies over the first place pointing the way it faces. It fades in on the
   take and out on the let-go (`dismiss`; the seat drops its reference at once). `Seat._facing_arrow_frame()` says where: a BED overrides it to run from the lying place's
   pillow toward the foot (+Z), since the first place, sitting on the edge, faces sideways and says nothing about which end goes to the wall. `seat_tests arrow/`;
-  `Tools/room/seat_arrow_probe` (windowed).
+  `DevTools/room/seat_arrow_probe` (windowed).
 - **A FLOOR seat** (`ContractSeat.is_floor_seat()`: its contract's `seat_top` under 0.3 m, `FLOOR_SEAT_TOP`) is sat on as the floor is: the eyes a floor-sitter's, 0.86-1.04 m over
   the floor and about 0.78 m over its top (0.76 in the reclined rocker), where a chair's are 1.2 m or more. `seat_tests contract/` holds each piece to the range its OWN contract
   puts it in (mutation-tested both ways: no floor seats, every seat a floor seat), never one range wide enough for both. The round and curved ones (round cushion, floor pillow,
@@ -45,7 +45,7 @@ and six FLOOR seats (2026-11-14: `floor_cushion_square`, `floor_cushion_round`, 
   fixtures face -Z, these face +Z (a bed's edge +X), so an unturned slab grew BEHIND the sitter. `seat_tests contract/` checks each place's slab against its eyes.
 - `seat_tests contract/` builds all nineteen (places, eye heights, facing, stand points beside the piece, a press on every place sitting there and getting up onto its stand
   point; mutation-tested: an unturned trigger, a place ignored, a stand point not the nearer one); `save/` that they spawn and save as themselves. How they look, sitting on
-  the sofa, lying on the captain's bed and sitting on a floor cushion: `Tools/room/furniture_probe` (windowed). A headset (the feel, the laser reaching each cushion) and the Quest's cost OWED.
+  the sofa, lying on the captain's bed and sitting on a floor cushion: `DevTools/room/furniture_probe` (windowed). A headset (the feel, the laser reaching each cushion) and the Quest's cost OWED.
 
 - **Press the cushion to sit, again to get up; HOLD on the seat to carry it** (`grab_hold_seconds` = `HoldToGrab.DEFAULT_SECONDS`). `SeatTrigger` is a pointable
   `Area3D` slab 3 cm proud of the cushion, so it wins the ray over the body's `PointerArea` (the same rule that makes the arcade's panel grip work); it tints when aimed at.
@@ -70,7 +70,7 @@ and six FLOOR seats (2026-11-14: `floor_cushion_square`, `floor_cushion_round`, 
   yellow under filmic). It fades in, breathes and fades out (`is_hovered()` is the AIM, the light may still be fading). A round seat is an ellipse
   (`ContractSeat.round_seat`: round cushion, pouf, mid-century stool, papasan); a bowl whose sides rise over the box starts its projector higher
   (`hover_rise`, the papasan 0.25 m). Known: a stool leg right under the seat's edge catches a little of the outline. How it looks:
-  `Tools/room/furniture_probe -- --hover` (windowed). Headset and Quest cost OWED.
+  `DevTools/room/furniture_probe -- --hover` (windowed). Headset and Quest cost OWED.
 - **SEATED, THE LASER FINDS NOTHING TO PRESS (2026-10-27, VR).** The cushion is under the sitter and a laser leaves the hand pointing forward: a probe with the real rig put a seated hand in 45 poses (beside the hips, in the lap,
   a little forward) with the laser forward and 40 degrees down, and it hit the trigger in 3 of them on the chair, 2 on the racing seat, 3 on the cushion, 0 on the bed (the racing seat's `PointerArea` boxes took most of the rest); aimed
   straight down at the lap it always hit. So while the host is occupied the laser's slab (`SeatTrigger.stand_zone`, the `LaserBody`'s own box; the desktop's Area3D keeps its size) reaches 0.6 m toward the knees and 0.2 m to each side,
@@ -90,7 +90,7 @@ and six FLOOR seats (2026-11-14: `floor_cushion_square`, `floor_cushion_round`, 
   (`PlayerRig.leave_world` -> `Seat.release_all`) lets the player go.
 - **THE PLAYER BODY STAYS ON (a critical bug shipped for a few hours, 2026-10-23).** godot-xr-tools runs every movement provider, the desktop's mouse-look and its mouse capture among them, from inside the
   body's physics step and skips them all when it is disabled: a seat that switched the body off left the player unable to turn, so unable to aim at the seat to get up. The body's collision mask (1019)
-  has no pickable layer, so its capsule does not fight the seat. Proof: `Tools/models/seat_look_probe` (the game's real `player_rig.tscn`, injected mouse motion; `-- --oldbug` is the control leg:
+  has no pickable layer, so its capsule does not fight the seat. Proof: `DevTools/models/seat_look_probe` (the game's real `player_rig.tscn`, injected mouse motion; `-- --oldbug` is the control leg:
   `turned=false`).
 - **Height.** On the desktop the camera's own height IS the eye height, so the seat sets it and puts it back (also when the seat goes away mid-sit). **In a headset the head is brought to the seat's eye point, once, as
   the player sits** (`Seat.origin_at_eye_height`; `stand()` puts the origin back on the floor): the first version put the floor under the seat and left the head where it was, "somebody sitting on a real chair is already at
@@ -122,4 +122,4 @@ and six FLOOR seats (2026-11-14: `floor_cushion_square`, `floor_cushion_round`, 
 - **A cockpit of TWO seats (2026-10-26, Lucky & Wild).** `DriverSeat` and `GunnerSeat`, each a `CockpitSeat` 0.40 m wide, 0.21 m to a side of the middle with their own eye point at the middle of the glass and their own
   `StandPoint` on the OUTSIDE (the driver gets up to the left, the gunner to the right: the other seat is never in the way). They share the one `Seat.current` rule, so sitting in one while in the other gets up first. No pointer
   box of the cabinet stands over either cushion (the same boxes under and behind the cushion, one pair a seat). `seat_tests pair/`.
-- Tests: `seat_tests` (groups `pose sit press family cockpit follow rider pair save`; mutation-tested: yaw sign and the body switch). Pictures: `Tools/models/seats_probe` (windowed; eyes yellow, stand point green).
+- Tests: `seat_tests` (groups `pose sit press family cockpit follow rider pair save`; mutation-tested: yaw sign and the body switch). Pictures: `DevTools/models/seats_probe` (windowed; eyes yellow, stand point green).

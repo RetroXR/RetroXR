@@ -89,7 +89,7 @@ const _CART_MODELS := {
 	"n3ds": "res://imported-assets/carts/nintendo_3ds/3ds_cart.glb",
 	"sega32x": "res://imported-assets/carts/sega_32x/sega32x_cart.glb",
 	"genesis": "res://imported-assets/carts/genesis/genesis_cart.glb",
-	# A JAMMA board is a bare PCB, not a shell: see Tools/gen/gen_arcade_board.gd.
+	# A JAMMA board is a bare PCB, not a shell: see DevTools/gen/gen_arcade_board.gd.
 	"arcade": ArcadeProfiles.BOARD_SCENE,
 	# The other cabinets' media: a Neo Geo MVS game is a plastic cassette (neogeo_cart.tscn); a
 	# laserdisc game's and a discrete-logic game's are bare boards (no disc or shell is modelled).

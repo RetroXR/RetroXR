@@ -9,7 +9,7 @@
 ## two times that class of bug already shipped).
 ##
 ## What this CANNOT show is how it looks or feels: that is
-## Tools/vr/book_flop_probe (windowed, renders the poses) and the headset.
+## DevTools/vr/book_flop_probe (windowed, renders the poses) and the headset.
 ##
 ## Needs no PDF and no godot-pdfium: the book is a CBZ built here.
 extends "res://Tests/test_suite.gd"

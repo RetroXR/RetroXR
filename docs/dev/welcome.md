@@ -18,9 +18,9 @@ Tab key and one at a desk has no left stick.
 | `Scripts/XR/controller_rig.gd` (`ControllerRig`) | how a model's rig moves each input, shared with `ControllerModel` |
 | `Textures/welcome/menu_clip.ogv` | page 1's clip: Ogg Theora, 880 x 720, 30 fps, silent, about 20 s |
 | `Textures/welcome/hookup_clip.ogv` | page 2's clip: an NES hooked up in the bedroom, 960 x 540, about 30 s |
-| `Tools/room/nes_hookup_probe` + `Tools/room/roms/brix.nes` | films page 2's clip; the ROM is BrickBreaker (MIT), credited in ABOUT |
+| `DevTools/room/nes_hookup_probe` + `DevTools/fixtures/roms/brix.nes` | films page 2's clip; the ROM is BrickBreaker (MIT), credited in ABOUT |
 | `Textures/welcome/upload_clip.ogv` | page 3's clip, a Quest's only: a ROM uploaded through the Web File Manager, 960 x 540, about 21 s |
-| `Tools/net/web_upload_probe` + `Tools/art/film_web_upload.py` | serve a scratch data folder with the real `WebFileServer`, and film page 3's clip in Chromium against it |
+| `DevTools/net/web_upload_probe` + `Tools/art/film_web_upload.py` | serve a scratch data folder with the real `WebFileServer`, and film page 3's clip in Chromium against it |
 | `SpawnMenuController._offer_welcome` / `_show_welcome` | when, and where it stands; hands over the two `ControllerArt`s |
 | `AppPrefs.show_welcome` / `set_show_welcome` / `show_welcome_changed` | whether it comes up at start; the ONE way to change it |
 | `SpawnMenuOptionsView._build_welcome_option` | OPTIONS > General > Show Welcome Page at Start |
@@ -88,7 +88,7 @@ lead somewhere: the support page is last everywhere, so page 2 always has a Next
 3D controllers only on page 1, where their stage is. Both clip pages are built by
 `_build_clip_page`, the clip drawn at `HOOKUP_SIZE`.
 
-The clip is FILMED in the real app by `Tools/room/nes_hookup_probe` (windowed):
+The clip is FILMED in the real app by `DevTools/room/nes_hookup_probe` (windowed):
 
 - **The bedroom without its PlayerRig** (it is what restores the player's saved
   room; no welcome page, no menu), mods off, its own camera in a SubViewport with a
@@ -159,13 +159,13 @@ root, and the words on its own buttons (`WebFileServer._HTML`'s "choose files" /
 
 The clip is the REAL server in a real browser, never a mock-up:
 
-- `Tools/net/web_upload_probe` (headless) points the data root at
+- `DevTools/net/web_upload_probe` (headless) points the data root at
   `<scratch>/data` through `DataPaths.set_config_path_for_tests`, lays out a few
   `roms/<system>/` folders, and serves it with `WebFileServer` on 8080, PIN 1234, until
   `<scratch>/stop` appears. It refuses to run without `--scratch`: it never serves
   the player's own folder.
 - `Tools/art/film_web_upload.py` (Playwright Chromium, 960 x 540) signs in, opens
-  media > roms > nes, picks `Tools/room/roms/brix.nes` through the page's own file
+  media > roms > nes, picks `DevTools/fixtures/roms/brix.nes` through the page's own file
   chooser, waits for it in the list, checks it reached the scratch folder, writes
   `stop`. Wait for the probe's `[webprobe] serving` line before starting it: the
   first try started the browser before the server listened (`ERR_CONNECTION_REFUSED`).
@@ -198,7 +198,7 @@ Show Again stand here, so every player passes the page once on the way out. No c
 
 
 
-Recorded from the REAL menu, not drawn: `Tools/room/welcome_clip_probe` (windowed)
+Recorded from the REAL menu, not drawn: `DevTools/room/welcome_clip_probe` (windowed)
 builds `spawn_menu.tscn` at its own 2200 x 1800 in a SubViewport and drives it with
 real mouse events (hover and press states are the menu's own) under a drawn pointer
 dot, saving each frame at 0.4; `Tools/art/encode_welcome_clip.py` makes the `.ogv`
@@ -259,7 +259,7 @@ no VLC.
   and Back through two pages off a Quest and three on one, only the shown page's
   clip playing, the ways out on the last page only, the upload page's every step,
   and the links.
-- `Tools/room/welcome_probe` (WINDOWED; it writes `user://app_prefs.json`, back it
+- `DevTools/room/welcome_probe` (WINDOWED; it writes `user://app_prefs.json`, back it
   up): the page in the bedroom with the clip playing, Next to the last page and Done
   pressed through the quad's own pointer body at the button's real place, ABOUT bringing it back, Don't
   Show Again pressed there and kept, then OPTIONS > General scrolled to the switch,

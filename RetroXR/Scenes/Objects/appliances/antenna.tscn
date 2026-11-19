@@ -18,7 +18,7 @@ size = Vector3(0.3, 0.42, 0.11)
 bounce = 0.0
 friction = 0.95
 
-; Fitted to the connector mesh (measured by Tools/rope/plug_shape_probe), so a
+; Fitted to the connector mesh (measured by DevTools/rope/plug_shape_probe), so a
 ; loose plug lies ON a surface at its real size. It was a sphere two to five
 ; times the plug's thickness, which rolled under any push and held the plug
 ; centimetres off the floor with nothing visibly holding it there.

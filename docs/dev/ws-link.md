@@ -43,11 +43,11 @@ offers the platform a "Communication Cable": `ws_link_cable`, the two-ended Game
 Boy lead keyed to its own plug family (`ws_link_plug`), so it seats in a
 WonderSwan and in nothing else.
 
-## Probes (`RetroXR/Tools/link/`)
+## Probes (`RetroXR/DevTools/link/`)
 
 ```bash
-"$godot" --headless --path RetroXR res://Tools/link/ws_link_room_probe.tscn -- --roms=Z:/roms
-"$godot" --headless --path RetroXR res://Tools/link/ws_link_game_probe.tscn -- \
+"$godot" --headless --path RetroXR res://DevTools/link/ws_link_room_probe.tscn -- --roms=Z:/roms
+"$godot" --headless --path RetroXR res://DevTools/link/ws_link_game_probe.tscn -- \
     --rom=<rom> --tag=<name> --script="<steps>" [--every] [--nocable]
 ```
 

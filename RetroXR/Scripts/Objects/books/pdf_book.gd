@@ -1049,7 +1049,7 @@ func _get_page_texture(page_index: int) -> ImageTexture:
 	# cache dir outlives the app, so a book that had ever been read hitched for
 	# ~30 ms on every turn and ~200 ms when it was reopened — while the FIRST
 	# read of the same book, which has to go to the pool, was smooth.
-	# Tools/perf/page_turn_probe.gd measures both.
+	# DevTools/perf/page_turn_probe.gd measures both.
 	_request_page_render(page_index)
 	return _loading_texture
 
@@ -1781,7 +1781,7 @@ var _load_retries := 0
 ## second from finishing looks exactly like one that finished. Nothing ever
 ## looked again: `pdf_path` is already that path, so re-assigning it is a no-op
 ## and the book stayed a navy slab for the rest of its life. Reproduced by
-## truncating a good PDF to 55% (`Tools/vr/manual_probe.gd --file=`).
+## truncating a good PDF to 55% (`DevTools/vr/manual_probe.gd --file=`).
 ##
 ## Only worth retrying while the file is THERE: a path that does not exist is
 ## not going to finish arriving.

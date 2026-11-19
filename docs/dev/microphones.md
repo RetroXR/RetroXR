@@ -104,7 +104,7 @@ when it listens, as on the hardware. The host device therefore stays open for as
 runs on melonDS DS. DeSmuME has no audio path at all: its `physical` mode reads a buffer the
 libretro frontend never fills.
 
-**Measured 2026-09-15** with `Tools/cores/mic_probe`: melonDS DS 1.3.1 opened its microphone at
+**Measured 2026-09-15** with `DevTools/cores/mic_probe`: melonDS DS 1.3.1 opened its microphone at
 44100 Hz while loading Super Mario 64 DS and switched it on 4 frames in; over 6 s the service
 opened the desktop device and pushed 279,343 host frames at 48000 Hz in 553 pushes. The probe
 cannot run against a build without the interface, which has no `IsMicrophoneActive`.
@@ -169,7 +169,7 @@ default each cord came out of the nose and doubled back through its own body. Bo
 `microphone_tests` and `n64_vru_tests` dot the exit direction against the body's nose-to-boss
 vector and want it positive; the default reads exactly -1.00.
 
-**Measured 2026-09-15** with `Tools/input/gc_mic_probe` on the GameCube IPL, no disc. With the
+**Measured 2026-09-15** with `DevTools/input/gc_mic_probe` on the GameCube IPL, no disc. With the
 DOL-022 in slot B the options file read `dolphin_memcard_b_path=mic` and
 `dolphin_hotkey_activate_microphone=R3`, and v11 logged `Memory Card B: microphone seated` at
 boot, `microphone pulled` when the plug came out mid-run and `microphone seated` when it went
@@ -180,15 +180,15 @@ BOOT — the libretro listener leaves EXPANSIONINTERFACE disabled, and libretro-
 nothing below a warning. The IPL never samples the microphone, so no handle was opened.
 
 Shut BOTH card slots to pull the plug in a probe: slot A sits beside B and catches it, and the
-mount log then reads `0=microphone`. `Tools/models/gc_microphone_render_probe` renders the stick
+mount log then reads `0=microphone`. `DevTools/models/gc_microphone_render_probe` renders the stick
 seated and prints the plug's axes — its +Z matches slot B's and the cord end points out of the
 console.
 
 ```bash
 "$godot" --headless --path RetroXR res://Tests/microphone_tests.tscn
-"$godot" --path RetroXR --resolution 320x240 --position 20,20 res://Tools/cores/mic_probe.tscn
+"$godot" --path RetroXR --resolution 320x240 --position 20,20 res://DevTools/cores/mic_probe.tscn
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-  res://Tools/input/gc_mic_probe.tscn -- --root=<throwaway root with cores/dolphin_libretro.dll and system/dolphin/dolphin-emu/Sys>
+  res://DevTools/input/gc_mic_probe.tscn -- --root=<throwaway root with cores/dolphin_libretro.dll and system/dolphin/dolphin-emu/Sys>
 ```
 
 **The N64 Voice Recognition Unit is built, and it is a speech recognizer rather than
@@ -325,7 +325,7 @@ In RetroXR:
   head sunk into a tapered body now, and `n64_vru_tests` `faces/` walks both scenes'
   meshes and fails on any two coplanar faces **that point the same way** — a butt joint,
   where the normals oppose, is safe because culling draws only one of them. Reverted, it
-  reports `Body|Grille at 0.0475`. `Tools/models/n64_vru_render_probe` renders the set
+  reports `Body|Grille at 0.0475`. `DevTools/models/n64_vru_render_probe` renders the set
   (windowed, never `--headless`) and prints the facings.
 - **`RetroSystem.microphone_position()` walks the controller ports** as well as the card
   slots, so the distance law follows the NUS-021 in the player's hand rather than the
@@ -372,7 +372,7 @@ error flags, and a control utterance the game is not listening for comes back `0
 refused. Swapping the two makes both checks fail, which is what makes them checks. Vosk's
 own answers are `{"text": "pikachu"}` and `{"text": "[unk]"}`.
 
-`Tools/input/vru_probe` then proves it against the game itself. With a NUS-020 in socket 4,
+`DevTools/input/vru_probe` then proves it against the game itself. With a NUS-020 in socket 4,
 **Hey You, Pikachu! loads its vocabulary into the unit** -- the core logs the grammar it built
 from the phoneme codes the game sent, which is also what proves the word table was transcribed
 correctly:
@@ -439,9 +439,9 @@ Python `splitlines()` cuts it again. Rebuild the bytes (code points below 256, p
 "$godot" --headless --path RetroXR res://Tests/n64_vru_tests.tscn
 "$godot" --headless --path RetroXR res://Tests/n64_vru_tests.tscn -- --only=faces
 "$godot" --path RetroXR --resolution 900x700 --position 20,20 \
-  res://Tools/models/n64_vru_render_probe.tscn -- --out=<dir>
+  res://DevTools/models/n64_vru_render_probe.tscn -- --out=<dir>
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-  res://Tools/input/vru_probe.tscn -- --root=<throwaway root> \
+  res://DevTools/input/vru_probe.tscn -- --root=<throwaway root> \
   --rom="<Hey You, Pikachu! or Pikachuu Genki de Chuu>" --leg=seated --speak=<48 kHz mono wav>
 # in the fork
 uv run tools/vru_render_ja_clips.py <clip dir>      # Open JTalk, pinned in the script
@@ -515,7 +515,7 @@ In RetroXR:
   that really is one — an N64 VRU in a later socket.
 - **Power-on only**, like every slot device; the binding is read when the machine starts.
 
-**Measured 2026-09-15** with `Tools/cores/dc_mic_probe` against Seaman (Japan, 2001 edition),
+**Measured 2026-09-15** with `DevTools/cores/dc_mic_probe` against Seaman (Japan, 2001 edition),
 the pad in port A with a VMU in slot 1 and the microphone in slot 2. The game reaches its
 microphone and switches it on, and the core says so:
 
@@ -539,7 +539,7 @@ replayed pre-savestate audio into the game.
 ```bash
 "$godot" --headless --path RetroXR res://Tests/microphone_tests.tscn -- --only=dreamcast
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-  res://Tools/cores/dc_mic_probe.tscn -- --root=<throwaway root> --rom=<a disc> --leg=seated
+  res://DevTools/cores/dc_mic_probe.tscn -- --root=<throwaway root> --rom=<a disc> --leg=seated
 ```
 
 **Still owed.** Nobody has confirmed Seaman *understands* what is said to it — the game does
@@ -710,12 +710,12 @@ starts from rest, so a tone already running when a block opens overshoots its am
 ```bash
 "$godot" --headless --path RetroXR res://Tests/famicom_tests.tscn
 "$godot" --headless --path RetroXR res://Tests/famicom_tests.tscn -- --only=gate
-"$godot" --headless --path RetroXR res://Tools/cores/famicom_mic_probe.tscn -- \
+"$godot" --headless --path RetroXR res://DevTools/cores/famicom_mic_probe.tscn -- \
   --root=<throwaway root with cores/fceumm_libretro.dll> \
   --rom="Z:/roms/nes/Bokosuka Wars (Japan).nes" --leg=mic
 ```
 
-`Tools/models/famicom_render_probe` renders the machine front, top and rear and prints the
+`DevTools/models/famicom_render_probe` renders the machine front, top and rear and prints the
 pads' ports and groups — windowed, never `--headless`, which returns a correctly sized blank. It
 spawns no pads of its own: both arrive with the console, and a probe that made its own would put
 four in the room.

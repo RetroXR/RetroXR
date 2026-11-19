@@ -6,7 +6,7 @@
 ##     "$godot" --headless --path RetroXR res://Tests/arcade_dress_tests.tscn -- --only=morph
 ##
 ## Exits 0 when everything passes, 1 otherwise. How a dressing LOOKS is the probe's
-## (Tools/models/arcade_cabinet_probe, windowed); this is what a headless run can say.
+## (DevTools/models/arcade_cabinet_probe, windowed); this is what a headless run can say.
 ##
 ## Groups:
 ##   rows/     what register refuses, and which cabinets and forms a row picks

@@ -1,5 +1,5 @@
 ## Seat — somewhere the player sits. No seat is room furniture any more (2026-11-12): the chair and sofa
-## are test fixtures (Tests/fixtures/, Tools/gen/gen_seats.gd), and the arcade's CockpitSeat shares the sitting.
+## are test fixtures (Tests/fixtures/, DevTools/gen/gen_seats.gd), and the arcade's CockpitSeat shares the sitting.
 ##
 ## Press the seat's cushion (a desktop click, the laser's trigger: SeatTrigger) and the
 ## player is carried onto it: the origin is moved so the HEAD is at the seat's `EyePoint`,
@@ -37,7 +37,7 @@
 ## and overlap); to move along a sofa, get up and press the other cushion. ContractSeat builds its places from the
 ## model's contract.
 ##
-## The test fixtures are baked by Tools/gen/gen_seats.gd; a mod's seat is any scene with this script
+## The test fixtures are baked by DevTools/gen/gen_seats.gd; a mod's seat is any scene with this script
 ## and an `EyePoint` and a `StandPoint` marker.
 class_name Seat
 extends XRToolsPickable

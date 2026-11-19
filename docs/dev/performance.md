@@ -32,7 +32,7 @@ is needed. A new stage shader has to cull back too. av_tests "display/a tube is
 drawn from its front only" holds the eight to it. A cabinet's own tube mesh has
 to be wound facing out, or it is now not drawn at all.
 
-Tools/av/tv_side_view_probe (windowed) is how it looks and the check that can
+DevTools/av/tv_side_view_probe (windowed) is how it looks and the check that can
 fail: --picture=quarters photographs four colour bands from steep angles on
 both sides and fails when a row meets them out of order or skips one. Restoring
 cull_disabled fails it at -88, +86 and +88 with 11 to 95 rows out of order, on
@@ -99,7 +99,7 @@ per main-thread texture update, alongside viewport GPU/CPU measurements. New
 Libretro nodes join automatically. The first interval establishes a baseline.
 The config is consumed and no graphics preference is saved.
 
-Tools/perf/video_transfer_probe.tscn measures a single real core with
+DevTools/perf/video_transfer_probe.tscn measures a single real core with
 --root=<isolated core root> --core=<name> --rom=<path> [--warmup=5] [--seconds=15].
 The supplied root must contain cores/ and any required system/ firmware. Copy
 core options and firmware into scratch storage first: cores write settings
@@ -166,7 +166,7 @@ fast cores the consoles need; what a cap buys them there is not yet measured.
 ## Arcade cabinets (2026-10-20)
 
 Reported: four cabinets spawned lag a lot, and one game (Cadillacs) played for minutes lags at the first
-boss. `Tools/perf/arcade_scale_probe` (cost of N cabinets, scenes only or with a core running) and
+boss. `DevTools/perf/arcade_scale_probe` (cost of N cabinets, scenes only or with a core running) and
 `arcade_soak_probe` (one run of minutes, one CSV row every 5 s, and which series GROW) measure it;
 `run_arcade_matrix.py` runs the first over a matrix, one Godot process per row (never loop cores in a
 process), repeated and interleaved, and prints the table. `arcade_mesh_census` lists every mesh of a
@@ -174,10 +174,10 @@ cabinet with its triangles and shadow mode. `arcade_perf_common.gd` is the share
 
 ```bash
 # on a shell whose libc is older than the extensions' (a flatpak VS Code) add --wrap "flatpak-spawn --host"
-python RetroXR/Tools/perf/run_arcade_matrix.py --godot "$godot" --rom ~/retroxr/roms/mame/dino.zip \
+python RetroXR/DevTools/perf/run_arcade_matrix.py --godot "$godot" --rom ~/retroxr/roms/mame/dino.zip \
     --phase all --repeat 2 --out /tmp/arcade_matrix          # `--phase scene|core`, `--quick`, `--only=`
 "$godot" --path RetroXR --display-driver x11 --disable-vsync --resolution 640x360 \
-    res://Tools/perf/arcade_soak_probe.tscn -- --core=fbneo --n=4 --minutes=12 --rom=<dino.zip> --shots=<dir>
+    res://DevTools/perf/arcade_soak_probe.tscn -- --core=fbneo --n=4 --minutes=12 --rom=<dino.zip> --shots=<dir>
 ```
 
 **What a number means here (each cost a wrong conclusion once):**
@@ -395,7 +395,7 @@ alternated, two runs each:
 
 ## Restoring a room (2026-11-10)
 
-`Tools/perf/restore_perf_probe` replays a slot READ-ONLY, windowed (headless loads no shell threaded and draws
+`DevTools/perf/restore_perf_probe` replays a slot READ-ONLY, windowed (headless loads no shell threaded and draws
 nothing, so it measures a different restore): each entry timed by type (its asset wait and its spawn), the
 connection pass, then 120 frames. `--noprefetch` is the control for the prefetch, `--boot` starts the shell warm
 alongside, `--twice` restores again once everything is cached (what is left is node building), `--roomload=` times

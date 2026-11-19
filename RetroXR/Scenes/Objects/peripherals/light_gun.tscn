@@ -6,7 +6,7 @@
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_pistol_right.tscn" id="4_rhand"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_pistol_left.tscn" id="5_lhand"]
 ; The RETRO XR light gun (RetroXR-models generic/light-gun, build_gun.py; gun_contract.json), baked one
-; mesh per node by Tools/gen/extract_glb_meshes.gd: the buttons stay at the root where LightGun finds
+; mesh per node by DevTools/gen/extract_glb_meshes.gd: the buttons stay at the root where LightGun finds
 ; them by name, the body parts under Shell. Its trigger swings 6 degrees inside the model's guard.
 [ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/Body.res" id="gun_Body"]
 [ext_resource type="ArrayMesh" path="res://imported-assets/controllers/lightgun/gun/Frame.res" id="gun_Frame"]

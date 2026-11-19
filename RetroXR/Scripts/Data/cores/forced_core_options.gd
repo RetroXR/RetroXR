@@ -405,7 +405,7 @@ static func disk_drive(core: String, systemid: String, expansions: Array,
 ## the 64DD above, there is no launch recipe for it, so this is the only thing
 ## it does at all.
 ##
-## Both cores were measured (Tools/cores/core_options_probe.gd) rather than
+## Both cores were measured (DevTools/cores/core_options_probe.gd) rather than
 ## guessed, and both already emulate WITH the pak installed by default:
 ## mupen64plus_next's mupen64plus-ForceDisableExtraMem defaults to False (the
 ## description reads "Disable Expansion Pak", so False means the pak stays in),
@@ -425,7 +425,7 @@ static func expansion_pak(core: String, expansions: Array) -> Dictionary:
 
 
 ## The FM Sound Unit adds a YM2413 chip an export Master System never had.
-## genesis_plus_gx_ym2413 (measured, Tools/cores/core_options_probe.gd) defaults
+## genesis_plus_gx_ym2413 (measured, DevTools/cores/core_options_probe.gd) defaults
 ## to "auto", which follows the ROM's own region byte -- a fact about the
 ## cartridge, not about whether this room's player ever placed the accessory.
 ## So "auto" is left alone for nothing: pinned "enabled" with the unit on and
@@ -554,7 +554,7 @@ static func bios_pinned(core: String, systemid: String, rom_path: String) -> Dic
 ## speed while its FMV, which does render every vblank, is perfect.
 ##
 ## The option is how the core tells the frontend, through SET_SYSTEM_AV_INFO,
-## that the rate has changed. Measured with Tools/cores/pacing_probe: at 35 s
+## that the rate has changed. Measured with DevTools/cores/pacing_probe: at 35 s
 ## the core announced 29.972650 and the call rate fell from 60.00/s to 30.00/s
 ## inside a second, because Wrapper stores the new fps and the emulation loop
 ## re-reads it every pass. With the option off that announcement never comes and
@@ -615,7 +615,7 @@ static func no_debug_break(core: String) -> Dictionary:
 ## (libretro.cxx retro_analog_paddle: += x / 50 a frame) behind a 15% deadzone.
 ## A CX30 sends where its knob is (Atari2600CX30), so the axis is a position and
 ## nothing around the middle is dead. Nothing else on a 2600 sends that axis.
-## Declared by the stella core (Tools/cores/core_options_probe.gd): absolute
+## Declared by the stella core (DevTools/cores/core_options_probe.gd): absolute
 ## enabled/disabled, deadzone 0 and up.
 static func paddle_input(core: String) -> Dictionary:
 	if core != "stella":

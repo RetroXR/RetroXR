@@ -3759,7 +3759,7 @@ func reset_core_options() -> void:
 ##
 ## Unlike reapply_pak this cannot reach a RUNNING core: flycast does not
 ## re-create its maple devices for a changed slot option (measured, see
-## Tools/cores/vmu_slot_probe). The seating is recorded and applied at the next
+## DevTools/cores/vmu_slot_probe). The seating is recorded and applied at the next
 ## content start.
 func reapply_vmu(ctrl: Node) -> void:
 	# The same sockets hold an Xbox's Memory Units, and the pad announces a

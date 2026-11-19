@@ -37,7 +37,7 @@ one of them, not into a controller port. The room models it that way.
 
 ## What a game does with it (measured)
 
-`Tools/input/guncon2_usb_probe` boots a disc with no pad in any controller port and
+`DevTools/input/guncon2_usb_probe` boots a disc with no pad in any controller port and
 a gun in USB socket `--usb=1|2` (or none, `--usb=0`, the control), aims at the centre
 and presses buttons, writing the picture every 5 s. Run windowed.
 

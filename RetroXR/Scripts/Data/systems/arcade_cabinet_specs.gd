@@ -3,7 +3,7 @@
 ## A cabinet is a SPEC (a Dictionary) that ArcadeCabinetBuilder turns into nodes: the look (body,
 ## trim, marquee), the bay kind, a panel per player, the coin doors, front sockets or guns in
 ## holsters, a pedal. The shipped cabinets are rows here (`variant`), baked into scenes by
-## Tools/gen/gen_arcade_cabinet.gd; a cabinet in the room builds its parts again from a spec when the
+## DevTools/gen/gen_arcade_cabinet.gd; a cabinet in the room builds its parts again from a spec when the
 ## game in its bay wants another shape (`RetroSystemModelArcadeCabinet.morph_to`).
 ##
 ## Button 1 is RetroPad B, then A, Y, X, L, R (ArcadeProfiles.BUTTON_BITS); Neo Geo's A B C D are the
@@ -677,7 +677,7 @@ static func bank_layout(tube: Vector2, parts: Array, frame_aspect: float, yaw_de
 		"span": wc + wl * cos(yaw) + wr * cos(yaw)}
 
 
-## The shapes a fixed gun can have besides the pistol (a spec's `gun_scene`): the scene each is built from, Tools/gen/gen_arcade_gun.gd.
+## The shapes a fixed gun can have besides the pistol (a spec's `gun_scene`): the scene each is built from, DevTools/gen/gen_arcade_gun.gd.
 const GUN_SCENES := {
 	"stick": "res://Scenes/Objects/peripherals/arcade_light_stick.tscn",
 	"blaster": "res://Scenes/Objects/peripherals/arcade_light_blaster.tscn",
@@ -750,7 +750,7 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 			spec["gun_style"] = {ArcadeGameProfile.FORM_GUN: "holster", ArcadeGameProfile.FORM_GUN_MOUNTED: "mounted",
 				ArcadeGameProfile.FORM_RIFLE: "rifle"}[form]
 			spec["players"] = gun_panels(guns, str(spec["gun_style"]))
-			# A fixed gun that is not a pistol: Rail Chase's joystick-like one, Laser Ghost's big blaster (the table's `y`, Tools/gen/gen_arcade_gun.gd --variant=).
+			# A fixed gun that is not a pistol: Rail Chase's joystick-like one, Laser Ghost's big blaster (the table's `y`, DevTools/gen/gen_arcade_gun.gd --variant=).
 			if form == ArcadeGameProfile.FORM_GUN_MOUNTED and profile.control_style() in GUN_SCENES:
 				spec["gun_scene"] = profile.control_style()
 			# A player who also works a joystick (Gunbuster's walk): a stick and two buttons on the panel of each gun, in place of START alone.

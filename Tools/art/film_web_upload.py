@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Film the welcome page's upload clip: a ROM uploaded through the Web File Manager.
 
-    "$godot" --headless --path RetroXR res://Tools/net/web_upload_probe.tscn -- --scratch=<dir> &
-    python Tools/art/film_web_upload.py --scratch <dir> --rom RetroXR/Tools/room/roms/brix.nes
+    "$godot" --headless --path RetroXR res://DevTools/net/web_upload_probe.tscn -- --scratch=<dir> &
+    python Tools/art/film_web_upload.py --scratch <dir> --rom RetroXR/DevTools/fixtures/roms/brix.nes
     python Tools/art/encode_welcome_clip.py <dir>/frames --name upload_clip
 
 web_upload_probe serves a SCRATCH data folder with the real WebFileServer (PIN 1234);

@@ -59,7 +59,7 @@ on Opera: a per-disc `.srm` would never be filled.
 
 ### Measured 2026-10-14
 
-`Tools/cores/three_do_nvram_probe`, Opera 1.0.0 `5a09dc4` (buildbot nightly), Panasonic
+`DevTools/cores/three_do_nvram_probe`, Opera 1.0.0 `5a09dc4` (buildbot nightly), Panasonic
 FZ-10 BIOS (`panafz10.bin`), Gex (USA Europe). One leg per process, windowed:
 
 - `--blank`: Opera's own formatted NVRAM is `ThreeDoNvram.blank_image()` byte for byte
@@ -79,7 +79,7 @@ FZ-10 BIOS (`panafz10.bin`), Gex (USA Europe). One leg per process, windowed:
 
 ```bash
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-  res://Tools/cores/three_do_nvram_probe.tscn -- --root=<throwaway root with cores/opera_libretro.dll and system/opera/panafz10.bin> \
+  res://DevTools/cores/three_do_nvram_probe.tscn -- --root=<throwaway root with cores/opera_libretro.dll and system/opera/panafz10.bin> \
   --rom="<roms>/3do/Gex (USA Europe).chd" --run=45 --at=10,25,44 --shot=C:/tmp/3do.png [--blank|--broken|--pergame]
 ```
 

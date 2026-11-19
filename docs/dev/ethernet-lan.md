@@ -114,7 +114,7 @@ socket as the card (`EthernetPort.get_device()` stops at a `RetroExpansion`), th
 
 ## Verified with the real cores (2026-10-21)
 
-Driven with `Tools/link/lan_probe.tscn` (windowed, per-console roots, a command file;
+Driven with `DevTools/link/lan_probe.tscn` (windowed, per-console roots, a command file;
 its header has the usage):
 
 - **Mario Kart: Double Dash!!**, two GameCubes: LAN MODE appears, "2 Nintendo
@@ -125,7 +125,7 @@ its header has the usage):
   clocks, 60 fps, ~5000 frames each way. GT4's procedure: create a network
   configuration (DHCP: yes); the HOST is set at the race menu → Option → Options → LAN
   Settings (Host: Yes, No. of Players: N), which does not survive a reboot; clients
-  Connect first, the host last. `Tools/link/gt4_lan_two.txt` is the scripted walk.
+  Connect first, the host last. `DevTools/link/gt4_lan_two.txt` is the scripted walk.
 
 - **Gran Turismo 4**, **six** PlayStation 2s, GT4's most: host at No. of Players 6, five
   clients waiting, all six on one Course Select, Car Select and grid, P1 to P6 live,

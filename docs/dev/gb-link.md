@@ -4,15 +4,15 @@ Moved verbatim out of `CLAUDE.md` on 2026-09-18; `CLAUDE.md` keeps the summary a
 
 ### 2e. The Game Boy link probes — three layers, two cores, two clocks
 
-`RetroXR/Tools/link/gb_link_probe.tscn` drives the bus directly, `gb_link_room_probe.tscn`
+`RetroXR/DevTools/link/gb_link_probe.tscn` drives the bus directly, `gb_link_room_probe.tscn`
 drives the path a player uses (pick a lead up, push a plug into a socket), and
 `gb_tetris_link_probe.tscn` runs a commercial two-player game over the result.
 Probes rather than tests: they want a real core and, for Tetris, a real ROM.
 
 ```bash
-"$godot" --headless --path RetroXR res://Tools/link/gb_link_probe.tscn -- --core=mgba
-"$godot" --headless --path RetroXR res://Tools/link/gb_link_room_probe.tscn
-"$godot" --headless --path RetroXR res://Tools/link/gb_tetris_link_probe.tscn -- --roms=Z:/roms --core=gambatte --core2=mgba
+"$godot" --headless --path RetroXR res://DevTools/link/gb_link_probe.tscn -- --core=mgba
+"$godot" --headless --path RetroXR res://DevTools/link/gb_link_room_probe.tscn
+"$godot" --headless --path RetroXR res://DevTools/link/gb_tetris_link_probe.tscn -- --roms=Z:/roms --core=gambatte --core2=mgba
 ```
 
 **Both cores, and between them.** gambatte and mGBA each carry a Game Boy, both
@@ -133,7 +133,7 @@ again, and `gbc_ir_probe` does too (up to five times, and says how many).
 python Tools/gen/gs_save.py <a Gold or Silver save>                  # what is in it
 python Tools/gen/gs_save.py <save> --unlock a.srm
 python Tools/gen/gs_save.py <save> --unlock b.srm --id 12345 --name PROBE
-"$godot" --headless --path RetroXR res://Tools/link/gbc_ir_probe.tscn -- \
+"$godot" --headless --path RetroXR res://DevTools/link/gbc_ir_probe.tscn -- \
     "--rom=<Pokemon Gold or Silver>" --save=a.srm --save2=b.srm
 ... -- ... --core=mgba --core2=gambatte   # a unit of each
 ... -- ... --nolink                       # the control: must NOT trade
@@ -266,7 +266,7 @@ constant they were meant to check (a dwell of 1 passed), and a 25 mm standoff
 on the sight line turned out to protect nothing (see "held", above) and was
 removed.
 
-`Tools/link/gbc_ir_room_probe` is the room path with real cores: two
+`DevTools/link/gbc_ir_room_probe` is the room path with real cores: two
 `system.tscn` machines with a cartridge each, switched on a metre and a half
 apart, and only THEN brought face to face -- so the gift crosses a link the room
 made under running cores. It writes saves, so it refuses to run unless the data
@@ -274,11 +274,11 @@ root holds `probe_home.txt`; give it a scratch `USERPROFILE` (and `APPDATA`).
 
 ```bash
 USERPROFILE=<scratch home> APPDATA=<scratch> "$godot" --headless --path RetroXR \
-    res://Tools/link/gbc_ir_room_probe.tscn -- "--rom=<Gold or Silver>" --save=a.srm --save2=b.srm
+    res://DevTools/link/gbc_ir_room_probe.tscn -- "--rom=<Gold or Silver>" --save=a.srm --save2=b.srm
 ... -- ... --apart | --away | --wall | --cabled     # the controls: none may trade
 ... -- ... --core=mgba [--core2=gambatte]
 # windowed, for the photographs of the window lit and dark:
-"$godot" --path RetroXR --resolution 640x480 --position 20,20 res://Tools/link/gbc_ir_room_probe.tscn -- ...
+"$godot" --path RetroXR --resolution 640x480 --position 20,20 res://DevTools/link/gbc_ir_room_probe.tscn -- ...
 ```
 
 Measured 2026-10-13, windows x86_64, the RELEASED cores (gambatte v4, mGBA v8),
@@ -324,8 +324,8 @@ In a room nobody powers two Game Gears on in the same instant.
 
 ```bash
 python Tools/gen/gen_gglink_rom.py
-"$godot" --headless --path RetroXR res://Tools/link/gg_link_probe.tscn          # 10 cases
-"$godot" --headless --path RetroXR res://Tools/link/gg_link_probe.tscn -- "--rom=Z:/roms/gamegear/Columns (USA, Europe).gg" --tag=col --seconds=30 "--press=DOWN@11.5,START@12.5,START@16,START@18" "--press2=DOWN@11.5,START@14,START@21,START@23"
+"$godot" --headless --path RetroXR res://DevTools/link/gg_link_probe.tscn          # 10 cases
+"$godot" --headless --path RetroXR res://DevTools/link/gg_link_probe.tscn -- "--rom=Z:/roms/gamegear/Columns (USA, Europe).gg" --tag=col --seconds=30 "--press=DOWN@11.5,START@12.5,START@16,START@18" "--press2=DOWN@11.5,START@14,START@21,START@23"
 python Tools/gen/gglink_sheet.py col     # contact sheet, top row machine A
 ```
 
@@ -370,7 +370,7 @@ ejected every few frames). CoreSources fetches the linked build
 Android). `gg_link_room_probe` seats the lead by hand and checks the bus (12/12):
 
 ```bash
-"$godot" --headless --path RetroXR res://Tools/link/gg_link_room_probe.tscn -- --roms=Z:/roms
+"$godot" --headless --path RetroXR res://DevTools/link/gg_link_room_probe.tscn -- --roms=Z:/roms
 ```
 
 **Under netplay (measured 2026-09-21).** A Game Gear never plays ROLLBACK in a
@@ -379,7 +379,7 @@ demoted as well (§2g), so a Gear-to-Gear pair is always LOCKSTEP. The core woul
 support rollback: `rewind_probe` on genesis_plus_gx passed 275 anchors with
 0 mismatches on Columns, Sonic Drift 2 and Faceball 2000. The cabled pair holds
 the netplay gate: `netplay_link_probe` with `--link-core=genesis_plus_gx
---roms=res://Tools/gglink/link_master.gg,res://Tools/gglink/link_slave.gg` ran
+--roms=res://DevTools/fixtures/gglink/link_master.gg,res://DevTools/fixtures/gglink/link_slave.gg` ran
 241/241 frames on one bus (traffic 29/26), and the unfed leg stopped at frame 3.
 Neither demotion is pinned by a suite. A real two-headset GG session is OWED.
 
@@ -508,8 +508,8 @@ spawn token and save type `dmg07_adapter`, on the Game Boy and Game Boy Color ca
   where player 1's lead is, validates, and a new adapter puts it back; `spawn/` both
   cards. Mutation-tested: a socket on the wrong port, the lead left in `spawned`, a
   socket off the middle, the DMG-04's scene and no `lead_made` all go red.
-- `Tools/models/dmg07_render_probe` (windowed): four Game Boys round it.
-- `Tools/link/dmg07_room_probe` (real cores, real data root; `--nolink` the control):
+- `DevTools/models/dmg07_render_probe` (windowed): four Game Boys round it.
+- `DevTools/link/dmg07_room_probe` (real cores, real data root; `--nolink` the control):
   Wave Race through the ROOM, the four Game Boys' `HandheldInput` held still so the
   presses land (as `vb_link_room_probe`). Every port on both sides sees 2 machines, the
   adapter's core pings as player 1's lead goes in, and each Game Boy picking MULTI is
@@ -526,7 +526,7 @@ spawn token and save type `dmg07_adapter`, on the Game Boy and Game Boy Color ca
 - Three `FF` from a packet's start restart the ping.
 - `tests/dmg07_test.c` plays four simulated Game Boys through all of it (19 checks).
 
-**Run with four real Game Boys** (`Tools/link/dmg07_probe`: N gambatte or (`--core=mgba`) mGBA cores and the
+**Run with four real Game Boys** (`DevTools/link/dmg07_probe`: N gambatte or (`--core=mgba`) mGBA cores and the
 adapter on the bus directly, a scratch root holding `cores/dmg07_libretro.dll` and
 `cores/gambatte_libretro.dll`, `--nolink` the control):
 - All four cables come up (`LinkPeerCount` 2 on every port), and five cores run

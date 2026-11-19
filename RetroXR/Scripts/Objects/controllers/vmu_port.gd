@@ -265,7 +265,7 @@ func _on_removed(slot: int) -> void:
 ## MEASURED: flycast does not re-create its maple devices when the per-slot
 ## option changes at runtime, so this cannot take effect on a hand movement. The
 ## system records it and applies it at the next content start; see
-## Tools/cores/vmu_slot_probe for the measurement and why the obvious probe for
+## DevTools/cores/vmu_slot_probe for the measurement and why the obvious probe for
 ## it proves nothing.
 func announce(system: Node = null) -> void:
 	var sys: Node = system

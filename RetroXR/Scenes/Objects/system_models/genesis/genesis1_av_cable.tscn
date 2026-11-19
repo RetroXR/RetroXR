@@ -7,7 +7,7 @@
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
 [ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="6_mdplugscript"]
 
-; Fitted to the phono connector mesh (measured by Tools/rope/plug_shape_probe), as
+; Fitted to the phono connector mesh (measured by DevTools/rope/plug_shape_probe), as
 ; every lead's far end is.
 [sub_resource type="BoxShape3D" id="BoxShape3D_plugfit2"]
 size = Vector3(0.0144, 0.0144, 0.054)

@@ -116,7 +116,7 @@ core never declared without failing, so the card would silently not be selected.
 ```bash
 "$godot" --headless --path RetroXR res://Tests/card_tests.tscn -- --only=ps2
 "$godot" --path RetroXR --resolution 900x760 --position 20,20 \
-  res://Tools/input/ps2_card_probe.tscn -- --card=/path/to/card.ps2
+  res://DevTools/input/ps2_card_probe.tscn -- --card=/path/to/card.ps2
 ```
 
 The probe is **windowed, never `--headless`** — the icons are SubViewports, and

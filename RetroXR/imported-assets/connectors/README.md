@@ -22,6 +22,6 @@ After a re-import, put the GLBs back to `generate_lods=false` and any extracted 
 | `trs_rca_adapter/trs_rca_adapter.glb` | `generic/trs-rca-adapter/exports/mini/trs_rca_adapter_mini_mobile_clean.glb` (the 3.5 mm model) | the whole block of `trs_rca_adapter.tscn` (`PlugA0/Shell`; its `RcaJackL`/`RcaJackR` mouths are where the jacks' zones stand) |
 | `barrel_plug/barrel_plug_<key>.glb`, `barrel_plug_<key>_l.glb` | `generic/barrel-plug/exports/<key>[_l]/barrel_plug_<key>[_l]_mobile_clean.glb`, keys `5521`, `5525`, `3513`, `eiaj01`, `eiaj02`, `eiaj03` | an AC adapter's DC plug when its row names no `plug_model` (`DcPlugShape.model_path`: the L one where `plug_mm` is much taller than wide); `PowerBrick` tints `BPLUG_Body` to the row's `cord`. Keyed plugs keep `DcPlugShape`'s primitive |
 
-The PS/2 and 3.5 mm plugs replaced `Tools/gen/gen_ps2.gd`'s and `gen_trs.gd`'s baked plugs (2026-11-15); the sockets
+The PS/2 and 3.5 mm plugs replaced `DevTools/gen/gen_ps2.gd`'s and `gen_trs.gd`'s baked plugs (2026-11-15); the sockets
 are still those generators' `.res`, and the old plug `.res` files stay for them. Both were mods (`xenu.usba`, `xenu.rj45`) until 2026-11-14. An old `xenu.rj45` still installed changes nothing: it
 skips a plug that already has a `Shell`, and lays the same cord colour and thickness the scene now has.

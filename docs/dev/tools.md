@@ -4,7 +4,7 @@ Moved verbatim out of `CLAUDE.md` on 2026-09-18; `CLAUDE.md` keeps the summary a
 
 ## Tools
 
-Reusable, out-of-band scripts live in the repo-root `Tools/` (distinct from `RetroXR/Tools/`,
+Reusable, out-of-band scripts live in the repo-root `Tools/` (distinct from `RetroXR/DevTools/`,
 which holds in-editor probe scenes like `netplay_spike`).
 
 What they need is declared in `Tools/requirements.txt` — numpy, pillow, scipy and
@@ -86,10 +86,10 @@ carried alongside it.
   its own border on the base colour, normal AND metallic-roughness maps — skip the normal map
   and the logo stays embossed in the plastic. The source ships three UV sets per mesh; keep
   only the first, or Godot logs "Invalid array format for surface" once per mesh.
-  `RetroXR/Tools/models/genesis_render_probe` (windowed, `--room` for colour) is the check.
+  `RetroXR/DevTools/models/genesis_render_probe` (windowed, `--room` for colour) is the check.
   **Colour maps must be RGB:** Godot samples a grayscale albedo without the sRGB decode, so
   the shell's 15/255 black rendered as a 6% grey until the cleaner stopped keeping `L` mode.
-  The A/V lead's console end is `RetroXR/Tools/gen/gen_genesis_av.gd` (the 9-pin mini-DIN),
+  The A/V lead's console end is `RetroXR/DevTools/gen/gen_genesis_av.gd` (the 9-pin mini-DIN),
   sized to the SHELL's 6.2 mm socket rather than the 9.5 mm standard, with its origin on the
   moulded head's face — the face that stops on the panel at z = -0.1043.
 - **`Tools/glb/prepare_sega32x.py`** — builds `consoles/sega_32x/sega32x.glb` from
@@ -98,7 +98,7 @@ carried alongside it.
   as `sega32x_spacer.glb`, the spacer accessory's model. Pure JSON surgery, no Blender: it strips
   the `_LOD1` names and adds the `PlugSeat` and `CartFloor` markers read off the geometry.
   Recipe in its docstring;
-  `RetroXR/Tools/models/sega32x_probe` (windowed) prints the seat numbers and writes stills.
+  `RetroXR/DevTools/models/sega32x_probe` (windowed) prints the seat numbers and writes stills.
   See `expansion-carts.md` §2j′.
 
 ## Textures on 3D models import VRAM Compressed

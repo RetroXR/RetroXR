@@ -1,4 +1,4 @@
-"""Frames from RetroXR/Tools/vr/book_flop_probe -> an mp4 and a contact sheet.
+"""Frames from RetroXR/DevTools/vr/book_flop_probe -> an mp4 and a contact sheet.
 
     python Tools/book_flop_video.py <frames dir> [--out book_flop]
 

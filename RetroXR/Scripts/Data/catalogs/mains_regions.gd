@@ -18,7 +18,7 @@ extends RefCounted
 ## The region a fresh install starts with when the locale names none we know.
 const DEFAULT := "na"
 
-## Each region: what the dropdown calls it, its plate mesh (Tools/gen/
+## Each region: what the dropdown calls it, its plate mesh (DevTools/gen/
 ## gen_wall_outlet.gd bakes one per region from this table), its two receptacles
 ## -- where the seated plug's origin goes, turned by "rotation", and the socket
 ## connector, whose holes are MainsSpecs.SOCKETS' -- the cords whose wall plug
@@ -26,7 +26,7 @@ const DEFAULT := "na"
 ##
 ## A strip is the region's typical household one, sized off a real product: its
 ## "socket" and wall "plug", how many "outlets" its label counts, and -- for all
-## but the US strip, which is the scene's own body -- its body "mesh" (Tools/gen/
+## but the US strip, which is the scene's own body -- its body "mesh" (DevTools/gen/
 ## gen_wall_outlet.gd bakes it from this table), "size" (length, width, height,
 ## mm), the "switch" room at the cord end (0: none), and its sockets: "layout"
 ## laid down "repeat" times from the far end, each entry one socket "pitch" mm
@@ -322,7 +322,7 @@ const REGIONS := {
 }
 
 ## The mains leads the game ships, by spawn token: the Power tab's rows, and what
-## Tools/gen/gen_mains_cords.gd bakes. "plug" is the wall plug of a cord that
+## DevTools/gen/gen_mains_cords.gd bakes. "plug" is the wall plug of a cord that
 ## gen_mains_cords.gd makes from the US lead ("grounded": the C13 one, else the
 ## two-wire C7 one); the US leads themselves name none.
 const CORDS := {

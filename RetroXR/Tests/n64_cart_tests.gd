@@ -7,7 +7,7 @@
 ## Exits 0 when everything passes, 1 otherwise.
 ##
 ## How the flake shader LOOKS needs a GPU and lives in
-## Tools/models/n64_cart_color_demo.tscn; this suite checks what reaches it.
+## DevTools/models/n64_cart_color_demo.tscn; this suite checks what reaches it.
 ##
 ## Writes one label fixture into the player's real nintendo_64 media/label folder
 ## (MediaDimensions derives the path from the ROM's name) and a scratch

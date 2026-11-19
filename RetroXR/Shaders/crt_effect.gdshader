@@ -13,7 +13,7 @@ shader_type spatial;
 // over the near half — the picture seen from behind, from about 76 degrees off axis
 // on a 25 mm tube. A tube bulges toward the viewer, so its front faces never overlap
 // one another, and with the back ones culled there is nothing left to sort.
-// Tools/av/tv_side_view_probe is the check.
+// DevTools/av/tv_side_view_probe is the check.
 render_mode cull_back, shadows_disabled, fog_disabled;
 
 #include "res://Shaders/crt_filter.gdshaderinc"

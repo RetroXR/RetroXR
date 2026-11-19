@@ -771,7 +771,7 @@ func _warm_models() -> void:
 ## ONE loader thread -- worker_pool/max_threads.android 4 x the low-priority ratio
 ## 0.3) and for the main thread (each shell is built and drawn once), all under the
 ## curtain the player is waiting on: 10-13 s and +1.4 GiB of texture for six shells
-## beside a 151-object restore (Tools/perf/restore_perf_probe --boot, 2026-11-10).
+## beside a 151-object restore (DevTools/perf/restore_perf_probe --boot, 2026-11-10).
 ## The restore requests the models it needs itself (prefetch_assets). Only a real
 ## boot waits: a probe or a suite on the command line never gets content-ready.
 func _after_boot_room() -> void:

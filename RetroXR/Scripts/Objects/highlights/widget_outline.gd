@@ -128,7 +128,7 @@ func _init() -> void:
 		# whole screen footprint at the near plane, and on a held object (a hand-held pickable is outlined) it
 		# covered every widget on the object's face: a hull drawn after it failed the depth test everywhere, so a
 		# held TV remote's lit key, and any button armed on a held pad, showed no ring on a Quest at all
-		# (Tools/vr/remote_light/remote_light_probe --held). Drawn first, the ring is already in the colour buffer
+		# (DevTools/vr/remote_light/remote_light_probe --held). Drawn first, the ring is already in the colour buffer
 		# when the stamp lands, and the stamp writes depth only.
 		_outline_material.render_priority = PickableHighlight.MASK_RENDER_PRIORITY - 1
 		var primer := ShaderMaterial.new()

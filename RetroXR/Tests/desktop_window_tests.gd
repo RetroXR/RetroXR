@@ -8,7 +8,7 @@ extends "res://Tests/test_suite.gd"
 ##
 ## Pure: no window is moved and nothing is saved (QualityManager's prefs file is
 ## the player's real one). Whether a drag really lands in the saved size, and how
-## the room looks at an odd shape, is `Tools/room/window_resize_probe`, which needs
+## the room looks at an odd shape, is `DevTools/room/window_resize_probe`, which needs
 ## a display.
 
 

@@ -291,7 +291,7 @@ android (`python Tools/build.py <platform> --only paper-godot`). The class name 
 purpose: a stale library is told by `ClassDB.class_exists`, not by a call that fails.
 
 **Cost** (this desktop, the editor's `template_debug` library, a whole frame's steps at
-90 Hz, `Tools/perf/paper_sheet_probe.tscn`): 0.06 ms for 4 cm, 0.18 ms for 22 cm,
+90 Hz, `DevTools/perf/paper_sheet_probe.tscn`): 0.06 ms for 4 cm, 0.18 ms for 22 cm,
 0.4 ms for 60 cm to a metre (100-170 rows) with the printer and a table to meet. The old
 chain was 0.10 ms native on a Quest 3 for 1.2 m and the old 48-row print 0.44; this is
 three to four times the rows of either, so expect it dearer there while a long strip
@@ -378,10 +378,10 @@ the same paper from the same agreed inputs.
 - Core: `ctest` in the core repo (32k checks, the protocol on whole packets built
   from an asymmetric image, RLE, checksum, timing, tear/feed, savestates, sound,
   and the whole core against a mock bus playing a Game Boy). Mutation-tested.
-- `Tools/link/gb_printer_probe` (windowed, `--core=gambatte|mgba`, `--nocable`):
+- `DevTools/link/gb_printer_probe` (windowed, `--core=gambatte|mgba`, `--nocable`):
   `printer.gb` (Tools/gen/gen_gblink_rom.py) prints a known picture; the paper must
   equal `printer_expected.png` dot for dot. 12/12 both cores, 3/3 controls.
-- `Tools/link/gb_camera_print_probe` (mGBA, `--sav=` a Camera save, copied
+- `DevTools/link/gb_camera_print_probe` (mGBA, `--sav=` a Camera save, copied
   first): the Game Boy Camera prints a saved photo. The print command is behind
   SELECT on an open photo (radial menu: print up). 208 lines, matching the screen.
   `--rom=` and `--core=` drive any other game: **Super Mario Bros. Deluxe** prints
@@ -390,7 +390,7 @@ the same paper from the same agreed inputs.
   title, the icon row, TOY BOX, the calendar, A for Mark/Print, RIGHT to Print).
   Its Album is all locked on a fresh save; its pictures need a save with progress
   (no trustworthy complete save was found online).
-- `Tools/link/gb_printer_room_probe` (windowed, `--frames` for an mp4): a Game Boy
+- `DevTools/link/gb_printer_room_probe` (windowed, `--frames` for an mp4): a Game Boy
   stand-in cabled to the printer with the real lead, print, tear. Writes into the
   REAL prints folder and removes it. It reads the paper from the PRINTER
   (`_paper_image`): the core's frame is only the newest window of it, and converting
@@ -398,7 +398,7 @@ the same paper from the same agreed inputs.
   one as a whole 129-line strip (found red on both counts 2026-11-12; not checked
   when it went red). 21/21 on gambatte and on mGBA with the one-sheet paper
   (2026-11-12): the print stands out of the slot, tears, and is handed over where it hangs.
-- `Tools/netplay/gb_printer_netplay_probe` (headless): two replicated pairs,
+- `DevTools/netplay/gb_printer_netplay_probe` (headless): two replicated pairs,
   gated, the cable seated with every core held; then only the printers are held at
   each checkpoint while the Game Boys run on (inputs ahead of the cores, as in a
   live session); paper, Game Boy screens and the printer's savestate
@@ -410,12 +410,12 @@ the same paper from the same agreed inputs.
   is how its cases were mutation-tested (2026-11-12: `min_radius:0.0001` reds the
   creasing cases, `gj:0` the twist bound, `ei:0.000002` seven, `self_gap:0` the
   self-crossing and the wall, `mu_static:0` the tipped table, `iterations:1` six).
-- `Tools/room/gb_paper_probe` (windowed, `-- --out=DIR`): a real printer on a real table
+- `DevTools/room/gb_paper_probe` (windowed, `-- --out=DIR`): a real printer on a real table
   prints a metre, then is carried 20 cm along it; stills and frames for an mp4. How the
   paper LOOKS is this, not the suite. Measured 2026-11-12: 169 rows of 6 mm, sharpest
   turn 50 degrees while printing (across the printer's back edge) and 20 at rest, lying
   on the table (lowest point at the table top), at rest 1.8 s after the last line.
-- `Tools/perf/paper_sheet_probe` (headless): how it stands, falls over and feeds, and
+- `DevTools/perf/paper_sheet_probe` (headless): how it stands, falls over and feeds, and
   what a step costs; `-- --feed --uneven` for a window's uneven frames.
 
 **OWED:** a pulled lead mid-session on mGBA (above), the headset (how the paper and the tear feel: the one-sheet paper of 2026-11-12 has been seen only in the desktop probe), the paper's cost and look on a Quest, the Quest (the core's

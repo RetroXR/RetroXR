@@ -8,7 +8,7 @@
 [ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="6_mdplugscript"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/system_models/genesis/genesis_av_plug.res" id="7_avplugmesh"]
 
-; Fitted to the phono connector mesh (measured by Tools/rope/plug_shape_probe), as
+; Fitted to the phono connector mesh (measured by DevTools/rope/plug_shape_probe), as
 ; every lead's far end is.
 [sub_resource type="BoxShape3D" id="BoxShape3D_plugfit2"]
 size = Vector3(0.0144, 0.0144, 0.054)
@@ -211,7 +211,7 @@ transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
 ; = 3.3 mm. Get this wrong low and the outer cord dips under the floor whenever the
 ; ribbon happens to lie on edge.
 ;
-; The plug's strain relief is sized against this — see CORD_R in Tools/gen/gen_genesis_av.gd,
+; The plug's strain relief is sized against this — see CORD_R in DevTools/gen/gen_genesis_av.gd,
 ; which has to end wider than the ribbon it grips. Change one and change the other.
 ;
 ; The cost is that a ribbon lying FLAT now floats 2.2 mm rather than resting on

@@ -1,7 +1,7 @@
 ## NetplayCores — which cores may hold a netplay session, how they may hold one,
 ## and the options each is pinned to.
 ##
-## Vetted with Tools/netplay/netplay_spike.gd. `verified` is cold-start determinism:
+## Vetted with DevTools/netplay/netplay_spike.gd. `verified` is cold-start determinism:
 ## two processes running the same inputs from frame 0 produce identical RAM-CRC
 ## streams, which is all a session needs while everybody starts together.
 ## `state_transfer` is savestate reload fidelity, which only a late join and a
@@ -156,7 +156,7 @@ const CORES: Dictionary = {
 	# a Game Boy pair is LOCKSTEP (no link_rollback), so that is all it offers. Its
 	# frames are the Game Boy's to the tick and it is input-driven only (FEED and
 	# TEAR), so every peer prints the same paper. Measured by
-	# Tools/netplay/gb_printer_netplay_probe: two replicated GB + printer pairs,
+	# DevTools/netplay/gb_printer_netplay_probe: two replicated GB + printer pairs,
 	# the cable seated with every core held, paper and savestates byte-identical
 	# to frame 2400 on gambatte and mGBA (core retroxr-gbprinter-libretro-v2). No
 	# SYSTEM_RAM, so the CRC is a savestate's. state_transfer is unmeasured: a
@@ -175,7 +175,7 @@ const CORES: Dictionary = {
 	# which carries ComLynx. `link_rollback`: a cabled group of these can roll
 	# back TOGETHER (Wrapper::NetplayGroupIteration) instead of dropping to
 	# lockstep, because lynx_fixed_frames ends every unit's frame on the same
-	# tick of the bus. Measured by Tools/netplay/lynx_rollback_probe: Warbirds
+	# tick of the bus. Measured by DevTools/netplay/lynx_rollback_probe: Warbirds
 	# over the cable, 20 group rewinds, every CRC equal to lockstep.
 	# `power_on_stagger`: frames between one unit being switched on and the
 	# next, as players in a room do -- identical units powered on together
@@ -195,7 +195,7 @@ const CORES: Dictionary = {
 	# branch), which carries the SNK link cable. `ngp_rtc` runs the clock on
 	# emulated time (stock read the host's, so peers disagreed from frame 1) and
 	# `ngp_fixed_frames` ends every unit's frame on one bus tick, which is what
-	# `link_rollback` needs. Measured by Tools/netplay/ngp_link_netplay_probe and
+	# `link_rollback` needs. Measured by DevTools/netplay/ngp_link_netplay_probe and
 	# rewind_probe (docs/dev/ngp-link.md): 0 bad of 300 rewinds on three games,
 	# 0 bad of 100 cabled group restores, 92 of them mid-conversation. The
 	# options need core release v2+; v1 ignores them. `power_on_stagger`: two
@@ -249,7 +249,7 @@ const CORES: Dictionary = {
 	# each frame so the two consoles' frame edges are one instant on the wire.
 	# That option doubles as the build check: an older core does not declare it,
 	# so neither rollback nor a cabled group is offered on one.
-	# Measured on WipEout (Tools/netplay/psx_rollback_probe, netplay_spike):
+	# Measured on WipEout (DevTools/netplay/psx_rollback_probe, netplay_spike):
 	# 165 rewinds equal to lockstep on one console; a cabled two-player race
 	# rolled back 80 times as a group with 262/262 checkpoints equal to
 	# lockstep, and a lone core rewinding without its peer diverges. The
@@ -282,7 +282,7 @@ const CORES: Dictionary = {
 	# boots a fixed clock and factory settings instead of the host's or the
 	# player's .smpc, and `link_frame_edges` gives every frame one span on the
 	# Link Cable so a cabled pair rolls back as a group. Measured with
-	# netplay_spike and Tools/netplay/saturn_rollback_probe
+	# netplay_spike and DevTools/netplay/saturn_rollback_probe
 	# (docs/dev/saturn-link.md). Android defaults to YabaSanshiro, which has no
 	# row, so a Quest never hosts this. The cartridge and save options are not
 	# pinned: SaturnStorage forces them from the machine (a seated backup cart).

@@ -6,7 +6,7 @@
 ##
 ## Exits 0 when everything passes, 1 otherwise.
 ##
-## The look is the probe's (Tools/models/arcade_cabinet_probe, windowed, `--model=<id>`); this is
+## The look is the probe's (DevTools/models/arcade_cabinet_probe, windowed, `--model=<id>`); this is
 ## what a headless run CAN say: each variant is built from the module contract, its panel has the
 ## controls it should, its bay takes its system, and the guns are the cabinet's own, plugged in,
 ## not saved, hung in their holsters on a cord of the length the cabinet laid for them.

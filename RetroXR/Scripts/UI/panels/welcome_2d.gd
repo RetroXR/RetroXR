@@ -14,13 +14,13 @@
 ## Two columns: the copy on the left, ending in buttons to the site and the Discord
 ## (WEBSITE_URL, DISCORD_URL); on the right a looping clip of the menu
 ## being used (MENU_CLIP, recorded from the real menu by
-## Tools/room/welcome_clip_probe) and, on the headset's page, the STAGE: an empty
+## DevTools/room/welcome_clip_probe) and, on the headset's page, the STAGE: an empty
 ## box the 3D controllers (ControllerDemo) stand in front of, with the step they
 ## are showing written under it (set_step).
 ##
 ## Three pages, four on a Quest: what to do and not (the copy, the menu clip, the
 ## headset's stage); after Next, a console being hooked up (HOOKUP_CLIP, filmed in
-## the room by Tools/room/nes_hookup_probe) with a few words on it; on a Quest,
+## the room by DevTools/room/nes_hookup_probe) with a few words on it; on a Quest,
 ## after another Next, a game put on the headset through the Web File Manager
 ## (UPLOAD_CLIP, filmed in a browser against the real server by
 ## Tools/art/film_web_upload.py); and last, on every platform, the support page:

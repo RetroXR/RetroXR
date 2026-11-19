@@ -162,7 +162,7 @@ const _ROWS: Dictionary = {
 	# the netplay wire, so it is final: ArcadeProfiles.CABINET_MODEL_ID says the same.
 	"arcade_cabinet_generic": {"platform": ["arcade"], "label": "Morphing Arcade Cabinet",
 		"scene": _SCENES + "arcade_cabinet.tscn"},
-	# The same upright with other controls (Tools/gen/gen_arcade_cabinet.gd VARIANTS). THESE IDS
+	# The same upright with other controls (DevTools/gen/gen_arcade_cabinet.gd VARIANTS). THESE IDS
 	# ARE PERSISTED TOO. Generic stays first, so it is the arcade tile's default. There is no shooting
 	# cabinet to spawn: the generic one becomes it when a gun game is in the bay (ArcadeCabinetSpecs.for_game).
 	# The Neo Geo MVS: a stick and four buttons.
@@ -210,7 +210,7 @@ static func _table() -> Dictionary:
 
 ## Is `row` a usable row? Returns "" when ok, else the reason.
 ##
-## Extracted from Tools/models/model_registry_probe.gd so the probe and the mod
+## Extracted from DevTools/models/model_registry_probe.gd so the probe and the mod
 ## loader cannot disagree about what a well-formed row is. The probe checks the
 ## shipped table at build time; this rejects a bad mod row at REGISTRATION, which
 ## is the only moment the mod can still be named in the complaint. Getting it

@@ -49,7 +49,7 @@ func brings_own_body() -> bool:
 ## unclickable. Both sit on a SHOULDER, whose real surface is the base at 0.045 --
 ## so a single box stood 28 mm of solid collision above each of them, and
 ## InteractionResolver returned the console for a ray aimed at either.
-## Tools/models/shell_enclosure_audit.tscn measured 21.2 mm buried and named them
+## DevTools/models/shell_enclosure_audit.tscn measured 21.2 mm buried and named them
 ## the only unreachable buttons in the registry; run it after touching this.
 const _BASE_BOX := Vector3(0.26, 0.045, 0.19)
 const _BASE_POS := Vector3(0.0, 0.0225, 0.0)

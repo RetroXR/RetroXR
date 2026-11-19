@@ -72,8 +72,8 @@ Unlike the shell it replaced, every control is a separate named mesh
 `Stick`), so the pad's buttons are ANIMATED by binding those meshes rather than
 by authoring primitive stand-ins on top of a static shell.
 Scripts/Objects/controllers/n64_controller.gd does the binding;
-Tools/input/n64_button_probe.tscn checks it.
+DevTools/input/n64_button_probe.tscn checks it.
 
-The shell also models the expansion bay. Tools/input/n64_pak_probe.tscn measures
+The shell also models the expansion bay. DevTools/input/n64_pak_probe.tscn measures
 that bay out of this file at run time and checks the three paks against it, so
 replacing this asset cannot silently leave them hanging in mid-air.

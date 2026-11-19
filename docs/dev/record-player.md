@@ -90,13 +90,13 @@ set's and the amplifier's speaker outputs are the same channels and stay `audio_
 The ground post stays the model's: the room has no ground lead. `NameLabel` is hidden
 (the model carries the brand; the base still writes its text). Cases: `speaker_tests`
 `amp/the turntable's line out ...`, `amp/a turntable cabled into AUDIO IN ...`; probe
-`Tools/av/turntable_line_out_probe` (windowed) renders it cabled into the amplifier.
+`DevTools/av/turntable_line_out_probe` (windowed) renders it cabled into the amplifier.
 
 ## Not done
 
 - The arm does not lift (the model's `ArmLift`, cue_up 3.5 deg, is unused).
 
-Probe: `Tools/av/turntable_model_probe.tscn` (windowed: `--resolution 1280x720
+Probe: `DevTools/av/turntable_model_probe.tscn` (windowed: `--resolution 1280x720
 --position 20,20 -- --out=<dir>`) renders it playing with the cover up, a tonearm
 close-up, the cover down, and frames of the cover opening and the arm swinging in.
 

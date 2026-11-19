@@ -55,7 +55,7 @@ Windows, Linux and macOS builds only; a headset has neither. Source:
   cut short by a ray against layer 1 so it never goes into a wall (the bedroom's nearest wall
   ahead is ~2 m: the probe measured 1.78 m at the first, too-large factors). Desktop only. Tried
   and rejected as too far: 3x at 2x, and the full zoom (2x = 1.8 m).
-  `Tools/room/menu_zoom_probe`.
+  `DevTools/room/menu_zoom_probe`.
 - **Rotating a held object is the REVERSE of aircraft controls**, on the desktop (middle-mouse
   drag, `desktop_pickup.gd`) and in VR (the free hand's stick on a ray-held object, a LOCAL PATCH in
   `function_pickup.gd` `_compute_ray_grab_rotation`): right yaws the far side left, up pitches it
@@ -65,7 +65,7 @@ Windows, Linux and macOS builds only; a headset has neither. Source:
 - Wayland compositors may ignore `window_set_size`/`window_set_position`; the saved size is then
   simply what the compositor allowed.
 - `Tests/desktop_window_tests` is the arithmetic. How a drag really lands, and how the room
-  frames at odd shapes, is `Tools/room/window_resize_probe` (windowed, **writes the prefs file**:
+  frames at odd shapes, is `DevTools/room/window_resize_probe` (windowed, **writes the prefs file**:
   run it with a scratch `XDG_DATA_HOME`).
 
 ## Updating (`AppUpdate` autoload)
@@ -149,7 +149,7 @@ after pose and velocities are final. The helper is local and is never saved or r
 
 `ray_floor_tests` drives both release paths, real support queries, slope bounds, tether
 limits, socket priority and logical visibility; `object_sync_tests` authority cases drive
-a real ray release over loopback. `Tools/room/ray_floor_probe.tscn` is the windowed visual
+a real ray release over loopback. `DevTools/room/ray_floor_probe.tscn` is the windowed visual
 proof (before/after PNGs in `build_out`; `-- --record` also writes frames for a clip).
 The footprint and front arrow were also rendered with `--rendering-method mobile`
 on desktop Vulkan (RTX 5070 Laptop), with no shader errors and the same visible
@@ -251,7 +251,7 @@ Physical headset button feel and Quest rendering remain hardware checks, not hea
   false then, and testing it lost the inspected light gun / Wii Remote / TV remote their drop. Before this (2026-10-27) Shift+click dropped everything; nothing shipped wired
   `action()` then, so only objects that use it (a mod prop such as `xenu.robotgamer`) noticed.
   `desktop_hold_tests action/`.
-- `Tests/desktop_hold_tests` is the pure part; `Tools/room/hold_probe --scenario` (windowed) is the
+- `Tests/desktop_hold_tests` is the pure part; `DevTools/room/hold_probe --scenario` (windowed) is the
   catch -> tip -> aim -> press -> release -> look away -> click run, with the printed truth.
 
 ## The loading screen off a headset (`loading_panel.gd`)
@@ -262,4 +262,4 @@ resizes the window after this is built and a script-sized curtain left the room 
 old size for a frame; the content refits on `Viewport.size_changed`), centred, scaled with the window (1x at 720 px tall, 0.5-1.5x). The 3D `Screen` and `Curtain` stay
 in the scene, hidden there: LoadingRig, LoadingOverlay and their tests drive those nodes, and a headset
 still shows them. A CanvasLayer is not hidden by its Node3D parent, so `visibility_changed` mirrors
-`visible` onto the layer (suspend/resume). `Tools/room/loading_2d_probe` photographs it.
+`visible` onto the layer (suspend/resume). `DevTools/room/loading_2d_probe` photographs it.

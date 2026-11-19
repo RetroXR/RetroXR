@@ -6,7 +6,7 @@
 ##
 ## No headset, no Meta: the scene manager, its entities, the depth extension and
 ## the player's body are stood in for. What the real ones do on a Quest 3 is
-## Tools/av/spatial_probe.
+## DevTools/av/spatial_probe.
 ##
 ##     "$godot" --headless --path RetroXR res://Tests/real_room_tests.tscn
 ##     "$godot" --headless --path RetroXR res://Tests/real_room_tests.tscn -- --only=surfaces

@@ -14,7 +14,7 @@
 class_name ArcadeDrumstick
 extends ArcadeHeldGear
 
-## The cord leaves the stick's butt, and a hit is measured at its head's end, both in the stick's own frame (-Z along it toward the head). The scene is baked to these numbers (Tools/gen/gen_arcade_drumstick.gd).
+## The cord leaves the stick's butt, and a hit is measured at its head's end, both in the stick's own frame (-Z along it toward the head). The scene is baked to these numbers (DevTools/gen/gen_arcade_drumstick.gd).
 const CORD_BOSS := Vector3(0.0, 0.0, 0.092)
 const TIP := Vector3(0.0, 0.0, -0.232)
 ## A head coming down on the face at no less than this (m/s, along the face's normal) is a hit; a lighter touch is not.

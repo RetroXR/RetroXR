@@ -123,7 +123,7 @@ deploying to `RetroXR/<name>/`). Build each **from its own directory** (each has
   ```bash
   python Tools/build.py windows --only paper-godot
   python Tools/build.py android --only paper-godot
-  "$godot" --headless --path RetroXR res://Tools/perf/paper_sheet_probe.tscn   # numbers, timings
+  "$godot" --headless --path RetroXR res://DevTools/perf/paper_sheet_probe.tscn   # numbers, timings
   ```
 
 - **grab-godot** — `Xenu::GrabDriverTick`, the per-physics-tick half of godot-xr-tools'
@@ -139,7 +139,7 @@ deploying to `RetroXR/<name>/`). Build each **from its own directory** (each has
   platform not rebuilt) the GDScript tick runs, as before, and `[Grab] grab drivers tick
   …` says which at the first driver. **A change to either tick must be made to BOTH**:
   `grab_driver_tests` plays one scripted room with each and holds every pose to 1e-5.
-  Pure C++, all platforms, no new godot-cpp classes. Cost: `Tools/perf/grab_driver_probe`
+  Pure C++, all platforms, no new godot-cpp classes. Cost: `DevTools/perf/grab_driver_probe`
   (windowed, `--native=0|1`). Measured on desktop 2026-11-13, 200 drivers, stock 4.7.2
   editor binary (debug GDScript), GDScript -> C++ per driver per tick: resting 0 -> 0 (they
   stop ticking, `REST_AFTER`); sockets on float noise (wake and early-out every tick) 1.41

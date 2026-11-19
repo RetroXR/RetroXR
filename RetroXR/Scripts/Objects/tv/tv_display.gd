@@ -17,7 +17,7 @@
 ## The two phosphor SubViewports stay there too, being @onready paths into the
 ## set's own scene, as does the screen mesh everything here draws onto.
 ##
-## av_tests and Tools/av/rca_channel_probe read _crt_material, _crt_source_tex,
+## av_tests and DevTools/av/rca_channel_probe read _crt_material, _crt_source_tex,
 ## _blue_texture, _dark_material and _phosphor_fresh off this helper.
 class_name TvDisplay
 extends Node
@@ -45,7 +45,7 @@ var _stereo_material: ShaderMaterial = null
 ## uniforms — they are the authoring values behind ones that are, see
 ## _apply_derived_crt_params and update_phosphor.
 var _crt_params := {
-	"crt_curvature": 0.0,          # geometry now — see Tools/gen/gen_curved_screen.gd
+	"crt_curvature": 0.0,          # geometry now — see DevTools/gen/gen_curved_screen.gd
 	"crt_corner_radius": 0.04,
 	"crt_mask_mode": 1,
 	"crt_mask_strength": 0.55,

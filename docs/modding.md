@@ -243,7 +243,7 @@ A cabinet of your own (a 4-player upright, a cocktail table, a tate cabinet) is 
 and a scene whose root runs `res://Scripts/Objects/system_models/arcade_cabinet_model.gd`. The model finds the
 cabinet's parts by **type**, never by node name: put an `ArcadeModule` for each part in the scene, each finding ITS
 OWN parts by name inside its own subtree. The shipped ones are baked by
-`Tools/gen/gen_arcade_cabinet.gd -- --variant=<name>`.
+`DevTools/gen/gen_arcade_cabinet.gd -- --variant=<name>`.
 
 | module (`res://Scripts/Objects/arcade/`) | `kind` | parts it finds |
 |---|---|---|
@@ -1123,7 +1123,7 @@ Optional, each asked with `has_method`:
   `Image.load_jpg_from_buffer` / `load_png_from_buffer`, and `update()` its
   `ImageTexture`. The same route works from a PC to a headset over Wi-Fi.
 
-`Tools/av/video_source_probe.gd` builds a device like this one, cables it to a
+`DevTools/av/video_source_probe.gd` builds a device like this one, cables it to a
 set and checks each of the behaviors above.
 
 ### What the spawn card offers
@@ -1386,7 +1386,7 @@ you are developing cannot end up inside a build of the game.
 
 ```bash
 # code, scenes and resources
-godot --headless --path RetroXR --script res://Tools/mods/pack_mod.gd -- --id=xenu.snes
+godot --headless --path RetroXR --script res://DevTools/mods/pack_mod.gd -- --id=xenu.snes
 ```
 
 That writes straight into your mods folder and then **reads the result back
@@ -1418,7 +1418,7 @@ copy in its place and RetroXR — which reads the thumbnail without loading the 
 finds nothing. Check the finished pack either way:
 
 ```bash
-godot --headless --path RetroXR --script res://Tools/mods/pack_mod.gd -- --check=xenu.snes.zip
+godot --headless --path RetroXR --script res://DevTools/mods/pack_mod.gd -- --check=xenu.snes.zip
 ```
 
 ## Publishing on mod.io

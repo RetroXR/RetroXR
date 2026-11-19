@@ -44,7 +44,7 @@ size = Vector3(0.096, 0.045, 0.075)
 bounce = 0.0
 friction = 0.9
 
-; The RXR-003's fitted connector boxes (Tools/rope/plug_shape_probe).
+; The RXR-003's fitted connector boxes (DevTools/rope/plug_shape_probe).
 [sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
 size = Vector3(0.0144, 0.0144, 0.054)
 

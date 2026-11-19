@@ -233,8 +233,8 @@ speaker_tests' faces/ cases and `Tools/gen`).
 - Checks: speaker_tests `model/`, appliance_pointer_tests `satellite subwoofer stand100 stand120 pair`, power_tests
   `--only=sub`.
 
-**The cabinets and their stands.** `Tools/gen/gen_speaker.gd` bakes a satellite
-(95 x 165 x 110 mm) and a subwoofer (260 mm cube); `Tools/gen/gen_speaker_stand.gd` bakes
+**The cabinets and their stands.** `DevTools/gen/gen_speaker.gd` bakes a satellite
+(95 x 165 x 110 mm) and a subwoofer (260 mm cube); `DevTools/gen/gen_speaker_stand.gd` bakes
 1.2 m and 1 m floor stands, the height being to the top plate's upper FACE, which is where
 a cabinet's own origin lands. A stand's seat needs **no snap grab point** — the one piece
 `ExpansionPort` had to invent a foot for — because a loudspeaker is baked with its origin
@@ -357,11 +357,11 @@ socket holding a freed plug and an empty one both answer `is_instance_valid` fal
 python Tools/build.py windows --only surround-godot
 cd surround-godot && python tests/run_tests.py     # matrix, ring and pro_logic; no Godot
 "$godot" --path RetroXR --resolution 900x900 --position 20,20 \
-  res://Tools/models/speaker_render_probe.tscn -- --out=<dir>
+  res://DevTools/models/speaker_render_probe.tscn -- --out=<dir>
 "$godot" --path RetroXR --resolution 1320x600 --position 20,20 \
-  res://Tools/av/tv_back_panel_probe.tscn -- --out=<dir>
+  res://DevTools/av/tv_back_panel_probe.tscn -- --out=<dir>
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-  res://Tools/av/surround_probe.tscn -- --root=<libretro root> --core=fceumm --rom=<a ROM>
+  res://DevTools/av/surround_probe.tscn -- --root=<libretro root> --core=fceumm --rom=<a ROM>
 ```
 
 `speaker_tests` is 205 headless checks: `faces/`, `jack/`, `routing/`, `fold/`, `output/`,
@@ -461,7 +461,7 @@ scrambled before it is written: `AudioDriverDummy` keeps the channel count it wa
 initialised with, and its table gives 5.1 eight channels. The movie writer is still
 what puts the dummy driver into 3.1/5.1/7.1 — a project setting read before any
 script runs — so `Tools/surround_output_check.py` writes a temporary
-`RetroXR/override.cfg`, runs `Tools/av/surround_output_probe.tscn` (one tone per
+`RetroXR/override.cfg`, runs `DevTools/av/surround_output_probe.tscn` (one tone per
 decoded channel, the Master meter read on every pair) and removes it. It caught the
 rotation above at all three layouts, and passes now: every channel on its own
 output at its own level (-14 dB for a 0.2 tone, the LFE -24, the 3.1 surrounds -17)
@@ -510,7 +510,7 @@ map — a lamp per output, lit only while THAT output has a cabinet (`vfd_lamp_l
 nothing cabled everything dims, as the Label3D did (`DisplayText` stays, hidden, carrying
 the name). Redrawn on a mode, cabling or level-step change only; driven to 2.2x so it reads
 lit through the model's 60 % smoked glass. `speaker_tests` `amp/` covers the mouths, the
-key and knob, and the lamps; `Tools/models/surround_amp_render_probe` is the look.
+key and knob, and the lamps; `DevTools/models/surround_amp_render_probe` is the look.
 
 **It has almost no audio code, for the reason the set has none.** The source decodes
 its own stereo; the amplifier answers "decode", "with this decoder", and "here is where
@@ -588,7 +588,7 @@ saved (`decode_mode`) and sent (`EV_AMP_MODE`, appended), so the list only grows
 ScenePersistence's articulated-control walk already saves and restores it; the save
 branch adds only `decode_mode`.
 
-**The render probe reparenting trap.** `Tools/models/surround_amp_render_probe`
+**The render probe reparenting trap.** `DevTools/models/surround_amp_render_probe`
 (windowed, `-- --out=<dir>`) first used the speaker probe's recipe of reparenting the
 subject into a fresh viewport per shot; a snap zone leaving the tree lets go of what it
 holds, so the wired shot showed plugs LYING where they had been seated, and "5 of 5
@@ -600,7 +600,7 @@ own-world viewport and moves only the camera. And a frozen plug reads as held
 "$godot" --headless --path RetroXR res://Tests/speaker_tests.tscn -- --only=amp/
 cd surround-godot && python tests/run_tests.py --only pro_logic
 "$godot" --path RetroXR --resolution 1400x900 --position 20,20 \
-  res://Tools/models/surround_amp_render_probe.tscn -- --out=<dir>
+  res://DevTools/models/surround_amp_render_probe.tscn -- --out=<dir>
 ```
 
 `speaker_tests` `amp/` is 10 cases, 99 checks, each mutation-tested: the set pushing at a

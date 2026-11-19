@@ -1,4 +1,4 @@
-## What made a room restore fast, kept that way (Tools/perf/restore_perf_probe measures it; this
+## What made a room restore fast, kept that way (DevTools/perf/restore_perf_probe measures it; this
 ## checks the behaviour each speed-up rests on still gives the answers the slow way gave):
 ##   controllers/  XrControllers.all() is what the whole-tree find_children it replaced said
 ##   hooks/        ModHooks' cached class matching agrees with _matches, and follows new watchers

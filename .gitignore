@@ -74,7 +74,7 @@ RetroXR/metaxr-audio/*.lib
 RetroXR/metaxr-audio/*.pdb
 extensions/metaxr-audio/Temp/
 
-# Output of RetroXR/Tools/bedroom_probe.tscn — renders, never source.
+# Output of RetroXR/DevTools/bedroom_probe.tscn — renders, never source.
 RetroXR/probe_out/
 # Tools/bios_boot_survey.sh output: per-attempt logs and the options snapshot
 bios_survey_out/

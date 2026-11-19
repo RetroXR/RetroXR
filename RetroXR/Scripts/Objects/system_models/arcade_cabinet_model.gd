@@ -19,7 +19,7 @@ extends RetroSystemModel
 const SIZE := Vector3(0.66, 1.80, 0.87)
 const SIZE_CENTER := Vector3(0.0, 0.90, 0.035)
 
-## The cabinet's shape, set by its scene (Tools/gen/gen_arcade_cabinet.gd): the generic upright's numbers
+## The cabinet's shape, set by its scene (DevTools/gen/gen_arcade_cabinet.gd): the generic upright's numbers
 ## are the defaults, a wider shooter with a tall straight screen sets its own. Collision, pointer boxes,
 ## the speakers and the options panel follow them.
 @export var cabinet_width := 0.66
@@ -384,7 +384,7 @@ func throw_scale() -> float:
 
 # ── guns in holsters ────────────────────────────────────────────────────────
 
-## The gun a gun cabinet wears (Tools/gen/gen_arcade_gun.gd), and where its cord leaves it
+## The gun a gun cabinet wears (DevTools/gen/gen_arcade_gun.gd), and where its cord leaves it
 ## in the gun's own frame: the same number the gun scene has, which a test pins.
 const GUN_SCENE := "res://Scenes/Objects/peripherals/arcade_light_gun.tscn"
 const GUN_CORD_BOSS := Vector3(0.0, -0.098, 0.056)

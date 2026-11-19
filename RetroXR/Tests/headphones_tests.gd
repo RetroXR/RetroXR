@@ -21,7 +21,7 @@
 ##   save/   worn and the band's size come back from a save
 ##   ray/    the desktop ray takes the headset and the plug where they are drawn
 ##
-## How it SOUNDS in a headset is a windowed check with Meta XR Audio enabled (Tools/av/headphones_probe).
+## How it SOUNDS in a headset is a windowed check with Meta XR Audio enabled (DevTools/av/headphones_probe).
 extends "res://Tests/test_suite.gd"
 
 const HEADPHONES := preload("res://Scenes/Objects/appliances/headphones.tscn")

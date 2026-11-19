@@ -10,7 +10,7 @@
 ## Adapter grow one and switch their core's adapter on, and which consoles
 ## EthernetBus puts on one LAN -- through hubs, across both machines, and off it
 ## again when a spoke or an adapter comes out. Whether frames cross is the cores'
-## business and Tools/link/lan_probe's; see docs/dev/ethernet-lan.md.
+## business and DevTools/link/lan_probe's; see docs/dev/ethernet-lan.md.
 ##
 ## Two of these are the regression record for traps the adapter puts in the way.
 ## The socket is on the CARD, not the console, so a walk that stopped at the card

@@ -87,7 +87,7 @@ mesh = SubResource("BoxMesh_body")
 surface_material_override/0 = ExtResource("9_plastic")
 
 ; Points UP (+Y), into the bay. Named Tongue for continuity —
-; Tools/input/n64_pak_probe.tscn finds it by this name and measures it against
+; DevTools/input/n64_pak_probe.tscn finds it by this name and measures it against
 ; the bay opening.
 [node name="Tongue" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0195, 0)

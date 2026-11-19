@@ -25,7 +25,7 @@
 ## maple device from exactly that call. So a Dreamcast currently runs with no
 ## controller, hence no expansion socket, hence no VMU, whatever is staged here.
 ## Everything below is correct and inert until that is fixed. See
-## Tools/cores/vmu_slot_probe for the measurement and the retraction that came
+## DevTools/cores/vmu_slot_probe for the measurement and the retraction that came
 ## with it.
 class_name VmuStorage
 extends ConsoleStorage
@@ -91,7 +91,7 @@ const LCD_SIZE := Vector2i(48, 32)
 
 ## Where flycast puts the panel, MEASURED rather than assumed: a constant 8 px in
 ## from the chosen corner, on both axes, at every position and multiplier. See
-## Tools/cores/vmu_overlay_probe, which pins the whole rule.
+## DevTools/cores/vmu_overlay_probe, which pins the whole rule.
 const SCREEN_INSET := 8
 
 ## 1x, so the crop is the LCD's own 48 x 32 pixels — the card's face is about

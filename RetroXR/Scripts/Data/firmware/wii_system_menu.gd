@@ -105,7 +105,7 @@ static func tmd_path() -> String:
 ## The menu AND the IOS it runs on. The menu's TMD alone is not enough: Dolphin
 ## installs the menu second of 58 titles, so an update cancelled or failed early
 ## leaves a title.tmd with no IOS under it, which boots to a black screen.
-## Measured with Tools/cores/wii_menu_update_probe --cancel-after=3.
+## Measured with DevTools/cores/wii_menu_update_probe --cancel-after=3.
 static func is_installed() -> bool:
 	return is_installed_at(save_dir())
 

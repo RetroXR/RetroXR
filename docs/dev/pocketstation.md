@@ -117,7 +117,7 @@ is a card first, and has to stay one while seated.
   is moved below), card id and label through `_card_fields`. Which slot holds it is the console's.
 - **A card**: a PS1 slot takes it by family; it mates along -Z as every card does, so the object wears the
   primitive turned half round about Y and shifted so 28 mm goes in, the hinge 1.4 mm out of the mouth
-  and the base on the slot's axis (`Tools/models/pocketstation_seat_probe`: 28.2 mm in, 1.4 mm out). Its
+  and the base on the slot's axis (`DevTools/models/pocketstation_seat_probe`: 28.2 mm in, 1.4 mm out). Its
   image is `save/memcards/playstation/<card_id>.mcr`, the shelf, the panel, renames and RomM as any card.
   Its name is on the back, where the real one is lettered.
 - **A handheld**: the card panel (`MemoryCardPanel`, duck-typed as for a VMU) switches it on. The Games
@@ -161,9 +161,9 @@ is a card first, and has to stay one while seated.
 - **Screen** `Model/LidHinge/Screen` through the window shader (`show_picture`); the speaker voices are
   posed on the unit, out of its back.
 - `pocketstation_tests` (catalog, frame, saved, controls, seat, apps, carry, core, merge, dock, ids;
-  controls, saved, merge, dock and ids mutation-tested; `dock/` seats it in a PS1 marked powered). `Tools/models/pocketstation_seat_probe` (windowed): seated in a PS1, and an
+  controls, saved, merge, dock and ids mutation-tested; `dock/` seats it in a PS1 marked powered). `DevTools/models/pocketstation_seat_probe` (windowed): seated in a PS1, and an
   asymmetric "F" through `show_picture` on a loose one, upright and unmirrored.
-  `Tools/models/pocketstation_menu_probe` (windowed, `--image=` a card, `--root=` a scratch root with
+  `DevTools/models/pocketstation_menu_probe` (windowed, `--image=` a card, `--root=` a scratch root with
   Pokket): the unit's own panel tab by tab, then switched on from it (Saves shows "Playing ...", the
   LCD the BIOS). **Pokket's only options are its IR link's** (`pokket_link_*`, the two-unit subsystem
   load RetroXR never makes), so `PocketStation.single_unit_options` drops them and the Options tab
@@ -185,7 +185,7 @@ deterministic state (item 9 of the fork).
 ## Crash Bandicoot 3 (J), measured (2026-11-05)
 
 `Crash Bandicoot 3 - Buttobi! Sekai Isshuu (Japan, Asia)` (SCPS-10073) carries the PocketStation app
-**Dokodemo Crash-kun**. Run with `Tools/cores/pocketstation_dock_probe` (headless, a scratch libretro
+**Dokodemo Crash-kun**. Run with `DevTools/cores/pocketstation_dock_probe` (headless, a scratch libretro
 root holding the installed `pcsx_rearmed` and the four PS1 BIOS files, `--leg=pocketstation`) on
 RetroXR's fork r26 9a26363, `scph5500.bin` (the core picks the Japanese BIOS by itself):
 
@@ -199,7 +199,7 @@ RetroXR's fork r26 9a26363, `scph5500.bin` (the core picks the Japanese BIOS by 
 - **The app file is named as psx-spx says**: the game code's `-` becomes `P` (`SCPSP10073`), and its
   title frame carries `MCX0`, which `PS1Card.is_pocketstation_app` reads (`[PocketStation app]` in the
   probe's listing).
-- **The app plays on the unit.** `Tools/cores/pocketstation_play_probe` (the unit's own `power_on`,
+- **The app plays on the unit.** `DevTools/cores/pocketstation_play_probe` (the unit's own `power_on`,
   Pokket v1.23 from the buildbot in a scratch root via `PocketStation.core_directory`, the C110
   `retrobios` dump, the card the dock probe left) goes HELLO -> heart -> the date/time screen
   (`99/01/01`) -> Down, Action -> the app's icon -> Right, Action -> Dokodemo Crash-kun's title
@@ -308,7 +308,7 @@ fills RAM `0x400` with `i ^ 0x5A` and calls the kernel's frame write (`SWI 0x10`
 tries) at frame 136, the game save's data at block 2 +`0x400`, as the trading-card app writes
 its game's save; the LCD's top half goes black on success.
 
-    "$godot" --headless --path RetroXR res://Tools/cores/pocketstation_play_probe.tscn --         --root=<scratch root with Pokket + BIOS> --out=<dir>         --saves=<dir>/rxr_save_test.mcs,<dir>/rxr_game_save.mcs --expect-changed=BISLPS-99999GAMESAVE         --steps="400-401:down,440-441:action,480-481:right,520-521:action"
+    "$godot" --headless --path RetroXR res://DevTools/cores/pocketstation_play_probe.tscn --         --root=<scratch root with Pokket + BIOS> --out=<dir>         --saves=<dir>/rxr_save_test.mcs,<dir>/rxr_game_save.mcs --expect-changed=BISLPS-99999GAMESAVE         --steps="400-401:down,440-441:action,480-481:right,520-521:action"
 
 Measured on Pokket v1.23 with the C110 `retrobios` dump: the core flushed its flash at the
 600-frame tick, the unit carried it back, and only `BISLPS-99999GAMESAVE` changed on the card
@@ -321,7 +321,7 @@ in pk_timing_bench's container wrote a three-block app's neighbour at frame 264 
 
 `Scenes/Objects/peripherals/pocketstation_model.tscn`: a plain `Node3D` of parts, lying flat as the
 handheld primitives do (screen +Y, the infrared end -Z, the card edge +Z, centred, metres). The
-PocketStation object wears it. `Tools/models/pocketstation_render_probe`
+PocketStation object wears it. `DevTools/models/pocketstation_render_probe`
 (windowed) renders it beside a PS1 memory card and prints its size, **42.0 x 14.2 x 65.8 mm**: Sony's
 64 x 42 x 13.5 mm body plus what stands proud of it (Sony's manual: "approx. 42 x 14.8 x 65 mm
 including protrusions").
@@ -361,7 +361,7 @@ including protrusions").
 
 ## Proving it
 
-- `Tools/cores/pocketstation_dock_probe` (real core, PS1 BIOS, `pocketstation.bin`, a PocketStation
+- `DevTools/cores/pocketstation_dock_probe` (real core, PS1 BIOS, `pocketstation.bin`, a PocketStation
   title, a scratch home; one core and one leg per process): `dock` (the game offers and writes the
   minigame: a file with the `MCX0` header appears), `plain` (control: same game, plain card, not
   offered), `hle` (falls back and says so), `undock` (the `pokket` core boots that app from the same

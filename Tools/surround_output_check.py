@@ -47,7 +47,7 @@ def godot_binary():
     return path
 
 
-def run(name, scene="res://Tools/av/surround_output_probe.tscn", user_args=(), tag="[probe]"):
+def run(name, scene="res://DevTools/av/surround_output_probe.tscn", user_args=(), tag="[probe]"):
     if os.path.exists(OVERRIDE):
         raise SystemExit("RetroXR/override.cfg already exists; not overwriting someone else's")
     workdir = tempfile.mkdtemp(prefix="surround-output-")
@@ -82,7 +82,7 @@ def main():
               if not run(name)]
     if args.rom:
         held = ["--root=" + args.root, "--core=" + args.core, "--rom=" + args.rom, "--held"]
-        if not run("5.1", "res://Tools/av/surround_probe.tscn", held, "[surround]"):
+        if not run("5.1", "res://DevTools/av/surround_probe.tscn", held, "[surround]"):
             failed.append("5.1 held with " + args.core)
     if failed:
         print("\nFAILED: " + ", ".join(failed))

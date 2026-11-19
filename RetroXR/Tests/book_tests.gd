@@ -220,7 +220,7 @@ func _hit(from: Vector3, to: Vector3) -> Dictionary:
 ## of a book that had ever been read cost 28-34 ms and reopening one cost
 ## 150-220, while the FIRST read of the same book (nothing on disk yet, so it
 ## had to go to the pool) was smooth. Both paths go to the pool now.
-## Numbers: Tools/perf/page_turn_probe.gd.
+## Numbers: DevTools/perf/page_turn_probe.gd.
 func _test_a_cached_page_never_decodes_on_the_main_thread() -> void:
 	_write_cbz(CBZ_PATH)
 	var cbz := ProjectSettings.globalize_path(CBZ_PATH)
@@ -381,7 +381,7 @@ func _test_pages_are_etc2_on_a_mobile_gpu() -> void:
 ## being written opens as a TRUNCATED one and fails. Nothing looked again —
 ## `pdf_path` is already set, so re-assigning it is a no-op — and the book was a
 ## navy slab for the rest of its life. Reproduced with a real PDF cut to 55%
-## (`Tools/vr/manual_probe.gd`); a half-written CBZ fails the same way here.
+## (`DevTools/vr/manual_probe.gd`); a half-written CBZ fails the same way here.
 func _test_a_half_written_manual_recovers() -> void:
 	const PARTIAL := "user://__book_tests_partial.cbz"
 	var path := ProjectSettings.globalize_path(PARTIAL)

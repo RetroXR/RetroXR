@@ -244,7 +244,7 @@ type `ps_multitap`), on the PlayStation card.
 - Mutation-tested: no port-2 move (5 red), no slot-A pass-through (1), no card gate (1).
 - `four_player_render_probe` (windowed) draws it in a PlayStation's port 1 with four pads and a card in slot A.
 
-- **Crash Team Racing (USA) on pcsx_rearmed, 2026-11-03** (`Tools/input/ps_multitap_game_probe`, headless, scratch root, HLE
+- **Crash Team Racing (USA) on pcsx_rearmed, 2026-11-03** (`DevTools/input/ps_multitap_game_probe`, headless, scratch root, HLE
   BIOS). The option is the room's own (`port 1`), not set by the probe. Script, in core frames:
   `3300-3306:1:start,3500-3506:1:down,3530-3536:1:down,3560-3566:1:down,3620-3626:1:cross,3800-3806:1:cross,`
   `3950-3956:1:down,3990-3996:1:down,4050-4056:1:cross,4400-4406:3:right,4480-4486:4:down,4481-4487:2:right`
@@ -323,7 +323,7 @@ type `ps2_multitap`), on the PS2 card. A subclass of `PsMultitap`: everything bu
 - The fork's change builds on Windows (MSVC, `ninja -C build pcsx2_libretro`).
 - The new DLL declares `pcsx2_multitap` with the four values (`core_options_probe --match=multitap`: 80 options).
   The installed v6 declares 79 and no such key.
-- `Tools/input/ps2_multitap_core_probe` ran the new DLL from a scratch data root on Gran Turismo 4, 2026-11-03.
+- `DevTools/input/ps2_multitap_core_probe` ran the new DLL from a scratch data root on Gran Turismo 4, 2026-11-03.
   - Leg `tap` sets the option on the running core three times. The core's own WARN lines were "multitap in
     port 1: 5 libretro ports, the console's port 2 is libretro port 4", then "in ports 1 and 2: 8 ... port 4",
     then "off: 2 ... port 1".
@@ -358,7 +358,7 @@ a frame after spawning.
 
 - `four_player_tests` (headless, no core): see testing.md. Mutation-tested: switching the owner path off turns 8
   cases red, taking the span away 8, putting the second plug on the wrong side 1, ignoring the switch 1.
-- `Tools/input/four_score_core_probe` (headless, a REAL fceumm, one leg per process, `--root=` a scratch root
+- `DevTools/input/four_score_core_probe` (headless, a REAL fceumm, one leg per process, `--root=` a scratch root
   holding `cores/fceumm_libretro.dll`). The probe writes an NROM test ROM (44 bytes of code) that strobes the pads, reads both
   ports 24 times and leaves bits 0-1 of each read at $0300 / $0320. Every pad goes through its OWN
   `_deliver_joypad`. Measured 2026-11-02, all four legs PASS:
@@ -366,7 +366,7 @@ a frame after spawning.
     $4017 = P2 B, P4 START, `0,0,1,0,…`.
   - `2p` and `none`, the controls: all 1s after the first eight reads.
   - `famicom`: $4016 D1 = P3 SELECT, $4017 D1 = P4 START, then 1s, beside the hardwired Controller I on D0.
-- `Tools/input/four_score_game_probe` (headless, a REAL fceumm, a real ROM, one leg per process, `--leg=4p|2p|none`,
+- `DevTools/input/four_score_game_probe` (headless, a REAL fceumm, a real ROM, one leg per process, `--leg=4p|2p|none`,
   `--steps=from-to:player:buttons,...`, `--shots=frames`, `--out=`). Each pad goes through its own delivery path;
   the game's screen is saved where asked. **Bomberman II (USA), 2026-11-02**, with the script
   `400-406:1:start,900-906:1:start,1000-1004:1:down,1030-1034:1:down,1070-1076:1:start,1320-1326:1:start` (skip the
@@ -375,7 +375,7 @@ a frame after spawning.
     tiles right in the arena (frames 1790 / 1950 / 2100) while P1 and P2 stand.
   - `2p` (the unit at 2) and `none` (no unit): BATTLE MODE refuses START; still the menu at 1500. Before
     `UNWIRED_PORTS`, `none` showed P1 P2 P3: fceumm's own guess.
-- `Tools/models/four_player_render_probe` (WINDOWED, `-- --out=<dir>`): both units plugged in with pads. It
+- `DevTools/models/four_player_render_probe` (WINDOWED, `-- --out=<dir>`): both units plugged in with pads. It
   prints the block's plugs against the NES's port zones, which are equal to the millimetre, and each switch
   knob's and TURBO cap's travel when thrown.
 

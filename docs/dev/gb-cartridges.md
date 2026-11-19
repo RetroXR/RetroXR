@@ -130,7 +130,7 @@ are renamed `Interior_*` so frost blurs them; `Contacts_32` stays sharp at the o
 mouth. The front shell leaves 44 triangles unmapped per body: run
 `Tools/glb/fix_unmapped_uvs.py --tile 10` on any re-export.
 
-**The colours are fitted**, as the GBA's are: `Tools/models/gbc_cart_render_probe`
+**The colours are fitted**, as the GBA's are: `DevTools/models/gbc_cart_render_probe`
 (`--fit`, windowed) lays each preset on the large board, label up, on white under flat
 light, ortho from above at 10 px/mm (near/far 0.1-0.3 m), wearing the scraped label of
 the cartridge photographed, and takes the per-channel linear median of the shell
@@ -178,7 +178,7 @@ The cartridge seat is why the window fits: seated on the body's mid-plane, as th
 Boy stand-in seats one, a cart takes the middle of the top edge and the window has
 nowhere to go but through it.
 
-`Tools/models/game_boy_color_probe` settles each of those by a number (36 checks
+`DevTools/models/game_boy_color_probe` settles each of those by a number (36 checks
 headless: the row's scene with the `gb` row as its control, both facings of the panel,
 the window proud of the edge and in front of the slot, the socket's `+Z`, the lead's
 exit, the switch's throw, the lamp, the animated controls, and a cartridge seated
@@ -186,8 +186,8 @@ through `restore_cartridge()` standing 18.2 mm out, behind the window). Windowed
 photographs the shell into `probe_out/gbc/`, the last frame beside the Game Boy:
 
 ```bash
-"$godot" --headless --path RetroXR res://Tools/models/game_boy_color_probe.tscn
-"$godot" --path RetroXR --resolution 320x240 --position 20,20 res://Tools/models/game_boy_color_probe.tscn
+"$godot" --headless --path RetroXR res://DevTools/models/game_boy_color_probe.tscn
+"$godot" --path RetroXR --resolution 320x240 --position 20,20 res://DevTools/models/game_boy_color_probe.tscn
 ```
 
 `romm_tests` `gbc/` pins it with five cases, mutation-tested: the row back on the Game
@@ -387,7 +387,7 @@ would need every core shown the same thing, which is the blank, and that is exac
 silence there): the safety net for a camera console pulled in by a link cable. A real
 two-peer session with one is OWED.
 
-`Tools/cores/gb_camera_feed_probe` is the real core and the real ROM, windowed, in a
+`DevTools/cores/gb_camera_feed_probe` is the real core and the real ROM, windowed, in a
 scratch home (it writes the cartridge's battery, so it refuses to run without
 `retroxr/probe_home.txt` in the data root, which wants `libretro/cores/mgba_libretro.dll`
 beside it). The room holds two black walls, one each side of the console, each with ONE
@@ -398,7 +398,7 @@ One core and one leg a process, and each control proves it reached the viewfinde
 
 ```bash
 USERPROFILE=<scratch home> "$godot" --path RetroXR --resolution 640x480 --position 20,20 \
-    res://Tools/cores/gb_camera_feed_probe.tscn -- "--rom=<Game Boy Camera>"
+    res://DevTools/cores/gb_camera_feed_probe.tscn -- "--rom=<Game Boy Camera>"
 ... -- ... --away      # the ball turned half round: the OTHER target, not the first
 ... -- ... --nofeed    # the eye stopped, then the lens turned: the game goes on showing the first
 ... -- ... --system=gb|gbc|gba
@@ -417,14 +417,14 @@ world and the boot splash stands there, so the first run photographed "RETRO XR 
 STARTING UP", legibly and the right way up. **In a headset, on a Quest, and with a second
 peer it is all still OWED.**
 
-`Tools/models/game_boy_camera_probe` (39 checks headless) twists the ball with a point
+`DevTools/models/game_boy_camera_probe` (39 checks headless) twists the ball with a point
 where a latched hand would be and seats the cartridge in a Game Boy Color; windowed it
 photographs the camera into `probe_out/gb_camera/`, and `-- --film` writes the swivel as
 frames for an mp4:
 
 ```bash
-"$godot" --headless --path RetroXR res://Tools/models/game_boy_camera_probe.tscn
-"$godot" --path RetroXR --resolution 320x240 --position 20,20 res://Tools/models/game_boy_camera_probe.tscn -- --film
+"$godot" --headless --path RetroXR res://DevTools/models/game_boy_camera_probe.tscn
+"$godot" --path RetroXR --resolution 320x240 --position 20,20 res://DevTools/models/game_boy_camera_probe.tscn -- --film
 ```
 
 `gb_camera_tests` (156 cases): lookup, body, cartridge, ball, saved, seated, menu, and

@@ -3,7 +3,7 @@
 **Status: BUILT (2026-10-21), no real pad tried.** `DesktopPad` (autoload, `Scripts/Desktop/desktop_pad.gd`,
 class `DesktopPadService`) makes the first pad the player's input. The spec is the player's; the mapping
 below is the ASSUMED default I chose, so a correction is cheap. Tested with synthetic events only
-(`Tests/desktop_pad_tests`, 72 cases; `Tools/room/pad_hand_probe`, windowed, through the real hand): **no
+(`Tests/desktop_pad_tests`, 72 cases; `DevTools/room/pad_hand_probe`, windowed, through the real hand): **no
 real pad has been plugged into this work**, so feel (look speed, dead zones, the trigger thresholds) and
 the real `Input.get_joy_*` path (`held_state` -> `GamepadBindings.poll`) are OWED.
 

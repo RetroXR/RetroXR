@@ -368,7 +368,7 @@ the plate's low edge clears the stand at full lock (0.09 m of dip against 0.094 
   it, everything on the stand, the stand clear of the door, the ends turned up, the wheels on the plate, the bindings, the skis apart, the plate clear of the stand at full lock either way, the plate and the whole rail leaning into the turn, nothing between a standing rider's eyes and the picture,
   the pointer box, no collision, the upright back); `arcade_hand_tests rider/` (21: the grab, a full throw still held, the plate drawn leaning, a hand a metre off let go, START pressed, for each vehicle). Mutation-tested line by line: the rail's height and width, the crossbar behind the grips, the bars' middle at the crossbar
   (the one the hands' test and the form's catch for different reasons), START off its place, the rail or the posts off the plate, the stand too near or too short, a pointer box over the rail, every end tipped the wrong way, wheels off the plate, a binding twice, the skis on each other, the spec on the wrong body or keeping panels, one vehicle for all, the profile counting a bike or missing a ski: all red.
-  Photographs (`Tools/models/arcade_cabinet_probe --forms=topskatr,alpines,alpinerd`: `form_`, `formside_`, `formstand_` from a standing rider's eyes, `formrail_` down at the crossbar, `formlean_` leaned over): the rig, the three vehicles and the lean are as described.
+  Photographs (`DevTools/models/arcade_cabinet_probe --forms=topskatr,alpines,alpinerd`: `form_`, `formside_`, `formstand_` from a standing rider's eyes, `formrail_` down at the crossbar, `formlean_` leaned over): the rig, the three vehicles and the lean are as described.
 
 ## 3. Every form that is built
 

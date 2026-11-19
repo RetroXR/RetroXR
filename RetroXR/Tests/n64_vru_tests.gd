@@ -6,7 +6,7 @@
 ## Exits 0 when everything passes, 1 otherwise.
 ##
 ## What a core does with the device it is told about needs mupen64plus-next, a
-## speech model and a ROM, and lives in Tools/input/vru_probe.
+## speech model and a ROM, and lives in DevTools/input/vru_probe.
 extends "res://Tests/test_suite.gd"
 
 const VRU_SCENE := preload("res://Scenes/Objects/controllers/n64/n64_vru.tscn")

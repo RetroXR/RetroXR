@@ -1,8 +1,8 @@
 """Two tiny Game Gear ROMs that talk over the Gear-to-Gear cable.
 
-    python Tools/gen/gen_gglink_rom.py     # into RetroXR/Tools/gglink/
+    python Tools/gen/gen_gglink_rom.py     # into RetroXR/DevTools/fixtures/gglink/
 
-Used by RetroXR/Tools/link/gg_link_probe.tscn. Both switch the EXT port's UART on
+Used by RetroXR/DevTools/link/gg_link_probe.tscn. Both switch the EXT port's UART on
 with its receive NMI ($05 = 0x38, 4800 bps) -- the way the commercial link games
 use it -- and then paint the backdrop with what the NMI saw:
 
@@ -141,7 +141,7 @@ def build(master):
 
 def main():
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    out = os.path.join(root, "RetroXR", "Tools", "gglink")
+    out = os.path.join(root, "RetroXR", "DevTools", "fixtures", "gglink")
     os.makedirs(out, exist_ok=True)
     for name, master in (("link_master.gg", True), ("link_slave.gg", False)):
         path = os.path.join(out, name)

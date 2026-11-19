@@ -10,7 +10,7 @@
 ## the parts where the modules find them, that what hangs on the parts (the guns and their ports, the input,
 ## the collision and pointer boxes, the rectangle on the floor) follows a morph, and that pulling the board
 ## gives the cabinet back its own form. How each form LOOKS is the probe's
-## (Tools/models/arcade_cabinet_probe -- --forms, windowed).
+## (DevTools/models/arcade_cabinet_probe -- --forms, windowed).
 ##
 ## Groups:
 ##   specs/     the spec each kind of game asks for: panels, doors, guns, screen, cockpit, stage

@@ -63,11 +63,11 @@ two-ended `ngp_link_cable` lead -- the Game Boy lead's shape under its own plug
 family (`ngp_link_plug`), so it fits a Neo Geo Pocket and nothing else. A third
 machine on the wire is not something the SNK cable does.
 
-## Probes (`RetroXR/Tools/link/`)
+## Probes (`RetroXR/DevTools/link/`)
 
 ```bash
-"$godot" --headless --path RetroXR res://Tools/link/ngp_link_room_probe.tscn -- --roms=Z:/roms
-"$godot" --headless --path RetroXR res://Tools/link/ngp_link_probe.tscn -- \
+"$godot" --headless --path RetroXR res://DevTools/link/ngp_link_room_probe.tscn -- --roms=Z:/roms
+"$godot" --headless --path RetroXR res://DevTools/link/ngp_link_probe.tscn -- \
     --rom="Z:/roms/ngpc/SNK Gals' Fighters (USA, Europe).ngc" --out=gals \
     --seq="w400,0:A,w40,0:A,w77,1:A,w40,1:A,w200,b:D,w40,0:A,w30,1:A,w200,s:sel" [--nocable]
 ```
@@ -163,7 +163,7 @@ them mid-conversation**. Mutation: dropping the inbox on load turns 26 of 40 red
 Skipping the ABSOLUTE restore stays green (the relative rebase is already
 self-consistent), so that branch is belt-and-braces, not load-bearing.
 
-The probe is `Tools/netplay/ngp_link_netplay_probe` (`--mode=pause|trace|sweep`,
+The probe is `DevTools/netplay/ngp_link_netplay_probe` (`--mode=pause|trace|sweep`,
 `--nocable`, `--opt=`, `--root=`): gated exactly as the session gates, input
 lead capped at 60 frames (posting hundreds at once overruns the gate's ring and
 reads as a wedge at ~600).

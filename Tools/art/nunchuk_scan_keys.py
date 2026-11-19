@@ -8,7 +8,7 @@ them for gen_nunchuk.gd.
 Source: Wesk's "Wiimote Nunchuck Scan" on bitbuilt.net, released under the
 Unlicense (public domain) -- bitbuilt.net/forums/threads/wesks-3d-scans-license.5444/
 The scans are 250 MB and are NOT in this repo; this writes the small meshes that
-are, into RetroXR/Tools/scan/. See that folder's LICENSE.txt.
+are, into RetroXR/DevTools/fixtures/scan/. See that folder's LICENSE.txt.
 
 The shell arrives already decimated, because Blender's Collapse is worth the
 extra step on a surface this smooth -- vertex clustering, which is all this
@@ -99,7 +99,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--scan", required=True, help="directory holding the .stl files")
     ap.add_argument("--shell", help="pre-decimated Top+Bottom, from decimate_stl.py")
-    ap.add_argument("--out", default=os.path.join("RetroXR", "Tools", "scan"))
+    ap.add_argument("--out", default=os.path.join("RetroXR", "DevTools", "fixtures", "scan"))
     args = ap.parse_args()
 
     here = lambda n: os.path.join(args.scan, n)

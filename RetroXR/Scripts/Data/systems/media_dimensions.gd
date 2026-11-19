@@ -38,7 +38,7 @@ const CART_SIZES: Dictionary = {
 	# The cartridge model's shell (genesis_cart.glb, a caliper-measured US cart), so
 	# the per-axis fit is 1:1. The 32X's `connector` is derived from this height.
 	"genesis":       Vector3(0.108, 0.067, 0.017),
-	# A JAMMA arcade board (arcade_board.tscn, baked by Tools/gen/gen_arcade_board.gd):
+	# A JAMMA arcade board (arcade_board.tscn, baked by DevTools/gen/gen_arcade_board.gd):
 	# a bare PCB, 200 mm across the comb edge, 300 mm to insert, 35 mm over its
 	# tallest part. Real boards were every size, so this is one that stands for
 	# them all. The 111 mm comb (28 contacts a side at 3.96 mm) sits in the edge.

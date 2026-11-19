@@ -20,11 +20,11 @@ const CONTRACT_VERSION := 1
 const CABINET_MODEL_ID := "arcade_cabinet_generic"
 
 ## The JAMMA board: a bare PCB with a 56-contact comb on one edge, baked by
-## Tools/gen/gen_arcade_board.gd. Every arcade ROM spawns wearing it.
+## DevTools/gen/gen_arcade_board.gd. Every arcade ROM spawns wearing it.
 const BOARD_SCENE := "res://Scenes/Objects/media/arcade_board.tscn"
 
 ## The Neo Geo MVS cartridge: a plastic cassette with the board's edge standing out of it
-## (Tools/gen/gen_neogeo_cart.gd), not a bare board. Its shell's size is an estimate.
+## (DevTools/gen/gen_neogeo_cart.gd), not a bare board. Its shell's size is an estimate.
 const NEOGEO_CART_SCENE := "res://Scenes/Objects/media/neogeo_cart.tscn"
 
 # Module kinds. A module says which it is; the cabinet finds modules by TYPE and

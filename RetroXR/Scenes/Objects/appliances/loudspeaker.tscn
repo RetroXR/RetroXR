@@ -24,7 +24,7 @@ size = Vector3(0.115, 0.175, 0.13)
 
 ; A surround satellite: one cabinet, one cone, one phono input on the back.
 ;
-; The mesh is baked by Tools/gen/gen_speaker.gd with its origin at the base centre
+; The mesh is baked by DevTools/gen/gen_speaker.gd with its origin at the base centre
 ; and the baffle on +Z, so this scene stands it on a shelf by placing the node on
 ; the surface rather than solving an offset.
 [node name="Loudspeaker" type="RigidBody3D"]

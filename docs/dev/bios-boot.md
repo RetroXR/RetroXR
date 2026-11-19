@@ -4,7 +4,7 @@ Moved verbatim out of `CLAUDE.md` on 2026-09-18; `CLAUDE.md` keeps the summary a
 
 ### 2d. The BIOS-boot survey — a probe that must stay one core per process
 
-`RetroXR/Tools/cores/bios_boot_probe.tscn` + `Tools/bios_boot_survey.sh` are the provenance
+`RetroXR/DevTools/cores/bios_boot_probe.tscn` + `Tools/bios_boot_survey.sh` are the provenance
 of the `BiosBoot` table, and the only way to refresh it when a core is updated. The
 probe reports one core's firmware status, its boot-ROM-ish option keys, and whether it
 will start with no content; the survey drives every candidate and prints a table.
@@ -54,7 +54,7 @@ survey afterwards.
 
 ### The DS and DSi home screens (measured 2026-09-21)
 
-`RetroXR/Tools/cores/ds_boot_probe.tscn` — windowed, one core per process, against a
+`RetroXR/DevTools/cores/ds_boot_probe.tscn` — windowed, one core per process, against a
 THROWAWAY root (`--root=`; it writes that root's `core_options/`). `--opt=key=value`
 pins options, `--gba=` loads melonDS DS's Slot-2 subsystem beside `--rom=`, `--press=`
 takes `12:touch=x:y` (bottom-screen pixels) as well as buttons, `--options` dumps every key.

@@ -1683,7 +1683,7 @@ func supports_foveation() -> bool:
 ## Never on the mobile renderer, and that is a crash guard rather than a taste
 ## call: with a VRS attachment bound, one draw of the outline_mask/outline stencil
 ## pair loses the Vulkan device inside a second on a Quest 3 (a fault in the
-## opaque pass, five runs out of five in Tools/perf/vrs_dynres_repro, never once
+## opaque pass, five runs out of five in DevTools/perf/vrs_dynres_repro, never once
 ## with VRS off or with the pair swapped for the hull). Gating on the foveation
 ## level alone left a hole: a highlight built while foveation was OFF kept its
 ## stencil pair, and switching foveation on later - the GRAPHICS tab, a probe -

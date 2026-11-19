@@ -91,7 +91,7 @@ const _ROWS := {
 	# the dsi_* files as well and lands in the DSi Menu, which lists the card
 	# beside System Settings.
 	#
-	# MEASURED 2026-09-21 with Tools/cores/ds_boot_probe, one core per process,
+	# MEASURED 2026-09-21 with DevTools/cores/ds_boot_probe, one core per process,
 	# a real DS firmware and BIOS pair and a DSi NAND:
 	#   melondsds  no content  -> DS home screen, "There is no DS Card inserted"
 	#                             and "no Game Pak"; console mode dsi -> the DSi

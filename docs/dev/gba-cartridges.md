@@ -101,7 +101,7 @@ equal, so a Classic NES cart beside an NES cart is the same grey; it is lighter
 and more neutral than the GBA's standard grey. Rendered side by side: NES cart
 face ~169, Classic NES GBA ~165, standard GBA ~143 (sRGB, 8-bit).
 
-**The colours are fitted, not picked.** `Tools/models/gba_cart_fit_probe` (windowed; re-run whenever the model's interior or the clear shaders change) renders each preset lying on a
+**The colours are fitted, not picked.** `DevTools/models/gba_cart_fit_probe` (windowed; re-run whenever the model's interior or the clear shaders change) renders each preset lying on a
 white surface under flat front light (ortho camera, near/far 0.1–0.3 m: the
 default 4 km far plane lets the recess floor, 0.47 mm behind the label, win the
 depth test and tint the label), took the per-channel median colour of the shell outside the
@@ -196,7 +196,7 @@ For that to hold, **`MediaDimensions` `gba` is the cartridge model's shell,
 60 × 35 × 9 mm** (it was 58 × 36 × 7, which scaled the body per axis to a 7 mm
 thick cart). The GB and N64 entries are their models' shells the same way.
 
-`Tools/models/gba_seat_probe` spawns the model, seats a cart through
+`DevTools/models/gba_seat_probe` spawns the model, seats a cart through
 `restore_cartridge()` and checks the cart GLB against the socket (0.003 mm, no
 turn, unit scale), the screen, the EXT socket, the video-out lead, the power
 switch, wheel, LED and buttons; windowed it renders four views of the seated

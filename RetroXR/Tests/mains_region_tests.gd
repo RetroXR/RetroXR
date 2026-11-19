@@ -8,7 +8,7 @@ extends "res://Tests/test_suite.gd"
 ## a two-prong one still does.
 
 const TEST_REGION := "zz_two_slot"
-const SPECS := preload("res://Tools/gen/mains_specs.gd")
+const SPECS := preload("res://DevTools/gen/mains_specs.gd")
 
 
 func _ready() -> void:
@@ -76,7 +76,7 @@ func _test_table() -> void:
 
 
 ## The fit table and the geometry agree: every plug in every socket, by the pins
-## and faces in Tools/gen/mains_specs.gd, goes in exactly when Connectors says so.
+## and faces in DevTools/gen/mains_specs.gd, goes in exactly when Connectors says so.
 func _test_fit_matrix() -> void:
 	for socket: String in SPECS.SOCKETS:
 		for plug: String in SPECS.PLUGS:

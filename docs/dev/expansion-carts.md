@@ -75,7 +75,7 @@ They are carded on the **Game Boy** tile, not the Super Famicom's, because
 `ExpansionCatalog.card_systemid` files a unit under its media and these run Game
 Boy cartridges. That is also where a player is standing when they want one.
 
-`RetroXR/Tools/cores/sgb_probe.tscn` is the measurement, and it needs a real core,
+`RetroXR/DevTools/cores/sgb_probe.tscn` is the measurement, and it needs a real core,
 a real `.gb` and the SGB dump, so it is a probe. **The oracle is the frame size,
 and it cannot pass by accident**: a Game Boy frame is 160×144 and a Super Game Boy
 frame is 256×224, because in SGB mode the SNES is the machine drawing. It does not
@@ -84,7 +84,7 @@ still gets the adapter's default frame — so a generated test ROM answers it.
 
 ```bash
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-  res://Tools/cores/sgb_probe.tscn -- --core=bsnes \
+  res://DevTools/cores/sgb_probe.tscn -- --core=bsnes \
   --rom="$HOME/retroxr/roms/gb/game.gb" --leg=subsystem --shot=res://sgb.png
 ```
 
@@ -222,7 +222,7 @@ a one-line file would delete snes9x's firmware declarations with it.
 
 ```bash
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-  res://Tools/cores/sufami_probe.tscn -- \
+  res://DevTools/cores/sufami_probe.tscn -- \
   "--a=$HOME/retroxr/roms/sufami_turbo/<A>.sfc" \
   "--b=$HOME/retroxr/roms/sufami_turbo/<B>.sfc" --sram=/tmp/t.srm
 ```
@@ -271,7 +271,7 @@ DS card alone in a session — not extended.
 top edge out of +Z, label down), the recipe order and the save file's existence.
 What no suite covers is the core actually taking the pair: that needs melondsds,
 the DS firmware, a DS ROM and a GBA ROM. MEASURED 2026-09-21 with
-`Tools/cores/ds_boot_probe` (`--rom= --gba=`): Super Mario 64 DS + a never-played
+`DevTools/cores/ds_boot_probe` (`--rom= --gba=`): Super Mario 64 DS + a never-played
 Classic NES Donkey Kong, seeded blank, boots; with `melonds_boot_mode=native` the DS
 home screen lists both ("Start GBA game."). The log line is
 `Loading subsystem 'gba' (id=...) with 3 file(s)`.
@@ -303,7 +303,7 @@ cartridge by its middle, so when that row went from 70 to 67 mm a fixed
 spacer test's old 2 mm tolerance (now 0.5 mm). Every console's slot already
 seats a cartridge there, so no console is measured. On the Model 2 this puts the board edge at y = 0.0375 and
 z = -0.0319, the slot's own cart seat, and the unit faces +Z like the console
-(no `seat_yaw`). Measured by `Tools/models/sega32x_probe`.
+(no `seat_yaw`). Measured by `DevTools/models/sega32x_probe`.
 
 **On the Model 2 that leaves the unit standing 13.1 mm up.** The console's top
 (the slot's hump) is at 59.0 mm, the 32X's resting plane at 72.1 mm. That is the
@@ -360,7 +360,7 @@ at about 82°.
 
 ```bash
 "$godot" --path RetroXR --resolution 960x720 --position 20,20 \
-  res://Tools/models/sega32x_probe.tscn -- --out=C:/path/to/stills
+  res://DevTools/models/sega32x_probe.tscn -- --out=C:/path/to/stills
 ```
 
 Windowed. It spawns the spacer beside the unit, clips it on, seats the pair and
@@ -438,7 +438,7 @@ one is 30 cm.
   drawn over either would z-fight it); a surface that moulds none turns it on with
   `MultiAvPort.draw_jack(true)` -- the primitive box, and a 32X on its plain box
   (`ExpansionAv.place`, `BOX_PROUD` off the face). The mesh is
-  `Tools/gen/gen_genesis_av_jack.gd`'s, the 32X socket's sizes: a 12.4 mm chrome flange,
+  `DevTools/gen/gen_genesis_av_jack.gd`'s, the 32X socket's sizes: a 12.4 mm chrome flange,
   a dark 9.7 mm mouth and the 7.7 mm insert with nine contact holes on the plug's pins,
   all FLAT and 0.2-0.4 mm proud of the panel. A first bake with a real 7 mm bore drew its mouth behind the solid box's face,
   which hid it, and the socket read as a chrome ring round a patch of box.
@@ -451,7 +451,7 @@ row, a jack never drawn). How it looks:
 
 ```bash
 "$godot" --path RetroXR --resolution 960x720 --position 20,20 \
-  res://Tools/models/sega32x_av_probe.tscn -- --out=C:/path/to/stills [--nolink] [--primitive]
+  res://DevTools/models/sega32x_av_probe.tscn -- --out=C:/path/to/stills [--nolink] [--primitive]
 ```
 
 Windowed. It seats the 32X with its spacer on a Genesis, shoots the empty sockets,
@@ -543,7 +543,7 @@ hands the core the interface and re-emits each change as the `Libretro` node's
 Sega CD, the default 0 for snes9x's Satellaview. It used to be a fixed 0, so the Sega CD's
 lamp followed the Z80. A mod's shell must name its lamp mesh `AccessLed` (with a
 `BaseMaterial3D` on surface 0) for the lamp to light. Measured with the real core
-(`Tools/cores/sega_cd_led_probe`, `--leg=bios`, a US BIOS, no disc): LED 1 flashed, on
+(`DevTools/cores/sega_cd_led_probe`, `--leg=bios`, a US BIOS, no disc): LED 1 flashed, on
 about 20 frames and off about 10, 73 changes in 20 s, as the manual says it does with no
 disc. The drive's lamp followed it with 0 frames out of step, and LED 0 changed 3 times.
 `--leg=disc --disc=<a Sega CD disc>` is the reading leg (not run yet). `segacd2/` emits
@@ -596,7 +596,7 @@ the back facing out, a set on the LINE OUT playing a Model 2, and a PHONES-jack 
 silent there until the mixing lead goes in and again once it is out). Mutation-tested:
 the foot back at the middle fails 3, the line out always carrying fails 3. The suites
 boot with no mods, so the real Model 1 is the probe's:
-`Tools/models/sega_cd2_probe` (windowed) mounts the checkout's
+`DevTools/models/sega_cd2_probe` (windowed) mounts the checkout's
 `mods/xenu.genesis1.zip` in-process, never the player's mods folder. It prints a Model 2
 at -86.6 and the real Model 1 280 wide at -116.6 with its PHONES built, and the line out
 carrying nothing until the mixing lead goes in. Its stills are the drive, the lid open,
@@ -650,7 +650,7 @@ empty (S&K locked onto its own ROM) and on a bare Genesis (the key lives in the
 one shared `.opt`). The BOOT row pins genesis_plus_gx: picodrive has no lock-on.
 Power-on logs `[Expansion] Sonic & Knuckles lock-on <value> (top slot <rom>)`.
 
-**Measured 2026-11-01** with `Tools/cores/sk_lockon_probe` (windowed, one leg per
+**Measured 2026-11-01** with `DevTools/cores/sk_lockon_probe` (windowed, one leg per
 process: `lock`, `bare` the control, `alone`), No-Intro dumps, the room's own
 RetroSystem: Sonic 3 -> the SONIC 3 & KNUCKLES title and S&K's Data Select (the
 bare leg differs at every sample); Sonic 2 -> Knuckles in Sonic 2; Sonic 1 ->

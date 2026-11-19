@@ -467,7 +467,7 @@ pages against a wall or a console are OWED — the film is a table and a ball.
 
 ### What it costs
 
-`Tools/perf/book_flop_bench` (windowed — a real RenderingServer behind
+`DevTools/perf/book_flop_bench` (windowed — a real RenderingServer behind
 `set_shader_parameter`), one **held** book, per 90 Hz physics tick, timed around the calls
 the way `rope_bench` is. Desktop, 2026-09-18:
 
@@ -530,7 +530,7 @@ scrape a second from finishing looks exactly like one that finished. That used t
 equality guard makes re-assigning the same path a no-op and nothing ever looked again.
 `_fail_or_retry()` now gives such a file `LOAD_RETRIES` (4) more goes, backing off a second at a
 time, showing "Opening…" while it does and the real reason once it gives up. Reproduce it by
-truncating a good PDF to 55 %: `Tools/vr/manual_probe.gd --file=<path>`.
+truncating a good PDF to 55 %: `DevTools/vr/manual_probe.gd --file=<path>`.
 
 **The 2026-09-20 Ocarina of Time manual was NOT this**, though it looked identical. The file was
 whole and opened fine on desktop; the Quest's `godot-pdfium` binary was 18 days stale and still
@@ -645,7 +645,7 @@ window kept refilling off the disk.
 
 The cache dir outlives the app, which is the trap: **the first read of a book was smooth and
 every read after it hitched**, which is the opposite of what a cache is supposed to do.
-Measured with `Tools/perf/page_turn_probe` (windowed — `--headless` skips the upload and
+Measured with `DevTools/perf/page_turn_probe` (windowed — `--headless` skips the upload and
 shows only the decode), on pages smaller than a 150-DPI Letter page:
 
 | a turn | desktop before | desktop after | **Quest 3** before | **Quest 3** after |
@@ -686,7 +686,7 @@ waits on.
 The cost that remains is real but off the frame: decoding is ~11 ms of worker time per page on
 desktop and ~17.6 ms on a Quest, so a book of big scans spends proportionally more of the pool.
 
-Re-measure with `Tools/perf/page_turn_probe`, windowed on desktop. On device it needs the
+Re-measure with `DevTools/perf/page_turn_probe`, windowed on desktop. On device it needs the
 probe-only export (`run/main_scene.pageturnprobe`); the run recipe is in `quest-device.md`,
 and the probe carries a 900 s give-up timer because nothing on a headset would close it.
 
@@ -846,8 +846,8 @@ hand pushing the page another peer is holding is not seen by the holder).
   `_get_page_texture()` for a page a worker is still rendering races it (the PNG can be on
   disk before the main thread adopts the texture, and a second one is loaded from the file):
   `_drain_renders` first.
-- `Tools/perf/book_flop_bench` — the CPU cost table above.
-- `Tools/vr/book_flop_probe` — **windowed**, poses one book through nineteen segments (one
+- `DevTools/perf/book_flop_bench` — the CPU cost table above.
+- `DevTools/vr/book_flop_probe` — **windowed**, poses one book through nineteen segments (one
   hand, two hands sagging, pages turned on a hanging book through the real
   begin/move/end grab calls, a hand pulling a page over / up / out / away with a RED dot on
   the hand and a GREEN one on the gripped paper and the gap printed per leg, soft cover,
@@ -856,4 +856,4 @@ hand pushing the page another peer is holding is not seen by the holder).
   `--nocontact` the control that goes through) and writes
   frames; `python Tools/book_flop_video.py <dir>` makes the mp4 and a contact sheet. This,
   and the headset, are the only judges of how it looks and feels.
-- `Tools/vr/page_grab_probe` — the fold-direction oracle; needs a real PDF.
+- `DevTools/vr/page_grab_probe` — the fold-direction oracle; needs a real PDF.

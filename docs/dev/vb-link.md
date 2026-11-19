@@ -66,11 +66,11 @@ catalog offers `virtualboy` a "Link Cable": `vb_link_cable`, the two-ended Game
 Boy lead under its own plug family (`vb_link_plug`), so it seats in a Virtual Boy
 and in nothing else. `link_tests` walks it through the lead x socket matrix.
 
-## Probes (`RetroXR/Tools/link/`)
+## Probes (`RetroXR/DevTools/link/`)
 
 ```bash
-"$godot" --headless --path RetroXR res://Tools/link/vb_link_room_probe.tscn [-- --rom=<path>]
-"$godot" --headless --path RetroXR res://Tools/link/vb_link_game_probe.tscn -- \
+"$godot" --headless --path RetroXR res://DevTools/link/vb_link_room_probe.tscn [-- --rom=<path>]
+"$godot" --headless --path RetroXR res://DevTools/link/vb_link_game_probe.tscn -- \
     --rom=<rom> --tag=<name> --script="<steps>" [--delay2=N] [--every] [--nocable]
 ```
 

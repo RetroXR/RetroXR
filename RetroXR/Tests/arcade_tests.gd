@@ -7,7 +7,7 @@
 ## Exits 0 when everything passes, 1 otherwise, so it can gate a commit.
 ##
 ## What a headless run cannot show is how any of it LOOKS, so none of this is the
-## proof of the geometry: Tools/models/arcade_cabinet_probe (windowed) is.
+## proof of the geometry: DevTools/models/arcade_cabinet_probe (windowed) is.
 ##
 ## Groups:
 ##   profiles/   the data tables: which systems a bay takes, which bits are which
@@ -1374,7 +1374,7 @@ func _group_keep() -> void:
 
 
 # --- perf ----------------------------------------------------------------------
-# Work a cabinet does for nothing, taken away (Tools/perf/arcade_scale_probe measures it): each case
+# Work a cabinet does for nothing, taken away (DevTools/perf/arcade_scale_probe measures it): each case
 # is one of those savings AND what must still happen, so removing the work cannot remove the effect.
 
 func _box_at(parent: Node, size: float, scale_by: float = 1.0) -> MeshInstance3D:
@@ -1483,7 +1483,7 @@ func _group_perf() -> void:
 
 # --- game ----------------------------------------------------------------------
 
-## What FBNeo published for dino (Tools/cores/arcade_descriptors_probe, measured 2026-10-22), player 1 only:
+## What FBNeo published for dino (DevTools/cores/arcade_descriptors_probe, measured 2026-10-22), player 1 only:
 ## the game's own words and exactly the pad ids it reads.
 func _fbneo_dino() -> Array:
 	var rows: Array = []

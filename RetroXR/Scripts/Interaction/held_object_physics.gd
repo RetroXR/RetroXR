@@ -299,7 +299,7 @@ func _on_dropped(pickable: Variant) -> void:
 
 ## "Sometimes a controller will not drop, it just floats in the air" — reported
 ## from a headset 2026-09-20, rare and not reproducible on demand:
-## Tools/vr/pad_drop_probe drives five release shapes (one hand, both hands
+## DevTools/vr/pad_drop_probe drives five release shapes (one hand, both hands
 ## either order, a release racing the toggle-hold re-grab, a release mid-lerp)
 ## and every one of them falls.
 ##

@@ -7,7 +7,7 @@
 ## Exits 0 when everything passes, 1 otherwise.
 ##
 ## What a headless run cannot show is the picture and the sound, so none of this proves them:
-## Tools/models/arcade_attract_probe (windowed) is the picture, and a headset the cost.
+## DevTools/models/arcade_attract_probe (windowed) is the picture, and a headset the cost.
 ##
 ## Groups:
 ##   rules/    the pure half: when a cabinet attracts, what is in view, who gets a video, how far is heard

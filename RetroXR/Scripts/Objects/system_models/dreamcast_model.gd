@@ -396,7 +396,7 @@ const _FOOTPRINT := Vector2(0.1901, 0.1952)
 ## 18 mm under its lid, past InteractionResolver.ENCLOSURE_DEPTH, so the desktop
 ## pointer resolved every aim at them to the console and neither could be clicked.
 ## So the box steps down with the shell, each step at or under the measured top
-## (Tools/models/shell_enclosure_audit, dreamcast_probe's pointer checks):
+## (DevTools/models/shell_enclosure_audit, dreamcast_probe's pointer checks):
 ##   [name, top y, rear edge -> this z]    "" is the cabinet's own shape, the base
 const _STEPS := [
 	["", 0.060, 0.0976],          # full footprint, 2.4 mm under the caps' tops

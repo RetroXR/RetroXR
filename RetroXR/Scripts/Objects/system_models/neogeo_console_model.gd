@@ -7,7 +7,7 @@
 ## no standard, so this is a plausible one: dark, 340 x 220 x 60 mm, the cassette standing in a slot
 ## on the roof. The official home machine was the AES, which takes a different cartridge.
 ##
-## Everything is authored in the scene (Tools/gen/gen_neogeo_console.gd): the seats the ports, the
+## Everything is authored in the scene (DevTools/gen/gen_neogeo_console.gd): the seats the ports, the
 ## buttons, the jacks and the cartridge slot go on are markers, and this model puts the system's
 ## own parts on them, as the N64's does. Origin on the floor at the centre of the base, front +Z.
 class_name RetroSystemModelNeoGeoConsole

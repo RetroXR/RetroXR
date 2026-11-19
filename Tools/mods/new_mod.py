@@ -112,7 +112,7 @@ def main() -> int:
     print("Open RetroXR in Godot and edit it there, so every class, autoload and")
     print("uid resolves. When it is ready:")
     print()
-    print(f'  godot --headless --path RetroXR --script res://Tools/mods/pack_mod.gd '
+    print(f'  godot --headless --path RetroXR --script res://DevTools/mods/pack_mod.gd '
           f'-- --id={mod_id}')
     return 0
 

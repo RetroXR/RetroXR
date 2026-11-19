@@ -1472,7 +1472,7 @@ func _test_forced_options_merge() -> void:
 
 # ---------------------------------------------------------------------------
 # Save states: the pure half — ids, paths, the thumbnail, and the disk round
-# trip. Capture needs a live core and lives in Tools/state/state_probe.tscn; what is
+# trip. Capture needs a live core and lives in DevTools/state/state_probe.tscn; what is
 # here is everything that decides WHERE a state goes and WHAT it looks like.
 # ---------------------------------------------------------------------------
 
@@ -1607,7 +1607,7 @@ func _test_state_disk_round_trip() -> void:
 # ---------------------------------------------------------------------------
 # BIOS boot: seeding a default, the table that decides what is offered, and the
 # power button's own verdict. What a real core does with an empty disc needs a
-# real core and a real BIOS and lives in Tools/cores/bios_boot_probe.tscn.
+# real core and a real BIOS and lives in DevTools/cores/bios_boot_probe.tscn.
 # ---------------------------------------------------------------------------
 
 func _test_bios_seed() -> void:
@@ -1813,7 +1813,7 @@ func _test_bios_boot_table() -> void:
 
 ## The Wii's empty-tray boot. Its "BIOS" is the System Menu in dolphin's NAND,
 ## which the core installs (WiiSystemMenu); these cases cover the half RetroXR
-## owns. The install itself needs the network: Tools/cores/wii_menu_update_probe.
+## owns. The install itself needs the network: DevTools/cores/wii_menu_update_probe.
 func _test_wii_system_menu() -> void:
 	# One dolphin.opt serves both machines, so each run pins which console it is:
 	# a GameCube after a Wii must not read the Wii's "boot discs through the menu".

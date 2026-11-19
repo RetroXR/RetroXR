@@ -13,7 +13,7 @@
 ## this bay's slot (RetroSystem.link_bay); unlinking takes it back and the board stays in the bay.
 ##
 ## One scene per kind (`bay_kind`, ArcadeProfiles.BAY_*): JAMMA, Neo Geo MVS, laserdisc, discrete.
-## They differ in what is drawn round the seat, nothing else; Tools/gen/gen_arcade_bay.gd bakes them.
+## They differ in what is drawn round the seat, nothing else; DevTools/gen/gen_arcade_bay.gd bakes them.
 ##
 ## The JAMMA bay is built as one block with a CD-ROM bay under it (a scene with a `DiscSeat`): a
 ## slot-loading drive, the same MediaSlot a console's slot is, for the disc a few arcade games need

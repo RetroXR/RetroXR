@@ -8,7 +8,7 @@
 [ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="6_wiiplugscript"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/system_models/wii/wii_av_plug.res" id="7_wiiplugmesh"]
 
-; Fitted to the connector mesh (measured by Tools/rope/plug_shape_probe), so a
+; Fitted to the connector mesh (measured by DevTools/rope/plug_shape_probe), so a
 ; loose plug lies ON a surface at its real size. It was a sphere two to five
 ; times the plug's thickness, which rolled under any push and held the plug
 ; centimetres off the floor with nothing visibly holding it there.
@@ -227,7 +227,7 @@ transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
 ; = 4.5 mm. Get this wrong low and the outer cord dips under the floor whenever the
 ; ribbon happens to lie on edge.
 ;
-; The plug's strain relief is sized against this — see CORD_R in Tools/gen/gen_wii_av.gd,
+; The plug's strain relief is sized against this — see CORD_R in DevTools/gen/gen_wii_av.gd,
 ; which has to end wider than the ribbon it grips. Change one and change the other.
 ;
 ; The cost is that a ribbon lying FLAT now floats 4.4 mm rather than resting on

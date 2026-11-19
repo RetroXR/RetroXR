@@ -13,7 +13,7 @@
 ## So the ray meets the glass's own triangles, the UV is interpolated where it
 ## lands, and that UV goes through the stage's own sums (crt_warp, then
 ## fit_scale): what comes out is the source texel drawn where the ray points.
-## Tools/av/lightgun_aim_probe measures it on any shell.
+## DevTools/av/lightgun_aim_probe measures it on any shell.
 class_name ScreenAim
 extends RefCounted
 

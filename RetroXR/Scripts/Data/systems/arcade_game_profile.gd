@@ -12,7 +12,7 @@
 ##     game has loaded. FBNeo describes THIS game ("Weak Punch", "Coin", exactly the ports and
 ##     buttons it reads); the MAME core describes the whole RetroPad for every game, which says
 ##     nothing, so a port that publishes all sixteen pad ids is ignored (measured with
-##     Tools/cores/arcade_descriptors_probe: sf2 on fbneo 14 ids per port with names, on mame
+##     DevTools/cores/arcade_descriptors_probe: sf2 on fbneo 14 ids per port with names, on mame
 ##     all 16 and "A"/"B"/"Joy Left").
 ##
 ## A romset the table does not know (a homebrew, a prototype, a name this MAME build lacks) is

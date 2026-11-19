@@ -54,7 +54,7 @@ its face).
   (`target-libretro/program.cpp`, the `SuperScope` case returns 0 unless
   `retro_pointer_enabled`). The scope plays on snes9x, the SNES default core.
 
-`Tools/input/super_scope_device_probe` (windowed, one leg per process) runs the
+`DevTools/input/super_scope_device_probe` (windowed, one leg per process) runs the
 real snes9x on any SNES ROM (default: a Super Game Boy BIOS, which is what this
 machine has): snes9x draws its own crosshair where a port-2 Super Scope points.
 `--leg=scope` checks the resolver gives 260 from the core's own list and the
@@ -133,8 +133,8 @@ saved as any bay's are.
   change, none while left, none at OFF, the stopped core starts off), `sight/`,
   `bay/`, `poke/`, `save/`, `spawn/`. Mutation-tested: the gate removed, the
   belief never updated, the claim dropped, the strict flag unread on a plug.
-- `Tools/input/super_scope_device_probe` (above).
-- `Tools/models/super_scope_render_probe` (windowed): the scope with its sight
+- `DevTools/input/super_scope_device_probe` (above).
+- `DevTools/models/super_scope_render_probe` (windowed): the scope with its sight
   on each clip, its controls and muzzle, the receiver on a set with its plug in
   port 2; prints the pairing and the link.
 

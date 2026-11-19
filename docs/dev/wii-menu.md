@@ -88,7 +88,7 @@ region control then offered a Japanese menu over it.
 
 ## Measured (2026-09-21, Windows)
 
-- `Tools/cores/wii_menu_update_probe` into a scratch NAND: 58 titles, result 0,
+- `DevTools/cores/wii_menu_update_probe` into a scratch NAND: 58 titles, result 0,
   7.5 s. Its `title/`, `ticket/` and `shared1/` are byte-identical to what
   standalone Dolphin's online update installed. `--cancel-after=3` → result 8.
 - `bios_boot_probe` (windowed, `--opt=`): empty + `wii` → the menu's health
