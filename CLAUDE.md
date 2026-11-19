@@ -100,6 +100,10 @@ it names `ENGINE_COMMIT`:
 ```bash
 python Tools/place_engine.py --target release --so <lib>   # what release.yml runs before the export
 python Tools/place_engine.py --target debug     # local Quest export; --check only reports
+# the local libs: a clone of github.com/RetroXR/godot at ENGINE_COMMIT (~/godot, else
+# $RETROXR_GODOT_DIR), built for template_debug and again for template_release:
+git clone https://github.com/RetroXR/godot ~/godot && git -C ~/godot checkout "$(cat Tools/engine/ENGINE_COMMIT)"
+cd ~/godot && ANDROID_HOME=C:/android/sdk ~/.local/bin/scons platform=android arch=arm64 target=template_debug generate_apk=no -j14
 ```
 
 **Every release ships it** (desktops since 2026-11-18, the Quest's built in CI since 2026-11-19):

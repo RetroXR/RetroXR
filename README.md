@@ -346,6 +346,27 @@ and `macOS` presets come with the clone and a headless export works straight awa
 "$godot" --headless --path RetroXR --export-release "macOS" RetroXR.app
 ```
 
+##### The Quest needs RetroXR's patched engine
+
+Stock Godot 4.7.2 hangs on a Quest's loading screen, so every Android export swaps
+RetroXR's patched engine ([RetroXR/godot](https://github.com/RetroXR/godot), branch
+`retroxr-4.7.2`) into the build template first (`Tools/place_engine.py`, run by the
+export itself). No engine binary is committed: clone
+[github.com/RetroXR/godot](https://github.com/RetroXR/godot), check out the commit pinned
+in `Tools/engine/ENGINE_COMMIT`, and build it once, then again whenever that pin moves.
+The export looks for the clone at `~/godot` and refuses an engine from any other commit.
+
+```bash
+git clone https://github.com/RetroXR/godot ~/godot
+cd ~/godot && git checkout "$(cat <RetroXR checkout>/Tools/engine/ENGINE_COMMIT)"
+# ANDROID_HOME is the Android SDK folder (Godot's SCons installs the NDK it needs)
+scons platform=android arch=arm64 target=template_debug   generate_apk=no
+scons platform=android arch=arm64 target=template_release generate_apk=no
+```
+
+The first build takes a few minutes. To keep the clone somewhere other than `~/godot`, set
+`RETROXR_GODOT_DIR` to it. Recipe and patches: `docs/dev/engine-patches.md`.
+
 The `macOS` preset is universal and signs with the committed
 `RetroXR/entitlements/macos.entitlements` (ad-hoc in CI). Those entitlements permit
 downloaded unsigned cores and executable callback trampolines; dynamic-recompiler
@@ -384,7 +405,9 @@ an export to see what actually landed.
 GDExtensions for Android, Windows, Linux and macOS, exports the signed `Quest` APK,
 the Windows desktop build, a Linux AppImage (x86_64) and tarball (arm64), and a
 macOS universal `.app` zip, publishes a GitHub Release with all of them attached, and
-points the SideQuest listing at the new APK.
+points the SideQuest listing at the new APK. Every build ships the patched engine: its
+`engine` job builds each platform's release template, the Quest's included, from
+`Tools/engine/ENGINE_COMMIT`, cached by that commit.
 
 ```bash
 # bump BOTH in RetroXR/export_presets.cfg, then commit
