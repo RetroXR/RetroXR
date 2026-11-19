@@ -6,7 +6,7 @@ game"): how many players, coins and buttons, what kind of control, which way the
 stands and what kind of cabinet the game was sold in. MAME's own machine list knows most of
 that, but no core ships it and a 300 MB XML is no thing to carry, so this script boils it
 down to one line per profile and writes it as a GDScript constant (the repo's way for a
-generated table, see Tools/gen_n64_save_db.py).
+generated table, see Tools/gen/gen_n64_save_db.py).
 
     python Tools/arcade/gen_game_index.py path/to/mame0289.xml
 

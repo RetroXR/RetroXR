@@ -8,8 +8,8 @@
 #   RetroXR/vlc-godot/macos/plugins/<category>/*.dylib
 #   RetroXR/vlc-godot/macos/VERSION
 #
-#   Tools/download_vlc_macos.sh            # the pinned release
-#   Tools/download_vlc_macos.sh --force    # fetch again over what is there
+#   Tools/download/download_vlc_macos.sh            # the pinned release
+#   Tools/download/download_vlc_macos.sh --force    # fetch again over what is there
 #
 # macOS only (hdiutil, otool, install_name_tool, codesign). The tree is not
 # committed: CI runs this before building the extension, and a Mac developer
@@ -34,7 +34,7 @@ DMG="vlc-$VLC_VERSION-universal.dmg"
 DMG_SHA256="56ee657c3aaf5c71b4ab7d6e4f4a77f6eca54633e0bf42a93b8116eb1d1f6ec9"
 URL="https://download.videolan.org/pub/videolan/vlc/$VLC_VERSION/macosx/$DMG"
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEST="$REPO/RetroXR/vlc-godot/macos"
 # The committed Windows tree is the list of plugins to take: what the VCR, the
 # DVD player and the audio decks decode with, and nothing of VLC's own

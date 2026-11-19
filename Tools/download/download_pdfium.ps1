@@ -4,7 +4,7 @@
 
 $ErrorActionPreference = "Stop"
 $repo = "bblanchon/pdfium-binaries"
-$dest = Join-Path $PSScriptRoot "..\godot-pdfium\external\pdfium"
+$dest = Join-Path $PSScriptRoot "..\..\godot-pdfium\external\pdfium"
 
 # Platforms to download
 $platforms = @(

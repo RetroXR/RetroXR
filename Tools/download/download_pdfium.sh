@@ -2,15 +2,15 @@
 # download_pdfium.sh — fetch prebuilt PDFium from bblanchon/pdfium-binaries into
 # godot-pdfium/external/pdfium/, laid out the way godot-pdfium/SConscript expects.
 #
-#   Tools/download_pdfium.sh                          # all platform packages, latest release
-#   Tools/download_pdfium.sh -p linux                 # just the Linux x86_64 lib
-#   Tools/download_pdfium.sh -p mac                   # just the macOS arm64 lib
-#   Tools/download_pdfium.sh -p linux --no-headers    # ...and leave include/ alone
-#   Tools/download_pdfium.sh -r chromium/7988         # pin a release tag
-#   Tools/download_pdfium.sh --dry-run                # show what would change
+#   Tools/download/download_pdfium.sh                          # all platform packages, latest release
+#   Tools/download/download_pdfium.sh -p linux                 # just the Linux x86_64 lib
+#   Tools/download/download_pdfium.sh -p mac                   # just the macOS arm64 lib
+#   Tools/download/download_pdfium.sh -p linux --no-headers    # ...and leave include/ alone
+#   Tools/download/download_pdfium.sh -r chromium/7988         # pin a release tag
+#   Tools/download/download_pdfium.sh --dry-run                # show what would change
 #
 # Runs anywhere bash + curl + tar exist: Linux, WSL, macOS, Git Bash on Windows.
-# Replaced Tools/download_pdfium.ps1, which only knew win-x64 and android-arm64.
+# Replaced Tools/download/download_pdfium.ps1, which only knew win-x64 and android-arm64.
 #
 # The libs are committed to the repo, so a fresh clone does NOT need this — it is
 # for refreshing them or adding a platform.
@@ -22,7 +22,7 @@
 
 set -euo pipefail
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEST="$REPO/godot-pdfium/external/pdfium"
 GH_REPO="bblanchon/pdfium-binaries"
 

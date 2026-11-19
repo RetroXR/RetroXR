@@ -1085,7 +1085,7 @@ jobs:
       # macos.release.universal. lipo needs the per-arch dylibs for both.
       # libVLC for vlc-godot: VideoLAN's universal VLC.app, pinned and checksummed.
       - name: Fetch libVLC for macOS
-        run: bash Tools/download_vlc_macos.sh
+        run: bash Tools/download/download_vlc_macos.sh
 
       - name: Build the GDExtensions (macos arm64, debug + release)
         env:
@@ -1245,6 +1245,14 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/download-artifact@v8
         with: { path: dist, merge-multiple: true }
+
+      # The engine-* artifacts are the export jobs' inputs, not something to ship:
+      # v0.14.0 published the four desktop templates beside the builds.
+      - name: Leave the engine templates out of the release
+        run: |
+          rm -fv dist/windows_release_x86_64.exe dist/linux_release.* dist/godot_macos_release.universal \
+                 dist/libgodot_android.template_*.so
+          ls -la dist
 
       # A rerun finds the release already there and refreshes its assets
       # instead of failing on "tag already exists".

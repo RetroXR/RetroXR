@@ -1,12 +1,12 @@
 """Contact sheet of a gg_link_probe game run: top row machine A, bottom B.
 
-    python Tools/gglink_sheet.py TAG      # -> RetroXR/probe_out/sheet_TAG.png
+    python Tools/gen/gglink_sheet.py TAG      # -> RetroXR/probe_out/sheet_TAG.png
 """
 import glob, os, sys
 from PIL import Image
 
 tag = sys.argv[1]
-d = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "RetroXR", "probe_out")
+d = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "RetroXR", "probe_out")
 A = sorted(glob.glob(os.path.join(d, f"gg_link_{tag}_game_a_*.png")))
 B = sorted(glob.glob(os.path.join(d, f"gg_link_{tag}_game_b_*.png")))
 W, H = 160, 144

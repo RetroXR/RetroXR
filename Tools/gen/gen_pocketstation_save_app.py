@@ -1,7 +1,7 @@
 """Make a PocketStation app that SAVES, and the game save it saves into: the fixture for
 proving a PocketStation run's writes reach the card (Tools/cores/pocketstation_play_probe).
 
-    python Tools/gen_pocketstation_save_app.py <out dir>
+    python Tools/gen/gen_pocketstation_save_app.py <out dir>
 
 Writes <out>/rxr_save_test.mcs (a one-block app, MCX0) and <out>/rxr_game_save.mcs (a
 one-block PS1 game save). Put on a blank card in that order (the probe's --saves=), the app

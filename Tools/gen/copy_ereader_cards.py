@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Copy a No-Intro e-Reader dotcode set into the RetroXR ROM library.
 
-    python Tools/copy_ereader_cards.py --src //raspberrypi4.local/bigdrive/ereader
-    python Tools/copy_ereader_cards.py --src <dir> --dry-run
+    python Tools/gen/copy_ereader_cards.py --src //raspberrypi4.local/bigdrive/ereader
+    python Tools/gen/copy_ereader_cards.py --src <dir> --dry-run
 
 Only .raw strips are copied. The set also ships a .7z of every strip and a pile
 of .sav files; the archives are duplicates of what is already there, and the

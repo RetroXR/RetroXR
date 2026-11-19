@@ -26,7 +26,7 @@ Boy whatever is written and means nothing there.
 Roles are split across two ROMs rather than chosen at run time because nothing a
 Game Boy can see says which end of a cable it is on. A real game asks the player.
 
-    python Tools/gen_gblink_rom.py
+    python Tools/gen/gen_gblink_rom.py
 
 Writes RetroXR/Tools/gblink/link_{master,slave}.gb and link_{master,slave}_fast.gbc,
 and printer.gb + printer_expected.png for the Game Boy Printer probe (see
@@ -584,7 +584,7 @@ def printer_expected_png():
 
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
-    out = os.path.join(os.path.dirname(here), "RetroXR", "Tools", "gblink")
+    out = os.path.join(os.path.dirname(os.path.dirname(here)), "RetroXR", "Tools", "gblink")
     os.makedirs(out, exist_ok=True)
     for fast in (False, True):
         for master in (True, False):

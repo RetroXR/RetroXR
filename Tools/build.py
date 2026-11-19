@@ -55,7 +55,7 @@ EXTENSIONS = [
     ("libretro-godot", ".", "RetroXR/libretro-godot", ALL_PLATFORMS),
     ("archive-godot", "archive-godot", "RetroXR/archive-godot", ALL_PLATFORMS),
     ("verlet-rope", "verlet-rope", "RetroXR/verlet-rope", ALL_PLATFORMS),
-    # macOS links the libVLC that Tools/download_vlc_macos.sh takes from VideoLAN's
+    # macOS links the libVLC that Tools/download/download_vlc_macos.sh takes from VideoLAN's
     # VLC.app (not committed); main() runs it when the tree is missing.
     ("vlc-godot", "vlc-godot", "RetroXR/vlc-godot", ALL_PLATFORMS),
     ("godot-pdfium", "godot-pdfium", "RetroXR/godot-pdfium", ALL_PLATFORMS),
@@ -281,8 +281,8 @@ def main() -> int:
 
     if args.platform == "macos" and any(n == "vlc-godot" for n, _, _, _ in exts) \
             and not (REPO / "RetroXR/vlc-godot/macos/libvlc.dylib").is_file():
-        print("[build] vlc-godot: no macOS libVLC yet; running Tools/download_vlc_macos.sh", flush=True)
-        subprocess.run(["bash", str(REPO / "Tools/download_vlc_macos.sh")], check=True)
+        print("[build] vlc-godot: no macOS libVLC yet; running Tools/download/download_vlc_macos.sh", flush=True)
+        subprocess.run(["bash", str(REPO / "Tools/download/download_vlc_macos.sh")], check=True)
 
     arch = args.arch or ARCH[args.platform]
     scons = find_scons()
