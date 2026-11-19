@@ -232,3 +232,9 @@ __pycache__/
 build_out/
 retroxr-release.keystore
 retroxr-release.keystore.password
+
+# Other tools' local state
+/scorecard.png
+/.codex-image/
+/.desloppify/
+/.agents/
