@@ -414,7 +414,7 @@ func room_has_slots(scene_id: String) -> bool:
 
 
 ## The room a launch opens in: the last one the player stood in while it can still
-## be entered here, else the platform's default.
+## be entered here, else the bedroom (every platform, the Quest too).
 func boot_room() -> String:
 	if RoomCatalog.has(last_room_id) \
 			and (last_room_id != "passthrough" or is_passthrough_supported()):
@@ -423,7 +423,7 @@ func boot_room() -> String:
 
 
 func default_room() -> String:
-	return "arcade" if OS.has_feature("android") else "bedroom"
+	return "bedroom"
 
 
 ## True only when `room_id` names a live room that can safely be read or saved.

@@ -352,7 +352,7 @@ func _test_slots() -> void:
 # ── Which room a launch opens in ──────────────────────────────────────────────
 
 func _test_boot() -> void:
-	var platform_default := "arcade" if OS.has_feature("android") else "bedroom"
+	var platform_default := "bedroom"
 	SceneManager.last_room_id = ""
 	_eq(SceneManager.boot_room(), platform_default, "boot/nothing remembered opens the platform default")
 	SceneManager.last_room_id = HALL
