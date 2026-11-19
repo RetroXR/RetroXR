@@ -83,7 +83,7 @@ const PLATES := {
 
 
 func _init() -> void:
-	var regions: Dictionary = (load("res://Scripts/Data/mains_regions.gd") as GDScript) \
+	var regions: Dictionary = (load("res://Scripts/Data/catalogs/mains_regions.gd") as GDScript) \
 		.get_script_constant_map()["REGIONS"]
 	var failed := 0
 	for id: String in regions:

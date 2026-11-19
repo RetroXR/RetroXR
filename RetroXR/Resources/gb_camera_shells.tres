@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="CartridgeShellPalette" format=3]
 
-[ext_resource type="Script" path="res://Scripts/Data/cartridge_shell_palette.gd" id="1"]
-[ext_resource type="Script" path="res://Scripts/Data/cartridge_shell_preset.gd" id="2"]
+[ext_resource type="Script" path="res://Scripts/Data/catalogs/cartridge_shell_palette.gd" id="1"]
+[ext_resource type="Script" path="res://Scripts/Data/catalogs/cartridge_shell_preset.gd" id="2"]
 
 [sub_resource type="Resource" id="camera_blue"]
 script = ExtResource("2")

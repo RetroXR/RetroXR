@@ -52,7 +52,7 @@ installed. (Since 2026-09-30 the boot warms no stand-ins at all; it still pre-lo
 bespoke shells' GLBs.) `stand_in_ids()` / `bespoke_ids()` / `shell_assets()` read `_ROWS`
 directly for that reason — do not "fix" them to use `_table()`.
 
-**`RoomCatalog`** (`Scripts/Data/room_catalog.gd`) replaced four hand-synced tables
+**`RoomCatalog`** (`Scripts/Data/catalogs/room_catalog.gd`) replaced four hand-synced tables
 for one fact: `SceneManager.SCENE_PATHS` / `SCENE_TITLES` / `SLOT_ROOMS` and
 `scene_view.gd`'s `ROOM_TITLES`. Those three consts are GONE, not shimmed.
 

@@ -19,7 +19,7 @@
 ## perf levels, foveation) beyond "not offered on a desktop", and how a tier looks.
 extends "res://Tests/test_suite.gd"
 
-const QM := preload("res://Scripts/quality_manager.gd")
+const QM := preload("res://Scripts/Rendering/quality_manager.gd")
 
 ## The live autoload's fields this suite moves, put back as found.
 const LIVE_FIELDS := ["msaa_3d", "post_aa", "preset", "shadow_quality", "ao_quality",

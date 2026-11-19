@@ -21,7 +21,7 @@ const Specs := preload("res://Tools/gen/mains_specs.gd")
 
 
 func _init() -> void:
-	var regions: Dictionary = (load("res://Scripts/Data/mains_regions.gd") as GDScript) \
+	var regions: Dictionary = (load("res://Scripts/Data/catalogs/mains_regions.gd") as GDScript) \
 		.get_script_constant_map()["CORDS"]
 	for token: String in regions:
 		var cord: Dictionary = regions[token]

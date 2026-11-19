@@ -6,7 +6,7 @@ Moved verbatim out of `CLAUDE.md` on 2026-09-18; `CLAUDE.md` keeps the summary a
 
 A cartridge's battery is filed under the system it belongs to, so it survives a change of
 core, and a Transfer Pak reads the same file a Game Boy playing that cartridge does.
-`Scripts/Data/sram_paths.gd` composes every path:
+`Scripts/Data/paths/sram_paths.gd` composes every path:
 
 ```
 save/carts/<systemid>/<game stem>/<save_id>.srm          a cartridge's battery

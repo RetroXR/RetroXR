@@ -2285,7 +2285,7 @@ var _geometry_flush_queued := false
 ## `vrsprobe.cfg` "detail_cull_k": 0 switches it off (the control arm), any other value sets the multiplier.
 const DETAIL_CULL_MIN := 1.5
 const DETAIL_CULL_DEFAULT := 150.0
-const QUALITY_GOVERNOR := preload("res://Scripts/quality_governor.gd")
+const QUALITY_GOVERNOR := preload("res://Scripts/Rendering/quality_governor.gd")
 var _governor: Node
 static var detail_cull_k: float = DETAIL_CULL_DEFAULT
 var _detail_culled := 0

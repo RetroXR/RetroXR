@@ -532,7 +532,7 @@ func _cylinder(st: SurfaceTool, c: Vector3, r: float, length: float, sides: int)
 
 ## The travel adapter's plugs: every region's own (its strip's), once each.
 func _adapter_plugs() -> PackedStringArray:
-	var regions: Dictionary = (load("res://Scripts/Data/mains_regions.gd") as GDScript) \
+	var regions: Dictionary = (load("res://Scripts/Data/catalogs/mains_regions.gd") as GDScript) \
 		.get_script_constant_map()["REGIONS"]
 	var out := PackedStringArray()
 	for id: String in regions:

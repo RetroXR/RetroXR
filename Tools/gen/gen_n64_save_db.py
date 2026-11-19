@@ -24,7 +24,7 @@ import sys
 DEFAULT_INI = os.path.expanduser(
     "~/libretro-cores-retroxr/mupen64plus-libretro-nx/custom/mupen64plus-core/main/mupen64plus.ini.h")
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "RetroXR",
-                   "Scripts", "Data", "n64_save_db_table.gd")
+                   "Scripts", "Data", "catalogs", "n64_save_db_table.gd")
 
 # Games that save to a Controller Pak and carry no Mempak line in the database.
 # F-Zero X keeps its ghosts on a pak. Matched on GoodName prefix, so every dump
