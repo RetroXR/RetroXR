@@ -79,7 +79,7 @@ value is a start time that only moves when a game sets the clock, so writing onl
 restarted the clock at zero every power-on.
 
 **The Transfer Pak keeps the cartridge's clock too**, through `get_rtc(port)`, the last member
-of `retro_transfer_pak_interface` (call 95), declared in `TransferPakInterface.hpp` and in the
+of `retro_transfer_pak_interface` (call 108), declared in `TransferPakInterface.hpp` and in the
 fork's `libretro/transferpak_interface.h`. The interface is experimental and RetroXR ships both
 ends, so it grows in place rather than by a second call. `TransferPak.cart_rtc_path` names
 `<save_id>.<n64 core>.rtc` beside the battery — the battery is shared with a Game Boy, the clock

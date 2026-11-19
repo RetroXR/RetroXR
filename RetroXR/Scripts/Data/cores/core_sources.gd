@@ -66,7 +66,7 @@ const SOURCES := {
 		# URL — see base_url. It is only the version to show when GitHub cannot be
 		# reached, so an offline player still sees something truthful rather than
 		# a blank.
-		"known_tag": "retroxr-dolphin-libretro-v18",
+		"known_tag": "retroxr-dolphin-libretro-v19",
 		"label": "Dolphin (retroXR build)",
 		# Per platform, because we only publish what we build. A platform absent
 		# here is not an error — the manager falls back to the buildbot for it.
@@ -111,7 +111,7 @@ const SOURCES := {
 	# name here fails silently, as a core that simply never downloads.
 	"mgba": {
 		"repo":  "RetroXR/mgba",
-		"known_tag": "retroxr-mgba-libretro-v11",
+		"known_tag": "retroxr-mgba-libretro-v12",
 		"label": "mGBA (retroXR build)",
 		"assets": {
 			"Windows": "mgba_libretro.dll.zip",
@@ -174,7 +174,7 @@ const SOURCES := {
 	# hidden as well.
 	"pcsx2": {
 		"repo":  "RetroXR/ps2",
-		"known_tag": "retroxr-pcsx2-libretro-v6",
+		"known_tag": "retroxr-pcsx2-libretro-v7",
 		"label": "LRPS2 (retroXR build)",
 		"hidden_on": ["Android"],
 		"assets": {
@@ -220,7 +220,7 @@ const SOURCES := {
 	# tag beside the binary is what meets it.
 	"gambatte": {
 		"repo":  "RetroXR/gambatte-libretro",
-		"known_tag": "retroxr-gambatte-libretro-v7",
+		"known_tag": "retroxr-gambatte-libretro-v8",
 		"label": "gambatte (retroXR build)",
 		"assets": {
 			"Windows": "gambatte_libretro.dll.zip",
@@ -240,7 +240,7 @@ const SOURCES := {
 	# other change: a disabled Sega CD RAM cartridge reads as absent.
 	"genesis_plus_gx": {
 		"repo":  "RetroXR/Genesis-Plus-GX",
-		"known_tag": "retroxr-genesis_plus_gx-libretro-v7",
+		"known_tag": "retroxr-genesis_plus_gx-libretro-v8",
 		"label": "Genesis Plus GX (retroXR build)",
 		"assets": {
 			"Windows": "genesis_plus_gx_libretro.dll.zip",
@@ -261,7 +261,7 @@ const SOURCES := {
 	# A WonderSwan and a WonderSwan Color are the same core and the same wire.
 	"mednafen_wswan": {
 		"repo":  "RetroXR/beetle-wswan-libretro",
-		"known_tag": "retroxr-mednafen_wswan-libretro-v4",
+		"known_tag": "retroxr-mednafen_wswan-libretro-v5",
 		"label": "Beetle WonderSwan (retroXR build)",
 		"assets": {
 			"Windows": "mednafen_wswan_libretro.dll.zip",
@@ -281,7 +281,7 @@ const SOURCES := {
 	# docs/dev/lynx-link.md.
 	"mednafen_lynx": {
 		"repo":  "RetroXR/beetle-lynx-libretro",
-		"known_tag": "retroxr-mednafen_lynx-libretro-v2",
+		"known_tag": "retroxr-mednafen_lynx-libretro-v3",
 		"label": "Beetle Lynx (retroXR build)",
 		"assets": {
 			"Windows": "mednafen_lynx_libretro.dll.zip",
@@ -301,7 +301,7 @@ const SOURCES := {
 	# docs/dev/ngp-link.md.
 	"mednafen_ngp": {
 		"repo":  "RetroXR/beetle-ngp-libretro",
-		"known_tag": "retroxr-mednafen_ngp-libretro-v3",
+		"known_tag": "retroxr-mednafen_ngp-libretro-v4",
 		"label": "Beetle NeoPop (retroXR build)",
 		"assets": {
 			"Windows": "mednafen_ngp_libretro.dll.zip",
@@ -327,7 +327,7 @@ const SOURCES := {
 	# v1 vendored an earlier draft. docs/dev/vb-link.md.
 	"mednafen_vb": {
 		"repo":  "RetroXR/beetle-vb-libretro",
-		"known_tag": "retroxr-mednafen_vb-libretro-v3",
+		"known_tag": "retroxr-mednafen_vb-libretro-v4",
 		"label": "Beetle VB (retroXR build)",
 		"assets": {
 			"Windows": "mednafen_vb_libretro.dll.zip",
@@ -359,7 +359,7 @@ const SOURCES := {
 	# binary — same arrangement as Dolphin and gambatte.
 	"pcsx_rearmed": {
 		"repo":  "RetroXR/pcsx_rearmed",
-		"known_tag": "retroxr-pcsx-rearmed-libretro-v9",
+		"known_tag": "retroxr-pcsx-rearmed-libretro-v10",
 		"label": "PCSX-ReARMed (retroXR build)",
 		"assets": {
 			"Windows": "pcsx_rearmed_libretro.dll.zip",
@@ -387,7 +387,7 @@ const SOURCES := {
 	# Beetle Saturn is GPLv2, so the source for these binaries sits on the tag.
 	"mednafen_saturn": {
 		"repo":  "RetroXR/beetle-saturn-libretro",
-		"known_tag": "retroxr-beetle-saturn-libretro-v6",
+		"known_tag": "retroxr-beetle-saturn-libretro-v7",
 		"label": "Beetle Saturn (retroXR build)",
 		"assets": {
 			"Windows": "mednafen_saturn_libretro.dll.zip",
@@ -443,7 +443,7 @@ const SOURCES := {
 	# VeMUlator is GPLv3, so the source for these binaries sits on the tag.
 	"vemulator": {
 		"repo":  "RetroXR/vemulator-libretro",
-		"known_tag": "retroxr-vemulator-libretro-v5",
+		"known_tag": "retroxr-vemulator-libretro-v6",
 		"label": "VeMUlator (retroXR build)",
 		"assets": {
 			"Windows": "vemulator_libretro.dll.zip",
@@ -470,7 +470,7 @@ const SOURCES := {
 	# strip itself, up to about 9 m (GbPaperLines); TEAR by LY. Savestate version 5.
 	"gbprinter": {
 		"repo":  "RetroXR/gbprinter-libretro",
-		"known_tag": "retroxr-gbprinter-libretro-v6",
+		"known_tag": "retroxr-gbprinter-libretro-v7",
 		"label": "Game Boy Printer (retroXR)",
 		"assets": {
 			"Windows": "gbprinter_libretro.dll.zip",
@@ -491,7 +491,7 @@ const SOURCES := {
 	# mGBA as well as gambatte (docs/dev/gb-link.md "The DMG-07 4 Player Adapter").
 	"dmg07": {
 		"repo":  "RetroXR/dmg07-libretro",
-		"known_tag": "retroxr-dmg07-libretro-v3",
+		"known_tag": "retroxr-dmg07-libretro-v4",
 		"label": "DMG-07 4 Player Adapter (retroXR)",
 		"assets": {
 			"Windows": "dmg07_libretro.dll.zip",
@@ -520,7 +520,7 @@ const SOURCES := {
 	# flycast is GPLv2, so the source for these binaries sits on the tag.
 	"flycast": {
 		"repo":  "RetroXR/flycast",
-		"known_tag": "retroxr-flycast-libretro-v9",
+		"known_tag": "retroxr-flycast-libretro-v10",
 		"label": "Flycast (retroXR build)",
 		"assets": {
 			"Windows": "flycast_libretro.dll.zip",
@@ -583,7 +583,7 @@ const SOURCES := {
 	# binary — same arrangement as Dolphin, gambatte and pcsx_rearmed.
 	"mupen64plus_next": {
 		"repo":  "RetroXR/mupen64plus-libretro-nx",
-		"known_tag": "retroxr-mupen64plus-next-libretro-v8",
+		"known_tag": "retroxr-mupen64plus-next-libretro-v9",
 		"label": "Mupen64Plus-Next (retroXR build)",
 		"assets": {
 			"Windows": "mupen64plus_next_libretro.dll.zip",
@@ -602,7 +602,7 @@ const SOURCES := {
 	# CoreRecommendations already names for nintendo_64 on Android.
 	"mupen64plus_next_gles3": {
 		"repo":  "RetroXR/mupen64plus-libretro-nx",
-		"known_tag": "retroxr-mupen64plus-next-libretro-v8",
+		"known_tag": "retroxr-mupen64plus-next-libretro-v9",
 		"label": "Mupen64Plus-Next GLES3 (retroXR build)",
 		"assets": {
 			"Android": "mupen64plus_next_gles3_libretro_android.so.zip",
@@ -660,7 +660,7 @@ const SOURCES := {
 	# docs/dev/jag-link.md. GPLv3.
 	"virtualjaguar": {
 		"repo":  "RetroXR/virtualjaguar-libretro",
-		"known_tag": "retroxr-virtualjaguar-libretro-v2",
+		"known_tag": "retroxr-virtualjaguar-libretro-v3",
 		"label": "Virtual Jaguar (retroXR build)",
 		"assets": {
 			"Windows": "virtualjaguar_libretro.dll.zip",
