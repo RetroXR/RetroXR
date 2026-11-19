@@ -35,6 +35,8 @@ const TONGUES := {
 	"wii_dc_plug": [9.0, 11.0, 7.0],
 	"dsi_dc_plug": [5.0, 2.6, 5.0],
 	"ext2_plug": [11.0, 3.4, 5.5],
+	# The CO24471's blue tip over the console's two round pins (atari/7800/psu).
+	"atari7800_dc_plug": [6.4, 5.6, 5.5],
 }
 const METAL := Color(0.74, 0.72, 0.66)
 const HOLE := Color(0.03, 0.03, 0.035)
