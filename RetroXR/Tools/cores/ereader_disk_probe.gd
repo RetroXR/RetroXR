@@ -1,8 +1,8 @@
 ## Does mGBA publish the e-Reader's card slot, and only for an e-Reader cartridge?
 ##
 ## Needs a real core and a real ROM, so it is a probe. The slot is published two
-## ways -- as disk control (for RetroArch) and as an accessory media reader
-## (AccessoryMediaInterface.hpp, kind DOT_CODE) -- and an ORDINARY Game Boy
+## ways -- as disk control (for RetroArch) and as an accessory reader
+## (AccessoryInterface.hpp, kind DOT_CODE) -- and an ORDINARY Game Boy
 ## Advance game must get neither. Publishing unconditionally would give every
 ## GBA game a disc menu, and that is the mistake this guards.
 ##
@@ -21,7 +21,7 @@
 ## Exits non-zero when the answer is not the one expected, so it can gate.
 extends Node
 
-const KIND_DOT_CODE := 1
+const KIND_DOT_CODE := 0
 
 var _lib: Node = null
 var _core := "mgba"
@@ -74,7 +74,7 @@ func _ready() -> void:
 			print("[edp] accessory_media_done reader=%d inserted=%s ok=%s" % [reader, inserted, ok])
 			_done.append(ok))
 	else:
-		print("[edp] this libretro-godot has no accessory media interface")
+		print("[edp] this libretro-godot has no accessory interface")
 
 	print("[edp] core=%s expect=%s root=%s" % [_core, _expect, _root])
 	print("[edp] rom=%s" % _rom)
