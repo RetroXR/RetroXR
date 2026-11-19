@@ -1272,7 +1272,7 @@ func _test_json_store() -> void:
 ## cases are the sequences that used to double.
 ## The header the extension is built against: the numbers below are its, and
 ## nothing else says so.
-const LIBRETRO_H := "../libretro-godot/external/libretro-common/include/libretro.h"
+const LIBRETRO_H := "../extensions/libretro-godot/external/libretro-common/include/libretro.h"
 
 
 ## Every `#define NAME <number>` in libretro.h, name -> number.
