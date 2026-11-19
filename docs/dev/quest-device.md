@@ -287,8 +287,9 @@ run it with another `-o`, without `-s`, from a response file. Its build-id diffe
 covers the symbol table), so compare `.text`'s bytes with the shipped one before trusting it
 (identical on 2026-11-11), then `llvm-symbolizer --obj=<relinked> 0x<pc> …`. Only while
 `bin/obj` still holds the objects of the build the tombstone names (its `BuildId` against
-`Tools/engine`'s); an older engine is still in the LFS cache
-(`git log -- Tools/engine/...`, then `.git/lfs/objects/<oid>`) and its frames can be matched
+the shipped library's: a release's is the `engine-android` artifact of its release.yml run, kept 3 days);
+an engine shipped before 2026-11-19 is still in the LFS cache
+(`git log -- Tools/engine/android`, then `.git/lfs/objects/<oid>`) and its frames can be matched
 to the new library by instruction bytes, PC-relative words masked. A core's frames have no
 build-id (the Quest cannot read the `libretro/temp/<core><hash>.so` copy), so they need that
 core's own symbolised Android build. A release build does not check for freed objects: a

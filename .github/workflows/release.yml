@@ -119,7 +119,7 @@ jobs:
   # with 29.0.14206865 there for gradle, alongside the build-tools 36.1.0 and
   # android-36 that config.gradle pins.
   quest:
-    needs: preflight
+    needs: [preflight, engine]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
@@ -281,12 +281,16 @@ jobs:
             "org.gradle.console=plain"
           )
 
+      - uses: actions/download-artifact@v8
+        with: { name: engine-android, path: engine-bin }
+
       - name: Put the patched engine into the Android build template
-        # The stock template ships an engine with three Quest defects (a boot
-        # deadlock, two wasted attachment stores, a swapchain load per bin);
-        # docs/godot-4.7.2-*.patch fix them and Tools/engine holds the
-        # library built from them. Without this step the APK runs stock.
-        run: python Tools/place_engine.py --target release
+        # The stock template ships an engine with the Quest defects
+        # docs/godot-4.7.2-*.patch fix (a boot deadlock among them); the
+        # engine job built the library from them at Tools/engine/ENGINE_COMMIT,
+        # and place_engine.py refuses one that names another commit. Without
+        # this step the APK runs stock.
+        run: python Tools/place_engine.py --target release --so engine-bin/libgodot_android.template_release.so
 
       - name: Fail on any script or shader error
         shell: bash
@@ -404,12 +408,15 @@ jobs:
           retention-days: 14
 
   # ----------------------------------------------------------------- engine
-  # The desktop builds ship OUR engine, as the Quest build does: Godot 4.7.2 with docs/godot-4.7.2-*.patch
-  # (RetroXR/godot, branch retroxr-4.7.2). Each platform's release template is built here from the commit
-  # pinned in Tools/engine/ENGINE_COMMIT, cached by that commit (a release that does not move the engine
-  # builds nothing), and laid over the stock one in its export job. Only the release binary is ours: an
+  # Every build ships OUR engine: Godot 4.7.2 with docs/godot-4.7.2-*.patch (RetroXR/godot, branch
+  # retroxr-4.7.2). Each platform's release template is built here from the commit pinned in
+  # Tools/engine/ENGINE_COMMIT, cached by that commit (a release that does not move the engine builds
+  # nothing), and laid over the stock one in its export job. Only the release binary is ours: an
   # --export-release never touches the debug templates or the Windows console wrapper, which stay stock.
-  # Dependencies as Godot's own CI installs them, so the template keeps the stock feature set.
+  # Desktop dependencies as Godot's own CI installs them, so the template keeps the stock feature set.
+  # The Quest's libgodot_android.so is built as the engine doc's recipe builds the one tested on a
+  # headset: no Swappy (OpenXR paces the frames) and no production=yes; place_engine.py swaps it into
+  # the gradle template's AAR in the quest job.
   engine:
     needs: preflight
     runs-on: ${{ matrix.runner }}
@@ -421,6 +428,7 @@ jobs:
           - { id: linux-x86_64, runner: ubuntu-24.04, platform: linuxbsd, arch: x86_64 }
           - { id: linux-arm64, runner: ubuntu-24.04-arm, platform: linuxbsd, arch: arm64 }
           - { id: macos, runner: macos-15, platform: macos, arch: universal }
+          - { id: android, runner: ubuntu-24.04, platform: android, arch: arm64 }
     name: engine-${{ matrix.id }}
     steps:
       - uses: actions/checkout@v7
@@ -455,6 +463,8 @@ jobs:
                       python misc/scripts/install_angle.py ;;
             macos)    sh misc/scripts/install_vulkan_sdk_macos.sh
                       python3 misc/scripts/install_angle.py ;;
+            # The NDK the engine asks for is installed by its own SCons (sdkmanager in the runner's SDK).
+            android)  echo "ANDROID_HOME=$ANDROID_HOME"; exit 0 ;;
           esac
           if command -v python3 >/dev/null; then python3 misc/scripts/install_accesskit.py; else python misc/scripts/install_accesskit.py; fi
 
@@ -477,6 +487,10 @@ jobs:
               scons platform=macos target=template_release arch=x86_64 production=yes
               lipo -create bin/godot.macos.template_release.arm64 bin/godot.macos.template_release.x86_64 \
                 -output ../engine-bin/godot_macos_release.universal ;;
+            android)
+              scons platform=android target=template_release arch=arm64 generate_apk=no
+              cp platform/android/java/lib/libs/release/arm64-v8a/libgodot_android.so \
+                ../engine-bin/libgodot_android.template_release.so ;;
           esac
           ls -la ../engine-bin
 

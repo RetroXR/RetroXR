@@ -18,9 +18,18 @@ stock one (inside `macos.zip` on macOS); the debug templates and the Windows con
 `--export-release` never uses them. Every desktop export then greps its binary for the pinned commit's first
 nine characters (the version banner, `4.7.2.stable.custom_build.<hash>`) and fails the build without it.
 
+**The Quest's library is built there too (2026-11-19).** The `engine` job's `android` row builds
+`template_release` for arm64 on Ubuntu with the recipe below (no Swappy, no `production=yes`: the build that
+was tested on a headset; Godot's SCons installs the NDK it asks for through the runner's sdkmanager), the same
+check greps it for the pin, and the `quest` job hands it to `place_engine.py --so`. Until then both
+libraries were committed under `Tools/engine/android/` (Git LFS, ~70 MB each per engine move); they were
+deleted, and `git log -- Tools/engine/android` finds the old ones.
+
 **Moving the engine:** commit on `retroxr-4.7.2` and push it (the job checks out RetroXR/godot at the pin),
-rebuild the two Android libraries into `Tools/engine/android/` (below), and write the new full hash into
-`ENGINE_COMMIT` in the same commit, so the Quest and the desktops never ship different engines.
+and write the new full hash into `ENGINE_COMMIT`, so the Quest and the desktops never ship different engines.
+For local Quest exports, rebuild the two Android libraries in `~/godot` at that commit (below):
+`place_engine.py` takes them from the engine tree's own build output and refuses one that does not name
+the pin.
 
 The editor you run the project in is still whatever Godot you start. To see an engine patch on the desktop
 before a release, run the project with an editor built from the branch (`~/godot/bin/godot.windows.editor.
@@ -40,12 +49,13 @@ re-armed, 28 ms instead of 13); and every frame going through a 10-bit scene
 buffer plus a tonemap subpass even when that subpass is a copy. The fixes are
 `docs/godot-4.7.2-*.patch`, applied on the engine branch `retroxr-4.7.2`
 (4.7.2-stable + all of them) in `~/godot`, pushed to
-https://github.com/RetroXR/godot/tree/retroxr-4.7.2. The prebuilt arm64
-libraries from that branch live under `Tools/engine/` (Git LFS) and
-`Tools/place_engine.py` swaps one into the Android build template's AAR:
+https://github.com/RetroXR/godot/tree/retroxr-4.7.2. The arm64 library is
+built from that branch at `ENGINE_COMMIT` (by CI for a release, in `~/godot` for a
+local export; `$RETROXR_GODOT_DIR` points elsewhere) and `Tools/place_engine.py`
+swaps it into the Android build template's AAR:
 
 ```bash
-python Tools/place_engine.py --target release   # what release.yml runs before the export
+python Tools/place_engine.py --target release --so <lib>   # what release.yml runs before the export
 python Tools/place_engine.py --target debug     # for a local Quest export
 python Tools/place_engine.py --target debug --check     # exit 1 if the AAR is not ours
 python Tools/place_engine.py --target debug --restore   # deliberate stock A/B ONLY
@@ -227,9 +237,9 @@ Neither is a Quest defect; both are carried for every target built from the bran
 Rebuild both libraries when a patch changes (each ~1 min incremental, the
 first build of a tree ~5 min):
 `cd ~/godot && ANDROID_HOME=C:/android/sdk ~/.local/bin/scons platform=android arch=arm64
-target=template_release generate_apk=no -j14` (and `template_debug`), then
-copy `platform/android/java/lib/libs/<target>/arm64-v8a/libgodot_android.so`
-over `Tools/engine/android/arm64-v8a/libgodot_android.template_<target>.so`.
+target=template_release generate_apk=no -j14` (and `template_debug`). The result,
+`platform/android/java/lib/libs/<target>/arm64-v8a/libgodot_android.so`, is what
+`place_engine.py` places: nothing is copied into this repo.
 Commit on the engine branch FIRST and build after: the banner's hash is HEAD at build
 time, and a library built from an uncommitted tree names the commit before its fix.
 `scons` is not on PATH in Git Bash: `~/.local/bin/scons` (2026-11-04). `ANDROID_HOME` is the SDK folder (`C:/android/sdk`, which holds NDK 29); plain `C:/android` fails at once looking for `cmdline-tools`.
@@ -272,4 +282,4 @@ nothing moved), Godot's default quadrants: stock **4,151 shadow draws every fram
 
 The desktop runs the stock official engine, so the game ALSO lays the atlas out uniformly
 (`QualityManager.UNIFORM_SHADOW_QUADRANT`), which never reaches that branch; with this patch the Quest could go back
-to Godot's default quadrants and their bigger top slots. The Android libraries in `Tools/engine/` carry it.
+to Godot's default quadrants and their bigger top slots. Every engine built at the pin carries it.

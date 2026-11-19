@@ -92,18 +92,22 @@ python Tools/build.py windows --jobs 8 -- verbose=yes    # extra args go to scon
 
 Stock 4.7.2 has eight Quest defects (and lacks a run-time ETC2 encoder, which RetroXR adds)
 fixed by `docs/godot-4.7.2-*.patch`, applied on engine
-branch `retroxr-4.7.2` in `~/godot` (github.com/RetroXR/godot). Prebuilt arm64 libs live
-in `Tools/engine/` (Git LFS):
+branch `retroxr-4.7.2` in `~/godot` (github.com/RetroXR/godot). **No engine binary is committed**
+(2026-11-19; the arm64 libs used to live in `Tools/engine/` on LFS): CI builds the Quest's, and a local
+export takes `~/godot`'s own build output (`$RETROXR_GODOT_DIR` to point elsewhere), refused unless
+it names `ENGINE_COMMIT`:
 
 ```bash
-python Tools/place_engine.py --target release   # what release.yml runs before the export
+python Tools/place_engine.py --target release --so <lib>   # what release.yml runs before the export
 python Tools/place_engine.py --target debug     # local Quest export; --check only reports
 ```
 
-**The desktop releases ship it too** (since 2026-11-18): release.yml's `engine` job builds each
-platform's release template from the commit in `Tools/engine/ENGINE_COMMIT`, and every desktop export
-checks it runs that commit. Moving the engine means: commit on `retroxr-4.7.2`, push, rebuild the
-Android libs, and write the new hash into `ENGINE_COMMIT` (engine-patches.md, "Desktop releases").
+**Every release ships it** (desktops since 2026-11-18, the Quest's built in CI since 2026-11-19):
+release.yml's `engine` job builds each platform's release template, the Quest's
+`libgodot_android.so` included, from the commit in `Tools/engine/ENGINE_COMMIT`, and every export
+checks it runs that commit. Moving the engine means: commit on `retroxr-4.7.2`, push, write the new
+hash into `ENGINE_COMMIT`, and rebuild the two Android libs in `~/godot` for local exports
+(engine-patches.md, "Desktop releases").
 
 **Every Android export places the engine itself** (`retroxr_build_stamp`'s export plugin runs
 `place_engine.py`; `RETROXR_STOCK_ENGINE=1` opts out). The gradle template is SHARED by every

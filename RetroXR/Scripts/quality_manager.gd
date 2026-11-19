@@ -2013,7 +2013,7 @@ func effective_msaa() -> Viewport.MSAA:
 
 
 ## The patched engine repaints the density map itself after a render-buffer
-## rebuild (see Tools/engine and docs/godot-4.7.2-vrs-update-rearm.patch); the
+## rebuild (see docs/dev/engine-patches.md and docs/godot-4.7.2-vrs-update-rearm.patch); the
 ## stock 4.7.2 left it blank after an MSAA change, 28.1 ms instead of 13.2.
 func apply_msaa() -> void:
 	var root := get_tree().root
