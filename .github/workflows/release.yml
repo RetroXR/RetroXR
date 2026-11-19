@@ -679,7 +679,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          dest="godot-pdfium/external/pdfium/lib/linux-arm64"
+          dest="extensions/godot-pdfium/external/pdfium/lib/linux-arm64"
           mkdir -p "$dest"
           curl -fSL --retry 5 --retry-delay 15 -o /tmp/pdfium-arm64.tgz \
             "https://github.com/bblanchon/pdfium-binaries/releases/latest/download/pdfium-linux-arm64.tgz"
@@ -736,7 +736,7 @@ jobs:
           set -euo pipefail
           python3 - << 'PY'
           import sys
-          p = "libretro-godot/Temp/SConscript"
+          p = "extensions/libretro-godot/Temp/SConscript"
           text = open(p).read()
           old = 'env.Append(LIBPATH=["external/SDL3/lib/linux-x64"])'
           new = ('sdl3_dir = "linux-arm64" if env["arch"] == "arm64" else "linux-x64"\n'
@@ -748,7 +748,7 @@ jobs:
               open(p, "w").write(text)
               print("SDL3 patch: applied")
           PY
-          grep -n "sdl3_dir" libretro-godot/Temp/SConscript || true
+          grep -n "sdl3_dir" extensions/libretro-godot/Temp/SConscript || true
 
       # arm64: godot-pdfium's SConscript hardcodes linux-x64 in three places
       # (LIBPATH, the $ORIGIN rpath, and the install dir). Patch all three to be
@@ -760,7 +760,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - << 'PY'
-          p = "godot-pdfium/SConscript"
+          p = "extensions/godot-pdfium/SConscript"
           text = open(p).read()
           if 'pdfium_dir' in text:
               print("pdfium patch: already present")
@@ -782,7 +782,7 @@ jobs:
                   open(p, "w").write(text)
                   print("pdfium patch: applied")
           PY
-          grep -n "pdfium_dir" godot-pdfium/SConscript || true
+          grep -n "pdfium_dir" extensions/godot-pdfium/SConscript || true
 
       # godot-cpp links 1000+ object files into one static archive; on Linux
       # that command can exceed ARG_MAX. Keep SCons' MAXLINELENGTH low so its
@@ -793,7 +793,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - << 'PY'
-          p = "libretro-godot/godot-cpp/SConstruct"
+          p = "extensions/libretro-godot/godot-cpp/SConstruct"
           text = open(p).read()
           if "SCons.Util.MAXLINELENGTH" not in text:
               text = "import SCons.Util\nSCons.Util.MAXLINELENGTH = 128072\n" + text
@@ -810,7 +810,7 @@ jobs:
           open(p, "w").write(text)
           print("SConstruct patch: applied")
 
-          p = "libretro-godot/godot-cpp/tools/linux.py"
+          p = "extensions/libretro-godot/godot-cpp/tools/linux.py"
           text = open(p).read()
           if "ARCOM_POSIX" in text:
               print("linux.py patch: already present")
@@ -828,9 +828,9 @@ jobs:
                   print("linux.py patch: applied")
           PY
           echo "--- SConstruct (first 3 lines) ---"
-          head -3 libretro-godot/godot-cpp/SConstruct
+          head -3 extensions/libretro-godot/godot-cpp/SConstruct
           echo "--- linux.py ARCOM ---"
-          grep -n "ARCOM" libretro-godot/godot-cpp/tools/linux.py || true
+          grep -n "ARCOM" extensions/libretro-godot/godot-cpp/tools/linux.py || true
 
       # Both targets, and both are needed: the exported binary loads
       # linux.release.<arch>, while the editor doing the exporting is itself
@@ -880,7 +880,7 @@ jobs:
         run: |
           set -euo pipefail
           sdl3_dir=${{ matrix.arch == 'arm64' && 'linux-arm64' || 'linux-x64' }}
-          cp "libretro-godot/external/SDL3/lib/$sdl3_dir/libSDL3.so.0" \
+          cp "extensions/libretro-godot/external/SDL3/lib/$sdl3_dir/libSDL3.so.0" \
             RetroXR/libretro-godot/
           ls -la RetroXR/libretro-godot/libSDL3.so.0
 
@@ -970,7 +970,7 @@ jobs:
           # (Not a [dependencies] entry: that would demand the file in every
           # working tree, including local exports whose hosts have SDL3.)
           sdl3_dir=${{ matrix.arch == 'arm64' && 'linux-arm64' || 'linux-x64' }}
-          cp "libretro-godot/external/SDL3/lib/$sdl3_dir/libSDL3.so.0" build_out/
+          cp "extensions/libretro-godot/external/SDL3/lib/$sdl3_dir/libSDL3.so.0" build_out/
           ls -la build_out
 
       - name: Package AppImage (x86_64)
@@ -1065,7 +1065,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - << 'PY'
-          p = "libretro-godot/src/OptionsHandler.hpp"
+          p = "extensions/libretro-godot/src/OptionsHandler.hpp"
           text = open(p).read()
           old = "struct OptionValue\n{\n    std::string value;\n    std::string label;\n};"
           new = ("struct OptionValue\n{\n"
@@ -1347,9 +1347,9 @@ jobs:
           }
 
           # The webhook updates the listing while Release is left on [ latest ],
-          # but not at once, so give it a few minutes before assuming it needs a
-          # hand.
-          for _ in $(seq 1 18); do
+          # but not at once: v0.14.0 still read v0.13.0 after 3 minutes and had
+          # moved on by itself later. Give it 10 minutes before asking for a hand.
+          for _ in $(seq 1 60); do
             now=$(serving || true)
             case "$now" in
               *"/download/$TAG/"*)
@@ -1362,9 +1362,10 @@ jobs:
 
           echo "listing serves: ${now:-<unreadable>}"
           {
-            echo "### SideQuest still needs a hand"
+            echo "### SideQuest has not picked up the release yet"
             echo
-            echo "The listing is not serving \`$TAG\` yet. Set it by hand:"
+            echo "After 10 minutes the listing is still not serving \`$TAG\`. It may just be"
+            echo "slow: check the listing later. If it never moves, set it by hand:"
             echo
             echo "App Studio > RetroXR > Distribution > **GitHub releases**: check the"
             echo "owner and repository read \`RetroXR\` / \`RetroXR\` and Release reads"
@@ -1378,4 +1379,4 @@ jobs:
             echo "Also check the repository's webhook deliveries (Settings > Webhooks)"
             echo "for this release's: SideQuest's answer is there."
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice::SideQuest is not serving $TAG - save the listing's GitHub releases in App Studio (steps in the job summary)"
+          echo "::notice::SideQuest was not serving $TAG after 10 minutes - it may only be slow; if it never moves, save the listing's GitHub releases in App Studio (steps in the job summary)"

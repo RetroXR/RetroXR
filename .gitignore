@@ -17,8 +17,8 @@ RetroXR/godot-pdfium/*.exp
 RetroXR/godot-pdfium/*.ilk
 RetroXR/godot-pdfium/*.lib
 RetroXR/godot-pdfium/*.pdb
-godot-pdfium/Temp/
-godot-pdfium/external/pdfium/include/*.orig
+extensions/godot-pdfium/Temp/
+extensions/godot-pdfium/external/pdfium/include/*.orig
 
 # vlc-godot build artifacts
 RetroXR/vlc-godot/~*
@@ -72,7 +72,7 @@ RetroXR/metaxr-audio/*.exp
 RetroXR/metaxr-audio/*.ilk
 RetroXR/metaxr-audio/*.lib
 RetroXR/metaxr-audio/*.pdb
-metaxr-audio/Temp/
+extensions/metaxr-audio/Temp/
 
 # Output of RetroXR/Tools/bedroom_probe.tscn — renders, never source.
 RetroXR/probe_out/
@@ -90,7 +90,7 @@ RetroXR/verlet-rope/*.exp
 RetroXR/verlet-rope/*.ilk
 RetroXR/verlet-rope/*.lib
 RetroXR/verlet-rope/*.pdb
-verlet-rope/Temp/
+extensions/verlet-rope/Temp/
 
 # archive-godot build artifacts
 RetroXR/archive-godot/~*
@@ -98,8 +98,8 @@ RetroXR/archive-godot/*.exp
 RetroXR/archive-godot/*.ilk
 RetroXR/archive-godot/*.lib
 RetroXR/archive-godot/*.pdb
-archive-godot/Temp/
-vlc-godot/Temp/
+extensions/archive-godot/Temp/
+extensions/vlc-godot/Temp/
 
 # surround-godot build artifacts
 RetroXR/surround-godot/~*
@@ -107,7 +107,7 @@ RetroXR/surround-godot/*.exp
 RetroXR/surround-godot/*.ilk
 RetroXR/surround-godot/*.lib
 RetroXR/surround-godot/*.pdb
-surround-godot/Temp/
+extensions/surround-godot/Temp/
 
 # paper-godot build artifacts
 RetroXR/paper-godot/~*
@@ -115,15 +115,15 @@ RetroXR/paper-godot/*.exp
 RetroXR/paper-godot/*.ilk
 RetroXR/paper-godot/*.lib
 RetroXR/paper-godot/*.pdb
-paper-godot/Temp/
+extensions/paper-godot/Temp/
 # grab-godot build artifacts
 RetroXR/grab-godot/~*
 RetroXR/grab-godot/*.exp
 RetroXR/grab-godot/*.ilk
 RetroXR/grab-godot/*.lib
 RetroXR/grab-godot/*.pdb
-grab-godot/Temp/
-grab-godot/*.pdb
+extensions/grab-godot/Temp/
+extensions/grab-godot/*.pdb
 
 # ── Compiled GDExtensions ─────────────────────────────────────────────────────
 # Our own six libraries are BUILD OUTPUT and are not carried in the repo — run
