@@ -40,6 +40,11 @@ work in the flycast fork; the interface needs no change for it.
   every block it finds one empty, so a voice fed in step with the main one but
   started from nothing sits at zero depth and crackles. Matching depth is also
   what makes the beep land with the game's own sound.
+- **Locations:** `push` names a device by location (`0` a controller, `1` a memory card
+  slot, the device display interface's values), port and index, so a docked
+  PocketStation's speaker (pcsx_rearmed v12) has a voice of its own too
+  (`GetDeviceAudioVoiceId(1, slot, 0)`, posed by `pocketstation.gd`). The location
+  was added in place (still version 1): Dolphin v20 and flycast v11 are built for it.
 - **GDScript:** `Libretro.GetControllerAudioVoiceId(port, index)` is -1 until the
   voice exists. `wiimote.gd` `_update_speaker` poses it on the `Speaker` marker in
   `wiimote.tscn` (the middle of the grille, facing out of the face) with the

@@ -66,7 +66,7 @@ const SOURCES := {
 		# URL — see base_url. It is only the version to show when GitHub cannot be
 		# reached, so an offline player still sees something truthful rather than
 		# a blank.
-		"known_tag": "retroxr-dolphin-libretro-v19",
+		"known_tag": "retroxr-dolphin-libretro-v20",
 		"label": "Dolphin (retroXR build)",
 		# Per platform, because we only publish what we build. A platform absent
 		# here is not an error — the manager falls back to the buildbot for it.
@@ -359,7 +359,7 @@ const SOURCES := {
 	# binary — same arrangement as Dolphin and gambatte.
 	"pcsx_rearmed": {
 		"repo":  "RetroXR/pcsx_rearmed",
-		"known_tag": "retroxr-pcsx-rearmed-libretro-v10",
+		"known_tag": "retroxr-pcsx-rearmed-libretro-v12",
 		"label": "PCSX-ReARMed (retroXR build)",
 		"assets": {
 			"Windows": "pcsx_rearmed_libretro.dll.zip",
@@ -520,7 +520,7 @@ const SOURCES := {
 	# flycast is GPLv2, so the source for these binaries sits on the tag.
 	"flycast": {
 		"repo":  "RetroXR/flycast",
-		"known_tag": "retroxr-flycast-libretro-v10",
+		"known_tag": "retroxr-flycast-libretro-v11",
 		"label": "Flycast (retroXR build)",
 		"assets": {
 			"Windows": "flycast_libretro.dll.zip",

@@ -694,6 +694,7 @@ func _show_docked() -> void:
 	if slot < 0:
 		_show_off()
 		return
+	_update_docked_audio(lib, slot)
 	var tex := lib.call("GetDeviceScreenTexture", _DEVICE_DISPLAY_MEMORY_CARD, slot, 0) as Texture2D
 	if tex == null:
 		_show_off()
@@ -710,10 +711,31 @@ func _show_off() -> void:
 	_last_tex = null
 
 
+## Docked, the speaker is the console's core's too: version 2 of the controller audio
+## interface hands it over at location 1 (a memory card slot), port = the slot, on a
+## voice of its own once it first makes a sound.
+const _CONTROLLER_AUDIO_MEMORY_CARD := 1
+
+
 ## Meta XR Audio mixes a voice only once its owner has posed it, and this is not a
 ## RetroSystem, so the speaker is posed here (the VMU's _update_standalone_audio).
 func _update_audio() -> void:
-	var voices: PackedInt32Array = _lib.GetAudioVoiceIds()
+	_pose_voices(_lib.GetAudioVoiceIds())
+
+
+func _update_docked_audio(lib: Object, slot: int) -> void:
+	var voices := PackedInt32Array()
+	if lib.has_method("GetDeviceAudioVoiceId"):
+		var voice := int(lib.call("GetDeviceAudioVoiceId", _CONTROLLER_AUDIO_MEMORY_CARD, slot, 0))
+		if voice >= 0:
+			voices.append(voice)
+	if voices != _own_voices and not voices.is_empty():
+		print("[PocketStation] %s: the docked speaker plays on voice %d (slot %d)"
+			% [card_label, voices[0], slot + 1])
+	_pose_voices(voices)
+
+
+func _pose_voices(voices: PackedInt32Array) -> void:
 	if voices != _own_voices:
 		_own_voices = voices
 		_own_gain = -1.0
