@@ -877,6 +877,11 @@ func _on_picked_up(_p: Variant) -> void:
 func _on_dropped(_p: Variant) -> void:
 	if not _stub_seated:
 		_apply_system_size()
+		# Sizing puts the title back over the box's label; on a disk's paper it goes
+		# on the model's face again.
+		if FloppyShell.is_body(_body_model()) and not has_node("ModelLabelArt") \
+				and has_node("CartModel"):
+			_title_on_model_face()
 
 
 func _snap_zone_holder() -> XRToolsSnapZone:
@@ -1134,7 +1139,10 @@ func _apply_label_art() -> void:
 	if _model_label != null:
 		var ab := _label_face_bounds(_model_label)
 		if ab.size.x > 0.0001 and ab.size.y > 0.0001:
-			_model_label.visible = false
+			# A disk's label is paper the art is printed on: it stays under art that
+			# does not fill it.
+			if not FloppyShell.is_body(_body_model()):
+				_model_label.visible = false
 			_lay_label_art("ModelLabelArt", tex, ab)
 		var glbl := get_node_or_null("GameLabel") as Label3D
 		if glbl != null:

@@ -1039,21 +1039,23 @@ func _group_floppy() -> void:
 			"floppy/%s keeps the 3.5 in disk" % sid)
 
 	var disk := await _cart("c64")
-	var body := disk.get_node("CartridgeMesh") as MeshInstance3D
-	_ok((body.mesh as BoxMesh).size.is_equal_approx(MediaDimensions.FLOPPY_525_SIZE),
-		"floppy/a C64 game is the 133.3 mm jacket")
-	_ok(body.has_node("Minifloppy/HeadWindow") and not disk.has_node("Shutter"),
-		"floppy/with a head window and no shutter")
-	var label := disk.get_node("LabelMesh") as MeshInstance3D
-	var head := body.get_node("Minifloppy/HeadWindow") as Node3D
-	_ok(label.position.y > 0.04 and head.position.y < -0.04,
-		"floppy/its label strip across the top, the head window below the hub")
-	_ok((label.mesh as BoxMesh).size.is_equal_approx(Vector3(0.105, 0.031, 0.0002)),
-		"floppy/the label is ECMA's 105 x 31 mm strip")
-	# The sizing pass runs again on every drop; the dress must not pile up.
+	var worn := disk.get_node_or_null("CartModel") as Node3D
+	_ok(worn != null and worn.scene_file_path == FloppyShell.BODY_525,
+		"floppy/a C64 game wears the 5.25 in disk (generic/floppy-5.25)",
+		worn.scene_file_path if worn != null else "none")
+	_ok(not disk.has_node("Shutter") and not (disk.get_node("CartridgeMesh") as Node3D).visible,
+		"floppy/with no shutter, and the stand-in slab hidden")
+	_ok(MediaDimensions.cart_size("c64", "", FloppyShell.BODY_525).is_equal_approx(FloppyShell.SIZE_525),
+		"floppy/sized as the model, 2.11 mm through its flaps")
+	var paper := worn.find_child("Label", true, false) as Node3D if worn != null else null
+	_ok(paper != null and paper.is_visible_in_tree()
+			and (disk.global_transform.affine_inverse() * paper.global_position).y > 0.04,
+		"floppy/its paper label strip across the top, shown")
+	# The sizing pass runs again on every drop; nothing may pile up.
 	disk._apply_system_size()
 	disk._apply_system_size()
-	_ok(body.get_child_count() == 1, "floppy/and dressing it again builds nothing twice")
+	_ok(disk.get_children().filter(func(n: Node) -> bool: return n.name.begins_with("CartModel")).size() == 1,
+		"floppy/and sizing it again builds nothing twice")
 
 	var sys := await _console("pc_tower", "c64")
 	var slot := sys.get_node("CartridgeSlot") as XRToolsSnapZone
@@ -1082,8 +1084,16 @@ func _group_floppy() -> void:
 	_ok(dslot.global_transform.is_equal_approx(dseat.global_transform),
 		"floppy/a DOS machine still seats in the 3.5 in drive")
 	var floppy := await _cart("dos")
-	_ok(floppy.has_node("Shutter") and not floppy.has_node("CartridgeMesh/Minifloppy"),
-		"floppy/and its disk is still the 3.5 in one")
+	var model35 := floppy.get_node_or_null("CartModel") as Node3D
+	_ok(model35 != null and model35.scene_file_path == FloppyShell.BODY_35
+			and not floppy.has_node("CartridgeMesh/Minifloppy"),
+		"floppy/and its disk is the 3.5 in one (generic/floppy-3.5)")
+	_ok(MediaDimensions.cart_size("dos", "", FloppyShell.BODY_35) == MediaDimensions.FLOPPY_SIZE,
+		"floppy/at the game's 3.5 in size")
+	# A disk's label is paper: art laid over it leaves it showing.
+	floppy._apply_label_art()
+	var paper35 := model35.find_child("Label", true, false) as Node3D if model35 != null else null
+	_ok(paper35 != null and paper35.is_visible_in_tree(), "floppy/its paper label stays under any art")
 	await _clear()
 
 

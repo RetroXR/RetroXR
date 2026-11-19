@@ -281,6 +281,7 @@ static func _builtins() -> Dictionary:
 		register_builtin([NesCartShell.SYSTEMID], NesCartShell, ["finish", "rom_market"])
 		register_builtin(GbCartShell.SYSTEMIDS, GbcCartShell, ["body", "finish"])
 		register_builtin([GbaCartShell.SYSTEMID], GbaCartShell, ["finish"])
+		register_builtin(FloppyShell.systemids(), FloppyShell, ["body"])
 	return _builtin
 
 

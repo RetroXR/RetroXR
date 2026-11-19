@@ -410,6 +410,9 @@ static func cart_size(systemid: String, rom_path := "", body_model := "") -> Vec
 			return mod_row["cart_size"] as Vector3
 	# A floppy system with a row of its own (the 64DD) is sized by that row.
 	if FLOPPY_SYSTEMS.has(systemid) and not CART_SIZES.has(systemid):
+		# The 5.25-inch model is thicker than the slab through its flaps and tab.
+		if body_model == FloppyShell.BODY_525:
+			return FloppyShell.SIZE_525
 		return FLOPPY_525_SIZE if FLOPPY_525_SYSTEMS.has(systemid) else FLOPPY_SIZE
 	if systemid == SnesCartShell.SYSTEMID and body_model == SnesCartShell.BODY_SFC:
 		return CART_SIZE_SFC
