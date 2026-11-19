@@ -189,42 +189,182 @@
  "collision": {
   "boxes": [
    {
-    "name": "Arm",
+    "name": "Foot",
     "centre": [
-     -0.925,
-     0.365,
-     -0.0
+     -0.955,
+     0.04,
+     0.4
     ],
     "size": [
-     0.3,
-     0.57,
-     0.96
+     0.08,
+     0.08,
+     0.08
+    ]
+   },
+   {
+    "name": "Foot",
+    "centre": [
+     -0.955,
+     0.04,
+     -0.4
+    ],
+    "size": [
+     0.08,
+     0.08,
+     0.08
     ]
    },
    {
     "name": "Arm",
     "centre": [
-     0.925,
-     0.365,
+     -0.9425,
+     0.29,
+     -0.005
+    ],
+    "size": [
+     0.195,
+     0.42,
+     0.95
+    ]
+   },
+   {
+    "name": "ArmRoll",
+    "centre": [
+     -0.925,
+     0.5,
      -0.0
     ],
     "size": [
      0.3,
-     0.57,
-     0.96
+     0.96,
+     0.3
+    ],
+    "shape": "cylinder",
+    "basis": [
+     [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     [
+      0.0,
+      0.0,
+      -1.0
+     ],
+     [
+      0.0,
+      -1.0,
+      0.0
+     ]
+    ]
+   },
+   {
+    "name": "Foot",
+    "centre": [
+     0.955,
+     0.04,
+     0.4
+    ],
+    "size": [
+     0.08,
+     0.08,
+     0.08
+    ]
+   },
+   {
+    "name": "Foot",
+    "centre": [
+     0.955,
+     0.04,
+     -0.4
+    ],
+    "size": [
+     0.08,
+     0.08,
+     0.08
+    ]
+   },
+   {
+    "name": "Arm",
+    "centre": [
+     0.9425,
+     0.29,
+     -0.005
+    ],
+    "size": [
+     0.195,
+     0.42,
+     0.95
+    ]
+   },
+   {
+    "name": "ArmRoll",
+    "centre": [
+     0.925,
+     0.5,
+     -0.0
+    ],
+    "size": [
+     0.3,
+     0.96,
+     0.3
+    ],
+    "shape": "cylinder",
+    "basis": [
+     [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     [
+      0.0,
+      0.0,
+      -1.0
+     ],
+     [
+      0.0,
+      -1.0,
+      0.0
+     ]
+    ]
+   },
+   {
+    "name": "Base",
+    "centre": [
+     0.0,
+     0.19,
+     -0.01
+    ],
+    "size": [
+     1.73,
+     0.22,
+     0.94
     ]
    },
    {
     "name": "Seat",
     "centre": [
      0.0,
-     0.225,
-     -0.0
+     0.375,
+     0.12
     ],
     "size": [
-     2.15,
-     0.45,
-     0.96
+     1.69,
+     0.15,
+     0.7
+    ]
+   },
+   {
+    "name": "BackFrame",
+    "centre": [
+     0.0,
+     0.52,
+     -0.42
+    ],
+    "size": [
+     1.71,
+     0.44,
+     0.12
     ]
    },
    {
@@ -232,16 +372,33 @@
     "centre": [
      0.0,
      0.655,
-     -0.325
+     -0.27119
     ],
     "size": [
      1.69,
-     0.41,
-     0.31
+     0.41403,
+     0.13864
+    ],
+    "basis": [
+     [
+      1.0,
+      0.0,
+      0.0
+     ],
+     [
+      0.0,
+      0.990268,
+      -0.139173
+     ],
+     [
+      0.0,
+      0.139173,
+      0.990268
+     ]
     ]
    }
   ],
-  "note": "boxes {centre, size} in metres; the cushion slab is seat_trigger, not one of these"
+  "note": "boxes {centre, size} in metres, following the parts; `basis` (three columns) turns a box, `shape` \"cylinder\" is a cylinder about its local Y, size [2r, height, 2r]; the cushion slab is seat_trigger, not one of these"
  },
  "estimated": "every size is estimated from ordinary furniture of the kind: see MEASUREMENTS.md",
  "triangles": {

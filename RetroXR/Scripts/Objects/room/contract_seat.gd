@@ -5,6 +5,9 @@
 ## rest is read from the contract at run time, as DrawerFurniture does for the Mission pair (a `.json` is a JSON
 ## resource and ships with the export):
 ## - the collision boxes (every list under `collision`), and the same boxes as the `PointerArea` (SeatPointerArea);
+##   they follow the piece's PARTS (legs, rails, cushions; a row may be turned by its `basis`, three columns, or be a
+##   `shape` "cylinder" about its local Y, `size` [2r, height, 2r]). Until 2026-11-20 each seat was one box from the
+##   floor up, so the space under a sofa's legs was a wall;
 ## - the PLACES (Seat's header): a sofa's `seats` (one cushion each), or one place from `eye_point` / `seat_trigger`;
 ##   a bed's mattress is split in two along its length, the head end (the pillow) LYING at `lie_eye_point` and the
 ##   rest SITTING on the edge at `eye_point`. Each place is an `EyePointN` marker turned from the contract's `z_axis`
@@ -156,10 +159,8 @@ func _build_collision() -> int:
 		if not collision[key] is Array:
 			continue
 		for row: Dictionary in collision[key]:
-			var c := _v3(row["centre"])
-			var s := _v3(row["size"])
-			add_child(_box("Col%s_%s_%d" % [key.capitalize(), row.get("name", "Box"), n], c, s))
-			pointer.add_child(_box("Shape%d" % n, c, s))
+			add_child(_shape_from_row("Col%s_%s_%d" % [key.capitalize(), row.get("name", "Box"), n], row))
+			pointer.add_child(_shape_from_row("Shape%d" % n, row))
 			n += 1
 	if n == 0:
 		push_warning("[Seat] %s: the contract has no collision boxes" % name)
@@ -296,15 +297,47 @@ static func fit_trigger(centre: Vector3, size: Vector3, boxes: Array) -> Array:
 	return [(lo + hi) * 0.5, hi - lo]
 
 
-## The contract's collision boxes as [[centre, size], ...].
+## The contract's collision boxes as [[centre, size], ...]: a turned row or a cylinder as its axis-aligned bounds.
 func _collision_rows() -> Array:
 	var out: Array = []
 	var collision: Dictionary = _contract.get("collision", {})
 	for key: String in collision:
 		if collision[key] is Array:
 			for row: Dictionary in collision[key]:
-				out.append([_v3(row["centre"]), _v3(row["size"])])
+				out.append(row_bounds(row))
 	return out
+
+
+## A collision row's turn: its `basis` (three columns), or none.
+static func row_basis(row: Dictionary) -> Basis:
+	var cols: Variant = row.get("basis")
+	if not cols is Array or (cols as Array).size() != 3:
+		return Basis.IDENTITY
+	return Basis(_v3(cols[0]), _v3(cols[1]), _v3(cols[2]))
+
+
+## A collision row's axis-aligned bounds in the seat's frame, as [centre, size]. Pure.
+static func row_bounds(row: Dictionary) -> Array:
+	var c := _v3(row["centre"])
+	var h := _v3(row["size"]) * 0.5
+	var b := row_basis(row)
+	var e := Vector3(absf(b.x.x) * h.x + absf(b.y.x) * h.y + absf(b.z.x) * h.z,
+		absf(b.x.y) * h.x + absf(b.y.y) * h.y + absf(b.z.y) * h.z,
+		absf(b.x.z) * h.x + absf(b.y.z) * h.y + absf(b.z.z) * h.z)
+	return [c, e * 2.0]
+
+
+## The CollisionShape3D for a contract row: a box, or a cylinder about its local Y; turned by its `basis`.
+static func _shape_from_row(shape_name: String, row: Dictionary) -> CollisionShape3D:
+	var s := _v3(row["size"])
+	var cs := _box(shape_name, _v3(row["centre"]), s)
+	if String(row.get("shape", "box")) == "cylinder":
+		var cyl := CylinderShape3D.new()
+		cyl.radius = maxf(s.x, s.z) * 0.5
+		cyl.height = s.y
+		cs.shape = cyl
+	cs.basis = row_basis(row)
+	return cs
 
 
 ## A contract marker's z axis (its +Z: -Z is the way the eyes look), or `fallback`.

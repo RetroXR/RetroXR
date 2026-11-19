@@ -88,20 +88,176 @@
  "collision": {
   "boxes": [
    {
-    "name": "Stool",
+    "name": "Seat",
     "centre": [
      0.0,
-     0.36,
+     0.701,
      -0.0
     ],
     "size": [
      0.38,
-     0.72,
+     0.038,
      0.34
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     -0.1475,
+     0.341,
+     0.1275
+    ],
+    "size": [
+     0.045,
+     0.682,
+     0.045
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     -0.1475,
+     0.341,
+     -0.1275
+    ],
+    "size": [
+     0.045,
+     0.682,
+     0.045
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     0.1475,
+     0.341,
+     0.1275
+    ],
+    "size": [
+     0.045,
+     0.682,
+     0.045
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     0.1475,
+     0.341,
+     -0.1275
+    ],
+    "size": [
+     0.045,
+     0.682,
+     0.045
+    ]
+   },
+   {
+    "name": "Apron",
+    "centre": [
+     0.0,
+     0.642,
+     0.13
+    ],
+    "size": [
+     0.25,
+     0.08,
+     0.02
+    ]
+   },
+   {
+    "name": "Footrest",
+    "centre": [
+     0.0,
+     0.246,
+     0.128
+    ],
+    "size": [
+     0.25,
+     0.032,
+     0.024
+    ]
+   },
+   {
+    "name": "Apron",
+    "centre": [
+     0.0,
+     0.642,
+     -0.13
+    ],
+    "size": [
+     0.25,
+     0.08,
+     0.02
+    ]
+   },
+   {
+    "name": "Footrest",
+    "centre": [
+     0.0,
+     0.246,
+     -0.128
+    ],
+    "size": [
+     0.25,
+     0.032,
+     0.024
+    ]
+   },
+   {
+    "name": "Apron",
+    "centre": [
+     -0.15,
+     0.642,
+     -0.0
+    ],
+    "size": [
+     0.02,
+     0.08,
+     0.21
+    ]
+   },
+   {
+    "name": "Footrest",
+    "centre": [
+     -0.148,
+     0.306,
+     -0.0
+    ],
+    "size": [
+     0.024,
+     0.032,
+     0.21
+    ]
+   },
+   {
+    "name": "Apron",
+    "centre": [
+     0.15,
+     0.642,
+     -0.0
+    ],
+    "size": [
+     0.02,
+     0.08,
+     0.21
+    ]
+   },
+   {
+    "name": "Footrest",
+    "centre": [
+     0.148,
+     0.306,
+     -0.0
+    ],
+    "size": [
+     0.024,
+     0.032,
+     0.21
     ]
    }
   ],
-  "note": "boxes {centre, size} in metres; the cushion slab is seat_trigger, not one of these"
+  "note": "boxes {centre, size} in metres, following the parts; `basis` (three columns) turns a box, `shape` \"cylinder\" is a cylinder about its local Y, size [2r, height, 2r]; the cushion slab is seat_trigger, not one of these"
  },
  "estimated": "every size is estimated from ordinary furniture of the kind: see MEASUREMENTS.md",
  "triangles": {

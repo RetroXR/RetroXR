@@ -19,6 +19,9 @@
 ##   pair/     a cockpit of two seats (Lucky & Wild): each sat in and got up from on its own side, one at a time, no pointer box over either cushion
 ##   contract/ every RETRO XR seat and bed (ContractSeat) builds from its contract: its places, eyes at a sitting (or lying)
 ##             height looking the right way, stand points on the floor beside it, and a press on EACH place sits there
+##   under/    the collision follows the piece's parts: the floor under a sofa on legs, a stool or a chair is OPEN
+##             (each seat was one box from the floor up, an invisible wall under it), and a turned or round row builds as
+##             one, its bounds right for fit_trigger
 ##   getup/    getting up finds a floor: a seat against a wall stands you up in the room, not past the wall; a tipped or
 ##             held seat is not sat on; the body seated does not gather speed; the desktop capsule is tall again at once
 ##   save/     the RETRO XR seats and beds are plain scenes, spawned by their tokens and on the Furniture tab; the six old
@@ -83,6 +86,8 @@ func _run() -> void:
 		await _group_contract()
 	if _want("aim"):
 		await _group_aim()
+	if _want("under"):
+		await _group_under()
 	if _want("getup"):
 		await _group_getup()
 	if _want("save"):
@@ -828,6 +833,61 @@ func _group_aim() -> void:
 		"aim: a trigger flush with its mattress is lifted clear of it and covers the mattress's sides (%s)" % str(flush))
 
 
+## Pieces that stand on legs, feet or a base, and the height under them that is open floor (m): a ray at that height
+## must reach the middle from outside without meeting the piece.
+const OPEN_UNDER := {
+	"sofa_midcentury": 0.09, "sofa_overstuffed": 0.04, "sofa_futon": 0.09, "stool_mission": 0.1,
+	"stool_midcentury": 0.1, "chair_desk": 0.03, "chair_papasan": 0.1,
+}
+
+
+func _group_under() -> void:
+	var space := get_viewport().world_3d.direct_space_state
+	for id: String in OPEN_UNDER:
+		var seat := (ScenePersistence.PLAIN_SCENES[id] as PackedScene).instantiate() as ContractSeat
+		seat.freeze = true
+		seat.transform = Transform3D(Basis(Vector3.UP, 0.7), Vector3(6.0, 0.0, 6.0))
+		add_child(seat)
+		await _frames(2)
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		var h: float = OPEN_UNDER[id]
+		# From outside to the middle: from both sides, and from the front or the back (a stool's or a desk chair's front
+		# leg stands on the line the other way).
+		var mid := seat.to_global(Vector3(0.0, h, 0.0))
+		var open := {}
+		var hits: Array[String] = []
+		for dir: Vector3 in [Vector3.LEFT, Vector3.RIGHT, Vector3.FORWARD, Vector3.BACK]:
+			var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(seat.to_global(Vector3(0.0, h, 0.0) + dir * 1.5), mid))
+			open[dir] = hit.is_empty()
+			if not hit.is_empty():
+				hits.append("%s at %s" % [(hit["collider"] as Node).name, str(seat.to_local(hit["position"]))])
+		var ok: bool = open[Vector3.LEFT] and open[Vector3.RIGHT] and (open[Vector3.FORWARD] or open[Vector3.BACK])
+		_ok(ok, "under: %s: the floor under its middle is open %.2f m up, from both sides and the front or back%s" % [id, h,
+			"" if hits.is_empty() else " (hit " + "; ".join(hits) + ")"])
+		# The sitting surface is still there: a ray straight down at the first place meets the seat, not the floor.
+		var eye := seat.get_node("EyePoint") as Node3D
+		var down := space.intersect_ray(PhysicsRayQueryParameters3D.create(eye.global_position, eye.global_position + Vector3.DOWN * 2.0))
+		_ok(not down.is_empty() and (down["collider"] == seat or (down["collider"] as Node).get_parent() == seat)
+				and down["position"].y > seat.global_position.y + 0.1,
+			"under: %s: straight down from its eyes meets the seat (%s)" % [id, str(down.get("position", "nothing"))])
+		seat.queue_free()
+		await _frames(2)
+	# A turned row and a cylinder: built as one, their bounds what fit_trigger reads.
+	var c := 0.70710678
+	var turned := {"centre": [0.0, 0.5, 0.0], "size": [0.2, 0.4, 0.02], "basis": [[1, 0, 0], [0, c, -c], [0, c, c]]}
+	var cs := ContractSeat._shape_from_row("t", turned)
+	var tb: Array = ContractSeat.row_bounds(turned)
+	_ok(cs.shape is BoxShape3D and cs.basis.y.is_equal_approx(Vector3(0, c, -c))
+			and (tb[1] as Vector3).is_equal_approx(Vector3(0.2, (0.4 + 0.02) * c, (0.4 + 0.02) * c)),
+		"under: a row with a basis is a box turned by it, its bounds the turned box's (%s)" % str(tb))
+	var cyl_row := {"centre": [0.0, 0.2, 0.0], "size": [0.36, 0.03, 0.36], "shape": "cylinder"}
+	var cy := ContractSeat._shape_from_row("c", cyl_row)
+	_ok(cy.shape is CylinderShape3D and is_equal_approx((cy.shape as CylinderShape3D).radius, 0.18)
+			and is_equal_approx((cy.shape as CylinderShape3D).height, 0.03),
+		"under: a cylinder row is a cylinder of radius size.x / 2 and height size.y")
+
+
 ## A laser's hit at a place is right when it is one of the seat's places, or something TALLER than the place (an arm, a
 ## racecar's wall) standing in the way: the top of the shape it hit is over the trigger's.
 func _aim_ok(hit: Dictionary, lasers: Array, trigger_top: float) -> bool:
@@ -838,9 +898,16 @@ func _aim_ok(hit: Dictionary, lasers: Array, trigger_top: float) -> bool:
 	var body := hit["collider"] as CollisionObject3D
 	var owner_id := body.shape_find_owner(int(hit["shape"]))
 	var cs := body.shape_owner_get_owner(owner_id) as CollisionShape3D
-	if cs == null or not cs.shape is BoxShape3D:
+	if cs == null:
 		return false
-	var half := (cs.shape as BoxShape3D).size * 0.5
+	var half: Vector3
+	if cs.shape is BoxShape3D:
+		half = (cs.shape as BoxShape3D).size * 0.5
+	elif cs.shape is CylinderShape3D:
+		var cyl := cs.shape as CylinderShape3D
+		half = Vector3(cyl.radius, cyl.height * 0.5, cyl.radius)
+	else:
+		return false
 	var top := -INF
 	for corner in [Vector3(half.x, half.y, half.z), Vector3(-half.x, half.y, -half.z)]:
 		top = maxf(top, cs.to_global(corner).y)

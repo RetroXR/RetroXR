@@ -88,20 +88,111 @@
  "collision": {
   "boxes": [
    {
-    "name": "Stool",
+    "name": "Leg",
+    "centre": [
+     -0.0,
+     0.2115,
+     0.1365
+    ],
+    "size": [
+     0.03,
+     0.4232,
+     0.03
+    ],
+    "basis": [
+     [
+      -1.0,
+      0.0,
+      -0.0
+     ],
+     [
+      0.0,
+      0.98909,
+      -0.147311
+     ],
+     [
+      0.0,
+      -0.147311,
+      -0.98909
+     ]
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     0.11821,
+     0.2115,
+     -0.06825
+    ],
+    "size": [
+     0.03,
+     0.4232,
+     0.03
+    ],
+    "basis": [
+     [
+      0.5,
+      0.0,
+      0.866025
+     ],
+     [
+      -0.127575,
+      0.98909,
+      0.073656
+     ],
+     [
+      -0.856577,
+      -0.147311,
+      0.494545
+     ]
+    ]
+   },
+   {
+    "name": "Leg",
+    "centre": [
+     -0.11821,
+     0.2115,
+     -0.06825
+    ],
+    "size": [
+     0.03,
+     0.4232,
+     0.03
+    ],
+    "basis": [
+     [
+      0.5,
+      0.0,
+      -0.866025
+     ],
+     [
+      0.127575,
+      0.98909,
+      0.073656
+     ],
+     [
+      0.856577,
+      -0.147311,
+      0.494545
+     ]
+    ]
+   },
+   {
+    "name": "Seat",
     "centre": [
      0.0,
-     0.225,
+     0.434,
      -0.0
     ],
     "size": [
      0.36,
-     0.45,
+     0.032,
      0.36
-    ]
+    ],
+    "shape": "cylinder"
    }
   ],
-  "note": "boxes {centre, size} in metres; the cushion slab is seat_trigger, not one of these"
+  "note": "boxes {centre, size} in metres, following the parts; `basis` (three columns) turns a box, `shape` \"cylinder\" is a cylinder about its local Y, size [2r, height, 2r]; the cushion slab is seat_trigger, not one of these"
  },
  "estimated": "every size is estimated from ordinary furniture of the kind: see MEASUREMENTS.md",
  "triangles": {

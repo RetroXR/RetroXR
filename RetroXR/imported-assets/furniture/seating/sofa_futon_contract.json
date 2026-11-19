@@ -189,42 +189,254 @@
  "collision": {
   "boxes": [
    {
-    "name": "Arm",
+    "name": "ArmRail",
     "centre": [
      -0.96,
-     0.31,
+     0.6025,
      -0.0
     ],
     "size": [
      0.08,
-     0.62,
+     0.035,
      0.9
     ]
    },
    {
-    "name": "Arm",
+    "name": "FrontPost",
+    "centre": [
+     -0.96,
+     0.2925,
+     0.405
+    ],
+    "size": [
+     0.06,
+     0.585,
+     0.06
+    ]
+   },
+   {
+    "name": "BackPost",
+    "centre": [
+     -0.96,
+     0.2925,
+     -0.405
+    ],
+    "size": [
+     0.06,
+     0.585,
+     0.06
+    ]
+   },
+   {
+    "name": "SideRail",
+    "centre": [
+     -0.96,
+     0.15,
+     -0.0
+    ],
+    "size": [
+     0.04,
+     0.08,
+     0.75
+    ]
+   },
+   {
+    "name": "Slat",
+    "centre": [
+     -0.96,
+     0.3875,
+     0.1875
+    ],
+    "size": [
+     0.022,
+     0.395,
+     0.044
+    ]
+   },
+   {
+    "name": "Slat",
+    "centre": [
+     -0.96,
+     0.3875,
+     -0.0
+    ],
+    "size": [
+     0.022,
+     0.395,
+     0.044
+    ]
+   },
+   {
+    "name": "Slat",
+    "centre": [
+     -0.96,
+     0.3875,
+     -0.1875
+    ],
+    "size": [
+     0.022,
+     0.395,
+     0.044
+    ]
+   },
+   {
+    "name": "ArmRail",
     "centre": [
      0.96,
-     0.31,
+     0.6025,
      -0.0
     ],
     "size": [
      0.08,
-     0.62,
+     0.035,
      0.9
+    ]
+   },
+   {
+    "name": "FrontPost",
+    "centre": [
+     0.96,
+     0.2925,
+     0.405
+    ],
+    "size": [
+     0.06,
+     0.585,
+     0.06
+    ]
+   },
+   {
+    "name": "BackPost",
+    "centre": [
+     0.96,
+     0.2925,
+     -0.405
+    ],
+    "size": [
+     0.06,
+     0.585,
+     0.06
+    ]
+   },
+   {
+    "name": "SideRail",
+    "centre": [
+     0.96,
+     0.15,
+     -0.0
+    ],
+    "size": [
+     0.04,
+     0.08,
+     0.75
+    ]
+   },
+   {
+    "name": "Slat",
+    "centre": [
+     0.96,
+     0.3875,
+     0.1875
+    ],
+    "size": [
+     0.022,
+     0.395,
+     0.044
+    ]
+   },
+   {
+    "name": "Slat",
+    "centre": [
+     0.96,
+     0.3875,
+     -0.0
+    ],
+    "size": [
+     0.022,
+     0.395,
+     0.044
+    ]
+   },
+   {
+    "name": "Slat",
+    "centre": [
+     0.96,
+     0.3875,
+     -0.1875
+    ],
+    "size": [
+     0.022,
+     0.395,
+     0.044
+    ]
+   },
+   {
+    "name": "FrontRail",
+    "centre": [
+     0.0,
+     0.23,
+     0.4
+    ],
+    "size": [
+     1.86,
+     0.08,
+     0.04
+    ]
+   },
+   {
+    "name": "Deck",
+    "centre": [
+     0.0,
+     0.2575,
+     0.04
+    ],
+    "size": [
+     1.86,
+     0.025,
+     0.68
+    ]
+   },
+   {
+    "name": "BackFrame",
+    "centre": [
+     0.0,
+     0.495,
+     -0.36279
+    ],
+    "size": [
+     1.86,
+     0.46587,
+     0.02415
+    ],
+    "basis": [
+     [
+      1.0,
+      0.0,
+      0.0
+     ],
+     [
+      0.0,
+      0.965926,
+      -0.258819
+     ],
+     [
+      0.0,
+      0.258819,
+      0.965926
+     ]
     ]
    },
    {
     "name": "Seat",
     "centre": [
      0.0,
-     0.22,
+     0.355,
      0.06
     ],
     "size": [
-     1.86,
-     0.44,
-     0.78
+     1.844,
+     0.17,
+     0.74
     ]
    },
    {
@@ -232,16 +444,33 @@
     "centre": [
      0.0,
      0.64,
-     -0.35
+     -0.29735
     ],
     "size": [
-     1.86,
-     0.4,
-     0.2
+     1.844,
+     0.41411,
+     0.16421
+    ],
+    "basis": [
+     [
+      1.0,
+      0.0,
+      0.0
+     ],
+     [
+      0.0,
+      0.965926,
+      -0.258819
+     ],
+     [
+      0.0,
+      0.258819,
+      0.965926
+     ]
     ]
    }
   ],
-  "note": "boxes {centre, size} in metres; the cushion slab is seat_trigger, not one of these"
+  "note": "boxes {centre, size} in metres, following the parts; `basis` (three columns) turns a box, `shape` \"cylinder\" is a cylinder about its local Y, size [2r, height, 2r]; the cushion slab is seat_trigger, not one of these"
  },
  "estimated": "every size is estimated from ordinary furniture of the kind: see MEASUREMENTS.md",
  "triangles": {

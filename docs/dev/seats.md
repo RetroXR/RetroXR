@@ -11,6 +11,17 @@ and six FLOOR seats (2026-11-14: `floor_cushion_square`, `floor_cushion_round`, 
 - **Built from the contract, at run time** (as `DrawerFurniture`; a `.json` ships with the export): the scene is only the `Model` (`ApplianceModel`, three levels by distance;
   sofas and beds switch farther out, 2.5-3 / 6-7 m, so a sitter never sees the swap) and the highlight. `ContractSeat` adds the collision boxes (every list under `collision`), the
   same boxes as the `PointerArea`, the places and stand points below, and a bed's drawers (`FurnitureDrawers`, furniture.md).
+- **The collision follows the PARTS (2026-11-20).** Reported: "the sofa seems to have an invisible wall under it". Every seat's contract
+  had ONE box from the FLOOR to its seat top over its whole footprint, so the space under a sofa's legs (25 cm on the mid-century one)
+  was solid; measured by sampling each box against its mesh, the stools' boxes were 85-92% air, the papasan's 84%, the desk chair's 75%,
+  the futon's 72%, the mid-century sofa's 56%. `build_seating.py` (RetroXR-models `generic/seating`) now gives each piece its legs,
+  feet, rails, posts, slats, cushions and backs: legs, star arms and the papasan's bowl are TURNED boxes (a row's `basis`, three
+  columns, Godot frame), a leaning back a box turned to its lean, round parts cylinders (`shape: "cylinder"`, about local Y, `size`
+  [2r, h, 2r]), the papasan's bowl a disc and rings of tilted boxes (it is a DISH: things dropped in it land on the cushion, not on
+  a lid at the rim), the rocker's shell 16 strips of its profile. Every mesh is 97-100% covered. `ContractSeat._shape_from_row` builds
+  them; `fit_trigger` reads each row's AABB (`row_bounds`). Copy the contracts in from the item's `exports/` after a rebuild (the
+  GLBs do not change). `seat_tests under/` (a ray at the floor under each legged piece reaches its middle; red on the old contracts,
+  7 of 7). The shelving, desks and TV stands (`DrawerFurniture`) were already per part (0-8% air) and the beds per panel.
 - **PLACES: a seat can have several.** Each place is an eye marker (`EyePoint`, `EyePoint2`, ...; the contract's `z_axis` is its +Z, so -Z looks out of the front) and a
   `SeatTrigger` that NAMES it (`SeatTrigger.eye_point` / `stand_point`). A press on a trigger sits at THAT place (`Seat.toggle_at` -> `sit_place`); seated, any press on the seat
   stands you up, wherever on it (the laser slabs grow while seated and overlap, so a press meant for the next cushion must not move you along it: get up, press again).

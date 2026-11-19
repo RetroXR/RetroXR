@@ -101,7 +101,7 @@
     ]
    }
   ],
-  "note": "boxes {centre, size} in metres; the cushion slab is seat_trigger, not one of these"
+  "note": "boxes {centre, size} in metres, following the parts; `basis` (three columns) turns a box, `shape` \"cylinder\" is a cylinder about its local Y, size [2r, height, 2r]; the cushion slab is seat_trigger, not one of these"
  },
  "estimated": "every size is estimated from ordinary furniture of the kind: see MEASUREMENTS.md",
  "triangles": {
