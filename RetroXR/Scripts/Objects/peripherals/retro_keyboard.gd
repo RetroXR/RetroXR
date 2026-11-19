@@ -153,6 +153,10 @@ var _hint: HeldHint = null
 # and the controller behind it when that pointer is a VR laser.
 var _pointer_key := -1
 var _pointer_ctrl: XRController3D = null
+# Key index the desktop pointer / VR laser is over (outlined), or -1, and that pointer.
+var _hover_key := -1
+var _hover_pointer: Node3D = null
+var _key_outline: WidgetOutline = null
 # Whether the caps currently show their shifted glyphs, and whether a real
 # keyboard's Shift is down (so passthrough typing relabels the caps too).
 var _labels_shifted := false
@@ -189,6 +193,8 @@ func _ready() -> void:
 	_hint.add_row(&"capture", HeldHint.PLATFORM_DESKTOP,
 		["keyboard_scroll_lock_outline"], "or F3 — send keys here")
 	call_deferred("_find_controllers")
+	# Runs only while a key is outlined (_set_hover_key).
+	set_process(false)
 
 
 func _find_controllers() -> void:
@@ -313,6 +319,7 @@ func _build_keys() -> void:
 				# The modelled cap, its top at KEY_TOP_Y: its legends are printed on it, both of a key's
 				# characters as a real board's are, so it has no floating label to swap on SHIFT.
 				mesh.mesh = model.mesh
+				_sort_legends_under_outline(mesh)
 				mesh.position = Vector3(x + w / 2.0, KEY_TOP_Y, cz)
 				_key_root.add_child(mesh)
 				modelled += 1
@@ -612,6 +619,67 @@ func pointer_release() -> void:
 		_pointer_key = -1
 		Haptics.click(_pointer_ctrl, false, HAPTIC_KEY)
 	_pointer_ctrl = null
+	_sync_key_outline()
+
+
+## Blended legend material -> its copy drawn ahead of the hover outline, shared by every board.
+static var _legend_mats: Dictionary = {}
+
+
+## A cap's legend is a blended surface. The outline's depth primer (foveation on) sorts at
+## MASK_RENDER_PRIORITY - 2 and would hide a legend drawn after it, so the legends go first.
+func _sort_legends_under_outline(cap: MeshInstance3D) -> void:
+	for s in cap.mesh.get_surface_count():
+		var m := cap.mesh.surface_get_material(s) as BaseMaterial3D
+		if m == null or m.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED:
+			continue
+		if not _legend_mats.has(m):
+			var early := m.duplicate() as BaseMaterial3D
+			early.render_priority = PickableHighlight.MASK_RENDER_PRIORITY - 3
+			_legend_mats[m] = early
+		cap.set_surface_override_material(s, _legend_mats[m])
+
+
+## The pointer is over the key field at this world point: outline the cap under it.
+func pointer_hover_at(at: Vector3, by: Node3D = null) -> void:
+	var local := _key_root.to_local(at)
+	_hover_pointer = by
+	_set_hover_key(_key_at(Vector2(local.x, local.z)))
+
+
+## The pointer left the key field. Another pointer's exit leaves this one's outline.
+func pointer_hover_end(by: Node3D = null) -> void:
+	if by == _hover_pointer:
+		_hover_pointer = null
+		_set_hover_key(-1)
+
+
+func _set_hover_key(index: int) -> void:
+	if index == _hover_key:
+		_sync_key_outline()
+		return
+	_hover_key = index
+	if index >= 0:
+		if _key_outline == null:
+			_key_outline = WidgetOutline.attach(self)
+		_key_outline.set_source(_keys[index]["mesh"] as MeshInstance3D)
+	set_process(index >= 0)
+	# Now, not next _process: the old cap's ring must not linger a frame.
+	_sync_key_outline()
+
+
+## Green while hovered, amber while the pointer holds it down (VRButton's colors).
+func _sync_key_outline() -> void:
+	if _key_outline == null:
+		return
+	_key_outline.set_color(WidgetOutline.ACTIVE_COLOR if _hover_key >= 0 and _hover_key == _pointer_key
+		else WidgetOutline.HOVER_COLOR)
+	_key_outline.sync(_hover_key >= 0)
+
+
+func _process(_delta: float) -> void:
+	# Every frame while shown: the board moves in a hand and the cap sinks when pressed.
+	_sync_key_outline()
 
 
 func _key_at(p: Vector2) -> int:

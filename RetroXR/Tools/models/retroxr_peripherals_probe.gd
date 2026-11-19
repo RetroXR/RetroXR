@@ -166,6 +166,34 @@ func _run() -> void:
 	var rest_y := a_mesh.position.y
 	var at := keys_root.to_global(a_mesh.position)
 	_ok(kb.call("has_key_at", at), "keyboard: the pointer finds the A cap where it is drawn")
+	# Hovered through the key field, as the desktop pointer reports it: the A cap is outlined.
+	var field := keys_root.get_node("KeyPointerField") as Node3D
+	var ptr := Node3D.new()
+	_world.add_child(ptr)
+	XRToolsPointerEvent.entered(ptr, field, at)
+	await _settle(2)
+	var ring := kb.get_node_or_null("WidgetOutline") as WidgetOutline
+	_ok(ring != null and ring.visible and ring.mesh != null, "keyboard: the hovered A cap is outlined")
+	_ok(ring != null and ring.global_position.distance_to(a_mesh.global_position) < 0.001,
+		"keyboard: the outline sits on the A cap")
+	# The legend is blended: drawn after the outline's depth primer (foveation on) it vanishes.
+	var legend := a_mesh.get_surface_override_material(1) as BaseMaterial3D
+	_ok(legend != null and legend.render_priority < PickableHighlight.MASK_RENDER_PRIORITY - 2,
+		"keyboard: the A legend draws ahead of the outline's primer")
+	await _still("keyboard_hover", Vector3(0.18, 0.13, 0.25), Vector3(0.20, 0.01, 0.07))
+	var s_mesh: MeshInstance3D = null
+	for k: Dictionary in keys:
+		if int(k["keycode"]) == "s".unicode_at(0):
+			s_mesh = k["mesh"] as MeshInstance3D
+	XRToolsPointerEvent.moved(ptr, field, keys_root.to_global(s_mesh.position), at)
+	await _settle(2)
+	_ok(ring.visible and ring.global_position.distance_to(s_mesh.global_position) < 0.001,
+		"keyboard: the outline follows the pointer to the S cap")
+	XRToolsPointerEvent.exited(ptr, field, at)
+	await _settle(2)
+	_ok(not ring.visible, "keyboard: the outline goes when the pointer leaves")
+	await _still("keyboard_hover_off", Vector3(0.18, 0.13, 0.25), Vector3(0.20, 0.01, 0.07))
+	ptr.queue_free()
 	kb.call("pointer_press_at", at)
 	await _settle(2)
 	_ok(a_mesh.position.y < rest_y - 0.001, "keyboard: pressed, the A cap sinks", "%.1f mm" % ((rest_y - a_mesh.position.y) * 1000))

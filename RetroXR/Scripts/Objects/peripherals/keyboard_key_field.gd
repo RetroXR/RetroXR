@@ -59,14 +59,23 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 	if not is_instance_valid(_board):
 		return
 	match event.event_type:
+		XRToolsPointerEvent.Type.ENTERED:
+			_board.call("pointer_hover_at", event.position, event.pointer)
 		XRToolsPointerEvent.Type.PRESSED:
 			_pressed = true
+			_board.call("pointer_hover_at", event.position, event.pointer)
 			_board.call("pointer_press_at", event.position, event.pointer)
 		XRToolsPointerEvent.Type.MOVED:
+			_board.call("pointer_hover_at", event.position, event.pointer)
 			# Dragging across the board retargets, like sliding a finger.
 			if _pressed:
 				_board.call("pointer_press_at", event.position, event.pointer)
-		XRToolsPointerEvent.Type.RELEASED, XRToolsPointerEvent.Type.EXITED:
+		XRToolsPointerEvent.Type.RELEASED:
+			if _pressed:
+				_pressed = false
+				_board.call("pointer_release")
+		XRToolsPointerEvent.Type.EXITED:
+			_board.call("pointer_hover_end", event.pointer)
 			if _pressed:
 				_pressed = false
 				_board.call("pointer_release")
