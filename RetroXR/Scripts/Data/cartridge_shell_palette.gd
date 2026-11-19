@@ -1,4 +1,6 @@
 ## The shell presets CartridgeColor applies by name.
+## Mod packs load this script BY PATH (their .tres/.tscn name res://Scripts/Data/cartridge_shell_palette.gd):
+## moving or renaming it breaks every installed pack that uses it. Keep it here.
 class_name CartridgeShellPalette
 extends Resource
 

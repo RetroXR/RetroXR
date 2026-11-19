@@ -1,5 +1,7 @@
 ## One plastic a cartridge shell can be moulded in, or a pairing of two for a
 ## shell whose halves differ.
+## Mod packs load this script BY PATH (their .tres/.tscn name res://Scripts/Data/cartridge_shell_preset.gd):
+## moving or renaming it breaks every installed pack that uses it. Keep it here.
 class_name CartridgeShellPreset
 extends Resource
 

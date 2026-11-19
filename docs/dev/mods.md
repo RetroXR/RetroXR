@@ -13,6 +13,13 @@ guide; this section is what a maintainer needs.
 before `AppPrefs`), `mod_manifest.gd`, `mod_pack_reader.gd`, `mod_api.gd`,
 `retro_mod.gd`, `mod_hooks.gd`, `mod_shaders.gd`.
 
+**A shipped script a pack names BY PATH is mod API: never move or rename it.** A pack's
+`.tres`/`.tscn` carry `res://` paths, so a moved script breaks every installed pack that uses
+it, and the suites cannot see it (they boot with no mods; a probe does). On 2026-11-20 the
+installed packs named `Scripts/Data/cartridge_shell_palette.gd`, `cartridge_shell_preset.gd`
+and `scene_persistence.gd` (each says so in its header). Before moving anything under
+`res://Scripts/`, scan the packs in `RetroXR/mods/` and `<data root>/mods/` for the old path.
+
 **The load order is the design.** A pack is opened, listed, its `mod.json` and
 thumbnail read, and its inventory checked — all WITHOUT mounting — before anything
 is loaded. That matters because `ProjectSettings.load_resource_pack` cannot be
@@ -213,7 +220,7 @@ peer's word: 256 entries, every field coerced) and emits `mods_refused`.
   make by accident. **Join again** repeats the last join, by code or by IP.
 - `NetworkManager.mods_override` stands in for the Mods autoload so `netplay_tests`,
   whose NetworkManagers share one process and one set of mods, can disagree.
-- `RetroXR/Tools/net/mods_refused_probe` (windowed) is the picture: a staged host
+- `RetroXR/DevTools/net/mods_refused_probe` (windowed) is the picture: a staged host
   list against the machine's REAL installed mods.
 - Owed: a real two-machine refusal, a real Get through mod.io, a headset.
 
@@ -683,7 +690,7 @@ holds a mounted zip open), `scene_tests` `carry/` and `restart/`,
 `spawn_menu_tests` `tvs/`. A restart is never driven from a suite: a mutation that
 broke its refusal would relaunch the suite for ever.
 
-**`Tools/mods/mods_apply_probe`** is the end-to-end check, in the real app,
+**`DevTools/mods/mods_apply_probe`** is the end-to-end check, in the real app,
 WINDOWED, against a scratch `APPDATA` and `USERPROFILE` (it refuses to run without
 `probe_home.txt` in both): it boots BootScene, furnishes the room, presses Apply
 now on a mod that claims nothing (`-- --mod=`, default `xenu.panasonic`), checks
@@ -724,7 +731,7 @@ RetroXR-models repo, whose source ships no `thumbnail.png` yet.
 
 - **A real download, measured 2026-10-06** with the first mod published (the
   PlayStation 2, mod 6431594, a 4.7 MB zip from RetroXR-models' `build_mod.py
-  --zip`). `Tools/mods/modio_live_probe` is the check: the real client and
+  --zip`). `DevTools/mods/modio_live_probe` is the check: the real client and
   downloader against mod.io, into a scratch loader, touching nothing of the
   player's. What it and curl showed:
   - `binary_url` is `…/mods/<id>/files/<fid>/download` and answers **302** to
@@ -802,7 +809,7 @@ set by hand rather than by mounting.
 
 ```bash
 python Tools/mods/new_mod.py xenu.snes --name "Super Nintendo"
-"$godot" --headless --path RetroXR --script res://Tools/mods/pack_mod.gd -- --id=xenu.snes
+"$godot" --headless --path RetroXR --script res://DevTools/mods/pack_mod.gd -- --id=xenu.snes
 "$godot" --headless --path RetroXR res://Tests/mod_tests.tscn -- --only=removal
 ```
 

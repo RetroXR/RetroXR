@@ -1,5 +1,7 @@
 ## ScenePersistence — saves and restores dynamically-spawned objects for one room.
 ## Objects must be in the "spawned" group to be tracked.
+## Mod packs load this script BY PATH (their .tres/.tscn name res://Scripts/Data/scene_persistence.gd):
+## moving or renaming it breaks every installed pack that uses it. Keep it here.
 ##
 ## Save directory: user://scenes/{room}/
 ## Manifest:       user://scenes/{room}/manifest.json
@@ -444,7 +446,7 @@ const LEAD_SCENES := {
 	"nema_1_15_to_c7_cord": NEMA_1_15_C7_CORD_SCENE,
 	"nema_1_15_polarized_to_c7_polarized_cord": NEMA_1_15_C7P_CORD_SCENE,
 	# The other mains regions' leads (MainsRegions.CORDS), baked by
-	# Tools/gen/gen_mains_cords.gd from the two above.
+	# DevTools/gen/gen_mains_cords.gd from the two above.
 	"cee_7_7_cord": preload("res://Scenes/Objects/cables/cee_7_7_cord.tscn"),
 	"europlug_c7_cord": preload("res://Scenes/Objects/cables/europlug_c7_cord.tscn"),
 	"bs_1363_cord": preload("res://Scenes/Objects/cables/bs_1363_cord.tscn"),
@@ -1745,7 +1747,7 @@ func _acquire_entry_assets(entry: Variant) -> void:
 ## object spawns. The loop below acquires them one entry at a time, and a request
 ## made only when an entry is reached left the loader threads idle while the main
 ## thread waited: 9.1 s of a 15.8 s restore of a 151-object room (desktop,
-## Tools/perf/restore_perf_probe) was that wait, one GLB after another. Requested
+## DevTools/perf/restore_perf_probe) was that wait, one GLB after another. Requested
 ## together they load side by side and in restore order, so the first entries'
 ## models are the first to finish. Returns how many paths it asked for.
 func prefetch_assets(objects: Array) -> int:
