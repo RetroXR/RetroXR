@@ -1,503 +1,143 @@
 # RetroXR
 
-**[retroxr.app](https://retroxr.app)** — how to install it, how to play it, and the devlog.
+**[retroxr.app](https://retroxr.app)** — install, how to play, and the devlog.
+**[Discord](https://discord.gg/pgUkRhafca)** · **[SideQuest](https://sidequestvr.com/app/61366/retroxr)**
 
-A VR retro-gaming room in Godot 4: real emulated hardware you pick up, plug in and
-play with, driven by libretro cores.
+A VR retro-gaming room in Godot 4: the hardware is physical. Spawn a console, a TV and a
+cartridge, plug in the AV cable, the controller and the game, and play. No emulator windows.
 
-The goal is for this to be an open project aimed at recreating what it was like to own a
-console at the time, forgoing all the emulation windows and setup hassle.
-You just spawn the consoles, TVs, and cartridges, and pop everything together naturally.
-This means plugging in the AV cables, plugging in the disc or cartridge, and plugging in
-the controller as well.
+- **Consoles, handhelds and arcade cabinets** run on libretro cores; arcade cabinets morph to the game in them
+- **Link cables, multitaps, light guns, printers and expansions** work as the real ones do
+- **DVDs, VHS, CDs, cassettes, records, books and magazines** from your own files
+- **Furniture, doors and drawers**, optional power simulation, and spatial (HRTF) audio
+- **RomM** library and BIOS sync, **mod.io** mods, and rollback **netplay** (experimental)
 
-Right now, all models of consoles just have primitive stand-ins. These are just gray or
-red boxes.
-**If you are a modeller and can help out, please do! Just note that all models must be**
-**free of any trademarked text or images.**
+Most consoles are still primitive stand-ins. **Modellers are welcome**: models must be
+free of trademarked text and images.
 
-This project also aims to be the same for DVDs, VHS, CDs, cassettes, and books/magazines.
-Just copy over your book, DVD image, video file, or audio file to the directory via the
-web interface and you're good to go!
+## Your files
 
-This project also supports RomM connections. Generate an API key from your RomM server,
-and even scan the QR code to link it from your Quest with the external camera!
+The data folder is `%USERPROFILE%\retroxr` (Windows), `~/retroxr` (Linux/macOS) or
+`/sdcard/Android/data/com.xenu.retroxr/files` (Quest); move it in Options > Storage. On a
+Quest, upload through the app's Web File Manager.
 
-This has the Meta XR Audio SDK integrated as well, so for any sound you hear you can
-always tell where it's coming from thanks to the HRTF processing.
+| Folder | Holds |
+|---|---|
+| `roms/<system>/` | games (ES-DE folder names: `snes`, `psx`, …) |
+| `dvd/` | a `VIDEO_TS/` folder, `.iso` or `.img` |
+| `videos/` | `.mp4` `.mkv` `.avi` `.webm` `.mov`; an `.m3u` is one tape of several |
+| `music/` | an album is a folder of tracks; a `#SIDE B` line in its `.m3u` splits a tape or LP |
+| `books/` | `.pdf` and `.cbz` |
+| `tv/` | `.m3u` IPTV playlists |
 
-There is netplay as well with a roll-back netcode, but it is very untested!
+Everything spawns from the **Tab** menu. Cores, defaults, core options and BIOS files are
+under **CORES**.
 
-## Libretro Cores
+## Forked cores
 
-### Downloader
-
-Each platform can have multiple cores. Select the one you want. For some there's a highly
-recommended core — for example, the Azahar core supports stereoscopic imaging in VR.
-
-<img src="docs/images/cores_scrolled.png" width="640" alt="The core Downloader: the CORES tab's Download view, a scrollable grid of systems with the number of available cores for each." />
-
-### Manager
-
-Select the default core for each platform in here. Also set or reset core options.
-
-<img src="docs/images/cores_manager.png" width="640" alt="The core Manager: pick a system to set the default core it launches with, shown as a grid of systems each labeled with its currently selected core." />
-
-### BIOS / Extra
-
-Manage and see if any BIOS are required or optional. If RomM is set up, it can download
-them from there.
-
-<img src="docs/images/cores_bios.png" width="640" alt="The BIOS / Extras overview: a grid of systems, each showing its BIOS status (e.g. complete, a number of optional files, or required files missing)." />
-
-<img src="docs/images/cores_bios_psx.png" width="640" alt="The BIOS / Extras view for PlayStation, listing the PS1 BIOS files (scph5500/5501/5502.bin and psxonpsp660.bin) with their required/optional status and per-file download buttons." />
-
-### Forked cores
-
-Most cores come from libretro's buildbot unmodified. These ten are forks, because
-RetroXR needs something the upstream core does not do — mostly carrying a link cable
-between two cores in one process, which has no upstream equivalent. Each links to the
-branch RetroXR builds from. (Azahar used to be an eighth, for its stereoscopic 3D core
-options; upstream merged those in 2126.1, so the buildbot's build is used now.)
-
-| Core | Branch | What the fork adds |
-| --- | --- | --- |
-| [gambatte](https://github.com/RetroXR/gambatte-libretro/tree/retroxr) | `retroxr` | Game Boy link cable over the frontend's link bus, and three savestate fixes — a lossy `ppu.endx` restore, an uninitialised `rambankMode`, and frame duplication that slipped a reloaded state one frame against the run it came from. |
-| [mGBA](https://github.com/RetroXR/mgba/tree/retroxr) | `retroxr` | Link cable for its Game Boy driver as well as its GBA one (separate cores, separate serial ports), normal-mode multi-player, a GameCube port on the bus, and an RCNT/SIOCNT mirror that was stale at serialize time. |
-| [PCSX-ReARMed](https://github.com/RetroXR/pcsx_rearmed/tree/retroxr) | `retroxr` | An emulated SIO1 serial port and the PlayStation link cable over the link bus, plus memory cards that can be ejected and reinserted while running. |
-| [Dolphin](https://github.com/RetroXR/dolphin/tree/retroxr) | `retroxr` | GameCube-to-GBA over the link bus, Wiimote IR passthrough, gyroscope and Nunchuk accelerometer, deterministic mode for netplay, real memory cards per slot, Vulkan semaphore propagation, the Wii Remote's own speaker handed to the frontend, and the GameCube Microphone as a memory-card-slot device fed by the frontend's microphone. |
-| [Play!](https://github.com/RetroXR/Play-/tree/retroxr) | `retroxr` | Takes its data directory from the frontend instead of assuming `/sdcard` (which is not writable on a Quest), and covers the pixels the GS samples when rasterising a sprite, which left vertical seams. |
-| [Snes9x](https://github.com/RetroXR/snes9x/tree/retroxr) | `retroxr` | The Satellaview's 8M Memory Pack as a memory region of its own rather than borrowing the BS-X cartridge's PSRAM id, an empty pack slot the shell can detect instead of always believing a pack is inserted, the ACCESS lamp through the LED interface, and a subsystem load that takes its directory from the cartridge — without which the BS-X looked for its satellite stream at the root of a drive and reported no signal. |
-| [VeMUlator](https://github.com/RetroXR/vemulator-libretro/tree/retroxr) | `retroxr` | Three faults on the load/unload path, each of which took the process down: `flashWriter` left uninitialised but closed by the destructor behind a guard that therefore tested garbage — and since `retro_unload_game` calls `reset()`, which builds a fresh flash object, every session died on the way out; an extension check that took the FIRST dot in the path, which on Android sits inside the package name, so nothing matched and the CPU started with no ROM; and a path with no dot handing NULL to `strcmp`. Save states, so a standalone VMU plays over rollback netplay, and what that needed from a cold start: a `fixed` power-on clock instead of the host's wall clock, and an instruction counter that was serialized but never initialised. |
-| [Flycast](https://github.com/RetroXR/flycast/tree/retroxr) | `retroxr` | `flycast_get_vmu_screen`, which hands a VMU's 48 x 32 LCD to the frontend instead of compositing it into the finished frame — the only way stock flycast can show one, which costs the television a badge burned into the corner of every picture and the game the pixels underneath it. Plus linking libandroid, without which `ASharedMemory_create` resolved to null, the fallback to `/dev/ashmem` was refused by Android 11 and later, and the dynarec died one frame into every session on a Quest. And the Dreamcast Microphone, which the core emulated and whose three audio-recording hooks were empty, fed from the frontend's microphone and low-passed down to the device's 8000 or 11025 Hz. |
-| [mupen64plus-next](https://github.com/RetroXR/mupen64plus-libretro-nx/tree/retroxr) | `retroxr` | Booting a bare 64DD disk with no cartridge, which the core could already do but no code path could reach — plus the NULL/`SIZE_MAX` memory descriptor a cartridge-less boot handed the frontend, and a block-number mix-up in the 64DD disk format scan. Also the Voice Recognition Unit: a port device that attaches the VRU the core already emulated, recognition through Vosk opened at run time (English and the Japanese titles), and a Transfer Pak cartridge's real-time clock kept across power cycles. |
-| [FCEUmm](https://github.com/RetroXR/libretro-fceumm/tree/retroxr) | `retroxr` | The Famicom Controller II microphone, which the core did not have at all: with `fceumm_famicom_microphone` on, player 2's Start — a button that pad never had — is the microphone, toggled at `$4016` bit 2 on every read while held and nullified at `$4017`, with the bit's phase in the savestate. |
-
-## Objects
-
-### System
-
-Spawn a system for any platform you have at least one libretro core for. In here you can
-spawn controllers, peripherals, and the console itself by selecting them.
-
-<img src="docs/images/obj_console_cart.png" width="480" alt="A console stand-in: a grey box with a RESET button, a green START button, four numbered controller ports, and a cartridge seated in the top slot." />
-
-### Cartridge
-
-Spawn a Cartridge which is linked to a supported file for the platform.
-
-### DVD player
-
-Like the VCR, the DVD player renders onto a connected TV through the in-tree `vlc-godot`
-GDExtension — the same [libVLC](https://www.videolan.org/vlc/libvlc.html)-backed `VlcPlayer`
-is the single video backend for both. VLC's bundled `libdvdnav`/`libdvdread` plugins give it
-real disc menus and chapter navigation.
-
-The packaged libVLC backend currently ships on Windows, Linux and Android, not macOS.
-
-1. Drop DVD images into the `dvd/` folder (next to `roms/`, `books/` and `videos/`):
-   - Windows: `%USERPROFILE%\retroxr\dvd`
-   - Linux / macOS: `~/retroxr/dvd`
-   - Quest/Android: `/sdcard/Android/data/com.xenu.retroxr/files/dvd`
-   - Supported: a folder containing a `VIDEO_TS/` directory, or a standalone `.iso` / `.img` file.
-2. Open the spawn menu (`Tab`), go to the **DVDs** tab, and click a title to spawn a
-   **DVD disc** carrying that image's path (like a VHS tape carries a video path).
-3. From the **Objects** tab, spawn a **DVD Player** and a **TV**.
-4. Plug the DVD player's cable into the TV (same cable/plug the emulator systems and VCR use).
-5. Insert the disc into the player's slot, then press **Play** — inserting alone never
-   auto-starts playback.
-
-On-unit buttons: **PLAY**, **PAUSE**, **STOP**, **EJECT**, **|&lt;&lt;** / **&gt;&gt;|**
-(previous / next chapter), **&lt;&lt;** / **&gt;&gt;** (rewind / fast-forward scan), **MENU**
-(return to the disc's root menu), a **UP** / **DOWN** / **LEFT** / **RIGHT** / **SEL** cluster
-for navigating disc menus, and **LANG** / **SUB** to cycle audio and subtitle tracks. Point at
-the player and press the menu button to open a floating panel that picks audio/subtitle tracks
-by name.
-
-As with the VCR, the video renders onto the connected TV's screen, and the TV's volume/power
-buttons drive the DVD player's audio and screen just like a system.
-
-<img src="docs/images/obj_dvd.png" width="480" alt="The DVD player stand-in: a black deck with a disc slot and on-unit buttons — PLAY, PAUSE, STOP, LANG, SUB, MENU, rewind/fast-forward, previous/next chapter, EJECT, and a LEFT/RIGHT/UP/DOWN/SEL cluster for disc menus." />
-
-### Books / Magazines
-
-Books and magazines are physical objects you pick up and read by turning the pages with your
-hands. Pages are rendered from the file by the in-tree `godot-pdfium` GDExtension — a
-[PDFium](https://pdfium.googlesource.com/pdfium/)-backed `PDFRenderer` that rasterises each
-page to a texture (asynchronously, and cached to disk so re-opening a book is instant).
-
-1. Drop books into the `books/` folder (next to `roms/`, `dvd/` and `videos/`):
-   - Windows: `%USERPROFILE%\retroxr\books`
-   - Linux / macOS: `~/retroxr/books`
-   - Quest/Android: `/sdcard/Android/data/com.xenu.retroxr/files/books`
-   - Supported: `.pdf` and `.cbz` (a ZIP of `.jpg`/`.png`/`.webp` page images). CBR and loose
-     image files are not listed.
-2. Open the spawn menu (`Tab`), go to the **Books** tab, and click a title to spawn it — the
-   book drops straight into the hand that clicked. (Scraped game manuals also spawn from the
-   📖 button on a ROM's row in the **Cartridges** tab.)
-3. Turn the pages:
-   - **VR**: hover a controller over a page's outer edge, hold the **trigger**, and drag the
-     page across — release past halfway to complete the turn, or short of it to let it spring
-     back. Or, holding the book one-handed, poke the far edge with your other hand and squeeze
-     **grip** to flip.
-   - **Desktop**: with the book held, `E` = next page, `Q` = previous page.
-4. Point at the book and press the menu button to open **Book Settings**: a size slider
-   (0.5×–2.5×) and a "half pages" toggle that splits scanned two-page spreads down the middle.
-
-Set a book down on any shelf or desk to leave it out, and pick it back up with grip (VR) or
-the pointer ray.
-
-<img src="docs/images/book_flip.gif" width="480" alt="Animated demo of turning a page: a hand grabs the outer edge of the page and drags it across, and the page folds over to reveal the next spread." />
-
-### Video player (VCR)
-
-Besides emulator systems, the arcade room can play video files on the same TVs, driven by
-the in-tree `vlc-godot` GDExtension — a [libVLC](https://www.videolan.org/vlc/libvlc.html)
-backed `VlcPlayer`. It is the single video backend for both the VCR and the DVD player,
-and it handles x265/HEVC.
-
-The packaged libVLC backend currently ships on Windows, Linux and Android, not macOS.
-
-1. Drop video files into the `videos/` folder (next to `roms/` and `books/`):
-   - Windows: `%USERPROFILE%\retroxr\videos`
-   - Linux / macOS: `~/retroxr/videos`
-   - Quest/Android: `/sdcard/Android/data/com.xenu.retroxr/files/videos`
-   - Supported: `.mp4`, `.mkv`, `.avi`, `.webm`, `.mov`
-   - A playlist (`.m3u` / `.m3u8`) listing videos is one tape of several recordings,
-     played in its order; FF and rewind wind across from one to the next. A playlist in a
-     music album's folder sets its track order the same way, and one loose in `music/` is
-     an album of its own.
-2. Open the spawn menu (`Tab`), go to the **Videos** tab, and click a video to spawn a
-   **VHS tape** carrying that file's path (like a cartridge carries a ROM path).
-3. From the **Objects** tab, spawn a **VCR** and a **TV**.
-4. Plug the VCR's cable into the TV (same cable/plug the emulator systems use).
-5. Insert the tape into the VCR's slot, then use the on-unit buttons:
-   **Play**, **Pause**, **Stop** (eject/blank), **&lt;&lt;** (rewind), **&gt;&gt;** (fast-forward).
-
-The video renders onto the connected TV's screen, and the TV's volume/power buttons
-control the VCR's audio and screen just like a system.
-
-<img src="docs/images/obj_vcr.png" width="480" alt="The VCR stand-in: a black deck with a tape slot, a glowing counter/clock display, and PLAY, PAUSE, STOP, rewind, fast-forward and EJECT buttons." />
-
-### Music: CDs, cassettes and records
-
-1. Put albums in the `music/` folder (next to `roms/` and `videos/`): `~/retroxr/music` on desktop,
-   `/sdcard/Android/data/com.xenu.retroxr/files/music` on a Quest. An album is a **folder** of tracks
-   (`.mp3`, `.flac`, `.ogg`, `.wav`, `.m4a`, `.aac`, `.opus`, `.wma`), a single loose track, or a loose
-   playlist (`.m3u` / `.m3u8`). A playlist inside the folder sets the track order; otherwise the files
-   play in name order.
-2. The **CDs**, **Tapes** and **Records** tabs of the spawn menu each list every album, as a CD, a
-   cassette or an LP.
-3. Pictures: `cover.jpg` (or `folder` / `front` / `album`) in the folder is side A's label, `back.jpg`
-   side B's; beside a loose album, `Name.png` and `Name B.png`. A side with no picture wears RetroXR's own
-   label: the album's name, the side (A or B) and, on a cassette, its tape length (C46 to C120).
-
-**Side A and side B.** A cassette and an LP play one side at a time: the side facing **out** of the
-cassette deck, or **up** on the turntable. Turn it over to play the other. Write where side B begins in
-the album's playlist, with a `#SIDE B` line before its first track:
-
-```m3u
-#EXTM3U
-01 Opening.flac
-02 Second Song.flac
-#SIDE B
-03 Flip Side.flac
-04 Closer.flac
-```
-
-With no `#SIDE B` line, every track is on side A and side B is blank. A CD always plays the whole album.
-A cassette is the shortest standard length that holds the longer side (C46, C60, C90 or C120); a
-shorter side runs on as blank tape to the end of the side, and the tape stops there. As on a real
-tape, there is one tape for both sides: a new cassette starts at side A's beginning, which is the end
-of side B, so turned over it has to be rewound first; stop side A halfway and turn it over, and side B
-starts halfway too. On an LP each track takes its share of the record by length, and past a shorter
-side's last track is its silent run-out groove. In a netplay session a peer that downloads the album
-gets the same sides.
-
-### TV remote
-
-Spawn a **TV Remote** from the spawn menu's **Objects** tab. While held, point it at a
-TV, VCR, DVD player, or CD/cassette deck — the target is outlined maroon and a small menu
-pops up above the remote:
-
-- **TV**: `POWER` / `VOL −` / `MUTE` / `VOL +`
-- **VCR**: `EJECT` / `PLAY` / `PAUSE` / `STOP` / `FF` / `REW`
-- **DVD player**: `EJECT` / `PLAY` / `PAUSE` / `STOP` / `FF` / `REW`, chapter skip
-  (`|<<` / `>>|`), `MENU` and a `UP` / `DOWN` / `LEFT` / `RIGHT` / `OK` cluster for the
-  disc's own menus, and `AUDIO` / `SUB` track cycling. Menu-navigation cells light up only
-  while a disc menu is showing; `AUDIO` / `SUB` only during playback.
-- **CD / cassette deck**: `PLAY` / `PAUSE` / `STOP` / `FF` / `REW`, plus track skip
-  (`|<<` / `>>|`) on the CD player (a cassette can't skip tracks, so those cells stay greyed).
-
-On the remote itself `PLAY`/`PAUSE` is a single cell whose icon toggles with playback state,
-and the buttons show as icons rather than text — the word labels above are how each action
-reads on the TV's on-screen display.
-
-**VR**: flick the thumbstick up/down to move the selection, press the primary button
-(`A`/`X`) or click the thumbstick to activate.
-
-**Desktop**: the remote snaps to the lower-right corner aiming where you look (like the
-light gun). `Arrow Up`/`Arrow Down` move the selection, `Enter` activates, and — because
-it is FPS-snapped — dropping it requires **`Shift` + Left-click** (plain click won't drop it).
-
-<img src="docs/images/obj_remote.png" width="310" alt="The TV remote, held in a hand, with its floating command menu popped up above it: eject, a D-pad with a centre OK, transport buttons, a menu button, and audio/subtitle cells." />
-
-### Focus mode (VR)
-
-Point your right hand at a TV or a handheld and click the right stick: its picture moves to a
-floating screen in front of you and the room stops being drawn, so the headset's time goes to
-the game. Whatever you are holding stays in your hands, and the pads and link leads plugged
-into that machine stay where they are. Grip with the laser on the screen to carry it (stick
-up/down for distance, left/right for size), or trigger-drag its corner handle. Click the right
-stick on the screen to bring the room back. **Passthrough in Focus Mode** in OPTIONS shows your
-real surroundings around the screen instead of black.
+Most cores are the libretro buildbot's. These are RetroXR's forks, mostly to carry link
+cables and devices between cores: [Dolphin](https://github.com/RetroXR/dolphin),
+[FBNeo](https://github.com/RetroXR/FBNeo), [FCEUmm](https://github.com/RetroXR/libretro-fceumm),
+[Flycast](https://github.com/RetroXR/flycast), [Gambatte](https://github.com/RetroXR/gambatte-libretro),
+[Genesis Plus GX](https://github.com/RetroXR/Genesis-Plus-GX), [mGBA](https://github.com/RetroXR/mgba),
+[Mupen64Plus-Next](https://github.com/RetroXR/mupen64plus-libretro-nx), [PCSX-ReARMed](https://github.com/RetroXR/pcsx_rearmed),
+[PS2](https://github.com/RetroXR/ps2), [Play!](https://github.com/RetroXR/Play-),
+[Snes9x](https://github.com/RetroXR/snes9x), [VeMUlator](https://github.com/RetroXR/vemulator-libretro),
+[Virtual Jaguar](https://github.com/RetroXR/virtualjaguar-libretro), [xemu](https://github.com/RetroXR/xemu),
+Beetle [Lynx](https://github.com/RetroXR/beetle-lynx-libretro) / [NeoPop](https://github.com/RetroXR/beetle-ngp-libretro) /
+[Saturn](https://github.com/RetroXR/beetle-saturn-libretro) / [VB](https://github.com/RetroXR/beetle-vb-libretro) /
+[WonderSwan](https://github.com/RetroXR/beetle-wswan-libretro), and two new cores,
+[Game Boy Printer](https://github.com/RetroXR/gbprinter-libretro) and the
+[DMG-07 4 Player Adapter](https://github.com/RetroXR/dmg07-libretro). Each builds from its `retroxr` branch.
 
 ## Development
 
+Developer notes live in [`CLAUDE.md`](CLAUDE.md) and [`docs/dev/`](docs/dev/).
+
 ### Building
 
-Almost everything interesting here is C++. Six GDExtensions have to be compiled
-before the Godot project will run — a fresh clone has the sources but not the
-libraries. Miss one and Godot says so on startup, then every scene using its types
-fails to parse:
-
-```
-ERROR: GDExtension dynamic library not found: 'res://verlet-rope/verlet_rope.gdextension'.
-SCRIPT ERROR: Parse Error: Could not find type "VerletRope" in the current scope.
-```
-
-| Extension | Provides | Built from | Deploys to |
-|---|---|---|---|
-| `libretro-godot` | `Libretro` — runs the emulator cores (submodule) | repo root | `RetroXR/libretro-godot/` |
-| `archive-godot` | `RommArchiveExtractor` — streams ZIP members to disk | `archive-godot/` | `RetroXR/archive-godot/` |
-| `verlet-rope` | `VerletRope` — the simulated cables | `verlet-rope/` | `RetroXR/verlet-rope/` |
-| `vlc-godot` | `VlcPlayer` — video for the VCR and DVD player | `vlc-godot/` | `RetroXR/vlc-godot/` |
-| `godot-pdfium` | `PDFRenderer` — renders manual pages | `godot-pdfium/` | `RetroXR/godot-pdfium/` |
-| `metaxr-audio` | HRTF spatial audio on Quest | `metaxr-audio/` | `RetroXR/metaxr-audio/` |
-
-**Each needs its own `scons` invocation.** They share the `godot-cpp` submodule, and
-godot-cpp's `SConstruct` can only run once per process, so a single scons run can never
-cover two of them. Each also has its own `VariantDir('Temp')`, which is why each builds
-from its own directory — except `libretro-godot`, whose SConstruct is the repo root's.
-
-#### Prerequisites
-
 ```bash
-git submodule update --init --recursive     # godot-cpp, libretro-common, vulkan-headers
-pip install --user scons                    # ensure the Scripts/bin dir is on PATH
+git submodule update --init --recursive
+pip install --user scons
+python Tools/build.py windows               # or linux, macos, android; --target release, --only <name>
 ```
 
-Plus a compiler: **MSVC** on Windows, **GCC/Clang** on Linux, **Xcode command-line
-tools** on macOS, or the **Android NDK** for Quest (set `ANDROID_NDK_ROOT`;
-`ANDROID_HOME` must be *empty*, not unset, or godot-cpp looks for a full SDK).
+That builds the nine GDExtensions (`libretro-godot`, `archive-godot`, `verlet-rope`, `vlc-godot`,
+`godot-pdfium`, `metaxr-audio`, `surround-godot`, `paper-godot`, `grab-godot`) and prints a
+pass/fail table. A fresh clone will not run without them. Needs MSVC, GCC/Clang, the Xcode
+command-line tools, or for Android the NDK (`ANDROID_NDK_ROOT` set, `ANDROID_HOME` empty). Linux
+links the system libVLC (`vlc-devel` to build, `vlc-libs` to run); macOS skips `vlc-godot` and
+`metaxr-audio`.
 
-Every third-party binary these link against is already committed — including PDFium for
-Windows, Linux, Android and both macOS architectures. **libVLC on Linux** links the system
-library (Fedora: `vlc-devel` to build, `vlc-libs` to run). macOS currently builds
-libretro-godot, archive-godot, verlet-rope and godot-pdfium; vlc-godot has no packaged Mac runtime and
-Meta publishes its audio blob only for Windows and Android, so those two are skipped.
+### The patched engine
 
-#### One command
+Every release runs RetroXR's patched Godot 4.7.2
+([github.com/RetroXR/godot](https://github.com/RetroXR/godot), branch `retroxr-4.7.2`) at the
+commit pinned in `Tools/engine/ENGINE_COMMIT`, on every platform: CI builds it.
 
-```bash
-python Tools/build.py windows                 # all six, debug + release
-python Tools/build.py android --target release
-python Tools/build.py linux --only vlc-godot
-python Tools/build.py macos                      # host architecture (arm64 on Apple Silicon)
-python Tools/build.py macos --arch x86_64        # Intel Mac binaries
-python Tools/build.py windows --jobs 8 -- verbose=yes    # extra args go to scons
-```
-
-It builds one shared, trimmed `godot-cpp` library per target, then runs every eligible
-extension build in sequence, prints a pass/fail table, and exits non-zero if any failed.
-Architecture follows the platform: `x86_64` for Windows and Linux, `arm64` for Android,
-and the host architecture for macOS. Mac builds target macOS 13.0 by default; build each
-architecture separately when both are needed. Libretro Vulkan hardware rendering on macOS
-uses the MoltenVK runtime embedded in official Godot builds.
-
-Asking for `linux` **from Windows** re-invokes the script inside WSL (`--distro`, default
-`Ubuntu`) with `HOME` and `PATH` reset — WSL inherits the Windows environment, whose PATH
-contains spaces and breaks a bare `export PATH="$HOME/.local/bin:$PATH"`. From Linux it
-just builds. *(scons is not currently installed in either WSL distro here; `pip install
---user scons` inside the distro first.)*
-
-#### Or one at a time
-
-```bash
-scons platform=windows arch=x86_64 target=template_debug          # libretro-godot, from the root
-cd archive-godot && scons platform=macos arch=arm64 target=template_debug macos_deployment_target=13.0
-cd verlet-rope && scons platform=linux arch=x86_64 target=template_release
-cd godot-pdfium && scons platform=android arch=arm64 target=template_debug ANDROID_HOME=
-scons platform=macos arch=arm64 target=template_debug macos_deployment_target=13.0
-```
-
-Each writes a `lib<name>.<platform>.<target>.<arch>.so`, `.dll` or `.dylib` next to the
-`.gdextension` file that points at it.
-
-#### Exporting
-
-`RetroXR/export_presets.cfg` is committed, so the `Quest`, `Windows Desktop`, `Linux`
-and `macOS` presets come with the clone and a headless export works straight away:
-
-```bash
-"$godot" --headless --path RetroXR --export-release "Quest" RetroXR.apk
-"$godot" --headless --path RetroXR --export-release "Windows Desktop" RetroXR.exe
-"$godot" --headless --path RetroXR --export-release "Linux" RetroXR.x86_64
-"$godot" --headless --path RetroXR --export-release "macOS" RetroXR.app
-```
-
-##### The Quest needs RetroXR's patched engine
-
-Stock Godot 4.7.2 hangs on a Quest's loading screen, so every Android export swaps
-RetroXR's patched engine ([RetroXR/godot](https://github.com/RetroXR/godot), branch
-`retroxr-4.7.2`) into the build template first (`Tools/place_engine.py`, run by the
-export itself). No engine binary is committed: clone
-[github.com/RetroXR/godot](https://github.com/RetroXR/godot), check out the commit pinned
-in `Tools/engine/ENGINE_COMMIT`, and build it once, then again whenever that pin moves.
-The export looks for the clone at `~/godot` and refuses an engine from any other commit.
+Locally, only the Quest needs it, because stock Godot hangs there: every Android export swaps
+it in and refuses any other commit. No binary is committed, so build it once, and again when
+the pin moves. The export looks for it in `~/godot` (or `RETROXR_GODOT_DIR`).
 
 ```bash
 git clone https://github.com/RetroXR/godot ~/godot
-cd ~/godot && git checkout "$(cat <RetroXR checkout>/Tools/engine/ENGINE_COMMIT)"
-# ANDROID_HOME is the Android SDK folder (Godot's SCons installs the NDK it needs)
+git -C ~/godot checkout "$(cat Tools/engine/ENGINE_COMMIT)"
+cd ~/godot   # ANDROID_HOME = the Android SDK folder here
 scons platform=android arch=arm64 target=template_debug   generate_apk=no
 scons platform=android arch=arm64 target=template_release generate_apk=no
 ```
 
-The first build takes a few minutes. To keep the clone somewhere other than `~/godot`, set
-`RETROXR_GODOT_DIR` to it. Recipe and patches: `docs/dev/engine-patches.md`.
-
-The `macOS` preset is universal and signs with the committed
-`RetroXR/entitlements/macos.entitlements` (ad-hoc in CI). Those entitlements permit
-downloaded unsigned cores and executable callback trampolines; dynamic-recompiler
-cores may additionally need the JIT entitlement. The `Linux` preset is hardcoded to
-`x86_64`; CI flips it to `arm64` for the arm64 build.
-
-Signing is the one thing you have to supply yourself. Since Godot 4.5 the keystore
-path, user and password live in `RetroXR/.godot/export_credentials.cfg`, which is not
-committed (`.godot/` is ignored wholesale). Set yours in the editor under *Project →
-Export → Android → Keystore*, or for CI pass them as environment variables
-(`GODOT_ANDROID_KEYSTORE_RELEASE_PATH` / `_USER` / `_PASSWORD`) so they can come from
-repo secrets rather than a file.
-
-Three fields in the preset are shared state, and are worth knowing about before you
-commit a change to it:
-
-- **`custom_features` must stay empty.** A feature tag there pairs with a
-  `run/main_scene.<tag>` override in `project.godot` and reroutes the boot scene for
-  *every* APK exported from the tree, not just yours. It is the standard way to boot a
-  probe scene locally; just don't commit it.
-- **`gradle_build/target_sdk="32"`** overrides the Android template's default of 36
-  (`RetroXR/android/build/config.gradle`). Quest needs `min_sdk` 29 and Meta requires a
-  target of 32 or higher. Verify on device before raising it.
-- **`version/code` / `version/name`** are the shipped release numbers. Bump them
-  deliberately; two people bumping in parallel conflict.
-
-The Meta feature flags are gated twice: `meta_xr_features/*` in the preset only reaches
-the manifest if the matching `xr/openxr/extensions/*` setting is on in `project.godot`.
-Hand tracking and passthrough are on; eye, face and body tracking are off in both
-places. Check the generated `RetroXR/android/build/src/debug/AndroidManifest.xml` after
-an export to see what actually landed.
-
-#### Releasing
-
-`.github/workflows/release.yml` does the whole thing on a `v*` tag: builds the six
-GDExtensions for Android, Windows, Linux and macOS, exports the signed `Quest` APK,
-the Windows desktop build, a Linux AppImage (x86_64) and tarball (arm64), and a
-macOS universal `.app` zip, publishes a GitHub Release with all of them attached, and
-points the SideQuest listing at the new APK. Every build ships the patched engine: its
-`engine` job builds each platform's release template, the Quest's included, from
-`Tools/engine/ENGINE_COMMIT`, cached by that commit.
+A desktop export or the editor runs whichever Godot you start, so it is stock unless you
+build from the same checkout:
 
 ```bash
-# bump BOTH in RetroXR/export_presets.cfg, then commit
-#   version/code=5
-#   version/name="0.2.1"
-git tag v0.2.1 && git push --tags
+scons platform=windows target=editor                       # run the project with bin/godot.windows.editor.x86_64.console.exe
+scons platform=windows target=template_release production=yes   # or linuxbsd / macos (build arm64 and x86_64, then lipo)
 ```
 
-The tag must match `version/name`, and `version/code` must be higher than the previous
-tag's — SideQuest refuses a build whose versionCode is not greater than the one already
-listed. A `preflight` job checks both in seconds so a mismatch fails before the
-half-hour build rather than after it.
+Add `d3d12=no accesskit=no` if those SDKs are missing. Then set the preset's *Custom
+Template → Release* to the built `bin/godot.<platform>.template_release.<arch>` (don't commit
+that), or copy it over the stock one in Godot's `export_templates/4.7.2.stable/` folder, as
+CI does. A patched export names the pin: `grep -a "$(head -c9 Tools/engine/ENGINE_COMMIT)"`
+finds it in the binary, where stock says `4.7.2.stable.official`.
 
-The Linux jobs are blocking; the macOS job is **experimental** (`continue-on-error`),
-so a macOS packaging failure does not sink the release. Linux builds link the system
-libVLC, so the AppImage and tarball need the distro's `vlc-libs` package installed to
-play DVD/VHS content (see the build prerequisites above).
+### Exporting and releasing
 
-Running it from the Actions tab instead (**Run workflow**) builds everything and
-uploads the APK, Windows zip, Linux AppImage/tarball and macOS zip as run artifacts,
-without creating a release or touching the listing. That is the way to test a build;
-tick `publish` / `notify` only when you mean it.
+```bash
+"$godot" --headless --path RetroXR --export-release "Quest" RetroXR.apk   # or "Windows Desktop", "Linux", "macOS"
+```
 
-Signing comes from three repo secrets — `ANDROID_KEYSTORE_BASE64` (the `.keystore`
-base64'd), `ANDROID_KEYSTORE_USER`, `ANDROID_KEYSTORE_PASSWORD` — which CI feeds to
-Godot through `GODOT_ANDROID_KEYSTORE_RELEASE_*`, so no `export_credentials.cfg` is
-ever written. It has to be the same keystore you sign with locally or the APK will not
-install over an existing one.
+Supply your own Android keystore (*Project → Export → Android*, or the
+`GODOT_ANDROID_KEYSTORE_RELEASE_*` environment variables).
 
-`.github/workflows/sidequest.yml` remains the fallback for a release published by hand
-in the web UI. A release created by CI does not fire it — GitHub does not emit
-`release: published` for a release created with `GITHUB_TOKEN` — which is why
-`release.yml` calls SideQuest's version-webhook itself.
+A `v*` tag runs `.github/workflows/release.yml`: it builds the engine and extensions for
+every platform, exports and signs every build, publishes the release and updates SideQuest.
+Bump `version/code` and `version/name` in `RetroXR/export_presets.cfg` first; the tag must
+match the name. **Run workflow** from the Actions tab builds the same without publishing.
 
-## Desktop mode controls
+## Desktop controls
 
-When no VR headset is detected, RetroXR falls back to a desktop mode with mouse/keyboard controls.
+With no headset, RetroXR runs on mouse and keyboard (or a gamepad).
 
-**Movement / camera**
-- `WASD` — move
-- Mouse — look
-- `Ctrl` (hold) — crouch
-- `Caps Lock` (hold) — walk (move slower, finer-grained control)
-
-**Interaction**
-- Left-click — grab/pick up object under cursor (or shoot, if holding the light gun)
-- `Shift` + Left-click — drop held object (required for FPS-snapped objects: light gun,
-  TV remote; plain click also drops everything else)
-- Scroll wheel — push/pull held object along view ray (disabled while FPS-snapped)
-- Middle-mouse drag — rotate held object in place
-- `Tab` — toggle spawn menu
-- `F11` — while looking at a TV or a handheld, its picture fills the window and its sound
-  moves in front of you; press again to put both back in the room
-
-**Retro joypad** (when a Libretro node has input focus)
-- D-pad: `W`/`A`/`S`/`D`
-- Face buttons: Numpad `1`=B, `2`=A, `3`=Y, `4`=X
-- Shoulders: `L`=`Q`/`R`/Numpad3, `R`=`E`/`Y`/Numpad6
-- Triggers: `L2`=`Z`, `R2`=`X`
-- Stick clicks: `L3`=`C`, `R3`=`V`
-- `Shift`=Select, `Enter`=Start
-- Left stick: `T`/`G`/`F`/`H` (up/down/left/right)
-- Right stick: `I`/`K`/`J`/`L` (up/down/left/right)
-
-**Light gun** (while held)
-- Left-click — trigger; aim off the screen and fire to reload
-- The joypad's A and B keys are Aux A and Aux B, X is Aux C and Y is Reload
-- `Enter`=Start, `Shift`=Select (both together calibrate a GunCon 2)
-- `W`/`A`/`S`/`D` — the gun's d-pad
+- **Move** `WASD`, look with the mouse, `Ctrl` crouch, `Caps Lock` walk, `[` / `]` height
+- **Hands** left-click grabs (or fires a held light gun), `Shift`+left-click drops, scroll pushes
+  and pulls, middle-drag rotates, `Tab` the spawn menu, `F11` fills the window with the TV or
+  handheld you look at
+- **Joypad** (a machine in focus) d-pad `WASD`; numpad `1` B, `2` A, `3` Y, `4` X; `Q`/`E` L/R,
+  `Z`/`X` L2/R2, `C`/`V` L3/R3, `Shift` Select, `Enter` Start; sticks `TFGH` and `IJKL`
 
 ## Licensing
 
 Copyright (C) 2026 Ryan McClelland.
 
-RetroXR is licensed under the **GNU General Public License, version 3** — see
-[LICENSE](LICENSE) — with one additional permission, in
-[LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md), allowing the program to be linked
-against Meta's proprietary XR Audio SDK and the Oculus-SDK-licensed parts of the
-godot-openxr-vendors Meta plugin. Those components remain licensed to you by Meta
-under the [Oculus SDK License Agreement](https://developers.meta.com/horizon/licenses/oculussdk/),
-not under the GPL.
+RetroXR is **GPL-3.0** ([LICENSE](LICENSE)), with an additional permission
+([LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md)) to link Meta's proprietary XR Audio SDK and the
+Oculus-SDK-licensed parts of the godot-openxr-vendors Meta plugin, which stay under the
+[Oculus SDK License Agreement](https://developers.meta.com/horizon/licenses/oculussdk/).
+`libretro-godot` is a separate MIT submodule, begun as a fork of SKurdt's SK.Libretro.Godot.
 
-The `libretro-godot` GDExtension is a separate submodule under the MIT licence.
-It began as a fork of SK.Libretro.Godot by SKurdt.
-
-Bundled third-party libraries and assets keep their own licences — MIT, BSD,
-Apache-2.0, zlib, LGPL-2.1 (libVLC), GPL-2.0+ (several VLC plugins), CC0 and
-CC BY 4.0. Several of the 3D models are CC BY and **attribution is a licence
-condition**: the full credit list is in the app under OPTIONS → ABOUT, and each
-asset directory carries its own `LICENSE-*` file.
-
-The controller you see in your hands is supplied by the XR runtime at runtime
-(OpenXR render models), so no headset vendor's controller art is shipped here.
+Bundled libraries and assets keep their own licences (MIT, BSD, Apache-2.0, zlib, LGPL-2.1
+libVLC, GPL-2.0+ VLC plugins, GPL FreeSurround, CC0, CC BY 4.0, CC BY-SA 4.0). Attribution is a
+licence condition for the CC BY and CC BY-SA assets: the credits are in the app under
+OPTIONS → ABOUT, and each asset directory carries its own `LICENSE-*` file. Controller models
+in your hands come from the XR runtime, so no headset vendor's art ships here.
