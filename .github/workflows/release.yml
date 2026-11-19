@@ -286,7 +286,7 @@ jobs:
 
       - name: Put the patched engine into the Android build template
         # The stock template ships an engine with the Quest defects
-        # docs/godot-4.7.2-*.patch fix (a boot deadlock among them); the
+        # docs/patches/godot-4.7.2/godot-4.7.2-*.patch fix (a boot deadlock among them); the
         # engine job built the library from them at Tools/engine/ENGINE_COMMIT,
         # and place_engine.py refuses one that names another commit. Without
         # this step the APK runs stock.
@@ -408,7 +408,7 @@ jobs:
           retention-days: 14
 
   # ----------------------------------------------------------------- engine
-  # Every build ships OUR engine: Godot 4.7.2 with docs/godot-4.7.2-*.patch (RetroXR/godot, branch
+  # Every build ships OUR engine: Godot 4.7.2 with docs/patches/godot-4.7.2/godot-4.7.2-*.patch (RetroXR/godot, branch
   # retroxr-4.7.2). Each platform's release template is built here from the commit pinned in
   # Tools/engine/ENGINE_COMMIT, cached by that commit (a release that does not move the engine builds
   # nothing), and laid over the stock one in its export job. Only the release binary is ours: an

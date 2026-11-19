@@ -47,7 +47,7 @@ pass overwrites it; the foveation density map left blank after any MSAA or
 eye-buffer change (the update mode ONCE was demoted to DISABLED and never
 re-armed, 28 ms instead of 13); and every frame going through a 10-bit scene
 buffer plus a tonemap subpass even when that subpass is a copy. The fixes are
-`docs/godot-4.7.2-*.patch`, applied on the engine branch `retroxr-4.7.2`
+`docs/patches/godot-4.7.2/godot-4.7.2-*.patch`, applied on the engine branch `retroxr-4.7.2`
 (4.7.2-stable + all of them) in `~/godot`, pushed to
 https://github.com/RetroXR/godot/tree/retroxr-4.7.2. The arm64 library is
 built from that branch at `ENGINE_COMMIT` (by CI for a release, in `~/godot` for a

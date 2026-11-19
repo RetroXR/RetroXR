@@ -91,7 +91,7 @@ python Tools/build.py windows --jobs 8 -- verbose=yes    # extra args go to scon
 ### The Quest ships a PATCHED engine — `docs/dev/engine-patches.md`
 
 Stock 4.7.2 has eight Quest defects (and lacks a run-time ETC2 encoder, which RetroXR adds)
-fixed by `docs/godot-4.7.2-*.patch`, applied on engine
+fixed by `docs/patches/godot-4.7.2/godot-4.7.2-*.patch`, applied on engine
 branch `retroxr-4.7.2` in `~/godot` (github.com/RetroXR/godot). **No engine binary is committed**
 (2026-11-19; the arm64 libs used to live in `Tools/engine/` on LFS): CI builds the Quest's, and a local
 export takes `~/godot`'s own build output (`$RETROXR_GODOT_DIR` to point elsewhere), refused unless

@@ -32,7 +32,7 @@ func _export_begin(features: PackedStringArray, is_debug: bool,
 	print("[build-stamp] %s built %s" % [stamp.get("describe", BuildInfo.UNKNOWN), stamp["built"]])
 
 
-## The Quest has to ship the engine built from docs/godot-4.7.2-*.patch: stock
+## The Quest has to ship the engine built from docs/patches/godot-4.7.2/godot-4.7.2-*.patch: stock
 ## 4.7.2 deadlocks at boot there, on the loading screen, most launches. The
 ## library goes into the gradle template's AAR (Tools/place_engine.py), and that
 ## template is shared by every export from this checkout — so one

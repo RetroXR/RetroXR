@@ -377,7 +377,7 @@ alternated, two runs each:
   _assign_mt_ids` makes the main RD current on the render thread, `finish()` never hands it back, and
   `DisplayServerWindows` frees the RD on the main thread, so `~RenderingDevice`'s `finalize()` fails its
   `ERR_RENDER_THREAD_GUARD` and returns early, leaking every RID it owns. `finish()` now calls
-  `rd->make_current()` once the render thread has exited: `docs/godot-4.7.2-render-thread-rd-handback.patch`
+  `rd->make_current()` once the render thread has exited: `docs/patches/godot-4.7.2/godot-4.7.2-render-thread-rd-handback.patch`
   (in `~/godot`, not yet committed on `retroxr-4.7.2`). Verified with an editor build: no finalize error,
   no leak report; stock 4.7.2 still shows both. **Desktop ships the OFFICIAL templates**, so the stock
   error stays on Windows until upstream fixes it (exit only, harmless). The custom/Tracy build also
@@ -387,7 +387,7 @@ alternated, two runs each:
   `id_counter(1)` was dynamically initialised -- 0 + 1 = `MAIN_ID`, so `make_main_thread()` returned
   early without setting the flag (found with a stack dump and a `/MAP` link). Upstream fixed it on master
   (30b9a76d04, `SafeNumeric`/`SafeFlag` constant-initialised), never backported to 4.7: carried as
-  `docs/godot-4.7.2-safe-numeric-constexpr.patch`. Any `profiler=tracy` Windows build needs it; the
+  `docs/patches/godot-4.7.2/godot-4.7.2-safe-numeric-constexpr.patch`. Any `profiler=tracy` Windows build needs it; the
   Quest's (no profiler) has no known trigger.
 - `QualityManager` logs which thread draws (`rendering on a separate render thread` / `the main thread`),
   read from `RenderingServer.is_on_render_thread()`: ProjectSettings does not report the override.

@@ -4,7 +4,7 @@ The release workflow installs Godot's stock 4.7.2 Android build template and
 exports with it, so an engine patch only ships if its libgodot_android.so
 replaces the stock one inside godot-lib.template_<target>.aar first. The
 library is built from the `retroxr-4.7.2` branch of the engine (4.7.2-stable
-plus docs/godot-4.7.2-*.patch) at the commit pinned in Tools/engine/ENGINE_COMMIT,
+plus docs/patches/godot-4.7.2/godot-4.7.2-*.patch) at the commit pinned in Tools/engine/ENGINE_COMMIT,
 and it must name that commit: a library from any other commit is refused.
 
 Nothing is committed to this repo. CI builds the library in release.yml's

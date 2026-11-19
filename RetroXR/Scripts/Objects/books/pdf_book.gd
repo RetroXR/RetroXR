@@ -1212,7 +1212,7 @@ static var compress_pages: bool = _can_compress_pages()
 
 ## Godot registers its texture ENCODERS in editor builds only; an export template
 ## gets the decoders. RetroXR's Quest engine registers the ETC2 one on Android
-## too (docs/godot-4.7.2-etc2-encoder-android.patch). Asked rather than assumed:
+## too (docs/patches/godot-4.7.2/godot-4.7.2-etc2-encoder-android.patch). Asked rather than assumed:
 ## on a stock engine compress() fails, and a page converted for it but left
 ## uncompressed (RGB8, with mipmaps) is bigger than the page it replaced.
 static func _can_compress_pages() -> bool:

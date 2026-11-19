@@ -6,7 +6,7 @@ extends RefCounted
 ## the pool -- lambda, captures and all -- for the rest of the session, and is only freed when the engine tears the
 ## pool down, AFTER the script languages have finished. A GDScript lambda freed then crashed the Quest on quit
 ## (`GDScript::cancel_pending_functions` under `WorkerThreadPool::finish`, tombstone 2026-11-09). The engine now lets
-## go of those itself (docs/godot-4.7.2-worker-pool-shutdown.patch), but a fire-and-forget job should still not leak
+## go of those itself (docs/patches/godot-4.7.2/godot-4.7.2-worker-pool-shutdown.patch), but a fire-and-forget job should still not leak
 ## until then: `start` claims the task on the main thread as soon as the job has returned.
 ##
 ## Use it wherever the task id would otherwise be thrown away. A caller that keeps the id and waits on it does not

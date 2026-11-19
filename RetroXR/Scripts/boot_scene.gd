@@ -51,7 +51,7 @@ func _ready() -> void:
 	get_tree().change_scene_to_node.call_deferred(room)
 
 
-## The Quest must run the engine built from docs/godot-4.7.2-*.patch. Stock
+## The Quest must run the engine built from docs/patches/godot-4.7.2/godot-4.7.2-*.patch. Stock
 ## 4.7.2 deadlocks at boot there, on the loading screen, and from inside a
 ## headset that looks exactly like a slow load. Godot's official builds call
 ## themselves "official"; ours are "custom_build". Said once, loudly, so the
