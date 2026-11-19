@@ -359,7 +359,7 @@ const SOURCES := {
 	# binary — same arrangement as Dolphin and gambatte.
 	"pcsx_rearmed": {
 		"repo":  "RetroXR/pcsx_rearmed",
-		"known_tag": "retroxr-pcsx-rearmed-libretro-v12",
+		"known_tag": "retroxr-pcsx-rearmed-libretro-v13",
 		"label": "PCSX-ReARMed (retroXR build)",
 		"assets": {
 			"Windows": "pcsx_rearmed_libretro.dll.zip",

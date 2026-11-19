@@ -23,6 +23,12 @@
 ## Crash Bandicoot 3 - Buttobi! Sekai Isshuu (Japan, Asia), SCPS-10073, is what this was
 ## first run against (docs/dev/pocketstation.md).
 ##
+## --speaker: switch Meta XR Audio on (run WINDOWED: headless has no voices) and watch the
+## docked unit's speaker. The oracle is GetDeviceAudioVoiceId(1, 0, 0): the frontend makes
+## that voice on the first NON-SILENT block the core pushes for memory card slot 1, so it
+## stays -1 for a plain card, for a core that never drains the speaker (pcsx_rearmed v10),
+## and while the unit is quiet. Says which frame it first sounded at, or that it never did.
+##
 ## --state-at=F: at core frame F take a savestate (S1), load it straight back and take
 ## another (S2): with a PocketStation docked, the two must be the same byte for byte
 ## (its CPU, RAM and flash included), and the run then goes on FROM the loaded state, so
@@ -49,6 +55,9 @@ var state_at := -1
 var _s1 := PackedByteArray()
 var _state_done := false
 var state_ok := true
+var speaker := false
+var _speaker_voice := -1
+var _speaker_frame := -1
 
 
 func _ready() -> void:
@@ -74,6 +83,8 @@ func _ready() -> void:
 			keep = true
 		elif a.begins_with("--state-at="):
 			state_at = int(a.trim_prefix("--state-at="))
+		elif a == "--speaker":
+			speaker = true
 	get_tree().create_timer(900.0).timeout.connect(func() -> void:
 		print("[psdock] TIMEOUT")
 		get_tree().quit(1))
@@ -99,6 +110,15 @@ func _ready() -> void:
 
 
 func _run() -> void:
+	if speaker:
+		var mx: Object = Engine.get_singleton("MetaXRAudio") if Engine.has_singleton("MetaXRAudio") else null
+		if mx != null:
+			# Enabled for this process only; the stored preference is untouched.
+			mx.call("set_enabled", true)
+		if mx == null or not bool(mx.call("is_available")):
+			print("[psdock] speaker: Meta XR Audio is not available (headless?), so there is no voice to hand out")
+			get_tree().quit(1)
+			return
 	var sys := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
 	sys.systemid = "psx"
 	sys.core_directory = root_dir
@@ -158,6 +178,16 @@ func _run() -> void:
 	while true:
 		var frame := int(_lib.GetFrameCount())
 		_drive(frame)
+		if speaker:
+			# The probe's console is wired to no set, and RetroSystem keeps a machine wired
+			# to nothing silent, which drops every block, the console's and the device's.
+			_lib.SetAudioPlaying(true)
+		if speaker and _speaker_voice < 0 and _lib.has_method("GetDeviceAudioVoiceId"):
+			_speaker_voice = int(_lib.call("GetDeviceAudioVoiceId", 1, 0, 0))
+			if _speaker_voice >= 0:
+				_speaker_frame = frame
+				print("[psdock] speaker: memory card slot 1 sounded at frame %d (voice %d)" % [frame, _speaker_voice])
+				_shot(frame)
 		while shot_i < sorted_shots.size() and frame >= sorted_shots[shot_i]:
 			_shot(sorted_shots[shot_i])
 			shot_i += 1
@@ -177,6 +207,11 @@ func _run() -> void:
 	for i in 90:
 		await get_tree().process_frame
 	_report_card()
+	if speaker:
+		if _speaker_voice >= 0:
+			print("[psdock] speaker: SOUNDED, voice %d from frame %d" % [_speaker_voice, _speaker_frame])
+		else:
+			print("[psdock] speaker: never sounded (no voice for memory card slot 1 in %d frames)" % last)
 	await _finish(0 if state_ok else 1)
 
 

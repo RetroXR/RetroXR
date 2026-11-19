@@ -264,7 +264,7 @@ which the fork now logs once a command byte). RetroXR's fork (`RetroXR/pcsx_rear
   device time undocked first -- the clock face then, 120 ms once at the first frame. The docked
   clock read 00:00 for 90 s of device time: whether it redraws or ticks docked is not known.
   `pocketstation_dock_probe` saves the device screen beside each shot (`*_lcd.png`).
-- **Its speaker while docked** (fork `07e66396` + `aa2c6181`, release v12; libretro-godot `9ae9458`): docking
+- **Its speaker while docked** (fork `07e66396` + `aa2c6181` + `d87640ed`, release v13; libretro-godot `9ae9458`): docking
   does not gate the speaker (only the app does, DAC_CTRL bit 0 and IOP bit 5; psx-spx), and Pokket
   emulates it into a ring the fork used to leave unread. The fork drains it each frame (mono, 8 kHz)
   and `snd_feed` reads it out beside each console batch (zero-order hold, 44.1 kHz stereo), handing
@@ -272,8 +272,21 @@ which the fork now logs once a command byte). RetroXR's fork (`RetroXR/pcsx_rear
   logs "device speaker: handed to the frontend"), else mixing it into the console's sound at half
   level. `push` took no location before (only controllers); it does now, still version 1, so Dolphin
   (v20) and flycast (v11) were rebuilt for it. A seated `PocketStation` poses
-  `GetDeviceAudioVoiceId(1, slot, 0)` once it has made a sound (`_update_docked_audio`). Whether any
-  commercial app sounds docked is not measured; a docked app making sound is OWED.
+  `GetDeviceAudioVoiceId(1, slot, 0)` once it has made a sound (`_update_docked_audio`).
+  **The boot chime leaked into the dock** until `d87640ed`: the 1000 frames the unit boots on its own
+  play its startup chime, Pokket's buffer (8192 samples) keeps the OLDEST second when nobody drains
+  it, and the first drain after the dock played a piece of it late, on every dock. The boot's audio is
+  now thrown away. `PKST_BOOT_FRAMES=0` (env, probes only) docks a unit straight from power-on, so the
+  chime plays docked: the end-to-end check.
+- **Measured 2026-11-19** (`pocketstation_dock_probe --speaker`, WINDOWED: Meta XR Audio has no voices
+  headless; the oracle is slot 1's voice, made on the first non-silent block): docked from power-on,
+  the voice from frame 3, posed by the unit; a plain card (the control), none in 900 frames; Spyro x
+  Sparx (J) and Crash Bandicoot 3 (J) downloading their apps, with the usual boot, none (those scenes
+  make no sound docked). A pure Pokket harness counts the chime: 22,723 non-silent samples over the
+  first 614 frames, docked or not. **A console wired to no set is silent** (`RetroSystem`
+  `_apply_audio_playing`), and that drops the device's blocks too: the probe forces
+  `SetAudioPlaying(true)`. Whether a device's own speaker (this, a VMU, a Wii Remote) should sound
+  from a console with no set is open. A commercial app sounding docked, and a headset, are OWED.
 - **Savestates carry the device** (fork `9d0336e0`): a `PSIO` chunk (the slot mid-command, its reply
   FIFO) and a `PKST` chunk (per slot, Pokket's whole state) after sio1's; the card is the device's
   flash as saved; an older state ends before them. `retro_serialize_size` always reserves two
