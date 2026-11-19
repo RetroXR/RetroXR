@@ -63,6 +63,9 @@ func _ready() -> void:
 		var cs := _box("Case%s_%d" % [row.get("name", "Box"), n_case], _v3(row["centre"]), _v3(row["size"]))
 		add_child(cs)
 		n_case += 1
+	var n_pointer := build_pointer_area(self)
+	if n_pointer == 0:
+		push_warning("[DrawerFurniture] %s: no case shapes, so no PointerArea: the laser cannot take it" % name)
 	_built = FurnitureDrawers.new(self, _model, "DrawerFurniture")
 	_built.build(_contract.get("drawers", []))
 	_drawers = _built.rows
@@ -88,6 +91,33 @@ func _ready() -> void:
 				m.add_to_group("outline_exclude")
 	print("[DrawerFurniture] %s (%s): %d case boxes, %d drawers/sliders, %d hinged doors, from %s" % [name, type_id,
 		n_case, _drawers.size(), _doors.size(), contract_path.get_file()])
+
+
+## The laser's target: a `PointerArea` (a StaticBody3D on the POINTER layer, 21, colliding with nothing) holding a copy
+## of every collision shape on the piece's OWN body, the case. The VR laser casts against the pointer layer only
+## (function_pointer.tscn's RayCast mask is layers 21 + 23), and the case is on the pickable layer, so a piece without
+## one was taken only at a drawer pull or sliding door's handle (whose VRDrawer is the piece's child) and a piece with
+## neither (the corner, bench and cubby TV stands, the open bookcases and coffee tables) could not be taken at all.
+## Built from the case only: a drawer's handle stands proud of the case and is still met first, and a drawer's front
+## shows the case behind it. The shapes are the case's own resources (a shape may be on two bodies). Returns how many.
+static func build_pointer_area(host: CollisionObject3D) -> int:
+	var pointer := StaticBody3D.new()
+	pointer.name = "PointerArea"
+	pointer.collision_layer = SeatTrigger.POINTABLE_LAYER
+	pointer.collision_mask = 0
+	var n := 0
+	for child in host.get_children():
+		var cs := child as CollisionShape3D
+		if cs == null or cs.shape == null:
+			continue
+		var copy := CollisionShape3D.new()
+		copy.name = "Pointer%s" % cs.name
+		copy.shape = cs.shape
+		copy.transform = cs.transform
+		pointer.add_child(copy)
+		n += 1
+	host.add_child(pointer)
+	return n
 
 
 ## The drawers' handles, top row first, left to right (a test, a probe, a caller that opens one).

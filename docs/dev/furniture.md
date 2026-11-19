@@ -140,6 +140,19 @@ query, as `resolve_desktop` does: volumes and POINTER_BY_AREA bodies are seen th
 bins are on no layer and are never the hit. `vr_drawer_tests tab/` aims at every case box (front, top, side), drawer
 front, pull and door of eight pieces; the pointer layer alone found the oak bookcase on 0 of 30 of them.
 
+## The headset's laser over furniture (2026-11-20)
+
+The VR laser (`function_pointer.tscn`'s RayCast, `XRToolsFunctionPointer.DEFAULT_MASK`) meets BODIES on layers 21 and
+23 only, never areas, and `FunctionPickup._resolve_pickable` takes the collider or its PARENT as the pickable. The case
+of every contract piece is on the pickable layer (4), so the laser passed straight through it: the corner, bench and
+cubby TV stands, the open bookcases and the coffee tables could not be taken by the laser at all ("I can't select the
+corner TV stand"), and the rest nowhere on the case. `DrawerFurniture.build_pointer_area` now mirrors every shape on the
+piece's own body (the case; a nightstand's legs too) into a `PointerArea` StaticBody3D on layer 21 with mask 0, as
+`ContractSeat` and `table.tscn` already had; `Nightstand` calls it as well. Drawer bodies and door leaves are left out:
+a drawer front shows the case behind it. `vr_drawer_tests laser/` aims a ray set up as the laser's at every case shape
+of every furniture scene from the front, above and the side, and checks with the area switched off that it covers no
+pull or door the laser met (mutation-tested: no area, 0 aims taken on every piece).
+
 ## The nightstand (`Scenes/Objects/furniture/nightstand.tscn`, `Nightstand`)
 
 RetroXR-models `generic/nightstand` (Blender 5.3, its own level loop on applkit geometry; real walnut/birch textures,

@@ -70,6 +70,8 @@ func _ready() -> void:
 	for i in LEGS.size():
 		var row: Array = LEGS[i]
 		add_child(_leg_shape("LegShape%d" % i, row[0], row[1], row[2]))
+	# The laser sees the pointer layer only: without this the nightstand was taken only at its drawer pull.
+	DrawerFurniture.build_pointer_area(self)
 	var n_drawer := _build_shapes(_drawer_body, DRAWER_BOXES, "Drawer")
 	_drawer_body.add_collision_exception_with(self)
 	add_collision_exception_with(_drawer_body)

@@ -94,6 +94,8 @@ func _ready() -> void:
 		await _table_carry()
 	if _group("tab"):
 		await _tab(ns)
+	if _group("laser"):
+		await _laser(ns)
 	if _group("real"):
 		await _real_hold(ns)
 		await _ray_hold(ns)
@@ -222,6 +224,122 @@ func _tab(ns: Nightstand) -> void:
 		if piece != ns:
 			piece.queue_free()
 	await _ticks(2)
+
+
+# --- laser/ -- the headset's laser takes every piece of furniture ------------------------------------------------------
+## The VR laser (function_pointer.tscn's RayCast) meets BODIES on the pointer layers only, and FunctionPickup takes the
+## pickable that is the collider or its parent. A furniture case is on the pickable layer, so with no PointerArea the
+## laser passed through it: the corner, bench and cubby TV stands, the open bookcases and coffee tables could not be
+## taken at all, and the rest nowhere on the case. Every case box of every furniture piece, aimed at from the front,
+## above and the side with the REAL laser, must give the piece. The control: with the PointerArea switched off, the
+## same aims at a pull or a door must meet exactly what they meet with it (it never covers a control the laser met).
+func _laser(ns: Nightstand) -> void:
+	var pieces: Array[XRToolsPickable] = [ns]
+	var x := -12.0
+	for id: String in ScenePersistence.PLAIN_SCENES:
+		var ps := ScenePersistence.PLAIN_SCENES[id] as PackedScene
+		if ps == null or not ps.resource_path.contains("/furniture/"):
+			continue
+		var piece := ps.instantiate() as XRToolsPickable
+		if not (piece is DrawerFurniture or piece is Nightstand):
+			if piece != null:
+				piece.free()
+			continue
+		piece.position = Vector3(x, 0.0, -8.0)
+		piece.freeze = true
+		add_child(piece)
+		pieces.append(piece)
+		x += 3.0
+	# The laser's ray as FunctionPointer sets it up (its script copies these onto its RayCast in _ready): bodies only,
+	# its default mask (the rig's two pointers leave it alone).
+	var pointer := Node3D.new()
+	var ray := RayCast3D.new()
+	ray.name = "RayCast"
+	ray.collision_mask = XRToolsFunctionPointer.DEFAULT_MASK
+	ray.collide_with_bodies = true
+	ray.collide_with_areas = false
+	ray.enabled = true
+	pointer.add_child(ray)
+	add_child(pointer)
+	for i in 6:
+		await get_tree().physics_frame
+	for piece in pieces:
+		var area := piece.get_node_or_null("PointerArea") as CollisionObject3D
+		_ok(area != null, "laser/%s has a PointerArea" % piece.name)
+		var box := _tab_local_box(piece)
+		var aims: Array = []
+		for cs: Node in piece.get_children():
+			if not (cs is CollisionShape3D):
+				continue
+			var shape := (cs as CollisionShape3D).shape
+			if shape is BoxShape3D:
+				var bs := (shape as BoxShape3D).size
+				if bs.x * bs.y * bs.z < 1e-9:
+					continue
+			var lc := (cs as Node3D).position
+			aims.append(["%s from the front" % cs.name, Vector3(lc.x, lc.y, box.end.z + 0.3), lc])
+			aims.append(["%s from above" % cs.name, Vector3(lc.x, box.end.y + 0.3, lc.z), lc])
+			aims.append(["%s from the side" % cs.name, Vector3(box.end.x + 0.3, lc.y, lc.z), lc])
+		var took := 0
+		for a: Array in aims:
+			var got := await _laser_hit(ray, piece.global_transform * (a[1] as Vector3),
+				piece.global_transform * (a[2] as Vector3))
+			if _laser_pickable(got) == piece:
+				took += 1
+			else:
+				print("[vr_drawer] laser/ %s: %s met %s" % [piece.name, a[0], got.name if got != null else "nothing"])
+		_ok(aims.size() > 0 and took == aims.size(), "laser/%s: the laser takes it at all %d case aims (%d did)" % [
+			piece.name, aims.size(), took])
+		# The control: pulls and doors meet the same with the PointerArea off as on.
+		var front := piece.global_basis.z.normalized()
+		var controls: Array = []
+		for handle: Node in piece.find_children("DrawerHandle*", "Area3D", false, false):
+			controls.append([handle.name, (handle as Node3D).global_position])
+		for leaf: Node in piece.find_children("LeafBody", "CollisionObject3D", true, false):
+			controls.append([leaf.get_parent().get_parent().get_parent().name,
+				(leaf as Node3D).global_transform * _tab_shape_centre(leaf)])
+		if area == null or controls.is_empty():
+			continue
+		var same := 0
+		for c: Array in controls:
+			var at: Vector3 = c[1]
+			var with_area := await _laser_hit(ray, at + front * 1.0, at - front * 0.3)
+			var layer := area.collision_layer
+			area.collision_layer = 0
+			var without := await _laser_hit(ray, at + front * 1.0, at - front * 0.3)
+			area.collision_layer = layer
+			if without == null or without == with_area:
+				same += 1
+			else:
+				print("[vr_drawer] laser/ %s: %s met %s, and %s with the PointerArea" % [piece.name, c[0], without.name,
+					with_area.name if with_area != null else "nothing"])
+		_ok(same == controls.size(), "laser/%s: the PointerArea covers none of its %d pulls/doors the laser met" % [
+			piece.name, controls.size()])
+	pointer.queue_free()
+	for piece in pieces:
+		if piece != ns:
+			piece.queue_free()
+	await _ticks(2)
+
+
+## What the real laser meets cast from `from` through `to` (its RayCast, placed and forced).
+func _laser_hit(ray: RayCast3D, from: Vector3, to: Vector3) -> Node3D:
+	var pointer := ray.get_parent() as Node3D
+	pointer.global_transform = Transform3D(Basis.looking_at(to - from, Vector3.UP if absf((to - from).normalized().y) < 0.99
+		else Vector3.FORWARD), from - pointer.global_basis * ray.position)
+	ray.target_position = Vector3(0, 0, -((to - from).length() + 0.5))
+	await get_tree().physics_frame
+	ray.force_raycast_update()
+	return ray.get_collider() as Node3D if ray.is_colliding() else null
+
+
+## FunctionPickup._resolve_pickable: the collider, or its parent, as a pickable.
+func _laser_pickable(collider: Node3D) -> XRToolsPickable:
+	if collider == null:
+		return null
+	if collider is XRToolsPickable:
+		return collider as XRToolsPickable
+	return collider.get_parent() as XRToolsPickable
 
 
 ## The piece's own collision boxes' bounds, in its frame.
