@@ -72,7 +72,7 @@ func _run() -> void:
 			get_tree().quit(0)
 			return
 	if not FileAccess.file_exists(ProjectSettings.globalize_path(ROM)):
-		print("[gb-printer-room] SKIP  run Tools/gen_gblink_rom.py first")
+		print("[gb-printer-room] SKIP  run Tools/gen/gen_gblink_rom.py first")
 		get_tree().quit(0)
 		return
 	_write_options(root)

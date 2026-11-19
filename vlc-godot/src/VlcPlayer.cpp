@@ -100,7 +100,7 @@ VlcPlayer::VlcPlayer()
     if (plugins.is_relative_path() || !DirAccess::dir_exists_absolute(plugins))
         plugins = OS::get_singleton()->get_executable_path().get_base_dir().path_join("plugins");
 #elif defined(__APPLE__)
-    // macOS has a tree of its own (Tools/download_vlc_macos.sh): the folder
+    // macOS has a tree of its own (Tools/download/download_vlc_macos.sh): the folder
     // above holds the Windows plugins. An exported .app carries it in
     // Contents/Frameworks, beside libvlccore.dylib, and the executable is in
     // Contents/MacOS.

@@ -108,7 +108,7 @@ static func _wide(lead: int, trail: int) -> int:
 			return 0
 		_flat = SjisTable.ROWS.replace("\r", "").replace("\n", "")
 		if _flat.length() != SjisTable.ROW_COUNT * SjisTable.TRAIL_COUNT:
-			push_error("[Sjis] SjisTable holds %d characters, not %d: kana and kanji will be dropped (re-run Tools/gen_sjis_table.py)"
+			push_error("[Sjis] SjisTable holds %d characters, not %d: kana and kanji will be dropped (re-run Tools/gen/gen_sjis_table.py)"
 				% [_flat.length(), SjisTable.ROW_COUNT * SjisTable.TRAIL_COUNT])
 			_flat = ""
 			_table_broken = true

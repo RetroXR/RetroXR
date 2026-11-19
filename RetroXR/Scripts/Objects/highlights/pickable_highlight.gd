@@ -38,7 +38,7 @@ const OUTLINE_HULL_SHADER := preload("res://Shaders/outline_hull.gdshader")
 ## Depth pass ahead of the hull, so a transparent source still hides its middle.
 const OUTLINE_HULL_PRIMER_SHADER := preload("res://Shaders/outline_hull_primer.gdshader")
 ## The same four with a bend run on the vertex first (outline_flop.gdshaderinc),
-## GENERATED from the ones above by Tools/gen_bent_outline_shaders.py. Only for a
+## GENERATED from the ones above by Tools/gen/gen_bent_outline_shaders.py. Only for a
 ## parent that asks (bends_with_parent): everything else keeps exactly the
 ## shaders it had, which matters — see their headers for what changing their
 ## shape has done to a Quest.

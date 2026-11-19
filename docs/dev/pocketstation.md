@@ -168,7 +168,7 @@ is a card first, and has to stay one while seated.
   LCD the BIOS). **Pokket's only options are its IR link's** (`pokket_link_*`, the two-unit subsystem
   load RetroXR never makes), so `PocketStation.single_unit_options` drops them and the Options tab
   hides. **Save titles decode Japanese** (`Sjis.to_text` over `SjisTable`, code page 932 generated
-  by `Tools/gen_sjis_table.py`; PS1, PS2 `icon.sys` and VMU alike): Dokodemo Crash-kun lists as
+  by `Tools/gen/gen_sjis_table.py`; PS1, PS2 `icon.sys` and VMU alike): Dokodemo Crash-kun lists as
   クラッシュ3「どこでもクラッシュくん」, where the old ASCII-only decode left "3". Full-width
   letters, digits and the common punctuation still come back as ASCII, so Western titles read
   as before. The glyphs come from the OS's font fallback (the theme font has no CJK): seen on
@@ -301,7 +301,7 @@ which the fork now logs once a command byte). RetroXR's fork (`RetroXR/pcsx_rear
 
 Dokodemo Crash-kun played 80 s (allowance day, a minigame, a score of 4 under its 300) and
 wrote nothing, so a commercial app has not been seen to save yet. What proves the path is an
-app made to save: `Tools/gen_pocketstation_save_app.py <dir>` writes `rxr_save_test.mcs` (one
+app made to save: `Tools/gen/gen_pocketstation_save_app.py <dir>` writes `rxr_save_test.mcs` (one
 block, MCX0, its Title Sector built from Pokket's `docs/app-notes.md` and no byte of another
 app) and `rxr_game_save.mcs` beside it. Started from the unit's menu, its hand-assembled ARM
 fills RAM `0x400` with `i ^ 0x5A` and calls the kernel's frame write (`SWI 0x10`, up to ten

@@ -5,7 +5,7 @@
 ##   ... -- --link-core=genesis_plus_gx ##       --roms=res://Tools/gglink/link_master.gg,res://Tools/gglink/link_slave.gg
 ##
 ## A probe, not a test: two real Game Boys and the real LinkCoordinator. ROMs
-## come from Tools/gen_gblink_rom.py (ours, so they ship freely) and are
+## come from Tools/gen/gen_gblink_rom.py (ours, so they ship freely) and are
 ## generated into Tools/gblink/ — run that script first if the folder is empty.
 ##
 ## WHAT IT IS FOR. A link cable never crosses the network: the coordinator is a
@@ -66,7 +66,7 @@ func _ready() -> void:
 		get_tree().quit(1))
 	for path: String in roms:
 		if not FileAccess.file_exists(path):
-			print("[nplink] FAIL missing %s — run Tools/gen_gblink_rom.py" % path)
+			print("[nplink] FAIL missing %s — run Tools/gen/gen_gblink_rom.py" % path)
 			get_tree().quit(1)
 			return
 	_start_leg("both")

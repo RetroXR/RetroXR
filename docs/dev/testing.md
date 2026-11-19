@@ -200,7 +200,7 @@ its `.tscn` rewritten too.
 | `vr/` | grabs, pokes, pointers, sliders, capsense |
 
 Three data directories sit beside them and are deliberately not foldered by topic:
-`gblink/` (the ROMs `Tools/gen_gblink_rom.py` writes), `scan/` and
+`gblink/` (the ROMs `Tools/gen/gen_gblink_rom.py` writes), `scan/` and
 `azahar_stereo_homebrew/`.
 
 `RetroXR/Tests/rope_tests.tscn` is the behaviour half of the rope's cover. Two kinds of

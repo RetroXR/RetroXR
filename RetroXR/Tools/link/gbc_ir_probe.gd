@@ -1,8 +1,8 @@
 ## Mystery Gift, two Game Boy Colors, no lead — the infrared port carrying a real
 ## game.
 ##
-##     python Tools/gs_save.py <a Gold or Silver save> --unlock a.srm
-##     python Tools/gs_save.py <a Gold or Silver save> --unlock b.srm --id 12345 --name PROBE
+##     python Tools/gen/gs_save.py <a Gold or Silver save> --unlock a.srm
+##     python Tools/gen/gs_save.py <a Gold or Silver save> --unlock b.srm --id 12345 --name PROBE
 ##     "$godot" --headless --path RetroXR res://Tools/link/gbc_ir_probe.tscn -- \
 ##         "--rom=<Pokemon Gold or Silver>" --save=a.srm --save2=b.srm
 ##     ... -- ... --nolink                      # the control leg: must NOT trade
@@ -121,7 +121,7 @@ func _run() -> void:
 			get_tree().quit(0)
 			return
 		if _saves[i].is_empty() or not FileAccess.file_exists(_saves[i]):
-			print("[gbc-ir] SKIP  pass --save= and --save2=, scratch copies made by Tools/gs_save.py")
+			print("[gbc-ir] SKIP  pass --save= and --save2=, scratch copies made by Tools/gen/gs_save.py")
 			get_tree().quit(0)
 			return
 		if not FileAccess.file_exists("%s/cores/%s_libretro.dll" % [_root, _cores[i]]) \

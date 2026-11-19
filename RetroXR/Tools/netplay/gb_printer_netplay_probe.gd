@@ -27,7 +27,7 @@
 ## FEED and TEAR go in as agreed input on chosen frames, as a holder's presses
 ## reach every peer in a session.
 ##
-## A probe: it needs the real cores. ROM from Tools/gen_gblink_rom.py.
+## A probe: it needs the real cores. ROM from Tools/gen/gen_gblink_rom.py.
 extends Node
 
 const ROM := "res://Tools/gblink/printer.gb"

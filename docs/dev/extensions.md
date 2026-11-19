@@ -74,11 +74,11 @@ deploying to `RetroXR/<name>/`). Build each **from its own directory** (each has
 
 - **godot-pdfium** — `PDFRenderer` (opens a PDF, renders a page to a Godot `Image`), backed by
   the bblanchon/pdfium-binaries `libpdfium`. Every platform's prebuilt is committed, so a fresh
-  clone needs no fetch; `Tools/download_pdfium.sh` refreshes them when you do (it replaced the
+  clone needs no fetch; `Tools/download/download_pdfium.sh` refreshes them when you do (it replaced the
   PowerShell script, which only knew win-x64 + android-arm64):
   ```bash
-  Tools/download_pdfium.sh -p linux     # just this platform's lib; include/ untouched
-  Tools/download_pdfium.sh -p mac       # macOS arm64 (`mac-x64` for Intel)
+  Tools/download/download_pdfium.sh -p linux     # just this platform's lib; include/ untouched
+  Tools/download/download_pdfium.sh -p mac       # macOS arm64 (`mac-x64` for Intel)
   cd godot-pdfium
   PATH="$HOME/.local/bin:$PATH" scons platform=linux arch=x86_64 target=template_debug
   PATH="$HOME/.local/bin:$PATH" scons platform=linux arch=x86_64 target=template_release

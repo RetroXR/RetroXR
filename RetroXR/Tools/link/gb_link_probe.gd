@@ -7,7 +7,7 @@
 ## suite can reach: that two instances of one core, each loaded from its own copy
 ## of the shared library, exchange real serial bytes through the frontend's bus.
 ##
-## The ROMs are ours (Tools/gen_gblink_rom.py) and do one thing -- swap a known
+## The ROMs are ours (Tools/gen/gen_gblink_rom.py) and do one thing -- swap a known
 ## byte for ever, and paint the screen white while the byte coming back is the
 ## right one. So the oracle is the picture, and the failure modes are legible:
 ## black is a machine that has never completed a transfer, dark grey is one
@@ -86,7 +86,7 @@ func _run() -> void:
 	var slave_rom := ProjectSettings.globalize_path("res://Tools/gblink/link_slave.gb")
 
 	if not FileAccess.file_exists(master_rom) or not FileAccess.file_exists(slave_rom):
-		print("[gb-link] SKIP  run Tools/gen_gblink_rom.py first")
+		print("[gb-link] SKIP  run Tools/gen/gen_gblink_rom.py first")
 		get_tree().quit(0)
 		return
 	if not FileAccess.file_exists("%s/cores/%s_libretro.dll" % [root, _core]) \
@@ -261,7 +261,7 @@ func _fast_pass(root: String) -> void:
 	var master_rom := ProjectSettings.globalize_path("res://Tools/gblink/link_master_fast.gbc")
 	var slave_rom := ProjectSettings.globalize_path("res://Tools/gblink/link_slave_fast.gbc")
 	if not FileAccess.file_exists(master_rom) or not FileAccess.file_exists(slave_rom):
-		print("[gb-link] SKIP  no fast-clock ROMs; run Tools/gen_gblink_rom.py")
+		print("[gb-link] SKIP  no fast-clock ROMs; run Tools/gen/gen_gblink_rom.py")
 		return
 
 	var a := Libretro.new()

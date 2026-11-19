@@ -1346,11 +1346,11 @@ func _test_pointer_drags_across_the_middle(book: PDFBook) -> void:
 
 ## The four outline shaders have a history of taking a Quest's GPU down when their
 ## shape changes, so the book does not touch them: it gets COPIES with the bend
-## spliced in between two marker lines (Tools/gen_bent_outline_shaders.py). A copy
+## spliced in between two marker lines (Tools/gen/gen_bent_outline_shaders.py). A copy
 ## of a fragile file drifts. Strip the marked lines back out of each copy and it
 ## must be its original, to the character.
 func _test_bent_outline_shaders() -> void:
-	const BEGIN := "// --- bent (Tools/gen_bent_outline_shaders.py) ---"
+	const BEGIN := "// --- bent (Tools/gen/gen_bent_outline_shaders.py) ---"
 	const END := "// --- end bent ---"
 	for name: String in ["outline", "outline_mask", "outline_hull", "outline_hull_primer"]:
 		var original := FileAccess.get_file_as_string("res://Shaders/%s.gdshader" % name).replace("\r\n", "\n")
@@ -1369,7 +1369,7 @@ func _test_bent_outline_shaders() -> void:
 		_ok(blocks >= 1 and copy.contains("outline_flop(bent_vertex, bent_normal)"),
 			"outline/%s_bent really does run the bend" % name)
 		_ok("\n".join(kept) == original,
-			"outline/%s_bent is its original with nothing but the bend added (regenerate: Tools/gen_bent_outline_shaders.py)" % name)
+			"outline/%s_bent is its original with nothing but the bend added (regenerate: Tools/gen/gen_bent_outline_shaders.py)" % name)
 
 
 ## The pick-up outline is drawn from flat COPIES of the covers and blocks, and the

@@ -379,7 +379,7 @@ the same paper from the same agreed inputs.
   from an asymmetric image, RLE, checksum, timing, tear/feed, savestates, sound,
   and the whole core against a mock bus playing a Game Boy). Mutation-tested.
 - `Tools/link/gb_printer_probe` (windowed, `--core=gambatte|mgba`, `--nocable`):
-  `printer.gb` (Tools/gen_gblink_rom.py) prints a known picture; the paper must
+  `printer.gb` (Tools/gen/gen_gblink_rom.py) prints a known picture; the paper must
   equal `printer_expected.png` dot for dot. 12/12 both cores, 3/3 controls.
 - `Tools/link/gb_camera_print_probe` (mGBA, `--sav=` a Camera save, copied
   first): the Game Boy Camera prints a saved photo. The print command is behind

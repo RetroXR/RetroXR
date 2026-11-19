@@ -12,7 +12,7 @@
 ## shows is what no suite can: that a Game Boy core and the printer core, each
 ## knowing nothing of the other, print a picture through the frontend's bus.
 ##
-## The ROM is ours (Tools/gen_gblink_rom.py, build_printer). It finds the printer
+## The ROM is ours (Tools/gen/gen_gblink_rom.py, build_printer). It finds the printer
 ## as the games do, sends INIT, nine DATA packets of a known picture (the odd
 ## ones RLE-compressed), the closing empty DATA and PRINT, checks every reply,
 ## and polls until the print is done: the screen turns WHITE when all of that
@@ -108,7 +108,7 @@ func _run() -> void:
 			return
 	var rom := ProjectSettings.globalize_path(ROM)
 	if not FileAccess.file_exists(rom) or not FileAccess.file_exists(EXPECTED):
-		print("[gb-print] SKIP  run Tools/gen_gblink_rom.py first")
+		print("[gb-print] SKIP  run Tools/gen/gen_gblink_rom.py first")
 		get_tree().quit(0)
 		return
 	if not _write_options(root):

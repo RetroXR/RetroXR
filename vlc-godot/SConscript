@@ -60,7 +60,7 @@ if is_android:
 
 if is_macos:
     # VideoLAN's universal libVLC, fetched into macos/ beside the output by
-    # Tools/download_vlc_macos.sh, which gives it @rpath install names. Both
+    # Tools/download/download_vlc_macos.sh, which gives it @rpath install names. Both
     # archs link the one universal copy. The extension finds it beside itself
     # in an exported .app (Contents/Frameworks) and in macos/ in the editor.
     env.Append(CXXFLAGS=['-std=c++20'])

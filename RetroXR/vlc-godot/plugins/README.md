@@ -12,7 +12,7 @@ instance), so the set here is exactly what the DVD player and the VCR can decode
 
 The tree is 159 committed binaries with no version recorded anywhere, which
 meant there was no way to tell which VLC it came from or how to rebuild it when
-libVLC is bumped — the problem `Tools/download_pdfium.sh` and its per-platform
+libVLC is bumped — the problem `Tools/download/download_pdfium.sh` and its per-platform
 `VERSION` stamps already solve for PDFium.
 
 ## Verifying what is here
@@ -61,7 +61,7 @@ export plays.
 
 ## macOS
 
-Not this folder. `Tools/download_vlc_macos.sh` takes `libvlc.dylib`,
+Not this folder. `Tools/download/download_vlc_macos.sh` takes `libvlc.dylib`,
 `libvlccore.dylib` and the same plugin categories from VideoLAN's universal
 VLC.app (the same release, pinned by its sha256) into `../macos/`, which is not
 committed. `Tools/build.py macos` runs it when that is missing, and an export puts
@@ -71,6 +71,6 @@ all of it in `Contents/Frameworks`.
 
 libVLC is **LGPL v2.1 or later**; individual plugins are a mix of LGPL v2.1+ and
 **GPL v2+**. Both are compatible with this app's GPLv3 licensing. The Windows
-binaries are redistributed unmodified; on macOS `Tools/download_vlc_macos.sh` may
+binaries are redistributed unmodified; on macOS `Tools/download/download_vlc_macos.sh` may
 rewrite install names to `@rpath` and sign again what it rewrote, which the LGPL
 allows. See https://www.videolan.org/legal.html.

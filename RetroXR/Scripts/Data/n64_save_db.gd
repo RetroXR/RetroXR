@@ -1,5 +1,5 @@
 ## N64SaveDb — which N64 games save to a Controller Pak, from the core's own ROM
-## database (see N64SaveDbTable and Tools/gen_n64_save_db.py).
+## database (see N64SaveDbTable and Tools/gen/gen_n64_save_db.py).
 ##
 ## Only a yes is an answer. The database marks no game as never using a pak, so
 ## a game this does not know is unknown, not pak-less.

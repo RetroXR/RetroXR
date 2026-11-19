@@ -704,7 +704,7 @@ drooped away under it.
 - **The four outline shaders are not touched, and not restructured.** Their headers record what
   changing their *shape* has done to a Quest's GPU (VRS + stencil, a constant-folded fragment
   output). Every other object keeps byte-for-byte the shader it had; only the book gets copies,
-  **generated** by `Tools/gen_bent_outline_shaders.py` with the additions between two marker
+  **generated** by `Tools/gen/gen_bent_outline_shaders.py` with the additions between two marker
   lines. A copy of a fragile file drifts, so the suite strips the marked lines back out and
   compares each copy with its original to the character — edit an `outline*.gdshader`, rerun
   the tool, or CI goes red. **The copies are untested on a Quest**: filmed on desktop in both

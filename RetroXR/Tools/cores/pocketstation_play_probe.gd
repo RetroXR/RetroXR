@@ -19,7 +19,7 @@
 ## --expect-unchanged that the card came back as it went (the control leg: the same card,
 ## no steps into the app). Either makes the exit code 1 on a mismatch.
 ##
-## Tools/gen_pocketstation_save_app.py makes an app that saves into a game save beside it:
+## Tools/gen/gen_pocketstation_save_app.py makes an app that saves into a game save beside it:
 ##     --saves=<out>/rxr_save_test.mcs,<out>/rxr_game_save.mcs --expect-changed=BISLPS-99999GAMESAVE ##     --steps="400-401:down,440-441:action,480-481:right,520-521:action" --shots=700
 ##
 ## --steps: `from-to:buttons`, buttons joined by `+` from up down left right action, held

@@ -6,7 +6,7 @@
 ## header's country byte.
 ##
 ## The shell is looked up by the ROM's identity in N64CartColorsTable (see
-## Tools/gen_n64_cart_colors.py): by MD5 when one is known, else by the header's
+## Tools/gen/gen_n64_cart_colors.py): by MD5 when one is known, else by the header's
 ## CRC pair and country, which reads 64 bytes instead of hashing the file. A game
 ## the table does not list shipped in grey. A PAL release whose Australian run was
 ## moulded differently only takes that colour when the market is Australia.

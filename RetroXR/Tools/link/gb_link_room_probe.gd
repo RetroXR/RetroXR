@@ -9,7 +9,7 @@
 ## any of that. It is where an integration fault lives -- a socket that takes the
 ## plug and tells nobody, a lead that joins the machines and never unjoins them.
 ##
-## The two ROMs are ours (Tools/gen_gblink_rom.py) and swap a known byte for
+## The two ROMs are ours (Tools/gen/gen_gblink_rom.py) and swap a known byte for
 ## ever, painting the screen white while the byte coming back is the right one.
 ## So both halves are checked at once: that the room joined the machines, and
 ## that a real serial byte crossed the lead it joined them with.
@@ -46,7 +46,7 @@ func _run() -> void:
 	}
 	for role in roms:
 		if not FileAccess.file_exists(roms[role]):
-			print("[gb-room] SKIP  run Tools/gen_gblink_rom.py first")
+			print("[gb-room] SKIP  run Tools/gen/gen_gblink_rom.py first")
 			get_tree().quit(0)
 			return
 

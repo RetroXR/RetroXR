@@ -20,11 +20,11 @@ stand-ins in `RetroXR/Scenes/Objects/system_models/`.
 **Only add 3D assets this project has the right to ship.** Everything in the repo must
 be either our own work or licensed for redistribution, with its licence and attribution
 carried alongside it.
-- **`Tools/download_pdfium.sh`** — fetches prebuilt PDFium from bblanchon/pdfium-binaries into
+- **`Tools/download/download_pdfium.sh`** — fetches prebuilt PDFium from bblanchon/pdfium-binaries into
   `godot-pdfium/external/pdfium/`. All five packages by default (`-p
   linux|win|mac|mac-x64|android` for one, `-r <tag>` to pin a release, `-n` to dry-run).
   Bash, so it runs on Linux, WSL, macOS and Git Bash; it superseded
-  `Tools/download_pdfium.ps1`, which had no Linux or macOS platform at all. The `.ps1` is
+  `Tools/download/download_pdfium.ps1`, which had no Linux or macOS platform at all. The `.ps1` is
   still in the tree but is NOT maintained — use the `.sh`. The
   `include/` headers are shared by all packages, so a **partial** run leaves them alone by
   default (`--headers` to force) — new declarations against an unrefreshed binary is how you
@@ -53,7 +53,7 @@ carried alongside it.
   — a Control renders its own `_draw()` behind its children, so a child texture
   hides the leader lines and anchor dots. Invisible with line art, whose body is
   nearly transparent; total with a colour illustration.
-- **`Tools/gen_gblink_rom.py`** — builds the four Game Boy ROMs the link probes run,
+- **`Tools/gen/gen_gblink_rom.py`** — builds the four Game Boy ROMs the link probes run,
   two at the Game Boy's clock and two at the Game Boy Color's. Ours, so they ship
   freely; the header logo carries only its first four bytes, which is the signature
   a loader matches to decide a file is a Game Boy ROM at all (mGBA refuses one

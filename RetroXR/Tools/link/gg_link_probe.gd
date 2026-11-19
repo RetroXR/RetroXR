@@ -1,13 +1,13 @@
 ## Two real Genesis Plus GX cores on one Gear-to-Gear cable.
 ##
-##     python Tools/gen_gglink_rom.py     # once
+##     python Tools/gen/gen_gglink_rom.py     # once
 ##     "$godot" --headless --path RetroXR res://Tools/link/gg_link_probe.tscn
 ##     "$godot" --headless --path RetroXR res://Tools/link/gg_link_probe.tscn -- --rom="Z:/roms/gamegear/Columns (USA, Europe).gg"
 ##
 ## A probe rather than a test: it needs a genesis_plus_gx built with the link
 ## driver (libretro/gg_link.c in the RetroXR fork), which is not in CI.
 ##
-## The ROMs (Tools/gen_gglink_rom.py) use the EXT port the way the commercial
+## The ROMs (Tools/gen/gen_gglink_rom.py) use the EXT port the way the commercial
 ## link games do -- UART on, NMI on receive -- and paint the backdrop with what
 ## the NMI saw: blue for "the other Game Gear is not there", green for the right
 ## byte, red for a wrong one, and black if no NMI ever fired. The master sends,
@@ -90,7 +90,7 @@ func _run() -> void:
 	var master_rom := ProjectSettings.globalize_path("res://Tools/gglink/link_master.gg")
 	var slave_rom := ProjectSettings.globalize_path("res://Tools/gglink/link_slave.gg")
 	if not FileAccess.file_exists(master_rom):
-		print("[gg-link] SKIP  run Tools/gen_gglink_rom.py first")
+		print("[gg-link] SKIP  run Tools/gen/gen_gglink_rom.py first")
 		get_tree().quit(0)
 		return
 

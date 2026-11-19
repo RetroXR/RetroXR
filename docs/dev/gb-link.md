@@ -22,7 +22,7 @@ same cable, which `--core2` is there to prove. mGBA needs its GB driver as well
 as its GBA one: they are separate cores with separate serial ports, and before
 `gb_sio_netlink.c` a lead between two mGBA Game Boys carried nothing, silently.
 
-The ROMs the first two run come from `Tools/gen_gblink_rom.py` and swap a known
+The ROMs the first two run come from `Tools/gen/gen_gblink_rom.py` and swap a known
 byte for ever, painting the screen white while the byte coming back is right. No
 assertion is made against an absolute shade -- a core picks a palette per game --
 only that a cabled screen is neither of the two an uncabled pair shows. The
@@ -130,9 +130,9 @@ again, and `gbc_ir_probe` does too (up to five times, and says how many).
 `--reload` loading a state on each machine before every one.
 
 ```bash
-python Tools/gs_save.py <a Gold or Silver save>                  # what is in it
-python Tools/gs_save.py <save> --unlock a.srm
-python Tools/gs_save.py <save> --unlock b.srm --id 12345 --name PROBE
+python Tools/gen/gs_save.py <a Gold or Silver save>                  # what is in it
+python Tools/gen/gs_save.py <save> --unlock a.srm
+python Tools/gen/gs_save.py <save> --unlock b.srm --id 12345 --name PROBE
 "$godot" --headless --path RetroXR res://Tools/link/gbc_ir_probe.tscn -- \
     "--rom=<Pokemon Gold or Silver>" --save=a.srm --save2=b.srm
 ... -- ... --core=mgba --core2=gambatte   # a unit of each
@@ -323,10 +323,10 @@ hardware would. Probe them with `--delay2=2` (power the second machine on later)
 In a room nobody powers two Game Gears on in the same instant.
 
 ```bash
-python Tools/gen_gglink_rom.py
+python Tools/gen/gen_gglink_rom.py
 "$godot" --headless --path RetroXR res://Tools/link/gg_link_probe.tscn          # 10 cases
 "$godot" --headless --path RetroXR res://Tools/link/gg_link_probe.tscn -- "--rom=Z:/roms/gamegear/Columns (USA, Europe).gg" --tag=col --seconds=30 "--press=DOWN@11.5,START@12.5,START@16,START@18" "--press2=DOWN@11.5,START@14,START@21,START@23"
-python Tools/gglink_sheet.py col     # contact sheet, top row machine A
+python Tools/gen/gglink_sheet.py col     # contact sheet, top row machine A
 ```
 
 `--press`/`--press2` tap buttons at wall-clock seconds (GG button 1 = `B`, 2 = `A`;

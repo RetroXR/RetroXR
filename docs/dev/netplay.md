@@ -226,10 +226,10 @@ Two things this had to get right, and both are the same rule:
   instead of joining on the spot whenever a hand moves.
 
 `RetroXR/Tools/netplay/netplay_link_probe.tscn` is the real-core half — two gambatte
-Game Boys, the real bus, ROMs from `Tools/gen_gblink_rom.py`:
+Game Boys, the real bus, ROMs from `Tools/gen/gen_gblink_rom.py`:
 
 ```bash
-python Tools/gen_gblink_rom.py     # once, into RetroXR/Tools/gblink/
+python Tools/gen/gen_gblink_rom.py     # once, into RetroXR/Tools/gblink/
 "$godot" --headless --path RetroXR res://Tools/netplay/netplay_link_probe.tscn
 ```
 

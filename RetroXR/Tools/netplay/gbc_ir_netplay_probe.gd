@@ -1,7 +1,7 @@
 ## Mystery Gift under the netplay gate — does the infrared port replay?
 ##
-##     python Tools/gs_save.py <a Gold or Silver save> --unlock a.srm
-##     python Tools/gs_save.py <a Gold or Silver save> --unlock b.srm --id 12345 --name PROBE
+##     python Tools/gen/gs_save.py <a Gold or Silver save> --unlock a.srm
+##     python Tools/gen/gs_save.py <a Gold or Silver save> --unlock b.srm --id 12345 --name PROBE
 ##     "$godot" --headless --path RetroXR res://Tools/netplay/gbc_ir_netplay_probe.tscn -- \
 ##         "--rom=<Pokemon Gold or Silver>" --save=a.srm --save2=b.srm
 ##     ... -- ... --mutate     # the control: one replica is fed ONE frame out, and must diverge
