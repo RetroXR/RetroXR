@@ -197,6 +197,12 @@ is carried (a `DrawerPoll` child polls the hold: a Seat's own physics process ru
 
 ## The living-room set: sliding doors and hinged doors (2026-11-14)
 
+**Collision (checked 2026-11-20, sampling each contract box against its mesh):** every piece is boxed per part (0-8%
+of the box volume air), the beds per panel, the nightstands' and Mission pair's legs their own; no box fills the floor
+under anything. A SPLAYED leg (`frustum()` in `build_living.py`) is three stacked boxes round its stretch of the leg: one
+box round the whole leg was 90% air (the mid-century coffee table's 36% overall, now 16%). The corner TV stand's back is
+stepped against the wall behind it (its air is out of reach). The seats were not like this: seats.md.
+
 Fifteen pieces from RetroXR-models `generic/living-room` (`imported-assets/furniture/living-room/`), every one a
 `DrawerFurniture` scene: six TV stands (`tv_stand_mission`, `_wall_unit`, `_credenza`, `_bench`, `_corner`, `_cubby`),
 five bookcases (`bookshelf_oak`, `_mission`, `_midcentury`, `_cube`, `_pine`) and four coffee tables
