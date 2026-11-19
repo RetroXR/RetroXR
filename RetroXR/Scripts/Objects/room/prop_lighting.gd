@@ -26,27 +26,25 @@ extends Node
 
 const PROP_SHADER := "res://Shaders/pbr_prop_unshaded.gdshader"
 
-## Authored ShaderMaterials that DO get replaced on a headset, and with what:
-## a flat colour on the baked prop shader, no texture fetch at all. These are
-## the two Godot-lit fragment shaders left in the arcade once the shell and
-## the StandardMaterial props are baked - the table's wood (pbr_surface with
-## `shell` off, so ShellLighting leaves it) and the television's plastic - and
-## on a Quest 3 a lit, textured, normal-mapped surface is the most expensive
-## thing a fragment can be. The value names the uniform the flat colour comes
-## from; the wood also multiplies in its texture's mean.
+## Authored ShaderMaterials that DO get replaced on a headset, and with what.
+## These are the two Godot-lit fragment shaders left in the arcade once the
+## shell and the StandardMaterial props are baked - the table's and the storage
+## box's `pbr_surface` (`shell` off, so ShellLighting leaves it) and the
+## television's plastic - and on a Quest 3 a lit, textured, normal-mapped
+## surface is the most expensive thing a fragment can be. The value names the
+## uniform the colour comes from.
+##
+## `pbr_surface` keeps its maps (`_surface_shader()`, the prop shader's
+## SURFACE_UV variant, which tiles by position as the desktop does): what the
+## 2026-09-09 flat colour saved (App 20.51 -> 19.45 ms facing the table) was
+## Godot's light loop, and a baked prop with an albedo and a normal map is what
+## every other piece of furniture on a headset already draws. The plastic has
+## no map and stays a flat colour.
 const FLAT_SHADERS := {
 	"res://Shaders/pbr_surface.gdshader": "tint",
 	"res://Shaders/tv_plastic.gdshader": "plastic_color",
 }
-
-## Mean colour of an albedo map the flat stand-in replaces, sRGB, measured
-## from the source image (PIL, 2026-09-09). A lookup rather than a readback:
-## Texture2D.get_image() on a headset is a GPU round trip at spawn time, and a
-## spawn hitch is worth more than exactness on a surface nobody reads closely.
-## An unlisted map falls back to mid grey under the material's tint.
-const FLAT_ALBEDO_MEAN := {
-	"res://imported-assets/shared/materials/Wood066_1K-JPG_Color.jpg": Color(0.350, 0.202, 0.075),
-}
+const SURFACE_SHADER := "res://Shaders/pbr_surface.gdshader"
 
 ## Room to convert. Empty means this node's parent.
 @export var room_path: NodePath
@@ -154,7 +152,7 @@ func _restore(id: int) -> void:
 			if surface >= mi.mesh.get_surface_count():
 				continue
 			var mat := mi.get_surface_override_material(surface) as ShaderMaterial
-			if mat != null and mat.shader == _shader:
+			if mat != null and mat.shader != null and (mat.shader == _shader or mat.shader == _surface or mat.shader == _double):
 				var originals: Dictionary = record.get("originals", {})
 				mi.set_surface_override_material(surface, originals.get(surface, null))
 	_converted_meshes.erase(id)
@@ -245,8 +243,9 @@ func _supported(src: BaseMaterial3D) -> bool:
 		and src.billboard_mode == BaseMaterial3D.BILLBOARD_DISABLED and src.next_pass == null
 
 
-## One allowlisted ShaderMaterial, as a flat colour on the prop shader. Null
-## for anything else, which is how _convert knows to leave an override alone.
+## One allowlisted ShaderMaterial on the prop shader: `pbr_surface` with its
+## maps on the SURFACE_UV variant, the plastic as a flat colour. Null for
+## anything else, which is how _convert knows to leave an override alone.
 ## Cached by the source's instance id like the StandardMaterial path, so every
 ## table leg wearing the apron material shares one stand-in.
 func _flatten(src: ShaderMaterial) -> ShaderMaterial:
@@ -258,26 +257,63 @@ func _flatten(src: ShaderMaterial) -> ShaderMaterial:
 		return cached
 	var colour_param: String = FLAT_SHADERS[src.shader.resource_path]
 	var colour: Color = src.get_shader_parameter(colour_param)
-	if colour_param == "tint":
-		# Tint multiplies the sampled albedo in linear light; do the same to
-		# its mean, then hand the shader an sRGB colour as `source_color`.
-		var tex: Texture2D = src.get_shader_parameter("albedo_tex") as Texture2D
-		var mean: Color = FLAT_ALBEDO_MEAN.get(tex.resource_path if tex != null else "", Color(0.5, 0.5, 0.5))
-		colour = (colour.srgb_to_linear() * mean.srgb_to_linear()).linear_to_srgb()
 	var out := ShaderMaterial.new()
-	out.shader = _shader
 	out.render_priority = src.render_priority
 	out.set_shader_parameter("uv1_scale", Vector3.ONE)
 	out.set_shader_parameter("uv1_offset", Vector3.ZERO)
 	out.set_shader_parameter("albedo_color", colour)
 	out.set_shader_parameter("has_albedo_tex", false)
 	out.set_shader_parameter("has_normal_tex", false)
+	out.shader = _shader
+	if src.shader.resource_path == SURFACE_SHADER:
+		_carry_surface(src, out)
 	out.set_shader_parameter("has_emission_tex", false)
 	out.set_shader_parameter("emission_color", Vector3.ZERO)
 	out.set_shader_parameter("emission_energy", 0.0)
 	_set_volume(out, _volume)
 	_materials[id] = weakref(out)
 	return out
+
+
+## `pbr_surface`'s maps and its position-picked UV onto `out`, on the
+## SURFACE_UV variant. Roughness is not carried: the prop shader reads it only
+## for a metal, and this wood and cardboard are not one.
+func _carry_surface(src: ShaderMaterial, out: ShaderMaterial) -> void:
+	var shader := _surface_shader()
+	if shader == null:
+		return
+	out.shader = shader
+	var albedo := src.get_shader_parameter("albedo_tex") as Texture2D
+	var normal := src.get_shader_parameter("normal_tex") as Texture2D
+	out.set_shader_parameter("has_albedo_tex", albedo != null)
+	if albedo != null:
+		out.set_shader_parameter("albedo_tex", albedo)
+	out.set_shader_parameter("has_normal_tex", normal != null)
+	if normal != null:
+		out.set_shader_parameter("normal_tex", normal)
+	for param: String in ["tiles_per_metre", "object_space", "swap_uv", "uv_offset", "paint_over"]:
+		var value: Variant = src.get_shader_parameter(param)
+		if value != null:
+			out.set_shader_parameter(param, value)
+	var strength: Variant = src.get_shader_parameter("normal_strength")
+	out.set_shader_parameter("normal_scale", strength if strength != null else 1.0)
+
+
+## The prop shader with SURFACE_UV defined, built once from its own code.
+var _surface: Shader
+
+
+func _surface_shader() -> Shader:
+	if _surface == null:
+		var code := _shader.code
+		var head := "shader_type spatial;"
+		if not code.begins_with(head) or not code.contains("#ifdef SURFACE_UV"):
+			push_warning("[PropLighting] the prop shader has no SURFACE_UV variant: pbr_surface props stay flat")
+			return null
+		_surface = Shader.new()
+		_surface.code = head + NL + "#define SURFACE_UV" + code.substr(head.length())
+		print("[PropLighting] textured pbr_surface prop shader built")
+	return _surface
 
 
 ## One StandardMaterial3D, as the unshaded equivalent.

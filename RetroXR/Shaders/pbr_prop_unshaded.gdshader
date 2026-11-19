@@ -43,6 +43,23 @@ uniform float roughness : hint_range(0.0, 1.0) = 1.0;
 uniform vec3 uv1_scale = vec3(1.0);
 uniform vec3 uv1_offset = vec3(0.0);
 
+#ifdef SURFACE_UV
+// A prop on `pbr_surface` (the table's wood, the storage box's cardboard) has
+// no authored UVs worth the name: its meshes are BoxMeshes, whose UVs run 0..1
+// per face whatever the size. PropLighting builds this variant for them with
+// `#define SURFACE_UV` prepended, so the UV is picked from position exactly as
+// `pbr_surface_common.gdshaderinc` `shell_uv()` does on the desktop, and the
+// colour is `shell_albedo()`'s tint / paint-over. Props without the define pay
+// nothing for it: no extra varyings, no branch.
+uniform float tiles_per_metre = 0.75;
+uniform bool object_space = false;
+uniform bool swap_uv = false;
+uniform vec2 uv_offset = vec2(0.0);
+uniform float paint_over : hint_range(0.0, 1.0) = 0.0;
+varying vec3 v_local_pos;
+varying vec3 v_local_normal;
+#endif
+
 // The room's baked irradiance volume, shared with the shell.
 uniform sampler3D gi_irr : filter_linear, repeat_disable;
 uniform sampler3D gi_dir : filter_linear, repeat_disable;
@@ -91,14 +108,39 @@ void vertex() {
 	v_world_normal = normalize(MODEL_NORMAL_MATRIX * NORMAL);
 	v_world_tangent = normalize((MODEL_MATRIX * vec4(TANGENT, 0.0)).xyz);
 	v_world_binormal = normalize((MODEL_MATRIX * vec4(BINORMAL, 0.0)).xyz);
+#ifdef SURFACE_UV
+	v_local_pos = VERTEX;
+	v_local_normal = normalize(NORMAL);
+#endif
 }
 
 
 void fragment() {
+	vec2 uv = UV;
+#ifdef SURFACE_UV
+	{
+		vec3 an = abs(object_space ? v_local_normal : v_world_normal);
+		vec3 p = object_space ? v_local_pos : v_world_pos;
+		if (an.y > max(an.x, an.z)) {
+			uv = p.xz;
+		} else if (an.x > an.z) {
+			uv = p.zy;
+		} else {
+			uv = p.xy;
+		}
+		if (swap_uv) {
+			uv = uv.yx;
+		}
+		uv = uv * tiles_per_metre + uv_offset;
+	}
+#endif
 	vec3 albedo = albedo_color.rgb;
 	if (has_albedo_tex) {
-		albedo *= texture(albedo_tex, UV).rgb;
+		albedo *= texture(albedo_tex, uv).rgb;
 	}
+#ifdef SURFACE_UV
+	albedo = mix(albedo, albedo_color.rgb, paint_over);
+#endif
 
 	vec3 n = normalize(v_world_normal);
 	if (has_normal_tex) {
@@ -106,7 +148,7 @@ void fragment() {
 		// EAC_RG11 here, and taking a blue channel that does not exist points
 		// every normal into the surface. The shell shader learned this the
 		// expensive way - it zeroed N.L on every light in the room.
-		vec2 nxy = (texture(normal_tex, UV).rg * 2.0 - 1.0) * normal_scale;
+		vec2 nxy = (texture(normal_tex, uv).rg * 2.0 - 1.0) * normal_scale;
 		vec3 tn = vec3(nxy, sqrt(max(1.0 - dot(nxy, nxy), 0.0)));
 		n = normalize(mat3(v_world_tangent, v_world_binormal, v_world_normal) * tn);
 	}
@@ -158,7 +200,7 @@ void fragment() {
 	}
 	vec3 emission = emission_color * emission_energy;
 	if (has_emission_tex) {
-		emission *= texture(emission_tex, UV).rgb;
+		emission *= texture(emission_tex, uv).rgb;
 	}
 
 	ALBEDO = colour + emission;

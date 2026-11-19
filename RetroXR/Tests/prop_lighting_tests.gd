@@ -114,12 +114,18 @@ func _ready() -> void:
 	_ok(transparent.get_surface_override_material(0) == null, "transparent material preserved")
 	_ok(pixel_art.get_surface_override_material(0) == null, "nearest texture filtering preserved")
 
-	# The two authored shaders PropLighting DOES replace, as flat colour.
+	# The two authored shaders PropLighting DOES replace: pbr_surface with its
+	# maps on the prop shader's SURFACE_UV variant, the plastic as flat colour.
 	var wood := ShaderMaterial.new()
 	wood.shader = load("res://Shaders/pbr_surface.gdshader")
 	wood.set_shader_parameter("tint", Color(0.82, 0.74, 0.66))
-	wood.set_shader_parameter("albedo_tex",
-		load("res://imported-assets/shared/materials/Wood066_1K-JPG_Color.jpg"))
+	var wood_map: Texture2D = load("res://imported-assets/shared/materials/Wood066_1K-JPG_Color.jpg")
+	var wood_normal: Texture2D = load("res://imported-assets/shared/materials/Wood066_1K-JPG_NormalGL.jpg")
+	wood.set_shader_parameter("albedo_tex", wood_map)
+	wood.set_shader_parameter("normal_tex", wood_normal)
+	wood.set_shader_parameter("tiles_per_metre", 0.9)
+	wood.set_shader_parameter("object_space", true)
+	wood.set_shader_parameter("normal_strength", 0.9)
 	var table := _mesh(src)
 	room.add_child(table)
 	table.set_surface_override_material(0, wood)
@@ -131,14 +137,20 @@ func _ready() -> void:
 	tv.set_surface_override_material(0, plastic)
 	await get_tree().process_frame
 	var flat_wood := table.get_surface_override_material(0) as ShaderMaterial
-	_ok(flat_wood != null and flat_wood != wood and flat_wood.shader.resource_path == PropLighting.PROP_SHADER,
-		"table wood override replaced by the prop shader")
-	_ok(flat_wood != null and flat_wood.get_shader_parameter("has_albedo_tex") == false
-		and flat_wood.get_shader_parameter("has_normal_tex") == false,
-		"flat wood samples no texture")
-	var wood_colour: Color = flat_wood.get_shader_parameter("albedo_color") if flat_wood != null else Color.WHITE
-	_ok(wood_colour.r > wood_colour.g and wood_colour.g > wood_colour.b and wood_colour.r < 0.5,
-		"flat wood is the tint over the map's mean, a dark brown")
+	_ok(flat_wood != null and flat_wood != wood and flat_wood.shader != null
+		and flat_wood.shader.code.contains("#define SURFACE_UV"),
+		"table wood override replaced by the prop shader's SURFACE_UV variant")
+	_ok(flat_wood != null and flat_wood.get_shader_parameter("has_albedo_tex") == true
+		and flat_wood.get_shader_parameter("albedo_tex") == wood_map
+		and flat_wood.get_shader_parameter("has_normal_tex") == true
+		and flat_wood.get_shader_parameter("normal_tex") == wood_normal,
+		"textured wood keeps its albedo and normal maps")
+	_ok(flat_wood != null and is_equal_approx(float(flat_wood.get_shader_parameter("tiles_per_metre")), 0.9)
+		and flat_wood.get_shader_parameter("object_space") == true
+		and is_equal_approx(float(flat_wood.get_shader_parameter("normal_scale")), 0.9),
+		"textured wood tiles as the desktop does")
+	_ok(flat_wood != null and flat_wood.get_shader_parameter("albedo_color") == Color(0.82, 0.74, 0.66),
+		"textured wood multiplies its map by the tint")
 	var flat_plastic := tv.get_surface_override_material(0) as ShaderMaterial
 	_ok(flat_plastic != null and flat_plastic != plastic
 		and flat_plastic.get_shader_parameter("albedo_color") == Color(0.1, 0.1, 0.105, 1),
@@ -147,7 +159,7 @@ func _ready() -> void:
 	_ok(table.get_surface_override_material(0) == wood, "leaving room puts the authored wood back")
 	room.add_child(table)
 	await get_tree().process_frame
-	_ok(table.get_surface_override_material(0) == flat_wood, "re-entering flattens again, sharing one stand-in")
+	_ok(table.get_surface_override_material(0) == flat_wood, "re-entering converts again, sharing one stand-in")
 
 	room.remove_child(spawned)
 	_ok(spawned.get_surface_override_material(0) == null, "leaving room restores source material")
