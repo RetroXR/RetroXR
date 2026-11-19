@@ -357,6 +357,10 @@ func seat_on_model_inlet() -> void:
 	var to_host := _host.global_transform.affine_inverse()
 	var at := (to_host * mouth.global_transform).origin
 	var out: Vector3 = MOUTH_OUT.get(str(mouth.name), _outward(at, _host.body_aabb()))
+	# A model can say which way its mouth looks: meta "out", in the mouth's own frame (a
+	# jack on a face of a rear block, inside the body's outline).
+	if mouth.has_meta(&"out"):
+		out = (to_host.basis * mouth.global_basis * (mouth.get_meta(&"out") as Vector3)).normalized()
 	var up := Vector3.UP if absf(out.y) < 0.9 else Vector3.BACK
 	var x := up.cross(out).normalized()
 	var basis := Basis(x, out.cross(x), out)
