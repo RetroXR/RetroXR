@@ -131,7 +131,7 @@ The chain is gone, and why is worth keeping:
   printer swept its whole strip round), flat normals a row, and a swing (`sway`) added
   by hand because the hinges, each critically damped on its own, never swung back.
 
-**How it bends (`PaperSheetSolver`, C++, `paper-godot/src/`).** A step:
+**How it bends (`PaperSheetSolver`, C++, `extensions/paper-godot/src/`).** A step:
 1. Each free particle is carried on by its velocity, the frame's apparent gravity
    (`GbPaperMotion`: gravity less the slot's acceleration) and its turn, with air drag.
 2. **Bending and twist, implicitly and exactly** (`bend()`): the positions minimizing

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # download_pdfium.sh — fetch prebuilt PDFium from bblanchon/pdfium-binaries into
-# godot-pdfium/external/pdfium/, laid out the way godot-pdfium/SConscript expects.
+# extensions/godot-pdfium/external/pdfium/, laid out the way extensions/godot-pdfium/SConscript expects.
 #
 #   Tools/download/download_pdfium.sh                          # all platform packages, latest release
 #   Tools/download/download_pdfium.sh -p linux                 # just the Linux x86_64 lib
@@ -23,7 +23,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-DEST="$REPO/godot-pdfium/external/pdfium"
+DEST="$REPO/extensions/godot-pdfium/external/pdfium"
 GH_REPO="bblanchon/pdfium-binaries"
 
 # key -> archive basename : destination lib subdir

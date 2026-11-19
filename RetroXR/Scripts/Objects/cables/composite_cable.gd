@@ -20,7 +20,7 @@
 ## the trunk is a single simulated chain that breaks out into three short tails
 ## per end. The trunk's terminal particles are left unanchored on purpose — the
 ## plugs carry the breakout, the way an unsupported junction behaves on the real
-## lead. See the ribbon note at the top of verlet-rope/src/VerletRope.hpp.
+## lead. See the ribbon note at the top of extensions/verlet-rope/src/VerletRope.hpp.
 class_name CompositeCable
 extends Node3D
 

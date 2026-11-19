@@ -11,7 +11,7 @@ everything a game sends it away: `SpeakerLogic::SpeakerData` returns at once unl
 Switched on alone, the speaker would play in the console's main mix, i.e. out of
 the television. So it comes out through a private environment call,
 `RETRO_ENVIRONMENT_GET_CONTROLLER_AUDIO_INTERFACE` (96), in
-`libretro-godot/src/ControllerAudioInterface.hpp` — kept byte-identical in the
+`extensions/libretro-godot/src/ControllerAudioInterface.hpp` — kept byte-identical in the
 Dolphin fork, like the Transfer Pak header. The core offers each controller
 device's sound, every block, silence included, just before the main batch.
 `push` returning false tells the core to mix that block into the main stream

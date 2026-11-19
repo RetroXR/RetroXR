@@ -24,7 +24,7 @@ always be checked rather than trusted:
 (Get-Item RetroXR/vlc-godot/libvlc.dll).VersionInfo.FileVersion   # 3.0.23
 ```
 
-and the vendored headers agree — `vlc-godot/external/include/vlc/libvlc_version.h`
+and the vendored headers agree — `extensions/vlc-godot/external/include/vlc/libvlc_version.h`
 declares MAJOR 3, MINOR 0, REVISION 23.
 
 ## Regenerating it
@@ -43,7 +43,7 @@ plugin tree from.
 4. Regenerate `plugins.dat` by running the app once; libVLC rebuilds the cache
    when it does not match the tree.
 5. Bump the version at the top of this file, and refresh the headers in
-   `vlc-godot/external/include/vlc/` from the same release.
+   `extensions/vlc-godot/external/include/vlc/` from the same release.
 
 The exact prune above is inferred from what the committed tree contains — the
 original copy was not scripted and left no record — so treat step 3 as a

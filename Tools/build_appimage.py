@@ -27,11 +27,11 @@ What it takes care of, because each one cost a build once:
     AppImage then uses the host's libstdc++.
   * libvlc.so. vlc-godot links the SYSTEM libvlc, which needs the development symlink
     (Fedora: vlc-devel). When only the runtime library is installed, a stub directory is
-    made and vlc-godot/SConscript patched for the duration of the build, then RESTORED
+    made and extensions/vlc-godot/SConscript patched for the duration of the build, then RESTORED
     (--no-vlc-stub to refuse; installing vlc-devel is the real fix).
 
 At run time the AppImage needs the host's libvlc (vlc-libs) and GL/Vulkan libraries; it
-bundles libSDL3.so.0 from libretro-godot/external. FUSE is not required: appimagetool runs
+bundles libSDL3.so.0 from extensions/libretro-godot/external. FUSE is not required: appimagetool runs
 with --appimage-extract-and-run, and so can the result (APPIMAGE_EXTRACT_AND_RUN=1).
 """
 
@@ -204,7 +204,7 @@ class VlcLinkPatch:
 
     A context manager so an interrupted build cannot leave the SConscript changed."""
 
-    SCONSCRIPT = REPO / "vlc-godot" / "SConscript"
+    SCONSCRIPT = REPO / "extensions" / "vlc-godot" / "SConscript"
     NEEDLE = "    env.Append(LIBS=['vlc'])\n"
 
     def __init__(self, stub: Path) -> None:
@@ -279,7 +279,7 @@ def step_export(godot: str) -> None:
         die(f"the export did not produce a usable {target.name} (log: {CACHE / 'export.log'})")
     # The extension links SDL3 by soname with no rpath, and many distros package none:
     # $ORIGIN finds it beside the executable.
-    sdl3 = REPO / "libretro-godot/external/SDL3/lib/linux-x64/libSDL3.so.0"
+    sdl3 = REPO / "extensions/libretro-godot/external/SDL3/lib/linux-x64/libSDL3.so.0"
     if not sdl3.is_file():
         die(f"missing {sdl3}")
     shutil.copy2(sdl3, BUILD_OUT / sdl3.name)

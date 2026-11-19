@@ -399,7 +399,7 @@ logged, and every screen assumed its own shape (`RetroTV` is a fixed 4:3 / 16:9 
 rotated core was ALREADY shown stretched on a television. Arcade pixels are not square (CPS1:
 384 x 224 for a 4:3 tube), so the frame's pixel ratio is the wrong answer anyway.
 
-Now (`libretro-godot/src/VideoGeometry.hpp`, header-only and Godot-free, tested by
+Now (`extensions/libretro-godot/src/VideoGeometry.hpp`, header-only and Godot-free, tested by
 `tests/video_geometry_test.cpp`):
 
 - `Libretro.GetVideoGeometry()` -> `{width, height, aspect, rotation, base_width, base_height,
@@ -471,7 +471,7 @@ leaves the title alone once a model's label owns it.
 ## Tests, probe
 
 `Tests/arcade_tests.gd` (groups `profiles input screen bridge board registry cabinet door seat
-card ports coin keep`); each case was broken and watched go red. `libretro-godot/tests/run_tests.py`
+card ports coin keep`); each case was broken and watched go red. `extensions/libretro-godot/tests/run_tests.py`
 runs `video_geometry_test.cpp`. The probe photographs front, three-quarter, panel, the bay with a
 board and the door open, the monitor in both shapes, and a coin in the air. **A GLB-less checkout
 (Git LFS not pulled) cannot run suites that need a console's GLB**; the arcade suite does not.

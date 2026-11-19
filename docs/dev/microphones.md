@@ -5,7 +5,7 @@ Moved verbatim out of `CLAUDE.md` on 2026-09-18; `CLAUDE.md` keeps the summary a
 ### 2o. Microphones — one reader, and every machine that asked
 
 libretro's microphone interface (`RETRO_ENVIRONMENT_GET_MICROPHONE_INTERFACE`, 75 |
-EXPERIMENTAL) is answered by `libretro-godot/src/MicrophoneHandler.cpp`, and the real
+EXPERIMENTAL) is answered by `extensions/libretro-godot/src/MicrophoneHandler.cpp`, and the real
 microphone is read by exactly one thing in the app: the `Microphone` autoload,
 `Scripts/Audio/microphone_input.gd`.
 
@@ -586,7 +586,7 @@ In `C:\Users\rymcc\libretro-fceumm`, branch `retroxr`:
   microphone and an NES four-player adapter are not a combination any game asks for.
 
 **The level is measured in C++ and is deliberately STATIC.** `Libretro.MeasureMicrophoneLevel`
-(`libretro-godot/src/MicrophoneLevel.hpp`) returns the `(rms, peak)` of a block of host frames,
+(`extensions/libretro-godot/src/MicrophoneLevel.hpp`) returns the `(rms, peak)` of a block of host frames,
 high-passed at 80 Hz and mixed to mono. GDScript cannot visit 800 frames a tick. It is not a
 method on a running machine because **fceumm opens no microphone**: there is no handle to hang a
 level off, and `IsMicrophoneActive()` never goes true for a Famicom, so a capture service that

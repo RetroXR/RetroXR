@@ -437,7 +437,7 @@ it; brought to the core's size and to RGBA8; a library with no camera in it neve
 called; a headless run draws nothing), `binding/`, and `core/` (the ROM names mGBA
 whatever the machine was given, the model pin, the "Core not installed" card naming
 mGBA, and the netplay refusal). No core runs in it. `camera_stream_test`
-(`libretro-godot/tests`, 43 checks) is the delivery rule and the channel order.
+(`extensions/libretro-godot/tests`, 43 checks) is the delivery rule and the channel order.
 Mutation-tested: 24 faults in the GDScript and 6 in the C++, each failing its own cases.
 
 The body's cases are mutation-tested too, each fault failing its own. On the first build: the header rule

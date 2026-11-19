@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # download_vlc_macos.sh — fetch libVLC for macOS from VideoLAN into
-# RetroXR/vlc-godot/macos/, laid out the way vlc-godot/SConscript and
+# RetroXR/vlc-godot/macos/, laid out the way extensions/vlc-godot/SConscript and
 # vlc_godot.gdextension expect:
 #
 #   RetroXR/vlc-godot/macos/libvlc.dylib

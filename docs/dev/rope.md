@@ -1,6 +1,6 @@
 # Cables: the rope, its plugs, and what makes a lead lie still
 
-`Xenu::VerletRope` (`verlet-rope/src/`) is a PBD chain between two anchors. The
+`Xenu::VerletRope` (`extensions/verlet-rope/src/`) is a PBD chain between two anchors. The
 anchors are usually the plug BODIES at the ends of a lead (`RigidBody3D`s the physics
 server owns) or a plain `Node3D` bolted to a device. This doc is about how the two
 halves meet, and about friction. Build notes are in `extensions.md`, the suites and

@@ -26,7 +26,7 @@ import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _GODOT_CPP_TOOLS = os.path.normpath(
-    os.path.join(_HERE, "..", "..", "libretro-godot", "godot-cpp", "tools"))
+    os.path.join(_HERE, "..", "..", "extensions", "libretro-godot", "godot-cpp", "tools"))
 if _GODOT_CPP_TOOLS not in sys.path:
     # The real tool imports its siblings (common_compiler_flags, my_spawn) by name.
     sys.path.insert(0, _GODOT_CPP_TOOLS)

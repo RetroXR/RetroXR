@@ -20,7 +20,7 @@ Wrapper* w = Wrapper::GetCurrentThreadWrapper();
 ```
 ThreadCommands that execute on the main thread carry an explicit `Wrapper*` and call `SetCurrentThreadWrapper` around their work so handler callbacks invoked during Execute() can also resolve the right instance.
 
-### Key Classes (libretro-godot/src/)
+### Key Classes (extensions/libretro-godot/src/)
 
 - **Wrapper** — Per-instance emulation orchestrator. Owns the emulation thread, all handlers, the command queue, and a back-pointer `Libretro* m_libretro_node`. Exposes `GetCurrentThreadWrapper()` / `SetCurrentThreadWrapper(Wrapper*)` as static helpers for the thread-local pattern.
 - **Core** — Dynamically loads a libretro core (`.dll` on Windows, `.so` on Linux/Android,
@@ -201,10 +201,10 @@ it overrides `screen_self_lit()` and offers no "Self-Lit Screen". Saved per obje
   enabled in `project.godot`. Adds Copy All to Debugger > Errors. Vendored from
   https://github.com/smartmita/godot-copy-all-errors at `6d0ea8e2927a7fe1d96d4e708453869d4cfcf422`.
 - **godot-cpp** (submodule, 4.5 branch) — Godot C++ bindings
-- **SDL3** — On Windows: core DLL loading (`DynLib.hpp`) + the OpenGL HW-render window. On Linux: the OpenGL HW-render window only (core loading uses `dlopen`); linked against the system `libSDL3.so.0` by soname, headers from `libretro-godot/external/SDL3/`. Not used on Android (`dlopen` + EGL via `DynLib.hpp`).
-- **libretro-common** — Reference implementations for VFS, audio conversion, etc. (`libretro-godot/external/libretro-common/`)
-- **rcheevos** (submodule, `libretro-godot/external/rcheevos/`) — RetroAchievements support, compiled into the extension. Carries no external dependency of its own.
-- **Vulkan-Headers** (submodule, `libretro-godot/external/vulkan-headers/`) — headers for the Vulkan HW-render path.
+- **SDL3** — On Windows: core DLL loading (`DynLib.hpp`) + the OpenGL HW-render window. On Linux: the OpenGL HW-render window only (core loading uses `dlopen`); linked against the system `libSDL3.so.0` by soname, headers from `extensions/libretro-godot/external/SDL3/`. Not used on Android (`dlopen` + EGL via `DynLib.hpp`).
+- **libretro-common** — Reference implementations for VFS, audio conversion, etc. (`extensions/libretro-godot/external/libretro-common/`)
+- **rcheevos** (submodule, `extensions/libretro-godot/external/rcheevos/`) — RetroAchievements support, compiled into the extension. Carries no external dependency of its own.
+- **Vulkan-Headers** (submodule, `extensions/libretro-godot/external/vulkan-headers/`) — headers for the Vulkan HW-render path.
 - **moodycamel::ReaderWriterQueue** — Lock-free SPSC queue for cross-thread communication
 - **godot-xr-tools v4.5.1 — FORKED IN PLACE, not a vendored drop-in.** VR locomotion,
   interactions, finger poses (`RetroXR/addons/godot-xr-tools/`). `plugin.cfg` still

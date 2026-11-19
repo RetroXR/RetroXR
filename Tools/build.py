@@ -6,11 +6,11 @@
     python Tools/build.py linux --only vlc-godot
     python Tools/build.py macos --target debug
 
-Eight extensions live in this workspace and each needs its OWN scons invocation.
+Nine extensions live in extensions/ and each needs its OWN scons invocation.
 They share one profiled `godot-cpp` static library, which this script builds once
 per platform/target before linking the extensions with `build_library=no`. Each
 extension also has its own `VariantDir('Temp')`, so it still builds from its own
-directory — except libretro-godot, whose SConstruct is the workspace root's.
+directory — except libretro-godot, whose SConstruct is extensions/ itself.
 
 Asking for `linux` from Windows re-invokes this script inside WSL. Asking for it
 from Linux just builds. (Replaces the old Tools/build_linux.sh, which did the
@@ -34,12 +34,12 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-GODOT_CPP = REPO / "libretro-godot/godot-cpp"
+GODOT_CPP = REPO / "extensions/libretro-godot/godot-cpp"
 GODOT_CPP_PROFILE = REPO / "Tools/godot_cpp_profile.json"
 
 # godot-cpp has no 4.6 or 4.7 branch: upstream master carries every API from 4.3
 # on and binds the one it is told. Every extension builds against master since
-# 2026-11-10 (libretro-godot/godot-cpp), bound to this.
+# 2026-11-10 (extensions/libretro-godot/godot-cpp), bound to this.
 GODOT_CPP_API = "api_version=4.7"
 
 # name, directory scons runs in (relative to REPO), where the artifacts land, and
@@ -52,17 +52,17 @@ ALL_PLATFORMS = ("windows", "linux", "macos", "android")
 # match. Building it there would produce a library nothing ever loads. Skip it
 # rather than bank a misleading OK in the results table.
 EXTENSIONS = [
-    ("libretro-godot", ".", "RetroXR/libretro-godot", ALL_PLATFORMS),
-    ("archive-godot", "archive-godot", "RetroXR/archive-godot", ALL_PLATFORMS),
-    ("verlet-rope", "verlet-rope", "RetroXR/verlet-rope", ALL_PLATFORMS),
+    ("libretro-godot", "extensions", "RetroXR/libretro-godot", ALL_PLATFORMS),
+    ("archive-godot", "extensions/archive-godot", "RetroXR/archive-godot", ALL_PLATFORMS),
+    ("verlet-rope", "extensions/verlet-rope", "RetroXR/verlet-rope", ALL_PLATFORMS),
     # macOS links the libVLC that Tools/download/download_vlc_macos.sh takes from VideoLAN's
     # VLC.app (not committed); main() runs it when the tree is missing.
-    ("vlc-godot", "vlc-godot", "RetroXR/vlc-godot", ALL_PLATFORMS),
-    ("godot-pdfium", "godot-pdfium", "RetroXR/godot-pdfium", ALL_PLATFORMS),
-    ("metaxr-audio", "metaxr-audio", "RetroXR/metaxr-audio", ("windows", "android")),
-    ("surround-godot", "surround-godot", "RetroXR/surround-godot", ALL_PLATFORMS),
-    ("paper-godot", "paper-godot", "RetroXR/paper-godot", ALL_PLATFORMS),
-    ("grab-godot", "grab-godot", "RetroXR/grab-godot", ALL_PLATFORMS),
+    ("vlc-godot", "extensions/vlc-godot", "RetroXR/vlc-godot", ALL_PLATFORMS),
+    ("godot-pdfium", "extensions/godot-pdfium", "RetroXR/godot-pdfium", ALL_PLATFORMS),
+    ("metaxr-audio", "extensions/metaxr-audio", "RetroXR/metaxr-audio", ("windows", "android")),
+    ("surround-godot", "extensions/surround-godot", "RetroXR/surround-godot", ALL_PLATFORMS),
+    ("paper-godot", "extensions/paper-godot", "RetroXR/paper-godot", ALL_PLATFORMS),
+    ("grab-godot", "extensions/grab-godot", "RetroXR/grab-godot", ALL_PLATFORMS),
 ]
 
 ARCH = {

@@ -647,7 +647,7 @@ can never hang the run.
   set builds its VCR and DVD in one frame and both warm up; each held only its OWN
   `m_instance_mutex`, so their threads ran libVLC's first-time init together, and both
   set `VLC_PLUGIN_PATH` (process environment) while the other read it. About 1 run in 3
-  alone. Fixed in `vlc-godot/src/VlcPlayer.cpp` with one process-wide lock around the
+  alone. Fixed in `extensions/vlc-godot/src/VlcPlayer.cpp` with one process-wide lock around the
   environment and `libvlc_new` (`s_libvlc_new_mutex`): 0 in 20 (4 at a time). Rebuilt
   windows, android and linux.
 - **PowerShell buffers `& $godot ... | Out-String` until the process exits**, so a
@@ -673,7 +673,7 @@ and not enough to act on; acting from the summary is how the same mistake arrive
 second time. `.tscn` transforms, a model's facing and a port's seat all have notes,
 and all three were sitting in the index while that socket was written backwards.
 
-`libretro-godot/tests/run_tests.py` is the small Godot-free C++ harness for the
+`extensions/libretro-godot/tests/run_tests.py` is the small Godot-free C++ harness for the
 link coordinator, the sensor-id encoding, the microphone stream and level, the pixel
 swizzles and the camera stream (`camera_stream_test`: what a core is handed and when,
 and the one place the channel order of a camera picture can be pinned, since mGBA turns

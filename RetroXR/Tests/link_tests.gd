@@ -8,7 +8,7 @@
 ## link plug, which machine a socket belongs to, and the connect/disconnect
 ## bookkeeping that decides whether two cores are told they share a wire. Whether
 ## a linked pair actually trades bytes needs two real cores and lives in the
-## coordinator's own C++ tests (libretro-godot/tests/run_tests.py), which is also
+## coordinator's own C++ tests (extensions/libretro-godot/tests/run_tests.py), which is also
 ## where the deadlock and determinism cases are.
 ##
 ## Two of these are the regression record for traps this feature can fall into.

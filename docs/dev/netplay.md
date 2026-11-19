@@ -292,7 +292,7 @@ turn means no late join and no desync repair.
 A cabled machine used to drop to lockstep, because rollback rewinds ONE core
 and a cabled core's state is half a conversation. It now rolls back as a GROUP
 when every core on the lead can: `Wrapper::NetplayGroupIteration`, with the
-shared state in `libretro-godot/src/NetplayGroup.hpp`.
+shared state in `extensions/libretro-godot/src/NetplayGroup.hpp`.
 
 - **Every member stops at every frame edge** (`NetplayRollbackGroup::Rendezvous`).
   Each hands in a proposal (its first mismatch, how far it has verified, whether

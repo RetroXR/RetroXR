@@ -13,6 +13,6 @@ VariantDir('Temp', '.', duplicate=0)
 env = Environment()
 
 import os
-output_dir = os.environ.get('ARCHIVE_GODOT_OUTPUT_DIR', '#../RetroXR/archive-godot')
+output_dir = os.environ.get('ARCHIVE_GODOT_OUTPUT_DIR', '#../../RetroXR/archive-godot')
 
 SConscript('Temp/SConscript', exports=['env', 'output_dir'])

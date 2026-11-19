@@ -74,12 +74,12 @@ python Tools/build.py windows --jobs 8 -- verbose=yes    # extra args go to scon
   `grab-godot` (`GrabDriverTick`, the C++ per-tick half of xr-tools' `XRToolsGrabDriver`, which
   falls back to its own GDScript tick where the class is missing; `grab_driver_tests` holds the
   two to the same poses). Each
-  is `<name>/` with its own `SConstruct`, built **from its own directory**, deploying to
+  is `extensions/<name>/` with its own `SConstruct`, built **from its own directory**, deploying to
   `RetroXR/<name>/`.
 - **Not all ship everywhere:** `metaxr-audio` is windows/android only (Meta's blob);
   `vlc-godot` is skipped on macOS. `--only metaxr-audio` on Linux/macOS is an error.
-- libretro-godot itself builds from the **workspace root** (`SConstruct` there;
-  `libretro-godot/Temp/SConscript` is a VariantDir, there is no root `Temp/`). Output:
+- libretro-godot (the one submodule) builds from **`extensions/`** (`extensions/SConstruct`;
+  `extensions/libretro-godot/Temp/SConscript` is a VariantDir, there is no `extensions/Temp/`). Output:
   `RetroXR/libretro-godot/`.
 - scons is not on PATH: Windows `~/.local/bin/scons` (2026-11-04; the old `$APPDATA/Python/Python314/Scripts/scons.exe` is gone); Linux/WSL
   `~/.local/bin` (`uv tool install scons` on CachyOS, `pip install --user scons` elsewhere).
@@ -166,7 +166,7 @@ python Tools/run_tests.py --update-baseline   # after a DELIBERATE drop in case 
 - `scene_tests` never drives a real `change_scene()` (SubViewports hang headless).
 - netplay suites print a fixed Godot `ObjectDB` shutdown warning — expected, do not "fix"
   it by removing the autoload.
-- `libretro-godot/tests/run_tests.py` and `surround-godot/tests/run_tests.py` are Godot-free
+- `extensions/libretro-godot/tests/run_tests.py` and `extensions/surround-godot/tests/run_tests.py` are Godot-free
   C++ harnesses.
 
 **For anything visual, a photo (or an mp4 for animation) delivered inline in the chat is

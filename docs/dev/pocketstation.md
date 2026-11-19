@@ -250,7 +250,7 @@ which the fork now logs once a command byte). RetroXR's fork (`RetroXR/pcsx_rear
   C:\Windows\"): run make's own link line (`make -n ... | grep -- "-o pcsx_rearmed_libretro.dll"`)
   with `TMPDIR` set and only mingw64 on the PATH.
 - **Its screen while docked** (fork `9d0336e0`, libretro-godot `ba26721`): the **device display
-  interface** (`libretro-godot/src/DeviceDisplayInterface.hpp`, env **111**, EXPERIMENTAL as the
+  interface** (`extensions/libretro-godot/src/DeviceDisplayInterface.hpp`, env **111**, EXPERIMENTAL as the
   link/Transfer Pak/controller audio calls; byte-identical copies in both forks) names a screen
   by location -- `0` a controller (a VMU), `1` a memory card slot -- port and index. It replaces the
   controller display call (`RETRO_ENVIRONMENT_PRIVATE | 1`), which only knew controllers; Flycast

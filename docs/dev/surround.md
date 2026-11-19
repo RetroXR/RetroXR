@@ -21,7 +21,7 @@ exactly 16 N64 titles, the ~12 known SNES Dolby Surround games, PS1, and Dreamca
 OS r11.
 
 **The decoder is FreeSurround** (Christian Kothe, GPL-2.0-or-later), vendored from
-**Dolphin's** `Externals/FreeSurround/` into its own extension, `surround-godot/`.
+**Dolphin's** `Externals/FreeSurround/` into its own extension, `extensions/surround-godot/`.
 
 - **Not `tygyh/FreeSurround`**, which looks like better provenance and is broken: it drops
   the `kiss_fft_scalar=double` override while leaving `cplx` at `std::complex<double>`, so
@@ -467,7 +467,7 @@ rotation above at all three layouts, and passes now: every channel on its own
 output at its own level (-14 dB for a 0.2 tone, the LFE -24, the 3.1 surrounds -17)
 and -200 dB everywhere else. `speaker_tests` `held/` covers the matrix, the ring, the
 targets and the extension's queue draining through the bus headless; the ring and
-the matrix ramp have Godot-free cases in `surround-godot/tests/discrete_ring_test.cpp`.
+the matrix ramp have Godot-free cases in `extensions/surround-godot/tests/discrete_ring_test.cpp`.
 
 With a core, `surround_probe --held` alternates held and released windows, three of
 each, judged on their loudest, with the released voices as the control: its first

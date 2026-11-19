@@ -21,7 +21,7 @@ stand-ins in `RetroXR/Scenes/Objects/system_models/`.
 be either our own work or licensed for redistribution, with its licence and attribution
 carried alongside it.
 - **`Tools/download/download_pdfium.sh`** — fetches prebuilt PDFium from bblanchon/pdfium-binaries into
-  `godot-pdfium/external/pdfium/`. All five packages by default (`-p
+  `extensions/godot-pdfium/external/pdfium/`. All five packages by default (`-p
   linux|win|mac|mac-x64|android` for one, `-r <tag>` to pin a release, `-n` to dry-run).
   Bash, so it runs on Linux, WSL, macOS and Git Bash; it superseded
   `Tools/download/download_pdfium.ps1`, which had no Linux or macOS platform at all. The `.ps1` is

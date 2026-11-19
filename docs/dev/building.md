@@ -24,7 +24,7 @@ including or calling it.
 branch). godot-cpp has no 4.6 or 4.7 branch: master carries every API from 4.3 on and is
 told which to bind. `build.py` passes `api_version=4.7` to godot-cpp and to every
 extension, and each `SConscript` sets the same default for a build by hand. The checkout
-is still `libretro-godot/godot-cpp` (that repo's submodule, `branch = master`), shared by
+is still `extensions/libretro-godot/godot-cpp` (that repo's submodule, `branch = master`), shared by
 all eight. What the move met: `Math_PI` / `Math_TAU` are `Math::PI` / `Math::TAU`,
 `CMP_EPSILON` is `godot::CMP_EPSILON` (it was a macro), and master's rewritten vector
 maths rounds differently in the last bit (the rope's oracles moved: `testing.md`).
@@ -65,7 +65,7 @@ On the native CachyOS box there is no `pip` on PATH at all (Python 3.14, externa
 managed) — `uv tool install scons` is the one that works there, and it lands in
 `~/.local/bin` just the same.
 
-Build from the **workspace root** (not `-C Temp`):
+Build from **`extensions/`** (not `-C Temp`; `Tools/build.py` does this for you):
 ```bash
 # Windows (PowerShell)
 $scons = "$env:APPDATA\Python\Python314\Scripts\scons.exe"   # pip install --user scons
@@ -85,10 +85,11 @@ scons platform=macos arch=arm64 target=template_debug macos_deployment_target=13
 scons platform=macos arch=x86_64 target=template_release macos_deployment_target=13.0
 ```
 
-The `SConstruct` is at the workspace root; `libretro-godot/Temp/SConscript` does the
-actual build logic. (`Temp` is the `VariantDir` the root `SConstruct` declares over
-`libretro-godot/`; there is no `Temp/` at the workspace root, so a bare `Temp/SConscript`
-path is wrong.) Output libraries go to `RetroXR/libretro-godot/`.
+The `SConstruct` is `extensions/SConstruct` (it was at the workspace root until 2026-11-19);
+`extensions/libretro-godot/Temp/SConscript` does the actual build logic. (`Temp` is the
+`VariantDir` that `SConstruct` declares over `extensions/libretro-godot/`; there is no
+`extensions/Temp/`, so a bare `Temp/SConscript` path is wrong.) Output libraries go to
+`RetroXR/libretro-godot/`.
 
 The Linux build links `libvulkan.so.1`, `libSDL3.so.0`, and `libGL.so.1` by soname (no
 `-dev`/`-devel` packages needed). All three render paths work on Linux: software, Vulkan
