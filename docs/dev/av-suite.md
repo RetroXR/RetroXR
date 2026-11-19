@@ -566,6 +566,13 @@ disc, tape or record plays at the headphones' near-ear law.
 jack); `appliance_pointer_tests` checks the knob's box is the knob. How it looks: `Tools/av/bring_in_probe`
 (windowed, `-- --no-mods`).
 
+**The volume knobs turn with a ROLL OF THE WRIST** (2026-11-20, `VRKnob.follow_roll` in the scene): the CD player's
+LEVEL, the cassette deck's VOLUME, the computer speakers' and the surround amp's VolumeKnob. A fingertip walked round a
+20 mm cap was the old way, and the hand can barely do it. Take hold with the trigger and roll the hand: clockwise is
+louder, 1:1, and letting go and taking hold again ratchets it. A LASER holding one of these knobs follows the wrist too,
+polled each frame, because the ray hardly moves on the cap as the wrist turns (`knob_tests roll/`; `deck_tests out/`
+checks all four scenes keep the flag). Headset feel OWED.
+
 **The cassette deck has PHONES too (2026-11-07)**: RetroXR-models `generic/cassette-deck` gained the CD player's
 3.5 mm jack (`Phones`, the `PhonesOut` mouth) in the column between the door and the transport keys, under EJECT and
 level with the keys' middle (x -51 mm, z -22). **It has no knob of its own: the deck has ONE knob, VOLUME** (the

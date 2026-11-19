@@ -97,6 +97,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.15, 0.0655, 0.17)
 collision_layer = 1048576
 collision_mask = 0
 script = ExtResource("5_vrknob")
+follow_roll = true
 engage_radius = 0.05
 value = 0.75
 

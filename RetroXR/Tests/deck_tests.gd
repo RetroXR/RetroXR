@@ -1258,6 +1258,18 @@ func _test_out() -> void:
 		"out/the cassette deck's knob is cut out of the body onto the knob's pivot")
 	_ok(knob.position.distance_to(Vector3(0.186, -0.022, 0.150)) < 0.004,
 		"out/and stands on the fascia where the model draws it (%s)" % knob.position)
+	_ok(knob.follow_roll and (decks[1].get_node("LevelKnob") as VRKnob).follow_roll,
+		"out/the cassette's VOLUME and the CD's LEVEL turn with a roll of the wrist")
+	for path in ["res://Scenes/Objects/appliances/speaker_pair.tscn", "res://Scenes/Objects/appliances/surround_amp.tscn"]:
+		var st := load(path) as PackedScene
+		var rolls := false
+		for i in st.get_state().get_node_count():
+			if str(st.get_state().get_node_name(i)) != "VolumeKnob":
+				continue
+			for j in st.get_state().get_node_property_count(i):
+				if str(st.get_state().get_node_property_name(i, j)) == "follow_roll":
+					rolls = st.get_state().get_node_property_value(i, j) == true
+		_ok(rolls, "out/and so does the volume knob of %s" % path.get_file())
 	knob.set_value(0.25)
 	_ok(is_equal_approx(tape.output_level, 0.25), "out/turning it sets the deck's output level")
 	var sink2 := Node3D.new()

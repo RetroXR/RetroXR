@@ -1,4 +1,6 @@
-## VRKnob's thumbwheel drag (rim_drag) and its haptics: a straight drag along the
+## VRKnob's wrist roll (follow_roll, the CD and cassette decks' volume): rolling the
+## hand clockwise turns the knob clockwise by the same angle, whether the hand or a
+## laser holds it. And its thumbwheel drag (rim_drag) and its haptics: a straight drag along the
 ## rim turns the cap evenly and covers the whole sweep in one stroke, pushing past
 ## an end leaves no dead travel, and a held knob ticks per detent, bumps at the
 ## ends, and never rumbles for a turn no hand made.
@@ -25,6 +27,8 @@ func _ready() -> void:
 	_detent_rate_limit()
 	_no_hand_no_rumble()
 	_haptics_off()
+	_roll_turns_with_the_wrist()
+	_roll_on_a_laser()
 	XRServer.remove_tracker(XRServer.get_tracker(TRACKER))
 	_finish()
 
@@ -220,3 +224,74 @@ func _haptics_off() -> void:
 	_steps(k, 0.0, 0.001, 40)
 	_eq(_felt.size(), 0, "haptics/off by default: a knob without it never rumbles")
 	_done(k)
+
+
+## A deck's volume: a 270-degree pot on a panel facing +Z, the deck itself turned
+## away from the world's axes so the rest frame is what is measured. The hand points
+## into the panel, as it does reaching for the knob.
+func _deck_knob(value := 0.5) -> VRKnob:
+	var deck := Node3D.new()
+	deck.rotation = Vector3(0.0, deg_to_rad(37.0), deg_to_rad(8.0))
+	deck.position = Vector3(0.3, 1.0, -0.4)
+	add_child(deck)
+	var k := VRKnob.new()
+	var pivot := Node3D.new()
+	pivot.name = VRKnob.PIVOT_NAME
+	k.add_child(pivot)
+	k.follow_roll = true
+	k.value = value
+	deck.add_child(k)
+	_ctrl.global_basis = k.global_basis   # pointing along -Z, into the panel
+	return k
+
+
+## Roll the controller about the knob's axle by `deg`, positive counter-clockwise
+## seen from the front (the knob's +Z).
+func _roll(k: VRKnob, deg: float) -> void:
+	_ctrl.global_basis = Basis(k.global_basis.z.normalized(), deg_to_rad(deg)) * _ctrl.global_basis
+
+
+func _done_deck(k: VRKnob) -> void:
+	k._trigger_ctrl = null
+	k._pointer_held = false
+	k._pointer_ctrl = null
+	_ctrl.global_basis = Basis.IDENTITY
+	k.get_parent().queue_free()
+
+
+func _roll_turns_with_the_wrist() -> void:
+	var k := _deck_knob()
+	k._trigger_ctrl = _ctrl
+	k._begin_roll(_ctrl)
+	_ok(absf(k.value - 0.5) < 0.001, "roll/taking hold moves nothing", "value %.4f" % k.value)
+	_roll(k, -54.0)   # clockwise, as a hand turns a volume up
+	k._track_angle(k._roll_at(_ctrl, k._grab_raw_prev))
+	_ok(absf(k.value - 0.7) < 0.002, "roll/a wrist rolled 54 deg clockwise turns it up 54 deg",
+		"value %.4f" % k.value)
+	_roll(k, 108.0)
+	k._track_angle(k._roll_at(_ctrl, k._grab_raw_prev))
+	_ok(absf(k.value - 0.3) < 0.002, "roll/and anticlockwise turns it down", "value %.4f" % k.value)
+	# Let go, turn the hand back, take hold again: a ratchet, the cap stays put.
+	_roll(k, -54.0)
+	k._begin_roll(_ctrl)
+	_ok(absf(k.value - 0.3) < 0.002, "roll/a fresh grab after turning the hand back moves nothing",
+		"value %.4f" % k.value)
+	_done_deck(k)
+
+
+## A laser on the cap barely moves as the wrist rolls, so a laser holding a
+## follow_roll knob follows the wrist, polled each frame.
+func _roll_on_a_laser() -> void:
+	var k := _deck_knob()
+	k._pointer_held = true
+	k._pointer_ctrl = _ctrl
+	k._begin_roll(_ctrl)
+	_roll(k, -27.0)
+	k._process(0.0)
+	_ok(absf(k.value - 0.6) < 0.002, "roll/a laser holding it turns it with the wrist",
+		"value %.4f" % k.value)
+	k._pointer_held = false
+	_roll(k, -27.0)
+	k._process(0.0)
+	_ok(absf(k.value - 0.6) < 0.002, "roll/let go, the wrist turns nothing", "value %.4f" % k.value)
+	_done_deck(k)

@@ -257,6 +257,7 @@ collision_layer = 1048576
 collision_mask = 0
 script = ExtResource("11_vrknob")
 engage_radius = 0.03
+follow_roll = true
 value = 1.0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="LevelKnob"]

@@ -37,7 +37,10 @@
 ## Three ways a hand turns it, chosen per knob:
 ##   • ROUND THE AXLE (the default) — the fingertip walks round the cap and the cap
 ##     follows its angle. Right for a dial on a panel, whose whole face is in reach.
-##   • follow_roll — the controller's roll about the axle. A wand twisted in the fist.
+##   • follow_roll — the controller's roll about the axle. A wand twisted in the fist,
+##     or a small volume knob, which a hand turns by rolling the wrist rather than by
+##     walking a fingertip round a 20 mm cap. A LASER held on it rolls it too: the ray
+##     hardly moves on the cap as the wrist turns, so where it lands tells nothing.
 ##   • rim_drag — a straight drag along the rim. A THUMBWHEEL: only a sliver of rim
 ##     shows through a shell's edge and the axle is buried inside it, so a hand can
 ##     neither circle it nor roll round it. Measured as an angle, a straight swipe
@@ -208,6 +211,9 @@ func get_value() -> float:
 
 
 func _process(_delta: float) -> void:
+	# A laser holding a follow_roll knob turns it with the wrist, however far away.
+	if _pointer_held and follow_roll and is_instance_valid(_pointer_ctrl):
+		_track_angle(_roll_at(_pointer_ctrl, _grab_raw_prev))
 	# A hand nowhere near the cap is asked nothing; a latched hand keeps driving
 	# the knob wherever it roams.
 	if _trigger_ctrl == null \
@@ -280,7 +286,9 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 			# Null for the desktop reticle, which must not rumble.
 			_pointer_ctrl = Haptics.controller_of(event.pointer)
 			if vr:
-				if rim_drag:
+				if follow_roll and _pointer_ctrl != null:
+					_begin_roll(_pointer_ctrl)
+				elif rim_drag:
 					_begin_rim(event.position)
 				else:
 					_begin_track(event.position)
@@ -288,7 +296,9 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 				Haptics.click(_pointer_ctrl, true, HAPTIC_KEY)
 		XRToolsPointerEvent.Type.MOVED:
 			if _pointer_held and vr:
-				if rim_drag:
+				if follow_roll and _pointer_ctrl != null:
+					pass   # the wrist turns it, polled in _process
+				elif rim_drag:
 					_track_rim(event.position)
 				else:
 					_track_world_point(event.position)
