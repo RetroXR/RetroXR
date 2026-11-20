@@ -131,12 +131,15 @@ measurements and shader-include traps are in the doc.
 ## Testing & validation — full notes: `docs/dev/testing.md`
 
 ```bash
-python Tools/run_tests.py            # every suite; gates CI (tests.yml)
+python Tools/run_tests.py --jobs $(($(nproc)-1))   # every suite in parallel, each isolated (1 job is serial, far slower)
+python Tools/run_tests.py --jobs $(($(nproc)-1)) --only=deck_tests,tv_remote_tests   # some suites: --only, never bare names
 python Tools/run_tests.py --list
 python Tools/run_tests.py --update-baseline   # after a DELIBERATE drop in case count
 "$godot" --headless --path RetroXR res://Tests/<suite>.tscn [-- --only=<group>]
 ```
 
+- **Always pass `--jobs`, `nproc - 1`** (all 131 suites, 19 jobs: ~6 min). Suite names given WITHOUT `--only=` are swallowed
+  as pass-through args and the runner runs EVERY suite, serially at the default `--jobs 1`.
 - The runner globs `RetroXR/Tests/*.tscn` **non-recursively** — `Tests/` stays FLAT; a
   suite in a subfolder is silently never run.
 - **A case count that DROPS fails the run** (`Tools/test_baseline.json`). A rise or a new
