@@ -38,7 +38,17 @@ const SHAPE_STEP_DEG := 2.0
 ## The panel a manual sits under, from the manual seat's centre (the seat is the paper's mid-plane).
 const MANUAL_WALL := 0.0006
 ## The cases with a memory-card holder, and the card family (MemoryCard.family) each takes.
+## Open past this, the pointer target leaves the case's inside clear; the lid's skin is this thick; a disc is
+## 1.2 mm.
+const POINTER_OPEN_DEG := 15.0
+const POINTER_SKIN := 0.0015
+const DISC_HALF_T := 0.0006
 const CARD_FAMILIES := {"ps2": "playstation2", "gc": "gamecube", "gc_jp": "gamecube"}
+## How a card lies in its holder (seat frame: +X across, +Y up the case, +Z out of the panel). The PS2 holder is
+## landscape with a molded arrow to the spine: the card lies along it, label out, its connector end (+Z) to the spine
+## (gauntlet/refs/trayrefs/ps2/ps2_case_inside_memory_card_holder_commons.jpg; the owner, 2026-11-21). The GameCube
+## holder is portrait: the card upright, label out.
+const CARD_BASIS := {"ps2": Basis(Vector3(0, -1, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0))}
 
 @export var rom_path := ""
 @export var game_label := ""
@@ -67,6 +77,11 @@ var _body_shape: CollisionShape3D
 var _shape_deg := -1.0
 var _lid_box := AABB()
 var _base_box := AABB()
+var _pointer_base: CollisionShape3D
+var _pointer_lid: CollisionShape3D
+var _pointer_floor := AABB()
+var _pointer_skin := AABB()
+var _pointer_open := false
 var _closed_box := AABB()
 var _has_manual := false
 var _pos_hist: Array[Vector3] = []
@@ -177,12 +192,33 @@ func _build_shapes() -> void:
 	add_child(_body_shape)
 	_shape_deg = -1.0
 	_shape_body(0.0)
-	var pointer := get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D
-	if pointer != null:
-		var s := BoxShape3D.new()
-		s.size = b.size
-		pointer.shape = s
-		pointer.position = b.get_center()
+	# The desktop ray's target. Shut, the whole case. Open, only the back panel under everything seated on it and a
+	# skin on the lid's outside, so the ray reaches a disc, the manual or a card: as one box round the shut case it
+	# stopped every ray above them (the owner, 2026-11-21: no disc could be taken with the desktop ray).
+	var floor_top := b.end.z
+	var c := model.contract()
+	for row: Dictionary in c.get("seats", []):
+		var parent := str(row.get("parent", row.get("carrier", "")))
+		if parent.is_empty() or parent == "<null>" or parent == "Body":
+			floor_top = minf(floor_top, float((row["center_mm"] as Array)[2]) * 0.001 - DISC_HALF_T - 0.0005)
+	for key in ["card_seat"]:
+		var h: Variant = c.get(key)
+		if h is Dictionary and str((h as Dictionary).get("parent", "")) in ["", "<null>"]:
+			var t := float(((h as Dictionary).get("size_mm", [0, 0, 4.0]) as Array)[2]) * 0.001
+			floor_top = minf(floor_top, float(((h as Dictionary)["center_mm"] as Array)[2]) * 0.001 - t * 0.5 - 0.0005)
+	floor_top = clampf(floor_top, b.position.z + 0.001, split)
+	_pointer_floor = AABB(b.position, Vector3(b.size.x, b.size.y, floor_top - b.position.z))
+	_pointer_skin = AABB(Vector3(b.position.x, b.position.y, b.end.z - POINTER_SKIN), Vector3(b.size.x, b.size.y, POINTER_SKIN))
+	_pointer_base = get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D
+	if _pointer_base != null:
+		_pointer_base.shape = BoxShape3D.new()
+		_pointer_lid = CollisionShape3D.new()
+		_pointer_lid.name = "LidSkin"
+		_pointer_lid.shape = BoxShape3D.new()
+		(_pointer_lid.shape as BoxShape3D).size = _pointer_skin.size
+		_pointer_base.get_parent().add_child(_pointer_lid)
+	_pointer_open = true
+	_shape_pointer(false, Transform3D.IDENTITY)
 
 
 ## The hull for the lid at `deg`: the back half's eight corners and the lid box's eight, turned about the hinge.
@@ -199,6 +235,21 @@ func _shape_body(deg: float) -> void:
 		pts.append(_base_box.get_endpoint(k))
 		pts.append(about * _lid_box.get_endpoint(k))
 	(_body_shape.shape as ConvexPolygonShape3D).points = pts
+	_shape_pointer(deg > POINTER_OPEN_DEG, about)
+
+
+## The pointer target: the shut case's box, or open, the back panel under the seats and the lid's outer skin.
+func _shape_pointer(open: bool, about: Transform3D) -> void:
+	if _pointer_base == null:
+		return
+	if open != _pointer_open:
+		_pointer_open = open
+		var box := _pointer_floor if open else _closed_box
+		(_pointer_base.shape as BoxShape3D).size = box.size
+		_pointer_base.position = box.get_center()
+		_pointer_lid.disabled = not open
+	if open:
+		_pointer_lid.transform = about * Transform3D(Basis.IDENTITY, _pointer_skin.get_center())
 
 
 ## A frame at each hinge's pivot whose local X is the hinge line, so a CaseHinge's angle (rotation.x of its
@@ -286,7 +337,7 @@ func _build_zones() -> void:
 		_card_zone = _zone("CardZone", model.card_seat(), "memory_card", 0.05,
 			func(obj: Node3D) -> bool: return obj is MemoryCard and (obj as MemoryCard).family == card_family \
 				and _lid_open())
-		_card_zone.basis = Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0))
+		_card_zone.basis = CARD_BASIS.get(case_variant, Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0)))
 	if model.umd_seat() != null:
 		_holder_zone = _zone("UmdZone", model.umd_seat(), "cartridge", 0.05,
 			func(obj: Node3D) -> bool: return obj is RetroUMD and _lid_open())

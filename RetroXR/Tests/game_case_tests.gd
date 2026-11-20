@@ -398,7 +398,10 @@ func _case_card_holder() -> void:
 	var c := _new_case("keep", "ps2")
 	await get_tree().physics_frame
 	_ok(c.card_zone() != null, "the PS2 case has a card holder")
-	_ok(_new_case("keep", "single").card_zone() == null, "a plain keep case has none")
+	var plain := _new_case("keep", "single")
+	_ok(plain.card_zone() == null, "a plain keep case has none")
+	_spawned.erase(plain)
+	plain.free()                       # it stood where this one is: the rays below would find it
 	var ps2 := (load("res://Scenes/Objects/media/ps2_memory_card.tscn") as PackedScene).instantiate() as MemoryCard
 	var gc := (load("res://Scenes/Objects/media/gc_memory_card.tscn") as PackedScene).instantiate() as MemoryCard
 	for card in [ps2, gc]:
@@ -416,6 +419,38 @@ func _case_card_holder() -> void:
 	_ok(c.memory_card() == ps2, "the card is in the holder")
 	_ok(ps2.global_position.distance_to(c.model.card_seat().global_position) < 0.002, "on its seat")
 	_ok(ps2.global_basis.y.dot(c.model.card_seat().global_basis.z) > 0.99, "its label facing out of the panel")
+	_ok(ps2.global_basis.z.dot(-c.model.card_seat().global_basis.x) > 0.99,
+		"lying across the landscape holder, its connector end toward the spine")
+	# The desktop ray reaches what is in an open case, not the case round it.
+	var d := DISC_SCENE.instantiate() as RetroDisc
+	d.systemid = "ps2"
+	add_child(d)
+	_spawned.append(d)
+	c.disc_zone(0).pick_up_object(d)
+	for _i in 3:
+		await get_tree().physics_frame
+	var front := c.model.disc_seat(1).global_basis.y
+	_ok(_ray_hit(c.disc_zone(0).global_position + c.model.disc_seat(1).global_basis.x * 0.035, front, c.get_world_3d()) == d,
+		"the ray over the open case's disc reaches the disc")
+	_ok(_ray_hit(c.card_zone().global_position, front, c.get_world_3d()) == ps2, "and the ray over its card reaches the card")
+	c.sim.set_angle_deg(c.sim.top(), 0.0)
+	c._apply_angles()
+	await get_tree().physics_frame
+	_ok(_ray_hit(c.disc_zone(0).global_position + c.model.disc_seat(1).global_basis.x * 0.035, front, c.get_world_3d()) == c,
+		"shut, the ray takes the case")
+
+
+## The pickable the desktop ray would take first coming down `dir` onto `at`.
+func _ray_hit(at: Vector3, dir: Vector3, world: World3D) -> Node:
+	var q := PhysicsRayQueryParameters3D.create(at + dir * 0.2, at - dir * 0.02, 1 << 20)
+	q.collide_with_areas = true
+	var r: Dictionary = world.direct_space_state.intersect_ray(q)
+	if r.is_empty():
+		return null
+	var n := r.collider as Node
+	while n != null and not n is XRToolsPickable:
+		n = n.get_parent()
+	return n
 
 
 func _case_save() -> void:
