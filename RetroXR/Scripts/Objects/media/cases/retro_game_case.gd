@@ -39,6 +39,8 @@ const HUB_BUTTON_R := 0.0045
 const SHAPE_STEP_DEG := 2.0
 ## The panel a manual sits under, from the manual seat's centre (the seat is the paper's mid-plane).
 const MANUAL_WALL := 0.0006
+## A seated manual as the case draws it: the room under the clips (keep_params MANUAL_T).
+const MANUAL_T := 0.0012
 ## The cases with a memory-card holder, and the card family (MemoryCard.family) each takes.
 ## Open past this, the pointer target leaves the case's inside clear; the lid's skin is this thick; a disc is
 ## 1.2 mm.
@@ -87,6 +89,8 @@ var _pointer_skin := AABB()
 var _pointer_open := false
 var _closed_box := AABB()
 var _has_manual := false
+var _seated_book: PDFBook
+var _manual_proxy: Node3D
 var _pos_hist: Array[Vector3] = []
 var _accel := Vector3.ZERO
 
@@ -119,7 +123,7 @@ func _ready() -> void:
 	_build_hinges()
 	_build_zones()
 	_has_manual = not manual_path().is_empty()
-	model.show_booklet(not _has_manual)
+	_sync_manual()
 	_apply_angles()
 	if box_image != null:
 		_apply_art(box_image)
@@ -359,7 +363,11 @@ func _build_zones() -> void:
 			if what is PDFBook and not (what as PDFBook).dimensions_changed.is_connected(_on_book_resized):
 				(what as PDFBook).dimensions_changed.connect(_on_book_resized.bind(what))
 			if what is PDFBook:
-				_on_book_resized.call_deferred(what))
+				_on_book_resized.call_deferred(what)
+				if not (what as PDFBook).dimensions_changed.is_connected(_sync_manual):
+					(what as PDFBook).dimensions_changed.connect(_sync_manual)
+			_sync_manual.call_deferred())
+		_manual_zone.has_dropped.connect(_sync_manual.call_deferred)
 
 
 func _zone(n: String, parent: Node3D, group: String, reach: float, filter: Callable) -> XRToolsSnapZone:
@@ -424,6 +432,67 @@ func _seat_disc(i: int) -> void:
 		_popped[i] = false
 		_zones[i].transform = Transform3D.IDENTITY
 		_update_reach.call_deferred()
+
+
+## What the case shows of its manual. Seated, a booklet as thin as a real one (MANUAL_T) lies under the clips or the
+## lid's tabs: the jewel case's own printed Booklet, or for a keep case a sheet the manual's size wearing the PDF's
+## cover. The PDFBook itself is hidden there: drawn as a book (a gap outside each cover, 0.1 mm a page) it was 4-5 mm
+## thick and swallowed the clips that hold a real manual in (the owner, 2026-11-21). It stays in its zone, and a hand
+## or the desktop ray still takes it; out of the case it shows again and the stand-in goes.
+func _sync_manual() -> void:
+	if model == null:
+		return
+	var seated := manual()
+	if is_instance_valid(_seated_book) and _seated_book != seated:
+		_seated_book.visible = true
+		_seated_book = null
+	if seated != null:
+		seated.visible = false
+		_seated_book = seated
+	if case_family == "jewel":
+		model.show_booklet(seated != null or not _has_manual)
+		return
+	if seated == null:
+		if _manual_proxy != null:
+			_manual_proxy.visible = false
+		return
+	if _manual_proxy == null:
+		_manual_proxy = _build_manual_proxy()
+	_manual_proxy.visible = true
+	var cover := seated.get_node_or_null("Cover") as MeshInstance3D
+	var mat := cover.get_active_material(0) if cover != null else null
+	if mat != null:
+		(_manual_proxy.get_node("Front") as MeshInstance3D).material_override = mat
+
+
+## A keep case's seated manual: a sheet MANUAL_T thick on the manual seat, its front (the seat's +Z, into the case)
+## a quad for the cover page.
+func _build_manual_proxy() -> Node3D:
+	var size := model.manual_size_m()
+	var root := Node3D.new()
+	root.name = "ManualProxy"
+	model.manual_seat().add_child(root)
+	var paper := StandardMaterial3D.new()
+	paper.albedo_color = Color(0.93, 0.92, 0.89)
+	paper.roughness = 0.85
+	var sheet := MeshInstance3D.new()
+	sheet.name = "Sheet"
+	var box := BoxMesh.new()
+	box.size = Vector3(size.x, size.y, MANUAL_T)
+	sheet.mesh = box
+	sheet.material_override = paper
+	root.add_child(sheet)
+	var front := MeshInstance3D.new()
+	front.name = "Front"
+	var quad := QuadMesh.new()
+	quad.size = size
+	front.mesh = quad
+	front.material_override = paper
+	front.position = Vector3(0.0, 0.0, MANUAL_T * 0.5 + 0.0001)
+	root.add_child(front)
+	for mi: MeshInstance3D in [sheet, front]:
+		mi.add_to_group("outline_exclude")
+	return root
 
 
 ## A closed book's origin is its spine; its cover lies to +x. The zone sits half the book's width toward the seat's

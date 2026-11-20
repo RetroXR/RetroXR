@@ -161,6 +161,18 @@ func _run() -> void:
 		_cam.look_at(at + Vector3(-w * 0.45, 0.0, 0.0))
 		await _settle(4)
 		await _shot("open_%d_%s" % [i, c.case_variant])
+	# The manual's place in each open case, close and low across the clips.
+	for i in _cases.size():
+		var c := _cases[i]
+		var ms := c.model.manual_seat()
+		if ms == null:
+			continue
+		var up := ms.global_basis.z if c.case_family == "keep" else -ms.global_basis.z
+		var at := ms.global_position
+		_cam.global_position = at + up * 0.09 + ms.global_basis.x * 0.07 + ms.global_basis.y * -0.08
+		_cam.look_at(at + ms.global_basis.x * 0.03, Vector3.UP)
+		await _settle(4)
+		await _shot("manual_%d_%s" % [i, c.case_variant])
 	# Gravity: the first case stood on its spine edge with its lid at 30: it falls open.
 	var j := _cases[0]
 	for c in _cases:
