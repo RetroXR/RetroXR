@@ -15,7 +15,7 @@ All of it works without a VR headset (desktop fallback) and without a display.
 python Tools/run_tests.py            # every suite
 python Tools/run_tests.py --list     # name them and exit
 python Tools/run_tests.py --update-baseline   # after deliberately adding cases
-python Tools/run_tests.py --jobs 6   # 6 at once, each in its own scratch user:// and data root
+python Tools/run_tests.py --jobs $(($(nproc)-1))   # nproc - 1 at once, each in its own scratch user:// and data root
 ```
 
 **`--jobs N` runs suites side by side, ISOLATED** (2026-11-14). Sequential, every
@@ -27,9 +27,12 @@ Suites whose script may open a socket (`NET_HINT` in the runner: netplay's fixed
 42913, object_sync's 42917, the fake HTTP servers) run one at a time in a lane of
 their own. Longest first, by `.godot/run_tests_times.json` from the last full run.
 Measured on the 20-thread desktop: sequential ~46 min (52 with a timeout),
-`--jobs 6` ~10 min. **Do not go much past 6**: at 10, `arcade_attract_tests`'
-coin timing (200 ms windows on the wall clock) and `update_tests`' fetch timeout
-failed from CPU load alone. CI (`tests.yml`, a 4-vCPU `windows-latest`) runs
+`--jobs 6` ~10 min, **`--jobs 19` (nproc - 1) ~6 min, all 131 suites OK** (2026-11-20). The old
+"do not go much past 6" was ONE bug, not CPU load: `update_tests` `network/` started its HTTPRequest
+in Godot's FIRST frame, whose `Engine.get_process_step()` is the whole boot; HTTPRequest's timer ignores
+time scale and counts that raw step, so once 19 Godots booting at once took past its 20 s (~27 s) the
+request "timed out" 1 ms in (`[AppUpdate] ... result 13 after 1 ms`). The group now waits two frames
+first. **A timer or timeout started before the first frame has passed is charged the boot.** CI (`tests.yml`, a 4-vCPU `windows-latest`) runs
 `--jobs 3`. Every suite's floor is ~12-13 s of Godot boot
 (compiling the ~1500 scripts and resources the autoloads pull in), which is ~24 of
 the 46 minutes; that, not the checks, is what the parallelism buys back.

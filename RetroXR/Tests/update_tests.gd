@@ -458,6 +458,12 @@ func _until(cond: Callable, seconds := 20.0) -> bool:
 
 
 func _test_network() -> void:
+	# HTTPRequest's timeout is a Timer that ignores time scale, so it counts Engine.get_process_step(): the
+	# frame's raw wall time. The first frame's step is the whole boot (~12 s alone, ~27 s with 19 Godots
+	# starting at once), and a request started in it timed out 1 ms in ("Could not reach GitHub.", result 13).
+	# Start only once frames are ordinary ones.
+	await get_tree().process_frame
+	await get_tree().process_frame
 	var port := _serve_start()
 	var base := "http://127.0.0.1:%d" % port
 	var payload := PackedByteArray()

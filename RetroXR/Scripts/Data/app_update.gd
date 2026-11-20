@@ -203,10 +203,13 @@ func _fetch(url: String, done: Callable) -> void:
 	var http := HTTPRequest.new()
 	http.timeout = REQUEST_TIMEOUT
 	add_child(http)
+	var started := Time.get_ticks_msec()
 	http.request_completed.connect(
 		func(result: int, code: int, _h: PackedStringArray, body: PackedByteArray) -> void:
 			http.queue_free()
 			if result != HTTPRequest.RESULT_SUCCESS:
+				print("[AppUpdate] fetch %s failed: HTTPRequest result %d after %d ms (timeout %.0f s)"
+					% [url, result, Time.get_ticks_msec() - started, http.timeout])
 				done.call(false, "", "Could not reach GitHub.")
 			elif code == 403 or code == 429:
 				done.call(false, "", "GitHub is limiting requests from this address. Try later.")
