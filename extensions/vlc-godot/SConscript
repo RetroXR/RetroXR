@@ -70,7 +70,10 @@ if is_macos:
 
 sources = Glob('src/*.cpp')
 
-lib_prefix = 'lib' if is_android else ''
+# Name the 'lib' prefix on Linux as every sibling does: left to SCons, the prefix
+# is added by re-splitting the path, and a '#../../' output_dir (since the move to
+# extensions/) came out under Temp/ instead of RetroXR/vlc-godot/.
+lib_prefix = 'lib' if (is_android or is_linux) else ''
 library = env.SharedLibrary(
     '{}/{}vlc_godot.{}.{}.{}{}'.format(
         output_dir, lib_prefix, env['platform'], env['target'], env['arch'],
