@@ -274,7 +274,9 @@ const _GAME_INNER_DIRS: PackedStringArray = ["ps3_game", "usrdir"]
 ## relative or an absolute path; a bare marker with no folder keeps its stem.
 static func content_stem(path: String) -> String:
 	var stem := path.get_file().get_basename()
-	if stem.to_lower() not in GENERIC_MARKER_STEMS:
+	# A Wii U NUS dump: every one is a folder with a title.tmd in it.
+	var nus := path.get_file().to_lower() == "title.tmd"
+	if stem.to_lower() not in GENERIC_MARKER_STEMS and not nus:
 		return stem
 	var dir := path.get_base_dir()
 	while not dir.is_empty() and dir.get_file().to_lower() in _GAME_INNER_DIRS:
@@ -287,7 +289,7 @@ static func content_stem(path: String) -> String:
 ## first. A PS3 disc dump keeps a `PS3_DISC.SFB` beside `PS3_GAME/` and RPCS3's
 ## docs name it the file to load; a folder can also hold an update `.pkg` or a
 ## stray `.bin`, which the directory order would otherwise pick as often as not.
-const _MARKER_PREFERENCE: PackedStringArray = ["sfb", "sfo"]
+const _MARKER_PREFERENCE: PackedStringArray = ["sfb", "sfo", "tmd"]
 
 
 ## One game per subfolder: find the marker file the core is handed inside each.

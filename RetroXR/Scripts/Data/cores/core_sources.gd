@@ -4,7 +4,7 @@
 ## core lands in this table when we maintain a fork of it, because then the
 ## buildbot's build is not the one we want the player to have.
 ##
-## Eighteen of them, and most are here for the same reason: this room has cables
+## Nineteen of them, and most are here for the same reason: this room has cables
 ## in it, and libretro has nowhere to put the far end of one. Dolphin, mGBA,
 ## gambatte, pcsx_rearmed, Genesis Plus GX, the four Beetles (WonderSwan, Lynx,
 ## NeoPop, Saturn), VeMUlator and Virtual Jaguar each reach a link bus the
@@ -701,6 +701,21 @@ const SOURCES := {
 			"Windows": "xemu_libretro.dll.zip",
 			"Android": "xemu_libretro_android.so.zip",
 			"Linux":   "xemu_libretro.so.zip",
+		},
+	},
+	# The Wii U. Here for the GamePad: the fork hands the TV and the GamePad over
+	# as two video views (wiiu.md), its speaker through the controller audio
+	# interface, and the remotes' motion, IR and amiibo from the room. Windows and
+	# Linux only for now: its Android build has never run a game, and macOS has
+	# no x86_64 build.
+	"cemu": {
+		"repo":  "RetroXR/cemu-libretro",
+		"branch": "retroxr",
+		"known_tag": "retroxr-cemu-libretro-v1",
+		"label": "Cemu (retroXR build)",
+		"assets": {
+			"Windows": "cemu_libretro.dll.zip",
+			"Linux":   "cemu_libretro.so.zip",
 		},
 	},
 }

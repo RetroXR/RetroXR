@@ -105,6 +105,9 @@ static func _shipped() -> Dictionary:
 	var nes_pal := _inline([57.0, 50.6, 114.0], [0.0, 25.0, 57.0], [0.0, 25.0, -57.0])
 	var gc := _inline([67.0, 40.0, 153.0], [0.0, 20.0, 76.5], [0.0, 20.0, -76.5])
 	var wii := _inline([55.0, 45.6, 171.0], [0.0, 14.0, 85.5], [0.0, 14.0, -85.5])
+	var wiiu := _inline([70.0, 46.2, 185.0], [0.0, 11.0, 92.5], [0.0, 11.0, -92.5])
+	# WUP-011: a small grey brick, its cord captive both ends (ESTIMATED size).
+	var wiiu_pad := _inline([46.0, 28.0, 66.0], [0.0, 14.0, 33.0], [0.0, 14.0, -33.0])
 	var mk2103_us := _wart([57.0, 85.0, 69.65], [-10.0, -46.5, -34.0])
 	var mk2103_eu := _wart([57.0, 93.5, 74.0], [-8.0, -53.5, -38.0])
 	var wap := _wart([46.0, 77.5, 39.7], [0.0, -44.5, -11.5])
@@ -143,6 +146,16 @@ static func _shipped() -> Dictionary:
 		"wii_ac_adapter": {"label": "Wii AC Adapter (RVL-002)", "cord": Color8(200, 200, 198), "fits": ["wii"],
 			"dc_plug": "wii_dc_plug", "plug_mm": [13.1, 17.5, 53.0], "source": "nintendo/wii/psu",
 			"variants": {"usa": wii, "jpn": wii, "eur": wii, "ukv": wii, "aus": wii, "kor": wii}},
+		# WUP-002: case 70 x 45 x 148 (an unsourced fan page, checked against a photo),
+		# the cord stubs taking it to 185 (RetroXR-models nintendo/wiiu/psu).
+		"wiiu_ac_adapter": {"label": "Wii U AC Adapter (WUP-002)", "cord": Color8(40, 40, 42), "fits": ["wiiu"],
+			"dc_plug": "wiiu_dc_plug", "plug_mm": [13.6, 10.2, 55.1], "source": "nintendo/wiiu/psu",
+			"variants": {"usa": wiiu, "jpn": wiiu, "eur": wiiu, "ukv": wiiu, "aus": wiiu}},
+		# The GamePad's own (WUP-011), 5 V: into the cradle's back or the GamePad's
+		# top. No model yet (another session is making the cradle's).
+		"wiiu_gamepad_ac_adapter": {"label": "Wii U GamePad AC Adapter (WUP-011)", "cord": Color8(150, 150, 152),
+			"fits": ["wiiu"], "dc_plug": "wiiu_gamepad_dc_plug", "plug_mm": [8.0, 5.0, 40.0],
+			"variants": {"usa": wiiu_pad, "jpn": wiiu_pad, "eur": wiiu_pad, "ukv": wiiu_pad, "aus": wiiu_pad}},
 		# Sega's MK-1602: the Genesis Model 1's and the Sega CD's (Model 1 and 2), 9 V
 		# 1.2 A, 5.5 x 2.1 centre negative (retroregister.com Barrel Power Supplies;
 		# segaretro "AC adaptor"; segakore's MK-1602 page).

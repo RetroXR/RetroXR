@@ -72,3 +72,9 @@ turns the SDK off for the whole process** — `SpatialAudioListener` applies
 off even with the library loaded, printing `not available ()` with an empty error.
 The probe enables it for its own run. A desktop player with that option off hears
 the remote from the television, which is the fallback working, not a bug.
+
+**The Wii U GamePad's speaker** (Cemu fork, 2026-11-20) is controller 0 index 0: the fork
+keeps the GamePad's block in a ring of its own and pushes as many frames as each main batch,
+silence included, just before it (`LibretroAudioAPI::PushGamePad`); a declined block, or a Pro
+Controller in port 0's place, mixes it into the TV as before. `WiiUGamePad._update_speaker`
+poses it (`wiiu.md`).

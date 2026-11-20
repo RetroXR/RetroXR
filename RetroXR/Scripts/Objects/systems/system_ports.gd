@@ -150,7 +150,9 @@ func wire_zones(port_zones: Array) -> void:
 func build_zones() -> void:
 	var model := _host.get_model()
 	var port_count := 0
-	if not model.is_handheld():
+	# A handheld is its own controller, and a console whose every pad is wireless
+	# (the Wii U) has no sockets to show either.
+	if not model.is_handheld() and model.has_controller_sockets():
 		port_count = model.get_controller_port_count()
 		var info := SystemInfo.for_system(_host.systemid)
 		if info and info.native_ports > 0 and not model.port_count_is_fixed():
@@ -510,6 +512,8 @@ func announce_cabinet_port(i: int) -> void:
 	var wii := _host.get_wii_link()
 	if wii != null and i < plugs.size() and plugs[i] != null:
 		announce = wii.cabinet_device_id(dev)
+	elif wii != null:
+		announce = wii.wireless_device_id(ctrl, dev)
 	var lib_port := libretro_port_for(dev, i)
 	set_device(lib_port, core_device_id(announce, lib_port, device_names_of(ctrl), strict_names_of(ctrl)))
 
@@ -1123,6 +1127,8 @@ func bind(lib_port: int, plug: Node3D, cabinet_index: int, announce_device := tr
 		if wii != null:
 			wii.evict_remote_from(lib_port)
 			announce = wii.cabinet_device_id(device_type)
+	elif _host.get_wii_link() != null:
+		announce = _host.get_wii_link().wireless_device_id(controller_of(plug), device_type)
 	announce = core_device_id(announce, lib_port, device_names_of(plug), strict_names_of(plug))
 	print("[RetroSystem] port %d bound: device_type=%d -> libretro port %d (announced %d)" %
 		[cabinet_index, device_type, lib_port, announce])

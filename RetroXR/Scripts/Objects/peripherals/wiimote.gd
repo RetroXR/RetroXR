@@ -504,8 +504,9 @@ func on_plugged_in(system: RetroSystem, port_index: int) -> void:
 	_laser_dot.visible = show_laser_dot
 	# The core leaves IR on the right analog stick unless this is set, in which
 	# case the raycast below reaches nothing. It is consumed mid-run.
+	# A Wii U's IR comes from its forced options (cemu_wiimote_pointer).
 	var libretro := system.get_libretro_node()
-	if is_instance_valid(libretro):
+	if is_instance_valid(libretro) and system.systemid == "wii":
 		libretro.SetCoreOption("dolphin_ir_mode", "2")
 	print("[Wiimote] paired to slot %d (device %d)" % [port_index, device_type])
 
@@ -1005,7 +1006,9 @@ func _set_device_type(dev: int) -> void:
 	device_type = dev
 	if _connected_system == null or _port_index < 0:
 		return
-	_connected_system.set_controller_port_device(_port_index, device_type)
+	var link := _connected_system.get_wii_link()
+	_connected_system.set_controller_port_device(_port_index,
+		link.wireless_device_id(self, device_type) if link != null else device_type)
 	if _has_nunchuk():
 		return
 	# Nothing on the expansion port any more. Put the sub-device back to a device

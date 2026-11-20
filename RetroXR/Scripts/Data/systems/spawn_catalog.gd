@@ -211,6 +211,20 @@ const _PERIPHERALS: Dictionary = {
 		{"kind": "peripheral", "label": "Wii Composite Cable",
 			"spawn": "wii_av_cable"},
 	],
+	# Every Wii U pad is wireless and pairs over SYNC (WiiLink): the GamePad on
+	# port 0, a Pro Controller or a Wii Remote on 1-3. The Wii's sensor bar and AV
+	# lead fit it: the Wii U kept both connectors.
+	"wiiu": [
+		{"kind": "peripheral", "label": "Wii U GamePad", "spawn": "wiiu_gamepad"},
+		{"kind": "peripheral", "label": "Wii U Pro Controller", "spawn": "wiiu_pro_controller"},
+		# Its adapter (WUP-011) is on the Power tab, as every brick is.
+		{"kind": "peripheral", "label": "Wii U GamePad Cradle", "spawn": "wiiu_gamepad_cradle"},
+		{"kind": "peripheral", "label": "Wiimote", "spawn": "wiimote"},
+		{"kind": "peripheral", "label": "Nunchuk", "spawn": "nunchuk"},
+		{"kind": "peripheral", "label": "Wii MotionPlus", "spawn": "motion_plus"},
+		{"kind": "peripheral", "label": "Sensor Bar", "spawn": "sensor_bar"},
+		{"kind": "peripheral", "label": "Wii Composite Cable", "spawn": "wii_av_cable"},
+	],
 	"virtualboy": [
 		{"kind": "peripheral", "label": "Controller", "spawn": "vb_controller"},
 		# What clips onto the controller's back and powers the console up its cord
@@ -356,7 +370,7 @@ const _NO_STANDIN_CONSOLE: Array[String] = ["dreamcast", "genesis"]
 ## The arcade cabinet is here for the opposite of a missing socket: its monitor is part
 ## of it, so there is no lead to run anywhere. The NAOMI's card lists its leads itself (_NAOMI_ROWS: VGA and composite),
 ## and the generic one beside them was the same lead twice.
-const _OWN_AV_LEAD: Array[String] = ["nes", "famicom", "wii", "n64", "genesis", "snes", "arcade",
+const _OWN_AV_LEAD: Array[String] = ["nes", "famicom", "wii", "wiiu", "n64", "genesis", "snes", "arcade",
 	"daphne", "dice", "naomi", "naomi2"]
 
 ## Hardware whose picture leaves on a captive pigtail rather than through sockets

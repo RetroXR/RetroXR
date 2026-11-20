@@ -96,6 +96,10 @@ const _ROWS: Dictionary = {
 	# Wii cannot run correctly without.
 	"wii":                  {"platform": "wii", "label": "Wii",
 		"scene": _SCENES + "wii_primitive.tscn"},
+	# Built in code in RetroXR-models' frame (RetroSystemModelWiiU), so the detailed
+	# model can take its place later with the same marker names.
+	"wiiu":                 {"platform": "wiiu", "label": "Wii U",
+		"scene": _SCENES + "wiiu_primitive.tscn"},
 	"nintendo_64":          {"platform": "n64", "label": "Nintendo 64",
 		"scene": _SCENES + "nintendo_64_primitive.tscn"},
 	# The Model 2, not the Model 1: it is the shell there is a licensed model of.

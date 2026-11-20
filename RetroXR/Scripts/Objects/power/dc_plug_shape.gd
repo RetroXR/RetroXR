@@ -33,6 +33,10 @@ const BARRELS := {
 const TONGUES := {
 	"gc_dc_plug": [11.0, 6.0, 7.0],
 	"wii_dc_plug": [9.0, 11.0, 7.0],
+	# The Wii U's yellow-keyed block (RetroXR-models common/wiiu_ports.py: 9.9 x 5.2).
+	"wiiu_dc_plug": [9.6, 4.9, 8.0],
+	# The GamePad's (WUP-011): a small flat tongue (ESTIMATED).
+	"wiiu_gamepad_dc_plug": [6.0, 2.8, 6.0],
 	"dsi_dc_plug": [5.0, 2.6, 5.0],
 	"ext2_plug": [11.0, 3.4, 5.5],
 	# The CO24471's blue tip over the console's two round pins (atari/7800/psu).

@@ -1,4 +1,9 @@
-## WiiLink — everything a Wii cabinet does that no other console does.
+## WiiLink — everything a Wii (or Wii U) cabinet does that no other console does.
+##
+## The Wii U takes Wii Remotes the same way (Cemu, `wiiu`), with three
+## differences, all asked of `is_wiiu()`: libretro port 0 is the GamePad's, so a
+## remote or a Pro Controller takes ports 1-3; there are no wired pads and no
+## GameCube mode; and Cemu's device ids are its own (`wireless_device_id`).
 ##
 ## Added as a child of the RetroSystem by system.gd when the console is a Wii
 ## (the same shape as HandheldInput), so every other machine leaves it null and
@@ -36,6 +41,18 @@ const SLOTS := 4
 ## Wii's ~15 s because here it is a walk across a room.
 const PAIRING_WINDOW := 30.0
 
+## Cemu's ids for a Wii Remote by what is on it, keyed by the Dolphin id the
+## remote carries as its kind (Wiimote.RETRO_DEVICE_*): RETRO_DEVICE_SUBCLASS(
+## JOYPAD, n) for n = 0 remote, 4 sideways, 6 Nunchuk, 7/8/9 with MotionPlus.
+const CEMU_REMOTE_IDS := {1: 257, 513: 1281, 769: 1793, 1793: 2049, 2049: 2305, 2305: 2561}
+## Cemu's Classic Controller (subclass 2): what any other extension a mod puts
+## on a remote is to a Wii U.
+const CEMU_CLASSIC := 769
+## Cemu's Wii U Pro Controller (subclass 1).
+const CEMU_PRO := 513
+## The GamePad's libretro port on a Wii U.
+const GAMEPAD_PORT := 0
+
 ## Group a listening console's link joins. Remotes look for the nearest member.
 const PAIRING_GROUP := &"pairing_wii"
 
@@ -58,7 +75,31 @@ var _sensor_bar: SensorBar = null
 
 ## Whether a given console gets one of these at all.
 static func handles(systemid: String) -> bool:
-	return systemid == "wii"
+	return systemid == "wii" or systemid == "wiiu"
+
+
+## True on a Wii U: ports 1-3 for remotes, port 0 the GamePad's, Cemu's ids.
+func is_wiiu() -> bool:
+	return host != null and host.systemid == "wiiu"
+
+
+## The first port a remote or Pro Controller may take.
+func first_remote_slot() -> int:
+	return GAMEPAD_PORT + 1 if is_wiiu() else 0
+
+
+## What the core is told a WIRELESS device on this console is. A remote carries
+## Dolphin's ids as its kind; on a Wii U they become Cemu's, and an extension of
+## a mod's making is a Classic Controller there. Anything else (a GamePad, a Pro
+## Controller) already carries the id it means.
+func wireless_device_id(device: Node, device_type: int) -> int:
+	# A remote is told by what it answers (it carries a Nunchuk), not by its
+	# class: naming Wiimote here closes a load cycle through ScenePersistence.
+	if not is_wiiu() or device == null or not device.has_method("get_nunchuk"):
+		return device_type
+	if CEMU_REMOTE_IDS.has(device_type):
+		return int(CEMU_REMOTE_IDS[device_type])
+	return CEMU_CLASSIC
 
 
 func setup(system: RetroSystem, sync_button: VRButton) -> void:
@@ -131,6 +172,8 @@ func get_sensor_bar_port() -> XRToolsSnapZone:
 ## Wii; the MODE is whatever is in the tray. An empty tray reads as Wii mode,
 ## which is what the hardware boots into on its own.
 func is_wii_mode() -> bool:
+	if is_wiiu():
+		return true   # a Wii U here plays Wii U discs only, and always has remotes
 	var media: Node3D = host.get_snapped_cartridge()
 	if is_instance_valid(media) and "systemid" in media:
 		var id := str(media.get("systemid"))
@@ -149,6 +192,8 @@ func is_wii_mode() -> bool:
 ## as 1. Only the caller knows which it has, and a cabinet socket is by
 ## definition the wired one.
 func cabinet_device_id(device_type: int) -> int:
+	if is_wiiu():
+		return device_type
 	if device_type == RETRO_DEVICE_JOYPAD and is_wii_mode():
 		return RETRO_DEVICE_GC_ON_WII
 	return device_type
@@ -202,7 +247,10 @@ func pair(remote: Node3D) -> int:
 		print("[WiiLink] pairing refused — a GameCube disc went in while the window was open")
 		close_pairing()
 		return -1
+	# The GamePad has one port of its own; everything else the lowest free one.
 	var slot := free_slot()
+	if remote.has_method("wants_gamepad_port") and bool(remote.call("wants_gamepad_port")):
+		slot = GAMEPAD_PORT if is_wiiu() and host.port_holder(GAMEPAD_PORT) == null else -1
 	if slot < 0:
 		# The window deliberately stays open: freeing a slot and pressing again
 		# within it should work without another trip to the console.
@@ -228,7 +276,7 @@ func unpair(remote: Node3D) -> void:
 ## evict_remote_from, which has to let go of a slot before it can look for
 ## another, and must not be handed back the one being taken.
 func free_slot(except: int = -1) -> int:
-	for i in range(SLOTS):
+	for i in range(first_remote_slot(), SLOTS):
 		if i != except and host.port_holder(i) == null:
 			return i
 	return -1

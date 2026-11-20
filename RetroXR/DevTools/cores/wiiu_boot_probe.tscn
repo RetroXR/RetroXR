@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://DevTools/cores/wiiu_boot_probe.gd" id="1"]
+
+[node name="WiiUBootProbe" type="Node"]
+script = ExtResource("1")

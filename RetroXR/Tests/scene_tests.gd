@@ -1704,7 +1704,7 @@ func _test_thumbnail() -> void:
 ## an audio deck, a battery, a cabinet, a stand, a seat, a DrawerFurniture or an arcade bay by its
 ## scene, a Virtual Boy pack or tap by its kind), or that are an old name read back
 ## only ("ray_gun").
-const _BUILT_TYPES := ["light_gun", "ray_gun", "retro_keyboard", "wiimote",
+const _BUILT_TYPES := ["light_gun", "ray_gun", "retro_keyboard", "wiimote", "wiiu_gamepad", "wiiu_pro_controller",
 	"cd_player", "cassette_player", "record_player", "battery_aa", "battery_aaa", "battery_c",
 	"loudspeaker", "subwoofer", "speaker_stand_120", "speaker_stand_100",
 	"arcade_bay_jamma", "arcade_bay_mvs", "arcade_bay_laserdisc", "arcade_bay_discrete", "arcade_bay_naomi", "arcade_bay_naomi2", "arcade_bay_atomiswave", "jvs_jamma_converter", "naomi_dimm_board", "naomi_gd_drive", "naomi_key",

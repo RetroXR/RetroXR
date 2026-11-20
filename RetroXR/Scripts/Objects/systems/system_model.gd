@@ -268,6 +268,12 @@ func get_controller_connector() -> String:
 	return ""
 
 
+## False for hardware with no wired controller sockets at all, every pad pairing
+## over the air (the Wii U): the cabinet's sockets are then shut and hidden.
+func has_controller_sockets() -> bool:
+	return true
+
+
 ## True when this hardware's own count (get_controller_port_count) is final, so
 ## SystemInfo.native_ports -- the CONSOLE's count for the systemid -- does not get a
 ## vote. An arcade cabinet has the sockets its scene has, whatever MAME can address.
@@ -394,6 +400,13 @@ func is_stereo_side_by_side() -> bool:
 ##   rect      Rect2   UV window into the composite framebuffer
 ##   touch     bool    taps on a TV showing this channel feed the touch screen
 ##   eye_shift float   right-eye UV-x shift for stereo SBS sources (0 = mono)
+## A window of the core's frame for video channel `channel` that the CORE decides
+## while it runs (a Rect2 in 0..1 of the frame), or null to keep the channel's own.
+## The Wii U's TV is the screen-0 view of the frame Cemu packs (video views).
+func live_video_rect(_channel: int) -> Variant:
+	return null
+
+
 func get_video_channels() -> Array:
 	return [{"label": "", "rect": Rect2(0, 0, 1, 1), "touch": false, "eye_shift": 0.0}]
 

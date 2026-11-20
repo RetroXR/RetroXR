@@ -210,6 +210,7 @@ const DISC_DIAMETERS: Dictionary = {
 	"amigacd32":            0.12,
 	"cdtv":            0.12,
 	"wii":                   0.12,
+	"wiiu":                  0.12,
 	"dreamcast":             0.12,
 	"3do":                   0.12,
 	"cdi":                   0.12,
@@ -278,6 +279,7 @@ const DISC_FINISHES: Dictionary = {
 	"dreamcast":    FINISH_GD,
 	"gc":     FINISH_DVD,   # mini-DVD
 	"wii":          FINISH_DVD,
+	"wiiu":         FINISH_DVD,
 	"psp": FINISH_DVD,   # UMD is DVD-derived, not a CD
 	# Every Xbox game is a DVD; disc_finish() turns the big ones gold by image size.
 	"xbox":         FINISH_DVD,
@@ -319,6 +321,7 @@ const SLOT_LOAD_SYSTEMS: Dictionary = {
 	# The one true slot-loader we model: the disc is drawn in and the
 	# EJECT button spits it back out. No lid, no tray.
 	"wii": true,
+	"wiiu": true,
 	# Every PS3 but the last (the CECH-4000 "super slim" has a top lid) draws its
 	# Blu-ray in through a front slot and spits it out on EJECT.
 	"ps3": true,

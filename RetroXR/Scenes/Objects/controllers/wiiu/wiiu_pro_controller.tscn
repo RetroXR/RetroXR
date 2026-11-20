@@ -1,0 +1,83 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/controllers/wiiu_pro_controller.gd" id="1_script"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_right.tscn" id="3_rhand"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_left.tscn" id="4_lhand"]
+[ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_button.gd" id="5_vrbtn"]
+; The Wii U Pro Controller (WUP-005), a primitive: WiiUProController.
+; The body and its controls are built by the script (_build_model), from the
+; measured size; this scene carries what every pad needs: collision, the pointer
+; box, the hands' grip poses and the SYNC button underneath.
+
+[sub_resource type="PhysicsMaterial" id="PhysMat"]
+friction = 0.8
+
+[sub_resource type="BoxShape3D" id="BoxShape_body"]
+size = Vector3(0.161, 0.03, 0.068)
+
+[sub_resource type="CylinderShape3D" id="CylShape_sync"]
+height = 0.006
+radius = 0.005
+
+[sub_resource type="CylinderMesh" id="CylMesh_sync"]
+top_radius = 0.0025
+bottom_radius = 0.0025
+height = 0.001
+radial_segments = 16
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_sync"]
+albedo_color = Color(0.25, 0.25, 0.27, 1)
+roughness = 0.4
+
+[node name="WiiUProController" type="RigidBody3D" groups=["hand_held_device"]]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.22
+physics_material_override = SubResource("PhysMat")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_script")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape_body")
+
+[node name="CableAttachPoint" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.034)
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+shape = SubResource("BoxShape_body")
+
+[node name="HandRight" parent="." instance=ExtResource("3_rhand")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.06, 0, 0.03)
+visible = false
+
+[node name="HandLeft" parent="." instance=ExtResource("4_lhand")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.06, 0, 0.03)
+visible = false
+
+[node name="SyncButton" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0.0, 0.0, -0.0345)
+collision_layer = 0
+collision_mask = 0
+script = ExtResource("5_vrbtn")
+trigger_radius = 0.008
+contact_margin = 0.006
+depress_depth = 0.0006
+depress_axis = Vector3(0, -1, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="SyncButton"]
+shape = SubResource("CylShape_sync")
+
+[node name="ButtonMesh" type="MeshInstance3D" parent="SyncButton"]
+mesh = SubResource("CylMesh_sync")
+surface_material_override/0 = SubResource("Mat_sync")

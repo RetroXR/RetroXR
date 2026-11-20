@@ -50,6 +50,7 @@ const _ROWS := {
 	"n64":        {"inlet": "dock", "plug": "n64_psu_dock", "brick": "n64_psu"},
 	"gc":         {"inlet": "dc", "plug": "gc_dc_plug", "brick": "gamecube_ac_adapter"},
 	"wii":        {"inlet": "dc", "plug": "wii_dc_plug", "brick": "wii_ac_adapter"},
+	"wiiu":       {"inlet": "dc", "plug": "wiiu_dc_plug", "brick": "wiiu_ac_adapter"},
 	# The Genesis model is the Model 2: Sega's MK-2103, the 32X's adapter too.
 	"genesis":    {"inlet": "dc", "plug": "eiaj_03", "brick": "sega_mk2103_adapter"},
 	"mastersystem": {"inlet": "dc", "plug": "barrel_5_5x2_1", "brick": "sms_ac_adapter"},

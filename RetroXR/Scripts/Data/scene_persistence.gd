@@ -337,6 +337,9 @@ const RETRO_KEYBOARD_SCENE   := preload("res://Scenes/Objects/peripherals/retro_
 const WIIMOTE_SCENE          := preload("res://Scenes/Objects/controllers/wii/wiimote.tscn")
 const NUNCHUK_SCENE          := preload("res://Scenes/Objects/controllers/wii/nunchuk.tscn")
 const MOTION_PLUS_SCENE      := preload("res://Scenes/Objects/controllers/wii/motion_plus.tscn")
+const WIIU_GAMEPAD_SCENE     := preload("res://Scenes/Objects/controllers/wiiu/wiiu_gamepad.tscn")
+const WIIU_PRO_SCENE         := preload("res://Scenes/Objects/controllers/wiiu/wiiu_pro_controller.tscn")
+const WIIU_CRADLE_SCENE      := preload("res://Scenes/Objects/peripherals/wiiu/wiiu_gamepad_cradle.tscn")
 const RUMBLE_PAK_SCENE       := preload("res://Scenes/Objects/controllers/n64/rumble_pak.tscn")
 const SEGA32X_SPACER_SCENE   := preload("res://Scenes/Objects/peripherals/sega32x_spacer.tscn")
 const SEGA_CD2_SPACER_SCENE  := preload("res://Scenes/Objects/peripherals/sega_cd2_spacer.tscn")
@@ -578,6 +581,12 @@ const PLAIN_SCENES := {
 	# Same arrangement for the dongle: a pose here, and the fact that it is seated
 	# in a particular remote restored from the REMOTE's entry.
 	"motion_plus": MOTION_PLUS_SCENE,
+	# The Wii U's two pads: cordless, their pairing (port_index) restored as a
+	# remote's is.
+	"wiiu_gamepad": WIIU_GAMEPAD_SCENE,
+	"wiiu_pro_controller": WIIU_PRO_SCENE,
+	# The GamePad's charging cradle: a pose; its adapter's plug is the lead's to save.
+	"wiiu_gamepad_cradle": WIIU_CRADLE_SCENE,
 	# The three N64 paks take the dongle's arrangement above: a pose here, and
 	# which controller each is seated in restored from that CONTROLLER's entry.
 	# The Controller Pak carries card fields on top of the pose (_card_fields on
@@ -3022,6 +3031,7 @@ static func _save_kind_rows() -> Array:
 		# Pose only, for the Nunchuk's reason: which remote it is seated in is saved
 		# on that remote.
 		[MotionPlus, "motion_plus"],
+		[WiiUGamePadCradle, "wiiu_gamepad_cradle"],
 		[TVRemote, "tv_remote"],
 		[StorageBox, "trash_can"],
 		# Pose only: which lead is in which of a hub's sockets is recorded by each
@@ -3519,6 +3529,10 @@ func _serialize_peripheral(node: Node, id: int, n3d: Node3D, node_to_id: Diction
 	var obj_type := "retro_controller"
 	if node is Wiimote:
 		obj_type = "wiimote"
+	elif node is WiiUGamePad:
+		obj_type = "wiiu_gamepad"
+	elif node is WiiUProController:
+		obj_type = "wiiu_pro_controller"
 	elif node is LightGun:
 		obj_type = "light_gun"
 	elif node is SnesMouse:

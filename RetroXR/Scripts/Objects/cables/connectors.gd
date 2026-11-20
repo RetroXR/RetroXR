@@ -72,6 +72,8 @@ const LABELS := {
 	"snes_dc_plug": "a Super NES AC adapter plug",
 	"gc_dc_plug": "a GameCube AC adapter plug",
 	"wii_dc_plug": "a Wii AC adapter plug",
+	"wiiu_dc_plug": "a Wii U AC adapter plug",
+	"wiiu_gamepad_dc_plug": "a Wii U GamePad AC adapter plug",
 	"atari7800_dc_plug": "an Atari 7800 AC adapter plug",
 	"n64_psu_dock": "a Nintendo 64 power supply",
 	"jamma_plug": "a JAMMA harness plug",

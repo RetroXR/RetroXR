@@ -1488,17 +1488,32 @@ func _remove_touch_surface(ch: int) -> void:
 ## Replaces _update_tv_mirrors, which pushed a material onto every connected set
 ## every frame and had to be told when to stop. The set asks, so a set showing
 ## another input simply does not ask.
+## The window of the frame video channel `ch` shows, or null for the whole frame:
+## the core's own for it while it runs (live_video_rect), else the channel's rect
+## on hardware of several channels.
+func video_window(ch: int) -> Variant:
+	if ch < 0 or ch >= _channels.size():
+		return null
+	var live: Variant = _model.live_video_rect(ch) if _model != null else null
+	if live is Rect2:
+		return live
+	return _channels[ch].rect if _channels.size() > 1 else null
+
+
 func get_video_stage(tv: Node) -> Dictionary:
-	if _channels.size() <= 1:
-		return {}
 	var ch := -1
 	for i in _channels.size():
 		if _channels[i].tv == tv:
 			ch = i
 			break
+	# A window the core decides while it runs (the Wii U's TV view) wins; else
+	# only a machine of several channels shows a window at all.
 	if ch < 0:
 		return {}
-	var r := _channels[ch].rect
+	var window: Variant = video_window(ch)
+	if not (window is Rect2):
+		return {}
+	var r: Rect2 = window
 	return {
 		"shader": SCREEN_WINDOW_SHADER,
 		"params": {
