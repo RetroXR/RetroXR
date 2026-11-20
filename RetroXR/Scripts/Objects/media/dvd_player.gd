@@ -552,7 +552,7 @@ func remote_stop() -> void: _on_stop_pressed()
 func remote_ff() -> void: _on_ff_pressed()
 func remote_rewind() -> void: _on_rewind_pressed()
 func remote_eject() -> void: _on_eject_pressed()
-## True when a disc is loaded (the remote greys its Eject cell otherwise).
+## True when a disc is loaded.
 func has_media() -> bool: return _slot.has_media()
 
 
@@ -588,7 +588,9 @@ func remote_cell_enabled(id: String) -> bool:
 	var in_menu := is_in_menu()
 	match id:
 		"eject":
-			return has_media()   # only with a disc in
+			# OPEN/CLOSE, as the front key: an empty tray opens and shuts too (it was greyed with no disc in, so
+			# the remote could not open the tray to put one on).
+			return true
 		"up", "down", "left", "right", "ok":
 			return in_menu       # nav cluster only in a disc menu
 		"menu":

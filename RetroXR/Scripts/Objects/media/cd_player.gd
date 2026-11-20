@@ -170,6 +170,20 @@ func _on_open_pressed() -> void:
 	_drawer.press()
 
 
+## The remote's EJECT is OPEN/CLOSE: the same press, the tray out or in.
+func remote_can_eject() -> bool:
+	return _drawer != null
+
+
+func remote_eject() -> void:
+	_on_open_pressed()
+
+
+## The remote's VOL- / VOL+ turn the PHONES LEVEL knob (the only level this deck has).
+func remote_level_knob() -> VRKnob:
+	return get_node_or_null("LevelKnob") as VRKnob
+
+
 func _on_repeat_pressed() -> void:
 	repeat = not repeat
 	_log_event("REPEAT %s" % ("on" if repeat else "off"))

@@ -291,11 +291,51 @@ func _test_keys() -> void:
 	_eq(r.press_key("KeyNext"), "next_ch", "keys/dvd NEXT skips a chapter")
 	_eq(r.press_key("KeyUp"), "", "keys/dvd the ring is greyed outside a disc menu")
 	_eq(r.press_key("KeyMenu"), "menu", "keys/dvd MENU is always live")
+	r._target = dvd
+	_ok(not dvd.has_media() and not bool(dvd.get("_tray_open")), "keys/dvd starts empty and shut")
+	_eq(r.press_key("KeyEject"), "eject", "keys/dvd EJECT is live with no disc in (OPEN/CLOSE, as the front key)")
+	await get_tree().create_timer(2.0).timeout
+	_ok(bool(dvd.get("_tray_open")), "keys/dvd EJECT opened the empty tray")
 	var rp := await _spawn(RECORD_PLAYER, Vector3(9, 1, 0))
 	r._target = rp
 	_eq(r.cell_for_key("KeyPrev"), "prev", "keys/record PREV is plain prev off a DVD")
 	_eq(r.press_key("KeyStop"), "stop", "keys/record STOP")
 	_eq(r.press_key("KeyFf"), "", "keys/record FF is greyed (a turntable has no scan)")
+	_eq(r.press_key("KeyEject"), "", "keys/record EJECT is no key of a turntable's")
+	_eq(r.press_key("KeyVolUp"), "", "keys/record VOL+ is no key of a turntable's (it has no knob)")
+	# The CD player and cassette deck: EJECT is their open key, VOL-/VOL+ turn their own level knob (the CD's
+	# PHONES LEVEL, the cassette's VOLUME) a step, which turns the cap and sets the deck's level.
+	var x := 11.0
+	for row: Array in [["cd", CD_SCENE, "phones_level"], ["cassette", CASSETTE_SCENE, "output_level"]]:
+		var deck := await _spawn(row[1] as PackedScene, Vector3(x, 1, 0)) as RetroAudioPlayer
+		x += 1.0
+		r._target = deck
+		var knob := deck.get_node("LevelKnob") as VRKnob
+		var pivot := knob.get_node("KnobPivot") as Node3D
+		knob.set_value(0.5)
+		var turned := pivot.rotation.z
+		_eq(r.press_key("KeyVolUp"), "vol_up", "keys/%s VOL+ is its cell" % row[0])
+		await get_tree().create_timer(RetroAudioPlayer.REMOTE_KNOB_TURN_SEC + 0.1).timeout
+		_ok(is_equal_approx(knob.get_value(), 0.5 + RetroAudioPlayer.REMOTE_VOLUME_STEP),
+			"keys/%s VOL+ turned the knob up a step" % row[0], str(knob.get_value()))
+		_ok(not is_equal_approx(pivot.rotation.z, turned), "keys/%s VOL+ turned the cap that is drawn" % row[0],
+			"%.3f -> %.3f" % [turned, pivot.rotation.z])
+		_ok(is_equal_approx(float(deck.get(row[2])), knob.get_value()),
+			"keys/%s VOL+ set the deck's %s" % [row[0], row[2]], str(deck.get(row[2])))
+		# The remote re-scans what it is aimed at as frames pass: aim it again after every wait.
+		r._target = deck
+		r.press_key("KeyVolDown")
+		r.press_key("KeyVolDown")
+		await get_tree().create_timer(RetroAudioPlayer.REMOTE_KNOB_TURN_SEC + 0.1).timeout
+		_ok(is_equal_approx(knob.get_value(), 0.5 - RetroAudioPlayer.REMOTE_VOLUME_STEP),
+			"keys/%s two VOL- while it turns step on from where it is going" % row[0], str(knob.get_value()))
+		knob.set_value(1.0)
+		r._target = deck
+		_eq(r.press_key("KeyVolUp"), "", "keys/%s VOL+ is greyed with the knob all the way up" % row[0])
+		var drawer := deck.get_node(("Tray" if row[0] == "cd" else "Door")) as DeckDrawer
+		_ok(not drawer.is_open(), "keys/%s starts shut" % row[0])
+		_eq(r.press_key("KeyEject"), "eject", "keys/%s EJECT is its cell" % row[0])
+		_ok(drawer.is_open(), "keys/%s EJECT opened it" % row[0])
 	var wrong: Array[String] = []
 	for key: String in PRINTED:
 		if r.cell_for_key(key) != PRINTED[key]:

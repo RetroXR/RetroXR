@@ -308,6 +308,24 @@ func remove_media() -> void:
 		_slot.eject()
 
 
+## The remote's EJECT is the deck's EJECT key: the door tips out with the tape (or takes it back).
+func remote_can_eject() -> bool:
+	return _drawer != null
+
+
+func remote_eject() -> void:
+	if _drawer == null:
+		print("[Cassette] %s: the remote's EJECT: no door" % name)
+		return
+	_log_event("remote EJECT")
+	_drawer.press()
+
+
+## The remote's VOL- / VOL+ turn VOLUME (line out and PHONES alike).
+func remote_level_knob() -> VRKnob:
+	return get_node_or_null("LevelKnob") as VRKnob
+
+
 ## True while the door is out (or going out).
 func is_door_open() -> bool:
 	return _drawer != null and _drawer.is_open()

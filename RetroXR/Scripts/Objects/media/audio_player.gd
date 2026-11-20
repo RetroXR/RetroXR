@@ -346,25 +346,96 @@ func _init() -> void:
 	RemoteTarget.join(self)
 
 
-## Transport grid: prev/play/next over rew/stop/ff.
+## Transport grid: prev/play/next over rew/stop/ff. A deck with an open key (the CD
+## player's OPEN/CLOSE, the cassette deck's EJECT) puts EJECT on its own top row, as the
+## VCR does; one with a level knob (the CD's PHONES LEVEL, the cassette's VOLUME) gets
+## VOL- / VOL+ under the transport, which turn that knob.
 func remote_layout() -> Array:
-	return [
-		{"id": "prev", "glyph": "prev", "col": 0, "row": 0},
-		{"id": "playpause", "glyph": "play", "col": 1, "row": 0},
-		{"id": "next", "glyph": "next", "col": 2, "row": 0},
-		{"id": "rew", "glyph": "rew", "col": 0, "row": 1},
-		{"id": "stop", "glyph": "stop", "col": 1, "row": 1},
-		{"id": "ff", "glyph": "ff", "col": 2, "row": 1},
-	]
+	var cells: Array = []
+	var top := 0
+	if remote_can_eject():
+		cells.append({"id": "eject", "glyph": "eject", "col": 0, "row": 0, "span": 3})
+		top = 1
+	cells.append_array([
+		{"id": "prev", "glyph": "prev", "col": 0, "row": top},
+		{"id": "playpause", "glyph": "play", "col": 1, "row": top},
+		{"id": "next", "glyph": "next", "col": 2, "row": top},
+		{"id": "rew", "glyph": "rew", "col": 0, "row": top + 1},
+		{"id": "stop", "glyph": "stop", "col": 1, "row": top + 1},
+		{"id": "ff", "glyph": "ff", "col": 2, "row": top + 1},
+	])
+	if remote_level_knob() != null:
+		cells.append_array([
+			{"id": "vol_down", "glyph": "vol_down", "col": 0.0, "row": top + 2, "span": 1.5},
+			{"id": "vol_up", "glyph": "vol_up", "col": 1.5, "row": top + 2, "span": 1.5},
+		])
+	return cells
+
+
+## Whether the deck answers the remote's EJECT (a subclass with an open key says so).
+func remote_can_eject() -> bool:
+	return false
+
+
+## The remote's EJECT: what the deck's own open key does. A subclass overrides it.
+func remote_eject() -> void:
+	print("[%s] %s: the remote's EJECT: this deck has no open key" % [_log_tag(), name])
+
+
+## The knob the remote's VOL- / VOL+ turn, or null when the deck has none.
+func remote_level_knob() -> VRKnob:
+	return null
+
+
+## One press of VOL- / VOL+ moves the knob this much of its sweep (the TV's step: twenty presses end to end).
+const REMOTE_VOLUME_STEP := 0.05
+## How long the knob takes to turn one step, so it is seen to turn rather than jump.
+const REMOTE_KNOB_TURN_SEC := 0.15
+
+var _knob_tween: Tween = null
+## Where the remote is turning the knob to; a press while it turns steps on from there.
+var _knob_goal := -1.0
+
+
+## VOL- / VOL+: turn the deck's own level knob a step. Through VRKnob.set_value, so the
+## cap turns, the deck's level follows (value_changed), and netplay and the save see it
+## exactly as a hand on the knob.
+func remote_volume_step(dir: int) -> void:
+	var knob := remote_level_knob()
+	if knob == null:
+		print("[%s] %s: the remote's VOL%s: this deck has no level knob" % [_log_tag(), name, "+" if dir > 0 else "-"])
+		return
+	if not _mains_gate("the remote's VOL%s" % ("+" if dir > 0 else "-")):
+		return
+	var from := knob.get_value()
+	var base := _knob_goal if _knob_tween != null and _knob_tween.is_running() else from
+	var goal := clampf(base + REMOTE_VOLUME_STEP * signf(dir), 0.0, 1.0)
+	_log_event("remote VOL%s: %s %.2f -> %.2f" % ["+" if dir > 0 else "-", knob.name, from, goal])
+	if is_equal_approx(goal, from):
+		return
+	if _knob_tween != null:
+		_knob_tween.kill()
+	_knob_goal = goal
+	if not is_inside_tree():
+		knob.set_value(goal)
+		return
+	_knob_tween = create_tween()
+	_knob_tween.tween_method(knob.set_value, from, goal, REMOTE_KNOB_TURN_SEC) 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 
 ## prev/next only on a deck that skips tracks (a CD); rew/ff greyed on a turntable,
 ## which has no scan — you move the needle, as prev/next are greyed on a cassette.
+## VOL- / VOL+ grey at the knob's ends.
 func remote_cell_enabled(id: String) -> bool:
 	if id == "prev" or id == "next":
 		return has_track_skip()
 	if id == "rew" or id == "ff":
 		return has_scan()
+	if id == "vol_up" or id == "vol_down":
+		var knob := remote_level_knob()
+		if knob == null:
+			return false
+		return knob.get_value() < 1.0 if id == "vol_up" else knob.get_value() > 0.0
 	return true
 
 
@@ -384,6 +455,9 @@ func remote_activate(id: String) -> void:
 		"ff": remote_ff()
 		"prev": remote_prev()
 		"next": remote_next()
+		"eject": remote_eject()
+		"vol_up": remote_volume_step(1)
+		"vol_down": remote_volume_step(-1)
 		_: print("[AudioPlayer] %s: the remote's %s is no key of a deck's" % [name, id])
 
 
