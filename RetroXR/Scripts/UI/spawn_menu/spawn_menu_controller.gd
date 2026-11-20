@@ -13,6 +13,7 @@ const CART_SCENE            := preload("res://Scenes/Objects/media/cartridge.tsc
 const DISC_SCENE            := preload("res://Scenes/Objects/media/disc.tscn")
 const UMD_DISC_SCENE        := preload("res://Scenes/Objects/media/umd_disc.tscn")
 const BOOK_SCENE            := preload("res://Scenes/Objects/media/pdf_book.tscn")
+const GAME_CASE_SCENE       := preload("res://Scenes/Objects/media/game_case.tscn")
 const POSTER_SCENE := preload("res://Scenes/Objects/media/poster.tscn")
 const RETRO_CONTROLLER_SCENE := preload("res://Scenes/Objects/controllers/retro_controller.tscn")
 # Stand-in Virtual Boy pad: carries the console POWER switch, like the real one.
@@ -252,6 +253,7 @@ func _connect_menu_signals() -> void:
 	spawn_menu.spawn_cartridge_requested.connect(_on_spawn_cartridge_requested)
 	spawn_menu.spawn_view().spawn_manual_requested.connect(_on_spawn_manual_requested)
 	spawn_menu.spawn_view().spawn_key_requested.connect(_on_spawn_key_requested)
+	spawn_menu.spawn_view().spawn_case_requested.connect(_on_spawn_case_requested)
 	spawn_menu.spawn_view().spawn_poster_requested.connect(_on_spawn_poster_requested)
 	spawn_menu.spawn_view().spawn_video_requested.connect(_on_spawn_video_requested)
 	spawn_menu.spawn_view().spawn_dvd_requested.connect(_on_spawn_dvd_requested)
@@ -1595,6 +1597,31 @@ func _on_spawn_key_requested(rom_path: String) -> void:
 	var key := (load("res://Scenes/Objects/peripherals/naomi_key.tscn") as PackedScene).instantiate() as NaomiKey
 	key.rom_path = rom_path
 	_place_spawned(key, "peripheral")
+
+
+## A disc game in the case it was sold in (the case button left of its title): GameCase picks the case from the
+## game's market, its discs and its box-texture's shape; the case comes with every disc on its hub and the manual
+## under the lid.
+func _on_spawn_case_requested(rom_path: String, game_label: String, systemid: String) -> void:
+	var discs := GameCase.discs_of(rom_path)
+	var art := RetroGameCase.box_art_path(systemid, rom_path)
+	var img: Image = null
+	if not art.is_empty():
+		img = await RetroGameCase.decode_image(get_tree(), art)
+	var size := Vector2i(img.get_width(), img.get_height()) if img != null else Vector2i.ZERO
+	var pick := GameCase.pick(systemid, GameCase.market_of(systemid, rom_path), discs.size(), size,
+		GameCase.release_of(systemid, rom_path))
+	var c := GAME_CASE_SCENE.instantiate() as RetroGameCase
+	c.rom_path = rom_path
+	c.game_label = game_label
+	c.systemid = systemid
+	c.case_family = str(pick["family"])
+	c.case_variant = str(pick["variant"])
+	c.case_color = str(pick["color"])
+	c.box_image = img
+	_place_spawned(c, "game_case")
+	if is_instance_valid(c) and c.is_inside_tree() and not c.is_queued_for_deletion():
+		c.spawn_contents(discs)
 
 
 func _on_spawn_manual_requested(pdf_path: String) -> void:

@@ -85,6 +85,7 @@ const ERROR     := 0xF071    # fa-warning
 const GAMEPAD   := 0xF11B    # fa-gamepad
 const BOOK      := 0xF05DA   # md-book_open_page_variant
 const CHIP      := 0xF061A   # md-chip -- a NAOMI GD-ROM game's key chip
+const CASE      := 0xF0025   # md-album -- a disc game in its case, discs and manual inside
 const SCRAPE    := 0xF0866   # md-database_search
 const RESCRAPE  := 0xF05C2   # md-database_refresh — scraped already, scrape again
 const SCRAPE_ALL := 0xF163B  # md-database_arrow_down — every unscraped game on the page

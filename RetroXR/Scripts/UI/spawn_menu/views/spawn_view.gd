@@ -26,6 +26,8 @@ signal spawn_manual_requested(pdf_path: String)
 ## A NAOMI GD-ROM game's key chip, for the game at `rom_path` (its row's chip button: the game itself spawns as its
 ## disc, and a hand holds one thing at a time).
 signal spawn_key_requested(rom_path: String)
+## A disc game in the case it was sold in, its discs and manual inside (its row's case button, left of the title).
+signal spawn_case_requested(rom_path: String, game_label: String, systemid: String)
 signal spawn_poster_requested(image_path: String)
 signal spawn_video_requested(video_path: String)
 signal spawn_dvd_requested(dvd_path: String)
@@ -2191,7 +2193,7 @@ func _build_blank_rom_row() -> Control:
 
 	# "Pack" is last and shows only for a .bs: what is written on a Satellaview
 	# memory pack, which the row itself can only summarise.
-	for n: String in ["Detail", "Saves", "Manual", "Scrape", "Key", "Pack"]:
+	for n: String in ["Detail", "Saves", "Manual", "Scrape", "Key", "Pack", "Case"]:
 		var b := Button.new()
 		b.name = n
 		b.custom_minimum_size = Vector2(66, 100)
@@ -2201,6 +2203,8 @@ func _build_blank_rom_row() -> Control:
 		row.add_child(b)
 	# The key chip leads, just right of the delete (the owner, 2026-11-13): it is the first thing a GD-ROM game needs.
 	row.move_child(row.get_node("Key"), row.get_node("State").get_index() + 1)
+	# The case sits just left of the title (the owner, 2026-11-20): the game as it came off the shelf.
+	row.move_child(row.get_node("Case"), row.get_node("Main").get_index())
 
 	return row
 
@@ -2241,6 +2245,7 @@ func _bind_rom_row(row: Control, index: int) -> void:
 	var scrape := row.get_node("Scrape") as Button
 	var pack := row.get_node("Pack") as Button
 	var key := row.get_node("Key") as Button
+	var case_btn := row.get_node("Case") as Button
 
 	_disconnect_all(state.pressed)
 	_disconnect_all(main.pressed)
@@ -2257,6 +2262,15 @@ func _bind_rom_row(row: Control, index: int) -> void:
 	_disconnect_all(scrape.pressed)
 	_disconnect_all(pack.pressed)
 	_disconnect_all(key.pressed)
+	_disconnect_all(case_btn.pressed)
+	# A disc game on this device: the case it was sold in, with its discs and manual (RetroGameCase).
+	var has_case := not local_path.is_empty() and MediaDimensions.is_disc_system(systemid) \
+		and not ArcadeDiscs.applies(systemid) and not NaomiGdRom.NAOMI_SYSTEMS.has(SystemIds.canonical(systemid))
+	case_btn.text = String.chr(MenuIcons.CASE)
+	case_btn.visible = has_case
+	case_btn.tooltip_text = "This game in its case, with its discs and manual"
+	if has_case:
+		case_btn.pressed.connect(spawn_case_requested.emit.bind(local_path, label, systemid))
 	# A NAOMI GD-ROM game (its zip with its disc image beside it): its key chip, its own button.
 	var gd_game := not local_path.is_empty() and NaomiGdRom.is_gd_game(systemid, local_path)
 	key.text = String.chr(MenuIcons.CHIP)

@@ -50,6 +50,8 @@ const _STRING_FIELDS := [
 	"fallback_market",
 	# Which of a Super Scope's two clips its sight is on: "left" or "right".
 	"sight_side",
+	# Which case a game's case is (GameCase): "jewel" or "keep", the variant, a colour preset.
+	"case_family", "case_variant", "case_color",
 ]
 const _NUMBER_FIELDS := [
 	"lid_angle", "scale_factor", "stereo_mode", "size_scale", "page_state",
@@ -188,6 +190,7 @@ const MEMCARD_SCENE          := preload("res://Scenes/Objects/media/memory_card.
 const GC_MEMCARD_SCENE       := preload("res://Scenes/Objects/media/gc_memory_card.tscn")
 const PS2_MEMCARD_SCENE      := preload("res://Scenes/Objects/media/ps2_memory_card.tscn")
 const BOOK_SCENE             := preload("res://Scenes/Objects/media/pdf_book.tscn")
+const GAME_CASE_SCENE        := preload("res://Scenes/Objects/media/game_case.tscn")
 const POSTER_SCENE           := preload("res://Scenes/Objects/media/poster.tscn")
 const RETRO_CONTROLLER_SCENE := preload("res://Scenes/Objects/controllers/retro_controller.tscn")
 const LIGHT_GUN_SCENE        := preload("res://Scenes/Objects/peripherals/light_gun.tscn")
@@ -3068,6 +3071,9 @@ static func _save_kind_rows() -> Array:
 		[PortCover, "port_cover", &"_port_cover_fields"],
 		[Poster, "poster", &"_poster_fields"],
 		[PDFBook, "book", &"_book_fields"],
+		# Which case and whose game; its hinges are articulated controls, and the discs and
+		# manual in it record themselves as attached to its zones.
+		[RetroGameCase, "game_case", &"_game_case_fields"],
 		# The deck's own TV link is not saved: the lead is a separate object now, so
 		# the connection lives in a spawned cable's plugs. Same for the DVD player.
 		[VCRPlayer, "vcr_player", &"_vcr_player_fields"],
@@ -3338,6 +3344,17 @@ func _poster_fields(poster: Poster, _node_to_id: Dictionary) -> Dictionary:
 	if poster.printout:
 		fields["printout"] = true
 	return fields
+
+
+func _game_case_fields(c: RetroGameCase, _node_to_id: Dictionary) -> Dictionary:
+	return {
+		"rom_path": c.rom_path,
+		"game_label": c.game_label,
+		"systemid": c.systemid,
+		"case_family": c.case_family,
+		"case_variant": c.case_variant,
+		"case_color": c.case_color,
+	}
 
 
 func _book_fields(book: PDFBook, _node_to_id: Dictionary) -> Dictionary:
@@ -4191,6 +4208,8 @@ const _LOAD_KINDS := {
 	"port_cover": &"_load_port_cover",
 	"poster": &"_load_poster",
 	"book": &"_load_book",
+	# A disc game's case: which case, whose game. Its discs and manual come back attached to it.
+	"game_case": &"_load_game_case",
 	"retro_controller": &"_load_retro_controller",
 	# Which console port its plug is in, its SELECT switch, and the pad in each of
 	# its four sockets. The pads' own entries name no port: the tap's is the end
@@ -4352,6 +4371,17 @@ func _load_poster(data: Dictionary) -> Node3D:
 	poster.printout = bool(data.get("printout", false))
 	poster.sticks = bool(data.get("sticks", true))
 	return poster
+
+
+func _load_game_case(data: Dictionary) -> Node3D:
+	var c := GAME_CASE_SCENE.instantiate() as RetroGameCase
+	c.rom_path = RomLibrary.relocate(str(data.get("rom_path", "")))
+	c.game_label = str(data.get("game_label", ""))
+	c.systemid = SystemIds.canonical(str(data.get("systemid", "")))
+	c.case_family = str(data.get("case_family", ""))
+	c.case_variant = str(data.get("case_variant", ""))
+	c.case_color = str(data.get("case_color", ""))
+	return c
 
 
 func _load_book(data: Dictionary) -> Node3D:

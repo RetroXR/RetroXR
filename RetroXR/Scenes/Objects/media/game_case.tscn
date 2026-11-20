@@ -1,0 +1,31 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/media/cases/retro_game_case.gd" id="1_casescript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+
+[sub_resource type="BoxShape3D" id="BoxShape_pointer"]
+size = Vector3(0.142, 0.125, 0.0104)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_case"]
+bounce = 0.0
+friction = 0.7
+
+[node name="GameCase" type="RigidBody3D" groups=["game_case"]]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.08
+physics_material_override = SubResource("PhysMat_case")
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("1_casescript")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+shape = SubResource("BoxShape_pointer")

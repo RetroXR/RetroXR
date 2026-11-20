@@ -1,0 +1,156 @@
+## GameCase — which case a disc game came in: a CD jewel case or a DVD-style keep case (GameCaseModel), by system,
+## the market it was sold in, how many discs it has and the shape of its scraped box art.
+##
+## {family, variant, color}: family "jewel" or "keep", variant a key of that family's contract
+## (imported-assets/media/*_case/*_contract.json), color a GameCaseModel preset ("" for the variant's own).
+##
+## The early American long box (Sega CD, Saturn, the first PlayStation games) is told from the box art itself: a
+## ScreenScraper box-texture of a long box is laid out back | spine | front at about 931 x 680 (1.37 wide for its
+## height), a jewel case's at 1509-1622 x 680 (2.2-2.4). With no scan, the US release date decides against a
+## per-system cutoff (LONGBOX_BEFORE, estimated: the switch to jewel cases was gradual).
+class_name GameCase
+extends RefCounted
+
+## A box-texture narrower than this (width / height) is a long box's.
+const LONG_BOX_RATIO := 1.8
+## Systems whose American releases started out in the long box, and the month (YYYY-MM) from which a game without a
+## scan is taken to be in a jewel case [E].
+const LONGBOX_BEFORE := {"psx": "1996-04", "saturn": "1997-01", "segacd": "1994-01"}
+
+## Per system: the case in each market ("us", "eu", "jp"; "*" any). A row is [family, variant, color].
+const SYSTEMS := {
+	"psx": {"us": ["jewel", "single", ""], "eu": ["jewel", "pal", ""], "jp": ["jewel", "single", ""]},
+	"saturn": {"us": ["jewel", "single", ""], "eu": ["keep", "saturn_pal", ""], "jp": ["jewel", "single", ""]},
+	"segacd": {"us": ["jewel", "single", ""], "eu": ["jewel", "fatbox2", ""], "jp": ["jewel", "fatbox2", ""]},
+	"dreamcast": {"us": ["jewel", "single", ""], "eu": ["jewel", "dc_pal", ""], "jp": ["jewel", "single", ""]},
+	"3do": {"us": ["keep", "3do_long", ""], "*": ["jewel", "single", ""]},
+	"cdi": {"*": ["jewel", "cdi", ""]},
+	"ps2": {"*": ["keep", "ps2", ""]},
+	"gc": {"jp": ["keep", "gc_jp", ""], "*": ["keep", "gc", ""]},
+	"xbox": {"*": ["keep", "single", "lime"]},
+	"xbox360": {"*": ["keep", "x360", ""]},
+	"wii": {"*": ["keep", "single", "white"]},
+	"wiiu": {"*": ["keep", "wiiu", ""]},
+	"ps3": {"*": ["keep", "bluray_game", "clear"]},
+	"psp": {"*": ["keep", "umd", ""]},
+}
+## Disc systems with no row above: a plain jewel case (PC Engine CD, Neo Geo CD, PC-FX, CD32, CDTV, Jaguar CD, the
+## computers' CD-ROMs).
+const DEFAULT_ROW := ["jewel", "single", ""]
+## How many discs each multi-disc case holds.
+const CAPACITY := {"double": 2, "fatbox2": 2, "fatbox4": 4, "pal_multi2": 2, "pal_multi4": 4, "triple": 3,
+	"multi5": 5}
+
+
+## The case for a game. `market` "us", "eu" or "jp" (anything else counts as "us"); `discs` how many it has;
+## `box_size` its box-texture's size in pixels (Vector2i.ZERO when there is none); `release` its scraped release
+## date (YYYY-MM-DD, may be empty), read only when there is no box art to go by.
+static func pick(systemid: String, market: String, discs := 1, box_size := Vector2i.ZERO, release := "") -> Dictionary:
+	var sys := SystemIds.canonical(systemid)
+	var m := market if market in ["us", "eu", "jp"] else "us"
+	var rows: Dictionary = SYSTEMS.get(sys, {})
+	var row: Array = rows.get(m, rows.get("*", DEFAULT_ROW))
+	var out := {"family": str(row[0]), "variant": str(row[1]), "color": str(row[2])}
+	var mod_row := MediaDimensions.mod_case(sys)
+	if not mod_row.is_empty():
+		out = {"family": str(mod_row.get("family", "jewel")), "variant": str(mod_row.get("variant", "single")),
+			"color": str(mod_row.get("color", ""))}
+	if m == "us" and LONGBOX_BEFORE.has(sys) and discs <= 1 and is_long_box(sys, box_size, release):
+		out["family"] = "jewel"
+		out["variant"] = "longbox"
+		return out
+	if discs > 1:
+		var multi := _multi_variant(sys, m, str(out["family"]), str(out["variant"]), discs)
+		out["family"] = multi[0]
+		out["variant"] = multi[1]
+	return out
+
+
+## Whether a US game came in the long box: from its box art's shape, else its release date.
+static func is_long_box(systemid: String, box_size: Vector2i, release := "") -> bool:
+	# A scan ScreenScraper normalized to 1024 x 680 (its Sega CD long boxes, every keep case) says nothing by its
+	# shape: only one kept at its own proportions does.
+	if box_size.x > 0 and box_size.y > 0 and not is_normalized_scan(box_size):
+		return float(box_size.x) / float(box_size.y) < LONG_BOX_RATIO
+	var cutoff := str(LONGBOX_BEFORE.get(SystemIds.canonical(systemid), ""))
+	var month := release.substr(0, 7)
+	return not cutoff.is_empty() and month.length() == 7 and month < cutoff
+
+
+## The case for a game of several discs, or the single's variant when that family has nothing bigger (a GameCube,
+## an Xbox 360 or a UMD case holds one; the others' extra discs travel loose).
+static func _multi_variant(sys: String, market: String, family: String, single: String, discs: int) -> Array:
+	if family == "keep":
+		if single in ["single", "ps2"]:
+			return ["keep", "double" if discs == 2 else ("triple" if discs == 3 else "multi5")]
+		if sys == "saturn":                 # the PAL Saturn's multi-disc games came in jewel cases
+			return ["jewel", "fatbox4" if discs > 2 else "double"]
+		return ["keep", single]
+	if sys == "psx" and market == "eu":
+		return ["jewel", "pal_multi2" if discs == 2 else "pal_multi4"]
+	if discs == 2:
+		return ["jewel", "fatbox2" if sys in ["psx", "segacd"] else "double"]
+	return ["jewel", "fatbox4"]
+
+
+## ScreenScraper's 1024 x 680 box-texture, whatever the box's own proportions (1.45-1.55 wide for its height).
+static func is_normalized_scan(box_size: Vector2i) -> bool:
+	if box_size.y <= 0:
+		return false
+	var r := float(box_size.x) / float(box_size.y)
+	return r > 1.45 and r < 1.55
+
+
+static func capacity(variant: String) -> int:
+	return int(CAPACITY.get(variant, 1))
+
+
+## The market a game was sold in: the region tag in its file name (Redump and No-Intro name the dump's own), else
+## its scraped region, else the player's. The name comes first: ScreenScraper filed Sonic CD (USA) under Europe
+## while handing over the American long box's scan.
+static func market_of(systemid: String, rom_path: String) -> String:
+	var found := SnesCartShell.filename_market(rom_path)
+	if found.is_empty():
+		found = N64CartShell.market_of_region(str(CartRomInfo.scraped_rom(systemid, rom_path).get("region", "")))
+	if found.is_empty():
+		found = RegionalNames.cart_market()
+	return found
+
+
+static func release_of(systemid: String, rom_path: String) -> String:
+	return str(CartRomInfo.scraped_rom(systemid, rom_path).get("releasedate", ""))
+
+
+## Every disc of the game `rom_path` is one of, in order: the files a .m3u lists, or the files beside it whose names
+## differ only in their "(Disc N)" tag. A single-disc game is itself alone.
+static func discs_of(rom_path: String) -> PackedStringArray:
+	var out := PackedStringArray()
+	if rom_path.get_extension().to_lower() == "m3u":
+		var text := FileAccess.get_file_as_string(rom_path)
+		for line in text.split("\n"):
+			var entry := line.strip_edges()
+			if entry.is_empty() or entry.begins_with("#"):
+				continue
+			out.append(entry if entry.is_absolute_path() else rom_path.get_base_dir().path_join(entry))
+		return out if not out.is_empty() else PackedStringArray([rom_path])
+	var name := rom_path.get_file()
+	if MenuIcons.disc_number(name) <= 0:
+		return PackedStringArray([rom_path])
+	var re := RegEx.create_from_string("(?i)([(\\[]\\s*(?:dis[ck]|cd)\\s*)(\\d+)")
+	var m := re.search(name)
+	var dir := DirAccess.open(rom_path.get_base_dir())
+	if m == null or dir == null:
+		return PackedStringArray([rom_path])
+	var head := name.substr(0, m.get_start(2))
+	var tail := name.substr(m.get_end(2))
+	var found := {}
+	for f in dir.get_files():
+		if f.begins_with(head) and f.ends_with(tail):
+			var n := f.substr(head.length(), f.length() - head.length() - tail.length())
+			if n.is_valid_int():
+				found[int(n)] = rom_path.get_base_dir().path_join(f)
+	var keys := found.keys()
+	keys.sort()
+	for k: int in keys:
+		out.append(found[k])
+	return out if not out.is_empty() else PackedStringArray([rom_path])

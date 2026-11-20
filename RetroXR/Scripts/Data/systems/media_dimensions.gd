@@ -649,6 +649,12 @@ static func register_mod_media(systemid: String, dims: Dictionary,
 		return "disc_diameter must be a number"
 	if dims.has("slot_load") and not dims.has("disc_diameter"):
 		return "slot_load needs a disc_diameter, or there is no disc to load"
+	if dims.has("case"):
+		var c: Variant = dims["case"]
+		if not c is Dictionary or not str((c as Dictionary).get("family", "")) in GameCaseModel.FAMILIES:
+			return "case must be {family: \"jewel\" or \"keep\", variant, color}"
+		if GameCaseModel.variant_contract(str(c["family"]), str((c as Dictionary).get("variant", ""))).is_empty():
+			return "case variant '%s' is not a %s case" % [(c as Dictionary).get("variant", ""), c["family"]]
 	_mod_media[systemid] = dims.duplicate(true)
 	_mod_owners[systemid] = owner_id
 	return ""
@@ -668,3 +674,9 @@ static func drop_mod(owner_id: String) -> void:
 
 static func is_mod_media(systemid: String) -> bool:
 	return _mod_media.has(systemid)
+
+
+## The case a mod gave its platform's games ({family, variant, color}; GameCase), or {}.
+static func mod_case(systemid: String) -> Dictionary:
+	var c: Variant = (_mod_media.get(systemid, {}) as Dictionary).get("case", {})
+	return c if c is Dictionary else {}
