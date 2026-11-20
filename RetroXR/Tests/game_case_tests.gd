@@ -57,6 +57,7 @@ func _run() -> void:
 		["case/a case saves and restores as itself", _case_save],
 		["case/dropped shut or open, a case rests on the floor", _case_drop],
 		["case/the PS2 case's holder takes its memory card", _case_card_holder],
+		["case/the desktop lifts a disc out of an open case", _case_desktop_grab],
 	]
 	for c in cases:
 		_case = str(c[0])
@@ -438,6 +439,48 @@ func _case_card_holder() -> void:
 	await get_tree().physics_frame
 	_ok(_ray_hit(c.disc_zone(0).global_position + c.model.disc_seat(1).global_basis.x * 0.035, front, c.get_world_3d()) == c,
 		"shut, the ray takes the case")
+
+
+## The desktop's own resolver on an open Wii U case: off the middle, a click lifts the disc (from the zone holding
+## it); on the hub, it presses the hub; once popped, the middle lifts the disc too. And the lift itself works: the
+## zone lets go and a hand has it.
+func _case_desktop_grab() -> void:
+	var c := _new_case("keep", "wiiu")
+	c.global_position = Vector3(5.0, 0.0, 0.0)
+	await get_tree().physics_frame
+	c.sim.set_angle_deg(c.sim.top(), 180.0)
+	c._apply_angles()
+	var d := DISC_SCENE.instantiate() as RetroDisc
+	d.systemid = "wiiu"
+	add_child(d)
+	_spawned.append(d)
+	c.disc_zone(0).pick_up_object(d)
+	for _i in 3:
+		await get_tree().physics_frame
+	var grabber := Node3D.new()
+	add_child(grabber)
+	_spawned.append(grabber)
+	var seat := c.model.disc_seat(1)
+	var up := seat.global_basis.y
+	var space := c.get_world_3d().direct_space_state
+	var off := seat.global_position + seat.global_basis.x * 0.035
+	var t := InteractionResolver.resolve_desktop(space, off + up * 0.3, off - up * 0.05, grabber)
+	_ok(t.is_valid() and t.highlight_node == d, "off the middle, a click takes the disc",
+		"%s %s" % [t.kind, t.highlight_node])
+	var mid := seat.global_position
+	t = InteractionResolver.resolve_desktop(space, mid + up * 0.3, mid - up * 0.05, grabber)
+	_ok(t.is_valid() and t.kind == InteractionTarget.KIND_BUTTON, "on the hub, a click presses the hub",
+		"%s %s" % [t.kind, t.action_node])
+	c.pop_disc(0)
+	for _i in 3:
+		await get_tree().physics_frame
+	t = InteractionResolver.resolve_desktop(space, mid + up * 0.3, mid - up * 0.05, grabber)
+	_ok(t.is_valid() and t.highlight_node == d, "popped, the middle takes the disc too", "%s %s" % [t.kind, t.highlight_node])
+	var zone := t.action_node as XRToolsSnapZone
+	_ok(zone == c.disc_zone(0) and d.enabled, "through the zone that holds it, which lets it go")
+	if zone != null:
+		zone.drop_object()
+	_ok(d.can_pick_up(grabber) and not c.discs().has(d), "and then a hand may have it")
 
 
 ## The pickable the desktop ray would take first coming down `dir` onto `at`.

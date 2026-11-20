@@ -33,6 +33,8 @@ const LATCH_HAPTIC_KEY := &"game_case_latch"
 ## A popped disc rides this far up off its hub, tilted this much, loose on the catches.
 const POP_LIFT := 0.004
 const POP_TILT_DEG := 4.0
+## The hub button's reach: its cap, inside the disc's hole (7.5 mm).
+const HUB_BUTTON_R := 0.0045
 ## The body's hull is rebuilt when the lid has turned this far since the last one.
 const SHAPE_STEP_DEG := 2.0
 ## The panel a manual sits under, from the manual seat's centre (the seat is the paper's mid-plane).
@@ -69,6 +71,7 @@ var _zones: Array[XRToolsSnapZone] = []          # disc seats, in seat order (in
 var _seat_carrier: Array[int] = []               # per disc seat: -1 the back, else a sim hinge
 var _seat_down: Array[bool] = []                 # per disc seat: its hub faces the back
 var _popped: Array[bool] = []                    # per disc seat: its hub button has popped the disc up
+var _hub_buttons: Array[VRButton] = []
 var _manual_zone: XRToolsSnapZone
 var _manual_root: Node3D
 var _holder_zone: XRToolsSnapZone                # the UMD's holder
@@ -91,6 +94,9 @@ var _accel := Vector3.ZERO
 func _ready() -> void:
 	super()
 	add_to_group(GROUP)
+	# The desktop ray meets the case by its PointerArea only (shaped to leave an open case's inside clear), not by its
+	# body's hull: that fills an open case to the brim, and every click on a disc took the case (the owner, 2026-11-21).
+	set_meta(InteractionResolver.POINTER_BY_AREA, true)
 	if case_variant.is_empty():
 		var pick := GameCase.pick(systemid, GameCase.market_of(systemid, rom_path),
 			GameCase.discs_of(rom_path).size(), Vector2i.ZERO, GameCase.release_of(systemid, rom_path))
@@ -376,19 +382,23 @@ func _zone(n: String, parent: Node3D, group: String, reach: float, filter: Calla
 ## fingertip or the desktop pointer, it pops the disc up off the catches (the owner, 2026-11-20). Only with the
 ## seat open to the hand.
 func _build_hub_button(seat: Node3D, i: int) -> void:
+	# The hub's cap only (inside the disc's 15 mm hole), and live only while there is a disc on it to pop: as a 7 mm
+	# ball it took every desktop click near a disc's middle (InteractionResolver prefers a control just behind what
+	# the ray met), so a click meant to lift the disc popped it, and the next did nothing (the owner, 2026-11-21).
 	var b := VRButton.new()
 	b.name = "HubButton%d" % (i + 1)
 	b.state_tint = false
 	b.depress_depth = 0.0
-	b.trigger_radius = 0.012
+	b.trigger_radius = 0.008
 	var shape := CollisionShape3D.new()
 	var sphere := SphereShape3D.new()
-	sphere.radius = 0.007
+	sphere.radius = HUB_BUTTON_R
 	shape.shape = sphere
 	b.add_child(shape)
 	seat.add_child(b)
 	b.position = Vector3(0.0, 0.0015, 0.0)
 	b.button_pressed.connect(pop_disc.bind(i))
+	_hub_buttons.append(b)
 
 
 ## Pop the disc on seat i up off its hub: it rides up and tilts on its zone, loose for a hand to lift out.
@@ -397,6 +407,7 @@ func pop_disc(i: int) -> bool:
 		return false
 	_popped[i] = true
 	_zones[i].transform = Transform3D(Basis(Vector3.RIGHT, deg_to_rad(POP_TILT_DEG)), Vector3(0.0, POP_LIFT, 0.0))
+	_update_reach.call_deferred()
 	var ctrl := get_picked_up_by_controller()
 	if ctrl != null:
 		Haptics.pulse(ctrl, 0.3, 10, LATCH_HAPTIC_KEY)
@@ -412,6 +423,7 @@ func _seat_disc(i: int) -> void:
 	if i < _zones.size():
 		_popped[i] = false
 		_zones[i].transform = Transform3D.IDENTITY
+		_update_reach.call_deferred()
 
 
 ## A closed book's origin is its spine; its cover lies to +x. The zone sits half the book's width toward the seat's
@@ -475,6 +487,8 @@ func _update_reach() -> void:
 		var obj := _zones[i].picked_up_object as XRToolsPickable
 		if obj != null:
 			obj.enabled = ok
+		if i < _hub_buttons.size() and _hub_buttons[i].is_inside_tree():
+			_hub_buttons[i].set_active(ok and obj is RetroDisc and not _popped[i])
 	var open := _lid_open()
 	for z: XRToolsSnapZone in [_holder_zone, _manual_zone, _card_zone]:
 		if z != null and z.picked_up_object is XRToolsPickable:
