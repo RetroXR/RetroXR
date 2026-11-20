@@ -515,8 +515,23 @@ func _collect_carried(was: Transform3D) -> void:
 		# (not what something holds -- the board in its mount -- nor a plug: its socket or its cord moves it, and one moved
 		# while it was still going into its socket was left out of it)
 		var held := body is CablePlug or (body is XRToolsPickable and (body as XRToolsPickable).is_picked_up())
-		if body.freeze and not held and body != _pickable and not _pickable.is_ancestor_of(body) and box.has_point(to_me * body.global_position):
+		if body.freeze and not held and body != _pickable and not _pickable.is_ancestor_of(body) \
+				and not _rides_another_body(body) and box.has_point(to_me * body.global_position):
 			_carried.append(body)
+			print("[Arcade] %s carries %s (frozen inside it as it moved)" % [name, body.name])
+
+
+## True for a body parented under ANOTHER physics body: it already rides that one, the way a poster stuck to the floor,
+## a wall or a television does (SurfaceStick reparents it onto what it stuck to, frozen, 2 mm out). Such a body is not in
+## this cabinet whatever its bounds say: taking it swept every floor and wall poster under a spawned cabinet along with it
+## (v0.14.0, "spawning a cabinet deletes my posters").
+func _rides_another_body(body: Node) -> bool:
+	var p := body.get_parent()
+	while p != null:
+		if p is CollisionObject3D:
+			return true
+		p = p.get_parent()
+	return false
 
 
 ## Whenever the machine moves -- carried in a hand or on the desktop, stood on the floor, pushed -- what is inside it moves

@@ -132,6 +132,8 @@ func _run() -> void:
 		await _group_hookup()
 	if _want("captive"):
 		await _group_captive()
+	if _want("carry"):
+		await _group_carry()
 	if _want("converter"):
 		await _group_converter()
 	if _want("gdrom"):
@@ -917,6 +919,46 @@ func _hk_cable(kind: String) -> Node3D:
 
 
 var _hk_captive := PackedStringArray()
+
+
+## A cabinet built from a model carries what is frozen INSIDE it as it moves (its cords, its converter), and nothing that
+## rides another body: a poster stuck to the floor under it (SurfaceStick reparents it onto the floor, frozen, 2 mm out)
+## stays where it was stuck. v0.14.0 swept every floor and wall poster under a spawned cabinet along with it.
+func _group_carry() -> void:
+	_hk_build(false)
+	_ok(SystemModelRegistry.register_mod_row(HK_ID, {"platform": ["naomi"], "label": "Carry test", "sockets": [], "scene": HK_CAB},
+		"test.hookup").is_empty(), "carry: a cabinet from a model registers")
+	var sys := await _cabinet(HK_ID, "naomi")
+	await _wait(30)
+	# The floor, and a poster stuck to it under the cabinet's middle (the model's body spans z 0 to -0.9).
+	var floor_body := StaticBody3D.new()
+	floor_body.name = "CarryTestFloor"
+	add_child(floor_body)
+	var poster := RigidBody3D.new()
+	poster.name = "CarryTestPoster"
+	poster.freeze = true
+	floor_body.add_child(poster)
+	poster.global_position = sys.global_transform * Vector3(0.0, 0.002, -0.45)
+	# The control: a loose frozen body standing in the room inside the cabinet, which it must still carry.
+	var loose := RigidBody3D.new()
+	loose.name = "CarryTestLoose"
+	loose.freeze = true
+	add_child(loose)
+	loose.global_position = sys.global_transform * Vector3(0.0, 0.5, -0.45)
+	var poster_at := poster.global_position
+	var loose_at := loose.global_position
+	await _wait(5)
+	for i in 10:
+		sys.global_position += Vector3(0.03, 0.0, 0.0)
+		await get_tree().physics_frame
+	await _wait(5)
+	var loose_moved := loose.global_position.distance_to(loose_at)
+	_ok(loose_moved > 0.25, "carry: a loose frozen body inside the cabinet moves with it (%.3f m)" % loose_moved)
+	var poster_moved := poster.global_position.distance_to(poster_at)
+	_ok(poster_moved < 0.001, "carry: a poster stuck to the floor under it stays where it was stuck (moved %.3f m)" % poster_moved)
+	floor_body.queue_free()
+	loose.queue_free()
+	await _hk_done()
 
 
 func _hk_done() -> void:
