@@ -2633,13 +2633,7 @@ func _populate_videos_tab() -> void:
 		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_videos_vbox.add_child(hint)
 		return
-	for video: Dictionary in videos:
-		var btn := Button.new()
-		btn.text = "  📼  " + video["label"]
-		btn.custom_minimum_size = Vector2(0, 72)
-		btn.add_theme_font_size_override("font_size", 24)
-		btn.pressed.connect(spawn_video_requested.emit.bind(video["path"]))
-		_add_media_row(_videos_vbox, btn, video["path"], RomLibrary.default_videos_root())
+	_add_media_list(_videos_vbox, videos, "📼", spawn_video_requested, RomLibrary.default_videos_root())
 	_videos_vbox.add_child(MenuStyle.spacer(8))
 
 
@@ -2655,13 +2649,7 @@ func _populate_dvds_tab() -> void:
 		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_dvds_vbox.add_child(hint)
 		return
-	for dvd: Dictionary in dvds:
-		var btn := Button.new()
-		btn.text = "  💿  " + dvd["label"]
-		btn.custom_minimum_size = Vector2(0, 72)
-		btn.add_theme_font_size_override("font_size", 24)
-		btn.pressed.connect(spawn_dvd_requested.emit.bind(dvd["path"]))
-		_add_media_row(_dvds_vbox, btn, dvd["path"], RomLibrary.default_dvd_root())
+	_add_media_list(_dvds_vbox, dvds, "💿", spawn_dvd_requested, RomLibrary.default_dvd_root())
 	_dvds_vbox.add_child(MenuStyle.spacer(8))
 
 
@@ -2691,14 +2679,69 @@ func _populate_music_vbox(vbox: VBoxContainer, icon: String, sig: Signal) -> voi
 		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		vbox.add_child(hint)
 		return
-	for album: Dictionary in albums:
-		var btn := Button.new()
-		btn.text = "  %s  %s" % [icon, album["label"]]
-		btn.custom_minimum_size = Vector2(0, 72)
-		btn.add_theme_font_size_override("font_size", 24)
-		btn.pressed.connect(sig.emit.bind(album["path"]))
-		_add_media_row(vbox, btn, album["path"], RomLibrary.default_music_root())
+	_add_media_list(vbox, albums, icon, sig, RomLibrary.default_music_root())
 	vbox.add_child(MenuStyle.spacer(8))
+
+
+## Height of one pooled media row: the 72 px button plus the tab's 14 px separation.
+const MEDIA_ROW_HEIGHT := 86
+
+## A library tab's rows as ONE pooled list (VirtualRowList): a few dozen rows bound to whatever is on screen, however many
+## files the folder holds. Building a Control row per file (three Controls each, rebuilt on every visit) froze and then
+## crashed a Quest on a videos folder of 1000+ files once the render thread was separate (v0.14.0); 10 files and 10 000
+## now cost the same. Each row reads its item from meta when pressed, as a pooled row is re-bound to another file.
+func _add_media_list(vbox: VBoxContainer, items: Array, icon: String, sig: Signal, root: String) -> void:
+	print("[SpawnView] %s: %d item(s), pooled" % [root.get_file(), items.size()])
+	var list := VirtualRowList.new()
+	list.row_height = MEDIA_ROW_HEIGHT
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.set_row_builder(func() -> Control: return _build_blank_media_row(sig, root))
+	list.set_row_binder(func(row: Control, i: int) -> void:
+		_bind_media_row(row, items[i] as Dictionary, icon))
+	vbox.add_child(list)
+	list.set_row_count(items.size())
+
+
+func _build_blank_media_row(sig: Signal, root: String) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var spawn_btn := Button.new()
+	spawn_btn.name = "Spawn"
+	spawn_btn.custom_minimum_size = Vector2(0, 72)
+	spawn_btn.add_theme_font_size_override("font_size", 24)
+	spawn_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spawn_btn.clip_text = true
+	spawn_btn.pressed.connect(func() -> void:
+		var path := str(row.get_meta(&"path", ""))
+		if not path.is_empty():
+			sig.emit(path))
+	var del := Button.new()
+	del.name = "Delete"
+	del.custom_minimum_size = Vector2(76, 72)
+	del.add_theme_font_override("font", MenuIcons.symbols())
+	del.add_theme_font_size_override("font_size", 40)
+	del.add_theme_color_override("font_color", MenuIcons.TINT_DELETE)
+	del.tooltip_text = "Delete permanently"
+	del.pressed.connect(func() -> void:
+		_on_media_delete_pressed(str(row.get_meta(&"path", "")), root, del))
+	row.add_child(del)
+	row.add_child(spawn_btn)
+	return row
+
+
+func _bind_media_row(row: Control, item: Dictionary, icon: String) -> void:
+	var path := str(item.get("path", ""))
+	row.set_meta(&"path", path)
+	(row.get_node("Spawn") as Button).text = "  %s  %s" % [icon, str(item.get("label", path.get_file()))]
+	var del := row.get_node("Delete") as Button
+	# A pooled row scrolled onto another file must not keep (or lose) the armed warning glyph of the one it showed.
+	if _media_delete_armed == path and not path.is_empty():
+		del.text = String.chr(MenuIcons.ERROR)
+		_media_delete_armed_btn = del
+	else:
+		del.text = String.chr(MenuIcons.DELETE_FOREVER)
+		if _media_delete_armed_btn == del:
+			_media_delete_armed_btn = null
 
 
 ## One library row: the delete button leading, where a ROM row keeps its own, then

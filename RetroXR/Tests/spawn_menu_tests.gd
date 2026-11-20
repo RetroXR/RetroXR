@@ -56,6 +56,7 @@ func _ready() -> void:
 	await _group_item_delete()
 	await _group_objects()
 	await _group_locate()
+	await _group_media_list()
 
 	for n: Node in _spawned:
 		if is_instance_valid(n):
@@ -1973,3 +1974,45 @@ func _group_tiles() -> void:
 	browser._rebuild_tiles()
 	AppPrefs.compact_tiles = was
 	_ok(not browser._tile_nodes.has(kept[0]), "tiles/and so does switching to compact")
+
+
+# ── media_list/ — a library tab costs the rows on screen, not the files ───────
+
+## A videos folder of 1000+ files crashed a Quest (v0.14.0): the tab built three Controls per file, all at once, on every
+## visit. The Videos, DVD and music tabs are now one pooled VirtualRowList each.
+func _group_media_list() -> void:
+	if not _wanted("media_list/"):
+		return
+	var scroll := ScrollContainer.new()
+	scroll.size = Vector2(800, 900)
+	add_child(scroll)
+	_spawned.append(scroll)
+	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(vbox)
+	var view := SpawnMenuSpawnView.new()
+	_spawned.append(view)
+	var items: Array = []
+	for i in 5000:
+		items.append({"path": "/videos/clip_%04d.mp4" % i, "label": "clip_%04d" % i})
+	view._add_media_list(vbox, items, "📼", view.spawn_video_requested, "/videos")
+	for f in 3:
+		await get_tree().process_frame
+	var list := vbox.get_child(vbox.get_child_count() - 1) as VirtualRowList
+	_ok(list != null and list.get_row_count() == 5000, "media_list/5000 files make one list of 5000 rows")
+	var built := list.get_child_count() if list != null else -1
+	_ok(built > 0 and built < 60, "media_list/and only the rows on screen are built", "%d controls" % built)
+	if list == null or built <= 0:
+		return
+	var first: Control = null
+	for c: Node in list.get_children():
+		if c is Control and str(c.get_meta(&"path", "")) == "/videos/clip_0000.mp4":
+			first = c
+	_ok(first != null and (first.get_node("Spawn") as Button).text.ends_with("clip_0000"),
+		"media_list/the first row shows the first file")
+	if first == null:
+		return
+	var got: Array = []
+	view.spawn_video_requested.connect(func(p: String) -> void: got.append(p))
+	(first.get_node("Spawn") as Button).pressed.emit()
+	_eq(got, ["/videos/clip_0000.mp4"], "media_list/pressing a row spawns ITS file")
