@@ -66,6 +66,8 @@ const DEFAULT_COLORS := {"gc_jp": "clear", "bluray": "bd_blue", "bluray_game": "
 ## Flippers turn like pages: each stays this far behind the one above once that one has moved (KeepCase).
 const LEAF_SPREAD := 15.0
 const SPINE_OPEN_MAX := 90.0
+## A jewel lid laid open on a table turns a little past flat (RetroGameCase.open_max_deg).
+const OPEN_LIMIT := 190.0
 
 var family := "jewel"
 var variant := "single"
@@ -187,9 +189,9 @@ func pivot_m(which: String) -> Vector3:
 
 
 func set_angles(open: float, inner: Array) -> void:
-	open_deg = clampf(open, 0.0, 180.0)
+	open_deg = clampf(open, 0.0, OPEN_LIMIT)
 	for i in mini(inner.size(), inner_deg.size()):
-		inner_deg[i] = clampf(float(inner[i]), 0.0, 180.0)
+		inner_deg[i] = clampf(float(inner[i]), 0.0, OPEN_LIMIT)
 	_pose()
 
 

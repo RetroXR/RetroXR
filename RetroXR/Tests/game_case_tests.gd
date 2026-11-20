@@ -55,6 +55,8 @@ func _run() -> void:
 		["model/every variant builds with its seats and art", _model_variants],
 		["case/a new case seats its discs and keeps them while shut", _case_contents],
 		["case/a case saves and restores as itself", _case_save],
+		["case/dropped shut or open, a case rests on the floor", _case_drop],
+		["case/the PS2 case's holder takes its memory card", _case_card_holder],
 	]
 	for c in cases:
 		_case = str(c[0])
@@ -349,6 +351,71 @@ func _case_contents() -> void:
 	_ok(lift > 0.003 and lift < 0.006, "it rides up about 4 mm", str(lift))
 	_ok(c.discs()[0].global_position.distance_to(c.disc_zone(0).global_position) < 0.002, "the disc goes with it")
 	_ok(c.discs()[0].global_position.distance_to(c.disc_zone(0).global_position) < 0.002, "a disc sits on its hub")
+
+
+## Dropped shut, and dropped open, every kind of case comes to rest ON the floor: one convex hull, never two boxes
+## (two in one body lost their contacts and the case sank into the table).
+func _case_drop() -> void:
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = 1
+	var fcs := CollisionShape3D.new()
+	var fbox := BoxShape3D.new()
+	fbox.size = Vector3(6.0, 0.02, 6.0)
+	fcs.shape = fbox
+	floor_body.add_child(fcs)
+	add_child(floor_body)
+	_spawned.append(floor_body)
+	floor_body.global_position = Vector3(0.0, -50.01, 0.0)          # top at y = -50, clear of the other cases
+	var drops := [["jewel", "single", 0.0], ["keep", "wiiu", 0.0], ["keep", "ps2", 0.0], ["jewel", "fatbox4", 0.0],
+		["jewel", "single", 180.0], ["keep", "wiiu", 180.0]]
+	var cases: Array[RetroGameCase] = []
+	var x := -2.0
+	for d in drops:
+		var c := _new_case(str(d[0]), str(d[1]))
+		c.freeze = false
+		c.global_transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5), Vector3(x, -49.7, 0.0))
+		x += 0.5
+		if float(d[2]) > 0.0:
+			c.sim.set_angle_deg(c.sim.top(), float(d[2]))
+			c._apply_angles()
+		cases.append(c)
+	for _i in 200:
+		await get_tree().physics_frame
+	for c in cases:
+		var shapes := c.get_children().filter(func(n: Node) -> bool: return n is CollisionShape3D)
+		_eq(shapes.size(), 1, "%s/%s is one shape" % [c.case_family, c.case_variant])
+		var low := INF
+		for pt in ((shapes[0] as CollisionShape3D).shape as ConvexPolygonShape3D).points:
+			low = minf(low, ((shapes[0] as CollisionShape3D).global_transform * pt).y)
+		_ok(absf(low + 50.0) < 0.001, "%s/%s lid %.0f rests on the floor" % [c.case_family, c.case_variant, c.lid_deg()],
+			"%.1f mm" % ((low + 50.0) * 1000.0))
+		_ok(absf(c.global_basis.z.y) > 0.999, "%s/%s lies flat" % [c.case_family, c.case_variant], str(c.global_basis.z))
+	_ok(cases[4].lid_deg() > 181.0, "an open jewel lid turns past flat onto the floor", str(cases[4].lid_deg()))
+
+
+## The PS2 case's holder takes a PS2 memory card, label out; not a GameCube card, nor through a shut lid.
+func _case_card_holder() -> void:
+	var c := _new_case("keep", "ps2")
+	await get_tree().physics_frame
+	_ok(c.card_zone() != null, "the PS2 case has a card holder")
+	_ok(_new_case("keep", "single").card_zone() == null, "a plain keep case has none")
+	var ps2 := (load("res://Scenes/Objects/media/ps2_memory_card.tscn") as PackedScene).instantiate() as MemoryCard
+	var gc := (load("res://Scenes/Objects/media/gc_memory_card.tscn") as PackedScene).instantiate() as MemoryCard
+	for card in [ps2, gc]:
+		add_child(card)
+		_spawned.append(card)
+	var filter: Callable = c.card_zone().snap_filter
+	_ok(not filter.call(ps2), "shut, the holder takes nothing")
+	c.sim.set_angle_deg(c.sim.top(), 180.0)
+	c._apply_angles()
+	_ok(filter.call(ps2), "open, it takes a PS2 card")
+	_ok(not filter.call(gc), "but not a GameCube card")
+	c.card_zone().pick_up_object(ps2)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_ok(c.memory_card() == ps2, "the card is in the holder")
+	_ok(ps2.global_position.distance_to(c.model.card_seat().global_position) < 0.002, "on its seat")
+	_ok(ps2.global_basis.y.dot(c.model.card_seat().global_basis.z) > 0.99, "its label facing out of the panel")
 
 
 func _case_save() -> void:

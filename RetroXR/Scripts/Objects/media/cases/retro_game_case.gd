@@ -33,6 +33,12 @@ const LATCH_HAPTIC_KEY := &"game_case_latch"
 ## A popped disc rides this far up off its hub, tilted this much, loose on the catches.
 const POP_LIFT := 0.004
 const POP_TILT_DEG := 4.0
+## The body's hull is rebuilt when the lid has turned this far since the last one.
+const SHAPE_STEP_DEG := 2.0
+## The panel a manual sits under, from the manual seat's centre (the seat is the paper's mid-plane).
+const MANUAL_WALL := 0.0006
+## The cases with a memory-card holder, and the card family (MemoryCard.family) each takes.
+const CARD_FAMILIES := {"ps2": "playstation2", "gc": "gamecube", "gc_jp": "gamecube"}
 
 @export var rom_path := ""
 @export var game_label := ""
@@ -56,9 +62,11 @@ var _popped: Array[bool] = []                    # per disc seat: its hub button
 var _manual_zone: XRToolsSnapZone
 var _manual_root: Node3D
 var _holder_zone: XRToolsSnapZone                # the UMD's holder
-var _base_shape: CollisionShape3D
-var _lid_shape: CollisionShape3D
+var _card_zone: XRToolsSnapZone                  # a PS2 or GameCube memory card's holder
+var _body_shape: CollisionShape3D
+var _shape_deg := -1.0
 var _lid_box := AABB()
+var _base_box := AABB()
 var _closed_box := AABB()
 var _has_manual := false
 var _pos_hist: Array[Vector3] = []
@@ -148,7 +156,11 @@ func _model_box() -> AABB:
 	return ab
 
 
-## The body: the back half as one box, the lid (or keep cover) as another that turns with it.
+## The body is ONE convex shape at every angle: the back half's box and the lid's (or keep cover's) box at its
+## angle, hulled together. Shut it is the case's box; open flat, a slab across both halves; part open, the wedge
+## between them. Two boxes in one body lost their contacts with the table (Jolt drops contacts it takes for a
+## compound's internal edges): a dropped case sank its back half into the table, an open one tipped onto its lid
+## and sank 10 mm (DevTools/cases/case_drop_probe). One hull rests flat every time.
 func _build_shapes() -> void:
 	for c in get_children():
 		if c is CollisionShape3D:
@@ -157,9 +169,14 @@ func _build_shapes() -> void:
 	var b := _closed_box
 	var split := pivot.z if case_family == "jewel" else b.end.z - KEEP_COVER_T
 	split = clampf(split, b.position.z + 0.002, b.end.z - 0.001)
-	_base_shape = _box_shape("BaseShape", AABB(b.position, Vector3(b.size.x, b.size.y, split - b.position.z)))
+	_base_box = AABB(b.position, Vector3(b.size.x, b.size.y, split - b.position.z))
 	_lid_box = AABB(Vector3(b.position.x, b.position.y, split), Vector3(b.size.x, b.size.y, b.end.z - split))
-	_lid_shape = _box_shape("LidShape", _lid_box)
+	_body_shape = CollisionShape3D.new()
+	_body_shape.name = "BodyShape"
+	_body_shape.shape = ConvexPolygonShape3D.new()
+	add_child(_body_shape)
+	_shape_deg = -1.0
+	_shape_body(0.0)
 	var pointer := get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D
 	if pointer != null:
 		var s := BoxShape3D.new()
@@ -168,15 +185,20 @@ func _build_shapes() -> void:
 		pointer.position = b.get_center()
 
 
-func _box_shape(n: String, box: AABB) -> CollisionShape3D:
-	var cs := CollisionShape3D.new()
-	cs.name = n
-	var s := BoxShape3D.new()
-	s.size = box.size.max(Vector3.ONE * 0.001)
-	cs.shape = s
-	cs.position = box.get_center()
-	add_child(cs)
-	return cs
+## The hull for the lid at `deg`: the back half's eight corners and the lid box's eight, turned about the hinge.
+## Rebuilt only when the lid has moved SHAPE_STEP_DEG since the last one.
+func _shape_body(deg: float) -> void:
+	if _shape_deg >= 0.0 and absf(deg - _shape_deg) < SHAPE_STEP_DEG and (deg > 0.0) == (_shape_deg > 0.0):
+		return
+	_shape_deg = deg
+	var pivot := model.pivot_m("open")
+	var turn := Transform3D(Basis(Vector3.UP, -deg_to_rad(deg)), Vector3.ZERO)
+	var about := Transform3D(Basis.IDENTITY, pivot) * turn * Transform3D(Basis.IDENTITY, -pivot)
+	var pts := PackedVector3Array()
+	for k in 8:
+		pts.append(_base_box.get_endpoint(k))
+		pts.append(about * _lid_box.get_endpoint(k))
+	(_body_shape.shape as ConvexPolygonShape3D).points = pts
 
 
 ## A frame at each hinge's pivot whose local X is the hinge line, so a CaseHinge's angle (rotation.x of its
@@ -187,7 +209,6 @@ func _build_hinges() -> void:
 	for i in model.inner_count():
 		names.append("inner%d" % (i + 1))
 	names.append("open")
-	var half_w := _closed_box.size.x * 0.5
 	for which in names:
 		var pivot := model.pivot_m(which)
 		var reach := maxf(_closed_box.end.x - pivot.x, 0.02)
@@ -219,10 +240,21 @@ func _build_hinges() -> void:
 		hinge.place_hint(Vector3(0.0, 0.02, -reach * 0.2))
 		_rigs.append([frame, angle, hinge])
 		_was_held.append(false)
-	sim.configure(levers, 180.0, float(FRICTION.get(case_family, 0.15)), float(LATCH_BREAK.get(case_family, 400.0)),
-		float(LATCH_SPEED.get(case_family, 3.5)))
-	if half_w <= 0.0:
-		push_warning("[RetroGameCase] %s has no size" % case_variant)
+	sim.configure(levers, open_max_deg(), float(FRICTION.get(case_family, 0.15)),
+		float(LATCH_BREAK.get(case_family, 400.0)), float(LATCH_SPEED.get(case_family, 3.5)))
+	for r in _rigs:
+		(r[2] as CaseHinge).max_deg = rad_to_deg(sim.open_max)
+
+
+## How far the lid opens. A jewel case's hinge is near its front, so laid open on a table its lid turns a few degrees
+## past flat before it rests on the table beside the back half (else it hangs, and the case tips over onto it).
+func open_max_deg() -> float:
+	if case_family != "jewel":
+		return 180.0
+	var pivot := model.pivot_m("open")
+	var drop := (pivot.z - _closed_box.position.z) - (_closed_box.end.z - pivot.z)
+	var reach := maxf(_closed_box.end.x - pivot.x, 0.02)
+	return 180.0 + clampf(rad_to_deg(asin(clampf(drop / reach, 0.0, 0.2))), 0.0, 10.0)
 
 
 ## A hand may take hinge i only when the one above it is open off it (a flip tray under a shut lid may not).
@@ -247,6 +279,14 @@ func _build_zones() -> void:
 		_seat_carrier.append(_carrier_of(str(row.get("parent", row.get("carrier", "")))))
 		var axis: Array = row.get("hub_axis", [0, 0, 1])
 		_seat_down.append(float(axis[2]) < 0.0)
+	# The PS2 and GameCube cases' molded holder takes that console's memory card (the owner, 2026-11-21): flat on the
+	# panel, its label out and reading upright (a card's label is on its +Y face and reads toward its -Z end).
+	var card_family := str(CARD_FAMILIES.get(case_variant, ""))
+	if model.card_seat() != null and not card_family.is_empty():
+		_card_zone = _zone("CardZone", model.card_seat(), "memory_card", 0.05,
+			func(obj: Node3D) -> bool: return obj is MemoryCard and (obj as MemoryCard).family == card_family \
+				and _lid_open())
+		_card_zone.basis = Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0))
 	if model.umd_seat() != null:
 		_holder_zone = _zone("UmdZone", model.umd_seat(), "cartridge", 0.05,
 			func(obj: Node3D) -> bool: return obj is RetroUMD and _lid_open())
@@ -260,7 +300,9 @@ func _build_zones() -> void:
 		_place_manual_zone(model.manual_size_m().x)
 		_manual_zone.has_picked_up.connect(func(what: Node3D) -> void:
 			if what is PDFBook and not (what as PDFBook).dimensions_changed.is_connected(_on_book_resized):
-				(what as PDFBook).dimensions_changed.connect(_on_book_resized.bind(what)))
+				(what as PDFBook).dimensions_changed.connect(_on_book_resized.bind(what))
+			if what is PDFBook:
+				_on_book_resized.call_deferred(what))
 
 
 func _zone(n: String, parent: Node3D, group: String, reach: float, filter: Callable) -> XRToolsSnapZone:
@@ -322,21 +364,28 @@ func _seat_disc(i: int) -> void:
 
 
 ## A closed book's origin is its spine; its cover lies to +x. The zone sits half the book's width toward the seat's
-## spine side so the cover lands on the seat.
-func _place_manual_zone(book_width: float) -> void:
-	if _manual_zone != null:
-		_manual_zone.position = Vector3(-book_width * 0.5, 0.0, 0.0)
+## spine side so the cover lands on the seat, and the book's back lies flat against the panel it sits under (the
+## jewel lid, out of the seat's front; the keep case's cover, behind it): drawn thicker than a real booklet (its
+## pages plus a gap outside each cover), a book centred on the seat poked out through the front (the owner,
+## 2026-11-21). Its extra thickness goes into the case, where the shut case hides it.
+func _place_manual_zone(book_width: float, half_thick := 0.0) -> void:
+	if _manual_zone == null:
+		return
+	var z := (MANUAL_WALL - half_thick) if case_family == "jewel" else (half_thick - MANUAL_WALL)
+	_manual_zone.position = Vector3(-book_width * 0.5, 0.0, z)
 
 
 func _on_book_resized(book: PDFBook) -> void:
-	if not is_instance_valid(book) or _manual_zone == null or _manual_zone.picked_up_object != book:
+	if not is_instance_valid(book) or _manual_zone == null or _manual_zone.picked_up_object != book \
+			or book.page_size().x <= 0.0:
 		return
 	# A manual scanned as two-page spreads (ScreenScraper has many) is twice the booklet's width: read it as single
 	# pages, as the book's own Half Pages option does.
 	if not book.half_page_mode and book.page_size().x > model.manual_size_m().x * 1.4:
 		book.half_page_mode = true
 		return
-	_place_manual_zone(book.page_size().x)
+	var span: Vector2 = book._drawn_z_span()
+	_place_manual_zone(book.page_size().x, (span.y - span.x) * 0.5)
 
 
 func _carrier_of(parent: String) -> int:
@@ -376,7 +425,7 @@ func _update_reach() -> void:
 		if obj != null:
 			obj.enabled = ok
 	var open := _lid_open()
-	for z: XRToolsSnapZone in [_holder_zone, _manual_zone]:
+	for z: XRToolsSnapZone in [_holder_zone, _manual_zone, _card_zone]:
 		if z != null and z.picked_up_object is XRToolsPickable:
 			(z.picked_up_object as XRToolsPickable).enabled = open
 
@@ -478,11 +527,7 @@ func _apply_angles() -> void:
 		var hinge := _rigs[i][2] as CaseHinge
 		if not hinge.is_held():
 			hinge.set_angle_quiet(sim.angle_deg(i))
-	# The lid's box turns with it about the hinge line.
-	var pivot := model.pivot_m("open")
-	var turn := Transform3D(Basis(Vector3.UP, -deg_to_rad(sim.angle_deg(sim.top()))), Vector3.ZERO)
-	var about := Transform3D(Basis.IDENTITY, pivot) * turn * Transform3D(Basis.IDENTITY, -pivot)
-	_lid_shape.transform = about * Transform3D(Basis.IDENTITY, _lid_box.get_center())
+	_shape_body(sim.angle_deg(sim.top()))
 	_update_reach()
 
 
@@ -506,6 +551,15 @@ func discs() -> Array[RetroCartridge]:
 
 func manual() -> PDFBook:
 	return _manual_zone.picked_up_object as PDFBook if _manual_zone != null else null
+
+
+## The memory card holder (PS2, GameCube), or null for a case without one.
+func card_zone() -> XRToolsSnapZone:
+	return _card_zone
+
+
+func memory_card() -> MemoryCard:
+	return _card_zone.picked_up_object as MemoryCard if _card_zone != null else null
 
 
 func disc_zone(i: int) -> XRToolsSnapZone:

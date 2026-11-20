@@ -103,6 +103,12 @@ func _make(sys: String, rom: String, fam := "", variant := "", art_from := "") -
 		while discs.size() < GameCase.capacity(variant):
 			discs.append(rom)
 	c.spawn_contents(discs)
+	if c.card_zone() != null:
+		var scene := "res://Scenes/Objects/media/%s_memory_card.tscn" % ("ps2" if variant == "ps2" else "gc")
+		var card := (load(scene) as PackedScene).instantiate() as MemoryCard
+		_world.add_child(card)
+		card.global_transform = c.card_zone().global_transform
+		c.card_zone().pick_up_object(card)
 	print("[probe] %s %s -> %s/%s art=%s discs=%d manual=%s" % [sys, rom.get_file(), fam, variant,
 		"yes" if img != null else "no", c.discs().size(), not c.manual_path().is_empty()])
 	return c
