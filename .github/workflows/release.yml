@@ -722,9 +722,9 @@ jobs:
           sdl3_lib=$(find build -maxdepth 1 -name 'libSDL3.so.*' -type f | head -1)
           [ -n "$sdl3_lib" ] || { echo "::error::SDL3 build produced no libSDL3.so"; exit 1; }
           sdl3_dir=${{ matrix.arch == 'arm64' && 'linux-arm64' || 'linux-x64' }}
-          mkdir -p "$GITHUB_WORKSPACE/libretro-godot/external/SDL3/lib/$sdl3_dir"
-          cp "$sdl3_lib" "$GITHUB_WORKSPACE/libretro-godot/external/SDL3/lib/$sdl3_dir/libSDL3.so.0"
-          file "$GITHUB_WORKSPACE/libretro-godot/external/SDL3/lib/$sdl3_dir/libSDL3.so.0"
+          mkdir -p "$GITHUB_WORKSPACE/extensions/libretro-godot/external/SDL3/lib/$sdl3_dir"
+          cp "$sdl3_lib" "$GITHUB_WORKSPACE/extensions/libretro-godot/external/SDL3/lib/$sdl3_dir/libSDL3.so.0"
+          file "$GITHUB_WORKSPACE/extensions/libretro-godot/external/SDL3/lib/$sdl3_dir/libSDL3.so.0"
 
       # arm64: the committed libretro-godot SConscript hardcodes the SDL3
       # linux-x64 LIBPATH, which is x86_64-only. Patch the submodule's working
