@@ -1782,17 +1782,7 @@ func _generate_centered_vrs() -> void:
 	# (0, 0) puts its full-rate spot where the player is not looking. This is
 	# the engine's own recipe for its VRS_XR map: project a point straight
 	# ahead through the view's projection and keep the NDC x, y.
-	var foci := PackedVector2Array()
-	var views := int(xr.get_view_count())
-	for v in views:
-		var proj: Projection = xr.get_projection_for_view(v, size.x / size.y, 0.1, 1000.0)
-		var h: Vector4 = proj * Vector4(0.0, 0.0, 999.9, 1.0)
-		var focus := Vector2.ZERO
-		if absf(h.w) > 0.0001:
-			focus = Vector2(h.x / h.w, h.y / h.w)
-		foci.push_back(focus)
-	while foci.size() < 2:
-		foci.push_back(Vector2.ZERO)
+	var foci := _lens_foci(xr, size)
 	if _vrs_focus_tries > 0:
 		# The projection may still be the runtime's placeholder (see
 		# FOVEATION_FOCUS_CHECKS): make the map from it so something is live,
@@ -1820,6 +1810,58 @@ func _generate_centered_vrs() -> void:
 		+ "eye texture %dx%d, map %dx%d, foci %s, msaa %d, post_aa %d") % [
 		int(foveation_level), radius, strength, int(size.x), int(size.y),
 		map_size.x, map_size.y, foci, root.msaa_3d, root.screen_space_aa])
+
+
+## The lens centres last read from the runtime (NDC, an eye each), or empty before the first read.
+var _lens_foci_cache := PackedVector2Array()
+## A render-thread read is on its way back (see _lens_foci).
+var _lens_foci_pending := false
+
+
+## Each eye's lens centre: a point straight ahead projected through that view's projection, NDC x, y.
+## OpenXR answers get_projection_for_view ONLY on the render thread. With the render thread separate
+## (thread_model 2, the Quest since v0.14.0) every call from here failed with
+## `!rendering_server->is_on_render_thread()` and a backtrace, each retry, and the map was built on (0, 0).
+## Off the render thread the read is queued THERE and comes back through _on_lens_foci; this call uses the
+## last value read meanwhile. On the render thread already (single-threaded, the desktop), it reads inline.
+func _lens_foci(xr: XRInterface, size: Vector2) -> PackedVector2Array:
+	if RenderingServer.is_on_render_thread():
+		_lens_foci_cache = _read_lens_foci(xr, size)
+		return _lens_foci_cache
+	if not _lens_foci_pending:
+		_lens_foci_pending = true
+		RenderingServer.call_on_render_thread(func() -> void:
+			_on_lens_foci.call_deferred(_read_lens_foci(xr, size)))
+	var out := _lens_foci_cache.duplicate()
+	while out.size() < 2:
+		out.push_back(Vector2.ZERO)
+	return out
+
+
+static func _read_lens_foci(xr: XRInterface, size: Vector2) -> PackedVector2Array:
+	var foci := PackedVector2Array()
+	if xr == null or size.y <= 0.0:
+		return foci
+	for v in int(xr.get_view_count()):
+		var proj: Projection = xr.get_projection_for_view(v, size.x / size.y, 0.1, 1000.0)
+		var h: Vector4 = proj * Vector4(0.0, 0.0, 999.9, 1.0)
+		var focus := Vector2.ZERO
+		if absf(h.w) > 0.0001:
+			focus = Vector2(h.x / h.w, h.y / h.w)
+		foci.push_back(focus)
+	while foci.size() < 2:
+		foci.push_back(Vector2.ZERO)
+	return foci
+
+
+## A render-thread read is back (main thread). A changed centre rebuilds the map once; the same one does nothing.
+func _on_lens_foci(foci: PackedVector2Array) -> void:
+	_lens_foci_pending = false
+	var changed := _snapped_foci(foci) != _snapped_foci(_lens_foci_cache)
+	_lens_foci_cache = foci
+	if changed and foveation_level != Foveation.OFF and _vrs_generator != null:
+		print("[QualityManager] lens centres read on the render thread: %s" % [foci])
+		_generate_centered_vrs()
 
 
 static func _snapped_foci(foci: PackedVector2Array) -> Array:

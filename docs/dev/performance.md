@@ -759,6 +759,12 @@ The report was "foveation only does the bottom third, and it changes with the ey
   (`FOVEATION_FOCUS_CHECKS`) and rebuilds only when the focus moved.
 - The map is RetroXR's own now (`_make_foveation_map`): distance as a fraction of the way from the lens centre to
   the edge on that side, so every edge is reached together at any eye buffer size.
+- **OpenXR answers `get_projection_for_view` ONLY on the render thread** (`openxr_api.cpp` `get_view_projection`).
+  With the Quest's render thread separate (`thread_model.android=2`, v0.14.0) every read from `QualityManager` failed
+  with `!rendering_server->is_on_render_thread()` and a GDScript backtrace (84 in three minutes, measured
+  2026-11-20), and every map sat on (0, 0). `_lens_foci` now queues the read with `RenderingServer.call_on_render_thread`
+  and builds on the last value read; `_on_lens_foci` rebuilds once when it changes (single-threaded, it reads
+  inline). On the Quest 3 after the fix: no error, the map rebuilt on the read 0.4 s after boot.
 
 **Measure the rate, never infer it from the map.** `vrsprobe.cfg` `"fov_pattern": true` covers the view with one
 random colour a fragment; `adb exec-out screencap -p > cap.png` and `python Tools/perf/fov_pattern_map.py cap.png
