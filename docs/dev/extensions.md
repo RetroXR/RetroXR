@@ -36,7 +36,8 @@ for a missing one rather than failing.
 
 ### Sibling GDExtensions (archive-godot, verlet-rope, vlc-godot, godot-pdfium, metaxr-audio, surround-godot, paper-godot, grab-godot)
 
-Eight other C++ GDExtensions live beside libretro-godot in `extensions/`, each with the same layout
+(`extensions/qr-scanner-android/` is there too, but it is a Gradle/Kotlin Android plugin, not a
+GDExtension: CLAUDE.md "Android plugin".) Eight other C++ GDExtensions live beside libretro-godot in `extensions/`, each with the same layout
 (`extensions/<name>/` with `SConstruct` + `SConscript` + `src/`, reusing `../libretro-godot/godot-cpp`,
 deploying to `RetroXR/<name>/`). Build each **from its own directory** (each has its own
 `VariantDir('Temp')`), or all at once with `Tools/build.py`.
