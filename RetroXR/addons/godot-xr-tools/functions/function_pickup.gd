@@ -157,6 +157,9 @@ var _handoff_blend : float = 0.0           # counts down while easing onto the r
 var _handoff_blend_from : Transform3D = Transform3D.IDENTITY
 var _handoff_block_owner : StringName = &"ray_handoff"
 var _handoff_loco_blocked : bool = false
+# LOCAL PATCH (RetroXR): whether this pickup's ray grab holds its locomotion block, so it can be let go
+# when the held object is already gone (see _physics_process).
+var _ray_loco_blocked : bool = false
 var _pointer_muted : bool = false          # we disabled the sibling pointer's button dispatch
 
 # LOCAL PATCH (RetroXR): a grab that has to be HELD for a few seconds (HoldToGrab) --
@@ -258,7 +261,7 @@ func _exit_tree():
 	_clear_socket_preview()
 
 	if _locomotion_manager:
-		_locomotion_manager.set_block(_ray_grab_block_owner, LocomotionManager.CHANNEL_ALL, false)
+		_set_ray_loco_block(false)
 		_set_handoff_loco_block(false)
 
 	if _collision_hand:
@@ -276,6 +279,14 @@ func _physics_process(delta: float) -> void:
 		return
 	if is_instance_valid(_ray_grab_object):
 		_process_ray_grab(delta)
+	elif _ray_loco_blocked:
+		# LOCAL PATCH (RetroXR): the ray-held object was freed while held (a room change, a mod reload, a netplay
+		# despawn, a delete). _process_ray_grab's "object gone" branch was unreachable behind the guard above and
+		# _end_ray_grab returned early on it, so walking, teleport AND turning stayed blocked until a restart.
+		print("[Pickup] %s: the ray-held object is gone: locomotion released" % name)
+		_ray_grab_object = null
+		_reset_charge()
+		_set_ray_loco_block(false)
 
 
 # Called on each frame to update the pickup
@@ -872,8 +883,7 @@ func _start_ray_grab_at(target: XRToolsPickable, distance: float,
 	target.collision_mask = 0
 	target.ray_holder = self
 	target.ray_grabbed.emit(target, self)
-	if _locomotion_manager:
-		_locomotion_manager.set_block(_ray_grab_block_owner, LocomotionManager.CHANNEL_ALL, true)
+	_set_ray_loco_block(true)
 	if not transferred:
 		emit_signal("has_picked_up", target)
 
@@ -881,8 +891,7 @@ func _start_ray_grab_at(target: XRToolsPickable, distance: float,
 # Each frame: reposition the ray-held object and adjust distance via thumbstick.
 func _process_ray_grab(delta: float) -> void:
 	if not is_instance_valid(_ray_grab_object):
-		if _locomotion_manager:
-			_locomotion_manager.set_block(_ray_grab_block_owner, LocomotionManager.CHANNEL_ALL, false)
+		_set_ray_loco_block(false)
 		_ray_grab_object = null
 		_reset_charge()
 		return
@@ -1005,6 +1014,7 @@ func _end_ray_grab() -> void:
 	if not is_instance_valid(_ray_grab_object):
 		_clear_socket_preview()
 		_ray_grab_object = null
+		_set_ray_loco_block(false)
 		return
 
 	# Released while a socket was engaged: hand it over instead of dropping it.
@@ -1039,8 +1049,7 @@ func _end_ray_grab() -> void:
 
 	# Final pose and velocities are ready before the existing network release runs.
 	released.ray_dropped.emit(released)
-	if _locomotion_manager:
-		_locomotion_manager.set_block(_ray_grab_block_owner, LocomotionManager.CHANNEL_ALL, false)
+	_set_ray_loco_block(false)
 	emit_signal("has_dropped")
 
 
@@ -1273,6 +1282,7 @@ func _release_ray_for_transfer() -> void:
 	_clear_socket_preview()
 	if not is_instance_valid(_ray_grab_object):
 		_ray_grab_object = null
+		_set_ray_loco_block(false)
 		return
 	_ray_grab_object.freeze = _ray_grab_object.restore_freeze
 	_ray_grab_object.collision_mask = _ray_grab_object.original_collision_mask
@@ -1280,8 +1290,7 @@ func _release_ray_for_transfer() -> void:
 	_ray_grab_object.ray_holder = null
 	_ray_grab_object = null
 	_reel_gated = false
-	if _locomotion_manager:
-		_locomotion_manager.set_block(_ray_grab_block_owner, LocomotionManager.CHANNEL_ALL, false)
+	_set_ray_loco_block(false)
 	_velocity_averager.clear()
 
 
@@ -1456,6 +1465,14 @@ func _set_pointer_muted(muted: bool) -> void:
 		return
 	_pointer_muted = muted
 	_ray_pointer.enabled = not muted
+
+
+func _set_ray_loco_block(blocked: bool) -> void:
+	if blocked == _ray_loco_blocked:
+		return
+	_ray_loco_blocked = blocked
+	if _locomotion_manager:
+		_locomotion_manager.set_block(_ray_grab_block_owner, LocomotionManager.CHANNEL_ALL, blocked)
 
 
 func _set_handoff_loco_block(blocked: bool) -> void:

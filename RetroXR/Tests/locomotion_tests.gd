@@ -28,7 +28,7 @@ extends "res://Tests/test_suite.gd"
 ## after it simply never prints, leaving a green run that checked less than
 ## it claims. card_tests records finding this the hard way; mutation-testing
 ## cores_data_tests found it again.
-const EXPECTED_CASES := 23
+const EXPECTED_CASES := 27
 
 
 func _ready() -> void:
@@ -39,6 +39,7 @@ func _ready() -> void:
 
 	_group_blocks()
 	_group_owner_keys()
+	_group_ray_grab()
 
 	_eq(_case_count(), EXPECTED_CASES, "suite/every case ran")
 
@@ -165,3 +166,41 @@ func _group_owner_keys() -> void:
 	m.queue_free()
 	a.queue_free()
 	b.queue_free()
+
+
+# ── ray_grab/ ─────────────────────────────────────────────────────────────────
+
+## A laser grab blocks every stick while it holds. When the held object was freed while held (a room change, a mod
+## reload, a despawn), the block used to stay for good: the pickup's physics step only ran its "object gone" branch
+## for a VALID object, and letting go of the grip returned early on an invalid one. A player's walk and turn both died
+## until a restart.
+func _group_ray_grab() -> void:
+	var m := _manager()
+	var pickup := XRToolsFunctionPickup.new()
+	pickup._locomotion_manager = m
+	pickup._set_ray_loco_block(true)
+	var held := XRToolsPickable.new()
+	pickup._ray_grab_object = held
+	_ok(m.is_blocked(LocomotionManager.CHANNEL_LEFT) and m.is_blocked(LocomotionManager.CHANNEL_RIGHT),
+		"ray_grab/a laser grab blocks both sticks")
+	held.free()
+	pickup._physics_process(1.0 / 72.0)
+	_ok(not m.is_blocked(LocomotionManager.CHANNEL_ALL), "ray_grab/the held object freed: the next physics step frees the sticks")
+
+	# And letting go of the grip after the object is gone frees them too.
+	pickup._set_ray_loco_block(true)
+	var held2 := XRToolsPickable.new()
+	pickup._ray_grab_object = held2
+	held2.free()
+	pickup._end_ray_grab()
+	_ok(not m.is_blocked(LocomotionManager.CHANNEL_ALL), "ray_grab/the grip let go of a freed object: the sticks are free")
+
+	# The handoff to a hand of an object already gone frees them as well.
+	pickup._set_ray_loco_block(true)
+	var held3 := XRToolsPickable.new()
+	pickup._ray_grab_object = held3
+	held3.free()
+	pickup._release_ray_for_transfer()
+	_ok(not m.is_blocked(LocomotionManager.CHANNEL_ALL), "ray_grab/a handoff of a freed object: the sticks are free")
+	pickup.free()
+	m.queue_free()

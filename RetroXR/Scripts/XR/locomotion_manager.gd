@@ -109,9 +109,9 @@ func set_block(block_owner: StringName, channel: StringName, active: bool) -> vo
 
 
 func clear_owner(block_owner: StringName) -> void:
-	_left_blocks.erase(block_owner)
-	_right_blocks.erase(block_owner)
-	_desktop_blocks.erase(block_owner)
+	_set_channel_block(_left_blocks, block_owner, false)
+	_set_channel_block(_right_blocks, block_owner, false)
+	_set_channel_block(_desktop_blocks, block_owner, false)
 	_apply()
 
 
@@ -130,10 +130,32 @@ func is_blocked(channel: StringName) -> bool:
 
 
 func _set_channel_block(blocks: Dictionary, block_owner: StringName, active: bool) -> void:
+	# Logged on CHANGE only (most callers re-send their state every frame). A stick that stays dead is a block
+	# nobody took back, and this line is the only way a player's log can say whose it is.
 	if active:
+		if blocks.has(block_owner):
+			return
 		blocks[block_owner] = true
 	else:
+		if not blocks.has(block_owner):
+			return
 		blocks.erase(block_owner)
+	print("[Locomotion] %s %s %s stick (now held by: %s)" % [block_owner, "blocks" if active else "releases",
+		_channel_name(blocks), _owners_text(blocks)])
+
+
+func _channel_name(blocks: Dictionary) -> String:
+	if is_same(blocks, _left_blocks):
+		return "the left"
+	if is_same(blocks, _right_blocks):
+		return "the right"
+	return "the desktop move"
+
+
+static func _owners_text(blocks: Dictionary) -> String:
+	if blocks.is_empty():
+		return "nothing"
+	return ", ".join(PackedStringArray(blocks.keys().map(func(k: Variant) -> String: return str(k))))
 
 
 func _apply() -> void:
