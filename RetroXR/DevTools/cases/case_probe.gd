@@ -14,7 +14,8 @@ const GAMES := [
 	["gc", "Mario Kart - Double Dash!! (USA).rvz"],
 ]
 ## Variants with no game here: [family, variant, game index whose art it wears].
-const EXTRA := [["jewel", "pal", 0], ["jewel", "fatbox4", 0], ["keep", "multi5", 3], ["keep", "wiiu", 4]]
+const EXTRA := [["jewel", "pal", 0], ["jewel", "fatbox4", 0], ["keep", "multi5", 3], ["keep", "wiiu", 4],
+	["jewel", "slim", 0], ["jewel", "pal_mini", 0]]
 
 var _out := ""
 var _view: SubViewport

@@ -303,12 +303,14 @@ func _each_surface(mat_name: String, fn: Callable) -> int:
 ## Clear polystyrene (the jewel lid and base) and the keep case's sleeve: premultiplied alpha keeps reflections whole
 ## where plain alpha blending dims them with the opacity.
 func _clear_plastic(level: Node3D) -> void:
-	var clear_name := "Jewel_Clear" if family == "jewel" else "Keep_Sleeve"
+	# The jewel lid's booklet tabs are the same plastic, drawn more opaque (Jewel_Tab: they read as a lip over the paper).
+	var clear_names := ["Jewel_Clear", "Jewel_Tab"] if family == "jewel" else ["Keep_Sleeve"]
 	for mi in meshes(level):
 		for s in mi.mesh.get_surface_count():
 			var base := mi.mesh.surface_get_material(s) as StandardMaterial3D
-			if base == null or String(base.resource_name) != clear_name:
+			if base == null or not String(base.resource_name) in clear_names:
 				continue
+			var clear_name := String(base.resource_name)
 			var m := ShaderMaterial.new()
 			m.shader = CLEAR_SHADER
 			m.resource_name = clear_name

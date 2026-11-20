@@ -868,7 +868,7 @@
     {
      "node": "Lid",
      "pivot_mm": [
-      -69.4,
+      -57.0,
       0.0,
       1.0
      ],
@@ -883,7 +883,7 @@
    "lid": {
     "node": "Lid",
     "pivot_mm": [
-     -69.4,
+     -57.0,
      0.0,
      1.0
     ],
@@ -1296,6 +1296,16 @@
    ],
    "rough": 0.03,
    "alpha": 0.05
+  },
+  "Jewel_Tab": {
+   "color": [
+    0.86,
+    0.88,
+    0.9
+   ],
+   "rough": 0.05,
+   "alpha": 0.35,
+   "optional": true
   },
   "Jewel_Tray": {
    "color": [
