@@ -58,6 +58,7 @@ func _run() -> void:
 		["case/dropped shut or open, a case rests on the floor", _case_drop],
 		["case/the PS2 case's holder takes its memory card", _case_card_holder],
 		["case/the desktop lifts a disc out of an open case", _case_desktop_grab],
+		["case/a cover that carries a disc takes no manual", _case_no_manual_on_disc_cover],
 	]
 	for c in cases:
 		_case = str(c[0])
@@ -481,6 +482,15 @@ func _case_desktop_grab() -> void:
 	if zone != null:
 		zone.drop_object()
 	_ok(d.can_pick_up(grabber) and not c.discs().has(d), "and then a hand may have it")
+
+
+func _case_no_manual_on_disc_cover() -> void:
+	var c := _new_case("keep", "multi5")
+	await get_tree().physics_frame
+	_ok(c._manual_zone == null, "the five-disc case seats no manual (its cover carries a disc)")
+	var s := _new_case("keep", "single")
+	await get_tree().physics_frame
+	_ok(s._manual_zone != null, "a single case does")
 
 
 ## The pickable the desktop ray would take first coming down `dir` onto `at`.

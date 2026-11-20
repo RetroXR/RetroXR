@@ -167,10 +167,16 @@ func _run() -> void:
 		var ms := c.model.manual_seat()
 		if ms == null:
 			continue
-		var up := ms.global_basis.z if c.case_family == "keep" else -ms.global_basis.z
-		var at := ms.global_position
-		_cam.global_position = at + up * 0.09 + ms.global_basis.x * 0.07 + ms.global_basis.y * -0.08
-		_cam.look_at(at + ms.global_basis.x * 0.03, Vector3.UP)
+		# On the corner by the top clip or tab, at the manual's opening edge (its end farther from the spine).
+		var size := c.model.manual_size_m()
+		var spine := c.global_transform * c.model.pivot_m("open")
+		var ex := ms.global_basis.x * (size.x * 0.5 - 0.008)
+		if (ms.global_position - ex).distance_to(spine) > (ms.global_position + ex).distance_to(spine):
+			ex = -ex
+		var at := ms.global_position + ex + ms.global_basis.y * (size.y * 0.5 - 0.014)
+		var inward := (ms.global_position - at).normalized()
+		_cam.global_position = at + Vector3.UP * 0.07 + inward * 0.05
+		_cam.look_at(at, ms.global_basis.y)
 		await _settle(4)
 		await _shot("manual_%d_%s" % [i, c.case_variant])
 	# Gravity: the first case stood on its spine edge with its lid at 30: it falls open.

@@ -351,8 +351,11 @@ func _build_zones() -> void:
 	if model.umd_seat() != null:
 		_holder_zone = _zone("UmdZone", model.umd_seat(), "cartridge", 0.05,
 			func(obj: Node3D) -> bool: return obj is RetroUMD and _lid_open())
+	# A cover that carries a disc (the five-disc case) has no room for a manual (round 8 F02): its set's paper goes
+	# in the outer sleeve.
 	var ms := model.manual_seat()
-	if ms != null:
+	var cover_disc := seats.any(func(row: Dictionary) -> bool: return str(row.get("parent", "")) == "Cover")
+	if ms != null and not cover_disc:
 		_manual_root = Node3D.new()
 		_manual_root.name = "ManualAnchor"
 		ms.add_child(_manual_root)
