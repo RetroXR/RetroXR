@@ -49,10 +49,8 @@ const CARD_FAMILIES := {"ps2": "playstation2", "gc": "gamecube", "gc_jp": "gamec
 ## How a card lies in its holder (seat frame: +X across, +Y up the case, +Z out of the panel). The PS2 holder is
 ## landscape: the card lies along it, label out, its +Z end toward the opening edge (gauntlet/refs/trayrefs/ps2/
 ## ps2_case_inside_memory_card_holder_commons.jpg; the owner, 2026-11-21: turned 180 from the first try). The
-## GameCube holder is portrait: the card label out, its +Z end up.
-const CARD_BASIS := {"ps2": Basis(Vector3(0, 1, 0), Vector3(0, 0, 1), Vector3(1, 0, 0)),
-	"gc": Basis(Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 1, 0)),
-	"gc_jp": Basis(Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 1, 0))}
+## GameCube holder is portrait: the card upright, label out, reading the right way up (the default below; the owner).
+const CARD_BASIS := {"ps2": Basis(Vector3(0, 1, 0), Vector3(0, 0, 1), Vector3(1, 0, 0))}
 
 @export var rom_path := ""
 @export var game_label := ""
