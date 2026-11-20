@@ -272,9 +272,24 @@ const PATH_MAX_BYTES := 4095
 ## that long, uncaught on the render thread, and the app dies ("java.io.IOException: File name too long", a player's
 ## videos folder holding a playlist, 2026-11-20). Desktop says only "no such file".
 static func could_exist(path: String) -> bool:
-	if path.to_utf8_buffer().size() > PATH_MAX_BYTES:
+	var bytes := path.to_utf8_buffer().size()
+	if bytes > PATH_MAX_BYTES:
+		_log_refused(path, "%d bytes in all" % bytes)
 		return false
 	for part in path.split("/", false):
-		if part.to_utf8_buffer().size() > NAME_MAX_BYTES:
+		var part_bytes := part.to_utf8_buffer().size()
+		if part_bytes > NAME_MAX_BYTES:
+			_log_refused(path, "a name of %d bytes" % part_bytes)
 			return false
 	return true
+
+
+## Who asked, and for what: a refused path is a bug upstream of it (something built a name no file has), and the stack
+## names the caller (empty in a release build, where the path itself has to say it).
+static func _log_refused(path: String, why: String) -> void:
+	var callers := PackedStringArray()
+	for frame: Dictionary in get_stack().slice(2, 6):
+		callers.append("%s:%d %s" % [str(frame.get("source", "")).get_file(), int(frame.get("line", 0)),
+			frame.get("function", "")])
+	push_warning("[Paths] refused a path no file system holds (%s): %s… [%s]" % [why, path.left(160),
+		" < ".join(callers)])
