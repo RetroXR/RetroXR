@@ -21,6 +21,6 @@ VariantDir('Temp', '.', duplicate=0)
 env = Environment()
 
 import os
-output_dir = os.environ.get('VERLET_ROPE_OUTPUT_DIR', '#../../RetroXR/verlet-rope')
+output_dir = os.environ.get('VERLET_ROPE_OUTPUT_DIR', Dir('#../../RetroXR/verlet-rope').abspath)
 
 SConscript('Temp/SConscript', exports=['env', 'output_dir'])

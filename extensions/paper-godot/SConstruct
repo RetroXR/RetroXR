@@ -14,6 +14,6 @@ VariantDir('Temp', '.', duplicate=0)
 env = Environment()
 
 import os
-output_dir = os.environ.get('PAPER_GODOT_OUTPUT_DIR', '#../../RetroXR/paper-godot')
+output_dir = os.environ.get('PAPER_GODOT_OUTPUT_DIR', Dir('#../../RetroXR/paper-godot').abspath)
 
 SConscript('Temp/SConscript', exports=['env', 'output_dir'])

@@ -4,6 +4,6 @@ VariantDir('Temp', '.', duplicate=0)
 env = Environment()
 
 import os
-output_dir = os.environ.get('GODOT_PDFIUM_OUTPUT_DIR', '#../../RetroXR/godot-pdfium')
+output_dir = os.environ.get('GODOT_PDFIUM_OUTPUT_DIR', Dir('#../../RetroXR/godot-pdfium').abspath)
 
 SConscript('Temp/SConscript', exports=['env', 'output_dir'])
