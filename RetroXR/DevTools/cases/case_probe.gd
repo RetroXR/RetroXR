@@ -132,6 +132,15 @@ func _run() -> void:
 	_cam.look_at(Vector3(mid, 0.0, -0.02))
 	await _settle(20)
 	await _shot("cases_shut")
+	# Close on a shut keep case's corner and edges, from low and to the side.
+	var kc := _cases[3]
+	var kw := kc.model.size_m()
+	_cam.global_position = kc.global_position + Vector3(kw.x * 0.75, 0.05, kw.y * 0.62)
+	_cam.look_at(kc.global_position + Vector3(kw.x * 0.45, 0.0, kw.y * 0.45))
+	await _settle(4)
+	await _shot("keep_edges")
+	_cam.global_position = Vector3(mid, 0.55, 0.42)
+	_cam.look_at(Vector3(mid, 0.0, -0.02))
 	for c in _cases:
 		var bk := c.manual()
 		if bk != null:

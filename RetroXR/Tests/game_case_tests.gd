@@ -420,8 +420,8 @@ func _case_card_holder() -> void:
 	_ok(c.memory_card() == ps2, "the card is in the holder")
 	_ok(ps2.global_position.distance_to(c.model.card_seat().global_position) < 0.002, "on its seat")
 	_ok(ps2.global_basis.y.dot(c.model.card_seat().global_basis.z) > 0.99, "its label facing out of the panel")
-	_ok(ps2.global_basis.z.dot(-c.model.card_seat().global_basis.x) > 0.99,
-		"lying across the landscape holder, its connector end toward the spine")
+	_ok(ps2.global_basis.z.dot(c.model.card_seat().global_basis.x) > 0.99,
+		"lying across the landscape holder, its +Z end toward the opening edge")
 	# The desktop ray reaches what is in an open case, not the case round it.
 	var d := DISC_SCENE.instantiate() as RetroDisc
 	d.systemid = "ps2"
