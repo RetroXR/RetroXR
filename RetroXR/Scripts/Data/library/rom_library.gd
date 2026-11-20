@@ -347,7 +347,7 @@ static func scraped_manual_path(systemid: String, romname: String) -> String:
 	var dir := rom_dir_for_system(systemid).path_join("media/manual")
 	for ext in ["pdf", "cbz"]:
 		var path := dir.path_join(base + "." + ext)
-		if FileAccess.file_exists(path):
+		if DataPaths.could_exist(path) and FileAccess.file_exists(path):
 			return path
 	return dir.path_join(base + ".pdf")
 
@@ -431,7 +431,9 @@ static func _parse_playlist(path: String, exts: Array) -> Dictionary:
 	if f == null:
 		return {"entries": out, "side_b_from": side_b}
 	var base := path.get_base_dir()
-	for raw: String in f.get_as_text().split("\n"):
+	# Any line ending: a playlist saved with old-Mac CRs alone is otherwise ONE line, the whole file read as one
+	# file name (and on Android a name that long crashed the app, DataPaths.could_exist).
+	for raw: String in f.get_as_text().replace("\r\n", "\n").replace("\r", "\n").split("\n"):
 		var line := raw.strip_edges().trim_prefix(String.chr(0xFEFF))
 		if line.begins_with("#") and side_b < 0 and playlist_side_marker(line) == "B":
 			side_b = out.size()
@@ -447,7 +449,13 @@ static func _parse_playlist(path: String, exts: Array) -> Dictionary:
 			continue
 		line = line.replace("\\", "/")
 		var full := (line if line.is_absolute_path() else base.path_join(line)).simplify_path()
-		if full.get_extension().to_lower() in exts and FileAccess.file_exists(full):
+		if full.get_extension().to_lower() not in exts:
+			continue
+		if not DataPaths.could_exist(full):
+			push_warning("[Library] %s: an entry %d bytes long is no file name, skipped" % [
+				path.get_file(), full.to_utf8_buffer().size()])
+			continue
+		if FileAccess.file_exists(full):
 			out.append(full)
 	# A marker after the last entry still found leaves side B empty, which is what it says.
 	return {"entries": out, "side_b_from": side_b}

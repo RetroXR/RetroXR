@@ -259,3 +259,22 @@ static func libretro_root() -> String:
 	if OS.get_name() == "Android":
 		return OS.get_user_data_dir() + "/libretro"
 	return media_root("libretro")
+
+
+## Longest name one folder entry may have (NAME_MAX), and longest whole path (PATH_MAX less its NUL), in BYTES.
+const NAME_MAX_BYTES := 255
+const PATH_MAX_BYTES := 4095
+
+
+## Whether `path` is one a file system could hold: no part of it longer than 255 bytes and the whole no longer
+## than 4095. Ask it BEFORE `FileAccess.file_exists` on a path built from something a player wrote (a playlist line,
+## a file's name plus a suffix): on Android stock Godot asks Java for the canonical path, which THROWS on a name
+## that long, uncaught on the render thread, and the app dies ("java.io.IOException: File name too long", a player's
+## videos folder holding a playlist, 2026-11-20). Desktop says only "no such file".
+static func could_exist(path: String) -> bool:
+	if path.to_utf8_buffer().size() > PATH_MAX_BYTES:
+		return false
+	for part in path.split("/", false):
+		if part.to_utf8_buffer().size() > NAME_MAX_BYTES:
+			return false
+	return true

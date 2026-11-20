@@ -53,7 +53,9 @@ static func album_side(album_path: String, side: String) -> String:
 static func _find(stem: String) -> String:
 	for ext in EXTENSIONS:
 		var candidate := "%s.%s" % [stem, ext]
-		if FileAccess.file_exists(candidate):
+		# A video named near the 255-byte limit has no room for " spine.jpeg" beside it; asking anyway crashed
+		# Android (DataPaths.could_exist).
+		if DataPaths.could_exist(candidate) and FileAccess.file_exists(candidate):
 			return candidate
 	return ""
 

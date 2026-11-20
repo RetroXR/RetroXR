@@ -589,7 +589,7 @@ static func load_media_image(systemid: String, rom_path: String, folder: String)
 		var media_dir := rom_dir.path_join("media").path_join(folder)
 		for ext in [".png", ".jpg", ".jpeg", ".webp"]:
 			var path := media_dir.path_join(base + ext)
-			if FileAccess.file_exists(path):
+			if DataPaths.could_exist(path) and FileAccess.file_exists(path):
 				var img := Image.load_from_file(path)
 				if img:
 					return img
@@ -609,7 +609,7 @@ static func media_file_path(systemid: String, rom_path: String, folder: String, 
 		var media_dir := rom_dir.path_join("media").path_join(folder)
 		for ext in exts:
 			var path := media_dir.path_join(base + ext)
-			if FileAccess.file_exists(path):
+			if DataPaths.could_exist(path) and FileAccess.file_exists(path):
 				return path
 	return ""
 

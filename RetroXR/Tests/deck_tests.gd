@@ -948,6 +948,17 @@ func _test_playlist() -> void:
 		"playlist/a tape of one file is that file, as before")
 	_eq(_labels(RomLibrary.scan_videos(_scratch.path_join("videos"))), ["a", "b", "Tape"],
 		"playlist/the video scan lists a playlist naming videos as a tape, and not one naming none")
+	# A player's 00(iCarly).m3u crashed the Quest with "File name too long" (2026-11-20): with old-Mac CRs alone the
+	# whole file was one line, one "file name" hundreds of bytes long, and Android's Java threw on it.
+	var cr_list := _scratch_file("videos/CrOnly.m3u", "sub/c.mp4\ra.mp4\r")
+	_eq(RomLibrary.video_recordings(cr_list), PackedStringArray([v3, v1]),
+		"playlist/a playlist with old-Mac CR line endings is read line by line")
+	var long_list := _scratch_file("videos/Long.m3u", "x".repeat(300) + ".mp4\na.mp4\n")
+	_eq(RomLibrary.video_recordings(long_list), PackedStringArray([v1]),
+		"playlist/an entry longer than any file name is skipped, the rest still play")
+	_ok(not DataPaths.could_exist("/a/" + "é".repeat(128) + ".mp4") and DataPaths.could_exist("/a/" + "é".repeat(120))
+		and not DataPaths.could_exist("/" + "a/".repeat(2100)) and DataPaths.could_exist(v1),
+		"playlist/could_exist counts BYTES per name (255) and for the whole path (4095)")
 
 	# The VCR, on a stand-in player. Driven by hand, so its own frame does not move it.
 	var vcr := await _deck(VCR_PLAYER) as VCRPlayer
