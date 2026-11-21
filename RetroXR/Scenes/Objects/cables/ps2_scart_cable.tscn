@@ -1,0 +1,167 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/composite_cable.gd" id="1_cablescript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/rca_plug_yellow.res" id="3_rcaplug"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="6_dcplugscript"]
+[ext_resource type="PackedScene" path="res://imported-assets/connectors/scart_plug/scart_plug.glb" id="20_scartplug"]
+
+; The SCART plug's hood (RetroXR-models generic/scart-plug: 56.0 x 19.6 mm, 40.0 mm
+; behind its ORIGIN, the hood's front face; the metal shield stands ahead of it, into
+; the socket). A box: a sphere rolls.
+[sub_resource type="BoxShape3D" id="BoxShape3D_scartplug"]
+size = Vector3(0.0560, 0.0196, 0.0400)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_scartpointer"]
+size = Vector3(0.0660, 0.0296, 0.0500)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit2"]
+size = Vector3(0.0144, 0.0144, 0.054)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
+bounce = 0.0
+friction = 0.8
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
+radius = 0.032
+
+[sub_resource type="BoxMesh" id="BoxMesh_dc_body"]
+size = Vector3(0.0217, 0.0114, 0.0372)
+
+[sub_resource type="StandardMaterial3D" id="Mat_dc_body"]
+albedo_color = Color(0.06, 0.06, 0.065, 1)
+roughness = 0.55
+
+[sub_resource type="BoxMesh" id="BoxMesh_dc_tongue"]
+size = Vector3(0.018, 0.0062, 0.007)
+
+[sub_resource type="StandardMaterial3D" id="Mat_dc_tongue"]
+albedo_color = Color(0.72, 0.72, 0.7, 1)
+metallic = 0.9
+roughness = 0.35
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
+size = Vector3(0.0217, 0.0114, 0.0372)
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_avpointer"]
+radius = 0.024
+
+; The stand-in PlayStation 2 AV lead: an AV MULTI plug at the console end, three
+; phonos at the set. dc_av_cable.tscn with a different plug script and plug. It is
+; offered on a card whose console names the "ps2_av_multi" socket (a mod's; see
+; ModConnectors) until a mod brings a modelled lead, so such a console is never
+; left with no way to reach a television.
+;
+; The plug is a box of Sony's measurements: the moulded body, 21.7 x 11.4 mm and
+; 37.2 mm long, outside the case, and the metal shell that runs 7 mm into the
+; socket along the plug's +Z. The origin is the body's front face, which is the
+; frame a mod's socket seats a plug in. The collision box is the body only.
+;
+; The console end is a SHARED end carrying all three cords -- see CompositeCable.
+; An RGB SCART lead (2026-11-21): the PlayStation 2's own A/V OUT plug at the console, ONE SCART
+; plug at the set (RetroXR-models generic/scart-plug). Picture, L and R ride inside the
+; one plug at each end (inner_cords = 3: cords 0-2 are the console socket's VIDEO, L, R,
+; and ScartPort reads them the same way), so the lead is one round cable. The set draws
+; the input as RGB (TvSignal); a real lead of this kind carried the console's RGB.
+[node name="Ps2ScartCable" type="Node3D"]
+script = ExtResource("1_cablescript")
+cord_colors = PackedColorArray(0.09, 0.09, 0.1, 1)
+inner_cords = 3
+wire_color = Color(0.07, 0.07, 0.075, 1.0)
+
+
+[node name="PlugA0" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("6_dcplugscript")
+connector = "ps2_av_multi"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0186)
+shape = SubResource("BoxShape3D_plugfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0186)
+mesh = SubResource("BoxMesh_dc_body")
+surface_material_override/0 = SubResource("Mat_dc_body")
+
+[node name="Tongue" type="MeshInstance3D" parent="PlugA0/PlugTip"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.0221)
+mesh = SubResource("BoxMesh_dc_tongue")
+surface_material_override/0 = SubResource("Mat_dc_tongue")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0186)
+shape = SubResource("SphereShape3D_avpointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+
+[node name="PlugB0" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.04
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+connector = "scart_plug"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0000, -0.0200)
+shape = SubResource("BoxShape3D_scartplug")
+
+[node name="Shell" parent="PlugB0" instance=ExtResource("20_scartplug")]
+
+[node name="CordExit" type="Marker3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0512)
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0000, -0.0200)
+shape = SubResource("BoxShape3D_scartpointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 50
+segment_length = 0.03
+constraint_iterations = 8
+bend_stiffness = 0.2
+tube_radius = 0.0015
+tube_sides = 6
+smoothing = 2
+surface_collision_mask = 7
+collision_radius = 0.0045
+self_collision = true
+end_align_stiffness = 0.7
+end_stiffness = 0.45
+end_stiff_segments = 2
+fray_segments_start = 5
+fray_segments_end = 5
+fray_taper_segments = 3

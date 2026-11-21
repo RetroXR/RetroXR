@@ -57,6 +57,11 @@ const Z_TEXT := 0.0006
 ## seated on the 10 mm convention can say so.
 @export var standoff: float = PANEL_STANDOFF
 
+## Half the width and height of the socket being surrounded, for one that is not a
+## phono jack's JACK_RADIUS round (2026-11-21: a SCART socket's bezel is 58 x 24 mm and
+## sat over its own title). Zero on an axis keeps JACK_RADIUS there.
+@export var jack_extent: Vector2 = Vector2.ZERO
+
 ## Cap line of the words under the jacks, and of the AV IN / AV OUT heading. Both
 ## generous against the real thing, which prints these at about 2 mm — the point is
 ## to be read across a room-lit cabinet, not to be to scale.
@@ -175,10 +180,12 @@ func rebuild() -> void:
 	if heading.is_empty():
 		heading = "AV IN" if _ports[0].direction == RcaPort.Direction.IN else "AV OUT"
 
-	var word_y := -(JACK_RADIUS + word_height * 0.9)
+	var jack_x := jack_extent.x if jack_extent.x > 0.0 else JACK_RADIUS
+	var jack_y := jack_extent.y if jack_extent.y > 0.0 else JACK_RADIUS
+	var word_y := -(jack_y + word_height * 0.9)
 	var head_y := word_y - word_height * 0.6 - heading_height * 0.8
 	# Mirror of word_y about the row, so a titled group is printed symmetrically.
-	var title_y := JACK_RADIUS + heading_height * 0.9
+	var title_y := jack_y + heading_height * 0.9
 
 	# The plate is symmetric about the row centre, which is where the heading is
 	# centred; every printed thing has to fit inside it.
@@ -188,9 +195,9 @@ func rebuild() -> void:
 	for i in word_text.size():
 		half = maxf(half, absf(word_x[i]) + _text_width(word_text[i], word_height) * 0.5)
 	for x in xs:
-		half = maxf(half, absf(x) + JACK_RADIUS)
+		half = maxf(half, absf(x) + jack_x)
 	half += plate_margin
-	var top := JACK_RADIUS + plate_margin
+	var top := jack_y + plate_margin
 	if not title.is_empty():
 		top = title_y + heading_height * 0.8 + plate_margin
 	var bottom := head_y - heading_height * 0.8 - plate_margin

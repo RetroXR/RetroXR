@@ -19,6 +19,7 @@ const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const VGA_CABLE := preload("res://Scenes/Objects/cables/vga_cable.tscn")
 const HDMI_CABLE := preload("res://Scenes/Objects/cables/hdmi_cable.tscn")
 const WII_COMPONENT_CABLE := preload("res://Scenes/Objects/system_models/wii/wii_component_cable.tscn")
+const WII_SCART_CABLE := preload("res://Scenes/Objects/system_models/wii/wii_scart_cable.tscn")
 const N64_AV_CABLE := preload("res://Scenes/Objects/system_models/nintendo_64/n64_av_cable.tscn")
 const WII_AV_CABLE := preload("res://Scenes/Objects/system_models/wii/wii_av_cable.tscn")
 const GENESIS_AV_CABLE := preload("res://Scenes/Objects/system_models/genesis/genesis_av_cable.tscn")
@@ -155,6 +156,8 @@ func _run() -> void:
 		["routing/a Wii on its component lead: Y Pb Pr in color, crossed, and one pulled", _r_component],
 		["routing/a yellow composite cord in the green Y jack is black and white", _r_yellow_in_y],
 		["display/each input's kind scales the set's composite artifacts", _d_signal_scale],
+		["display/SCART is an input of the stock set, picture and sound on one socket", _d_scart_input],
+		["routing/a Wii on an RGB SCART lead: picture and stereo sound down one plug", _r_scart],
 		["routing/an N64 wears ONE multi-out, not a phono row", _r_n64_multi_out],
 		["routing/its lead carries all three signals down one shell", _r_n64_lead],
 		["routing/a Wii lead does not fit an N64, nor the reverse", _r_multi_out_keying],
@@ -829,6 +832,63 @@ func _d_signal_scale() -> void:
 		_ok(is_equal_approx(float(dark.get_shader_parameter("crt_notch")), row[1])
 			and is_equal_approx(float(dark.get_shader_parameter("crt_smear")), row[2]),
 			"%s keeps notch %.2f, smear %.2f of the set's composite" % [RetroTV.SOURCE_NAMES[row[0]], row[1], row[2]])
+
+
+func _d_scart_input() -> void:
+	var stock := _tv()
+	var crt := TV_SCENE.instantiate() as RetroTV
+	crt.tv_model = "retroxr_crt"
+	crt.freeze = true
+	crt.position = Vector3(_spawned.size() * 3.0, 1, 0)
+	add_child(crt)
+	_spawned.append(crt)
+	await _wait(30)
+	var scart := stock.scart_port()
+	_ok(scart != null and scart.enabled and scart.visible, "the stock set has a SCART socket")
+	if scart == null:
+		return
+	_check_eq(scart.connector, ScartPort.CONNECTOR, "which takes a SCART plug")
+	_check_eq(scart.direction, RcaPort.Direction.IN, "and is an input")
+	_ok(scart.channel_for(0) == RcaPort.Channel.VIDEO and scart.channel_for(1) == RcaPort.Channel.AUDIO_L
+		and scart.channel_for(2) == RcaPort.Channel.AUDIO_R, "carrying picture, L and R on one plug")
+	_check_eq(stock.audio_ports(RetroTV.Source.SCART), [], "with no phono pair beside it")
+	_ok(stock.find_child("AvLegendScart", true, false) != null, "and its legend printed")
+	_check_eq(TvSignal.kind_of(RetroTV.Source.SCART), TvSignal.Kind.RGB, "drawn as RGB")
+	var seen := {}
+	for i in RetroTV.SOURCE_NAMES.size() * 2:
+		stock.cycle_source()
+		seen[stock.current_source] = true
+	_ok(seen.has(RetroTV.Source.SCART), "SOURCE on the stock set stops on SCART")
+	var crt_in := crt.get_node_or_null("ScartIn") as XRToolsSnapZone
+	_ok(crt_in == null or (not crt_in.enabled and not crt_in.visible), "a shell with no ScartSeat has none")
+
+
+func _r_scart() -> void:
+	var tv := _tv()
+	var sys := await _wii()
+	var lead := WII_SCART_CABLE.instantiate() as CompositeCable
+	lead.position = Vector3(_spawned.size() * 2.0, 1, -1.0)
+	add_child(lead)
+	_spawned.append(lead)
+	await _wait(20)
+	_check_eq(lead.cord_count(), 3, "an RGB SCART lead carries three signals through two plugs")
+	var multi := sys.find_child("AvMultiOut", true, false) as RcaPort
+	var scart := tv.scart_port()
+	if multi == null or scart == null:
+		_ok(false, "the Wii's Multi Out and the set's SCART socket exist")
+		return
+	multi.pick_up_object(lead.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	scart.pick_up_object(lead.get_node("PlugB0") as RcaPlug)
+	await _wait(35)
+	_check_eq(_which_input(tv, sys), RetroTV.Source.SCART, "the Wii is filed on SCART")
+	tv.set_source(RetroTV.Source.SCART)
+	_check_eq(tv.panel().selected_system(), sys, "and the set shows it there")
+	_check_eq(tv.display().signal_kind(), TvSignal.Kind.RGB, "as an RGB picture")
+	_check_eq(Array(tv.panel().miswired(RetroTV.Source.SCART)), [], "nothing on one plug is crossed")
+	var feed: AvSource.Feed = AvSource.resolve(sys, false)
+	_check_eq(feed.audio_sink, tv, "the sound reaches the set down the same plug")
+	_ok(feed.left == 0 and feed.right == 1, "left on the left speaker, right on the right")
 
 
 ## A console with one hole in the back, and what the room does with it.
@@ -3698,6 +3758,7 @@ func _d_legacy_tv_source() -> void:
 	_check_eq(int(RetroTV.Source.HDMI), 7, "and HDMI, appended after it")
 	_check_eq(int(RetroTV.Source.SVIDEO), 8, "and S-Video after that")
 	_check_eq(int(RetroTV.Source.COMPONENT), 9, "and component after it")
+	_check_eq(int(RetroTV.Source.SCART), 10, "and SCART after that")
 	_check_eq(int(RcaPort.Channel.VIDEO_PB), 9, "Pb is appended to the channels")
 	_check_eq(int(RcaPort.Channel.VIDEO_PR), 10, "and Pr after it")
 

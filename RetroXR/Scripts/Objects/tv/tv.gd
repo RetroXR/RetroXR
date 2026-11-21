@@ -90,9 +90,10 @@ static func is_display_shader(shader: Shader) -> bool:
 ## HdmiPortSeat. Append only.
 ## SVIDEO (8) and COMPONENT (9) were appended the same day, on the stock set: a 4-pin
 ## mini-DIN with its own L/R, and Y/Pb/Pr with its own L/R (TvSignal says what each
-## does to the picture).
+## does to the picture). SCART (10) after them: the 21-pin socket, picture and sound on
+## one plug (ScartPort).
 enum Source { COMPOSITE_1, COMPOSITE_2, COMPOSITE_3, COMPOSITE_4, TV, RF, VGA, HDMI,
-	SVIDEO, COMPONENT }
+	SVIDEO, COMPONENT, SCART }
 
 ## How many composite inputs the set has. The back panel carries a socket trio per
 ## input (see tv.tscn) and tv_shell.gd lays them out for a fitted cabinet.
@@ -102,7 +103,7 @@ const COMPOSITE_INPUTS := 4
 ## does for POWER and MUTE; the back panel prints the same names in its own voice
 ## (AV_INPUT_NAMES).
 const SOURCE_NAMES := ["COMPOSITE 1", "COMPOSITE 2", "COMPOSITE 3", "COMPOSITE 4",
-	"TV", "RF", "VGA", "HDMI", "S-VIDEO", "COMPONENT"]
+	"TV", "RF", "VGA", "HDMI", "S-VIDEO", "COMPONENT", "SCART"]
 
 ## The channels an RF modulator can put a console on, and what the set has to be
 ## tuned to for it to appear: 3 and 4 are the slide on the back of an NES, 1 and 2
@@ -214,6 +215,8 @@ var _fit: TvFit = null
 ## Y is a phono jack carrying VIDEO, molded green; Pb and Pr are its color jacks.
 @onready var _svideo_port: XRToolsSnapZone = get_node_or_null("SvideoIn") as XRToolsSnapZone
 @onready var _component_y: XRToolsSnapZone = get_node_or_null("ComponentY") as XRToolsSnapZone
+## The SCART socket: on the stock body, off on a shell without a ScartSeat.
+@onready var _scart_port: XRToolsSnapZone = get_node_or_null("ScartIn") as XRToolsSnapZone
 ## The aerial socket, Source.RF's one hole. Always fitted: every television has one,
 ## and unlike the VGA socket there is no cabinet in the project that would not.
 @onready var _rf_port: XRToolsSnapZone = $RfPort
@@ -478,6 +481,11 @@ func svideo_port() -> SvideoPort:
 	return _svideo_port as SvideoPort
 
 
+## The SCART socket, or null on a set with none.
+func scart_port() -> ScartPort:
+	return _scart_port as ScartPort
+
+
 ## The component input's Y jack (its picture), or null on a set with none.
 func component_y_port() -> RcaPort:
 	return _component_y as RcaPort
@@ -729,6 +737,9 @@ func _ready() -> void:
 	if _component_y != null:
 		_component_y.has_picked_up.connect(_panel.on_plug_snapped.bind(Source.COMPONENT))
 		_component_y.has_dropped.connect(_panel.on_plug_released.bind(Source.COMPONENT))
+	if _scart_port != null:
+		_scart_port.has_picked_up.connect(_panel.on_plug_snapped.bind(Source.SCART))
+		_scart_port.has_dropped.connect(_panel.on_plug_released.bind(Source.SCART))
 	# The aerial socket, for what may be on the far end of whatever sits in it. An
 	# Antenna seated here tells the set itself, but an RF switch with an aerial
 	# already in its ANT socket does not — its cord has one end seated and resolves
@@ -1597,6 +1608,8 @@ func _source_available(source: Source) -> bool:
 		return _svideo_port != null and _svideo_port.enabled
 	if source == Source.COMPONENT:
 		return _component_y != null and _component_y.enabled
+	if source == Source.SCART:
+		return _scart_port != null and _scart_port.enabled
 	return false
 
 

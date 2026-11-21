@@ -4,8 +4,8 @@
 ##   "$godot" --path RetroXR --resolution 960x540 --position 20,20 \
 ##     res://DevTools/av/tv_inputs_render_probe.tscn -- [--out=<dir>]
 ##
-## Shots: the back of a set with an N64 on its S-Video lead and a Wii on its component
-## lead; the empty row close up; and one test card drawn through crt_effect.gdshader as
+## Shots: the back of a set with an N64 on its S-Video lead, a Wii on its component
+## lead and a second Wii on its RGB SCART lead; the SCART socket empty; the empty row close up; and one test card drawn through crt_effect.gdshader as
 ## each input draws it, with the set's composite sliders turned up so the differences
 ## show (composite, S-Video, component, Y alone, Pb/Pr crossed).
 extends Node3D
@@ -43,6 +43,10 @@ func _ready() -> void:
 
 	var n64 := _console("n64", "nintendo_64", Vector3(0.35, 0.0, -0.6))
 	var wii := _console("wii", "", Vector3(-0.2, 0.0, -0.6))
+	var wii2 := _console("wii", "", Vector3(-0.6, 0.0, -0.6))
+	var scart := preload("res://Scenes/Objects/system_models/wii/wii_scart_cable.tscn").instantiate() as Node3D
+	add_child(scart)
+	scart.position = Vector3(-0.5, 0.05, -0.4)
 	var sv := preload("res://Scenes/Objects/system_models/nintendo_64/n64_svideo_cable.tscn").instantiate() as Node3D
 	add_child(sv)
 	sv.position = Vector3(0.3, 0.05, -0.4)
@@ -52,6 +56,8 @@ func _ready() -> void:
 	await _frames(30)
 	(n64.find_child("AvMultiOut", true, false) as XRToolsSnapZone).pick_up_object(sv.get_node("PlugA0"))
 	(wii.find_child("AvMultiOut", true, false) as XRToolsSnapZone).pick_up_object(comp.get_node("PlugA0"))
+	(wii2.find_child("AvMultiOut", true, false) as XRToolsSnapZone).pick_up_object(scart.get_node("PlugA0"))
+	(tv.get_node("ScartIn") as XRToolsSnapZone).pick_up_object(scart.get_node("PlugB0"))
 	for pair in [["SvideoIn", sv, 0], ["AudioLInS", sv, 1], ["AudioRInS", sv, 2],
 			["ComponentY", comp, 0], ["AudioLInC", comp, 1], ["AudioRInC", comp, 2],
 			["ComponentPb", comp, 3], ["ComponentPr", comp, 4]]:
@@ -73,6 +79,10 @@ func _ready() -> void:
 	cam.make_current()
 	for shot in [["back", Vector3(-0.15, 0.4, -0.75), Vector3(0.05, 0.15, -0.15)],
 			["leads", Vector3(0.12, 0.25, -0.42), Vector3(0.08, 0.17, -0.16)],
+			["scart_lead", Vector3(-0.12, 0.22, -0.38), Vector3(-0.06, 0.17, -0.16)],
+			["scart_socket", Vector3(1.46, 0.18, -0.36), Vector3(1.47, 0.16, -0.15)],
+			["svideo_angled", Vector3(1.52, 0.2, -0.24), Vector3(1.546, 0.17, -0.15)],
+			["svideo_close", Vector3(1.538, 0.176, -0.19), Vector3(1.546, 0.17, -0.151)],
 			["row_empty", Vector3(1.58, 0.19, -0.36), Vector3(1.58, 0.17, -0.15)],
 			["svideo_socket", Vector3(1.546, 0.18, -0.22), Vector3(1.546, 0.17, -0.15)],
 			["signals", Vector3(0.0, 1.5, 0.78), Vector3(0.0, 1.5, 0.0)]]:

@@ -230,6 +230,12 @@ const PS2_COMPONENT_CABLE_SCENE := preload("res://Scenes/Objects/cables/ps2_comp
 ## S-Video leads off the same Multi Outs: the Super NES / N64 / GameCube's and a PS2's.
 const N64_SVIDEO_CABLE_SCENE := preload("res://Scenes/Objects/system_models/nintendo_64/n64_svideo_cable.tscn")
 const PS2_SVIDEO_CABLE_SCENE := preload("res://Scenes/Objects/cables/ps2_svideo_cable.tscn")
+## RGB SCART leads: one SCART plug at the set, off each Multi Out the game knows.
+const N64_SCART_CABLE_SCENE := preload("res://Scenes/Objects/system_models/nintendo_64/n64_scart_cable.tscn")
+const WII_SCART_CABLE_SCENE := preload("res://Scenes/Objects/system_models/wii/wii_scart_cable.tscn")
+const PS2_SCART_CABLE_SCENE := preload("res://Scenes/Objects/cables/ps2_scart_cable.tscn")
+const DC_SCART_CABLE_SCENE := preload("res://Scenes/Objects/system_models/dreamcast/dc_scart_cable.tscn")
+const GENESIS_SCART_CABLE_SCENE := preload("res://Scenes/Objects/system_models/genesis/genesis_scart_cable.tscn")
 const JVS_CABLE_SCENE        := preload("res://Scenes/Objects/cables/jvs_cable.tscn")
 const NAOMI_POWER_CABLE_SCENE := preload("res://Scenes/Objects/cables/naomi_power_cable.tscn")
 const TRS_CABLE_SCENE        := preload("res://Scenes/Objects/cables/trs_cable.tscn")
@@ -414,6 +420,11 @@ const LEAD_SCENES := {
 	"ps2_component_cable": PS2_COMPONENT_CABLE_SCENE,
 	"n64_svideo_cable": N64_SVIDEO_CABLE_SCENE,
 	"ps2_svideo_cable": PS2_SVIDEO_CABLE_SCENE,
+	"n64_scart_cable": N64_SCART_CABLE_SCENE,
+	"wii_scart_cable": WII_SCART_CABLE_SCENE,
+	"ps2_scart_cable": PS2_SCART_CABLE_SCENE,
+	"dc_scart_cable": DC_SCART_CABLE_SCENE,
+	"genesis_scart_cable": GENESIS_SCART_CABLE_SCENE,
 	"jvs_cable": JVS_CABLE_SCENE,
 	"naomi_power_cable": NAOMI_POWER_CABLE_SCENE,
 	"gd_cable": GD_CABLE_SCENE,

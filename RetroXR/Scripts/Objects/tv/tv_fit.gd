@@ -92,6 +92,7 @@ func load_shell() -> void:
 	_tv.panel().seat_hdmi_port(fitted.hdmi_port_seat())
 	_tv.panel().seat_svideo(fitted.svideo_seat())
 	_tv.panel().seat_component(fitted.component_seat())
+	_tv.panel().seat_scart(fitted.scart_seat())
 	seat(_tv.get_node_or_null("RfPort") as Node3D, fitted.rf_port_seat())
 	_tv.panel().seat_speaker_row(fitted.speaker_out_seat())
 	_tv.panel().seat_phones(fitted.phones_seat())

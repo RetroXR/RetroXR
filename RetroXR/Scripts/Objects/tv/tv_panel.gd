@@ -28,6 +28,13 @@ var _tv: RetroTV = null
 ## Centre-to-centre along the A/V row. The pitch the primitive console, the NES, the
 ## PC tower and both decks already use, so a lead reaches a set's sockets exactly as
 ## it reaches a deck's.
+## How far the SCART socket's mouth stands off the panel: its bezel's depth in
+## RetroXR-models generic/scart-socket, and where tv.tscn stands ScartIn.
+const SCART_PROUD := 0.0032
+## And the S-Video socket's: 2.4 mm, its 1.2 mm collar standing on the legend plate so
+## the plate does not cover its insert (tv.tscn's SvideoIn says why).
+const SVIDEO_PROUD := 0.0024
+
 const AV_ROW_PITCH := 0.018
 
 ## Centre-to-centre between one input group and the next. Wider than the printed
@@ -189,6 +196,14 @@ func collect() -> void:
 		_av_ports.append(group)
 		_connected_systems.append(null)
 		_snapped_plugs.append(null)
+	# SCART (Source.SCART): ONE socket carrying picture and sound (ScartPort, a
+	# MultiAvPort input), so its group is that socket alone and audio_ports is empty.
+	var scart_group: Array[RcaPort] = []
+	if _tv.scart_port() != null:
+		scart_group.append(_tv.scart_port())
+	_av_ports.append(scart_group)
+	_connected_systems.append(null)
+	_snapped_plugs.append(null)
 
 	_speaker_outs = []
 	for out_name in SPEAKER_OUT_NAMES:
@@ -324,6 +339,7 @@ func print_legends() -> void:
 		_print_hdmi_legend(plate)
 	_print_component_legend(plate)
 	_print_svideo_legend(plate)
+	_print_scart_legend(plate)
 	if has_speaker_outs():
 		_print_speaker_legend(plate)
 
@@ -398,14 +414,35 @@ func _print_svideo_legend(plate: bool) -> void:
 	legend.name = "AvLegendSvideo"
 	legend.title = "S-Video"
 	# The plate stands at the group's MEAN depth (AvLegend._panel_frame): the mini-DIN's
-	# mouth is 1.2 mm off the panel (svideo_port.tscn), so 0.7 leaves the plate 0.5 mm
+	# mouth is SVIDEO_PROUD off the panel, so that less 0.5 mm leaves the plate 0.5 mm
 	# proud as PANEL_STANDOFF does for a phono jack's 10 mm.
-	legend.standoff = (0.0007 + 2.0 * AvLegend.PANEL_STANDOFF) / 3.0
+	legend.standoff = (SVIDEO_PROUD - 0.0005 + 2.0 * AvLegend.PANEL_STANDOFF) / 3.0
 	# The words name the socket rather than the signal.
 	legend.word_override = {
 		RcaPort.Channel.VIDEO: "S-VIDEO", RcaPort.Channel.AUDIO_L: "L",
 		RcaPort.Channel.AUDIO_R: "R",
 	}
+	legend.show_plate = plate
+	legend.rebuild()
+
+
+## The SCART socket's legend, HDMI's arrangement: one plate, no words row.
+func _print_scart_legend(plate: bool) -> void:
+	var socket := video_port(RetroTV.Source.SCART)
+	if socket == null or not socket.enabled:
+		return
+	var legend := AvLegend.attach(_tv, _av_ports[RetroTV.Source.SCART])
+	if legend == null:
+		return
+	legend.name = "AvLegendScart"
+	# The socket's mouth is SCART_PROUD off the panel (scart_port.tscn), not a phono
+	# jack's 10 mm: the plate stands 0.5 mm proud, as PANEL_STANDOFF leaves a phono's.
+	legend.standoff = maxf(SCART_PROUD - 0.0005, 0.0002)
+	legend.title = "SCART"
+	# The bezel, 58 x 24 mm (generic/scart-socket), not a phono jack's round.
+	legend.jack_extent = Vector2(0.029, 0.012)
+	legend.heading_override = "AV IN (RGB)"
+	legend.show_words = false
 	legend.show_plate = plate
 	legend.rebuild()
 
@@ -601,6 +638,11 @@ func seat_svideo(at: Variant) -> void:
 	_seat_group(RetroTV.Source.SVIDEO, [0, 1, 2], at, "S-Video")
 
 
+## The SCART socket on a fitted shell: on only where the shell carries a ScartSeat.
+func seat_scart(at: Variant) -> void:
+	_seat_group(RetroTV.Source.SCART, [0], at, "SCART")
+
+
 func seat_component(at: Variant) -> void:
 	# _av_ports order is Y L R Pb Pr; on the panel they run Y Pb Pr L R.
 	_seat_group(RetroTV.Source.COMPONENT, [0, 3, 4, 1, 2], at, "Component")
@@ -687,7 +729,7 @@ func port_holding(plug: Node3D) -> XRToolsSnapZone:
 		return _tv.vga_port()
 	if _tv.hdmi_port() != null and _tv.hdmi_port().picked_up_object == plug:
 		return _tv.hdmi_port()
-	for input: int in [RetroTV.Source.SVIDEO, RetroTV.Source.COMPONENT]:
+	for input: int in [RetroTV.Source.SVIDEO, RetroTV.Source.COMPONENT, RetroTV.Source.SCART]:
 		var port := video_port(input)
 		if port != null and port.picked_up_object == plug:
 			return port
@@ -706,7 +748,7 @@ func input_holding(plug: Node3D) -> int:
 		return RetroTV.Source.VGA
 	if _tv.hdmi_port() != null and _tv.hdmi_port().picked_up_object == plug:
 		return RetroTV.Source.HDMI
-	for input: int in [RetroTV.Source.SVIDEO, RetroTV.Source.COMPONENT]:
+	for input: int in [RetroTV.Source.SVIDEO, RetroTV.Source.COMPONENT, RetroTV.Source.SCART]:
 		var port := video_port(input)
 		if port != null and port.picked_up_object == plug:
 			return input

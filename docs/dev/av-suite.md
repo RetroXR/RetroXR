@@ -853,3 +853,30 @@ set's composite is turned up.
 `DevTools/av/tv_inputs_render_probe` (windowed): the leads seated, the empty row, and a test card
 through `crt_effect.gdshader` as each input draws it. A real core on either input, headset feel,
 the Quest and netplay are OWED.
+
+### SCART on the Classic TV (2026-11-21)
+
+`RetroTV.Source.SCART` (10, appended) is the stock set's 21-pin SCART socket, on the
+component / S-Video row left of S-Video (`ScartIn`; a fitted shell opts in with a `ScartSeat`).
+`ScartPort` is a `MultiAvPort` built as an INPUT (the 32X's A/V IN arrangement), connector
+`scart_plug`: one socket, `channel_for(cord)` reads cords 0-2 as VIDEO, L, R, so the machine is
+heard on the set's own speakers with no phono pair (`audio_ports(SCART)` is empty). `TvSignal`
+draws it as RGB.
+
+- **A lead with one plug at each end and three signals inside** is `CompositeCable.inner_cords
+  = 3`: both ends are shared, and the rope is one round jacket (the one-cord path), not a ribbon.
+- RGB SCART leads off every Multi Out the game knows (`n64_`, `wii_`, `ps2_`, `dc_`,
+  `genesis_scart_cable`, in `Connectors.BETTER_LEADS`): the composite lead's console end, PlugB0
+  the SCART plug (RetroXR-models `generic/scart-plug`, `common/scart.py`'s face shared with
+  `generic/scart-socket`). Mods dress the console ends by connector (`xenu.ps2av` and friends).
+- **A socket whose insert sits at the panel plane is hidden by its own legend plate** (0.5 mm
+  proud). The S-Video socket's insert is about 1.2 mm inside its mouth, so `SvideoIn` stands
+  2.4 mm off the panel (`TvPanel.SVIDEO_PROUD`); SCART's contact block is 1.7 mm proud of the panel
+  at `SCART_PROUD` 3.2 and reads. A legend plate stands at its group's MEAN depth, so a mixed group
+  averages the standoffs.
+- **A legend round a large socket** sets `AvLegend.jack_extent` (half width / height); the plate
+  and title were sized for a phono jack's 4.8 mm and the SCART bezel covered its own title.
+  av_tests keeps every two plates 2 mm apart, which is what moved SCART off the speaker row.
+
+`av_tests` (`_d_scart_input`, `_r_scart`); `tv_inputs_render_probe` (a Wii on its SCART lead, the
+socket empty, the S-Video socket close). A real core, headset, Quest and netplay are OWED.

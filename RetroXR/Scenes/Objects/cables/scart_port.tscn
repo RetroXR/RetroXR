@@ -1,0 +1,38 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="1_snapzone"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/scart_port.gd" id="2_portscript"]
+[ext_resource type="PackedScene" path="res://imported-assets/connectors/scart_port/scart_socket.glb" id="3_socket"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="4_snaphigh"]
+
+; The plug's own hood, so the ghost reads as "a SCART plug goes here".
+[sub_resource type="BoxMesh" id="BoxMesh_plug_ghost"]
+size = Vector3(0.056, 0.0196, 0.02)
+
+[sub_resource type="StandardMaterial3D" id="Mat_plug_ghost"]
+transparency = 1
+albedo_color = Color(0.2, 0.5, 1, 0.45)
+emission_enabled = true
+emission = Color(0, 0.15, 0.5, 1)
+emission_energy_multiplier = 0.4
+
+; A 21-pin SCART socket (RetroXR-models generic/scart-socket). The ZONE is the socket's
+; MOUTH, its shield's lip, where a seated plug's origin (its hood's front face) stops;
+; the model has its mouth at its origin and its bezel's back 3.2 mm behind, so a host
+; stands this zone 3.2 mm off its panel (TvPanel.SCART_PROUD). +Y is the wide edge.
+; `connector` is written HERE as well as in the script (the export trap vga_port.tscn
+; describes; link_tests checks the line).
+[node name="ScartPort" instance=ExtResource("1_snapzone")]
+grab_distance = 0.06
+script = ExtResource("2_portscript")
+connector = "scart_plug"
+
+[node name="ScartSocket" parent="." instance=ExtResource("3_socket")]
+
+[node name="SnapHighlight" type="Node3D" parent="."]
+script = ExtResource("4_snaphigh")
+
+[node name="HighlightMesh" type="MeshInstance3D" parent="SnapHighlight"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.01)
+mesh = SubResource("BoxMesh_plug_ghost")
+surface_material_override/0 = SubResource("Mat_plug_ghost")

@@ -12,6 +12,7 @@
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/vga_port.tscn" id="11_vgaport"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/hdmi_port.tscn" id="11_hdmiport"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/svideo_port.tscn" id="11_svideoport"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/scart_port.tscn" id="11_scartport"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/coax_port.tscn" id="12_coaxport"]
 [ext_resource type="Script" uid="uid://d3screencastlight" path="res://Scripts/Objects/screen_cast_light.gd" id="13_screenlight"]
 
@@ -266,10 +267,12 @@ channel = 2
 direction = 1
 
 ; The S-VIDEO IN (Source.SVIDEO): a 4-pin mini-DIN where a trio's VIDEO jack goes,
-; half a turn about Y (as the HDMI IN) so its key is up, and 1.2 mm off the panel,
-; where its bezel puts its mouth (svideo_port.tscn).
+; half a turn about Y (as the HDMI IN) so its key is up, and 2.4 mm off the panel: its
+; collar is 1.2 mm deep and its insert's face about that far inside the mouth, so at
+; 1.2 mm the legend plate (0.5 mm proud) covered the insert and the socket read as a
+; black hole. At 2.4 the collar sits on the plate (TvPanel.SVIDEO_PROUD).
 [node name="SvideoIn" parent="." instance=ExtResource("11_svideoport")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.046, -0.03, -0.1512)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.046, -0.03, -0.1524)
 direction = 1
 
 [node name="AudioLInS" parent="." instance=ExtResource("10_rcaport")]
@@ -280,6 +283,15 @@ direction = 1
 [node name="AudioRInS" parent="." instance=ExtResource("10_rcaport")]
 transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.010, -0.03, -0.16002099)
 channel = 2
+direction = 1
+
+; The SCART socket (Source.SCART), on the component / S-Video row, left of S-Video: its
+; legend is a tall plate (the 58 x 24 mm bezel) and the speaker row's gap left it within
+; 2 mm of Composite 3 / 4 and S-Video (av_tests). Half a turn about Y, as HDMI, so its
+; wide edge stays up; 3.2 mm off the panel,
+; where its bezel puts its mouth (TvPanel.SCART_PROUD, scart_port.tscn).
+[node name="ScartIn" parent="." instance=ExtResource("11_scartport")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.06, -0.03, -0.1532)
 direction = 1
 
 ; ── Speaker outputs ─────────────────────────────────────────────────────────

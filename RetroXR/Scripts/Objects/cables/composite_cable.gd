@@ -79,6 +79,13 @@ signal topology_changed
 ## not hold, leaves the scene's own. Read once, in _ready, and saved with the lead.
 @export var plug_color_id: StringName = &""
 
+## Signals carried INSIDE one connector at each end, for a lead the plug count cannot
+## describe: an RGB SCART lead is a Multi Out at the console and ONE SCART plug at the
+## set, yet carries picture, L and R (2026-11-21). Zero (every other lead) counts cords
+## from the plugs. Set above the plug count, both ends are SHARED and the lead is drawn
+## as one round cable, not a ribbon.
+@export var inner_cords: int = 0
+
 ## A length the player asked for at spawn, in metres. Zero leaves the scene's own.
 ## Read once, in _ready, before the rope is built, and saved with the lead.
 @export var cord_length: float = 0.0
@@ -153,7 +160,7 @@ var _rope_built := false
 
 func _ready() -> void:
 	add_to_group("spawned")
-	_cords = _count_cords()
+	_cords = maxi(_count_cords(), inner_cords)
 	_plugs = [[], []]
 	for e in [End.A, End.B]:
 		_shared[e] = _cords > 1 and get_node_or_null("Plug%s1" % "AB"[e]) == null
@@ -337,7 +344,9 @@ func _build_rope() -> void:
 	# fray tail meeting at a junction nothing holds — geometry a one-wire lead does
 	# not have, and a VGA lead is exactly that. Both ends anchor straight to their
 	# plugs instead, which is also what every captive lead in the project does.
-	if _cords == 1:
+	# One cord, or several inside one connector at BOTH ends (inner_cords): one round
+	# jacket from plug to plug either way.
+	if _cords == 1 or (_shared[End.A] and _shared[End.B]):
 		_rope.fray_segments_start = 0
 		_rope.fray_segments_end = 0
 		_rope.start_node = _plugs[End.A][0]

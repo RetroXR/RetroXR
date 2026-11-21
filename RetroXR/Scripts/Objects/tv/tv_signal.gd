@@ -13,7 +13,7 @@
 ##     bleeds, a little less (no comb or notch on it).
 ##   * COMPONENT (Y/Pb/Pr) carries luma and the two color-difference signals on three
 ##     wires, each baseband. No notch, and the color is nearly as sharp as the luma.
-##   * RGB (VGA, HDMI) is the picture the core drew.
+##   * RGB (VGA, HDMI, an RGB SCART lead) is the picture the core drew.
 ##
 ## The player's "Composite blend" (crt_notch) and "Smear" (crt_smear) sliders say how
 ## bad THIS SET'S composite is; an input's kind scales them, so a set tuned to look
@@ -56,7 +56,8 @@ static func kind_of(source: int) -> Kind:
 			return Kind.SVIDEO
 		RetroTV.Source.COMPONENT:
 			return Kind.COMPONENT
-		RetroTV.Source.VGA, RetroTV.Source.HDMI:
+		# SCART too: the leads the game offers are RGB SCART leads.
+		RetroTV.Source.VGA, RetroTV.Source.HDMI, RetroTV.Source.SCART:
 			return Kind.RGB
 	return Kind.COMPOSITE
 
