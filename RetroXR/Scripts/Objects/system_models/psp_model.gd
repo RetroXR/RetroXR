@@ -425,13 +425,32 @@ func play_close() -> void:
 		_umd_hinge.latch_closed()
 
 
-## The hand pushed the door home (or the wheel/laser did, on desktop) — tell
-## the host so it marks the UMD tray closed, same as the disc consoles.
+## The door moved: tell the host which way, so it marks the UMD tray open or shut, as the PlayStation's lid does
+## (playstation_model._on_lid_swung). Both directions: reporting only the latch clicking shut was enough while the
+## only way the door opened was the PSP-1000's OPEN slide, which reports for itself. The PSP-3000 has no latch: a hand
+## lifts its door, the machine never heard it open, and its UMD slot stayed shut to every disc (a player's report,
+## 2026-11-21).
 func _on_umd_door_swung(_deg: float) -> void:
-	if _umd_hinge != null and _umd_hinge.is_latched_closed():
-		var host := get_parent()
-		if host != null and host.has_method("request_tray_state"):
-			host.request_tray_state(false)
+	if _umd_hinge == null:
+		return
+	_door_reported_open = not _umd_hinge.is_latched_closed()
+	var host := get_parent()
+	if host != null and host.has_method("lid_reports_open"):
+		host.lid_reports_open(not _umd_hinge.is_latched_closed(), _umd_hinge)
+	elif host != null and host.has_method("request_tray_state") and _umd_hinge.is_latched_closed():
+		host.request_tray_state(false)
+
+
+## Which way the door was last reported; -1 before the first.
+var _door_reported_open := false
+
+
+## A latch let go by a hand, the door then carried up by its spring, says nothing: the spring moves it quietly
+## (VRSpringLatchedHinge._step_spring_open). So the door's state is read each frame and reported when it changes:
+## one bool compared, nothing more, while it does not.
+func _process(_delta: float) -> void:
+	if _umd_hinge != null and (not _umd_hinge.is_latched_closed()) != _door_reported_open:
+		_on_umd_door_swung(_umd_hinge.get_rotation_deg())
 
 
 ## The PSP has no cabinet-style OPEN button: the shell's own sprung latch does the
