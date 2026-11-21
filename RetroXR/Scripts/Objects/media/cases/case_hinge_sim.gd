@@ -23,6 +23,10 @@
 ## angle until the case is shaken or a hand moves it). `kinetic` is the share of that still felt once it moves: a
 ## knuckle slips a little, a living hinge not at all (it stops when the push does).
 ##
+## A keep case's cover is a living hinge (set_living_hinge): molded lying open, it will not rest shut unlatched but
+## springs a few degrees ajar, and let go by a hand it eases a little back the way it came. Its flippers are trays
+## clipped on pins, free like a jewel case's (set_hinge_friction).
+##
 ## `spin` is the case's own turn about the hinge line speeding up (rad/s^2, about its +y): the panel stays behind,
 ## so a flick of the wrist swings it as gravity does.
 class_name CaseHingeSim
@@ -49,6 +53,15 @@ var open_max := PI
 var friction := 0.15
 ## Sliding friction as a share of the static.
 var kinetic := 0.8
+## Per hinge: its static friction share and the sliding share of it (the case's, unless set_hinge_friction).
+var frictions := PackedFloat64Array()
+var kinetics := PackedFloat64Array()
+## The top hinge as a living hinge: unlatched it rests `ajar` (rad) or so off shut; let go by a hand, it eases
+## `springback` (rad) back the way it came.
+var ajar := 0.0
+var springback := 0.0
+var _dir := PackedFloat64Array()
+var _ease := PackedFloat64Array()
 ## What it takes to spring the latch (rad/s^2).
 var latch_break := 400.0
 ## How fast (rad/s) a free swing must come home to catch the latch.
@@ -69,15 +82,35 @@ func configure(lever_m: Array, open_max_deg := 180.0, friction_share := 0.15, br
 	speeds.resize(count)
 	levers.resize(count)
 	held.resize(count)
+	frictions.resize(count)
+	kinetics.resize(count)
+	_dir.resize(count)
+	_ease.resize(count)
+	ajar = 0.0
+	springback = 0.0
 	for i in count:
 		angles[i] = 0.0
 		speeds[i] = 0.0
 		levers[i] = maxf(float(lever_m[i]), 0.005)
 		held[i] = false
+		frictions[i] = friction_share
+		kinetics[i] = kinetic_share
+		_dir[i] = 0.0
+		_ease[i] = 0.0
 	open_max = deg_to_rad(open_max_deg)
 	friction = friction_share
 	latch_break = break_accel
 	latched = true
+
+
+func set_hinge_friction(i: int, share: float, kinetic_share: float) -> void:
+	frictions[i] = share
+	kinetics[i] = kinetic_share
+
+
+func set_living_hinge(ajar_deg: float, springback_deg: float) -> void:
+	ajar = deg_to_rad(ajar_deg)
+	springback = deg_to_rad(springback_deg)
 
 
 func top() -> int:
@@ -102,13 +135,18 @@ func set_angle_deg(i: int, deg: float) -> void:
 ## A hand has the hinge (it follows set_held_angle_deg) or has let go of it, at `speed_deg` deg/s.
 func set_held(i: int, on: bool, speed_deg := 0.0) -> void:
 	held[i] = on
+	_ease[i] = 0.0
 	if not on:
 		speeds[i] = deg_to_rad(speed_deg)
+		if i == top() and not latched:
+			_ease[i] = -_dir[i] * springback
 
 
 func set_held_angle_deg(i: int, deg: float, dt: float) -> void:
 	var a := clampf(deg_to_rad(deg), 0.0, open_max)
 	speeds[i] = (a - angles[i]) / dt if dt > 0.0 else 0.0
+	if absf(a - angles[i]) > 0.001:
+		_dir[i] = signf(a - angles[i])
 	angles[i] = a
 	if i == top():
 		# The hand pushes it home: within SNAP_DEG it catches, and it stays caught as the hand lets go.
@@ -139,10 +177,12 @@ func settled(g: Vector3, spin := 0.0) -> bool:
 			if pull(top(), g) + spin > latch_break:
 				return false
 			continue
-		var p := pull(i, g) + spin
+		if _ease[i] != 0.0:
+			return false
+		var p := pull(i, g) + spin + _lift(i)
 		var lo := angles[i - 1] if i > 0 else 0.0
 		var hi := angles[i + 1] if i < top() else open_max
-		var stuck := absf(p) <= _static(i, g) or (p < 0.0 and angles[i] <= lo + 1e-6) \
+		var stuck := absf(p) <= _static(i) or (p < 0.0 and angles[i] <= lo + 1e-6) \
 			or (p > 0.0 and angles[i] >= hi - 1e-6)
 		if not stuck:
 			return false
@@ -167,15 +207,24 @@ func step(dt: float, g: Vector3, spin := 0.0) -> void:
 			angles[i] = 0.0
 			speeds[i] = 0.0
 			continue
-		var acc := pull(i, g) + spin - DAMPING * speeds[i]
-		var fs := _static(i, g)
+		if _ease[i] != 0.0:
+			var d := _ease[i] * minf(1.0, dt * 15.0)
+			angles[i] = clampf(angles[i] + d, 0.0, open_max)
+			_ease[i] = _ease[i] - d if absf(_ease[i] - d) > 1e-4 else 0.0
+		var acc := pull(i, g) + spin + _lift(i) - DAMPING * speeds[i]
+		var fs := _static(i)
 		if absf(speeds[i]) <= REST_SPEED and absf(acc) <= fs:
 			speeds[i] = 0.0
 			continue
 		# Kinetic friction opposes the motion (or the impending motion from rest).
 		var dir := signf(speeds[i]) if absf(speeds[i]) > REST_SPEED else signf(acc)
-		acc -= dir * fs * kinetic
-		speeds[i] += acc * dt
+		var next := speeds[i] + acc * dt
+		var drag := fs * kinetics[i] * dt
+		# Friction stops a panel, it never turns it round: one it would reverse this step stops if it can hold it.
+		if absf(speeds[i]) > REST_SPEED and absf(next) <= drag and absf(acc) <= fs:
+			speeds[i] = 0.0
+			continue
+		speeds[i] = next - dir * drag
 		angles[i] += speeds[i] * dt
 	# Coming home: fast enough, the latch catches; slower, it only stops there.
 	var arriving := -speeds[t] if not held[t] and not latched and angles[t] <= 0.0 else 0.0
@@ -188,8 +237,15 @@ func step(dt: float, g: Vector3, spin := 0.0) -> void:
 			clicked = true
 
 
-func _static(i: int, _g: Vector3) -> float:
-	return friction * 3.0 / (4.0 * levers[i]) * G
+func _static(i: int) -> float:
+	return frictions[i] * 3.0 / (4.0 * levers[i]) * G
+
+
+## A living hinge's push off shut (rad/s^2): at 0 enough to beat its friction and the cover's weight, none at `ajar`.
+func _lift(i: int) -> float:
+	if i != top() or ajar <= 0.0 or angles[i] >= ajar:
+		return 0.0
+	return (_static(i) + 2.0 * 3.0 / (4.0 * levers[i]) * G) * (1.0 - angles[i] / ajar)
 
 
 ## Keep the hinges in order and within their stops; two that meet go on together.
@@ -215,10 +271,13 @@ func _resolve() -> void:
 func _knock(lo: int, hi: int) -> void:
 	if held[lo] and held[hi]:
 		return
-	if held[hi]:
+	# A free tray landing on a panel stiffer than gravity stops against it as against a hand.
+	var wall_hi := held[hi] or (frictions[hi] >= 1.0 and frictions[lo] < 1.0 and not held[lo])
+	var wall_lo := held[lo] or (frictions[lo] >= 1.0 and frictions[hi] < 1.0 and not held[hi])
+	if wall_hi:
 		angles[lo] = angles[hi]
 		speeds[lo] = minf(speeds[lo], speeds[hi])
-	elif held[lo]:
+	elif wall_lo:
 		angles[hi] = angles[lo]
 		speeds[hi] = maxf(speeds[hi], speeds[lo])
 	else:

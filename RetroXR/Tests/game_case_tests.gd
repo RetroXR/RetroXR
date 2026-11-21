@@ -53,6 +53,8 @@ func _run() -> void:
 		["sim/inner trays never pass the lid", _sim_order],
 		["sim/a caught lid holds its flip trays shut face down", _sim_latched_trays],
 		["sim/a turn of the wrist swings the lid", _sim_spin],
+		["sim/a keep case's cover rests ajar unlatched, eases back when let go", _sim_living_hinge],
+		["sim/a keep case's flippers swing free under a cover that holds", _sim_flippers],
 		["sim/the same steps give the same angles", _sim_deterministic],
 		["model/every variant builds with its seats and art", _model_variants],
 		["case/a new case seats its discs and keeps them while shut", _case_contents],
@@ -299,6 +301,60 @@ func _sim_spin() -> void:
 	_ok(not s.settled(G_UPRIGHT, 500.0), "a jolt past the latch is not rest")
 	s.step(DT, G_UPRIGHT, 500.0)
 	_ok(not s.latched, "and springs on a jolt past the latch")
+
+
+func _keep_sim(inner := 0) -> CaseHingeSim:
+	var s := CaseHingeSim.new()
+	var levers: Array = []
+	for i in inner + 1:
+		levers.append(0.067)
+	s.configure(levers, 180.0, 2.5, 900.0, 15.0, 1.0)
+	for i in inner:
+		s.set_hinge_friction(i, 0.12, 0.8)
+	s.set_living_hinge(4.0, 4.0)
+	return s
+
+
+func _sim_living_hinge() -> void:
+	var s := _keep_sim()
+	_run_sim(s, G_FACE_UP, 1.0)
+	_ok(s.latched and s.angle_deg(0) == 0.0, "clasped, it stays shut")
+	s.latched = false
+	_run_sim(s, G_FACE_UP, 1.0)
+	_ok(s.angle_deg(0) > 1.0 and s.angle_deg(0) < 5.0 and not s.latched, "unclasped, it springs ajar", str(s.angle_deg(0)))
+	_ok(s.settled(G_FACE_UP), "and rests there")
+	s.set_held(0, true)
+	for a in [40.0, 50.0, 60.0]:
+		s.set_held_angle_deg(0, a, DT)
+	s.set_held(0, false, 0.0)
+	_run_sim(s, G_UPRIGHT, 1.0)
+	_ok(absf(s.angle_deg(0) - 56.0) < 0.5, "opened to 60 and let go, it eases back to 56", str(s.angle_deg(0)))
+	_ok(s.settled(G_UPRIGHT), "and rests")
+	s.set_held(0, true)
+	for a in [50.0, 40.0]:
+		s.set_held_angle_deg(0, a, DT)
+	s.set_held(0, false, 0.0)
+	_run_sim(s, G_UPRIGHT, 1.0)
+	_ok(absf(s.angle_deg(0) - 44.0) < 0.5, "pushed shut to 40, back out to 44", str(s.angle_deg(0)))
+	s.set_held(0, true)
+	for a in [20.0, 3.0]:
+		s.set_held_angle_deg(0, a, DT)
+	s.set_held(0, false, 0.0)
+	_run_sim(s, G_FACE_DOWN, 1.0)
+	_ok(s.latched and s.angle_deg(0) == 0.0, "pressed home it clasps and stays", str(s.angle_deg(0)))
+
+
+func _sim_flippers() -> void:
+	var s := _keep_sim(1)
+	s.set_angle_deg(1, 120.0)
+	s.set_angle_deg(0, 70.0)
+	_run_sim(s, G_FACE_UP, 2.0)
+	_ok(s.angle_deg(0) < 1.0, "the flipper falls shut", str(s.angle_deg(0)))
+	_ok(absf(s.angle_deg(1) - 120.0) < 0.5, "the cover holds", str(s.angle_deg(1)))
+	s.set_angle_deg(0, 100.0)
+	_run_sim(s, G_FACE_UP, 2.0)
+	_ok(absf(s.angle_deg(0) - 120.0) < 0.5, "past upright it falls onto the cover", str(s.angle_deg(0)))
+	_ok(absf(s.angle_deg(1) - 120.0) < 0.5, "which still holds", str(s.angle_deg(1)))
 
 
 func _sim_deterministic() -> void:

@@ -25,6 +25,12 @@ const MASS := {"jewel": 0.075, "keep": 0.11}
 const FRICTION := {"jewel": 0.12, "keep": 2.5}
 ## Sliding friction as a share of that: a living hinge does not slip once it moves.
 const KINETIC := {"jewel": 0.8, "keep": 1.0}
+## A keep case's flippers are trays clipped on pins: free, like a jewel case's flip tray.
+const FLIPPER_FRICTION := 0.12
+## Its cover's living hinge was molded lying open: unlatched it rests about this far off shut, and let go by a hand
+## it eases this far back the way it came [E: no case measured].
+const KEEP_AJAR_DEG := 4.0
+const KEEP_SPRINGBACK_DEG := 4.0
 ## The case's turn about its spine: speeding up faster than this (rad/s^2) is a teleport or a grab's first frame;
 ## slower than SPIN_QUIET, the tracking's tremor.
 const SPIN_CUT := 800.0
@@ -323,6 +329,10 @@ func _build_hinges() -> void:
 	sim.configure(levers, open_max_deg(), float(FRICTION.get(case_family, 0.15)),
 		float(LATCH_BREAK.get(case_family, 400.0)), float(LATCH_SPEED.get(case_family, 3.5)),
 		float(KINETIC.get(case_family, 0.8)))
+	if case_family == "keep":
+		for i in sim.top():
+			sim.set_hinge_friction(i, FLIPPER_FRICTION, 0.8)
+		sim.set_living_hinge(KEEP_AJAR_DEG, KEEP_SPRINGBACK_DEG)
 	_lid_pivot = model.pivot_m("open")
 	for r in _rigs:
 		(r[2] as CaseHinge).max_deg = rad_to_deg(sim.open_max)
