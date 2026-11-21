@@ -162,6 +162,7 @@ func _run() -> void:
 		["inputs/ids: each kind's first keeps its Source value, a second has its own", _i_ids],
 		["inputs/a set has exactly the inputs it declares, two HDMI among them", _i_declared],
 		["inputs/a Wii U on HDMI 2 is filed, shown, saved and restored there", _i_hdmi_two],
+		["routing/a composite lead into a SCART block is the set's SCART input, composite quality", _r_scart_block],
 		["routing/an N64 wears ONE multi-out, not a phono row", _r_n64_multi_out],
 		["routing/its lead carries all three signals down one shell", _r_n64_lead],
 		["routing/a Wii lead does not fit an N64, nor the reverse", _r_multi_out_keying],
@@ -1001,6 +1002,57 @@ func _i_hdmi_two() -> void:
 	tv.restore_control_state(state)
 	await _wait(4)
 	_check_eq(int(tv.current_source), 82, "a save puts it back on HDMI 2")
+
+
+## A SCART block (Nintendo's SNSP-015) as the room would build one, from the conversion
+## lead's AvAdapter: its plug a SCART plug, three phono IN jacks on it that are the set's.
+func _scart_block() -> AvAdapter:
+	var block := load("res://Scenes/Objects/system_models/genesis/sega32x_conversion_cable.tscn").instantiate() as AvAdapter
+	(block.get_node("PlugA0") as RcaPlug).connector = "scart_plug"
+	var rows := [["BlockVideo", RcaPort.Channel.VIDEO], ["BlockL", RcaPort.Channel.AUDIO_L],
+		["BlockR", RcaPort.Channel.AUDIO_R]]
+	for row: Array in rows:
+		var jack := (load("res://Scenes/Objects/cables/rca_port.tscn") as PackedScene).instantiate() as RcaPort
+		jack.set_script(load("res://Scripts/Objects/cables/adapter_rca_port.gd"))
+		jack.name = row[0]
+		jack.set("direction", RcaPort.Direction.IN)
+		jack.set("channel", row[1])
+		jack.set("signal_kind", TvSignal.Kind.COMPOSITE)
+		block.get_node("PlugA0").add_child(jack)
+	block.position = Vector3(_spawned.size() * 2.0, 1, -1.0)
+	add_child(block)
+	_spawned.append(block)
+	await _wait(20)
+	return block
+
+
+func _r_scart_block() -> void:
+	var tv := _tv()
+	var sys := await _wii()
+	var block := await _scart_block()
+	var scart := tv.scart_port()
+	if scart == null:
+		_ok(false, "the stock set has a SCART socket")
+		return
+	scart.pick_up_object(block.get_node("PlugA0") as RcaPlug)
+	await _wait(10)
+	var video := block.find_child("BlockVideo", true, false) as AdapterRcaPort
+	_check_eq(video.host_socket(), scart, "the block's jacks know the socket it is in")
+	_check_eq(video.get_device(), tv, "and belong to the set")
+	_check_eq(tv.panel().input_of_port(video), RetroTV.Source.SCART, "the set files them on SCART")
+	await _multi_lead(WII_AV_CABLE, sys, [video, block.find_child("BlockL", true, false),
+		block.find_child("BlockR", true, false)])
+	_check_eq(_which_input(tv, sys), RetroTV.Source.SCART, "a Wii on its composite lead into the block is on SCART")
+	tv.set_source(RetroTV.Source.SCART)
+	_check_eq(tv.panel().selected_system(), sys, "and the set shows it")
+	_check_eq(tv.display().signal_kind(), TvSignal.Kind.COMPOSITE, "as composite, not the SCART input's RGB")
+	var feed: AvSource.Feed = AvSource.resolve(sys, false)
+	_check_eq(feed.audio_sink, tv, "its sound reaches the set through the block")
+	_ok(feed.left == 0 and feed.right == 1, "left on the left speaker, right on the right")
+	_check_eq(Array(tv.panel().miswired(RetroTV.Source.SCART)), [], "a lead wired right into the block is not crossed")
+	scart.drop_object()
+	await _wait(30)
+	_check_eq(_which_input(tv, sys), -1, "the block pulled, the Wii is on no input")
 
 
 ## A console with one hole in the back, and what the room does with it.

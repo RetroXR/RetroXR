@@ -38,10 +38,21 @@ func socket() -> AdapterAvPort:
 ## belongs to. That lead holds the routing (and its record of who it last told is
 ## how a machine left behind hears of it), so it is made to resolve again once this
 ## one has, as PhonesAdapter does for its jack.
+##
+## The same for every lead in a phono jack the adapter wears (AdapterRcaPort): a SCART
+## block's VIDEO / L / R are the set's while the block is in it, and nobody's once it
+## is pulled, which the lead in them only hears of this way.
 func _resolve() -> void:
 	super._resolve()
-	if not is_instance_valid(_socket):
-		return
-	var lead_plug := _socket.seated_plug() as RcaPlug
-	if lead_plug != null and is_instance_valid(lead_plug.cable) and lead_plug.cable != self:
+	var told: Array = []
+	var jacks: Array = find_children("*", "AdapterRcaPort", true, false)
+	if is_instance_valid(_socket):
+		jacks.append(_socket)
+	for jack: Node in jacks:
+		var lead_plug := (jack as Port).seated_plug() as RcaPlug
+		if lead_plug == null or not is_instance_valid(lead_plug.cable) or lead_plug.cable == self:
+			continue
+		if told.has(lead_plug.cable):
+			continue
+		told.append(lead_plug.cable)
 		lead_plug.cable.on_plug_seating_changed()

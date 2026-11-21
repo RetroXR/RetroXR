@@ -664,14 +664,28 @@ func _input_for_device(dev: Node3D) -> int:
 		if (link["out"] as RcaPort).get_device() != dev:
 			continue
 		var in_port := link["in"] as RcaPort
-		for i in _av_ports.size():
-			if not (_av_ports[i] as Array).has(in_port):
-				continue
-			if in_port.channel == RcaPort.Channel.VIDEO:
-				return i
-			if audio_match < 0:
-				audio_match = i
+		var i := input_of_port(in_port)
+		if i < 0:
+			continue
+		if in_port.channel == RcaPort.Channel.VIDEO:
+			return i
+		if audio_match < 0:
+			audio_match = i
 	return audio_match
+
+
+## The input a socket feeds on this set, or -1. One of an input's own jacks gives that
+## input; a jack on an adapter seated in one of them (a SCART block's phonos, which
+## answer host_socket) gives the input of the socket the adapter is in.
+func input_of_port(port: RcaPort) -> int:
+	for depth in 3:          # a block in a block is nothing real; bounded anyway
+		if port == null:
+			return -1
+		for i in _av_ports.size():
+			if (_av_ports[i] as Array).has(port):
+				return i
+		port = (port.call("host_socket") as RcaPort) if port.has_method("host_socket") else null
+	return -1
 
 
 ## Called when a cable plug leaves one of the video sockets.
@@ -737,10 +751,9 @@ func miswired(input: int) -> PackedStringArray:
 	var out := PackedStringArray()
 	if input < 0 or input >= _av_ports.size():
 		return out
-	var ports: Array = _av_ports[input]
 	for link: Dictionary in AvGraph.links_for(_tv):
 		var in_port := link["in"] as RcaPort
-		if not ports.has(in_port):
+		if input_of_port(in_port) != input:
 			continue
 		var from := link["out"] as RcaPort
 		# Per CORD, as AvSource.resolve reads it: an AV Multi Out (a Super NES's,

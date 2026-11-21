@@ -913,3 +913,13 @@ more layout entry.
 five inputs and no other socket; a Wii U on HDMI 2 is filed, shown, saved and restored on 82);
 `DevTools/av/tv_layout_probe` (windowed, `--shell=` stock / `retroxr_crt` / `crt_plain` /
 `xenu.panasonic:ct20d10b`: prints every input and checks the Panasonic's sockets sit on its markers).
+
+**A block in a set's socket (a SCART adaptor, SNSP-015) wears the set's INPUTS.** Its phono jacks
+are `AdapterRcaPort`s, direction IN, whose `get_device()` is the set its plug is in;
+`host_socket()` is that socket, and `TvPanel.input_of_port` files a jack through it on the
+socket's input (`_input_for_device` and `miswired` both go through it). A jack's
+`signal_kind` (a `TvSignal.Kind`, -1 none) is what the picture arriving through it is, so a
+composite cord into a SCART block draws as composite, not the SCART input's RGB
+(`TvDisplay.refresh_signal`). Pulling the block re-resolves the leads in its jacks
+(`AvAdapter._resolve`), or the console stays filed on the input. `av_tests`
+`_r_scart_block` builds one from the conversion lead's `AvAdapter`; the real block is a mod's.

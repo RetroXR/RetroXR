@@ -526,6 +526,16 @@ func apply_crt_params(mat: ShaderMaterial) -> void:
 ## moved. Called by the set on a source change and on every A/V topology change.
 func refresh_signal() -> void:
 	var kind := TvSignal.kind_of(_tv.current_source)
+	# A picture arriving through a jack that says what it is (a composite cord into a
+	# SCART block's phonos) is that, whatever the input's own kind.
+	for link: Dictionary in AvGraph.links_for(_tv):
+		var in_port := link.get("in") as RcaPort
+		if in_port == null or in_port.channel != RcaPort.Channel.VIDEO or not "signal_kind" in in_port:
+			continue
+		var said := int(in_port.get("signal_kind"))
+		if said >= 0 and _tv.panel().input_of_port(in_port) == _tv.current_source:
+			kind = said as TvSignal.Kind
+			break
 	var chroma := TvSignal.Chroma.FULL
 	if kind == TvSignal.Kind.COMPONENT:
 		var colors := _tv.component_color_ports(_tv.current_source)
