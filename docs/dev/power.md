@@ -1,7 +1,9 @@
 # Power: devices run only when plugged in
 
 The room has had the mains side for a long time: wall outlets (`WallOutlet`, a plate per
-region from `MainsRegions`), power strips (`PowerStrip`), travel adapters (`TravelAdapter`),
+region from `MainsRegions`), power strips (`PowerStrip`), extension cables (`ExtensionCable`, a one-outlet `PowerStrip`
+whose cord is cut to the length the Power tab row's hold picker asked for), travel adapters
+(`TravelAdapter`),
 the regional cords (`PowerCord`, seventeen baked `*_cord.tscn`, C7/C13 appliance ends) and
 `MainsSplice` keeping plugs seated through a change of region. Since 2026-11-01 something
 CONSUMES it: a console, a handheld, a set, a deck or a cabinet switches on only when a live
@@ -267,6 +269,10 @@ because nothing in it could ever be plugged in. The Arcade Room and the bedroom 
 
 ## Tests and probes
 
+- `Tests/extension_cable_tests`: each region's head and outlet, power through it (and
+  through a strip into it), its four lengths, a change of region, a save round trip, its
+  token and its Power tab row (mark, hold picker, MAKE DEFAULT). Heads are baked by
+  `gen_wall_outlet.gd -- --extension`.
 - `Tests/power_tests` (headless, no core): the graph (wall, strip, a strip in itself,
   travel adapter), PowerInput's answer and words, cells, the option and a room with no
   outlets, a console's built inlet / gate / pull / push button, a handheld's latching

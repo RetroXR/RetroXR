@@ -302,6 +302,7 @@ const STEREO_RCA_CABLE_SCENE := preload("res://Scenes/Objects/cables/stereo_rca_
 const POWER_CORD_SCENE       := preload("res://Scenes/Objects/cables/power_cord.tscn")
 const POWER_STRIP_SCENE      := preload("res://Scenes/Objects/appliances/power_strip.tscn")
 const TRAVEL_ADAPTER_SCENE   := preload("res://Scenes/Objects/appliances/travel_adapter.tscn")
+const EXTENSION_CABLE_SCENE  := preload("res://Scenes/Objects/appliances/extension_cable.tscn")
 const NEMA_1_15_C7_CORD_SCENE := preload(
 	"res://Scenes/Objects/cables/nema_1_15_to_c7_cord.tscn")
 const NEMA_1_15_C7P_CORD_SCENE := preload(
@@ -513,6 +514,7 @@ const LEAD_SCENES := {
 	"power_cord": POWER_CORD_SCENE,
 	"power_strip": POWER_STRIP_SCENE,
 	"travel_adapter": TRAVEL_ADAPTER_SCENE,
+	"extension_cable": EXTENSION_CABLE_SCENE,
 	# An AC adapter (PowerBrick): one scene for every adapter, which one in the
 	# entry's "brick" and "variant" (_restore_lead_fields).
 	"power_brick": preload("res://Scenes/Objects/power/power_brick.tscn"),
@@ -4036,6 +4038,8 @@ func _serialize_power_strip(strip: PowerStrip, id: int, n3d: Node3D,
 	var body_pose := strip.carried_body_pose()
 	if not body_pose.is_empty():
 		entry["body"] = body_pose
+	if strip is ExtensionCable:
+		entry["cord_length"] = (strip as ExtensionCable).cord_length
 	return entry
 
 
@@ -4170,6 +4174,9 @@ func _restore_lead_fields(obj: Node3D, data: Dictionary) -> void:
 		(obj as PowerBrick).variant = str(data.get("variant", ""))
 	if obj is TravelAdapter:
 		(obj as TravelAdapter).spliced = bool(data.get("spliced", false))
+	if obj is ExtensionCable:
+		(obj as ExtensionCable).cord_length = float(data.get("cord_length",
+			ExtensionCable.SHIPPED_LENGTH))
 	if obj is CompositeCable:
 		(obj as CompositeCable).plug_color_id = StringName(str(data.get("plug_color", "")))
 		(obj as CompositeCable).cord_length = float(data.get("cord_length", 0.0))

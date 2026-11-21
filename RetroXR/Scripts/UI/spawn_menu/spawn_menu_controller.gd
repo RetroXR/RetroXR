@@ -1375,6 +1375,14 @@ func _on_spawn_requested(raw: String) -> void:
 					lead.cord_length = parsed["length"]
 				_place_spawned(lead, "speaker_cable")
 			return
+		# A mains extension cable, cut to the length its row asked for before it
+		# enters the tree (ExtensionCable._ready lays the rope).
+		SpawnCatalog.TokenKind.EXTENSION_CABLE:
+			var ext := ScenePersistence.instantiate("extension_cable") as ExtensionCable
+			if ext != null:
+				ext.cord_length = parsed["length"]
+				_place_spawned(ext, "extension_cable")
+			return
 		# Bring an EXISTING card back into the room rather than minting a blank
 		# one. The id is the card's filename, so the object lands already
 		# pointing at the saves it left behind.

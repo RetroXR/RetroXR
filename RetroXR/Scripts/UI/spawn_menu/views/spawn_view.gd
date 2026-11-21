@@ -2899,6 +2899,8 @@ func _power_items() -> Array:
 	# And any wall plug into this room's wall: the region's prongs, a universal
 	# socket.
 	all.append(["Universal Travel Adapter", "travel_adapter"])
+	# One of this room's outlets on a cord; held, its length.
+	all.append(["Extension Cable", "extension_cable"])
 	all.append_array(PowerSpawnRows.brick_rows())
 	# The Virtual Boy's: on its controller's back, not the console (VbPowerUnit).
 	all.append(["Virtual Boy Battery Pack (VUE-007)", "vb_battery_pack"])
@@ -3049,6 +3051,8 @@ func _spawn_tab_button(item: Array) -> Button:
 		var hold := HoldPress.attach(btn)
 		hold.clicked.connect(spawn_requested.emit.bind(item[1]))
 		hold.held.connect(_show_lead_spawn_options.bind(item[0], item[1]))
+	elif item[1] == "extension_cable":
+		_wire_extension_row(btn, item[0])
 	elif item.size() > 2 and not (item[2] as Array).is_empty():
 		# A thing that comes in several looks (a battery's labels), as a console
 		# card's row does: pressed, the look its held panel made the default; held,
@@ -3064,6 +3068,97 @@ func _spawn_tab_button(item: Array) -> Button:
 	else:
 		btn.pressed.connect(spawn_requested.emit.bind(item[1]))
 	return btn
+
+
+## The extension cable row: pressed, the default length; held, the length picker.
+## At its right end, the room's outlet and the length a press gives.
+func _wire_extension_row(btn: Button, label: String) -> void:
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	var hold := HoldPress.attach(btn)
+	hold.clicked.connect(func() -> void:
+		spawn_requested.emit("extension_cable:%s" % str(_extension_length())))
+	hold.held.connect(_show_extension_spawn_options.bind(label))
+	_mark_extension_row(btn)
+
+
+## What a plain press of the extension row gives: its MAKE DEFAULT length, else 3 m.
+func _extension_length() -> float:
+	var picked := AppPrefs.spawn_default(_default_key(POWER_CARD, "extension_cable")).to_float()
+	for row: Array in ExtensionCable.SPAWN_LENGTHS:
+		if is_equal_approx(float(row[0]), picked):
+			return picked
+	return ExtensionCable.SHIPPED_LENGTH
+
+
+## "🇺🇸 <outlet>  Type B · 3 m" at the row's right end.
+func _mark_extension_row(btn: Button) -> void:
+	var region := AppPrefs.mains_region
+	var strip: Dictionary = MainsRegions.of(region).get("strip", {})
+	var mark := btn.get_node_or_null("RegionMark") as Label
+	if mark == null:
+		mark = Label.new()
+		mark.name = "RegionMark"
+		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mark.add_theme_font_override("font", MenuIcons.symbols())
+		mark.add_theme_font_size_override("font_size", 26)
+		mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		mark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		mark.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+		mark.offset_left = -360
+		mark.offset_right = -18
+		btn.add_child(mark)
+	var length := ExtensionCable.length_label(_extension_length())
+	var kind := ExtensionCable.outlet_type(region)
+	mark.text = "%s %s  %s · %s" % [MainsRegions.flag_of(region),
+		String.chr(MainsRegions.plug_glyph(str(strip.get("plug", "")), region)), kind, length]
+	btn.tooltip_text = "%s, %s outlet, %s. Hold to choose another length." % [
+		str(MainsRegions.of(region).get("label", region)), kind, length]
+
+
+## The extension cable's length: a button per length, MAKE DEFAULT and SPAWN.
+## Opens on the row's default.
+func _show_extension_spawn_options(label: String) -> void:
+	var vbox := _open_spawn_options_panel(label)
+	var key := _default_key(POWER_CARD, "extension_cable")
+	var chosen := {"m": _extension_length()}
+	var region := AppPrefs.mains_region
+	vbox.add_child(MenuStyle.header("Length  (%s outlet)" % ExtensionCable.outlet_type(region)))
+	var lengths := MenuStyle.hbox(10)
+	lengths.name = "Lengths"
+	vbox.add_child(lengths)
+	var make_default := MenuStyle.row_button("  MAKE DEFAULT", 22, 0, 64, false)
+	make_default.name = "MakeDefault"
+	var show_default := func() -> void:
+		var is_default := is_equal_approx(float(chosen["m"]), _extension_length())
+		make_default.disabled = is_default
+		make_default.text = "  DEFAULT FOR THIS ROW" if is_default else "  MAKE DEFAULT"
+	var group := ButtonGroup.new()
+	var plain := Color(0.18, 0.18, 0.35)
+	for row: Array in ExtensionCable.SPAWN_LENGTHS:
+		var b := _swatch_button(row[1], plain, group)
+		b.button_pressed = is_equal_approx(float(row[0]), float(chosen["m"]))
+		b.pressed.connect(func() -> void:
+			chosen["m"] = float(row[0])
+			show_default.call())
+		lengths.add_child(b)
+	vbox.add_child(MenuStyle.spacer(6))
+	show_default.call()
+	make_default.pressed.connect(func() -> void:
+		var m := float(chosen["m"])
+		AppPrefs.set_spawn_default(key,
+			"" if is_equal_approx(m, ExtensionCable.SHIPPED_LENGTH) else str(m))
+		show_default.call()
+		refresh_power_tab())
+	vbox.add_child(make_default)
+	var go := MenuStyle.row_button("  +  SPAWN", 26, 0, 80, false)
+	go.name = "SpawnVariant"
+	go.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 8))
+	go.pressed.connect(func() -> void:
+		var m := float(chosen["m"])
+		_close_spawn_options_panel()
+		spawn_requested.emit("extension_cable:%s" % str(m)))
+	vbox.add_child(go)
 
 
 ## Keep the stock TVs, then offer every registered cabinet using the same

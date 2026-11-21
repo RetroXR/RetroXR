@@ -1483,6 +1483,7 @@ enum TokenKind {
 	TV_SHELL,       ## "tv:<shell>" -- shell
 	CONSOLE_STAND,  ## "console_stand:<id>" -- stand_id (a StandCatalog id)
 	POWER_BRICK,    ## "power_brick:<id>" -- brick_id (a PowerBrickCatalog id); variant = its region's model
+	EXTENSION_CABLE, ## "extension_cable[:<length>]" -- length (metres)
 	MOD,            ## "mod:<type>" -- mod_type
 	PLAIN,          ## anything else: a literal type, a persistence type or a bare systemid
 }
@@ -1519,6 +1520,10 @@ static func parse_token(raw: String) -> Dictionary:
 		parsed["color"] = fields[0]
 		parsed["has_length"] = fields.size() > 1
 		parsed["length"] = fields[1].to_float() if fields.size() > 1 else 0.0
+	elif type == "extension_cable" or type.begins_with("extension_cable:"):
+		parsed["kind"] = TokenKind.EXTENSION_CABLE
+		var metres := type.substr("extension_cable:".length()).to_float() 			if type.contains(":") else 0.0
+		parsed["length"] = metres if metres > 0.0 else ExtensionCable.SHIPPED_LENGTH
 	elif type.begins_with("memcard:"):
 		# Split on the FIRST colon only: sanitize_card_name strips colons from a
 		# card's name, so neither the family nor the id can contain one.

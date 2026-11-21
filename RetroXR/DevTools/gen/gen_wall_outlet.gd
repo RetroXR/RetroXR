@@ -3,6 +3,7 @@
 ## body, which is a plate too, lying on its back.
 ##
 ##   godot --headless --path RetroXR --script res://DevTools/gen/gen_wall_outlet.gd
+##   ... -- --extension    only each region's extension cable head (ExtensionCable)
 ##
 ## Like gen_light_switch.gd, each mesh is authored at real scale with +X across
 ## the wall, +Y up, and +Z out of the wall, the origin on the wall surface.
@@ -86,6 +87,13 @@ func _init() -> void:
 	var regions: Dictionary = (load("res://Scripts/Data/catalogs/mains_regions.gd") as GDScript) \
 		.get_script_constant_map()["REGIONS"]
 	var failed := 0
+	if OS.get_cmdline_user_args().has("--extension"):
+		for id: String in regions:
+			var head := ExtensionCable.head_of(id)
+			if not _bake("ext_" + id, {"sockets": [head["socket"]], "mesh": head["mesh"]}):
+				failed += 1
+		quit(1 if failed > 0 else 0)
+		return
 	for id: String in regions:
 		if not PLATES.has(id):
 			print("[gen] %s: no plate in PLATES" % id)
@@ -103,7 +111,7 @@ func _init() -> void:
 
 
 func _bake(id: String, region: Dictionary) -> bool:
-	var plate: Dictionary = PLATES[id] if PLATES.has(id) else _strip_plate(id)
+	var plate: Dictionary = PLATES[id] if PLATES.has(id) 		else _head_plate(id) if id.begins_with("ext_") else _strip_plate(id)
 	var thick := float(plate["thick"]) * 0.001
 	var size: Vector2 = plate["size"] * 0.0005
 	var radius := float(plate["radius"]) * 0.001
@@ -200,6 +208,13 @@ func _strip_plate(id: String) -> Dictionary:
 	return {"size": Vector2(size.x, size.y), "radius": 6.0, "thick": size.z, "tone": WHITE,
 		"face": "flat", "closed": true, "switch_size": Vector2(12.0, 20.0),
 		"switches": [Vector2(size.x * 0.5 - room * 0.5, 0)] if room > 0.0 else []}
+
+
+## An extension cable's head: a closed block round its one socket.
+func _head_plate(id: String) -> Dictionary:
+	var size: Vector3 = ExtensionCable.head_of(id.trim_prefix("ext_"))["size"]
+	return {"size": Vector2(size.x, size.y), "radius": 5.0, "thick": size.z, "tone": WHITE,
+		"face": "flat", "closed": true}
 
 
 ## One receptacle: its face (or well), the dark apertures of its holes, and any

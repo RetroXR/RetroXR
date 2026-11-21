@@ -29,7 +29,7 @@ const PLATE_AT := Transform3D(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1,
 const PORT_SCENE := preload("res://Scenes/Objects/cables/power_port.tscn")
 
 @onready var _body: RigidBody3D = $Body
-@onready var _attach: Node3D = $Body/Shell/PowerStrip/CordAnchor
+@onready var _attach: Node3D = get_node(_anchor_path())
 @onready var rope: VerletRope = $VerletRope
 @onready var wall_plug: PowerPlug = $WallPlug
 
@@ -79,6 +79,11 @@ func _build_rope() -> void:
 	_rope_built = true
 
 
+## Where the cord leaves the body; a subclass with a body of its own names its own.
+func _anchor_path() -> NodePath:
+	return ^"Body/Shell/PowerStrip/CordAnchor"
+
+
 ## Keep the cord within its reach, moving whichever end is NOT owned — the Antenna's
 ## rule. A seated plug counts as owned (a snap zone freezes what it holds), so a strip
 ## plugged into the wall is hauled back toward the outlet when it is let go of.
@@ -113,6 +118,12 @@ func set_region(id: String) -> void:
 		_build_body(want, spec)
 	else:
 		_us_body(str(spec.get("socket", "nema_5_15_plug")))
+	_fit_plug(spec)
+
+
+## The region's wall plug on the cord: its prongs and its mesh. Out of a socket
+## that no longer takes it.
+func _fit_plug(spec: Dictionary) -> void:
 	wall_plug.set_connector(str(spec.get("plug", wall_plug.connector)))
 	var tip := wall_plug.get_node_or_null("PlugTip") as MeshInstance3D
 	var mesh_path := str(spec.get("plug_mesh", ""))
