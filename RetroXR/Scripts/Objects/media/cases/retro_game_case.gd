@@ -31,6 +31,13 @@ const FLIPPER_FRICTION := 0.12
 ## it eases this far back the way it came [E: no case measured].
 const KEEP_AJAR_DEG := 4.0
 const KEEP_SPRINGBACK_DEG := 4.0
+## The case's sounds (Tools/gen/gen_case_sounds.py): <family>_open and _close as the latch lets go and catches, and
+## as the lid turns a jewel case's pins creak, a keep case's hinge and sleeve rustle, once in about this much travel.
+const SFX_DIR := "res://Audio/cases/"
+const SFX_TURN := {"jewel": "creak", "keep": "hinge"}
+const SFX_TURN_DEG := 60.0
+## A restore's first poses are not a hand's: no sound for this many physics ticks.
+const SFX_QUIET_TICKS := 45
 ## The case's turn about its spine: speeding up faster than this (rad/s^2) is a teleport or a grab's first frame;
 ## slower than SPIN_QUIET, the tracking's tremor.
 const SPIN_CUT := 800.0
@@ -108,6 +115,13 @@ var _front_tries := 0
 var _pos_hist: Array[Vector3] = []
 var _accel := Vector3.ZERO
 var _lid_pivot := Vector3.ZERO
+static var _sfx_clips: Dictionary = {}           # "<family>_<kind>" -> Array of PackedVector2Array
+var _sfx_voices := {}                            # "snap" / "turn" -> PcmOneShot, made at the first sound
+var _sfx_ticks := 0
+var _sfx_latched := true
+var _sfx_lid := 0.0
+var _sfx_travel := 0.0
+var _sfx_next := 15.0
 var _prev_rot := Quaternion.IDENTITY
 var _has_rot := false
 var _turn := 0.0
@@ -684,6 +698,8 @@ func _physics_process(delta: float) -> void:
 			moved = true
 		elif absf(hinge.get_rotation_deg() - sim.angle_deg(i)) > 0.05:
 			sim.set_angle_deg(i, hinge.get_rotation_deg())   # a restore or a peer put it there
+			if i == sim.top() and hinge.get_rotation_deg() <= 0.05:
+				sim.latched = true                           # shut there, it is caught here too
 			moved = true
 		_was_held[i] = held
 	var spin := _spin if absf(_spin) > SPIN_QUIET else 0.0
@@ -695,6 +711,53 @@ func _physics_process(delta: float) -> void:
 		var ctrl := get_picked_up_by_controller()
 		if ctrl != null:
 			Haptics.pulse(ctrl, 0.45, 12, LATCH_HAPTIC_KEY)
+	_sound(delta)
+
+
+## The latch's snap as it catches or lets go, and the hinge's creak as the lid travels.
+func _sound(delta: float) -> void:
+	_sfx_ticks += 1
+	var lid := sim.angle_deg(sim.top())
+	if _sfx_ticks > SFX_QUIET_TICKS:
+		if sim.latched != _sfx_latched:
+			_play_sfx("snap", "close" if sim.latched else "open", 0.6)
+			_sfx_travel = 0.0
+			_sfx_next = 15.0
+		elif not sim.latched:
+			_sfx_travel += absf(lid - _sfx_lid)
+			if _sfx_travel >= _sfx_next:
+				_sfx_travel = 0.0
+				_sfx_next = SFX_TURN_DEG * randf_range(0.7, 1.4)
+				var speed := absf(lid - _sfx_lid) / delta
+				_play_sfx("turn", str(SFX_TURN.get(case_family, "creak")), clampf(speed / 600.0, 0.2, 0.45))
+	_sfx_latched = sim.latched
+	_sfx_lid = lid
+
+
+func _play_sfx(voice: String, kind: String, volume: float) -> void:
+	var key := "%s_%s" % [case_family, kind]
+	if not _sfx_clips.has(key):
+		var found: Array = []
+		var n := 1
+		while ResourceLoader.exists("%s%s_%02d.wav" % [SFX_DIR, key, n]):
+			var frames := PcmClip.load_frames("%s%s_%02d.wav" % [SFX_DIR, key, n])
+			if not frames.is_empty():
+				found.append(frames)
+			n += 1
+		_sfx_clips[key] = found
+	var clips: Array = _sfx_clips[key]
+	if clips.is_empty():
+		return
+	var v := _sfx_voices.get(voice) as PcmOneShot
+	if v == null:
+		v = PcmOneShot.new()
+		v.name = "Sfx_%s" % voice
+		v.unit_size = 0.6
+		v.max_distance = 3.0
+		add_child(v)
+		_sfx_voices[voice] = v
+	v.volume = volume
+	v.play(clips[randi() % clips.size()])
 
 
 ## What the lid feels of the case's own motion: the hinge line's acceleration (so a turn about the spine adds no
