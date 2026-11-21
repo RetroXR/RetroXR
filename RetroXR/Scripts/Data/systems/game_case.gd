@@ -39,7 +39,10 @@ const SYSTEMS := {
 const DEFAULT_ROW := ["jewel", "single", ""]
 ## How many discs each multi-disc case holds.
 const CAPACITY := {"double": 2, "fatbox2": 2, "fatbox4": 4, "pal_multi2": 2, "pal_multi4": 4, "triple": 3,
-	"multi5": 5}
+	"multi5": 5, "gc_double": 2, "gc_double_pal": 2, "gc_jp_double": 2}
+## A two-disc GameCube game's case, by market: two hubs on the back panel in North America, a flap over the hub in
+## Europe, the second disc under the cover's strap in Japan (generic/dvd-case/references/gamecube_double).
+const GC_DOUBLE := {"us": "gc_double", "eu": "gc_double_pal", "jp": "gc_jp_double"}
 
 
 ## The case for a game. `market` "us", "eu" or "jp" (anything else counts as "us"); `discs` how many it has;
@@ -77,10 +80,12 @@ static func is_long_box(systemid: String, box_size: Vector2i, release := "") -> 
 	return not cutoff.is_empty() and month.length() == 7 and month < cutoff
 
 
-## The case for a game of several discs, or the single's variant when that family has nothing bigger (a GameCube,
-## an Xbox 360 or a UMD case holds one; the others' extra discs travel loose).
+## The case for a game of several discs, or the single's variant when that family has nothing bigger (an Xbox 360
+## or a UMD case holds one; the others' extra discs travel loose).
 static func _multi_variant(sys: String, market: String, family: String, single: String, discs: int) -> Array:
 	if family == "keep":
+		if sys == "gc" and discs == 2 and single in ["gc", "gc_jp"]:
+			return ["keep", str(GC_DOUBLE.get(market, "gc_double"))]
 		if single in ["single", "ps2"]:
 			return ["keep", "double" if discs == 2 else ("triple" if discs == 3 else "multi5")]
 		if sys == "saturn":                 # the PAL Saturn's multi-disc games came in jewel cases

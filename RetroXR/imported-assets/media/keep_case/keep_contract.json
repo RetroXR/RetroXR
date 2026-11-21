@@ -813,6 +813,411 @@
     "spine_mm": 14.0
    }
   },
+  "gc_double": {
+   "variant": "gc_double",
+   "thickness_mm": 14.0,
+   "size_mm": [
+    135.0,
+    190.0,
+    14.0
+   ],
+   "discs": [
+    "back",
+    "back"
+   ],
+   "seats": [
+    {
+     "name": "DiscSeat1",
+     "center_mm": [
+      -18.15,
+      50.0,
+      -4.2
+     ],
+     "hub_axis": [
+      0,
+      0,
+      1
+     ],
+     "carrier": "Body",
+     "parent": null
+    },
+    {
+     "name": "DiscSeat2",
+     "center_mm": [
+      -18.15,
+      -50.0,
+      -4.2
+     ],
+     "hub_axis": [
+      0,
+      0,
+      1
+     ],
+     "carrier": "Body",
+     "parent": null
+    }
+   ],
+   "manual": {
+    "name": "ManualSeat",
+    "center_mm": [
+     -0.15,
+     0.0,
+     5.2
+    ],
+    "up": "+Y",
+    "front": "+Z (into the case)",
+    "size_mm": [
+     120.0,
+     180.0
+    ],
+    "parent": "Cover"
+   },
+   "pivots": [
+    {
+     "node": "Spine",
+     "pivot_mm": [
+      -67.5,
+      0.0,
+      -7.0
+     ],
+     "axis": "-Y opens",
+     "open_max_deg": 90.0
+    },
+    {
+     "node": "Cover",
+     "pivot_mm": [
+      -67.5,
+      0.0,
+      7.0
+     ],
+     "axis": "-Y opens",
+     "open_max_deg": 90.0
+    }
+   ],
+   "card_seat": {
+    "name": "CardSeat",
+    "center_mm": [
+     37.85,
+     0.0,
+     -3.3
+    ],
+    "size_mm": [
+     36.5,
+     43.0,
+     5.0
+    ],
+    "parent": null
+   },
+   "default_color": null,
+   "disc_mm": 80.0,
+   "spine": {
+    "node": "Spine",
+    "pivot_mm": [
+     -67.5,
+     0.0,
+     -7.0
+    ],
+    "open_max_deg": 90.0
+   },
+   "cover": {
+    "node": "Cover",
+    "pivot_mm": [
+     -67.5,
+     0.0,
+     7.0
+    ],
+    "open_max_deg": 90.0,
+    "parent": "Spine"
+   },
+   "leaves": [],
+   "tray": "gc_na2",
+   "art": {
+    "material": "Keep_Art",
+    "sheet_mm": [
+     273.0,
+     183.0
+    ],
+    "back_mm": 129.5,
+    "spine_mm": 14.0
+   }
+  },
+  "gc_double_pal": {
+   "variant": "gc_double_pal",
+   "thickness_mm": 14.0,
+   "size_mm": [
+    135.0,
+    190.0,
+    14.0
+   ],
+   "discs": [
+    "back",
+    "leaf1"
+   ],
+   "seats": [
+    {
+     "name": "DiscSeat1",
+     "center_mm": [
+      4.85,
+      8.0,
+      -4.2
+     ],
+     "hub_axis": [
+      0,
+      0,
+      1
+     ],
+     "carrier": "Body",
+     "parent": null
+    },
+    {
+     "name": "DiscSeat2",
+     "center_mm": [
+      4.85,
+      8.0,
+      -0.6
+     ],
+     "hub_axis": [
+      0,
+      0,
+      1
+     ],
+     "carrier": "Leaf1",
+     "parent": "Leaf1"
+    }
+   ],
+   "manual": {
+    "name": "ManualSeat",
+    "center_mm": [
+     -0.15,
+     0.0,
+     5.2
+    ],
+    "up": "+Y",
+    "front": "+Z (into the case)",
+    "size_mm": [
+     120.0,
+     180.0
+    ],
+    "parent": "Cover"
+   },
+   "pivots": [
+    {
+     "node": "Spine",
+     "pivot_mm": [
+      -67.5,
+      0.0,
+      -7.0
+     ],
+     "axis": "-Y opens",
+     "open_max_deg": 90.0
+    },
+    {
+     "node": "Cover",
+     "pivot_mm": [
+      -67.5,
+      0.0,
+      7.0
+     ],
+     "axis": "-Y opens",
+     "open_max_deg": 90.0
+    },
+    {
+     "node": "Leaf1",
+     "pivot_mm": [
+      -64.4,
+      0.0,
+      -2.1
+     ],
+     "axis": "-Y opens",
+     "open_max_deg": 180.0
+    }
+   ],
+   "card_seat": {
+    "name": "CardSeat",
+    "center_mm": [
+     -25.15,
+     -68.0,
+     -3.3
+    ],
+    "size_mm": [
+     36.5,
+     43.0,
+     5.0
+    ],
+    "parent": null
+   },
+   "default_color": null,
+   "disc_mm": 80.0,
+   "spine": {
+    "node": "Spine",
+    "pivot_mm": [
+     -67.5,
+     0.0,
+     -7.0
+    ],
+    "open_max_deg": 90.0
+   },
+   "cover": {
+    "node": "Cover",
+    "pivot_mm": [
+     -67.5,
+     0.0,
+     7.0
+    ],
+    "open_max_deg": 90.0,
+    "parent": "Spine"
+   },
+   "leaves": [
+    {
+     "node": "Leaf1",
+     "pivot_mm": [
+      -64.4,
+      0.0,
+      -2.1
+     ],
+     "open_max_deg": 180.0,
+     "parent": null
+    }
+   ],
+   "tray": "gc",
+   "art": {
+    "material": "Keep_Art",
+    "sheet_mm": [
+     273.0,
+     183.0
+    ],
+    "back_mm": 129.5,
+    "spine_mm": 14.0
+   }
+  },
+  "gc_jp_double": {
+   "variant": "gc_jp_double",
+   "thickness_mm": 17.0,
+   "size_mm": [
+    107.0,
+    149.0,
+    17.0
+   ],
+   "discs": [
+    "back",
+    "strap"
+   ],
+   "seats": [
+    {
+     "name": "DiscSeat1",
+     "center_mm": [
+      -0.15,
+      -24.0,
+      -5.7
+     ],
+     "hub_axis": [
+      0,
+      0,
+      1
+     ],
+     "carrier": "Body",
+     "parent": null
+    },
+    {
+     "name": "DiscSeat2",
+     "center_mm": [
+      -0.15,
+      -24.0,
+      4.1
+     ],
+     "hub_axis": [
+      0,
+      0,
+      -1
+     ],
+     "carrier": "Cover",
+     "parent": "Cover"
+    }
+   ],
+   "manual": {
+    "name": "ManualSeat",
+    "center_mm": [
+     -0.15,
+     0.0,
+     6.7
+    ],
+    "up": "+Y",
+    "front": "+Z (into the case)",
+    "size_mm": [
+     95.0,
+     140.0
+    ],
+    "parent": "Cover"
+   },
+   "pivots": [
+    {
+     "node": "Spine",
+     "pivot_mm": [
+      -53.5,
+      0.0,
+      -8.5
+     ],
+     "axis": "-Y opens",
+     "open_max_deg": 90.0
+    },
+    {
+     "node": "Cover",
+     "pivot_mm": [
+      -53.5,
+      0.0,
+      8.5
+     ],
+     "axis": "-Y opens",
+     "open_max_deg": 90.0
+    }
+   ],
+   "card_seat": {
+    "name": "CardSeat",
+    "center_mm": [
+     -0.15,
+     47.1,
+     -4.8
+    ],
+    "size_mm": [
+     36.5,
+     43.0,
+     5.0
+    ],
+    "parent": null
+   },
+   "default_color": "clear",
+   "disc_mm": 80.0,
+   "spine": {
+    "node": "Spine",
+    "pivot_mm": [
+     -53.5,
+     0.0,
+     -8.5
+    ],
+    "open_max_deg": 90.0
+   },
+   "cover": {
+    "node": "Cover",
+    "pivot_mm": [
+     -53.5,
+     0.0,
+     8.5
+    ],
+    "open_max_deg": 90.0,
+    "parent": "Spine"
+   },
+   "leaves": [],
+   "tray": "gc_jp",
+   "art": {
+    "material": "Keep_Art",
+    "sheet_mm": [
+     220.0,
+     142.0
+    ],
+    "back_mm": 101.5,
+    "spine_mm": 17.0
+   }
+  },
   "gc_jp": {
    "variant": "gc_jp",
    "thickness_mm": 17.0,

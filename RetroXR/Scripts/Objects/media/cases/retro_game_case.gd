@@ -71,7 +71,8 @@ const MANUAL_T := 0.0012
 const POINTER_OPEN_DEG := 15.0
 const POINTER_SKIN := 0.0015
 const DISC_HALF_T := 0.0006
-const CARD_FAMILIES := {"ps2": "playstation2", "gc": "gamecube", "gc_jp": "gamecube"}
+const CARD_FAMILIES := {"ps2": "playstation2", "gc": "gamecube", "gc_jp": "gamecube", "gc_double": "gamecube",
+	"gc_double_pal": "gamecube", "gc_jp_double": "gamecube"}
 ## How a card lies in its holder (seat frame: +X across, +Y up the case, +Z out of the panel). The PS2 holder is
 ## landscape: the card lies along it, label out, its +Z end toward the opening edge (gauntlet/refs/trayrefs/ps2/
 ## ps2_case_inside_memory_card_holder_commons.jpg; the owner, 2026-11-21: turned 180 from the first try). The

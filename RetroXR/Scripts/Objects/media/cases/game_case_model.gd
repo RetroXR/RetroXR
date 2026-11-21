@@ -64,7 +64,7 @@ const SHELL_PRESETS := {
 	"ps5_blue": Color(0.06, 0.24, 0.62, 0.6), "xbox_one_green": Color(0.10, 0.55, 0.16, 0.55),
 	"wiiu_blue": Color(0.0, 0.60, 0.80, 1.0),
 }
-const DEFAULT_COLORS := {"gc_jp": "clear", "bluray": "bd_blue", "bluray_game": "bd_blue", "x360": "x360_green",
+const DEFAULT_COLORS := {"gc_jp": "clear", "gc_jp_double": "clear", "bluray": "bd_blue", "bluray_game": "bd_blue", "x360": "x360_green",
 	"umd": "clear", "wiiu": "wiiu_blue"}
 ## Flippers turn like pages: each stays this far behind the one above once that one has moved (KeepCase).
 const LEAF_SPREAD := 15.0
