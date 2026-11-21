@@ -59,7 +59,7 @@ func _build() -> void:
 
 ## options: Array of [display_name: String, id: Variant, (Texture2D)].
 func set_options(options: Array, current_id: Variant, font: Font = null,
-				 font_size: int = 22, columns: int = 1) -> void:
+				 font_size: int = 22, columns: int = 1, disabled: Array = []) -> void:
 	_build()
 	_list.columns = maxi(1, columns)
 	for c in _list.get_children():
@@ -82,6 +82,9 @@ func set_options(options: Array, current_id: Variant, font: Font = null,
 		if entry.size() > 2 and entry[2] is Texture2D:
 			btn.icon = entry[2]
 			btn.add_theme_constant_override("icon_max_width", 32)
+		if disabled.has(entry[1]):
+			btn.disabled = true
+			btn.modulate.a = 0.4
 		var captured: Variant = entry[1]
 		btn.pressed.connect(func() -> void: _choose(captured))
 		_list.add_child(btn)

@@ -740,19 +740,22 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 		"On: devices need power: plug them in, put cells in (turning this on switches off anything running unplugged). Off: everything powers as if plugged in.")
 	vbox.add_child(HSeparator.new())
 
-	# Physical XR device presentation. The mode updates the live rig; the runtime
-	# hand mesh falls back to controller art if joints or geometry are absent.
+	# Physical XR device presentation. The mode updates the live rig; without
+	# runtime hand joints a hand is posed from the controller's touch sensors, and
+	# without controller art the controller modes are grayed out and draw as Hands.
 	if MenuStyle.is_vr_mode():
 		var display_drop := VRDropdown.create("XR Display", [
 			["Controllers", AppPrefs.XRDisplayMode.CONTROLLERS],
 			["Hands", AppPrefs.XRDisplayMode.HANDS],
 			["Controllers + Hands", AppPrefs.XRDisplayMode.BOTH],
-		], AppPrefs.xr_display_mode, 1, Vector2(300, 52), MenuStyle.MENU_NAME_SIZE)
+		], ControllerArt.display_mode(), 1, Vector2(300, 52), MenuStyle.MENU_NAME_SIZE)
 		display_drop.item_selected.connect(func(id: Variant) -> void:
 			AppPrefs.xr_display_mode = int(id) as AppPrefs.XRDisplayMode
 			AppPrefs.save_prefs()
 			xr_display_mode_changed.emit(AppPrefs.xr_display_mode)
 		)
+		_sync_display_drop(display_drop)
+		ControllerArt.listen(_sync_display_drop.bind(display_drop))
 		vbox.add_child(display_drop)
 		vbox.add_child(HSeparator.new())
 
@@ -2412,3 +2415,14 @@ func _update_ra_status() -> void:
 		_ra_token_edit.text = RA.config.token
 
 	_ra_status_label.text = line
+
+
+## Grays out the modes that need controller art once the runtime has served none,
+## and shows the mode actually drawn.
+func _sync_display_drop(drop: VRDropdown) -> void:
+	if not is_instance_valid(drop):
+		return
+	var missing := ControllerArt.availability() == ControllerArt.Availability.MISSING
+	drop.set_disabled_ids([AppPrefs.XRDisplayMode.CONTROLLERS, AppPrefs.XRDisplayMode.BOTH]
+		if missing else [])
+	drop.select_id(ControllerArt.display_mode())

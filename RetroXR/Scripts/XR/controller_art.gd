@@ -60,6 +60,60 @@ var _settle := 0
 var _owned := {}
 var _reported := ""
 
+enum Availability {
+	UNKNOWN,
+	AVAILABLE,
+	MISSING,
+}
+
+const FB_EXTENSION := "OpenXRFbRenderModelExtension"
+
+## Which controllers ended with art, by instance id: true found, false none.
+## Shared, so the options menu can gray out the modes that would draw nothing.
+static var _resolved := {}
+static var _listeners: Array[Callable] = []
+
+
+## AVAILABLE once any controller has art, MISSING once every one that resolved
+## has none.
+static func availability() -> Availability:
+	if _resolved.is_empty():
+		return Availability.UNKNOWN
+	return Availability.AVAILABLE if true in _resolved.values() else Availability.MISSING
+
+
+## The mode to draw with. Without controller art the controller modes would show
+## nothing of the controller, so they draw as Hands; the saved preference stays
+## for a headset that serves a model.
+static func display_mode() -> AppPrefs.XRDisplayMode:
+	if availability() == Availability.MISSING:
+		return AppPrefs.XRDisplayMode.HANDS
+	return AppPrefs.xr_display_mode
+
+
+## Called with no arguments whenever availability() changes. Pass a bound
+## method, not a lambda: a lambda held in this static crashes Godot 4.7 at exit.
+static func listen(callback: Callable) -> void:
+	_listeners.append(callback)
+
+
+func _note(has: bool) -> void:
+	var before := availability()
+	_resolved[get_instance_id()] = has
+	if availability() == before:
+		return
+	var live: Array[Callable] = []
+	for cb in _listeners:
+		if cb.is_valid():
+			live.append(cb)
+	_listeners = live
+	for cb in live:
+		cb.call()
+
+
+func _exit_tree() -> void:
+	_resolved.erase(get_instance_id())
+
 
 func _init() -> void:
 	set_process(false)
@@ -154,6 +208,7 @@ func _try_core() -> bool:
 	source = Source.CORE
 	_mark_dirty()
 	_report("core (XR_EXT_render_model)")
+	_note(true)
 	return true
 
 
@@ -167,12 +222,22 @@ func _core_tracker_filter() -> int:
 func _try_fb() -> bool:
 	if not ClassDB.can_instantiate(FB_MODEL):
 		_report("none (no render model API)")
+		_note(false)
 		return false
 	# The plugin binary ships on the desktop editor too, so the class existing
 	# says nothing about the runtime behind it.
 	if not bool(ProjectSettings.get_setting(FB_SETTING, false)):
 		_report("none (%s is off)" % FB_SETTING)
+		_note(false)
 		return false
+	# Meta's PC runtime offers it only with Developer Runtime Features on; known
+	# now, rather than after the retries.
+	if Engine.has_singleton(FB_EXTENSION):
+		var ext: Object = Engine.get_singleton(FB_EXTENSION)
+		if ext.has_method("is_enabled") and not ext.call("is_enabled"):
+			_report("none (the runtime does not offer XR_FB_render_model)")
+			_note(false)
+			return false
 
 	if _fb == null:
 		_ensure_grip_anchor()
@@ -207,11 +272,13 @@ func _adopt_fb() -> void:
 	_update_grip_anchor()
 	_mark_dirty()
 	_report("vendor (XR_FB_render_model)")
+	_note(true)
 
 
 func _schedule_fb_retry() -> void:
 	if _retry >= FB_RETRY_SECONDS.size():
 		_report("none (no model from XR_FB_render_model)")
+		_note(false)
 		return
 	var wait := FB_RETRY_SECONDS[_retry]
 	_retry += 1

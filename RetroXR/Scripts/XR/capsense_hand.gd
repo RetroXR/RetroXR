@@ -86,7 +86,7 @@ func is_hand_available() -> bool:
 ## and composing it through this XRNode3D also carries the origin's reference
 ## frame and world-scale handling.
 func index_tip_position() -> Variant:
-	if AppPrefs.xr_display_mode == AppPrefs.XRDisplayMode.CONTROLLERS:
+	if ControllerArt.display_mode() == AppPrefs.XRDisplayMode.CONTROLLERS:
 		return null
 	var ht := hand_tracker()
 	if ht == null or not ht.has_tracking_data \
@@ -123,7 +123,7 @@ func index_tip_radius() -> float:
 
 
 func apply_display_mode() -> void:
-	var mode: int = AppPrefs.xr_display_mode
+	var mode: int = ControllerArt.display_mode()
 	var source := hand_source()
 	var available := is_hand_available()
 	var holding := _controller != null and not PokeTip.is_poking(_controller)

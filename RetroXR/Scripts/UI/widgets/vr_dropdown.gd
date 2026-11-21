@@ -64,6 +64,8 @@ var _opt_btns: Array[Button] = []
 var _ids: Array = []
 var _options: Array = []
 var _current_id: Variant = null
+## Ids shown grayed out and refused.
+var _disabled: Array = []
 var _grid_cols := 1
 var _font_size := 18
 var _placeholder := ""
@@ -183,8 +185,26 @@ func set_options(options: Array, current_id: Variant) -> void:
 		_list.add_child(btn)
 		_opt_btns.append(btn)
 
+	_apply_disabled()
 	_refresh_labels()
 	close()
+
+
+## Gray these ids out and refuse them. Does not change the selection.
+func set_disabled_ids(ids: Array) -> void:
+	_disabled = ids.duplicate()
+	_apply_disabled()
+
+
+func is_id_disabled(id: Variant) -> bool:
+	return _disabled.has(id)
+
+
+func _apply_disabled() -> void:
+	for i in _opt_btns.size():
+		var off := _disabled.has(_ids[i])
+		_opt_btns[i].disabled = off
+		_opt_btns[i].modulate.a = 0.4 if off else 1.0
 
 
 ## Select by id without emitting item_selected (for populate()-style calls).
@@ -396,12 +416,14 @@ func _open_popout() -> bool:
 
 	var rect := Rect2(_toggle.global_position, _toggle.size)
 	_popout.show_for(host, rect, _options, _current_id,
-		_label.get_theme_font("font"), _grid_cols)
+		_label.get_theme_font("font"), _grid_cols, _disabled)
 	_panel.visible = false
 	return true
 
 
 func _on_popout_chosen(id: Variant) -> void:
+	if _disabled.has(id):
+		return
 	_current_id = id
 	_refresh_labels()
 	close()
@@ -431,7 +453,7 @@ static func _float_host_for(node: Node) -> Control:
 
 
 func _on_item_pressed(id: Variant) -> void:
-	if not _accept_activation():
+	if not _accept_activation() or _disabled.has(id):
 		return
 	_current_id = id
 	_refresh_labels()

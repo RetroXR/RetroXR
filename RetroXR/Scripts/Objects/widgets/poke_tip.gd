@@ -361,7 +361,7 @@ func _process(delta: float) -> void:
 	# The nib is the Controllers-mode stand-in for a fingertip. In the Capsense
 	# modes a real finger is drawn at this point, so showing both would put the
 	# cone inside the hand.
-	_cone.visible = AppPrefs.xr_display_mode == AppPrefs.XRDisplayMode.CONTROLLERS
+	_cone.visible = ControllerArt.display_mode() == AppPrefs.XRDisplayMode.CONTROLLERS
 	if _cone.visible:
 		_cone_local = to_local(apex)
 		_apply_cone()
