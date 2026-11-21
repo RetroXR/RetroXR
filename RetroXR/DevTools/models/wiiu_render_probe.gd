@@ -38,6 +38,12 @@ func _ready() -> void:
 	pad.freeze = true
 	add_child(pad)
 	pad.position = Vector3(0.12, 0.3, 0.2)
+	# A second GamePad lying flat, for a grazing look at its glass (where a
+	# glass level with its bezel z-fought).
+	var flat := preload("res://Scenes/Objects/controllers/wiiu/wiiu_gamepad.tscn").instantiate() as RigidBody3D
+	flat.freeze = true
+	add_child(flat)
+	flat.position = Vector3(0.45, 0.0, 0.25)
 	var pro := preload("res://Scenes/Objects/controllers/wiiu/wiiu_pro_controller.tscn").instantiate() as RigidBody3D
 	pro.freeze = true
 	add_child(pro)
@@ -66,6 +72,7 @@ func _ready() -> void:
 	for shot in [["front", Vector3(0.0, 0.32, 0.7), Vector3(0.0, 0.05, 0.0)],
 			["cradle", Vector3(0.22, 0.2, 0.32), Vector3(0.12, 0.06, 0.0)],
 			["cradle_back", Vector3(0.05, 0.15, -0.3), Vector3(0.12, 0.04, 0.0)],
+			["pad_flat", Vector3(0.45, 0.06, 0.5), Vector3(0.45, 0.0, 0.25)],
 			["console_back", Vector3(-0.3, 0.12, -0.35), Vector3(-0.25, 0.02, -0.1)]]:
 		cam.global_position = shot[1]
 		cam.look_at(shot[2])

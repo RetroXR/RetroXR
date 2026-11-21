@@ -19,7 +19,9 @@ extends WiiUWirelessPad
 ## Measured: RetroXR-models nintendo/wiiu/gamepad (MEASUREMENTS.md).
 const BODY := Vector3(0.2557, 0.024, 0.1339)
 const SCREEN := Vector2(0.1373, 0.0772)
-const SCREEN_Y := BODY.y * 0.5 + 0.0006
+## The glass stands 0.5 mm clear of the bezel's top (BODY.y/2 + 0.0006): level with
+## it, the two z-fought.
+const SCREEN_Y := BODY.y * 0.5 + 0.0011
 
 const SHELL := Color(0.93, 0.93, 0.915)
 const DARK := Color(0.07, 0.07, 0.08)
