@@ -51,15 +51,8 @@ const KIND_NAMES := ["composite", "S-Video", "component", "RGB"]
 ## slot) and anything unknown are composite: that is what every input was drawn as
 ## before there was a choice.
 static func kind_of(source: int) -> Kind:
-	match source:
-		RetroTV.Source.SVIDEO:
-			return Kind.SVIDEO
-		RetroTV.Source.COMPONENT:
-			return Kind.COMPONENT
-		# SCART too: the leads the game offers are RGB SCART leads.
-		RetroTV.Source.VGA, RetroTV.Source.HDMI, RetroTV.Source.SCART:
-			return Kind.RGB
-	return Kind.COMPOSITE
+	# Through the input kinds, so a second of a kind (HDMI 2) draws as its first does.
+	return TvInputKinds.signal_of(source)
 
 
 ## A uniform's value on an input of `kind`, from the set's own (composite) value.

@@ -63,6 +63,16 @@ static func seat(node: Node3D, at: Variant) -> void:
 const STOCK_PHONES_SEAT := Transform3D(Basis(), Vector3(0.2, -0.155, 0.152))
 
 
+## The inputs this set declares: its cabinet's layout, or the stock body's. Read once
+## the shell is worn (TvPanel.build_inputs); the inputs are built where it says.
+func input_layout() -> Array:
+	if not _tv.input_layout_override.is_empty():
+		return _tv.input_layout_override
+	if _shell != null:
+		return _shell.input_layout()
+	return TvInputKinds.stock_layout()
+
+
 func load_shell() -> void:
 	if _LEGACY_TV_MODELS.has(_tv.tv_model):
 		_tv.tv_model = _LEGACY_TV_MODELS[_tv.tv_model]
@@ -87,13 +97,6 @@ func load_shell() -> void:
 	var fitted: RetroTVShell = _shell
 	seat(_tv.screen_mesh(), fitted.screen_seat())
 	seat(_tv.tube_collar(), fitted.screen_seat())
-	_tv.panel().seat_av_row(fitted.port_seat())
-	_tv.panel().seat_vga_port(fitted.vga_port_seat())
-	_tv.panel().seat_hdmi_port(fitted.hdmi_port_seat())
-	_tv.panel().seat_svideo(fitted.svideo_seat())
-	_tv.panel().seat_component(fitted.component_seat())
-	_tv.panel().seat_scart(fitted.scart_seat())
-	seat(_tv.get_node_or_null("RfPort") as Node3D, fitted.rf_port_seat())
 	_tv.panel().seat_speaker_row(fitted.speaker_out_seat())
 	_tv.panel().seat_phones(fitted.phones_seat())
 	seat(_tv.ambilight(), fitted.ambilight_seat())

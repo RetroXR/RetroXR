@@ -159,6 +159,9 @@ func _run() -> void:
 		["display/SCART is an input of the stock set, picture and sound on one socket", _d_scart_input],
 		["routing/a Wii on an RGB SCART lead: picture and stereo sound down one plug", _r_scart],
 		["display/the room's S-Video and component leads fit their inputs", _d_room_leads],
+		["inputs/ids: each kind's first keeps its Source value, a second has its own", _i_ids],
+		["inputs/a set has exactly the inputs it declares, two HDMI among them", _i_declared],
+		["inputs/a Wii U on HDMI 2 is filed, shown, saved and restored there", _i_hdmi_two],
 		["routing/an N64 wears ONE multi-out, not a phono row", _r_n64_multi_out],
 		["routing/its lead carries all three signals down one shell", _r_n64_lead],
 		["routing/a Wii lead does not fit an N64, nor the reverse", _r_multi_out_keying],
@@ -909,6 +912,95 @@ func _d_room_leads() -> void:
 	_check_eq(comp.cord_count(), 5, "the component lead is five cords")
 	_ok((comp.get_node("PlugB0") as Node).is_in_group(tv.component_y_port().snap_require),
 		"of phono plugs, which fit the component jacks")
+
+
+func _i_ids() -> void:
+	var legacy := {"composite": [0, 1, 2, 3], "rf": [5], "vga": [6], "hdmi": [7], "svideo": [8],
+		"component": [9], "scart": [10]}
+	for kind: String in legacy:
+		var ids: Array = legacy[kind]
+		for i in ids.size():
+			_check_eq(TvInputKinds.id_for(kind, i + 1), ids[i], "%s %d keeps its Source value" % [kind, i + 1])
+	_check_eq(TvInputKinds.id_for("hdmi", 2), 82, "HDMI 2 is 32 + 16 x 3 + 2")
+	_check_eq(TvInputKinds.id_for("composite", 5), 37, "Composite 5 is past the four")
+	var seen := {}
+	for kind: String in TvInputKinds.KINDS:
+		for n in range(1, 6):
+			var id := TvInputKinds.id_for(kind, n)
+			_ok(not seen.has(id), "%s %d has an id no other input has" % [kind, n])
+			seen[id] = true
+			var back := TvInputKinds.parse(id)
+			_ok(back.get("kind") == kind and back.get("n") == n, "%s %d reads back from %d" % [kind, n, id])
+	_ok(TvInputKinds.parse(RetroTV.Source.TV).is_empty(), "the retired tuner is no input")
+	_check_eq(TvInputKinds.osd_name(82), "HDMI 2", "HDMI 2 is called that")
+	_check_eq(TvInputKinds.osd_name(RetroTV.Source.HDMI), "HDMI", "and the first plain HDMI, as before")
+	_check_eq(TvInputKinds.osd_name(RetroTV.Source.COMPOSITE_3), "COMPOSITE 3", "Composite 3 as before")
+
+
+## A set given its own back panel: two composite inputs, two HDMI, S-Video.
+func _declared_tv() -> RetroTV:
+	var tv := TV_SCENE.instantiate() as RetroTV
+	var b := Basis(Vector3(1, 0, 0), PI)
+	var k := Basis(Vector3(0, 1, 0), PI)
+	tv.input_layout_override = [
+		{"kind": "composite", "at": Transform3D(b, Vector3(0.15, -0.15, -0.16002))},
+		{"kind": "hdmi", "at": Transform3D(k, Vector3(-0.12, -0.09, -0.1508))},
+		{"kind": "composite", "at": Transform3D(b, Vector3(0.082, -0.15, -0.16002))},
+		{"kind": "hdmi", "at": Transform3D(k, Vector3(-0.16, -0.09, -0.1508))},
+		{"kind": "svideo", "at": Transform3D(k, Vector3(0.046, -0.03, -0.1524))},
+	]
+	tv.freeze = true
+	tv.position = Vector3(_spawned.size() * 3.0, 1, 0)
+	add_child(tv)
+	_spawned.append(tv)
+	await _wait(30)
+	return tv
+
+
+func _i_declared() -> void:
+	var tv := await _declared_tv()
+	_check_eq(Array(tv.panel().input_ids()), [0, 1, 7, 8, 82], "the set's inputs are the five it declares")
+	for name in ["CompositePort", "AudioRIn", "CompositePort2", "AudioLIn2", "HdmiPort", "HdmiPort2",
+			"SvideoIn", "AudioRInS"]:
+		_ok(tv.get_node_or_null(name) is RcaPort, "it has %s" % name)
+	for name in ["CompositePort3", "RfPort", "VgaPort", "ScartIn", "ComponentY"]:
+		_ok(tv.get_node_or_null(name) == null, "and no %s, hidden or otherwise" % name)
+	var hdmi2 := tv.get_node_or_null("HdmiPort2") as HdmiPort
+	_ok(hdmi2 != null and hdmi2.position.is_equal_approx(Vector3(-0.16, -0.09, -0.1508))
+		and hdmi2.direction == RcaPort.Direction.IN, "HDMI 2 stands where its entry says, an input")
+	var seen: Array = []
+	for i in 10:
+		tv.cycle_source()
+		if not seen.has(int(tv.current_source)):
+			seen.append(int(tv.current_source))
+	seen.sort()
+	_check_eq(seen, [0, 1, 7, 8, 82], "SOURCE visits those five and nothing else")
+	_ok(not tv.panel().has_aerial(), "a set that declares no aerial has none")
+	_ok(tv.find_child("AvLegendHdmi2", true, false) != null, "HDMI 2 prints its own legend")
+
+
+func _i_hdmi_two() -> void:
+	var tv := await _declared_tv()
+	var sys := SYSTEM_SCENE.instantiate() as RetroSystem
+	sys.systemid = "wiiu"
+	sys.position = Vector3(_spawned.size() * 3.0 + 2.0, 1, 0)
+	sys.freeze = true
+	add_child(sys)
+	sys.add_to_group("spawned")
+	_spawned.append(sys)
+	await _wait(60)
+	await _single_lead(HDMI_CABLE, sys, "HdmiOut", tv, "HdmiPort2")
+	_check_eq(_which_input(tv, sys), 82, "the Wii U is filed on HDMI 2")
+	tv.set_source(82 as RetroTV.Source)
+	_check_eq(int(tv.current_source), 82, "SOURCE can sit on HDMI 2")
+	_check_eq(tv.panel().selected_system(), sys, "and the set shows it there")
+	_check_eq(tv.source_name(tv.current_source), "HDMI 2", "and calls it HDMI 2")
+	_check_eq(tv.display().signal_kind(), TvSignal.Kind.RGB, "drawn as RGB, as HDMI 1 is")
+	var state: Dictionary = tv.get_control_state()
+	tv.set_source(RetroTV.Source.COMPOSITE_1)
+	tv.restore_control_state(state)
+	await _wait(4)
+	_check_eq(int(tv.current_source), 82, "a save puts it back on HDMI 2")
 
 
 ## A console with one hole in the back, and what the room does with it.

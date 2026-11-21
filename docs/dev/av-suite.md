@@ -880,3 +880,36 @@ draws it as RGB.
 
 `av_tests` (`_d_scart_input`, `_r_scart`); `tv_inputs_render_probe` (a Wii on its SCART lead, the
 socket empty, the S-Video socket close). A real core, headset, Quest and netplay are OWED.
+
+### A set has the inputs it declares (2026-11-21)
+
+**No set carries a fixed bank of sockets any more.** `tv.tscn` authors no input socket.
+`TvPanel.build_inputs(layout)` builds exactly the inputs the set declares, once the shell is
+worn: `TvInputKinds.stock_layout()` for the stock body, `RetroTVShell.input_layout()` for a
+cabinet (`RetroTV.input_layout_override`, set before `_ready`, is the test seam). The seven
+`seat_*` hide-and-disable functions are gone, and a second HDMI or a fifth composite is one
+more layout entry.
+
+- **`TvInputKinds`** is the per-kind table: each kind's jacks (scene, channel, tint, node name,
+  `proud`, `turn`), its panel order, OSD and legend names, `TvSignal` kind, and the id formula.
+- **Ids stay the ints that are on disk and the wire.** Each kind's FIRST input keeps its
+  `RetroTV.Source` value (Composite 1-4 = 0-3, RF 5, VGA 6, HDMI 7, S-Video 8, component 9,
+  SCART 10). Any further one is `32 + 16 * code + n` (HDMI 2 = 82), the same on every peer.
+  `_av_ports`/`_connected_systems`/`_snapped_plugs` stay arrays indexed by id, sized to the
+  largest declared id and never smaller than the legacy range.
+- **Node names are kept** (`CompositePort`, `AudioLIn2`, `RfPort`, `HdmiPort`; instance n > 1
+  appends n). Saved leads, console captive plugs and mods find sockets by name.
+- **A shell with no `input_layout()` derives one** (`TvInputKinds.derived_layout`) from
+  `av_inputs`/`PortSeat`/`av_*_step`, `has_aerial`/`RfPortSeat` and the VGA/HDMI/S-Video/
+  component/SCART seats, so every cabinet written before builds what it had. A layout entry may
+  give `poses` (each jack's own pose) for a model with a marker per socket.
+- **SOURCE, the menu and `_source_available`** walk `available_sources()`: the declared ids plus
+  any deck built in on a composite id. An unknown id lands on the first available (id order).
+- `xenu.panasonic` 1.1.0 declares its rear and front composite rows and the aerial on its model's
+  socket markers (RetroXR-models `mods/xenu.panasonic`), and keeps its seat-by-name path for an
+  older build.
+
+`av_tests` `inputs/` (ids round-trip and never collide; a declared two-HDMI set has exactly its
+five inputs and no other socket; a Wii U on HDMI 2 is filed, shown, saved and restored on 82);
+`DevTools/av/tv_layout_probe` (windowed, `--shell=` stock / `retroxr_crt` / `crt_plain` /
+`xenu.panasonic:ct20d10b`: prints every input and checks the Panasonic's sockets sit on its markers).

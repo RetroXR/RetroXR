@@ -144,19 +144,32 @@ func _ready() -> void:
 			mi.visible = false
 
 
+## The inputs this cabinet has, as a layout (TvInputKinds "Layouts": {kind, at, step?}
+## per input, `at` the pose of its first jack along the panel). TvPanel builds exactly
+## these: there is no bank of sockets to hide. Override to declare them outright, e.g.
+##   return [{"kind": "composite", "at": _seat("RearAv")}, {"kind": "composite",
+##       "at": _seat("FrontAv")}, {"kind": "hdmi", "at": _seat("Hdmi1")},
+##       {"kind": "hdmi", "at": _seat("Hdmi2")}, {"kind": "rf", "at": _seat("Ant")}]
+## The default derives one from the fields and markers below (av_inputs off PortSeat,
+## has_aerial, VgaPortSeat / HdmiPortSeat / SvideoSeat / ComponentSeat / ScartSeat), so
+## a cabinet written before layouts gets exactly the inputs it always had.
+func input_layout() -> Array:
+	return TvInputKinds.derived_layout(self)
+
+
 func screen_seat() -> Variant:      return _seat("ScreenSeat")
 func port_seat() -> Variant:        return _seat("PortSeat")
-## Absent on every shell but the computer monitor, and that absence is the switch:
-## RetroTV leaves its VgaPort disabled and hidden unless a shell asks for one.
+## The DE-15, for a derived layout: present on the computer monitor (and the RETRO XR
+## set's model). Absent, the cabinet has no VGA input at all.
 func vga_port_seat() -> Variant:    return _seat("VgaPortSeat")
-## HDMI IN: opt-in, as VGA is; no shipped shell carries one yet.
+## HDMI IN, for a derived layout: no shipped shell carries one yet.
 func hdmi_port_seat() -> Variant:   return _seat("HdmiPortSeat")
 ## S-Video and component: opt-in the same way, the pose of each group's first jack.
 func svideo_seat() -> Variant:      return _seat("SvideoSeat")
 func component_seat() -> Variant:   return _seat("ComponentSeat")
 func scart_seat() -> Variant:       return _seat("ScartSeat")
-## Pose for the aerial socket, RfPort. Absent leaves it where tv.tscn authors it, on the
-## stock body's back row; a deeper cabinet names it or the socket ends up inside.
+## Pose for the aerial socket, RfPort, for a derived layout. Absent puts it in the slot
+## past the last composite group off PortSeat (or the stock pose with no PortSeat).
 func rf_port_seat() -> Variant:     return _seat("RfPortSeat")
 ## Pose for the FRONT L speaker output; the other five step off it by av_socket_step.
 ## Absent on every shell so far, and that absence is the switch, as above — a row of

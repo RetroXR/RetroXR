@@ -667,6 +667,45 @@ Jolt pools the points only for a body that reports none. The set's resize reads
 every enabled `CollisionShape3D` directly under it, so its base stays put whatever
 the pieces are.
 
+#### A cabinet's inputs
+
+A set has exactly the inputs its cabinet declares, and the game builds their sockets.
+Nothing is hidden. Override `input_layout()` in the shell's script and return one
+entry per input:
+
+```gdscript
+func input_layout() -> Array:
+	return [
+		{"kind": "composite", "at": _seat("RearAv")},
+		{"kind": "composite", "at": _seat("FrontAv")},
+		{"kind": "hdmi", "at": _seat("Hdmi1")},
+		{"kind": "hdmi", "at": _seat("Hdmi2")},
+		{"kind": "rf", "at": _seat("Antenna")},
+	]
+```
+
+- `kind` is one of `composite`, `rf`, `vga`, `hdmi`, `svideo`, `component`, `scart`.
+  The second entry of a kind is that kind's input 2 ("HDMI 2"), and so on.
+- `at` is the pose of the group's **first** jack along the panel, as that jack is
+  seated: its +Z out of the cabinet, standing where a plug's face stops. For a phono
+  jack that is 10 mm out from the panel, and for HDMI, S-Video and SCART it is their
+  mouth. The other jacks of the group step off it by `step` (default 18 mm along its
+  -X). For a model with a marker per socket, give `poses`, every jack's own pose in
+  panel order. Panel order is VIDEO L R; for S-Video it is S-VIDEO L R; for
+  component it is Y Pb Pr L R.
+- The sockets keep the names they always had (`CompositePort`, `AudioLIn2`,
+  `RfPort`, `HdmiPort`, a second HDMI `HdmiPort2`), so a script can find one with
+  `get_node()` once the set is ready.
+- The legends print round them unless `print_legends = false`.
+
+A shell without `input_layout()` gets one derived from its older fields:
+`av_inputs` composite groups off `PortSeat`, the aerial where `has_aerial` says, and
+VGA, HDMI, S-Video, component or SCART where it carries `VgaPortSeat`, `HdmiPortSeat`,
+`SvideoSeat`, `ComponentSeat` or `ScartSeat`. `xenu.panasonic` 1.1.0 is a worked
+example: it declares its rear and front composite rows and the aerial, each jack on
+its model's own socket marker, and keeps seating them by name only on an older
+RetroXR, which never asks.
+
 #### A TV/VCR or TV/DVD combination
 
 A cabinet can have the VCR, the DVD player or both **built in**. Add a `Marker3D`

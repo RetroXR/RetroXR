@@ -527,11 +527,11 @@ func apply_crt_params(mat: ShaderMaterial) -> void:
 func refresh_signal() -> void:
 	var kind := TvSignal.kind_of(_tv.current_source)
 	var chroma := TvSignal.Chroma.FULL
-	if _tv.current_source == RetroTV.Source.COMPONENT:
-		var colors := _tv.component_color_ports()
+	if kind == TvSignal.Kind.COMPONENT:
+		var colors := _tv.component_color_ports(_tv.current_source)
 		if colors.size() == 2:
 			chroma = TvSignal.component_chroma(AvGraph.links_for(_tv),
-				_tv.component_y_port(), colors[0], colors[1])
+				_tv.panel().video_port(_tv.current_source), colors[0], colors[1])
 	if kind == _signal_kind and chroma == _signal_chroma:
 		return
 	_signal_kind = kind

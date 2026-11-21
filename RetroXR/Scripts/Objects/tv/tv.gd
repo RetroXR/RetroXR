@@ -86,22 +86,22 @@ static func is_display_shader(shader: Shader) -> bool:
 ##
 ## Named Source, not Input: `Input` is a native Godot singleton and an enum of
 ## that name shadows it, which fails to parse.
-## HDMI (7) was appended 2026-11-21: on the stock (Classic) set, and on any shell with an
-## HdmiPortSeat. Append only.
-## SVIDEO (8) and COMPONENT (9) were appended the same day, on the stock set: a 4-pin
-## mini-DIN with its own L/R, and Y/Pb/Pr with its own L/R (TvSignal says what each
-## does to the picture). SCART (10) after them: the 21-pin socket, picture and sound on
-## one plug (ScartPort).
+## HDMI (7), SVIDEO (8), COMPONENT (9) and SCART (10) were appended 2026-11-21.
+##
+## Since then these are the ids of each kind's FIRST input, not a list of what a set
+## has: a set declares its inputs (TvInputKinds, RetroTVShell.input_layout) and has
+## exactly those, and a second of a kind (HDMI 2) gets an id past this enum
+## (TvInputKinds.id_for). Append only: the ints are on disk and on the wire.
 enum Source { COMPOSITE_1, COMPOSITE_2, COMPOSITE_3, COMPOSITE_4, TV, RF, VGA, HDMI,
 	SVIDEO, COMPONENT, SCART }
 
-## How many composite inputs the set has. The back panel carries a socket trio per
-## input (see tv.tscn) and tv_shell.gd lays them out for a fitted cabinet.
+## The most composite inputs a set has, phono groups and built-in decks together: the
+## ids Composite 1-4 own (TvDecks files a deck on the next one past the phono groups).
 const COMPOSITE_INPUTS := 4
 
-## Names as they appear in the OSD when SOURCE cycles. The OSD shouts, the way it
-## does for POWER and MUTE; the back panel prints the same names in its own voice
-## (AV_INPUT_NAMES).
+## The OSD names of the Source ids, by id. What the set SHOWS comes from source_name
+## (TvInputKinds.osd_name, which also names an HDMI 2); this table stays for the
+## readers that walk the legacy ids.
 const SOURCE_NAMES := ["COMPOSITE 1", "COMPOSITE 2", "COMPOSITE 3", "COMPOSITE 4",
 	"TV", "RF", "VGA", "HDMI", "S-VIDEO", "COMPONENT", "SCART"]
 
@@ -115,10 +115,12 @@ const RF_CHANNELS := [1, 2, 3, 4]
 ## what every set was on before there was anything else to be on.
 const RF_DEFAULT_CHANNEL := 3
 
-## The same four inputs as SILK-SCREENED beside their sockets — title case, because
-## that is printing rather than shouting. Fed to AvLegend.title.
-const AV_INPUT_NAMES := ["Composite 1", "Composite 2", "Composite 3", "Composite 4"]
 
+
+## A layout to build in place of the cabinet's (TvInputKinds "Layouts"); empty, the
+## default, uses the cabinet's. Set before the set enters the tree. A test seam, and a
+## way for code that spawns a set to give it a back panel of its own.
+var input_layout_override: Array = []
 
 ## CRT display filter (curvature, scanlines, aperture mask). Applied to
 ## whatever source is showing — a system's game or the VCR's video.
@@ -200,26 +202,6 @@ var _fit: TvFit = null
 
 @onready var _screen_mesh: MeshInstance3D = $ScreenMesh
 @onready var _tube_collar: MeshInstance3D = $TubeCollar
-## Composite 1's video socket. Kept as a named handle because that one socket is
-## named from outside this script — a console's captive lead restores into it
-## (system.gd::_snap_cable_to_tv), netplay names it, and the save file names it.
-## Read through composite_port().
-@onready var _composite_port: XRToolsSnapZone = $CompositePort
-## Off unless the fitted shell carries a VgaPortSeat — see TvPanel.seat_vga_port.
-@onready var _vga_port: XRToolsSnapZone = $VgaPort
-## The HDMI IN. On the stock body (authored on in tv.tscn); a fitted shell turns it
-## off unless it carries an HdmiPortSeat (TvPanel.seat_hdmi_port).
-@onready var _hdmi_port: XRToolsSnapZone = get_node_or_null("HdmiPort") as XRToolsSnapZone
-## The S-VIDEO IN and the component input's Y jack: on the stock body, off on a fitted
-## shell unless it carries the matching seat (TvPanel.seat_svideo / seat_component).
-## Y is a phono jack carrying VIDEO, molded green; Pb and Pr are its color jacks.
-@onready var _svideo_port: XRToolsSnapZone = get_node_or_null("SvideoIn") as XRToolsSnapZone
-@onready var _component_y: XRToolsSnapZone = get_node_or_null("ComponentY") as XRToolsSnapZone
-## The SCART socket: on the stock body, off on a shell without a ScartSeat.
-@onready var _scart_port: XRToolsSnapZone = get_node_or_null("ScartIn") as XRToolsSnapZone
-## The aerial socket, Source.RF's one hole. Always fitted: every television has one,
-## and unlike the VGA socket there is no cabinet in the project that would not.
-@onready var _rf_port: XRToolsSnapZone = $RfPort
 @onready var _ambilight: ScreenCastLight = $Ambilight
 @onready var _mute_btn: VRButton = $MuteButton
 @onready var _audio_mode_btn: VRButton = $AudioModeButton
@@ -430,15 +412,16 @@ func speaker_r_marker() -> Marker3D:
 	return _speaker_r
 
 
-## Composite 1's video socket — see _composite_port for why it has a name.
+## Composite 1's video socket, or null on a set with none (the computer monitor). It is
+## named from outside this script: a console's captive lead restores into it
+## (system.gd::_snap_cable_to_tv), netplay names it, and the save file names it.
 func composite_port() -> XRToolsSnapZone:
-	return _composite_port
+	return _panel.video_port(Source.COMPOSITE_1)
 
 
-## The aerial socket. TvPanel seats it with the back-panel row and wires it as
-## Source.RF's input.
+## The aerial socket, Source.RF's one hole, or null on a set with none.
 func rf_port() -> XRToolsSnapZone:
-	return _rf_port
+	return _panel.video_port(Source.RF)
 
 
 ## The phosphor ping-pong pair, A and B. TvDisplay alternates which one renders.
@@ -466,38 +449,40 @@ func ambilight() -> ScreenCastLight:
 	return _ambilight
 
 
-## The VGA socket — present only on a monitor, so callers check it for null.
+## The first VGA socket — present only on a monitor, so callers check it for null.
 func vga_port() -> VgaPort:
-	return _vga_port
+	return _panel.video_port(Source.VGA) as VgaPort
 
 
-## The HDMI socket, or null on a set with none.
+## The first HDMI socket, or null on a set with none.
 func hdmi_port() -> HdmiPort:
-	return _hdmi_port as HdmiPort
+	return _panel.video_port(Source.HDMI) as HdmiPort
 
 
-## The S-Video socket, or null on a set with none.
+## The first S-Video socket, or null on a set with none.
 func svideo_port() -> SvideoPort:
-	return _svideo_port as SvideoPort
+	return _panel.video_port(Source.SVIDEO) as SvideoPort
 
 
-## The SCART socket, or null on a set with none.
+## The first SCART socket, or null on a set with none.
 func scart_port() -> ScartPort:
-	return _scart_port as ScartPort
+	return _panel.video_port(Source.SCART) as ScartPort
 
 
 ## The component input's Y jack (its picture), or null on a set with none.
 func component_y_port() -> RcaPort:
-	return _component_y as RcaPort
+	return _panel.video_port(Source.COMPONENT)
 
 
-## Its two color jacks, Pb then Pr; empty on a set with none.
-func component_color_ports() -> Array[RcaPort]:
+## Its two color jacks, Pb then Pr; empty on a set with none. `input` names another
+## component input (TvInputKinds.id_for("component", 2)).
+func component_color_ports(input: int = Source.COMPONENT) -> Array[RcaPort]:
 	var out: Array[RcaPort] = []
-	for jack in ["ComponentPb", "ComponentPr"]:
-		var port := get_node_or_null(jack) as RcaPort
-		if port != null:
-			out.append(port)
+	if input < 0 or input >= _panel._av_ports.size():
+		return out
+	var group: Array = _panel._av_ports[input]
+	for i in range(3, group.size()):
+		out.append(group[i] as RcaPort)
 	return out
 
 
@@ -678,13 +663,16 @@ func _ready() -> void:
 	# Off its own cast lights' layer; see ScreenCastLight.SCREEN_LAYER.
 	ScreenCastLight.mark_screen(_screen_mesh)
 	super._ready()
-	# Before the shell is worn, which re-seats every one of them.
-	_panel.collect()
+	# The speaker outputs, before the shell is worn, which re-seats them.
+	_panel.collect_outputs()
 	# Before anything reads the screen mesh or the buttons — _screen_size_m below
 	# is derived from ScreenMesh, and a shell may have moved and rescaled it.
 	_fit.load_shell()
-	# After the shell, so each legend is printed round wherever its group ended up,
-	# and so a cabinet that carries fewer than four has already said so.
+	# The inputs this set declares (its cabinet's layout, or the stock body's), built
+	# now the shell is worn and before anything reads a socket. A mod's shell that
+	# re-seats sockets by name does it on `ready`, after this.
+	_panel.build_inputs(_fit.input_layout())
+	# After the shell, so each legend is printed round wherever its group ended up.
 	_panel.disable_absent_inputs()
 	_panel.print_legends()
 	# The set's mains INLET (a C8: the figure-eight cord goes in), where its cabinet's
@@ -701,8 +689,7 @@ func _ready() -> void:
 	# composite input past them.
 	_decks.build()
 	# The set defaults to Composite 1 and a cabinet need not have it, so land on one
-	# it does before anything reads current_source. _seat_vga_port has already run
-	# inside load_shell, which is what decides whether Composite 1 counts here.
+	# it does before anything reads current_source.
 	if not _source_available(current_source):
 		current_source = _first_available_source()
 	# A built-in deck was given its level as it arrived, against whatever input the
@@ -717,38 +704,23 @@ func _ready() -> void:
 		"SourceButton": "source",
 		"ChannelDownButton": "ch_down", "ChannelUpButton": "ch_up",
 	}, TransportGlyphs.TV_SIZE)
-	for i in COMPOSITE_INPUTS:
-		var video := _panel.video_port(i)
+	# Every input's picture socket announces its plug on that input's id.
+	for id: int in _panel.input_ids():
+		var video := _panel.video_port(id)
 		if video == null:
 			continue
-		video.has_picked_up.connect(_panel.on_plug_snapped.bind(i))
-		video.has_dropped.connect(_panel.on_plug_released.bind(i))
-	# The VGA socket announces the same way, on its own input. Connected whether or
-	# not this shell uses it — a disabled zone never fires, so there is nothing to
-	# gate.
-	_vga_port.has_picked_up.connect(_panel.on_plug_snapped.bind(Source.VGA))
-	_vga_port.has_dropped.connect(_panel.on_plug_released.bind(Source.VGA))
-	if _hdmi_port != null:
-		_hdmi_port.has_picked_up.connect(_panel.on_plug_snapped.bind(Source.HDMI))
-		_hdmi_port.has_dropped.connect(_panel.on_plug_released.bind(Source.HDMI))
-	if _svideo_port != null:
-		_svideo_port.has_picked_up.connect(_panel.on_plug_snapped.bind(Source.SVIDEO))
-		_svideo_port.has_dropped.connect(_panel.on_plug_released.bind(Source.SVIDEO))
-	if _component_y != null:
-		_component_y.has_picked_up.connect(_panel.on_plug_snapped.bind(Source.COMPONENT))
-		_component_y.has_dropped.connect(_panel.on_plug_released.bind(Source.COMPONENT))
-	if _scart_port != null:
-		_scart_port.has_picked_up.connect(_panel.on_plug_snapped.bind(Source.SCART))
-		_scart_port.has_dropped.connect(_panel.on_plug_released.bind(Source.SCART))
+		video.has_picked_up.connect(_panel.on_plug_snapped.bind(id))
+		video.has_dropped.connect(_panel.on_plug_released.bind(id))
 	# The aerial socket, for what may be on the far end of whatever sits in it. An
 	# Antenna seated here tells the set itself, but an RF switch with an aerial
 	# already in its ANT socket does not — its cord has one end seated and resolves
 	# to nothing — so the socket is asked directly. Deferred: the zone fires before
 	# picked_up_object is the thing a reader would find.
-	if _rf_port != null:
-		_rf_port.has_picked_up.connect(func(_what: Node3D) -> void:
+	var rf := rf_port()
+	if rf != null:
+		rf.has_picked_up.connect(func(_what: Node3D) -> void:
 			on_aerial_changed.call_deferred())
-		_rf_port.has_dropped.connect(func() -> void:
+		rf.has_dropped.connect(func() -> void:
 			on_aerial_changed.call_deferred())
 	# Every press is logged, and connected FIRST so the line lands ahead of whatever
 	# the button then does — signals call in connection order. A press the set
@@ -1581,54 +1553,42 @@ func net_set_channel_state(source: Source, rf: int, index: int) -> void:
 ## cycle is a tour of what you can actually plug something into, and stopping on an
 ## input with no socket would read as the key being broken.
 func cycle_source() -> void:
-	var next := current_source
-	# Step until something this cabinet actually has turns up. Bounded by the number
-	# of inputs, so a set that somehow had none cannot spin here.
-	for i in SOURCE_NAMES.size():
-		next = ((next + 1) % SOURCE_NAMES.size()) as Source
-		if _source_available(next):
-			break
-	set_source(next)
+	var order := available_sources()
+	if order.is_empty():
+		return
+	var at := order.find(int(current_source))
+	set_source(order[(at + 1) % order.size()] as Source)
 
 
-## Whether this cabinet can show a given input at all.
-##
-## A composite input needs a socket on the back panel; the aerial input needs the
-## coax hole. The retired TV input is on no cabinet — see Source.
-func _source_available(source: Source) -> bool:
-	if source < COMPOSITE_INPUTS:
-		return source < _panel.panel_inputs() or _panel.builtin_deck(source) != null
-	if source == Source.RF:
-		return _panel.has_aerial()
-	if source == Source.VGA:
-		return _vga_port != null and _vga_port.enabled
-	if source == Source.HDMI:
-		return _hdmi_port != null and _hdmi_port.enabled
-	if source == Source.SVIDEO:
-		return _svideo_port != null and _svideo_port.enabled
-	if source == Source.COMPONENT:
-		return _component_y != null and _component_y.enabled
-	if source == Source.SCART:
-		return _scart_port != null and _scart_port.enabled
-	return false
+## Every input this set can be on, in SOURCE's order (by id): the inputs it declares,
+## and a deck built into it, which sits on a composite id with no socket of its own.
+func available_sources() -> Array[int]:
+	var out := _panel.input_ids()
+	for i in COMPOSITE_INPUTS:
+		if not out.has(i) and _panel.builtin_deck(i) != null:
+			out.append(i)
+	out.sort()
+	return out
+
+
+## Whether this cabinet can show a given input at all: whether it declares it, or has
+## a deck built in on it. The retired TV input is on no cabinet — see Source.
+func _source_available(source: int) -> bool:
+	return _panel.has_input(source) or _panel.builtin_deck(source) != null
 
 
 ## The first input this cabinet has, for a set asked to show one it does not.
 ##
-## Enum order, so every set with a phono row lands on Composite 1, which is what it
+## Id order, so every set with a phono row lands on Composite 1, which is what it
 ## always did, and a computer monitor lands on the DE-15 that is its only socket. A
-## cabinet with no input at all is not something the shells can build; Composite 1
-## is the answer for one anyway, because it is the value every field already holds.
+## cabinet with no input at all lands on Composite 1, the value every field holds.
 func _first_available_source() -> Source:
-	for i in SOURCE_NAMES.size():
-		if _source_available(i as Source):
-			return i as Source
-	return Source.COMPOSITE_1
+	var order := available_sources()
+	return (order[0] if not order.is_empty() else Source.COMPOSITE_1) as Source
 
 
 ## Select an input. Idempotent, so panels can call it freely.
 func set_source(source: Source) -> void:
-	source = clampi(source, 0, SOURCE_NAMES.size() - 1) as Source
 	# The retired tuner input. A save or a peer from before the aerial still says
 	# it, and what it meant — "show me broadcast television" — now lives on RF.
 	if source == Source.TV:
@@ -1683,12 +1643,12 @@ func _source_banner() -> String:
 
 
 ## What SOURCE calls an input on THIS set: the deck's own name for an input a
-## built-in deck is on ("VCR", "DVD"), SOURCE_NAMES for every other.
+## built-in deck is on ("VCR", "DVD"), TvInputKinds.osd_name for every other.
 func source_name(source: int) -> String:
 	var deck_label := _decks.label_for(source) if _decks != null else ""
 	if not deck_label.is_empty():
 		return deck_label
-	return SOURCE_NAMES[clampi(source, 0, SOURCE_NAMES.size() - 1)]
+	return TvInputKinds.osd_name(source)
 
 
 ## Which input a machine's picture (or failing that, its sound) arrives on, or -1.
@@ -1741,11 +1701,10 @@ static func _device_name(host: Node3D) -> String:
 ## else (a cap, the remote, a peer, a lead), so it holds values, never nodes.
 func menu_state() -> Dictionary:
 	var inputs: Array = []
-	for i in SOURCE_NAMES.size():
-		if _source_available(i as Source):
-			inputs.append({"source": i, "name": source_name(i),
-				"device": input_device_label(i),
-				"wiring": Array(_panel.miswired(i))})
+	for i: int in available_sources():
+		inputs.append({"source": i, "name": source_name(i),
+			"device": input_device_label(i),
+			"wiring": Array(_panel.miswired(i))})
 	return {
 		"on": _tv_enabled,
 		"volume": _audio.volume(),
