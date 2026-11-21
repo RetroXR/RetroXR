@@ -68,6 +68,9 @@ const _NUMBER_FIELDS := [
 	# The length a player forced on a lead at spawn, in metres. Absent means the
 	# scene's own -- see CompositeCable.cord_length.
 	"cord_length",
+	# A machine's touch screen feel: touch and lift-off distances (mm) and the touch
+	# haptic (0-1) -- see TouchFeel. Absent means the screen's own.
+	"touch_mm", "lift_mm", "touch_haptic",
 ]
 const _BOOL_FIELDS := ["video_out", "ignore_gravity", "crt_enabled", "half_pages", "stuck",
 	"locked", "hardback", "sticks", "cabinet_art", "attract_on",
@@ -2842,6 +2845,14 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 	# A cabinet that was told to attract or not to; omitted while it follows the global pref.
 	if sys.attract_override != ArcadeAttract.OVERRIDE_FOLLOW:
 		result["attract"] = sys.attract_override
+	# A touch screen's feel, once the player has set it (TouchFeel); omitted while it is the
+	# screen's own, so no room changes.
+	if sys.touch_mm >= 0.0:
+		result["touch_mm"] = sys.touch_mm
+	if sys.lift_mm >= 0.0:
+		result["lift_mm"] = sys.lift_mm
+	if not is_equal_approx(sys.touch_haptic, TouchFeel.HAPTIC_DEFAULT):
+		result["touch_haptic"] = sys.touch_haptic
 	# A cabinet whose power button is a switch, left ON: it is found on again when the room loads.
 	# Omitted while it is off, so no room without a switched-on cabinet changes.
 	if sys.attract_switched_on():
@@ -4382,6 +4393,13 @@ func _load_system(data: Dictionary) -> Node3D:
 	sys.cabinet_art_enabled = bool(data.get("cabinet_art", true))
 	sys.attract_override = clampi(int(data.get("attract", ArcadeAttract.OVERRIDE_FOLLOW)),
 		ArcadeAttract.OVERRIDE_FOLLOW, ArcadeAttract.OVERRIDE_OFF)
+	# Through TouchFeel.ordered, so a hand-edited save cannot put lift-off inside touch.
+	if data.has("touch_mm") or data.has("lift_mm"):
+		var feel := TouchFeel.ordered(float(data.get("touch_mm", data.get("lift_mm", 0.0))),
+			float(data.get("lift_mm", data.get("touch_mm", 0.0))), true)
+		sys.touch_mm = feel.x if data.has("touch_mm") else -1.0
+		sys.lift_mm = feel.y if data.has("lift_mm") else -1.0
+	sys.touch_haptic = clampf(float(data.get("touch_haptic", TouchFeel.HAPTIC_DEFAULT)), 0.0, 1.0)
 	if bool(data.get("attract_on", false)):
 		sys.begin_attract_restore()
 	sys.console_memory_id = str(data.get("console_memory", ""))

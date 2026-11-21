@@ -164,6 +164,12 @@ var cabinet_art_enabled: bool = true
 ## is this cabinet's say over the global pref (ArcadeAttract.OVERRIDE_*): follow it, force on, force off.
 ## Saved in the room only when it is not "follow".
 var attract_override: int = ArcadeAttract.OVERRIDE_FOLLOW
+## Its touch screen's feel (TouchFeel, the System tab): how close to the glass a
+## fingertip touches and how far off it lifts, in mm, and the touch haptic, 0-1.
+## -1: the screen's own distances. Saved only once changed.
+var touch_mm: float = -1.0
+var lift_mm: float = -1.0
+var touch_haptic: float = TouchFeel.HAPTIC_DEFAULT
 ## True while it is on and only SHOWING its game: no core is running, `is_powered_on` stays false.
 var attracting: bool = false
 ## True while the core running is one an attract started: nobody at the cabinet for ArcadeAttract.IDLE_SECONDS

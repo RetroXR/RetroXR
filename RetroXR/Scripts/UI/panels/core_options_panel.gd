@@ -166,6 +166,8 @@ func _populate() -> void:
 	_populate_saves_tab(ui)
 	# What it runs on, and an arcade cabinet's Show Power Cord (docs/dev/power.md).
 	PowerMenuRows.ensure_in(ui, _system.power_input())
+	# A DS's, a 3DS's or a Wii U GamePad's touch screen: its feel, under Power.
+	TouchMenuRows.ensure_in(ui, _system)
 
 
 ## Hand the Saves tab to the memory this machine keeps -- a Saturn's own, a Sega

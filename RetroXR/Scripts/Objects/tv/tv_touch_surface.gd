@@ -22,6 +22,8 @@ const HALF_THICKNESS := 0.004
 ## lets go. Same shape as VRSlider's engage/release pair.
 const GLASS_TOLERANCE := 0.004
 const RELEASE_SCALE := 1.6
+## Slack past the picture's EDGES before a touch counts, scaled the same way.
+const EDGE_SLACK := 0.005
 
 ## The RetroSystem receiving the touches.
 var host: Node3D = null
@@ -33,6 +35,13 @@ var _pointer_down := false
 var _touch_ctrl: XRController3D = null
 var _controllers: Array[XRController3D] = []
 var _smoother := TouchSmoother.new()
+
+
+## The touch and lift-off distances this surface has always used, in mm, for a
+## machine that has not set its own (TouchFeel): 8 and 12.8.
+static func defaults_mm() -> Vector2:
+	var touch := (HALF_THICKNESS + GLASS_TOLERANCE) * 1000.0
+	return Vector2(touch, touch * RELEASE_SCALE)
 
 
 ## Build collision to match the screen quad it is attached to.
@@ -82,8 +91,11 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 func _process(delta: float) -> void:
 	if _pointer_down:
 		return
+	# The machine's touch feel (its System tab), read each frame so a slider moved
+	# with the game running takes at once.
+	var d := TouchFeel.distances_m(host, defaults_mm())
 	if _touch_ctrl != null:
-		if not _qualified(_touch_ctrl) or not _tip_on_screen(PokeTip.tip_of(_touch_ctrl), RELEASE_SCALE):
+		if not _qualified(_touch_ctrl) or not _tip_on_screen(PokeTip.tip_of(_touch_ctrl), d.y, EDGE_SLACK * RELEASE_SCALE):
 			var last := _touch_ctrl
 			_touch_ctrl = null
 			if is_instance_valid(last):
@@ -93,15 +105,16 @@ func _process(delta: float) -> void:
 			var tip: Vector3 = PokeTip.tip_of(_touch_ctrl)
 			var local: Vector3 = to_local(tip)
 			var p: Vector2 = _smoother.point(Vector2(local.x, local.y),
-				_tip_on_screen(tip, 1.0), delta)
+				_tip_on_screen(tip, d.x, EDGE_SLACK), delta)
 			_send_touch_local(p, true)
 			_claim_contact(_touch_ctrl, p, local.z)
 			return
 	for ctrl in _controllers:
 		# A hand holding something is not a stylus — without this a hand carrying
 		# a cartridge past the TV drove the DS's touch screen.
-		if _qualified(ctrl) and _tip_on_screen(PokeTip.tip_of(ctrl), 1.0):
+		if _qualified(ctrl) and _tip_on_screen(PokeTip.tip_of(ctrl), d.x, EDGE_SLACK):
 			_touch_ctrl = ctrl
+			TouchFeel.pulse(ctrl, host)
 			var local: Vector3 = to_local(PokeTip.tip_of(ctrl))
 			var p := Vector2(local.x, local.y)
 			_smoother.begin(p)
@@ -114,11 +127,12 @@ func _qualified(ctrl: XRController3D) -> bool:
 	return is_instance_valid(ctrl) and ctrl.get_is_active() and PokeTip.is_poking(ctrl)
 
 
-func _tip_on_screen(world_pos: Vector3, slack: float) -> bool:
+## Within `glass_m` of the glass (either face) and `edge_m` past the picture's edges.
+func _tip_on_screen(world_pos: Vector3, glass_m: float, edge_m: float) -> bool:
 	var local := to_local(world_pos)
-	return absf(local.z) <= (HALF_THICKNESS + GLASS_TOLERANCE) * slack \
-		and absf(local.x) <= _size.x / 2.0 + 0.005 * slack \
-		and absf(local.y) <= _size.y / 2.0 + 0.005 * slack
+	return absf(local.z) <= glass_m \
+		and absf(local.x) <= _size.x / 2.0 + edge_m \
+		and absf(local.y) <= _size.y / 2.0 + edge_m
 
 
 ## Put the visible fingertip ON THE GLASS, at the point the core is being told

@@ -66,6 +66,8 @@ const HALF_THICKNESS := 0.006
 ## lets go. 6 + 4 mm reproduces the engage distance this has always used.
 const GLASS_TOLERANCE := 0.004
 const RELEASE_SCALE := 1.6
+## Slack past the picture's EDGES before a touch counts, scaled the same way.
+const EDGE_SLACK := 0.005
 
 # VR fingertip touch state (per engaged controller).
 var _touch_ctrl: XRController3D = null
@@ -599,10 +601,13 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 func _process_fingertip_touch(delta: float) -> void:
 	if _touch == null or _touch_pointer_down:
 		return
+	# The machine's touch feel (its System tab), read each frame so a slider moved
+	# with the game running takes at once.
+	var d := TouchFeel.distances_m(_host, touch_screen_defaults_mm())
 	if _touch_ctrl != null:
 		if not is_instance_valid(_touch_ctrl) or not _touch_ctrl.get_is_active() \
 				or _is_holding_hand(_touch_ctrl) \
-				or not _tip_on_screen(PokeTip.tip_of(_touch_ctrl), RELEASE_SCALE):
+				or not _tip_on_screen(PokeTip.tip_of(_touch_ctrl), d.y, EDGE_SLACK * RELEASE_SCALE):
 			var last := _touch_ctrl
 			_touch_ctrl = null
 			if is_instance_valid(last):
@@ -615,14 +620,15 @@ func _process_fingertip_touch(delta: float) -> void:
 			var tip: Vector3 = PokeTip.tip_of(_touch_ctrl)
 			var local: Vector3 = _touch.to_local(tip)
 			var p: Vector2 = _touch_smoother.point(Vector2(local.x, local.z),
-				_tip_on_screen(tip, 1.0), delta)
+				_tip_on_screen(tip, d.x, EDGE_SLACK), delta)
 			_send_touch_local(p, true)
 			_claim_pad_contact(_touch_ctrl, p, local.y)
 			return
 	for ctrl in _touch_controllers:
 		if ctrl and ctrl.get_is_active() and not _is_holding_hand(ctrl) \
-				and _tip_on_screen(PokeTip.tip_of(ctrl), 1.0):
+				and _tip_on_screen(PokeTip.tip_of(ctrl), d.x, EDGE_SLACK):
 			_touch_ctrl = ctrl
+			TouchFeel.pulse(ctrl, _host)
 			var local: Vector3 = _touch.to_local(PokeTip.tip_of(ctrl))
 			var p := Vector2(local.x, local.z)
 			_touch_smoother.begin(p)
@@ -659,11 +665,19 @@ func _is_holding_hand(ctrl: XRController3D) -> bool:
 	return false
 
 
-func _tip_on_screen(world_pos: Vector3, slack: float) -> bool:
+## The touch and lift-off distances this screen has always used, in mm, for a
+## machine that has not set its own (TouchFeel): 10 and 16.
+func touch_screen_defaults_mm() -> Vector2:
+	var touch := (HALF_THICKNESS + GLASS_TOLERANCE) * 1000.0
+	return Vector2(touch, touch * RELEASE_SCALE)
+
+
+## Within `glass_m` of the glass (either face) and `edge_m` past the picture's edges.
+func _tip_on_screen(world_pos: Vector3, glass_m: float, edge_m: float) -> bool:
 	var local := _touch.to_local(world_pos)
-	return absf(local.y) <= (HALF_THICKNESS + GLASS_TOLERANCE) * slack \
-		and absf(local.x) <= bottom_screen_size.x / 2.0 + 0.005 * slack \
-		and absf(local.z) <= bottom_screen_size.y / 2.0 + 0.005 * slack
+	return absf(local.y) <= glass_m \
+		and absf(local.x) <= bottom_screen_size.x / 2.0 + edge_m \
+		and absf(local.z) <= bottom_screen_size.y / 2.0 + edge_m
 
 
 ## World point on/over the bottom screen → composite-framebuffer UV → host.
