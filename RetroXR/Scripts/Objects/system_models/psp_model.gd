@@ -449,6 +449,7 @@ var _door_reported_open := false
 ## (VRSpringLatchedHinge._step_spring_open). So the door's state is read each frame and reported when it changes:
 ## one bool compared, nothing more, while it does not.
 func _process(_delta: float) -> void:
+	super._process(_delta)   # the handheld's: it paints the picture on the panel
 	if _umd_hinge != null and (not _umd_hinge.is_latched_closed()) != _door_reported_open:
 		_on_umd_door_swung(_umd_hinge.get_rotation_deg())
 
