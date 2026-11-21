@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" path="res://Scenes/player_rig.tscn" id="2_playerrig"]
 [ext_resource type="Script" uid="uid://bm2d1ptvbi3g0" path="res://Scripts/Objects/room/bedroom_exterior.gd" id="10_exterior"]
 [ext_resource type="PackedScene" uid="uid://d0fvn4hf0hie5" path="res://imported-assets/bedroom/furniture/ceiling_fan.glb" id="14_fan"]
-[ext_resource type="PackedScene" uid="uid://bfelbrt836fal" path="res://imported-assets/bedroom/furniture/door.glb" id="19_door"]
+[ext_resource type="PackedScene" uid="uid://bjxy0soeoo175" path="res://imported-assets/room/interior_door.glb" id="19_door"]
 [ext_resource type="Texture2D" uid="uid://d2vg0bn4i2g4m" path="res://imported-assets/bedroom/materials/Plaster001_1K-JPG_Color.jpg" id="20_wall_col"]
 [ext_resource type="Texture2D" uid="uid://cf5cb2arri74i" path="res://imported-assets/bedroom/materials/Plaster001_1K-JPG_NormalGL.jpg" id="21_wall_nrm"]
 [ext_resource type="Texture2D" uid="uid://bq1y1h5qqcoam" path="res://imported-assets/bedroom/materials/Plaster001_1K-JPG_Roughness.jpg" id="22_wall_rgh"]
@@ -814,10 +814,16 @@ transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -1.5, 0, 2.2)
 script = ExtResource("93_vrdoor")
 open_deg = 105.0
 log_name = "closet"
-leaf_surfaces = PackedStringArray("Trim_Door")
-knob_surfaces = PackedStringArray("Knob_Metal", "Knob_Metal_2")
+model = NodePath("Model/Door")
+leaf_surfaces = PackedStringArray("Door_Leaf")
+knob_surfaces = PackedStringArray("Lockset")
+leaf_hardware_surfaces = PackedStringArray("Hinge_Leaf")
+pin_surfaces = PackedStringArray("Hinge_Pin")
 
 [node name="Model" parent="Furniture/ClosetDoor" unique_id=1493846376 instance=ExtResource("19_door")]
+
+[node name="CasingBack" parent="Furniture/ClosetDoor/Model"]
+visible = false
 
 [node name="FurnitureCollision" type="StaticBody3D" parent="." unique_id=1254809059]
 collision_mask = 0
@@ -853,22 +859,22 @@ mesh = SubResource("Mesh_cap_ns")
 surface_material_override/0 = SubResource("Mat_trim")
 
 [node name="SouthBaseW" type="MeshInstance3D" parent="Baseboard" unique_id=2091321841]
-transform = Transform3D(0.622, 0, 0, 0, 1, 0, 0, 0, 1, -2.289, 0.055, 2.116)
+transform = Transform3D(0.5765, 0, 0, 0, 1, 0, 0, 0, 1, -2.31175, 0.055, 2.116)
 mesh = SubResource("Mesh_base_ns")
 surface_material_override/0 = SubResource("Mat_trim")
 
 [node name="SouthCapW" type="MeshInstance3D" parent="Baseboard" unique_id=684339606]
-transform = Transform3D(0.622, 0, 0, 0, 1, 0, 0, 0, 1, -2.289, 0.121, 2.112)
+transform = Transform3D(0.5765, 0, 0, 0, 1, 0, 0, 0, 1, -2.31175, 0.121, 2.112)
 mesh = SubResource("Mesh_cap_ns")
 surface_material_override/0 = SubResource("Mat_trim")
 
 [node name="SouthBaseE" type="MeshInstance3D" parent="Baseboard" unique_id=1574451717]
-transform = Transform3D(3.622, 0, 0, 0, 1, 0, 0, 0, 1, 0.789, 0.055, 2.116)
+transform = Transform3D(3.5765, 0, 0, 0, 1, 0, 0, 0, 1, 0.81175, 0.055, 2.116)
 mesh = SubResource("Mesh_base_ns")
 surface_material_override/0 = SubResource("Mat_trim")
 
 [node name="SouthCapE" type="MeshInstance3D" parent="Baseboard" unique_id=566760084]
-transform = Transform3D(3.622, 0, 0, 0, 1, 0, 0, 0, 1, 0.789, 0.121, 2.112)
+transform = Transform3D(3.5765, 0, 0, 0, 1, 0, 0, 0, 1, 0.81175, 0.121, 2.112)
 mesh = SubResource("Mesh_cap_ns")
 surface_material_override/0 = SubResource("Mat_trim")
 
@@ -883,22 +889,22 @@ mesh = SubResource("Mesh_cap_ew")
 surface_material_override/0 = SubResource("Mat_trim")
 
 [node name="WestNBase" type="MeshInstance3D" parent="Baseboard" unique_id=805631543]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 2.917, -2.516, 0.055, -0.7415)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 2.8715, -2.516, 0.055, -0.76425)
 mesh = SubResource("Mesh_base_ew")
 surface_material_override/0 = SubResource("Mat_trim")
 
 [node name="WestNCap" type="MeshInstance3D" parent="Baseboard" unique_id=544591745]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 2.917, -2.512, 0.121, -0.7415)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 2.8715, -2.512, 0.121, -0.76425)
 mesh = SubResource("Mesh_cap_ew")
 surface_material_override/0 = SubResource("Mat_trim")
 
 [node name="WestSBase" type="MeshInstance3D" parent="Baseboard" unique_id=1757860335]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.527, -2.516, 0.055, 1.9365)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.4815, -2.516, 0.055, 1.95925)
 mesh = SubResource("Mesh_base_ew")
 surface_material_override/0 = SubResource("Mat_trim")
 
 [node name="WestSCap" type="MeshInstance3D" parent="Baseboard" unique_id=1397928412]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.527, -2.512, 0.121, 1.9365)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.4815, -2.512, 0.121, 1.95925)
 mesh = SubResource("Mesh_cap_ew")
 surface_material_override/0 = SubResource("Mat_trim")
 

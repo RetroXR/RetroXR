@@ -5,7 +5,7 @@
 ## X across the opening and Z through it, and say which side the hinges are on and
 ## which face the door swings toward; it builds the rest in _ready. The leaf comes
 ## from, in this order:
-##   • a door MODEL under this node that is one mesh (door.glb is): name its leaf and
+##   • a door MODEL under this node that is one mesh (interior_door.glb is): name its leaf and
 ##     knob surfaces (`leaf_surfaces`, `knob_surfaces`) and DoorModelSplit takes them
 ##     out of it; the leaf's own bounds then size everything, the exports below that
 ##     describe the leaf are ignored, and the knob sits where the model has it;
@@ -110,6 +110,11 @@ const REPORT_MIN_DEG := 0.5
 @export var knob_surfaces: PackedStringArray = PackedStringArray()
 ## PUSH_BAR: the bar's surfaces, taken whole.
 @export var bar_surfaces: PackedStringArray = PackedStringArray()
+## Swing with the leaf but do not size it: the hinges' leaf halves and their knuckles.
+@export var leaf_hardware_surfaces: PackedStringArray = PackedStringArray()
+## The hinge pin: these stay on the frame and the middle of their bounds is the hinge
+## line, so the leaf's knuckles turn in place round it. None: the leaf's hinge corner.
+@export var pin_surfaces: PackedStringArray = PackedStringArray()
 
 ## Test seam: when set, called with the EV_DOOR arguments instead of NetworkManager.
 var report_to: Callable = Callable()
@@ -130,6 +135,7 @@ var _frame: Node3D = null
 var _pivot: Node3D = null
 var _leaf_box := AABB()          # the leaf, door frame, shut
 var _knob_at := Vector3.ZERO     # the knob's axle origin, door frame
+var _pin_at := Vector3(NAN, 0.0, NAN)   # the model's hinge pin, door frame (x, z)
 var _knob_held_prev := false
 var _tween: Tween = null
 var _remote_target := NAN
@@ -481,12 +487,17 @@ func _split_model(leaf_out: Array[Node3D], knob_out: Array[Node3D]) -> bool:
 	var push_bar := opener == Opener.PUSH_BAR
 	var knob_ids := DoorModelSplit.find_surfaces(mesh,
 		PackedStringArray() if no_opener else (bar_surfaces if push_bar else knob_surfaces), missing)
+	var hw_ids := DoorModelSplit.find_surfaces(mesh, leaf_hardware_surfaces, missing)
+	var pin_ids := DoorModelSplit.find_surfaces(mesh, pin_surfaces, missing)
 	if not missing.is_empty():
 		push_warning("[Door] %s: the model has no surface %s (it has %s)" % [
 			_name(), ", ".join(missing), ", ".join(_surface_names(mesh))])
 	if leaf_ids.is_empty():
 		return false
 	_leaf_box = DoorModelSplit.bounds(mesh, leaf_ids, to_door)
+	if not pin_ids.is_empty():
+		var pin_box := DoorModelSplit.bounds(mesh, pin_ids, to_door)
+		_pin_at = Vector3(pin_box.get_center().x, 0.0, pin_box.get_center().z)
 	var leaf_mesh := ArrayMesh.new()
 	var knob_mesh := ArrayMesh.new()
 	var frame_mesh := ArrayMesh.new()
@@ -500,7 +511,7 @@ func _split_model(leaf_out: Array[Node3D], knob_out: Array[Node3D]) -> bool:
 	var latch_x := _leaf_box.position.x if latch_neg else _leaf_box.end.x
 	for i in mesh.get_surface_count():
 		var mat := mi.get_surface_override_material(i)
-		if leaf_ids.has(i):
+		if leaf_ids.has(i) or hw_ids.has(i):
 			DoorModelSplit.append_surface(leaf_mesh, mesh, i, mat)
 		elif knob_ids.has(i) and push_bar:
 			# A bar is all bar: taken whole.
@@ -530,7 +541,7 @@ func _split_model(leaf_out: Array[Node3D], knob_out: Array[Node3D]) -> bool:
 		else:
 			DoorModelSplit.append_surface(frame_mesh, mesh, i, mat)
 	# The bolt: the biggest piece crossing the latch edge. The faceplate stands wholly
-	# OUTSIDE it (door.glb's is a slab 7 mm proud with its screws) and stays put: the
+	# OUTSIDE it (or flush in its mortise, as interior_door.glb's) and stays put: the
 	# first version took the biggest piece outside the edge and slid the plate.
 	var bolt_piece: Dictionary = {}
 	for piece in lock_pieces:
@@ -690,6 +701,11 @@ func _build_rig(leaf_meshes: Array[Node3D], knob_meshes: Array[Node3D]) -> void:
 	# hinge's knuckle is on that face, which is what lets the leaf clear its frame).
 	var hinge_at := Vector3(_leaf_box.end.x if hx > 0.0 else _leaf_box.position.x, 0.0,
 		_leaf_box.end.z if sz > 0.0 else _leaf_box.position.z)
+	if not is_nan(_pin_at.x):
+		hinge_at = _pin_at   # the model's own pin
+		print("[Door] %s hinges on the model's pin, %.1f mm out from the leaf's corner" % [
+			_name(), Vector2(hinge_at.x - (_leaf_box.end.x if hx > 0.0 else _leaf_box.position.x),
+			hinge_at.z - (_leaf_box.end.z if sz > 0.0 else _leaf_box.position.z)).length() * 1000.0])
 	# VRHinge: at 0 the leaf points along the pivot's -Z and opens toward its +Y about
 	# its X. So -Z runs from the hinge to the latch edge (-hx along the door's X), +Y
 	# is the face it swings toward, and X = Y x Z comes out vertical, up or down as

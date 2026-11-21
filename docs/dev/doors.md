@@ -18,7 +18,7 @@ Put a `Node3D` with `vr_door.gd` at the **bottom middle of the doorway**: +Y up,
 the opening, Z through it. Set `hinge_side` (±X) and `swing` (the face it opens toward).
 That is all; `_ready` builds the rig. The leaf comes from, in order:
 
-1. **A one-mesh model under the node** (`door.glb` is one mesh of five surfaces): name
+1. **A one-mesh model under the node** (`interior_door.glb`'s `Door` is one mesh of seven surfaces): name
    the leaf and knob surfaces in `leaf_surfaces` / `knob_surfaces` (surface or material
    name). The leaf's own bounds then size everything and the knob sits where the model
    has it; `width`/`height`/`thickness` are ignored. A name the mesh lacks is logged with
@@ -26,9 +26,14 @@ That is all; `_ready` builds the rig. The leaf comes from, in order:
 2. **Authored children `Leaf` and `Knob`** (any Node3D, placed shut), sized by the exports.
 3. **Nothing**: a plain box leaf and a brass ball knob from the exports.
 
-The bedroom closet: `leaf_surfaces = ["Trim_Door"]`,
-`knob_surfaces = ["Knob_Metal", "Knob_Metal_2"]`, hinge +X, swings +Z (into the room),
-`open_deg` 105 (the leaf meets the west wall at about 128°).
+   Two more lists are optional: `leaf_hardware_surfaces` swing with the leaf without
+   sizing it (the hinges' leaf halves), and `pin_surfaces` stay on the frame and set the
+   hinge line at the middle of their bounds (else it is the leaf's hinge corner).
+
+The bedroom closet: `model = "Model/Door"`, `leaf_surfaces = ["Door_Leaf"]`,
+`knob_surfaces = ["Lockset"]`, `leaf_hardware_surfaces = ["Hinge_Leaf"]`,
+`pin_surfaces = ["Hinge_Pin"]`, hinge +X, swings +Z (into the room), `open_deg` 105. Its
+model's `CasingBack` is hidden: inside the closet it would run into the side panels.
 
 ## How a hand works it
 
@@ -138,12 +143,12 @@ mesh without them. The GLB is never edited.
 
 - **The knob surfaces are split again by triangle.** Triangles wholly outside the leaf's
   two faces turn with the knob; the rest (the latch bolt in the edge, the spindle
-  through the bore) stay on the leaf. door.glb's `Knob_*` materials are the whole
+  through the bore) stay on the leaf. A model's lockset material is usually the whole
   lockset.
 - **A copied surface must carry its custom-channel format bits** (`surface_get_format`
   into `add_surface_from_arrays`'s flags), or the surface is refused with
   `p_arrays[ai].get_type() != PACKED_BYTE_ARRAY`.
-- door.glb result: 3 leaf, 2 knob and 2 frame surfaces (`split/`).
+- interior_door.glb result: 5 leaf, 2 knob and 4 frame surfaces (`split/`).
 
 ## Push doors (`latching = false`, 2026-11-11)
 
@@ -169,10 +174,10 @@ brings it home.
 - **The lockset splits by PIECE, not by triangle.** `DoorModelSplit.pieces` welds
   vertices by position and unions triangles. Then:
   - A piece wholly out of a leaf face turns with the knob (knobs and roses).
-  - The biggest piece CROSSING the latch edge is the bolt: in door.glb it runs
-    10.2 mm out of the edge and on into the bore.
-  - Everything else stays on the leaf: the faceplate, which in door.glb is a slab
-    7 mm proud of the edge, and its screws.
+  - The biggest piece CROSSING the latch edge is the bolt: in interior_door.glb it
+    runs 12.7 mm out of the edge and on into the bore.
+  - Everything else stays on the leaf: the faceplate, mortised flush in the edge, and
+    its screws.
 - **Two wrong versions came first.** The triangle split sent the part of the tongue
   that stood past the room face round with the knob (the user saw the latch spin).
   The first piece rule, "the biggest piece wholly past the edge", picked the
@@ -212,3 +217,23 @@ at 2.275), which the shut door used to hide and the open one showed as a black s
 - **OWED:** headset feel (the turn-and-pull above all; the 60° turn and 0.6 threshold
   are guesses), the Quest, a real two-peer session, a door in a mod room, and the
   baked shell lighting on the open leaf.
+
+## RetroXR's own door (2026-11-21)
+
+The bedroom's room and closet doors are `imported-assets/room/interior_door.glb`, built
+by `rooms/door/interior_door.py` in RetroXR-models: a six-panel molded leaf 36 x 80 in,
+full-depth jambs, stop, colonial casing, three 3-1/2 in brass butt hinges and a brass
+knobset. It replaced a CC BY trim kit, whose credit left the About page with it.
+
+- **The hinges are split between leaf and jamb.** Knuckles 1, 3 and 5 and the jamb
+  plates are `Brass_Frame`; knuckles 2 and 4, the leaf plates and their screws are
+  `Hinge_Leaf`. The pin's two button tips (`Hinge_Pin`) mark the hinge line, 9.5 mm out
+  from the swing face in the middle of the 3.3 mm hinge gap. Swung about it, the leaf's
+  knuckles turn in place round the pin; swung about the leaf's corner (the old rule)
+  they would wobble 1 cm off it. `split/` checks that every `Hinge_Leaf` vertex keeps
+  its distance from the pin at 90°.
+- **The latch:** a 2-3/8 in backset, knob 36 in up, a beveled bolt 1/2 in out of a
+  mortised faceplate, and a strike plate with a lip over a real 16 mm pocket in the
+  latch jamb (`Strike_Hole`), so the bolt has somewhere to go.
+- **Fits the bedroom's rough openings**, 956 x 2095 mm in its 150 mm walls; the
+  baseboards stop at the casings' outer edge, 45.5 mm past the opening.

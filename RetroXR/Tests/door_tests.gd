@@ -4,7 +4,7 @@
 ##   godot --headless --path RetroXR res://Tests/door_tests.tscn [-- --only=<group>]
 extends "res://Tests/test_suite.gd"
 
-const DOOR_GLB := "res://imported-assets/bedroom/furniture/door.glb"
+const DOOR_GLB := "res://imported-assets/room/interior_door.glb"
 
 var _hands: Array[Dictionary] = []
 
@@ -280,27 +280,48 @@ func _pointer_toggles() -> void:
 	await _free(d)
 
 
-## door.glb is one mesh: its leaf and lockset come out of it, the lockset split by
-## triangle (bolt on the leaf, knobs on the spindle), and the frame keeps the rest.
+## interior_door.glb's Door is one mesh: its leaf, the hinges' leaf halves and the
+## lockset come out of it, the lockset split by piece (bolt slides, faceplate on the
+## leaf, knobs on the spindle), and the frame keeps the rest, the pin included.
+## Each Hinge_Leaf vertex's distance from the vertical line through `pin`, in the world.
+func _hinge_leaf_radii(leaf: MeshInstance3D, pin: Vector3) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	if leaf == null:
+		return out
+	var s := DoorModelSplit.find_surface(leaf.mesh, "Hinge_Leaf")
+	if s < 0:
+		return out
+	for v: Vector3 in leaf.mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]:
+		var w := leaf.global_transform * v
+		out.append(Vector2(w.x - pin.x, w.z - pin.z).length())
+	return out
+
+
 func _model_split() -> void:
 	var d := VRDoor.new()
-	d.leaf_surfaces = PackedStringArray(["Trim_Door"])
-	d.knob_surfaces = PackedStringArray(["Knob_Metal", "Knob_Metal_2", "NoSuchSurface"])
+	d.model = NodePath("Model/Door")
+	d.leaf_surfaces = PackedStringArray(["Door_Leaf"])
+	d.knob_surfaces = PackedStringArray(["Lockset", "NoSuchSurface"])
+	d.leaf_hardware_surfaces = PackedStringArray(["Hinge_Leaf"])
+	d.pin_surfaces = PackedStringArray(["Hinge_Pin"])
 	var model := (load(DOOR_GLB) as PackedScene).instantiate()
 	model.name = "Model"
 	d.add_child(model)
 	add_child(d)
 	await _ticks(2)
-	var frame_mi: MeshInstance3D = null
-	for n in model.find_children("*", "MeshInstance3D", true, false):
-		frame_mi = n as MeshInstance3D
-	_ok(frame_mi != null and frame_mi.mesh != null and frame_mi.mesh.get_surface_count() == 2,
-		"split/the frame keeps its trim and hinges (2 surfaces)",
+	var frame_mi := model.get_node_or_null("Door") as MeshInstance3D
+	_ok(frame_mi != null and frame_mi.mesh != null and frame_mi.mesh.get_surface_count() == 4,
+		"split/the frame keeps its paint, the hinges' jamb halves and strike, the pin, the strike's mouth (4 surfaces)",
 		str(frame_mi.mesh.get_surface_count() if frame_mi != null and frame_mi.mesh != null else -1))
 	var leaf := d.get_node_or_null("HingeFrame/HingePivot/Leaf") as MeshInstance3D
 	var knob := d.get_node_or_null("HingeFrame/HingePivot/DoorKnob/KnobPivot/Knob") as MeshInstance3D
-	_ok(leaf != null and leaf.mesh.get_surface_count() >= 2,
-		"split/the leaf has its face and the lockset's in-leaf part")
+	_ok(leaf != null and leaf.mesh.get_surface_count() >= 3,
+		"split/the leaf has its face, the hinges' leaf halves and the lockset's in-leaf part")
+	# The hinge line is the pin: 1.6 mm out past the leaf's hinge edge, 9.5 mm out from its swing face.
+	var hf := d.get_node("HingeFrame") as Node3D
+	_ok(absf(hf.position.x - (d._leaf_box.end.x + 0.0017)) < 0.0005
+		and absf(hf.position.z - (d._leaf_box.end.z + 0.0095)) < 0.0005,
+		"split/the door hinges on the model's pin, not the leaf's corner", str(hf.position))
 	_ok(knob != null and knob.mesh.get_surface_count() >= 1, "split/the knob has its own mesh")
 	_ok(absf(d._leaf_box.size.x - 0.9144) < 0.002 and absf(d._leaf_box.size.y - 2.032) < 0.002,
 		"split/the leaf's own bounds size the door", str(d._leaf_box))
@@ -309,13 +330,13 @@ func _model_split() -> void:
 		var ab := DoorModelSplit.bounds(knob.mesh, [0], to_door)
 		_ok(ab.position.z < d._leaf_box.position.z or ab.end.z > d._leaf_box.end.z,
 			"split/the knob is what stands out of the leaf", str(ab))
-		_ok(absf(d.knob.position.length()) > 0.0 and absf(d.to_local(d.knob.global_position).y - 0.876) < 0.02,
+		_ok(absf(d.knob.position.length()) > 0.0 and absf(d.to_local(d.knob.global_position).y - 0.914) < 0.005,
 			"split/the knob's axle is at the model's knob height",
 			str(d.to_local(d.knob.global_position)))
 	# The latch bolt is its own part: it slides into the edge with the knob, never turns with it.
 	var bolt := d.get_node_or_null("HingeFrame/HingePivot/Bolt") as Node3D
-	_ok(bolt != null and absf(d._bolt_travel - 0.0102) < 0.001,
-		"split/the latch bolt is its own part, about 10 mm out of the edge",
+	_ok(bolt != null and absf(d._bolt_travel - 0.0127) < 0.0005,
+		"split/the latch bolt is its own part, 1/2 in out of the edge",
 		"travel %.4f" % d._bolt_travel)
 	if bolt != null:
 		var rest := bolt.transform
@@ -334,7 +355,17 @@ func _model_split() -> void:
 		d.knob.set_value_no_signal(0.5)
 		await _ticks(2)
 		_ok(bolt.transform.is_equal_approx(rest), "split/at rest, it is back out")
+	# The leaf's knuckles turn in place: swung open, the hinge halves on the leaf keep
+	# every vertex as far from the pin as it was shut.
+	var pin_w := hf.global_position
+	var hw_r := _hinge_leaf_radii(leaf, pin_w)
 	d.open_to(90.0, false)
+	var hw_r2 := _hinge_leaf_radii(leaf, pin_w)
+	var drift := 0.0
+	for k in mini(hw_r.size(), hw_r2.size()):
+		drift = maxf(drift, absf(hw_r[k] - hw_r2[k]))
+	_ok(not hw_r.is_empty() and hw_r.size() == hw_r2.size() and drift < 1e-4,
+		"split/open, the hinges' leaf halves have swung round the pin", "%d verts, drift %.5f m" % [hw_r.size(), drift])
 	var leaf_c := d.to_local(leaf.global_transform * leaf.mesh.get_aabb().get_center()) if leaf != null else Vector3.ZERO
 	_ok(leaf_c.z > 0.3, "split/open, the model's leaf stands out on +Z", str(leaf_c))
 	await _free(d)

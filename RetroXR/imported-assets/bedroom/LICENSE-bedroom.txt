@@ -18,10 +18,6 @@ furniture/ceiling_fan.glb
     3.9k tris. Cherry blades, bronze housing, amber glass shade — fan and
     ceiling fixture in one asset.
 
-furniture/door.glb  (+ trim_kit_0.jpg)
-    Extracted from "Interior Trim Assets" by Roman (@janwama).
-    The door leaf, jambs, knob and hinges joined into one object.
-
 === CC0 — no attribution required, given anyway =================================
 
 materials/Plaster001_*
@@ -50,15 +46,11 @@ materials/Carpet016_*
 materials/Wood049_*
     "Wood 049" — ambientCG
     https://ambientcg.com/a/Wood049
-    Tagged oak/furniture/interior. The door LEAF only — surface 4 of the kit's
-    single mesh — on BOTH doors, the room's and the closet's. Each jamb and
-    casing keeps the room's painted trim. Color, NormalGL and Roughness kept, as
-    with the plaster.
-
-    The doors are WHITE, and this is still a wood set on purpose: pbr_surface's
-    paint_over covers the oak's colour while its grain, mill marks and roughness
-    variation keep coming through the normal and roughness maps. A painted panel
-    door is not a uniform surface, it just is not brown.
+    Tagged oak/furniture/interior. Its NormalGL is the embossed grain on the leaf
+    of RetroXR's own interior door (room/interior_door.glb, built in
+    RetroXR-models rooms/door), both the room's and the closet's, under white
+    paint: a molded hardboard door of the period is grained, it just is not brown.
+    The GLB carries its own copy (room/interior_door_Wood049_1K-JPG_NormalGL.jpg).
 
 materials/Grass005_*
     "Grass 005" — ambientCG
