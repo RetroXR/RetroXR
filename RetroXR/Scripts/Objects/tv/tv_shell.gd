@@ -151,6 +151,9 @@ func port_seat() -> Variant:        return _seat("PortSeat")
 func vga_port_seat() -> Variant:    return _seat("VgaPortSeat")
 ## HDMI IN: opt-in, as VGA is; no shipped shell carries one yet.
 func hdmi_port_seat() -> Variant:   return _seat("HdmiPortSeat")
+## S-Video and component: opt-in the same way, the pose of each group's first jack.
+func svideo_seat() -> Variant:      return _seat("SvideoSeat")
+func component_seat() -> Variant:   return _seat("ComponentSeat")
 ## Pose for the aerial socket, RfPort. Absent leaves it where tv.tscn authors it, on the
 ## stock body's back row; a deeper cabinet names it or the socket ends up inside.
 func rf_port_seat() -> Variant:     return _seat("RfPortSeat")

@@ -34,10 +34,18 @@ extends RcaPort
 
 ## Cord index to signal. Indexed directly, so the order is the contract — see the note
 ## above and each lead's cord_colors, which has to match it.
+##
+## Cords 3 and 4 are a COMPONENT lead's color-difference pair (2026-11-21): its cord 0
+## is Y, which is VIDEO (RcaPort.Channel's note), and 1 and 2 stay the audio, so a
+## three-cord composite or S-Video lead reads exactly as it did. The lead is what says
+## which cords it has: the same socket (a Wii's, a PlayStation 2's) gives composite,
+## S-Video or component, as Nintendo's and Sony's own leads did.
 const CORD_CHANNELS := [
 	RcaPort.Channel.VIDEO,
 	RcaPort.Channel.AUDIO_L,
 	RcaPort.Channel.AUDIO_R,
+	RcaPort.Channel.VIDEO_PB,
+	RcaPort.Channel.VIDEO_PR,
 ]
 
 

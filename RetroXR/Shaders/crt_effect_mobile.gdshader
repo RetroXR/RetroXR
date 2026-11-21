@@ -34,6 +34,7 @@ void fragment() {
 	vec2 wuv = crt_enabled ? crt_warp(UV) : UV;
 	vec2 fuv = (wuv - 0.5) / fit_scale + 0.5;
 	vec3 col = pixel_aa_fast(source_tex, fuv).rgb;
+	col = crt_chroma_apply(col);
 
 	// Letterbox bars, before the OSD so the menu still reads over them.
 	if (any(lessThan(fuv, vec2(0.0))) || any(greaterThan(fuv, vec2(1.0)))) {

@@ -862,6 +862,13 @@ static func _items_for(systemid: String) -> Array:
 		var spawn := str(lead["spawn"])
 		if not _listed(items, spawn) and not _listed(mod_rows, spawn):
 			items.append({"kind": "peripheral", "label": str(lead["label"]), "spawn": spawn})
+	# And the S-Video and component leads off the same socket, which no mod lead
+	# replaces: a different cable, not a stand-in (Connectors.BETTER_LEADS).
+	for socket: String in sockets:
+		for better: Dictionary in Connectors.better_leads(socket):
+			var spawn := str(better["spawn"])
+			if not _listed(items, spawn) and not _listed(mod_rows, spawn):
+				items.append({"kind": "peripheral", "label": str(better["label"]), "spawn": spawn})
 	# Mod peripherals go LAST, after the stand-ins and the shipped accessories,
 	# so a mod adds to a console's card rather than reordering it. A row the card
 	# already has, by name and spawn, is not listed twice: two mods modelling the

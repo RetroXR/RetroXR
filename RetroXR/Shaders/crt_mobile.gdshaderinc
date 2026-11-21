@@ -51,6 +51,9 @@ uniform float crt_beam_min : hint_range(0.05, 0.5) = 0.18;
 uniform float crt_beam_max : hint_range(0.05, 0.8) = 0.35;
 uniform float crt_gamma : hint_range(0.8, 1.4) = 1.09;
 uniform float crt_vignette : hint_range(0.0, 1.0) = 0.18;
+
+// The input's color (component's Y alone is black and white): crt_chroma.gdshaderinc.
+#include "res://Shaders/crt_chroma.gdshaderinc"
 uniform float crt_brightness : hint_range(0.5, 2.0) = 1.0;
 uniform float crt_glass_reflection : hint_range(0.0, 1.0) = 0.35;
 uniform bool crt_powered = true;

@@ -68,6 +68,8 @@ void fragment() {
 		col = crt_notch_sample(source_tex, suv, col);
 		glow = crt_glow(source_tex, fuv);
 	}
+	// The wiring's, not the tube's: outside the crt_enabled guard (crt_chroma.gdshaderinc).
+	col = crt_chroma_apply(col);
 
 	// Bars before the OSD, so the OSD still reads over them — a real set draws
 	// its menu on top of the letterbox rather than being clipped by it.

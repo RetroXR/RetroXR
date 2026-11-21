@@ -14,6 +14,8 @@ After a re-import, put the GLBs back to `generate_lods=false` and any extracted 
 | `jst_vl_plug/jst_vl_plug.glb` | `generic/jst-vl-plug/exports/naomi/jst_vl_plug_naomi_mobile_clean.glb` | both ends of `naomi_power_cable.tscn` |
 | `vga_plug/vga_plug.glb` | `generic/vga-plug/exports/blue/vga_plug_blue_mobile_clean.glb` | both ends of `vga_cable.tscn` |
 | `hdmi_plug/hdmi_plug.glb` | `generic/hdmi-plug/exports/hdmi_plug_mobile_clean.glb` (856207fb9; the WUP-008's shape without its oval) | both ends of `hdmi_cable.tscn` |
+| `svideo_plug/svideo_plug.glb` | `generic/svideo-plug/exports/black/svideo_plug_black_mobile_clean.glb` (ba1dfd960; a molded 4-pin mini-DIN on `common/minidin.py`, no marks) | `PlugB0` of `n64_svideo_cable.tscn` and `ps2_svideo_cable.tscn` |
+| `svideo_port/svideo_socket.glb` | `generic/svideo-socket/exports/black/svideo_socket_black_mobile_clean.glb` (ba1dfd960) | `svideo_port.tscn` (`SvideoSocket`, its mouth AT the zone: the plug's nose stops there, the bezel 1.2 mm behind on the panel) |
 | `hdmi_port/hdmi_socket.glb` | `generic/hdmi-socket/exports/hdmi_socket.glb` (096cc328c; a short Blender script, not cartkit) | `hdmi_port.tscn` (`HdmiSocket`, 0.8 mm behind the zone: the plug stops on its surround) |
 | `hpdb50_plug/hpdb50_plug.glb` | `generic/hpdb50-plug/exports/naomi/hpdb50_plug_naomi_mobile_clean.glb` | both ends of `gd_cable.tscn` |
 | `jamma_plug/jamma_plug.glb` | `generic/jamma-plug/exports/keyed/jamma_plug_keyed_mobile_clean.glb` (the keyed model, d5aebc2ac) | both ends of `jamma_cable.tscn` (`Shell` turned half round about Z; its harness leaves along the plug's -Y, which the rope's exit axes say) |

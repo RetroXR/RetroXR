@@ -76,6 +76,9 @@ uniform float crt_grain : hint_range(0.0, 1.0) = 0.10;
 uniform float crt_smear : hint_range(0.0, 1.0) = 0.0;
 uniform float crt_wiggle : hint_range(0.0, 0.2) = 0.0;
 
+// The input's color (component's Y alone is black and white): crt_chroma.gdshaderinc.
+#include "res://Shaders/crt_chroma.gdshaderinc"
+
 // ── Tube light ──────────────────────────────────────────────────────────────
 uniform float crt_vignette : hint_range(0.0, 1.0) = 0.18;
 // 1.0 is correct: the mask and the beam are both normalised to a mean of exactly

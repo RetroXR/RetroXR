@@ -88,7 +88,11 @@ static func is_display_shader(shader: Shader) -> bool:
 ## that name shadows it, which fails to parse.
 ## HDMI (7) was appended 2026-11-21: on the stock (Classic) set, and on any shell with an
 ## HdmiPortSeat. Append only.
-enum Source { COMPOSITE_1, COMPOSITE_2, COMPOSITE_3, COMPOSITE_4, TV, RF, VGA, HDMI }
+## SVIDEO (8) and COMPONENT (9) were appended the same day, on the stock set: a 4-pin
+## mini-DIN with its own L/R, and Y/Pb/Pr with its own L/R (TvSignal says what each
+## does to the picture).
+enum Source { COMPOSITE_1, COMPOSITE_2, COMPOSITE_3, COMPOSITE_4, TV, RF, VGA, HDMI,
+	SVIDEO, COMPONENT }
 
 ## How many composite inputs the set has. The back panel carries a socket trio per
 ## input (see tv.tscn) and tv_shell.gd lays them out for a fitted cabinet.
@@ -98,7 +102,7 @@ const COMPOSITE_INPUTS := 4
 ## does for POWER and MUTE; the back panel prints the same names in its own voice
 ## (AV_INPUT_NAMES).
 const SOURCE_NAMES := ["COMPOSITE 1", "COMPOSITE 2", "COMPOSITE 3", "COMPOSITE 4",
-	"TV", "RF", "VGA", "HDMI"]
+	"TV", "RF", "VGA", "HDMI", "S-VIDEO", "COMPONENT"]
 
 ## The channels an RF modulator can put a console on, and what the set has to be
 ## tuned to for it to appear: 3 and 4 are the slide on the back of an NES, 1 and 2
@@ -205,6 +209,11 @@ var _fit: TvFit = null
 ## The HDMI IN. On the stock body (authored on in tv.tscn); a fitted shell turns it
 ## off unless it carries an HdmiPortSeat (TvPanel.seat_hdmi_port).
 @onready var _hdmi_port: XRToolsSnapZone = get_node_or_null("HdmiPort") as XRToolsSnapZone
+## The S-VIDEO IN and the component input's Y jack: on the stock body, off on a fitted
+## shell unless it carries the matching seat (TvPanel.seat_svideo / seat_component).
+## Y is a phono jack carrying VIDEO, molded green; Pb and Pr are its color jacks.
+@onready var _svideo_port: XRToolsSnapZone = get_node_or_null("SvideoIn") as XRToolsSnapZone
+@onready var _component_y: XRToolsSnapZone = get_node_or_null("ComponentY") as XRToolsSnapZone
 ## The aerial socket, Source.RF's one hole. Always fitted: every television has one,
 ## and unlike the VGA socket there is no cabinet in the project that would not.
 @onready var _rf_port: XRToolsSnapZone = $RfPort
@@ -464,6 +473,26 @@ func hdmi_port() -> HdmiPort:
 	return _hdmi_port as HdmiPort
 
 
+## The S-Video socket, or null on a set with none.
+func svideo_port() -> SvideoPort:
+	return _svideo_port as SvideoPort
+
+
+## The component input's Y jack (its picture), or null on a set with none.
+func component_y_port() -> RcaPort:
+	return _component_y as RcaPort
+
+
+## Its two color jacks, Pb then Pr; empty on a set with none.
+func component_color_ports() -> Array[RcaPort]:
+	var out: Array[RcaPort] = []
+	for jack in ["ComponentPb", "ComponentPr"]:
+		var port := get_node_or_null(jack) as RcaPort
+		if port != null:
+			out.append(port)
+	return out
+
+
 func display() -> TvDisplay:
 	return _display
 
@@ -694,6 +723,12 @@ func _ready() -> void:
 	if _hdmi_port != null:
 		_hdmi_port.has_picked_up.connect(_panel.on_plug_snapped.bind(Source.HDMI))
 		_hdmi_port.has_dropped.connect(_panel.on_plug_released.bind(Source.HDMI))
+	if _svideo_port != null:
+		_svideo_port.has_picked_up.connect(_panel.on_plug_snapped.bind(Source.SVIDEO))
+		_svideo_port.has_dropped.connect(_panel.on_plug_released.bind(Source.SVIDEO))
+	if _component_y != null:
+		_component_y.has_picked_up.connect(_panel.on_plug_snapped.bind(Source.COMPONENT))
+		_component_y.has_dropped.connect(_panel.on_plug_released.bind(Source.COMPONENT))
 	# The aerial socket, for what may be on the far end of whatever sits in it. An
 	# Antenna seated here tells the set itself, but an RF switch with an aerial
 	# already in its ANT socket does not — its cord has one end seated and resolves
@@ -774,6 +809,7 @@ func _ready() -> void:
 
 	# The blue no-signal screen and the powered-off black.
 	_display.build_states()
+	_display.refresh_signal()
 
 
 
@@ -1113,6 +1149,8 @@ func on_av_topology_changed(_links: Array) -> void:
 		_audio.apply_audio_out()
 		print("[RetroTV] %s: headphone jack -> %s" % [name,
 			String(phones_now.name) if phones_now != null else "<none>, own speakers"])
+	# A component input's color follows its Pb/Pr cords (TvSignal).
+	_display.refresh_signal()
 	# An amplifier cabled onto the front pair, or pulled off it, changes what every
 	# machine on this set should be decoding.
 	_audio.refresh_decoder()
@@ -1555,6 +1593,10 @@ func _source_available(source: Source) -> bool:
 		return _vga_port != null and _vga_port.enabled
 	if source == Source.HDMI:
 		return _hdmi_port != null and _hdmi_port.enabled
+	if source == Source.SVIDEO:
+		return _svideo_port != null and _svideo_port.enabled
+	if source == Source.COMPONENT:
+		return _component_y != null and _component_y.enabled
 	return false
 
 
@@ -1598,6 +1640,8 @@ func set_source(source: Source) -> void:
 	# Sound still has to be told: only the picture is pulled. Without this the input
 	# you just left goes on being heard.
 	_audio.apply_volume()
+	# And what the new input's cable does to the picture (TvSignal).
+	_display.refresh_signal()
 
 	# The dial keeps its place while another input is showing, so coming back to RF
 	# comes back to the channel that was on; the tuner only plays while it is.

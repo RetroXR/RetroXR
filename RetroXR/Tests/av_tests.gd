@@ -18,6 +18,7 @@ const CABLE_SCENE := preload("res://Scenes/Objects/cables/composite_cable.tscn")
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const VGA_CABLE := preload("res://Scenes/Objects/cables/vga_cable.tscn")
 const HDMI_CABLE := preload("res://Scenes/Objects/cables/hdmi_cable.tscn")
+const WII_COMPONENT_CABLE := preload("res://Scenes/Objects/system_models/wii/wii_component_cable.tscn")
 const N64_AV_CABLE := preload("res://Scenes/Objects/system_models/nintendo_64/n64_av_cable.tscn")
 const WII_AV_CABLE := preload("res://Scenes/Objects/system_models/wii/wii_av_cable.tscn")
 const GENESIS_AV_CABLE := preload("res://Scenes/Objects/system_models/genesis/genesis_av_cable.tscn")
@@ -150,6 +151,10 @@ func _run() -> void:
 		["routing/a machine on VGA is filed on the VGA input", _r_vga],
 		["routing/a Wii U on HDMI is filed on the HDMI input, sound and all", _r_hdmi],
 		["display/HDMI is on the stock set and off a shell without its seat", _d_hdmi_cabinets],
+		["display/component and S-Video are inputs of the stock set, off a shell without their seats", _d_better_inputs],
+		["routing/a Wii on its component lead: Y Pb Pr in color, crossed, and one pulled", _r_component],
+		["routing/a yellow composite cord in the green Y jack is black and white", _r_yellow_in_y],
+		["display/each input's kind scales the set's composite artifacts", _d_signal_scale],
 		["routing/an N64 wears ONE multi-out, not a phono row", _r_n64_multi_out],
 		["routing/its lead carries all three signals down one shell", _r_n64_lead],
 		["routing/a Wii lead does not fit an N64, nor the reverse", _r_multi_out_keying],
@@ -674,6 +679,158 @@ func _d_hdmi_cabinets() -> void:
 	_ok(not seen.has(RetroTV.Source.HDMI), "and SOURCE never stops on it there")
 
 
+func _d_better_inputs() -> void:
+	var stock := _tv()
+	var crt := TV_SCENE.instantiate() as RetroTV
+	crt.tv_model = "retroxr_crt"
+	crt.freeze = true
+	crt.position = Vector3(_spawned.size() * 3.0, 1, 0)
+	add_child(crt)
+	_spawned.append(crt)
+	await _wait(30)
+	var y := stock.panel().video_port(RetroTV.Source.COMPONENT)
+	_ok(y != null and y.name == "ComponentY" and y.enabled and y.visible,
+		"the stock set's component input is its Y jack")
+	_ok(y != null and y.channel == RcaPort.Channel.VIDEO and y.jack_tint.is_equal_approx(RcaJack.AUDIO_GREEN),
+		"Y carries VIDEO, in a green jack")
+	var colors := stock.component_color_ports()
+	_ok(colors.size() == 2 and colors[0].channel == RcaPort.Channel.VIDEO_PB
+		and colors[1].channel == RcaPort.Channel.VIDEO_PR, "beside it Pb and Pr")
+	var audio := stock.audio_ports(RetroTV.Source.COMPONENT)
+	_check_eq(audio.map(func(p: Node) -> String: return String(p.name)), ["AudioLInC", "AudioRInC"],
+		"its L and R are its own, and Pb/Pr are not taken for audio")
+	_ok(stock.find_child("AvLegendComponent", true, false) != null, "and a legend is printed over them")
+	var sv := stock.svideo_port()
+	_ok(sv != null and sv.enabled and sv.connector == SvideoPort.CONNECTOR, "the stock set has an S-Video IN")
+	_check_eq(stock.audio_ports(RetroTV.Source.SVIDEO).map(func(p: Node) -> String: return String(p.name)),
+		["AudioLInS", "AudioRInS"], "with its own L and R")
+	var seen := {}
+	for i in RetroTV.SOURCE_NAMES.size() * 2:
+		stock.cycle_source()
+		seen[stock.current_source] = true
+	_ok(seen.has(RetroTV.Source.SVIDEO) and seen.has(RetroTV.Source.COMPONENT),
+		"SOURCE on the stock set stops on both")
+	for jack in ["ComponentY", "ComponentPb", "AudioLInC", "SvideoIn", "AudioRInS"]:
+		var zone := crt.get_node_or_null(jack) as XRToolsSnapZone
+		_ok(zone == null or (not zone.enabled and not zone.visible),
+			"a shell with no seat for it has no %s" % jack)
+	seen = {}
+	for i in RetroTV.SOURCE_NAMES.size() * 2:
+		crt.cycle_source()
+		seen[crt.current_source] = true
+	_ok(not seen.has(RetroTV.Source.SVIDEO) and not seen.has(RetroTV.Source.COMPONENT),
+		"and SOURCE never stops on them there")
+
+
+func _wii() -> RetroSystem:
+	var sys := SYSTEM_SCENE.instantiate() as RetroSystem
+	sys.systemid = "wii"
+	sys.freeze = true
+	sys.position = Vector3(_spawned.size() * 3.0 + 2.0, 1, 0)
+	add_child(sys)
+	sys.add_to_group("spawned")
+	_spawned.append(sys)
+	await _wait(60)
+	return sys
+
+
+## Seat a Multi Out lead: PlugA0 in the console's socket, PlugB<c> in `jacks[c]`
+## (null leaves that cord loose).
+func _multi_lead(scene: PackedScene, sys: Node3D, jacks: Array) -> Node3D:
+	var lead := scene.instantiate() as Node3D
+	lead.position = Vector3(_spawned.size() * 2.0, 1, -1.0)
+	add_child(lead)
+	_spawned.append(lead)
+	await _wait(20)
+	var multi := sys.find_child("AvMultiOut", true, false) as RcaPort
+	_ok(multi != null, "the console has its Multi Out")
+	if multi == null:
+		return lead
+	multi.pick_up_object(lead.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	for c in jacks.size():
+		if jacks[c] != null:
+			(jacks[c] as RcaPort).pick_up_object(lead.get_node("PlugB%d" % c) as RcaPlug)
+			await _wait(6)
+	await _wait(30)
+	return lead
+
+
+func _r_component() -> void:
+	var tv := _tv()
+	var sys := await _wii()
+	var y := tv.component_y_port()
+	var colors := tv.component_color_ports()
+	var lr := tv.audio_ports(RetroTV.Source.COMPONENT)
+	if y == null or colors.size() != 2 or lr.size() != 2:
+		_ok(false, "the stock set has a whole component input")
+		return
+	# Cord order is the Multi Out's: Y, L, R, Pb, Pr.
+	var lead := await _multi_lead(WII_COMPONENT_CABLE, sys, [y, lr[0], lr[1], colors[0], colors[1]])
+	_check_eq(_which_input(tv, sys), RetroTV.Source.COMPONENT, "the Wii is filed on the component input")
+	tv.set_source(RetroTV.Source.COMPONENT)
+	_check_eq(tv.panel().selected_system(), sys, "and the set shows it there")
+	_check_eq(tv.display().signal_kind(), TvSignal.Kind.COMPONENT, "drawn as a component signal")
+	_check_eq(tv.display().signal_chroma(), TvSignal.Chroma.FULL, "in full color")
+	_check_eq(Array(tv.panel().miswired(RetroTV.Source.COMPONENT)), [], "a lead wired right is not called crossed")
+	var route: Dictionary = sys.audio_speakers()
+	_check_eq(route.get("left"), 0, "its L lands on the left speaker")
+	_check_eq(route.get("right"), 1, "and its R on the right")
+	# Pb and Pr crossed.
+	colors[0].drop_object()
+	colors[1].drop_object()
+	await _wait(10)
+	colors[0].pick_up_object(lead.get_node("PlugB4") as RcaPlug)
+	await _wait(6)
+	colors[1].pick_up_object(lead.get_node("PlugB3") as RcaPlug)
+	await _wait(30)
+	_check_eq(tv.display().signal_chroma(), TvSignal.Chroma.SWAPPED, "Pb and Pr crossed swap the color")
+	_check_eq(tv.panel().selected_system(), sys, "and the picture stays")
+	# One color cord out.
+	colors[1].drop_object()
+	await _wait(30)
+	_check_eq(tv.display().signal_chroma(), TvSignal.Chroma.MONO, "one of them pulled is black and white")
+	var dark: ShaderMaterial = tv.display()._dark_material
+	_check_eq(int(dark.get_shader_parameter("crt_chroma")), int(TvSignal.Chroma.MONO),
+		"and the display materials carry it")
+
+
+func _r_yellow_in_y() -> void:
+	var tv := _tv()
+	var sys := await _wii()
+	var y := tv.component_y_port()
+	if y == null:
+		_ok(false, "the stock set has a Y jack")
+		return
+	await _multi_lead(WII_AV_CABLE, sys, [y, null, null])
+	_check_eq(_which_input(tv, sys), RetroTV.Source.COMPONENT, "a yellow cord in Y is on the component input")
+	tv.set_source(RetroTV.Source.COMPONENT)
+	_check_eq(tv.panel().selected_system(), sys, "with its picture")
+	_check_eq(tv.display().signal_chroma(), TvSignal.Chroma.MONO, "in black and white, as on a real set")
+	tv.set_source(RetroTV.Source.COMPOSITE_1)
+	_check_eq(tv.display().signal_chroma(), TvSignal.Chroma.FULL, "and another input is in color again")
+
+
+func _d_signal_scale() -> void:
+	_check_eq(TvSignal.kind_of(RetroTV.Source.COMPOSITE_3), TvSignal.Kind.COMPOSITE, "a phono input is composite")
+	_check_eq(TvSignal.kind_of(RetroTV.Source.RF), TvSignal.Kind.COMPOSITE, "RF is drawn as composite")
+	_check_eq(TvSignal.kind_of(RetroTV.Source.SVIDEO), TvSignal.Kind.SVIDEO, "S-Video is its own")
+	_check_eq(TvSignal.kind_of(RetroTV.Source.VGA), TvSignal.Kind.RGB, "VGA is RGB")
+	_check_eq(TvSignal.kind_of(RetroTV.Source.HDMI), TvSignal.Kind.RGB, "and so is HDMI")
+	var tv := _tv()
+	tv.display().set_crt_params({"crt_notch": 1.0, "crt_smear": 1.0})
+	var dark: ShaderMaterial = tv.display()._dark_material
+	var rows := [[RetroTV.Source.COMPOSITE_1, 1.0, 1.0], [RetroTV.Source.SVIDEO, 0.0, 0.6],
+		[RetroTV.Source.COMPONENT, 0.0, 0.15], [RetroTV.Source.HDMI, 0.0, 0.0]]
+	for row: Array in rows:
+		tv.set_source(row[0])
+		await _wait(2)
+		_check_eq(tv.current_source, row[0], "the set is on %s" % RetroTV.SOURCE_NAMES[row[0]])
+		_ok(is_equal_approx(float(dark.get_shader_parameter("crt_notch")), row[1])
+			and is_equal_approx(float(dark.get_shader_parameter("crt_smear")), row[2]),
+			"%s keeps notch %.2f, smear %.2f of the set's composite" % [RetroTV.SOURCE_NAMES[row[0]], row[1], row[2]])
+
+
 ## A console with one hole in the back, and what the room does with it.
 ##
 ## The three cases below are one bug each. The machine used to wear the cabinet's
@@ -867,7 +1024,10 @@ func _r_multi_out_keying() -> void:
 		_check_eq(port.channel_for(2), RcaPort.Channel.AUDIO_R, "cord 2 is right")
 		# A lead with more cords than the connector has signals is a scene mistake.
 		# Carrying the picture is easier to see than crashing the room.
-		_check_eq(port.channel_for(3), RcaPort.Channel.VIDEO, "out of range is the picture")
+		# Cords 3 and 4 are a component lead's Pb and Pr (MultiAvPort.CORD_CHANNELS).
+		_check_eq(port.channel_for(3), RcaPort.Channel.VIDEO_PB, "cord 3 is Pb")
+		_check_eq(port.channel_for(4), RcaPort.Channel.VIDEO_PR, "cord 4 is Pr")
+		_check_eq(port.channel_for(5), RcaPort.Channel.VIDEO, "out of range is the picture")
 		_check_eq(port.channel_for(-1), RcaPort.Channel.VIDEO, "and so is below range")
 	wii_port.free()
 
@@ -3536,6 +3696,10 @@ func _d_legacy_tv_source() -> void:
 	_check_eq(int(RetroTV.Source.RF), 5, "RF keeps the value that is on disk")
 	_check_eq(int(RetroTV.Source.VGA), 6, "and so does VGA")
 	_check_eq(int(RetroTV.Source.HDMI), 7, "and HDMI, appended after it")
+	_check_eq(int(RetroTV.Source.SVIDEO), 8, "and S-Video after that")
+	_check_eq(int(RetroTV.Source.COMPONENT), 9, "and component after it")
+	_check_eq(int(RcaPort.Channel.VIDEO_PB), 9, "Pb is appended to the channels")
+	_check_eq(int(RcaPort.Channel.VIDEO_PR), 10, "and Pr after it")
 
 	tv.restore_control_state({"source": RetroTV.Source.TV, "channel_index": 1})
 	await _wait(4)

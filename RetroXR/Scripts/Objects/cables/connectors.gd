@@ -32,6 +32,7 @@ const LABELS := {
 	"trs_plug": "a 3.5 mm stereo plug",
 	"vga_plug": "a VGA plug",
 	"hdmi_plug": "an HDMI plug",
+	"svideo_plug": "an S-Video plug",
 	"usb_b": "a USB-B plug",
 	"jst_vl8": "a NAOMI power plug",
 	"gd_50pin": "a GD-ROM cable plug",
@@ -212,7 +213,7 @@ const CONTROLLER_PORTS := {
 ## the monitor. A lead's end that is one of these says nothing about which
 ## console it is for, so the spawn card never offers a lead for one: the
 ## Composite Cable is the game's own answer to a phono jack.
-const ROOM := ["composite_plug", "coax_plug", "trs_plug", "vga_plug", "hdmi_plug", "nema_5_15_plug",
+const ROOM := ["composite_plug", "coax_plug", "trs_plug", "vga_plug", "hdmi_plug", "svideo_plug", "nema_5_15_plug",
 	"nema_1_15_plug", "nema_1_15_polarized_plug", "iec_c13_plug", "iec_c7_plug",
 	"iec_c7_polarized_plug", "cee_7_7_plug", "cee_7_16_plug", "bs_1363_plug",
 	"as_3112_plug", "as_3112_2pin_plug", "sev_1011_plug", "cei_23_50_plug", "ds_k_plug",
@@ -236,6 +237,21 @@ const GAME_LEADS := {
 	"wii_av_plug": {"spawn": "wii_av_cable", "label": "AV Cable"},
 	"dc_av_plug": {"spawn": "dc_av_cable", "label": "Stereo AV Cable"},
 }
+
+## The game's better-picture leads for a console's own socket, offered BESIDE its
+## GAME_LEADS lead rather than in place of it, and whatever mod lead fits: an S-Video
+## or a component lead is a different cable, not a stand-in for a composite one. Off
+## the same Multi Out, as Nintendo's and Sony's own were: S-Video for the Super NES,
+## N64 and GameCube (SNS-009-style) and the PlayStation 2 (SCPH-10060), component for
+## the Wii (RVL-011) and the PlayStation 2 (SCPH-10100). A Wii has no S-Video outside
+## Japan's and Europe's leads, and none is offered.
+const BETTER_LEADS := {
+	"n64_av_plug": [{"spawn": "n64_svideo_cable", "label": "S-Video Cable"}],
+	"wii_av_plug": [{"spawn": "wii_component_cable", "label": "Component Cable"}],
+	"ps2_av_multi": [{"spawn": "ps2_svideo_cable", "label": "S-Video Cable"},
+		{"spawn": "ps2_component_cable", "label": "Component Cable"}],
+}
+
 
 ## A USB-A socket and plug, the standard's own: the PlayStation 2's two on its
 ## front take a GunCon 2.
@@ -320,3 +336,8 @@ static func is_room(connector: String) -> bool:
 ## The game's own lead for `connector` as {spawn, label}, or {} when it ships none.
 static func game_lead(connector: String) -> Dictionary:
 	return (GAME_LEADS.get(connector, {}) as Dictionary).duplicate()
+
+
+## The S-Video and component leads for `connector` (BETTER_LEADS), as [{spawn, label}].
+static func better_leads(connector: String) -> Array:
+	return (BETTER_LEADS.get(connector, []) as Array).duplicate(true)

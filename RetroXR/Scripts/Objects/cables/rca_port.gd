@@ -26,6 +26,11 @@ extends Port
 ## AUDIO_SPEAKER is a loudspeaker cabinet's own input: a phono jack is generic, so
 ## what a cabinet carries is decided by the socket at the far end of its lead.
 ##
+## VIDEO_PB and VIDEO_PR are a component input's two color-difference jacks
+## (2026-11-21). Component's third jack, Y, is plain VIDEO: luma plus sync is what a
+## composite jack takes too, so a yellow cord in Y gives a black-and-white picture
+## and a Y cord in a composite jack the same, as on a real set (TvSignal).
+##
 ## Turning a channel into a speaker number goes through CHANNEL_SPEAKER, never
 ## through arithmetic on the enum value.
 enum Channel {
@@ -38,6 +43,8 @@ enum Channel {
 	AUDIO_SL,
 	AUDIO_SR,
 	AUDIO_SPEAKER,
+	VIDEO_PB,
+	VIDEO_PR,
 }
 
 ## Which way the signal flows through this socket. A deck's sockets are OUT, a
@@ -51,6 +58,13 @@ enum Direction { OUT, IN }
 		_tint_jack()
 
 @export var direction: Direction = Direction.IN
+
+## A jack color that is not its channel's: a component input's Y jack carries VIDEO
+## and is molded GREEN, not yellow. Transparent (the default) keeps the channel's.
+@export var jack_tint: Color = Color(0, 0, 0, 0):
+	set(value):
+		jack_tint = value
+		_tint_jack()
 
 ## Draw this port's own jack, or leave it to the model underneath.
 ##
@@ -77,7 +91,8 @@ enum Direction { OUT, IN }
 @export var rf_feed: bool = false
 
 ## Short label for the OSD and for debugging — "VIDEO", "L", "R".
-const CHANNEL_NAMES := ["VIDEO", "L", "R", "STEREO", "CENTER", "SUB", "SL", "SR", "SPEAKER"]
+const CHANNEL_NAMES := ["VIDEO", "L", "R", "STEREO", "CENTER", "SUB", "SL", "SR", "SPEAKER",
+	"Pb", "Pr"]
 
 ## Which of a sink's speakers a channel lands on, indexed by Channel. The order
 ## matches the decoder's output — FL, FR, C, LFE, SL, SR — so a surround rig's
@@ -86,7 +101,7 @@ const CHANNEL_NAMES := ["VIDEO", "L", "R", "STEREO", "CENTER", "SUB", "SL", "SR"
 ## -1 for the three that name no single speaker: VIDEO carries nothing an
 ## amplifier can use, AUDIO_STEREO is both channels at once, and AUDIO_SPEAKER is
 ## a cabinet's generic input, whose channel is whatever the far socket says.
-const CHANNEL_SPEAKER := [-1, 0, 1, -1, 2, 3, 4, 5, -1]
+const CHANNEL_SPEAKER := [-1, 0, 1, -1, 2, 3, 4, 5, -1, -1, -1]
 
 ## The television outputs a loudspeaker can be cabled to, in decoder order.
 const SPEAKER_OUT_CHANNELS := [
@@ -128,6 +143,9 @@ func _tint_jack() -> void:
 	var jack := get_node_or_null("RcaJack") as RcaJack
 	if jack == null:
 		return
+	if jack_tint.a > 0.0:
+		jack.jack_color = jack_tint
+		return
 	match channel:
 		Channel.VIDEO: jack.jack_color = RcaJack.COMPOSITE_YELLOW
 		Channel.AUDIO_L: jack.jack_color = RcaJack.AUDIO_WHITE
@@ -137,6 +155,8 @@ func _tint_jack() -> void:
 		Channel.AUDIO_SL: jack.jack_color = RcaJack.AUDIO_BLUE
 		Channel.AUDIO_SR: jack.jack_color = RcaJack.AUDIO_GREY
 		Channel.AUDIO_SPEAKER: jack.jack_color = RcaJack.AUDIO_BLACK
+		Channel.VIDEO_PB: jack.jack_color = RcaJack.AUDIO_BLUE
+		Channel.VIDEO_PR: jack.jack_color = RcaJack.AUDIO_RED
 
 
 func channel_name() -> String:

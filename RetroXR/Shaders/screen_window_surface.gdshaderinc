@@ -42,6 +42,7 @@ void fragment() {
 	}
 
 	#endif
+	col = crt_chroma_apply(col);
 
 	if (osd_enabled) {
 		vec4 osd = texture(osd_tex, wuv);

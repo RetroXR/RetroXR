@@ -812,3 +812,44 @@ channel).
 - **Only console:** the Wii U is the one console with an HDMI OUT (`wiiu.md`).
 - **Tests:** `av_tests` `_r_hdmi` (filed on HDMI, picture and sound reach the set) and `_d_hdmi_cabinets` (on the stock set, off a
   shell without its seat). `wiiu_render_probe` shows the lead seated at both ends and an empty socket.
+
+### S-Video and component: the Classic TV's better inputs (2026-11-21)
+
+The stock (Classic) set has two more inputs on a third back-panel row, appended after HDMI:
+`RetroTV.Source.SVIDEO` (8) and `COMPONENT` (9), each with its own L and R. A fitted shell
+turns them off unless it carries an `SvideoSeat` / `ComponentSeat` (the first jack's pose; the
+rest step off it by `av_socket_step`), as VGA and HDMI opt in. No shipped shell has either.
+
+- **S-Video** is `SvideoPort` (`svideo_port.tscn`, connector `svideo_plug`): RetroXR-models
+  `generic/svideo-socket`, its mouth AT the zone and its bezel 1.2 mm behind on the panel, so
+  `tv.tscn` stands `SvideoIn` 1.2 mm off the panel, turned about Y (key up). The plug is
+  `generic/svideo-plug` (both built on `common/minidin.py`'s 4-pin, whose layout that commit
+  re-measured). A mixed group's legend plate stands at the group's MEAN depth
+  (`AvLegend._panel_frame`), hence `_print_svideo_legend`'s averaged standoff.
+- **Component's Y is a plain VIDEO jack** with `RcaPort.jack_tint` green. Pb and Pr are
+  `RcaPort.Channel.VIDEO_PB` / `VIDEO_PR` (9, 10, APPENDED: the int is on disk and the wire).
+  In `_av_ports` they come AFTER L and R (`[Y, L, R, Pb, Pr]`), so `[1]`/`[2]` stay the audio
+  for every input; `audio_ports` is `slice(1, 3)`.
+- **The lead decides the signals, not the console's socket**: `MultiAvPort.CORD_CHANNELS` is
+  Y/L/R/Pb/Pr, so a three-cord composite or S-Video lead reads as before and the five-cord
+  component lead (`wii_component_cable`, `ps2_component_cable`: green, white, red, blue, red)
+  carries the color difference on cords 3 and 4. The S-Video leads (`n64_svideo_cable` for the
+  Super NES / N64 / GameCube, `ps2_svideo_cable`) are the composite leads with PlugB0 swapped for
+  the mini-DIN. They are `Connectors.BETTER_LEADS`, offered BESIDE a socket's `GAME_LEADS` lead
+  on every card whose console names the socket; no mod lead replaces them.
+
+**What the picture does: `TvSignal`.** The player's "Composite blend" (`crt_notch`) and
+"Smear" (`crt_smear`) describe THIS SET'S composite; the selected input's kind scales them in
+`TvDisplay.apply_crt_params` (composite 1/1, S-Video 0/0.6, component 0/0.15, VGA/HDMI 0/0; RF
+is composite). And `crt_chroma` (`Shaders/crt_chroma.gdshaderinc`, in both tiers, applied with
+the tube stage OFF too): FULL; MONO when nothing correct reaches Pb/Pr from the device on Y (a
+yellow cord in the green jack, a color cord pulled); SWAPPED when Pb and Pr are crossed. Nothing
+on Y is FULL, or the no-signal blue would go gray. Worked out on a source change and on every
+A/V topology change (`refresh_signal`), never per frame. NOTE: composite's own sliders ship at
+0, so out of the box composite already draws as clean as S-Video; the difference shows once a
+set's composite is turned up.
+
+`av_tests` (`_d_better_inputs`, `_r_component`, `_r_yellow_in_y`, `_d_signal_scale`);
+`DevTools/av/tv_inputs_render_probe` (windowed): the leads seated, the empty row, and a test card
+through `crt_effect.gdshader` as each input draws it. A real core on either input, headset feel,
+the Quest and netplay are OWED.

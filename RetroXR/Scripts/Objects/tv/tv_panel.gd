@@ -175,6 +175,20 @@ func collect() -> void:
 	_av_ports.append(hdmi_trio)
 	_connected_systems.append(null)
 	_snapped_plugs.append(null)
+	# S-Video (Source.SVIDEO) and component (Source.COMPONENT), each with its own L/R.
+	# Index 0 is the picture as everywhere: the mini-DIN, and component's Y. The color
+	# jacks Pb and Pr go AFTER the audio, so [1] and [2] stay L and R for every input
+	# (audio_ports, a captive lead's cords) and video_port needs no special case.
+	for row: Array in [["SvideoIn", "AudioLInS", "AudioRInS"],
+			["ComponentY", "AudioLInC", "AudioRInC", "ComponentPb", "ComponentPr"]]:
+		var group: Array[RcaPort] = []
+		for jack: String in row:
+			var port := _tv.get_node_or_null(jack) as RcaPort
+			if port != null:
+				group.append(port)
+		_av_ports.append(group)
+		_connected_systems.append(null)
+		_snapped_plugs.append(null)
 
 	_speaker_outs = []
 	for out_name in SPEAKER_OUT_NAMES:
@@ -308,6 +322,8 @@ func print_legends() -> void:
 		_print_rf_legend(plate)
 	if _tv.hdmi_port() != null and _tv.hdmi_port().enabled:
 		_print_hdmi_legend(plate)
+	_print_component_legend(plate)
+	_print_svideo_legend(plate)
 	if has_speaker_outs():
 		_print_speaker_legend(plate)
 
@@ -346,6 +362,50 @@ func _print_hdmi_legend(plate: bool) -> void:
 	legend.title = "HDMI 1"
 	legend.heading_override = "HDMI IN"
 	legend.show_words = false
+	legend.show_plate = plate
+	legend.rebuild()
+
+
+## The component input's legend: one plate over its five jacks, each named as a real
+## panel prints them (Y Pb Pr L R; the derived words would call Y "VIDEO" and run
+## the color jacks together as audio).
+func _print_component_legend(plate: bool) -> void:
+	var y := video_port(RetroTV.Source.COMPONENT)
+	if y == null or not y.enabled:
+		return
+	var legend := AvLegend.attach(_tv, _av_ports[RetroTV.Source.COMPONENT])
+	if legend == null:
+		return
+	legend.name = "AvLegendComponent"
+	legend.title = "Component"
+	legend.word_override = {
+		RcaPort.Channel.VIDEO: "Y", RcaPort.Channel.VIDEO_PB: "Pb",
+		RcaPort.Channel.VIDEO_PR: "Pr", RcaPort.Channel.AUDIO_L: "L",
+		RcaPort.Channel.AUDIO_R: "R",
+	}
+	legend.show_plate = plate
+	legend.rebuild()
+
+
+## The S-Video input's legend: a composite group's printing, its jack named S-VIDEO.
+func _print_svideo_legend(plate: bool) -> void:
+	var socket := video_port(RetroTV.Source.SVIDEO)
+	if socket == null or not socket.enabled:
+		return
+	var legend := AvLegend.attach(_tv, _av_ports[RetroTV.Source.SVIDEO])
+	if legend == null:
+		return
+	legend.name = "AvLegendSvideo"
+	legend.title = "S-Video"
+	# The plate stands at the group's MEAN depth (AvLegend._panel_frame): the mini-DIN's
+	# mouth is 1.2 mm off the panel (svideo_port.tscn), so 0.7 leaves the plate 0.5 mm
+	# proud as PANEL_STANDOFF does for a phono jack's 10 mm.
+	legend.standoff = (0.0007 + 2.0 * AvLegend.PANEL_STANDOFF) / 3.0
+	# The words name the socket rather than the signal.
+	legend.word_override = {
+		RcaPort.Channel.VIDEO: "S-VIDEO", RcaPort.Channel.AUDIO_L: "L",
+		RcaPort.Channel.AUDIO_R: "R",
+	}
 	legend.show_plate = plate
 	legend.rebuild()
 
@@ -532,6 +592,40 @@ func seat_hdmi_port(at: Variant) -> void:
 	print("[TV] %s: HDMI input %s" % [_tv.name, "fitted" if on else "not on this cabinet"])
 
 
+## The S-Video and component inputs on a fitted shell: on only where the shell carries
+## an SvideoSeat / ComponentSeat (the pose of the group's FIRST jack; the rest step off
+## it by av_socket_step, in the stock panel's order: S-VIDEO L R, and Y Pb Pr L R).
+## The stock body keeps them as tv.tscn authors them. No shipped shell has either:
+## a 70s wood cabinet with component jacks is the anachronism a DE-15 would be.
+func seat_svideo(at: Variant) -> void:
+	_seat_group(RetroTV.Source.SVIDEO, [0, 1, 2], at, "S-Video")
+
+
+func seat_component(at: Variant) -> void:
+	# _av_ports order is Y L R Pb Pr; on the panel they run Y Pb Pr L R.
+	_seat_group(RetroTV.Source.COMPONENT, [0, 3, 4, 1, 2], at, "Component")
+
+
+func _seat_group(input: int, slots: Array, at: Variant, what: String) -> void:
+	if input >= _av_ports.size():
+		return
+	var ports: Array = _av_ports[input]
+	if ports.is_empty():
+		return
+	var on: bool = at is Transform3D
+	var step := Vector3(-0.018, 0.0, 0.0)
+	if _tv.shell() != null:
+		step = _tv.shell().av_socket_step
+	for i in ports.size():
+		var port := ports[i] as RcaPort
+		if on:
+			var base := at as Transform3D
+			port.transform = Transform3D(base.basis, base * (step * float(slots.find(i))))
+		port.visible = on
+		port.enabled = on
+	print("[TV] %s: %s input %s" % [_tv.name, what, "fitted" if on else "not on this cabinet"])
+
+
 ## Snaps a captive cable plug into one of this TV's video sockets (used by save/load
 ## and netplay to restore connections). Defaults to Composite 1, which is where a
 ## caller that has no opinion — and every save written before there were four — means.
@@ -560,7 +654,8 @@ func audio_ports(input: int) -> Array:
 	if input < 0 or input >= _av_ports.size():
 		return []
 	var trio: Array = _av_ports[input]
-	return trio.slice(1) if trio.size() > 1 else []
+	# L and R only: a component input's Pb and Pr come after them (collect).
+	return trio.slice(1, 3) if trio.size() > 1 else []
 
 
 ## Which socket ANYWHERE on this set is holding `plug` — audio as well as video.
@@ -592,6 +687,10 @@ func port_holding(plug: Node3D) -> XRToolsSnapZone:
 		return _tv.vga_port()
 	if _tv.hdmi_port() != null and _tv.hdmi_port().picked_up_object == plug:
 		return _tv.hdmi_port()
+	for input: int in [RetroTV.Source.SVIDEO, RetroTV.Source.COMPONENT]:
+		var port := video_port(input)
+		if port != null and port.picked_up_object == plug:
+			return port
 	return null
 
 
@@ -607,6 +706,10 @@ func input_holding(plug: Node3D) -> int:
 		return RetroTV.Source.VGA
 	if _tv.hdmi_port() != null and _tv.hdmi_port().picked_up_object == plug:
 		return RetroTV.Source.HDMI
+	for input: int in [RetroTV.Source.SVIDEO, RetroTV.Source.COMPONENT]:
+		var port := video_port(input)
+		if port != null and port.picked_up_object == plug:
+			return input
 	return RetroTV.Source.COMPOSITE_1
 
 

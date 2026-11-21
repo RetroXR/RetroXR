@@ -93,6 +93,12 @@ var _blue_texture: Texture2D = null
 var _dark_texture: Texture2D = null
 var _dark_material: ShaderMaterial = null
 
+## What the selected input's cable does to the picture (TvSignal): its kind scales
+## the composite artifacts, its chroma is the shader's crt_chroma. Worked out on a
+## source change or a cable move (refresh_signal), never per frame.
+var _signal_kind: TvSignal.Kind = TvSignal.Kind.COMPOSITE
+var _signal_chroma: TvSignal.Chroma = TvSignal.Chroma.FULL
+
 ## Analog snow for an aerial channel with nothing on it. Built on first use.
 var _rf_static_material: ShaderMaterial = null
 
@@ -507,9 +513,44 @@ func update_stereo_button() -> void:
 ## (our wrapper or the chained VCR shader).
 func apply_crt_params(mat: ShaderMaterial) -> void:
 	for key: String in _crt_params:
-		mat.set_shader_parameter(key, _crt_params[key])
+		var value: Variant = _crt_params[key]
+		if TvSignal.SCALE[TvSignal.Kind.COMPOSITE].has(key):
+			value = TvSignal.scaled(_signal_kind, key, float(value))
+		mat.set_shader_parameter(key, value)
+	mat.set_shader_parameter("crt_chroma", int(_signal_chroma))
 	mat.set_shader_parameter("crt_glass_wear_tex", RetroTV.GLASS_WEAR_TEXTURE)
 	_apply_derived_crt_params(mat)
+
+
+## Work out what the selected input's cable does to the picture, and push it if that
+## moved. Called by the set on a source change and on every A/V topology change.
+func refresh_signal() -> void:
+	var kind := TvSignal.kind_of(_tv.current_source)
+	var chroma := TvSignal.Chroma.FULL
+	if _tv.current_source == RetroTV.Source.COMPONENT:
+		var colors := _tv.component_color_ports()
+		if colors.size() == 2:
+			chroma = TvSignal.component_chroma(AvGraph.links_for(_tv),
+				_tv.component_y_port(), colors[0], colors[1])
+	if kind == _signal_kind and chroma == _signal_chroma:
+		return
+	_signal_kind = kind
+	_signal_chroma = chroma
+	print("[TV] %s: %s signal, color %s" % [_tv.name, TvSignal.KIND_NAMES[kind],
+		TvSignal.Chroma.keys()[chroma].to_lower()])
+	if _tv.screen_mesh() == null:
+		return
+	for mat: ShaderMaterial in known_display_materials():
+		apply_crt_params(mat)
+
+
+## The signal kind and chroma refresh_signal settled on, for the suites.
+func signal_kind() -> TvSignal.Kind:
+	return _signal_kind
+
+
+func signal_chroma() -> TvSignal.Chroma:
+	return _signal_chroma
 
 
 func _is_tv_display_shader(shader: Shader) -> bool:
