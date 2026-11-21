@@ -10,6 +10,8 @@ const FPS := 30
 const SHUT_S := 1.2
 const OPEN_S := 1.4
 const HOLD_S := 1.6
+const FLIP_S := 0.9
+const BOOK_S := 2.4
 ## Which game each variant shows: [systemid, rom file].
 const PSX := ["psx", "CTR - Crash Team Racing (USA).chd"]
 const SEGACD := ["segacd", "Sonic CD (USA).chd"]
@@ -162,9 +164,39 @@ func _run() -> void:
 			_cam.global_position = centre + Vector3(0.0, span * (1.25 + 0.35 * t), span * (1.25 - 0.55 * t))
 			_cam.look_at(centre)
 			await _shot()
-		n = int(HOLD_S * FPS)
+		n = int(HOLD_S * 0.5 * FPS)
 		for i in n:
 			await _shot()
+		var centre := Vector3(-lid * 0.5, 0.0, 0.0)
+		# The flip trays (jewel) or flippers (keep), turned over one by one onto the lid: every disc shows.
+		for k in range(c.sim.count - 2, -1, -1):
+			n = int(FLIP_S * FPS)
+			for i in n:
+				var t := float(i + 1) / n
+				c.sim.set_angle_deg(k, 175.0 * (1.0 - pow(1.0 - t, 2.0)) - 4.0 * k)
+				c._apply_angles()
+				await _shot()
+			for i in int(0.6 * FPS):
+				await _shot()
+		# The manual out of the case, laid open in front of it.
+		var book := c.manual()
+		if book != null:
+			c._manual_zone.drop_object()
+			book.freeze = true
+			book.visible = true
+			var depth := size.y * 0.5 + book.book_height * 0.62
+			book.global_transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5), Vector3(centre.x + lid * 0.5, 0.012, depth))
+			book.set_page(1, 0)
+			n = int(BOOK_S * FPS)
+			for i in n:
+				var t := clampf(float(i + 1) / (n * 0.5), 0.0, 1.0)
+				var mid := centre + Vector3(lid * 0.25 * t, 0.0, depth * 0.55 * t)
+				_cam.global_position = mid + Vector3(0.0, span * (1.6 + 0.45 * t), span * (0.7 + 0.25 * t))
+				_cam.look_at(mid)
+				await _shot()
+		else:
+			for i in int(HOLD_S * 0.5 * FPS):
+				await _shot()
 		_clear()
 		await get_tree().process_frame
 
