@@ -14,6 +14,17 @@ extends RetroPadController
 ## The pad's SYNC button, a VRButton the subclass's scene carries.
 @onready var _sync_btn: VRButton = get_node_or_null("SyncButton") as VRButton
 
+## POWER, as on the Wii Remote (wiimote.gd): with the console off a press switches it
+## on; with it on only a hold of POWER_HOLD_SEC switches it off, so putting the pad
+## down on its face cannot end a game. Built on the pad's Model/Power key.
+const POWER_HOLD_SEC := 1.0
+const POWER_HAPTIC_KEY := &"wiiu_pad_power"
+const POWER_HAPTIC_MAGNITUDE := 0.15
+var _power_btn: VRButton = null
+var _power_held_for := 0.0
+var _power_fired := false
+var _power_haptic_ctrl: XRController3D = null
+
 
 func _init() -> void:
 	_build_model()
@@ -30,6 +41,90 @@ func _ready() -> void:
 		_sync_btn.button_pressed.connect(_on_sync_pressed)
 	if not _pending_port_restore.is_empty():
 		call_deferred("_apply_pending_restore")
+	_build_power_button()
+
+
+func _process(delta: float) -> void:
+	super._process(delta)
+	if _power_btn != null:
+		_update_power_hold(delta)
+
+
+func _exit_tree() -> void:
+	_stop_power_haptic()
+	super._exit_tree()
+
+
+# ── POWER ─────────────────────────────────────────────────────────────────────
+
+## A VRButton on the Model/Power key (the stand-in's, or the model a mod put at that
+## path), pressing it into the face along the pad's -Y.
+func _build_power_button() -> void:
+	var model := get_node_or_null("Model") as Node3D
+	var cap := model.get_node_or_null("Power") as MeshInstance3D if model != null else null
+	if cap == null:
+		return
+	_power_btn = VRButton.new()
+	_power_btn.name = "PowerButton"
+	_power_btn.collision_layer = 0
+	_power_btn.collision_mask = 0
+	_power_btn.trigger_radius = 0.008
+	_power_btn.contact_margin = 0.006
+	_power_btn.depress_depth = 0.0007
+	_power_btn.depress_axis = Vector3(0, -1, 0)
+	var shape := CylinderShape3D.new()
+	shape.radius = 0.004
+	shape.height = 0.004
+	var col := CollisionShape3D.new()
+	col.shape = shape
+	_power_btn.add_child(col)
+	_power_btn.position = model.transform * cap.position
+	add_child(_power_btn)
+	_power_btn.set_button_mesh(cap)
+
+
+## The Wii Remote's rule (wiimote.gd _update_power_hold), through toggle_power: the
+## same entry the console's own key uses, with its netplay rules.
+func _update_power_hold(delta: float) -> void:
+	if not _power_btn.is_held():
+		_stop_power_haptic()
+		_power_held_for = 0.0
+		_power_fired = false
+		return
+	if _power_fired:
+		return
+	if not is_instance_valid(_connected_system):
+		_power_fired = true
+		print("[WiiU] %s: POWER with no console paired — press SYNC on both first" % name)
+		return
+	if not _connected_system.is_powered_on:
+		_power_fired = true
+		print("[WiiU] %s: POWER — switching the console on" % name)
+		_connected_system.toggle_power()
+		return
+	_set_power_haptic(_power_btn.held_by())
+	_power_held_for += delta
+	if _power_held_for < POWER_HOLD_SEC:
+		return
+	_stop_power_haptic()
+	_power_fired = true
+	print("[WiiU] %s: POWER held %.1fs — switching the console off" % [name, POWER_HOLD_SEC])
+	_connected_system.toggle_power()
+
+
+func _set_power_haptic(ctrl: XRController3D) -> void:
+	if ctrl == _power_haptic_ctrl:
+		return
+	_stop_power_haptic()
+	if is_instance_valid(ctrl):
+		_power_haptic_ctrl = ctrl
+		Haptics.hold(ctrl, POWER_HAPTIC_MAGNITUDE, POWER_HAPTIC_KEY)
+
+
+func _stop_power_haptic() -> void:
+	if is_instance_valid(_power_haptic_ctrl):
+		Haptics.stop(_power_haptic_ctrl, POWER_HAPTIC_KEY)
+	_power_haptic_ctrl = null
 
 
 ## Cordless: nothing to spawn, so nothing tethers it either.

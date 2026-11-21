@@ -1,6 +1,6 @@
 ## WiiUProController — the Wii U Pro Controller (WUP-005) as a primitive: 161 x
 ## 105 x 48 mm (RetroXR-models nintendo/wiiu/pro-controller), two sticks above the
-## D-pad and A/B/X/Y, L/R and ZL/ZR, - HOME +, four player lamps.
+## D-pad and A/B/X/Y, L/R and ZL/ZR, - HOME +, POWER, four player lamps.
 ##
 ## Pairs like a Wii Remote (WiiLink, ports 1-3 on a Wii U) and is announced as
 ## Cemu's Pro Controller (RETRO_DEVICE_SUBCLASS(JOYPAD, 1)).
@@ -43,6 +43,8 @@ func _build_model() -> void:
 	_mk_cyl(model, "Select", 0.0026, 0.003, Vector3(-0.013, top + 0.0015, -0.008), btn)
 	_mk_cyl(model, "Home", 0.0035, 0.002, Vector3(0.0, top + 0.001, 0.004), btn)
 	_mk_cyl(model, "Start", 0.0026, 0.003, Vector3(0.013, top + 0.0015, -0.008), btn)
+	# POWER, under HOME (WiiUWirelessPad builds its button on this key).
+	_mk_cyl(model, "Power", 0.0028, 0.002, Vector3(0.0, top + 0.001, 0.016), btn)
 	_mk_box(model, "ShoulderL", Vector3(0.03, 0.008, 0.006), Vector3(-0.05, 0.006, -BODY.z * 0.5 - 0.002), shell)
 	_mk_box(model, "ShoulderR", Vector3(0.03, 0.008, 0.006), Vector3(0.05, 0.006, -BODY.z * 0.5 - 0.002), shell)
 	_mk_box(model, "TriggerL", Vector3(0.028, 0.01, 0.01), Vector3(-0.05, -0.008, -BODY.z * 0.5 - 0.003), shell)
