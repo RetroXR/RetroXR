@@ -93,6 +93,8 @@ const _REFERENCE_FIELDS := [
 	"sight",
 	# An arcade cabinet's bay, and the board standing in a bay.
 	"bay", "board",
+	# The Wii U GamePad standing in a cradle.
+	"gamepad",
 ]
 ## Stamped on a mod prop when it spawns, so serialize_node can recognise it
 ## without a class to test against. The value is the registered type string.
@@ -2104,6 +2106,7 @@ static func _restore_kind_rows() -> Array:
 		[PowerBrick, &"_restore_lead"],
 		[SpeakerStand, &"_restore_speaker_stand"],
 		[ConsoleStand, &"_restore_console_stand"],
+		[WiiUGamePadCradle, &"_restore_wiiu_cradle"],
 		[SensorBar, &"_restore_sensor_bar"],
 		[GcMicrophone, &"_restore_gc_microphone"],
 		[Dmg07Adapter, &"_restore_dmg07"],
@@ -2316,6 +2319,12 @@ func _restore_console_stand(root: Node, _id: int, obj: Node, spawned: Dictionary
 	var sys := _resolve_ref(root, spawned, rec.get("console")) as RetroSystem
 	if sys:
 		(obj as ConsoleStand).restore_console(sys)
+
+
+func _restore_wiiu_cradle(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
+	var pad := _resolve_ref(root, spawned, rec.get("gamepad")) as Node3D
+	if pad != null:
+		(obj as WiiUGamePadCradle).restore_pad(pad)
 
 
 func _restore_sensor_bar(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
@@ -3062,7 +3071,8 @@ static func _save_kind_rows() -> Array:
 		# Pose only, for the Nunchuk's reason: which remote it is seated in is saved
 		# on that remote.
 		[MotionPlus, "motion_plus"],
-		[WiiUGamePadCradle, "wiiu_gamepad_cradle"],
+		# Which GamePad stands in it: the CRADLE records it, as a stand records its console.
+		[WiiUGamePadCradle, "wiiu_gamepad_cradle", &"_wiiu_cradle_fields"],
 		[TVRemote, "tv_remote"],
 		[StorageBox, "trash_can"],
 		# Pose only: which lead is in which of a hub's sockets is recorded by each
@@ -3491,6 +3501,12 @@ func _speaker_stand_entry(stand: SpeakerStand, id: int, n3d: Node3D,
 	return _base(id, stand_token, n3d).merged({
 		"speaker": _ref(node_to_id, stand.seated_speaker()),
 	})
+
+
+## Only while a GamePad stands in it, so an empty cradle's entry is as it was.
+func _wiiu_cradle_fields(cradle: WiiUGamePadCradle, node_to_id: Dictionary) -> Dictionary:
+	var pad := cradle.seated_pad()
+	return {"gamepad": _ref(node_to_id, pad)} if pad != null else {}
 
 
 func _console_stand_fields(stand: ConsoleStand, node_to_id: Dictionary) -> Dictionary:

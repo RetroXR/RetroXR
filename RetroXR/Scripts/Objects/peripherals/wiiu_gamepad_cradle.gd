@@ -64,6 +64,20 @@ func is_powered() -> bool:
 	return jack != null and jack.seated_plug() != null and _input != null and _input.is_live()
 
 
+## Put a saved room's GamePad back in the seat (ScenePersistence, the cradle's
+## "gamepad"). A frame's wait while either is still coming into the tree.
+func restore_pad(pad: Node3D) -> void:
+	for _i in 30:
+		if is_inside_tree() and is_instance_valid(pad) and pad.is_inside_tree() and _seat != null:
+			break
+		await get_tree().process_frame
+	if not is_instance_valid(pad) or _seat == null:
+		push_warning("[WiiU] cradle: the saved GamePad never arrived -- left out")
+		return
+	print("[WiiU] cradle: restoring %s into its seat" % pad.name)
+	_seat.pick_up_object(pad)
+
+
 func _on_pad_seated(pad: Node3D) -> void:
 	_pad = pad
 	print("[WiiU] cradle: %s seated (%s)" % [pad.name, "charging" if is_powered() else "no supply"])

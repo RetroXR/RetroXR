@@ -92,7 +92,7 @@ The GamePad's speaker was measured in the room: its sound gets a voice of its ow
 - **Contacts:** the two tabs and two contacts sit where the GamePad's support slots and charging terminals are (RetroXR-models gamepad: x ±37 and ±10 mm). The cradle's size is ESTIMATED; nothing publishes it.
 - **Power:** the GamePad AC Adapter (WUP-011, `wiiu_gamepad_ac_adapter`, a grey inline brick, plug `wiiu_gamepad_dc_plug`, size ESTIMATED) goes into the cradle's back (`PowerInlet`) or straight into the GamePad's top (`ACAdapterPort`, x -54 mm).
 - **Charging:** the GamePad charges (`is_charging()`, its orange lamp) while its cradle has the adapter's plug in, or its own port does, under the room's power rule. No charge is modelled; the GamePad runs either way.
-- **Saving:** the cradle saves its pose. Which GamePad stands in it is not saved yet (OWED).
+- **Saving:** the CRADLE records the GamePad in it (`gamepad`, a reference field, written only while one stands there), as a stand records its console; a restore seats it again through `restore_pad` (`wiiu_tests` `cradle/`, mutation-tested).
 
 ## Power and AV
 
