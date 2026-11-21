@@ -78,7 +78,7 @@ The console's forced options:
 
 - **Screen:** the 137.3 x 77.2 mm glass shows the console's frame through `screen_window` with `source_rect = gamepad_rect()`.
 - **Touch:** a `TVTouchSurface` on the glass (one implementation for the DS on a TV and the GamePad). Its `uv_rect` follows the view, and touches go to `feed_touch` on port 0.
-- **Motion:** `MotionSampler` derives accel and gyro from the pad's pose on the physics clock. `android_axes` maps them to Android's axes (+X right, +Y the top edge, +Z out of the screen), which is what Cemu reads for the GamePad.
+- **Motion:** `MotionSampler` derives accel and gyro from the pad's pose on the physics clock. `android_axes` maps them to Android's axes (+X right, +Y the top edge, +Z out of the screen), which is what Cemu reads for the GamePad. **The fork turns those into SDL's GAME CONTROLLER axes** (+Y out of the face, +Z toward the player: `sdl = (x, z, -y)`) before upstream's own conversion, which is written for SDL. Until fork v3 it fed Android's axes in as SDL's, a quarter turn about X: a GamePad lying flat read as one stood on its edge facing away, so Nintendo Land, calibrated with the GamePad put down, showed its picture upside down once it was held up. A headset check of a motion game is OWED.
 - **Speaker:** the fork pushes the GamePad's sound through the controller audio interface (location 0, port 0, index 0) when the frontend takes it, so it is posed at `Speaker`. Otherwise it is mixed into the TV.
 
 The Pro Controller lights its player lamp (port N is player N).
@@ -95,6 +95,32 @@ The GamePad's speaker was measured in the room: its sound gets a voice of its ow
 - **Charging:** the GamePad charges (`is_charging()`, its orange lamp) while its cradle has the adapter's plug in, or its own port does, under the room's power rule. No charge is modelled; the GamePad runs either way.
 - **Saving:** the CRADLE records the GamePad in it (`gamepad`, a reference field, written only while one stands there), as a stand records its console; a restore seats it again through `restore_pad` (`wiiu_tests` `cradle/`, mutation-tested).
 
+## Amiibo
+
+The GamePad's NFC touchpoint is an `NfcTouchZone` (`NfcZone`), below the D-pad. The real mark is at x -85, 24 mm toward the bottom edge (RetroXR-models params `nfc`); the primitive puts it lower, clear of its own D-pad, and xenu.wiiugamepad moves it onto the shell.
+
+- **Files:** dumps go in `<roms>/amiibo/` with any subfolders. `FigureShelves` takes a `.bin` when its lock, capability container and CFG bytes are an NTAG215's (540 bytes, or 572 with the signature). Cemu makes the same test. The 2048-byte Switch 2 dumps fail it and are left off. A figure's series is its folder, so "Donkey Kong" in two series makes two rows. A dump under a folder named for cards spawns as a card.
+- **No key:** the fork decrypts with its own built-in keys, so `key_retail.bin` is never asked for and the BIOS page has no row for it.
+- **Shelf:** the Games tile `amiibo` (art `amiibo.svg` / `amiibo-content.svg`) shows when Cemu is installed or the folder has something in it. A row spawns a `ToyFigure`: a 40 mm base with a standee and the name, or a 54 x 85.6 mm card. A save keeps its dump's path (`rom`).
+- **Touch:** a figure whose underside, or a card whose middle, is within 2 cm of the mark and 3 cm across it is handed over with `SetNfcTag(<absolute path>)`, with a short tick on the hand holding it. Taking it away calls `ClearNfcTag()`. Cemu keeps a touch for about 2 s and only reacts to a tag arriving, so a figure is set down again for a game that asks later. A new core (the console power-cycled) is touched afresh. A dump the reader refuses is offered once until it is taken away. The core writes a game's saves back into the `.bin`.
+- **Not yet:** netplay. The zone stays inert in a session, because `SetNfcTag` reaches only the local core. No other core reads NFC: Azahar has `LoadAmiibo` but its libretro build has no NFC interface.
+
+## Toy bases: Skylanders, Disney Infinity, Lego Dimensions
+
+Each base is a primitive `ToyBase` with a captive 2 m lead ending in a USB-A plug (`toy_base_cable.tscn`, the game's USB-A plug model). The plug goes in any of the Wii U's four USB sockets (`SystemPorts.build_usb`; passive, so nothing is announced on a libretro port). They spawn from the Wii U's card.
+
+| Base | Scene | Spots (Cemu's readers, in order) | Shelf (`roms/<id>`) | Dump |
+|---|---|---|---|---|
+| Portal of Power | `toys/skylanders_portal` | one top, 16 figures | `skylanders` | 1024 bytes, UID check byte right; `.sky .bin .dump .dmp` |
+| Infinity Base | `toys/infinity_base` | hexagon 0-2, player one 3-5 (left), player two 6-8 (right) | `disneyinfinity` | 320 bytes |
+| Toy Pad | `toys/dimensions_toypad` | left 0, 3, 4; centre 1; right 2, 5, 6 | `legodimensions` | 180 bytes, NXP 0x04 first |
+
+- **The core:** the Cemu fork (branch `toy-bases`) publishes each spot of a base it emulates as an accessory reader (`AccessoryInterface.hpp` kinds 1-3, appended to the shared block). Inserting a reader opens the dump writable, so a game's save goes back into the file. The bases attach when the title starts, so `ForcedCoreOptions.toy_bases` pins `cemu_emulate_skylander_portal` / `_infinity_base` / `_dimensions_toypad` to the bases on that Wii U's sockets. A base plugged in while a game runs is found at the next start (`RetroSystem.refresh_toy_base_option`), and its ring stays dark until then.
+- **The room:** `ToyBase` finds its Wii U from the socket its plug is in, then asks for the core's readers (`RequestAccessoryReaders`, `accessory_readers_changed`). A figure of its own line whose tag is over a spot goes on that spot's first free reader (`InsertAccessoryMedia`, absolute path); taking it off calls `RemoveAccessoryMedia`. The readers come again after every insert. A figure the core no longer has (`present` false, after a reset) is handed over again, and a different set of readers starts the base afresh.
+- **Figures:** `ToyFigure` takes its look from its shelf (a round base and standee; a thin toy tag for Dimensions). Any Infinity dump stands as a figure, since telling a Power Disc apart needs the figure decrypted. The three shelves have no Systematic art, so they use the default icon.
+- **Saving:** a base saves its kind, plus the console and the socket its lead is in (`_toy_base_entry`, `ToyBase.restore_connection`).
+- **Not yet:** netplay (local only, inert in a session), a real game test (no Skylanders, Infinity or Dimensions title here), Dolphin's emulated bases (its libretro build reaches none), and the release of the Cemu build.
+
 ## Power and AV
 
 - **Power:** DC from the WUP-002 brick (`wiiu_ac_adapter`, plug `wiiu_dc_plug`, sizes from RetroXR-models' `psu/asset_stats.json`), into the console's `DCIn` mouth.
@@ -104,6 +130,7 @@ The GamePad's speaker was measured in the room: its sound gets a voice of its ow
 ## Checks
 
 - **`Tests/wiiu_tests.gd`** (no core): model, views, pairing, ids, touch, axes and cradle. Its slot rule and its axes were mutation-tested.
+- **`Tests/figure_tests.gd`** (no core, dumps written by the suite): each shelf's file test; the shelves; an amiibo on a real zone being set, lifted, set again and refused; a base's lead seated in a socket, with figures going on and off its spots and resent after a reset; and the pinned options.
 - **`DevTools/cores/wiiu_boot_probe`** (windowed, real Cemu):
   - `--leg=views` (default): two views, both lit.
   - `--leg=noviews` with `XENU_NO_VIDEO_VIEWS=1`: the control (no map, a 1280 x 720 frame).
