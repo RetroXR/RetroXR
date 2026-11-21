@@ -17,6 +17,7 @@ var _world: Node3D
 var _cam: Camera3D
 var _label: Label
 var _frame := 0
+var _only := ""
 
 
 func _ready() -> void:
@@ -26,6 +27,8 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--out="):
 			_out = arg.substr(6)
+		if arg.begins_with("--only="):
+			_only = arg.substr(7).to_lower()
 	if _out.is_empty():
 		_out = ProjectSettings.globalize_path("user://case_gallery")
 	DirAccess.make_dir_recursive_absolute(_out.path_join("frames"))
@@ -107,7 +110,7 @@ func _games() -> Array:
 			var path := dir_path.path_join(n)
 			var discs := GameCase.discs_of(path)
 			var first := discs[0] if not discs.is_empty() else path
-			if seen.has(first):
+			if seen.has(first) or not (_only.is_empty() or _only in n.to_lower()):
 				continue
 			seen[first] = true
 			out.append([sys, first])
@@ -159,6 +162,12 @@ func _run() -> void:
 			_cam.global_position = Vector3(sin(a) * span * 1.1, span * 1.25, cos(a) * span * 1.1 + span * 0.15)
 			_cam.look_at(Vector3.ZERO)
 			await _shot("%02d_shut" % i if k == n / 2 else "")
+		# Its two edges, low, where the inlay's spines show.
+		for side in [-1.0, 1.0]:
+			_cam.global_position = Vector3(side * csize.x * 1.6, csize.z * 1.5 + 0.03, csize.y * 0.35)
+			_cam.look_at(Vector3(side * csize.x * 0.5, csize.z * 0.5, 0.0))
+			for k in 20:
+				await _shot("%02d_edge%s" % [i, "L" if side < 0 else "R"] if k == 19 else "")
 		# Opened: the lid, then any inner trays, then the manual out and open in front.
 		var lid := csize.x
 		n = 36

@@ -38,8 +38,11 @@ const JEWEL_LAYOUTS := {
 		"booklet_mm": 127.0},
 }
 ## A box-texture ScreenScraper stretched to 1024 x 680 (its Sega CD scans): back and spine as shares of the width,
-## read off the seams of Sonic CD (USA)'s long box (430 and 621 px) [E: one scan].
-const NORMALIZED_LAYOUT := Vector2(430.0 / 1024.0, 191.0 / 1024.0)
+## the long box's back | spine | front (440 | 51 | 440) stretched across it. Sonic CD (USA): back 0..484 px (the
+## "Welcome to the next level" mark and the screenshots' frames are the back's), spine 484..540 (the turned logos),
+## front from 540 with its blue SEGA CD band. Not 430 and 621: that took the front's band for spine and put the back's
+## right edge on the spine flaps (a player's report, 2026-11-21) [E: one scan].
+const NORMALIZED_LAYOUT := Vector2(440.0 / 931.0, 51.0 / 931.0)
 const TRAY_PRESETS := {
 	"black": Color(0.035, 0.035, 0.037, 1.0), "clear": Color(0.92, 0.94, 0.95, 0.10),
 	"smoke": Color(0.22, 0.23, 0.25, 0.45), "white": Color(0.86, 0.86, 0.84, 1.0),
