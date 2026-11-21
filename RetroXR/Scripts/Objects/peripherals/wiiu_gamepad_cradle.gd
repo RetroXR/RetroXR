@@ -51,6 +51,22 @@ func _ready() -> void:
 	_seat.has_dropped.connect(_on_pad_lifted)
 
 
+## How near its box a hand must be to take the cradle, meters. The hand's 12.5 cm
+## grab sphere took it from anywhere on a seated GamePad.
+const HAND_REACH := 0.03
+
+
+## The hand takes it only within HAND_REACH of its whole box (PointerArea's, fin included).
+func hand_takes_at(hand: Vector3) -> bool:
+	var col := get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D
+	var box := col.shape as BoxShape3D if col != null else null
+	if box == null:
+		return true
+	var p := col.global_transform.affine_inverse() * hand
+	var out := (p.abs() - box.size * 0.5).max(Vector3.ZERO)
+	return out.length() <= HAND_REACH
+
+
 ## The GamePad standing in it, or null.
 func seated_pad() -> Node3D:
 	return _pad if is_instance_valid(_pad) else null

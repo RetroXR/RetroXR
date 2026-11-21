@@ -525,6 +525,10 @@ func _get_closest_grab() -> Node3D:
 				best_zone_distance = distance_squared
 			continue
 
+		# LOCAL PATCH (RetroXR): an object may narrow its own hand reach (`hand_takes_at(hand)`).
+		if o.has_method("hand_takes_at") and not o.hand_takes_at(global_transform.origin):
+			continue
+
 		# Save if this object is closer than the current best
 		if distance_squared < new_closest_distance:
 			new_closest_obj = o

@@ -142,6 +142,12 @@ func _build_model() -> void:
 	model.add_child(label)
 
 
+## How far from the cradle's seat a held GamePad snaps in, beyond the seat's own reach (grab drivers add it).
+## Its shapes gave 18.8 cm: it went in from 24 cm away.
+func preview_radius() -> float:
+	return 0.07
+
+
 func _ready() -> void:
 	super._ready()
 	add_to_group(WiiUGamePadCradle.PAD_GROUP)

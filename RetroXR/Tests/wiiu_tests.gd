@@ -292,6 +292,10 @@ func _test_the_cradle_charges_the_gamepad() -> void:
 	_ok(cradle.seated_pad() == pad, "cradle/the GamePad seats in it")
 	var up := pad.global_transform.basis.y
 	_ok(up.z > 0.9 and up.y > 0.1, "cradle/standing on its bottom edge, screen forward, leaning back", str(up))
+	var c := cradle.global_position
+	_ok(cradle.hand_takes_at(c + Vector3(0.0, 0.07, 0.0)), "cradle/a hand just over it takes it")
+	_ok(not cradle.hand_takes_at(c + Vector3(0.11, 0.075, 0.0)), "cradle/a hand on the seated GamePad's grip does not")
+	_eq(pad.preview_radius(), 0.07, "cradle/a held GamePad snaps in from 12 cm (seat 5 + 7)")
 	_ok(not pad.is_charging(), "cradle/nothing in its jack: no charge")
 	jack.pick_up_object(brick.dc_plug)
 	await _wait(20)
