@@ -18,6 +18,14 @@ var _controller: XRController3D = null
 var _mesh: Node = null
 var _mesh_ready_override: Variant = null
 var _last_motion_range := -1
+## Drawn from the controller's touch sensors while no joints arrive.
+var _touch: TouchHandScript = null
+var _no_hand_time := 0.0
+
+## Joints missing this long before the touch hand stands in, so a dropped frame
+## of tracking doesn't flash it.
+const TOUCH_HAND_DELAY := 0.3
+const TouchHandScript := preload("res://Scripts/XR/touch_hand.gd")
 
 
 func _ready() -> void:
@@ -29,10 +37,17 @@ func _ready() -> void:
 	_mesh = get_node_or_null("OpenXRFbHandTrackingMesh")
 	if _controller != null and _controller.has_method("register_capsense_hand"):
 		_controller.call("register_capsense_hand", self)
+	if _controller != null:
+		_touch = TouchHandScript.new()
+		_touch.name = "TouchHand"
+		_touch.hand = hand
+		_touch.controller = _controller
+		_controller.add_child.call_deferred(_touch)
 	apply_display_mode()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_no_hand_time = 0.0 if is_hand_available() else _no_hand_time + delta
 	apply_display_mode()
 
 
@@ -77,7 +92,7 @@ func index_tip_position() -> Variant:
 	if ht == null or not ht.has_tracking_data \
 			or not _joint_position_valid(ht, PALM) \
 			or not _joint_position_valid(ht, INDEX_TIP):
-		return null
+		return _touch.index_tip() if is_instance_valid(_touch) else null
 	var palm: Transform3D = ht.get_hand_joint_transform(PALM)
 	var tip: Transform3D = ht.get_hand_joint_transform(INDEX_TIP)
 	return global_transform * (palm.affine_inverse() * tip).origin
@@ -114,12 +129,17 @@ func apply_display_mode() -> void:
 	var holding := _controller != null and not PokeTip.is_poking(_controller)
 	var show_hand := available and mode != AppPrefs.XRDisplayMode.CONTROLLERS and not holding
 	visible = show_hand
+	var touch := not available and _touch_hand_ready()
+	if _touch != null:
+		_touch.visible = touch and mode != AppPrefs.XRDisplayMode.CONTROLLERS and not holding
 
 	# A controller-sourced hand wraps its visible controller in BOTH mode. An
 	# unobstructed camera hand has no controller at that pose, so it takes over.
 	var show_controller := mode == AppPrefs.XRDisplayMode.CONTROLLERS or not available
 	if mode == AppPrefs.XRDisplayMode.BOTH and available:
 		show_controller = source == XRHandTracker.HAND_TRACKING_SOURCE_CONTROLLER
+	elif mode == AppPrefs.XRDisplayMode.HANDS and touch:
+		show_controller = false
 	if _controller != null and _controller.has_method("set_display_visible"):
 		_controller.call("set_display_visible", show_controller)
 
@@ -128,6 +148,15 @@ func apply_display_mode() -> void:
 			or source == XRHandTracker.HAND_TRACKING_SOURCE_UNOBSTRUCTED:
 		wanted_range = OpenXRInterface.HAND_MOTION_RANGE_UNOBSTRUCTED
 	_set_motion_range(wanted_range)
+
+
+func _touch_hand_ready() -> bool:
+	return is_instance_valid(_touch) and _touch.is_inside_tree() \
+		and _no_hand_time >= TOUCH_HAND_DELAY and _controller.get_has_tracking_data()
+
+
+func touch_hand() -> TouchHandScript:
+	return _touch
 
 
 func active_motion_range() -> int:
