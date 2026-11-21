@@ -230,6 +230,9 @@ const PS2_COMPONENT_CABLE_SCENE := preload("res://Scenes/Objects/cables/ps2_comp
 ## S-Video leads off the same Multi Outs: the Super NES / N64 / GameCube's and a PS2's.
 const N64_SVIDEO_CABLE_SCENE := preload("res://Scenes/Objects/system_models/nintendo_64/n64_svideo_cable.tscn")
 const PS2_SVIDEO_CABLE_SCENE := preload("res://Scenes/Objects/cables/ps2_svideo_cable.tscn")
+## The room's own S-Video (mini-DIN both ends) and component (five phonos each end) leads.
+const SVIDEO_CABLE_SCENE := preload("res://Scenes/Objects/cables/svideo_cable.tscn")
+const COMPONENT_CABLE_SCENE := preload("res://Scenes/Objects/cables/component_cable.tscn")
 ## RGB SCART leads: one SCART plug at the set, off each Multi Out the game knows.
 const N64_SCART_CABLE_SCENE := preload("res://Scenes/Objects/system_models/nintendo_64/n64_scart_cable.tscn")
 const WII_SCART_CABLE_SCENE := preload("res://Scenes/Objects/system_models/wii/wii_scart_cable.tscn")
@@ -420,6 +423,8 @@ const LEAD_SCENES := {
 	"ps2_component_cable": PS2_COMPONENT_CABLE_SCENE,
 	"n64_svideo_cable": N64_SVIDEO_CABLE_SCENE,
 	"ps2_svideo_cable": PS2_SVIDEO_CABLE_SCENE,
+	"svideo_cable": SVIDEO_CABLE_SCENE,
+	"component_cable": COMPONENT_CABLE_SCENE,
 	"n64_scart_cable": N64_SCART_CABLE_SCENE,
 	"wii_scart_cable": WII_SCART_CABLE_SCENE,
 	"ps2_scart_cable": PS2_SCART_CABLE_SCENE,

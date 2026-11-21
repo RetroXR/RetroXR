@@ -1,0 +1,404 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/composite_cable.gd" id="1_cablescript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/rca_plug_yellow.res" id="3_rcaplug"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
+
+; Fitted to the connector mesh (measured by DevTools/rope/plug_shape_probe), so a
+; loose plug lies ON a surface at its real size. It was a sphere two to five
+; times the plug's thickness, which rolled under any push and held the plug
+; centimetres off the floor with nothing visibly holding it there.
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
+size = Vector3(0.0144, 0.0144, 0.054)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
+bounce = 0.0
+friction = 0.8
+
+; The laser target only until the plug is in the room: PointerFit then makes it
+; a box of what the plug draws (its connector, or a model a mod has put on it)
+; and nothing more. Padded so that a beam from across the room could find a
+; small plug, it stopped the desktop laser in the air beside the plug and handed
+; over the plug instead of whatever was aimed at.
+[sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
+radius = 0.032
+
+; A COMPONENT lead (2026-11-21): five phonos at each end, Y Pb Pr in green, blue and
+; red and the audio in white and red, cord_colors in that order. Every cord is a plain
+; wire, as on the composite lead this is made from: what each carries is the socket its
+; ends sit in, so a box's Pb jack to a set's Pb jack carries Pb whatever its color.
+; collision_radius is the five-cord ribbon's half-width: 4.4 mm x 4 gaps / 2 + 2.2 mm.
+[node name="ComponentCable" type="Node3D"]
+script = ExtResource("1_cablescript")
+cord_colors = PackedColorArray(0.16, 0.55, 0.24, 1, 0.14, 0.3, 0.68, 1, 0.72, 0.08, 0.08, 1, 0.87, 0.87, 0.84, 1, 0.72, 0.08, 0.08, 1)
+
+; ── End A ────────────────────────────────────────────────────────────────────
+; Turned about Y so the cord trails toward the far end: the plug mesh is authored
+; connector-on-+Z with the cord leaving -Z, which is also VerletRope's
+; plug_exit_axis, so an unturned plug here would leave its tail with a hairpin.
+; Spread across X by one cord pitch (4.4 mm), the ribbon's own lie.
+
+[node name="PlugA0" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.0088, 0, -0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="PlugA1" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.0044, 0, -0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugA1"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA1"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA1/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA1"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA1" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="PlugA2" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.0, 0, -0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugA2"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA2"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA2/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA2"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA2" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="PlugA3" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.0044, 0, -0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugA3"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA3"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA3/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA3"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA3" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="PlugA4" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.0088, 0, -0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugA4"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA4"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA4/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA4"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA4" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; ── End B ────────────────────────────────────────────────────────────────────
+; Unturned: their cords already trail -Z, back toward end A.
+
+[node name="PlugB0" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0088, 0, 0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="PlugB1" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0044, 0, 0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB1"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB1"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB1/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB1"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB1" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="PlugB2" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0, 0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB2"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB2"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB2/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB2"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB2" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="PlugB3" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0044, 0, 0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB3"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB3"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB3/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB3"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB3" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="PlugB4" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0088, 0, 0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB4"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB4"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB4/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB4"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB4" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; 1.80 m overall, the length a real composite lead shipped at, split so the
+; breakouts are part of it: a 1.50 m trunk (50 x 30 mm) plus a 150 mm tail at each
+; end (5 x 30 mm). Buying length with segment COUNT rather than a longer segment
+; keeps the boot and the minimum bend radius where cable.tscn tuned them in
+; millimetres. 80 particles against that lead's 60, so reckon on ~1.4 ms per
+; physics tick — it is a spawned object, not one per station.
+;
+; 4.4 mm cords rather than the single 8.3 mm jacket: three of those moulded side
+; by side make a 13 mm ribbon, which is what a composite lead measures. The cords
+; are drawn from ribbon_colors and the trunk needs no rope_color of its own.
+; collision_radius is the ribbon's HALF-WIDTH, not the 1.35 mm standoff over the
+; tube that cable.tscn uses. The solver only ever collides the centreline, so on a
+; round cord the radius is the cord; on a ribbon it has to cover the outermost
+; cord or that one sinks through whatever the cable is lying on. 4.4 mm pitch x 2
+; gaps / 2 + 2.2 mm tube = 6.6 mm. At 3.55 mm the outer cord dipped 0.85 mm under
+; the floor whenever the ribbon happened to lie on edge.
+;
+; The cost is that a ribbon lying FLAT now floats 4.4 mm rather than resting on
+; its tube. Both cannot be right from one radius on one centreline; poke-through
+; reads worse than clearance. Fixing it properly means giving the solver the
+; ribbon frame so the standoff can follow |side . normal|, which is a
+; VerletRope change, not a scene value.
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 50
+segment_length = 0.03
+constraint_iterations = 8
+bend_stiffness = 0.2
+tube_radius = 0.0022
+tube_sides = 6
+smoothing = 2
+surface_collision_mask = 7
+collision_radius = 0.011
+self_collision = true
+end_align_stiffness = 0.7
+end_stiffness = 0.45
+end_stiff_segments = 2
+fray_segments_start = 5
+fray_segments_end = 5
+fray_taper_segments = 3

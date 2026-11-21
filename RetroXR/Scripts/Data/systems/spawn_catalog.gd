@@ -1200,6 +1200,9 @@ const ELECTRONICS := [
 	["Mono Composite Cable", "mono_composite_cable"],
 	["VGA Cable",       "vga_cable"],
 	["HDMI Cable",      "hdmi_cable"],
+	# A box's S-VIDEO OUT or Y/Pb/Pr OUT (a mod's AV pack) to a set's S-Video or component input.
+	["S-Video Cable",   "svideo_cable"],
+	["Component Cable", "component_cable"],
 	["3.5 mm Cable",   "trs_cable"],
 	# A 3.5 mm stereo plug to a white and a red phono jack: a PHONES jack's sound onto a pair of phono leads.
 	["3.5 mm to RCA Adapter", "trs_rca_adapter"],

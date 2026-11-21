@@ -158,6 +158,7 @@ func _run() -> void:
 		["display/each input's kind scales the set's composite artifacts", _d_signal_scale],
 		["display/SCART is an input of the stock set, picture and sound on one socket", _d_scart_input],
 		["routing/a Wii on an RGB SCART lead: picture and stereo sound down one plug", _r_scart],
+		["display/the room's S-Video and component leads fit their inputs", _d_room_leads],
 		["routing/an N64 wears ONE multi-out, not a phono row", _r_n64_multi_out],
 		["routing/its lead carries all three signals down one shell", _r_n64_lead],
 		["routing/a Wii lead does not fit an N64, nor the reverse", _r_multi_out_keying],
@@ -889,6 +890,25 @@ func _r_scart() -> void:
 	var feed: AvSource.Feed = AvSource.resolve(sys, false)
 	_check_eq(feed.audio_sink, tv, "the sound reaches the set down the same plug")
 	_ok(feed.left == 0 and feed.right == 1, "left on the left speaker, right on the right")
+
+
+func _d_room_leads() -> void:
+	var tv := _tv()
+	var sv := load("res://Scenes/Objects/cables/svideo_cable.tscn").instantiate() as CompositeCable
+	var comp := load("res://Scenes/Objects/cables/component_cable.tscn").instantiate() as CompositeCable
+	for lead: Node3D in [sv, comp]:
+		lead.position = Vector3(_spawned.size() * 2.0, 1, -1.0)
+		add_child(lead)
+		_spawned.append(lead)
+	await _wait(20)
+	_check_eq(sv.cord_count(), 1, "the S-Video lead is one cord")
+	var socket := tv.svideo_port()
+	for end in ["PlugA0", "PlugB0"]:
+		_ok(socket != null and (sv.get_node(end) as Node).is_in_group(socket.snap_require),
+			"its %s fits the set's S-Video IN" % end)
+	_check_eq(comp.cord_count(), 5, "the component lead is five cords")
+	_ok((comp.get_node("PlugB0") as Node).is_in_group(tv.component_y_port().snap_require),
+		"of phono plugs, which fit the component jacks")
 
 
 ## A console with one hole in the back, and what the room does with it.
