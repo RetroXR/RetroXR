@@ -20,6 +20,10 @@ var _rom := ""
 var _root := ""
 var _leg := "views"
 var _seconds := 90.0
+## --gyro=<rad/s>: the GamePad (port 0) lying flat, still until 25 s and then
+## turning at this rate about the vertical (out of its screen, Android's z). Run
+## with CEMU_MOTION_TRACE=1: the core says what it got and what it reports.
+var _gyro := 0.0
 var _shot := ""
 var _failed := ""
 
@@ -32,6 +36,8 @@ func _ready() -> void:
 			_root = a.substr(7)
 		elif a.begins_with("--leg="):
 			_leg = a.substr(6)
+		elif a.begins_with("--gyro="):
+			_gyro = float(a.substr(7))
 		elif a.begins_with("--seconds="):
 			_seconds = float(a.substr(10))
 		elif a.begins_with("--shot="):
@@ -74,6 +80,10 @@ func _ready() -> void:
 		await get_tree().process_frame
 		if not _failed.is_empty():
 			break
+		if _gyro != 0.0:
+			var turning := Time.get_ticks_msec() - t0 >= 25000
+			_lib.call("SetSensorAccel", 0, 0.0, 0.0, 1.0)
+			_lib.call("SetSensorGyro", 0, 0.0, 0.0, _gyro if turning else 0.0)
 		if Time.get_ticks_msec() - fps_at >= 1000:
 			var n := int(_lib.call("GetFrameCount"))
 			var fps := (n - fps_frames) * 1000.0 / float(Time.get_ticks_msec() - fps_at)
