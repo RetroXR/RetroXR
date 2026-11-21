@@ -36,6 +36,10 @@ const KEEP_SPRINGBACK_DEG := 4.0
 const SFX_DIR := "res://Audio/cases/"
 const SFX_TURN := {"jewel": "creak", "keep": "hinge"}
 const SFX_TURN_DEG := 60.0
+## <family>_stop: the lid against its open stop, or home without catching, from this speed (rad/s) up; full at
+## SFX_SLAM. A keep case's cover has no such sound: it never swings.
+const SFX_KNOCK := 2.0
+const SFX_SLAM := 16.0
 ## A restore's first poses are not a hand's: no sound for this many physics ticks.
 const SFX_QUIET_TICKS := 45
 ## The case's turn about its spine: speeding up faster than this (rad/s^2) is a teleport or a grab's first frame;
@@ -723,13 +727,16 @@ func _sound(delta: float) -> void:
 			_play_sfx("snap", "close" if sim.latched else "open", 0.6)
 			_sfx_travel = 0.0
 			_sfx_next = 15.0
-		elif not sim.latched:
+		elif sim.knocked >= SFX_KNOCK:
+			_play_sfx("snap", "stop", clampf(sim.knocked / SFX_SLAM, 0.12, 0.8))
+		if not sim.latched and sim.latched == _sfx_latched:
 			_sfx_travel += absf(lid - _sfx_lid)
 			if _sfx_travel >= _sfx_next:
 				_sfx_travel = 0.0
 				_sfx_next = SFX_TURN_DEG * randf_range(0.7, 1.4)
 				var speed := absf(lid - _sfx_lid) / delta
 				_play_sfx("turn", str(SFX_TURN.get(case_family, "creak")), clampf(speed / 600.0, 0.2, 0.45))
+	sim.knocked = 0.0
 	_sfx_latched = sim.latched
 	_sfx_lid = lid
 

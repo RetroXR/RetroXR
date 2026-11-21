@@ -78,6 +78,18 @@ def jewel_close(rng):
     return norm(mix, 0.85)
 
 
+def jewel_stop(rng):
+    # The lid thrown open against its stop: its ears on the tray's back edge, the lid's slap, a bounce, a rattle.
+    mix = np.zeros(int(0.2 * SR))
+    put(mix, 0.002, strike(rng, 0.08, PS_SLAP, 1.0, 0.025))
+    put(mix, 0.002 + rng.uniform(0.0005, 0.002), strike(rng, 0.05, PS, 0.4, 0.02), 0.6)
+    bounce = rng.uniform(0.025, 0.045)
+    put(mix, bounce, strike(rng, 0.06, PS_SLAP, 0.8, 0.025), rng.uniform(0.2, 0.35))
+    for _ in range(int(rng.integers(1, 4))):
+        put(mix, bounce + rng.uniform(0.015, 0.07), strike(rng, 0.03, PS, 0.25, 0.03), rng.uniform(0.05, 0.12))
+    return norm(mix, 0.9)
+
+
 def jewel_creak(rng):
     dur = rng.uniform(0.2, 0.34)
     mix = np.zeros(int(dur * SR))
@@ -125,7 +137,8 @@ def keep_hinge(rng):
 
 
 SOUNDS = [("jewel_open", jewel_open, 4), ("jewel_close", jewel_close, 4), ("jewel_creak", jewel_creak, 4),
-    ("keep_open", keep_open, 4), ("keep_close", keep_close, 4), ("keep_hinge", keep_hinge, 3)]
+    ("keep_open", keep_open, 4), ("keep_close", keep_close, 4), ("keep_hinge", keep_hinge, 3),
+    ("jewel_stop", jewel_stop, 4)]
 
 
 def main():

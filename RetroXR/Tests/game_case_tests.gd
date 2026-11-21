@@ -53,6 +53,7 @@ func _run() -> void:
 		["sim/inner trays never pass the lid", _sim_order],
 		["sim/a caught lid holds its flip trays shut face down", _sim_latched_trays],
 		["sim/a turn of the wrist swings the lid", _sim_spin],
+		["sim/a lid reports how hard it hits its stops", _sim_knock],
 		["sim/a keep case's cover rests ajar unlatched, eases back when let go", _sim_living_hinge],
 		["sim/a keep case's flippers swing free under a cover that holds", _sim_flippers],
 		["sim/the same steps give the same angles", _sim_deterministic],
@@ -301,6 +302,28 @@ func _sim_spin() -> void:
 	_ok(not s.settled(G_UPRIGHT, 500.0), "a jolt past the latch is not rest")
 	s.step(DT, G_UPRIGHT, 500.0)
 	_ok(not s.latched, "and springs on a jolt past the latch")
+
+
+func _sim_knock() -> void:
+	var s := _jewel_sim()
+	s.set_angle_deg(0, 100.0)
+	var hit := 0.0
+	for _i in int(1.0 / DT):
+		s.step(DT, G_FACE_UP)
+		hit = maxf(hit, s.knocked)
+	_ok(hit > 5.0, "falling open onto its stop", str(hit))
+	s.knocked = 0.0
+	s.set_angle_deg(0, 30.0)
+	_run_sim(s, Vector3(9.81, 0.0, 0.0), 1.0)
+	_ok(s.knocked > 2.0 and not s.latched, "falling home without catching", str(s.knocked))
+	s.knocked = 0.0
+	s.set_held(0, true)
+	for a in [120.0, 150.0, 180.0, 180.0]:
+		s.set_held_angle_deg(0, a, DT)
+	_ok(s.knocked > 20.0, "thrown open by a hand", str(s.knocked))
+	s.knocked = 0.0
+	s.set_held_angle_deg(0, 180.0, DT)
+	_ok(s.knocked == 0.0, "held against the stop, no second knock")
 
 
 func _keep_sim(inner := 0) -> CaseHingeSim:

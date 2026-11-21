@@ -69,6 +69,8 @@ var latch_speed := 3.5
 var latched := true
 ## Set on the step the latch catches; the host reads and clears it.
 var clicked := false
+## How fast (rad/s) the top hinge last hit its open stop, or came home without catching; the host reads and clears it.
+var knocked := 0.0
 
 
 ## `lever_m`: each hinge's pivot-to-centre-of-mass distance, from the back. `friction_share`: static friction as a
@@ -147,6 +149,8 @@ func set_held_angle_deg(i: int, deg: float, dt: float) -> void:
 	speeds[i] = (a - angles[i]) / dt if dt > 0.0 else 0.0
 	if absf(a - angles[i]) > 0.001:
 		_dir[i] = signf(a - angles[i])
+	if i == top() and a >= open_max - 1e-4 and angles[i] < open_max - 1e-4:
+		knocked = maxf(knocked, speeds[i])               # the hand threw it open against its stop
 	angles[i] = a
 	if i == top():
 		# The hand pushes it home: within SNAP_DEG it catches, and it stays caught as the hand lets go.
@@ -235,6 +239,8 @@ func step(dt: float, g: Vector3, spin := 0.0) -> void:
 		if arriving >= latch_speed:
 			latched = true
 			clicked = true
+		else:
+			knocked = maxf(knocked, arriving)
 
 
 func _static(i: int) -> float:
@@ -261,6 +267,8 @@ func _resolve() -> void:
 				speeds[i] = 0.0
 		if angles[i] > open_max:
 			angles[i] = open_max
+			if i == count - 1:
+				knocked = maxf(knocked, speeds[i])
 			if speeds[i] > 0.0:
 				speeds[i] = -speeds[i] * STOP_RESTITUTION
 	for i in count - 1:
