@@ -962,3 +962,21 @@ VHF terminals) and the F to Belling-Lee adapter (`f_to_iec_adapter`) are `AvAdap
 female `AdapterCoaxPort` (`FJack`, IN); an aerial or RF switch lead in it is the set's aerial
 (`TvPanel.aerial` walks into adapter jacks by duck type, `host_socket`). The balun is rigid, no
 cord. D-Terminal leads hang off the Wii and PS2 Multi Outs (`*_dterminal_cable`, Japan).
+
+### DVI, HDMI and DisplayPort variants (2026-11-21)
+
+- **DVI**: the set's DVI IN is a **DVI-I** socket (`DviIPort`, `dvi_i_plug`), the tower's card
+  a DVI-D one (`DviPort`, `dvi_d_plug`). Plugs: DVI-D dual and single link (`dvi_cable`,
+  `dvi_sl_cable`: both sockets), DVI-I (`dvi_i_cable`: the set's only; a real DVI-D card refuses
+  it), DVI-A (`dvi_a_vga_cable`, a VGA plug at its other end: the card's VGA OUT onto the set's
+  DVI). All from RetroXR-models `generic/dvi-plug`'s five models and `generic/dvi-i-socket`.
+- **Mini HDMI and Micro HDMI** (`HdmiMiniPort`, `HdmiMicroPort`, sound on the plug as HDMI):
+  sockets for a mod's device, and `hdmi_mini_cable` / `hdmi_micro_cable` to a full HDMI plug.
+  Nothing the game ships has one.
+- **Mini DisplayPort** (`MiniDisplayPortPort`): `MiniDisplayPortOut` on the tower's card,
+  `mini_displayport_cable` to a full DisplayPort plug.
+- `av_tests` `_r_variants` (what fits what, the DVI-A and Mini DP routes) and `keys/`;
+  `DevTools/av/tower_video_outs_probe` (windowed).
+- **VGA is the exception to the keyed rule**: its plug keeps the about-X turn, because its jack
+  mesh is authored wide edge DOWN to key against it (`DevTools/gen/gen_vga.gd`), so `keys/` leaves
+  it out; the DVI-A to VGA lead keeps that turn on its VGA end.

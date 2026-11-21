@@ -4,6 +4,7 @@
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/vga_port.tscn" id="2_vgaport"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/dvi_port.tscn" id="2_dviport"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/displayport_port.tscn" id="2_dpport"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/mini_displayport_port.tscn" id="2_minidpport"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/trs_port.tscn" id="3_trsport"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/ps2_jack_keyboard.res" id="4_ps2jackkb"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/ps2_jack_mouse.res" id="5_ps2jackms"]
@@ -395,6 +396,12 @@ direction = 0
 
 [node name="DisplayPortOut" parent="Back" instance=ExtResource("2_dpport")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.05, 0.18, -0.224)
+direction = 0
+rf_feed = true
+
+; And a Mini DisplayPort under it (2.2 mm proud), as a card of the 2010s carries one.
+[node name="MiniDisplayPortOut" parent="Back" instance=ExtResource("2_minidpport")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.05, 0.155, -0.2237)
 direction = 0
 rf_feed = true
 

@@ -104,10 +104,11 @@ const KINDS := {
 		# The bezel, 58 x 24 mm (generic/scart-socket), not a phono jack's round.
 		"panel": [0], "legend": "Scart", "heading": "AV IN (RGB)", "words": false,
 		"extent": Vector2(0.029, 0.012)},
-	# DVI-D (2026-11-21): picture only, a computer's sound leaves on its own jacks.
+	# DVI (2026-11-21): a DVI-I socket, so every DVI plug fits (a DVI-A lead brings a VGA
+	# card's analog picture); picture only, a computer's sound leaves on its own jacks.
 	"dvi": {"code": 7, "legacy": [11], "osd": "DVI", "title": "DVI", "numbered": false,
 		"signal": TvSignal.Kind.RGB,
-		"jacks": [{"name": "DviIn", "scene": "res://Scenes/Objects/cables/dvi_port.tscn",
+		"jacks": [{"name": "DviIn", "scene": "res://Scenes/Objects/cables/dvi_i_port.tscn",
 			"channel": RcaPort.Channel.VIDEO, "proud": DVI_PROUD, "turn": true}],
 		"panel": [0], "legend": "Dvi", "heading": "DVI IN", "words": false, "extent": DVI_EXTENT},
 	# DisplayPort (2026-11-21): picture and sound on one plug, as HDMI.

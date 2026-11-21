@@ -246,6 +246,13 @@ const WII_DTERMINAL_CABLE_SCENE := preload("res://Scenes/Objects/system_models/w
 const PS2_DTERMINAL_CABLE_SCENE := preload("res://Scenes/Objects/cables/ps2_dterminal_cable.tscn")
 const BALUN_SCENE := preload("res://Scenes/Objects/cables/balun_75_300.tscn")
 const F_TO_IEC_ADAPTER_SCENE := preload("res://Scenes/Objects/cables/f_to_iec_adapter.tscn")
+## The DVI, HDMI and DisplayPort variants' leads.
+const DVI_SL_CABLE_SCENE := preload("res://Scenes/Objects/cables/dvi_sl_cable.tscn")
+const DVI_I_CABLE_SCENE := preload("res://Scenes/Objects/cables/dvi_i_cable.tscn")
+const DVI_A_VGA_CABLE_SCENE := preload("res://Scenes/Objects/cables/dvi_a_vga_cable.tscn")
+const HDMI_MINI_CABLE_SCENE := preload("res://Scenes/Objects/cables/hdmi_mini_cable.tscn")
+const HDMI_MICRO_CABLE_SCENE := preload("res://Scenes/Objects/cables/hdmi_micro_cable.tscn")
+const MINI_DISPLAYPORT_CABLE_SCENE := preload("res://Scenes/Objects/cables/mini_displayport_cable.tscn")
 ## DVI-D and DisplayPort leads, a computer's to a set's.
 const DVI_CABLE_SCENE := preload("res://Scenes/Objects/cables/dvi_cable.tscn")
 const DISPLAYPORT_CABLE_SCENE := preload("res://Scenes/Objects/cables/displayport_cable.tscn")
@@ -446,6 +453,12 @@ const LEAD_SCENES := {
 	"genesis_scart_cable": GENESIS_SCART_CABLE_SCENE,
 	"n64_jp21_cable": N64_JP21_CABLE_SCENE,
 	"dvi_cable": DVI_CABLE_SCENE,
+	"dvi_sl_cable": DVI_SL_CABLE_SCENE,
+	"dvi_i_cable": DVI_I_CABLE_SCENE,
+	"dvi_a_vga_cable": DVI_A_VGA_CABLE_SCENE,
+	"hdmi_mini_cable": HDMI_MINI_CABLE_SCENE,
+	"hdmi_micro_cable": HDMI_MICRO_CABLE_SCENE,
+	"mini_displayport_cable": MINI_DISPLAYPORT_CABLE_SCENE,
 	"wii_dterminal_cable": WII_DTERMINAL_CABLE_SCENE,
 	"ps2_dterminal_cable": PS2_DTERMINAL_CABLE_SCENE,
 	"balun_75_300": BALUN_SCENE,

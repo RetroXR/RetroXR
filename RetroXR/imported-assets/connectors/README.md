@@ -29,6 +29,14 @@ After a re-import, put the GLBs back to `generate_lods=false` and any extracted 
 | `f_to_iec_adapter/f_to_iec_adapter.glb` | `generic/f-to-iec-adapter/exports/nickel/f_to_iec_adapter_nickel_mobile_clean.glb (13037bda7)` | `f_to_iec_adapter.tscn` |
 | `twin_lead_port/twinlead_terminals.glb` | `generic/twinlead-terminals/exports/gray/twinlead_terminals_gray_mobile_clean.glb (4d7bbac01)` | `twin_lead_port.tscn` (1 mm behind the zone, which is between the screw seats) |
 | `balun_75_300/balun_75_300.glb` | `generic/balun-75-300/exports/black/balun_75_300_black_mobile_clean.glb (30054bedf)` | `balun_75_300.tscn` |
+| `dvi_i_port/dvi_i_socket.glb` | `generic/dvi-i-socket/exports/black/dvi_i_socket_black_mobile_clean.glb (da7cdfc12)` | `dvi_i_port.tscn`, the set's DVI IN (6.5 mm proud) |
+| `dvi_plug/dvi_plug_<model>.glb` | `generic/dvi-plug/exports/<model>/dvi_plug_<model>_mobile_clean.glb (da7cdfc12; dvid_sl, dvii_dl, dvii_sl, dvia)` | `dvi_sl_cable`, `dvi_i_cable`, `dvi_a_vga_cable` |
+| `hdmi_mini_plug/hdmi_mini_plug.glb` | `generic/hdmi-mini-plug/exports/black/hdmi_mini_plug_black_mobile_clean.glb (855108c0d)` | `hdmi_mini_cable` end A |
+| `hdmi_mini_port/hdmi_mini_socket.glb` | `generic/hdmi-mini-socket/exports/black/hdmi_mini_socket_black_mobile_clean.glb (855108c0d)` | `hdmi_mini_port.tscn` (2.2 mm proud) |
+| `hdmi_micro_plug/hdmi_micro_plug.glb` | `generic/hdmi-micro-plug/exports/black/hdmi_micro_plug_black_mobile_clean.glb (855108c0d)` | `hdmi_micro_cable` end A |
+| `hdmi_micro_port/hdmi_micro_socket.glb` | `generic/hdmi-micro-socket/exports/black/hdmi_micro_socket_black_mobile_clean.glb (855108c0d)` | `hdmi_micro_port.tscn` (2.0 mm proud) |
+| `mini_displayport_plug/mini_displayport_plug.glb` | `generic/mini-displayport-plug/exports/black/mini_displayport_plug_black_mobile_clean.glb (855108c0d)` | `mini_displayport_cable` end A |
+| `mini_displayport_port/mini_displayport_socket.glb` | `generic/mini-displayport-socket/exports/black/mini_displayport_socket_black_mobile_clean.glb (855108c0d)` | `mini_displayport_port.tscn`, the tower's Mini DP OUT (2.2 mm proud) |
 | `hdmi_port/hdmi_socket.glb` | `generic/hdmi-socket/exports/hdmi_socket.glb` (096cc328c; a short Blender script, not cartkit) | `hdmi_port.tscn` (`HdmiSocket`, 0.8 mm behind the zone: the plug stops on its surround) |
 | `hpdb50_plug/hpdb50_plug.glb` | `generic/hpdb50-plug/exports/naomi/hpdb50_plug_naomi_mobile_clean.glb` | both ends of `gd_cable.tscn` |
 | `jamma_plug/jamma_plug.glb` | `generic/jamma-plug/exports/keyed/jamma_plug_keyed_mobile_clean.glb` (the keyed model, d5aebc2ac) | both ends of `jamma_cable.tscn` (`Shell` turned half round about Z; its harness leaves along the plug's -Y, which the rope's exit axes say) |

@@ -40,6 +40,9 @@ const LABELS := {
 	"dvi_i_plug": "a DVI-I plug",
 	"dvi_a_plug": "a DVI-A plug",
 	"displayport_plug": "a DisplayPort plug",
+	"mini_displayport_plug": "a Mini DisplayPort plug",
+	"hdmi_mini_plug": "a mini HDMI plug",
+	"hdmi_micro_plug": "a micro HDMI plug",
 	"iec_aerial_plug": "a Belling-Lee aerial plug",
 	"twinlead_spade": "a pair of twin-lead spade lugs",
 	"usb_b": "a USB-B plug",
@@ -228,7 +231,8 @@ const CONTROLLER_PORTS := {
 ## console it is for, so the spawn card never offers a lead for one: the
 ## Composite Cable is the game's own answer to a phono jack.
 const ROOM := ["composite_plug", "coax_plug", "trs_plug", "vga_plug", "hdmi_plug", "svideo_plug", "scart_plug", "jp21_plug",
-	"dterminal_plug", "dvi_d_plug", "dvi_i_plug", "dvi_a_plug", "displayport_plug", "iec_aerial_plug", "twinlead_spade", "nema_5_15_plug",
+	"dterminal_plug", "dvi_d_plug", "dvi_i_plug", "dvi_a_plug", "displayport_plug",
+	"mini_displayport_plug", "hdmi_mini_plug", "hdmi_micro_plug", "iec_aerial_plug", "twinlead_spade", "nema_5_15_plug",
 	"nema_1_15_plug", "nema_1_15_polarized_plug", "iec_c13_plug", "iec_c7_plug",
 	"iec_c7_polarized_plug", "cee_7_7_plug", "cee_7_16_plug", "bs_1363_plug",
 	"as_3112_plug", "as_3112_2pin_plug", "sev_1011_plug", "cei_23_50_plug", "ds_k_plug",

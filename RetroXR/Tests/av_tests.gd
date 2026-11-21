@@ -166,6 +166,7 @@ func _run() -> void:
 		["routing/an RGB21 lead is its own connector, filed on RGB21 as RGB with its sound", _r_jp21],
 		["routing/a tower on DVI and on DisplayPort: picture, and sound on DisplayPort only", _r_dvi_displayport],
 		["keys/a keyed plug seats the right way up in its socket", _k_keyed_plugs],
+		["routing/DVI, HDMI and DisplayPort variants: what fits what, and where it lands", _r_variants],
 		["routing/a Wii on its D-Terminal lead: component, full color, stereo", _r_dterminal],
 		["routing/an aerial through the balun or the Belling-Lee adapter is the set's", _r_aerial_adaptors],
 		["routing/an N64 wears ONE multi-out, not a phono row", _r_n64_multi_out],
@@ -1132,7 +1133,7 @@ func _k_keyed_plugs() -> void:
 		["res://Scenes/Objects/cables/hdmi_cable.tscn", "PlugB0", "HdmiPort", "HdmiSocket"],
 		["res://Scenes/Objects/cables/svideo_cable.tscn", "PlugB0", "SvideoIn", "SvideoSocket"],
 		["res://Scenes/Objects/system_models/wii/wii_scart_cable.tscn", "PlugB0", "ScartIn", "ScartSocket"],
-		["res://Scenes/Objects/cables/dvi_cable.tscn", "PlugB0", "DviIn", "DviSocket"],
+		["res://Scenes/Objects/cables/dvi_cable.tscn", "PlugB0", "DviIn", "DviISocket"],
 		["res://Scenes/Objects/cables/displayport_cable.tscn", "PlugB0", "DisplayPortIn", "DisplayPortSocket"],
 		["res://Scenes/Objects/cables/scart_adapter.tscn", "PlugA0", "ScartIn", "ScartSocket"],
 		["res://Scenes/Objects/system_models/wii/wii_dterminal_cable.tscn", "PlugB0", "DTerminalIn", "DterminalSocket"],
@@ -1163,6 +1164,8 @@ func _k_keyed_plugs() -> void:
 		_ok(into > 0.99, "%s: the plug points into the socket (dot %.2f)" % [row[2], into])
 		zone.drop_object()
 		await _wait(4)
+	# Not VGA: its jack mesh is authored wide edge DOWN to key against the about-X turn its
+	# plug keeps (DevTools/gen/gen_vga.gd), so frames disagree by design and the D keys.
 
 
 func _r_dterminal() -> void:
@@ -1207,6 +1210,60 @@ func _r_aerial_adaptors() -> void:
 		socket.drop_object()
 		await _wait(20)
 		_ok(tv.panel().aerial() == null, "and pulling the adapter loses it")
+
+
+func _variant_lead(path: String) -> Node3D:
+	var lead := (load(path) as PackedScene).instantiate() as Node3D
+	lead.position = Vector3(_spawned.size() * 2.0, 1, -1.0)
+	add_child(lead)
+	_spawned.append(lead)
+	await _wait(10)
+	return lead
+
+
+func _r_variants() -> void:
+	var tv := _tv()
+	var tower := _tower()
+	await _wait(60)
+	var tv_dvi := tv.get_node("DviIn") as XRToolsSnapZone
+	var card_dvi := tower.find_child("DviOut", true, false) as XRToolsSnapZone
+	_check_eq(tv_dvi.snap_require, "dvi_i_plug", "the set's DVI IN is a DVI-I socket")
+	_check_eq(card_dvi.snap_require, "dvi_d_plug", "the card's DVI OUT a DVI-D one")
+	for row: Array in [["res://Scenes/Objects/cables/dvi_cable.tscn", "PlugB0", true, true, "DVI-D dual link"],
+			["res://Scenes/Objects/cables/dvi_sl_cable.tscn", "PlugB0", true, true, "DVI-D single link"],
+			["res://Scenes/Objects/cables/dvi_i_cable.tscn", "PlugB0", true, false, "DVI-I"],
+			["res://Scenes/Objects/cables/dvi_a_vga_cable.tscn", "PlugB0", true, false, "DVI-A"]]:
+		var plug := (await _variant_lead(row[0])).get_node(row[1]) as Node
+		_check_eq(plug.is_in_group(tv_dvi.snap_require), row[2], "a %s plug fits a DVI-I socket: %s" % [row[4], row[2]])
+		_check_eq(plug.is_in_group(card_dvi.snap_require), row[3], "and a DVI-D socket: %s" % row[3])
+	var vga := await _variant_lead("res://Scenes/Objects/cables/dvi_a_vga_cable.tscn")
+	(tower.find_child("VgaPort", true, false) as XRToolsSnapZone).pick_up_object(vga.get_node("PlugA0"))
+	tv_dvi.pick_up_object(vga.get_node("PlugB0"))
+	await _wait(35)
+	_check_eq(_which_input(tv, tower), RetroTV.Source.DVI, "the card's VGA through a DVI-A lead is on the set's DVI")
+	tv_dvi.drop_object()
+	await _wait(20)
+	var mdp := await _single_lead(load("res://Scenes/Objects/cables/mini_displayport_cable.tscn"), tower,
+		"MiniDisplayPortOut", tv, "DisplayPortIn")
+	_check_eq(_which_input(tv, tower), RetroTV.Source.DISPLAYPORT, "the card's Mini DP on its lead is on DisplayPort")
+	tv.set_source(RetroTV.Source.DISPLAYPORT)
+	_check_eq(AvSource.resolve(tower, false).audio_sink, tv, "with its sound")
+	for row: Array in [["res://Scenes/Objects/cables/hdmi_mini_port.tscn", "res://Scenes/Objects/cables/hdmi_mini_cable.tscn", "HdmiMiniSocket"],
+			["res://Scenes/Objects/cables/hdmi_micro_port.tscn", "res://Scenes/Objects/cables/hdmi_micro_cable.tscn", "HdmiMicroSocket"],
+			["res://Scenes/Objects/cables/mini_displayport_port.tscn", "res://Scenes/Objects/cables/mini_displayport_cable.tscn", "MiniDisplayPortSocket"]]:
+		var socket := (load(row[0]) as PackedScene).instantiate() as XRToolsSnapZone
+		socket.position = Vector3(_spawned.size() * 2.0, 1.5, -1.0)
+		add_child(socket)
+		_spawned.append(socket)
+		var lead := await _variant_lead(row[1])
+		var plug := lead.get_node("PlugA0") as Node3D
+		_ok(plug.is_in_group(socket.snap_require), "%s's lead fits it" % row[2])
+		_ok(not (lead.get_node("PlugB0") as Node).is_in_group(socket.snap_require), "and its other end does not")
+		socket.pick_up_object(plug)
+		await _wait(6)
+		var model := socket.find_child(row[2], true, false) as Node3D
+		_ok(plug.global_basis.y.dot(model.global_basis.y) > 0.99 and plug.global_basis.z.dot(-model.global_basis.z) > 0.99,
+			"%s's plug seats right way up and into it" % row[2])
 
 
 ## A console with one hole in the back, and what the room does with it.

@@ -1,0 +1,134 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/composite_cable.gd" id="1_cablescript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
+[ext_resource type="PackedScene" path="res://imported-assets/connectors/dvi_plug/dvi_plug_dvii_dl.glb" id="3_plugA"]
+[ext_resource type="PackedScene" path="res://imported-assets/connectors/dvi_plug/dvi_plug_dvii_dl.glb" id="3_plugB"]
+
+; A box fitted to the plug's overmold (19.8 x 11 x 48 behind its ORIGIN, the overmold's face; the steel
+; shell stands 9 ahead of it into the socket).
+;
+; Each end wears the clean HDMI Type A plug (RetroXR-models generic/hdmi-plug, the Wii U's WUP-008
+; shape without its oval, imported-assets/connectors/hdmi_plug) and the model's own CordExit.
+[sub_resource type="BoxShape3D" id="Box_PlugB0"]
+size = Vector3(0.031, 0.0149, 0.028)
+
+[sub_resource type="BoxShape3D" id="Box_PlugA0"]
+size = Vector3(0.031, 0.0149, 0.028)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
+size = Vector3(0.0198, 0.011, 0.045)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
+bounce = 0.0
+friction = 0.8
+
+; The laser target only until the plug is in the room: PointerFit then makes it
+; a box of what the plug draws (its connector, or a model a mod has put on it)
+; and nothing more. Padded so that a beam from across the room could find a
+; small plug, it stopped the desktop laser in the air beside the plug and handed
+; over the plug instead of whatever was aimed at.
+[sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
+size = Vector3(0.032, 0.022, 0.06)
+
+; A DVI-I lead (2026-11-21): the cross blade and four analog pins (generic/dvi-plug, dvii_dl). It
+; fits a DVI-I socket only: its blade does not enter a DVI-D socket's slot (the tower's DVI-D OUT
+; refuses it, as a real DVI-D card does).
+[node name="DviICable" type="Node3D"]
+script = ExtResource("1_cablescript")
+cord_colors = PackedColorArray(0.09, 0.09, 0.1, 1)
+
+; -- End A --------------------------------------------------------------------
+; Turned about Y so the cord trails toward the far end: the plug mesh is authored
+; connector-on-+Z with the cord leaving -Z, which is also VerletRope's
+; plug_exit_axis, so an unturned plug here would leave its tail with a hairpin.
+[node name="PlugA0" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.06
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+connector = "dvi_i_plug"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.014)
+shape = SubResource("Box_PlugA0")
+
+[node name="Shell" parent="PlugA0" instance=ExtResource("3_plugA")]
+
+[node name="CordExit" type="Marker3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0412)
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.02)
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
+
+; -- End B --------------------------------------------------------------------
+; Unturned: its cord already trails -Z, back toward end A.
+[node name="PlugB0" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.06
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+connector = "dvi_i_plug"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.014)
+shape = SubResource("Box_PlugB0")
+
+[node name="Shell" parent="PlugB0" instance=ExtResource("3_plugB")]
+
+[node name="CordExit" type="Marker3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0412)
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.02)
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
+
+; 60 x 30 mm = 1.80 m, the WUP-008's length. A 6 mm cord.
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 60
+segment_length = 0.03
+constraint_iterations = 8
+bend_stiffness = 0.2
+tube_radius = 0.003
+tube_sides = 8
+smoothing = 2
+rope_color = Color(0.05, 0.05, 0.06, 1.0)
+surface_collision_mask = 7
+collision_radius = 0.00435
+self_collision = true
+end_align_stiffness = 0.7
+end_stiffness = 0.45
+end_stiff_segments = 2

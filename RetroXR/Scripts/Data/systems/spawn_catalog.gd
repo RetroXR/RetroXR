@@ -412,6 +412,10 @@ const _VGA_CABLE: Dictionary = {"kind": "peripheral", "label": "VGA Cable",
 const _DIGITAL_VIDEO_CABLES: Array = [
 	{"kind": "peripheral", "label": "DVI Cable", "spawn": "dvi_cable"},
 	{"kind": "peripheral", "label": "DisplayPort Cable", "spawn": "displayport_cable"},
+	{"kind": "peripheral", "label": "DVI-D Single Link Cable", "spawn": "dvi_sl_cable"},
+	# The card's VGA OUT to a set's DVI-I IN.
+	{"kind": "peripheral", "label": "DVI-A to VGA Cable", "spawn": "dvi_a_vga_cable"},
+	{"kind": "peripheral", "label": "Mini DisplayPort to DisplayPort Cable", "spawn": "mini_displayport_cable"},
 ]
 
 ## How a computer's sound reaches its speakers, and the speakers themselves. Listed
@@ -1211,6 +1215,13 @@ const ELECTRONICS := [
 	["Component Cable", "component_cable"],
 	["DVI Cable",       "dvi_cable"],
 	["DisplayPort Cable", "displayport_cable"],
+	["DVI-D Single Link Cable", "dvi_sl_cable"],
+	# Fits a DVI-I socket only (the set's), not a DVI-D card's.
+	["DVI-I Cable",     "dvi_i_cable"],
+	["DVI-A to VGA Cable", "dvi_a_vga_cable"],
+	["Mini HDMI to HDMI Cable", "hdmi_mini_cable"],
+	["Micro HDMI to HDMI Cable", "hdmi_micro_cable"],
+	["Mini DisplayPort to DisplayPort Cable", "mini_displayport_cable"],
 	# An F-type lead (an aerial's, an RF switch's) onto a US set's 300-ohm VHF terminals.
 	["75-300 Ohm Balun", "balun_75_300"],
 	# An F-type lead into a PAL set's Belling-Lee aerial socket.
