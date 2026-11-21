@@ -711,7 +711,7 @@ const SOURCES := {
 	"cemu": {
 		"repo":  "RetroXR/cemu-libretro",
 		"branch": "retroxr",
-		"known_tag": "retroxr-cemu-libretro-v1",
+		"known_tag": "retroxr-cemu-libretro-v2",
 		"label": "Cemu (retroXR build)",
 		"assets": {
 			"Windows": "cemu_libretro.dll.zip",
