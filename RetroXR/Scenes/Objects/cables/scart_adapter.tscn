@@ -51,6 +51,8 @@ size = Vector3(0.065, 0.03, 0.06)
 ; Each jack's zone is its MOUTH, turned R_x(180) so the mouth faces PlugA0 -Z (as on
 ; TrsRcaAdapter). IN, signal_kind 0 (TvSignal.Kind.COMPOSITE): the jacks are the set's
 ; SCART input's (AdapterRcaPort). show_jack is off: the model draws them.
+; A KEYED plug's SnapGrabPoint turns it half round about Y, not X (2026-11-21): about X
+; flipped its top, and it sat upside down in its socket (av_tests keys/).
 [node name="ScartAdapter" type="Node3D"]
 script = ExtResource("1_script")
 cord_colors = PackedColorArray(0.086, 0.086, 0.094, 1)
@@ -101,7 +103,7 @@ shape = SubResource("BoxShape3D_pointer")
 script = ExtResource("4_pickhigh")
 
 [node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("5_snapgp")]
-transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, -0.02)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.02)
 
 ; VIDEO: yellow, +X (left as seen from the jacks' end, the lettering up).
 [node name="RcaVideo" parent="PlugA0" instance=ExtResource("6_rcaport")]

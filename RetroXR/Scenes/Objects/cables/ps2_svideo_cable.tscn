@@ -62,6 +62,8 @@ radius = 0.024
 ; phonos. Cord 0 is VIDEO (MultiAvPort.CORD_CHANNELS), and it is the plug that makes it
 ; S-Video: it fits only an S-VIDEO IN (SvideoPort), whose input TvSignal draws without
 ; the composite notch. cord_colors' first entry tints nothing (the plug has no PlugTip).
+; A KEYED plug's SnapGrabPoint turns it half round about Y, not X (2026-11-21): about X
+; flipped its top, and it sat upside down in its socket (av_tests keys/).
 [node name="Ps2SvideoCable" type="Node3D"]
 script = ExtResource("1_cablescript")
 cord_colors = PackedColorArray(0.09, 0.09, 0.1, 1, 0.87, 0.87, 0.84, 1, 0.72, 0.08, 0.08, 1)
@@ -142,7 +144,7 @@ shape = SubResource("SphereShape3D_pointer")
 script = ExtResource("4_pickhigh")
 
 [node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("5_snapgp")]
-transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
 
 [node name="PlugB1" type="RigidBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.75)

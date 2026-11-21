@@ -949,3 +949,16 @@ D-Terminal at -0.088; SCART and RGB21 (tall plates) then HDMI, DVI, DisplayPort 
 speaker outputs at 0.06 (`tv.tscn`). A kind whose socket scene is not in the build is left off
 the stock body (`_built`), not half built. Saved leads find their sockets by NAME, so moving a
 socket moves nothing in a save.
+
+**A KEYED plug's `SnapGrabPoint` turns it half round about Y, never X** (2026-11-21). A snap zone
+seats a plug at the zone times its grab point's inverse; the phono plugs' grab point (about X)
+points the plug into the socket and flips its top, which a round plug does not show. Every keyed
+plug the room had (HDMI, S-Video, SCART, RGB21, DVI, DisplayPort, the SCART adapter) sat upside
+down in its socket until `av_tests keys/` measured it: the plug body's +Y must lie along the
+socket model's +Y and its +Z against the socket's. A new keyed lead or adapter goes in that list.
+
+**The aerial's adaptors**: the 75-300 ohm balun (`balun_75_300`, its spade lugs under a US set's
+VHF terminals) and the F to Belling-Lee adapter (`f_to_iec_adapter`) are `AvAdapter`s with an F
+female `AdapterCoaxPort` (`FJack`, IN); an aerial or RF switch lead in it is the set's aerial
+(`TvPanel.aerial` walks into adapter jacks by duck type, `host_socket`). The balun is rigid, no
+cord. D-Terminal leads hang off the Wii and PS2 Multi Outs (`*_dterminal_cable`, Japan).

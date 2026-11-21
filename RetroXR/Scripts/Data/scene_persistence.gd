@@ -241,6 +241,11 @@ const WII_SCART_CABLE_SCENE := preload("res://Scenes/Objects/system_models/wii/w
 const PS2_SCART_CABLE_SCENE := preload("res://Scenes/Objects/cables/ps2_scart_cable.tscn")
 const DC_SCART_CABLE_SCENE := preload("res://Scenes/Objects/system_models/dreamcast/dc_scart_cable.tscn")
 const GENESIS_SCART_CABLE_SCENE := preload("res://Scenes/Objects/system_models/genesis/genesis_scart_cable.tscn")
+## D-Terminal leads (Japan's one-plug component) and the aerial's adaptors.
+const WII_DTERMINAL_CABLE_SCENE := preload("res://Scenes/Objects/system_models/wii/wii_dterminal_cable.tscn")
+const PS2_DTERMINAL_CABLE_SCENE := preload("res://Scenes/Objects/cables/ps2_dterminal_cable.tscn")
+const BALUN_SCENE := preload("res://Scenes/Objects/cables/balun_75_300.tscn")
+const F_TO_IEC_ADAPTER_SCENE := preload("res://Scenes/Objects/cables/f_to_iec_adapter.tscn")
 ## DVI-D and DisplayPort leads, a computer's to a set's.
 const DVI_CABLE_SCENE := preload("res://Scenes/Objects/cables/dvi_cable.tscn")
 const DISPLAYPORT_CABLE_SCENE := preload("res://Scenes/Objects/cables/displayport_cable.tscn")
@@ -441,6 +446,10 @@ const LEAD_SCENES := {
 	"genesis_scart_cable": GENESIS_SCART_CABLE_SCENE,
 	"n64_jp21_cable": N64_JP21_CABLE_SCENE,
 	"dvi_cable": DVI_CABLE_SCENE,
+	"wii_dterminal_cable": WII_DTERMINAL_CABLE_SCENE,
+	"ps2_dterminal_cable": PS2_DTERMINAL_CABLE_SCENE,
+	"balun_75_300": BALUN_SCENE,
+	"f_to_iec_adapter": F_TO_IEC_ADAPTER_SCENE,
 	"displayport_cable": DISPLAYPORT_CABLE_SCENE,
 	"ps2_jp21_cable": PS2_JP21_CABLE_SCENE,
 	"genesis_jp21_cable": GENESIS_JP21_CABLE_SCENE,

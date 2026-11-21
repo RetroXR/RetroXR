@@ -63,6 +63,8 @@ radius = 0.024
 ; one plug at each end (inner_cords = 3: cords 0-2 are the console socket's VIDEO, L, R,
 ; and ScartPort reads them the same way), so the lead is one round cable. The set draws
 ; the input as RGB (TvSignal); a real lead of this kind carried the console's RGB.
+; A KEYED plug's SnapGrabPoint turns it half round about Y, not X (2026-11-21): about X
+; flipped its top, and it sat upside down in its socket (av_tests keys/).
 [node name="DcScartCable" type="Node3D"]
 script = ExtResource("1_cablescript")
 cord_colors = PackedColorArray(0.09, 0.09, 0.1, 1)
@@ -144,7 +146,7 @@ shape = SubResource("BoxShape3D_scartpointer")
 script = ExtResource("4_pickhigh")
 
 [node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("5_snapgp")]
-transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
 
 [node name="VerletRope" type="VerletRope" parent="."]
 segment_count = 50

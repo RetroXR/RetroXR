@@ -165,6 +165,9 @@ func _run() -> void:
 		["routing/a composite lead into a SCART block is the set's SCART input, composite quality", _r_scart_block],
 		["routing/an RGB21 lead is its own connector, filed on RGB21 as RGB with its sound", _r_jp21],
 		["routing/a tower on DVI and on DisplayPort: picture, and sound on DisplayPort only", _r_dvi_displayport],
+		["keys/a keyed plug seats the right way up in its socket", _k_keyed_plugs],
+		["routing/a Wii on its D-Terminal lead: component, full color, stereo", _r_dterminal],
+		["routing/an aerial through the balun or the Belling-Lee adapter is the set's", _r_aerial_adaptors],
 		["routing/an N64 wears ONE multi-out, not a phono row", _r_n64_multi_out],
 		["routing/its lead carries all three signals down one shell", _r_n64_lead],
 		["routing/a Wii lead does not fit an N64, nor the reverse", _r_multi_out_keying],
@@ -1118,6 +1121,92 @@ func _r_dvi_displayport() -> void:
 	_check_eq(tv.panel().selected_system(), tower, "the set shows the tower on DisplayPort")
 	feed = AvSource.resolve(tower, false)
 	_check_eq(feed.audio_sink, tv, "and plays its sound off the DisplayPort plug")
+
+
+## A keyed plug seats the right way up in its socket: the plug model's +Y (its key, wide
+## side or latch side) along the socket model's +Y, and its +Z (the connector) into the
+## socket (against the socket model's +Z, the mouth's outward face).
+func _k_keyed_plugs() -> void:
+	var tv := _tv()
+	var rows := [
+		["res://Scenes/Objects/cables/hdmi_cable.tscn", "PlugB0", "HdmiPort", "HdmiSocket"],
+		["res://Scenes/Objects/cables/svideo_cable.tscn", "PlugB0", "SvideoIn", "SvideoSocket"],
+		["res://Scenes/Objects/system_models/wii/wii_scart_cable.tscn", "PlugB0", "ScartIn", "ScartSocket"],
+		["res://Scenes/Objects/cables/dvi_cable.tscn", "PlugB0", "DviIn", "DviSocket"],
+		["res://Scenes/Objects/cables/displayport_cable.tscn", "PlugB0", "DisplayPortIn", "DisplayPortSocket"],
+		["res://Scenes/Objects/cables/scart_adapter.tscn", "PlugA0", "ScartIn", "ScartSocket"],
+		["res://Scenes/Objects/system_models/wii/wii_dterminal_cable.tscn", "PlugB0", "DTerminalIn", "DterminalSocket"],
+		["res://Scenes/Objects/cables/balun_75_300.tscn", "PlugA0", "RfTwinLeadIn", "TwinleadTerminals"],
+	]
+	for row: Array in rows:
+		var lead := (load(row[0]) as PackedScene).instantiate() as Node3D
+		lead.position = Vector3(_spawned.size() * 2.0, 1, -1.0)
+		add_child(lead)
+		_spawned.append(lead)
+		await _wait(10)
+		var zone := tv.get_node_or_null(row[2]) as XRToolsSnapZone
+		var plug := lead.get_node(row[1]) as RcaPlug
+		if zone == null:
+			_ok(false, "the stock set has %s" % row[2])
+			continue
+		zone.pick_up_object(plug)
+		await _wait(6)
+		# The plug BODY's frame (connector +Z, key +Y), which a model under it is posed into.
+		var shell := plug as Node3D
+		var socket := zone.find_child(row[3], true, false) as Node3D
+		if socket == null:
+			_ok(false, "%s's plug and socket models exist" % row[2])
+			continue
+		var up := shell.global_basis.y.normalized().dot(socket.global_basis.y.normalized())
+		var into := shell.global_basis.z.normalized().dot(-socket.global_basis.z.normalized())
+		_ok(up > 0.99, "%s: the plug's key is up with the socket's (dot %.2f)" % [row[2], up])
+		_ok(into > 0.99, "%s: the plug points into the socket (dot %.2f)" % [row[2], into])
+		zone.drop_object()
+		await _wait(4)
+
+
+func _r_dterminal() -> void:
+	var tv := _tv()
+	var sys := await _wii()
+	var d := tv.panel().video_port(RetroTV.Source.DTERMINAL)
+	var lr := tv.audio_ports(RetroTV.Source.DTERMINAL)
+	_ok(d is DTerminalPort and lr.size() == 2, "the stock set has a D-Terminal IN with its L and R")
+	if not d is DTerminalPort or lr.size() != 2:
+		return
+	await _multi_lead(load("res://Scenes/Objects/system_models/wii/wii_dterminal_cable.tscn"), sys, [d, lr[0], lr[1]])
+	_check_eq(_which_input(tv, sys), RetroTV.Source.DTERMINAL, "a Wii on its D-Terminal lead is filed on D-Terminal")
+	tv.set_source(RetroTV.Source.DTERMINAL)
+	_check_eq(tv.panel().selected_system(), sys, "and the set shows it")
+	_check_eq(tv.display().signal_kind(), TvSignal.Kind.COMPONENT, "as component")
+	_check_eq(tv.display().signal_chroma(), TvSignal.Chroma.FULL, "in full color: all three in one plug")
+	var route: Dictionary = sys.audio_speakers()
+	_ok(route.get("left") == 0 and route.get("right") == 1, "its sound on the phonos beside it, in stereo")
+
+
+func _r_aerial_adaptors() -> void:
+	for row: Array in [["res://Scenes/Objects/cables/balun_75_300.tscn", "RfTwinLeadIn", "the VHF terminals"],
+			["res://Scenes/Objects/cables/f_to_iec_adapter.tscn", "RfIecIn", "the Belling-Lee socket"]]:
+		var tv := _tv()
+		var socket := tv.get_node_or_null(row[1]) as RcaPort
+		_ok(socket != null, "the stock set's aerial has %s" % row[2])
+		if socket == null:
+			continue
+		_check_eq(tv.panel().input_of_port(socket), RetroTV.Source.RF, "%s are the aerial input" % row[2])
+		var adapter := (load(row[0]) as PackedScene).instantiate() as AvAdapter
+		adapter.position = Vector3(_spawned.size() * 2.0, 1, -1.0)
+		add_child(adapter)
+		_spawned.append(adapter)
+		await _wait(10)
+		socket.pick_up_object(adapter.get_node("PlugA0") as RcaPlug)
+		await _wait(10)
+		var jack := adapter.find_child("FJack", true, false) as AdapterCoaxPort
+		_check_eq(tv.panel().input_of_port(jack), RetroTV.Source.RF, "the adapter's F jack is the aerial input")
+		var aerial := await _aerial(["2.1", "5.1"])
+		await _seat_aerial(aerial, jack)
+		_check_eq(tv.panel().aerial(), aerial, "an aerial through the adapter in %s is the set's" % row[2])
+		socket.drop_object()
+		await _wait(20)
+		_ok(tv.panel().aerial() == null, "and pulling the adapter loses it")
 
 
 ## A console with one hole in the back, and what the room does with it.

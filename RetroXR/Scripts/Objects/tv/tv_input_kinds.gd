@@ -137,9 +137,11 @@ const KINDS := {
 
 ## How far the D-Terminal, Belling-Lee and twin-lead sockets' mouths stand off the panel,
 ## from RetroXR-models generic/dterminal-socket, belling-lee-socket, twinlead-terminals.
-const DTERM_PROUD := 0.002
-const IEC_PROUD := 0.006
-const TWINLEAD_PROUD := 0.004
+## The Belling-Lee barrel stands 13.2 mm off its flange; the twin-lead zone is the point
+## between the two screw seats, 1 mm in front of the 2 mm plate (twin_lead_port.tscn).
+const DTERM_PROUD := 0.0025
+const IEC_PROUD := 0.0132
+const TWINLEAD_PROUD := 0.003
 
 ## How far the DVI and DisplayPort sockets' mouths stand off the panel, and their
 ## outer half width / height, from RetroXR-models generic/dvi-socket and

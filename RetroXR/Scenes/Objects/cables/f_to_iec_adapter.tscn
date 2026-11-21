@@ -1,0 +1,76 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/av_adapter.gd" id="1_script"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
+[ext_resource type="PackedScene" path="res://imported-assets/connectors/f_to_iec_adapter/f_to_iec_adapter.glb" id="3_model"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="6_rcaport"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/adapter_coax_port.gd" id="7_jackscript"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_block"]
+bounce = 0.0
+friction = 0.8
+
+[sub_resource type="BoxShape3D" id="Box_0"]
+size = Vector3(0.0125, 0.0125, 0.012)
+
+[sub_resource type="BoxShape3D" id="Box_1"]
+size = Vector3(0.0095, 0.0095, 0.01)
+
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
+size = Vector3(0.02, 0.02, 0.034)
+
+; The F to Belling-Lee adaptor (RetroXR-models generic/f-to-iec-adapter): its Belling-Lee male in a
+; PAL set's aerial socket, an F-type lead into its far end. One plug, no cord (an AvAdapter).
+; Origin: the IEC male's stop face, +Z the male. Round, so turned about X as a phono plug is.
+[node name="FToIecAdapter" type="Node3D"]
+script = ExtResource("1_script")
+cord_colors = PackedColorArray(0.086, 0.086, 0.094, 1)
+
+[node name="PlugA0" type="RigidBody3D" parent="."]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_block")
+mass = 0.02
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+connector = "iec_aerial_plug"
+
+[node name="Shape0" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.006)
+shape = SubResource("Box_0")
+
+[node name="Shape1" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.017)
+shape = SubResource("Box_1")
+
+
+[node name="Shell" parent="PlugA0" instance=ExtResource("3_model")]
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.011)
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; The F-type female an aerial's lead or an RF switch's pigtail goes into: an adapter jack
+; (AdapterCoaxPort) that belongs to the set the adapter is in, direction IN, on the aerial
+; input (TvPanel.input_of_port, aerial()). Its zone stands at the model's FMouth, +Z out
+; of the mouth. The phono jack the port scene wears is hidden: the model draws the F thread.
+[node name="FJack" parent="PlugA0" instance=ExtResource("6_rcaport")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.022)
+script = ExtResource("7_jackscript")
+direction = 1
+show_jack = false

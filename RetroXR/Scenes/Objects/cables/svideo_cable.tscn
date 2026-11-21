@@ -26,6 +26,8 @@ size = Vector3(0.032, 0.022, 0.06)
 ; A 1.8 m S-VIDEO lead (2026-11-21): ONE cord, a 4-pin mini-DIN at each end
 ; (RetroXR-models generic/svideo-plug). Picture only: a box's audio goes down a
 ; phono pair beside it, as on the real lead. CompositeCable's single-cord path.
+; A KEYED plug's SnapGrabPoint turns it half round about Y, not X (2026-11-21): about X
+; flipped its top, and it sat upside down in its socket (av_tests keys/).
 [node name="SvideoCable" type="Node3D"]
 script = ExtResource("1_cablescript")
 cord_colors = PackedColorArray(0.09, 0.09, 0.1, 1)
@@ -67,7 +69,7 @@ shape = SubResource("BoxShape3D_pointer")
 script = ExtResource("4_pickhigh")
 
 [node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("5_snapgp")]
-transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
 
 ; -- End B --------------------------------------------------------------------
 ; Unturned: its cord already trails -Z, back toward end A.
@@ -104,7 +106,7 @@ shape = SubResource("BoxShape3D_pointer")
 script = ExtResource("4_pickhigh")
 
 [node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("5_snapgp")]
-transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
 
 ; 60 x 30 mm = 1.80 m, the WUP-008's length. A 6 mm cord.
 [node name="VerletRope" type="VerletRope" parent="."]

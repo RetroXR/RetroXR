@@ -22,6 +22,13 @@ After a re-import, put the GLBs back to `generate_lods=false` and any extracted 
 | `dvi_port/dvi_socket.glb` | `generic/dvi-socket/exports/black/dvi_socket_black_mobile_clean.glb` (5b9610323) | `dvi_port.tscn` (its mouth AT the zone, 6.5 mm proud of the panel) |
 | `displayport_plug/displayport_plug.glb` | `generic/displayport-plug/exports/black/displayport_plug_black_mobile_clean.glb` (5b9610323; `common/displayport.py`) | both ends of `displayport_cable.tscn` |
 | `displayport_port/displayport_socket.glb` | `generic/displayport-socket/exports/black/displayport_socket_black_mobile_clean.glb` (5b9610323) | `displayport_port.tscn` (its mouth AT the zone, 2.5 mm proud) |
+| `dterminal_plug/dterminal_plug.glb` | `generic/dterminal-plug/exports/black/dterminal_plug_black_mobile_clean.glb (1a942b042)` | `PlugB0` of the two `*_dterminal_cable.tscn` |
+| `dterminal_port/dterminal_socket.glb` | `generic/dterminal-socket/exports/black/dterminal_socket_black_mobile_clean.glb (1a942b042)` | `dterminal_port.tscn` (mouth AT the zone, 2.5 mm proud) |
+| `belling_lee_plug/belling_lee_plug.glb` | `generic/belling-lee-plug/exports/white/belling_lee_plug_white_mobile_clean.glb (f72f210dd)` | for a Belling-Lee lead (none ships yet) |
+| `iec_aerial_port/belling_lee_socket.glb` | `generic/belling-lee-socket/exports/nickel/belling_lee_socket_nickel_mobile_clean.glb (f72f210dd)` | `iec_aerial_port.tscn` (barrel lip AT the zone, 13.2 mm proud) |
+| `f_to_iec_adapter/f_to_iec_adapter.glb` | `generic/f-to-iec-adapter/exports/nickel/f_to_iec_adapter_nickel_mobile_clean.glb (13037bda7)` | `f_to_iec_adapter.tscn` |
+| `twin_lead_port/twinlead_terminals.glb` | `generic/twinlead-terminals/exports/gray/twinlead_terminals_gray_mobile_clean.glb (4d7bbac01)` | `twin_lead_port.tscn` (1 mm behind the zone, which is between the screw seats) |
+| `balun_75_300/balun_75_300.glb` | `generic/balun-75-300/exports/black/balun_75_300_black_mobile_clean.glb (30054bedf)` | `balun_75_300.tscn` |
 | `hdmi_port/hdmi_socket.glb` | `generic/hdmi-socket/exports/hdmi_socket.glb` (096cc328c; a short Blender script, not cartkit) | `hdmi_port.tscn` (`HdmiSocket`, 0.8 mm behind the zone: the plug stops on its surround) |
 | `hpdb50_plug/hpdb50_plug.glb` | `generic/hpdb50-plug/exports/naomi/hpdb50_plug_naomi_mobile_clean.glb` | both ends of `gd_cable.tscn` |
 | `jamma_plug/jamma_plug.glb` | `generic/jamma-plug/exports/keyed/jamma_plug_keyed_mobile_clean.glb` (the keyed model, d5aebc2ac) | both ends of `jamma_cable.tscn` (`Shell` turned half round about Z; its harness leaves along the plug's -Y, which the rope's exit axes say) |

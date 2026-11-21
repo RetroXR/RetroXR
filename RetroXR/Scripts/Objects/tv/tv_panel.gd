@@ -277,7 +277,9 @@ func _aerial_in(socket: RcaPort, depth: int) -> Antenna:
 		return plug.cable as Antenna
 	if plug.cable is RfSwitch:
 		return (plug.cable as RfSwitch).aerial()
-	for jack: Node in plug.cable.find_children("*", "AdapterRcaPort", true, false):
+	for jack: Node in plug.cable.find_children("*", "", true, false):
+		if not (jack is RcaPort and jack.has_method("host_socket")):
+			continue          # an adapter jack answers host_socket (AvAdapter's walk)
 		var found := _aerial_in(jack as RcaPort, depth + 1)
 		if found != null:
 			return found

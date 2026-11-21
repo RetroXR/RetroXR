@@ -1211,6 +1211,10 @@ const ELECTRONICS := [
 	["Component Cable", "component_cable"],
 	["DVI Cable",       "dvi_cable"],
 	["DisplayPort Cable", "displayport_cable"],
+	# An F-type lead (an aerial's, an RF switch's) onto a US set's 300-ohm VHF terminals.
+	["75-300 Ohm Balun", "balun_75_300"],
+	# An F-type lead into a PAL set's Belling-Lee aerial socket.
+	["F to Belling-Lee Adapter", "f_to_iec_adapter"],
 	["3.5 mm Cable",   "trs_cable"],
 	# A 3.5 mm stereo plug to a white and a red phono jack: a PHONES jack's sound onto a pair of phono leads.
 	["3.5 mm to RCA Adapter", "trs_rca_adapter"],
