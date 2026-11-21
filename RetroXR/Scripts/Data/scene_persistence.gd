@@ -470,6 +470,9 @@ const LEAD_SCENES := {
 	# A 3.5 mm stereo plug to two phono jacks (TrsRcaAdapter): a block of one plug and no cord, as the
 	# modulator is; the phono leads in its jacks are saved under it (AdapterRcaPort.save_owner).
 	"trs_rca_adapter": preload("res://Scenes/Objects/cables/trs_rca_adapter.tscn"),
+	# A SCART plug to three phono jacks (ScartAdapter, Nintendo's SNSP-015): a block of one plug and no cord in a
+	# set's SCART IN; the composite lead in its jacks is saved under it (AdapterRcaPort.save_owner).
+	"scart_adapter": preload("res://Scenes/Objects/cables/scart_adapter.tscn"),
 	"antenna": ANTENNA_SCENE,
 	# A headset whose captive cord ends in a 3.5 mm plug (Headphones): a lead with a body on one end, like the aerial.
 	"headphones": preload("res://Scenes/Objects/appliances/headphones.tscn"),

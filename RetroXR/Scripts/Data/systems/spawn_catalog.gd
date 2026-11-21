@@ -1206,6 +1206,8 @@ const ELECTRONICS := [
 	["3.5 mm Cable",   "trs_cable"],
 	# A 3.5 mm stereo plug to a white and a red phono jack: a PHONES jack's sound onto a pair of phono leads.
 	["3.5 mm to RCA Adapter", "trs_rca_adapter"],
+	# A SCART plug with three phono jacks: a composite lead into a set that has only SCART (composite quality).
+	["SCART Adapter", "scart_adapter"],
 	["Ethernet Cable", "ethernet_cable"],
 	["Ethernet Hub",   "ethernet_hub"],
 	# Held, the loudspeakers offer their finishes: black, or the 1990s computer beige.

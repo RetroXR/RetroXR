@@ -1,0 +1,131 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/scart_adapter.gd" id="1_script"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
+[ext_resource type="PackedScene" path="res://imported-assets/connectors/scart_adapter/scart_adapter.glb" id="3_model"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="6_rcaport"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/adapter_rca_port.gd" id="7_portscript"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_block"]
+bounce = 0.0
+friction = 0.8
+
+; The model's own numbers (RetroXR-models nintendo/snes/scart-adapter, MEASUREMENTS.md),
+; in the plug frame: the block 57.5 x 21.0 from 8.0 to 35.0 behind the origin, the
+; collar 53.0 x 16.0 over the first 8.0, the jacks' bosses and shells out to 43.0
+; behind it (38.3 across, 2.0 under the middle), the SCART shell 45.8 x 14.2 and 9.0
+; ahead of it.
+[sub_resource type="BoxShape3D" id="BoxShape3D_block"]
+size = Vector3(0.0575, 0.021, 0.027)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_collar"]
+size = Vector3(0.053, 0.016, 0.008)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_jacks"]
+size = Vector3(0.0383, 0.0106, 0.008)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_shell"]
+size = Vector3(0.0458, 0.0142, 0.009)
+
+; The laser target only until the block is in the room: PointerFit then makes it a
+; box of what the block draws.
+[sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
+size = Vector3(0.065, 0.03, 0.06)
+
+; ── Euro Connector Plug (SNSP-015): SCART to three phono jacks ───────────────────
+;
+; A rigid black block, no cord: its SCART shell goes straight into a set's SCART IN,
+; and a console's composite lead goes into its three jacks. ScartAdapter is an
+; AvAdapter of ONE plug, PlugA0, which IS the block: no PlugB0 and no VerletRope.
+;
+; ── The frame ───────────────────────────────────────────────────────────────────
+; PlugA0's frame is RetroXR's plug frame: the origin on the collar's face, where a
+; SCART socket's shroud stops it; the shell along +Z into the socket, the block and
+; the jacks behind it along -Z, the lettering +Y. The model is exported in its own
+; frame (shell -Y, lettering +Z), so Shell is turned a quarter about X: a model point
+; (x, y, z) is (x, z, -y) here. Its jacks' mouths, the model's RcaJackVideo (+15 mm X),
+; RcaJackL (0) and RcaJackR (-15 mm X), are 43.0 mm back and 2.0 mm down.
+;
+; Each jack's zone is its MOUTH, turned R_x(180) so the mouth faces PlugA0 -Z (as on
+; TrsRcaAdapter). IN, signal_kind 0 (TvSignal.Kind.COMPOSITE): the jacks are the set's
+; SCART input's (AdapterRcaPort). show_jack is off: the model draws them.
+[node name="ScartAdapter" type="Node3D"]
+script = ExtResource("1_script")
+cord_colors = PackedColorArray(0.086, 0.086, 0.094, 1)
+
+[node name="PlugA0" type="RigidBody3D" parent="."]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_block")
+mass = 0.04
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+connector = "scart_plug"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0215)
+shape = SubResource("BoxShape3D_block")
+
+[node name="CollarShape" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.004)
+shape = SubResource("BoxShape3D_collar")
+
+[node name="JacksShape" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.002, -0.039)
+shape = SubResource("BoxShape3D_jacks")
+
+[node name="ShellShape" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.0045)
+shape = SubResource("BoxShape3D_shell")
+
+; Rows of the basis: plug x = model x, plug y = model z, plug z = -model y.
+[node name="Shell" parent="PlugA0" instance=ExtResource("3_model")]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 0)
+
+[node name="CordExit" type="Node3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.035)
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.017)
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, -0.02)
+
+; VIDEO: yellow, +X (left as seen from the jacks' end, the lettering up).
+[node name="RcaVideo" parent="PlugA0" instance=ExtResource("6_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0.015, -0.002, -0.043)
+script = ExtResource("7_portscript")
+signal_kind = 0
+channel = 0
+direction = 1
+show_jack = false
+
+; AUDIO (L): white, in the middle.
+[node name="RcaL" parent="PlugA0" instance=ExtResource("6_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, -0.002, -0.043)
+script = ExtResource("7_portscript")
+signal_kind = 0
+channel = 1
+direction = 1
+show_jack = false
+
+; AUDIO (R): red, -X.
+[node name="RcaR" parent="PlugA0" instance=ExtResource("6_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -0.015, -0.002, -0.043)
+script = ExtResource("7_portscript")
+signal_kind = 0
+channel = 2
+direction = 1
+show_jack = false

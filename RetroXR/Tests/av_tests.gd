@@ -1007,18 +1007,9 @@ func _i_hdmi_two() -> void:
 ## A SCART block (Nintendo's SNSP-015) as the room would build one, from the conversion
 ## lead's AvAdapter: its plug a SCART plug, three phono IN jacks on it that are the set's.
 func _scart_block() -> AvAdapter:
-	var block := load("res://Scenes/Objects/system_models/genesis/sega32x_conversion_cable.tscn").instantiate() as AvAdapter
-	(block.get_node("PlugA0") as RcaPlug).connector = "scart_plug"
-	var rows := [["BlockVideo", RcaPort.Channel.VIDEO], ["BlockL", RcaPort.Channel.AUDIO_L],
-		["BlockR", RcaPort.Channel.AUDIO_R]]
-	for row: Array in rows:
-		var jack := (load("res://Scenes/Objects/cables/rca_port.tscn") as PackedScene).instantiate() as RcaPort
-		jack.set_script(load("res://Scripts/Objects/cables/adapter_rca_port.gd"))
-		jack.name = row[0]
-		jack.set("direction", RcaPort.Direction.IN)
-		jack.set("channel", row[1])
-		jack.set("signal_kind", TvSignal.Kind.COMPOSITE)
-		block.get_node("PlugA0").add_child(jack)
+	# The room's own block (ScartAdapter, scart_adapter.tscn): one SCART plug, three phono
+	# jacks IN with signal_kind COMPOSITE under PlugA0.
+	var block := (load("res://Scenes/Objects/cables/scart_adapter.tscn") as PackedScene).instantiate() as AvAdapter
 	block.position = Vector3(_spawned.size() * 2.0, 1, -1.0)
 	add_child(block)
 	_spawned.append(block)
@@ -1036,12 +1027,12 @@ func _r_scart_block() -> void:
 		return
 	scart.pick_up_object(block.get_node("PlugA0") as RcaPlug)
 	await _wait(10)
-	var video := block.find_child("BlockVideo", true, false) as AdapterRcaPort
+	var video := block.find_child("RcaVideo", true, false) as AdapterRcaPort
 	_check_eq(video.host_socket(), scart, "the block's jacks know the socket it is in")
 	_check_eq(video.get_device(), tv, "and belong to the set")
 	_check_eq(tv.panel().input_of_port(video), RetroTV.Source.SCART, "the set files them on SCART")
-	await _multi_lead(WII_AV_CABLE, sys, [video, block.find_child("BlockL", true, false),
-		block.find_child("BlockR", true, false)])
+	await _multi_lead(WII_AV_CABLE, sys, [video, block.find_child("RcaL", true, false),
+		block.find_child("RcaR", true, false)])
 	_check_eq(_which_input(tv, sys), RetroTV.Source.SCART, "a Wii on its composite lead into the block is on SCART")
 	tv.set_source(RetroTV.Source.SCART)
 	_check_eq(tv.panel().selected_system(), sys, "and the set shows it")
