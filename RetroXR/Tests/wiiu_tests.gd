@@ -115,6 +115,8 @@ func _test_the_console_is_the_wii_u() -> void:
 	_eq(shown, 0, "model/no wired controller sockets: every pad is wireless")
 	_eq(model.get_forced_core_options().get("cemu_wiimote_pointer", ""), "ir",
 		"model/remotes aim through the IR camera")
+	_eq(model.get_forced_core_options().get("cemu_gamepad_motion_filter", ""), "exact",
+		"model/the GamePad's motion is exact: no bias learning, no slow-turn gate")
 
 
 # ── views/ ───────────────────────────────────────────────────────────────────

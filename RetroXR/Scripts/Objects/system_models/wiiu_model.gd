@@ -80,6 +80,9 @@ func get_forced_core_options() -> Dictionary:
 		"cemu_wiimote_pointer": "ir",
 		"cemu_wiimote_motion": "enabled",
 		"cemu_gamepad_motion": "enabled",
+		# The GamePad's motion is worked out from its tracked pose: no bias, no noise.
+		# The fork's Real Sensors filter would throw slow turns away and learn them as bias.
+		"cemu_gamepad_motion_filter": "exact",
 	}
 
 
