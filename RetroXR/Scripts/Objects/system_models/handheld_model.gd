@@ -141,6 +141,8 @@ func _ready() -> void:
 
 func _setup_screen_light() -> void:
 	_screen_light = _make_screen_light(_screen)
+	# Deferred: the materials read the machine's screen settings.
+	ModelWarmer.warm_screens_of.call_deferred(self)
 
 
 ## Create + configure a screen-cast spot just off `screen`'s glass, aimed out along
@@ -292,6 +294,13 @@ func _update_screen() -> void:
 		if _screen.get_surface_override_material(0) != pic:
 			_screen.set_surface_override_material(0, pic)
 		return
+	var mat := _lcd_material_for(lit_itself, tex)
+	if _screen.get_surface_override_material(0) != mat:
+		_screen.set_surface_override_material(0, mat)
+
+
+## The panel's LCD material for one lighting, made on first use and fed `tex`.
+func _lcd_material_for(lit_itself: bool, tex: Texture2D) -> ShaderMaterial:
 	var mat: ShaderMaterial
 	if lit_itself:
 		if _lcd_material == null:
@@ -307,8 +316,21 @@ func _update_screen() -> void:
 		mat = _lcd_material_lit
 	if mat.get_shader_parameter("source_tex") != tex:
 		mat.set_shader_parameter("source_tex", tex)
-	if _screen.get_surface_override_material(0) != mat:
-		_screen.set_surface_override_material(0, mat)
+	return mat
+
+
+## The panel as it looks switched on, both lightings (the menu's switch picks
+## either): [mesh, material, key] each, for ModelWarmer.warm_screens_of to draw
+## once before the first power-on. Unwarmed, that first draw stalled a Quest 3
+## about a second (Game Boy, 2026-11-21).
+func powered_on_screens(tex: Texture2D) -> Array:
+	if _screen == null:
+		return []
+	if _lcd_shader == null:
+		return [[_screen, picture_material(tex), "picture"],
+			[_screen, picture_material_lit(tex), "picture_lit"]]
+	return [[_screen, _lcd_material_for(true, tex), _lcd_shader.resource_path],
+		[_screen, _lcd_material_for(false, tex), _lcd_shader_lit.resource_path]]
 
 
 ## Whether the panel lights itself (unshaded / emissive) or is lit by the room.

@@ -315,3 +315,77 @@ static func warm_shells(host: Node) -> void:
 	print("[ModelWarmer] %d shells warmed in %.2f s  (+%.1f MiB texture)"
 		% [n, float(Time.get_ticks_usec() - t) / 1000000.0,
 			(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED) - tex0) / 1048576.0])
+
+
+# --- powered-on screens -------------------------------------------------------
+#
+# Every warm above draws a machine switched OFF, so a handheld's panel is drawn
+# in its dark material only. What it shows switched on (its LCD shader, the plain
+# picture material) was first drawn at the first power-on and compiled there:
+# measured on a Quest 3 (2026-11-21), a Game Boy's first power-on of a launch
+# held the headset 76 frames (~1 s) from the frame its picture appeared, and
+# every later power-on was free. So each handheld hands its powered-on looks over
+# as it enters the tree, and each one (by shader, mesh kind and vertex format) is
+# drawn once offscreen, a frame apiece.
+
+## Looks waiting to be drawn: [mesh, material, key, owner name].
+static var _screen_queue: Array = []
+## Keys drawn or queued this process.
+static var _screens_seen: Dictionary = {}
+static var _screens_draining := false
+## Stands in for the core's picture.
+static var _screen_tex: ImageTexture = null
+
+
+## Queue `model`'s powered-on screens (its powered_on_screens()) for one
+## offscreen draw each, skipping any look already drawn this process.
+static func warm_screens_of(model: Node) -> void:
+	if not loads_threaded() or not is_instance_valid(model) or not model.is_inside_tree() \
+			or not model.has_method("powered_on_screens"):
+		return
+	if _screen_tex == null:
+		var img := Image.create(8, 8, false, Image.FORMAT_RGBA8)
+		img.fill(Color(0.5, 0.6, 0.4))
+		_screen_tex = ImageTexture.create_from_image(img)
+	var added := 0
+	for entry: Array in model.call("powered_on_screens", _screen_tex):
+		var screen := entry[0] as MeshInstance3D
+		var mat := entry[1] as Material
+		if screen == null or screen.mesh == null or mat == null:
+			continue
+		var key := "%s|%s|%d" % [entry[2], screen.mesh.get_class(), _surface_format(screen.mesh)]
+		if _screens_seen.has(key):
+			continue
+		_screens_seen[key] = true
+		_screen_queue.append([screen.mesh, mat, key, str(model.name)])
+		added += 1
+	if added > 0 and not _screens_draining:
+		_drain_screens()
+
+
+static func _surface_format(mesh: Mesh) -> int:
+	if mesh is ArrayMesh and (mesh as ArrayMesh).get_surface_count() > 0:
+		return (mesh as ArrayMesh).surface_get_format(0)
+	return 0
+
+
+## Coroutine: draw the queue, one look a frame, then put the viewport away.
+static func _drain_screens() -> void:
+	_screens_draining = true
+	var tree := _tree()
+	var sv := _make_warm_viewport(tree.root)
+	sv.name = "ScreenWarmViewport"
+	while not _screen_queue.is_empty():
+		var entry: Array = _screen_queue.pop_front()
+		var mi := MeshInstance3D.new()
+		mi.mesh = entry[0]
+		mi.material_override = entry[1]
+		sv.add_child(mi)
+		var t := Time.get_ticks_usec()
+		await tree.process_frame
+		await RenderingServer.frame_post_draw
+		mi.queue_free()
+		print("[ModelWarmer] powered-on screen %s (%s) drawn: %.0f ms"
+			% [entry[2], entry[3], float(Time.get_ticks_usec() - t) / 1000.0])
+	sv.queue_free()
+	_screens_draining = false

@@ -92,18 +92,27 @@ func show_picture(texture: Texture2D,
 	if texture == null:
 		turn_off()
 		return
-	_ensure_sampler()
 	var changed := texture != _source or region != _source_rect or not _picture_active
 	_source = texture
 	_source_rect = region
 	_picture_active = true
 	_output_active = true
 	_apply_energy()
-	if changed:
-		_sample_material.set_shader_parameter("source_tex", texture)
-		_sample_material.set_shader_parameter("source_rect", Vector4(
-			region.position.x, region.position.y, region.size.x, region.size.y))
+	# Hidden (the switch off, the mobile default), nothing reads a sample: no
+	# sampler is built or drawn until refresh_output shows the light. Built
+	# anyway, its first draw compiled the blur shader at a handheld's first
+	# power-on on the Quest.
+	if changed and visible:
+		_feed_sampler()
 		_request_refresh()
+
+
+## Point the sampler at the current picture, building it first if needed.
+func _feed_sampler() -> void:
+	_ensure_sampler()
+	_sample_material.set_shader_parameter("source_tex", _source)
+	_sample_material.set_shader_parameter("source_rect", Vector4(_source_rect.position.x,
+		_source_rect.position.y, _source_rect.size.x, _source_rect.size.y))
 
 
 ## Static states need neither a viewport nor a sampled texture.
@@ -128,6 +137,7 @@ func turn_off() -> void:
 func refresh_output() -> void:
 	_apply_energy()
 	if visible and _picture_active:
+		_feed_sampler()
 		_request_refresh()
 
 

@@ -120,6 +120,7 @@ func _ready() -> void:
 	_bottom_mat = ShaderMaterial.new()
 	_bottom_mat.shader = RetroTV.window_shader()
 	_apply_window_params()
+	ModelWarmer.warm_screens_of.call_deferred(self)
 	await get_tree().process_frame
 	# Removed during that frame (a preview thrown away, a room change): get_tree() is null now.
 	if not is_inside_tree():
@@ -128,6 +129,22 @@ func _ready() -> void:
 		_touch_controllers.append(node as XRController3D)
 
 
+
+
+## Both panels as they look switched on, for ModelWarmer.warm_screens_of. The
+## window materials are fed `tex` only while nothing runs: _process feeds the
+## core's picture again on the first frame.
+func powered_on_screens(tex: Texture2D) -> Array:
+	var out: Array = []
+	var key := RetroTV.window_shader().resource_path
+	for pair: Array in [[_screen, _top_mat], [_bottom_screen, _bottom_mat]]:
+		var mat := pair[1] as ShaderMaterial
+		if pair[0] == null or mat == null:
+			continue
+		if mat.get_shader_parameter("source_tex") == null:
+			mat.set_shader_parameter("source_tex", tex)
+		out.append([pair[0], mat, key])
+	return out
 
 
 ## Both screens cast light (base drives only the top via _screen).
