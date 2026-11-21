@@ -71,9 +71,9 @@ uniform float crt_halation : hint_range(0.0, 0.5) = 0.08;
 uniform float crt_glow_radius : hint_range(1.0, 16.0) = 6.0;
 
 // ── Signal artefacts ────────────────────────────────────────────────────────
-uniform float crt_notch : hint_range(0.0, 1.0) = 0.0;
+uniform float crt_notch : hint_range(0.0, 1.0) = 1.0;
 uniform float crt_grain : hint_range(0.0, 1.0) = 0.10;
-uniform float crt_smear : hint_range(0.0, 1.0) = 0.0;
+uniform float crt_smear : hint_range(0.0, 1.0) = 0.5;
 uniform float crt_wiggle : hint_range(0.0, 0.2) = 0.0;
 
 // The input's color (component's Y alone is black and white): crt_chroma.gdshaderinc.

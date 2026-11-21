@@ -110,13 +110,18 @@ func _console(systemid: String, model_id: String, at: Vector3) -> RetroSystem:
 ## The test card through the CRT stage, once per input kind, side by side.
 func _card_strip(at: Vector3) -> void:
 	var card := ImageTexture.create_from_image(_card_image())
-	var rows := [
-		["composite", 1.0, 1.0, TvSignal.Chroma.FULL],
-		["S-Video", 0.0, 0.6, TvSignal.Chroma.FULL],
-		["component", 0.0, 0.15, TvSignal.Chroma.FULL],
-		["Y alone", 0.0, 0.15, TvSignal.Chroma.MONO],
-		["Pb/Pr crossed", 0.0, 0.15, TvSignal.Chroma.SWAPPED],
-	]
+	# The set's shipped composite defaults (TvDisplay: notch 1.0, smear 0.5), as each
+	# input's kind scales them (TvSignal.SCALE).
+	var notch := 1.0
+	var smear := 0.5
+	var rows := []
+	for row: Array in [["composite", TvSignal.Kind.COMPOSITE, TvSignal.Chroma.FULL],
+			["S-Video", TvSignal.Kind.SVIDEO, TvSignal.Chroma.FULL],
+			["component", TvSignal.Kind.COMPONENT, TvSignal.Chroma.FULL],
+			["Y alone", TvSignal.Kind.COMPONENT, TvSignal.Chroma.MONO],
+			["Pb/Pr crossed", TvSignal.Kind.COMPONENT, TvSignal.Chroma.SWAPPED]]:
+		rows.append([row[0], TvSignal.scaled(row[1], "crt_notch", notch),
+			TvSignal.scaled(row[1], "crt_smear", smear), row[2]])
 	var w := 0.32
 	for i in rows.size():
 		var row: Array = rows[i]

@@ -845,9 +845,11 @@ is composite). And `crt_chroma` (`Shaders/crt_chroma.gdshaderinc`, in both tiers
 the tube stage OFF too): FULL; MONO when nothing correct reaches Pb/Pr from the device on Y (a
 yellow cord in the green jack, a color cord pulled); SWAPPED when Pb and Pr are crossed. Nothing
 on Y is FULL, or the no-signal blue would go gray. Worked out on a source change and on every
-A/V topology change (`refresh_signal`), never per frame. NOTE: composite's own sliders ship at
-0, so out of the box composite already draws as clean as S-Video; the difference shows once a
-set's composite is turned up.
+A/V topology change (`refresh_signal`), never per frame. **Composite ships with its artifacts
+on** (notch 1.0, smear 0.5, 2026-11-21; they were 0, which drew composite as clean as
+S-Video). A saved room stores every CRT value, so a set saved before keeps its zeros; a
+cabinet's `set_crt_defaults` (the Panasonic's 0.20 / 0.10) still wins over these. The
+Quest's `crt_mobile` tier has neither stage.
 
 `av_tests` (`_d_better_inputs`, `_r_component`, `_r_yellow_in_y`, `_d_signal_scale`);
 `DevTools/av/tv_inputs_render_probe` (windowed): the leads seated, the empty row, and a test card

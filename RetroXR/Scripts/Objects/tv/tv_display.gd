@@ -56,10 +56,14 @@ var _crt_params := {
 	"crt_gamma": 1.09,
 	"crt_halation": 0.08,
 	"crt_glow_radius": 6.0,
-	"crt_notch": 0.0,
+	# The set's COMPOSITE (2026-11-21, was 0 / 0, which drew composite as clean as
+	# S-Video): the full chroma trap and half the chroma bleed. TvSignal scales both
+	# by input, so S-Video, component and RGB come out cleaner than this; a cabinet's
+	# set_crt_defaults and a saved room's values still win.
+	"crt_notch": 1.0,
 	"crt_persistence": 0.3,
 	"crt_grain": 0.1,
-	"crt_smear": 0.0,
+	"crt_smear": 0.5,
 	"crt_wiggle": 0.0,
 	"crt_vignette": 0.18,
 	"crt_brightness": 1.0,
