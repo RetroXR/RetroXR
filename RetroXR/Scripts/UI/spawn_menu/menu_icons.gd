@@ -11,6 +11,9 @@ class_name MenuIcons
 extends RefCounted
 
 const FONT_PATH := "res://fonts/SymbolsNerdFont-Regular.ttf"
+## Outlets the Nerd Font lacks (Type K, M, D, H) at U+F2000..F2003, drawn on its
+## power_socket frame by Tools/art/gen_socket_glyphs.py.
+const SOCKETS_FONT_PATH := "res://fonts/RetroXR-Sockets.ttf"
 const ROMM_MARK_PATH := "res://Textures/RomM/romm_logo.svg"
 ## A subset of Noto Color Emoji holding only the flags below. No platform font
 ## can be trusted for them: Windows' emoji font has no flags at all.
@@ -174,6 +177,9 @@ static func _glyph_fallbacks() -> Array[Font]:
 	var glyphs: Font = load(FONT_PATH)
 	if glyphs != null:
 		out.append(glyphs)
+	var sockets: Font = load(SOCKETS_FONT_PATH)
+	if sockets != null:
+		out.append(sockets)
 	return out
 
 

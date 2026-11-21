@@ -987,6 +987,18 @@ func _test_spawn() -> void:
 	var us_cord := PowerSpawnRows.region_default(c13, "na")
 	_ok(PowerSpawnRows.mark_of(us_cord).ends_with(String.chr(MainsRegions.glyph_of("na"))),
 		"spawn/the US C13 lead's 5-15P is a Type B")
+	# Every outlet glyph is in a symbols fallback: one in neither draws as tofu.
+	var no_glyph: Array[String] = []
+	for id: String in MainsRegions.ids():
+		var cp := MainsRegions.glyph_of(id)
+		var drawn := false
+		for f: Font in MenuIcons.symbols().fallbacks:
+			drawn = drawn or f.has_char(cp)
+		if not drawn:
+			no_glyph.append(id)
+	_ok(no_glyph.is_empty(), "spawn/every region's outlet glyph is in a symbols font", str(no_glyph))
+	_eq(MainsRegions.plug_glyph("ds_k_plug", "na"), MainsRegions.glyph_of("dk"),
+		"spawn/a Type K plug wears Denmark's outlet")
 	# A mod's model can say what it runs on (a PSone on the PlayStation's platform).
 	var row := {"platform": "psx", "label": "Test PSone",
 		"scene": "res://Scenes/Objects/system_models/game_boy_primitive.tscn",

@@ -219,7 +219,7 @@ const REGIONS := {
 	},
 	"dk": {
 		"label": "Denmark",
-		"glyph": 0xF0427,  # md-power_socket: the set has no Type K
+		"glyph": 0xF2000,  # RetroXR-Sockets power_socket_dk
 		"types": "Type C/K",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_dk.res",
 		"sockets": [
@@ -239,7 +239,7 @@ const REGIONS := {
 	},
 	"za": {
 		"label": "South Africa",
-		"glyph": 0xF0427,  # md-power_socket: the set has no Type M/N
+		"glyph": 0xF2001,  # RetroXR-Sockets power_socket_za: Type M
 		"types": "Type C/M/N",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_za.res",
 		"sockets": [
@@ -263,7 +263,7 @@ const REGIONS := {
 	},
 	"in": {
 		"label": "India",
-		"glyph": 0xF0427,  # md-power_socket: the set has no Type D
+		"glyph": 0xF2002,  # RetroXR-Sockets power_socket_in: Type D
 		"types": "Type C/D/M",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_in.res",
 		"sockets": [
@@ -283,7 +283,7 @@ const REGIONS := {
 	},
 	"il": {
 		"label": "Israel",
-		"glyph": 0xF0427,  # md-power_socket: the set has no Type H
+		"glyph": 0xF2003,  # RetroXR-Sockets power_socket_il
 		"types": "Type C/H",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_il.res",
 		"sockets": [
@@ -420,8 +420,8 @@ static func label_of(id: String) -> String:
 	return "%s (%s)" % [spec.get("label", id), spec.get("types", "")]
 
 
-## The region's outlet as a Nerd Font glyph (the symbols font, MenuIcons): its
-## own power_socket where the set has one, else the plain socket.
+## The region's outlet as a glyph of the symbols font (MenuIcons): its own
+## power_socket, from the Nerd Font or RetroXR-Sockets, else the plain socket.
 static func glyph_of(id: String) -> int:
 	return int(of(id).get("glyph", 0xF0427))
 
@@ -437,6 +437,10 @@ const PLUG_OUTLETS := {
 	"cee_7_7": [0xF1107, "F"],     # md-power_socket_de: Schuko, which also fits E
 	"bs_1363": [0xF07E8, "G"],     # md-power_socket_uk
 	"as_3112": [0xF0905, "I"],     # md-power_socket_au
+	"si_32": [0xF2003, "H"],       # RetroXR-Sockets power_socket_il
+	"ds_k": [0xF2000, "K"],        # RetroXR-Sockets power_socket_dk
+	"bs_546": [0xF2001, "M"],      # RetroXR-Sockets power_socket_za
+	"is_1293": [0xF2002, "D"],     # RetroXR-Sockets power_socket_in
 }
 
 
