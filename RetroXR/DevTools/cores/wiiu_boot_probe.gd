@@ -66,10 +66,23 @@ func _ready() -> void:
 	var first_views_ms := -1
 	var frames_seen := 0
 	var last_tex: Texture2D = null
+	# The CORE's frames a second, against what it declares (Wind Waker HD says 30).
+	var fps_at := t0
+	var fps_frames := 0
+	var fps_samples: Array[float] = []
 	while Time.get_ticks_msec() - t0 < int(_seconds * 1000.0):
 		await get_tree().process_frame
 		if not _failed.is_empty():
 			break
+		if Time.get_ticks_msec() - fps_at >= 1000:
+			var n := int(_lib.call("GetFrameCount"))
+			var fps := (n - fps_frames) * 1000.0 / float(Time.get_ticks_msec() - fps_at)
+			fps_frames = n
+			fps_at = Time.get_ticks_msec()
+			fps_samples.append(fps)
+			print("[wiiu] t=%ds core_fps=%.1f declared=%.2f dropped=%d godot_fps=%d" % [
+				(fps_at - t0) / 1000, fps, float(_lib.call("GetDeclaredFps")),
+				int(_lib.call("GetDroppedFrameCount")), Engine.get_frames_per_second()])
 		var tex: Texture2D = _lib.call("GetVideoTexture")
 		if tex != null:
 			if tex != last_tex:

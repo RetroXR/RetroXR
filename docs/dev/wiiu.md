@@ -38,6 +38,7 @@ Without views it uses the player's screen layout option, as it always has, and c
 - **A frame-rate change is not a resize.** Wind Waker HD runs at 30 fps, and Cemu announces that through `SET_SYSTEM_AV_INFO`.
   - Cemu used to put its CURRENT output size into that call. The packed frame had already grown, so libretro-godot saw a new base size and rebuilt the Vulkan context. Cemu reads losing its context as the close, so the title shut down 1.5 s in with no frame.
   - Fixed on both sides. Cemu's `libretro_update_output_fps` now sends the size the frontend was last told; a new size goes over as `SET_GEOMETRY`. And `Wrapper::SetGeometry` now records the base size from `SET_GEOMETRY`.
+- **Cemu's audio is made on the host's clock, not per frame**, and the fork handed a backlog over with the next frame. RetroXR's brake waits until the sink is back to its target, so a backlog put the core to sleep for as long as it lasted while another as long built up. After one slow boot frame the game settled at 10 fps in the room, for good (the room itself stayed smooth; `GetPacingStats`: 17.5 s of 20 asleep on the brake). The bare boot probe has no sink, so it read 60. Fixed in the fork: exactly one frame of audio a run, and a backlog past four frames is DROPPED back to two. Even a quarter frame of catch-up let the brake run it at only 48 (48 x 1.25 = 60). Measured with `wiiu_room_probe --perf=30` (`--nopair` the pairing control): Nintendo Land 10 -> 60, Wind Waker HD 30.
 - **Cemu still crashes in `VulkanRenderer::DeleteNullTexture` when it unloads after its context has gone** (upstream; seen once, on the bad path above).
 
 ## Ports and pairing (WiiLink)
@@ -111,6 +112,7 @@ The GamePad's speaker was measured in the room: its sound gets a voice of its ow
   - With no save, Nintendo Land waits at its title ("Touch the Wii U GamePad to start", a red curtain) for as long as nobody touches it. With a save it plays an attract loop instead. So the probe sets the save aside and puts it back afterwards (`--keep-save` to skip that).
   - `--touch=tap` touches the GamePad's glass: the curtain must go, and the GamePad's speaker must then have a voice.
   - `--touch=none` is the control: the curtain must stay.
+  - `--perf=N` times the room's frames, the core's frames and its pacing for N seconds from POWER; `--nopair` leaves the pads unpaired. The boot probe prints the core's fps every second too.
 - **Nintendo Land sometimes sticks on its green loading screen**, at boot or after the first-run box, for minutes. That is open; it could be Cemu or the missing shared fonts (`OSGetSharedData` uses a placeholder). Re-run when a leg never reaches the title.
 - **`DevTools/models/wiiu_render_probe`** (windowed, no core): stills of the console, the GamePad standing in its cradle with the WUP-011 plugged in, the Pro Controller and both adapters.
 

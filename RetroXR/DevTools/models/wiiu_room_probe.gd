@@ -6,7 +6,11 @@
 ##   "$godot" --path RetroXR --resolution 960x540 --position 20,20 \
 ##     res://DevTools/models/wiiu_room_probe.tscn -- \
 ##     --rom="C:/Users/<you>/retroxr/roms/wiiu/Nintendo Land [0005000010102000]/title.tmd" \
-##     [--out=<dir>] [--touch=none]
+##     [--out=<dir>] [--touch=none] [--perf=<seconds>] [--nopair]
+##
+## --perf=N times the ROOM's frames for N seconds from POWER (each second: frames,
+## the worst frame in ms, the core's frames) and quits; --nopair leaves the GamePad
+## and the Pro Controller unpaired, its control.
 ##
 ## --touch=none is the control leg: nothing touches the glass, and Nintendo Land's
 ## "Touch the Wii U GamePad to start" title must still be up at the end.
@@ -31,6 +35,14 @@ var _cam: Camera3D = null
 ## after, so every leg starts from the game's first run (where the box is).
 var _fresh := true
 var _save_dir := ""
+var _perf := 0.0
+var _pair := true
+var _perf_t0 := -1
+var _perf_sec := 0
+var _perf_frames := 0
+var _perf_worst := 0.0
+var _perf_core := 0
+var _perf_hitches := 0
 
 
 func _ready() -> void:
@@ -43,6 +55,10 @@ func _ready() -> void:
 			_touch = a.substr(8)
 		elif a == "--keep-save":
 			_fresh = false
+		elif a.begins_with("--perf="):
+			_perf = float(a.substr(7))
+		elif a == "--nopair":
+			_pair = false
 	if _out.is_empty():
 		_out = OS.get_user_data_dir()
 	get_tree().create_timer(600.0).timeout.connect(func() -> void:
@@ -65,6 +81,9 @@ func _ready() -> void:
 	if _fresh:
 		_set_save_aside()
 	await _stage()
+	if _perf > 0.0:
+		await _perf_run()
+		return
 	await _boot()
 	await _shoot("boot")
 	# With no save, Nintendo Land waits at its title -- a red stage curtain, "Touch
@@ -115,6 +134,53 @@ func _ready() -> void:
 		_put_save_back()
 	print("[wiiu-room] RESULT=%s" % ("FAIL" if _fail else "PASS"))
 	get_tree().quit(1 if _fail else 0)
+
+
+## --perf: POWER, then the room's frame times for _perf seconds.
+func _perf_run() -> void:
+	var disc := DISC_SCENE.instantiate() as Node3D
+	disc.set("systemid", "wiiu")
+	disc.set("rom_path", _rom)
+	add_child(disc)
+	disc.global_position = _sys.global_position + Vector3(0, 0.3, 0.3)
+	await _frames(10)
+	(_sys.get_node("CartridgeSlot") as XRToolsSnapZone).pick_up_object(disc)
+	await _frames(120)
+	print("[wiiu-room] perf: POWER (paired=%s)" % _pair)
+	_perf_t0 = Time.get_ticks_msec()
+	_perf_sec = _perf_t0
+	(_sys.get_node("PowerButton") as VRButton).button_pressed.emit()
+	for o in LoadingOverlay.owners():
+		LoadingOverlay.end(o)
+	await _wait_seconds(_perf)
+	print("[wiiu-room] perf: frames over 50 ms in %d s: %d" % [int(_perf), _perf_hitches])
+	_lib_stop_then_restore()
+	await _wait_seconds(8.0)
+	if _fresh:
+		_put_save_back()
+	print("[wiiu-room] RESULT=PASS")
+	get_tree().quit(0)
+
+
+func _process(delta: float) -> void:
+	if _perf_t0 < 0:
+		return
+	_perf_frames += 1
+	_perf_worst = maxf(_perf_worst, delta * 1000.0)
+	if delta > 0.05:
+		_perf_hitches += 1
+	var now := Time.get_ticks_msec()
+	if now - _perf_sec >= 1000:
+		var lib := _sys.get_libretro_node() if _sys != null else null
+		var core := int(lib.call("GetFrameCount")) if lib != null and lib.has_method("GetFrameCount") else 0
+		if (now - _perf_t0) / 1000 % 10 == 5 and lib != null and lib.has_method("GetPacingStats"):
+			print("[wiiu-room] pacing %s" % str(lib.call("GetPacingStats")))
+		print("[wiiu-room] perf t=%ds room_fps=%d worst=%.0fms core_fps=%d" % [
+			(now - _perf_t0) / 1000, _perf_frames, _perf_worst, core - _perf_core])
+		_perf_core = core
+		_perf_frames = 0
+		_perf_worst = 0.0
+		_perf_sec = now
 
 
 func _frames(n: int) -> void:
@@ -191,12 +257,15 @@ func _stage() -> void:
 
 	# SYNC on the console, then on the GamePad and the Pro Controller.
 	var link := _sys.get_wii_link()
-	link.open_pairing()
-	_pad._on_sync_pressed()
-	link.open_pairing()
-	pro.call("_on_sync_pressed")
-	_check(_pad.get_port_index() == 0, "the GamePad paired on port 0")
-	_check(int(pro.call("get_port_index")) == 1, "the Pro Controller paired on port 1")
+	if _pair:
+		link.open_pairing()
+		_pad._on_sync_pressed()
+		link.open_pairing()
+		pro.call("_on_sync_pressed")
+		_check(_pad.get_port_index() == 0, "the GamePad paired on port 0")
+		_check(int(pro.call("get_port_index")) == 1, "the Pro Controller paired on port 1")
+	else:
+		print("[wiiu-room] --nopair: GamePad and Pro Controller left unpaired")
 
 	_cam = Camera3D.new()
 	_cam.fov = 50.0
