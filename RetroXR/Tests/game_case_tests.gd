@@ -340,6 +340,12 @@ func _case_contents() -> void:
 	c._apply_angles()
 	_ok((c.discs()[0] as XRToolsPickable).enabled, "the flip tray turned over: the base disc can be taken")
 	_ok((c.discs()[1] as XRToolsPickable).enabled, "and the flip tray's under side, now facing up")
+	# The disc on a turning tray goes with it in the same frame, not a frame behind.
+	c.sim.set_angle_deg(0, 120.0)
+	c._apply_angles()
+	_ok(c.discs()[1].global_position.distance_to(c.disc_zone(1).global_position) < 0.0005,
+		"a disc on a turning flip tray keeps up with it", str(c.discs()[1].global_position.distance_to(c.disc_zone(1).global_position)))
+	_ok(c.process_physics_priority < -80, "the case turns its trays before the grab drivers run")
 	# The hub's button pops a disc up, only where a finger can reach it.
 	c.sim.set_angle_deg(0, 5.0)
 	c._apply_angles()

@@ -102,6 +102,10 @@ func _ready() -> void:
 	# The desktop ray meets the case by its PointerArea only (shaped to leave an open case's inside clear), not by its
 	# body's hull: that fills an open case to the brim, and every click on a disc took the case (the owner, 2026-11-21).
 	set_meta(InteractionResolver.POINTER_BY_AREA, true)
+	# Before the grab drivers (a zone's at -70, a hand's at -80): the trays turn first, then whatever they hold follows
+	# them in the same frame. At the default 0 the discs were placed where their trays had been, a frame behind
+	# (the owner, 2026-11-21: "the disk lags behind slightly").
+	process_physics_priority = -100
 	if case_variant.is_empty():
 		var pick := GameCase.pick(systemid, GameCase.market_of(systemid, rom_path),
 			GameCase.discs_of(rom_path).size(), Vector2i.ZERO, GameCase.release_of(systemid, rom_path))
@@ -691,7 +695,16 @@ func _apply_angles() -> void:
 		if not hinge.is_held():
 			hinge.set_angle_quiet(sim.angle_deg(i))
 	_shape_body(sim.angle_deg(sim.top()))
+	_carry_contents()
 	_update_reach()
+
+
+## Whatever the zones hold goes where they now are, at once: a hinge posed outside the physics step (a restore, a
+## probe) would otherwise leave it there until the drivers' next tick.
+func _carry_contents() -> void:
+	for z: XRToolsSnapZone in _zones + [_holder_zone, _card_zone, _manual_zone]:
+		if z != null and z.picked_up_object is Node3D and z.is_inside_tree():
+			(z.picked_up_object as Node3D).global_transform = z.global_transform
 
 
 # ------------------------------------------------------------------ state
