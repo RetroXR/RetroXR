@@ -495,6 +495,9 @@ func _case_umd_contents() -> void:
 	await get_tree().physics_frame
 	_eq(c.discs().size(), 1, "one UMD on its holder")
 	_ok(c.discs()[0] is RetroUMD if not c.discs().is_empty() else false, "a UMD, not a disc")
+	if not c.discs().is_empty():
+		_ok(c.discs()[0].global_basis.y.dot(c.model.umd_seat().global_basis.z) > 0.99,
+			"lying flat in its holder, label out")
 
 
 func _case_no_manual_on_disc_cover() -> void:

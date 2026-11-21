@@ -91,6 +91,7 @@ var _closed_box := AABB()
 var _has_manual := false
 var _seated_book: PDFBook
 var _manual_proxy: Node3D
+var _front_tries := 0
 var _pos_hist: Array[Vector3] = []
 var _accel := Vector3.ZERO
 
@@ -353,6 +354,9 @@ func _build_zones() -> void:
 	if model.umd_seat() != null:
 		_holder_zone = _zone("UmdZone", model.umd_seat(), "cartridge", 0.05,
 			func(obj: Node3D) -> bool: return obj is RetroUMD and _lid_open())
+		# Flat in its holder, label out and upright (the seat's +Z is out of the panel; a UMD is thin along its Y):
+		# it stood on its edge (the owner, 2026-11-21; trayrefs/psp_umd/open_with_umd_wheelersndealers.jpg).
+		_holder_zone.basis = Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0))
 	# A cover that carries a disc (the five-disc case) has no room for a manual (round 8 F02): its set's paper goes
 	# in the outer sleeve.
 	var ms := model.manual_seat()
@@ -467,10 +471,27 @@ func _sync_manual() -> void:
 	if _manual_proxy == null:
 		_manual_proxy = _build_manual_proxy()
 	_manual_proxy.visible = true
-	var cover := seated.get_node_or_null("Cover") as MeshInstance3D
-	var mat := cover.get_active_material(0) if cover != null else null
-	if mat != null:
-		(_manual_proxy.get_node("Front") as MeshInstance3D).material_override = mat
+	(_manual_proxy.get_node("Front") as MeshInstance3D).material_override = _manual_front(seated)
+
+
+## The manual's front cover, out of the case (the owner, 2026-11-21: "the manual needs to have the front face out").
+## A manual scanned as two-page spreads opens on its cover sheet, back cover on the left and front on the right: read
+## in half pages, its first is the back, so the front is its second. Otherwise the book's own cover. Until that page
+## has rendered, the paper, and a retry.
+func _manual_front(book: PDFBook) -> Material:
+	if not book.half_page_mode:
+		var cover := book.get_node_or_null("Cover") as MeshInstance3D
+		return cover.get_active_material(0) if cover != null else null
+	var tex := book._get_page_texture(1)
+	if book._texture_cache.has(1):
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = tex
+		m.roughness = 0.8
+		return m
+	if _front_tries < 40 and is_inside_tree():
+		_front_tries += 1
+		get_tree().create_timer(0.25).timeout.connect(_sync_manual)
+	return null
 
 
 ## A keep case's seated manual: a sheet MANUAL_T thick on the manual seat, its front (the seat's +Z, into the case)
