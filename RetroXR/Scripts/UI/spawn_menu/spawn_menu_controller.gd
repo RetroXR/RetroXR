@@ -1603,7 +1603,8 @@ func _on_spawn_key_requested(rom_path: String) -> void:
 ## game's market, its discs and its box-texture's shape; the case comes with every disc on its hub and the manual
 ## under the lid.
 func _on_spawn_case_requested(rom_path: String, game_label: String, systemid: String) -> void:
-	var discs := GameCase.discs_of(rom_path)
+	# Every disc the game shipped on has its seat; the ones not on this device stay empty.
+	var discs := GameCase.disc_slots(rom_path, GameCase.disc_total_of(systemid, rom_path))
 	var art := RetroGameCase.box_art_path(systemid, rom_path)
 	var img: Image = null
 	if not art.is_empty():

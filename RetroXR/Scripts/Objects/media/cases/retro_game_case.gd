@@ -193,6 +193,8 @@ func spawn_contents(disc_paths: PackedStringArray) -> void:
 	if umd:
 		seats = [_holder_zone] as Array[XRToolsSnapZone]
 	for i in mini(disc_paths.size(), seats.size()):
+		if disc_paths[i].is_empty():
+			continue                                     # a disc of the set that is not on this device
 		var disc := (UMD_SCENE if umd else DISC_SCENE).instantiate() as RetroCartridge
 		disc.rom_path = disc_paths[i]
 		disc.game_label = game_label

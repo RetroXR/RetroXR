@@ -367,6 +367,11 @@ func _write_result(rom: String, systemid: String, result: Dictionary) -> void:
 		"releasedate": result.get("releasedate", ""),
 		"region": result.get("rom_region", ""),
 	}
+	# Which disc of how many (ScreenScraper's romnumsupport / romtotalsupport): the case a game spawns in holds
+	# every disc it shipped on, whichever of them are on this device (GameCase.disc_total_of).
+	if int(result.get("disc_total", 0)) > 0:
+		rom_data["disc_num"] = int(result.get("disc_num", 0))
+		rom_data["disc_total"] = int(result.get("disc_total", 0))
 	_gamelist.add_or_merge_rom(systemid, game_data, rom_data)
 	_gamelist.save_gamelist(systemid)
 

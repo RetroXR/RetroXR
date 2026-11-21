@@ -166,7 +166,7 @@ static func icon_of(systemid: String, rom_path: String) -> String:
 	var key := "%s|%s" % [systemid, rom_path]
 	if _icon_cache.has(key):
 		return _icon_cache[key]
-	var discs := discs_of(rom_path).size()
+	var discs := maxi(discs_of(rom_path).size(), disc_total_of(systemid, rom_path))
 	var market := market_of(systemid, rom_path)
 	var size := Vector2i.ZERO
 	# Only the long box is told from the scan, and only its header is read for that.
@@ -219,3 +219,29 @@ static func image_size(path: String) -> Vector2i:
 ## Its box art changed (a scrape): work the picture out again at the row's next binding.
 static func forget_icon(systemid: String, rom_path: String) -> void:
 	_icon_cache.erase("%s|%s" % [systemid, rom_path])
+
+
+## How many discs the game shipped on, as its scrape recorded it (0 when it was not scraped, or scraped before the
+## count was kept).
+static func disc_total_of(systemid: String, rom_path: String) -> int:
+	return int(CartRomInfo.scraped_rom(systemid, rom_path).get("disc_total", 0))
+
+
+## The game's discs by seat: `total` long at least, each disc on this device at its own number's place (the number
+## in its name, else its place in the list), "" for one that is not here.
+static func disc_slots(rom_path: String, total := 0) -> PackedStringArray:
+	var found := discs_of(rom_path)
+	var out := PackedStringArray()
+	out.resize(maxi(found.size(), total))
+	var loose := PackedStringArray()
+	for path in found:
+		var n := MenuIcons.disc_number(path.get_file())
+		if n >= 1 and n <= out.size() and out[n - 1].is_empty():
+			out[n - 1] = path
+		else:
+			loose.append(path)
+	for path in loose:
+		var at := out.find("")
+		if at >= 0:
+			out[at] = path
+	return out

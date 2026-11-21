@@ -68,7 +68,7 @@ func save_gamelist(systemid: String) -> void:
 ##
 ## game_data: {game_id, name, desc, developer, publisher, genre}, and from the
 ## scraper `scraped: true`, which no later merge clears.
-## rom_data: {path, romname, releasedate, region}
+## rom_data: {path, romname, releasedate, region}, and from the scraper {disc_num, disc_total} for a disc game
 func add_or_merge_rom(systemid: String, game_data: Dictionary, rom_data: Dictionary) -> void:
 	print("[GamelistManager] add_or_merge_rom: system=%s game_id=%s rom=%s" % [systemid, game_data.get("game_id", "?"), rom_data.get("path", "?")])
 	# Fold away any duplicates a previous version of this function left behind,
@@ -122,6 +122,10 @@ func add_or_merge_rom(systemid: String, game_data: Dictionary, rom_data: Diction
 			if _same_rom_path(str((roms[i] as Dictionary).get("path", "")), rom_path):
 				# Update existing ROM entry (re-scrape)
 				var was_preferred: bool = (roms[i] as Dictionary).get("preferred", false)
+				# A writer that does not know the disc numbers (a re-download) keeps the scraper's.
+				for field: String in ["disc_num", "disc_total"]:
+					if not rom_data.has(field) and (roms[i] as Dictionary).has(field):
+						rom_data[field] = (roms[i] as Dictionary)[field]
 				roms[i] = rom_data
 				if was_preferred:
 					(roms[i] as Dictionary)["preferred"] = true

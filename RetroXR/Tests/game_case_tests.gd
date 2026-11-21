@@ -209,6 +209,14 @@ func _pick_icon() -> void:
 	_eq(GameCase.icon_of("psx", dir.path_join("Two (USA) (Disc 1).chd")), "square_multi", "a two-disc PlayStation game")
 	_eq(GameCase.icon_of("ps2", dir.path_join("Two (USA) (Disc 1).chd")), "tall_multi", "a two-disc PS2 game")
 	_eq(GameCase.icon_of("gc", dir.path_join("Two (USA) (Disc 1).chd")), "tall", "a two-disc GameCube game: its case holds one")
+	var both := GameCase.disc_slots(dir.path_join("Two (USA) (Disc 2).chd"))
+	_ok(both.size() == 2 and both[0].ends_with("(Disc 1).chd") and both[1].ends_with("(Disc 2).chd"), "both discs, in order", str(both))
+	FileAccess.open(dir.path_join("Lone (USA) (Disc 2).chd"), FileAccess.WRITE).close()
+	var lone := GameCase.disc_slots(dir.path_join("Lone (USA) (Disc 2).chd"), 3)
+	_ok(lone.size() == 3 and lone[0].is_empty() and lone[1].ends_with("(Disc 2).chd") and lone[2].is_empty(),
+		"disc 2 of 3 alone: in the second seat, the others empty", str(lone))
+	var one := GameCase.disc_slots("/nowhere/Game (USA).chd", 0)
+	_ok(one.size() == 1 and one[0] == "/nowhere/Game (USA).chd", "a single-disc game", str(one))
 
 
 # ---------------------------------------------------------------- sim

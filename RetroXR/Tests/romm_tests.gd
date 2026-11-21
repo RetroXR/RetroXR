@@ -1342,6 +1342,17 @@ func _test_gamelist_removal() -> void:
 			_ok(bool(GamelistManager.get_preferred_rom(g).get("preferred", false)),
 				"del/preferred moves to a surviving rom")
 
+	# The scraper's disc numbers outlive a writer that does not know them (a re-download).
+	gl.add_or_merge_rom(TEST_SYSTEM, {"game_id": "discs", "name": "discs", "scraped": true},
+		{"path": "./Two (Disc 1).z64", "romname": "Two (Disc 1).z64", "disc_num": 1, "disc_total": 2})
+	gl.add_or_merge_rom(TEST_SYSTEM, {"game_id": "discs", "name": "discs"},
+		{"path": "./Two (Disc 1).z64", "romname": "Two (Disc 1).z64"})
+	for g: Dictionary in gl.load_gamelist(TEST_SYSTEM).get("games", []):
+		if str(g.get("game_id", "")) == "discs":
+			var kept: Dictionary = (g.get("roms", []) as Array)[0]
+			_ok(int(kept.get("disc_total", 0)) == 2 and int(kept.get("disc_num", 0)) == 1,
+				"merge/the disc numbers are kept", str(kept))
+
 	_rm_rf(dir_path)
 
 
