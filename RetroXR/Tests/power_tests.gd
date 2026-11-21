@@ -1825,6 +1825,7 @@ func _test_spawn_hand() -> void:
 		[cables % "speaker_cable", "PlugA0"],
 		[cables % "trs_cable", "PlugA0"],
 		[cables % "vga_cable", "PlugA0"],
+		[cables % "hdmi_cable", "PlugA0"],
 		[cables % "gb_link_cable", "PlugA0"],
 		[cables % "ilink_cable", "PlugA0"],
 		[cables % "ethernet_cable", "PlugA0"],

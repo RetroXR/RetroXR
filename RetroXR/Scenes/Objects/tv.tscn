@@ -10,6 +10,7 @@
 [ext_resource type="Shader" path="res://Shaders/tv_plastic.gdshader" id="9_tvplastic"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="10_rcaport"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/vga_port.tscn" id="11_vgaport"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/hdmi_port.tscn" id="11_hdmiport"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/coax_port.tscn" id="12_coaxport"]
 [ext_resource type="Script" uid="uid://d3screencastlight" path="res://Scripts/Objects/screen_cast_light.gd" id="13_screenlight"]
 
@@ -222,6 +223,13 @@ direction = 1
 transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.17, -0.15, -0.16002099)
 visible = false
 enabled = false
+direction = 1
+
+; The HDMI IN (Source.HDMI), on the stock body: in the speaker row's line, at the far
+; end from it. Half a turn about Y, not X, so the socket's wide side is up. A
+; fitted shell turns it off unless it carries an HdmiPortSeat (TvPanel.seat_hdmi_port).
+[node name="HdmiPort" parent="." instance=ExtResource("11_hdmiport")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.12, -0.09, -0.1508)
 direction = 1
 
 ; ── Speaker outputs ─────────────────────────────────────────────────────────

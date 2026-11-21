@@ -224,6 +224,8 @@ const _PERIPHERALS: Dictionary = {
 		{"kind": "peripheral", "label": "Wii MotionPlus", "spawn": "motion_plus"},
 		{"kind": "peripheral", "label": "Sensor Bar", "spawn": "sensor_bar"},
 		{"kind": "peripheral", "label": "Wii Composite Cable", "spawn": "wii_av_cable"},
+		# The WUP-008: HDMI OUT to a set's HDMI IN, picture and sound on one plug.
+		{"kind": "peripheral", "label": "HDMI Cable", "spawn": "hdmi_cable"},
 	],
 	"virtualboy": [
 		{"kind": "peripheral", "label": "Controller", "spawn": "vb_controller"},
@@ -1190,6 +1192,7 @@ const ELECTRONICS := [
 	["Composite Cable", "composite_cable"],
 	["Mono Composite Cable", "mono_composite_cable"],
 	["VGA Cable",       "vga_cable"],
+	["HDMI Cable",      "hdmi_cable"],
 	["3.5 mm Cable",   "trs_cable"],
 	# A 3.5 mm stereo plug to a white and a red phono jack: a PHONES jack's sound onto a pair of phono leads.
 	["3.5 mm to RCA Adapter", "trs_rca_adapter"],

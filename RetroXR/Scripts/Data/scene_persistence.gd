@@ -223,6 +223,7 @@ const SEGA32X_CONVERSION_CABLE_SCENE := preload("res://Scenes/Objects/system_mod
 const PS2_AV_CABLE_SCENE     := preload("res://Scenes/Objects/cables/ps2_av_cable.tscn")
 const DC_AV_CABLE_SCENE      := preload("res://Scenes/Objects/system_models/dreamcast/dc_av_cable.tscn")
 const VGA_CABLE_SCENE        := preload("res://Scenes/Objects/cables/vga_cable.tscn")
+const HDMI_CABLE_SCENE       := preload("res://Scenes/Objects/cables/hdmi_cable.tscn")
 const JVS_CABLE_SCENE        := preload("res://Scenes/Objects/cables/jvs_cable.tscn")
 const NAOMI_POWER_CABLE_SCENE := preload("res://Scenes/Objects/cables/naomi_power_cable.tscn")
 const TRS_CABLE_SCENE        := preload("res://Scenes/Objects/cables/trs_cable.tscn")
@@ -402,6 +403,7 @@ const LEAD_SCENES := {
 	"dc_av_cable": DC_AV_CABLE_SCENE,
 	"ps2_av_cable": PS2_AV_CABLE_SCENE,
 	"vga_cable": VGA_CABLE_SCENE,
+	"hdmi_cable": HDMI_CABLE_SCENE,
 	"jvs_cable": JVS_CABLE_SCENE,
 	"naomi_power_cable": NAOMI_POWER_CABLE_SCENE,
 	"gd_cable": GD_CABLE_SCENE,

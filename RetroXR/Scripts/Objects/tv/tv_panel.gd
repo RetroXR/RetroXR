@@ -166,6 +166,15 @@ func collect() -> void:
 	_av_ports.append(vga_trio)
 	_connected_systems.append(null)
 	_snapped_plugs.append(null)
+	# And HDMI, its own input too (Source.HDMI, after VGA); picture and sound on one
+	# plug, the sound arriving as the RF input's does (HdmiPort).
+	var hdmi_trio: Array[RcaPort] = []
+	var hdmi := _tv.hdmi_port() as RcaPort
+	if hdmi != null:
+		hdmi_trio.append(hdmi)
+	_av_ports.append(hdmi_trio)
+	_connected_systems.append(null)
+	_snapped_plugs.append(null)
 
 	_speaker_outs = []
 	for out_name in SPEAKER_OUT_NAMES:
@@ -297,6 +306,8 @@ func print_legends() -> void:
 		legend.rebuild()
 	if has_aerial():
 		_print_rf_legend(plate)
+	if _tv.hdmi_port() != null and _tv.hdmi_port().enabled:
+		_print_hdmi_legend(plate)
 	if has_speaker_outs():
 		_print_speaker_legend(plate)
 
@@ -318,6 +329,22 @@ func _print_rf_legend(plate: bool) -> void:
 	legend.name = "AvLegendRf"
 	legend.title = "Antenna"
 	legend.heading_override = "RF IN"
+	legend.show_words = false
+	legend.show_plate = plate
+	legend.rebuild()
+
+
+## The HDMI socket's legend, RF's arrangement: one plate, no words row.
+func _print_hdmi_legend(plate: bool) -> void:
+	var legend := AvLegend.attach(_tv, _av_ports[RetroTV.Source.HDMI])
+	if legend == null:
+		return
+	legend.name = "AvLegendHdmi"
+	# An HDMI socket's origin is 0.8 mm off the panel (hdmi_port.tscn), not a phono
+	# jack's 10: the plate stands just behind it, or it lands inside the cabinet.
+	legend.standoff = 0.0006
+	legend.title = "HDMI 1"
+	legend.heading_override = "HDMI IN"
 	legend.show_words = false
 	legend.show_plate = plate
 	legend.rebuild()
@@ -491,6 +518,20 @@ func seat_vga_port(at: Variant) -> void:
 	_tv.vga_port().enabled = on
 
 
+## The HDMI input on a fitted shell: on only for a shell that carries an HdmiPortSeat
+## (the stock body keeps it as tv.tscn authors it, on). `enabled` as well as
+## `visible`, for seat_vga_port's reason.
+func seat_hdmi_port(at: Variant) -> void:
+	if _tv.hdmi_port() == null:
+		return
+	var on: bool = at is Transform3D
+	if on:
+		_tv.hdmi_port().transform = at
+	_tv.hdmi_port().visible = on
+	_tv.hdmi_port().enabled = on
+	print("[TV] %s: HDMI input %s" % [_tv.name, "fitted" if on else "not on this cabinet"])
+
+
 ## Snaps a captive cable plug into one of this TV's video sockets (used by save/load
 ## and netplay to restore connections). Defaults to Composite 1, which is where a
 ## caller that has no opinion — and every save written before there were four — means.
@@ -535,6 +576,8 @@ func socket_holding(plug: Node3D) -> XRToolsSnapZone:
 			return out
 	if _tv.vga_port() != null and _tv.vga_port().picked_up_object == plug:
 		return _tv.vga_port()
+	if _tv.hdmi_port() != null and _tv.hdmi_port().picked_up_object == plug:
+		return _tv.hdmi_port()
 	return null
 
 
@@ -547,6 +590,8 @@ func port_holding(plug: Node3D) -> XRToolsSnapZone:
 			return port
 	if _tv.vga_port() != null and _tv.vga_port().picked_up_object == plug:
 		return _tv.vga_port()
+	if _tv.hdmi_port() != null and _tv.hdmi_port().picked_up_object == plug:
+		return _tv.hdmi_port()
 	return null
 
 
@@ -560,6 +605,8 @@ func input_holding(plug: Node3D) -> int:
 			return i
 	if _tv.vga_port() != null and _tv.vga_port().picked_up_object == plug:
 		return RetroTV.Source.VGA
+	if _tv.hdmi_port() != null and _tv.hdmi_port().picked_up_object == plug:
+		return RetroTV.Source.HDMI
 	return RetroTV.Source.COMPOSITE_1
 
 

@@ -56,7 +56,22 @@ func _ready() -> void:
 		b.position = Vector3(0.3 + 0.15 * bricks.size(), 0.03, -0.15)
 		add_child(b)
 		bricks.append(b)
+	# The Classic TV behind the console, on HDMI from the Wii U's HDMI OUT.
+	var tv := preload("res://Scenes/Objects/tv.tscn").instantiate() as RetroTV
+	tv.freeze = true
+	add_child(tv)
+	tv.position = Vector3(-0.25, 0.2, -0.75)
+	# A second set with nothing in its HDMI IN, to see the socket itself.
+	var tv2 := preload("res://Scenes/Objects/tv.tscn").instantiate() as RetroTV
+	tv2.freeze = true
+	add_child(tv2)
+	tv2.position = Vector3(1.2, 0.2, -0.75)
+	var hdmi := preload("res://Scenes/Objects/cables/hdmi_cable.tscn").instantiate() as Node3D
+	add_child(hdmi)
+	hdmi.position = Vector3(-0.25, 0.05, -0.45)
 	await _frames(20)
+	(sys.find_child("HdmiOut", true, false) as XRToolsSnapZone).pick_up_object(hdmi.get_node("PlugA0"))
+	(tv.get_node("HdmiPort") as XRToolsSnapZone).pick_up_object(hdmi.get_node("PlugB0"))
 	(cradle.get_node("PadSeat") as XRToolsSnapZone).pick_up_object(pad)
 	(cradle.get_node(WiiUGamePadCradle.INLET_NAME) as XRToolsSnapZone).pick_up_object((bricks[0] as PowerBrick).dc_plug)
 	await _frames(90)
@@ -73,7 +88,11 @@ func _ready() -> void:
 			["cradle", Vector3(0.22, 0.2, 0.32), Vector3(0.12, 0.06, 0.0)],
 			["cradle_back", Vector3(0.05, 0.15, -0.3), Vector3(0.12, 0.04, 0.0)],
 			["pad_flat", Vector3(0.45, 0.06, 0.5), Vector3(0.45, 0.0, 0.25)],
-			["console_back", Vector3(-0.3, 0.12, -0.35), Vector3(-0.25, 0.02, -0.1)]]:
+			["console_back", Vector3(-0.3, 0.12, -0.35), Vector3(-0.25, 0.02, -0.1)],
+			["hdmi_console", Vector3(-0.2, 0.06, -0.24), Vector3(-0.239, 0.015, -0.134)],
+			["tv_back", Vector3(-0.45, 0.16, -1.15), Vector3(-0.35, 0.11, -0.9)],
+			["hdmi_tv", Vector3(-0.33, 0.13, -1.0), Vector3(-0.37, 0.11, -0.9)],
+			["hdmi_socket", Vector3(1.08, 0.12, -0.99), Vector3(1.08, 0.11, -0.9)]]:
 		cam.global_position = shot[1]
 		cam.look_at(shot[2])
 		await _frames(4)

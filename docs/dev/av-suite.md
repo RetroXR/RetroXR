@@ -794,3 +794,21 @@ shell's pose alone. `av_tests` display/power covers stock, VGA and RETRO XR shel
 including interruption. The new case failed eight checks before the fix.
 `DevTools/av/tv_picture_fit_probe` renders a power cycle with four coloured picture
 edges and MUTE, with and without the cabinet; windowed, `-- --no-mods --out=`.
+
+## HDMI (2026-11-21)
+
+`RetroTV.Source.HDMI` (7, appended after VGA) is the Classic (stock) set's HDMI IN: `HdmiPort` (`hdmi_port.tscn`,
+`connector = "hdmi_plug"`, an `RcaPort` pinned to VIDEO) authored ON in `tv.tscn` in the speaker row's line. A fitted
+shell turns it off unless it carries an `HdmiPortSeat` (`TvPanel.seat_hdmi_port`, as VGA's), and none does yet. Its
+legend is RF's arrangement (`_print_hdmi_legend`, "HDMI 1" / "HDMI IN") with `standoff` 0.6 mm: the socket's zone
+is 0.8 mm off the panel, not a phono jack's 10, and the default standoff put the plate inside the cabinet.
+
+**Picture and sound on one plug:** a console's HDMI OUT is an `HdmiPort` with `rf_feed`, so `AvSource.resolve` gives
+the set its sound on both speakers unless a phono or Multi-Out audio cord took it (the RF modulator's rule; no new
+channel).
+- **The lead:** `hdmi_cable.tscn` is one cord (CompositeCable's single-cord path) wearing the clean HDMI plug at both ends.
+- **The models:** both come from RetroXR-models. The plug is `generic/hdmi-plug` (cartkit). The socket is
+  `generic/hdmi-socket`, built by a short Blender script from `common/hdmi.py`.
+- **Only console:** the Wii U is the one console with an HDMI OUT (`wiiu.md`).
+- **Tests:** `av_tests` `_r_hdmi` (filed on HDMI, picture and sound reach the set) and `_d_hdmi_cabinets` (on the stock set, off a
+  shell without its seat). `wiiu_render_probe` shows the lead seated at both ends and an empty socket.

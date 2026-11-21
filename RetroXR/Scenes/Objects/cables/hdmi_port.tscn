@@ -1,0 +1,39 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="1_snapzone"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/hdmi_port.gd" id="2_portscript"]
+[ext_resource type="PackedScene" path="res://imported-assets/connectors/hdmi_port/hdmi_socket.glb" id="3_socket"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="4_snaphigh"]
+
+; The plug's own overmold, so the ghost reads as "an HDMI plug goes here".
+[sub_resource type="BoxMesh" id="BoxMesh_plug_ghost"]
+size = Vector3(0.0198, 0.011, 0.02)
+
+[sub_resource type="StandardMaterial3D" id="Mat_plug_ghost"]
+transparency = 1
+albedo_color = Color(0.2, 0.5, 1, 0.45)
+emission_enabled = true
+emission = Color(0, 0.15, 0.5, 1)
+emission_energy_multiplier = 0.4
+
+; An HDMI Type A socket. The ZONE sits where a seated plug's ORIGIN belongs, its
+; overmold face, which stops on the socket's surround 0.8 mm proud of the panel; the
+; socket model (mouth at its origin, the surround's face at +0.8 mm) is set back by
+; that much so the surround's back lands on the panel.
+; `connector` is written HERE as well as in the script (the export trap vga_port.tscn
+; describes; link_tests checks the line).
+[node name="HdmiPort" instance=ExtResource("1_snapzone")]
+grab_distance = 0.05
+script = ExtResource("2_portscript")
+connector = "hdmi_plug"
+
+[node name="HdmiSocket" parent="." instance=ExtResource("3_socket")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0008)
+
+[node name="SnapHighlight" type="Node3D" parent="."]
+script = ExtResource("4_snaphigh")
+
+[node name="HighlightMesh" type="MeshInstance3D" parent="SnapHighlight"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.01)
+mesh = SubResource("BoxMesh_plug_ghost")
+surface_material_override/0 = SubResource("Mat_plug_ghost")

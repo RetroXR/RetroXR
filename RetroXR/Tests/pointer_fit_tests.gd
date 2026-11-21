@@ -28,7 +28,7 @@ extends "res://Tests/test_suite.gd"
 ## How many cases this file contains, NOT counting the guard below — it is
 ## checked before it has recorded itself. A case that never ran is not one that
 ## passed: bump this when adding cases.
-const EXPECTED_CASES := 335
+const EXPECTED_CASES := 340
 
 ## Close enough to call two boxes the same: a tenth of a millimeter.
 const TOLERANCE := 0.0001
@@ -72,6 +72,7 @@ const SCENES: Array[String] = [
 	"res://Scenes/Objects/cables/trs_cable.tscn",
 	"res://Scenes/Objects/cables/vb_link_cable.tscn",
 	"res://Scenes/Objects/cables/vga_cable.tscn",
+	"res://Scenes/Objects/cables/hdmi_cable.tscn",
 	"res://Scenes/Objects/cables/ws_link_cable.tscn",
 	"res://Scenes/Objects/controllers/gamecube/gc_microphone_cable.tscn",
 	"res://Scenes/Objects/controllers/n64/n64_vru_cable.tscn",

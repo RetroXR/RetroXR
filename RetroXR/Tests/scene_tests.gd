@@ -1046,12 +1046,15 @@ func _test_fixture() -> void:
 		"fixture/an old slot leaves the input alone")
 	# The saved input can be one this cabinet does not carry — a set the player has
 	# since re-shelled. set_source falls back rather than blanking the glass.
-	# 99 clamps to VGA, which the stock body does not carry (only the monitor shell
-	# seats that socket), so the fallback has something to do here.
+	# VGA, which the stock body does not carry (only the monitor shell seats that
+	# socket), so the fallback has something to do here.
 	set_tv.set_source(RetroTV.Source.COMPOSITE_3)
-	sp._restore_fixtures(self, [{"path": "FixtureTV", "source": 99}])
+	sp._restore_fixtures(self, [{"path": "FixtureTV", "source": int(RetroTV.Source.VGA)}])
 	_eq(set_tv.current_source, int(RetroTV.Source.COMPOSITE_1),
 		"fixture/an input this cabinet lacks falls back")
+	# HDMI, which it does carry (2026-11-21), is kept.
+	sp._restore_fixtures(self, [{"path": "FixtureTV", "source": int(RetroTV.Source.HDMI)}])
+	_eq(set_tv.current_source, int(RetroTV.Source.HDMI), "fixture/a saved HDMI input is kept")
 	set_tv.remove_from_group("fixture")
 	set_tv.queue_free()
 

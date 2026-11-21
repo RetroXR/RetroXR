@@ -17,6 +17,7 @@ const VCR_SCENE := preload("res://Scenes/Objects/appliances/vcr_player.tscn")
 const CABLE_SCENE := preload("res://Scenes/Objects/cables/composite_cable.tscn")
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const VGA_CABLE := preload("res://Scenes/Objects/cables/vga_cable.tscn")
+const HDMI_CABLE := preload("res://Scenes/Objects/cables/hdmi_cable.tscn")
 const N64_AV_CABLE := preload("res://Scenes/Objects/system_models/nintendo_64/n64_av_cable.tscn")
 const WII_AV_CABLE := preload("res://Scenes/Objects/system_models/wii/wii_av_cable.tscn")
 const GENESIS_AV_CABLE := preload("res://Scenes/Objects/system_models/genesis/genesis_av_cable.tscn")
@@ -147,6 +148,8 @@ func _run() -> void:
 		["routing/pulling the picture cord leaves the sound", _r_pull_picture],
 		["routing/picture and sound on different inputs: picture wins", _r_video_wins],
 		["routing/a machine on VGA is filed on the VGA input", _r_vga],
+		["routing/a Wii U on HDMI is filed on the HDMI input, sound and all", _r_hdmi],
+		["display/HDMI is on the stock set and off a shell without its seat", _d_hdmi_cabinets],
 		["routing/an N64 wears ONE multi-out, not a phono row", _r_n64_multi_out],
 		["routing/its lead carries all three signals down one shell", _r_n64_lead],
 		["routing/a Wii lead does not fit an N64, nor the reverse", _r_multi_out_keying],
@@ -616,6 +619,59 @@ func _r_vga() -> void:
 	await _wait(40)
 	_check_eq(_which_input(tv, sys), RetroTV.Source.VGA, "the tower is filed on VGA")
 	_ok(sys.connected_tv == tv, "and the tower knows which monitor it feeds")
+
+
+func _r_hdmi() -> void:
+	var tv := _tv()
+	var sys := SYSTEM_SCENE.instantiate() as RetroSystem
+	sys.systemid = "wiiu"
+	sys.position = Vector3(2.0, 1, 0)
+	sys.freeze = true
+	add_child(sys)
+	sys.add_to_group("spawned")
+	_spawned.append(sys)
+	await _wait(60)
+	var out := sys.find_child("HdmiOut", true, false) as HdmiPort
+	_ok(out != null and out.direction == RcaPort.Direction.OUT and out.rf_feed,
+		"the Wii U's HDMI OUT is an output whose sound rides the plug")
+	var tv_in := tv.get_node_or_null("HdmiPort") as HdmiPort
+	_ok(tv_in != null and tv_in.enabled and tv_in.visible, "the stock set has a live HDMI IN")
+	if out == null or tv_in == null:
+		return
+	await _single_lead(HDMI_CABLE, sys, "HdmiOut", tv, "HdmiPort")
+	_check_eq(_which_input(tv, sys), RetroTV.Source.HDMI, "the Wii U is filed on HDMI")
+	_ok(sys.connected_tv == tv and sys.sends_video_to(tv), "and it sends that set its picture")
+	var feed: AvSource.Feed = AvSource.resolve(sys, false)
+	_check_eq(feed.primary_sink(), tv, "the picture reaches the set")
+	_check_eq(feed.audio_sink, tv, "and the sound, down the same lead")
+	_ok(feed.left == 0 and feed.right == 1, "heard from both of its speakers")
+	tv.set_source(RetroTV.Source.HDMI)
+	_check_eq(tv.current_source, RetroTV.Source.HDMI, "SOURCE can sit on HDMI")
+	_check_eq(tv.panel().selected_system(), sys, "and the set shows the Wii U there")
+
+
+func _d_hdmi_cabinets() -> void:
+	var stock := _tv()
+	var crt := TV_SCENE.instantiate() as RetroTV
+	crt.tv_model = "retroxr_crt"
+	crt.freeze = true
+	crt.position = Vector3(_spawned.size() * 3.0, 1, 0)
+	add_child(crt)
+	_spawned.append(crt)
+	await _wait(30)
+	var seen := {}
+	for i in RetroTV.SOURCE_NAMES.size() * 2:
+		stock.cycle_source()
+		seen[stock.current_source] = true
+	_ok(seen.has(RetroTV.Source.HDMI), "SOURCE on the stock set stops on HDMI")
+	var crt_in := crt.get_node_or_null("HdmiPort") as XRToolsSnapZone
+	_ok(crt_in == null or (not crt_in.enabled and not crt_in.visible),
+		"a shell with no HdmiPortSeat has no HDMI IN")
+	seen = {}
+	for i in RetroTV.SOURCE_NAMES.size() * 2:
+		crt.cycle_source()
+		seen[crt.current_source] = true
+	_ok(not seen.has(RetroTV.Source.HDMI), "and SOURCE never stops on it there")
 
 
 ## A console with one hole in the back, and what the room does with it.
@@ -3479,6 +3535,7 @@ func _d_legacy_tv_source() -> void:
 	_stub_tuner(tv)
 	_check_eq(int(RetroTV.Source.RF), 5, "RF keeps the value that is on disk")
 	_check_eq(int(RetroTV.Source.VGA), 6, "and so does VGA")
+	_check_eq(int(RetroTV.Source.HDMI), 7, "and HDMI, appended after it")
 
 	tv.restore_control_state({"source": RetroTV.Source.TV, "channel_index": 1})
 	await _wait(4)

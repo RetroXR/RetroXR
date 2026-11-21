@@ -5,10 +5,10 @@
 ##
 ## What it draws is a stand-in: the white case, the disc slot's dark mouth, POWER,
 ## EJECT and SYNC on the front with their lamps, the flap over the SD and USB bay,
-## and on the back the sockets that do something here -- AV MULTI OUT (the Wii's
-## lead: the Wii U kept the connector), SENSOR BAR and the AC ADAPTER's DC IN (DCIn,
-## a mouth SystemPower seats the jack in). HDMI OUT and the USB sockets are drawn,
-## not wired: there is no HDMI lead in the game yet.
+## and on the back the sockets that do something here -- HDMI OUT (HdmiPort, picture
+## and sound), AV MULTI OUT (the Wii's lead: the Wii U kept the connector), SENSOR
+## BAR and the AC ADAPTER's DC IN (DCIn, a mouth SystemPower seats the jack in). The
+## USB sockets are drawn, not wired.
 ##
 ## Two pictures leave this console, the TV's and the GamePad's. Cemu packs them
 ## into one frame and says where each is (RETRO_ENVIRONMENT_SET_VIDEO_VIEWS):
@@ -50,6 +50,8 @@ var _reset_cap: MeshInstance3D = null
 var _disc_seat: Marker3D = null
 var _av_seat: Marker3D = null
 var _sensor_seat: Marker3D = null
+var _hdmi_seat: Marker3D = null
+var _hdmi_port: HdmiPort = null
 var _sensor_bar_port: XRToolsSnapZone = null
 var _led_mat: StandardMaterial3D = null
 
@@ -226,6 +228,26 @@ func configure_av_ports(ports: Array) -> void:
 	var t: Transform3D = _av_seat.global_transform
 	(ports[0] as Node3D).global_transform = Transform3D(
 		t.basis, t.origin + t.basis.z.normalized() * AV_MULTI_PROUD)
+	_build_hdmi_out()
+
+
+## HDMI OUT, beside the AV MULTI OUT: a video socket whose sound rides the same plug
+## (rf_feed: the set gets the machine's sound unless an audio cord already took it).
+## Built here, as the NES builds its RF OUT: the cabinet's A/V row has no slot for a
+## second video socket.
+func _build_hdmi_out() -> void:
+	if _hdmi_port != null:
+		return
+	_hdmi_port = (load("res://Scenes/Objects/cables/hdmi_port.tscn") as PackedScene).instantiate() as HdmiPort
+	_hdmi_port.name = "HdmiOut"
+	_hdmi_port.direction = RcaPort.Direction.OUT
+	_hdmi_port.rf_feed = true
+	add_child(_hdmi_port)
+	var t: Transform3D = _hdmi_seat.transform
+	# The zone 0.8 mm out of the panel, where a seated plug's overmold face stops
+	# (hdmi_port.tscn); its +Z is the marker's, out of the back.
+	_hdmi_port.transform = Transform3D(t.basis, t.origin + t.basis.z.normalized() * 0.0008)
+	print("[WiiU] HDMI OUT built (picture and sound on one plug)")
 
 
 func get_sensor_bar_port() -> XRToolsSnapZone:
@@ -358,7 +380,9 @@ func _build_back() -> void:
 	_marker("DCIn", Transform3D(out, Vector3(0.063, 0.0159, BACK_Z)))
 	_box("AcInletHousing", Vector3(0.0141, 0.0099, 0.0008), Vector3(0.063, 0.0159, z), _mat(Color(0.95, 0.8, 0.15), 0.4))
 	# HDMI OUT and the two USB sockets, drawn only.
-	_box("HdmiOut", Vector3(0.0155, 0.0060, 0.0008), Vector3(0.0109, 0.0149, z), dark)
+	# HDMI OUT (configure_av_ports builds the socket on this marker): its window.
+	_hdmi_seat = _marker("HdmiAnchor", Transform3D(out, Vector3(0.0109, 0.0149, BACK_Z)))
+	_box("HdmiWindow", Vector3(0.0186, 0.0083, 0.0004), Vector3(0.0109, 0.0149, BACK_Z - 0.0001), dark)
 	_box("UsbRear1", Vector3(0.0135, 0.0055, 0.0008), Vector3(-0.059, 0.02375, z), dark)
 	_box("UsbRear2", Vector3(0.0135, 0.0055, 0.0008), Vector3(-0.059, 0.01535, z), dark)
 	# The exhaust grille: three columns of seven slots.

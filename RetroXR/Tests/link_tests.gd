@@ -2749,6 +2749,7 @@ const SOCKET_SCENES := {
 	"res://Scenes/Objects/cables/psx_link_port.tscn": "psx_link_plug",
 	"res://Scenes/Objects/cables/trs_port.tscn": "trs_plug",
 	"res://Scenes/Objects/cables/vga_port.tscn": "vga_plug",
+	"res://Scenes/Objects/cables/hdmi_port.tscn": "hdmi_plug",
 	"res://Scenes/Objects/cables/dmg_dc_port.tscn": "barrel_3_5x1_35",
 	"res://Scenes/Objects/cables/gbc_dc_port.tscn": "eiaj_01",
 	"res://Scenes/Objects/cables/nds_dc_port.tscn": "ext2_plug",

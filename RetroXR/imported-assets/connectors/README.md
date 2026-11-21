@@ -13,6 +13,8 @@ After a re-import, put the GLBs back to `generate_lods=false` and any extracted 
 | `rj45_plug/rj45_plug.glb` | `generic/rj45-plug/exports/blue/rj45_plug_blue_mobile_clean.glb` (31693eed2) | both ends of `ethernet_cable.tscn` |
 | `jst_vl_plug/jst_vl_plug.glb` | `generic/jst-vl-plug/exports/naomi/jst_vl_plug_naomi_mobile_clean.glb` | both ends of `naomi_power_cable.tscn` |
 | `vga_plug/vga_plug.glb` | `generic/vga-plug/exports/blue/vga_plug_blue_mobile_clean.glb` | both ends of `vga_cable.tscn` |
+| `hdmi_plug/hdmi_plug.glb` | `generic/hdmi-plug/exports/hdmi_plug_mobile_clean.glb` (856207fb9; the WUP-008's shape without its oval) | both ends of `hdmi_cable.tscn` |
+| `hdmi_port/hdmi_socket.glb` | `generic/hdmi-socket/exports/hdmi_socket.glb` (096cc328c; a short Blender script, not cartkit) | `hdmi_port.tscn` (`HdmiSocket`, 0.8 mm behind the zone: the plug stops on its surround) |
 | `hpdb50_plug/hpdb50_plug.glb` | `generic/hpdb50-plug/exports/naomi/hpdb50_plug_naomi_mobile_clean.glb` | both ends of `gd_cable.tscn` |
 | `jamma_plug/jamma_plug.glb` | `generic/jamma-plug/exports/keyed/jamma_plug_keyed_mobile_clean.glb` (the keyed model, d5aebc2ac) | both ends of `jamma_cable.tscn` (`Shell` turned half round about Z; its harness leaves along the plug's -Y, which the rope's exit axes say) |
 | `ps2_plug/ps2_plug_purple.glb` | `generic/ps2-plug/exports/purple/ps2_plug_purple_mobile_clean.glb` | the PC keyboard's lead (`RetroKeyboard.PLUG_MESH`, through `ControllerPlug.set_plug_mesh`) |

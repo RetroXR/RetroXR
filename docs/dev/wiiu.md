@@ -97,8 +97,8 @@ The GamePad's speaker was measured in the room: its sound gets a voice of its ow
 ## Power and AV
 
 - **Power:** DC from the WUP-002 brick (`wiiu_ac_adapter`, plug `wiiu_dc_plug`, sizes from RetroXR-models' `psu/asset_stats.json`), into the console's `DCIn` mouth.
-- **AV:** the AV MULTI OUT is the Wii's own socket and lead (`wii_av_cable`).
-- **Not modelled:** HDMI OUT is drawn only; there is no HDMI lead yet. Nor are the front USB and SD.
+- **AV:** the AV MULTI OUT is the Wii's own socket and lead (`wii_av_cable`), and the HDMI OUT (`HdmiOut`, an `HdmiPort` built in `configure_av_ports` on the `HdmiAnchor` marker, `rf_feed`) takes the HDMI Cable to a set's HDMI IN, picture and sound on one plug (av-suite.md "HDMI").
+- **Not modelled:** the front USB and SD.
 
 ## Checks
 
@@ -114,4 +114,4 @@ The GamePad's speaker was measured in the room: its sound gets a voice of its ow
 - **Nintendo Land sometimes sticks on its green loading screen**, at boot or after the first-run box, for minutes. That is open; it could be Cemu or the missing shared fonts (`OSGetSharedData` uses a placeholder). Re-run when a leg never reaches the title.
 - **`DevTools/models/wiiu_render_probe`** (windowed, no core): stills of the console, the GamePad standing in its cradle with the WUP-011 plugged in, the Pro Controller and both adapters.
 
-**OWED:** a headset, the Quest (the fork's Android build has never run a game), netplay (Cemu has no savestates), an HDMI lead, the detailed models, the GamePad's microphone and camera, and the remotes' speakers (Cemu does not emulate them).
+**OWED:** a headset, the Quest (the fork's Android build has never run a game), netplay (Cemu has no savestates), a Wii U on HDMI and AV Multi to two sets at once (only the first video sink gets `on_tv_connected`), the detailed models, the GamePad's microphone and camera, and the remotes' speakers (Cemu does not emulate them).

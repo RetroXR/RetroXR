@@ -31,6 +31,7 @@ const LABELS := {
 	"coax_plug": "an F-type coax plug",
 	"trs_plug": "a 3.5 mm stereo plug",
 	"vga_plug": "a VGA plug",
+	"hdmi_plug": "an HDMI plug",
 	"usb_b": "a USB-B plug",
 	"jst_vl8": "a NAOMI power plug",
 	"gd_50pin": "a GD-ROM cable plug",
@@ -211,7 +212,7 @@ const CONTROLLER_PORTS := {
 ## the monitor. A lead's end that is one of these says nothing about which
 ## console it is for, so the spawn card never offers a lead for one: the
 ## Composite Cable is the game's own answer to a phono jack.
-const ROOM := ["composite_plug", "coax_plug", "trs_plug", "vga_plug", "nema_5_15_plug",
+const ROOM := ["composite_plug", "coax_plug", "trs_plug", "vga_plug", "hdmi_plug", "nema_5_15_plug",
 	"nema_1_15_plug", "nema_1_15_polarized_plug", "iec_c13_plug", "iec_c7_plug",
 	"iec_c7_polarized_plug", "cee_7_7_plug", "cee_7_16_plug", "bs_1363_plug",
 	"as_3112_plug", "as_3112_2pin_plug", "sev_1011_plug", "cei_23_50_plug", "ds_k_plug",

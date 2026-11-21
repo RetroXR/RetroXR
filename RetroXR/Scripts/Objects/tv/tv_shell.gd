@@ -149,6 +149,8 @@ func port_seat() -> Variant:        return _seat("PortSeat")
 ## Absent on every shell but the computer monitor, and that absence is the switch:
 ## RetroTV leaves its VgaPort disabled and hidden unless a shell asks for one.
 func vga_port_seat() -> Variant:    return _seat("VgaPortSeat")
+## HDMI IN: opt-in, as VGA is; no shipped shell carries one yet.
+func hdmi_port_seat() -> Variant:   return _seat("HdmiPortSeat")
 ## Pose for the aerial socket, RfPort. Absent leaves it where tv.tscn authors it, on the
 ## stock body's back row; a deeper cabinet names it or the socket ends up inside.
 func rf_port_seat() -> Variant:     return _seat("RfPortSeat")

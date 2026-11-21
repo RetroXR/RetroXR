@@ -86,7 +86,9 @@ static func is_display_shader(shader: Shader) -> bool:
 ##
 ## Named Source, not Input: `Input` is a native Godot singleton and an enum of
 ## that name shadows it, which fails to parse.
-enum Source { COMPOSITE_1, COMPOSITE_2, COMPOSITE_3, COMPOSITE_4, TV, RF, VGA }
+## HDMI (7) was appended 2026-11-21: on the stock (Classic) set, and on any shell with an
+## HdmiPortSeat. Append only.
+enum Source { COMPOSITE_1, COMPOSITE_2, COMPOSITE_3, COMPOSITE_4, TV, RF, VGA, HDMI }
 
 ## How many composite inputs the set has. The back panel carries a socket trio per
 ## input (see tv.tscn) and tv_shell.gd lays them out for a fitted cabinet.
@@ -96,7 +98,7 @@ const COMPOSITE_INPUTS := 4
 ## does for POWER and MUTE; the back panel prints the same names in its own voice
 ## (AV_INPUT_NAMES).
 const SOURCE_NAMES := ["COMPOSITE 1", "COMPOSITE 2", "COMPOSITE 3", "COMPOSITE 4",
-	"TV", "RF", "VGA"]
+	"TV", "RF", "VGA", "HDMI"]
 
 ## The channels an RF modulator can put a console on, and what the set has to be
 ## tuned to for it to appear: 3 and 4 are the slide on the back of an NES, 1 and 2
@@ -200,6 +202,9 @@ var _fit: TvFit = null
 @onready var _composite_port: XRToolsSnapZone = $CompositePort
 ## Off unless the fitted shell carries a VgaPortSeat — see TvPanel.seat_vga_port.
 @onready var _vga_port: XRToolsSnapZone = $VgaPort
+## The HDMI IN. On the stock body (authored on in tv.tscn); a fitted shell turns it
+## off unless it carries an HdmiPortSeat (TvPanel.seat_hdmi_port).
+@onready var _hdmi_port: XRToolsSnapZone = get_node_or_null("HdmiPort") as XRToolsSnapZone
 ## The aerial socket, Source.RF's one hole. Always fitted: every television has one,
 ## and unlike the VGA socket there is no cabinet in the project that would not.
 @onready var _rf_port: XRToolsSnapZone = $RfPort
@@ -454,6 +459,11 @@ func vga_port() -> VgaPort:
 	return _vga_port
 
 
+## The HDMI socket, or null on a set with none.
+func hdmi_port() -> HdmiPort:
+	return _hdmi_port as HdmiPort
+
+
 func display() -> TvDisplay:
 	return _display
 
@@ -681,6 +691,9 @@ func _ready() -> void:
 	# gate.
 	_vga_port.has_picked_up.connect(_panel.on_plug_snapped.bind(Source.VGA))
 	_vga_port.has_dropped.connect(_panel.on_plug_released.bind(Source.VGA))
+	if _hdmi_port != null:
+		_hdmi_port.has_picked_up.connect(_panel.on_plug_snapped.bind(Source.HDMI))
+		_hdmi_port.has_dropped.connect(_panel.on_plug_released.bind(Source.HDMI))
 	# The aerial socket, for what may be on the far end of whatever sits in it. An
 	# Antenna seated here tells the set itself, but an RF switch with an aerial
 	# already in its ANT socket does not — its cord has one end seated and resolves
@@ -1540,6 +1553,8 @@ func _source_available(source: Source) -> bool:
 		return _panel.has_aerial()
 	if source == Source.VGA:
 		return _vga_port != null and _vga_port.enabled
+	if source == Source.HDMI:
+		return _hdmi_port != null and _hdmi_port.enabled
 	return false
 
 
