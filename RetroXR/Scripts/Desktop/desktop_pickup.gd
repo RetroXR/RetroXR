@@ -118,14 +118,6 @@ var _companion_object : XRToolsPickable = null
 var _companion_pivot  : Node3D = null
 
 var _middle_held : bool = false
-## Left held and dragged past CLICK_DRAG_PX with the object in hand: turning it, as the middle
-## button does, and the release lets go of nothing.
-var _left_turning : bool = false
-## True from a left press that is on the held object (a click to drop it or a drag to turn it)
-## until the button comes up: the look-around ignores the mouse meanwhile, or turning the object
-## would turn the player too (MovementDesktopTurn asks, as it does about the middle button).
-static var left_drag : bool = false
-var _left_drag : float = 0.0
 ## True while the object is CAUGHT: in the hand, rather than floating on the ray.
 var _hand_hold : bool = false
 ## 0 when it was just caught, 1 once it has settled; and the pose it was caught from.
@@ -212,8 +204,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		var mbe := event as InputEventMouseButton
 		match mbe.button_index:
 			MOUSE_BUTTON_LEFT:
-				if not mbe.pressed:
-					left_drag = false
 				if mbe.pressed:
 					if is_turning():
 						# A click mid-turn is neither a drop nor a press on whatever the turn
@@ -246,8 +236,6 @@ func _unhandled_input(event: InputEvent) -> void:
 							get_viewport().set_input_as_handled()
 						elif mbe.shift_pressed or not (_is_fps_snap() or _needs_shift_drop()):
 							_drop_armed = true
-							_left_drag = 0.0
-							left_drag = true
 							get_viewport().set_input_as_handled()
 					else:
 						_try_grab(mbe.shift_pressed)
@@ -255,10 +243,6 @@ func _unhandled_input(event: InputEvent) -> void:
 					_action_armed = false
 					if is_instance_valid(_held_object):
 						_held_object.action_release()
-					get_viewport().set_input_as_handled()
-				elif _left_turning:
-					# The drag that turned it ends; nothing is dropped.
-					_left_turning = false
 					get_viewport().set_input_as_handled()
 				elif _drop_armed:
 					_drop_armed = false
@@ -321,22 +305,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			if is_instance_valid(target):
 				_grab_target(target, _pending_inspect)
 
-	elif event is InputEventMouseMotion and _drop_armed and _held_object != null \
-			and not _is_fps_snap() and not _needs_shift_drop():
-		# Left held on the object and dragged: not a click to drop it but a turn, the same
-		# as the middle button's. Short of CLICK_DRAG_PX it is still a click.
-		_left_drag += (event as InputEventMouseMotion).relative.length()
-		if _left_drag >= CLICK_DRAG_PX:
-			_drop_armed = false
-			_left_turning = true
-		if _left_turning:
-			_turn_held(event as InputEventMouseMotion)
-			get_viewport().set_input_as_handled()
-
-	elif event is InputEventMouseMotion and _left_turning and _held_object != null:
-		_turn_held(event as InputEventMouseMotion)
-		get_viewport().set_input_as_handled()
-
 	elif event is InputEventMouseMotion and _middle_held:
 		_turn_held(event as InputEventMouseMotion)
 		# Always consume mouse motion while MMB is held so MovementDesktopTurn
@@ -345,7 +313,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 ## Turn the held object by this mouse motion: yaw and pitch, roll instead of yaw with Shift.
-## Made by the middle button's drag and by the left button's.
+## Made by the middle button's drag.
 func _turn_held(motion: InputEventMouseMotion) -> void:
 	if _held_object and not _is_fps_snap() and _hand_hold:
 		# In the hand the turn is made in the hand's own frame, on the pose it is held in (a
@@ -414,11 +382,10 @@ func is_holding() -> bool:
 	return _held_object != null
 
 
-## True while the held object is being turned (the middle drag, or the left one past
-## CLICK_DRAG_PX). The pointer aims at nothing meanwhile: left live, a control the turn swung
-## under the crosshair lit up and took the next click.
+## True while the held object is being turned (the middle drag). The pointer aims at nothing
+## meanwhile: left live, a control the turn swung under the crosshair lit up and took the next click.
 func is_turning() -> bool:
-	return _held_object != null and not _is_fps_snap() and (_middle_held or _left_turning)
+	return _held_object != null and not _is_fps_snap() and _middle_held
 
 
 ## True while the held object floats out on the ray rather than being caught in the hand. Its own
@@ -817,17 +784,15 @@ func _hand_pose(t: float) -> Transform3D:
 
 
 ## The left press's state ends with its release, but the release reaches _unhandled_input only if
-## nothing took it first: a menu opened mid-press, a 2D panel under the crosshair. Left set, every
-## later plain mouse motion would turn the held object instead of the player, and MovementDesktopTurn
-## would ignore the mouse for good. So it is also ended whenever the button is simply not down.
+## nothing took it first: a menu opened mid-press, a 2D panel under the crosshair. Left set, a later
+## release would drop or end an action it never began. So it is also ended whenever the button is
+## simply not down.
 func _clear_stale_left() -> void:
-	if not (left_drag or _drop_armed or _left_turning or _action_armed):
+	if not (_drop_armed or _action_armed):
 		return
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		return
-	left_drag = false
 	_drop_armed = false
-	_left_turning = false
 	if _action_armed:  # its release never came: the action still ends, or the object stays "pressed"
 		_action_armed = false
 		if is_instance_valid(_held_object):
@@ -899,8 +864,6 @@ func _drop() -> void:
 	_middle_held = false
 	_hand_hold = false
 	_drop_armed = false
-	_left_turning = false
-	left_drag = false
 	# Let go near its seat it goes back, further off it falls; each one by its own distance.
 	for piece in letting_go:
 		if is_instance_valid(piece) and not piece.is_queued_for_deletion():
@@ -922,15 +885,11 @@ func _on_pivot_drop_object() -> void:
 		_middle_held = false
 		_hand_hold = false
 		_drop_armed = false
-		_left_turning = false
-		left_drag = false
 		return
 	_held_object = null
 	_middle_held = false
 	_hand_hold = false
 	_drop_armed = false
-	_left_turning = false
-	left_drag = false
 
 
 ## Returns true when the held object wants FPS-snap positioning, and was not picked up to
@@ -1065,8 +1024,6 @@ func _grab_target(target: Node3D, inspect := false) -> void:
 	_set_hovered_target(null)
 	_hand_hold = false
 	_drop_armed = false
-	_left_turning = false
-	left_drag = false
 	# Before pick_up: the object's grab handler asks whether it is being inspected.
 	_inspect = inspect and pickable.get("desktop_fps_snap") == true
 	if _inspect:

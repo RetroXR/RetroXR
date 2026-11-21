@@ -241,12 +241,9 @@ func _screens() -> void:
 
 func _stale_left() -> void:
 	var pickup := DesktopPickup.new()
-	DesktopPickup.left_drag = true
 	pickup._drop_armed = true
-	pickup._left_turning = true
 	pickup._clear_stale_left()
-	_ok(not DesktopPickup.left_drag and not pickup._drop_armed and not pickup._left_turning,
-		"left/a release that never arrived: the drag and the turn end with the button up")
+	_ok(not pickup._drop_armed, "left/a release that never arrived: the press ends with the button up")
 	pickup.free()
 
 
@@ -345,11 +342,8 @@ func _turning() -> void:
 	_ok(pickup.is_turning(), "turning/held and middle-dragged: the pointer aims at nothing")
 	pickup._middle_held = false
 	_ok(not pickup.is_turning(), "turning/the drag ends: its controls can be aimed at again")
-	pickup._left_turning = true
-	_ok(pickup.is_turning(), "turning/a left drag past the click is a turn too")
-	pickup._left_turning = false
 	pickup._drop_armed = true
-	_ok(not pickup.is_turning(), "turning/a left press short of the drag is still a click")
+	_ok(not pickup.is_turning(), "turning/a left press is a click, not a turn")
 	pickup._drop_armed = false
 	_ok(pickup.on_ray(), "ray/held out on the ray: its own controls are out of reach")
 	pickup._hand_hold = true
