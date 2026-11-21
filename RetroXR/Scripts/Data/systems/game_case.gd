@@ -214,3 +214,8 @@ static func image_size(path: String) -> Vector2i:
 			return Vector2i(f.get_16(), h)
 		f.seek(f.get_position() + length - 2)
 	return Vector2i.ZERO
+
+
+## Its box art changed (a scrape): work the picture out again at the row's next binding.
+static func forget_icon(systemid: String, rom_path: String) -> void:
+	_icon_cache.erase("%s|%s" % [systemid, rom_path])

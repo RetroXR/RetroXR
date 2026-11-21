@@ -198,6 +198,10 @@ func _pick_icon() -> void:
 	_eq(GameCase.image_size(dir.path_join("a.jpg")), Vector2i(931, 680), "a JPEG's")
 	_eq(GameCase.image_size(dir.path_join("none.png")), Vector2i.ZERO, "none for a missing file")
 	_eq(GameCase.icon_of("ps2", "/nowhere/Game (USA).iso"), "tall", "a PS2 game")
+	GameCase._icon_cache["segacd|/nowhere/Old (USA).chd"] = "square"
+	_eq(GameCase.icon_of("segacd", "/nowhere/Old (USA).chd"), "square", "kept per game")
+	GameCase.forget_icon("segacd", "/nowhere/Old (USA).chd")
+	_ok(not GameCase._icon_cache.has("segacd|/nowhere/Old (USA).chd"), "and forgotten when its art changes")
 	_eq(GameCase.icon_of("psx", "/nowhere/Game (Japan).cue"), "square", "a Japanese PlayStation game")
 	_eq(GameCase.icon_of("dreamcast", "/nowhere/Game (USA).chd"), "square", "a Dreamcast game")
 	for n in [1, 2]:
