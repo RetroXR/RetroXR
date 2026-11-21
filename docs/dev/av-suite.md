@@ -925,3 +925,27 @@ composite cord into a SCART block draws as composite, not the SCART input's RGB
 (`TvDisplay.refresh_signal`). Pulling the block re-resolves the leads in its jacks
 (`AvAdapter._resolve`), or the console stays filed on the input. `av_tests`
 `_r_scart_block` builds one from the conversion lead's `AvAdapter`; the real block is a mod's.
+
+### DVI, DisplayPort, D-Terminal, RGB21 and the aerial's other sockets; the Classic TV's layout (2026-11-21)
+
+New kinds in `TvInputKinds`, each a row: `dvi` (11, `DviPort`, connector `dvi_d_plug`),
+`displayport` (12, `DisplayPortPort`, sound on the plug as HDMI's: the source's OUT is `rf_feed`),
+`dterminal` (13, Japan's one-plug component, its L/R on phonos beside it, drawn as component and
+always full color), `jp21` (14, RGB21: SCART's shell with Japan's pins, so `jp21_plug`, which a
+SCART socket refuses and the reverse; a `MultiAvPort` input, RGB). The aerial kind has OPTIONAL
+jacks a layout asks for with `"with"`: `iec` (`IecAerialPort`, Belling-Lee) and `twinlead`
+(`TwinLeadPort`, the 300-ohm VHF screw terminals); all feed the one RF input, `aerial()` looks in
+every aerial socket and through an adaptor seated there, and `audio_ports` keeps only L/R. A
+layout entry's `extent` sizes its legend round its largest jack.
+
+**The DVI family keys by `Connectors.ALSO_FITS`**: a DVI-D or DVI-A plug also fits a DVI-I socket;
+a DVI-D socket takes DVI-D alone. The PC tower's graphics card has a DVI-D OUT and a DisplayPort
+OUT (`DviOut`, `DisplayPortOut`, rf_feed); `dvi_cable` and `displayport_cable` are on a computer's
+card and the Electronics tab. RGB21 leads off the Nintendo, PS2 and Genesis Model 2 Multi Outs.
+
+**The Classic TV's back is laid out by what each input is** (`TvInputKinds.stock_layout`, every
+plate 2 mm from the next): composite 1-4 and the aerial at y -0.15; S-Video, component,
+D-Terminal at -0.088; SCART and RGB21 (tall plates) then HDMI, DVI, DisplayPort at -0.015; the
+speaker outputs at 0.06 (`tv.tscn`). A kind whose socket scene is not in the build is left off
+the stock body (`_built`), not half built. Saved leads find their sockets by NAME, so moving a
+socket moves nothing in a save.

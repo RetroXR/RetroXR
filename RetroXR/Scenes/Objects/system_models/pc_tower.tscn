@@ -1,7 +1,9 @@
-[gd_scene load_steps=23 format=3]
+[gd_scene format=3]
 
 [ext_resource type="Script" path="res://Scripts/Objects/system_models/pc_tower_model.gd" id="1_pctower"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/vga_port.tscn" id="2_vgaport"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/dvi_port.tscn" id="2_dviport"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/displayport_port.tscn" id="2_dpport"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/trs_port.tscn" id="3_trsport"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/ps2_jack_keyboard.res" id="4_ps2jackkb"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/ps2_jack_mouse.res" id="5_ps2jackms"]
@@ -381,6 +383,21 @@ direction = 0
 ;
 ; The tower keeps its three phono sockets. Sound can still leave that way to a
 ; television; this is the path to a pair of powered speakers.
+; A graphics card in the expansion slots below the I/O panel (2026-11-21): its DVI-D
+; OUT over its DisplayPort OUT, keyed right way up (half a turn about Y, as the PS/2
+; sockets). Each zone stands where its socket's mouth does off the case (DVI 6.5 mm,
+; DisplayPort 2.5, RetroXR-models' sockets). The DisplayPort carries the sound as HDMI
+; does (rf_feed); DVI carries none, and the tower's sound leaves on its phonos and
+; LINE OUT as with VGA. direction = 0 is OUT.
+[node name="DviOut" parent="Back" instance=ExtResource("2_dviport")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.05, 0.21, -0.228)
+direction = 0
+
+[node name="DisplayPortOut" parent="Back" instance=ExtResource("2_dpport")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.05, 0.18, -0.224)
+direction = 0
+rf_feed = true
+
 [node name="LineOut" parent="Back" instance=ExtResource("3_trsport")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -0.055, 0.294, -0.2235)
 direction = 0

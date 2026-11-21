@@ -684,7 +684,10 @@ func input_layout() -> Array:
 	]
 ```
 
-- `kind` is one of `composite`, `rf`, `vga`, `hdmi`, `svideo`, `component`, `scart`.
+- `kind` is one of `composite`, `rf`, `vga`, `hdmi`, `svideo`, `component`, `scart`,
+  `dvi`, `displayport`, `dterminal` (Japan's D-Terminal) or `jp21` (Japan's RGB21). `rf`
+  takes `"with": ["iec", "twinlead"]` for a Belling-Lee socket and VHF screw terminals
+  beside its F-type.
   The second entry of a kind is that kind's input 2 ("HDMI 2"), and so on.
 - `at` is the pose of the group's **first** jack along the panel, as that jack is
   seated: its +Z out of the cabinet, standing where a plug's face stops. For a phono

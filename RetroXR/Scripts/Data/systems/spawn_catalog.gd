@@ -408,6 +408,11 @@ const _COMPUTER_INPUT: Array = [
 ## what the real machine needed too.
 const _VGA_CABLE: Dictionary = {"kind": "peripheral", "label": "VGA Cable",
 	"spawn": "vga_cable"}
+## A computer's graphics card has DVI-D and DisplayPort OUTs too (the tower's).
+const _DIGITAL_VIDEO_CABLES: Array = [
+	{"kind": "peripheral", "label": "DVI Cable", "spawn": "dvi_cable"},
+	{"kind": "peripheral", "label": "DisplayPort Cable", "spawn": "displayport_cable"},
+]
 
 ## How a computer's sound reaches its speakers, and the speakers themselves. Listed
 ## for computers only, for the same reason the VGA lead is: the sockets a 3.5 mm plug
@@ -835,6 +840,7 @@ static func _items_for(systemid: String) -> Array:
 	if info != null and info.computer:
 		items.append_array(_COMPUTER_INPUT.duplicate(true))
 		items.append(_VGA_CABLE.duplicate())
+		items.append_array(_DIGITAL_VIDEO_CABLES.duplicate(true))
 		items.append_array(_TRS_KIT.duplicate(true))
 	elif _HEADPHONE_JACK_PLATFORMS.has(systemid):
 		items.append_array(_TRS_KIT.duplicate(true))
@@ -1203,6 +1209,8 @@ const ELECTRONICS := [
 	# A box's S-VIDEO OUT or Y/Pb/Pr OUT (a mod's AV pack) to a set's S-Video or component input.
 	["S-Video Cable",   "svideo_cable"],
 	["Component Cable", "component_cable"],
+	["DVI Cable",       "dvi_cable"],
+	["DisplayPort Cable", "displayport_cable"],
 	["3.5 mm Cable",   "trs_cable"],
 	# A 3.5 mm stereo plug to a white and a red phono jack: a PHONES jack's sound onto a pair of phono leads.
 	["3.5 mm to RCA Adapter", "trs_rca_adapter"],

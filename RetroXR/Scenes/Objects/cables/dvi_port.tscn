@@ -1,0 +1,35 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="1_snapzone"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/dvi_port.gd" id="2_portscript"]
+[ext_resource type="PackedScene" path="res://imported-assets/connectors/dvi_port/dvi_socket.glb" id="3_socket"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="4_snaphigh"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_plug_ghost"]
+size = Vector3(0.0394,0.0126,0.02)
+
+[sub_resource type="StandardMaterial3D" id="Mat_plug_ghost"]
+transparency = 1
+albedo_color = Color(0.2, 0.5, 1, 0.45)
+emission_enabled = true
+emission = Color(0, 0.15, 0.5, 1)
+emission_energy_multiplier = 0.4
+
+; RetroXR-models generic/dvi-socket: the ZONE is the socket's MOUTH, where a seated plug's
+; origin (its hood's face) stops; the model has its mouth at its origin, so a host stands this
+; zone as far off its panel as the socket's mouth stands proud (TvInputKinds). +Y is the
+; connector's wide / latch side. `connector` is written here as well as in the script.
+[node name="DviPort" instance=ExtResource("1_snapzone")]
+grab_distance = 0.05
+script = ExtResource("2_portscript")
+connector = "dvi_d_plug"
+
+[node name="DviSocket" parent="." instance=ExtResource("3_socket")]
+
+[node name="SnapHighlight" type="Node3D" parent="."]
+script = ExtResource("4_snaphigh")
+
+[node name="HighlightMesh" type="MeshInstance3D" parent="SnapHighlight"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.01)
+mesh = SubResource("BoxMesh_plug_ghost")
+surface_material_override/0 = SubResource("Mat_plug_ghost")

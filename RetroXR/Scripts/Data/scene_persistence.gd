@@ -241,6 +241,13 @@ const WII_SCART_CABLE_SCENE := preload("res://Scenes/Objects/system_models/wii/w
 const PS2_SCART_CABLE_SCENE := preload("res://Scenes/Objects/cables/ps2_scart_cable.tscn")
 const DC_SCART_CABLE_SCENE := preload("res://Scenes/Objects/system_models/dreamcast/dc_scart_cable.tscn")
 const GENESIS_SCART_CABLE_SCENE := preload("res://Scenes/Objects/system_models/genesis/genesis_scart_cable.tscn")
+## DVI-D and DisplayPort leads, a computer's to a set's.
+const DVI_CABLE_SCENE := preload("res://Scenes/Objects/cables/dvi_cable.tscn")
+const DISPLAYPORT_CABLE_SCENE := preload("res://Scenes/Objects/cables/displayport_cable.tscn")
+## RGB21 (JP-21) leads: SCART's shell with Japan's pins, off the same Multi Outs.
+const N64_JP21_CABLE_SCENE := preload("res://Scenes/Objects/system_models/nintendo_64/n64_jp21_cable.tscn")
+const PS2_JP21_CABLE_SCENE := preload("res://Scenes/Objects/cables/ps2_jp21_cable.tscn")
+const GENESIS_JP21_CABLE_SCENE := preload("res://Scenes/Objects/system_models/genesis/genesis_jp21_cable.tscn")
 const JVS_CABLE_SCENE        := preload("res://Scenes/Objects/cables/jvs_cable.tscn")
 const NAOMI_POWER_CABLE_SCENE := preload("res://Scenes/Objects/cables/naomi_power_cable.tscn")
 const TRS_CABLE_SCENE        := preload("res://Scenes/Objects/cables/trs_cable.tscn")
@@ -432,6 +439,11 @@ const LEAD_SCENES := {
 	"ps2_scart_cable": PS2_SCART_CABLE_SCENE,
 	"dc_scart_cable": DC_SCART_CABLE_SCENE,
 	"genesis_scart_cable": GENESIS_SCART_CABLE_SCENE,
+	"n64_jp21_cable": N64_JP21_CABLE_SCENE,
+	"dvi_cable": DVI_CABLE_SCENE,
+	"displayport_cable": DISPLAYPORT_CABLE_SCENE,
+	"ps2_jp21_cable": PS2_JP21_CABLE_SCENE,
+	"genesis_jp21_cable": GENESIS_JP21_CABLE_SCENE,
 	"jvs_cable": JVS_CABLE_SCENE,
 	"naomi_power_cable": NAOMI_POWER_CABLE_SCENE,
 	"gd_cable": GD_CABLE_SCENE,

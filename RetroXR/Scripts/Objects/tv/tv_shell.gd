@@ -168,6 +168,10 @@ func hdmi_port_seat() -> Variant:   return _seat("HdmiPortSeat")
 func svideo_seat() -> Variant:      return _seat("SvideoSeat")
 func component_seat() -> Variant:   return _seat("ComponentSeat")
 func scart_seat() -> Variant:       return _seat("ScartSeat")
+func dvi_seat() -> Variant:         return _seat("DviSeat")
+func displayport_seat() -> Variant: return _seat("DisplayPortSeat")
+func dterminal_seat() -> Variant:   return _seat("DTerminalSeat")
+func jp21_seat() -> Variant:        return _seat("Jp21Seat")
 ## Pose for the aerial socket, RfPort, for a derived layout. Absent puts it in the slot
 ## past the last composite group off PortSeat (or the stock pose with no PortSeat).
 func rf_port_seat() -> Variant:     return _seat("RfPortSeat")

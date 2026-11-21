@@ -36,6 +36,12 @@ const STEP := Vector3(-0.018, 0.0, 0.0)
 ## (video_port reads [0]), then L and R where the kind has its own audio ([1], [2]),
 ## then anything else (component's Pb, Pr). `panel` is the order they stand in along
 ## the panel, by index into `jacks`.
+##
+## How its legend prints: `legend` is the node name after "AvLegend" (composite's are
+## numbered "AvLegend1".. instead), `heading` replaces AV IN, `words` is false for a
+## wordless plate (one connector: printing VIDEO under it would name the wrong thing) or
+## a {channel: word} map, and `extent` is the socket's half width / height when it is
+## not a phono jack's round (AvLegend.jack_extent). `legend: ""` prints none.
 const KINDS := {
 	"composite": {"code": 0, "legacy": [0, 1, 2, 3], "osd": "COMPOSITE", "title": "Composite",
 		"signal": TvSignal.Kind.COMPOSITE, "numbered": true,
@@ -43,22 +49,31 @@ const KINDS := {
 			{"name": "CompositePort", "scene": RCA, "channel": RcaPort.Channel.VIDEO},
 			{"name": "AudioLIn", "scene": RCA, "channel": RcaPort.Channel.AUDIO_L},
 			{"name": "AudioRIn", "scene": RCA, "channel": RcaPort.Channel.AUDIO_R}],
-		"panel": [0, 1, 2]},
+		"panel": [0, 1, 2], "legend": "%d"},
 	"rf": {"code": 1, "legacy": [5], "osd": "RF", "title": "Antenna",
 		"signal": TvSignal.Kind.COMPOSITE, "numbered": false,
+		# The F-type, and two more ways into the same input a layout may ask for
+		# ("with"): a Belling-Lee socket (a PAL set's) and the 300-ohm VHF screw
+		# terminals (a US set's, beside its F-type).
 		"jacks": [{"name": "RfPort", "scene": "res://Scenes/Objects/cables/coax_port.tscn",
-			"channel": RcaPort.Channel.VIDEO}],
-		"panel": [0]},
+				"channel": RcaPort.Channel.VIDEO},
+			{"name": "RfIecIn", "scene": "res://Scenes/Objects/cables/iec_aerial_port.tscn",
+				"channel": RcaPort.Channel.VIDEO, "option": "iec", "proud": IEC_PROUD},
+			{"name": "RfTwinLeadIn", "scene": "res://Scenes/Objects/cables/twin_lead_port.tscn",
+				"channel": RcaPort.Channel.VIDEO, "option": "twinlead", "proud": TWINLEAD_PROUD,
+				"turn": true}],
+		"panel": [0, 1, 2], "legend": "Rf", "heading": "RF IN", "words": false},
 	"vga": {"code": 2, "legacy": [6], "osd": "VGA", "title": "VGA",
 		"signal": TvSignal.Kind.RGB, "numbered": false,
 		"jacks": [{"name": "VgaPort", "scene": "res://Scenes/Objects/cables/vga_port.tscn",
 			"channel": RcaPort.Channel.VIDEO}],
-		"panel": [0]},
+		# The monitor's DE-15 has never printed one.
+		"panel": [0], "legend": ""},
 	"hdmi": {"code": 3, "legacy": [7], "osd": "HDMI", "title": "HDMI", "numbered": false,
 		"signal": TvSignal.Kind.RGB,
 		"jacks": [{"name": "HdmiPort", "scene": "res://Scenes/Objects/cables/hdmi_port.tscn",
 			"channel": RcaPort.Channel.VIDEO, "proud": 0.0008, "turn": true}],
-		"panel": [0]},
+		"panel": [0], "legend": "Hdmi", "heading": "HDMI IN", "words": false},
 	"svideo": {"code": 4, "legacy": [8], "osd": "S-VIDEO", "title": "S-Video", "numbered": false,
 		"signal": TvSignal.Kind.SVIDEO,
 		"jacks": [
@@ -66,7 +81,9 @@ const KINDS := {
 				"channel": RcaPort.Channel.VIDEO, "proud": 0.0024, "turn": true},
 			{"name": "AudioLInS", "scene": RCA, "channel": RcaPort.Channel.AUDIO_L},
 			{"name": "AudioRInS", "scene": RCA, "channel": RcaPort.Channel.AUDIO_R}],
-		"panel": [0, 1, 2]},
+		"panel": [0, 1, 2], "legend": "Svideo",
+		"words": {RcaPort.Channel.VIDEO: "S-VIDEO", RcaPort.Channel.AUDIO_L: "L",
+			RcaPort.Channel.AUDIO_R: "R"}},
 	"component": {"code": 5, "legacy": [9], "osd": "COMPONENT", "title": "Component", "numbered": false,
 		"signal": TvSignal.Kind.COMPONENT,
 		"jacks": [
@@ -77,13 +94,60 @@ const KINDS := {
 			{"name": "ComponentPb", "scene": RCA, "channel": RcaPort.Channel.VIDEO_PB},
 			{"name": "ComponentPr", "scene": RCA, "channel": RcaPort.Channel.VIDEO_PR}],
 		# Y Pb Pr L R along the panel, as a real one runs them.
-		"panel": [0, 3, 4, 1, 2]},
+		"panel": [0, 3, 4, 1, 2], "legend": "Component",
+		"words": {RcaPort.Channel.VIDEO: "Y", RcaPort.Channel.VIDEO_PB: "Pb",
+			RcaPort.Channel.VIDEO_PR: "Pr", RcaPort.Channel.AUDIO_L: "L", RcaPort.Channel.AUDIO_R: "R"}},
 	"scart": {"code": 6, "legacy": [10], "osd": "SCART", "title": "SCART", "numbered": false,
 		"signal": TvSignal.Kind.RGB,
 		"jacks": [{"name": "ScartIn", "scene": "res://Scenes/Objects/cables/scart_port.tscn",
 			"channel": RcaPort.Channel.VIDEO, "proud": 0.0032, "turn": true}],
-		"panel": [0]},
+		# The bezel, 58 x 24 mm (generic/scart-socket), not a phono jack's round.
+		"panel": [0], "legend": "Scart", "heading": "AV IN (RGB)", "words": false,
+		"extent": Vector2(0.029, 0.012)},
+	# DVI-D (2026-11-21): picture only, a computer's sound leaves on its own jacks.
+	"dvi": {"code": 7, "legacy": [11], "osd": "DVI", "title": "DVI", "numbered": false,
+		"signal": TvSignal.Kind.RGB,
+		"jacks": [{"name": "DviIn", "scene": "res://Scenes/Objects/cables/dvi_port.tscn",
+			"channel": RcaPort.Channel.VIDEO, "proud": DVI_PROUD, "turn": true}],
+		"panel": [0], "legend": "Dvi", "heading": "DVI IN", "words": false, "extent": DVI_EXTENT},
+	# DisplayPort (2026-11-21): picture and sound on one plug, as HDMI.
+	"displayport": {"code": 8, "legacy": [12], "osd": "DISPLAYPORT", "title": "DisplayPort",
+		"numbered": false, "signal": TvSignal.Kind.RGB,
+		"jacks": [{"name": "DisplayPortIn", "scene": "res://Scenes/Objects/cables/displayport_port.tscn",
+			"channel": RcaPort.Channel.VIDEO, "proud": DP_PROUD, "turn": true}],
+		"panel": [0], "legend": "DisplayPort", "heading": "DP IN", "words": false, "extent": DP_EXTENT},
+	# D-Terminal (2026-11-21): Japan's one-plug component, its sound on phonos beside it.
+	"dterminal": {"code": 9, "legacy": [13], "osd": "D-TERMINAL", "title": "D-Terminal", "numbered": false,
+		"signal": TvSignal.Kind.COMPONENT,
+		"jacks": [
+			{"name": "DTerminalIn", "scene": "res://Scenes/Objects/cables/dterminal_port.tscn",
+				"channel": RcaPort.Channel.VIDEO, "proud": DTERM_PROUD, "turn": true},
+			{"name": "AudioLInD", "scene": RCA, "channel": RcaPort.Channel.AUDIO_L},
+			{"name": "AudioRInD", "scene": RCA, "channel": RcaPort.Channel.AUDIO_R}],
+		"panel": [0, 1, 2], "legend": "DTerminal",
+		"words": {RcaPort.Channel.VIDEO: "D", RcaPort.Channel.AUDIO_L: "L", RcaPort.Channel.AUDIO_R: "R"}},
+	# JP-21 (2026-11-21): Japan's RGB, SCART's shell with its own pins, so its own connector.
+	"jp21": {"code": 10, "legacy": [14], "osd": "RGB21", "title": "RGB21", "numbered": false,
+		"signal": TvSignal.Kind.RGB,
+		"jacks": [{"name": "Jp21In", "scene": "res://Scenes/Objects/cables/jp21_port.tscn",
+			"channel": RcaPort.Channel.VIDEO, "proud": 0.0032, "turn": true}],
+		"panel": [0], "legend": "Jp21", "heading": "RGB IN", "words": false,
+		"extent": Vector2(0.029, 0.012)},
 }
+
+## How far the D-Terminal, Belling-Lee and twin-lead sockets' mouths stand off the panel,
+## from RetroXR-models generic/dterminal-socket, belling-lee-socket, twinlead-terminals.
+const DTERM_PROUD := 0.002
+const IEC_PROUD := 0.006
+const TWINLEAD_PROUD := 0.004
+
+## How far the DVI and DisplayPort sockets' mouths stand off the panel, and their
+## outer half width / height, from RetroXR-models generic/dvi-socket and
+## generic/displayport-socket.
+const DVI_PROUD := 0.0065
+const DVI_EXTENT := Vector2(0.0197, 0.0063)
+const DP_PROUD := 0.0025
+const DP_EXTENT := Vector2(0.010, 0.0045)
 
 ## First id given to a kind's instance past its legacy ones.
 const EXTRA_BASE := 32
@@ -181,7 +245,9 @@ static func _fix(jack: Dictionary) -> Transform3D:
 
 # ── Layouts ──────────────────────────────────────────────────────────────────
 #
-# A layout is an Array of {kind, at, step?, poses?}: one entry per input, `at` the pose
+# A layout is an Array of {kind, at, step?, poses?, with?, extent?}: one entry per input,
+# `with` the optional jacks of its kind to build too (the aerial's "iec", "twinlead"),
+# `extent` its legend's socket half size where one jack is larger. `at` the pose
 # of the group's first jack along the panel in the set's frame, `step` the pitch to the
 # next (STEP if absent), and `poses`, optionally, every jack's own pose in panel order
 # (a modeled cabinet with a marker per socket), which wins over at + step. SOURCE
@@ -192,22 +258,64 @@ const _RX := Basis(Vector3(1, 0, 0), PI)     # a phono jack's frame: authored up
 const _RY := Basis(Vector3(0, 1, 0), PI)     # a keyed socket's: right way up, facing back
 
 
-## The stock body's back panel: four composite inputs and the aerial along the bottom
-## row, HDMI by the speaker outputs, component / S-Video / SCART along the top row.
+## The stock body's back panel (the Classic TV), laid out by what each input is. The
+## body's back is 500 x 400 mm, x 0.25..-0.25 read left to right from behind it. Rows,
+## bottom up, every legend plate at least 2 mm from the next (av_tests measures them):
+##
+##   y -0.150  Composite 1-4, then the aerial: F-type, Belling-Lee, VHF terminals
+##   y -0.088  the better analog inputs: S-Video, component, D-Terminal
+##   y -0.015  the 21-pin RGB inputs, SCART and RGB21 (tall plates), then the digital
+##             ones: HDMI, DVI, DisplayPort
+##   y  0.060  the speaker outputs (tv.tscn authors those; they are outputs)
+##
+## Composite 1-4 stay first and the aerial fifth: derived_layout reads them by index.
 static func stock_layout() -> Array:
 	var out: Array = []
 	for i in 4:
-		out.append({"kind": "composite", "at": Transform3D(_RX, Vector3(0.15 - 0.068 * i, -0.15, -0.16002099))})
-	out.append({"kind": "rf", "at": Transform3D(_RX, Vector3(-0.14, -0.15, -0.16002099))})
-	out.append({"kind": "hdmi", "at": Transform3D(_RY, Vector3(-0.12, -0.09, -0.1508))})
-	out.append({"kind": "component", "at": Transform3D(_RX, Vector3(0.15, -0.03, -0.16002099))})
-	# 2.4 mm off the panel, not its collar's 1.2: the legend plate (0.5 mm proud) covered
-	# its insert at 1.2 and it read as a black hole.
-	out.append({"kind": "svideo", "at": Transform3D(_RY, Vector3(0.046, -0.03, -0.1524))})
-	# On the top row, not the speaker row: its tall legend plate stood within 2 mm of
-	# Composite 3 / 4 and S-Video there (av_tests keeps every two plates 2 mm apart).
-	out.append({"kind": "scart", "at": Transform3D(_RY, Vector3(-0.06, -0.03, -0.1532))})
+		out.append({"kind": "composite", "at": _stock_at("composite", 0.15 - 0.068 * i, -0.15)})
+	out.append({"kind": "rf", "with": _built_options("rf", ["iec", "twinlead"]), "extent": Vector2(0.0125, 0.0075),
+		"at": _stock_at("rf", -0.14, -0.15),
+		"poses": [_stock_at("rf", -0.14, -0.15),
+			Transform3D(_RX, Vector3(-0.164, -0.15, -0.15 - IEC_PROUD)),
+			Transform3D(_RY, Vector3(-0.193, -0.15, -0.15 - TWINLEAD_PROUD))]})
+	out.append({"kind": "svideo", "at": _stock_at("svideo", 0.15, -0.088)})
+	out.append({"kind": "component", "at": _stock_at("component", 0.07, -0.088)})
+	if _built("dterminal"):
+		out.append({"kind": "dterminal", "at": _stock_at("dterminal", -0.045, -0.088)})
+	out.append({"kind": "scart", "at": _stock_at("scart", 0.12, -0.015)})
+	out.append({"kind": "jp21", "at": _stock_at("jp21", 0.035, -0.015)})
+	out.append({"kind": "hdmi", "at": _stock_at("hdmi", -0.04, -0.015)})
+	out.append({"kind": "dvi", "at": _stock_at("dvi", -0.1, -0.015)})
+	out.append({"kind": "displayport", "at": _stock_at("displayport", -0.165, -0.015)})
 	return out
+
+
+## Whether every jack scene of a kind is in this build. A socket whose model has not
+## landed is left off the stock body rather than half built (and warned about by
+## every set).
+static func _built(kind: String) -> bool:
+	for jack: Dictionary in KINDS[kind]["jacks"]:
+		if not jack.has("option") and not ResourceLoader.exists(str(jack["scene"])):
+			return false
+	return true
+
+
+## The options of a kind whose jack scenes are in this build.
+static func _built_options(kind: String, options: Array) -> Array:
+	var out: Array = []
+	for jack: Dictionary in KINDS[kind]["jacks"]:
+		if options.has(jack.get("option", "")) and ResourceLoader.exists(str(jack["scene"])):
+			out.append(jack["option"])
+	return out
+
+
+## The pose of a kind's first jack at (x, y) on the stock body's back (its face at
+## z -0.15): stood off it by the jack's own `proud`, and keyed right way up where the
+## jack is `turn`ed (a phono jack is authored upside down, about X).
+static func _stock_at(kind: String, x: float, y: float) -> Transform3D:
+	var jack: Dictionary = KINDS[kind]["jacks"][KINDS[kind]["panel"][0]]
+	var proud: float = float(jack.get("proud", RCA_PROUD))
+	return Transform3D(_RY if bool(jack.get("turn", false)) else _RX, Vector3(x, y, -0.15 - proud))
 
 
 ## A cabinet's layout from the fields and markers every shell has always had, for one
@@ -241,7 +349,9 @@ static func derived_layout(shell: RetroTVShell) -> Array:
 		out.append({"kind": "rf", "at": at})
 	for row: Array in [["vga", shell.vga_port_seat()], ["hdmi", shell.hdmi_port_seat()],
 			["component", shell.component_seat()], ["svideo", shell.svideo_seat()],
-			["scart", shell.scart_seat()]]:
+			["scart", shell.scart_seat()], ["dvi", shell.dvi_seat()],
+			["displayport", shell.displayport_seat()], ["dterminal", shell.dterminal_seat()],
+			["jp21", shell.jp21_seat()]]:
 		if row[1] is Transform3D:
 			out.append({"kind": row[0], "at": row[1], "step": sstep})
 	return out

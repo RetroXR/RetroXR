@@ -147,7 +147,9 @@ func build_inputs(layout: Array) -> void:
 		var id := TvInputKinds.id_for(kind, n)
 		var step: Vector3 = entry.get("step", TvInputKinds.STEP)
 		var poses: Array = entry.get("poses", [])
-		_inputs[id] = {"kind": kind, "n": n, "ports": _build_group(kind, n, entry["at"], step, poses)}
+		var with: Array = entry.get("with", [])
+		_inputs[id] = {"kind": kind, "n": n, "extent": entry.get("extent"),
+			"ports": _build_group(kind, n, entry["at"], step, poses, with)}
 		top = maxi(top, id)
 	_av_ports = []
 	_connected_systems = []
@@ -163,12 +165,15 @@ func build_inputs(layout: Array) -> void:
 
 
 ## One input's jacks, in its kind's order (the picture, then L and R, then the rest).
-func _build_group(kind: String, n: int, at: Transform3D, step: Vector3, poses: Array) -> Array[RcaPort]:
+func _build_group(kind: String, n: int, at: Transform3D, step: Vector3, poses: Array,
+		with: Array) -> Array[RcaPort]:
 	var jacks: Array = TvInputKinds.KINDS[kind]["jacks"]
 	var order: Array = TvInputKinds.KINDS[kind]["panel"]
 	var out: Array[RcaPort] = []
 	for j in jacks.size():
 		var jack: Dictionary = jacks[j]
+		if jack.has("option") and not with.has(jack["option"]):
+			continue          # an optional jack this layout did not ask for
 		var node_name := TvInputKinds.node_name(jack, n)
 		var port := _tv.get_node_or_null(node_name) as RcaPort
 		if port == null:
@@ -244,14 +249,38 @@ func has_aerial() -> bool:
 func aerial() -> Antenna:
 	if not has_aerial():
 		return null
-	var rf := _tv.rf_port() as RcaPort
-	var plug: RcaPlug = (rf.seated_plug() as RcaPlug) if rf != null else null
-	if plug == null or not is_instance_valid(plug.cable):
+	for socket: RcaPort in aerial_sockets():
+		var found := _aerial_in(socket, 0)
+		if found != null:
+			return found
+	return null
+
+
+## Every socket of the aerial input: the F-type, and a Belling-Lee socket or the VHF
+## terminals where the layout asked for them.
+func aerial_sockets() -> Array[RcaPort]:
+	var out: Array[RcaPort] = []
+	if RetroTV.Source.RF < _av_ports.size():
+		for port: RcaPort in _av_ports[RetroTV.Source.RF]:
+			out.append(port)
+	return out
+
+
+## The aerial reached from one socket: an Antenna's own plug, an RF switch's pigtail
+## with one in its ANT socket, or either through an adaptor seated there (the balun
+## in the VHF terminals, the F to Belling-Lee adaptor) whose own jack holds it.
+func _aerial_in(socket: RcaPort, depth: int) -> Antenna:
+	var plug: RcaPlug = socket.seated_plug() as RcaPlug if socket != null else null
+	if plug == null or not is_instance_valid(plug.cable) or depth > 2:
 		return null
 	if plug.cable is Antenna:
 		return plug.cable as Antenna
 	if plug.cable is RfSwitch:
 		return (plug.cable as RfSwitch).aerial()
+	for jack: Node in plug.cable.find_children("*", "AdapterRcaPort", true, false):
+		var found := _aerial_in(jack as RcaPort, depth + 1)
+		if found != null:
+			return found
 	return null
 
 
@@ -312,65 +341,45 @@ func print_legends() -> void:
 		_print_speaker_legend(plate)
 
 
-## One input's legend. Names are the ones each always had ("AvLegend2", "AvLegendRf",
+## One input's legend, in its kind's style (TvInputKinds: legend, heading, words,
+## extent). Names are the ones each always had ("AvLegend2", "AvLegendRf",
 ## "AvLegendHdmi"; a second of a kind gets its number), which a mod's shell hides by.
 ##
-## RF is wordless: CoaxPort reports Channel.VIDEO because the routing needs somewhere to
-## send the picture, and printing VIDEO under an aerial hole would name the wrong
-## connector. The row the words would take still takes its space, so its plate comes
-## out the height of a composite group's. HDMI and SCART print the same way; S-Video
-## and component name each jack as a real panel does. A socket not on the phono 10 mm
-## gets its plate's standoff from its own (TvInputKinds `proud`), and a group mixing
-## the two stands at their mean (AvLegend._panel_frame), 0.5 mm proud either way.
+## A wordless plate (RF, HDMI, SCART, DVI, DisplayPort) still takes the words row's
+## space, so it comes out the height of a composite group's. A socket not on the phono
+## 10 mm gets its plate's standoff from its own (`proud`), and a group mixing the two
+## stands at their mean (AvLegend._panel_frame), 0.5 mm proud either way.
 func _print_legend(id: int, plate: bool) -> void:
 	var input: Dictionary = _inputs[id]
-	var kind: String = input["kind"]
+	var row: Dictionary = TvInputKinds.KINDS[input["kind"]]
 	var n: int = input["n"]
-	if kind == "vga":
-		return          # the monitor's DE-15 has never printed one
+	var stem := str(row.get("legend", ""))
+	if stem.is_empty():
+		return
 	var legend := AvLegend.attach(_tv, _av_ports[id])
 	if legend == null:
 		return
-	var suffix := "" if n <= 1 else str(n)
+	legend.name = "AvLegend%d" % n if stem == "%d" else "AvLegend" + stem + ("" if n <= 1 else str(n))
 	legend.title = TvInputKinds.title(id)
 	legend.show_plate = plate
-	var jacks: Array = TvInputKinds.KINDS[kind]["jacks"]
+	var jacks: Array = row["jacks"]
+	var phono := true
 	var depth := 0.0
 	for jack: Dictionary in jacks:
+		phono = phono and not jack.has("proud")
 		depth += float(jack.get("proud", TvInputKinds.RCA_PROUD)) - 0.0005
-	legend.standoff = depth / float(jacks.size())
-	match kind:
-		"composite":
-			legend.name = "AvLegend%d" % n
-			legend.standoff = AvLegend.PANEL_STANDOFF
-		"rf":
-			legend.name = "AvLegendRf" + suffix
-			legend.heading_override = "RF IN"
-			legend.show_words = false
-			legend.standoff = AvLegend.PANEL_STANDOFF
-		"hdmi":
-			legend.name = "AvLegendHdmi" + suffix
-			legend.heading_override = "HDMI IN"
-			legend.show_words = false
-		"scart":
-			legend.name = "AvLegendScart" + suffix
-			legend.heading_override = "AV IN (RGB)"
-			legend.show_words = false
-			# The bezel, 58 x 24 mm (generic/scart-socket), not a phono jack's round.
-			legend.jack_extent = Vector2(0.029, 0.012)
-		"component":
-			legend.name = "AvLegendComponent" + suffix
-			legend.word_override = {
-				RcaPort.Channel.VIDEO: "Y", RcaPort.Channel.VIDEO_PB: "Pb",
-				RcaPort.Channel.VIDEO_PR: "Pr", RcaPort.Channel.AUDIO_L: "L",
-				RcaPort.Channel.AUDIO_R: "R",
-			}
-		"svideo":
-			legend.name = "AvLegendSvideo" + suffix
-			legend.word_override = {
-				RcaPort.Channel.VIDEO: "S-VIDEO", RcaPort.Channel.AUDIO_L: "L",
-				RcaPort.Channel.AUDIO_R: "R",
-			}
+	legend.standoff = AvLegend.PANEL_STANDOFF if phono else depth / float(jacks.size())
+	if row.has("heading"):
+		legend.heading_override = str(row["heading"])
+	var words: Variant = row.get("words", true)
+	if words is Dictionary:
+		legend.word_override = words
+	elif words == false:
+		legend.show_words = false
+	if input.get("extent") is Vector2:
+		legend.jack_extent = input["extent"]
+	elif row.has("extent"):
+		legend.jack_extent = row["extent"]
 	legend.rebuild()
 
 
@@ -509,9 +518,13 @@ func release_input(input: int) -> void:
 func audio_ports(input: int) -> Array:
 	if input < 0 or input >= _av_ports.size():
 		return []
-	var trio: Array = _av_ports[input]
-	# L and R only: a component input's Pb and Pr come after them (collect).
-	return trio.slice(1, 3) if trio.size() > 1 else []
+	# L and R only: a component input's Pb and Pr come after them, and an aerial's
+	# Belling-Lee and VHF sockets are no audio at all.
+	var out: Array = []
+	for port: RcaPort in _av_ports[input]:
+		if port.channel == RcaPort.Channel.AUDIO_L or port.channel == RcaPort.Channel.AUDIO_R:
+			out.append(port)
+	return out
 
 
 ## Which socket ANYWHERE on this set is holding `plug` — audio as well as video.

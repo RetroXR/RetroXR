@@ -34,6 +34,14 @@ const LABELS := {
 	"hdmi_plug": "an HDMI plug",
 	"svideo_plug": "an S-Video plug",
 	"scart_plug": "a SCART plug",
+	"jp21_plug": "an RGB21 (JP-21) plug",
+	"dterminal_plug": "a D-Terminal plug",
+	"dvi_d_plug": "a DVI-D plug",
+	"dvi_i_plug": "a DVI-I plug",
+	"dvi_a_plug": "a DVI-A plug",
+	"displayport_plug": "a DisplayPort plug",
+	"iec_aerial_plug": "a Belling-Lee aerial plug",
+	"twinlead_spade": "a pair of twin-lead spade lugs",
 	"usb_b": "a USB-B plug",
 	"jst_vl8": "a NAOMI power plug",
 	"gd_50pin": "a GD-ROM cable plug",
@@ -157,6 +165,11 @@ static func of_takes(takes: String) -> String:
 ## a Chinese one, whose slots are both narrow. Every wall plug goes into the
 ## travel adapter's universal socket, which is what it is for.
 const ALSO_FITS := {
+	# A DVI-I socket takes every DVI plug: a DVI-D plug lacks only the analog pins it
+	# has holes for, a DVI-A plug only the digital ones. A DVI-D socket takes a DVI-D
+	# plug alone (the analog pins and the cross blade of the others hit its face).
+	"dvi_d_plug": ["dvi_i_plug"],
+	"dvi_a_plug": ["dvi_i_plug"],
 	"nema_5_15_plug": ["universal_socket"],
 	"nema_1_15_plug": ["nema_5_15_plug", "jis_c8303_socket", "gb_1002_2pin_socket",
 		"universal_socket"],
@@ -214,7 +227,8 @@ const CONTROLLER_PORTS := {
 ## the monitor. A lead's end that is one of these says nothing about which
 ## console it is for, so the spawn card never offers a lead for one: the
 ## Composite Cable is the game's own answer to a phono jack.
-const ROOM := ["composite_plug", "coax_plug", "trs_plug", "vga_plug", "hdmi_plug", "svideo_plug", "scart_plug", "nema_5_15_plug",
+const ROOM := ["composite_plug", "coax_plug", "trs_plug", "vga_plug", "hdmi_plug", "svideo_plug", "scart_plug", "jp21_plug",
+	"dterminal_plug", "dvi_d_plug", "dvi_i_plug", "dvi_a_plug", "displayport_plug", "iec_aerial_plug", "twinlead_spade", "nema_5_15_plug",
 	"nema_1_15_plug", "nema_1_15_polarized_plug", "iec_c13_plug", "iec_c7_plug",
 	"iec_c7_polarized_plug", "cee_7_7_plug", "cee_7_16_plug", "bs_1363_plug",
 	"as_3112_plug", "as_3112_2pin_plug", "sev_1011_plug", "cei_23_50_plug", "ds_k_plug",
@@ -250,14 +264,17 @@ const GAME_LEADS := {
 ## Dreamcast's and the Genesis Model 2's (each console's own PAL RGB SCART lead).
 const BETTER_LEADS := {
 	"n64_av_plug": [{"spawn": "n64_svideo_cable", "label": "S-Video Cable"},
-		{"spawn": "n64_scart_cable", "label": "RGB SCART Cable"}],
+		{"spawn": "n64_scart_cable", "label": "RGB SCART Cable"},
+		{"spawn": "n64_jp21_cable", "label": "RGB21 Cable (Japan)"}],
 	"wii_av_plug": [{"spawn": "wii_component_cable", "label": "Component Cable"},
 		{"spawn": "wii_scart_cable", "label": "RGB SCART Cable"}],
 	"ps2_av_multi": [{"spawn": "ps2_svideo_cable", "label": "S-Video Cable"},
 		{"spawn": "ps2_component_cable", "label": "Component Cable"},
-		{"spawn": "ps2_scart_cable", "label": "RGB SCART Cable"}],
+		{"spawn": "ps2_scart_cable", "label": "RGB SCART Cable"},
+		{"spawn": "ps2_jp21_cable", "label": "RGB21 Cable (Japan)"}],
 	"dc_av_plug": [{"spawn": "dc_scart_cable", "label": "RGB SCART Cable"}],
-	"genesis_av_plug": [{"spawn": "genesis_scart_cable", "label": "RGB SCART Cable"}],
+	"genesis_av_plug": [{"spawn": "genesis_scart_cable", "label": "RGB SCART Cable"},
+		{"spawn": "genesis_jp21_cable", "label": "RGB21 Cable (Japan)"}],
 }
 
 

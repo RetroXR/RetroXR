@@ -129,42 +129,43 @@ horizontal_alignment = 0
 ; arriving on an input.
 ;
 ; Channels are the appended surround values: 1 L, 2 R, 4 CENTER, 5 SUB, 6 SL,
-; 7 SR. Same 18 mm pitch as the input row, so a lead reaches these exactly as
+; 7 SR. On the top row (y 0.06, TvInputKinds.stock_layout says why). Same 18 mm pitch as
+; the input row, so a lead reaches these exactly as
 ; it reaches those.
 
 ; FRONT L
 [node name="SpeakerOutL" parent="." instance=ExtResource("10_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.150, -0.09, -0.16002099)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.150, 0.06, -0.16002099)
 channel = 1
 direction = 0
 
 ; FRONT R
 [node name="SpeakerOutR" parent="." instance=ExtResource("10_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.132, -0.09, -0.16002099)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.132, 0.06, -0.16002099)
 channel = 2
 direction = 0
 
 ; CENTER
 [node name="SpeakerOutC" parent="." instance=ExtResource("10_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.114, -0.09, -0.16002099)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.114, 0.06, -0.16002099)
 channel = 4
 direction = 0
 
 ; SUB
 [node name="SpeakerOutLfe" parent="." instance=ExtResource("10_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.096, -0.09, -0.16002099)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.096, 0.06, -0.16002099)
 channel = 5
 direction = 0
 
 ; SURROUND L
 [node name="SpeakerOutSl" parent="." instance=ExtResource("10_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.078, -0.09, -0.16002099)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.078, 0.06, -0.16002099)
 channel = 6
 direction = 0
 
 ; SURROUND R
 [node name="SpeakerOutSr" parent="." instance=ExtResource("10_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.060, -0.09, -0.16002099)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.060, 0.06, -0.16002099)
 channel = 7
 direction = 0
 [node name="Ambilight" type="SpotLight3D" parent="." unique_id=603587175]

@@ -163,6 +163,8 @@ func _run() -> void:
 		["inputs/a set has exactly the inputs it declares, two HDMI among them", _i_declared],
 		["inputs/a Wii U on HDMI 2 is filed, shown, saved and restored there", _i_hdmi_two],
 		["routing/a composite lead into a SCART block is the set's SCART input, composite quality", _r_scart_block],
+		["routing/an RGB21 lead is its own connector, filed on RGB21 as RGB with its sound", _r_jp21],
+		["routing/a tower on DVI and on DisplayPort: picture, and sound on DisplayPort only", _r_dvi_displayport],
 		["routing/an N64 wears ONE multi-out, not a phono row", _r_n64_multi_out],
 		["routing/its lead carries all three signals down one shell", _r_n64_lead],
 		["routing/a Wii lead does not fit an N64, nor the reverse", _r_multi_out_keying],
@@ -917,7 +919,7 @@ func _d_room_leads() -> void:
 
 func _i_ids() -> void:
 	var legacy := {"composite": [0, 1, 2, 3], "rf": [5], "vga": [6], "hdmi": [7], "svideo": [8],
-		"component": [9], "scart": [10]}
+		"component": [9], "scart": [10], "dvi": [11], "displayport": [12], "dterminal": [13], "jp21": [14]}
 	for kind: String in legacy:
 		var ids: Array = legacy[kind]
 		for i in ids.size():
@@ -1044,6 +1046,78 @@ func _r_scart_block() -> void:
 	scart.drop_object()
 	await _wait(30)
 	_check_eq(_which_input(tv, sys), -1, "the block pulled, the Wii is on no input")
+
+
+func _r_jp21() -> void:
+	var tv := _tv()
+	var sys := await _n64()
+	var socket := tv.panel().video_port(RetroTV.Source.JP21) as Jp21Port
+	var scart := tv.scart_port()
+	_ok(socket != null and socket.enabled, "the stock set has an RGB21 socket")
+	if socket == null or scart == null:
+		return
+	var ours := load("res://Scenes/Objects/system_models/nintendo_64/n64_jp21_cable.tscn").instantiate() as CompositeCable
+	var euro := load("res://Scenes/Objects/system_models/nintendo_64/n64_scart_cable.tscn").instantiate() as CompositeCable
+	for lead: Node3D in [ours, euro]:
+		lead.position = Vector3(_spawned.size() * 2.0, 1, -1.0)
+		add_child(lead)
+		_spawned.append(lead)
+	await _wait(20)
+	_check_eq(ours.cord_count(), 3, "an RGB21 lead carries three signals through two plugs")
+	var jp_plug := ours.get_node("PlugB0") as Node
+	var eu_plug := euro.get_node("PlugB0") as Node
+	_ok(jp_plug.is_in_group(socket.snap_require) and not jp_plug.is_in_group(scart.snap_require),
+		"an RGB21 plug fits the RGB21 socket and not SCART's, though the shells match")
+	_ok(eu_plug.is_in_group(scart.snap_require) and not eu_plug.is_in_group(socket.snap_require),
+		"and a SCART plug the other way round")
+	var multi := sys.find_child("AvMultiOut", true, false) as RcaPort
+	multi.pick_up_object(ours.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	socket.pick_up_object(jp_plug)
+	await _wait(35)
+	_check_eq(_which_input(tv, sys), RetroTV.Source.JP21, "an N64 on its RGB21 lead is filed on RGB21")
+	tv.set_source(RetroTV.Source.JP21)
+	_check_eq(tv.panel().selected_system(), sys, "and the set shows it there")
+	_check_eq(tv.display().signal_kind(), TvSignal.Kind.RGB, "as RGB")
+	_check_eq(tv.source_name(tv.current_source), "RGB21", "and calls it RGB21")
+	var feed: AvSource.Feed = AvSource.resolve(sys, false)
+	_check_eq(feed.audio_sink, tv, "its sound on the same plug")
+	_ok(feed.left == 0 and feed.right == 1, "in stereo")
+
+
+func _r_dvi_displayport() -> void:
+	var tv := _tv()
+	var tower := _tower()
+	await _wait(60)
+	var dvi_out := tower.find_child("DviOut", true, false) as DviPort
+	var dp_out := tower.find_child("DisplayPortOut", true, false) as DisplayPortPort
+	_ok(dvi_out != null and dvi_out.direction == RcaPort.Direction.OUT and not dvi_out.rf_feed,
+		"the tower's graphics card has a DVI-D OUT, picture only")
+	_ok(dp_out != null and dp_out.direction == RcaPort.Direction.OUT and dp_out.rf_feed,
+		"and a DisplayPort OUT whose sound rides the plug")
+	if dvi_out == null or dp_out == null:
+		return
+	var lead := await _single_lead(load("res://Scenes/Objects/cables/dvi_cable.tscn"), tower, "DviOut", tv, "DviIn")
+	_check_eq(_which_input(tv, tower), RetroTV.Source.DVI, "a tower on its DVI lead is filed on DVI")
+	tv.set_source(RetroTV.Source.DVI)
+	_check_eq(tv.display().signal_kind(), TvSignal.Kind.RGB, "drawn as RGB")
+	var feed: AvSource.Feed = AvSource.resolve(tower, false)
+	_ok(feed.audio_sink != tv, "and no sound comes down a DVI lead")
+	var plug := lead.get_node("PlugB0") as Node
+	_ok(plug.is_in_group("dvi_d_plug") and plug.is_in_group("dvi_i_plug"),
+		"a DVI-D plug fits a DVI-D socket and a DVI-I one")
+	_ok(not plug.is_in_group("hdmi_plug") and not plug.is_in_group("vga_plug"), "and nothing else")
+	# One input at a time: a machine is filed on the input its picture reaches first.
+	(tv.get_node("DviIn") as XRToolsSnapZone).drop_object()
+	await _wait(20)
+	await _single_lead(load("res://Scenes/Objects/cables/displayport_cable.tscn"), tower, "DisplayPortOut",
+		tv, "DisplayPortIn")
+	_check_eq(tv.panel().input_of_port(tv.get_node("DisplayPortIn") as RcaPort), RetroTV.Source.DISPLAYPORT,
+		"the DisplayPort socket is the DisplayPort input")
+	tv.set_source(RetroTV.Source.DISPLAYPORT)
+	_check_eq(tv.panel().selected_system(), tower, "the set shows the tower on DisplayPort")
+	feed = AvSource.resolve(tower, false)
+	_check_eq(feed.audio_sink, tv, "and plays its sound off the DisplayPort plug")
 
 
 ## A console with one hole in the back, and what the room does with it.
@@ -3914,6 +3988,10 @@ func _d_legacy_tv_source() -> void:
 	_check_eq(int(RetroTV.Source.SVIDEO), 8, "and S-Video after that")
 	_check_eq(int(RetroTV.Source.COMPONENT), 9, "and component after it")
 	_check_eq(int(RetroTV.Source.SCART), 10, "and SCART after that")
+	_check_eq(int(RetroTV.Source.DVI), 11, "and DVI after that")
+	_check_eq(int(RetroTV.Source.DISPLAYPORT), 12, "and DisplayPort after it")
+	_check_eq(int(RetroTV.Source.DTERMINAL), 13, "and D-Terminal")
+	_check_eq(int(RetroTV.Source.JP21), 14, "and RGB21")
 	_check_eq(int(RcaPort.Channel.VIDEO_PB), 9, "Pb is appended to the channels")
 	_check_eq(int(RcaPort.Channel.VIDEO_PR), 10, "and Pr after it")
 

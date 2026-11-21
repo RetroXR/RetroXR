@@ -93,7 +93,7 @@ static func is_display_shader(shader: Shader) -> bool:
 ## exactly those, and a second of a kind (HDMI 2) gets an id past this enum
 ## (TvInputKinds.id_for). Append only: the ints are on disk and on the wire.
 enum Source { COMPOSITE_1, COMPOSITE_2, COMPOSITE_3, COMPOSITE_4, TV, RF, VGA, HDMI,
-	SVIDEO, COMPONENT, SCART }
+	SVIDEO, COMPONENT, SCART, DVI, DISPLAYPORT, DTERMINAL, JP21 }
 
 ## The most composite inputs a set has, phono groups and built-in decks together: the
 ## ids Composite 1-4 own (TvDecks files a deck on the next one past the phono groups).
@@ -103,7 +103,7 @@ const COMPOSITE_INPUTS := 4
 ## (TvInputKinds.osd_name, which also names an HDMI 2); this table stays for the
 ## readers that walk the legacy ids.
 const SOURCE_NAMES := ["COMPOSITE 1", "COMPOSITE 2", "COMPOSITE 3", "COMPOSITE 4",
-	"TV", "RF", "VGA", "HDMI", "S-VIDEO", "COMPONENT", "SCART"]
+	"TV", "RF", "VGA", "HDMI", "S-VIDEO", "COMPONENT", "SCART", "DVI", "DISPLAYPORT", "D-TERMINAL", "RGB21"]
 
 ## The channels an RF modulator can put a console on, and what the set has to be
 ## tuned to for it to appear: 3 and 4 are the slide on the back of an NES, 1 and 2
@@ -716,8 +716,7 @@ func _ready() -> void:
 	# already in its ANT socket does not — its cord has one end seated and resolves
 	# to nothing — so the socket is asked directly. Deferred: the zone fires before
 	# picked_up_object is the thing a reader would find.
-	var rf := rf_port()
-	if rf != null:
+	for rf: RcaPort in _panel.aerial_sockets():
 		rf.has_picked_up.connect(func(_what: Node3D) -> void:
 			on_aerial_changed.call_deferred())
 		rf.has_dropped.connect(func() -> void:
