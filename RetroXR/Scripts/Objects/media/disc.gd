@@ -166,6 +166,7 @@ func _set_label_tex(tex: Texture2D) -> void:
 ## body to its own grab point by the time has_picked_up fires, so the hand's
 ## heading is gone one call earlier than the bay ever runs.
 var _release_basis := Basis.IDENTITY
+var _release_msec := -100000
 
 
 func let_go(by: Node3D, p_linear_velocity: Vector3, p_angular_velocity: Vector3) -> void:
@@ -175,7 +176,14 @@ func let_go(by: Node3D, p_linear_velocity: Vector3, p_angular_velocity: Vector3)
 	# time and the disc would always come up square.
 	if not (by is XRToolsSnapZone):
 		_release_basis = global_basis.orthonormalized()
+		_release_msec = Time.get_ticks_msec()
 	super(by, p_linear_velocity, p_angular_velocity)
+
+
+## True for the moment after a hand let it go: a seat that takes it now is taking it from that hand, and may keep
+## the heading it was released at (a seat filled by a spawn or a restore has no such heading to keep).
+func released_by_hand_just_now() -> bool:
+	return Time.get_ticks_msec() - _release_msec < 500
 
 
 ## The heading the hand released it at, in the frame of `bay`.

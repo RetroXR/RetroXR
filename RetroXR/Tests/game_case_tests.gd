@@ -61,6 +61,7 @@ func _run() -> void:
 		["model/every variant builds with its seats and art", _model_variants],
 		["case/a new case seats its discs and keeps them while shut", _case_contents],
 		["case/a case saves and restores as itself", _case_save],
+		["case/a disc put on a hub keeps the turn the hand held it at", _case_disc_spin],
 		["case/dropped shut or open, a case rests on the floor", _case_drop],
 		["case/the PS2 case's holder takes its memory card", _case_card_holder],
 		["case/the desktop lifts a disc out of an open case", _case_desktop_grab],
@@ -516,6 +517,35 @@ func _case_contents() -> void:
 
 ## Dropped shut, and dropped open, every kind of case comes to rest ON the floor: one convex hull, never two boxes
 ## (two in one body lost their contacts and the case sank into the table).
+func _case_disc_spin() -> void:
+	var c := _new_case("jewel", "single")
+	await get_tree().physics_frame
+	var disc := DISC_SCENE.instantiate() as RetroDisc
+	disc.systemid = "psx"
+	add_child(disc)
+	_spawned.append(disc)
+	var seat := c.disc_zone(0).get_parent() as Node3D
+	# Never in a hand (a spawn, a restore): square on the hub.
+	c._seat_disc(0, disc)
+	_ok(c.disc_zone(0).transform.is_equal_approx(Transform3D.IDENTITY), "a disc no hand put there sits square")
+	# Let go by a hand turned 50 degrees about the hub: it stays turned, and stays so when popped.
+	disc._release_basis = (seat.global_basis.orthonormalized() * Basis(Vector3.UP, deg_to_rad(50.0))).orthonormalized()
+	disc._release_msec = Time.get_ticks_msec()
+	c._seat_disc(0, disc)
+	var turn := rad_to_deg(c.disc_zone(0).transform.basis.get_euler().y)
+	_ok(absf(turn - 50.0) < 0.5, "a disc put on turned 50 degrees stays turned", str(turn))
+	_ok(c.disc_zone(0).transform.origin.is_zero_approx(), "down on the hub")
+	# Tilted in the hand as well: flat on the hub, the same turn.
+	disc._release_basis = (seat.global_basis.orthonormalized() * Basis(Vector3.UP, deg_to_rad(-120.0))
+		* Basis(Vector3.RIGHT, deg_to_rad(25.0))).orthonormalized()
+	c._seat_disc(0, disc)
+	var b := c.disc_zone(0).transform.basis
+	_ok(b.y.is_equal_approx(Vector3.UP) and absf(rad_to_deg(b.get_euler().y) + 120.0) < 0.5, "tilted in the hand: flat, turned -120",
+		str(b.get_euler()))
+	c._seat_disc(0)
+	_ok(c.disc_zone(0).transform.is_equal_approx(Transform3D.IDENTITY), "taken off: the seat is square again")
+
+
 func _case_drop() -> void:
 	var floor_body := StaticBody3D.new()
 	floor_body.collision_layer = 1

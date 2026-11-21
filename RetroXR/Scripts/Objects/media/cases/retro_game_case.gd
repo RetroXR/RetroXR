@@ -98,6 +98,7 @@ var _zones: Array[XRToolsSnapZone] = []          # disc seats, in seat order (in
 var _seat_carrier: Array[int] = []               # per disc seat: -1 the back, else a sim hinge
 var _seat_down: Array[bool] = []                 # per disc seat: its hub faces the back
 var _popped: Array[bool] = []                    # per disc seat: its hub button has popped the disc up
+var _seat_spin: Array[float] = []                # per disc seat: the turn about the hub its disc was put on at (rad)
 var _hub_buttons: Array[VRButton] = []
 var _manual_zone: XRToolsSnapZone
 var _manual_root: Node3D
@@ -386,8 +387,9 @@ func _build_zones() -> void:
 		var zone := _zone("DiscZone%d" % (i + 1), seat, "disc", 0.05, _accepts_disc.bind(i))
 		_zones.append(zone)
 		_popped.append(false)
+		_seat_spin.append(0.0)
 		zone.has_dropped.connect(_seat_disc.bind(i))
-		zone.has_picked_up.connect(func(_d: Node3D) -> void: _seat_disc(i))
+		zone.has_picked_up.connect(func(d: Node3D) -> void: _seat_disc(i, d))
 		_build_hub_button(seat, i)
 		_seat_carrier.append(_carrier_of(str(row.get("parent", row.get("carrier", "")))))
 		var axis: Array = row.get("hub_axis", [0, 0, 1])
@@ -472,7 +474,8 @@ func pop_disc(i: int) -> bool:
 	if i >= _zones.size() or _popped[i] or not _zones[i].picked_up_object is RetroDisc or not _seat_reachable(i):
 		return false
 	_popped[i] = true
-	_zones[i].transform = Transform3D(Basis(Vector3.RIGHT, deg_to_rad(POP_TILT_DEG)), Vector3(0.0, POP_LIFT, 0.0))
+	_zones[i].transform = Transform3D(Basis(Vector3.RIGHT, deg_to_rad(POP_TILT_DEG)) * Basis(Vector3.UP, _seat_spin[i]),
+		Vector3(0.0, POP_LIFT, 0.0))
 	_update_reach.call_deferred()
 	var ctrl := get_picked_up_by_controller()
 	if ctrl != null:
@@ -484,11 +487,18 @@ func is_popped(i: int) -> bool:
 	return i < _popped.size() and _popped[i]
 
 
-## A disc taken off seat i, or one put on it: back down on the hub.
-func _seat_disc(i: int) -> void:
+## A disc taken off seat i, or one put on it: back down on the hub. One a hand has just put there keeps the turn
+## it was offered at, as the snap preview drew it and as a console's tray seats it (RetroDisc.spin_of); a disc
+## the case was spawned or restored with sits square.
+func _seat_disc(i: int, disc: Node3D = null) -> void:
 	if i < _zones.size():
 		_popped[i] = false
-		_zones[i].transform = Transform3D.IDENTITY
+		_seat_spin[i] = 0.0
+		var d := disc as RetroDisc
+		var seat := _zones[i].get_parent() as Node3D
+		if d != null and seat != null and d.can_visually_spin() and d.released_by_hand_just_now():
+			_seat_spin[i] = RetroDisc.spin_of(Basis.IDENTITY, d.release_basis_in(seat))
+		_zones[i].transform = Transform3D(Basis(Vector3.UP, _seat_spin[i]), Vector3.ZERO)
 		_update_reach.call_deferred()
 
 
