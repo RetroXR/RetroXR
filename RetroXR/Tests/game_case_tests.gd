@@ -43,6 +43,7 @@ func _run() -> void:
 		["pick/a platform with no row gets a plain jewel case", _pick_default],
 		["pick/a mod's case row is taken", _pick_mod],
 		["discs/a game's discs are found by their numbers", _discs_of],
+		["pick/the menu icon is tall or square as the case is, doubled for a multi-disc case", _pick_icon],
 		["sim/a shut case held upside down stays shut", _sim_latched_upside_down],
 		["sim/an open lid falls open when the case stands on its spine", _sim_falls_open],
 		["sim/a case standing on a shelf holds its lid where it is", _sim_upright_holds],
@@ -179,6 +180,31 @@ func _discs_of() -> void:
 	m3u.store_string("Game (USA) (Disc 1).chd\nGame (USA) (Disc 2).chd\n")
 	m3u.close()
 	_eq(GameCase.discs_of(dir.path_join("Game.m3u")).size(), 2, "an m3u's list")
+
+
+func _pick_icon() -> void:
+	for row in [["jewel", "single", false], ["jewel", "fatbox4", false], ["jewel", "longbox", true], ["jewel", "pal", false],
+			["keep", "ps2", true], ["keep", "gc_jp", true], ["keep", "umd", true], ["keep", "multi5", true]]:
+		_eq(GameCase.is_tall(row[0], row[1]), row[2], "%s/%s tall" % [row[0], row[1]])
+	for shape in ["square", "tall", "square_multi", "tall_multi"]:
+		_ok(MenuIcons.case_icon(shape) != null, "an icon for %s" % shape)
+	_ok(MenuIcons.case_icon("round") == null, "none for a shape there is no picture of")
+	var dir := OS.get_user_data_dir().path_join("game_case_icon_test")
+	DirAccess.make_dir_recursive_absolute(dir)
+	var img := Image.create(931, 680, false, Image.FORMAT_RGB8)
+	img.save_png(dir.path_join("a.png"))
+	img.save_jpg(dir.path_join("a.jpg"))
+	_eq(GameCase.image_size(dir.path_join("a.png")), Vector2i(931, 680), "a PNG's size from its header")
+	_eq(GameCase.image_size(dir.path_join("a.jpg")), Vector2i(931, 680), "a JPEG's")
+	_eq(GameCase.image_size(dir.path_join("none.png")), Vector2i.ZERO, "none for a missing file")
+	_eq(GameCase.icon_of("ps2", "/nowhere/Game (USA).iso"), "tall", "a PS2 game")
+	_eq(GameCase.icon_of("psx", "/nowhere/Game (Japan).cue"), "square", "a Japanese PlayStation game")
+	_eq(GameCase.icon_of("dreamcast", "/nowhere/Game (USA).chd"), "square", "a Dreamcast game")
+	for n in [1, 2]:
+		FileAccess.open(dir.path_join("Two (USA) (Disc %d).chd" % n), FileAccess.WRITE).close()
+	_eq(GameCase.icon_of("psx", dir.path_join("Two (USA) (Disc 1).chd")), "square_multi", "a two-disc PlayStation game")
+	_eq(GameCase.icon_of("ps2", dir.path_join("Two (USA) (Disc 1).chd")), "tall_multi", "a two-disc PS2 game")
+	_eq(GameCase.icon_of("gc", dir.path_join("Two (USA) (Disc 1).chd")), "tall", "a two-disc GameCube game: its case holds one")
 
 
 # ---------------------------------------------------------------- sim

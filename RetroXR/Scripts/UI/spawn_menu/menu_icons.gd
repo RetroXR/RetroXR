@@ -148,6 +148,7 @@ const TINT_LOCATE   := Color(0.2, 0.9, 1.0)
 static var _font: FontVariation = null
 ## base font instance id -> the same font with the glyphs behind it.
 static var _wrapped: Dictionary = {}
+static var _case_icons := {}
 static var _romm_mark: Texture2D = null
 static var _flags_font: FontFile = null
 static var _disc_re: RegEx = null
@@ -251,6 +252,15 @@ static func disc_badge(disc: int) -> String:
 
 
 ## The RomM logo, for marking rows that came from the server. Null if absent.
+## The games row's picture of a game's case: `shape` is GameCase.icon_of's "square", "tall", "square_multi" or
+## "tall_multi" (Textures/Menu/case_*.svg, drawn on the font's own 24-unit grid). Null when there is no such file.
+static func case_icon(shape: String) -> Texture2D:
+	if not _case_icons.has(shape):
+		var path := "res://Textures/Menu/case_%s.svg" % shape
+		_case_icons[shape] = load(path) if ResourceLoader.exists(path) else null
+	return _case_icons[shape]
+
+
 static func romm_mark() -> Texture2D:
 	if _romm_mark == null and ResourceLoader.exists(ROMM_MARK_PATH):
 		_romm_mark = load(ROMM_MARK_PATH)

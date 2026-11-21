@@ -2205,6 +2205,10 @@ func _build_blank_rom_row() -> Control:
 	row.move_child(row.get_node("Key"), row.get_node("State").get_index() + 1)
 	# The case sits just left of the title (the owner, 2026-11-20): the game as it came off the shelf.
 	row.move_child(row.get_node("Case"), row.get_node("Main").get_index())
+	var case_btn := row.get_node("Case") as Button
+	case_btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	case_btn.add_theme_constant_override("icon_max_width", 26)
+	case_btn.add_theme_color_override("icon_normal_color", Color(0.72, 0.72, 0.86))
 
 	return row
 
@@ -2266,7 +2270,9 @@ func _bind_rom_row(row: Control, index: int) -> void:
 	# A disc game on this device: the case it was sold in, with its discs and manual (RetroGameCase).
 	var has_case := not local_path.is_empty() and MediaDimensions.is_disc_system(systemid) \
 		and not ArcadeDiscs.applies(systemid) and not NaomiGdRom.NAOMI_SYSTEMS.has(SystemIds.canonical(systemid))
-	case_btn.text = String.chr(MenuIcons.CASE)
+	# The case's own picture: square or tall as the case is, two discs when it holds several; the glyph without one.
+	case_btn.icon = MenuIcons.case_icon(GameCase.icon_of(systemid, local_path)) if has_case else null
+	case_btn.text = "" if case_btn.icon != null else String.chr(MenuIcons.CASE)
 	case_btn.visible = has_case
 	case_btn.tooltip_text = "This game in its case, with its discs and manual"
 	if has_case:

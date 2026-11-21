@@ -154,3 +154,63 @@ static func discs_of(rom_path: String) -> PackedStringArray:
 	for k: int in keys:
 		out.append(found[k])
 	return out if not out.is_empty() else PackedStringArray([rom_path])
+
+
+## The games row's picture of a game's case (MenuIcons.case_icon): "square" or "tall" by the case's own proportions
+## (every keep case and the long box are tall), with "_multi" when the case holds several discs. Kept per game: a
+## row is bound on every scroll.
+static var _icon_cache := {}
+
+
+static func icon_of(systemid: String, rom_path: String) -> String:
+	var key := "%s|%s" % [systemid, rom_path]
+	if _icon_cache.has(key):
+		return _icon_cache[key]
+	var discs := discs_of(rom_path).size()
+	var market := market_of(systemid, rom_path)
+	var size := Vector2i.ZERO
+	# Only the long box is told from the scan, and only its header is read for that.
+	if discs <= 1 and not market in ["eu", "jp"] and LONGBOX_BEFORE.has(SystemIds.canonical(systemid)):
+		size = image_size(RetroGameCase.box_art_path(systemid, rom_path))
+	var found := pick(systemid, market, discs, size, release_of(systemid, rom_path))
+	var name := "tall" if is_tall(str(found["family"]), str(found["variant"])) else "square"
+	if capacity(str(found["variant"])) > 1:
+		name += "_multi"
+	_icon_cache[key] = name
+	return name
+
+
+## Whether a case stands taller than it is wide (its contract's size).
+static func is_tall(family: String, variant: String) -> bool:
+	var mm: Array = GameCaseModel.variant_contract(family, variant).get("size_mm", [])
+	if mm.size() < 2:
+		return family == "keep"
+	return float(mm[1]) > float(mm[0]) * 1.2
+
+
+## A PNG's or JPEG's size from its header, without decoding it (Vector2i.ZERO for anything else).
+static func image_size(path: String) -> Vector2i:
+	var f := FileAccess.open(path, FileAccess.READ) if not path.is_empty() else null
+	if f == null:
+		return Vector2i.ZERO
+	f.big_endian = true
+	var head := f.get_buffer(24)
+	if head.size() == 24 and head[0] == 0x89 and head[1] == 0x50:
+		return Vector2i((head[16] << 24) | (head[17] << 16) | (head[18] << 8) | head[19],
+			(head[20] << 24) | (head[21] << 16) | (head[22] << 8) | head[23])
+	if head.size() < 4 or head[0] != 0xFF or head[1] != 0xD8:
+		return Vector2i.ZERO
+	f.seek(2)
+	while f.get_position() + 9 < f.get_length():
+		if f.get_8() != 0xFF:
+			continue
+		var marker := f.get_8()
+		if marker == 0xFF or marker == 0x00 or (marker >= 0xD0 and marker <= 0xD9):
+			continue
+		var length := f.get_16()
+		if marker >= 0xC0 and marker <= 0xCF and marker != 0xC4 and marker != 0xC8 and marker != 0xCC:
+			f.get_8()
+			var h := f.get_16()
+			return Vector2i(f.get_16(), h)
+		f.seek(f.get_position() + length - 2)
+	return Vector2i.ZERO
