@@ -148,7 +148,9 @@ func manual_path() -> String:
 func spawn_contents(disc_paths: PackedStringArray) -> void:
 	var room := get_parent()
 	var umd := systemid == "psp" and _holder_zone != null
-	var seats: Array[XRToolsSnapZone] = [_holder_zone] if umd else _zones
+	var seats: Array[XRToolsSnapZone] = _zones
+	if umd:
+		seats = [_holder_zone] as Array[XRToolsSnapZone]
 	for i in mini(disc_paths.size(), seats.size()):
 		var disc := (UMD_SCENE if umd else DISC_SCENE).instantiate() as RetroCartridge
 		disc.rom_path = disc_paths[i]
@@ -454,6 +456,9 @@ func _sync_manual() -> void:
 		_seated_book = seated
 	if case_family == "jewel":
 		model.show_booklet(seated != null or not _has_manual)
+		# Inside the open lid the booklet shows its back: the manual's last page, from the PDF.
+		var back := seated.get_node_or_null("BackCover") as MeshInstance3D if seated != null else null
+		model.set_booklet_back(back.get_active_material(0) if back != null else null)
 		return
 	if seated == null:
 		if _manual_proxy != null:

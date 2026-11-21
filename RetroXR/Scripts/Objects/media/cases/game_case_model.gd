@@ -239,6 +239,13 @@ func manual_size_m() -> Vector2:
 	return Vector2(float(m[0]), float(m[1])) * 0.001
 
 
+## The jewel booklet's back page (seen inside the open lid): a seated manual's own material for its last page, or
+## null for the plain paper the model ships.
+func set_booklet_back(mat: Material) -> void:
+	_each_surface("Jewel_BookletBack", func(mi: MeshInstance3D, s: int, _base: Material) -> void:
+		mi.set_surface_override_material(s, mat))
+
+
 ## The booklet the case shows (the jewel case's printed front; the keep case has none of its own).
 func show_booklet(on: bool) -> void:
 	for level in levels:

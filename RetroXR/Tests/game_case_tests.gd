@@ -59,6 +59,7 @@ func _run() -> void:
 		["case/the PS2 case's holder takes its memory card", _case_card_holder],
 		["case/the desktop lifts a disc out of an open case", _case_desktop_grab],
 		["case/a cover that carries a disc takes no manual", _case_no_manual_on_disc_cover],
+		["case/a UMD case seats its UMD", _case_umd_contents],
 	]
 	for c in cases:
 		_case = str(c[0])
@@ -482,6 +483,18 @@ func _case_desktop_grab() -> void:
 	if zone != null:
 		zone.drop_object()
 	_ok(d.can_pick_up(grabber) and not c.discs().has(d), "and then a hand may have it")
+
+
+func _case_umd_contents() -> void:
+	var c := _new_case("keep", "umd")
+	c.systemid = "psp"
+	await get_tree().physics_frame
+	c.spawn_contents(PackedStringArray(["C:/roms/psp/Game.iso"]))
+	for d in c.discs():
+		_spawned.append(d)
+	await get_tree().physics_frame
+	_eq(c.discs().size(), 1, "one UMD on its holder")
+	_ok(c.discs()[0] is RetroUMD if not c.discs().is_empty() else false, "a UMD, not a disc")
 
 
 func _case_no_manual_on_disc_cover() -> void:
