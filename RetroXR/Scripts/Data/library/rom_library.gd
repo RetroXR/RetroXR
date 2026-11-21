@@ -132,6 +132,13 @@ static func _scan_dir(systemid: String, dir_path: String,
 	# that pairs by extension and both strips are .raw, so grouping is by name.
 	if systemid == EReaderCards.SYSTEMID:
 		return _scan_ereader_cards(dir_path)
+	# A shelf of figures (amiibo, Skylanders, ...), each dump tested, through every
+	# subfolder: a figure's series is its folder.
+	if FigureShelves.handles(systemid):
+		var figs: Array[Dictionary] = []
+		for f: Dictionary in FigureShelves.figures(systemid, dir_path):
+			figs.append({"path": f["path"], "label": f["label"]})
+		return figs
 
 	# data ext -> descriptor ext that supersedes it
 	const SHADOWED_BY := {"bin": "cue", "img": "ccd", "mdf": "mds"}

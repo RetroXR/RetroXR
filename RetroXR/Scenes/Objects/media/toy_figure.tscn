@@ -1,0 +1,34 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/media/toy_figure.gd" id="1_obj"]
+[ext_resource type="Script" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="2_grab"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_high"]
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_obj"]
+friction = 0.8
+
+; A figure (ToyFigure): an amiibo, a Skylander, an Infinity figure or a Dimensions tag, its shapes and look built from its dump.
+[node name="ToyFigure" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.03
+physics_material_override = SubResource("PhysicsMaterial_obj")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_obj")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+
+[node name="GrabPoint" type="Marker3D" parent="."]
+visible = false
+script = ExtResource("2_grab")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("3_high")

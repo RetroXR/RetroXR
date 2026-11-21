@@ -15,6 +15,7 @@ const UMD_DISC_SCENE        := preload("res://Scenes/Objects/media/umd_disc.tscn
 const BOOK_SCENE            := preload("res://Scenes/Objects/media/pdf_book.tscn")
 const GAME_CASE_SCENE       := preload("res://Scenes/Objects/media/game_case.tscn")
 const POSTER_SCENE := preload("res://Scenes/Objects/media/poster.tscn")
+const FIGURE_SCENE := preload("res://Scenes/Objects/media/toy_figure.tscn")
 const RETRO_CONTROLLER_SCENE := preload("res://Scenes/Objects/controllers/retro_controller.tscn")
 # Stand-in Virtual Boy pad: carries the console POWER switch, like the real one.
 const VB_CONTROLLER_SCENE   := preload("res://Scenes/Objects/controllers/vb/vb_controller.tscn")
@@ -1536,6 +1537,13 @@ func _on_spawn_requested(raw: String) -> void:
 
 func _on_spawn_cartridge_requested(rom_path: String, game_label: String, systemid := "",
 		options := {}) -> void:
+	# A figure's dump (an amiibo, a Skylander, ...) is a figure for its reader or base, not a cartridge.
+	if FigureShelves.handles(systemid):
+		var fig := FIGURE_SCENE.instantiate() as ToyFigure
+		fig.systemid = systemid
+		fig.rom_path = rom_path
+		_place_spawned(fig, ToyFigure.KIND)
+		return
 	# The BS-X shell is not a bare cartridge, it is THE BS-X cartridge -- a shell
 	# with a well in its roof that a memory pack goes into. Spawning it as a plain
 	# cart gave a slab with nowhere to put a pack, so the one object the whole

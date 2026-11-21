@@ -656,6 +656,16 @@ func _extra_systemids(seen: Dictionary) -> Array[String]:
 		if not ExpansionCatalog.firmware_rom_path(id).is_empty():
 			out.append(id)
 			seen[id] = true
+	# Figures (amiibo, Skylanders, Disney Infinity, Lego Dimensions) have no core of their own:
+	# their shelves come with Cemu, whose GamePad and USB bases read them, or with a folder of
+	# them already on disk.
+	var have_cemu := "cemu" in _installed_core_names()
+	for fid: String in FigureShelves.SYSTEMIDS:
+		var fdir := RomLibrary.rom_dir_for_system(fid)
+		if not seen.has(fid) and (have_cemu
+				or not (Array(DirAccess.get_files_at(fdir)) + Array(DirAccess.get_directories_at(fdir))).is_empty()):
+			out.append(fid)
+			seen[fid] = true
 	# And every platform an INSTALLED core serves, for exactly the same reason.
 	#
 	# On a settled install this adds nothing: the Cores panel adopts a default the
@@ -1343,6 +1353,9 @@ func _populate_cartridges_detail(systemid: String, vbox: VBoxContainer) -> void:
 	# fill the page when the result lands; until then the list says so.
 	if systemid == EReaderCards.SYSTEMID and not EReaderCards.is_warm():
 		EReaderCards.warm_async("", _on_ereader_cards_warm.bind(systemid))
+	# Each dump's header is read to keep strays off the shelf: off the main thread too.
+	if FigureShelves.handles(systemid) and not FigureShelves.is_warm(systemid):
+		FigureShelves.warm_async(systemid, "", _on_ereader_cards_warm.bind(systemid))
 
 	_rebuild_romm_rows()
 
@@ -1780,6 +1793,8 @@ func _romm_update_empty_label() -> void:
 		_romm_empty_label.text = "Scanning cards…" if p.y == 0 			else "Scanning cards… %d / %d" % [p.x, p.y]
 		# Tick the count until the scan lands; the rebuild it triggers stops this.
 		get_tree().create_timer(0.25).timeout.connect(_romm_update_empty_label)
+	elif FigureShelves.handles(_romm_detail_systemid) and not FigureShelves.is_warm(_romm_detail_systemid):
+		_romm_empty_label.text = "Scanning figures…"
 	elif not _romm_filter.is_empty():
 		_romm_empty_label.text = "No games match “%s”." % _romm_filter
 	elif not romm_client.is_reachable():
@@ -1828,6 +1843,15 @@ func _local_by_name(systemid: String) -> Dictionary:
 	# the next rebuild asks again.
 	if systemid == EReaderCards.SYSTEMID and not EReaderCards.is_warm():
 		return {}
+	# By label, not stem: "Donkey Kong.bin" is a Smash figure and five Mario Sports cards.
+	if FigureShelves.handles(systemid):
+		if not FigureShelves.is_warm(systemid):
+			return {}
+		var figs: Dictionary = {}
+		for rom: Dictionary in RomLibrary.scan_roms(systemid, [] as Array[String]):
+			figs[str(rom["label"]).to_lower()] = rom
+		_local_scan_cache[systemid] = figs
+		return figs
 	# Same-stem collisions are resolved by RomLibrary: a manifest beats its tracks,
 	# and a real game beats a save or savestate that happens to sit beside it.
 	var by_name := RomLibrary.index_by_basename(
@@ -1891,6 +1915,10 @@ func _request_local_counts(systemids: Array[String]) -> void:
 		# The e-Reader's shelf is cards, grouped by name off a scan of its own —
 		# not a folder of games to count.
 		if sid == EReaderCards.SYSTEMID:
+			continue
+		if FigureShelves.handles(sid):
+			if FigureShelves.is_warm(sid):
+				_local_counts[sid] = FigureShelves.figures(sid).size()
 			continue
 		var exts := CoreInfoDatabase.extensions_for_systemid(sid)
 		if exts.is_empty():

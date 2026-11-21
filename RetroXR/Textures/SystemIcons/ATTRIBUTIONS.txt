@@ -103,7 +103,7 @@ Retrieved 2026-07-28; -content art and the SNES console correction 2026-07-30;
 Wii U and Famicom 2026-09-15; Game Boy Color 2026-09-22;
 Neo Geo Pocket Color, WonderSwan Color, NAOMI, NAOMI 2 and Atomiswave
 2026-09-25; PlayStation Vita, PocketStation, FM Towns, Playdia, Super A'Can,
-HyperScan and Symbian 2026-11-05.
+HyperScan and Symbian 2026-11-05; amiibo 2026-11-21.
 
 file map
 -------------------------------------------------------------------------------
@@ -120,6 +120,8 @@ hyperscan.svg                       Mattel - HyperScan.svg
 n3ds-content.svg                    Nintendo - Nintendo 3DS-content.svg
 n3ds.svg                            Nintendo - Nintendo 3DS.svg
 _default.svg                        default.svg
+amiibo-content.svg                  Nintendo - Amiibo-content.svg
+amiibo.svg                          Nintendo - Amiibo.svg
 amigacd32-content.svg               Commodore - CD32-content.svg
 amigacd32.svg                       Commodore - CD32.svg
 cdtv-content.svg                    Commodore - CDTV-content.svg

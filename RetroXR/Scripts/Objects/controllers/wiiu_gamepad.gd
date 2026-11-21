@@ -13,6 +13,8 @@
 ##     axes, which Cemu takes for the GamePad (+X right, +Y the top edge, +Z out of
 ##     the screen; at rest flat, (0, 0, 1) g).
 ## And its speaker: the console's controller audio voice for port 0, posed here.
+## And its NFC touchpoint below the D-pad (NfcZone): an amiibo set on it is the
+## console's tag.
 class_name WiiUGamePad
 extends WiiUWirelessPad
 
@@ -32,6 +34,10 @@ const DC_PORT := preload("res://Scenes/Objects/cables/barrel_dc_port.tscn")
 const AC_PORT_NAME := "ACAdapterPort"
 const CHARGE_ON := Color(1.0, 0.45, 0.05)
 const CHARGE_OFF := Color(0.12, 0.1, 0.08)
+## The NFC touchpoint's mark on the face, below the D-pad. The real one is at
+## (-85, 24) mm (RetroXR-models params.py "nfc"); this box's D-pad sits lower, so
+## its mark does too, and a model's dressing moves it.
+const NFC_AT := Vector3(-0.085, BODY.y * 0.5, 0.045)
 
 var _screen: MeshInstance3D = null
 var _touch: TVTouchSurface = null
@@ -51,6 +57,7 @@ var _power: PowerInput = null
 var _charge_mat: StandardMaterial3D = null
 var _charging := false
 var _charge_poll := 0
+var _nfc: NfcTouchZone = null
 
 
 func _init() -> void:
@@ -118,6 +125,9 @@ func _build_model() -> void:
 	_speaker.name = "Speaker"
 	_speaker.transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5), Vector3(0.0, top, 0.052))
 	add_child(_speaker)
+	_nfc = NfcTouchZone.new()
+	_nfc.position = NFC_AT
+	add_child(_nfc)
 	var label := Label3D.new()
 	label.name = "SyncLabel"
 	label.text = "SYNC"
@@ -154,10 +164,12 @@ func on_plugged_in(system: RetroSystem, port_index: int) -> void:
 		_screen.add_child(_touch)
 	else:
 		_touch.host = system
+	_nfc.set_host(system)
 
 
 func on_unplugged() -> void:
 	super.on_unplugged()
+	_nfc.set_host(null)
 	if _touch != null:
 		_touch.queue_free()
 		_touch = null
