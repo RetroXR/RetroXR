@@ -26,6 +26,7 @@ var _world: Node3D
 var _cam: Camera3D
 var _label: Label
 var _frame := 0
+var _only: PackedStringArray = []
 
 
 func _ready() -> void:
@@ -35,6 +36,8 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--out="):
 			_out = arg.substr(6)
+		if arg.begins_with("--only="):
+			_only = arg.substr(7).split(",")
 	if _out.is_empty():
 		_out = ProjectSettings.globalize_path("user://case_video")
 	DirAccess.make_dir_recursive_absolute(_out.path_join("frames"))
@@ -129,7 +132,8 @@ func _run() -> void:
 	var order: Array = []
 	for fam: String in GameCaseModel.FAMILIES:
 		for v: String in GameCaseModel.variants_of(fam):
-			order.append([fam, v])
+			if _only.is_empty() or v in _only:
+				order.append([fam, v])
 	for e in order:
 		var c := await _make(str(e[0]), str(e[1]))
 		await get_tree().physics_frame

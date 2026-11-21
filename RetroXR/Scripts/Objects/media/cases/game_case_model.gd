@@ -368,7 +368,8 @@ func apply_box_texture(texture: Texture2D) -> Error:
 	# A US scan's front is the whole case front: what lies left of the booklet goes on the strip over the band.
 	var band := w - h * (float(lay["back"]) + float(lay["spine"])) - book * w
 	var strip := minf(band, float(lay["strip_mm"]) * book * w / float(lay["booklet_mm"])) / w
-	if strip * w >= 2.0:
+	# A slim case has no ribbed band to print a US scan's strip over: its base is one flat deck.
+	if strip * w >= 2.0 and variant != "slim":
 		_art("Jewel_Strip", texture, Vector3(strip, 1, 1), Vector3(1.0 - book - strip, 0, 0))
 	else:
 		_hide_strip()
