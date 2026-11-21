@@ -35,7 +35,9 @@ const KEEP_SPRINGBACK_DEG := 4.0
 ## as the lid turns a jewel case's pins creak, a keep case's hinge and sleeve rustle, once in about this much travel.
 const SFX_DIR := "res://Audio/cases/"
 const SFX_TURN := {"jewel": "creak", "keep": "hinge"}
-const SFX_TURN_DEG := 60.0
+const SFX_TURN_DEG := 92.0
+## Degrees per second. A slow hand turn hardly excites the hinge or sleeve.
+const SFX_TURN_MIN_SPEED := 55.0
 ## <family>_stop: the lid against its open stop, or home without catching, from this speed (rad/s) up; full at
 ## SFX_SLAM. A keep case's cover has no such sound: it never swings.
 const SFX_KNOCK := 2.0
@@ -127,7 +129,7 @@ var _sfx_ticks := 0
 var _sfx_latched := true
 var _sfx_lid := 0.0
 var _sfx_travel := 0.0
-var _sfx_next := 15.0
+var _sfx_next := SFX_TURN_DEG
 var _prev_rot := Quaternion.IDENTITY
 var _has_rot := false
 var _turn := 0.0
@@ -739,7 +741,7 @@ func _sound(delta: float) -> void:
 		if sim.latched != _sfx_latched:
 			_play_sfx("snap", "close" if sim.latched else "open", 0.6)
 			_sfx_travel = 0.0
-			_sfx_next = 15.0
+			_sfx_next = SFX_TURN_DEG * randf_range(0.7, 1.4)
 		elif sim.knocked >= SFX_KNOCK:
 			_play_sfx("snap", "stop", clampf(sim.knocked / SFX_SLAM, 0.12, 0.8))
 		if not sim.latched and sim.latched == _sfx_latched:
@@ -748,7 +750,9 @@ func _sound(delta: float) -> void:
 				_sfx_travel = 0.0
 				_sfx_next = SFX_TURN_DEG * randf_range(0.7, 1.4)
 				var speed := absf(lid - _sfx_lid) / delta
-				_play_sfx("turn", str(SFX_TURN.get(case_family, "creak")), clampf(speed / 600.0, 0.2, 0.45))
+				if speed > SFX_TURN_MIN_SPEED:
+					var gain := clampf((speed - SFX_TURN_MIN_SPEED) / 850.0, 0.0, 0.32)
+					_play_sfx("turn", str(SFX_TURN.get(case_family, "creak")), gain)
 	sim.knocked = 0.0
 	_sfx_latched = sim.latched
 	_sfx_lid = lid

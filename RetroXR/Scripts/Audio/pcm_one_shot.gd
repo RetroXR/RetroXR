@@ -77,5 +77,5 @@ func _process(_delta: float) -> void:
 			out[i] = Vector2.ZERO       # pad the rest of the buffer with silence
 	_emitter.push_stereo(out)
 	if _read >= _frames.size():
+		# The mixer still has queued frames to play at this gain.
 		_read = -1
-		_emitter.set_volume(0.0)
