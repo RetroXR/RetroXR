@@ -851,8 +851,7 @@ func _lid_blocked(deg: float) -> bool:
 ## one a hand has goes where the hand takes it. True when it moved.
 func _lid_gives_way() -> bool:
 	var top := sim.top()
-	if sim.latched or top < 0 or sim.held[top] or not is_inside_tree() or freeze_mode == RigidBody3D.FREEZE_MODE_STATIC \
-			and freeze and get_picked_up_by() == null and sleeping:
+	if sim.latched or top < 0 or sim.held[top] or not is_inside_tree():
 		return false
 	var at := sim.angle_deg(top)
 	if not _lid_blocked(at):
