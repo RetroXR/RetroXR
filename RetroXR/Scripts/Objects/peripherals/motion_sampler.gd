@@ -55,12 +55,31 @@ func sample(xform: Transform3D, delta: float) -> void:
 	_prev_basis = basis_now
 	if q_prev.dot(q_now) < 0.0:
 		q_prev = -q_prev   # the short way round
-	var dq := (q_now * q_prev.inverse()).normalized()
-	var angle := dq.get_angle()
 	var w := Vector3.ZERO
-	if angle > GYRO_MIN_ANGLE:
-		w = dq.get_axis() * (angle / delta)
+	var turn := tick_rotation(q_prev, q_now)
+	if turn.length() > GYRO_MIN_ANGLE:
+		w = turn / delta
 	gyro_world = gyro_world.lerp(w, GYRO_SMOOTHING)
+
+
+## One tick's rotation from `q_prev` to `q_now`, as axis * angle (radians, world).
+##
+## NEVER Quaternion.get_angle() here: it is 2 * acos(w), and for the rotation of
+## one tick w is so close to 1 that in 32-bit floats it IS 1. Measured: every turn
+## up to 0.05 degrees a tick came out as exactly 0, and 0.1 degrees as 0.0885. A
+## slow turn of a held GamePad (1.3 deg/s at 90 Hz) was thrown away whole, while
+## the quick parts of the same movement got through -- so slow turns did not count
+## and the pointer went off in odd directions. atan2 of the vector part and w is
+## exact at any size.
+static func tick_rotation(q_prev: Quaternion, q_now: Quaternion) -> Vector3:
+	var dq := (q_now * q_prev.inverse()).normalized()
+	if dq.w < 0.0:
+		dq = -dq   # the short way round
+	var v := Vector3(dq.x, dq.y, dq.z)
+	var s := v.length()
+	if s <= 0.0:
+		return Vector3.ZERO
+	return v / s * (2.0 * atan2(s, dq.w))
 
 
 ## Acceleration in g on the axes of `basis` (the device's own frame in the world).

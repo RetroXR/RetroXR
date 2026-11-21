@@ -243,6 +243,21 @@ func _test_the_gamepad_reads_androids_axes() -> void:
 	var w := WiiUGamePad.android_axes(spin.gyro_local(Basis(Vector3.UP, 0.58)))
 	_ok(w.z > 1.0 and absf(w.x) < 0.05 and absf(w.y) < 0.05,
 		"axes/a flat turn is a spin about Android's Z", str(w))
+	# A SLOW turn counts too: 0.03 degrees a tick at 90 Hz (2.7 deg/s), tilted
+	# off the vertical so every axis has a share. Quaternion.get_angle() read it
+	# as exactly 0, and a held GamePad's slow turns never reached the core.
+	var slow := MotionSampler.new()
+	var axis := Vector3(0.3, 0.9, 0.2).normalized()
+	var step := deg_to_rad(0.03)
+	var sent := Vector3.ZERO
+	for i in 91:
+		slow.sample(Transform3D(Basis(axis, step * i), Vector3.ZERO), 1.0 / 90.0)
+		if i > 10:
+			sent += slow.gyro_world / 90.0
+	var want := axis * step * 80.0
+	_ok(sent.distance_to(want) < want.length() * 0.05,
+		"axes/a slow turn of 0.03 deg a tick reaches the gyro, on its own axis",
+		"%s, want %s" % [sent, want])
 
 
 # ── cradle/ ──────────────────────────────────────────────────────────────────

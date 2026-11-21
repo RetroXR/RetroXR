@@ -51,6 +51,16 @@ var _power: PowerInput = null
 var _charge_mat: StandardMaterial3D = null
 var _charging := false
 var _charge_poll := 0
+## The motion trace (_trace_motion): on while Cemu's motion_trace.txt exists,
+## looked for at each power-on.
+var _trace_on := false
+var _trace_for: Object = null
+var _trace_at_ms := 0
+var _trace_basis := Basis.IDENTITY
+var _trace_sent := Vector3.ZERO
+var _trace_ticks := 0
+var _trace_moved := 0
+var _trace_prev := Basis.IDENTITY
 
 
 func _init() -> void:
@@ -194,6 +204,46 @@ func _physics_process(delta: float) -> void:
 	if not NetworkManager.netplay_set_aux_sensor(_connected_system, _port_index, 0,
 			int(w.x * 100.0), int(w.y * 100.0), int(w.z * 100.0), true):
 		lib.SetSensorGyro(_port_index, w.x, w.y, w.z)
+	_trace_motion(lib, b, w, delta)
+
+
+## With Cemu's motion trace on (a motion_trace.txt in system/cemu/Cemu/), once a
+## second: how far the GamePad REALLY turned in the room, how much turning the
+## gyro sent added up to, and on how many physics ticks the pose moved at all --
+## so a turn lost between the hand and the core can be told from one the game
+## ignores. Read beside the core's own "motion:" line for the same second.
+func _trace_motion(lib: Object, b: Basis, w: Vector3, delta: float) -> void:
+	if _trace_for != lib:
+		_trace_for = lib
+		_trace_on = FileAccess.file_exists(DataPaths.libretro_root().path_join("system/cemu/Cemu/motion_trace.txt"))
+		_trace_at_ms = Time.get_ticks_msec()
+		_trace_basis = b.orthonormalized()
+		_trace_prev = _trace_basis
+		_trace_sent = Vector3.ZERO
+		_trace_ticks = 0
+		_trace_moved = 0
+		if _trace_on:
+			print("[WiiU] GamePad motion trace on (physics %d Hz)" % Engine.physics_ticks_per_second)
+	if not _trace_on:
+		return
+	var now := b.orthonormalized()
+	_trace_ticks += 1
+	if MotionSampler.tick_rotation(_trace_prev.get_rotation_quaternion(), now.get_rotation_quaternion()).length() > 0.00001:
+		_trace_moved += 1
+	_trace_prev = now
+	_trace_sent += w * delta
+	if Time.get_ticks_msec() - _trace_at_ms < 1000:
+		return
+	var turned := rad_to_deg(MotionSampler.tick_rotation(_trace_basis.get_rotation_quaternion(), now.get_rotation_quaternion()).length())
+	var held := "held" if is_picked_up() else "not held"
+	print("[WiiU] GamePad motion: turned %.1f deg in the room, gyro sent adds to %.1f deg (%.1f, %.1f, %.1f); pose moved on %d of %d ticks; %s, %d fps" % [
+		turned, rad_to_deg(_trace_sent.length()), rad_to_deg(_trace_sent.x), rad_to_deg(_trace_sent.y),
+		rad_to_deg(_trace_sent.z), _trace_moved, _trace_ticks, held, Engine.get_frames_per_second()])
+	_trace_at_ms = Time.get_ticks_msec()
+	_trace_basis = now
+	_trace_sent = Vector3.ZERO
+	_trace_ticks = 0
+	_trace_moved = 0
 
 
 ## From the pad's own frame (+X right, +Y out of the screen, -Z the top edge) to
