@@ -45,7 +45,11 @@ func socket() -> AdapterAvPort:
 func _resolve() -> void:
 	super._resolve()
 	var told: Array = []
-	var jacks: Array = find_children("*", "AdapterRcaPort", true, false)
+	# Every adapter jack under it (AdapterRcaPort, AdapterSvideoPort, any later one): they answer host_socket().
+	var jacks: Array = []
+	for n: Node in find_children("*", "", true, false):
+		if n is Port and n.has_method("host_socket"):
+			jacks.append(n)
 	if is_instance_valid(_socket):
 		jacks.append(_socket)
 	for jack: Node in jacks:
