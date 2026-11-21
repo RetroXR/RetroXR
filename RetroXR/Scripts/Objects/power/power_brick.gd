@@ -372,6 +372,35 @@ func _model_anchor(carrier: Node3D, anchor_name: String, node_name: String, box:
 
 ## The wall plug: for a wall wart, the whole body with the region's prongs drawn on
 ## its face from MainsSpecs; else the region's cord plug.
+## The mains plug's plastic in the row's `mains` colour (the Wii U's adapters mold theirs gray). The shared plug meshes are
+## vertex-coloured (Shaders/connector.gdshader): the plastic is their dark vertices, the blades and pins their light ones. A copy
+## with the dark vertices in the row's colour, made once per mesh and colour and shared. A row without one keeps the mesh's own.
+static var _mains_meshes := {}
+
+
+func _colour_mains(tip: MeshInstance3D) -> void:
+	var colour: Variant = _spec.get("mains", null)
+	if not colour is Color or tip == null or not tip.mesh is ArrayMesh:
+		return
+	var key := "%s|%s" % [tip.mesh.resource_path, (colour as Color).to_html()]
+	if not _mains_meshes.has(key):
+		var src := tip.mesh as ArrayMesh
+		var out := ArrayMesh.new()
+		for s in src.get_surface_count():
+			var arrays := src.surface_get_arrays(s)
+			var cols: Variant = arrays[Mesh.ARRAY_COLOR]
+			if cols is PackedColorArray and not (cols as PackedColorArray).is_empty():
+				var c := (cols as PackedColorArray).duplicate()
+				for i in c.size():
+					if c[i].get_luminance() < 0.3:
+						c[i] = Color((colour as Color).r, (colour as Color).g, (colour as Color).b, c[i].a)
+				arrays[Mesh.ARRAY_COLOR] = c
+			out.add_surface_from_arrays(src.surface_get_primitive_type(s), arrays)
+			out.surface_set_material(s, src.surface_get_material(s))
+		_mains_meshes[key] = out
+	tip.mesh = _mains_meshes[key]
+
+
 func _make_wall_plug(is_body: bool, size: Vector3) -> void:
 	var connector := PowerBrickCatalog.wall_plug_of(variant)
 	wall_plug.set_connector(connector)
@@ -394,6 +423,7 @@ func _make_wall_plug(is_body: bool, size: Vector3) -> void:
 		var path := PLUG_MESH % connector
 		if ResourceLoader.exists(path):
 			tip.mesh = load(path) as Mesh
+		_colour_mains(tip)
 		var ab := tip.mesh.get_aabb() if tip.mesh != null else AABB(Vector3(-0.015, -0.01, -0.06), Vector3(0.03, 0.02, 0.06))
 		_fit_shapes(wall_plug, ab.get_center(), ab.size, 0.012)
 		wall_plug._derive_cable_anchor()

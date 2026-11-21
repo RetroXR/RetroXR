@@ -148,12 +148,15 @@ static func _shipped() -> Dictionary:
 			"variants": {"usa": wii, "jpn": wii, "eur": wii, "ukv": wii, "aus": wii, "kor": wii}},
 		# WUP-002: case 70 x 45 x 148 (an unsourced fan page, checked against a photo),
 		# the cord stubs taking it to 185 (RetroXR-models nintendo/wiiu/psu).
-		"wiiu_ac_adapter": {"label": "Wii U AC Adapter (WUP-002)", "cord": Color8(40, 40, 42), "fits": ["wiiu"],
+		# Gray cords and a gray molded mains plug (RetroXR-models nintendo/wiiu/psu research/notes.md; its model's WUPAC_Cord).
+		"wiiu_ac_adapter": {"label": "Wii U AC Adapter (WUP-002)", "cord": Color8(186, 187, 184), "mains": Color8(186, 187, 184),
+			"fits": ["wiiu"],
 			"dc_plug": "wiiu_dc_plug", "plug_mm": [13.6, 10.2, 55.1], "source": "nintendo/wiiu/psu",
 			"variants": {"usa": wiiu, "jpn": wiiu, "eur": wiiu, "ukv": wiiu, "aus": wiiu}},
 		# The GamePad's own (WUP-011), 5 V: into the cradle's back or the GamePad's
-		# top. No model yet (another session is making the cradle's).
-		"wiiu_gamepad_ac_adapter": {"label": "Wii U GamePad AC Adapter (WUP-011)", "cord": Color8(150, 150, 152),
+		# top (RetroXR-models nintendo/wiiu/psu-gamepad): gray cords and a gray mains plug, as the WUP-002's.
+		"wiiu_gamepad_ac_adapter": {"label": "Wii U GamePad AC Adapter (WUP-011)", "cord": Color8(190, 190, 188),
+			"mains": Color8(190, 190, 188),
 			"fits": ["wiiu"], "dc_plug": "wiiu_gamepad_dc_plug", "plug_mm": [8.0, 5.0, 40.0],
 			"variants": {"usa": wiiu_pad, "jpn": wiiu_pad, "eur": wiiu_pad, "ukv": wiiu_pad, "aus": wiiu_pad}},
 		# Sega's MK-1602: the Genesis Model 1's and the Sega CD's (Model 1 and 2), 9 V
@@ -439,6 +442,8 @@ static func variant(id: String, name: String) -> Dictionary:
 		out["plug_model"] = r["plug_model"]
 	if not out.has("cord") and r.has("cord"):
 		out["cord"] = r["cord"]
+	if not out.has("mains") and r.has("mains"):
+		out["mains"] = r["mains"]
 	return out
 
 
