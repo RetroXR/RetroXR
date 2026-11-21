@@ -21,6 +21,8 @@ var _last_motion_range := -1
 ## Drawn from the controller's touch sensors while no joints arrive.
 var _touch: TouchHandScript = null
 var _no_hand_time := 0.0
+## What this hand last drew from, for the log: "" until it draws anything.
+var _logged_kind := ""
 
 ## Joints missing this long before the touch hand stands in, so a dropped frame
 ## of tracking doesn't flash it.
@@ -132,6 +134,7 @@ func apply_display_mode() -> void:
 	var touch := not available and _touch_hand_ready()
 	if _touch != null:
 		_touch.visible = touch and mode != AppPrefs.XRDisplayMode.CONTROLLERS and not holding
+	_log_kind(available, touch, source)
 
 	# A controller-sourced hand wraps its visible controller in BOTH mode. An
 	# unobstructed camera hand has no controller at that pose, so it takes over.
@@ -148,6 +151,20 @@ func apply_display_mode() -> void:
 			or source == XRHandTracker.HAND_TRACKING_SOURCE_UNOBSTRUCTED:
 		wanted_range = OpenXRInterface.HAND_MOTION_RANGE_UNOBSTRUCTED
 	_set_motion_range(wanted_range)
+
+
+## One line whenever the hand's source changes (holding something doesn't count).
+func _log_kind(available: bool, touch: bool, source: int) -> void:
+	var kind := "none"
+	if available:
+		kind = "runtime hand, %s" % ("from the controller"
+			if source == XRHandTracker.HAND_TRACKING_SOURCE_CONTROLLER else "camera-tracked")
+	elif touch:
+		kind = "touch-sensor hand (no hand joints from the runtime)"
+	if kind == _logged_kind or (_logged_kind == "" and kind == "none"):
+		return
+	_logged_kind = kind
+	print("[Hands] %s: %s" % ["left" if hand == 0 else "right", kind])
 
 
 func _touch_hand_ready() -> bool:

@@ -102,6 +102,10 @@ func _note(has: bool) -> void:
 	_resolved[get_instance_id()] = has
 	if availability() == before:
 		return
+	var names := ["Controllers", "Hands", "Controllers + Hands"]
+	print("[ControllerArt] controller models %s; XR Display draws %s (saved: %s)" % [
+		Availability.keys()[availability()].to_lower(),
+		names[display_mode()], names[AppPrefs.xr_display_mode]])
 	var live: Array[Callable] = []
 	for cb in _listeners:
 		if cb.is_valid():
