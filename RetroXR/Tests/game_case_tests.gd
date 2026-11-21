@@ -64,6 +64,7 @@ func _run() -> void:
 		["case/a disc put on a hub keeps the turn the hand held it at", _case_disc_spin],
 		["case/a manual is seated shut, its reach round the booklet's middle", _case_manual_seat],
 		["case/what is in the lid's way turns it, either way, and a fingertip has the whole panel", _case_lid_world],
+		["case/gripped by its open lid, the lid stays in the hand and the base swings", _case_held_by_lid],
 		["case/dropped shut or open, a case rests on the floor", _case_drop],
 		["case/the PS2 case's holder takes its memory card", _case_card_holder],
 		["case/the desktop lifts a disc out of an open case", _case_desktop_grab],
@@ -628,6 +629,42 @@ func _case_lid_world() -> void:
 	var lid_panel := c.hinge(c.sim.top()).get_node("PokePanel") as CollisionShape3D
 	_ok((lid_panel.shape as BoxShape3D).size.z > c._lid_box.size.x * 0.99, "the lid's panel is the lid's whole reach",
 		str((lid_panel.shape as BoxShape3D).size))
+
+
+func _case_held_by_lid() -> void:
+	# The sim: the base hangs from a lid held level, front up; with gravity along the base it hangs still.
+	var s := _jewel_sim()
+	s.base_swings = true
+	s.latched = false
+	_ok(s.pull(0, G_FACE_UP) > 0.0, "under a lid held front up, the base falls away (opens)")
+	_ok(absf(s.pull(0, Vector3(9.81, 0.0, 0.0))) < 1e-6, "hanging straight down, nothing turns it")
+	_ok(s.pull(0, G_FACE_DOWN) < 0.0, "front down, it falls shut")
+	_run_sim(s, G_FACE_UP, 0.3)
+	_ok(s.angle_deg(0) > 5.0, "and it does", str(s.angle_deg(0)))
+	for fam: Array in [["jewel", "single"], ["keep", "ps2"]]:
+		var c := _new_case(fam[0], fam[1])
+		await get_tree().physics_frame
+		c.global_transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5), Vector3(60.0, 1.0, 0.0))
+		var lid_mid := c._lid_box.get_center()
+		_ok(not c._on_lid(lid_mid), "%s: shut, a grip is the case's" % fam[0])
+		c.sim.set_angle_deg(c.sim.top(), 120.0)
+		c._apply_angles()
+		_ok(c._on_lid(c._lid_swing() * lid_mid), "%s: open, a hand on the lid has it by the lid" % fam[0])
+		_ok(not c._on_lid(c._base_box.get_center() + Vector3(0.02, 0.0, 0.0)), "%s: a hand on the base has the base" % fam[0])
+		# The hand's place, kept in the lid's frame: as the angle changes, the grab moves the BASE and leaves the lid.
+		var hand := c.global_transform * c._lid_swing() * Transform3D(Basis(Vector3.UP, 0.4), lid_mid + Vector3(0.0, 0.01, 0.02))
+		var lid_then := c.global_transform * c._lid_in_case()
+		c._lid_hand = c._lid_swing().affine_inverse() * (c.global_transform.affine_inverse() * hand)
+		for deg: float in [60.0, 170.0, 30.0]:
+			c.sim.set_angle_deg(c.sim.top(), deg)
+			c._apply_angles()
+			var body := hand * (c._lid_swing() * c._lid_hand).affine_inverse()      # where the grab driver puts the case
+			var lid_now := body * c._lid_in_case()
+			_ok(lid_now.origin.distance_to(lid_then.origin) < 1e-4 and lid_now.basis.is_equal_approx(lid_then.basis),
+				"%s: at %d degrees the lid has not moved in the hand" % [fam[0], int(deg)],
+				str(lid_now.origin - lid_then.origin))
+			_ok(not body.basis.is_equal_approx(c.global_transform.basis) or absf(deg - 120.0) < 0.1,
+				"%s: the base has turned instead" % fam[0])
 
 
 func _case_drop() -> void:

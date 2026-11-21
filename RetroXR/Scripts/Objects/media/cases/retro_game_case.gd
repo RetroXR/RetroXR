@@ -61,6 +61,8 @@ const KEEP_COVER_T := 0.002
 const LID_SKIN := 0.0015
 const LID_YIELD_DEG := 14.0
 const PANEL_POKE_T := 0.004
+## A grip on an open case nearer its lid than its base, and within this of the lid, has the case by its lid.
+const LID_GRIP_REACH := 0.12
 const LATCH_HAPTIC_KEY := &"game_case_latch"
 ## A popped disc rides this far up off its hub, tilted this much, loose on the catches.
 const POP_LIFT := 0.004
@@ -132,6 +134,14 @@ var _lid_pivot := Vector3.ZERO
 var _lid_probe: BoxShape3D
 var _lid_query: PhysicsShapeQueryParameters3D
 var _lid_yield := -1.0                           # the way the lid last gave way (+1 opening), for a tie
+var _lid_node: Node3D                            # the model's lid (a keep case's cover), and where it lies shut
+var _lid_rest := Transform3D()
+var _lid_grab: Grab                              # the hand that has the case by its lid ...
+var _lid_hand := Transform3D()                   # ... where it is in the lid's own frame
+var _hand_rot := Quaternion.IDENTITY
+var _hand_has := false
+var _hand_turn := 0.0
+var _hand_spin := 0.0
 static var _sfx_clips: Dictionary = {}           # "<family>_<kind>" -> Array of PackedVector2Array
 var _sfx_voices := {}                            # "snap" / "turn" -> PcmOneShot, made at the first sound
 var _sfx_ticks := 0
@@ -386,6 +396,11 @@ func _build_hinges() -> void:
 			sim.set_hinge_friction(i, FLIPPER_FRICTION, 0.8)
 		sim.set_living_hinge(KEEP_AJAR_DEG, KEEP_SPRINGBACK_DEG)
 	_lid_pivot = model.pivot_m("open")
+	sim.base_lever = float(levers[levers.size() - 1])
+	_lid_node = model.levels[0].find_child("Lid" if case_family == "jewel" else "Cover", true, false) as Node3D \
+		if not model.levels.is_empty() else null
+	if _lid_node != null:
+		_lid_rest = _lid_in_case()
 	for r in _rigs:
 		(r[2] as CaseHinge).max_deg = rad_to_deg(sim.open_max)
 
@@ -759,11 +774,15 @@ func _physics_process(delta: float) -> void:
 			moved = true
 		_was_held[i] = held
 	var spin := _spin if absf(_spin) > SPIN_QUIET else 0.0
-	if moved or not sim.settled(g, spin):
-		sim.step(delta, g, spin)
+	var top_spin := NAN
+	if _lid_grab != null:
+		top_spin = _hand_spin if absf(_hand_spin) > SPIN_QUIET else 0.0
+	if moved or not sim.settled(g, spin, top_spin):
+		sim.step(delta, g, spin, top_spin)
 		_apply_angles()
 	if _lid_gives_way():
 		_apply_angles()
+	_hold_by_lid()
 	if sim.clicked:
 		sim.clicked = false
 		var ctrl := get_picked_up_by_controller()
@@ -825,6 +844,81 @@ func _play_sfx(voice: String, kind: String, volume: float) -> void:
 
 ## What the lid feels of the case's own motion: the hinge line's acceleration (so a turn about the spine adds no
 ## false pull), and that turn speeding up.
+# ------------------------------------------------------------------ held by the lid
+## The lid in the case's own frame as the model has it now (a keep case's cover turns on its spine's two creases).
+func _lid_in_case() -> Transform3D:
+	return model.transform * GameCaseModel._local_to(model, _lid_node)
+
+
+## How the lid has turned from lying shut, in the case's frame.
+func _lid_swing() -> Transform3D:
+	return _lid_in_case() * _lid_rest.affine_inverse()
+
+
+static func _reach_to(box: AABB, p: Vector3) -> float:
+	return (p - p.clamp(box.position, box.end)).length()
+
+
+## Whether a hand at `p` (the case's frame) has the open case by its lid: nearer the lid than the base.
+func _on_lid(p: Vector3) -> bool:
+	if _lid_node == null or sim.latched or sim.angle_deg(sim.top()) < REACH_DEG:
+		return false
+	var to_lid := _reach_to(_lid_box, _lid_swing().affine_inverse() * p)
+	return to_lid <= LID_GRIP_REACH and to_lid < _reach_to(_base_box, p)
+
+
+## A grip that lands on the open lid has the case by its lid (the owner, 2026-11-21): the lid stays in that hand
+## and the base swings from it, as it does off a real case picked up by its cover. The case's body is its base, so
+## each tick the grab is told where the hand now is from the base's side (_hold_by_lid), and the sim swings the
+## base instead of the lid (CaseHingeSim.base_swings). Only the hand that carries the case: a second hand, a seat
+## or a grab point holds it as before.
+func pick_up(by: Node3D) -> void:
+	# Where the hand is as it closes: a grip brings the case's own origin into the hand, so afterwards the grab
+	# no longer says which half was taken.
+	var hand := global_transform.affine_inverse() * by.global_transform if by != null else Transform3D()
+	var was_held := is_picked_up()
+	super(by)
+	if was_held or _lid_grab != null or by == null or by is XRToolsSnapZone or not is_instance_valid(_grab_driver):
+		return
+	var grab := _grab_driver.get_grab(by)
+	if grab == null or grab != _grab_driver.primary or grab.point != null or not _on_lid(hand.origin):
+		return
+	# By the lid it is held where it was gripped, not drawn in: the lid stays under the fingers.
+	grab.transform = hand
+	_lid_grab = grab
+	_lid_hand = _lid_swing().affine_inverse() * hand
+	_hand_has = false
+	_hand_spin = 0.0
+	sim.base_swings = true
+
+
+func let_go(by: Node3D, p_linear_velocity: Vector3, p_angular_velocity: Vector3) -> void:
+	super(by, p_linear_velocity, p_angular_velocity)
+	if _lid_grab != null and (not is_instance_valid(_grab_driver) or _grab_driver.primary != _lid_grab):
+		_free_lid()
+
+
+func _free_lid() -> void:
+	_lid_grab = null
+	_hand_has = false
+	_hand_spin = 0.0
+	sim.base_swings = false
+
+
+func held_by_lid() -> bool:
+	return _lid_grab != null
+
+
+## The hand keeps the lid: where it is from the base's side, for the lid as it now stands.
+func _hold_by_lid() -> void:
+	if _lid_grab == null:
+		return
+	if not is_instance_valid(_grab_driver) or _grab_driver.primary != _lid_grab or not is_instance_valid(_lid_grab.by):
+		_free_lid()
+		return
+	_lid_grab.transform = _lid_swing() * _lid_hand
+
+
 ## Whether the lid, turned `deg`, has something of the world in it: anything the case itself collides with, but
 ## the case and what it holds.
 func _lid_blocked(deg: float) -> bool:
@@ -851,7 +945,7 @@ func _lid_blocked(deg: float) -> bool:
 ## one a hand has goes where the hand takes it. True when it moved.
 func _lid_gives_way() -> bool:
 	var top := sim.top()
-	if sim.latched or top < 0 or sim.held[top] or not is_inside_tree():
+	if sim.latched or top < 0 or sim.held[top] or not is_inside_tree() or _lid_grab != null:
 		return false
 	var at := sim.angle_deg(top)
 	if not _lid_blocked(at):
@@ -882,6 +976,19 @@ func _track_accel(delta: float) -> void:
 		_spin = lerpf(_spin, a_turn if absf(a_turn) < SPIN_CUT else 0.0, 0.35)
 	_prev_rot = rot
 	_has_rot = true
+	# Held by its lid, the lid turns with the hand: that turn speeding up is what leaves the base behind.
+	if _lid_grab != null and is_instance_valid(_lid_grab.by):
+		var hq := (_lid_grab.by as Node3D).global_basis.orthonormalized().get_rotation_quaternion()
+		if _hand_has:
+			var dq := hq * _hand_rot.inverse()
+			if dq.w < 0.0:
+				dq = -dq
+			var rate := -(Vector3(dq.x, dq.y, dq.z) * 2.0 / delta).dot(global_basis.y.normalized())
+			var a_hand := (rate - _hand_turn) / delta
+			_hand_turn = rate
+			_hand_spin = lerpf(_hand_spin, a_hand if absf(a_hand) < SPIN_CUT else 0.0, 0.35)
+		_hand_rot = hq
+		_hand_has = true
 	_pos_hist.push_front(global_transform * _lid_pivot)
 	if _pos_hist.size() > 3:
 		_pos_hist.resize(3)

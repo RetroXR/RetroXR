@@ -71,6 +71,11 @@ var latched := true
 var clicked := false
 ## How fast (rad/s) the top hinge last hit its open stop, or came home without catching; the host reads and clears it.
 var knocked := 0.0
+## The case is held by its lid: the top hinge's angle is then the BASE swinging from it, a panel of `base_lever` (m)
+## whose pull is gravity across the base's own face (the frame `g` is given in). The step's `top_spin` is then the
+## hand's own turn speeding up, as `spin` is the base's for the trays that still hang from it.
+var base_swings := false
+var base_lever := 0.06
 
 
 ## `lever_m`: each hinge's pivot-to-centre-of-mass distance, from the back. `friction_share`: static friction as a
@@ -176,22 +181,25 @@ func set_held_angle_deg(i: int, deg: float, dt: float) -> void:
 ## The pull of gravity on hinge i (rad/s^2), for an effective gravity `g` in the case's frame (gravity less the
 ## case's own acceleration). Positive opens.
 func pull(i: int, g: Vector3) -> float:
+	if base_swings and i == top():
+		return -3.0 / (4.0 * base_lever) * g.z
 	var t := angles[i]
 	return 3.0 / (4.0 * levers[i]) * (g.x * -sin(t) + g.z * cos(t))
 
 
 ## True when nothing will move under this gravity: every hinge at rest and held there by its friction or a stop.
-func settled(g: Vector3, spin := 0.0) -> bool:
+func settled(g: Vector3, spin := 0.0, top_spin := NAN) -> bool:
+	var spin_t := spin if is_nan(top_spin) else top_spin
 	for i in count:
 		if held[i] or absf(speeds[i]) > REST_SPEED:
 			return false
 		if latched:
-			if pull(top(), g) + spin > latch_break:
+			if pull(top(), g) + spin_t > latch_break:
 				return false
 			continue
 		if _ease[i] != 0.0:
 			return false
-		var p := pull(i, g) + spin + _lift(i)
+		var p := pull(i, g) + (spin_t if i == top() else spin) + _lift(i)
 		var lo := angles[i - 1] if i > 0 else 0.0
 		var hi := angles[i + 1] if i < top() else open_max
 		var stuck := absf(p) <= _static(i) or (p < 0.0 and angles[i] <= lo + 1e-6) \
@@ -203,12 +211,13 @@ func settled(g: Vector3, spin := 0.0) -> bool:
 
 ## Advance by dt (s) under an effective gravity `g` (m/s^2) in the case's frame, the case's turn about the hinge
 ## line speeding up by `spin` (rad/s^2).
-func step(dt: float, g: Vector3, spin := 0.0) -> void:
+func step(dt: float, g: Vector3, spin := 0.0, top_spin := NAN) -> void:
 	if count == 0 or dt <= 0.0:
 		return
 	var t := top()
+	var spin_t := spin if is_nan(top_spin) else top_spin
 	if latched and not held[t]:
-		var opening := pull(t, g) + spin
+		var opening := pull(t, g) + spin_t
 		if opening > latch_break:
 			latched = false
 	for i in count:
@@ -223,7 +232,7 @@ func step(dt: float, g: Vector3, spin := 0.0) -> void:
 			var d := _ease[i] * minf(1.0, dt * 15.0)
 			angles[i] = clampf(angles[i] + d, 0.0, open_max)
 			_ease[i] = _ease[i] - d if absf(_ease[i] - d) > 1e-4 else 0.0
-		var acc := pull(i, g) + spin + _lift(i) - DAMPING * speeds[i]
+		var acc := pull(i, g) + (spin_t if i == t else spin) + _lift(i) - DAMPING * speeds[i]
 		var fs := _static(i)
 		if absf(speeds[i]) <= REST_SPEED and absf(acc) <= fs:
 			speeds[i] = 0.0
