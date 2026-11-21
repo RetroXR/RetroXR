@@ -425,7 +425,11 @@ func _build_zones() -> void:
 			if what is PDFBook and not (what as PDFBook).dimensions_changed.is_connected(_on_book_resized):
 				(what as PDFBook).dimensions_changed.connect(_on_book_resized.bind(what))
 			if what is PDFBook:
+				# A manual goes into its case shut: an open one lay across the spine, hidden, and came out open.
+				(what as PDFBook).set_page(PDFBook.BookState.CLOSED, 0)
 				_on_book_resized.call_deferred(what)
+				# Again once it has finished shutting: its thickness is the closed book's by then.
+				get_tree().create_timer(0.6).timeout.connect(_on_book_resized.bind(what))
 				if not (what as PDFBook).dimensions_changed.is_connected(_sync_manual):
 					(what as PDFBook).dimensions_changed.connect(_sync_manual)
 			_sync_manual.call_deferred())
@@ -595,6 +599,11 @@ func _place_manual_zone(book_width: float, half_thick := 0.0) -> void:
 		return
 	var z := (MANUAL_WALL - half_thick) if case_family == "jewel" else (half_thick - MANUAL_WALL)
 	_manual_zone.position = Vector3(-book_width * 0.5, 0.0, z)
+	# The zone stands at the book's spine; its reach is round the booklet's middle, so a manual offered at either
+	# edge of its place is as near.
+	var ball := _manual_zone.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if ball != null:
+		ball.position = Vector3(book_width * 0.5, 0.0, -z)
 
 
 func _on_book_resized(book: PDFBook) -> void:

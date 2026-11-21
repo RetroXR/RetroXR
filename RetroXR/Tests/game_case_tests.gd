@@ -62,6 +62,7 @@ func _run() -> void:
 		["case/a new case seats its discs and keeps them while shut", _case_contents],
 		["case/a case saves and restores as itself", _case_save],
 		["case/a disc put on a hub keeps the turn the hand held it at", _case_disc_spin],
+		["case/a manual is seated shut, its reach round the booklet's middle", _case_manual_seat],
 		["case/dropped shut or open, a case rests on the floor", _case_drop],
 		["case/the PS2 case's holder takes its memory card", _case_card_holder],
 		["case/the desktop lifts a disc out of an open case", _case_desktop_grab],
@@ -544,6 +545,35 @@ func _case_disc_spin() -> void:
 		str(b.get_euler()))
 	c._seat_disc(0)
 	_ok(c.disc_zone(0).transform.is_equal_approx(Transform3D.IDENTITY), "taken off: the seat is square again")
+
+
+func _case_manual_seat() -> void:
+	for fam: Array in [["jewel", "single"], ["keep", "ps2"]]:
+		var c := _new_case(fam[0], fam[1])
+		await get_tree().physics_frame
+		c.sim.set_angle_deg(c.sim.top(), 170.0)
+		c._apply_angles()
+		var zone := c._manual_zone
+		var ball := zone.get_node("CollisionShape3D") as CollisionShape3D
+		var seat := c.model.manual_seat()
+		_ok(seat.to_local(ball.global_position).length() < 0.0005, "%s: the reach is centered on the booklet" % fam[0],
+			str(seat.to_local(ball.global_position)))
+		_ok(absf(seat.to_local(zone.global_position).x + c.model.manual_size_m().x * 0.5) < 0.0005,
+			"%s: the book still seats with its spine at the booklet's edge" % fam[0])
+		var book := load("res://Scenes/Objects/media/pdf_book.tscn").instantiate() as PDFBook
+		add_child(book)
+		book.add_to_group("spawned")
+		_spawned.append(book)
+		await get_tree().physics_frame
+		book._pending_page = {"state": PDFBook.BookState.OPEN, "leaf": 3}
+		book._state = PDFBook.BookState.OPEN
+		zone.pick_up_object(book)
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		var shut := book._state == PDFBook.BookState.CLOSED \
+			or int(book._pending_page.get("state", -1)) == PDFBook.BookState.CLOSED
+		_ok(c.manual() == book and shut, "%s: an open book is shut as it is seated" % fam[0],
+			"%s %s" % [book._state, str(book._pending_page)])
 
 
 func _case_drop() -> void:
