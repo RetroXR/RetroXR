@@ -204,6 +204,8 @@ func _ready() -> void:
 		await _test_stack()
 	if _want_group("spacer"):
 		await _test_spacer()
+	if _want_group("hdmi"):
+		await _test_hdmi()
 	if _want_group("cartbody"):
 		await _test_cart_body()
 	if _want_group("vlc"):
@@ -1496,6 +1498,79 @@ func _test_spacer() -> void:
 		var shell := back_unit.get_node_or_null("Shell") as Node3D
 		_ok(shell != null and back_spacer.global_position.distance_to(shell.global_position) < 0.001,
 			"spacer/back exactly under the unit, where it was modelled")
+
+	sp.clear_scene(self)
+	for i in range(20):
+		await get_tree().physics_frame
+
+
+## A Wii U on a set's HDMI IN: both sockets are built in code (the console's HDMI OUT
+## in configure_av_ports, the set's input from its declared layout), so a reload has
+## to find both and seat the lead's two plugs again.
+func _test_hdmi() -> void:
+	var sp := ScenePersistence.new("arcade")
+	sp.clear_scene(self)
+	for i in range(10):
+		await get_tree().physics_frame
+
+	var console := (load("res://Scenes/Objects/system.tscn") as PackedScene) 		.instantiate() as RetroSystem
+	console.systemid = "wiiu"
+	console.add_to_group("spawned")
+	add_child(console)
+	console.freeze = true
+	console.global_position = Vector3(0.0, 1.0, 0.0)
+	var tv := (load("res://Scenes/Objects/tv.tscn") as PackedScene).instantiate() as RetroTV
+	tv.add_to_group("spawned")
+	add_child(tv)
+	tv.global_position = Vector3(0.8, 1.0, 0.0)
+	var lead := ScenePersistence.instantiate("hdmi_cable") as Node3D
+	lead.add_to_group("spawned")
+	add_child(lead)
+	lead.global_position = Vector3(0.4, 1.2, 0.0)
+	for i in range(60):
+		await get_tree().physics_frame
+
+	var out := console.find_child("HdmiOut", true, false) as XRToolsSnapZone
+	var inp := tv.hdmi_port()
+	_ok(out != null and inp != null, "hdmi/the Wii U has its HDMI OUT and the set its HDMI IN")
+	if out == null or inp == null:
+		return
+	out.pick_up_object(lead.get_node("PlugA0"))
+	inp.pick_up_object(lead.get_node("PlugB0"))
+	for i in range(20):
+		await get_tree().physics_frame
+	_ok(out.picked_up_object == lead.get_node("PlugA0") and inp.picked_up_object == lead.get_node("PlugB0"),
+		"hdmi/built: the lead runs from the Wii U to the set")
+
+	_ok(sp.save_slot(self, SLOT_A), "hdmi/saved the room")
+	sp.clear_scene(self)
+	for i in range(20):
+		await get_tree().physics_frame
+	var loaded: bool = await sp.load_slot_async(self, SLOT_A)
+	_ok(loaded, "hdmi/loaded it back")
+	for i in range(60):
+		await get_tree().physics_frame
+
+	var back_console: RetroSystem = null
+	var back_tv: RetroTV = null
+	var back_lead: Node3D = null
+	for n in get_tree().get_nodes_in_group("spawned"):
+		if n is RetroSystem:
+			back_console = n as RetroSystem
+		elif n is RetroTV:
+			back_tv = n as RetroTV
+		elif n.scene_file_path.ends_with("hdmi_cable.tscn"):
+			back_lead = n as Node3D
+	_ok(back_console != null and back_tv != null and back_lead != null, "hdmi/all three came back")
+	if back_console != null and back_tv != null and back_lead != null:
+		var back_out := back_console.find_child("HdmiOut", true, false) as XRToolsSnapZone
+		var back_in := back_tv.hdmi_port()
+		_ok(back_out != null and back_out.picked_up_object == back_lead.get_node("PlugA0"),
+			"hdmi/the lead is back in the Wii U's HDMI OUT",
+			str(back_out.picked_up_object if back_out != null else "no socket"))
+		_ok(back_in != null and back_in.picked_up_object == back_lead.get_node("PlugB0"),
+			"hdmi/and in the set's HDMI IN",
+			str(back_in.picked_up_object if back_in != null else "no socket"))
 
 	sp.clear_scene(self)
 	for i in range(20):

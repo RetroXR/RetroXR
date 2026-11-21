@@ -806,6 +806,14 @@ func _apply_seating(seats: Array) -> void:
 			var port := port_named(dev, port_name)
 			if port != null:
 				port.pick_up_object(plug)
+			else:
+				# Left where it was saved, a loose end; said, or a lead that reloads
+				# unplugged has nothing in the log to say why.
+				push_warning("[CompositeCable] %s: end %d's socket %s on %s is gone -- left loose" % [
+					name, e, port_name, dev.name])
+		elif not port_name.is_empty():
+			push_warning("[CompositeCable] %s: end %d was in %s on a device that did not come back -- left loose" % [
+				name, e, port_name])
 	# The sockets fire as they take each plug, but a lead restored with nothing
 	# seated fires nothing at all — resolve once so the devices hear either way.
 	call_deferred("_resolve")
