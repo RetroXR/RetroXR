@@ -41,6 +41,15 @@ const SCREEN_GAMEPAD := 1
 const AV_MULTI_PROUD := 0.002
 const SENSOR_PROUD := 0.0015
 
+## The front flap over the SD slot and the two front USB sockets: hinged along its
+## bottom edge, it folds down; past FLAP_OPEN_AT the sockets behind it take a plug.
+const FLAP_OPEN_DEG := 80.0
+const FLAP_OPEN_AT := 30.0
+## The four USB-A sockets (Connectors.USB_PORTS), in order: the two on the back, upper
+## first, then the two behind the flap, left first. Markers of these names, a socket's
+## +Z out of its panel.
+const USB_MARKERS := ["UsbRear1Anchor", "UsbRear2Anchor", "UsbFront1Anchor", "UsbFront2Anchor"]
+
 var _power_cap: MeshInstance3D = null
 var _power_led: MeshInstance3D = null
 var _disc_led: MeshInstance3D = null
@@ -54,6 +63,10 @@ var _hdmi_seat: Marker3D = null
 var _hdmi_port: HdmiPort = null
 var _sensor_bar_port: XRToolsSnapZone = null
 var _led_mat: StandardMaterial3D = null
+var _flap_hinge: VRHinge = null
+var _flap_open := false
+## The sockets behind the flap, which take a plug only while it is open.
+var _front_usb: Array = []
 
 ## The views last read, and the geometry serial they were read at.
 var _views: Array = []
@@ -70,6 +83,7 @@ func _init() -> void:
 func _ready() -> void:
 	_build_sensor_bar_port()
 	_set_power_led(false)
+	_build_flap_hinge()
 
 
 ## Core options this console needs. The remote's aim is the sensor bar's lights
@@ -253,6 +267,76 @@ func _build_hdmi_out() -> void:
 	print("[WiiU] HDMI OUT built (picture and sound on one plug)")
 
 
+## The flap's mount and pivot at `hinge` (its bottom edge, on the front face), the
+## pivot returned for the flap's mesh to hang from. VRHinge turns its target about
+## the target's PARENT frame's X, so the mount carries the frame and the pivot stays
+## at identity (as the Wii's SD door, wii_model.gd).
+func _flap_pivot(hinge: Vector3) -> Node3D:
+	var mount := Node3D.new()
+	mount.name = "FlapMount"
+	mount.position = hinge
+	add_child(mount)
+	var pivot := Node3D.new()
+	pivot.name = "FlapPivot"
+	mount.add_child(pivot)
+	return pivot
+
+
+## The flap's hinge: a grip on its free (top) edge folds it down, out of the case.
+func _build_flap_hinge() -> void:
+	var pivot := get_node_or_null("FlapMount/FlapPivot") as Node3D
+	if pivot == null or _flap_hinge != null:
+		return
+	_flap_hinge = VRHinge.new()
+	_flap_hinge.name = "FlapGrab"
+	_flap_hinge.target = pivot
+	_flap_hinge.min_deg = 0.0
+	_flap_hinge.max_deg = FLAP_OPEN_DEG
+	_flap_hinge.grip_engages = true
+	_flap_hinge.engage_radius = 0.04
+	pivot.add_child(_flap_hinge)
+	_flap_hinge.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, 0.012, 0.003))
+	var col := CollisionShape3D.new()
+	col.name = "CollisionShape3D"
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.08, 0.008, 0.01)
+	col.shape = box
+	_flap_hinge.add_child(col)
+	_flap_hinge.place_hint(Vector3(0.0, 0.016, 0.004))
+	_flap_hinge.rotation_changed.connect(_on_flap_moved)
+
+
+func _on_flap_moved(deg: float) -> void:
+	var open := deg > FLAP_OPEN_AT
+	if open == _flap_open:
+		return
+	_flap_open = open
+	print("[WiiU] front flap %s" % ("open" if open else "shut"))
+	for zone: XRToolsSnapZone in _front_usb:
+		# A socket holding a plug stays live: the flap cannot shut over it.
+		if is_instance_valid(zone) and not is_instance_valid(zone.picked_up_object):
+			zone.enabled = open
+
+
+## The four USB-A sockets onto their markers, rolled half round as a front socket is
+## (the PS2's), so a plug goes in contacts the same way up; the two behind the flap
+## live only while it is open.
+func configure_usb_ports(usb_zones: Array) -> void:
+	_front_usb.clear()
+	for k in mini(usb_zones.size(), USB_MARKERS.size()):
+		var zone := usb_zones[k] as XRToolsSnapZone
+		var mark := get_node_or_null(str(USB_MARKERS[k])) as Node3D
+		if zone == null or mark == null:
+			continue
+		zone.global_transform = mark.global_transform * Transform3D(Basis(Vector3(0, 0, 1), PI), Vector3.ZERO)
+		var recess := zone.get_node_or_null("UsbRecess") as Node3D
+		if recess != null:
+			recess.hide()
+		if str(USB_MARKERS[k]).begins_with("UsbFront"):
+			_front_usb.append(zone)
+			zone.enabled = _flap_open
+
+
 func get_sensor_bar_port() -> XRToolsSnapZone:
 	return _sensor_bar_port
 
@@ -352,8 +436,12 @@ func _build_front() -> void:
 	# The disc slot: 130.3 wide, its middle 33.9 up.
 	_box("DiscSlot", Vector3(0.1303, 0.0055, 0.0008), Vector3(0.00625, 0.0339, z), dark)
 	_disc_seat = _marker("DiscSlotAnchor", Transform3D(Basis.IDENTITY, Vector3(0.00625, 0.0339, FRONT_Z)))
-	# The flap over the SD card and the two USB sockets.
-	_box("Flap", Vector3(0.0835, 0.0143, 0.0008), Vector3(0.01345, 0.01225, z), _mat(FLAP, 0.3))
+	# The flap over the SD card and the two USB sockets, on its hinge along its bottom
+	# edge (_build_flap_hinge): FlapMount at the hinge, FlapPivot turned by it.
+	var pivot := _flap_pivot(Vector3(0.01345, 0.0051, FRONT_Z))
+	_box("Flap", Vector3(0.0835, 0.0143, 0.0008), Vector3(0.0, 0.00715, 0.0003), _mat(FLAP, 0.3), pivot)
+	_marker("UsbFront1Anchor", Transform3D(Basis.IDENTITY, Vector3(0.0219, 0.0141, 0.1273)))
+	_marker("UsbFront2Anchor", Transform3D(Basis.IDENTITY, Vector3(0.0422, 0.0141, 0.1273)))
 	# POWER: a 9.8 mm disc at x -73.1, 11.2 up, its lamp 8 mm above it.
 	_power_cap = _disc("PowerCap", 0.0098, 0.0012, Vector3(-0.0731, 0.0112, FRONT_Z + 0.0006), _mat(WHITE, 0.2))
 	_led_mat = StandardMaterial3D.new()
@@ -388,6 +476,8 @@ func _build_back() -> void:
 	_box("HdmiWindow", Vector3(0.0186, 0.0083, 0.0004), Vector3(0.0109, 0.0149, BACK_Z - 0.0001), dark)
 	_box("UsbRear1", Vector3(0.0135, 0.0055, 0.0008), Vector3(-0.059, 0.02375, z), dark)
 	_box("UsbRear2", Vector3(0.0135, 0.0055, 0.0008), Vector3(-0.059, 0.01535, z), dark)
+	_marker("UsbRear1Anchor", Transform3D(out, Vector3(-0.059, 0.02375, BACK_Z)))
+	_marker("UsbRear2Anchor", Transform3D(out, Vector3(-0.059, 0.01535, BACK_Z)))
 	# The exhaust grille: three columns of seven slots.
 	var grille := _mat(Color(0.7, 0.7, 0.69), 0.6)
 	for cx: float in [-0.0099, -0.0233, -0.0367]:

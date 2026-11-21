@@ -630,3 +630,26 @@ func _build_sensor_bar_port() -> void:
 ## The proud offset for this connector. Its own number, like every socket on this
 ## machine — see the MATING note in DevTools/gen/gen_wii_sensor.gd.
 const SENSOR_PROUD := 0.0015
+
+## The two USB-A sockets on the back, measured from the SENSOR BAR socket on the same
+## panel (RetroXR-models nintendo/wii/console: USBPort1 and 2 against SensorBarPort),
+## in the machine lying flat: 81.6 mm across, 6.3 and 14.7 mm down.
+const USB_FROM_SENSOR := [Vector3(-0.0816, -0.0063, 0.0), Vector3(-0.0816, -0.0147, 0.0)]
+
+
+## The USB sockets on the back, beside the sensor bar's: in GLOBAL terms, as every
+## socket on this turned scene is (see the header). Rolled half round as a front
+## socket is, so a plug goes in contacts the same way up.
+func configure_usb_ports(usb_zones: Array) -> void:
+	var seat := get_node_or_null("Back/SensorSeat") as Node3D
+	var host := get_parent() as Node3D
+	if seat == null or host == null:
+		return
+	# Out of the back with contacts as the PS2's front socket's, turned round: (x, -y, -z) of the machine lying flat.
+	var out := host.global_basis.orthonormalized() * Basis(Vector3(1, 0, 0), PI)
+	for k in mini(usb_zones.size(), USB_FROM_SENSOR.size()):
+		var zone := usb_zones[k] as Node3D
+		zone.global_transform = Transform3D(out, seat.global_position + host.global_basis * (USB_FROM_SENSOR[k] as Vector3))
+		var recess := zone.get_node_or_null("UsbRecess") as Node3D
+		if recess != null:
+			recess.hide()

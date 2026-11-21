@@ -1236,8 +1236,9 @@ func on_usb_snapped(plug: Node3D, k: int) -> void:
 	var ctrl := controller_of(plug)
 	usb_controllers[k] = ctrl
 	print("[RetroSystem] USB socket %d: %s seated" % [k, plug.name])
-	announce_port(k)
-	_tell_plugged_in(plug, k)
+	if not Connectors.USB_PASSIVE.has(_host.systemid):
+		announce_port(k)
+		_tell_plugged_in(plug, k)
 	NetworkManager.report_event(NetEvents.Event.EV_PORT_PLUG,
 		{"sys": _host, "ctrl": ctrl, "port": RetroSystem.USB_SLOT_BASE + k})
 
@@ -1250,11 +1251,14 @@ func on_usb_released(k: int) -> void:
 	usb_plugs[k] = null
 	usb_controllers[k] = null
 	print("[RetroSystem] USB socket %d emptied" % k)
-	announce_port(k)
+	var passive := Connectors.USB_PASSIVE.has(_host.systemid)
+	if not passive:
+		announce_port(k)
 	if not is_instance_valid(plug):
 		return
 	_host.remove_collision_exception_with(plug)
-	_tell_unplugged(plug)
+	if not passive:
+		_tell_unplugged(plug)
 	NetworkManager.report_event(NetEvents.Event.EV_PORT_UNPLUG,
 		{"sys": _host, "port": RetroSystem.USB_SLOT_BASE + k})
 

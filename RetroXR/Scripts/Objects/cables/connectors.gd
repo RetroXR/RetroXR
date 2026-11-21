@@ -303,7 +303,12 @@ const ACCESSORY_PORTS := {
 ## The USB-A sockets each console has, by systemid. A plug in USB socket k is the
 ## device on the core's port k, which the core plugs into its own USB port k and
 ## keeps the pad on that port besides (SystemPorts.announce_port).
-const USB_PORTS := {"ps2": 2}
+const USB_PORTS := {"ps2": 2, "wii": 2, "wiiu": 4}
+
+## The consoles whose USB sockets seat a plug and tell the core of no device: the Wii's
+## two on its back and the Wii U's two on its back and two behind its front flap. Their
+## libretro ports are the remotes' and the GamePad's, which a USB device must not take.
+const USB_PASSIVE := ["wii", "wiiu"]
 
 ## A Wii Remote's expansion port: the Nunchuk, the MotionPlus, and any extension
 ## a mod brings.
