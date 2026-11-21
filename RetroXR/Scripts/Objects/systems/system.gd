@@ -3040,6 +3040,7 @@ func all_forced_options(core: String) -> Dictionary:
 	out.merge(ForcedCoreOptions.ps_multitap(core, systemid,
 		_ports.ps_multitap_sockets(ForcedCoreOptions.multitap_group(systemid))), true)
 	out.merge(ForcedCoreOptions.pocketstation_slots(core, systemid, _seated_pocketstations()), true)
+	out.merge(ForcedCoreOptions.toy_bases(core, systemid, ToyBase.kinds_on(self)), true)
 	for storage: ConsoleStorage in _storages:
 		out.merge(storage.forced_options_for(core), true)
 	return out
@@ -4121,6 +4122,21 @@ func set_socket_port(socket: int, lib_port: int) -> void:
 ## PlayStation Multitap's).
 func is_card_slot_covered(slot: int) -> bool:
 	return _ports.is_card_slot_covered(slot)
+
+
+## Tell a RUNNING core which toys-to-life bases are on its USB sockets
+## (ForcedCoreOptions.toy_bases), after a base was plugged in or pulled. Cemu reads
+## it at the title's next start, so the base stays dark until then: said here.
+func refresh_toy_base_option() -> void:
+	if not is_powered_on:
+		return
+	var opts := ForcedCoreOptions.toy_bases(_resolve_core(), systemid, ToyBase.kinds_on(self))
+	for key: String in opts:
+		if core_options_known() and not core_declares_option(key):
+			continue
+		if str(_options_values.get(key, "")) != str(opts[key]):
+			set_core_option(key, str(opts[key]))
+			print("[RetroSystem] %s = %s: the game finds the base at its next start" % [key, opts[key]])
 
 
 ## Tell a RUNNING core the PlayStation (2) Multitap option the room now says

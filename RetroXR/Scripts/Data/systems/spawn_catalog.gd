@@ -219,6 +219,11 @@ const _PERIPHERALS: Dictionary = {
 		{"kind": "peripheral", "label": "Wii U Pro Controller", "spawn": "wiiu_pro_controller"},
 		# Its adapter (WUP-011) is on the Power tab, as every brick is.
 		{"kind": "peripheral", "label": "Wii U GamePad Cradle", "spawn": "wiiu_gamepad_cradle"},
+		# The toys-to-life bases, each on a USB lead (ToyBase); their figures are on
+		# the shelves of the same names.
+		{"kind": "peripheral", "label": "Skylanders Portal of Power", "spawn": "skylanders_portal"},
+		{"kind": "peripheral", "label": "Disney Infinity Base", "spawn": "infinity_base"},
+		{"kind": "peripheral", "label": "Lego Dimensions Toy Pad", "spawn": "dimensions_toypad"},
 		{"kind": "peripheral", "label": "Wiimote", "spawn": "wiimote"},
 		{"kind": "peripheral", "label": "Nunchuk", "spawn": "nunchuk"},
 		{"kind": "peripheral", "label": "Wii MotionPlus", "spawn": "motion_plus"},

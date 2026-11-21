@@ -1705,13 +1705,14 @@ func _test_thumbnail() -> void:
 
 ## PLAIN_SCENES types whose save row picks the type at save time (a peripheral,
 ## an audio deck, a battery, a cabinet, a stand, a seat, a DrawerFurniture or an arcade bay by its
-## scene, a Virtual Boy pack or tap by its kind), or that are an old name read back
+## scene, a Virtual Boy pack or tap or a toy base by its kind), or that are an old name read back
 ## only ("ray_gun").
 const _BUILT_TYPES := ["light_gun", "ray_gun", "retro_keyboard", "wiimote", "wiiu_gamepad", "wiiu_pro_controller",
 	"cd_player", "cassette_player", "record_player", "battery_aa", "battery_aaa", "battery_c",
 	"loudspeaker", "subwoofer", "speaker_stand_120", "speaker_stand_100",
 	"arcade_bay_jamma", "arcade_bay_mvs", "arcade_bay_laserdisc", "arcade_bay_discrete", "arcade_bay_naomi", "arcade_bay_naomi2", "arcade_bay_atomiswave", "jvs_jamma_converter", "naomi_dimm_board", "naomi_gd_drive", "naomi_key",
 	"vb_battery_pack", "vb_ac_tap",
+	"skylanders_portal", "infinity_base", "dimensions_toypad",
 	"mission_nightstand", "mission_chest",
 	"tv_stand_mission", "tv_stand_wall_unit", "tv_stand_credenza", "tv_stand_bench", "tv_stand_corner", "tv_stand_cubby",
 	"bookshelf_oak", "bookshelf_mission", "bookshelf_midcentury", "bookshelf_cube", "bookshelf_pine",

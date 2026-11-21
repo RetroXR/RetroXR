@@ -297,6 +297,10 @@ const JVS_JAMMA_CONVERTER_SCENE := preload("res://Scenes/Objects/peripherals/jvs
 const NAOMI_DIMM_SCENE := preload("res://Scenes/Objects/peripherals/naomi_dimm_board.tscn")
 const NAOMI_GD_DRIVE_SCENE := preload("res://Scenes/Objects/peripherals/naomi_gd_drive.tscn")
 const NAOMI_KEY_SCENE := preload("res://Scenes/Objects/peripherals/naomi_key.tscn")
+const TOY_FIGURE_SCENE := preload("res://Scenes/Objects/media/toy_figure.tscn")
+const SKYLANDERS_PORTAL_SCENE := preload("res://Scenes/Objects/peripherals/toys/skylanders_portal.tscn")
+const INFINITY_BASE_SCENE := preload("res://Scenes/Objects/peripherals/toys/infinity_base.tscn")
+const DIMENSIONS_TOYPAD_SCENE := preload("res://Scenes/Objects/peripherals/toys/dimensions_toypad.tscn")
 const GD_CABLE_SCENE := preload("res://Scenes/Objects/cables/gd_cable.tscn")
 const STEREO_RCA_CABLE_SCENE := preload("res://Scenes/Objects/cables/stereo_rca_cable.tscn")
 const POWER_CORD_SCENE       := preload("res://Scenes/Objects/cables/power_cord.tscn")
@@ -634,6 +638,12 @@ const PLAIN_SCENES := {
 	"naomi_dimm_board": NAOMI_DIMM_SCENE,
 	"naomi_gd_drive": NAOMI_GD_DRIVE_SCENE,
 	"naomi_key": NAOMI_KEY_SCENE,
+	# A figure (amiibo, Skylander, Infinity, Dimensions): its shelf in "sys", its dump in "rom".
+	"toy_figure": TOY_FIGURE_SCENE,
+	# The toys-to-life bases (ToyBase): the console their lead is in ("system") and its socket.
+	"skylanders_portal": SKYLANDERS_PORTAL_SCENE,
+	"infinity_base": INFINITY_BASE_SCENE,
+	"dimensions_toypad": DIMENSIONS_TOYPAD_SCENE,
 	"light_gun": LIGHT_GUN_SCENE,
 	# Slots written before the rename say "ray_gun".
 	"ray_gun": LIGHT_GUN_SCENE,
@@ -2147,6 +2157,7 @@ static func _restore_kind_rows() -> Array:
 		[ConsoleStand, &"_restore_console_stand"],
 		[WiiUGamePadCradle, &"_restore_wiiu_cradle"],
 		[SensorBar, &"_restore_sensor_bar"],
+		[ToyBase, &"_restore_toy_base"],
 		[GcMicrophone, &"_restore_gc_microphone"],
 		[Dmg07Adapter, &"_restore_dmg07"],
 		[N64Vru, &"_restore_n64_vru"],
@@ -2364,6 +2375,12 @@ func _restore_wiiu_cradle(root: Node, _id: int, obj: Node, spawned: Dictionary, 
 	var pad := _resolve_ref(root, spawned, rec.get("gamepad")) as Node3D
 	if pad != null:
 		(obj as WiiUGamePadCradle).restore_pad(pad)
+
+
+func _restore_toy_base(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
+	var sys := _resolve_ref(root, spawned, rec.get("system"))
+	if sys != null:
+		(obj as ToyBase).restore_connection(sys, str(rec.get("socket", "")))
 
 
 func _restore_sensor_bar(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
@@ -3126,6 +3143,8 @@ static func _save_kind_rows() -> Array:
 		[NaomiDimm, "naomi_dimm_board"],
 		[NaomiGdDrive, "naomi_gd_drive"],
 		[NaomiKey, "naomi_key", &"_naomi_key_fields"],
+		[ToyFigure, "toy_figure", &"_toy_figure_fields"],
+		[ToyBase, "", &"_toy_base_entry"],
 		# The pose and the board standing in it; its type is its kind's.
 		[ArcadeBayUnit, "", &"_arcade_bay_entry"],
 		[Table, "table"],
@@ -3353,6 +3372,19 @@ func _gb_printer_fields(printer: GbPrinter, _node_to_id: Dictionary) -> Dictiona
 ## or nothing when it lies loose. The lead itself is the adapter's, never saved.
 func _naomi_key_fields(key: NaomiKey, _node_to_id: Dictionary) -> Dictionary:
 	return {"rom": key.rom_path}
+
+
+func _toy_figure_fields(fig: ToyFigure, _node_to_id: Dictionary) -> Dictionary:
+	return {"sys": fig.systemid, "rom": fig.rom_path}
+
+
+## A toy base: its kind is its type, and the socket its lead is in, if any.
+func _toy_base_entry(base: ToyBase, id: int, n3d: Node3D, node_to_id: Dictionary) -> Dictionary:
+	var entry := _base(id, base.base_kind, n3d)
+	if base.host != null and not base.socket_name().is_empty():
+		entry["system"] = _ref(node_to_id, base.host)
+		entry["socket"] = base.socket_name()
+	return entry
 
 
 func _dmg07_fields(adapter: Dmg07Adapter, node_to_id: Dictionary) -> Dictionary:
@@ -4229,6 +4261,11 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 		var key := obj as NaomiKey
 		if key != null:
 			key.rom_path = str(data.get("rom", ""))
+		# A figure's shelf and dump, before its _ready builds it.
+		var fig := obj as ToyFigure
+		if fig != null:
+			fig.systemid = str(data.get("sys", FigureShelves.AMIIBO))
+			fig.rom_path = str(data.get("rom", ""))
 		# A Game Boy Printer's roll; a save from before rolls has the first.
 		var printer := obj as GbPrinter
 		if printer != null:

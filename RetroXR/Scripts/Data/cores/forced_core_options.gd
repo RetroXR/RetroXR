@@ -258,6 +258,22 @@ static func ps_multitap(core: String, systemid: String, taps: Array[bool]) -> Di
 	return {}
 
 
+## Which toys-to-life bases the Wii U has on its USB sockets, to Cemu: each of
+## `cemu_emulate_skylander_portal`, `cemu_emulate_infinity_base` and
+## `cemu_emulate_dimensions_toypad` is "enabled" while that base's lead is in one,
+## "disabled" otherwise, so the room is what the game finds. Cemu attaches a base
+## when a title starts, so a change reaches the game at its next start. `kinds`
+## are ToyBase.BASES keys.
+static func toy_bases(core: String, systemid: String, kinds: Array[String]) -> Dictionary:
+	if systemid != "wiiu" or not core.begins_with("cemu"):
+		return {}
+	return {
+		"cemu_emulate_skylander_portal": "enabled" if ToyBase.PORTAL in kinds else "disabled",
+		"cemu_emulate_infinity_base": "enabled" if ToyBase.INFINITY in kinds else "disabled",
+		"cemu_emulate_dimensions_toypad": "enabled" if ToyBase.TOY_PAD in kinds else "disabled",
+	}
+
+
 ## What is in each PlayStation card slot, to RetroXR's pcsx_rearmed (fork v6+):
 ## `pcsx_rearmed_memcard{1,2}_device` = "pocketstation" for a seated PocketStation,
 ## whose own kernel (Pokket's core, linked into the fork) then answers the console, so

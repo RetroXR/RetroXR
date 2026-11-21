@@ -1,0 +1,70 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/controller_plug.gd" id="1_plugscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="3_snapgp"]
+[ext_resource type="PackedScene" uid="uid://bg17fr2q2xmsm" path="res://imported-assets/connectors/usb_a_plug/usb_a_plug.glb" id="4_usba"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
+friction = 0.8
+
+; The USB-A plug model's bounds (RetroXR-models generic/usb-a-plug), 15.9 x 7.5 x
+; 44.3 mm, as the JVS lead's End A.
+[sub_resource type="BoxShape3D" id="BoxShape3D_usba"]
+size = Vector3(0.01594, 0.0075, 0.04425)
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
+radius = 0.03
+
+; A toy base's captive USB lead (ToyBase): 2 m of cord to a USB-A plug, for one
+; of the Wii U's four USB sockets. The base sets the plug's controller and lays
+; the cord out from its CableAttachPoint.
+[node name="ToyBaseCable" type="Node3D"]
+
+[node name="ControllerPlug" type="RigidBody3D" parent="."]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.03
+physics_material_override = SubResource("PhysMat_plug")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ControllerPlug"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.010125)
+shape = SubResource("BoxShape3D_usba")
+
+[node name="Shell" parent="ControllerPlug" instance=ExtResource("4_usba")]
+
+[node name="CordExit" type="Marker3D" parent="ControllerPlug"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.03225)
+
+[node name="PointerArea" type="StaticBody3D" parent="ControllerPlug"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ControllerPlug/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.015)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="ControllerPlug"]
+script = ExtResource("2_pickhigh")
+
+[node name="SnapGrabPoint" parent="ControllerPlug" instance=ExtResource("3_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 56
+segment_length = 0.036
+constraint_iterations = 8
+bend_stiffness = 0.15
+tube_radius = 0.0022
+smoothing = 2
+rope_color = Color(0.16, 0.16, 0.17, 1)
+collision_radius = 0.0035
+self_collision = true
+end_align_stiffness = 0.7
+end_stiffness = 0.3
+end_stiff_segments = 2
+top_level = true
