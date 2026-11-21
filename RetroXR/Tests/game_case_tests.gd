@@ -51,6 +51,8 @@ func _run() -> void:
 		["sim/a hand pushing it home catches the latch", _sim_hand_latch],
 		["sim/a keep case's cover holds against gravity, moves when shaken", _sim_keep_stiff],
 		["sim/inner trays never pass the lid", _sim_order],
+		["sim/a caught lid holds its flip trays shut face down", _sim_latched_trays],
+		["sim/a turn of the wrist swings the lid", _sim_spin],
 		["sim/the same steps give the same angles", _sim_deterministic],
 		["model/every variant builds with its seats and art", _model_variants],
 		["case/a new case seats its discs and keeps them while shut", _case_contents],
@@ -253,10 +255,12 @@ func _sim_hand_latch() -> void:
 
 func _sim_keep_stiff() -> void:
 	var s := CaseHingeSim.new()
-	s.configure([0.067], 180.0, 1.3, 900.0, 15.0)
+	s.configure([0.067], 180.0, 2.5, 900.0, 15.0, 1.0)
 	s.set_angle_deg(0, 60.0)
 	_run_sim(s, G_SPINE_DOWN, 2.0)
 	_ok(absf(s.angle_deg(0) - 60.0) < 0.5, "gravity alone does not move it", str(s.angle_deg(0)))
+	_run_sim(s, G_SPINE_DOWN * 2.0, 0.2)              # the hand moving off: 1 g more
+	_ok(absf(s.angle_deg(0) - 60.0) < 0.5, "nor a move of the hand", str(s.angle_deg(0)))
 	_run_sim(s, G_SPINE_DOWN * 3.0, 0.5)              # a hard shake: 3 g along the same line
 	_ok(s.angle_deg(0) > 61.0, "a shake does", str(s.angle_deg(0)))
 
@@ -269,6 +273,32 @@ func _sim_order() -> void:
 	_ok(s.angle_deg(0) <= s.angle_deg(1) + 1e-6, "flip <= lid", "%f %f" % [s.angle_deg(0), s.angle_deg(1)])
 	s.set_angle_deg(1, 0.0)
 	_ok(s.angle_deg(0) == 0.0, "a shut lid shuts the flip tray under it")
+
+
+func _sim_latched_trays() -> void:
+	var s := _jewel_sim(2)
+	_run_sim(s, G_FACE_DOWN, 1.0)
+	_ok(s.latched and s.angle_deg(2) == 0.0 and s.angle_deg(0) == 0.0, "all shut",
+		"%f %f" % [s.angle_deg(0), s.angle_deg(2)])
+	_ok(s.settled(G_FACE_DOWN), "settled")
+
+
+func _sim_spin() -> void:
+	var s := _jewel_sim()
+	s.set_angle_deg(0, 60.0)
+	for _i in int(0.2 / DT):
+		s.step(DT, G_UPRIGHT, 80.0)                   # the case turned away from under its lid
+	_ok(s.angle_deg(0) > 70.0, "the lid stays behind, opening", str(s.angle_deg(0)))
+	s.set_angle_deg(0, 60.0)
+	for _i in int(0.2 / DT):
+		s.step(DT, G_UPRIGHT, -80.0)
+	_ok(s.angle_deg(0) < 50.0, "and the other way, closing", str(s.angle_deg(0)))
+	s = _jewel_sim()
+	s.step(DT, G_UPRIGHT, 300.0)
+	_ok(s.latched, "a caught lid rides a flick")
+	_ok(not s.settled(G_UPRIGHT, 500.0), "a jolt past the latch is not rest")
+	s.step(DT, G_UPRIGHT, 500.0)
+	_ok(not s.latched, "and springs on a jolt past the latch")
 
 
 func _sim_deterministic() -> void:

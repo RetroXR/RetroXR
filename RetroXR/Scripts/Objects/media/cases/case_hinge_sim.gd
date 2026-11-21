@@ -20,14 +20,17 @@
 ##
 ## Friction is a share of gravity's full pull: a jewel case's knuckles turn freely (its lid falls the way the case
 ## is tilted or waved), a keep case's polypropylene living hinge is stiffer than gravity (share above 1: it holds any
-## angle until the case is shaken or a hand moves it).
+## angle until the case is shaken or a hand moves it). `kinetic` is the share of that still felt once it moves: a
+## knuckle slips a little, a living hinge not at all (it stops when the push does).
+##
+## `spin` is the case's own turn about the hinge line speeding up (rad/s^2, about its +y): the panel stays behind,
+## so a flick of the wrist swings it as gravity does.
 class_name CaseHingeSim
 extends RefCounted
 
 const G := 9.81
 ## A hand pushing the top hinge within this of shut catches the latch.
 const SNAP_DEG := 6.0
-## Coming home slower than latch_speed, the lid stops this dead (a soft knock, no bounce worth drawing).
 ## Viscous damping on every hinge (1/s).
 const DAMPING := 2.0
 ## Below this speed (rad/s) a hinge whose pull is within its friction stops dead.
@@ -44,6 +47,8 @@ var held: Array[bool] = []
 var open_max := PI
 ## Static friction as a share of the strongest pull gravity can give the hinge (k * g).
 var friction := 0.15
+## Sliding friction as a share of the static.
+var kinetic := 0.8
 ## What it takes to spring the latch (rad/s^2).
 var latch_break := 400.0
 ## How fast (rad/s) a free swing must come home to catch the latch.
@@ -56,8 +61,9 @@ var clicked := false
 ## `lever_m`: each hinge's pivot-to-centre-of-mass distance, from the back. `friction_share`: static friction as a
 ## share of gravity's full pull (a jewel hinge is free, a keep case's living hinge stiffer).
 func configure(lever_m: Array, open_max_deg := 180.0, friction_share := 0.15, break_accel := 400.0,
-		catch_speed := 3.5) -> void:
+		catch_speed := 3.5, kinetic_share := 0.8) -> void:
 	latch_speed = catch_speed
+	kinetic = kinetic_share
 	count = lever_m.size()
 	angles.resize(count)
 	speeds.resize(count)
@@ -125,13 +131,15 @@ func pull(i: int, g: Vector3) -> float:
 
 
 ## True when nothing will move under this gravity: every hinge at rest and held there by its friction or a stop.
-func settled(g: Vector3) -> bool:
+func settled(g: Vector3, spin := 0.0) -> bool:
 	for i in count:
 		if held[i] or absf(speeds[i]) > REST_SPEED:
 			return false
-		if i == top() and latched:
+		if latched:
+			if pull(top(), g) + spin > latch_break:
+				return false
 			continue
-		var p := pull(i, g)
+		var p := pull(i, g) + spin
 		var lo := angles[i - 1] if i > 0 else 0.0
 		var hi := angles[i + 1] if i < top() else open_max
 		var stuck := absf(p) <= _static(i, g) or (p < 0.0 and angles[i] <= lo + 1e-6) \
@@ -141,30 +149,32 @@ func settled(g: Vector3) -> bool:
 	return true
 
 
-## Advance by dt (s) under an effective gravity `g` (m/s^2) in the case's frame.
-func step(dt: float, g: Vector3) -> void:
+## Advance by dt (s) under an effective gravity `g` (m/s^2) in the case's frame, the case's turn about the hinge
+## line speeding up by `spin` (rad/s^2).
+func step(dt: float, g: Vector3, spin := 0.0) -> void:
 	if count == 0 or dt <= 0.0:
 		return
 	var t := top()
 	if latched and not held[t]:
-		var opening := pull(t, g)
+		var opening := pull(t, g) + spin
 		if opening > latch_break:
 			latched = false
 	for i in count:
 		if held[i]:
 			continue
-		if i == t and latched:
+		# A caught lid holds everything under it shut too.
+		if latched:
 			angles[i] = 0.0
 			speeds[i] = 0.0
 			continue
-		var acc := pull(i, g) - DAMPING * speeds[i]
+		var acc := pull(i, g) + spin - DAMPING * speeds[i]
 		var fs := _static(i, g)
 		if absf(speeds[i]) <= REST_SPEED and absf(acc) <= fs:
 			speeds[i] = 0.0
 			continue
 		# Kinetic friction opposes the motion (or the impending motion from rest).
 		var dir := signf(speeds[i]) if absf(speeds[i]) > REST_SPEED else signf(acc)
-		acc -= dir * fs * 0.8
+		acc -= dir * fs * kinetic
 		speeds[i] += acc * dt
 		angles[i] += speeds[i] * dt
 	# Coming home: fast enough, the latch catches; slower, it only stops there.

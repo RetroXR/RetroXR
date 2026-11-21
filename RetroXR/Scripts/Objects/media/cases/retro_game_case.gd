@@ -20,8 +20,15 @@ const REACH_DEG := 25.0
 const MASS := {"jewel": 0.075, "keep": 0.11}
 ## How freely each family's hinge turns (CaseHingeSim friction, a share of gravity's pull): a jewel case's knuckles
 ## let the lid fall as the case is tilted or waved; a keep case's polypropylene hinge is stiffer than gravity, so
-## its cover holds where it is put unless the case is shaken (the owner, 2026-11-20).
-const FRICTION := {"jewel": 0.12, "keep": 1.3}
+## its cover holds where it is put unless the case is shaken (the owner, 2026-11-20). At 1.3 a 0.3 g move of the
+## hand swung it 45 degrees; at 2.5 it takes 2 g.
+const FRICTION := {"jewel": 0.12, "keep": 2.5}
+## Sliding friction as a share of that: a living hinge does not slip once it moves.
+const KINETIC := {"jewel": 0.8, "keep": 1.0}
+## The case's turn about its spine: speeding up faster than this (rad/s^2) is a teleport or a grab's first frame;
+## slower than SPIN_QUIET, the tracking's tremor.
+const SPIN_CUT := 800.0
+const SPIN_QUIET := 12.0
 ## The jolt that springs a caught latch (rad/s^2), and how fast a free swing must come home to catch it (rad/s):
 ## a lid that drifts shut rests there unlatched; a hand or a poke pushing it home catches it.
 const LATCH_BREAK := {"jewel": 400.0, "keep": 900.0}
@@ -94,6 +101,11 @@ var _manual_proxy: Node3D
 var _front_tries := 0
 var _pos_hist: Array[Vector3] = []
 var _accel := Vector3.ZERO
+var _lid_pivot := Vector3.ZERO
+var _prev_rot := Quaternion.IDENTITY
+var _has_rot := false
+var _turn := 0.0
+var _spin := 0.0
 
 
 func _ready() -> void:
@@ -309,7 +321,9 @@ func _build_hinges() -> void:
 		_rigs.append([frame, angle, hinge])
 		_was_held.append(false)
 	sim.configure(levers, open_max_deg(), float(FRICTION.get(case_family, 0.15)),
-		float(LATCH_BREAK.get(case_family, 400.0)), float(LATCH_SPEED.get(case_family, 3.5)))
+		float(LATCH_BREAK.get(case_family, 400.0)), float(LATCH_SPEED.get(case_family, 3.5)),
+		float(KINETIC.get(case_family, 0.8)))
+	_lid_pivot = model.pivot_m("open")
 	for r in _rigs:
 		(r[2] as CaseHinge).max_deg = rad_to_deg(sim.open_max)
 
@@ -662,8 +676,9 @@ func _physics_process(delta: float) -> void:
 			sim.set_angle_deg(i, hinge.get_rotation_deg())   # a restore or a peer put it there
 			moved = true
 		_was_held[i] = held
-	if moved or not sim.settled(g):
-		sim.step(delta, g)
+	var spin := _spin if absf(_spin) > SPIN_QUIET else 0.0
+	if moved or not sim.settled(g, spin):
+		sim.step(delta, g, spin)
 		_apply_angles()
 	if sim.clicked:
 		sim.clicked = false
@@ -672,8 +687,19 @@ func _physics_process(delta: float) -> void:
 			Haptics.pulse(ctrl, 0.45, 12, LATCH_HAPTIC_KEY)
 
 
+## What the lid feels of the case's own motion: the hinge line's acceleration (so a turn about the spine adds no
+## false pull), and that turn speeding up.
 func _track_accel(delta: float) -> void:
-	_pos_hist.push_front(global_position)
+	var rot := global_basis.orthonormalized().get_rotation_quaternion()
+	if _has_rot:
+		var d := _prev_rot.inverse() * rot
+		var turn := 2.0 * d.y * signf(d.w) / delta       # about the case's +y, the hinge line
+		var a_turn := (turn - _turn) / delta
+		_turn = turn
+		_spin = lerpf(_spin, a_turn if absf(a_turn) < SPIN_CUT else 0.0, 0.35)
+	_prev_rot = rot
+	_has_rot = true
+	_pos_hist.push_front(global_transform * _lid_pivot)
 	if _pos_hist.size() > 3:
 		_pos_hist.resize(3)
 	if _pos_hist.size() < 3:
