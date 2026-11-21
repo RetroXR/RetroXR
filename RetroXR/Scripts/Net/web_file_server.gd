@@ -214,6 +214,7 @@ func _try_handle(conn: Dictionary) -> bool:
 	# Intercept uploads — start streaming immediately without waiting for full body.
 	if method == "POST" and path == "/api/upload":
 		if not _is_authed(hdrs):
+			print("[WebFileServer] upload refused, not logged in: '%s'" % query.get("path", ""))
 			_send_text(conn["peer"] as StreamPeerTCP, 401, "application/json",
 					   '{"error":"unauthorized"}')
 			return true
@@ -282,11 +283,13 @@ func _handle_login(peer: StreamPeerTCP, body: PackedByteArray) -> void:
 	if _locked_out(who):
 		# 429, not 401: the PIN may well be right, and a client that is being
 		# rate-limited should be told that rather than shown "bad pin" forever.
+		print("[WebFileServer] login refused, %s locked out" % who)
 		_send_text(peer, 429, "application/json", '{"error":"too many attempts"}')
 		return
 	var submitted := _extract_pin(body.get_string_from_utf8())
 	if pin.is_empty() or submitted != pin:
 		_note_failure(who)
+		print("[WebFileServer] login failed: wrong PIN from %s" % who)
 		_send_text(peer, 401, "application/json", '{"error":"bad pin"}')
 		return
 	_failures.erase(who)
@@ -298,6 +301,7 @@ func _handle_login(peer: StreamPeerTCP, body: PackedByteArray) -> void:
 			   % [token, body_bytes.size()]
 	peer.put_data(hdr.to_utf8_buffer())
 	peer.put_data(body_bytes)
+	print("[WebFileServer] login from %s" % who)
 
 
 
@@ -540,11 +544,13 @@ func _start_upload_stream(conn: Dictionary, rel: String, headers: Dictionary,
 	var peer := conn["peer"] as StreamPeerTCP
 	var abs_path := _resolve(rel)
 	if abs_path.is_empty():
+		print("[WebFileServer] upload refused, outside the roots: '%s'" % rel)
 		_send_text(peer, 403, "application/json", '{"error":"forbidden"}')
 		return
 	var us := WebUploadStream.open(abs_path, str(headers.get("content-type", "")),
 		int(headers.get("content-length", "0")), body_so_far)
 	if us == null:
+		print("[WebFileServer] upload refused, no multipart boundary: %s" % abs_path)
 		_send_text(peer, 400, "application/json", '{"error":"no boundary"}')
 		return
 	conn["us"] = us
@@ -565,10 +571,13 @@ func _feed_upload_stream(conn: Dictionary, new_data: PackedByteArray) -> bool:
 func _handle_download(peer: StreamPeerTCP, rel: String) -> void:
 	var abs_path := _resolve(rel)
 	if abs_path.is_empty() or _is_root_base(abs_path):
+		print("[WebFileServer] download refused, outside the roots: '%s'" % rel)
 		_send_text(peer, 403, "application/json", '{"error":"forbidden"}')
 		return
 	var f := FileAccess.open(abs_path, FileAccess.READ)
 	if not f:
+		print("[WebFileServer] download failed, cannot open %s (%s)"
+				% [abs_path, error_string(FileAccess.get_open_error())])
 		_send_text(peer, 404, "text/plain", "Not Found")
 		return
 	var data := f.get_buffer(f.get_length())
@@ -578,17 +587,22 @@ func _handle_download(peer: StreamPeerTCP, rel: String) -> void:
 			   % [filename, data.size()]
 	peer.put_data(hdr.to_utf8_buffer())
 	peer.put_data(data)
+	print("[WebFileServer] Downloaded: %s (%d bytes)" % [abs_path, data.size()])
 
 
 func _handle_delete(peer: StreamPeerTCP, rel: String) -> void:
 	var abs_path := _resolve(rel)
 	if abs_path.is_empty() or _is_root_base(abs_path):
+		print("[WebFileServer] delete refused, outside the roots or a root: '%s'" % rel)
 		_send_text(peer, 403, "application/json", '{"error":"forbidden"}')
 		return
+	var was_dir := DirAccess.dir_exists_absolute(abs_path)
 	var err := DirAccess.remove_absolute(abs_path)
 	if err == OK:
+		print("[WebFileServer] Deleted %s: %s" % ["folder" if was_dir else "file", abs_path])
 		_send_text(peer, 200, "application/json", '{"ok":true}')
 	else:
+		push_error("[WebFileServer] delete failed for %s: %s" % [abs_path, error_string(err)])
 		_send_text(peer, 500, "application/json",
 				   '{"error":"delete failed","code":%d}' % err)
 
