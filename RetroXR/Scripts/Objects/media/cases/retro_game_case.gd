@@ -55,6 +55,12 @@ const LATCH_BREAK := {"jewel": 400.0, "keep": 900.0}
 ## than about 100 degrees open; a flick of the wrist does.
 const LATCH_SPEED := {"jewel": 20.0, "keep": 15.0}
 const KEEP_COVER_T := 0.002
+## The lid against the world: its box, this much smaller all round (what it rests on does not count as in its
+## way), is tested where it stands, and something in it turns the lid to the nearest clear angle, either way, as
+## far as this in a tick. Never past its stops. A panel is that thick to a fingertip.
+const LID_SKIN := 0.0015
+const LID_YIELD_DEG := 14.0
+const PANEL_POKE_T := 0.004
 const LATCH_HAPTIC_KEY := &"game_case_latch"
 ## A popped disc rides this far up off its hub, tilted this much, loose on the catches.
 const POP_LIFT := 0.004
@@ -123,6 +129,9 @@ var _front_tries := 0
 var _pos_hist: Array[Vector3] = []
 var _accel := Vector3.ZERO
 var _lid_pivot := Vector3.ZERO
+var _lid_probe: BoxShape3D
+var _lid_query: PhysicsShapeQueryParameters3D
+var _lid_yield := -1.0                           # the way the lid last gave way (+1 opening), for a tie
 static var _sfx_clips: Dictionary = {}           # "<family>_<kind>" -> Array of PackedVector2Array
 var _sfx_voices := {}                            # "snap" / "turn" -> PcmOneShot, made at the first sound
 var _sfx_ticks := 0
@@ -348,6 +357,25 @@ func _build_hinges() -> void:
 		col.shape = box
 		hinge.add_child(col)
 		hinge.place_hint(Vector3(0.0, 0.02, -reach * 0.2))
+		# A bare fingertip pushes the panel from either face, the whole panel's (the door's rule: pushed, never
+		# pulled). A shape for the fingertip's geometry only: disabled, it stops no ray on its way to a disc.
+		var to_frame := frame.transform.affine_inverse()
+		var mid := Vector3(0.0, 0.0, -reach * 0.5)
+		var across := Vector3(_closed_box.size.y * 0.95, PANEL_POKE_T, reach)
+		if which == "open":                              # the lid's own box: its outside and its inside
+			mid = to_frame * _lid_box.get_center()
+			across = Vector3(_lid_box.size.y * 0.95, maxf(_lid_box.size.z, PANEL_POKE_T), _lid_box.size.x)
+		var panel := CollisionShape3D.new()
+		panel.name = "PokePanel"
+		var pbox := BoxShape3D.new()
+		pbox.size = across
+		panel.shape = pbox
+		panel.disabled = true
+		panel.set_meta(&"poke_surface", true)
+		hinge.add_child(panel)
+		panel.position = mid - hinge.position
+		hinge.poke_torque_faces = VRHinge.FACE_Y_NEG | VRHinge.FACE_Y_POS
+		hinge.poke_push_only = true
 		_rigs.append([frame, angle, hinge])
 		_was_held.append(false)
 	sim.configure(levers, open_max_deg(), float(FRICTION.get(case_family, 0.15)),
@@ -734,6 +762,8 @@ func _physics_process(delta: float) -> void:
 	if moved or not sim.settled(g, spin):
 		sim.step(delta, g, spin)
 		_apply_angles()
+	if _lid_gives_way():
+		_apply_angles()
 	if sim.clicked:
 		sim.clicked = false
 		var ctrl := get_picked_up_by_controller()
@@ -795,6 +825,54 @@ func _play_sfx(voice: String, kind: String, volume: float) -> void:
 
 ## What the lid feels of the case's own motion: the hinge line's acceleration (so a turn about the spine adds no
 ## false pull), and that turn speeding up.
+## Whether the lid, turned `deg`, has something of the world in it: anything the case itself collides with, but
+## the case and what it holds.
+func _lid_blocked(deg: float) -> bool:
+	if _lid_query == null:
+		_lid_probe = BoxShape3D.new()
+		_lid_probe.size = (_lid_box.size - Vector3.ONE * LID_SKIN * 2.0).max(Vector3.ONE * 0.0005)
+		_lid_query = PhysicsShapeQueryParameters3D.new()
+		_lid_query.shape = _lid_probe
+		_lid_query.collide_with_areas = false
+	var turn := Transform3D(Basis(Vector3.UP, -deg_to_rad(deg)), Vector3.ZERO)
+	var about := Transform3D(Basis.IDENTITY, _lid_pivot) * turn * Transform3D(Basis.IDENTITY, -_lid_pivot)
+	_lid_query.transform = global_transform * about * Transform3D(Basis.IDENTITY, _lid_box.get_center())
+	_lid_query.collision_mask = collision_mask
+	var skip: Array[RID] = [get_rid()]
+	for body in get_collision_exceptions():
+		skip.append(body.get_rid())
+	_lid_query.exclude = skip
+	return not get_world_3d().direct_space_state.intersect_shape(_lid_query, 1).is_empty()
+
+
+## The lid against the world: a table's edge, a wall, a thing in another hand, a disc left loose under it. What is
+## in its way turns it to the nearest angle clear of it, shutting or opening, never past its stops; a lid that
+## gravity or its swing carries into something stops against it. A caught lid is shut and gives to nothing, and
+## one a hand has goes where the hand takes it. True when it moved.
+func _lid_gives_way() -> bool:
+	var top := sim.top()
+	if sim.latched or top < 0 or sim.held[top] or not is_inside_tree() or freeze_mode == RigidBody3D.FREEZE_MODE_STATIC \
+			and freeze and get_picked_up_by() == null and sleeping:
+		return false
+	var at := sim.angle_deg(top)
+	if not _lid_blocked(at):
+		return false
+	var hi := rad_to_deg(sim.open_max)
+	var lo := sim.angle_deg(top - 1) if top > 0 else 0.0
+	for k in range(1, int(LID_YIELD_DEG) + 1):
+		for way: float in [_lid_yield, -_lid_yield]:
+			var to := at + way * float(k)
+			if to < lo or to > hi:
+				to = clampf(to, lo, hi)
+				if absf(to - at) < 0.05:
+					continue
+			if not _lid_blocked(to):
+				_lid_yield = way
+				sim.push_to_deg(top, to)
+				return true
+	return false
+
+
 func _track_accel(delta: float) -> void:
 	var rot := global_basis.orthonormalized().get_rotation_quaternion()
 	if _has_rot:

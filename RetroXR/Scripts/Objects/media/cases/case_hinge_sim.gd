@@ -134,6 +134,14 @@ func set_angle_deg(i: int, deg: float) -> void:
 	_order(i)
 
 
+## Something in the way has the hinge: it stands at `deg`, at rest. Not a hand's push: the latch does not catch.
+func push_to_deg(i: int, deg: float) -> void:
+	angles[i] = clampf(deg_to_rad(deg), 0.0, open_max)
+	speeds[i] = 0.0
+	_ease[i] = 0.0
+	_order(i)
+
+
 ## A hand has the hinge (it follows set_held_angle_deg) or has let go of it, at `speed_deg` deg/s.
 func set_held(i: int, on: bool, speed_deg := 0.0) -> void:
 	held[i] = on

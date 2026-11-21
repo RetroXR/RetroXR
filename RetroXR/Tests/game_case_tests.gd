@@ -63,6 +63,7 @@ func _run() -> void:
 		["case/a case saves and restores as itself", _case_save],
 		["case/a disc put on a hub keeps the turn the hand held it at", _case_disc_spin],
 		["case/a manual is seated shut, its reach round the booklet's middle", _case_manual_seat],
+		["case/what is in the lid's way turns it, either way, and a fingertip has the whole panel", _case_lid_world],
 		["case/dropped shut or open, a case rests on the floor", _case_drop],
 		["case/the PS2 case's holder takes its memory card", _case_card_holder],
 		["case/the desktop lifts a disc out of an open case", _case_desktop_grab],
@@ -574,6 +575,59 @@ func _case_manual_seat() -> void:
 			or int(book._pending_page.get("state", -1)) == PDFBook.BookState.CLOSED
 		_ok(c.manual() == book and shut, "%s: an open book is shut as it is seated" % fam[0],
 			"%s %s" % [book._state, str(book._pending_page)])
+
+
+func _case_lid_world() -> void:
+	var c := _new_case("jewel", "single")
+	await get_tree().physics_frame
+	c.global_transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5), Vector3(40.0, 1.0, 0.0))   # on its back, far off
+	c.sim.set_angle_deg(c.sim.top(), 90.0)
+	c._apply_angles()
+	await get_tree().physics_frame
+	_ok(not c._lid_blocked(90.0), "nothing near: the lid is clear")
+	_ok(not c._lid_gives_way(), "and stays")
+	# A block standing in the upright lid, a little to its opening side: the lid gives way toward shut.
+	var block := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.02, 0.04, 0.2)
+	shape.shape = box
+	block.add_child(shape)
+	block.collision_layer = c.collision_mask & -c.collision_mask      # one layer the case collides with
+	add_child(block)
+	_spawned.append(block)
+	var lid_mid := c.global_transform * (c._lid_pivot + Vector3(0.0, 0.0, c._lid_box.size.x * 0.6))
+	block.global_position = lid_mid + c.global_basis.x * -0.009        # behind the lid: its outside
+	await get_tree().physics_frame
+	_ok(c._lid_blocked(90.0), "a block in the lid where it stood")
+	for _k in 4:
+		await get_tree().physics_frame
+	_ok(c.lid_deg() < 89.5 and c.lid_deg() > 70.0 and not c._lid_blocked(c.lid_deg()),
+		"pushed from outside, it turns toward shut, just clear", str(c.lid_deg()))
+	block.global_position = lid_mid + c.global_basis.x * 0.2           # away
+	await get_tree().physics_frame
+	c.sim.push_to_deg(c.sim.top(), 90.0)
+	c._apply_angles()
+	block.global_position = lid_mid + c.global_basis.x * 0.009         # inside the lid: its inside face
+	for _k in 5:
+		await get_tree().physics_frame
+	_ok(c.lid_deg() > 90.5 and c.lid_deg() < 110.0 and not c._lid_blocked(c.lid_deg()), "pushed from inside, it turns open", str(c.lid_deg()))
+	_ok(c.lid_deg() <= rad_to_deg(c.sim.open_max) + 0.01, "never past its stop")
+	# A caught lid gives to nothing.
+	block.global_position = lid_mid + c.global_basis.x * 0.3
+	c.sim.set_angle_deg(c.sim.top(), 0.0)
+	c.sim.latched = true
+	_ok(not c._lid_gives_way(), "a caught lid gives to nothing")
+	# The fingertip's panel: the whole lid, both faces, pushed only.
+	for i in c.sim.count:
+		var hinge := c.hinge(i)
+		var panel := hinge.get_node_or_null("PokePanel") as CollisionShape3D
+		_ok(panel != null and panel.disabled and bool(panel.get_meta(&"poke_surface", false)), "hinge %d has a fingertip panel" % i)
+		_ok(hinge.poke_torque_faces == (VRHinge.FACE_Y_NEG | VRHinge.FACE_Y_POS) and hinge.poke_push_only, "both faces, pushed only")
+		_ok(panel in hinge._poke_shapes() and hinge._grab_box() != panel, "the panel is what a fingertip meets; the grab box is still the grab box")
+	var lid_panel := c.hinge(c.sim.top()).get_node("PokePanel") as CollisionShape3D
+	_ok((lid_panel.shape as BoxShape3D).size.z > c._lid_box.size.x * 0.99, "the lid's panel is the lid's whole reach",
+		str((lid_panel.shape as BoxShape3D).size))
 
 
 func _case_drop() -> void:
