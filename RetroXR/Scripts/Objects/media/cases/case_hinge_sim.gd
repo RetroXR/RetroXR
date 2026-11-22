@@ -12,6 +12,11 @@
 ## (the last is the "top" one, the one with the latch). They cannot pass through each other: 0 <= a0 <= a1 <= ... <=
 ## open_max. Two that meet move on together (an inelastic knock).
 ##
+## A keep case's flippers turn like pages (set_page_rule): they hang on one pin line, so one under another stays a
+## page's width behind it, fanning out from lying flat together, and never stands past `page_stand`. The rule is
+## the model's (GameCaseModel.effective_inner) and has to be the sim's too: drawn alone, the flipper a hand held
+## was drawn 15 degrees behind the hand, and one a hand had flipped over was drawn standing at 85.
+##
 ## The latch takes force (the owner, 2026-11-20): a hand pushing the top hinge within SNAP_DEG of shut (the trigger
 ## or a poke) catches it; a free swing catches it only if it comes home faster than `latch_speed` (rad/s), a case
 ## flicked shut. One that drifts shut slower rests there unlatched, and gravity can open it again. Caught (`clicked`
@@ -76,6 +81,9 @@ var knocked := 0.0
 ## hand's own turn speeding up, as `spin` is the base's for the trays that still hang from it.
 var base_swings := false
 var base_lever := 0.06
+## The page rule between two inner hinges (rad; a gap of 0 is none): see the header.
+var page_gap := 0.0
+var page_stand := PI
 
 
 ## `lever_m`: each hinge's pivot-to-centre-of-mass distance, from the back. `friction_share`: static friction as a
@@ -120,6 +128,40 @@ func set_living_hinge(ajar_deg: float, springback_deg: float) -> void:
 	springback = deg_to_rad(springback_deg)
 
 
+func set_page_rule(gap_deg: float, stand_deg: float) -> void:
+	page_gap = deg_to_rad(gap_deg)
+	page_stand = deg_to_rad(stand_deg)
+
+
+## The most hinge i may ever stand (rad): a flipper under another stops at its stand, the rest at the open stop.
+func stop(i: int) -> float:
+	return page_stand if _paged(i) else open_max
+
+
+## Whether hinges i and i + 1 are two pages (both inner, the rule on).
+func _paged(i: int) -> bool:
+	return page_gap > 0.0 and i >= 0 and i + 1 < top()
+
+
+## The most hinge i may stand, for where the one above it stands now.
+func _cap(i: int) -> float:
+	if i >= top():
+		return open_max
+	var above := angles[i + 1]
+	if not _paged(i):
+		return above
+	# The inverse of _least: fanning out to a page's width by the time the upper one is two of them up.
+	return minf(above - page_gap if above >= 2.0 * page_gap else above * 0.5, page_stand)
+
+
+## The least hinge j may stand, for where the one under it stands now.
+func _least(j: int) -> float:
+	if j <= 0:
+		return 0.0
+	var below := angles[j - 1]
+	return below + minf(page_gap, below) if _paged(j - 1) else below
+
+
 func top() -> int:
 	return count - 1
 
@@ -131,7 +173,7 @@ func angle_deg(i: int) -> float:
 ## Put a hinge at an angle with no speed (a restore, or the hand's angle while held). Opening the top hinge from
 ## shut lifts the latch; putting it back at 0 does not catch it (only a release does).
 func set_angle_deg(i: int, deg: float) -> void:
-	var a := clampf(deg_to_rad(deg), 0.0, open_max)
+	var a := clampf(deg_to_rad(deg), 0.0, stop(i))
 	angles[i] = a
 	speeds[i] = 0.0
 	if i == top() and a > 0.0:
@@ -141,7 +183,7 @@ func set_angle_deg(i: int, deg: float) -> void:
 
 ## Something in the way has the hinge: it stands at `deg`, at rest. Not a hand's push: the latch does not catch.
 func push_to_deg(i: int, deg: float) -> void:
-	angles[i] = clampf(deg_to_rad(deg), 0.0, open_max)
+	angles[i] = clampf(deg_to_rad(deg), 0.0, stop(i))
 	speeds[i] = 0.0
 	_ease[i] = 0.0
 	_order(i)
@@ -158,7 +200,7 @@ func set_held(i: int, on: bool, speed_deg := 0.0) -> void:
 
 
 func set_held_angle_deg(i: int, deg: float, dt: float) -> void:
-	var a := clampf(deg_to_rad(deg), 0.0, open_max)
+	var a := clampf(deg_to_rad(deg), 0.0, stop(i))
 	speeds[i] = (a - angles[i]) / dt if dt > 0.0 else 0.0
 	if absf(a - angles[i]) > 0.001:
 		_dir[i] = signf(a - angles[i])
@@ -200,8 +242,8 @@ func settled(g: Vector3, spin := 0.0, top_spin := NAN) -> bool:
 		if _ease[i] != 0.0:
 			return false
 		var p := pull(i, g) + (spin_t if i == top() else spin) + _lift(i)
-		var lo := angles[i - 1] if i > 0 else 0.0
-		var hi := angles[i + 1] if i < top() else open_max
+		var lo := _least(i)
+		var hi := _cap(i)
 		var stuck := absf(p) <= _static(i) or (p < 0.0 and angles[i] <= lo + 1e-6) \
 			or (p > 0.0 and angles[i] >= hi - 1e-6)
 		if not stuck:
@@ -275,7 +317,7 @@ func _lift(i: int) -> float:
 func _resolve() -> void:
 	for _pass in 2:
 		for i in count - 1:
-			if angles[i] > angles[i + 1]:
+			if angles[i] > _cap(i) + 1e-9:
 				_knock(i, i + 1)
 	for i in count:
 		if angles[i] < 0.0:
@@ -288,13 +330,15 @@ func _resolve() -> void:
 				knocked = maxf(knocked, speeds[i])
 			if speeds[i] > 0.0:
 				speeds[i] = -speeds[i] * STOP_RESTITUTION
-	for i in count - 1:
-		if angles[i] > angles[i + 1]:
-			angles[i] = angles[i + 1]
+	for i in range(count - 2, -1, -1):
+		angles[i] = minf(angles[i], _cap(i))
 
 
 func _knock(lo: int, hi: int) -> void:
 	if held[lo] and held[hi]:
+		return
+	if _paged(lo):
+		_knock_pages(lo, hi)
 		return
 	# A free tray landing on a panel stiffer than gravity stops against it as against a hand.
 	var wall_hi := held[hi] or (frictions[hi] >= 1.0 and frictions[lo] < 1.0 and not held[lo])
@@ -314,11 +358,38 @@ func _knock(lo: int, hi: int) -> void:
 		speeds[hi] = v
 
 
-## After a hand moved hinge i: push the others out of its way.
+## Two pages that have met: the one under stops at its stand, or they go on together a page's width apart (fanned
+## closer near lying flat), the same middle between them.
+func _knock_pages(lo: int, hi: int) -> void:
+	if angles[lo] > page_stand and _cap(lo) >= page_stand - 1e-9:
+		angles[lo] = page_stand                      # the upper one is over: the lower stands at its stop
+		speeds[lo] = minf(speeds[lo], 0.0)
+		return
+	var wall_hi := held[hi] or (frictions[hi] >= 1.0 and frictions[lo] < 1.0 and not held[lo])
+	var wall_lo := held[lo] or (frictions[lo] >= 1.0 and frictions[hi] < 1.0 and not held[hi])
+	if wall_hi:
+		angles[lo] = _cap(lo)
+		speeds[lo] = minf(speeds[lo], speeds[hi])
+	elif wall_lo:
+		angles[hi] = minf(_least(hi), open_max)
+		speeds[hi] = maxf(speeds[hi], speeds[lo])
+	else:
+		var mid := (angles[lo] + angles[hi]) * 0.5
+		var v := (speeds[lo] + speeds[hi]) * 0.5
+		if mid >= 1.5 * page_gap:
+			angles[lo] = mid - page_gap * 0.5
+			angles[hi] = mid + page_gap * 0.5
+		else:
+			angles[lo] = mid * 2.0 / 3.0
+			angles[hi] = mid * 4.0 / 3.0
+		speeds[lo] = v
+		speeds[hi] = v
+
+
+## After a hand moved hinge i: push the others out of its way. Those above ride ahead of it; then, from the top
+## down, each is held to what the one above it allows (i itself too, where those above could not make room).
 func _order(i: int) -> void:
 	for j in range(i + 1, count):
-		if angles[j] < angles[j - 1]:
-			angles[j] = angles[j - 1]
-	for j in range(i - 1, -1, -1):
-		if angles[j] > angles[j + 1]:
-			angles[j] = angles[j + 1]
+		angles[j] = minf(maxf(angles[j], _least(j)), open_max)
+	for j in range(count - 2, -1, -1):
+		angles[j] = minf(angles[j], _cap(j))

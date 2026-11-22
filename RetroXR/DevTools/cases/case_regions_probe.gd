@@ -4,7 +4,7 @@ extends Node3D
 ## manual out), the hands' regions (each handle's trigger reach and fingertip panel, the base's handle live only
 ## when the case is held by its lid, the quiet over a seated manual) and the desktop pointer's targets.
 ## Windowed. One PNG per case, angle and layer under --out: <family>_<variant>_<angle|held>_<layer>.png.
-##   godot --path RetroXR res://DevTools/cases/case_regions_probe.tscn --resolution 640x360 --position 20,20 -- --out=<dir>
+##   godot --path RetroXR res://DevTools/cases/case_regions_probe.tscn --resolution 640x360 --position 20,20 -- --out=<dir> [--cases=keep/multi5/ps2,...]
 ## Prints [viz] lines; quits when done.
 const CASE_SCENE := preload("res://Scenes/Objects/media/game_case.tscn")
 const DISC_SCENE := preload("res://Scenes/Objects/media/disc.tscn")
@@ -28,14 +28,19 @@ func _ready() -> void:
 	get_tree().create_timer(300.0).timeout.connect(func() -> void:
 		print("[viz] TIMEOUT")
 		get_tree().quit(1))
+	var cases: Array = CASES
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--out="):
 			_out = arg.substr(6)
+		elif arg.begins_with("--cases="):                # family/variant/system, comma separated
+			cases = []
+			for one in arg.substr(8).split(",", false):
+				cases.append(Array(one.split("/")))
 	if _out.is_empty():
 		_out = ProjectSettings.globalize_path("user://case_regions")
 	DirAccess.make_dir_recursive_absolute(_out)
 	_stage()
-	for row: Array in CASES:
+	for row: Array in cases:
 		await _case(row[0], row[1], row[2])
 	print("[viz] done")
 	get_tree().quit(0)

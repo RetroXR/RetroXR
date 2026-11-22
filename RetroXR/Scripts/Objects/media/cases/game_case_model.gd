@@ -68,6 +68,8 @@ const DEFAULT_COLORS := {"gc_jp": "clear", "gc_jp_double": "clear", "bluray": "b
 	"umd": "clear", "wiiu": "wiiu_blue"}
 ## Flippers turn like pages: each stays this far behind the one above once that one has moved (KeepCase).
 const LEAF_SPREAD := 15.0
+## A flipper under another never stands past this: the one above lies over on the cover by then.
+const LEAF_STAND := 85.0
 const SPINE_OPEN_MAX := 90.0
 ## A jewel lid laid open on a table turns a little past flat (RetroGameCase.open_max_deg).
 const OPEN_LIMIT := 190.0
@@ -207,8 +209,10 @@ func effective_inner() -> Array[float]:
 	for i in range(inner_deg.size() - 1, -1, -1):
 		var a := inner_deg[i]
 		if family == "keep" and i < inner_deg.size() - 1:
+			# CaseHingeSim's page rule (_cap): the case's sim holds its angles to it already, so this only
+			# clamps angles set here by hand.
 			var above: float = out[i + 1]
-			var limit := 85.0 if above > 100.0 else above - LEAF_SPREAD
+			var limit := minf(above - LEAF_SPREAD if above >= 2.0 * LEAF_SPREAD else above * 0.5, LEAF_STAND)
 			a = clampf(a, 0.0, maxf(0.0, limit))
 		out[i] = a
 	return out

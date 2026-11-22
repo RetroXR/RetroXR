@@ -59,6 +59,7 @@ func _run() -> void:
 		["sim/a lid reports how hard it hits its stops", _sim_knock],
 		["sim/a keep case's cover rests ajar unlatched, eases back when let go", _sim_living_hinge],
 		["sim/a keep case's flippers swing free under a cover that holds", _sim_flippers],
+		["sim/a keep case's flippers turn like pages", _sim_pages],
 		["sim/the same steps give the same angles", _sim_deterministic],
 		["model/every variant builds with its seats and art", _model_variants],
 		["case/a new case seats its discs and keeps them while shut", _case_contents],
@@ -73,6 +74,7 @@ func _run() -> void:
 		["case/a seated manual turns no page and the lid's handle is quiet over it", _case_manual_quiet],
 		["case/let go a little way into a tabletop, a case is lifted onto it", _case_lift_out],
 		["case/a flip tray's hinge is taken from either face", _case_tray_both_faces],
+		["case/a flipper is drawn where its handle is", _case_pages_drawn_as_held],
 		["case/dropped shut or open, a case rests on the floor", _case_drop],
 		["case/the PS2 case's holder takes its memory card", _case_card_holder],
 		["case/the desktop lifts a disc out of an open case", _case_desktop_grab],
@@ -433,6 +435,63 @@ func _sim_flippers() -> void:
 	_run_sim(s, G_FACE_UP, 2.0)
 	_ok(absf(s.angle_deg(0) - 120.0) < 0.5, "past upright it falls onto the cover", str(s.angle_deg(0)))
 	_ok(absf(s.angle_deg(1) - 120.0) < 0.5, "which still holds", str(s.angle_deg(1)))
+
+
+func _page_sim() -> CaseHingeSim:
+	var s := CaseHingeSim.new()
+	s.configure([0.067, 0.067, 0.067], 180.0, 2.5, 900.0, 15.0, 1.0)
+	for i in 2:
+		s.set_hinge_friction(i, 0.12, 0.8)
+	s.set_page_rule(15.0, 85.0)
+	s.set_angle_deg(2, 180.0)                             # the cover lying open
+	return s
+
+
+func _sim_pages() -> void:
+	var s := _page_sim()
+	# A hand raises the lower flipper: the upper rides ahead of it, fanning out to a page's width.
+	s.set_held(0, true)
+	s.set_held_angle_deg(0, 8.0, DT)
+	_ok(absf(s.angle_deg(0) - 8.0) < 0.01 and absf(s.angle_deg(1) - 16.0) < 0.01, "lower at 8: the upper fans to 16",
+		"%f %f" % [s.angle_deg(0), s.angle_deg(1)])
+	s.set_held_angle_deg(0, 40.0, DT)
+	_ok(absf(s.angle_deg(0) - 40.0) < 0.01 and absf(s.angle_deg(1) - 55.0) < 0.01, "lower at 40: the upper 15 ahead, at 55",
+		"%f %f" % [s.angle_deg(0), s.angle_deg(1)])
+	s.set_held_angle_deg(0, 120.0, DT)
+	_ok(absf(s.angle_deg(0) - 85.0) < 0.01 and absf(s.angle_deg(1) - 100.0) < 0.01, "pulled to 120 it stands at 85, the upper at 100",
+		"%f %f" % [s.angle_deg(0), s.angle_deg(1)])
+	s.set_held(0, false)
+	# The upper one laid back down takes the lower with it, closing the fan.
+	s.set_held(1, true)
+	s.set_held_angle_deg(1, 50.0, DT)
+	_ok(absf(s.angle_deg(0) - 35.0) < 0.01, "upper down to 50: the lower to 35", str(s.angle_deg(0)))
+	s.set_held_angle_deg(1, 10.0, DT)
+	_ok(absf(s.angle_deg(0) - 5.0) < 0.01, "upper at 10: the lower at 5", str(s.angle_deg(0)))
+	s.set_held_angle_deg(1, 0.0, DT)
+	_ok(s.angle_deg(0) == 0.0 and s.angle_deg(1) == 0.0, "both flat together")
+	s.set_held(1, false)
+	# Free: with the upper over on the cover, a lower one swung up stops standing at 85.
+	s = _page_sim()
+	s.set_angle_deg(1, 150.0)
+	s.set_angle_deg(0, 40.0)
+	_run_sim(s, G_SPINE_DOWN, 2.0)                        # standing on its spine: everything falls open
+	_ok(absf(s.angle_deg(0) - 85.0) < 0.5 and s.angle_deg(1) > 170.0, "falling open, the lower stops at 85 and the upper goes over",
+		"%f %f" % [s.angle_deg(0), s.angle_deg(1)])
+	# And falling shut together they keep the rule every step.
+	s = _page_sim()
+	s.set_angle_deg(1, 80.0)
+	s.set_angle_deg(0, 60.0)
+	var worst := 0.0
+	for _i in int(2.0 / DT):
+		s.step(DT, G_FACE_UP)
+		worst = maxf(worst, s.angles[0] - s._cap(0))
+	_ok(worst < 1e-6 and s.angle_deg(1) < 1.0 and s.angle_deg(0) < 1.0, "falling shut they never cross, and lie flat",
+		"%f; %f %f" % [worst, s.angle_deg(0), s.angle_deg(1)])
+	# A jewel case's flip tray has no such rule.
+	var j := _jewel_sim(1)
+	j.set_angle_deg(1, 100.0)
+	j.set_angle_deg(0, 100.0)
+	_ok(j.angle_deg(0) == 100.0, "a jewel case's flip tray lies right against its lid")
 
 
 func _sim_deterministic() -> void:
@@ -1200,9 +1259,7 @@ func _case_lift_out() -> void:
 
 func _case_tray_both_faces() -> void:
 	var x := 200.0
-	# (Not the five-disc keep case: its two flippers are drawn turning like pages, 15 degrees apart, which the
-	# handles do not follow.)
-	for fam: Array in [["jewel", "fatbox2"], ["jewel", "double"], ["jewel", "pal_multi2"], ["keep", "triple"]]:
+	for fam: Array in [["jewel", "fatbox2"], ["jewel", "double"], ["jewel", "pal_multi2"], ["keep", "triple"], ["keep", "multi5"]]:
 		x += 3.0
 		var c := _new_case(fam[0], fam[1])
 		await get_tree().physics_frame
@@ -1257,8 +1314,43 @@ func _case_tray_both_faces() -> void:
 		var normal := box.global_basis.y.normalized()
 		for side: float in [1.0, -1.0]:
 			var t := InteractionResolver.resolve_desktop(space, mid + normal * side * 0.2, mid - normal * side * 0.05, grabber)
-			_ok(t.is_valid() and t.action_node == tray, "%s/%s: from its %s face a click on its free edge takes the tray's hinge" % [
-				fam[0], fam[1], "upper" if side > 0.0 else "under"], "%s %s" % [t.kind, t.action_node])
+			# Two flippers: the second stands a page's width in front of the first, and is what a click from there meets.
+			var want := c.hinge(1) if side > 0.0 and c.sim.top() > 1 else tray
+			_ok(t.is_valid() and t.action_node == want, "%s/%s: from its %s face a click on its free edge takes %s" % [
+				fam[0], fam[1], "upper" if side > 0.0 else "under", "the tray's hinge" if want == tray else "the flipper in front's"],
+				"%s %s" % [t.kind, t.action_node])
+
+
+## The five-disc keep case's two flippers turn like pages. The model drew that and the sim did not: raised by a
+## hand, the lower flipper was drawn 15 degrees behind its handle, its fingertip panel and its discs' reach.
+func _case_pages_drawn_as_held() -> void:
+	var c := _new_case("keep", "multi5")
+	await get_tree().physics_frame
+	c.global_position = Vector3(230.0, 1.0, 0.0)
+	c.set_physics_process(false)
+	c._apply_angles()
+	var top := c.sim.top()
+	_ok(top == 2, "the five-disc case has two flippers under its cover", str(top))
+	# A point at each flipper's free edge, as the drawn flipper carries it and as its handle's rig does.
+	var leaves: Array[Node3D] = []
+	var in_leaf: Array[Vector3] = []
+	var out := Vector3(0.0, 0.0, -0.10)
+	for i in top:
+		var leaf := c.model.levels[0].find_child("Leaf%d" % (i + 1), true, false) as Node3D
+		leaves.append(leaf)
+		in_leaf.append(leaf.global_transform.affine_inverse() * ((c.hinge(i).get_parent() as Node3D).global_transform * out))
+	c.sim.set_angle_deg(top, 180.0)
+	for pose: Array in [[0, 40.0], [0, 120.0], [1, 150.0], [1, 20.0], [0, 6.0], [1, 0.0]]:
+		c.sim.set_angle_deg(int(pose[0]), float(pose[1]))
+		c._apply_angles()
+		for i in top:
+			var drawn := leaves[i].global_transform * in_leaf[i]
+			var held := (c.hinge(i).get_parent() as Node3D).global_transform * out
+			_ok(drawn.distance_to(held) < 0.001, "flipper %d set to %d: flipper %d is drawn where its handle is (%.1f and %.1f)" % [
+				int(pose[0]) + 1, int(pose[1]), i + 1, c.sim.angle_deg(0), c.sim.angle_deg(1)],
+				"%.1f mm apart" % (drawn.distance_to(held) * 1000.0))
+	_ok(is_equal_approx(c.hinge(0).max_deg, GameCaseModel.LEAF_STAND) and c.hinge(1).max_deg > 170.0,
+		"the lower flipper's handle stops where the flipper does", "%f %f" % [c.hinge(0).max_deg, c.hinge(1).max_deg])
 
 
 func _case_drop() -> void:

@@ -439,12 +439,14 @@ func _build_hinges() -> void:
 		for i in sim.top():
 			sim.set_hinge_friction(i, FLIPPER_FRICTION, 0.8)
 		sim.set_living_hinge(KEEP_AJAR_DEG, KEEP_SPRINGBACK_DEG)
+		# Its flippers turn like pages, in the sim as in the model: one rule for what is drawn, held and swung.
+		sim.set_page_rule(GameCaseModel.LEAF_SPREAD, GameCaseModel.LEAF_STAND)
 	_lid_pivot = model.pivot_m("open")
 	sim.base_lever = float(levers[levers.size() - 1])
 	_lid_node = model.levels[0].find_child("Lid" if case_family == "jewel" else "Cover", true, false) as Node3D \
 		if not model.levels.is_empty() else null
-	for r in _rigs:
-		(r[2] as CaseHinge).max_deg = rad_to_deg(sim.open_max)
+	for i in _rigs.size():                               # a flipper under another stops where the sim stops it
+		(_rigs[i][2] as CaseHinge).max_deg = rad_to_deg(sim.stop(i))
 	var top_rig: Array = _rigs[_rigs.size() - 1]
 	(top_rig[2] as CaseHinge).quiet_at = _lid_quiet
 	_lid_handle_at = (top_rig[2] as Node3D).position
