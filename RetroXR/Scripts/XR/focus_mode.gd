@@ -6,7 +6,8 @@
 ## the player rig goes invisible and gets back the visibility it had. Kept drawn:
 ## whatever a hand has held since focus began, the focused machine (the handheld
 ## itself, or the source on a TV's selected input) with the units bolted to it, every
-## device and lead wired to that machine, and whatever is seated in a socket on any of
+## device in its ports (wired or paired: a Wii U's GamePad and Pro Controllers, a
+## Wii's remotes) and what such a pad is docked in, every lead wired to that machine, and whatever is seated in a socket on any of
 ## those — but not an AV or power lead out of the back, which runs to the hidden set or
 ## outlet. Hidden things keep their bodies, so their pickables and poke widgets are
 ## switched off and the lasers see only the screen.
@@ -314,6 +315,11 @@ func _keep_wired(keep: Dictionary, machine: RetroSystem) -> void:
 	for ctrl: Variant in controllers:
 		if is_instance_valid(ctrl):
 			_keep(keep, ctrl)
+	# What a pad in a port is docked in (a GamePad in its charging cradle): the
+	# seated rule keeps what sits in a kept thing, never what a kept thing sits in.
+	for zone: XRToolsSnapZone in XRToolsSnapZone.live_zones():
+		if is_instance_valid(zone) and is_instance_valid(zone.picked_up_object) 				and controllers.has(zone.picked_up_object):
+			_keep(keep, zone)
 	var tree := get_tree()
 	var plugs := tree.get_nodes_in_group("controller_plug") + tree.get_nodes_in_group(LinkPlug.ANY_GROUP)
 	for plug: Node in plugs:

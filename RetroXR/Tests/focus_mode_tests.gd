@@ -14,6 +14,10 @@ const N64_AV_CABLE_SCENE := preload(
 	"res://Scenes/Objects/system_models/nintendo_64/n64_av_cable.tscn")
 const SNAP_ZONE_SCENE := preload("res://addons/godot-xr-tools/objects/snap_zone.tscn")
 const EXPANSION_SCENE := preload("res://Scenes/Objects/expansion.tscn")
+const GAMEPAD_SCENE := preload("res://Scenes/Objects/controllers/wiiu/wiiu_gamepad.tscn")
+const PRO_SCENE := preload("res://Scenes/Objects/controllers/wiiu/wiiu_pro_controller.tscn")
+const WIIMOTE_SCENE := preload("res://Scenes/Objects/controllers/wii/wiimote.tscn")
+const CRADLE_SCENE := preload("res://Scenes/Objects/peripherals/wiiu/wiiu_gamepad_cradle.tscn")
 
 const HAND_SRC := """extends Node3D
 var inputs := {}
@@ -85,6 +89,8 @@ func _run() -> void:
 		await _audio_cases()
 	if _want("life"):
 		await _life_cases()
+	if _want("wireless"):
+		await _wireless_cases()
 
 
 func _stub(source: String, node: Node) -> Node:
@@ -688,3 +694,42 @@ func _life_cases() -> void:
 	_menu.visible = false
 	tv.free()
 	await _wait(2)
+
+
+## Pads with no cord: paired over SYNC, a Wii U's GamePad, Pro Controller and Wii
+## Remote are in its ports, so they stay in view with it, and so does the cradle
+## the GamePad is docked in; a pad paired with nothing is hidden with the room.
+func _wireless_cases() -> void:
+	var wiiu := await _handheld("wiiu")
+	var link := wiiu.get_wii_link()
+	_ok(link != null, "wireless/a Wii U pairs over SYNC")
+	if link == null:
+		return
+	var pads: Array[Node3D] = []
+	for scene: PackedScene in [GAMEPAD_SCENE, PRO_SCENE, WIIMOTE_SCENE, PRO_SCENE]:
+		var pad := scene.instantiate() as Node3D
+		pad.position = Vector3(-2 + pads.size() * 0.4, 1.0, 1.0)
+		(pad as RigidBody3D).freeze = true
+		add_child(pad)
+		pads.append(pad)
+	var cradle := CRADLE_SCENE.instantiate() as Node3D
+	cradle.position = Vector3(2, 1, 1)
+	(cradle as RigidBody3D).freeze = true
+	add_child(cradle)
+	await _wait(10)
+	_ok(link.pair(pads[0]) == 0 and link.pair(pads[1]) == 1 and link.pair(pads[2]) == 2,
+		"wireless/the GamePad, a Pro Controller and a remote paired")
+	(cradle.get_node("PadSeat") as XRToolsSnapZone).pick_up_object(pads[0])
+	await _wait(5)
+	_fm._room = get_tree().current_scene
+	_fm._device = weakref(wiiu)
+	var keep := _fm._keep_set()
+	_ok(keep.has(wiiu), "wireless/the Wii U is kept")
+	_ok(keep.has(pads[0]) and keep.has(pads[1]) and keep.has(pads[2]),
+		"wireless/its paired GamePad, Pro Controller and remote stay in view")
+	_ok(keep.has(cradle), "wireless/and the cradle the GamePad sits in")
+	_ok(not keep.has(pads[3]), "wireless/a Pro Controller paired with nothing is hidden with the room")
+	_fm._device = null
+	_fm._room = null
+	for pad: Variant in pads:
+		link.unpair(pad)
