@@ -911,7 +911,8 @@ function go(p,push){
   var parts=p?p.split('/').filter(Boolean):[];
   var h='<a data-nav="">root</a>';
   var acc='';
-  parts.forEach(function(s){acc+='/'+s;h+='<span class="sep">/</span><a data-nav="'+acc+'">'+esc(s)+'</a>';});
+  // No leading slash: the server reads the first segment as the root's name.
+  parts.forEach(function(s){acc+=(acc?'/':'')+s;h+='<span class="sep">/</span><a data-nav="'+acc+'">'+esc(s)+'</a>';});
   bc.innerHTML=h;
   // The top level lists the named roots; a folder can only go inside one.
   document.getElementById('mk').style.display=p?'':'none';
