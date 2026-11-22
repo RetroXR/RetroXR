@@ -718,7 +718,9 @@ const SOURCES := {
 		"label": "ParaLLEl GX2 (retroXR build)",
 		"assets": {
 			"Windows": "parallel_gx2_libretro.dll.zip",
+			"Android": "parallel_gx2_libretro_android.so.zip",
 			"Linux":   "parallel_gx2_libretro.so.zip",
+			"macOS":   "parallel_gx2_libretro_{arch}.dylib.zip",
 		},
 	},
 	# The old Wii U core, kept for a player who still has it: RetroXR's own Cemu
