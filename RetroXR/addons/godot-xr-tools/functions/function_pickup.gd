@@ -510,6 +510,11 @@ func _get_closest_grab() -> Node3D:
 	var new_closest_distance := MAX_GRAB_DISTANCE2
 	var best_zone: Node3D = null
 	var best_zone_distance := MAX_GRAB_DISTANCE2
+	# LOCAL PATCH (RetroXR): a zone whose reach is a box (XRToolsSnapZone.reach_box) rather than a ball round its
+	# origin. A hand in a zone's own ball is AT that socket and beats one merely inside another's box: a disc's
+	# hub wins where a booklet's box runs over it.
+	var best_box: Node3D = null
+	var best_box_distance := MAX_GRAB_DISTANCE2
 	for o in _object_in_grab_area:
 		# skip objects that can not be picked up
 		if not o.can_pick_up(self):
@@ -518,11 +523,16 @@ func _get_closest_grab() -> Node3D:
 		var distance_squared := global_transform.origin.distance_squared_to(
 				o.global_transform.origin)
 		if o is XRToolsSnapZone:
-			var zone_r: float = o.grab_distance
-			if distance_squared <= zone_r * zone_r \
-					and distance_squared < best_zone_distance:
+			var reach: float = o.reaches(global_transform.origin)
+			if reach < 0.0:
+				continue
+			if o.reach_box.size != Vector3.ZERO:
+				if reach < best_box_distance:
+					best_box = o
+					best_box_distance = reach
+			elif reach < best_zone_distance:
 				best_zone = o
-				best_zone_distance = distance_squared
+				best_zone_distance = reach
 			continue
 
 		# LOCAL PATCH (RetroXR): an object may narrow its own hand reach (`hand_takes_at(hand)`).
@@ -537,6 +547,8 @@ func _get_closest_grab() -> Node3D:
 	# A directly-touched socket beats nearby pickables
 	if best_zone != null:
 		return best_zone
+	if best_box != null:
+		return best_box
 
 	# Return best object
 	return new_closest_obj

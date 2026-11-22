@@ -708,6 +708,90 @@ func _buried(body: PhysicsBody3D, shape: Shape3D, xform: Transform3D,
 	return false
 
 
+## ── Lifting out ────────────────────────────────────────────────────────────
+## The escape above is for a body let go INSIDE the room's own geometry. This is for one let go a little way into
+## what it should be lying ON, and it is opt-in (a game case asks; nothing else does yet).
+##
+## Why it is needed: a held object passes through everything, so a hand setting a thing down lets go of it a few
+## millimetres into the table. The escape does not look at tables (they are pickable bodies on layer 3, not World),
+## and Jolt leaves any overlap under its 20 mm penetration slop where it is. For a console that is a foot sunk a
+## little. A game case is 10 mm thick: the table shows through it.
+##
+## The rule is narrow on purpose:
+##   * only a SUPPORT counts: a static body, or a rigid one that is frozen or heavy (LIFT_SUPPORT_KG), with no
+##     collision exception either way. A loose disc in an open case's jaws, or another light thing, moves nothing.
+##   * only UP. The way out of the deepest contact must be mostly upward (LIFT_UP), onto a tabletop, a floor, a
+##     shelf board. A wall or a drawer's side is left to the escape and the solver: nothing is flung sideways.
+##   * only a little. Past `max_travel` the body is left exactly where it was.
+const LIFT_PASSES := 6
+const LIFT_HITS := 32
+const LIFT_DONE := 0.001
+const LIFT_UP := 0.7
+const LIFT_SUPPORT_KG := 1.0
+
+
+## Lift `body` out of what it overlaps, by the rule above. `shape_node` is its collision shape, `mask` the layers it
+## collides with when nobody holds it. Returns how far it was moved (0 when it was clear, or was left alone).
+static func lift_out(body: PhysicsBody3D, shape_node: CollisionShape3D, mask: int, max_travel: float) -> float:
+	if body == null or shape_node == null or shape_node.shape == null or not body.is_inside_tree():
+		return 0.0
+	var space := body.get_world_3d().direct_space_state
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = shape_node.shape
+	q.collide_with_areas = false
+	q.collide_with_bodies = true
+	q.collision_mask = mask
+	var at := shape_node.global_transform
+	var moved := Vector3.ZERO
+	for _pass in LIFT_PASSES:
+		q.transform = Transform3D(at.basis, at.origin + moved)
+		var skip: Array[RID] = [body.get_rid()]
+		q.exclude = skip
+		var supports := 0
+		for hit: Dictionary in space.intersect_shape(q, LIFT_HITS):
+			if _is_support(hit.get("collider") as PhysicsBody3D, body):
+				supports += 1
+			else:
+				skip.append(hit["rid"])
+		if supports == 0:
+			break
+		q.exclude = skip
+		# Pairs: a point on the query shape, then the point on what it is in. The longest is the deepest.
+		var pts := space.collide_shape(q, LIFT_HITS)
+		var out := Vector3.ZERO
+		for i in range(0, pts.size() - 1, 2):
+			var v := pts[i + 1] - pts[i]
+			if v.length_squared() > out.length_squared():
+				out = v
+		if out.length() < LIFT_DONE:
+			break
+		if out.normalized().y < LIFT_UP:
+			return 0.0
+		moved += out
+		if moved.length() > max_travel:
+			return 0.0
+	if moved == Vector3.ZERO:
+		return 0.0
+	var t := body.global_transform
+	t.origin += moved
+	body.global_transform = t
+	body.force_update_transform()
+	PhysicsServer3D.body_set_state(body.get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM, t)
+	body.reset_physics_interpolation()
+	return moved.length()
+
+
+static func _is_support(other: PhysicsBody3D, body: PhysicsBody3D) -> bool:
+	if other == null or other == body:
+		return false
+	if body.get_collision_exceptions().has(other) or other.get_collision_exceptions().has(body):
+		return false
+	if other is StaticBody3D:
+		return true
+	var rigid := other as RigidBody3D
+	return rigid != null and (rigid.freeze or rigid.mass >= LIFT_SUPPORT_KG)
+
+
 func _first_shape(body: PhysicsBody3D) -> CollisionShape3D:
 	for c in body.get_children():
 		var cs := c as CollisionShape3D

@@ -102,6 +102,11 @@ var _base_width: float = 0.0   # unscaled dimensions (size_scale = 1.0)
 var _base_height: float = 0.0
 var _export_height: float = 0.25   # pristine book_height (CBZ sizing base)
 var _pending_page: Dictionary = {}  # {state, leaf} to apply once loaded
+## A game case holds the book shut in its lid, where it is hidden and not read: no page turns under a fingertip,
+## the trigger, the pointer or the E/Q keys, and its options panel is not offered, until it is taken out
+## (set_pages_locked). Hiding it and clearing `enabled` switched none of that off: a reach for the manual in a
+## case turned a page nobody could see.
+var _pages_locked := false
 
 # Texture cache (page_index -> ImageTexture)
 var _texture_cache: Dictionary = {}
@@ -480,6 +485,8 @@ func _ready() -> void:
 ## Called by SpawnMenuController when the menu button is pressed while pointing
 ## at this book.
 func toggle_options_ui(camera: Node3D) -> void:
+	if _pages_locked and not _options_panel.visible:
+		return
 	if _options_panel.visible:
 		_options_panel.hide_panel()
 	else:
@@ -2280,8 +2287,20 @@ func _layout_page_grabs() -> void:
 		_seat_page_grab(zone, int(dir))
 		zone.reach = reach
 	_size_page_grab_shapes()
-	_grab_right.set_enabled(_page_count > 0 and _state != BookState.LAST_PAGE)
-	_grab_left.set_enabled(_page_count > 0 and _state != BookState.CLOSED)
+	_grab_right.set_enabled(not _pages_locked and _page_count > 0 and _state != BookState.LAST_PAGE)
+	_grab_left.set_enabled(not _pages_locked and _page_count > 0 and _state != BookState.CLOSED)
+
+
+## See _pages_locked.
+func set_pages_locked(on: bool) -> void:
+	if _pages_locked == on:
+		return
+	_pages_locked = on
+	_layout_page_grabs()
+
+
+func pages_locked() -> bool:
+	return _pages_locked
 
 
 ## A zone's pointer box: the outer band of its page, from the page up to just
@@ -2961,7 +2980,7 @@ func _abort_grab() -> void:
 
 
 func _on_page_grab_begin(dir: int, world_pos: Vector3) -> void:
-	if _grab_dir != 0 or _page_count == 0 or not _flights.is_empty():
+	if _pages_locked or _grab_dir != 0 or _page_count == 0 or not _flights.is_empty():
 		return
 	if not _spawn_leaf(dir):
 		return
@@ -3866,7 +3885,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	# Reuses RETRO_JOYPAD_R (E key) and RETRO_JOYPAD_L (Q key) actions.
 	# Only fires when the book is held and not mid-turn. The page is animated
 	# over (_play_turn); it jumps only if no leaf can be laid for that side.
-	if not is_picked_up() or _page_count == 0 or _turn_cooldown > 0.0:
+	if _pages_locked or not is_picked_up() or _page_count == 0 or _turn_cooldown > 0.0:
 		return
 	var dir := 0
 	if event.is_action_pressed("RETRO_JOYPAD_R"):

@@ -63,6 +63,18 @@ const LID_YIELD_DEG := 14.0
 const PANEL_POKE_T := 0.004
 ## A grip on an open case nearer its lid than its base, and within this of the lid, has the case by its lid.
 const LID_GRIP_REACH := 0.12
+## Where a grip takes the manual out (XRToolsSnapZone.reach_box): the booklet itself and this far above it into the
+## open case, this far beside it. Never behind it: that is the lid (the owner, 2026-11-22).
+const MANUAL_REACH_UP := 0.06
+const MANUAL_REACH_SIDE := 0.01
+## The rim that lights round the booklet when a grip would take the manual: this far outside it, this wide.
+const MANUAL_RIM_GAP := 0.003
+const MANUAL_RIM_W := 0.002
+const MANUAL_HAPTIC_KEY := &"game_case_manual"
+## A case let go a little way into what it should lie on is lifted out onto it (HeldObjectPhysics.lift_out): no
+## farther than this, and not one moving faster than this (thrown, not put down).
+const LIFT_MAX := 0.06
+const LIFT_MAX_SPEED := 1.0
 const LATCH_HAPTIC_KEY := &"game_case_latch"
 ## A popped disc rides this far up off its hub, tilted this much, loose on the catches.
 const POP_LIFT := 0.004
@@ -138,6 +150,12 @@ var _lid_node: Node3D                            # the model's lid (a keep case'
 var _lid_rest := Transform3D()
 var _lid_grab: Grab                              # the hand that has the case by its lid ...
 var _lid_hand := Transform3D()                   # ... where it is in the lid's own frame
+var _base_hinge: CaseHinge                       # the lid's hinge again, by its other half: the base's handle
+var _base_probe: BoxShape3D
+var _top_grip: CaseHinge                         # which of its two handles a hand last had the lid's hinge by
+var _manual_in := -1.0                           # which way is into the case along the manual seat's z
+var _manual_rim: Node3D
+var _lid_handle_at := Vector3.ZERO               # the lid's handle in its rig, before _follow_lid moves it
 var _hand_rot := Quaternion.IDENTITY
 var _hand_has := false
 var _hand_turn := 0.0
@@ -183,9 +201,11 @@ func _ready() -> void:
 		model.set_color(case_color)
 	mass = float(MASS.get(case_family, 0.08))
 	_closed_box = _model_box()
+	_lid_rest = model.transform * model.lid_transform_at(0.0)
 	_build_shapes()
 	_build_hinges()
 	_build_zones()
+	dropped.connect(_on_let_go)
 	_has_manual = not manual_path().is_empty()
 	_sync_manual()
 	_apply_angles()
@@ -305,9 +325,9 @@ func _shape_body(deg: float) -> void:
 	if _shape_deg >= 0.0 and absf(deg - _shape_deg) < SHAPE_STEP_DEG and (deg > 0.0) == (_shape_deg > 0.0):
 		return
 	_shape_deg = deg
-	var pivot := model.pivot_m("open")
-	var turn := Transform3D(Basis(Vector3.UP, -deg_to_rad(deg)), Vector3.ZERO)
-	var about := Transform3D(Basis.IDENTITY, pivot) * turn * Transform3D(Basis.IDENTITY, -pivot)
+	# Where the model draws the lid, not one turn about the hinge line: a keep case's cover turns on its spine's
+	# two creases, and by a single turn its hull and its pointer skin stood up to a centimetre off the cover drawn.
+	var about := _swing_at(deg)
 	var pts := PackedVector3Array()
 	for k in 8:
 		pts.append(_base_box.get_endpoint(k))
@@ -358,15 +378,24 @@ func _build_hinges() -> void:
 		var idx := names.find(which)
 		hinge.gate = _can_take.bind(idx)
 		angle.add_child(hinge)
-		# The grab box over the panel's free third, thin through the panel.
-		hinge.position = Vector3(0.0, 0.004, -reach * 0.8)
+		# The grab box over the panel's free third, thin through the panel. The lid's starts at the lid's own inside
+		# face and stands a centimetre out of its outside: reaching 4 mm into the case it stood in FRONT of the
+		# manual lying in the lid, and the desktop's click on the booklet's outer half took the lid.
+		var grab_y := 0.004
+		var grab_t := 0.016
+		if which == "open":
+			var inside := _lid_box.position.z - pivot.z
+			var outside := _lid_box.end.z - pivot.z + 0.010
+			grab_y = (inside + outside) * 0.5
+			grab_t = outside - inside
+		hinge.position = Vector3(0.0, grab_y, -reach * 0.8)
 		var col := CollisionShape3D.new()
 		col.name = "CollisionShape3D"
 		var box := BoxShape3D.new()
-		box.size = Vector3(_closed_box.size.y * 0.85, 0.016, reach * 0.4)
+		box.size = Vector3(_closed_box.size.y * 0.85, grab_t, reach * 0.4)
 		col.shape = box
 		hinge.add_child(col)
-		hinge.place_hint(Vector3(0.0, 0.02, -reach * 0.2))
+		hinge.place_hint(Vector3(0.0, 0.024 - grab_y, -reach * 0.2))
 		# A bare fingertip pushes the panel from either face, the whole panel's (the door's rule: pushed, never
 		# pulled). A shape for the fingertip's geometry only: disabled, it stops no ray on its way to a disc.
 		var to_frame := frame.transform.affine_inverse()
@@ -399,10 +428,60 @@ func _build_hinges() -> void:
 	sim.base_lever = float(levers[levers.size() - 1])
 	_lid_node = model.levels[0].find_child("Lid" if case_family == "jewel" else "Cover", true, false) as Node3D \
 		if not model.levels.is_empty() else null
-	if _lid_node != null:
-		_lid_rest = _lid_in_case()
 	for r in _rigs:
 		(r[2] as CaseHinge).max_deg = rad_to_deg(sim.open_max)
+	var top_rig: Array = _rigs[_rigs.size() - 1]
+	(top_rig[2] as CaseHinge).quiet_at = _lid_quiet
+	_lid_handle_at = (top_rig[2] as Node3D).position
+	# The same hinge from the lid's side, for a case held by its lid (_lid_grab). There the lid is the still half
+	# and the base the one that turns, and VRHinge reads a hand in the frame of its target's parent: by the lid's
+	# own handle a still fingertip read as moving, every frame, as the base turned under it (the owner,
+	# 2026-11-22: pressing the held lid made the other flap creep, and the flap itself could not be pressed).
+	# BaseFrame rides the lid, a half turn about its Z; BaseAngle under it turns by the lid's own angle, which
+	# brings it back onto the base for good (Rx(t) * Rz(pi) * Rx(t) = Rz(pi)). So this handle's angle IS the
+	# hinge's, same sign and range, and the base follows a hand one for one.
+	var reach_o := maxf(_closed_box.end.x - _lid_pivot.x, 0.02)
+	var half_turn := Transform3D(Basis(Vector3.BACK, PI), Vector3.ZERO)
+	var base_frame := Node3D.new()
+	base_frame.name = "BaseFrame"
+	base_frame.transform = half_turn
+	(top_rig[1] as Node3D).add_child(base_frame)
+	var base_angle := Node3D.new()
+	base_angle.name = "BaseAngle"
+	base_frame.add_child(base_angle)
+	_base_hinge = CaseHinge.new()
+	_base_hinge.name = "BaseHinge"
+	_base_hinge.target = base_angle
+	_base_hinge.min_deg = 0.0
+	_base_hinge.max_deg = rad_to_deg(sim.open_max)
+	_base_hinge.engage_radius = 0.05
+	_base_hinge.gate = func() -> bool: return _lid_grab != null
+	_base_hinge.quiet_at = _base_quiet
+	base_angle.add_child(_base_hinge)
+	# In BaseAngle's frame the base lies along -Z from the hinge, as the lid does in its own, +Y out of its back.
+	var base_mid := half_turn * ((top_rig[0] as Node3D).transform.affine_inverse() * _base_box.get_center())
+	_base_hinge.position = Vector3(0.0, base_mid.y, -reach_o * 0.8)
+	# The trigger's box at the base's opening edge. Disabled: VR latches on the reach round the handle and the
+	# hint is geometry, and a live box would stand in front of the discs for the desktop ray.
+	var base_grab := CollisionShape3D.new()
+	base_grab.name = "CollisionShape3D"
+	var base_grab_box := BoxShape3D.new()
+	base_grab_box.size = Vector3(_closed_box.size.y * 0.85, 0.016, reach_o * 0.4)
+	base_grab.shape = base_grab_box
+	base_grab.disabled = true
+	_base_hinge.add_child(base_grab)
+	_base_hinge.place_hint(Vector3(0.0, _base_box.size.z * 0.5 + 0.02, -reach_o * 0.2))
+	var base_panel := CollisionShape3D.new()
+	base_panel.name = "PokePanel"
+	var base_panel_box := BoxShape3D.new()
+	base_panel_box.size = Vector3(_base_box.size.y * 0.95, maxf(_base_box.size.z, PANEL_POKE_T), _base_box.size.x)
+	base_panel.shape = base_panel_box
+	base_panel.disabled = true
+	base_panel.set_meta(&"poke_surface", true)
+	_base_hinge.add_child(base_panel)
+	base_panel.position = base_mid - _base_hinge.position
+	_base_hinge.poke_torque_faces = VRHinge.FACE_Y_NEG | VRHinge.FACE_Y_POS
+	_base_hinge.poke_push_only = true
 
 
 ## How far the lid opens. A jewel case's hinge is near its front, so laid open on a table its lid turns a few degrees
@@ -419,7 +498,7 @@ func open_max_deg() -> float:
 ## A hand may take hinge i only when the one above it is open off it (a flip tray under a shut lid may not).
 func _can_take(i: int) -> bool:
 	if i >= sim.top():
-		return true
+		return _lid_grab == null                         # held by its lid, the hinge is worked by the base's handle
 	return sim.angle_deg(i + 1) - sim.angle_deg(i) >= REACH_DEG
 
 
@@ -463,6 +542,10 @@ func _build_zones() -> void:
 		ms.add_child(_manual_root)
 		_manual_zone = _zone("ManualZone", _manual_root, "book", 0.06,
 			func(obj: Node3D) -> bool: return obj is PDFBook and _lid_open())
+		# Which way is into the case from the booklet, along its seat's z: toward the base, the lid being shut now.
+		var seat_in_case := model.transform * GameCaseModel._local_to(model, ms)
+		var toward_base := (seat_in_case.affine_inverse() * _base_box.get_center()).z
+		_manual_in = -1.0 if toward_base < 0.0 else 1.0
 		_place_manual_zone(model.manual_size_m().x)
 		_manual_zone.has_picked_up.connect(func(what: Node3D) -> void:
 			if what is PDFBook and not (what as PDFBook).dimensions_changed.is_connected(_on_book_resized):
@@ -562,10 +645,21 @@ func _sync_manual() -> void:
 	var seated := manual()
 	if is_instance_valid(_seated_book) and _seated_book != seated:
 		_seated_book.visible = true
+		_seated_book.set_pages_locked(false)
+		if _seated_book.highlight_updated.is_connected(_on_manual_hover):
+			_seated_book.highlight_updated.disconnect(_on_manual_hover)
 		_seated_book = null
 	if seated != null:
 		seated.visible = false
+		# Not read in its case: hidden, it still turned a page under a trigger or a click meant to take it out.
+		seated.set_pages_locked(true)
+		# A grip's hover goes to what the zone holds, the hidden book: its outline never showed. The rim round the
+		# booklet the case draws shows it instead.
+		if not seated.highlight_updated.is_connected(_on_manual_hover):
+			seated.highlight_updated.connect(_on_manual_hover)
 		_seated_book = seated
+	elif _manual_rim != null:
+		_manual_rim.visible = false
 	if case_family == "jewel":
 		model.show_booklet(seated != null or not _has_manual)
 		# Inside the open lid the booklet shows its back: the manual's last page, from the PDF.
@@ -647,6 +741,21 @@ func _place_manual_zone(book_width: float, half_thick := 0.0) -> void:
 	var ball := _manual_zone.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if ball != null:
 		ball.position = Vector3(book_width * 0.5, 0.0, -z)
+	# Where a grip takes the manual OUT: the booklet itself, from its face against the lid, and the space above it
+	# into the open case; a little beside it; nothing behind it, which is the lid (the owner, 2026-11-22). Ranked
+	# by the zone's origin alone, the spine edge's middle, only a grip within 6 cm of that took the manual and
+	# anywhere else on it took the case.
+	var book := manual()
+	var tall := model.manual_size_m().y
+	var span := Vector2(-half_thick, half_thick)
+	if book != null and book.page_size().y > 0.0:
+		tall = book.page_size().y
+		span = book._drawn_z_span()
+	var z0 := span.x if _manual_in > 0.0 else span.x - MANUAL_REACH_UP
+	var z1 := span.y + MANUAL_REACH_UP if _manual_in > 0.0 else span.y
+	var side := MANUAL_REACH_SIDE
+	_manual_zone.reach_box = AABB(Vector3(-side, -tall * 0.5 - side, z0),
+		Vector3(book_width + side * 2.0, tall + side * 2.0, z1 - z0))
 
 
 func _on_book_resized(book: PDFBook) -> void:
@@ -692,9 +801,16 @@ func _seat_reachable(seat: int) -> bool:
 
 
 ## Discs (and the manual) under a shut panel cannot be taken, and a seat that cannot be reached takes nothing.
+## The zone itself follows its seat's reach too, as a disc tray's does (MediaTray._sync_gates): a grip makes a zone
+## let go BEFORE it asks what the zone holds, so with only the disc switched off a grip at a shut case within a
+## hub's reach left the hand empty and the disc loose inside the case, to fall through it (a probe, 2026-11-22). A
+## zone switched off still holds, and still seats what a spawn or a save puts in it; a grip passes it by and takes
+## the case. Set only when it changes: the setter emits.
 func _update_reach() -> void:
 	for i in _zones.size():
 		var ok := _seat_reachable(i)
+		if _zones[i].enabled != ok:
+			_zones[i].enabled = ok
 		var obj := _zones[i].picked_up_object as XRToolsPickable
 		if obj != null:
 			obj.enabled = ok
@@ -702,7 +818,11 @@ func _update_reach() -> void:
 			_hub_buttons[i].set_active(ok and obj is RetroDisc and not _popped[i])
 	var open := _lid_open()
 	for z: XRToolsSnapZone in [_holder_zone, _manual_zone, _card_zone]:
-		if z != null and z.picked_up_object is XRToolsPickable:
+		if z == null:
+			continue
+		if z.enabled != open:
+			z.enabled = open
+		if z.picked_up_object is XRToolsPickable:
 			(z.picked_up_object as XRToolsPickable).enabled = open
 
 
@@ -759,18 +879,33 @@ func _physics_process(delta: float) -> void:
 	var moved := false
 	for i in _rigs.size():
 		var hinge := _rigs[i][2] as CaseHinge
-		var held := hinge.is_held()
+		# The lid's hinge has two handles: its own, and the base's for a case held by its lid.
+		var top := i == sim.top() and _base_hinge != null
+		var grip := hinge
+		if top and _base_hinge.is_held() and not hinge.is_held():
+			grip = _base_hinge
+		var held := grip.is_held()
 		if held:
+			if top:
+				_top_grip = grip
 			sim.set_held(i, true)
-			sim.set_held_angle_deg(i, hinge.get_rotation_deg(), delta)
+			sim.set_held_angle_deg(i, grip.get_rotation_deg(), delta)
 			moved = true
 		elif _was_held[i]:
-			sim.set_held(i, false, hinge.release_speed_deg)
+			sim.set_held(i, false, (_top_grip if top and _top_grip != null else hinge).release_speed_deg)
 			moved = true
 		elif absf(hinge.get_rotation_deg() - sim.angle_deg(i)) > 0.05:
 			sim.set_angle_deg(i, hinge.get_rotation_deg())   # a restore or a peer put it there
 			if i == sim.top() and hinge.get_rotation_deg() <= 0.05:
 				sim.latched = true                           # shut there, it is caught here too
+			moved = true
+		elif top and absf(_base_hinge.get_rotation_deg() - sim.angle_deg(i)) > 0.05:
+			# ... or by its other handle (a peer pressing the base of a case it has by the lid). Asked after the
+			# lid's own, and one a tick: a save from before this handle has no record of it, and its 0 must not
+			# overrule the lid's.
+			sim.set_angle_deg(i, _base_hinge.get_rotation_deg())
+			if _base_hinge.get_rotation_deg() <= 0.05:
+				sim.latched = true
 			moved = true
 		_was_held[i] = held
 	var spin := _spin if absf(_spin) > SPIN_QUIET else 0.0
@@ -847,12 +982,17 @@ func _play_sfx(voice: String, kind: String, volume: float) -> void:
 # ------------------------------------------------------------------ held by the lid
 ## The lid in the case's own frame as the model has it now (a keep case's cover turns on its spine's two creases).
 func _lid_in_case() -> Transform3D:
-	return model.transform * GameCaseModel._local_to(model, _lid_node)
+	return model.transform * model.lid_transform_at(model.open_deg)
 
 
 ## How the lid has turned from lying shut, in the case's frame.
 func _lid_swing() -> Transform3D:
-	return _lid_in_case() * _lid_rest.affine_inverse()
+	return _swing_at(model.open_deg)
+
+
+## The same with the case open `deg`, whatever it is now.
+func _swing_at(deg: float) -> Transform3D:
+	return model.transform * model.lid_transform_at(deg) * _lid_rest.affine_inverse()
 
 
 static func _reach_to(box: AABB, p: Vector3) -> float:
@@ -890,6 +1030,8 @@ func pick_up(by: Node3D) -> void:
 	_hand_has = false
 	_hand_spin = 0.0
 	sim.base_swings = true
+	# The lid's own handle shuts (its gate); a hold on it begun before this grip ends here.
+	hinge(sim.top()).drop_hold()
 
 
 func let_go(by: Node3D, p_linear_velocity: Vector3, p_angular_velocity: Vector3) -> void:
@@ -903,6 +1045,95 @@ func _free_lid() -> void:
 	_hand_has = false
 	_hand_spin = 0.0
 	sim.base_swings = false
+	if _base_hinge != null:
+		_base_hinge.drop_hold()
+
+
+## Over the manual lying in the lid, a hand is reaching for the manual: there the lid's handle takes no trigger,
+## shows no open hand, and is not pushed by a fingertip (CaseHinge.quiet_at). The grip's own box, so nothing behind
+## the booklet: the lid is still pushed shut from outside, and worked anywhere once the manual is out.
+func _lid_quiet(at: Vector3) -> bool:
+	if _manual_zone == null or not is_instance_valid(_manual_zone.picked_up_object):
+		return false
+	return _manual_zone.reach_box.has_point(_manual_zone.global_transform.affine_inverse() * at)
+
+
+## Over a disc, a UMD or a card on its seat, a hand is reaching for that, not pressing the base away. From the
+## seat's own side only (a zone's +Y is out of its panel): behind the panel, a fingertip at the base's back is
+## pressing the base, and its middle is where one presses.
+func _base_quiet(at: Vector3) -> bool:
+	for z: XRToolsSnapZone in _zones + [_holder_zone, _card_zone]:
+		if z == null or not is_instance_valid(z.picked_up_object):
+			continue
+		var p := z.global_transform.affine_inverse() * at
+		if p.y > -0.003 and p.length() <= z.grab_distance:
+			return true
+	return false
+
+
+## The seated manual is the nearest thing to a grip, or no longer is: the rim round the booklet, and a tick in the
+## hand that would take it.
+func _on_manual_hover(_what: Variant, on: bool) -> void:
+	var lit := on and manual() != null
+	if lit and _manual_rim == null:
+		_manual_rim = _build_manual_rim()
+	if _manual_rim == null:
+		return
+	var was := _manual_rim.visible
+	if lit:
+		_size_manual_rim()
+	_manual_rim.visible = lit
+	if lit and not was and is_inside_tree():
+		for node in XrControllers.all(get_tree()):
+			var pickup := node.get_node_or_null("FunctionPickup")
+			if pickup != null and pickup.get("closest_object") == _manual_zone:
+				Haptics.pulse(node as XRController3D, 0.25, 10, MANUAL_HAPTIC_KEY)
+
+
+func _build_manual_rim() -> Node3D:
+	var root := Node3D.new()
+	root.name = "ManualRim"
+	model.manual_seat().add_child(root)
+	var white := StandardMaterial3D.new()
+	white.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	white.albedo_color = Color(1.0, 1.0, 1.0)
+	for side: String in ["Top", "Bottom", "Left", "Right"]:
+		var strip := MeshInstance3D.new()
+		strip.name = side
+		strip.mesh = BoxMesh.new()
+		strip.material_override = white
+		strip.add_to_group("outline_exclude")
+		root.add_child(strip)
+	root.visible = false
+	return root
+
+
+func _size_manual_rim() -> void:
+	var size := model.manual_size_m()
+	var book := manual()
+	if book != null and book.page_size().x > 0.0:
+		size = book.page_size()
+	var w := size.x + MANUAL_RIM_GAP * 2.0
+	var h := size.y + MANUAL_RIM_GAP * 2.0
+	var t := MANUAL_RIM_W
+	var deep := MANUAL_T * 2.5
+	for row: Array in [["Top", Vector3(w + t * 2.0, t, deep), Vector3(0.0, (h + t) * 0.5, 0.0)],
+			["Bottom", Vector3(w + t * 2.0, t, deep), Vector3(0.0, -(h + t) * 0.5, 0.0)],
+			["Left", Vector3(t, h, deep), Vector3(-(w + t) * 0.5, 0.0, 0.0)],
+			["Right", Vector3(t, h, deep), Vector3((w + t) * 0.5, 0.0, 0.0)]]:
+		var strip := _manual_rim.get_node(str(row[0])) as MeshInstance3D
+		(strip.mesh as BoxMesh).size = row[1]
+		strip.position = row[2]
+
+
+## Let go a little way into a table (a held thing passes through everything, and a hand sets it down a few
+## millimetres too far): lifted out onto it. See HeldObjectPhysics.lift_out for why nothing else does it. A frame
+## on, so the escape from the room's own walls and any seat's claim have had their turn.
+func _on_let_go(_what: Variant = null) -> void:
+	await get_tree().physics_frame
+	if not is_inside_tree() or is_picked_up() or freeze or linear_velocity.length() > LIFT_MAX_SPEED:
+		return
+	HeldObjectPhysics.lift_out(self, _body_shape, original_collision_mask, LIFT_MAX)
 
 
 func held_by_lid() -> bool:
@@ -925,13 +1156,23 @@ func _lid_blocked(deg: float) -> bool:
 	if _lid_query == null:
 		_lid_probe = BoxShape3D.new()
 		_lid_probe.size = (_lid_box.size - Vector3.ONE * LID_SKIN * 2.0).max(Vector3.ONE * 0.0005)
+		_base_probe = BoxShape3D.new()
+		_base_probe.size = (_base_box.size - Vector3.ONE * LID_SKIN * 2.0).max(Vector3.ONE * 0.0005)
 		_lid_query = PhysicsShapeQueryParameters3D.new()
-		_lid_query.shape = _lid_probe
 		_lid_query.collide_with_areas = false
-	var turn := Transform3D(Basis(Vector3.UP, -deg_to_rad(deg)), Vector3.ZERO)
-	var about := Transform3D(Basis.IDENTITY, _lid_pivot) * turn * Transform3D(Basis.IDENTITY, -_lid_pivot)
-	_lid_query.transform = global_transform * about * Transform3D(Basis.IDENTITY, _lid_box.get_center())
-	_lid_query.collision_mask = collision_mask
+	if _lid_grab != null and is_instance_valid(_lid_grab.by):
+		# Held by its lid, it is the BASE that turns into things: tested where the grab driver will stand the case
+		# with the hinge at `deg` (it re-poses the body after this in the tick, so the body's own place is a swing
+		# behind).
+		_lid_query.shape = _base_probe
+		var body := (_lid_grab.by as Node3D).global_transform * (_swing_at(deg) * _lid_hand).affine_inverse()
+		_lid_query.transform = body * Transform3D(Basis.IDENTITY, _base_box.get_center())
+	else:
+		_lid_query.shape = _lid_probe
+		_lid_query.transform = global_transform * _swing_at(deg) * Transform3D(Basis.IDENTITY, _lid_box.get_center())
+	# The case's own layers, not what it has now: a held body's mask is 0, and by that the lid of a case in a
+	# hand gave way to nothing.
+	_lid_query.collision_mask = original_collision_mask
 	var skip: Array[RID] = [get_rid()]
 	for body in get_collision_exceptions():
 		skip.append(body.get_rid())
@@ -945,7 +1186,11 @@ func _lid_blocked(deg: float) -> bool:
 ## one a hand has goes where the hand takes it. True when it moved.
 func _lid_gives_way() -> bool:
 	var top := sim.top()
-	if sim.latched or top < 0 or sim.held[top] or not is_inside_tree() or _lid_grab != null:
+	if sim.latched or top < 0 or sim.held[top] or not is_inside_tree():
+		return false
+	# In a seat, or weightless while a save is put back (no holder, no mask): nothing to give way to.
+	var by := get_picked_up_by()
+	if by is XRToolsSnapZone or (by == null and collision_mask == 0):
 		return false
 	var at := sim.angle_deg(top)
 	if not _lid_blocked(at):
@@ -1010,9 +1255,27 @@ func _apply_angles() -> void:
 		var hinge := _rigs[i][2] as CaseHinge
 		if not hinge.is_held():
 			hinge.set_angle_quiet(sim.angle_deg(i))
+	# The base's handle reads the same angle; writing it is also what keeps its frame on the base.
+	if _base_hinge != null and not _base_hinge.is_held():
+		_base_hinge.set_angle_quiet(sim.angle_deg(sim.top()))
+	_follow_lid()
 	_shape_body(sim.angle_deg(sim.top()))
 	_carry_contents()
 	_update_reach()
+
+
+## The lid's handle stands where the model DRAWS the lid. Its rig turns about one line; a keep case's cover turns
+## on its spine's two creases, and by the rig alone its grab box, the fingertip's panel and the hint stood up to a
+## centimetre off the cover. Moved in its rig, not re-parented: a save finds the handle by its path.
+func _follow_lid() -> void:
+	if case_family != "keep" or _rigs.is_empty():
+		return
+	var top_rig: Array = _rigs[_rigs.size() - 1]
+	var shut := (top_rig[0] as Node3D).transform
+	var deg := sim.angle_deg(sim.top())
+	var rig := shut * Transform3D(Basis(Vector3.RIGHT, deg_to_rad(deg)), Vector3.ZERO)
+	(top_rig[2] as Node3D).transform = rig.affine_inverse() * _swing_at(deg) * shut \
+		* Transform3D(Basis.IDENTITY, _lid_handle_at)
 
 
 ## Whatever the zones hold goes where they now are, at once: a hinge posed outside the physics step (a restore, a

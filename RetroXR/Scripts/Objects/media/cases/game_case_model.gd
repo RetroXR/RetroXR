@@ -75,6 +75,7 @@ const OPEN_LIMIT := 190.0
 var family := "jewel"
 var variant := "single"
 var levels: Array[Node3D] = []
+var _lid_chain: Array[Node3D] = []               # the lid's node and its parents up to this model (lid_transform_at)
 var open_deg := 0.0
 var inner_deg: Array[float] = []
 var _seats: Dictionary = {}          # name -> Node3D of ours, kept on level 0's node of that name
@@ -278,6 +279,35 @@ func _pose() -> void:
 	for key: String in _seats:
 		var src := levels[0].find_child(key, true, false) as Node3D
 		(_seats[key] as Node3D).transform = levels[0].transform * _local_to(levels[0], src)
+
+
+## The lid (a keep case's cover) in this model's own frame with the case open `open` degrees: what _pose gives
+## it, worked out without posing anything, so a caller can ask where the lid WOULD be (a keep case's cover turns
+## on its spine's two creases, the spine first).
+func lid_transform_at(open: float) -> Transform3D:
+	if levels.is_empty():
+		return Transform3D.IDENTITY
+	if _lid_chain.is_empty():
+		var n := levels[0].find_child("Lid" if family == "jewel" else "Cover", true, false) as Node3D
+		while n != null and n != self:
+			_lid_chain.append(n)
+			n = n.get_parent() as Node3D
+	var deg := clampf(open, 0.0, OPEN_LIMIT)
+	var t := Transform3D.IDENTITY
+	for n: Node3D in _lid_chain:
+		var own := n.transform
+		var turn := NAN
+		match String(n.name):
+			"Lid":
+				turn = -deg_to_rad(deg)
+			"Spine":
+				turn = -deg_to_rad(minf(deg, SPINE_OPEN_MAX))
+			"Cover":
+				turn = -deg_to_rad(maxf(0.0, deg - SPINE_OPEN_MAX))
+		if not is_nan(turn):
+			own.basis = Basis.from_euler(Vector3(n.rotation.x, turn, n.rotation.z)) * Basis.from_scale(n.scale)
+		t = own * t
+	return t
 
 
 ## A node's transform relative to an ancestor (valid outside the tree too).

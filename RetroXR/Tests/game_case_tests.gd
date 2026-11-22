@@ -10,6 +10,8 @@ extends "res://Tests/test_suite.gd"
 
 const CASE_SCENE := preload("res://Scenes/Objects/media/game_case.tscn")
 const DISC_SCENE := preload("res://Scenes/Objects/media/disc.tscn")
+const BOOK_SCENE := preload("res://Scenes/Objects/media/pdf_book.tscn")
+const PICKUP_SCENE := preload("res://addons/godot-xr-tools/functions/function_pickup.tscn")
 const DT := 1.0 / 72.0
 const G_FACE_UP := Vector3(0.0, 0.0, -9.81)       # lying on its back, front up
 const G_FACE_DOWN := Vector3(0.0, 0.0, 9.81)
@@ -65,6 +67,11 @@ func _run() -> void:
 		["case/a manual is seated shut, its reach round the booklet's middle", _case_manual_seat],
 		["case/what is in the lid's way turns it, either way, and a fingertip has the whole panel", _case_lid_world],
 		["case/gripped by its open lid, the lid stays in the hand and the base swings", _case_held_by_lid],
+		["case/held by its lid, the base has the handle: pressed, it does not creep", _case_base_handle],
+		["case/a held case's lid still gives way, and held by the lid its base does", _case_world_held],
+		["case/a grip anywhere over the booklet takes the manual; at a shut case, the case", _case_manual_reach],
+		["case/a seated manual turns no page and the lid's handle is quiet over it", _case_manual_quiet],
+		["case/let go a little way into a tabletop, a case is lifted onto it", _case_lift_out],
 		["case/dropped shut or open, a case rests on the floor", _case_drop],
 		["case/the PS2 case's holder takes its memory card", _case_card_holder],
 		["case/the desktop lifts a disc out of an open case", _case_desktop_grab],
@@ -667,6 +674,462 @@ func _case_held_by_lid() -> void:
 				"%s: the base has turned instead" % fam[0])
 
 
+## A stand-in for a hand: what XRToolsPickable.pick_up reads of whoever takes it.
+class StandInHand extends Node3D:
+	var picked_up_ranged := false
+
+
+func _stand_in_hand(at: Transform3D) -> StandInHand:
+	var hand := StandInHand.new()
+	add_child(hand)
+	_spawned.append(hand)
+	hand.global_transform = at
+	return hand
+
+
+## A block in the way: thin along world y unless `size` says otherwise, on a layer the case collides with.
+func _block(c: RetroGameCase, at: Vector3, size := Vector3(0.04, 0.02, 0.2)) -> StaticBody3D:
+	var block := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
+	shape.shape = box
+	block.add_child(shape)
+	block.collision_layer = c.original_collision_mask & -c.original_collision_mask
+	add_child(block)
+	_spawned.append(block)
+	block.global_position = at
+	return block
+
+
+## A four-page comic archive, two wide by three tall: a manual with pages to turn.
+func _manual_fixture() -> String:
+	var path := OS.get_user_data_dir().path_join("__game_case_manual.cbz")
+	var zip := ZIPPacker.new()
+	zip.open(path)
+	for i in 4:
+		var img := Image.create(20, 30, false, Image.FORMAT_RGB8)
+		img.fill(Color(0.2 * i, 0.5, 0.5))
+		zip.start_file("page_%02d.png" % i)
+		zip.write_file(img.save_png_to_buffer())
+		zip.close_file()
+	zip.close()
+	return path
+
+
+func _seat_manual(c: RetroGameCase) -> PDFBook:
+	var book := BOOK_SCENE.instantiate() as PDFBook
+	book.freeze = true
+	book.book_height = c.model.manual_size_m().y
+	book.pdf_path = _manual_fixture()
+	add_child(book)
+	book.add_to_group("spawned")
+	_spawned.append(book)
+	for _i in 3:
+		await get_tree().process_frame
+	for _i in 3:
+		await get_tree().physics_frame
+	for _i in 300:
+		if book._pending_renders.is_empty():
+			break
+		await get_tree().process_frame
+	c._manual_zone.pick_up_object(book)
+	for _i in 4:
+		await get_tree().physics_frame
+	for _i in 2:
+		await get_tree().process_frame
+	return book
+
+
+## A real XRToolsFunctionPickup on a controller, its grip point at `at`.
+func _grip_at(at: Vector3) -> XRToolsFunctionPickup:
+	var ctrl := XRController3D.new()
+	add_child(ctrl)
+	_spawned.append(ctrl)
+	var pickup := PICKUP_SCENE.instantiate() as XRToolsFunctionPickup
+	pickup.name = "FunctionPickup"
+	ctrl.add_child(pickup)
+	ctrl.global_position = at
+	await get_tree().physics_frame
+	ctrl.global_position = at - (pickup.global_position - ctrl.global_position)
+	for _i in 5:
+		await get_tree().physics_frame
+	pickup._update_closest_object()
+	return pickup
+
+
+func _on_its_back(c: RetroGameCase, x: float) -> void:
+	c.global_transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5), Vector3(x, 1.0, 0.0))
+
+
+func _case_base_handle() -> void:
+	var x := 80.0
+	# The handles turn about one line; a keep case's cover turns on two creases, so there a still fingertip reads a
+	# few degrees off over a wide swing (as its lid's own handle always has): bounded, no creep.
+	for fam: Array in [["jewel", "single", 0.2], ["keep", "ps2", 6.0]]:
+		x += 3.0
+		var c := _new_case(fam[0], fam[1])
+		await get_tree().physics_frame
+		_on_its_back(c, x)
+		var top := c.sim.top()
+		var lid := c.hinge(top)
+		var base := c._base_hinge
+		_ok(base != null and base.target != null and not c._rigs.any(func(r: Array) -> bool: return r[2] == base),
+			"%s: the base has a handle of its own, outside the sim's own" % fam[0])
+		var on_base := Transform3D()
+		for deg: float in [0.0, 40.0, 95.0, 150.0]:
+			c.sim.set_angle_deg(top, deg)
+			c._apply_angles()
+			var rel := c.global_transform.affine_inverse() * (base.target as Node3D).global_transform
+			if deg == 0.0:
+				on_base = rel
+			_ok(rel.origin.distance_to(on_base.origin) < 1e-4 and rel.basis.is_equal_approx(on_base.basis),
+				"%s: at %d degrees the base's handle is still on the base" % [fam[0], int(deg)], str(rel.origin - on_base.origin))
+			_ok(absf(base.get_rotation_deg() - deg) < 0.01, "%s: and reads the hinge's own angle" % fam[0],
+				str(base.get_rotation_deg()))
+		# Held by the lid, the lid is still and the base moves. A still fingertip must read still.
+		c.sim.set_angle_deg(top, 100.0)
+		c._apply_angles()
+		var hand := c.global_transform * c._lid_swing() * Transform3D(Basis.IDENTITY, c._lid_box.get_center())
+		c._lid_hand = c._lid_swing().affine_inverse() * (c.global_transform.affine_inverse() * hand)
+		var tip := c.global_transform * (c._base_box.get_center() + Vector3(c._base_box.size.x * 0.2, 0.0, 0.0))
+		var base_was := base._angle_at(tip, 100.0)
+		var lid_was := lid._angle_at(tip, 0.0)
+		c.sim.set_angle_deg(top, 130.0)
+		c._apply_angles()
+		c.global_transform = hand * (c._lid_swing() * c._lid_hand).affine_inverse()
+		var base_now := base._angle_at(tip, base_was)
+		var lid_now := lid._angle_at(tip, lid_was)
+		_ok(absf(base_now - base_was) < float(fam[2]), "%s: by the base's handle a still fingertip reads still as the base turns 30" % fam[0],
+			"%f -> %f" % [base_was, base_now])
+		_ok(absf(absf(lid_now - lid_was) - 30.0) < float(fam[2]) + 0.2,
+			"%s: by the lid's own it reads as having moved 30 degrees (the creep)" % fam[0], "%f -> %f" % [lid_was, lid_now])
+		# The gates: whichever half is free to move has the live handle.
+		_on_its_back(c, x)
+		c.sim.set_angle_deg(top, 100.0)
+		c._apply_angles()
+		_ok(lid._can_engage() and not base._can_engage(), "%s: in nobody's hand the lid's handle works, the base's does not" % fam[0])
+		lid._pointer_held = true
+		var holder := _stand_in_hand(c.global_transform * Transform3D(Basis.IDENTITY, c._lid_swing() * c._lid_box.get_center()))
+		c.pick_up(holder)
+		_ok(c.held_by_lid(), "%s: gripped on its open lid" % fam[0])
+		_ok(not lid._can_engage() and base._can_engage(), "%s: held by the lid, the base's handle works and the lid's does not" % fam[0])
+		_ok(not lid.is_held(), "%s: a hold on the lid's handle from before the grip is dropped" % fam[0])
+		base._pointer_held = true
+		(base.target as Node3D).rotation.x = deg_to_rad(60.0)
+		for _i in 3:
+			await get_tree().physics_frame
+		_ok(absf(c.lid_deg() - 60.0) < 0.2 and absf(lid.get_rotation_deg() - 60.0) < 0.2,
+			"%s: the base's handle held at 60 has the hinge at 60, by both handles" % fam[0],
+			"%f %f" % [c.lid_deg(), lid.get_rotation_deg()])
+		base._pointer_held = false
+		c.let_go(holder, Vector3.ZERO, Vector3.ZERO)
+		await get_tree().physics_frame
+		_ok(not c.held_by_lid() and lid._can_engage() and not base._can_engage(), "%s: let go, the lid's handle has it again" % fam[0])
+		# Over a disc on the base a fingertip is reaching for the disc; at the base's back it presses the base.
+		var disc_on := DISC_SCENE.instantiate() as RetroDisc
+		disc_on.systemid = "psx"
+		add_child(disc_on)
+		_spawned.append(disc_on)
+		c.disc_zone(0).pick_up_object(disc_on)
+		await get_tree().physics_frame
+		var hub := c.disc_zone(0).global_position
+		var out_of_hub := c.disc_zone(0).global_basis.y.normalized()
+		_ok(c._base_quiet(hub + out_of_hub * 0.01) and base._quiet(hub + out_of_hub * 0.01),
+			"%s: over a seated disc the base's handle is quiet" % fam[0])
+		_ok(not c._base_quiet(hub - out_of_hub * 0.012), "%s: behind it, at the base's back, a fingertip presses the base" % fam[0])
+		c.disc_zone(0).drop_object()
+		await get_tree().physics_frame
+		_ok(not c._base_quiet(hub + out_of_hub * 0.01), "%s: and with the disc gone the whole base is pressed" % fam[0])
+		# A save from before the base's handle has the lid's record alone; a peer may move either.
+		x += 3.0
+		var old := _new_case(fam[0], fam[1])
+		await get_tree().physics_frame
+		old.global_position = Vector3(x, 1.0, 0.0)
+		old.hinge(old.sim.top()).set_rotation_deg_remote(120.0)
+		for _i in 3:
+			await get_tree().physics_frame
+		_ok(absf(old.lid_deg() - 120.0) < 0.5 and absf(old._base_hinge.get_rotation_deg() - 120.0) < 0.5,
+			"%s: restored by the lid's record alone it opens, and the base's handle follows" % fam[0],
+			"%f %f" % [old.lid_deg(), old._base_hinge.get_rotation_deg()])
+		old._base_hinge.set_rotation_deg_remote(45.0)
+		for _i in 3:
+			await get_tree().physics_frame
+		_ok(absf(old.lid_deg() - 45.0) < 0.5 and absf(old.hinge(old.sim.top()).get_rotation_deg() - 45.0) < 0.5,
+			"%s: a peer moving the base's handle moves the hinge" % fam[0], str(old.lid_deg()))
+
+
+func _case_world_held() -> void:
+	# In a hand a case's mask is 0: its lid must still find what is in its way.
+	var c := _new_case("jewel", "single")
+	await get_tree().physics_frame
+	_on_its_back(c, 110.0)
+	var top := c.sim.top()
+	c.sim.set_angle_deg(top, 90.0)
+	c._apply_angles()
+	c.pick_up(_stand_in_hand(c.global_transform))
+	await get_tree().physics_frame
+	_ok(c.is_picked_up() and c.collision_mask == 0 and not c.held_by_lid(), "held by its base, its mask is 0")
+	var lid_mid := c.global_transform * (c._lid_pivot + Vector3(0.0, 0.0, c._lid_box.size.x * 0.6))
+	_block(c, lid_mid + c.global_basis.x * -0.009, Vector3(0.02, 0.04, 0.2))
+	await get_tree().physics_frame
+	_ok(c._lid_blocked(90.0), "a block in the lid of a held case is seen")
+	for _i in 4:
+		await get_tree().physics_frame
+	_ok(c.lid_deg() < 89.5 and c.lid_deg() > 70.0 and not c._lid_blocked(c.lid_deg()), "and the lid gives way to it",
+		str(c.lid_deg()))
+	# Held by the lid, it is the base that gives way, and the lid stays in the hand.
+	var k := _new_case("keep", "ps2")
+	await get_tree().physics_frame
+	_on_its_back(k, 113.0)
+	var ktop := k.sim.top()
+	k.sim.set_angle_deg(ktop, 100.0)
+	k._apply_angles()
+	k.pick_up(_stand_in_hand(k.global_transform * Transform3D(Basis.IDENTITY, k._lid_swing() * k._lid_box.get_center())))
+	await get_tree().physics_frame
+	_ok(k.held_by_lid(), "a keep case gripped by its cover")
+	var lid_then := k.global_transform * k._lid_in_case()
+	_ok(not k._lid_blocked(k.lid_deg()), "nothing in the base's way yet")
+	_block(k, k.global_transform * (k._base_box.get_center()
+		+ Vector3(k._base_box.size.x * 0.25, 0.0, -(k._base_box.size.z * 0.5 + 0.01 - 0.003))))
+	for _i in 8:
+		await get_tree().physics_frame
+	_ok(absf(k.lid_deg() - 100.0) > 0.5 and not k._lid_blocked(k.lid_deg()), "a block under the base turns the base clear of it",
+		str(k.lid_deg()))
+	var lid_now := k.global_transform * k._lid_in_case()
+	_ok(lid_now.origin.distance_to(lid_then.origin) < 0.002, "and the cover has not moved in the hand",
+		str(lid_now.origin - lid_then.origin))
+	# In a seat, or weightless while a save is put back, nothing gives way.
+	var r := _new_case("jewel", "single")
+	await get_tree().physics_frame
+	_on_its_back(r, 116.0)
+	r.sim.set_angle_deg(r.sim.top(), 90.0)
+	r._apply_angles()
+	var r_mid := r.global_transform * (r._lid_pivot + Vector3(0.0, 0.0, r._lid_box.size.x * 0.6))
+	r.collision_mask = 0
+	_block(r, r_mid + r.global_basis.x * -0.009, Vector3(0.02, 0.04, 0.2))
+	for _i in 4:
+		await get_tree().physics_frame
+	_ok(absf(r.lid_deg() - 90.0) < 0.01, "a case with no mask and no holder (a save being put back) leaves its lid alone",
+		str(r.lid_deg()))
+
+
+func _case_manual_reach() -> void:
+	var x := 130.0
+	for fam: Array in [["jewel", "single"], ["keep", "ps2"]]:
+		x += 3.0
+		var c := _new_case(fam[0], fam[1])
+		await get_tree().physics_frame
+		c.global_position = Vector3(x, 1.0, 0.0)             # on its bottom edge: gravity along the hinge, the lid stays put
+		var top := c.sim.top()
+		c.sim.set_angle_deg(top, 110.0)
+		c._apply_angles()
+		var book := await _seat_manual(c)
+		_ok(book._page_count == 4 and c.manual() == book, "%s: a manual with pages, seated" % fam[0], str(book._page_count))
+		var zone := c._manual_zone
+		var seat := c.model.manual_seat()
+		var size := book.page_size()
+		var inward := seat.global_basis.z.normalized() * c._manual_in
+		var across := seat.global_basis.x.normalized()
+		var up := seat.global_basis.y.normalized()
+		var mid := seat.global_position
+		_ok(absf(c.lid_deg() - 110.0) < 0.01, "%s: (the lid stands where it was put)" % fam[0], str(c.lid_deg()))
+		_ok(inward.dot(c.global_transform * c._swing_at(c.lid_deg()) * c._lid_box.get_center() - mid) < 0.0,
+			"%s: into the case is away from the lid's own plastic" % fam[0])
+		_ok(zone.reaches(mid + inward * 0.02) >= 0.0, "%s: a grip 2 cm over the booklet's middle is for the manual" % fam[0])
+		_ok(zone.reaches(mid + inward * 0.02 + across * size.x * 0.45) >= 0.0, "%s: and over its far edge" % fam[0])
+		_ok(zone.reaches(mid + inward * 0.02 - across * size.x * 0.45 + up * size.y * 0.45) >= 0.0, "%s: and over a corner" % fam[0])
+		_ok(zone.reaches(mid) >= 0.0, "%s: and inside the booklet itself" % fam[0])
+		_ok(zone.reaches(mid + inward * 0.05) >= 0.0 and zone.reaches(mid + inward * 0.09) < 0.0,
+			"%s: 5 cm above it yes, 9 cm no" % fam[0])
+		_ok(zone.reaches(mid - inward * 0.012) < 0.0, "%s: not behind it: that is the lid" % fam[0])
+		_ok(zone.reaches(mid + inward * 0.02 + across * (size.x * 0.5 + 0.03)) < 0.0, "%s: nor 3 cm beside it" % fam[0])
+		var dz := c.disc_zone(0)
+		_ok(dz.reach_box.size == Vector3.ZERO and dz.reaches(dz.global_position + Vector3(0.03, 0.0, 0.0)) >= 0.0
+			and dz.reaches(dz.global_position + Vector3(0.07, 0.0, 0.0)) < 0.0, "%s: a hub's reach is the ball it was" % fam[0])
+		# A real grip.
+		var pickup := await _grip_at(mid + inward * 0.02 + across * size.x * 0.3)
+		_ok(pickup.closest_object == zone, "%s: a real grip over the booklet, off its spine, ranks the manual" % fam[0],
+			str(pickup.closest_object))
+		_ok(c._manual_rim != null and c._manual_rim.visible, "%s: and the rim round the booklet lights" % fam[0])
+		(pickup.get_parent() as Node3D).global_position += Vector3(0.0, 5.0, 0.0)
+		for _i in 4:
+			await get_tree().physics_frame
+		pickup._update_closest_object()
+		_ok(c._manual_rim != null and not c._manual_rim.visible, "%s: and goes out as the hand leaves" % fam[0])
+		pickup = await _grip_at(mid - inward * 0.03)
+		_ok(pickup.closest_object == c, "%s: a grip behind the lid ranks the case" % fam[0], str(pickup.closest_object))
+		(pickup.get_parent() as Node3D).global_position += Vector3(0.0, 5.0, 0.0)
+		# The zones follow their seats' reach, so a grip at a shut case takes the case and lets nothing go.
+		_ok(zone.enabled and dz.enabled, "%s: open, its zones are on" % fam[0])
+		var disc := DISC_SCENE.instantiate() as RetroDisc
+		disc.systemid = "psx"
+		add_child(disc)
+		_spawned.append(disc)
+		dz.pick_up_object(disc)
+		c.sim.set_angle_deg(top, 0.0)
+		c.sim.latched = true
+		c._apply_angles()
+		for _i in 3:
+			await get_tree().physics_frame
+		_ok(not zone.enabled and not dz.enabled and c.manual() == book and dz.picked_up_object == disc,
+			"%s: shut, its zones are off and still hold what they held" % fam[0])
+		pickup = await _grip_at(dz.global_position + c.global_basis.z.normalized() * 0.02)
+		_ok(pickup.closest_object == c, "%s: a grip at a shut case's hub ranks the case" % fam[0], str(pickup.closest_object))
+		pickup._pick_up_object(pickup.closest_object)
+		for _i in 3:
+			await get_tree().physics_frame
+		_ok(pickup.picked_up_object == c and dz.picked_up_object == disc and c.manual() == book,
+			"%s: and takes the case, its disc and manual still seated" % fam[0], str(pickup.picked_up_object))
+		pickup.drop_object()
+
+
+func _case_manual_quiet() -> void:
+	var x := 150.0
+	for fam: Array in [["jewel", "single"], ["keep", "ps2"]]:
+		x += 3.0
+		var c := _new_case(fam[0], fam[1])
+		await get_tree().physics_frame
+		c.global_position = Vector3(x, 1.0, 0.0)             # on its bottom edge: gravity along the hinge, the lid stays put
+		var top := c.sim.top()
+		c.sim.set_angle_deg(top, 110.0)
+		c._apply_angles()
+		var book := await _seat_manual(c)
+		var right := book.get_node("PageGrabRight") as PageGrab
+		_ok(book.pages_locked() and not book.visible and not right._enabled, "%s: seated, the manual is hidden and its pages locked" % fam[0])
+		book._on_page_grab_begin(1, book.global_position)
+		_ok(book._grab_dir == 0, "%s: a grab at its page begins nothing" % fam[0])
+		var lid := c.hinge(top)
+		var seat := c.model.manual_seat()
+		var size := book.page_size()
+		var inward := seat.global_basis.z.normalized() * c._manual_in
+		var across := seat.global_basis.x.normalized()
+		var mid := seat.global_position
+		var out := signf(across.dot(lid.global_position - mid))     # toward the lid's free edge
+		var over := mid + inward * 0.01 + across * out * size.x * 0.3
+		_ok(lid.global_position.distance_to(over) < lid.engage_radius, "%s: (a point over the booklet inside the trigger's reach)" % fam[0],
+			str(lid.global_position.distance_to(over)))
+		_ok(lid._quiet(over) and not lid._tip_in_activation_region(over) and not lid.accepts_pointer_at(over),
+			"%s: over the booklet the lid's handle takes no trigger, shows no hand, takes no click" % fam[0])
+		_ok(not lid._quiet(mid - inward * 0.012), "%s: behind the booklet, outside the lid, it is the lid's" % fam[0])
+		var edge := lid.global_position - lid.global_basis.z.normalized() * 0.04 - inward * 0.005
+		_ok(lid._tip_in_activation_region(edge), "%s: and at the lid's free edge the trigger still has it" % fam[0],
+			"%s quiet %s" % [lid.global_position.distance_to(edge), lid._quiet(edge)])
+		book.highlight_updated.emit(book, true)
+		_ok(c._manual_rim != null and c._manual_rim.visible, "%s: hovered, the rim shows" % fam[0])
+		book.highlight_updated.emit(book, false)
+		_ok(not c._manual_rim.visible, "%s: and hides" % fam[0])
+		# The desktop: a click anywhere on the booklet, from inside the case, takes the manual.
+		var grabber := Node3D.new()
+		add_child(grabber)
+		_spawned.append(grabber)
+		var space := c.get_world_3d().direct_space_state
+		for part: float in [0.0, 0.3, -0.3]:
+			var p := mid + across * out * size.x * part
+			var t := InteractionResolver.resolve_desktop(space, p + inward * 0.25, p - inward * 0.03, grabber)
+			_ok(t.is_valid() and t.highlight_node == book, "%s: the desktop takes the manual at %+.1f of its width" % [fam[0], part],
+				"%s %s path %s script %s action %s" % [t.kind, t.highlight_node, t.highlight_node.get_path() if t.highlight_node != null else "",
+					(t.highlight_node.get_script() as Script).resource_path if t.highlight_node != null and t.highlight_node.get_script() != null else "",
+					t.action_node])
+		# Taken out, it is a book again and the lid is the lid's.
+		book.highlight_updated.emit(book, true)
+		c._manual_zone.drop_object()
+		for _i in 3:
+			await get_tree().physics_frame
+		for _i in 2:
+			await get_tree().process_frame
+		_ok(not book.pages_locked() and book.visible and right._enabled, "%s: taken out, it shows and its pages turn again" % fam[0])
+		_ok(not c._manual_rim.visible, "%s: the rim goes with it" % fam[0])
+		_ok(not lid._quiet(over) and lid._tip_in_activation_region(over), "%s: and the whole lid is the lid's again" % fam[0])
+
+
+func _case_lift_out() -> void:
+	_ok(HeldObjectPhysics.lift_out(null, null, 1, 0.06) == 0.0, "nothing to lift")
+	var x := 170.0
+	# A table as the game's are: a heavy rigid body on the pickable layer, not the room's own geometry.
+	var table := RigidBody3D.new()
+	var top_shape := CollisionShape3D.new()
+	var top_box := BoxShape3D.new()
+	top_box.size = Vector3(1.0, 0.04, 1.0)
+	top_shape.shape = top_box
+	table.add_child(top_shape)
+	table.mass = 15.0
+	table.gravity_scale = 0.0
+	table.collision_layer = 4
+	table.collision_mask = 0
+	add_child(table)
+	_spawned.append(table)
+	table.global_position = Vector3(x, 0.98, 0.0)                # its top at y = 1
+	var c := _new_case("jewel", "single")
+	await get_tree().physics_frame
+	_ok(c.dropped.is_connected(c._on_let_go), "a case is lifted out when it is let go")
+	var bottom := -c._closed_box.position.z                       # lying on its back: its back this far under its origin
+	c.global_transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5), Vector3(x, 1.0 + bottom - 0.005, 0.0))
+	for _i in 2:
+		await get_tree().physics_frame
+	var moved := HeldObjectPhysics.lift_out(c, c._body_shape, c.original_collision_mask, 0.06)
+	_ok(moved > 0.003 and moved < 0.008 and absf(c.global_position.y - (1.0 + bottom)) < 0.0015,
+		"let go 5 mm into a tabletop, it is lifted onto it", "%f, at %f" % [moved, c.global_position.y - (1.0 + bottom)])
+	for _i in 2:
+		await get_tree().physics_frame
+	_ok(HeldObjectPhysics.lift_out(c, c._body_shape, c.original_collision_mask, 0.06) == 0.0, "and then it is clear")
+	var clear := c.global_transform
+	_ok(c.global_transform.is_equal_approx(clear), "a clear case is not moved")
+	# Too deep: left exactly where it was.
+	c.global_transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5), Vector3(x + 0.2, 0.975, 0.0))
+	var deep := c.global_transform
+	for _i in 2:
+		await get_tree().physics_frame
+	_ok(HeldObjectPhysics.lift_out(c, c._body_shape, c.original_collision_mask, 0.01) == 0.0
+		and c.global_transform.is_equal_approx(deep), "past its limit it is left where it was")
+	# The room's own floor counts as a support too.
+	var floor_body := _block(c, Vector3(x + 3.0, 0.98, 0.0), Vector3(1.0, 0.04, 1.0))
+	floor_body.collision_layer = 1
+	c.global_transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5), Vector3(x + 3.0, 1.0 + bottom - 0.004, 0.0))
+	for _i in 2:
+		await get_tree().physics_frame
+	moved = HeldObjectPhysics.lift_out(c, c._body_shape, c.original_collision_mask, 0.06)
+	_ok(moved > 0.002 and moved < 0.007, "4 mm into the floor, lifted onto it", str(moved))
+	# Sideways into a wall: not this rule's to move.
+	var wall := _block(c, Vector3(x + 6.0, 1.0, 0.0), Vector3(0.04, 1.0, 1.0))
+	wall.collision_layer = 1
+	c.global_transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5),
+		Vector3(x + 6.0 - 0.02 - c._closed_box.end.x + 0.004, 1.3, 0.0))
+	var at_wall := c.global_transform
+	for _i in 2:
+		await get_tree().physics_frame
+	_ok(HeldObjectPhysics.lift_out(c, c._body_shape, c.original_collision_mask, 0.06) == 0.0
+		and c.global_transform.is_equal_approx(at_wall), "4 mm into a wall it is left alone (the way out is not up)")
+	# A light loose thing in its way holds nothing up; nor does what it holds on its own hub.
+	var loose := RigidBody3D.new()
+	var loose_shape := CollisionShape3D.new()
+	var loose_box := BoxShape3D.new()
+	loose_box.size = Vector3(0.12, 0.004, 0.12)
+	loose_shape.shape = loose_box
+	loose.add_child(loose_shape)
+	loose.mass = 0.016
+	loose.gravity_scale = 0.0
+	loose.collision_layer = 4
+	loose.collision_mask = 0
+	add_child(loose)
+	_spawned.append(loose)
+	c.global_transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5), Vector3(x + 9.0, 1.0, 0.0))
+	loose.global_position = Vector3(x + 9.0, 1.0 - bottom + 0.001, 0.0)
+	var over_loose := c.global_transform
+	for _i in 2:
+		await get_tree().physics_frame
+	_ok(HeldObjectPhysics.lift_out(c, c._body_shape, c.original_collision_mask, 0.06) == 0.0
+		and c.global_transform.is_equal_approx(over_loose), "a light loose thing under it lifts nothing")
+	var disc := DISC_SCENE.instantiate() as RetroDisc
+	disc.systemid = "psx"
+	add_child(disc)
+	_spawned.append(disc)
+	c.disc_zone(0).pick_up_object(disc)
+	for _i in 3:
+		await get_tree().physics_frame
+	_ok(HeldObjectPhysics.lift_out(c, c._body_shape, c.original_collision_mask, 0.06) == 0.0, "nor the disc on its own hub")
+
+
 func _case_drop() -> void:
 	var floor_body := StaticBody3D.new()
 	floor_body.collision_layer = 1
@@ -840,7 +1303,7 @@ func _case_save() -> void:
 	_eq(str(entry.get("type", "")), "game_case", "type")
 	_eq(str(entry.get("case_variant", "")), "triple", "variant")
 	var hinges: Array = entry.get("articulated", [])
-	_ok(hinges.size() == 2, "two hinges saved (the flipper and the cover)", str(hinges))
+	_ok(hinges.size() == 3, "three hinge records saved (the flipper, the cover, and the cover's hinge by the base)", str(hinges))
 	var back := ScenePersistence.new().call("_load_game_case", entry) as RetroGameCase
 	_ok(back != null and back.case_variant == "triple" and back.case_family == "keep", "loads back")
 	if back != null:

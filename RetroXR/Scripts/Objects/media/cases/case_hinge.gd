@@ -3,11 +3,16 @@
 ## VRHinge's grab, poke and pointer plumbing with nothing of its own motion: while a hand has it, GameCase hands the
 ## angle it reads here to CaseHingeSim; let go, the sim swings the panel and writes the angle back through
 ## set_angle_quiet(). `gate` (a Callable returning bool) says whether a hand may take it now: a flip tray under a
-## shut lid may not.
+## shut lid may not, and of a hinge's two handles (the lid's, and the base's for a case held by its lid) only the
+## one on the half that is free to move.
 class_name CaseHinge
 extends VRHinge
 
 var gate: Callable
+## Where this panel is NOT a hand's to work (a world point -> bool): over the manual lying in a lid the grip and
+## the fingertip are for the manual, over a disc on a hanging base they are for the disc. No trigger latch, no
+## open-hand icon, no fingertip push and no pointer press begins there; everywhere else on the panel they all do.
+var quiet_at: Callable
 ## The angle speed (deg/s) of the last frames a hand held it, for the sim on release.
 var release_speed_deg := 0.0
 var _prev_deg := 0.0
@@ -25,6 +30,15 @@ func set_angle_quiet(deg: float) -> void:
 	_prev_deg = deg
 
 
+## Let go of whatever has it (a trigger latch, a fingertip, the pointer): its gate has shut under the hand. A gate
+## only stops a hold from beginning.
+func drop_hold() -> void:
+	if _poke_ctrl != null:
+		_end_poke(true)
+	_trigger_ctrl = null
+	_pointer_held = false
+
+
 func _process(delta: float) -> void:
 	super(delta)
 	var now := get_rotation_deg()
@@ -35,6 +49,24 @@ func _process(delta: float) -> void:
 
 func _can_engage() -> bool:
 	return gate.call() if gate.is_valid() else true
+
+
+func _quiet(at: Vector3) -> bool:
+	return quiet_at.is_valid() and bool(quiet_at.call(at))
+
+
+## The trigger's reach and the open-hand icon's (VRHinge asks this for both).
+func _tip_in_activation_region(tip: Vector3) -> bool:
+	return super(tip) and not _quiet(tip)
+
+
+func _poke_can_begin(ctrl: XRController3D) -> bool:
+	return super(ctrl) and not _quiet(PokeTip.tip_of(ctrl))
+
+
+## The desktop ray and the laser: InteractionResolver asks a control whether it covers the point it was met at.
+func accepts_pointer_at(at: Vector3) -> bool:
+	return not _quiet(at)
 
 
 ## Hold the angle the hand left: no spring, no latch of the base class's (the sim does both).

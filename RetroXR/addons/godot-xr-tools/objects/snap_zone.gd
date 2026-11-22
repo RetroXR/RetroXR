@@ -293,6 +293,24 @@ static func live_zones() -> Array[XRToolsSnapZone]:
 ## the thing having gone in by itself), and is taken only if it is let go within `grab_distance` (Holster.prepare_seat: a cabinet's guns, sticks and guitars).
 var show_preview := true
 
+## LOCAL PATCH (RetroXR): where a hand reaches for what this zone HOLDS, when that is not a ball round the zone's
+## origin: a box in the zone's own space (a booklet lying in a game case's lid, whose zone stands at its spine
+## edge: only a grip within 6 cm of that edge's middle took it, anywhere else on it took the case). Empty, the rule
+## is the one XRToolsFunctionPickup always had: within grab_distance of the origin. Taking OUT only: what the zone
+## accepts, and its preview, still go by grab_distance.
+var reach_box := AABB()
+
+
+## LOCAL PATCH (RetroXR): how near a hand at `hand` (world) is to what this zone holds, squared, or -1.0 when it is
+## not reaching for it at all (see reach_box). XRToolsFunctionPickup ranks zones by this.
+func reaches(hand: Vector3) -> float:
+	if reach_box.size == Vector3.ZERO:
+		var d := global_position.distance_squared_to(hand)
+		return d if d <= grab_distance * grab_distance else -1.0
+	var p := global_transform.affine_inverse() * hand
+	return p.distance_squared_to(reach_box.get_center()) if reach_box.has_point(p) else -1.0
+
+
 ## LOCAL PATCH (RetroXR): whether this zone would accept `obj` if dropped here
 ## right now (used by the held-object snap preview). Only zones with an explicit
 ## snap_require participate — generic catch-all zones don't preview.
