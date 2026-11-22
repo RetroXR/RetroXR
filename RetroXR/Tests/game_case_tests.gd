@@ -79,6 +79,7 @@ func _run() -> void:
 		["case/a manual put in keeps its pages unless it is a spread scan", _case_manual_spread],
 		["case/a flip tray's hinge is taken from either face", _case_tray_both_faces],
 		["case/a tray lying on the open lid is still the hand's", _case_tray_on_lid],
+		["case/the fat case keeps its manual in the black tray", _case_manual_on_tray],
 		["case/deleting what was seated does not stop the lid", _case_deleted_seated],
 		["case/a seated manual's pages are on the case's own paper", _case_manual_paper],
 		["case/disc 1 is nearest the front cover, and every disc reads upright", _case_disc_order],
@@ -119,7 +120,9 @@ func _pick_psx_us() -> void:
 
 func _pick_psx_longbox() -> void:
 	_eq(_pick("psx", "us", 1, Vector2i(931, 680)), "jewel/longbox", "a long-box scan")
-	_eq(_pick("psx", "us", 2, Vector2i(931, 680)), "jewel/fatbox2", "a two-disc game is never in the one-disc long box")
+	_eq(_pick("psx", "us", 2, Vector2i(931, 680)), "jewel/fatbox4", "a two-disc game is never in the one-disc long box")
+	_eq(_pick("psx", "us", 2), "jewel/fatbox4", "Metal Gear Solid (USA): the shell Final Fantasy VIII's four came in")
+	_eq(_pick("psx", "jp", 2), "jewel/fatbox2", "a Japanese two-disc game keeps the double case")
 
 
 func _pick_saturn_segacd() -> void:
@@ -1703,6 +1706,71 @@ func _case_manual_paper() -> void:
 			"%s: and it is the %s page" % [fam[0], "first" if fam[0] == "keep" else "last"])
 
 
+## The North American fat case (the owner's photographs, 2026-11-22): the manual lies in the black tray's front
+## recess, on its disc; the lid keeps its front sheet whatever the manual does.
+func _case_manual_on_tray() -> void:
+	var c := _new_case("jewel", "fatbox4")
+	await get_tree().physics_frame
+	c.global_position = Vector3(450.0, 1.0, 0.0)
+	c.set_physics_process(false)
+	var top := c.sim.top()
+	_ok(c._manual_loose and c._manual_on == 0 and c._manual_zone != null, "its manual's seat is on the flip tray",
+		"%s %d" % [c._manual_loose, c._manual_on])
+	var seat := c.model.manual_seat()
+	var tray := c.model.levels[0].find_child("FlipTray1", true, false) as Node3D
+	var in_case := c.global_transform.affine_inverse() * seat.global_position
+	_ok(in_case.z > 0.0 and in_case.z < 0.006, "over the tray's front face, under the lid's tray", str(in_case * 1000.0))
+	_ok(not c._manual_open(), "shut, the manual's place is closed")
+	c.sim.set_angle_deg(top, 180.0)
+	c._apply_angles()
+	_ok(c._manual_open(), "the lid open flat: its place is in the open")
+	# It rides the tray.
+	c.sim.set_angle_deg(0, 90.0)
+	c._apply_angles()
+	var rode := c.global_transform.affine_inverse() * seat.global_position
+	_ok(rode.distance_to(in_case) > 0.03, "the tray turned up, the manual's seat went with it", str(rode * 1000.0))
+	c.sim.set_angle_deg(0, 180.0)
+	c._apply_angles()
+	_ok(not c._manual_open(), "the tray over on the lid: its front, and the manual's place, are covered")
+	c.sim.set_angle_deg(0, 0.0)
+	c._apply_angles()
+	# Disc 2 on the tray's front, then the manual over it.
+	var d := DISC_SCENE.instantiate() as RetroDisc
+	d.systemid = "psx"
+	add_child(d)
+	_spawned.append(d)
+	c.disc_zone(2).pick_up_object(d)
+	for _i in 3:
+		await get_tree().physics_frame
+	_ok(c._seat_reachable(2), "with no manual on it, the disc on the tray's front is a hand's")
+	var book := await _seat_manual(c)
+	_ok(c.manual() == book, "the manual seats there")
+	_ok(not c._seat_reachable(2), "under the manual, that disc waits for the manual to be lifted")
+	_ok(c._seat_reachable(3), "the lid's own disc is not the manual's to cover")
+	var over := c.global_transform.affine_inverse() * book.global_position
+	_ok(over.z > (c.global_transform.affine_inverse() * d.global_position).z, "the manual lies over the disc, toward the lid",
+		"%s over %s" % [over * 1000.0, (c.global_transform.affine_inverse() * d.global_position) * 1000.0])
+	var booklet := c.model.levels[0].find_child("Booklet", true, false) as Node3D
+	_ok(booklet != null and booklet.visible, "the lid's front sheet is there with the manual in")
+	_ok(c._manual_proxy != null and c._manual_proxy.visible and c._manual_proxy.get_parent() == seat, "the manual shows as a booklet on the tray")
+	# A grip is the manual's from its front, not through the tray from behind.
+	var zone := c._manual_zone
+	var front := zone.global_transform * Vector3(c.model.manual_size_m().x * 0.5, 0.0, 0.01)
+	var behind := zone.global_transform * Vector3(c.model.manual_size_m().x * 0.5, 0.0, -0.03)
+	_ok(zone.reaches(front) >= 0.0, "a hand over the manual reaches it")
+	_ok(zone.reaches(behind) < 0.0, "a hand under the tray does not")
+	c._manual_zone.drop_object()
+	for _i in 3:
+		await get_tree().physics_frame
+	book.global_position += Vector3(0.0, 5.0, 0.0)
+	for _i in 3:
+		await get_tree().process_frame
+	_ok(booklet.visible, "the manual out, the front sheet stays")
+	_ok(c._manual_proxy == null or not c._manual_proxy.visible, "and the booklet on the tray is gone")
+	_ok(c._seat_reachable(2), "and the disc under it is a hand's again")
+	_ok(tray != null, "(the model has its flip tray)")
+
+
 func _case_tray_on_lid() -> void:
 	var x := 300.0
 	for fam: Array in [["jewel", "fatbox4"], ["jewel", "fatbox2"], ["keep", "triple"]]:
@@ -1771,6 +1839,10 @@ func _case_disc_order() -> void:
 		_ok(in_order and where.size() == paths.size(), "%s/%s: discs 1.. on seats %s, front to back" % [fam[0], fam[1], str(where)])
 		if fam[1] == "fatbox4":
 			_eq(where, [4, 3, 2, 1], "the four-disc case: disc 1 in the lid's tray, disc 4 on the back")
+			_eq(c.disc_seat_order(3).map(func(i: int) -> int: return i + 1), [4, 2, 1],
+				"three discs in it (Final Fantasy VII): the front cover, the back of the black tray, the rear cover")
+			_eq(c.disc_seat_order(2).map(func(i: int) -> int: return i + 1), [4, 1], "two (Metal Gear Solid): the two covers")
+			_eq(c.disc_seat_order(1).map(func(i: int) -> int: return i + 1), [4], "one: the front cover")
 		if fam[1] == "gc_double":
 			_eq(where, [1, 2], "two seats on one panel keep their order")
 		# Every disc's label out of its tray and reading upright, the case standing on its bottom edge.

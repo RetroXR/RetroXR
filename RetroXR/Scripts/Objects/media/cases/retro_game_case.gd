@@ -174,6 +174,11 @@ var _base_hinge: CaseHinge                       # the lid's hinge again, by its
 var _base_probe: BoxShape3D
 var _top_grip: CaseHinge                         # which of its two handles a hand last had the lid's hinge by
 var _manual_in := -1.0                           # which way is into the case along the manual seat's z
+## The manual lies on a tray, not under the lid's tabs (the North American fat case: in the black tray's front
+## recess, on its disc). `_manual_on` is that tray's hinge. The lid's own Booklet is then the front sheet, there
+## whatever the manual does.
+var _manual_loose := false
+var _manual_on := -1
 var _manual_rim: Node3D
 var _lid_handle_at := Vector3.ZERO               # the lid's handle in its rig, before _follow_lid moves it
 var _hand_rot := Quaternion.IDENTITY
@@ -257,7 +262,7 @@ func spawn_contents(disc_paths: PackedStringArray) -> void:
 	var seats: Array[XRToolsSnapZone] = _zones
 	if umd:
 		seats = [_holder_zone] as Array[XRToolsSnapZone]
-	var order := disc_seat_order()
+	var order := disc_seat_order(disc_paths.size())
 	for i in mini(disc_paths.size(), seats.size()):
 		if disc_paths[i].is_empty():
 			continue                                     # a disc of the set that is not on this device
@@ -606,14 +611,19 @@ func _tray_has(at: Vector3) -> bool:
 
 ## The seats in the order a game's discs go on them: disc 1 nearest the front cover, the first met on opening the
 ## case, and the last on the back (the owner, 2026-11-22: Final Fantasy VII and VIII keep disc 1 in the lid's own
-## tray). Seats level with each other (a GameCube case's two on one panel) keep their own order.
-func disc_seat_order() -> Array[int]:
+## tray). Seats level with each other (a GameCube case's two on one panel) keep their own order. A game of fewer
+## discs than the case has seats keeps disc 1 at the front and packs the rest to the back, leaving the middle's
+## front empty (the same day's stills: Final Fantasy VII's three are in the front cover, on the back of the black
+## tray and in the rear cover, the manual alone in the tray's front; Metal Gear Solid's two in the two covers).
+func disc_seat_order(discs := -1) -> Array[int]:
 	var order: Array[int] = []
 	for i in _zones.size():
 		order.append(i)
 	order.sort_custom(func(a: int, b: int) -> bool:
 		var d: float = _seat_z[a] - _seat_z[b]
 		return d > 0.0005 or (absf(d) <= 0.0005 and a < b))
+	if discs > 0 and discs < order.size():
+		return order.slice(0, 1) + order.slice(order.size() - (discs - 1))
 	return order
 
 
@@ -662,13 +672,19 @@ func _build_zones() -> void:
 		_manual_root = Node3D.new()
 		_manual_root.name = "ManualAnchor"
 		ms.add_child(_manual_root)
+		var where: Dictionary = model.contract().get("manual", {})
+		_manual_loose = bool(where.get("front_sheet", false))
+		_manual_on = _carrier_of(str(where.get("parent", "")))
 		_manual_zone = _zone("ManualZone", _manual_root, "book", 0.06,
-			func(obj: Node3D) -> bool: return obj is PDFBook and _lid_open())
+			func(obj: Node3D) -> bool: return obj is PDFBook and _manual_open())
 		# Which way is into the case from the booklet, along its seat's z: toward the base, the lid being shut now.
 		var seat_in_case := model.transform * GameCaseModel._local_to(model, ms)
 		var toward_base := (seat_in_case.affine_inverse() * _base_box.get_center()).z
 		_manual_in = -1.0 if toward_base < 0.0 else 1.0
 		_manual_zone.reach_gate = _clear_of_base
+		if _manual_loose:                                # on a tray: the open air is out of its own front
+			_manual_in = 1.0
+			_manual_zone.reach_gate = _over_manual
 		_place_manual_zone(model.manual_size_m().x)
 		_manual_zone.has_picked_up.connect(func(what: Node3D) -> void:
 			if what is PDFBook and not (what as PDFBook).dimensions_changed.is_connected(_on_book_resized):
@@ -784,7 +800,12 @@ func _sync_manual() -> void:
 		_seated_book = seated
 	elif _manual_rim != null:
 		_manual_rim.visible = false
-	if case_family == "jewel":
+	if case_family == "jewel" and _manual_loose:
+		# The lid's Booklet is the front sheet: there whatever the manual does, its back plain. The manual itself is
+		# the sheet on its tray, below.
+		model.show_booklet(true)
+		model.set_booklet_back(null)
+	elif case_family == "jewel":
 		model.show_booklet(seated != null or not _has_manual)
 		# Inside the open lid the booklet shows its back: the manual's last page, from the PDF (a spread scan's back
 		# cover is its first half page).
@@ -865,7 +886,8 @@ func _build_manual_proxy() -> Node3D:
 func _place_manual_zone(book_width: float, half_thick := 0.0) -> void:
 	if _manual_zone == null:
 		return
-	var z := (MANUAL_WALL - half_thick) if case_family == "jewel" else (half_thick - MANUAL_WALL)
+	# (Under a jewel lid its back is toward the seat's front; on a keep case's cover or a tray, behind it.)
+	var z := (MANUAL_WALL - half_thick) if case_family == "jewel" and not _manual_loose else (half_thick - MANUAL_WALL)
 	_manual_zone.position = Vector3(-book_width * 0.5, 0.0, z)
 	# The zone stands at the book's spine; its reach is round the booklet's middle, so a manual offered at either
 	# edge of its place is as near.
@@ -932,11 +954,27 @@ func _lid_open() -> bool:
 	return sim.angle_deg(sim.top()) >= REACH_DEG
 
 
+## Whether the manual's place is in the open: under an open lid, or, lying on a tray, with the panel above that
+## tray turned off it.
+func _manual_open() -> bool:
+	if not _manual_loose or _manual_on < 0:
+		return _lid_open()
+	return sim.angle_deg(_manual_on + 1) - sim.angle_deg(_manual_on) >= REACH_DEG
+
+
+## A manual lying on a tray is reached from its own front, not through the tray from behind.
+func _over_manual(at: Vector3) -> bool:
+	return is_instance_valid(_manual_zone) and (_manual_zone.global_transform.affine_inverse() * at).z > -SEAT_BEHIND
+
+
 ## The panel over a seat (the next one up for a hub facing out, the one below for a hub facing back) is turned far
 ## enough off it for a hand to get at the disc.
 func _seat_reachable(seat: int) -> bool:
 	var c := _seat_carrier[seat]
 	var here := 0.0 if c < 0 else sim.angle_deg(c)
+	# The disc under a manual lying on its tray is the manual's to uncover first.
+	if _manual_loose and c == _manual_on and not _seat_down[seat] and manual() != null:
+		return false
 	if _seat_down[seat]:
 		var below := 0.0 if c <= 0 else sim.angle_deg(c - 1)
 		return here - below >= REACH_DEG
@@ -962,10 +1000,10 @@ func _update_reach() -> void:
 			obj.enabled = ok
 		if i < _hub_buttons.size() and _hub_buttons[i].is_inside_tree():
 			_hub_buttons[i].set_active(ok and obj is RetroDisc and not _popped[i])
-	var open := _lid_open()
 	for z: XRToolsSnapZone in [_holder_zone, _manual_zone, _card_zone]:
 		if z == null:
 			continue
+		var open := _manual_open() if z == _manual_zone else _lid_open()
 		if z.enabled != open:
 			z.enabled = open
 		if is_instance_valid(z.picked_up_object) and z.picked_up_object is XRToolsPickable:
@@ -1291,7 +1329,7 @@ func _free_lid() -> void:
 ## shows no open hand, and is not pushed by a fingertip (CaseHinge.quiet_at). The grip's own box, so nothing behind
 ## the booklet: the lid is still pushed shut from outside, and worked anywhere once the manual is out.
 func _lid_quiet(at: Vector3) -> bool:
-	if _manual_zone == null or not is_instance_valid(_manual_zone.picked_up_object) or not _lid_open():
+	if _manual_zone == null or _manual_loose or not is_instance_valid(_manual_zone.picked_up_object) or not _lid_open():
 		return false
 	return _manual_zone.reach_box.has_point(_manual_zone.global_transform.affine_inverse() * at) and _clear_of_base(at)
 

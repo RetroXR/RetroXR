@@ -93,6 +93,11 @@ static func _multi_variant(sys: String, market: String, family: String, single: 
 		return ["keep", single]
 	if sys == "psx" and market == "eu":
 		return ["jewel", "pal_multi2" if discs == 2 else "pal_multi4"]
+	# A North American PlayStation game of two discs came in the same shell as one of three or four (Metal Gear
+	# Solid's beside Final Fantasy VIII's: the owner's photographs and the day's stills, 2026-11-22): a disc inside
+	# each clear cover, the manual in the black tray between.
+	if sys == "psx" and market == "us":
+		return ["jewel", "fatbox4"]
 	if discs == 2:
 		return ["jewel", "fatbox2" if sys in ["psx", "segacd"] else "double"]
 	return ["jewel", "fatbox4"]
