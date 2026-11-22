@@ -299,16 +299,27 @@ var show_preview := true
 ## is the one XRToolsFunctionPickup always had: within grab_distance of the origin. Taking OUT only: what the zone
 ## accepts, and its preview, still go by grab_distance.
 var reach_box := AABB()
+## LOCAL PATCH (RetroXR): a further say on that reach, for what no ball or box can say (a booklet's reach is the
+## space over it, and stops at the other half of its case): a world point -> bool, asked only of a hand already
+## inside the ball or the box.
+var reach_gate: Callable
 
 
 ## LOCAL PATCH (RetroXR): how near a hand at `hand` (world) is to what this zone holds, squared, or -1.0 when it is
-## not reaching for it at all (see reach_box). XRToolsFunctionPickup ranks zones by this.
+## not reaching for it at all (see reach_box, reach_gate). XRToolsFunctionPickup ranks zones by this.
 func reaches(hand: Vector3) -> float:
+	var near := -1.0
 	if reach_box.size == Vector3.ZERO:
 		var d := global_position.distance_squared_to(hand)
-		return d if d <= grab_distance * grab_distance else -1.0
-	var p := global_transform.affine_inverse() * hand
-	return p.distance_squared_to(reach_box.get_center()) if reach_box.has_point(p) else -1.0
+		if d <= grab_distance * grab_distance:
+			near = d
+	else:
+		var p := global_transform.affine_inverse() * hand
+		if reach_box.has_point(p):
+			near = p.distance_squared_to(reach_box.get_center())
+	if near >= 0.0 and reach_gate.is_valid() and not reach_gate.call(hand):
+		return -1.0
+	return near
 
 
 ## LOCAL PATCH (RetroXR): whether this zone would accept `obj` if dropped here

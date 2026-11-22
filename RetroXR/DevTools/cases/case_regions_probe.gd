@@ -225,9 +225,9 @@ func _draw_snap(c: RetroGameCase) -> void:
 		var at := ball.global_position if ball != null else z.global_position
 		_sphere(at, z.grab_distance, col)                # where a thing let go is taken in
 		_cross(z.global_position, 0.006, Color(1, 1, 1))  # the zone's own origin: where its thing's origin goes
-		if z.reach_box.size != Vector3.ZERO:              # where a grip takes its thing out, when not that ball
-			_box(z.global_transform * Transform3D(Basis.IDENTITY, z.reach_box.get_center()), z.reach_box.size,
-				Color(0.3, 1.0, 0.35) if on else Color(0.45, 0.55, 0.45), 0.22)
+		if z.reach_box.size != Vector3.ZERO and on:       # where a grip takes its thing out, when not that ball
+			_shell(z.global_transform, z.reach_box, func(at: Vector3) -> bool: return z.reaches(at) >= 0.0,
+				Color(0.3, 1.0, 0.35))
 
 
 func _draw_grab(c: RetroGameCase) -> void:
@@ -243,10 +243,10 @@ func _draw_grab(c: RetroGameCase) -> void:
 		var panel := h.get_node_or_null("PokePanel") as CollisionShape3D
 		if panel != null:                                                      # the fingertip's faces
 			_box(panel.global_transform, (panel.shape as BoxShape3D).size, col, 0.2 if live else 0.08)
-	# Where the lid's handle is quiet: the manual's own reach.
+	# Where the lid's handle is quiet: over the manual, by the case's own test.
 	if c._manual_zone != null and c.manual() != null and c._manual_zone.reach_box.size != Vector3.ZERO:
 		var z := c._manual_zone
-		_box(z.global_transform * Transform3D(Basis.IDENTITY, z.reach_box.get_center()), z.reach_box.size, Color(0.3, 1.0, 0.35), 0.15)
+		_shell(z.global_transform, z.reach_box, c._lid_quiet, Color(0.3, 1.0, 0.35))
 
 
 func _draw_pointer(c: RetroGameCase) -> void:
@@ -339,6 +339,54 @@ func _box(xf: Transform3D, size: Vector3, col: Color, alpha := 0.2) -> void:
 				pts.append(corners[a])
 				pts.append(corners[b])
 	_lines(pts, col)
+
+
+## The part of `box` (in `xf`'s space) that `keep` (a world point -> bool) says yes to, as dots on its surface: the
+## game's own test asked point by point, not a shape redrawn here.
+func _shell(xf: Transform3D, box: AABB, keep: Callable, col: Color, step := 0.005) -> void:
+	var n := Vector3i(maxi(2, int(box.size.x / step) + 1), maxi(2, int(box.size.y / step) + 1), maxi(2, int(box.size.z / step) + 1))
+	var yes := PackedByteArray()
+	yes.resize(n.x * n.y * n.z)
+	var world: Array[Vector3] = []
+	world.resize(yes.size())
+	for ix in n.x:
+		for iy in n.y:
+			for iz in n.z:
+				var local := box.position + Vector3(box.size.x * ix / (n.x - 1), box.size.y * iy / (n.y - 1), box.size.z * iz / (n.z - 1))
+				var at := xf * local
+				var k := (ix * n.y + iy) * n.z + iz
+				world[k] = at
+				yes[k] = 1 if keep.call(at) else 0
+	var pts := PackedVector3Array()
+	for ix in n.x:
+		for iy in n.y:
+			for iz in n.z:
+				var k := (ix * n.y + iy) * n.z + iz
+				if yes[k] == 0:
+					continue
+				var edge := ix == 0 or iy == 0 or iz == 0 or ix == n.x - 1 or iy == n.y - 1 or iz == n.z - 1
+				if not edge:
+					edge = yes[k - n.y * n.z] == 0 or yes[k + n.y * n.z] == 0 or yes[k - n.z] == 0 or yes[k + n.z] == 0
+				if not edge:
+					edge = yes[k - 1] == 0 or yes[k + 1] == 0
+				if edge:
+					pts.append(world[k])
+	if pts.is_empty():
+		return
+	var mesh := ArrayMesh.new()
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = pts
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_POINTS, arrays)
+	var m := _line_mat(col)
+	m.use_point_size = true
+	m.point_size = 2.5
+	m.albedo_color = Color(col.r, col.g, col.b, 0.75)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = m
+	_overlay.add_child(mi)
 
 
 func _sphere(at: Vector3, r: float, col: Color) -> void:

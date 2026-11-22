@@ -546,6 +546,7 @@ func _build_zones() -> void:
 		var seat_in_case := model.transform * GameCaseModel._local_to(model, ms)
 		var toward_base := (seat_in_case.affine_inverse() * _base_box.get_center()).z
 		_manual_in = -1.0 if toward_base < 0.0 else 1.0
+		_manual_zone.reach_gate = _clear_of_base
 		_place_manual_zone(model.manual_size_m().x)
 		_manual_zone.has_picked_up.connect(func(what: Node3D) -> void:
 			if what is PDFBook and not (what as PDFBook).dimensions_changed.is_connected(_on_book_resized):
@@ -1053,9 +1054,23 @@ func _free_lid() -> void:
 ## shows no open hand, and is not pushed by a fingertip (CaseHinge.quiet_at). The grip's own box, so nothing behind
 ## the booklet: the lid is still pushed shut from outside, and worked anywhere once the manual is out.
 func _lid_quiet(at: Vector3) -> bool:
-	if _manual_zone == null or not is_instance_valid(_manual_zone.picked_up_object):
+	if _manual_zone == null or not is_instance_valid(_manual_zone.picked_up_object) or not _lid_open():
 		return false
-	return _manual_zone.reach_box.has_point(_manual_zone.global_transform.affine_inverse() * at)
+	return _manual_zone.reach_box.has_point(_manual_zone.global_transform.affine_inverse() * at) and _clear_of_base(at)
+
+
+## Whether a point (world) is in the open air of the case: not inside its base, nor anywhere beneath it. The
+## booklet's reach is the space OVER the booklet, and as a plain box it ran on through the base and out of the
+## case's back whenever the lid stood short of upright: a hand under the case was reaching for the manual (the
+## owner, 2026-11-22, off the regions probe's picture).
+func _clear_of_base(at: Vector3) -> bool:
+	var p := global_transform.affine_inverse() * at
+	var b := _base_box
+	# Its outline and a little beside it (the booklet's reach is a centimetre wider than the booklet), but not past
+	# the hinge: there the lid itself lies when it is open flat, a little lower than the base's top.
+	var beside := MANUAL_REACH_SIDE * 2.0
+	return not (p.z < b.end.z and p.x > b.position.x and p.x < b.end.x + beside
+		and p.y > b.position.y - beside and p.y < b.end.y + beside)
 
 
 ## Over a disc, a UMD or a card on its seat, a hand is reaching for that, not pressing the base away. From the

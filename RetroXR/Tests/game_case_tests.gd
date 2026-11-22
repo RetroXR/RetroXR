@@ -944,6 +944,22 @@ func _case_manual_reach() -> void:
 			"%s: 5 cm above it yes, 9 cm no" % fam[0])
 		_ok(zone.reaches(mid - inward * 0.012) < 0.0, "%s: not behind it: that is the lid" % fam[0])
 		_ok(zone.reaches(mid + inward * 0.02 + across * (size.x * 0.5 + 0.03)) < 0.0, "%s: nor 3 cm beside it" % fam[0])
+		# The reach is the space OVER the booklet: with the lid leaning over the base it stops at the base.
+		c.sim.set_angle_deg(top, 40.0)
+		c._apply_angles()
+		var mid40 := seat.global_position
+		var in40 := seat.global_basis.z.normalized() * c._manual_in
+		var across40 := seat.global_basis.x.normalized()
+		var out40 := signf(across40.dot(c.hinge(top).global_position - mid40))
+		var under := mid40 - across40 * out40 * size.x * 0.45 + in40 * 0.05
+		_ok(zone.reach_box.has_point(zone.global_transform.affine_inverse() * under),
+			"%s: (a point 5 cm off the booklet's hinge side, inside the plain box)" % fam[0])
+		_ok(not c._clear_of_base(under) and zone.reaches(under) < 0.0,
+			"%s: with the lid at 40 degrees that point is under the base: not a reach for the manual" % fam[0],
+			str(c.global_transform.affine_inverse() * under))
+		_ok(zone.reaches(mid40 + in40 * 0.008) >= 0.0, "%s: just over the booklet still is" % fam[0])
+		c.sim.set_angle_deg(top, 110.0)
+		c._apply_angles()
 		var dz := c.disc_zone(0)
 		_ok(dz.reach_box.size == Vector3.ZERO and dz.reaches(dz.global_position + Vector3(0.03, 0.0, 0.0)) >= 0.0
 			and dz.reaches(dz.global_position + Vector3(0.07, 0.0, 0.0)) < 0.0, "%s: a hub's reach is the ball it was" % fam[0])
@@ -1019,6 +1035,23 @@ func _case_manual_quiet() -> void:
 		_ok(c._manual_rim != null and c._manual_rim.visible, "%s: hovered, the rim shows" % fam[0])
 		book.highlight_updated.emit(book, false)
 		_ok(not c._manual_rim.visible, "%s: and hides" % fam[0])
+		# Under a lid leaning over the base the quiet stops at the base, and a shut case has none at all.
+		c.sim.set_angle_deg(top, 40.0)
+		c._apply_angles()
+		var in40 := seat.global_basis.z.normalized() * c._manual_in
+		var across40 := seat.global_basis.x.normalized()
+		var out40 := signf(across40.dot(lid.global_position - seat.global_position))
+		var under := seat.global_position - across40 * out40 * size.x * 0.45 + in40 * 0.05
+		_ok(lid._quiet(seat.global_position + in40 * 0.008) and not lid._quiet(under),
+			"%s: at 40 degrees the lid is quiet over the booklet and not under the base" % fam[0])
+		c.sim.set_angle_deg(top, 0.0)
+		c.sim.latched = true
+		c._apply_angles()
+		_ok(not lid._quiet(seat.global_position + seat.global_basis.z.normalized() * c._manual_in * 0.008)
+			and not lid._quiet(c.global_transform * c._base_box.get_center()),
+			"%s: shut, nothing about the lid is quiet: it is opened as ever" % fam[0])
+		c.sim.set_angle_deg(top, 110.0)
+		c._apply_angles()
 		# The desktop: a click anywhere on the booklet, from inside the case, takes the manual.
 		var grabber := Node3D.new()
 		add_child(grabber)
