@@ -25,6 +25,11 @@
 ##                base is needed for the figure to reach it (none here), so this checks
 ##                the frontend's side and the core's taking it.
 ##
+## On a headset (the "Quest wiiu probe" preset, its own package) there is no command
+## line: the arguments are read one a line from wiiu_probe_args.txt in the package's
+## external files dir (/sdcard/Android/data/com.xenu.retroxr.wuprobe/files/), and the
+## core from its internal libretro/cores/ (docs/dev/wiiu.md, "On the Quest").
+##
 ## The Wii U Menu: --rom=<mlc01>/sys/title/00050010/10040100/code/men.rpx (the US
 ## menu, from a system dump laid into the core's mlc01).
 extends Node
@@ -58,7 +63,15 @@ var _toy_done: Array = []
 
 
 func _ready() -> void:
-	for a in OS.get_cmdline_user_args():
+	var args := Array(OS.get_cmdline_user_args())
+	if args.is_empty() and OS.get_name() == "Android":
+		var file := DataPaths.android_root().path_join("wiiu_probe_args.txt")
+		for line: String in FileAccess.get_file_as_string(file).split("
+", false):
+			if not line.strip_edges().is_empty():
+				args.append(line.strip_edges())
+		print("[wiiu] %s on %s, args from %s: %s" % [Engine.get_version_info().string, OS.get_name(), file, str(args)])
+	for a: String in args:
 		if a.begins_with("--rom="):
 			_rom = a.substr(6)
 		elif a.begins_with("--root="):

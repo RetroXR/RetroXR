@@ -31,6 +31,7 @@ run/main_scene.stprobe="res://DevTools/perf/systems_tab_probe.tscn"
 run/main_scene.manualprobe="res://DevTools/vr/manual_probe.tscn"
 run/main_scene.modsapplyprobe="res://DevTools/mods/mods_apply_probe.tscn"
 run/main_scene.spatialprobe="res://DevTools/av/spatial_probe.tscn"
+run/main_scene.wuprobe="res://DevTools/cores/wiiu_boot_probe.tscn"
 
 [audio]
 
