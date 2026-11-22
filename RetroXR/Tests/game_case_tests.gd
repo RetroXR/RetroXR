@@ -82,6 +82,7 @@ func _run() -> void:
 		["case/a fingertip pushes a lid and never pulls it", _case_poke_no_pull],
 		["case/a tray lying on the open lid is still the hand's", _case_tray_on_lid],
 		["case/the fat case keeps its manual in the black tray", _case_manual_on_tray],
+		["case/a case from an older save takes the real disc layout", _case_old_layout],
 		["case/deleting what was seated does not stop the lid", _case_deleted_seated],
 		["case/a seated manual's pages are on the case's own paper", _case_manual_paper],
 		["case/disc 1 is nearest the front cover, and every disc reads upright", _case_disc_order],
@@ -124,7 +125,9 @@ func _pick_psx_longbox() -> void:
 	_eq(_pick("psx", "us", 1, Vector2i(931, 680)), "jewel/longbox", "a long-box scan")
 	_eq(_pick("psx", "us", 2, Vector2i(931, 680)), "jewel/fatbox4", "a two-disc game is never in the one-disc long box")
 	_eq(_pick("psx", "us", 2), "jewel/fatbox4", "Metal Gear Solid (USA): the shell Final Fantasy VIII's four came in")
-	_eq(_pick("psx", "jp", 2), "jewel/fatbox2", "a Japanese two-disc game keeps the double case")
+	_eq(_pick("psx", "jp", 2), "jewel/fatbox4", "a Japanese two-disc game is given the same shell (its manual in the black tray)")
+	_eq(_pick("psx", "eu", 2), "jewel/pal_multi2", "a European one keeps the PAL case")
+	_eq(_pick("segacd", "us", 2), "jewel/fatbox2", "a Sega CD two-disc game keeps the double case")
 
 
 func _pick_saturn_segacd() -> void:
@@ -165,6 +168,27 @@ func _pick_multi() -> void:
 	_eq(_pick("ps2", "us", 5), "keep/multi5", "5 discs")
 	_eq(_pick("saturn", "eu", 2), "jewel/double", "PAL Saturn multi-disc")
 	_eq(GameCase.capacity("fatbox4"), 4, "capacity")
+	# A game's disc total: what its scraped rows agree on. These are a library's own rows (2026-11-22).
+	var ff7 := [{"path": "./Final Fantasy VII (USA) (Disc 1).cue", "disc_num": 1.0, "disc_total": 3.0, "region": "USA"},
+		{"path": "./Final Fantasy VII (USA) (Disc 2).cue", "disc_num": 2.0, "disc_total": 3.0, "region": "USA"},
+		{"path": "./Final Fantasy VII (USA) (Disc 3).cue", "disc_num": 3.0, "disc_total": 3.0, "region": "USA"},
+		{"path": "./Final Fantasy VII (USA) (Disc 1).chd", "disc_num": 1, "disc_total": 9, "region": "USA"}]
+	_eq(GameCase.disc_total_from(ff7, "Final Fantasy VII (USA) (Disc 1).chd"), 3, "a row that says 9 beside three that say 3: three discs")
+	_eq(GameCase.disc_total_from(ff7, "Final Fantasy VII (USA) (Disc 2).cue"), 3, "and for any disc of the set")
+	var mgs := [{"path": "./Metal Gear Solid (USA) (Disc 2) (Rev 1).cue", "disc_num": 2.0, "disc_total": 2.0, "region": "USA"},
+		{"path": "./Metal Gear Solid (USA) (Disc 1) (Rev 1).cue", "disc_num": 1.0, "disc_total": 2.0, "region": "USA"},
+		{"path": "./Metal Gear Solid (USA) (Disc 2).cue", "disc_num": 2.0, "disc_total": 5.0, "region": "USA"},
+		{"path": "./Metal Gear Solid (Italy) (Disc 1).cue", "disc_num": 1.0, "disc_total": 2.0, "region": "Italy"},
+		{"path": "./Metal Gear Solid (Italy) (Disc 2).cue", "disc_num": 2.0, "disc_total": 2.0, "region": "Italy"}]
+	_eq(GameCase.disc_total_from(mgs, "Metal Gear Solid (USA) (Disc 2).cue"), 2, "a row that says 5 beside two that say 2: two discs")
+	_eq(GameCase.disc_total_from(mgs, "Metal Gear Solid (Italy) (Disc 1).cue"), 2, "another release's rows count for their own")
+	_eq(GameCase.disc_total_from([{"path": "./Lone (Disc 1).chd", "disc_num": 1, "disc_total": 9, "region": "USA"}], "Lone (Disc 1).chd"), 1,
+		"a lone impossible total says nothing: its own number is all that is known")
+	_eq(GameCase.disc_total_from([{"path": "./Four (Disc 1).chd", "disc_num": 1, "disc_total": 4, "region": "USA"}], "Four (Disc 1).chd"), 4,
+		"a lone possible total is believed")
+	_eq(GameCase.disc_total_from([{"path": "./Two (Disc 3).chd", "disc_num": 3, "disc_total": 2, "region": "USA"}], "Two (Disc 3).chd"), 3,
+		"never fewer than a disc number that exists")
+	_eq(GameCase.disc_total_from([], "Nothing.chd"), 0, "nothing scraped, nothing said")
 
 
 func _pick_keep() -> void:
@@ -1747,6 +1771,64 @@ func _case_manual_paper() -> void:
 		var page := 0 if fam[0] == "keep" else book._page_count - 1
 		_ok(shown is StandardMaterial3D and (shown as StandardMaterial3D).albedo_texture == book._texture_cache.get(page),
 			"%s: and it is the %s page" % [fam[0], "first" if fam[0] == "keep" else "last"])
+
+
+## A case a save puts back with its discs as an older build seated them moves them to the real layout, once;
+## discs a player has arranged, and a case the menu has just filled, are left as they are.
+func _case_old_layout() -> void:
+	var x := 520.0
+	# [family, variant, discs, seats (1-based) the save put discs 1.. on, seats they should end on, why]
+	var rows := [
+		["jewel", "fatbox4", 3, [4, 3, 2], [4, 2, 1], "front to back with a disc under the manual (the day's first builds)"],
+		["jewel", "fatbox4", 3, [1, 2, 3], [4, 2, 1], "disc 1 on the back (every build before)"],
+		["jewel", "fatbox4", 4, [1, 2, 3, 4], [4, 3, 2, 1], "four discs, disc 1 on the back"],
+		["jewel", "fatbox4", 2, [4, 3], [4, 1], "two discs front to back"],
+		["keep", "triple", 3, [1, 2, 3], [3, 2, 1], "a keep case filled disc 1 on the back"],
+		["jewel", "fatbox4", 3, [4, 2, 1], [4, 2, 1], "the real layout already"],
+		["jewel", "fatbox4", 3, [2, 4, 1], [2, 4, 1], "a player's own arrangement"],
+	]
+	for row: Array in rows:
+		x += 3.0
+		var c := CASE_SCENE.instantiate() as RetroGameCase
+		c.systemid = "psx"
+		c.case_family = row[0]
+		c.case_variant = row[1]
+		c.rom_path = "C:/nowhere/Old Save (Disc 1).chd"
+		c.freeze = true
+		add_child(c)
+		_spawned.append(c)
+		await get_tree().physics_frame
+		c.global_position = Vector3(x, 1.0, 0.0)
+		c.set_physics_process(false)
+		var discs: Array[RetroDisc] = []
+		for n in int(row[2]):
+			var d := DISC_SCENE.instantiate() as RetroDisc
+			d.systemid = "psx"
+			d.rom_path = "C:/nowhere/Old Save (Disc %d).chd" % (n + 1)
+			add_child(d)
+			_spawned.append(d)
+			discs.append(d)
+			c.disc_zone(int((row[3] as Array)[n]) - 1).pick_up_object(d)       # as a save's restore does
+		await get_tree().create_timer(RetroGameCase.OLD_LAYOUT_SETTLE + 0.5).timeout
+		for _i in 3:
+			await get_tree().physics_frame
+		var ended: Array = []
+		for d in discs:
+			var at := 0
+			for i in c._zones.size():
+				if c._zones[i].picked_up_object == d:
+					at = i + 1
+			ended.append(at)
+		_eq(ended, row[4], "%s/%s, %s: discs 1.. end on seats %s" % [row[0], row[1], row[5], str(row[4])])
+	# A case the menu fills is right from the start and is not looked at again.
+	var fresh := _new_case("jewel", "fatbox4")
+	await get_tree().physics_frame
+	fresh.global_position = Vector3(x + 3.0, 1.0, 0.0)
+	fresh.set_physics_process(false)
+	fresh.spawn_contents(PackedStringArray(["C:/nowhere/New (Disc 1).chd", "C:/nowhere/New (Disc 2).chd", "C:/nowhere/New (Disc 3).chd"]))
+	await get_tree().create_timer(RetroGameCase.OLD_LAYOUT_SETTLE + 0.4).timeout
+	_ok(fresh._fresh and not fresh._layout_done and fresh._zones[2].picked_up_object == null and fresh._zones[0].picked_up_object != null,
+		"a case the menu has just filled has nothing under its manual, and is not looked at")
 
 
 ## The North American fat case (the owner's photographs, 2026-11-22): the manual lies in the black tray's front

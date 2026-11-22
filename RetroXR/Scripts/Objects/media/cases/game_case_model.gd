@@ -32,6 +32,10 @@ const CLEAR_TRAY_TINT := Color(0.78, 0.83, 0.9, 0.15)
 const CLEAR_TRAY_RIM := 0.9
 const CLEAR_TRAY_RIM_COLOR := Color(0.3, 0.33, 0.4)
 const CLEAR_TRAY_RIM_POWER := 1.4
+## A tinted see-through plastic's walls edge-on: this much more opaque than its flats, this much darker.
+const TINTED_RIM_OVER := 0.3
+const TINTED_FLAT_GAIN := 1.3
+const TINTED_RIM_DARKER := 0.45
 
 # ---- jewel (jewel_params.py; JewelCase) ----
 ## Box-texture layout: the back panel is 792/680 of the image's height wide, the spine 36/680; the booklet is the
@@ -357,6 +361,32 @@ func _each_surface(mat_name: String, fn: Callable) -> int:
 	return n
 
 
+## See-through plastic molded into a shape (a clear or tinted disc tray, a keep case's shell with its hub): a haze
+## of its own color on its flats and its walls seen edge-on, so a hub, a ring and a rim read as lines. Drawn as a
+## flat sheet at one opacity, a clear part was not there at all (a disc lay on bare paper) and a tinted one was a
+## flat wash (the owner, 2026-11-22). `c`: the plastic's color, its alpha how much the flats hide.
+static func molded_plastic(c: Color, roughness := 0.06) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = CLEAR_SHADER
+	var colorless := c.s < 0.15 and c.v > 0.6
+	if colorless:                                        # clear: a cool haze, gray lines
+		m.set_shader_parameter("tint", Color(CLEAR_TRAY_TINT, maxf(c.a, CLEAR_TRAY_TINT.a)))
+		m.set_shader_parameter("rim", CLEAR_TRAY_RIM)
+		m.set_shader_parameter("rim_color", CLEAR_TRAY_RIM_COLOR)
+	else:                                                # tinted or smoked: its own color, deeper edge-on
+		# (Denser on its flats than the preset says: the plain material it replaces cast a whole shadow on what lay
+		# under it, which was half of how deep its color looked; this one casts none.)
+		var flat := clampf(c.a * TINTED_FLAT_GAIN, 0.0, 0.88)
+		m.set_shader_parameter("tint", Color(c.r, c.g, c.b, flat))
+		m.set_shader_parameter("rim", clampf(flat + TINTED_RIM_OVER, 0.0, 0.97))
+		m.set_shader_parameter("rim_color", Color(c.r, c.g, c.b).darkened(TINTED_RIM_DARKER))
+	m.set_shader_parameter("rim_power", CLEAR_TRAY_RIM_POWER)
+	# Clear polystyrene is glossy; a tinted or smoked shell keeps the finish it had (glossier, its color washed out
+	# under a bright sky).
+	m.set_shader_parameter("roughness", minf(roughness, 0.12) if colorless else roughness)
+	return m
+
+
 ## Clear polystyrene (the jewel lid and base) and the keep case's sleeve: premultiplied alpha keeps reflections whole
 ## where plain alpha blending dims them with the opacity.
 func _clear_plastic(level: Node3D) -> void:
@@ -377,10 +407,8 @@ func _clear_plastic(level: Node3D) -> void:
 			# lid is, at 5 percent, it was not there at all, and a disc lay on bare paper (the owner, 2026-11-22).
 			# A light haze on its flats, and its walls seen edge-on: the hub, the ring, the rim.
 			if String(mi.name) in CLEAR_TRAY_NODES:
-				m.set_shader_parameter("tint", CLEAR_TRAY_TINT)
-				m.set_shader_parameter("rim", CLEAR_TRAY_RIM)
-				m.set_shader_parameter("rim_color", CLEAR_TRAY_RIM_COLOR)
-				m.set_shader_parameter("rim_power", CLEAR_TRAY_RIM_POWER)
+				m = molded_plastic(Color(base.albedo_color, base.albedo_color.a), base.roughness)
+				m.resource_name = clear_name
 			mi.set_surface_override_material(s, m)
 
 
@@ -392,6 +420,10 @@ func set_color(color: Variant) -> void:
 	var c: Color = presets[color] if color is String else color
 	_each_surface("Jewel_Tray" if family == "jewel" else "Keep_Shell",
 		func(mi: MeshInstance3D, s: int, base: Material) -> void:
+			# A see-through tray or shell (clear, smoke, the PS3 blue, the Xbox 360 green) is molded plastic.
+			if c.a < 1.0:
+				mi.set_surface_override_material(s, molded_plastic(c, (base as StandardMaterial3D).roughness))
+				return
 			var m := (base as StandardMaterial3D).duplicate() as StandardMaterial3D
 			m.resource_local_to_scene = true
 			m.albedo_color = c

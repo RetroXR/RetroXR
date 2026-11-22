@@ -95,8 +95,10 @@ static func _multi_variant(sys: String, market: String, family: String, single: 
 		return ["jewel", "pal_multi2" if discs == 2 else "pal_multi4"]
 	# A North American PlayStation game of two discs came in the same shell as one of three or four (Metal Gear
 	# Solid's beside Final Fantasy VIII's: the owner's photographs and the day's stills, 2026-11-22): a disc inside
-	# each clear cover, the manual in the black tray between.
-	if sys == "psx" and market == "us":
+	# each clear cover, the manual in the black tray between. A Japanese one is given the same (the owner, the same
+	# day: "for the 2 disk tray, the manual should also be at the same place the 3 and 4 disk tray for the ps1";
+	# its three- and four-disc games had that shell here already; no photograph of a Japanese copy opened yet).
+	if sys == "psx":
 		return ["jewel", "fatbox4"]
 	if discs == 2:
 		return ["jewel", "fatbox2" if sys in ["psx", "segacd"] else "double"]
@@ -234,7 +236,42 @@ static func forget_icon(systemid: String, rom_path: String) -> void:
 ## How many discs the game shipped on, as its scrape recorded it (0 when it was not scraped, or scraped before the
 ## count was kept).
 static func disc_total_of(systemid: String, rom_path: String) -> int:
-	return int(CartRomInfo.scraped_rom(systemid, rom_path).get("disc_total", 0))
+	return disc_total_from(CartRomInfo.scraped_game(systemid, rom_path).get("roms", []), rom_path.get_file())
+
+
+## A recorded total past this is a bad row, not a game (PlayStation's longest ran to five discs).
+const DISC_TOTAL_MAX := 6
+
+
+## A game's disc count from its scraped ROM rows, for the ROM named `rom_file`. ScreenScraper gives every ROM its
+## own total and some are wrong: Final Fantasy VII (USA) (Disc 1) as a CHD came back "disc 1 of 9" beside three
+## rows that say 3, Metal Gear Solid (USA) (Disc 2) "of 5" beside two that say 2. Believed, a three-disc game had
+## nine slots, its case was filled as a full one and disc 2 went under the manual (the owner, 2026-11-22, three
+## times before the row was found). So: the figure most rows of this ROM's own release agree on, never under the
+## highest disc number among them; a figure past DISC_TOTAL_MAX counts for nothing. 0 when nothing says.
+static func disc_total_from(roms: Array, rom_file: String) -> int:
+	var region := ""
+	for rom: Variant in roms:
+		if rom is Dictionary and str((rom as Dictionary).get("path", "")).get_file() == rom_file:
+			region = str((rom as Dictionary).get("region", ""))
+	var votes := {}
+	var top := 0
+	for rom: Variant in roms:
+		if not rom is Dictionary or (not region.is_empty() and str((rom as Dictionary).get("region", "")) != region):
+			continue
+		var num := int((rom as Dictionary).get("disc_num", 0))
+		if num <= DISC_TOTAL_MAX:
+			top = maxi(top, num)
+		var total := int((rom as Dictionary).get("disc_total", 0))
+		if total >= 1 and total <= DISC_TOTAL_MAX:
+			votes[total] = int(votes.get(total, 0)) + 1
+	var best := 0
+	var best_votes := 0
+	for total: int in votes:
+		if total >= top and (int(votes[total]) > best_votes or (int(votes[total]) == best_votes and total < best)):
+			best = total
+			best_votes = int(votes[total])
+	return maxi(best, top)
 
 
 ## The game's discs by seat: `total` long at least, each disc on this device at its own number's place (the number

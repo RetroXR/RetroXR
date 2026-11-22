@@ -75,6 +75,10 @@ const MANUAL_RIM_W := 0.002
 const MANUAL_HAPTIC_KEY := &"game_case_manual"
 ## A flip tray or a flipper is the trigger's this far off its own slab, on a face that is in the open.
 const TRAY_TRIGGER_REACH := 0.02
+## A case a save puts back has its discs back within this of being made; they are looked at this long after the
+## last of them (_adopt_real_layout).
+const OLD_LAYOUT_WINDOW_MS := 20000
+const OLD_LAYOUT_SETTLE := 0.6
 ## A manual scanned as two-page spreads (is_spread): its page is wider than tall by this, and this much wider for
 ## its height than the booklet's own page (two of them side by side are twice; one is once).
 const SPREAD_MIN_SHAPE := 1.05
@@ -179,6 +183,12 @@ var _manual_in := -1.0                           # which way is into the case al
 ## whatever the manual does.
 var _manual_loose := false
 var _manual_on := -1
+## The menu filled this case itself (spawn_contents): its discs are where the real case has them. One a save put
+## back is looked at once, after its discs have come back to it (_adopt_real_layout).
+var _fresh := false
+var _layout_done := false
+var _layout_serial := 0
+var _born_msec := 0
 var _manual_rim: Node3D
 var _lid_handle_at := Vector3.ZERO               # the lid's handle in its rig, before _follow_lid moves it
 var _hand_rot := Quaternion.IDENTITY
@@ -202,6 +212,7 @@ func _ready() -> void:
 	super()
 	add_to_group(GROUP)
 	add_to_group(PANEL_GROUP)
+	_born_msec = Time.get_ticks_msec()
 	# The desktop ray meets the case by its PointerArea only (shaped to leave an open case's inside clear), not by its
 	# body's hull: that fills an open case to the brim, and every click on a disc took the case (the owner, 2026-11-21).
 	set_meta(InteractionResolver.POINTER_BY_AREA, true)
@@ -257,6 +268,7 @@ func manual_path() -> String:
 ## Fill a new case: a disc on each hub for every disc of the game (as many as it holds), and the manual. The case
 ## must be in the tree; the contents join the room it is in as objects of their own ("spawned").
 func spawn_contents(disc_paths: PackedStringArray) -> void:
+	_fresh = true
 	var room := get_parent()
 	var umd := systemid == "psp" and _holder_zone != null
 	var seats: Array[XRToolsSnapZone] = _zones
@@ -609,6 +621,62 @@ func _tray_has(at: Vector3) -> bool:
 	return false
 
 
+func _layout_soon() -> void:
+	_layout_serial += 1
+	var mine := _layout_serial
+	await get_tree().create_timer(OLD_LAYOUT_SETTLE).timeout
+	if mine == _layout_serial and not _fresh and not _layout_done and is_inside_tree():
+		_adopt_real_layout()
+
+
+## A case put back by a save made before the discs went where the real case has them takes the real layout. Until
+## 2026-11-22 every case was filled disc 1 on the back and so on up; that day's first builds filled front to back
+## with no seat skipped, a disc under the fat case's manual: a three-disc Final Fantasy VII came back to its room
+## with disc 2 under its manual and nothing in the rear cover, and stayed so however right a new one was (the
+## owner, twice). Only an arrangement that IS one of those two fills is changed: discs a player has moved about
+## stay where they were put. Once a case; never on a netplay client (the host's layout is the room's).
+func _adopt_real_layout() -> void:
+	_layout_done = true
+	if _zones.size() < 2 or NetworkManager.is_client():
+		return
+	var on: Array = []                                   # [disc number, seat, disc]
+	var total := 0
+	for i in _zones.size():
+		var d := _held(_zones[i]) as RetroDisc
+		if d == null:
+			continue
+		var n := MenuIcons.disc_number(d.rom_path.get_file())
+		if n < 1 or n > _zones.size():
+			return                                       # not a numbered disc of a set: all left alone
+		on.append([n, i, d])
+		total = maxi(total, n)
+	if on.is_empty():
+		return
+	total = clampi(maxi(total, GameCase.disc_slots(rom_path, GameCase.disc_total_of(systemid, rom_path)).size()), 1, _zones.size())
+	var want := disc_seat_order(total)
+	var front := disc_seat_order()
+	var real := true
+	var by_number := true
+	var by_front := true
+	for row: Array in on:
+		var n := int(row[0])
+		var seat := int(row[1])
+		real = real and seat == want[n - 1]
+		by_number = by_number and seat == n - 1
+		by_front = by_front and seat == front[n - 1]
+	if real or not (by_number or by_front):
+		return
+	print("[GameCase] %s: discs put back as an older build seated them (%s); moved to the real layout" % [
+		rom_path.get_file(), "disc 1 on the back" if by_number else "front to back"])
+	for row: Array in on:
+		_zones[int(row[1])].drop_object()
+	for row: Array in on:
+		var zone := _zones[want[int(row[0]) - 1]]
+		(row[2] as Node3D).global_transform = zone.global_transform
+		zone.pick_up_object(row[2] as Node3D)
+	_update_reach()
+
+
 ## The seats in the order a game's discs go on them: disc 1 nearest the front cover, the first met on opening the
 ## case, and the last on the back (the owner, 2026-11-22: Final Fantasy VII and VIII keep disc 1 in the lid's own
 ## tray). Seats level with each other (a GameCube case's two on one panel) keep their own order. A game of fewer
@@ -766,6 +834,11 @@ func _seat_disc(i: int, disc: Node3D = null) -> void:
 	if i < _zones.size():
 		_popped[i] = false
 		_seat_spin[i] = _seat_square[i]
+		# A disc a save has just put back (no hand, the case just made): once they are all back, see whether they
+		# sit as an older build seated them.
+		if disc is RetroDisc and not _fresh and not _layout_done and not (disc as RetroDisc).released_by_hand_just_now() \
+				and Time.get_ticks_msec() - _born_msec < OLD_LAYOUT_WINDOW_MS:
+			_layout_soon()
 		var d := disc as RetroDisc
 		var seat := _zones[i].get_parent() as Node3D
 		if d != null and seat != null and d.can_visually_spin() and d.released_by_hand_just_now():
