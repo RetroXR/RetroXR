@@ -710,7 +710,7 @@ const SOURCES := {
 	# motion and IR, amiibo through the NFC reader, HOME (joypad id 16, asked
 	# for), Exact Sensors motion and the Wii U Menu with no disc. Two-screen
 	# video views are parallel-gx2's own (Both Screens, pinned by the model).
-	# Toy-base figures are not ported yet (wiiu.md).
+	# Toy-base figures through the accessory interface, on its lock-free portals.
 	"parallel_gx2": {
 		"repo":  "RetroXR/parallel-gx2",
 		"branch": "retroxr",

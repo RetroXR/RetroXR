@@ -19,6 +19,12 @@
 ## --touch=<u>:<v>@<s>[,...]  touches the packed frame at (u, v), 0..1, for a
 ##                quarter second at <s> seconds (the GamePad's view is on the right)
 ##
+## --toys: all three toy bases switched on (cemu_emulate_*): at 20 s the probe lists
+##                the core's readers (16 + 9 + 7 = 32 spots), puts a scratch Skylander
+##                dump on the first spot, and takes it off again; a game that opens a
+##                base is needed for the figure to reach it (none here), so this checks
+##                the frontend's side and the core's taking it.
+##
 ## The Wii U Menu: --rom=<mlc01>/sys/title/00050010/10040100/code/men.rpx (the US
 ## menu, from a system dump laid into the core's mlc01).
 extends Node
@@ -46,6 +52,9 @@ var _touches: Array = []
 var _touching := false
 var _failed := ""
 var _last_mask := 0
+var _toys := false
+var _toy_readers: Array = []
+var _toy_done: Array = []
 
 
 func _ready() -> void:
@@ -64,6 +73,11 @@ func _ready() -> void:
 			_shot = a.substr(7)
 		elif a.begins_with("--core="):
 			_core = a.substr(7)
+		elif a == "--toys":
+			_toys = true
+			_opts["cemu_emulate_skylander_portal"] = "enabled"
+			_opts["cemu_emulate_infinity_base"] = "enabled"
+			_opts["cemu_emulate_dimensions_toypad"] = "enabled"
 		elif a.begins_with("--opt="):
 			var kv := a.substr(6).split("=", true, 1)
 			if kv.size() == 2:
@@ -108,6 +122,13 @@ func _ready() -> void:
 	if not _opts.is_empty():
 		CoreOptionsStore.merge_values(_root, _core, _opts)
 		print("[wiiu] options pinned: %s" % str(_opts))
+	if _toys:
+		_lib.connect("accessory_readers_changed", func(readers: Array) -> void:
+			_toy_readers = readers
+			print("[wiiu] toys: %d reader(s) from the core" % readers.size()))
+		_lib.connect("accessory_media_done", func(reader: int, inserted: bool, ok: bool) -> void:
+			_toy_done.append([reader, inserted, ok])
+			print("[wiiu] toys: reader %d %s: %s" % [reader, "insert" if inserted else "remove", "ok" if ok else "REFUSED"]))
 	_lib.StartContent(_root, _core, _rom)
 
 	var t0 := Time.get_ticks_msec()
@@ -148,6 +169,22 @@ func _ready() -> void:
 			if down != _touching:
 				_touching = down
 				print("[wiiu] t=%.2fs touch %s %s" % [now_s, "on" if down else "off", str(uv)])
+		if _toys and now_s >= 20.0 and _toy_done.is_empty() and not has_meta("toys_asked"):
+			set_meta("toys_asked", true)
+			_lib.call("RequestAccessoryReaders")
+		if _toys and now_s >= 24.0 and not has_meta("toys_put"):
+			set_meta("toys_put", true)
+			var dump := ProjectSettings.globalize_path("user://wiiu_toy_probe_skylander.bin")
+			var f := FileAccess.open(dump, FileAccess.WRITE)
+			var bytes := PackedByteArray()
+			bytes.resize(1024)
+			bytes[0] = 0x44; bytes[1] = 0x33; bytes[2] = 0x22; bytes[3] = 0x11
+			f.store_buffer(bytes)
+			f.close()
+			_lib.call("InsertAccessoryMedia", 0, dump)
+		if _toys and now_s >= 28.0 and not has_meta("toys_off"):
+			set_meta("toys_off", true)
+			_lib.call("RemoveAccessoryMedia", 0)
 		if not _shots.is_empty() and now_s >= _shots[0] and not _shot.is_empty():
 			var at := _shots.pop_front() as float
 			var cur: Texture2D = _lib.call("GetVideoTexture")
@@ -176,7 +213,20 @@ func _ready() -> void:
 			print("[wiiu] first views after %d ms: %s" % [first_views_ms, str(v)])
 		if not v.is_empty():
 			views = v
+	if _toys:
+		_report_toys()
 	_report(views, last_tex, frames_seen)
+
+
+func _report_toys() -> void:
+	var kinds := {}
+	for r: Dictionary in _toy_readers:
+		kinds[int(r.get("kind", -1))] = int(kinds.get(int(r.get("kind", -1)), 0)) + 1
+	print("[wiiu] toys: readers by kind %s" % str(kinds))
+	if _toy_readers.size() != 32:
+		_failed = "the core published %d toy-base spots, not 32" % _toy_readers.size()
+	elif not (_toy_done.size() == 2 and _toy_done[0] == [0, true, true] and _toy_done[1] == [0, false, true]):
+		_failed = "a figure was not taken on and off spot 0: %s" % str(_toy_done)
 
 
 func _report(views: Array, tex: Texture2D, frames: int) -> void:
