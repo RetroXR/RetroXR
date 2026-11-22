@@ -76,6 +76,7 @@ func _run() -> void:
 		["model/a jewel scan's wide spine strip is laid on the spine", _scan_spine_fit],
 		["model/a case's three panels are joined into the layout", _panels_join],
 		["case/a jewel case asks for its panels and takes them", _case_panels],
+		["case/a manual put in keeps its pages unless it is a spread scan", _case_manual_spread],
 		["case/a flip tray's hinge is taken from either face", _case_tray_both_faces],
 		["case/a flipper is drawn where its handle is", _case_pages_drawn_as_held],
 		["case/dropped shut or open, a case rests on the floor", _case_drop],
@@ -766,6 +767,73 @@ func _block(c: RetroGameCase, at: Vector3, size := Vector3(0.04, 0.02, 0.2)) -> 
 
 
 ## A four-page comic archive, two wide by three tall: a manual with pages to turn.
+## A manual of four pages, each `w` by `h` px (a jewel booklet's are square; a spread scan's twice as wide).
+func _manual_of(w: int, h: int) -> String:
+	var path := OS.get_user_data_dir().path_join("__game_case_manual_%dx%d.cbz" % [w, h])
+	var zip := ZIPPacker.new()
+	zip.open(path)
+	for i in 4:
+		var img := Image.create(w, h, false, Image.FORMAT_RGB8)
+		img.fill(Color(0.2 * i, 0.5, 0.5))
+		zip.start_file("page_%02d.png" % i)
+		zip.write_file(img.save_png_to_buffer())
+		zip.close_file()
+	zip.close()
+	return path
+
+
+## A book as it lies about the room (25 cm tall, not the booklet's height) put into a case by hand.
+func _put_in(c: RetroGameCase, pdf: String) -> PDFBook:
+	var book := BOOK_SCENE.instantiate() as PDFBook
+	book.freeze = true
+	book.pdf_path = pdf
+	add_child(book)
+	book.add_to_group("spawned")
+	_spawned.append(book)
+	for _i in 3:
+		await get_tree().process_frame
+	for _i in 300:
+		if book._pending_renders.is_empty():
+			break
+		await get_tree().process_frame
+	c._manual_zone.pick_up_object(book)
+	# The case looks again 0.6 s after a book goes in (once it has shut).
+	await get_tree().create_timer(0.9).timeout
+	for _i in 4:
+		await get_tree().process_frame
+	return book
+
+
+func _case_manual_spread() -> void:
+	var jewel := Vector2(0.12, 0.12)
+	var keep := Vector2(0.12, 0.18)
+	_ok(not RetroGameCase.is_spread(Vector2(0.25, 0.25), jewel), "a square manual in the hand (25 cm) is no spread for a jewel booklet")
+	_ok(not RetroGameCase.is_spread(Vector2(0.12, 0.12), jewel), "nor at the booklet's own size")
+	_ok(RetroGameCase.is_spread(Vector2(0.5, 0.25), jewel) and RetroGameCase.is_spread(Vector2(0.24, 0.12), jewel),
+		"two square pages side by side are, at either size")
+	_ok(not RetroGameCase.is_spread(Vector2(0.158, 0.25), keep), "a keep case's tall manual (1023 x 1620) is no spread")
+	_ok(RetroGameCase.is_spread(Vector2(0.297, 0.25), keep), "Mario Kart: Double Dash's (1248 x 1050, two pages a sheet) is")
+	_ok(not RetroGameCase.is_spread(Vector2(0.25, 0.25), keep), "a square manual in a tall case is not split in two")
+	_ok(not RetroGameCase.is_spread(Vector2.ZERO, jewel) and not RetroGameCase.is_spread(jewel, Vector2.ZERO), "nothing to judge by, no spread")
+	# Put in by hand, at the size it lies about the room.
+	var c := _new_case("jewel", "single")
+	await get_tree().physics_frame
+	c.global_position = Vector3(260.0, 1.0, 0.0)
+	c.set_physics_process(false)
+	c.sim.set_angle_deg(c.sim.top(), 120.0)
+	c._apply_angles()
+	var square := await _put_in(c, _manual_of(30, 30))
+	_ok(square.page_size().x > c.model.manual_size_m().x * 1.4, "(the book in hand is wider than the booklet, as the old rule read it)",
+		str(square.page_size()))
+	_ok(c.manual() == square and not square.half_page_mode, "a single-page manual put in by hand keeps its pages whole")
+	c._manual_zone.drop_object()
+	for _i in 3:
+		await get_tree().physics_frame
+	square.global_position += Vector3(0.0, 5.0, 0.0)
+	var spread := await _put_in(c, _manual_of(60, 30))
+	_ok(c.manual() == spread and spread.half_page_mode, "a manual scanned two pages a sheet is read in half pages")
+
+
 func _manual_fixture() -> String:
 	var path := OS.get_user_data_dir().path_join("__game_case_manual.cbz")
 	var zip := ZIPPacker.new()

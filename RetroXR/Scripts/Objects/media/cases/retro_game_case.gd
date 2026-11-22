@@ -73,6 +73,10 @@ const MANUAL_REACH_SIDE := 0.01
 const MANUAL_RIM_GAP := 0.003
 const MANUAL_RIM_W := 0.002
 const MANUAL_HAPTIC_KEY := &"game_case_manual"
+## A manual scanned as two-page spreads (is_spread): its page is wider than tall by this, and this much wider for
+## its height than the booklet's own page (two of them side by side are twice; one is once).
+const SPREAD_MIN_SHAPE := 1.05
+const SPREAD_OVER_SEAT := 1.4
 ## A jewel case's back, side and front as the scraper files them, each in the folder of its kind
 ## (ScreenscraperClient.PANEL_MEDIA). The group a case is told through when one lands, and the group it asks
 ## through (the spawn menu, which owns the scraper).
@@ -826,13 +830,24 @@ func _on_book_resized(book: PDFBook) -> void:
 	if not is_instance_valid(book) or _manual_zone == null or _manual_zone.picked_up_object != book \
 			or book.page_size().x <= 0.0:
 		return
-	# A manual scanned as two-page spreads (ScreenScraper has many) is twice the booklet's width: read it as single
-	# pages, as the book's own Half Pages option does.
-	if not book.half_page_mode and book.page_size().x > model.manual_size_m().x * 1.4:
+	# A manual scanned as two-page spreads (ScreenScraper has many): read it as single pages, as the book's own
+	# Half Pages option does.
+	if not book.half_page_mode and is_spread(book.page_size(), model.manual_size_m()):
 		book.half_page_mode = true
 		return
 	var span: Vector2 = book._drawn_z_span()
 	_place_manual_zone(book.page_size().x, (span.y - span.x) * 0.5)
+
+
+## Whether a manual's page is a two-page spread for a booklet of `seat`'s size: by its SHAPE, wider than tall and
+## well wider for its height than the booklet's page. Not by its width: a manual put in by hand comes at the size
+## it had outside (25 cm tall), wider than any booklet, and every single-page manual had its Half Pages switched on
+## (the owner, 2026-11-22; only the manual the case spawned itself came at the booklet's height).
+static func is_spread(page: Vector2, seat: Vector2) -> bool:
+	if page.x <= 0.0 or page.y <= 0.0 or seat.x <= 0.0 or seat.y <= 0.0:
+		return false
+	var shape := page.x / page.y
+	return shape > SPREAD_MIN_SHAPE and shape > seat.x / seat.y * SPREAD_OVER_SEAT
 
 
 func _carrier_of(parent: String) -> int:
