@@ -80,6 +80,7 @@ func _run() -> void:
 		["case/a flip tray's hinge is taken from either face", _case_tray_both_faces],
 		["case/a tray lying on the open lid is still the hand's", _case_tray_on_lid],
 		["case/deleting what was seated does not stop the lid", _case_deleted_seated],
+		["case/a seated manual's pages are on the case's own paper", _case_manual_paper],
 		["case/disc 1 is nearest the front cover, and every disc reads upright", _case_disc_order],
 		["case/a flipper is drawn where its handle is", _case_pages_drawn_as_held],
 		["case/dropped shut or open, a case rests on the floor", _case_drop],
@@ -1667,6 +1668,39 @@ func _case_deleted_seated() -> void:
 	_ok(not c._lid_blocked(120.0), "the lid's check against the world still runs, and finds nothing in the way")
 	c._lid_gives_way()
 	_ok(c.manual() == null, "and the case has no manual")
+
+
+func _case_manual_paper() -> void:
+	var x := 420.0
+	for fam: Array in [["jewel", "single", "Jewel_BookletBack"], ["keep", "ps2", ""]]:
+		x += 3.0
+		var c := _new_case(fam[0], fam[1])
+		await get_tree().physics_frame
+		c.global_position = Vector3(x, 1.0, 0.0)
+		c.set_physics_process(false)
+		c.sim.set_angle_deg(c.sim.top(), 120.0)
+		c._apply_angles()
+		var book := await _seat_manual(c)
+		var shown: Material = null
+		for _i in 60:
+			await get_tree().create_timer(0.1).timeout
+			shown = null
+			if fam[0] == "jewel":
+				for mi in GameCaseModel.meshes(c.model.levels[0]):
+					for s in mi.mesh.get_surface_count():
+						var base := mi.mesh.surface_get_material(s)
+						if base != null and base.resource_name == str(fam[2]):
+							shown = mi.get_surface_override_material(s)
+			elif c._manual_proxy != null:
+				shown = (c._manual_proxy.get_node("Front") as MeshInstance3D).material_override
+			if shown != null:
+				break
+		_ok(shown is StandardMaterial3D and (shown as StandardMaterial3D).albedo_texture != null,
+			"%s: the page the case shows of its manual is on plain paper with the page's picture" % fam[0], str(shown))
+		_ok(not shown is ShaderMaterial, "%s: not the book's own paper shader" % fam[0])
+		var page := 0 if fam[0] == "keep" else book._page_count - 1
+		_ok(shown is StandardMaterial3D and (shown as StandardMaterial3D).albedo_texture == book._texture_cache.get(page),
+			"%s: and it is the %s page" % [fam[0], "first" if fam[0] == "keep" else "last"])
 
 
 func _case_tray_on_lid() -> void:

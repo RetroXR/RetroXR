@@ -786,9 +786,10 @@ func _sync_manual() -> void:
 		_manual_rim.visible = false
 	if case_family == "jewel":
 		model.show_booklet(seated != null or not _has_manual)
-		# Inside the open lid the booklet shows its back: the manual's last page, from the PDF.
-		var back := seated.get_node_or_null("BackCover") as MeshInstance3D if seated != null else null
-		model.set_booklet_back(back.get_active_material(0) if back != null else null)
+		# Inside the open lid the booklet shows its back: the manual's last page, from the PDF (a spread scan's back
+		# cover is its first half page).
+		model.set_booklet_back(_manual_page(seated, 0 if seated.half_page_mode else seated._page_count - 1) \
+			if seated != null else null)
 		return
 	if seated == null:
 		if _manual_proxy != null:
@@ -805,14 +806,20 @@ func _sync_manual() -> void:
 ## in half pages, its first is the back, so the front is its second. Otherwise the book's own cover. Until that page
 ## has rendered, the paper, and a retry.
 func _manual_front(book: PDFBook) -> Material:
-	if not book.half_page_mode:
-		var cover := book.get_node_or_null("Cover") as MeshInstance3D
-		return cover.get_active_material(0) if cover != null else null
-	var tex := book._get_page_texture(1)
-	if book._texture_cache.has(1):
+	return _manual_page(book, 1 if book.half_page_mode else 0)
+
+
+## One page of the seated manual on plain paper of the case's own, or null until it has rendered (and a retry).
+## Not the book's own material: its paper shader is written for the book's own sheets (their size, their fold,
+## which face is which), and lent to the case's booklet the page came out dark and blue (the owner, 2026-11-22:
+## Air Combat's back cover inside its lid, beside the same page bright on the manual held over it).
+func _manual_page(book: PDFBook, page: int) -> Material:
+	var tex := book._get_page_texture(page)
+	if tex != null and book._texture_cache.has(page):
 		var m := StandardMaterial3D.new()
 		m.albedo_texture = tex
 		m.roughness = 0.8
+		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 		return m
 	if _front_tries < 40 and is_inside_tree():
 		_front_tries += 1
