@@ -78,6 +78,8 @@ func _run() -> void:
 		["case/a jewel case asks for its panels and takes them", _case_panels],
 		["case/a manual put in keeps its pages unless it is a spread scan", _case_manual_spread],
 		["case/a flip tray's hinge is taken from either face", _case_tray_both_faces],
+		["case/a tray lying on the open lid is still the hand's", _case_tray_on_lid],
+		["case/disc 1 is nearest the front cover, and every disc reads upright", _case_disc_order],
 		["case/a flipper is drawn where its handle is", _case_pages_drawn_as_held],
 		["case/dropped shut or open, a case rests on the floor", _case_drop],
 		["case/the PS2 case's holder takes its memory card", _case_card_holder],
@@ -1643,6 +1645,95 @@ func _art_size(c: RetroGameCase) -> Vector2i:
 			if m != null and m.albedo_texture is ImageTexture and m.albedo_texture.get_width() > 256:
 				return Vector2i(m.albedo_texture.get_width(), m.albedo_texture.get_height())
 	return Vector2i.ZERO
+
+
+func _case_tray_on_lid() -> void:
+	var x := 300.0
+	for fam: Array in [["jewel", "fatbox4"], ["jewel", "fatbox2"], ["keep", "triple"]]:
+		x += 3.0
+		var c := _new_case(fam[0], fam[1])
+		await get_tree().physics_frame
+		c.global_position = Vector3(x, 1.0, 0.0)
+		c.set_physics_process(false)
+		var top := c.sim.top()
+		var tray := c.hinge(0)
+		var lid := c.hinge(top)
+		var panel := tray.get_node("PokePanel") as CollisionShape3D
+		var half := (panel.shape as BoxShape3D).size.y * 0.5
+		_ok(not c._can_take(0), "%s/%s: under a shut lid the tray is nobody's" % [fam[0], fam[1]])
+		for pose: Array in [[0.0, true, false], [90.0, true, true], [180.0, false, true]]:
+			c.sim.set_angle_deg(top, 180.0)
+			c.sim.set_angle_deg(0, float(pose[0]))
+			c._apply_angles()
+			for _i in 3:
+				await get_tree().physics_frame
+			c._apply_angles()
+			_ok(c._can_take(0) and tray._can_engage(), "%s/%s: lid open flat, the tray at %d may be taken" % [fam[0], fam[1], int(pose[0])])
+			var mid := panel.global_position
+			var up := panel.global_basis.y.normalized()
+			var over := mid + up * (half + 0.01)             # a centimetre off its upper face, at its middle
+			var under := mid - up * (half + 0.01)
+			_eq(tray._tip_in_activation_region(over), bool(pose[1]), "%s/%s: tray at %d, the trigger at its upper face's middle" % [
+				fam[0], fam[1], int(pose[0])])
+			_eq(tray._tip_in_activation_region(under), bool(pose[2]), "%s/%s: tray at %d, the trigger at its under face's middle" % [
+				fam[0], fam[1], int(pose[0])])
+		# Lying on the lid: at the two free edges together, the trigger is the tray's and the lid's handle stands by.
+		var edge := tray.global_position - panel.global_basis.y.normalized() * (half + 0.005)
+		_ok(tray._tip_in_activation_region(edge), "%s/%s: on the open lid, a trigger at the tray's free edge takes the tray" % [fam[0], fam[1]])
+		_ok(not lid._tip_in_activation_region(edge), "%s/%s: and not the lid under it" % [fam[0], fam[1]])
+		_ok(lid._tip_in_activation_region(lid.global_position + panel.global_basis.y.normalized() * 0.03),
+			"%s/%s: behind the lid, the trigger is the lid's still" % [fam[0], fam[1]])
+
+
+func _case_disc_order() -> void:
+	var x := 330.0
+	for fam: Array in [["jewel", "fatbox4"], ["jewel", "fatbox2"], ["jewel", "pal_multi2"], ["keep", "double"], ["keep", "triple"],
+			["keep", "multi5"], ["keep", "gc_double"]]:
+		x += 3.0
+		var c := _new_case(fam[0], fam[1])
+		await get_tree().physics_frame
+		c.global_position = Vector3(x, 1.0, 0.0)
+		c.set_physics_process(false)
+		var paths := PackedStringArray()
+		for i in c._zones.size():
+			paths.append("C:/nowhere/Game (Disc %d).chd" % (i + 1))
+		c.spawn_contents(paths)
+		for _i in 3:
+			await get_tree().physics_frame
+		# Front to back: each disc on a seat no farther forward than the one before it.
+		var last := INF
+		var in_order := true
+		var where: Array = []
+		for n in paths.size():
+			for i in c._zones.size():
+				var d := c._zones[i].picked_up_object as RetroDisc
+				if d != null and d.rom_path == paths[n]:
+					where.append(i + 1)
+					if c._seat_z[i] > last + 0.0005:
+						in_order = false
+					last = c._seat_z[i]
+		_ok(in_order and where.size() == paths.size(), "%s/%s: discs 1.. on seats %s, front to back" % [fam[0], fam[1], str(where)])
+		if fam[1] == "fatbox4":
+			_eq(where, [4, 3, 2, 1], "the four-disc case: disc 1 in the lid's tray, disc 4 on the back")
+		if fam[1] == "gc_double":
+			_eq(where, [1, 2], "two seats on one panel keep their order")
+		# Every disc's label out of its tray and reading upright, the case standing on its bottom edge.
+		var inv := c.global_basis.orthonormalized().inverse()
+		for i in c._zones.size():
+			var d := c._zones[i].picked_up_object as Node3D
+			var seat := c._zones[i].get_parent() as Node3D
+			_ok((inv * -d.global_basis.z).normalized().dot(Vector3.UP) > 0.99, "%s/%s: the disc on seat %d reads upright" % [fam[0], fam[1], i + 1],
+				str((inv * -d.global_basis.z).normalized()))
+			_ok(d.global_basis.y.normalized().dot(seat.global_basis.y.normalized()) > 0.99, "%s/%s: and faces out of its tray" % [fam[0], fam[1]])
+		# Opened like a book (about its upright hinge), what was upright stays upright.
+		c.sim.set_angle_deg(c.sim.top(), 180.0)
+		c._apply_angles()
+		for _i in 3:
+			await get_tree().physics_frame
+		for i in c._zones.size():
+			var d := c._zones[i].picked_up_object as Node3D
+			_ok((inv * -d.global_basis.z).normalized().dot(Vector3.UP) > 0.99, "%s/%s: opened flat, the disc on seat %d still reads upright" % [
+				fam[0], fam[1], i + 1])
 
 
 func _case_drop() -> void:

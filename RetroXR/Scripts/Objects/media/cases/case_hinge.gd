@@ -13,6 +13,12 @@ var gate: Callable
 ## the fingertip are for the manual, over a disc on a hanging base they are for the disc. No trigger latch, no
 ## open-hand icon, no fingertip push and no pointer press begins there; everywhere else on the panel they all do.
 var quiet_at: Callable
+## Where the TRIGGER is another panel's (a world point -> bool): a tray lying on the open lid is what a hand at it
+## means to turn, not the lid under it. The fingertip and the pointer still work the panel there.
+var cede_at: Callable
+## Besides the ball round its handle, the trigger takes this panel anywhere within this (m) of its own slab (its
+## PokePanel): a flip tray is turned by whatever part of it a hand is at. 0: the ball alone.
+var panel_reach := 0.0
 ## The angle speed (deg/s) of the last frames a hand held it, for the sim on release.
 var release_speed_deg := 0.0
 var _prev_deg := 0.0
@@ -57,7 +63,19 @@ func _quiet(at: Vector3) -> bool:
 
 ## The trigger's reach and the open-hand icon's (VRHinge asks this for both).
 func _tip_in_activation_region(tip: Vector3) -> bool:
-	return super(tip) and not _quiet(tip)
+	if _quiet(tip) or (cede_at.is_valid() and bool(cede_at.call(tip))):
+		return false
+	return super(tip) or by_panel(tip)
+
+
+## Whether a point is within `panel_reach` of the panel's own slab.
+func by_panel(at: Vector3) -> bool:
+	var panel := get_node_or_null("PokePanel") as CollisionShape3D
+	if panel_reach <= 0.0 or panel == null or not panel.shape is BoxShape3D:
+		return false
+	var half := (panel.shape as BoxShape3D).size * 0.5 + Vector3.ONE * panel_reach
+	var p := panel.global_transform.affine_inverse() * at
+	return absf(p.x) <= half.x and absf(p.y) <= half.y and absf(p.z) <= half.z
 
 
 func _poke_can_begin(ctrl: XRController3D) -> bool:

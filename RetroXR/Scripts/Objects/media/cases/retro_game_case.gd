@@ -73,6 +73,8 @@ const MANUAL_REACH_SIDE := 0.01
 const MANUAL_RIM_GAP := 0.003
 const MANUAL_RIM_W := 0.002
 const MANUAL_HAPTIC_KEY := &"game_case_manual"
+## A flip tray or a flipper is the trigger's this far off its own slab, on a face that is in the open.
+const TRAY_TRIGGER_REACH := 0.02
 ## A manual scanned as two-page spreads (is_spread): its page is wider than tall by this, and this much wider for
 ## its height than the booklet's own page (two of them side by side are twice; one is once).
 const SPREAD_MIN_SHAPE := 1.05
@@ -137,6 +139,8 @@ var _seat_carrier: Array[int] = []               # per disc seat: -1 the back, e
 var _seat_down: Array[bool] = []                 # per disc seat: its hub faces the back
 var _popped: Array[bool] = []                    # per disc seat: its hub button has popped the disc up
 var _seat_spin: Array[float] = []                # per disc seat: the turn about the hub its disc was put on at (rad)
+var _seat_square: Array[float] = []              # per disc seat: the turn at which a disc's label reads upright
+var _seat_z: Array[float] = []                   # per disc seat: how far toward the front it lies, the case shut (m)
 var _hub_buttons: Array[VRButton] = []
 var _manual_zone: XRToolsSnapZone
 var _manual_root: Node3D
@@ -253,17 +257,19 @@ func spawn_contents(disc_paths: PackedStringArray) -> void:
 	var seats: Array[XRToolsSnapZone] = _zones
 	if umd:
 		seats = [_holder_zone] as Array[XRToolsSnapZone]
+	var order := disc_seat_order()
 	for i in mini(disc_paths.size(), seats.size()):
 		if disc_paths[i].is_empty():
 			continue                                     # a disc of the set that is not on this device
+		var at := i if umd else order[i]
 		var disc := (UMD_SCENE if umd else DISC_SCENE).instantiate() as RetroCartridge
 		disc.rom_path = disc_paths[i]
 		disc.game_label = game_label
 		disc.systemid = systemid
 		room.add_child(disc)
 		disc.add_to_group("spawned")
-		disc.global_transform = seats[i].global_transform
-		seats[i].pick_up_object(disc)
+		disc.global_transform = seats[at].global_transform
+		seats[at].pick_up_object(disc)
 	var pdf := manual_path()
 	if not pdf.is_empty() and _manual_zone != null:
 		var book := BOOK_SCENE.instantiate() as PDFBook
@@ -395,6 +401,9 @@ func _build_hinges() -> void:
 		hinge.engage_radius = 0.05
 		var idx := names.find(which)
 		hinge.gate = _can_take.bind(idx)
+		if which != "open":                              # a tray: anywhere on it, from a face in the open
+			hinge.panel_reach = TRAY_TRIGGER_REACH
+			hinge.quiet_at = _tray_quiet.bind(idx)
 		angle.add_child(hinge)
 		# The grab box over the panel's free third, thin through the panel. A flip tray or a flipper is worked from
 		# either face, so its box stands a centimetre out of each, about the tray as it is DRAWN (_panel_slab): a
@@ -465,6 +474,7 @@ func _build_hinges() -> void:
 		(_rigs[i][2] as CaseHinge).max_deg = rad_to_deg(sim.stop(i))
 	var top_rig: Array = _rigs[_rigs.size() - 1]
 	(top_rig[2] as CaseHinge).quiet_at = _lid_quiet
+	(top_rig[2] as CaseHinge).cede_at = _tray_has
 	_lid_handle_at = (top_rig[2] as Node3D).position
 	# The same hinge from the lid's side, for a case held by its lid (_lid_grab). There the lid is the still half
 	# and the base the one that turns, and VRHinge reads a hand in the frame of its target's parent: by the lid's
@@ -559,11 +569,52 @@ func open_max_deg() -> float:
 	return 180.0 + clampf(rad_to_deg(asin(clampf(drop / reach, 0.0, 0.2))), 0.0, 10.0)
 
 
-## A hand may take hinge i only when the one above it is open off it (a flip tray under a shut lid may not).
+## A hand may take hinge i only when one of its faces is in the open: the panel above stands off it, or it stands
+## off the one below (a flip tray under a shut lid may not). The second was missing: a tray turned over onto the
+## open lid could not be taken back (a probe, 2026-11-22, after the owner's "I can't easily grab the middle flap").
 func _can_take(i: int) -> bool:
 	if i >= sim.top():
 		return _lid_grab == null                         # held by its lid, the hinge is worked by the base's handle
-	return sim.angle_deg(i + 1) - sim.angle_deg(i) >= REACH_DEG
+	var here := sim.angle_deg(i)
+	var below := sim.angle_deg(i - 1) if i > 0 else 0.0
+	return sim.angle_deg(i + 1) - here >= REACH_DEG or here - below >= REACH_DEG
+
+
+## A tray is not a hand's from behind whatever lies on it: a point off its upper face with the panel above down on
+## it is that panel's, one off its under face with the tray down on what is below is that one's.
+func _tray_quiet(at: Vector3, i: int) -> bool:
+	var panel := hinge(i).get_node_or_null("PokePanel") as CollisionShape3D
+	if panel == null or not panel.shape is BoxShape3D:
+		return false
+	var y := (panel.global_transform.affine_inverse() * at).y
+	var half := (panel.shape as BoxShape3D).size.y * 0.5
+	var here := sim.angle_deg(i)
+	if y > half:
+		return sim.angle_deg(i + 1) - here < REACH_DEG
+	if y < -half:
+		return here - (sim.angle_deg(i - 1) if i > 0 else 0.0) < REACH_DEG
+	return false
+
+
+## Whether a point is on an inner tray a hand may take there: the lid's handle leaves the trigger to it.
+func _tray_has(at: Vector3) -> bool:
+	for i in sim.top():
+		if _can_take(i) and hinge(i).by_panel(at) and not _tray_quiet(at, i):
+			return true
+	return false
+
+
+## The seats in the order a game's discs go on them: disc 1 nearest the front cover, the first met on opening the
+## case, and the last on the back (the owner, 2026-11-22: Final Fantasy VII and VIII keep disc 1 in the lid's own
+## tray). Seats level with each other (a GameCube case's two on one panel) keep their own order.
+func disc_seat_order() -> Array[int]:
+	var order: Array[int] = []
+	for i in _zones.size():
+		order.append(i)
+	order.sort_custom(func(a: int, b: int) -> bool:
+		var d: float = _seat_z[a] - _seat_z[b]
+		return d > 0.0005 or (absf(d) <= 0.0005 and a < b))
+	return order
 
 
 func _build_zones() -> void:
@@ -576,6 +627,13 @@ func _build_zones() -> void:
 		_zones.append(zone)
 		_popped.append(false)
 		_seat_spin.append(0.0)
+		# The turn about its hub at which a disc's label reads upright, the case standing on its bottom edge. A
+		# seat facing the back is the front-facing one turned over top to bottom in the model, and a disc the case
+		# seated there read upside down (the owner, 2026-11-22: Final Fantasy VIII's discs on the lid and under
+		# the flip tray): turned over like a page, it does not. A label's top is toward the disc's own -Z.
+		var up := (model.transform.basis * GameCaseModel._local_to(model, seat).basis).orthonormalized().inverse() * Vector3.UP
+		_seat_square.append(atan2(-up.x, -up.z) if Vector2(up.x, up.z).length() > 0.5 else 0.0)
+		_seat_z.append(float((row.get("center_mm", [0.0, 0.0, 0.0]) as Array)[2]) * 0.001)
 		zone.has_dropped.connect(_seat_disc.bind(i))
 		zone.has_picked_up.connect(func(d: Node3D) -> void: _seat_disc(i, d))
 		_build_hub_button(seat, i)
@@ -691,7 +749,7 @@ func is_popped(i: int) -> bool:
 func _seat_disc(i: int, disc: Node3D = null) -> void:
 	if i < _zones.size():
 		_popped[i] = false
-		_seat_spin[i] = 0.0
+		_seat_spin[i] = _seat_square[i]
 		var d := disc as RetroDisc
 		var seat := _zones[i].get_parent() as Node3D
 		if d != null and seat != null and d.can_visually_spin() and d.released_by_hand_just_now():
