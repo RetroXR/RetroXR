@@ -12,7 +12,8 @@
 ##   - a motion sensor: accel and gyro from its pose (MotionSampler) on Android's
 ##     axes, which Cemu takes for the GamePad (+X right, +Y the top edge, +Z out of
 ##     the screen; at rest flat, (0, 0, 1) g).
-## And its speaker: the console's controller audio voice for port 0, posed here.
+## And its speakers: the console's controller audio for port 0 in stereo, its left
+## and right voices posed at the two slots by the bottom corners.
 ## And its NFC touchpoint below the D-pad (NfcZone): an amiibo set on it is the
 ## console's tag.
 class_name WiiUGamePad
@@ -38,6 +39,10 @@ const CHARGE_OFF := Color(0.12, 0.1, 0.08)
 ## (-85, 24) mm (RetroXR-models params.py "nfc"); this box's D-pad sits lower, so
 ## its mark does too, and a model's dressing moves it.
 const NFC_AT := Vector3(-0.085, BODY.y * 0.5, 0.045)
+## The two speakers' slots on the face, left and right (RetroXR-models
+## nintendo/wiiu/gamepad params `smalls`: x +-84.4, 54.1 below the middle, the scan).
+const SPEAKER_X := 0.0844
+const SPEAKER_Z := 0.0541
 
 var _screen: MeshInstance3D = null
 var _touch: TVTouchSurface = null
@@ -46,9 +51,12 @@ var _off_mat: StandardMaterial3D = null
 var _last_tex: Texture2D = null
 var _last_rect := Rect2(-1, -1, -1, -1)
 var _motion := MotionSampler.new()
-var _speaker: Marker3D = null
-var _speaker_voice := -1
-var _speaker_gain := -1.0
+## Left and right, the voices on them, and the gain last set on each.
+var _speakers: Array[Marker3D] = []
+var _speaker_voices: Array[int] = [-1, -1]
+var _speaker_gains: Array[float] = [-1.0, -1.0]
+## The Libretro node asked for stereo, so it is asked once.
+var _stereo_lib: Node = null
 var _mx: Object = null
 var _listener: Node = null
 ## The cradle it stands in, or null (WiiUGamePadCradle.set by its seat).
@@ -120,11 +128,14 @@ func _build_model() -> void:
 	_charge_mat.albedo_color = CHARGE_OFF
 	_charge_mat.emission = CHARGE_ON
 	_mk_cyl(model, "ChargeLed", 0.0012, 0.0008, Vector3(-0.08, top + 0.0004, 0.055), _charge_mat)
-	# The speakers' middle, under the screen.
-	_speaker = Marker3D.new()
-	_speaker.name = "Speaker"
-	_speaker.transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5), Vector3(0.0, top, 0.052))
-	add_child(_speaker)
+	# The two speakers, at their slots by the bottom corners, facing out of the face.
+	for side in [-1.0, 1.0]:
+		var spk := Marker3D.new()
+		spk.name = "SpeakerL" if side < 0.0 else "SpeakerR"
+		spk.transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5),
+			Vector3(side * SPEAKER_X, top, SPEAKER_Z))
+		add_child(spk)
+		_speakers.append(spk)
 	_nfc = NfcTouchZone.new()
 	_nfc.position = NFC_AT
 	add_child(_nfc)
@@ -303,34 +314,64 @@ func touch_feel_system() -> Node:
 
 # ── The speaker ──────────────────────────────────────────────────────────────
 
-## The console's voice for the GamePad's speaker (controller audio, port 0 index
-## 0), on the pad, by the distance law alone, as the Wii Remote's.
+## The console's sound for the GamePad (controller audio, port 0 index 0) in
+## STEREO: its left voice at the left slot, its right at the right, each by the
+## distance law alone, as the Wii Remote's speaker. A libretro-godot with no
+## stereo controller voices gives one, played from between the two slots.
+##
+## Asked every frame (an atomic store): a core started again is a new audio
+## handler, which plays every device on one voice until told otherwise.
 func _update_speaker(libretro: Node) -> void:
 	if not libretro.has_method("GetControllerAudioVoiceId"):
 		return
-	var voice: int = libretro.GetControllerAudioVoiceId(_port_index, 0)
-	if voice != _speaker_voice:
-		_speaker_voice = voice
-		_speaker_gain = -1.0
-		if voice >= 0:
-			print("[WiiU] GamePad speaker on voice %d" % voice)
+	var stereo := libretro.has_method("SetControllerAudioStereo")
+	if stereo:
+		libretro.SetControllerAudioStereo(_port_index, 0, true)
+		if libretro != _stereo_lib:
+			_stereo_lib = libretro
+			print("[WiiU] GamePad speakers asked for in stereo (port %d)" % _port_index)
+	elif libretro != _stereo_lib:
+		_stereo_lib = libretro
+		print("[WiiU] this libretro-godot has no stereo controller voices; the GamePad plays mono")
+	var left: int = libretro.GetControllerAudioVoiceId(_port_index, 0)
+	var right: int = libretro.GetControllerAudioRightVoiceId(_port_index, 0) if stereo else -1
+	var voices: Array[int] = [left, right]
+	for i in 2:
+		if voices[i] == _speaker_voices[i]:
+			continue
+		_speaker_voices[i] = voices[i]
+		_speaker_gains[i] = -1.0
+		if voices[i] >= 0:
+			print("[WiiU] GamePad %s speaker on voice %d" % ["left" if i == 0 else "right", voices[i]])
 			if _mx == null and Engine.has_singleton("MetaXRAudio"):
 				_mx = Engine.get_singleton("MetaXRAudio")
 			if _mx != null:
-				_mx.set_voice_directivity(voice, SpatialAudioEmitter.SPEAKER_DIRECTIVITY)
-	if voice < 0 or _mx == null:
+				_mx.set_voice_directivity(voices[i], SpatialAudioEmitter.SPEAKER_DIRECTIVITY)
+	if left < 0 or _mx == null or _connected_system == null:
 		return
 	if not is_instance_valid(_listener):
 		_listener = get_node_or_null("/root/SpatialAudioListener")
 		if _listener == null:
 			return
 	var listener_pos: Vector3 = _listener.get_listener_position()
-	var pos := _speaker.global_position
-	var b := _speaker.global_transform.basis
-	_mx.set_voice_pose(voice, SpatialAudioEmitter.hold_off_head(pos, listener_pos),
-		b.y.normalized(), -b.z.normalized())
-	var gain := SpatialAudioEmitter.distance_gain(pos, listener_pos,
-		_connected_system.audio_unit_size, _connected_system.audio_max_distance)
-	if not is_equal_approx(gain, _speaker_gain):
-		_speaker_gain = gain
-		_mx.set_voice_gain(voice, gain)
+	for i in 2:
+		var voice := _speaker_voices[i]
+		if voice < 0:
+			continue
+		var pos := speaker_position(i, right >= 0)
+		var b := _speakers[i].global_transform.basis
+		_mx.set_voice_pose(voice, SpatialAudioEmitter.hold_off_head(pos, listener_pos),
+			b.y.normalized(), -b.z.normalized())
+		var gain := SpatialAudioEmitter.distance_gain(pos, listener_pos,
+			_connected_system.audio_unit_size, _connected_system.audio_max_distance)
+		if not is_equal_approx(gain, _speaker_gains[i]):
+			_speaker_gains[i] = gain
+			_mx.set_voice_gain(voice, gain)
+
+
+## Where voice `i` (0 left, 1 right) plays from: its own slot in stereo, the
+## middle of the two when the pad has only one voice (the sound folded to mono).
+func speaker_position(i: int, stereo: bool) -> Vector3:
+	if not stereo:
+		return (_speakers[0].global_position + _speakers[1].global_position) * 0.5
+	return _speakers[i].global_position

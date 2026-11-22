@@ -50,6 +50,13 @@ work in the flycast fork; the interface needs no change for it.
   `wiimote.tscn` (the middle of the grille, facing out of the face) with the
   distance law only: a game sets the speaker's volume itself, as it does on the
   hardware, so the television's level has no say.
+- **Stereo devices:** every device plays on ONE voice (its L and R folded, the
+  Meta XR server's `push_stereo_frames(left, -1)`) unless it asks otherwise:
+  `Libretro.SetControllerAudioStereo(port, index, true)` gives it a second voice on
+  its next block, `GetControllerAudioRightVoiceId(port, index)`, filled with silence
+  to the left's depth so the two play in step; asked off, the right voice goes back.
+  The flag lives in the AudioHandler, so a core started again forgets it: ask every
+  frame (an atomic store). The Wii U GamePad does (`wiiu_gamepad.gd`, two speakers).
 
 `RetroXR/DevTools/cores/wiimote_speaker_probe.tscn` is the check, and a probe because
 it wants Dolphin and a Wii disc.

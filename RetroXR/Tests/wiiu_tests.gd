@@ -51,6 +51,8 @@ func _ready() -> void:
 		_test_the_gamepad_reads_androids_axes()
 	if _wants("cradle"):
 		await _test_the_cradle_charges_the_gamepad()
+	if _wants("speakers"):
+		await _test_the_gamepad_plays_in_stereo()
 
 	for n in _spawned:
 		if is_instance_valid(n):
@@ -77,6 +79,18 @@ func _console(systemid := "wiiu") -> RetroSystem:
 	_spawned.append(sys)
 	await _wait(6)
 	return sys
+
+
+## A Libretro node's controller-audio calls, recorded: voice 5 is the left, 9 the
+## right once stereo is asked for.
+class FakeAudioLib extends Node:
+	var stereo := {}
+	func GetControllerAudioVoiceId(_port: int, _index: int) -> int:
+		return 5
+	func SetControllerAudioStereo(port: int, index: int, on: bool) -> void:
+		stereo[Vector2i(port, index)] = on
+	func GetControllerAudioRightVoiceId(port: int, index: int) -> int:
+		return 9 if stereo.get(Vector2i(port, index), false) else -1
 
 
 func _pad(scene: PackedScene) -> Node3D:
@@ -317,3 +331,37 @@ func _test_the_cradle_charges_the_gamepad() -> void:
 	seat.drop_object()
 	await _wait(3)
 	prefs.set("power_simulation", sim_was)
+
+
+# ── speakers/ ────────────────────────────────────────────────────────────────
+
+## The GamePad has two speakers, one by each bottom corner, and plays the
+## console's sound for it in stereo: left on the D-pad's side, right on the
+## buttons'. Folded to one voice (an older libretro-godot) it plays from between.
+func _test_the_gamepad_plays_in_stereo() -> void:
+	var pad := await _pad(GAMEPAD_SCENE) as WiiUGamePad
+	var l := pad.get_node_or_null("SpeakerL") as Marker3D
+	var r := pad.get_node_or_null("SpeakerR") as Marker3D
+	_ok(l != null and r != null, "speakers/the GamePad has a left and a right speaker")
+	if l == null or r == null:
+		return
+	_ok(is_equal_approx(l.position.x, -0.0844) and is_equal_approx(r.position.x, 0.0844)
+		and is_equal_approx(l.position.z, 0.0541) and is_equal_approx(r.position.z, 0.0541),
+		"speakers/at the slots by the bottom corners, 84.4 mm either side, 54.1 mm below the middle",
+		"%s %s" % [l.position, r.position])
+	# Left is the D-pad's side, which the NFC mark sits under (NFC_AT, -X).
+	_ok(signf(l.position.x) == signf(WiiUGamePad.NFC_AT.x), "speakers/the left one is on the D-pad's side")
+	_ok(pad.speaker_position(0, true).is_equal_approx(l.global_position)
+		and pad.speaker_position(1, true).is_equal_approx(r.global_position),
+		"speakers/in stereo each voice plays from its own speaker")
+	_ok(pad.speaker_position(0, false).is_equal_approx((l.global_position + r.global_position) * 0.5),
+		"speakers/folded to one voice it plays from between the two")
+	var lib := FakeAudioLib.new()
+	add_child(lib)
+	_spawned.append(lib)
+	pad._port_index = 0
+	pad._update_speaker(lib)
+	_ok(lib.stereo.get(Vector2i(0, 0), false) == true, "speakers/the pad asks its console for stereo",
+		str(lib.stereo))
+	_ok(pad._speaker_voices[0] == 5 and pad._speaker_voices[1] == 9, "speakers/and takes its left and right voices",
+		str(pad._speaker_voices))
