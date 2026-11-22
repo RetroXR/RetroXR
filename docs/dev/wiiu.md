@@ -88,6 +88,21 @@ The Pro Controller lights its player lamp (port N is player N).
 
 The GamePad's speaker was measured in the room: its sound gets a voice of its own, `controller 0.0 plays on voice 2`, beside the TV's voices 0 and 1, but only once the game plays something on it. At Nintendo Land's title it is silent, so no voice exists yet.
 
+## HOME
+
+Every Wii U controller with a HOME to press sends it, but not on one bit:
+
+- **GamePad and Pro Controller:** the RetroPad's sixteen ids are all taken, so HOME is **joypad id 16**, RetroXR's own numbering. libretro-godot's button word is 32 bits (ids 16-31 answered past the RetroPad's; `RETRO_DEVICE_ID_JOYPAD_MASK` still the sixteen), and the fork reads id 16 (`RETROXR_JOYPAD_ID_HOME`) into `VPAD_HOME` (0x0002, both in `VPADController`'s table and the libretro read in `vpad.cpp`) and `kProButton_Home`; upstream Cemu had HOME in neither table. RetroArch never sets id 16, so there they still have none. In RetroXR it is the `Model/Home` cap (`WiiUWirelessPad.HOME_BIT`), pressed with a fingertip like the caps beside it; press and release are logged on both sides (`[WiiU] ... HOME pressed`, the core's `[libretro] GamePad HOME pressed`).
+- **Wii Remote:** HOME is on **L**, the fork's remote layout (`libretro_map_wiimote`), which is not Dolphin's: on a Wii U `wiimote.gd` sends `Wiimote.cemu_bits()` (A on B, B on A, 1 on Y, 2 on X, HOME on L; with a Nunchuk 1/2 on L2/R2; no "shake", Cemu reads it off the accelerometer), and Dolphin's table on a Wii. Before, a remote on a Wii U sent Dolphin's bits, so A/B and 1/2 were crossed and HOME (R3) reached nothing.
+
+What HOME does is the title's business: Cemu has no HOME Menu overlay (the OS switching to it is not emulated; `OSEnableHomeButtonMenu` only stores a flag). `wiiu_tests home/`.
+
+## The Wii U Menu
+
+Cemu runs the system menu from an installed system title: a dump laid into the core's `mlc01` (the US menu is `sys/title/00050010/10040100`), started as content by its executable, `code/men.rpx`. Measured with `wiiu_boot_probe` (2026-11-22): 60 fps, both screens; the EULA notice, A to its agreement, a TAP on the GamePad's Agree (A does not press it), then the home screen, the Mii plaza on the TV and the app grid on the GamePad. HOME reaches the core there and nothing opens. Not yet offered in the room: the fork says it needs content (`SET_SUPPORT_NO_GAME` false), so a Wii U with no disc cannot boot it; that would be a `BiosBoot` row plus no-game support in the fork. Starting a game from the menu is untested.
+
+    "$godot" --path RetroXR --resolution 320x240 --position 20,20 res://DevTools/cores/wiiu_boot_probe.tscn --       --rom="$HOME/retroxr/libretro/save/cemu/Cemu/mlc01/sys/title/00050010/10040100/code/men.rpx" --seconds=170       --press="8@35,8@45,8@55,16@150" --touch="0.7843:0.5944@70" --shots="85,145,168" --shot=menu.png
+
 ## The GamePad cradle and its adapter
 
 `WiiUGamePadCradle` (WUP-014) is a black primitive at `Scenes/Objects/peripherals/wiiu/`; another session is making the real model.

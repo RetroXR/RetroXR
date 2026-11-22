@@ -53,6 +53,8 @@ func _ready() -> void:
 		await _test_the_cradle_charges_the_gamepad()
 	if _wants("speakers"):
 		await _test_the_gamepad_plays_in_stereo()
+	if _wants("home"):
+		await _test_home_reaches_the_wii_u()
 
 	for n in _spawned:
 		if is_instance_valid(n):
@@ -365,3 +367,57 @@ func _test_the_gamepad_plays_in_stereo() -> void:
 		str(lib.stereo))
 	_ok(pad._speaker_voices[0] == 5 and pad._speaker_voices[1] == 9, "speakers/and takes its left and right voices",
 		str(pad._speaker_voices))
+
+
+# ── home/ ────────────────────────────────────────────────────────────────────
+
+## HOME on every Wii U controller that has one to press. The GamePad and the Pro
+## Controller have no RetroPad id left, so HOME is RetroXR's joypad id 16, which
+## libretro-godot now keeps past the sixteen; a Wii Remote paired with a Wii U
+## speaks the Cemu fork's layout, HOME on L, and Dolphin's on a Wii.
+func _test_home_reaches_the_wii_u() -> void:
+	var wiiu := await _console()
+	for scene: PackedScene in [GAMEPAD_SCENE, PRO_SCENE]:
+		var pad := await _pad(scene) as WiiUWirelessPad
+		var cap: Dictionary = {}
+		for b: Dictionary in pad._anim.buttons:
+			if (b["node"] as Node).name == &"Home":
+				cap = b
+		_ok(not cap.is_empty() and int(cap["bit"]) == WiiUWirelessPad.HOME_BIT and WiiUWirelessPad.HOME_BIT == 16,
+			"home/the %s's HOME cap presses, on joypad id 16" % pad.name, str(cap.get("bit", "none")))
+	# Past the 16: the console's Libretro node keeps bit 16 rather than cutting it off.
+	var gp := _spawned[_spawned.size() - 2] as WiiUGamePad
+	gp._connected_system = wiiu
+	gp._port_index = 0
+	var lib := wiiu.get_libretro_node()
+	gp._deliver_joypad({"btn": (1 << WiiUWirelessPad.HOME_BIT) | (1 << ControllerBindings.JOYPAD_A),
+		"alx": 0, "aly": 0, "arx": 0, "ary": 0})
+	var peek: PackedInt32Array = lib.PeekJoypadState(0) if lib != null and lib.has_method("PeekJoypadState") 		else PackedInt32Array()
+	_ok(peek.size() > 0 and (peek[0] & (1 << 16)) != 0 and (peek[0] & (1 << ControllerBindings.JOYPAD_A)) != 0,
+		"home/libretro-godot keeps HOME (bit 16) beside the RetroPad's buttons", str(peek))
+	gp._deliver_joypad({"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": 0})
+	gp._connected_system = null
+	gp._port_index = -1
+
+	# The Wii Remote: the Cemu fork's buttons on a Wii U, Dolphin's on a Wii.
+	var up := Wiimote.cemu_bits(false, false)
+	_ok(up["home"] == ControllerBindings.JOYPAD_L and up["a"] == ControllerBindings.JOYPAD_B
+		and up["b"] == ControllerBindings.JOYPAD_A and up["one"] == ControllerBindings.JOYPAD_Y
+		and up["two"] == ControllerBindings.JOYPAD_X and not up.has("shake"),
+		"home/a remote on a Wii U: HOME on L, A on B, B on A, 1 on Y, 2 on X (libretro_map_wiimote)")
+	var nc := Wiimote.cemu_bits(true, false)
+	_ok(nc["one"] == ControllerBindings.JOYPAD_L2 and nc["two"] == ControllerBindings.JOYPAD_R2
+		and nc["home"] == ControllerBindings.JOYPAD_L, "home/with a Nunchuk 1 and 2 move to L2 and R2 (libretro_map_nunchuk)")
+	var side := Wiimote.cemu_bits(false, true)
+	_ok(side["two"] == ControllerBindings.JOYPAD_B and side["one"] == ControllerBindings.JOYPAD_A
+		and side["right"] == ControllerBindings.JOYPAD_UP and side["home"] == ControllerBindings.JOYPAD_L,
+		"home/sideways: 2 on B, 1 on A, the cross a quarter turn")
+	var remote := await _pad(WIIMOTE_SCENE) as Wiimote
+	remote._connected_system = wiiu
+	_ok(remote._button_mask({"home": true}) == 1 << ControllerBindings.JOYPAD_L,
+		"home/a remote paired with a Wii U sends HOME on L", str(remote._button_mask({"home": true})))
+	var wii := await _console("wii")
+	remote._connected_system = wii
+	_ok(remote._button_mask({"home": true}) == 1 << ControllerBindings.JOYPAD_R3,
+		"home/and on a Wii still Dolphin's R3", str(remote._button_mask({"home": true})))
+	remote._connected_system = null

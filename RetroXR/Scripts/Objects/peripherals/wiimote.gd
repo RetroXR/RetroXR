@@ -1612,6 +1612,49 @@ func _pressed_now() -> Dictionary:
 	return out
 
 
+## Whether this remote is paired with a Wii U, whose core (the Cemu fork) reads a
+## remote on bits of its own rather than Dolphin's.
+func _on_wiiu() -> bool:
+	return is_instance_valid(_connected_system) and _connected_system.systemid == "wiiu"
+
+
+## The Cemu fork's remote, named control -> RetroPad bit (CemuLibretro.cpp
+## libretro_map_wiimote / libretro_map_nunchuk). Not Dolphin's: A is read from B
+## and B from A (B confirms, as on the GamePad), 1 and 2 are Y and X, HOME is L,
+## and with a Nunchuk 1 and 2 move to L2 and R2. Sideways, 2/1/A/B are B/A/Y/X and
+## the cross turns a quarter as Dolphin's does. No "shake": Cemu reads a shake off
+## the accelerometer, and with a Nunchuk R2 is button 2. C and Z land on X and Y
+## for both cores (below, in _button_mask).
+static func cemu_bits(nunchuk: bool, sideways: bool) -> Dictionary:
+	if sideways:
+		return {
+			"two":   ControllerBindings.JOYPAD_B,
+			"one":   ControllerBindings.JOYPAD_A,
+			"a":     ControllerBindings.JOYPAD_Y,
+			"b":     ControllerBindings.JOYPAD_X,
+			"plus":  ControllerBindings.JOYPAD_START,
+			"minus": ControllerBindings.JOYPAD_SELECT,
+			"home":  ControllerBindings.JOYPAD_L,
+			"up":    ControllerBindings.JOYPAD_LEFT,
+			"down":  ControllerBindings.JOYPAD_RIGHT,
+			"left":  ControllerBindings.JOYPAD_DOWN,
+			"right": ControllerBindings.JOYPAD_UP,
+		}
+	return {
+		"a":     ControllerBindings.JOYPAD_B,
+		"b":     ControllerBindings.JOYPAD_A,
+		"one":   ControllerBindings.JOYPAD_L2 if nunchuk else ControllerBindings.JOYPAD_Y,
+		"two":   ControllerBindings.JOYPAD_R2 if nunchuk else ControllerBindings.JOYPAD_X,
+		"plus":  ControllerBindings.JOYPAD_START,
+		"minus": ControllerBindings.JOYPAD_SELECT,
+		"home":  ControllerBindings.JOYPAD_L,
+		"up":    ControllerBindings.JOYPAD_UP,
+		"down":  ControllerBindings.JOYPAD_DOWN,
+		"left":  ControllerBindings.JOYPAD_LEFT,
+		"right": ControllerBindings.JOYPAD_RIGHT,
+	}
+
+
 ## Pack the named controls into a libretro joypad mask.
 ##
 ## These tables are deliberately separate. A Nunchuk moves 1/2 off X/Y onto
@@ -1659,6 +1702,8 @@ func _button_mask(pressed: Dictionary) -> int:
 			"left":  ControllerBindings.JOYPAD_DOWN,
 			"right": ControllerBindings.JOYPAD_UP,
 		}
+	if _on_wiiu():
+		bits = cemu_bits(nc, _is_sideways())
 	var mask := 0
 	for key: String in bits:
 		if pressed.get(key, false):

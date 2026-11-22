@@ -25,6 +25,13 @@ var _power_held_for := 0.0
 var _power_fired := false
 var _power_haptic_ctrl: XRController3D = null
 
+## HOME, past libretro's sixteen RetroPad buttons: joypad id 16, RetroXR's own
+## numbering, which libretro-godot answers from the high half of the mask and the
+## Cemu fork reads as the pad's HOME (RETROXR_JOYPAD_ID_HOME). Pressed with a
+## fingertip on the Model/Home cap, as the caps beside it are.
+const HOME_BIT := 16
+var _home_was_down := false
+
 
 func _init() -> void:
 	_build_model()
@@ -53,6 +60,24 @@ func _process(delta: float) -> void:
 func _exit_tree() -> void:
 	_stop_power_haptic()
 	super._exit_tree()
+
+
+## The RETRO XR pad's caps at their node paths, and HOME on its own.
+func _cache_meshes() -> void:
+	super._cache_meshes()
+	if get_node_or_null("Model/Home") is MeshInstance3D:
+		_add_button("Model/Home", HOME_BIT, SMALL_PRESS, PRESS_DIR)
+	else:
+		print("[WiiU] %s has no Model/Home cap: its HOME cannot be pressed" % name)
+
+
+## As any pad's, with HOME's press and release said in the log.
+func _deliver_joypad(pad: Dictionary) -> void:
+	var home := (int(pad["btn"]) & (1 << HOME_BIT)) != 0
+	if home != _home_was_down:
+		_home_was_down = home
+		print("[WiiU] %s HOME %s (port %d)" % [name, "pressed" if home else "released", _port_index])
+	super._deliver_joypad(pad)
 
 
 # ── POWER ─────────────────────────────────────────────────────────────────────
