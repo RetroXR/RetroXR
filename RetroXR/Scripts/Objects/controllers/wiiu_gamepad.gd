@@ -295,6 +295,12 @@ func _show_off() -> void:
 		_last_rect = Rect2(-1, -1, -1, -1)
 
 
+## The console whose touch feel this GamePad's menu sets (TouchMenuRows): the one
+## it is paired with, null while it is not.
+func touch_feel_system() -> Node:
+	return _connected_system
+
+
 # ── The speaker ──────────────────────────────────────────────────────────────
 
 ## The console's voice for the GamePad's speaker (controller audio, port 0 index

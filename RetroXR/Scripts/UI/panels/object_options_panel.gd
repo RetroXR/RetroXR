@@ -111,6 +111,10 @@ func _populate() -> void:
 	# Anything that runs on power (an amplifier): what it runs on, and its cord.
 	if is_instance_valid(_object) and _object.has_method("power_input"):
 		PowerMenuRows.ensure_in(ui, _object.call("power_input") as PowerInput)
+	# A screen that touches for a machine it is paired with (the Wii U GamePad): that
+	# machine's Touch Screen section, the same one its own System tab shows.
+	if is_instance_valid(_object) and _object.has_method("touch_feel_system"):
+		TouchMenuRows.ensure_in(ui, _object.call("touch_feel_system") as Node)
 	_info_drawn = []
 	_choices_drawn = []
 	_refresh_info()

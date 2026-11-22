@@ -10,6 +10,7 @@
 extends "res://Tests/test_suite.gd"
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
+const GAMEPAD_SCENE := preload("res://Scenes/Objects/controllers/wiiu/wiiu_gamepad.tscn")
 
 var _only := ""
 var _spawned: Array[Node] = []
@@ -30,6 +31,7 @@ func _ready() -> void:
 		await _test_each_screen_keeps_its_own_distances()
 	if _wants("panel"):
 		await _test_the_system_tab_sets_the_feel()
+		await _test_the_gamepads_menu_sets_its_consoles_feel()
 	if _wants("save"):
 		await _test_the_room_keeps_the_feel()
 
@@ -147,6 +149,41 @@ func _test_the_system_tab_sets_the_feel() -> void:
 		and is_equal_approx(wiiu.touch_haptic, TouchFeel.HAPTIC_DEFAULT)
 		and is_equal_approx(rows._touch.value, 8.0),
 		"panel/Screen's own feel puts it all back", "%s / %s / %s" % [wiiu.touch_mm, wiiu.lift_mm, wiiu.touch_haptic])
+
+
+## The GamePad opens the generic object menu, not its console's: the section
+## must be there too, setting the CONSOLE's feel, and only while it is paired.
+func _test_the_gamepads_menu_sets_its_consoles_feel() -> void:
+	var wiiu := await _console("wiiu")
+	var pad := GAMEPAD_SCENE.instantiate() as WiiUGamePad
+	pad.position = Vector3(-2, 0, 0)
+	pad.freeze = true
+	add_child(pad)
+	_spawned.append(pad)
+	await _wait(2)
+	var cam := Camera3D.new()
+	add_child(cam)
+	_spawned.append(cam)
+	# The menu the menu button opens on it (SpawnMenuController._open_options_for).
+	_ok(not pad.has_method("toggle_options_ui"), "panel/the GamePad opens the generic object menu")
+	ObjectOptionsPanel.toggle_for(pad, cam)
+	await _wait(4)
+	_ok(pad.find_child("TouchRows", true, false) == null,
+		"panel/an unpaired GamePad's menu has no Touch Screen section")
+	var panel := pad.get_node_or_null(ObjectOptionsPanel.NODE_NAME) as ObjectOptionsPanel
+	panel.hide_panel()
+	pad._connected_system = wiiu
+	ObjectOptionsPanel.toggle_for(pad, cam)
+	await _wait(4)
+	var rows := pad.find_child("TouchRows", true, false) as TouchMenuRows
+	_ok(rows != null, "panel/a paired GamePad's menu has its console's Touch Screen section")
+	if rows == null:
+		pad._connected_system = null
+		return
+	rows._touch.value = 5.0
+	_ok(is_equal_approx(wiiu.touch_mm, 5.0), "panel/and it sets the console's touch distance",
+		str(wiiu.touch_mm))
+	pad._connected_system = null
 
 
 # ── save/ ────────────────────────────────────────────────────────────────────
