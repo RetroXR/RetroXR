@@ -78,6 +78,7 @@ func _run() -> void:
 		["case/a jewel case asks for its panels and takes them", _case_panels],
 		["case/a manual put in keeps its pages unless it is a spread scan", _case_manual_spread],
 		["case/a flip tray's hinge is taken from either face", _case_tray_both_faces],
+		["case/a fingertip pushes a lid and never pulls it", _case_poke_no_pull],
 		["case/a tray lying on the open lid is still the hand's", _case_tray_on_lid],
 		["case/the fat case keeps its manual in the black tray", _case_manual_on_tray],
 		["case/deleting what was seated does not stop the lid", _case_deleted_seated],
@@ -1769,6 +1770,74 @@ func _case_manual_on_tray() -> void:
 	_ok(c._manual_proxy == null or not c._manual_proxy.visible, "and the booklet on the tray is gone")
 	_ok(c._seat_reachable(2), "and the disc under it is a hand's again")
 	_ok(tray != null, "(the model has its flip tray)")
+
+
+## A fingertip pressed on a lid that cannot turn further sinks through it; drawn back, it must not bring the lid
+## out with it. The fingertip is walked along the lid's own normal as VRHinge's poke loop walks it.
+func _case_poke_no_pull() -> void:
+	var x := 480.0
+	for fam: Array in [["jewel", "single", 0.0], ["keep", "ps2", 0.0], ["jewel", "single", 180.0]]:
+		x += 3.0
+		var c := _new_case(fam[0], fam[1])
+		await get_tree().physics_frame
+		c.global_position = Vector3(x, 1.0, 0.0)
+		c.set_physics_process(false)
+		var top := c.sim.top()
+		var lid := c.hinge(top)
+		var rest := float(fam[2])
+		if rest > 90.0:
+			rest = rad_to_deg(c.sim.open_max)                # open against its stop (a jewel lid: a little past flat)
+		c.sim.set_angle_deg(top, rest)
+		c._apply_angles()
+		lid.set_process(false)
+		var at_rest := lid.get_rotation_deg()
+		var panel := lid.get_node("PokePanel") as CollisionShape3D
+		var half := (panel.shape as BoxShape3D).size.y * 0.5
+		# Shut, the finger comes at the lid's outside; open flat on its stop, at its inside.
+		var face := VRHinge.FACE_Y_POS if rest < 90.0 else VRHinge.FACE_Y_NEG
+		var out := panel.global_basis.y.normalized() * (1.0 if rest < 90.0 else -1.0)
+		var on_face := panel.global_position + out * half
+		var finger := XRController3D.new()
+		add_child(finger)
+		_spawned.append(finger)
+		var tip := on_face + out * 0.003
+		var met := lid._poke_contact_at(tip, lid.poke_face_margin, -1, -out * 0.001)
+		_ok(not met.is_empty() and int(met["face"]) == face and bool(met["external"]),
+			"%s/%s at %d: the finger meets the lid's face from outside it" % [fam[0], fam[1], int(rest)], str(met.get("face", 0)))
+		lid._poke_ctrl = finger
+		lid._poke_shape = panel
+		lid._poke_face = face
+		lid._poke_mode = VRHinge.POKE_TORQUE
+		lid._begin_track(tip)
+		var prev := tip
+		# Pressed in: through the face and past the lid's middle, 1 mm a step.
+		for k in int((0.003 + half * 2.0 + 0.002) / 0.001):
+			tip -= out * 0.001
+			lid._update_active_poke_face(tip, tip - prev)
+			lid._on_poke_motion(tip, lid._poke_mode)
+			prev = tip
+		_ok(lid._poke_face == face, "%s/%s at %d: pressed through the lid, the push stays on the face it began on" % [fam[0], fam[1], int(rest)],
+			lid._face_name(lid._poke_face))
+		_ok(absf(lid.get_rotation_deg() - at_rest) < 0.5, "%s/%s at %d: a lid at its stop stays there under the finger" % [fam[0], fam[1], int(rest)],
+			str(lid.get_rotation_deg()))
+		# Drawn back two centimetres.
+		var worst := 0.0
+		for k in 20:
+			tip += out * 0.001
+			lid._update_active_poke_face(tip, tip - prev)
+			lid._on_poke_motion(tip, lid._poke_mode)
+			prev = tip
+			worst = maxf(worst, absf(lid.get_rotation_deg() - at_rest))
+		_ok(worst < 0.5, "%s/%s at %d: drawn back, the lid does not come out with the finger" % [fam[0], fam[1], int(rest)],
+			"it turned %.1f degrees" % worst)
+		# And a tip already behind a face (through the leaf) is not outside it: no push begins there.
+		var behind := lid._poke_contact_at(on_face - out * 0.0006, lid.poke_face_margin, face, -out * 0.001)
+		_ok(not behind.is_empty() and not bool(behind["external"]),
+			"%s/%s at %d: a tip just through a face is behind it, not on it" % [fam[0], fam[1], int(rest)])
+		lid._poke_ctrl = null
+		lid._poke_shape = null
+		lid._poke_face = 0
+		lid._poke_mode = 0
 
 
 func _case_tray_on_lid() -> void:

@@ -392,6 +392,9 @@ func _process_poke(delta: float) -> void:
 		var contact := _poke_contact_at(tip, poke_face_margin, -1, tip - previous)
 		if contact.is_empty():
 			continue
+		# A push begins from outside the face it pushes: a tip already behind it (through the leaf) pushes nothing.
+		if poke_push_only and not bool(contact["external"]):
+			continue
 		var shape := contact["shape"] as CollisionShape3D
 		var face: int = contact["face"]
 		_claim_poke_face(ctrl, tip, shape, face, PokeTip.CONTACT_ENGAGED)
@@ -429,6 +432,12 @@ func _update_active_poke_face(tip: Vector3, approach: Vector3) -> void:
 	var shape := contact["shape"] as CollisionShape3D
 	var face: int = contact["face"]
 	if shape == _poke_shape and face == _poke_face:
+		return
+	# A push-only leaf is thin and has a face each side (a game case's lid: 4 mm). A fingertip pressed on one that
+	# cannot turn further (shut, or at its stop) sinks through it, the FAR face becomes the nearer, and the push
+	# passed to it: drawing the finger back was then a push on that face, and the lid came out with the finger
+	# (the owner, 2026-11-22: "I shouldn't be able to pull with my finger"). The face a push began on keeps it.
+	if poke_push_only and shape == _poke_shape and _face_axis(face) == _face_axis(_poke_face):
 		return
 	_poke_shape = shape
 	_poke_face = face
