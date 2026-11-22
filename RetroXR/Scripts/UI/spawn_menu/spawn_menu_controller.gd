@@ -1621,20 +1621,19 @@ func _on_spawn_key_requested(rom_path: String) -> void:
 func _on_spawn_case_requested(rom_path: String, game_label: String, systemid: String) -> void:
 	# Every disc the game shipped on has its seat; the ones not on this device stay empty.
 	var discs := GameCase.disc_slots(rom_path, GameCase.disc_total_of(systemid, rom_path))
+	# Its art: the three panels its scrape took, joined for the case picked below; else the one wrap.
+	var panels := RetroGameCase.box_panel_paths(systemid, rom_path)
 	var art := RetroGameCase.box_art_path(systemid, rom_path)
 	var img: Image = null
-	if not art.is_empty():
+	if panels.is_empty() and not art.is_empty():
 		img = await RetroGameCase.decode_image(get_tree(), art)
-	var size := Vector2i(img.get_width(), img.get_height()) if img != null else Vector2i.ZERO
+	var size := Vector2i(img.get_width(), img.get_height()) if img != null else RetroGameCase.box_size(systemid, rom_path)
 	var pick := GameCase.pick(systemid, GameCase.market_of(systemid, rom_path), discs.size(), size,
 		GameCase.release_of(systemid, rom_path))
-	# A jewel case's art from its three panels when the scraper has them (the wrap above still tells its shape).
-	if str(pick["family"]) == "jewel":
-		var panels := RetroGameCase.box_panel_paths(systemid, rom_path)
-		if not panels.is_empty():
-			var joined := await RetroGameCase.decode_panels(get_tree(), panels, str(pick["variant"]))
-			if joined != null:
-				img = joined
+	if not panels.is_empty():
+		img = await RetroGameCase.decode_panels(get_tree(), panels, str(pick["variant"]), str(pick["family"]))
+		if img == null and not art.is_empty():
+			img = await RetroGameCase.decode_image(get_tree(), art)
 	var c := GAME_CASE_SCENE.instantiate() as RetroGameCase
 	c.rom_path = rom_path
 	c.game_label = game_label

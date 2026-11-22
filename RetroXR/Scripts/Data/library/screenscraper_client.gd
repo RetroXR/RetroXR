@@ -66,12 +66,15 @@ var media_filter: Array = []
 ## The ScreenScraper system the scrape in flight was asked about (scrape_rom), for _parse_jeu: a game answers
 ## under a SUB-system of the one asked (Point Blank comes back as 155 "Namco Classics", parent 75 Arcade).
 var _requested_systemeid: int = -1
+## The game's own system (ours) for the scrape in flight: a disc system's games come in cases.
+var _requested_systemid := ""
 
 const CABINET_MEDIA := ["video", "title"]
 ## A game case's back, side and front, each its own picture (ScreenScraper cuts them from the box-texture itself:
-## Spyro the Dragon's are its wrap's own pixels). Fetched when a jewel case asks (RetroGameCase._want_panels),
-## because one wrap split by a fixed layout is only right for a wrap that keeps it, and they do not all: a
-## PlayStation wrap's back and spine are 792 and 36 px of 680, or 765 and 65. The kind is also its folder.
+## Spyro the Dragon's are its wrap's own pixels). A disc game's scrape takes them IN PLACE of the wrap (the owner,
+## 2026-11-22), because one wrap split by a fixed layout is only right for a wrap that keeps it, and they do not
+## all: a PlayStation wrap's back and spine are 792 and 36 px of 680, or 765 and 65. A jewel case also asks for
+## them for a game scraped before (RetroGameCase._want_panels). The kind is also its folder.
 const PANEL_MEDIA := ["box_back", "box_side", "box_front"]
 const PANEL_TYPES := {"box-2D-back": "box_back", "box-2D-side": "box_side", "box-2D": "box_front"}
 ## The files a media type may arrive as; anything else in a URL's tail is not an extension.
@@ -106,6 +109,7 @@ func scrape_rom(rom_path: String, systemid: String, checksums: Dictionary) -> vo
 		return
 
 	_requested_systemeid = systemeid
+	_requested_systemid = systemid
 	print("[ScreenscraperClient] systemeid=%d  MD5=%s" % [systemeid, checksums.get("md5", "?")])
 	# Rate limit
 	await _wait_for_rate_limit()
@@ -490,7 +494,8 @@ func _parse_jeu(jeu: Dictionary) -> Dictionary:
 		or ScreenscraperSystems.is_cabinet_systemeid(parent_id) \
 		or ScreenscraperSystems.is_cabinet_systemeid(_requested_systemeid)
 	result["media"] = _extract_media_urls(
-		jeu.get("medias", []), regions_short, disc_num, result["disc_total"], is_arcade, is_cabinet)
+		jeu.get("medias", []), regions_short, disc_num, result["disc_total"], is_arcade, is_cabinet,
+		not is_cabinet and MediaDimensions.is_disc_system(_requested_systemid))
 
 	return result
 
@@ -569,14 +574,15 @@ static func media_region_order(rom_region_codes: Array,
 
 
 func _extract_media_urls(medias, rom_region_codes: Array = [], disc_num: int = 0,
-						 disc_total: int = 0, arcade: bool = false, cabinet: bool = false) -> Dictionary:
+						 disc_total: int = 0, arcade: bool = false, cabinet: bool = false, cased: bool = false) -> Dictionary:
 	var result := {"wheel": "", "box": "", "label": "", "manual": ""}
 	# Video and title only when the caller asked, and only for an arcade game.
 	var extras: Array = extra_media.filter(func(k: Variant) -> bool: return (arcade or cabinet) and CABINET_MEDIA.has(k))
 	for kind in extras:
 		result[kind] = ""
-	# A case's panels only when the caller asked, and then all three (they are taken together, below).
-	var panels: bool = extra_media.any(func(k: Variant) -> bool: return PANEL_MEDIA.has(k))
+	# A case's panels for a game that comes in one (`cased`: a disc game), or when the caller asked; always all
+	# three (they are taken together, below).
+	var panels: bool = cased or extra_media.any(func(k: Variant) -> bool: return PANEL_MEDIA.has(k))
 	if panels:
 		for kind: String in PANEL_MEDIA:
 			result[kind] = ""
@@ -666,6 +672,9 @@ func _extract_media_urls(medias, rom_region_codes: Array = [], disc_num: int = 0
 			result[kind] = str(whole.get(kind, ""))
 		print("[ScreenscraperClient] Media[case panels] %s" % (
 			"no region has all three" if whole.is_empty() else "picked region=%s" % str(whole["region"])))
+		# With its three panels a disc game needs no wrap: they are the wrap's own parts, cut where they end.
+		if cased and not whole.is_empty():
+			candidates["box"] = []
 
 	# For each media type, pick best by effective region priority
 	for key: String in result.keys():

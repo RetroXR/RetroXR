@@ -1444,6 +1444,19 @@ func _panels_join() -> void:
 	_ok(is_equal_approx(GameCaseModel.booklet_fraction("longbox", 916.0, 680.0), 425.0 / 916.0), "its whole front on its booklet")
 	_ok(not GameCase.is_normalized_scan(long_box.get_size()), "and not taken for a stretched wrap")
 	_ok(GameCaseModel.join_panels(_flat(765, 680, Color.RED), null, _flat(680, 680, Color.GREEN)) == null, "a panel missing, nothing joined")
+	# A keep case's sheet is its own: Gran Turismo 4's panels (483, 52, 486) on a 14 mm case and on the 22 mm one.
+	var sheet := GameCaseModel.join_panels(_flat(483, 680, Color.RED), _flat(52, 680, Color.WHITE), _flat(486, 680, Color.GREEN), "ps2", "keep")
+	_ok(sheet.get_size() == Vector2i(1014, 680) and red.call(sheet.get_pixel(479, 300)) and white.call(sheet.get_pixel(483, 300))
+		and white.call(sheet.get_pixel(531, 300)) and green.call(sheet.get_pixel(535, 300)),
+		"a keep case's panels on its sheet: 129.5, 14 and 129.5 of 273", str(sheet.get_size()))
+	var thick := GameCaseModel.join_panels(_flat(483, 680, Color.RED), _flat(52, 680, Color.WHITE), _flat(486, 680, Color.GREEN), "multi5", "keep")
+	_ok(thick.get_size() == Vector2i(1044, 680) and white.call(thick.get_pixel(483, 300)) and white.call(thick.get_pixel(561, 300))
+		and green.call(thick.get_pixel(565, 300)), "the five-disc case's spine takes its 22 of 281", str(thick.get_size()))
+	var k := GameCaseModel.new()
+	add_child(k)
+	_spawned.append(k)
+	if k.build("keep", "ps2"):
+		_eq(k.apply_box_texture(ImageTexture.create_from_image(sheet)), OK, "a keep case takes the joined sheet")
 	var m := GameCaseModel.new()
 	add_child(m)
 	_spawned.append(m)
@@ -1512,6 +1525,7 @@ func _case_panels() -> void:
 	_ok(_flat(680, 680, Color(0.1, 0.55, 0.2)).save_png(front_dir.path_join("__case_panels_selftest.png")) == OK,
 		"(the test's own panel files are written)")
 	_eq(RetroGameCase.box_panel_paths("psx", rom).size(), 3, "all three there: the set is found")
+	_eq(RetroGameCase.box_size("psx", rom), Vector2i(765 + 65 + 680, 680), "with no wrap, the box's size is its panels' side by side")
 	_ok(RetroGameCase.missing_panels("psx", rom).is_empty(), "and nothing more is wanted")
 	var joined := await RetroGameCase.decode_panels(get_tree(), RetroGameCase.box_panel_paths("psx", rom), "single")
 	_ok(joined != null and joined.get_size() == Vector2i(792 + 36 + 680, 680) and joined.has_mipmaps(),
@@ -1527,6 +1541,14 @@ func _case_panels() -> void:
 			break
 	_eq(on_case, Vector2i(792 + 36 + 680, 680), "told its panels have landed, the case wears them")
 	_ok(_art_size(keep) == Vector2i.ZERO and _art_size(twin) == Vector2i.ZERO, "a case not told wears nothing new (this game has no wrap)")
+	keep.on_panel_arrived(rom)
+	on_case = Vector2i.ZERO
+	for _i in 120:
+		await get_tree().process_frame
+		on_case = _art_size(keep)
+		if on_case.x > 0:
+			break
+	_eq(on_case, Vector2i(1014, 680), "a keep case told the same wears them on its own sheet")
 	clean.call()
 	RetroGameCase.pending_art.clear()
 	RetroGameCase._asked_art.clear()

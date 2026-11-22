@@ -895,11 +895,11 @@ func _update_reach() -> void:
 # ------------------------------------------------------------------ art
 func _load_art() -> void:
 	var img: Image = null
-	# A jewel case's three panels as ScreenScraper cut them, when the scraper has them; else the one wrap, split by
-	# the layout.
-	var panels := box_panel_paths(systemid, rom_path) if case_family == "jewel" else {}
+	# The case's three panels as ScreenScraper cut them, when the scraper has them; else the one wrap, split by the
+	# layout.
+	var panels := box_panel_paths(systemid, rom_path)
 	if not panels.is_empty():
-		img = await decode_panels(get_tree(), panels, case_variant)
+		img = await decode_panels(get_tree(), panels, case_variant, case_family)
 	if img == null and is_inside_tree():
 		var path := box_art_path(systemid, rom_path)
 		if not path.is_empty():
@@ -908,8 +908,10 @@ func _load_art() -> void:
 		_apply_art(img)
 
 
-## Ask for this game's three panels when it has not got them. Through a group: the spawn menu owns the scraper,
-## and a case put back by a save is here before it (pending_art). Once a game a session, found or not.
+## Ask for this game's three panels when it has not got them: a game scraped before its scrape took them. A jewel
+## case only (a keep case's wrap keeps its sheet's layout within a few px: Gran Turismo 4's). Through a group: the
+## spawn menu owns the scraper, and a case put back by a save is here before it (pending_art). Once a game a
+## session, found or not.
 func _want_panels() -> void:
 	if case_family != "jewel" or rom_path.is_empty() or systemid.is_empty() or not is_inside_tree():
 		return
@@ -924,7 +926,7 @@ func _want_panels() -> void:
 
 ## One of a game's panels has landed (the spawn menu, by PANEL_GROUP): with all three there, the art goes on again.
 func on_panel_arrived(rom: String) -> void:
-	if rom == rom_path and case_family == "jewel" and not box_panel_paths(systemid, rom_path).is_empty():
+	if rom == rom_path and not box_panel_paths(systemid, rom_path).is_empty():
 		_load_art()
 
 
@@ -965,14 +967,33 @@ static func box_panel_paths(sys: String, rom: String) -> Dictionary:
 	return out
 
 
+## The size a game's box art has as ONE scan (back | spine | front), which is what GameCase.pick tells a long box
+## by: the wrap's own, or its three panels' side by side. From the files' headers.
+static func box_size(sys: String, rom: String) -> Vector2i:
+	var wrap := GameCase.image_size(box_art_path(sys, rom))
+	if wrap.x > 0 and wrap.y > 0:
+		return wrap
+	var panels := box_panel_paths(sys, rom)
+	if panels.is_empty():
+		return Vector2i.ZERO
+	var h := GameCase.image_size(str(panels[PANEL_KINDS[0]])).y
+	var w := 0
+	for kind: String in PANEL_KINDS:
+		var s := GameCase.image_size(str(panels[kind]))
+		if s.x <= 0 or s.y <= 0 or h <= 0:
+			return Vector2i.ZERO
+		w += int(round(float(s.x) * h / float(s.y)))
+	return Vector2i(w, h)
+
+
 ## The panel kinds to fetch for a game: all three unless all three are there (they are one region's set).
 static func missing_panels(sys: String, rom: String) -> Array:
 	return [] if not box_panel_paths(sys, rom).is_empty() else PANEL_KINDS.duplicate()
 
 
-## Decode a game's three panels and join them for a jewel case of `variant` (GameCaseModel.join_panels), with
-## mipmaps, on a worker thread. Null when one will not load.
-static func decode_panels(tree: SceneTree, paths: Dictionary, variant: String) -> Image:
+## Decode a game's three panels and join them for a case of `family` and `variant` (GameCaseModel.join_panels),
+## with mipmaps, on a worker thread. Null when one will not load.
+static func decode_panels(tree: SceneTree, paths: Dictionary, variant: String, family := "jewel") -> Image:
 	var out: Array = [null]
 	var task := WorkerThreadPool.add_task(func() -> void:
 		var parts: Array[Image] = []
@@ -981,7 +1002,7 @@ static func decode_panels(tree: SceneTree, paths: Dictionary, variant: String) -
 			if img.load(str(paths.get(kind, ""))) != OK:
 				return
 			parts.append(img)
-		var joined := GameCaseModel.join_panels(parts[0], parts[1], parts[2], variant)
+		var joined := GameCaseModel.join_panels(parts[0], parts[1], parts[2], variant, family)
 		if joined != null:
 			joined.generate_mipmaps()
 			out[0] = joined)

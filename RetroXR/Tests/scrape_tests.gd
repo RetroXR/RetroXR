@@ -766,6 +766,17 @@ func _group_case_panels() -> void:
 	picked = client._extract_media_urls(odd, ["us"])
 	_ok(picked["box_side"] == "box-2D-side/kr", "case panels: a region nobody ranked still gives its set")
 	_ok(ScreenscraperClient.panel_set({}, ["us"]).is_empty(), "case panels: nothing to pick from, nothing picked")
+	# A disc game's own scrape (`cased`): the panels unasked, and in place of the wrap.
+	client.extra_media = []
+	picked = client._extract_media_urls(medias, ["asi"], 0, 0, false, false, true)
+	_ok(picked["box_back"] == "box-2D-back/asi" and picked["box_side"] == "box-2D-side/asi" and picked["box_front"] == "box-2D/asi",
+		"case panels: a disc game's scrape takes its three panels unasked: %s" % str(picked))
+	_ok(picked["box"] == "", "case panels: and no wrap with them")
+	picked = client._extract_media_urls(no_side, ["us"], 0, 0, false, false, true)
+	_ok(picked["box"] == "box-texture/us" and picked["box_front"] == "" and picked["box_back"] == "",
+		"case panels: no region with all three, a disc game's scrape takes the wrap as it did")
+	picked = client._extract_media_urls(medias, ["us"], 0, 0, false, false, false)
+	_ok(picked["box"] == "box-texture/us" and not picked.has("box_front"), "case panels: a cartridge's scrape is the scrape it was")
 	for kind: String in ScreenscraperClient.PANEL_MEDIA:
 		_ok(RomMedia.SCRAPED_DIRS.has(kind), "case panels: %s is a folder the library's cleanup knows" % kind)
 	client.free()

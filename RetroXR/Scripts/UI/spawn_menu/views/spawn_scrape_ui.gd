@@ -109,8 +109,9 @@ func _on_scrape_failed(rom_path: String, systemid: String, error: String) -> voi
 ## manual are what a row draws; no row draws the box.
 func _on_scrape_media_downloaded(rom_path: String, systemid: String, media_type: String,
 		_path: String) -> void:
-	# The box is what tells a long box from a jewel case: the row's case button may now be another picture.
-	if media_type == "box":
+	# The box (or a case's own panels) is what tells a long box from a jewel case: the row's case button may now be
+	# another picture.
+	if media_type == "box" or ScreenscraperClient.PANEL_MEDIA.has(media_type):
 		GameCase.forget_icon(systemid, rom_path)
 		_view._on_scrape_row_changed(rom_path, systemid)
 	if media_type != "wheel" and media_type != "label" and media_type != "manual":
@@ -178,6 +179,9 @@ func _show_scrape_popup(rom_path: String, systemid: String, result: Dictionary) 
 
 	for mtype: String in ["wheel", "box", "label", "manual"]:
 		var has_it: bool = not (media.get(mtype, "") as String).is_empty()
+		# A disc game's box is its case's three panels, taken in place of the wrap (ScreenscraperClient.PANEL_MEDIA).
+		if mtype == "box" and not has_it:
+			has_it = ScreenscraperClient.PANEL_MEDIA.all(func(k: String) -> bool: return not str(media.get(k, "")).is_empty())
 		var icon := "✅" if has_it else "❌"
 		info_row(vbox, mtype.capitalize(), icon)
 
@@ -328,7 +332,7 @@ func _on_scrape_accepted(rom_path: String, systemid: String, result: Dictionary)
 ## until the platform was closed and reopened. Box is not, since no row draws it.
 func _on_accepted_media_downloaded(mtype: String, _path: String, systemid: String,
 		scraped_rom: String) -> void:
-	if mtype == "box":
+	if mtype == "box" or ScreenscraperClient.PANEL_MEDIA.has(mtype):
 		GameCase.forget_icon(systemid, scraped_rom)
 		_view._on_scrape_row_changed(scraped_rom, systemid)
 	if mtype != "wheel" and mtype != "label" and mtype != "manual":

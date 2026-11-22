@@ -176,7 +176,7 @@ static func icon_of(systemid: String, rom_path: String) -> String:
 	var size := Vector2i.ZERO
 	# Only the long box is told from the scan, and only its header is read for that.
 	if discs <= 1 and not market in ["eu", "jp"] and LONGBOX_BEFORE.has(SystemIds.canonical(systemid)):
-		size = image_size(RetroGameCase.box_art_path(systemid, rom_path))
+		size = RetroGameCase.box_size(systemid, rom_path)
 	var found := pick(systemid, market, discs, size, release_of(systemid, rom_path))
 	var name := "tall" if is_tall(str(found["family"]), str(found["variant"])) else "square"
 	if capacity(str(found["variant"])) > 1:

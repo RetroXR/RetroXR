@@ -426,9 +426,11 @@ func apply_box_texture(texture: Texture2D) -> Error:
 ## layout is right only for a wrap that keeps it (fit_jewel_scan), and they do not all (PlayStation: back and
 ## spine 792 and 36 px of 680, or 765 and 65; a long box's 476 and 67 of 1024, where the layout says 484 and 56).
 ## A front wider than the booklet is a US scan's whole lid, the tray band's strip at its left: kept at its own
-## shape. A layout with no strip (the long box) takes the whole front on its booklet. Null when a panel is
-## missing. Any thread.
-static func join_panels(back: Image, side: Image, front: Image, case_variant := "") -> Image:
+## shape. A layout with no strip (the long box) takes the whole front on its booklet. A keep case's sheet is its
+## own contract's (the back, its spine, the front: a five-disc case's spine is 22 mm of 281, a GameCube's 17 of
+## 220, where one wrap stretched over the sheet gives every case the scan's). Null when a panel is missing. Any
+## thread.
+static func join_panels(back: Image, side: Image, front: Image, case_variant := "", case_family := "jewel") -> Image:
 	for part: Image in [back, side, front]:
 		if part == null or part.is_empty():
 			return null
@@ -439,6 +441,13 @@ static func join_panels(back: Image, side: Image, front: Image, case_variant := 
 	var front_w := maxi(1, int(round(float(front.get_width()) * h / float(front.get_height()))))
 	if float(lay["strip_mm"]) <= 0.0:
 		front_w = int(round(h * float(lay["booklet_per_h"])))
+	if case_family == "keep":
+		var art: Dictionary = variant_contract("keep", case_variant).get("art", {})
+		var sheet: Array = art.get("sheet_mm", [273.0, 183.0])
+		var total := maxi(3, int(round(h * float(sheet[0]) / float(sheet[1]))))
+		back_w = int(round(total * float(art.get("back_mm", 129.5)) / float(sheet[0])))
+		spine_w = maxi(1, int(round(total * float(art.get("spine_mm", 14.0)) / float(sheet[0]))))
+		front_w = maxi(1, total - back_w - spine_w)
 	var out := Image.create_empty(back_w + spine_w + front_w, h, false, Image.FORMAT_RGBA8)
 	var x := 0
 	for row: Array in [[back, back_w], [side, spine_w], [front, front_w]]:
