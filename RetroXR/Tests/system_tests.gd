@@ -1716,8 +1716,10 @@ func _test_bios_boot_table() -> void:
 		_ok(ResourceLoader.exists("res://SystemInfo/%s.tres" % parts[1]),
 			"table/%s names a real system" % key)
 		var row: Dictionary = BiosBoot._ROWS[key]
-		# The Wii's is the System Menu in its NAND, which no .info declares.
-		_ok(not (row.get("boot_rom", []) as Array).is_empty() or bool(row.get("wii_menu", false)),
+		# The Wii's is the System Menu in its NAND, the Wii U's its Wii U Menu in
+		# mlc01: no .info declares either.
+		_ok(not (row.get("boot_rom", []) as Array).is_empty() or bool(row.get("wii_menu", false))
+			or bool(row.get("wiiu_menu", false)),
 			"table/%s declares a boot rom" % key)
 		for opt_key: String in (row.get("splash", {}) as Dictionary):
 			_ok(not opt_key.strip_edges().is_empty(), "table/%s option %s is named" % [key, opt_key])

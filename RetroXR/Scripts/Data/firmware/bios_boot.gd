@@ -274,6 +274,25 @@ const _ROWS := {
 		"why": "A silent audio CD gives the Saturn's CD player and memory manager",
 	},
 
+	# ── Nintendo Wii U ───────────────────────────────────────────────────────
+	# Switched on with no disc a Wii U boots its Wii U Menu, which is software in
+	# the system memory (mlc01), not a BIOS: present only when a player has laid
+	# their console's dump into the Cemu core's mlc01, so the row asks
+	# WiiUSystemMenu.is_installed() (`wiiu_menu`), as the Wii's asks for its NAND.
+	# `no_content`: there is no blank disc to hand a Wii U, and the fork, given
+	# none, boots the installed menu's men.rpx (libretro_wiiu_menu_path) and
+	# refuses the load without one.
+	#
+	# MEASURED 2026-11-22 (wiiu_boot_probe, the US 5.5.5 menu): 60 fps on both
+	# screens, the EULA notice, a tap on the GamePad's Agree, then the home
+	# screen -- the Mii plaza on the TV, the app grid on the GamePad.
+	"cemu/wiiu": {
+		"wiiu_menu": true,
+		"empty_media": "",
+		"no_content": true,
+		"why": "Boots the Wii U Menu with no disc in the slot",
+	},
+
 	# ── Microsoft ────────────────────────────────────────────────────────────
 	# Switched on with an empty tray an Xbox boots its DASHBOARD, and the
 	# dashboard is software on the HARD DISK rather than anything in the BIOS --
@@ -325,7 +344,7 @@ const _ROWS := {
 static var _mod_rows: Dictionary = {}
 
 ## The keys a mod's row may carry. The rest of a row's vocabulary -- empty media,
-## no-content boots, empty_options, retire_files, wii_menu -- was MEASURED per
+## no-content boots, empty_options, retire_files, wii_menu, wiiu_menu -- was MEASURED per
 ## core by the survey this file's header describes, and a wrong value crashes the
 ## core (six of sixteen died on a null game) or moves the player's files aside.
 ## A mod declares what its BIOS is and whether its games need it; that much is
@@ -466,6 +485,8 @@ static func boot_rom_present(core_name: String, systemid: String) -> bool:
 		return false
 	if bool(row.get("wii_menu", false)):
 		return WiiSystemMenu.is_installed()
+	if bool(row.get("wiiu_menu", false)):
+		return WiiUSystemMenu.is_installed()
 	var wanted: Array = row.get("boot_rom", [])
 	if wanted.is_empty():
 		return false

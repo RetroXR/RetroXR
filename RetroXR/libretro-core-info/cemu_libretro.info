@@ -15,7 +15,7 @@ systemid = "wiiu"
 database = "Nintendo - Wii U"
 
 # Libretro Features
-supports_no_game = "false"
+supports_no_game = "true"
 hw_render = "true"
 needs_fullpath = "true"
 disk_control = "false"

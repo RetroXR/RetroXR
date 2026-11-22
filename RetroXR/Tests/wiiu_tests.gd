@@ -55,6 +55,8 @@ func _ready() -> void:
 		await _test_the_gamepad_plays_in_stereo()
 	if _wants("home"):
 		await _test_home_reaches_the_wii_u()
+	if _wants("menu"):
+		_test_an_empty_wii_u_boots_its_menu()
 
 	for n in _spawned:
 		if is_instance_valid(n):
@@ -421,3 +423,38 @@ func _test_home_reaches_the_wii_u() -> void:
 	_ok(remote._button_mask({"home": true}) == 1 << ControllerBindings.JOYPAD_R3,
 		"home/and on a Wii still Dolphin's R3", str(remote._button_mask({"home": true})))
 	remote._connected_system = null
+
+
+# ── menu/ ────────────────────────────────────────────────────────────────────
+
+## With no disc a Wii U boots its Wii U Menu: BiosBoot's cemu/wiiu row starts the
+## core with NO content, gated on the menu being in the core's mlc01, and the
+## fork boots the first region's men.rpx it finds (US, EU, JP), as this does.
+func _test_an_empty_wii_u_boots_its_menu() -> void:
+	_ok(BiosBoot.boots_with_no_content("cemu", "wiiu"), "menu/a Wii U starts with no content")
+	_ok(BiosBoot.empty_media_extension("cemu", "wiiu").is_empty(), "menu/and no blank disc stands in")
+	_ok(bool(BiosBoot.entry("cemu", "wiiu").get("wiiu_menu", false)),
+		"menu/gated on the installed Wii U Menu, not on a firmware file")
+	_ok(WiiUSystemMenu.mlc_dir().ends_with("save/cemu/Cemu/mlc01"), "menu/the core's own mlc01",
+		WiiUSystemMenu.mlc_dir())
+	var mlc := "user://wiiu_menu_test/mlc01"
+	DirAccess.make_dir_recursive_absolute(mlc)
+	_ok(WiiUSystemMenu.menu_path_in(mlc).is_empty() and WiiUSystemMenu.installed_region_in(mlc).is_empty(),
+		"menu/an mlc01 with no menu has none")
+	for id: String in ["10040000", "10040200"]:
+		var code := mlc.path_join("sys/title/00050010/%s/code" % id)
+		DirAccess.make_dir_recursive_absolute(code)
+		FileAccess.open(code.path_join("men.rpx"), FileAccess.WRITE).store_8(0)
+	_ok(WiiUSystemMenu.installed_region_in(mlc) == "EUR", "menu/EU before JP, as the fork tries them",
+		WiiUSystemMenu.installed_region_in(mlc))
+	var us := mlc.path_join("sys/title/00050010/10040100/code")
+	DirAccess.make_dir_recursive_absolute(us)
+	FileAccess.open(us.path_join("men.rpx"), FileAccess.WRITE).store_8(0)
+	_ok(WiiUSystemMenu.installed_region_in(mlc) == "USA"
+		and WiiUSystemMenu.menu_path_in(mlc).ends_with("10040100/code/men.rpx"),
+		"menu/US first", WiiUSystemMenu.menu_path_in(mlc))
+	OS.move_to_trash(ProjectSettings.globalize_path("user://wiiu_menu_test"))
+	# The Wii's row is unchanged: its gate is Dolphin's NAND.
+	_ok(bool(BiosBoot.entry("dolphin", "wii").get("wii_menu", false))
+		and not bool(BiosBoot.entry("dolphin", "wii").get("wiiu_menu", false)),
+		"menu/a Wii still asks for its own System Menu")

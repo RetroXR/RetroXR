@@ -12,6 +12,11 @@
 ## the worst frame in ms, the core's frames) and quits; --nopair leaves the GamePad
 ## and the Pro Controller unpaired, its control.
 ##
+## --nodisc: no --rom, nothing in the slot: POWER boots the Wii U Menu from the
+## core's mlc01 (BiosBoot cemu/wiiu). The probe taps OK on the EULA notice and
+## Agree on the agreement, on the GamePad's glass, and the TV must then have left
+## the agreement for the home screen. Needs a system dump in mlc01.
+##
 ## --touch=none is the control leg: nothing touches the glass, and Nintendo Land's
 ## "Touch the Wii U GamePad to start" title must still be up at the end.
 extends Node3D
@@ -24,6 +29,7 @@ const PRO_SCENE := preload("res://Scenes/Objects/controllers/wiiu/wiiu_pro_contr
 const AV_SCENE := preload("res://Scenes/Objects/system_models/wii/wii_av_cable.tscn")
 
 var _rom := ""
+var _nodisc := false
 var _out := ""
 var _touch := "tap"
 var _fail := false
@@ -59,12 +65,19 @@ func _ready() -> void:
 			_perf = float(a.substr(7))
 		elif a == "--nopair":
 			_pair = false
+		elif a == "--nodisc":
+			_nodisc = true
 	if _out.is_empty():
 		_out = OS.get_user_data_dir()
 	get_tree().create_timer(600.0).timeout.connect(func() -> void:
 		print("[wiiu-room] FAIL: timed out")
 		get_tree().quit(1))
-	if _rom.is_empty() or not FileAccess.file_exists(_rom):
+	if _nodisc:
+		_rom = ""
+		_fresh = false
+		print("[wiiu-room] no disc; the Wii U Menu is %s" % [
+			WiiUSystemMenu.menu_path_in(WiiUSystemMenu.mlc_dir()) if WiiUSystemMenu.is_installed() else "NOT installed"])
+	elif _rom.is_empty() or not FileAccess.file_exists(_rom):
 		print("[wiiu-room] FAIL: --rom must name a file that exists (got '%s')" % _rom)
 		get_tree().quit(1)
 		return
@@ -83,6 +96,9 @@ func _ready() -> void:
 	await _stage()
 	if _perf > 0.0:
 		await _perf_run()
+		return
+	if _nodisc:
+		await _menu_run()
 		return
 	await _boot()
 	await _shoot("boot")
@@ -275,7 +291,56 @@ func _stage() -> void:
 	_cam.look_at(Vector3(0.0, 0.28, -0.3))
 
 
-func _boot() -> void:
+## --nodisc: POWER on an empty slot, the menu's EULA notice, OK, Agree, the home
+## screen.
+func _menu_run() -> void:
+	_check(BiosBoot.can_boot_empty("cemu", "wiiu"), "an empty Wii U can boot (the menu is installed)")
+	await _boot(false)
+	var t0 := Time.get_ticks_msec()
+	var lit := 0.0
+	while Time.get_ticks_msec() - t0 < 120000:
+		await _wait_seconds(2.0)
+		lit = _lit_share(_tv_image())
+		if lit > 0.5:
+			break
+	print("[wiiu-room] the TV lit after %d s (lit %.2f)" % [(Time.get_ticks_msec() - t0) / 1000, lit])
+	_check(lit > 0.5, "the Wii U Menu draws on the TV with no disc in")
+	await _wait_seconds(12.0)
+	await _shoot("menu_notice")
+	await _tap_view(Vector2(0.499, 0.81), "OK")
+	await _wait_seconds(10.0)
+	await _shoot("menu_eula")
+	var eula := _tv_image()
+	await _tap_view(Vector2(0.461, 0.892), "Agree")
+	await _wait_seconds(20.0)
+	await _shoot("menu_home")
+	var diff := _difference(eula, _tv_image())
+	print("[wiiu-room] the TV after Agree differs from the agreement by %.2f" % diff)
+	_check(diff > 0.2, "Agree on the GamePad's glass took the menu on to its home screen")
+	_lib_stop_then_restore()
+	await _wait_seconds(8.0)
+	print("[wiiu-room] RESULT=%s" % ("FAIL" if _fail else "PASS"))
+	get_tree().quit(1 if _fail else 0)
+
+
+## A tap on the GamePad's glass at (u, v) of its own view, 0..1 from the top left.
+func _tap_view(uv: Vector2, what: String) -> void:
+	var touch: TVTouchSurface = _pad._touch
+	var p := Vector2((uv.x - 0.5) * touch._size.x, (0.5 - uv.y) * touch._size.y)
+	print("[wiiu-room] tapping %s on the GamePad (%s)" % [what, str(uv)])
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 300:
+		touch._send_touch_local(p, true)
+		await _frames(1)
+	touch._send_touch_local(p, false)
+
+
+func _boot(with_disc := true) -> void:
+	if not with_disc:
+		await _frames(30)
+		(_sys.get_node("PowerButton") as VRButton).button_pressed.emit()
+		await _await_views()
+		return
 	var disc := DISC_SCENE.instantiate() as Node3D
 	disc.set("systemid", "wiiu")
 	disc.set("rom_path", _rom)
@@ -286,9 +351,13 @@ func _boot() -> void:
 	(_sys.get_node("CartridgeSlot") as XRToolsSnapZone).pick_up_object(disc)
 	await _frames(60)
 	(_sys.get_node("PowerButton") as VRButton).button_pressed.emit()
+	await _await_views()
+
+
+## Until the GamePad has its own window of the frame (Cemu's views), and shows it.
+func _await_views() -> void:
 	for o in LoadingOverlay.owners():
 		LoadingOverlay.end(o)
-	# Until the GamePad has its own window of the frame (Cemu's views).
 	var t0 := Time.get_ticks_msec()
 	var rect: Variant = null
 	while Time.get_ticks_msec() - t0 < 90000:
