@@ -223,7 +223,7 @@ func _group_tvs() -> void:
 	_eq(tabs.get_tab_title(0), "TVs", "tvs/tab title")
 	_eq(buttons.size(), baseline + 4, "tvs/stock TVs plus every registered cabinet")
 	_eq(buttons[0].text.strip_edges(), "+  TV", "tvs/stock TV remains")
-	_eq(buttons[1].text.strip_edges(), "+  Classic TV", "tvs/the classic box remains")
+	_eq(buttons[1].text.strip_edges(), "+  Debug TV", "tvs/the classic box remains, as the Debug TV")
 	_eq(buttons[2].text.strip_edges(), "+  Plain Monitor", "tvs/stock monitor remains")
 	var emitted: Array[String] = []
 	view.spawn_requested.connect(func(token: String) -> void: emitted.append(token))

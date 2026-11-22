@@ -200,7 +200,7 @@ alone) is the picture and writes the mechanism's frames.
 
 The spawn menu's **TV** is now `tv:retroxr_crt`: `tv.tscn` wearing the RetroXR-models
 `generic/crt-tv` set (380 x 330 x 400 mm, origin at the body centre). The old box is still
-**Classic TV** (`tv_model ""`), and every room that places a set keeps it, because the
+**Debug TV** (`tv_model ""`), and every room that places a set keeps it, because the
 arcade was laid out round that box. The three `tv_mobile*.glb` and
 `tv_contract.json` live in `imported-assets/appliances/crt_tv/` (never edit a GLB; after a
 re-import, put the extracted textures back to VRAM Compressed and the GLBs back to
@@ -246,7 +246,7 @@ OWED.
 problem: the Quest's `files/logs/godot.log` showed every press of the RETRO XR set's keys TWICE (`[RetroTV] TV: pressed
 POWER`, `pressed POWER`), so POWER switched the set on and straight off again, and MUTE, VOL and SOURCE undid
 themselves. Only a FINGERTIP does it (the desktop ray and the laser go through `pointer_event`), which is why the
-desktop and every render looked right, and the Classic TV's keys carry no fingertip gate, which is why it worked. Two
+desktop and every render looked right, and the Debug TV's keys carry no fingertip gate, which is why it worked. Two
 faults in `ApplianceModel.footprint_gate`, the gate every adopted key has had since 33500b15:
 - **It judged the finger against the cap as DRAWN.** A pressed cap sinks 1.5 mm, so a finger drawing back passed
   `hover` over the sunk cap and was let go; the cap rose, the same finger was on the face again, and the key fired a
@@ -813,7 +813,7 @@ channel).
 - **Tests:** `av_tests` `_r_hdmi` (filed on HDMI, picture and sound reach the set) and `_d_hdmi_cabinets` (on the stock set, off a
   shell without its seat). `wiiu_render_probe` shows the lead seated at both ends and an empty socket.
 
-### S-Video and component: the Classic TV's better inputs (2026-11-21)
+### S-Video and component: the Debug TV's better inputs (2026-11-21)
 
 The stock (Classic) set has two more inputs on a third back-panel row, appended after HDMI:
 `RetroTV.Source.SVIDEO` (8) and `COMPONENT` (9), each with its own L and R. A fitted shell
@@ -856,7 +856,7 @@ Quest's `crt_mobile` tier has neither stage.
 through `crt_effect.gdshader` as each input draws it. A real core on either input, headset feel,
 the Quest and netplay are OWED.
 
-### SCART on the Classic TV (2026-11-21)
+### SCART on the Debug TV (2026-11-21)
 
 `RetroTV.Source.SCART` (10, appended) is the stock set's 21-pin SCART socket, on the
 component / S-Video row left of S-Video (`ScartIn`; a fitted shell opts in with a `ScartSeat`).
@@ -926,7 +926,7 @@ composite cord into a SCART block draws as composite, not the SCART input's RGB
 (`AvAdapter._resolve`), or the console stays filed on the input. `av_tests`
 `_r_scart_block` builds one from the conversion lead's `AvAdapter`; the real block is a mod's.
 
-### DVI, DisplayPort, D-Terminal, RGB21 and the aerial's other sockets; the Classic TV's layout (2026-11-21)
+### DVI, DisplayPort, D-Terminal, RGB21 and the aerial's other sockets; the Debug TV's layout (2026-11-21)
 
 New kinds in `TvInputKinds`, each a row: `dvi` (11, `DviPort`, connector `dvi_d_plug`),
 `displayport` (12, `DisplayPortPort`, sound on the plug as HDMI's: the source's OUT is `rf_feed`),
@@ -943,7 +943,7 @@ a DVI-D socket takes DVI-D alone. The PC tower's graphics card has a DVI-D OUT a
 OUT (`DviOut`, `DisplayPortOut`, rf_feed); `dvi_cable` and `displayport_cable` are on a computer's
 card and the Electronics tab. RGB21 leads off the Nintendo, PS2 and Genesis Model 2 Multi Outs.
 
-**The Classic TV's back is laid out by what each input is** (`TvInputKinds.stock_layout`, every
+**The Debug TV's back is laid out by what each input is** (`TvInputKinds.stock_layout`, every
 plate 2 mm from the next): composite 1-4 and the aerial at y -0.15; S-Video, component,
 D-Terminal at -0.088; SCART and RGB21 (tall plates) then HDMI, DVI, DisplayPort at -0.015; the
 speaker outputs at 0.06 (`tv.tscn`). A kind whose socket scene is not in the build is left off

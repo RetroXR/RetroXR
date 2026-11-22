@@ -1,4 +1,4 @@
-## Stills of the Classic TV's S-Video and component inputs, and of what each signal
+## Stills of the Debug TV's S-Video and component inputs, and of what each signal
 ## does to a picture (TvSignal). Windowed (no core):
 ##
 ##   "$godot" --path RetroXR --resolution 960x540 --position 20,20 \

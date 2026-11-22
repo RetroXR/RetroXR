@@ -56,7 +56,7 @@ func _ready() -> void:
 		b.position = Vector3(0.3 + 0.15 * bricks.size(), 0.03, -0.15)
 		add_child(b)
 		bricks.append(b)
-	# The Classic TV behind the console, on HDMI from the Wii U's HDMI OUT.
+	# The Debug TV behind the console, on HDMI from the Wii U's HDMI OUT.
 	var tv := preload("res://Scenes/Objects/tv.tscn").instantiate() as RetroTV
 	tv.freeze = true
 	add_child(tv)

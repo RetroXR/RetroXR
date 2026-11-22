@@ -261,7 +261,7 @@ const _RX := Basis(Vector3(1, 0, 0), PI)     # a phono jack's frame: authored up
 const _RY := Basis(Vector3(0, 1, 0), PI)     # a keyed socket's: right way up, facing back
 
 
-## The stock body's back panel (the Classic TV), laid out by what each input is. The
+## The stock body's back panel (the Debug TV), laid out by what each input is. The
 ## body's back is 500 x 400 mm, x 0.25..-0.25 read left to right from behind it. Rows,
 ## bottom up, every legend plate at least 2 mm from the next (av_tests measures them):
 ##

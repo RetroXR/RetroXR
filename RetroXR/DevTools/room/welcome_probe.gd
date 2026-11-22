@@ -252,7 +252,7 @@ func _walk_menu(ctrl: Node3D) -> void:
 	# Each press, and something only the view it opens shows: a press that lands
 	# anywhere else leaves it unseen.
 	for step: Array in [["CORES", "Download All Recommended"], ["SPAWN", "Compact"],
-			["TVs", "Classic TV"]]:
+			["TVs", "Debug TV"]]:
 		var b := _button(menu, step[0])
 		await _press_on(vp, b)
 		await get_tree().create_timer(1.8).timeout
