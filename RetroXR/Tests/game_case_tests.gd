@@ -1503,18 +1503,14 @@ func _case_panels() -> void:
 	var sizes := {"box_back": Vector2i(765, 680), "box_side": Vector2i(65, 680), "box_front": Vector2i(680, 680)}
 	for kind: String in ["box_back", "box_side"]:
 		var dir := RomLibrary.rom_dir_for_system("psx").path_join("media").path_join(kind)
-		for d: String in [dir.get_base_dir().get_base_dir(), dir.get_base_dir(), dir]:
-			if not DirAccess.dir_exists_absolute(d):
-				DirAccess.make_dir_absolute(d)
-				made.append(d)
+		_make_dirs(dir, made)
 		_flat(sizes[kind].x, sizes[kind].y, Color.WHITE).save_png(dir.path_join("__case_panels_selftest.png"))
 	_ok(RetroGameCase.box_panel_paths("psx", rom).is_empty() and RetroGameCase.missing_panels("psx", rom).size() == 3,
 		"two of the three there: not a set, all three still wanted")
 	var front_dir := RomLibrary.rom_dir_for_system("psx").path_join("media").path_join("box_front")
-	if not DirAccess.dir_exists_absolute(front_dir):
-		DirAccess.make_dir_absolute(front_dir)
-		made.append(front_dir)
-	_flat(680, 680, Color(0.1, 0.55, 0.2)).save_png(front_dir.path_join("__case_panels_selftest.png"))
+	_make_dirs(front_dir, made)
+	_ok(_flat(680, 680, Color(0.1, 0.55, 0.2)).save_png(front_dir.path_join("__case_panels_selftest.png")) == OK,
+		"(the test's own panel files are written)")
 	_eq(RetroGameCase.box_panel_paths("psx", rom).size(), 3, "all three there: the set is found")
 	_ok(RetroGameCase.missing_panels("psx", rom).is_empty(), "and nothing more is wanted")
 	var joined := await RetroGameCase.decode_panels(get_tree(), RetroGameCase.box_panel_paths("psx", rom), "single")
@@ -1534,6 +1530,19 @@ func _case_panels() -> void:
 	clean.call()
 	RetroGameCase.pending_art.clear()
 	RetroGameCase._asked_art.clear()
+
+
+## Make `dir` with whatever of its parents is missing (an empty library has no roms folder at all); `made` gets
+## each folder created, parents first, for the test to take away again.
+func _make_dirs(dir: String, made: Array[String]) -> void:
+	var missing: Array[String] = []
+	var d := dir
+	while not DirAccess.dir_exists_absolute(d) and d != d.get_base_dir():
+		missing.append(d)
+		d = d.get_base_dir()
+	DirAccess.make_dir_recursive_absolute(dir)
+	for i in range(missing.size() - 1, -1, -1):
+		made.append(missing[i])
 
 
 ## The size of the box art a case wears on its paper, or zero.
