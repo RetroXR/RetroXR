@@ -597,7 +597,7 @@ func _handle_delete(peer: StreamPeerTCP, rel: String) -> void:
 		_send_text(peer, 403, "application/json", '{"error":"forbidden"}')
 		return
 	var was_dir := DirAccess.dir_exists_absolute(abs_path)
-	var err := DirAccess.remove_absolute(abs_path)
+	var err := remove_tree(abs_path) if was_dir else DirAccess.remove_absolute(abs_path)
 	if err == OK:
 		print("[WebFileServer] Deleted %s: %s" % ["folder" if was_dir else "file", abs_path])
 		_send_text(peer, 200, "application/json", '{"ok":true}')
@@ -605,6 +605,29 @@ func _handle_delete(peer: StreamPeerTCP, rel: String) -> void:
 		push_error("[WebFileServer] delete failed for %s: %s" % [abs_path, error_string(err)])
 		_send_text(peer, 500, "application/json",
 				   '{"error":"delete failed","code":%d}' % err)
+
+
+## Deletes a folder and everything in it. A linked folder is unlinked, never
+## walked: what it points at may be outside the roots. Carries on past a failure
+## and returns the first one, so whatever can go does.
+static func remove_tree(path: String) -> Error:
+	var dir := DirAccess.open(path)
+	if dir == null:
+		return DirAccess.get_open_error()
+	if dir.is_link(path):
+		return DirAccess.remove_absolute(path)
+	dir.include_hidden = true
+	var first := OK
+	for f: String in dir.get_files():
+		var e := DirAccess.remove_absolute(path.path_join(f))
+		if first == OK and e != OK:
+			first = e
+	for d: String in dir.get_directories():
+		var e := remove_tree(path.path_join(d))
+		if first == OK and e != OK:
+			first = e
+	var e := DirAccess.remove_absolute(path)
+	return first if first != OK else e
 
 
 ## Creates one folder, `name`, inside the folder `rel`.
@@ -946,7 +969,7 @@ function draw(d){
   (d.dirs||[]).forEach(function(e){
 	// The top level lists the named roots as bare names.
 	var n=typeof e==='string'?e:e.name,cp=cur?cur+'/'+n:n;
-	h+='<tr'+(e.problem?' class="bad"':'')+'><td class="ic">'+(e.problem?'⚠':'📁')+'</td><td class="nm"><span class="dn" data-nav="'+esc(cp)+'">'+esc(n)+'</span>'+why(e.problem)+note(e.note)+'</td><td class="sz">—</td><td class="ac"></td></tr>';
+	h+='<tr'+(e.problem?' class="bad"':'')+'><td class="ic">'+(e.problem?'⚠':'📁')+'</td><td class="nm"><span class="dn" data-nav="'+esc(cp)+'">'+esc(n)+'</span>'+why(e.problem)+note(e.note)+'</td><td class="sz">—</td><td class="ac">'+(cur?'<button class="rm" data-del="'+esc(cp)+'" data-dir="1">✕</button>':'')+'</td></tr>';
   });
   (d.files||[]).forEach(function(f){
 	var fp=cur?cur+'/'+f.name:f.name;
@@ -961,9 +984,16 @@ document.addEventListener('click',function(e){
 	window.location='/api/download?path='+encodeURIComponent(e.target.getAttribute('data-dl'));
   }
   if(e.target.hasAttribute('data-del')){
-	var p=e.target.getAttribute('data-del');
-	if(confirm('Delete '+p.split('/').pop()+'?'))
-	  fetch('/api/delete?path='+encodeURIComponent(p),{method:'DELETE'}).then(function(){go(cur,false);});
+	var p=e.target.getAttribute('data-del'),n=p.split('/').pop();
+	var dir=e.target.hasAttribute('data-dir');
+	if(!confirm(dir?'Delete the folder '+n+' and everything in it?':'Delete '+n+'?'))return;
+	st.className='';
+	fetch('/api/delete?path='+encodeURIComponent(p),{method:'DELETE'}).then(function(r){
+	  if(r.status==401){location.reload();return;}
+	  if(r.ok)st.textContent='Deleted '+n;
+	  else{st.className='err';st.textContent='Could not delete '+n+(dir?' (some of it may be gone)':'');}
+	  go(cur,false);
+	}).catch(function(){st.className='err';st.textContent='Could not delete '+n;});
   }
 });
 var dz=document.getElementById('dz');

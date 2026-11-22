@@ -71,6 +71,8 @@ func _ready() -> void:
 	if _wants("mkdir"):
 		_test_mkdir_name_rules()
 		_test_mkdir_creates_and_refuses()
+	if _wants("delete"):
+		_test_delete_folder()
 	if _wants("access"):
 		_test_access_problem()
 	if _wants("address"):
@@ -460,6 +462,24 @@ func _test_mkdir_creates_and_refuses() -> void:
 
 	DirAccess.remove_absolute(_up_root().path_join("New Folder/Inner"))
 	DirAccess.remove_absolute(_up_root().path_join("New Folder"))
+	_cleanup_up_dir()
+
+
+## The page's ✕ on a folder: it goes with everything in it, hidden files too,
+## and a named root is never deleted.
+func _test_delete_folder() -> void:
+	var game := _up_root().path_join("Some Game")
+	DirAccess.make_dir_recursive_absolute(game.path_join("saves/deep"))
+	for f: String in ["game.bin", ".hidden", "saves/deep/slot1.sav"]:
+		var fa := FileAccess.open(game.path_join(f), FileAccess.WRITE)
+		fa.store_string("x")
+		fa.close()
+	var peer := StreamPeerTCP.new()
+	_srv._handle_delete(peer, "media/" + UP_DIR + "/Some%20Game")
+	_ok(not DirAccess.dir_exists_absolute(game), "delete/a folder goes with everything in it")
+	_ok(DirAccess.dir_exists_absolute(_up_root()), "delete/its parent stays")
+	_srv._handle_delete(peer, "media")
+	_ok(DirAccess.dir_exists_absolute(_media), "delete/a root is refused")
 	_cleanup_up_dir()
 
 
