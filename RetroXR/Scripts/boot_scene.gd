@@ -37,6 +37,8 @@ func _ready() -> void:
 	_warn_if_stock_engine()
 	# Before any room is built: nothing may compose a save path until saves have moved.
 	SaveMigration.run_once(SaveSync)
+	# The Wii U's files from the Cemu fork to parallel-gx2, once (WiiUCoreMigration).
+	WiiUCoreMigration.run_once()
 	SystemIdMigration.run_once(SaveSync)
 	var room_id: String = SceneManager.current_scene_id
 	var room := _instantiate(room_id)

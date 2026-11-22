@@ -162,10 +162,10 @@ const RECOMMENDED := {
 		"why":  "The retroXR build takes the Wiimote's aim from the real sensor bar in the room rather than a cursor position, which is what makes pointing land where you point",
 	},
 
-	# Desktop only for now: the fork's Android build has never run (wiiu.md).
+	# Desktop only for now: RetroXR's branch has no Android build yet (wiiu.md).
 	"wiiu": {
-		"core": "cemu",
-		"why":  "The only Wii U core: RetroXR's build of Cemu hands the TV and GamePad pictures over separately, so the GamePad shows its own screen in your hands",
+		"core": "parallel_gx2",
+		"why":  "libretro's Wii U core, with retroXR's additions: the TV and GamePad pictures come over separately, so the GamePad shows its own screen in your hands, and its speaker plays from it",
 	},
 
 	# ── Sega ─────────────────────────────────────────────────────────────────

@@ -265,7 +265,7 @@ static func ps_multitap(core: String, systemid: String, taps: Array[bool]) -> Di
 ## when a title starts, so a change reaches the game at its next start. `kinds`
 ## are ToyBase.BASES keys.
 static func toy_bases(core: String, systemid: String, kinds: Array[String]) -> Dictionary:
-	if systemid != "wiiu" or not core.begins_with("cemu"):
+	if systemid != "wiiu" or not (core.begins_with("cemu") or core.begins_with("parallel_gx2")):
 		return {}
 	return {
 		"cemu_emulate_skylander_portal": "enabled" if ToyBase.PORTAL in kinds else "disabled",

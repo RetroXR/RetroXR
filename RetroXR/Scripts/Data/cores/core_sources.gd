@@ -703,7 +703,26 @@ const SOURCES := {
 			"Linux":   "xemu_libretro.so.zip",
 		},
 	},
-	# The Wii U. Here for the GamePad: the fork hands the TV and the GamePad over
+	# The Wii U, on libretro's parallel-gx2 (Cemu, rewritten for libretro: no
+	# locks or allocations in play, shader and pipeline work made ahead) with
+	# RetroXR's branch on top (RetroXR/parallel-gx2, branch retroxr): the
+	# GamePad's speaker through the controller audio interface, the remotes'
+	# motion and IR, amiibo through the NFC reader, HOME (joypad id 16, asked
+	# for), Exact Sensors motion and the Wii U Menu with no disc. Two-screen
+	# video views are parallel-gx2's own (Both Screens, pinned by the model).
+	# Toy-base figures are not ported yet (wiiu.md).
+	"parallel_gx2": {
+		"repo":  "RetroXR/parallel-gx2",
+		"branch": "retroxr",
+		"known_tag": "retroxr-parallel-gx2-v1",
+		"label": "ParaLLEl GX2 (retroXR build)",
+		"assets": {
+			"Windows": "parallel_gx2_libretro.dll.zip",
+			"Linux":   "parallel_gx2_libretro.so.zip",
+		},
+	},
+	# The old Wii U core, kept for a player who still has it: RetroXR's own Cemu
+	# fork. The fork hands the TV and the GamePad over
 	# as two video views (wiiu.md), its speaker through the controller audio
 	# interface, and the remotes' motion, IR and amiibo from the room. Windows and
 	# Linux only for now: its Android build has never run a game, and macOS has

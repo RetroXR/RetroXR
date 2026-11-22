@@ -33,6 +33,11 @@ var _seconds := 90.0
 ## with CEMU_MOTION_TRACE=1: the core says what it got and what it reports.
 var _gyro := 0.0
 var _shot := ""
+## --core=<name>: the libretro core to run (default parallel_gx2; cemu is RetroXR's old fork).
+var _core := "parallel_gx2"
+## --opt=<key>=<value> (repeatable): written into the core's .opt before start, as
+## RetroSystem pins its forced options (CoreOptionsStore.merge_values).
+var _opts := {}
 ## [[id, seconds], ...] from --press; seconds still to shoot from --shots.
 var _presses: Array = []
 var _shots: Array[float] = []
@@ -57,6 +62,12 @@ func _ready() -> void:
 			_seconds = float(a.substr(10))
 		elif a.begins_with("--shot="):
 			_shot = a.substr(7)
+		elif a.begins_with("--core="):
+			_core = a.substr(7)
+		elif a.begins_with("--opt="):
+			var kv := a.substr(6).split("=", true, 1)
+			if kv.size() == 2:
+				_opts[kv[0]] = kv[1]
 		elif a.begins_with("--press="):
 			for item: String in a.substr(8).split(",", false):
 				var parts := item.split("@")
@@ -93,8 +104,11 @@ func _ready() -> void:
 		return
 	add_child(_lib)
 	_lib.connect("content_load_failed", func(reason: String) -> void: _failed = reason)
-	print("[wiiu] leg=%s rom=%s" % [_leg, _rom])
-	_lib.StartContent(_root, "cemu", _rom)
+	print("[wiiu] leg=%s core=%s rom=%s" % [_leg, _core, _rom])
+	if not _opts.is_empty():
+		CoreOptionsStore.merge_values(_root, _core, _opts)
+		print("[wiiu] options pinned: %s" % str(_opts))
+	_lib.StartContent(_root, _core, _rom)
 
 	var t0 := Time.get_ticks_msec()
 	var views: Array = []

@@ -13,7 +13,7 @@
 ## and the Pro Controller unpaired, its control.
 ##
 ## --nodisc: no --rom, nothing in the slot: POWER boots the Wii U Menu from the
-## core's mlc01 (BiosBoot cemu/wiiu). The probe taps OK on the EULA notice and
+## core's mlc01 (BiosBoot parallel_gx2/wiiu). The probe taps OK on the EULA notice and
 ## Agree on the agreement, on the GamePad's glass, and the TV must then have left
 ## the agreement for the home screen. Needs a system dump in mlc01.
 ##
@@ -30,6 +30,8 @@ const AV_SCENE := preload("res://Scenes/Objects/system_models/wii/wii_av_cable.t
 
 var _rom := ""
 var _nodisc := false
+## --core=<name>: the console's core (default parallel_gx2; cemu is RetroXR's old fork).
+var _core := "parallel_gx2"
 var _out := ""
 var _touch := "tap"
 var _fail := false
@@ -67,6 +69,8 @@ func _ready() -> void:
 			_pair = false
 		elif a == "--nodisc":
 			_nodisc = true
+		elif a.begins_with("--core="):
+			_core = a.substr(7)
 	if _out.is_empty():
 		_out = OS.get_user_data_dir()
 	get_tree().create_timer(600.0).timeout.connect(func() -> void:
@@ -239,7 +243,7 @@ func _stage() -> void:
 
 	_sys = SYSTEM_SCENE.instantiate() as RetroSystem
 	_sys.systemid = "wiiu"
-	_sys.core_name = "cemu"
+	_sys.core_name = _core
 	_sys.freeze = true
 	add_child(_sys)
 	_sys.global_position = Vector3(-0.45, 0.0, -0.2)
@@ -294,7 +298,7 @@ func _stage() -> void:
 ## --nodisc: POWER on an empty slot, the menu's EULA notice, OK, Agree, the home
 ## screen.
 func _menu_run() -> void:
-	_check(BiosBoot.can_boot_empty("cemu", "wiiu"), "an empty Wii U can boot (the menu is installed)")
+	_check(BiosBoot.can_boot_empty(_core, "wiiu"), "an empty Wii U can boot (the menu is installed)")
 	await _boot(false)
 	var t0 := Time.get_ticks_msec()
 	var lit := 0.0
@@ -375,7 +379,9 @@ func _await_views() -> void:
 		"the GamePad's glass shows the console's picture")
 	if mat != null:
 		var r: Vector4 = mat.get_shader_parameter("source_rect")
-		_check(r.x > 0.5, "and the GamePad's window of it, not the TV's (%s)" % str(r))
+		# Beside the TV (RetroXR's old Cemu fork) or under it (parallel-gx2's Both
+		# Screens): either way past the TV's half of the frame.
+		_check(r.x > 0.5 or r.y > 0.5, "and the GamePad's window of it, not the TV's (%s)" % str(r))
 
 
 ## A finger on the middle of the glass for a moment: Nintendo Land's title says

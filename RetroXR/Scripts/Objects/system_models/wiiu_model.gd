@@ -97,6 +97,11 @@ func get_forced_core_options() -> Dictionary:
 		# The GamePad's motion is worked out from its tracked pose: no bias, no noise.
 		# The fork's Real Sensors filter would throw slow turns away and learn them as bias.
 		"cemu_gamepad_motion_filter": "exact",
+		# parallel-gx2 hands the TV and the GamePad over as two video views only in
+		# its Both Screens layout, and its layout button cycles through the list:
+		# one layout, that one. (RetroXR's old Cemu fork switched by itself.)
+		"cemu_screen_layout1": "Both Screens",
+		"cemu_number_of_screen_layouts": "1",
 	}
 
 

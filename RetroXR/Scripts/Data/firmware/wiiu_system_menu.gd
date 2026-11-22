@@ -1,5 +1,5 @@
 ## WiiUSystemMenu — the Wii U Menu a system dump puts in the Cemu core's mlc01:
-## what a Wii U boots with no disc (BiosBoot `cemu/wiiu`, `wiiu_menu`).
+## what a Wii U boots with no disc (BiosBoot `parallel_gx2/wiiu`, `wiiu_menu`).
 ##
 ## Not firmware the .info can name: it lives in the core's SAVE dir, as the Wii's
 ## System Menu does in Dolphin's NAND (WiiSystemMenu), and there is no installer
@@ -9,7 +9,8 @@
 class_name WiiUSystemMenu
 extends RefCounted
 
-const CORE := "cemu"
+## parallel-gx2's (WiiUCoreMigration moved the old Cemu fork's mlc01 here).
+const CORE := "parallel_gx2"
 ## The menu's title ids by region, low halves (high half 00050010), in the order
 ## the fork tries them.
 const TITLES := {"10040100": "USA", "10040200": "EUR", "10040000": "JPN"}

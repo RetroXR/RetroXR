@@ -279,6 +279,8 @@ const _ROWS := {
 	# the system memory (mlc01), not a BIOS: present only when a player has laid
 	# their console's dump into the Cemu core's mlc01, so the row asks
 	# WiiUSystemMenu.is_installed() (`wiiu_menu`), as the Wii's asks for its NAND.
+	# Both Wii U cores: parallel-gx2 (RetroXR's branch, the recommended one) and
+	# the old Cemu fork, which boot the same men.rpx the same way.
 	# `no_content`: there is no blank disc to hand a Wii U, and the fork, given
 	# none, boots the installed menu's men.rpx (libretro_wiiu_menu_path) and
 	# refuses the load without one.
@@ -286,6 +288,12 @@ const _ROWS := {
 	# MEASURED 2026-11-22 (wiiu_boot_probe, the US 5.5.5 menu): 60 fps on both
 	# screens, the EULA notice, a tap on the GamePad's Agree, then the home
 	# screen -- the Mii plaza on the TV, the app grid on the GamePad.
+	"parallel_gx2/wiiu": {
+		"wiiu_menu": true,
+		"empty_media": "",
+		"no_content": true,
+		"why": "Boots the Wii U Menu with no disc in the slot",
+	},
 	"cemu/wiiu": {
 		"wiiu_menu": true,
 		"empty_media": "",

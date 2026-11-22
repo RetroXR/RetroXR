@@ -659,7 +659,8 @@ func _extra_systemids(seen: Dictionary) -> Array[String]:
 	# Figures (amiibo, Skylanders, Disney Infinity, Lego Dimensions) have no core of their own:
 	# their shelves come with Cemu, whose GamePad and USB bases read them, or with a folder of
 	# them already on disk.
-	var have_cemu := "cemu" in _installed_core_names()
+	var installed := _installed_core_names()
+	var have_cemu := "parallel_gx2" in installed or "cemu" in installed
 	for fid: String in FigureShelves.SYSTEMIDS:
 		var fdir := RomLibrary.rom_dir_for_system(fid)
 		if not seen.has(fid) and (have_cemu

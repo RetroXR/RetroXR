@@ -57,6 +57,8 @@ func _ready() -> void:
 		await _test_home_reaches_the_wii_u()
 	if _wants("menu"):
 		_test_an_empty_wii_u_boots_its_menu()
+	if _wants("migrate"):
+		_test_the_wii_u_moves_to_parallel_gx2()
 
 	for n in _spawned:
 		if is_instance_valid(n):
@@ -261,6 +263,23 @@ func _test_the_gamepad_reads_androids_axes() -> void:
 	var w := WiiUGamePad.android_axes(spin.gyro_local(Basis(Vector3.UP, 0.58)))
 	_ok(w.z > 1.0 and absf(w.x) < 0.05 and absf(w.y) < 0.05,
 		"axes/a flat turn is a spin about Android's Z", str(w))
+	# parallel-gx2 reads SDL's controller axes, which are the pad's own: flat,
+	# gravity is +Y (out of the face); held up, top edge up, it is -Z (the top
+	# edge is -Z, the player +Z); and a flat turn is about Y. Only the old fork
+	# gets Android's.
+	_ok(not WiiUGamePad.core_reads_android_axes("parallel_gx2") and WiiUGamePad.core_reads_android_axes("cemu"),
+		"axes/parallel-gx2 gets SDL's axes, the old Cemu fork Android's")
+	for c: Array in [[Basis.IDENTITY, Vector3(0, 1, 0), "flat: +Y"],
+			[Basis(Vector3.RIGHT, PI * 0.5), Vector3(0, 0, -1), "held up, top edge up: -Z"]]:
+		var s2 := MotionSampler.new()
+		var xf2 := Transform3D(c[0] as Basis, Vector3.ZERO)
+		for i in 60:
+			s2.sample(xf2, 1.0 / 60.0)
+		var g := s2.accel_local(xf2.basis)
+		_ok(g.distance_to(c[1] as Vector3) < 0.01, "axes/SDL " + String(c[2]), str(g))
+	var w2 := spin.gyro_local(Basis(Vector3.UP, 0.58))
+	_ok(w2.y > 1.0 and absf(w2.x) < 0.05 and absf(w2.z) < 0.05,
+		"axes/SDL: a flat turn is a spin about Y", str(w2))
 	# A SLOW turn counts too: 0.03 degrees a tick at 90 Hz (2.7 deg/s), tilted
 	# off the vertical so every axis has a share. Quaternion.get_angle() read it
 	# as exactly 0, and a held GamePad's slow turns never reached the core.
@@ -427,15 +446,17 @@ func _test_home_reaches_the_wii_u() -> void:
 
 # ── menu/ ────────────────────────────────────────────────────────────────────
 
-## With no disc a Wii U boots its Wii U Menu: BiosBoot's cemu/wiiu row starts the
+## With no disc a Wii U boots its Wii U Menu: BiosBoot's parallel_gx2/wiiu row (and
+## the old Cemu fork's cemu/wiiu) starts the
 ## core with NO content, gated on the menu being in the core's mlc01, and the
 ## fork boots the first region's men.rpx it finds (US, EU, JP), as this does.
 func _test_an_empty_wii_u_boots_its_menu() -> void:
-	_ok(BiosBoot.boots_with_no_content("cemu", "wiiu"), "menu/a Wii U starts with no content")
-	_ok(BiosBoot.empty_media_extension("cemu", "wiiu").is_empty(), "menu/and no blank disc stands in")
-	_ok(bool(BiosBoot.entry("cemu", "wiiu").get("wiiu_menu", false)),
-		"menu/gated on the installed Wii U Menu, not on a firmware file")
-	_ok(WiiUSystemMenu.mlc_dir().ends_with("save/cemu/Cemu/mlc01"), "menu/the core's own mlc01",
+	for core: String in ["parallel_gx2", "cemu"]:
+		_ok(BiosBoot.boots_with_no_content(core, "wiiu"), "menu/a Wii U on %s starts with no content" % core)
+		_ok(BiosBoot.empty_media_extension(core, "wiiu").is_empty(), "menu/and no blank disc stands in (%s)" % core)
+		_ok(bool(BiosBoot.entry(core, "wiiu").get("wiiu_menu", false)),
+			"menu/gated on the installed Wii U Menu, not on a firmware file (%s)" % core)
+	_ok(WiiUSystemMenu.mlc_dir().ends_with("save/parallel_gx2/Cemu/mlc01"), "menu/parallel-gx2's own mlc01",
 		WiiUSystemMenu.mlc_dir())
 	var mlc := "user://wiiu_menu_test/mlc01"
 	DirAccess.make_dir_recursive_absolute(mlc)
@@ -458,3 +479,40 @@ func _test_an_empty_wii_u_boots_its_menu() -> void:
 	_ok(bool(BiosBoot.entry("dolphin", "wii").get("wii_menu", false))
 		and not bool(BiosBoot.entry("dolphin", "wii").get("wiiu_menu", false)),
 		"menu/a Wii still asks for its own System Menu")
+
+
+# ── migrate/ ─────────────────────────────────────────────────────────────────
+
+## The Wii U moved from the Cemu fork to parallel-gx2: the old core's mlc01 is
+## MOVED to the new one's where it has none, its system files copied where the new
+## one lacks them, and nothing of the new core's is ever overwritten.
+func _test_the_wii_u_moves_to_parallel_gx2() -> void:
+	var root := ProjectSettings.globalize_path("user://wiiu_migrate_test")
+	OS.move_to_trash(root) if DirAccess.dir_exists_absolute(root) else OK
+	var save := root.path_join("save")
+	var sys := root.path_join("system")
+	var put := func(path: String, text: String) -> void:
+		DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+		var f := FileAccess.open(path, FileAccess.WRITE)
+		f.store_string(text)
+		f.close()
+	put.call(save.path_join("cemu/Cemu/mlc01/usr/save/00050000/10102000/user/common/save.dat"), "nintendo land")
+	put.call(sys.path_join("cemu/Cemu/cafeLibs/swkbd.rpl"), "keyboard")
+	put.call(sys.path_join("cemu/Cemu/keys.txt"), "old keys")
+	put.call(sys.path_join("parallel_gx2/Cemu/keys.txt"), "new keys")
+	var report := WiiUCoreMigration.run(save, sys)
+	_ok(FileAccess.get_file_as_string(save.path_join("parallel_gx2/Cemu/mlc01/usr/save/00050000/10102000/user/common/save.dat")) == "nintendo land"
+		and not DirAccess.dir_exists_absolute(save.path_join("cemu/Cemu/mlc01")),
+		"migrate/the old core's mlc01 is moved to parallel-gx2's", str(report))
+	_ok(FileAccess.get_file_as_string(sys.path_join("parallel_gx2/Cemu/cafeLibs/swkbd.rpl")) == "keyboard",
+		"migrate/the native keyboard (cafeLibs) is copied across")
+	_ok(FileAccess.get_file_as_string(sys.path_join("parallel_gx2/Cemu/keys.txt")) == "new keys",
+		"migrate/a file the new core already has is not overwritten")
+	_ok(WiiUCoreMigration.run(save, sys).is_empty(), "migrate/run again, there is nothing left to do")
+	# Both cores holding an mlc01: neither is touched.
+	put.call(save.path_join("cemu/Cemu/mlc01/x.dat"), "old")
+	var both := WiiUCoreMigration.run(save, sys)
+	_ok(FileAccess.file_exists(save.path_join("cemu/Cemu/mlc01/x.dat"))
+		and not FileAccess.file_exists(save.path_join("parallel_gx2/Cemu/mlc01/x.dat"))
+		and str(both).contains("both cores"), "migrate/two mlc01s are both left as they are, and said", str(both))
+	OS.move_to_trash(root)

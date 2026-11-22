@@ -215,8 +215,12 @@ func _physics_process(delta: float) -> void:
 	if not is_instance_valid(lib):
 		return
 	var b := global_transform.basis
-	var a := android_axes(_motion.accel_local(b))
-	var w := android_axes(_motion.gyro_local(b))
+	var android := core_reads_android_axes(_connected_system.resolve_core_name())
+	var a := _motion.accel_local(b)
+	var w := _motion.gyro_local(b)
+	if android:
+		a = android_axes(a)
+		w = android_axes(w)
 	if not NetworkManager.netplay_set_aux_sensor(_connected_system, _port_index, 0,
 			int(a.x * 1000.0), int(a.y * 1000.0), int(a.z * 1000.0)):
 		lib.SetSensorAccel(_port_index, a.x, a.y, a.z)
@@ -225,9 +229,18 @@ func _physics_process(delta: float) -> void:
 		lib.SetSensorGyro(_port_index, w.x, w.y, w.z)
 
 
-## From the pad's own frame (+X right, +Y out of the screen, -Z the top edge) to
-## Android's (+X right, +Y the top edge, +Z out of the screen), which Cemu reads.
-## A proper rotation, so it holds for angular velocity too.
+## The pad's own frame (+X right, +Y out of the screen, +Z the bottom edge, towards
+## the player) IS SDL's for a controller, which parallel-gx2 reads libretro's sensor
+## axes as (upstream's conversion for SDL; a DualSense on RetroArch's udev driver
+## sends these), so it goes out as it is. Only RetroXR's old Cemu fork read
+## Android's and turned them itself.
+static func core_reads_android_axes(core: String) -> bool:
+	return core == "cemu"
+
+
+## From the pad's own frame to Android's (+X right, +Y the top edge, +Z out of the
+## screen), for the old Cemu fork. A proper rotation, so it holds for angular
+## velocity too.
 static func android_axes(v: Vector3) -> Vector3:
 	return Vector3(v.x, -v.z, v.y)
 
