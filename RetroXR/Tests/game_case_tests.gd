@@ -72,6 +72,7 @@ func _run() -> void:
 		["case/a grip anywhere over the booklet takes the manual; at a shut case, the case", _case_manual_reach],
 		["case/a seated manual turns no page and the lid's handle is quiet over it", _case_manual_quiet],
 		["case/let go a little way into a tabletop, a case is lifted onto it", _case_lift_out],
+		["case/a flip tray's hinge is taken from either face", _case_tray_both_faces],
 		["case/dropped shut or open, a case rests on the floor", _case_drop],
 		["case/the PS2 case's holder takes its memory card", _case_card_holder],
 		["case/the desktop lifts a disc out of an open case", _case_desktop_grab],
@@ -758,6 +759,14 @@ func _grip_at(at: Vector3) -> XRToolsFunctionPickup:
 	return pickup
 
 
+## Take that hand away: off out of reach, and its hover with it.
+func _ungrip(pickup: XRToolsFunctionPickup) -> void:
+	(pickup.get_parent() as Node3D).global_position += Vector3(0.0, 5.0, 0.0)
+	for _i in 4:
+		await get_tree().physics_frame
+	pickup._update_closest_object()
+
+
 func _on_its_back(c: RetroGameCase, x: float) -> void:
 	c.global_transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5), Vector3(x, 1.0, 0.0))
 
@@ -958,24 +967,50 @@ func _case_manual_reach() -> void:
 			"%s: with the lid at 40 degrees that point is under the base: not a reach for the manual" % fam[0],
 			str(c.global_transform.affine_inverse() * under))
 		_ok(zone.reaches(mid40 + in40 * 0.008) >= 0.0, "%s: just over the booklet still is" % fam[0])
+		var dz := c.disc_zone(0)
+		var disc_on := DISC_SCENE.instantiate() as RetroDisc
+		disc_on.systemid = "psx"
+		add_child(disc_on)
+		_spawned.append(disc_on)
+		dz.pick_up_object(disc_on)
+		for _i in 3:
+			await get_tree().physics_frame
+		# Lid at 40: the booklet leans over the disc. Of the two, a grip takes the one it is nearer.
+		var hub := dz.global_position
+		var hub_out := dz.global_basis.y.normalized()
+		var near_book := mid40 + in40 * 0.015
+		var pickup40 := await _grip_at(near_book)
+		_ok(pickup40.closest_object == zone or hub.distance_to(near_book) < 0.015,
+			"%s: 1.5 cm over the booklet, a real grip ranks the manual though the hub's ball reaches there" % fam[0],
+			"%s, hub %.3f away" % [pickup40.closest_object, hub.distance_to(near_book)])
+		await _ungrip(pickup40)
+		pickup40 = await _grip_at(hub + hub_out * 0.008)
+		_ok(pickup40.closest_object == dz, "%s: at the hub it ranks the disc" % fam[0], str(pickup40.closest_object))
+		await _ungrip(pickup40)
+		# Nothing is reached from behind its own panel: under the base is the case's to grip.
+		_ok(dz.reaches(hub + hub_out * 0.02) >= 0.0 and dz.reaches(hub - hub_out * 0.03) < 0.0,
+			"%s: a hub is reached from its own side, not from under the base" % fam[0])
+		pickup40 = await _grip_at(hub - hub_out * 0.03)
+		_ok(pickup40.closest_object == c, "%s: a real grip 3 cm under the hub ranks the case" % fam[0], str(pickup40.closest_object))
+		await _ungrip(pickup40)
+		dz.drop_object()
+		for _i in 2:
+			await get_tree().physics_frame
+		disc_on.global_position += Vector3(0.0, 9.0, 0.0)
 		c.sim.set_angle_deg(top, 110.0)
 		c._apply_angles()
-		var dz := c.disc_zone(0)
 		_ok(dz.reach_box.size == Vector3.ZERO and dz.reaches(dz.global_position + Vector3(0.03, 0.0, 0.0)) >= 0.0
-			and dz.reaches(dz.global_position + Vector3(0.07, 0.0, 0.0)) < 0.0, "%s: a hub's reach is the ball it was" % fam[0])
+			and dz.reaches(dz.global_position + Vector3(0.07, 0.0, 0.0)) < 0.0, "%s: a hub's reach is the ball it was, on its own side" % fam[0])
 		# A real grip.
 		var pickup := await _grip_at(mid + inward * 0.02 + across * size.x * 0.3)
 		_ok(pickup.closest_object == zone, "%s: a real grip over the booklet, off its spine, ranks the manual" % fam[0],
 			str(pickup.closest_object))
 		_ok(c._manual_rim != null and c._manual_rim.visible, "%s: and the rim round the booklet lights" % fam[0])
-		(pickup.get_parent() as Node3D).global_position += Vector3(0.0, 5.0, 0.0)
-		for _i in 4:
-			await get_tree().physics_frame
-		pickup._update_closest_object()
+		await _ungrip(pickup)
 		_ok(c._manual_rim != null and not c._manual_rim.visible, "%s: and goes out as the hand leaves" % fam[0])
 		pickup = await _grip_at(mid - inward * 0.03)
 		_ok(pickup.closest_object == c, "%s: a grip behind the lid ranks the case" % fam[0], str(pickup.closest_object))
-		(pickup.get_parent() as Node3D).global_position += Vector3(0.0, 5.0, 0.0)
+		await _ungrip(pickup)
 		# The zones follow their seats' reach, so a grip at a shut case takes the case and lets nothing go.
 		_ok(zone.enabled and dz.enabled, "%s: open, its zones are on" % fam[0])
 		var disc := DISC_SCENE.instantiate() as RetroDisc
@@ -1161,6 +1196,45 @@ func _case_lift_out() -> void:
 	for _i in 3:
 		await get_tree().physics_frame
 	_ok(HeldObjectPhysics.lift_out(c, c._body_shape, c.original_collision_mask, 0.06) == 0.0, "nor the disc on its own hub")
+
+
+func _case_tray_both_faces() -> void:
+	var x := 200.0
+	for fam: Array in [["jewel", "fatbox2"], ["keep", "triple"]]:
+		x += 3.0
+		var c := _new_case(fam[0], fam[1])
+		await get_tree().physics_frame
+		c.global_position = Vector3(x, 1.0, 0.0)
+		for i in c._zones.size():
+			var d := DISC_SCENE.instantiate() as RetroDisc
+			d.systemid = "psx"
+			add_child(d)
+			_spawned.append(d)
+			c.disc_zone(i).pick_up_object(d)
+		var top := c.sim.top()
+		c.sim.set_angle_deg(top, 180.0)
+		c.sim.set_angle_deg(0, 90.0)                       # the tray standing between the two halves
+		c.set_physics_process(false)
+		c._apply_angles()
+		for _i in 4:
+			await get_tree().physics_frame
+		c._apply_angles()
+		var tray := c.hinge(0)
+		var box := tray.get_node("CollisionShape3D") as CollisionShape3D
+		var half := (box.shape as BoxShape3D).size.y * 0.5
+		_ok(absf(box.position.y) < 1e-6 and absf(tray.position.y) < 1e-6 and half >= 0.01,
+			"%s: the tray's grab box stands as far out of one face as of the other" % fam[0],
+			"%f %f %f" % [box.position.y, tray.position.y, half])
+		var grabber := Node3D.new()
+		add_child(grabber)
+		_spawned.append(grabber)
+		var space := c.get_world_3d().direct_space_state
+		var mid := box.global_position
+		var normal := box.global_basis.y.normalized()
+		for side: float in [1.0, -1.0]:
+			var t := InteractionResolver.resolve_desktop(space, mid + normal * side * 0.2, mid - normal * side * 0.05, grabber)
+			_ok(t.is_valid() and t.action_node == tray, "%s: from its %s face a click on its free edge takes the tray's hinge" % [
+				fam[0], "upper" if side > 0.0 else "under"], "%s %s" % [t.kind, t.action_node])
 
 
 func _case_drop() -> void:

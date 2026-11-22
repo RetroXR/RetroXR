@@ -66,6 +66,8 @@ const LID_GRIP_REACH := 0.12
 ## Where a grip takes the manual out (XRToolsSnapZone.reach_box): the booklet itself and this far above it into the
 ## open case, this far beside it. Never behind it: that is the lid (the owner, 2026-11-22).
 const MANUAL_REACH_UP := 0.06
+## A hand this far behind the panel a seat is on is not reaching for what is on it.
+const SEAT_BEHIND := 0.01
 const MANUAL_REACH_SIDE := 0.01
 ## The rim that lights round the booklet when a grip would take the manual: this far outside it, this wide.
 const MANUAL_RIM_GAP := 0.003
@@ -378,11 +380,14 @@ func _build_hinges() -> void:
 		var idx := names.find(which)
 		hinge.gate = _can_take.bind(idx)
 		angle.add_child(hinge)
-		# The grab box over the panel's free third, thin through the panel. The lid's starts at the lid's own inside
+		# The grab box over the panel's free third, thin through the panel. A flip tray or a flipper is worked from
+		# either face, so its box stands as far out of the one as of the other: 4 mm out of its under face, a tray
+		# lying over on the lid could not be taken back by the face then uppermost, the click going to the disc on
+		# it (the owner, 2026-11-22, off the regions probe's picture). The lid's starts at the lid's own inside
 		# face and stands a centimetre out of its outside: reaching 4 mm into the case it stood in FRONT of the
 		# manual lying in the lid, and the desktop's click on the booklet's outer half took the lid.
-		var grab_y := 0.004
-		var grab_t := 0.016
+		var grab_y := 0.0
+		var grab_t := 0.024
 		if which == "open":
 			var inside := _lid_box.position.z - pivot.z
 			var outside := _lid_box.end.z - pivot.z + 0.010
@@ -570,6 +575,7 @@ func _zone(n: String, parent: Node3D, group: String, reach: float, filter: Calla
 	zone.grab_distance = reach
 	zone.snap_require = group
 	zone.snap_filter = filter
+	zone.reach_gate = _over_seat.bind(zone)
 	parent.add_child(zone)
 	zone.has_picked_up.connect(func(what: Node3D) -> void:
 		if what is PhysicsBody3D:
@@ -757,6 +763,8 @@ func _place_manual_zone(book_width: float, half_thick := 0.0) -> void:
 	var side := MANUAL_REACH_SIDE
 	_manual_zone.reach_box = AABB(Vector3(-side, -tall * 0.5 - side, z0),
 		Vector3(book_width + side * 2.0, tall + side * 2.0, z1 - z0))
+	# The booklet itself: a grip's nearness to the manual is its distance to this (XRToolsSnapZone.reach_core).
+	_manual_zone.reach_core = AABB(Vector3(0.0, -tall * 0.5, span.x), Vector3(book_width, tall, maxf(span.y - span.x, 0.0005)))
 
 
 func _on_book_resized(book: PDFBook) -> void:
@@ -812,7 +820,9 @@ func _update_reach() -> void:
 		var ok := _seat_reachable(i)
 		if _zones[i].enabled != ok:
 			_zones[i].enabled = ok
-		var obj := _zones[i].picked_up_object as XRToolsPickable
+		var obj: XRToolsPickable = null
+		if is_instance_valid(_zones[i].picked_up_object):
+			obj = _zones[i].picked_up_object as XRToolsPickable
 		if obj != null:
 			obj.enabled = ok
 		if i < _hub_buttons.size() and _hub_buttons[i].is_inside_tree():
@@ -823,7 +833,7 @@ func _update_reach() -> void:
 			continue
 		if z.enabled != open:
 			z.enabled = open
-		if z.picked_up_object is XRToolsPickable:
+		if is_instance_valid(z.picked_up_object) and z.picked_up_object is XRToolsPickable:
 			(z.picked_up_object as XRToolsPickable).enabled = open
 
 
@@ -1057,6 +1067,13 @@ func _lid_quiet(at: Vector3) -> bool:
 	if _manual_zone == null or not is_instance_valid(_manual_zone.picked_up_object) or not _lid_open():
 		return false
 	return _manual_zone.reach_box.has_point(_manual_zone.global_transform.affine_inverse() * at) and _clear_of_base(at)
+
+
+## A hand behind the panel a seat is on is not reaching for what is on it. A hub's reach is a ball round the hub,
+## and it ran through the base: a grip on an open case from underneath took the disc out through its back (a
+## probe, 2026-11-22). A zone's +Y is out of its panel (the disc's label side, a card's or a UMD's face).
+func _over_seat(at: Vector3, zone: XRToolsSnapZone) -> bool:
+	return is_instance_valid(zone) and (zone.global_transform.affine_inverse() * at).y > -SEAT_BEHIND
 
 
 ## Whether a point (world) is in the open air of the case: not inside its base, nor anywhere beneath it. The
@@ -1297,7 +1314,7 @@ func _follow_lid() -> void:
 ## probe) would otherwise leave it there until the drivers' next tick.
 func _carry_contents() -> void:
 	for z: XRToolsSnapZone in _zones + [_holder_zone, _card_zone, _manual_zone]:
-		if z != null and z.picked_up_object is Node3D and z.is_inside_tree():
+		if z != null and is_instance_valid(z.picked_up_object) and z.picked_up_object is Node3D and z.is_inside_tree():
 			(z.picked_up_object as Node3D).global_transform = z.global_transform
 
 

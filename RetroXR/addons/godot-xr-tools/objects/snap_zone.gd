@@ -299,6 +299,10 @@ var show_preview := true
 ## is the one XRToolsFunctionPickup always had: within grab_distance of the origin. Taking OUT only: what the zone
 ## accepts, and its preview, still go by grab_distance.
 var reach_box := AABB()
+## LOCAL PATCH (RetroXR): with a reach_box, the thing itself inside it (the booklet's own slab under the space a
+## hand reaches through). A hand's nearness is its distance to this, so of a booklet two centimetres under the
+## hand and a disc's hub five away, the booklet is the nearer. Empty, nearness is to the box's middle.
+var reach_core := AABB()
 ## LOCAL PATCH (RetroXR): a further say on that reach, for what no ball or box can say (a booklet's reach is the
 ## space over it, and stops at the other half of its case): a world point -> bool, asked only of a hand already
 ## inside the ball or the box.
@@ -316,7 +320,10 @@ func reaches(hand: Vector3) -> float:
 	else:
 		var p := global_transform.affine_inverse() * hand
 		if reach_box.has_point(p):
-			near = p.distance_squared_to(reach_box.get_center())
+			var to := reach_box.get_center()
+			if reach_core.size != Vector3.ZERO:
+				to = p.clamp(reach_core.position, reach_core.end)
+			near = p.distance_squared_to(to)
 	if near >= 0.0 and reach_gate.is_valid() and not reach_gate.call(hand):
 		return -1.0
 	return near
@@ -746,7 +753,8 @@ func _is_candidate_available(o: Node3D) -> bool:
 	if not o.has_method("is_picked_up") or not o.is_picked_up():
 		return true
 	var driver: Variant = o.get("_grab_driver")
-	if driver and driver.primary and driver.primary.by is XRToolsSnapZone:
+	# The holder may be gone (a hand's rig freed with the thing still in it): `freed is Class` is an error.
+	if driver and driver.primary and is_instance_valid(driver.primary.by) and driver.primary.by is XRToolsSnapZone:
 		return false
 	return true
 
