@@ -381,18 +381,25 @@ func _build_hinges() -> void:
 		hinge.gate = _can_take.bind(idx)
 		angle.add_child(hinge)
 		# The grab box over the panel's free third, thin through the panel. A flip tray or a flipper is worked from
-		# either face, so its box stands as far out of the one as of the other: 4 mm out of its under face, a tray
-		# lying over on the lid could not be taken back by the face then uppermost, the click going to the disc on
-		# it (the owner, 2026-11-22, off the regions probe's picture). The lid's starts at the lid's own inside
-		# face and stands a centimetre out of its outside: reaching 4 mm into the case it stood in FRONT of the
-		# manual lying in the lid, and the desktop's click on the booklet's outer half took the lid.
+		# either face, so its box stands a centimetre out of each, about the tray as it is DRAWN (_panel_slab): a
+		# jewel case's flip tray turns on the lid's own hinge line and hangs well under it, and laid on that line
+		# its handle stood beside the tray, clear of its far face (the owner, 2026-11-22, twice, off the regions
+		# probe's pictures). The lid's starts at the lid's own inside face and stands a centimetre out of its
+		# outside: reaching 4 mm into the case it stood in FRONT of the manual lying in the lid, and the desktop's
+		# click on the booklet's outer half took the lid.
 		var grab_y := 0.0
 		var grab_t := 0.024
+		var slab := Vector2(INF, -INF)
 		if which == "open":
 			var inside := _lid_box.position.z - pivot.z
 			var outside := _lid_box.end.z - pivot.z + 0.010
 			grab_y = (inside + outside) * 0.5
 			grab_t = outside - inside
+		else:
+			slab = _panel_slab(("FlipTray%d" if case_family == "jewel" else "Leaf%d") % (idx + 1), pivot.x + reach * 0.5)
+			if slab.x < slab.y:
+				grab_y = (slab.x + slab.y) * 0.5 - pivot.z
+				grab_t = (slab.y - slab.x) + 0.020
 		hinge.position = Vector3(0.0, grab_y, -reach * 0.8)
 		var col := CollisionShape3D.new()
 		col.name = "CollisionShape3D"
@@ -409,6 +416,9 @@ func _build_hinges() -> void:
 		if which == "open":                              # the lid's own box: its outside and its inside
 			mid = to_frame * _lid_box.get_center()
 			across = Vector3(_lid_box.size.y * 0.95, maxf(_lid_box.size.z, PANEL_POKE_T), _lid_box.size.x)
+		elif slab.x < slab.y:                            # a tray's own two faces, its discs on
+			mid = Vector3(0.0, grab_y, -reach * 0.5)
+			across = Vector3(_closed_box.size.y * 0.95, maxf(slab.y - slab.x, PANEL_POKE_T), reach)
 		var panel := CollisionShape3D.new()
 		panel.name = "PokePanel"
 		var pbox := BoxShape3D.new()
@@ -487,6 +497,37 @@ func _build_hinges() -> void:
 	base_panel.position = base_mid - _base_hinge.position
 	_base_hinge.poke_torque_faces = VRHinge.FACE_Y_NEG | VRHinge.FACE_Y_POS
 	_base_hinge.poke_push_only = true
+
+
+## An inner panel's two faces along the case's z, lying shut: its free half as the model draws it (from `from_x`
+## out, clear of the arms that reach up to its hinge line) with the discs it carries. (lo, hi); lo > hi when the
+## model has no such panel.
+func _panel_slab(node_name: String, from_x: float) -> Vector2:
+	var lo := INF
+	var hi := -INF
+	var node := model.levels[0].find_child(node_name, true, false) as Node3D if not model.levels.is_empty() else null
+	if node != null:
+		var parts: Array[MeshInstance3D] = GameCaseModel.meshes(node)
+		if node is MeshInstance3D:
+			parts.append(node as MeshInstance3D)
+		for mi in parts:
+			if mi.mesh == null:
+				continue
+			var at := GameCaseModel._local_to(model.levels[0], mi)
+			for s in mi.mesh.get_surface_count():
+				var verts: PackedVector3Array = mi.mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]
+				for v in verts:
+					var p := at * v
+					if p.x >= from_x:
+						lo = minf(lo, p.z)
+						hi = maxf(hi, p.z)
+	for row: Dictionary in model.contract().get("seats", []):
+		if str(row.get("parent", row.get("carrier", ""))) != node_name:
+			continue
+		var z := float((row["center_mm"] as Array)[2]) * 0.001
+		lo = minf(lo, z - DISC_HALF_T)
+		hi = maxf(hi, z + DISC_HALF_T)
+	return Vector2(lo, hi)
 
 
 ## How far the lid opens. A jewel case's hinge is near its front, so laid open on a table its lid turns a few degrees

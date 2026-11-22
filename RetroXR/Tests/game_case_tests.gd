@@ -1200,11 +1200,20 @@ func _case_lift_out() -> void:
 
 func _case_tray_both_faces() -> void:
 	var x := 200.0
-	for fam: Array in [["jewel", "fatbox2"], ["keep", "triple"]]:
+	# (Not the five-disc keep case: its two flippers are drawn turning like pages, 15 degrees apart, which the
+	# handles do not follow.)
+	for fam: Array in [["jewel", "fatbox2"], ["jewel", "double"], ["jewel", "pal_multi2"], ["keep", "triple"]]:
 		x += 3.0
 		var c := _new_case(fam[0], fam[1])
 		await get_tree().physics_frame
 		c.global_position = Vector3(x, 1.0, 0.0)
+		# Lying shut: the tray's two faces as it is drawn, and its handle laid on the middle of them.
+		var pivot := c.model.pivot_m("inner1")
+		var slab := c._panel_slab(("FlipTray%d" if fam[0] == "jewel" else "Leaf%d") % 1, pivot.x + 0.07)
+		_ok(slab.x < slab.y and slab.y - slab.x < 0.02, "%s/%s: the tray's two faces are found" % [fam[0], fam[1]], str(slab))
+		_ok(absf((c.hinge(0).position.y + pivot.z) - (slab.x + slab.y) * 0.5) < 0.0005,
+			"%s/%s: its handle lies on the tray's own middle, not on its hinge line (%.1f mm off it)" % [fam[0], fam[1],
+			absf(c.hinge(0).position.y) * 1000.0], "%f vs %f" % [c.hinge(0).position.y + pivot.z, (slab.x + slab.y) * 0.5])
 		for i in c._zones.size():
 			var d := DISC_SCENE.instantiate() as RetroDisc
 			d.systemid = "psx"
@@ -1222,9 +1231,24 @@ func _case_tray_both_faces() -> void:
 		var tray := c.hinge(0)
 		var box := tray.get_node("CollisionShape3D") as CollisionShape3D
 		var half := (box.shape as BoxShape3D).size.y * 0.5
-		_ok(absf(box.position.y) < 1e-6 and absf(tray.position.y) < 1e-6 and half >= 0.01,
-			"%s: the tray's grab box stands as far out of one face as of the other" % fam[0],
-			"%f %f %f" % [box.position.y, tray.position.y, half])
+		var panel := tray.get_node("PokePanel") as CollisionShape3D
+		var panel_half := (panel.shape as BoxShape3D).size.y * 0.5
+		# The handle lies on the tray as it is drawn: every disc on it is inside the fingertip's slab, and the grab
+		# box stands most of a centimetre out past the disc on each face.
+		var on_tray := 0
+		for i in c._zones.size():
+			if c._seat_carrier[i] != 0:
+				continue
+			on_tray += 1
+			var in_box := box.global_transform.affine_inverse() * c.disc_zone(i).global_position
+			var in_panel := panel.global_transform.affine_inverse() * c.disc_zone(i).global_position
+			_ok(absf(in_box.y) + 0.0006 <= half - 0.008, "%s/%s: the grab box stands out past the disc on seat %d" % [fam[0], fam[1], i + 1],
+				"disc %.4f from its middle, half %.4f" % [in_box.y, half])
+			_ok(absf(in_panel.y) <= panel_half + 0.0005, "%s/%s: the fingertip's slab takes in the disc on seat %d" % [fam[0], fam[1], i + 1],
+				"disc %.4f from its middle, half %.4f" % [in_panel.y, panel_half])
+		_ok(half >= (slab.y - slab.x) * 0.5 + 0.009 and panel_half >= (slab.y - slab.x) * 0.5 - 0.0005,
+			"%s/%s: the grab box stands a centimetre out of each face of the tray (%d discs on it)" % [fam[0], fam[1], on_tray],
+			"half %.4f, panel %.4f, tray %.4f" % [half, panel_half, slab.y - slab.x])
 		var grabber := Node3D.new()
 		add_child(grabber)
 		_spawned.append(grabber)
@@ -1233,8 +1257,8 @@ func _case_tray_both_faces() -> void:
 		var normal := box.global_basis.y.normalized()
 		for side: float in [1.0, -1.0]:
 			var t := InteractionResolver.resolve_desktop(space, mid + normal * side * 0.2, mid - normal * side * 0.05, grabber)
-			_ok(t.is_valid() and t.action_node == tray, "%s: from its %s face a click on its free edge takes the tray's hinge" % [
-				fam[0], "upper" if side > 0.0 else "under"], "%s %s" % [t.kind, t.action_node])
+			_ok(t.is_valid() and t.action_node == tray, "%s/%s: from its %s face a click on its free edge takes the tray's hinge" % [
+				fam[0], fam[1], "upper" if side > 0.0 else "under"], "%s %s" % [t.kind, t.action_node])
 
 
 func _case_drop() -> void:
