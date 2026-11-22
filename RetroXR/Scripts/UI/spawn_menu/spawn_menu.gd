@@ -230,6 +230,11 @@ func _init_scraper() -> void:
 	# Cabinets that came back switched on, before this menu existed, have been waiting for it.
 	for rom: String in ArcadeAttract.pending_media.keys():
 		request_attract_media(rom, str(ArcadeAttract.pending_media[rom]))
+	# A jewel case asks for its game's back, side and front the same way, and is told when one lands.
+	add_to_group(RetroGameCase.PANEL_LISTENERS)
+	scrape_queue.media_downloaded.connect(_on_case_art_downloaded)
+	for rom: String in RetroGameCase.pending_art.keys():
+		request_case_art(rom, str(RetroGameCase.pending_art[rom]))
 
 
 ## A cabinet with attract mode on wants this game's video and title (RetroSystem.request_attract_media).
@@ -244,6 +249,19 @@ func request_attract_media(rom_path: String, systemid: String) -> void:
 func _on_attract_media_downloaded(rom_path: String, _systemid: String, media_type: String, _path: String) -> void:
 	if media_type == "video" or media_type == "title":
 		get_tree().call_group(&"arcade_attract", &"on_media_arrived", rom_path)
+
+
+## A jewel case wants its game's three panels (RetroGameCase._want_panels): one request, for the game in hand.
+func request_case_art(rom_path: String, systemid: String) -> void:
+	RetroGameCase.pending_art.erase(rom_path)
+	var kinds := RetroGameCase.missing_panels(systemid, rom_path)
+	if auto_scraper != null and not kinds.is_empty():
+		auto_scraper.request_media(rom_path, systemid, kinds)
+
+
+func _on_case_art_downloaded(rom_path: String, _systemid: String, media_type: String, _path: String) -> void:
+	if RetroGameCase.PANEL_KINDS.has(media_type):
+		get_tree().call_group(RetroGameCase.PANEL_GROUP, &"on_panel_arrived", rom_path)
 
 
 ## RomM: config + client + catalog + downloader + art cache, all wired to the

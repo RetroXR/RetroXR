@@ -420,6 +420,42 @@ func apply_box_texture(texture: Texture2D) -> Error:
 	return OK if n >= levels.size() else ERR_DOES_NOT_EXIST
 
 
+## A jewel case's three panels (ScreenScraper's box-2D-back, box-2D-side and box-2D, each its own picture) joined
+## into the one image apply_box_texture takes: the back at the layout's width, the side at its spine's, the front
+## after them. Each panel fills its own part whatever shape its scan had, which is the point: one wrap split by the
+## layout is right only for a wrap that keeps it (fit_jewel_scan), and they do not all (PlayStation: back and
+## spine 792 and 36 px of 680, or 765 and 65; a long box's 476 and 67 of 1024, where the layout says 484 and 56).
+## A front wider than the booklet is a US scan's whole lid, the tray band's strip at its left: kept at its own
+## shape. A layout with no strip (the long box) takes the whole front on its booklet. Null when a panel is
+## missing. Any thread.
+static func join_panels(back: Image, side: Image, front: Image, case_variant := "") -> Image:
+	for part: Image in [back, side, front]:
+		if part == null or part.is_empty():
+			return null
+	var lay := jewel_layout(case_variant)
+	var h := back.get_height()
+	var back_w := int(round(h * float(lay["back"])))
+	var spine_w := maxi(1, int(round(h * float(lay["spine"]))))
+	var front_w := maxi(1, int(round(float(front.get_width()) * h / float(front.get_height()))))
+	if float(lay["strip_mm"]) <= 0.0:
+		front_w = int(round(h * float(lay["booklet_per_h"])))
+	var out := Image.create_empty(back_w + spine_w + front_w, h, false, Image.FORMAT_RGBA8)
+	var x := 0
+	for row: Array in [[back, back_w], [side, spine_w], [front, front_w]]:
+		var part := (row[0] as Image).duplicate() as Image
+		if part.is_compressed() and part.decompress() != OK:
+			return null
+		if part.has_mipmaps():
+			part.clear_mipmaps()
+		part.convert(Image.FORMAT_RGBA8)
+		var w := int(row[1])
+		if part.get_width() != w or part.get_height() != h:
+			part.resize(w, h, Image.INTERPOLATE_LANCZOS)
+		out.blit_rect(part, Rect2i(0, 0, w, h), Vector2i(x, 0))
+		x += w
+	return out
+
+
 ## A jewel box-texture whose spine strip is not where the layout has it, put right in place. Most scans keep the
 ## layout (Crash Bandicoot 2 and 3, Spyro x Sparx, Japan: the back to 792, the spine to 829 of 1509 x 680); some
 ## carry a wider strip, the back squeezed to make room (Spyro the Dragon (Japan): back 0..764, strip 764..830), and

@@ -73,6 +73,16 @@ const MANUAL_REACH_SIDE := 0.01
 const MANUAL_RIM_GAP := 0.003
 const MANUAL_RIM_W := 0.002
 const MANUAL_HAPTIC_KEY := &"game_case_manual"
+## A jewel case's back, side and front as the scraper files them, each in the folder of its kind
+## (ScreenscraperClient.PANEL_MEDIA). The group a case is told through when one lands, and the group it asks
+## through (the spawn menu, which owns the scraper).
+const PANEL_KINDS := ScreenscraperClient.PANEL_MEDIA
+const PANEL_GROUP := &"game_case_art"
+const PANEL_LISTENERS := &"case_art_listener"
+## Games whose panels a case asked for before anything was there to fetch them: rom path -> system (as
+## ArcadeAttract.pending_media). And every game asked for this session, found or not: once each.
+static var pending_art: Dictionary = {}
+static var _asked_art: Dictionary = {}
 ## A case let go a little way into what it should lie on is lifted out onto it (HeldObjectPhysics.lift_out): no
 ## farther than this, and not one moving faster than this (thrown, not put down).
 const LIFT_MAX := 0.06
@@ -178,6 +188,7 @@ var _spin := 0.0
 func _ready() -> void:
 	super()
 	add_to_group(GROUP)
+	add_to_group(PANEL_GROUP)
 	# The desktop ray meets the case by its PointerArea only (shaped to leave an open case's inside clear), not by its
 	# body's hull: that fills an open case to the brim, and every click on a disc took the case (the owner, 2026-11-21).
 	set_meta(InteractionResolver.POINTER_BY_AREA, true)
@@ -215,6 +226,7 @@ func _ready() -> void:
 		_apply_art(box_image)
 	elif not rom_path.is_empty():
 		_load_art.call_deferred()
+	_want_panels.call_deferred()
 
 
 ## The scraped manual for this game, or "".
@@ -882,12 +894,38 @@ func _update_reach() -> void:
 
 # ------------------------------------------------------------------ art
 func _load_art() -> void:
-	var path := box_art_path(systemid, rom_path)
-	if path.is_empty():
-		return
-	var img := await decode_image(get_tree(), path)
+	var img: Image = null
+	# A jewel case's three panels as ScreenScraper cut them, when the scraper has them; else the one wrap, split by
+	# the layout.
+	var panels := box_panel_paths(systemid, rom_path) if case_family == "jewel" else {}
+	if not panels.is_empty():
+		img = await decode_panels(get_tree(), panels, case_variant)
+	if img == null and is_inside_tree():
+		var path := box_art_path(systemid, rom_path)
+		if not path.is_empty():
+			img = await decode_image(get_tree(), path)
 	if img != null and is_inside_tree():
 		_apply_art(img)
+
+
+## Ask for this game's three panels when it has not got them. Through a group: the spawn menu owns the scraper,
+## and a case put back by a save is here before it (pending_art). Once a game a session, found or not.
+func _want_panels() -> void:
+	if case_family != "jewel" or rom_path.is_empty() or systemid.is_empty() or not is_inside_tree():
+		return
+	if _asked_art.has(rom_path) or missing_panels(systemid, rom_path).is_empty():
+		return
+	_asked_art[rom_path] = true
+	pending_art[rom_path] = systemid
+	if get_tree().get_nodes_in_group(PANEL_LISTENERS).is_empty():
+		return
+	get_tree().call_group(PANEL_LISTENERS, &"request_case_art", rom_path, systemid)
+
+
+## One of a game's panels has landed (the spawn menu, by PANEL_GROUP): with all three there, the art goes on again.
+func on_panel_arrived(rom: String) -> void:
+	if rom == rom_path and case_family == "jewel" and not box_panel_paths(systemid, rom_path).is_empty():
+		_load_art()
 
 
 func _apply_art(img: Image) -> void:
@@ -907,6 +945,50 @@ static func box_art_path(sys: String, rom: String) -> String:
 			if FileAccess.file_exists(p):
 				return p
 	return ""
+
+
+## A game's back, side and front as the scraper filed them ({kind: path}), or {} unless all three are there
+## (resolved on the main thread, as box_art_path).
+static func box_panel_paths(sys: String, rom: String) -> Dictionary:
+	var out := {}
+	if sys.is_empty() or rom.is_empty():
+		return out
+	var base := RomLibrary.content_stem(rom)
+	for kind: String in PANEL_KINDS:
+		for dir in RomLibrary.rom_dirs_for_system(sys):
+			for ext in [".png", ".jpg", ".jpeg", ".webp"]:
+				var p := dir.path_join("media").path_join(kind).path_join(base + ext)
+				if not out.has(kind) and FileAccess.file_exists(p):
+					out[kind] = p
+		if not out.has(kind):
+			return {}
+	return out
+
+
+## The panel kinds to fetch for a game: all three unless all three are there (they are one region's set).
+static func missing_panels(sys: String, rom: String) -> Array:
+	return [] if not box_panel_paths(sys, rom).is_empty() else PANEL_KINDS.duplicate()
+
+
+## Decode a game's three panels and join them for a jewel case of `variant` (GameCaseModel.join_panels), with
+## mipmaps, on a worker thread. Null when one will not load.
+static func decode_panels(tree: SceneTree, paths: Dictionary, variant: String) -> Image:
+	var out: Array = [null]
+	var task := WorkerThreadPool.add_task(func() -> void:
+		var parts: Array[Image] = []
+		for kind: String in PANEL_KINDS:
+			var img := Image.new()
+			if img.load(str(paths.get(kind, ""))) != OK:
+				return
+			parts.append(img)
+		var joined := GameCaseModel.join_panels(parts[0], parts[1], parts[2], variant)
+		if joined != null:
+			joined.generate_mipmaps()
+			out[0] = joined)
+	while not WorkerThreadPool.is_task_completed(task):
+		await tree.process_frame
+	WorkerThreadPool.wait_for_task_completion(task)
+	return out[0]
 
 
 ## Decode an image (with its mipmaps) on a worker thread.

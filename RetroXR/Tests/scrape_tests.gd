@@ -103,6 +103,7 @@ func _ready() -> void:
 	await _run_group("config", _group_config)
 	await _run_group("priority", _group_priority)
 	await _run_group("cabinet_media", _group_cabinet_media)
+	await _run_group("case_panels", _group_case_panels)
 	_teardown()
 	_finish()
 
@@ -727,6 +728,48 @@ func _group_priority() -> void:
 
 
 # ── A cabinet's attract mode: video and title, on demand, arcade only ───────────
+
+func _group_case_panels() -> void:
+	var client := ScreenscraperClient.new()
+	client.config = ScraperConfig.new()
+	var prio: Array[String] = ["us", "eu", "jp"]
+	client.config.region_priorities = prio
+	# Spyro the Dragon's shape: three regions, the US set short of its side.
+	var medias: Array = []
+	for t: String in ["box-2D", "box-2D-side", "box-2D-back", "box-texture"]:
+		for r: String in ["asi", "eu", "us"]:
+			if not (t == "box-2D-side" and r == "us"):
+				medias.append({"type": t, "region": r, "url": "%s/%s" % [t, r]})
+	var plain: Dictionary = client._extract_media_urls(medias, ["us"])
+	_ok(not plain.has("box_front") and not plain.has("box_side") and not plain.has("box_back"),
+		"case panels: a scrape that asks for nothing extra finds none")
+	client.extra_media = ScreenscraperClient.PANEL_MEDIA
+	var picked: Dictionary = client._extract_media_urls(medias, ["us"])
+	_ok(picked["box_front"] == "box-2D/eu" and picked["box_side"] == "box-2D-side/eu" and picked["box_back"] == "box-2D-back/eu",
+		"case panels: the three come from one region, the first in the order that has all three: %s" % str(picked))
+	_ok(picked["box"] == "box-texture/us", "case panels: the wrap still goes by its own region")
+	picked = client._extract_media_urls(medias, ["asi"])
+	_ok(picked["box_front"] == "box-2D/asi" and picked["box_back"] == "box-2D-back/asi",
+		"case panels: the ROM's own region first (a Japanese game filed under Asia)")
+	client.extra_media = ["box_side"]
+	picked = client._extract_media_urls(medias, ["asi"])
+	_ok(picked["box_front"] == "box-2D/asi" and picked["box_side"] == "box-2D-side/asi",
+		"case panels: asked for one, the set is found whole (the downloads are what the filter trims)")
+	client.extra_media = ScreenscraperClient.PANEL_MEDIA
+	var no_side: Array = medias.filter(func(m: Dictionary) -> bool: return str(m["type"]) != "box-2D-side")
+	picked = client._extract_media_urls(no_side, ["us"])
+	_ok(picked["box_front"] == "" and picked["box_side"] == "" and picked["box_back"] == "",
+		"case panels: no region with all three, none is taken")
+	var odd: Array = []
+	for t: String in ["box-2D", "box-2D-side", "box-2D-back"]:
+		odd.append({"type": t, "region": "kr", "url": "%s/kr" % t})
+	picked = client._extract_media_urls(odd, ["us"])
+	_ok(picked["box_side"] == "box-2D-side/kr", "case panels: a region nobody ranked still gives its set")
+	_ok(ScreenscraperClient.panel_set({}, ["us"]).is_empty(), "case panels: nothing to pick from, nothing picked")
+	for kind: String in ScreenscraperClient.PANEL_MEDIA:
+		_ok(RomMedia.SCRAPED_DIRS.has(kind), "case panels: %s is a folder the library's cleanup knows" % kind)
+	client.free()
+
 
 func _group_cabinet_media() -> void:
 	var medias := [

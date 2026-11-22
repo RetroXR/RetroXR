@@ -68,6 +68,12 @@ var media_filter: Array = []
 var _requested_systemeid: int = -1
 
 const CABINET_MEDIA := ["video", "title"]
+## A game case's back, side and front, each its own picture (ScreenScraper cuts them from the box-texture itself:
+## Spyro the Dragon's are its wrap's own pixels). Fetched when a jewel case asks (RetroGameCase._want_panels),
+## because one wrap split by a fixed layout is only right for a wrap that keeps it, and they do not all: a
+## PlayStation wrap's back and spine are 792 and 36 px of 680, or 765 and 65. The kind is also its folder.
+const PANEL_MEDIA := ["box_back", "box_side", "box_front"]
+const PANEL_TYPES := {"box-2D-back": "box_back", "box-2D-side": "box_side", "box-2D": "box_front"}
 ## The files a media type may arrive as; anything else in a URL's tail is not an extension.
 const MEDIA_EXTS := {
 	"video": ["mp4", "mkv", "webm", "avi", "mov"],
@@ -569,6 +575,11 @@ func _extract_media_urls(medias, rom_region_codes: Array = [], disc_num: int = 0
 	var extras: Array = extra_media.filter(func(k: Variant) -> bool: return (arcade or cabinet) and CABINET_MEDIA.has(k))
 	for kind in extras:
 		result[kind] = ""
+	# A case's panels only when the caller asked, and then all three (they are taken together, below).
+	var panels: bool = extra_media.any(func(k: Variant) -> bool: return PANEL_MEDIA.has(k))
+	if panels:
+		for kind: String in PANEL_MEDIA:
+			result[kind] = ""
 	if not medias is Array:
 		return result
 
@@ -578,6 +589,8 @@ func _extract_media_urls(medias, rom_region_codes: Array = [], disc_num: int = 0
 	# Collect candidates per type
 	var candidates := {"wheel": [], "box": [], "label": [], "manual": []}
 	for kind in extras:
+		candidates[kind] = []
+	for kind: String in PANEL_MEDIA:
 		candidates[kind] = []
 	# A screenshot of the game (`ss`), for the title slot of a game ScreenScraper has no title screen for:
 	# an attract with no video shows the game's own screen, not its wheel (a logo).
@@ -606,6 +619,8 @@ func _extract_media_urls(medias, rom_region_codes: Array = [], disc_num: int = 0
 			})
 		elif mtype == "manuel":
 			candidates["manual"].append({"url": url, "region": region})
+		elif panels and PANEL_TYPES.has(mtype):
+			candidates[PANEL_TYPES[mtype]].append({"url": url, "region": region})
 		elif mtype == "video-normalized" and extras.has("video"):
 			# The smaller, level-matched encode (Point Blank: 2.6 MB against 6.9): first in line, so it wins
 			# a tie on region and the plain `video` is only the fallback. A cabinet's video is data spent on
@@ -643,10 +658,19 @@ func _extract_media_urls(medias, rom_region_codes: Array = [], disc_num: int = 0
 		if not own_disc.is_empty():
 			candidates["label"] = own_disc
 
+	# A case's three panels come from ONE region or not at all: a back from one market beside a front from another
+	# is no case anybody owned.
+	if panels:
+		var whole := panel_set(candidates, effective_priorities)
+		for kind: String in PANEL_MEDIA:
+			result[kind] = str(whole.get(kind, ""))
+		print("[ScreenscraperClient] Media[case panels] %s" % (
+			"no region has all three" if whole.is_empty() else "picked region=%s" % str(whole["region"])))
+
 	# For each media type, pick best by effective region priority
 	for key: String in result.keys():
 		var cands: Array = candidates[key]
-		if cands.is_empty():
+		if cands.is_empty() or PANEL_MEDIA.has(key):
 			continue
 		var picked_region := ""
 		var found := false
@@ -730,6 +754,37 @@ func _on_media_download_completed(media_type: String, result: int,
 	media_download_completed.emit(media_type, dest_path)
 
 
+## A game case's back, side and front from one region ({kind: url, "region": code}): the first region of
+## `priorities` that has all three, else the first that has; {} when none does.
+static func panel_set(candidates: Dictionary, priorities: Array) -> Dictionary:
+	var whole: Array = []
+	for c: Dictionary in candidates.get(PANEL_MEDIA[0], []):
+		var region := str(c.get("region", ""))
+		if whole.has(region):
+			continue
+		var all := true
+		for kind: String in PANEL_MEDIA:
+			if not (candidates.get(kind, []) as Array).any(
+					func(o: Dictionary) -> bool: return str(o.get("region", "")) == region):
+				all = false
+		if all:
+			whole.append(region)
+	if whole.is_empty():
+		return {}
+	var pick: String = whole[0]
+	for code: Variant in priorities:
+		if whole.has(str(code)):
+			pick = str(code)
+			break
+	var out := {"region": pick}
+	for kind: String in PANEL_MEDIA:
+		for c: Dictionary in candidates[kind]:
+			if str(c.get("region", "")) == pick:
+				out[kind] = str(c.get("url", ""))
+				break
+	return out
+
+
 ## Start downloading all available media for a scraped result.
 ## rom_basename: e.g. "Banjo-Kazooie (USA)" (no extension)
 ##
@@ -753,6 +808,8 @@ func download_all_media(scrape_result: Dictionary, systemid: String, rom_basenam
 		"video": {"dir": "video", "ext": ".mp4"},
 		"title": {"dir": "title", "ext": ".png"},
 	}
+	for kind: String in PANEL_MEDIA:
+		type_map[kind] = {"dir": kind, "ext": ".png"}
 
 	for mtype: String in type_map:
 		var url: String = media.get(mtype, "")

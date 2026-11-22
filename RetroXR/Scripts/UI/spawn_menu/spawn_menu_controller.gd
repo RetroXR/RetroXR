@@ -1628,6 +1628,13 @@ func _on_spawn_case_requested(rom_path: String, game_label: String, systemid: St
 	var size := Vector2i(img.get_width(), img.get_height()) if img != null else Vector2i.ZERO
 	var pick := GameCase.pick(systemid, GameCase.market_of(systemid, rom_path), discs.size(), size,
 		GameCase.release_of(systemid, rom_path))
+	# A jewel case's art from its three panels when the scraper has them (the wrap above still tells its shape).
+	if str(pick["family"]) == "jewel":
+		var panels := RetroGameCase.box_panel_paths(systemid, rom_path)
+		if not panels.is_empty():
+			var joined := await RetroGameCase.decode_panels(get_tree(), panels, str(pick["variant"]))
+			if joined != null:
+				img = joined
 	var c := GAME_CASE_SCENE.instantiate() as RetroGameCase
 	c.rom_path = rom_path
 	c.game_label = game_label

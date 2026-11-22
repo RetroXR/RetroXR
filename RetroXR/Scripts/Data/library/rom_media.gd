@@ -22,7 +22,8 @@ extends RefCounted
 
 ## Subdirectories keyed by ROM basename.
 ## "title" and "video" come from a cabinet's attract mode (ArcadeAttract); the storage cleanup sees them too.
-const SCRAPED_DIRS := ["wheel", "box", "label", "manual", "title", "video"]
+## "box_back", "box_side" and "box_front" are a game case's panels (ScreenscraperClient.PANEL_MEDIA).
+const SCRAPED_DIRS := ["wheel", "box", "label", "manual", "title", "video", "box_back", "box_side", "box_front"]
 ## Subdirectory keyed by RomM rom id.
 const ROMM_DIR := "romm"
 

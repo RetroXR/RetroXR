@@ -74,6 +74,8 @@ func _run() -> void:
 		["case/a seated manual turns no page and the lid's handle is quiet over it", _case_manual_quiet],
 		["case/let go a little way into a tabletop, a case is lifted onto it", _case_lift_out],
 		["model/a jewel scan's wide spine strip is laid on the spine", _scan_spine_fit],
+		["model/a case's three panels are joined into the layout", _panels_join],
+		["case/a jewel case asks for its panels and takes them", _case_panels],
 		["case/a flip tray's hinge is taken from either face", _case_tray_both_faces],
 		["case/a flipper is drawn where its handle is", _case_pages_drawn_as_held],
 		["case/dropped shut or open, a case rests on the floor", _case_drop],
@@ -1405,6 +1407,143 @@ func _scan_spine_fit() -> void:
 	var mipped := _scan(1510, 680, 764, 830)
 	mipped.generate_mipmaps()
 	_ok(GameCaseModel.fit_jewel_scan(mipped) and not mipped.has_mipmaps(), "a scan with mipmaps loses them, to be made again")
+
+
+func _flat(w: int, h: int, c: Color) -> Image:
+	var img := Image.create_empty(w, h, false, Image.FORMAT_RGB8)
+	img.fill(c)
+	return img
+
+
+func _panels_join() -> void:
+	var red := func(c: Color) -> bool: return c.r > 0.6 and c.g < 0.4
+	var white := func(c: Color) -> bool: return c.r > 0.9 and c.g > 0.9 and c.b > 0.9
+	var green := func(c: Color) -> bool: return c.g > 0.45 and c.r < 0.25
+	# Spyro the Dragon (Europe)'s shapes: a back 765 wide, a side 65, a square front.
+	var side := _flat(65, 680, Color.WHITE)
+	side.fill_rect(Rect2i(0, 0, 65, 97), Color.BLACK)
+	var joined := GameCaseModel.join_panels(_flat(765, 680, Color(0.75, 0.3, 0.35)), side, _flat(680, 680, Color(0.1, 0.55, 0.2)))
+	_ok(joined != null and joined.get_width() == 792 + 36 + 680 and joined.get_height() == 680, "back, spine and front at the layout's widths",
+		str(joined.get_size()) if joined != null else "null")
+	_ok(red.call(joined.get_pixel(2, 400)) and red.call(joined.get_pixel(790, 400)), "the back fills its 792")
+	_ok(white.call(joined.get_pixel(793, 400)) and white.call(joined.get_pixel(826, 400)) and joined.get_pixel(810, 40).r < 0.1,
+		"the side fills the spine's 36, its head at its head")
+	_ok(green.call(joined.get_pixel(829, 400)) and green.call(joined.get_pixel(1507, 400)), "the front after them")
+	_eq(GameCaseModel.jewel_spine_start(joined), -1, "joined, it keeps the layout")
+	_ok(is_equal_approx(GameCaseModel.booklet_fraction("", 1508.0, 680.0), 680.0 / 1508.0), "its square front is the booklet's, whole")
+	# A US front is the whole lid: kept at its own shape, the band's strip left of the booklet.
+	var us := GameCaseModel.join_panels(_flat(794, 680, Color.RED), _flat(39, 680, Color.WHITE), _flat(792, 680, Color.GREEN))
+	_ok(us.get_width() == 792 + 36 + 792, "a US scan's front keeps its 792", str(us.get_size()))
+	# Panels of other sizes are brought to the back's height.
+	var small := GameCaseModel.join_panels(_flat(765, 680, Color.RED), _flat(33, 340, Color.WHITE), _flat(340, 340, Color.GREEN))
+	_ok(small.get_size() == Vector2i(792 + 36 + 680, 680) and white.call(small.get_pixel(810, 600)) and green.call(small.get_pixel(1400, 600)),
+		"panels of another size are brought to the back's height", str(small.get_size()))
+	# Sonic CD (USA)'s long box: 476, 67 and 481 of a wrap stretched to 1024; the whole front is its booklet's.
+	var long_box := GameCaseModel.join_panels(_flat(476, 680, Color.RED), _flat(67, 680, Color.WHITE), _flat(481, 680, Color.GREEN), "longbox")
+	_ok(long_box.get_size() == Vector2i(440 + 51 + 425, 680), "a long box's panels at its own layout", str(long_box.get_size()))
+	_ok(is_equal_approx(GameCaseModel.booklet_fraction("longbox", 916.0, 680.0), 425.0 / 916.0), "its whole front on its booklet")
+	_ok(not GameCase.is_normalized_scan(long_box.get_size()), "and not taken for a stretched wrap")
+	_ok(GameCaseModel.join_panels(_flat(765, 680, Color.RED), null, _flat(680, 680, Color.GREEN)) == null, "a panel missing, nothing joined")
+	var m := GameCaseModel.new()
+	add_child(m)
+	_spawned.append(m)
+	if m.build("jewel", "single"):
+		_eq(m.apply_box_texture(ImageTexture.create_from_image(joined)), OK, "a case takes the joined image as its box texture")
+
+
+## Stands in for the spawn menu: hears a case ask for its panels.
+class ArtListener extends Node:
+	var asked: Array = []
+
+	func request_case_art(rom_path: String, systemid: String) -> void:
+		asked.append([rom_path, systemid])
+
+
+func _case_panels() -> void:
+	var rom := RomLibrary.rom_dir_for_system("psx").path_join("__case_panels_selftest.chd")
+	var made: Array[String] = []
+	var clean := func() -> void:
+		for kind: String in RetroGameCase.PANEL_KINDS:
+			var dir := RomLibrary.rom_dir_for_system("psx").path_join("media").path_join(kind)
+			DirAccess.remove_absolute(dir.path_join("__case_panels_selftest.png"))
+		for i in range(made.size() - 1, -1, -1):
+			DirAccess.remove_absolute(made[i])               # only what this test made, and only when empty
+	clean.call()
+	RetroGameCase.pending_art.clear()
+	RetroGameCase._asked_art.clear()
+	_ok(RetroGameCase.box_panel_paths("psx", rom).is_empty(), "no panels on disk: none found")
+	_eq(RetroGameCase.missing_panels("psx", rom).size(), 3, "and all three are wanted")
+	var ear := ArtListener.new()
+	add_child(ear)
+	ear.add_to_group(RetroGameCase.PANEL_LISTENERS)
+	_spawned.append(ear)
+	var make := func(fam: String, variant: String) -> RetroGameCase:
+		var c := CASE_SCENE.instantiate() as RetroGameCase
+		c.systemid = "psx"
+		c.case_family = fam
+		c.case_variant = variant
+		c.rom_path = rom
+		c.freeze = true
+		add_child(c)
+		_spawned.append(c)
+		return c
+	var keep: RetroGameCase = make.call("keep", "ps2")
+	for _i in 3:
+		await get_tree().process_frame
+	_ok(ear.asked.is_empty(), "a keep case asks for no panels (its wrap keeps the sheet's layout)")
+	var c: RetroGameCase = make.call("jewel", "single")
+	for _i in 3:
+		await get_tree().process_frame
+	_ok(ear.asked.size() == 1 and ear.asked[0] == [rom, "psx"], "a jewel case asks for its game's panels", str(ear.asked))
+	var twin: RetroGameCase = make.call("jewel", "single")
+	for _i in 3:
+		await get_tree().process_frame
+	_eq(ear.asked.size(), 1, "a second case of the game does not ask again")
+	# The scraper lands them: two of the three are not a set.
+	var sizes := {"box_back": Vector2i(765, 680), "box_side": Vector2i(65, 680), "box_front": Vector2i(680, 680)}
+	for kind: String in ["box_back", "box_side"]:
+		var dir := RomLibrary.rom_dir_for_system("psx").path_join("media").path_join(kind)
+		for d: String in [dir.get_base_dir().get_base_dir(), dir.get_base_dir(), dir]:
+			if not DirAccess.dir_exists_absolute(d):
+				DirAccess.make_dir_absolute(d)
+				made.append(d)
+		_flat(sizes[kind].x, sizes[kind].y, Color.WHITE).save_png(dir.path_join("__case_panels_selftest.png"))
+	_ok(RetroGameCase.box_panel_paths("psx", rom).is_empty() and RetroGameCase.missing_panels("psx", rom).size() == 3,
+		"two of the three there: not a set, all three still wanted")
+	var front_dir := RomLibrary.rom_dir_for_system("psx").path_join("media").path_join("box_front")
+	if not DirAccess.dir_exists_absolute(front_dir):
+		DirAccess.make_dir_absolute(front_dir)
+		made.append(front_dir)
+	_flat(680, 680, Color(0.1, 0.55, 0.2)).save_png(front_dir.path_join("__case_panels_selftest.png"))
+	_eq(RetroGameCase.box_panel_paths("psx", rom).size(), 3, "all three there: the set is found")
+	_ok(RetroGameCase.missing_panels("psx", rom).is_empty(), "and nothing more is wanted")
+	var joined := await RetroGameCase.decode_panels(get_tree(), RetroGameCase.box_panel_paths("psx", rom), "single")
+	_ok(joined != null and joined.get_size() == Vector2i(792 + 36 + 680, 680) and joined.has_mipmaps(),
+		"decoded and joined off the main thread, with mipmaps", str(joined.get_size()) if joined != null else "null")
+	# Told one has landed, the case puts its art on from them.
+	c.on_panel_arrived("some/other/game.chd")
+	c.on_panel_arrived(rom)
+	var on_case := Vector2i.ZERO
+	for _i in 120:
+		await get_tree().process_frame
+		on_case = _art_size(c)
+		if on_case.x > 0:
+			break
+	_eq(on_case, Vector2i(792 + 36 + 680, 680), "told its panels have landed, the case wears them")
+	_ok(_art_size(keep) == Vector2i.ZERO and _art_size(twin) == Vector2i.ZERO, "a case not told wears nothing new (this game has no wrap)")
+	clean.call()
+	RetroGameCase.pending_art.clear()
+	RetroGameCase._asked_art.clear()
+
+
+## The size of the box art a case wears on its paper, or zero.
+func _art_size(c: RetroGameCase) -> Vector2i:
+	for mi in GameCaseModel.meshes(c.model.levels[0]):
+		for s in mi.mesh.get_surface_count():
+			var m := mi.get_surface_override_material(s) as BaseMaterial3D
+			if m != null and m.albedo_texture is ImageTexture and m.albedo_texture.get_width() > 256:
+				return Vector2i(m.albedo_texture.get_width(), m.albedo_texture.get_height())
+	return Vector2i.ZERO
 
 
 func _case_drop() -> void:
