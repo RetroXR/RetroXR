@@ -28,7 +28,7 @@ func _ready() -> void:
 	AppPrefs.mains_region = MainsRegions.DEFAULT
 	AppPrefs.power_simulation = true
 	if _want("heads"):
-		_test_heads()
+		await _test_heads()
 	if _want("graph"):
 		await _test_graph()
 	if _want("length"):
@@ -88,12 +88,24 @@ func _clear() -> void:
 func _test_heads() -> void:
 	for id: String in MainsRegions.REGIONS:
 		var head := ExtensionCable.head_of(id)
-		var at: Dictionary = head["socket"]
 		var strip: Dictionary = MainsRegions.REGIONS[id]["strip"]
-		_ok(ResourceLoader.exists(str(head["mesh"])), "heads/%s has a baked head" % id)
-		_ok(MainsRegions.fits(str(strip["plug"]), str(at["connector"])),
+		var mesh: Mesh = load(str(head["mesh"])) if ResourceLoader.exists(str(head["mesh"])) else null
+		_ok(mesh != null and mesh.has_meta("head_length"), "heads/%s has a baked head" % id)
+		_ok(MainsRegions.fits(str(strip["plug"]), str(head["connector"])),
 			"heads/%s: its head takes its own region's plug" % id)
 		_ok(not ExtensionCable.outlet_type(id).is_empty(), "heads/%s names its outlet" % id)
+	# Inline: the socket faces away from the cord, on the head's end face.
+	_new_room()
+	var ext := _ext()
+	await _wait(2)
+	var s := ext.sockets()[0]
+	var out := s.global_basis.z
+	var anchor := ext.get_node("Body/CordAnchor") as Node3D
+	var away := (s.global_position - anchor.global_position).normalized()
+	_ok(out.dot(away) > 0.99, "heads/the socket faces away from the cord, inline with it",
+		"out %s away %s" % [out, away])
+	_ok(absf(out.y) < 0.01, "heads/and lies level")
+	await _clear()
 
 
 func _test_graph() -> void:

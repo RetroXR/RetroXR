@@ -2,7 +2,7 @@
 
 The room has had the mains side for a long time: wall outlets (`WallOutlet`, a plate per
 region from `MainsRegions`), power strips (`PowerStrip`), extension cables (`ExtensionCable`, a one-outlet `PowerStrip`
-whose cord is cut to the length the Power tab row's hold picker asked for), travel adapters
+with an inline head, its socket facing away down the cord, whose cord is cut to the length the Power tab row's hold picker asked for), travel adapters
 (`TravelAdapter`),
 the regional cords (`PowerCord`, seventeen baked `*_cord.tscn`, C7/C13 appliance ends) and
 `MainsSplice` keeping plugs seated through a change of region. Since 2026-11-01 something

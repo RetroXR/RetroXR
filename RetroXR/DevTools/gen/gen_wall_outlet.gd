@@ -90,7 +90,11 @@ func _init() -> void:
 	if OS.get_cmdline_user_args().has("--extension"):
 		for id: String in regions:
 			var head := ExtensionCable.head_of(id)
-			if not _bake("ext_" + id, {"sockets": [head["socket"]], "mesh": head["mesh"]}):
+			_head = _head_size(str(head["connector"]))
+			var socket := {"name": "Socket1", "connector": head["connector"],
+				"rotation": Vector3.ZERO, "position": Vector3(0, 0,
+				float(_head["length"]) - float(_head["well"])) * 0.001}
+			if not _bake("ext_" + id, {"sockets": [socket], "mesh": head["mesh"]}):
 				failed += 1
 		quit(1 if failed > 0 else 0)
 		return
@@ -148,6 +152,17 @@ func _bake(id: String, region: Dictionary) -> bool:
 	if bool(plate.get("closed", false)):
 		# A strip stands on a table, and gets turned over.
 		_fan(body, back, 0.0, false)
+	if bool(plate.get("relief", false)):
+		# The cord's strain relief, tapering from the back to the cord.
+		var r := ExtensionCable.RELIEF * 0.001
+		var lo := PackedVector3Array()
+		var hi := PackedVector3Array()
+		for i in 16:
+			var a := TAU * float(i) / 16.0
+			lo.append(Vector3(cos(a), sin(a), 0) * 0.0052 + Vector3(0, 0, -r))
+			hi.append(Vector3(cos(a), sin(a), 0) * minf(0.0085, size.y * 0.8))
+		_loft(body, lo, hi, 2)
+		_fan(body, lo, -r, false)
 	if not _face(body, face_ring, wells, thick):
 		print("[gen] %s: the face did not triangulate" % id)
 		ok = false
@@ -192,6 +207,11 @@ func _bake(id: String, region: Dictionary) -> bool:
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 		mesh.surface_set_material(mesh.get_surface_count() - 1, mats[i])
 		tris += (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3
+	if bool(plate.get("relief", false)):
+		# What ExtensionCable reads back: the head's face, length and well.
+		mesh.set_meta("head_face", _head["face"])
+		mesh.set_meta("head_length", _head["length"])
+		mesh.set_meta("head_well", _head["well"])
 	var path := str(region["mesh"])
 	var err := ResourceSaver.save(mesh, path)
 	print("[gen] %s err=%d size=%s tris=%d%s" % [path, err, mesh.get_aabb().size, tris,
@@ -210,11 +230,40 @@ func _strip_plate(id: String) -> Dictionary:
 		"switches": [Vector2(size.x * 0.5 - room * 0.5, 0)] if room > 0.0 else []}
 
 
-## An extension cable's head: a closed block round its one socket.
-func _head_plate(id: String) -> Dictionary:
-	var size: Vector3 = ExtensionCable.head_of(id.trim_prefix("ext_"))["size"]
-	return {"size": Vector2(size.x, size.y), "radius": 5.0, "thick": size.z, "tone": WHITE,
-		"face": "flat", "closed": true}
+## The extension head being baked: face, length and well, mm (_head_size).
+var _head := {}
+
+
+## An extension cable's head, an inline connector: its face round the socket, as
+## long as the socket's well and a grip behind it, and a strain relief at the back.
+func _head_plate(_id: String) -> Dictionary:
+	return {"size": _head["face"], "radius": 6.0, "thick": _head["length"], "tone": WHITE,
+		"face": "flat", "closed": true, "relief": true}
+
+
+## What a head round `connector` needs: the socket's holes, studs and well, 7 mm
+## of face round them, and the well plus 24 mm of grip (38 at least).
+func _head_size(connector: String) -> Dictionary:
+	var spec: Dictionary = Specs.SOCKETS[connector]
+	# In a dictionary: a lambda captures a local by value.
+	var box := {"half": Vector2.ZERO}
+	var grow := func(at: Vector2, h: Vector2) -> void:
+		var half: Vector2 = box["half"]
+		box["half"] = Vector2(maxf(half.x, absf(at.x) + h.x), maxf(half.y, absf(at.y) + h.y))
+	for hole: Array in spec["holes"]:
+		for part: Dictionary in hole:
+			var h: Vector2 = part["size"] * 0.5 if part.has("size") 				else Vector2.ONE * float(part.get("d", 0.0)) * 0.5
+			grow.call(part["at"] as Vector2, h)
+	for stud: Dictionary in spec.get("studs", []):
+		grow.call(stud["at"] as Vector2, Vector2.ONE * float(stud.get("d", 0.0)) * 0.5)
+	var well := 0.0
+	if spec.has("recess"):
+		well = float(spec["recess"]["depth"])
+		for p in Specs.outline(spec["recess"]):
+			grow.call(p, Vector2.ZERO)
+	var half: Vector2 = box["half"]
+	return {"face": Vector2(maxf(half.x * 2.0 + 14.0, 32.0), maxf(half.y * 2.0 + 14.0, 30.0)),
+		"length": maxf(38.0, well + 24.0), "well": well}
 
 
 ## One receptacle: its face (or well), the dark apertures of its holes, and any

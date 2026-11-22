@@ -13,9 +13,12 @@ extends PowerStrip
 const SPAWN_LENGTHS := CompositeCable.SPAWN_LENGTHS
 const SHIPPED_LENGTH := CompositeCable.SHIPPED_LENGTH
 
-## North America's strip keeps the old GLB body, so its head is written here
-## (mm; a grounded single-outlet cord end, EST).
-const NA_HEAD := {"size": Vector3(52, 44, 32), "turn": -90.0}
+## The strain relief behind the head, mm: the cord goes in at its narrow end.
+const RELIEF := 16.0
+
+## A head with no baked mesh (a mod's region): face and length, mm.
+const FALLBACK_FACE := Vector2(40, 34)
+const FALLBACK_LENGTH := 40.0
 
 ## Metres, read once in _ready before the rope is laid. The scene authors the
 ## longest; a shorter one drops segments (never adds: CompositeCable's reason).
@@ -47,37 +50,30 @@ func _apply_cord_length() -> void:
 	wall_plug.position.x = clampf(cord_length * 0.4, 0.4, 1.2)
 
 
-## The region's head: its size (mm) and its one socket, in the plate frame
-## MainsRegions.strip_sockets uses (on its back, +X toward the cord end, +Z up).
-## The socket is the strip's own kind, with its turn, offset and well.
+## The region's head: its socket (the strip's own kind) and its baked mesh. The
+## mesh is a plate (MainsRegions.strip_sockets' frame, the socket at its origin
+## facing +Z) whose metadata gives its face and length and the socket's well, mm.
 static func head_of(id: String) -> Dictionary:
 	var key := MainsRegions.resolve(id)
 	var strip: Dictionary = MainsRegions.of(key).get("strip", {})
 	var connector := str(strip.get("socket", "nema_5_15_plug"))
-	var size: Vector3 = NA_HEAD["size"]
-	var entry := {"turn": NA_HEAD["turn"]}
-	if strip.has("size"):
-		var layout: Array = strip.get("layout", [{}])
-		entry = layout[0]
+	var layout: Array = strip.get("layout", [])
+	if not layout.is_empty():
+		var entry: Dictionary = layout[0]
 		for e: Dictionary in layout:
 			if not e.has("socket"):
 				entry = e
 				break
 		connector = str(entry.get("socket", connector))
-		var body: Vector3 = strip["size"]
-		size = Vector3(maxf(float(entry.get("pitch", 40.0)), 40.0) + 16.0, body.y, body.z)
-	var offset: Vector2 = entry.get("offset", Vector2.ZERO)
-	return {
-		"size": size,
-		"mesh": "res://Scenes/Objects/appliances/extension_head_%s.res" % key,
-		"socket": {
-			"name": "Socket1",
-			"connector": connector,
-			"position": Vector3(offset.x, offset.y,
-				size.z - float(entry.get("well", 0.0))) * 0.001,
-			"rotation": Vector3(0, 0, float(entry.get("turn", 0.0))),
-		},
-	}
+	return {"connector": connector,
+		"mesh": "res://Scenes/Objects/appliances/extension_head_%s.res" % key}
+
+
+## The plate into the body's frame: an inline connector lying on its side, its
+## face out along -X (away from the cord), upright, on the floor.
+static func head_at(length: float, height: float) -> Transform3D:
+	return Transform3D(Basis(Vector3(0, 0, 1), Vector3.UP, Vector3(-1, 0, 0)),
+		Vector3(length * 0.5, height * 0.5, 0))
 
 
 ## "Type B": the outlet on the head, by the plug it takes; the region's own
@@ -105,27 +101,35 @@ func set_region(id: String) -> void:
 	if spec.is_empty():
 		spec = MainsRegions.of(MainsRegions.DEFAULT).get("strip", {})
 	var head := head_of(want)
-	var size: Vector3 = head["size"] * 0.001
+	var face := FALLBACK_FACE * 0.001
+	var length := FALLBACK_LENGTH * 0.001
+	var well := 0.0
 	var mesh := _body.get_node("Head") as MeshInstance3D
-	mesh.transform = PLATE_AT
 	var path := str(head["mesh"])
-	if ResourceLoader.exists(path):
-		mesh.mesh = load(path) as Mesh
+	var baked: Mesh = load(path) as Mesh if ResourceLoader.exists(path) else null
+	if baked != null and baked.has_meta("head_length"):
+		face = (baked.get_meta("head_face") as Vector2) * 0.001
+		length = float(baked.get_meta("head_length")) * 0.001
+		well = float(baked.get_meta("head_well")) * 0.001
+		mesh.mesh = baked
+		mesh.transform = head_at(length, face.y)
 	else:
-		# A mod's region, with no head baked: a plain block.
 		var box := BoxMesh.new()
-		box.size = Vector3(size.x, size.y, size.z)
+		box.size = Vector3(face.x, face.y, length)
 		mesh.mesh = box
-	_set_shape("CollisionShape3D", Vector3(size.x, size.z, size.y), size.z * 0.5)
+		mesh.transform = head_at(length, face.y) * Transform3D(Basis.IDENTITY,
+			Vector3(0, 0, length * 0.5))
+	var relief := RELIEF * 0.001
+	_set_shape("CollisionShape3D", Vector3(length, face.y, face.x), face.y * 0.5)
 	_set_shape("PointerArea/CollisionShape3D",
-		Vector3(size.x + 0.02, size.z + 0.012, size.y + 0.018), size.z * 0.5)
-	# The cord out of the +X end, its -Z along +X.
-	_set_anchor(Transform3D(Basis(Vector3.UP, -PI * 0.5), Vector3(size.x * 0.5, size.z * 0.5, 0)))
-	var at: Dictionary = head["socket"]
+		Vector3(length + relief * 2.0, face.y + 0.012, face.x + 0.012), face.y * 0.5)
+	# The cord out of the relief's end, its -Z along +X.
+	_set_anchor(Transform3D(Basis(Vector3.UP, -PI * 0.5),
+		Vector3(length * 0.5 + relief, face.y * 0.5, 0)))
 	var s := sockets()[0]
-	s.transform = PLATE_AT * Transform3D(
-		Basis.from_euler((at["rotation"] as Vector3) * (PI / 180.0)), at["position"])
-	_open(s, str(at["connector"]), true)
+	s.transform = head_at(length, face.y) * Transform3D(Basis.IDENTITY,
+		Vector3(0, 0, length - well))
+	_open(s, str(head["connector"]), true)
 	_fit_plug(spec)
 
 
