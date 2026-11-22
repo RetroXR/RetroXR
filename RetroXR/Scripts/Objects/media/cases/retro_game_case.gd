@@ -727,7 +727,7 @@ func _build_hub_button(seat: Node3D, i: int) -> void:
 
 ## Pop the disc on seat i up off its hub: it rides up and tilts on its zone, loose for a hand to lift out.
 func pop_disc(i: int) -> bool:
-	if i >= _zones.size() or _popped[i] or not _zones[i].picked_up_object is RetroDisc or not _seat_reachable(i):
+	if i >= _zones.size() or _popped[i] or not _held(_zones[i]) is RetroDisc or not _seat_reachable(i):
 		return false
 	_popped[i] = true
 	_zones[i].transform = Transform3D(Basis(Vector3.RIGHT, deg_to_rad(POP_TILT_DEG)) * Basis(Vector3.UP, _seat_spin[i]),
@@ -1426,8 +1426,11 @@ func _lid_blocked(deg: float) -> bool:
 	# hand gave way to nothing.
 	_lid_query.collision_mask = original_collision_mask
 	var skip: Array[RID] = [get_rid()]
+	# (An exception outlives its body: a manual or a disc deleted off its seat leaves a null here, and its get_rid
+	# stopped the game: the owner, 2026-11-22.)
 	for body in get_collision_exceptions():
-		skip.append(body.get_rid())
+		if is_instance_valid(body):
+			skip.append(body.get_rid())
 	_lid_query.exclude = skip
 	return not get_world_3d().direct_space_state.intersect_shape(_lid_query, 1).is_empty()
 
@@ -1551,13 +1554,21 @@ func is_latched() -> bool:
 func discs() -> Array[RetroCartridge]:
 	var out: Array[RetroCartridge] = []
 	for z: XRToolsSnapZone in _zones + ([_holder_zone] if _holder_zone else []):
-		if z != null and z.picked_up_object is RetroCartridge:
-			out.append(z.picked_up_object as RetroCartridge)
+		if _held(z) is RetroCartridge:
+			out.append(_held(z) as RetroCartridge)
 	return out
 
 
 func manual() -> PDFBook:
-	return _manual_zone.picked_up_object as PDFBook if _manual_zone != null else null
+	return _held(_manual_zone) as PDFBook
+
+
+## What a seat holds, or null. A thing deleted off its seat (the trash, the menu) stays in its zone as a freed
+## reference for a while, and to cast or test one is an error (the owner, 2026-11-22: a manual deleted in its case).
+static func _held(zone: XRToolsSnapZone) -> Node3D:
+	if zone == null or not is_instance_valid(zone.picked_up_object):
+		return null
+	return zone.picked_up_object as Node3D
 
 
 ## The memory card holder (PS2, GameCube), or null for a case without one.
@@ -1566,7 +1577,7 @@ func card_zone() -> XRToolsSnapZone:
 
 
 func memory_card() -> MemoryCard:
-	return _card_zone.picked_up_object as MemoryCard if _card_zone != null else null
+	return _held(_card_zone) as MemoryCard
 
 
 func disc_zone(i: int) -> XRToolsSnapZone:

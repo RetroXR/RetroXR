@@ -79,6 +79,7 @@ func _run() -> void:
 		["case/a manual put in keeps its pages unless it is a spread scan", _case_manual_spread],
 		["case/a flip tray's hinge is taken from either face", _case_tray_both_faces],
 		["case/a tray lying on the open lid is still the hand's", _case_tray_on_lid],
+		["case/deleting what was seated does not stop the lid", _case_deleted_seated],
 		["case/disc 1 is nearest the front cover, and every disc reads upright", _case_disc_order],
 		["case/a flipper is drawn where its handle is", _case_pages_drawn_as_held],
 		["case/dropped shut or open, a case rests on the floor", _case_drop],
@@ -1645,6 +1646,27 @@ func _art_size(c: RetroGameCase) -> Vector2i:
 			if m != null and m.albedo_texture is ImageTexture and m.albedo_texture.get_width() > 256:
 				return Vector2i(m.albedo_texture.get_width(), m.albedo_texture.get_height())
 	return Vector2i.ZERO
+
+
+## A manual deleted off its seat (the trash, the menu's Delete) stays in the case's collision exceptions as a null:
+## the lid's check against the world called get_rid on it every tick and stopped the game.
+func _case_deleted_seated() -> void:
+	var c := _new_case("jewel", "single")
+	await get_tree().physics_frame
+	c.global_position = Vector3(390.0, 1.0, 0.0)
+	c.set_physics_process(false)
+	c.sim.set_angle_deg(c.sim.top(), 120.0)
+	c._apply_angles()
+	var book := await _seat_manual(c)
+	_ok(c.manual() == book and c.get_collision_exceptions().has(book), "seated, the manual is one the case does not collide with")
+	_spawned.erase(book)
+	book.free()
+	await get_tree().physics_frame
+	_ok(c.get_collision_exceptions().any(func(b: Variant) -> bool: return not is_instance_valid(b)) or c.get_collision_exceptions().is_empty(),
+		"(deleted, it is a null among the exceptions, or gone from them)", str(c.get_collision_exceptions()))
+	_ok(not c._lid_blocked(120.0), "the lid's check against the world still runs, and finds nothing in the way")
+	c._lid_gives_way()
+	_ok(c.manual() == null, "and the case has no manual")
 
 
 func _case_tray_on_lid() -> void:
