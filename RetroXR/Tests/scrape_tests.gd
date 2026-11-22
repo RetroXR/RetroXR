@@ -104,6 +104,7 @@ func _ready() -> void:
 	await _run_group("priority", _group_priority)
 	await _run_group("cabinet_media", _group_cabinet_media)
 	await _run_group("case_panels", _group_case_panels)
+	await _run_group("region_kin", _group_region_kin)
 	_teardown()
 	_finish()
 
@@ -678,15 +679,20 @@ func _group_priority() -> void:
 	# priority. ScreenScraper lists Sonic the Hedgehog (USA, Europe) as
 	# eu, us, wor; taken in that order it scraped the Mega Drive box.
 	var prio: Array[String] = ["us", "eu", "wor", "jp", "ss"]
-	_ok(ScreenscraperClient.media_region_order(["eu", "us", "wor"], prio)
-		== ["us", "eu", "wor", "jp", "ss"], "a USA/Europe ROM ranks its regions by the player's order")
+	# (Between a ROM's own regions and the world's come their kin, REGION_KIN: _group_region_kin.)
+	var ranked := ScreenscraperClient.media_region_order(["eu", "us", "wor"], prio)
+	_ok(ranked.slice(0, 2) == (["us", "eu"] as Array[String]) and ranked.find("wor") < ranked.find("jp") and ranked.find("jp") < ranked.find("ss"),
+		"a USA/Europe ROM ranks its regions by the player's order: %s" % str(ranked))
 	var eu_first: Array[String] = ["eu", "us", "wor", "jp", "ss"]
-	_ok(ScreenscraperClient.media_region_order(["eu", "us", "wor"], eu_first)
-		== ["eu", "us", "wor", "jp", "ss"], "and the other way round for a player who puts Europe first")
-	_ok(ScreenscraperClient.media_region_order(["jp"], prio)
-		== ["jp", "wor", "us", "eu", "ss"], "a Japan-only ROM still gets its own region's art first")
-	_ok(ScreenscraperClient.media_region_order(["br", "us"], prio)
-		== ["us", "br", "wor", "eu", "jp", "ss"], "a ROM region the player never ranked follows the ranked ones")
+	ranked = ScreenscraperClient.media_region_order(["eu", "us", "wor"], eu_first)
+	_ok(ranked.slice(0, 2) == (["eu", "us"] as Array[String]) and ranked.find("wor") < ranked.find("jp"),
+		"and the other way round for a player who puts Europe first: %s" % str(ranked))
+	ranked = ScreenscraperClient.media_region_order(["jp"], prio)
+	_ok(ranked[0] == "jp" and ranked.slice(ranked.find("wor")) == (["wor", "us", "eu", "ss"] as Array[String]),
+		"a Japan-only ROM still gets its own region's art first, and the player's order after the world's: %s" % str(ranked))
+	ranked = ScreenscraperClient.media_region_order(["br", "us"], prio)
+	_ok(ranked.slice(0, 2) == (["us", "br"] as Array[String]) and ranked.slice(ranked.find("wor")) == (["wor", "eu", "jp", "ss"] as Array[String]),
+		"a ROM region the player never ranked follows the ranked ones: %s" % str(ranked))
 	_ok(ScreenscraperClient.media_region_order([], prio)
 		== ["wor", "us", "eu", "jp", "ss"], "no ROM regions: world, then the player's order")
 
@@ -728,6 +734,33 @@ func _group_priority() -> void:
 
 
 # ── A cabinet's attract mode: video and title, on demand, arcade only ───────────
+
+func _group_region_kin() -> void:
+	var prio: Array[String] = ["us", "eu", "jp"]
+	_ok(ScreenscraperClient.media_region_order(["jp"], prio) == (["jp", "asi", "wor", "us", "eu"] as Array[String]),
+		"region kin: a Japanese ROM asks Asia before the world and America: %s" % str(ScreenscraperClient.media_region_order(["jp"], prio)))
+	_ok(ScreenscraperClient.media_region_order(["it"], prio).slice(0, 3) == (["it", "eu", "wor"] as Array[String]),
+		"region kin: an Italian ROM asks Europe next")
+	var both := ScreenscraperClient.media_region_order(["eu", "us", "wor"], prio)
+	_ok(both.slice(0, 2) == (["us", "eu"] as Array[String]) and both.find("wor") > both.find("uk"),
+		"region kin: a ROM's own regions still lead in the player's order, their kin after them: %s" % str(both))
+	_ok(ScreenscraperClient.media_region_order([], prio) == (["wor", "us", "eu", "jp"] as Array[String]), "region kin: no region known, the order it was")
+	# Spyro the Dragon (Japan): its art is filed under Asia, with European and American sets beside it.
+	var client := ScreenscraperClient.new()
+	client.config = ScraperConfig.new()
+	client.config.region_priorities = prio
+	var medias: Array = []
+	for t: String in ["box-2D", "box-2D-side", "box-2D-back", "box-texture", "wheel"]:
+		for r: String in ["asi", "eu", "us"]:
+			medias.append({"type": t, "region": r, "url": "%s/%s" % [t, r]})
+	var picked: Dictionary = client._extract_media_urls(medias, ["jp"], 0, 0, false, false, true)
+	_ok(picked["box_front"] == "box-2D/asi" and picked["box_back"] == "box-2D-back/asi" and picked["wheel"] == "wheel/asi",
+		"region kin: a Japanese game's case panels and logo come from the Asian set, not the American: %s" % str(picked))
+	picked = client._extract_media_urls(medias, ["it"], 0, 0, false, false, true)
+	_ok(picked["box_front"] == "box-2D/eu" and picked["box_side"] == "box-2D-side/eu",
+		"region kin: an Italian game's from the European set")
+	client.free()
+
 
 func _group_case_panels() -> void:
 	var client := ScreenscraperClient.new()

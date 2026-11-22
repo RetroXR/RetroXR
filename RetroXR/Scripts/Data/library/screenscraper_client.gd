@@ -70,6 +70,15 @@ var _requested_systemeid: int = -1
 var _requested_systemid := ""
 
 const CABINET_MEDIA := ["video", "title"]
+## A region's kin, nearest first: the wider region a country's releases share, and for a wider region its main
+## countries (media_region_order).
+const REGION_KIN := {
+	"jp": ["asi"], "kr": ["asi", "jp"], "cn": ["asi", "jp"], "tw": ["asi", "jp"], "asi": ["jp", "kr", "cn", "tw"],
+	"uk": ["eu"], "fr": ["eu"], "de": ["eu"], "it": ["eu"], "sp": ["eu"], "nl": ["eu"], "se": ["eu"], "dk": ["eu"],
+	"fi": ["eu"], "no": ["eu"], "pt": ["eu"], "pl": ["eu"], "gr": ["eu"], "ru": ["eu"], "au": ["eu", "uk"],
+	"eu": ["uk", "fr", "de", "sp", "it", "au"],
+	"us": ["ca"], "ca": ["us"], "br": ["us"],
+}
 ## A game case's back, side and front, each its own picture (ScreenScraper cuts them from the box-texture itself:
 ## Spyro the Dragon's are its wrap's own pixels). A disc game's scrape takes them IN PLACE of the wrap (the owner,
 ## 2026-11-22), because one wrap split by a fixed layout is only right for a wrap that keeps it, and they do not
@@ -552,6 +561,11 @@ func _pick_by_language(arr) -> String:
 ## order as-is gave every USA/Europe cart the European box (a Mega Drive box on
 ## a Genesis game) with USA at the top of the list. A ROM region the player
 ## never ranked keeps its place after the ones they did.
+##
+## After the ROM's own regions come their KIN (REGION_KIN): ScreenScraper files a Japanese game's art under Asia as
+## often as under Japan, and has a European box where it has no Italian one. Without them a Japanese Spyro the
+## Dragon and an Italian Metal Gear Solid, finding no "jp" and no "it", went on to the player's first choice and
+## came back in the American box (the owner's library, 2026-11-22: its case panels).
 static func media_region_order(rom_region_codes: Array,
 		priorities: Array[String]) -> Array[String]:
 	var rom := PackedStringArray()
@@ -566,6 +580,10 @@ static func media_region_order(rom_region_codes: Array,
 	for code: String in rom:
 		if not out.has(code) and code != "wor":
 			out.append(code)
+	for code: String in out.duplicate():
+		for kin: String in REGION_KIN.get(code, []):
+			if not out.has(kin):
+				out.append(kin)
 	out.append("wor")
 	for code: String in priorities:
 		if not out.has(code):
