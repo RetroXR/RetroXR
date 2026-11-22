@@ -73,6 +73,7 @@ func _run() -> void:
 		["case/a grip anywhere over the booklet takes the manual; at a shut case, the case", _case_manual_reach],
 		["case/a seated manual turns no page and the lid's handle is quiet over it", _case_manual_quiet],
 		["case/let go a little way into a tabletop, a case is lifted onto it", _case_lift_out],
+		["model/a jewel scan's wide spine strip is laid on the spine", _scan_spine_fit],
 		["case/a flip tray's hinge is taken from either face", _case_tray_both_faces],
 		["case/a flipper is drawn where its handle is", _case_pages_drawn_as_held],
 		["case/dropped shut or open, a case rests on the floor", _case_drop],
@@ -1351,6 +1352,59 @@ func _case_pages_drawn_as_held() -> void:
 				"%.1f mm apart" % (drawn.distance_to(held) * 1000.0))
 	_ok(is_equal_approx(c.hinge(0).max_deg, GameCaseModel.LEAF_STAND) and c.hinge(1).max_deg > 170.0,
 		"the lower flipper's handle stops where the flipper does", "%f %f" % [c.hinge(0).max_deg, c.hinge(1).max_deg])
+
+
+## A stand-in box-texture: a back panel to `back_end` (a marked band down its last 14 px), a white spine strip to
+## `spine_end` with a black block at its head, a green front. `h` tall, the widths scaled with it.
+func _scan(w: int, h: int, back_end: int, spine_end: int) -> Image:
+	var img := Image.create_empty(w, h, false, Image.FORMAT_RGB8)
+	img.fill(Color(0.1, 0.55, 0.2))
+	img.fill_rect(Rect2i(0, 0, back_end, h), Color(0.75, 0.3, 0.35))
+	img.fill_rect(Rect2i(back_end - 14, 0, 14, h), Color(0.9, 0.8, 0.1))
+	if spine_end > back_end:
+		img.fill_rect(Rect2i(back_end, 0, spine_end - back_end, h), Color.WHITE)
+		img.fill_rect(Rect2i(back_end, 0, spine_end - back_end, h / 7), Color.BLACK)
+	return img
+
+
+func _scan_spine_fit() -> void:
+	var white := func(c: Color) -> bool: return c.r > 0.9 and c.g > 0.9 and c.b > 0.9
+	var band := func(c: Color) -> bool: return c.r > 0.75 and c.g > 0.65 and c.b < 0.3
+	# Spyro the Dragon (Japan)'s shape: the back to 764, the strip to 830, of 1510 x 680.
+	var wide := _scan(1510, 680, 764, 830)
+	_eq(GameCaseModel.jewel_spine_start(wide), 764, "a strip 66 px wide is found by its own edge")
+	_ok(GameCaseModel.fit_jewel_scan(wide), "and the scan is put right")
+	_ok(wide.get_width() == 1510 and wide.get_height() == 680, "at the size it was")
+	_ok(band.call(wide.get_pixel(789, 400)) and not white.call(wide.get_pixel(790, 400)), "the back runs to the layout's 792",
+		str(wide.get_pixel(789, 400)))
+	_ok(white.call(wide.get_pixel(795, 400)) and white.call(wide.get_pixel(825, 400)), "the strip fills the spine, 792 to 828",
+		"%s %s" % [wide.get_pixel(795, 400), wide.get_pixel(825, 400)])
+	_ok(wide.get_pixel(810, 40).r < 0.1, "its head still at its head", str(wide.get_pixel(810, 40)))
+	_ok(wide.get_pixel(900, 400).g > 0.5 and wide.get_pixel(900, 400).r < 0.2, "the front left as it was")
+	_eq(GameCaseModel.jewel_spine_start(wide), -1, "put right, it is a scan that keeps the layout")
+	# The layout's own: the back to 792, the strip to 829 (Crash Bandicoot 3, Japan).
+	var plain := _scan(1509, 680, 792, 829)
+	var before := plain.get_data()
+	_eq(GameCaseModel.jewel_spine_start(plain), -1, "a scan that keeps the layout is left alone")
+	_ok(not GameCaseModel.fit_jewel_scan(plain) and plain.get_data() == before, "pixel for pixel")
+	# Nothing to go by: no edge anywhere near (a back and spine of one color).
+	var flat := Image.create_empty(1622, 680, false, Image.FORMAT_RGB8)
+	flat.fill(Color(0.2, 0.2, 0.6))
+	_eq(GameCaseModel.jewel_spine_start(flat), -1, "a scan with no edge is left alone")
+	# A band in the back's own art, farther from the front than any spine is wide.
+	_eq(GameCaseModel.jewel_spine_start(_scan(1510, 680, 700, 830)), -1, "a band 130 px wide is the back's own, not a spine")
+	# Not a jewel case's scan: a keep case's sheet, a long box.
+	_eq(GameCaseModel.jewel_spine_start(_scan(1024, 680, 764, 830)), -1, "a keep case's sheet is left alone")
+	_eq(GameCaseModel.jewel_spine_start(_scan(933, 680, 764, 830)), -1, "a long box's scan is left alone")
+	# Half the size: the same shape, the numbers halved.
+	var half := _scan(755, 340, 382, 415)
+	_eq(GameCaseModel.jewel_spine_start(half), 382, "a scan of another size is read by its height")
+	_ok(GameCaseModel.fit_jewel_scan(half) and white.call(half.get_pixel(400, 200)) and not white.call(half.get_pixel(393, 200)),
+		"and put right the same way", "%s %s" % [half.get_pixel(400, 200), half.get_pixel(393, 200)])
+	# With mipmaps already made, they are dropped for the caller to make again.
+	var mipped := _scan(1510, 680, 764, 830)
+	mipped.generate_mipmaps()
+	_ok(GameCaseModel.fit_jewel_scan(mipped) and not mipped.has_mipmaps(), "a scan with mipmaps loses them, to be made again")
 
 
 func _case_drop() -> void:

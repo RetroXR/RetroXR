@@ -43,6 +43,13 @@ const JEWEL_LAYOUTS := {
 ## front from 540 with its blue SEGA CD band. Not 430 and 621: that took the front's band for spine and put the back's
 ## right edge on the spine flaps (a player's report, 2026-11-21) [E: one scan].
 const NORMALIZED_LAYOUT := Vector2(440.0 / 931.0, 51.0 / 931.0)
+## Reading a scan's own panel edges (fit_jewel_scan): two columns differ by this much of full scale; a panel's edge
+## runs this share of the height, and there is none under this share; the widest spine strip looked for, per height
+## (12.5 mm of a 118 mm inlay: a case's thickness and a little).
+const SCAN_EDGE_JUMP := 24.0 / 255.0
+const SCAN_EDGE_TALL := 0.75
+const SCAN_EDGE_NONE := 0.5
+const SCAN_SPINE_MAX := 72.0 / 680.0
 const TRAY_PRESETS := {
 	"black": Color(0.035, 0.035, 0.037, 1.0), "clear": Color(0.92, 0.94, 0.95, 0.10),
 	"smoke": Color(0.22, 0.23, 0.25, 0.45), "white": Color(0.86, 0.86, 0.84, 1.0),
@@ -411,6 +418,87 @@ func apply_box_texture(texture: Texture2D) -> Error:
 	else:
 		_hide_strip()
 	return OK if n >= levels.size() else ERR_DOES_NOT_EXIST
+
+
+## A jewel box-texture whose spine strip is not where the layout has it, put right in place. Most scans keep the
+## layout (Crash Bandicoot 2 and 3, Spyro x Sparx, Japan: the back to 792, the spine to 829 of 1509 x 680); some
+## carry a wider strip, the back squeezed to make room (Spyro the Dragon (Japan): back 0..764, strip 764..830), and
+## laid out by the numbers the strip's left 28 px landed on the back panel, its title off the spine (a player's
+## report, 2026-11-22). The back is drawn out to the layout's width and the strip in to the spine's. Returns whether
+## the image changed. Before its mipmaps; any thread.
+static func fit_jewel_scan(img: Image) -> bool:
+	var at := jewel_spine_start(img)
+	if at < 0:
+		return false
+	var h := img.get_height()
+	var back := int(round(h * float(JEWEL_LAYOUT["back"])))
+	var edge := int(round(h * (float(JEWEL_LAYOUT["back"]) + float(JEWEL_LAYOUT["spine"]))))
+	var right := _scan_edge_near(img, edge)
+	if img.has_mipmaps():
+		img.clear_mipmaps()
+	var panel := img.get_region(Rect2i(0, 0, at, h))
+	panel.resize(back, h, Image.INTERPOLATE_CUBIC)
+	var strip := img.get_region(Rect2i(at, 0, right - at, h))
+	strip.resize(edge - back, h, Image.INTERPOLATE_LANCZOS)
+	img.blit_rect(panel, Rect2i(0, 0, back, h), Vector2i.ZERO)
+	img.blit_rect(strip, Rect2i(0, 0, edge - back, h), Vector2i(back, 0))
+	return true
+
+
+## Where a jewel box-texture's spine strip begins (px from the left) when that is NOT where the layout has it; -1
+## for a scan that keeps the layout, one with no edge to go by, and anything that is not a jewel case's scan (a
+## keep case's sheet, a long box, a front alone). The strip is known by its own edge: a jump most of the image's
+## height tall within a case's thickness of the front, and none where the layout expects the back to end.
+static func jewel_spine_start(img: Image) -> int:
+	if img == null or img.is_empty() or img.is_compressed():
+		return -1
+	var w := img.get_width()
+	var h := img.get_height()
+	var back := int(round(h * float(JEWEL_LAYOUT["back"])))
+	var edge := int(round(h * (float(JEWEL_LAYOUT["back"]) + float(JEWEL_LAYOUT["spine"]))))
+	if GameCase.is_normalized_scan(Vector2i(w, h)) or w < edge + int(h * 0.9):
+		return -1
+	var slack := maxi(2, int(round(h * 3.0 / 680.0)))
+	for x in range(back - slack, back + slack + 1):
+		if _scan_edge(img, x) >= SCAN_EDGE_NONE:
+			return -1                                    # the back ends where the layout says
+	var found := -1
+	var strongest := SCAN_EDGE_TALL
+	for x in range(_scan_edge_near(img, edge) - int(round(h * SCAN_SPINE_MAX)), back - slack):
+		var share := _scan_edge(img, x)
+		if share >= strongest:
+			strongest = share
+			found = x
+	return found
+
+
+## The panel edge within a few px of `x` (the scans' fronts start a pixel or two off the layout's), or `x`.
+static func _scan_edge_near(img: Image, x: int) -> int:
+	var slack := maxi(2, int(round(img.get_height() * 4.0 / 680.0)))
+	var out := x
+	var strongest := SCAN_EDGE_TALL
+	for c in range(x - slack, x + slack + 1):
+		var share := _scan_edge(img, c)
+		if share >= strongest:
+			strongest = share
+			out = c
+	return out
+
+
+## The share of the image's height (every few rows) over which column x differs from the one left of it.
+static func _scan_edge(img: Image, x: int) -> float:
+	if x < 1 or x >= img.get_width():
+		return 0.0
+	var h := img.get_height()
+	var rows := 0
+	var jumps := 0
+	for y in range(0, h, maxi(1, h / 170)):
+		var a := img.get_pixel(x - 1, y)
+		var b := img.get_pixel(x, y)
+		rows += 1
+		if maxf(absf(a.r - b.r), maxf(absf(a.g - b.g), absf(a.b - b.b))) > SCAN_EDGE_JUMP:
+			jumps += 1
+	return float(jumps) / float(maxi(rows, 1))
 
 
 ## A front cover alone (ScreenScraper "box-2D") on the jewel booklet or the keep case's front panel.

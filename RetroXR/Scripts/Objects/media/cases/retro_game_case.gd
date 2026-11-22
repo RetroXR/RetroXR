@@ -915,6 +915,7 @@ static func decode_image(tree: SceneTree, path: String) -> Image:
 	var task := WorkerThreadPool.add_task(func() -> void:
 		var img := Image.new()
 		if img.load(path) == OK:
+			GameCaseModel.fit_jewel_scan(img)            # a jewel scan's spine strip, where the layout has it
 			img.generate_mipmaps()
 			out[0] = img)
 	while not WorkerThreadPool.is_task_completed(task):
