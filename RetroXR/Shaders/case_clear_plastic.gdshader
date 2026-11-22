@@ -11,12 +11,22 @@ uniform vec4 tint : source_color = vec4(0.06, 0.06, 0.065, 0.16);
 uniform sampler2D pattern : source_color, filter_linear_mipmap, repeat_disable;
 uniform bool use_pattern = false;
 uniform float roughness : hint_range(0.0, 1.0) = 0.06;
+// A molded part (a clear disc tray): where its surface turns away from the eye the plastic is seen edge-on and
+// reads as a line: a wall of a hub, a ring, a rim. `rim` is the opacity there and `rim_color` its color; 0 (a flat
+// lid or sleeve) draws as it always did.
+uniform float rim : hint_range(0.0, 1.0) = 0.0;
+uniform vec3 rim_color : source_color = vec3(0.5, 0.54, 0.6);
+uniform float rim_power : hint_range(0.5, 8.0) = 2.0;
 
 void fragment() {
 	vec4 c = tint;
 	if (use_pattern) {
 		vec4 p = texture(pattern, UV);
 		c = vec4(p.rgb * tint.rgb, p.a * tint.a);
+	}
+	if (rim > 0.0) {
+		float edge = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), rim_power);
+		c = vec4(mix(c.rgb, rim_color, edge), mix(c.a, max(c.a, rim), edge));
 	}
 	ALBEDO = c.rgb * c.a;
 	ALPHA = c.a;

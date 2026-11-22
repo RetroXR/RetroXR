@@ -26,6 +26,12 @@ const SUFFIXES := ["mobile", "mobile_lod1", "mobile_lod2"]
 const LOD_RANGES := {"jewel": [0.7, 1.6], "keep": [0.8, 1.8]}
 const LOD_MARGIN := 0.05
 const CLEAR_SHADER := preload("res://Shaders/case_clear_plastic.gdshader")
+## A clear disc tray's look (_clear_plastic): the haze on its flats, and its walls seen edge-on.
+const CLEAR_TRAY_NODES := ["Tray", "LidTray"]
+const CLEAR_TRAY_TINT := Color(0.78, 0.83, 0.9, 0.15)
+const CLEAR_TRAY_RIM := 0.9
+const CLEAR_TRAY_RIM_COLOR := Color(0.3, 0.33, 0.4)
+const CLEAR_TRAY_RIM_POWER := 1.4
 
 # ---- jewel (jewel_params.py; JewelCase) ----
 ## Box-texture layout: the back panel is 792/680 of the image's height wide, the spine 36/680; the booklet is the
@@ -367,6 +373,14 @@ func _clear_plastic(level: Node3D) -> void:
 			m.resource_name = clear_name
 			m.set_shader_parameter("tint", Color(base.albedo_color, base.albedo_color.a))
 			m.set_shader_parameter("roughness", base.roughness)
+			# A clear disc tray (the North American fat case's two) is a molded part, not a flat sheet: drawn as the
+			# lid is, at 5 percent, it was not there at all, and a disc lay on bare paper (the owner, 2026-11-22).
+			# A light haze on its flats, and its walls seen edge-on: the hub, the ring, the rim.
+			if String(mi.name) in CLEAR_TRAY_NODES:
+				m.set_shader_parameter("tint", CLEAR_TRAY_TINT)
+				m.set_shader_parameter("rim", CLEAR_TRAY_RIM)
+				m.set_shader_parameter("rim_color", CLEAR_TRAY_RIM_COLOR)
+				m.set_shader_parameter("rim_power", CLEAR_TRAY_RIM_POWER)
 			mi.set_surface_override_material(s, m)
 
 

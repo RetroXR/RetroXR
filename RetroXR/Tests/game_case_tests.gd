@@ -73,6 +73,7 @@ func _run() -> void:
 		["case/a grip anywhere over the booklet takes the manual; at a shut case, the case", _case_manual_reach],
 		["case/a seated manual turns no page and the lid's handle is quiet over it", _case_manual_quiet],
 		["case/let go a little way into a tabletop, a case is lifted onto it", _case_lift_out],
+		["model/a clear disc tray is drawn as a molded part", _clear_trays],
 		["model/a jewel scan's wide spine strip is laid on the spine", _scan_spine_fit],
 		["model/a case's three panels are joined into the layout", _panels_join],
 		["case/a jewel case asks for its panels and takes them", _case_panels],
@@ -1443,6 +1444,47 @@ func _scan(w: int, h: int, back_end: int, spine_end: int) -> Image:
 		img.fill_rect(Rect2i(back_end, 0, spine_end - back_end, h), Color.WHITE)
 		img.fill_rect(Rect2i(back_end, 0, spine_end - back_end, h / 7), Color.BLACK)
 	return img
+
+
+## The North American fat case's two cover trays are clear plastic. Drawn as a flat lid is (5 percent), they
+## were not there at all: a disc lay on bare paper (the owner, 2026-11-22).
+func _clear_trays() -> void:
+	var m := GameCaseModel.new()
+	add_child(m)
+	_spawned.append(m)
+	if not m.build("jewel", "fatbox4"):
+		_ok(false, "the fat case builds")
+		return
+	var seen := {}
+	for level in m.levels:
+		for mi in GameCaseModel.meshes(level):
+			for s in mi.mesh.get_surface_count():
+				var base := mi.mesh.surface_get_material(s)
+				var over := mi.get_surface_override_material(s) as ShaderMaterial
+				if base == null or over == null or String(base.resource_name) != "Jewel_Clear":
+					continue
+				var rim := float(over.get_shader_parameter("rim")) if over.get_shader_parameter("rim") != null else 0.0
+				var tint: Color = over.get_shader_parameter("tint")
+				var key := String(mi.name)
+				seen[key] = true
+				if key in GameCaseModel.CLEAR_TRAY_NODES:
+					_ok(rim > 0.5 and tint.a > 0.1, "%s on %s: a clear tray's walls show edge-on, its flats hazed" % [key, level.name],
+						"rim %.2f, haze %.2f" % [rim, tint.a])
+				else:
+					_ok(rim == 0.0 and tint.a < 0.08, "%s on %s: a flat clear part is drawn as it was" % [key, level.name],
+						"rim %.2f, alpha %.2f" % [rim, tint.a])
+	_ok(seen.has("Tray") and seen.has("LidTray") and seen.has("Lid") and seen.has("Base"),
+		"both cover trays, the lid and the base are clear plastic on this case", str(seen.keys()))
+	# A single case's black tray is no clear part.
+	var one := GameCaseModel.new()
+	add_child(one)
+	_spawned.append(one)
+	if one.build("jewel", "single"):
+		var tray := one.levels[0].find_child("Tray", true, false) as MeshInstance3D
+		var clear := false
+		for s in tray.mesh.get_surface_count():
+			clear = clear or tray.get_surface_override_material(s) is ShaderMaterial
+		_ok(not clear, "a single case's own tray stays the colored plastic it was")
 
 
 func _scan_spine_fit() -> void:
