@@ -723,22 +723,6 @@ const SOURCES := {
 			"macOS":   "parallel_gx2_libretro_{arch}.dylib.zip",
 		},
 	},
-	# The old Wii U core, kept for a player who still has it: RetroXR's own Cemu
-	# fork. The fork hands the TV and the GamePad over
-	# as two video views (wiiu.md), its speaker through the controller audio
-	# interface, and the remotes' motion, IR and amiibo from the room. Windows and
-	# Linux only for now: its Android build has never run a game, and macOS has
-	# no x86_64 build.
-	"cemu": {
-		"repo":  "RetroXR/cemu-libretro",
-		"branch": "retroxr",
-		"known_tag": "retroxr-cemu-libretro-v2",
-		"label": "Cemu (retroXR build)",
-		"assets": {
-			"Windows": "cemu_libretro.dll.zip",
-			"Linux":   "cemu_libretro.so.zip",
-		},
-	},
 }
 
 
