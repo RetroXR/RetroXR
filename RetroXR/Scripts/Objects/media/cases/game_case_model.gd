@@ -658,6 +658,7 @@ func _hide_strip() -> void:
 
 
 func _art(mat_name: String, texture: Texture2D, scale: Vector3, offset: Vector3) -> int:
+	var kind := "%s/%s" % [family, mat_name]
 	return _each_surface(mat_name, func(mi: MeshInstance3D, s: int, base: Material) -> void:
 		var m := (base as StandardMaterial3D).duplicate() as StandardMaterial3D
 		m.resource_local_to_scene = true
@@ -669,4 +670,22 @@ func _art(mat_name: String, texture: Texture2D, scale: Vector3, offset: Vector3)
 		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 		m.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
 		mi.set_surface_override_material(s, m)
-		mi.visible = true)
+		mi.visible = true
+		if not _kept_paper.has(kind):
+			var blank := m.duplicate() as StandardMaterial3D
+			blank.albedo_texture = _blank_sheet()
+			blank.get_rid()                              # its shader made (and counted as used) now
+			_kept_paper[kind] = blank)
+
+
+## One blank sheet of each kind of printed paper, kept for the session. A StandardMaterial3D's shader is made for
+## its settings and dropped with the last material that has them: the only case in a room took its paper's with
+## it, and the next case made it again in its spawn frame (24 ms on a desktop, every spawn).
+static var _kept_paper: Dictionary = {}
+static var _blank: ImageTexture = null
+
+
+static func _blank_sheet() -> ImageTexture:
+	if _blank == null:
+		_blank = ImageTexture.create_from_image(Image.create_empty(2, 2, false, Image.FORMAT_RGBA8))
+	return _blank

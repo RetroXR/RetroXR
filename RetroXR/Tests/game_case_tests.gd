@@ -1985,6 +1985,12 @@ func _case_spawn_light() -> void:
 	for path in paths:
 		held = held and ModelWarmer._held.has(path)
 	_ok(held, "a built case's model files are held: the next of its kind loads nothing")
+	# Its printed paper's shader outlives the case: a blank sheet of each kind is kept.
+	_eq(c.model.apply_box_texture(ImageTexture.create_from_image(_flat(1620, 680, Color.WHITE))), OK, "the case takes a wrap")
+	var kept := GameCaseModel._kept_paper.get("jewel/Jewel_Inlay") as StandardMaterial3D
+	_ok(kept != null and kept.albedo_texture != null and kept.albedo_texture.get_width() == 2
+		and kept.texture_filter == BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC,
+		"a blank sheet of its paper is kept for the session (its shader is not made again for the next case)")
 	var sp := ScenePersistence.new("game_case_tests")
 	_eq(sp._entry_asset_paths({"type": "game_case", "case_family": "jewel", "case_variant": "fatbox4"}), Array(paths),
 		"a restore asks for a saved case's model files ahead of building it")
