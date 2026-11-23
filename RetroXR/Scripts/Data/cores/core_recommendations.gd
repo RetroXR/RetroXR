@@ -163,8 +163,8 @@ const RECOMMENDED := {
 	},
 
 	# Every platform: RetroXR's branch is released for Windows, Linux, Android and
-	# macOS. On a Quest 3 it is not playable in the room: the core alone ran
-	# Nintendo Land at 60 fps, but in the room the room fell to 6-7 fps (wiiu.md).
+	# macOS. On a Quest 3 Nintendo Land runs at 55-62 fps in the room, the room
+	# holding 72 (wiiu.md).
 	"wiiu": {
 		"core": "parallel_gx2",
 		"why":  "libretro's Wii U core, with retroXR's additions: the TV and GamePad pictures come over separately, so the GamePad shows its own screen in your hands, and its speaker plays from it",

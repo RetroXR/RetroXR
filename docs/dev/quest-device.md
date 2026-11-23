@@ -312,3 +312,7 @@ milestones is usually enough: `libllvm-qgl.so` is the Adreno driver compiling pi
 debug export with `command_line/extra_args="--verbose"` on the preset adds a `Loading
 resource:` line (with its thread id) for every load, and the PSO cache verdict
 (`Startup PSO cache (N MiB)`). Revert the preset afterwards.
+
+## Measuring a core in the room with nobody in the headset
+
+`vrsprobe.cfg` (QualityManager's QA hook, read from the external files dir and deleted as it is read) takes `"power_on": "<systemid>"`: it switches on the room's machine of that systemid, media already in it, and logs `[VRSProbe] core <id> frames=<n> godot_fps=<n>` about once a second. `"power_on_settle_sec"` waits before the rest (`profile_scripts`, `report`, `profile_transfers`) runs. In VR a SceneTreeTimer advances by the frame step, so at a low frame rate its "second" is longer: count frames per line, not per second. Push it, then the three launch steps; `gpu_busy_percentage` and `/proc/meminfo` over adb alongside (wiiu.md "In the room").

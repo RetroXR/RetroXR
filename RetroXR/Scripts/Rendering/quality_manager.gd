@@ -592,6 +592,14 @@ func _run_vrs_probe() -> void:
 		get_tree().root.msaa_3d = m as Viewport.MSAA
 	if bool(cfg.get("fov_pattern", false)) or cfg.has("fov_load"):
 		_probe_foveation_pattern(int(cfg.get("fov_load", 0)))
+	if cfg.has("power_on"):
+		# Switch on the room's machine of this systemid (its media already in it)
+		# and log its core's frame rate each second, so a core's cost in the ROOM
+		# can be measured with nobody in the headset.
+		_probe_power_on(str(cfg["power_on"]))
+		if cfg.has("power_on_settle_sec"):
+			await get_tree().create_timer(float(cfg["power_on_settle_sec"])).timeout
+			print("[VRSProbe] power_on: settled, the rest runs now")
 	if cfg.has("hide"):
 		# Probe knob for the "what would you cut from the room" question: hide a
 		# named subtree and measure what it was costing, rather than reasoning
@@ -687,6 +695,37 @@ func _run_vrs_probe() -> void:
 		await _probe_bisect_children(String(cfg["bisect_children"]), int(cfg.get("frames", 60)))
 	if cfg.has("report") or _probe_profile_transfers:
 		_probe_report(maxi(int(cfg.get("report", 72)), 1))
+
+
+func _probe_power_on(systemid: String) -> void:
+	var host: RetroSystem = null
+	for n: Node in get_tree().root.find_children("*", "Node3D", true, false):
+		if n is RetroSystem and str((n as RetroSystem).systemid) == systemid:
+			host = n as RetroSystem
+			break
+	if host == null:
+		print("[VRSProbe] power_on: no %s in the room" % systemid)
+		return
+	print("[VRSProbe] power_on: %s %s" % [systemid, host.get_path()])
+	host.power_on()
+	var lib: Node = null
+	var last := -1
+	while is_inside_tree() and is_instance_valid(host):
+		await get_tree().create_timer(1.0).timeout
+		if lib == null or not is_instance_valid(lib):
+			var found := host.find_children("*", "Libretro", true, false)
+			lib = found[0] if not found.is_empty() else null
+		if lib == null or not lib.has_method("GetFrameCount"):
+			print("[VRSProbe] core %s: no Libretro node yet" % systemid)
+			continue
+		var frames := int(lib.call("GetFrameCount"))
+		if last >= 0:
+			print("[VRSProbe] core %s frames=%d godot_fps=%d physics: active=%d pairs=%d islands=%d" % [
+				systemid, frames - last, Engine.get_frames_per_second(),
+				Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS),
+				Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS),
+				Performance.get_monitor(Performance.PHYSICS_3D_ISLAND_COUNT)])
+		last = frames
 
 
 ## One level down from _probe_bisect_scenes: every spawned node instanced from
@@ -1008,6 +1047,8 @@ func _probe_report_transfers() -> void:
 		live[lib.get_instance_id()] = true
 		lib.call("SetVideoTransferProfiling", true)
 		var stats: Dictionary = lib.call("GetVideoTransferStats")
+		if not stats.has("readback_total") or not stats.has("texture_update"):
+			continue
 		var previous: Dictionary = _probe_transfer_previous.get(lib.get_instance_id(), {})
 		_probe_transfer_previous[lib.get_instance_id()] = stats
 		if previous.is_empty():

@@ -51,6 +51,12 @@ var _off_mat: StandardMaterial3D = null
 var _last_tex: Texture2D = null
 var _last_rect := Rect2(-1, -1, -1, -1)
 var _motion := MotionSampler.new()
+## Whether the running core reads Android's sensor axes, worked out once a power-on
+## for the system it was worked out for. resolve_core_name() reads the core
+## defaults file every time it is asked, and asked on every physics step it cost a
+## Quest 76 ms a step: the room fell to 6-7 fps whenever the Wii U was on.
+var _axes_for_id := 0
+var _axes_android := false
 ## Left and right, the voices on them, and the gain last set on each.
 var _speakers: Array[Marker3D] = []
 var _speaker_voices: Array[int] = [-1, -1]
@@ -209,13 +215,14 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	super._physics_process(delta)
 	if _connected_system == null or not _connected_system.is_powered_on:
+		_axes_for_id = 0
 		return
 	_motion.sample(global_transform, delta)
 	var lib := _connected_system.get_libretro_node()
 	if not is_instance_valid(lib):
 		return
 	var b := global_transform.basis
-	var android := core_reads_android_axes(_connected_system.resolve_core_name())
+	var android := reads_android_axes()
 	var a := _motion.accel_local(b)
 	var w := _motion.gyro_local(b)
 	if android:
@@ -227,6 +234,20 @@ func _physics_process(delta: float) -> void:
 	if not NetworkManager.netplay_set_aux_sensor(_connected_system, _port_index, 0,
 			int(w.x * 100.0), int(w.y * 100.0), int(w.z * 100.0), true):
 		lib.SetSensorGyro(_port_index, w.x, w.y, w.z)
+
+
+## core_reads_android_axes for the running core, asked once per power-on of the
+## connected system rather than on every physics step.
+func reads_android_axes() -> bool:
+	if _connected_system == null:
+		return false
+	var id := _connected_system.get_instance_id()
+	if id != _axes_for_id:
+		_axes_for_id = id
+		_axes_android = core_reads_android_axes(_connected_system.resolve_core_name())
+		print("[WiiU] GamePad motion goes out in %s axes (core %s)" % [
+			"Android's" if _axes_android else "SDL's", _connected_system.resolve_core_name()])
+	return _axes_android
 
 
 ## The pad's own frame (+X right, +Y out of the screen, +Z the bottom edge, towards

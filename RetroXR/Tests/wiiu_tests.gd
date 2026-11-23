@@ -49,6 +49,7 @@ func _ready() -> void:
 		await _test_a_touch_lands_in_the_gamepad_view()
 	if _wants("axes"):
 		_test_the_gamepad_reads_androids_axes()
+		_test_the_gamepad_asks_for_its_core_once_a_power_on()
 	if _wants("cradle"):
 		await _test_the_cradle_charges_the_gamepad()
 	if _wants("speakers"):
@@ -239,6 +240,37 @@ func _test_a_touch_lands_in_the_gamepad_view() -> void:
 
 
 # ── axes/ ────────────────────────────────────────────────────────────────────
+
+class CountingWiiU extends RetroSystem:
+	var asked := 0
+	var core := "parallel_gx2"
+	func resolve_core_name() -> String:
+		asked += 1
+		return core
+
+
+func _test_the_gamepad_asks_for_its_core_once_a_power_on() -> void:
+	# Asked every physics step, resolve_core_name() (which reads the core defaults
+	# file) cost a Quest 76 ms a step and held the room at 6-7 fps.
+	var pad := WiiUGamePad.new()
+	var sys := CountingWiiU.new()
+	sys.is_powered_on = true
+	pad._connected_system = sys
+	for i in 90:
+		pad.reads_android_axes()
+	var first := sys.asked
+	_ok(first <= 2 and not pad.reads_android_axes(),
+		"axes/the core is looked up once, not every step", "asked %d times in 90 steps" % first)
+	pad._physics_process(1.0 / 90.0)
+	sys.is_powered_on = false
+	pad._physics_process(1.0 / 90.0)
+	sys.core = "cemu"
+	sys.is_powered_on = true
+	_ok(pad.reads_android_axes() and sys.asked > first,
+		"axes/a power cycle looks again", "asked %d" % sys.asked)
+	pad.free()
+	sys.free()
+
 
 func _test_the_gamepad_reads_androids_axes() -> void:
 	# At rest the sensor reads +1 g straight up; which Android axis that lands on
