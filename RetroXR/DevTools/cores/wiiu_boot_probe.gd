@@ -35,6 +35,7 @@
 ## --toyoff=<spot>@<s>[,...]  lifts it. Both switch the bases on as --toys does,
 ##                without its scratch figure. A game WRITES to a figure: hand it a copy.
 ##
+## --poses=flat@0,upright@120  the GamePad turned between poses, through the room path.
 ## --accel=x,y,z  the GamePad held still in that pose every frame (g, libretro axes).
 ##
 ## The Wii U Menu: --rom=<mlc01>/sys/title/00050010/10040100/code/men.rpx (the US
@@ -64,6 +65,60 @@ var _touches: Array = []
 var _touching := false
 var _failed := ""
 var _last_mask := 0
+## --poses=<name>@<s>[,...]: the GamePad turned (over 1 s, about its X) into each
+## pose at that time, its motion fed through the room's own path: MotionSampler
+## on the pad's frame, turned to Android's only for a core that reads them
+## (WiiUGamePad.core_reads_android_axes). In Nintendo Land's first-visit viewfinder
+## ("Move the GamePad like a viewfinder"; delete its save) the camera follows them. Poses: the pad's basis in a
+## room where the player looks down -Z.
+const POSES := {
+	"flat": Basis.IDENTITY,                       # screen up, top edge away
+	"tilt45": Basis(Vector3.RIGHT, PI * 0.25),    # screen tilted 45 deg to the player
+	"upright": Basis(Vector3.RIGHT, PI * 0.5),    # screen to the player, top edge up
+	"down": Basis(Vector3.RIGHT, -PI * 0.25),     # top edge 45 deg below level
+	# held upright, then: the back (where the camera looks) turned 30 deg up / down,
+	# or the player turned 45 deg to the right / left
+	"lookup": Basis(Vector3.RIGHT, PI * 2.0 / 3.0),
+	"lookdown": Basis(Vector3.RIGHT, PI / 3.0),
+	"right": Basis(Vector3.UP, -PI * 0.25) * Basis(Vector3.RIGHT, PI * 0.5),
+	"left": Basis(Vector3.UP, PI * 0.25) * Basis(Vector3.RIGHT, PI * 0.5),
+}
+var _poses: Array = []
+## --tablet-axes: the WRONG leg, Android's tablet axes sent to parallel_gx2 (what
+## a2fd90ada did, reverted): upright looked at the floor and a turn rolled
+var _tablet_axes := false
+var _pose_sampler := MotionSampler.new()
+var _pose_from := Quaternion.IDENTITY
+var _pose_to := Quaternion.IDENTITY
+var _pose_at := -10.0
+var _pose_last_s := -1.0
+var _pose_name := ""
+
+
+func _feed_pose(now_s: float) -> void:
+	for pr: Array in _poses:
+		if now_s >= float(pr[1]) and pr.size() == 2:
+			pr.append(true)
+			var cur := _pose_from.slerp(_pose_to, clampf(now_s - _pose_at, 0.0, 1.0))
+			_pose_from = cur
+			_pose_to = Quaternion(POSES[pr[0]] as Basis)
+			_pose_at = now_s
+			_pose_name = str(pr[0])
+			print("[wiiu] t=%.1fs pose -> %s" % [now_s, _pose_name])
+	var q := _pose_from.slerp(_pose_to, clampf(now_s - _pose_at, 0.0, 1.0))
+	var b := Basis(q)
+	var dt := 1.0 / 60.0 if _pose_last_s < 0.0 else maxf(now_s - _pose_last_s, 0.001)
+	_pose_last_s = now_s
+	_pose_sampler.sample(Transform3D(b, Vector3.ZERO), dt)
+	var a := _pose_sampler.accel_local(b)
+	var w := _pose_sampler.gyro_local(b)
+	if _tablet_axes or WiiUGamePad.core_reads_android_axes(_core):
+		a = WiiUGamePad.android_axes(a)
+		w = WiiUGamePad.android_axes(w)
+	_lib.call("SetSensorAccel", 0, a.x, a.y, a.z)
+	_lib.call("SetSensorGyro", 0, w.x, w.y, w.z)
+
+
 ## --accel=x,y,z: the GamePad held still in that pose (g, libretro's axes), every frame
 var _accel := Vector3.ZERO
 var _has_accel := false
@@ -92,6 +147,13 @@ func _ready() -> void:
 			_root = a.substr(7)
 		elif a.begins_with("--leg="):
 			_leg = a.substr(6)
+		elif a == "--tablet-axes":
+			_tablet_axes = true
+		elif a.begins_with("--poses="):
+			for item: String in a.substr(8).split(",", false):
+				var at := item.split("@")
+				if at.size() == 2 and POSES.has(at[0]):
+					_poses.append([at[0], float(at[1])])
 		elif a.begins_with("--accel="):
 			var p := a.substr(8).split(",")
 			if p.size() == 3:
@@ -193,7 +255,9 @@ func _ready() -> void:
 		await get_tree().process_frame
 		if not _failed.is_empty():
 			break
-		if _has_accel:
+		if not _poses.is_empty():
+			_feed_pose((Time.get_ticks_msec() - t0) / 1000.0)
+		elif _has_accel:
 			_lib.call("SetSensorAccel", 0, _accel.x, _accel.y, _accel.z)
 			_lib.call("SetSensorGyro", 0, 0.0, 0.0, 0.0)
 		elif _gyro != 0.0:

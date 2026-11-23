@@ -51,6 +51,12 @@ var _off_mat: StandardMaterial3D = null
 var _last_tex: Texture2D = null
 var _last_rect := Rect2(-1, -1, -1, -1)
 var _motion := MotionSampler.new()
+## Whether the running core reads Android's sensor axes, worked out once a power-on
+## for the system it was worked out for. resolve_core_name() reads the core
+## defaults file every time it is asked, and asked on every physics step it cost a
+## Quest 76 ms a step: the room fell to 6-7 fps whenever the Wii U was on.
+var _axes_for_id := 0
+var _axes_android := false
 ## Left and right, the voices on them, and the gain last set on each.
 var _speakers: Array[Marker3D] = []
 var _speaker_voices: Array[int] = [-1, -1]
@@ -209,17 +215,19 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	super._physics_process(delta)
 	if _connected_system == null or not _connected_system.is_powered_on:
+		_axes_for_id = 0
 		return
 	_motion.sample(global_transform, delta)
 	var lib := _connected_system.get_libretro_node()
 	if not is_instance_valid(lib):
 		return
 	var b := global_transform.basis
-	# Never ask which core runs here: resolve_core_name() reads the core defaults
-	# file, and on every physics step it cost a Quest 76 ms a step (the room fell
-	# to 6-7 fps). Both cores take the same axes.
-	var a := android_axes(_motion.accel_local(b))
-	var w := android_axes(_motion.gyro_local(b))
+	var android := reads_android_axes()
+	var a := _motion.accel_local(b)
+	var w := _motion.gyro_local(b)
+	if android:
+		a = android_axes(a)
+		w = android_axes(w)
 	if not NetworkManager.netplay_set_aux_sensor(_connected_system, _port_index, 0,
 			int(a.x * 1000.0), int(a.y * 1000.0), int(a.z * 1000.0)):
 		lib.SetSensorAccel(_port_index, a.x, a.y, a.z)
@@ -228,15 +236,32 @@ func _physics_process(delta: float) -> void:
 		lib.SetSensorGyro(_port_index, w.x, w.y, w.z)
 
 
-## From the pad's own frame (+X right, +Y out of the screen, +Z the bottom edge) to
-## Android's (+X right, +Y the top edge, +Z out of the screen), which is what both
-## Cemu cores read the GamePad's sensors as. Cemu treats gravity along +Y as the
-## GamePad in its normal hold, upright and facing the TV: an Android tablet held
-## upright, or an SDL controller held flat in the hands, reads that. The GamePad is
-## a tablet, so its frame goes out as Android's; sent as an SDL controller's
-## (unturned), an upright GamePad read as one tipped 90 degrees and the games only
-## looked ahead with it held flat, screen to the ceiling. A proper rotation, so it
-## holds for angular velocity too.
+## core_reads_android_axes for the running core, asked once per power-on of the
+## connected system rather than on every physics step.
+func reads_android_axes() -> bool:
+	if _connected_system == null:
+		return false
+	var id := _connected_system.get_instance_id()
+	if id != _axes_for_id:
+		_axes_for_id = id
+		_axes_android = core_reads_android_axes(_connected_system.resolve_core_name())
+		print("[WiiU] GamePad motion goes out in %s axes (core %s)" % [
+			"Android's" if _axes_android else "SDL's", _connected_system.resolve_core_name()])
+	return _axes_android
+
+
+## The pad's own frame (+X right, +Y out of the screen, +Z the bottom edge, towards
+## the player) IS SDL's for a controller, which parallel-gx2 reads libretro's sensor
+## axes as (upstream's conversion for SDL; a DualSense on RetroArch's udev driver
+## sends these), so it goes out as it is. Only RetroXR's old Cemu fork read
+## Android's and turned them itself.
+static func core_reads_android_axes(core: String) -> bool:
+	return core == "cemu"
+
+
+## From the pad's own frame to Android's (+X right, +Y the top edge, +Z out of the
+## screen), for the old Cemu fork. A proper rotation, so it holds for angular
+## velocity too.
 static func android_axes(v: Vector3) -> Vector3:
 	return Vector3(v.x, -v.z, v.y)
 

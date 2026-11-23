@@ -49,7 +49,7 @@ func _ready() -> void:
 		await _test_a_touch_lands_in_the_gamepad_view()
 	if _wants("axes"):
 		_test_the_gamepad_reads_androids_axes()
-		_test_the_gamepad_never_asks_for_its_core()
+		_test_the_gamepad_asks_for_its_core_once_a_power_on()
 	if _wants("cradle"):
 		await _test_the_cradle_charges_the_gamepad()
 	if _wants("speakers"):
@@ -249,19 +249,28 @@ class CountingWiiU extends RetroSystem:
 		return core
 
 
-func _test_the_gamepad_never_asks_for_its_core() -> void:
+func _test_the_gamepad_asks_for_its_core_once_a_power_on() -> void:
 	# Asked every physics step, resolve_core_name() (which reads the core defaults
-	# file) cost a Quest 76 ms a step and held the room at 6-7 fps. Both cores take
-	# the same axes, so the step has no reason to ask.
+	# file) cost a Quest 76 ms a step and held the room at 6-7 fps.
 	var pad := WiiUGamePad.new()
 	var sys := CountingWiiU.new()
 	sys.is_powered_on = true
 	pad._connected_system = sys
 	for i in 90:
-		pad._physics_process(1.0 / 90.0)
-	_ok(sys.asked == 0, "axes/the physics step never looks up the core", "asked %d times in 90 steps" % sys.asked)
+		pad.reads_android_axes()
+	var first := sys.asked
+	_ok(first <= 2 and not pad.reads_android_axes(),
+		"axes/the core is looked up once, not every step", "asked %d times in 90 steps" % first)
+	pad._physics_process(1.0 / 90.0)
+	sys.is_powered_on = false
+	pad._physics_process(1.0 / 90.0)
+	sys.core = "cemu"
+	sys.is_powered_on = true
+	_ok(pad.reads_android_axes() and sys.asked > first,
+		"axes/a power cycle looks again", "asked %d" % sys.asked)
 	pad.free()
 	sys.free()
+
 
 func _test_the_gamepad_reads_androids_axes() -> void:
 	# At rest the sensor reads +1 g straight up; which Android axis that lands on
@@ -286,23 +295,23 @@ func _test_the_gamepad_reads_androids_axes() -> void:
 	var w := WiiUGamePad.android_axes(spin.gyro_local(Basis(Vector3.UP, 0.58)))
 	_ok(w.z > 1.0 and absf(w.x) < 0.05 and absf(w.y) < 0.05,
 		"axes/a flat turn is a spin about Android's Z", str(w))
-	# What Cemu (both cores) is sent, in the poses a player holds it: gravity along
-	# +Y is the GamePad in its normal hold, upright and facing the TV (upstream
-	# Cemu's sample for an SDL controller held flat in the hands, or an Android
-	# tablet held up), and lying flat, screen up, is +Z. Sent unturned, as an SDL
-	# controller's, an upright pad read as one tipped 90 degrees.
-	var poses := [
-		[Basis(Vector3.RIGHT, PI * 0.5), Vector3(0, 1, 0), "upright, screen to the player: +Y, Cemu's normal hold"],
-		[Basis.IDENTITY, Vector3(0, 0, 1), "flat, screen up: +Z"],
-		[Basis(Vector3.RIGHT, PI * 0.25), Vector3(0, 0.7071, 0.7071), "tilted back 45 deg: between the two"],
-	]
-	for c: Array in poses:
+	# parallel-gx2 reads SDL's controller axes, which are the pad's own: flat,
+	# gravity is +Y (out of the face); held up, top edge up, it is -Z (the top
+	# edge is -Z, the player +Z); and a flat turn is about Y. Only the old fork
+	# gets Android's.
+	_ok(not WiiUGamePad.core_reads_android_axes("parallel_gx2") and WiiUGamePad.core_reads_android_axes("cemu"),
+		"axes/parallel-gx2 gets SDL's axes, the old Cemu fork Android's")
+	for c: Array in [[Basis.IDENTITY, Vector3(0, 1, 0), "flat: +Y"],
+			[Basis(Vector3.RIGHT, PI * 0.5), Vector3(0, 0, -1), "held up, top edge up: -Z"]]:
 		var s2 := MotionSampler.new()
 		var xf2 := Transform3D(c[0] as Basis, Vector3.ZERO)
 		for i in 60:
 			s2.sample(xf2, 1.0 / 60.0)
-		var g := WiiUGamePad.android_axes(s2.accel_local(xf2.basis))
-		_ok(g.distance_to(c[1] as Vector3) < 0.01, "axes/sent " + String(c[2]), str(g))
+		var g := s2.accel_local(xf2.basis)
+		_ok(g.distance_to(c[1] as Vector3) < 0.01, "axes/SDL " + String(c[2]), str(g))
+	var w2 := spin.gyro_local(Basis(Vector3.UP, 0.58))
+	_ok(w2.y > 1.0 and absf(w2.x) < 0.05 and absf(w2.z) < 0.05,
+		"axes/SDL: a flat turn is a spin about Y", str(w2))
 	# A SLOW turn counts too: 0.03 degrees a tick at 90 Hz (2.7 deg/s), tilted
 	# off the vertical so every axis has a share. Quaternion.get_angle() read it
 	# as exactly 0, and a held GamePad's slow turns never reached the core.
