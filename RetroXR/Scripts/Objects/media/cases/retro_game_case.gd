@@ -269,7 +269,27 @@ func manual_path() -> String:
 ## must be in the tree; the contents join the room it is in as objects of their own ("spawned").
 func spawn_contents(disc_paths: PackedStringArray) -> void:
 	_fresh = true
-	var room := get_parent()
+	for step: Callable in _content_steps(disc_paths):
+		step.call()
+	_update_reach()
+
+
+## The same, a thing a frame: each disc, then the manual. All of them built in the frame the case appeared was a
+## long frame on a headset (the owner, 2026-11-23: "the game freezes for a while until it spawns in"); a case's
+## lid is shut for the handful of frames it takes.
+func spawn_contents_over_frames(disc_paths: PackedStringArray) -> void:
+	_fresh = true
+	for step: Callable in _content_steps(disc_paths):
+		await get_tree().process_frame
+		if not is_inside_tree() or is_queued_for_deletion():
+			return
+		step.call()
+	_update_reach()
+
+
+## What fills a new case, one call each: a disc onto its seat for every disc on this device, and the manual.
+func _content_steps(disc_paths: PackedStringArray) -> Array[Callable]:
+	var steps: Array[Callable] = []
 	var umd := systemid == "psp" and _holder_zone != null
 	var seats: Array[XRToolsSnapZone] = _zones
 	if umd:
@@ -278,25 +298,36 @@ func spawn_contents(disc_paths: PackedStringArray) -> void:
 	for i in mini(disc_paths.size(), seats.size()):
 		if disc_paths[i].is_empty():
 			continue                                     # a disc of the set that is not on this device
-		var at := i if umd else order[i]
-		var disc := (UMD_SCENE if umd else DISC_SCENE).instantiate() as RetroCartridge
-		disc.rom_path = disc_paths[i]
-		disc.game_label = game_label
-		disc.systemid = systemid
-		room.add_child(disc)
-		disc.add_to_group("spawned")
-		disc.global_transform = seats[at].global_transform
-		seats[at].pick_up_object(disc)
+		steps.append(_spawn_disc.bind(disc_paths[i], seats[i if umd else order[i]], umd))
+	if not manual_path().is_empty() and _manual_zone != null:
+		steps.append(_spawn_manual)
+	return steps
+
+
+func _spawn_disc(disc_path: String, seat: XRToolsSnapZone, umd: bool) -> void:
+	if not is_instance_valid(seat) or is_instance_valid(seat.picked_up_object):
+		return
+	var disc := (UMD_SCENE if umd else DISC_SCENE).instantiate() as RetroCartridge
+	disc.rom_path = disc_path
+	disc.game_label = game_label
+	disc.systemid = systemid
+	get_parent().add_child(disc)
+	disc.add_to_group("spawned")
+	disc.global_transform = seat.global_transform
+	seat.pick_up_object(disc)
+
+
+func _spawn_manual() -> void:
 	var pdf := manual_path()
-	if not pdf.is_empty() and _manual_zone != null:
-		var book := BOOK_SCENE.instantiate() as PDFBook
-		book.book_height = model.manual_size_m().y
-		book.pdf_path = pdf
-		room.add_child(book)
-		book.add_to_group("spawned")
-		book.global_transform = _manual_zone.global_transform
-		_manual_zone.pick_up_object(book)
-	_update_reach()
+	if pdf.is_empty() or _manual_zone == null or is_instance_valid(_manual_zone.picked_up_object):
+		return
+	var book := BOOK_SCENE.instantiate() as PDFBook
+	book.book_height = model.manual_size_m().y
+	book.pdf_path = pdf
+	get_parent().add_child(book)
+	book.add_to_group("spawned")
+	book.global_transform = _manual_zone.global_transform
+	_manual_zone.pick_up_object(book)
 
 
 # ------------------------------------------------------------------ build
@@ -438,7 +469,7 @@ func _build_hinges() -> void:
 			grab_y = (inside + outside) * 0.5
 			grab_t = outside - inside
 		else:
-			slab = _panel_slab(("FlipTray%d" if case_family == "jewel" else "Leaf%d") % (idx + 1), pivot.x + reach * 0.5)
+			slab = _panel_slab(("FlipTray%d" if case_family == "jewel" else "Leaf%d") % (idx + 1), slab_from_x(pivot.x, reach))
 			if slab.x < slab.y:
 				grab_y = (slab.x + slab.y) * 0.5 - pivot.z
 				grab_t = (slab.y - slab.x) + 0.020
@@ -550,6 +581,29 @@ func _build_hinges() -> void:
 ## out, clear of the arms that reach up to its hinge line) with the discs it carries. (lo, hi); lo > hi when the
 ## model has no such panel.
 func _panel_slab(node_name: String, from_x: float) -> Vector2:
+	# The panel's own faces from the baked table; from its mesh only when the table has no such row.
+	var own := GameCaseModel.baked_slab(case_family, case_variant, node_name, from_x)
+	if own.x > own.y:
+		own = _panel_mesh_slab(node_name, from_x)
+	var lo := own.x
+	var hi := own.y
+	for row: Dictionary in model.contract().get("seats", []):
+		if str(row.get("parent", row.get("carrier", ""))) != node_name:
+			continue
+		var z := float((row["center_mm"] as Array)[2]) * 0.001
+		lo = minf(lo, z - DISC_HALF_T)
+		hi = maxf(hi, z + DISC_HALF_T)
+	return Vector2(lo, hi)
+
+
+## Where an inner panel's free half begins: halfway out from its hinge line.
+static func slab_from_x(pivot_x: float, reach: float) -> float:
+	return pivot_x + reach * 0.5
+
+
+## The same faces read off the panel's mesh: what the table is baked from and checked against. Not for a build in
+## play (GameCaseModel.PANEL_SLABS says why).
+func _panel_mesh_slab(node_name: String, from_x: float) -> Vector2:
 	var lo := INF
 	var hi := -INF
 	var node := model.levels[0].find_child(node_name, true, false) as Node3D if not model.levels.is_empty() else null
@@ -568,13 +622,17 @@ func _panel_slab(node_name: String, from_x: float) -> Vector2:
 					if p.x >= from_x:
 						lo = minf(lo, p.z)
 						hi = maxf(hi, p.z)
-	for row: Dictionary in model.contract().get("seats", []):
-		if str(row.get("parent", row.get("carrier", ""))) != node_name:
-			continue
-		var z := float((row["center_mm"] as Array)[2]) * 0.001
-		lo = minf(lo, z - DISC_HALF_T)
-		hi = maxf(hi, z + DISC_HALF_T)
 	return Vector2(lo, hi)
+
+
+## Each inner panel of this case: [node name, where its free half begins] (what the table is keyed and baked by).
+func inner_panels() -> Array:
+	var out: Array = []
+	for i in model.inner_count():
+		var pivot := model.pivot_m("inner%d" % (i + 1))
+		out.append([("FlipTray%d" if case_family == "jewel" else "Leaf%d") % (i + 1),
+			slab_from_x(pivot.x, maxf(_closed_box.end.x - pivot.x, 0.02))])
+	return out
 
 
 ## How far the lid opens. A jewel case's hinge is near its front, so laid open on a table its lid turns a few degrees

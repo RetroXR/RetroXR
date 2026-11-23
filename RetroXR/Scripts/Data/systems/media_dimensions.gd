@@ -578,11 +578,21 @@ static func load_media_texture(systemid: String, rom_path: String, folder: Strin
 
 ## The same image as load_media_texture, before it becomes a texture, or null.
 static func load_media_image(systemid: String, rom_path: String, folder: String) -> Image:
+	for path in media_image_paths(systemid, rom_path, folder):
+		var img := Image.load_from_file(path)
+		if img:
+			return img
+	return null
+
+
+## The files load_media_image would try, in its order: for a caller that decodes one off the main thread.
+static func media_image_paths(systemid: String, rom_path: String, folder: String) -> PackedStringArray:
+	var out := PackedStringArray()
 	if systemid.is_empty() or rom_path.is_empty():
-		return null
+		return out
 	var base := RomLibrary.content_stem(rom_path)
 	if base.is_empty():
-		return null
+		return out
 	# Every folder the system's ROMs live under, not only the first: an arcade game scraped from the
 	# `mame` tile has its art in mame/media while `arcade/` (the primary) exists and is empty.
 	for rom_dir in RomLibrary.rom_dirs_for_system(systemid):
@@ -590,10 +600,8 @@ static func load_media_image(systemid: String, rom_path: String, folder: String)
 		for ext in [".png", ".jpg", ".jpeg", ".webp"]:
 			var path := media_dir.path_join(base + ext)
 			if DataPaths.could_exist(path) and FileAccess.file_exists(path):
-				var img := Image.load_from_file(path)
-				if img:
-					return img
-	return null
+				out.append(path)
+	return out
 
 
 ## The path of a ROM's file in one of its media folders (<rom dir>/media/<folder>/<rom basename>.<ext>),

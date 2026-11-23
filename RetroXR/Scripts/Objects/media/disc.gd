@@ -136,14 +136,46 @@ func _apply_system_size() -> void:
 ## opaque, so unlike a transparent quad it sorts correctly, writes depth and
 ## takes the pickable outline. The art's own alpha is the print mask, including
 ## its centre hole, so nothing here masks or resizes it.
+##
+## The scan is decoded off the main thread (MediaLabelLoader, as a tape's or a record's is). Decoded where the
+## disc entered the room, a case of four discs decoded four 600 px scans in the frame it appeared: most of what
+## froze a headset while a case spawned (the owner, 2026-11-23).
 func _apply_label_art() -> void:
-	var tex := MediaDimensions.load_label_texture(systemid, rom_path)
+	# An arcade board's disc sticker is composed from two pictures, as its cartridge's is.
+	if ArcadeProfiles.is_cabinet_system(systemid):
+		_show_label_art(MediaDimensions.load_label_texture(systemid, rom_path))
+		return
+	var paths := MediaDimensions.media_image_paths(systemid, rom_path, "label")
+	if paths.is_empty():
+		_show_label_art(null)
+		return
+	var lbl := get_node_or_null("GameLabel") as Label3D
+	if lbl and lbl.visible:
+		lbl.visible = false                              # the scan is on its way: no title flashed before it
+		_title_waits = true
+	if _label_loader == null:
+		_label_loader = MediaLabelLoader.new()
+		_label_loader.name = "LabelLoader"
+		_label_loader.art_ready.connect(func(_slot: StringName, tex: Texture2D) -> void: _show_label_art(tex))
+		add_child(_label_loader)
+	_label_loader.request({&"label": paths[0]})
+
+
+var _label_loader: MediaLabelLoader = null
+## The title was hidden for a scan still decoding: shown again if the scan does not decode.
+var _title_waits := false
+
+
+func _show_label_art(tex: Texture2D) -> void:
 	var lbl := get_node_or_null("GameLabel") as Label3D
 	if tex != null:
 		_set_label_tex(tex)
 		if lbl:
 			lbl.visible = false
 		return
+	if lbl and _title_waits:
+		lbl.visible = true
+	_title_waits = false
 	if systemid != "wii":
 		return
 	_set_label_tex(WiiDiscLabel.TEXTURE)

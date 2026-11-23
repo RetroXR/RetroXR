@@ -151,6 +151,13 @@ static func acquire(path: String) -> Resource:
 	return await _finish_pending(path)
 
 
+## Keep an asset something has already loaded, for the life of the process: the next thing built from it does
+## not load it again (a game case restored from a save loads its models itself; the spawn after it has them).
+static func hold(path: String, res: Resource) -> void:
+	if res != null and not path.is_empty() and not _held.has(path):
+		_held[path] = res
+
+
 ## Poll an in-flight load a frame at a time. Any number of callers may await the
 ## same path: whichever resumes first takes the resource and clears the pending
 ## flag, the rest fall out of the loop and read _held.

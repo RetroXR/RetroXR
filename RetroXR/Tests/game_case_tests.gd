@@ -81,6 +81,9 @@ func _run() -> void:
 		["case/a flip tray's hinge is taken from either face", _case_tray_both_faces],
 		["case/a fingertip pushes a lid and never pulls it", _case_poke_no_pull],
 		["case/a shut lid's inside is not a fingertip's", _case_poke_shut_inside],
+		["case/the baked panel faces are the models'", _case_panel_slabs],
+		["case/a spawn keeps off the main thread", _case_spawn_light],
+		["case/a disc's label scan is decoded off the main thread", _disc_label_off_thread],
 		["case/a finger through a lid does not push its far face", _case_poke_through],
 		["case/a tray lying on the open lid is still the hand's", _case_tray_on_lid],
 		["case/the fat case keeps its manual in the black tray", _case_manual_on_tray],
@@ -1964,6 +1967,157 @@ func _case_poke_no_pull() -> void:
 		lid._poke_shape = null
 		lid._poke_face = 0
 		lid._poke_mode = 0
+
+
+## What kept a headset frozen while a case spawned (the owner, 2026-11-23) stays out of the spawn frame: the
+## case's model files are held once loaded, a restore asks for them ahead, and the menu's case gets its discs and
+## manual a thing a frame.
+func _case_spawn_light() -> void:
+	var paths := GameCaseModel.model_paths("jewel", "fatbox4")
+	_ok(paths.size() == 3 and ResourceLoader.exists(paths[0]) and ResourceLoader.exists(paths[2]),
+		"a variant names its three model files", str(paths))
+	_ok(GameCaseModel.model_paths("nothing", "single").is_empty(), "an unknown family names none")
+	var c := _new_case("jewel", "fatbox4")
+	await get_tree().physics_frame
+	c.global_position = Vector3(700.0, 1.0, 0.0)
+	c.set_physics_process(false)
+	var held := true
+	for path in paths:
+		held = held and ModelWarmer._held.has(path)
+	_ok(held, "a built case's model files are held: the next of its kind loads nothing")
+	var sp := ScenePersistence.new("game_case_tests")
+	_eq(sp._entry_asset_paths({"type": "game_case", "case_family": "jewel", "case_variant": "fatbox4"}), Array(paths),
+		"a restore asks for a saved case's model files ahead of building it")
+	_eq(sp._entry_asset_paths({"type": "game_case", "case_family": "jewel", "case_variant": ""}), [],
+		"a save with no variant names nothing (the case picks, and loads, as it always did)")
+	# Its contents, a thing a frame.
+	var roms := PackedStringArray()
+	for n in 4:
+		roms.append("C:/nowhere/Spread (Disc %d).chd" % (n + 1))
+	var seated := func(of: RetroGameCase) -> int:
+		var count := 0
+		for zone in of._zones:
+			if is_instance_valid(zone.picked_up_object):
+				count += 1
+		return count
+	c.spawn_contents_over_frames(roms)
+	_eq(seated.call(c), 0, "asked for its contents, nothing is built in that frame")
+	var most := 0
+	var last := 0
+	for _i in 12:
+		await get_tree().process_frame
+		var now: int = seated.call(c)
+		most = maxi(most, now - last)
+		last = now
+	_eq(last, 4, "a few frames on, every disc is on its seat")
+	_eq(most, 1, "one a frame")
+	var order := c.disc_seat_order(4)
+	var right := true
+	for n in 4:
+		var d := c._zones[order[n]].picked_up_object as RetroDisc
+		right = right and d != null and d.rom_path == roms[n]
+	_ok(right, "each on the seat the real case has it")
+	# A case deleted while its contents are still coming gets no more of them.
+	var gone := _new_case("jewel", "fatbox4")
+	await get_tree().physics_frame
+	gone.global_position = Vector3(703.0, 1.0, 0.0)
+	gone.set_physics_process(false)
+	var more := PackedStringArray()
+	for n in 4:
+		more.append("C:/nowhere/Gone (Disc %d).chd" % (n + 1))
+	gone.spawn_contents_over_frames(more)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	gone.queue_free()
+	for _i in 8:
+		await get_tree().process_frame
+	var strays := 0
+	for node in get_children():
+		if node is RetroDisc and (node as RetroDisc).rom_path.begins_with("C:/nowhere/"):
+			if (node as RetroDisc).rom_path.contains("Gone"):
+				strays += 1
+			_spawned.append(node)
+	_ok(strays <= 2, "a case deleted part way gets no more discs", str(strays))
+
+
+## A disc's label scan is decoded on a pool thread: it is there a few frames after the disc, with no title flashed
+## before it. One that will not decode leaves the title, and a disc with no scan shows its title at once.
+func _disc_label_off_thread() -> void:
+	var rom_dir := RomLibrary.rom_dir_for_system("psx")
+	var dir := rom_dir.path_join("media").path_join("label")
+	var made: Array[String] = []
+	_make_dirs(dir, made)
+	var good := dir.path_join("__disc_label_selftest.png")
+	var bad := dir.path_join("__disc_label_bad_selftest.png")
+	var art := Image.create_empty(64, 64, false, Image.FORMAT_RGBA8)
+	art.fill(Color.RED)
+	art.save_png(good)
+	var junk := FileAccess.open(bad, FileAccess.WRITE)
+	junk.store_string("not a picture")
+	junk.close()
+	var make := func(stem: String) -> RetroDisc:
+		var d := DISC_SCENE.instantiate() as RetroDisc
+		d.systemid = "psx"
+		d.rom_path = rom_dir.path_join(stem + ".chd")
+		d.game_label = "Self Test"
+		d.freeze = true
+		add_child(d)
+		_spawned.append(d)
+		return d
+	var worn := func(d: RetroDisc) -> Texture2D:
+		var m := (d.get_node("DiscMesh") as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
+		return m.get_shader_parameter("label_tex") as Texture2D
+	var with_art: RetroDisc = make.call("__disc_label_selftest")
+	var title := with_art.get_node("GameLabel") as Label3D
+	_ok(worn.call(with_art) == null, "the frame a disc enters the room its scan is not decoded there")
+	_ok(not title.visible, "and no title is flashed while it is")
+	for _i in 240:
+		if worn.call(with_art) != null:
+			break
+		await get_tree().process_frame
+	var tex: Texture2D = worn.call(with_art)
+	_ok(tex != null and tex.get_width() == 64 and not title.visible, "a few frames on the disc wears its scan",
+		str(tex.get_width()) if tex != null else "none")
+	var broken: RetroDisc = make.call("__disc_label_bad_selftest")
+	var broken_title := broken.get_node("GameLabel") as Label3D
+	_ok(not broken_title.visible, "a scan that will not decode: the title waits while it is tried")
+	for _i in 240:
+		if broken_title.visible:
+			break
+		await get_tree().process_frame
+	_ok(broken_title.visible and worn.call(broken) == null, "and shows once it has failed")
+	var plain: RetroDisc = make.call("__disc_label_none_selftest")
+	_ok((plain.get_node("GameLabel") as Label3D).visible and plain.get_node_or_null("LabelLoader") == null,
+		"a disc with no scan shows its title at once and decodes nothing")
+	DirAccess.remove_absolute(good)
+	DirAccess.remove_absolute(bad)
+	for i in range(made.size() - 1, -1, -1):
+		DirAccess.remove_absolute(made[i])
+
+
+## A case in play takes its inner panels' faces from the baked table, never from a mesh read back off the
+## graphics card (a stall a buffer: what froze a headset while a multi-disc case spawned). The table must be the
+## models': a case model changed without DevTools/cases/bake_panel_slabs run again fails here.
+func _case_panel_slabs() -> void:
+	var x := 640.0
+	var seen := 0
+	for family: String in ["jewel", "keep"]:
+		for variant: String in GameCaseModel.variants_of(family):
+			x += 1.0
+			var c := _new_case(family, variant)
+			await get_tree().physics_frame
+			c.global_position = Vector3(x, 1.0, 0.0)
+			c.set_physics_process(false)
+			for panel: Array in c.inner_panels():
+				seen += 1
+				var from_mesh := c._panel_mesh_slab(str(panel[0]), float(panel[1]))
+				var baked := GameCaseModel.baked_slab(family, variant, str(panel[0]), float(panel[1]))
+				_ok(baked.x <= baked.y and baked.distance_to(from_mesh) < 0.00002,
+					"%s/%s %s: the table has its faces (else run DevTools/cases/bake_panel_slabs)" % [family, variant, panel[0]],
+					"baked %s, the mesh %s" % [baked, from_mesh])
+	_ok(seen >= 10, "every case with a flip tray or a flipper is looked at", str(seen))
+	_ok(GameCaseModel.baked_slab("jewel", "fatbox4", "FlipTray1", 0.5).x > 0.0,
+		"a row baked for another half is not used")
 
 
 ## Whether a push would begin at a fingertip 2 mm off one face of a hinge's panel, coming at it (side: +1 its

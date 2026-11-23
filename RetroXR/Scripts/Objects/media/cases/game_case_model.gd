@@ -113,12 +113,16 @@ func build(case_family: String, case_variant: String) -> bool:
 		push_warning("[GameCaseModel] no %s case '%s'" % [family, variant])
 		return false
 	var ranges: Array = LOD_RANGES[family]
-	for i in SUFFIXES.size():
-		var path := str(MODELS[family]) % [variant, SUFFIXES[i]]
+	var paths := model_paths(family, variant)
+	for i in paths.size():
+		var path := paths[i]
+		# Held already when the spawn menu made this case (ModelWarmer.acquire, off the main thread); a case a save
+		# puts back loads them here, and they are kept for the next.
 		var packed := load(path) as PackedScene
 		if packed == null:
 			push_warning("[GameCaseModel] missing %s" % path)
 			return false
+		ModelWarmer.hold(path, packed)
 		var level := packed.instantiate() as Node3D
 		level.name = "LOD%d" % i
 		add_child(level)
@@ -150,6 +154,40 @@ func build(case_family: String, case_variant: String) -> bool:
 		set_color(DEFAULT_COLORS[variant])
 	_pose()
 	return true
+
+
+## Every inner panel's own two faces, baked: "<family>/<variant>" -> {node: [lo, hi, from_x]} (m). Its mesh read
+## back off the graphics card (surface_get_arrays) stalls the renderer once per buffer: 17 ms of a 20 ms case build
+## on a desktop, far more on a headset, each time a multi-disc case spawned (the owner, 2026-11-23: "the game
+## freezes for a while"). Written by DevTools/cases/bake_panel_slabs; game_case_tests holds it to the models.
+const PANEL_SLABS := "res://imported-assets/media/case_panel_slabs.json"
+static var _slabs: Dictionary = {}
+static var _slabs_read := false
+
+
+## The baked faces of one panel for the half from `from_x` out: (lo, hi), or (INF, -INF) when the table has no
+## row for it or its row was baked for another `from_x`.
+static func baked_slab(case_family: String, case_variant: String, node_name: String, from_x: float) -> Vector2:
+	if not _slabs_read:
+		_slabs_read = true
+		var text := FileAccess.get_file_as_string(PANEL_SLABS) if FileAccess.file_exists(PANEL_SLABS) else ""
+		var parsed: Variant = JSON.parse_string(text) if not text.is_empty() else null
+		if parsed is Dictionary:
+			_slabs = parsed
+	var row: Variant = (_slabs.get("%s/%s" % [case_family, case_variant], {}) as Dictionary).get(node_name)
+	if row is Array and (row as Array).size() >= 3 and absf(float((row as Array)[2]) - from_x) < 0.00005:
+		return Vector2(float((row as Array)[0]), float((row as Array)[1]))
+	return Vector2(INF, -INF)
+
+
+## A variant's model files, near to far. A plain load() of them froze a headset while a case spawned (the owner,
+## 2026-11-23): whatever spawns a case in play awaits ModelWarmer.acquire() on each first.
+static func model_paths(case_family: String, case_variant: String) -> PackedStringArray:
+	var out := PackedStringArray()
+	if MODELS.has(case_family):
+		for suffix: String in SUFFIXES:
+			out.append(str(MODELS[case_family]) % [case_variant, suffix])
+	return out
 
 
 static func _under_hinge(node: Node, level: Node) -> bool:

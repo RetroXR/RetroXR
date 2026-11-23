@@ -1857,7 +1857,8 @@ func prefetch_assets(objects: Array) -> int:
 
 
 ## The external model assets an entry's spawn loads: a system's model row's
-## `requires`, a cartridge's body and its rear sticker. Empty for everything else.
+## `requires`, a cartridge's body and its rear sticker, a game case's model files.
+## Empty for everything else.
 func _entry_asset_paths(entry: Variant) -> Array:
 	var out: Array = []
 	if not entry is Dictionary:
@@ -1891,6 +1892,11 @@ func _entry_asset_paths(entry: Variant) -> Array:
 			var sticker := SnesCartShell.rear_sticker_file(body, cart_systemid, cart_rom, pin)
 			if not sticker.is_empty():
 				out.append(sticker)
+		"game_case":
+			# A case's model files, which GameCaseModel.build would load() inside _ready.
+			for path in GameCaseModel.model_paths(str(rec.get("case_family", "")), str(rec.get("case_variant", ""))):
+				if ResourceLoader.exists(path):
+					out.append(path)
 	return out
 
 

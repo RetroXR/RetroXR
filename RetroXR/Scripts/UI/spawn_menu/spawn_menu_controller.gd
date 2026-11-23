@@ -1630,10 +1630,16 @@ func _on_spawn_case_requested(rom_path: String, game_label: String, systemid: St
 	var size := Vector2i(img.get_width(), img.get_height()) if img != null else RetroGameCase.box_size(systemid, rom_path)
 	var pick := GameCase.pick(systemid, GameCase.market_of(systemid, rom_path), discs.size(), size,
 		GameCase.release_of(systemid, rom_path))
+	# Its model files off the main thread, beside the art's decode: a plain load() of them when the case entered
+	# the room froze a headset (the owner, 2026-11-23).
+	var models := GameCaseModel.model_paths(str(pick["family"]), str(pick["variant"]))
+	ModelWarmer.prefetch(Array(models))
 	if not panels.is_empty():
 		img = await RetroGameCase.decode_panels(get_tree(), panels, str(pick["variant"]), str(pick["family"]))
 		if img == null and not art.is_empty():
 			img = await RetroGameCase.decode_image(get_tree(), art)
+	for path in models:
+		await ModelWarmer.acquire(path)
 	var c := GAME_CASE_SCENE.instantiate() as RetroGameCase
 	c.rom_path = rom_path
 	c.game_label = game_label
@@ -1644,7 +1650,7 @@ func _on_spawn_case_requested(rom_path: String, game_label: String, systemid: St
 	c.box_image = img
 	_place_spawned(c, "game_case")
 	if is_instance_valid(c) and c.is_inside_tree() and not c.is_queued_for_deletion():
-		c.spawn_contents(discs)
+		c.spawn_contents_over_frames(discs)
 
 
 func _on_spawn_manual_requested(pdf_path: String) -> void:

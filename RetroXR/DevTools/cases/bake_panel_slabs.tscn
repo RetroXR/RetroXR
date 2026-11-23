@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://DevTools/cases/bake_panel_slabs.gd" id="1"]
+
+[node name="BakePanelSlabs" type="Node"]
+script = ExtResource("1")
