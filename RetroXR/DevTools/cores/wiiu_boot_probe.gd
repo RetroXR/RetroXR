@@ -35,6 +35,8 @@
 ## --toyoff=<spot>@<s>[,...]  lifts it. Both switch the bases on as --toys does,
 ##                without its scratch figure. A game WRITES to a figure: hand it a copy.
 ##
+## --accel=x,y,z  the GamePad held still in that pose every frame (g, libretro axes).
+##
 ## The Wii U Menu: --rom=<mlc01>/sys/title/00050010/10040100/code/men.rpx (the US
 ## menu, from a system dump laid into the core's mlc01).
 extends Node
@@ -62,6 +64,9 @@ var _touches: Array = []
 var _touching := false
 var _failed := ""
 var _last_mask := 0
+## --accel=x,y,z: the GamePad held still in that pose (g, libretro's axes), every frame
+var _accel := Vector3.ZERO
+var _has_accel := false
 var _toys := false
 var _lib_signals_toys := false
 var _toy_readers: Array = []
@@ -87,6 +92,11 @@ func _ready() -> void:
 			_root = a.substr(7)
 		elif a.begins_with("--leg="):
 			_leg = a.substr(6)
+		elif a.begins_with("--accel="):
+			var p := a.substr(8).split(",")
+			if p.size() == 3:
+				_accel = Vector3(float(p[0]), float(p[1]), float(p[2]))
+				_has_accel = true
 		elif a.begins_with("--gyro="):
 			_gyro = float(a.substr(7))
 		elif a.begins_with("--seconds="):
@@ -183,7 +193,10 @@ func _ready() -> void:
 		await get_tree().process_frame
 		if not _failed.is_empty():
 			break
-		if _gyro != 0.0:
+		if _has_accel:
+			_lib.call("SetSensorAccel", 0, _accel.x, _accel.y, _accel.z)
+			_lib.call("SetSensorGyro", 0, 0.0, 0.0, 0.0)
+		elif _gyro != 0.0:
 			var turning := Time.get_ticks_msec() - t0 >= 25000
 			_lib.call("SetSensorAccel", 0, 0.0, 0.0, 1.0)
 			_lib.call("SetSensorGyro", 0, 0.0, 0.0, _gyro if turning else 0.0)
