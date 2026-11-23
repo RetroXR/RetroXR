@@ -1,0 +1,47 @@
+# Nintendo - Wii U (ParaLLEl GX2), retroXR build.
+#
+# Overrides the vendored libretro-core-info entry of the same name. It lives in
+# its own directory because res://libretro-core-info is vendored wholesale from
+# libretro's repository and is refreshed wholesale too: an edit there would be
+# lost the next time, silently.
+#
+# The binary this describes is built from RetroXR/parallel-gx2 at the tag
+# retroxr-parallel-gx2-v1 and published on that repository's releases page,
+# which is also where its source is: Cemu is MPL-2.0, so the two travel
+# together.
+
+# Software Information
+display_name = "Nintendo - Wii U (ParaLLEl GX2, retroXR)"
+authors = "Cemu Project|WizzardSK"
+supported_extensions = "wud|wux|wua|iso|rpx|elf|tmd"
+corename = "ParaLLEl GX2 (retroXR)"
+categories = "Emulator"
+license = "MPL-2.0"
+permissions = ""
+display_version = "2.6-372-g29f2f1fa"
+
+# Hardware Information
+manufacturer = "Nintendo"
+systemname = "Wii U"
+systemid = "wiiu"
+database = "Nintendo - Wii U"
+
+# Libretro Features
+supports_no_game = "true"
+hw_render = "true"
+needs_fullpath = "true"
+disk_control = "false"
+savestate = "false"
+cheats = "false"
+input_descriptors = "true"
+memory_descriptors = "false"
+libretro_saves = "true"
+core_options = "true"
+load_subsystem = "false"
+is_experimental = "false"
+
+# Firmware / BIOS
+firmware_count = 0
+notes = "(!) Save states are not supported - Cemu has no state serialization.|(!) Requires keys.txt in system/Cemu/ to load encrypted titles.|(!) MLC storage is created in saves/Cemu/mlc01/.|(!) Shared fonts go in system/Cemu/resources/sharedFonts/, graphic packs in system/Cemu/graphicPacks/.|(!) Needs a Vulkan or OpenGL 4.5 capable GPU. On Wayland use the Vulkan graphics API core option - the OpenGL path renders black there."
+
+description = "libretro's ParaLLEl GX2 (Cemu) for the Wii U, built from retroXR's fork. The TV and GamePad pictures come as two video views, so the TV shows the TV and the GamePad in your hands shows its own screen, which takes touch. The GamePad's speaker plays from the GamePad, in stereo; Wii Remotes take their aim from the room's sensor bar, with Nunchuk, MotionPlus and the Pro Controller; HOME works on every pad; the Wii U Menu boots with no disc; and amiibo, the Skylanders portal, the Disney Infinity base and the LEGO Dimensions toy pad take figures from the room. Save states are not supported."
