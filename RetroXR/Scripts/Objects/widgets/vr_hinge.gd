@@ -389,17 +389,27 @@ func _process_poke(delta: float) -> void:
 			continue
 		var tip := PokeTip.tip_of(ctrl)
 		var previous: Vector3 = _poke_prev_tips.get(ctrl.get_instance_id(), tip)
-		var contact := _poke_contact_at(tip, poke_face_margin, -1, tip - previous)
+		var contact := _poke_start_at(tip, tip - previous)
 		if contact.is_empty():
-			continue
-		# A push begins from outside the face it pushes: a tip already behind it (through the leaf) pushes nothing.
-		if poke_push_only and not bool(contact["external"]):
 			continue
 		var shape := contact["shape"] as CollisionShape3D
 		var face: int = contact["face"]
 		_claim_poke_face(ctrl, tip, shape, face, PokeTip.CONTACT_ENGAGED)
 		_begin_poke(ctrl, shape, face, tip)
 		break
+
+
+## The contact a push would begin with at `tip`, or {} where none may.
+func _poke_start_at(tip: Vector3, approach: Vector3) -> Dictionary:
+	var contact := _poke_contact_at(tip, poke_face_margin, -1, approach)
+	if contact.is_empty():
+		return {}
+	# A push begins from outside the face it pushes: a tip already behind it (through the leaf) pushes nothing.
+	if poke_push_only and not bool(contact["external"]):
+		return {}
+	if not _poke_face_allowed(contact["shape"] as CollisionShape3D, int(contact["face"])):
+		return {}
+	return contact
 
 
 func _qualified_poke(ctrl: XRController3D) -> bool:
@@ -438,6 +448,8 @@ func _update_active_poke_face(tip: Vector3, approach: Vector3) -> void:
 	# passed to it: drawing the finger back was then a push on that face, and the lid came out with the finger
 	# (the owner, 2026-11-22: "I shouldn't be able to pull with my finger"). The face a push began on keeps it.
 	if poke_push_only and shape == _poke_shape and _face_axis(face) == _face_axis(_poke_face):
+		return
+	if not _poke_face_allowed(shape, face):
 		return
 	_poke_shape = shape
 	_poke_face = face
@@ -701,6 +713,12 @@ func _require_poke_exit(ctrl: XRController3D) -> void:
 func _poke_can_begin(ctrl: XRController3D) -> bool:
 	return is_instance_valid(ctrl) \
 		and not _poke_rearm_required.get(ctrl.get_instance_id(), false)
+
+
+## Whether a fingertip may push this face of this shape now. Base: any face the hinge names. A hand passes through
+## things in VR, so a face no finger could be at (a shut lid's inside) is a subclass's to refuse (CaseHinge).
+func _poke_face_allowed(_shape: CollisionShape3D, _face: int) -> bool:
+	return true
 
 
 func _remember_poke_tips() -> void:

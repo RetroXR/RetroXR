@@ -492,6 +492,7 @@ func _build_hinges() -> void:
 	var top_rig: Array = _rigs[_rigs.size() - 1]
 	(top_rig[2] as CaseHinge).quiet_at = _lid_quiet
 	(top_rig[2] as CaseHinge).cede_at = _tray_has
+	(top_rig[2] as CaseHinge).face_gate = _lid_face_free
 	_lid_handle_at = (top_rig[2] as Node3D).position
 	# The same hinge from the lid's side, for a case held by its lid (_lid_grab). There the lid is the still half
 	# and the base the one that turns, and VRHinge reads a hand in the frame of its target's parent: by the lid's
@@ -517,6 +518,7 @@ func _build_hinges() -> void:
 	_base_hinge.engage_radius = 0.05
 	_base_hinge.gate = func() -> bool: return _lid_grab != null
 	_base_hinge.quiet_at = _base_quiet
+	_base_hinge.face_gate = _base_face_free
 	base_angle.add_child(_base_hinge)
 	# In BaseAngle's frame the base lies along -Z from the hinge, as the lid does in its own, +Y out of its back.
 	var base_mid := half_turn * ((top_rig[0] as Node3D).transform.affine_inverse() * _base_box.get_center())
@@ -611,6 +613,20 @@ func _tray_quiet(at: Vector3, i: int) -> bool:
 	if y < -half:
 		return here - (sim.angle_deg(i - 1) if i > 0 else 0.0) < REACH_DEG
 	return false
+
+
+## A shut lid's inside is not a fingertip's. A hand passes through the case in VR: a finger come up through the
+## base met the lid's inner face from behind and pushed the shut lid open from within (the owner, 2026-11-23).
+## The lid's inside (its panel's -Y) is pushed only with the lid far enough off the panel under it for a hand to
+## be in there, the angle a tray's under face asks (_tray_quiet). Its outside is pushed at any angle.
+func _lid_face_free(face: int) -> bool:
+	var top := sim.top()
+	return face != VRHinge.FACE_Y_NEG or sim.angle_deg(top) - (sim.angle_deg(top - 1) if top > 0 else 0.0) >= REACH_DEG
+
+
+## The same for the base of a case held by its lid: its inside, with the panel next to it turned off it.
+func _base_face_free(face: int) -> bool:
+	return face != VRHinge.FACE_Y_NEG or sim.angle_deg(0) >= REACH_DEG
 
 
 ## Whether a point is on an inner tray a hand may take there: the lid's handle leaves the trigger to it.

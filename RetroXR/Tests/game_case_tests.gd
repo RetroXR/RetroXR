@@ -80,6 +80,7 @@ func _run() -> void:
 		["case/a manual put in keeps its pages unless it is a spread scan", _case_manual_spread],
 		["case/a flip tray's hinge is taken from either face", _case_tray_both_faces],
 		["case/a fingertip pushes a lid and never pulls it", _case_poke_no_pull],
+		["case/a shut lid's inside is not a fingertip's", _case_poke_shut_inside],
 		["case/a tray lying on the open lid is still the hand's", _case_tray_on_lid],
 		["case/the fat case keeps its manual in the black tray", _case_manual_on_tray],
 		["case/a case from an older save takes the real disc layout", _case_old_layout],
@@ -1962,6 +1963,60 @@ func _case_poke_no_pull() -> void:
 		lid._poke_shape = null
 		lid._poke_face = 0
 		lid._poke_mode = 0
+
+
+## Whether a push would begin at a fingertip 2 mm off one face of a hinge's panel, coming at it (side: +1 its
+## outside, -1 its inside), and the face it would be on.
+func _push_at(h: CaseHinge, side: float) -> int:
+	var panel := h.get_node("PokePanel") as CollisionShape3D
+	var out := panel.global_basis.y.normalized() * side
+	var tip := panel.global_position + out * ((panel.shape as BoxShape3D).size.y * 0.5 + 0.002)
+	return int(h._poke_start_at(tip, -out * 0.001).get("face", 0))
+
+
+## A hand passes through a case in VR, so a finger come up through the base is under the shut lid's inside face.
+## It pushes nothing there until the lid is far enough off what is under it for a hand to be in the case.
+func _case_poke_shut_inside() -> void:
+	var x := 560.0
+	for fam: Array in [["jewel", "single"], ["keep", "ps2"], ["jewel", "fatbox4"], ["keep", "triple"]]:
+		x += 3.0
+		var c := _new_case(fam[0], fam[1])
+		await get_tree().physics_frame
+		c.global_position = Vector3(x, 1.0, 0.0)
+		c.set_physics_process(false)
+		var top := c.sim.top()
+		var lid := c.hinge(top)
+		var tag := "%s/%s" % [fam[0], fam[1]]
+		_eq(_push_at(lid, -1.0), 0, "%s shut: a fingertip under the lid's inside pushes nothing" % tag)
+		_eq(_push_at(lid, 1.0), VRHinge.FACE_Y_POS, "%s shut: one on its outside still does" % tag)
+		_eq(_push_at(c._base_hinge, -1.0), 0, "%s shut: nor one on the base's inside, for a case held by its lid" % tag)
+		_eq(_push_at(c._base_hinge, 1.0), VRHinge.FACE_Y_POS, "%s shut: the base's outside does" % tag)
+		c.sim.set_angle_deg(top, RetroGameCase.REACH_DEG - 3.0)
+		c._apply_angles()
+		_eq(_push_at(lid, -1.0), 0, "%s barely open (%.0f): still nothing" % [tag, c.sim.angle_deg(top)])
+		_eq(_push_at(c._base_hinge, -1.0), 0, "%s barely open: nor the base's" % tag)
+		c.sim.set_angle_deg(top, RetroGameCase.REACH_DEG + 3.0)
+		c._apply_angles()
+		_eq(_push_at(lid, -1.0), VRHinge.FACE_Y_NEG, "%s open far enough for a hand (%.0f): the lid's inside is pushed" % [tag, c.sim.angle_deg(top)])
+		if top == 0:
+			_eq(_push_at(c._base_hinge, -1.0), VRHinge.FACE_Y_NEG, "%s open far enough: and the base's" % tag)
+			continue
+		_eq(_push_at(c._base_hinge, -1.0), 0, "%s open far enough: the base's inside is still under its trays" % tag)
+		# Open wide with every tray turned over onto the lid: the lid's inside is under a tray, the base's is bare.
+		c.sim.set_angle_deg(top, 150.0)
+		for i in top:
+			c.sim.set_angle_deg(i, 150.0)
+		c._apply_angles()
+		var gap := c.sim.angle_deg(top) - c.sim.angle_deg(top - 1)
+		_ok(gap < RetroGameCase.REACH_DEG and _push_at(lid, -1.0) == 0,
+			"%s: a tray lying on the open lid, the lid's inside is the tray's to be worked from" % tag, "%.1f degrees between them" % gap)
+		_eq(_push_at(c._base_hinge, -1.0), VRHinge.FACE_Y_NEG, "%s: and the base's inside is in the open" % tag)
+		# The trays back on the base: the lid's inside in the open, the base's under a tray.
+		for i in top:
+			c.sim.set_angle_deg(i, 0.0)
+		c._apply_angles()
+		_eq(_push_at(lid, -1.0), VRHinge.FACE_Y_NEG, "%s: the trays back on the base, the lid's inside is pushed" % tag)
+		_eq(_push_at(c._base_hinge, -1.0), 0, "%s: and the base's inside is under a tray" % tag)
 
 
 func _case_tray_on_lid() -> void:

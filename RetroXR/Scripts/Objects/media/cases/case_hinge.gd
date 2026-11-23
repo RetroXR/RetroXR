@@ -19,6 +19,8 @@ var cede_at: Callable
 ## Besides the ball round its handle, the trigger takes this panel anywhere within this (m) of its own slab (its
 ## PokePanel): a flip tray is turned by whatever part of it a hand is at. 0: the ball alone.
 var panel_reach := 0.0
+## Which faces a fingertip may push now (a face -> bool): a shut lid's inside is no finger's (GameCase).
+var face_gate: Callable
 ## The angle speed (deg/s) of the last frames a hand held it, for the sim on release.
 var release_speed_deg := 0.0
 var _prev_deg := 0.0
@@ -80,6 +82,10 @@ func by_panel(at: Vector3) -> bool:
 
 func _poke_can_begin(ctrl: XRController3D) -> bool:
 	return super(ctrl) and not _quiet(PokeTip.tip_of(ctrl))
+
+
+func _poke_face_allowed(_shape: CollisionShape3D, face: int) -> bool:
+	return not face_gate.is_valid() or bool(face_gate.call(face))
 
 
 ## The desktop ray and the laser: InteractionResolver asks a control whether it covers the point it was met at.
