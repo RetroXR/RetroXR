@@ -63,9 +63,12 @@ func _hand(tracker_name: String) -> Dictionary:
 
 
 ## The hand's fingertip at `world` (6 cm ahead of the controller along its -Z),
-## the controller rolled `roll_deg` about the world Z.
-func _hand_at(h: Dictionary, world: Vector3, roll_deg: float = 0.0) -> void:
+## the controller rolled `roll_deg` about the world Z. `toward`: the way the finger points, when it matters (a
+## finger that runs through a leaf pushes nothing on its far face); else along the world -Z.
+func _hand_at(h: Dictionary, world: Vector3, roll_deg: float = 0.0, toward := Vector3.ZERO) -> void:
 	var b := Basis(Vector3.BACK, deg_to_rad(roll_deg))
+	if toward.length() > 0.0001:
+		b = Basis.looking_at(toward.normalized(), Vector3.UP if absf(toward.normalized().y) < 0.9 else Vector3.RIGHT)
 	(h["origin"] as XROrigin3D).global_transform = Transform3D(b,
 		world + b * Vector3(0, 0, PokeTip.TIP_FORWARD))
 	PokeTip._cache_frame = -1
@@ -681,15 +684,19 @@ func _poke_pushes_only() -> void:
 	var tangent: Vector3 = at.call(middle, r30 + open_sign * 0.05) - at.call(middle, r30)
 	var push_y := 1.0 if (cs.global_basis * Vector3.UP).dot(tangent) < 0.0 else -1.0
 	var on_push := Vector3(0, push_y * (half.y + 0.003), 0)
-	_hand_at(h, at.call(on_push, r30))
+	# The finger points into the face it is on, the hand on that side of the leaf.
+	var into := func(from: Vector3, r: float) -> Vector3: return at.call(middle, r) - at.call(from, r)
+	_hand_at(h, at.call(on_push, r30), 0.0, into.call(on_push, r30))
 	await _ticks(3)
 	for k in range(1, 21):
-		_hand_at(h, at.call(on_push, r30 + open_sign * deg_to_rad(1.0 * k)))
+		var r: float = r30 + open_sign * deg_to_rad(1.0 * k)
+		_hand_at(h, at.call(on_push, r), 0.0, into.call(on_push, r))
 		await _ticks(1)
 	var pushed := d.get_angle_deg()
 	_ok(pushed > 45.0, "poke/a fingertip on the leaf pushes it open", "%.1f deg" % pushed)
 	for k in range(19, -1, -1):
-		_hand_at(h, at.call(on_push, r30 + open_sign * deg_to_rad(1.0 * k)))
+		var r: float = r30 + open_sign * deg_to_rad(1.0 * k)
+		_hand_at(h, at.call(on_push, r), 0.0, into.call(on_push, r))
 		await _ticks(1)
 	# It may coast on with the push's momentum; it must not come back with the finger.
 	_ok(d.get_angle_deg() > pushed - 0.5,
@@ -703,10 +710,11 @@ func _poke_pushes_only() -> void:
 	var start := pivot.rotation.x
 	var before := d.get_angle_deg()
 	var on_other := Vector3(0, -push_y * (half.y + 0.003), 0)
-	_hand_at(h, at.call(on_other, start))
+	_hand_at(h, at.call(on_other, start), 0.0, into.call(on_other, start))
 	await _ticks(3)
 	for k in range(1, 21):
-		_hand_at(h, at.call(on_other, start - open_sign * deg_to_rad(1.0 * k)))
+		var r: float = start - open_sign * deg_to_rad(1.0 * k)
+		_hand_at(h, at.call(on_other, r), 0.0, into.call(on_other, r))
 		await _ticks(1)
 	_ok(d.get_angle_deg() < before - 10.0, "poke/the other face pushes it shut",
 		"%.1f -> %.1f deg" % [before, d.get_angle_deg()])

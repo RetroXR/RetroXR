@@ -81,6 +81,7 @@ func _run() -> void:
 		["case/a flip tray's hinge is taken from either face", _case_tray_both_faces],
 		["case/a fingertip pushes a lid and never pulls it", _case_poke_no_pull],
 		["case/a shut lid's inside is not a fingertip's", _case_poke_shut_inside],
+		["case/a finger through a lid does not push its far face", _case_poke_through],
 		["case/a tray lying on the open lid is still the hand's", _case_tray_on_lid],
 		["case/the fat case keeps its manual in the black tray", _case_manual_on_tray],
 		["case/a case from an older save takes the real disc layout", _case_old_layout],
@@ -2017,6 +2018,114 @@ func _case_poke_shut_inside() -> void:
 		c._apply_angles()
 		_eq(_push_at(lid, -1.0), VRHinge.FACE_Y_NEG, "%s: the trays back on the base, the lid's inside is pushed" % tag)
 		_eq(_push_at(c._base_hinge, -1.0), 0, "%s: and the base's inside is under a tray" % tag)
+
+
+## A tracked hand the suite moves: an XRController3D with a pose (so get_is_active is true). Its fingertip is
+## PokeTip's own fallback, TIP_FORWARD ahead of it. Freed by _drop_hand.
+func _tracked_hand() -> Dictionary:
+	var origin := XROrigin3D.new()
+	add_child(origin)
+	var ctrl := XRController3D.new()
+	ctrl.tracker = &"case_test_hand"
+	ctrl.pose = &"default"
+	origin.add_child(ctrl)
+	var tracker := XRControllerTracker.new()
+	tracker.name = &"case_test_hand"
+	XRServer.add_tracker(tracker)
+	return {"origin": origin, "ctrl": ctrl, "tracker": tracker}
+
+
+## A tracked hand's fingertip at `tip`, the finger pointing along `dir`.
+func _point_hand(hand: Dictionary, tip: Vector3, dir: Vector3) -> void:
+	var up := Vector3.UP if absf(dir.dot(Vector3.UP)) < 0.9 else Vector3.RIGHT
+	var pose := Transform3D(Basis.looking_at(dir, up), tip - dir * PokeTip.TIP_FORWARD)
+	(hand["tracker"] as XRControllerTracker).set_pose(&"default",
+		(hand["origin"] as Node3D).global_transform.affine_inverse() * pose, Vector3.ZERO, Vector3.ZERO,
+		XRPose.XR_TRACKING_CONFIDENCE_HIGH)
+
+
+func _drop_hand(hand: Dictionary) -> void:
+	XRServer.remove_tracker(hand["tracker"] as XRControllerTracker)
+	(hand["origin"] as Node).free()
+
+
+## A finger pressed through a lid has its tip on the far side with the hand still on the near one. It pushes
+## nothing there: drawn back, it met the far face from outside and the lid came with it (the owner, 2026-11-23).
+func _case_poke_through() -> void:
+	var c := _new_case("jewel", "single")
+	await get_tree().physics_frame
+	c.global_position = Vector3(600.0, 1.0, 0.0)
+	c.set_physics_process(false)
+	var top := c.sim.top()
+	var lid := c.hinge(top)
+	var panel := lid.get_node("PokePanel") as CollisionShape3D
+	var half := (panel.shape as BoxShape3D).size * 0.5
+	c.sim.set_angle_deg(top, 90.0)
+	c._apply_angles()
+	# Where the hand is, for a fingertip 2 mm off a face at the lid's middle.
+	for side: float in [1.0, -1.0]:
+		var out := panel.global_basis.y.normalized() * side
+		var along := panel.global_basis.x.normalized()
+		var tip := panel.global_position + out * (half.y + 0.002)
+		var face := VRHinge.FACE_Y_POS if side > 0.0 else VRHinge.FACE_Y_NEG
+		var which := "outside" if side > 0.0 else "inside"
+		_eq(int(lid._poke_start_at(tip, -out * 0.001, tip + out * PokeTip.HAND_BACK).get("face", 0)), face,
+			"the lid's %s, the hand on that side: pushed" % which)
+		_eq(int(lid._poke_start_at(tip, -out * 0.001, tip + (out * 0.5 + along * 0.866) * PokeTip.HAND_BACK).get("face", 0)), face,
+			"the lid's %s, the finger leaning 60 degrees: pushed" % which)
+		_eq(int(lid._poke_start_at(tip, -out * 0.001, tip - out * PokeTip.HAND_BACK).get("face", 0)), 0,
+			"the lid's %s, the finger through the lid from the other side: nothing" % which)
+		_eq(int(lid._poke_start_at(tip, -out * 0.001, tip + (-out * 0.5 + along * 0.866) * PokeTip.HAND_BACK).get("face", 0)), 0,
+			"the lid's %s, through it at a lean: nothing" % which)
+		# The hand on the other side but come round the lid's free edge: the finger is not through it.
+		var at_edge := panel.global_transform * Vector3(0.0, side * (half.y + 0.002), -(half.z - 0.002))
+		var round_edge := panel.global_transform * Vector3(0.0, -side * 0.02, -(half.z + 0.20))
+		_eq(int(lid._poke_start_at(at_edge, -out * 0.001, round_edge).get("face", 0)), face,
+			"the lid's %s at its edge, the hand come round the edge: pushed" % which)
+	# The real loop and a tracked hand. The lid lying open on its stop: a finger pressed down on its inside goes
+	# through it (the lid can turn no further), 5 cm beyond, and is drawn back out.
+	c.sim.set_angle_deg(top, rad_to_deg(c.sim.open_max))
+	c._apply_angles()
+	for _i in 2:
+		await get_tree().process_frame                       # the hinge has gathered the room's controllers
+	var hand := _tracked_hand()
+	lid._controllers.append(hand["ctrl"] as XRController3D)
+	var rest := lid.get_rotation_deg()
+	var into := panel.global_basis.y.normalized()
+	var start := panel.global_position - into * (half.y + 0.03)
+	var steps := int((0.03 + half.y * 2.0 + 0.05) / 0.002)
+	var worst := 0.0
+	var pushed := false
+	for k in steps * 2 + 1:
+		await get_tree().process_frame
+		worst = maxf(worst, absf(lid.get_rotation_deg() - rest))
+		pushed = pushed or lid._poke_ctrl != null
+		_point_hand(hand, start + into * ((k if k <= steps else steps * 2 - k) * 0.002), into)
+	for _i in 2:
+		await get_tree().process_frame
+		worst = maxf(worst, absf(lid.get_rotation_deg() - rest))
+	_ok(pushed, "open on its stop: the finger does press the lid's inside on the way down")
+	_ok(worst < 0.5, "open on its stop: pressed through the lid and drawn back, the lid does not come with the finger",
+		"it turned %.1f degrees" % worst)
+	_point_hand(hand, c.global_position + Vector3(0.0, 3.0, 0.0), Vector3.DOWN)
+	for _i in 3:
+		await get_tree().process_frame
+	# And a hand that IS on the side it pushes still swings the lid: at 90 degrees, 3 cm into its outside.
+	c.sim.set_angle_deg(top, 90.0)
+	c._apply_angles()
+	rest = lid.get_rotation_deg()
+	into = -panel.global_basis.y.normalized()
+	start = panel.global_position - into * (half.y + 0.03)
+	for k in 31:
+		await get_tree().process_frame
+		_point_hand(hand, start + into * (k * 0.002), into)
+	for _i in 2:
+		await get_tree().process_frame
+	_ok(rest - lid.get_rotation_deg() > 5.0, "at 90 degrees: a finger on the lid's outside pushes it toward shut",
+		"it turned %.1f degrees" % (rest - lid.get_rotation_deg()))
+	lid._controllers.erase(hand["ctrl"])
+	lid.drop_hold()
+	_drop_hand(hand)
 
 
 func _case_tray_on_lid() -> void:

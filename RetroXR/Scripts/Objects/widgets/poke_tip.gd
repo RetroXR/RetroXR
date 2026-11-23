@@ -19,6 +19,8 @@ extends Node3D
 
 ## How far ahead of the controller origin the tip sits (metres, along -Z aim).
 const TIP_FORWARD := 0.06
+## How far back from the tip the hand is taken to run (metres): the finger and the hand behind it, to the wrist.
+const HAND_BACK := 0.16
 
 # ── Contact claims ───────────────────────────────────────────────────────────
 
@@ -121,6 +123,16 @@ static func tip_of(ctrl: Node3D) -> Vector3:
 	var tip := _tip_of_now(ctrl)
 	_tip_cache[id] = tip
 	return tip
+
+
+## The back of the hand a tip is on: HAND_BACK behind the tip, on the line from the controller (in the hand in
+## every display mode). A thin leaf between this and the tip has the finger through it (VRHinge._finger_through).
+static func root_of(ctrl: Node3D) -> Vector3:
+	var tip := tip_of(ctrl)
+	var back := ctrl.global_position - tip
+	if back.length_squared() < 0.0001:                   # a curled finger, its tip at the controller
+		back = ctrl.global_transform.basis.z
+	return tip + back.normalized() * HAND_BACK
 
 
 static func _tip_of_now(ctrl: Node3D) -> Vector3:

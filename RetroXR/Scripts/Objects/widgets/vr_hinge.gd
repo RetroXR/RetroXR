@@ -59,6 +59,8 @@ const HAPTIC_POKE_KEY := &"vr_hinge_poke"
 ## physical face there, so a broad front press does not become a thin-edge press.
 const POKE_FACE_TIE_MARGIN := 0.002
 const POKE_APPROACH_MIN := 0.0001
+## Skin taken off a leaf for the finger-through test: a tip resting just in a face is on it, not through it.
+const POKE_THROUGH_SKIN := 0.001
 const POKE_APPROACH_DOT_EPS := 0.05
 ## Slack around the grab box for the grip test, in metres. The grip is deliberately
 ## judged on the BOX and not on engage_radius: the sphere is sized to make the
@@ -389,7 +391,7 @@ func _process_poke(delta: float) -> void:
 			continue
 		var tip := PokeTip.tip_of(ctrl)
 		var previous: Vector3 = _poke_prev_tips.get(ctrl.get_instance_id(), tip)
-		var contact := _poke_start_at(tip, tip - previous)
+		var contact := _poke_start_at(tip, tip - previous, PokeTip.root_of(ctrl))
 		if contact.is_empty():
 			continue
 		var shape := contact["shape"] as CollisionShape3D
@@ -399,17 +401,34 @@ func _process_poke(delta: float) -> void:
 		break
 
 
-## The contact a push would begin with at `tip`, or {} where none may.
-func _poke_start_at(tip: Vector3, approach: Vector3) -> Dictionary:
+## The contact a push would begin with at `tip`, or {} where none may. `root`: the back of the hand the tip is on
+## (PokeTip.root_of), when there is one.
+func _poke_start_at(tip: Vector3, approach: Vector3, root := Vector3.INF) -> Dictionary:
 	var contact := _poke_contact_at(tip, poke_face_margin, -1, approach)
 	if contact.is_empty():
 		return {}
 	# A push begins from outside the face it pushes: a tip already behind it (through the leaf) pushes nothing.
 	if poke_push_only and not bool(contact["external"]):
 		return {}
+	if poke_push_only and _finger_through(contact["shape"] as CollisionShape3D, tip, root):
+		return {}
 	if not _poke_face_allowed(contact["shape"] as CollisionShape3D, int(contact["face"])):
 		return {}
 	return contact
+
+
+## Whether the finger runs THROUGH a leaf to the face its tip is at. A hand passes through things in VR: a finger
+## pressed through an open lid on its stop had its tip beyond the lid, and drawn back it met the far face from
+## outside and brought the lid with it (the owner, 2026-11-23: "check the angle of the finger"). The leaf's box
+## between the back of the hand and the tip is the finger through the leaf; a hand come round its edge is not.
+func _finger_through(shape: CollisionShape3D, tip: Vector3, root: Vector3) -> bool:
+	if shape == null or not root.is_finite() or not shape.shape is BoxShape3D:
+		return false
+	var half := (shape.shape as BoxShape3D).size * 0.5
+	half = Vector3(maxf(half.x - POKE_THROUGH_SKIN, 0.0002), maxf(half.y - POKE_THROUGH_SKIN, 0.0002),
+		maxf(half.z - POKE_THROUGH_SKIN, 0.0002))
+	var to_local := shape.global_transform.affine_inverse()
+	return AABB(-half, half * 2.0).intersects_segment(to_local * root, to_local * tip) != null
 
 
 func _qualified_poke(ctrl: XRController3D) -> bool:
@@ -450,6 +469,8 @@ func _update_active_poke_face(tip: Vector3, approach: Vector3) -> void:
 	if poke_push_only and shape == _poke_shape and _face_axis(face) == _face_axis(_poke_face):
 		return
 	if not _poke_face_allowed(shape, face):
+		return
+	if poke_push_only and is_instance_valid(_poke_ctrl) and _finger_through(shape, tip, PokeTip.root_of(_poke_ctrl)):
 		return
 	_poke_shape = shape
 	_poke_face = face
