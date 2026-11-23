@@ -30,6 +30,11 @@
 ## external files dir (/sdcard/Android/data/com.xenu.retroxr.wuprobe/files/), and the
 ## core from its internal libretro/cores/ (docs/dev/wiiu.md, "On the Quest").
 ##
+## --toy=<spot>:<dump>@<s>[,...]  puts a real figure's dump on that spot (the
+##                core's reader index: the portal's 0-15 come first) at <s> seconds;
+## --toyoff=<spot>@<s>[,...]  lifts it. Both switch the bases on as --toys does,
+##                without its scratch figure. A game WRITES to a figure: hand it a copy.
+##
 ## The Wii U Menu: --rom=<mlc01>/sys/title/00050010/10040100/code/men.rpx (the US
 ## menu, from a system dump laid into the core's mlc01).
 extends Node
@@ -58,8 +63,12 @@ var _touching := false
 var _failed := ""
 var _last_mask := 0
 var _toys := false
+var _lib_signals_toys := false
 var _toy_readers: Array = []
 var _toy_done: Array = []
+## [[spot, path, seconds], ...] and [[spot, seconds], ...] from --toy / --toyoff
+var _toy_puts: Array = []
+var _toy_offs: Array = []
 
 
 func _ready() -> void:
@@ -86,6 +95,23 @@ func _ready() -> void:
 			_shot = a.substr(7)
 		elif a.begins_with("--core="):
 			_core = a.substr(7)
+		elif a.begins_with("--toy=") or a.begins_with("--toyoff="):
+			var off := a.begins_with("--toyoff=")
+			for item: String in a.substr(9 if off else 6).split(",", false):
+				var at := item.rsplit("@", true, 1)
+				if at.size() != 2:
+					continue
+				if off:
+					_toy_offs.append([int(at[0]), float(at[1])])
+				else:
+					var sp := at[0].split(":", true, 1)
+					if sp.size() == 2:
+						_toy_puts.append([int(sp[0]), sp[1], float(at[1])])
+			_opts["cemu_emulate_skylander_portal"] = "enabled"
+			_opts["cemu_emulate_infinity_base"] = "enabled"
+			_opts["cemu_emulate_dimensions_toypad"] = "enabled"
+			if not _lib_signals_toys:
+				_lib_signals_toys = true
 		elif a == "--toys":
 			_toys = true
 			_opts["cemu_emulate_skylander_portal"] = "enabled"
@@ -135,7 +161,7 @@ func _ready() -> void:
 	if not _opts.is_empty():
 		CoreOptionsStore.merge_values(_root, _core, _opts)
 		print("[wiiu] options pinned: %s" % str(_opts))
-	if _toys:
+	if _toys or _lib_signals_toys:
 		_lib.connect("accessory_readers_changed", func(readers: Array) -> void:
 			_toy_readers = readers
 			print("[wiiu] toys: %d reader(s) from the core" % readers.size()))
@@ -198,6 +224,16 @@ func _ready() -> void:
 		if _toys and now_s >= 28.0 and not has_meta("toys_off"):
 			set_meta("toys_off", true)
 			_lib.call("RemoveAccessoryMedia", 0)
+		for pr: Array in _toy_puts:
+			if now_s >= float(pr[2]) and pr.size() == 3:
+				pr.append(true)
+				print("[wiiu] t=%.1fs toys: putting %s on spot %d" % [now_s, str(pr[1]), int(pr[0])])
+				_lib.call("InsertAccessoryMedia", int(pr[0]), str(pr[1]))
+		for pr: Array in _toy_offs:
+			if now_s >= float(pr[1]) and pr.size() == 2:
+				pr.append(true)
+				print("[wiiu] t=%.1fs toys: lifting spot %d" % [now_s, int(pr[0])])
+				_lib.call("RemoveAccessoryMedia", int(pr[0]))
 		if not _shots.is_empty() and now_s >= _shots[0] and not _shot.is_empty():
 			var at := _shots.pop_front() as float
 			var cur: Texture2D = _lib.call("GetVideoTexture")
