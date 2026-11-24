@@ -48,7 +48,39 @@ func _ready() -> void:
 		await _test_shell_cover()
 	if _want("reach"):
 		_test_reach()
+	if _want("grip"):
+		await _test_grip()
 	_finish()
+
+
+## A grip takes a seated cover off from anywhere over it, not only a fist on its middle (the Wii Remote's cover came
+## off to almost nothing, 2026-11-24): over its middle, its corner, its far end; not beside it, nor from behind it,
+## which is the object. Loose, the reach out of its face is the short one.
+func _test_grip() -> void:
+	var pak := _pak()
+	var zone := _build(pak)
+	await _wait(3)
+	var at := zone.global_transform
+	var face := SIZE.y * 0.5
+	var p := func(x: float, y: float, z: float) -> Vector3: return at * Vector3(x, y, z)
+	_ok(zone.reaches(p.call(0.0, face + 0.015, 0.0)) >= 0.0, "grip/ 1.5 cm over the middle takes the cover")
+	_ok(zone.reaches(p.call(SIZE.x * 0.45, face + 0.015, SIZE.z * 0.45)) >= 0.0,
+		"grip/ and over a corner (%.0f mm from the middle; the old ball was 25)" % ((Vector2(SIZE.x, SIZE.z) * 0.45).length() * 1000.0))
+	_ok(zone.reaches(p.call(0.0, 0.0, 0.0)) >= 0.0, "grip/ and in the cover itself")
+	_ok(zone.reaches(p.call(SIZE.x * 0.5 + 0.03, face + 0.01, 0.0)) < 0.0, "grip/ not 3 cm beside it")
+	_ok(zone.reaches(p.call(0.0, -face - 0.005, 0.0)) < 0.0, "grip/ nor behind it: that is the object")
+	_ok(zone.reaches(p.call(0.0, face + 0.04, 0.0)) < 0.0, "grip/ loose, not 4 cm out of its face")
+	_ok(is_equal_approx(zone.reach_box.end.y, face + CoverSlots.HAND_REACH_OUT_HELD),
+		"grip/ the box goes out to the held reach", str(zone.reach_box))
+	var near_middle := zone.reaches(p.call(0.0, face + 0.01, 0.0))
+	var near_end := zone.reaches(p.call(SIZE.x * 0.45, face + 0.01, 0.0))
+	_ok(is_equal_approx(near_middle, near_end), "grip/ nearness is to the cover, not its middle",
+		"%f vs %f" % [near_middle, near_end])
+	var big := CoverSlots.make_zone("BigCoverSlot", "none", 0.025, pak)
+	CoverSlots.set_hand_reach(big, Vector3(0.385, 0.003, 0.46))
+	_ok(big.reach_box.size == Vector3.ZERO, "grip/ a cabinet's back panel keeps the ball")
+	big.queue_free()
+	await _clear()
 
 
 ## A held cover snaps back from its own size's reach, capped: a cabinet's back panel not from a third of a meter.

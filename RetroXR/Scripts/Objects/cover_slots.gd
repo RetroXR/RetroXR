@@ -38,6 +38,17 @@ const _ZONE_SCENE := preload("res://addons/godot-xr-tools/objects/snap_zone.tscn
 ## held, often small, and a reach that size takes in most of a Game Boy, so a
 ## pointer aimed past the shell anywhere round it would find the slot.
 const _GRAB_DISTANCE := 0.025
+## Where a GRIP takes a seated cover OFF (XRToolsSnapZone.reach_box), not that 2.5 cm ball: the grip point is the
+## middle of a closed fist, which a hand round a remote's back cannot bring within 2.5 cm of the cover's middle, so
+## a Wii Remote's 8 cm cover came off only to a fist laid dead on its centre and every other grip took the remote
+## (the owner, 2026-11-24). The cover itself, this far beside it, and out of its face this far while its object is
+## in a hand, this far while it is not (a handheld lying on its face is picked up by its back as often as not).
+const HAND_REACH_SIDE := 0.012
+const HAND_REACH_OUT_HELD := 0.05
+const HAND_REACH_OUT_LOOSE := 0.025
+## A cover longer than this keeps the ball: a cabinet's back panel taken by any grip near it would leave the
+## cabinet with no back to carry it by, and the hand's 12.5 cm grab sphere does not reach its zone's middle anyway.
+const HAND_REACH_MAX_SIDE := 0.15
 ## A seated cover's pointer target stands this far out of its box, not the loose
 ## cover's 2 cm: on a handheld's back that margin would take every aim at the
 ## console round it.
@@ -266,6 +277,7 @@ func build(socket_id: String, parent: Node3D, seat: Transform3D, size: Vector3) 
 		_GRAB_DISTANCE, parent)
 	zone.add_to_group(SLOT_GROUP)
 	zone.transform = seat
+	set_hand_reach(zone, size)
 	_slots[socket_id] = zone
 	_sizes[socket_id] = size
 	zone.has_picked_up.connect(_on_seated)
@@ -275,6 +287,38 @@ func build(socket_id: String, parent: Node3D, seat: Transform3D, size: Vector3) 
 	if cells != null:
 		cells.watch_covers(self)
 	return zone
+
+
+## Give a cover slot the reach a grip takes its cover off from (HAND_REACH_*): the cover's own box in the zone's
+## frame (outer face +Y), widened beside it and stretched out of its face, never behind it (that is the object).
+## Nearness is to the cover itself, so of two covers the one under the hand wins.
+static func set_hand_reach(zone: XRToolsSnapZone, size: Vector3) -> void:
+	if size == Vector3.ZERO or maxf(size.x, size.z) > HAND_REACH_MAX_SIDE:
+		print("[Covers] %s keeps the %.0f mm ball: cover %s" % [zone.name, zone.grab_distance * 1000.0, size])
+		return
+	var core := AABB(-size * 0.5, size)
+	var side := HAND_REACH_SIDE
+	zone.reach_core = core
+	zone.reach_box = AABB(Vector3(core.position.x - side, core.position.y, core.position.z - side),
+		Vector3(size.x + side * 2.0, size.y + HAND_REACH_OUT_HELD, size.z + side * 2.0))
+	zone.reach_gate = _reach_gate.bind(zone, core.end.y)
+
+
+## Out to HAND_REACH_OUT_HELD while the cover's object is in a hand, HAND_REACH_OUT_LOOSE while it is not.
+static func _reach_gate(hand: Vector3, zone: XRToolsSnapZone, face_y: float) -> bool:
+	if not is_instance_valid(zone):
+		return false
+	var out := (zone.global_transform.affine_inverse() * hand).y - face_y
+	return out <= HAND_REACH_OUT_LOOSE or _held_by_hand(zone)
+
+
+## Whether the pickable the zone is on is held by a hand (not a snap zone or a stand).
+static func _held_by_hand(zone: Node) -> bool:
+	var n := zone.get_parent()
+	while n != null and not n is XRToolsPickable:
+		n = n.get_parent()
+	var body := n as XRToolsPickable
+	return body != null and body.is_picked_up() and body.get_picked_up_by() is XRToolsFunctionPickup
 
 
 ## The slot over `socket_id`, or null.
