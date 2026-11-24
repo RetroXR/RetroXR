@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://DevTools/models/cover_reach_probe.gd" id="1"]
+
+[node name="CoverReachProbe" type="Node3D"]
+script = ExtResource("1")
