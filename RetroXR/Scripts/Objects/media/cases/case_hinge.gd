@@ -13,6 +13,9 @@ var gate: Callable
 ## the fingertip are for the manual, over a disc on a hanging base they are for the disc. No trigger latch, no
 ## open-hand icon, no fingertip push and no pointer press begins there; everywhere else on the panel they all do.
 var quiet_at: Callable
+## Where a FINGERTIP pushes nothing, when that is not all of quiet_at (a world point -> bool): a finger on the
+## booklet lying in a lid presses the lid, though the trigger there is the manual's. Unset: quiet_at.
+var push_quiet_at: Callable
 ## Where the TRIGGER is another panel's (a world point -> bool): a tray lying on the open lid is what a hand at it
 ## means to turn, not the lid under it. The fingertip and the pointer still work the panel there.
 var cede_at: Callable
@@ -81,7 +84,12 @@ func by_panel(at: Vector3) -> bool:
 
 
 func _poke_can_begin(ctrl: XRController3D) -> bool:
-	return super(ctrl) and not _quiet(PokeTip.tip_of(ctrl))
+	return super(ctrl) and not push_quiet(PokeTip.tip_of(ctrl))
+
+
+## Whether a fingertip at this point pushes nothing.
+func push_quiet(at: Vector3) -> bool:
+	return bool(push_quiet_at.call(at)) if push_quiet_at.is_valid() else _quiet(at)
 
 
 func _poke_face_allowed(_shape: CollisionShape3D, face: int) -> bool:

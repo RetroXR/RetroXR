@@ -66,6 +66,8 @@ const LID_GRIP_REACH := 0.12
 ## Where a grip takes the manual out (XRToolsSnapZone.reach_box): the booklet itself and this far above it into the
 ## open case, this far beside it. Never behind it: that is the lid (the owner, 2026-11-22).
 const MANUAL_REACH_UP := 0.06
+## A fingertip within this of the booklet's face is on the paper: it presses the lid the booklet lies in.
+const MANUAL_PRESS_OVER := 0.004
 ## A hand this far behind the panel a seat is on is not reaching for what is on it.
 const SEAT_BEHIND := 0.01
 const MANUAL_REACH_SIDE := 0.01
@@ -522,6 +524,7 @@ func _build_hinges() -> void:
 		(_rigs[i][2] as CaseHinge).max_deg = rad_to_deg(sim.stop(i))
 	var top_rig: Array = _rigs[_rigs.size() - 1]
 	(top_rig[2] as CaseHinge).quiet_at = _lid_quiet
+	(top_rig[2] as CaseHinge).push_quiet_at = _lid_push_quiet
 	(top_rig[2] as CaseHinge).cede_at = _tray_has
 	(top_rig[2] as CaseHinge).face_gate = _lid_face_free
 	_lid_handle_at = (top_rig[2] as Node3D).position
@@ -1472,13 +1475,26 @@ func _free_lid() -> void:
 		_base_hinge.drop_hold()
 
 
-## Over the manual lying in the lid, a hand is reaching for the manual: there the lid's handle takes no trigger,
-## shows no open hand, and is not pushed by a fingertip (CaseHinge.quiet_at). The grip's own box, so nothing behind
+## Over the manual lying in the lid, a hand is reaching for the manual: there the lid's handle takes no trigger and
+## shows no open hand (CaseHinge.quiet_at; a fingertip: _lid_push_quiet). The grip's own box, so nothing behind
 ## the booklet: the lid is still pushed shut from outside, and worked anywhere once the manual is out.
 func _lid_quiet(at: Vector3) -> bool:
 	if _manual_zone == null or _manual_loose or not is_instance_valid(_manual_zone.picked_up_object) or not _lid_open():
 		return false
 	return _manual_zone.reach_box.has_point(_manual_zone.global_transform.affine_inverse() * at) and _clear_of_base(at)
+
+
+## A fingertip ON the booklet presses the lid it lies in, as it would the bare lid. All of _lid_quiet was a
+## fingertip's too, and the booklet covers the lid's inside: with a manual in, the lid could not be pressed from
+## inside at all (the owner, 2026-11-25). Only a finger still over the paper pushes nothing: that hand is
+## reaching for the manual, and a push begun a centimeter early turned the lid away from it.
+func _lid_push_quiet(at: Vector3) -> bool:
+	if not _lid_quiet(at):
+		return false
+	var z := (_manual_zone.global_transform.affine_inverse() * at).z
+	var paper := _manual_zone.reach_core
+	var over := z - paper.end.z if _manual_in > 0.0 else paper.position.z - z
+	return over > MANUAL_PRESS_OVER
 
 
 ## A hand behind the panel a seat is on is not reaching for what is on it. A hub's reach is a ball round the hub,

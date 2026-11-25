@@ -72,6 +72,7 @@ func _run() -> void:
 		["case/a held case's lid still gives way, and held by the lid its base does", _case_world_held],
 		["case/a grip anywhere over the booklet takes the manual; at a shut case, the case", _case_manual_reach],
 		["case/a seated manual turns no page and the lid's handle is quiet over it", _case_manual_quiet],
+		["case/a fingertip on the booklet presses the lid", _case_manual_press],
 		["case/let go a little way into a tabletop, a case is lifted onto it", _case_lift_out],
 		["model/a clear disc tray is drawn as a molded part", _clear_trays],
 		["model/a jewel scan's wide spine strip is laid on the spine", _scan_spine_fit],
@@ -1277,6 +1278,59 @@ func _case_manual_quiet() -> void:
 		_ok(not book.pages_locked() and book.visible and right._enabled, "%s: taken out, it shows and its pages turn again" % fam[0])
 		_ok(not c._manual_rim.visible, "%s: the rim goes with it" % fam[0])
 		_ok(not lid._quiet(over) and lid._tip_in_activation_region(over), "%s: and the whole lid is the lid's again" % fam[0])
+
+
+## With a manual in, the lid is still pressed from inside: a finger on the booklet presses the lid it lies in.
+## One hovering over the paper pushes nothing (that hand is reaching for the manual), and the trigger over the
+## booklet stays the manual's.
+func _case_manual_press() -> void:
+	var x := 720.0
+	for fam: Array in [["jewel", "single"], ["keep", "ps2"]]:
+		x += 3.0
+		var c := _new_case(fam[0], fam[1])
+		await get_tree().physics_frame
+		c.global_position = Vector3(x, 1.0, 0.0)
+		c.set_physics_process(false)
+		var top := c.sim.top()
+		c.sim.set_angle_deg(top, 100.0)
+		c._apply_angles()
+		await _seat_manual(c)
+		var lid := c.hinge(top)
+		var zone := c._manual_zone
+		var paper := zone.reach_core
+		var face_z := paper.end.z if c._manual_in > 0.0 else paper.position.z
+		var inward := zone.global_basis.z.normalized() * c._manual_in
+		var middle := zone.global_transform * Vector3(paper.get_center().x, paper.get_center().y, face_z)
+		var on_paper := middle + inward * 0.001
+		var hovering := middle + inward * 0.02
+		_ok(lid._quiet(on_paper) and not lid._tip_in_activation_region(on_paper),
+			"%s: on the booklet the trigger is still the manual's" % fam[0])
+		_ok(not lid.push_quiet(on_paper), "%s: a fingertip on the booklet is not turned away" % fam[0])
+		_ok(lid.push_quiet(hovering), "%s: one hovering 2 cm over it pushes nothing" % fam[0])
+		_eq(int(lid._poke_start_at(on_paper, -inward * 0.001, on_paper + inward * PokeTip.HAND_BACK).get("face", 0)),
+			VRHinge.FACE_Y_NEG, "%s: and there a push on the lid's inside begins" % fam[0])
+		# The real loop: a tracked finger comes down on the booklet and presses 2 cm on.
+		for _i in 2:
+			await get_tree().process_frame
+		var hand := _tracked_hand()
+		lid._controllers.append(hand["ctrl"] as XRController3D)
+		var rest := lid.get_rotation_deg()
+		_point_hand(hand, hovering, -inward)
+		for _i in 4:
+			await get_tree().process_frame
+		_ok(lid._poke_ctrl == null and absf(lid.get_rotation_deg() - rest) < 0.1,
+			"%s: the finger held over the booklet moves nothing" % fam[0])
+		for k in 21:
+			await get_tree().process_frame
+			_point_hand(hand, hovering - inward * (k * 0.002), -inward)
+		for _i in 2:
+			await get_tree().process_frame
+		_ok(lid.get_rotation_deg() - rest > 5.0, "%s: pressed on the booklet, the lid turns back with the finger" % fam[0],
+			"it turned %.1f degrees" % (lid.get_rotation_deg() - rest))
+		_ok(c.manual() != null, "%s: and the manual stays in it" % fam[0])
+		lid._controllers.erase(hand["ctrl"])
+		lid.drop_hold()
+		_drop_hand(hand)
 
 
 func _case_lift_out() -> void:
