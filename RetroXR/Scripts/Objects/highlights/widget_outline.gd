@@ -130,6 +130,7 @@ func _init() -> void:
 		# held TV remote's lit key, and any button armed on a held pad, showed no ring on a Quest at all
 		# (DevTools/vr/remote_light/remote_light_probe --held). Drawn first, the ring is already in the colour buffer
 		# when the stamp lands, and the stamp writes depth only.
+		# Still above 0, though: a primer drawn before the cap's own blended lettering hid it on hover.
 		_outline_material.render_priority = PickableHighlight.MASK_RENDER_PRIORITY - 1
 		var primer := ShaderMaterial.new()
 		primer.shader = OUTLINE_HULL_PRIMER_SHADER

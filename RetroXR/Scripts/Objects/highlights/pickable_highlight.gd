@@ -33,7 +33,9 @@ const OUTLINE_MASK_SHADER := preload("res://Shaders/outline_mask.gdshader")
 ## The mask/primer's render_priority (the outline is one above). Nothing that must
 ## survive under a highlight may sort at or above it: the stencil mask and the depth
 ## primer both throw away a pass drawn after them (CartridgeColor's clear filter).
-const MASK_RENDER_PRIORITY := 1
+## 3, not 1: WidgetOutline's primer sits two below, and it must stay above the
+## default 0, where a button cap's blended lettering draws (SNES POWER/RESET).
+const MASK_RENDER_PRIORITY := 3
 const OUTLINE_HULL_SHADER := preload("res://Shaders/outline_hull.gdshader")
 ## Depth pass ahead of the hull, so a transparent source still hides its middle.
 const OUTLINE_HULL_PRIMER_SHADER := preload("res://Shaders/outline_hull_primer.gdshader")
