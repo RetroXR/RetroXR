@@ -1398,64 +1398,27 @@ settings, and `JsonStore` with `api.store()` for your own settings file.
 
 ## Authoring: work inside a checkout of RetroXR
 
-### What you need
+**New to this? Start with [Making a mod](https://retroxr.app/guide/room/making-mods/)**
+on the RetroXR site. It goes step by step from nothing installed to a mod on
+mod.io (Godot, Python and the project, which folder is which, building, trying
+it, publishing), and it lists fixes for the errors people hit first. This
+section and the next keep the commands for reference.
 
-- **Godot 4.7.2**, the version RetroXR is built with, from
-  <https://godotengine.org/download/archive/>. On Windows the download has two
-  programs: `Godot_v4.7.2-stable_win64.exe` (the editor) and
-  `Godot_v4.7.2-stable_win64_console.exe`. Use the **console** one for every
-  command below: it waits and prints in your terminal, where the other returns at
-  once and its messages go nowhere.
-- **Python 3**, for the scaffold script. On Windows, if `python` opens the
-  Microsoft Store or is "not recognized", install it from python.org and tick
-  *Add Python to PATH*.
-- **The RetroXR project.** Either `git clone` it with
-  [Git LFS](https://git-lfs.com) installed (`git lfs install` once, before
-  cloning: the game's models are LFS files), or download it as a zip from GitHub
-  and unpack it.
-
-### Which folder is which
-
-```
-RetroXR-master/                        the folder you cloned or unpacked
-├── Tools/mods/new_mod.py              the scaffold script
-└── RetroXR/                           THE GODOT PROJECT: it holds project.godot
-    ├── project.godot
-    ├── DevTools/mods/pack_mod.gd      the packer
-    └── mods/<your id>/                your mod, once scaffolded
-```
-
-Two folders matter and they are easy to confuse. The outer one is the download.
-The inner **`RetroXR/`**, the one with `project.godot` in it, is the Godot
-project: open that one in the Godot editor, and give that one to every
-`--path`. Every command below names it in full, so it works from any folder.
-The examples use `D:\RetroXR-master`; put yours in its place.
-
-### Import the project once
-
-Before the first build, and again whenever you add or change a model, texture
-or sound in your mod, let Godot import the project. Either open
-`RetroXR\project.godot` in the editor and wait for the import to finish, or:
+Every command takes **`--path` as the folder holding `project.godot`**: the
+inner `RetroXR/`, not the outer folder you cloned or unpacked. Use Godot's
+`_console` program on Windows, so it waits and prints. Import the project once
+before the first build, and again after adding or changing assets:
 
 ```powershell
 Godot_v4.7.2-stable_win64_console.exe --headless --path D:\RetroXR-master\RetroXR --import
 ```
 
-The first import of a fresh download takes several minutes. Until it has run,
-Godot does not know the game's classes, and the packer fails with the errors in
-[When a command fails](#when-a-command-fails).
-
-### Make your mod
+Start a mod with the scaffold script, which sits in the outer folder:
 
 ```powershell
 python D:\RetroXR-master\Tools\mods\new_mod.py you.mymod --name "My Mod" --author "You"
 # creates D:\RetroXR-master\RetroXR\mods\you.mymod\ with mod.json and mod_main.gd
 ```
-
-`you.mymod` is your mod's id: lower-case, no spaces, starting with a name of
-your own. Keep it for good, since it is how RetroXR knows a new upload is an
-update. Then add your `thumbnail.png`, models and scenes to that folder and edit
-`mod_main.gd`.
 
 ### Why inside RetroXR
 
@@ -1481,7 +1444,7 @@ you are developing cannot end up inside a build of the game.
 
 ## Building a pack
 
-[Import](#import-the-project-once) first, then:
+Import first (above), then:
 
 ```powershell
 Godot_v4.7.2-stable_win64_console.exe --headless --path D:\RetroXR-master\RetroXR --script res://DevTools/mods/pack_mod.gd -- --id=you.mymod
@@ -1528,23 +1491,12 @@ without loading the mod, finds nothing.
 
 ### When a command fails
 
-- **Dozens of `Parse Error`s: `Could not find type "ModManifest"`,
-  `Identifier "JsonStore" not declared`, `RomLibrary`, `ModPackReader`.** Godot
-  could not see the game's code. Either `--path` is not the folder holding
-  `project.godot` (a common slip is giving it the folder the packer is in, or the
-  outer download folder), or the project has never been
-  [imported](#import-the-project-once).
-- **Nothing printed, and the prompt came back at once.** That was the editor exe;
-  use the one ending `_console.exe`.
-- **`Failed to load script "res://..."`.** The `--script` path is wrong. It is
-  `res://DevTools/mods/pack_mod.gd`; a download from before 2026-11-20 has it at
-  `res://Tools/mods/pack_mod.gd` instead.
-- **`... is not imported yet` / `has no .import`.** Run the import again.
-- **`python` is "not recognized" or opens the Microsoft Store.** Install Python
-  from python.org with *Add Python to PATH* ticked, and open a new terminal.
-- **The game's own models are missing or tiny.** The `.glb` files were not
-  fetched from Git LFS: run `git lfs pull` in a clone. In a zip from GitHub they
-  are present only if the repository includes LFS files in its archives.
+Dozens of `Parse Error`s naming `ModManifest`, `JsonStore` or `ModPackReader`
+mean Godot could not see the game's code: `--path` is not the folder holding
+`project.godot`, or the project has never been imported. That and the other
+common failures are listed under
+[When a command fails](https://retroxr.app/guide/room/making-mods/#when-a-command-fails)
+on the site.
 
 ## Publishing on mod.io
 
