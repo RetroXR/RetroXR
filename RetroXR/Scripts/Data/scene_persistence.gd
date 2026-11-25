@@ -52,6 +52,8 @@ const _STRING_FIELDS := [
 	"sight_side",
 	# Which case a game's case is (GameCase): "jewel" or "keep", the variant, a colour preset.
 	"case_family", "case_variant", "case_color",
+	# A music CD's case ("cd") or a DVD's ("dvd") instead of a game's, and the album or DVD it is for.
+	"media_kind", "media_path",
 ]
 const _NUMBER_FIELDS := [
 	"lid_angle", "scale_factor", "stereo_mode", "size_scale", "page_state",
@@ -3480,6 +3482,8 @@ func _game_case_fields(c: RetroGameCase, _node_to_id: Dictionary) -> Dictionary:
 		"case_family": c.case_family,
 		"case_variant": c.case_variant,
 		"case_color": c.case_color,
+		"media_kind": c.media_kind,
+		"media_path": c.media_path,
 	}
 
 
@@ -4530,6 +4534,8 @@ func _load_game_case(data: Dictionary) -> Node3D:
 	c.case_family = str(data.get("case_family", ""))
 	c.case_variant = str(data.get("case_variant", ""))
 	c.case_color = str(data.get("case_color", ""))
+	c.media_kind = str(data.get("media_kind", ""))
+	c.media_path = str(data.get("media_path", ""))
 	return c
 
 

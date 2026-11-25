@@ -21,7 +21,7 @@ shader_parameter/track_pitch = 1.6
 shader_parameter/r_metal_start = 0.0195
 shader_parameter/r_data_start = 0.023
 
-[node name="AudioDisc" type="RigidBody3D" groups=["audio_disc"]]
+[node name="AudioDisc" type="RigidBody3D" groups=["audio_disc", "case_disc"]]
 collision_layer = 4
 collision_mask = 196613
 physics_material_override = SubResource("PhysMat_disc")

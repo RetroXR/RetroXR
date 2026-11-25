@@ -21,7 +21,7 @@ shader = ExtResource("4_discshader")
 bounce = 0.0
 friction = 0.8
 
-[node name="Disc" type="RigidBody3D" groups=["cartridge", "disc"]]
+[node name="Disc" type="RigidBody3D" groups=["cartridge", "disc", "case_disc"]]
 collision_layer = 4
 collision_mask = 196613
 physics_material_override = SubResource("PhysMat_disc")

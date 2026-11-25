@@ -22,7 +22,7 @@ shader_parameter/irid_orders = 3
 shader_parameter/r_metal_start = 0.011
 shader_parameter/r_data_start = 0.0226
 
-[node name="DVDDisc" type="RigidBody3D" groups=["dvd_disc"]]
+[node name="DVDDisc" type="RigidBody3D" groups=["dvd_disc", "case_disc"]]
 collision_layer = 4
 collision_mask = 196613
 physics_material_override = SubResource("PhysMat_disc")

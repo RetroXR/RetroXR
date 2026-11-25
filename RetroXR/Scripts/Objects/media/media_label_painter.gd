@@ -54,6 +54,8 @@ const CD_MM := 120.0
 const CD_PX := 1024
 
 static var _cache := {}
+## A case's paper is kept as a picture (case_sheet), by the same key.
+static var _sheets := {}
 ## Labels being drawn now: a second ask for one waits for it rather than drawing it again.
 static var _drawing := {}
 static var _busy := false
@@ -290,6 +292,77 @@ static func cd(host: Node, title: String, details: String) -> Texture2D:
 	return tex
 
 
+## A case's own paper for the album or DVD named `title`: the whole sheet, back | spine | front, `widths` px wide
+## each and `h` tall (GameCaseModel.panel_widths), for the parts the player has no picture of (MediaCaseArt). The
+## name on the front and turned down the spine, the stripe band running round all three. A picture in memory, not
+## a texture: its panels are cut out and joined. Cached; do not write to it.
+static func case_sheet(host: Node, kind: String, title: String, widths: Vector3i, h: int) -> Image:
+	var key := "case|%s|%s|%s|%d" % [kind, title, widths, h]
+	if await _wait_for_other(host, key):
+		return _sheets.get(key)
+	_drawing[key] = true
+	var size := Vector2i(widths.x + widths.y + widths.z, h)
+	# Probed on the paper, a little in from the back's top left corner.
+	var img := await _draw_image(host, size, false,
+		func(c: Control) -> void: _paint_case_sheet(c, kind, title, widths, float(h)), Vector2i(6, 6), PAPER)
+	_drawing.erase(key)
+	if img != null:
+		_cache[key] = true
+		_sheets[key] = img
+	print("[LabelPainter] %s case paper for \"%s\": %s" % [kind, title, "%dx%d" % [size.x, size.y] if img != null else "not drawn"])
+	return img
+
+
+## A case sheet's name as its front fits it above the band (three lines at most), for a front `w` px wide of a
+## sheet `mm` px to the millimetre.
+static func case_front_name_fit(title: String, w: float, mm: float) -> Dictionary:
+	return fit_name(font(), title.to_upper(), w - 16.0 * mm, 34.0 * mm, int(9.0 * mm), int(4.0 * mm), 3)
+
+
+## The same down its spine (one line), for a spine `w` px wide and a run of `run` px.
+static func case_spine_name_fit(title: String, w: float, run: float) -> Dictionary:
+	var size := int(w * 0.46 / CAP_EM)
+	return fit_name(font(), title.to_upper(), run, w, size, maxi(6, int(size * 0.6)), 1)
+
+
+static func _paint_case_sheet(c: Control, kind: String, title: String, widths: Vector3i, h: float) -> void:
+	var f := font()
+	# A CD's sheet stands 118 mm, a DVD's 183.
+	var mm := h / (118.0 if kind == "cd" else 183.0)
+	var total := float(widths.x + widths.y + widths.z)
+	c.draw_rect(Rect2(0.0, 0.0, total, h), PAPER)
+	# The band runs round the whole sheet, two thirds of the way down.
+	var stripe := (1.6 if kind == "cd" else 2.2) * mm
+	var band_top := h * 0.64
+	for i in SWEEP.size():
+		c.draw_rect(Rect2(0.0, band_top + i * stripe, total, stripe * 0.9), SWEEP[i])
+	var what := "COMPACT DISC" if kind == "cd" else "DVD"
+	# The front: the name over the band, what it is and whose paper under it.
+	var fx := float(widths.x + widths.y)
+	var fw := float(widths.z)
+	var fit := case_front_name_fit(title, fw, mm)
+	_block(c, f, fit["lines"], int(fit["size"]), fx + fw / 2.0, 10.0 * mm, band_top - 6.0 * mm, INK)
+	c.draw_string(f, Vector2(fx + 6.0 * mm, h - 6.0 * mm), "RETRO XR", HORIZONTAL_ALIGNMENT_LEFT, -1, int(3.4 * mm), INK)
+	var what_px := int(3.4 * mm)
+	c.draw_string(f, Vector2(fx + fw - 6.0 * mm - _width(f, what, what_px), h - 6.0 * mm), what,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, what_px, INK)
+	# The back: the name again, smaller, at its head; a rule; the maker's line at its foot.
+	var bw := float(widths.x)
+	var back_fit := fit_name(f, title.to_upper(), bw - 16.0 * mm, 16.0 * mm, int(5.6 * mm), int(3.0 * mm), 2)
+	_block(c, f, back_fit["lines"], int(back_fit["size"]), bw / 2.0, 9.0 * mm, 27.0 * mm, INK)
+	c.draw_rect(Rect2(8.0 * mm, 31.0 * mm, bw - 16.0 * mm, 0.35 * mm), RULE)
+	_text_centred(c, f, "RETRO XR  ·  %s" % what, bw / 2.0, h - 6.0 * mm, int(2.8 * mm), INK)
+	# The spine: the name turned to read down it, clear of the band.
+	var sw := float(widths.y)
+	var run := band_top - 12.0 * mm
+	var spine_fit := case_spine_name_fit(title, sw, run)
+	var line := str((spine_fit["lines"] as PackedStringArray)[0]) if not (spine_fit["lines"] as PackedStringArray).is_empty() else ""
+	var px := int(spine_fit["size"])
+	c.draw_set_transform(Vector2(float(widths.x) + sw / 2.0 - px * CAP_EM / 2.0, 6.0 * mm), PI / 2.0, Vector2.ONE)
+	c.draw_string(f, Vector2(maxf(0.0, (run - _width(f, line, px)) / 2.0), 0.0), line, HORIZONTAL_ALIGNMENT_LEFT, -1, px, INK)
+	c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
 ## True when `key` is drawn already, or was being drawn and is done now (cached, or failed: then null is the answer).
 static func _wait_for_other(host: Node, key: String) -> bool:
 	if _cache.has(key):
@@ -311,13 +384,24 @@ static func _wait_for_other(host: Node, key: String) -> bool:
 ## colour, so everything that wears one is exercised all the same; how it LOOKS is a windowed probe's to show.
 static func _draw(host: Node, size: Vector2i, transparent: bool, paint: Callable, probe: Vector2i,
 		want: Color) -> Texture2D:
+	var img := await _draw_image(host, size, transparent, paint, probe, want)
+	if img == null:
+		return null
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+
+## The same as a picture in memory (RGBA8, no mipmaps), for a caller that goes on working it: a case's paper is
+## cut into panels and joined with the player's own pictures.
+static func _draw_image(host: Node, size: Vector2i, transparent: bool, paint: Callable, probe: Vector2i,
+		want: Color) -> Image:
 	if host == null or not host.is_inside_tree():
 		push_warning("[LabelPainter] no host in the tree to draw on")
 		return null
 	if DisplayServer.get_name() == "headless":
-		var card := Image.create(size.x, size.y, true, Image.FORMAT_RGBA8)
+		var card := Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
 		card.fill(Color(0, 0, 0, 0) if transparent else PAPER)
-		return ImageTexture.create_from_image(card)
+		return card
 	var tree := host.get_tree()
 	while _busy:
 		await tree.process_frame
@@ -355,8 +439,7 @@ static func _draw(host: Node, size: Vector2i, transparent: bool, paint: Callable
 		push_warning("[LabelPainter] the canvas gave no picture (size %s)" % size)
 		return null
 	img.convert(Image.FORMAT_RGBA8)
-	img.generate_mipmaps()
-	return ImageTexture.create_from_image(img)
+	return img
 
 
 static func _near(a: Color, b: Color) -> bool:

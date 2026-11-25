@@ -76,6 +76,8 @@ func _run() -> void:
 		["case/a disc put on at an angle is at that angle at once", _case_disc_spin_at_once],
 		["case/a fingertip pushes the back half of a case nothing holds", _case_base_push],
 		["case/a lid that falls onto something rests on it", _case_lid_rests],
+		["case/a music CD and a DVD come in their own cases", _media_cases],
+		["case/a media case's paper is the player's pictures", _media_case_art],
 		["case/let go a little way into a tabletop, a case is lifted onto it", _case_lift_out],
 		["model/a clear disc tray is drawn as a molded part", _clear_trays],
 		["model/a jewel scan's wide spine strip is laid on the spine", _scan_spine_fit],
@@ -830,6 +832,181 @@ func _case_lid_rests() -> void:
 	c._lid_gives_way()
 	_ok(not c.sim.has_world_stop(), "a lid in a hand is stopped by nothing of the world's")
 	c.sim.set_held(top, false)
+
+
+## A music CD's case is the plain jewel case and a DVD's the plain keep case, the disc of its kind on the hub; any
+## 12 cm disc goes on any case's hub; a save keeps which album or DVD the case is for.
+func _media_cases() -> void:
+	var x := 880.0
+	var made: Dictionary = {}
+	for row: Array in [["cd", "jewel", "single", "C:/nowhere/music/Some Album"], ["dvd", "keep", "single", "C:/nowhere/dvd/Some Film.iso"]]:
+		x += 3.0
+		var c := CASE_SCENE.instantiate() as RetroGameCase
+		c.media_kind = row[0]
+		c.media_path = row[3]
+		c.game_label = "Some Title"
+		c.freeze = true
+		add_child(c)
+		_spawned.append(c)
+		await get_tree().physics_frame
+		c.global_position = Vector3(x, 1.0, 0.0)
+		c.set_physics_process(false)
+		made[row[0]] = c
+		_ok(c.case_family == row[1] and c.case_variant == row[2], "%s: its case is the plain %s" % [row[0], row[1]],
+			"%s/%s" % [c.case_family, c.case_variant])
+		_ok(c.manual_path().is_empty() and c._content_steps(PackedStringArray([row[3]])).size() == 1,
+			"%s: it holds its disc and no manual" % row[0])
+		c.spawn_contents(PackedStringArray([row[3]]))
+		var disc := c.disc_zone(0).picked_up_object
+		if row[0] == "cd":
+			_ok(disc is AudioDisc and (disc as AudioDisc).album_path == row[3] and (disc as AudioDisc).album_label == "Some Title",
+				"cd: an audio CD of the album is on its hub", str(disc))
+		else:
+			_ok(disc is DVDDisc and (disc as DVDDisc).dvd_path == row[3] and (disc as DVDDisc).dvd_label == "Some Title",
+				"dvd: the DVD is on its hub", str(disc))
+		_spawned.append(disc)
+		# Popped by the hub's button as a game's disc is.
+		c.sim.set_angle_deg(c.sim.top(), 170.0)
+		c._apply_angles()
+		_ok(c.pop_disc(0) and c.is_popped(0), "%s: the hub's button pops it" % row[0])
+		# A save keeps what the case is for.
+		var sp := ScenePersistence.new("game_case_tests")
+		var rec := sp._game_case_fields(c, {})
+		_ok(rec.get("media_kind") == row[0] and rec.get("media_path") == row[3], "%s: a save keeps what it is the case of" % row[0], str(rec))
+		var back := sp._load_game_case(rec) as RetroGameCase
+		_ok(back.media_kind == row[0] and back.media_path == row[3] and back.game_label == "Some Title",
+			"%s: and it comes back as that" % row[0])
+		back.free()
+	# Any 12 cm disc on any case's hub: a game's disc in the CD's case, the audio CD in a game's.
+	var cd_case := made["cd"] as RetroGameCase
+	cd_case.disc_zone(0).drop_object()
+	var game_disc := DISC_SCENE.instantiate() as RetroDisc
+	game_disc.systemid = "psx"
+	add_child(game_disc)
+	_spawned.append(game_disc)
+	var audio := RetroGameCase.AUDIO_DISC_SCENE.instantiate() as AudioDisc
+	add_child(audio)
+	_spawned.append(audio)
+	var umd := RetroGameCase.UMD_SCENE.instantiate() as RetroCartridge
+	add_child(umd)
+	_spawned.append(umd)
+	_ok(game_disc.is_in_group(RetroGameCase.DISC_GROUP) and audio.is_in_group(RetroGameCase.DISC_GROUP)
+		and (made["dvd"] as RetroGameCase).disc_zone(0).picked_up_object.is_in_group(RetroGameCase.DISC_GROUP),
+		"a game's disc, a music CD and a DVD are all discs a case's hub asks for")
+	_ok(cd_case._accepts_disc(game_disc, 0) and cd_case._accepts_disc(audio, 0), "a CD's case takes a game's disc as it takes a CD")
+	_ok(not cd_case._accepts_disc(umd, 0), "and no UMD")
+	var game_case := _new_case("jewel", "single")
+	await get_tree().physics_frame
+	game_case.global_position = Vector3(x + 3.0, 1.0, 0.0)
+	game_case.set_physics_process(false)
+	game_case.sim.set_angle_deg(game_case.sim.top(), 170.0)
+	game_case._apply_angles()
+	_ok(game_case._accepts_disc(audio, 0) and game_case.disc_zone(0).snap_require == RetroGameCase.DISC_GROUP,
+		"a game's case takes a music CD")
+	game_case.disc_zone(0).pick_up_object(audio)
+	_ok(game_case.disc_zone(0).picked_up_object == audio and game_case.pop_disc(0), "seated there, it pops off the hub like any disc")
+
+
+## A media case's paper: found beside the album or the DVD by name, the whole sleeve in one picture or its panels,
+## a CD's whole tray card cut into back and spine, and RetroXR's own paper for whatever is missing.
+func _media_case_art() -> void:
+	var root := OS.get_user_data_dir().path_join("__media_case_selftest")
+	var album := root.path_join("Some Album")
+	DirAccess.make_dir_recursive_absolute(album)
+	var film := root.path_join("Some Film.iso")
+	var files: Array[String] = []
+	var put := func(path: String, w: int, h: int, c: Color) -> void:
+		_flat(w, h, c).save_png(path)
+		files.append(path)
+	var empty := FileAccess.open(film, FileAccess.WRITE)
+	empty.close()
+	files.append(film)
+	_eq(MediaCaseArt.paths(album), {"front": "", "back": "", "spine": ""}, "an album with no pictures has none")
+	_eq(MediaCaseArt.paths(""), {"front": "", "back": "", "spine": ""}, "nor has nothing")
+	# With no pictures at all the sheet is RetroXR's own paper, at the layout's size.
+	var plain := await MediaCaseArt.decode(self, "cd", album, "Some Album", "jewel", "single")
+	var want := GameCaseModel.panel_widths(MediaCaseArt.SHEET_H,
+		Vector2i(roundi(MediaCaseArt.SHEET_H * float(GameCaseModel.jewel_layout("single")["booklet_per_h"])), MediaCaseArt.SHEET_H), "single", "jewel")
+	_ok(plain != null and plain.get_height() == MediaCaseArt.SHEET_H and plain.get_width() == want.x + want.y + want.z and plain.has_mipmaps(),
+		"no pictures: the whole sheet is drawn, back | spine | front", str(plain.get_size()) if plain != null else "none")
+	# An album's own: cover, back and spine in its folder.
+	put.call(album.path_join("Cover.JPG".to_lower().replace(".jpg", ".png")), 300, 300, Color.BLUE)
+	put.call(album.path_join("back.png"), 350, 300, Color.GREEN)
+	put.call(album.path_join("spine.png"), 16, 300, Color.RED)
+	var found := MediaCaseArt.paths(album)
+	_ok(str(found["front"]).get_file() == "cover.png" and str(found["back"]).get_file() == "back.png"
+		and str(found["spine"]).get_file() == "spine.png", "an album's cover, back and spine are found in its folder", str(found))
+	var sheet := await MediaCaseArt.decode(self, "cd", album, "Some Album", "jewel", "single")
+	var w := GameCaseModel.panel_widths(300, Vector2i(300, 300), "single", "jewel")
+	_ok(sheet != null and sheet.get_height() == 300 and sheet.get_width() == w.x + w.y + w.z, "its three pictures are joined at their own height",
+		str(sheet.get_size()) if sheet != null else "none")
+	if sheet != null:
+		sheet.clear_mipmaps()
+		_ok(sheet.get_pixel(w.x / 2, 150).is_equal_approx(Color.GREEN) and sheet.get_pixel(w.x + w.y / 2, 150).is_equal_approx(Color.RED)
+			and sheet.get_pixel(w.x + w.y + w.z / 2, 150).is_equal_approx(Color.BLUE), "the back, the spine and the front each on its own panel")
+	# A whole tray card for a back and no spine picture: the card's left strip is the spine.
+	DirAccess.remove_absolute(album.path_join("spine.png"))
+	var card := _flat(1505, 1180, Color.GREEN)
+	card.fill_rect(Rect2i(0, 0, 65, 1180), Color.RED)
+	card.fill_rect(Rect2i(1440, 0, 65, 1180), Color.RED)
+	card.save_png(album.path_join("back.png"))
+	var cut := await MediaCaseArt.decode(self, "cd", album, "Some Album", "jewel", "single")
+	if cut != null:
+		cut.clear_mipmaps()
+		var h := cut.get_height()
+		var cw := GameCaseModel.panel_widths(h, Vector2i(300, 300), "single", "jewel")
+		_ok(cut.get_pixel(cw.x + cw.y / 2, h / 2).r > 0.8 and cut.get_pixel(cw.x + cw.y / 2, h / 2).g < 0.3
+			and cut.get_pixel(6, h / 2).g > 0.8 and cut.get_pixel(cw.x - 6, h / 2).g > 0.8,
+			"a whole tray card: its spine strip is the spine, and neither strip is on the back")
+	else:
+		_ok(false, "a whole tray card decodes")
+	# A DVD: one wide picture beside the .iso is the whole sleeve; a tall one is its front, with back and spine by name.
+	put.call(root.path_join("Some Film.png"), 600, 400, Color.PURPLE)
+	_eq(str(MediaCaseArt.paths(film)["front"]).get_file(), "Some Film.png", "a DVD's picture is the one named as its .iso")
+	var sleeve := await MediaCaseArt.decode(self, "dvd", film, "Some Film", "keep", "single")
+	_ok(sleeve != null and sleeve.get_size() == Vector2i(600, 400) and sleeve.has_mipmaps(), "a wide one is the whole sleeve, worn as it is",
+		str(sleeve.get_size()) if sleeve != null else "none")
+	put.call(root.path_join("Some Film.png"), 280, 400, Color.PURPLE)
+	put.call(root.path_join("Some Film back.png"), 280, 400, Color.GREEN)
+	put.call(root.path_join("Some Film spine.png"), 30, 400, Color.RED)
+	var parts := MediaCaseArt.paths(film)
+	_ok(str(parts["back"]).get_file() == "Some Film back.png" and str(parts["spine"]).get_file() == "Some Film spine.png",
+		"its back and spine are named after it", str(parts))
+	var joined := await MediaCaseArt.decode(self, "dvd", film, "Some Film", "keep", "single")
+	var kw := GameCaseModel.panel_widths(400, Vector2i(280, 400), "single", "keep")
+	_ok(joined != null and joined.get_size() == Vector2i(kw.x + kw.y + kw.z, 400), "a tall one is its front, joined with them across the sleeve",
+		str(joined.get_size()) if joined != null else "none")
+	# The front alone: the rest is RetroXR's paper.
+	DirAccess.remove_absolute(root.path_join("Some Film back.png"))
+	DirAccess.remove_absolute(root.path_join("Some Film spine.png"))
+	var mixed := await MediaCaseArt.decode(self, "dvd", film, "Some Film", "keep", "single")
+	if mixed != null:
+		mixed.clear_mipmaps()
+		var mw := GameCaseModel.panel_widths(mixed.get_height(), Vector2i(280, 400), "single", "keep")
+		var front_px := mixed.get_pixel(mw.x + mw.y + mw.z / 2, mixed.get_height() / 2)
+		_ok(front_px.is_equal_approx(Color.PURPLE) and not mixed.get_pixel(6, 6).is_equal_approx(Color.PURPLE),
+			"a front alone: it is on the front, the back RetroXR's paper", str(front_px))
+	else:
+		_ok(false, "a front alone decodes")
+	# A case wears what it is given.
+	var c := CASE_SCENE.instantiate() as RetroGameCase
+	c.media_kind = "dvd"
+	c.media_path = film
+	c.game_label = "Some Film"
+	c.freeze = true
+	add_child(c)
+	_spawned.append(c)
+	c.set_physics_process(false)
+	for _i in 60:
+		if _art_size(c) != Vector2i.ZERO:
+			break
+		await get_tree().process_frame
+	_ok(_art_size(c).y > 0, "a DVD's case put in a room loads its own paper", str(_art_size(c)))
+	for path in files:
+		DirAccess.remove_absolute(path)
+	DirAccess.remove_absolute(album.path_join("back.png"))
+	DirAccess.remove_absolute(album)
+	DirAccess.remove_absolute(root)
 
 
 func _case_manual_seat() -> void:

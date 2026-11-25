@@ -259,6 +259,7 @@ func _connect_menu_signals() -> void:
 	spawn_menu.spawn_view().spawn_video_requested.connect(_on_spawn_video_requested)
 	spawn_menu.spawn_view().spawn_dvd_requested.connect(_on_spawn_dvd_requested)
 	spawn_menu.spawn_view().spawn_cd_requested.connect(_on_spawn_cd_requested)
+	spawn_menu.spawn_view().spawn_media_case_requested.connect(_on_spawn_media_case_requested)
 	spawn_menu.spawn_view().spawn_cassette_requested.connect(_on_spawn_cassette_requested)
 	spawn_menu.spawn_view().spawn_record_requested.connect(_on_spawn_record_requested)
 	spawn_menu.options_view().turn_style_changed.connect(_on_turn_style_changed)
@@ -1677,6 +1678,31 @@ func _on_spawn_dvd_requested(dvd_path: String) -> void:
 	disc.dvd_path = dvd_path
 	disc.dvd_label = dvd_path.get_file().get_basename()
 	_place_spawned(disc, "dvd_disc")
+
+
+## A music CD in its jewel case, or a DVD in its keep case, the disc on the hub. The case's paper is the player's
+## own pictures beside the album or the DVD, RetroXR's for whatever is missing (MediaCaseArt).
+func _on_spawn_media_case_requested(kind: String, media_path: String) -> void:
+	if not MediaCaseArt.is_kind(kind) or media_path.is_empty():
+		return
+	var family := MediaCaseArt.family_of(kind)
+	var variant := MediaCaseArt.variant_of(kind)
+	var label := media_path.get_file().get_basename()        # as the bare disc is named
+	var models := GameCaseModel.model_paths(family, variant)
+	ModelWarmer.prefetch(Array(models))
+	var img := await MediaCaseArt.decode(self, kind, media_path, label, family, variant)
+	for path in models:
+		await ModelWarmer.acquire(path)
+	var c := GAME_CASE_SCENE.instantiate() as RetroGameCase
+	c.media_kind = kind
+	c.media_path = media_path
+	c.game_label = label
+	c.case_family = family
+	c.case_variant = variant
+	c.box_image = img
+	_place_spawned(c, "game_case")
+	if is_instance_valid(c) and c.is_inside_tree() and not c.is_queued_for_deletion():
+		c.spawn_contents_over_frames(PackedStringArray([media_path]))
 
 
 func _on_spawn_cd_requested(album_path: String) -> void:

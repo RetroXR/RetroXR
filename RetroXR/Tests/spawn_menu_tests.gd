@@ -2016,3 +2016,18 @@ func _group_media_list() -> void:
 	view.spawn_video_requested.connect(func(p: String) -> void: got.append(p))
 	(first.get_node("Spawn") as Button).pressed.emit()
 	_eq(got, ["/videos/clip_0000.mp4"], "media_list/pressing a row spawns ITS file")
+	_ok(first.get_node_or_null("Case") == null, "media_list/a video's row has no case button")
+	# A music CD's row and a DVD's have a case button: the thing in the case it comes in.
+	var cased: Array = []
+	view.spawn_media_case_requested.connect(func(kind: String, p: String) -> void: cased.append([kind, p]))
+	for kind: String in ["cd", "dvd"]:
+		var row := view._build_blank_media_row(view.spawn_cd_requested if kind == "cd" else view.spawn_dvd_requested, "/lib", kind)
+		add_child(row)
+		_spawned.append(row)
+		view._bind_media_row(row, {"path": "/lib/Thing %s" % kind, "label": "Thing"}, "💿")
+		var case_btn := row.get_node_or_null("Case") as Button
+		_ok(case_btn != null and case_btn.get_index() == row.get_node("Spawn").get_index() - 1,
+			"media_list/a %s's row has a case button just left of its name" % kind)
+		if case_btn != null:
+			case_btn.pressed.emit()
+	_eq(cased, [["cd", "/lib/Thing cd"], ["dvd", "/lib/Thing dvd"]], "media_list/and it asks for that row's thing in its case")

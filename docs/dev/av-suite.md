@@ -656,6 +656,35 @@ blue for side B, with up to three lines of name above the spindle.
 - `CompactCassette.fit_on_paper` passes a picture already the label's shape through as it is (no squeeze to 512).
 - `deck_tests label/` and `audio_cassette_tests shell/` hold the new rule (a 1024 x 462 cassette label, a 512 LP).
 
+### A music CD's and a DVD's case (2026-11-25)
+
+A row in the spawn menu's CDs list and its DVDs list has a **case button** left of the name (as a disc game's row
+has): the album in a jewel case, the DVD in the black polypropylene keep case, its disc on the hub. Both are
+`RetroGameCase` (`media_kind` "cd" / "dvd", `media_path` the album or the DVD, both saved); the plain variants,
+`MediaCaseArt.CASES`. A case's hub takes ANY 12 cm disc now (a game's, a music CD, a DVD: the group `case_disc`
+their scenes carry), as a real case does.
+
+**The paper is the player's own pictures, found by name** beside the album or the DVD (png, jpg, jpeg or webp;
+`MediaCaseArt.paths`). They get there as any file does: copied into the library, or sent through the web file manager.
+
+| the thing | front | back | spine |
+|---|---|---|---|
+| a folder (an album of tracks, a DVD's folder), inside it | `cover` / `folder` / `front` / `album` | `back` | `spine` |
+| a file (one track, a playlist, an `.iso`), beside it | `Name.png` | `Name back.png` | `Name spine.png` |
+
+- The front is the picture the disc's own face already uses (`MediaLabelArt.album_side`).
+- **A front wider than tall is the whole sleeve** in one picture, back | spine | front, the way a DVD's cover is
+  scanned (`SLEEVE_ASPECT`); a jewel case's is laid out as a game's wrap is.
+- **A CD's back wider than 5:4 is its whole tray card** (150.5 x 118 mm): the spine is cut from its left strip
+  when there is no spine picture, and neither strip is left on the back.
+- **Whatever is missing is RetroXR's own paper** (`MediaLabelPainter.case_sheet`: the name on the front and turned
+  down the spine, the stripe band round all three), drawn once per name at the widths `GameCaseModel.panel_widths`
+  gives and cut into the panels that are wanted. A case with no pictures at all still reads as that album's.
+- The pictures are decoded and joined on a pool thread (`MediaCaseArt.decode`), read when the case appears (a
+  spawn, a restore): one added afterwards shows on the next case. The DVD's own disc still has no printed face.
+- `game_case_tests` ("a music CD and a DVD come in their own cases", "a media case's paper is the player's
+  pictures") and `spawn_menu_tests media_list/`. Headset look OWED.
+
 ### Pass-throughs: a device in the middle of the signal (2026-11-02)
 
 The 32X has an A/V IN and an A/V OUT (`expansion-carts.md` 2j″): the console's lead goes

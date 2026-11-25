@@ -32,6 +32,8 @@ signal spawn_poster_requested(image_path: String)
 signal spawn_video_requested(video_path: String)
 signal spawn_dvd_requested(dvd_path: String)
 signal spawn_cd_requested(album_path: String)
+## A music CD ("cd") or a DVD ("dvd") in its case, the disc inside (its row's case button, left of the name).
+signal spawn_media_case_requested(kind: String, media_path: String)
 signal spawn_cassette_requested(album_path: String)
 signal spawn_record_requested(album_path: String)
 signal default_core_changed(systemid: String, core_name: String)
@@ -2698,12 +2700,12 @@ func _populate_dvds_tab() -> void:
 		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_dvds_vbox.add_child(hint)
 		return
-	_add_media_list(_dvds_vbox, dvds, "💿", spawn_dvd_requested, RomLibrary.default_dvd_root())
+	_add_media_list(_dvds_vbox, dvds, "💿", spawn_dvd_requested, RomLibrary.default_dvd_root(), "dvd")
 	_dvds_vbox.add_child(MenuStyle.spacer(8))
 
 
 func _populate_cds_tab() -> void:
-	_populate_music_vbox(_cds_vbox, "💿", spawn_cd_requested)
+	_populate_music_vbox(_cds_vbox, "💿", spawn_cd_requested, "cd")
 
 
 func _populate_tapes_tab() -> void:
@@ -2716,7 +2718,7 @@ func _populate_records_tab() -> void:
 
 ## Shared list builder for the CDs / Tapes / Records tabs — all three list the same
 ## music albums, differing only in the icon and which spawn signal a row fires.
-func _populate_music_vbox(vbox: VBoxContainer, icon: String, sig: Signal) -> void:
+func _populate_music_vbox(vbox: VBoxContainer, icon: String, sig: Signal, case_kind := "") -> void:
 	if not vbox:
 		return
 	_clear_vbox(vbox)
@@ -2728,7 +2730,7 @@ func _populate_music_vbox(vbox: VBoxContainer, icon: String, sig: Signal) -> voi
 		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		vbox.add_child(hint)
 		return
-	_add_media_list(vbox, albums, icon, sig, RomLibrary.default_music_root())
+	_add_media_list(vbox, albums, icon, sig, RomLibrary.default_music_root(), case_kind)
 	vbox.add_child(MenuStyle.spacer(8))
 
 
@@ -2739,19 +2741,21 @@ const MEDIA_ROW_HEIGHT := 86
 ## files the folder holds. Building a Control row per file (three Controls each, rebuilt on every visit) froze and then
 ## crashed a Quest on a videos folder of 1000+ files once the render thread was separate (v0.14.0); 10 files and 10 000
 ## now cost the same. Each row reads its item from meta when pressed, as a pooled row is re-bound to another file.
-func _add_media_list(vbox: VBoxContainer, items: Array, icon: String, sig: Signal, root: String) -> void:
+## `case_kind` ("cd", "dvd") gives each row a case button: the thing in the case it comes in (MediaCaseArt).
+func _add_media_list(vbox: VBoxContainer, items: Array, icon: String, sig: Signal, root: String,
+		case_kind := "") -> void:
 	print("[SpawnView] %s: %d item(s), pooled" % [root.get_file(), items.size()])
 	var list := VirtualRowList.new()
 	list.row_height = MEDIA_ROW_HEIGHT
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.set_row_builder(func() -> Control: return _build_blank_media_row(sig, root))
+	list.set_row_builder(func() -> Control: return _build_blank_media_row(sig, root, case_kind))
 	list.set_row_binder(func(row: Control, i: int) -> void:
 		_bind_media_row(row, items[i] as Dictionary, icon))
 	vbox.add_child(list)
 	list.set_row_count(items.size())
 
 
-func _build_blank_media_row(sig: Signal, root: String) -> Control:
+func _build_blank_media_row(sig: Signal, root: String, case_kind := "") -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	var spawn_btn := Button.new()
@@ -2774,6 +2778,21 @@ func _build_blank_media_row(sig: Signal, root: String) -> Control:
 	del.pressed.connect(func() -> void:
 		_on_media_delete_pressed(str(row.get_meta(&"path", "")), root, del))
 	row.add_child(del)
+	if not case_kind.is_empty():
+		# The case sits just left of the name, as a game's does on its row.
+		var case_btn := Button.new()
+		case_btn.name = "Case"
+		case_btn.custom_minimum_size = Vector2(66, 72)
+		case_btn.icon = MenuIcons.case_icon("tall" if MediaCaseArt.family_of(case_kind) == "keep" else "square")
+		case_btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		case_btn.add_theme_constant_override("icon_max_width", 26)
+		case_btn.add_theme_color_override("icon_normal_color", Color(0.72, 0.72, 0.86))
+		case_btn.tooltip_text = "Spawn in its case"
+		case_btn.pressed.connect(func() -> void:
+			var path := str(row.get_meta(&"path", ""))
+			if not path.is_empty():
+				spawn_media_case_requested.emit(case_kind, path))
+		row.add_child(case_btn)
 	row.add_child(spawn_btn)
 	return row
 

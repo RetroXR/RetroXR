@@ -518,20 +518,11 @@ static func join_panels(back: Image, side: Image, front: Image, case_variant := 
 	for part: Image in [back, side, front]:
 		if part == null or part.is_empty():
 			return null
-	var lay := jewel_layout(case_variant)
 	var h := back.get_height()
-	var back_w := int(round(h * float(lay["back"])))
-	var spine_w := maxi(1, int(round(h * float(lay["spine"]))))
-	var front_w := maxi(1, int(round(float(front.get_width()) * h / float(front.get_height()))))
-	if float(lay["strip_mm"]) <= 0.0:
-		front_w = int(round(h * float(lay["booklet_per_h"])))
-	if case_family == "keep":
-		var art: Dictionary = variant_contract("keep", case_variant).get("art", {})
-		var sheet: Array = art.get("sheet_mm", [273.0, 183.0])
-		var total := maxi(3, int(round(h * float(sheet[0]) / float(sheet[1]))))
-		back_w = int(round(total * float(art.get("back_mm", 129.5)) / float(sheet[0])))
-		spine_w = maxi(1, int(round(total * float(art.get("spine_mm", 14.0)) / float(sheet[0]))))
-		front_w = maxi(1, total - back_w - spine_w)
+	var widths := panel_widths(h, front.get_size(), case_variant, case_family)
+	var back_w := widths.x
+	var spine_w := widths.y
+	var front_w := widths.z
 	var out := Image.create_empty(back_w + spine_w + front_w, h, false, Image.FORMAT_RGBA8)
 	var x := 0
 	for row: Array in [[back, back_w], [side, spine_w], [front, front_w]]:
@@ -547,6 +538,25 @@ static func join_panels(back: Image, side: Image, front: Image, case_variant := 
 		out.blit_rect(part, Rect2i(0, 0, w, h), Vector2i(x, 0))
 		x += w
 	return out
+
+
+## How wide join_panels makes the back, the spine and the front (px) of a sheet `h` tall, for a front picture of
+## `front_px`. Any thread.
+static func panel_widths(h: int, front_px: Vector2i, case_variant := "", case_family := "jewel") -> Vector3i:
+	var lay := jewel_layout(case_variant)
+	var back_w := int(round(h * float(lay["back"])))
+	var spine_w := maxi(1, int(round(h * float(lay["spine"]))))
+	var front_w := maxi(1, int(round(float(front_px.x) * h / float(maxi(front_px.y, 1)))))
+	if float(lay["strip_mm"]) <= 0.0:
+		front_w = int(round(h * float(lay["booklet_per_h"])))
+	if case_family == "keep":
+		var art: Dictionary = variant_contract("keep", case_variant).get("art", {})
+		var sheet: Array = art.get("sheet_mm", [273.0, 183.0])
+		var total := maxi(3, int(round(h * float(sheet[0]) / float(sheet[1]))))
+		back_w = int(round(total * float(art.get("back_mm", 129.5)) / float(sheet[0])))
+		spine_w = maxi(1, int(round(total * float(art.get("spine_mm", 14.0)) / float(sheet[0]))))
+		front_w = maxi(1, total - back_w - spine_w)
+	return Vector3i(back_w, spine_w, front_w)
 
 
 ## A jewel box-texture whose spine strip is not where the layout has it, put right in place. Most scans keep the

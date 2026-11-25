@@ -15,6 +15,11 @@ const GROUP := &"game_case"
 const DISC_SCENE := preload("res://Scenes/Objects/media/disc.tscn")
 const UMD_SCENE := preload("res://Scenes/Objects/media/umd_disc.tscn")
 const BOOK_SCENE := preload("res://Scenes/Objects/media/pdf_book.tscn")
+const AUDIO_DISC_SCENE := preload("res://Scenes/Objects/media/audio_disc.tscn")
+const DVD_DISC_SCENE := preload("res://Scenes/Objects/media/dvd_disc.tscn")
+## Every 12 cm disc is in this group (its scene's): a game's, a music CD, a DVD. A case's hub takes any of them, as
+## a real case does. One group, because a snap zone previews only for the group it names.
+const DISC_GROUP := "case_disc"
 ## A seat a hand can reach: the panel over it turned this far off it.
 const REACH_DEG := 25.0
 const MASS := {"jewel": 0.075, "keep": 0.11}
@@ -132,6 +137,10 @@ const CARD_BASIS := {"ps2": Basis(Vector3(0, 1, 0), Vector3(0, 0, 1), Vector3(1,
 @export var rom_path := ""
 @export var game_label := ""
 @export var systemid := ""
+## A music CD's case ("cd") or a DVD's ("dvd") instead of a game's: `media_path` is the album or the DVD, and
+## `game_label` its name. The case and its paper are MediaCaseArt's.
+@export var media_kind := ""
+@export var media_path := ""
 ## Which case: set before _ready (GameCase.pick, or a save); empty picks from the game with no box art to measure.
 @export var case_family := ""
 @export var case_variant := ""
@@ -230,6 +239,9 @@ func _ready() -> void:
 	# them in the same frame. At the default 0 the discs were placed where their trays had been, a frame behind
 	# (the owner, 2026-11-21: "the disk lags behind slightly").
 	process_physics_priority = -100
+	if case_variant.is_empty() and MediaCaseArt.is_kind(media_kind):
+		case_family = MediaCaseArt.family_of(media_kind)
+		case_variant = MediaCaseArt.variant_of(media_kind)
 	if case_variant.is_empty():
 		var pick := GameCase.pick(systemid, GameCase.market_of(systemid, rom_path),
 			GameCase.discs_of(rom_path).size(), Vector2i.ZERO, GameCase.release_of(systemid, rom_path))
@@ -258,7 +270,7 @@ func _ready() -> void:
 	_apply_angles()
 	if box_image != null:
 		_apply_art(box_image)
-	elif not rom_path.is_empty():
+	elif not rom_path.is_empty() or MediaCaseArt.is_kind(media_kind):
 		_load_art.call_deferred()
 	_want_panels.call_deferred()
 
@@ -317,10 +329,32 @@ func _content_steps(disc_paths: PackedStringArray) -> Array[Callable]:
 func _spawn_disc(disc_path: String, seat: XRToolsSnapZone, umd: bool) -> void:
 	if not is_instance_valid(seat) or is_instance_valid(seat.picked_up_object):
 		return
+	if MediaCaseArt.is_kind(media_kind):
+		_spawn_media_disc(disc_path, seat)
+		return
 	var disc := (UMD_SCENE if umd else DISC_SCENE).instantiate() as RetroCartridge
 	disc.rom_path = disc_path
 	disc.game_label = game_label
 	disc.systemid = systemid
+	get_parent().add_child(disc)
+	disc.add_to_group("spawned")
+	disc.global_transform = seat.global_transform
+	seat.pick_up_object(disc)
+
+
+## A music CD's or a DVD's own disc, on its hub.
+func _spawn_media_disc(path: String, seat: XRToolsSnapZone) -> void:
+	var disc: Node3D = null
+	if media_kind == "dvd":
+		var dvd := DVD_DISC_SCENE.instantiate() as DVDDisc
+		dvd.dvd_path = path
+		dvd.dvd_label = game_label
+		disc = dvd
+	else:
+		var cd := AUDIO_DISC_SCENE.instantiate() as AudioDisc
+		cd.album_path = path
+		cd.album_label = game_label
+		disc = cd
 	get_parent().add_child(disc)
 	disc.add_to_group("spawned")
 	disc.global_transform = seat.global_transform
@@ -787,7 +821,7 @@ func _build_zones() -> void:
 	for i in model.disc_seat_count():
 		var seat := model.disc_seat(i + 1)
 		var row: Dictionary = seats[i] if i < seats.size() else {}
-		var zone := _zone("DiscZone%d" % (i + 1), seat, "disc", 0.05, _accepts_disc.bind(i))
+		var zone := _zone("DiscZone%d" % (i + 1), seat, DISC_GROUP, 0.05, _accepts_disc.bind(i))
 		_zones.append(zone)
 		_popped.append(false)
 		_seat_spin.append(0.0)
@@ -897,7 +931,7 @@ func _build_hub_button(seat: Node3D, i: int) -> void:
 
 ## Pop the disc on seat i up off its hub: it rides up and tilts on its zone, loose for a hand to lift out.
 func pop_disc(i: int) -> bool:
-	if i >= _zones.size() or _popped[i] or not _held(_zones[i]) is RetroDisc or not _seat_reachable(i):
+	if i >= _zones.size() or _popped[i] or not is_disc(_held(_zones[i])) or not _seat_reachable(i):
 		return false
 	_popped[i] = true
 	_zones[i].transform = Transform3D(Basis(Vector3.RIGHT, deg_to_rad(POP_TILT_DEG)) * Basis(Vector3.UP, _seat_spin[i]),
@@ -1112,7 +1146,12 @@ func _carrier_of(parent: String) -> int:
 
 
 func _accepts_disc(obj: Node3D, seat: int) -> bool:
-	return obj is RetroDisc and not obj is RetroUMD and _seat_reachable(seat)
+	return is_disc(obj) and _seat_reachable(seat)
+
+
+## A 12 cm disc of any kind: a game's (not a UMD, which has its own holder), a music CD, a DVD.
+static func is_disc(obj: Node) -> bool:
+	return (obj is RetroDisc and not obj is RetroUMD) or obj is AudioDisc or obj is DVDDisc
 
 
 func _lid_open() -> bool:
@@ -1164,7 +1203,7 @@ func _update_reach() -> void:
 		if obj != null:
 			obj.enabled = ok
 		if i < _hub_buttons.size() and _hub_buttons[i].is_inside_tree():
-			_hub_buttons[i].set_active(ok and obj is RetroDisc and not _popped[i])
+			_hub_buttons[i].set_active(ok and is_disc(obj) and not _popped[i])
 	for z: XRToolsSnapZone in [_holder_zone, _manual_zone, _card_zone]:
 		if z == null:
 			continue
@@ -1177,6 +1216,12 @@ func _update_reach() -> void:
 
 # ------------------------------------------------------------------ art
 func _load_art() -> void:
+	if MediaCaseArt.is_kind(media_kind):
+		# A CD's or a DVD's: the player's own pictures beside it, RetroXR's paper for the rest.
+		var sheet := await MediaCaseArt.decode(self, media_kind, media_path, game_label, case_family, case_variant)
+		if sheet != null and is_inside_tree():
+			_apply_art(sheet)
+		return
 	var img: Image = null
 	# The case's three panels as ScreenScraper cut them, when the scraper has them; else the one wrap, split by the
 	# layout.
