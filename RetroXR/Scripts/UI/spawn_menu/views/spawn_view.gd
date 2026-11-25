@@ -182,6 +182,7 @@ var _cartridges_browser: SystemGridBrowser = null
 ## is paired or unpaired.
 var _controllers_vbox: VBoxContainer = null
 var _power_vbox: VBoxContainer
+var _objects_vbox: VBoxContainer
 var _books_vbox: VBoxContainer = null
 ## The TVs tab's rows. Kept so a mod applied mid-session can add its cabinets.
 var _tvs_vbox: VBoxContainer = null
@@ -524,6 +525,12 @@ func _build() -> void:
 	# prop a mod registered for it with a menu label, all SpawnCatalog's, as a console
 	# card's rows are (items_for).
 	for key: String in SpawnCatalog.SPAWN_TABS:
+		if key == "objects":
+			# And every case, empty, when OPTIONS > General says so: rebuilt as that is switched.
+			_objects_vbox = _add_spawn_tab(tabs, str(SpawnCatalog.SPAWN_TABS[key]), _object_items())
+			if not AppPrefs.cases_in_objects_changed.is_connected(_on_cases_in_objects_changed):
+				AppPrefs.cases_in_objects_changed.connect(_on_cases_in_objects_changed)
+			continue
 		_add_spawn_tab(tabs, str(SpawnCatalog.SPAWN_TABS[key]), SpawnCatalog.tab_rows(key))
 
 	# Mains leads, on their own tab rather than lost among the A/V ones. What
@@ -3071,6 +3078,26 @@ func _show_region_spawn_options(row: Dictionary) -> void:
 		if not v.is_empty():
 			spawn_requested.emit(str(v["token"])))
 	vbox.add_child(go)
+
+
+## The Objects tab's rows: its own and the mods', then every case when the option is on.
+func _object_items() -> Array:
+	var rows := SpawnCatalog.tab_rows("objects")
+	if AppPrefs.cases_in_objects:
+		rows.append_array(SpawnCatalog.case_rows())
+	return rows
+
+
+func _on_cases_in_objects_changed(_on: bool) -> void:
+	refresh_objects_tab()
+
+
+func refresh_objects_tab() -> void:
+	if not is_instance_valid(_objects_vbox):
+		return
+	_clear_vbox(_objects_vbox)
+	for item: Variant in _object_items():
+		_objects_vbox.add_child(_spawn_item_button(item))
 
 
 ## Re-sort the Power tab after the region changed.

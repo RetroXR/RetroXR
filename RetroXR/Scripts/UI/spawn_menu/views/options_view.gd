@@ -268,6 +268,9 @@ func _build_welcome_option(vbox: VBoxContainer) -> VRToggle:
 	return _welcome_toggle
 
 
+var _cases_toggle: VRToggle = null
+
+
 func _on_show_welcome_changed(on: bool) -> void:
 	if is_instance_valid(_welcome_toggle) and _welcome_toggle.button_pressed != on:
 		_welcome_toggle.button_pressed = on
@@ -712,6 +715,12 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 		AppPrefs.save_prefs()
 	)
 	_build_welcome_option(vbox)
+	# Every case by itself on SPAWN > Objects (SpawnCatalog.case_rows). Off by default.
+	var cases_toggled := func(on: bool) -> void:
+		if not AppPrefs.set_cases_in_objects(on):
+			push_warning("[Options] could not save Cases in the Objects List = %s" % on)
+	_cases_toggle = _toggle_row(vbox, "Cases in the Objects List", AppPrefs.cases_in_objects,
+		cases_toggled, Callable(), 68, "Every jewel and poly case, empty, on SPAWN > Objects")
 
 	vbox.add_child(HSeparator.new())
 

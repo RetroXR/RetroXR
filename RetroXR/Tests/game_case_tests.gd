@@ -77,6 +77,7 @@ func _run() -> void:
 		["case/a fingertip pushes the back half of a case nothing holds", _case_base_push],
 		["case/a lid that falls onto something rests on it", _case_lid_rests],
 		["case/a music CD and a DVD come in their own cases", _media_cases],
+		["case/every case can be had empty", _empty_cases],
 		["case/a media case's paper is the player's pictures", _media_case_art],
 		["case/let go a little way into a tabletop, a case is lifted onto it", _case_lift_out],
 		["model/a clear disc tray is drawn as a molded part", _clear_trays],
@@ -905,6 +906,36 @@ func _media_cases() -> void:
 		"a game's case takes a music CD")
 	game_case.disc_zone(0).pick_up_object(audio)
 	_ok(game_case.disc_zone(0).picked_up_object == audio and game_case.pop_disc(0), "seated there, it pops off the hub like any disc")
+
+
+## Every case there is can be had by itself (SPAWN > Objects, with the option on): of no game, album or DVD, it is
+## built as the variant asked for, asks nothing of a scraper, holds no manual, and takes a disc.
+func _empty_cases() -> void:
+	var x := 920.0
+	RetroGameCase.pending_art.clear()
+	for row: Array in SpawnCatalog.case_rows():
+		var parsed := SpawnCatalog.parse_token(str(row[1]))
+		x += 1.0
+		var c := CASE_SCENE.instantiate() as RetroGameCase
+		c.case_family = str(parsed["family"])
+		c.case_variant = str(parsed["case_variant"])
+		c.freeze = true
+		add_child(c)
+		_spawned.append(c)
+		c.global_position = Vector3(x, 1.0, 0.0)
+		c.set_physics_process(false)
+		_ok(c.model != null and c.model.variant == str(parsed["case_variant"]) and c.model.family == str(parsed["family"])
+			and c.manual_path().is_empty() and c.discs().is_empty(),
+			"%s: built as asked, with nothing in it" % row[0], "%s/%s" % [c.case_family, c.case_variant])
+	for _i in 3:
+		await get_tree().process_frame
+	_ok(RetroGameCase.pending_art.is_empty(), "an empty case asks for nobody's art")
+	var sp := ScenePersistence.new("game_case_tests")
+	var c2 := _spawned[_spawned.size() - 1] as RetroGameCase
+	var back := sp._load_game_case(sp._game_case_fields(c2, {})) as RetroGameCase
+	_ok(back.case_family == c2.case_family and back.case_variant == c2.case_variant and back.rom_path.is_empty(),
+		"a save keeps which case an empty one is")
+	back.free()
 
 
 ## A media case's paper: found beside the album or the DVD by name, the whole sleeve in one picture or its panels,

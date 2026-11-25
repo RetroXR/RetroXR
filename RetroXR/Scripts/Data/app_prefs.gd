@@ -22,6 +22,8 @@ signal power_simulation_changed(on: bool)
 ## The welcome page at start was switched (set_show_welcome): from its own "Don't
 ## Show Again" or from OPTIONS > General, and each follows the other.
 signal show_welcome_changed(on: bool)
+## SPAWN > Objects was told to list the cases, or not to (set_cases_in_objects).
+signal cases_in_objects_changed(on: bool)
 
 const PREFS_PATH := "user://app_prefs.json"
 
@@ -159,6 +161,10 @@ var hint_uses:        Dictionary = {}
 ## own "Don't Show Again", back on from OPTIONS > General. Change it through
 ## set_show_welcome, which says so to whichever of the two is not the one pressed.
 var show_welcome:     bool = true
+## Whether SPAWN > Objects lists every case there is (each jewel and poly variant, empty: SpawnCatalog.case_rows),
+## for a player who wants a case by itself. Off by default: a game's, an album's or a DVD's row gives it in its own.
+## From OPTIONS > General; change it through set_cases_in_objects, which tells the list.
+var cases_in_objects: bool = false
 ## Whether sound is spatialised by Meta XR Audio rather than Godot's own panning.
 ## Desktop only, and only offered there: on the Quest the SDK is the entire point,
 ## and its binaural rendering is right for a headset. On a desk it is not always —
@@ -287,6 +293,17 @@ func set_system_hidden(systemid: String, hidden: bool) -> void:
 	else:
 		hidden_systems.remove_at(hidden_systems.find(systemid))
 	save_prefs()
+
+
+## Show the cases in SPAWN > Objects or not, save it, and say so. False when the save did not land.
+func set_cases_in_objects(on: bool) -> bool:
+	if on == cases_in_objects:
+		return true
+	cases_in_objects = on
+	var saved := save_prefs()
+	print("[Prefs] cases in the Objects list -> %s%s" % [on, "" if saved else " (NOT saved)"])
+	cases_in_objects_changed.emit(on)
+	return saved
 
 
 ## Switch the welcome page at start on or off, save it, and say so. False when the
@@ -583,6 +600,7 @@ func load_prefs() -> void:
 	show_hints       = JsonStore.get_bool(data, "show_hints",       show_hints)
 	hint_uses        = JsonStore.get_dict(data, "hint_uses",        hint_uses)
 	show_welcome     = JsonStore.get_bool(data, "show_welcome",     show_welcome)
+	cases_in_objects = JsonStore.get_bool(data, "cases_in_objects", cases_in_objects)
 	spatial_audio_sdk = JsonStore.get_bool(data, "spatial_audio_sdk", spatial_audio_sdk)
 	microphone_enabled = JsonStore.get_bool(data, "microphone_enabled", microphone_enabled)
 	microphone_device = JsonStore.get_string(data, "microphone_device", microphone_device)
@@ -648,6 +666,7 @@ func _prefs_dict() -> Dictionary:
 		"show_hints":       show_hints,
 		"hint_uses":        hint_uses,
 		"show_welcome":     show_welcome,
+		"cases_in_objects": cases_in_objects,
 		"spatial_audio_sdk": spatial_audio_sdk,
 		"microphone_enabled": microphone_enabled,
 		"microphone_device": microphone_device,

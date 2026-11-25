@@ -1367,6 +1367,34 @@ static func objects() -> Array:
 	return tab_rows("objects")
 
 
+## What a case's variant is called on its row. One with no name here (a model added since) is named by its id.
+const CASE_NAMES := {
+	"jewel": {"single": "Standard", "double": "Double (2 discs)", "fatbox2": "Fat Box (2 discs)",
+		"fatbox4": "Fat Box (4 discs)", "pal": "PlayStation PAL", "pal_mini": "PAL, short",
+		"pal_multi2": "PlayStation PAL (2 discs)", "pal_multi4": "PlayStation PAL (4 discs)", "longbox": "Long Box",
+		"slim": "Slim", "dc_pal": "Dreamcast PAL", "cdi": "CD-i"},
+	"keep": {"single": "Standard (DVD)", "double": "Double (2 discs)", "triple": "Triple (3 discs)",
+		"multi5": "Multi (5 discs)", "ps2": "PlayStation 2", "gc": "GameCube", "gc_double": "GameCube (2 discs)",
+		"gc_double_pal": "GameCube PAL (2 discs)", "gc_jp": "GameCube Japan", "gc_jp_double": "GameCube Japan (2 discs)",
+		"saturn_pal": "Saturn PAL", "bluray": "Blu-ray", "bluray_game": "Blu-ray Game (PS3)", "x360": "Xbox 360",
+		"wiiu": "Wii U", "umd": "UMD (PSP)", "3do_long": "3DO Long Box"},
+}
+const CASE_FAMILY_NAMES := {"jewel": "Jewel Case", "keep": "Poly Case"}
+const CASE_TOKEN := "game_case:"
+
+
+## Every case there is, empty, as [label, token] rows: each variant of each family GameCaseModel has a model of,
+## in the order its contract lists them. Shown on the Objects tab when AppPrefs.cases_in_objects is on.
+static func case_rows() -> Array:
+	var out: Array = []
+	for family: String in CASE_FAMILY_NAMES:
+		for variant: String in GameCaseModel.variants_of(family):
+			var names: Dictionary = CASE_NAMES.get(family, {})
+			out.append(["%s: %s" % [CASE_FAMILY_NAMES[family], str(names.get(variant, variant.capitalize()))],
+				"%s%s:%s" % [CASE_TOKEN, family, variant]])
+	return out
+
+
 static func drop_mod(owner_id: String) -> void:
 	# Row by row, not systemid by systemid. Two mods may both add pads to the
 	# same console -- a console mod and a controller pack, say -- and they land
@@ -1485,6 +1513,7 @@ enum TokenKind {
 	MEMCARD,        ## "memcard:<family>:<card_id>" -- family, card_id (an EXISTING card)
 	BLANK_MEMCARD,  ## "<family>_memory_card" -- family (a new blank card)
 	PAD_RECEIVER,   ## "pad_receiver:<guid>:<ordinal>" -- guid, ordinal
+	CASE,           ## "game_case:<family>:<variant>" -- family, case_variant (an empty case)
 	TV_SHELL,       ## "tv:<shell>" -- shell
 	CONSOLE_STAND,  ## "console_stand:<id>" -- stand_id (a StandCatalog id)
 	POWER_BRICK,    ## "power_brick:<id>" -- brick_id (a PowerBrickCatalog id); variant = its region's model
@@ -1545,6 +1574,11 @@ static func parse_token(raw: String) -> Dictionary:
 		parsed["kind"] = TokenKind.PAD_RECEIVER
 		parsed["guid"] = fields[0] if fields.size() > 0 else ""
 		parsed["ordinal"] = int(fields[1]) if fields.size() > 1 else 0
+	elif type.begins_with(CASE_TOKEN):
+		var fields := type.substr(CASE_TOKEN.length()).split(":")
+		parsed["kind"] = TokenKind.CASE
+		parsed["family"] = fields[0] if fields.size() > 0 else "jewel"
+		parsed["case_variant"] = fields[1] if fields.size() > 1 else "single"
 	elif type.begins_with("tv:"):
 		parsed["kind"] = TokenKind.TV_SHELL
 		parsed["shell"] = type.substr("tv:".length())

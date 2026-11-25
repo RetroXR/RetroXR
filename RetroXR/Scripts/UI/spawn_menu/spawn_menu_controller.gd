@@ -1422,6 +1422,23 @@ func _on_spawn_requested(raw: String) -> void:
 			card.set("family", family)
 			_place_spawned(card, type)
 			return
+		# A case by itself, empty (SPAWN > Objects, with the option on). Its models off the main thread first, as a
+		# game's case has them.
+		SpawnCatalog.TokenKind.CASE:
+			var family: String = parsed["family"]
+			var case_variant: String = parsed["case_variant"]
+			if GameCaseModel.variant_contract(family, case_variant).is_empty():
+				push_warning("[Spawn] no %s case '%s'" % [family, case_variant])
+				return
+			for path in GameCaseModel.model_paths(family, case_variant):
+				await ModelWarmer.acquire(path)
+			if not is_inside_tree():
+				return
+			var empty_case := GAME_CASE_SCENE.instantiate() as RetroGameCase
+			empty_case.case_family = family
+			empty_case.case_variant = case_variant
+			_place_spawned(empty_case, "game_case")
+			return
 		# A receiver for one physical gamepad. The pad is set BEFORE _place_spawned
 		# for the same reason the set's shell is: that call is what adds the child,
 		# and the receiver prints its pad's name on its own case from _ready.

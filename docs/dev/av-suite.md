@@ -682,6 +682,10 @@ their scenes carry), as a real case does.
   gives and cut into the panels that are wanted. A case with no pictures at all still reads as that album's.
 - The pictures are decoded and joined on a pool thread (`MediaCaseArt.decode`), read when the case appears (a
   spawn, a restore): one added afterwards shows on the next case. The DVD's own disc still has no printed face.
+- **Any case by itself**: OPTIONS > General > *Cases in the Objects List* (`AppPrefs.cases_in_objects`, off by
+  default) puts a row for every case there is a model of on SPAWN > Objects (`SpawnCatalog.case_rows`, read
+  from the contracts, so a new model lists itself; token `game_case:<family>:<variant>`). Each spawns that
+  case empty, its paper blank. The list follows the switch at once. `spawn_menu_tests case_rows/`.
 - `game_case_tests` ("a music CD and a DVD come in their own cases", "a media case's paper is the player's
   pictures") and `spawn_menu_tests media_list/`. Headset look OWED.
 

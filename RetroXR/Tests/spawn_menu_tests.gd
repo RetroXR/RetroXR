@@ -57,6 +57,7 @@ func _ready() -> void:
 	await _group_objects()
 	await _group_locate()
 	await _group_media_list()
+	await _group_case_rows()
 
 	for n: Node in _spawned:
 		if is_instance_valid(n):
@@ -1974,6 +1975,70 @@ func _group_tiles() -> void:
 	browser._rebuild_tiles()
 	AppPrefs.compact_tiles = was
 	_ok(not browser._tile_nodes.has(kept[0]), "tiles/and so does switching to compact")
+
+
+# ── case_rows/ — OPTIONS > General puts every case on SPAWN > Objects ─────────
+
+## Off by default: the Objects list is its own rows. On, it gains a row for every case there is a model of, each
+## spawning that case empty; the list follows the switch at once.
+func _group_case_rows() -> void:
+	if not _wanted("case_rows/"):
+		return
+	var was := AppPrefs.cases_in_objects
+	AppPrefs.cases_in_objects = false
+	var rows := SpawnCatalog.case_rows()
+	var want := GameCaseModel.variants_of("jewel").size() + GameCaseModel.variants_of("keep").size()
+	_ok(want >= 29 and rows.size() == want, "case_rows/a row for every case there is a model of", "%d rows, %d cases" % [rows.size(), want])
+	var labels := {}
+	var all_parse := true
+	for row: Array in rows:
+		labels[str(row[0])] = true
+		var parsed := SpawnCatalog.parse_token(str(row[1]))
+		all_parse = all_parse and parsed["kind"] == SpawnCatalog.TokenKind.CASE \
+			and not GameCaseModel.variant_contract(str(parsed["family"]), str(parsed["case_variant"])).is_empty()
+	_ok(all_parse, "case_rows/each row's token names a case that exists")
+	_eq(labels.size(), rows.size(), "case_rows/no two rows are called the same")
+	_ok(labels.has("Jewel Case: Standard") and labels.has("Poly Case: Standard (DVD)") and labels.has("Poly Case: Xbox 360"),
+		"case_rows/a row says which case it is", str(labels.keys().slice(0, 4)))
+	var parsed_one := SpawnCatalog.parse_token("game_case:keep:multi5")
+	_ok(parsed_one["kind"] == SpawnCatalog.TokenKind.CASE and parsed_one["family"] == "keep" and parsed_one["case_variant"] == "multi5",
+		"case_rows/a case's token reads back as its family and variant")
+	# The Objects list: its own rows with the option off, the cases after them with it on.
+	var view := SpawnMenuSpawnView.new()
+	_spawned.append(view)
+	var plain := view._object_items()
+	_ok(not AppPrefs.cases_in_objects and plain.size() == SpawnCatalog.tab_rows("objects").size(),
+		"case_rows/off (the default): the Objects list has no cases")
+	var vbox := VBoxContainer.new()
+	add_child(vbox)
+	_spawned.append(vbox)
+	view._objects_vbox = vbox
+	view.refresh_objects_tab()
+	await get_tree().process_frame
+	var before := vbox.get_child_count()
+	if not AppPrefs.cases_in_objects_changed.is_connected(view._on_cases_in_objects_changed):
+		AppPrefs.cases_in_objects_changed.connect(view._on_cases_in_objects_changed)
+	var heard: Array = []
+	var ear := func(on: bool) -> void: heard.append(on)
+	AppPrefs.cases_in_objects_changed.connect(ear)
+	AppPrefs.set_cases_in_objects(true)
+	await get_tree().process_frame
+	_eq(heard, [true], "case_rows/switching it on says so")
+	_eq(view._object_items().size(), plain.size() + want, "case_rows/on: every case is listed after the list's own rows")
+	_eq(vbox.get_child_count(), before + want, "case_rows/and the list on screen gains them at once")
+	var asked: Array = []
+	view.spawn_requested.connect(func(token: String) -> void: asked.append(token))
+	var last := vbox.get_child(vbox.get_child_count() - 1) as Button
+	_ok(last != null and last.text.contains("Poly Case"), "case_rows/a case's row is a button named for it", last.text if last != null else "none")
+	if last != null:
+		last.pressed.emit()
+	_ok(asked.size() == 1 and str(asked[0]).begins_with(SpawnCatalog.CASE_TOKEN), "case_rows/pressed, it asks for that case", str(asked))
+	AppPrefs.set_cases_in_objects(false)
+	await get_tree().process_frame
+	_eq(vbox.get_child_count(), before, "case_rows/switched off, they are gone again")
+	AppPrefs.cases_in_objects_changed.disconnect(ear)
+	AppPrefs.cases_in_objects_changed.disconnect(view._on_cases_in_objects_changed)
+	AppPrefs.set_cases_in_objects(was)
 
 
 # ── media_list/ — a library tab costs the rows on screen, not the files ───────
