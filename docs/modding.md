@@ -1398,15 +1398,70 @@ settings, and `JsonStore` with `api.store()` for your own settings file.
 
 ## Authoring: work inside a checkout of RetroXR
 
-Clone RetroXR, scaffold your mod inside it, and edit it there:
+### What you need
 
-```bash
-python Tools/mods/new_mod.py xenu.snes --name "Super Nintendo" --author "You"
-# creates RetroXR/mods/xenu.snes/{mod.json,mod_main.gd}
+- **Godot 4.7.2**, the version RetroXR is built with, from
+  <https://godotengine.org/download/archive/>. On Windows the download has two
+  programs: `Godot_v4.7.2-stable_win64.exe` (the editor) and
+  `Godot_v4.7.2-stable_win64_console.exe`. Use the **console** one for every
+  command below: it waits and prints in your terminal, where the other returns at
+  once and its messages go nowhere.
+- **Python 3**, for the scaffold script. On Windows, if `python` opens the
+  Microsoft Store or is "not recognized", install it from python.org and tick
+  *Add Python to PATH*.
+- **The RetroXR project.** Either `git clone` it with
+  [Git LFS](https://git-lfs.com) installed (`git lfs install` once, before
+  cloning: the game's models are LFS files), or download it as a zip from GitHub
+  and unpack it.
+
+### Which folder is which
+
+```
+RetroXR-master/                        the folder you cloned or unpacked
+├── Tools/mods/new_mod.py              the scaffold script
+└── RetroXR/                           THE GODOT PROJECT: it holds project.godot
+    ├── project.godot
+    ├── DevTools/mods/pack_mod.gd      the packer
+    └── mods/<your id>/                your mod, once scaffolded
 ```
 
-This is not a convenience. It is the only arrangement in which a mod's scenes
-resolve correctly, for two reasons:
+Two folders matter and they are easy to confuse. The outer one is the download.
+The inner **`RetroXR/`**, the one with `project.godot` in it, is the Godot
+project: open that one in the Godot editor, and give that one to every
+`--path`. Every command below names it in full, so it works from any folder.
+The examples use `D:\RetroXR-master`; put yours in its place.
+
+### Import the project once
+
+Before the first build, and again whenever you add or change a model, texture
+or sound in your mod, let Godot import the project. Either open
+`RetroXR\project.godot` in the editor and wait for the import to finish, or:
+
+```powershell
+Godot_v4.7.2-stable_win64_console.exe --headless --path D:\RetroXR-master\RetroXR --import
+```
+
+The first import of a fresh download takes several minutes. Until it has run,
+Godot does not know the game's classes, and the packer fails with the errors in
+[When a command fails](#when-a-command-fails).
+
+### Make your mod
+
+```powershell
+python D:\RetroXR-master\Tools\mods\new_mod.py you.mymod --name "My Mod" --author "You"
+# creates D:\RetroXR-master\RetroXR\mods\you.mymod\ with mod.json and mod_main.gd
+```
+
+`you.mymod` is your mod's id: lower-case, no spaces, starting with a name of
+your own. Keep it for good, since it is how RetroXR knows a new upload is an
+update. Then add your `thumbnail.png`, models and scenes to that folder and edit
+`mod_main.gd`.
+
+### Why inside RetroXR
+
+Working inside the game project is not a convenience. It is the only
+arrangement in which a mod's scripts and scenes resolve correctly, for two
+reasons:
 
 - **Scenes record a `uid` as well as a `path`** for every script they reference. A
   uid minted in a separate project does not exist in RetroXR, so the reference
@@ -1426,26 +1481,27 @@ you are developing cannot end up inside a build of the game.
 
 ## Building a pack
 
-```bash
-# code, scenes and resources
-godot --headless --path RetroXR --script res://DevTools/mods/pack_mod.gd -- --id=xenu.snes
+[Import](#import-the-project-once) first, then:
+
+```powershell
+Godot_v4.7.2-stable_win64_console.exe --headless --path D:\RetroXR-master\RetroXR --script res://DevTools/mods/pack_mod.gd -- --id=you.mymod
 ```
 
-That writes straight into your mods folder and then **reads the result back
-through the loader's own reader**, refusing to finish if the manifest cannot be
-found — so a pack that would silently fail to appear in the Mods list fails at
-build time instead.
+`--path` is the folder holding `project.godot`. `--script` is the packer's path
+*inside* that project, which is why it starts `res://` rather than `D:\`.
 
-**A mod carrying textures, meshes or audio must go through a real export**, because
-those load via `res://.godot/imported/*` artifacts that only an export produces.
-Add an export preset whose include filter is `mods/<id>/*` and:
+That writes `you.mymod.zip` **straight into your mods folder**, so building is
+also installing: open **MODS → Installed** in RetroXR, enable it and press
+**Apply now**. Add `--out=D:\somewhere\you.mymod.zip` to write it elsewhere
+instead. Either way the packer then **reads the result back through the
+loader's own reader** and refuses to finish if the game could not load it, so a
+pack that would silently fail to appear in the Mods list fails at build time
+instead.
 
-```bash
-godot --headless --path RetroXR --export-pack "YourModPreset" xenu.snes.zip
-```
-
-`pack_mod.gd` tells you which files it skipped for this reason rather than
-producing a pack that is quietly missing its art.
+Models, textures and sounds go in as Godot imported them, both the desktop and
+the Quest texture formats, so one pack runs everywhere. No export preset is
+needed. An asset Godot has not imported yet stops the build with its name and
+nothing is written: run the import again.
 
 ### The preview image
 
@@ -1454,14 +1510,41 @@ Every pack needs `thumbnail.png` in its folder: **16:9, at least 512x288**
 installed, and the same file is the logo you upload to its mod.io page, so the two
 match. `pack_mod.gd` refuses to write a pack without one.
 
-If you build with `--export-pack`, set the PNG's import type to **Keep File** in
-Godot's Import dock first. Imported as a texture, the export ships a compressed
-copy in its place and RetroXR — which reads the thumbnail without loading the mod —
-finds nothing. Check the finished pack either way:
+### Checking a pack
 
-```bash
-godot --headless --path RetroXR --script res://DevTools/mods/pack_mod.gd -- --check=xenu.snes.zip
+To check a zip you already have, made by the packer or some other way:
+
+```powershell
+Godot_v4.7.2-stable_win64_console.exe --headless --path D:\RetroXR-master\RetroXR --script res://DevTools/mods/pack_mod.gd -- --check=D:\full\path\to\you.mymod.zip
 ```
+
+Give the zip's **full path**: Godot runs from inside the project folder, so a
+bare `you.mymod.zip` is looked for there.
+
+If you build with Godot's own `--export-pack` instead, set `thumbnail.png`'s import
+type to **Keep File** in the Import dock first. Imported as a texture, the export
+ships a compressed copy in its place and RetroXR, which reads the thumbnail
+without loading the mod, finds nothing.
+
+### When a command fails
+
+- **Dozens of `Parse Error`s: `Could not find type "ModManifest"`,
+  `Identifier "JsonStore" not declared`, `RomLibrary`, `ModPackReader`.** Godot
+  could not see the game's code. Either `--path` is not the folder holding
+  `project.godot` (a common slip is giving it the folder the packer is in, or the
+  outer download folder), or the project has never been
+  [imported](#import-the-project-once).
+- **Nothing printed, and the prompt came back at once.** That was the editor exe;
+  use the one ending `_console.exe`.
+- **`Failed to load script "res://..."`.** The `--script` path is wrong. It is
+  `res://DevTools/mods/pack_mod.gd`; a download from before 2026-11-20 has it at
+  `res://Tools/mods/pack_mod.gd` instead.
+- **`... is not imported yet` / `has no .import`.** Run the import again.
+- **`python` is "not recognized" or opens the Microsoft Store.** Install Python
+  from python.org with *Add Python to PATH* ticked, and open a new terminal.
+- **The game's own models are missing or tiny.** The `.glb` files were not
+  fetched from Git LFS: run `git lfs pull` in a clone. In a zip from GitHub they
+  are present only if the repository includes LFS files in its archives.
 
 ## Publishing on mod.io
 
