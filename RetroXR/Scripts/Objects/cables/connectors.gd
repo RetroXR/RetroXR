@@ -91,7 +91,7 @@ const LABELS := {
 	"atari7800_dc_plug": "an Atari 7800 AC adapter plug",
 	# The Channel F's: its transformer's cord runs into a grommet in the back, no plug.
 	"channelf_cord": "a Channel F power cord",
-	"n64_psu_dock":"a Nintendo 64 power supply",
+	"n64_psu_dock": "a Nintendo 64 power supply",
 	"jamma_plug": "a JAMMA harness plug",
 	"gamecube_controller": "a GameCube controller plug",
 	"playstation_controller": "a PlayStation controller plug",
