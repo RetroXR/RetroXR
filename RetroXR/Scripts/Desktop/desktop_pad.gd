@@ -224,10 +224,13 @@ func _has_receiver(device: int) -> bool:
 	if not is_inside_tree():
 		return false
 	for node in get_tree().get_nodes_in_group(ControllerBindings.CONSUMER_GROUP):
-		var rx := node as PadReceiver
-		if rx == null or rx.is_queued_for_deletion():
+		# A receiver, or a controller a physical pad plays (its menu's Physical controller).
+		if not (node is PadReceiver or node is RetroController) or node.is_queued_for_deletion():
 			continue
-		if _device_of(rx.pad_guid, rx.pad_ordinal) == device:
+		var guid := str(node.get("pad_guid"))
+		if guid.is_empty():
+			continue
+		if _device_of(guid, int(node.get("pad_ordinal"))) == device:
 			return true
 	return false
 

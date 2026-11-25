@@ -88,6 +88,12 @@ var _pad_button_map: Dictionary = GamepadBindings.DEFAULT_BUTTON_MAP.duplicate()
 var _pad_stick_map: Dictionary = GamepadBindings.DEFAULT_STICK_MAP.duplicate()
 var _stick_map:  Dictionary = ControllerBindings.DEFAULT_STICK_MAP.duplicate()
 
+## A real USB/Bluetooth pad that plays this one, picked on its menu as a handheld picks its
+## pad: its presses go where this pad's do and move this pad's controls. Empty: none.
+var pad_guid: String = ""
+var pad_name: String = ""
+var pad_ordinal: int = 0
+
 # Cable
 var _cable_instance: Node3D = null
 
@@ -799,7 +805,7 @@ func _process(_delta: float) -> void:
 		return
 
 	if not is_instance_valid(_holding_ctrl):
-		_send_joypad(0, 0, 0, 0, 0)
+		_send_with_physical(0, 0, 0, 0, 0)
 		return
 
 	var ctrl := _holding_ctrl
@@ -831,7 +837,7 @@ func _process(_delta: float) -> void:
 	elif _rt_left: alx = int(rstick.x * ANALOG_SCALE); aly = int(-rstick.y * ANALOG_SCALE)
 	if _rt_dpad: btn |= PadInputShared.threshold_to_dpad(rstick)
 
-	_send_joypad(btn, alx, aly, arx, ary)
+	_send_with_physical(btn, alx, aly, arx, ary)
 
 
 ## Capture is only meaningful on desktop: in VR the pad reads the hand
@@ -914,7 +920,84 @@ func _process_desktop_joypad() -> void:
 		arx = m["arx"]
 		ary = m["ary"]
 
+	_send_with_physical(btn, alx, aly, arx, ary)
+
+
+# ── Physical pad ─────────────────────────────────────────────────────────────
+
+## The chosen physical pad's state through this machine's pad map, or {} when none
+## is chosen or it is not connected.
+func physical_pad_state() -> Dictionary:
+	if pad_guid.is_empty():
+		return {}
+	var device := GamepadBindings.resolve_device(pad_guid, pad_ordinal)
+	if device < 0:
+		return {}
+	return GamepadBindings.poll(_pad_button_map, _pad_stick_map, device)
+
+
+## The hands' (or keyboard's) frame with the physical pad's folded in, then sent.
+func _send_with_physical(btn: int, alx: int, aly: int, arx: int, ary: int) -> void:
+	var p := physical_pad_state()
+	if not p.is_empty():
+		var m := DesktopPadService.merge(
+			{"btn": btn, "alx": alx, "aly": aly, "arx": arx, "ary": ary}, p)
+		btn = m["btn"]; alx = m["alx"]; aly = m["aly"]; arx = m["arx"]; ary = m["ary"]
 	_send_joypad(btn, alx, aly, arx, ary)
+
+
+## Pads offered on the menu: None, the connected ones, and the chosen one if it is
+## not connected now. [{guid, ordinal, name}]
+func physical_pad_choices() -> Array:
+	var out: Array = [{"guid": "", "ordinal": 0, "name": "None"}]
+	var found := pad_guid.is_empty()
+	for device: int in GamepadBindings.usable_pads():
+		var id := GamepadBindings.identify_device(device)
+		out.append(id)
+		if str(id["guid"]) == pad_guid and int(id["ordinal"]) == pad_ordinal:
+			found = true
+	if not found:
+		out.append({"guid": pad_guid, "ordinal": pad_ordinal,
+			"name": (pad_name if pad_name != "" else "Pad") + " (not connected)"})
+	return out
+
+
+## Play this pad from a physical one (guid "" for none). One pad, one controller:
+## any other controller playing from it lets go.
+func set_physical_pad(guid: String, ordinal: int, display: String = "") -> void:
+	if not guid.is_empty() and is_inside_tree():
+		for node in get_tree().get_nodes_in_group(ControllerBindings.CONSUMER_GROUP):
+			var other := node as RetroController
+			if other != null and other != self and other.pad_guid == guid 					and other.pad_ordinal == ordinal:
+				other.set_physical_pad("", 0)
+	pad_guid = guid
+	pad_ordinal = ordinal if not guid.is_empty() else 0
+	pad_name = display if not guid.is_empty() else ""
+	print("[RetroController] %s physical pad: %s" % [name, pad_name if pad_name != "" else "none"])
+
+
+## The generic object menu's rows (ObjectOptionsPanel): which physical pad plays this one.
+func options_choices() -> Array:
+	var names: Array = []
+	var at := 0
+	var pads := physical_pad_choices()
+	for i in pads.size():
+		names.append(str(pads[i]["name"]))
+		if str(pads[i]["guid"]) == pad_guid and int(pads[i]["ordinal"]) == pad_ordinal:
+			at = i
+	return [{"caption": "Physical controller", "items": names, "selected": at,
+		"note": "A USB or Bluetooth pad: it plays this controller and moves its buttons."}]
+
+
+func options_choose(row: int, item: int) -> void:
+	if row != 0:
+		return
+	var pads := physical_pad_choices()
+	if item < 0 or item >= pads.size():
+		return
+	var p: Dictionary = pads[item]
+	set_physical_pad(str(p["guid"]), int(p["ordinal"]),
+		str(p["name"]).trim_suffix(" (not connected)"))
 
 
 ## Route input to the connected system's core, via netplay when a lockstep game

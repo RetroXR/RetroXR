@@ -178,6 +178,14 @@ func _process(delta: float) -> void:
 		_cur_btn = int(poke_state.get("btn", 0))
 		_cur_lstick = poke_state.get("lstick", Vector2.ZERO)
 		_cur_rstick = poke_state.get("rstick", Vector2.ZERO)
+		# And its physical pad, if it has one: the caps follow it plugged in or not.
+		var phys := physical_pad_state()
+		if not phys.is_empty():
+			_cur_btn |= int(phys["btn"])
+			var l := Vector2(float(phys["alx"]), float(phys["aly"])) / ANALOG_SCALE
+			var r := Vector2(float(phys["arx"]), float(phys["ary"])) / ANALOG_SCALE
+			if l.length_squared() > _cur_lstick.length_squared(): _cur_lstick = l
+			if r.length_squared() > _cur_rstick.length_squared(): _cur_rstick = r
 	_animate(delta)
 
 

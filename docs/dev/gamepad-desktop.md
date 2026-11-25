@@ -24,7 +24,7 @@ Off a headset:
 The pad is made into the input the game already reads, not given code paths of its own.
 
 - **`main_device`**: the first of `GamepadBindings.usable_pads()`, or -1 when a headset is on, there is
-  no pad, or **a `PadReceiver` for that pad is in the room** (the adapter rule, 3-4: one place decides it,
+  no pad, or **a `PadReceiver` for that pad is in the room, or a controller it plays** (the adapter rule, 3-4: one place decides it,
   so the keyboard-only fallback is automatic while the item exists, and the pad is the player's again the
   moment it is freed). `would_go_external(guid, ordinal)` is what the menu asks.
 - **`last_is_pad`** / `device_changed(pad)`: a key, mouse button or mouse move over 2 px is the keyboard; a
@@ -75,7 +75,8 @@ The pad is made into the input the game already reads, not given code paths of i
 | a held handheld / controller, captured | the pad plays it (A is NOT the left button: it is a game button) |
 
 Not mapped: jump (`ui_accept` is also the GUI's accept), menu navigation by pad (the menu is a pointer UI,
-RT works it), a second pad (any other pad stays external: only a `PadReceiver` takes it to a console).
+RT works it), a second pad (any other pad stays external: only a `PadReceiver` takes it to a console, or a
+controller's own menu).
 
 ### Known limits
 
@@ -89,6 +90,7 @@ RT works it), a second pad (any other pad stays external: only a `PadReceiver` t
 | piece | where | what it does today |
 |---|---|---|
 | `PadReceiver` | `Scripts/Objects/controllers/pad_receiver.gd` | a spawned object plugged into a console port; drives that port from ONE named physical pad (`pad_guid` + `pad_ordinal`). The spec's "adapter". |
+| a controller's Physical controller | `RetroController.options_choices` (the generic object menu) | any pad object can be played by ONE named physical pad (`pad_guid` + `pad_ordinal`, saved on the pad), as a handheld's Controllers tab does: merged into what it sends from the hands or keys, so its caps move with it (`AnimatedController`), plugged in or not. One pad, one controller: choosing it frees any other. |
 | `GamepadBindings` | `Scripts/Data/bindings/gamepad_bindings.gd` | the physical-pad -> RetroPad map, `poll(map, stick_map, device)`, `usable_pads()`, `resolve_device(guid, ordinal)`, `identify_device`. Reads raw `Input.get_joy_*`. |
 | keyboard for a game | `DesktopBindings`, `ScrollLockCapture`, `RetroController` | the keyboard drives ONE controller at a time, the one that took the capture; handhelds take it while held (`HandheldInput._desktop_held`). |
 | locomotion | `xr-tools` `MovementDesktopDirect` (actions `desktop_move_*`), `MovementDesktopTurn` (mouse motion), crouch/sprint/jump nodes | keyboard + mouse only. No joypad event is bound to any action. |

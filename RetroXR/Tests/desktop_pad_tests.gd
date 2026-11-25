@@ -108,6 +108,31 @@ func _main_pad() -> void:
 	rx.free()
 	svc.refresh_main()
 	_ok(svc.main_device == PAD, "main/the receiver put away: the player's again")
+	# A controller a physical pad plays (its menu's Physical controller) claims it the same way.
+	var pad := load("res://Scenes/Objects/controllers/retro_controller.tscn").instantiate() as RetroController
+	add_child(pad)
+	var other := load("res://Scenes/Objects/controllers/retro_controller.tscn").instantiate() as RetroController
+	add_child(other)
+	var row: Dictionary = pad.options_choices()[0]
+	_ok(row["items"][0] == "None" and int(row["selected"]) == 0,
+		"main/a controller's menu offers None first, chosen", str(row))
+	pad.set_physical_pad("g1", 0, "Test Pad")
+	svc.refresh_main()
+	_ok(svc.main_device == -1, "main/a controller played by it: external, not the player's")
+	row = pad.options_choices()[0]
+	_ok(str(row["items"][int(row["selected"])]) == "Test Pad (not connected)",
+		"main/an absent chosen pad is still listed, and chosen", str(row))
+	other.set_physical_pad("g1", 0, "Test Pad")
+	_ok(pad.pad_guid == "" and other.pad_guid == "g1",
+		"main/one pad, one controller: a second taking it frees the first")
+	_ok(pad.physical_pad_state().is_empty(), "main/no pad chosen: no state")
+	other.options_choose(0, 0)
+	svc.refresh_main()
+	_ok(other.pad_guid == "" and svc.main_device == PAD, "main/None on the menu: the player's again")
+	for c: RetroController in [pad, other]:
+		if is_instance_valid(c.cable_instance()):
+			c.cable_instance().free()
+		c.free()
 	svc.free()
 
 

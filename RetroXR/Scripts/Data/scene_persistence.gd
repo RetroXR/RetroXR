@@ -2483,6 +2483,8 @@ func _restore_peripheral(root: Node, id: int, obj: Node, spawned: Dictionary, re
 		(obj as Wiimote).restore_extension(
 			_resolve_ref(root, spawned, rec.get("extension")) as Node3D)
 	if obj is RetroController:
+		(obj as RetroController).set_physical_pad(str(rec.get("pad_guid", "")),
+			int(rec.get("pad_ordinal", 0)), str(rec.get("pad_name", "")))
 		# The pak goes back whether or not the pad was plugged into anything —
 		# a loose N64 controller can still have one in it. A Transfer Pak
 		# re-seats its own cartridge from its own entry, so this is one call.
@@ -3748,6 +3750,12 @@ func _serialize_peripheral(node: Node, id: int, n3d: Node3D, node_to_id: Diction
 		# scene of its own, so the type above maps the whole family back onto the
 		# generic grey pad. The scene is what tells them apart.
 		entry["scene"] = node.scene_file_path
+		# The physical pad that plays it, if one does. Left out when none.
+		var rc := node as RetroController
+		if not rc.pad_guid.is_empty():
+			entry["pad_guid"] = rc.pad_guid
+			entry["pad_name"] = rc.pad_name
+			entry["pad_ordinal"] = rc.pad_ordinal
 		# Which pak is in the back of this pad. Saved on the CONTROLLER for the
 		# reason the Wii Remote's dongle is: the port is the end that means
 		# something, and the pak's own entry is only where it is lying.
