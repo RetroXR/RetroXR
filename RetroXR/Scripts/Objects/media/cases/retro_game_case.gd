@@ -921,6 +921,12 @@ func _seat_disc(i: int, disc: Node3D = null) -> void:
 		if d != null and seat != null and d.can_visually_spin() and d.released_by_hand_just_now():
 			_seat_spin[i] = RetroDisc.spin_of(Basis.IDENTITY, d.release_basis_in(seat))
 		_zones[i].transform = Transform3D(Basis(Vector3.UP, _seat_spin[i]), Vector3.ZERO)
+		# The zone had the disc before this ran, on the seat as it stood (square): put it on the turned seat now,
+		# not on its driver's next tick. A disc put on at an angle showed square for the frame between (the owner,
+		# 2026-11-25).
+		var driver := (d._grab_driver if d != null else null) as XRToolsGrabDriver
+		if is_instance_valid(driver) and _held(_zones[i]) == d:
+			driver.snap_now()
 		_update_reach.call_deferred()
 
 

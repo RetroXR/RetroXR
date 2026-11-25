@@ -339,6 +339,19 @@ static func _by_zone(p_grab: Grab) -> bool:
 	return p_grab.by is XRToolsSnapZone
 
 
+## LOCAL PATCH (RetroXR): put a snapped target where its holder is NOW. A holder that moves its zone as it takes
+## an object (a game case turns a disc's seat to the angle the hand put the disc on at) is otherwise followed on
+## the next tick, and the frame drawn between showed the object as the zone stood before.
+func snap_now() -> void:
+	if state != GrabState.SNAP or not is_instance_valid(target) or not is_instance_valid(primary) \
+			or not is_instance_valid(primary.by):
+		return
+	global_transform = primary.by.global_transform * primary.transform.affine_inverse()
+	force_update_transform()
+	target.force_update_transform()
+	wake()
+
+
 ## LOCAL PATCH (RetroXR): tick again (see REST_AFTER).
 func wake() -> void:
 	_rest_ticks = 0

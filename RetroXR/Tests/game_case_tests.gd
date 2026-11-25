@@ -73,6 +73,7 @@ func _run() -> void:
 		["case/a grip anywhere over the booklet takes the manual; at a shut case, the case", _case_manual_reach],
 		["case/a seated manual turns no page and the lid's handle is quiet over it", _case_manual_quiet],
 		["case/a fingertip on the booklet presses the lid", _case_manual_press],
+		["case/a disc put on at an angle is at that angle at once", _case_disc_spin_at_once],
 		["case/let go a little way into a tabletop, a case is lifted onto it", _case_lift_out],
 		["model/a clear disc tray is drawn as a molded part", _clear_trays],
 		["model/a jewel scan's wide spine strip is laid on the spine", _scan_spine_fit],
@@ -657,6 +658,48 @@ func _case_disc_spin() -> void:
 		str(b.get_euler()))
 	c._seat_disc(0)
 	_ok(c.disc_zone(0).transform.is_equal_approx(Transform3D.IDENTITY), "taken off: the seat is square again")
+
+
+## A disc a hand puts on turned is at that turn the moment its seat takes it. Its grab driver first put it on the
+## seat as the seat stood (square), the case then turned the seat, and the driver followed a tick later: the frame
+## drawn between showed the disc square (the owner, 2026-11-25).
+func _case_disc_spin_at_once() -> void:
+	var x := 760.0
+	for fam: Array in [["jewel", "single"], ["keep", "ps2"], ["jewel", "fatbox4"]]:
+		x += 3.0
+		var c := _new_case(fam[0], fam[1])
+		await get_tree().physics_frame
+		c.global_position = Vector3(x, 1.0, 0.0)
+		c.set_physics_process(false)
+		for i in c.sim.top() + 1:
+			c.sim.set_angle_deg(i, 170.0)
+		c._apply_angles()
+		var disc := DISC_SCENE.instantiate() as RetroDisc
+		disc.systemid = "psx"
+		add_child(disc)
+		_spawned.append(disc)
+		await get_tree().physics_frame
+		var zone := c.disc_zone(0)
+		var seat := zone.get_parent() as Node3D
+		var square := c._seat_square[0]
+		# As a hand lets it go: 70 degrees round from upright, tipped 20 degrees, a centimeter off the hub.
+		var held := (seat.global_basis.orthonormalized() * Basis(Vector3.UP, square + deg_to_rad(70.0))
+			* Basis(Vector3.RIGHT, deg_to_rad(20.0))).orthonormalized()
+		disc.global_transform = Transform3D(held, seat.global_transform * Vector3(0.004, 0.01, 0.0))
+		disc._release_basis = held
+		disc._release_msec = Time.get_ticks_msec()
+		zone.pick_up_object(disc)
+		var want := wrapf(rad_to_deg(square) + 70.0, -180.0, 180.0)
+		var turn := rad_to_deg(RetroDisc.spin_of(seat.global_basis, disc.global_basis))
+		_ok(absf(wrapf(turn - want, -180.0, 180.0)) < 1.0, "%s/%s: the moment its seat takes it, the disc is at the turn it was put on at" % fam,
+			"%.1f, want %.1f" % [turn, want])
+		_ok(disc.global_position.distance_to(zone.global_position) < 0.001
+			and disc.global_basis.y.normalized().dot(zone.global_basis.y.normalized()) > 0.999,
+			"%s/%s: and flat on its hub" % fam, str(disc.global_position.distance_to(zone.global_position)))
+		for _i in 3:
+			await get_tree().physics_frame
+		turn = rad_to_deg(RetroDisc.spin_of(seat.global_basis, disc.global_basis))
+		_ok(absf(wrapf(turn - want, -180.0, 180.0)) < 1.0, "%s/%s: and it stays there" % fam, "%.1f" % turn)
 
 
 func _case_manual_seat() -> void:
