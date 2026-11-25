@@ -89,7 +89,9 @@ const LABELS := {
 	"wiiu_dc_plug": "a Wii U AC adapter plug",
 	"wiiu_gamepad_dc_plug": "a Wii U GamePad AC adapter plug",
 	"atari7800_dc_plug": "an Atari 7800 AC adapter plug",
-	"n64_psu_dock": "a Nintendo 64 power supply",
+	# The Channel F's: its transformer's cord runs into a grommet in the back, no plug.
+	"channelf_cord": "a Channel F power cord",
+	"n64_psu_dock":"a Nintendo 64 power supply",
 	"jamma_plug": "a JAMMA harness plug",
 	"gamecube_controller": "a GameCube controller plug",
 	"playstation_controller": "a PlayStation controller plug",

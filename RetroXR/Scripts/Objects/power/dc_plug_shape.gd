@@ -41,6 +41,8 @@ const TONGUES := {
 	"ext2_plug": [11.0, 3.4, 5.5],
 	# The CO24471's blue tip over the console's two round pins (atari/7800/psu).
 	"atari7800_dc_plug": [6.4, 5.6, 5.5],
+	# The Channel F's cord in its grommet (fairchild/channel-f/console): a short stub.
+	"channelf_cord": [5.0, 5.0, 3.0],
 }
 const METAL := Color(0.74, 0.72, 0.66)
 const HOLE := Color(0.03, 0.03, 0.035)
