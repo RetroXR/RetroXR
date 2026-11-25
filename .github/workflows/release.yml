@@ -441,8 +441,10 @@ jobs:
       - id: cache
         uses: actions/cache@v6
         with:
-          path: engine-bin
-          key: engine-template-v1-${{ matrix.id }}-${{ steps.pin.outputs.commit }}
+          path: |
+            engine-bin
+            engine-symbols
+          key: engine-template-v2-${{ matrix.id }}-${{ steps.pin.outputs.commit }}
 
       - if: steps.cache.outputs.cache-hit != 'true'
         uses: actions/checkout@v7
@@ -488,9 +490,14 @@ jobs:
               lipo -create bin/godot.macos.template_release.arm64 bin/godot.macos.template_release.x86_64 \
                 -output ../engine-bin/godot_macos_release.universal ;;
             android)
-              scons platform=android target=template_release arch=arm64 generate_apk=no
-              cp platform/android/java/lib/libs/release/arm64-v8a/libgodot_android.so \
-                ../engine-bin/libgodot_android.template_release.so ;;
+              # With symbols (only -g; the code is the same), shipped stripped: a Quest
+              # tombstone names this build id, and the zip below symbolizes it exactly.
+              scons platform=android target=template_release arch=arm64 generate_apk=no debug_symbols=yes
+              so=platform/android/java/lib/libs/release/arm64-v8a/libgodot_android.so
+              strip=$(ls -d "$ANDROID_HOME"/ndk/*/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip | tail -1)
+              "$strip" --strip-all -o ../engine-bin/libgodot_android.template_release.so "$so"
+              mkdir -p ../engine-symbols
+              zip -9 -j "../engine-symbols/libgodot_android-$(cut -c1-9 <<< "${{ steps.pin.outputs.commit }}")-symbols.zip" "$so" ;;
           esac
           ls -la ../engine-bin
 
@@ -506,6 +513,10 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with: { name: "engine-${{ matrix.id }}", path: engine-bin, retention-days: 3 }
+
+      - if: matrix.id == 'android'
+        uses: actions/upload-artifact@v7
+        with: { name: engine-symbols-android, path: engine-symbols, retention-days: 3, compression-level: 0 }
 
   # ------------------------------------------------------------------ windows
   windows:
@@ -1264,6 +1275,10 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          # The Quest engine's debug symbols, for symbolizing a headset's tombstones.
+          for f in dist/libgodot_android-*-symbols.zip; do
+            if [ -e "$f" ]; then mv -v "$f" "dist/RetroXR-v$VER-quest-engine-symbols.zip"; fi
+          done
           ls -la dist
           PREV=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
           [ -z "$PREV" ] && PREV=$(git rev-list --max-parents=0 HEAD)
