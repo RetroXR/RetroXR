@@ -60,6 +60,8 @@ const KEEP_COVER_T := 0.002
 ## far as this in a tick. Never past its stops. A panel is that thick to a fingertip.
 const LID_SKIN := 0.0015
 const LID_YIELD_DEG := 14.0
+## A half resting against the world is asked this far on (deg) whether the world is still there.
+const WORLD_REST_PROBE_DEG := 1.5
 const PANEL_POKE_T := 0.004
 ## A grip on an open case nearer its lid than its base, and within this of the lid, has the case by its lid.
 const LID_GRIP_REACH := 0.12
@@ -98,6 +100,8 @@ static var _asked_art: Dictionary = {}
 ## A case let go a little way into what it should lie on is lifted out onto it (HeldObjectPhysics.lift_out): no
 ## farther than this, and not one moving faster than this (thrown, not put down).
 const LIFT_MAX := 0.06
+## A pushed back half let go still swinging is given this long to come to rest before the case is a body again.
+const BASE_PUSH_SETTLE_MS := 3000
 const LIFT_MAX_SPEED := 1.0
 const LATCH_HAPTIC_KEY := &"game_case_latch"
 ## A popped disc rides this far up off its hub, tilted this much, loose on the catches.
@@ -179,6 +183,10 @@ var _lid_hand := Transform3D()                   # ... where it is in the lid's 
 var _base_hinge: CaseHinge                       # the lid's hinge again, by its other half: the base's handle
 var _base_probe: BoxShape3D
 var _top_grip: CaseHinge                         # which of its two handles a hand last had the lid's hinge by
+var _base_push := false                          # nothing holds the case and its BACK is pushed: the lid is the still half ...
+var _base_anchor := Transform3D()                # ... where the lid stays, in the world
+var _base_unfreeze := false                      # ... the body was loose before, and is again after
+var _base_push_until := 0                        # ... when to stop waiting for the back to come to rest (msec)
 var _manual_in := -1.0                           # which way is into the case along the manual seat's z
 ## The manual lies on a tray, not under the lid's tabs (the North American fat case: in the black tray's front
 ## recess, on its disc). `_manual_on` is that tray's hinge. The lid's own Booklet is then the front sheet, there
@@ -550,7 +558,8 @@ func _build_hinges() -> void:
 	_base_hinge.min_deg = 0.0
 	_base_hinge.max_deg = rad_to_deg(sim.open_max)
 	_base_hinge.engage_radius = 0.05
-	_base_hinge.gate = func() -> bool: return _lid_grab != null
+	_base_hinge.gate = func() -> bool: return _lid_grab != null or _base_free()
+	_base_hinge.trigger_gate = func() -> bool: return _lid_grab != null
 	_base_hinge.quiet_at = _base_quiet
 	_base_hinge.face_gate = _base_face_free
 	base_angle.add_child(_base_hinge)
@@ -1318,10 +1327,18 @@ func _physics_process(delta: float) -> void:
 			grip = _base_hinge
 		var held := grip.is_held()
 		if held:
+			var to := grip.get_rotation_deg()
 			if top:
 				_top_grip = grip
+				if grip != _base_hinge:
+					_end_base_push()                         # the lid is taken: the back is the still half again
+				elif _lid_grab == null:
+					if not _base_push:
+						_begin_base_push()
+					_base_push_until = Time.get_ticks_msec() + BASE_PUSH_SETTLE_MS
+					to = _base_clear_toward(sim.angle_deg(i), to)
 			sim.set_held(i, true)
-			sim.set_held_angle_deg(i, grip.get_rotation_deg(), delta)
+			sim.set_held_angle_deg(i, to, delta)
 			moved = true
 		elif _was_held[i]:
 			sim.set_held(i, false, (_top_grip if top and _top_grip != null else hinge).release_speed_deg)
@@ -1344,11 +1361,19 @@ func _physics_process(delta: float) -> void:
 	var top_spin := NAN
 	if _lid_grab != null:
 		top_spin = _hand_spin if absf(_hand_spin) > SPIN_QUIET else 0.0
+	elif _base_push:
+		top_spin = 0.0                                   # the lid stands still
 	if moved or not sim.settled(g, spin, top_spin):
 		sim.step(delta, g, spin, top_spin)
 		_apply_angles()
+	elif _base_push:
+		_end_base_push()                                 # the back has come to rest
+	if _base_push and not _base_hinge.is_held() and Time.get_ticks_msec() > _base_push_until:
+		_end_base_push()
 	if _lid_gives_way():
 		_apply_angles()
+		if _base_push and not _base_hinge.is_held():
+			_end_base_push()                             # the back has met the world: the case is a body again
 	_hold_by_lid()
 	if sim.clicked:
 		sim.clicked = false
@@ -1447,6 +1472,7 @@ func _on_lid(p: Vector3) -> bool:
 func pick_up(by: Node3D) -> void:
 	# Where the hand is as it closes: a grip brings the case's own origin into the hand, so afterwards the grab
 	# no longer says which half was taken.
+	_end_base_push()                                 # before the grip notes whether the body was frozen
 	var hand := global_transform.affine_inverse() * by.global_transform if by != null else Transform3D()
 	var was_held := is_picked_up()
 	super(by)
@@ -1606,6 +1632,57 @@ func held_by_lid() -> bool:
 	return _lid_grab != null
 
 
+## Whether a fingertip may push the BACK half of the case: nothing holds it (a hand has it by its back, or a seat,
+## and the back is going nowhere), nobody has its lid's handle, and this is not a netplay guest (the host stands
+## the body). The front has always been pushed; resting on its lid with its back in the air, a case answered a
+## finger on the half that was up with nothing (the owner, 2026-11-25).
+func _base_free() -> bool:
+	return not is_picked_up() and not NetworkManager.is_client() and not hinge(sim.top()).is_held()
+
+
+## The back is pushed with nothing holding the case: the lid stays where it is in the world and the back turns
+## from it, as when a hand has the lid (_lid_grab). The body is the back, so it is frozen and stood by the lid
+## each tick (_apply_angles) until the finger has gone and the back has come to rest.
+func _begin_base_push() -> void:
+	_base_push = true
+	sim.clear_world_stop()                           # the other half is the one that meets things now
+	_base_anchor = global_transform * _lid_swing()
+	_base_unfreeze = not freeze
+	freeze = true
+	sim.base_swings = true
+	_base_push_until = Time.get_ticks_msec() + BASE_PUSH_SETTLE_MS
+
+
+func _end_base_push() -> void:
+	if not _base_push:
+		return
+	_base_push = false
+	sim.clear_world_stop()
+	sim.base_swings = _lid_grab != null
+	if _base_hinge != null and _lid_grab == null:
+		_base_hinge.drop_hold()
+	if _base_unfreeze:
+		freeze = false
+		linear_velocity = Vector3.ZERO
+		angular_velocity = Vector3.ZERO
+		sleeping = false
+		_on_let_go()                                     # out of anything it was left standing in
+
+
+## How far toward `to` the pushed back may turn from `from` (deg) before it meets the world. It is the body, frozen
+## while it is pushed: turned into a table it would shove the table.
+func _base_clear_toward(from: float, to: float) -> float:
+	if _lid_blocked(from):
+		return to                                        # in something already: free to leave it
+	var at := from
+	while absf(to - at) > 0.01:
+		var next := move_toward(at, to, 1.0)
+		if _lid_blocked(next):
+			break
+		at = next
+	return at
+
+
 ## The hand keeps the lid: where it is from the base's side, for the lid as it now stands.
 func _hold_by_lid() -> void:
 	if _lid_grab == null:
@@ -1626,12 +1703,15 @@ func _lid_blocked(deg: float) -> bool:
 		_base_probe.size = (_base_box.size - Vector3.ONE * LID_SKIN * 2.0).max(Vector3.ONE * 0.0005)
 		_lid_query = PhysicsShapeQueryParameters3D.new()
 		_lid_query.collide_with_areas = false
-	if _lid_grab != null and is_instance_valid(_lid_grab.by):
-		# Held by its lid, it is the BASE that turns into things: tested where the grab driver will stand the case
-		# with the hinge at `deg` (it re-poses the body after this in the tick, so the body's own place is a swing
-		# behind).
+	if (_lid_grab != null and is_instance_valid(_lid_grab.by)) or _base_push:
+		# Held by its lid, or its back pushed with the lid lying still, it is the BASE that turns into things:
+		# tested where the case will stand with the hinge at `deg` (the body is re-posed after this in the tick,
+		# so its own place is a swing behind).
 		_lid_query.shape = _base_probe
-		var body := (_lid_grab.by as Node3D).global_transform * (_swing_at(deg) * _lid_hand).affine_inverse()
+		var lid_at := _base_anchor
+		if _lid_grab != null:
+			lid_at = (_lid_grab.by as Node3D).global_transform * _lid_hand.affine_inverse()
+		var body := lid_at * _swing_at(deg).affine_inverse()
 		_lid_query.transform = body * Transform3D(Basis.IDENTITY, _base_box.get_center())
 	else:
 		_lid_query.shape = _lid_probe
@@ -1656,12 +1736,22 @@ func _lid_blocked(deg: float) -> bool:
 func _lid_gives_way() -> bool:
 	var top := sim.top()
 	if sim.latched or top < 0 or sim.held[top] or not is_inside_tree():
+		sim.clear_world_stop()
 		return false
 	# In a seat, or weightless while a save is put back (no holder, no mask): nothing to give way to.
 	var by := get_picked_up_by()
 	if by is XRToolsSnapZone or (by == null and collision_mask == 0):
+		sim.clear_world_stop()
 		return false
 	var at := sim.angle_deg(top)
+	if sim.has_world_stop():
+		# Resting against something: there until it swings off by itself, or the thing has gone (the case lifted
+		# or tipped, the thing taken away).
+		var rest := rad_to_deg(sim.world_lo if sim.world_lo > 0.0 else sim.world_hi)
+		var into := -1.0 if sim.world_lo > 0.0 else 1.0
+		if absf(at - rest) > 0.2 or not _lid_blocked(at + into * WORLD_REST_PROBE_DEG):
+			sim.clear_world_stop()
+		return false
 	if not _lid_blocked(at):
 		return false
 	var hi := rad_to_deg(sim.open_max)
@@ -1675,7 +1765,21 @@ func _lid_gives_way() -> bool:
 					continue
 			if not _lid_blocked(to):
 				_lid_yield = way
+				# Where it first clears, to a sixteenth of a degree, and the probe's own skin further: on the thing,
+				# not in it. It rests there (the sim's world stop) until the thing has gone.
+				var hit := to - way
+				for _r in 4:
+					var mid := (to + hit) * 0.5
+					if _lid_blocked(mid):
+						hit = mid
+					else:
+						to = mid
+				to = clampf(to + way * rad_to_deg(LID_SKIN / maxf(_closed_box.size.x, 0.05)), lo, hi)
 				sim.push_to_deg(top, to)
+				if way > 0.0:
+					sim.world_lo = deg_to_rad(to)
+				else:
+					sim.world_hi = deg_to_rad(to)
 				return true
 	return false
 
@@ -1727,6 +1831,8 @@ func _apply_angles() -> void:
 	# The base's handle reads the same angle; writing it is also what keeps its frame on the base.
 	if _base_hinge != null and not _base_hinge.is_held():
 		_base_hinge.set_angle_quiet(sim.angle_deg(sim.top()))
+	if _base_push:
+		global_transform = _base_anchor * _lid_swing().affine_inverse()      # the lid stays; the body is the back
 	_follow_lid()
 	_shape_body(sim.angle_deg(sim.top()))
 	_carry_contents()

@@ -13,6 +13,9 @@ var gate: Callable
 ## the fingertip are for the manual, over a disc on a hanging base they are for the disc. No trigger latch, no
 ## open-hand icon, no fingertip push and no pointer press begins there; everywhere else on the panel they all do.
 var quiet_at: Callable
+## Whether the TRIGGER may take it now, when that is less than `gate` (a Callable returning bool): the back half of
+## a case nothing holds is a fingertip's to push and no trigger's. Unset: `gate`.
+var trigger_gate: Callable
 ## Where a FINGERTIP pushes nothing, when that is not all of quiet_at (a world point -> bool): a finger on the
 ## booklet lying in a lid presses the lid, though the trigger there is the manual's. Unset: quiet_at.
 var push_quiet_at: Callable
@@ -68,6 +71,8 @@ func _quiet(at: Vector3) -> bool:
 
 ## The trigger's reach and the open-hand icon's (VRHinge asks this for both).
 func _tip_in_activation_region(tip: Vector3) -> bool:
+	if trigger_gate.is_valid() and not bool(trigger_gate.call()):
+		return false
 	if _quiet(tip) or (cede_at.is_valid() and bool(cede_at.call(tip))):
 		return false
 	return super(tip) or by_panel(tip)

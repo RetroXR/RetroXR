@@ -74,6 +74,8 @@ func _run() -> void:
 		["case/a seated manual turns no page and the lid's handle is quiet over it", _case_manual_quiet],
 		["case/a fingertip on the booklet presses the lid", _case_manual_press],
 		["case/a disc put on at an angle is at that angle at once", _case_disc_spin_at_once],
+		["case/a fingertip pushes the back half of a case nothing holds", _case_base_push],
+		["case/a lid that falls onto something rests on it", _case_lid_rests],
 		["case/let go a little way into a tabletop, a case is lifted onto it", _case_lift_out],
 		["model/a clear disc tray is drawn as a molded part", _clear_trays],
 		["model/a jewel scan's wide spine strip is laid on the spine", _scan_spine_fit],
@@ -702,6 +704,134 @@ func _case_disc_spin_at_once() -> void:
 		_ok(absf(wrapf(turn - want, -180.0, 180.0)) < 1.0, "%s/%s: and it stays there" % fam, "%.1f" % turn)
 
 
+## The back half of a case nothing holds is pushed by a fingertip as the front is: the back turns about the hinge
+## and the front stays where it is in the world (the owner, 2026-11-25). Held by its back, or in a seat, it is not.
+func _case_base_push() -> void:
+	var x := 800.0
+	for fam: Array in [["jewel", "single"], ["keep", "ps2"]]:
+		x += 3.0
+		var c := _new_case(fam[0], fam[1])                   # frozen, on its bottom edge: gravity along the hinge
+		await get_tree().physics_frame
+		c.global_position = Vector3(x, 1.0, 0.0)
+		var top := c.sim.top()
+		c.sim.set_angle_deg(top, 100.0)
+		c._apply_angles()
+		for _i in 3:
+			await get_tree().physics_frame
+		var base := c._base_hinge
+		var panel := base.get_node("PokePanel") as CollisionShape3D
+		var half := (panel.shape as BoxShape3D).size * 0.5
+		var lid_was := c.global_transform * c._lid_swing()
+		var body_was := c.global_transform
+		var was := c.lid_deg()
+		for _i in 2:
+			await get_tree().process_frame
+		var hand := _tracked_hand()
+		var ctrl := hand["ctrl"] as XRController3D
+		base._controllers.append(ctrl)
+		var away := c.global_position + Vector3(0.0, 3.0, 0.0)
+		# A finger comes at the back's outside and presses 3 cm on.
+		var press := func() -> void:
+			var out := panel.global_basis.y.normalized()
+			var start := panel.global_position + out * (half.y + 0.03)
+			for k in 31:
+				await get_tree().process_frame
+				_point_hand(hand, start - out * (k * 0.002), -out)
+			for _i in 3:
+				await get_tree().physics_frame
+		await press.call()
+		_ok(c._base_push and c.freeze, "%s: a finger on its back, the back is what turns" % fam[0])
+		_ok(was - c.lid_deg() > 5.0, "%s: pressed from outside, the back turns in toward the lid" % fam[0],
+			"it turned %.1f degrees" % (was - c.lid_deg()))
+		var lid_now := c.global_transform * c._lid_swing()
+		_ok(lid_now.origin.distance_to(lid_was.origin) < 0.0005
+			and rad_to_deg(lid_now.basis.x.normalized().angle_to(lid_was.basis.x.normalized())) < 0.3
+			and rad_to_deg(lid_now.basis.z.normalized().angle_to(lid_was.basis.z.normalized())) < 0.3,
+			"%s: and the lid has stayed where it was" % fam[0], str(lid_now.origin.distance_to(lid_was.origin)))
+		_ok(rad_to_deg(c.global_basis.x.normalized().angle_to(body_was.basis.x.normalized())) > 4.0,
+			"%s: it is the back that has moved" % fam[0])
+		# The finger gone and the back at rest, the case is as it was (frozen, here).
+		_point_hand(hand, away, Vector3.DOWN)
+		for _i in 400:
+			if not c._base_push:
+				break
+			await get_tree().physics_frame
+		_ok(not c._base_push and c.freeze and not c.sim.base_swings, "%s: the finger gone, it comes to rest and is itself again" % fam[0])
+		lid_now = c.global_transform * c._lid_swing()
+		_ok(lid_now.origin.distance_to(lid_was.origin) < 0.0005, "%s: the lid where it was throughout" % fam[0])
+		# Something in the back's way stops it: the frozen body is not turned into a table.
+		c._base_push = true
+		c._base_anchor = c.global_transform * c._lid_swing()
+		var from := c.lid_deg()
+		_ok(absf(c._base_clear_toward(from, 20.0) - 20.0) < 0.05, "%s: nothing in its way, the back may turn all the way asked" % fam[0])
+		c._base_push = false
+		var in_the_way := c._base_anchor * c._swing_at(45.0).affine_inverse() * c._base_box.get_center()
+		_block(c, in_the_way, Vector3(0.03, 0.03, 0.03))
+		for _i in 2:
+			await get_tree().physics_frame
+		c._base_push = true                                  # (a tick with nothing pushing ends the push: set again)
+		var stop := c._base_clear_toward(from, 20.0)
+		_ok(stop > 45.0 and stop <= from, "%s: a block where the back would be at 45 degrees stops it short" % fam[0],
+			"from %.1f it stopped at %.1f" % [from, stop])
+		c._base_push = false
+		# A case that was loose is loose again afterwards, and a grip ends the push.
+		c.freeze = false
+		c.gravity_scale = 0.0
+		c.sim.set_angle_deg(top, 120.0)
+		c._apply_angles()
+		for _i in 3:
+			await get_tree().physics_frame
+		await press.call()
+		_ok(c._base_push and c.freeze, "%s: a loose case is held still by its lid while its back is pushed" % fam[0])
+		var holder := _stand_in_hand(c.global_transform)
+		c.pick_up(holder)
+		_ok(not c._base_push and not base.is_held() and not base._can_engage(),
+			"%s: taken by its back, the push ends and the back is the hand's" % fam[0])
+		c.let_go(holder, Vector3.ZERO, Vector3.ZERO)
+		for _i in 3:
+			await get_tree().physics_frame
+		_ok(not c.freeze, "%s: let go, it is a loose body again" % fam[0])
+		c.freeze = true
+		base._controllers.erase(ctrl)
+		base.drop_hold()
+		_drop_hand(hand)
+
+
+## A lid that falls onto something comes to rest on it and lies still until the thing has gone. It fell into
+## the thing and was pushed out again every tick: a degree of chatter for as long as a case lay on its lid.
+func _case_lid_rests() -> void:
+	var c := _new_case("jewel", "single")
+	await get_tree().physics_frame
+	_on_its_back(c, 840.0)
+	var top := c.sim.top()
+	c.sim.set_angle_deg(top, 60.0)
+	c._apply_angles()
+	var block := _block(c, c.global_transform * c._swing_at(30.0) * c._lid_box.get_center(), Vector3(0.02, 0.02, 0.02))
+	for _i in 150:
+		await get_tree().physics_frame
+	var rest := c.lid_deg()
+	_ok(rest < 58.0 and rest > 30.0 and c.sim.has_world_stop(), "a lid that falls onto something comes to rest on it", "%.2f" % rest)
+	_ok(not c._lid_blocked(rest), "on the thing, not in it")
+	var lo := INF
+	var hi := -INF
+	for _i in 60:
+		await get_tree().physics_frame
+		lo = minf(lo, c.lid_deg())
+		hi = maxf(hi, c.lid_deg())
+	_ok(hi - lo < 0.01, "and lies still there", "it moved %.3f degrees" % (hi - lo))
+	block.global_position += Vector3(0.0, 0.0, 5.0)
+	for _i in 150:
+		await get_tree().physics_frame
+	_ok(not c.sim.has_world_stop() and c.lid_deg() < rest - 5.0, "the thing taken away, the lid falls on", "%.2f" % c.lid_deg())
+	# A hand on the lid is not held by the world's stop.
+	c.sim.push_to_deg(top, 60.0)
+	c.sim.world_lo = deg_to_rad(60.0)
+	c.sim.set_held(top, true)
+	c._lid_gives_way()
+	_ok(not c.sim.has_world_stop(), "a lid in a hand is stopped by nothing of the world's")
+	c.sim.set_held(top, false)
+
+
 func _case_manual_seat() -> void:
 	for fam: Array in [["jewel", "single"], ["keep", "ps2"]]:
 		var c := _new_case(fam[0], fam[1])
@@ -1029,7 +1159,8 @@ func _case_base_handle() -> void:
 		_on_its_back(c, x)
 		c.sim.set_angle_deg(top, 100.0)
 		c._apply_angles()
-		_ok(lid._can_engage() and not base._can_engage(), "%s: in nobody's hand the lid's handle works, the base's does not" % fam[0])
+		_ok(lid._can_engage() and base._can_engage() and not base._tip_in_activation_region(base.global_position),
+			"%s: in nobody's hand a fingertip may push either half, and the trigger takes only the lid" % fam[0])
 		lid._pointer_held = true
 		var holder := _stand_in_hand(c.global_transform * Transform3D(Basis.IDENTITY, c._lid_swing() * c._lid_box.get_center()))
 		c.pick_up(holder)
@@ -1046,7 +1177,8 @@ func _case_base_handle() -> void:
 		base._pointer_held = false
 		c.let_go(holder, Vector3.ZERO, Vector3.ZERO)
 		await get_tree().physics_frame
-		_ok(not c.held_by_lid() and lid._can_engage() and not base._can_engage(), "%s: let go, the lid's handle has it again" % fam[0])
+		_ok(not c.held_by_lid() and lid._can_engage() and base._can_engage() and not base._tip_in_activation_region(base.global_position),
+			"%s: let go, either half is a fingertip's again and the trigger is the lid's" % fam[0])
 		# Over a disc on the base a fingertip is reaching for the disc; at the base's back it presses the base.
 		var disc_on := DISC_SCENE.instantiate() as RetroDisc
 		disc_on.systemid = "psx"

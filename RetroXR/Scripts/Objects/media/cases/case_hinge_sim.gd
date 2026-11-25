@@ -143,10 +143,26 @@ func _paged(i: int) -> bool:
 	return page_gap > 0.0 and i >= 0 and i + 1 < top()
 
 
+## Where the world stops the top hinge (rad), set by whoever can see the world (GameCase._lid_gives_way) and
+## cleared by it when the thing has gone. A lid lying against a table rests on it: unstopped, it fell into the
+## table and was pushed out again every tick, a degree of chatter for as long as the case lay on its lid.
+var world_lo := 0.0
+var world_hi := INF
+
+
+func has_world_stop() -> bool:
+	return world_lo > 0.0 or world_hi < INF
+
+
+func clear_world_stop() -> void:
+	world_lo = 0.0
+	world_hi = INF
+
+
 ## The most hinge i may stand, for where the one above it stands now.
 func _cap(i: int) -> float:
 	if i >= top():
-		return open_max
+		return minf(open_max, world_hi)
 	var above := angles[i + 1]
 	if not _paged(i):
 		return above
@@ -156,10 +172,11 @@ func _cap(i: int) -> float:
 
 ## The least hinge j may stand, for where the one under it stands now.
 func _least(j: int) -> float:
-	if j <= 0:
-		return 0.0
-	var below := angles[j - 1]
-	return below + minf(page_gap, below) if _paged(j - 1) else below
+	var least := 0.0
+	if j > 0:
+		var below := angles[j - 1]
+		least = below + minf(page_gap, below) if _paged(j - 1) else below
+	return maxf(least, world_lo) if j == top() else least
 
 
 func top() -> int:
