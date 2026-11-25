@@ -241,9 +241,12 @@ func _screens() -> void:
 
 func _stale_left() -> void:
 	var pickup := DesktopPickup.new()
+	DesktopPickup.left_drag = true
 	pickup._drop_armed = true
+	pickup._left_turning = true
 	pickup._clear_stale_left()
-	_ok(not pickup._drop_armed, "left/a release that never arrived: the press ends with the button up")
+	_ok(not DesktopPickup.left_drag and not pickup._drop_armed and not pickup._left_turning,
+		"left/a release that never arrived: the drag and the turn end with the button up")
 	pickup.free()
 
 
@@ -327,8 +330,30 @@ func _desktop_action() -> void:
 	_ok(stuck_released[0] == 1 and not pickup._action_armed,
 		"action/a release that never arrived still ends the action", str(stuck_released[0]))
 	pickup._drop()
+
+	# Left drag on a held object: a turn only with the option on, else the release drops it.
+	var spun := _pickable_with("")
+	var was_on := AppPrefs.left_drag_turn
+	for on: bool in [false, true]:
+		AppPrefs.left_drag_turn = on
+		pickup._grab_target(spun)
+		_left(pickup, true, false)
+		var drag := InputEventMouseMotion.new()
+		drag.relative = Vector2(40.0, 0.0)
+		pickup._unhandled_input(drag)
+		var turning := pickup._left_turning
+		var camera_still := DesktopPickup.left_drag
+		_left(pickup, false, false)
+		if on:
+			_ok(turning and camera_still and pickup._held_object == spun,
+				"left drag/option on: the drag turns it and the release keeps it")
+		else:
+			_ok(not turning and not camera_still and pickup._held_object == null,
+				"left drag/option off (default): no turn, the mouse still looks, the release drops it")
+		pickup._drop()
+	AppPrefs.left_drag_turn = was_on
 	await get_tree().process_frame
-	for n: Node in [robot, mouse, gun, stuck, pickup]:
+	for n: Node in [robot, mouse, gun, stuck, spun, pickup]:
 		n.queue_free()
 
 
@@ -342,8 +367,11 @@ func _turning() -> void:
 	_ok(pickup.is_turning(), "turning/held and middle-dragged: the pointer aims at nothing")
 	pickup._middle_held = false
 	_ok(not pickup.is_turning(), "turning/the drag ends: its controls can be aimed at again")
+	pickup._left_turning = true
+	_ok(pickup.is_turning(), "turning/a left drag past the click is a turn too")
+	pickup._left_turning = false
 	pickup._drop_armed = true
-	_ok(not pickup.is_turning(), "turning/a left press is a click, not a turn")
+	_ok(not pickup.is_turning(), "turning/a left press short of the drag is still a click")
 	pickup._drop_armed = false
 	_ok(pickup.on_ray(), "ray/held out on the ray: its own controls are out of reach")
 	pickup._hand_hold = true

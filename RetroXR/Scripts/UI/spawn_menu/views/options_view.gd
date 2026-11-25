@@ -394,6 +394,12 @@ func _build_comfort_options(vbox: VBoxContainer) -> void:
 			AppPrefs.save_prefs()
 		)
 
+		# Left drag on a held object turns it (desktop only). Read at each press.
+		_toggle_row(vbox, "Left-Drag Turns Held Object", AppPrefs.left_drag_turn, func(on: bool) -> void:
+			AppPrefs.left_drag_turn = on
+			AppPrefs.save_prefs()
+		)
+
 		vbox.add_child(HSeparator.new())
 
 	# Height Offset slider

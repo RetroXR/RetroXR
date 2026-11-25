@@ -58,6 +58,11 @@ func _ready() -> void:
 	await get_tree().create_timer(1.5).timeout
 	print("[hold] held: %s  object %.3f m from the camera" % [cam.call("held_object") != null,
 		sys.global_position.distance_to(cam.global_position)])
+	if OS.get_cmdline_user_args().has("--leftdrag"):
+		AppPrefs.left_drag_turn = true
+		await _left_drag_run(cam, sys)
+		get_tree().quit(0)
+		return
 	if OS.get_cmdline_user_args().has("--catch-only"):
 		cam.set("_grab_dist", 0.15)
 		_mouse(MOUSE_BUTTON_WHEEL_DOWN, true)
@@ -291,6 +296,48 @@ func _motion(rel: Vector2) -> void:
 	e.relative = rel
 	e.position = get_viewport().get_visible_rect().size * 0.5
 	Input.parse_input_event(e)
+
+
+## Hold left on the held object and drag: it turns and is NOT let go; a click with no travel still drops.
+func _left_drag_run(cam: Camera3D, sys: RetroSystem) -> void:
+	for leg in ["ray", "hand"]:
+		if leg == "hand":
+			cam.set("_grab_dist", 0.15)
+			_mouse(MOUSE_BUTTON_WHEEL_DOWN, true)
+			await get_tree().create_timer(1.0).timeout
+		var before := sys.global_basis
+		var cam_before := cam.global_basis
+		var hand_before: Basis = cam.get("_hand_cam_basis")
+		_mouse(MOUSE_BUTTON_LEFT, true)
+		await get_tree().create_timer(0.1).timeout
+		for i in 10:
+			_motion(Vector2(80.0, 0.0))
+			await get_tree().create_timer(0.03).timeout
+			var pvs := (get_tree().get_first_node_in_group("desktop_hand") as Node3D).global_basis
+			print("[hold]   pivot %.1f deg, object %.1f deg, camera %.1f deg from before" % [
+				rad_to_deg(before.get_rotation_quaternion().angle_to(pvs.get_rotation_quaternion())),
+				rad_to_deg(before.get_rotation_quaternion().angle_to(sys.global_basis.get_rotation_quaternion())),
+				rad_to_deg(cam_before.get_rotation_quaternion().angle_to(cam.global_basis.get_rotation_quaternion()))])
+			print("[hold]   step %d: drag %.1f, turning %s, hand basis %.1f deg" % [i, cam.get("_left_drag"), cam.get("_left_turning"),
+				rad_to_deg(hand_before.get_rotation_quaternion().angle_to((cam.get("_hand_cam_basis") as Basis).get_rotation_quaternion()))])
+		print("[hold] %s: dragging with left down: held %s, turning %s" % [leg, _held(cam), cam.get("_left_turning")])
+		_mouse(MOUSE_BUTTON_LEFT, false)
+		await get_tree().create_timer(0.4).timeout
+		var turned := rad_to_deg(before.get_rotation_quaternion().angle_to(sys.global_basis.get_rotation_quaternion()))
+		var hand_turned := rad_to_deg((hand_before.get_rotation_quaternion()).angle_to((cam.get("_hand_cam_basis") as Basis).get_rotation_quaternion()))
+		print("[hold] %s: hand hold %s, blend %s, grab dist %s" % [leg, cam.get("_hand_hold"), cam.get("_hold_blend"), cam.get("_grab_dist")])
+		var pv := (get_tree().get_first_node_in_group("desktop_hand") as Node3D).global_basis
+		print("[hold] %s: pivot vs object %.1f deg, pivot turned %.1f deg" % [leg,
+			rad_to_deg(pv.get_rotation_quaternion().angle_to(sys.global_basis.get_rotation_quaternion())),
+			rad_to_deg(before.get_rotation_quaternion().angle_to(pv.get_rotation_quaternion()))])
+		print("[hold] %s: after release: held %s; the object turned %.1f deg (hand basis %.1f deg), turning flag %s" % [
+			leg, _held(cam), turned, hand_turned, cam.get("_left_turning")])
+	# control: a click with no travel lets go
+	_mouse(MOUSE_BUTTON_LEFT, true)
+	await get_tree().create_timer(0.1).timeout
+	_mouse(MOUSE_BUTTON_LEFT, false)
+	await get_tree().create_timer(0.4).timeout
+	print("[hold] a click without moving: held %s (want false)" % _held(cam))
 
 
 ## A loose VMU, picked up and caught as --catch-only catches a console.

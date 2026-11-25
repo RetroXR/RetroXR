@@ -44,6 +44,9 @@ var aim_crosshair:    bool = false
 var mouse_sensitivity: float = 1.0
 const MOUSE_SENSITIVITY_MIN := 0.1
 const MOUSE_SENSITIVITY_MAX := 3.0
+## Desktop: a left drag on the held object turns it, as the middle drag does. Off, a left
+## press on it is only a click to drop it, and the mouse keeps looking round meanwhile.
+var left_drag_turn: bool = false
 ## The comfort rows at the top of OPTIONS > General. SpawnMenuController applies them
 ## to the rig once it has found it; each is clamped to its control's range on load.
 ## Turn Style (headset): smooth rather than snap turning.
@@ -572,6 +575,7 @@ func load_prefs() -> void:
 	aim_crosshair    = JsonStore.get_bool(data, "aim_crosshair",    aim_crosshair)
 	mouse_sensitivity = clampf(JsonStore.get_float(data, "mouse_sensitivity", mouse_sensitivity),
 		MOUSE_SENSITIVITY_MIN, MOUSE_SENSITIVITY_MAX)
+	left_drag_turn = JsonStore.get_bool(data, "left_drag_turn", left_drag_turn)
 	turn_smooth = JsonStore.get_bool(data, "turn_smooth", turn_smooth)
 	var snap := JsonStore.get_float(data, "snap_turn_angle", snap_turn_angle)
 	snap_turn_angle = snap if snap in SNAP_TURN_ANGLES else 45.0
@@ -648,6 +652,7 @@ func _prefs_dict() -> Dictionary:
 		"autosave_interval": autosave_interval,
 		"aim_crosshair":    aim_crosshair,
 		"mouse_sensitivity": mouse_sensitivity,
+		"left_drag_turn":   left_drag_turn,
 		"turn_smooth":      turn_smooth,
 		"snap_turn_angle":  snap_turn_angle,
 		"desktop_fov":      desktop_fov,

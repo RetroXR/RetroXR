@@ -68,6 +68,9 @@ func _unhandled_input(event):
 	if event is InputEventMouseMotion:
 		if Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
 			return
+		# RetroXR: left held on the thing in the hand turns IT (desktop_pickup.gd).
+		if DesktopPickup.left_drag:
+			return
 		# RetroXR: scaled by the player's Mouse Sensitivity (Options, desktop only).
 		event.relative*=.1 * AppPrefs.mouse_sensitivity
 		if invert_y:

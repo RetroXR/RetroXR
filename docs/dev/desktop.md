@@ -219,8 +219,17 @@ Physical headset button feel and Quest rendering remain hardware checks, not hea
 - **The dead zone used to be measured to the NEAR edge** of the held thing (gone with the size-widened
   zone, 2026-10-22): measured to its middle, the hand kept running away from a gaze that was on a tipped
   switch. With the small zone the object follows the gaze and a switch is tipped to the crosshair.
+- **Left held on the object and dragged turns it**, with Options > Left-Drag Turns Held Object on
+  (`AppPrefs.left_drag_turn`, off by default; off, the press only drops and the mouse looks round)
+  (`_turn_held`, shared with the middle button): past
+  `CLICK_DRAG_PX` of travel the press stops being a click-to-drop (`_left_turning`, the release lets go of
+  nothing); a press with no travel still drops on release, a press on a control still works the control.
+  `DesktopPickup.left_drag` (static) is true from such a press to its release and `MovementDesktopTurn`
+  ignores the mouse meanwhile -- without it the camera turned with the object (it asks the same way about
+  the middle button). Objects whose plain click is their own (`desktop_shift_drop`, the light gun) are left
+  out. `hold_probe --leftdrag`; note a synthetic motion event's `relative` is scaled by 0.1 in a probe, send 80.
 - **Turning a held object switches the pointer off** (`DesktopPickup.is_turning()`: held, not FPS-snap,
-  middle down; `function_desktop_pointer.resolve_interaction_target` returns none).
+  middle down or `_left_turning`; `function_desktop_pointer.resolve_interaction_target` returns none).
   Left live, the turn swept the object's own controls under the crosshair, each lit up as it passed, and
   a left click mid-turn went to whichever one the angle left there (2026-10-25). A
   left press during a middle turn is swallowed: neither a drop nor a press. Nothing held, the pointer

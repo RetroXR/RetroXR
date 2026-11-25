@@ -36,7 +36,7 @@ The pad is made into the input the game already reads, not given code paths of i
   `ArcadeInput.PEDAL_ACTION`: LB is Shift, so LB + RT would drop the gun, and LT is the middle button, which
   holds the look still). Everything in the engine that already reads these needs no change.
 - **The hand and looking round read the MOUSE**, so the pad sends mouse events: RT = left button (grab,
-  press a control, drop on release), LT = middle button (turn the held thing), D-pad up /
+  press a control, drop on release, left-drag turns with that option on), LT = middle button (turn the held thing), D-pad up /
   down = wheel up / down (push / pull / catch; held, it repeats), the right stick = mouse motion
   (`LOOK_SPEED` 750 px/s, ~150 deg/s; `TURN_SCALE` 0.4 while LT), LB = Shift on all of it (roll; LB + RT
   drops a gun). `MovementDesktopTurn` already ignores the mouse while a button is held; it reads mouse
