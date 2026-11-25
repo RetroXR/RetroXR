@@ -43,7 +43,6 @@ script = ExtResource("6_model")
 level_scenes = Array[PackedScene]([ExtResource("7_lod0"), ExtResource("8_lod1"), ExtResource("9_lod2")])
 switch_distance = 1.0
 far_distance = 2.5
-hysteresis = 0.1
 
 ; One VRButton per key, built from the model's 26 keys (TVRemote._dress_keys).
 [node name="Keys" type="Node3D" parent="."]

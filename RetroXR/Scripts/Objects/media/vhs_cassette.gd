@@ -22,7 +22,6 @@ const LEVELS := [
 ]
 const SWITCH_DISTANCE := 1.0
 const FAR_DISTANCE := 2.2
-const HYSTERESIS := 0.12
 
 # The cassette's tape geometry in millimeters (tape_contract.json).
 const REEL_SUPPLY := Vector2(-46.0, -4.0)
@@ -88,9 +87,11 @@ func _ready() -> void:
 			var g := n as GeometryInstance3D
 			g.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 			g.visibility_range_begin = starts[i]
-			g.visibility_range_begin_margin = HYSTERESIS if i > 0 else 0.0
 			g.visibility_range_end = starts[i + 1] if i + 1 < LEVELS.size() else 0.0
-			g.visibility_range_end_margin = HYSTERESIS if i + 1 < LEVELS.size() else 0.0
+			# No margins: with fading off a margin is hysteresis from a hidden start, so a model loaded near a
+			# switch distance drew no level at all (Godot starts every instance hidden).
+			g.visibility_range_begin_margin = 0.0
+			g.visibility_range_end_margin = 0.0
 	door_open = door_open
 	_wind()
 

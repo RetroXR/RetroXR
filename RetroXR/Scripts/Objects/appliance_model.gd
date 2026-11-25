@@ -16,7 +16,6 @@ extends Node3D
 @export var switch_distance: float = 1.5
 ## LOD1 -> LOD2 (m).
 @export var far_distance: float = 3.5
-@export var hysteresis: float = 0.15
 
 var levels: Array[Node3D] = []
 var players: Array[AnimationPlayer] = []
@@ -52,8 +51,10 @@ func _range(g: GeometryInstance3D, i: int) -> void:
 	var end := switch_distance if i == 0 else (far_distance if i == 1 else 0.0)
 	g.visibility_range_begin = begin
 	g.visibility_range_end = end
-	g.visibility_range_begin_margin = hysteresis if i > 0 else 0.0
-	g.visibility_range_end_margin = hysteresis if i < levels.size() - 1 else 0.0
+	# No margins: with fading off a margin is hysteresis from a hidden start, so a model loaded near a
+	# switch distance drew no level at all (Godot starts every instance hidden).
+	g.visibility_range_begin_margin = 0.0
+	g.visibility_range_end_margin = 0.0
 	g.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 
 

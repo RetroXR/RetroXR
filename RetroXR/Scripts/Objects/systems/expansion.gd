@@ -327,12 +327,6 @@ func _fit_boxes(shape: CollisionShape3D, pointer_shape: CollisionShape3D) -> voi
 	print("[RetroExpansion] %s: %d collision boxes from its row" % [expansion_id, boxes.size()])
 
 
-## How far past a level's switch distance the camera has to go before the other
-## level takes over, in metres. With fading off, a visibility range's margin is
-## hysteresis, so a unit held near a switch distance does not flicker between two.
-const LOD_HYSTERESIS := 0.1
-
-
 ## The shell's lower levels of detail, each given the shell's own scale and offset
 ## and shown only in its band of camera distance. The levels share the shell's
 ## bounds, which is what lets its numbers carry over. Markers (SocketMarker,
@@ -364,9 +358,11 @@ func _build_shell_lods(shell: Node3D) -> void:
 			var g := n as GeometryInstance3D
 			g.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 			g.visibility_range_begin = begin
-			g.visibility_range_begin_margin = LOD_HYSTERESIS if begin > 0.0 else 0.0
 			g.visibility_range_end = end
-			g.visibility_range_end_margin = LOD_HYSTERESIS if end > 0.0 else 0.0
+			# No margins: with fading off a margin is hysteresis from a hidden start, so a model loaded near a
+			# switch distance drew no level at all (Godot starts every instance hidden).
+			g.visibility_range_begin_margin = 0.0
+			g.visibility_range_end_margin = 0.0
 
 
 ## Bounds of every mesh under `root`, in `root`'s own space.

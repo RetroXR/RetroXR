@@ -18,10 +18,9 @@ const MODELS := ["res://imported-assets/appliances/audio_cassette/cassette_mobil
 	"res://imported-assets/appliances/audio_cassette/cassette_mobile_lod2.glb"]
 const CLEAR_SHADER := preload("res://Shaders/cassette_clear_plastic.gdshader")
 
-## Camera distances where LOD0 hands over to LOD1, and LOD1 to LOD2, and the hysteresis either side.
+## Camera distances where LOD0 hands over to LOD1, and LOD1 to LOD2.
 const SWITCH_DISTANCE := 0.7
 const FAR_DISTANCE := 1.6
-const HYSTERESIS := 0.1
 
 # The tape's geometry in millimeters (tape_contract.json beside the models has the same numbers).
 const HUB_SUPPLY := Vector2(-21.25, 2.9)
@@ -194,9 +193,11 @@ func _ranges() -> void:
 		for mi in _meshes(levels[i]):
 			mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 			mi.visibility_range_begin = begin
-			mi.visibility_range_begin_margin = HYSTERESIS if begin > 0.0 else 0.0
 			mi.visibility_range_end = end
-			mi.visibility_range_end_margin = HYSTERESIS if end > 0.0 else 0.0
+			# No margins: with fading off a margin is hysteresis from a hidden start, so a model loaded near a
+			# switch distance drew no level at all (Godot starts every instance hidden).
+			mi.visibility_range_begin_margin = 0.0
+			mi.visibility_range_end_margin = 0.0
 			if i > 0:
 				mi.add_to_group("outline_exclude")       # one outline: LOD0's
 

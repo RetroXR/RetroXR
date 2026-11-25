@@ -24,7 +24,6 @@ const CONTRACTS := {
 const SUFFIXES := ["mobile", "mobile_lod1", "mobile_lod2"]
 ## Where LOD0 gives way to LOD1 and LOD1 to LOD2 (m), as the demo scripts' switch and far distances.
 const LOD_RANGES := {"jewel": [0.7, 1.6], "keep": [0.8, 1.8]}
-const LOD_MARGIN := 0.05
 const CLEAR_SHADER := preload("res://Shaders/case_clear_plastic.gdshader")
 ## A clear disc tray's look (_clear_plastic): the haze on its flats, and its walls seen edge-on.
 const CLEAR_TRAY_NODES := ["Tray", "LidTray"]
@@ -136,9 +135,11 @@ func build(case_family: String, case_variant: String) -> bool:
 			if i > 0 or _under_hinge(mi, level):
 				mi.add_to_group("outline_exclude")
 			mi.visibility_range_begin = begin
-			mi.visibility_range_begin_margin = LOD_MARGIN if i > 0 else 0.0
 			mi.visibility_range_end = end
-			mi.visibility_range_end_margin = LOD_MARGIN if end > 0.0 else 0.0
+			# No margins: with fading off a margin is hysteresis from a hidden start, so a model loaded near a
+			# switch distance drew no level at all (Godot starts every instance hidden).
+			mi.visibility_range_begin_margin = 0.0
+			mi.visibility_range_end_margin = 0.0
 	if family == "jewel":
 		_hide_strip()
 	for n in levels[0].find_children("*Seat*", "Node3D", true, false):
