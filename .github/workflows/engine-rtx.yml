@@ -1,0 +1,149 @@
+name: engine-rtx
+
+# A SEPARATE build of the NVIDIA RTX engine (path tracing + DLSS Ray Reconstruction) for Windows:
+# RetroXR/godot branch nvidia-pt-dlss-test (NVIDIA's 4.8-dev plus our fixes, docs/dev/nvidia-rtx.md).
+# It is NOT the engine any release ships -- that stays retroxr-4.7.2 at Tools/engine/ENGINE_COMMIT,
+# built by release.yml -- and nothing here touches that job or its caches. Run by hand only.
+#
+# The artifact is a ready-to-run folder: the editor (+ console wrapper) and, beside it, the
+# runtime DLLs the engine LoadLibrary()s and the repo does not carry. Without sl.interposer.dll
+# DLSS silently does not exist. Streamline is the SDK release whose MINOR matches the branch's
+# headers (sl_version.h 2.10.x -> v2.10.3), and the DLSS model DLLs are NVIDIA/DLSS v310.9.16 laid
+# over Streamline's bundled 310.5.2, exactly as the test machine's bin/ (hashes below are that
+# machine's files; a mismatch fails the run rather than ship something untested).
+#
+# Run it on the RetroXR-rtx worktree only, never the main checkout: opening the project with
+# 4.8-dev re-imports it into 4.8's formats.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "RetroXR/godot branch, tag or commit to build"
+        default: nvidia-pt-dlss-test
+        required: true
+      targets:
+        description: "What to build"
+        type: choice
+        default: editor
+        options: [editor, template_release, both]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engine-rtx-${{ inputs.ref }}
+  cancel-in-progress: true
+
+env:
+  STREAMLINE_TAG: v2.10.3
+  DLSS_TAG: v310.9.16
+  SHA_SL_INTERPOSER: fabb19bb6495d743182c1bc51bcbbdc4481acc3dcaf445403f0b304a31a56ccc
+  SHA_SL_COMMON: eca8c0f1d4af654103a2f8b315e91fcd54ee4437570ac20c90ab78131c791274
+  SHA_NVNGX_DLSS: d00b5b0ab29c3ca101b70c3a5ecb3a01b7ef33766a3383a28a18623083e6123e
+  SHA_NVNGX_DLSSD: b49435ae346f227feafe7bbe937d88277ea0ee7323975ec06488f377fdb46cee
+  SHA_NVNGX_DLSSG: 8d59d49b36410dd6b62fef2503a5871d347415bd85d943fa0848563a95dd50c7
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v7
+        with: { repository: RetroXR/godot, ref: "${{ inputs.ref }}", path: godot }
+
+      - id: pin
+        shell: bash
+        working-directory: godot
+        run: |
+          commit=$(git rev-parse HEAD)
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "short=${commit:0:9}" >> "$GITHUB_OUTPUT"
+          echo "Building RetroXR/godot ${{ inputs.ref }} = $commit"
+          grep -E 'define SL_VERSION_(MAJOR|MINOR)' thirdparty/streamline/include/sl_version.h
+
+      # SCons' object cache: a rebuild after a small engine change is minutes, not the cold hour+.
+      - uses: actions/cache@v6
+        with:
+          path: scons-cache
+          key: engine-rtx-scons-${{ inputs.targets }}-${{ steps.pin.outputs.commit }}
+          restore-keys: engine-rtx-scons-${{ inputs.targets }}-
+
+      - run: pip install 'scons==4.10.*'
+
+      - name: Dependencies (as Godot's CI installs them)
+        shell: bash
+        working-directory: godot
+        run: |
+          set -euo pipefail
+          python misc/scripts/install_d3d12_sdk_windows.py
+          python misc/scripts/install_angle.py
+          python misc/scripts/install_accesskit.py
+          python misc/scripts/install_winrt.py
+
+      - name: Build
+        shell: bash
+        working-directory: godot
+        run: |
+          set -euo pipefail
+          case "${{ inputs.targets }}" in
+            editor) targets="editor" ;;
+            template_release) targets="template_release" ;;
+            both) targets="editor template_release" ;;
+          esac
+          for t in $targets; do
+            extra=""; [ "$t" = template_release ] && extra="production=yes"
+            echo "::group::scons target=$t"
+            scons platform=windows target=$t arch=x86_64 use_streamline=yes cache_path=../scons-cache cache_limit=6 $extra
+            echo "::endgroup::"
+          done
+          ls -la bin
+
+      - name: Streamline and DLSS runtime DLLs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dl out
+          curl -fsSL -o dl/sl.zip "https://github.com/NVIDIA-RTX/Streamline/releases/download/$STREAMLINE_TAG/streamline-sdk-$STREAMLINE_TAG.zip"
+          7z x -y -odl/sl dl/sl.zip > /dev/null
+          x64=$(dirname "$(find dl/sl -path '*bin/x64/sl.interposer.dll' | head -1)")
+          [ -d "$x64" ] || { echo "::error::no bin/x64/sl.interposer.dll in the Streamline zip"; exit 1; }
+          cp "$x64"/*.dll out/
+          for f in nvngx_dlss nvngx_dlssd nvngx_dlssg; do
+            curl -fsSL -o "out/$f.dll" "https://raw.githubusercontent.com/NVIDIA/DLSS/$DLSS_TAG/lib/Windows_x86_64/rel/$f.dll"
+          done
+          check() { got=$(sha256sum "out/$1" | cut -d' ' -f1); [ "$got" = "$2" ] || { echo "::error::$1 is $got, expected $2 (the tested build)"; exit 1; }; echo "$1 ok"; }
+          check sl.interposer.dll "$SHA_SL_INTERPOSER"
+          check sl.common.dll     "$SHA_SL_COMMON"
+          check nvngx_dlss.dll    "$SHA_NVNGX_DLSS"
+          check nvngx_dlssd.dll   "$SHA_NVNGX_DLSSD"
+          check nvngx_dlssg.dll   "$SHA_NVNGX_DLSSG"
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp godot/bin/godot.windows.*.exe out/
+          # D3D12 agility SDK the build links against (install_d3d12_sdk_windows.py drops them in bin/ when present)
+          cp godot/bin/*.dll out/ 2>/dev/null || true
+          for f in out/godot.windows.*.exe; do
+            case "$f" in *.console.exe) continue ;; esac
+            grep -aq "${{ steps.pin.outputs.short }}" "$f" || { echo "::error::$f does not name commit ${{ steps.pin.outputs.short }}"; exit 1; }
+            echo "$f: engine ${{ steps.pin.outputs.short }}"
+          done
+          cat > out/BUILD.txt <<EOF
+          RetroXR RTX engine (Windows x86_64) -- NOT the shipped engine.
+          source:     RetroXR/godot ${{ inputs.ref }} @ ${{ steps.pin.outputs.commit }}
+          targets:    ${{ inputs.targets }}
+          streamline: $STREAMLINE_TAG (bin/x64), DLSS models: NVIDIA/DLSS $DLSS_TAG
+          run:        ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          Use on the RetroXR-rtx worktree only (docs/dev/nvidia-rtx.md). Flat: --xr-mode off.
+          EOF
+          (cd out && sha256sum * > SHA256SUMS)
+          ls -la out
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: godot-rtx-windows-${{ steps.pin.outputs.short }}
+          path: out
+          retention-days: 14

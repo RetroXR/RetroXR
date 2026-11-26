@@ -31,6 +31,13 @@ python misc/scripts/install_d3d12_sdk_windows.py
 ~/.local/bin/scons.exe platform=windows target=editor -j18     # ~12 min cold
 ```
 
+**CI builds it too, separately** (2026-11-26): `.github/workflows/engine-rtx.yml`, run by hand
+(Actions > engine-rtx > Run workflow, `ref` default `nvidia-pt-dlss-test`, `targets` editor /
+template_release / both). It checks out **RetroXR/godot** at that ref, so the branch must be pushed
+there first, and uploads `godot-rtx-windows-<commit>`: the exes plus the Streamline v2.10.3 and DLSS
+v310.9.16 DLLs below, each held to this machine's SHA-256. It is never what a release ships; release.yml's
+`engine` job and `ENGINE_COMMIT` are untouched.
+
 **Runtime DLLs are not in the repo.** The engine `LoadLibrary`s `sl.interposer.dll`
 from beside the executable; without it DLSS silently does not exist. Copy
 `bin/x64/*.dll` from the Streamline SDK release matching the headers' MINOR
