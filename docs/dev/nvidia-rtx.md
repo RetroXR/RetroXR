@@ -21,7 +21,7 @@ that engine**: the shipped build is stock 4.7.2 and never shows the rows.
 ## Building it (2026-11-12)
 
 The test checkout is `~/godot-rtx`, a `git worktree` of `~/godot`, on branch
-`nvidia-pt-dlss-test` = NVIDIA's branch + one fix of ours (below). `~/godot` and
+`nvidia-pt-dlss-retroxr` = NVIDIA's branch + one fix of ours (below). `~/godot` and
 its Quest build stay on `retroxr-4.7.2`, untouched.
 
 ```bash
@@ -32,7 +32,7 @@ python misc/scripts/install_d3d12_sdk_windows.py
 ```
 
 **CI builds it too, separately** (2026-11-26): `.github/workflows/engine-rtx.yml`, run by hand
-(Actions > engine-rtx > Run workflow, `ref` default `nvidia-pt-dlss-test`, `targets` editor /
+(Actions > engine-rtx > Run workflow, `ref` default `nvidia-pt-dlss-retroxr`, `targets` editor /
 template_release / both). It checks out **RetroXR/godot** at that ref, so the branch must be pushed
 there first, and uploads `godot-rtx-windows-<commit>`: the exes plus the Streamline v2.10.3 and DLSS
 v310.9.16 DLLs below, each held to this machine's SHA-256. It is never what a release ships; release.yml's

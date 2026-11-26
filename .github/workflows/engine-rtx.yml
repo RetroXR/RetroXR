@@ -1,7 +1,7 @@
 name: engine-rtx
 
 # A SEPARATE build of the NVIDIA RTX engine (path tracing + DLSS Ray Reconstruction) for Windows:
-# RetroXR/godot branch nvidia-pt-dlss-test (NVIDIA's 4.8-dev plus our fixes, docs/dev/nvidia-rtx.md).
+# RetroXR/godot branch nvidia-pt-dlss-retroxr (NVIDIA's 4.8-dev plus our fixes, docs/dev/nvidia-rtx.md).
 # It is NOT the engine any release ships -- that stays retroxr-4.7.2 at Tools/engine/ENGINE_COMMIT,
 # built by release.yml -- and nothing here touches that job or its caches. Run by hand only.
 #
@@ -20,7 +20,7 @@ on:
     inputs:
       ref:
         description: "RetroXR/godot branch, tag or commit to build"
-        default: nvidia-pt-dlss-test
+        default: nvidia-pt-dlss-retroxr
         required: true
       targets:
         description: "What to build"
