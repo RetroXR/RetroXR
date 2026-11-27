@@ -229,6 +229,14 @@ than 0.5 mm/s for half a second. `GbPaperMotion` reads how a thing is moving for
 StaticBody3D round the sheet, is left out of its look at the table: taken for a
 surface, it stood half the print up.
 
+**In the DESKTOP hand a print is a flat, still sheet (2026-11-08).** The mouse hand trails the gaze, so a pinned
+ribbon swung and curled with every step of it and the print could not be looked at, turned (middle drag) or
+sized (Q/E). While a holder in group `desktop_hand` has it (`GbPrintoutFlop._desktop_holds`) the print shows the
+flat sheet exactly as a stuck sticker does (`_was_rigid`), the ribbon paused; on release the paper is laid again
+at the size it ended with, with its roll's curl. A headset's hands keep the hanging, swinging paper.
+`gb_printer_tests --only=desktop_hand` (mutation-tested: the desktop check forced false turns three cases red).
+Headset-side feel and the real mouse hand are OWED.
+
 **Dropped prints (2026-10-25):** the rigid body owns falling and impact response;
 the loose sheet relaxes its bend without a second acceleration impulse from
 the body's collision. Existing penetration is recovered by translating the
