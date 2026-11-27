@@ -12,7 +12,7 @@ const SIZE_MIN := 0.1
 const SIZE_MAX := 2.5
 
 ## Path to the PDF file to display.
-@export_global_file("*.pdf") var pdf_path: String = "":
+@export_global_file("*.pdf", "*.cbz", "*.epub") var pdf_path: String = "":
 	set(value):
 		pdf_path = value
 		if not _loading and is_inside_tree() and not pdf_path.is_empty():
@@ -28,6 +28,24 @@ const SIZE_MAX := 2.5
 		if half_page_mode == value:
 			return
 		half_page_mode = value
+		if not _loading and is_inside_tree() and not pdf_path.is_empty():
+			load_pdf(pdf_path)
+
+## Which way the book reads. RIGHT_TO_LEFT (manga) is the same book turned the
+## other way round: its content runs backwards through the pages and it starts
+## shut on its back, so the spine is on the right, the cover is the content's
+## first page and every spread shows its right page first. Nothing in the page
+## turn is mirrored: a forward read is a turn from the left (turn_page_backward).
+## An odd page count gets a blank back cover, so the content's first page is
+## still the front cover. Shared like half pages, as it changes what is on a page.
+enum ReadingDirection { LEFT_TO_RIGHT, RIGHT_TO_LEFT }
+
+@export var reading_direction: ReadingDirection = ReadingDirection.LEFT_TO_RIGHT:
+	set(value):
+		if reading_direction == value:
+			return
+		reading_direction = value
+		print("[PDFBook] reading direction -> %s" % ("right to left" if value == ReadingDirection.RIGHT_TO_LEFT else "left to right"))
 		if not _loading and is_inside_tree() and not pdf_path.is_empty():
 			load_pdf(pdf_path)
 
@@ -80,11 +98,20 @@ enum PaperFinish { MATTE, SATIN, GLOSS }
 # ── Internal state ────────────────────────────────────────────────────────────
 
 enum BookState { CLOSED, OPEN, LAST_PAGE }
-enum _Format { PDF, CBZ }
+enum _Format { PDF, CBZ, EPUB, REMOTE }
+
+const EPUB_PROVIDER := preload("res://Scripts/Data/epub/epub_page_provider.gd")
+var _epub_provider: Node = null
+## A book read straight off Kavita (kavita://chapter/<id>), pages fetched as turned.
+var _remote: KavitaPages = null
+var _epub_generation := 0
 
 var _state: BookState = BookState.CLOSED
 var _format: _Format = _Format.PDF
 var _page_count: int = 0
+## Pages that hold content. Equal to _page_count but for a right-to-left book of
+## an odd count, whose book page 0 (its back cover) is blank.
+var _content_count: int = 0
 var _leaf_count: int = 0
 
 ## Current spread index. When open, the left page shows leaf[current_leaf].back,
@@ -206,6 +233,9 @@ var _curl_taper: float = CURL_TAPER
 ## radians. The fold rolls a page over FLAT; on its own it cannot lift one, and a
 ## hand pulling a page up or out left the paper lying on the book 10-35 cm away.
 var _leaf_lift: float = 0.0
+## The turning leaf is a hardback's board (a cover, with `hardback` on): it turns on
+## its hinge alone, by a hand, a pointer or a key alike, and never curls as paper.
+var _leaf_rigid := false
 ## How far the gripped spot has been carried toward the far side, 0..1 (0.5 = over
 ## the gutter). What decides whether letting go completes the turn.
 var _grip_travel: float = 0.0
@@ -501,10 +531,43 @@ func load_pdf(path: String) -> void:
 	_loading = false
 
 	var ext := path.get_extension().to_lower()
-	if ext == "cbz":
+	if KavitaPages.is_remote(path):
+		_load_remote(path, _epub_generation)
+	elif ext == "epub":
+		_load_epub(path, _epub_generation)
+	elif ext == "cbz":
 		_load_cbz(path)
 	else:
 		_load_pdf_internal(path)
+
+
+func _load_epub(path: String, generation: int) -> void:
+	_format = _Format.EPUB
+	var provider := EPUB_PROVIDER.new()
+	_epub_provider = provider
+	add_child(provider)
+	net_set_download_status("Preparing book…")
+	var ok: bool = await provider.prepare(path)
+	if generation != _epub_generation or not is_instance_valid(provider):
+		return
+	net_set_download_status("")
+	if not ok:
+		_fail_or_retry(path, "Could not open EPUB")
+		return
+	_page_count = provider.pages.size()
+	# A book of pictures takes its pictures' shape; a book of text keeps the
+	# text page's (the renderer lays text out at 0.65).
+	var aspect: float = provider.picture_aspect()
+	_apply_reading_direction()
+	_page_width = aspect if aspect > 0.0 else 0.65
+	_page_height = 1.0
+	_base_height = _export_height
+	_base_width = _export_height * _page_width
+	if aspect > 0.0:
+		print("[PDFBook] EPUB of pictures: page shape %.3f from its art" % aspect)
+	_start_closed()
+	_apply_dimensions()
+	_consume_pending_page()
 
 
 func _load_pdf_internal(path: String) -> void:
@@ -515,7 +578,9 @@ func _load_pdf_internal(path: String) -> void:
 		_show_load_failure("Manual viewer unavailable")
 		return
 
-	if not _renderer.open(path):
+	# PDFium opens the path itself, so a Godot path (user://, as Kavita's
+	# downloads are) must be made a real one first.
+	if not _renderer.open(ProjectSettings.globalize_path(path)):
 		push_error("[PDFBook] Failed to open PDF: %s" % path)
 		_renderer = null
 		_fail_or_retry(path, "Could not open\n%s" % path.get_file())
@@ -538,7 +603,7 @@ func _load_pdf_internal(path: String) -> void:
 		_page_count *= 2
 		_page_width /= 2.0
 
-	_leaf_count = ceili(_page_count / 2.0)
+	_apply_reading_direction()
 
 	# Size from the ASPECT RATIO only, never from the declared page box.
 	#
@@ -557,13 +622,71 @@ func _load_pdf_internal(path: String) -> void:
 	_cache_dir = "user://pdf_cache/" + pdf_path.md5_text() + ("_half/" if half_page_mode else "/")
 	DirAccess.make_dir_recursive_absolute(_cache_dir)
 
-	_current_leaf = 0
-	_state = BookState.CLOSED
+	_start_closed()
 	_apply_dimensions()
 	_consume_pending_page()
 
 	print("[PDFBook] Loaded PDF: %s (%d pages, %d leaves, %.2f x %.2f m)" % [
 		pdf_path, _page_count, _leaf_count, _book_width, book_height])
+
+
+## A comic or PDF on Kavita, read without downloading it: the page count and
+## shape come from the server, the pages as they are wanted (_request_page_render).
+func _load_remote(path: String, generation: int) -> void:
+	_format = _Format.REMOTE
+	var remote := KavitaPages.new()
+	_remote = remote
+	net_set_download_status("Opening from Kavita" + char(8230))
+	var why: String = await remote.open(self, path)
+	if generation != _epub_generation or _remote != remote:
+		return
+	net_set_download_status("")
+	if not why.is_empty():
+		push_warning("[PDFBook] %s: %s" % [path, why])
+		_show_load_failure(why)
+		return
+	_page_count = remote.page_total
+	_page_width = float(remote.page_size.x)
+	_page_height = float(remote.page_size.y)
+	if half_page_mode:
+		_page_count *= 2
+		_page_width /= 2.0
+	_apply_reading_direction()
+	_base_height = _export_height
+	_base_width = _export_height * (_page_width / maxf(_page_height, 1.0))
+	_cache_dir = "user://pdf_cache/" + path.md5_text() + ("_half/" if half_page_mode else "/")
+	DirAccess.make_dir_recursive_absolute(_cache_dir)
+	_start_closed()
+	_apply_dimensions()
+	_consume_pending_page()
+	print("[PDFBook] Streaming from Kavita: %s (%d pages, %d leaves)" % [path, _page_count, _leaf_count])
+
+
+## One page off Kavita: fetched to a file, decoded and finished on the pool like
+## a CBZ page, and kept in the page cache, so the next time it comes from disk.
+func _fetch_remote_page(page_index: int, content: int, src_index: int, cache_path: String,
+		compress: bool, blocks_path: String, rtl: bool) -> void:
+	var remote := _remote
+	var tmp := "%s.%d.fetch" % [cache_path, randi()]
+	var res: Dictionary = await remote.fetch_page(self, src_index, tmp)
+	if remote != _remote or not is_inside_tree():
+		DirAccess.remove_absolute(tmp)
+		return
+	if not res.ok:
+		DirAccess.remove_absolute(tmp)
+		_pending_renders.erase(page_index)
+		push_warning("[PDFBook] Kavita page %d did not arrive: %s" % [src_index, KavitaClient.describe_error(res)])
+		return
+	_render_tasks.append(WorkerThreadPool.add_task(func():
+		var img := KavitaPages.decode(FileAccess.get_file_as_bytes(tmp))
+		DirAccess.remove_absolute(tmp)
+		img = _crop_to_half(img, content)
+		_fit_page(img)
+		if img and not compress:
+			_save_page_atomically(img, cache_path)
+		var strip := _finish_page(img, content, compress, blocks_path, rtl)
+		call_deferred("_on_page_rendered", page_index, img, strip)
+	))
 
 
 func _load_cbz(path: String) -> void:
@@ -610,7 +733,7 @@ func _load_cbz(path: String) -> void:
 		_page_count *= 2
 		_page_width /= 2.0
 
-	_leaf_count = ceili(_page_count / 2.0)
+	_apply_reading_direction()
 
 	if _page_height > 0:
 		_base_width = _export_height * (_page_width / _page_height)
@@ -621,8 +744,7 @@ func _load_cbz(path: String) -> void:
 	_cache_dir = "user://pdf_cache/" + path.md5_text() + ("_half/" if half_page_mode else "/")
 	DirAccess.make_dir_recursive_absolute(_cache_dir)
 
-	_current_leaf = 0
-	_state = BookState.CLOSED
+	_start_closed()
 	_apply_dimensions()
 	_consume_pending_page()
 
@@ -688,6 +810,40 @@ func _spine_width() -> float:
 
 ## Jump directly to a spread with no turn animation. Safe to call before the
 ## book has loaded — the target page is stashed and applied after load.
+func is_right_to_left() -> bool:
+	return reading_direction == ReadingDirection.RIGHT_TO_LEFT
+
+
+## Once a load knows how many pages there are: the leaves, and a right-to-left
+## book's even count (a blank back cover for an odd one).
+func _apply_reading_direction() -> void:
+	_content_count = _page_count
+	if is_right_to_left() and _page_count % 2 == 1:
+		_page_count += 1
+	_leaf_count = ceili(_page_count / 2.0)
+	if is_right_to_left():
+		print("[PDFBook] right to left: %d content pages on %d book pages" % [_content_count, _page_count])
+
+
+## The content page a book page shows, or -1 for the blank one.
+func _content_index(page_index: int) -> int:
+	if not is_right_to_left():
+		return page_index
+	var c := _page_count - 1 - page_index
+	return c if c >= 0 and c < _content_count else -1
+
+
+## Shut, as a freshly loaded book lies: on its front cover, or a right-to-left
+## book on its back, which is where its cover (the content's first page) is.
+func _start_closed() -> void:
+	if is_right_to_left():
+		_current_leaf = maxi(_leaf_count - 1, 0)
+		_state = BookState.LAST_PAGE
+	else:
+		_current_leaf = 0
+		_state = BookState.CLOSED
+
+
 func set_page(state: int, leaf: int) -> void:
 	if _page_count == 0:
 		_pending_page = {"state": state, "leaf": leaf}
@@ -1081,14 +1237,28 @@ func _request_page_render(page_index: int) -> void:
 	if _pending_renders.has(page_index):
 		return
 	_pending_renders[page_index] = true
+	# The content this book page shows: itself, or counted from the far end in a
+	# right-to-left book. The cache is keyed by CONTENT, so turning a book round
+	# renders nothing again.
+	var content := _content_index(page_index)
+	if content < 0:
+		# The blank back cover of an odd right-to-left book: plain paper.
+		call_deferred("_on_page_rendered", page_index, _blank_page(), null)
+		return
+	if _format == _Format.EPUB:
+		_render_epub_page(page_index, content, _epub_generation, _epub_provider)
+		return
 
 	@warning_ignore("integer_division")
-	var src_index := page_index / 2 if half_page_mode else page_index
+	var src_index := content / 2 if half_page_mode else content
 	# Captured for the worker lambda so it never reaches back through `self`.
 	var cache_dir := _cache_dir
-	var cache_path := cache_dir + "page_%03d.png" % page_index
-	var blocks_path := cache_dir + "page_%03d.etc2" % page_index
+	var cache_path := cache_dir + "page_%03d.png" % content
+	var blocks_path := cache_dir + "page_%03d.etc2" % content
 	var compress := compress_pages
+	# The cover's bound edge, which the spine strip is taken from: its right in a
+	# right-to-left book, where the cover is the back board.
+	var rtl := is_right_to_left()
 
 	# Compressed on an earlier run (mobile GPUs only): a read and an upload,
 	# with no decode at all.
@@ -1100,11 +1270,11 @@ func _request_page_render(page_index: int) -> void:
 				# Damaged, or another version's format: drop it, and the page is
 				# rendered again the next time it is asked for.
 				DirAccess.remove_absolute(blocks_path)
-			elif page_index == 0:
+			elif content == 0:
 				var plain := img.duplicate() as Image
 				plain.clear_mipmaps()
 				plain.decompress()
-				strip = _spine_strip_from(plain)
+				strip = _spine_strip_from(plain, rtl)
 			call_deferred("_on_page_rendered", page_index, img, strip)
 		))
 		return
@@ -1120,19 +1290,26 @@ func _request_page_render(page_index: int) -> void:
 			# compressed, the blocks file written below supersedes it instead.
 			if _fit_page(img) and not compress:
 				_save_page_atomically(img, cache_path)
-			var strip := _finish_page(img, page_index, compress, blocks_path)
+			var strip := _finish_page(img, content, compress, blocks_path, rtl)
 			call_deferred("_on_page_rendered", page_index, img, strip)
 		))
+		return
+
+	if _format == _Format.REMOTE:
+		if _remote == null:
+			_pending_renders.erase(page_index)
+			return
+		_fetch_remote_page(page_index, content, src_index, cache_path, compress, blocks_path, rtl)
 		return
 
 	if _format == _Format.CBZ:
 		_render_tasks.append(WorkerThreadPool.add_task(func():
 			var img := _decode_cbz_page(src_index)
-			img = _crop_to_half(img, page_index)
+			img = _crop_to_half(img, content)
 			_fit_page(img)
 			if img and not compress:
 				img.save_png(cache_path)
-			var strip := _finish_page(img, page_index, compress, blocks_path)
+			var strip := _finish_page(img, content, compress, blocks_path, rtl)
 			call_deferred("_on_page_rendered", page_index, img, strip)
 		))
 		return
@@ -1151,12 +1328,34 @@ func _request_page_render(page_index: int) -> void:
 			img = renderer_ref.render_page(src_index,
 				_fit_dpi(renderer_ref.get_page_size(src_index), dpi, half))
 		_render_mutex.unlock()
-		img = _crop_to_half(img, page_index)
+		img = _crop_to_half(img, content)
 		if img and not compress:
 			img.save_png(cache_path)
-		var strip := _finish_page(img, page_index, compress, blocks_path)
+		var strip := _finish_page(img, content, compress, blocks_path, rtl)
 		call_deferred("_on_page_rendered", page_index, img, strip)
 	))
+
+
+func _render_epub_page(page_index: int, content: int, generation: int, provider: Node) -> void:
+	if not is_instance_valid(provider):
+		_pending_renders.erase(page_index)
+		return
+	var img: Image = await provider.render(content)
+	if generation != _epub_generation:
+		return
+	_fit_page(img)
+	var strip := _spine_strip_from(img, is_right_to_left()) if content == 0 and compress_pages else null
+	_on_page_rendered(page_index, img, strip)
+
+
+## Plain paper at the page's shape, for the blank back cover of an odd
+## right-to-left book.
+func _blank_page() -> Image:
+	var w := 256
+	var h := clampi(roundi(w * _page_height / maxf(_page_width, 1e-3)), 16, 1024)
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0.95, 0.94, 0.9))
+	return img
 
 
 ## Longest side, in pixels, of one page's texture. render_dpi is right for an
@@ -1234,10 +1433,11 @@ const _BLOCKS_VERSION := 1
 ## Worker side, once a page image is final: compress it for a mobile GPU and
 ## cache the blocks. Returns the cover's spine strip (page 0), taken first,
 ## because a compressed image cannot be read pixel by pixel.
-static func _finish_page(img: Image, page_index: int, compress: bool, blocks_path: String) -> Image:
+static func _finish_page(img: Image, page_index: int, compress: bool, blocks_path: String,
+		rtl := false) -> Image:
 	if not compress or img == null or img.is_empty():
 		return null
-	var strip := _spine_strip_from(img) if page_index == 0 else null
+	var strip := _spine_strip_from(img, rtl) if page_index == 0 else null
 	# Pages are opaque, and ETC2 RGB is half the size of ETC2 RGBA.
 	img.convert(Image.FORMAT_RGB8)
 	img.generate_mipmaps()
@@ -2012,7 +2212,8 @@ func _update_cover_texture() -> void:
 	# book that hangs, fans and is turned over shows its covers from angles a
 	# rigid one never did.
 	_apply_back_texture(_cover_mesh, _get_page_texture(1))
-	_update_spine_strip(tex)
+	if not is_right_to_left():
+		_update_spine_strip(tex)
 
 
 ## Wrap the cover around the binding. Sampling the cover texture directly in the
@@ -2027,7 +2228,7 @@ func _update_spine_strip(tex: Texture2D) -> void:
 		return
 	# A compressed cover cannot be read per pixel; its worker took the strip
 	# before compressing it.
-	var strip := _cover_strip_image if compress_pages else _spine_strip_from(tex.get_image())
+	var strip := _cover_strip_image if compress_pages else _spine_strip_from(tex.get_image(), is_right_to_left())
 	if strip == null:
 		return
 	_spine_strip = ImageTexture.create_from_image(strip)
@@ -2036,7 +2237,7 @@ func _update_spine_strip(tex: Texture2D) -> void:
 
 
 ## The cover's inner edge, a band of columns averaged into a 1-pixel strip.
-static func _spine_strip_from(src: Image) -> Image:
+static func _spine_strip_from(src: Image, right_edge := false) -> Image:
 	if src == null or src.get_width() == 0:
 		return null
 	var rows := mini(src.get_height(), 256)
@@ -2048,7 +2249,7 @@ static func _spine_strip_from(src: Image) -> Image:
 		var sy := y * src.get_height() / rows
 		var acc := Color(0.0, 0.0, 0.0)
 		for x in band:
-			acc += src.get_pixel(x, sy)
+			acc += src.get_pixel(src.get_width() - 1 - x if right_edge else x, sy)
 		strip.set_pixel(0, y, acc / float(band))
 	return strip
 
@@ -2057,6 +2258,9 @@ func _update_back_cover_texture() -> void:
 	var tex := _get_page_texture(_page_count - 1)
 	_apply_texture(_back_cover_mesh, tex)
 	_apply_back_texture(_back_cover_mesh, _get_page_texture(_page_count - 2))
+	# A right-to-left book's cover is this board.
+	if is_right_to_left():
+		_update_spine_strip(tex)
 
 
 func _update_spread_textures() -> void:
@@ -2445,6 +2649,10 @@ func _spawn_leaf(dir: int) -> bool:
 	_leaf_under = plan.get("under") as MeshInstance3D
 	_leaf_under_page = int(plan["under_page"])
 	_leaf_own_peel = own_peel
+	# A cover is the leaf that takes a cover mesh with it (_leaf_plan's "hide").
+	_leaf_rigid = hardback and plan.get("hide") != null
+	if _leaf_rigid:
+		print("[PDFBook] hardback cover turning %s on its hinge" % ("forward" if dir > 0 else "back"))
 	_flop.set_turn_peel(dir, own_peel)
 	if own_peel > FAN_SHOW:
 		print("[PDFBook] page taken off the %s fan %.1f deg up; it turns from there"
@@ -2574,6 +2782,7 @@ func _despawn_active_leaf() -> void:
 	_flop.set_turn_peel(1, 0.0)
 	_flop.set_turn_peel(-1, 0.0)
 	_leaf_own_peel = 0.0
+	_leaf_rigid = false
 
 
 ## Push the current fold into the leaf's material.
@@ -2799,6 +3008,9 @@ func _fold_for(hand: Vector3) -> Array:
 func _update_fold_from_hand(world_pos: Vector3) -> void:
 	if _active_leaf == null or _grab_dir == 0:
 		return
+	if _leaf_rigid:
+		_turn_board(world_pos)
+		return
 	_leaf_lift = _solve_leaf_lift(world_pos)
 	var hand: Vector3 = _leaf_local(world_pos, _leaf_lift)
 	var dir := float(_grab_dir)
@@ -2837,6 +3049,23 @@ func _update_fold_from_hand(world_pos: Vector3) -> void:
 	_push_fold(1.0)
 
 
+## A hardback's cover follows the hand on its hinge alone: the board points at the
+## hand about the gutter, on the flat book as _solve_leaf_lift measures it, and
+## never curls. A hand, a desktop pointer and a key turn all come through here or
+## through _settle_leaf, which carries a board over on its hinge too.
+func _turn_board(world_pos: Vector3) -> void:
+	var dir := float(_grab_dir)
+	var flat := _flop.unbend_over(to_local(world_pos), _turn_direction)
+	var across := dir * flat.x
+	var up := flat.z - _active_leaf.position.z
+	_hand_across = across
+	_leaf_lift = clampf(wrapf(atan2(up, across), -PI * 0.5, PI * 1.5), 0.0, PI)
+	_grip_travel = _leaf_lift / PI
+	_fold_origin = Vector2(dir * (_book_width * 0.5 + 0.01), 0.0)
+	_fold_normal = Vector2(dir, 0.0)
+	_push_fold(0.0)
+
+
 ## How far through the turn the fold line has travelled, 0 (untouched) to 1
 ## (laid flat on the far side).
 func _turn_progress() -> float:
@@ -2862,7 +3091,8 @@ func _settle_leaf(commit: bool, duration: float = LEAF_SETTLE_TIME,
 	# the crease closes almost flat.
 	var to_z := _active_leaf.position.z
 	var to_lift := 0.0
-	if commit and _leaf_lift > SETTLE_FALLS_OVER_ABOVE:
+	# A hardback's cover is a board: it only ever swings over on its hinge.
+	if commit and (_leaf_lift > SETTLE_FALLS_OVER_ABOVE or _leaf_rigid):
 		# Held up and let go past halfway: it FALLS OVER. A page carrying the turn
 		# on its hinge finishes on its hinge — the lift carries on round to PI and
 		# the curl eases out flat — rather than being handed to the roll.
@@ -4111,6 +4341,11 @@ func _rebuild_highlight_overlays() -> void:
 
 
 func _cleanup() -> void:
+	_epub_generation += 1
+	_remote = null
+	if is_instance_valid(_epub_provider):
+		_epub_provider.queue_free()
+	_epub_provider = null
 	_render_mutex.lock()
 	if _renderer and _renderer.is_open():
 		_renderer.close()

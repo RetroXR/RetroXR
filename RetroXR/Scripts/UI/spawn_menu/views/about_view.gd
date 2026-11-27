@@ -31,6 +31,7 @@ const SECTIONS: Array = [
 		["Noto Color Emoji (region flags)", "Google", "OFL 1.1"],
 		["Michroma (RETRO XR appliance lettering and displays)", "The Michroma Project Authors", "OFL 1.1"],
 		["RomM",             "RomM contributors", "AGPL v3"],
+		["Kavita (logo)",    "Kavita contributors", "GPL v3"],
 		["buram (Sega CD backup RAM)", "Ian Karlsson", "MIT"],
 	], "libretro-godot began as a fork of SK.Libretro.Godot by SKurdt (MIT)."],
 

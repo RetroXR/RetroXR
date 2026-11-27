@@ -51,6 +51,7 @@ func _ensure_ui_connected() -> void:
 	ui.size_changed.connect(_on_size_changed)
 	ui.size_committed.connect(_on_size_committed)
 	ui.hardback_toggled.connect(_on_hardback_toggled)
+	ui.direction_changed.connect(_on_direction_changed)
 	ui.close_requested.connect(hide_panel)
 	_ui_connected = true
 
@@ -62,7 +63,7 @@ func _populate() -> void:
 	if not ui:
 		call_deferred("_populate")
 		return
-	ui.populate(_book.half_page_mode, _book.size_scale, _book.hardback)
+	ui.populate(_book.half_page_mode, _book.size_scale, _book.hardback, _book.reading_direction)
 	_show_size()
 
 
@@ -81,6 +82,14 @@ func _on_half_page_toggled(enabled: bool) -> void:
 		_book.half_page_mode = enabled
 		NetworkManager.report_event(NetEvents.Event.EV_BOOK_HALF,
 			{"book": _book, "on": enabled})
+
+
+## Shared, as half pages are: it changes which page is where.
+func _on_direction_changed(direction: int) -> void:
+	if _book and is_instance_valid(_book):
+		_book.reading_direction = direction as PDFBook.ReadingDirection
+		NetworkManager.report_event(NetEvents.Event.EV_BOOK_DIRECTION,
+			{"book": _book, "direction": direction})
 
 
 ## Not replicated, unlike the two above: how a book hangs is cosmetic and each

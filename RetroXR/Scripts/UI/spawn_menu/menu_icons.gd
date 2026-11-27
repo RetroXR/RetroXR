@@ -15,6 +15,7 @@ const FONT_PATH := "res://fonts/SymbolsNerdFont-Regular.ttf"
 ## power_socket frame by Tools/art/gen_socket_glyphs.py.
 const SOCKETS_FONT_PATH := "res://fonts/RetroXR-Sockets.ttf"
 const ROMM_MARK_PATH := "res://Textures/RomM/romm_logo.svg"
+const KAVITA_MARK_PATH := "res://Textures/Kavita/kavita_logo.svg"
 ## A subset of Noto Color Emoji holding only the flags below. No platform font
 ## can be trusted for them: Windows' emoji font has no flags at all.
 const FLAGS_FONT_PATH := "res://fonts/NotoColorEmoji-Flags.ttf"
@@ -153,6 +154,7 @@ static var _font: FontVariation = null
 static var _wrapped: Dictionary = {}
 static var _case_icons := {}
 static var _romm_mark: Texture2D = null
+static var _kavita_mark: Texture2D = null
 static var _flags_font: FontFile = null
 static var _disc_re: RegEx = null
 
@@ -271,6 +273,13 @@ static func romm_mark() -> Texture2D:
 	if _romm_mark == null and ResourceLoader.exists(ROMM_MARK_PATH):
 		_romm_mark = load(ROMM_MARK_PATH)
 	return _romm_mark
+
+
+## Kavita's logo, marking its library on the Books tab and its OPTIONS tab.
+static func kavita_mark() -> Texture2D:
+	if _kavita_mark == null and ResourceLoader.exists(KAVITA_MARK_PATH):
+		_kavita_mark = load(KAVITA_MARK_PATH)
+	return _kavita_mark
 
 
 ## The "Recommended" badge shown against a system's suggested core.

@@ -253,6 +253,7 @@ func _connect_menu_signals() -> void:
 	spawn_menu.close_requested.connect(_hide_menu)
 	spawn_menu.spawn_cartridge_requested.connect(_on_spawn_cartridge_requested)
 	spawn_menu.spawn_view().spawn_manual_requested.connect(_on_spawn_manual_requested)
+	spawn_menu.spawn_view().spawn_kavita_book_requested.connect(_on_spawn_manual_requested)
 	spawn_menu.spawn_view().spawn_key_requested.connect(_on_spawn_key_requested)
 	spawn_menu.spawn_view().spawn_case_requested.connect(_on_spawn_case_requested)
 	spawn_menu.spawn_view().spawn_poster_requested.connect(_on_spawn_poster_requested)
@@ -1671,8 +1672,12 @@ func _on_spawn_case_requested(rom_path: String, game_label: String, systemid: St
 		c.spawn_contents_over_frames(discs)
 
 
-func _on_spawn_manual_requested(pdf_path: String) -> void:
+func _on_spawn_manual_requested(pdf_path: String, right_to_left := false) -> void:
 	var book := BOOK_SCENE.instantiate() as PDFBook
+	# Set before the path, so the first load is already the right way round.
+	if right_to_left:
+		book.reading_direction = PDFBook.ReadingDirection.RIGHT_TO_LEFT
+		print("[SpawnMenu] book from a Manga library, right to left: %s" % pdf_path.get_file())
 	book.pdf_path = pdf_path
 	_place_spawned(book, "book")
 

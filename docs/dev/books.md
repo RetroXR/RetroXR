@@ -235,9 +235,25 @@ edge and 355 mm from one pulling up and away, lying on the book throughout. Now 
   godot-xr-tools). `_grip_point`, the flag and the two-grip support are tested; the feel of
   the two-handed pose is a headset check.
 
+### Reading direction (2026-11-25)
+
+`PDFBook.reading_direction` is `LEFT_TO_RIGHT` by default and `RIGHT_TO_LEFT` for manga. The
+player sets it with a dropdown in Book Settings. It is saved as `"right_to_left"` and sent over
+netplay as `EV_BOOK_DIRECTION`, because it changes which page is where, as half pages do.
+
+The page turn is not mirrored. The book keeps its geometry, and `_content_index(p)` counts
+content from the far end. A right-to-left book starts shut in `LAST_PAGE` (`_start_closed`),
+resting on its back board, so the spine is on the right and the cover is content page 0.
+Reading forward calls `turn_page_backward`, and a spread shows content 1 on the right and
+content 2 on the left. With an odd content count, the book adds one blank page as its back
+cover (`_content_count` < `_page_count`, `_blank_page`). The page cache is keyed by CONTENT
+index, so switching the direction renders no page again. The spine strip comes from the
+cover's RIGHT edge (`_spine_strip_from(src, right_edge)`), and the back board updates it.
+`book_tests` `rtl/` covers it.
+
 ### Hardback
 
-`PDFBook.hardback` (export, **default off**, the "Hardback (stiff covers)" row of the book's
+`PDFBook.hardback` (export, **default off**, the "Hardcover" row of the book's
 options panel, saved as `"hardback"` in the room; **not** sent over netplay — cosmetic and
 each player's own, unlike size and half-page mode, which change the shared layout).
 `BookFlop.hardback`: the boards do not bend (`bend` is *zeroed*, not stiffened — a spring
@@ -246,6 +262,14 @@ the bend that is already there), and the joint stops them at `HARDBACK_ANGLE_MIN
 hardback held level by the spine lies open instead of drooping. They still swing toward shut
 when the book is turned over, and the pages inside still fan: they are paper. Shut, a
 hardback is rigid.
+
+**A hardback's cover also turns as a rigid board** (2026-11-25). Before that, only the flop
+knew about hardback, so a mouse or key turn rolled the cover over like paper. `_spawn_leaf`
+sets `_leaf_rigid` for a cover leaf (the plan's `"hide"`) on a hardback. A hand or pointer
+drag goes through `_turn_board`, which points the lift at the hand about the gutter and keeps
+the fold line off the fore edge, so the cover does not curl. `_settle_leaf` always carries a
+board over on its hinge (the falls-over path), which also handles a key or click turn
+(`_play_turn`). `book_tests` `hardback/` checks it, with hardback off as the control.
 
 ### The fan
 

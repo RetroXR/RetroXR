@@ -27,11 +27,41 @@ Quest, upload through the app's Web File Manager.
 | `dvd/` | a `VIDEO_TS/` folder, `.iso` or `.img` |
 | `videos/` | `.mp4` `.mkv` `.avi` `.webm` `.mov`; an `.m3u` is one tape of several |
 | `music/` | an album is a folder of tracks; a `#SIDE B` line in its `.m3u` splits a tape or LP |
-| `books/` | `.pdf` and `.cbz` |
+| `books/` | `.pdf`, `.cbz` (a ZIP of page images), and `.epub` |
 | `tv/` | `.m3u` IPTV playlists |
 
 Everything spawns from the **Tab** menu. Cores, defaults, core options and BIOS files are
 under **CORES**.
+
+EPUB support is experimental. The reader handles common text formatting, and a chapter made
+only of pictures (a graphic novel or comic) gets one page per picture. When an EPUB is mostly
+pictures, its pages use the pictures' width-to-height ratio. Complex CSS and pictures placed
+inside text are not supported.
+
+To read from a **Kavita** server:
+
+1. Open **OPTIONS > Kavita** (beside RomM) and switch it on.
+2. Enter the server URL and an **Auth Key** from Kavita's Preferences > Clients. You can
+   paste the OPDS URL from that page instead, which ends in the key and fills in both fields.
+3. Open the **Books** tab. Your Kavita libraries are at the bottom, with a search box that
+   covers every library. Pick a library, then a series.
+
+Press a comic's or a PDF's title to read it from the server page by page, without downloading
+it first. Press its download button to keep a copy on the device. EPUBs are always downloaded,
+and a CBR, CB7 or CBT comic is saved as a CBZ built from the page images Kavita serves.
+Downloads stay under the storage limit set on the Kavita tab (5 GB by default). Past that limit,
+RetroXR deletes the least recently used books first and keeps any book that is open in the
+room.
+
+A book's reading direction comes from Kavita: the reading profile set for its series or
+library, or right to left for a library of the Manga type. The Kavita account needs download
+permission. RetroXR never asks for your password. It saves the server URL and key in
+`kavita_config.json` beside `romm_config.json`, and you can revoke the key from Kavita. Use
+an HTTPS URL to encrypt the connection. Reading progress is saved on the device only.
+
+A book's **Book Settings** panel has a **Reading direction** option. Right to left is meant
+for manga: the book opens from the other side, and each spread shows its right page first. A
+book from a Kavita library of the Manga type starts out right to left.
 
 ## Forked cores
 

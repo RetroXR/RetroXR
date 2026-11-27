@@ -195,6 +195,7 @@ func _build() -> void:
 	if OS.get_name() == "Android":
 		_build_file_server_options(_page("File Server"))
 	_build_romm_options(_page("RomM", MenuIcons.romm_mark()))
+	_build_kavita_options(_page("Kavita", MenuIcons.kavita_mark()))
 	_build_scraper_options(_page("Scraper"))
 	_build_retroachievements_options(_page("RetroAchievements"))
 	_build_debug_options(_page("Debug"))
@@ -1693,6 +1694,91 @@ func _save_romm_config() -> void:
 	# read at boot, so a server set up during the session would leave the States
 	# tab reporting "on this device" for every row until the app restarted.
 	StateSync.setup(romm_config)
+
+
+## The Kavita server the Books tab browses, signed in with an Auth Key (Kavita's
+## Preferences > Clients), never a password. Pasting the OPDS URL from that page
+## into either field fills in both.
+func _build_kavita_options(vbox: VBoxContainer) -> void:
+	vbox.add_child(MenuStyle.spacer(10))
+	var cfg := KavitaConfig.new()
+	cfg.load_config()
+
+	MenuStyle.menu_switch_row(vbox, "Enable Kavita library", cfg.enabled,
+			"Browse and download books from Kavita on the Books tab") \
+		.toggled.connect(func(on: bool) -> void:
+			cfg.enabled = on
+			cfg.save_config()
+			print("[Kavita] enabled -> %s" % on))
+
+	# Lambdas capture locals by VALUE when made, so the two fields go in a
+	# dictionary the handlers share, filled in once both exist.
+	var ui := {}
+	var note := MenuStyle.label("", 15, MenuStyle.COLOR_BTN_UPD)
+	var refresh_note := func() -> void:
+		note.visible = not cfg.is_encrypted()
+		note.text = "! Unencrypted (http). Your Auth Key is sent in the clear."
+	# A pasted OPDS URL holds the server AND the key: fill both, whichever field
+	# it went into.
+	var take_opds := func(text: String) -> bool:
+		if not cfg.apply_opds_url(text):
+			return false
+		(ui.url as LineEdit).text = cfg.base_url
+		(ui.key as LineEdit).text = cfg.auth_key
+		cfg.save_config()
+		refresh_note.call()
+		notify("kavita:conn", "🔑", "Server and Auth Key read from the OPDS URL", -1.0, MenuToasts.DWELL_OK)
+		return true
+
+	ui.url = _add_options_text_field(vbox, "Server or OPDS URL", cfg.base_url,
+		func(text: String) -> void:
+			if take_opds.call(text):
+				return
+			cfg.base_url = KavitaConfig.normalize_url(text)
+			(ui.url as LineEdit).text = cfg.base_url
+			cfg.save_config()
+			refresh_note.call())
+	vbox.add_child(note)
+	refresh_note.call()
+
+	ui.key = _add_options_text_field(vbox, "Auth Key", cfg.auth_key,
+		func(text: String) -> void:
+			if take_opds.call(text):
+				return
+			cfg.auth_key = text.strip_edges()
+			cfg.save_config()
+	, true)
+
+	vbox.add_child(MenuStyle.hint("In Kavita: Preferences > Clients. Copy an Auth Key, or the "
+		+ "OPDS URL (it ends in the key). The account needs download permission."))
+
+	# Downloaded books past this go, least recently used first (KavitaCache).
+	var usage := MenuStyle.label("", 15, MenuStyle.COLOR_DESC)
+	var show_usage := func() -> void:
+		usage.text = "Downloaded books use %s of %s" % [ByteSize.human(KavitaCache.usage_bytes()),
+			ByteSize.human(cfg.cache_budget_bytes())]
+	_add_options_text_field(vbox, "Download budget (GB)", str(cfg.cache_budget_gb),
+		func(text: String) -> void:
+			var v := text.strip_edges().to_float()
+			if v > 0.0:
+				cfg.cache_budget_gb = v
+				cfg.save_config()
+				KavitaCache.evict(KavitaCache.dir_for(cfg), cfg.cache_budget_bytes(), KavitaBrowser.open_book_paths(self))
+				show_usage.call())
+	vbox.add_child(usage)
+	show_usage.call()
+
+	var test_btn := Button.new()
+	test_btn.text = "  Test connection  "
+	test_btn.custom_minimum_size = Vector2(0, 56)
+	test_btn.add_theme_font_size_override("font_size", 18)
+	test_btn.pressed.connect(func() -> void:
+		notify("kavita:conn", "⏳", "Contacting Kavita…", -1.0)
+		var res: Dictionary = await KavitaClient.test_connection(self, cfg)
+		print("[Kavita] test connection: %s" % res.summary)
+		notify("kavita:conn", "✅" if res.ok else "❌", str(res.summary), -1.0,
+			MenuToasts.DWELL_OK if res.ok else MenuToasts.DWELL_FAIL))
+	vbox.add_child(test_btn)
 
 
 ## RomM server connection and sync settings. The sub-tab carries the name and
