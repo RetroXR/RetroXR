@@ -1057,6 +1057,7 @@ const EV_NODE_KEYS := {
 	NetEvents.Event.EV_BOOK_PAGE:       ["book"],
 	NetEvents.Event.EV_BOOK_SIZE:       ["book"],
 	NetEvents.Event.EV_BOOK_HALF:       ["book"],
+	NetEvents.Event.EV_BOOK_DIRECTION:  ["book"],
 	NetEvents.Event.EV_MEMCARD_INSERT:  ["sys", "card"],
 	NetEvents.Event.EV_MEMCARD_REMOVE:  ["sys"],
 	NetEvents.Event.EV_TRAY:            ["sys"],
@@ -1291,6 +1292,8 @@ func _dispatch_event(kind: NetEvents.Event, args: Dictionary) -> void:
 			args["book"].set("size_scale", float(args.get("scale", 1.0)))
 		NetEvents.Event.EV_BOOK_HALF:
 			args["book"].set("half_page_mode", bool(args.get("on", false)))
+		NetEvents.Event.EV_BOOK_DIRECTION:
+			args["book"].set("reading_direction", clampi(int(args.get("direction", 0)), 0, 1))
 		NetEvents.Event.EV_MEMCARD_INSERT:
 			args["sys"].restore_memory_card(args["card"], _memcard_slot_of(args))
 		NetEvents.Event.EV_MEMCARD_REMOVE:

@@ -78,4 +78,5 @@ enum Event {
 	EV_MAINS_CORD_UNPLUG, # {obj}            ...and pulled out
 	EV_MAINS_CORD_HIDDEN, # {obj, hidden}    Show Power Cord
 	EV_DOOR,             # {door, deg, latched}  a room's VRDoor swung, latched or let go
+	EV_BOOK_DIRECTION,   # {book, direction}  reading direction (PDFBook.ReadingDirection)
 }

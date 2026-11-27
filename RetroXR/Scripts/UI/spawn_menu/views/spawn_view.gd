@@ -23,6 +23,8 @@ signal spawn_requested(type: String)
 signal spawn_cartridge_requested(rom_path: String, game_label: String, systemid: String,
 		options: Dictionary)
 signal spawn_manual_requested(pdf_path: String)
+## A book from Kavita, and whether its library reads right to left (Manga).
+signal spawn_kavita_book_requested(pdf_path: String, right_to_left: bool)
 ## A NAOMI GD-ROM game's key chip, for the game at `rom_path` (its row's chip button: the game itself spawns as its
 ## disc, and a hand holds one thing at a time).
 signal spawn_key_requested(rom_path: String)
@@ -184,6 +186,7 @@ var _controllers_vbox: VBoxContainer = null
 var _power_vbox: VBoxContainer
 var _objects_vbox: VBoxContainer
 var _books_vbox: VBoxContainer = null
+var _kavita_browser: KavitaBrowser = null
 ## The TVs tab's rows. Kept so a mod applied mid-session can add its cabinets.
 var _tvs_vbox: VBoxContainer = null
 var _videos_vbox: VBoxContainer = null
@@ -2660,15 +2663,17 @@ static func _disconnect_all(sig: Signal) -> void:
 func _populate_books_tab() -> void:
 	if not _books_vbox:
 		return
+	# Kept across rebuilds, so a Kavita download carries on while the tab repopulates.
+	if is_instance_valid(_kavita_browser) and _kavita_browser.get_parent() == _books_vbox:
+		_books_vbox.remove_child(_kavita_browser)
 	_clear_vbox(_books_vbox)
 	var books := RomLibrary.scan_books()
 	if books.is_empty():
 		var hint := Label.new()
-		hint.text = "No PDFs found in books folder."
+		hint.text = "No books found in the books folder."
 		hint.add_theme_color_override("font_color", MenuStyle.COLOR_DESC)
 		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_books_vbox.add_child(hint)
-		return
 	for book: Dictionary in books:
 		var btn := Button.new()
 		btn.text = "  📖  " + book["label"]
@@ -2677,6 +2682,15 @@ func _populate_books_tab() -> void:
 		btn.pressed.connect(spawn_manual_requested.emit.bind(book["path"]))
 		_books_vbox.add_child(btn)
 	_books_vbox.add_child(MenuStyle.spacer(8))
+	# Kavita's libraries under the books on this device, hidden while it is not set up.
+	if not is_instance_valid(_kavita_browser):
+		_kavita_browser = KavitaBrowser.new()
+		_kavita_browser.notifier = notify
+		_kavita_browser.book_selected.connect(spawn_kavita_book_requested.emit)
+		_books_vbox.add_child(_kavita_browser)
+	else:
+		_books_vbox.add_child(_kavita_browser)
+		_kavita_browser.refresh()
 
 
 func _populate_videos_tab() -> void:

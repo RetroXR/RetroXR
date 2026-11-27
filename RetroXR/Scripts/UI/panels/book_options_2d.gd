@@ -7,6 +7,7 @@
 ##   size_changed(scale)        — size slider moved (fires live while dragging)
 ##   size_committed(scale)      — size slider drag finished (for net replication)
 ##   hardback_toggled(enabled)  — user toggled hardback physics (stiff boards)
+##   direction_changed(dir)     — reading direction picked (PDFBook.ReadingDirection)
 ##   close_requested            — user pressed ✕
 class_name BookOptions2D
 extends Control
@@ -15,6 +16,7 @@ signal half_page_toggled(enabled: bool)
 signal size_changed(scale: float)
 signal size_committed(scale: float)
 signal hardback_toggled(enabled: bool)
+signal direction_changed(direction: int)
 signal close_requested
 
 # ── Palette (matches CoreOptions2D) ─────────────────────────────────────────────
@@ -24,6 +26,7 @@ const COLOR_ROW   := Color(0.65, 0.65, 0.80)
 
 var _half_check: VRCheck = null
 var _hardback_check: VRCheck = null
+var _direction_drop: VRDropdown = null
 var _size_slider: HSlider = null
 var _size_val: Label = null
 var _active_scroll: ScrollContainer = null
@@ -89,7 +92,7 @@ func _build_ui() -> void:
 	rows.add_child(hard_row)
 
 	var hard_label := Label.new()
-	hard_label.text = "Hardback (stiff covers)"
+	hard_label.text = "Hardcover"
 	hard_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hard_label.add_theme_font_size_override("font_size", 18)
 	hard_label.add_theme_color_override("font_color", COLOR_ROW)
@@ -102,6 +105,17 @@ func _build_ui() -> void:
 		hardback_toggled.emit(pressed)
 	)
 	hard_row.add_child(_hardback_check)
+
+	# Reading direction: right to left is for manga. VRDropdown, never
+	# OptionButton (a Viewport2Din3D click fires twice).
+	_direction_drop = VRDropdown.create("Reading direction",
+		[["Left to right", PDFBook.ReadingDirection.LEFT_TO_RIGHT],
+		 ["Right to left (manga)", PDFBook.ReadingDirection.RIGHT_TO_LEFT]],
+		PDFBook.ReadingDirection.LEFT_TO_RIGHT, 1, Vector2(260, 52), 18)
+	_direction_drop.item_selected.connect(func(id: Variant) -> void:
+		if not _suppress_signal:
+			direction_changed.emit(int(id)))
+	rows.add_child(_direction_drop)
 
 	# Size slider row: [label + value] then a full-width slider under it. The
 	# value reads the factor and, once the book says (show_size), a page in cm.
@@ -128,8 +142,11 @@ func _build_ui() -> void:
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 ## Sync the UI to the book's current state without re-emitting signals.
-func populate(half_pages: bool, size_scale := 1.0, hardback := false) -> void:
+func populate(half_pages: bool, size_scale := 1.0, hardback := false,
+		direction := PDFBook.ReadingDirection.LEFT_TO_RIGHT) -> void:
 	_suppress_signal = true
+	if _direction_drop:
+		_direction_drop.select_id(direction)
 	if _half_check:
 		_half_check.button_pressed = half_pages
 	if _hardback_check:

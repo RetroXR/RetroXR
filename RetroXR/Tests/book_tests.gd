@@ -30,8 +30,104 @@ func _ready() -> void:
 	await _test_an_oversized_page_is_capped()
 	await _test_pages_are_etc2_on_a_mobile_gpu()
 	_test_saved_manual_follows_its_folder()
+	await _test_right_to_left()
+	await _test_hardback_cover_turns_on_its_hinge()
 
 	_finish()
+
+
+## Manga: content runs backwards through the pages, the book starts shut on its
+## back (spine on the right, the cover being content page 0), a spread reads its
+## right page first, and an odd count gets a blank back cover.
+func _test_right_to_left() -> void:
+	_write_cbz(CBZ_PATH, 5)
+	var cbz := ProjectSettings.globalize_path(CBZ_PATH)
+	var book := BOOK_SCENE.instantiate() as PDFBook
+	book.freeze = true
+	book.reading_direction = PDFBook.ReadingDirection.RIGHT_TO_LEFT
+	book.pdf_path = cbz
+	add_child(book)
+	await _settle()
+	await _drain_renders(book)
+	_eq(book.net_get_page()["state"], PDFBook.BookState.LAST_PAGE, "rtl/starts shut on its back board")
+	_ok(book._page_count == 6 and book._content_count == 5, "rtl/five pages get a sixth, blank",
+		"%d book pages, %d content" % [book._page_count, book._content_count])
+	_eq(book._content_index(5), 0, "rtl/the back board is the content's cover")
+	_eq(book._content_index(0), -1, "rtl/the front board is the blank")
+	_ok(absf(_page_shade(book, 5)) < 0.05, "rtl/the cover board shows content page 0", "red %.2f" % _page_shade(book, 5))
+	book.turn_page_backward()
+	await _settle()
+	await _drain_renders(book)
+	# First spread: book pages 3 (left) and 4 (right) are content 2 and 1.
+	_eq([book._content_index(4), book._content_index(3)], [1, 2], "rtl/a spread reads its right page first")
+	_ok(absf(_page_shade(book, 4) - 0.2) < 0.05 and absf(_page_shade(book, 3) - 0.4) < 0.05,
+		"rtl/and shows those pages", "right %.2f left %.2f" % [_page_shade(book, 4), _page_shade(book, 3)])
+	book.queue_free()
+	await _settle()
+	_remove_tree("user://pdf_cache/" + cbz.md5_text())
+	DirAccess.remove_absolute(cbz)
+
+
+## Red of a page's texture, which _write_cbz sets to 0.2 x the content index.
+func _page_shade(book: PDFBook, page_index: int) -> float:
+	var tex := book._get_page_texture(page_index)
+	if tex == null or tex == book._loading_texture:
+		return -1.0
+	return tex.get_image().get_pixel(2, 2).r
+
+
+## A hardback's cover is a board: a key turn and a pointer drag both swing it on
+## its hinge with the fold line held off the fore edge (no curl). The control is
+## the same cover with hardback off, which rolls over as paper.
+func _test_hardback_cover_turns_on_its_hinge() -> void:
+	_write_cbz(CBZ_PATH, 6)
+	var cbz := ProjectSettings.globalize_path(CBZ_PATH)
+	var book := _spawn_book(cbz)
+	await _settle()
+	await _drain_renders(book)
+	var fore := book._book_width * 0.5 + 0.01
+
+	for hard: bool in [true, false]:
+		book.hardback = hard
+		book.set_page(PDFBook.BookState.CLOSED, 0)
+		await _settle()
+		_ok(book._play_turn(1, {}, 0.4), "hardback/%s: the cover starts a key turn" % hard)
+		_eq(book._leaf_rigid, hard, "hardback/%s: the cover is a board only on a hardback" % hard)
+		await get_tree().create_timer(0.2).timeout
+		var origin_x := book._fold_origin.x
+		var lift := book._leaf_lift
+		if hard:
+			_ok(absf(origin_x - fore) < 1e-3 and lift > 0.5, "hardback/true: mid turn it is up on its hinge, uncurled",
+				"fold origin %.3f (fore edge %.3f), lift %.0f deg" % [origin_x, fore, rad_to_deg(lift)])
+		else:
+			_ok(origin_x < fore - 0.01 and lift < 0.01, "hardback/false: mid turn the cover rolls as paper",
+				"fold origin %.3f, lift %.0f deg" % [origin_x, rad_to_deg(lift)])
+		await get_tree().create_timer(0.4).timeout
+		_eq(book.net_get_page()["state"], PDFBook.BookState.OPEN, "hardback/%s: the turn lands open" % hard)
+
+	# A page inside is paper whatever the covers are.
+	book.hardback = true
+	book.set_page(PDFBook.BookState.OPEN, 0)
+	await _settle()
+	book._spawn_leaf(1)
+	_ok(not book._leaf_rigid, "hardback/a page inside is never a board")
+	book._despawn_active_leaf()
+
+	# The pointer: a drag on the shut cover, held 45 degrees up from the gutter.
+	book.set_page(PDFBook.BookState.CLOSED, 0)
+	await _settle()
+	var edge := book.to_global(Vector3(book._book_width * 0.8, 0.0, 0.0))
+	book._on_page_grab_begin(1, edge)
+	var at := book.to_global(Vector3(0.1, 0.0, book._active_leaf.position.z + 0.1))
+	book._update_fold_from_hand(at)
+	_ok(absf(rad_to_deg(book._leaf_lift) - 45.0) < 2.0 and absf(book._fold_origin.x - fore) < 1e-3,
+		"hardback/a dragged cover points at the hand, uncurled", "lift %.1f deg" % rad_to_deg(book._leaf_lift))
+	book._abort_grab()
+
+	book.queue_free()
+	await _settle()
+	_remove_tree("user://pdf_cache/" + cbz.md5_text())
+	DirAccess.remove_absolute(cbz)
 
 
 ## The file is gone: the book stays a blank closed cover, and must be no bigger
@@ -509,10 +605,10 @@ func _ray_at(x: float) -> Object:
 	return hit.get("collider") as Object
 
 
-func _write_cbz(path: String) -> void:
+func _write_cbz(path: String, pages := 4) -> void:
 	var zip := ZIPPacker.new()
 	zip.open(path)
-	for i in 4:
+	for i in pages:
 		var img := Image.create(20, 28, false, Image.FORMAT_RGB8)
 		img.fill(Color(0.2 * i, 0.5, 0.5))
 		zip.start_file("page_%02d.png" % i)

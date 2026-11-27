@@ -74,7 +74,7 @@ const _NUMBER_FIELDS := [
 	# haptic (0-1) -- see TouchFeel. Absent means the screen's own.
 	"touch_mm", "lift_mm", "touch_haptic",
 ]
-const _BOOL_FIELDS := ["video_out", "ignore_gravity", "crt_enabled", "half_pages", "stuck",
+const _BOOL_FIELDS := ["video_out", "ignore_gravity", "crt_enabled", "half_pages", "right_to_left", "stuck",
 	"locked", "hardback", "sticks", "cabinet_art", "attract_on",
 	# A GBA SP's light switch (RetroSystem.get_screen_light); absent = on.
 	"screen_light",
@@ -3494,6 +3494,7 @@ func _book_fields(book: PDFBook, _node_to_id: Dictionary) -> Dictionary:
 	return {
 		"pdf_path": book.pdf_path,
 		"half_pages": book.half_page_mode,
+		"right_to_left": book.is_right_to_left(),
 		"size_scale": book.size_scale,
 		"hardback": book.hardback,
 		"page_state": int(page.get("state", 0)),
@@ -4550,6 +4551,8 @@ func _load_game_case(data: Dictionary) -> Node3D:
 func _load_book(data: Dictionary) -> Node3D:
 	var book := BOOK_SCENE.instantiate() as PDFBook
 	book.half_page_mode = data.get("half_pages", false)
+	if bool(data.get("right_to_left", false)):
+		book.reading_direction = PDFBook.ReadingDirection.RIGHT_TO_LEFT
 	book.size_scale = data.get("size_scale", 1.0)
 	book.hardback = data.get("hardback", false)
 	# A scraped manual lives under roms/<systemid>/media/, so it moves
