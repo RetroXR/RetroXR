@@ -252,7 +252,8 @@ func register_media(systemid: String, dims: Dictionary) -> bool:
 ##   uv_label  the bodies' label mesh is UV-mapped as the sticker itself.
 ##
 ## It replaces the game's own shells for that system, all of them, and one mod
-## holds a system: a second is told who has it and is not used.
+## holds a system: a second is told who has it and is not used. Use
+## add_cart_bodies to add bodies next to the system's own instead.
 func register_cart_shell(systemid: String, row: Dictionary) -> bool:
 	systemid = SystemIds.canonical(systemid)
 	var holder := ModCartShells.owner_of(systemid)
@@ -264,6 +265,41 @@ func register_cart_shell(systemid: String, row: Dictionary) -> bool:
 	if not err.is_empty():
 		return _fail("cartridge shell %s: %s" % [systemid, err])
 	_note("media", "%s cartridge shells (%d)" % [systemid, ModCartShells.bodies(systemid).size()])
+	return true
+
+
+## This adds cartridge bodies to a system next to its other bodies. The other
+## bodies come from the game's own shells or from the mod that holds the system
+## with register_cart_shell. Any number of mods can add bodies to the same system.
+## The Game Boy already works this way. Its Color and Camera bodies sit next to its
+## own.
+##
+## `row` takes the same keys as register_cart_shell. Four of them behave
+## differently here.
+##
+##   bodies    A ROM wears one of these only when choose claims it or the player
+##             picks it. The first body is never given to a ROM by default.
+##   choose    This function claims ROMs. It returns one of this row's bodies for
+##             a ROM that came in it and {} for every other ROM. Those ROMs keep
+##             the body they would have had without the mod. The game ignores an
+##             answer that names a body from another row.
+##   palette   This palette colours only these bodies. The system's own colours
+##             stay with its own bodies.
+##   tint      The game finds these materials by name on every cartridge. Name
+##             them so that the system's own bodies do not use the same names.
+##
+## The hold menu's Body row lists these bodies after the system's own, so a player
+## can spawn any ROM in one of them. A body the player picks there wins over every
+## claim. If the same mod calls this again for the same system, the new row
+## replaces the old one.
+func add_cart_bodies(systemid: String, row: Dictionary) -> bool:
+	systemid = SystemIds.canonical(systemid)
+	var err := ModCartShells.add_bodies(systemid, row, id)
+	if not err.is_empty():
+		return _fail("cartridge bodies %s: %s" % [systemid, err])
+	_note("media", "%s cartridge bodies (%d)" % [systemid, (row.get("bodies", []) as Array).size()])
+	print("[Mods] %s added %d %s cartridge bodies next to the system's own" % [
+		id, (row.get("bodies", []) as Array).size(), systemid])
 	return true
 
 
