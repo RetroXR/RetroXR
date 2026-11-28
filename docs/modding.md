@@ -501,7 +501,52 @@ Two rules. It **replaces** the game's own shells for that system, all of them: a
 mod for the N64 answers for every N64 cartridge. And **one mod holds a system**;
 a second is told who has it on its page in the MODS tab and is not used. A
 console seats a cartridge by the system's size, so bodies much larger than the
-real cartridge will not sit in the slot.
+real cartridge will not sit in the slot. To add bodies alongside the system
+default, use `add_cart_bodies` from the next section.
+
+### Adding cartridge bodies alongside the system default
+
+`add_cart_bodies` gives a system more bodies and keeps its default bodies. Use it
+for a special edition, or for a new game that a publisher made for an old console
+in a different shell. Several mods can add bodies to the same system. The
+defaults are the game's shells, or the bodies of a mod that holds the system with
+`register_cart_shell`.
+
+```gdscript
+func register(api: ModApi) -> void:
+    api.add_cart_bodies("n64", {
+        "bodies": [
+            {"id": "you.cartmod:special", "label": "Special edition",
+             "model": "res://mods/you.cartmod/special.glb", "size": Vector3(0.116, 0.0754, 0.0186)},
+        ],
+        "tint": ["Shell_Plastic"],
+        "palette": "res://mods/you.cartmod/shells.tres",
+        "choose": _claim,
+    })
+
+static func _claim(info: Dictionary) -> Dictionary:
+    if "(Special Edition)" in info["file"]:
+        return {"body": "you.cartmod:special", "preset": "you.cartmod:gold"}
+    return {}
+```
+
+The row takes the same keys as `register_cart_shell`. Four of them work
+differently here.
+
+- **`bodies`** are your shapes. A ROM gets one only when your `choose` claims it
+  or the player picks it. A ROM that nobody claims keeps its default body.
+- **`choose`** returns one of your bodies for a ROM that came in it, and `{}` for
+  every other ROM. The game ignores an answer that names another mod's body.
+- **`palette`** colours only your bodies.
+- **`tint`** names are looked up on every cartridge. Give your shell materials
+  names that the default bodies do not use, or the game paints those too.
+
+When a player holds a ROM row in the spawn menu, the Body row lists your bodies
+after the defaults. Picking one shows your colours in place of the system's. The
+player can put any ROM in your body this way, and their pick wins over every
+claim. If the system has a single default body, the row also gets a Standard
+button for it. The game saves the player's pick with the cartridge. If your mod
+is removed later, the cartridge goes back to the body the game would choose.
 
 ### Expansion units' shells, and the covers over their sockets
 

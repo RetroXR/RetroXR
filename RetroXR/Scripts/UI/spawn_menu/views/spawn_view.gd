@@ -3586,6 +3586,9 @@ func _close_game_detail_panel() -> void:
 
 ## Whether this platform's ROM rows open a sub-menu when held.
 static func _has_spawn_options(systemid: String) -> bool:
+	# A system with added bodies always has a body to pick.
+	if ModCartShells.has_added(systemid):
+		return true
 	# A mod's shells: only when there is something to choose between.
 	if ModCartShells.has(systemid):
 		return ModCartShells.bodies(systemid).size() > 1 or ModCartShells.tintable(systemid)
@@ -3677,7 +3680,8 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable, 
 	var shell_group := ButtonGroup.new()
 	var auto_shell: Button = null
 	var swatches: VBoxContainer = null
-	if not ModCartShells.has(systemid) or ModCartShells.tintable(systemid):
+	if not ModCartShells.has(systemid) or ModCartShells.tintable(systemid) \
+			or ModCartShells.added_tintable(systemid):
 		auto_shell = _swatch_button("Auto (from the ROM)", auto_color, shell_group)
 		auto_shell.button_pressed = true
 		auto_shell.pressed.connect(_pick_shell.bind(chosen, "", "", false))
@@ -3702,9 +3706,23 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable, 
 		body_options = [["Auto (from the ROM)", ""], ["Game Boy", GbcCartShell.BODY_GB],
 				["Game Boy Color (clear)", GbcCartShell.BODY_GBC],
 				["Game Boy Camera", GbCameraShell.BODY_CAMERA]]
+	# Added bodies are listed after the defaults. A system with a single default body
+	# gets a Standard button, so the player can still choose that body for a ROM that
+	# a mod claims.
+	var added_bodies := ModCartShells.added_bodies(systemid)
+	if not added_bodies.is_empty():
+		if body_options.is_empty():
+			body_options = [["Auto (from the ROM)", ""], ["Standard", ModCartShells.STANDARD_BODY]]
+		for added: Dictionary in added_bodies:
+			body_options.append([str(added["label"]), str(added["id"])])
 	if not body_options.is_empty():
 		vbox.add_child(MenuStyle.header("Body"))
-		var bodies := MenuStyle.hbox(10)
+		# Four buttons fit on one line. More than that wrap onto rows of three.
+		var bodies := GridContainer.new()
+		bodies.columns = body_options.size() if body_options.size() <= 4 else 3
+		bodies.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		bodies.add_theme_constant_override("h_separation", 10)
+		bodies.add_theme_constant_override("v_separation", 10)
 		vbox.add_child(bodies)
 		var body_group := ButtonGroup.new()
 		for body: Array in body_options:
@@ -3741,9 +3759,13 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable, 
 ## own colors on a camera, and on a cartridge the system's, which for the game's
 ## Game Boy shells are both shells' (a swatch brings its shell's body). Never the
 ## camera's on a cartridge or a cartridge's on the camera.
-static func _shell_palettes(systemid: String, camera: bool) -> Array:
+static func _shell_palettes(systemid: String, camera: bool, model := "") -> Array:
 	if camera:
 		return [["Game Boy Camera", CartridgeColor.get_palette(GbCameraShell.PALETTE)]]
+	# An added body offers only its row's colours.
+	if ModCartShells.is_added_body(systemid, model):
+		var added := CartridgeColor.get_palette(ModCartShells.palette_key(systemid, model))
+		return [["", added]] if added != null else []
 	if GbCartShell.is_shell(systemid) and not ModCartShells.has(systemid):
 		return [["Game Boy", CartridgeColor.get_palette(GbCartShell.SYSTEMID)],
 				["Game Boy Color", CartridgeColor.get_palette(GbcCartShell.PALETTE)]]
@@ -3761,22 +3783,26 @@ static func _spawns_camera(systemid: String, rom_path: String, body_region: Stri
 	return model == GbCameraShell.BODY or model == RetroCartridge.camera_body_for(systemid)
 
 
-## A hold menu's shell swatches, into `box`, for what `chosen` spawns. Asked again
-## on every Body pick, and refilled only when it turns a cartridge into the camera
-## or back; a swatch that goes with the old ones gives the choice back to Auto.
+## Every Body pick calls this to fill `box` with the shell swatches for what
+## `chosen` spawns. The swatches are rebuilt only when the palette changes. That
+## happens when a cartridge turns into the camera or back, and when the pick moves
+## to or from an added body. A rebuild sets the colour back to Auto.
 static func _fill_shell_swatches(box: VBoxContainer, systemid: String, rom_path: String,
 		chosen: Dictionary, auto_shell: Button) -> void:
 	var camera := _spawns_camera(systemid, rom_path, str(chosen["body_region"]))
-	if box.has_meta(&"camera") and bool(box.get_meta(&"camera")) == camera:
+	# The swatches change when the pick moves to a body with a different palette.
+	var model := RetroCartridge.body_model_for(systemid, rom_path, str(chosen["body_region"]), &"")
+	var key := "camera" if camera else ModCartShells.palette_key(systemid, model)
+	if box.has_meta(&"palette") and str(box.get_meta(&"palette")) == key:
 		return
-	box.set_meta(&"camera", camera)
+	box.set_meta(&"palette", key)
 	if not str(chosen["shell_preset"]).is_empty():
 		auto_shell.button_pressed = true
 		_pick_shell(chosen, "", "", false)
 	for child in box.get_children():
 		box.remove_child(child)
 		child.queue_free()
-	for entry: Array in _shell_palettes(systemid, camera):
+	for entry: Array in _shell_palettes(systemid, camera, model):
 		var palette: CartridgeShellPalette = entry[1]
 		for section: Array in [
 				["Standard", CartridgeShellPreset.Availability.STANDARD],

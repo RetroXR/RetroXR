@@ -27,7 +27,7 @@
 extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 477
+const EXPECTED_CASES := 525
 
 var _only := ""
 var _dir := ""
@@ -56,6 +56,7 @@ func _ready() -> void:
 	if _want("overlay"):     _group_overlay()
 	if _want("standins"):    _group_standins()
 	if _want("cartshell"):   await _group_cartshell()
+	if _want("cartadd"):     await _group_cartadd()
 	if _want("expshell"):    _group_expshell()
 	if _want("tvdefaults"):  _group_tv_defaults()
 	if _want("attach"):      _group_attach()
@@ -1764,6 +1765,200 @@ func _group_cartshell() -> void:
 		"cartshell/a cartridge is the box again")
 	_ok(CartridgeColor.get_palette(sysid) == null, "cartshell/and the palette is gone")
 	_ok(not MediaDimensions.has_cart_size(sysid), "cartshell/and the size")
+
+
+# ── cartadd/ ──────────────────────────────────────────────────────────────────
+
+## Mods add cartridge bodies alongside the system default, and the player picks
+## them on the hold menu's Body row.
+func _group_cartadd() -> void:
+	_hooks = ModHooks.new(get_tree())
+	var special_size := Vector3(0.116, 0.0766, 0.0185)
+	var alt_size := Vector3(0.110, 0.070, 0.017)
+	var special := _save_body("ca_special", special_size)
+	var alt := _save_body("ca_alt", alt_size)
+	var palette := CartridgeShellPalette.new()
+	var purple := CartridgeShellPreset.new()
+	purple.id = &"t.ca:purple"
+	purple.display_name = "Added Purple"
+	purple.color = Color(0.4, 0.1, 0.6)
+	palette.presets = [purple]
+	var palette_path := "%s/ca_palette.tres" % _dir
+	ResourceSaver.save(palette, palette_path)
+
+	var usa_rom := "Some Game (USA).z64"
+	var special_rom := "Some Game (Special Edition).z64"
+	var game_usa := RetroCartridge.body_model_for("n64", usa_rom, "", &"")
+	var game_for_special_rom := RetroCartridge.body_model_for("n64", special_rom, "", &"")
+	var forced_usa := RetroCartridge.body_model_for("n64", usa_rom, N64CartShell.REGION_USA, &"")
+	var game_size := MediaDimensions.cart_size("n64")
+	var game_palette := CartridgeColor.get_palette("n64")
+
+	# A refused row adds nothing.
+	var bad := _api("t.ca")
+	_ok(not bad.add_cart_bodies("n64", {"bodies": []}), "cartadd/a row with no bodies is refused")
+	_ok(not bad.add_cart_bodies("n64", {"bodies": [
+		{"id": "other.mod:special", "model": special, "size": special_size}]}),
+		"cartadd/a body in another mod's namespace is refused")
+	_ok(not ModCartShells.has_added("n64"), "cartadd/and nothing was added")
+	bad.withdraw()
+
+	var api := _api("t.ca")
+	_ok(api.add_cart_bodies("n64", {
+		"bodies": [{"id": "t.ca:special", "label": "Added Special", "model": special, "size": special_size}],
+		"palette": palette_path, "tint": ["T_Shell_Plastic"], "choose": _claim_special}),
+		"cartadd/a good row is added", api.errors_text())
+	_ok(not ModCartShells.has("n64"), "cartadd/adding bodies does not take the system over")
+	_eq((api.contributions().get("media", []) as Array), ["n64 cartridge bodies (1)"],
+		"cartadd/the mod's page lists what it added")
+
+	# These cases check which body a ROM wears.
+	_eq(RetroCartridge.body_model_for("n64", special_rom, "", &""), special,
+		"cartadd/a ROM the mod claims wears the added body")
+	_eq(RetroCartridge.body_model_for("n64", usa_rom, "", &""), game_usa,
+		"cartadd/a ROM the mod does not claim keeps the game's body")
+	_eq(RetroCartridge.body_model_for("n64", usa_rom, "t.ca:special", &""), special,
+		"cartadd/the player can force the added body on any ROM")
+	_eq(RetroCartridge.body_model_for("n64", special_rom, N64CartShell.REGION_USA, &""), forced_usa,
+		"cartadd/forcing one of the game's bodies overrides the claim")
+	_eq(RetroCartridge.body_model_for("n64", special_rom, ModCartShells.STANDARD_BODY, &""), game_for_special_rom,
+		"cartadd/Standard gives the body the game would pick")
+
+	# Its size and colours belong to the added body alone.
+	_eq(MediaDimensions.cart_size("n64", "", special), special_size, "cartadd/the added body keeps its own size")
+	_eq(MediaDimensions.cart_size("n64"), game_size, "cartadd/the system's size does not change")
+	var key := ModCartShells.palette_key("n64", special)
+	_ok(CartridgeColor.get_palette(key) != null and CartridgeColor.get_palette(key).find(&"t.ca:purple") != null,
+		"cartadd/the added body has its own palette", key)
+	_ok(CartridgeColor.get_palette("n64") == game_palette, "cartadd/the system keeps the game's palette")
+	_eq(ModCartShells.palette_key("n64", game_usa), "n64", "cartadd/the game's body uses the system's palette")
+	_eq(ModCartShells.shell_finish("n64", special_rom, special, ""), {"palette": key, "preset": &"t.ca:purple"},
+		"cartadd/a claimed ROM is painted in the colour the mod gave it")
+
+	# A real cartridge is spawned for a claimed ROM.
+	var cart := (load("res://Scenes/Objects/media/cartridge.tscn") as PackedScene).instantiate() as RetroCartridge
+	cart.systemid = "n64"
+	cart.rom_path = special_rom
+	cart.freeze = true
+	add_child(cart)
+	await get_tree().process_frame
+	var worn := cart.get_node_or_null("CartModel") as Node3D
+	_ok(worn != null and worn.get_node_or_null("Shell") != null, "cartadd/the cartridge wears the added body")
+	if worn != null and worn.get_node_or_null("Shell") != null:
+		var fitted := ((worn.get_node("Shell") as MeshInstance3D).mesh as BoxMesh).size * worn.scale
+		_ok(fitted.is_equal_approx(special_size), "cartadd/it is fitted to the added body's size", str(fitted))
+		_ok(_shown(worn, "Shell").is_equal_approx(Color(0.4, 0.1, 0.6)),
+			"cartadd/its plastic is the added palette's purple", str(_shown(worn, "Shell")))
+		_ok(_shown(worn, "Contacts").is_equal_approx(Color(0.9, 0.8, 0.2)),
+			"cartadd/and the material it did not name is left alone")
+	cart.free()
+
+	# The hold menu lists the added body after the defaults and offers its colours.
+	var holder := Control.new()
+	add_child(holder)
+	var view := SpawnMenuSpawnView.new()
+	holder.add_child(view)
+	var sent := {"options": null}
+	var spawn := func(options: Dictionary) -> void: sent["options"] = options
+	var press_text := func(text: String) -> bool:
+		for b: Node in view._spawn_options_panel.find_children("*", "Button", true, false):
+			if (b as Button).text.strip_edges() == text:
+				(b as Button).pressed.emit()
+				return true
+		return false
+	var texts := func() -> PackedStringArray:
+		var out := PackedStringArray()
+		for b: Node in view._spawn_options_panel.find_children("*", "Button", true, false):
+			out.append((b as Button).text.strip_edges())
+		return out
+	view._show_cart_spawn_options("n64", "Selftest", spawn, usa_rom)
+	var listed: PackedStringArray = texts.call()
+	_ok(listed.has("USA / PAL") and listed.has("Japan") and listed.has("Added Special"),
+		"cartadd/the Body row has the game's bodies and the added one", ", ".join(listed))
+	_ok(listed.find("Added Special") > listed.find("Japan"), "cartadd/the added body comes after the game's")
+	_ok(not listed.has("Added Purple"), "cartadd/the game's body shows the game's colours")
+	press_text.call("Added Special")
+	listed = texts.call()
+	_ok(listed.has("Added Purple"), "cartadd/picking the added body shows its colours", ", ".join(listed))
+	press_text.call("Added Purple")
+	press_text.call("+  SPAWN")
+	_ok(sent["options"] == {"body_region": "t.ca:special", "shell_preset": "t.ca:purple"},
+		"cartadd/spawning sends the picked body and colour", str(sent["options"]))
+	view._close_spawn_options_panel()
+
+	# A system with a single default body gains a Body row with a Standard choice.
+	var sysid := "t_cartadd"
+	_ok(not SpawnMenuSpawnView._has_spawn_options(sysid), "cartadd/a system with one body has no hold options")
+	var other := _api("t.cb")
+	_ok(other.add_cart_bodies(sysid, {"bodies": [
+		{"id": "t.cb:alt", "label": "Added Alt", "model": alt, "size": alt_size}], "choose": _claim_alt}),
+		"cartadd/a second mod adds a body to another system", other.errors_text())
+	_ok(SpawnMenuSpawnView._has_spawn_options(sysid), "cartadd/then its rows open the hold options")
+	view._show_cart_spawn_options(sysid, "Selftest", spawn, "Game.bin")
+	listed = texts.call()
+	_ok(listed.has("Standard") and listed.has("Added Alt"), "cartadd/the Body row offers Standard and the added body",
+		", ".join(listed))
+	view._close_spawn_options_panel()
+	holder.queue_free()
+	_eq(RetroCartridge.body_model_for(sysid, "Game.bin", "", &""), "",
+		"cartadd/a ROM nobody claims is still the procedural box")
+	_eq(RetroCartridge.body_model_for(sysid, "Alt Game.bin", "", &""), alt, "cartadd/a claimed ROM wears the added body")
+	_eq(RetroCartridge.body_model_for(sysid, "Stolen Game.bin", "", &""), "",
+		"cartadd/a claim naming another mod's body is ignored")
+	_eq(RetroCartridge.body_model_for(sysid, "Alt Game.bin", ModCartShells.STANDARD_BODY, &""), "",
+		"cartadd/Standard keeps the claim off")
+
+	# A mod that holds the system and a mod that adds to it work together.
+	var held := _api("t.cd")
+	_ok(held.register_cart_shell(sysid, {"bodies": [{"id": "t.cd:own", "model": special, "size": special_size}]}),
+		"cartadd/a third mod holds the same system", held.errors_text())
+	_eq(RetroCartridge.body_model_for(sysid, "Game.bin", "", &""), special,
+		"cartadd/an unclaimed ROM wears the holding mod's body")
+	_eq(RetroCartridge.body_model_for(sysid, "Alt Game.bin", "", &""), alt,
+		"cartadd/a claimed ROM still wears the added body")
+	_ok(SpawnMenuSpawnView._has_spawn_options(sysid), "cartadd/the hold options stay")
+
+	# Two mods add bodies to the same system.
+	_ok(other.add_cart_bodies("n64", {"bodies": [
+		{"id": "t.cb:alt", "label": "Added Alt", "model": alt, "size": alt_size}], "choose": _claim_alt}),
+		"cartadd/a second mod adds a body to the N64 too", other.errors_text())
+	var ids := ModCartShells.added_bodies("n64").map(func(b: Dictionary) -> String: return str(b["id"]))
+	_eq(ids, ["t.ca:special", "t.cb:alt"], "cartadd/both mods' bodies are listed in the order they were added")
+	_eq(RetroCartridge.body_model_for("n64", "Alt Game (USA).z64", "", &""), alt,
+		"cartadd/each mod claims its own ROMs")
+	_eq(RetroCartridge.body_model_for("n64", special_rom, "", &""), special, "cartadd/and the first mod keeps its claims")
+
+	# Withdrawing one mod takes only its bodies.
+	other.withdraw()
+	held.withdraw()
+	_ok(not ModCartShells.has_added(sysid), "cartadd/withdrawing the second mod empties the other system")
+	_eq(ModCartShells.added_bodies("n64").size(), 1, "cartadd/and leaves the first mod's body on the N64")
+	api.withdraw()
+	_ok(not ModCartShells.has_added("n64"), "cartadd/withdrawing the first mod takes its body")
+	_ok(not ModCartShells.is_tint(&"T_Shell_Plastic"), "cartadd/and its material names")
+	_eq(RetroCartridge.body_model_for("n64", special_rom, "", &""), game_for_special_rom,
+		"cartadd/the claimed ROM goes back to the game's body")
+	_eq(RetroCartridge.body_model_for("n64", usa_rom, "t.ca:special", &""), game_usa,
+		"cartadd/a saved forced body from a removed mod falls back to the game's choice")
+
+
+## The first test mod claims ROMs tagged (Special Edition). The function is static
+## because a mod's choose function must be.
+static func _claim_special(info: Dictionary) -> Dictionary:
+	if "(Special Edition)" in str(info.get("file", "")):
+		return {"body": "t.ca:special", "preset": "t.ca:purple"}
+	return {}
+
+
+## The second test mod claims ROMs named Alt. For one ROM it names the first mod's
+## body, and the game must ignore that answer.
+static func _claim_alt(info: Dictionary) -> Dictionary:
+	var file := str(info.get("file", ""))
+	if file.begins_with("Alt"):
+		return {"body": "t.cb:alt"}
+	if file.begins_with("Stolen"):
+		return {"body": "t.ca:special"}
+	return {}
 
 
 # ── expshell/ ─────────────────────────────────────────────────────────────────

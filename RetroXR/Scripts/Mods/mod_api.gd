@@ -252,7 +252,8 @@ func register_media(systemid: String, dims: Dictionary) -> bool:
 ##   uv_label  the bodies' label mesh is UV-mapped as the sticker itself.
 ##
 ## It replaces the game's own shells for that system, all of them, and one mod
-## holds a system: a second is told who has it and is not used.
+## holds a system: a second is told who has it and is not used. A mod that wants
+## to add bodies alongside the system default should call add_cart_bodies.
 func register_cart_shell(systemid: String, row: Dictionary) -> bool:
 	systemid = SystemIds.canonical(systemid)
 	var holder := ModCartShells.owner_of(systemid)
@@ -264,6 +265,37 @@ func register_cart_shell(systemid: String, row: Dictionary) -> bool:
 	if not err.is_empty():
 		return _fail("cartridge shell %s: %s" % [systemid, err])
 	_note("media", "%s cartridge shells (%d)" % [systemid, ModCartShells.bodies(systemid).size()])
+	return true
+
+
+## A mod calls add_cart_bodies to add cartridge bodies alongside a system's
+## default bodies. The defaults come from the game's shells, or from a mod that
+## called register_cart_shell for the system. Several mods can add bodies to the
+## same system.
+##
+## `row` takes the same keys as register_cart_shell, and four of them work
+## differently here.
+##
+##   bodies    A ROM gets one of these only when choose claims it or the player
+##             picks it. A ROM that nobody claims keeps its default body.
+##   choose    Return one of the row's bodies for a ROM that came in it, and {}
+##             for any other ROM. The game ignores an answer that names another
+##             row's body.
+##   palette   These colours are offered only on the row's bodies.
+##   tint      The game looks these material names up on every cartridge, so they
+##             must not match material names on the default bodies.
+##
+## The Body row in the hold menu lists the added bodies after the defaults. The
+## player can pick one for any ROM, and that pick wins over every claim. Calling
+## this again for the same system replaces the mod's earlier row.
+func add_cart_bodies(systemid: String, row: Dictionary) -> bool:
+	systemid = SystemIds.canonical(systemid)
+	var err := ModCartShells.add_bodies(systemid, row, id)
+	if not err.is_empty():
+		return _fail("cartridge bodies %s: %s" % [systemid, err])
+	_note("media", "%s cartridge bodies (%d)" % [systemid, (row.get("bodies", []) as Array).size()])
+	print("[Mods] %s added %d cartridge bodies to %s" % [
+		id, (row.get("bodies", []) as Array).size(), systemid])
 	return true
 
 

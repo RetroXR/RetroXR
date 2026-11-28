@@ -178,6 +178,36 @@ Still OWED: a cartridge mod for a system the game has NO body for, one whose bod
 differ in size, and any of it on a Quest -- that mod's bodies are 72 mesh nodes
 each, against the shipped Quest tier's 9.
 
+**Mods can add cartridge bodies alongside the system default (2026-11-27).**
+`ModApi.add_cart_bodies` passes a mod's row to `ModCartShells.add_bodies`, and any number
+of mods can add rows for one system. The default bodies come from the game's shells, or
+from the mod that holds the system. An added row claims a ROM when its `choose` returns
+one of the row's bodies. The game ignores an answer that names another row's body, and a
+ROM that no row claims keeps its default body.
+
+`RetroCartridge.body_model_for` asks `ModCartShells.added_model` first. `added_model`
+works through these cases in order.
+
+1. The player forced an added body, and that body wins.
+2. The Body row is on Auto, and the first added row that claims the ROM wins.
+3. The player forced some other body, and `added_model` returns `""` without asking any
+   row.
+
+The Standard button sends `STANDARD_BODY` (`"standard"`). The Body row shows it when the
+system has a single default body and mods have added others. It falls under case 3, and
+after that `body_model_for` treats it as Auto.
+
+`ModCartShells.palette_key` gives each added row's colours the key
+`<mod id>@<systemid>`, and `CartridgeColor.get_palette` resolves that key. A row's palette
+is therefore used only on that row's bodies. Tint names work differently. The game
+matches them by material name on every cartridge, and a holding mod's tint names are
+matched the same way. A default body with a material of the same name would be painted
+too. The hold menu lists added bodies after the defaults and rebuilds the swatches when
+the pick moves to a body with a different palette. The game does not run `demetal` on an
+added body, and it does not add the extras that its shells put on a body. A PAL Super
+Famicom cartridge's rear sticker is one of those extras. A holding mod's bodies are left
+alone in the same way. Cases are in `mod_tests --only=cartadd`.
+
 **The app downloads mods from mod.io, and from nowhere else** (reversed
 2026-10-06; this paragraph used to say "no in-app browser, no download"). The old
 objection was that the moment the app becomes the transport it owns what is inside

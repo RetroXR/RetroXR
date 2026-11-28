@@ -273,6 +273,15 @@ static func uses_fallback_market(p_systemid: String, p_rom_path: String) -> bool
 ## a Quest (an N64 cart in a room restore) when it was not.
 static func body_model_for(p_systemid: String, p_rom_path: String, p_body_region: String,
 		p_shell_preset: StringName, p_fallback_market := "") -> String:
+	# Bodies that mods added alongside the system default are checked first. The player
+	# may have forced one, or an added row may claim this ROM while the body is on Auto.
+	var added := ModCartShells.added_model(p_systemid, p_rom_path, p_body_region)
+	if not added.is_empty():
+		return added
+	# The Standard button keeps the added bodies off this cartridge. From here on it
+	# means Auto, so the default body is picked from the ROM.
+	if p_body_region == ModCartShells.STANDARD_BODY:
+		p_body_region = ""
 	# A mod's shells for this system stand in for the game's own, all of them. The
 	# camera stays a camera: its ROM, or one of its colors, asks for the mod's camera
 	# body, or the game's if the mod has none.
@@ -330,7 +339,7 @@ func _apply_cart_model() -> void:
 		ArcadeShadowBudget.trim(glb)    # a bare PCB: its chips and capacitors are all under 10 cm
 	# Moulded plastic exported with a high metallicFactor reads as a dark mirror
 	# rather than a grey shell — the NES cart ships metallic 0.76.
-	var mod_shell := ModCartShells.has(systemid)
+	var mod_shell := ModCartShells.has(systemid) or ModCartShells.is_added_body(systemid, path)
 	# A mod's body is its author's own PBR, like the game's own authored ones.
 	if not _AUTHORED_MATERIALS.has(systemid) and not mod_shell:
 		ModelMaterialFix.demetal(glb)
@@ -1119,8 +1128,7 @@ func _apply_label_art() -> void:
 	if _model_label != null and _SPINE_LABELS.has(systemid):
 		_dress_spine_label(tex)
 		return
-	var uv_label := ModCartShells.uv_label(systemid) if ModCartShells.has(systemid) \
-		else _UV_LABELS.has(systemid)
+	var uv_label := ModCartShells.label_is_uv(systemid, _body_model(), _UV_LABELS.has(systemid))
 	if _model_label != null and uv_label:
 		_dress_uv_label(tex)
 		return
