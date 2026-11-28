@@ -46,6 +46,7 @@ const LABELS := {
 	"iec_aerial_plug": "a Belling-Lee aerial plug",
 	"twinlead_spade": "a pair of twin-lead spade lugs",
 	"usb_b": "a USB-B plug",
+	"usb_c": "a USB-C plug",
 	"jst_vl8": "a NAOMI power plug",
 	"gd_50pin": "a GD-ROM cable plug",
 	"n64_av_plug": "a Nintendo Multi Out plug",

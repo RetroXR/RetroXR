@@ -1746,6 +1746,14 @@ func _test_mod_brick() -> void:
 	_ok(PowerInput.of(unit).is_live(), "modbrick/and powers it", PowerInput.of(unit).describe())
 	_ok(not PowerBrickCatalog.register_mod_brick("test.mod:mk1602", good, "other.mod").is_empty(),
 		"modbrick/a second mod cannot take the same id")
+	# Some modern consoles take their power through USB-C, so a mod's adapter can have that plug.
+	var usb_c := good.duplicate(true)
+	usb_c.erase("takes")
+	usb_c["dc_plug"] = "usb_c"
+	_eq(PowerBrickCatalog.register_mod_brick("test.mod:usbc", usb_c, "test.mod"), "",
+		"modbrick/an adapter with a USB-C plug takes")
+	_eq(str(PowerBrickCatalog.variant("test.mod:usbc", "usa").get("dc_plug", "")), "usb_c",
+		"modbrick/and its plug is USB-C")
 	PowerBrickCatalog.drop_mod("test.mod")
 	_ok(not PowerBrickCatalog.has("test.mod:mk1602"), "modbrick/the mod gone, it is gone")
 	await _clear()
