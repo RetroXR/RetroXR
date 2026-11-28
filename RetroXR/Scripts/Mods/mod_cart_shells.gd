@@ -17,11 +17,10 @@
 ## away, because the game cannot use two answers to the question of which shell a
 ## ROM wears.
 ##
-## Other mods can still add bodies to a system with add_bodies(). The Game Boy
-## already works this way. Its Color and Camera bodies sit next to its own. An
-## added row's function claims the ROMs that came in its bodies and returns
-## nothing for the others. Those ROMs keep the body they would have had without
-## the mod. The row's palette and tint apply only to its own bodies.
+## Any number of mods can add bodies alongside the system default with
+## add_bodies(). Each added row's choose function claims the ROMs that came in its
+## bodies, and every other ROM keeps its default body. The row's palette and tint
+## are used only on the row's bodies.
 class_name ModCartShells
 extends RefCounted
 
@@ -31,20 +30,20 @@ static var _shells: Dictionary = {}
 ## "systemid|rom_path" -> what the mod's function answered. It may open the ROM
 ## to read its header, and a cartridge asks for its body on every drop.
 static var _choices: Dictionary = {}
-## This holds the rows that mods have added. Its keys are systemids, and each list
-## keeps its rows in the order they arrived. Each mod has at most one row per
-## system. A row has the same keys as a _shells entry.
+## systemid -> the rows from add_bodies(). The list keeps them in the order they
+## arrived, and a mod has at most one row in it. A row has the same keys as a
+## _shells entry.
 static var _added: Dictionary = {}
-## This caches the answers from added rows' functions. Its keys are
-## "owner|systemid|rom_path".
+## "owner|systemid|rom_path" -> what that row's choose function answered.
 static var _added_choices: Dictionary = {}
 
-## The Body row offers this id as its Standard button on a system that has only
-## one body of its own. When the player forces it, added_model asks no added row.
-## RetroCartridge.body_model_for then treats it as Auto.
+## The Body row shows a Standard button when a system has a single default body
+## and mods have added others. That button sends this id. With it forced, no added
+## row can claim the ROM, and RetroCartridge.body_model_for then picks the body as
+## it would on Auto.
 const STANDARD_BODY := "standard"
-## This character joins a row's owner and systemid into its palette key. No
-## systemid contains it.
+## palette_key joins a row's owner and systemid with this character. No systemid
+## contains it.
 const _KEY_JOIN := "@"
 
 ## The game's own shells, by systemid, filled on first use. Each entry holds the
@@ -72,9 +71,9 @@ static func register(systemid: String, row: Dictionary, owner_id: String) -> Str
 	return ""
 
 
-## This adds a mod's bodies to a system next to the system's own shells. If the
-## mod already added a row for this system, the new row replaces it. It returns ""
-## on success and the reason otherwise.
+## ModApi.add_cart_bodies calls this with a mod's row. The row is stored for the
+## system, and it replaces an earlier row from the same mod. The return value is
+## "" when the row is stored and the reason for refusing it otherwise.
 static func add_bodies(systemid: String, row: Dictionary, owner_id: String) -> String:
 	if systemid.is_empty():
 		return "no systemid"
@@ -89,8 +88,8 @@ static func add_bodies(systemid: String, row: Dictionary, owner_id: String) -> S
 	return ""
 
 
-## This checks a row. It returns {entry} when the row is good and {error} when it
-## is not.
+## register() and add_bodies() both check a row here. The result holds "entry"
+## when the row is good and "error" when it is not.
 static func _parse(row: Dictionary, owner_id: String) -> Dictionary:
 	var listed: Variant = row.get("bodies", [])
 	if not (listed is Array) or (listed as Array).is_empty():
@@ -214,7 +213,7 @@ static func preset_for(systemid: String, rom_path: String) -> StringName:
 
 
 ## True size of the body that is `model`, or Vector3.ZERO when it is not one of
-## this system's mod bodies. Added bodies count too.
+## this system's mod bodies. Bodies from add_bodies() are included.
 static func size_of(systemid: String, model: String) -> Vector3:
 	for body: Dictionary in ((_shells.get(systemid, {}) as Dictionary).get("bodies", []) as Array):
 		if str(body["model"]) == model:
@@ -251,8 +250,8 @@ static func choice(systemid: String, rom_path: String) -> Dictionary:
 	return answer
 
 
-## This asks a row's function about a ROM. It returns {} when the row has no
-## function or the function says nothing.
+## choice() and _added_choice() call a row's choose function through this. The
+## answer is {} when the row has no function or the function returns nothing.
 static func _ask(choose: Callable, systemid: String, rom_path: String) -> Dictionary:
 	if not choose.is_valid():
 		return {}
@@ -264,14 +263,14 @@ static func _ask(choose: Callable, systemid: String, rom_path: String) -> Dictio
 	return (said as Dictionary) if said is Dictionary else {}
 
 
-# --- Bodies that mods add next to a system's own (add_bodies) ---
+# --- Bodies that mods add alongside the system default (add_bodies) ---
 
 static func has_added(systemid: String) -> bool:
 	return not (_added.get(systemid, []) as Array).is_empty()
 
 
-## This returns every added body of the system in the order the mods added them.
-## Each body is a dictionary with id, label, model and size.
+## The hold menu's Body row gets the added bodies from here, in the order the mods
+## added them. Each body is a dictionary with id, label, model and size.
 static func added_bodies(systemid: String) -> Array:
 	var out: Array = []
 	for row: Dictionary in (_added.get(systemid, []) as Array):
@@ -279,8 +278,8 @@ static func added_bodies(systemid: String) -> Array:
 	return out
 
 
-## This returns true when at least one added row for the system names materials
-## to colour.
+## The result is true when at least one added row for the system names materials
+## to colour. The hold menu offers colours in that case.
 static func added_tintable(systemid: String) -> bool:
 	for row: Dictionary in (_added.get(systemid, []) as Array):
 		if not (row["tint"] as Array).is_empty():
@@ -288,11 +287,11 @@ static func added_tintable(systemid: String) -> bool:
 	return false
 
 
-## This returns the model of the added body a cartridge wears. It returns "" when
-## the cartridge wears none. An added body that the player forced comes first.
-## When the body is left on Auto, the first added row whose function claims the
-## ROM decides. When the player forced any other body, no added row is asked.
-## STANDARD_BODY counts as one of those other bodies.
+## RetroCartridge.body_model_for asks this first. The answer is the model path of
+## the added body the cartridge wears, or "" when it wears none of them. A forced
+## added body wins. On Auto, the first added row that claims the ROM decides. If
+## the player forced any other body, no added row is asked. STANDARD_BODY is one
+## of those other bodies.
 static func added_model(systemid: String, rom_path: String, forced_body: String) -> String:
 	if not has_added(systemid):
 		return ""
@@ -309,26 +308,27 @@ static func added_model(systemid: String, rom_path: String, forced_body: String)
 	return ""
 
 
-## This returns true when `model` is one of the system's added bodies.
+## The result is true when an added row for the system lists `model`.
 static func is_added_body(systemid: String, model: String) -> bool:
 	return not _added_row_of(systemid, model).is_empty()
 
 
-## This returns the key that CartridgeColor.get_palette uses for a body's colours.
-## An added body's key is made from its mod and its system. Every other body uses
-## the systemid.
+## CartridgeColor.get_palette looks a body's colours up by this key. An added
+## body's key joins its mod's id and the systemid, so each mod's palette stays
+## separate. A default body's key is the systemid.
 static func palette_key(systemid: String, model: String) -> String:
 	var row := _added_row_of(systemid, model)
 	return systemid if row.is_empty() else "%s%s%s" % [row["owner"], _KEY_JOIN, systemid]
 
 
-## This returns true when `key` came from palette_key for an added body.
+## A key from palette_key belongs to an added body when it contains _KEY_JOIN.
 static func is_palette_key(key: String) -> bool:
 	return key.contains(_KEY_JOIN)
 
 
-## This returns the palette for an added body's key. It returns null when no added
-## row has that key or the row brought no palette.
+## CartridgeColor.get_palette calls this for an added body's key. The result is
+## the palette of the row that the key names. It is null when no row matches or
+## the row brought no palette.
 static func palette_by_key(key: String) -> CartridgeShellPalette:
 	var owner := key.get_slice(_KEY_JOIN, 0)
 	var systemid := key.get_slice(_KEY_JOIN, 1)
@@ -338,10 +338,9 @@ static func palette_by_key(key: String) -> CartridgeShellPalette:
 	return null
 
 
-## This returns true when the label mesh of the body at `model` is UV-mapped as
-## the sticker. An added body's row decides for its own bodies. For any other body
-## the mod that holds the system decides. With no such mod the answer is
-## `game_default`.
+## The result says whether the label mesh of the body at `model` is UV-mapped as
+## the sticker. An added row answers for its bodies. Otherwise the mod that holds
+## the system answers, and with no such mod the answer is `game_default`.
 static func label_is_uv(systemid: String, model: String, game_default: bool) -> bool:
 	var row := _added_row_of(systemid, model)
 	if not row.is_empty():
@@ -400,7 +399,8 @@ static func body_model(systemid: String, rom_path: String, body_region: String,
 ## shell that named no tint, or a system with no shell colours.
 static func shell_finish(systemid: String, rom_path: String, model_path: String,
 		pinned: String) -> Dictionary:
-	# An added body uses its own row's palette and the colour its function gave the ROM.
+	# An added body takes its palette from its row. Its colour is the preset that the
+	# row's choose function gave the ROM.
 	var row := _added_row_of(systemid, model_path)
 	if not row.is_empty():
 		if (row["tint"] as Array).is_empty():

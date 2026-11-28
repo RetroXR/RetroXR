@@ -501,16 +501,15 @@ Two rules. It **replaces** the game's own shells for that system, all of them: a
 mod for the N64 answers for every N64 cartridge. And **one mod holds a system**;
 a second is told who has it on its page in the MODS tab and is not used. A
 console seats a cartridge by the system's size, so bodies much larger than the
-real cartridge will not sit in the slot. The next section shows how to add
-bodies with `add_cart_bodies` and keep the others.
+real cartridge will not sit in the slot. To add bodies alongside the system
+default, use `add_cart_bodies` from the next section.
 
-### Adding cartridge bodies next to the others
+### Adding cartridge bodies alongside the system default
 
-A mod can add bodies to a system and leave its shells alone. This suits a
-cartridge that a modern publisher makes for an old console. It also suits a
-special edition that came in a shell of its own. Any number of mods can add
-bodies to the same system. Their bodies work alongside the game's own shells.
-They also work alongside the bodies of a mod that holds the system with
+`add_cart_bodies` gives a system more bodies and keeps its default bodies. Use it
+for a special edition, or for a new game that a publisher made for an old console
+in a different shell. Several mods can add bodies to the same system. The
+defaults are the game's shells, or the bodies of a mod that holds the system with
 `register_cart_shell`.
 
 ```gdscript
@@ -534,25 +533,20 @@ static func _claim(info: Dictionary) -> Dictionary:
 The row takes the same keys as `register_cart_shell`. Four of them work
 differently here.
 
-- **`bodies`** lists your bodies. A ROM wears one of them only when your `choose`
-  claims it or the player picks it. Your first body is never given to a ROM by
-  default.
-- **`choose`** claims ROMs. Return one of your bodies for a ROM that came in it,
-  and return `{}` for every other ROM. A ROM you do not claim keeps the body it
-  would have had without your mod. The game ignores an answer that names another
-  mod's body.
-- **`palette`** and **`tint`** apply only to your bodies. The system's own colours
-  stay on its own bodies. The game finds the `tint` materials by name on every
-  cartridge, so give your shell materials names that the system's own bodies do
-  not use.
+- **`bodies`** are your shapes. A ROM gets one only when your `choose` claims it
+  or the player picks it. A ROM that nobody claims keeps its default body.
+- **`choose`** returns one of your bodies for a ROM that came in it, and `{}` for
+  every other ROM. The game ignores an answer that names another mod's body.
+- **`palette`** colours only your bodies.
+- **`tint`** names are looked up on every cartridge. Give your shell materials
+  names that the default bodies do not use, or the game paints those too.
 
 When a player holds a ROM row in the spawn menu, the Body row lists your bodies
-after the system's own. Picking one of them shows your colours in place of the
-system's. The player can spawn any ROM in your body this way, and a body they pick
-wins over every claim. A system with only one body of its own gets a Standard
-button next to yours, so the player can still pick the original. When the player
-picks a body, the game saves that choice with the cartridge. If your mod is
-removed later, that cartridge goes back to the body the game would choose.
+after the defaults. Picking one shows your colours in place of the system's. The
+player can put any ROM in your body this way, and their pick wins over every
+claim. If the system has a single default body, the row also gets a Standard
+button for it. The game saves the player's pick with the cartridge. If your mod
+is removed later, the cartridge goes back to the body the game would choose.
 
 ### Expansion units' shells, and the covers over their sockets
 

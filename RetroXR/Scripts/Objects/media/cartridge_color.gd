@@ -135,8 +135,7 @@ static var _palettes := {}
 
 ## The palette for a system, or null when it has none.
 static func get_palette(systemid := "n64") -> CartridgeShellPalette:
-	# A body that a mod added next to a system's own brings its own colours. They are
-	# stored under the key from ModCartShells.palette_key.
+	# A key from ModCartShells.palette_key names the palette of an added body.
 	if ModCartShells.is_palette_key(systemid):
 		return ModCartShells.palette_by_key(systemid)
 	# A mod that brings this system's shells brings their colours too, or none:

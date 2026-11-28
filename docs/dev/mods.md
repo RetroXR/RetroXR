@@ -178,34 +178,35 @@ Still OWED: a cartridge mod for a system the game has NO body for, one whose bod
 differ in size, and any of it on a Quest -- that mod's bodies are 72 mesh nodes
 each, against the shipped Quest tier's 9.
 
-**Mods can add cartridge bodies next to a system's own (2026-11-27).**
-`ModApi.add_cart_bodies` and `ModCartShells.add_bodies` let any number of mods add bodies
-to one system. The Game Boy already has its Color and Camera bodies next to its own in
-the same way. Every ROM that no added row claims still gets its body from the game's own
-shells. When a mod holds the system, that mod's shells answer instead. An added row's
-`choose` claims a ROM by naming one of its own bodies. The game ignores an answer that
-names another row's body.
+**Mods can add cartridge bodies alongside the system default (2026-11-27).**
+`ModApi.add_cart_bodies` passes a mod's row to `ModCartShells.add_bodies`, and any number
+of mods can add rows for one system. The default bodies come from the game's shells, or
+from the mod that holds the system. An added row claims a ROM when its `choose` returns
+one of the row's bodies. The game ignores an answer that names another row's body, and a
+ROM that no row claims keeps its default body.
 
-`RetroCartridge.body_model_for` asks `ModCartShells.added_model` before anything else,
-and `added_model` decides in this order.
+`RetroCartridge.body_model_for` asks `ModCartShells.added_model` first. `added_model`
+works through these cases in order.
 
-1. If the player forced an added body, that body wins.
-2. If the Body row is on Auto, the first added row whose `choose` claims the ROM wins.
-3. If the player forced any other body, `added_model` asks no row and returns `""`.
+1. The player forced an added body, and that body wins.
+2. The Body row is on Auto, and the first added row that claims the ROM wins.
+3. The player forced some other body, and `added_model` returns `""` without asking any
+   row.
 
-`STANDARD_BODY` (`"standard"`) is the id of the Body row's Standard button. The row
-offers it on a system that has only one body of its own. It falls under the third case,
-and after that `body_model_for` treats it as Auto.
+The Standard button sends `STANDARD_BODY` (`"standard"`). The Body row shows it when the
+system has a single default body and mods have added others. It falls under case 3, and
+after that `body_model_for` treats it as Auto.
 
-An added body's colours are stored under a palette key of its own.
-`ModCartShells.palette_key` builds that key as `<mod id>@<systemid>`, and
-`CartridgeColor.get_palette` resolves it. So an added row's palette never reaches the
-system's own bodies. Its `tint` names are matched by material name on every cartridge,
-as a holding mod's are. They stay off the system's own bodies only while those bodies
-use other material names. The hold menu lists added bodies after the system's own. It
-refills the swatches when the pick moves to a body with a different palette. The game
-never runs `demetal` on an added body and gives it none of its own dressing. It treats a
-holding mod's bodies the same way. Cases are in `mod_tests --only=cartadd`.
+`ModCartShells.palette_key` gives each added row's colours the key
+`<mod id>@<systemid>`, and `CartridgeColor.get_palette` resolves that key. A row's palette
+is therefore used only on that row's bodies. Tint names work differently. The game
+matches them by material name on every cartridge, and a holding mod's tint names are
+matched the same way. A default body with a material of the same name would be painted
+too. The hold menu lists added bodies after the defaults and rebuilds the swatches when
+the pick moves to a body with a different palette. The game does not run `demetal` on an
+added body, and it does not add the extras that its shells put on a body. A PAL Super
+Famicom cartridge's rear sticker is one of those extras. A holding mod's bodies are left
+alone in the same way. Cases are in `mod_tests --only=cartadd`.
 
 **The app downloads mods from mod.io, and from nowhere else** (reversed
 2026-10-06; this paragraph used to say "no in-app browser, no download"). The old

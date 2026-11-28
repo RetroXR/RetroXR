@@ -273,13 +273,13 @@ static func uses_fallback_market(p_systemid: String, p_rom_path: String) -> bool
 ## a Quest (an N64 cart in a room restore) when it was not.
 static func body_model_for(p_systemid: String, p_rom_path: String, p_body_region: String,
 		p_shell_preset: StringName, p_fallback_market := "") -> String:
-	# A mod may have added bodies next to the system's own. The player may have forced
-	# one of them, or a mod's function may claim this ROM while the body is on Auto.
+	# Bodies that mods added alongside the system default are checked first. The player
+	# may have forced one, or an added row may claim this ROM while the body is on Auto.
 	var added := ModCartShells.added_model(p_systemid, p_rom_path, p_body_region)
 	if not added.is_empty():
 		return added
-	# STANDARD_BODY forces the system's own body over the added ones. The code below
-	# treats it as Auto.
+	# The Standard button keeps the added bodies off this cartridge. From here on it
+	# means Auto, so the default body is picked from the ROM.
 	if p_body_region == ModCartShells.STANDARD_BODY:
 		p_body_region = ""
 	# A mod's shells for this system stand in for the game's own, all of them. The

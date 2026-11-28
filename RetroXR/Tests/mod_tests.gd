@@ -1769,8 +1769,8 @@ func _group_cartshell() -> void:
 
 # ── cartadd/ ──────────────────────────────────────────────────────────────────
 
-## Mods add cartridge bodies next to a system's own, and the player picks them on
-## the hold menu's Body row.
+## Mods add cartridge bodies alongside the system default, and the player picks
+## them on the hold menu's Body row.
 func _group_cartadd() -> void:
 	_hooks = ModHooks.new(get_tree())
 	var special_size := Vector3(0.116, 0.0766, 0.0185)
@@ -1812,7 +1812,7 @@ func _group_cartadd() -> void:
 	_eq((api.contributions().get("media", []) as Array), ["n64 cartridge bodies (1)"],
 		"cartadd/the mod's page lists what it added")
 
-	# Which body a ROM wears.
+	# These cases check which body a ROM wears.
 	_eq(RetroCartridge.body_model_for("n64", special_rom, "", &""), special,
 		"cartadd/a ROM the mod claims wears the added body")
 	_eq(RetroCartridge.body_model_for("n64", usa_rom, "", &""), game_usa,
@@ -1835,7 +1835,7 @@ func _group_cartadd() -> void:
 	_eq(ModCartShells.shell_finish("n64", special_rom, special, ""), {"palette": key, "preset": &"t.ca:purple"},
 		"cartadd/a claimed ROM is painted in the colour the mod gave it")
 
-	# A real cartridge of a claimed ROM.
+	# A real cartridge is spawned for a claimed ROM.
 	var cart := (load("res://Scenes/Objects/media/cartridge.tscn") as PackedScene).instantiate() as RetroCartridge
 	cart.systemid = "n64"
 	cart.rom_path = special_rom
@@ -1853,7 +1853,7 @@ func _group_cartadd() -> void:
 			"cartadd/and the material it did not name is left alone")
 	cart.free()
 
-	# The hold menu lists the added body after the game's own and offers its colours.
+	# The hold menu lists the added body after the defaults and offers its colours.
 	var holder := Control.new()
 	add_child(holder)
 	var view := SpawnMenuSpawnView.new()
@@ -1886,7 +1886,7 @@ func _group_cartadd() -> void:
 		"cartadd/spawning sends the picked body and colour", str(sent["options"]))
 	view._close_spawn_options_panel()
 
-	# A system with one body of its own gains a Body row with a Standard choice.
+	# A system with a single default body gains a Body row with a Standard choice.
 	var sysid := "t_cartadd"
 	_ok(not SpawnMenuSpawnView._has_spawn_options(sysid), "cartadd/a system with one body has no hold options")
 	var other := _api("t.cb")

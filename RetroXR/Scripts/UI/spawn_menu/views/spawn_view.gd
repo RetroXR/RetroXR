@@ -3586,7 +3586,7 @@ func _close_game_detail_panel() -> void:
 
 ## Whether this platform's ROM rows open a sub-menu when held.
 static func _has_spawn_options(systemid: String) -> bool:
-	# When a mod has added bodies to the system, the player always has a body to pick.
+	# A system with added bodies always has a body to pick.
 	if ModCartShells.has_added(systemid):
 		return true
 	# A mod's shells: only when there is something to choose between.
@@ -3706,9 +3706,9 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable, 
 		body_options = [["Auto (from the ROM)", ""], ["Game Boy", GbcCartShell.BODY_GB],
 				["Game Boy Color (clear)", GbcCartShell.BODY_GBC],
 				["Game Boy Camera", GbCameraShell.BODY_CAMERA]]
-	# Bodies that mods added come after the system's own. A system with only one body
-	# of its own gets a Standard button, so the player can still pick it over a body
-	# that a mod claims for this ROM.
+	# Added bodies are listed after the defaults. A system with a single default body
+	# gets a Standard button, so the player can still choose that body for a ROM that
+	# a mod claims.
 	var added_bodies := ModCartShells.added_bodies(systemid)
 	if not added_bodies.is_empty():
 		if body_options.is_empty():
@@ -3762,7 +3762,7 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable, 
 static func _shell_palettes(systemid: String, camera: bool, model := "") -> Array:
 	if camera:
 		return [["Game Boy Camera", CartridgeColor.get_palette(GbCameraShell.PALETTE)]]
-	# A body that a mod added offers its own colours and none of the system's.
+	# An added body offers only its row's colours.
 	if ModCartShells.is_added_body(systemid, model):
 		var added := CartridgeColor.get_palette(ModCartShells.palette_key(systemid, model))
 		return [["", added]] if added != null else []
@@ -3783,11 +3783,10 @@ static func _spawns_camera(systemid: String, rom_path: String, body_region: Stri
 	return model == GbCameraShell.BODY or model == RetroCartridge.camera_body_for(systemid)
 
 
-## This fills `box` with the shell swatches for what `chosen` spawns. It runs again
-## on every Body pick and refills the swatches only when the palette changes. That
-## happens when a cartridge turns into the camera or back, or when the pick moves
-## to or from a body that a mod added. When the swatches are refilled, the colour
-## choice goes back to Auto.
+## Every Body pick calls this to fill `box` with the shell swatches for what
+## `chosen` spawns. The swatches are rebuilt only when the palette changes. That
+## happens when a cartridge turns into the camera or back, and when the pick moves
+## to or from an added body. A rebuild sets the colour back to Auto.
 static func _fill_shell_swatches(box: VBoxContainer, systemid: String, rom_path: String,
 		chosen: Dictionary, auto_shell: Button) -> void:
 	var camera := _spawns_camera(systemid, rom_path, str(chosen["body_region"]))
